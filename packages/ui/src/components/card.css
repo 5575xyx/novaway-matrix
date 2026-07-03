@@ -1,0 +1,101 @@
+[data-component="card"] {
+  --card-pad-y: 14px;
+  --card-pad-r: 16px;
+  --card-pad-l: 16px;
+
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: var(--surface-base);
+  border: 1px solid var(--border-weak-base);
+  border-radius: var(--radius-lg);
+  padding: var(--card-pad-y) var(--card-pad-r) var(--card-pad-y) var(--card-pad-l);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease-in-out;
+
+  /* text-14-regular */
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-base);
+  font-style: normal;
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-large);
+  letter-spacing: var(--letter-spacing-normal);
+  color: var(--text-strong);
+
+  --card-gap: 10px;
+  --card-icon: 20px;
+  --card-indent: 0px;
+  --card-line-pad: 12px;
+
+  --card-accent: var(--interactive-base);
+
+  &:hover {
+    border-color: var(--border-base);
+    box-shadow: var(--shadow-md);
+  }
+
+  &:has([data-slot="card-title"]) {
+    gap: 10px;
+  }
+
+  &:has([data-slot="card-title-icon"]) {
+    --card-indent: calc(var(--card-icon) + var(--card-gap));
+  }
+
+  &::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: var(--card-line-pad);
+    bottom: var(--card-line-pad);
+    width: 4px;
+    border-radius: 0 4px 4px 0;
+    background: linear-gradient(180deg, var(--interactive-base) 0%, var(--accent-base) 100%);
+  }
+
+  :where([data-card="title"], [data-slot="card-title"]) {
+    color: var(--text-strong);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  :where([data-slot="card-title"]) {
+    display: flex;
+    align-items: center;
+    gap: var(--card-gap);
+  }
+
+  :where([data-slot="card-title"]) [data-component="icon"] {
+    color: var(--card-accent);
+  }
+
+  :where([data-slot="card-title-icon"]) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--card-icon);
+    height: var(--card-icon);
+    flex: 0 0 auto;
+  }
+
+  :where([data-slot="card-title-icon"][data-placeholder]) [data-component="icon"] {
+    color: var(--text-weak);
+  }
+
+  :where([data-slot="card-title-icon"])
+    [data-slot="icon-svg"]
+    :is(path, line, polyline, polygon, rect, circle, ellipse)[stroke] {
+    stroke-width: 2px !important;
+  }
+
+  :where([data-card="description"], [data-slot="card-description"]) {
+    color: var(--text-base);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  :where([data-card="actions"], [data-slot="card-actions"]) {
+    padding-left: var(--card-indent);
+  }
+}

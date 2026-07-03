@@ -1,0 +1,38 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"],
+      "enabled": true
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "enabled": true
+    },
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "enabled": true
+    },
+    "browser": {
+      "command": "npx",
+      "args": ["-y", "@anthropic-ai/mcp-browser"],
+      "enabled": true
+    },
+    "desktop-commander": {
+      "command": "npx",
+      "args": ["-y", "@anthropic-ai/mcp-desktop-commander"],
+      "enabled": true
+    },
+    "dbhub": {
+      "command": "npx",
+      "args": ["-y", "@dbhub/cli"],
+      "environment": {
+        "DB_CONNECTIONS": ""
+      },
+      "enabled": true
+    }
+  }
+}

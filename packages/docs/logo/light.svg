@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="novaGradientMain" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0ea5e9" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+    <filter id="novaGlowMain">
+      <feGaussianBlur stdDeviation="8" result="coloredBlur" />
+      <feMerge>
+        <feMergeNode in="coloredBlur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- 背景 -->
+  <rect width="512" height="512" fill="#f0f9ff" />
+  
+  <!-- 外层发光背景 -->
+  <path d="M256 26L486 256L256 486L26 256L256 26Z" fill="url(#novaGradientMain)" opacity="0.1" filter="url(#novaGlowMain)" />
+  
+  <!-- 主图形 -->
+  <g filter="url(#novaGlowMain)">
+    <!-- 左侧 N 元素 -->
+    <path d="M102 435V77L204 256V77H256V435H204V230L102 435Z" fill="url(#novaGradientMain)" />
+    <!-- 右侧 W 元素 -->
+    <path d="M256 77H307L358 230L409 77H460V435H409V256L358 409L307 256V435H256V77Z" fill="url(#novaGradientMain)" />
+  </g>
+  
+  <!-- 中心装饰 -->
+  <circle cx="256" cy="256" r="32" fill="#f0f9ff" />
+  <circle cx="256" cy="256" r="19" fill="url(#novaGradientMain)" />
+  <circle cx="256" cy="256" r="8" fill="#f0f9ff" />
+</svg>

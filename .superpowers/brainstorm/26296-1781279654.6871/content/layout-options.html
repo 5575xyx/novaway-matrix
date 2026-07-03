@@ -1,0 +1,135 @@
+<h2>侧边栏任务列表布局方案</h2>
+<p class="subtitle">请选择你想要的侧边栏布局方式</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>上下分割布局</h3>
+      <p>侧边栏垂直分割，上半部分显示文件树/审查等tab，下半部分显示任务列表</p>
+      <div class="mockup">
+        <div class="mockup-header">方案A：上下分割</div>
+        <div class="mockup-body">
+          <div style="display: flex; height: 300px; border: 1px solid #ccc;">
+            <!-- 左侧聊天区域 -->
+            <div style="flex: 3; padding: 10px; border-right: 1px solid #ccc;">
+              <div style="background: #f0f0f0; padding: 5px; margin-bottom: 5px; border-radius: 4px;">用户消息</div>
+              <div style="background: #e3f2fd; padding: 5px; margin-bottom: 5px; border-radius: 4px;">AI回复</div>
+              <div style="background: #e8f5e9; padding: 5px; border-radius: 4px; border: 1px dashed #4caf50;">
+                <div style="font-weight: bold; margin-bottom: 5px;">任务列表（当前在聊天中）</div>
+                <div>☐ 任务1</div>
+                <div>☐ 任务2</div>
+              </div>
+            </div>
+            <!-- 右侧侧边栏 -->
+            <div style="flex: 1; display: flex; flex-direction: column; background: #fafafa;">
+              <!-- 上半部分 -->
+              <div style="flex: 1; border-bottom: 1px solid #ccc; padding: 5px;">
+                <div style="display: flex; gap: 5px; margin-bottom: 10px;">
+                  <div style="padding: 2px 8px; background: #2196f3; color: white; border-radius: 4px; font-size: 12px;">所有文件</div>
+                  <div style="padding: 2px 8px; background: #eee; border-radius: 4px; font-size: 12px;">审查</div>
+                  <div style="padding: 2px 8px; background: #eee; border-radius: 4px; font-size: 12px;">更改</div>
+                </div>
+                <div style="font-size: 12px; color: #666;">文件树内容...</div>
+              </div>
+              <!-- 下半部分 -->
+              <div style="flex: 1; padding: 5px; background: #f5f5f5;">
+                <div style="font-weight: bold; margin-bottom: 5px; font-size: 12px;">任务列表</div>
+                <div style="font-size: 11px;">
+                  <div>☐ 探索项目上下文</div>
+                  <div>☐ 提出澄清问题</div>
+                  <div>☐ 提出2-3种方案</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>新增Tab布局</h3>
+      <p>在侧边栏现有tab中新增一个"任务"tab，点击切换显示任务列表</p>
+      <div class="mockup">
+        <div class="mockup-header">方案B：新增Tab</div>
+        <div class="mockup-body">
+          <div style="display: flex; height: 300px; border: 1px solid #ccc;">
+            <!-- 左侧聊天区域 -->
+            <div style="flex: 3; padding: 10px; border-right: 1px solid #ccc;">
+              <div style="background: #f0f0f0; padding: 5px; margin-bottom: 5px; border-radius: 4px;">用户消息</div>
+              <div style="background: #e3f2fd; padding: 5px; margin-bottom: 5px; border-radius: 4px;">AI回复</div>
+            </div>
+            <!-- 右侧侧边栏 -->
+            <div style="flex: 1; display: flex; flex-direction: column; background: #fafafa;">
+              <!-- Tab栏 -->
+              <div style="display: flex; gap: 5px; padding: 5px; border-bottom: 1px solid #ccc;">
+                <div style="padding: 2px 8px; background: #eee; border-radius: 4px; font-size: 12px;">所有文件</div>
+                <div style="padding: 2px 8px; background: #eee; border-radius: 4px; font-size: 12px;">审查</div>
+                <div style="padding: 2px 8px; background: #eee; border-radius: 4px; font-size: 12px;">更改</div>
+                <div style="padding: 2px 8px; background: #2196f3; color: white; border-radius: 4px; font-size: 12px;">任务</div>
+              </div>
+              <!-- 任务内容 -->
+              <div style="flex: 1; padding: 5px; background: #f5f5f5;">
+                <div style="font-weight: bold; margin-bottom: 5px; font-size: 12px;">当前任务</div>
+                <div style="font-size: 11px;">
+                  <div>☐ 探索项目上下文</div>
+                  <div>☐ 提出澄清问题</div>
+                  <div>☐ 提出2-3种方案</div>
+                  <div>☐ 呈现设计</div>
+                  <div>☐ 编写设计文档</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>可折叠面板布局</h3>
+      <p>侧边栏底部增加可折叠的任务面板，可展开/收起</p>
+      <div class="mockup">
+        <div class="mockup-header">方案C：可折叠面板</div>
+        <div class="mockup-body">
+          <div style="display: flex; height: 300px; border: 1px solid #ccc;">
+            <!-- 左侧聊天区域 -->
+            <div style="flex: 3; padding: 10px; border-right: 1px solid #ccc;">
+              <div style="background: #f0f0f0; padding: 5px; margin-bottom: 5px; border-radius: 4px;">用户消息</div>
+              <div style="background: #e3f2fd; padding: 5px; margin-bottom: 5px; border-radius: 4px;">AI回复</div>
+            </div>
+            <!-- 右侧侧边栏 -->
+            <div style="flex: 1; display: flex; flex-direction: column; background: #fafafa;">
+              <!-- 文件树 -->
+              <div style="flex: 2; padding: 5px; border-bottom: 1px solid #ccc;">
+                <div style="display: flex; gap: 5px; margin-bottom: 10px;">
+                  <div style="padding: 2px 8px; background: #2196f3; color: white; border-radius: 4px; font-size: 12px;">所有文件</div>
+                  <div style="padding: 2px 8px; background: #eee; border-radius: 4px; font-size: 12px;">审查</div>
+                </div>
+                <div style="font-size: 12px; color: #666;">文件树内容...</div>
+              </div>
+              <!-- 可折叠任务面板 -->
+              <div style="flex: 1; background: #e8f5e9; border-top: 2px solid #4caf50;">
+                <div style="display: flex; justify-content: space-between; padding: 5px; background: #c8e6c9; cursor: pointer;">
+                  <span style="font-weight: bold; font-size: 12px;">任务列表 (3/6)</span>
+                  <span style="font-size: 12px;">▼</span>
+                </div>
+                <div style="padding: 5px; font-size: 11px;">
+                  <div>✓ 探索项目上下文</div>
+                  <div>✓ 提出澄清问题</div>
+                  <div>● 提出2-3种方案</div>
+                  <div>☐ 呈现设计</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

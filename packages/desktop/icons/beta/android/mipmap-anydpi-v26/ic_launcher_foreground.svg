@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none">
+  <defs>
+    <linearGradient id="novaGradientAndroid" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0ea5e9" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+  </defs>
+  
+  <!-- 主图形 - N+W 组合 -->
+  <!-- 左侧 N 元素 -->
+  <path d="M8 40V8L16 24V8H20V40H16V22L8 40Z" fill="url(#novaGradientAndroid)" />
+  <!-- 右侧 W 元素 -->
+  <path d="M20 8H24L28 22L32 8H36V40H32V24L28 38L24 24V40H20V8Z" fill="url(#novaGradientAndroid)" />
+  
+  <!-- 中心装饰 -->
+  <circle cx="24" cy="24" r="2" fill="url(#novaGradientAndroid)" />
+</svg>

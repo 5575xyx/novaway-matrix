@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en" style="background-color: var(--background-base)">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#1a2332" />
+    <title>NovaWay</title>
+    <link rel="icon" type="image/png" href="./novaway-icon.png" />
+    <link rel="shortcut icon" href="./novaway-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon-v3.png" />
+    <meta property="og:image" content="./social-share.png" />
+    <meta property="twitter:image" content="./social-share.png" />
+    <script id="oc-theme-preload-script" src="./oc-theme-preload.js"></script>
+    <style>
+      /* 确保深色模式下加载动画清晰可见 */
+      :root {
+        color-scheme: dark;
+      }
+      .progress-track {
+        background-color: rgba(255, 255, 255, 0.15) !important;
+      }
+      .progress-fill {
+        background-color: #38bdf8 !important;
+      }
+      .status-text {
+        color: #e0f2fe !important;
+      }
+    </style>
+  </head>
+  <body class="antialiased overscroll-none text-12-regular overflow-hidden">
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root" class="flex flex-col h-dvh"></div>
+    <script src="./loading.tsx" type="module"></script>
+  </body>
+</html>

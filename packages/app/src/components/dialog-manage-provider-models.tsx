@@ -1,0 +1,471 @@
+import { Button } from "@opencode-ai/ui/button"
+import { Dialog } from "@opencode-ai/ui/dialog"
+import { Icon } from "@opencode-ai/ui/icon"
+import { Select } from "@opencode-ai/ui/select"
+import { Switch } from "@opencode-ai/ui/switch"
+import { createMemo, createSignal, type Component, For, onMount, Show } from "solid-js"
+import { createStore } from "solid-js/store"
+import { useMutation } from "@tanstack/solid-query"
+import { showToast } from "@opencode-ai/ui/toast"
+import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { useGlobalSDK } from "@/context/global-sdk"
+import { useGlobalSync } from "@/context/global-sync"
+import { useProviders } from "@/hooks/use-providers"
+import { useLanguage } from "@/context/language"
+
+type AuthEntry = { type: string; key?: string }
+
+type RemoteModel = { id: string; name: string }
+
+const ConfirmActionDialog: Component<{
+  title: string
+  description: string
+  confirmLabel: string
+  successTitle?: string
+  successDescription?: string
+  onConfirm: () => Promise<void>
+}> = (props) => {
+  const dialog = useDialog()
+  const language = useLanguage()
+  const [error, setError] = createSignal("")
+  const confirm = useMutation(() => ({
+    mutationFn: props.onConfirm,
+    onSuccess: () => {
+      dialog.close()
+      showToast({
+        variant: "success",
+        icon: "circle-check",
+        title: props.successTitle ?? language.t("settings.management.toast.saved.title"),
+        description: props.successDescription ?? language.t("settings.management.toast.saved.description"),
+      })
+    },
+    onError: (err) => setError(err instanceof Error ? err.message : String(err)),
+  }))
+
+  return (
+    <Dialog title={props.title} fit>
+      <div class="flex flex-col gap-4 pl-6 pr-2.5 pb-3">
+        <div class="flex flex-col gap-1">
+          <span class="text-14-regular text-text-strong">{props.description}</span>
+          <Show when={error()}>
+            <span class="text-12-regular text-danger-base">{error()}</span>
+          </Show>
+        </div>
+        <div class="flex justify-end gap-2">
+          <Button variant="ghost" size="large" disabled={confirm.isPending} onClick={() => dialog.close()}>
+            {language.t("common.cancel")}
+          </Button>
+          <Button variant="primary" size="large" disabled={confirm.isPending} onClick={() => confirm.mutate()}>
+            {props.confirmLabel}
+          </Button>
+        </div>
+      </div>
+    </Dialog>
+  )
+}
+
+const maskKey = (key: string | undefined) => {
+  if (!key) return "****"
+  if (key.length <= 8) return "****"
+  return key.slice(0, 4) + "..." + key.slice(-4)
+}
+
+async function fetchOpenAICompatibleModels(input: {
+  baseURL: string
+  apiKey: string
+}) {
+  const baseURL = input.baseURL.trim().replace(/\/+$/, "")
+  if (!/^https?:\/\//.test(baseURL)) throw new Error("请先填写有效的基础 URL")
+
+  const apiKey = input.apiKey.trim()
+  const envKey = apiKey.match(/^\{env:([^}]+)\}$/)?.[1]?.trim()
+  const response = await fetch(`${baseURL}/models`, {
+    headers: {
+      Accept: "application/json",
+      ...(apiKey && !envKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+    },
+  })
+
+  if (!response.ok) throw new Error(`获取模型列表失败：HTTP ${response.status}`)
+
+  const payload = await response.json()
+  const models = parseRemoteModels(payload)
+  if (models.length === 0) throw new Error("没有从 /models 返回中识别到模型")
+  return models
+}
+
+function parseRemoteModels(payload: unknown): RemoteModel[] {
+  const rows = Array.isArray(payload)
+    ? payload
+    : typeof payload === "object" && payload !== null && Array.isArray((payload as { data?: unknown }).data)
+      ? (payload as { data: unknown[] }).data
+      : []
+
+  return rows
+    .map((row) => {
+      if (typeof row === "string") return { id: row, name: row }
+      if (typeof row !== "object" || row === null) return undefined
+      const value = row as { id?: unknown; name?: unknown }
+      if (typeof value.id !== "string" || !value.id.trim()) return undefined
+      return {
+        id: value.id.trim(),
+        name: typeof value.name === "string" && value.name.trim() ? value.name.trim() : value.id.trim(),
+      }
+    })
+    .filter((model): model is RemoteModel => !!model)
+}
+
+export const DialogManageProviderModels: Component<{
+  providerID: string
+  providerName: string
+}> = (props) => {
+  const dialog = useDialog()
+  const globalSDK = useGlobalSDK()
+  const globalSync = useGlobalSync()
+  const providers = useProviders()
+  const language = useLanguage()
+
+  const [authEntries, setAuthEntries] = createStore<AuthEntry[]>([])
+  const [providerInfo, setProviderInfo] = createStore<{
+    endpointURL?: string
+  }>({})
+  const [expanded, setExpanded] = createStore<Record<number, boolean>>({})
+  const [fetching, setFetching] = createStore<Record<number, boolean>>({})
+  const [remoteModels, setRemoteModels] = createStore<Record<number, RemoteModel[]>>({})
+  const [selectedRemoteModel, setSelectedRemoteModel] = createStore<Record<number, RemoteModel | undefined>>({})
+  const [extraModels, setExtraModels] = createStore<Record<string, RemoteModel>>({})
+
+  const provider = createMemo(() => providers.all().find((p) => p.id === props.providerID))
+
+  const allModels = createMemo(() => {
+    const p = provider()
+    const server = p
+      ? Object.entries(p.models ?? {}).map(([id, model]) => ({
+          id,
+          name: (model as { name?: string } | undefined)?.name ?? id,
+        }))
+      : []
+    const extra = Object.values(extraModels)
+    return [...server, ...extra]
+  })
+
+  const whitelist = () => globalSync.data.config.provider?.[props.providerID]?.whitelist
+  const baseURL = () =>
+    globalSync.data.config.provider?.[props.providerID]?.options?.baseURL || providerInfo.endpointURL
+
+  const [toggles, setToggles] = createStore<Record<string, boolean>>(
+    Object.fromEntries(allModels().map((m) => [m.id, !whitelist() || whitelist()!.includes(m.id)])),
+  )
+
+  const isMultiKey = createMemo(() => authEntries.length > 1)
+
+  const isKeyExpanded = (keyIndex: number) => {
+    if (!isMultiKey()) return true
+    return expanded[keyIndex] ?? keyIndex === 0
+  }
+
+  const toggleKeyExpanded = (keyIndex: number) => {
+    setExpanded(keyIndex, (prev) => !prev)
+  }
+
+  const getProviderKeys = (): AuthEntry[] => {
+    return authEntries.length > 0 ? authEntries : [{ type: "api" }]
+  }
+
+  const countForKey = () => Object.values(toggles).filter(Boolean).length
+
+  const totalForKey = () => allModels().length
+
+  const selectAllForKey = () => {
+    for (const m of allModels()) setToggles(m.id, true)
+  }
+
+  const deselectAllForKey = () => {
+    for (const m of allModels()) setToggles(m.id, false)
+  }
+
+  const removeKey = (keyIndex: number) => {
+    const label = `${language.t("model.key.label")} ${keyIndex + 1} · ${maskKey(authEntries[keyIndex]?.key)}`
+    dialog.show(() => (
+      <ConfirmActionDialog
+        title={language.t("common.delete")}
+        description={language.t("model.key.removeConfirm", { label })}
+        confirmLabel={language.t("common.delete")}
+        successTitle={language.t("model.key.removed")}
+        successDescription={label}
+        onConfirm={() =>
+          globalSDK.client.auth
+            .removeEntry({ providerID: props.providerID, entryIndex: String(keyIndex) })
+            .then(() => loadAuthEntries())
+        }
+      />
+    ))
+  }
+
+  const loadAuthEntries = async () => {
+    try {
+      const res = await globalSDK.client.auth.list({ providerID: props.providerID })
+      setAuthEntries(res.data ?? [])
+    } catch {
+      setAuthEntries([])
+    }
+  }
+
+  const loadProviderInfo = async () => {
+    try {
+      const res = await globalSDK.client.v2.provider.get({ providerID: props.providerID })
+      const info = res.data
+      if (info?.endpoint && "url" in info.endpoint && info.endpoint.url) {
+        setProviderInfo("endpointURL", info.endpoint.url)
+      }
+    } catch {
+    }
+  }
+
+  onMount(() => {
+    void loadAuthEntries()
+    void loadProviderInfo()
+  })
+
+  const fetchModelListForKey = async (keyIndex: number) => {
+    const url = baseURL()
+    if (!url) {
+      showToast({
+        title: language.t("common.requestFailed"),
+        description: "当前供应商未配置 base URL，请在供应商设置中填写",
+      })
+      return
+    }
+    const key = authEntries[keyIndex]?.key
+    if (!key) {
+      showToast({
+        title: language.t("common.requestFailed"),
+        description: "未找到该 key 的 API 密钥",
+      })
+      return
+    }
+    setFetching(keyIndex, true)
+    try {
+      const models = await fetchOpenAICompatibleModels({ baseURL: url, apiKey: key })
+      const existing = new Set(allModels().map((m) => m.id))
+      const filtered = models.filter((m) => !existing.has(m.id))
+      setRemoteModels(keyIndex, filtered)
+      setSelectedRemoteModel(keyIndex, undefined)
+      showToast({
+        variant: "success",
+        icon: "circle-check",
+        title: language.t("provider.custom.models.fetch.success.title"),
+        description: language.t("provider.custom.models.fetch.success.description", {
+          count: models.length,
+        }),
+      })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err)
+      showToast({
+        title: language.t("provider.custom.models.fetch.error.title"),
+        description: message,
+      })
+    } finally {
+      setFetching(keyIndex, false)
+    }
+  }
+
+  const applyRemoteModel = (keyIndex: number, model: RemoteModel) => {
+    const id = model.id
+    if (extraModels[id]) return
+    setExtraModels(id, model)
+    setToggles(id, true)
+    setSelectedRemoteModel(keyIndex, undefined)
+    const updated = (remoteModels[keyIndex] ?? []).filter((m) => m.id !== id)
+    setRemoteModels(keyIndex, updated)
+  }
+
+  const save = async () => {
+    const enabled = Object.entries(toggles)
+      .filter(([, v]) => v)
+      .map(([id]) => id)
+
+    const existing = { ...globalSync.data.config.provider?.[props.providerID] }
+    const patch: Record<string, unknown> = { ...existing }
+    patch.whitelist = Object.values(toggles).every(Boolean) ? null : enabled
+
+    const extra = Object.values(extraModels)
+    if (extra.length > 0) {
+      const existingModels: Record<string, unknown> = (existing as any)?.models ?? {}
+      patch.models = {
+        ...existingModels,
+        ...Object.fromEntries(extra.map((m) => [m.id, { id: m.id, name: m.name }])),
+      }
+    }
+
+    try {
+      await globalSync.updateConfig({ provider: { [props.providerID]: patch } })
+      await globalSDK.client.global.dispose()
+      dialog.close()
+      showToast({
+        variant: "success",
+        icon: "circle-check",
+        title: language.t("settings.management.toast.saved.title"),
+      })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err)
+      showToast({ title: language.t("common.requestFailed"), description: message })
+    }
+  }
+
+  return (
+    <Dialog
+      title={language.t("dialog.model.manage")}
+      description={language.t("dialog.model.manage.description")}
+    >
+      <div class="flex flex-col gap-3">
+        <div class="flex flex-col max-h-80 overflow-y-auto">
+          <For each={getProviderKeys()}>
+            {(entry, keyIndex) => {
+              const isOpen = createMemo(() => isKeyExpanded(keyIndex()))
+              const isFetching = createMemo(() => fetching[keyIndex()])
+              const fetched = createMemo(() => remoteModels[keyIndex()] ?? [])
+              return (
+                <div class="flex flex-col">
+                  <div class="flex items-center justify-between gap-2 px-2 py-1.5 mt-1 bg-surface-raised-base rounded-md border border-border-weak-base">
+                    <Show when={isMultiKey()}>
+                      <button
+                        type="button"
+                        class="flex items-center gap-2 flex-1 min-w-0 text-left text-13-medium text-text-strong"
+                        onClick={() => toggleKeyExpanded(keyIndex())}
+                        aria-expanded={isOpen()}
+                      >
+                        <Show
+                          when={isOpen()}
+                          fallback={<Icon name="chevron-right" size="small" class="text-icon-weak-base" />}
+                        >
+                          <Icon name="chevron-down" size="small" class="text-icon-weak-base" />
+                        </Show>
+                        <span class="flex items-center gap-1.5 min-w-0">
+                          <span class="truncate">
+                            {language.t("model.key.label")} {keyIndex() + 1}
+                          </span>
+                          <span class="text-12-regular text-text-weak font-mono truncate">
+                            {maskKey(entry.key)}
+                          </span>
+                        </span>
+                      </button>
+                    </Show>
+                    <Show when={!isMultiKey()}>
+                      <span class="text-13-medium text-text-strong flex-1">
+                        {countForKey()}/{totalForKey()} {language.t("common.selected")}
+                      </span>
+                    </Show>
+                    <div class="flex gap-1 items-center shrink-0">
+                      <Show when={isMultiKey()}>
+                        <Button
+                          size="small"
+                          variant="ghost"
+                          onClick={() => removeKey(keyIndex())}
+                          title={language.t("common.delete")}
+                        >
+                          <Icon name="trash" size="small" class="text-icon-weak-base" />
+                        </Button>
+                      </Show>
+                      <Show when={fetched().length === 0}>
+                        <Button
+                          size="small"
+                          variant="ghost"
+                          onClick={() => fetchModelListForKey(keyIndex())}
+                          disabled={isFetching()}
+                        >
+                          <Show
+                            when={!isFetching()}
+                            fallback={language.t("provider.custom.models.fetch.loading")}
+                          >
+                            {language.t("provider.custom.models.fetch.action")}
+                          </Show>
+                        </Button>
+                      </Show>
+                      <Show when={fetched().length > 0}>
+                        <Select
+                          size="small"
+                          variant="secondary"
+                          options={fetched()}
+                          current={selectedRemoteModel[keyIndex()]}
+                          value={(model) => model.id}
+                          label={(model) => model.name}
+                          groupBy={() => language.t("provider.custom.models.fetch.group")}
+                          placeholder={language.t("provider.custom.models.fetch.select")}
+                          onSelect={(model) => {
+                            if (model) applyRemoteModel(keyIndex(), model)
+                          }}
+                          triggerStyle={{ "min-width": "200px" }}
+                          valueClass="truncate"
+                        >
+                          {(model) => (
+                            <div class="flex min-w-0 flex-col">
+                              <span class="truncate text-13-medium text-text-strong">{model?.name}</span>
+                              <Show when={model && model.name !== model.id}>
+                                <span class="truncate text-11-regular text-text-weak">{model?.id}</span>
+                              </Show>
+                            </div>
+                          )}
+                        </Select>
+                        <Button
+                          size="small"
+                          variant="ghost"
+                          onClick={() => setRemoteModels(keyIndex(), [])}
+                        >
+                          {language.t("common.clear")}
+                        </Button>
+                      </Show>
+                      <Button size="small" variant="ghost" onClick={selectAllForKey}>
+                        {language.t("common.selectAll")}
+                      </Button>
+                      <Button size="small" variant="ghost" onClick={deselectAllForKey}>
+                        {language.t("common.deselectAll")}
+                      </Button>
+                    </div>
+                  </div>
+                  <Show when={isOpen()}>
+                    <div class="flex flex-col">
+                      <For each={allModels()}>
+                        {(model) => (
+                          <div class="flex items-center justify-between py-1.5 px-1 hover:bg-surface-hover-base rounded-md">
+                            <div class="min-w-0">
+                              <div class="text-14-medium truncate flex items-center gap-1.5">
+                                {model.name}
+                                <Show when={extraModels[model.id]}>
+                                  <span class="text-10-medium px-1.5 py-0.5 rounded bg-surface-base text-text-weak">
+                                    {language.t("dialog.model.manage.new")}
+                                  </span>
+                                </Show>
+                              </div>
+                              <div class="text-12-regular text-text-weak truncate">{model.id}</div>
+                            </div>
+                            <Switch
+                              checked={toggles[model.id]}
+                              onChange={(checked: boolean) => setToggles(model.id, checked)}
+                              hideLabel
+                            >
+                              {model.name}
+                            </Switch>
+                          </div>
+                        )}
+                      </For>
+                    </div>
+                  </Show>
+                </div>
+              )
+            }}
+          </For>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-3 border-t border-border-weak-base">
+          <Button variant="secondary" onClick={() => dialog.close()}>
+            {language.t("common.cancel")}
+          </Button>
+          <Button onClick={save}>
+            {language.t("common.save")}
+          </Button>
+        </div>
+      </div>
+    </Dialog>
+  )
+}

@@ -1,0 +1,26 @@
+{
+  "name": "powersnexus",
+  "displayName": "PowersNexus",
+  "description": "Core skills library: TDD, debugging, collaboration patterns, and proven techniques",
+  "version": "6.0.3",
+  "author": {
+    "name": "Jesse Vincent",
+    "email": "jesse@fsck.com"
+  },
+  "homepage": "https://github.com/obra/powersnexus",
+  "repository": "https://github.com/obra/powersnexus",
+  "license": "MIT",
+  "keywords": [
+    "skills",
+    "tdd",
+    "debugging",
+    "collaboration",
+    "best-practices",
+    "workflows",
+    "openspec",
+    "spec-driven",
+    "requirements"
+  ],
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks-cursor.json"
+}
