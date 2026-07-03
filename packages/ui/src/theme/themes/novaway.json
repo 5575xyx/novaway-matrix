@@ -4,7 +4,7 @@
   "id": "novaway",
   "light": {
     "palette": {
-      "neutral": "#dbeafe",
+      "neutral": "#b8cce4",
       "ink": "#1e3a5f",
       "primary": "#2563eb",
       "accent": "#3b82f6",
@@ -21,16 +21,16 @@
       "text-base": "#334155",
       "text-weak": "#64748b",
       "text-weaker": "#94a3b8",
-      "border-weak-base": "#bfdbfe",
-      "border-weaker-base": "#dbeafe",
+      "border-weak-base": "#93b4d8",
+      "border-weaker-base": "#b8cce4",
       "icon-base": "#1e40af",
       "icon-weak-base": "#3b82f6",
-      "surface-raised-base": "rgba(219, 234, 254, 0.95)",
-      "surface-raised-base-hover": "rgba(191, 219, 254, 0.98)",
-      "surface-base": "#eff6ff",
-      "surface-base-hover": "#dbeafe",
-      "surface-interactive-weak": "#bfdbfe",
-      "surface-success-base": "#ecfdf5",
+      "surface-raised-base": "rgba(160, 185, 215, 0.92)",
+      "surface-raised-base-hover": "rgba(140, 170, 205, 0.96)",
+      "surface-base": "#c8d8ea",
+      "surface-base-hover": "#b8cce4",
+      "surface-interactive-weak": "#93b4d8",
+      "surface-success-base": "#d1f0e4",
       "syntax-comment": "#1d4ed8",
       "syntax-keyword": "#7c3aed",
       "syntax-string": "#034cff",
@@ -39,7 +39,7 @@
       "syntax-type": "#f59e0b",
       "syntax-constant": "#7c3aed",
       "syntax-critical": "#ef4444",
-      "surface-critical-base": "#fef2f2"
+      "surface-critical-base": "#fde0dc"
     }
   },
   "dark": {

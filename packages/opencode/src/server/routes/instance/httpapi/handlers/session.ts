@@ -345,9 +345,9 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       params: { sessionID: SessionID }
       payload: typeof RevertPreviewPayload.Type
     }) {
-      const session = yield* requireSession(ctx.params.sessionID)
-      const result = yield* SessionError.mapBusy(revertSvc.stage({ session, messageID: ctx.payload.messageID, preview: true }))
-      return result?.files ?? []
+      yield* requireSession(ctx.params.sessionID)
+      const files = yield* revertSvc.plan({ sessionID: ctx.params.sessionID, messageID: ctx.payload.messageID })
+      return Array.from(files.keys()).map((file) => ({ file, patch: "", additions: 0, deletions: 0 }))
     })
 
     const unrevert = Effect.fn("SessionHttpApi.unrevert")(function* (ctx: { params: { sessionID: SessionID } }) {

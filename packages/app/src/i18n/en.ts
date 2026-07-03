@@ -566,6 +566,7 @@ export const dict = {
   "notification.session.error.title": "Session error",
   "notification.session.error.fallbackDescription": "An error occurred",
 
+  "home.welcome.title": "Explore infinite possibilities",
   "home.recentProjects": "Recent projects",
   "home.empty.title": "No recent projects",
   "home.empty.description": "Get started by opening a local project",
@@ -621,7 +622,7 @@ export const dict = {
   "session.revertDock.expand": "Expand rolled back messages",
   "session.revertDock.restore": "Restore message",
 
-  "session.new.title": "Build anything",
+  "session.new.title": "Explore infinite possibilities",
   "session.new.worktree.main": "Main branch",
   "session.new.worktree.mainWithBranch": "Main branch ({{branch}})",
   "session.new.worktree.create": "Create new worktree",

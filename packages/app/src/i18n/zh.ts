@@ -540,6 +540,7 @@ export const dict = {
   "notification.session.error.title": "任务错误",
   "notification.session.error.fallbackDescription": "发生错误",
 
+  "home.welcome.title": "探索无限可能",
   "home.recentProjects": "最近项目",
   "home.empty.title": "没有最近项目",
   "home.empty.description": "通过打开本地项目开始使用",
@@ -583,7 +584,7 @@ export const dict = {
   "session.revertDock.collapse": "折叠已回滚消息",
   "session.revertDock.expand": "展开已回滚消息",
   "session.revertDock.restore": "恢复消息",
-  "session.new.title": "构建任何东西",
+  "session.new.title": "探索无限可能",
   "session.new.worktree.main": "主分支",
   "session.new.worktree.mainWithBranch": "主分支（{{branch}}）",
   "session.new.worktree.create": "创建新的 worktree",

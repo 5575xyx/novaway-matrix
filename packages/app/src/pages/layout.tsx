@@ -2276,7 +2276,7 @@ export default function Layout(props: ParentProps) {
                   aria-label={language.t("sidebar.nav.projectsAndSessions")}
                   data-component="sidebar-nav-mobile"
                   classList={{
-                    "@container fixed top-[50px] bottom-0 left-0 z-50 w-full max-w-[400px] overflow-hidden border-r border-border-weaker-base bg-background-base transition-transform duration-200 ease-out": true,
+                    "@container fixed top-[50px] bottom-0 left-0 z-50 w-full max-w-[400px] overflow-hidden border-r border-[#b8c8dc] bg-background-base transition-transform duration-200 ease-out": true,
                     "translate-x-0": layout.mobileSidebar.opened(),
                     "-translate-x-full": !layout.mobileSidebar.opened(),
                   }}
@@ -2301,7 +2301,7 @@ export default function Layout(props: ParentProps) {
             >
               <main
                 classList={{
-                  "size-full overflow-x-hidden flex flex-col items-start contain-strict border-t border-border-weak-base glass dark:glass-dark page-transition": true,
+                  "size-full overflow-x-hidden flex flex-col items-start border-t border-border-weak-base glass dark:glass-dark page-transition": true,
                   "xl:border-l xl:rounded-tl-[16px]": showSidebar(),
                 }}
               >

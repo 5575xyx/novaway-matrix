@@ -223,7 +223,7 @@ export function SessionSidePanel(props: {
         aria-label={language.t("session.panel.reviewAndFiles")}
         aria-hidden={!open()}
         inert={!open()}
-        class="relative min-w-0 h-full flex shrink-0 overflow-hidden bg-background-base"
+        class="relative min-w-0 h-full flex shrink-0 overflow-hidden bg-[#f2f5f9]"
         classList={{
           "pointer-events-none": !open(),
           "transition-[width] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width] motion-reduce:transition-none":
@@ -232,16 +232,16 @@ export function SessionSidePanel(props: {
         style={{ width: panelWidth() }}
       >
         <Show when={open()}>
-          <div class="size-full flex border-l border-border-weaker-base">
+          <div class="size-full flex border-l border-[#b8c8dc]">
             <div
               aria-hidden={!reviewOpen()}
               inert={!reviewOpen()}
-              class="relative min-w-0 h-full flex-1 overflow-hidden bg-background-base"
+              class="relative min-w-0 h-full flex-1 overflow-hidden bg-[#f2f5f9]"
               classList={{
                 "pointer-events-none": !reviewOpen(),
               }}
             >
-              <div class="size-full min-w-0 h-full flex flex-col bg-background-base">
+              <div class="size-full min-w-0 h-full flex flex-col bg-[#f2f5f9]">
                 <div class="flex-1 min-h-0 flex flex-col">
                   <DragDropProvider
                     onDragStart={handleDragStart}
@@ -372,7 +372,7 @@ export function SessionSidePanel(props: {
               >
                 <div
                   class="h-full flex flex-col overflow-hidden group/filetree"
-                  classList={{ "border-l border-border-weaker-base": reviewOpen() }}
+                  classList={{ "border-l border-[#b8c8dc]": reviewOpen() }}
                 >
                   <div class="flex-1 min-h-0 overflow-hidden">
                     <Tabs

@@ -470,13 +470,15 @@ function DefaultHome(props: {
     <div class="relative h-full w-full overflow-hidden bg-background-base">
       <div class="home-deco home-deco-1" />
       <div class="home-deco home-deco-2" />
+      <div class="absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_45%,rgba(37,99,235,0.08),transparent)]" />
 
       <div class="relative z-10 flex h-full w-full flex-col items-center justify-center gap-8 overflow-y-auto px-6 py-12">
         <div class="flex flex-col items-center gap-4 text-center">
           <div class="relative flex h-16 w-16 items-center justify-center md:h-20 md:w-20">
-            <Mark class="h-full w-full" />
+            <div class="absolute inset-0 rounded-full bg-[radial-gradient(circle,rgba(37,99,235,0.15),transparent_70%)] blur-2xl" />
+            <Mark class="relative h-full w-full drop-shadow-[0_0_16px_rgba(37,99,235,0.3)]" />
           </div>
-          <h1 class="text-24-medium text-text-strong">{props.language.t("home.welcome.title") || "构建任何东西"}</h1>
+          <h1 class="text-24-medium font-semibold text-[#2563eb]">{props.language.t("home.welcome.title")}</h1>
           <p class="max-w-md text-16-regular leading-relaxed text-text-weak">
             {props.currentMode?.name ?? "NovaWay AI Workspace"}：{props.currentMode?.description ?? "使用 AI 辅助工作，让创意快速变成现实。"}
           </p>

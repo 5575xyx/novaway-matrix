@@ -23,6 +23,7 @@ export interface Interface {
   readonly revert: (input: RevertInput) => Effect.Effect<Session.Info, Session.BusyError>
   readonly unrevert: (input: { sessionID: SessionID }) => Effect.Effect<Session.Info, Session.BusyError>
   readonly cleanup: (session: Session.Info) => Effect.Effect<void>
+  readonly plan: (input: { sessionID: SessionID; messageID: MessageID }) => Effect.Effect<Map<string, string>>
   readonly stage: (input: { session: Session.Info; messageID: MessageID; files?: boolean }) => Effect.Effect<Session.Info["revert"]>
   readonly commit: (session: Session.Info) => Effect.Effect<void>
   readonly clear: (session: Session.Info) => Effect.Effect<void>
@@ -45,7 +46,7 @@ export const layer = Layer.effect(
       const all = yield* sessions.messages({ sessionID: input.sessionID }).pipe(Effect.orDie)
       const files = new Map<string, string>()
       for (const msg of all) {
-        if (msg.info.id > input.messageID && msg.info.role === "assistant") {
+        if (msg.info.id >= input.messageID && msg.info.role === "assistant") {
           for (const part of msg.parts) {
             if (part.type === "patch") {
               for (const file of part.files) {
@@ -58,7 +59,7 @@ export const layer = Layer.effect(
       return files
     })
 
-    const stage = Effect.fn("SessionRevert.stage")(function* (input: { session: Session.Info; messageID: MessageID; files?: boolean; preview?: boolean }) {
+    const stage = Effect.fn("SessionRevert.stage")(function* (input: { session: Session.Info; messageID: MessageID; files?: boolean }) {
       const original = input.session.revert?.snapshot
         ? input.session.revert.snapshot
         : (yield* snap.track())
@@ -76,37 +77,32 @@ export const layer = Layer.effect(
           restore.set(file, tree)
         }
       }
-      if (input.preview !== true && restore.size > 0) {
+      if (restore.size > 0) {
         for (const [file, snapshot] of restore) {
           yield* snap.checkout(snapshot).pipe(Effect.orDie)
         }
       }
       const paths = input.files === false ? [] : Array.from(next.keys())
-      const diffs = original && next.size > 0
-        ? input.preview === true
-          ? yield* snap.diffFull(original, Array.from(next.values())[0]).pipe(Effect.orDie)
-          : yield* snap.diff({ from: Snapshot.ID.make(original), to: Snapshot.ID.make(""), paths }).pipe(Effect.orDie)
+      const current = yield* snap.capture()
+      const diffs = original && current
+        ? yield* snap.diff({ from: Snapshot.ID.make(original), to: current, paths }).pipe(Effect.orDie)
         : []
-      const files = paths.length > 0
-        ? diffs.filter((d) => d.file && paths.includes(d.file))
-        : [...diffs]
+      const files = [...diffs] as Snapshot.FileDiff[]
       const revert = {
         messageID: input.messageID,
         snapshot: original,
         diff: files.map((file) => file.patch).join("").trim(),
-        files: files as Snapshot.FileDiff[],
+        files,
       } satisfies Session.Info["revert"]
-      if (input.preview !== true) {
-        yield* sessions.setRevert({
-          sessionID: input.session.id,
-          revert,
-          summary: {
-            additions: diffs.reduce((sum, x) => sum + x.additions, 0),
-            deletions: diffs.reduce((sum, x) => sum + x.deletions, 0),
-            files: diffs.length,
-          },
-        })
-      }
+      yield* sessions.setRevert({
+        sessionID: input.session.id,
+        revert,
+        summary: {
+          additions: diffs.reduce((sum, x) => sum + x.additions, 0),
+          deletions: diffs.reduce((sum, x) => sum + x.deletions, 0),
+          files: diffs.length,
+        },
+      })
       return revert
     })
 
@@ -187,7 +183,7 @@ export const layer = Layer.effect(
       yield* commit(session)
     })
 
-    return Service.of({ revert, unrevert, cleanup, stage, commit, clear })
+    return Service.of({ revert, unrevert, cleanup, plan, stage, commit, clear })
   }),
 )
 

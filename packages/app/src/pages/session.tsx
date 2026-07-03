@@ -1591,12 +1591,14 @@ export default function Page() {
   const revert = async (input: { sessionID: string; messageID: string }) => {
     if (reverting()) return
 
+    // 先调用 revertPreview 获取受影响的文件列表（不执行实际回滚）
     const previewResult = await sdk.client.session.revertPreview({
       sessionID: input.sessionID,
       messageID: input.messageID,
     })
     const files = previewResult.data ?? []
 
+    // 显示确认对话框，列出受影响的文件
     dialog.show(() => (
       <Dialog title={language.t("dialog.revert.title")}>
         <div class="p-4 min-w-[400px] max-w-[600px]">
@@ -1621,6 +1623,7 @@ export default function Page() {
               variant="primary"
               onClick={() => {
                 dialog.close()
+                // 用户确认后才真正执行回滚
                 revertMutation.mutate({ ...input })
               }}
             >
@@ -1733,7 +1736,7 @@ export default function Page() {
   useUsageExceededDialogs()
 
   return (
-    <div class="relative bg-background-base size-full overflow-hidden flex flex-col">
+    <div class="relative bg-[#f0f4f8] size-full overflow-hidden flex flex-col">
       {sessionSync() ?? ""}
       <SessionHeader />
       <div class="flex-1 min-h-0 flex flex-col md:flex-row">
@@ -1769,7 +1772,7 @@ export default function Page() {
         {/* Session panel */}
         <div
           classList={{
-            "@container relative shrink-0 flex flex-col min-h-0 h-full bg-background-stronger flex-1 md:flex-none": true,
+            "@container relative shrink-0 flex flex-col min-h-0 h-full bg-[#f4f7fa] flex-1 md:flex-none": true,
             "transition-[width] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width] motion-reduce:transition-none":
               !size.active() && !ui.reviewSnap && !desktopOfficeAgentOpen(),
           }}
