@@ -16,6 +16,7 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 **Context:** If working in an isolated worktree, it should have been created via the `PowersNexus:using-git-worktrees` skill at execution time.
 
 **Save plans to:** `.powersnexus/changes/<name>/tasks.md`
+
 - (User preferences for plan location override this default)
 - Read existing tasks from `.powersnexus/changes/<name>/tasks.md` if it exists from brainstorming
 
@@ -46,6 +47,7 @@ independently testable deliverable.
 ## Bite-Sized Task Granularity
 
 **Each step is one action (2-5 minutes):**
+
 - "Write the failing test" - step
 - "Run it to make sure it fails" - step
 - "Implement the minimal code to make the test pass" - step
@@ -83,11 +85,13 @@ include this section.]
 ### Task N: [Component Name]
 
 **Files:**
+
 - Create: `exact/path/to/file.py`
 - Modify: `exact/path/to/existing.py:123-145`
 - Test: `tests/exact/path/to/test.py`
 
 **Interfaces:**
+
 - Consumes: [what this task uses from earlier tasks — exact signatures]
 - Produces: [what later tasks rely on — exact function names, parameter
   and return types. A task's implementer sees only their own task; this
@@ -129,6 +133,7 @@ git commit -m "feat: add specific feature"
 ## No Placeholders
 
 Every step must contain the actual content an engineer needs. These are **plan failures** — never write them:
+
 - "TBD", "TODO", "implement later", "fill in details"
 - "Add appropriate error handling" / "add validation" / "handle edge cases"
 - "Write tests for the above" (without actual test code)
@@ -137,6 +142,7 @@ Every step must contain the actual content an engineer needs. These are **plan f
 - References to types, functions, or methods not defined in any task
 
 ## Remember
+
 - Exact file paths always
 - Complete code in every step — if a step changes code, show the code
 - Exact commands with expected output
@@ -167,9 +173,11 @@ After saving the plan, offer execution choice:
 **Which approach?"**
 
 **If Subagent-Driven chosen:**
+
 - **REQUIRED SUB-SKILL:** Use PowersNexus:subagent-driven-development
 - Fresh subagent per task + two-stage review
 
 **If Inline Execution chosen:**
+
 - **REQUIRED SUB-SKILL:** Use PowersNexus:executing-plans
 - Batch execution with checkpoints for review

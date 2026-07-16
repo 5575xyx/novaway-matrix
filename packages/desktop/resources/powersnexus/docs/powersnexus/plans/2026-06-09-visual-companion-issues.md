@@ -29,37 +29,37 @@ grounded against the current code, not the PR author's description.
 
 ## Component map
 
-| File | Role |
-|------|------|
-| `skills/brainstorming/scripts/server.cjs` | Zero-dep HTTP + WebSocket server (RFC 6455 hand-rolled). Serves the newest screen, watches `content/`, records events to `state/events`. |
-| `skills/brainstorming/scripts/helper.js` | Injected into every page. WebSocket client, click capture, `window.brainstorm` API. |
-| `skills/brainstorming/scripts/frame-template.html` | Frame (header, theme CSS, status dot, indicator bar) wrapped around content fragments. |
-| `skills/brainstorming/scripts/start-server.sh` | Launch wrapper. Session dir, host/url-host, owner-PID resolution, platform backgrounding. |
-| `skills/brainstorming/scripts/stop-server.sh` | Kills the server by PID file, cleans `/tmp` sessions. |
-| `skills/brainstorming/visual-companion.md` | Operator guide the agent reads when it accepts the companion. |
-| `skills/brainstorming/SKILL.md` | Where the companion is offered and the per-question decision lives. |
+| File                                               | Role                                                                                                                                     |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `skills/brainstorming/scripts/server.cjs`          | Zero-dep HTTP + WebSocket server (RFC 6455 hand-rolled). Serves the newest screen, watches `content/`, records events to `state/events`. |
+| `skills/brainstorming/scripts/helper.js`           | Injected into every page. WebSocket client, click capture, `window.brainstorm` API.                                                      |
+| `skills/brainstorming/scripts/frame-template.html` | Frame (header, theme CSS, status dot, indicator bar) wrapped around content fragments.                                                   |
+| `skills/brainstorming/scripts/start-server.sh`     | Launch wrapper. Session dir, host/url-host, owner-PID resolution, platform backgrounding.                                                |
+| `skills/brainstorming/scripts/stop-server.sh`      | Kills the server by PID file, cleans `/tmp` sessions.                                                                                    |
+| `skills/brainstorming/visual-companion.md`         | Operator guide the agent reads when it accepts the companion.                                                                            |
+| `skills/brainstorming/SKILL.md`                    | Where the companion is offered and the per-question decision lives.                                                                      |
 
 ## Disposition summary
 
-| ID | Item | Source | Disposition |
-|----|------|--------|-------------|
-| A1 | Per-session secret key on `/`, `/files/*`, and WS (supersedes Host allowlist) | issues #1014, PRs #1110/#1553 | **Do** — chosen approach |
-| A2 | Host allowlist; browser WS Origin check | PRs #1110/#1553 | Host allowlist dropped; WS Origin check retained after auth for browser confused-deputy defense |
-| A3 | Crash on `null` / non-object WS payload | PR #1504 | Do |
-| A4 | Frame-length bound in `decodeFrame` | issue #1446 | Already fixed — verify/close |
-| B1 | Dotfile screens served as content (`._*.html`) | PR #950 | Do |
-| B2 | `stop-server.sh` kills reused/stale PID | PR #1703 | Do |
-| B3 | WS client reconnect backoff + status indicator | PR #856 | Do |
-| C1 | Idle timeout too short / not configurable; WS not closed on shutdown | issue #1237 (PR #1689) | Do |
-| C2 | Server death is invisible to user/agent | issue #1237 (residual) | Do |
-| D1 | Permanent opt-out of the companion | issue #892 | Deferred - not in PR #1720 |
-| D2 | Free-text feedback from the browser | issue #957 | Deferred - not in PR #1720 |
-| D3 | Auto-open the companion URL | PR #759 (#755) | Done in PR #1720 via `--open` |
-| D4 | Light/dark contrast helpers in the frame | PR #1683 | Deferred - not in PR #1720 |
-| E1 | Hard-gate terminal-vs-HTML per question | PR #1037 | **Workshop** |
-| E2 | Move session state out of the working tree | issue #975 (PR #977) | **Deferred** |
-| E3 | Vendor Alpine.js for interactive mockups | PR #1639 | **Dropped** |
-| E4 | Shell-lint warnings in start/stop scripts | PR #1677 | Opportunistic only |
+| ID  | Item                                                                          | Source                        | Disposition                                                                                     |
+| --- | ----------------------------------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------- |
+| A1  | Per-session secret key on `/`, `/files/*`, and WS (supersedes Host allowlist) | issues #1014, PRs #1110/#1553 | **Do** — chosen approach                                                                        |
+| A2  | Host allowlist; browser WS Origin check                                       | PRs #1110/#1553               | Host allowlist dropped; WS Origin check retained after auth for browser confused-deputy defense |
+| A3  | Crash on `null` / non-object WS payload                                       | PR #1504                      | Do                                                                                              |
+| A4  | Frame-length bound in `decodeFrame`                                           | issue #1446                   | Already fixed — verify/close                                                                    |
+| B1  | Dotfile screens served as content (`._*.html`)                                | PR #950                       | Do                                                                                              |
+| B2  | `stop-server.sh` kills reused/stale PID                                       | PR #1703                      | Do                                                                                              |
+| B3  | WS client reconnect backoff + status indicator                                | PR #856                       | Do                                                                                              |
+| C1  | Idle timeout too short / not configurable; WS not closed on shutdown          | issue #1237 (PR #1689)        | Do                                                                                              |
+| C2  | Server death is invisible to user/agent                                       | issue #1237 (residual)        | Do                                                                                              |
+| D1  | Permanent opt-out of the companion                                            | issue #892                    | Deferred - not in PR #1720                                                                      |
+| D2  | Free-text feedback from the browser                                           | issue #957                    | Deferred - not in PR #1720                                                                      |
+| D3  | Auto-open the companion URL                                                   | PR #759 (#755)                | Done in PR #1720 via `--open`                                                                   |
+| D4  | Light/dark contrast helpers in the frame                                      | PR #1683                      | Deferred - not in PR #1720                                                                      |
+| E1  | Hard-gate terminal-vs-HTML per question                                       | PR #1037                      | **Workshop**                                                                                    |
+| E2  | Move session state out of the working tree                                    | issue #975 (PR #977)          | **Deferred**                                                                                    |
+| E3  | Vendor Alpine.js for interactive mockups                                      | PR #1639                      | **Dropped**                                                                                     |
+| E4  | Shell-lint warnings in start/stop scripts                                     | PR #1677                      | Opportunistic only                                                                              |
 
 ---
 
@@ -72,7 +72,7 @@ files (`/files/*`), and integrity of `state/events` — a WebSocket client with 
 truthy `choice` writes there (`server.cjs:243-246`), and the agent reads it next
 turn as the user's selection, i.e. **prompt injection into a live session with
 full tool access**. Reachers: with the default `127.0.0.1` bind, a malicious
-page in the user's browser (a confused deputy — runs attacker JS *and* can reach
+page in the user's browser (a confused deputy — runs attacker JS _and_ can reach
 loopback); with a remote bind (`--host 0.0.0.0`, tailnet/LAN), any host that can
 route to the port, directly, with no same-origin policy in the way. Today
 `handleUpgrade` (`server.cjs:176`) checks only `Sec-WebSocket-Key`, and
@@ -188,6 +188,7 @@ sleeps or the server restarts, the page shows "Connected" over a dead socket and
 queues events with no feedback.
 
 **Change.**
+
 - `helper.js`: exponential backoff (500ms → ×2 → cap 30s, reset on open);
   `onerror` delegating to `onclose`; `ws = null` on close; `clearTimeout` before
   reconnecting.
@@ -210,6 +211,7 @@ server dies mid-session. Separately, `shutdown()` (`server.cjs:310-321`) calls
 alive past shutdown.
 
 **Change.**
+
 - Raise the default to 4 hours and make it configurable:
   `--idle-timeout-minutes` in `start-server.sh` → an env var → `IDLE_TIMEOUT_MS`,
   with validation against Node timer overflow.
@@ -220,12 +222,13 @@ alive past shutdown.
 ### C2 — Server death is invisible
 
 **Problem.** When the server exits it writes `state/server-stopped` and removes
-`state/server-info` (`server.cjs:312-317`), and the skill is *told* to check
+`state/server-info` (`server.cjs:312-317`), and the skill is _told_ to check
 those files (`visual-companion.md:108`) — but it's soft guidance the model skips,
 and the browser just shows a generic "can't be reached." The user diagnoses it
 manually; the agent keeps referring to a dead URL.
 
 **Change (two parts, independent of C1):**
+
 - **Browser-facing tombstone.** Leave something at the last-served URL that says
   "this companion expired — ask Claude to restart it" instead of a connection
   error. Options to weigh: `helper.js` rendering a banner when the socket stays
@@ -250,6 +253,7 @@ HTML generation — every time. There's no way to say "never offer this."
 skips the offer entirely when opt-out is set.
 
 **Design choice open.** Mechanism isn't settled:
+
 - Env var (e.g. `PowersNexus_VISUAL_COMPANION=off`) the skill is told to read —
   simplest, matches what the issue asks for, lives in `.zshrc`.
 - A plugin-settings file (`.claude/PowersNexus.local.md` frontmatter) — more
@@ -342,7 +346,7 @@ These cluster into a few coherent passes (each independently testable against
 
 1. **Security pass** (IN PROGRESS, branch `brainstorm-companion-session-key`) —
    A1 per-session key (supersedes A2) + A3 null-crash guard. Verify/close A4.
-   *Highest priority.*
+   _Highest priority._
 2. **Lifecycle pass** — C1 + C2 together (both touch `shutdown()` and the
    server-death story).
 3. **Robustness pass** — B1, B2, B3 (independent, small).

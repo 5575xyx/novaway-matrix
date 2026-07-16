@@ -101,7 +101,13 @@ describe("fillOfficePptxTemplate", () => {
           },
         ],
       })[0]?.tables,
-    ).toEqual([[["Metric", "Value"], ["Revenue", "120"], ["Growth", "30%"]]])
+    ).toEqual([
+      [
+        ["Metric", "Value"],
+        ["Revenue", "120"],
+        ["Growth", "30%"],
+      ],
+    ])
   })
 
   test("derives chart data from numeric markdown tables", () => {

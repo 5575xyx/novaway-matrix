@@ -1,12 +1,15 @@
 import { describe, expect, test } from "bun:test"
-import { completeOfficeDraft, createOfficePrompt, emptyOfficeDraft, officeOutputContract, zenActions } from "./zen-office"
+import {
+  completeOfficeDraft,
+  createOfficePrompt,
+  emptyOfficeDraft,
+  officeOutputContract,
+  zenActions,
+} from "./zen-office"
 
 describe("zen office actions", () => {
   test("keeps every office entry actionable", () => {
-    expect(zenActions.map((action) => action.id)).toEqual([
-      "document",
-      "ppt",
-    ])
+    expect(zenActions.map((action) => action.id)).toEqual(["document", "ppt"])
     expect(zenActions.every((action) => action.outputs.length > 0 && action.templates.length >= 3)).toBe(true)
   })
 })

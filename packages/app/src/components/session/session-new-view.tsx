@@ -1,19 +1,12 @@
 import { Show, createMemo, createSignal, onCleanup } from "solid-js"
 import { DateTime } from "luxon"
 import { useSync } from "@/context/sync"
-import { useSDK } from "@/context/sdk"
 import { useLanguage } from "@/context/language"
-import { usePrompt } from "@/context/prompt"
-import { useCommand } from "@/context/command"
-import { useProviders } from "@/hooks/use-providers"
-import { usePermission } from "@/context/permission"
+import { useLayout } from "@/context/layout"
+import { useLocal } from "@/context/local"
 import { PromptInput } from "@/components/prompt-input"
-import { Icon } from "@opencode-ai/ui/icon"
 import { Mark } from "@opencode-ai/ui/logo"
-import { getDirectory, getFilename } from "@opencode-ai/core/util/path"
 
-const MAIN_WORKTREE = "main"
-const CREATE_WORKTREE = "create"
 const ROOT_CLASS = "size-full flex flex-col"
 
 interface NewSessionViewProps {
@@ -27,12 +20,9 @@ interface NewSessionViewProps {
 
 export function NewSessionView(props: NewSessionViewProps) {
   const sync = useSync()
-  const sdk = useSDK()
   const language = useLanguage()
-  const prompt = usePrompt()
-  const command = useCommand()
-  const providers = useProviders()
-  const permission = usePermission()
+  const layout = useLayout()
+  const local = useLocal()
 
   const [ready, setReady] = createSignal(false)
   let timer: number | undefined
@@ -54,37 +44,17 @@ export function NewSessionView(props: NewSessionViewProps) {
 
   onCleanup(clear)
 
-  const sandboxes = createMemo(() => sync.project?.sandboxes ?? [])
-  const options = createMemo(() => [MAIN_WORKTREE, ...sandboxes(), CREATE_WORKTREE])
-  const current = createMemo(() => {
-    const selection = props.worktree
-    if (options().includes(selection)) return selection
-    return MAIN_WORKTREE
+  const isForge = createMemo(() => layout.mode.current() === "forge")
+  const currentAgent = createMemo(() => {
+    const name = local.agent.current()?.name
+    if (name === "plan" || name === "build") return name
+    return "build"
   })
-  const projectRoot = createMemo(() => sync.project?.worktree ?? sdk.directory)
-  const isWorktree = createMemo(() => {
-    const project = sync.project
-    if (!project) return false
-    return sdk.directory !== project.worktree
-  })
-
-  const label = (value: string) => {
-    if (value === MAIN_WORKTREE) {
-      if (isWorktree()) return language.t("session.new.worktree.main")
-      const branch = sync.data.vcs?.branch
-      if (branch) return language.t("session.new.worktree.mainWithBranch", { branch })
-      return language.t("session.new.worktree.main")
-    }
-
-    if (value === CREATE_WORKTREE) return language.t("session.new.worktree.create")
-
-    return getFilename(value)
-  }
 
   return (
     <div class={ROOT_CLASS}>
       <div class="flex-1 flex flex-col items-center justify-center text-center">
-        <div class="w-full max-w-lg flex flex-col items-center text-center gap-8 px-6">
+        <div class="w-full max-w-xl flex flex-col items-center text-center gap-8 px-6">
           <div class="flex flex-col items-center gap-5">
             <div class="relative">
               <Mark class="w-10 animate-[logo-breathe_4s_ease-in-out_infinite]" />
@@ -110,7 +80,41 @@ export function NewSessionView(props: NewSessionViewProps) {
           </div>
 
           {/* Prompt input for new session */}
-          <div class="w-full px-4 pointer-events-auto">
+          <div class="w-full px-4 pointer-events-auto flex flex-col gap-3">
+            <Show when={isForge()}>
+              <div class="w-full flex gap-3">
+                {(
+                  [
+                    { name: "plan" as const, color: "var(--icon-agent-plan-base)" },
+                    { name: "build" as const, color: "var(--icon-agent-build-base)" },
+                  ] as const
+                ).map((agent) => {
+                  const active = () => currentAgent() === agent.name
+                  return (
+                    <button
+                      type="button"
+                      class="flex-1 flex items-start gap-4 px-5 py-4 rounded-xl border text-left transition-all"
+                      classList={{
+                        "border-border-weak-base bg-background-base/50 hover:border-border-strong-base hover:bg-surface-hover": !active(),
+                        "border-[var(--icon-agent-plan-base)]/40 bg-[var(--icon-agent-plan-base)]/10": active() && agent.name === "plan",
+                        "border-[var(--icon-agent-build-base)]/40 bg-[var(--icon-agent-build-base)]/10": active() && agent.name === "build",
+                      }}
+                      onClick={() => local.agent.set(agent.name)}
+                    >
+                      <div class="mt-1 size-3 rounded-full shrink-0" style={{ "background-color": agent.color }} />
+                      <div class="flex flex-col gap-1 min-w-0 text-left">
+                        <div class="text-14-semibold text-text-strong">
+                          {language.t(`session.new.agentSelector.${agent.name}.title`)}
+                        </div>
+                        <div class="text-12-regular text-text-weak leading-5">
+                          {language.t(`session.new.agentSelector.${agent.name}.description`)}
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </Show>
             <Show when={ready()}>
               <PromptInput
                 ref={props.inputRef}

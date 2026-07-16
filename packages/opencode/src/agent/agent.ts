@@ -145,10 +145,7 @@ export const layer = Layer.effect(
       Effect.fn("Agent.state")(function* (ctx) {
         const cfg = yield* config.get()
         const skillDirs = yield* skill.dirs()
-        const builtInSkillRules = Object.fromEntries(
-          (yield* skill.all())
-            .map((item) => [item.name, "allow"] as const),
-        )
+        const builtInSkillRules = Object.fromEntries((yield* skill.all()).map((item) => [item.name, "allow"] as const))
         const builtInSkillPermission = Permission.fromConfig({ skill: builtInSkillRules })
         const whitelistedDirs = [
           Truncate.GLOB,
@@ -252,7 +249,12 @@ export const layer = Layer.effect(
             prompt: officeAgentPrompt({
               role: "AI 文档",
               skill: "office-document",
-              workflow: ["确认文档目标、读者和使用场景", "建立标题层级、结论和关键论据", "生成可复制正文", "标出资料缺口、待确认项和可沉淀记忆"],
+              workflow: [
+                "确认文档目标、读者和使用场景",
+                "建立标题层级、结论和关键论据",
+                "生成可复制正文",
+                "标出资料缺口、待确认项和可沉淀记忆",
+              ],
               output: ["结论先行", "结构清晰", "必要时使用表格和清单", "保留待确认事项"],
               checks: ["是否能直接交付", "是否覆盖目标读者关心点", "是否区分事实和推断"],
             }),
@@ -268,7 +270,12 @@ export const layer = Layer.effect(
             prompt: officeAgentPrompt({
               role: "AI PPT",
               skill: "office-ppt",
-              workflow: ["确认受众、页数和汇报目标", "设计叙事主线和页面顺序", "拆分每页核心观点、正文和图表建议", "补充演讲备注和风险问题"],
+              workflow: [
+                "确认受众、页数和汇报目标",
+                "设计叙事主线和页面顺序",
+                "拆分每页核心观点、正文和图表建议",
+                "补充演讲备注和风险问题",
+              ],
               output: ["逐页标题", "每页一个核心观点", "页面正文可直接复制", "备注和视觉建议分开"],
               checks: ["故事线是否连贯", "页数是否合理", "是否能支撑汇报目标"],
             }),
@@ -284,7 +291,12 @@ export const layer = Layer.effect(
             prompt: officeAgentPrompt({
               role: "AI 会议",
               skill: "office-meeting",
-              workflow: ["识别会议主题和参会角色", "提取结论、决议、分歧和待确认事项", "拆分行动项、负责人和时间", "生成会后同步文本"],
+              workflow: [
+                "识别会议主题和参会角色",
+                "提取结论、决议、分歧和待确认事项",
+                "拆分行动项、负责人和时间",
+                "生成会后同步文本",
+              ],
               output: ["会议摘要", "决议清单", "行动项表格", "会后邮件或群消息"],
               checks: ["负责人是否明确", "截止时间是否明确", "分歧和结论是否分开"],
             }),
@@ -300,7 +312,12 @@ export const layer = Layer.effect(
             prompt: officeAgentPrompt({
               role: "AI 资料库",
               skill: "office-knowledge",
-              workflow: ["确认资料范围和核心问题", "提炼主题索引和关键观点", "对比差异、来源和证据", "生成 FAQ、追问线索和记忆建议"],
+              workflow: [
+                "确认资料范围和核心问题",
+                "提炼主题索引和关键观点",
+                "对比差异、来源和证据",
+                "生成 FAQ、追问线索和记忆建议",
+              ],
               output: ["资料摘要", "主题索引", "来源线索", "可追问问题"],
               checks: ["是否保留来源", "确定信息和推断是否区分", "索引是否便于后续检索"],
             }),
@@ -316,7 +333,12 @@ export const layer = Layer.effect(
             prompt: officeAgentPrompt({
               role: "AI 任务",
               skill: "office-task",
-              workflow: ["确认目标、边界和时间约束", "拆解可执行任务", "判断优先级、依赖和风险", "生成执行节奏和跟进机制"],
+              workflow: [
+                "确认目标、边界和时间约束",
+                "拆解可执行任务",
+                "判断优先级、依赖和风险",
+                "生成执行节奏和跟进机制",
+              ],
               output: ["任务清单", "P0/P1/P2 优先级", "负责人建议", "风险和依赖"],
               checks: ["任务是否可执行", "依赖是否明确", "优先级理由是否充分"],
             }),
@@ -332,12 +354,21 @@ export const layer = Layer.effect(
             prompt: officeAgentPrompt({
               role: "AI 沟通",
               skill: "office-communication",
-              workflow: ["确认沟通对象、关系和目标", "判断语气、边界和禁用表达", "生成推荐正文和备选版本", "给出发送前检查"],
+              workflow: [
+                "确认沟通对象、关系和目标",
+                "判断语气、边界和禁用表达",
+                "生成推荐正文和备选版本",
+                "给出发送前检查",
+              ],
               output: ["推荐正文", "正式版", "简短版", "发送前检查"],
               checks: ["语气是否匹配对象", "行动请求是否明确", "是否避免过度承诺"],
             }),
             permission: Permission.merge(defaults, officeSkillPermission("office-communication"), user),
-            options: officeAgentOptions({ displayName: "AI 沟通", scene: "communication", skill: "office-communication" }),
+            options: officeAgentOptions({
+              displayName: "AI 沟通",
+              scene: "communication",
+              skill: "office-communication",
+            }),
             mode: "primary",
             native: true,
             color: "secondary",

@@ -4,38 +4,38 @@ A collection of agentic skills for software development workflows. Each skill gu
 
 ## Planning & Design
 
-| Skill | Description |
-|-------|-------------|
+| Skill                           | Description                                                                                                      |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | [brainstorming](brainstorming/) | You MUST use this before any creative work - explores user intent, requirements and design before implementation |
-| [writing-plans](writing-plans/) | Use when you have a spec or requirements for a multi-step task, before touching code |
-| [openspec](openspec/) | Manages artifact generation, delta specs, and change lifecycle for PowersNexus |
+| [writing-plans](writing-plans/) | Use when you have a spec or requirements for a multi-step task, before touching code                             |
+| [openspec](openspec/)           | Manages artifact generation, delta specs, and change lifecycle for PowersNexus                                   |
 
 ## Development
 
-| Skill | Description |
-|-------|-------------|
-| [subagent-driven-development](subagent-driven-development/) | Use when executing implementation plans with independent tasks in the current session |
-| [executing-plans](executing-plans/) | Use when you have a written implementation plan to execute in a separate session with review checkpoints |
-| [test-driven-development](test-driven-development/) | Use when implementing any feature or bugfix, before writing implementation code |
+| Skill                                                       | Description                                                                                                |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| [subagent-driven-development](subagent-driven-development/) | Use when executing implementation plans with independent tasks in the current session                      |
+| [executing-plans](executing-plans/)                         | Use when you have a written implementation plan to execute in a separate session with review checkpoints   |
+| [test-driven-development](test-driven-development/)         | Use when implementing any feature or bugfix, before writing implementation code                            |
 | [dispatching-parallel-agents](dispatching-parallel-agents/) | Use when facing 2+ independent tasks that can be worked on without shared state or sequential dependencies |
 
 ## Quality & Review
 
-| Skill | Description |
-|-------|-------------|
-| [requesting-code-review](requesting-code-review/) | Use when completing tasks, implementing major features, or before merging to verify work meets requirements |
-| [receiving-code-review](receiving-code-review/) | Use when receiving code review feedback, before implementing suggestions |
-| [verification-before-completion](verification-before-completion/) | Use when about to claim work is complete, fixed, or passing, before committing or creating PRs |
+| Skill                                                             | Description                                                                                                 |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| [requesting-code-review](requesting-code-review/)                 | Use when completing tasks, implementing major features, or before merging to verify work meets requirements |
+| [receiving-code-review](receiving-code-review/)                   | Use when receiving code review feedback, before implementing suggestions                                    |
+| [verification-before-completion](verification-before-completion/) | Use when about to claim work is complete, fixed, or passing, before committing or creating PRs              |
 
 ## Support & Utilities
 
-| Skill | Description |
-|-------|-------------|
-| [using-powersnexus](using-powersnexus/) | Use when starting any conversation - establishes how to find and use skills |
-| [using-git-worktrees](using-git-worktrees/) | Use when starting feature work that needs isolation from current workspace |
+| Skill                                                             | Description                                                                                           |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| [using-powersnexus](using-powersnexus/)                           | Use when starting any conversation - establishes how to find and use skills                           |
+| [using-git-worktrees](using-git-worktrees/)                       | Use when starting feature work that needs isolation from current workspace                            |
 | [finishing-a-development-branch](finishing-a-development-branch/) | Use when implementation is complete, all tests pass, and you need to decide how to integrate the work |
-| [systematic-debugging](systematic-debugging/) | Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes |
-| [writing-skills](writing-skills/) | Use when creating new skills, editing existing skills, or verifying skills work before deployment |
+| [systematic-debugging](systematic-debugging/)                     | Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes           |
+| [writing-skills](writing-skills/)                                 | Use when creating new skills, editing existing skills, or verifying skills work before deployment     |
 
 ## Typical Workflow
 
@@ -51,6 +51,7 @@ A collection of agentic skills for software development workflows. Each skill gu
 ## Documentation
 
 Each skill has its own `SKILL.md` file with detailed instructions and workflow guidance. Some skills also include:
+
 - Scripts for automation
 - Prompt templates for subagents
 - Examples and reference materials

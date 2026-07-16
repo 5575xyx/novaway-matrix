@@ -6,6 +6,7 @@ import { useModels } from "@/context/models"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { DataProvider } from "@opencode-ai/ui/context"
 import { Message } from "@opencode-ai/ui/message-part"
+import { TypingIndicator } from "@opencode-ai/ui/typing-indicator"
 import { PulseChatInput } from "./PulseChatInput"
 import { PublishModal } from "./PublishModal"
 import type { Message as MessageType, Part, Session, SessionStatus, SnapshotFileDiff } from "@opencode-ai/sdk/v2"
@@ -31,7 +32,9 @@ export function PulseAssistant() {
   const sdk = useGlobalSDK()
   const modelsCtx = useModels()
   const dialog = useDialog()
-  const [selectedModel, setSelectedModel] = createSignal<{ id: string; name: string; provider: { id: string; name: string } } | undefined>(undefined)
+  const [selectedModel, setSelectedModel] = createSignal<
+    { id: string; name: string; provider: { id: string; name: string } } | undefined
+  >(undefined)
   const [sessionID, setSessionID] = createSignal("")
   const [data, setData] = createStore<PulseDataStore>({
     session: [],
@@ -72,7 +75,13 @@ export function PulseAssistant() {
       if (!sid) return
 
       if (event.type === "message.part.delta") {
-        const props = event.properties as { sessionID: string; messageID: string; partID: string; field: string; delta: string }
+        const props = event.properties as {
+          sessionID: string
+          messageID: string
+          partID: string
+          field: string
+          delta: string
+        }
         if (props.sessionID !== sid) return
         if (props.field === "text") {
           setData("part_text_accum_delta", props.partID, (prev) => (prev ?? "") + props.delta)
@@ -141,9 +150,26 @@ export function PulseAssistant() {
         const opencodeModels = modelsCtx.list().filter((m) => m.provider.id === "opencode")
         if (opencodeModels.length > 0) {
           const textLower = text.toLowerCase()
-          const isCodeTask = textLower.includes("代码") || textLower.includes("函数") || textLower.includes("实现") || textLower.includes("bug") || textLower.includes("code") || textLower.includes("function")
-          const isCreativeTask = textLower.includes("写") || textLower.includes("创作") || textLower.includes("文案") || textLower.includes("文章") || textLower.includes("write") || textLower.includes("create")
-          const isAnalysisTask = textLower.includes("分析") || textLower.includes("总结") || textLower.includes("对比") || textLower.includes("analyze") || textLower.includes("summarize")
+          const isCodeTask =
+            textLower.includes("代码") ||
+            textLower.includes("函数") ||
+            textLower.includes("实现") ||
+            textLower.includes("bug") ||
+            textLower.includes("code") ||
+            textLower.includes("function")
+          const isCreativeTask =
+            textLower.includes("写") ||
+            textLower.includes("创作") ||
+            textLower.includes("文案") ||
+            textLower.includes("文章") ||
+            textLower.includes("write") ||
+            textLower.includes("create")
+          const isAnalysisTask =
+            textLower.includes("分析") ||
+            textLower.includes("总结") ||
+            textLower.includes("对比") ||
+            textLower.includes("analyze") ||
+            textLower.includes("summarize")
           const isComplex = text.length > 500 || isCodeTask || isAnalysisTask
 
           const scored = opencodeModels.map((m) => {
@@ -152,7 +178,10 @@ export function PulseAssistant() {
             if (isCodeTask) score += 20
             if (isCreativeTask) score += 15
             if (isAnalysisTask) score += 10
-            if (isComplex) { if (ctx >= 256000) score += 5; else if (ctx >= 128000) score += 3 }
+            if (isComplex) {
+              if (ctx >= 256000) score += 5
+              else if (ctx >= 128000) score += 3
+            }
             return { model: m, score }
           })
           scored.sort((a, b) => b.score - a.score)
@@ -206,9 +235,13 @@ export function PulseAssistant() {
     <div class="flex flex-col h-full">
       <div class="shrink-0 px-4 py-3 border-b border-border-weak-base">
         <div class="flex items-center gap-2.5">
-          <div class="size-8 rounded-[10px] flex items-center justify-center"
-            style={{ "background-color": "color-mix(in srgb, var(--novaway-mode-color, #FF6B6B) 18%, transparent)" }}>
-            <span class="text-sm" style={{ color: "var(--novaway-mode-color, #FF6B6B)" }}>✦</span>
+          <div
+            class="size-8 rounded-[10px] flex items-center justify-center"
+            style={{ "background-color": "color-mix(in srgb, var(--novaway-mode-color, #FF6B6B) 18%, transparent)" }}
+          >
+            <span class="text-sm" style={{ color: "var(--novaway-mode-color, #FF6B6B)" }}>
+              ✦
+            </span>
           </div>
           <div class="flex-1">
             <h3 class="text-14-medium text-text-strong leading-tight">AI 运营助手</h3>
@@ -217,7 +250,7 @@ export function PulseAssistant() {
           <button
             class="px-3 py-1.5 rounded-[8px] text-12-medium text-white transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0"
             style={{
-              "background": "linear-gradient(135deg, var(--novaway-mode-color, #FF6B6B), #e05555)",
+              background: "linear-gradient(135deg, var(--novaway-mode-color, #FF6B6B), #e05555)",
               "box-shadow": "0 2px 8px color-mix(in srgb, var(--novaway-mode-color, #FF6B6B) 30%, transparent)",
             }}
             onClick={() => dialog.show(() => <PublishModal />)}
@@ -236,23 +269,28 @@ export function PulseAssistant() {
             <span class="text-amber-500">连接中...</span>
           </Show>
           <Show when={error()}>
-            <span class="text-rose-500 truncate ml-auto max-w-[160px]" title={error()}>⚠</span>
+            <span class="text-rose-500 truncate ml-auto max-w-[160px]" title={error()}>
+              ⚠
+            </span>
           </Show>
         </div>
       </div>
 
       <div class="flex-1 overflow-y-auto p-3" data-slot="pulse-messages">
-        <DataProvider
-          data={dataSnapshot()}
-          directory="/pulse"
-        >
+        <DataProvider data={dataSnapshot()} directory="/pulse">
           <Show
             when={messages().length > 0}
             fallback={
               <div class="flex flex-col items-center text-center pt-6 pb-4 px-2">
-                <div class="size-16 rounded-[14px] flex items-center justify-center mb-5"
-                  style={{ "background-color": "color-mix(in srgb, var(--novaway-mode-color, #FF6B6B) 10%, transparent)" }}>
-                  <span class="text-2xl" style={{ color: "var(--novaway-mode-color, #FF6B6B)" }}>✨</span>
+                <div
+                  class="size-16 rounded-[14px] flex items-center justify-center mb-5"
+                  style={{
+                    "background-color": "color-mix(in srgb, var(--novaway-mode-color, #FF6B6B) 10%, transparent)",
+                  }}
+                >
+                  <span class="text-2xl" style={{ color: "var(--novaway-mode-color, #FF6B6B)" }}>
+                    ✨
+                  </span>
                 </div>
                 <h4 class="text-14-medium text-text-strong mb-1">我可以帮你：</h4>
                 <p class="text-12-regular text-text-weaker mb-4">选择一个快捷指令开始</p>
@@ -277,21 +315,10 @@ export function PulseAssistant() {
               </div>
             }
           >
-            <For each={messages()}>
-              {(msg) => (
-                <Message
-                  message={msg}
-                  parts={data.part[msg.id] ?? []}
-                />
-              )}
-            </For>
+            <For each={messages()}>{(msg) => <Message message={msg} parts={data.part[msg.id] ?? []} />}</For>
             <Show when={isWorking()}>
               <div class="px-4 py-3">
-                <div class="flex gap-1">
-                  <span class="size-1.5 rounded-full bg-text-weaker animate-bounce" style={{ "animation-delay": "0ms" }} />
-                  <span class="size-1.5 rounded-full bg-text-weaker animate-bounce" style={{ "animation-delay": "150ms" }} />
-                  <span class="size-1.5 rounded-full bg-text-weaker animate-bounce" style={{ "animation-delay": "300ms" }} />
-                </div>
+                <TypingIndicator label="AI 运营助手正在思考..." />
               </div>
             </Show>
           </Show>

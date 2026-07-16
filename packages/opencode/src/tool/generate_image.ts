@@ -1,6 +1,12 @@
 import { Effect, Schema } from "effect"
-import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
+import { HttpClient } from "effect/unstable/http"
 import { Tool } from "./tool"
+import { Config } from "@/config/config"
+import { ConfigProvider } from "@/config/provider"
+import { Auth } from "@/auth"
+import { ImageGeneration, AgnesImage, ProtocolRegistry } from "@opencode-ai/llm/protocols"
+
+ProtocolRegistry.registerImageProtocol("agnes", AgnesImage.agnesImage)
 
 interface Metadata {
   prompt: string
@@ -16,85 +22,134 @@ const Parameters = Schema.Struct({
   image: Schema.optional(Schema.Array(Schema.String)),
 })
 
-const ImageGenerateRequest = Schema.Struct({
-  model: Schema.String,
-  prompt: Schema.String,
-  size: Schema.optional(Schema.String),
-  image: Schema.optional(Schema.Array(Schema.String)),
-})
-
-const ImageGenerateResponse = Schema.Struct({
-  data: Schema.optional(
-    Schema.Array(
-      Schema.Struct({
-        url: Schema.optional(Schema.String),
-        b64_json: Schema.optional(Schema.String),
-        revised_prompt: Schema.optional(Schema.String),
-      }),
-    ),
-  ),
-})
-
 export const GenerateImageTool = Tool.define(
   "generate_image",
   Effect.gen(function* () {
+    const config = yield* Config.Service
+    const auth = yield* Auth.Service
     const http = yield* HttpClient.HttpClient
-    const httpOk = HttpClient.filterStatusOk(http)
+    const imageService = ImageGeneration.make()
 
     return {
       description:
         "Generate images from text prompts using AI image generation models. Supports text-to-image and image-to-image workflows.",
       parameters: Parameters,
-      execute: (args: Schema.Schema.Type<typeof Parameters>, ctx: Tool.Context) =>
+      execute: (args: Schema.Schema.Type<typeof Parameters>) =>
         Effect.gen(function* () {
-          const model = args.model || "agnes-image-2.1-flash"
-          const apiKey = process.env.AGNES_API_KEY
-          if (!apiKey) {
-            throw new Error("AGNES_API_KEY environment variable is not set. Please configure your API key.")
+          const cfg = yield* config.get()
+
+          const hasImageOutput = (pcfg: ConfigProvider.Info) =>
+            Object.values(pcfg.models ?? {}).some((m) => m.modalities?.output?.includes("image"))
+
+          const isImageProvider = (pid: string, pcfg: ConfigProvider.Info) =>
+            ProtocolRegistry.listImageProviders().includes(pid) || hasImageOutput(pcfg)
+
+          const resolveApiKey = (pid: string, pcfg: ConfigProvider.Info) =>
+            Effect.gen(function* () {
+              if (pcfg.options?.apiKey) return pcfg.options.apiKey
+              const authInfo = yield* auth.get(pid)
+              if (authInfo?.type === "api") return authInfo.key
+              if (authInfo?.type === "wellknown") return authInfo.token
+              return undefined
+            })
+
+          const pickImageModel = (pcfg: ConfigProvider.Info, preferred?: string) => {
+            if (preferred && pcfg.models?.[preferred]) return preferred
+            const imageModel = Object.entries(pcfg.models ?? {}).find(([, m]) =>
+              m.modalities?.output?.includes("image"),
+            )?.[0]
+            return imageModel ?? Object.keys(pcfg.models ?? {})[0]
           }
 
-          yield* ctx.metadata({
-            title: `Image generation: ${args.prompt.slice(0, 50)}`,
-            metadata: { prompt: args.prompt, model, size: args.size },
-          })
+          type Candidate = {
+            providerId: string
+            apiKey: string
+            baseURL?: string
+            modelName: string
+          }
 
-          // Call Agnes Image API
-          const url = "https://apihub.agnes-ai.com/v1/images/generations"
+          let candidate: Candidate | undefined
 
-          const request = yield* HttpClientRequest.post(url).pipe(
-            HttpClientRequest.bearerToken(apiKey),
-            HttpClientRequest.bodyJson({
-              model,
-              prompt: args.prompt,
-              size: args.size || "1024x768",
-              image: args.image,
-            }),
-          )
+          // 如果显式指定了模型，优先找到拥有该模型且具备图片能力的 provider
+          if (args.model) {
+            for (const [pid, pcfg] of Object.entries(cfg.provider ?? {})) {
+              if (!pcfg.models?.[args.model]) continue
+              if (!isImageProvider(pid, pcfg)) continue
+              const key = yield* resolveApiKey(pid, pcfg)
+              if (!key) continue
+              candidate = {
+                providerId: pid,
+                apiKey: key,
+                baseURL: pcfg.options?.baseURL,
+                modelName: args.model,
+              }
+              break
+            }
+          }
 
-          const response = yield* httpOk.execute(request)
-          const result = yield* HttpClientResponse.schemaBodyJson(ImageGenerateResponse)(response)
+          // 查找第一个具备图片生成能力且已配置 API Key 的 provider
+          if (!candidate) {
+            for (const [pid, pcfg] of Object.entries(cfg.provider ?? {})) {
+              if (!isImageProvider(pid, pcfg)) continue
+              const key = yield* resolveApiKey(pid, pcfg)
+              if (!key) continue
+              const modelName = pickImageModel(pcfg, args.model) ?? "agnes-image-2.1-flash"
+              candidate = {
+                providerId: pid,
+                apiKey: key,
+                baseURL: pcfg.options?.baseURL,
+                modelName,
+              }
+              break
+            }
+          }
 
-          const images = (result.data ?? []).map((item) => ({
-            url: item.url ?? undefined,
-            base64: item.b64_json ?? undefined,
-            revisedPrompt: item.revised_prompt ?? undefined,
-          }))
+          // 兜底：使用环境变量中的 Agnes API Key
+          if (!candidate) {
+            const envKey = process.env.AGNES_API_KEY
+            if (envKey) {
+              candidate = {
+                providerId: "agnes",
+                apiKey: envKey,
+                baseURL: "https://apihub.agnes-ai.com/v1",
+                modelName: args.model ?? "agnes-image-2.1-flash",
+              }
+            }
+          }
 
-          if (images.length === 0) {
+          if (!candidate) {
+            throw new Error("No image generation provider configured. Please set up a provider with API key.")
+          }
+
+          const protocol = ProtocolRegistry.getImageProtocol(candidate.providerId, candidate.baseURL)
+
+          if (!protocol) {
+            throw new Error(`No image generation protocol registered for provider "${candidate.providerId}".`)
+          }
+
+          const imageResult = yield* imageService.generate(protocol, {
+            prompt: args.prompt,
+            model: candidate.modelName,
+            size: args.size,
+            image: args.image,
+          }, candidate.apiKey).pipe(Effect.provideService(HttpClient.HttpClient, http))
+
+          const firstImage = imageResult.images[0]
+          if (!firstImage) {
             throw new Error("No images were generated")
           }
 
-          const imageUrl = images[0]?.url
+          const imageUrl = firstImage.url
 
           return {
             title: `Generated image: ${args.prompt.slice(0, 50)}`,
             output: imageUrl ?? "Image generated successfully (base64)",
             metadata: {
               prompt: args.prompt,
-              model,
+              model: candidate.modelName,
               size: args.size,
               imageUrl: imageUrl ?? "",
-            },
+            } as Metadata,
           }
         }).pipe(Effect.orDie),
     }

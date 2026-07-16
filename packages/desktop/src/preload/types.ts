@@ -67,6 +67,68 @@ export interface PlatformPublishResult {
   url?: string
 }
 
+export type FloatingAgent = {
+  name: string
+  mode: string
+  hidden?: boolean
+  options?: Record<string, unknown>
+}
+
+export type FloatingTask = {
+  id?: string
+  content: string
+  status: "pending" | "in_progress" | "completed" | "cancelled"
+  priority: "high" | "medium" | "low"
+  startedAt?: number
+  completedAt?: number
+  durationMs?: number
+}
+
+export type FloatingTaskGroup = {
+  id: string
+  label: string
+  sessionID: string
+  tasks: FloatingTask[]
+  updatedAt?: number
+}
+
+export type FloatingTaskEvent = {
+  id: string
+  groupID: string
+  groupLabel: string
+  taskContent: string
+  status: FloatingTask["status"]
+  at: number
+  durationMs?: number
+}
+
+export type FloatingNotification = {
+  id: string
+  title: string
+  body?: string
+  href?: string
+  sessionID?: string
+  requestID?: string
+  status?: "replied" | "dismissed"
+  at: number
+  read: boolean
+}
+
+export type FloatingNotificationContext = Pick<FloatingNotification, "sessionID" | "requestID">
+
+export type FloatingPetSkin = "snow" | "honey" | "ash" | "aurora" | "violet" | "crimson" | `#${string}`
+
+export type FloatingAgentState = {
+  current?: string
+  agents: FloatingAgent[]
+  tasks?: FloatingTask[]
+  taskGroups?: FloatingTaskGroup[]
+  currentTaskGroupID?: string
+  taskEvents?: FloatingTaskEvent[]
+  notifications?: FloatingNotification[]
+  petSkin?: FloatingPetSkin
+}
+
 export interface ElectronCookie {
   name: string
   value: string
@@ -121,6 +183,32 @@ export type ElectronAPI = {
   onSqliteMigrationProgress: (cb: (progress: SqliteMigrationProgress) => void) => () => void
   onMenuCommand: (cb: (id: string) => void) => () => void
   onDeepLink: (cb: (urls: string[]) => void) => () => void
+  onNotificationClick: (cb: (href?: string) => void) => () => void
+
+  getFloatingAgentState: () => Promise<FloatingAgentState>
+  setFloatingAgent: (name: string) => Promise<void>
+  setFloatingPetSkin: (skin: FloatingPetSkin) => Promise<void>
+  markFloatingNotificationsRead: (ids?: string[]) => Promise<void>
+  clearFloatingNotifications: () => Promise<void>
+  openFloatingNotification: (id: string) => Promise<void>
+  resolveFloatingNotification: (input: {
+    sessionID: string
+    requestID: string
+    status: "replied" | "dismissed"
+  }) => Promise<void>
+  onFloatingAgentChange: (cb: (state: FloatingAgentState) => void) => () => void
+  onFloatingExpandedChange: (cb: (expanded: boolean) => void) => () => void
+  onFloatingPanelTabChange: (cb: (tab: "monitor" | "notifications") => void) => () => void
+  onFloatingSkinMenuChange: (cb: (visible: boolean) => void) => () => void
+  floatingWidgetReady: () => void
+  showFloatingWidget: () => Promise<void>
+  onFloatingVisibilityChange: (cb: (visible: boolean) => void) => () => void
+  updateFloatingAgentState: (state: FloatingAgentState) => Promise<void>
+  beginFloatingWidgetDrag: (pointerX: number, pointerY: number) => void
+  moveFloatingWidget: (pointerX: number, pointerY: number) => void
+  saveFloatingWidgetBounds: () => Promise<void>
+  setFloatingExpanded: (expanded: boolean) => Promise<void>
+  toggleFloatingSkinMenu: () => Promise<void>
 
   createDirectory: (parentPath: string, dirName: string) => Promise<string>
   openDirectoryPicker: (opts?: {
@@ -135,11 +223,18 @@ export type ElectronAPI = {
     accept?: string[]
     extensions?: string[]
   }) => Promise<string | string[] | null>
-  saveFilePicker: (opts?: { title?: string; defaultPath?: string }) => Promise<string | null>
+  saveFilePicker: (opts?: { title?: string; defaultPath?: string; data?: Uint8Array }) => Promise<string | null>
+  copyFileToClipboard: (opts?: { url?: string; filename?: string }) => Promise<boolean>
   openLink: (url: string) => void
   openPath: (path: string, app?: string) => Promise<void>
   readClipboardImage: () => Promise<{ buffer: ArrayBuffer; width: number; height: number } | null>
-  showNotification: (title: string, body?: string) => void
+  showNotification: (
+    title: string,
+    body?: string,
+    href?: string,
+    showSystem?: boolean,
+    context?: FloatingNotificationContext,
+  ) => void
   getWindowFocused: () => Promise<boolean>
   setWindowFocus: () => Promise<void>
   showWindow: () => Promise<void>

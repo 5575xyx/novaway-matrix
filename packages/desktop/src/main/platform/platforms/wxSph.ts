@@ -1,6 +1,14 @@
 import { BrowserWindow, screen, session } from "electron"
 import type { Cookie } from "electron"
-import { PlatformBase, type PlatformLoginResult, type PublishInput, type PublishResult, type PlatformAccountInfo, type AccountStats, type PublishRecord } from "../PlatformBase"
+import {
+  PlatformBase,
+  type PlatformLoginResult,
+  type PublishInput,
+  type PublishResult,
+  type PlatformAccountInfo,
+  type AccountStats,
+  type PublishRecord,
+} from "../PlatformBase"
 
 const DEFAULT_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
@@ -8,8 +16,16 @@ const DEFAULT_USER_AGENT =
 function convertCookieToJson(cookies: any): string {
   let arr: Cookie[]
   if (typeof cookies === "string") {
-    try { arr = JSON.parse(cookies) } catch { return cookies }
-  } else if (Array.isArray(cookies)) { arr = cookies } else { return "" }
+    try {
+      arr = JSON.parse(cookies)
+    } catch {
+      return cookies
+    }
+  } else if (Array.isArray(cookies)) {
+    arr = cookies
+  } else {
+    return ""
+  }
   return arr.map((c) => `${c.name}=${c.value}`).join("; ")
 }
 
@@ -24,7 +40,13 @@ export class WxSphPlatform extends PlatformBase {
   private cookieIntervalList: Record<number, NodeJS.Timeout> = {}
   private windowMap: Record<number, BrowserWindow> = {}
 
-  async login(): Promise<{ loginCookie: string; uid: string; nickname: string; avatar: string; fansCount: number } | null> {
+  async login(): Promise<{
+    loginCookie: string
+    uid: string
+    nickname: string
+    avatar: string
+    fansCount: number
+  } | null> {
     try {
       const { success, data, error } = await this.execLoginOrView("login")
       if (!success || !data) {
@@ -175,17 +197,14 @@ export class WxSphPlatform extends PlatformBase {
   async checkLoginStatus(cookies: string): Promise<boolean> {
     const cookieString = convertCookieToJson(cookies)
     try {
-      const res = await this.makeRequest(
-        this.getUserInfoUrl,
-        {
-          method: "POST",
-          headers: {
-            Origin: "https://channels.weixin.qq.com",
-            Referer: "https://channels.weixin.qq.com/platform",
-            Cookie: cookieString,
-          },
+      const res = await this.makeRequest(this.getUserInfoUrl, {
+        method: "POST",
+        headers: {
+          Origin: "https://channels.weixin.qq.com",
+          Referer: "https://channels.weixin.qq.com/platform",
+          Cookie: cookieString,
         },
-      )
+      })
       if (res.errCode === 0) return true
       throw new Error(res.data?.errMsg ?? "未知错误")
     } catch (err) {
@@ -215,19 +234,18 @@ export class WxSphPlatform extends PlatformBase {
     })
   }
 
-  async getUserInfo(cookies: Cookie[]): Promise<{ authorId: string; nickname: string; avatar: string; fansCount: number }> {
+  async getUserInfo(
+    cookies: Cookie[],
+  ): Promise<{ authorId: string; nickname: string; avatar: string; fansCount: number }> {
     const cookieString = convertCookieToJson(cookies)
-    const res = await this.makeRequest(
-      this.getUserInfoUrl,
-      {
-        method: "POST",
-        headers: {
-          Origin: "https://channels.weixin.qq.com",
-          Referer: "https://channels.weixin.qq.com/platform",
-          Cookie: cookieString,
-        },
+    const res = await this.makeRequest(this.getUserInfoUrl, {
+      method: "POST",
+      headers: {
+        Origin: "https://channels.weixin.qq.com",
+        Referer: "https://channels.weixin.qq.com/platform",
+        Cookie: cookieString,
       },
-    )
+    })
     if (res.errCode === 0) {
       return {
         authorId: res.data.finderUser.uniqId ?? "",

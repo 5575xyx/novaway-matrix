@@ -29,7 +29,9 @@
       filter: brightness(1.05);
     }
     &:focus-visible:not(:disabled) {
-      box-shadow: 0 0 0 3px rgba(3, 76, 255, 0.15), 0 1px 2px rgba(0, 0, 0, 0.08);
+      box-shadow:
+        0 0 0 3px rgba(3, 76, 255, 0.15),
+        0 1px 2px rgba(0, 0, 0, 0.08);
     }
     &:active:not(:disabled) {
       transform: translateY(0);
@@ -99,7 +101,9 @@
     }
     &:focus-visible:not(:active) {
       background-color: var(--button-secondary-base);
-      box-shadow: 0 0 0 3px rgba(3, 76, 255, 0.1), var(--shadow-xs-border-focus);
+      box-shadow:
+        0 0 0 3px rgba(3, 76, 255, 0.1),
+        var(--shadow-xs-border-focus);
     }
     &:focus-visible:active {
       box-shadow: 0 0 0 3px rgba(3, 76, 255, 0.1);

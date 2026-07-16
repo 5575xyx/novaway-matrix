@@ -24,4 +24,13 @@ export const dict = {
   "desktop.cli.installed.message": "CLI installed to {{path}}\n\nRestart your terminal to use the 'opencode' command.",
   "desktop.cli.failed.title": "Installation Failed",
   "desktop.cli.failed.message": "Failed to install CLI: {{error}}",
+
+  "desktop.loading.waiting": "Please wait...",
+  "desktop.loading.migrating": "Migrating database...",
+  "desktop.loading.mayTakeTime": "This may take a few minutes",
+  "desktop.loading.startingServer": "Starting server...",
+  "desktop.loading.initializingConfig": "Initializing config...",
+  "desktop.loading.loadingAgents": "Loading agents...",
+  "desktop.loading.loadingSkills": "Loading skills...",
+  "desktop.loading.done": "Initialization complete",
 }

@@ -6,8 +6,9 @@ import { ServerConnection } from "./server"
 type PickerPaths = string | string[] | null
 type OpenDirectoryPickerOptions = { title?: string; multiple?: boolean }
 type OpenFilePickerOptions = { title?: string; multiple?: boolean; accept?: string[]; extensions?: string[] }
-type SaveFilePickerOptions = { title?: string; defaultPath?: string }
+type SaveFilePickerOptions = { title?: string; defaultPath?: string; data?: Uint8Array }
 type UpdateInfo = { updateAvailable: boolean; version?: string }
+export type NotificationMetadata = { sessionID?: string; requestID?: string }
 
 export type Platform = {
   platform: "web" | "desktop"
@@ -26,7 +27,7 @@ export type Platform = {
 
   forward(): void
 
-  notify(title: string, description?: string, href?: string): Promise<void>
+  notify(title: string, description?: string, href?: string, metadata?: NotificationMetadata): Promise<void>
 
   createDirectory?(parentPath: string, dirName: string): Promise<string>
 

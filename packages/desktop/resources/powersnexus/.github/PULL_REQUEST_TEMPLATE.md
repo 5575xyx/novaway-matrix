@@ -9,19 +9,21 @@ of human involvement will be closed without review.
 > `main` will be asked to retarget `dev` before review.
 
 ## Who is submitting this PR? (required)
+
 <!-- Required. PRs that omit this will be closed. We assume an agent wrote
      this PR — tell us which one and where it ran. We weigh contributions by
      what produced them: content reasoned from documentation is held to a
      different bar than work grounded in a real session. -->
 
-| Field | Value |
-|-------|-------|
-| Your model + version | |
-| Harness + version | |
-| All plugins installed | |
-| Human partner who reviewed this diff | |
+| Field                                | Value |
+| ------------------------------------ | ----- |
+| Your model + version                 |       |
+| Harness + version                    |       |
+| All plugins installed                |       |
+| Human partner who reviewed this diff |       |
 
 ## What problem are you trying to solve?
+
 <!-- Describe the specific problem you encountered. If this was a session
      issue, include: what you were doing, what went wrong, the model's
      exact failure mode, and ideally a transcript or session log.
@@ -30,9 +32,11 @@ of human involvement will be closed without review.
      failed? What was the user experience that motivated this? -->
 
 ## What does this PR change?
+
 <!-- 1-3 sentences. What, not why — the "why" belongs above. -->
 
 ## Is this change appropriate for the core library?
+
 <!-- PowersNexus core contains general-purpose skills and infrastructure
      that benefit all users. Ask yourself:
 
@@ -46,15 +50,18 @@ of human involvement will be closed without review.
      See the plugin development docs for how to publish it separately. -->
 
 ## What alternatives did you consider?
+
 <!-- What other approaches did you try or evaluate before landing on this
      one? Why were they worse? If you didn't consider alternatives, say so
      — but know that's a red flag. -->
 
 ## Does this PR contain multiple unrelated changes?
+
 <!-- If yes: stop. Split it into separate PRs. Bundled PRs will be closed.
      If you believe the changes are related, explain the dependency. -->
 
 ## Existing PRs
+
 - [ ] I have reviewed all open AND closed PRs for duplicates or prior art
 - Related PRs: <!-- #number, #number, or "none found" -->
 
@@ -64,8 +71,8 @@ of human involvement will be closed without review.
 ## Environment tested
 
 | Harness (e.g. Claude Code, Cursor) | Harness version | Model | Model version/ID |
-|-------------------------------------|-----------------|-------|------------------|
-|                                     |                 |       |                  |
+| ---------------------------------- | --------------- | ----- | ---------------- |
+|                                    |                 |       |                  |
 
 ## New harness support (required if this PR adds a new harness)
 
@@ -107,6 +114,7 @@ paste the complete transcript here
 </details>
 
 ## Evaluation
+
 - What was the initial prompt you (or your human partner) used to start
   the session that led to this change?
 - How many eval sessions did you run AFTER making the change?
@@ -128,6 +136,7 @@ paste the complete transcript here
      eval methodology and results. These are not prose — they are code. -->
 
 ## Human review
+
 - [ ] A human has reviewed the COMPLETE proposed diff before submission
 
 <!--

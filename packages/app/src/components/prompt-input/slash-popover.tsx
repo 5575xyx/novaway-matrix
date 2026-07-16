@@ -67,7 +67,11 @@ export const PromptPopover: Component<PromptPopoverProps> = (props) => {
                         onMouseEnter={() => props.setAtActive(key)}
                       >
                         <div class="flex items-center gap-x-2 min-w-0">
-                          <Icon name={item.category === "rule" ? "shield" : "brain"} size="small" class="text-icon-info-active shrink-0" />
+                          <Icon
+                            name={item.category === "rule" ? "shield" : "brain"}
+                            size="small"
+                            class="text-icon-info-active shrink-0"
+                          />
                           <span class="text-14-regular text-text-strong whitespace-nowrap">{item.display}</span>
                           <span class="text-13-regular text-text-weak truncate">{item.description}</span>
                         </div>
@@ -88,7 +92,9 @@ export const PromptPopover: Component<PromptPopoverProps> = (props) => {
                         <Icon name="shield" size="small" class="text-icon-info-active shrink-0" />
                         <span class="text-14-regular text-text-strong whitespace-nowrap">@{item.name}</span>
                         <Show when={item.description || item.display !== item.name}>
-                          <span class="text-13-regular text-text-weak truncate">{item.description || item.display}</span>
+                          <span class="text-13-regular text-text-weak truncate">
+                            {item.description || item.display}
+                          </span>
                         </Show>
                       </button>
                     )

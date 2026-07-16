@@ -19,7 +19,10 @@ function wildcardMatch(value: string, pattern: string) {
 }
 
 function evaluateSkillPermission(name: string, ruleset: PermissionRule[]) {
-  return ruleset.findLast((rule) => wildcardMatch("skill", rule.permission) && wildcardMatch(name, rule.pattern))?.action ?? "ask"
+  return (
+    ruleset.findLast((rule) => wildcardMatch("skill", rule.permission) && wildcardMatch(name, rule.pattern))?.action ??
+    "ask"
+  )
 }
 
 function cleanAgentConfig(value: Record<string, unknown>) {

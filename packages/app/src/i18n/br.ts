@@ -857,4 +857,19 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "Falha ao criar ícone de projeto persistente",
   "error.childStore.storeCreateFailed": "Falha ao criar armazenamento",
   "terminal.connectionLost.abnormalClose": "WebSocket fechado anormalmente: {{code}}",
+
+  "assistant.title": "Assistant",
+  "assistant.tab.agent": "Agent",
+  "assistant.tab.todo": "Tasks",
+  "assistant.tab.notifications": "Notifications",
+  "assistant.tab.runs": "Runs",
+  "assistant.agent.current": "Current agent",
+  "assistant.agent.switchTo": "Switch to",
+  "assistant.agent.switch": "Switch",
+
+  "session.new.agentSelector.title": "Choose your approach",
+  "session.new.agentSelector.plan.title": "Plan",
+  "session.new.agentSelector.plan.description": "Break down requirements and draft a plan",
+  "session.new.agentSelector.build.title": "Build",
+  "session.new.agentSelector.build.description": "Jump straight into implementation",
 }

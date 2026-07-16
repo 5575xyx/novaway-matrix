@@ -11,6 +11,7 @@ import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
+import { useSettings } from "@/context/settings"
 import { applyPath, backPath, forwardPath } from "./titlebar-history"
 import { ModeSwitchButton } from "@/components/mode-switch"
 import { MemoryEvolutionPanel } from "@/components/memory-evolution-panel"
@@ -41,7 +42,7 @@ const titlebarHeight = 50
 const minTitlebarZoom = 0.25
 const windowsControlsBaseWidth = 138 // 3 native Windows caption buttons at 46px each.
 
-export function Titlebar() {
+export function Titlebar(props: { settingsOpen?: boolean; databaseOpen?: boolean }) {
   const layout = useLayout()
   const platform = usePlatform()
   const command = useCommand()
@@ -49,6 +50,7 @@ export function Titlebar() {
   const theme = useTheme()
   const navigate = useNavigate()
   const location = useLocation()
+  const settings = useSettings()
 
   const mac = createMemo(() => platform.platform === "desktop" && platform.os === "macos")
   const windows = createMemo(() => platform.platform === "desktop" && platform.os === "windows")
@@ -69,6 +71,9 @@ export function Titlebar() {
   })
 
   const path = () => `${location.pathname}${location.search}${location.hash}`
+  const canBack = createMemo(() => history.index > 0)
+  const canForward = createMemo(() => history.index < history.stack.length - 1)
+  const nav = createMemo(() => settings.general.showNavigation())
 
   createEffect(() => {
     const current = path()
@@ -166,10 +171,20 @@ export function Titlebar() {
     void win.toggleMaximize().catch(() => undefined)
   }
 
+  const pageOpen = () => props.settingsOpen || props.databaseOpen
+
   return (
     <header
       class="h-[50px] shrink-0 bg-background-base/90 backdrop-blur-md relative overflow-hidden titlebar-gradient-border"
-      style={{ "min-height": minHeight() }}
+      style={{
+        "min-height": minHeight(),
+        "background-color": pageOpen()
+          ? "light-dark(color-mix(in srgb, #ede9fe 88%, var(--background-base)), color-mix(in srgb, #3b2a5e 16%, var(--background-base)))"
+          : undefined,
+        "border-bottom": pageOpen()
+          ? "1px solid light-dark(color-mix(in srgb, #a78bfa 38%, transparent), color-mix(in srgb, #a78bfa 24%, transparent))"
+          : undefined,
+      }}
       data-tauri-drag-region
       onMouseDown={drag}
       onDblClick={maximize}
@@ -212,6 +227,32 @@ export function Titlebar() {
             </div>
           </Show>
           <div class="flex items-center gap-1 min-w-0">
+            <Show when={nav()}>
+              <div class="flex items-center gap-0">
+                <Tooltip placement="bottom" value={language.t("common.goBack")}>
+                  <Button
+                    variant="ghost"
+                    class="titlebar-icon w-8 h-8 p-0 box-border rounded-xl text-icon-base hover:bg-surface-base-hover transition-all duration-150 hover:scale-105"
+                    disabled={!canBack()}
+                    onClick={back}
+                    aria-label={language.t("common.goBack")}
+                  >
+                    <Icon size="small" name="chevron-left" />
+                  </Button>
+                </Tooltip>
+                <Tooltip placement="bottom" value={language.t("common.goForward")}>
+                  <Button
+                    variant="ghost"
+                    class="titlebar-icon w-8 h-8 p-0 box-border rounded-xl text-icon-base hover:bg-surface-base-hover transition-all duration-150 hover:scale-105"
+                    disabled={!canForward()}
+                    onClick={forward}
+                    aria-label={language.t("common.goForward")}
+                  >
+                    <Icon size="small" name="chevron-right" />
+                  </Button>
+                </Tooltip>
+              </div>
+            </Show>
             <Tooltip placement="bottom" value="模式首页">
               <Button
                 variant="ghost"
@@ -237,6 +278,22 @@ export function Titlebar() {
                 <Icon size="small" name="settings-gear" />
               </Button>
             </TooltipKeybind>
+            <Show when={settings.general.showDatabase()}>
+              <TooltipKeybind
+                placement="bottom"
+                title={language.t("command.database.open")}
+                keybind={command.keybind("database.open")}
+              >
+                <Button
+                  variant="ghost"
+                  class="titlebar-icon w-8 h-8 p-0 box-border rounded-xl text-icon-base hover:bg-surface-base-hover transition-all duration-150 hover:scale-105"
+                  onClick={() => command.trigger("database.open")}
+                  aria-label={language.t("command.database.open")}
+                >
+                  <Icon size="small" name="database" />
+                </Button>
+              </TooltipKeybind>
+            </Show>
             <div id="opencode-titlebar-session-actions" class="flex flex-row items-center gap-1 shrink-0" />
             <div id="opencode-titlebar-search" class="ml-2 hidden min-w-0 shrink md:flex" />
           </div>
@@ -264,6 +321,7 @@ export function Titlebar() {
           onMouseDown={drag}
         >
           <div class="flex items-center gap-1 shrink-0 justify-end">
+            <div id="opencode-titlebar-right" class="flex items-center gap-1 shrink-0 justify-end" />
             <MemoryEvolutionPanel />
             <ThemeSchemeToggle />
           </div>

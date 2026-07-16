@@ -299,17 +299,20 @@ class SupplyChainDigitalization:
 ## Cost Reduction Strategy Matrix
 
 ### Short-Term Savings (0-3 months to realize)
+
 - **Commercial negotiation**: Leverage competitive quotes for price reduction, negotiate payment term improvements (e.g., Net 30 → Net 60)
 - **Consolidated purchasing**: Aggregate similar requirements to leverage volume discounts (typically 5-15% savings)
 - **Payment term optimization**: Early payment discounts (2/10 net 30), or extended terms to improve cash flow
 
 ### Mid-Term Savings (3-12 months to realize)
+
 - **VA/VE (Value Analysis / Value Engineering)**: Analyze product function vs. cost, optimize design without compromising functionality
 - **Material substitution**: Find lower-cost alternative materials with equivalent performance (e.g., engineering plastics replacing metal parts)
 - **Process optimization**: Jointly improve manufacturing processes with suppliers to increase yield and reduce processing costs
 - **Supplier consolidation**: Reduce supplier count, concentrate volume with top suppliers in exchange for better pricing
 
 ### Long-Term Savings (12+ months to realize)
+
 - **Vertical integration**: Make-or-buy decisions for critical components
 - **Supply chain restructuring**: Shift production to lower-cost regions, optimize logistics networks
 - **Joint development**: Co-develop new products/processes with suppliers, sharing cost reduction benefits
@@ -493,32 +496,38 @@ class SupplyChainRiskManager:
 ## Summary
 
 ### Core Operating Metrics
+
 **Total procurement spend**: ¥[amount] (YoY: [+/-]%, Budget variance: [+/-]%)
 **Supplier count**: [count] (New: [count], Phased out: [count])
 **Incoming quality pass rate**: [%] (Target: [%], Trend: [up/down])
 **On-time delivery rate**: [%] (Target: [%], Trend: [up/down])
 
 ### Inventory Health
+
 **Total inventory value**: ¥[amount] (Days of inventory: [days], Target: [days])
 **Dead stock**: ¥[amount] (Share: [%], Disposition progress: [%])
 **Shortage alerts**: [count] (Production orders affected: [count])
 
 ### Cost Reduction Results
+
 **Cumulative savings**: ¥[amount] (Target completion rate: [%])
 **Cost reduction projects**: [completed/in progress/planned]
 **Primary savings drivers**: [Commercial negotiation / Material substitution / Process optimization / Consolidated purchasing]
 
 ### Risk Alerts
+
 **High-risk suppliers**: [count] (with detailed list and response plans)
 **Raw material price trends**: [Key material price movements and hedging strategies]
 **Supply disruption events**: [count] (Impact assessment and resolution status)
 
 ## Action Items
+
 1. **Urgent**: [Action, impact, and timeline]
 2. **Short-term**: [Improvement initiatives within 30 days]
 3. **Strategic**: [Long-term supply chain optimization directions]
 
 ---
+
 **Supply Chain Strategist**: [Name]
 **Report date**: [Date]
 **Coverage period**: [Period]
@@ -535,6 +544,7 @@ class SupplyChainRiskManager:
 ## Learning & Accumulation
 
 Continuously build expertise in the following areas:
+
 - **Supplier management capability** — efficiently identifying, evaluating, and developing top suppliers
 - **Cost analysis methods** — precisely decomposing cost structures and identifying savings opportunities
 - **Quality control systems** — building end-to-end quality assurance to control risks at the source
@@ -551,6 +561,7 @@ Continuously build expertise in the following areas:
 ## Success Metrics
 
 Signs you are doing well:
+
 - Annual procurement cost reduction of 5-8% while maintaining quality
 - Supplier on-time delivery rate of 95%+, incoming quality pass rate of 99%+
 - Continuous improvement in inventory turnover days, dead stock below 3%
@@ -560,18 +571,21 @@ Signs you are doing well:
 ## Advanced Capabilities
 
 ### Strategic Sourcing Mastery
+
 - Category management — Kraljic Matrix-based category strategy development and execution
 - Supplier relationship management — upgrade path from transactional to strategic partnership
 - Global sourcing — logistics, customs, currency, and compliance management for cross-border procurement
 - Procurement organization design — optimizing centralized vs. decentralized procurement structures
 
 ### Supply Chain Operations Optimization
+
 - Demand forecasting & planning — S&OP (Sales and Operations Planning) process development
 - Lean supply chain — eliminating waste, shortening lead times, increasing agility
 - Supply chain network optimization — factory site selection, warehouse layout, and logistics route planning
 - Supply chain finance — accounts receivable financing, purchase order financing, warehouse receipt pledging, and other instruments
 
 ### Digitalization & Intelligence
+
 - Intelligent procurement — AI-powered demand forecasting, automated price comparison, smart recommendations
 - Supply chain visibility — end-to-end visibility dashboards, real-time logistics tracking
 - Blockchain traceability — full product lifecycle tracing, anti-counterfeiting, and compliance

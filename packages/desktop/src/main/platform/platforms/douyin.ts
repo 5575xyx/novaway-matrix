@@ -1,7 +1,15 @@
 import { readFileSync } from "node:fs"
 import { BrowserWindow, screen, session } from "electron"
 import type { Cookie } from "electron"
-import { PlatformBase, type PlatformLoginResult, type PublishInput, type PublishResult, type PlatformAccountInfo, type AccountStats, type PublishRecord } from "../PlatformBase"
+import {
+  PlatformBase,
+  type PlatformLoginResult,
+  type PublishInput,
+  type PublishResult,
+  type PlatformAccountInfo,
+  type AccountStats,
+  type PublishRecord,
+} from "../PlatformBase"
 
 const DEFAULT_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
@@ -41,7 +49,13 @@ export class DouyinPlatform extends PlatformBase {
   /**
    * 登录
    */
-  async login(): Promise<{ loginCookie: string; uid: string; nickname: string; avatar: string; fansCount: number } | null> {
+  async login(): Promise<{
+    loginCookie: string
+    uid: string
+    nickname: string
+    avatar: string
+    fansCount: number
+  } | null> {
     try {
       const { success, data, error } = await this.execServiceLoginOrView("login")
       if (!success || !data) {
@@ -200,13 +214,10 @@ export class DouyinPlatform extends PlatformBase {
   async checkLoginStatus(cookies: string): Promise<boolean> {
     const cookieString = convertCookieToJson(cookies)
     try {
-      const res = await this.makeRequest(
-        this.getUserInfoUrl,
-        {
-          method: "GET",
-          headers: { Cookie: cookieString },
-        },
-      )
+      const res = await this.makeRequest(this.getUserInfoUrl, {
+        method: "GET",
+        headers: { Cookie: cookieString },
+      })
 
       if (res.status_code !== 0) {
         throw new Error(res.status_msg ?? "未知错误")
@@ -321,15 +332,14 @@ export class DouyinPlatform extends PlatformBase {
   /**
    * 获取用户信息
    */
-  async getUserInfo(cookies: Cookie[]): Promise<{ uid: string; authorId: string; nickname: string; avatar: string; fansCount: number }> {
+  async getUserInfo(
+    cookies: Cookie[],
+  ): Promise<{ uid: string; authorId: string; nickname: string; avatar: string; fansCount: number }> {
     const cookieString = convertCookieToJson(cookies)
-    const res = await this.makeRequest(
-      this.getUserInfoUrl,
-      {
-        method: "GET",
-        headers: { Cookie: cookieString },
-      },
-    )
+    const res = await this.makeRequest(this.getUserInfoUrl, {
+      method: "GET",
+      headers: { Cookie: cookieString },
+    })
 
     if (res.status_code === 0) {
       return {
@@ -347,15 +357,14 @@ export class DouyinPlatform extends PlatformBase {
   /**
    * 通过cookie字符串获取用户信息（用于login()中的第二次调用）
    */
-  private async execGetUserInfo(cookieStr: string): Promise<{ uid: string; authorId: string; nickname: string; avatar: string; fansCount: number }> {
+  private async execGetUserInfo(
+    cookieStr: string,
+  ): Promise<{ uid: string; authorId: string; nickname: string; avatar: string; fansCount: number }> {
     const cookieString = convertCookieToJson(cookieStr)
-    const res = await this.makeRequest(
-      this.getUserInfoUrl,
-      {
-        method: "GET",
-        headers: { Cookie: cookieString },
-      },
-    )
+    const res = await this.makeRequest(this.getUserInfoUrl, {
+      method: "GET",
+      headers: { Cookie: cookieString },
+    })
 
     if (res.status_code === 0) {
       return {

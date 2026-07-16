@@ -28,6 +28,7 @@ export interface Settings {
     showSearch: boolean
     showStatus: boolean
     showTerminal: boolean
+    showDatabase: boolean
     showReasoningSummaries: boolean
     shellToolPartsExpanded: boolean
     editToolPartsExpanded: boolean
@@ -113,6 +114,7 @@ const defaultSettings: Settings = {
     showSearch: false,
     showStatus: false,
     showTerminal: false,
+    showDatabase: true,
     showReasoningSummaries: true,
     shellToolPartsExpanded: false,
     editToolPartsExpanded: false,
@@ -207,6 +209,10 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         showTerminal: withFallback(() => store.general?.showTerminal, defaultSettings.general.showTerminal),
         setShowTerminal(value: boolean) {
           setStore("general", "showTerminal", value)
+        },
+        showDatabase: withFallback(() => store.general?.showDatabase, defaultSettings.general.showDatabase),
+        setShowDatabase(value: boolean) {
+          setStore("general", "showDatabase", value)
         },
         showReasoningSummaries: withFallback(
           () => store.general?.showReasoningSummaries,

@@ -35,7 +35,8 @@ export function MemoryEvolutionPanel() {
   }))
   const memoryCandidates = useQuery(() => ({
     queryKey: ["settings", "memory", "review-candidates", "panel"],
-    queryFn: () => globalSDK.client.memory.listReviewCandidates({ status: "pending", limit: 5 }).then((x) => x.data ?? []),
+    queryFn: () =>
+      globalSDK.client.memory.listReviewCandidates({ status: "pending", limit: 5 }).then((x) => x.data ?? []),
     ...queryOptions,
   }))
   const evolutionStatus = useQuery(() => ({
@@ -51,7 +52,7 @@ export function MemoryEvolutionPanel() {
 
   const memoryConfig = createMemo(() => globalSync.data.config.memory ?? {})
   const evolutionConfig = createMemo(() => globalSync.data.config.evolution ?? {})
-  const pending = createMemo(() => (number(memoryStatus.data?.pending) + number(evolutionStatus.data?.pending)))
+  const pending = createMemo(() => number(memoryStatus.data?.pending) + number(evolutionStatus.data?.pending))
   const refresh = async () => {
     await Promise.all([
       queryClient.refetchQueries({ queryKey: ["settings", "memory"] }),
@@ -88,7 +89,8 @@ export function MemoryEvolutionPanel() {
     onError: toastError,
   }))
   const applyEvolution = useMutation(() => ({
-    mutationFn: (candidateID: string) => globalSDK.client.evolution.applyFileCandidate({ candidateID }).then((x) => x.data),
+    mutationFn: (candidateID: string) =>
+      globalSDK.client.evolution.applyFileCandidate({ candidateID }).then((x) => x.data),
     onSuccess: async (data) => {
       await refresh()
       showToast({
@@ -106,12 +108,16 @@ export function MemoryEvolutionPanel() {
     onError: toastError,
   }))
   const dryRunEvolution = useMutation(() => ({
-    mutationFn: (candidateID: string) => globalSDK.client.evolution.dryRunCandidate({ candidateID }).then((x) => x.data),
+    mutationFn: (candidateID: string) =>
+      globalSDK.client.evolution.dryRunCandidate({ candidateID }).then((x) => x.data),
     onSuccess: (data) => {
       if (data)
         setPreview({
           id: data.id,
-          text: [`预览：不会写入磁盘。`, ...data.files.map((file) => [`目标文件：${file.path}`, file.diff].join("\n"))].join("\n\n"),
+          text: [
+            `预览：不会写入磁盘。`,
+            ...data.files.map((file) => [`目标文件：${file.path}`, file.diff].join("\n")),
+          ].join("\n\n"),
         })
     },
     onError: toastError,
@@ -173,7 +179,13 @@ export function MemoryEvolutionPanel() {
               <Icon name="review" size="small" />
               <span class="text-13-medium text-text-strong">记忆与自我进化</span>
             </div>
-            <Button variant="ghost" size="small" icon="reset" disabled={memoryStatus.isFetching || evolutionStatus.isFetching} onClick={() => void refresh()}>
+            <Button
+              variant="ghost"
+              size="small"
+              icon="reset"
+              disabled={memoryStatus.isFetching || evolutionStatus.isFetching}
+              onClick={() => void refresh()}
+            >
               刷新
             </Button>
           </div>
@@ -288,7 +300,9 @@ function Section(props: {
             disabled={props.disabled}
             label={props.intervalLabel}
             hideLabel
-            onBlur={(event: FocusEvent & { currentTarget: HTMLInputElement }) => props.onInterval(event.currentTarget.value)}
+            onBlur={(event: FocusEvent & { currentTarget: HTMLInputElement }) =>
+              props.onInterval(event.currentTarget.value)
+            }
             onKeyDown={(event: KeyboardEvent & { currentTarget: HTMLInputElement }) => {
               if (event.key === "Enter") event.currentTarget.blur()
             }}
@@ -313,14 +327,22 @@ function Toggle(props: { label: string; checked: boolean; onChange: (value: bool
 function CandidateList<T>(props: { empty: string; items: readonly T[]; render: (item: T) => unknown }) {
   return (
     <div class="mt-2 flex flex-col rounded-md border border-border-weak-base">
-      <Show when={props.items.length > 0} fallback={<div class="px-3 py-4 text-center text-12-regular text-text-weak">{props.empty}</div>}>
+      <Show
+        when={props.items.length > 0}
+        fallback={<div class="px-3 py-4 text-center text-12-regular text-text-weak">{props.empty}</div>}
+      >
         <For each={props.items}>{(item) => props.render(item) as never}</For>
       </Show>
     </div>
   )
 }
 
-function MemoryRow(props: { candidate: MemoryReviewCandidate; disabled: boolean; onApply: () => void; onDismiss: () => void }) {
+function MemoryRow(props: {
+  candidate: MemoryReviewCandidate
+  disabled: boolean
+  onApply: () => void
+  onDismiss: () => void
+}) {
   return (
     <div class="flex items-start justify-between gap-3 border-b border-border-weak-base px-3 py-2 last:border-none">
       <div class="min-w-0 flex-1">
@@ -355,12 +377,21 @@ function EvolutionRow(props: {
         </div>
         <div class="flex shrink-0 items-center gap-1">
           <ReviewActionButton icon="open-file" disabled={props.disabled} onClick={props.onDryRun} label="预览" />
-          <ReviewActionButton icon="download" disabled={props.disabled} onClick={props.onApply} label="确认写入进化文件" />
+          <ReviewActionButton
+            icon="download"
+            disabled={props.disabled}
+            onClick={props.onApply}
+            label="确认写入进化文件"
+          />
           <ReviewActionButton icon="close" disabled={props.disabled} onClick={props.onDismiss} label="忽略候选" />
         </div>
       </div>
       <Show when={props.preview}>
-        {(text) => <pre class="max-h-44 overflow-auto whitespace-pre-wrap rounded-md bg-surface-base px-2 py-2 text-11-regular text-text-base">{text()}</pre>}
+        {(text) => (
+          <pre class="max-h-44 overflow-auto whitespace-pre-wrap rounded-md bg-surface-base px-2 py-2 text-11-regular text-text-base">
+            {text()}
+          </pre>
+        )}
       </Show>
     </div>
   )

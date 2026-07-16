@@ -5,6 +5,7 @@
 **Goal:** 将 forge 模式从"前端硬编码强制 plan → 弹框确认 → 切 build"改造为"通过 `agents-orchestrator` 智能调度全部内置 AI 员工"，并移除"规划蓝图已完成"提示框。
 
 **Architecture:**
+
 - 服务端：在 `SystemPrompt` 新增 `availableAgents` 函数，遍历 `Agent.Service.list()` 过滤 hidden + 自身后注入到 orchestrator 的 system prompt；`prompt.ts:2134-2139` 调用点拼装。
 - 客户端：删除 `forgeAgentForPrompt` 的强制 plan 逻辑、`local.tsx` 默认 agent 切到 `agents-orchestrator`、删除 planDecision / forgeAutoBuild / `SessionPlanDecisionDock` 整条链。
 - Prompt：重写 `agents-orchestrator.md`，删 Phase 1-4 死板 pipeline 和硬编码的 ~49 个英文 agent 列表，改为"按 system 注入的 197 个 agent 列表做语义路由"。
@@ -19,26 +20,27 @@
 
 ## 文件结构地图
 
-| 区 | 文件 | 改动类型 | 责任 |
-|----|------|----------|------|
-| 服务端 - prompt 数据 | `packages/opencode/src/session/system.ts` | 修改 | 新增 `availableAgents` 函数,扩展 `Interface` |
-| 服务端 - prompt 拼装 | `packages/opencode/src/session/prompt.ts` | 修改 | 在 `Effect.all` 加 `availableAgents`、在 `system` 数组里加条目 |
-| 服务端 - orchestrator prompt | `packages/opencode/src/agent/prompt/agency-agents/specialized/agents-orchestrator.md` | 重写 | 删 Phase 1-4 + 硬编码列表,改写为调度协议 |
-| 服务端 - 测试 | `packages/opencode/test/session/system.test.ts` | 修改 | 新增 `availableAgents` 测试 |
-| 服务端 - 测试 | `packages/opencode/test/agent/agent.test.ts` | 修改 | 更新 orchestrator 测试(适配新 prompt) |
-| 客户端 - 工具函数 | `packages/app/src/context/local-agent.ts` | 修改 | `forgeAgentForPrompt` 改写;`visibleAgentList` 加 `agents-orchestrator`;`shouldAutoBuildAfterForgePlan`/`hasForgeBuildIntent` 标记为 `@deprecated` 保留但不在新流程使用 |
-| 客户端 - 默认 agent | `packages/app/src/context/local.tsx` | 修改 | 初始 `current` 改成 forge 模式 → `agents-orchestrator` |
-| 客户端 - 提交链 | `packages/app/src/components/prompt-input/submit.ts` | 修改 | 删除 `onForgeAutoBuildPlan` 判断点(519-528) |
-| 客户端 - PromptInput | `packages/app/src/components/prompt-input.tsx` | 修改 | 删除 `onForgeAutoBuildPlan` prop(78、1279) |
-| 客户端 - 新会话视图 | `packages/app/src/components/session/session-new-view.tsx` | 修改 | 删除 `onForgeAutoBuildPlan` prop(26、122) |
-| 客户端 - Composer | `packages/app/src/pages/session/composer/session-composer-region.tsx` | 修改 | 删除 `planDecision` prop + `<SessionPlanDecisionDock>` 引用;删除 `onForgeAutoBuildPlan` prop |
-| 客户端 - Dock | `packages/app/src/pages/session/composer/session-plan-decision-dock.tsx` | 删除 | 文件整删 |
-| 客户端 - Session | `packages/app/src/pages/session.tsx` | 修改 | 删除 `forgeAutoBuild` store、`requestForgeAutoBuildPlan`、`forgeBuildText`、`sendForgeBuild`、`planDecision` memo、`executePlanDecision`、`revisePlanDecision`、`forgeAutoBuildAssistant` memo、相关 createEffect、`SessionComposerRegion` 上的 `planDecision`/`onForgeAutoBuildPlan` props |
-| 客户端 - 测试 | `packages/app/src/context/local.test.ts` | 修改 | 更新 `visibleAgentList` + `forgeAgentForPrompt` 用例(适配新行为) |
-| 文档 | `docs/superpowers/plans/2026-06-07-forge-orchestrator.md` | 当前文件 | 此计划 |
-| 文档 | `docs/superpowers/specs/2026-06-07-forge-orchestrator-design.md` | 已更新 | spec 风险表 #2 标注已解决 |
+| 区                           | 文件                                                                                  | 改动类型 | 责任                                                                                                                                                                                                                                                                                        |
+| ---------------------------- | ------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 服务端 - prompt 数据         | `packages/opencode/src/session/system.ts`                                             | 修改     | 新增 `availableAgents` 函数,扩展 `Interface`                                                                                                                                                                                                                                                |
+| 服务端 - prompt 拼装         | `packages/opencode/src/session/prompt.ts`                                             | 修改     | 在 `Effect.all` 加 `availableAgents`、在 `system` 数组里加条目                                                                                                                                                                                                                              |
+| 服务端 - orchestrator prompt | `packages/opencode/src/agent/prompt/agency-agents/specialized/agents-orchestrator.md` | 重写     | 删 Phase 1-4 + 硬编码列表,改写为调度协议                                                                                                                                                                                                                                                    |
+| 服务端 - 测试                | `packages/opencode/test/session/system.test.ts`                                       | 修改     | 新增 `availableAgents` 测试                                                                                                                                                                                                                                                                 |
+| 服务端 - 测试                | `packages/opencode/test/agent/agent.test.ts`                                          | 修改     | 更新 orchestrator 测试(适配新 prompt)                                                                                                                                                                                                                                                       |
+| 客户端 - 工具函数            | `packages/app/src/context/local-agent.ts`                                             | 修改     | `forgeAgentForPrompt` 改写;`visibleAgentList` 加 `agents-orchestrator`;`shouldAutoBuildAfterForgePlan`/`hasForgeBuildIntent` 标记为 `@deprecated` 保留但不在新流程使用                                                                                                                      |
+| 客户端 - 默认 agent          | `packages/app/src/context/local.tsx`                                                  | 修改     | 初始 `current` 改成 forge 模式 → `agents-orchestrator`                                                                                                                                                                                                                                      |
+| 客户端 - 提交链              | `packages/app/src/components/prompt-input/submit.ts`                                  | 修改     | 删除 `onForgeAutoBuildPlan` 判断点(519-528)                                                                                                                                                                                                                                                 |
+| 客户端 - PromptInput         | `packages/app/src/components/prompt-input.tsx`                                        | 修改     | 删除 `onForgeAutoBuildPlan` prop(78、1279)                                                                                                                                                                                                                                                  |
+| 客户端 - 新会话视图          | `packages/app/src/components/session/session-new-view.tsx`                            | 修改     | 删除 `onForgeAutoBuildPlan` prop(26、122)                                                                                                                                                                                                                                                   |
+| 客户端 - Composer            | `packages/app/src/pages/session/composer/session-composer-region.tsx`                 | 修改     | 删除 `planDecision` prop + `<SessionPlanDecisionDock>` 引用;删除 `onForgeAutoBuildPlan` prop                                                                                                                                                                                                |
+| 客户端 - Dock                | `packages/app/src/pages/session/composer/session-plan-decision-dock.tsx`              | 删除     | 文件整删                                                                                                                                                                                                                                                                                    |
+| 客户端 - Session             | `packages/app/src/pages/session.tsx`                                                  | 修改     | 删除 `forgeAutoBuild` store、`requestForgeAutoBuildPlan`、`forgeBuildText`、`sendForgeBuild`、`planDecision` memo、`executePlanDecision`、`revisePlanDecision`、`forgeAutoBuildAssistant` memo、相关 createEffect、`SessionComposerRegion` 上的 `planDecision`/`onForgeAutoBuildPlan` props |
+| 客户端 - 测试                | `packages/app/src/context/local.test.ts`                                              | 修改     | 更新 `visibleAgentList` + `forgeAgentForPrompt` 用例(适配新行为)                                                                                                                                                                                                                            |
+| 文档                         | `docs/superpowers/plans/2026-06-07-forge-orchestrator.md`                             | 当前文件 | 此计划                                                                                                                                                                                                                                                                                      |
+| 文档                         | `docs/superpowers/specs/2026-06-07-forge-orchestrator-design.md`                      | 已更新   | spec 风险表 #2 标注已解决                                                                                                                                                                                                                                                                   |
 
 **依赖顺序：**
+
 1. 服务端 system.ts (Task 1) → prompt.ts (Task 2) → agents-orchestrator.md (Task 3)
 2. 服务端测试 (Task 4)
 3. 客户端 local-agent.ts (Task 5) → local.tsx (Task 6) → 客户端提交链 (Task 7-8) → 删除 planDecision 链 (Task 9)
@@ -50,6 +52,7 @@
 ## Task 1：服务端新增 `SystemPrompt.availableAgents`
 
 **Files:**
+
 - Modify: `packages/opencode/src/session/system.ts:35-38, 47-77`
 
 - [ ] **Step 1: 扩展 `Interface` 加 `availableAgents`**
@@ -161,6 +164,7 @@ export const layer = Layer.effect(
 ```
 
 要点：
+
 - 仅当 agent 是 `agents-orchestrator` 才注入,避免污染其他 agent 的 system prompt
 - 排序后注入,确保多次调用 token-stable(配合 system.test.ts 的断言)
 - `Permission.disabled(["task"])` 拦截"task 被禁"的边界,与 `skills` 函数保持一致风格
@@ -185,6 +189,7 @@ git commit -m "feat(system-prompt): inject available agents for orchestrator"
 ## Task 2：服务端在 `prompt.ts` 拼装点调用 `availableAgents`
 
 **Files:**
+
 - Modify: `packages/opencode/src/session/prompt.ts:2134-2139, 2167`
 
 - [ ] **Step 1: 在 `Effect.all` 块加 `availableAgents` 元素**
@@ -192,13 +197,15 @@ git commit -m "feat(system-prompt): inject available agents for orchestrator"
 `packages/opencode/src/session/prompt.ts` 第 2134-2139 行:
 
 ```ts
-const [skills, availableAgents, env, instructions, modelMsgs] = yield* Effect.all([
-  sys.skills(agent),
-  sys.availableAgents(agent),
-  sys.environment(model),
-  instruction.system({ prompt: textFromParts(lastUserMsg?.parts ?? []) }).pipe(Effect.orDie),
-  MessageV2.toModelMessagesEffect(msgs, model),
-])
+const [skills, availableAgents, env, instructions, modelMsgs] =
+  yield *
+  Effect.all([
+    sys.skills(agent),
+    sys.availableAgents(agent),
+    sys.environment(model),
+    instruction.system({ prompt: textFromParts(lastUserMsg?.parts ?? []) }).pipe(Effect.orDie),
+    MessageV2.toModelMessagesEffect(msgs, model),
+  ])
 ```
 
 - [ ] **Step 2: 在 `system` 数组里加 `availableAgents` 条目**
@@ -206,12 +213,7 @@ const [skills, availableAgents, env, instructions, modelMsgs] = yield* Effect.al
 `packages/opencode/src/session/prompt.ts` 第 2167 行:
 
 ```ts
-const system = [
-  ...env,
-  ...instructions,
-  ...(skills ? [skills] : []),
-  ...(availableAgents ? [availableAgents] : []),
-]
+const system = [...env, ...instructions, ...(skills ? [skills] : []), ...(availableAgents ? [availableAgents] : [])]
 ```
 
 位置：放在 `skills` 之后,让 agent 列表在"工具扩展区"内出现顺序与"环境 → 指令 → 技能 → 可调度的员工"语义一致。
@@ -236,6 +238,7 @@ git commit -m "feat(prompt): include available agents in orchestrator system pro
 ## Task 3：重写 `agents-orchestrator.md`
 
 **Files:**
+
 - Modify: `packages/opencode/src/agent/prompt/agency-agents/specialized/agents-orchestrator.md`（整文件 367 行重写）
 
 - [ ] **Step 1: 写新的 frontmatter**
@@ -304,6 +307,7 @@ vibe: 整个 AI 员工团队的中控调度。
 ```
 
 要点：
+
 - 删掉原 Phase 1-4 死板 pipeline(第 53-294 行)
 - 删掉原"Available Specialist Agents"硬编码列表(第 295-358 行)— 改为"读取 system 注入列表"
 - 删掉原"Orchestrator Launch Command"(第 362-367 行)— 不再使用
@@ -331,6 +335,7 @@ git commit -m "refactor(orchestrator): rewrite prompt for dynamic agent dispatch
 ### Task 4a: `system.test.ts` 加 `availableAgents` 用例
 
 **Files:**
+
 - Modify: `packages/opencode/test/session/system.test.ts`
 
 - [ ] **Step 1: 加 `Agent.Service` 的 mock 和新的 test case**
@@ -356,11 +361,37 @@ const build: Agent.Info = {
 }
 
 const agents = [
-  { name: "build", mode: "primary", permission: Permission.fromConfig({ "*": "allow" }), options: {} as Record<string, unknown> },
-  { name: "plan", mode: "primary", permission: Permission.fromConfig({ "*": "allow" }), options: {} as Record<string, unknown> },
-  { name: "zeta-agent", mode: "subagent", permission: Permission.fromConfig({ "*": "allow" }), options: { category: "工程开发" } as Record<string, unknown> },
-  { name: "alpha-agent", mode: "subagent", permission: Permission.fromConfig({ "*": "allow" }), options: { category: "营销" } as Record<string, unknown> },
-  { name: "hidden-agent", mode: "subagent", hidden: true, permission: Permission.fromConfig({ "*": "allow" }), options: {} as Record<string, unknown> },
+  {
+    name: "build",
+    mode: "primary",
+    permission: Permission.fromConfig({ "*": "allow" }),
+    options: {} as Record<string, unknown>,
+  },
+  {
+    name: "plan",
+    mode: "primary",
+    permission: Permission.fromConfig({ "*": "allow" }),
+    options: {} as Record<string, unknown>,
+  },
+  {
+    name: "zeta-agent",
+    mode: "subagent",
+    permission: Permission.fromConfig({ "*": "allow" }),
+    options: { category: "工程开发" } as Record<string, unknown>,
+  },
+  {
+    name: "alpha-agent",
+    mode: "subagent",
+    permission: Permission.fromConfig({ "*": "allow" }),
+    options: { category: "营销" } as Record<string, unknown>,
+  },
+  {
+    name: "hidden-agent",
+    mode: "subagent",
+    hidden: true,
+    permission: Permission.fromConfig({ "*": "allow" }),
+    options: {} as Record<string, unknown>,
+  },
 ] satisfies Agent.Info[]
 
 const it = testEffect(
@@ -376,13 +407,16 @@ const it = testEffect(
             available: () => Effect.succeed(skills),
           }),
         ),
-        Layer.succeed(Agent.Service, Agent.Service.of({
-          list: () => Effect.succeed(agents),
-          get: (name) => Effect.succeed(agents.find((a) => a.name === name) ?? build),
-          defaultInfo: () => Effect.succeed(build),
-          defaultAgent: () => Effect.succeed("build"),
-          generate: () => Effect.die(new Error("not used in test")),
-        })),
+        Layer.succeed(
+          Agent.Service,
+          Agent.Service.of({
+            list: () => Effect.succeed(agents),
+            get: (name) => Effect.succeed(agents.find((a) => a.name === name) ?? build),
+            defaultInfo: () => Effect.succeed(build),
+            defaultAgent: () => Effect.succeed("build"),
+            generate: () => Effect.die(new Error("not used in test")),
+          }),
+        ),
       ),
     ),
   ),
@@ -450,6 +484,7 @@ git commit -m "test(system): cover availableAgents for orchestrator"
 ### Task 4b: 更新 `agent.test.ts` orchestrator case
 
 **Files:**
+
 - Modify: `packages/opencode/test/agent/agent.test.ts:199-204`
 
 - [ ] **Step 1: 更新 prompt 内容断言**
@@ -457,7 +492,7 @@ git commit -m "test(system): cover availableAgents for orchestrator"
 `packages/opencode/test/agent/agent.test.ts` 第 199-204 行,改为:
 
 ```ts
-const orchestrator = yield* load((svc) => svc.get("agents-orchestrator"))
+const orchestrator = yield * load((svc) => svc.get("agents-orchestrator"))
 expect(orchestrator?.native).toBe(true)
 expect(orchestrator?.mode).toBe("primary")
 expect(orchestrator?.options.category).toBe("专项能力")
@@ -494,6 +529,7 @@ git commit -m "test(agent): update orchestrator prompt assertions"
 ## Task 5：客户端 `local-agent.ts` 改写
 
 **Files:**
+
 - Modify: `packages/app/src/context/local-agent.ts:3-7, 9-18, 20-33, 35-52`
 
 - [ ] **Step 1: 扩展 `forgeAgentNames` 包含 orchestrator**
@@ -553,6 +589,7 @@ export function hasForgeBuildIntent(text: string) {
 ```
 
 要点：标记 `@deprecated` 但不删除，因为：
+
 - `submit.ts:519-528` 还会短暂引用 `shouldAutoBuildAfterForgePlan`（Task 7 删）
 - `session-composer-region.tsx:11` 引用 `hasForgeBuildIntent`（需检查并删除引用）
 
@@ -576,6 +613,7 @@ git commit -m "refactor(local-agent): stop forcing plan in forge mode"
 ## Task 6：客户端 `local.tsx` 默认 orchestrator
 
 **Files:**
+
 - Modify: `packages/app/src/context/local.tsx:88-122`
 
 - [ ] **Step 1: 改 `createStore` 初始 `current` 为 `undefined`**
@@ -628,6 +666,7 @@ createEffect(() => {
 ```
 
 要点：
+
 - forge 模式且 orchestrator 存在 → 强制选 orchestrator
 - 其他情况保持原有 fallback(如果 current 在 list 里就不动,否则选第一个)
 
@@ -651,6 +690,7 @@ git commit -m "feat(local): default forge mode to agents-orchestrator"
 ## Task 7：客户端 `submit.ts` 删除 `onForgeAutoBuildPlan` 链
 
 **Files:**
+
 - Modify: `packages/app/src/components/prompt-input/submit.ts:18, 197-204, 519-528`
 
 - [ ] **Step 1: 删除 import**
@@ -715,6 +755,7 @@ git commit -m "refactor(submit): remove onForgeAutoBuildPlan chain"
 ## Task 8：客户端 PromptInput / SessionNewView / Composer 删除 `onForgeAutoBuildPlan` 引用
 
 **Files:**
+
 - Modify: `packages/app/src/components/prompt-input.tsx:78, 1279`
 - Modify: `packages/app/src/components/session/session-new-view.tsx:26, 122`
 - Modify: `packages/app/src/pages/session/composer/session-composer-region.tsx:11, 57, 294`
@@ -789,6 +830,7 @@ git commit -m "refactor: drop onForgeAutoBuildPlan prop chain"
 ## Task 9：客户端删除 `planDecision` 整条链
 
 **Files:**
+
 - Delete: `packages/app/src/pages/session/composer/session-plan-decision-dock.tsx`（整文件 31 行）
 - Modify: `packages/app/src/pages/session/composer/session-composer-region.tsx:18, 45-49, 272-278`
 - Modify: `packages/app/src/pages/session.tsx:430-442, 1407-1541, 1963-1972`
@@ -912,6 +954,7 @@ git commit -m "refactor: remove planDecision / forgeAutoBuild chain and SessionP
 ## Task 10：客户端测试 `local.test.ts`
 
 **Files:**
+
 - Modify: `packages/app/src/context/local.test.ts`
 
 - [ ] **Step 1: 扩展 agents 列表并更新断言**
@@ -934,11 +977,7 @@ const agents = [
 
 ```ts
 test("锻造模式显示锻造工程 / 规划蓝图 / 调度中控", () => {
-  expect(visibleAgentList(agents, "forge").map((agent) => agent.name)).toEqual([
-    "build",
-    "plan",
-    "agents-orchestrator",
-  ])
+  expect(visibleAgentList(agents, "forge").map((agent) => agent.name)).toEqual(["build", "plan", "agents-orchestrator"])
 })
 ```
 
@@ -984,17 +1023,17 @@ git commit -m "test(local): cover orchestrator in forge mode and new prompt rout
 
 ### Spec 覆盖
 
-| Spec 段落 | 落点 Task |
-|----------|----------|
-| 改动 1: 重写 agents-orchestrator.md | Task 3 |
-| 改动 2: system prompt 动态注入 agent 列表 | Task 1 (`availableAgents`) + Task 2 (调用点) |
-| 改动 3: 删除前端 forge 强制逻辑 | Task 5 (local-agent.ts) + Task 6 (local.tsx) + Task 7-8 (提交链) |
-| 改动 4: 删除前端 plan 确认框 | Task 9 (整条链 + dock 文件) |
-| 风险表 #2 autoAccept 覆盖 | 风险表已更新(实施时无需新增代码,只需在 release notes / 用户指南写明联动) |
-| 数据流验证 | Task 1-2 完成后即可在 typecheck + 测试中静态验证;动态验证在 release notes 中描述手工 E2E |
-| 测试 - 单元 | Task 4a + Task 10 |
-| 测试 - 集成 | Task 4b |
-| 测试 - E2E | 文档中(在 commit message 或 release notes) |
+| Spec 段落                                 | 落点 Task                                                                                |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 改动 1: 重写 agents-orchestrator.md       | Task 3                                                                                   |
+| 改动 2: system prompt 动态注入 agent 列表 | Task 1 (`availableAgents`) + Task 2 (调用点)                                             |
+| 改动 3: 删除前端 forge 强制逻辑           | Task 5 (local-agent.ts) + Task 6 (local.tsx) + Task 7-8 (提交链)                         |
+| 改动 4: 删除前端 plan 确认框              | Task 9 (整条链 + dock 文件)                                                              |
+| 风险表 #2 autoAccept 覆盖                 | 风险表已更新(实施时无需新增代码,只需在 release notes / 用户指南写明联动)                 |
+| 数据流验证                                | Task 1-2 完成后即可在 typecheck + 测试中静态验证;动态验证在 release notes 中描述手工 E2E |
+| 测试 - 单元                               | Task 4a + Task 10                                                                        |
+| 测试 - 集成                               | Task 4b                                                                                  |
+| 测试 - E2E                                | 文档中(在 commit message 或 release notes)                                               |
 
 ### 占位符扫描
 

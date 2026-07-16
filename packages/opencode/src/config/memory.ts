@@ -5,7 +5,8 @@ import { Schema } from "effect"
 
 export const Info = Schema.Struct({
   enabled: Schema.optional(Schema.Boolean).annotate({
-    description: "Enable persistent memory recall and the memory tool. Defaults to false while the feature is experimental.",
+    description:
+      "Enable persistent memory recall and the memory tool. Defaults to false while the feature is experimental.",
   }),
   prefetch_limit: Schema.optional(PositiveInt).annotate({
     description: "Maximum number of memory entries injected into the current user turn. Defaults to 5.",

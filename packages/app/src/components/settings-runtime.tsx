@@ -72,7 +72,11 @@ const allCategoryFilter = "all"
 
 const ruleTriggerOptions: Array<{ value: RuleTrigger; label: string; description: string }> = [
   { value: "always", label: "settings.rules.trigger.always", description: "settings.rules.trigger.always.description" },
-  { value: "mention", label: "settings.rules.trigger.mention", description: "settings.rules.trigger.mention.description" },
+  {
+    value: "mention",
+    label: "settings.rules.trigger.mention",
+    description: "settings.rules.trigger.mention.description",
+  },
   { value: "auto", label: "settings.rules.trigger.auto", description: "settings.rules.trigger.auto.description" },
 ]
 
@@ -121,7 +125,9 @@ function agentConfigFromRuntime(agent: Agent) {
     mode: agent.mode,
     ...(agent.prompt ? { prompt: agent.prompt } : {}),
     ...(agent.variant ? { variant: agent.variant } : {}),
-    ...(typeof agent.temperature === "number" && Number.isFinite(agent.temperature) ? { temperature: agent.temperature } : {}),
+    ...(typeof agent.temperature === "number" && Number.isFinite(agent.temperature)
+      ? { temperature: agent.temperature }
+      : {}),
     ...(typeof agent.topP === "number" && Number.isFinite(agent.topP) ? { top_p: agent.topP } : {}),
     ...(agent.color ? { color: agent.color } : {}),
     ...(agent.hidden !== undefined ? { hidden: agent.hidden } : {}),
@@ -144,7 +150,10 @@ function sessionAnswerText(messages: Array<{ info: { role: string }; parts: Part
   return messages
     .filter((message) => message.info.role === "assistant")
     .flatMap((message) => message.parts)
-    .filter((part): part is Extract<Part, { type: "text" }> => part.type === "text" && !part.synthetic && !part.ignored && !!part.text.trim())
+    .filter(
+      (part): part is Extract<Part, { type: "text" }> =>
+        part.type === "text" && !part.synthetic && !part.ignored && !!part.text.trim(),
+    )
     .map((part) => part.text)
     .join("\n\n")
     .trim()
@@ -258,12 +267,12 @@ function nextName(existing: Record<string, unknown>, base: string) {
 const SettingsPage: Component<{ title: string; description: string; children: JSX.Element }> = (props) => (
   <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
     <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--surface-stronger-non-alpha)_calc(100%_-_24px),transparent)]">
-      <div class="flex flex-col gap-1 pt-6 pb-8 max-w-[720px]">
+      <div class="flex flex-col gap-1 pt-6 pb-8 w-full">
         <h2 class="text-16-medium text-text-strong">{props.title}</h2>
         <p class="text-13-regular text-text-weak">{props.description}</p>
       </div>
     </div>
-    <div class="flex flex-col gap-8 max-w-[720px]">{props.children}</div>
+    <div class="flex flex-col gap-8 w-full">{props.children}</div>
   </div>
 )
 
@@ -305,7 +314,8 @@ const PageTabs: Component<{
           class="h-8 px-3 rounded-md text-13-medium border transition-colors"
           classList={{
             "bg-surface-base-active text-text-strong border-border-weak-base": props.value === item.value,
-            "bg-transparent text-text-weak border-transparent hover:bg-surface-base-hover hover:text-text-strong": props.value !== item.value,
+            "bg-transparent text-text-weak border-transparent hover:bg-surface-base-hover hover:text-text-strong":
+              props.value !== item.value,
           }}
           onClick={() => props.onChange(item.value)}
         >
@@ -353,7 +363,11 @@ const JsonEntryDialog: Component<{
   }))
 
   return (
-    <Dialog title={props.title} transition class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden">
+    <Dialog
+      title={props.title}
+      transition
+      class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+    >
       <form
         class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar"
         onSubmit={(e) => {
@@ -423,13 +437,20 @@ const SkillSelectDialog: Component<{
     setSelected((current) => (current.includes(name) ? current.filter((item) => item !== name) : [...current, name]))
 
   return (
-    <Dialog title={props.title} transition class="w-[min(calc(100vw-40px),640px)] max-h-[calc(100vh-80px)] overflow-hidden">
+    <Dialog
+      title={props.title}
+      transition
+      class="w-[min(calc(100vw-40px),640px)] max-h-[calc(100vh-80px)] overflow-hidden"
+    >
       <div class="flex flex-col gap-3 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar">
         <Show when={error()}>
           <div class="text-12-regular text-danger-base">{error()}</div>
         </Show>
         <SettingsList>
-          <Show when={safeArray(props.skills).length > 0} fallback={<EmptyState message={language.t("settings.agents.skills.emptyAssignable")} />}>
+          <Show
+            when={safeArray(props.skills).length > 0}
+            fallback={<EmptyState message={language.t("settings.agents.skills.emptyAssignable")} />}
+          >
             <For each={safeArray(props.skills)}>
               {(skill) => {
                 const active = () => selectedSet().has(skill.name)
@@ -493,7 +514,9 @@ const PluginEntryDialog: Component<{
 }> = (props) => {
   const dialog = useDialog()
   const language = useLanguage()
-  const [value, setValue] = createSignal(typeof props.initialValue === "string" ? props.initialValue : pretty(props.initialValue))
+  const [value, setValue] = createSignal(
+    typeof props.initialValue === "string" ? props.initialValue : pretty(props.initialValue),
+  )
   const [error, setError] = createSignal("")
 
   const save = useMutation(() => ({
@@ -511,7 +534,11 @@ const PluginEntryDialog: Component<{
   }))
 
   return (
-    <Dialog title={props.title} transition class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden">
+    <Dialog
+      title={props.title}
+      transition
+      class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+    >
       <form
         class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar"
         onSubmit={(e) => {
@@ -628,7 +655,11 @@ const SourceImportDialog: Component<{
   }))
 
   return (
-    <Dialog title={props.title} transition class="w-[min(calc(100vw-40px),720px)] max-h-[calc(100vh-80px)] overflow-hidden">
+    <Dialog
+      title={props.title}
+      transition
+      class="w-[min(calc(100vw-40px),720px)] max-h-[calc(100vh-80px)] overflow-hidden"
+    >
       <form
         class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar"
         onSubmit={(e) => {
@@ -654,10 +685,22 @@ const SourceImportDialog: Component<{
           </div>
         </Show>
         <div class="flex flex-wrap gap-2">
-          <Button type="button" variant="secondary" icon="open-file" disabled={save.isPending || !!success()} onClick={() => void chooseFile()}>
+          <Button
+            type="button"
+            variant="secondary"
+            icon="open-file"
+            disabled={save.isPending || !!success()}
+            onClick={() => void chooseFile()}
+          >
             {language.t("settings.management.action.chooseFile")}
           </Button>
-          <Button type="button" variant="secondary" icon="folder" disabled={save.isPending || !!success()} onClick={() => void chooseDirectory()}>
+          <Button
+            type="button"
+            variant="secondary"
+            icon="folder"
+            disabled={save.isPending || !!success()}
+            onClick={() => void chooseDirectory()}
+          >
             {language.t("settings.management.action.chooseDirectory")}
           </Button>
         </div>
@@ -734,10 +777,24 @@ const SkillDetailDialog: Component<{
   const dialog = useDialog()
   const language = useLanguage()
   return (
-    <Dialog title={props.title} transition class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden">
+    <Dialog
+      title={props.title}
+      transition
+      class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+    >
       <div class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar">
-        <TextField label={language.t("settings.management.field.name")} value={props.name} onChange={() => {}} readOnly />
-        <TextField label={language.t("settings.skills.field.description")} value={props.description} onChange={() => {}} readOnly />
+        <TextField
+          label={language.t("settings.management.field.name")}
+          value={props.name}
+          onChange={() => {}}
+          readOnly
+        />
+        <TextField
+          label={language.t("settings.skills.field.description")}
+          value={props.description}
+          onChange={() => {}}
+          readOnly
+        />
         <TextField
           label={language.t("settings.skills.field.content")}
           multiline
@@ -763,13 +820,35 @@ const RuleDetailDialog: Component<{
 }> = (props) => {
   const dialog = useDialog()
   const language = useLanguage()
-  const triggerLabel = () => language.t(ruleTriggerOptions.find((option) => option.value === props.trigger)?.label ?? "settings.rules.trigger.always")
+  const triggerLabel = () =>
+    language.t(
+      ruleTriggerOptions.find((option) => option.value === props.trigger)?.label ?? "settings.rules.trigger.always",
+    )
   return (
-    <Dialog title={props.title} transition class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden">
+    <Dialog
+      title={props.title}
+      transition
+      class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+    >
       <div class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar">
-        <TextField label={language.t("settings.management.field.name")} value={props.name} onChange={() => {}} readOnly />
-        <TextField label={language.t("settings.rules.field.description")} value={props.description} onChange={() => {}} readOnly />
-        <TextField label={language.t("settings.rules.field.trigger")} value={triggerLabel()} onChange={() => {}} readOnly />
+        <TextField
+          label={language.t("settings.management.field.name")}
+          value={props.name}
+          onChange={() => {}}
+          readOnly
+        />
+        <TextField
+          label={language.t("settings.rules.field.description")}
+          value={props.description}
+          onChange={() => {}}
+          readOnly
+        />
+        <TextField
+          label={language.t("settings.rules.field.trigger")}
+          value={triggerLabel()}
+          onChange={() => {}}
+          readOnly
+        />
         <TextField
           label={language.t("settings.rules.field.content")}
           multiline
@@ -795,11 +874,30 @@ const AgentDetailDialog: Component<{
   const prompt = () => props.agent.prompt || language.t("settings.agents.detail.prompt.inherited")
 
   return (
-    <Dialog title={props.title} transition class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden">
+    <Dialog
+      title={props.title}
+      transition
+      class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+    >
       <div class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar">
-        <TextField label={language.t("settings.management.field.name")} value={props.agent.name} onChange={() => {}} readOnly />
-        <TextField label={language.t("settings.skills.field.description")} value={props.agent.description ?? ""} onChange={() => {}} readOnly />
-        <TextField label={language.t("settings.agents.field.mode")} value={props.agent.mode} onChange={() => {}} readOnly />
+        <TextField
+          label={language.t("settings.management.field.name")}
+          value={props.agent.name}
+          onChange={() => {}}
+          readOnly
+        />
+        <TextField
+          label={language.t("settings.skills.field.description")}
+          value={props.agent.description ?? ""}
+          onChange={() => {}}
+          readOnly
+        />
+        <TextField
+          label={language.t("settings.agents.field.mode")}
+          value={props.agent.mode}
+          onChange={() => {}}
+          readOnly
+        />
         <TextField
           label={language.t("settings.agents.field.prompt")}
           multiline
@@ -861,11 +959,19 @@ const AgentConfigDialog: Component<{
         description: language.t("settings.management.toast.saved.description"),
       })
     },
-    onError: (err) => showToast({ title: language.t("common.requestFailed"), description: err instanceof Error ? err.message : String(err) }),
+    onError: (err) =>
+      showToast({
+        title: language.t("common.requestFailed"),
+        description: err instanceof Error ? err.message : String(err),
+      }),
   }))
 
   return (
-    <Dialog title={props.title} transition class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden">
+    <Dialog
+      title={props.title}
+      transition
+      class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+    >
       <form
         class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar"
         onSubmit={(e) => {
@@ -968,7 +1074,11 @@ const AgentFileDialog: Component<{
   }))
 
   return (
-    <Dialog title={props.title} transition class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden">
+    <Dialog
+      title={props.title}
+      transition
+      class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+    >
       <form
         class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar"
         onSubmit={(e) => {
@@ -1064,7 +1174,11 @@ const SkillFileDialog: Component<{
   }))
 
   return (
-    <Dialog title={props.title} transition class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden">
+    <Dialog
+      title={props.title}
+      transition
+      class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+    >
       <form
         class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar"
         onSubmit={(e) => {
@@ -1132,7 +1246,12 @@ const RuleFileDialog: Component<{
   const [trigger, setTrigger] = createSignal<RuleTrigger>(props.initialTrigger)
   const [content, setContent] = createSignal(props.initialContent)
   const [error, setError] = createSignal("")
-  const options = () => ruleTriggerOptions.map((option) => ({ ...option, labelText: language.t(option.label), descriptionText: language.t(option.description) }))
+  const options = () =>
+    ruleTriggerOptions.map((option) => ({
+      ...option,
+      labelText: language.t(option.label),
+      descriptionText: language.t(option.description),
+    }))
 
   const save = useMutation(() => ({
     mutationFn: async () => {
@@ -1154,7 +1273,11 @@ const RuleFileDialog: Component<{
   }))
 
   return (
-    <Dialog title={props.title} transition class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden">
+    <Dialog
+      title={props.title}
+      transition
+      class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+    >
       <form
         class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar"
         onSubmit={(e) => {
@@ -1193,7 +1316,9 @@ const RuleFileDialog: Component<{
             variant="secondary"
             triggerVariant="settings"
           />
-          <p class="text-xs text-text-muted">{options().find((option) => option.value === trigger())?.descriptionText}</p>
+          <p class="text-xs text-text-muted">
+            {options().find((option) => option.value === trigger())?.descriptionText}
+          </p>
         </div>
         <TextField
           label={language.t("settings.rules.field.content")}
@@ -1226,9 +1351,18 @@ const ProjectInstructionDetailDialog: Component<{
   const dialog = useDialog()
   const language = useLanguage()
   return (
-    <Dialog title={props.title} transition class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden">
+    <Dialog
+      title={props.title}
+      transition
+      class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+    >
       <div class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar">
-        <TextField label={language.t("settings.projectInstruction.field.path")} value={props.file.location} onChange={() => {}} readOnly />
+        <TextField
+          label={language.t("settings.projectInstruction.field.path")}
+          value={props.file.location}
+          onChange={() => {}}
+          readOnly
+        />
         <TextField
           label={language.t("settings.projectInstruction.field.content")}
           multiline
@@ -1273,7 +1407,11 @@ const ProjectInstructionDialog: Component<{
   }))
 
   return (
-    <Dialog title={props.title} transition class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden">
+    <Dialog
+      title={props.title}
+      transition
+      class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+    >
       <form
         class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar"
         onSubmit={(e) => {
@@ -1324,9 +1462,18 @@ const ProjectInstructionGenerateDialog: Component<{
   const [elapsed, setElapsed] = createSignal(0)
   const [progress, setProgress] = createSignal<ProjectInstructionGenerateProgress[]>([])
   const options = () => props.models
-  const current = () => options().find((item) => item.providerID === model()?.providerID && item.modelID === model()?.modelID)
-  const answer = () => progress().slice().reverse().find((item) => item.answer)?.answer ?? ""
-  const written = () => progress().slice().reverse().find((item) => item.content)?.content ?? ""
+  const current = () =>
+    options().find((item) => item.providerID === model()?.providerID && item.modelID === model()?.modelID)
+  const answer = () =>
+    progress()
+      .slice()
+      .reverse()
+      .find((item) => item.answer)?.answer ?? ""
+  const written = () =>
+    progress()
+      .slice()
+      .reverse()
+      .find((item) => item.content)?.content ?? ""
   const preview = () => answer() || written() || language.t("settings.projectInstruction.generating.preview.empty")
   const pushProgress = (item: ProjectInstructionGenerateProgress) => setProgress((items) => [...items, item])
 
@@ -1393,7 +1540,9 @@ const ProjectInstructionGenerateDialog: Component<{
               <span class="mt-0.5 size-5 shrink-0 rounded-full border-2 border-border-strong-base border-t-transparent animate-spin" />
               <div class="min-w-0 flex-1 space-y-1">
                 <div class="text-13-medium text-text">{language.t("settings.projectInstruction.generating.title")}</div>
-                <div class="text-12-regular text-text-weak">{language.t("settings.projectInstruction.generating.description")}</div>
+                <div class="text-12-regular text-text-weak">
+                  {language.t("settings.projectInstruction.generating.description")}
+                </div>
                 <div class="text-12-regular text-text-muted" aria-live="polite">
                   {language.t("settings.projectInstruction.generating.elapsed", { seconds: elapsed() })}
                 </div>
@@ -1414,11 +1563,22 @@ const ProjectInstructionGenerateDialog: Component<{
         </div>
         <div class="min-w-0 rounded-md border border-border-base bg-surface-base/70 p-3">
           <div class="mb-3 flex items-center justify-between gap-2">
-            <div class="text-13-medium text-text">{language.t("settings.projectInstruction.generating.panel.title")}</div>
-            <div class="text-11-regular text-text-muted">{language.t("settings.projectInstruction.generating.panel.status")}</div>
+            <div class="text-13-medium text-text">
+              {language.t("settings.projectInstruction.generating.panel.title")}
+            </div>
+            <div class="text-11-regular text-text-muted">
+              {language.t("settings.projectInstruction.generating.panel.status")}
+            </div>
           </div>
           <div class="mb-3 flex max-h-32 flex-col gap-2 overflow-y-auto pr-1">
-            <Show when={progress().length > 0} fallback={<div class="text-12-regular text-text-muted">{language.t("settings.projectInstruction.generating.panel.idle")}</div>}>
+            <Show
+              when={progress().length > 0}
+              fallback={
+                <div class="text-12-regular text-text-muted">
+                  {language.t("settings.projectInstruction.generating.panel.idle")}
+                </div>
+              }
+            >
               <For each={progress()}>
                 {(item) => (
                   <div class="flex items-start gap-2 text-12-regular">
@@ -1444,7 +1604,9 @@ const ProjectInstructionGenerateDialog: Component<{
             <div class="border-b border-border-weak-base px-3 py-2 text-12-medium text-text-weak">
               {language.t("settings.projectInstruction.generating.panel.preview")}
             </div>
-            <pre class="max-h-64 min-h-40 overflow-auto whitespace-pre-wrap break-words p-3 text-11-regular leading-5 text-text-muted">{preview()}</pre>
+            <pre class="max-h-64 min-h-40 overflow-auto whitespace-pre-wrap break-words p-3 text-11-regular leading-5 text-text-muted">
+              {preview()}
+            </pre>
           </div>
         </div>
       </form>
@@ -1484,7 +1646,11 @@ const McpEntryDialog: Component<{
   }))
 
   return (
-    <Dialog title={props.title} transition class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden">
+    <Dialog
+      title={props.title}
+      transition
+      class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+    >
       <form
         class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar"
         onSubmit={(e) => {
@@ -1532,7 +1698,11 @@ function parseMcpConfig(value: string) {
   const config = parseObject(value)
   if (config.type !== "local" && config.type !== "remote") throw new Error("MCP 类型必须是 local 或 remote")
   if (config.type === "local") {
-    if (!Array.isArray(config.command) || !config.command.every((item) => typeof item === "string") || config.command.length === 0) {
+    if (
+      !Array.isArray(config.command) ||
+      !config.command.every((item) => typeof item === "string") ||
+      config.command.length === 0
+    ) {
       throw new Error("本地 MCP 配置需要 command，且必须是非空字符串数组")
     }
   }
@@ -1558,11 +1728,30 @@ const McpDetailDialog: Component<{
     props.status.status === "failed" || props.status.status === "needs_client_registration" ? props.status.error : ""
 
   return (
-    <Dialog title={props.title} transition class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden">
+    <Dialog
+      title={props.title}
+      transition
+      class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+    >
       <div class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar">
-        <TextField label={language.t("settings.management.field.name")} value={props.name} onChange={() => {}} readOnly />
-        <TextField label={language.t("settings.mcp.field.status")} value={props.status.status} onChange={() => {}} readOnly />
-        <TextField label={language.t("settings.mcp.field.type")} value={stringField(config(), "type")} onChange={() => {}} readOnly />
+        <TextField
+          label={language.t("settings.management.field.name")}
+          value={props.name}
+          onChange={() => {}}
+          readOnly
+        />
+        <TextField
+          label={language.t("settings.mcp.field.status")}
+          value={props.status.status}
+          onChange={() => {}}
+          readOnly
+        />
+        <TextField
+          label={language.t("settings.mcp.field.type")}
+          value={stringField(config(), "type")}
+          onChange={() => {}}
+          readOnly
+        />
         <TextField label={language.t("settings.mcp.field.command")} value={command()} onChange={() => {}} readOnly />
         <TextField label={language.t("settings.mcp.field.url")} value={url()} onChange={() => {}} readOnly />
         <TextField label={language.t("settings.mcp.field.enabled")} value={enabled()} onChange={() => {}} readOnly />
@@ -1641,7 +1830,11 @@ const ConfigEditor: Component<{
         <Button variant="secondary" icon="copy" onClick={() => void navigator.clipboard.writeText(draft())}>
           {language.t("settings.management.action.export")}
         </Button>
-        <Button variant="secondary" icon="reset" onClick={() => setDraft(pretty(configValue(globalSync.data.config, props.configKey)))}>
+        <Button
+          variant="secondary"
+          icon="reset"
+          onClick={() => setDraft(pretty(configValue(globalSync.data.config, props.configKey)))}
+        >
           {language.t("settings.management.action.reset")}
         </Button>
         <Button disabled={save.isPending} icon="check" onClick={() => save.mutate()}>
@@ -1685,7 +1878,9 @@ export const SettingsAgents: Component = () => {
     return [...runtime, ...imported].sort((a, b) => a.name.localeCompare(b.name))
   })
   const configured = createMemo(() => configRecord(globalSync.data.config, "agent"))
-  const sourceAgents = createMemo(() => list().filter((agent) => matchesSourceFilter(sourceFilter(), agent.native === true)))
+  const sourceAgents = createMemo(() =>
+    list().filter((agent) => matchesSourceFilter(sourceFilter(), agent.native === true)),
+  )
   const categoryAgents = createMemo(() => list().filter((agent) => matchesAgentCategory(agent, categoryFilter())))
   const visibleAgents = createMemo(() =>
     sourceAgents()
@@ -1697,8 +1892,12 @@ export const SettingsAgents: Component = () => {
     () => new Map((files.data ?? []).map((item: SettingsAgentListResponse[number]) => [item.name, item])),
   )
   const skillList = createMemo(() => (skills.data ?? []).slice().sort((a, b) => a.name.localeCompare(b.name)))
-  const builtInSkillNames = createMemo(() => skillList().filter((skill) => skill.location === "<built-in>").map((skill) => skill.name))
-  const customSkills = createMemo(() => skillList().filter((skill) => skill.location !== "<built-in>"))
+  const builtInSkillNames = createMemo(() =>
+    skillList()
+      .filter((skill) => skill.builtIn)
+      .map((skill) => skill.name),
+  )
+  const customSkills = createMemo(() => skillList().filter((skill) => !skill.builtIn))
   const skillByName = createMemo(() => new Map(skillList().map((skill) => [skill.name, skill])))
   const configuredNames = createMemo(() => new Set(Object.keys(configured())))
   const loading = createMemo(() => agents.isLoading || files.isLoading || skills.isLoading)
@@ -1727,11 +1926,25 @@ export const SettingsAgents: Component = () => {
         }),
     ]
   })
-  const sourceCounts = createMemo(() =>
-    Object.fromEntries(sourceFilters.map((filter) => [filter.value, categoryAgents().filter((agent) => matchesSourceFilter(filter.value, agent.native === true)).length])) as Record<SourceFilter, number>,
+  const sourceCounts = createMemo(
+    () =>
+      Object.fromEntries(
+        sourceFilters.map((filter) => [
+          filter.value,
+          categoryAgents().filter((agent) => matchesSourceFilter(filter.value, agent.native === true)).length,
+        ]),
+      ) as Record<SourceFilter, number>,
   )
-  const modeCounts = createMemo(() =>
-    Object.fromEntries(modeFilters.map((filter) => [filter.value, categoryAgents().filter((agent) => matchesSourceFilter(sourceFilter(), agent.native === true)).filter((agent) => matchesModeFilter(agent, filter.value as ModeFilter)).length])) as Record<ModeFilter, number>,
+  const modeCounts = createMemo(
+    () =>
+      Object.fromEntries(
+        modeFilters.map((filter) => [
+          filter.value,
+          categoryAgents()
+            .filter((agent) => matchesSourceFilter(sourceFilter(), agent.native === true))
+            .filter((agent) => matchesModeFilter(agent, filter.value as ModeFilter)).length,
+        ]),
+      ) as Record<ModeFilter, number>,
   )
 
   createEffect(() => {
@@ -1762,13 +1975,11 @@ export const SettingsAgents: Component = () => {
 
   const deleteAgentFile = async (name: string) => {
     await globalSDK.client.settings.agent.delete({ name })
-    queryClient.setQueryData(
-      ["settings", "agents"],
-      (current: Agent[] | undefined) => (current ?? []).filter((item) => item.name !== name),
+    queryClient.setQueryData(["settings", "agents"], (current: Agent[] | undefined) =>
+      (current ?? []).filter((item) => item.name !== name),
     )
-    queryClient.setQueryData(
-      ["settings", "agent-files"],
-      (current: SettingsAgentListResponse | undefined) => (current ?? []).filter((item) => item.name !== name),
+    queryClient.setQueryData(["settings", "agent-files"], (current: SettingsAgentListResponse | undefined) =>
+      (current ?? []).filter((item) => item.name !== name),
     )
     await reloadAgents(name)
   }
@@ -1838,7 +2049,10 @@ export const SettingsAgents: Component = () => {
       <AgentConfigDialog
         title={language.t("settings.agents.action.edit")}
         initialName={name}
-        initialData={(configured()[name] as Record<string, unknown> | undefined) ?? (agentByName().get(name) ? agentConfigFromRuntime(agentByName().get(name)!) : {})}
+        initialData={
+          (configured()[name] as Record<string, unknown> | undefined) ??
+          (agentByName().get(name) ? agentConfigFromRuntime(agentByName().get(name)!) : {})
+        }
         lockName
         onSave={updateAgent}
       />
@@ -1919,7 +2133,11 @@ export const SettingsAgents: Component = () => {
     ...builtInSkillNames()
       .filter((name) => hasSkillPermission(name, agent.permission))
       .map((name) => ({ name, data: skillData(skillByName().get(name) ?? { data: {} }), builtIn: true })),
-    ...selectedCustomSkills(agent).map((name) => ({ name, data: skillData(skillByName().get(name) ?? { data: {} }), builtIn: false })),
+    ...selectedCustomSkills(agent).map((name) => ({
+      name,
+      data: skillData(skillByName().get(name) ?? { data: {} }),
+      builtIn: false,
+    })),
   ]
   const modeLabel = (mode: string) => {
     if (mode === "primary") return language.t("settings.management.tag.primary")
@@ -1946,84 +2164,90 @@ export const SettingsAgents: Component = () => {
           </Button>
         </Toolbar>
         <div class="flex flex-wrap items-center justify-between gap-3 pb-3">
-          <PageTabs
-            class="pb-0"
-            value={categoryFilter()}
-            onChange={setCategoryFilter}
-            items={categoryTabs()}
-          />
+          <PageTabs class="pb-0" value={categoryFilter()} onChange={setCategoryFilter} items={categoryTabs()} />
           <PageTabs
             class="pb-0"
             value={sourceFilter()}
             onChange={(value) => setSourceFilter(value as SourceFilter)}
-            items={sourceFilters.map((filter) => ({ value: filter.value, label: language.t(filter.label), count: sourceCounts()[filter.value] }))}
+            items={sourceFilters.map((filter) => ({
+              value: filter.value,
+              label: language.t(filter.label),
+              count: sourceCounts()[filter.value],
+            }))}
           />
           <PageTabs
             class="pb-0"
             value={modeFilter()}
             onChange={(value) => setModeFilter(value as ModeFilter)}
-            items={modeFilters.map((filter) => ({ value: filter.value, label: language.t(filter.label), count: modeCounts()[filter.value] }))}
+            items={modeFilters.map((filter) => ({
+              value: filter.value,
+              label: language.t(filter.label),
+              count: modeCounts()[filter.value],
+            }))}
           />
         </div>
         <div class="pb-3 text-12-regular text-text-weak">{language.t("settings.agents.skills.note")}</div>
         <SettingsList>
           <Show when={!loading()} fallback={<LoadingState />}>
-            <Show when={safeArray(visibleAgents()).length > 0} fallback={<EmptyState message={language.t("settings.agents.empty")} />}>
+            <Show
+              when={safeArray(visibleAgents()).length > 0}
+              fallback={<EmptyState message={language.t("settings.agents.empty")} />}
+            >
               <For each={safeArray(visibleAgents())}>
-              {(agent: Agent) => (
-                <RuntimeRow
-                  icon="brain"
-                  title={agentDisplayName(agent.name, agent.options)}
-                  description={agent.description}
-                  tags={agentTags(agent)}
-                  footer={
-                    <AgentSkillList
-                      skills={agentSkills(agent)}
-                      onAdd={() => addAgentSkill(agent)}
-                      onRemove={(name) => confirmRemoveAgentSkill(agent, name)}
-                    />
-                  }
-                  actions={
-                    <>
-                      <Show
-                        when={!agent.native}
-                        fallback={
-                          <IconButton
-                            icon="eye"
-                            variant="ghost"
-                            onClick={() => viewAgent(agent)}
-                            aria-label={language.t("settings.management.action.view")}
-                          />
-                        }
-                      >
-                        <IconButton
-                          icon="edit"
-                          variant="ghost"
-                          onClick={() => editAgent(agent.name)}
-                          aria-label={language.t("settings.management.action.edit")}
-                        />
-                        <Show when={fileByName().get(agent.name)}>
-                          {(file) => (
+                {(agent: Agent) => (
+                  <RuntimeRow
+                    icon="brain"
+                    title={agentDisplayName(agent.name, agent.options)}
+                    description={agent.description}
+                    tags={agentTags(agent)}
+                    footer={
+                      <AgentSkillList
+                        skills={agentSkills(agent)}
+                        onAdd={() => addAgentSkill(agent)}
+                        onRemove={(name) => confirmRemoveAgentSkill(agent, name)}
+                      />
+                    }
+                    actions={
+                      <>
+                        <Show
+                          when={!agent.native}
+                          fallback={
                             <IconButton
-                              icon="copy"
+                              icon="eye"
                               variant="ghost"
-                              onClick={() => exportAgentFile(file())}
-                              aria-label={language.t("settings.management.action.export")}
+                              onClick={() => viewAgent(agent)}
+                              aria-label={language.t("settings.management.action.view")}
                             />
-                          )}
+                          }
+                        >
+                          <IconButton
+                            icon="edit"
+                            variant="ghost"
+                            onClick={() => editAgent(agent.name)}
+                            aria-label={language.t("settings.management.action.edit")}
+                          />
+                          <Show when={fileByName().get(agent.name)}>
+                            {(file) => (
+                              <IconButton
+                                icon="copy"
+                                variant="ghost"
+                                onClick={() => exportAgentFile(file())}
+                                aria-label={language.t("settings.management.action.export")}
+                              />
+                            )}
+                          </Show>
+                          <IconButton
+                            icon="trash"
+                            variant="ghost"
+                            disabled={!configuredNames().has(agent.name) && !fileByName().get(agent.name)?.editable}
+                            onClick={() => confirmRemoveAgent(agent)}
+                            aria-label={language.t("settings.management.action.delete")}
+                          />
                         </Show>
-                        <IconButton
-                          icon="trash"
-                          variant="ghost"
-                          disabled={!configuredNames().has(agent.name) && !fileByName().get(agent.name)?.editable}
-                          onClick={() => confirmRemoveAgent(agent)}
-                          aria-label={language.t("settings.management.action.delete")}
-                        />
-                      </Show>
-                    </>
-                  }
-                />
-              )}
+                      </>
+                    }
+                  />
+                )}
               </For>
             </Show>
           </Show>
@@ -2048,22 +2272,32 @@ export const SettingsSkills: Component = () => {
   }))
 
   const list = createMemo(() => (files.data ?? []).slice().sort((a, b) => a.name.localeCompare(b.name)))
-  const sourceSkills = createMemo(() => list().filter((skill) => matchesSourceFilter(sourceFilter(), skill.location === "<built-in>")))
-  const modeSkills = createMemo(() => list().filter((skill) => matchesModeGroup(skillModeSearchText(skill), modeGroup())))
+  const sourceSkills = createMemo(() =>
+    list().filter((skill) => matchesSourceFilter(sourceFilter(), skill.builtIn ?? false)),
+  )
+  const modeSkills = createMemo(() =>
+    list().filter((skill) => matchesModeGroup(skillModeSearchText(skill), modeGroup())),
+  )
   const visibleSkills = createMemo(() =>
     sourceSkills().filter((skill) => matchesModeGroup(skillModeSearchText(skill), modeGroup())),
   )
-  const modeCounts = createMemo(() =>
-    Object.fromEntries(modeGroups.map((group) => [group.value, sourceSkills().filter((skill) => matchesModeGroup(skillModeSearchText(skill), group.value)).length])) as Record<
-      ModeGroup,
-      number
-    >,
+  const modeCounts = createMemo(
+    () =>
+      Object.fromEntries(
+        modeGroups.map((group) => [
+          group.value,
+          sourceSkills().filter((skill) => matchesModeGroup(skillModeSearchText(skill), group.value)).length,
+        ]),
+      ) as Record<ModeGroup, number>,
   )
-  const sourceCounts = createMemo(() =>
-    Object.fromEntries(sourceFilters.map((filter) => [filter.value, modeSkills().filter((skill) => matchesSourceFilter(filter.value, skill.location === "<built-in>")).length])) as Record<
-      SourceFilter,
-      number
-    >,
+  const sourceCounts = createMemo(
+    () =>
+      Object.fromEntries(
+        sourceFilters.map((filter) => [
+          filter.value,
+          modeSkills().filter((skill) => matchesSourceFilter(filter.value, skill.builtIn ?? false)).length,
+        ]),
+      ) as Record<SourceFilter, number>,
   )
   const fileByName = createMemo(
     () => new Map((files.data ?? []).map((item: SettingsSkillListResponse[number]) => [item.name, item])),
@@ -2083,9 +2317,8 @@ export const SettingsSkills: Component = () => {
 
   const deleteSkillFile = async (name: string) => {
     await globalSDK.client.settings.skill.delete({ name })
-    queryClient.setQueryData(
-      ["settings", "skill-files"],
-      (current: SettingsSkillListResponse | undefined) => (current ?? []).filter((item) => item.name !== name),
+    queryClient.setQueryData(["settings", "skill-files"], (current: SettingsSkillListResponse | undefined) =>
+      (current ?? []).filter((item) => item.name !== name),
     )
     await reloadSkills()
   }
@@ -2185,18 +2418,29 @@ export const SettingsSkills: Component = () => {
             class="pb-0"
             value={modeGroup()}
             onChange={(value) => setModeGroup(value as ModeGroup)}
-            items={modeGroups.map((group) => ({ value: group.value, label: modeGroupLabel(group.value), count: modeCounts()[group.value] }))}
+            items={modeGroups.map((group) => ({
+              value: group.value,
+              label: modeGroupLabel(group.value),
+              count: modeCounts()[group.value],
+            }))}
           />
           <PageTabs
             class="pb-0"
             value={sourceFilter()}
             onChange={(value) => setSourceFilter(value as SourceFilter)}
-            items={sourceFilters.map((filter) => ({ value: filter.value, label: language.t(filter.label), count: sourceCounts()[filter.value] }))}
+            items={sourceFilters.map((filter) => ({
+              value: filter.value,
+              label: language.t(filter.label),
+              count: sourceCounts()[filter.value],
+            }))}
           />
         </div>
         <SettingsList>
           <Show when={!files.isLoading} fallback={<LoadingState />}>
-            <Show when={safeArray(visibleSkills()).length > 0} fallback={<EmptyState message={language.t("settings.skills.empty")} />}>
+            <Show
+              when={safeArray(visibleSkills()).length > 0}
+              fallback={<EmptyState message={language.t("settings.skills.empty")} />}
+            >
               <For each={safeArray(visibleSkills())}>
                 {(skill) => {
                   const data = skillData(skill)
@@ -2207,7 +2451,9 @@ export const SettingsSkills: Component = () => {
                       description={typeof data.description === "string" ? data.description : ""}
                       tags={[
                         categoryTag(data.category),
-                        skill.location === "<built-in>" ? language.t("settings.management.tag.builtIn") : language.t("settings.management.tag.custom"),
+                        skill.builtIn
+                          ? language.t("settings.management.tag.builtIn")
+                          : language.t("settings.management.tag.custom"),
                       ].filter((tag): tag is string => !!tag)}
                       actions={
                         <>
@@ -2264,16 +2510,26 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
   const language = useLanguage()
   const globalSDK = useGlobalSDK()
   const globalSync = useGlobalSync()
-  const client = createMemo(() => props.directory ? globalSDK.createClient({ directory: props.directory, throwOnError: true }) : globalSDK.client)
+  const client = createMemo(() =>
+    props.directory ? globalSDK.createClient({ directory: props.directory, throwOnError: true }) : globalSDK.client,
+  )
   const queryClient = useQueryClient()
   const rules = useQuery(() => ({
     queryKey: ["settings", "global-rules"],
-    queryFn: () => client().settings.rule.list({ scope: "global" }).then((x) => x.data ?? []),
+    queryFn: () =>
+      client()
+        .settings.rule.list({ scope: "global" })
+        .then((x) => x.data ?? []),
     ...settingsQueryOptions,
   }))
   const projectRules = useQuery(() => ({
     queryKey: ["settings", "project-rules", props.directory ? pathKey(props.directory) : "none"],
-    queryFn: () => props.directory ? client().settings.rule.list({ scope: "project" }).then((x) => x.data ?? []) : Promise.resolve([]),
+    queryFn: () =>
+      props.directory
+        ? client()
+            .settings.rule.list({ scope: "project" })
+            .then((x) => x.data ?? [])
+        : Promise.resolve([]),
     ...settingsQueryOptions,
   }))
   const projectInstructionFallbackPath = (directory: string) => {
@@ -2281,10 +2537,15 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
     return `${directory.replace(/[\\/]+$/, "")}${separator}AGENTS.md`
   }
   const loadProjectInstruction = async (directory: string) => {
-    const file = await client().settings.projectInstruction.get({ directory }).then((x) => x.data)
+    const file = await client()
+      .settings.projectInstruction.get({ directory })
+      .then((x) => x.data)
     if (file?.content.trim()) return file
     const location = projectInstructionFallbackPath(directory)
-    const fallback = await client().file.read({ directory, path: location }).then((x) => x.data).catch(() => undefined)
+    const fallback = await client()
+      .file.read({ directory, path: location })
+      .then((x) => x.data)
+      .catch(() => undefined)
     if (fallback?.type !== "text" || !fallback.content.trim()) return file
     return {
       name: "AGENTS.md",
@@ -2296,19 +2557,27 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
   }
   const projectInstruction = useQuery(() => ({
     queryKey: ["settings", "project-instruction", props.directory ? pathKey(props.directory) : "none"],
-    queryFn: () => props.directory ? loadProjectInstruction(props.directory) : Promise.resolve(undefined),
+    queryFn: () => (props.directory ? loadProjectInstruction(props.directory) : Promise.resolve(undefined)),
     staleTime: 0,
     refetchOnMount: "always",
     refetchOnWindowFocus: false,
   }))
   const ruleSet = (scope: "global" | "project") => (scope === "global" ? (rules.data ?? []) : (projectRules.data ?? []))
-  const queryKey = (scope: "global" | "project") => scope === "global" ? ["settings", "global-rules"] : ["settings", "project-rules", props.directory ? pathKey(props.directory) : "none"]
-  const projectInstructionQueryKey = () => ["settings", "project-instruction", props.directory ? pathKey(props.directory) : "none"]
+  const queryKey = (scope: "global" | "project") =>
+    scope === "global"
+      ? ["settings", "global-rules"]
+      : ["settings", "project-rules", props.directory ? pathKey(props.directory) : "none"]
+  const projectInstructionQueryKey = () => [
+    "settings",
+    "project-instruction",
+    props.directory ? pathKey(props.directory) : "none",
+  ]
   const fileByScope = (scope: "global" | "project") => new Map(ruleSet(scope).map((item) => [item.name, item]))
   const setRuleFiles = (scope: "global" | "project", updater: (files: RuleFile[]) => RuleFile[]) =>
     queryClient.setQueryData<RuleFile[]>(queryKey(scope), (current) => updater(safeArray(current)))
-  const setProjectInstruction = (file: ProjectInstructionFile) => queryClient.setQueryData<ProjectInstructionFile | undefined>(projectInstructionQueryKey(), file)
-  const projectStore = () => props.directory ? globalSync.child(props.directory)[0] : undefined
+  const setProjectInstruction = (file: ProjectInstructionFile) =>
+    queryClient.setQueryData<ProjectInstructionFile | undefined>(projectInstructionQueryKey(), file)
+  const projectStore = () => (props.directory ? globalSync.child(props.directory)[0] : undefined)
   const providerState = () => {
     const store = projectStore()
     if (store?.provider_ready) return store.provider
@@ -2332,8 +2601,10 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
     const provider = connectedProviders().find((item) => item.id === providerID)
     if (!provider) return
     const configuredModel = providerState().default[provider.id]
-    if (configuredModel && provider.models[configuredModel]) return { providerID: provider.id, modelID: configuredModel }
-    const first = Object.values(provider.models).find((model) => !model.id.includes("-nano")) ?? Object.values(provider.models)[0]
+    if (configuredModel && provider.models[configuredModel])
+      return { providerID: provider.id, modelID: configuredModel }
+    const first =
+      Object.values(provider.models).find((model) => !model.id.includes("-nano")) ?? Object.values(provider.models)[0]
     if (first) return { providerID: provider.id, modelID: first.id }
   }
   const defaultProjectInstructionModel = () => {
@@ -2350,7 +2621,8 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
     }
   }
 
-  const triggerLabel = (trigger: RuleTrigger) => language.t(ruleTriggerOptions.find((option) => option.value === trigger)?.label ?? "settings.rules.trigger.always")
+  const triggerLabel = (trigger: RuleTrigger) =>
+    language.t(ruleTriggerOptions.find((option) => option.value === trigger)?.label ?? "settings.rules.trigger.always")
 
   const requireDirectory = () => {
     if (props.directory) return props.directory
@@ -2360,18 +2632,29 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
     })
   }
 
-  const saveRuleFile = async (scope: "global" | "project", name: string, description: string, trigger: RuleTrigger, content: string) => {
+  const saveRuleFile = async (
+    scope: "global" | "project",
+    name: string,
+    description: string,
+    trigger: RuleTrigger,
+    content: string,
+  ) => {
     try {
       if (scope === "project" && !props.directory) throw new Error("Project directory is required")
-      const saved = await client().settings.rule
-        .save({ scope, name, description: description || undefined, trigger, content })
+      const saved = await client()
+        .settings.rule.save({ scope, name, description: description || undefined, trigger, content })
         .then((x) => x.data)
       if (saved) {
-        setRuleFiles(scope, (files) => [...files.filter((file) => file.name !== saved.name), saved].sort((a, b) => a.name.localeCompare(b.name)))
+        setRuleFiles(scope, (files) =>
+          [...files.filter((file) => file.name !== saved.name), saved].sort((a, b) => a.name.localeCompare(b.name)),
+        )
       }
       await queryClient.invalidateQueries({ queryKey: queryKey(scope) })
     } catch (err) {
-      showToast({ title: language.t("common.requestFailed"), description: err instanceof Error ? err.message : String(err) })
+      showToast({
+        title: language.t("common.requestFailed"),
+        description: err instanceof Error ? err.message : String(err),
+      })
       throw err
     }
   }
@@ -2383,7 +2666,10 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
       setRuleFiles(scope, (files) => files.filter((file) => file.name !== name))
       await queryClient.invalidateQueries({ queryKey: queryKey(scope) })
     } catch (err) {
-      showToast({ title: language.t("common.requestFailed"), description: err instanceof Error ? err.message : String(err) })
+      showToast({
+        title: language.t("common.requestFailed"),
+        description: err instanceof Error ? err.message : String(err),
+      })
     }
   }
 
@@ -2391,18 +2677,28 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
     try {
       const directory = requireDirectory()
       if (!directory) throw new Error(language.t("settings.projectInstruction.error.folderRequired"))
-      const saved = await client().settings.projectInstruction.save({ directory, content }).then((x) => x.data)
+      const saved = await client()
+        .settings.projectInstruction.save({ directory, content })
+        .then((x) => x.data)
       if (saved) setProjectInstruction(saved)
       await queryClient.invalidateQueries({ queryKey: projectInstructionQueryKey() })
     } catch (err) {
-      showToast({ title: language.t("common.requestFailed"), description: err instanceof Error ? err.message : String(err) })
+      showToast({
+        title: language.t("common.requestFailed"),
+        description: err instanceof Error ? err.message : String(err),
+      })
       throw err
     }
   }
 
-  const waitForProjectInstruction = async (directory: string, onProgress?: (item: ProjectInstructionGenerateProgress) => void) => {
+  const waitForProjectInstruction = async (
+    directory: string,
+    onProgress?: (item: ProjectInstructionGenerateProgress) => void,
+  ) => {
     for (const _ of Array.from({ length: 60 })) {
-      const saved = await client().settings.projectInstruction.get({ directory }).then((x) => x.data)
+      const saved = await client()
+        .settings.projectInstruction.get({ directory })
+        .then((x) => x.data)
       if (saved?.content.trim()) {
         onProgress?.({
           step: "written",
@@ -2414,7 +2710,9 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
       }
       await new Promise((resolve) => window.setTimeout(resolve, 1000))
     }
-    const saved = await client().settings.projectInstruction.get({ directory }).then((x) => x.data)
+    const saved = await client()
+      .settings.projectInstruction.get({ directory })
+      .then((x) => x.data)
     if (saved?.content.trim()) {
       onProgress?.({
         step: "written",
@@ -2434,7 +2732,10 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
   ) => {
     let last = ""
     while (running()) {
-      const answer = await client().session.messages({ directory, sessionID, limit: 20 }).then((x) => sessionAnswerText(x.data ?? [])).catch(() => "")
+      const answer = await client()
+        .session.messages({ directory, sessionID, limit: 20 })
+        .then((x) => sessionAnswerText(x.data ?? []))
+        .catch(() => "")
       if (answer && answer !== last) {
         last = answer
         onProgress({
@@ -2460,13 +2761,17 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
       title: language.t("settings.projectInstruction.generating.progress.session"),
       detail: model.modelID,
     })
-    const session = await client().session.create({
-      directory,
-      title: language.t("settings.projectInstruction.session.title"),
-      model: { providerID: model.providerID, id: model.modelID },
-    }).then((x) => x.data)
+    const session = await client()
+      .session.create({
+        directory,
+        title: language.t("settings.projectInstruction.session.title"),
+        model: { providerID: model.providerID, id: model.modelID },
+      })
+      .then((x) => x.data)
     if (!session) throw new Error("Session creation failed")
-    await client().session.update({ directory, sessionID: session.id, time: { archived: Date.now() } }).catch(() => {})
+    await client()
+      .session.update({ directory, sessionID: session.id, time: { archived: Date.now() } })
+      .catch(() => {})
     onProgress({
       step: "command",
       title: language.t("settings.projectInstruction.generating.progress.command"),
@@ -2475,15 +2780,17 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
     const polling = { current: true }
     void pollProjectInstructionSession(directory, session.id, () => polling.current, onProgress)
     let commandError: unknown
-    const command = client().session.command({
-      directory,
-      sessionID: session.id,
-      command: "init",
-      arguments: comment,
-      model: `${model.providerID}/${model.modelID}`,
-    }).catch((err) => {
-      commandError = err
-    })
+    const command = client()
+      .session.command({
+        directory,
+        sessionID: session.id,
+        command: "init",
+        arguments: comment,
+        model: `${model.providerID}/${model.modelID}`,
+      })
+      .catch((err) => {
+        commandError = err
+      })
     onProgress({
       step: "waiting",
       title: language.t("settings.projectInstruction.generating.progress.waiting"),
@@ -2493,7 +2800,9 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
     polling.current = false
     if (!saved?.content.trim()) {
       await command
-      const retry = await client().settings.projectInstruction.get({ directory }).then((x) => x.data)
+      const retry = await client()
+        .settings.projectInstruction.get({ directory })
+        .then((x) => x.data)
       if (retry?.content.trim()) setProjectInstruction(retry)
       if (!retry?.content.trim() && commandError) throw commandError
     }
@@ -2532,7 +2841,9 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
         initialTrigger={ruleTrigger(file.data)}
         initialContent={file.content}
         lockName
-        onSave={(nextName, description, trigger, content) => saveRuleFile(scope, nextName, description, trigger, content)}
+        onSave={(nextName, description, trigger, content) =>
+          saveRuleFile(scope, nextName, description, trigger, content)
+        }
       />
     ))
   }
@@ -2556,7 +2867,11 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
     const file = projectInstruction.data
     dialog.show(() => (
       <ProjectInstructionDialog
-        title={language.t(file?.content.trim() ? "settings.projectInstruction.action.edit" : "settings.projectInstruction.action.create")}
+        title={language.t(
+          file?.content.trim()
+            ? "settings.projectInstruction.action.edit"
+            : "settings.projectInstruction.action.create",
+        )}
         initialContent={file?.content ?? ""}
         onSave={saveProjectInstruction}
       />
@@ -2567,10 +2882,7 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
     const file = projectInstruction.data
     if (!file) return
     dialog.show(() => (
-      <ProjectInstructionDetailDialog
-        title={language.t("settings.projectInstruction.action.view")}
-        file={file}
-      />
+      <ProjectInstructionDetailDialog title={language.t("settings.projectInstruction.action.view")} file={file} />
     ))
   }
 
@@ -2594,7 +2906,11 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
           {language.t("settings.projectInstruction.action.generate")}
         </Button>
         <Button variant="secondary" icon="edit" onClick={editProjectInstruction}>
-          {language.t(projectInstruction.data?.content.trim() ? "settings.projectInstruction.action.edit" : "settings.projectInstruction.action.create")}
+          {language.t(
+            projectInstruction.data?.content.trim()
+              ? "settings.projectInstruction.action.edit"
+              : "settings.projectInstruction.action.create",
+          )}
         </Button>
       </Toolbar>
       <Show
@@ -2616,7 +2932,10 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
               icon="checklist"
               title="AGENTS.md"
               description={projectInstruction.data?.location ?? ""}
-              tags={[language.t("settings.projectInstruction.tag.generated"), language.t("settings.management.tag.configured")]}
+              tags={[
+                language.t("settings.projectInstruction.tag.generated"),
+                language.t("settings.management.tag.configured"),
+              ]}
               actions={
                 <>
                   <IconButton
@@ -2650,7 +2969,10 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
       </Toolbar>
       <SettingsList>
         <Show when={!rules.isLoading && !projectRules.isLoading} fallback={<LoadingState />}>
-          <Show when={safeArray(ruleSet(props.scope)).length > 0} fallback={<EmptyState message={language.t("settings.rules.empty")} />}>
+          <Show
+            when={safeArray(ruleSet(props.scope)).length > 0}
+            fallback={<EmptyState message={language.t("settings.rules.empty")} />}
+          >
             <For each={safeArray(ruleSet(props.scope))}>
               {(file) => (
                 <RuntimeRow
@@ -2790,7 +3112,10 @@ export const SettingsMcp: Component = () => {
         </Toolbar>
         <SettingsList>
           <Show when={!mcp.isLoading} fallback={<LoadingState />}>
-            <Show when={safeArray(items()).length > 0} fallback={<EmptyState message={language.t("dialog.mcp.empty")} />}>
+            <Show
+              when={safeArray(items()).length > 0}
+              fallback={<EmptyState message={language.t("dialog.mcp.empty")} />}
+            >
               <For each={safeArray(items())}>
                 {(item) => (
                   <McpRow
@@ -2825,7 +3150,9 @@ export const SettingsPlugins: Component = () => {
   const language = useLanguage()
   const globalSync = useGlobalSync()
   const configured = createMemo(() => globalSync.data.config.plugin ?? [])
-  const plugins = createMemo(() => safeArray(configured()).map((plugin) => (Array.isArray(plugin) ? plugin[0] : plugin)))
+  const plugins = createMemo(() =>
+    safeArray(configured()).map((plugin) => (Array.isArray(plugin) ? plugin[0] : plugin)),
+  )
 
   const updatePlugins = (next: unknown[]) => ignoreResult(globalSync.updateConfig({ plugin: next } as Config))
 
@@ -2865,7 +3192,10 @@ export const SettingsPlugins: Component = () => {
           </Button>
         </Toolbar>
         <SettingsList>
-          <Show when={safeArray(plugins()).length > 0} fallback={<EmptyState message={language.t("settings.plugins.empty")} />}>
+          <Show
+            when={safeArray(plugins()).length > 0}
+            fallback={<EmptyState message={language.t("settings.plugins.empty")} />}
+          >
             <For each={safeArray(plugins())}>
               {(plugin, index) => (
                 <RuntimeRow
@@ -2935,7 +3265,10 @@ const AgentSkillList: Component<{
   return (
     <div class="mt-2 flex flex-wrap items-center gap-1.5">
       <span class="text-12-regular text-text-weak">{language.t("settings.agents.skills.title")}</span>
-      <Show when={safeArray(props.skills).length > 0} fallback={<Tag>{language.t("settings.agents.skills.empty")}</Tag>}>
+      <Show
+        when={safeArray(props.skills).length > 0}
+        fallback={<Tag>{language.t("settings.agents.skills.empty")}</Tag>}
+      >
         <For each={safeArray(props.skills)}>
           {(skill) => (
             <span class="inline-flex h-6 max-w-44 items-center gap-1 rounded-md border border-border-weak-base bg-surface-weak px-2 text-12-regular text-text-base">
@@ -3032,7 +3365,9 @@ const McpRow: Component<{
   const status = () => props.status.status
   const label = () => language.t(statusLabels[status()])
   const error = () =>
-    props.status.status === "failed" || props.status.status === "needs_client_registration" ? props.status.error : undefined
+    props.status.status === "failed" || props.status.status === "needs_client_registration"
+      ? props.status.error
+      : undefined
   const configurable = () => !!props.onEdit || !!props.onDelete
 
   return (

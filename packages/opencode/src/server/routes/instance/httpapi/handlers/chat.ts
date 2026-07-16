@@ -16,17 +16,15 @@ export const chatHandlers = HttpApiBuilder.group(InstanceHttpApi, "chat", (handl
     const config = yield* Config.Service
     const auth = yield* Auth.Service
 
-    const send = Effect.fn("ChatHttpApi.send")(function* (ctx: {
-      payload: typeof ChatPayload.Type
-    }) {
+    const send = Effect.fn("ChatHttpApi.send")(function* (ctx: { payload: typeof ChatPayload.Type }) {
       const ctxState = yield* InstanceState.context
 
-      const model = yield* provider.getModel(ctx.payload.model.providerID, ctx.payload.model.modelID).pipe(
-        Effect.mapError(() => new HttpApiError.BadRequest({})),
-      )
-      const language = yield* provider.getLanguage(model).pipe(
-        Effect.mapError(() => new HttpApiError.InternalServerError({})),
-      )
+      const model = yield* provider
+        .getModel(ctx.payload.model.providerID, ctx.payload.model.modelID)
+        .pipe(Effect.mapError(() => new HttpApiError.BadRequest({})))
+      const language = yield* provider
+        .getLanguage(model)
+        .pipe(Effect.mapError(() => new HttpApiError.InternalServerError({})))
 
       yield* auth.get(model.providerID).pipe(Effect.orDie)
 

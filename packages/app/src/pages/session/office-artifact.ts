@@ -83,7 +83,13 @@ export function extractOfficeArtifact(input: string): OfficeArtifact | undefined
   const title = artifactTitle(bodyContent, slides)
   return {
     body: `# 办公产物\n\n${bodyContent}`,
-    memory: memoryHeading > bodyHeading ? lines.slice(memoryHeading + 1).join("\n").trim() : "",
+    memory:
+      memoryHeading > bodyHeading
+        ? lines
+            .slice(memoryHeading + 1)
+            .join("\n")
+            .trim()
+        : "",
     slides,
     title,
     filename: `${filenameSafe(title)}.md`,
@@ -120,7 +126,13 @@ function artifactTitle(body: string, slides: OfficeSlide[] = []) {
   if (slides.length > 0) {
     const coverTitle = slides[0]?.content
       .split("\n")
-      .map((line) => line.trim().replace(/^[-*]\s*/, "").match(/^标题[:：]\s*(.+)$/)?.[1])
+      .map(
+        (line) =>
+          line
+            .trim()
+            .replace(/^[-*]\s*/, "")
+            .match(/^标题[:：]\s*(.+)$/)?.[1],
+      )
       .find((value): value is string => !!value)
     if (coverTitle) return cleanTitle(coverTitle)
   }
@@ -128,7 +140,10 @@ function artifactTitle(body: string, slides: OfficeSlide[] = []) {
   const heading = body
     .split("\n")
     .map((line) => line.trim().match(/^#{1,6}\s+(.+?)\s*#*$/)?.[1])
-    .find((value): value is string => !!value && value !== "办公产物" && value !== "可沉淀记忆/可进化建议" && !/^第\s*\d+\s*页/.test(value))
+    .find(
+      (value): value is string =>
+        !!value && value !== "办公产物" && value !== "可沉淀记忆/可进化建议" && !/^第\s*\d+\s*页/.test(value),
+    )
   if (heading) return cleanTitle(heading)
 
   const firstLine = body
@@ -199,7 +214,9 @@ function parseSlideFields(lines: string[]) {
   let active: string | undefined
   for (const raw of lines) {
     const line = raw.trim()
-    const match = line.match(/^[-*]?\s*(布局|版式|layout|视觉|visual|配图|配图建议|图片|图片建议|插图|插图建议|生成图片提示词|备注|演讲备注|notes)\s*[:：]\s*(.*)$/i)
+    const match = line.match(
+      /^[-*]?\s*(布局|版式|layout|视觉|visual|配图|配图建议|图片|图片建议|插图|插图建议|生成图片提示词|备注|演讲备注|notes)\s*[:：]\s*(.*)$/i,
+    )
     if (match?.[1]) {
       active = match[1].toLowerCase()
       fields.set(active, match[2] ? [match[2]] : [])
@@ -214,19 +231,27 @@ function parseSlideFields(lines: string[]) {
   }
   return {
     content: content.join("\n").trim(),
-    layout: normalizeSlideLayout([...(fields.get("布局") ?? []), ...(fields.get("版式") ?? []), ...(fields.get("layout") ?? [])].join(" ")),
-    visual: [
-      ...(fields.get("视觉") ?? []),
-      ...(fields.get("visual") ?? []),
-      ...(fields.get("配图") ?? []),
-      ...(fields.get("配图建议") ?? []),
-      ...(fields.get("图片") ?? []),
-      ...(fields.get("图片建议") ?? []),
-      ...(fields.get("插图") ?? []),
-      ...(fields.get("插图建议") ?? []),
-      ...(fields.get("生成图片提示词") ?? []),
-    ].join("\n").trim() || undefined,
-    notes: [...(fields.get("备注") ?? []), ...(fields.get("演讲备注") ?? []), ...(fields.get("notes") ?? [])].join("\n").trim() || undefined,
+    layout: normalizeSlideLayout(
+      [...(fields.get("布局") ?? []), ...(fields.get("版式") ?? []), ...(fields.get("layout") ?? [])].join(" "),
+    ),
+    visual:
+      [
+        ...(fields.get("视觉") ?? []),
+        ...(fields.get("visual") ?? []),
+        ...(fields.get("配图") ?? []),
+        ...(fields.get("配图建议") ?? []),
+        ...(fields.get("图片") ?? []),
+        ...(fields.get("图片建议") ?? []),
+        ...(fields.get("插图") ?? []),
+        ...(fields.get("插图建议") ?? []),
+        ...(fields.get("生成图片提示词") ?? []),
+      ]
+        .join("\n")
+        .trim() || undefined,
+    notes:
+      [...(fields.get("备注") ?? []), ...(fields.get("演讲备注") ?? []), ...(fields.get("notes") ?? [])]
+        .join("\n")
+        .trim() || undefined,
   }
 }
 

@@ -79,7 +79,10 @@ export interface Interface {
   readonly reviewSessionEnd: (input: ReviewSessionEndInput) => Effect.Effect<ReviewCandidate[]>
   readonly reviewDue: (input: ReviewServiceInput) => Effect.Effect<boolean>
   readonly listReviewCandidates: (input?: ReviewCandidateListInput) => Effect.Effect<ReviewCandidate[]>
-  readonly applyReviewCandidate: (id: ReviewCandidateID, location?: MemoryFileLocation) => Effect.Effect<Info | undefined>
+  readonly applyReviewCandidate: (
+    id: ReviewCandidateID,
+    location?: MemoryFileLocation,
+  ) => Effect.Effect<Info | undefined>
   readonly dismissReviewCandidate: (id: ReviewCandidateID) => Effect.Effect<ReviewCandidate | undefined>
   readonly reviewStatus: (input?: {
     projectID?: AddInput["projectID"]
@@ -228,7 +231,10 @@ function clampImportance(input?: number) {
   return Math.min(Math.max(input, 0), 1)
 }
 
-function candidateRow(input: ReviewInput, proposal: ReviewCandidateProposal): typeof MemoryReviewCandidateTable.$inferInsert | undefined {
+function candidateRow(
+  input: ReviewInput,
+  proposal: ReviewCandidateProposal,
+): typeof MemoryReviewCandidateTable.$inferInsert | undefined {
   const content = proposal.content.trim()
   if (content.length < 4) return
   const now = Date.now()
@@ -411,7 +417,9 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
     const remove: Interface["remove"] = Effect.fn("Memory.remove")(function* (id) {
       const existing = yield* getByID(id)
       if (!existing) return false
-      yield* Effect.sync(() => Database.use((db) => db.delete(MemoryEntryTable).where(eq(MemoryEntryTable.id, id)).run()))
+      yield* Effect.sync(() =>
+        Database.use((db) => db.delete(MemoryEntryTable).where(eq(MemoryEntryTable.id, id)).run()),
+      )
       return true
     })
 
@@ -464,22 +472,22 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
       }
     })
 
-    const listReviewCandidates: Interface["listReviewCandidates"] = Effect.fn("Memory.listReviewCandidates")(function* (
-      input,
-    ) {
-      const rows = yield* Effect.sync(() =>
-        Database.use((db) =>
-          db
-            .select()
-            .from(MemoryReviewCandidateTable)
-            .where(and(...reviewConditions(input)))
-            .orderBy(desc(MemoryReviewCandidateTable.time_updated))
-            .limit(input?.limit ?? DEFAULT_LIMIT)
-            .all(),
-        ),
-      )
-      return rows.map(rowToCandidate)
-    })
+    const listReviewCandidates: Interface["listReviewCandidates"] = Effect.fn("Memory.listReviewCandidates")(
+      function* (input) {
+        const rows = yield* Effect.sync(() =>
+          Database.use((db) =>
+            db
+              .select()
+              .from(MemoryReviewCandidateTable)
+              .where(and(...reviewConditions(input)))
+              .orderBy(desc(MemoryReviewCandidateTable.time_updated))
+              .limit(input?.limit ?? DEFAULT_LIMIT)
+              .all(),
+          ),
+        )
+        return rows.map(rowToCandidate)
+      },
+    )
 
     const getCandidateByID = Effect.fn("Memory.getCandidateByID")(function* (id: ReviewCandidateID) {
       const row = yield* Effect.sync(() =>
@@ -549,10 +557,13 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
           })
         : []
       const pending = rows.filter(
-        (row) => !existing.some((item) => item.sourceMessageID === input.sourceMessageID && item.content === row.content),
+        (row) =>
+          !existing.some((item) => item.sourceMessageID === input.sourceMessageID && item.content === row.content),
       )
       const duplicates = rows
-        .map((row) => existing.find((item) => item.sourceMessageID === input.sourceMessageID && item.content === row.content))
+        .map((row) =>
+          existing.find((item) => item.sourceMessageID === input.sourceMessageID && item.content === row.content),
+        )
         .filter((item) => item !== undefined)
 
       if (pending.length) {
@@ -589,10 +600,13 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
           })
         : []
       const pending = rows.filter(
-        (row) => !existing.some((item) => item.sourceMessageID === input.sourceMessageID && item.content === row.content),
+        (row) =>
+          !existing.some((item) => item.sourceMessageID === input.sourceMessageID && item.content === row.content),
       )
       const duplicates = rows
-        .map((row) => existing.find((item) => item.sourceMessageID === input.sourceMessageID && item.content === row.content))
+        .map((row) =>
+          existing.find((item) => item.sourceMessageID === input.sourceMessageID && item.content === row.content),
+        )
         .filter((item) => item !== undefined)
 
       if (pending.length) {
@@ -629,10 +643,13 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
           })
         : []
       const pending = rows.filter(
-        (row) => !existing.some((item) => item.sourceMessageID === input.sourceMessageID && item.content === row.content),
+        (row) =>
+          !existing.some((item) => item.sourceMessageID === input.sourceMessageID && item.content === row.content),
       )
       const duplicates = rows
-        .map((row) => existing.find((item) => item.sourceMessageID === input.sourceMessageID && item.content === row.content))
+        .map((row) =>
+          existing.find((item) => item.sourceMessageID === input.sourceMessageID && item.content === row.content),
+        )
         .filter((item) => item !== undefined)
 
       if (pending.length) {
@@ -645,39 +662,41 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
       ]
     })
 
-    const applyReviewCandidate: Interface["applyReviewCandidate"] = Effect.fn("Memory.applyReviewCandidate")(function* (id, location) {
-      const candidate = yield* getCandidateByID(id)
-      if (!candidate || candidate.status !== "pending") return
-      const item = yield* add({
-        projectID: candidate.projectID,
-        sessionID: candidate.sessionID,
-        target: candidate.target,
-        scope: candidate.scope,
-        content: candidate.content,
-        summary: candidate.summary,
-        tags: candidate.tags,
-        importance: candidate.importance,
-        source: "review",
-        originMessageID: candidate.sourceMessageID,
-        createdBy: "memory-review",
-        ...(location ? { location } : {}),
-      })
-      const now = Date.now()
-      yield* Effect.sync(() =>
-        Database.use((db) =>
-          db
-            .update(MemoryReviewCandidateTable)
-            .set({ status: "applied", time_applied: now, time_updated: now })
-            .where(eq(MemoryReviewCandidateTable.id, id))
-            .run(),
-        ),
-      )
-      yield* publishReviewUpdated({
-        projectID: candidate.projectID,
-        sessionID: candidate.sessionID,
-      })
-      return item
-    })
+    const applyReviewCandidate: Interface["applyReviewCandidate"] = Effect.fn("Memory.applyReviewCandidate")(
+      function* (id, location) {
+        const candidate = yield* getCandidateByID(id)
+        if (!candidate || candidate.status !== "pending") return
+        const item = yield* add({
+          projectID: candidate.projectID,
+          sessionID: candidate.sessionID,
+          target: candidate.target,
+          scope: candidate.scope,
+          content: candidate.content,
+          summary: candidate.summary,
+          tags: candidate.tags,
+          importance: candidate.importance,
+          source: "review",
+          originMessageID: candidate.sourceMessageID,
+          createdBy: "memory-review",
+          ...(location ? { location } : {}),
+        })
+        const now = Date.now()
+        yield* Effect.sync(() =>
+          Database.use((db) =>
+            db
+              .update(MemoryReviewCandidateTable)
+              .set({ status: "applied", time_applied: now, time_updated: now })
+              .where(eq(MemoryReviewCandidateTable.id, id))
+              .run(),
+          ),
+        )
+        yield* publishReviewUpdated({
+          projectID: candidate.projectID,
+          sessionID: candidate.sessionID,
+        })
+        return item
+      },
+    )
 
     const dismissReviewCandidate: Interface["dismissReviewCandidate"] = Effect.fn("Memory.dismissReviewCandidate")(
       function* (id) {

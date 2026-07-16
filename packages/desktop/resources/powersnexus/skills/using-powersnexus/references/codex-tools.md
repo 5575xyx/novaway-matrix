@@ -2,21 +2,21 @@
 
 Skills speak in actions ("dispatch a subagent", "create a todo", "read a file"). On Codex these resolve to the tools below.
 
-| Action skills request | Codex equivalent |
-|----------------------|------------------|
-| Read a file | `shell` (e.g., `cat`, `head`, `tail`) — Codex reads files via shell |
-| Create / edit / delete a file | `apply_patch` (structured diff for create, update, delete) |
-| Run a shell command | `shell` |
-| Search file contents | `shell` (e.g., `grep`, `rg`) |
-| Find files by name | `shell` (e.g., `find`, `ls`) |
-| Fetch a URL | `shell` with `curl` / `wget` — Codex has no native fetch tool |
-| Search the web | `web_search` (enabled by default; configurable in `config.toml` via the top-level `web_search` setting — `live`, `cached`, or `disabled`) |
-| Invoke a skill | Skills load natively — just follow the instructions |
-| Dispatch a subagent (`Subagent (general-purpose):` template) | `spawn_agent` (see [Subagent dispatch requires multi-agent support](#subagent-dispatch-requires-multi-agent-support)) |
-| Multiple parallel dispatches | Multiple `spawn_agent` calls in one response |
-| Wait for subagent result | `wait_agent` |
-| Free up subagent slot when done | `close_agent` |
-| Task tracking ("create a todo", "mark complete") | `update_plan` |
+| Action skills request                                        | Codex equivalent                                                                                                                          |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Read a file                                                  | `shell` (e.g., `cat`, `head`, `tail`) — Codex reads files via shell                                                                       |
+| Create / edit / delete a file                                | `apply_patch` (structured diff for create, update, delete)                                                                                |
+| Run a shell command                                          | `shell`                                                                                                                                   |
+| Search file contents                                         | `shell` (e.g., `grep`, `rg`)                                                                                                              |
+| Find files by name                                           | `shell` (e.g., `find`, `ls`)                                                                                                              |
+| Fetch a URL                                                  | `shell` with `curl` / `wget` — Codex has no native fetch tool                                                                             |
+| Search the web                                               | `web_search` (enabled by default; configurable in `config.toml` via the top-level `web_search` setting — `live`, `cached`, or `disabled`) |
+| Invoke a skill                                               | Skills load natively — just follow the instructions                                                                                       |
+| Dispatch a subagent (`Subagent (general-purpose):` template) | `spawn_agent` (see [Subagent dispatch requires multi-agent support](#subagent-dispatch-requires-multi-agent-support))                     |
+| Multiple parallel dispatches                                 | Multiple `spawn_agent` calls in one response                                                                                              |
+| Wait for subagent result                                     | `wait_agent`                                                                                                                              |
+| Free up subagent slot when done                              | `close_agent`                                                                                                                             |
+| Task tracking ("create a todo", "mark complete")             | `update_plan`                                                                                                                             |
 
 ## Instructions file
 

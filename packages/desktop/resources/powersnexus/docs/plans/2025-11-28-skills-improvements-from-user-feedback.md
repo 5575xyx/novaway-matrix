@@ -13,6 +13,7 @@ Two Claude instances provided detailed feedback from actual development sessions
 **Critical insight:** These are problem reports, not just solution proposals. The problems are real; the solutions need careful evaluation.
 
 **Key themes:**
+
 1. **Verification gaps** - We verify operations succeed but not that they achieve intended outcomes
 2. **Process hygiene** - Background processes accumulate and interfere across subagents
 3. **Context optimization** - Subagents get too much irrelevant information
@@ -27,6 +28,7 @@ Two Claude instances provided detailed feedback from actual development sessions
 ### Problem 1: Configuration Change Verification Gap
 
 **What happened:**
+
 - Subagent tested "OpenAI integration"
 - Set `OPENAI_API_KEY` env var
 - Got status 200 responses
@@ -39,6 +41,7 @@ Two Claude instances provided detailed feedback from actual development sessions
 **Impact:** High - False confidence in integration tests, bugs ship to production
 
 **Example failure pattern:**
+
 - Switch LLM provider → verify status 200 but don't check model name
 - Enable feature flag → verify no errors but don't check feature is active
 - Change environment → verify deployment succeeds but don't check environment vars
@@ -48,6 +51,7 @@ Two Claude instances provided detailed feedback from actual development sessions
 ### Problem 2: Background Process Accumulation
 
 **What happened:**
+
 - Multiple subagents dispatched during session
 - Each started background server processes
 - Processes accumulated (4+ servers running)
@@ -65,6 +69,7 @@ Subagents are stateless - don't know about previous subagents' processes. No cle
 ### Problem 3: Context Bloat in Subagent Prompts
 
 **What happened:**
+
 - Standard approach: give subagent full plan file to read
 - Experiment: give only task + pattern + file + verify command
 - Result: Faster, more focused, single-attempt completion more common
@@ -75,6 +80,7 @@ Subagents waste tokens and attention on irrelevant plan sections.
 **Impact:** Medium - Slower execution, more failed attempts
 
 **What worked:**
+
 ```
 You are adding a single E2E test to packnplay's test suite.
 
@@ -93,6 +99,7 @@ in its metadata should result in the container running with `--privileged` flag.
 ### Problem 4: No Self-Reflection Before Handoff
 
 **What happened:**
+
 - Added self-reflection prompt: "Look at your work with fresh eyes - what could be better?"
 - Implementer for Task 5 identified failing test was due to implementation bug, not test bug
 - Traced to line 99: `strings.Join(metadata.Entrypoint, " ")` creating invalid Docker syntax
@@ -108,22 +115,24 @@ Implementers don't naturally step back and critique their own work before report
 ### Problem 5: Mock-Interface Drift
 
 **What happened:**
+
 ```typescript
 // Interface defines close()
 interface PlatformAdapter {
-  close(): Promise<void>;
+  close(): Promise<void>
 }
 
 // Code (BUGGY) calls cleanup()
-await adapter.cleanup();
+await adapter.cleanup()
 
 // Mock (MATCHES BUG) defines cleanup()
-vi.mock('web-adapter', () => ({
+vi.mock("web-adapter", () => ({
   WebAdapter: vi.fn().mockImplementation(() => ({
-    cleanup: vi.fn().mockResolvedValue(undefined),  // Wrong!
+    cleanup: vi.fn().mockResolvedValue(undefined), // Wrong!
   })),
-}));
+}))
 ```
+
 - Tests passed
 - Runtime crashed: "adapter.cleanup is not a function"
 
@@ -140,6 +149,7 @@ The skill covers testing mock behavior and mocking without understanding, but no
 ### Problem 6: Code Reviewer File Access
 
 **What happened:**
+
 - Code reviewer subagent dispatched
 - Couldn't find test file: "The file doesn't appear to exist in the repository"
 - File actually exists
@@ -155,6 +165,7 @@ Reviewer prompts don't include explicit file reading instructions.
 ### Problem 7: Fix Workflow Latency
 
 **What happened:**
+
 - Implementer identifies bug during self-reflection
 - Implementer knows the fix
 - Current workflow: report → I dispatch fixer → fixer fixes → I verify
@@ -170,6 +181,7 @@ Rigid separation between implementer and fixer roles when implementer has alread
 ### Problem 8: Skills Not Being Read
 
 **What happened:**
+
 - `testing-anti-patterns` skill exists
 - Neither human nor subagents read it before writing tests
 - Would have prevented some issues (though not all - see Problem 5)
@@ -196,20 +208,20 @@ When testing changes to configuration, providers, feature flags, or environment:
 
 ### Common Failure Pattern
 
-Operation succeeds because *some* valid config exists, but it's not the config you intended to test.
+Operation succeeds because _some_ valid config exists, but it's not the config you intended to test.
 
 ### Examples
 
-| Change | Insufficient | Required |
-|--------|-------------|----------|
-| Switch LLM provider | Status 200 | Response contains expected model name |
-| Enable feature flag | No errors | Feature behavior actually active |
-| Change environment | Deploy succeeds | Logs/vars reference new environment |
-| Set credentials | Auth succeeds | Authenticated user/context is correct |
+| Change              | Insufficient    | Required                              |
+| ------------------- | --------------- | ------------------------------------- |
+| Switch LLM provider | Status 200      | Response contains expected model name |
+| Enable feature flag | No errors       | Feature behavior actually active      |
+| Change environment  | Deploy succeeds | Logs/vars reference new environment   |
+| Set credentials     | Auth succeeds   | Authenticated user/context is correct |
 
 ### Gate Function
-
 ```
+
 BEFORE claiming configuration change works:
 
 1. IDENTIFY: What should be DIFFERENT after this change?
@@ -222,10 +234,12 @@ BEFORE claiming configuration change works:
 5. ONLY THEN: Claim configuration change works
 
 Red flags:
-  - "Request succeeded" without checking content
-  - Checking status code but not response body
-  - Verifying no errors but not positive confirmation
-```
+
+- "Request succeeded" without checking content
+- Checking status code but not response body
+- Verifying no errors but not positive confirmation
+
+````
 
 **Why this works:**
 Forces verification of INTENT, not just operation success.
@@ -249,30 +263,38 @@ Subagents are stateless - they don't know about processes started by previous su
 
 **Before dispatching E2E test subagent, include cleanup in prompt:**
 
-```
+````
+
 BEFORE starting any services:
+
 1. Kill existing processes: pkill -f "<service-pattern>" 2>/dev/null || true
 2. Wait for cleanup: sleep 1
 3. Verify port free: lsof -i :<port> && echo "ERROR: Port still in use" || echo "Port free"
 
 AFTER tests complete:
+
 1. Kill the process you started
 2. Verify cleanup: pgrep -f "<service-pattern>" || echo "Cleanup successful"
+
 ```
 
 ### Example
 
 ```
+
 Task: Run E2E test of API server
 
 Prompt includes:
 "Before starting the server:
-- Kill any existing servers: pkill -f 'node.*server.js' 2>/dev/null || true
+
+- Kill any existing servers: pkill -f 'node.\*server.js' 2>/dev/null || true
 - Verify port 3001 is free: lsof -i :3001 && exit 1 || echo 'Port available'
 
 After tests:
+
 - Kill the server you started
-- Verify: pgrep -f 'node.*server.js' || echo 'Cleanup verified'"
+- Verify: pgrep -f 'node.\*server.js' || echo 'Cleanup verified'"
+
 ```
 
 ### Why This Matters
@@ -284,6 +306,7 @@ After tests:
 ```
 
 **Trade-off analysis:**
+
 - Adds boilerplate to prompts
 - But prevents very confusing debugging
 - Worth it for E2E test subagents
@@ -295,23 +318,28 @@ After tests:
 **Modify Step 2: Execute Task with Subagent**
 
 **Before:**
+
 ```
 Read that task carefully from [plan-file].
 ```
 
 **After:**
+
 ```
 ## Context Approaches
 
 **Full Plan (default):**
 Use when tasks are complex or have dependencies:
 ```
+
 Read Task N from [plan-file] carefully.
+
 ```
 
 **Lean Context (for independent tasks):**
 Use when task is standalone and pattern-based:
 ```
+
 You are implementing: [1-2 sentence task description]
 
 File to modify: [exact path]
@@ -320,6 +348,7 @@ What to implement: [specific requirement]
 Verification: [exact command to run]
 
 [Do NOT include full plan file]
+
 ```
 
 **Use lean context when:**
@@ -334,6 +363,7 @@ Verification: [exact command to run]
 ```
 
 **Example:**
+
 ```
 Lean context prompt:
 
@@ -404,6 +434,7 @@ BEFORE analyzing, read these files:
 Use Read tool to load each file.
 
 If you cannot find a file:
+
 - Check exact path from diff
 - Try alternate locations
 - Report: "Cannot locate [path] - please verify file exists"
@@ -420,32 +451,36 @@ Explicit instruction prevents "file not found" issues.
 
 **Add new Anti-Pattern 6:**
 
-```markdown
+````markdown
 ## Anti-Pattern 6: Mocks Derived from Implementation
 
 **The violation:**
+
 ```typescript
 // Code (BUGGY) calls cleanup()
-await adapter.cleanup();
+await adapter.cleanup()
 
 // Mock (MATCHES BUG) has cleanup()
 const mock = {
-  cleanup: vi.fn().mockResolvedValue(undefined)
-};
+  cleanup: vi.fn().mockResolvedValue(undefined),
+}
 
 // Interface (CORRECT) defines close()
 interface PlatformAdapter {
-  close(): Promise<void>;
+  close(): Promise<void>
 }
 ```
+````
 
 **Why this is wrong:**
+
 - Mock encodes the bug into the test
 - TypeScript can't catch inline mocks with wrong method names
 - Test passes because both code and mock are wrong
 - Runtime crashes when real object is used
 
 **The fix:**
+
 ```typescript
 // ✅ GOOD: Derive mock from interface
 
@@ -455,8 +490,8 @@ interface PlatformAdapter {
 
 const mock = {
   initialize: vi.fn().mockResolvedValue(undefined),
-  close: vi.fn().mockResolvedValue(undefined),  // From interface!
-};
+  close: vi.fn().mockResolvedValue(undefined), // From interface!
+}
 
 // Now test FAILS because code calls cleanup() which doesn't exist
 // That failure reveals the bug BEFORE runtime
@@ -489,10 +524,12 @@ BEFORE writing any mock:
 **Detection:**
 
 When you see runtime error "X is not a function" and tests pass:
+
 1. Check if X is mocked
 2. Compare mock methods to interface methods
 3. Look for method name mismatches
-```
+
+````
 
 **Why this works:**
 Directly addresses the failure pattern from feedback.
@@ -515,7 +552,7 @@ BEFORE writing any tests:
    - Mocking dependencies
 
 This is NOT optional. Tests that violate anti-patterns will be rejected in review.
-```
+````
 
 **Why this works:**
 Ensures skills are actually used, not just exist.
@@ -530,11 +567,13 @@ Adds time to each task, but prevents entire classes of bugs.
 **Modify Step 2:**
 
 **Current:**
+
 ```
 Subagent reports back with summary of work.
 ```
 
 **Proposed:**
+
 ```
 Subagent performs self-reflection, then:
 
@@ -663,29 +702,37 @@ How do we know these improvements work?
 ## Risks and Mitigations
 
 ### Risk: Prompt Bloat
+
 **Problem:** Adding all these requirements makes prompts overwhelming
 **Mitigation:**
+
 - Phase implementation (don't add everything at once)
 - Make some additions conditional (E2E hygiene only for E2E tests)
 - Consider templates for different task types
 
 ### Risk: Analysis Paralysis
+
 **Problem:** Too much reflection/verification slows execution
 **Mitigation:**
+
 - Keep gate functions quick (seconds, not minutes)
 - Make lean context opt-in initially
 - Monitor task completion times
 
 ### Risk: False Sense of Security
+
 **Problem:** Following checklist doesn't guarantee correctness
 **Mitigation:**
+
 - Emphasize gate functions are minimums, not maximums
 - Keep "use judgment" language in skills
 - Document that skills catch common failures, not all failures
 
 ### Risk: Skill Divergence
+
 **Problem:** Different skills give conflicting advice
 **Mitigation:**
+
 - Review changes across all skills for consistency
 - Document how skills interact (Integration sections)
 - Test with real scenarios before deployment
@@ -695,16 +742,19 @@ How do we know these improvements work?
 ## Recommendation
 
 **Proceed with Phase 1 immediately:**
+
 - verification-before-completion: Configuration change verification
 - testing-anti-patterns: Mock-interface drift
 - requesting-code-review: Explicit file reading
 
 **Test Phase 2 with Jesse before finalizing:**
+
 - Get feedback on self-reflection impact
 - Validate process hygiene approach
 - Confirm skills reading requirement is worth overhead
 
 **Hold Phase 3 pending validation:**
+
 - Lean context needs real-world testing
 - Implementer-fix workflow change needs careful evaluation
 

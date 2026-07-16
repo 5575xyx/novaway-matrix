@@ -146,4 +146,28 @@ describe("file watcher invalidation", () => {
 
     expect(refresh).toEqual([])
   })
+
+  test("refreshes parent directory for Windows paths with backslashes", () => {
+    const refresh: string[] = []
+
+    invalidateFromWatcher(
+      {
+        type: "file.watcher.updated",
+        properties: {
+          file: "C:\\repo\\src\\new.ts",
+          event: "add",
+        },
+      },
+      {
+        normalize: (input) => input.replace(/^C:\\repo\\/, ""),
+        hasFile: () => false,
+        loadFile: () => {},
+        node: () => undefined,
+        isDirLoaded: (path) => path === "src",
+        refreshDir: (path) => refresh.push(path),
+      },
+    )
+
+    expect(refresh).toEqual(["src"])
+  })
 })

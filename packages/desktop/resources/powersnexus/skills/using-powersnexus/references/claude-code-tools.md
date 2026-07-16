@@ -4,32 +4,32 @@ Skills speak in actions ("dispatch a subagent", "create a todo", "read a file").
 
 ## Tools
 
-| Action skills request | Claude Code tool |
-|----------------------|------------------|
-| Read a file | `Read` |
-| Create a new file | `Write` |
-| Edit a file | `Edit` |
-| Run a shell command | `Bash` |
-| Search file contents | `Grep` |
-| Find files by name | `Glob` |
-| Fetch a URL | `WebFetch` |
-| Search the web | `WebSearch` |
-| Invoke a skill | `Skill` |
-| Dispatch a subagent (`Subagent (general-purpose):` template) | `Agent` (older releases named this `Task`) |
-| Multiple parallel dispatches | Multiple `Agent` calls in one response |
-| Task tracking ("create a todo", "mark complete") | `TaskCreate`, `TaskUpdate`, `TaskList`, `TaskGet`; `TodoWrite` in `claude -p` / Agent SDK unless `CLAUDE_CODE_ENABLE_TASKS=1` is set |
-| Background-process / subagent lifecycle (read output, cancel) | `TaskOutput`, `TaskStop` — these are distinct from the todo tools above and apply to running shells, agents, and remote sessions |
+| Action skills request                                         | Claude Code tool                                                                                                                     |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Read a file                                                   | `Read`                                                                                                                               |
+| Create a new file                                             | `Write`                                                                                                                              |
+| Edit a file                                                   | `Edit`                                                                                                                               |
+| Run a shell command                                           | `Bash`                                                                                                                               |
+| Search file contents                                          | `Grep`                                                                                                                               |
+| Find files by name                                            | `Glob`                                                                                                                               |
+| Fetch a URL                                                   | `WebFetch`                                                                                                                           |
+| Search the web                                                | `WebSearch`                                                                                                                          |
+| Invoke a skill                                                | `Skill`                                                                                                                              |
+| Dispatch a subagent (`Subagent (general-purpose):` template)  | `Agent` (older releases named this `Task`)                                                                                           |
+| Multiple parallel dispatches                                  | Multiple `Agent` calls in one response                                                                                               |
+| Task tracking ("create a todo", "mark complete")              | `TaskCreate`, `TaskUpdate`, `TaskList`, `TaskGet`; `TodoWrite` in `claude -p` / Agent SDK unless `CLAUDE_CODE_ENABLE_TASKS=1` is set |
+| Background-process / subagent lifecycle (read output, cancel) | `TaskOutput`, `TaskStop` — these are distinct from the todo tools above and apply to running shells, agents, and remote sessions     |
 
 ## Instructions file
 
 When a skill mentions "your instructions file", on Claude Code this is **`CLAUDE.md`**. Claude Code walks up the directory tree from the current working directory and concatenates every `CLAUDE.md` and `CLAUDE.local.md` it finds along the way. Standard locations:
 
-| Scope | Location |
-|-------|----------|
-| Project (team-shared) | `./CLAUDE.md` or `./.claude/CLAUDE.md` |
-| User global | `~/.claude/CLAUDE.md` |
-| Local-private (gitignored) | `./CLAUDE.local.md` |
-| Managed policy (org-wide) | `/Library/Application Support/ClaudeCode/CLAUDE.md` (macOS), `/etc/claude-code/CLAUDE.md` (Linux/WSL), `C:\Program Files\ClaudeCode\CLAUDE.md` (Windows) |
+| Scope                      | Location                                                                                                                                                 |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Project (team-shared)      | `./CLAUDE.md` or `./.claude/CLAUDE.md`                                                                                                                   |
+| User global                | `~/.claude/CLAUDE.md`                                                                                                                                    |
+| Local-private (gitignored) | `./CLAUDE.local.md`                                                                                                                                      |
+| Managed policy (org-wide)  | `/Library/Application Support/ClaudeCode/CLAUDE.md` (macOS), `/etc/claude-code/CLAUDE.md` (Linux/WSL), `C:\Program Files\ClaudeCode\CLAUDE.md` (Windows) |
 
 CLAUDE.md files can pull in additional content with `@path/to/file` imports (relative or absolute, max five hops deep). Subdirectory `CLAUDE.md` files are also discovered automatically and loaded on-demand when Claude Code reads files in those subdirectories.
 

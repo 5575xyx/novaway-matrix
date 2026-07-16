@@ -26,11 +26,11 @@
 
 ### 文件改动
 
-| 文件 | 改动 |
-|------|------|
-| `packages/core/src/flag/flag.ts` | 新增 `OPENCODE_DISABLE_DEFAULT_PLUGINS: truthy(...)` 字段 |
-| `packages/opencode/src/config/config.ts` | ① 顶部新增 `export const DEFAULT_GLOBAL_PLUGINS: string[]`；② `loadGlobal` 首次写入处按 flag 决定是否注入 `plugin` |
-| `packages/opencode/test/config/config.test.ts` | 追加 1 个核心测试 |
+| 文件                                           | 改动                                                                                                               |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `packages/core/src/flag/flag.ts`               | 新增 `OPENCODE_DISABLE_DEFAULT_PLUGINS: truthy(...)` 字段                                                          |
+| `packages/opencode/src/config/config.ts`       | ① 顶部新增 `export const DEFAULT_GLOBAL_PLUGINS: string[]`；② `loadGlobal` 首次写入处按 flag 决定是否注入 `plugin` |
+| `packages/opencode/test/config/config.test.ts` | 追加 1 个核心测试                                                                                                  |
 
 ### 代码骨架
 
@@ -45,9 +45,7 @@ OPENCODE_DISABLE_DEFAULT_PLUGINS: truthy("OPENCODE_DISABLE_DEFAULT_PLUGINS"),
 ```ts
 // Default plugins seeded into the global config the first time it's created.
 // Users can remove or override these entries in their own config file.
-export const DEFAULT_GLOBAL_PLUGINS: string[] = [
-  "superpowers@git+https://github.com/obra/superpowers.git",
-]
+export const DEFAULT_GLOBAL_PLUGINS: string[] = ["superpowers@git+https://github.com/obra/superpowers.git"]
 ```
 
 **`packages/opencode/src/config/config.ts:417-424`**（替换现有 if 块）：
@@ -62,9 +60,7 @@ if (!Flag.OPENCODE_CONFIG && !Flag.OPENCODE_CONFIG_DIR && !Flag.OPENCODE_CONFIG_
     if (!Flag.OPENCODE_DISABLE_DEFAULT_PLUGINS) {
       seed.plugin = DEFAULT_GLOBAL_PLUGINS
     }
-    yield* fs
-      .writeWithDirs(file, JSON.stringify(seed, null, 2))
-      .pipe(Effect.catch(() => Effect.void))
+    yield * fs.writeWithDirs(file, JSON.stringify(seed, null, 2)).pipe(Effect.catch(() => Effect.void))
   }
 }
 ```
@@ -120,9 +116,7 @@ test("seeds default global plugins into new config file", async () => {
 
     const content = await Filesystem.readText(path.join(tmp.path, "novaway.jsonc"))
     const json = ConfigParse.jsonc(content, path.join(tmp.path, "novaway.jsonc"))
-    expect(json.plugin).toEqual([
-      "superpowers@git+https://github.com/obra/superpowers.git",
-    ])
+    expect(json.plugin).toEqual(["superpowers@git+https://github.com/obra/superpowers.git"])
   } finally {
     ;(Global.Path as { config: string }).config = prev
     await clear(true)
@@ -142,11 +136,11 @@ test("seeds default global plugins into new config file", async () => {
 
 ## 关键决策记录
 
-| 决策 | 选项 | 选择 | 理由 |
-|------|------|------|------|
-| 注入方式 | 写盘 / 运行时注入 / 两者 | 写盘 | 与用户期望一致，用户可在文件中看到并管理 |
-| git spec 支持 | 已支持 / 需确认 | 已支持（npa + arborist） | 通过本地验证确认 |
-| 受门控控制 | 是 / 否 / 新开关 | 是 | 与 `INTERNAL_PLUGINS` 保持一致 |
-| 默认 plugin 列表位置 | 硬编码常量 / 单独文件 / env | 硬编码常量 | 简单直接，符合 YAGNI |
-| 同时内置其他鉴权插件 | 是 / 否 | 否 | 最小变更面，单独决策 |
-| 测试覆盖 | 核心测试 / 完整场景 / 不写 | 核心测试 | 1 个测试覆盖主路径 |
+| 决策                 | 选项                        | 选择                     | 理由                                     |
+| -------------------- | --------------------------- | ------------------------ | ---------------------------------------- |
+| 注入方式             | 写盘 / 运行时注入 / 两者    | 写盘                     | 与用户期望一致，用户可在文件中看到并管理 |
+| git spec 支持        | 已支持 / 需确认             | 已支持（npa + arborist） | 通过本地验证确认                         |
+| 受门控控制           | 是 / 否 / 新开关            | 是                       | 与 `INTERNAL_PLUGINS` 保持一致           |
+| 默认 plugin 列表位置 | 硬编码常量 / 单独文件 / env | 硬编码常量               | 简单直接，符合 YAGNI                     |
+| 同时内置其他鉴权插件 | 是 / 否                     | 否                       | 最小变更面，单独决策                     |
+| 测试覆盖             | 核心测试 / 完整场景 / 不写  | 核心测试                 | 1 个测试覆盖主路径                       |

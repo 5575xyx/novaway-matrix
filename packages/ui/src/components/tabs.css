@@ -546,15 +546,17 @@
         height: 42px;
         border: none;
         border-radius: var(--radius-md);
+        color: var(--settings-nav-text, var(--text-base));
 
         font-family: var(--font-family-sans);
         font-size: var(--font-size-large);
         font-weight: var(--font-weight-semibold);
         line-height: var(--line-height-large);
 
-        transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
-                    background-color 0.15s ease,
-                    box-shadow 0.2s ease;
+        transition:
+          transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+          background-color 0.15s ease,
+          box-shadow 0.2s ease;
 
         [data-slot="tabs-trigger"] {
           border: none;
@@ -566,13 +568,14 @@
         }
 
         [data-component="icon"] {
-          color: var(--icon-base);
-          transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
-                      color 0.15s ease;
+          color: var(--settings-nav-icon, var(--icon-base));
+          transition:
+            transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+            color 0.15s ease;
         }
 
         &:hover:not(:disabled) {
-          background-color: var(--surface-base-hover);
+          background-color: var(--settings-nav-hover, var(--surface-base-hover));
           transform: scale(1.04);
 
           [data-component="icon"] {
@@ -581,22 +584,22 @@
         }
 
         &:has([data-slot="tabs-trigger"]:focus-visible) {
-          background-color: var(--surface-base-hover);
+          background-color: var(--settings-nav-hover, var(--surface-base-hover));
           box-shadow: var(--shadow-xs-border-focus);
         }
 
         &:has([data-selected]) {
-          background-color: var(--surface-base-active);
-          color: var(--text-strong);
-          box-shadow: inset 3px 0 0 #f59e0b;
+          background-color: var(--settings-nav-active, var(--surface-base-active));
+          color: var(--settings-nav-text-active, var(--text-strong));
+          box-shadow: inset 3px 0 0 var(--settings-accent, #f59e0b);
 
           [data-component="icon"] {
-            color: #f59e0b;
+            color: var(--settings-accent, #f59e0b);
             transform: scale(1.12);
           }
 
           &:hover:not(:disabled) {
-            background-color: var(--surface-base-active);
+            background-color: var(--settings-nav-active, var(--surface-base-active));
             transform: scale(1.02);
           }
         }

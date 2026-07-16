@@ -18,6 +18,8 @@ import type {
 export const agnesVideo: VideoGenerationProtocol = {
   id: "agnes-video",
   baseURL: "https://apihub.agnes-ai.com/v1",
+  createEndpoint: "/videos",
+  statusEndpoint: "https://apihub.agnes-ai.com/agnesapi?video_id={taskId}",
 
   buildCreateBody: (params: VideoGenerationParams) => {
     const body: Record<string, unknown> = {
@@ -53,14 +55,12 @@ export const agnesVideo: VideoGenerationProtocol = {
   },
 
   parseCreateResponse: (raw: unknown): VideoTaskCreateResult => {
-    const data = raw as { id?: string; status?: string }
+    const data = raw as { id?: string; task_id?: string; video_id?: string; status?: string }
     return {
-      taskId: data.id ?? "",
+      taskId: data.video_id ?? data.id ?? data.task_id ?? "",
       status: (data.status as VideoTaskCreateResult["status"]) ?? "queued",
     }
   },
-
-  buildStatusUrl: (taskId: string) => `/videos/${taskId}`,
 
   parseStatusResponse: (raw: unknown): VideoTaskStatusResult => {
     const data = raw as {

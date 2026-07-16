@@ -34,7 +34,7 @@ const ModelList: Component<{
   const models = createMemo(() => {
     // Auto Mode ON 时，返回空列表（隐藏模型列表）
     if (modelsCtx.autoMode()) return []
-    
+
     return model
       .list()
       .filter((m) => model.visible({ modelID: m.id, providerID: m.provider.id }))
@@ -167,19 +167,11 @@ export function ModelSelectorPopover(props: {
                 <Icon name="autopilot" class="size-4" />
                 <span>Auto Mode</span>
               </div>
-              <Switch
-                checked={modelsCtx.autoMode()}
-                onChange={(checked) => modelsCtx.setAutoMode(checked)}
-              />
+              <Switch checked={modelsCtx.autoMode()} onChange={(checked) => modelsCtx.setAutoMode(checked)} />
             </div>
           </div>
           <Show when={!modelsCtx.autoMode()}>
-            <ModelList
-              provider={props.provider}
-              model={props.model}
-              onSelect={() => close("select")}
-              class="p-1"
-            />
+            <ModelList provider={props.provider} model={props.model} onSelect={() => close("select")} class="p-1" />
             <div class="px-1 pb-1">
               <Button
                 variant="ghost"
@@ -194,9 +186,7 @@ export function ModelSelectorPopover(props: {
           <Show when={modelsCtx.autoMode()}>
             <div class="flex flex-col items-center justify-center py-2 px-2 text-center">
               <Icon name="autopilot" class="size-4 mb-1 opacity-60" />
-              <p class="text-11-regular text-text-secondary leading-snug">
-                Auto 基于效果与速度帮助您选择最优模型
-              </p>
+              <p class="text-11-regular text-text-secondary leading-snug">Auto 基于效果与速度帮助您选择最优模型</p>
             </div>
           </Show>
         </Kobalte.Content>
@@ -217,33 +207,31 @@ export const DialogSelectModel: Component<{ provider?: string; model?: ModelStat
   }
 
   return (
-    <Dialog
-      title={language.t("dialog.model.select.title")}
-    >
+    <Dialog title={language.t("dialog.model.select.title")}>
       <div class="px-3 py-2 border-b border-border-weak-base mb-2">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-1.5 text-13-regular text-text-base">
             <Icon name="autopilot" class="size-4" />
             <span>Auto Mode</span>
           </div>
-          <Switch
-            checked={modelsCtx.autoMode()}
-            onChange={(checked) => modelsCtx.setAutoMode(checked)}
-          />
+          <Switch checked={modelsCtx.autoMode()} onChange={(checked) => modelsCtx.setAutoMode(checked)} />
         </div>
       </div>
       <Show when={!modelsCtx.autoMode()}>
         <ModelList provider={props.provider} model={props.model} onSelect={() => dialog.close()} />
-        <Button variant="ghost" class="ml-3 mt-3 mb-4 text-text-base self-start gap-1.5" icon="plus-small" onClick={provider}>
+        <Button
+          variant="ghost"
+          class="ml-3 mt-3 mb-4 text-text-base self-start gap-1.5"
+          icon="plus-small"
+          onClick={provider}
+        >
           添加模型
         </Button>
       </Show>
       <Show when={modelsCtx.autoMode()}>
         <div class="flex flex-col items-center justify-center py-6 px-4 text-center">
           <Icon name="autopilot" class="size-6 mb-3 opacity-60" />
-          <p class="text-13-regular text-text-secondary leading-snug">
-            Auto 基于效果与速度帮助您选择最优模型
-          </p>
+          <p class="text-13-regular text-text-secondary leading-snug">Auto 基于效果与速度帮助您选择最优模型</p>
         </div>
       </Show>
     </Dialog>

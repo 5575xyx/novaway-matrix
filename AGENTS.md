@@ -7,18 +7,19 @@ Bun 1.3+ monorepo with Turborepo v2.8. Package manager: `bun` (exact versions vi
 
 All from repo root unless noted.
 
-| Command | What |
-|---------|------|
-| `bun dev` | Start TUI (blocking; use `tmux`/`screen`) |
-| `bun lint` | oxlint (w/ `typeAware: true`) |
-| `bun typecheck` | `bun turbo typecheck` across packages |
-| `bun dev serve` | Headless API server on :4096 |
-| `bun dev web` | Server + open web UI |
-| `bun dev .` | Run against opencode repo itself |
-| `./script/generate.ts` | Regenerate SDK + OpenAPI after API changes |
-| `bun run --cwd packages/opencode test:httpapi` | HttpApi exerciser gates |
+| Command                                        | What                                       |
+| ---------------------------------------------- | ------------------------------------------ |
+| `bun dev`                                      | Start TUI (blocking; use `tmux`/`screen`)  |
+| `bun lint`                                     | oxlint (w/ `typeAware: true`)              |
+| `bun typecheck`                                | `bun turbo typecheck` across packages      |
+| `bun dev serve`                                | Headless API server on :4096               |
+| `bun dev web`                                  | Server + open web UI                       |
+| `bun dev .`                                    | Run against opencode repo itself           |
+| `./script/generate.ts`                         | Regenerate SDK + OpenAPI after API changes |
+| `bun run --cwd packages/opencode test:httpapi` | HttpApi exerciser gates                    |
 
 Tests cannot run from root (`bunfig.toml` guard `do-not-run-tests-from-root`). Run from package dir:
+
 ```
 cd packages/opencode && bun test --timeout 30000
 ```
@@ -29,18 +30,18 @@ Fastest verification loop: `lint -> typecheck -> test`.
 
 21 packages under `packages/`. Key ones and their entrypoint:
 
-| Package | npm name | What |
-|---------|----------|------|
-| `packages/opencode` | — (private) | Core CLI/TUI/server (`src/index.ts`, yargs CLI) |
-| `packages/core` | `@opencode-ai/core` | Shared utilities |
-| `packages/llm` | `@opencode-ai/llm` | Effect Schema-first LLM core |
-| `packages/app` | `@opencode-ai/app` | Web UI (SolidJS + Vite) |
-| `packages/ui` | `@opencode-ai/ui` | Shared UI components (SolidJS) |
-| `packages/desktop` | `@novaway/desktop` | Electron app wrapping web UI |
-| `packages/sdk/js` | `@opencode-ai/sdk` | JS SDK (generated from OpenAPI) |
-| `packages/plugin` | `@opencode-ai/plugin` | Plugin system |
-| `packages/web` | — (private) | Landing site (Astro) |
-| `packages/console/app` | — (private) | Console web app |
+| Package                | npm name              | What                                            |
+| ---------------------- | --------------------- | ----------------------------------------------- |
+| `packages/opencode`    | — (private)           | Core CLI/TUI/server (`src/index.ts`, yargs CLI) |
+| `packages/core`        | `@opencode-ai/core`   | Shared utilities                                |
+| `packages/llm`         | `@opencode-ai/llm`    | Effect Schema-first LLM core                    |
+| `packages/app`         | `@opencode-ai/app`    | Web UI (SolidJS + Vite)                         |
+| `packages/ui`          | `@opencode-ai/ui`     | Shared UI components (SolidJS)                  |
+| `packages/desktop`     | `@novaway/desktop`    | Electron app wrapping web UI                    |
+| `packages/sdk/js`      | `@opencode-ai/sdk`    | JS SDK (generated from OpenAPI)                 |
+| `packages/plugin`      | `@opencode-ai/plugin` | Plugin system                                   |
+| `packages/web`         | — (private)           | Landing site (Astro)                            |
+| `packages/console/app` | — (private)           | Console web app                                 |
 
 Infra: SST (Cloudflare home) in `infra/` + `sst.config.ts`.
 Entrypoint paths: `packages/opencode/src/index.ts` is the main CLI.
@@ -81,6 +82,7 @@ const table = sqliteTable("session", {
 ## Effect v4 specifics
 
 See `packages/opencode/AGENTS.md` for full reference. Non-obvious:
+
 - `Effect.fork` / `Effect.forkDaemon` do **not** exist; use `Effect.forkIn(scope)`
 - Use `Effect.void` not `Effect.succeed(undefined)`
 - `Effect.fn("Domain.method")` for named/traced effects; `Effect.fnUntraced` for internal helpers

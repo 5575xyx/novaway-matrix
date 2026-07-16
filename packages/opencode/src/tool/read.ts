@@ -295,7 +295,8 @@ export const ReadTool = Tool.define(
       if (isOfficeDocument(filepath, mime)) {
         const bytes = yield* fs.readFile(filepath)
         const document = yield* Effect.promise(() => extractOfficeDocumentText({ filename: filepath, mime, bytes }))
-        if (!document) return yield* Effect.fail(new Error(`Cannot extract readable text from Office file: ${filepath}`))
+        if (!document)
+          return yield* Effect.fail(new Error(`Cannot extract readable text from Office file: ${filepath}`))
         const content = document.text.trim()
         if (!content) return yield* Effect.fail(new Error(`Cannot extract readable text from Office file: ${filepath}`))
 

@@ -12,6 +12,27 @@ import { SessionSummary } from "./summary"
 
 const log = Log.create({ service: "session.revert" })
 
+const normalize = (file: string) => file.replaceAll("\\", "/")
+
+const addPlannedFile = (files: Map<string, string>, file: string, snapshot: string) => {
+  const normalized = normalize(file)
+  if (files.has(normalized)) return
+  files.set(normalized, snapshot)
+}
+
+const toPatches = (files: ReadonlyMap<string, string>) => {
+  const groups = new Map<string, string[]>()
+  for (const [file, hash] of files) {
+    const group = groups.get(hash)
+    if (group) {
+      group.push(file)
+      continue
+    }
+    groups.set(hash, [file])
+  }
+  return Array.from(groups.entries()).map(([hash, files]) => ({ hash, files }) satisfies Snapshot.Patch)
+}
+
 export const RevertInput = Schema.Struct({
   sessionID: SessionID,
   messageID: MessageID,
@@ -24,7 +45,12 @@ export interface Interface {
   readonly unrevert: (input: { sessionID: SessionID }) => Effect.Effect<Session.Info, Session.BusyError>
   readonly cleanup: (session: Session.Info) => Effect.Effect<void>
   readonly plan: (input: { sessionID: SessionID; messageID: MessageID }) => Effect.Effect<Map<string, string>>
-  readonly stage: (input: { session: Session.Info; messageID: MessageID; files?: boolean }) => Effect.Effect<Session.Info["revert"]>
+  readonly preview: (input: { sessionID: SessionID; messageID: MessageID }) => Effect.Effect<Snapshot.FileDiff[]>
+  readonly stage: (input: {
+    session: Session.Info
+    messageID: MessageID
+    files?: boolean
+  }) => Effect.Effect<Session.Info["revert"]>
   readonly commit: (session: Session.Info) => Effect.Effect<void>
   readonly clear: (session: Session.Info) => Effect.Effect<void>
 }
@@ -47,11 +73,28 @@ export const layer = Layer.effect(
       const files = new Map<string, string>()
       for (const msg of all) {
         if (msg.info.id >= input.messageID && msg.info.role === "assistant") {
+          const patches = msg.parts.filter((part): part is MessageV2.PatchPart => part.type === "patch")
+          let addedFromSteps = false
+          let stepStart: string | undefined
           for (const part of msg.parts) {
-            if (part.type === "patch") {
-              for (const file of part.files) {
-                files.set(file, part.hash)
+            if (part.type === "step-start") {
+              stepStart = part.snapshot
+            }
+            if (part.type === "step-finish" && stepStart && part.snapshot) {
+              const changed = yield* snap
+                .files({ from: Snapshot.ID.make(stepStart), to: Snapshot.ID.make(part.snapshot) })
+                .pipe(Effect.orElseSucceed((): readonly string[] => []))
+              for (const file of changed) {
+                addPlannedFile(files, file, stepStart)
               }
+              if (changed.length > 0) addedFromSteps = true
+              stepStart = undefined
+            }
+          }
+          if (addedFromSteps) continue
+          for (const part of patches) {
+            for (const file of part.files) {
+              addPlannedFile(files, file, part.hash)
             }
           }
         }
@@ -59,10 +102,25 @@ export const layer = Layer.effect(
       return files
     })
 
-    const stage = Effect.fn("SessionRevert.stage")(function* (input: { session: Session.Info; messageID: MessageID; files?: boolean }) {
-      const original = input.session.revert?.snapshot
-        ? input.session.revert.snapshot
-        : (yield* snap.track())
+    const preview = Effect.fn("SessionRevert.preview")(function* (input: {
+      sessionID: SessionID
+      messageID: MessageID
+    }) {
+      const files = yield* plan(input)
+      return Array.from(files.keys()).map((file) => ({
+        file,
+        patch: "",
+        additions: 0,
+        deletions: 0,
+      }))
+    })
+
+    const stage = Effect.fn("SessionRevert.stage")(function* (input: {
+      session: Session.Info
+      messageID: MessageID
+      files?: boolean
+    }) {
+      const original = input.session.revert?.snapshot ? input.session.revert.snapshot : yield* snap.track()
       const next = yield* plan({ sessionID: input.session.id, messageID: input.messageID })
       const restore = new Map<string, string>()
       if (original) {
@@ -78,20 +136,22 @@ export const layer = Layer.effect(
         }
       }
       if (restore.size > 0) {
-        for (const [file, snapshot] of restore) {
-          yield* snap.checkout(snapshot).pipe(Effect.orDie)
-        }
+        yield* snap.revert(toPatches(restore)).pipe(Effect.orDie)
       }
       const paths = input.files === false ? [] : Array.from(next.keys())
       const current = yield* snap.capture()
-      const diffs = original && current
-        ? yield* snap.diff({ from: Snapshot.ID.make(original), to: current, paths }).pipe(Effect.orDie)
-        : []
+      const diffs =
+        original && current
+          ? yield* snap.diff({ from: Snapshot.ID.make(original), to: current, paths }).pipe(Effect.orDie)
+          : []
       const files = [...diffs] as Snapshot.FileDiff[]
       const revert = {
         messageID: input.messageID,
         snapshot: original,
-        diff: files.map((file) => file.patch).join("").trim(),
+        diff: files
+          .map((file) => file.patch)
+          .join("")
+          .trim(),
         files,
       } satisfies Session.Info["revert"]
       yield* sessions.setRevert({
@@ -162,7 +222,8 @@ export const layer = Layer.effect(
       yield* state.assertNotBusy(input.sessionID)
       const session = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
       yield* stage({ session, messageID: input.messageID })
-      yield* commit(session)
+      const staged = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
+      yield* commit(staged)
       return yield* sessions.get(input.sessionID).pipe(Effect.orDie)
     })
 
@@ -183,7 +244,7 @@ export const layer = Layer.effect(
       yield* commit(session)
     })
 
-    return Service.of({ revert, unrevert, cleanup, plan, stage, commit, clear })
+    return Service.of({ revert, unrevert, cleanup, plan, preview, stage, commit, clear })
   }),
 )
 

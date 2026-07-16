@@ -13,10 +13,12 @@
 ## 文件结构
 
 ### 新增文件
+
 - `packages/app/src/components/task-list.tsx` - 任务列表组件
 - `packages/app/src/components/task-list.test.ts` - 任务列表测试
 
 ### 修改文件
+
 - `packages/app/src/pages/session/session-side-panel.tsx` - 添加垂直分割布局
 - `packages/app/src/context/layout.tsx` - 添加任务列表高度状态
 - `packages/app/src/pages/session/session-layout.ts` - 添加任务列表布局逻辑
@@ -26,6 +28,7 @@
 ### Task 1: 创建TaskList组件基础结构
 
 **Files:**
+
 - Create: `packages/app/src/components/task-list.tsx`
 - Test: `packages/app/src/components/task-list.test.ts`
 
@@ -48,25 +51,21 @@ type Task = {
   priority: "high" | "medium" | "low"
 }
 
-export function TaskList(props: {
-  class?: string
-}) {
+export function TaskList(props: { class?: string }) {
   const language = useLanguage()
   const sync = useSync()
   const { sessionKey } = useSessionLayout()
-  
+
   const sessionID = createMemo(() => sessionKey())
-  
+
   const tasks = createMemo(() => {
     const id = sessionID()
     if (!id) return []
     return sync.todo[id] ?? []
   })
-  
-  const completedCount = createMemo(() => 
-    tasks().filter(task => task.status === "completed").length
-  )
-  
+
+  const completedCount = createMemo(() => tasks().filter((task) => task.status === "completed").length)
+
   const statusIcon = (status: TaskStatus) => {
     switch (status) {
       case "completed":
@@ -79,7 +78,7 @@ export function TaskList(props: {
         return "circle"
     }
   }
-  
+
   const statusColor = (status: TaskStatus) => {
     switch (status) {
       case "completed":
@@ -92,13 +91,11 @@ export function TaskList(props: {
         return "text-gray-300"
     }
   }
-  
+
   return (
     <div class={`flex flex-col h-full ${props.class ?? ""}`}>
       <div class="flex items-center justify-between px-3 py-2 border-b border-border-weaker-base bg-surface-panel">
-        <span class="text-12-medium text-text-strong">
-          {language.t("taskList.title")}
-        </span>
+        <span class="text-12-medium text-text-strong">{language.t("taskList.title")}</span>
         <span class="text-11-regular text-text-weak">
           {completedCount()}/{tasks().length}
         </span>
@@ -122,11 +119,11 @@ export function TaskList(props: {
                 />
                 <span
                   class={`text-12-regular ${
-                    task.status === "completed" 
-                      ? "line-through text-text-weak" 
+                    task.status === "completed"
+                      ? "line-through text-text-weak"
                       : task.status === "in_progress"
-                      ? "font-medium text-text-strong"
-                      : "text-text-base"
+                        ? "font-medium text-text-strong"
+                        : "text-text-base"
                   }`}
                 >
                   {task.content}
@@ -144,6 +141,7 @@ export function TaskList(props: {
 - [ ] **Step 2: 添加国际化键值**
 
 在 `packages/app/src/i18n/locales/en.json` 中添加：
+
 ```json
 {
   "taskList": {
@@ -154,6 +152,7 @@ export function TaskList(props: {
 ```
 
 在 `packages/app/src/i18n/locales/zh.json` 中添加：
+
 ```json
 {
   "taskList": {
@@ -180,6 +179,7 @@ git commit -m "feat: add basic TaskList component structure"
 ### Task 2: 实现任务状态同步
 
 **Files:**
+
 - Modify: `packages/app/src/components/task-list.tsx`
 - Test: `packages/app/src/components/task-list.test.ts`
 
@@ -196,8 +196,8 @@ createEffect(
     (id) => {
       if (!id) return
       sync.todo(id)
-    }
-  )
+    },
+  ),
 )
 ```
 
@@ -232,6 +232,7 @@ git commit -m "feat: add task state synchronization"
 ### Task 3: 添加任务列表折叠功能
 
 **Files:**
+
 - Modify: `packages/app/src/components/task-list.tsx`
 - Modify: `packages/app/src/context/layout.tsx`
 - Test: `packages/app/src/components/task-list.test.ts`
@@ -259,28 +260,20 @@ const toggleCollapse = () => {
 // 更新组件返回，添加可折叠的标题栏
 return (
   <div class={`flex flex-col h-full ${props.class ?? ""}`}>
-    <div 
+    <div
       class="flex items-center justify-between px-3 py-2 border-b border-border-weaker-base bg-surface-panel cursor-pointer hover:bg-surface-raised-base-hover"
       onClick={toggleCollapse}
     >
-      <span class="text-12-medium text-text-strong">
-        {language.t("taskList.title")}
-      </span>
+      <span class="text-12-medium text-text-strong">{language.t("taskList.title")}</span>
       <div class="flex items-center gap-2">
         <span class="text-11-regular text-text-weak">
           {completedCount()}/{tasks().length}
         </span>
-        <Icon
-          name={isCollapsed() ? "chevron-right" : "chevron-down"}
-          size="small"
-          class="text-icon-weak"
-        />
+        <Icon name={isCollapsed() ? "chevron-right" : "chevron-down"} size="small" class="text-icon-weak" />
       </div>
     </div>
     <Show when={!isCollapsed()}>
-      <div class="flex-1 overflow-y-auto px-2 py-1">
-        {/* 任务列表内容 */}
-      </div>
+      <div class="flex-1 overflow-y-auto px-2 py-1">{/* 任务列表内容 */}</div>
     </Show>
   </div>
 )
@@ -303,6 +296,7 @@ git commit -m "feat: add task list collapse functionality"
 ### Task 4: 修改session-side-panel添加垂直分割
 
 **Files:**
+
 - Modify: `packages/app/src/pages/session/session-side-panel.tsx`
 - Test: `packages/app/src/pages/session/session-side-panel.test.tsx`
 
@@ -331,13 +325,7 @@ git commit -m "feat: add task list collapse functionality"
     >
       {/* 上半部分：文件树 */}
       <div class="flex-1 min-h-0 overflow-hidden">
-        <Tabs
-          variant="pill"
-          value={fileTreeTab()}
-          onChange={setFileTreeTabValue}
-          class="h-full"
-          data-scope="filetree"
-        >
+        <Tabs variant="pill" value={fileTreeTab()} onChange={setFileTreeTabValue} class="h-full" data-scope="filetree">
           <Tabs.List>
             <Tabs.Trigger value="all" class="flex-1" classes={{ button: "w-full" }}>
               {language.t("session.files.all")}
@@ -347,9 +335,7 @@ git commit -m "feat: add task list collapse functionality"
             </Tabs.Trigger>
             <Tabs.Trigger value="changes" class="flex-1" classes={{ button: "w-full" }}>
               {props.reviewCount()}{" "}
-              {language.t(
-                props.reviewCount() === 1 ? "session.review.change.one" : "session.review.change.other",
-              )}
+              {language.t(props.reviewCount() === 1 ? "session.review.change.one" : "session.review.change.other")}
             </Tabs.Trigger>
             <Tabs.Trigger value="database" class="flex-1" classes={{ button: "w-full" }}>
               数据库
@@ -404,7 +390,7 @@ git commit -m "feat: add task list collapse functionality"
           </Tabs.Content>
         </Tabs>
       </div>
-      
+
       {/* 分割线 */}
       <ResizeHandle
         direction="vertical"
@@ -417,7 +403,7 @@ git commit -m "feat: add task list collapse functionality"
           layout.fileTree.setHeight(height)
         }}
       />
-      
+
       {/* 下半部分：任务列表 */}
       <div class="h-[200px] min-h-[100px] border-t border-border-weaker-base">
         <TaskList />
@@ -466,6 +452,7 @@ git commit -m "feat: add vertical split layout to side panel"
 ### Task 5: 添加任务列表高度状态管理
 
 **Files:**
+
 - Modify: `packages/app/src/context/layout.tsx`
 - Test: `packages/app/src/context/layout.test.tsx`
 
@@ -516,6 +503,7 @@ git commit -m "feat: add todo height state management"
 ### Task 6: 添加可拖拽分割线
 
 **Files:**
+
 - Modify: `packages/app/src/pages/session/session-side-panel.tsx`
 - Test: `packages/app/src/pages/session/session-side-panel.test.tsx`
 
@@ -531,28 +519,20 @@ const layout = useLayout()
 // 更新组件返回，添加可拖拽分割线
 return (
   <div class={`flex flex-col h-full ${props.class ?? ""}`}>
-    <div 
+    <div
       class="flex items-center justify-between px-3 py-2 border-b border-border-weaker-base bg-surface-panel cursor-pointer hover:bg-surface-raised-base-hover"
       onClick={toggleCollapse}
     >
-      <span class="text-12-medium text-text-strong">
-        {language.t("taskList.title")}
-      </span>
+      <span class="text-12-medium text-text-strong">{language.t("taskList.title")}</span>
       <div class="flex items-center gap-2">
         <span class="text-11-regular text-text-weak">
           {completedCount()}/{tasks().length}
         </span>
-        <Icon
-          name={isCollapsed() ? "chevron-right" : "chevron-down"}
-          size="small"
-          class="text-icon-weak"
-        />
+        <Icon name={isCollapsed() ? "chevron-right" : "chevron-down"} size="small" class="text-icon-weak" />
       </div>
     </div>
     <Show when={!isCollapsed()}>
-      <div class="flex-1 overflow-y-auto px-2 py-1">
-        {/* 任务列表内容 */}
-      </div>
+      <div class="flex-1 overflow-y-auto px-2 py-1">{/* 任务列表内容 */}</div>
     </Show>
   </div>
 )
@@ -592,6 +572,7 @@ git commit -m "feat: add resizable split handle for task list"
 ### Task 7: 添加键盘快捷键
 
 **Files:**
+
 - Modify: `packages/app/src/pages/session/use-session-commands.tsx`
 - Test: `packages/app/src/pages/session/use-session-commands.test.tsx`
 
@@ -623,6 +604,7 @@ command.add({
 - [ ] **Step 2: 添加国际化键值**
 
 在 `packages/app/src/i18n/locales/en.json` 中添加：
+
 ```json
 {
   "command": {
@@ -635,6 +617,7 @@ command.add({
 ```
 
 在 `packages/app/src/i18n/locales/zh.json` 中添加：
+
 ```json
 {
   "command": {
@@ -663,6 +646,7 @@ git commit -m "feat: add keyboard shortcuts for task list"
 ### Task 8: 添加响应式设计支持
 
 **Files:**
+
 - Modify: `packages/app/src/components/task-list.tsx`
 - Test: `packages/app/src/components/task-list.test.tsx`
 
@@ -682,43 +666,32 @@ return (
   <div class={`flex flex-col h-full ${props.class ?? ""}`}>
     <Show when={isDesktop()}>
       {/* 桌面端布局 */}
-      <div class="flex items-center justify-between px-3 py-2 border-b border-border-weaker-base bg-surface-panel cursor-pointer hover:bg-surface-raised-base-hover"
+      <div
+        class="flex items-center justify-between px-3 py-2 border-b border-border-weaker-base bg-surface-panel cursor-pointer hover:bg-surface-raised-base-hover"
         onClick={toggleCollapse}
       >
-        <span class="text-12-medium text-text-strong">
-          {language.t("taskList.title")}
-        </span>
+        <span class="text-12-medium text-text-strong">{language.t("taskList.title")}</span>
         <div class="flex items-center gap-2">
           <span class="text-11-regular text-text-weak">
             {completedCount()}/{tasks().length}
           </span>
-          <Icon
-            name={isCollapsed() ? "chevron-right" : "chevron-down"}
-            size="small"
-            class="text-icon-weak"
-          />
+          <Icon name={isCollapsed() ? "chevron-right" : "chevron-down"} size="small" class="text-icon-weak" />
         </div>
       </div>
       <Show when={!isCollapsed()}>
-        <div class="flex-1 overflow-y-auto px-2 py-1">
-          {/* 任务列表内容 */}
-        </div>
+        <div class="flex-1 overflow-y-auto px-2 py-1">{/* 任务列表内容 */}</div>
       </Show>
     </Show>
-    
+
     <Show when={isMobile()}>
       {/* 移动端布局 */}
       <div class="flex items-center justify-between px-3 py-2 border-b border-border-weaker-base bg-surface-panel">
-        <span class="text-12-medium text-text-strong">
-          {language.t("taskList.title")}
-        </span>
+        <span class="text-12-medium text-text-strong">{language.t("taskList.title")}</span>
         <span class="text-11-regular text-text-weak">
           {completedCount()}/{tasks().length}
         </span>
       </div>
-      <div class="flex-1 overflow-y-auto px-2 py-1">
-        {/* 任务列表内容 */}
-      </div>
+      <div class="flex-1 overflow-y-auto px-2 py-1">{/* 任务列表内容 */}</div>
     </Show>
   </div>
 )
@@ -741,6 +714,7 @@ git commit -m "feat: add responsive design for task list"
 ### Task 9: 添加完整测试覆盖
 
 **Files:**
+
 - Modify: `packages/app/src/components/task-list.test.tsx`
 - Test: `packages/app/src/components/task-list.test.tsx`
 
@@ -757,19 +731,19 @@ describe("TaskList", () => {
     render(() => <TaskList />)
     expect(screen.getByText("任务列表")).toBeInTheDocument()
   })
-  
+
   it("shows empty state when no tasks", () => {
     render(() => <TaskList />)
     expect(screen.getByText("暂无任务")).toBeInTheDocument()
   })
-  
+
   it("toggles collapse on title click", async () => {
     render(() => <TaskList />)
     const title = screen.getByText("任务列表")
     await fireEvent.click(title)
     // 验证折叠状态变化
   })
-  
+
   it("displays correct task count", () => {
     render(() => <TaskList />)
     expect(screen.getByText("0/0")).toBeInTheDocument()
@@ -794,6 +768,7 @@ git commit -m "test: add comprehensive tests for TaskList component"
 ### Task 10: 集成验证和最终测试
 
 **Files:**
+
 - Test: `packages/app/src/pages/session/session-side-panel.test.tsx`
 - Test: `packages/app/src/components/task-list.test.tsx`
 
@@ -834,6 +809,7 @@ git commit -m "feat: complete sidebar task list layout implementation"
 ## 自我审查
 
 ### 1. 规范覆盖检查
+
 - ✅ 任务列表独立显示在侧边栏
 - ✅ 上下分割布局
 - ✅ 任务状态实时同步
@@ -843,11 +819,13 @@ git commit -m "feat: complete sidebar task list layout implementation"
 - ✅ 键盘快捷键
 
 ### 2. 占位符扫描
+
 - ✅ 无 "TBD"、"TODO" 或模糊描述
 - ✅ 所有步骤都有具体代码和命令
 - ✅ 测试用例完整
 
 ### 3. 类型一致性
+
 - ✅ Task 类型定义一致
 - ✅ 状态管理类型一致
 - ✅ 组件接口类型一致

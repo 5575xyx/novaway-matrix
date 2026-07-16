@@ -296,9 +296,7 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
             </Show>
             <Show
               when={editing()}
-              fallback={
-                <span class="text-13-medium text-text-strong min-w-0 flex-1 truncate">{titleText()}</span>
-              }
+              fallback={<span class="text-13-medium text-text-strong min-w-0 flex-1 truncate">{titleText()}</span>}
             >
               <input
                 ref={(el) => {
@@ -349,7 +347,17 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
                     <DropdownMenu.ItemLabel>{language.t("common.archive")}</DropdownMenu.ItemLabel>
                   </DropdownMenu.Item>
                   <DropdownMenu.Separator />
-                  <DropdownMenu.Item onSelect={() => dialog.show(() => <DialogDeleteSession sessionID={props.session.id} title={titleText() ?? ""} directory={props.session.directory} />)}>
+                  <DropdownMenu.Item
+                    onSelect={() =>
+                      dialog.show(() => (
+                        <DialogDeleteSession
+                          sessionID={props.session.id}
+                          title={titleText() ?? ""}
+                          directory={props.session.directory}
+                        />
+                      ))
+                    }
+                  >
                     <DropdownMenu.ItemLabel>{language.t("common.delete")}</DropdownMenu.ItemLabel>
                   </DropdownMenu.Item>
                 </DropdownMenu.Content>

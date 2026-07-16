@@ -34,7 +34,9 @@ import { useData } from "../context"
 import { useFileComponent } from "../context/file"
 import { useDialog } from "../context/dialog"
 import { type UiI18n, useI18n } from "../context/i18n"
+import { writeClipboard } from "../util/clipboard"
 import { BasicTool, GenericTool } from "./basic-tool"
+import { MediaToolbar } from "./media-toolbar"
 import { Accordion } from "./accordion"
 import { StickyAccordionHeader } from "./sticky-accordion-header"
 import { Collapsible } from "./collapsible"
@@ -57,30 +59,6 @@ import { patchFiles } from "./apply-patch-file"
 import { animate } from "motion"
 import { useLocation } from "@solidjs/router"
 import { attached, inline, kind } from "./message-file"
-
-async function writeClipboard(text: string): Promise<boolean> {
-  const body = typeof document === "undefined" ? undefined : document.body
-  if (body) {
-    const textarea = document.createElement("textarea")
-    textarea.value = text
-    textarea.setAttribute("readonly", "")
-    textarea.style.position = "fixed"
-    textarea.style.opacity = "0"
-    textarea.style.pointerEvents = "none"
-    body.appendChild(textarea)
-    textarea.select()
-    const copied = document.execCommand("copy")
-    body.removeChild(textarea)
-    if (copied) return true
-  }
-
-  const clipboard = typeof navigator === "undefined" ? undefined : navigator.clipboard
-  if (!clipboard?.writeText) return false
-  return clipboard.writeText(text).then(
-    () => true,
-    () => false,
-  )
-}
 
 function ShellSubmessage(props: { text: string; animate?: boolean }) {
   let widthRef: HTMLSpanElement | undefined
@@ -1491,10 +1469,7 @@ PART_MAPPING["text"] = function TextPartDisplay(props) {
 
   const meta = createMemo(() => {
     if (props.message.role !== "assistant") return ""
-    const items = [
-      duration(),
-      interrupted() ? i18n.t("ui.message.interrupted") : "",
-    ]
+    const items = [duration(), interrupted() ? i18n.t("ui.message.interrupted") : ""]
     return items.filter((x) => !!x).join(" \u00B7 ")
   })
 
@@ -1779,6 +1754,80 @@ ToolRegistry.register({
         }}
       >
         <ExaOutput output={props.output} />
+      </BasicTool>
+    )
+  },
+})
+
+ToolRegistry.register({
+  name: "generate_image",
+  render(props) {
+    const i18n = useI18n()
+    const prompt = createMemo(() => {
+      const value = props.input.prompt
+      return typeof value === "string" ? value : ""
+    })
+    const imageUrl = createMemo(() => {
+      if (props.status !== "completed") return ""
+      const url = props.output || props.metadata?.imageUrl
+      return typeof url === "string" && url.startsWith("http") ? url : ""
+    })
+
+    return (
+      <BasicTool
+        {...props}
+        icon="photo"
+        defaultOpen
+        trigger={{
+          title: i18n.t("ui.tool.generateImage"),
+          subtitle: prompt(),
+        }}
+      >
+        <Show when={imageUrl()}>
+          <div data-component="tool-output" data-scrollable>
+            <div style={{ display: "flex", "justify-content": "flex-end", "margin-bottom": "8px" }}>
+              <MediaToolbar url={imageUrl()} type="image" />
+            </div>
+            <Markdown text={`![generated image](${imageUrl()})`} />
+          </div>
+        </Show>
+      </BasicTool>
+    )
+  },
+})
+
+ToolRegistry.register({
+  name: "generate_video",
+  render(props) {
+    const i18n = useI18n()
+    const prompt = createMemo(() => {
+      const value = props.input.prompt
+      return typeof value === "string" ? value : ""
+    })
+    const videoUrl = createMemo(() => {
+      if (props.status !== "completed") return ""
+      const url = props.output || props.metadata?.imageUrl
+      return typeof url === "string" && url.startsWith("http") ? url : ""
+    })
+
+    return (
+      <BasicTool
+        {...props}
+        icon="play"
+        defaultOpen
+        trigger={{
+          title: i18n.t("ui.tool.generateVideo"),
+          subtitle: prompt(),
+        }}
+      >
+        <Show when={videoUrl()}>
+          <div data-component="tool-output" data-scrollable>
+            <div style={{ display: "flex", "justify-content": "flex-end", "margin-bottom": "8px" }}>
+              <MediaToolbar url={videoUrl()} type="video" />
+            </div>
+            <video src={videoUrl()} controls width="100%" />
+          </div>
+        </Show>
       </BasicTool>
     )
   },
@@ -2076,9 +2125,7 @@ ToolRegistry.register({
                 <div data-slot="message-part-actions">
                   <DiffChanges
                     changes={
-                      props.metadata.filediff
-                        ? props.metadata.filediff!
-                        : { additions: lineCount()!, deletions: 0 }
+                      props.metadata.filediff ? props.metadata.filediff! : { additions: lineCount()!, deletions: 0 }
                     }
                   />
                 </div>
@@ -2419,7 +2466,9 @@ ToolRegistry.register({
   render(props) {
     const i18n = useI18n()
     const title = createMemo(() => skillToolTitle(props.input.name || i18n.t("ui.tool.skill")))
-    const subtitle = createMemo(() => skillToolSubtitle(props.input.name, props.status === "pending" || props.status === "running"))
+    const subtitle = createMemo(() =>
+      skillToolSubtitle(props.input.name, props.status === "pending" || props.status === "running"),
+    )
     const running = createMemo(() => props.status === "pending" || props.status === "running")
 
     const titleContent = () => <TextShimmer text={title()} active={running()} />
@@ -2513,12 +2562,7 @@ function skillToolTitle(name: string) {
   if (!clean) return "技能"
   if (skillTitleMap[clean]) return skillTitleMap[clean]
   if (/[\u4e00-\u9fff]/.test(clean)) return clean.endsWith("技能") ? clean : `${clean}技能`
-  const words = clean
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase()
-    .split(" ")
+  const words = clean.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim().toLowerCase().split(" ")
   if (words.every((word) => skillWordMap[word])) return `${words.map((word) => skillWordMap[word]).join("")}技能`
   return `${clean} 技能`
 }
@@ -2573,7 +2617,10 @@ ToolRegistry.register({
                 <TextShimmer text="执行 SQL" active={pending()} />
               </span>
               <Show when={!pending() && sql()}>
-                <span data-slot="basic-tool-tool-subtitle" class="text-11-regular text-text-weak font-mono truncate max-w-[200px]">
+                <span
+                  data-slot="basic-tool-tool-subtitle"
+                  class="text-11-regular text-text-weak font-mono truncate max-w-[200px]"
+                >
                   {sql()}
                 </span>
               </Show>
@@ -2608,9 +2655,7 @@ ToolRegistry.register({
                       <tr class="border-b border-border-weaker-base hover:bg-background-stronger">
                         <For each={columns()}>
                           {(col) => (
-                            <td class="px-2 py-1 text-text-base whitespace-nowrap">
-                              {String(row[col] ?? "NULL")}
-                            </td>
+                            <td class="px-2 py-1 text-text-base whitespace-nowrap">{String(row[col] ?? "NULL")}</td>
                           )}
                         </For>
                       </tr>
@@ -2634,7 +2679,11 @@ ToolRegistry.register({
   render(props) {
     const pending = () => props.status === "pending" || props.status === "running"
     const tables = createMemo(() => {
-      try { return JSON.parse(props.output || "[]") } catch { return [] }
+      try {
+        return JSON.parse(props.output || "[]")
+      } catch {
+        return []
+      }
     })
 
     return (
@@ -2658,9 +2707,7 @@ ToolRegistry.register({
         <Show when={!pending() && tables().length > 0}>
           <div class="px-3 py-2">
             <For each={tables()}>
-              {(table) => (
-                <div class="px-2 py-0.5 text-12-regular text-text-base">{String(table)}</div>
-              )}
+              {(table) => <div class="px-2 py-0.5 text-12-regular text-text-base">{String(table)}</div>}
             </For>
           </div>
         </Show>
@@ -2678,7 +2725,9 @@ ToolRegistry.register({
       try {
         const result = JSON.parse(props.output || "{}")
         return result.columns ?? result ?? []
-      } catch { return [] }
+      } catch {
+        return []
+      }
     })
 
     return (

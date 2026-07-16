@@ -933,4 +933,19 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "Nije uspjelo kreiranje trajne ikone projekta",
   "error.childStore.storeCreateFailed": "Nije uspjelo kreiranje skladišta",
   "terminal.connectionLost.abnormalClose": "WebSocket zatvoren nenormalno: {{code}}",
+
+  "assistant.title": "Assistant",
+  "assistant.tab.agent": "Agent",
+  "assistant.tab.todo": "Tasks",
+  "assistant.tab.notifications": "Notifications",
+  "assistant.tab.runs": "Runs",
+  "assistant.agent.current": "Current agent",
+  "assistant.agent.switchTo": "Switch to",
+  "assistant.agent.switch": "Switch",
+
+  "session.new.agentSelector.title": "Choose your approach",
+  "session.new.agentSelector.plan.title": "Plan",
+  "session.new.agentSelector.plan.description": "Break down requirements and draft a plan",
+  "session.new.agentSelector.build.title": "Build",
+  "session.new.agentSelector.build.description": "Jump straight into implementation",
 }

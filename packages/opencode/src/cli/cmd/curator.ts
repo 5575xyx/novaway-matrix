@@ -322,7 +322,15 @@ function candidateStatus(input: string | undefined): CandidateStatus | undefined
 }
 
 function candidateKind(input: string | undefined): CandidateKind | undefined {
-  if (input === "skill" || input === "agent" || input === "workflow" || input === "prompt" || input === "tool" || input === "project") return input
+  if (
+    input === "skill" ||
+    input === "agent" ||
+    input === "workflow" ||
+    input === "prompt" ||
+    input === "tool" ||
+    input === "project"
+  )
+    return input
   return undefined
 }
 
@@ -348,7 +356,10 @@ export function formatEvolutionCandidates(items: readonly EvolutionSchema.Candid
   ].join("\n")
 }
 
-export function formatCuratorStatus(input: { config: Config.Info["evolution"]; status: EvolutionSchema.StatusSummary }, format: OutputFormat) {
+export function formatCuratorStatus(
+  input: { config: Config.Info["evolution"]; status: EvolutionSchema.StatusSummary },
+  format: OutputFormat,
+) {
   if (format === "json") return JSON.stringify(input, null, 2)
   return [
     ["Field", "Value"].join("\t"),

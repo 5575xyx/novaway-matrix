@@ -9,6 +9,12 @@ export const ReviewActionButton: Component<{
   onClick: () => void
 }> = (props) => (
   <Tooltip value={props.label} placement="top">
-    <IconButton icon={props.icon} variant="ghost" disabled={props.disabled} onClick={props.onClick} aria-label={props.label} />
+    <IconButton
+      icon={props.icon}
+      variant="ghost"
+      disabled={props.disabled}
+      onClick={props.onClick}
+      aria-label={props.label}
+    />
   </Tooltip>
 )

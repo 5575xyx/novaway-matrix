@@ -846,4 +846,19 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "영구 프로젝트 아이콘 생성 실패",
   "error.childStore.storeCreateFailed": "저장소 생성 실패",
   "terminal.connectionLost.abnormalClose": "WebSocket이 비정상적으로 닫힘: {{code}}",
+
+  "assistant.title": "Assistant",
+  "assistant.tab.agent": "Agent",
+  "assistant.tab.todo": "Tasks",
+  "assistant.tab.notifications": "Notifications",
+  "assistant.tab.runs": "Runs",
+  "assistant.agent.current": "Current agent",
+  "assistant.agent.switchTo": "Switch to",
+  "assistant.agent.switch": "Switch",
+
+  "session.new.agentSelector.title": "Choose your approach",
+  "session.new.agentSelector.plan.title": "Plan",
+  "session.new.agentSelector.plan.description": "Break down requirements and draft a plan",
+  "session.new.agentSelector.build.title": "Build",
+  "session.new.agentSelector.build.description": "Jump straight into implementation",
 }

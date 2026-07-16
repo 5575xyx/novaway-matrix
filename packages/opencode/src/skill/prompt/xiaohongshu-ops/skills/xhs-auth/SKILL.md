@@ -32,14 +32,14 @@ metadata:
 
 **本技能允许使用的全部 CLI 子命令：**
 
-| 子命令 | 用途 |
-|--------|------|
-| `check-login` | 检查当前登录状态 |
-| `get-qrcode` | 获取二维码图片（非阻塞） |
-| `wait-login` | 等待扫码完成（阻塞） |
-| `send-code --phone` | 发送手机验证码 |
-| `verify-code --code` | 提交验证码完成登录 |
-| `delete-cookies` | 退出登录并清除 cookies |
+| 子命令               | 用途                     |
+| -------------------- | ------------------------ |
+| `check-login`        | 检查当前登录状态         |
+| `get-qrcode`         | 获取二维码图片（非阻塞） |
+| `wait-login`         | 等待扫码完成（阻塞）     |
+| `send-code --phone`  | 发送手机验证码           |
+| `verify-code --code` | 提交验证码完成登录       |
+| `delete-cookies`     | 退出登录并清除 cookies   |
 
 ---
 
@@ -66,6 +66,7 @@ python scripts/cli.py check-login
 ```
 
 输出解读：
+
 - `"logged_in": true` → 已登录，可执行后续操作。
 - `"logged_in": false` + `"login_method": "qrcode"` → 有界面环境，走方式 A（二维码）。输出自动包含 `qrcode_image_url` 和 `qrcode_path`。
 - `"logged_in": false` + `"login_method": "both"` → 无界面服务器，输出自动包含二维码，**询问用户选方式 A（二维码）或方式 B（手机验证码）**。
@@ -88,6 +89,7 @@ python scripts/cli.py check-login
 ```
 
 > **展示规范（必须全部遵守）**：
+>
 > 1. 展示二维码图片（`qrcode_image_url`）。
 > 2. 如果输出含 `qr_login_url`，**必须**同时展示该链接并提示用户"也可以在手机浏览器中直接访问此链接完成登录"。
 > 3. **禁止**省略 `qr_login_url`，即使已展示了二维码图片。
@@ -108,6 +110,7 @@ python scripts/cli.py wait-login
 #### 方式 B：手机验证码登录（无界面服务器，分两步）
 
 **⚠️ 强制要求：必须先向用户确认手机号，即使上下文中已有手机号也不得跳过。**
+
 - 用户可能要登录不同账号，手机号可能已变更。
 - **禁止从历史对话、记忆或上下文中自动填入手机号。**
 - **每次登录都必须明确向用户询问并得到确认后才能执行 `send-code`。**
@@ -120,6 +123,7 @@ python scripts/cli.py wait-login
 ```bash
 python scripts/cli.py send-code --phone <用户确认的手机号>
 ```
+
 - 自动填写手机号、勾选用户协议、点击"获取验证码"。
 - 正常输出：`{"status": "code_sent", "message": "..."}`
 - **频率限制**：自动切换为二维码登录，输出含 `qrcode_image_url`。告知用户"验证码发送受限，已切换为二维码登录"，按方式 A 的展示规范展示二维码，然后运行 `wait-login`。
@@ -131,6 +135,7 @@ python scripts/cli.py send-code --phone <用户确认的手机号>
 ```bash
 python scripts/cli.py verify-code --code <用户提供的6位验证码>
 ```
+
 - 自动填写验证码、点击登录。
 - 输出：`{"logged_in": true, "message": "登录成功"}`
 

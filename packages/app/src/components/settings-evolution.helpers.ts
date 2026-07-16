@@ -18,7 +18,10 @@ export function evolutionCounts(status: EvolutionStatusSummary | undefined): Rec
   }
 }
 
-export function evolutionSourceCounts(status: EvolutionStatusSummary | undefined, candidateStatus: CandidateStatus): Record<CandidateSource, number> {
+export function evolutionSourceCounts(
+  status: EvolutionStatusSummary | undefined,
+  candidateStatus: CandidateStatus,
+): Record<CandidateSource, number> {
   return {
     all: finiteNumber(status?.sourceByStatus?.[candidateStatus]?.all),
     background: finiteNumber(status?.sourceByStatus?.[candidateStatus]?.background),
@@ -26,14 +29,27 @@ export function evolutionSourceCounts(status: EvolutionStatusSummary | undefined
   }
 }
 
-export function filterEvolutionCandidates(candidates: readonly EvolutionCandidate[] | undefined | null, source: CandidateSource, mode: ModeGroup = "all") {
+export function filterEvolutionCandidates(
+  candidates: readonly EvolutionCandidate[] | undefined | null,
+  source: CandidateSource,
+  mode: ModeGroup = "all",
+) {
   return safeCandidates(candidates).filter(
-    (candidate) => (source === "all" || evolutionCandidateSource(candidate.tags) === source) && matchesModeGroup(candidateModeSearchText(candidate), mode),
+    (candidate) =>
+      (source === "all" || evolutionCandidateSource(candidate.tags) === source) &&
+      matchesModeGroup(candidateModeSearchText(candidate), mode),
   )
 }
 
 function candidateModeSearchText(candidate: EvolutionCandidate) {
-  return [safeTags(candidate.tags), candidate.kind, candidate.target, candidate.title, candidate.content, candidate.reason]
+  return [
+    safeTags(candidate.tags),
+    candidate.kind,
+    candidate.target,
+    candidate.title,
+    candidate.content,
+    candidate.reason,
+  ]
 }
 
 function safeCandidates(candidates: readonly EvolutionCandidate[] | undefined | null) {

@@ -40,13 +40,13 @@
 
 ## 组件结构
 
-| 文件 | 状态 | 职责 |
-|---|---|---|
-| `extension/netlogger.js` | 新建 | webRequest 4 阶段监听 + 环形缓冲 + storage 持久化 |
-| `extension/interceptor.js` | 扩充 | 现有 404 诊断保留；新增"启用 netlog 时"记录全量 fetch/XHR 响应体 + 应用层 header |
-| `extension/background.js` | 扩充 | importScripts netlogger.js；接 interceptor 上来的响应体信号；按 url+ts 关联 |
-| `extension/popup.html` / `popup.js` | 扩充 | NetLog 卡片（彩蛋激活后显示）+ 时序流 / 检测维度 双 tab |
-| `extension/manifest.json` | 扩充 | host_permissions 加风控上报域 |
+| 文件                                | 状态 | 职责                                                                             |
+| ----------------------------------- | ---- | -------------------------------------------------------------------------------- |
+| `extension/netlogger.js`            | 新建 | webRequest 4 阶段监听 + 环形缓冲 + storage 持久化                                |
+| `extension/interceptor.js`          | 扩充 | 现有 404 诊断保留；新增"启用 netlog 时"记录全量 fetch/XHR 响应体 + 应用层 header |
+| `extension/background.js`           | 扩充 | importScripts netlogger.js；接 interceptor 上来的响应体信号；按 url+ts 关联      |
+| `extension/popup.html` / `popup.js` | 扩充 | NetLog 卡片（彩蛋激活后显示）+ 时序流 / 检测维度 双 tab                          |
+| `extension/manifest.json`           | 扩充 | host_permissions 加风控上报域                                                    |
 
 ## 数据流
 
@@ -92,16 +92,16 @@ netlogger 环形缓冲 (500 条)
 
 ### C. 检测维度自动分类（启发式）
 
-| category | 判定条件 |
-|---|---|
+| category             | 判定条件                                                                                                    |
+| -------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `fingerprint_upload` | host 含 fp / sec / aegis / sentry / track 关键字 OR 请求体含 webdriver / navigator / screen / timezone 字段 |
-| `business_error` | status ∈ {401, 403, 461, 999} OR (HTTP 200 + 前端渲染 404) |
-| `risk_redirect` | 302 → /404 或 /login |
-| `signature_failure` | 302 Location 含 error_code=300031 / 300032 / 300033 |
-| `cookie_change` | Set-Cookie 中新键 / 值变更（与上一条同 host 记录比较） |
-| `business_api` | 路径含 /api/ 且 status=2xx |
-| `page_nav` | resourceType=main_frame |
-| `other` | 其他 |
+| `business_error`     | status ∈ {401, 403, 461, 999} OR (HTTP 200 + 前端渲染 404)                                                  |
+| `risk_redirect`      | 302 → /404 或 /login                                                                                        |
+| `signature_failure`  | 302 Location 含 error_code=300031 / 300032 / 300033                                                         |
+| `cookie_change`      | Set-Cookie 中新键 / 值变更（与上一条同 host 记录比较）                                                      |
+| `business_api`       | 路径含 /api/ 且 status=2xx                                                                                  |
+| `page_nav`           | resourceType=main_frame                                                                                     |
+| `other`              | 其他                                                                                                        |
 
 一条 entry 可命中多个 signal（写入 `signals: string[]`），但 `category` 只取主分类（按上表自上而下的优先级）。
 
@@ -120,64 +120,64 @@ netlogger 环形缓冲 (500 条)
 ```typescript
 interface NetLogEntry {
   // ── 标识 ──
-  id: string;                  // `${ts}_${requestId}`
-  requestId: string;           // webRequest requestId
-  ts: number;                  // onBeforeRequest 时间戳 (ms)
-  tsLabel: string;             // "HH:mm:ss.SSS"
+  id: string // `${ts}_${requestId}`
+  requestId: string // webRequest requestId
+  ts: number // onBeforeRequest 时间戳 (ms)
+  tsLabel: string // "HH:mm:ss.SSS"
 
   // ── HTTP 基础 ──
-  method: string;
-  url: string;
-  path: string;                // pathname + 关键 query (xsec_token=…&xsec_source=…)
-  host: string;
-  resourceType: string;        // main_frame / xhr / fetch / sub_frame
-  tabId: number;
+  method: string
+  url: string
+  path: string // pathname + 关键 query (xsec_token=…&xsec_source=…)
+  host: string
+  resourceType: string // main_frame / xhr / fetch / sub_frame
+  tabId: number
 
   // ── 请求（webRequest + interceptor 融合）──
-  reqHeaders: Record<string, string>;     // 仅保留关键白名单
-  reqBody: string | null;                 // 截断 2KB；raw bytes 解码或 formData JSON
+  reqHeaders: Record<string, string> // 仅保留关键白名单
+  reqBody: string | null // 截断 2KB；raw bytes 解码或 formData JSON
   reqFingerprint: {
-    has_xs: boolean;
-    has_xt: boolean;
-    has_xsCommon: boolean;
-    sec_fetch_site: string | null;
-    sec_fetch_mode: string | null;
-    referer: string | null;
-    origin: string | null;
-    ua_prefix: string;                     // user-agent 前 80 字符
+    has_xs: boolean
+    has_xt: boolean
+    has_xsCommon: boolean
+    sec_fetch_site: string | null
+    sec_fetch_mode: string | null
+    referer: string | null
+    origin: string | null
+    ua_prefix: string // user-agent 前 80 字符
     cookie: {
-      has_a1: boolean;
-      has_web_session: boolean;
-      has_webId: boolean;
-      has_gid: boolean;
-      a1_preview: string | null;
-      web_session_preview: string | null;
-    };
-  };
+      has_a1: boolean
+      has_web_session: boolean
+      has_webId: boolean
+      has_gid: boolean
+      a1_preview: string | null
+      web_session_preview: string | null
+    }
+  }
 
   // ── 响应 ──
-  status: number;
-  statusLine: string;          // "200 OK" / "302 Found" / …
-  respHeaders: Record<string, string>;
-  respBody: string | null;     // 截断 4KB；仅业务域（interceptor 能拿到）
-  setCookie: string[] | null;  // 解析后的 cookie 名列表
+  status: number
+  statusLine: string // "200 OK" / "302 Found" / …
+  respHeaders: Record<string, string>
+  respBody: string | null // 截断 4KB；仅业务域（interceptor 能拿到）
+  setCookie: string[] | null // 解析后的 cookie 名列表
 
   // ── 时序 ──
-  duration_ms: number;
-  err: string | null;
+  duration_ms: number
+  err: string | null
 
   // ── 分析层（netlogger 计算）──
-  category: NetLogCategory;
-  signals: string[];           // 例: ["fingerprint_upload", "set_cookie_changed:sec_xxx"]
+  category: NetLogCategory
+  signals: string[] // 例: ["fingerprint_upload", "set_cookie_changed:sec_xxx"]
   cookieDiff: {
-    added: string[];
-    changed: string[];
-    removed: string[];
-  } | null;
-  redirectTo: string | null;   // 302 Location
-  errorCode: string | null;    // 300031/300032/… 从 location query 解析
+    added: string[]
+    changed: string[]
+    removed: string[]
+  } | null
+  redirectTo: string | null // 302 Location
+  errorCode: string | null // 300031/300032/… 从 location query 解析
 
-  _orphan?: true;              // interceptor 未关联到 webRequest 时标记
+  _orphan?: true // interceptor 未关联到 webRequest 时标记
 }
 
 type NetLogCategory =
@@ -188,7 +188,7 @@ type NetLogCategory =
   | "cookie_change"
   | "business_api"
   | "page_nav"
-  | "other";
+  | "other"
 ```
 
 ### 关键 cookie 白名单
@@ -261,30 +261,30 @@ content-type, server, x-application-context
 
 ## 错误处理与边缘情况
 
-| 场景 | 处理 |
-|---|---|
-| webRequest 拿不到 reqBody（POST + 二进制） | `reqBody: "[binary]"`，只记字节数 |
-| interceptor 跨标签页污染 | content.js 校验 sender.tab.id 与 background 记录的 tabId 匹配 |
-| popup 关闭再开时数据丢失 | 数据存在 chrome.storage.local，popup 重新拉即可 |
-| storage 写满（5MB 限制） | 环形缓冲 500 条 + 单条体积上限保证总量 < 3MB |
-| 用户切换账号（a1 变化） | 触发自动 clear，避免跨账号污染分析 |
-| 风控域名扩展 | host_permissions hardcode；本期不做配置 UI |
-| service worker 重启丢内存缓冲 | webRequest listener 在 SW 重启后重新注册；内存丢失但 storage 持久部分保留 |
+| 场景                                       | 处理                                                                      |
+| ------------------------------------------ | ------------------------------------------------------------------------- |
+| webRequest 拿不到 reqBody（POST + 二进制） | `reqBody: "[binary]"`，只记字节数                                         |
+| interceptor 跨标签页污染                   | content.js 校验 sender.tab.id 与 background 记录的 tabId 匹配             |
+| popup 关闭再开时数据丢失                   | 数据存在 chrome.storage.local，popup 重新拉即可                           |
+| storage 写满（5MB 限制）                   | 环形缓冲 500 条 + 单条体积上限保证总量 < 3MB                              |
+| 用户切换账号（a1 变化）                    | 触发自动 clear，避免跨账号污染分析                                        |
+| 风控域名扩展                               | host_permissions hardcode；本期不做配置 UI                                |
+| service worker 重启丢内存缓冲              | webRequest listener 在 SW 重启后重新注册；内存丢失但 storage 持久部分保留 |
 
 ---
 
 ## 实现顺序与工作量估算
 
-| # | 任务 | 改动文件 | 估算 | 验收 |
-|---|---|---|---|---|
-| 1 | 加风控域名到 host_permissions + 调研真实上报域名清单 | `manifest.json` | ~30 LOC | 装载扩展无错；调研结论补充到本文档 |
-| 2 | 创建 netlogger.js：4 阶段 webRequest 监听 + 环形缓冲 + storage 持久化 + 启用开关 | 新建 `extension/netlogger.js` (~300 LOC) | ~3h | 启用后能在 storage 里看到 entries；关闭后零监听器活跃 |
-| 3 | background.js 引入 netlogger + 暴露查询/清空消息接口 | `background.js` (~50 LOC) | ~30min | popup 能通过 runtime.sendMessage 拉到 log |
-| 4 | interceptor.js 扩充：启用 netlog 时记录全量 fetch/XHR 响应体 + postMessage 上报 | `interceptor.js` (~80 LOC) | ~1.5h | 业务域内能拿到响应体并关联到 netlogger entry |
-| 5 | netlogger 关联 + 分类逻辑：interceptor 信号回填 + category/signals/cookieDiff 计算 | `netlogger.js` (~150 LOC) | ~2h | 每条 entry 有正确 category；cookieDiff 能算出 Set-Cookie 变化 |
-| 6 | popup UI：彩蛋激活 + NetLog 卡片 + 时序流 tab | `popup.html / popup.js` (~250 LOC) | ~3h | 标题连点 5 次激活；时序流实时刷新；点击行展开详情 |
-| 7 | popup UI：检测维度 tab + 折叠分组 + json 导出按钮 | `popup.html / popup.js` (~150 LOC) | ~2h | 5 个分类正确归类；导出 JSON 文件可下载 |
-| 8 | 手工冒烟测试：浏览/搜索/故意触发风控/切账号 | — | ~1h | 全场景跑通；分类无误判 |
+| #   | 任务                                                                               | 改动文件                                 | 估算    | 验收                                                          |
+| --- | ---------------------------------------------------------------------------------- | ---------------------------------------- | ------- | ------------------------------------------------------------- |
+| 1   | 加风控域名到 host_permissions + 调研真实上报域名清单                               | `manifest.json`                          | ~30 LOC | 装载扩展无错；调研结论补充到本文档                            |
+| 2   | 创建 netlogger.js：4 阶段 webRequest 监听 + 环形缓冲 + storage 持久化 + 启用开关   | 新建 `extension/netlogger.js` (~300 LOC) | ~3h     | 启用后能在 storage 里看到 entries；关闭后零监听器活跃         |
+| 3   | background.js 引入 netlogger + 暴露查询/清空消息接口                               | `background.js` (~50 LOC)                | ~30min  | popup 能通过 runtime.sendMessage 拉到 log                     |
+| 4   | interceptor.js 扩充：启用 netlog 时记录全量 fetch/XHR 响应体 + postMessage 上报    | `interceptor.js` (~80 LOC)               | ~1.5h   | 业务域内能拿到响应体并关联到 netlogger entry                  |
+| 5   | netlogger 关联 + 分类逻辑：interceptor 信号回填 + category/signals/cookieDiff 计算 | `netlogger.js` (~150 LOC)                | ~2h     | 每条 entry 有正确 category；cookieDiff 能算出 Set-Cookie 变化 |
+| 6   | popup UI：彩蛋激活 + NetLog 卡片 + 时序流 tab                                      | `popup.html / popup.js` (~250 LOC)       | ~3h     | 标题连点 5 次激活；时序流实时刷新；点击行展开详情             |
+| 7   | popup UI：检测维度 tab + 折叠分组 + json 导出按钮                                  | `popup.html / popup.js` (~150 LOC)       | ~2h     | 5 个分类正确归类；导出 JSON 文件可下载                        |
+| 8   | 手工冒烟测试：浏览/搜索/故意触发风控/切账号                                        | —                                        | ~1h     | 全场景跑通；分类无误判                                        |
 
 **估算总量**：约 1000 LOC + 约 13h 集中工作时间。
 
@@ -324,15 +324,15 @@ content-type, server, x-application-context
 
 通过 `performance.getEntriesByType('resource')` 在 xiaohongshu.com 上抓到的跨域 host 清单（首页 + 搜索 + 笔记详情 浏览 ~1min）：
 
-| Host | 用途推断 | 是否监听 |
-|---|---|---|
-| `apm-fe.xiaohongshu.com` | 前端 APM 监控（性能/错误/风控数据上报） | ✓ |
-| `as.xiaohongshu.com` | 应用统计 / 事件上报 | ✓ |
-| `edith.xiaohongshu.com` | XHS 主业务 API（含 /api/sns/web/...） | ✓ |
-| `t2.xiaohongshu.com` | tracking 上报 | ✓ |
-| `picasso-static.xiaohongshu.com` | 静态资源（图片处理服务） | ✓（业务域内，顺便监听） |
-| `www.xiaohongshu.com` / `xiaohongshu.com` / `creator.xiaohongshu.com` | 业务页面 + API | ✓ |
-| `sns-avatar-qc.xhscdn.com` / `sns-na-i2.xhscdn.com` / `sns-webpic-qc.xhscdn.com` | 图片 CDN | ✗（静态资源，过滤掉） |
+| Host                                                                             | 用途推断                                | 是否监听                |
+| -------------------------------------------------------------------------------- | --------------------------------------- | ----------------------- |
+| `apm-fe.xiaohongshu.com`                                                         | 前端 APM 监控（性能/错误/风控数据上报） | ✓                       |
+| `as.xiaohongshu.com`                                                             | 应用统计 / 事件上报                     | ✓                       |
+| `edith.xiaohongshu.com`                                                          | XHS 主业务 API（含 /api/sns/web/...）   | ✓                       |
+| `t2.xiaohongshu.com`                                                             | tracking 上报                           | ✓                       |
+| `picasso-static.xiaohongshu.com`                                                 | 静态资源（图片处理服务）                | ✓（业务域内，顺便监听） |
+| `www.xiaohongshu.com` / `xiaohongshu.com` / `creator.xiaohongshu.com`            | 业务页面 + API                          | ✓                       |
+| `sns-avatar-qc.xhscdn.com` / `sns-na-i2.xhscdn.com` / `sns-webpic-qc.xhscdn.com` | 图片 CDN                                | ✗（静态资源，过滤掉）   |
 
 **固化的 `host_permissions`：**
 
@@ -376,7 +376,9 @@ python scripts/cli.py get-netlog --limit 50
 ```json
 {
   "total": 123,
-  "entries": [ /* NetLogEntry[] */ ]
+  "entries": [
+    /* NetLogEntry[] */
+  ]
 }
 ```
 
@@ -413,13 +415,13 @@ python scripts/cli.py risk-report
 
 ### 风险等级判断规则
 
-| risk_level | 触发条件 |
-|---|---|
-| `high` | 存在 `signature_failure` 类别请求，或 HTTP 999 响应 |
-| `medium` | HTTP 401 / 403 / 461，或 `acw_tc` cookie 变更，或 `risk_redirect` |
-| `low` | 有 warnings（签名覆盖率不足、行为埋点缺失等） |
-| `safe` | 无高风险信号、无 warnings |
-| `unknown` | netlog 为空 |
+| risk_level | 触发条件                                                          |
+| ---------- | ----------------------------------------------------------------- |
+| `high`     | 存在 `signature_failure` 类别请求，或 HTTP 999 响应               |
+| `medium`   | HTTP 401 / 403 / 461，或 `acw_tc` cookie 变更，或 `risk_redirect` |
+| `low`      | 有 warnings（签名覆盖率不足、行为埋点缺失等）                     |
+| `safe`     | 无高风险信号、无 warnings                                         |
+| `unknown`  | netlog 为空                                                       |
 
 ### 实现细节
 
@@ -498,6 +500,7 @@ POST /api/sec/v1/scripting
 #### 4. 行为采集 `t2.xiaohongshu.com/api/v2/collect`
 
 protobuf binary 编码（base64），每个用户操作 1-10 条。明文可见：
+
 - artifact: `xhs-pc-web` 6.11.1
 - app: `discovery-undefined` / `ugc`（创作中心）
 - device_id: `febeb55be25f2a4093229f58643bd140`（32 字符 hex，跨上报一致）
@@ -507,6 +510,7 @@ protobuf binary 编码（base64），每个用户操作 1-10 条。明文可见�
 #### 5. APM 行为埋点 `apm-fe.xiaohongshu.com/api/data` (wapT SDK)
 
 JSON 明文，每个 API 调用一条 timing 记录，含：
+
 - `context_sdkSessionId / pageSessionId / sdkSeqId`（**单调递增**，跳号即异常）
 - `context_deviceId`（与 t2 一致）
 - `context_route`（完整页面路由）
@@ -521,14 +525,14 @@ JSON 明文，每个 API 调用一条 timing 记录，含：
 
 #### 7. Cookie 一致性追踪
 
-| Cookie | 用途 |
-|---|---|
-| `a1`（设备指纹种子） | 100% 命中，device_id 派生自 |
-| `web_session` | 主站登录态 |
-| `webId` / `gid` | 浏览器 ID / 设备识别 |
-| `acw_tc`（阿里云 WAF）| **跨子域统一指纹**，每次跨子域跳转重新颁发，强一致追踪 |
-| `tgw_l7_route`（阿里云 SLB）| ros-upload 每次 PUT 都换路由 cookie，防 hash 缓存攻击 |
-| CAS SSO 链 5 cookie | 创作中心独立 session（见 #9） |
+| Cookie                       | 用途                                                   |
+| ---------------------------- | ------------------------------------------------------ |
+| `a1`（设备指纹种子）         | 100% 命中，device_id 派生自                            |
+| `web_session`                | 主站登录态                                             |
+| `webId` / `gid`              | 浏览器 ID / 设备识别                                   |
+| `acw_tc`（阿里云 WAF）       | **跨子域统一指纹**，每次跨子域跳转重新颁发，强一致追踪 |
+| `tgw_l7_route`（阿里云 SLB） | ros-upload 每次 PUT 都换路由 cookie，防 hash 缓存攻击  |
+| CAS SSO 链 5 cookie          | 创作中心独立 session（见 #9）                          |
 
 #### 8. ros-upload 上传链路
 
@@ -579,16 +583,18 @@ XHS 创作中心给每个 tab 放**真+假**两份：
 
 ```html
 <!-- 真 tab：Vue scoped，无 hp 标记，藏在 -9999px 但 pointer-events: auto -->
-<div data-v-1ff40f7c data-v-0b179352 class="creator-tab"
-     style="position: absolute; left: -9999px; top: -9999px;">
+<div data-v-1ff40f7c data-v-0b179352 class="creator-tab" style="position: absolute; left: -9999px; top: -9999px;">
   <span class="title">上传图文</span>
 </div>
 
 <!-- 假 tab (honey pot)：data-hp-kind + button-hp-installed，opacity:1e-05 -->
-<div class="creator-tab" button-hp-installed="1"
-     data-hp-kind="creator-tab-上传图文" aria-hidden="true"
-     style="position: absolute; opacity: 1e-05; pointer-events: auto;">
-</div>
+<div
+  class="creator-tab"
+  button-hp-installed="1"
+  data-hp-kind="creator-tab-上传图文"
+  aria-hidden="true"
+  style="position: absolute; opacity: 1e-05; pointer-events: auto;"
+></div>
 ```
 
 **点击 honey pot 会被标记为机器人 + active class 静默不切换**。正确策略：排除任何带 `data-hp-kind` 或 `button-hp-installed` 属性的元素，只点真 Vue tab。
@@ -597,19 +603,19 @@ XHS 创作中心给每个 tab 放**真+假**两份：
 
 ### 反爬规避总策略（给自动化 / Claude）
 
-| 维度 | 风险 | 规避策略 |
-|---|---|---|
-| `isRiskUser` APM 字段 | 🔥极高（也是机会） | 主动监听：从业务 API 响应间接通过 APM 读取，pass→其他立即停手 |
-| Shield profileData | 🔥极高 | 用真实浏览器，禁止覆盖 navigator/screen/canvas/webgl |
-| `scripting` 远程脚本 | 🔥极高 | 让其正常下发执行，不要 hook 全局 `seccallback` 函数 |
-| **Honey pot tab 陷阱** | 🔥高 | 排除 `data-hp-kind` / `button-hp-installed` 元素 |
-| device_id 一致性 | 🔥高 | 不清 a1 cookie，不切 device_id |
-| 鼠标轨迹 / 键盘节奏 | 高 | Bezier 曲线 mouse move + 字符间随机 50-150ms + 0.5% 概率打错-删-重打 |
-| 操作时序 | 高 | 每个 action 间 N(2.5s, 0.8s) 高斯停顿；偶尔 5-10s 长停顿模拟"看一下" |
-| t2 protobuf 埋点 | 中 | 不屏蔽（缺失反而异常），节奏自然 |
-| `acw_tc` 跨域 | 中 | 不阻止 Set-Cookie，让 WAF 跟踪正常 |
-| CAS SSO（创作中心）| 中 | 必须走完 CAS 拿 creator session 5-cookie 链 |
-| racing A/B 分流 | 低 | 让其正常执行；保持账号年龄/行为画像 |
+| 维度                   | 风险               | 规避策略                                                             |
+| ---------------------- | ------------------ | -------------------------------------------------------------------- |
+| `isRiskUser` APM 字段  | 🔥极高（也是机会） | 主动监听：从业务 API 响应间接通过 APM 读取，pass→其他立即停手        |
+| Shield profileData     | 🔥极高             | 用真实浏览器，禁止覆盖 navigator/screen/canvas/webgl                 |
+| `scripting` 远程脚本   | 🔥极高             | 让其正常下发执行，不要 hook 全局 `seccallback` 函数                  |
+| **Honey pot tab 陷阱** | 🔥高               | 排除 `data-hp-kind` / `button-hp-installed` 元素                     |
+| device_id 一致性       | 🔥高               | 不清 a1 cookie，不切 device_id                                       |
+| 鼠标轨迹 / 键盘节奏    | 高                 | Bezier 曲线 mouse move + 字符间随机 50-150ms + 0.5% 概率打错-删-重打 |
+| 操作时序               | 高                 | 每个 action 间 N(2.5s, 0.8s) 高斯停顿；偶尔 5-10s 长停顿模拟"看一下" |
+| t2 protobuf 埋点       | 中                 | 不屏蔽（缺失反而异常），节奏自然                                     |
+| `acw_tc` 跨域          | 中                 | 不阻止 Set-Cookie，让 WAF 跟踪正常                                   |
+| CAS SSO（创作中心）    | 中                 | 必须走完 CAS 拿 creator session 5-cookie 链                          |
+| racing A/B 分流        | 低                 | 让其正常执行；保持账号年龄/行为画像                                  |
 
 ### Response.prototype hook 必要性
 
@@ -619,15 +625,15 @@ XHS 主 bundle 加载时用混淆代码（`_garp_xxx`）覆盖 `window.fetch`，
 
 ### 实施期间发现的 Bug 修复
 
-| 类型 | 修复 |
-|---|---|
-| **interceptor.js syntax error** | 4 处中文字符串嵌套未转义双引号（line 100/194/214/480），导致**整个 interceptor.js 从未成功 parse**。修：内部 `""` 改为中文「」 |
-| **状态同步链路竞态** | interceptor 等 content.js postMessage 启用状态期间所有 fetch 被跳过。修：interceptor 总是上报，background `netlogIngestInterceptor` 单点过滤 |
-| **URL 匹配 protocol-relative** | edith 业务 API 用 `//edith...` 协议相对 URL，与 webRequest 的绝对 URL 不等。修：`_netlogUrlMatch` 加 base URL 兼容 |
-| **fetch wrapper 覆盖** | XHS `_garp_xxx` 直接覆盖 `window.fetch`。修：改 hook Response.prototype |
-| **publish.py honey pot 陷阱** | 旧 selector 点了 `data-hp-kind` 假 tab。修：排除 hp 属性 + 等 active 切换确认 |
-| **REQBODY_MAX 2KB 截断** | APM 上报含 isRiskUser 的 JSON 1-3KB，2048 字节截断导致 JSON parse 失败。修：增大到 8192 |
-| **risk_analyzer regex 容错** | reqBody 仍可能截断时 JSON parse 失败。修：正则提取 isRiskUser/isRiskReason/i12-i14，不依赖完整 JSON |
+| 类型                            | 修复                                                                                                                                         |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **interceptor.js syntax error** | 4 处中文字符串嵌套未转义双引号（line 100/194/214/480），导致**整个 interceptor.js 从未成功 parse**。修：内部 `""` 改为中文「」               |
+| **状态同步链路竞态**            | interceptor 等 content.js postMessage 启用状态期间所有 fetch 被跳过。修：interceptor 总是上报，background `netlogIngestInterceptor` 单点过滤 |
+| **URL 匹配 protocol-relative**  | edith 业务 API 用 `//edith...` 协议相对 URL，与 webRequest 的绝对 URL 不等。修：`_netlogUrlMatch` 加 base URL 兼容                           |
+| **fetch wrapper 覆盖**          | XHS `_garp_xxx` 直接覆盖 `window.fetch`。修：改 hook Response.prototype                                                                      |
+| **publish.py honey pot 陷阱**   | 旧 selector 点了 `data-hp-kind` 假 tab。修：排除 hp 属性 + 等 active 切换确认                                                                |
+| **REQBODY_MAX 2KB 截断**        | APM 上报含 isRiskUser 的 JSON 1-3KB，2048 字节截断导致 JSON parse 失败。修：增大到 8192                                                      |
+| **risk_analyzer regex 容错**    | reqBody 仍可能截断时 JSON parse 失败。修：正则提取 isRiskUser/isRiskReason/i12-i14，不依赖完整 JSON                                          |
 
 ### 已知限制 / 未来改进
 
@@ -639,9 +645,8 @@ XHS 主 bundle 加载时用混淆代码（`_garp_xxx`）覆盖 `window.fetch`，
 
 ### 端到端冒烟实测结果
 
-| 场景 | total | isRiskUser | acw_tc 变更 | x-s-common 覆盖 | 主要 host |
-|---|---|---|---|---|---|
-| 浏览/搜索 (search "claude") | 146 | 全 pass (40/40) | 1 | 92% | t2(64) edith(27) apm-fe(25) |
-| 搜索 "ai" | 99 | 全 pass (27/27) | 0 | - | apm-fe(28) t2(28) edith(14) |
-| **创作中心填表** | 284 | 全 pass (7/7) | 1 | 60% | apm-fe(108) t2(71) as(19) edith(19) creator(16) ros-upload(3) |
-
+| 场景                        | total | isRiskUser      | acw_tc 变更 | x-s-common 覆盖 | 主要 host                                                     |
+| --------------------------- | ----- | --------------- | ----------- | --------------- | ------------------------------------------------------------- |
+| 浏览/搜索 (search "claude") | 146   | 全 pass (40/40) | 1           | 92%             | t2(64) edith(27) apm-fe(25)                                   |
+| 搜索 "ai"                   | 99    | 全 pass (27/27) | 0           | -               | apm-fe(28) t2(28) edith(14)                                   |
+| **创作中心填表**            | 284   | 全 pass (7/7)   | 1           | 60%             | apm-fe(108) t2(71) as(19) edith(19) creator(16) ros-upload(3) |

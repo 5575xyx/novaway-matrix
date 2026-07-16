@@ -1,6 +1,14 @@
 import { BrowserWindow, screen, session } from "electron"
 import type { Cookie } from "electron"
-import { PlatformBase, type PlatformLoginResult, type PublishInput, type PublishResult, type PlatformAccountInfo, type AccountStats, type PublishRecord } from "../PlatformBase"
+import {
+  PlatformBase,
+  type PlatformLoginResult,
+  type PublishInput,
+  type PublishResult,
+  type PlatformAccountInfo,
+  type AccountStats,
+  type PublishRecord,
+} from "../PlatformBase"
 
 const LOGIN_URL = "https://www.goofish.com/im"
 const COOKIE_URL = "https://www.goofish.com"
@@ -16,7 +24,11 @@ const DEFAULT_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
 function safeDecodeURIComponent(value: string) {
-  try { return decodeURIComponent(value) } catch { return value }
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
 }
 
 function parseCookies(value?: string): Cookie[] {
@@ -25,7 +37,9 @@ function parseCookies(value?: string): Cookie[] {
     const parsed = JSON.parse(value)
     if (!Array.isArray(parsed)) return []
     return parsed as Cookie[]
-  } catch { return [] }
+  } catch {
+    return []
+  }
 }
 
 function hasLoginCookie(cookies: Cookie[]) {
@@ -50,7 +64,13 @@ export class XianyuPlatform extends PlatformBase {
 
   private windowTimers = new Map<number, NodeJS.Timeout>()
 
-  async login(): Promise<{ loginCookie: string; uid: string; nickname: string; avatar: string; fansCount: number } | null> {
+  async login(): Promise<{
+    loginCookie: string
+    uid: string
+    nickname: string
+    avatar: string
+    fansCount: number
+  } | null> {
     const { win, partition } = await this.createAuthorizationWindow()
     const winId = win.id
 
@@ -59,8 +79,7 @@ export class XianyuPlatform extends PlatformBase {
       let profile = await this.captureProfileFromLoginWindow(win)
       const cookieInfo = this.extractAccountInfo(cookies)
       const shouldTryPersonalPage =
-        !!cookieInfo.uid &&
-        (!profile.nickname || !profile.avatar || profile.nickname.trim() === cookieInfo.uid)
+        !!cookieInfo.uid && (!profile.nickname || !profile.avatar || profile.nickname.trim() === cookieInfo.uid)
 
       if (shouldTryPersonalPage) {
         const personalProfile = await this.captureProfileFromPersonalPage(win, cookieInfo.uid)
@@ -97,8 +116,7 @@ export class XianyuPlatform extends PlatformBase {
       let profile = await this.captureProfileFromLoginWindow(win)
       const cookieInfo = this.extractAccountInfo(cookies)
       const shouldTryPersonalPage =
-        !!cookieInfo.uid &&
-        (!profile.nickname || !profile.avatar || profile.nickname.trim() === cookieInfo.uid)
+        !!cookieInfo.uid && (!profile.nickname || !profile.avatar || profile.nickname.trim() === cookieInfo.uid)
 
       if (shouldTryPersonalPage) {
         const personalProfile = await this.captureProfileFromPersonalPage(win, cookieInfo.uid)
@@ -186,7 +204,9 @@ export class XianyuPlatform extends PlatformBase {
   }
 
   private wait(ms: number) {
-    return new Promise<void>((resolve) => { setTimeout(() => resolve(), ms) })
+    return new Promise<void>((resolve) => {
+      setTimeout(() => resolve(), ms)
+    })
   }
 
   private normalizeAvatar(value: unknown) {
@@ -284,7 +304,11 @@ export class XianyuPlatform extends PlatformBase {
       if (!text) return null
 
       let payload: any = null
-      try { payload = JSON.parse(text) } catch { return null }
+      try {
+        payload = JSON.parse(text)
+      } catch {
+        return null
+      }
 
       if (!payload || typeof payload !== "object") return null
 
@@ -510,10 +534,16 @@ export class XianyuPlatform extends PlatformBase {
     const nicknameText = normalizedProfile.nickname || nickname
     const avatar = normalizedProfile.avatar || this.buildUserAvatarUrl(uid || cookieUid)
 
-    console.debug("[xianyu] extractAccountInfo:", JSON.stringify({ uid: uid.trim(), nickname: nicknameText.trim(), avatar: avatar.trim() }),
-      "cookie_unb:", cookieMap.get("unb"),
-      "cookie_tracknick:", cookieMap.get("tracknick"),
-      "profile:", JSON.stringify(normalizedProfile))
+    console.debug(
+      "[xianyu] extractAccountInfo:",
+      JSON.stringify({ uid: uid.trim(), nickname: nicknameText.trim(), avatar: avatar.trim() }),
+      "cookie_unb:",
+      cookieMap.get("unb"),
+      "cookie_tracknick:",
+      cookieMap.get("tracknick"),
+      "profile:",
+      JSON.stringify(normalizedProfile),
+    )
 
     return {
       uid: uid.trim(),

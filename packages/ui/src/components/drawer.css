@@ -1,7 +1,7 @@
 [data-component="drawer-overlay"] {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 100;
   background-color: hsl(from var(--background-base) h s l / 0.3);
   animation: drawerOverlayShow 150ms ease-out;
 }
@@ -29,12 +29,12 @@
   top: 0;
   right: 0;
   bottom: 0;
-  z-index: 50;
+  z-index: 100;
   pointer-events: none;
 
   [data-slot="drawer-container"] {
     position: relative;
-    z-index: 50;
+    z-index: 100;
     width: min(calc(100vw - 16px), 960px);
     height: 100%;
     display: flex;

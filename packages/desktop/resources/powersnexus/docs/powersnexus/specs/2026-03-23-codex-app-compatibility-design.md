@@ -14,16 +14,17 @@ The Codex CLI (open source terminal tool) does NOT have this conflict — it has
 
 Tested in the Codex App on 2026-03-23:
 
-| Operation | workspace-write sandbox | Full access sandbox |
-|---|---|---|
-| `git add` | Works | Works |
-| `git commit` | Works | Works |
-| `git checkout -b` | **Blocked** (can't write `.git/refs/heads/`) | Works |
-| `git push` | **Blocked** (network + `.git/refs/remotes/`) | Works |
-| `gh pr create` | **Blocked** (network) | Works |
-| `git status/diff/log` | Works | Works |
+| Operation             | workspace-write sandbox                      | Full access sandbox |
+| --------------------- | -------------------------------------------- | ------------------- |
+| `git add`             | Works                                        | Works               |
+| `git commit`          | Works                                        | Works               |
+| `git checkout -b`     | **Blocked** (can't write `.git/refs/heads/`) | Works               |
+| `git push`            | **Blocked** (network + `.git/refs/remotes/`) | Works               |
+| `gh pr create`        | **Blocked** (network)                        | Works               |
+| `git status/diff/log` | Works                                        | Works               |
 
 Additional findings:
+
 - `spawn_agent` subagents **share** the parent thread's filesystem (confirmed via marker file test)
 - "Create branch" button appears in the App header regardless of which branch the worktree was started from
 - The App's native finishing flow: Create branch → Commit modal → Commit and push / Commit and create PR
@@ -45,6 +46,7 @@ Two signals derived:
 - **ON_DETACHED_HEAD:** `BRANCH` is empty — no named branch exists
 
 Why `git-dir != git-common-dir` instead of checking `show-toplevel`:
+
 - In a normal repo, both resolve to the same `.git` directory
 - In a linked worktree, `git-dir` is `.git/worktrees/<name>` while `git-common-dir` is `.git`
 - In a submodule, both are equal — avoiding a false positive that `show-toplevel` would produce
@@ -52,12 +54,12 @@ Why `git-dir != git-common-dir` instead of checking `show-toplevel`:
 
 ### Decision Matrix
 
-| Linked Worktree? | Detached HEAD? | Environment | Action |
-|---|---|---|---|
-| No | No | Claude Code / Codex CLI / normal git | Full skill behavior (unchanged) |
-| Yes | Yes | Codex App worktree (workspace-write) | Skip worktree creation; handoff payload at finish |
-| Yes | No | Codex App (Full access) or manual worktree | Skip worktree creation; full finishing flow |
-| No | Yes | Unusual (manual detached HEAD) | Create worktree normally; warn at finish |
+| Linked Worktree? | Detached HEAD? | Environment                                | Action                                            |
+| ---------------- | -------------- | ------------------------------------------ | ------------------------------------------------- |
+| No               | No             | Claude Code / Codex CLI / normal git       | Full skill behavior (unchanged)                   |
+| Yes              | Yes            | Codex App worktree (workspace-write)       | Skip worktree creation; handoff payload at finish |
+| Yes              | No             | Codex App (Full access) or manual worktree | Skip worktree creation; full finishing flow       |
+| No               | Yes            | Unusual (manual detached HEAD)             | Create worktree normally; warn at finish          |
 
 ## Changes
 
@@ -68,6 +70,7 @@ New section between "Overview" and "Directory Selection Process":
 **Step 0: Check if Already in an Isolated Workspace**
 
 Run the detection commands. If `GIT_DIR != GIT_COMMON`, skip worktree creation entirely. Instead:
+
 1. Skip to "Run Project Setup" subsection under Creation Steps — `npm install` etc. is idempotent, worth running for safety
 2. Then "Verify Clean Baseline" — run tests
 3. Report with branch state:
@@ -142,10 +145,13 @@ Otherwise, check and remove as today. Note: the existing Step 5 text says "For O
 ### 3. `subagent-driven-development/SKILL.md` and `executing-plans/SKILL.md` — 1 line edit each
 
 Both skills have an identical Integration section line. Change from:
+
 ```
 - PowersNexus:using-git-worktrees - REQUIRED: Set up isolated workspace before starting
 ```
+
 To:
+
 ```
 - PowersNexus:using-git-worktrees - REQUIRED: Ensures isolated workspace (creates one or verifies existing)
 ```
@@ -158,7 +164,7 @@ Two new sections at the end:
 
 **Environment Detection:**
 
-```markdown
+````markdown
 ## Environment Detection
 
 Skills that create worktrees or finish branches should detect their
@@ -175,7 +181,7 @@ BRANCH=$(git branch --show-current)
 
 See `using-git-worktrees` Step 0 and `finishing-a-development-branch`
 Step 1.5 for how each skill uses these signals.
-```
+````
 
 **Codex App Finishing:**
 
@@ -205,13 +211,13 @@ names, commit messages, and PR descriptions for the user to copy.
 
 ## Scope Summary
 
-| File | Change |
-|---|---|
-| `skills/using-git-worktrees/SKILL.md` | +12 lines (Step 0) |
-| `skills/finishing-a-development-branch/SKILL.md` | +20 lines (Step 1.5 + cleanup guard) |
-| `skills/subagent-driven-development/SKILL.md` | 1 line edit |
-| `skills/executing-plans/SKILL.md` | 1 line edit |
-| `skills/using-PowersNexus/references/codex-tools.md` | +15 lines |
+| File                                                 | Change                               |
+| ---------------------------------------------------- | ------------------------------------ |
+| `skills/using-git-worktrees/SKILL.md`                | +12 lines (Step 0)                   |
+| `skills/finishing-a-development-branch/SKILL.md`     | +20 lines (Step 1.5 + cleanup guard) |
+| `skills/subagent-driven-development/SKILL.md`        | 1 line edit                          |
+| `skills/executing-plans/SKILL.md`                    | 1 line edit                          |
+| `skills/using-PowersNexus/references/codex-tools.md` | +15 lines                            |
 
 ~50 lines added/changed across 5 files. Zero new files. Zero breaking changes.
 

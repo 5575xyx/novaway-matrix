@@ -23,7 +23,14 @@ import { EffectBridge } from "@/effect/bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import * as Option from "effect/Option"
 import * as OtelTracer from "@effect/opentelemetry/Tracer"
-import { FetchHttpClient, HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
+import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/unstable/http"
+import {
+  AgnesImage,
+  AgnesVideo,
+  ImageGeneration,
+  ProtocolRegistry,
+  VideoGeneration,
+} from "@opencode-ai/llm/protocols"
 
 const log = Log.create({ service: "llm" })
 export const OUTPUT_TOKEN_MAX = ProviderTransform.OUTPUT_TOKEN_MAX
@@ -63,7 +70,13 @@ export class Service extends Context.Service<Service, Interface>()("@opencode/LL
 const live: Layer.Layer<
   Service,
   never,
-  Auth.Service | Config.Service | Provider.Service | Plugin.Service | Permission.Service | RuntimeFlags.Service | HttpClient.HttpClient
+  | Auth.Service
+  | Config.Service
+  | Provider.Service
+  | Plugin.Service
+  | Permission.Service
+  | RuntimeFlags.Service
+  | HttpClient.HttpClient
 > = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -416,22 +429,33 @@ const live: Layer.Layer<
             const isVideoModel = input.model.capabilities?.output?.video === true
 
             if (isImageModel || isVideoModel) {
-              // 从消息中提取用户提示词
+              // 从消息中提取用户提示词和图片附件
               const lastUserMessage = input.messages.findLast((m) => m.role === "user")
               let userPrompt = ""
+              const imageUrls: string[] = []
               if (lastUserMessage) {
                 if (typeof lastUserMessage.content === "string") {
                   userPrompt = lastUserMessage.content
                 } else if (Array.isArray(lastUserMessage.content)) {
-                  const textParts = lastUserMessage.content
-                    .filter((p): p is { type: "text"; text: string } => p.type === "text")
-                    .map((p) => p.text)
+                  const textParts: string[] = []
+                  for (const part of lastUserMessage.content) {
+                    if (part.type === "text" && "text" in part && typeof part.text === "string") {
+                      textParts.push(part.text)
+                    } else if (
+                      part.type === "file" &&
+                      "data" in part &&
+                      typeof part.data === "string" &&
+                      part.mediaType?.startsWith("image/")
+                    ) {
+                      imageUrls.push(part.data)
+                    }
+                  }
                   userPrompt = textParts.join("\n")
                 }
               }
 
               if (!userPrompt) {
-                userPrompt = "请生成图片"
+                userPrompt = isImageModel ? "请生成图片" : "请生成视频"
               }
 
               // 从 auth 服务获取 API Key
@@ -446,146 +470,113 @@ const live: Layer.Layer<
               }
 
               if (!apiKey) {
-                throw new Error(
-                  `供应商 "${input.model.providerID}" 未配置 API Key。请在设置 → 供应商中配置 API Key。`,
-                )
+                throw new Error(`供应商 "${input.model.providerID}" 未配置 API Key。请在设置 → 供应商中配置 API Key。`)
               }
 
-              // 获取供应商的 base URL
+              // 获取供应商的 base URL；Agnes 协议已内置 /v1，若用户配置的 endpoint 缺少 /v1 则使用协议默认地址
               const providerConfig = yield* provider.getProvider(input.model.providerID)
-              const baseURL = providerConfig.options?.baseURL ?? providerConfig.options?.endpoint
-              if (!baseURL) {
-                throw new Error(
-                  `供应商 "${input.model.providerID}" 未配置 Base URL。请在设置 → 供应商中配置 Base URL。`,
-                )
+              const providerBaseURL = providerConfig.options?.baseURL ?? providerConfig.options?.endpoint
+              const resolveBaseURL = (protocolBase: string) => {
+                if (!providerBaseURL) return protocolBase
+                if (providerBaseURL.endsWith("/v1") || providerBaseURL.endsWith("/v1/")) return providerBaseURL
+                return protocolBase
               }
 
-              // 定义响应 Schema
-              const ImageGenerateResponse = Schema.Struct({
-                data: Schema.optional(
-                  Schema.Array(
-                    Schema.Struct({
-                      url: Schema.optional(Schema.String),
-                      b64_json: Schema.optional(Schema.String),
-                    }),
-                  ),
-                ),
-              })
-
-              const VideoCreateResponse = Schema.Struct({
-                task_id: Schema.optional(Schema.String),
-              })
-
-              const VideoStatusResponse = Schema.Struct({
-                status: Schema.optional(Schema.String),
-                result: Schema.optional(
-                  Schema.Struct({
-                    video_url: Schema.optional(Schema.String),
-                  }),
-                ),
-              })
+              const textId = `text-${Date.now()}`
 
               if (isImageModel) {
-                // 调用图片生成 API
-                log.info("routing to image generation", { modelID: input.model.id, prompt: userPrompt.slice(0, 100) })
+                log.info("routing to image generation", {
+                  modelID: input.model.id,
+                  prompt: userPrompt.slice(0, 100),
+                  imageCount: imageUrls.length,
+                  imageSizes: imageUrls.map((url) => url.length),
+                })
 
-                const url = `${baseURL}/images/generations`
-                const requestBody = {
-                  model: input.model.id,
-                  prompt: userPrompt,
-                  size: "1024x768",
+                const baseURL = resolveBaseURL(AgnesImage.agnesImage.baseURL)
+                const protocol = ProtocolRegistry.getImageProtocol(input.model.providerID) ?? {
+                  ...AgnesImage.agnesImage,
+                  baseURL,
                 }
+                const finalProtocol = { ...protocol, baseURL }
 
-                const request = yield* HttpClientRequest.post(url).pipe(
-                  HttpClientRequest.bearerToken(apiKey),
-                  HttpClientRequest.bodyJson(requestBody),
-                )
+                const result = yield* ImageGeneration.make()
+                  .generate(finalProtocol, { prompt: userPrompt, model: input.model.id, image: imageUrls }, apiKey)
+                  .pipe(Effect.provideService(HttpClient.HttpClient, http))
 
-                const response = yield* httpOk.execute(request)
-                const result = yield* HttpClientResponse.schemaBodyJson(ImageGenerateResponse)(response)
+                log.info("image generation result", {
+                  imageCount: result.images.length,
+                  hasUrl: result.images[0]?.url != null,
+                  hasBase64: result.images[0]?.base64 != null,
+                })
 
-                const imageUrl = result.data?.[0]?.url
+                const imageUrl = result.images[0]?.url
+                const imageBase64 = result.images[0]?.base64
                 const outputText = imageUrl
                   ? `已生成图片：![generated image](${imageUrl})`
-                  : "图片生成成功（base64格式）"
+                  : imageBase64
+                    ? `已生成图片：![generated image](data:image/png;base64,${imageBase64})`
+                    : "图片生成成功，但返回结果中未包含图片数据"
 
-                const textId = `text-${Date.now()}`
-                // 返回一个模拟的流式响应
-                return Stream.succeed({
-                  type: "text-delta" as const,
-                  id: textId,
-                  text: outputText,
-                }).pipe(
-                  Stream.concat(
-                    Stream.succeed({
-                      type: "text-end" as const,
-                      id: textId,
-                    }),
-                  ),
+                return Stream.succeed(makeStartStep()).pipe(
+                  Stream.concat(Stream.succeed({ type: "text-start" as const, id: textId })),
+                  Stream.concat(Stream.succeed({ type: "text-delta" as const, id: textId, text: outputText })),
+                  Stream.concat(Stream.succeed({ type: "text-end" as const, id: textId })),
+                  Stream.concat(Stream.succeed(makeFinishStep())),
                 )
               }
 
               if (isVideoModel) {
-                // 调用视频生成 API
                 log.info("routing to video generation", { modelID: input.model.id, prompt: userPrompt.slice(0, 100) })
 
-                const createUrl = `${baseURL}/videos`
-                const requestBody = {
-                  model: input.model.id,
-                  prompt: userPrompt,
+                const baseURL = resolveBaseURL(AgnesVideo.agnesVideo.baseURL)
+                const protocol = ProtocolRegistry.getVideoProtocol(input.model.providerID) ?? {
+                  ...AgnesVideo.agnesVideo,
+                  baseURL,
                 }
+                const finalProtocol = { ...protocol, baseURL }
+                const videoService = VideoGeneration.make()
 
-                const createRequest = yield* HttpClientRequest.post(createUrl).pipe(
-                  HttpClientRequest.bearerToken(apiKey),
-                  HttpClientRequest.bodyJson(requestBody),
-                )
-
-                const createResponse = yield* httpOk.execute(createRequest)
-                const createParsed = yield* HttpClientResponse.schemaBodyJson(VideoCreateResponse)(createResponse)
-
-                const taskId = createParsed.task_id
-                if (!taskId) {
-                  throw new Error("视频生成任务创建失败：未返回 task_id")
-                }
-
-                // 轮询任务状态
-                let videoUrl = ""
-                const maxAttempts = 60
-                for (let i = 0; i < maxAttempts; i++) {
-                  yield* Effect.sleep("2 seconds")
-
-                  const statusResponse = yield* HttpClientRequest.get(`${createUrl}/${taskId}`).pipe(
-                    HttpClientRequest.bearerToken(apiKey),
-                    http.execute,
+                const createResult = yield* videoService
+                  .createTask(
+                    finalProtocol,
+                    {
+                      prompt: userPrompt,
+                      model: input.model.id,
+                      width: 1152,
+                      height: 768,
+                      numFrames: 121,
+                      frameRate: 24,
+                      image: imageUrls[0],
+                    },
+                    apiKey,
                   )
-                  const statusParsed = yield* HttpClientResponse.schemaBodyJson(VideoStatusResponse)(statusResponse)
+                  .pipe(Effect.provideService(HttpClient.HttpClient, http))
 
-                  if (statusParsed.status === "completed" || statusParsed.status === "succeeded") {
-                    videoUrl = statusParsed.result?.video_url ?? ""
-                    break
-                  }
-
-                  if (statusParsed.status === "failed") {
-                    throw new Error("视频生成失败")
-                  }
+                if (!createResult.taskId) {
+                  throw new Error("视频生成任务创建失败：未返回任务 ID")
                 }
 
+                const statusResult = yield* videoService
+                  .waitForCompletion(finalProtocol, createResult.taskId, apiKey, {
+                    pollIntervalMs: 2000,
+                    maxWaitMs: 600000,
+                  })
+                  .pipe(Effect.provideService(HttpClient.HttpClient, http))
+
+                if (statusResult.status === "failed") {
+                  throw new Error(statusResult.error ?? "视频生成失败")
+                }
+
+                const videoUrl = statusResult.videoUrl
                 const outputText = videoUrl
-                  ? `已生成视频：[generated video](${videoUrl})`
+                  ? `<video src="${videoUrl}" controls width="100%"></video>`
                   : "视频生成完成"
 
-                const textId = `text-${Date.now()}`
-                return Stream.succeed({
-                  type: "text-delta" as const,
-                  id: textId,
-                  text: outputText,
-                }).pipe(
-                  Stream.concat(
-                    Stream.succeed({
-                      type: "text-end" as const,
-                      id: textId,
-                    }),
-                  ),
+                return Stream.succeed(makeStartStep()).pipe(
+                  Stream.concat(Stream.succeed({ type: "text-start" as const, id: textId })),
+                  Stream.concat(Stream.succeed({ type: "text-delta" as const, id: textId, text: outputText })),
+                  Stream.concat(Stream.succeed({ type: "text-end" as const, id: textId })),
+                  Stream.concat(Stream.succeed(makeFinishStep())),
                 )
               }
             }
@@ -619,6 +610,32 @@ export const defaultLayer = Layer.suspend(() =>
     Layer.provide(FetchHttpClient.layer),
   ),
 )
+
+function makeStartStep(): Event {
+  return {
+    type: "start-step",
+    request: {} as any,
+    warnings: [] as any[],
+  } as unknown as Event
+}
+
+function makeFinishStep(): Event {
+  const usage = {
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    inputTokenDetails: { noCacheTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+    outputTokenDetails: { textTokens: 0, reasoningTokens: 0 },
+  }
+  return {
+    type: "finish-step",
+    finishReason: "stop",
+    usage,
+    response: {},
+    rawFinishReason: undefined,
+    providerMetadata: undefined,
+  } as unknown as Event
+}
 
 function resolveTools(input: Pick<StreamInput, "tools" | "agent" | "permission" | "user">) {
   const disabled = Permission.disabled(

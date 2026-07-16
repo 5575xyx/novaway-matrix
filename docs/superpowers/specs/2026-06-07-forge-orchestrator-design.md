@@ -9,6 +9,7 @@
 将 forge 模式从"前端硬编码强制 plan → 弹框确认 → 切 build"改造为"通过 `agents-orchestrator` 智能调度全部 197 个 AI 员工"。
 
 改造后：
+
 - 用户在 forge 模式输入任何消息，默认由 `agents-orchestrator` 接收
 - orchestrator 按 system prompt 注入的 agent 列表智能匹配，自主决定直接回复 / 调 `task` 委派 / 调 `question` 澄清
 - 移除前端硬编码的"规划蓝图已完成"提示框
@@ -26,37 +27,37 @@
 
 ### 现有"锻造"强制逻辑
 
-| 文件 | 行 | 作用 |
-|------|---|------|
-| `packages/app/src/context/local-agent.ts` | 20-33 | `forgeAgentForPrompt` 强制非 `/` 开头输入走 plan |
-| `packages/app/src/context/local-agent.ts` | 35-45 | `shouldAutoBuildAfterForgePlan` 触发自动 build |
-| `packages/app/src/pages/session.tsx` | 430-438 | `forgeAutoBuild` store |
-| `packages/app/src/pages/session.tsx` | 1445-1500 | `planDecision` memo + `executePlanDecision` + `revisePlanDecision` |
-| `packages/app/src/pages/session.tsx` | 1407-1443 | `forgeBuildText` 合成 build 提示词 + `sendForgeBuild` |
-| `packages/app/src/pages/session/composer/session-composer-region.tsx` | 272-278 | `<SessionPlanDecisionDock>` 渲染 |
-| `packages/app/src/pages/session/composer/session-plan-decision-dock.tsx` | 全文 | "规划蓝图已完成"提示框 |
+| 文件                                                                     | 行        | 作用                                                               |
+| ------------------------------------------------------------------------ | --------- | ------------------------------------------------------------------ |
+| `packages/app/src/context/local-agent.ts`                                | 20-33     | `forgeAgentForPrompt` 强制非 `/` 开头输入走 plan                   |
+| `packages/app/src/context/local-agent.ts`                                | 35-45     | `shouldAutoBuildAfterForgePlan` 触发自动 build                     |
+| `packages/app/src/pages/session.tsx`                                     | 430-438   | `forgeAutoBuild` store                                             |
+| `packages/app/src/pages/session.tsx`                                     | 1445-1500 | `planDecision` memo + `executePlanDecision` + `revisePlanDecision` |
+| `packages/app/src/pages/session.tsx`                                     | 1407-1443 | `forgeBuildText` 合成 build 提示词 + `sendForgeBuild`              |
+| `packages/app/src/pages/session/composer/session-composer-region.tsx`    | 272-278   | `<SessionPlanDecisionDock>` 渲染                                   |
+| `packages/app/src/pages/session/composer/session-plan-decision-dock.tsx` | 全文      | "规划蓝图已完成"提示框                                             |
 
 ### opencode 原生调度机制（可复用）
 
-| 机制 | 位置 | 作用 |
-|------|------|------|
-| `task` 工具 | `packages/opencode/src/tool/task.ts:103` | primary agent 委派任务给任意 agent（包括 primary 和 subagent） |
-| `task_status` 工具 | `packages/opencode/src/tool/task_status.ts` | 轮询 / 阻塞后台任务 |
-| `question` 工具 | `packages/opencode/src/tool/question.ts` | 需求澄清（所有 primary 默认 `allow`） |
-| `subagent_type` 参数 | `task.ts:139` | `agent.get(params.subagent_type)`，**任意 agent 名均可** |
-| `SystemPrompt.skills` | `packages/opencode/src/session/system.ts:65-77` | system prompt 注入 skill 列表的模式可复用 |
-| `Permission.deriveSubagentSessionPermission` | `subagent-permissions.ts:17-34` | subagent 默认 `task: "deny"`，orchestrator 作为 primary 可调 task 委派 subagent；subagent 不能再嵌套 task |
+| 机制                                         | 位置                                            | 作用                                                                                                      |
+| -------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `task` 工具                                  | `packages/opencode/src/tool/task.ts:103`        | primary agent 委派任务给任意 agent（包括 primary 和 subagent）                                            |
+| `task_status` 工具                           | `packages/opencode/src/tool/task_status.ts`     | 轮询 / 阻塞后台任务                                                                                       |
+| `question` 工具                              | `packages/opencode/src/tool/question.ts`        | 需求澄清（所有 primary 默认 `allow`）                                                                     |
+| `subagent_type` 参数                         | `task.ts:139`                                   | `agent.get(params.subagent_type)`，**任意 agent 名均可**                                                  |
+| `SystemPrompt.skills`                        | `packages/opencode/src/session/system.ts:65-77` | system prompt 注入 skill 列表的模式可复用                                                                 |
+| `Permission.deriveSubagentSessionPermission` | `subagent-permissions.ts:17-34`                 | subagent 默认 `task: "deny"`，orchestrator 作为 primary 可调 task 委派 subagent；subagent 不能再嵌套 task |
 
 ### 已存在的 `agents-orchestrator`
 
-| 属性 | 值 | 位置 |
-|------|---|------|
-| ID | `agents-orchestrator` | `packages/opencode/src/agent/agency.ts:5-12` |
-| Mode | `primary` | `agency.ts:292` |
-| 显示名 | "Agent 编排总控" | `agency.ts:38` |
-| 分类 | "专项能力" | `agency.ts:23` |
-| 权限 | `*` allow + `question: "allow"`（继承 `defaults` 的 `*: allow`） | `agency.ts:297-303` |
-| Prompt | `packages/opencode/src/agent/prompt/agency-agents/specialized/agents-orchestrator.md` | 367 行 |
+| 属性   | 值                                                                                    | 位置                                         |
+| ------ | ------------------------------------------------------------------------------------- | -------------------------------------------- |
+| ID     | `agents-orchestrator`                                                                 | `packages/opencode/src/agent/agency.ts:5-12` |
+| Mode   | `primary`                                                                             | `agency.ts:292`                              |
+| 显示名 | "Agent 编排总控"                                                                      | `agency.ts:38`                               |
+| 分类   | "专项能力"                                                                            | `agency.ts:23`                               |
+| 权限   | `*` allow + `question: "allow"`（继承 `defaults` 的 `*: allow`）                      | `agency.ts:297-303`                          |
+| Prompt | `packages/opencode/src/agent/prompt/agency-agents/specialized/agents-orchestrator.md` | 367 行                                       |
 
 ### `agents-orchestrator` 当前 prompt 的 3 个问题
 
@@ -112,15 +113,15 @@ vibe: 整个 AI 员工团队的中控调度。
 
 # 任务分类路由
 
-| 任务类型 | 处理方式 |
-|---------|---------|
-| 闲聊 / 简单问答 | 直接回复，不调 `task` |
-| 单一专业任务（如"审合同"） | `task(<匹配的专业 agent>)` |
-| 多步复杂任务 | `task(general)` 拆分并行 |
-| 涉及代码改动 | `task(build)`（build 智能体可直接改文件） |
-| 需要先规划后实施 | `task(plan)` → 用户确认 → `task(build)` |
-| 只读分析 / 研究 | `task(plan)` 或 `task(explore)` |
-| 需求不明确 | `question` 工具问用户澄清 |
+| 任务类型                   | 处理方式                                  |
+| -------------------------- | ----------------------------------------- |
+| 闲聊 / 简单问答            | 直接回复，不调 `task`                     |
+| 单一专业任务（如"审合同"） | `task(<匹配的专业 agent>)`                |
+| 多步复杂任务               | `task(general)` 拆分并行                  |
+| 涉及代码改动               | `task(build)`（build 智能体可直接改文件） |
+| 需要先规划后实施           | `task(plan)` → 用户确认 → `task(build)`   |
+| 只读分析 / 研究            | `task(plan)` 或 `task(explore)`           |
+| 需求不明确                 | `question` 工具问用户澄清                 |
 
 # 与 build / plan 协议
 
@@ -142,6 +143,7 @@ vibe: 整个 AI 员工团队的中控调度。
 ```
 
 **关键变化**：
+
 - 删掉第 53-108 行的 Phase 1-4 死板 pipeline
 - 删掉第 295-358 行的"Available Specialist Agents"硬编码列表
 - 新增"调度协议"和"任务分类路由"两节
@@ -155,8 +157,7 @@ vibe: 整个 AI 员工团队的中控调度。
 ```ts
 availableAgents: Effect.fn("SystemPrompt.availableAgents")(function* (agent: Agent.Info) {
   if (agent.name !== "agents-orchestrator") return
-  const list = (yield* Agent.Service.list())
-    .filter((a) => !a.hidden && a.name !== agent.name)
+  const list = (yield* Agent.Service.list()).filter((a) => !a.hidden && a.name !== agent.name)
   if (list.length === 0) return
   return [
     "The following agents are available for you to dispatch via the task tool.",
@@ -186,7 +187,7 @@ export function forgeAgentForPrompt(input: {
   if (input.mode !== "forge") return input.current
   if (input.promptMode === "shell") return "build"
   if (input.text.startsWith("/")) return input.current
-  return input.current  // 关键改动：不再强制 plan
+  return input.current // 关键改动：不再强制 plan
 }
 ```
 
@@ -212,6 +213,7 @@ const [store, setStore] = createStore<{
 **位置 B**：`packages/app/src/pages/session/composer/session-composer-region.tsx:272-278` 删除 `<SessionPlanDecisionDock>` 引用及其 props
 
 **位置 C**：`packages/app/src/pages/session.tsx`
+
 - 删除 `forgeAutoBuild` store（430-438）
 - 删除 `requestForgeAutoBuildPlan`（440-442）
 - 删除 `forgeBuildText`（1407-1414）
@@ -247,42 +249,42 @@ const [store, setStore] = createStore<{
 
 ## 风险与缓解
 
-| 风险 | 影响 | 缓解 |
-|------|------|------|
-| 197 个 agent 全部注入 system prompt，token 成本上升 | 每次对话多消耗约 2-4K token | 注入时只保留 `id + category + description`（不含 prompt）|
-| `task` 工具的 `ctx.ask` 弹窗（`task.ts:128`）在频繁调度时 UX 差 | 用户每次都要点"允许" | **已解决**：开启"自动接受权限"按钮（`packages/app/src/context/permission.tsx`）即可消除弹窗。证据链：`permission/index.ts:189` 把 `ctx.ask` 桥接为 `permission.asked` 事件；`packages/app/src/context/permission-auto-respond.ts:41-50` 的 `autoRespondsPermission` 沿 `sessionLineage`（`session.sql.ts:25` `parent_id`）检查所有祖先 session 的 `autoAccept` 标记；`task.ts:154-169` 创建的 sub-session 带 `parentID: ctx.sessionID`，自然落入会话链。实施时需在 release notes 和"用户指南"中显式说明此联动 |
-| orchestrator 路由识别错误 | 用户体验受损 | 1) description 模板统一为"内置{分类} AI 员工..."，路由稳定；2) 不确定时优先用 `question` 问 |
-| 用户自定义 agent 的 description 写得不规范 | 路由失败 | 在 spec 文档配套用户指南，给出 description 编写规范 |
-| 涉及代码改动的任务，orchestrator 不会自动改文件 | 与原 build 行为差异 | prompt 明确指引涉及代码改动走 `task(build)`；原有 build 智能体不变 |
-| 现有 `agents-orchestrator` 用户的对话（如果有）行为变化 | 数据迁移 | 同一 agent 名字，已存消息不受影响；行为差异在 release notes 说明 |
-| `availableAgents` 在 prompt.ts 中的调用点 | 已定位 `prompt.ts:2134-2139` 是 `sys.skills` 现有拼装点，`availableAgents` 在此加入即可 | 无 |
-| 用户的 `default_agent` config 设为 `build` 时，forge 模式优先 | 与设计冲突 | `local.tsx:90` 强制 forge 模式 current 为 `agents-orchestrator`，覆盖 default_agent |
+| 风险                                                            | 影响                                                                                    | 缓解                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 197 个 agent 全部注入 system prompt，token 成本上升             | 每次对话多消耗约 2-4K token                                                             | 注入时只保留 `id + category + description`（不含 prompt）                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `task` 工具的 `ctx.ask` 弹窗（`task.ts:128`）在频繁调度时 UX 差 | 用户每次都要点"允许"                                                                    | **已解决**：开启"自动接受权限"按钮（`packages/app/src/context/permission.tsx`）即可消除弹窗。证据链：`permission/index.ts:189` 把 `ctx.ask` 桥接为 `permission.asked` 事件；`packages/app/src/context/permission-auto-respond.ts:41-50` 的 `autoRespondsPermission` 沿 `sessionLineage`（`session.sql.ts:25` `parent_id`）检查所有祖先 session 的 `autoAccept` 标记；`task.ts:154-169` 创建的 sub-session 带 `parentID: ctx.sessionID`，自然落入会话链。实施时需在 release notes 和"用户指南"中显式说明此联动 |
+| orchestrator 路由识别错误                                       | 用户体验受损                                                                            | 1) description 模板统一为"内置{分类} AI 员工..."，路由稳定；2) 不确定时优先用 `question` 问                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| 用户自定义 agent 的 description 写得不规范                      | 路由失败                                                                                | 在 spec 文档配套用户指南，给出 description 编写规范                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 涉及代码改动的任务，orchestrator 不会自动改文件                 | 与原 build 行为差异                                                                     | prompt 明确指引涉及代码改动走 `task(build)`；原有 build 智能体不变                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| 现有 `agents-orchestrator` 用户的对话（如果有）行为变化         | 数据迁移                                                                                | 同一 agent 名字，已存消息不受影响；行为差异在 release notes 说明                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `availableAgents` 在 prompt.ts 中的调用点                       | 已定位 `prompt.ts:2134-2139` 是 `sys.skills` 现有拼装点，`availableAgents` 在此加入即可 | 无                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| 用户的 `default_agent` config 设为 `build` 时，forge 模式优先   | 与设计冲突                                                                              | `local.tsx:90` 强制 forge 模式 current 为 `agents-orchestrator`，覆盖 default_agent                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 ## 测试
 
 ### 单元测试
 
-| 覆盖点 | 文件 |
-|---------|------|
-| `forgeAgentForPrompt` 改后行为：forge 模式非命令输入返回 current（不再 plan）| `packages/app/src/context/local.test.ts` |
-| `local.tsx` 初始 current：forge 模式 → `agents-orchestrator`，其他模式 → 原行为 | 新增 `packages/app/src/context/local.test.ts` |
+| 覆盖点                                                                                 | 文件                                                 |
+| -------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `forgeAgentForPrompt` 改后行为：forge 模式非命令输入返回 current（不再 plan）          | `packages/app/src/context/local.test.ts`             |
+| `local.tsx` 初始 current：forge 模式 → `agents-orchestrator`，其他模式 → 原行为        | 新增 `packages/app/src/context/local.test.ts`        |
 | `SystemPrompt.availableAgents`：orchestrator agent 注入列表，其他 agent 注入 undefined | 新增 `packages/opencode/test/session/system.test.ts` |
 
 ### 集成测试
 
-| 覆盖点 | 文件 |
-|---------|------|
-| `agents-orchestrator` 加载新 prompt，prompt 包含 4 节（角色定位/调度协议/任务分类路由/工具约束）| `packages/opencode/test/agent/agent.test.ts:199` 现有 case 需更新 |
-| `agents.list()` 过滤 hidden 后的数量 | `packages/opencode/test/agent/agent.test.ts` |
+| 覆盖点                                                                                           | 文件                                                              |
+| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| `agents-orchestrator` 加载新 prompt，prompt 包含 4 节（角色定位/调度协议/任务分类路由/工具约束） | `packages/opencode/test/agent/agent.test.ts:199` 现有 case 需更新 |
+| `agents.list()` 过滤 hidden 后的数量                                                             | `packages/opencode/test/agent/agent.test.ts`                      |
 
 ### E2E（手动 / Playwright）
 
-| 场景 | 步骤 |
-|------|------|
-| forge 模式问"审合同" | 1) 切到 forge 模式 2) 输入"审合同" 3) 检查 sub-session 创建 4) 检查结果返回 |
-| forge 模式问"你好" | 1) 切到 forge 模式 2) 输入"你好" 3) 检查无 sub-session 创建，直接回复 |
-| forge 模式不显示"规划蓝图已完成"提示框 | 1) 切到 forge 模式 2) 输入任意消息 3) 完成对话 4) 检查 UI 无 dock 提示框 |
-| forge 模式默认 agent 是 `agents-orchestrator` | 1) 切到 forge 模式 2) 检查底部 agent 选 `agents-orchestrator` |
+| 场景                                          | 步骤                                                                        |
+| --------------------------------------------- | --------------------------------------------------------------------------- |
+| forge 模式问"审合同"                          | 1) 切到 forge 模式 2) 输入"审合同" 3) 检查 sub-session 创建 4) 检查结果返回 |
+| forge 模式问"你好"                            | 1) 切到 forge 模式 2) 输入"你好" 3) 检查无 sub-session 创建，直接回复       |
+| forge 模式不显示"规划蓝图已完成"提示框        | 1) 切到 forge 模式 2) 输入任意消息 3) 完成对话 4) 检查 UI 无 dock 提示框    |
+| forge 模式默认 agent 是 `agents-orchestrator` | 1) 切到 forge 模式 2) 检查底部 agent 选 `agents-orchestrator`               |
 
 ## 迁移
 

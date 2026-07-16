@@ -81,7 +81,12 @@ import {
   type OfficePptTemplateChoice,
 } from "./office-export"
 import { evaluateOfficeArtifactQuality } from "./office-quality"
-import { fillOfficePptxTemplate, officePptxFillPlanFromArtifact, officePptxFillPlanSummary, officePptxTemplateFillFilename } from "./office-template-fill"
+import {
+  fillOfficePptxTemplate,
+  officePptxFillPlanFromArtifact,
+  officePptxFillPlanSummary,
+  officePptxTemplateFillFilename,
+} from "./office-template-fill"
 
 const emptyMessages: MessageType[] = []
 const emptyParts: PartType[] = []
@@ -1044,7 +1049,10 @@ export function MessageTimeline(props: {
       onSuccess: (result) => {
         void queryClient.invalidateQueries({ queryKey: ["office-artifacts", sdk.directory] })
         openSavedOfficeArtifact(result.data?.path)
-        showToast({ title: "PPTX 模板已套用", description: `${officePptxFillPlanSummary(result.slides)} · ${result.data?.path ?? ".novaway/office/ppt"}` })
+        showToast({
+          title: "PPTX 模板已套用",
+          description: `${officePptxFillPlanSummary(result.slides)} · ${result.data?.path ?? ".novaway/office/ppt"}`,
+        })
       },
       onError: () => showToast({ title: "套用模板失败", description: "请选择有效的 PPTX 模板文件后重试。" }),
     }))
@@ -1067,9 +1075,7 @@ export function MessageTimeline(props: {
     }
 
     function openCustomTemplateDialog() {
-      const [draft, setDraft] = createSignal(
-        "高端黑金商务风，深色封面，金色强调，页面简洁、有留白，适合正式汇报。",
-      )
+      const [draft, setDraft] = createSignal("高端黑金商务风，深色封面，金色强调，页面简洁、有留白，适合正式汇报。")
       const preview = createMemo(() => createCustomPptTemplate(draft(), input.artifact.title))
       const apply = () => {
         const template = preview()
@@ -1099,7 +1105,14 @@ export function MessageTimeline(props: {
                   <div class="mt-1 line-clamp-2 text-12-regular text-text-weak">{preview().description}</div>
                 </div>
                 <div class="flex shrink-0 items-center gap-1.5">
-                  <For each={[preview().visual.coverBg, preview().visual.accent, preview().visual.accent2, preview().visual.pageBg]}>
+                  <For
+                    each={[
+                      preview().visual.coverBg,
+                      preview().visual.accent,
+                      preview().visual.accent2,
+                      preview().visual.pageBg,
+                    ]}
+                  >
                     {(color) => (
                       <span
                         class="size-5 rounded-[6px] border border-border-weak-base"
@@ -1167,7 +1180,11 @@ export function MessageTimeline(props: {
               >
                 <span class="text-11-regular text-text-muted">模板</span>
                 <span class="min-w-0 flex-1 truncate text-left">{officePptTemplateName(pptTemplate())}</span>
-                <Icon name="chevron-down" size="small" class="shrink-0 text-icon-weak transition-transform group-data-[expanded]:rotate-180" />
+                <Icon
+                  name="chevron-down"
+                  size="small"
+                  class="shrink-0 text-icon-weak transition-transform group-data-[expanded]:rotate-180"
+                />
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
                 <DropdownMenu.Content class="max-h-[320px] overflow-y-auto" style={{ "min-width": "220px" }}>
@@ -1177,9 +1194,7 @@ export function MessageTimeline(props: {
                   </DropdownMenu.Item>
                   <DropdownMenu.Item onSelect={openCustomTemplateDialog}>
                     <DropdownMenu.ItemLabel>自定义模板</DropdownMenu.ItemLabel>
-                    <DropdownMenu.ItemDescription>
-                      根据风格、主题和样式描述生成模板
-                    </DropdownMenu.ItemDescription>
+                    <DropdownMenu.ItemDescription>根据风格、主题和样式描述生成模板</DropdownMenu.ItemDescription>
                   </DropdownMenu.Item>
                   <DropdownMenu.Separator />
                   <Show when={selectedCustomTemplate()}>
@@ -1206,20 +1221,12 @@ export function MessageTimeline(props: {
             </DropdownMenu>
           </Show>
           <Show when={input.artifact.slides.length > 0}>
-            <button
-              type="button"
-              class={actionButton}
-              onClick={() => previewOfficeSlides(input.artifact)}
-            >
+            <button type="button" class={actionButton} onClick={() => previewOfficeSlides(input.artifact)}>
               <Icon name="layout-bottom" size="small" class="transition-transform duration-150 group-hover:scale-110" />
               <span>预览页</span>
             </button>
           </Show>
-          <button
-            type="button"
-            class={actionButton}
-            onClick={() => copyOfficeArtifact(input.artifact)}
-          >
+          <button type="button" class={actionButton} onClick={() => copyOfficeArtifact(input.artifact)}>
             <Icon name="copy" size="small" class="transition-transform duration-150 group-hover:scale-110" />
             <span>复制产物</span>
           </button>
@@ -1232,11 +1239,7 @@ export function MessageTimeline(props: {
             <span>{input.artifact.slides.length > 0 ? "导出 PPTX" : "导出 DOCX"}</span>
           </button>
           <Show when={input.artifact.slides.length === 0}>
-            <button
-              type="button"
-              class={actionButton}
-              onClick={() => downloadOfficeHtmlArtifact(input.artifact)}
-            >
+            <button type="button" class={actionButton} onClick={() => downloadOfficeHtmlArtifact(input.artifact)}>
               <Icon name="code" size="small" class="transition-transform duration-150 group-hover:scale-110" />
               <span>导出 HTML</span>
             </button>
@@ -1249,17 +1252,20 @@ export function MessageTimeline(props: {
               onClick={selectPptxTemplateFile}
               title={fillSummary()}
             >
-              <Icon name={fillTemplate.isPending ? "status" : "layout-bottom"} size="small" class="transition-transform duration-150 group-hover:scale-110" />
+              <Icon
+                name={fillTemplate.isPending ? "status" : "layout-bottom"}
+                size="small"
+                class="transition-transform duration-150 group-hover:scale-110"
+              />
               <span>{fillTemplate.isPending ? "套版中" : "套用PPTX模板"}</span>
             </button>
           </Show>
-          <button
-            type="button"
-            class={primaryActionButton}
-            disabled={save.isPending}
-            onClick={() => save.mutate()}
-          >
-            <Icon name={save.isPending ? "status" : "check"} size="small" class="transition-transform duration-150 group-hover:scale-110" />
+          <button type="button" class={primaryActionButton} disabled={save.isPending} onClick={() => save.mutate()}>
+            <Icon
+              name={save.isPending ? "status" : "check"}
+              size="small"
+              class="transition-transform duration-150 group-hover:scale-110"
+            />
             <span>{save.isPending ? "保存中" : "保存到项目"}</span>
           </button>
         </div>
@@ -1287,7 +1293,10 @@ export function MessageTimeline(props: {
     }
 
     const file = createOfficeExportFile(artifact, { pptTemplate })
-    const body = file.bytes.buffer.slice(file.bytes.byteOffset, file.bytes.byteOffset + file.bytes.byteLength) as ArrayBuffer
+    const body = file.bytes.buffer.slice(
+      file.bytes.byteOffset,
+      file.bytes.byteOffset + file.bytes.byteLength,
+    ) as ArrayBuffer
     const url = URL.createObjectURL(new Blob([body], { type: file.mime }))
     const anchor = document.createElement("a")
     anchor.href = url
@@ -1304,7 +1313,10 @@ export function MessageTimeline(props: {
     }
 
     const file = await createOfficeHtmlExportFile(artifact)
-    const body = file.bytes.buffer.slice(file.bytes.byteOffset, file.bytes.byteOffset + file.bytes.byteLength) as ArrayBuffer
+    const body = file.bytes.buffer.slice(
+      file.bytes.byteOffset,
+      file.bytes.byteOffset + file.bytes.byteLength,
+    ) as ArrayBuffer
     const url = URL.createObjectURL(new Blob([body], { type: file.mime }))
     const anchor = document.createElement("a")
     anchor.href = url
@@ -1686,9 +1698,7 @@ export function MessageTimeline(props: {
                 </div>
               </div>
               <Show when={sessionID()} keyed>
-                {(id) => (
-                  <div class="shrink-0 flex items-center gap-3" />
-                )}
+                {(id) => <div class="shrink-0 flex items-center gap-3" />}
               </Show>
             </div>
           </div>

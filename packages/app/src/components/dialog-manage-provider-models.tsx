@@ -16,6 +16,31 @@ import { useLanguage } from "@/context/language"
 type AuthEntry = { type: string; key?: string }
 
 type RemoteModel = { id: string; name: string }
+type ModelType = "text" | "image" | "video" | "audio"
+
+const MODEL_TYPES: { value: ModelType; label: string }[] = [
+  { value: "text", label: "文本模型" },
+  { value: "image", label: "图片生成" },
+  { value: "video", label: "视频生成" },
+  { value: "audio", label: "音频生成" },
+]
+
+function inferModelType(id: string, name: string): ModelType {
+  const text = `${id} ${name}`.toLowerCase()
+  if (text.includes("image") || text.includes("img") || text.includes("dall") || text.includes("picture")) return "image"
+  if (text.includes("video") || text.includes("clip")) return "video"
+  if (text.includes("audio") || text.includes("sound") || text.includes("speech") || text.includes("voice")) return "audio"
+  return "text"
+}
+
+function modelTypeFromCapabilities(model: { capabilities?: { output?: { image?: boolean; video?: boolean; audio?: boolean; text?: boolean } } }): ModelType {
+  const output = model.capabilities?.output
+  if (output?.image) return "image"
+  if (output?.video) return "video"
+  if (output?.audio) return "audio"
+  if (output?.text) return "text"
+  return "text"
+}
 
 const ConfirmActionDialog: Component<{
   title: string
@@ -70,10 +95,7 @@ const maskKey = (key: string | undefined) => {
   return key.slice(0, 4) + "..." + key.slice(-4)
 }
 
-async function fetchOpenAICompatibleModels(input: {
-  baseURL: string
-  apiKey: string
-}) {
+async function fetchOpenAICompatibleModels(input: { baseURL: string; apiKey: string }) {
   const baseURL = input.baseURL.trim().replace(/\/+$/, "")
   if (!/^https?:\/\//.test(baseURL)) throw new Error("请先填写有效的基础 URL")
 
@@ -134,6 +156,7 @@ export const DialogManageProviderModels: Component<{
   const [remoteModels, setRemoteModels] = createStore<Record<number, RemoteModel[]>>({})
   const [selectedRemoteModel, setSelectedRemoteModel] = createStore<Record<number, RemoteModel | undefined>>({})
   const [extraModels, setExtraModels] = createStore<Record<string, RemoteModel>>({})
+  const [modelTypes, setModelTypes] = createStore<Record<string, ModelType>>({})
 
   const provider = createMemo(() => providers.all().find((p) => p.id === props.providerID))
 
@@ -218,13 +241,20 @@ export const DialogManageProviderModels: Component<{
       if (info?.endpoint && "url" in info.endpoint && info.endpoint.url) {
         setProviderInfo("endpointURL", info.endpoint.url)
       }
-    } catch {
-    }
+    } catch {}
   }
 
   onMount(() => {
     void loadAuthEntries()
     void loadProviderInfo()
+    const p = provider()
+    if (p) {
+      const initial: Record<string, ModelType> = {}
+      for (const [id, model] of Object.entries(p.models ?? {})) {
+        initial[id] = modelTypeFromCapabilities(model as { capabilities?: { output?: { image?: boolean; video?: boolean; audio?: boolean; text?: boolean } } })
+      }
+      setModelTypes(initial)
+    }
   })
 
   const fetchModelListForKey = async (keyIndex: number) => {
@@ -275,6 +305,7 @@ export const DialogManageProviderModels: Component<{
     if (extraModels[id]) return
     setExtraModels(id, model)
     setToggles(id, true)
+    setModelTypes(id, inferModelType(model.id, model.name))
     setSelectedRemoteModel(keyIndex, undefined)
     const updated = (remoteModels[keyIndex] ?? []).filter((m) => m.id !== id)
     setRemoteModels(keyIndex, updated)
@@ -289,12 +320,25 @@ export const DialogManageProviderModels: Component<{
     const patch: Record<string, unknown> = { ...existing }
     patch.whitelist = Object.values(toggles).every(Boolean) ? null : enabled
 
-    const extra = Object.values(extraModels)
-    if (extra.length > 0) {
-      const existingModels: Record<string, unknown> = (existing as any)?.models ?? {}
+    const existingModels: Record<string, unknown> = (existing as any)?.models ?? {}
+    const all = allModels()
+    if (all.length > 0) {
       patch.models = {
         ...existingModels,
-        ...Object.fromEntries(extra.map((m) => [m.id, { id: m.id, name: m.name }])),
+        ...Object.fromEntries(
+          all.map((m) => {
+            const existingModel = existingModels[m.id] as Record<string, unknown> | undefined
+            return [
+              m.id,
+              {
+                ...existingModel,
+                id: m.id,
+                name: m.name,
+                modalities: { input: [], output: [modelTypes[m.id] ?? "text"] },
+              },
+            ]
+          }),
+        ),
       }
     }
 
@@ -314,10 +358,7 @@ export const DialogManageProviderModels: Component<{
   }
 
   return (
-    <Dialog
-      title={language.t("dialog.model.manage")}
-      description={language.t("dialog.model.manage.description")}
-    >
+    <Dialog title={language.t("dialog.model.manage")} description={language.t("dialog.model.manage.description")}>
       <div class="flex flex-col gap-3">
         <div class="flex flex-col max-h-80 overflow-y-auto">
           <For each={getProviderKeys()}>
@@ -345,9 +386,7 @@ export const DialogManageProviderModels: Component<{
                           <span class="truncate">
                             {language.t("model.key.label")} {keyIndex() + 1}
                           </span>
-                          <span class="text-12-regular text-text-weak font-mono truncate">
-                            {maskKey(entry.key)}
-                          </span>
+                          <span class="text-12-regular text-text-weak font-mono truncate">{maskKey(entry.key)}</span>
                         </span>
                       </button>
                     </Show>
@@ -374,10 +413,7 @@ export const DialogManageProviderModels: Component<{
                           onClick={() => fetchModelListForKey(keyIndex())}
                           disabled={isFetching()}
                         >
-                          <Show
-                            when={!isFetching()}
-                            fallback={language.t("provider.custom.models.fetch.loading")}
-                          >
+                          <Show when={!isFetching()} fallback={language.t("provider.custom.models.fetch.loading")}>
                             {language.t("provider.custom.models.fetch.action")}
                           </Show>
                         </Button>
@@ -407,11 +443,7 @@ export const DialogManageProviderModels: Component<{
                             </div>
                           )}
                         </Select>
-                        <Button
-                          size="small"
-                          variant="ghost"
-                          onClick={() => setRemoteModels(keyIndex(), [])}
-                        >
+                        <Button size="small" variant="ghost" onClick={() => setRemoteModels(keyIndex(), [])}>
                           {language.t("common.clear")}
                         </Button>
                       </Show>
@@ -427,8 +459,8 @@ export const DialogManageProviderModels: Component<{
                     <div class="flex flex-col">
                       <For each={allModels()}>
                         {(model) => (
-                          <div class="flex items-center justify-between py-1.5 px-1 hover:bg-surface-hover-base rounded-md">
-                            <div class="min-w-0">
+                          <div class="flex items-center justify-between py-1.5 px-1 hover:bg-surface-hover-base rounded-md gap-2">
+                            <div class="min-w-0 flex-1">
                               <div class="text-14-medium truncate flex items-center gap-1.5">
                                 {model.name}
                                 <Show when={extraModels[model.id]}>
@@ -438,6 +470,17 @@ export const DialogManageProviderModels: Component<{
                                 </Show>
                               </div>
                               <div class="text-12-regular text-text-weak truncate">{model.id}</div>
+                            </div>
+                            <div class="w-24 shrink-0">
+                              <Select
+                                size="small"
+                                options={MODEL_TYPES}
+                                current={MODEL_TYPES.find((t) => t.value === modelTypes[model.id])}
+                                value={(t) => t.value}
+                                label={(t) => t.label}
+                                onSelect={(t) => t && setModelTypes(model.id, t.value)}
+                                placeholder="类型"
+                              />
                             </div>
                             <Switch
                               checked={toggles[model.id]}
@@ -461,9 +504,7 @@ export const DialogManageProviderModels: Component<{
           <Button variant="secondary" onClick={() => dialog.close()}>
             {language.t("common.cancel")}
           </Button>
-          <Button onClick={save}>
-            {language.t("common.save")}
-          </Button>
+          <Button onClick={save}>{language.t("common.save")}</Button>
         </div>
       </div>
     </Dialog>

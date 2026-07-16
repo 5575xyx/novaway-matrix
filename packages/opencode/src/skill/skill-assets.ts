@@ -5,15 +5,15 @@ import { Global } from "@opencode-ai/core/global"
 import * as Log from "@opencode-ai/core/util/log"
 
 const log = Log.create({ service: "skill-assets" })
-const SKILLS_CACHE_REL = ".opencode/skills"
 
 const extracted = new Set<string>()
 
+const skillCacheDir = (global: Global.Interface) => path.join(global.data, "skills")
+
 function loadBundle(): Effect.Effect<Record<string, string> | null> {
-  return Effect.promise(
-    () =>
-      // @ts-expect-error — generated at build time
-      import("opencode-skills.gen.ts").then((m) => m.default as Record<string, string>),
+  return Effect.promise(() =>
+    // @ts-expect-error — generated at build time
+    import("opencode-skills.gen.ts").then((m) => m.default as Record<string, string>),
   ).pipe(Effect.orElseSucceed(() => null))
 }
 
@@ -23,12 +23,12 @@ export function ensureSkillExtracted(
   global: Global.Interface,
 ): Effect.Effect<string | null> {
   return Effect.gen(function* () {
-    if (extracted.has(skillName)) {
-      return path.join(global.home, SKILLS_CACHE_REL, skillName)
-    }
+    const cacheDir = skillCacheDir(global)
+    const targetDir = path.join(cacheDir, skillName)
 
-    const targetBase = path.join(global.home, SKILLS_CACHE_REL)
-    const targetDir = path.join(targetBase, skillName)
+    if (extracted.has(skillName)) {
+      return targetDir
+    }
 
     const alreadyExists = yield* fsys.isDir(targetDir)
     if (alreadyExists) {
@@ -43,10 +43,10 @@ export function ensureSkillExtracted(
     const entries = Object.entries(bundle).filter(([k]) => k.startsWith(prefix))
     if (entries.length === 0) return null
 
-    yield* fsys.ensureDir(targetBase)
+    yield* fsys.ensureDir(cacheDir)
 
     for (const [key, sourcePath] of entries) {
-      const target = path.join(targetBase, key)
+      const target = path.join(cacheDir, key)
       yield* fsys.ensureDir(path.dirname(target))
       const content = yield* Effect.promise(() => Bun.file(sourcePath).arrayBuffer())
       yield* fsys.writeWithDirs(target, new Uint8Array(content))

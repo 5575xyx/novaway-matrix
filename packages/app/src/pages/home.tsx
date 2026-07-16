@@ -126,35 +126,32 @@ export default function Home() {
       <Show
         when={currentMode()?.id === "zen"}
         fallback={
-          <Show when={currentMode()?.id === "pulse"} fallback={
-            <DefaultHome
-              currentMode={currentMode()}
-              recent={recent()}
-              homedir={homedir()}
-              loading={!sync.ready}
-              onChooseProject={chooseProject}
-              onCreateProject={createProject}
-              onOpenProject={openProject}
-              language={language}
-            />
-          }>
+          <Show
+            when={currentMode()?.id === "pulse"}
+            fallback={
+              <DefaultHome
+                currentMode={currentMode()}
+                recent={recent()}
+                homedir={homedir()}
+                loading={!sync.ready}
+                onChooseProject={chooseProject}
+                onCreateProject={createProject}
+                onOpenProject={openProject}
+                language={language}
+              />
+            }
+          >
             <Navigate href="/pulse" />
           </Show>
         }
       >
-        <ZenHome
-          onChooseProject={chooseProject}
-          onStartAction={startOfficeAction}
-        />
+        <ZenHome onChooseProject={chooseProject} onStartAction={startOfficeAction} />
       </Show>
     </Show>
   )
 }
 
-function ZenHome(props: {
-  onChooseProject: () => void
-  onStartAction: (action: HomeAction) => void
-}) {
+function ZenHome(props: { onChooseProject: () => void; onStartAction: (action: HomeAction) => void }) {
   return (
     <div class="relative h-full w-full overflow-hidden bg-background-base">
       <div class="home-deco home-deco-1" />
@@ -176,7 +173,8 @@ function ZenHome(props: {
                   </div>
                 </div>
                 <p class="max-w-2xl text-15-regular leading-relaxed text-text-weak">
-                  围绕文档、PPT、会议、资料、任务和沟通建立长期办公上下文，让 AI 从一次性问答变成可沉淀、可进化的办公搭档。
+                  围绕文档、PPT、会议、资料、任务和沟通建立长期办公上下文，让 AI
+                  从一次性问答变成可沉淀、可进化的办公搭档。
                 </p>
               </div>
 
@@ -438,7 +436,9 @@ function DialogZenOfficeAction(props: { action: HomeAction; onStart: () => void 
                 <span>{copied() ? "已复制" : "复制提示词"}</span>
               </button>
             </div>
-            <pre class="max-h-64 overflow-auto whitespace-pre-wrap rounded-[8px] bg-surface-raised-base/70 p-4 text-12-regular leading-relaxed text-text-weak">{preview()}</pre>
+            <pre class="max-h-64 overflow-auto whitespace-pre-wrap rounded-[8px] bg-surface-raised-base/70 p-4 text-12-regular leading-relaxed text-text-weak">
+              {preview()}
+            </pre>
           </div>
         </details>
 
@@ -480,7 +480,8 @@ function DefaultHome(props: {
           </div>
           <h1 class="text-24-medium font-semibold text-[#2563eb]">{props.language.t("home.welcome.title")}</h1>
           <p class="max-w-md text-16-regular leading-relaxed text-text-weak">
-            {props.currentMode?.name ?? "NovaWay AI Workspace"}：{props.currentMode?.description ?? "使用 AI 辅助工作，让创意快速变成现实。"}
+            {props.currentMode?.name ?? "NovaWay AI Workspace"}：
+            {props.currentMode?.description ?? "使用 AI 辅助工作，让创意快速变成现实。"}
           </p>
 
           <div class="mt-2 flex items-center gap-3">
@@ -488,10 +489,7 @@ function DefaultHome(props: {
               <Icon name="folder-add-left" size="small" />
               <span>{props.language.t("command.project.open")}</span>
             </button>
-            <button
-              class="btn-secondary-cta flex items-center gap-2"
-              onClick={() => props.onCreateProject()}
-            >
+            <button class="btn-secondary-cta flex items-center gap-2" onClick={() => props.onCreateProject()}>
               <Icon name="plus" size="small" />
               <span>{props.language.t("command.project.create")}</span>
             </button>
@@ -577,10 +575,7 @@ function RecentProjects(props: {
               <Icon name="folder-add-left" size="small" />
               <span>打开项目</span>
             </button>
-            <button
-              class="btn-secondary-cta flex items-center gap-2"
-              onClick={() => props.onCreateProject()}
-            >
+            <button class="btn-secondary-cta flex items-center gap-2" onClick={() => props.onCreateProject()}>
               <Icon name="plus" size="small" />
               <span>新建项目</span>
             </button>

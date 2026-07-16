@@ -32,6 +32,7 @@ Markdown 文本 → marked 库 → HTML → DOMPurify 清理 → morphdom 更新
 修改 `packages/ui/src/components/markdown.css`：
 
 **表格样式改进：**
+
 - 添加表格容器，支持横向滚动
 - 表头背景色区分
 - 行 hover 效果
@@ -39,17 +40,20 @@ Markdown 文本 → marked 库 → HTML → DOMPurify 清理 → morphdom 更新
 - 最后一行的分隔线去除
 
 **标题样式改进：**
+
 - 按层级区分字号（h1=24px, h2=20px, h3=18px）
 - h1 添加底部边框线
 - 统一上下间距
 
 **代码块样式改进：**
+
 - 增加内边距和圆角
 - 添加背景色区分
 
 #### 2. 响应式支持
 
 添加媒体查询，确保在 768px 以下设备上：
+
 - 表格字号缩小
 - 标题字号缩小
 - 表格内边距缩小

@@ -50,13 +50,63 @@ export interface PlatformInfo {
 }
 
 export const PLATFORM_LIST: PlatformInfo[] = [
-  { id: "xhs", name: "小红书", icon: xhsIcon, color: "#FF2442", loginUrl: "https://www.xiaohongshu.com/", viewUrl: "https://creator.xiaohongshu.com/login?source=official" },
-  { id: "douyin", name: "抖音", icon: douyinIcon, color: "#000000", loginUrl: "https://creator.douyin.com/", viewUrl: "https://creator.douyin.com/creator-micro/content/upload?enter_from=dou_web" },
-  { id: "bilibili", name: "B站", icon: bilibiliIcon, color: "#00A1D6", loginUrl: "https://member.bilibili.com/", viewUrl: "https://member.bilibili.com/" },
-  { id: "kwai", name: "快手", icon: ksIcon, color: "#FF4906", loginUrl: "https://cp.kuaishou.com/profile", viewUrl: "https://cp.kuaishou.com/profile" },
-  { id: "wxSph", name: "视频号", icon: wxSphIcon, color: "#07C160", loginUrl: "https://channels.weixin.qq.com/", viewUrl: "https://channels.weixin.qq.com/cgi-bin/mmfinderassistant-bin/helper/hepler_merlin_mmdata?_rid=67b30b55-6e3ea588" },
-  { id: "wxGzh", name: "公众号", icon: wxGzhIcon, color: "#07C160", loginUrl: "https://mp.weixin.qq.com/", viewUrl: "https://mp.weixin.qq.com/" },
-  { id: "xianyu", name: "闲鱼", icon: xianyuIcon, color: "#FF6A00", loginUrl: "https://www.goofish.com/", viewUrl: "https://www.goofish.com/im" },
+  {
+    id: "xhs",
+    name: "小红书",
+    icon: xhsIcon,
+    color: "#FF2442",
+    loginUrl: "https://www.xiaohongshu.com/",
+    viewUrl: "https://creator.xiaohongshu.com/login?source=official",
+  },
+  {
+    id: "douyin",
+    name: "抖音",
+    icon: douyinIcon,
+    color: "#000000",
+    loginUrl: "https://creator.douyin.com/",
+    viewUrl: "https://creator.douyin.com/creator-micro/content/upload?enter_from=dou_web",
+  },
+  {
+    id: "bilibili",
+    name: "B站",
+    icon: bilibiliIcon,
+    color: "#00A1D6",
+    loginUrl: "https://member.bilibili.com/",
+    viewUrl: "https://member.bilibili.com/",
+  },
+  {
+    id: "kwai",
+    name: "快手",
+    icon: ksIcon,
+    color: "#FF4906",
+    loginUrl: "https://cp.kuaishou.com/profile",
+    viewUrl: "https://cp.kuaishou.com/profile",
+  },
+  {
+    id: "wxSph",
+    name: "视频号",
+    icon: wxSphIcon,
+    color: "#07C160",
+    loginUrl: "https://channels.weixin.qq.com/",
+    viewUrl:
+      "https://channels.weixin.qq.com/cgi-bin/mmfinderassistant-bin/helper/hepler_merlin_mmdata?_rid=67b30b55-6e3ea588",
+  },
+  {
+    id: "wxGzh",
+    name: "公众号",
+    icon: wxGzhIcon,
+    color: "#07C160",
+    loginUrl: "https://mp.weixin.qq.com/",
+    viewUrl: "https://mp.weixin.qq.com/",
+  },
+  {
+    id: "xianyu",
+    name: "闲鱼",
+    icon: xianyuIcon,
+    color: "#FF6A00",
+    loginUrl: "https://www.goofish.com/",
+    viewUrl: "https://www.goofish.com/im",
+  },
 ]
 
 const DEFAULT_GROUP_ID = 1
@@ -122,7 +172,9 @@ export function PlatformAccountsProvider(props: { children: any }) {
     }
   }
 
-  const addAccount = async (platform: string): Promise<{ success: boolean; account?: PlatformAccount; error?: string }> => {
+  const addAccount = async (
+    platform: string,
+  ): Promise<{ success: boolean; account?: PlatformAccount; error?: string }> => {
     if (!(window as any).api?.platform?.addAccount) return { success: false, error: "API not available" }
     const result = await (window as any).api.platform.addAccount(platform)
     if (result?.success) {
@@ -207,10 +259,22 @@ export function PlatformAccountsProvider(props: { children: any }) {
         try {
           const result = await (window as any).api.platform.checkLogin(account.id)
           setStore("accounts", (a) => a.id === account.id, "status", result.valid ? "valid" : "expired")
-          output.push({ id: account.id, platform: account.platform, nickname: account.nickname, avatar: account.avatar, valid: result.valid })
+          output.push({
+            id: account.id,
+            platform: account.platform,
+            nickname: account.nickname,
+            avatar: account.avatar,
+            valid: result.valid,
+          })
         } catch {
           setStore("accounts", (a) => a.id === account.id, "status", "login_failed")
-          output.push({ id: account.id, platform: account.platform, nickname: account.nickname, avatar: account.avatar, valid: false })
+          output.push({
+            id: account.id,
+            platform: account.platform,
+            nickname: account.nickname,
+            avatar: account.avatar,
+            valid: false,
+          })
         }
       }
       setStore("loading", false)
@@ -226,14 +290,26 @@ export function PlatformAccountsProvider(props: { children: any }) {
       setStore("loading", false)
       return results.map((r) => {
         const acc = currentAccounts.find((a) => a.id === r.id)
-        return { id: r.id, platform: acc?.platform || "", nickname: acc?.nickname || "", avatar: acc?.avatar || "", valid: r.valid }
+        return {
+          id: r.id,
+          platform: acc?.platform || "",
+          nickname: acc?.nickname || "",
+          avatar: acc?.avatar || "",
+          valid: r.valid,
+        }
       })
     } catch {
       for (const acc of currentAccounts) {
         setStore("accounts", (a) => a.id === acc.id, "status", "login_failed")
       }
       setStore("loading", false)
-      return currentAccounts.map((a) => ({ id: a.id, platform: a.platform, nickname: a.nickname, avatar: a.avatar, valid: false }))
+      return currentAccounts.map((a) => ({
+        id: a.id,
+        platform: a.platform,
+        nickname: a.nickname,
+        avatar: a.avatar,
+        valid: false,
+      }))
     }
   }
 

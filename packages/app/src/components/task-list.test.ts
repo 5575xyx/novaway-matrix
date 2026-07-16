@@ -8,27 +8,31 @@ describe("TaskList", () => {
   ]
 
   test("completed count is correct", () => {
-    const completed = testTasks.filter(t => t.status === "completed").length
+    const completed = testTasks.filter((t) => t.status === "completed").length
     expect(completed).toBe(1)
   })
 
   test("in_progress count is correct", () => {
-    const inProgress = testTasks.filter(t => t.status === "in_progress").length
+    const inProgress = testTasks.filter((t) => t.status === "in_progress").length
     expect(inProgress).toBe(1)
   })
 
   test("pending tasks are counted correctly", () => {
-    const pending = testTasks.filter(t => t.status === "pending").length
+    const pending = testTasks.filter((t) => t.status === "pending").length
     expect(pending).toBe(1)
   })
 
   test("status icon mapping works for completed", () => {
     const statusIcon = (status: string) => {
       switch (status) {
-        case "completed": return "circle-check"
-        case "in_progress": return "checklist"
-        case "cancelled": return "circle-x"
-        default: return "circle-x"
+        case "completed":
+          return "circle-check"
+        case "in_progress":
+          return "checklist"
+        case "cancelled":
+          return "circle-x"
+        default:
+          return "circle-x"
       }
     }
     expect(statusIcon("completed")).toBe("circle-check")

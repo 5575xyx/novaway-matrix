@@ -5,11 +5,7 @@ import { Icon } from "@opencode-ai/ui/icon"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { usePlatformAccounts, PLATFORM_LIST, type PlatformAccount } from "@/context/platform-accounts"
 
-function AccountCheckbox(props: {
-  account: PlatformAccount
-  checked: boolean
-  onToggle: () => void
-}) {
+function AccountCheckbox(props: { account: PlatformAccount; checked: boolean; onToggle: () => void }) {
   const info = () => PLATFORM_LIST.find((p) => p.id === props.account.platform)
 
   return (
@@ -55,8 +51,7 @@ export function PublishModal() {
     })
   }
 
-  const selectedAccounts = () =>
-    platform.store.accounts.filter((a) => selectedIds().has(a.id))
+  const selectedAccounts = () => platform.store.accounts.filter((a) => selectedIds().has(a.id))
 
   const handlePublish = async () => {
     if (selectedAccounts().length === 0 || !content().trim()) return
@@ -118,15 +113,11 @@ export function PublishModal() {
                   )}
                 </For>
                 <Show when={platform.store.accounts.length === 0}>
-                  <div class="py-6 text-center text-12-regular text-text-weaker">
-                    暂无账号，请先添加
-                  </div>
+                  <div class="py-6 text-center text-12-regular text-text-weaker">暂无账号，请先添加</div>
                 </Show>
               </div>
               <Show when={selectedAccounts().length > 0}>
-                <div class="mt-1.5 text-11-regular text-text-weak">
-                  已选择 {selectedAccounts().length} 个账号
-                </div>
+                <div class="mt-1.5 text-11-regular text-text-weak">已选择 {selectedAccounts().length} 个账号</div>
               </Show>
             </div>
 
@@ -161,7 +152,7 @@ export function PublishModal() {
               <button
                 class="flex-1 rounded-[8px] px-4 py-2.5 text-13-medium text-white transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0"
                 style={{
-                  "background": "linear-gradient(135deg, var(--novaway-mode-color, #FF6B6B), #e05555)",
+                  background: "linear-gradient(135deg, var(--novaway-mode-color, #FF6B6B), #e05555)",
                   "box-shadow": "0 4px 12px color-mix(in srgb, var(--novaway-mode-color, #FF6B6B) 30%, transparent)",
                 }}
                 disabled={selectedAccounts().length === 0 || !content().trim() || publishing()}

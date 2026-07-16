@@ -9,6 +9,7 @@
 **技术栈：** Electron 42, SolidJS 1.x, TailwindCSS 4, electron-store, effect, TypeScript
 
 **前置阅读：**
+
 - `packages/desktop/AGENTS.md` — Electron IPC 模式
 - `packages/app/AGENTS.md` — SolidJS 组件规范
 - `packages/desktop/src/main/ipc.ts` — 现有 IPC 注册方式
@@ -20,36 +21,36 @@
 
 ### 新增文件
 
-| 文件路径 | 职责 |
-|----------|------|
-| `packages/desktop/src/main/platform/PlatformBase.ts` | 抽象基类，定义所有平台必须实现的接口 |
-| `packages/desktop/src/main/platform/store.ts` | 基于 electron-store 的账号 CRUD |
-| `packages/desktop/src/main/platform/login.ts` | BrowserWindow 登录管理器 |
-| `packages/desktop/src/main/platform/index.ts` | 模块入口 + 平台工厂 |
-| `packages/desktop/src/main/platform/platforms/xhs.ts` | 小红书 API 实现 |
-| `packages/desktop/src/main/platform/platforms/douyin.ts` | 抖音 API 实现 |
-| `packages/desktop/src/main/platform/platforms/bilibili.ts` | B 站 API 实现 |
-| `packages/desktop/src/main/platform/platforms/kwai.ts` | 快手 API 实现 |
-| `packages/desktop/src/main/platform/platforms/wxSph.ts` | 微信视频号 API 实现 |
-| `packages/desktop/src/main/platform/platforms/wxGzh.ts` | 微信公众号 API 实现 |
-| `packages/desktop/src/main/platform/platforms/xianyu.ts` | 闲鱼 API 实现 |
-| `packages/app/src/pages/pulse/PulseLayout.tsx` | 三栏布局容器 |
-| `packages/app/src/pages/pulse/PulseSidebar.tsx` | 左侧平台账号列表 |
-| `packages/app/src/pages/pulse/PulseMain.tsx` | 中间账号详情/发布 | 
-| `packages/app/src/pages/pulse/PulseAssistant.tsx` | 右侧 AI 运营助手 |
-| `packages/app/src/pages/pulse/types.ts` | 平台管理类型定义 |
-| `packages/app/src/pages/pulse/index.ts` | 统一导出 |
-| `packages/app/src/context/platform.tsx` | 平台管理 SolidJS Context |
+| 文件路径                                                   | 职责                                 |
+| ---------------------------------------------------------- | ------------------------------------ |
+| `packages/desktop/src/main/platform/PlatformBase.ts`       | 抽象基类，定义所有平台必须实现的接口 |
+| `packages/desktop/src/main/platform/store.ts`              | 基于 electron-store 的账号 CRUD      |
+| `packages/desktop/src/main/platform/login.ts`              | BrowserWindow 登录管理器             |
+| `packages/desktop/src/main/platform/index.ts`              | 模块入口 + 平台工厂                  |
+| `packages/desktop/src/main/platform/platforms/xhs.ts`      | 小红书 API 实现                      |
+| `packages/desktop/src/main/platform/platforms/douyin.ts`   | 抖音 API 实现                        |
+| `packages/desktop/src/main/platform/platforms/bilibili.ts` | B 站 API 实现                        |
+| `packages/desktop/src/main/platform/platforms/kwai.ts`     | 快手 API 实现                        |
+| `packages/desktop/src/main/platform/platforms/wxSph.ts`    | 微信视频号 API 实现                  |
+| `packages/desktop/src/main/platform/platforms/wxGzh.ts`    | 微信公众号 API 实现                  |
+| `packages/desktop/src/main/platform/platforms/xianyu.ts`   | 闲鱼 API 实现                        |
+| `packages/app/src/pages/pulse/PulseLayout.tsx`             | 三栏布局容器                         |
+| `packages/app/src/pages/pulse/PulseSidebar.tsx`            | 左侧平台账号列表                     |
+| `packages/app/src/pages/pulse/PulseMain.tsx`               | 中间账号详情/发布                    |
+| `packages/app/src/pages/pulse/PulseAssistant.tsx`          | 右侧 AI 运营助手                     |
+| `packages/app/src/pages/pulse/types.ts`                    | 平台管理类型定义                     |
+| `packages/app/src/pages/pulse/index.ts`                    | 统一导出                             |
+| `packages/app/src/context/platform.tsx`                    | 平台管理 SolidJS Context             |
 
 ### 修改文件
 
-| 文件路径 | 修改内容 |
-|----------|----------|
-| `packages/desktop/src/main/ipc.ts` | 新增 `platform:*` IPC handler 组 |
-| `packages/desktop/src/preload/types.ts` | 新增 `PlatformAPI` 接口 |
-| `packages/desktop/src/preload/index.ts` | 新增 platform API 暴露 |
-| `packages/app/src/app.tsx` | 新增 pulse 路由 |
-| `packages/app/src/pages/home.tsx` | 新增 pulse 模式重定向 |
+| 文件路径                                | 修改内容                         |
+| --------------------------------------- | -------------------------------- |
+| `packages/desktop/src/main/ipc.ts`      | 新增 `platform:*` IPC handler 组 |
+| `packages/desktop/src/preload/types.ts` | 新增 `PlatformAPI` 接口          |
+| `packages/desktop/src/preload/index.ts` | 新增 platform API 暴露           |
+| `packages/app/src/app.tsx`              | 新增 pulse 路由                  |
+| `packages/app/src/pages/home.tsx`       | 新增 pulse 模式重定向            |
 
 ---
 
@@ -58,6 +59,7 @@
 ### Task 1: PlatformBase 抽象基类
 
 **Files:**
+
 - Create: `packages/desktop/src/main/platform/PlatformBase.ts`
 
 - [ ] **Step 1: 创建 PlatformBase.ts**
@@ -135,6 +137,7 @@ git commit -m "feat(pulse): add PlatformBase abstract class for multi-platform m
 ### Task 2: 账号存储
 
 **Files:**
+
 - Create: `packages/desktop/src/main/platform/store.ts`
 
 - [ ] **Step 1: 创建 store.ts**
@@ -204,6 +207,7 @@ git commit -m "feat(pulse): add account and publish record storage"
 ### Task 3: 登录管理器
 
 **Files:**
+
 - Create: `packages/desktop/src/main/platform/login.ts`
 
 - [ ] **Step 1: 创建 login.ts**
@@ -257,11 +261,12 @@ export class PlatformLoginManager extends EventEmitter {
       checkCount++
       const cookies = await sess.cookies.get({})
 
-      const platformCookies = cookies.filter((c) =>
-        c.domain?.includes(this.getCookieDomain(platform)),
-      )
+      const platformCookies = cookies.filter((c) => c.domain?.includes(this.getCookieDomain(platform)))
 
-      if (platformCookies.length > 3 && cookies.some((c) => c.name.includes("session") || c.name.includes("token") || c.name.includes("passport"))) {
+      if (
+        platformCookies.length > 3 &&
+        cookies.some((c) => c.name.includes("session") || c.name.includes("token") || c.name.includes("passport"))
+      ) {
         clearInterval(interval)
         resolve({ success: true, cookies: platformCookies })
         win.close()
@@ -311,6 +316,7 @@ git commit -m "feat(pulse): add BrowserWindow login manager for platform auth"
 ### Task 4: 平台工厂与模块入口
 
 **Files:**
+
 - Create: `packages/desktop/src/main/platform/index.ts`
 
 - [ ] **Step 1: 创建 index.ts**
@@ -375,6 +381,7 @@ git commit -m "feat(pulse): add platform factory and module entry"
 ### Task 5: 小红书平台实现
 
 **Files:**
+
 - Create: `packages/desktop/src/main/platform/platforms/xhs.ts`
 
 - [ ] **Step 1: 查看 XYMT-AUTO 的小红书协议实现**
@@ -386,7 +393,13 @@ Read: `XYMT-AUTO/electron/plat/xiaohongshu/` 目录了解 HTTP 协议实现
 
 ```typescript
 // packages/desktop/src/main/platform/platforms/xhs.ts
-import { PlatformBase, type PublishInput, type PublishResult, type PlatformAccountInfo, type AccountStats } from "../PlatformBase"
+import {
+  PlatformBase,
+  type PublishInput,
+  type PublishResult,
+  type PlatformAccountInfo,
+  type AccountStats,
+} from "../PlatformBase"
 import type { Cookie } from "electron"
 
 export class XhsPlatform extends PlatformBase {
@@ -395,9 +408,8 @@ export class XhsPlatform extends PlatformBase {
   readonly loginUrl = "https://creator.xiaohongshu.com/login"
 
   async detectLogin(cookies: Cookie[]): Promise<boolean> {
-    return cookies.some((c) =>
-      (c.name.includes("session") || c.name.includes("token")) &&
-      c.domain?.includes("xiaohongshu.com")
+    return cookies.some(
+      (c) => (c.name.includes("session") || c.name.includes("token")) && c.domain?.includes("xiaohongshu.com"),
     )
   }
 
@@ -419,9 +431,10 @@ export class XhsPlatform extends PlatformBase {
     try {
       // 移植自 XYMT-AUTO 的小红书发布逻辑
       // 根据 input.type 选择图文/视频发布接口
-      const endpoint = input.type === "video"
-        ? "https://creator.xiaohongshu.com/api/v1/publish/video"
-        : "https://creator.xiaohongshu.com/api/v1/publish/image-text"
+      const endpoint =
+        input.type === "video"
+          ? "https://creator.xiaohongshu.com/api/v1/publish/video"
+          : "https://creator.xiaohongshu.com/api/v1/publish/image-text"
 
       const res = await fetch(endpoint, {
         method: "POST",
@@ -471,6 +484,7 @@ git commit -m "feat(pulse): add Xiaohongshu platform implementation"
 ### Task 6: 抖音平台实现
 
 **Files:**
+
 - Create: `packages/desktop/src/main/platform/platforms/douyin.ts`
 
 - [ ] **Step 1: 查看 XYMT-AUTO 的抖音协议实现**
@@ -481,7 +495,13 @@ Read: `XYMT-AUTO/electron/main/plat/platforms/douyin/index.ts`
 
 ```typescript
 // packages/desktop/src/main/platform/platforms/douyin.ts
-import { PlatformBase, type PublishInput, type PublishResult, type PlatformAccountInfo, type AccountStats } from "../PlatformBase"
+import {
+  PlatformBase,
+  type PublishInput,
+  type PublishResult,
+  type PlatformAccountInfo,
+  type AccountStats,
+} from "../PlatformBase"
 import type { Cookie } from "electron"
 
 export class DouyinPlatform extends PlatformBase {
@@ -490,9 +510,7 @@ export class DouyinPlatform extends PlatformBase {
   readonly loginUrl = "https://creator.douyin.com/login"
 
   async detectLogin(cookies: Cookie[]): Promise<boolean> {
-    return cookies.some((c) =>
-      c.name.includes("sessionid") && c.domain?.includes("douyin.com")
-    )
+    return cookies.some((c) => c.name.includes("sessionid") && c.domain?.includes("douyin.com"))
   }
 
   async getAccountInfo(cookies: Cookie[]): Promise<PlatformAccountInfo> {
@@ -558,11 +576,18 @@ git commit -m "feat(pulse): add Douyin platform implementation"
 ### Task 7: B站平台实现
 
 **Files:**
+
 - Create: `packages/desktop/src/main/platform/platforms/bilibili.ts`
 
 ```typescript
 // packages/desktop/src/main/platform/platforms/bilibili.ts
-import { PlatformBase, type PublishInput, type PublishResult, type PlatformAccountInfo, type AccountStats } from "../PlatformBase"
+import {
+  PlatformBase,
+  type PublishInput,
+  type PublishResult,
+  type PlatformAccountInfo,
+  type AccountStats,
+} from "../PlatformBase"
 import type { Cookie } from "electron"
 
 export class BilibiliPlatform extends PlatformBase {
@@ -571,9 +596,8 @@ export class BilibiliPlatform extends PlatformBase {
   readonly loginUrl = "https://member.bilibili.com/platform/upload"
 
   async detectLogin(cookies: Cookie[]): Promise<boolean> {
-    return cookies.some((c) =>
-      (c.name.includes("bili_jct") || c.name.includes("SESSDATA")) &&
-      c.domain?.includes("bilibili.com")
+    return cookies.some(
+      (c) => (c.name.includes("bili_jct") || c.name.includes("SESSDATA")) && c.domain?.includes("bilibili.com"),
     )
   }
 
@@ -614,7 +638,9 @@ export class BilibiliPlatform extends PlatformBase {
     }
   }
 
-  async getPublishHistory(accountId: string): Promise<any[]> { return [] }
+  async getPublishHistory(accountId: string): Promise<any[]> {
+    return []
+  }
   async getAccountStats(accountId: string): Promise<AccountStats> {
     return { followers: 0, following: 0, totalPosts: 0, totalLikes: 0, updatedAt: Date.now() }
   }
@@ -631,6 +657,7 @@ git commit -m "feat(pulse): add Bilibili platform implementation"
 ### Task 8: 其他平台实现（快手/视频号/公众号/闲鱼）
 
 **Files:**
+
 - Create: `packages/desktop/src/main/platform/platforms/kwai.ts`
 - Create: `packages/desktop/src/main/platform/platforms/wxSph.ts`
 - Create: `packages/desktop/src/main/platform/platforms/wxGzh.ts`
@@ -640,7 +667,13 @@ git commit -m "feat(pulse): add Bilibili platform implementation"
 
 ```typescript
 // 模板：
-import { PlatformBase, type PublishInput, type PublishResult, type PlatformAccountInfo, type AccountStats } from "../PlatformBase"
+import {
+  PlatformBase,
+  type PublishInput,
+  type PublishResult,
+  type PlatformAccountInfo,
+  type AccountStats,
+} from "../PlatformBase"
 import type { Cookie } from "electron"
 
 export class XxxPlatform extends PlatformBase {
@@ -660,7 +693,9 @@ export class XxxPlatform extends PlatformBase {
     // 移植自 XYMT-AUTO 的平台发布逻辑
   }
 
-  async getPublishHistory(accountId: string): Promise<any[]> { return [] }
+  async getPublishHistory(accountId: string): Promise<any[]> {
+    return []
+  }
   async getAccountStats(accountId: string): Promise<AccountStats> {
     return { followers: 0, following: 0, totalPosts: 0, totalLikes: 0, updatedAt: Date.now() }
   }
@@ -705,6 +740,7 @@ git commit -m "feat(pulse): add Kwai, WxSph, WxGzh, Xianyu platform implementati
 ### Task 9: 注册 IPC Handlers
 
 **Files:**
+
 - Modify: `packages/desktop/src/main/ipc.ts`
 
 - [ ] **Step 1: 阅读现有 ipc.ts**
@@ -808,6 +844,7 @@ git commit -m "feat(pulse): add platform IPC handlers for account and publish ma
 ### Task 10: 更新 Preload 桥接
 
 **Files:**
+
 - Modify: `packages/desktop/src/preload/types.ts`
 - Modify: `packages/desktop/src/preload/index.ts`
 
@@ -894,6 +931,7 @@ git commit -m "feat(pulse): add platform API to preload bridge"
 ### Task 11: 创建平台管理 Context
 
 **Files:**
+
 - Create: `packages/app/src/context/platform.tsx`
 
 - [ ] **Step 1: 创建 platform.tsx**
@@ -1007,6 +1045,7 @@ git commit -m "feat(pulse): add platform management context"
 ### Task 12: PulseLayout 三栏容器
 
 **Files:**
+
 - Create: `packages/app/src/pages/pulse/PulseLayout.tsx`
 - Create: `packages/app/src/pages/pulse/types.ts`
 - Create: `packages/app/src/pages/pulse/index.ts`
@@ -1024,7 +1063,7 @@ export interface PublishForm {
   filePaths: string[]
   tags: string[]
   scheduleTime?: number
-  selectedAccounts: string[]  // account IDs
+  selectedAccounts: string[] // account IDs
 }
 ```
 
@@ -1098,6 +1137,7 @@ git commit -m "feat(pulse): add PulseLayout three-column container"
 ### Task 13: PulseSidebar 左侧账号列表
 
 **Files:**
+
 - Create: `packages/app/src/pages/pulse/PulseSidebar.tsx`
 
 - [ ] **Step 1: 创建 PulseSidebar.tsx**
@@ -1191,6 +1231,7 @@ git commit -m "feat(pulse): add PulseSidebar with platform account list"
 ### Task 14: PulseMain 中间内容区
 
 **Files:**
+
 - Create: `packages/app/src/pages/pulse/PulseMain.tsx`
 
 - [ ] **Step 1: 创建 PulseMain.tsx**
@@ -1289,6 +1330,7 @@ git commit -m "feat(pulse): add PulseMain content area with account overview"
 ### Task 15: PulseAssistant 右侧 AI 面板
 
 **Files:**
+
 - Create: `packages/app/src/pages/pulse/PulseAssistant.tsx`
 
 - [ ] **Step 1: 创建 PulseAssistant.tsx**
@@ -1374,6 +1416,7 @@ git commit -m "feat(pulse): add PulseAssistant right panel with AI chat UI"
 ### Task 16: 路由集成
 
 **Files:**
+
 - Modify: `packages/app/src/app.tsx`
 - Modify: `packages/app/src/pages/home.tsx`
 
@@ -1391,6 +1434,7 @@ const PulseLayout = lazy(() => import("@/pages/pulse/PulseLayout"))
 ```
 
 完整路由结构变为：
+
 ```typescript
 <Route path="/" component={HomeRoute} />
 <Route path="/pulse" component={PulseLayout} />

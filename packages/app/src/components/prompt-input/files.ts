@@ -73,7 +73,8 @@ export async function attachmentMime(file: File) {
   if (OFFICE_MIMES.has(type)) return type
 
   const suffix = ext(file.name)
-  const fallback = IMAGE_EXTS.get(suffix) ?? OFFICE_EXTS.get(suffix) ?? (suffix === "pdf" ? "application/pdf" : undefined)
+  const fallback =
+    IMAGE_EXTS.get(suffix) ?? OFFICE_EXTS.get(suffix) ?? (suffix === "pdf" ? "application/pdf" : undefined)
   if ((!type || type === "application/octet-stream") && fallback) return fallback
   if (fallback && OFFICE_MIMES.has(fallback)) return fallback
 

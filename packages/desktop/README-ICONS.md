@@ -3,8 +3,9 @@
 ## 概述
 
 NovaWay 桌面应用需要多种格式的图标文件来支持不同的平台：
+
 - **Windows**: ICO 格式
-- **macOS**: ICNS 格式  
+- **macOS**: ICNS 格式
 - **Linux**: PNG 格式
 - **Android**: APK 图标
 
@@ -15,6 +16,7 @@ NovaWay 桌面应用需要多种格式的图标文件来支持不同的平台：
 您需要安装以下工具之一：
 
 **ImageMagick** (推荐，跨平台)
+
 ```bash
 # macOS
 brew install imagemagick
@@ -27,6 +29,7 @@ sudo apt-get install imagemagick
 ```
 
 **或使用在线工具**
+
 - [CloudConvert](https://cloudconvert.com/svg-to-ico) - SVG 转 ICO
 - [CloudConvert](https://cloudconvert.com/svg-to-png) - SVG 转 PNG
 - [Image2Icon](https://img2icnsapp.com/) (macOS) - PNG 转 ICNS
@@ -34,6 +37,7 @@ sudo apt-get install imagemagick
 ### 2. 生成 Windows ICO 文件
 
 使用 ImageMagick:
+
 ```bash
 cd packages/desktop/icons
 
@@ -53,6 +57,7 @@ rm -f 16x16.png 32x32.png 48x48.png 64x64.png 128x128.png 256x256.png
 ```
 
 或者使用 PowerShell 和 .NET:
+
 ```powershell
 # 使用 PowerShell 脚本将 SVG 保存为不同尺寸的 PNG
 Add-Type -AssemblyName System.Drawing
@@ -65,9 +70,9 @@ foreach ($size in $sizes) {
     $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
     $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
     $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-    
+
     # 这里需要SVG渲染库，实际使用时建议用在线工具转换
-    
+
     $bitmap.Save("$size`x$size.png", [System.Drawing.Imaging.ImageFormat]::Png)
     $graphics.Dispose()
     $bitmap.Dispose()
@@ -77,12 +82,14 @@ foreach ($size in $sizes) {
 ### 3. 生成 macOS ICNS 文件
 
 使用 Image2Icon:
+
 1. 下载 [Image2Icon](https://img2icnsapp.com/)
 2. 打开 Image2Icon，选择 "Big Sur Icon" 预设
 3. 导入 512x512 或 1024x1024 的 PNG 图片
 4. 导出为 ICNS 格式
 
 命令行方式:
+
 ```bash
 # 使用 iconutil (macOS 内置)
 mkdir -p NovaWay.iconset

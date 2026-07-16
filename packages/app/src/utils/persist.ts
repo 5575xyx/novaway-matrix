@@ -364,10 +364,7 @@ export const Persist = {
   },
 }
 
-export function removePersisted(
-  target: { storage?: string; key: string },
-  platform?: Platform,
-) {
+export function removePersisted(target: { storage?: string; key: string }, platform?: Platform) {
   const isDesktop = platform?.platform === "desktop" && !!platform.storage
 
   if (isDesktop) {

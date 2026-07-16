@@ -9,13 +9,13 @@ Micro-tests on 2026-06-10 (opus, 5 reps per phrasing, programmatic scoring;
 harness described below) measured how guidance phrasing changes what a
 controller composes:
 
-| Case | Phrasing | Result |
-|---|---|---|
-| Dispatch composition ("don't restate the brief") | prohibition | **4.4** spec values re-typed — *worse than no guidance* (3.6) |
-| Dispatch composition | positive recipe ("your dispatch should contain: (1)…(5)") | **3.0, zero variance** — adopted |
-| Dispatch composition | recipe + nuance clause ("quote only the fragment…") | 3.8, noisy — nuance dilutes recipes |
-| Test-rerun directive ("do not ask reviewer to re-run tests") | prohibition | **0/5 violations** — works fine (control: 3/5) |
-| Test-rerun directive | positive recipe | 0/5 — equal, but longer |
+| Case                                                         | Phrasing                                                  | Result                                                        |
+| ------------------------------------------------------------ | --------------------------------------------------------- | ------------------------------------------------------------- |
+| Dispatch composition ("don't restate the brief")             | prohibition                                               | **4.4** spec values re-typed — _worse than no guidance_ (3.6) |
+| Dispatch composition                                         | positive recipe ("your dispatch should contain: (1)…(5)") | **3.0, zero variance** — adopted                              |
+| Dispatch composition                                         | recipe + nuance clause ("quote only the fragment…")       | 3.8, noisy — nuance dilutes recipes                           |
+| Test-rerun directive ("do not ask reviewer to re-run tests") | prohibition                                               | **0/5 violations** — works fine (control: 3/5)                |
+| Test-rerun directive                                         | positive recipe                                           | 0/5 — equal, but longer                                       |
 
 **The doctrine** (use this to classify any negative instruction):
 
@@ -38,13 +38,13 @@ Counts: 3 tripwires (keep), 14 recognition tables (keep), ~20 policy gates
 (keep — "never push without permission" is policy, not composition
 shaping), 5 composition-prohibitions:
 
-| # | Location | Disposition |
-|---|---|---|
-| 1 | `subagent-driven-development/task-reviewer-prompt.md` — "Cite, don't narrate" | **Queued in PR #1717 batch**: lead with the positive half ("Your report should point at evidence: file:line for every finding…"), drop the prohibition half (dead weight — the positive half already exists and carries the load) |
-| 2 | `subagent-driven-development/SKILL.md` — "Do not add open-ended directives" | **Keep as-is**: micro-test could not elicit the failure in 15 samples; no evidence either way; shorter wins |
-| 3 | `subagent-driven-development/SKILL.md` — "Do not ask a reviewer to re-run tests" | **Keep as-is**: measured 0/5 violations; the prohibition also usefully propagates itself into dispatches |
-| 4 | `subagent-driven-development/SKILL.md` — "do not re-review on top of it" | **Queued in PR #1717 batch**: replace with the three-element checklist ("Before re-dispatching the reviewer, confirm the fix report contains: the covering tests, the command run, and the output") |
-| 5 | `writing-plans/SKILL.md` — the "No Placeholders" banned-patterns list | **This spec's main subject** — see below |
+| #   | Location                                                                         | Disposition                                                                                                                                                                                                                       |
+| --- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `subagent-driven-development/task-reviewer-prompt.md` — "Cite, don't narrate"    | **Queued in PR #1717 batch**: lead with the positive half ("Your report should point at evidence: file:line for every finding…"), drop the prohibition half (dead weight — the positive half already exists and carries the load) |
+| 2   | `subagent-driven-development/SKILL.md` — "Do not add open-ended directives"      | **Keep as-is**: micro-test could not elicit the failure in 15 samples; no evidence either way; shorter wins                                                                                                                       |
+| 3   | `subagent-driven-development/SKILL.md` — "Do not ask a reviewer to re-run tests" | **Keep as-is**: measured 0/5 violations; the prohibition also usefully propagates itself into dispatches                                                                                                                          |
+| 4   | `subagent-driven-development/SKILL.md` — "do not re-review on top of it"         | **Queued in PR #1717 batch**: replace with the three-element checklist ("Before re-dispatching the reviewer, confirm the fix report contains: the covering tests, the command run, and the output")                               |
+| 5   | `writing-plans/SKILL.md` — the "No Placeholders" banned-patterns list            | **This spec's main subject** — see below                                                                                                                                                                                          |
 
 Borderline, deferred with #5: `task-reviewer-prompt.md` "Don't flag
 pre-existing file sizes — focus on what this change contributed" (positive
@@ -149,7 +149,7 @@ before/after text, and the V2 relocation rationale.
 placeholders in all 20 plans across all four variants including the
 no-guidance control. Stage 1b (10-task spec, five near-identical commands
 tempting "Similar to Task N", explicit ~2,500-word economy target): 40/40
-clean — the single regex hit was a V2 self-review *attesting* "no
+clean — the single regex hit was a V2 self-review _attesting_ "no
 TBD/TODO ✓". Current-generation opus does not produce plan placeholders
 even under deliberate pressure, with or without the banned-patterns list.
 Disposition: leave the No Placeholders section exactly as it is (it costs

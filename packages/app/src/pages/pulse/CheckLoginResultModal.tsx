@@ -34,9 +34,7 @@ export function CheckLoginResultModal(props: { results: CheckResult[]; onRemove:
             <Icon name="circle-x" size="small" />
             离线 {offlineCount()}
           </div>
-          <div class="text-12-regular text-text-weak ml-auto">
-            共 {props.results.length} 个账号
-          </div>
+          <div class="text-12-regular text-text-weak ml-auto">共 {props.results.length} 个账号</div>
         </div>
 
         <Show
@@ -49,11 +47,17 @@ export function CheckLoginResultModal(props: { results: CheckResult[]; onRemove:
                 const info = () => platformInfo(result.platform)
                 return (
                   <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-surface-raised-base-hover transition-colors">
-                    <Show when={result.valid} fallback={<Icon name="circle-x" size="small" class="text-rose-500 shrink-0" />}>
+                    <Show
+                      when={result.valid}
+                      fallback={<Icon name="circle-x" size="small" class="text-rose-500 shrink-0" />}
+                    >
                       <Icon name="circle-check" size="small" class="text-emerald-500 shrink-0" />
                     </Show>
                     <div class="size-8 rounded-full bg-background-weak flex items-center justify-center overflow-hidden shrink-0">
-                      <Show when={result.avatar} fallback={<span class="text-12-regular text-text-weak">{result.nickname?.charAt(0)}</span>}>
+                      <Show
+                        when={result.avatar}
+                        fallback={<span class="text-12-regular text-text-weak">{result.nickname?.charAt(0)}</span>}
+                      >
                         <img src={result.avatar} alt="" class="size-full object-cover" />
                       </Show>
                     </div>

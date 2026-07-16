@@ -269,7 +269,9 @@ describe("createOfficeExportFile", () => {
 
     for (const item of cases) {
       expect(
-        zipText(createOfficeExportFile(slideArtifact({ title: item.title, body: item.body }), { pptTemplate: "auto" }).bytes),
+        zipText(
+          createOfficeExportFile(slideArtifact({ title: item.title, body: item.body }), { pptTemplate: "auto" }).bytes,
+        ),
       ).toContain(item.color)
     }
   })
@@ -286,7 +288,9 @@ describe("createOfficeExportFile", () => {
 
     for (const item of cases) {
       expect(
-        zipText(createOfficeExportFile(slideArtifact({ title: item.title, body: item.body }), { pptTemplate: "auto" }).bytes),
+        zipText(
+          createOfficeExportFile(slideArtifact({ title: item.title, body: item.body }), { pptTemplate: "auto" }).bytes,
+        ),
       ).toContain(item.color)
     }
   })
@@ -298,7 +302,12 @@ describe("createOfficeExportFile", () => {
           slides: [
             { index: 1, title: "方案汇报", content: "- 从指标、架构和流程说明整体方案", layout: "highlight" },
             { index: 2, title: "指标概览", content: "- 收入增长 35%\n- 成本下降 18%\n- 利润提升 42%", layout: "chart" },
-            { index: 3, title: "系统架构", content: "- 数据源\n- 图谱构建\n- 检索增强\n- 模型回答", layout: "architecture" },
+            {
+              index: 3,
+              title: "系统架构",
+              content: "- 数据源\n- 图谱构建\n- 检索增强\n- 模型回答",
+              layout: "architecture",
+            },
             { index: 4, title: "处理闭环", content: "- 提交\n- 审核\n- 生成\n- 发布", layout: "process" },
           ],
         }),
@@ -321,7 +330,12 @@ describe("createOfficeExportFile", () => {
             { index: 2, title: "转化漏斗", content: "- 触达\n- 兴趣\n- 试用\n- 购买\n- 复购", layout: "funnel" },
             { index: 3, title: "能力金字塔", content: "- 愿景\n- 策略\n- 能力\n- 数据\n- 基础设施", layout: "pyramid" },
             { index: 4, title: "增长循环", content: "- 计划\n- 执行\n- 检查\n- 调整", layout: "cycle" },
-            { index: 5, title: "方法论框架", content: "- 核心模型\n- 输入\n- 处理\n- 输出\n- 反馈", layout: "framework" },
+            {
+              index: 5,
+              title: "方法论框架",
+              content: "- 核心模型\n- 输入\n- 处理\n- 输出\n- 反馈",
+              layout: "framework",
+            },
           ],
         }),
       ).bytes,
@@ -340,7 +354,12 @@ describe("createOfficeExportFile", () => {
         slideArtifact({
           slides: [
             { index: 1, title: "市场故事", content: "- 数据摘要\n- 区域分布\n- 客户案例", layout: "highlight" },
-            { index: 2, title: "指标摘要", content: "- 活跃用户增长 35%\n- 留存提升 12%\n- 转化提升 8%", layout: "infographic" },
+            {
+              index: 2,
+              title: "指标摘要",
+              content: "- 活跃用户增长 35%\n- 留存提升 12%\n- 转化提升 8%",
+              layout: "infographic",
+            },
             { index: 3, title: "区域分布", content: "- 华东市场\n- 华南市场\n- 西南供应链\n- 北方网点", layout: "map" },
             { index: 4, title: "客户案例", content: "- 课堂导入\n- 分组讨论\n- 课后复盘\n- 持续改进", layout: "scene" },
           ],
@@ -364,11 +383,26 @@ describe("createOfficeExportFile", () => {
             { index: 1, title: "项目分析", content: "- 高级图表版式演示", layout: "highlight" },
             { index: 2, title: "项目排期", content: "- 需求澄清\n- 设计\n- 开发\n- 测试\n- 发布", layout: "gantt" },
             { index: 3, title: "预算占比", content: "- 研发 40%\n- 市场 25%\n- 运营 20%\n- 服务 15%", layout: "donut" },
-            { index: 4, title: "利润变动", content: "- 起始 100\n- 收入 45\n- 成本 -18\n- 费用 -12\n- 结束 115", layout: "waterfall" },
-            { index: 5, title: "活跃热力", content: "- 周一\n- 周二\n- 周三\n- 周四\n- 周五\n- 周六", layout: "heatmap" },
+            {
+              index: 4,
+              title: "利润变动",
+              content: "- 起始 100\n- 收入 45\n- 成本 -18\n- 费用 -12\n- 结束 115",
+              layout: "waterfall",
+            },
+            {
+              index: 5,
+              title: "活跃热力",
+              content: "- 周一\n- 周二\n- 周三\n- 周四\n- 周五\n- 周六",
+              layout: "heatmap",
+            },
             { index: 6, title: "能力雷达", content: "- 产品\n- 技术\n- 交付\n- 数据\n- 运营\n- 服务", layout: "radar" },
             { index: 7, title: "交集分析", content: "- 共同价值\n- 用户需求\n- 产品能力\n- 商业目标", layout: "venn" },
-            { index: 8, title: "根因分析", content: "- 人员\n- 流程\n- 工具\n- 数据\n- 协作\n- 机制", layout: "fishbone" },
+            {
+              index: 8,
+              title: "根因分析",
+              content: "- 人员\n- 流程\n- 工具\n- 数据\n- 协作\n- 机制",
+              layout: "fishbone",
+            },
             { index: 9, title: "客户旅程", content: "- 认知\n- 评估\n- 购买\n- 使用\n- 复购", layout: "journey" },
           ],
         }),
@@ -543,7 +577,10 @@ describe("createOfficeExportFile", () => {
   })
 
   test("exports ppt with custom template from pptx design signals", () => {
-    const custom = createCustomPptTemplate("PPTX模板设计信号\n- 主题色：#1F4E79、#F2C94C\n- 字体：Aptos\n- 模板页库：封面候选、数据页候选", "参考模板")
+    const custom = createCustomPptTemplate(
+      "PPTX模板设计信号\n- 主题色：#1F4E79、#F2C94C\n- 字体：Aptos\n- 模板页库：封面候选、数据页候选",
+      "参考模板",
+    )
     const text = zipText(createOfficeExportFile(slideArtifact(), { pptTemplate: custom }).bytes)
 
     expect(text).toContain("1F4E79")
@@ -602,7 +639,12 @@ describe("createOfficeExportFile", () => {
         slideArtifact({
           slides: [
             { index: 1, title: "Cover", content: "- Opening", notes: "Open with the course goal." },
-            { index: 2, title: "Practice", content: "- Example\n- Exercise", notes: "- Explain the example\n- Leave two minutes" },
+            {
+              index: 2,
+              title: "Practice",
+              content: "- Example\n- Exercise",
+              notes: "- Explain the example\n- Leave two minutes",
+            },
           ],
         }),
       ).bytes,

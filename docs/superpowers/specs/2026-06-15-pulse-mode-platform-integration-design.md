@@ -46,10 +46,10 @@
 
 ### 功能模块
 
-| 模块 | 优先级 | 说明 |
-|------|--------|------|
-| 账号管理 | P0 | 多平台账号登录/BrowserWindow Cookie 注入/登录态检测/CRUD |
-| 内容发布 | P0 | 视频/图文/文章多平台分发、发布进度跟踪 |
+| 模块     | 优先级 | 说明                                                     |
+| -------- | ------ | -------------------------------------------------------- |
+| 账号管理 | P0     | 多平台账号登录/BrowserWindow Cookie 注入/登录态检测/CRUD |
+| 内容发布 | P0     | 视频/图文/文章多平台分发、发布进度跟踪                   |
 
 ### 支持平台
 
@@ -98,16 +98,16 @@ if (currentMode() === "pulse") return <Navigate href="/pulse" />
 
 ### IPC Handler 清单
 
-| Channel | Direction | 说明 |
-|---------|-----------|------|
-| `platform:get-accounts` | invoke → | 获取所有账号 |
-| `platform:add-account` | invoke → | 添加账号（启动登录流程） |
-| `platform:remove-account` | invoke → | 删除账号 |
-| `platform:check-login` | invoke → | 检测登录态 |
-| `platform:publish` | invoke → | 发布内容到多平台 |
-| `platform:publish-event` | ← send | 发布进度事件推送 |
-| `platform:get-publish-history` | invoke → | 获取发布历史 |
-| `platform:get-account-stats` | invoke → | 获取账号统计数据 |
+| Channel                        | Direction | 说明                     |
+| ------------------------------ | --------- | ------------------------ |
+| `platform:get-accounts`        | invoke →  | 获取所有账号             |
+| `platform:add-account`         | invoke →  | 添加账号（启动登录流程） |
+| `platform:remove-account`      | invoke →  | 删除账号                 |
+| `platform:check-login`         | invoke →  | 检测登录态               |
+| `platform:publish`             | invoke →  | 发布内容到多平台         |
+| `platform:publish-event`       | ← send    | 发布进度事件推送         |
+| `platform:get-publish-history` | invoke →  | 获取发布历史             |
+| `platform:get-account-stats`   | invoke →  | 获取账号统计数据         |
 
 ### 登录流程
 
@@ -165,10 +165,10 @@ abstract class PlatformBase {
 // 账号存储
 interface StoredAccount {
   id: string
-  platform: string       // "xhs" | "douyin" | ...
+  platform: string // "xhs" | "douyin" | ...
   nickname: string
   avatar: string
-  cookies: string        // 加密 JSON 字符串
+  cookies: string // 加密 JSON 字符串
   loginTime: number
   status: "valid" | "expired" | "login_failed"
 }
@@ -239,9 +239,9 @@ export interface PlatformAPI {
 
 ## 风险与缓解
 
-| 风险 | 缓解措施 |
-|------|---------|
-| 平台 API 变更导致登录/发布失效 | 平台协议层独立于核心代码，可快速热修复 |
-| Cookie 过期无法自动续期 | 每次操作前调用 `detectLogin()`，过期时通知用户重新登录 |
-| 部分平台有反爬签名（快手等） | 复用 XYMT-AUTO 已有的签名算法实现 |
-| 右侧 AI 助手暂无后端 AI Agent 对接 | 第一阶段使用占位 UI，后续对接营销 Agent |
+| 风险                               | 缓解措施                                               |
+| ---------------------------------- | ------------------------------------------------------ |
+| 平台 API 变更导致登录/发布失效     | 平台协议层独立于核心代码，可快速热修复                 |
+| Cookie 过期无法自动续期            | 每次操作前调用 `detectLogin()`，过期时通知用户重新登录 |
+| 部分平台有反爬签名（快手等）       | 复用 XYMT-AUTO 已有的签名算法实现                      |
+| 右侧 AI 助手暂无后端 AI Agent 对接 | 第一阶段使用占位 UI，后续对接营销 Agent                |

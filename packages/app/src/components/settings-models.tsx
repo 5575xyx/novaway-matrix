@@ -162,7 +162,7 @@ export const SettingsModels: Component = () => {
     for (const model of all) {
       // 隐藏 OpenCode Zen 模型（Auto Mode 专用）
       if (model.provider.id === "opencode") continue
-      
+
       const keys = getProviderKeys(model.provider.id)
       keys.forEach((_, keyIndex) => {
         result.push({ ...model, keyIndex })
@@ -198,7 +198,7 @@ export const SettingsModels: Component = () => {
   return (
     <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
       <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--surface-stronger-non-alpha)_calc(100%_-_24px),transparent)]">
-        <div class="flex flex-col gap-4 pt-6 pb-6 max-w-[720px]">
+        <div class="flex flex-col gap-4 pt-6 pb-6 w-full">
           <h2 class="text-16-medium text-text-strong">{language.t("settings.models.title")}</h2>
           <div class="flex items-center gap-2 px-3 h-9 rounded-lg bg-surface-base">
             <Icon name="magnifying-glass" class="text-icon-weak-base flex-shrink-0" />
@@ -221,7 +221,7 @@ export const SettingsModels: Component = () => {
         </div>
       </div>
 
-      <div class="flex flex-col gap-8 max-w-[720px]">
+      <div class="flex flex-col gap-8 w-full">
         <Show
           when={!list.grouped.loading}
           fallback={
@@ -243,9 +243,7 @@ export const SettingsModels: Component = () => {
                   <div class="flex flex-col gap-1">
                     <div class="flex items-center gap-2 pb-2">
                       <ProviderIcon id={providerID} class="size-5 shrink-0 icon-strong-base" />
-                      <span class="text-14-medium text-text-strong">
-                        {group.items[0].provider.name}
-                      </span>
+                      <span class="text-14-medium text-text-strong">{group.items[0].provider.name}</span>
                       <Show when={isMultiKey}>
                         <span class="text-12-regular text-text-weak font-mono">
                           {language.t("model.key.label")} {keyIndex + 1} · {maskKey(entry?.key)}
@@ -268,9 +266,7 @@ export const SettingsModels: Component = () => {
                               }
                             >
                               <div class="min-w-0">
-                                <span class="min-w-0 truncate text-14-regular text-text-strong">
-                                  {item.name}
-                                </span>
+                                <span class="min-w-0 truncate text-14-regular text-text-strong">{item.name}</span>
                                 <ModelCapabilitySummary model={item} compact />
                               </div>
                               <div class="flex-shrink-0">

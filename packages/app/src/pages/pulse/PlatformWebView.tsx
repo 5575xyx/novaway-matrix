@@ -1,7 +1,8 @@
 import { Show, createSignal, onCleanup, onMount } from "solid-js"
 import { PLATFORM_LIST } from "@/context/platform-accounts"
 
-const WEBVIEW_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36 Edg/133.0.0.0"
+const WEBVIEW_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36 Edg/133.0.0.0"
 
 interface PlatformWebViewProps {
   accountId: string
@@ -37,7 +38,9 @@ export function PlatformWebView(props: PlatformWebViewProps) {
           console.log(`[PlatformWebView] got webContentsId: ${id}`)
           webViewId = id
           let cookies: any[] = []
-          try { cookies = JSON.parse(props.cookies) } catch {}
+          try {
+            cookies = JSON.parse(props.cookies)
+          } catch {}
           console.log(`[PlatformWebView] parsed ${cookies.length} cookies`)
           if (cookies.length > 0) {
             const result = await api.createWebview(id, cookies)
@@ -65,7 +68,9 @@ export function PlatformWebView(props: PlatformWebViewProps) {
     })
 
     wv.addEventListener("did-fail-load", (e: any) => {
-      console.log(`[PlatformWebView] did-fail-load: code=${e.errorCode}, desc=${e.errorDescription}, url=${wv.getURL()}`)
+      console.log(
+        `[PlatformWebView] did-fail-load: code=${e.errorCode}, desc=${e.errorDescription}, url=${wv.getURL()}`,
+      )
     })
   })
 
@@ -104,13 +109,15 @@ export function PlatformWebView(props: PlatformWebViewProps) {
           </div>
         </Show>
         <webview
-          ref={(el: any) => { webviewRef = el }}
+          ref={(el: any) => {
+            webviewRef = el
+          }}
           disablewebsecurity={true}
           webpreferences="sandbox"
           allowpopups={isWxGzh() || isXianyu()}
           useragent={WEBVIEW_UA}
           class="flex-1 w-full"
-          src={loading() ? "about:blank" : (info()?.viewUrl || "")}
+          src={loading() ? "about:blank" : info()?.viewUrl || ""}
           style={{ height: "100%" }}
         />
       </Show>

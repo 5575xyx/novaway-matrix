@@ -59,7 +59,12 @@ export function officePptxFillPlanFromArtifact(artifact: OfficeArtifact) {
 }
 
 export function officePptxTemplateFillFilename(artifact: OfficeArtifact) {
-  return `${artifact.title.replace(/[<>:"/\\|?*\x00-\x1F]/g, "-").replace(/\s+/g, " ").trim() || "office-ppt"}-套版.pptx`
+  return `${
+    artifact.title
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g, "-")
+      .replace(/\s+/g, " ")
+      .trim() || "office-ppt"
+  }-套版.pptx`
 }
 
 export function officePptxFillPlanSummary(slides: OfficePptxTemplateFillSlide[]) {
@@ -87,13 +92,16 @@ function officePptxFillTexts(slide: OfficeSlide) {
 
 function officePptxFillImages(slide: OfficeSlide) {
   const text = [slide.visual, slide.content].filter(Boolean).join("\n")
-  const pattern = /!\[[^\]]*]\((data:image\/(?:png|jpeg|jpg|gif|webp);base64,[^)]+)\)|<img[^>]+src=["'](data:image\/(?:png|jpeg|jpg|gif|webp);base64,[^"']+)["'][^>]*>/gi
+  const pattern =
+    /!\[[^\]]*]\((data:image\/(?:png|jpeg|jpg|gif|webp);base64,[^)]+)\)|<img[^>]+src=["'](data:image\/(?:png|jpeg|jpg|gif|webp);base64,[^"']+)["'][^>]*>/gi
   return [...text.matchAll(pattern)]
     .flatMap((match) => {
       const url = match[1] ?? match[2]
       const parsed = url?.match(/^data:(image\/(?:png|jpeg|jpg|gif|webp));base64,([A-Za-z0-9+/=\s]+)$/i)
       if (!parsed?.[1] || !parsed[2]) return []
-      return [{ mime: parsed[1].toLowerCase().replace("image/jpg", "image/jpeg"), dataBase64: parsed[2].replace(/\s+/g, "") }]
+      return [
+        { mime: parsed[1].toLowerCase().replace("image/jpg", "image/jpeg"), dataBase64: parsed[2].replace(/\s+/g, "") },
+      ]
     })
     .slice(0, 5)
 }

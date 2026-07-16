@@ -79,7 +79,8 @@ describe("office document extraction", () => {
         '<p:sld><p:sp><p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:spPr><a:xfrm><a:off x="600000" y="500000"/><a:ext cx="6000000" cy="600000"/></a:xfrm></p:spPr><a:t>Template Cover</a:t></p:sp></p:sld>',
       "ppt/slides/slide2.xml":
         '<p:sld><p:sp><p:nvSpPr><p:cNvPr id="2" name="Content Placeholder 2"/><p:nvPr><p:ph type="body"/></p:nvPr></p:nvSpPr><p:spPr><a:xfrm><a:off x="600000" y="1400000"/><a:ext cx="6200000" cy="1800000"/></a:xfrm></p:spPr><a:t>Revenue 42%</a:t></p:sp><p:pic/></p:sld>',
-      "ppt/theme/theme1.xml": '<a:theme><a:srgbClr val="1F4E79"/><a:srgbClr val="F2C94C"/><a:latin typeface="Aptos"/></a:theme>',
+      "ppt/theme/theme1.xml":
+        '<a:theme><a:srgbClr val="1F4E79"/><a:srgbClr val="F2C94C"/><a:latin typeface="Aptos"/></a:theme>',
     })
 
     const result = await extractOfficeDocumentText({ filename: "template.pptx", bytes })
@@ -138,7 +139,9 @@ describe("office document extraction", () => {
     })
     const slideXml = await zipEntryText(filled, "ppt/slides/slide1.xml")
 
-    expect(slideXml.match(/name="Content Placeholder 2"[\s\S]*?<a:t>([\s\S]*?)<\/a:t>/)?.[1]).toContain("First body line")
+    expect(slideXml.match(/name="Content Placeholder 2"[\s\S]*?<a:t>([\s\S]*?)<\/a:t>/)?.[1]).toContain(
+      "First body line",
+    )
     expect(slideXml.match(/name="Title 1"[\s\S]*?<a:t>([\s\S]*?)<\/a:t>/)?.[1]).toBe("Deck Title")
     expect(slideXml).not.toContain("Old Body")
     expect(slideXml).not.toContain("Old Title")
@@ -208,7 +211,20 @@ describe("office document extraction", () => {
 
     const filled = await fillPptxTemplateText({
       bytes,
-      plan: { slides: [{ slide: 1, texts: [], tables: [[["Metric", "Value"], ["Revenue", "120"]]] }] },
+      plan: {
+        slides: [
+          {
+            slide: 1,
+            texts: [],
+            tables: [
+              [
+                ["Metric", "Value"],
+                ["Revenue", "120"],
+              ],
+            ],
+          },
+        ],
+      },
     })
     const slideXml = await zipEntryText(filled, "ppt/slides/slide1.xml")
 
@@ -236,7 +252,13 @@ describe("office document extraction", () => {
           {
             slide: 1,
             texts: [],
-            tables: [[["Metric", "Value", "Owner"], ["Revenue", "120", "Sales"], ["Growth", "30%", "Ops"]]],
+            tables: [
+              [
+                ["Metric", "Value", "Owner"],
+                ["Revenue", "120", "Sales"],
+                ["Growth", "30%", "Ops"],
+              ],
+            ],
           },
         ],
       },
@@ -251,7 +273,8 @@ describe("office document extraction", () => {
 
   test("fills pptx template chart caches by slide relationship", async () => {
     const bytes = await zip({
-      "ppt/slides/slide1.xml": '<p:sld><p:graphicFrame><a:graphic><a:graphicData><c:chart r:id="rId3"/></a:graphicData></a:graphic></p:graphicFrame></p:sld>',
+      "ppt/slides/slide1.xml":
+        '<p:sld><p:graphicFrame><a:graphic><a:graphicData><c:chart r:id="rId3"/></a:graphicData></a:graphic></p:graphicFrame></p:sld>',
       "ppt/slides/_rels/slide1.xml.rels":
         '<Relationships><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/chart1.xml"/></Relationships>',
       "ppt/charts/chart1.xml":
@@ -282,7 +305,8 @@ describe("office document extraction", () => {
 
   test("expands pptx template chart series from tabular data", async () => {
     const bytes = await zip({
-      "ppt/slides/slide1.xml": '<p:sld><p:graphicFrame><a:graphic><a:graphicData><c:chart r:id="rId3"/></a:graphicData></a:graphic></p:graphicFrame></p:sld>',
+      "ppt/slides/slide1.xml":
+        '<p:sld><p:graphicFrame><a:graphic><a:graphicData><c:chart r:id="rId3"/></a:graphicData></a:graphic></p:graphicFrame></p:sld>',
       "ppt/slides/_rels/slide1.xml.rels":
         '<Relationships><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/chart1.xml"/></Relationships>',
       "ppt/charts/chart1.xml":

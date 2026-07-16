@@ -24,21 +24,21 @@ async function runCommand(command: string, args: string[], cwd: string): Promise
 
 async function generateIcons() {
   console.log("🚀 Generating NovaWay desktop icons...")
-  
+
   const channels = ["dev", "beta", "prod"]
-  
+
   for (const channel of channels) {
     console.log(`\n📦 Processing ${channel} channel...`)
-    
+
     const channelDir = path.join(iconsDir, channel)
-    
+
     console.log(`Copying SVG to ${channelDir}...`)
     try {
       await runCommand("cp", [sourceSvg, path.join(channelDir, "icon.svg")], rootDir)
     } catch {
       await runCommand("copy", [sourceSvg, path.join(channelDir, "icon.svg")], rootDir)
     }
-    
+
     console.log(`Creating resources/icons directory...`)
     const resourcesIconsDir = path.join(resourcesDir, "icons")
     try {
@@ -46,7 +46,7 @@ async function generateIcons() {
     } catch {
       await runCommand("mkdir", ["-p", resourcesIconsDir], rootDir)
     }
-    
+
     console.log(`Copying icons to resources...`)
     try {
       await runCommand("cp", ["-r", channelDir, resourcesIconsDir], rootDir)
@@ -54,7 +54,7 @@ async function generateIcons() {
       await runCommand("xcopy", [channelDir, resourcesIconsDir, "/E/H/Y"], rootDir)
     }
   }
-  
+
   console.log("\n✅ NovaWay icons generated successfully!")
   console.log("\n📋 Next steps:")
   console.log("1. Use ImageMagick or similar tool to convert SVG to PNG:")

@@ -936,4 +936,19 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "Не удалось создать постоянный значок проекта",
   "error.childStore.storeCreateFailed": "Не удалось создать хранилище",
   "terminal.connectionLost.abnormalClose": "WebSocket закрыт аварийно: {{code}}",
+
+  "assistant.title": "Assistant",
+  "assistant.tab.agent": "Agent",
+  "assistant.tab.todo": "Tasks",
+  "assistant.tab.notifications": "Notifications",
+  "assistant.tab.runs": "Runs",
+  "assistant.agent.current": "Current agent",
+  "assistant.agent.switchTo": "Switch to",
+  "assistant.agent.switch": "Switch",
+
+  "session.new.agentSelector.title": "Choose your approach",
+  "session.new.agentSelector.plan.title": "Plan",
+  "session.new.agentSelector.plan.description": "Break down requirements and draft a plan",
+  "session.new.agentSelector.build.title": "Build",
+  "session.new.agentSelector.build.description": "Jump straight into implementation",
 }

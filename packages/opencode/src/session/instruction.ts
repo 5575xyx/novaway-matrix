@@ -75,8 +75,14 @@ function isMentioned(prompt: string, name: string) {
 }
 
 function autoTerms(input: { name: string; description?: string; content: string }) {
-  const source = [input.name.replace(/[_.-]+/g, " "), input.description ?? "", input.content.match(/^#\s+(.+)$/m)?.[1] ?? ""].join(" ")
-  return Array.from(new Set(source.match(/[\p{Script=Han}]{2,}|[\p{Letter}\p{Number}][\p{Letter}\p{Number}_.-]{2,}/gu) ?? []))
+  const source = [
+    input.name.replace(/[_.-]+/g, " "),
+    input.description ?? "",
+    input.content.match(/^#\s+(.+)$/m)?.[1] ?? "",
+  ].join(" ")
+  return Array.from(
+    new Set(source.match(/[\p{Script=Han}]{2,}|[\p{Letter}\p{Number}][\p{Letter}\p{Number}_.-]{2,}/gu) ?? []),
+  )
     .map((item) => normalizeText(item))
     .filter((item) => item.length >= 2)
 }
@@ -242,29 +248,10 @@ export const layer: Layer.Layer<
       const remote = yield* Effect.forEach(urls, fetch, { concurrency: 4 })
       const prompt = input?.prompt?.trim()
 
-      // Inject saved database connections from UI into system prompt
-      const ctx = yield* InstanceState.context
-      const root = ctx.worktree === "/" ? ctx.directory : ctx.worktree
-      const dbConnPath = path.join(root, ".novaway", "db-connections.json")
-      const dbConnRaw = yield* fs.readFileString(dbConnPath).pipe(Effect.catch(() => Effect.succeed("")))
-      let dbConnPrompt = ""
-      if (dbConnRaw) {
-        try {
-          const parsed = JSON.parse(dbConnRaw)
-          const list = Array.isArray(parsed) ? parsed : (parsed.connections ?? [])
-          if (list.length > 0) {
-            const lines = list.map((c: Record<string, unknown>, i: number) =>
-              `  - 连接 ${i + 1}${c.name ? ` (${c.name})` : ""}: type=${c.type}, host=${c.host}, port=${c.port}, user=${c.user}, database=${c.database}`
-            )
-            dbConnPrompt = `\n\n## 已保存的数据库连接\n以下数据库连接已在 UI 中保存，AI 使用 \`database_sql\` 工具时可直接使用其中的参数（可省略手动输入连接信息）：\n${lines.join("\n")}`
-          }
-        } catch {}
-      }
-
       return [
         // Built-in global rules ship with the binary
         ...(BUILTIN_DATABASE_RULE
-          ? [`Instructions from: <built-in>/database.md\n${BUILTIN_DATABASE_RULE.trimEnd()}${dbConnPrompt}`]
+          ? [`Instructions from: <built-in>/database.md\n${BUILTIN_DATABASE_RULE.trimEnd()}`]
           : []),
         ...Array.from(paths).flatMap((item, i) => {
           const content = files[i]

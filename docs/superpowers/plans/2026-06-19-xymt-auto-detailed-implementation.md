@@ -7,12 +7,14 @@
 ## 2. 前置条件
 
 ### 2.1 环境要求
+
 - Go 1.24+ (用于构建 xiaohongshu-mcp)
 - Node.js 18+ (用于 wechat-official-account-mcp)
 - bun (包管理器)
 - Windows/Linux/macOS 支持
 
 ### 2.2 依赖检查
+
 ```bash
 # 检查 Go 版本
 go version
@@ -29,6 +31,7 @@ bun --version
 ### 3.1 构建 xiaohongshu-mcp
 
 #### 3.1.1 克隆和构建
+
 ```bash
 # 进入 XYMT-AUTO 目录
 cd E:\AImoney\NovaWay-Matrix\novaway-coder\XYMT-AUTO\xiaohongshu-mcp
@@ -44,6 +47,7 @@ go build -o xiaohongshu-mcp.exe .
 ```
 
 #### 3.1.2 配置说明
+
 - **端口**: 默认 18060 (HTTP 模式)
 - **无头模式**: 默认启用 (适合服务器环境)
 - **浏览器路径**: 可通过 `-bin` 参数或 `ROD_BROWSER_BIN` 环境变量指定
@@ -51,13 +55,16 @@ go build -o xiaohongshu-mcp.exe .
 ### 3.2 测试 MCP 服务器
 
 #### 3.2.1 启动服务器
+
 ```bash
 # 启动 MCP 服务器
 ./xiaohongshu-mcp.exe -headless true -port :18060
 ```
 
 #### 3.2.2 测试工具列表
+
 服务器提供以下 MCP 工具：
+
 1. `check_login_status` - 检查登录状态
 2. `get_login_qrcode` - 获取登录二维码
 3. `create_image_note` - 发布图文笔记
@@ -72,6 +79,7 @@ go build -o xiaohongshu-mcp.exe .
 ### 3.3 配置到 opencode
 
 #### 3.3.1 更新 novaway.json
+
 ```json
 {
   "mcp": {
@@ -86,6 +94,7 @@ go build -o xiaohongshu-mcp.exe .
 ```
 
 #### 3.3.2 环境变量配置
+
 ```bash
 # Windows
 set ROD_BROWSER_BIN=path/to/chrome.exe
@@ -99,6 +108,7 @@ export ROD_BROWSER_BIN=/usr/bin/google-chrome
 ### 4.1 安装 wechat-official-account-mcp
 
 #### 4.1.1 全局安装
+
 ```bash
 # 安装 MCP 服务器
 npm install -g wechat-official-account-mcp
@@ -108,6 +118,7 @@ wechat-mcp --version
 ```
 
 #### 4.1.2 配置凭证
+
 ```bash
 # 设置环境变量
 export WECHAT_APP_ID=your_app_id
@@ -117,6 +128,7 @@ export WECHAT_APP_SECRET=your_app_secret
 ### 4.2 测试 MCP 服务器
 
 #### 4.2.1 启动服务器
+
 ```bash
 # 启动 MCP 服务器 (stdio 模式)
 wechat-mcp mcp -a $WECHAT_APP_ID -s $WECHAT_APP_SECRET
@@ -126,7 +138,9 @@ wechat-mcp mcp -a $WECHAT_APP_ID -s $WECHAT_APP_SECRET -m sse -p 3000
 ```
 
 #### 4.2.2 测试工具列表
+
 服务器提供以下 MCP 工具：
+
 1. `wechat_auth` - 认证管理
 2. `wechat_media_upload` - 素材上传
 3. `wechat_draft_create` - 创建草稿
@@ -137,16 +151,13 @@ wechat-mcp mcp -a $WECHAT_APP_ID -s $WECHAT_APP_SECRET -m sse -p 3000
 ### 4.3 配置到 opencode
 
 #### 4.3.1 更新 novaway.json
+
 ```json
 {
   "mcp": {
     "wechat-official": {
       "command": "npx",
-      "args": [
-        "-y", "wechat-official-account-mcp", "mcp",
-        "-a", "${WECHAT_APP_ID}",
-        "-s", "${WECHAT_APP_SECRET}"
-      ],
+      "args": ["-y", "wechat-official-account-mcp", "mcp", "-a", "${WECHAT_APP_ID}", "-s", "${WECHAT_APP_SECRET}"],
       "enabled": true,
       "timeout": 10000
     }
@@ -159,6 +170,7 @@ wechat-mcp mcp -a $WECHAT_APP_ID -s $WECHAT_APP_SECRET -m sse -p 3000
 ### 5.1 更新 pulse-orchestrator 代理
 
 #### 5.1.1 修改 agent.ts
+
 ```typescript
 // packages/opencode/src/agent/agent.ts
 
@@ -175,18 +187,19 @@ const pulseOrchestratorAgent = {
     "wechat_official_auth",
     "wechat_official_media_upload",
     "wechat_official_draft_create",
-    "wechat_official_draft_publish"
+    "wechat_official_draft_publish",
   ],
   permission: {
     mcp: {
       xiaohongshu: "allow",
-      "wechat-official": "allow"
-    }
-  }
+      "wechat-official": "allow",
+    },
+  },
 }
 ```
 
 #### 5.1.2 创建发布工作流提示
+
 ```typescript
 // packages/opencode/src/agent/prompt/pulse-orchestrator.txt
 
@@ -224,6 +237,7 @@ const pulseOrchestratorAgent = {
 ### 5.2 测试代理功能
 
 #### 5.2.1 测试工具调用
+
 ```bash
 # 启动 opencode
 bun dev
@@ -240,6 +254,7 @@ bun dev
 ### 6.1 创建 PulsePublishPanel 组件
 
 #### 6.1.1 组件结构
+
 ```typescript
 // packages/app/src/pages/pulse/PulsePublishPanel.tsx
 
@@ -363,6 +378,7 @@ export const PulsePublishPanel: Component<PulsePublishPanelProps> = (props) => {
 ### 6.2 集成到 Pulse 面板
 
 #### 6.2.1 更新 PulseChatInput
+
 ```typescript
 // packages/app/src/pages/pulse/PulseChatInput.tsx
 
@@ -387,6 +403,7 @@ const [showPublishPanel, setShowPublishPanel] = createSignal(false)
 ```
 
 #### 6.2.2 实现发布处理函数
+
 ```typescript
 const handlePublish = async (content: PublishContent) => {
   setIsPublishing(true)
@@ -396,19 +413,23 @@ const handlePublish = async (content: PublishContent) => {
       // 调用小红书发布工具
       await sdk.client.session.prompt({
         sessionID: currentSessionID,
-        parts: [{
-          type: "text",
-          text: `发布小红书笔记：标题 "${content.title}"，内容 "${content.content}"，标签 [${content.tags.join(", ")}]`
-        }]
+        parts: [
+          {
+            type: "text",
+            text: `发布小红书笔记：标题 "${content.title}"，内容 "${content.content}"，标签 [${content.tags.join(", ")}]`,
+          },
+        ],
       })
     } else {
       // 调用微信公众号发布工具
       await sdk.client.session.prompt({
         sessionID: currentSessionID,
-        parts: [{
-          type: "text",
-          text: `发布微信公众号文章：标题 "${content.title}"，内容 "${content.content}"`
-        }]
+        parts: [
+          {
+            type: "text",
+            text: `发布微信公众号文章：标题 "${content.title}"，内容 "${content.content}"`,
+          },
+        ],
       })
     }
 
@@ -426,6 +447,7 @@ const handlePublish = async (content: PublishContent) => {
 ### 7.1 单元测试
 
 #### 7.1.1 MCP 服务器测试
+
 ```typescript
 // 测试小红书 MCP 服务器连接
 test("xiaohongshu MCP server connection", async () => {
@@ -442,6 +464,7 @@ test("wechat-official MCP server connection", async () => {
 ```
 
 #### 7.1.2 代理工具测试
+
 ```typescript
 // 测试代理工具调用
 test("pulse-orchestrator tool calling", async () => {
@@ -454,6 +477,7 @@ test("pulse-orchestrator tool calling", async () => {
 ### 7.2 集成测试
 
 #### 7.2.1 端到端发布流程测试
+
 ```typescript
 // 测试完整发布流程
 test("end-to-end publish flow", async () => {
@@ -467,6 +491,7 @@ test("end-to-end publish flow", async () => {
 ### 7.3 性能测试
 
 #### 7.3.1 响应时间测试
+
 ```typescript
 // 测试工具调用响应时间
 test("tool response time", async () => {
@@ -482,6 +507,7 @@ test("tool response time", async () => {
 ### 8.1 开发环境部署
 
 #### 8.1.1 启动 MCP 服务器
+
 ```bash
 # 终端 1: 启动小红书 MCP 服务器
 cd XYMT-AUTO/xiaohongshu-mcp
@@ -497,6 +523,7 @@ bun dev
 ### 8.2 生产环境部署
 
 #### 8.2.1 使用 PM2 管理进程
+
 ```bash
 # 安装 PM2
 npm install -g pm2
@@ -517,6 +544,7 @@ pm2 startup
 ### 8.3 Docker 部署
 
 #### 8.3.1 创建 Dockerfile
+
 ```dockerfile
 # 小红书 MCP 服务器
 FROM golang:1.24 AS builder
@@ -538,6 +566,7 @@ CMD ["./xiaohongshu-mcp", "-headless", "true", "-port", ":18060"]
 ### 9.1 常见问题
 
 #### 9.1.1 MCP 服务器连接失败
+
 ```bash
 # 检查端口是否被占用
 netstat -ano | findstr :18060
@@ -548,6 +577,7 @@ netstat -ano | findstr :18060
 ```
 
 #### 9.1.2 浏览器启动失败
+
 ```bash
 # 检查 Chrome 安装
 google-chrome --version
@@ -557,6 +587,7 @@ export ROD_BROWSER_BIN=/usr/bin/google-chrome
 ```
 
 #### 9.1.3 微信公众号认证失败
+
 ```bash
 # 检查 AppID 和 AppSecret
 echo $WECHAT_APP_ID
@@ -569,6 +600,7 @@ echo $WECHAT_APP_SECRET
 ### 9.2 日志查看
 
 #### 9.2.1 查看 MCP 服务器日志
+
 ```bash
 # 小红书 MCP 服务器日志
 tail -f /var/log/xiaohongshu-mcp.log
@@ -578,6 +610,7 @@ pm2 logs wechat-mcp
 ```
 
 #### 9.2.2 查看 opencode 日志
+
 ```bash
 # 查看 opencode 日志
 tail -f ~/.opencode/logs/opencode.log
@@ -586,6 +619,7 @@ tail -f ~/.opencode/logs/opencode.log
 ## 10. 更新日志
 
 ### 10.1 版本 1.0.0 (2026-06-19)
+
 - 初始版本
 - 集成小红书 MCP 服务器
 - 集成微信公众号 MCP 服务器
@@ -595,6 +629,7 @@ tail -f ~/.opencode/logs/opencode.log
 ## 11. 贡献指南
 
 ### 11.1 开发流程
+
 1. Fork 项目
 2. 创建功能分支
 3. 提交更改
@@ -602,6 +637,7 @@ tail -f ~/.opencode/logs/opencode.log
 5. 创建 Pull Request
 
 ### 11.2 代码规范
+
 - 使用 TypeScript 严格模式
 - 遵循 ESLint 规则
 - 编写单元测试

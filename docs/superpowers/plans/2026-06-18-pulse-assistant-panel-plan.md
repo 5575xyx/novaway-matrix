@@ -13,9 +13,11 @@
 ## 文件结构
 
 ### 修改文件
+
 - `packages/app/src/pages/pulse/PulseLayout.tsx` - 主要修改文件，添加可折叠/可调整大小的面板逻辑
 
 ### 依赖文件
+
 - `packages/ui/src/components/resize-handle.tsx` - 现有的 ResizeHandle 组件
 - `packages/app/src/utils/persist.ts` - 现有的状态持久化工具
 
@@ -24,6 +26,7 @@
 ## 任务1：导入依赖和添加状态管理
 
 **文件：**
+
 - 修改：`packages/app/src/pages/pulse/PulseLayout.tsx:1-7`
 
 - [ ] **步骤1：添加必要的导入**
@@ -53,6 +56,7 @@ git commit -m "feat: 添加AI运营助手面板的导入依赖"
 ## 任务2：添加状态管理
 
 **文件：**
+
 - 修改：`packages/app/src/pages/pulse/PulseLayout.tsx:8-32`
 
 - [ ] **步骤1：在 PulseLayoutInner 组件中添加状态管理**
@@ -97,6 +101,7 @@ git commit -m "feat: 添加AI运营助手面板的状态管理"
 ## 任务3：添加状态处理函数
 
 **文件：**
+
 - 修改：`packages/app/src/pages/pulse/PulseLayout.tsx:32-50`
 
 - [ ] **步骤1：添加状态处理函数**
@@ -148,6 +153,7 @@ git commit -m "feat: 添加AI运营助手面板的状态处理函数"
 ## 任务4：修改布局结构（展开状态）
 
 **文件：**
+
 - 修改：`packages/app/src/pages/pulse/PulseLayout.tsx:50-70`
 
 - [ ] **步骤1：修改展开状态的布局结构**
@@ -164,7 +170,7 @@ git commit -m "feat: 添加AI运营助手面板的状态处理函数"
 
 ```tsx
 <Show when={!assistantCollapsed()}>
-  <div 
+  <div
     class="shrink-0 border-l border-border-weak-base bg-background-weak/60 relative"
     style={{ width: `${assistantWidth()}px` }}
   >
@@ -200,6 +206,7 @@ git commit -m "feat: 添加AI运营助手面板的展开状态布局"
 ## 任务5：添加折叠状态布局
 
 **文件：**
+
 - 修改：`packages/app/src/pages/pulse/PulseLayout.tsx:70-90`
 
 - [ ] **步骤1：在展开状态布局之后添加折叠状态布局**
@@ -209,7 +216,7 @@ git commit -m "feat: 添加AI运营助手面板的展开状态布局"
 ```tsx
 <Show when={assistantCollapsed()}>
   <div class="w-10 shrink-0 border-l border-border-weak-base bg-background-weak/60 flex flex-col items-center py-2">
-    <button 
+    <button
       class="size-8 rounded-lg flex items-center justify-center hover:bg-background-interactive-base transition-colors"
       onClick={handleExpand}
       title="展开AI运营助手"
@@ -237,6 +244,7 @@ git commit -m "feat: 添加AI运营助手面板的折叠状态布局"
 ## 任务6：验证完整功能
 
 **文件：**
+
 - 测试：`packages/app/src/pages/pulse/PulseLayout.tsx`
 
 - [ ] **步骤1：运行完整的类型检查**
@@ -274,6 +282,7 @@ git commit -m "feat: 完成AI运营助手面板的可折叠/可调整大小功�
 ## 验收标准
 
 ### 功能验收
+
 - [ ] 面板可折叠/展开
 - [ ] 面板宽度可通过拖拽调整（480px-600px）
 - [ ] 折叠状态显示展开按钮
@@ -281,12 +290,14 @@ git commit -m "feat: 完成AI运营助手面板的可折叠/可调整大小功�
 - [ ] 状态持久化到 localStorage
 
 ### 交互验收
+
 - [ ] 折叠/展开按钮响应点击
 - [ ] 拖拽手柄响应鼠标操作
 - [ ] 拖拽时显示宽度指示器
 - [ ] 折叠/展开有平滑过渡动画
 
 ### 样式验收
+
 - [ ] 折叠状态宽度为40px
 - [ ] 展开状态最小宽度480px，最大宽度600px
 - [ ] 按钮和手柄样式符合设计规范

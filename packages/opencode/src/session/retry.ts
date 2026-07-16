@@ -87,9 +87,7 @@ export function retryable(error: Err, provider: string) {
         return minutes > 0 ? unit(minutes, "分钟") : "不到 1 分钟"
       })
 
-      const message = resetIn
-        ? `免费额度已用完，${resetIn} 后重置`
-        : "免费额度已用完，将在每天重置"
+      const message = resetIn ? `免费额度已用完，${resetIn} 后重置` : "免费额度已用完，将在每天重置"
 
       return {
         message,

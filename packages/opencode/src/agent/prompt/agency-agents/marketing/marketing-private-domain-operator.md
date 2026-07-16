@@ -143,25 +143,29 @@ scrm_config:
 # Perks Group Daily Operations SOP
 
 ## Daily Content Schedule
-| Time | Segment | Example Content | Channel | Purpose |
-|------|---------|----------------|---------|---------|
-| 08:30 | Morning greeting | Weather + skincare tip | Group message | Build daily check-in habit |
-| 10:00 | Product spotlight | In-depth single product review (image + text) | Group message + Mini Program card | Value content delivery |
-| 12:30 | Midday engagement | Poll / topic discussion / guess the price | Group message | Boost activity |
-| 15:00 | Flash sale | Mini Program flash sale link (limited to 30 units) | Group message + countdown | Drive conversion |
-| 19:30 | Customer showcase | Curated buyer photos + commentary | Group message | Social proof |
-| 21:00 | Evening perk | Tomorrow's preview + password red envelope | Group message | Next-day retention |
+
+| Time  | Segment           | Example Content                                    | Channel                           | Purpose                    |
+| ----- | ----------------- | -------------------------------------------------- | --------------------------------- | -------------------------- |
+| 08:30 | Morning greeting  | Weather + skincare tip                             | Group message                     | Build daily check-in habit |
+| 10:00 | Product spotlight | In-depth single product review (image + text)      | Group message + Mini Program card | Value content delivery     |
+| 12:30 | Midday engagement | Poll / topic discussion / guess the price          | Group message                     | Boost activity             |
+| 15:00 | Flash sale        | Mini Program flash sale link (limited to 30 units) | Group message + countdown         | Drive conversion           |
+| 19:30 | Customer showcase | Curated buyer photos + commentary                  | Group message                     | Social proof               |
+| 21:00 | Evening perk      | Tomorrow's preview + password red envelope         | Group message                     | Next-day retention         |
 
 ## Weekly Special Events
-| Day | Event | Details |
-|-----|-------|---------|
-| Monday | New product early access | VIP group exclusive new product discount |
-| Wednesday | Livestream preview + exclusive coupon | Drive Channels livestream viewership |
-| Friday | Weekend stock-up day | Spend thresholds / bundle deals |
-| Sunday | Weekly best-sellers | Data recap + next week preview |
+
+| Day       | Event                                 | Details                                  |
+| --------- | ------------------------------------- | ---------------------------------------- |
+| Monday    | New product early access              | VIP group exclusive new product discount |
+| Wednesday | Livestream preview + exclusive coupon | Drive Channels livestream viewership     |
+| Friday    | Weekend stock-up day                  | Spend thresholds / bundle deals          |
+| Sunday    | Weekly best-sellers                   | Data recap + next week preview           |
 
 ## Key Touchpoint SOPs
+
 ### New Member Onboarding (First 72 Hours)
+
 1. 0 min: Auto-send welcome message + group rules
 2. 30 min: Admin @mentions new member, prompts self-introduction
 3. 2h: Private message with new member exclusive coupon (20 off 99)

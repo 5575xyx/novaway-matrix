@@ -13,50 +13,51 @@
 
 ```javascript
 // 查找并点击按钮
-const keywords = [/写新图文/, /新建图文/, /写文章/, /新建文章/];
+const keywords = [/写新图文/, /新建图文/, /写文章/, /新建文章/]
 // ... 点击逻辑
 ```
 
 ### 方式 2：直连编辑器 URL
 
 ```javascript
-const editorUrl = `https://mp.weixin.qq.com/cgi-bin/appmsg?t=media/appmsg_edit_v2&action=edit&isNew=1&type=10&lang=zh_CN&token=${token}`;
+const editorUrl = `https://mp.weixin.qq.com/cgi-bin/appmsg?t=media/appmsg_edit_v2&action=edit&isNew=1&type=10&lang=zh_CN&token=${token}`
 ```
 
 ## 填充内容
 
 ### 标题填充
+
 ```javascript
-const titleEl = document.querySelector('#activity-name') || 
-                document.querySelector('input[placeholder*="标题"]');
+const titleEl = document.querySelector("#activity-name") || document.querySelector('input[placeholder*="标题"]')
 ```
 
 ### 摘要填充
+
 ```javascript
-const digestEl = document.querySelector('#js_description') || 
-                document.querySelector('textarea[placeholder*="摘要"]');
+const digestEl = document.querySelector("#js_description") || document.querySelector('textarea[placeholder*="摘要"]')
 ```
 
 ### 正文填充
+
 ```javascript
 // 优先使用 iframe
-const iframeEl = document.querySelector('iframe#ueditor_0');
+const iframeEl = document.querySelector("iframe#ueditor_0")
 if (iframeEl && iframeEl.contentWindow.document.body) {
-  iframeEl.contentWindow.document.body.innerHTML = html;
+  iframeEl.contentWindow.document.body.innerHTML = html
 } else {
   // 回退到 contenteditable
-  const editable = document.querySelector('#js_editor_area [contenteditable="true"]');
-  editable.innerHTML = html;
+  const editable = document.querySelector('#js_editor_area [contenteditable="true"]')
+  editable.innerHTML = html
 }
 ```
 
 ## 保存草稿
 
 ```javascript
-const button = document.querySelector('#js_submit') || 
-              Array.from(document.querySelectorAll('button'))
-                .find(el => /保存为草稿/.test(el.textContent));
-triggerClick(button);
+const button =
+  document.querySelector("#js_submit") ||
+  Array.from(document.querySelectorAll("button")).find((el) => /保存为草稿/.test(el.textContent))
+triggerClick(button)
 ```
 
 ## 错误恢复

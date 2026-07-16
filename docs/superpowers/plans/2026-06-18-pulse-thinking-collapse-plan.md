@@ -20,6 +20,7 @@
 ### Task 1: 添加折叠状态管理
 
 **Files:**
+
 - Modify: `packages/app/src/pages/pulse/PulseAssistant.tsx:24-33`
 
 - [ ] **Step 1: 添加createSignal管理折叠状态**
@@ -33,7 +34,7 @@ const [expandedThinking, setExpandedThinking] = createSignal<Set<string>>(new Se
 
 ```typescript
 const toggleThinking = (messageId: string) => {
-  setExpandedThinking(prev => {
+  setExpandedThinking((prev) => {
     const newSet = new Set(prev)
     if (newSet.has(messageId)) {
       newSet.delete(messageId)
@@ -55,6 +56,7 @@ git commit -m "feat(pulse): add thinking collapse state management"
 ### Task 2: 修改消息渲染逻辑
 
 **Files:**
+
 - Modify: `packages/app/src/pages/pulse/PulseAssistant.tsx:240-254`
 
 - [ ] **Step 1: 添加导入Accordion组件**
@@ -84,11 +86,11 @@ import { Accordion } from "@opencode-ai/ui/accordion"
                 <Accordion.Trigger class="w-full text-left">
                   <div class="flex items-center gap-2 text-text-weak text-12-medium">
                     <span>思考过程</span>
-                    <svg 
+                    <svg
                       class={`size-3 transition-transform ${expandedThinking().has(String(msg.timestamp)) ? "rotate-90" : ""}`}
-                      viewBox="0 0 24 24" 
-                      fill="none" 
-                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
                       stroke-width="2"
                     >
                       <path d="M9 18l6-6-6-6" />
@@ -125,6 +127,7 @@ git commit -m "feat(pulse): implement thinking process collapse UI"
 ### Task 3: 测试和验证
 
 **Files:**
+
 - 无
 
 - [ ] **Step 1: 运行类型检查**
@@ -164,6 +167,7 @@ git commit -m "fix(pulse): adjust thinking collapse UI based on testing"
 ## 回滚方案
 
 如果实现有问题，可以：
+
 1. 回滚到上一个commit
 2. 或者注释掉Accordion相关代码，恢复原始渲染逻辑
 

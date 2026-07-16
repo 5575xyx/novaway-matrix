@@ -17,6 +17,7 @@
 Step 1a is the load-bearing assumption of the entire design. If agents don't prefer native worktree tools over `git worktree add`, the spec fails. Validate this FIRST, before touching any skill files.
 
 **Files:**
+
 - Create: `tests/claude-code/test-worktree-native-preference.sh`
 - Read: `skills/using-git-worktrees/SKILL.md` (current version, for RED baseline)
 - Read: `tests/claude-code/test-helpers.sh` (for `run_claude`, `assert_contains`, etc.)
@@ -202,6 +203,7 @@ git worktree add on Claude Code. Must pass before skill rewrite."
 Full rewrite of the creation skill. Replaces the existing file entirely.
 
 **Files:**
+
 - Modify: `skills/using-git-worktrees/SKILL.md` (full rewrite, 219 lines → ~210 lines)
 
 **Depends on:** Task 1 GREEN passing.
@@ -210,7 +212,7 @@ Full rewrite of the creation skill. Replaces the existing file entirely.
 
 Replace the entire contents of `skills/using-git-worktrees/SKILL.md` with:
 
-```markdown
+````markdown
 ---
 name: using-git-worktrees
 description: Use when starting feature work that needs isolation from current workspace or before executing implementation plans - ensures an isolated workspace exists via native tools or git worktree fallback
@@ -235,6 +237,7 @@ GIT_DIR=$(cd "$(git rev-parse --git-dir)" 2>/dev/null && pwd -P)
 GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" 2>/dev/null && pwd -P)
 BRANCH=$(git branch --show-current)
 ```
+````
 
 **Submodule guard:** `GIT_DIR != GIT_COMMON` is also true inside git submodules. Before concluding "already in a worktree," verify you are not in a submodule:
 
@@ -246,6 +249,7 @@ git rev-parse --show-superproject-working-tree 2>/dev/null
 **If `GIT_DIR != GIT_COMMON` (and not a submodule):** You are already in a linked worktree. Skip to Step 3 (Project Setup). Do NOT create another worktree.
 
 Report with branch state:
+
 - On a branch: "Already in isolated workspace at `<path>` on branch `<name>`."
 - Detached HEAD: "Already in isolated workspace at `<path>` (detached HEAD, externally managed). Branch creation needed at finish time."
 
@@ -278,10 +282,12 @@ Follow this priority order:
 1. **Check your instructions for a worktree directory preference.** If specified, use it without asking.
 
 2. **Check existing project-local directories:**
+
    ```bash
    ls -d .worktrees 2>/dev/null     # Preferred (hidden)
    ls -d worktrees 2>/dev/null      # Alternative
    ```
+
    If found, use that directory. If both exist, `.worktrees` wins.
 
 3. **Default to `.worktrees/`.**
@@ -365,20 +371,20 @@ Ready to implement <feature-name>
 
 ## Quick Reference
 
-| Situation | Action |
-|-----------|--------|
-| Already in linked worktree | Skip creation (Step 0) |
-| In a submodule | Treat as normal repo (Step 0 guard) |
-| Native worktree tool available | Use it (Step 1a) |
-| No native tool | Git worktree fallback (Step 1b) |
-| `.worktrees/` exists | Use it (verify ignored) |
-| `worktrees/` exists | Use it (verify ignored) |
-| Both exist | Use `.worktrees/` |
-| Neither exists | Check instruction file, then default `.worktrees/` |
-| Directory not ignored | Add to .gitignore + commit |
-| Permission error on create | Sandbox fallback, work in place |
-| Tests fail during baseline | Report failures + ask |
-| No package.json/Cargo.toml | Skip dependency install |
+| Situation                      | Action                                             |
+| ------------------------------ | -------------------------------------------------- |
+| Already in linked worktree     | Skip creation (Step 0)                             |
+| In a submodule                 | Treat as normal repo (Step 0 guard)                |
+| Native worktree tool available | Use it (Step 1a)                                   |
+| No native tool                 | Git worktree fallback (Step 1b)                    |
+| `.worktrees/` exists           | Use it (verify ignored)                            |
+| `worktrees/` exists            | Use it (verify ignored)                            |
+| Both exist                     | Use `.worktrees/`                                  |
+| Neither exists                 | Check instruction file, then default `.worktrees/` |
+| Directory not ignored          | Add to .gitignore + commit                         |
+| Permission error on create     | Sandbox fallback, work in place                    |
+| Tests fail during baseline     | Report failures + ask                              |
+| No package.json/Cargo.toml     | Skip dependency install                            |
 
 ## Common Mistakes
 
@@ -410,6 +416,7 @@ Ready to implement <feature-name>
 ## Red Flags
 
 **Never:**
+
 - Create a worktree when Step 0 detects existing isolation
 - Use git commands when a native worktree tool is available
 - Create worktree without verifying it's ignored (project-local)
@@ -417,6 +424,7 @@ Ready to implement <feature-name>
 - Proceed with failing tests without asking
 
 **Always:**
+
 - Run Step 0 detection first
 - Prefer native tools over git fallback
 - Follow directory priority: existing > instruction file > default
@@ -428,13 +436,16 @@ Ready to implement <feature-name>
 ## Integration
 
 **Called by:**
+
 - **subagent-driven-development** - Ensures isolated workspace (creates one or verifies existing)
 - **executing-plans** - Ensures isolated workspace (creates one or verifies existing)
 - Any skill needing isolated workspace
 
 **Pairs with:**
+
 - **finishing-a-development-branch** - REQUIRED for cleanup after work complete
-```
+
+````
 
 - [ ] **Step 2: Verify the file reads correctly**
 
@@ -454,7 +465,7 @@ Step 1a: native tool preference (short, first, declarative)
 Step 1b: git worktree fallback with project-local directory policy
 Submodule guard prevents false detection
 Platform-neutral instruction file references (#1049)"
-```
+````
 
 ---
 
@@ -463,13 +474,14 @@ Platform-neutral instruction file references (#1049)"
 Full rewrite of the finishing skill. Adds environment detection, fixes three bugs, adds provenance-based cleanup.
 
 **Files:**
+
 - Modify: `skills/finishing-a-development-branch/SKILL.md` (full rewrite, 201 lines → ~220 lines)
 
 - [ ] **Step 1: Write the complete new SKILL.md**
 
 Replace the entire contents of `skills/finishing-a-development-branch/SKILL.md` with:
 
-```markdown
+````markdown
 ---
 name: finishing-a-development-branch
 description: Use when implementation is complete, all tests pass, and you need to decide how to integrate the work - guides completion of development work by presenting structured options for merge, PR, or cleanup
@@ -495,8 +507,10 @@ Guide completion of development work by presenting clear options and handling ch
 # Run project's test suite
 npm test / cargo test / pytest / go test ./...
 ```
+````
 
 **If tests fail:**
+
 ```
 Tests failing (<N> failures). Must fix before completing:
 
@@ -520,10 +534,10 @@ GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" 2>/dev/null && pwd -P)
 
 This determines which menu to show and how cleanup works:
 
-| State | Menu | Cleanup |
-|-------|------|---------|
-| `GIT_DIR == GIT_COMMON` (normal repo) | Standard 4 options | No worktree to clean up |
-| `GIT_DIR != GIT_COMMON`, named branch | Standard 4 options | Provenance-based (see Step 6) |
+| State                                  | Menu                         | Cleanup                         |
+| -------------------------------------- | ---------------------------- | ------------------------------- |
+| `GIT_DIR == GIT_COMMON` (normal repo)  | Standard 4 options           | No worktree to clean up         |
+| `GIT_DIR != GIT_COMMON`, named branch  | Standard 4 options           | Provenance-based (see Step 6)   |
 | `GIT_DIR != GIT_COMMON`, detached HEAD | Reduced 3 options (no merge) | No cleanup (externally managed) |
 
 ### Step 3: Determine Base Branch
@@ -616,6 +630,7 @@ Report: "Keeping branch <name>. Worktree preserved at <path>."
 #### Option 4: Discard
 
 **Confirm first:**
+
 ```
 This will permanently delete:
 - Branch <name>
@@ -628,12 +643,14 @@ Type 'discard' to confirm.
 Wait for exact confirmation.
 
 If confirmed:
+
 ```bash
 MAIN_ROOT=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
 cd "$MAIN_ROOT"
 ```
 
 Then: Cleanup worktree (Step 6), then force-delete branch:
+
 ```bash
 git branch -D <feature-branch>
 ```
@@ -663,46 +680,54 @@ git worktree prune  # Self-healing: clean up any stale registrations
 
 ## Quick Reference
 
-| Option | Merge | Push | Keep Worktree | Cleanup Branch |
-|--------|-------|------|---------------|----------------|
-| 1. Merge locally | yes | - | - | yes |
-| 2. Create PR | - | yes | yes | - |
-| 3. Keep as-is | - | - | yes | - |
-| 4. Discard | - | - | - | yes (force) |
+| Option           | Merge | Push | Keep Worktree | Cleanup Branch |
+| ---------------- | ----- | ---- | ------------- | -------------- |
+| 1. Merge locally | yes   | -    | -             | yes            |
+| 2. Create PR     | -     | yes  | yes           | -              |
+| 3. Keep as-is    | -     | -    | yes           | -              |
+| 4. Discard       | -     | -    | -             | yes (force)    |
 
 ## Common Mistakes
 
 **Skipping test verification**
+
 - **Problem:** Merge broken code, create failing PR
 - **Fix:** Always verify tests before offering options
 
 **Open-ended questions**
+
 - **Problem:** "What should I do next?" is ambiguous
 - **Fix:** Present exactly 4 structured options (or 3 for detached HEAD)
 
 **Cleaning up worktree for Option 2**
+
 - **Problem:** Remove worktree user needs for PR iteration
 - **Fix:** Only cleanup for Options 1 and 4
 
 **Deleting branch before removing worktree**
+
 - **Problem:** `git branch -d` fails because worktree still references the branch
 - **Fix:** Merge first, remove worktree, then delete branch
 
 **Running git worktree remove from inside the worktree**
+
 - **Problem:** Command fails silently when CWD is inside the worktree being removed
 - **Fix:** Always `cd` to main repo root before `git worktree remove`
 
 **Cleaning up harness-owned worktrees**
+
 - **Problem:** Removing a worktree the harness created causes phantom state
 - **Fix:** Only clean up worktrees under `.worktrees/` or `worktrees/`
 
 **No confirmation for discard**
+
 - **Problem:** Accidentally delete work
 - **Fix:** Require typed "discard" confirmation
 
 ## Red Flags
 
 **Never:**
+
 - Proceed with failing tests
 - Merge without verifying tests on result
 - Delete work without confirmation
@@ -712,6 +737,7 @@ git worktree prune  # Self-healing: clean up any stale registrations
 - Run `git worktree remove` from inside the worktree
 
 **Always:**
+
 - Verify tests before offering options
 - Detect environment before presenting menu
 - Present exactly 4 options (or 3 for detached HEAD)
@@ -723,12 +749,15 @@ git worktree prune  # Self-healing: clean up any stale registrations
 ## Integration
 
 **Called by:**
+
 - **subagent-driven-development** (Step 7) - After all tasks complete
 - **executing-plans** (Step 5) - After all batches complete
 
 **Pairs with:**
+
 - **using-git-worktrees** - Cleans up worktree created by that skill
-```
+
+````
 
 - [ ] **Step 2: Verify the file reads correctly**
 
@@ -749,7 +778,7 @@ Bug #940: Option 2 no longer cleans up worktree
 Bug #999: merge -> verify -> remove worktree -> delete branch
 Bug #238: cd to main repo root before git worktree remove
 Stale worktree pruning after removal (git worktree prune)"
-```
+````
 
 ---
 
@@ -758,6 +787,7 @@ Stale worktree pruning after removal (git worktree prune)"
 One-line changes to three files that reference `using-git-worktrees`.
 
 **Files:**
+
 - Modify: `skills/executing-plans/SKILL.md:68`
 - Modify: `skills/subagent-driven-development/SKILL.md:268`
 - Modify: `skills/writing-plans/SKILL.md:16`
@@ -822,6 +852,7 @@ Fix stale 'created by brainstorming' claim in writing-plans."
 Verify the full rewritten skills work together. Run the existing test suite plus manual verification.
 
 **Files:**
+
 - Read: `tests/claude-code/run-skill-tests.sh`
 - Read: `skills/using-git-worktrees/SKILL.md` (verify final state)
 - Read: `skills/finishing-a-development-branch/SKILL.md` (verify final state)

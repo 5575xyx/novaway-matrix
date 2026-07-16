@@ -15,7 +15,6 @@ import { Config } from "@/config/config"
 import { ConfigMCP } from "../config/mcp"
 import * as Log from "@opencode-ai/core/util/log"
 import { NamedError } from "@opencode-ai/core/util/error"
-import { Installation } from "../installation"
 import { InstallationVersion } from "@opencode-ai/core/installation/version"
 import { withTimeout } from "@/util/timeout"
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
@@ -244,6 +243,7 @@ export interface Interface {
   readonly add: (name: string, mcp: ConfigMCP.Info) => Effect.Effect<{ status: Record<string, Status> | Status }>
   readonly connect: (name: string) => Effect.Effect<void>
   readonly disconnect: (name: string) => Effect.Effect<void>
+  readonly callTool: (toolId: string, args: Record<string, unknown>) => Effect.Effect<unknown, Error>
   readonly getPrompt: (
     clientName: string,
     name: string,
@@ -611,6 +611,13 @@ export const layer = Layer.effect(
         result[key] = s.status[key] ?? { status: "disabled" }
       }
 
+      // 包含通过 add/connect 动态添加但未持久化到配置中的服务器
+      for (const key of Object.keys(s.status)) {
+        if (!(key in result)) {
+          result[key] = s.status[key]
+        }
+      }
+
       return result
     })
 
@@ -702,6 +709,33 @@ export const layer = Layer.effect(
         { concurrency: "unbounded" },
       ).pipe(Effect.map((results) => Object.fromEntries<T & { client: string }>(results.flat())))
     }
+
+    const callTool = Effect.fn("MCP.callTool")(function* (toolId: string, args: Record<string, unknown>) {
+      const s = yield* InstanceState.get(state)
+      const cfg = yield* cfgSvc.get()
+      const defaultTimeout = cfg.experimental?.mcp_timeout
+
+      for (const [clientName, client] of Object.entries(s.clients)) {
+        if (s.status[clientName]?.status !== "connected") continue
+        const listed = s.defs[clientName]
+        if (!listed) continue
+        const mcpConfig = cfg.mcp?.[clientName]
+        const entry = mcpConfig && isMcpConfigured(mcpConfig) ? mcpConfig : undefined
+        const timeout = entry?.timeout ?? defaultTimeout
+        for (const mcpTool of listed) {
+          if (sanitize(clientName) + "_" + sanitize(mcpTool.name) !== toolId) continue
+          return yield* Effect.tryPromise({
+            try: () =>
+              client.callTool({ name: mcpTool.name, arguments: args }, CallToolResultSchema, {
+                resetTimeoutOnProgress: true,
+                timeout,
+              }),
+            catch: (e) => (e instanceof Error ? e : new Error(String(e))),
+          })
+        }
+      }
+      return yield* Effect.fail(new Error(`MCP tool not found or server not connected: ${toolId}`))
+    })
 
     const prompts = Effect.fn("MCP.prompts")(function* () {
       const s = yield* InstanceState.get(state)
@@ -929,6 +963,7 @@ export const layer = Layer.effect(
       add,
       connect,
       disconnect,
+      callTool,
       getPrompt,
       readResource,
       startAuth,

@@ -75,7 +75,9 @@ export const ModelCapabilitySummary: Component<{ model: ModelCapabilityInfo; com
           <Show when={hasPrevious()}>
             <span class="text-text-muted">·</span>
           </Show>
-          <span class="text-amber-700 dark:text-amber-200">上下文上限 {props.model.limit.context.toLocaleString()}</span>
+          <span class="text-amber-700 dark:text-amber-200">
+            上下文上限 {props.model.limit.context.toLocaleString()}
+          </span>
         </span>
       </Show>
     </div>

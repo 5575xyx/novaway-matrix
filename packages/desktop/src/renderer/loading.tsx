@@ -32,7 +32,9 @@ render(() => {
     return Math.max(10, Math.min(95, percent()))
   })
 
-  window.api.awaitInitialization((next) => setStep(next as InitStep)).catch((err) => {
+  window.api
+    .awaitInitialization((next) => setStep(next as InitStep))
+    .catch((err) => {
       console.error("Initialization error:", err)
       setStep({ phase: "done" })
     })
@@ -45,10 +47,13 @@ render(() => {
 
     const stepTimers = initSteps.map((initStep, index) => {
       if (index === 0) return undefined
-      return setTimeout(() => {
-        setCurrentStepIndex(index)
-        setPercent(initStep.progress)
-      }, 2000 + index * 1500)
+      return setTimeout(
+        () => {
+          setCurrentStepIndex(index)
+          setPercent(initStep.progress)
+        },
+        2000 + index * 1500,
+      )
     })
 
     const listener = window.api.onSqliteMigrationProgress((progress: SqliteMigrationProgress) => {
@@ -81,10 +86,10 @@ render(() => {
   const status = createMemo(() => {
     if (phase() === "done") return t("desktop.loading.done")
     if (phase() === "sqlite_waiting") return t("desktop.loading.migrating")
-    
+
     const currentInitStep = initSteps[currentStepIndex()]
     if (currentInitStep) return t(currentInitStep.text as any)
-    
+
     return t("desktop.loading.waiting")
   })
 
@@ -109,9 +114,7 @@ render(() => {
               aria-label="初始化进度"
               getValueLabel={({ value }) => `${Math.round(value)}%`}
             />
-            <span class="text-text-weak text-11-normal">
-              {Math.round(value())}%
-            </span>
+            <span class="text-text-weak text-11-normal">{Math.round(value())}%</span>
           </div>
         </div>
       </div>

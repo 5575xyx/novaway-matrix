@@ -20,7 +20,6 @@ export const SidebarContent = (props: {
 
   return (
     <div class="flex h-full w-full min-w-0 overflow-hidden">
-
       <div
         ref={(el) => {
           panel = el

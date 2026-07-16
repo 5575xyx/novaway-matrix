@@ -68,7 +68,10 @@ export interface Interface {
     input: { directory: string; worktree: string; globalConfig?: string },
   ) => Effect.Effect<CandidateFileApply | undefined>
   readonly dismiss: (id: EvolutionCandidateID) => Effect.Effect<Candidate | undefined>
-  readonly status: (input?: { projectID?: ReviewInput["projectID"]; sessionID?: ReviewInput["sessionID"] }) => Effect.Effect<StatusSummary>
+  readonly status: (input?: {
+    projectID?: ReviewInput["projectID"]
+    sessionID?: ReviewInput["sessionID"]
+  }) => Effect.Effect<StatusSummary>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/Evolution") {}
@@ -154,7 +157,10 @@ function sourceCounts(items: Candidate[]): StatusSummary["source"] {
   }, emptySourceCounts())
 }
 
-function normalizeProposal(input: ReviewInput, proposal: CandidateProposal): typeof EvolutionCandidateTable.$inferInsert | undefined {
+function normalizeProposal(
+  input: ReviewInput,
+  proposal: CandidateProposal,
+): typeof EvolutionCandidateTable.$inferInsert | undefined {
   const title = proposal.title.trim()
   const content = proposal.content.trim()
   const target = proposal.target.trim()
@@ -173,7 +179,11 @@ function normalizeProposal(input: ReviewInput, proposal: CandidateProposal): typ
     content,
     content_format: candidateContentFormat(content, proposal.contentFormat),
     reason,
-    tags: Array.from(new Set([...(proposal.tags ?? []), "evolution", ...(global ? ["global"] : [])].map((tag) => tag.trim()).filter(Boolean))),
+    tags: Array.from(
+      new Set(
+        [...(proposal.tags ?? []), "evolution", ...(global ? ["global"] : [])].map((tag) => tag.trim()).filter(Boolean),
+      ),
+    ),
     source_message_id: input.sourceMessageID,
     status: "pending",
     time_created: now,
@@ -187,9 +197,7 @@ function explicitSessionEndProposal(text: string): CandidateProposal | undefined
     /(?:remember\s+to\s+improve|next\s+time\s+improve)\s+(.+)/i,
     /(?:改进|优化|进化|下次应该|以后应该)[:：]?\s*(.+)/,
   ]
-  const content = patterns
-    .map((pattern) => text.match(pattern)?.[1]?.trim())
-    .find((item) => item && item.length >= 8)
+  const content = patterns.map((pattern) => text.match(pattern)?.[1]?.trim()).find((item) => item && item.length >= 8)
   if (!content) return
   const kind = /\b(skill|skills)\b/i.test(content) ? "skill" : /\b(agent|agents)\b/i.test(content) ? "agent" : "project"
   return {
@@ -303,11 +311,16 @@ function buildUnifiedDiff(file: string, before: string, after: string) {
     ...beforeLines.slice(Math.max(prefix - 3, 0), prefix).map((line) => ` ${line}`),
     ...beforeChanged.map((line) => `-${line}`),
     ...afterChanged.map((line) => `+${line}`),
-    ...beforeLines.slice(beforeLines.length - suffix, Math.min(beforeLines.length - suffix + 3, beforeLines.length)).map((line) => ` ${line}`),
+    ...beforeLines
+      .slice(beforeLines.length - suffix, Math.min(beforeLines.length - suffix + 3, beforeLines.length))
+      .map((line) => ` ${line}`),
   ].join("\n")
 }
 
-async function buildDryRun(candidate: Candidate, input: { directory: string; worktree: string; globalConfig?: string }): Promise<CandidateDryRun> {
+async function buildDryRun(
+  candidate: Candidate,
+  input: { directory: string; worktree: string; globalConfig?: string },
+): Promise<CandidateDryRun> {
   const file = targetFile(candidate, input)
   const exists = await Bun.file(file).exists()
   const before = exists ? await Bun.file(file).text() : ""
@@ -423,7 +436,9 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
         .filter((item) => item !== undefined)
         .filter(
           (row, index, rows) =>
-            rows.findIndex((item) => item.kind === row.kind && item.target === row.target && item.content === row.content) === index,
+            rows.findIndex(
+              (item) => item.kind === row.kind && item.target === row.target && item.content === row.content,
+            ) === index,
         )
       if (!rows.length) return []
       const existing = yield* list({
@@ -541,7 +556,10 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
       if (!candidate || candidate.status !== "pending") return
       const dryRun = yield* Effect.promise(() => buildDryRun(candidate, input))
       yield* Effect.promise(() =>
-        writeDryRun(dryRun, isGlobalCandidate(candidate) ? { ...input, worktree: input.globalConfig ?? Global.Path.config } : input),
+        writeDryRun(
+          dryRun,
+          isGlobalCandidate(candidate) ? { ...input, worktree: input.globalConfig ?? Global.Path.config } : input,
+        ),
       )
       const now = Date.now()
       yield* Effect.sync(() =>
@@ -599,7 +617,19 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
       }
     })
 
-    return Service.of({ review, reviewSessionEnd, reviewDue, list, update, preview, dryRun, apply, applyToDisk, dismiss, status })
+    return Service.of({
+      review,
+      reviewSessionEnd,
+      reviewDue,
+      list,
+      update,
+      preview,
+      dryRun,
+      apply,
+      applyToDisk,
+      dismiss,
+      status,
+    })
   }),
 )
 

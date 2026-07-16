@@ -67,10 +67,16 @@ export abstract class PlatformBase {
   abstract getAccountStats(accountId: string): Promise<AccountStats>
   abstract loginOrView(authModel: "login" | "view", existingCookies?: Cookie[] | null): Promise<PlatformLoginResult>
 
-  async login(): Promise<{ loginCookie: string; uid: string; nickname: string; avatar: string; fansCount: number } | null> {
+  async login(): Promise<{
+    loginCookie: string
+    uid: string
+    nickname: string
+    avatar: string
+    fansCount: number
+  } | null> {
     const result = await this.loginOrView("login")
     if (!result.success || !result.cookies) return null
-    const userInfo = result.userInfo || await this.getAccountInfo(result.cookies)
+    const userInfo = result.userInfo || (await this.getAccountInfo(result.cookies))
     return {
       loginCookie: JSON.stringify(result.cookies),
       uid: userInfo.platformUserId,

@@ -20,7 +20,7 @@
   var metas = document.querySelectorAll("meta[name='theme-color']")
   var themeColors = {
     "oc-2": { dark: "#131010", light: "#F8F7F7" },
-    "novaway": { dark: "#1a2332", light: "#f0f9ff" },
+    novaway: { dark: "#1a2332", light: "#f0f9ff" },
   }
   var colors = themeColors[themeId] || { dark: "#131010", light: "#F8F7F7" }
   if (metas.length > 0) metas[0].setAttribute("content", isDark ? colors.dark : colors.light)

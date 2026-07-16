@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test"
-import { forgeAgentForPrompt, hasForgeBuildIntent, shouldAutoBuildAfterForgePlan, visibleAgentList } from "./local-agent"
+import {
+  forgeAgentForPrompt,
+  hasForgeBuildIntent,
+  shouldAutoBuildAfterForgePlan,
+  visibleAgentList,
+} from "./local-agent"
 
 const agents = [
   { name: "build", mode: "primary", options: {} },
@@ -28,22 +33,26 @@ describe("visibleAgentList", () => {
     ])
   })
 
-  test("锻造模式默认进入锻造工程", () => {
-    expect(forgeAgentForPrompt({ mode: "forge", current: "plan", text: "帮我看看这个需求怎么做" })).toBe("build")
+  test("锻造模式显式规划无执行意图时进入规划蓝图", () => {
+    expect(forgeAgentForPrompt({ mode: "forge", current: "plan", text: "帮我看看这个需求怎么做" })).toBe("plan")
+    expect(forgeAgentForPrompt({ mode: "forge", current: "plan", text: "先不要执行，只给我方案" })).toBe("plan")
+    expect(hasForgeBuildIntent("先不要执行，只给我方案")).toBe(false)
   })
 
-  test("锻造模式自然语言直接进入锻造工程", () => {
+  test("锻造模式显式规划有执行意图时进入锻造工程", () => {
     expect(forgeAgentForPrompt({ mode: "forge", current: "plan", text: "继续，按方案开始实现" })).toBe("build")
     expect(hasForgeBuildIntent("切换到执行，开始修改文件")).toBe(true)
   })
 
   test("锻造模式命令输入直接进入锻造工程", () => {
     expect(forgeAgentForPrompt({ mode: "forge", current: "plan", text: "/commit 生成提交说明" })).toBe("build")
-    expect(shouldAutoBuildAfterForgePlan({ mode: "forge", text: "/commit 生成提交说明", promptMode: "normal" })).toBe(false)
+    expect(shouldAutoBuildAfterForgePlan({ mode: "forge", text: "/commit 生成提交说明", promptMode: "normal" })).toBe(
+      false,
+    )
   })
 
-  test("锻造模式始终进入锻造工程", () => {
-    expect(forgeAgentForPrompt({ mode: "forge", current: "plan", text: "先不要执行，只给我方案" })).toBe("build")
-    expect(hasForgeBuildIntent("先不要执行，只给我方案")).toBe(false)
+  test("锻造模式默认进入锻造工程", () => {
+    expect(forgeAgentForPrompt({ mode: "forge", current: "build", text: "帮我看看这个需求怎么做" })).toBe("build")
+    expect(forgeAgentForPrompt({ mode: "forge", current: undefined, text: "帮我看看这个需求怎么做" })).toBe("build")
   })
 })

@@ -38,9 +38,7 @@ export function Drawer(props: DrawerProps) {
               <Show when={props.title}>
                 <Kobalte.Title data-slot="drawer-title">{props.title}</Kobalte.Title>
               </Show>
-              <Show when={props.action}>
-                {props.action}
-              </Show>
+              <Show when={props.action}>{props.action}</Show>
               <Show when={!props.action}>
                 <Kobalte.CloseButton
                   data-slot="drawer-close-button"

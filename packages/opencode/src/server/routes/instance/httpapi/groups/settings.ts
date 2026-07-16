@@ -11,6 +11,7 @@ export const SettingsMarkdownAsset = Schema.Struct({
   name: Schema.String,
   location: Schema.String,
   editable: Schema.Boolean,
+  builtIn: Schema.optional(Schema.Boolean),
   data: Schema.Record(Schema.String, Schema.Unknown),
   content: Schema.String,
 })

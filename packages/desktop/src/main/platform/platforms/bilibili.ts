@@ -1,6 +1,14 @@
 import { BrowserWindow, screen, session } from "electron"
 import type { Cookie } from "electron"
-import { PlatformBase, type PlatformLoginResult, type PublishInput, type PublishResult, type PlatformAccountInfo, type AccountStats, type PublishRecord } from "../PlatformBase"
+import {
+  PlatformBase,
+  type PlatformLoginResult,
+  type PublishInput,
+  type PublishResult,
+  type PlatformAccountInfo,
+  type AccountStats,
+  type PublishRecord,
+} from "../PlatformBase"
 
 const LOGIN_URL = "https://passport.bilibili.com/login"
 const COOKIE_URL = "https://www.bilibili.com"
@@ -61,7 +69,13 @@ export class BilibiliPlatform extends PlatformBase {
   readonly loginUrl = LOGIN_URL
   readonly cookieCheckField = "SESSDATA"
 
-  async login(): Promise<{ loginCookie: string; uid: string; nickname: string; avatar: string; fansCount: number } | null> {
+  async login(): Promise<{
+    loginCookie: string
+    uid: string
+    nickname: string
+    avatar: string
+    fansCount: number
+  } | null> {
     const { win, partition } = await this.createAuthorizationWindow()
 
     try {
@@ -204,8 +218,12 @@ export class BilibiliPlatform extends PlatformBase {
       win.webContents.on("did-navigate", onNavigate)
       win.webContents.on("did-navigate-in-page", onNavigate)
 
-      intervalTimer = setInterval(() => { void checkLogin() }, CHECK_INTERVAL_MS)
-      timeoutTimer = setTimeout(() => { fail(new Error("B站登录超时，请重试")) }, LOGIN_TIMEOUT_MS)
+      intervalTimer = setInterval(() => {
+        void checkLogin()
+      }, CHECK_INTERVAL_MS)
+      timeoutTimer = setTimeout(() => {
+        fail(new Error("B站登录超时，请重试"))
+      }, LOGIN_TIMEOUT_MS)
       intervalTimer.unref?.()
       timeoutTimer.unref?.()
       void checkLogin()
@@ -213,7 +231,9 @@ export class BilibiliPlatform extends PlatformBase {
   }
 
   private wait(ms: number) {
-    return new Promise<void>((resolve) => { setTimeout(() => resolve(), ms) })
+    return new Promise<void>((resolve) => {
+      setTimeout(() => resolve(), ms)
+    })
   }
 
   private async navigateToMainSite(win: BrowserWindow) {
@@ -362,19 +382,18 @@ export class BilibiliPlatform extends PlatformBase {
       cookieMap.set(cookie.name, this.normalizeField(cookie.value))
     }
 
-    const uid =
-      this.normalizeField(profile?.uid) ||
-      this.normalizeField(cookieMap.get("DedeUserID")) ||
-      ""
-    const nickname =
-      this.normalizeField(profile?.nickname) ||
-      this.normalizeField(cookieMap.get("bili_uname")) ||
-      uid
+    const uid = this.normalizeField(profile?.uid) || this.normalizeField(cookieMap.get("DedeUserID")) || ""
+    const nickname = this.normalizeField(profile?.nickname) || this.normalizeField(cookieMap.get("bili_uname")) || uid
     const avatar = this.normalizeAvatar(profile?.avatar)
 
-    console.debug("[bilibili] extractAccountInfo:", JSON.stringify({ uid, nickname, avatar }),
-      "cookie_bili_uname:", cookieMap.get("bili_uname"),
-      "profile:", JSON.stringify(profile))
+    console.debug(
+      "[bilibili] extractAccountInfo:",
+      JSON.stringify({ uid, nickname, avatar }),
+      "cookie_bili_uname:",
+      cookieMap.get("bili_uname"),
+      "profile:",
+      JSON.stringify(profile),
+    )
 
     return { uid, account: uid, nickname, avatar }
   }

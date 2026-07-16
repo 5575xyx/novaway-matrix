@@ -37,6 +37,7 @@ import { getSessionPrefetch, SESSION_PREFETCH_TTL } from "@/context/global-sync/
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
+import { usePlatform } from "@/context/platform"
 import { usePrompt } from "@/context/prompt"
 import { useSDK } from "@/context/sdk"
 import { useSettings } from "@/context/settings"
@@ -203,6 +204,7 @@ export default function Page() {
   const comments = useComments()
   const terminal = useTerminal()
   const command = useCommand()
+  const platform = usePlatform()
   const [searchParams, setSearchParams] = useSearchParams<{ prompt?: string; submit?: string }>()
   const location = useLocation()
   const { params, sessionKey, tabs, view } = useSessionLayout()
@@ -218,7 +220,11 @@ export default function Page() {
         return
       }
       prompt.set([{ type: "text", content: text, start: 0, end: text.length }], text.length)
-      setAutoSubmitKey(searchParams.submit === "1" && layout.mode.current() !== "zen" ? `${checksum(text) ?? text.length}-${Date.now()}` : undefined)
+      setAutoSubmitKey(
+        searchParams.submit === "1" && layout.mode.current() !== "zen"
+          ? `${checksum(text) ?? text.length}-${Date.now()}`
+          : undefined,
+      )
       setSearchParams({ ...searchParams, prompt: undefined, submit: undefined })
     })
   })
@@ -301,11 +307,17 @@ export default function Page() {
   }
 
   const info = createMemo(
-    on(() => params.id, (id) => (id ? untrack(() => sync.session.get(id)) : undefined)),
+    on(
+      () => params.id,
+      (id) => (id ? untrack(() => sync.session.get(id)) : undefined),
+    ),
   )
   const isChildSession = createMemo(() => !!info()?.parentID)
   const diffs = createMemo(
-    on(() => params.id, (id) => (id ? untrack(() => list(sync.data.session_diff[id])) : [])),
+    on(
+      () => params.id,
+      (id) => (id ? untrack(() => list(sync.data.session_diff[id])) : []),
+    ),
   )
   const canReview = createMemo(() => !!sync.project)
   const reviewTab = createMemo(() => isDesktop())
@@ -326,7 +338,9 @@ export default function Page() {
   const desktopOfficeAgentOpen = createMemo(() => isDesktop() && officeAgentMode())
   const desktopOfficePptTemplateOpen = createMemo(() => desktopOfficeAgentOpen() && office.activeID() === "ppt")
   const officeReservedWidth = createMemo(
-    () => (desktopOfficeAgentOpen() ? OFFICE_AGENT_SIDEBAR_WIDTH : 0) + (desktopOfficePptTemplateOpen() ? OFFICE_PPT_TEMPLATE_SIDEBAR_WIDTH : 0),
+    () =>
+      (desktopOfficeAgentOpen() ? OFFICE_AGENT_SIDEBAR_WIDTH : 0) +
+      (desktopOfficePptTemplateOpen() ? OFFICE_PPT_TEMPLATE_SIDEBAR_WIDTH : 0),
   )
   const desktopSidePanelOpen = createMemo(() => desktopReviewOpen() || desktopFileTreeOpen())
   const sessionPanelWidth = createMemo(() => {
@@ -1527,10 +1541,9 @@ export default function Page() {
       })
       await halt(input.sessionID)
         .then(() => sdk.client.session.revert(input))
-        .then((result) => {
+        .then(async (result) => {
           if (result.data) merge(result.data)
-          // 回滚成功后强制刷新消息列表
-          sync.session.sync(input.sessionID, { force: true })
+          await sync.session.sync(input.sessionID, { force: true })
         })
         .catch((err) => {
           batch(() => {
@@ -1570,10 +1583,9 @@ export default function Page() {
           )
 
       await task
-        .then((result) => {
+        .then(async (result) => {
           if (result.data) merge(result.data)
-          // 恢复成功后强制刷新消息列表
-          sync.session.sync(sessionID, { force: true })
+          await sync.session.sync(sessionID, { force: true })
         })
         .catch((err) => {
           batch(() => {
@@ -1591,15 +1603,20 @@ export default function Page() {
   const revert = async (input: { sessionID: string; messageID: string }) => {
     if (reverting()) return
 
-    // 先调用 revertPreview 获取受影响的文件列表（不执行实际回滚）
-    const previewResult = await sdk.client.session.revertPreview({
-      sessionID: input.sessionID,
-      messageID: input.messageID,
-    })
-    const files = previewResult.data ?? []
+    let files: NonNullable<Awaited<ReturnType<typeof sdk.client.session.revertPreview>>["data"]> = []
+    try {
+      const previewResult = await sdk.client.session.revertPreview({
+        sessionID: input.sessionID,
+        messageID: input.messageID,
+      })
+      files = previewResult.data ?? []
+    } catch (err) {
+      fail(err)
+      return
+    }
 
     // 显示确认对话框，列出受影响的文件
-    dialog.show(() => (
+    void dialog.show(() => (
       <Dialog title={language.t("dialog.revert.title")}>
         <div class="p-4 min-w-[400px] max-w-[600px]">
           <p class="mb-4 text-text-secondary">{language.t("dialog.revert.description")}</p>
@@ -1609,9 +1626,7 @@ export default function Page() {
               fallback={<p class="text-text-weak">{language.t("dialog.revert.noFiles")}</p>}
             >
               <ul class="list-disc pl-5 space-y-1">
-                <For each={files}>
-                  {(file) => <li class="text-sm font-mono">{file.file}</li>}
-                </For>
+                <For each={files}>{(file) => <li class="text-sm font-mono">{file.file}</li>}</For>
               </ul>
             </Show>
           </div>
@@ -1736,7 +1751,7 @@ export default function Page() {
   useUsageExceededDialogs()
 
   return (
-    <div class="relative bg-[#f0f4f8] size-full overflow-hidden flex flex-col">
+    <div class="relative bg-background-base size-full overflow-hidden flex flex-col">
       {sessionSync() ?? ""}
       <SessionHeader />
       <div class="flex-1 min-h-0 flex flex-col md:flex-row">
@@ -1772,7 +1787,7 @@ export default function Page() {
         {/* Session panel */}
         <div
           classList={{
-            "@container relative shrink-0 flex flex-col min-h-0 h-full bg-[#f4f7fa] flex-1 md:flex-none": true,
+            "@container relative shrink-0 flex flex-col min-h-0 h-full bg-background-panel flex-1 md:flex-none": true,
             "transition-[width] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width] motion-reduce:transition-none":
               !size.active() && !ui.reviewSnap && !desktopOfficeAgentOpen(),
           }}
@@ -1868,59 +1883,58 @@ export default function Page() {
                 "translate-y-[40px] opacity-0 scale-95": store.inputTransition,
               }}
             >
-            <SessionComposerRegion
-              state={composer}
-              ready={!store.deferRender && messagesReady()}
-              centered={centered()}
-              inputRef={(el) => {
-                inputRef = el
-              }}
-              autoSubmitKey={autoSubmitKey()}
-              newSessionWorktree={newSessionWorktree()}
-              onNewSessionWorktreeReset={() => setStore("newSessionWorktree", "main")}
-              onSubmit={() => {
-                comments.clear()
-                resumeScroll()
-              }}
-              onResponseSubmit={resumeScroll}
-              followup={
-                params.id && !isChildSession()
-                  ? {
-                      queue: queueEnabled,
-                      items: followupDock(),
-                      sending: sendingFollowup(),
-                      edit: editingFollowup(),
-                      onQueue: queueFollowup,
-                      onAbort: () => {
-                        const id = params.id
-                        if (!id) return
-                        setFollowup("paused", id, true)
-                      },
-                      onSend: (id) => {
-                        void sendFollowup(params.id!, id, { manual: true })
-                      },
-                      onEdit: editFollowup,
-                      onEditLoaded: clearFollowupEdit,
-                    }
-                  : undefined
-              }
-              revert={
-                rolled().length > 0
-                  ? {
-                      items: rolled(),
-                      restoring: restoring(),
-                      disabled: reverting(),
-                      onRestore: restore,
-                    }
-                  : undefined
-              }
-              setPromptDockRef={(el) => {
-                promptDock = el
-              }}
-            />
+              <SessionComposerRegion
+                state={composer}
+                ready={!store.deferRender && messagesReady()}
+                centered={centered()}
+                inputRef={(el) => {
+                  inputRef = el
+                }}
+                autoSubmitKey={autoSubmitKey()}
+                newSessionWorktree={newSessionWorktree()}
+                onNewSessionWorktreeReset={() => setStore("newSessionWorktree", "main")}
+                onSubmit={() => {
+                  comments.clear()
+                  resumeScroll()
+                }}
+                onResponseSubmit={resumeScroll}
+                followup={
+                  params.id && !isChildSession()
+                    ? {
+                        queue: queueEnabled,
+                        items: followupDock(),
+                        sending: sendingFollowup(),
+                        edit: editingFollowup(),
+                        onQueue: queueFollowup,
+                        onAbort: () => {
+                          const id = params.id
+                          if (!id) return
+                          setFollowup("paused", id, true)
+                        },
+                        onSend: (id) => {
+                          void sendFollowup(params.id!, id, { manual: true })
+                        },
+                        onEdit: editFollowup,
+                        onEditLoaded: clearFollowupEdit,
+                      }
+                    : undefined
+                }
+                revert={
+                  rolled().length > 0
+                    ? {
+                        items: rolled(),
+                        restoring: restoring(),
+                        disabled: reverting(),
+                        onRestore: restore,
+                      }
+                    : undefined
+                }
+                setPromptDockRef={(el) => {
+                  promptDock = el
+                }}
+              />
             </div>
           </Show>
-
         </div>
 
         <SessionSidePanel
@@ -1944,7 +1958,9 @@ export default function Page() {
       </div>
 
       <TerminalPanel />
-      <FloatingTodoButton />
+      <Show when={platform.platform !== "desktop"}>
+        <FloatingTodoButton />
+      </Show>
     </div>
   )
 }

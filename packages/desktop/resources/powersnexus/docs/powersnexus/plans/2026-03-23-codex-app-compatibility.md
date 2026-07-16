@@ -14,19 +14,20 @@
 
 ## File Structure
 
-| File | Responsibility | Action |
-|---|---|---|
-| `skills/using-git-worktrees/SKILL.md` | Worktree creation + isolation | Add Step 0 detection + sandbox fallback |
-| `skills/finishing-a-development-branch/SKILL.md` | Branch finishing workflow | Add Step 1.5 detection + cleanup guard |
-| `skills/subagent-driven-development/SKILL.md` | Plan execution with subagents | Update Integration description |
-| `skills/executing-plans/SKILL.md` | Plan execution inline | Update Integration description |
-| `skills/using-PowersNexus/references/codex-tools.md` | Codex platform reference | Add detection + finishing docs |
+| File                                                 | Responsibility                | Action                                  |
+| ---------------------------------------------------- | ----------------------------- | --------------------------------------- |
+| `skills/using-git-worktrees/SKILL.md`                | Worktree creation + isolation | Add Step 0 detection + sandbox fallback |
+| `skills/finishing-a-development-branch/SKILL.md`     | Branch finishing workflow     | Add Step 1.5 detection + cleanup guard  |
+| `skills/subagent-driven-development/SKILL.md`        | Plan execution with subagents | Update Integration description          |
+| `skills/executing-plans/SKILL.md`                    | Plan execution inline         | Update Integration description          |
+| `skills/using-PowersNexus/references/codex-tools.md` | Codex platform reference      | Add detection + finishing docs          |
 
 ---
 
 ### Task 1: Add Step 0 to `using-git-worktrees`
 
 **Files:**
+
 - Modify: `skills/using-git-worktrees/SKILL.md:14-15` (insert after Overview, before Directory Selection Process)
 
 - [ ] **Step 1: Read the current skill file**
@@ -37,7 +38,7 @@ Read `skills/using-git-worktrees/SKILL.md` in full. Identify the exact insertion
 
 Insert the following between the Overview section and "## Directory Selection Process":
 
-```markdown
+````markdown
 ## Step 0: Check if Already in an Isolated Workspace
 
 Before creating a worktree, check if one already exists:
@@ -47,6 +48,7 @@ GIT_DIR=$(cd "$(git rev-parse --git-dir)" 2>/dev/null && pwd -P)
 GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" 2>/dev/null && pwd -P)
 BRANCH=$(git branch --show-current)
 ```
+````
 
 **If `GIT_DIR` differs from `GIT_COMMON`:** You are already inside a linked worktree (created by the Codex App, Claude Code's Agent tool, a previous skill run, or the user). Do NOT create another worktree. Instead:
 
@@ -61,7 +63,8 @@ After reporting, STOP. Do not continue to Directory Selection or Creation Steps.
 **If `GIT_DIR` equals `GIT_COMMON`:** Proceed with the full worktree creation flow below.
 
 **Sandbox fallback:** If you proceed to Creation Steps but `git worktree add -b` fails with a permission error (e.g., "Operation not permitted"), treat this as a late-detected restricted environment. Fall back to the behavior above — run setup and baseline tests in the current directory, report accordingly, and STOP.
-```
+
+````
 
 - [ ] **Step 3: Verify the insertion**
 
@@ -78,13 +81,14 @@ git commit -m "feat(using-git-worktrees): add Step 0 environment detection (PRI-
 
 Skip worktree creation when already in a linked worktree. Includes
 sandbox fallback for permission errors on git worktree add."
-```
+````
 
 ---
 
 ### Task 2: Update `using-git-worktrees` Integration section
 
 **Files:**
+
 - Modify: `skills/using-git-worktrees/SKILL.md:211-215` (Integration > Called by)
 
 - [ ] **Step 1: Update the three "Called by" entries**
@@ -123,6 +127,7 @@ Clarify that skill ensures a workspace exists, not that it always creates one."
 ### Task 3: Add Step 1.5 to `finishing-a-development-branch`
 
 **Files:**
+
 - Modify: `skills/finishing-a-development-branch/SKILL.md:38` (insert after Step 1, before Step 2)
 
 - [ ] **Step 1: Read the current skill file**
@@ -133,7 +138,7 @@ Read `skills/finishing-a-development-branch/SKILL.md` in full. Identify the inse
 
 Insert the following between Step 1 and Step 2:
 
-```markdown
+````markdown
 ### Step 1.5: Detect Environment
 
 ```bash
@@ -141,6 +146,7 @@ GIT_DIR=$(cd "$(git rev-parse --git-dir)" 2>/dev/null && pwd -P)
 GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" 2>/dev/null && pwd -P)
 BRANCH=$(git branch --show-current)
 ```
+````
 
 **Path A — `GIT_DIR` differs from `GIT_COMMON` AND `BRANCH` is empty (externally managed worktree, detached HEAD):**
 
@@ -177,7 +183,8 @@ Proceed to Step 2 and present the 4-option menu as normal.
 **Path C — `GIT_DIR` equals `GIT_COMMON` (normal environment):**
 
 Proceed to Step 2 and present the 4-option menu as normal.
-```
+
+````
 
 - [ ] **Step 3: Verify the insertion**
 
@@ -195,36 +202,41 @@ git commit -m "feat(finishing-a-development-branch): add Step 1.5 environment de
 
 Detect externally managed worktrees with detached HEAD and emit handoff
 payload instead of 4-option menu. Includes commit SHA and data loss warning."
-```
+````
 
 ---
 
 ### Task 4: Add Step 5 cleanup guard to `finishing-a-development-branch`
 
 **Files:**
+
 - Modify: `skills/finishing-a-development-branch/SKILL.md` (Step 5: Cleanup Worktree — find by section heading, line numbers will have shifted after Task 3)
 
 - [ ] **Step 1: Read the current Step 5 section**
 
 Find the "### Step 5: Cleanup Worktree" section in `skills/finishing-a-development-branch/SKILL.md` (line numbers will have shifted after Task 3's insertion). The current Step 5 is:
 
-```markdown
+````markdown
 ### Step 5: Cleanup Worktree
 
 **For Options 1, 2, 4:**
 
 Check if in worktree:
+
 ```bash
 git worktree list | grep $(git branch --show-current)
 ```
+````
 
 If yes:
+
 ```bash
 git worktree remove <worktree-path>
 ```
 
 **For Option 3:** Keep worktree.
-```
+
+````
 
 - [ ] **Step 2: Add the cleanup guard before existing logic**
 
@@ -238,24 +250,27 @@ Replace the Step 5 section with:
 ```bash
 GIT_DIR=$(cd "$(git rev-parse --git-dir)" 2>/dev/null && pwd -P)
 GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" 2>/dev/null && pwd -P)
-```
+````
 
 If `GIT_DIR` differs from `GIT_COMMON`: skip worktree removal — the host environment owns this workspace.
 
 **Otherwise, for Options 1 and 4:**
 
 Check if in worktree:
+
 ```bash
 git worktree list | grep $(git branch --show-current)
 ```
 
 If yes:
+
 ```bash
 git worktree remove <worktree-path>
 ```
 
 **For Option 3:** Keep worktree.
-```
+
+````
 
 Note: the original text said "For Options 1, 2, 4" but the Quick Reference table and Common Mistakes section say "Options 1 & 4 only." This edit aligns Step 5 with those sections.
 
@@ -275,23 +290,27 @@ git commit -m "feat(finishing-a-development-branch): add Step 5 cleanup guard (P
 Re-detect externally managed worktree at cleanup time and skip removal.
 Also fixes pre-existing inconsistency: cleanup now correctly says
 Options 1 and 4 only, matching Quick Reference and Common Mistakes."
-```
+````
 
 ---
 
 ### Task 5: Update Integration lines in `subagent-driven-development` and `executing-plans`
 
 **Files:**
+
 - Modify: `skills/subagent-driven-development/SKILL.md:268`
 - Modify: `skills/executing-plans/SKILL.md:68`
 
 - [ ] **Step 1: Update `subagent-driven-development`**
 
 Change line 268 from:
+
 ```
 - **PowersNexus:using-git-worktrees** - REQUIRED: Set up isolated workspace before starting
 ```
+
 To:
+
 ```
 - **PowersNexus:using-git-worktrees** - REQUIRED: Ensures isolated workspace (creates one or verifies existing)
 ```
@@ -299,10 +318,13 @@ To:
 - [ ] **Step 2: Update `executing-plans`**
 
 Change line 68 from:
+
 ```
 - **PowersNexus:using-git-worktrees** - REQUIRED: Set up isolated workspace before starting
 ```
+
 To:
+
 ```
 - **PowersNexus:using-git-worktrees** - REQUIRED: Ensures isolated workspace (creates one or verifies existing)
 ```
@@ -326,6 +348,7 @@ always creating one."
 ### Task 6: Add environment detection docs to `codex-tools.md`
 
 **Files:**
+
 - Modify: `skills/using-PowersNexus/references/codex-tools.md:25` (append at end)
 
 - [ ] **Step 1: Read the current file**
@@ -336,8 +359,7 @@ Read `skills/using-PowersNexus/references/codex-tools.md` in full. Confirm it en
 
 Add at the end of the file:
 
-```markdown
-
+````markdown
 ## Environment Detection
 
 Skills that create worktrees or finish branches should detect their
@@ -348,6 +370,7 @@ GIT_DIR=$(cd "$(git rev-parse --git-dir)" 2>/dev/null && pwd -P)
 GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" 2>/dev/null && pwd -P)
 BRANCH=$(git branch --show-current)
 ```
+````
 
 - `GIT_DIR != GIT_COMMON` → already in a linked worktree (skip creation)
 - `BRANCH` empty → detached HEAD (cannot branch/push/PR from sandbox)
@@ -366,7 +389,8 @@ the user to use the App's native controls:
 
 The agent can still run tests, stage files, and output suggested branch
 names, commit messages, and PR descriptions for the user to copy.
-```
+
+````
 
 - [ ] **Step 3: Verify the additions**
 
@@ -383,13 +407,14 @@ git commit -m "docs(codex-tools): add environment detection and App finishing do
 
 Document the git-dir vs git-common-dir detection pattern and the Codex
 App's native finishing flow for skills that need to adapt."
-```
+````
 
 ---
 
 ### Task 7: Automated test — environment detection
 
 **Files:**
+
 - Create: `tests/codex-app-compat/test-environment-detection.sh`
 
 - [ ] **Step 1: Create test directory**
@@ -523,6 +548,7 @@ worktree, detached HEAD, and cleanup guard scenarios."
 ### Task 8: Final verification
 
 **Files:**
+
 - Read: all 5 modified skill files
 
 - [ ] **Step 1: Run the automated detection tests**
@@ -536,6 +562,7 @@ Expected: 6 passed, 0 failed.
 - [ ] **Step 2: Read each modified file and verify changes**
 
 Read each file end-to-end:
+
 - `skills/using-git-worktrees/SKILL.md` — Step 0 present, rest unchanged
 - `skills/finishing-a-development-branch/SKILL.md` — Step 1.5 present, cleanup guard present, rest unchanged
 - `skills/subagent-driven-development/SKILL.md` — line 268 updated
@@ -553,6 +580,7 @@ Should show exactly 6 files changed (5 skill files + 1 test file). No other file
 - [ ] **Step 4: Run existing test suite**
 
 If test runner exists:
+
 ```bash
 # Run skill-triggering tests
 # Note: tests/skill-triggering/ was lifted into drill scenarios on 2026-05-06.

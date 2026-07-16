@@ -275,7 +275,7 @@ function TodoList(props: { todos: Todo[]; onOpenFile?: (fileName: string) => voi
                     </span>
                   ) : (
                     <span>{part.content}</span>
-                  )
+                  ),
                 )}
               </span>
             </Checkbox>

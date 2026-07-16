@@ -44,7 +44,6 @@ export const officeAgentScenarios: Record<HomeActionId, OfficeAgentScenario> = {
     memoryFocus: ["常用汇报页数", "偏好的叙事结构", "行业话术", "客户关注点"],
     quickPrompts: ["生成 8 页客户提案", "生成项目汇报 PPT", "把资料转成培训课件"],
   },
-
 }
 
 export function officeAgentScenario(id: HomeActionId) {

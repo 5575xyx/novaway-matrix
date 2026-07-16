@@ -1,9 +1,9 @@
 import { Show, createMemo } from "solid-js"
 import { useQuery } from "@tanstack/solid-query"
 import { Button } from "@opencode-ai/ui/button"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { Icon } from "@opencode-ai/ui/icon"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
+import { useCommand } from "@/context/command"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useLanguage } from "@/context/language"
 import { finiteNumber, pendingBadgeLabel } from "@/components/review-ui-helpers"
@@ -11,7 +11,7 @@ import { finiteNumber, pendingBadgeLabel } from "@/components/review-ui-helpers"
 export function EvolutionIndicator() {
   const language = useLanguage()
   const globalSDK = useGlobalSDK()
-  const dialog = useDialog()
+  const command = useCommand()
 
   const status = useQuery(() => ({
     queryKey: ["settings", "evolution", "status"],
@@ -24,9 +24,7 @@ export function EvolutionIndicator() {
   const badge = createMemo(() => pendingBadgeLabel(pending()))
 
   const openSettings = () => {
-    void import("@/components/dialog-settings").then((x) => {
-      dialog.showDrawer(() => <x.DialogSettings initialTab="evolution" />)
-    })
+    command.trigger("settings.evolution.open")
   }
 
   return (

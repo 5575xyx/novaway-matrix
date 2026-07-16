@@ -30,6 +30,7 @@ packages/opencode/src/skill/prompt/wxgzh-ops/
 ## Task 1: 创建目录结构
 
 **Files:**
+
 - Create: `packages/opencode/src/skill/prompt/wxgzh-ops/` (directory)
 - Create: `packages/opencode/src/skill/prompt/wxgzh-ops/references/` (directory)
 - Create: `packages/opencode/src/skill/prompt/wxgzh-ops/prompts/` (directory)
@@ -71,11 +72,12 @@ git commit -m "chore: 创建 wxgzh-ops skill 目录结构"
 ## Task 2: 创建 SKILL.md 核心文件
 
 **Files:**
+
 - Create: `packages/opencode/src/skill/prompt/wxgzh-ops/SKILL.md`
 
 - [ ] **Step 1: 创建 SKILL.md 文件**
 
-```markdown
+````markdown
 ---
 name: wxgzh-ops
 description: "Use when the user wants to create and publish content to WeChat Official Account (微信公众号). Covers AI article generation, image generation, and automated publishing via Electron WebView. Make sure to use this skill whenever the user mentions '公众号', '微信公众号', 'wechat official account', or wants to create/publish articles to WeChat, even if they don't explicitly ask."
@@ -86,6 +88,7 @@ description: "Use when the user wants to create and publish content to WeChat Of
 ## 使用场景
 
 当用户需要：
+
 - 创建微信公众号文章（AI 生成内容）
 - 生成配图并插入文章
 - 自动发布文章到微信公众号草稿箱
@@ -135,6 +138,7 @@ description: "Use when the user wants to create and publish content to WeChat Of
   "nextStep": "preview"
 }
 ```
+````
 
 ### 发布阶段输出
 
@@ -150,24 +154,26 @@ description: "Use when the user wants to create and publish content to WeChat Of
 
 ### 常见错误及解决方案
 
-| 错误 | 原因 | 解决方案 |
-|------|------|----------|
-| `token 提取失败` | WebView 未加载公众号页面 | 提示用户先登录公众号后台 |
-| `编辑器未就绪` | 页面加载中或选择器变化 | 重试 + 回退到直连 URL |
-| `AI 生成失败` | 模型配置错误或 API 不可用 | 检查 AI 模型配置 |
-| `图片生成失败` | 图片模型不可用 | 支持单独重绘配图 |
+| 错误             | 原因                      | 解决方案                 |
+| ---------------- | ------------------------- | ------------------------ |
+| `token 提取失败` | WebView 未加载公众号页面  | 提示用户先登录公众号后台 |
+| `编辑器未就绪`   | 页面加载中或选择器变化    | 重试 + 回退到直连 URL    |
+| `AI 生成失败`    | 模型配置错误或 API 不可用 | 检查 AI 模型配置         |
+| `图片生成失败`   | 图片模型不可用            | 支持单独重绘配图         |
 
 ## 配置要求
 
 ### AI 模型配置
 
 需要配置以下 AI 模型：
+
 - **文本模型**：用于生成文章内容（支持 OpenAI 兼容 API）
 - **图片模型**：用于生成配图（支持 DALL-E、Flux 等）
 
 ### WebView 配置
 
 需要确保：
+
 - Electron WebView 组件可用
 - 已加载微信公众平台页面（`mp.weixin.qq.com`）
 - JavaScript 执行权限已启用
@@ -179,6 +185,7 @@ description: "Use when the user wants to create and publish content to WeChat Of
 **用户**：帮我写一篇关于 AI 股票分析的公众号文章
 
 **助手**：
+
 1. 加载 wxgzh-ops skill
 2. 收集详细信息（语气、篇幅、目标人群等）
 3. 生成文章内容
@@ -190,17 +197,19 @@ description: "Use when the user wants to create and publish content to WeChat Of
 **用户**：把这篇文章发布到公众号
 
 **助手**：
+
 1. 加载 wxgzh-ops skill
 2. 检查 WebView 状态
 3. 执行自动发布流程
 4. 报告发布结果
-```
+
+````
 
 - [ ] **Step 2: 验证文件内容**
 
 ```bash
 cat SKILL.md
-```
+````
 
 Expected: 文件内容完整，包含 frontmatter 和所有章节
 
@@ -216,38 +225,41 @@ git commit -m "feat: 添加 wxgzh-ops skill 核心文件"
 ## Task 3: 创建内容生成参考文档
 
 **Files:**
+
 - Create: `packages/opencode/src/skill/prompt/wxgzh-ops/references/content-generation.md`
 
 - [ ] **Step 1: 创建 content-generation.md**
 
-```markdown
+````markdown
 # 内容生成详细流程
 
 ## 表单状态结构
 
 ```typescript
 type DraftState = {
-  topic: string;        // 主题
-  keyPoints: string;    // 核心要点（支持多行）
-  audience: string;     // 目标人群（默认：泛用户）
-  tone: string;         // 语气风格（默认：专业可信）
-  length: 'short' | 'medium' | 'long';  // 篇幅
-  cta: string;          // 行动引导
-  article: ArticleResult | null;  // 生成的文章结果
-};
+  topic: string // 主题
+  keyPoints: string // 核心要点（支持多行）
+  audience: string // 目标人群（默认：泛用户）
+  tone: string // 语气风格（默认：专业可信）
+  length: "short" | "medium" | "long" // 篇幅
+  cta: string // 行动引导
+  article: ArticleResult | null // 生成的文章结果
+}
 ```
+````
 
 ## 篇幅映射
 
-| 选项 | 字数要求 |
-|------|----------|
-| short | 约600字 |
+| 选项   | 字数要求 |
+| ------ | -------- |
+| short  | 约600字  |
 | medium | 约1200字 |
-| long | 约1800字 |
+| long   | 约1800字 |
 
 ## Prompt 构建规则
 
 构建用户提示词时，必须包含以下要素：
+
 1. 主题
 2. 核心要点
 3. 目标人群
@@ -263,6 +275,7 @@ type DraftState = {
 ## 文章结果解析
 
 解析 AI 返回的 JSON 时，需要处理：
+
 1. JSON 解析失败的情况
 2. 字段缺失的情况
 3. HTML 美化处理
@@ -271,13 +284,14 @@ type DraftState = {
 ## 降级方案
 
 当 AI 生成失败时，使用 `buildFallbackArticle()` 提供基础模板。
-```
+
+````
 
 - [ ] **Step 2: 验证文件内容**
 
 ```bash
 cat references/content-generation.md
-```
+````
 
 Expected: 文件内容完整，包含类型定义、映射表、规则说明
 
@@ -293,6 +307,7 @@ git commit -m "docs: 添加内容生成参考文档"
 ## Task 4: 创建配图生成参考文档
 
 **Files:**
+
 - Create: `packages/opencode/src/skill/prompt/wxgzh-ops/references/image-generation.md`
 
 - [ ] **Step 1: 创建 image-generation.md**
@@ -303,10 +318,12 @@ git commit -m "docs: 添加内容生成参考文档"
 ## 配图计划生成
 
 ### 默认配图数量
+
 - 最少：1 张（头图）
 - 最多：5 张
 
 ### 配图类型
+
 1. **头图**：主题主视觉，高级感商业插画风
 2. **核心观点图**：内容解读场景
 3. **行动建议图**：落地执行场景
@@ -315,6 +332,7 @@ git commit -m "docs: 添加内容生成参考文档"
 ## 图片提示词构建
 
 构建图片提示词时，必须包含：
+
 1. 文章主题
 2. 目标读者
 3. 内容风格
@@ -356,11 +374,12 @@ git commit -m "docs: 添加配图生成参考文档"
 ## Task 5: 创建发布流程参考文档
 
 **Files:**
+
 - Create: `packages/opencode/src/skill/prompt/wxgzh-ops/references/publishing-workflow.md`
 
 - [ ] **Step 1: 创建 publishing-workflow.md**
 
-```markdown
+````markdown
 # 发布流程详细文档
 
 ## 前置检查
@@ -376,50 +395,52 @@ git commit -m "docs: 添加配图生成参考文档"
 
 ```javascript
 // 查找并点击按钮
-const keywords = [/写新图文/, /新建图文/, /写文章/, /新建文章/];
+const keywords = [/写新图文/, /新建图文/, /写文章/, /新建文章/]
 // ... 点击逻辑
 ```
+````
 
 ### 方式 2：直连编辑器 URL
 
 ```javascript
-const editorUrl = `https://mp.weixin.qq.com/cgi-bin/appmsg?t=media/appmsg_edit_v2&action=edit&isNew=1&type=10&lang=zh_CN&token=${token}`;
+const editorUrl = `https://mp.weixin.qq.com/cgi-bin/appmsg?t=media/appmsg_edit_v2&action=edit&isNew=1&type=10&lang=zh_CN&token=${token}`
 ```
 
 ## 填充内容
 
 ### 标题填充
+
 ```javascript
-const titleEl = document.querySelector('#activity-name') || 
-                document.querySelector('input[placeholder*="标题"]');
+const titleEl = document.querySelector("#activity-name") || document.querySelector('input[placeholder*="标题"]')
 ```
 
 ### 摘要填充
+
 ```javascript
-const digestEl = document.querySelector('#js_description') || 
-                document.querySelector('textarea[placeholder*="摘要"]');
+const digestEl = document.querySelector("#js_description") || document.querySelector('textarea[placeholder*="摘要"]')
 ```
 
 ### 正文填充
+
 ```javascript
 // 优先使用 iframe
-const iframeEl = document.querySelector('iframe#ueditor_0');
+const iframeEl = document.querySelector("iframe#ueditor_0")
 if (iframeEl && iframeEl.contentWindow.document.body) {
-  iframeEl.contentWindow.document.body.innerHTML = html;
+  iframeEl.contentWindow.document.body.innerHTML = html
 } else {
   // 回退到 contenteditable
-  const editable = document.querySelector('#js_editor_area [contenteditable="true"]');
-  editable.innerHTML = html;
+  const editable = document.querySelector('#js_editor_area [contenteditable="true"]')
+  editable.innerHTML = html
 }
 ```
 
 ## 保存草稿
 
 ```javascript
-const button = document.querySelector('#js_submit') || 
-              Array.from(document.querySelectorAll('button'))
-                .find(el => /保存为草稿/.test(el.textContent));
-triggerClick(button);
+const button =
+  document.querySelector("#js_submit") ||
+  Array.from(document.querySelectorAll("button")).find((el) => /保存为草稿/.test(el.textContent))
+triggerClick(button)
 ```
 
 ## 错误恢复
@@ -427,13 +448,14 @@ triggerClick(button);
 1. **编辑器未就绪**：重试 + 回退到直连 URL
 2. **Token 提取失败**：提示用户完成页面跳转
 3. **保存失败**：检查网络连接和页面状态
-```
+
+````
 
 - [ ] **Step 2: 验证文件内容**
 
 ```bash
 cat references/publishing-workflow.md
-```
+````
 
 Expected: 文件内容完整，包含前置检查、导航、填充、保存、错误恢复
 
@@ -449,42 +471,36 @@ git commit -m "docs: 添加发布流程参考文档"
 ## Task 6: 创建 DOM 选择器参考文档
 
 **Files:**
+
 - Create: `packages/opencode/src/skill/prompt/wxgzh-ops/references/selectors-reference.md`
 
 - [ ] **Step 1: 创建 selectors-reference.md**
 
-```markdown
+````markdown
 # DOM 选择器参考
 
 ## 标题输入框
 
 ```javascript
 const titleSelectors = [
-  '#activity-name',
+  "#activity-name",
   'input[placeholder*="标题"]',
   'textarea[placeholder*="标题"]',
   '[contenteditable="true"][data-placeholder*="标题"]',
-];
+]
 ```
+````
 
 ## 摘要输入框
 
 ```javascript
-const digestSelectors = [
-  '#js_description',
-  'textarea[placeholder*="摘要"]',
-  'textarea[name*="digest"]',
-];
+const digestSelectors = ["#js_description", 'textarea[placeholder*="摘要"]', 'textarea[name*="digest"]']
 ```
 
 ## 正文编辑器（iframe）
 
 ```javascript
-const iframeSelectors = [
-  'iframe#ueditor_0',
-  'iframe[id^="ueditor_"]',
-  'iframe[id*="editor"]',
-];
+const iframeSelectors = ["iframe#ueditor_0", 'iframe[id^="ueditor_"]', 'iframe[id*="editor"]']
 ```
 
 ## 正文编辑器（contenteditable）
@@ -492,35 +508,36 @@ const iframeSelectors = [
 ```javascript
 const editableSelectors = [
   '#js_editor_area [contenteditable="true"]',
-  '.ql-editor',
-  '.ProseMirror',
+  ".ql-editor",
+  ".ProseMirror",
   '[contenteditable="true"][data-placeholder*="正文"]',
   'div[contenteditable="true"]',
-];
+]
 ```
 
 ## 保存按钮
 
 ```javascript
 const saveButtonSelectors = [
-  '#js_submit',
+  "#js_submit",
   'button:contains("保存为草稿")',
   'button:contains("保存草稿")',
   'button:contains("保存到草稿箱")',
   'button:contains("保存")',
-];
+]
 ```
 
 ## 选择器优先级
 
 按优先级从高到低使用选择器，第一个匹配的元素即为目标元素。
-```
+
+````
 
 - [ ] **Step 2: 验证文件内容**
 
 ```bash
 cat references/selectors-reference.md
-```
+````
 
 Expected: 文件内容完整，包含所有选择器和优先级说明
 
@@ -536,6 +553,7 @@ git commit -m "docs: 添加 DOM 选择器参考文档"
 ## Task 7: 创建文章生成系统提示词
 
 **Files:**
+
 - Create: `packages/opencode/src/skill/prompt/wxgzh-ops/prompts/article-system.txt`
 
 - [ ] **Step 1: 创建 article-system.txt**
@@ -588,6 +606,7 @@ git commit -m "feat: 添加文章生成系统提示词"
 ## Task 8: 创建图片生成提示词模板
 
 **Files:**
+
 - Create: `packages/opencode/src/skill/prompt/wxgzh-ops/prompts/image-prompt.txt`
 
 - [ ] **Step 1: 创建 image-prompt.txt**
@@ -626,6 +645,7 @@ git commit -m "feat: 添加图片生成提示词模板"
 ## Task 9: 验证 Skill 加载
 
 **Files:**
+
 - Modify: `packages/opencode/src/skill/index.ts` (if needed for registration)
 
 - [ ] **Step 1: 运行 opencode 测试**
@@ -640,6 +660,7 @@ Expected: Skill 可以被正确加载
 - [ ] **Step 2: 手动测试触发条件**
 
 在 opencode 中输入：
+
 ```
 帮我写一篇公众号文章
 ```
@@ -664,6 +685,7 @@ git commit -m "test: 验证 wxgzh-ops skill 功能"
 ## Task 10: 文档和清理
 
 **Files:**
+
 - Create: `docs/superpowers/plans/2026-06-22-wxgzh-ops-skill-implementation.md` (本文件)
 
 - [ ] **Step 1: 更新设计文档状态**
@@ -706,15 +728,15 @@ git commit -m "docs: 更新 wxgzh-ops skill 文档"
 
 ### 已创建文件清单
 
-| 文件 | 行数 | 说明 |
-|------|------|------|
-| `SKILL.md` | ~200 行 | 核心 skill 定义，包含工作流程、输出格式、错误处理 |
-| `references/content-generation.md` | ~80 行 | 内容生成详细流程，包含类型定义和篇幅映射 |
-| `references/image-generation.md` | ~50 行 | 配图生成流程，包含配图类型和批量生成策略 |
-| `references/publishing-workflow.md` | ~100 行 | DOM 操作发布流程，包含导航、填充、保存 |
-| `references/selectors-reference.md` | ~60 行 | DOM 选择器参考，包含优先级说明 |
-| `prompts/article-system.txt` | ~30 行 | 文章生成系统提示词 |
-| `prompts/image-prompt.txt` | ~15 行 | 图片生成提示词模板 |
+| 文件                                | 行数    | 说明                                              |
+| ----------------------------------- | ------- | ------------------------------------------------- |
+| `SKILL.md`                          | ~200 行 | 核心 skill 定义，包含工作流程、输出格式、错误处理 |
+| `references/content-generation.md`  | ~80 行  | 内容生成详细流程，包含类型定义和篇幅映射          |
+| `references/image-generation.md`    | ~50 行  | 配图生成流程，包含配图类型和批量生成策略          |
+| `references/publishing-workflow.md` | ~100 行 | DOM 操作发布流程，包含导航、填充、保存            |
+| `references/selectors-reference.md` | ~60 行  | DOM 选择器参考，包含优先级说明                    |
+| `prompts/article-system.txt`        | ~30 行  | 文章生成系统提示词                                |
+| `prompts/image-prompt.txt`          | ~15 行  | 图片生成提示词模板                                |
 
 ### 关键决策
 

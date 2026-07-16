@@ -186,7 +186,11 @@ export function SessionComposerRegion(props: {
         <Show when={props.state.questionRequest()} keyed>
           {(request) => (
             <div>
-              <SessionQuestionDock request={request} onSubmit={props.onResponseSubmit} onAnswered={routeQuestionAnswers} />
+              <SessionQuestionDock
+                request={request}
+                onSubmit={props.onResponseSubmit}
+                onAnswered={routeQuestionAnswers}
+              />
             </div>
           )}
         </Show>

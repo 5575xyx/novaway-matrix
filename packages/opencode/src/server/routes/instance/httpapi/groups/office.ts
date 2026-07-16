@@ -101,7 +101,8 @@ export const OfficeApi = HttpApi.make("office").add(
         OpenApi.annotations({
           identifier: "office.pptxTemplate.fill",
           summary: "Fill PPTX template",
-          description: "Fill a native PPTX template by replacing slide text runs and save the generated deck into the workspace office folder.",
+          description:
+            "Fill a native PPTX template by replacing slide text runs and save the generated deck into the workspace office folder.",
         }),
       ),
     )

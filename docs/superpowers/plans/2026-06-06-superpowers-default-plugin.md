@@ -14,17 +14,18 @@
 
 ## File Structure
 
-| 文件 | 责任 |
-|------|------|
-| `packages/core/src/flag/flag.ts` | 新增 `OPENCODE_DISABLE_DEFAULT_PLUGINS` 字段 |
-| `packages/opencode/src/config/config.ts` | 新增 `DEFAULT_GLOBAL_PLUGINS` 常量；修改 `loadGlobal` 首次写入处 |
-| `packages/opencode/test/config/config.test.ts` | 追加 1 个核心测试 |
+| 文件                                           | 责任                                                             |
+| ---------------------------------------------- | ---------------------------------------------------------------- |
+| `packages/core/src/flag/flag.ts`               | 新增 `OPENCODE_DISABLE_DEFAULT_PLUGINS` 字段                     |
+| `packages/opencode/src/config/config.ts`       | 新增 `DEFAULT_GLOBAL_PLUGINS` 常量；修改 `loadGlobal` 首次写入处 |
+| `packages/opencode/test/config/config.test.ts` | 追加 1 个核心测试                                                |
 
 ---
 
 ## Task 1: 在 Flag 模块添加禁用门控
 
 **Files:**
+
 - Modify: `packages/core/src/flag/flag.ts:25` (在 `OPENCODE_DISABLE_AUTOCOMPACT` 附近)
 
 - [ ] **Step 1: 添加 Flag 字段**
@@ -40,6 +41,7 @@
 - [ ] **Step 2: 验证类型检查**
 
 运行：
+
 ```bash
 cd E:\AImoney\NovaWay-Matrix\novaway-coder\packages\core && bun run typecheck
 ```
@@ -59,6 +61,7 @@ git commit -m "feat(flag): expose OPENCODE_DISABLE_DEFAULT_PLUGINS gate"
 ## Task 2: 添加失败测试（红灯）
 
 **Files:**
+
 - Modify: `packages/opencode/test/config/config.test.ts:165-185` (在现有 "creates global jsonc config with schema..." 测试之后)
 
 - [ ] **Step 1: 插入新测试**
@@ -82,9 +85,7 @@ test("seeds default global plugins into new config file", async () => {
 
     const content = await Filesystem.readText(path.join(tmp.path, "novaway.jsonc"))
     const json = ConfigParse.jsonc(content, path.join(tmp.path, "novaway.jsonc"))
-    expect(json.plugin).toEqual([
-      "superpowers@git+https://github.com/obra/superpowers.git",
-    ])
+    expect(json.plugin).toEqual(["superpowers@git+https://github.com/obra/superpowers.git"])
   } finally {
     ;(Global.Path as { config: string }).config = prev
     await clear(true)
@@ -97,6 +98,7 @@ test("seeds default global plugins into new config file", async () => {
 - [ ] **Step 2: 运行新测试，验证它失败**
 
 运行：
+
 ```bash
 cd E:\AImoney\NovaWay-Matrix\novaway-coder\packages\opencode && bun test test/config/config.test.ts -t "seeds default global plugins into new config file"
 ```
@@ -118,6 +120,7 @@ git commit -m "test(config): cover default global plugin seeding"
 ## Task 3: 实现默认 plugin 注入（绿灯）
 
 **Files:**
+
 - Modify: `packages/opencode/src/config/config.ts:413-424` (loadGlobal 首启动块)
 
 - [ ] **Step 1: 在文件顶部添加 DEFAULT_GLOBAL_PLUGINS 常量**
@@ -125,12 +128,9 @@ git commit -m "test(config): cover default global plugin seeding"
 在 `packages/opencode/src/config/config.ts` 第 9 行（`import { Flag } from "@opencode-ai/core/flag/flag"`）之后、第 10 行（`import { Auth }`）之前插入：
 
 ```ts
-
 // Default plugins seeded into the global config the first time it's created.
 // Users can remove or override these entries in their own config file.
-export const DEFAULT_GLOBAL_PLUGINS: string[] = [
-  "superpowers@git+https://github.com/obra/superpowers.git",
-]
+export const DEFAULT_GLOBAL_PLUGINS: string[] = ["superpowers@git+https://github.com/obra/superpowers.git"]
 ```
 
 （行首保留一个空行以与上方 import 块分隔。）
@@ -140,23 +140,22 @@ export const DEFAULT_GLOBAL_PLUGINS: string[] = [
 将 `packages/opencode/src/config/config.ts:417-424` 替换为：
 
 ```ts
-      if (!Flag.OPENCODE_CONFIG && !Flag.OPENCODE_CONFIG_DIR && !Flag.OPENCODE_CONFIG_CONTENT) {
-        const file = globalConfigFile()
-        if (!existsSync(file)) {
-          const seed: Record<string, unknown> = {
-            $schema: "https://opencode.ai/config.json",
-          }
-          if (!Flag.OPENCODE_DISABLE_DEFAULT_PLUGINS) {
-            seed.plugin = DEFAULT_GLOBAL_PLUGINS
-          }
-          yield* fs
-            .writeWithDirs(file, JSON.stringify(seed, null, 2))
-            .pipe(Effect.catch(() => Effect.void))
-        }
-      }
+if (!Flag.OPENCODE_CONFIG && !Flag.OPENCODE_CONFIG_DIR && !Flag.OPENCODE_CONFIG_CONTENT) {
+  const file = globalConfigFile()
+  if (!existsSync(file)) {
+    const seed: Record<string, unknown> = {
+      $schema: "https://opencode.ai/config.json",
+    }
+    if (!Flag.OPENCODE_DISABLE_DEFAULT_PLUGINS) {
+      seed.plugin = DEFAULT_GLOBAL_PLUGINS
+    }
+    yield * fs.writeWithDirs(file, JSON.stringify(seed, null, 2)).pipe(Effect.catch(() => Effect.void))
+  }
+}
 ```
 
 **关键点**：
+
 - 沿用原 `if (!existsSync(file))` 边界；已存在的配置文件**不**被回写。
 - 仅当 `OPENCODE_DISABLE_DEFAULT_PLUGINS` 未设置时才写 `plugin`。
 - `seed` 用 `Record<string, unknown>`，不引入新类型导入。
@@ -164,6 +163,7 @@ export const DEFAULT_GLOBAL_PLUGINS: string[] = [
 - [ ] **Step 3: 运行 Task 2 的测试，验证它通过**
 
 运行：
+
 ```bash
 cd E:\AImoney\NovaWay-Matrix\novaway-coder\packages\opencode && bun test test/config/config.test.ts -t "seeds default global plugins into new config file"
 ```
@@ -173,6 +173,7 @@ cd E:\AImoney\NovaWay-Matrix\novaway-coder\packages\opencode && bun test test/co
 - [ ] **Step 4: 确认原 schema 测试仍然通过**
 
 运行：
+
 ```bash
 cd E:\AImoney\NovaWay-Matrix\novaway-coder\packages\opencode && bun test test/config/config.test.ts -t "creates global jsonc config with schema when no global configs exist"
 ```

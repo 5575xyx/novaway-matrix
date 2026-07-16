@@ -2,11 +2,43 @@ export type ModeGroup = "all" | "forge" | "zen" | "spark" | "pulse" | "future"
 
 export const modeGroups: Array<{ value: ModeGroup; label: string; aliases: string[] }> = [
   { value: "all", label: "全部", aliases: [] },
-  { value: "forge", label: "工程师", aliases: ["forge", "engineer", "engineering", "frontend", "backend", "code", "coding", "dev", "开发", "工程", "代码"] },
-  { value: "zen", label: "办公", aliases: ["zen", "office", "document", "docs", "ppt", "meeting", "task", "办公", "文档", "会议", "任务", "沟通"] },
-  { value: "spark", label: "创意", aliases: ["spark", "creative", "writing", "video", "image", "创意", "写作", "视频", "海报"] },
-  { value: "pulse", label: "运营", aliases: ["pulse", "operation", "ops", "marketing", "social", "运营", "营销", "小红书", "抖音", "公众号"] },
-  { value: "future", label: "探索", aliases: ["future", "explore", "custom", "research", "探索", "未来", "自定义", "研究"] },
+  {
+    value: "forge",
+    label: "工程师",
+    aliases: [
+      "forge",
+      "engineer",
+      "engineering",
+      "frontend",
+      "backend",
+      "code",
+      "coding",
+      "dev",
+      "开发",
+      "工程",
+      "代码",
+    ],
+  },
+  {
+    value: "zen",
+    label: "办公",
+    aliases: ["zen", "office", "document", "docs", "ppt", "meeting", "task", "办公", "文档", "会议", "任务", "沟通"],
+  },
+  {
+    value: "spark",
+    label: "创意",
+    aliases: ["spark", "creative", "writing", "video", "image", "创意", "写作", "视频", "海报"],
+  },
+  {
+    value: "pulse",
+    label: "运营",
+    aliases: ["pulse", "operation", "ops", "marketing", "social", "运营", "营销", "小红书", "抖音", "公众号"],
+  },
+  {
+    value: "future",
+    label: "探索",
+    aliases: ["future", "explore", "custom", "research", "探索", "未来", "自定义", "研究"],
+  },
 ]
 
 export function modeGroupLabel(group: ModeGroup) {

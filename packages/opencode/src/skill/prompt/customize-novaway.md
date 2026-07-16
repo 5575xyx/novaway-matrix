@@ -37,15 +37,15 @@ already-loaded config until then.
 
 ## Where files live
 
-| Scope                         | Path                                                                                                                      |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Scope                         | Path                                                                                                                 |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | Project config                | `./novaway.json`, `./novaway.jsonc`, or `.novaway/novaway.json` (novaway walks up from the cwd to the worktree root) |
-| Global config                 | `~/.config/novaway/novaway.json` (NOT `~/.novaway/`)                                                                   |
-| Project agents                | `.novaway/agent/<name>.md` or `.novaway/agents/<name>.md`                                                               |
-| Global agents                 | `~/.config/novaway/agent(s)/<name>.md`                                                                                   |
-| Project skills                | `.novaway/skill(s)/<name>/SKILL.md`                                                                                      |
-| Global skills                 | `~/.config/novaway/skill(s)/<name>/SKILL.md`                                                                             |
-| External skills (auto-loaded) | `~/.claude/skills/<name>/SKILL.md`, `~/.agents/skills/<name>/SKILL.md`                                                    |
+| Global config                 | `~/.config/novaway/novaway.json` (NOT `~/.novaway/`)                                                                 |
+| Project agents                | `.novaway/agent/<name>.md` or `.novaway/agents/<name>.md`                                                            |
+| Global agents                 | `~/.config/novaway/agent(s)/<name>.md`                                                                               |
+| Project skills                | `.novaway/skill(s)/<name>/SKILL.md`                                                                                  |
+| Global skills                 | `~/.config/novaway/skill(s)/<name>/SKILL.md`                                                                         |
+| External skills (auto-loaded) | `~/.claude/skills/<name>/SKILL.md`, `~/.agents/skills/<name>/SKILL.md`                                               |
 
 Configs from each scope are deep-merged. Project overrides global. Unknown
 top-level keys in `novaway.json` are rejected with `ConfigInvalidError`.

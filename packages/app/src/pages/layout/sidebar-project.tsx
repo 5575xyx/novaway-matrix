@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, Show, type Accessor, type JSX } from "solid-js"
+import { createMemo, For, Show, type Accessor, type JSX } from "solid-js"
 import { base64Encode } from "@opencode-ai/core/util/encode"
 import { getFilename } from "@opencode-ai/core/util/path"
 import { ContextMenu } from "@opencode-ai/ui/context-menu"
@@ -135,7 +135,6 @@ export const SortableProject = (props: {
   const sortable = createSortable(props.project.worktree)
   const selected = createMemo(() => props.ctx.currentProject()?.worktree === props.project.worktree)
   const dirs = createMemo(() => props.ctx.workspaceIds(props.project))
-  const [menuOpen, setMenuOpen] = createSignal(false)
 
   const sessionCount = createMemo(() =>
     dirs().reduce((total, directory) => {
@@ -163,10 +162,7 @@ export const SortableProject = (props: {
   return (
     // @ts-ignore
     <div use:sortable classList={{ "opacity-30": sortable.isActiveDraggable }}>
-      <ContextMenu
-        modal
-        onOpenChange={setMenuOpen}
-      >
+      <ContextMenu modal={false}>
         <ContextMenu.Trigger
           as="div"
           aria-label={props.project.name || getFilename(props.project.worktree)}

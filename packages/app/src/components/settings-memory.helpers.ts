@@ -21,7 +21,10 @@ export function memoryReviewCounts(status: MemoryReviewSummary | undefined): Rec
   }
 }
 
-export function memoryReviewSourceCounts(status: MemoryReviewSummary | undefined, reviewStatus: ReviewStatus): Record<CandidateSource, number> {
+export function memoryReviewSourceCounts(
+  status: MemoryReviewSummary | undefined,
+  reviewStatus: ReviewStatus,
+): Record<CandidateSource, number> {
   return {
     all: finiteNumber(status?.sourceByStatus?.[reviewStatus]?.all),
     explicit: finiteNumber(status?.sourceByStatus?.[reviewStatus]?.explicit),
@@ -31,14 +34,27 @@ export function memoryReviewSourceCounts(status: MemoryReviewSummary | undefined
   }
 }
 
-export function filterMemoryReviewCandidates(candidates: readonly MemoryReviewCandidate[] | undefined | null, source: CandidateSource, mode: ModeGroup = "all") {
+export function filterMemoryReviewCandidates(
+  candidates: readonly MemoryReviewCandidate[] | undefined | null,
+  source: CandidateSource,
+  mode: ModeGroup = "all",
+) {
   return safeCandidates(candidates).filter(
-    (candidate) => (source === "all" || memoryCandidateSource(candidate.tags) === source) && matchesModeGroup(candidateModeSearchText(candidate), mode),
+    (candidate) =>
+      (source === "all" || memoryCandidateSource(candidate.tags) === source) &&
+      matchesModeGroup(candidateModeSearchText(candidate), mode),
   )
 }
 
 function candidateModeSearchText(candidate: MemoryReviewCandidate) {
-  return [safeTags(candidate.tags), candidate.scope, candidate.target, candidate.summary, candidate.content, candidate.reason]
+  return [
+    safeTags(candidate.tags),
+    candidate.scope,
+    candidate.target,
+    candidate.summary,
+    candidate.content,
+    candidate.reason,
+  ]
 }
 
 function safeCandidates(candidates: readonly MemoryReviewCandidate[] | undefined | null) {

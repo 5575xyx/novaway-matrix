@@ -10,9 +10,7 @@ export const videosHandlers = HttpApiBuilder.group(InstanceHttpApi, "videos", (h
     }) {
       const apiKey = process.env.AGNES_API_KEY
       if (!apiKey) {
-        return yield* Effect.fail(
-          new HttpApiError.BadRequest({}),
-        )
+        return yield* Effect.fail(new HttpApiError.BadRequest({}))
       }
 
       const model = ctx.payload.model || "agnes-video-v2.0"

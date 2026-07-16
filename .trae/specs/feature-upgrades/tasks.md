@@ -1,9 +1,10 @@
 # 功能升级 - 实现计划
 
 ## [x] Task 1: 会话快照服务实现
+
 - **Priority**: high
 - **Depends On**: None
-- **Description**: 
+- **Description**:
   - 创建基于 Git 的快照服务，支持 capture、diff、restore、checkout 操作
   - 使用内容寻址存储文件状态（Git tree 对象）
   - 支持按路径范围捕获快照
@@ -16,9 +17,10 @@
 - **Notes**: 参考 `opencode-dev/packages/core/src/snapshot.ts` 的实现模式
 
 ## [x] Task 2: 会话回滚逻辑完善
+
 - **Priority**: high
 - **Depends On**: Task 1
-- **Description**: 
+- **Description**:
   - 修改 `packages/opencode/src/session/revert.ts`，集成新的快照服务
   - 实现回滚计划生成：计算需要恢复的文件及其目标快照
   - 实现回滚 staging：先恢复文件，计算 diff，发布回滚事件
@@ -32,9 +34,10 @@
 - **Notes**: 参考 `opencode-dev/packages/core/src/session/revert.ts` 的实现
 
 ## [x] Task 3: 回滚 HTTP API 路由
+
 - **Priority**: high
 - **Depends On**: Task 2
-- **Description**: 
+- **Description**:
   - 在 HTTP API 中添加 `/session/:sessionID/revert` 端点
   - 添加 `/session/:sessionID/unrevert` 端点
   - 实现对应的请求处理逻辑
@@ -45,9 +48,10 @@
 - **Notes**: 参考 `opencode-dev/packages/opencode/src/server/routes/instance/httpapi/groups/session.ts`
 
 ## [ ] Task 4: 回滚 UI 入口与面板
+
 - **Priority**: high
 - **Depends On**: Task 3
-- **Description**: 
+- **Description**:
   - 在 session timeline 的每条消息旁添加回滚按钮
   - 创建回滚面板组件，显示可回滚的文件变更列表
   - 实现回滚确认和撤销回滚功能
@@ -60,9 +64,10 @@
 - **Notes**: 参考 `opencode-dev/packages/app/src/pages/session/composer/session-revert-dock.tsx`
 
 ## [x] Task 5: YOLO 模式 CLI 支持
+
 - **Priority**: medium
 - **Depends On**: None
-- **Description**: 
+- **Description**:
   - 在 `packages/opencode/src/cli/cmd/run.ts` 中添加 `--yolo` 参数
   - 添加 `--auto` 参数作为 `--dangerously-skip-permissions` 的友好别名
   - 实现 auto-approve 逻辑：自动批准所有权限请求
@@ -74,9 +79,10 @@
 - **Notes**: 参考 `opencode-dev/packages/opencode/src/cli/cmd/run.ts` 中的 auto 逻辑
 
 ## [x] Task 6: YOLO 模式 Web UI 支持
+
 - **Priority**: medium
 - **Depends On**: Task 5
-- **Description**: 
+- **Description**:
   - 创建权限自动批准的 SolidJS context
   - 实现会话级别和目录级别的自动批准开关
   - 监听 `permission.asked` 事件，自动响应
@@ -88,9 +94,10 @@
 - **Notes**: 参考 `opencode-dev/packages/app/src/context/permission.tsx`
 
 ## [x] Task 7: MCP OAuth 配置 Schema 更新
+
 - **Priority**: medium
 - **Depends On**: None
-- **Description**: 
+- **Description**:
   - 更新 `packages/core/src/v1/config/mcp.ts` 中的 OAuth Schema
   - 添加 scope 字段支持（用于请求 refresh-token）
   - 添加 callback_port 和 redirect_uri 字段
@@ -102,9 +109,10 @@
 - **Notes**: 参考 `opencode-dev/packages/core/src/config/mcp.ts` 和 `opencode-dev/packages/core/src/v1/config/mcp.ts`
 
 ## [x] Task 8: MCP OAuth 重连机制
+
 - **Priority**: medium
 - **Depends On**: Task 7
-- **Description**: 
+- **Description**:
   - 修改 MCP 连接逻辑，支持即使禁用时也能触发 OAuth 重连
   - 在 OAuth 请求中自动包含 refresh-token scope
   - 改进 OAuth 错误处理，显示详细错误信息
@@ -115,9 +123,10 @@
 - **Notes**: 需要检查 MCP 连接和认证的核心逻辑
 
 ## [x] Task 9: MCP 认证状态隔离
+
 - **Priority**: medium
 - **Depends On**: Task 7
-- **Description**: 
+- **Description**:
   - 修改 MCP 认证状态存储，按 server URL 隔离
   - 防止一个 server 的认证状态泄漏到另一个 server
   - 更新 MCP 状态管理逻辑
@@ -127,9 +136,10 @@
 - **Notes**: 需要检查 MCP 状态管理的现有实现
 
 ## [x] Task 10: 集成测试与验证
+
 - **Priority**: medium
 - **Depends On**: Task 1-9
-- **Description**: 
+- **Description**:
   - 运行现有测试套件，确保新功能不破坏现有功能
   - 编写集成测试覆盖核心场景
   - 验证所有 acceptance criteria

@@ -48,113 +48,109 @@ function GroupSidebar(props: {
 
   return (
     <>
-    <div class="w-48 shrink-0 border-r border-border-weak-base bg-background-weak/40 flex flex-col h-full">
-      <div class="p-3 border-b border-border-weak-base">
-        <button
-          class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] text-13-medium transition-colors"
-          classList={{
-            "bg-surface-raised-base-hover text-text-strong": props.selectedGroupId === "all",
-            "text-text-weak hover:bg-surface-raised-base-hover": props.selectedGroupId !== "all",
-          }}
-          onClick={() => props.onSelect("all")}
-        >
-          <span>全部账号</span>
-          <span class="ml-auto text-12-regular text-text-weaker">{allCount()}</span>
-        </button>
-      </div>
-
-      <div class="p-2">
-        <div class="flex items-center justify-between px-2 py-1.5">
-          <span class="text-11-regular text-text-weaker uppercase tracking-wider">列表</span>
+      <div class="w-48 shrink-0 border-r border-border-weak-base bg-background-weak/40 flex flex-col h-full">
+        <div class="p-3 border-b border-border-weak-base">
           <button
-            class="size-5 rounded flex items-center justify-center text-text-weak hover:text-text-strong hover:bg-surface-raised-base-hover transition-colors"
-            onClick={() => setShowNewInput(true)}
+            class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] text-13-medium transition-colors"
+            classList={{
+              "bg-surface-raised-base-hover text-text-strong": props.selectedGroupId === "all",
+              "text-text-weak hover:bg-surface-raised-base-hover": props.selectedGroupId !== "all",
+            }}
+            onClick={() => props.onSelect("all")}
           >
-            <Icon name="plus-small" size="small" />
+            <span>全部账号</span>
+            <span class="ml-auto text-12-regular text-text-weaker">{allCount()}</span>
           </button>
         </div>
 
-        <Show when={showNewInput()}>
-          <div class="flex items-center gap-1 px-1 py-0.5">
-            <input
-              class="flex-1 h-7 px-2 rounded border border-border-interactive-base bg-background-base text-12-regular text-text-strong outline-none"
-              value={newGroupName()}
-              onInput={(e) => setNewGroupName(e.currentTarget.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleCreate()
-                if (e.key === "Escape") setShowNewInput(false)
-              }}
-              placeholder="列表名称"
-              autofocus
-            />
-          </div>
-        </Show>
-
-        <For each={platform.store.groups}>
-          {(group) => (
-            <div
-              class="group flex items-center gap-1 px-1 py-0.5 rounded cursor-pointer"
-              classList={{
-                "bg-surface-raised-base-hover": props.selectedGroupId === group.id,
-              }}
+        <div class="p-2">
+          <div class="flex items-center justify-between px-2 py-1.5">
+            <span class="text-11-regular text-text-weaker uppercase tracking-wider">列表</span>
+            <button
+              class="size-5 rounded flex items-center justify-center text-text-weak hover:text-text-strong hover:bg-surface-raised-base-hover transition-colors"
+              onClick={() => setShowNewInput(true)}
             >
-              <Show
-                when={editingId() === group.id}
-                fallback={
-                  <button
-                    class="flex-1 flex items-center gap-2 px-2 py-1.5 rounded text-12-regular text-left transition-colors hover:bg-surface-raised-base-hover"
-                    classList={{
-                      "text-text-strong font-medium": props.selectedGroupId === group.id,
-                      "text-text-weak": props.selectedGroupId !== group.id,
-                    }}
-                    onClick={() => props.onSelect(group.id)}
-                    onContextMenu={(e) => handleContextMenu(e, group)}
-                  >
-                    <Icon name="bullet-list" size="small" class="text-text-weaker shrink-0" />
-                    <span class="flex-1 truncate">{group.name}</span>
-                    <span class="text-11-regular text-text-weaker">{groupCount(group.id)}</span>
-                  </button>
-                }
-              >
-                <input
-                  class="flex-1 h-7 px-2 rounded border border-border-interactive-base bg-background-base text-12-regular text-text-strong outline-none"
-                  value={editName()}
-                  onInput={(e) => setEditName(e.currentTarget.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleRename(group.id)
-                    if (e.key === "Escape") setEditingId(null)
-                  }}
-                  autofocus
-                />
-              </Show>
-              <Show when={group.id !== 1 && editingId() !== group.id}>
-                <button
-                  class="size-5 shrink-0 rounded flex items-center justify-center text-text-weaker hover:text-rose-500 hover:bg-surface-raised-base-hover transition-colors opacity-0 group-hover:opacity-100"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setDeleteConfirmGroupId(group.id)
-                  }}
-                >
-                  <Icon name="trash" size="small" />
-                </button>
-              </Show>
-            </div>
-          )}
-        </For>
-      </div>
+              <Icon name="plus-small" size="small" />
+            </button>
+          </div>
 
-      <div class="mt-auto p-2 border-t border-border-weak-base">
-        <Button
-          variant="secondary"
-          class="w-full"
-          onClick={() => setShowNewInput(true)}
-        >
-          <Icon name="plus-small" size="small" />
-          新建列表
-        </Button>
+          <Show when={showNewInput()}>
+            <div class="flex items-center gap-1 px-1 py-0.5">
+              <input
+                class="flex-1 h-7 px-2 rounded border border-border-interactive-base bg-background-base text-12-regular text-text-strong outline-none"
+                value={newGroupName()}
+                onInput={(e) => setNewGroupName(e.currentTarget.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleCreate()
+                  if (e.key === "Escape") setShowNewInput(false)
+                }}
+                placeholder="列表名称"
+                autofocus
+              />
+            </div>
+          </Show>
+
+          <For each={platform.store.groups}>
+            {(group) => (
+              <div
+                class="group flex items-center gap-1 px-1 py-0.5 rounded cursor-pointer"
+                classList={{
+                  "bg-surface-raised-base-hover": props.selectedGroupId === group.id,
+                }}
+              >
+                <Show
+                  when={editingId() === group.id}
+                  fallback={
+                    <button
+                      class="flex-1 flex items-center gap-2 px-2 py-1.5 rounded text-12-regular text-left transition-colors hover:bg-surface-raised-base-hover"
+                      classList={{
+                        "text-text-strong font-medium": props.selectedGroupId === group.id,
+                        "text-text-weak": props.selectedGroupId !== group.id,
+                      }}
+                      onClick={() => props.onSelect(group.id)}
+                      onContextMenu={(e) => handleContextMenu(e, group)}
+                    >
+                      <Icon name="bullet-list" size="small" class="text-text-weaker shrink-0" />
+                      <span class="flex-1 truncate">{group.name}</span>
+                      <span class="text-11-regular text-text-weaker">{groupCount(group.id)}</span>
+                    </button>
+                  }
+                >
+                  <input
+                    class="flex-1 h-7 px-2 rounded border border-border-interactive-base bg-background-base text-12-regular text-text-strong outline-none"
+                    value={editName()}
+                    onInput={(e) => setEditName(e.currentTarget.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleRename(group.id)
+                      if (e.key === "Escape") setEditingId(null)
+                    }}
+                    autofocus
+                  />
+                </Show>
+                <Show when={group.id !== 1 && editingId() !== group.id}>
+                  <button
+                    class="size-5 shrink-0 rounded flex items-center justify-center text-text-weaker hover:text-rose-500 hover:bg-surface-raised-base-hover transition-colors opacity-0 group-hover:opacity-100"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setDeleteConfirmGroupId(group.id)
+                    }}
+                  >
+                    <Icon name="trash" size="small" />
+                  </button>
+                </Show>
+              </div>
+            )}
+          </For>
+        </div>
+
+        <div class="mt-auto p-2 border-t border-border-weak-base">
+          <Button variant="secondary" class="w-full" onClick={() => setShowNewInput(true)}>
+            <Icon name="plus-small" size="small" />
+            新建列表
+          </Button>
+        </div>
       </div>
-    </div>
-    <ConfirmDialog
+      <ConfirmDialog
         open={renameConfirmGroup() !== null}
         title="重命名列表"
         description={`确定重命名列表「${renameConfirmGroup()?.name || ""}」？`}
@@ -174,7 +170,12 @@ function GroupSidebar(props: {
         title="删除列表"
         description={
           <span>
-            确定删除列表「<span class="font-medium">{platform.store.groups.find((g) => g.id === deleteConfirmGroupId())?.name || ""}</span>」吗？<br />
+            确定删除列表「
+            <span class="font-medium">
+              {platform.store.groups.find((g) => g.id === deleteConfirmGroupId())?.name || ""}
+            </span>
+            」吗？
+            <br />
             该列表下的账号将移回默认列表。
           </span>
         }
@@ -190,7 +191,10 @@ function GroupSidebar(props: {
   )
 }
 
-function AccountTable(props: { accounts: PlatformAccount[]; onMoveGroup: (accountId: string, groupId: number) => void }) {
+function AccountTable(props: {
+  accounts: PlatformAccount[]
+  onMoveGroup: (accountId: string, groupId: number) => void
+}) {
   const platform = usePlatformAccounts()
 
   const platformInfo = (platId: string) => PLATFORM_LIST.find((p) => p.id === platId)
@@ -200,11 +204,7 @@ function AccountTable(props: { accounts: PlatformAccount[]; onMoveGroup: (accoun
     <div class="flex-1 overflow-auto">
       <Show
         when={props.accounts.length > 0}
-        fallback={
-          <div class="flex items-center justify-center h-full text-text-weaker text-14-regular">
-            暂无数据
-          </div>
-        }
+        fallback={<div class="flex items-center justify-center h-full text-text-weaker text-14-regular">暂无数据</div>}
       >
         <table class="w-full">
           <thead>
@@ -271,9 +271,7 @@ function AccountTable(props: { accounts: PlatformAccount[]; onMoveGroup: (accoun
                         }}
                       >
                         <For each={platform.store.groups}>
-                          {(group) => (
-                            <option value={group.id}>{group.name}</option>
-                          )}
+                          {(group) => <option value={group.id}>{group.name}</option>}
                         </For>
                       </select>
                     </td>
@@ -308,7 +306,10 @@ export function AccountManagerModal() {
           onRenameGroup={platform.renameGroup}
           onDeleteGroup={platform.deleteGroup}
         />
-        <AccountTable accounts={filteredAccounts()} onMoveGroup={(accountId, groupId) => platform.moveAccountToGroup(accountId, groupId)} />
+        <AccountTable
+          accounts={filteredAccounts()}
+          onMoveGroup={(accountId, groupId) => platform.moveAccountToGroup(accountId, groupId)}
+        />
       </div>
     </Dialog>
   )

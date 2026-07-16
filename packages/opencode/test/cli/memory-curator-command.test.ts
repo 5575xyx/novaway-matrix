@@ -3,7 +3,13 @@ import { formatCuratorStatus, formatDryRun, formatEvolutionCandidates } from "..
 import { formatMemoryList, formatMemoryReviewCandidates, formatMemoryReviewStatus } from "../../src/cli/cmd/memory"
 import { EvolutionCandidateID } from "../../src/evolution/schema"
 import type { Candidate, CandidateDryRun, StatusSummary } from "../../src/evolution/schema"
-import { MemoryID, ReviewCandidateID, type Info, type ReviewCandidate, type ReviewStatus } from "../../src/memory/schema"
+import {
+  MemoryID,
+  ReviewCandidateID,
+  type Info,
+  type ReviewCandidate,
+  type ReviewStatus,
+} from "../../src/memory/schema"
 
 describe("memory CLI formatting", () => {
   test("formats memory entries as table and JSON", () => {
@@ -80,7 +86,9 @@ describe("curator CLI formatting", () => {
     }
 
     expect(formatEvolutionCandidates([candidate], "table")).toContain("evc_cli\tpending\tproject\treviews\t2")
-    expect(formatCuratorStatus({ config: { enabled: true, review_interval: 5 }, status }, "table")).toContain("review_interval\t5")
+    expect(formatCuratorStatus({ config: { enabled: true, review_interval: 5 }, status }, "table")).toContain(
+      "review_interval\t5",
+    )
   })
 
   test("formats dry-run diffs", () => {

@@ -8,6 +8,7 @@ description: "Use when the user wants to create and publish content to WeChat Of
 ## 使用场景
 
 当用户需要：
+
 - 创建微信公众号文章（AI 生成内容）
 - 生成配图并插入文章
 - 自动发布文章到微信公众号草稿箱
@@ -72,24 +73,26 @@ description: "Use when the user wants to create and publish content to WeChat Of
 
 ### 常见错误及解决方案
 
-| 错误 | 原因 | 解决方案 |
-|------|------|----------|
-| `token 提取失败` | WebView 未加载公众号页面 | 提示用户先登录公众号后台 |
-| `编辑器未就绪` | 页面加载中或选择器变化 | 重试 + 回退到直连 URL |
-| `AI 生成失败` | 模型配置错误或 API 不可用 | 检查 AI 模型配置 |
-| `图片生成失败` | 图片模型不可用 | 支持单独重绘配图 |
+| 错误             | 原因                      | 解决方案                 |
+| ---------------- | ------------------------- | ------------------------ |
+| `token 提取失败` | WebView 未加载公众号页面  | 提示用户先登录公众号后台 |
+| `编辑器未就绪`   | 页面加载中或选择器变化    | 重试 + 回退到直连 URL    |
+| `AI 生成失败`    | 模型配置错误或 API 不可用 | 检查 AI 模型配置         |
+| `图片生成失败`   | 图片模型不可用            | 支持单独重绘配图         |
 
 ## 配置要求
 
 ### AI 模型配置
 
 需要配置以下 AI 模型：
+
 - **文本模型**：用于生成文章内容（支持 OpenAI 兼容 API）
 - **图片模型**：用于生成配图（支持 DALL-E、Flux 等）
 
 ### WebView 配置
 
 需要确保：
+
 - Electron WebView 组件可用
 - 已加载微信公众平台页面（`mp.weixin.qq.com`）
 - JavaScript 执行权限已启用
@@ -101,6 +104,7 @@ description: "Use when the user wants to create and publish content to WeChat Of
 **用户**：帮我写一篇关于 AI 股票分析的公众号文章
 
 **助手**：
+
 1. 加载 wxgzh-ops skill
 2. 收集详细信息（语气、篇幅、目标人群等）
 3. 生成文章内容
@@ -112,6 +116,7 @@ description: "Use when the user wants to create and publish content to WeChat Of
 **用户**：把这篇文章发布到公众号
 
 **助手**：
+
 1. 加载 wxgzh-ops skill
 2. 检查 WebView 状态
 3. 执行自动发布流程

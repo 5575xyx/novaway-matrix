@@ -23,6 +23,7 @@ OpenCode 使用独立的插件安装机制。如果你同时使用 Claude Code�
 PowersNexus 插件已内置 ripgrep（`rg.exe`），**无需单独安装或从 GitHub 下载**。
 
 这个改进专门解决了国内用户常见的网络问题：
+
 - OpenCode 的 `skill` 工具依赖 ripgrep 搜索技能文件
 - 首次使用时会尝试从 GitHub Releases 下载 ripgrep
 - 国内网络访问 GitHub 经常超时或失败
@@ -124,16 +125,16 @@ OpenCode 通过 git-backed 包规范安装 PowersNexus。某些 OpenCode 和 Bun
 
 技能使用动作描述而非特定平台的工具名。在 OpenCode 中对应：
 
-| 技能动作 | OpenCode 工具 |
-|---------|--------------|
-| 创建/更新 todo | `todowrite` |
-| 分发子代理 | `task`（`subagent_type: "general"`） |
-| 调用技能 | `skill`（OpenCode 原生） |
-| 读取文件 | `read` |
-| 编辑文件 | `apply_patch` |
-| 运行命令 | `bash` |
-| 搜索内容 | `grep` / `glob` |
-| 抓取 URL | `webfetch` |
+| 技能动作       | OpenCode 工具                        |
+| -------------- | ------------------------------------ |
+| 创建/更新 todo | `todowrite`                          |
+| 分发子代理     | `task`（`subagent_type: "general"`） |
+| 调用技能       | `skill`（OpenCode 原生）             |
+| 读取文件       | `read`                               |
+| 编辑文件       | `apply_patch`                        |
+| 运行命令       | `bash`                               |
+| 搜索内容       | `grep` / `glob`                      |
+| 抓取 URL       | `webfetch`                           |
 
 ## 故障排查
 

@@ -8,7 +8,13 @@ import { AccountManagerModal } from "./AccountManagerModal"
 import { CheckLoginResultModal } from "./CheckLoginResultModal"
 import { ConfirmDialog } from "@/components/dialog-confirm"
 
-function AccountItem(props: { account: PlatformAccount; isSelected: boolean; onSelect: () => void; onCheckLogin: () => void; onRemove: () => void }) {
+function AccountItem(props: {
+  account: PlatformAccount
+  isSelected: boolean
+  onSelect: () => void
+  onCheckLogin: () => void
+  onRemove: () => void
+}) {
   const info = () => PLATFORM_LIST.find((p) => p.id === props.account.platform)
   const [showMenu, setShowMenu] = createSignal(false)
   const [menuPos, setMenuPos] = createSignal({ x: 0, y: 0 })
@@ -16,10 +22,14 @@ function AccountItem(props: { account: PlatformAccount; isSelected: boolean; onS
 
   const statusColor = () => {
     switch (props.account.status) {
-      case "valid": return "bg-emerald-500"
-      case "expired": return "bg-amber-500"
-      case "login_failed": return "bg-rose-500"
-      default: return "bg-gray-300 dark:bg-gray-600"
+      case "valid":
+        return "bg-emerald-500"
+      case "expired":
+        return "bg-amber-500"
+      case "login_failed":
+        return "bg-rose-500"
+      default:
+        return "bg-gray-300 dark:bg-gray-600"
     }
   }
 
@@ -53,7 +63,9 @@ function AccountItem(props: { account: PlatformAccount; isSelected: boolean; onS
         ) : (
           <span class="text-12-regular text-text-weak">{props.account.nickname?.charAt(0)}</span>
         )}
-        <span class={`absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full ${statusColor()} ring-2 ring-background-base`} />
+        <span
+          class={`absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full ${statusColor()} ring-2 ring-background-base`}
+        />
       </div>
       <div class="flex-1 min-w-0">
         <div class="text-13-medium text-text-strong truncate leading-tight">{props.account.nickname}</div>
@@ -118,8 +130,13 @@ export function PulseSidebar() {
   return (
     <div class="flex flex-col h-full">
       <div class="shrink-0 p-3 border-b border-border-weak-base">
-        <div class="rounded-[10px] p-3"
-          style={{ "background": "linear-gradient(135deg, color-mix(in srgb, var(--novaway-mode-color, #FF6B6B) 10%, transparent), transparent)" }}>
+        <div
+          class="rounded-[10px] p-3"
+          style={{
+            background:
+              "linear-gradient(135deg, color-mix(in srgb, var(--novaway-mode-color, #FF6B6B) 10%, transparent), transparent)",
+          }}
+        >
           <div class="text-14-medium text-text-strong mb-1">账号矩阵</div>
           <div class="text-11-regular text-text-weak mb-2">一站式账号接入与状态巡检</div>
           <div class="flex gap-2 mb-2">
@@ -175,9 +192,15 @@ export function PulseSidebar() {
                   class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-12-regular text-text-weak hover:bg-surface-raised-base-hover transition-colors"
                   onClick={() => toggleGroup(group.id)}
                 >
-                  <Icon name={isExpanded() ? "chevron-down" : "chevron-right"} size="small" class="text-text-weaker shrink-0" />
+                  <Icon
+                    name={isExpanded() ? "chevron-down" : "chevron-right"}
+                    size="small"
+                    class="text-text-weaker shrink-0"
+                  />
                   <span class="flex-1 text-left truncate">{group.name}</span>
-                  <span class="text-11-regular text-text-weaker">{accounts().length}个 / 在线{onlineInGroup()}个</span>
+                  <span class="text-11-regular text-text-weaker">
+                    {accounts().length}个 / 在线{onlineInGroup()}个
+                  </span>
                 </button>
                 <Show when={isExpanded()}>
                   <div class="ml-2 space-y-0.5">
@@ -197,9 +220,7 @@ export function PulseSidebar() {
                       )}
                     </For>
                     <Show when={accounts().length === 0}>
-                      <div class="px-3 py-2 text-11-regular text-text-weaker text-center">
-                        暂无账号
-                      </div>
+                      <div class="px-3 py-2 text-11-regular text-text-weaker text-center">暂无账号</div>
                     </Show>
                   </div>
                 </Show>
@@ -218,7 +239,9 @@ export function PulseSidebar() {
             dialog.show(() => (
               <CheckLoginResultModal
                 results={results}
-                onRemove={async (id) => { await platform.removeAccount(id) }}
+                onRemove={async (id) => {
+                  await platform.removeAccount(id)
+                }}
               />
             ))
           }}

@@ -179,7 +179,9 @@ export const MemoryDeleteCommand = effectCmd({
       demandOption: true,
     }),
   handler: Effect.fn("Cli.memory.delete")(function* (args: MemoryDeleteArgs) {
-    const removed = yield* Memory.Service.use((memory) => memory.remove(Schema.decodeUnknownSync(MemorySchema.MemoryID)(args.memoryID)))
+    const removed = yield* Memory.Service.use((memory) =>
+      memory.remove(Schema.decodeUnknownSync(MemorySchema.MemoryID)(args.memoryID)),
+    )
     if (!removed) return yield* fail(`Memory entry not found: ${args.memoryID}`)
     console.log(`Deleted memory entry ${args.memoryID}`)
   }),
@@ -369,7 +371,14 @@ export function formatMemoryReviewCandidates(items: readonly MemorySchema.Review
   return [
     ["ID", "Status", "Target", "Scope", "Updated", "Content"].join("\t"),
     ...items.map((item) =>
-      [item.id, item.status, item.target, item.scope, String(item.time.updated), truncate(item.summary || item.content)].join("\t"),
+      [
+        item.id,
+        item.status,
+        item.target,
+        item.scope,
+        String(item.time.updated),
+        truncate(item.summary || item.content),
+      ].join("\t"),
     ),
   ].join("\n")
 }

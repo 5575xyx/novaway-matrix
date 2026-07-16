@@ -12,23 +12,27 @@ requested or discussed.
 - [ ] I searched existing issues for this IDE/platform
 
 ## Which IDE or platform?
+
 <!-- Name and link -->
 
 ## Does this tool have a plugin or extension system?
+
 <!-- If yes, link to the docs. If no, explain how third-party
      integrations typically work with this tool. -->
 
 ## Have you tried manual installation?
+
 <!-- Many tools work with PowersNexus through manual setup even without
      official support. Did you try? What happened? -->
 
 ## Environment (required)
+
 <!-- Required. We assume an agent wrote this request — tell us which one and
      where it ran. -->
 
-| Field | Value |
-|-------|-------|
-| Harness you currently use (Claude Code, Cursor, etc.) | |
-| Harness version | |
-| Your model + version | |
-| All plugins installed | |
+| Field                                                 | Value |
+| ----------------------------------------------------- | ----- |
+| Harness you currently use (Claude Code, Cursor, etc.) |       |
+| Harness version                                       |       |
+| Your model + version                                  |       |
+| All plugins installed                                 |       |

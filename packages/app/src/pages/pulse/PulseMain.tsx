@@ -78,7 +78,7 @@ function AccountOverview(props: { account: PlatformAccount }) {
           <button
             class="inline-flex items-center gap-1.5 rounded-[8px] px-4 py-2.5 text-13-medium text-white transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0"
             style={{
-              "background": "linear-gradient(135deg, var(--novaway-mode-color, #FF6B6B), #e05555)",
+              background: "linear-gradient(135deg, var(--novaway-mode-color, #FF6B6B), #e05555)",
               "box-shadow": "0 4px 12px color-mix(in srgb, var(--novaway-mode-color, #FF6B6B) 30%, transparent)",
             }}
             onClick={openPublish}
@@ -114,9 +114,13 @@ function EmptyState() {
   return (
     <div class="flex items-center justify-center h-full">
       <div class="text-center max-w-sm mx-auto p-8">
-        <div class="size-20 mx-auto mb-6 rounded-[16px] flex items-center justify-center"
-          style={{ "background-color": "color-mix(in srgb, var(--novaway-mode-color, #FF6B6B) 10%, transparent)" }}>
-          <span class="text-4xl" style={{ color: "var(--novaway-mode-color, #FF6B6B)" }}>📱</span>
+        <div
+          class="size-20 mx-auto mb-6 rounded-[16px] flex items-center justify-center"
+          style={{ "background-color": "color-mix(in srgb, var(--novaway-mode-color, #FF6B6B) 10%, transparent)" }}
+        >
+          <span class="text-4xl" style={{ color: "var(--novaway-mode-color, #FF6B6B)" }}>
+            📱
+          </span>
         </div>
         <h3 class="text-18-medium text-text-strong mb-2">选择一个平台账号</h3>
         <p class="text-13-regular text-text-weak leading-relaxed mb-6">
@@ -135,7 +139,7 @@ function EmptyState() {
         <button
           class="inline-flex items-center gap-1.5 rounded-[8px] px-5 py-2.5 text-13-medium text-white transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0"
           style={{
-            "background": "linear-gradient(135deg, var(--novaway-mode-color, #FF6B6B), #e05555)",
+            background: "linear-gradient(135deg, var(--novaway-mode-color, #FF6B6B), #e05555)",
             "box-shadow": "0 4px 12px color-mix(in srgb, var(--novaway-mode-color, #FF6B6B) 30%, transparent)",
           }}
           onClick={openPublish}
@@ -150,8 +154,7 @@ function EmptyState() {
 
 export function PulseMain() {
   const platform = usePlatformAccounts()
-  const selectedAccount = () =>
-    platform.store.accounts.find((a) => a.id === platform.store.selectedAccountId)
+  const selectedAccount = () => platform.store.accounts.find((a) => a.id === platform.store.selectedAccountId)
 
   return (
     <Show when={selectedAccount()} keyed fallback={<EmptyState />}>

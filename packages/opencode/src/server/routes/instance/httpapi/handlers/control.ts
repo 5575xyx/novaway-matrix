@@ -18,9 +18,7 @@ export const controlHandlers = HttpApiBuilder.group(RootHttpApi, "control", (han
       return true
     })
 
-    const authList = Effect.fn("ControlHttpApi.authList")(function* (ctx: {
-      params: { providerID: ProviderID }
-    }) {
+    const authList = Effect.fn("ControlHttpApi.authList")(function* (ctx: { params: { providerID: ProviderID } }) {
       const entries = yield* auth.getEntries(ctx.params.providerID).pipe(Effect.orDie)
       return entries
     })

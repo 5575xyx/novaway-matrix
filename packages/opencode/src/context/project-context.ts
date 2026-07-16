@@ -48,9 +48,7 @@ export function build(sections: { title: string; source: string; content: string
 }
 
 function readSection(fs: AppFileSystem.Interface, title: string, file: string, source: string) {
-  return fs
-    .readFileStringSafe(file)
-    .pipe(Effect.map((content) => ({ title, source, content: content ?? "" })))
+  return fs.readFileStringSafe(file).pipe(Effect.map((content) => ({ title, source, content: content ?? "" })))
 }
 
 export * as ProjectContext from "./project-context"

@@ -47,17 +47,12 @@ import { Npm } from "@opencode-ai/core/npm"
 // Users can remove or override these entries in their own config file.
 // Primary source: Gitee mirror for better accessibility in China.
 // Fallback sources: FALLBACK_GLOBAL_PLUGINS, tried in order if primary fails.
-export const DEFAULT_GLOBAL_PLUGINS: string[] = [
-  "PowersNexus@git+https://gitee.com/nova-way/powersnexus.git",
-]
+export const DEFAULT_GLOBAL_PLUGINS: string[] = ["PowersNexus@git+https://gitee.com/nova-way/powersnexus.git"]
 
 // Fallback plugin sources keyed by plugin name (without version prefix).
 // When the primary source fails to install, these URLs are tried in order.
 export const FALLBACK_GLOBAL_PLUGINS: Record<string, string[]> = {
-  PowersNexus: [
-    "git+https://gitee.com/nova-way/powersnexus.git",
-    "git+https://github.com/obra/superpowers.git",
-  ],
+  PowersNexus: ["git+https://gitee.com/nova-way/powersnexus.git", "git+https://github.com/obra/superpowers.git"],
 }
 
 // Default MCP servers seeded into the global config the first time it's created.
@@ -65,6 +60,13 @@ export const FALLBACK_GLOBAL_PLUGINS: Record<string, string[]> = {
 export const DEFAULT_MCP_SERVERS: Record<string, { command: string[]; enabled: boolean; type: "local" }> = {
   context7: {
     command: ["cmd", "/c", "npx", "-y", "@upstash/context7-mcp"],
+    enabled: true,
+    type: "local",
+  },
+  dbx: {
+    command: process.env.DBX_MCP_SERVER_PATH
+      ? [process.env.DBX_NODE_PATH ?? "node", process.env.DBX_MCP_SERVER_PATH]
+      : ["cmd", "/c", "npx", "-y", "@dbx-app/mcp-server"],
     enabled: true,
     type: "local",
   },
@@ -109,7 +111,7 @@ function normalizeLoadedConfig(data: unknown, source: string) {
   delete copy.theme
   delete copy.keybinds
   delete copy.tui
-  log.warn("tui keys in opencode config are deprecated; move them to tui.json", { path: source })
+  log.warn("tui keys in novaway config are deprecated; move them to tui.json", { path: source })
   return copy
 }
 
@@ -370,9 +372,7 @@ export interface Interface {
 export class Service extends Context.Service<Service, Interface>()("@opencode/Config") {}
 
 function globalConfigFile() {
-  const candidates = ["novaway.json", "novaway.jsonc", "config.json"].map((file) =>
-    path.join(Global.Path.config, file),
-  )
+  const candidates = ["novaway.json", "novaway.jsonc", "config.json"].map((file) => path.join(Global.Path.config, file))
   for (const file of candidates) {
     if (existsSync(file)) return file
   }
@@ -467,9 +467,7 @@ export const layer = Layer.effect(
           }
           // Add default MCP servers
           seed.mcp = DEFAULT_MCP_SERVERS
-          yield* fs
-            .writeWithDirs(file, JSON.stringify(seed, null, 2))
-            .pipe(Effect.catch(() => Effect.void))
+          yield* fs.writeWithDirs(file, JSON.stringify(seed, null, 2)).pipe(Effect.catch(() => Effect.void))
         }
       }
       for (const file of ["config.json", "novaway.jsonc", "novaway.json"]) {
@@ -487,7 +485,10 @@ export const layer = Layer.effect(
             yield* fs.writeFileString(file, patched).pipe(Effect.catch(() => Effect.void))
           } else {
             yield* fs
-              .writeWithDirs(file, JSON.stringify({ $schema: "https://opencode.ai/config.json", plugin: result.plugin }, null, 2))
+              .writeWithDirs(
+                file,
+                JSON.stringify({ $schema: "https://opencode.ai/config.json", plugin: result.plugin }, null, 2),
+              )
               .pipe(Effect.catch(() => Effect.void))
           }
         }
@@ -506,8 +507,34 @@ export const layer = Layer.effect(
             yield* fs.writeFileString(file, patched).pipe(Effect.catch(() => Effect.void))
           } else {
             yield* fs
-              .writeWithDirs(file, JSON.stringify({ $schema: "https://opencode.ai/config.json", mcp: result.mcp }, null, 2))
+              .writeWithDirs(
+                file,
+                JSON.stringify({ $schema: "https://opencode.ai/config.json", mcp: result.mcp }, null, 2),
+              )
               .pipe(Effect.catch(() => Effect.void))
+          }
+        }
+
+        // 当环境变量指定了本地 DBX MCP Server 路径时，强制覆盖配置文件中的 command，
+        // 避免用户配置里保存的旧 npx 版本继续被使用。
+        const dbxMcp = result.mcp?.dbx
+        if (process.env.DBX_MCP_SERVER_PATH && dbxMcp && Schema.is(ConfigMCP.Local)(dbxMcp)) {
+          const dbxCommand = [process.env.DBX_NODE_PATH ?? "node", process.env.DBX_MCP_SERVER_PATH]
+          if (JSON.stringify(dbxMcp.command) !== JSON.stringify(dbxCommand)) {
+            result.mcp = {
+              ...result.mcp,
+              dbx: {
+                ...dbxMcp,
+                command: dbxCommand,
+                type: "local",
+              },
+            }
+            const file = path.join(Global.Path.config, "novaway.json")
+            const text = yield* readConfigFile(file)
+            if (text) {
+              const patched = patchJsonc(text, result.mcp, ["mcp"])
+              yield* fs.writeFileString(file, patched).pipe(Effect.catch(() => Effect.void))
+            }
           }
         }
       }

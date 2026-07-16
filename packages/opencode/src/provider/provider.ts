@@ -1,6 +1,7 @@
 import os from "os"
 import fuzzysort from "fuzzysort"
 import { Config } from "@/config/config"
+import { ConfigProvider } from "@/config/provider"
 import { mapValues, mergeDeep, omit, pickBy, sortBy } from "remeda"
 import { NoSuchModelError, type Provider as SDK } from "ai"
 import * as Log from "@opencode-ai/core/util/log"
@@ -34,6 +35,18 @@ function shouldUseCopilotResponsesApi(modelID: string): boolean {
   const match = /^gpt-(\d+)/.exec(modelID)
   if (!match) return false
   return Number(match[1]) >= 5 && !modelID.startsWith("gpt-5-mini")
+}
+
+function hasModality(
+  model: typeof ConfigProvider.Model.Type & { capabilities?: { input?: string[]; output?: string[] } },
+  direction: "input" | "output",
+  modality: string,
+): boolean | undefined {
+  const modalityList = model.modalities?.[direction]
+  if (modalityList) return modalityList.includes(modality as any)
+  const fromCapabilities = model.capabilities?.[direction]?.includes(modality)
+  if (fromCapabilities) return true
+  return undefined
 }
 
 function wrapSSE(res: Response, ms: number, ctl: AbortController) {
@@ -328,7 +341,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
           }
 
           // Region resolution precedence (highest to lowest):
-          // 1. options.region from opencode.json provider config
+          // 1. options.region from novaway.json provider config
           // 2. defaultRegion from AWS_REGION environment variable
           // 3. Default "us-east-1" (baked into defaultRegion)
           const region = options?.region ?? defaultRegion
@@ -846,16 +859,16 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
         },
         async discoverModels(): Promise<Record<string, Model>> {
           try {
-            const baseURL = "http://localhost:11434"; // Use Ollama's native API
-            const response = await fetch(`${baseURL}/api/tags`);
-            if (!response.ok) return {};
+            const baseURL = "http://localhost:11434" // Use Ollama's native API
+            const response = await fetch(`${baseURL}/api/tags`)
+            if (!response.ok) return {}
 
-            const data = await response.json() as any;
-            const models: Record<string, Model> = {};
+            const data = (await response.json()) as any
+            const models: Record<string, Model> = {}
 
             if (data.models && Array.isArray(data.models)) {
               for (const model of data.models) {
-                const modelID = model.name;
+                const modelID = model.name
                 models[modelID] = {
                   id: modelID,
                   providerID: "ollama" as ProviderID,
@@ -882,12 +895,12 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
                     url: "http://localhost:11434/v1",
                     npm: "@ai-sdk/openai-compatible",
                   },
-                };
+                }
               }
             }
-            return models;
+            return models
           } catch {
-            return {};
+            return {}
           }
         },
       }),
@@ -1241,7 +1254,7 @@ export const layer = Layer.effect(
             baseURL: "http://localhost:11434/v1",
           },
           models: {
-            "llama2": {
+            llama2: {
               id: ModelID.make("llama2"),
               providerID: "ollama" as ProviderID,
               name: "Llama 2",
@@ -1390,21 +1403,18 @@ export const layer = Layer.effect(
                 attachment: model.attachment ?? existingModel?.capabilities.attachment ?? false,
                 toolcall: model.tool_call ?? existingModel?.capabilities.toolcall ?? true,
                 input: {
-                  text: model.modalities?.input?.includes("text") ?? existingModel?.capabilities.input.text ?? true,
-                  audio: model.modalities?.input?.includes("audio") ?? existingModel?.capabilities.input.audio ?? false,
-                  image: model.modalities?.input?.includes("image") ?? existingModel?.capabilities.input.image ?? false,
-                  video: model.modalities?.input?.includes("video") ?? existingModel?.capabilities.input.video ?? false,
-                  pdf: model.modalities?.input?.includes("pdf") ?? existingModel?.capabilities.input.pdf ?? false,
+                  text: hasModality(model, "input", "text") ?? existingModel?.capabilities.input.text ?? true,
+                  audio: hasModality(model, "input", "audio") ?? existingModel?.capabilities.input.audio ?? false,
+                  image: hasModality(model, "input", "image") ?? existingModel?.capabilities.input.image ?? false,
+                  video: hasModality(model, "input", "video") ?? existingModel?.capabilities.input.video ?? false,
+                  pdf: hasModality(model, "input", "pdf") ?? existingModel?.capabilities.input.pdf ?? false,
                 },
                 output: {
-                  text: model.modalities?.output?.includes("text") ?? existingModel?.capabilities.output.text ?? true,
-                  audio:
-                    model.modalities?.output?.includes("audio") ?? existingModel?.capabilities.output.audio ?? false,
-                  image:
-                    model.modalities?.output?.includes("image") ?? existingModel?.capabilities.output.image ?? false,
-                  video:
-                    model.modalities?.output?.includes("video") ?? existingModel?.capabilities.output.video ?? false,
-                  pdf: model.modalities?.output?.includes("pdf") ?? existingModel?.capabilities.output.pdf ?? false,
+                  text: hasModality(model, "output", "text") ?? existingModel?.capabilities.output.text ?? true,
+                  audio: hasModality(model, "output", "audio") ?? existingModel?.capabilities.output.audio ?? false,
+                  image: hasModality(model, "output", "image") ?? existingModel?.capabilities.output.image ?? false,
+                  video: hasModality(model, "output", "video") ?? existingModel?.capabilities.output.video ?? false,
+                  pdf: hasModality(model, "output", "pdf") ?? existingModel?.capabilities.output.pdf ?? false,
                 },
                 interleaved:
                   model.interleaved ??

@@ -14,14 +14,14 @@
 
 ## File Map
 
-| File | Action | Responsibility |
-|------|--------|---------------|
-| `lib/brainstorm-server/index.js` | Modify | Server: add `.events` file writing, clear on new screen, replace `wrapInFrame` |
-| `lib/brainstorm-server/frame-template.html` | Modify | Template: remove feedback footer, add content placeholder + selection indicator |
-| `lib/brainstorm-server/helper.js` | Modify | Client JS: remove send/feedback functions, narrow to click capture + indicator updates |
-| `lib/brainstorm-server/wait-for-feedback.sh` | Delete | No longer needed |
-| `skills/brainstorming/visual-companion.md` | Modify | Skill instructions: rewrite loop to non-blocking flow |
-| `tests/brainstorm-server/server.test.js` | Modify | Tests: update for new template structure and helper.js API |
+| File                                         | Action | Responsibility                                                                         |
+| -------------------------------------------- | ------ | -------------------------------------------------------------------------------------- |
+| `lib/brainstorm-server/index.js`             | Modify | Server: add `.events` file writing, clear on new screen, replace `wrapInFrame`         |
+| `lib/brainstorm-server/frame-template.html`  | Modify | Template: remove feedback footer, add content placeholder + selection indicator        |
+| `lib/brainstorm-server/helper.js`            | Modify | Client JS: remove send/feedback functions, narrow to click capture + indicator updates |
+| `lib/brainstorm-server/wait-for-feedback.sh` | Delete | No longer needed                                                                       |
+| `skills/brainstorming/visual-companion.md`   | Modify | Skill instructions: rewrite loop to non-blocking flow                                  |
+| `tests/brainstorm-server/server.test.js`     | Modify | Tests: update for new template structure and helper.js API                             |
 
 ---
 
@@ -30,6 +30,7 @@
 ### Task 1: Update `frame-template.html`
 
 **Files:**
+
 - Modify: `lib/brainstorm-server/frame-template.html`
 
 - [ ] **Step 1: Remove the feedback footer HTML**
@@ -37,17 +38,17 @@
 Replace the feedback-footer div (lines 227-233) with a selection indicator bar:
 
 ```html
-  <div class="indicator-bar">
-    <span id="indicator-text">Click an option above, then return to the terminal</span>
-  </div>
+<div class="indicator-bar">
+  <span id="indicator-text">Click an option above, then return to the terminal</span>
+</div>
 ```
 
 Also replace the default content inside `#claude-content` (lines 220-223) with the content placeholder:
 
 ```html
-    <div id="claude-content">
-      <!-- CONTENT -->
-    </div>
+<div id="claude-content">
+  <!-- CONTENT -->
+</div>
 ```
 
 - [ ] **Step 2: Replace feedback footer CSS with indicator bar CSS**
@@ -57,29 +58,31 @@ Remove the `.feedback-footer`, `.feedback-footer label`, `.feedback-row`, and th
 Add indicator bar CSS:
 
 ```css
-    .indicator-bar {
-      background: var(--bg-secondary);
-      border-top: 1px solid var(--border);
-      padding: 0.5rem 1.5rem;
-      flex-shrink: 0;
-      text-align: center;
-    }
-    .indicator-bar span {
-      font-size: 0.75rem;
-      color: var(--text-secondary);
-    }
-    .indicator-bar .selected-text {
-      color: var(--accent);
-      font-weight: 500;
-    }
+.indicator-bar {
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  padding: 0.5rem 1.5rem;
+  flex-shrink: 0;
+  text-align: center;
+}
+.indicator-bar span {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+.indicator-bar .selected-text {
+  color: var(--accent);
+  font-weight: 500;
+}
 ```
 
 - [ ] **Step 3: Verify template renders**
 
 Run the test suite to check the template still loads:
+
 ```bash
 cd /Users/drewritter/prime-rad/PowersNexus && node tests/brainstorm-server/server.test.js
 ```
+
 Expected: Tests 1-5 should still pass. Tests 6-8 may fail (expected — they assert old structure).
 
 - [ ] **Step 4: Commit**
@@ -94,6 +97,7 @@ git commit -m "Replace feedback footer with selection indicator bar in brainstor
 ### Task 2: Update `index.js` — content injection and `.events` file
 
 **Files:**
+
 - Modify: `lib/brainstorm-server/index.js`
 
 - [ ] **Step 1: Write failing test for `.events` file writing**
@@ -101,22 +105,22 @@ git commit -m "Replace feedback footer with selection indicator bar in brainstor
 Add to `tests/brainstorm-server/server.test.js` after Test 4 area — a new test that sends a WebSocket event with a `choice` field and verifies `.events` file is written:
 
 ```javascript
-    // Test: Choice events written to .events file
-    console.log('Test: Choice events written to .events file');
-    const ws3 = new WebSocket(`ws://localhost:${TEST_PORT}`);
-    await new Promise(resolve => ws3.on('open', resolve));
+// Test: Choice events written to .events file
+console.log("Test: Choice events written to .events file")
+const ws3 = new WebSocket(`ws://localhost:${TEST_PORT}`)
+await new Promise((resolve) => ws3.on("open", resolve))
 
-    ws3.send(JSON.stringify({ type: 'click', choice: 'a', text: 'Option A' }));
-    await sleep(300);
+ws3.send(JSON.stringify({ type: "click", choice: "a", text: "Option A" }))
+await sleep(300)
 
-    const eventsFile = path.join(TEST_DIR, '.events');
-    assert(fs.existsSync(eventsFile), '.events file should exist after choice click');
-    const lines = fs.readFileSync(eventsFile, 'utf-8').trim().split('\n');
-    const event = JSON.parse(lines[lines.length - 1]);
-    assert.strictEqual(event.choice, 'a', 'Event should contain choice');
-    assert.strictEqual(event.text, 'Option A', 'Event should contain text');
-    ws3.close();
-    console.log('  PASS');
+const eventsFile = path.join(TEST_DIR, ".events")
+assert(fs.existsSync(eventsFile), ".events file should exist after choice click")
+const lines = fs.readFileSync(eventsFile, "utf-8").trim().split("\n")
+const event = JSON.parse(lines[lines.length - 1])
+assert.strictEqual(event.choice, "a", "Event should contain choice")
+assert.strictEqual(event.text, "Option A", "Event should contain text")
+ws3.close()
+console.log("  PASS")
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -124,6 +128,7 @@ Add to `tests/brainstorm-server/server.test.js` after Test 4 area — a new test
 ```bash
 cd /Users/drewritter/prime-rad/PowersNexus && node tests/brainstorm-server/server.test.js
 ```
+
 Expected: New test FAILS — `.events` file doesn't exist yet.
 
 - [ ] **Step 3: Write failing test for `.events` file clearing on new screen**
@@ -131,14 +136,14 @@ Expected: New test FAILS — `.events` file doesn't exist yet.
 Add another test:
 
 ```javascript
-    // Test: .events cleared on new screen
-    console.log('Test: .events cleared on new screen');
-    // .events file should still exist from previous test
-    assert(fs.existsSync(path.join(TEST_DIR, '.events')), '.events should exist before new screen');
-    fs.writeFileSync(path.join(TEST_DIR, 'new-screen.html'), '<h2>New screen</h2>');
-    await sleep(500);
-    assert(!fs.existsSync(path.join(TEST_DIR, '.events')), '.events should be cleared after new screen');
-    console.log('  PASS');
+// Test: .events cleared on new screen
+console.log("Test: .events cleared on new screen")
+// .events file should still exist from previous test
+assert(fs.existsSync(path.join(TEST_DIR, ".events")), ".events should exist before new screen")
+fs.writeFileSync(path.join(TEST_DIR, "new-screen.html"), "<h2>New screen</h2>")
+await sleep(500)
+assert(!fs.existsSync(path.join(TEST_DIR, ".events")), ".events should be cleared after new screen")
+console.log("  PASS")
 ```
 
 - [ ] **Step 4: Run test to verify it fails**
@@ -146,6 +151,7 @@ Add another test:
 ```bash
 cd /Users/drewritter/prime-rad/PowersNexus && node tests/brainstorm-server/server.test.js
 ```
+
 Expected: New test FAILS — `.events` not cleared on screen push.
 
 - [ ] **Step 5: Implement `.events` file writing in `index.js`**
@@ -153,24 +159,24 @@ Expected: New test FAILS — `.events` not cleared on screen push.
 In the WebSocket `message` handler (line 74-77 of `index.js`), after the `console.log`, add:
 
 ```javascript
-    // Write user events to .events file for Claude to read
-    if (event.choice) {
-      const eventsFile = path.join(SCREEN_DIR, '.events');
-      fs.appendFileSync(eventsFile, JSON.stringify(event) + '\n');
-    }
+// Write user events to .events file for Claude to read
+if (event.choice) {
+  const eventsFile = path.join(SCREEN_DIR, ".events")
+  fs.appendFileSync(eventsFile, JSON.stringify(event) + "\n")
+}
 ```
 
 In the chokidar `add` handler (line 104-111), add `.events` clearing:
 
 ```javascript
-    if (filePath.endsWith('.html')) {
-      // Clear events from previous screen
-      const eventsFile = path.join(SCREEN_DIR, '.events');
-      if (fs.existsSync(eventsFile)) fs.unlinkSync(eventsFile);
+if (filePath.endsWith(".html")) {
+  // Clear events from previous screen
+  const eventsFile = path.join(SCREEN_DIR, ".events")
+  if (fs.existsSync(eventsFile)) fs.unlinkSync(eventsFile)
 
-      console.log(JSON.stringify({ type: 'screen-added', file: filePath }));
-      // ... existing reload broadcast
-    }
+  console.log(JSON.stringify({ type: "screen-added", file: filePath }))
+  // ... existing reload broadcast
+}
 ```
 
 - [ ] **Step 6: Replace `wrapInFrame` with comment placeholder injection**
@@ -179,7 +185,7 @@ Replace the `wrapInFrame` function (lines 27-32 of `index.js`):
 
 ```javascript
 function wrapInFrame(content) {
-  return frameTemplate.replace('<!-- CONTENT -->', content);
+  return frameTemplate.replace("<!-- CONTENT -->", content)
 }
 ```
 
@@ -188,6 +194,7 @@ function wrapInFrame(content) {
 ```bash
 cd /Users/drewritter/prime-rad/PowersNexus && node tests/brainstorm-server/server.test.js
 ```
+
 Expected: New `.events` tests PASS. Existing tests may still have failures from old assertions (fixed in Task 4).
 
 - [ ] **Step 8: Commit**
@@ -202,6 +209,7 @@ git commit -m "Add .events file writing and comment-based content injection to b
 ### Task 3: Simplify `helper.js`
 
 **Files:**
+
 - Modify: `lib/brainstorm-server/helper.js`
 
 - [ ] **Step 1: Remove `sendToClaude` function**
@@ -225,18 +233,18 @@ Delete the `pageshow` listener we added earlier (no textarea to clear anymore).
 Replace the click handler (lines 36-55) with a narrower version:
 
 ```javascript
-  // Capture clicks on choice elements
-  document.addEventListener('click', (e) => {
-    const target = e.target.closest('[data-choice]');
-    if (!target) return;
+// Capture clicks on choice elements
+document.addEventListener("click", (e) => {
+  const target = e.target.closest("[data-choice]")
+  if (!target) return
 
-    sendEvent({
-      type: 'click',
-      text: target.textContent.trim(),
-      choice: target.dataset.choice,
-      id: target.id || null
-    });
-  });
+  sendEvent({
+    type: "click",
+    text: target.textContent.trim(),
+    choice: target.dataset.choice,
+    id: target.id || null,
+  })
+})
 ```
 
 - [ ] **Step 6: Add indicator bar update on choice click**
@@ -244,12 +252,12 @@ Replace the click handler (lines 36-55) with a narrower version:
 After the `sendEvent` call in the click handler, add:
 
 ```javascript
-    // Update indicator bar
-    const indicator = document.getElementById('indicator-text');
-    if (indicator) {
-      const label = target.querySelector('h3, .content h3, .card-body h3')?.textContent?.trim() || target.dataset.choice;
-      indicator.innerHTML = '<span class="selected-text">' + label + ' selected</span> — return to terminal to continue';
-    }
+// Update indicator bar
+const indicator = document.getElementById("indicator-text")
+if (indicator) {
+  const label = target.querySelector("h3, .content h3, .card-body h3")?.textContent?.trim() || target.dataset.choice
+  indicator.innerHTML = '<span class="selected-text">' + label + " selected</span> — return to terminal to continue"
+}
 ```
 
 - [ ] **Step 7: Remove `sendToClaude` from `window.brainstorm` API**
@@ -257,10 +265,10 @@ After the `sendEvent` call in the click handler, add:
 Update the `window.brainstorm` object (lines 132-136) to remove `sendToClaude`:
 
 ```javascript
-  window.brainstorm = {
-    send: sendEvent,
-    choice: (value, metadata = {}) => sendEvent({ type: 'choice', value, ...metadata })
-  };
+window.brainstorm = {
+  send: sendEvent,
+  choice: (value, metadata = {}) => sendEvent({ type: "choice", value, ...metadata }),
+}
 ```
 
 - [ ] **Step 8: Run tests**
@@ -281,6 +289,7 @@ git commit -m "Simplify helper.js: remove feedback functions, narrow to choice c
 ### Task 4: Update tests for new structure
 
 **Files:**
+
 - Modify: `tests/brainstorm-server/server.test.js`
 
 **Note:** Line references below are from the _original_ file. Task 2 inserted new tests earlier in the file, so actual line numbers will be shifted. Find tests by their `console.log` labels (e.g., "Test 5:", "Test 6:").
@@ -290,8 +299,10 @@ git commit -m "Simplify helper.js: remove feedback functions, narrow to choice c
 Find the Test 5 assertion `!fullRes.body.includes('feedback-footer')`. Change it to: Full documents should NOT have the indicator bar either (they're served as-is):
 
 ```javascript
-    assert(!fullRes.body.includes('indicator-bar') || fullDoc.includes('indicator-bar'),
-      'Should not wrap full documents in frame template');
+assert(
+  !fullRes.body.includes("indicator-bar") || fullDoc.includes("indicator-bar"),
+  "Should not wrap full documents in frame template",
+)
 ```
 
 - [ ] **Step 2: Update Test 6 (fragment wrapping)**
@@ -299,13 +310,13 @@ Find the Test 5 assertion `!fullRes.body.includes('feedback-footer')`. Change it
 Line 125: Replace `feedback-footer` assertion with indicator bar assertion:
 
 ```javascript
-    assert(fragRes.body.includes('indicator-bar'), 'Fragment should get indicator bar from frame');
+assert(fragRes.body.includes("indicator-bar"), "Fragment should get indicator bar from frame")
 ```
 
 Also verify content placeholder was replaced (fragment content appears, placeholder comment doesn't):
 
 ```javascript
-    assert(!fragRes.body.includes('<!-- CONTENT -->'), 'Content placeholder should be replaced');
+assert(!fragRes.body.includes("<!-- CONTENT -->"), "Content placeholder should be replaced")
 ```
 
 - [ ] **Step 3: Update Test 7 (helper.js API)**
@@ -313,11 +324,11 @@ Also verify content placeholder was replaced (fragment content appears, placehol
 Lines 140-142: Update assertions to reflect the new API surface:
 
 ```javascript
-    assert(helperContent.includes('toggleSelect'), 'helper.js should define toggleSelect');
-    assert(helperContent.includes('sendEvent'), 'helper.js should define sendEvent');
-    assert(helperContent.includes('selectedChoice'), 'helper.js should track selectedChoice');
-    assert(helperContent.includes('brainstorm'), 'helper.js should expose brainstorm API');
-    assert(!helperContent.includes('sendToClaude'), 'helper.js should not contain sendToClaude');
+assert(helperContent.includes("toggleSelect"), "helper.js should define toggleSelect")
+assert(helperContent.includes("sendEvent"), "helper.js should define sendEvent")
+assert(helperContent.includes("selectedChoice"), "helper.js should track selectedChoice")
+assert(helperContent.includes("brainstorm"), "helper.js should expose brainstorm API")
+assert(!helperContent.includes("sendToClaude"), "helper.js should not contain sendToClaude")
 ```
 
 - [ ] **Step 4: Replace Test 8 (sendToClaude theming) with indicator bar test**
@@ -325,14 +336,15 @@ Lines 140-142: Update assertions to reflect the new API surface:
 Replace Test 8 (lines 145-149) — `sendToClaude` no longer exists. Test the indicator bar instead:
 
 ```javascript
-    // Test 8: Indicator bar uses CSS variables (theme support)
-    console.log('Test 8: Indicator bar uses CSS variables');
-    const templateContent = fs.readFileSync(
-      path.join(__dirname, '../../lib/brainstorm-server/frame-template.html'), 'utf-8'
-    );
-    assert(templateContent.includes('indicator-bar'), 'Template should have indicator bar');
-    assert(templateContent.includes('indicator-text'), 'Template should have indicator text element');
-    console.log('  PASS');
+// Test 8: Indicator bar uses CSS variables (theme support)
+console.log("Test 8: Indicator bar uses CSS variables")
+const templateContent = fs.readFileSync(
+  path.join(__dirname, "../../lib/brainstorm-server/frame-template.html"),
+  "utf-8",
+)
+assert(templateContent.includes("indicator-bar"), "Template should have indicator bar")
+assert(templateContent.includes("indicator-text"), "Template should have indicator text element")
+console.log("  PASS")
 ```
 
 - [ ] **Step 5: Run full test suite**
@@ -340,6 +352,7 @@ Replace Test 8 (lines 145-149) — `sendToClaude` no longer exists. Test the ind
 ```bash
 cd /Users/drewritter/prime-rad/PowersNexus && node tests/brainstorm-server/server.test.js
 ```
+
 Expected: ALL tests PASS.
 
 - [ ] **Step 6: Commit**
@@ -354,11 +367,13 @@ git commit -m "Update brainstorm server tests for new template structure and hel
 ### Task 5: Delete `wait-for-feedback.sh`
 
 **Files:**
+
 - Delete: `lib/brainstorm-server/wait-for-feedback.sh`
 
 - [ ] **Step 1: Verify no other files import or reference `wait-for-feedback.sh`**
 
 Search the codebase:
+
 ```bash
 grep -r "wait-for-feedback" /Users/drewritter/prime-rad/PowersNexus/ --include="*.js" --include="*.md" --include="*.sh" --include="*.json"
 ```
@@ -376,6 +391,7 @@ rm lib/brainstorm-server/wait-for-feedback.sh
 ```bash
 cd /Users/drewritter/prime-rad/PowersNexus && node tests/brainstorm-server/server.test.js
 ```
+
 Expected: All tests PASS (no test referenced this file).
 
 - [ ] **Step 4: Commit**
@@ -390,6 +406,7 @@ git commit -m "Delete wait-for-feedback.sh: replaced by .events file"
 ### Task 6: Rewrite `visual-companion.md`
 
 **Files:**
+
 - Modify: `skills/brainstorming/visual-companion.md`
 
 - [ ] **Step 1: Update "How It Works" description (line 18)**
@@ -440,7 +457,7 @@ Replace the entire "The Loop" section with:
 
 Replace with:
 
-```markdown
+````markdown
 ## Browser Events Format
 
 When the user clicks options in the browser, their interactions are recorded to `$SCREEN_DIR/.events` (one JSON object per line). The file is cleared automatically when you push a new screen.
@@ -450,11 +467,13 @@ When the user clicks options in the browser, their interactions are recorded to 
 {"type":"click","choice":"c","text":"Option C - Complex Grid","timestamp":1706000108}
 {"type":"click","choice":"b","text":"Option B - Hybrid","timestamp":1706000115}
 ```
+````
 
 The full event stream shows the user's exploration path — they may click multiple options before settling. The last `choice` event is typically the final selection, but the pattern of clicks can reveal hesitation or preferences worth asking about.
 
 If `.events` doesn't exist, the user didn't interact with the browser — use only their terminal text.
-```
+
+````
 
 - [ ] **Step 5: Update "Writing Content Fragments" description (line 65)**
 
@@ -462,7 +481,7 @@ Remove "feedback footer" reference:
 
 ```markdown
 Write just the content that goes inside the page. The server wraps it in the frame template automatically (header, theme CSS, selection indicator, and all interactive infrastructure).
-```
+````
 
 - [ ] **Step 6: Update Reference section (lines 200-203)**
 
@@ -491,6 +510,7 @@ git commit -m "Rewrite visual-companion.md for non-blocking browser-displays-ter
 ```bash
 cd /Users/drewritter/prime-rad/PowersNexus && node tests/brainstorm-server/server.test.js
 ```
+
 Expected: ALL tests PASS.
 
 - [ ] **Step 2: Manual smoke test**

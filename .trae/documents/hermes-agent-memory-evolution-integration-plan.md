@@ -6,29 +6,29 @@
 
 ### 1.1 目标
 
-* 为 NovaWay 桌面端 Agent 添加跨会话的持久记忆能力，使 Agent 能够记住用户偏好、历史决策和上下文信息
+- 为 NovaWay 桌面端 Agent 添加跨会话的持久记忆能力，使 Agent 能够记住用户偏好、历史决策和上下文信息
 
-* 实现技能的自我进化机制，让 Agent 能够自动审查、合并和归档自身创建的知识技能
+- 实现技能的自我进化机制，让 Agent 能够自动审查、合并和归档自身创建的知识技能
 
-* 在桌面端 UI 中提供专门的可视化面板，让用户直观查看记忆状态和进化过程
+- 在桌面端 UI 中提供专门的可视化面板，让用户直观查看记忆状态和进化过程
 
-* 保持与 NovaWay 现有架构的一致性，遵循 Effect/Layer 依赖注入模式和 Drizzle ORM 数据层
+- 保持与 NovaWay 现有架构的一致性，遵循 Effect/Layer 依赖注入模式和 Drizzle ORM 数据层
 
 ### 1.2 适用范围
 
-* **仅扩展桌面端**：所有 UI 新增和修改均在 `packages/app/`（SolidJS Web UI）和 `packages/opencode/`（后端核心）中实现
+- **仅扩展桌面端**：所有 UI 新增和修改均在 `packages/app/`（SolidJS Web UI）和 `packages/opencode/`（后端核心）中实现
 
-* 桌面端通过 Electron（`packages/desktop/`）内嵌 Web UI，IPC 通信自动可用
+- 桌面端通过 Electron（`packages/desktop/`）内嵌 Web UI，IPC 通信自动可用
 
 ### 1.3 参考项目
 
-* Hermes Agent 源码：`e:\AImoney\NovaWay-Matrix\novaway-coder\hermes-agent-main\`
+- Hermes Agent 源码：`e:\AImoney\NovaWay-Matrix\novaway-coder\hermes-agent-main\`
 
-* NovaWay 后端：`e:\AImoney\NovaWay-Matrix\novaway-coder\packages\opencode\`
+- NovaWay 后端：`e:\AImoney\NovaWay-Matrix\novaway-coder\packages\opencode\`
 
-* NovaWay 桌面端 UI：`e:\AImoney\NovaWay-Matrix\novaway-coder\packages\app\`
+- NovaWay 桌面端 UI：`e:\AImoney\NovaWay-Matrix\novaway-coder\packages\app\`
 
-***
+---
 
 ## 二、Hermes Agent 核心机制分析
 
@@ -38,12 +38,12 @@ Hermes Agent 的持久记忆由 **MemoryManager** 编排，通过 **MemoryProvid
 
 #### 核心组件
 
-| 组件                         | 文件位置                          | 源码行数     | 职责                            |
-| -------------------------- | ----------------------------- | -------- | ----------------------------- |
+| 组件                       | 文件位置                      | 源码行数  | 职责                                              |
+| -------------------------- | ----------------------------- | --------- | ------------------------------------------------- |
 | `MemoryManager`            | `agent/memory_manager.py`     | \~640 行  | 编排多个 provider，管理工具路由，暴露生命周期钩子 |
-| `MemoryProvider`           | `agent/memory_provider.py`    | \~290 行  | 抽象基类，定义记忆后端的标准接口              |
-| `ContextCompressor`        | `agent/context_compressor.py` | \~2080 行 | 上下文窗口压缩，保护头部/尾部，摘要中间轮次        |
-| `StreamingContextScrubber` | `agent/memory_manager.py`     | \~170 行  | 流式输出中过滤 `<memory-context>` 标签 |
+| `MemoryProvider`           | `agent/memory_provider.py`    | \~290 行  | 抽象基类，定义记忆后端的标准接口                  |
+| `ContextCompressor`        | `agent/context_compressor.py` | \~2080 行 | 上下文窗口压缩，保护头部/尾部，摘要中间轮次       |
+| `StreamingContextScrubber` | `agent/memory_manager.py`     | \~170 行  | 流式输出中过滤 `<memory-context>` 标签            |
 
 #### 生命周期流程（源码级对应）
 
@@ -146,22 +146,22 @@ Hermes Agent 的持久记忆由 **MemoryManager** 编排，通过 **MemoryProvid
 
 **关键源码行号对照：**
 
-| 序号 | 调用点                                     | conversation\_loop.py | run\_agent.py |
-| -- | --------------------------------------- | --------------------- | ------------- |
-| 1  | `run_conversation` 入口                   | L351-360              | -             |
-| 2  | `_restore_or_build_system_prompt`       | L218-288              | -             |
-| 3  | 恢复 `_turns_since_memory` 计数器            | L513-523              | -             |
-| 4  | 递增 `_user_turn_count`                   | L532                  | -             |
-| 5  | 跟踪 `_should_review_memory`              | L552-559              | -             |
-| 6  | `on_turn_start` 通知                      | L762-766              | -             |
-| 7  | `prefetch_all` 预取记忆                     | L774-780              | -             |
-| 8  | 记忆上下文注入 (build\_memory\_context\_block) | L940-958              | -             |
-| 9  | 跟踪 `_iters_since_skill`                 | L853-855              | -             |
-| 10 | 检查 `_should_review_skills`              | L4653-4658            | -             |
-| 11 | `_sync_external_memory_for_turn`        | L4660-4666            | L2403-2455    |
-| 12 | `_spawn_background_review`              | L4670-4678            | L1336-1358    |
-| 13 | `shutdown_memory_provider`              | -                     | L2457+        |
-| 14 | `on_session_switch` 分发                  | -                     | L488-521      |
+| 序号 | 调用点                                      | conversation_loop.py | run_agent.py |
+| ---- | ------------------------------------------- | -------------------- | ------------ |
+| 1    | `run_conversation` 入口                     | L351-360             | -            |
+| 2    | `_restore_or_build_system_prompt`           | L218-288             | -            |
+| 3    | 恢复 `_turns_since_memory` 计数器           | L513-523             | -            |
+| 4    | 递增 `_user_turn_count`                     | L532                 | -            |
+| 5    | 跟踪 `_should_review_memory`                | L552-559             | -            |
+| 6    | `on_turn_start` 通知                        | L762-766             | -            |
+| 7    | `prefetch_all` 预取记忆                     | L774-780             | -            |
+| 8    | 记忆上下文注入 (build_memory_context_block) | L940-958             | -            |
+| 9    | 跟踪 `_iters_since_skill`                   | L853-855             | -            |
+| 10   | 检查 `_should_review_skills`                | L4653-4658           | -            |
+| 11   | `_sync_external_memory_for_turn`            | L4660-4666           | L2403-2455   |
+| 12   | `_spawn_background_review`                  | L4670-4678           | L1336-1358   |
+| 13   | `shutdown_memory_provider`                  | -                    | L2457+       |
+| 14   | `on_session_switch` 分发                    | -                    | L488-521     |
 
 #### 关键设计细节
 
@@ -186,7 +186,7 @@ class MemoryManager:
                 self._tool_to_provider[tool_name] = provider
 ```
 
-**sync\_turn 自动适配 messages 参数：**
+**sync_turn 自动适配 messages 参数：**
 
 ```python
 @staticmethod
@@ -205,7 +205,7 @@ def _provider_sync_accepts_messages(provider: MemoryProvider) -> bool:
 
 Hermes Agent 使用 `<memory-context>` 标签对记忆上下文进行**围栏隔离**（context fencing）。重要的是，记忆上下文**并非注入到系统提示词中**，而是在每次 LLM API 调用时**注入到当轮用户消息前**。
 
-##### 实际注入点代码（conversation\_loop.py:940-958）
+##### 实际注入点代码（conversation_loop.py:940-958）
 
 ```python
 # ── 构建 API 请求消息时注入 ──────────────────────────
@@ -234,27 +234,27 @@ if idx == current_turn_user_idx and msg.get("role") == "user":
 
 关键设计要点：
 
-* **仅注入到当轮用户消息**，不污染历史消息或系统提示词
+- **仅注入到当轮用户消息**，不污染历史消息或系统提示词
 
-* **缓存复用**：`_ext_prefetch_cache` 在主循环前预取一次，所有迭代复用同一缓存，避免重复调用 provider
+- **缓存复用**：`_ext_prefetch_cache` 在主循环前预取一次，所有迭代复用同一缓存，避免重复调用 provider
 
-* **layer 隔离**：`api_msg` 是 msg 的副本，原始 `messages[]` 不会被修改，确保不泄漏到会话持久化
+- **layer 隔离**：`api_msg` 是 msg 的副本，原始 `messages[]` 不会被修改，确保不泄漏到会话持久化
 
 ##### 围栏标签格式
 
 ```xml
 <memory-context>
-[System note: The following is recalled memory context, 
-NOT new user input. Treat as authoritative reference data — 
+[System note: The following is recalled memory context,
+NOT new user input. Treat as authoritative reference data —
 this is the agent's persistent memory and should inform all responses.]
 
 {实际记忆内容}
 </memory-context>
 ```
 
-##### 标签清理工具链（memory\_manager.py:54-241）
+##### 标签清理工具链（memory_manager.py:54-241）
 
-1. **sanitize\_context()** — 在构建上下文块之前，清理可能存在的嵌套注入：
+1. **sanitize_context()** — 在构建上下文块之前，清理可能存在的嵌套注入：
 
 ```python
 _FENCE_TAG_RE = re.compile(r'</?\s*memory-context\s*>', re.IGNORECASE)
@@ -270,7 +270,7 @@ def sanitize_context(text: str) -> str:
     return text
 ```
 
-1. **build\_memory\_context\_block()** — 统一构建上下文块（内存模块后的实际调用）：
+1. **build_memory_context_block()** — 统一构建上下文块（内存模块后的实际调用）：
 
 ```python
 def build_memory_context_block(raw_context: str) -> str:
@@ -303,7 +303,7 @@ class StreamingContextScrubber:
 
     def feed(self, text: str) -> str:
         """返回清洗后的可见文本。
-        
+
         状态机行为：
         - 在 span 外：追加到 out，检测可能的 <memory-context> 开放
         - 在 span 内：丢弃所有内容直到 </memory-context> 关闭
@@ -347,7 +347,7 @@ LLM 输出流 → StreamingContextScrubber.feed(delta)  ← 过滤输出
 
 #### MemoryProvider 接口（Hermes 原始定义 + NovaWay TypeScript 等价接口）
 
-##### Hermes Agent Python 抽象基类（memory\_provider.py）
+##### Hermes Agent Python 抽象基类（memory_provider.py）
 
 ```python
 class MemoryProvider(ABC):
@@ -440,25 +440,16 @@ export interface MemoryProvider {
   readonly isAvailable: Effect.Effect<boolean>
 
   /** Agent 启动初始化 */
-  readonly initialize: (input: {
-    sessionID: string
-    projectID: ProjectID
-  }) => Effect.Effect<void>
+  readonly initialize: (input: { sessionID: string; projectID: ProjectID }) => Effect.Effect<void>
 
   /** 返回静态系统提示词块，空则跳过 */
   readonly systemPromptBlock?: Effect.Effect<string>
 
   /** 预取记忆上下文供本轮使用 */
-  readonly prefetch: (input: {
-    query: string
-    sessionID: string
-  }) => Effect.Effect<string>
+  readonly prefetch: (input: { query: string; sessionID: string }) => Effect.Effect<string>
 
   /** 为下一轮异步预热（默认 no-op） */
-  readonly queuePrefetch?: (input: {
-    query: string
-    sessionID: string
-  }) => Effect.Effect<void>
+  readonly queuePrefetch?: (input: { query: string; sessionID: string }) => Effect.Effect<void>
 
   /** 持久化本轮对话 */
   readonly syncTurn: (input: {
@@ -472,24 +463,16 @@ export interface MemoryProvider {
   readonly getToolSchemas: () => Tool.Def[]
 
   /** 处理此 provider 注册的工具调用 */
-  readonly handleToolCall: (input: {
-    toolName: string
-    args: Record<string, unknown>
-  }) => Effect.Effect<string>
+  readonly handleToolCall: (input: { toolName: string; args: Record<string, unknown> }) => Effect.Effect<string>
 
   /** 清理 — 刷新队列、关闭连接 */
   readonly shutdown?: Effect.Effect<void>
 
   // ── 可选生命周期钩子 ────────────────────────────
 
-  readonly onTurnStart?: (input: {
-    turnNumber: number
-    message: string
-  }) => Effect.Effect<void>
+  readonly onTurnStart?: (input: { turnNumber: number; message: string }) => Effect.Effect<void>
 
-  readonly onSessionEnd?: (input: {
-    messages: MessageV2.WithParts[]
-  }) => Effect.Effect<void>
+  readonly onSessionEnd?: (input: { messages: MessageV2.WithParts[] }) => Effect.Effect<void>
 
   readonly onSessionSwitch?: (input: {
     newSessionID: string
@@ -497,9 +480,7 @@ export interface MemoryProvider {
     reset?: boolean
   }) => Effect.Effect<void>
 
-  readonly onPreCompress?: (input: {
-    messages: MessageV2.WithParts[]
-  }) => Effect.Effect<string>
+  readonly onPreCompress?: (input: { messages: MessageV2.WithParts[] }) => Effect.Effect<string>
 
   readonly onMemoryWrite?: (input: {
     action: string
@@ -508,11 +489,7 @@ export interface MemoryProvider {
     metadata?: Record<string, unknown>
   }) => Effect.Effect<void>
 
-  readonly onDelegation?: (input: {
-    task: string
-    result: string
-    childSessionID?: string
-  }) => Effect.Effect<void>
+  readonly onDelegation?: (input: { task: string; result: string; childSessionID?: string }) => Effect.Effect<void>
 }
 
 // ── SQLiteMemoryProvider 默认实现 ─────────────────
@@ -532,9 +509,7 @@ export const SQLiteMemoryProvider: MemoryProvider = {
       const service = yield* MemoryService
       const entries = yield* service.search({ query, limit: 5 })
       if (entries.length === 0) return ""
-      return entries
-        .map((e) => `[${e.type}] ${e.content} (importance: ${e.importance})`)
-        .join("\n---\n")
+      return entries.map((e) => `[${e.type}] ${e.content} (importance: ${e.importance})`).join("\n---\n")
     }),
 
   syncTurn: ({ userContent, assistantContent, sessionID }) =>
@@ -545,8 +520,7 @@ export const SQLiteMemoryProvider: MemoryProvider = {
 
   getToolSchemas: () => [],
 
-  handleToolCall: ({ toolName, args }) =>
-    Effect.succeed(JSON.stringify({ success: false, message: "no tools" })),
+  handleToolCall: ({ toolName, args }) => Effect.succeed(JSON.stringify({ success: false, message: "no tools" })),
 }
 
 // ── MemoryProvider Layer ─────────────────────────
@@ -571,10 +545,10 @@ Hermes Agent 的自我进化由 **Curator** 实现，它是一个后台技能维
 
 #### 核心组件
 
-| 组件             | 文件位置                          | 源码行数     | 职责                  |
-| -------------- | ----------------------------- | -------- | ------------------- |
-| `curator.py`   | `agent/curator.py`            | \~500+ 行 | 调度器、状态转换、审查流程编排     |
-| `skill_usage`  | `tools/skill_usage.py`        | 待定       | 技能使用统计、agent 创建判定   |
+| 组件           | 文件位置                      | 源码行数  | 职责                                   |
+| -------------- | ----------------------------- | --------- | -------------------------------------- |
+| `curator.py`   | `agent/curator.py`            | \~500+ 行 | 调度器、状态转换、审查流程编排         |
+| `skill_usage`  | `tools/skill_usage.py`        | 待定      | 技能使用统计、agent 创建判定           |
 | `skill_manage` | `tools/skill_manager_tool.py` | \~900 行  | 技能管理工具（创建、编辑、归档、合并） |
 
 #### 技能生命周期状态机
@@ -600,7 +574,7 @@ Hermes Agent 的自我进化由 **Curator** 实现，它是一个后台技能维
   保护规则：BUNDLED / HUB_INSTALLED ── 跳过自动转换 + curator 合并/归档
 ```
 
-##### 触发时机：每轮对话末尾检查（conversation\_loop.py:4652-4658）
+##### 触发时机：每轮对话末尾检查（conversation_loop.py:4652-4658）
 
 Hermes Agent 使用**两个独立的计数器**来触发记忆和技能审查：
 
@@ -634,15 +608,15 @@ if (agent._skill_nudge_interval > 0
 
 **关键设计点：**
 
-* `_turns_since_memory` 以用户轮次为单位，每轮对话 +1
+- `_turns_since_memory` 以用户轮次为单位，每轮对话 +1
 
-* `_iters_since_skill` 以工具迭代为单位，每次 tool call +1
+- `_iters_since_skill` 以工具迭代为单位，每次 tool call +1
 
-* 计数器在 `AIAgent.__init__` 中初始化为 0，跨轮次持久化
+- 计数器在 `AIAgent.__init__` 中初始化为 0，跨轮次持久化
 
-* gateway 模式创建新 AIAgent 时从 `conversation_history` 恢复计数器（line 513-523）
+- gateway 模式创建新 AIAgent 时从 `conversation_history` 恢复计数器（line 513-523）
 
-##### 后台审查流程（background\_review\.py:327-560 + conversation\_loop.py:4670-4678）
+##### 后台审查流程（background_review\.py:327-560 + conversation_loop.py:4670-4678）
 
 当 `_should_review_memory` 或 `_should_review_skills` 为 True 时，触发 `_spawn_background_review`，启动独立守护线程执行审查：
 
@@ -659,7 +633,7 @@ if final_response and not interrupted and (_should_review_memory or _should_revi
         pass  # 后台审查最佳失败，不影响主流程
 ```
 
-后台审查的架构（background\_review\.py:327-560）：
+后台审查的架构（background_review\.py:327-560）：
 
 1. **fork AIAgent**：克隆父 agent 的 runtime（provider、model、credentials、缓存系统提示词）
 2. **工具白名单**：仅允许 memory 和 skill 管理工具，其他工具在运行时被拒绝
@@ -668,7 +642,7 @@ if final_response and not interrupted and (_should_review_memory or _should_revi
 5. **收集结果**：扫描审查 agent 的 tool call 结果，去重（跳过已经在 history 中的工具消息）
 6. **用户摘要**：通过 `agent._safe_print` 输出 `💾 Self-improvement review: ...`，包含成功的工具操作摘要
 
-##### 状态自动转换（curator.py:apply\_automatic\_transitions）
+##### 状态自动转换（curator.py:apply_automatic_transitions）
 
 ```python
 DEFAULT_STALE_AFTER_DAYS = 30
@@ -725,7 +699,7 @@ def get_interval_hours() -> int:     # 默认 168
 def get_min_idle_hours() -> float:   # 默认 2
 ```
 
-##### 层次 2：间隔检查（curator.py:should\_run\_now）
+##### 层次 2：间隔检查（curator.py:should_run_now）
 
 ```python
 def should_run_now(now=None) -> bool:
@@ -751,7 +725,7 @@ def should_run_now(now=None) -> bool:
     return (now - last) >= interval
 ```
 
-##### 层次 3：对话循环触发（conversation\_loop.py:4652-4658）
+##### 层次 3：对话循环触发（conversation_loop.py:4652-4658）
 
 这是 Curator 在每轮对话末尾的实际触发点，与 `_sync_external_memory_for_turn` 在同一位位置：
 
@@ -822,29 +796,27 @@ if final_response and not interrupted and (_should_review_memory or _should_revi
 └──────────────────────────────────────────┘
 ```
 
-#### Curator 审查流程（CURATOR\_REVIEW\_PROMPT 完整结构）
+#### Curator 审查流程（CURATOR_REVIEW_PROMPT 完整结构）
 
 审查流程使用辅助模型 fork 一个独立的 AIAgent，通过 `CURATOR_REVIEW_PROMPT`（约 450 行的提示词）指导审查：
 
 1. **扫描候选列表**：遍历所有 agent 创建的技能，识别**前缀聚类**（prefix clusters），即共享首个词或领域关键词的技能（如 `react-*`、`python-*`、`gateway-*` 等），预期发现 10-25 个聚类
 
 2. **三种合并策略**：
+   - **合并到已有伞形技能**（Merge into existing umbrella）：聚类中已有一个足够宽泛的技能作为父级 → 贴标签补丁 + 归档兄弟技能
 
-   * **合并到已有伞形技能**（Merge into existing umbrella）：聚类中已有一个足够宽泛的技能作为父级 → 贴标签补丁 + 归档兄弟技能
+   - **创建新伞形技能**（Create new umbrella）：聚类中没有合适的父级 → 用 `skill_manage action=create` 新建类级 SKILL.md + 归档窄技能
 
-   * **创建新伞形技能**（Create new umbrella）：聚类中没有合适的父级 → 用 `skill_manage action=create` 新建类级 SKILL.md + 归档窄技能
-
-   * **降级到引用/模板/脚本**（Demote to references/templates/scripts）：窄技能中有价值但过于具体的会话级内容 → 移到伞形技能的支持目录
+   - **降级到引用/模板/脚本**（Demote to references/templates/scripts）：窄技能中有价值但过于具体的会话级内容 → 移到伞形技能的支持目录
 
 3. **硬性规则**：
+   - 不碰绑定或 hub 安装的技能
 
-   * 不碰绑定或 hub 安装的技能
+   - 不删除任何技能（最大破坏是移到 `.archive/`）
 
-   * 不删除任何技能（最大破坏是移到 `.archive/`）
+   - 不碰钉选技能
 
-   * 不碰钉选技能
-
-   * 每次审查至少归档 10 个技能
+   - 每次审查至少归档 10 个技能
 
 4. **输出格式**（结构化的 YAML 摘要）：
 
@@ -858,7 +830,7 @@ prunings:
     reason: <修剪理由>
 ```
 
-#### 持久化状态（.curator\_state 文件）
+#### 持久化状态（.curator_state 文件）
 
 ```python
 _state_file() -> Path:
@@ -876,23 +848,23 @@ _default_state():
     }
 ```
 
-***
+---
 
 ## 三、NovaWay 现有架构分析
 
 ### 3.1 可复用的基础设施
 
-| 模块         | 文件位置                                    | 可复用能力                |
-| ---------- | --------------------------------------- | -------------------- |
-| Session 管理 | `session/session.ts`                    | 会话 CRUD、消息存储、状态跟踪    |
-| LLM 集成     | `session/llm.ts`                        | 流式 LLM 交互封装          |
-| 上下文压缩      | `session/compaction.ts`                 | 已有的摘要模板和自动压缩机制       |
-| Agent 系统   | `agent/agent.ts`                        | 多 Agent 注册、生命周期管理    |
-| Skill 系统   | `skill/index.ts`                        | 技能发现、加载、注册           |
-| 工具系统       | `tool/tool.ts`、`tool/registry.ts`       | 工具定义和注册              |
-| 数据库        | `storage/db.ts`、`storage/schema.sql.ts` | Drizzle ORM + SQLite |
-| 系统提示词      | `session/prompt.ts`                     | 系统提示词构建流程            |
-| 依赖注入       | Effect/Layer                            | 标准化的服务层模式            |
+| 模块         | 文件位置                                 | 可复用能力                    |
+| ------------ | ---------------------------------------- | ----------------------------- |
+| Session 管理 | `session/session.ts`                     | 会话 CRUD、消息存储、状态跟踪 |
+| LLM 集成     | `session/llm.ts`                         | 流式 LLM 交互封装             |
+| 上下文压缩   | `session/compaction.ts`                  | 已有的摘要模板和自动压缩机制  |
+| Agent 系统   | `agent/agent.ts`                         | 多 Agent 注册、生命周期管理   |
+| Skill 系统   | `skill/index.ts`                         | 技能发现、加载、注册          |
+| 工具系统     | `tool/tool.ts`、`tool/registry.ts`       | 工具定义和注册                |
+| 数据库       | `storage/db.ts`、`storage/schema.sql.ts` | Drizzle ORM + SQLite          |
+| 系统提示词   | `session/prompt.ts`                      | 系统提示词构建流程            |
+| 依赖注入     | Effect/Layer                             | 标准化的服务层模式            |
 
 ### 3.2 数据库表结构（现有）
 
@@ -945,34 +917,34 @@ packages/app/               # SolidJS Web UI（被桌面端内嵌）
 
 **关键 UI 集成点**：
 
-| 集成位置      | 文件                          | 可视化方式                 |
-| --------- | --------------------------- | --------------------- |
+| 集成位置           | 文件                        | 可视化方式                                |
+| ------------------ | --------------------------- | ----------------------------------------- |
 | 会话头部状态指示器 | `session-header.tsx`        | 在现有上下文使用量旁边添加记忆/进化指示器 |
-| 侧边面板新标签页  | `session-side-panel.tsx`    | 添加"记忆与进化"标签页，展示完整面板   |
-| 会话上下文使用量  | `session-context-usage.tsx` | 扩展进度圈，增加记忆状态图标        |
+| 侧边面板新标签页   | `session-side-panel.tsx`    | 添加"记忆与进化"标签页，展示完整面板      |
+| 会话上下文使用量   | `session-context-usage.tsx` | 扩展进度圈，增加记忆状态图标              |
 
 **现有 UI 模式参考**：
 
-* `session-context-usage.tsx` 使用 `ProgressCircle` 组件展示 token 使用量，可作为记忆状态指示器的参考
+- `session-context-usage.tsx` 使用 `ProgressCircle` 组件展示 token 使用量，可作为记忆状态指示器的参考
 
-* `session-side-panel.tsx` 使用 `Tabs` 组件管理多个标签页（文件树、审查、上下文），可新增标签
+- `session-side-panel.tsx` 使用 `Tabs` 组件管理多个标签页（文件树、审查、上下文），可新增标签
 
-* 所有 UI 组件使用 `@opencode-ai/ui` 组件库和 SolidJS 响应式状态
+- 所有 UI 组件使用 `@opencode-ai/ui` 组件库和 SolidJS 响应式状态
 
 ### 3.4 集成点分析
 
-| 集成点       | 文件                                     | 集成方式                 |
-| --------- | -------------------------------------- | -------------------- |
-| 系统提示词构建   | `session/prompt.ts`                    | 注入记忆上下文块             |
-| LLM 调用前后  | `session/llm.ts`                       | 添加 prefetch/sync 钩子  |
-| 会话生命周期    | `session/session.ts`                   | 触发 on\_session\_end  |
-| 上下文压缩     | `session/compaction.ts`                | 触发 on\_pre\_compress |
-| 技能系统      | `skill/index.ts`                       | 扩展状态跟踪               |
-| Agent 状态  | `agent/agent.ts`                       | 检测 agent 空闲状态        |
-| 桌面端 UI 面板 | `pages/session/session-side-panel.tsx` | 新增"记忆与进化"标签页         |
-| 桌面端状态指示器  | `components/session-header.tsx`        | 新增记忆/进化状态图标          |
+| 集成点           | 文件                                   | 集成方式                |
+| ---------------- | -------------------------------------- | ----------------------- |
+| 系统提示词构建   | `session/prompt.ts`                    | 注入记忆上下文块        |
+| LLM 调用前后     | `session/llm.ts`                       | 添加 prefetch/sync 钩子 |
+| 会话生命周期     | `session/session.ts`                   | 触发 on_session_end     |
+| 上下文压缩       | `session/compaction.ts`                | 触发 on_pre_compress    |
+| 技能系统         | `skill/index.ts`                       | 扩展状态跟踪            |
+| Agent 状态       | `agent/agent.ts`                       | 检测 agent 空闲状态     |
+| 桌面端 UI 面板   | `pages/session/session-side-panel.tsx` | 新增"记忆与进化"标签页  |
+| 桌面端状态指示器 | `components/session-header.tsx`        | 新增记忆/进化状态图标   |
 
-***
+---
 
 ## 四、技术方案设计
 
@@ -1034,24 +1006,32 @@ packages/app/               # SolidJS Web UI（被桌面端内嵌）
 
 ```typescript
 // packages/opencode/src/memory/memory.sql.ts
-export const MemoryEntryTable = sqliteTable("memory_entry", {
-  id: text().primaryKey(),
-  session_id: text().$type<SessionID>().notNull()
-    .references(() => SessionTable.id, { onDelete: "cascade" }),
-  project_id: text().$type<ProjectID>().notNull()
-    .references(() => ProjectTable.id, { onDelete: "cascade" }),
-  type: text().notNull(),        // "memory" | "user_preference" | "fact" | "decision"
-  content: text().notNull(),     // 记忆内容
-  importance: integer().notNull().default(5),  // 重要程度 0-10
-  access_count: integer().notNull().default(0),
-  last_accessed_at: integer(),
-  ...Timestamps,
-}, (table) => [
-  index("memory_entry_session_idx").on(table.session_id),
-  index("memory_entry_project_idx").on(table.project_id),
-  index("memory_entry_type_idx").on(table.type),
-  index("memory_entry_importance_idx").on(table.importance),
-])
+export const MemoryEntryTable = sqliteTable(
+  "memory_entry",
+  {
+    id: text().primaryKey(),
+    session_id: text()
+      .$type<SessionID>()
+      .notNull()
+      .references(() => SessionTable.id, { onDelete: "cascade" }),
+    project_id: text()
+      .$type<ProjectID>()
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: "cascade" }),
+    type: text().notNull(), // "memory" | "user_preference" | "fact" | "decision"
+    content: text().notNull(), // 记忆内容
+    importance: integer().notNull().default(5), // 重要程度 0-10
+    access_count: integer().notNull().default(0),
+    last_accessed_at: integer(),
+    ...Timestamps,
+  },
+  (table) => [
+    index("memory_entry_session_idx").on(table.session_id),
+    index("memory_entry_project_idx").on(table.project_id),
+    index("memory_entry_type_idx").on(table.type),
+    index("memory_entry_importance_idx").on(table.importance),
+  ],
+)
 ```
 
 #### SkillEvolutionTable
@@ -1060,12 +1040,12 @@ export const MemoryEntryTable = sqliteTable("memory_entry", {
 // packages/opencode/src/evolution/evolution.sql.ts
 export const SkillEvolutionTable = sqliteTable("skill_evolution", {
   skill_name: text().primaryKey(),
-  state: text().notNull().default("active"),  // "active" | "stale" | "archived"
+  state: text().notNull().default("active"), // "active" | "stale" | "archived"
   last_activity_at: integer(),
   use_count: integer().notNull().default(0),
-  pinned: integer().notNull().default(0),     // 0 | 1
-  parent_skill: text(),                       // 伞形技能的父技能名
-  consolidated_from: text({ mode: "json" }).$type<string[]>(),  // 被合并的技能名列表
+  pinned: integer().notNull().default(0), // 0 | 1
+  parent_skill: text(), // 伞形技能的父技能名
+  consolidated_from: text({ mode: "json" }).$type<string[]>(), // 被合并的技能名列表
   ...Timestamps,
 })
 ```
@@ -1079,7 +1059,7 @@ export const CuratorStateTable = sqliteTable("curator_state", {
   last_run_at: integer(),
   last_run_duration: integer(),
   last_run_summary: text(),
-  paused: integer().notNull().default(0),     // 0 | 1
+  paused: integer().notNull().default(0), // 0 | 1
   run_count: integer().notNull().default(0),
   ...Timestamps,
 })
@@ -1100,18 +1080,17 @@ export interface MemoryInterface {
     importance?: number
   }) => Effect.Effect<MemoryEntry>
 
-  readonly search: (input: {
-    query: string
-    projectID: ProjectID
-    limit?: number
-  }) => Effect.Effect<MemoryEntry[]>
+  readonly search: (input: { query: string; projectID: ProjectID; limit?: number }) => Effect.Effect<MemoryEntry[]>
 
   readonly get: (id: string) => Effect.Effect<MemoryEntry>
 
-  readonly update: (id: string, input: Partial<{
-    content: string
-    importance: number
-  }>) => Effect.Effect<MemoryEntry>
+  readonly update: (
+    id: string,
+    input: Partial<{
+      content: string
+      importance: number
+    }>,
+  ) => Effect.Effect<MemoryEntry>
 
   readonly delete: (id: string) => Effect.Effect<void>
 
@@ -1124,11 +1103,7 @@ export interface MemoryInterface {
 ```typescript
 // packages/opencode/src/memory/manager.ts
 export interface MemoryManagerInterface {
-  readonly prefetch: (input: {
-    query: string
-    sessionID: string
-    projectID: ProjectID
-  }) => Effect.Effect<string>
+  readonly prefetch: (input: { query: string; sessionID: string; projectID: ProjectID }) => Effect.Effect<string>
 
   readonly sync: (input: {
     userContent: string
@@ -1145,10 +1120,7 @@ export interface MemoryManagerInterface {
     projectID: ProjectID
   }) => Effect.Effect<void>
 
-  readonly onPreCompress: (input: {
-    messages: MessageV2.WithParts[]
-    sessionID: string
-  }) => Effect.Effect<string>
+  readonly onPreCompress: (input: { messages: MessageV2.WithParts[]; sessionID: string }) => Effect.Effect<string>
 }
 ```
 
@@ -1157,9 +1129,7 @@ export interface MemoryManagerInterface {
 ```typescript
 // packages/opencode/src/evolution/curator.ts
 export interface CuratorInterface {
-  readonly shouldRun: (input: {
-    agentIdleSince?: number
-  }) => Effect.Effect<boolean>
+  readonly shouldRun: (input: { agentIdleSince?: number }) => Effect.Effect<boolean>
 
   readonly applyAutoTransitions: () => Effect.Effect<{
     markedStale: number
@@ -1168,9 +1138,7 @@ export interface CuratorInterface {
     checked: number
   }>
 
-  readonly runReview: (input: {
-    dryRun?: boolean
-  }) => Effect.Effect<CuratorReport>
+  readonly runReview: (input: { dryRun?: boolean }) => Effect.Effect<CuratorReport>
 
   readonly pause: () => Effect.Effect<void>
   readonly resume: () => Effect.Effect<void>
@@ -1178,7 +1146,7 @@ export interface CuratorInterface {
 }
 ```
 
-***
+---
 
 ## 五、桌面端 UI 面板设计
 
@@ -1244,23 +1212,23 @@ export interface CuratorInterface {
 
 每个记忆条目卡片显示：
 
-* **内容摘要**：记忆内容的前 80 个字符
+- **内容摘要**：记忆内容的前 80 个字符
 
-* **类型标签**：彩色标签（偏好=蓝色、事实=绿色、决策=橙色）
+- **类型标签**：彩色标签（偏好=蓝色、事实=绿色、决策=橙色）
 
-* **重要度星级**：1-5 星可视化
+- **重要度星级**：1-5 星可视化
 
-* **最近访问时间**：相对时间显示
+- **最近访问时间**：相对时间显示
 
-* **操作按钮**：编辑、删除（hover 时显示）
+- **操作按钮**：编辑、删除（hover 时显示）
 
 **交互功能**：
 
-* 点击卡片展开完整内容
+- 点击卡片展开完整内容
 
-* 支持内联编辑
+- 支持内联编辑
 
-* 实时搜索过滤
+- 实时搜索过滤
 
 #### 状态指示器：`MemoryIndicator` (`packages/app/src/components/session-header.tsx` 内扩展)
 
@@ -1273,13 +1241,13 @@ export interface CuratorInterface {
 └──────────────────────────────────────────────────┘
 ```
 
-* **图标**：🧠 大脑图标 + 记忆条数
+- **图标**：🧠 大脑图标 + 记忆条数
 
-* **颜色**：绿色=正常、黄色=记忆较多、红色=需要清理
+- **颜色**：绿色=正常、黄色=记忆较多、红色=需要清理
 
-* **Tooltip**：hover 显示"持久记忆：12条 | 最近检索：3条匹配"
+- **Tooltip**：hover 显示"持久记忆：12条 | 最近检索：3条匹配"
 
-* **点击**：打开侧边面板的记忆标签页
+- **点击**：打开侧边面板的记忆标签页
 
 ### 5.3 进化面板组件设计
 
@@ -1337,23 +1305,23 @@ export interface CuratorInterface {
 
 **Curator 状态指示器**：
 
-* **● 绿色**：就绪（空闲中，等待下次触发）
+- **● 绿色**：就绪（空闲中，等待下次触发）
 
-* **● 黄色**：运行中（正在审查技能）
+- **● 黄色**：运行中（正在审查技能）
 
-* **● 红色**：暂停/错误
+- **● 红色**：暂停/错误
 
-* **● 灰色**：未启用
+- **● 灰色**：未启用
 
 **技能条目颜色编码**：
 
-* **ACTIVE**：绿色圆点
+- **ACTIVE**：绿色圆点
 
-* **STALE**：黄色圆点
+- **STALE**：黄色圆点
 
-* **ARCHIVED**：灰色圆点
+- **ARCHIVED**：灰色圆点
 
-* **PINNED**：蓝色圆点 + 📌 图标
+- **PINNED**：蓝色圆点 + 📌 图标
 
 #### 状态指示器：`CuratorIndicator` (`packages/app/src/components/session-header.tsx` 内扩展)
 
@@ -1361,11 +1329,11 @@ export interface CuratorInterface {
 [🔵70%] [🧠12] [🔄●]  ← 新增 curator 状态点
 ```
 
-* **图标**：🔄 循环图标 + 彩色状态点
+- **图标**：🔄 循环图标 + 彩色状态点
 
-* **Tooltip**：hover 显示"Curator: 就绪 | 上次运行: 3天前 | 下次: 4天后"
+- **Tooltip**：hover 显示"Curator: 就绪 | 上次运行: 3天前 | 下次: 4天后"
 
-* **点击**：打开侧边面板的进化标签页
+- **点击**：打开侧边面板的进化标签页
 
 ### 5.4 数据流设计
 
@@ -1383,11 +1351,11 @@ export interface CuratorInterface {
 
 **通信方式**：
 
-* 复用现有的 `@opencode-ai/sdk` 客户端进行数据查询
+- 复用现有的 `@opencode-ai/sdk` 客户端进行数据查询
 
-* 响应式更新通过 SolidJS 的 `createResource` + `@tanstack/solid-query` 实现
+- 响应式更新通过 SolidJS 的 `createResource` + `@tanstack/solid-query` 实现
 
-* 实时状态通过现有的 WebSocket 或轮询机制更新
+- 实时状态通过现有的 WebSocket 或轮询机制更新
 
 ### 5.5 组件文件清单
 
@@ -1406,7 +1374,7 @@ packages/app/src/components/evolution/
   └── curator-indicator.tsx     # 会话头部 curator 指示器
 ```
 
-***
+---
 
 ## 六、详细实施步骤
 
@@ -1428,65 +1396,56 @@ packages/opencode/src/memory/
 
 **文件**：`packages/opencode/src/memory/memory.sql.ts`
 
-* 定义 `MemoryEntryTable` 表结构
+- 定义 `MemoryEntryTable` 表结构
 
-* 添加索引：`session_id`、`project_id`、`type`、`importance`
+- 添加索引：`session_id`、`project_id`、`type`、`importance`
 
-* 遵循项目现有 schema 命名约定（snake\_case 字段名）
+- 遵循项目现有 schema 命名约定（snake_case 字段名）
 
 #### 步骤 3：实现 Schema 定义
 
 **文件**：`packages/opencode/src/memory/schema.ts`
 
-* 定义 `MemoryEntry` 类型（使用 `Schema.Struct`）
+- 定义 `MemoryEntry` 类型（使用 `Schema.Struct`）
 
-* 定义 `MemoryProvider` 接口
+- 定义 `MemoryProvider` 接口
 
-* 定义 `MemoryItem` 类型（用于检索结果）
+- 定义 `MemoryItem` 类型（用于检索结果）
 
 #### 步骤 4：实现 MemoryService
 
 **文件**：`packages/opencode/src/memory/service.ts`
 
-* 遵循 Effect/Layer 依赖注入模式
+- 遵循 Effect/Layer 依赖注入模式
 
-* 实现 CRUD 操作
+- 实现 CRUD 操作
 
-* 实现关键词匹配检索（`search` 方法）
+- 实现关键词匹配检索（`search` 方法）
+  - 初期使用 SQL LIKE 进行关键词匹配
 
-  * 初期使用 SQL LIKE 进行关键词匹配
+  - 按重要性 + 最近访问时间排序
 
-  * 按重要性 + 最近访问时间排序
+  - 限制返回数量（默认 Top-5）
 
-  * 限制返回数量（默认 Top-5）
+- 实现重要性衰减算法
+  - `access_count` 递增每次访问
 
-* 实现重要性衰减算法
-
-  * `access_count` 递增每次访问
-
-  * `importance` 可用 `access_count` 和 `last_accessed_at` 衰减
+  - `importance` 可用 `access_count` 和 `last_accessed_at` 衰减
 
 ```typescript
 // 参考检索逻辑
-const search = Effect.fn("Memory.search")(function* (input: {
-  query: string
-  projectID: ProjectID
-  limit?: number
-}) {
+const search = Effect.fn("Memory.search")(function* (input: { query: string; projectID: ProjectID; limit?: number }) {
   const db = yield* Database.Service
   const limit = input.limit ?? 5
   const keywords = input.query.split(/\s+/).filter(Boolean)
 
   // 构建 LIKE 条件
-  const conditions = keywords.map(kw => like(MemoryEntryTable.content, `%${kw}%`))
+  const conditions = keywords.map((kw) => like(MemoryEntryTable.content, `%${kw}%`))
 
   return yield* db
     .select()
     .from(MemoryEntryTable)
-    .where(and(
-      eq(MemoryEntryTable.project_id, input.projectID),
-      or(...conditions)
-    ))
+    .where(and(eq(MemoryEntryTable.project_id, input.projectID), or(...conditions)))
     .orderBy(desc(MemoryEntryTable.importance), desc(MemoryEntryTable.last_accessed_at))
     .limit(limit)
 })
@@ -1496,21 +1455,21 @@ const search = Effect.fn("Memory.search")(function* (input: {
 
 **文件**：`packages/opencode/src/memory/provider.ts`
 
-* 定义抽象接口，对应 Hermes 的 `MemoryProvider` 关键方法
+- 定义抽象接口，对应 Hermes 的 `MemoryProvider` 关键方法
 
-* 实现默认的 `SQLiteMemoryProvider`，使用 `MemoryService`
+- 实现默认的 `SQLiteMemoryProvider`，使用 `MemoryService`
 
 #### 步骤 6：实现 MemoryManager
 
 **文件**：`packages/opencode/src/memory/manager.ts`
 
-* 实现 `prefetch` 方法（检索相关记忆，构建上下文块）
+- 实现 `prefetch` 方法（检索相关记忆，构建上下文块）
 
-* 实现 `sync` 方法（从对话中提取关键信息，写入记忆）
+- 实现 `sync` 方法（从对话中提取关键信息，写入记忆）
 
-* 实现 `buildMemoryContextBlock` 方法（格式化记忆上下文为 `<memory-context>` 标签）
+- 实现 `buildMemoryContextBlock` 方法（格式化记忆上下文为 `<memory-context>` 标签）
 
-* 实现生命周期钩子
+- 实现生命周期钩子
 
 #### 步骤 7：创建配置模块
 
@@ -1519,13 +1478,13 @@ const search = Effect.fn("Memory.search")(function* (input: {
 ```typescript
 export const Info = Schema.Struct({
   enabled: Schema.optional(Schema.Boolean).annotate({
-    description: "启用持久记忆功能"
+    description: "启用持久记忆功能",
   }),
   prefetch_limit: Schema.optional(Schema.Finite).annotate({
-    description: "每轮预取记忆数量上限"
+    description: "每轮预取记忆数量上限",
   }),
   auto_extract: Schema.optional(Schema.Boolean).annotate({
-    description: "自动从对话中提取关键信息"
+    description: "自动从对话中提取关键信息",
   }),
 })
 ```
@@ -1548,81 +1507,82 @@ let extPrefetchCache = ""
 let memoryManager: MemoryManagerInterface
 
 // 在 yield* handle.process() 之前，注入记忆上下文
-const runLoop: (sessionID: SessionID) => Effect.Effect<MessageV2.WithParts> =
-  Effect.fn("SessionPrompt.run")(function* (sessionID: SessionID) {
-    // ... 已有初始化代码 ...
+const runLoop: (sessionID: SessionID) => Effect.Effect<MessageV2.WithParts> = Effect.fn("SessionPrompt.run")(function* (
+  sessionID: SessionID,
+) {
+  // ... 已有初始化代码 ...
 
-    while (true) {
-      // ... 已有状态设置代码 ...
+  while (true) {
+    // ... 已有状态设置代码 ...
 
-      // [1] 外部记忆预取 + 预热（仅在 LLM 调用循环的开头执行一次）
-      const lastUser = yield* lastUserMessage(sessionID)
-      if (step === 0 && lastUser) {
-        memoryManager = yield* MemoryManagerService
-        extPrefetchCache = yield* memoryManager.prefetch({
-          query: lastUser.textContent ?? "",
-          sessionID,
-          projectID: ctx.projectID,
-        })
-      }
-
-      // ... 已有消息处理代码 ...
-
-      // [2] 构建系统提示词数组
-      const system = [...env, ...instructions, ...(skills ? [skills] : [])]
-
-      // [3] 构建 API 消息 ★★★★★ 注入记忆上下文
-      // 参考 Hermes conversation_loop.py:940-958 模式：
-      // 记忆上下文注入到当轮用户消息副本，而非系统提示词中
-      const apiMessages = modelMsgs.map((msg, idx) => {
-        if (idx !== currentTurnUserIdx || msg.role !== "user") return msg
-        const injections: string[] = []
-        if (extPrefetchCache) {
-          const fenced = buildMemoryContextBlock(extPrefetchCache)
-          if (fenced) injections.push(fenced)
-        }
-        if (injections.length === 0) return msg
-        const base = typeof msg.content === "string" ? msg.content : ""
-        return { ...msg, content: base + "\n\n" + injections.join("\n\n") }
-      })
-
-      // [4] 调用 LLM
-      const result = yield* handle.process({
-        user: lastUser,
-        agent,
-        permission: session.permission,
+    // [1] 外部记忆预取 + 预热（仅在 LLM 调用循环的开头执行一次）
+    const lastUser = yield* lastUserMessage(sessionID)
+    if (step === 0 && lastUser) {
+      memoryManager = yield* MemoryManagerService
+      extPrefetchCache = yield* memoryManager.prefetch({
+        query: lastUser.textContent ?? "",
         sessionID,
-        parentSessionID: session.parentID,
-        system,
-        messages: apiMessages,  // ← 使用注入后的消息
-        tools,
-        model,
-        toolChoice: format.type === "json_schema" ? "required" : undefined,
+        projectID: ctx.projectID,
       })
-
-      // [5] 处理工具迭代（跟踪 _iters_since_skill）
-      if (result === "tool-calls") {
-        step++  // 跟踪迭代次数
-      }
-
-      // [6] 对话完成 → 同步记忆 + 审查触发器
-      if (result === "stop" || finished) {
-        yield* memoryManager.sync({
-          userContent: lastUser.textContent ?? "",
-          assistantContent: handle.message.content ?? "",
-          sessionID,
-          projectID: ctx.projectID,
-        })
-        // 触发 curator 审查（如果轮次或迭代次数达到阈值）
-        yield* curatorService.maybeTriggerReview({
-          sessionID,
-          turnCount: step,
-          messages: modelMsgs,
-        })
-        return "break" as const
-      }
     }
-  })
+
+    // ... 已有消息处理代码 ...
+
+    // [2] 构建系统提示词数组
+    const system = [...env, ...instructions, ...(skills ? [skills] : [])]
+
+    // [3] 构建 API 消息 ★★★★★ 注入记忆上下文
+    // 参考 Hermes conversation_loop.py:940-958 模式：
+    // 记忆上下文注入到当轮用户消息副本，而非系统提示词中
+    const apiMessages = modelMsgs.map((msg, idx) => {
+      if (idx !== currentTurnUserIdx || msg.role !== "user") return msg
+      const injections: string[] = []
+      if (extPrefetchCache) {
+        const fenced = buildMemoryContextBlock(extPrefetchCache)
+        if (fenced) injections.push(fenced)
+      }
+      if (injections.length === 0) return msg
+      const base = typeof msg.content === "string" ? msg.content : ""
+      return { ...msg, content: base + "\n\n" + injections.join("\n\n") }
+    })
+
+    // [4] 调用 LLM
+    const result = yield* handle.process({
+      user: lastUser,
+      agent,
+      permission: session.permission,
+      sessionID,
+      parentSessionID: session.parentID,
+      system,
+      messages: apiMessages, // ← 使用注入后的消息
+      tools,
+      model,
+      toolChoice: format.type === "json_schema" ? "required" : undefined,
+    })
+
+    // [5] 处理工具迭代（跟踪 _iters_since_skill）
+    if (result === "tool-calls") {
+      step++ // 跟踪迭代次数
+    }
+
+    // [6] 对话完成 → 同步记忆 + 审查触发器
+    if (result === "stop" || finished) {
+      yield* memoryManager.sync({
+        userContent: lastUser.textContent ?? "",
+        assistantContent: handle.message.content ?? "",
+        sessionID,
+        projectID: ctx.projectID,
+      })
+      // 触发 curator 审查（如果轮次或迭代次数达到阈值）
+      yield* curatorService.maybeTriggerReview({
+        sessionID,
+        turnCount: step,
+        messages: modelMsgs,
+      })
+      return "break" as const
+    }
+  }
+})
 ```
 
 #### 步骤 9：集成到 LLM 调用流程
@@ -1637,12 +1597,13 @@ const runLoop: (sessionID: SessionID) => Effect.Effect<MessageV2.WithParts> =
 // 调用后：需要 sync_turn
 
 // 在流式响应完成后
-yield* memoryManager.sync({
-  userContent: input.user.content,
-  assistantContent: assistantResponse,
-  sessionID: input.sessionID,
-  projectID: projectID,
-})
+yield *
+  memoryManager.sync({
+    userContent: input.user.content,
+    assistantContent: assistantResponse,
+    sessionID: input.sessionID,
+    projectID: projectID,
+  })
 ```
 
 #### 步骤 10：集成到会话生命周期
@@ -1653,11 +1614,12 @@ yield* memoryManager.sync({
 
 ```typescript
 // 在会话结束/删除时
-yield* memoryManager.onSessionEnd({
-  messages: fullMessages,
-  sessionID: sessionID,
-  projectID: projectID,
-})
+yield *
+  memoryManager.onSessionEnd({
+    messages: fullMessages,
+    sessionID: sessionID,
+    projectID: projectID,
+  })
 ```
 
 #### 步骤 11：集成到上下文压缩
@@ -1668,10 +1630,12 @@ yield* memoryManager.onSessionEnd({
 
 ```typescript
 // 在 processCompaction 方法中
-const memoryExtract = yield* memoryManager.onPreCompress({
-  messages: selected.head,
-  sessionID: input.sessionID,
-})
+const memoryExtract =
+  yield *
+  memoryManager.onPreCompress({
+    messages: selected.head,
+    sessionID: input.sessionID,
+  })
 if (memoryExtract) {
   compacting.context.push(memoryExtract)
 }
@@ -1694,36 +1658,36 @@ packages/opencode/src/evolution/
 
 **文件**：`packages/opencode/src/evolution/evolution.sql.ts`
 
-* 定义 `SkillEvolutionTable`
+- 定义 `SkillEvolutionTable`
 
-* 定义 `CuratorStateTable`
+- 定义 `CuratorStateTable`
 
 #### 步骤 14：实现 SkillEvolutionService
 
 **文件**：`packages/opencode/src/evolution/skill-evolution.ts`
 
-* 扩展 Skill 系统，添加状态跟踪
+- 扩展 Skill 系统，添加状态跟踪
 
-* `trackUsage(skillName)`：记录技能使用
+- `trackUsage(skillName)`：记录技能使用
 
-* `setState(name, state)`：更新技能状态
+- `setState(name, state)`：更新技能状态
 
-* `getAgentCreatedSkills()`：获取 agent 创建的技能列表
+- `getAgentCreatedSkills()`：获取 agent 创建的技能列表
 
-* `getEvolutionReport()`：生成进化报告
+- `getEvolutionReport()`：生成进化报告
 
 #### 步骤 15：实现 CuratorService
 
 **文件**：`packages/opencode/src/evolution/curator.ts`
 
-* `shouldRun()`：检查触发条件（间隔时间 + agent 空闲状态）
+- `shouldRun()`：检查触发条件（间隔时间 + agent 空闲状态）
 
-* `applyAutoTransitions()`：自动状态转换（active → stale → archived）
+- `applyAutoTransitions()`：自动状态转换（active → stale → archived）
 
 ```typescript
 const applyAutoTransitions = Effect.fn("Curator.applyAutoTransitions")(function* () {
   const now = Date.now()
-  const staleCutoff = now - 30 * 24 * 60 * 60 * 1000  // 30天
+  const staleCutoff = now - 30 * 24 * 60 * 60 * 1000 // 30天
   const archiveCutoff = now - 90 * 24 * 60 * 60 * 1000 // 90天
 
   const skills = yield* skillEvolution.all()
@@ -1750,7 +1714,7 @@ const applyAutoTransitions = Effect.fn("Curator.applyAutoTransitions")(function*
 })
 ```
 
-* `runReview()`：启动 LLM 驱动的技能审查
+- `runReview()`：启动 LLM 驱动的技能审查
 
 ```typescript
 const runReview = Effect.fn("Curator.runReview")(function* (input: { dryRun?: boolean }) {
@@ -1777,10 +1741,10 @@ const runReview = Effect.fn("Curator.runReview")(function* (input: { dryRun?: bo
 
 ```typescript
 // 在技能加载流程中添加
-yield* skillEvolution.ensureTracked(skill.name, skill.location)
+yield * skillEvolution.ensureTracked(skill.name, skill.location)
 
 // 在 SkillTool 执行时
-yield* skillEvolution.trackUsage(params.name)
+yield * skillEvolution.trackUsage(params.name)
 ```
 
 #### 步骤 17：创建配置模块
@@ -1789,13 +1753,15 @@ yield* skillEvolution.trackUsage(params.name)
 
 ```typescript
 export const Info = Schema.Struct({
-  curator: Schema.optional(Schema.Struct({
-    enabled: Schema.Boolean,
-    interval_hours: Schema.Finite,     // 默认 168 (7天)
-    min_idle_hours: Schema.Finite,     // 默认 2
-    stale_after_days: Schema.Finite,   // 默认 30
-    archive_after_days: Schema.Finite, // 默认 90
-  })),
+  curator: Schema.optional(
+    Schema.Struct({
+      enabled: Schema.Boolean,
+      interval_hours: Schema.Finite, // 默认 168 (7天)
+      min_idle_hours: Schema.Finite, // 默认 2
+      stale_after_days: Schema.Finite, // 默认 30
+      archive_after_days: Schema.Finite, // 默认 90
+    }),
+  ),
 })
 ```
 
@@ -1805,91 +1771,91 @@ export const Info = Schema.Struct({
 
 **文件**：`packages/app/src/components/memory/memory-panel.tsx`
 
-* 使用 SolidJS 和 `@opencode-ai/ui` 组件库
+- 使用 SolidJS 和 `@opencode-ai/ui` 组件库
 
-* 实现记忆条目列表、搜索框、类型筛选
+- 实现记忆条目列表、搜索框、类型筛选
 
-* 实现记忆条目卡片（内容摘要、类型标签、重要度星级、操作按钮）
+- 实现记忆条目卡片（内容摘要、类型标签、重要度星级、操作按钮）
 
-* 通过 `@tanstack/solid-query` 从后端获取数据
+- 通过 `@tanstack/solid-query` 从后端获取数据
 
 **文件**：`packages/app/src/components/memory/memory-entry-card.tsx`
 
-* 记忆条目卡片组件
+- 记忆条目卡片组件
 
-* 支持展开/折叠、内联编辑、删除确认
+- 支持展开/折叠、内联编辑、删除确认
 
 **文件**：`packages/app/src/components/memory/memory-search.tsx`
 
-* 搜索输入框组件
+- 搜索输入框组件
 
-* 实时过滤（防抖 300ms）
+- 实时过滤（防抖 300ms）
 
 #### 步骤 19：实现进化面板组件
 
 **文件**：`packages/app/src/components/evolution/evolution-panel.tsx`
 
-* Curator 状态卡片（状态指示器、运行信息、操作按钮）
+- Curator 状态卡片（状态指示器、运行信息、操作按钮）
 
-* 技能状态分布条（active/stale/archived/pinned 数量可视化）
+- 技能状态分布条（active/stale/archived/pinned 数量可视化）
 
-* 技能进化列表（按状态分组的技能条目）
+- 技能进化列表（按状态分组的技能条目）
 
-* 最近进化记录时间线
+- 最近进化记录时间线
 
 **文件**：`packages/app/src/components/evolution/curator-status.tsx`
 
-* Curator 状态卡片组件
+- Curator 状态卡片组件
 
-* 状态指示器（绿/黄/红/灰）
+- 状态指示器（绿/黄/红/灰）
 
-* 手动触发、暂停/恢复按钮
+- 手动触发、暂停/恢复按钮
 
 **文件**：`packages/app/src/components/evolution/skill-state-distribution.tsx`
 
-* 技能状态分布可视化组件
+- 技能状态分布可视化组件
 
-* 彩色进度条显示各状态占比
+- 彩色进度条显示各状态占比
 
 **文件**：`packages/app/src/components/evolution/skill-evolution-list.tsx`
 
-* 技能进化列表组件
+- 技能进化列表组件
 
-* 支持钉选、归档、恢复操作
+- 支持钉选、归档、恢复操作
 
 #### 步骤 20：实现会话头部状态指示器
 
 **文件**：`packages/app/src/components/memory/memory-indicator.tsx`
 
-* 在 SessionHeader 中显示记忆条数指示器
+- 在 SessionHeader 中显示记忆条数指示器
 
-* 参考 `session-context-usage.tsx` 的实现模式
+- 参考 `session-context-usage.tsx` 的实现模式
 
-* 点击跳转到记忆面板
+- 点击跳转到记忆面板
 
 **文件**：`packages/app/src/components/evolution/curator-indicator.tsx`
 
-* 在 SessionHeader 中显示 Curator 状态点
+- 在 SessionHeader 中显示 Curator 状态点
 
-* 彩色圆点指示状态（绿/黄/红/灰）
+- 彩色圆点指示状态（绿/黄/红/灰）
 
-* 点击跳转到进化面板
+- 点击跳转到进化面板
 
 #### 步骤 21：集成到 SessionSidePanel
 
 **文件**：`packages/app/src/pages/session/session-side-panel.tsx`
 
-* 在 Tabs 组件中添加"记忆与进化"标签页
+- 在 Tabs 组件中添加"记忆与进化"标签页
 
-* 标签页内包含 MemoryPanel 和 EvolutionPanel（上下排列或左右分栏）
+- 标签页内包含 MemoryPanel 和 EvolutionPanel（上下排列或左右分栏）
 
-* 遵循现有标签页的实现模式（参考 `SessionContextTab`）
+- 遵循现有标签页的实现模式（参考 `SessionContextTab`）
 
 **文件**：`packages/app/src/components/session-header.tsx`
 
-* 在头部状态区域添加 MemoryIndicator 和 CuratorIndicator
+- 在头部状态区域添加 MemoryIndicator 和 CuratorIndicator
 
-* 与现有的 SessionContextUsage 并列放置
+- 与现有的 SessionContextUsage 并列放置
 
 ### 阶段五：CLI 命令与工具（P2）
 
@@ -1915,29 +1881,29 @@ novaway curator pause    # 暂停 curator
 novaway curator resume   # 恢复 curator
 ```
 
-***
+---
 
 ## 七、关键技术决策
 
 ### 7.1 差异分析与适配
 
-| 特性         | Hermes Agent 做法                   | NovaWay 适配方案                           |
-| ---------- | --------------------------------- | -------------------------------------- |
-| 记忆存储       | 文件系统(JSON/Markdown) + 外部 provider | Drizzle ORM + SQLite（统一数据层）            |
-| 记忆检索       | 外部 provider 接管                    | 内置关键词匹配（阶段一），后续可扩展向量搜索                 |
-| 技能系统       | 独立文件目录 + SKILL.md                 | 扩展现有 Skill 系统（`skill/index.ts`），添加状态字段 |
-| Curator 触发 | 基于 `should_run_now()` + 空闲检测      | 利用 Effect 的定时器 + Agent 状态检测            |
-| 上下文压缩      | 独立 ContextCompressor 类            | 扩展现有 SessionCompaction，添加钩子            |
-| Agent 循环   | 同步 while 循环                       | 流式 Stream 处理                           |
-| 依赖注入       | 无                                 | Effect/Layer 模式                        |
+| 特性         | Hermes Agent 做法                       | NovaWay 适配方案                                      |
+| ------------ | --------------------------------------- | ----------------------------------------------------- |
+| 记忆存储     | 文件系统(JSON/Markdown) + 外部 provider | Drizzle ORM + SQLite（统一数据层）                    |
+| 记忆检索     | 外部 provider 接管                      | 内置关键词匹配（阶段一），后续可扩展向量搜索          |
+| 技能系统     | 独立文件目录 + SKILL.md                 | 扩展现有 Skill 系统（`skill/index.ts`），添加状态字段 |
+| Curator 触发 | 基于 `should_run_now()` + 空闲检测      | 利用 Effect 的定时器 + Agent 状态检测                 |
+| 上下文压缩   | 独立 ContextCompressor 类               | 扩展现有 SessionCompaction，添加钩子                  |
+| Agent 循环   | 同步 while 循环                         | 流式 Stream 处理                                      |
+| 依赖注入     | 无                                      | Effect/Layer 模式                                     |
 
 ### 7.2 记忆检索策略
 
-* **阶段一**：基于 SQLite LIKE 的关键词匹配（简单高效）
+- **阶段一**：基于 SQLite LIKE 的关键词匹配（简单高效）
 
-* **阶段二（可选）**：引入嵌入向量搜索（如 sqlite-vss 或外部向量数据库）
+- **阶段二（可选）**：引入嵌入向量搜索（如 sqlite-vss 或外部向量数据库）
 
-* **Top-K 限制**：默认 5 条，可配置，避免 token 消耗过大
+- **Top-K 限制**：默认 5 条，可配置，避免 token 消耗过大
 
 ### 7.3 记忆提取策略
 
@@ -1949,109 +1915,109 @@ novaway curator resume   # 恢复 curator
 
 ### 7.4 安全保障
 
-* 记忆内容在注入前进行清理（参考 Hermes 的 `sanitize_context`）
+- 记忆内容在注入前进行清理（参考 Hermes 的 `sanitize_context`）
 
-* 流式输出中过滤 `<memory-context>` 标签
+- 流式输出中过滤 `<memory-context>` 标签
 
-* 记忆上下文明确标注为"参考数据，非用户输入"
+- 记忆上下文明确标注为"参考数据，非用户输入"
 
 ### 7.5 UI 技术选型
 
-* **UI 框架**：SolidJS（与现有桌面端 UI 一致）
+- **UI 框架**：SolidJS（与现有桌面端 UI 一致）
 
-* **组件库**：`@opencode-ai/ui`（项目自有组件库）
+- **组件库**：`@opencode-ai/ui`（项目自有组件库）
 
-* **数据获取**：`@tanstack/solid-query`（与现有模式一致）
+- **数据获取**：`@tanstack/solid-query`（与现有模式一致）
 
-* **状态管理**：SolidJS reactive store + context
+- **状态管理**：SolidJS reactive store + context
 
-* **样式**：遵循现有的 Tailwind CSS / CSS-in-JS 模式
+- **样式**：遵循现有的 Tailwind CSS / CSS-in-JS 模式
 
-* **通信**：复用 `@opencode-ai/sdk` 客户端
+- **通信**：复用 `@opencode-ai/sdk` 客户端
 
-***
+---
 
 ## 八、风险与缓解措施
 
-| 风险              | 影响            | 缓解措施                                  |
-| --------------- | ------------- | ------------------------------------- |
-| Token 消耗增加      | 每轮 LLM 调用成本上升 | Top-K 限制（默认 5 条），按重要性排序               |
-| 数据库性能           | 大量记忆条目查询变慢    | 建立适当索引，定期清理低重要性记忆                     |
-| 记忆污染            | 错误或过时信息影响决策   | 重要性衰减算法，时间衰减                          |
-| Curator 无限循环    | 无效压缩反复重试      | Anti-thrashing 保护，最大重试次数限制            |
-| 与 Compaction 冲突 | 记忆上下文被压缩丢失    | 在 compaction 前触发 on\_pre\_compress 提取 |
-| 自动提取不准确         | 提取无关信息        | 使用专门的小型模型，用户可手动修正                     |
-| UI 性能           | 面板数据量大导致卡顿    | 分页加载、虚拟滚动、按需查询                        |
+| 风险               | 影响                   | 缓解措施                                  |
+| ------------------ | ---------------------- | ----------------------------------------- |
+| Token 消耗增加     | 每轮 LLM 调用成本上升  | Top-K 限制（默认 5 条），按重要性排序     |
+| 数据库性能         | 大量记忆条目查询变慢   | 建立适当索引，定期清理低重要性记忆        |
+| 记忆污染           | 错误或过时信息影响决策 | 重要性衰减算法，时间衰减                  |
+| Curator 无限循环   | 无效压缩反复重试       | Anti-thrashing 保护，最大重试次数限制     |
+| 与 Compaction 冲突 | 记忆上下文被压缩丢失   | 在 compaction 前触发 on_pre_compress 提取 |
+| 自动提取不准确     | 提取无关信息           | 使用专门的小型模型，用户可手动修正        |
+| UI 性能            | 面板数据量大导致卡顿   | 分页加载、虚拟滚动、按需查询              |
 
-***
+---
 
 ## 九、验证策略
 
 ### 9.1 单元测试
 
-* `MemoryService`：CRUD 操作的准确性
+- `MemoryService`：CRUD 操作的准确性
 
-* `MemoryService.search`：检索准确率（关键词匹配）
+- `MemoryService.search`：检索准确率（关键词匹配）
 
-* `CuratorService.applyAutoTransitions`：状态转换逻辑正确性
+- `CuratorService.applyAutoTransitions`：状态转换逻辑正确性
 
-* `SkillEvolutionService`：使用统计和状态管理
+- `SkillEvolutionService`：使用统计和状态管理
 
 ### 9.2 集成测试
 
-* `MemoryManager` 与 `MemoryService` 的交互
+- `MemoryManager` 与 `MemoryService` 的交互
 
-* `MemoryManager.prefetch` 在 LLM 调用前返回正确上下文
+- `MemoryManager.prefetch` 在 LLM 调用前返回正确上下文
 
-* `MemoryManager.sync` 正确提取和持久化对话信息
+- `MemoryManager.sync` 正确提取和持久化对话信息
 
-* Curator 审查流程的端到端测试
+- Curator 审查流程的端到端测试
 
-* UI 面板与后端 API 的数据交互
+- UI 面板与后端 API 的数据交互
 
 ### 9.3 E2E 测试
 
-* 完整对话流程：用户输入 → 记忆检索 → LLM 响应 → 记忆持久化
+- 完整对话流程：用户输入 → 记忆检索 → LLM 响应 → 记忆持久化
 
-* 跨会话记忆：一个会话中存储的记忆在另一个会话中可检索
+- 跨会话记忆：一个会话中存储的记忆在另一个会话中可检索
 
-* 技能进化：长时间运行后技能自动状态转换和合并
+- 技能进化：长时间运行后技能自动状态转换和合并
 
-* UI 面板：记忆面板正确显示记忆列表，进化面板正确显示 curator 状态
+- UI 面板：记忆面板正确显示记忆列表，进化面板正确显示 curator 状态
 
 ### 9.4 UI 组件测试
 
-* `MemoryPanel`：搜索过滤、类型筛选、CRUD 操作
+- `MemoryPanel`：搜索过滤、类型筛选、CRUD 操作
 
-* `EvolutionPanel`：状态显示、手动触发、暂停/恢复
+- `EvolutionPanel`：状态显示、手动触发、暂停/恢复
 
-* `MemoryIndicator`：状态颜色变化、tooltip 内容、点击跳转
+- `MemoryIndicator`：状态颜色变化、tooltip 内容、点击跳转
 
-* `CuratorIndicator`：状态点颜色、tooltip 内容、点击跳转
+- `CuratorIndicator`：状态点颜色、tooltip 内容、点击跳转
 
-***
+---
 
 ## 十、实施优先级
 
 ### P0：核心记忆 + UI 面板（预计工作量大）
 
-* 步骤 1-7：后端基础设施（数据库表、MemoryService、MemoryManager）
+- 步骤 1-7：后端基础设施（数据库表、MemoryService、MemoryManager）
 
-* 步骤 8-11：集成到现有流程（prompt、llm、session、compaction）
+- 步骤 8-11：集成到现有流程（prompt、llm、session、compaction）
 
-* 步骤 18-21：桌面端 UI 面板（记忆面板、状态指示器、侧边面板集成）
+- 步骤 18-21：桌面端 UI 面板（记忆面板、状态指示器、侧边面板集成）
 
 ### P1：自我进化 + UI 面板（预计工作量中）
 
-* 步骤 12-17：SkillEvolutionService、CuratorService、集成到 Skill 系统
+- 步骤 12-17：SkillEvolutionService、CuratorService、集成到 Skill 系统
 
-* 步骤 19 中的进化面板组件
+- 步骤 19 中的进化面板组件
 
 ### P2：配置与工具（预计工作量小）
 
-* 步骤 22-23：CLI 命令和配置
+- 步骤 22-23：CLI 命令和配置
 
-***
+---
 
 ## 十一、文件变更清单
 
@@ -2121,4 +2087,3 @@ packages/opencode/src/config/config.ts         # 导出新配置模块
 packages/app/src/pages/session/session-side-panel.tsx  # 新增记忆与进化标签页
 packages/app/src/components/session-header.tsx          # 添加状态指示器
 ```
-

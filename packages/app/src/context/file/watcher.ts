@@ -46,7 +46,8 @@ export function invalidateFromWatcher(event: WatcherEvent, ops: WatcherOps) {
   }
   if (kind !== "add" && kind !== "unlink") return
 
-  const parent = path.split("/").slice(0, -1).join("/")
+  const normalizedPath = path.replace(/\\/g, "/")
+  const parent = normalizedPath.split("/").slice(0, -1).join("/")
   if (!ops.isDirLoaded(parent)) return
 
   ops.refreshDir(parent)

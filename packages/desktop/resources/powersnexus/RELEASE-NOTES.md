@@ -21,7 +21,7 @@
 
 ## v6.0.0 (2026-06-16)
 
-PowersNexus 6.0 is a big release. The headline is a rewrite of how `subagent-driven-development` reviews each task — cheaper, stricter, and harder to game. 
+PowersNexus 6.0 is a big release. The headline is a rewrite of how `subagent-driven-development` reviews each task — cheaper, stricter, and harder to game.
 
 While these numbers won't hold on every harness and for every workload, in our evals, Claude Code and Codex produce similar high-quality results roughly twice as fast and while spending almost 50% fewer tokens.
 
@@ -72,7 +72,6 @@ The visual companion is a small web server the agent opens alongside the convers
 - **Longer idle life, safer shutdown.** The idle timeout went from 30 minutes to 4 hours, and `stop-server.sh` now confirms it owns the right process before signaling, so it never kills an unrelated `node` after a reboot. (#1703)
 - **Windows launch hardening** — consolidated shell detection, and Windows now relies on the idle timeout for shutdown, since Node can't track POSIX process ownership across MSYS2.
 
-
 ### Existing Harness Updates
 
 - **Codex** now bootstraps through its own SessionStart hook rather than shared wiring, and the Codex App gained an install section and fuller tool docs (web search, `AGENTS.md`, personal skills). (#1540)
@@ -91,7 +90,7 @@ The skills used to speak Claude Code's dialect — "use the Task tool," "put it 
 
 Two additions for skill authors.
 
-- **Match the Form to the Failure** — a short table for picking the right kind of guidance. A flat "don't do X" works for discipline slips but backfires when the problem is the *shape* of an output, where a worked example does better. The table, and a tighter scope on the existing rationalization section, steer authors to the form that actually helps.
+- **Match the Form to the Failure** — a short table for picking the right kind of guidance. A flat "don't do X" works for discipline slips but backfires when the problem is the _shape_ of an output, where a worked example does better. The table, and a tighter scope on the existing rationalization section, steer authors to the form that actually helps.
 - **Micro-Test Wording** — a cheap way to check a phrasing before committing to it: sample it a handful of times against a no-guidance control and read every result by hand, treating run-to-run variance as a warning sign.
 
 ### Testing
@@ -169,6 +168,7 @@ New `sync-to-codex-plugin` script mirrors PowersNexus into the OpenAI Codex plug
 - **Behavioral test added** — `tests/claude-code/test-requesting-code-review.sh` plants real bugs (SQL injection, plaintext password handling, credential logging) into a tiny project and asserts the dispatched reviewer flags every planted issue at Critical/Important severity and refuses to approve the diff.
 
 > Note: `tests/claude-code/test-requesting-code-review.sh` and `tests/claude-code/test-document-review-system.sh` (mentioned later in this document) were lifted into drill scenarios on 2026-05-06 and removed from `tests/`. See `evals/scenarios/code-review-catches-planted-bugs.yaml` and `evals/scenarios/spec-reviewer-catches-planted-flaws.yaml`. The references above and below are preserved as dated artifacts of the work this section describes.
+
 - **Codex and Copilot workaround docs trimmed** — the "Named agent dispatch" sections in `references/codex-tools.md` and `references/copilot-tools.md` documented how to flatten a named agent into a generic dispatch. With no named agents shipping, the workaround is unnecessary; both sections were dropped.
 
 ### Subagent-Driven Development
@@ -619,6 +619,7 @@ Improved documentation of how Codex tools map to Claude Code equivalents for sub
 OpenCode's official documentation uses `~/.config/opencode/plugins/` (plural). Our docs previously used `plugin/` (singular). While OpenCode accepts both forms, we've standardized on the official convention to avoid confusion.
 
 Changes:
+
 - Renamed `.opencode/plugin/` to `.opencode/plugins/` in repo structure
 - Updated all installation docs (INSTALL.md, README.opencode.md) across all platforms
 - Updated test scripts to match
@@ -670,6 +671,7 @@ Fix: hooks.json now calls session-start.sh directly. Claude Code 2.1.x handles t
 Addressed a failure mode where Claude would skip invoking a skill even when the user explicitly requested it by name (e.g., "subagent-driven-development, please"). Claude would think "I know what that means" and start working directly instead of loading the skill.
 
 Changes:
+
 - Updated "The Rule" to say "Invoke relevant or requested skills" instead of "Check for skills" - emphasizing active invocation over passive checking
 - Added "BEFORE any response or action" - the original wording only mentioned "response" but Claude would sometimes take action without responding first
 - Added reassurance that invoking a wrong skill is okay - reduces hesitation
@@ -724,12 +726,14 @@ Subagent workflows now use two separate review stages after each task:
 This catches the common failure mode where code is well-written but doesn't match what was requested. Reviews are loops, not one-shot: if reviewer finds issues, implementer fixes them, then reviewer checks again.
 
 Other subagent workflow improvements:
+
 - Controller provides full task text to workers (not file references)
 - Workers can ask clarifying questions before AND during work
 - Self-review checklist before reporting completion
 - Plan read once at start, extracted to TodoWrite
 
 New prompt templates in `skills/subagent-driven-development/`:
+
 - `implementer-prompt.md` - Includes self-review checklist, encourages questions
 - `spec-reviewer-prompt.md` - Skeptical verification against requirements
 - `code-quality-reviewer-prompt.md` - Standard code review
@@ -737,6 +741,7 @@ New prompt templates in `skills/subagent-driven-development/`:
 **Debugging techniques consolidated with tools**
 
 `systematic-debugging` now bundles supporting techniques and tools:
+
 - `root-cause-tracing.md` - Trace bugs backward through call stack
 - `defense-in-depth.md` - Add validation at multiple layers
 - `condition-based-waiting.md` - Replace arbitrary timeouts with condition polling
@@ -746,6 +751,7 @@ New prompt templates in `skills/subagent-driven-development/`:
 **Testing anti-patterns reference**
 
 `test-driven-development` now includes `testing-anti-patterns.md` covering:
+
 - Testing mock behavior instead of real behavior
 - Adding test-only methods to production classes
 - Mocking without understanding dependencies
@@ -760,6 +766,7 @@ Three new test frameworks for validating skill behavior:
 `tests/claude-code/` - Integration tests using `claude -p` for headless testing. Verifies skill usage via session transcript (JSONL) analysis. Includes `analyze-token-usage.py` for cost tracking.
 
 `tests/subagent-driven-dev/` - End-to-end workflow validation with two complete test projects:
+
 - `go-fractals/` - CLI tool with Sierpinski/Mandelbrot (10 tasks)
 - `svelte-todo/` - CRUD app with localStorage and Playwright (12 tasks)
 
@@ -782,6 +789,7 @@ Description changed to imperative: "You MUST use this before any creative work�
 ### Breaking Changes
 
 **Skill consolidation** - Six standalone skills merged:
+
 - `root-cause-tracing`, `defense-in-depth`, `condition-based-waiting` → bundled in `systematic-debugging/`
 - `testing-skills-with-subagents` → bundled in `writing-skills/`
 - `testing-anti-patterns` → bundled in `test-driven-development/`
@@ -876,6 +884,7 @@ Description changed to imperative: "You MUST use this before any creative work�
 ### New Features
 
 **Experimental Codex Support**
+
 - Added unified `PowersNexus-codex` script with bootstrap/use-skill/find-skills commands
 - Cross-platform Node.js implementation (works on Windows, macOS, Linux)
 - Namespaced skills: `PowersNexus:skill-name` for PowersNexus skills, `skill-name` for personal
@@ -887,12 +896,14 @@ Description changed to imperative: "You MUST use this before any creative work�
 - Complete installation guide and bootstrap instructions specific to Codex
 
 **Key differences from Claude Code integration:**
+
 - Single unified script instead of separate tools
 - Tool substitution system for Codex-specific equivalents
 - Simplified subagent handling (manual work instead of delegation)
 - Updated terminology: "PowersNexus skills" instead of "Core skills"
 
 ### Files Added
+
 - `.codex/INSTALL.md` - Installation guide for Codex users
 - `.codex/PowersNexus-bootstrap.md` - Bootstrap instructions with Codex adaptations
 - `.codex/PowersNexus-codex` - Unified Node.js executable with all functionality
@@ -904,6 +915,7 @@ Description changed to imperative: "You MUST use this before any creative work�
 ### Improvements
 
 **Updated using-PowersNexus skill to use Skill tool instead of Read tool**
+
 - Changed skill invocation instructions from Read tool to Skill tool
 - Updated description: "using Read tool" → "using Skill tool"
 - Updated step 3: "Use the Read tool" → "Use the Skill tool to read and run"
@@ -912,6 +924,7 @@ Description changed to imperative: "You MUST use this before any creative work�
 The Skill tool is the proper mechanism for invoking skills in Claude Code. This update corrects the bootstrap instructions to guide agents toward the correct tool.
 
 ### Files Changed
+
 - Updated: `skills/using-PowersNexus/SKILL.md` - Changed tool references from Read to Skill
 
 ## v3.2.2 (2025-10-21)
@@ -919,6 +932,7 @@ The Skill tool is the proper mechanism for invoking skills in Claude Code. This 
 ### Improvements
 
 **Strengthened using-PowersNexus skill against agent rationalization**
+
 - Added EXTREMELY-IMPORTANT block with absolute language about mandatory skill checking
   - "If even 1% chance a skill applies, you MUST read it"
   - "You do not have a choice. You cannot rationalize your way out."
@@ -934,6 +948,7 @@ The Skill tool is the proper mechanism for invoking skills in Claude Code. This 
 These changes address observed agent behavior where they rationalize around skill usage despite clear instructions. The forceful language and pre-emptive counter-arguments aim to make non-compliance harder.
 
 ### Files Changed
+
 - Updated: `skills/using-PowersNexus/SKILL.md` - Added three layers of enforcement to prevent skill-skipping rationalization
 
 ## v3.2.1 (2025-10-20)
@@ -941,6 +956,7 @@ These changes address observed agent behavior where they rationalize around skil
 ### New Features
 
 **Code reviewer agent now included in plugin**
+
 - Added `PowersNexus:code-reviewer` agent to plugin's `agents/` directory
 - Agent provides systematic code review against plans and coding standards
 - Previously required users to have personal agent configuration
@@ -948,6 +964,7 @@ These changes address observed agent behavior where they rationalize around skil
 - Fixes #55
 
 ### Files Changed
+
 - New: `agents/code-reviewer.md` - Agent definition with review checklist and output format
 - Updated: `skills/requesting-code-review/SKILL.md` - References to `PowersNexus:code-reviewer`
 - Updated: `skills/subagent-driven-development/SKILL.md` - References to `PowersNexus:code-reviewer`
@@ -957,6 +974,7 @@ These changes address observed agent behavior where they rationalize around skil
 ### New Features
 
 **Design documentation in brainstorming workflow**
+
 - Added Phase 4: Design Documentation to brainstorming skill
 - Design documents now written to `docs/plans/YYYY-MM-DD-<topic>-design.md` before implementation
 - Restores functionality from original brainstorming command that was lost during skill conversion
@@ -966,6 +984,7 @@ These changes address observed agent behavior where they rationalize around skil
 ### Breaking Changes
 
 **Skill reference namespace standardization**
+
 - All internal skill references now use `PowersNexus:` namespace prefix
 - Updated format: `PowersNexus:test-driven-development` (previously just `test-driven-development`)
 - Affects all REQUIRED SUB-SKILL, RECOMMENDED SUB-SKILL, and REQUIRED BACKGROUND references
@@ -975,6 +994,7 @@ These changes address observed agent behavior where they rationalize around skil
 ### Improvements
 
 **Design vs implementation plan naming**
+
 - Design documents use `-design.md` suffix to prevent filename collisions
 - Implementation plans continue using existing `YYYY-MM-DD-<feature-name>.md` format
 - Both stored in `docs/plans/` directory with clear naming distinction
@@ -990,6 +1010,7 @@ These changes address observed agent behavior where they rationalize around skil
 ### Breaking Changes
 
 **Skill names standardized to lowercase**
+
 - All skill frontmatter `name:` fields now use lowercase kebab-case matching directory names
 - Examples: `brainstorming`, `test-driven-development`, `using-git-worktrees`
 - All skill announcements and cross-references updated to lowercase format
@@ -998,6 +1019,7 @@ These changes address observed agent behavior where they rationalize around skil
 ### New Features
 
 **Enhanced brainstorming skill**
+
 - Added Quick Reference table showing phases, activities, and tool usage
 - Added copyable workflow checklist for tracking progress
 - Added decision flowchart for when to revisit earlier phases
@@ -1006,6 +1028,7 @@ These changes address observed agent behavior where they rationalize around skil
 - Restructured Key Principles as scannable table
 
 **Anthropic best practices integration**
+
 - Added `skills/writing-skills/anthropic-best-practices.md` - Official Anthropic skill authoring guide
 - Referenced in writing-skills SKILL.md for comprehensive guidance
 - Provides patterns for progressive disclosure, workflows, and evaluation
@@ -1013,6 +1036,7 @@ These changes address observed agent behavior where they rationalize around skil
 ### Improvements
 
 **Skill cross-reference clarity**
+
 - All skill references now use explicit requirement markers:
   - `**REQUIRED BACKGROUND:**` - Prerequisites you must understand
   - `**REQUIRED SUB-SKILL:**` - Skills that must be used in workflow
@@ -1022,6 +1046,7 @@ These changes address observed agent behavior where they rationalize around skil
 - Updated cross-reference documentation with best practices
 
 **Alignment with Anthropic best practices**
+
 - Fixed description grammar and voice (fully third-person)
 - Added Quick Reference tables for scanning
 - Added workflow checklists Claude can copy and track
@@ -1040,6 +1065,7 @@ These changes address observed agent behavior where they rationalize around skil
 ### Documentation
 
 **writing-skills improvements**
+
 - Updated cross-referencing guidance with explicit requirement markers
 - Added reference to Anthropic's official best practices
 - Improved examples showing proper skill reference format
@@ -1095,6 +1121,7 @@ Users experience seamless operation: the plugin handles cloning, forking, and up
 **Migration:**
 
 If you have an existing installation:
+
 1. Your old `~/.config/PowersNexus/.git` will be backed up to `~/.config/PowersNexus/.git.bak`
 2. Old skills will be backed up to `~/.config/PowersNexus/skills.bak`
 3. Fresh clone of obra/PowersNexus-skills will be created at `~/.config/PowersNexus/skills/`
@@ -1109,12 +1136,14 @@ If you have an existing installation:
 ### Skills Repository Infrastructure
 
 **Automatic Clone & Setup** (`lib/initialize-skills.sh`)
+
 - Clones obra/PowersNexus-skills on first run
 - Offers fork creation if GitHub CLI is installed
 - Sets up upstream/origin remotes correctly
 - Handles migration from old installation
 
 **Auto-Update**
+
 - Fetches from tracking remote on every session start
 - Auto-merges with fast-forward when possible
 - Notifies when manual sync needed (branch diverged)
@@ -1123,6 +1152,7 @@ If you have an existing installation:
 ### New Skills
 
 **Problem-Solving Skills** (`skills/problem-solving/`)
+
 - **collision-zone-thinking** - Force unrelated concepts together for emergent insights
 - **inversion-exercise** - Flip assumptions to reveal hidden constraints
 - **meta-pattern-recognition** - Spot universal principles across domains
@@ -1131,14 +1161,17 @@ If you have an existing installation:
 - **when-stuck** - Dispatch to right problem-solving technique
 
 **Research Skills** (`skills/research/`)
+
 - **tracing-knowledge-lineages** - Understand how ideas evolved over time
 
 **Architecture Skills** (`skills/architecture/`)
+
 - **preserving-productive-tensions** - Keep multiple valid approaches instead of forcing premature resolution
 
 ### Skills Improvements
 
 **using-skills (formerly getting-started)**
+
 - Renamed from getting-started to using-skills
 - Complete rewrite with imperative tone (v4.0.0)
 - Front-loaded critical rules
@@ -1147,32 +1180,38 @@ If you have an existing installation:
 - Clearer distinction between rigid rules and flexible patterns
 
 **writing-skills**
+
 - Cross-referencing guidance moved from using-skills
 - Added token efficiency section (word count targets)
 - Improved CSO (Claude Search Optimization) guidance
 
 **sharing-skills**
+
 - Updated for new branch-and-PR workflow (v2.0.0)
 - Removed personal/core split references
 
 **pulling-updates-from-skills-repository** (new)
+
 - Complete workflow for syncing with upstream
 - Replaces old "updating-skills" skill
 
 ### Tools Improvements
 
 **find-skills**
+
 - Now outputs full paths with /SKILL.md suffix
 - Makes paths directly usable with Read tool
 - Updated help text
 
 **skill-run**
+
 - Moved from scripts/ to skills/using-skills/
 - Improved documentation
 
 ### Plugin Infrastructure
 
 **Session Start Hook**
+
 - Now loads from skills repository location
 - Shows full skills list at session start
 - Prints skills location info
@@ -1180,6 +1219,7 @@ If you have an existing installation:
 - Moved "skills behind" warning to end of output
 
 **Environment Variables**
+
 - `PowersNexus_SKILLS_ROOT` set to `~/.config/PowersNexus/skills`
 - Used consistently throughout all paths
 
@@ -1193,6 +1233,7 @@ If you have an existing installation:
 ## Documentation
 
 ### README
+
 - Updated for new skills repository architecture
 - Prominent link to PowersNexus-skills repo
 - Updated auto-update description
@@ -1200,6 +1241,7 @@ If you have an existing installation:
 - Updated Meta skills list
 
 ### Testing Documentation
+
 - Added comprehensive testing checklist (`docs/TESTING-CHECKLIST.md`)
 - Created local marketplace config for testing
 - Documented manual testing scenarios
@@ -1209,16 +1251,19 @@ If you have an existing installation:
 ### File Changes
 
 **Added:**
+
 - `lib/initialize-skills.sh` - Skills repo initialization and auto-update
 - `docs/TESTING-CHECKLIST.md` - Manual testing scenarios
 - `.claude-plugin/marketplace.json` - Local testing config
 
 **Removed:**
+
 - `skills/` directory (82 files) - Now in obra/PowersNexus-skills
 - `scripts/` directory - Now in obra/PowersNexus-skills/skills/using-skills/
 - `hooks/setup-personal-PowersNexus.sh` - Obsolete
 
 **Modified:**
+
 - `hooks/session-start.sh` - Use skills from ~/.config/PowersNexus/skills
 - `commands/brainstorm.md` - Updated paths to PowersNexus_SKILLS_ROOT
 - `commands/write-plan.md` - Updated paths to PowersNexus_SKILLS_ROOT
@@ -1228,6 +1273,7 @@ If you have an existing installation:
 ### Commit History
 
 This release includes:
+
 - 20+ commits for skills repository separation
 - PR #1: Amplifier-inspired problem-solving and research skills
 - PR #2: Personal PowersNexus overlay system (later replaced)
@@ -1248,11 +1294,13 @@ The plugin handles everything automatically.
 ### Upgrading from v1.x
 
 1. **Backup your personal skills** (if you have any):
+
    ```bash
    cp -r ~/.config/PowersNexus/skills ~/PowersNexus-skills-backup
    ```
 
 2. **Update the plugin:**
+
    ```bash
    /plugin update PowersNexus
    ```

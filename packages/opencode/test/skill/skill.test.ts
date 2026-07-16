@@ -98,13 +98,13 @@ describe("skill", () => {
     ),
   )
 
-  it.live("discovers skills from .opencode/skill/ directory", () =>
+  it.live("discovers skills from .novaway/skill/ directory", () =>
     provideTmpdirInstance(
       (dir) =>
         Effect.gen(function* () {
           yield* Effect.promise(() =>
             Bun.write(
-              path.join(dir, ".opencode", "skill", "test-skill", "SKILL.md"),
+              path.join(dir, ".novaway", "skill", "test-skill", "SKILL.md"),
               `---
 name: test-skill
 description: A test skill for verification.
@@ -118,7 +118,7 @@ Instructions here.
           )
 
           const skill = yield* Skill.Service
-          const list = (yield* skill.all()).filter((s) => s.location !== "<built-in>")
+          const list = (yield* skill.all()).filter((s) => !s.builtIn)
           expect(list.length).toBe(1)
           const item = list.find((x) => x.name === "test-skill")
           expect(item).toBeDefined()
@@ -137,7 +137,7 @@ Instructions here.
           Effect.gen(function* () {
             yield* Effect.promise(() =>
               Bun.write(
-                path.join(dir, ".opencode", "skill", "dir-skill", "SKILL.md"),
+                path.join(dir, ".novaway", "skill", "dir-skill", "SKILL.md"),
                 `---
 name: dir-skill
 description: Skill for dirs test.
@@ -150,7 +150,7 @@ description: Skill for dirs test.
 
             const skill = yield* Skill.Service
             const dirs = yield* skill.dirs()
-            expect(dirs).toContain(path.join(dir, ".opencode", "skill", "dir-skill"))
+            expect(dirs).toContain(path.join(dir, ".novaway", "skill", "dir-skill"))
             expect(dirs.length).toBe(1)
           }),
         ),
@@ -158,14 +158,14 @@ description: Skill for dirs test.
     ),
   )
 
-  it.live("discovers multiple skills from .opencode/skill/ directory", () =>
+  it.live("discovers multiple skills from .novaway/skill/ directory", () =>
     provideTmpdirInstance(
       (dir) =>
         Effect.gen(function* () {
           yield* Effect.promise(() =>
             Promise.all([
               Bun.write(
-                path.join(dir, ".opencode", "skill", "skill-one", "SKILL.md"),
+                path.join(dir, ".novaway", "skill", "skill-one", "SKILL.md"),
                 `---
 name: skill-one
 description: First test skill.
@@ -175,7 +175,7 @@ description: First test skill.
 `,
               ),
               Bun.write(
-                path.join(dir, ".opencode", "skill", "skill-two", "SKILL.md"),
+                path.join(dir, ".novaway", "skill", "skill-two", "SKILL.md"),
                 `---
 name: skill-two
 description: Second test skill.
@@ -188,7 +188,7 @@ description: Second test skill.
           )
 
           const skill = yield* Skill.Service
-          const list = (yield* skill.all()).filter((s) => s.location !== "<built-in>")
+          const list = (yield* skill.all()).filter((s) => !s.builtIn)
           expect(list.length).toBe(2)
           expect(list.find((x) => x.name === "skill-one")).toBeDefined()
           expect(list.find((x) => x.name === "skill-two")).toBeDefined()
@@ -203,7 +203,7 @@ description: Second test skill.
         Effect.gen(function* () {
           yield* Effect.promise(() =>
             Bun.write(
-              path.join(dir, ".opencode", "skill", "no-frontmatter", "SKILL.md"),
+              path.join(dir, ".novaway", "skill", "no-frontmatter", "SKILL.md"),
               `# No Frontmatter
 
 Just some content without YAML frontmatter.
@@ -212,7 +212,7 @@ Just some content without YAML frontmatter.
           )
 
           const skill = yield* Skill.Service
-          expect((yield* skill.all()).filter((s) => s.location !== "<built-in>")).toEqual([])
+          expect((yield* skill.all()).filter((s) => !s.builtIn)).toEqual([])
         }),
       { git: true },
     ),
@@ -224,7 +224,7 @@ Just some content without YAML frontmatter.
         Effect.gen(function* () {
           yield* Effect.promise(() =>
             Bun.write(
-              path.join(dir, ".opencode", "skill", "manual-skill", "SKILL.md"),
+              path.join(dir, ".novaway", "skill", "manual-skill", "SKILL.md"),
               `---
 name: manual-skill
 ---
@@ -237,7 +237,7 @@ Instructions here.
           )
 
           const skill = yield* Skill.Service
-          const list = (yield* skill.all()).filter((s) => s.location !== "<built-in>")
+          const list = (yield* skill.all()).filter((s) => !s.builtIn)
           expect(list.length).toBe(1)
           const item = list.find((x) => x.name === "manual-skill")
           expect(item).toBeDefined()
@@ -267,7 +267,7 @@ description: A skill in the .claude/skills directory.
           )
 
           const skill = yield* Skill.Service
-          const list = (yield* skill.all()).filter((s) => s.location !== "<built-in>")
+          const list = (yield* skill.all()).filter((s) => !s.builtIn)
           expect(list.length).toBe(1)
           const item = list.find((x) => x.name === "claude-skill")
           expect(item).toBeDefined()
@@ -290,7 +290,7 @@ description: A skill in the .claude/skills directory.
           yield* Effect.promise(() => createGlobalSkill(tmp.path))
           yield* Effect.gen(function* () {
             const skill = yield* Skill.Service
-            const list = (yield* skill.all()).filter((s) => s.location !== "<built-in>")
+            const list = (yield* skill.all()).filter((s) => !s.builtIn)
             expect(list.length).toBe(1)
             expect(list[0].name).toBe("global-test-skill")
             expect(list[0].description).toBe("A global skill from ~/.claude/skills for testing.")
@@ -306,7 +306,7 @@ description: A skill in the .claude/skills directory.
       () =>
         Effect.gen(function* () {
           const skill = yield* Skill.Service
-          expect((yield* skill.all()).filter((s) => s.location !== "<built-in>")).toEqual([])
+          expect((yield* skill.all()).filter((s) => !s.builtIn)).toEqual([])
         }),
       { git: true },
     ),
@@ -330,7 +330,7 @@ description: A skill in the .agents/skills directory.
           )
 
           const skill = yield* Skill.Service
-          const list = (yield* skill.all()).filter((s) => s.location !== "<built-in>")
+          const list = (yield* skill.all()).filter((s) => !s.builtIn)
           expect(list.length).toBe(1)
           const item = list.find((x) => x.name === "agent-skill")
           expect(item).toBeDefined()
@@ -369,7 +369,7 @@ This skill is loaded from the global home directory.
 
           yield* Effect.gen(function* () {
             const skill = yield* Skill.Service
-            const list = (yield* skill.all()).filter((s) => s.location !== "<built-in>")
+            const list = (yield* skill.all()).filter((s) => !s.builtIn)
             expect(list.length).toBe(1)
             expect(list[0].name).toBe("global-agent-skill")
             expect(list[0].description).toBe("A global skill from ~/.agents/skills for testing.")
@@ -410,7 +410,7 @@ description: A skill in the .agents/skills directory.
           )
 
           const skill = yield* Skill.Service
-          const list = (yield* skill.all()).filter((s) => s.location !== "<built-in>")
+          const list = (yield* skill.all()).filter((s) => !s.builtIn)
           expect(list.length).toBe(2)
           expect(list.find((x) => x.name === "claude-skill")).toBeDefined()
           expect(list.find((x) => x.name === "agent-skill")).toBeDefined()
@@ -449,7 +449,7 @@ description: A skill in the .agents/skills directory.
           )
 
           const skill = yield* Skill.Service
-          const list = (yield* skill.all()).filter((s) => s.location !== "<built-in>")
+          const list = (yield* skill.all()).filter((s) => !s.builtIn)
           expect(list.map((s) => s.name)).toEqual(["agent-skill"])
         }),
       { git: true },
@@ -483,10 +483,10 @@ description: A skill in the .agents/skills directory.
 `,
               ),
               Bun.write(
-                path.join(dir, ".opencode", "skill", "opencode-skill", "SKILL.md"),
+                path.join(dir, ".novaway", "skill", "opencode-skill", "SKILL.md"),
                 `---
 name: opencode-skill
-description: A skill in the .opencode/skill directory.
+description: A skill in the .novaway/skill directory.
 ---
 
 # OpenCode Skill
@@ -496,7 +496,7 @@ description: A skill in the .opencode/skill directory.
           )
 
           const skill = yield* Skill.Service
-          const list = (yield* skill.all()).filter((s) => s.location !== "<built-in>")
+          const list = (yield* skill.all()).filter((s) => !s.builtIn)
           expect(list.map((s) => s.name)).toEqual(["opencode-skill"])
         }),
       { git: true },
@@ -530,20 +530,20 @@ description: A skill in the .agents/skills directory.
 `,
               ),
               Bun.write(
-                path.join(dir, ".opencode", "skill", "agent-skill", "SKILL.md"),
+                path.join(dir, ".novaway", "skill", "agent-skill", "SKILL.md"),
                 `---
 name: opencode-skill
-description: A skill in the .opencode/skill directory.
+description: A skill in the .novaway/skill directory.
 ---
 
 # OpenCode Skill
 `,
               ),
               Bun.write(
-                path.join(dir, ".opencode", "skills", "agent-skill", "SKILL.md"),
+                path.join(dir, ".novaway", "skills", "agent-skill", "SKILL.md"),
                 `---
 name: opencode-skill
-description: A skill in the .opencode/skills directory.
+description: A skill in the .novaway/skills directory.
 ---
 
 # OpenCode Skill

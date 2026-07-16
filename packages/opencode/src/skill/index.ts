@@ -1,5 +1,5 @@
 import path from "path"
-import { pathToFileURL } from "url"
+import { pathToFileURL, fileURLToPath } from "url"
 import matter from "gray-matter"
 import { Effect, Layer, Context, Schema } from "effect"
 import { NamedError } from "@opencode-ai/core/util/error"
@@ -64,7 +64,10 @@ const BUILT_IN_SKILL_DIRS: Record<string, string> = {
 }
 
 /** Compute the filesystem source path to a built-in skill's directory. */
-const SKILL_PROMPT_DIR = path.join(import.meta.dirname, "prompt")
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const SKILL_PROMPT_DIR = path.join(__dirname, "prompt")
+
 function builtInSkillSourcePath(skillName: string): string | undefined {
   const rel = BUILT_IN_SKILL_DIRS[skillName]
   if (!rel) return undefined
@@ -92,32 +95,38 @@ const BUILT_IN_SKILLS = [
   },
   {
     name: "office-document",
-    description: "Use when NovaWay office mode needs AI document writing, rewriting, review, reports, plans, PRD drafts, weekly/monthly reports, or structured Markdown deliverables.",
+    description:
+      "Use when NovaWay office mode needs AI document writing, rewriting, review, reports, plans, PRD drafts, weekly/monthly reports, or structured Markdown deliverables.",
     content: OFFICE_DOCUMENT_SKILL_BODY,
   },
   {
     name: "office-ppt",
-    description: "Use when NovaWay office mode needs AI PPT outlines, page-by-page content, presentation storylines, speaker notes, visual suggestions, proposals, or project reports.",
+    description:
+      "Use when NovaWay office mode needs AI PPT outlines, page-by-page content, presentation storylines, speaker notes, visual suggestions, proposals, or project reports.",
     content: OFFICE_PPT_SKILL_BODY,
   },
   {
     name: "office-meeting",
-    description: "Use when NovaWay office mode needs meeting minutes, decisions, action items, owners, deadlines, risks, or follow-up emails.",
+    description:
+      "Use when NovaWay office mode needs meeting minutes, decisions, action items, owners, deadlines, risks, or follow-up emails.",
     content: OFFICE_MEETING_SKILL_BODY,
   },
   {
     name: "office-knowledge",
-    description: "Use when NovaWay office mode needs knowledge-base summaries, document comparison, source indexing, FAQ generation, or reusable project knowledge.",
+    description:
+      "Use when NovaWay office mode needs knowledge-base summaries, document comparison, source indexing, FAQ generation, or reusable project knowledge.",
     content: OFFICE_KNOWLEDGE_SKILL_BODY,
   },
   {
     name: "office-task",
-    description: "Use when NovaWay office mode needs task breakdown, priorities, execution plans, weekly plans, risk boards, dependencies, or follow-up cadence.",
+    description:
+      "Use when NovaWay office mode needs task breakdown, priorities, execution plans, weekly plans, risk boards, dependencies, or follow-up cadence.",
     content: OFFICE_TASK_SKILL_BODY,
   },
   {
     name: "office-communication",
-    description: "Use when NovaWay office mode needs emails, replies, internal notices, collaboration messages, bilingual business communication, or tone rewriting.",
+    description:
+      "Use when NovaWay office mode needs emails, replies, internal notices, collaboration messages, bilingual business communication, or tone rewriting.",
     content: OFFICE_COMMUNICATION_SKILL_BODY,
   },
   builtInSkillFromMarkdown(FIND_SKILLS_BODY),
@@ -131,6 +140,7 @@ export const Info = Schema.Struct({
   description: Schema.optional(Schema.String),
   location: Schema.String,
   content: Schema.String,
+  builtIn: Schema.optional(Schema.Boolean),
 })
 export type Info = Schema.Schema.Type<typeof Info>
 
@@ -356,7 +366,7 @@ export const layer = Layer.effect(
         // skill with the same name can override it.
         for (const skill of BUILT_IN_SKILLS) {
           const location = yield* resolveSkillLocation(skill.name, fsys, global)
-          s.skills[skill.name] = { ...skill, location }
+          s.skills[skill.name] = { ...skill, location, builtIn: true }
         }
         yield* loadSkills(s, yield* InstanceState.get(discovered), bus)
         return s

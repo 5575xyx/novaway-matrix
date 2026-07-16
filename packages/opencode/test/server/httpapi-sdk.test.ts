@@ -471,7 +471,12 @@ describe("HttpApi SDK", () => {
                 slide: 1,
                 texts: ["SDK Office Title", "SDK Office Body"],
                 images: [{ mime: "image/png", dataBase64: Buffer.from("SDK_IMAGE").toString("base64") }],
-                tables: [[["Metric", "Value"], ["Revenue", "120"]]],
+                tables: [
+                  [
+                    ["Metric", "Value"],
+                    ["Revenue", "120"],
+                  ],
+                ],
                 charts: [{ categories: ["Jan", "Feb"], series: [{ name: "Revenue", values: [120, 160] }] }],
               },
             ],

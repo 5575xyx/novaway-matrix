@@ -3,15 +3,15 @@ import { useQuery } from "@tanstack/solid-query"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { Button } from "@opencode-ai/ui/button"
 import { Icon } from "@opencode-ai/ui/icon"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { useLanguage } from "@/context/language"
+import { useCommand } from "@/context/command"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { finiteNumber, pendingBadgeLabel } from "@/components/review-ui-helpers"
 
 export function MemoryIndicator() {
   const language = useLanguage()
   const globalSDK = useGlobalSDK()
-  const dialog = useDialog()
+  const command = useCommand()
 
   const status = useQuery(() => ({
     queryKey: ["settings", "memory", "review-status"],
@@ -24,9 +24,7 @@ export function MemoryIndicator() {
   const badge = createMemo(() => pendingBadgeLabel(pending()))
 
   const openSettings = () => {
-    void import("@/components/dialog-settings").then((x) => {
-      dialog.showDrawer(() => <x.DialogSettings initialTab="memory" />)
-    })
+    command.trigger("settings.memory.open")
   }
 
   return (

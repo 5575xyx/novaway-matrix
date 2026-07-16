@@ -464,7 +464,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
         const hasAttachments = hasImages || hasFiles
 
         // 语义分析：识别任务类型
-        const isCodeTask = 
+        const isCodeTask =
           textLower.includes("代码") ||
           textLower.includes("函数") ||
           textLower.includes("实现") ||
@@ -505,9 +505,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
 
         // 如果有附件，必须选择支持附件的模型
         if (hasAttachments) {
-          candidates = candidates.filter((m) => 
-            m.capabilities?.input?.image || m.capabilities?.attachment
-          )
+          candidates = candidates.filter((m) => m.capabilities?.input?.image || m.capabilities?.attachment)
         }
 
         // 如果没有找到支持附件的模型，回退到所有模型
@@ -545,6 +543,9 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       text,
       promptMode: mode,
     })
+    if (agent !== currentAgent.name) {
+      local.agent.set(agent)
+    }
     if (!agent) {
       showToast({
         title: language.t("prompt.toast.modelAgentRequired.title"),

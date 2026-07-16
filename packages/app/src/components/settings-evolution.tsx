@@ -54,12 +54,12 @@ function errorMessage(err: unknown) {
 const SettingsPage: Component<{ title: string; description: string; children: JSX.Element }> = (props) => (
   <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
     <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--surface-stronger-non-alpha)_calc(100%_-_24px),transparent)]">
-      <div class="flex flex-col gap-1 pt-6 pb-8 max-w-[720px]">
+      <div class="flex flex-col gap-1 pt-6 pb-8 w-full">
         <h2 class="text-16-medium text-text-strong">{props.title}</h2>
         <p class="text-13-regular text-text-weak">{props.description}</p>
       </div>
     </div>
-    <div class="flex flex-col gap-8 max-w-[720px]">{props.children}</div>
+    <div class="flex flex-col gap-8 w-full">{props.children}</div>
   </div>
 )
 
@@ -180,7 +180,9 @@ const ContentFormatControl: Component<{
   const language = useLanguage()
   return (
     <div class="flex flex-col gap-1">
-      <span class="text-12-medium text-text-strong">{language.t("settings.evolution.field.contentFormat" as never)}</span>
+      <span class="text-12-medium text-text-strong">
+        {language.t("settings.evolution.field.contentFormat" as never)}
+      </span>
       <div class="flex flex-wrap gap-1">
         <For each={["content", "unified_diff"] as CandidateContentFormat[]}>
           {(value) => (
@@ -262,7 +264,8 @@ const CandidateRow: Component<{
   }))
 
   const loadDryRun = useMutation(() => ({
-    mutationFn: () => globalSDK.client.evolution.dryRunCandidate({ candidateID: props.candidate.id }).then((x) => x.data),
+    mutationFn: () =>
+      globalSDK.client.evolution.dryRunCandidate({ candidateID: props.candidate.id }).then((x) => x.data),
     onSuccess: (data) => {
       if (data) setDryRun(data)
       showToast({
@@ -287,7 +290,9 @@ const CandidateRow: Component<{
                 <div class="flex flex-wrap items-center gap-2">
                   <span class="text-14-medium text-text-strong break-words">{props.candidate.title}</span>
                   <Tag>{language.t(statusLabels[status()] as never)}</Tag>
-                  <Tag>{language.t(sourceLabels[evolutionCandidateSource(candidateTags(props.candidate))] as never)}</Tag>
+                  <Tag>
+                    {language.t(sourceLabels[evolutionCandidateSource(candidateTags(props.candidate))] as never)}
+                  </Tag>
                   <Tag>{props.candidate.kind}</Tag>
                   <Tag>{props.candidate.target}</Tag>
                   <Tag>{props.candidate.contentFormat}</Tag>
@@ -310,10 +315,16 @@ const CandidateRow: Component<{
                         {(file) => (
                           <div class="flex flex-col gap-1">
                             <div class="flex flex-wrap items-center gap-2">
-                              <Tag>{file.exists ? language.t("settings.evolution.preview.exists" as never) : language.t("settings.evolution.preview.new" as never)}</Tag>
+                              <Tag>
+                                {file.exists
+                                  ? language.t("settings.evolution.preview.exists" as never)
+                                  : language.t("settings.evolution.preview.new" as never)}
+                              </Tag>
                               <span class="text-12-medium text-text-strong break-all">{file.path}</span>
                             </div>
-                            <pre class="max-h-56 overflow-auto whitespace-pre-wrap text-12-regular text-text-base">{file.diff}</pre>
+                            <pre class="max-h-56 overflow-auto whitespace-pre-wrap text-12-regular text-text-base">
+                              {file.diff}
+                            </pre>
                           </div>
                         )}
                       </For>
@@ -449,7 +460,8 @@ export const SettingsEvolution: Component = () => {
     })
 
   const applyFile = useMutation(() => ({
-    mutationFn: (candidateID: string) => globalSDK.client.evolution.applyFileCandidate({ candidateID }).then((x) => x.data),
+    mutationFn: (candidateID: string) =>
+      globalSDK.client.evolution.applyFileCandidate({ candidateID }).then((x) => x.data),
     onSuccess: async (data) => {
       await refetchEvolution()
       showToast({
@@ -499,23 +511,33 @@ export const SettingsEvolution: Component = () => {
   const counts = createMemo(() => evolutionCounts(status.data))
   const sourceCounts = createMemo(() => evolutionSourceCounts(status.data, tab()))
   const sourceFilteredCandidates = createMemo(() => filterEvolutionCandidates(candidates.data ?? [], source()))
-  const modeCounts = createMemo(() =>
-    Object.fromEntries(modeGroups.map((group) => [group.value, filterEvolutionCandidates(sourceFilteredCandidates(), "all", group.value).length])) as Record<
-      ModeGroup,
-      number
-    >,
+  const modeCounts = createMemo(
+    () =>
+      Object.fromEntries(
+        modeGroups.map((group) => [
+          group.value,
+          filterEvolutionCandidates(sourceFilteredCandidates(), "all", group.value).length,
+        ]),
+      ) as Record<ModeGroup, number>,
   )
   const filteredCandidates = createMemo(() => filterEvolutionCandidates(candidates.data ?? [], source(), modeGroup()))
 
   return (
-    <SettingsPage title={language.t("settings.evolution.title" as never)} description={language.t("settings.evolution.description" as never)}>
+    <SettingsPage
+      title={language.t("settings.evolution.title" as never)}
+      description={language.t("settings.evolution.description" as never)}
+    >
       <div>
         <SectionTitle title={language.t("settings.evolution.section.config" as never)} />
         <SettingsList>
           <div class="flex items-center justify-between gap-4 py-3 border-b border-border-weak-base">
             <div class="flex flex-col gap-1">
-              <span class="text-14-medium text-text-strong">{language.t("settings.evolution.config.enabled.title" as never)}</span>
-              <span class="text-12-regular text-text-weak">{language.t("settings.evolution.config.enabled.description" as never)}</span>
+              <span class="text-14-medium text-text-strong">
+                {language.t("settings.evolution.config.enabled.title" as never)}
+              </span>
+              <span class="text-12-regular text-text-weak">
+                {language.t("settings.evolution.config.enabled.description" as never)}
+              </span>
             </div>
             <Switch
               checked={evolutionConfig().enabled === true}
@@ -528,8 +550,12 @@ export const SettingsEvolution: Component = () => {
           </div>
           <div class="flex items-center justify-between gap-4 py-3 border-b border-border-weak-base">
             <div class="flex flex-col gap-1">
-              <span class="text-14-medium text-text-strong">{language.t("settings.evolution.config.llm.title" as never)}</span>
-              <span class="text-12-regular text-text-weak">{language.t("settings.evolution.config.llm.description" as never)}</span>
+              <span class="text-14-medium text-text-strong">
+                {language.t("settings.evolution.config.llm.title" as never)}
+              </span>
+              <span class="text-12-regular text-text-weak">
+                {language.t("settings.evolution.config.llm.description" as never)}
+              </span>
             </div>
             <Switch
               checked={evolutionConfig().review_llm === true}
@@ -542,8 +568,12 @@ export const SettingsEvolution: Component = () => {
           </div>
           <div class="flex items-center justify-between gap-4 py-3">
             <div class="flex flex-col gap-1">
-              <span class="text-14-medium text-text-strong">{language.t("settings.evolution.config.interval.title" as never)}</span>
-              <span class="text-12-regular text-text-weak">{language.t("settings.evolution.config.interval.description" as never)}</span>
+              <span class="text-14-medium text-text-strong">
+                {language.t("settings.evolution.config.interval.title" as never)}
+              </span>
+              <span class="text-12-regular text-text-weak">
+                {language.t("settings.evolution.config.interval.description" as never)}
+              </span>
             </div>
             <div class="w-24 shrink-0">
               <TextField
@@ -554,7 +584,9 @@ export const SettingsEvolution: Component = () => {
                 disabled={updateConfig.isPending}
                 label={language.t("settings.evolution.config.interval.title" as never)}
                 hideLabel
-                onBlur={(event: FocusEvent & { currentTarget: HTMLInputElement }) => updateReviewInterval(event.currentTarget.value)}
+                onBlur={(event: FocusEvent & { currentTarget: HTMLInputElement }) =>
+                  updateReviewInterval(event.currentTarget.value)
+                }
                 onKeyDown={(event: KeyboardEvent & { currentTarget: HTMLInputElement }) => {
                   if (event.key === "Enter") event.currentTarget.blur()
                 }}
@@ -571,7 +603,12 @@ export const SettingsEvolution: Component = () => {
         />
         <div class="flex flex-wrap items-center justify-between gap-2 pb-3">
           <SegmentTabs value={tab()} onChange={setTab} counts={counts()} />
-          <Button variant="secondary" icon="reset" disabled={candidates.isFetching || status.isFetching} onClick={() => void refetchEvolution()}>
+          <Button
+            variant="secondary"
+            icon="reset"
+            disabled={candidates.isFetching || status.isFetching}
+            onClick={() => void refetchEvolution()}
+          >
             {language.t("settings.management.action.retry")}
           </Button>
         </div>

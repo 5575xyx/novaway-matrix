@@ -8,16 +8,15 @@
 
 > 📰 作者也在运营一个 AI 资讯网站 [![LLM大模型邮报 - 中文 AI 资讯快报：大模型动态、工程实践与行业观察](https://img.shields.io/badge/官网-llmposts.com-2563eb?style=flat-square&logo=googlenews&logoColor=white)](https://llmposts.com?utm_source=github&utm_medium=readme&utm_campaign=xiaohongshu-skills&utm_content=readme_intro "LLM大模型邮报 - 中文 AI 资讯快报：大模型动态、工程实践与行业观察") — 欢迎关注。
 
-
 ## 功能概览
 
-| 技能 | 说明 | 核心能力 |
-|------|------|----------|
-| **xhs-auth** | 认证管理 | 登录检查、扫码登录、手机验证码登录 |
-| **xhs-publish** | 内容发布 | 图文 / 视频 / 长文发布、定时发布、分步预览 |
-| **xhs-explore** | 内容发现 | 关键词搜索、笔记详情、用户主页、首页推荐 |
-| **xhs-interact** | 社交互动 | 评论、回复、点赞、收藏 |
-| **xhs-content-ops** | 复合运营 | 竞品分析、热点追踪、批量互动、内容创作 |
+| 技能                | 说明     | 核心能力                                   |
+| ------------------- | -------- | ------------------------------------------ |
+| **xhs-auth**        | 认证管理 | 登录检查、扫码登录、手机验证码登录         |
+| **xhs-publish**     | 内容发布 | 图文 / 视频 / 长文发布、定时发布、分步预览 |
+| **xhs-explore**     | 内容发现 | 关键词搜索、笔记详情、用户主页、首页推荐   |
+| **xhs-interact**    | 社交互动 | 评论、回复、点赞、收藏                     |
+| **xhs-content-ops** | 复合运营 | 竞品分析、热点追踪、批量互动、内容创作     |
 
 支持**连贯操作** — 你可以用自然语言下达复合指令，Agent 会自动串联多个技能完成任务。例如：
 
@@ -79,18 +78,23 @@ uv sync
 安装到 skills 目录后，直接用自然语言与 Agent 对话即可。Agent 会根据你的意图自动路由到对应技能。
 
 **认证登录：**
+
 > "登录小红书" / "检查登录状态"
 
 **搜索浏览：**
+
 > "搜索关于露营的笔记" / "查看这条笔记的详情"
 
 **发布内容：**
+
 > "帮我发一条图文笔记，标题是…，配图是…"
 
 **社交互动：**
+
 > "给这条笔记点赞" / "收藏这条帖子" / "评论：写得太好了"
 
 **复合操作：**
+
 > "搜索竞品账号最近的爆款笔记，分析他们的选题方向"
 
 ### 作为 CLI 工具使用
@@ -147,28 +151,28 @@ python scripts/cli.py post-comment --feed-id FEED_ID --xsec-token XSEC_TOKEN --c
 
 ## CLI 命令参考
 
-| 子命令 | 说明 |
-|--------|------|
-| `check-login` | 检查登录状态，返回用户昵称和小红书号 |
-| `login` | 获取登录二维码，等待扫码，登录后返回用户信息 |
-| `delete-cookies` | 清除 cookies（退出登录） |
-| `list-feeds` | 获取首页推荐 Feed |
-| `search-feeds` | 关键词搜索笔记（支持排序/类型/时间/范围/位置筛选） |
-| `get-feed-detail` | 获取笔记完整内容和评论 |
-| `user-profile` | 获取用户主页信息和帖子列表 |
-| `post-comment` | 对笔记发表评论 |
-| `reply-comment` | 回复指定评论 |
-| `like-feed` | 点赞 / 取消点赞 |
-| `favorite-feed` | 收藏 / 取消收藏 |
-| `publish` | 一步发布图文 |
-| `publish-video` | 一步发布视频 |
-| `fill-publish` | 填写图文表单（不发布，供预览） |
-| `fill-publish-video` | 填写视频表单（不发布，供预览） |
-| `click-publish` | 确认发布（点击发布按钮） |
-| `save-draft` | 保存为草稿 |
-| `long-article` | 长文模式：填写 + 一键排版 |
-| `select-template` | 选择长文排版模板 |
-| `next-step` | 长文下一步 + 填写描述 |
+| 子命令               | 说明                                               |
+| -------------------- | -------------------------------------------------- |
+| `check-login`        | 检查登录状态，返回用户昵称和小红书号               |
+| `login`              | 获取登录二维码，等待扫码，登录后返回用户信息       |
+| `delete-cookies`     | 清除 cookies（退出登录）                           |
+| `list-feeds`         | 获取首页推荐 Feed                                  |
+| `search-feeds`       | 关键词搜索笔记（支持排序/类型/时间/范围/位置筛选） |
+| `get-feed-detail`    | 获取笔记完整内容和评论                             |
+| `user-profile`       | 获取用户主页信息和帖子列表                         |
+| `post-comment`       | 对笔记发表评论                                     |
+| `reply-comment`      | 回复指定评论                                       |
+| `like-feed`          | 点赞 / 取消点赞                                    |
+| `favorite-feed`      | 收藏 / 取消收藏                                    |
+| `publish`            | 一步发布图文                                       |
+| `publish-video`      | 一步发布视频                                       |
+| `fill-publish`       | 填写图文表单（不发布，供预览）                     |
+| `fill-publish-video` | 填写视频表单（不发布，供预览）                     |
+| `click-publish`      | 确认发布（点击发布按钮）                           |
+| `save-draft`         | 保存为草稿                                         |
+| `long-article`       | 长文模式：填写 + 一键排版                          |
+| `select-template`    | 选择长文排版模板                                   |
+| `next-step`          | 长文下一步 + 填写描述                              |
 
 退出码：`0` 成功 · `1` 未登录 · `2` 错误
 

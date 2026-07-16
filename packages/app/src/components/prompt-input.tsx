@@ -623,7 +623,13 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const agentList = createMemo(() =>
     sync.data.agent
       .filter((agent) => !agent.hidden && agent.mode !== "primary")
-      .map((agent): AtOption => ({ type: "agent", name: agent.name, display: agentDisplayName(agent.name, agent.options) })),
+      .map(
+        (agent): AtOption => ({
+          type: "agent",
+          name: agent.name,
+          display: agentDisplayName(agent.name, agent.options),
+        }),
+      ),
   )
   const agentNames = createMemo(() => local.agent.list().map((agent) => agent.name))
 
@@ -750,7 +756,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
 
   const slashCommands = createMemo<SlashCommand[]>(() => {
     const builtin = command.options
-      .filter((opt) => !opt.disabled && !opt.id.startsWith("suggested.") && opt.slash && !hiddenSlashCommandIDs.has(opt.id))
+      .filter(
+        (opt) => !opt.disabled && !opt.id.startsWith("suggested.") && opt.slash && !hiddenSlashCommandIDs.has(opt.id),
+      )
       .map((opt) => ({
         id: opt.id,
         trigger: opt.slash!,
@@ -1519,7 +1527,10 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
 
       if (optimizedText) {
         setEditorText(optimizedText)
-        prompt.set([{ type: "text", content: optimizedText, start: 0, end: optimizedText.length }], optimizedText.length)
+        prompt.set(
+          [{ type: "text", content: optimizedText, start: 0, end: optimizedText.length }],
+          optimizedText.length,
+        )
         focusEditorEnd()
         showToast({ title: "优化完成", description: "提示词已优化", variant: "success" })
       } else {
@@ -1581,9 +1592,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         }}
         style={{
           "border-radius": "16px",
-          "background": "var(--surface-raised-stronger-non-alpha)",
+          background: "var(--surface-raised-stronger-non-alpha)",
           "box-shadow": "0 0 0 1px var(--border-weak-base), 0 4px 24px rgba(0, 0, 0, 0.08)",
-          "transition": "all 0.2s ease",
+          transition: "all 0.2s ease",
         }}
       >
         <PromptDragOverlay
@@ -1656,7 +1667,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                         }}
                         class="capitalize max-w-[160px] text-text-strong"
                         valueClass="truncate text-13-medium text-text-strong"
-                        triggerStyle={{...control(), "border-radius": "8px"}}
+                        triggerStyle={{ ...control(), "border-radius": "8px" }}
                         triggerProps={{ "data-action": "prompt-agent" }}
                         variant="ghost"
                       />
@@ -1697,7 +1708,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                           variant="ghost"
                           size="normal"
                           class="min-w-0 max-w-[320px] text-13-medium text-text-strong group"
-                          style={{...control(), "border-radius": "8px"}}
+                          style={{ ...control(), "border-radius": "8px" }}
                           onClick={() => {
                             void import("@/components/dialog-select-model-unpaid").then((x) => {
                               dialog.show(() => <x.DialogSelectModelUnpaid model={local.model} />)
@@ -1719,7 +1730,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                             />
                           </Show>
                           <span class="truncate">
-                            {modelsCtx.autoMode() ? "Auto" : (local.model.current()?.name ?? language.t("dialog.model.select.title"))}
+                            {modelsCtx.autoMode()
+                              ? "Auto"
+                              : (local.model.current()?.name ?? language.t("dialog.model.select.title"))}
                           </span>
                           <Icon name="chevron-down" size="small" class="shrink-0" />
                         </Button>
@@ -1738,7 +1751,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                         triggerProps={{
                           variant: "ghost",
                           size: "normal",
-                          style: {...control(), "border-radius": "8px"},
+                          style: { ...control(), "border-radius": "8px" },
                           class: "min-w-0 max-w-[320px] text-13-medium text-text-strong group",
                           "data-action": "prompt-model",
                         }}
@@ -1756,8 +1769,18 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                             class="size-4 shrink-0 text-text-interactive-base transition-opacity duration-150"
                           />
                         </Show>
-                        <span class="truncate" style={{ "background": "linear-gradient(135deg, var(--text-interactive-base), #8b5cf6)", "-webkit-background-clip": "text", "-webkit-text-fill-color": "transparent", "background-clip": "text" }}>
-                          {modelsCtx.autoMode() ? "Auto" : (local.model.current()?.name ?? language.t("dialog.model.select.title"))}
+                        <span
+                          class="truncate"
+                          style={{
+                            background: "linear-gradient(135deg, var(--text-interactive-base), #8b5cf6)",
+                            "-webkit-background-clip": "text",
+                            "-webkit-text-fill-color": "transparent",
+                            "background-clip": "text",
+                          }}
+                        >
+                          {modelsCtx.autoMode()
+                            ? "Auto"
+                            : (local.model.current()?.name ?? language.t("dialog.model.select.title"))}
                         </span>
                         <Icon name="chevron-down" size="small" class="shrink-0" />
                       </ModelSelectorPopover>
@@ -1793,8 +1816,13 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                         }}
                         class="capitalize max-w-[160px] text-text-strong"
                         valueClass="truncate text-13-medium"
-                        valueStyle={{ "background": "linear-gradient(135deg, #8b5cf6, var(--text-interactive-base))", "-webkit-background-clip": "text", "-webkit-text-fill-color": "transparent", "background-clip": "text" }}
-                        triggerStyle={{...control(), "border-radius": "8px"}}
+                        valueStyle={{
+                          background: "linear-gradient(135deg, #8b5cf6, var(--text-interactive-base))",
+                          "-webkit-background-clip": "text",
+                          "-webkit-text-fill-color": "transparent",
+                          "background-clip": "text",
+                        }}
+                        triggerStyle={{ ...control(), "border-radius": "8px" }}
                         triggerProps={{ "data-action": "prompt-model-variant" }}
                         variant="ghost"
                       />
@@ -1805,18 +1833,18 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
             </Show>
             <div class="flex-1" />
             <div class="flex items-center gap-3 whitespace-nowrap">
-              <div class="px-1.5 py-0.5 text-12-medium rounded-md text-text-interactive-base cursor-default select-none" style={{"font-weight": "var(--font-weight-semibold)"}}>
+              <div
+                class="px-1.5 py-0.5 text-12-medium rounded-md text-text-interactive-base cursor-default select-none"
+                style={{ "font-weight": "var(--font-weight-semibold)" }}
+              >
                 自动联网
               </div>
-              <div
-                data-component="prompt-auto-accept"
-              >
-                <Tooltip
-                  placement="top"
-                  gutter={4}
-                  value={language.t("command.permissions.autoaccept.enable")}
-                >
-                  <div data-action="prompt-auto-accept" class="flex items-center gap-1.5 text-12-medium text-text-interactive-base cursor-pointer select-none">
+              <div data-component="prompt-auto-accept">
+                <Tooltip placement="top" gutter={4} value={language.t("command.permissions.autoaccept.enable")}>
+                  <div
+                    data-action="prompt-auto-accept"
+                    class="flex items-center gap-1.5 text-12-medium text-text-interactive-base cursor-pointer select-none"
+                  >
                     <span style={{ "font-weight": "var(--font-weight-semibold)" }}>权限</span>
                     <Switch
                       checked={permission.isAutoAcceptingDirectory(sdk.directory)}
@@ -1908,7 +1936,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
             />
 
             <div class="flex items-center gap-1 pointer-events-auto">
-              <Tooltip placement="top" value={store.optimizing ? "优化中..." : "优化提示词"} inactive={!blank() && !store.optimizing}>
+              <Tooltip
+                placement="top"
+                value={store.optimizing ? "优化中..." : "优化提示词"}
+                inactive={!blank() && !store.optimizing}
+              >
                 <Button
                   data-action="prompt-optimize"
                   type="button"
@@ -1919,21 +1951,24 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                   tabIndex={store.mode === "normal" ? undefined : -1}
                   aria-label="优化提示词"
                 >
-                  <Show when={store.optimizing} fallback={
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.5"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      class="size-4 text-text-interactive-base"
-                    >
-                      <path d="M15 4V2M15 16V14M8 9H10M3 9H5M6 12L4 14M11 6L13.5 3.5M13.5 14.5L11 17" />
-                      <path d="M9.5 5.5L15 11L13 13L7.5 7.5L9.5 5.5Z" fill="currentColor" opacity="0.3" />
-                      <path d="M13 13L18 18" stroke-width="2" />
-                    </svg>
-                  }>
+                  <Show
+                    when={store.optimizing}
+                    fallback={
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="size-4 text-text-interactive-base"
+                      >
+                        <path d="M15 4V2M15 16V14M8 9H10M3 9H5M6 12L4 14M11 6L13.5 3.5M13.5 14.5L11 17" />
+                        <path d="M9.5 5.5L15 11L13 13L7.5 7.5L9.5 5.5Z" fill="currentColor" opacity="0.3" />
+                        <path d="M13 13L18 18" stroke-width="2" />
+                      </svg>
+                    }
+                  >
                     <svg
                       viewBox="0 0 24 24"
                       fill="none"
@@ -1950,11 +1985,22 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                   </Show>
                 </Button>
               </Tooltip>
-              <Tooltip placement="top" inactive={(!working() && blank()) || store.optimizing || agentsLoading() || providersLoading()} value={agentsLoading() || providersLoading() ? "正在加载智能体和模型..." : tip()}>
+              <Tooltip
+                placement="top"
+                inactive={(!working() && blank()) || store.optimizing || agentsLoading() || providersLoading()}
+                value={agentsLoading() || providersLoading() ? "正在加载智能体和模型..." : tip()}
+              >
                 <IconButton
                   data-action="prompt-submit"
                   type="submit"
-                  disabled={(!working() && blank()) || store.optimizing || agentsLoading() || providersLoading() || !local.agent.current() || !local.model.current()}
+                  disabled={
+                    (!working() && blank()) ||
+                    store.optimizing ||
+                    agentsLoading() ||
+                    providersLoading() ||
+                    !local.agent.current() ||
+                    !local.model.current()
+                  }
                   tabIndex={store.mode === "normal" ? undefined : -1}
                   icon={stopping() ? "stop" : store.mode === "shell" ? "arrow-undo-down" : "paper-plane"}
                   variant="primary"

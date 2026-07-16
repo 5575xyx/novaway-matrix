@@ -113,6 +113,11 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
 
           const args = (cmd: string[]) => ["--git-dir", state.gitdir, "--work-tree", state.worktree, ...cmd]
 
+          const normalizeRelative = (file: string) =>
+            path.isAbsolute(file)
+              ? path.relative(state.worktree, file).replaceAll("\\", "/")
+              : file.replaceAll("\\", "/")
+
           const feed = (list: string[]) => list.join("\0") + "\0"
 
           const git = Effect.fnUntraced(
@@ -391,12 +396,13 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
                 const seen = new Set<string>()
                 for (const item of patches) {
                   for (const file of item.files) {
-                    if (seen.has(file)) continue
-                    seen.add(file)
+                    const rel = normalizeRelative(file)
+                    if (seen.has(rel)) continue
+                    seen.add(rel)
                     ops.push({
                       hash: item.hash,
-                      file,
-                      rel: path.relative(state.worktree, file).replaceAll("\\", "/"),
+                      file: path.isAbsolute(file) ? file : path.join(state.worktree, file),
+                      rel,
                     })
                   }
                 }
@@ -753,13 +759,16 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
               log.info("captured", { hash })
               return ID.make(hash)
             }).pipe(
-              Effect.catch((cause) => Effect.logWarning("failed to capture snapshot", { cause }).pipe(Effect.as(undefined))),
+              Effect.catch((cause) =>
+                Effect.logWarning("failed to capture snapshot", { cause }).pipe(Effect.as(undefined)),
+              ),
             )
           })
 
           const compare = Effect.fnUntraced(function* (operation: "files" | "diff", input: CompareInput) {
             if (!(yield* enabled())) return yield* new Error({ operation, message: "Snapshots are disabled" })
-            if (!(yield* exists(state.gitdir))) return yield* new Error({ operation, message: "Snapshot repository not initialized" })
+            if (!(yield* exists(state.gitdir)))
+              return yield* new Error({ operation, message: "Snapshot repository not initialized" })
             return { from: input.from, to: input.to }
           })
 
@@ -782,21 +791,23 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
             if (result.code !== 0) return []
             const allFiles = result.text.split("\0").filter(Boolean)
             const ignored = yield* ignore(allFiles)
-            const paths = input.paths ?? allFiles.filter((f) => !ignored.has(f))
+            const paths = input.paths?.map(normalizeRelative) ?? allFiles.filter((f) => !ignored.has(f))
             return yield* diffFull(comparison.from, comparison.to).pipe(
               Effect.map((diffs) => diffs.filter((d) => paths.includes(d.file ?? ""))),
             )
           })
 
           const preview = Effect.fn("Snapshot.preview")(function* (input: PreviewInput) {
-            if (!(yield* enabled())) return yield* new Error({ operation: "preview", message: "Snapshots are disabled" })
+            if (!(yield* enabled()))
+              return yield* new Error({ operation: "preview", message: "Snapshots are disabled" })
             const current = yield* capture()
             if (!current) return yield* new Error({ operation: "preview", message: "Failed to capture current state" })
             return yield* diff({ from: current, to: ID.make(""), paths: Array.from(input.files.keys()) })
           })
 
           const restore = Effect.fn("Snapshot.restore")(function* (input: RestoreInput) {
-            if (!(yield* enabled())) return yield* new Error({ operation: "restore", message: "Snapshots are disabled" })
+            if (!(yield* enabled()))
+              return yield* new Error({ operation: "restore", message: "Snapshots are disabled" })
             for (const [file, snapshot] of input.files) {
               yield* git([...core, ...args(["checkout", snapshot, "--", file])], {
                 cwd: state.worktree,
@@ -805,7 +816,8 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
           })
 
           const checkout = Effect.fn("Snapshot.checkout")(function* (snapshot: string) {
-            if (!(yield* enabled())) return yield* new Error({ operation: "restore", message: "Snapshots are disabled" })
+            if (!(yield* enabled()))
+              return yield* new Error({ operation: "restore", message: "Snapshots are disabled" })
             const result = yield* git([...core, ...args(["read-tree", snapshot])], { cwd: state.worktree })
             if (result.code !== 0) return yield* new Error({ operation: "restore", message: "Failed to read tree" })
             yield* git([...core, ...args(["checkout-index", "--all", "--force"])], { cwd: state.worktree })

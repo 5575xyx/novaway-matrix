@@ -63,7 +63,8 @@ export const officePptTemplates: Array<{ id: OfficePptTemplateID; name: string; 
   {
     id: "tech",
     name: "\u79d1\u6280\u6df1\u8272",
-    description: "\u6df1\u8272\u5c01\u9762\u3001\u8367\u5149\u5f3a\u8c03\uff0c\u9002\u5408\u6280\u672f\u8bfe\u4ef6\u548c\u65b9\u6848\u6c47\u62a5",
+    description:
+      "\u6df1\u8272\u5c01\u9762\u3001\u8367\u5149\u5f3a\u8c03\uff0c\u9002\u5408\u6280\u672f\u8bfe\u4ef6\u548c\u65b9\u6848\u6c47\u62a5",
   },
   {
     id: "business",
@@ -78,7 +79,8 @@ export const officePptTemplates: Array<{ id: OfficePptTemplateID; name: string; 
   {
     id: "minimal",
     name: "\u6781\u7b80\u9ad8\u5bf9\u6bd4",
-    description: "\u9ed1\u767d\u9ad8\u5bf9\u6bd4\u3001\u7559\u767d\u5145\u8db3\uff0c\u9002\u5408\u7ed3\u8bba\u578b\u6f14\u793a",
+    description:
+      "\u9ed1\u767d\u9ad8\u5bf9\u6bd4\u3001\u7559\u767d\u5145\u8db3\uff0c\u9002\u5408\u7ed3\u8bba\u578b\u6f14\u793a",
   },
   { id: "strategy", name: "战略蓝图", description: "深蓝、金色强调，适合战略规划和路线图" },
   { id: "product", name: "产品发布", description: "紫蓝渐变感，适合产品介绍和发布会" },
@@ -304,11 +306,15 @@ const templateScorers: Array<{ id: OfficePptTemplateID; patterns: RegExp[] }> = 
   },
   {
     id: "teaching",
-    patterns: [/培训|课程|教学|学习|讲义|知识|课件|课堂|学生|学员|例题|练习|数学|语文|英语|training|course|lesson|classroom/g],
+    patterns: [
+      /培训|课程|教学|学习|讲义|知识|课件|课堂|学生|学员|例题|练习|数学|语文|英语|training|course|lesson|classroom/g,
+    ],
   },
   {
     id: "tech",
-    patterns: [/技术|架构|部署|调优|集成|接口|系统|模块|链路|graph|rag|api|linux|代码|工程|architecture|backend|frontend/g],
+    patterns: [
+      /技术|架构|部署|调优|集成|接口|系统|模块|链路|graph|rag|api|linux|代码|工程|architecture|backend|frontend/g,
+    ],
   },
   {
     id: "data",
@@ -365,7 +371,10 @@ function markdownBodyToWordXml(markdown: string): string[] {
 
   while (i < lines.length) {
     const line = lines[i]!.trim()
-    if (!line) { i++; continue }
+    if (!line) {
+      i++
+      continue
+    }
 
     if (line.startsWith("|") && line.endsWith("|")) {
       const tableLines: string[] = []
@@ -385,7 +394,9 @@ function markdownBodyToWordXml(markdown: string): string[] {
         i++
       }
       i++
-      result.push(`<w:p><w:pPr><w:pStyle w:val="Code"/><w:shd w:fill="F3F4F6"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/><w:sz w:val="20"/></w:rPr><w:t xml:space="preserve">${xml(codeLines.join("\n"))}</w:t></w:r></w:p>`)
+      result.push(
+        `<w:p><w:pPr><w:pStyle w:val="Code"/><w:shd w:fill="F3F4F6"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/><w:sz w:val="20"/></w:rPr><w:t xml:space="preserve">${xml(codeLines.join("\n"))}</w:t></w:r></w:p>`,
+      )
       continue
     }
 
@@ -394,8 +405,11 @@ function markdownBodyToWordXml(markdown: string): string[] {
       const level = Math.min(heading[1]!.length, 3)
       const size = [32, 28, 24][level - 1] ?? 24
       const space = [400, 300, 200][level - 1] ?? 200
-      const border = level === 1 ? `<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="4" w:color="CCCCCC"/></w:pBdr>` : ""
-      result.push(`<w:p><w:pPr><w:spacing w:before="${space}" w:after="120"/></w:pPr>${inlineToWordRuns(heading[2]!, `<w:rPr><w:b/><w:sz w:val="${size}"/></w:rPr>`)}</w:p>`)
+      const border =
+        level === 1 ? `<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="4" w:color="CCCCCC"/></w:pBdr>` : ""
+      result.push(
+        `<w:p><w:pPr><w:spacing w:before="${space}" w:after="120"/></w:pPr>${inlineToWordRuns(heading[2]!, `<w:rPr><w:b/><w:sz w:val="${size}"/></w:rPr>`)}</w:p>`,
+      )
       i++
       continue
     }
@@ -417,7 +431,15 @@ function markdownBodyToWordXml(markdown: string): string[] {
     const paraLines: string[] = []
     while (i < lines.length) {
       const l = lines[i]!.trim()
-      if (!l || l.startsWith("|") || l.match(/^#{1,6}\s+/) || l.startsWith("- ") || l.startsWith("* ") || l.startsWith("```")) break
+      if (
+        !l ||
+        l.startsWith("|") ||
+        l.match(/^#{1,6}\s+/) ||
+        l.startsWith("- ") ||
+        l.startsWith("* ") ||
+        l.startsWith("```")
+      )
+        break
       paraLines.push(l)
       i++
     }
@@ -464,12 +486,12 @@ function inlineToWordRuns(text: string, baseRunProps?: string): string {
     .map((part) => {
       const boldMatch = part.match(/^\*\*(.+)\*\*$/)
       if (boldMatch) {
-        const props = baseRunProps ? baseRunProps.replace(/<\/w:rPr>/, "<w:b/></w:rPr>") : '<w:rPr><w:b/></w:rPr>'
+        const props = baseRunProps ? baseRunProps.replace(/<\/w:rPr>/, "<w:b/></w:rPr>") : "<w:rPr><w:b/></w:rPr>"
         return `<w:r>${props}<w:t xml:space="preserve">${xml(boldMatch[1]!)}</w:t></w:r>`
       }
       const italicMatch = part.match(/^\*(.+)\*$/)
       if (italicMatch) {
-        const props = baseRunProps ? baseRunProps.replace(/<\/w:rPr>/, "<w:i/></w:rPr>") : '<w:rPr><w:i/></w:rPr>'
+        const props = baseRunProps ? baseRunProps.replace(/<\/w:rPr>/, "<w:i/></w:rPr>") : "<w:rPr><w:i/></w:rPr>"
         return `<w:r>${props}<w:t xml:space="preserve">${xml(italicMatch[1]!)}</w:t></w:r>`
       }
       return `<w:r>${baseRunProps ?? ""}<w:t xml:space="preserve">${xml(part)}</w:t></w:r>`
@@ -617,7 +639,13 @@ function customTemplatePalette(text: string): Partial<PptVisualTemplate> {
 }
 
 function customTemplateSignalPalette(text: string): Partial<PptVisualTemplate> | undefined {
-  const colors = [...new Set([...text.matchAll(/#?([0-9a-f]{6})/gi)].map((match) => match[1]?.toUpperCase()).filter((color): color is string => !!color))]
+  const colors = [
+    ...new Set(
+      [...text.matchAll(/#?([0-9a-f]{6})/gi)]
+        .map((match) => match[1]?.toUpperCase())
+        .filter((color): color is string => !!color),
+    ),
+  ]
   if (colors.length === 0) return
   const dark = colors.find((color) => colorLuminance(color) < 0.35) ?? colors[0]!
   const primary = colors.find((color) => color !== dark) ?? colors[0]!
@@ -654,7 +682,10 @@ function colorLuminance(color: string) {
 function mixHex(from: string, to: string, ratio: number) {
   return [0, 2, 4]
     .map((index) =>
-      Math.round(Number.parseInt(from.slice(index, index + 2), 16) * (1 - ratio) + Number.parseInt(to.slice(index, index + 2), 16) * ratio)
+      Math.round(
+        Number.parseInt(from.slice(index, index + 2), 16) * (1 - ratio) +
+          Number.parseInt(to.slice(index, index + 2), 16) * ratio,
+      )
         .toString(16)
         .padStart(2, "0"),
     )
@@ -669,7 +700,8 @@ function customTemplateName(description: string) {
 }
 
 function pptxEntries(artifact: OfficeArtifact, template: PptVisualTemplate): ZipEntry[] {
-  const slides = artifact.slides.length > 0 ? artifact.slides : [{ index: 1, title: artifact.title, content: artifact.body }]
+  const slides =
+    artifact.slides.length > 0 ? artifact.slides : [{ index: 1, title: artifact.title, content: artifact.body }]
   const images = pptSlideImages(slides)
   const noteSlides = slides.filter((slide) => slide.notes?.trim())
   const imageDefaults = Array.from(new Set(images.flatMap((slide) => slide.map((image) => imageDefaultXml(image)))))
@@ -748,8 +780,14 @@ function pptxEntries(artifact: OfficeArtifact, template: PptVisualTemplate): Zip
         `</Relationships>`,
       ].join(""),
     ),
-    file("ppt/presProps.xml", `${xmlHeader()}<p:presentationPr xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"/>`),
-    file("ppt/viewProps.xml", `${xmlHeader()}<p:viewPr xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"/>`),
+    file(
+      "ppt/presProps.xml",
+      `${xmlHeader()}<p:presentationPr xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"/>`,
+    ),
+    file(
+      "ppt/viewProps.xml",
+      `${xmlHeader()}<p:viewPr xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"/>`,
+    ),
     file(
       "ppt/tableStyles.xml",
       `${xmlHeader()}<a:tblStyleLst xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" def="{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}"/>`,
@@ -799,7 +837,9 @@ function pptxEntries(artifact: OfficeArtifact, template: PptVisualTemplate): Zip
       ),
     ),
     ...noteSlides.map((slide) => file(`ppt/notesSlides/notesSlide${slide.index}.xml`, notesSlideXml(slide))),
-    ...noteSlides.map((slide) => file(`ppt/notesSlides/_rels/notesSlide${slide.index}.xml.rels`, notesSlideRels(slide.index))),
+    ...noteSlides.map((slide) =>
+      file(`ppt/notesSlides/_rels/notesSlide${slide.index}.xml.rels`, notesSlideRels(slide.index)),
+    ),
     ...images.flatMap((slide) => slide.map((image) => file(`ppt/media/${image.filename}`, image.bytes))),
   ]
 }
@@ -809,13 +849,25 @@ function slideTransitionXml(slide: OfficeSlide, index: number, total: number, te
   return `<p:transition spd="${transition.speed}">${transition.body}</p:transition>`
 }
 
-function slideTransition(slide: OfficeSlide, index: number, total: number, template: PptVisualTemplate): { speed: "fast" | "med" | "slow"; body: string } {
+function slideTransition(
+  slide: OfficeSlide,
+  index: number,
+  total: number,
+  template: PptVisualTemplate,
+): { speed: "fast" | "med" | "slow"; body: string } {
   if (index === 0 || index === total - 1) return { speed: "slow", body: "<p:fade/>" }
-  if (["process", "timeline", "roadmap", "gantt", "schedule"].includes(slide.layout ?? "")) return { speed: "med", body: '<p:wipe dir="l"/>' }
-  if (["architecture", "framework", "mindmap", "orgtree", "cycle"].includes(slide.layout ?? "")) return { speed: "med", body: '<p:push dir="l"/>' }
+  if (["process", "timeline", "roadmap", "gantt", "schedule"].includes(slide.layout ?? ""))
+    return { speed: "med", body: '<p:wipe dir="l"/>' }
+  if (["architecture", "framework", "mindmap", "orgtree", "cycle"].includes(slide.layout ?? ""))
+    return { speed: "med", body: '<p:push dir="l"/>' }
   if (["map", "scene", "journey"].includes(slide.layout ?? "")) return { speed: "med", body: '<p:cover dir="l"/>' }
-  if (template.chromeStyle === "hud" || ["heatmap", "radar", "bubble", "sankey"].includes(slide.layout ?? "")) return { speed: "med", body: '<p:strips dir="ld"/>' }
-  if (["chart", "hbar", "line", "pareto", "donut", "waterfall", "financial", "treemap", "kpi", "gauge", "table"].includes(slide.layout ?? "")) {
+  if (template.chromeStyle === "hud" || ["heatmap", "radar", "bubble", "sankey"].includes(slide.layout ?? ""))
+    return { speed: "med", body: '<p:strips dir="ld"/>' }
+  if (
+    ["chart", "hbar", "line", "pareto", "donut", "waterfall", "financial", "treemap", "kpi", "gauge", "table"].includes(
+      slide.layout ?? "",
+    )
+  ) {
     return { speed: "fast", body: "<p:fade/>" }
   }
   return { speed: "med", body: "<p:fade/>" }
@@ -875,7 +927,14 @@ function sidebarCover(cover: ReturnType<typeof coverCopy>, total: number, templa
       maxLines: 4,
     }),
     ...cover.content.slice(0, 3).flatMap((point, index) => [
-      circle(21 + index * 3, 6580000, 1090000 + index * 430000, 135000, index % 2 === 0 ? template.accent : template.accent2, 90000),
+      circle(
+        21 + index * 3,
+        6580000,
+        1090000 + index * 430000,
+        135000,
+        index % 2 === 0 ? template.accent : template.accent2,
+        90000,
+      ),
       textBox(22 + index * 3, 6810000, 1040000 + index * 430000, 1500000, 220000, point, 900, {
         color: template.coverText,
         maxLines: 1,
@@ -973,7 +1032,14 @@ function canvasCover(cover: ReturnType<typeof coverCopy>, total: number, templat
       maxLines: 1,
     }),
     ...cover.content.slice(0, 3).flatMap((point, index) => [
-      circle(18 + index * 3, 1180000 + index * 1750000, 3820000, 150000, index % 2 === 0 ? template.accent : template.accent2, 90000),
+      circle(
+        18 + index * 3,
+        1180000 + index * 1750000,
+        3820000,
+        150000,
+        index % 2 === 0 ? template.accent : template.accent2,
+        90000,
+      ),
       textBox(19 + index * 3, 1410000 + index * 1750000, 3770000, 1280000, 200000, point, 850, {
         color: template.muted,
         maxLines: 1,
@@ -1036,7 +1102,14 @@ function ribbonCover(cover: ReturnType<typeof coverCopy>, total: number, templat
       maxLines: 1,
     }),
     ...cover.content.slice(0, 3).flatMap((point, index) => [
-      circle(30 + index * 3, 3730000 + index * 1450000, 4520000, 130000, index % 2 === 0 ? template.accent : template.accent2, 90000),
+      circle(
+        30 + index * 3,
+        3730000 + index * 1450000,
+        4520000,
+        130000,
+        index % 2 === 0 ? template.accent : template.accent2,
+        90000,
+      ),
       textBox(31 + index * 3, 3940000 + index * 1450000, 4470000, 1080000, 190000, point, 760, {
         color: template.coverText,
         maxLines: 1,
@@ -1064,7 +1137,11 @@ function hudCover(cover: ReturnType<typeof coverCopy>, total: number, template: 
       color: template.coverText,
       maxLines: 2,
     }),
-    textBox(20, 6760000, 2510000, 820000, 180000, "HUD", 1050, { color: template.accentLight, bold: true, maxLines: 1 }),
+    textBox(20, 6760000, 2510000, 820000, 180000, "HUD", 1050, {
+      color: template.accentLight,
+      bold: true,
+      maxLines: 1,
+    }),
     textBox(21, 650000, 4320000, 2500000, 220000, `${cover.badge} / ${total} slides`, 850, {
       color: template.accentLight,
       bold: true,
@@ -1398,7 +1475,8 @@ function contentLayout(slide: OfficeSlide, index: number, template: PptVisualTem
   if (slide.layout === "team") return teamRosterLayout(points, template)
   if (/章节页|章节封面|篇章|chapter/i.test(source)) return chapterLayout(points, template)
   if (/目录|大纲|章节|议程|agenda|outline/.test(source)) return agendaLayout(points, template)
-  if (/总结|结论|收获|下一步|行动|建议|summary|conclusion|next step/.test(source)) return summaryLayout(points, template)
+  if (/总结|结论|收获|下一步|行动|建议|summary|conclusion|next step/.test(source))
+    return summaryLayout(points, template)
   if (/横向条形|排行条|排名条|长标签排名|horizontal.?bar/i.test(source)) return horizontalBarLayout(points, template)
   if (/折线|趋势线|时间序列|走势|line.?chart/i.test(source)) return lineTrendLayout(points, template)
   if (/帕累托|80\/20|二八|pareto/i.test(source)) return paretoLayout(points, template)
@@ -1414,7 +1492,8 @@ function contentLayout(slide: OfficeSlide, index: number, template: PptVisualTem
   if (/支柱|pillars?|四大支柱|三大支柱|能力柱/i.test(source)) return pillarsLayout(points, template)
   if (/对比表|功能矩阵|清单表|表格|table/i.test(source)) return tableLayout(points, template)
   if (/排期表|schedule|任务表|项目表|owner|负责人/i.test(source)) return scheduleLayout(points, template)
-  if (/组织树|组织架构|org.?tree|top.?down.?tree|层级树|拆解树|okr拆解/i.test(source)) return orgTreeLayout(points, template)
+  if (/组织树|组织架构|org.?tree|top.?down.?tree|层级树|拆解树|okr拆解/i.test(source))
+    return orgTreeLayout(points, template)
   if (/甘特|排期|任务周期|进度计划|gantt/i.test(source)) return ganttLayout(points, template)
   if (/甜甜圈|环形|占比环|比例环|donut/i.test(source)) return donutLayout(points, template)
   if (/瀑布|增减归因|桥接|变动拆解|waterfall/i.test(source)) return waterfallLayout(points, template)
@@ -1423,7 +1502,8 @@ function contentLayout(slide: OfficeSlide, index: number, template: PptVisualTem
   if (/韦恩|交集|重叠集合|共同点|venn/i.test(source)) return vennLayout(points, template)
   if (/鱼骨|根因|原因分析|ishikawa|fishbone/i.test(source)) return fishboneLayout(points, template)
   if (/旅程|客户体验|用户旅程|体验地图|痛点|journey/i.test(source)) return journeyLayout(points, template)
-  if (/信息图|数据摘要|指标摘要|KPI摘要|kpi rundown|infographic/i.test(source)) return infographicLayout(points, template)
+  if (/信息图|数据摘要|指标摘要|KPI摘要|kpi rundown|infographic/i.test(source))
+    return infographicLayout(points, template)
   if (/区域|地域|地图|网点|市场分布|供应链|map|region/i.test(source)) return mapLayout(points, template)
   if (/场景|案例|故事|客户旅程|情境|scene|story|case/i.test(source)) return sceneLayout(points, template)
   if (/图表|数据|指标|占比|增长|收入|成本|利润|kpi|chart|metric/.test(source)) return chartLayout(points, template)
@@ -1441,13 +1521,33 @@ function contentLayout(slide: OfficeSlide, index: number, template: PptVisualTem
 }
 
 function templateDefaultLayout(points: string[], index: number, template: PptVisualTemplate) {
-  if (template.motif === "circuit" || template.motif === "network" || template.motif === "ops-map" || template.motif === "autotech") return architectureLayout(points, template)
-  if (template.motif === "roadmap" || template.motif === "blueprint" || template.motif === "infrastructure") return index % 2 === 0 ? roadmapLayout(points, template) : timelineLayout(points, template)
+  if (
+    template.motif === "circuit" ||
+    template.motif === "network" ||
+    template.motif === "ops-map" ||
+    template.motif === "autotech"
+  )
+    return architectureLayout(points, template)
+  if (template.motif === "roadmap" || template.motif === "blueprint" || template.motif === "infrastructure")
+    return index % 2 === 0 ? roadmapLayout(points, template) : timelineLayout(points, template)
   if (template.motif === "dashboard") return kpiLayout(points, template)
   if (template.motif === "ledger" || template.motif === "bank-ledger") return financialLayout(points, template)
-  if (template.motif === "paper" || template.motif === "university" || template.motif === "clinical") return splitLayout(points, template)
-  if (template.motif === "seal" || template.motif === "policy-blue" || template.motif === "policy-red" || template.motif === "certification") return tableLayout(points, template)
-  if (template.motif === "collage" || template.motif === "spotlight" || template.motif === "story" || template.motif === "therapy") return sceneLayout(points, template)
+  if (template.motif === "paper" || template.motif === "university" || template.motif === "clinical")
+    return splitLayout(points, template)
+  if (
+    template.motif === "seal" ||
+    template.motif === "policy-blue" ||
+    template.motif === "policy-red" ||
+    template.motif === "certification"
+  )
+    return tableLayout(points, template)
+  if (
+    template.motif === "collage" ||
+    template.motif === "spotlight" ||
+    template.motif === "story" ||
+    template.motif === "therapy"
+  )
+    return sceneLayout(points, template)
   if (template.motif === "classroom") return classroomLayout(points, template)
   if (template.motif === "minimal-line") return splitLayout(points, template)
   if (template.motif === "pixel") return matrixLayout(points, template)
@@ -1530,7 +1630,11 @@ function illustrationShapes(
   if (kind === "teaching")
     return [
       roundedRect(id, x + 260000, y + 390000, 520000, 330000, template.accentLight, 18000, template.cardLine),
-      textBox(id + 1, x + 350000, y + 475000, 320000, 120000, "1/2", 760, { color: template.title, bold: true, maxLines: 1 }),
+      textBox(id + 1, x + 350000, y + 475000, 320000, 120000, "1/2", 760, {
+        color: template.title,
+        bold: true,
+        maxLines: 1,
+      }),
       circle(id + 2, x + 930000, y + 360000, 300000, template.accent, 90000),
       circle(id + 3, x + 1260000, y + 480000, 240000, template.accent2, 90000),
       roundedRect(id + 4, x + 860000, y + 720000, 620000, 80000, template.side, 12000),
@@ -1542,7 +1646,10 @@ function illustrationShapes(
       rect(id + 2, x + 790000, y + 510000, 240000, 55000, template.accent),
       circle(id + 3, x + 410000, y + 480000, 110000, template.accent, 90000),
       circle(id + 4, x + 1190000, y + 455000, 110000, template.accent2, 90000),
-      textBox(id + 5, x + 400000, y + 750000, 920000, 130000, "AI Workflow", 700, { color: template.muted, maxLines: 1 }),
+      textBox(id + 5, x + 400000, y + 750000, 920000, 130000, "AI Workflow", 700, {
+        color: template.muted,
+        maxLines: 1,
+      }),
     ]
   if (kind === "data")
     return [
@@ -1550,7 +1657,11 @@ function illustrationShapes(
       rect(id + 1, x + 680000, y + 560000, 260000, 400000, template.accent2),
       rect(id + 2, x + 1050000, y + 430000, 260000, 530000, template.side),
       rect(id + 3, x + 260000, y + 970000, 1220000, 45000, template.cardLine),
-      textBox(id + 4, x + 320000, y + 320000, 920000, 160000, "Insight", 900, { color: template.title, bold: true, maxLines: 1 }),
+      textBox(id + 4, x + 320000, y + 320000, 920000, 160000, "Insight", 900, {
+        color: template.title,
+        bold: true,
+        maxLines: 1,
+      }),
     ]
   if (kind === "product")
     return [
@@ -1605,7 +1716,8 @@ function pptSlideImages(slides: Array<Pick<OfficeSlide, "index" | "title" | "con
 
 function dataUrlImages(input: string) {
   const result: Array<Omit<PptSlideImage, "id" | "relID" | "filename">> = []
-  const pattern = /!\[([^\]]*)\]\((data:image\/(?:png|jpeg|jpg|gif|webp);base64,[^)]+)\)|<img[^>]+src=["'](data:image\/(?:png|jpeg|jpg|gif|webp);base64,[^"']+)["'][^>]*>/gi
+  const pattern =
+    /!\[([^\]]*)\]\((data:image\/(?:png|jpeg|jpg|gif|webp);base64,[^)]+)\)|<img[^>]+src=["'](data:image\/(?:png|jpeg|jpg|gif|webp);base64,[^"']+)["'][^>]*>/gi
   for (const match of input.matchAll(pattern)) {
     const url = match[2] ?? match[3]
     if (!url) continue
@@ -1621,7 +1733,11 @@ function parseImageDataUrl(url: string) {
   const match = url.match(/^data:(image\/(?:png|jpeg|jpg|gif|webp));base64,([A-Za-z0-9+/=\s]+)$/i)
   if (!match?.[1] || !match[2]) return
   const contentType = match[1].toLowerCase().replace("image/jpg", "image/jpeg")
-  const extension = (contentType === "image/jpeg" ? "jpg" : contentType.replace("image/", "")) as "png" | "jpg" | "gif" | "webp"
+  const extension = (contentType === "image/jpeg" ? "jpg" : contentType.replace("image/", "")) as
+    | "png"
+    | "jpg"
+    | "gif"
+    | "webp"
   return {
     extension,
     contentType,
@@ -1779,7 +1895,14 @@ function cardGridLayout(points: string[], template: PptVisualTemplate) {
       return [
         roundedRect(30 + index * 5, x, y, 3300000, 980000, template.card, 22000, template.cardLine),
         rect(31 + index * 5, x, y, 130000, 980000, index % 2 === 0 ? template.accent : template.accent2),
-        circle(32 + index * 5, x + 280000, y + 220000, 300000, index % 2 === 0 ? template.accent : template.accent2, 90000),
+        circle(
+          32 + index * 5,
+          x + 280000,
+          y + 220000,
+          300000,
+          index % 2 === 0 ? template.accent : template.accent2,
+          90000,
+        ),
         textBox(33 + index * 5, x + 385000, y + 310000, 120000, 140000, `${index + 1}`, 760, {
           color: template.coverTitle,
           bold: true,
@@ -1857,7 +1980,15 @@ function chartLayout(points: string[], template: PptVisualTemplate) {
       const x = 1450000 + index * 980000
       const h = values[index] ?? 1100000
       return [
-        roundedRect(33 + index * 5, x, 3850000 - h, 520000, h, index % 2 === 0 ? template.accent : template.accent2, 18000),
+        roundedRect(
+          33 + index * 5,
+          x,
+          3850000 - h,
+          520000,
+          h,
+          index % 2 === 0 ? template.accent : template.accent2,
+          18000,
+        ),
         textBox(34 + index * 5, x - 30000, 3850000 - h - 280000, 580000, 220000, chartValueLabel(point), 950, {
           color: template.title,
           bold: true,
@@ -1870,19 +2001,28 @@ function chartLayout(points: string[], template: PptVisualTemplate) {
       ]
     }),
     roundedRect(60, 6100000, 1850000, 1500000, 720000, template.side, 22000),
-    textBox(61, 6300000, 2050000, 1100000, 260000, "洞察", 1200, { color: template.coverTitle, bold: true, maxLines: 1 }),
+    textBox(61, 6300000, 2050000, 1100000, 260000, "洞察", 1200, {
+      color: template.coverTitle,
+      bold: true,
+      maxLines: 1,
+    }),
     textBox(62, 6300000, 2400000, 1100000, 760000, items[0] ?? "关注趋势变化", 1100, {
       color: template.coverTitle,
       maxLines: 3,
     }),
     roundedRect(66, 6100000, 2920000, 1500000, 520000, template.accentLight, 22000, template.cardLine),
     textBox(67, 6310000, 3090000, 1080000, 200000, "建议动作", 900, { color: template.title, bold: true, maxLines: 1 }),
-    textBox(68, 6310000, 3340000, 1050000, 220000, items[1] ?? "补充数据口径", 820, { color: template.text, maxLines: 1 }),
+    textBox(68, 6310000, 3340000, 1050000, 220000, items[1] ?? "补充数据口径", 820, {
+      color: template.text,
+      maxLines: 1,
+    }),
   ]
 }
 
 function chartValues(points: string[]) {
-  const numbers = points.map((point) => Number(point.match(/-?\d+(?:\.\d+)?/)?.[0])).filter((value) => Number.isFinite(value))
+  const numbers = points
+    .map((point) => Number(point.match(/-?\d+(?:\.\d+)?/)?.[0]))
+    .filter((value) => Number.isFinite(value))
   const max = Math.max(...numbers, 1)
   return points.map((point, index) => {
     const value = Number(point.match(/-?\d+(?:\.\d+)?/)?.[0])
@@ -1906,7 +2046,16 @@ function architectureLayout(points: string[], template: PptVisualTemplate) {
       const x = top ? 3650000 : 1250000 + (index - 1) * 1650000
       const y = top ? 1740000 : 3000000
       return [
-        roundedRect(31 + index * 5, x, y, top ? 1800000 : 1350000, 620000, top ? template.side : template.pageBg, 20000, top ? template.side : template.cardLine),
+        roundedRect(
+          31 + index * 5,
+          x,
+          y,
+          top ? 1800000 : 1350000,
+          620000,
+          top ? template.side : template.pageBg,
+          20000,
+          top ? template.side : template.cardLine,
+        ),
         textBox(32 + index * 5, x + 150000, y + 170000, top ? 1500000 : 1050000, 260000, point, 1050, {
           color: top ? template.coverTitle : template.text,
           bold: top,
@@ -1962,7 +2111,14 @@ function matrixLayout(points: string[], template: PptVisualTemplate) {
     rect(31, 1120000, 2790000, 6900000, 70000, template.accent),
     ...cells.flatMap((cell, index) => [
       roundedRect(32 + index * 5, cell.x, cell.y, 3200000, 1120000, cell.color, 18000, template.cardLine),
-      circle(33 + index * 5, cell.x + 160000, cell.y + 160000, 260000, index % 2 === 0 ? template.accent : template.accent2, 85000),
+      circle(
+        33 + index * 5,
+        cell.x + 160000,
+        cell.y + 160000,
+        260000,
+        index % 2 === 0 ? template.accent : template.accent2,
+        85000,
+      ),
       textBox(34 + index * 5, cell.x + 540000, cell.y + 180000, 2200000, 240000, matrixLabel(index), 950, {
         color: template.muted,
         bold: true,
@@ -2081,7 +2237,11 @@ function infographicLayout(points: string[], template: PptVisualTemplate) {
   const items = padPoints(points, 5).slice(0, 5)
   return [
     roundedRect(29, 880000, 1420000, 7540000, 2920000, template.card, 22000, template.cardLine),
-    textBox(30, 1180000, 1640000, 2500000, 240000, "信息摘要", 1050, { color: template.muted, bold: true, maxLines: 1 }),
+    textBox(30, 1180000, 1640000, 2500000, 240000, "信息摘要", 1050, {
+      color: template.muted,
+      bold: true,
+      maxLines: 1,
+    }),
     ...items.flatMap((point, index) => {
       const x = 1120000 + index * 1400000
       const color = index % 2 === 0 ? template.accent : template.accent2
@@ -2092,7 +2252,16 @@ function infographicLayout(points: string[], template: PptVisualTemplate) {
           bold: true,
           maxLines: 1,
         }),
-        roundedRect(33 + index * 7, x - 170000, 3060000, 1060000, 740000, template.accentLight, 18000, template.cardLine),
+        roundedRect(
+          33 + index * 7,
+          x - 170000,
+          3060000,
+          1060000,
+          740000,
+          template.accentLight,
+          18000,
+          template.cardLine,
+        ),
         textBox(34 + index * 7, x + 10000, 3260000, 700000, 260000, point, 900, {
           color: template.text,
           maxLines: 2,
@@ -2143,13 +2312,24 @@ function sceneLayout(points: string[], template: PptVisualTemplate) {
       maxLines: 1,
     }),
     ...items.slice(1, 4).flatMap((point, index) => [
-      circle(40 + index * 5, 1860000 + index * 1950000, 3700000, 220000, index % 2 === 0 ? template.accent : template.accent2, 90000),
+      circle(
+        40 + index * 5,
+        1860000 + index * 1950000,
+        3700000,
+        220000,
+        index % 2 === 0 ? template.accent : template.accent2,
+        90000,
+      ),
       textBox(41 + index * 5, 2160000 + index * 1950000, 3650000, 1260000, 260000, point, 850, {
         color: template.text,
         maxLines: 2,
       }),
     ]),
-    textBox(70, 1180000, 1640000, 2100000, 240000, "场景叙事", 1050, { color: template.title, bold: true, maxLines: 1 }),
+    textBox(70, 1180000, 1640000, 2100000, 240000, "场景叙事", 1050, {
+      color: template.title,
+      bold: true,
+      maxLines: 1,
+    }),
   ]
 }
 
@@ -2157,10 +2337,19 @@ function ganttLayout(points: string[], template: PptVisualTemplate) {
   const items = padPoints(points, 6).slice(0, 6)
   return [
     roundedRect(29, 900000, 1420000, 7500000, 2920000, template.card, 22000, template.cardLine),
-    textBox(30, 1180000, 1620000, 1700000, 220000, "甘特排期", 1050, { color: template.title, bold: true, maxLines: 1 }),
-    ...[0, 1, 2, 3].map((index) => rect(31 + index, 3100000 + index * 980000, 1980000, 22000, 1860000, template.cardLine)),
+    textBox(30, 1180000, 1620000, 1700000, 220000, "甘特排期", 1050, {
+      color: template.title,
+      bold: true,
+      maxLines: 1,
+    }),
+    ...[0, 1, 2, 3].map((index) =>
+      rect(31 + index, 3100000 + index * 980000, 1980000, 22000, 1860000, template.cardLine),
+    ),
     ...["阶段一", "阶段二", "阶段三", "交付"].map((label, index) =>
-      textBox(40 + index, 2860000 + index * 980000, 1720000, 760000, 170000, label, 720, { color: template.muted, maxLines: 1 }),
+      textBox(40 + index, 2860000 + index * 980000, 1720000, 760000, 170000, label, 720, {
+        color: template.muted,
+        maxLines: 1,
+      }),
     ),
     ...items.flatMap((point, index) => {
       const y = 2050000 + index * 300000
@@ -2184,10 +2373,23 @@ function donutLayout(points: string[], template: PptVisualTemplate) {
     circle(33, 2000000, 3000000, 920000, template.accentLight, 95000),
     textBox(34, 2340000, 2560000, 820000, 260000, "占比", 1350, { color: template.title, bold: true, maxLines: 1 }),
     ...items.flatMap((point, index) => [
-      circle(40 + index * 4, 5100000, 1780000 + index * 430000, 180000, index % 2 === 0 ? template.accent : template.accent2, 90000),
-      textBox(41 + index * 4, 5380000, 1740000 + index * 430000, 2200000, 240000, point, 900, { color: template.text, maxLines: 1 }),
+      circle(
+        40 + index * 4,
+        5100000,
+        1780000 + index * 430000,
+        180000,
+        index % 2 === 0 ? template.accent : template.accent2,
+        90000,
+      ),
+      textBox(41 + index * 4, 5380000, 1740000 + index * 430000, 2200000, 240000, point, 900, {
+        color: template.text,
+        maxLines: 1,
+      }),
     ]),
-    textBox(70, 1180000, 3920000, 2600000, 220000, "甜甜圈占比 / 中心指标", 900, { color: template.muted, maxLines: 1 }),
+    textBox(70, 1180000, 3920000, 2600000, 220000, "甜甜圈占比 / 中心指标", 900, {
+      color: template.muted,
+      maxLines: 1,
+    }),
   ]
 }
 
@@ -2197,15 +2399,24 @@ function waterfallLayout(points: string[], template: PptVisualTemplate) {
   return [
     roundedRect(29, 900000, 1420000, 7500000, 2920000, template.card, 22000, template.cardLine),
     rect(30, 1280000, 3860000, 6150000, 45000, template.cardLine),
-    textBox(31, 1220000, 1640000, 2100000, 220000, "瀑布拆解", 1050, { color: template.title, bold: true, maxLines: 1 }),
+    textBox(31, 1220000, 1640000, 2100000, 220000, "瀑布拆解", 1050, {
+      color: template.title,
+      bold: true,
+      maxLines: 1,
+    }),
     ...items.flatMap((point, index) => {
       const h = Math.min(values[index] ?? 900000, 1450000)
       const y = index % 2 === 0 ? 3860000 - h : 2700000
       const color = index % 2 === 0 ? template.accent : template.accent2
       return [
         roundedRect(40 + index * 5, 1450000 + index * 950000, y, 560000, h, color, 18000),
-        textBox(41 + index * 5, 1360000 + index * 950000, 3970000, 760000, 240000, point, 780, { color: template.text, maxLines: 2 }),
-        ...(index < items.length - 1 ? [rect(42 + index * 5, 2010000 + index * 950000, y + h / 2, 390000, 26000, template.cardLine)] : []),
+        textBox(41 + index * 5, 1360000 + index * 950000, 3970000, 760000, 240000, point, 780, {
+          color: template.text,
+          maxLines: 2,
+        }),
+        ...(index < items.length - 1
+          ? [rect(42 + index * 5, 2010000 + index * 950000, y + h / 2, 390000, 26000, template.cardLine)]
+          : []),
       ]
     }),
   ]
@@ -2215,15 +2426,30 @@ function heatmapLayout(points: string[], template: PptVisualTemplate) {
   const items = padPoints(points, 6).slice(0, 6)
   return [
     roundedRect(29, 900000, 1420000, 7500000, 2920000, template.card, 22000, template.cardLine),
-    textBox(30, 1180000, 1620000, 1700000, 220000, "热力矩阵", 1050, { color: template.title, bold: true, maxLines: 1 }),
+    textBox(30, 1180000, 1620000, 1700000, 220000, "热力矩阵", 1050, {
+      color: template.title,
+      bold: true,
+      maxLines: 1,
+    }),
     ...Array.from({ length: 24 }, (_, index) => {
       const col = index % 6
       const row = Math.floor(index / 6)
       const palette = [template.accentLight, template.cardLine, template.accent2, template.accent]
-      return roundedRect(40 + index, 1700000 + col * 760000, 2050000 + row * 420000, 620000, 300000, palette[(col + row) % palette.length]!, 14000)
+      return roundedRect(
+        40 + index,
+        1700000 + col * 760000,
+        2050000 + row * 420000,
+        620000,
+        300000,
+        palette[(col + row) % palette.length]!,
+        14000,
+      )
     }),
     ...items.map((point, index) =>
-      textBox(70 + index, 6420000, 1900000 + index * 340000, 1320000, 210000, point, 780, { color: template.text, maxLines: 1 }),
+      textBox(70 + index, 6420000, 1900000 + index * 340000, 1320000, 210000, point, 780, {
+        color: template.text,
+        maxLines: 1,
+      }),
     ),
   ]
 }
@@ -2246,9 +2472,16 @@ function radarLayout(points: string[], template: PptVisualTemplate) {
     rect(33, 2860000, 2790000, 2820000, 50000, template.cardLine),
     ...nodes.flatMap((node, index) => [
       circle(40 + index * 4, node.x, node.y, 240000, index % 2 === 0 ? template.accent : template.accent2, 90000),
-      textBox(41 + index * 4, node.x - 360000, node.y + 290000, 950000, 210000, items[index] ?? "", 760, { color: template.text, maxLines: 1 }),
+      textBox(41 + index * 4, node.x - 360000, node.y + 290000, 950000, 210000, items[index] ?? "", 760, {
+        color: template.text,
+        maxLines: 1,
+      }),
     ]),
-    textBox(70, 1180000, 1620000, 1700000, 220000, "能力雷达", 1050, { color: template.title, bold: true, maxLines: 1 }),
+    textBox(70, 1180000, 1620000, 1700000, 220000, "能力雷达", 1050, {
+      color: template.title,
+      bold: true,
+      maxLines: 1,
+    }),
   ]
 }
 
@@ -2259,10 +2492,18 @@ function vennLayout(points: string[], template: PptVisualTemplate) {
     circle(30, 2300000, 1900000, 1900000, template.accent, 52000),
     circle(31, 3500000, 1900000, 1900000, template.accent2, 52000),
     circle(32, 2900000, 2800000, 1900000, template.accentLight, 70000),
-    textBox(33, 3060000, 2780000, 1520000, 330000, items[0] ?? "共同价值", 1100, { color: template.title, bold: true, maxLines: 2 }),
+    textBox(33, 3060000, 2780000, 1520000, 330000, items[0] ?? "共同价值", 1100, {
+      color: template.title,
+      bold: true,
+      maxLines: 2,
+    }),
     textBox(40, 1500000, 3860000, 1700000, 260000, items[1] ?? "集合 A", 820, { color: template.text, maxLines: 1 }),
     textBox(41, 5900000, 3860000, 1700000, 260000, items[2] ?? "集合 B", 820, { color: template.text, maxLines: 1 }),
-    textBox(42, 1180000, 1620000, 1700000, 220000, "韦恩交集", 1050, { color: template.title, bold: true, maxLines: 1 }),
+    textBox(42, 1180000, 1620000, 1700000, 220000, "韦恩交集", 1050, {
+      color: template.title,
+      bold: true,
+      maxLines: 1,
+    }),
   ]
 }
 
@@ -2270,7 +2511,11 @@ function fishboneLayout(points: string[], template: PptVisualTemplate) {
   const items = padPoints(points, 6).slice(0, 6)
   return [
     roundedRect(29, 900000, 1420000, 7500000, 2920000, template.card, 22000, template.cardLine),
-    textBox(30, 1180000, 1620000, 1700000, 220000, "鱼骨根因", 1050, { color: template.title, bold: true, maxLines: 1 }),
+    textBox(30, 1180000, 1620000, 1700000, 220000, "鱼骨根因", 1050, {
+      color: template.title,
+      bold: true,
+      maxLines: 1,
+    }),
     rect(31, 1900000, 2840000, 5000000, 70000, template.accent),
     rightArrow(32, 6800000, 2745000, 620000, 260000, template.accent),
     roundedRect(33, 7350000, 2570000, 780000, 470000, template.side, 18000),
@@ -2280,9 +2525,19 @@ function fishboneLayout(points: string[], template: PptVisualTemplate) {
       const x = 2100000 + Math.floor(index / 2) * 1500000
       const y = top ? 2080000 : 3280000
       return [
-        rect(40 + index * 5, x + 360000, top ? y + 520000 : 2860000, 70000, 560000, index % 3 === 0 ? template.accent2 : template.accent),
+        rect(
+          40 + index * 5,
+          x + 360000,
+          top ? y + 520000 : 2860000,
+          70000,
+          560000,
+          index % 3 === 0 ? template.accent2 : template.accent,
+        ),
         roundedRect(41 + index * 5, x, y, 1100000, 480000, template.accentLight, 18000, template.cardLine),
-        textBox(42 + index * 5, x + 130000, y + 130000, 820000, 190000, point, 780, { color: template.text, maxLines: 1 }),
+        textBox(42 + index * 5, x + 130000, y + 130000, 820000, 190000, point, 780, {
+          color: template.text,
+          maxLines: 1,
+        }),
       ]
     }),
   ]
@@ -2292,16 +2547,36 @@ function journeyLayout(points: string[], template: PptVisualTemplate) {
   const items = padPoints(points, 5).slice(0, 5)
   return [
     roundedRect(29, 900000, 1420000, 7500000, 2920000, template.card, 22000, template.cardLine),
-    textBox(30, 1180000, 1620000, 1700000, 220000, "旅程地图", 1050, { color: template.title, bold: true, maxLines: 1 }),
+    textBox(30, 1180000, 1620000, 1700000, 220000, "旅程地图", 1050, {
+      color: template.title,
+      bold: true,
+      maxLines: 1,
+    }),
     rect(31, 1280000, 2680000, 6200000, 65000, template.cardLine),
     ...items.flatMap((point, index) => {
       const x = 1380000 + index * 1220000
       const y = index % 2 === 0 ? 2180000 : 3180000
       return [
         circle(40 + index * 6, x, y, 360000, index % 2 === 0 ? template.accent : template.accent2, 90000),
-        textBox(41 + index * 6, x + 105000, y + 95000, 130000, 120000, `${index + 1}`, 760, { color: template.coverTitle, bold: true, maxLines: 1 }),
-        roundedRect(42 + index * 6, x - 260000, y + 470000, 980000, 520000, template.accentLight, 18000, template.cardLine),
-        textBox(43 + index * 6, x - 90000, y + 610000, 640000, 190000, point, 760, { color: template.text, maxLines: 1 }),
+        textBox(41 + index * 6, x + 105000, y + 95000, 130000, 120000, `${index + 1}`, 760, {
+          color: template.coverTitle,
+          bold: true,
+          maxLines: 1,
+        }),
+        roundedRect(
+          42 + index * 6,
+          x - 260000,
+          y + 470000,
+          980000,
+          520000,
+          template.accentLight,
+          18000,
+          template.cardLine,
+        ),
+        textBox(43 + index * 6, x - 90000, y + 610000, 640000, 190000, point, 760, {
+          color: template.text,
+          maxLines: 1,
+        }),
       ]
     }),
     textBox(78, 1220000, 3940000, 2600000, 220000, "行动 / 情绪 / 痛点", 850, { color: template.muted, maxLines: 1 }),
@@ -2312,18 +2587,34 @@ function kpiLayout(points: string[], template: PptVisualTemplate) {
   const items = padPoints(points, 6).slice(0, 6)
   return [
     roundedRect(29, 900000, 1420000, 7500000, 2920000, template.card, 22000, template.cardLine),
-    textBox(30, 1180000, 1620000, 1900000, 220000, "KPI 指标卡", 1050, { color: template.title, bold: true, maxLines: 1 }),
+    textBox(30, 1180000, 1620000, 1900000, 220000, "KPI 指标卡", 1050, {
+      color: template.title,
+      bold: true,
+      maxLines: 1,
+    }),
     ...items.flatMap((point, index) => {
       const x = 1200000 + (index % 3) * 2250000
       const y = 1980000 + Math.floor(index / 3) * 1030000
       return [
-        roundedRect(40 + index * 5, x, y, 1880000, 780000, index % 2 === 0 ? template.accentLight : template.card, 18000, template.cardLine),
+        roundedRect(
+          40 + index * 5,
+          x,
+          y,
+          1880000,
+          780000,
+          index % 2 === 0 ? template.accentLight : template.card,
+          18000,
+          template.cardLine,
+        ),
         textBox(41 + index * 5, x + 180000, y + 140000, 1180000, 210000, chartValueLabel(point), 1500, {
           color: template.title,
           bold: true,
           maxLines: 1,
         }),
-        textBox(42 + index * 5, x + 180000, y + 430000, 1420000, 210000, point, 780, { color: template.text, maxLines: 1 }),
+        textBox(42 + index * 5, x + 180000, y + 430000, 1420000, 210000, point, 780, {
+          color: template.text,
+          maxLines: 1,
+        }),
         rect(43 + index * 5, x, y, 90000, 780000, index % 2 === 0 ? template.accent : template.accent2),
       ]
     }),
@@ -2334,15 +2625,35 @@ function gaugeLayout(points: string[], template: PptVisualTemplate) {
   const items = padPoints(points, 4).slice(0, 4)
   return [
     roundedRect(29, 900000, 1420000, 7500000, 2920000, template.card, 22000, template.cardLine),
-    textBox(30, 1180000, 1620000, 1900000, 220000, "目标仪表盘", 1050, { color: template.title, bold: true, maxLines: 1 }),
+    textBox(30, 1180000, 1620000, 1900000, 220000, "目标仪表盘", 1050, {
+      color: template.title,
+      bold: true,
+      maxLines: 1,
+    }),
     circle(31, 3100000, 1780000, 2300000, template.accentLight, 65000),
     circle(32, 3450000, 2130000, 1600000, template.card, 95000),
     rect(33, 4200000, 2580000, 1200000, 85000, template.accent),
     circle(34, 4150000, 2500000, 240000, template.accent2, 90000),
-    textBox(35, 3750000, 3020000, 1200000, 300000, chartValueLabel(items[0] ?? "80%"), 2000, { color: template.title, bold: true, maxLines: 1 }),
+    textBox(35, 3750000, 3020000, 1200000, 300000, chartValueLabel(items[0] ?? "80%"), 2000, {
+      color: template.title,
+      bold: true,
+      maxLines: 1,
+    }),
     ...items.slice(1, 4).flatMap((point, index) => [
-      roundedRect(40 + index * 4, 6100000, 1900000 + index * 640000, 1500000, 430000, template.accentLight, 18000, template.cardLine),
-      textBox(41 + index * 4, 6290000, 2020000 + index * 640000, 1100000, 170000, point, 820, { color: template.text, maxLines: 1 }),
+      roundedRect(
+        40 + index * 4,
+        6100000,
+        1900000 + index * 640000,
+        1500000,
+        430000,
+        template.accentLight,
+        18000,
+        template.cardLine,
+      ),
+      textBox(41 + index * 4, 6290000, 2020000 + index * 640000, 1100000, 170000, point, 820, {
+        color: template.text,
+        maxLines: 1,
+      }),
     ]),
   ]
 }
@@ -2351,15 +2662,31 @@ function roadmapLayout(points: string[], template: PptVisualTemplate) {
   const items = padPoints(points, 6).slice(0, 6)
   return [
     roundedRect(29, 900000, 1420000, 7500000, 2920000, template.card, 22000, template.cardLine),
-    textBox(30, 1180000, 1620000, 1900000, 220000, "纵向路线图", 1050, { color: template.title, bold: true, maxLines: 1 }),
+    textBox(30, 1180000, 1620000, 1900000, 220000, "纵向路线图", 1050, {
+      color: template.title,
+      bold: true,
+      maxLines: 1,
+    }),
     rect(31, 4440000, 1900000, 70000, 2100000, template.cardLine),
     ...items.flatMap((point, index) => {
       const left = index % 2 === 0
       const y = 1880000 + index * 350000
       return [
         circle(40 + index * 5, 4300000, y, 340000, index % 2 === 0 ? template.accent : template.accent2, 90000),
-        roundedRect(41 + index * 5, left ? 1900000 : 4960000, y - 90000, 1900000, 420000, template.accentLight, 18000, template.cardLine),
-        textBox(42 + index * 5, left ? 2100000 : 5160000, y + 20000, 1480000, 160000, point, 760, { color: template.text, maxLines: 1 }),
+        roundedRect(
+          41 + index * 5,
+          left ? 1900000 : 4960000,
+          y - 90000,
+          1900000,
+          420000,
+          template.accentLight,
+          18000,
+          template.cardLine,
+        ),
+        textBox(42 + index * 5, left ? 2100000 : 5160000, y + 20000, 1480000, 160000, point, 760, {
+          color: template.text,
+          maxLines: 1,
+        }),
       ]
     }),
   ]
@@ -2378,11 +2705,34 @@ function mindmapLayout(points: string[], template: PptVisualTemplate) {
   return [
     roundedRect(29, 900000, 1420000, 7500000, 2920000, template.card, 22000, template.cardLine),
     circle(30, 3740000, 2380000, 1320000, template.side, 90000),
-    textBox(31, 3980000, 2860000, 900000, 200000, "核心主题", 950, { color: template.coverTitle, bold: true, maxLines: 1 }),
+    textBox(31, 3980000, 2860000, 900000, 200000, "核心主题", 950, {
+      color: template.coverTitle,
+      bold: true,
+      maxLines: 1,
+    }),
     ...nodes.flatMap((node, index) => [
-      rect(40 + index * 5, node.x < 3800000 ? node.x + 1200000 : 4760000, node.y + 250000, 1120000, 50000, template.cardLine),
-      roundedRect(41 + index * 5, node.x, node.y, 1300000, 540000, index % 2 === 0 ? template.accentLight : template.card, 18000, template.cardLine),
-      textBox(42 + index * 5, node.x + 150000, node.y + 170000, 980000, 180000, items[index] ?? "", 800, { color: template.text, maxLines: 1 }),
+      rect(
+        40 + index * 5,
+        node.x < 3800000 ? node.x + 1200000 : 4760000,
+        node.y + 250000,
+        1120000,
+        50000,
+        template.cardLine,
+      ),
+      roundedRect(
+        41 + index * 5,
+        node.x,
+        node.y,
+        1300000,
+        540000,
+        index % 2 === 0 ? template.accentLight : template.card,
+        18000,
+        template.cardLine,
+      ),
+      textBox(42 + index * 5, node.x + 150000, node.y + 170000, 980000, 180000, items[index] ?? "", 800, {
+        color: template.text,
+        maxLines: 1,
+      }),
     ]),
   ]
 }
@@ -2391,14 +2741,30 @@ function pillarsLayout(points: string[], template: PptVisualTemplate) {
   const items = padPoints(points, 4).slice(0, 4)
   return [
     roundedRect(29, 900000, 1420000, 7500000, 2920000, template.card, 22000, template.cardLine),
-    textBox(30, 1180000, 1620000, 1900000, 220000, "核心支柱", 1050, { color: template.title, bold: true, maxLines: 1 }),
+    textBox(30, 1180000, 1620000, 1900000, 220000, "核心支柱", 1050, {
+      color: template.title,
+      bold: true,
+      maxLines: 1,
+    }),
     rect(31, 1250000, 3950000, 6500000, 90000, template.cardLine),
     ...items.flatMap((point, index) => {
       const x = 1450000 + index * 1600000
       return [
-        roundedRect(40 + index * 5, x, 2140000, 1100000, 1760000, index % 2 === 0 ? template.accent : template.accent2, 16000),
+        roundedRect(
+          40 + index * 5,
+          x,
+          2140000,
+          1100000,
+          1760000,
+          index % 2 === 0 ? template.accent : template.accent2,
+          16000,
+        ),
         circle(41 + index * 5, x + 310000, 1800000, 470000, template.accentLight, 90000),
-        textBox(42 + index * 5, x + 180000, 2450000, 740000, 560000, point, 950, { color: template.coverTitle, bold: true, maxLines: 3 }),
+        textBox(42 + index * 5, x + 180000, 2450000, 740000, 560000, point, 950, {
+          color: template.coverTitle,
+          bold: true,
+          maxLines: 3,
+        }),
       ]
     }),
   ]
@@ -2408,14 +2774,25 @@ function tableLayout(points: string[], template: PptVisualTemplate) {
   const items = padPoints(points, 5).slice(0, 5)
   return [
     roundedRect(29, 900000, 1420000, 7500000, 2920000, template.card, 22000, template.cardLine),
-    textBox(30, 1180000, 1620000, 1900000, 220000, "对比表格", 1050, { color: template.title, bold: true, maxLines: 1 }),
+    textBox(30, 1180000, 1620000, 1900000, 220000, "对比表格", 1050, {
+      color: template.title,
+      bold: true,
+      maxLines: 1,
+    }),
     rect(31, 1320000, 2020000, 6350000, 420000, template.side),
     ...["维度", "方案 A", "方案 B", "建议"].map((label, index) =>
-      textBox(32 + index, 1480000 + index * 1550000, 2140000, 980000, 150000, label, 780, { color: template.coverTitle, bold: true, maxLines: 1 }),
+      textBox(32 + index, 1480000 + index * 1550000, 2140000, 980000, 150000, label, 780, {
+        color: template.coverTitle,
+        bold: true,
+        maxLines: 1,
+      }),
     ),
     ...items.flatMap((point, row) => [
       rect(45 + row, 1320000, 2500000 + row * 340000, 6350000, 22000, template.cardLine),
-      textBox(55 + row, 1480000, 2590000 + row * 340000, 5600000, 150000, point, 760, { color: template.text, maxLines: 1 }),
+      textBox(55 + row, 1480000, 2590000 + row * 340000, 5600000, 150000, point, 760, {
+        color: template.text,
+        maxLines: 1,
+      }),
     ]),
   ]
 }
@@ -2424,17 +2801,36 @@ function scheduleLayout(points: string[], template: PptVisualTemplate) {
   const items = padPoints(points, 5).slice(0, 5)
   return [
     roundedRect(29, 900000, 1420000, 7500000, 2920000, template.card, 22000, template.cardLine),
-    textBox(30, 1180000, 1620000, 1900000, 220000, "项目排期表", 1050, { color: template.title, bold: true, maxLines: 1 }),
+    textBox(30, 1180000, 1620000, 1900000, 220000, "项目排期表", 1050, {
+      color: template.title,
+      bold: true,
+      maxLines: 1,
+    }),
     ...["任务", "负责人", "状态", "时间"].map((label, index) =>
       roundedRect(31 + index, 1220000 + index * 1600000, 1980000, 1400000, 360000, template.side, 12000),
     ),
     ...["任务", "负责人", "状态", "时间"].map((label, index) =>
-      textBox(40 + index, 1420000 + index * 1600000, 2070000, 900000, 140000, label, 760, { color: template.coverTitle, bold: true, maxLines: 1 }),
+      textBox(40 + index, 1420000 + index * 1600000, 2070000, 900000, 140000, label, 760, {
+        color: template.coverTitle,
+        bold: true,
+        maxLines: 1,
+      }),
     ),
     ...items.flatMap((point, row) => [
       rect(50 + row, 1220000, 2500000 + row * 340000, 6400000, 22000, template.cardLine),
-      textBox(60 + row, 1380000, 2590000 + row * 340000, 2200000, 150000, point, 760, { color: template.text, maxLines: 1 }),
-      roundedRect(70 + row, 4540000, 2550000 + row * 340000, 780000, 180000, row % 2 === 0 ? template.accent : template.accent2, 12000),
+      textBox(60 + row, 1380000, 2590000 + row * 340000, 2200000, 150000, point, 760, {
+        color: template.text,
+        maxLines: 1,
+      }),
+      roundedRect(
+        70 + row,
+        4540000,
+        2550000 + row * 340000,
+        780000,
+        180000,
+        row % 2 === 0 ? template.accent : template.accent2,
+        12000,
+      ),
     ]),
   ]
 }
@@ -2443,9 +2839,17 @@ function orgTreeLayout(points: string[], template: PptVisualTemplate) {
   const items = padPoints(points, 7).slice(0, 7)
   return [
     roundedRect(29, 900000, 1420000, 7500000, 2920000, template.card, 22000, template.cardLine),
-    textBox(30, 1180000, 1620000, 1900000, 220000, "层级拆解树", 1050, { color: template.title, bold: true, maxLines: 1 }),
+    textBox(30, 1180000, 1620000, 1900000, 220000, "层级拆解树", 1050, {
+      color: template.title,
+      bold: true,
+      maxLines: 1,
+    }),
     roundedRect(31, 3420000, 1850000, 2300000, 480000, template.side, 18000),
-    textBox(32, 3740000, 1980000, 1600000, 170000, items[0] ?? "总目标", 860, { color: template.coverTitle, bold: true, maxLines: 1 }),
+    textBox(32, 3740000, 1980000, 1600000, 170000, items[0] ?? "总目标", 860, {
+      color: template.coverTitle,
+      bold: true,
+      maxLines: 1,
+    }),
     rect(33, 4530000, 2330000, 60000, 520000, template.cardLine),
     rect(34, 2100000, 2850000, 4900000, 60000, template.cardLine),
     ...items.slice(1, 4).flatMap((point, index) => {
@@ -2453,12 +2857,27 @@ function orgTreeLayout(points: string[], template: PptVisualTemplate) {
       return [
         rect(40 + index * 5, x + 720000, 2850000, 50000, 340000, template.cardLine),
         roundedRect(41 + index * 5, x, 3180000, 1500000, 460000, template.accentLight, 18000, template.cardLine),
-        textBox(42 + index * 5, x + 160000, 3310000, 1160000, 160000, point, 760, { color: template.text, maxLines: 1 }),
+        textBox(42 + index * 5, x + 160000, 3310000, 1160000, 160000, point, 760, {
+          color: template.text,
+          maxLines: 1,
+        }),
       ]
     }),
     ...items.slice(4, 7).flatMap((point, index) => [
-      roundedRect(60 + index * 5, 1900000 + index * 1900000, 3850000, 1200000, 360000, template.card, 16000, template.cardLine),
-      textBox(61 + index * 5, 2040000 + index * 1900000, 3950000, 900000, 130000, point, 680, { color: template.text, maxLines: 1 }),
+      roundedRect(
+        60 + index * 5,
+        1900000 + index * 1900000,
+        3850000,
+        1200000,
+        360000,
+        template.card,
+        16000,
+        template.cardLine,
+      ),
+      textBox(61 + index * 5, 2040000 + index * 1900000, 3950000, 900000, 130000, point, 680, {
+        color: template.text,
+        maxLines: 1,
+      }),
     ]),
   ]
 }
@@ -2468,13 +2887,31 @@ function horizontalBarLayout(points: string[], template: PptVisualTemplate) {
   const values = chartValues(items)
   return [
     roundedRect(29, 900000, 1420000, 7500000, 2920000, template.card, 22000, template.cardLine),
-    textBox(30, 1180000, 1620000, 1900000, 220000, "横向排行", 1050, { color: template.title, bold: true, maxLines: 1 }),
+    textBox(30, 1180000, 1620000, 1900000, 220000, "横向排行", 1050, {
+      color: template.title,
+      bold: true,
+      maxLines: 1,
+    }),
     ...items.flatMap((point, index) => {
       const width = Math.min(values[index] ?? 900000, 2600000)
       return [
-        textBox(40 + index * 5, 1280000, 2060000 + index * 330000, 1800000, 160000, point, 720, { color: template.text, maxLines: 1 }),
-        roundedRect(41 + index * 5, 3200000, 2070000 + index * 330000, width, 150000, index % 2 === 0 ? template.accent : template.accent2, 14000),
-        textBox(42 + index * 5, 6000000, 2040000 + index * 330000, 800000, 160000, chartValueLabel(point), 720, { color: template.muted, maxLines: 1 }),
+        textBox(40 + index * 5, 1280000, 2060000 + index * 330000, 1800000, 160000, point, 720, {
+          color: template.text,
+          maxLines: 1,
+        }),
+        roundedRect(
+          41 + index * 5,
+          3200000,
+          2070000 + index * 330000,
+          width,
+          150000,
+          index % 2 === 0 ? template.accent : template.accent2,
+          14000,
+        ),
+        textBox(42 + index * 5, 6000000, 2040000 + index * 330000, 800000, 160000, chartValueLabel(point), 720, {
+          color: template.muted,
+          maxLines: 1,
+        }),
       ]
     }),
   ]
@@ -2485,13 +2922,31 @@ function lineTrendLayout(points: string[], template: PptVisualTemplate) {
   const nodes = items.map((_, index) => ({ x: 1500000 + index * 1030000, y: 3440000 - ((index * 470000) % 1550000) }))
   return [
     roundedRect(29, 900000, 1420000, 7500000, 2920000, template.card, 22000, template.cardLine),
-    textBox(30, 1180000, 1620000, 1900000, 220000, "趋势折线", 1050, { color: template.title, bold: true, maxLines: 1 }),
+    textBox(30, 1180000, 1620000, 1900000, 220000, "趋势折线", 1050, {
+      color: template.title,
+      bold: true,
+      maxLines: 1,
+    }),
     rect(31, 1300000, 3700000, 6500000, 45000, template.cardLine),
     ...[0, 1, 2].map((index) => rect(32 + index, 1300000, 2200000 + index * 480000, 6500000, 22000, template.cardLine)),
     ...nodes.flatMap((node, index) => [
-      ...(index < nodes.length - 1 ? [rect(45 + index, node.x + 120000, node.y + 85000, 920000, 45000, index % 2 === 0 ? template.accent : template.accent2)] : []),
+      ...(index < nodes.length - 1
+        ? [
+            rect(
+              45 + index,
+              node.x + 120000,
+              node.y + 85000,
+              920000,
+              45000,
+              index % 2 === 0 ? template.accent : template.accent2,
+            ),
+          ]
+        : []),
       circle(55 + index, node.x, node.y, 230000, index % 2 === 0 ? template.accent : template.accent2, 90000),
-      textBox(65 + index, node.x - 230000, 3830000, 700000, 170000, items[index] ?? "", 680, { color: template.text, maxLines: 1 }),
+      textBox(65 + index, node.x - 230000, 3830000, 700000, 170000, items[index] ?? "", 680, {
+        color: template.text,
+        maxLines: 1,
+      }),
     ]),
   ]
 }
@@ -2501,7 +2956,11 @@ function paretoLayout(points: string[], template: PptVisualTemplate) {
   const values = chartValues(items)
   return [
     roundedRect(29, 900000, 1420000, 7500000, 2920000, template.card, 22000, template.cardLine),
-    textBox(30, 1180000, 1620000, 1900000, 220000, "帕累托 80/20", 1050, { color: template.title, bold: true, maxLines: 1 }),
+    textBox(30, 1180000, 1620000, 1900000, 220000, "帕累托 80/20", 1050, {
+      color: template.title,
+      bold: true,
+      maxLines: 1,
+    }),
     rect(31, 1360000, 3860000, 5600000, 45000, template.cardLine),
     ...items.flatMap((point, index) => {
       const h = Math.min(values[index] ?? 900000, 1500000)
@@ -2527,12 +2986,19 @@ function bubbleLayout(points: string[], template: PptVisualTemplate) {
   ]
   return [
     roundedRect(29, 900000, 1420000, 7500000, 2920000, template.card, 22000, template.cardLine),
-    textBox(30, 1180000, 1620000, 1900000, 220000, "气泡矩阵", 1050, { color: template.title, bold: true, maxLines: 1 }),
+    textBox(30, 1180000, 1620000, 1900000, 220000, "气泡矩阵", 1050, {
+      color: template.title,
+      bold: true,
+      maxLines: 1,
+    }),
     rect(31, 1500000, 3830000, 6100000, 45000, template.cardLine),
     rect(32, 1500000, 1980000, 45000, 1850000, template.cardLine),
     ...nodes.flatMap((node, index) => [
       circle(40 + index * 4, node.x, node.y, node.size, index % 2 === 0 ? template.accent : template.accent2, 65000),
-      textBox(41 + index * 4, node.x - 130000, node.y + node.size + 60000, 900000, 170000, items[index] ?? "", 680, { color: template.text, maxLines: 1 }),
+      textBox(41 + index * 4, node.x - 130000, node.y + node.size + 60000, 900000, 170000, items[index] ?? "", 680, {
+        color: template.text,
+        maxLines: 1,
+      }),
     ]),
   ]
 }
@@ -2541,18 +3007,50 @@ function sankeyLayout(points: string[], template: PptVisualTemplate) {
   const items = padPoints(points, 6).slice(0, 6)
   return [
     roundedRect(29, 900000, 1420000, 7500000, 2920000, template.card, 22000, template.cardLine),
-    textBox(30, 1180000, 1620000, 1900000, 220000, "桑基流向", 1050, { color: template.title, bold: true, maxLines: 1 }),
+    textBox(30, 1180000, 1620000, 1900000, 220000, "桑基流向", 1050, {
+      color: template.title,
+      bold: true,
+      maxLines: 1,
+    }),
     ...items.slice(0, 3).flatMap((point, index) => [
-      roundedRect(40 + index * 5, 1280000, 2050000 + index * 600000, 1250000, 360000, template.accentLight, 16000, template.cardLine),
-      textBox(41 + index * 5, 1440000, 2150000 + index * 600000, 880000, 140000, point, 700, { color: template.text, maxLines: 1 }),
+      roundedRect(
+        40 + index * 5,
+        1280000,
+        2050000 + index * 600000,
+        1250000,
+        360000,
+        template.accentLight,
+        16000,
+        template.cardLine,
+      ),
+      textBox(41 + index * 5, 1440000, 2150000 + index * 600000, 880000, 140000, point, 700, {
+        color: template.text,
+        maxLines: 1,
+      }),
       rightArrow(42 + index * 5, 2600000, 2140000 + index * 600000, 1500000, 150000 + index * 50000, template.accent),
     ]),
     roundedRect(70, 4300000, 2500000, 1350000, 520000, template.side, 18000),
-    textBox(71, 4500000, 2680000, 900000, 160000, items[3] ?? "核心节点", 780, { color: template.coverTitle, bold: true, maxLines: 1 }),
+    textBox(71, 4500000, 2680000, 900000, 160000, items[3] ?? "核心节点", 780, {
+      color: template.coverTitle,
+      bold: true,
+      maxLines: 1,
+    }),
     ...items.slice(4, 6).flatMap((point, index) => [
       rightArrow(80 + index * 5, 5700000, 2500000 + index * 520000, 1120000, 160000, template.accent2),
-      roundedRect(81 + index * 5, 6900000, 2380000 + index * 620000, 960000, 360000, template.accentLight, 16000, template.cardLine),
-      textBox(82 + index * 5, 7040000, 2480000 + index * 620000, 680000, 140000, point, 680, { color: template.text, maxLines: 1 }),
+      roundedRect(
+        81 + index * 5,
+        6900000,
+        2380000 + index * 620000,
+        960000,
+        360000,
+        template.accentLight,
+        16000,
+        template.cardLine,
+      ),
+      textBox(82 + index * 5, 7040000, 2480000 + index * 620000, 680000, 140000, point, 680, {
+        color: template.text,
+        maxLines: 1,
+      }),
     ]),
   ]
 }
@@ -2569,10 +3067,26 @@ function treemapLayout(points: string[], template: PptVisualTemplate) {
   ]
   return [
     roundedRect(29, 900000, 1420000, 7500000, 2920000, template.card, 22000, template.cardLine),
-    textBox(30, 1180000, 1620000, 1900000, 220000, "面积树图", 1050, { color: template.title, bold: true, maxLines: 1 }),
+    textBox(30, 1180000, 1620000, 1900000, 220000, "面积树图", 1050, {
+      color: template.title,
+      bold: true,
+      maxLines: 1,
+    }),
     ...cells.flatMap((cell, index) => [
-      roundedRect(40 + index * 4, cell.x, cell.y, cell.cx, cell.cy, index % 2 === 0 ? template.accent : template.accent2, 10000),
-      textBox(41 + index * 4, cell.x + 140000, cell.y + 150000, cell.cx - 280000, 180000, items[index] ?? "", 740, { color: template.coverTitle, bold: true, maxLines: 1 }),
+      roundedRect(
+        40 + index * 4,
+        cell.x,
+        cell.y,
+        cell.cx,
+        cell.cy,
+        index % 2 === 0 ? template.accent : template.accent2,
+        10000,
+      ),
+      textBox(41 + index * 4, cell.x + 140000, cell.y + 150000, cell.cx - 280000, 180000, items[index] ?? "", 740, {
+        color: template.coverTitle,
+        bold: true,
+        maxLines: 1,
+      }),
     ]),
   ]
 }
@@ -2581,15 +3095,37 @@ function financialLayout(points: string[], template: PptVisualTemplate) {
   const items = padPoints(points, 6).slice(0, 6)
   return [
     roundedRect(29, 900000, 1420000, 7500000, 2920000, template.card, 22000, template.cardLine),
-    textBox(30, 1180000, 1620000, 1900000, 220000, "财务报表", 1050, { color: template.title, bold: true, maxLines: 1 }),
+    textBox(30, 1180000, 1620000, 1900000, 220000, "财务报表", 1050, {
+      color: template.title,
+      bold: true,
+      maxLines: 1,
+    }),
     rect(31, 1240000, 2020000, 6400000, 380000, template.side),
     ...["科目", "本期", "同比", "说明"].map((label, index) =>
-      textBox(32 + index, 1440000 + index * 1550000, 2120000, 900000, 140000, label, 760, { color: template.coverTitle, bold: true, maxLines: 1 }),
+      textBox(32 + index, 1440000 + index * 1550000, 2120000, 900000, 140000, label, 760, {
+        color: template.coverTitle,
+        bold: true,
+        maxLines: 1,
+      }),
     ),
     ...items.flatMap((point, row) => [
-      rect(45 + row, 1240000, 2490000 + row * 310000, 6400000, 22000, row === items.length - 1 ? template.accent : template.cardLine),
-      textBox(55 + row, 1440000, 2560000 + row * 310000, 2500000, 140000, point, 720, { color: row === items.length - 1 ? template.title : template.text, bold: row === items.length - 1, maxLines: 1 }),
-      textBox(65 + row, 4600000, 2560000 + row * 310000, 900000, 140000, chartValueLabel(point), 720, { color: template.text, maxLines: 1 }),
+      rect(
+        45 + row,
+        1240000,
+        2490000 + row * 310000,
+        6400000,
+        22000,
+        row === items.length - 1 ? template.accent : template.cardLine,
+      ),
+      textBox(55 + row, 1440000, 2560000 + row * 310000, 2500000, 140000, point, 720, {
+        color: row === items.length - 1 ? template.title : template.text,
+        bold: row === items.length - 1,
+        maxLines: 1,
+      }),
+      textBox(65 + row, 4600000, 2560000 + row * 310000, 900000, 140000, chartValueLabel(point), 720, {
+        color: template.text,
+        maxLines: 1,
+      }),
     ]),
   ]
 }
@@ -2598,15 +3134,33 @@ function teamRosterLayout(points: string[], template: PptVisualTemplate) {
   const items = padPoints(points, 6).slice(0, 6)
   return [
     roundedRect(29, 900000, 1420000, 7500000, 2920000, template.card, 22000, template.cardLine),
-    textBox(30, 1180000, 1620000, 1900000, 220000, "团队名册", 1050, { color: template.title, bold: true, maxLines: 1 }),
+    textBox(30, 1180000, 1620000, 1900000, 220000, "团队名册", 1050, {
+      color: template.title,
+      bold: true,
+      maxLines: 1,
+    }),
     ...items.flatMap((point, index) => {
       const x = 1280000 + (index % 3) * 2150000
       const y = 1980000 + Math.floor(index / 3) * 1050000
       return [
         roundedRect(40 + index * 5, x, y, 1700000, 820000, template.card, 18000, template.cardLine),
-        circle(41 + index * 5, x + 150000, y + 170000, 360000, index % 2 === 0 ? template.accent : template.accent2, 90000),
-        textBox(42 + index * 5, x + 620000, y + 190000, 880000, 170000, point, 780, { color: template.title, bold: true, maxLines: 1 }),
-        textBox(43 + index * 5, x + 620000, y + 430000, 860000, 160000, "角色 / 贡献", 680, { color: template.muted, maxLines: 1 }),
+        circle(
+          41 + index * 5,
+          x + 150000,
+          y + 170000,
+          360000,
+          index % 2 === 0 ? template.accent : template.accent2,
+          90000,
+        ),
+        textBox(42 + index * 5, x + 620000, y + 190000, 880000, 170000, point, 780, {
+          color: template.title,
+          bold: true,
+          maxLines: 1,
+        }),
+        textBox(43 + index * 5, x + 620000, y + 430000, 860000, 160000, "角色 / 贡献", 680, {
+          color: template.muted,
+          maxLines: 1,
+        }),
       ]
     }),
   ]
@@ -2621,7 +3175,11 @@ function splitLayout(points: string[], template: PptVisualTemplate) {
   const rest = padPoints(points.slice(1), 5)
   return [
     roundedRect(30, 900000, 1500000, 2850000, 2750000, template.side, 22000),
-    textBox(34, 1180000, 1660000, 1800000, 220000, "核心结论", 900, { color: template.accentLight, bold: true, maxLines: 1 }),
+    textBox(34, 1180000, 1660000, 1800000, 220000, "核心结论", 900, {
+      color: template.accentLight,
+      bold: true,
+      maxLines: 1,
+    }),
     textBox(31, 1180000, 1900000, 2200000, 1100000, first, 2100, {
       color: template.coverTitle,
       bold: true,
@@ -2653,7 +3211,12 @@ function highlightLayout(points: string[], template: PptVisualTemplate) {
 function contentPoints(content: string) {
   return content
     .split("\n")
-    .map((line) => line.trim().replace(/^[-*•]\s*/, "").replace(/^#+\s*/, ""))
+    .map((line) =>
+      line
+        .trim()
+        .replace(/^[-*•]\s*/, "")
+        .replace(/^#+\s*/, ""),
+    )
     .filter((line) => line && !/^(主文案|正文|页面目标|核心观点|内容|content)[:：]\s*$/i.test(line))
     .slice(0, 8)
 }
@@ -2686,10 +3249,21 @@ function templateMotifDecor(template: PptVisualTemplate) {
       rect(83, 7000000, 3230000, 180000, 180000, template.accent2),
     ]
   if (template.motif === "minimal-line")
-    return [rect(80, 6350000, 1880000, 1820000, 30000, template.side), rect(81, 7020000, 2150000, 910000, 22000, template.cardLine)]
+    return [
+      rect(80, 6350000, 1880000, 1820000, 30000, template.side),
+      rect(81, 7020000, 2150000, 910000, 22000, template.cardLine),
+    ]
   if (template.motif === "roadmap")
     return [0, 1, 2].flatMap((item) => [
-      roundedRect(80 + item * 2, 6500000 + item * 680000, 3260000 - item * 260000, 240000, 240000, item % 2 ? template.accent2 : template.accent, 78000),
+      roundedRect(
+        80 + item * 2,
+        6500000 + item * 680000,
+        3260000 - item * 260000,
+        240000,
+        240000,
+        item % 2 ? template.accent2 : template.accent,
+        78000,
+      ),
       rect(81 + item * 2, 6620000 + item * 680000, 3370000 - item * 260000, 560000, 36000, template.cardLine),
     ])
   if (template.motif === "spotlight")
@@ -2700,8 +3274,22 @@ function templateMotifDecor(template: PptVisualTemplate) {
     ]
   if (template.motif === "ledger" || template.motif === "bank-ledger")
     return [0, 1, 2, 3].flatMap((item) => [
-      rect(80 + item * 2, 6500000, 2860000 + item * 210000, 1680000, 38000, item % 2 ? template.cardLine : template.accentLight),
-      rect(81 + item * 2, 6500000, 2920000 + item * 210000, 520000 + item * 210000, 28000, item % 2 ? template.accent2 : template.accent),
+      rect(
+        80 + item * 2,
+        6500000,
+        2860000 + item * 210000,
+        1680000,
+        38000,
+        item % 2 ? template.cardLine : template.accentLight,
+      ),
+      rect(
+        81 + item * 2,
+        6500000,
+        2920000 + item * 210000,
+        520000 + item * 210000,
+        28000,
+        item % 2 ? template.accent2 : template.accent,
+      ),
     ])
   if (template.motif === "paper" || template.motif === "university" || template.motif === "clinical")
     return [
@@ -2751,7 +3339,16 @@ function templateMotifDecor(template: PptVisualTemplate) {
       rect(81 + item * 2, 6360000, 2680000 + item * 330000, 1480000, 26000, template.cardLine),
     ])
   if (template.motif === "infrastructure")
-    return [0, 1, 2, 3].map((item) => rect(80 + item, 6420000 + item * 360000, 3440000 - item * 180000, 240000, 620000 + item * 180000, item % 2 ? template.accent2 : template.accent))
+    return [0, 1, 2, 3].map((item) =>
+      rect(
+        80 + item,
+        6420000 + item * 360000,
+        3440000 - item * 180000,
+        240000,
+        620000 + item * 180000,
+        item % 2 ? template.accent2 : template.accent,
+      ),
+    )
   if (template.motif === "certification")
     return [
       roundedRect(80, 6620000, 2700000, 1280000, 940000, template.card, 16000, template.cardLine),
@@ -2766,7 +3363,16 @@ function templateMotifDecor(template: PptVisualTemplate) {
       roundedRect(83, 6760000, 2860000, 720000, 260000, template.accentLight, 16000),
     ]
   if (template.motif === "pixel")
-    return [0, 1, 2, 3, 4, 5].map((item) => rect(80 + item, 6420000 + (item % 3) * 260000, 2860000 + Math.floor(item / 3) * 260000, 220000, 220000, item % 2 ? template.accent2 : template.accent))
+    return [0, 1, 2, 3, 4, 5].map((item) =>
+      rect(
+        80 + item,
+        6420000 + (item % 3) * 260000,
+        2860000 + Math.floor(item / 3) * 260000,
+        220000,
+        220000,
+        item % 2 ? template.accent2 : template.accent,
+      ),
+    )
   return []
 }
 
@@ -2821,7 +3427,12 @@ export type PptTemplateMotif =
   | "therapy"
 
 function pptTemplate(id: OfficePptTemplateID): PptVisualTemplate {
-  return { ...pptTemplateColors(id), ...pptTemplateTypography(id), chromeStyle: pptTemplateChromeStyle(id), motif: pptTemplateMotif(id) }
+  return {
+    ...pptTemplateColors(id),
+    ...pptTemplateTypography(id),
+    chromeStyle: pptTemplateChromeStyle(id),
+    motif: pptTemplateMotif(id),
+  }
 }
 
 function pptTemplateMotif(id: OfficePptTemplateID): PptTemplateMotif {
@@ -2853,11 +3464,17 @@ function pptTemplateMotif(id: OfficePptTemplateID): PptTemplateMotif {
   return "therapy"
 }
 
-function pptTemplateTypography(id: OfficePptTemplateID): Pick<PptVisualTemplate, "titleFont" | "bodyFont" | "latinFont"> {
-  if (id === "cqu" || id === "academic") return { titleFont: "SimSun", bodyFont: "Microsoft YaHei", latinFont: "Georgia" }
-  if (id === "telecom" || id === "cmb" || id === "government" || id === "government-blue" || id === "government-red") return { titleFont: "SimHei", bodyFont: "Microsoft YaHei", latinFont: "Segoe UI" }
-  if (id === "powerchina-modern" || id === "catarc-modern" || id === "data" || id === "ai-ops") return { titleFont: "Microsoft YaHei", bodyFont: "Microsoft YaHei", latinFont: "Segoe UI" }
-  if (id === "powerchina-classic" || id === "catarc-business" || id === "catarc-classic") return { titleFont: "Microsoft YaHei", bodyFont: "Microsoft YaHei", latinFont: "Arial" }
+function pptTemplateTypography(
+  id: OfficePptTemplateID,
+): Pick<PptVisualTemplate, "titleFont" | "bodyFont" | "latinFont"> {
+  if (id === "cqu" || id === "academic")
+    return { titleFont: "SimSun", bodyFont: "Microsoft YaHei", latinFont: "Georgia" }
+  if (id === "telecom" || id === "cmb" || id === "government" || id === "government-blue" || id === "government-red")
+    return { titleFont: "SimHei", bodyFont: "Microsoft YaHei", latinFont: "Segoe UI" }
+  if (id === "powerchina-modern" || id === "catarc-modern" || id === "data" || id === "ai-ops")
+    return { titleFont: "Microsoft YaHei", bodyFont: "Microsoft YaHei", latinFont: "Segoe UI" }
+  if (id === "powerchina-classic" || id === "catarc-business" || id === "catarc-classic")
+    return { titleFont: "Microsoft YaHei", bodyFont: "Microsoft YaHei", latinFont: "Arial" }
   if (id === "medical") return { titleFont: "Microsoft YaHei", bodyFont: "Microsoft YaHei", latinFont: "Calibri" }
   if (id === "pixel") return { titleFont: "Consolas", bodyFont: "Microsoft YaHei", latinFont: "Consolas" }
   if (id === "psychology") return { titleFont: "KaiTi", bodyFont: "Microsoft YaHei", latinFont: "Georgia" }
@@ -2869,11 +3486,27 @@ function pptTemplateTypography(id: OfficePptTemplateID): Pick<PptVisualTemplate,
 }
 
 function pptTemplateChromeStyle(id: OfficePptTemplateID): PptVisualTemplate["chromeStyle"] {
-  if (id === "telecom" || id === "cmb" || id === "government" || id === "government-blue" || id === "government-red") return "ribbon"
-  if (id === "tech" || id === "data" || id === "powerchina-modern" || id === "catarc-modern" || id === "ai-ops" || id === "pixel") return "hud"
+  if (id === "telecom" || id === "cmb" || id === "government" || id === "government-blue" || id === "government-red")
+    return "ribbon"
+  if (
+    id === "tech" ||
+    id === "data" ||
+    id === "powerchina-modern" ||
+    id === "catarc-modern" ||
+    id === "ai-ops" ||
+    id === "pixel"
+  )
+    return "hud"
   if (id === "academic" || id === "cqu" || id === "medical") return "thesis"
   if (id === "psychology") return "canvas"
-  if (id === "business" || id === "product" || id === "strategy" || id === "powerchina-classic" || id === "catarc-classic") return "topbar"
+  if (
+    id === "business" ||
+    id === "product" ||
+    id === "strategy" ||
+    id === "powerchina-classic" ||
+    id === "catarc-classic"
+  )
+    return "topbar"
   if (id === "finance") return "editorial"
   if (id === "teaching" || id === "creative" || id === "warm") return "canvas"
   if (id === "minimal") return "minimal"
@@ -3349,7 +3982,16 @@ function textBox(
   ].join("")
 }
 
-function bulletTextBox(id: number, x: number, y: number, cx: number, cy: number, text: string, size: number, color: string) {
+function bulletTextBox(
+  id: number,
+  x: number,
+  y: number,
+  cx: number,
+  cy: number,
+  text: string,
+  size: number,
+  color: string,
+) {
   const lines = text
     .split("\n")
     .map((line) => line.trim())
@@ -3376,7 +4018,16 @@ function rect(id: number, x: number, y: number, cx: number, cy: number, color: s
   return shape(id, "rect", x, y, cx, cy, color)
 }
 
-function roundedRect(id: number, x: number, y: number, cx: number, cy: number, color: string, alpha?: number, line?: string) {
+function roundedRect(
+  id: number,
+  x: number,
+  y: number,
+  cx: number,
+  cy: number,
+  color: string,
+  alpha?: number,
+  line?: string,
+) {
   return shape(id, "roundRect", x, y, cx, cy, color, alpha, line)
 }
 

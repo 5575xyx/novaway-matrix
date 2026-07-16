@@ -83,6 +83,7 @@ echo "DRILL_SHA=$DRILL_SHA"  # write this down for use in Task 3
 ## Task 3: rsync drill into evals/
 
 **Files:**
+
 - Create: `evals/` (entire directory tree from drill, minus excludes)
 
 - [ ] **Step 1: Verify source and destination paths**
@@ -272,6 +273,7 @@ If the subagent reports any FAIL, fix the underlying issue (delete the leaked fi
 ## Task 5: Add `PowersNexus_ROOT` default helper
 
 **Files:**
+
 - Modify: `evals/drill/cli.py:11-14`
 
 - [ ] **Step 1: Read the current cli.py header**
@@ -406,6 +408,7 @@ Tests:
 ## Task 6: Update backend YAMLs to reflect the new env contract
 
 **Files:**
+
 - Modify: `evals/backends/codex.yaml` (drop `PowersNexus_ROOT` from `required_env`)
 - Modify: `evals/backends/gemini.yaml` (drop `PowersNexus_ROOT` from `required_env`)
 
@@ -487,6 +490,7 @@ because they interpolate \${PowersNexus_ROOT} into --plugin-dir args."
 ## Task 7: Update drill's pytest suite for the new contract
 
 **Files:**
+
 - Modify: `evals/tests/test_backend.py` (per-test updates if Task 6 step 5 surfaced failures)
 
 - [ ] **Step 1: Run the test suite**
@@ -542,6 +546,7 @@ git commit -m "evals: update test_backend.py for relaxed required_env contract"
 ## Task 8: Update evals/README.md and evals/CLAUDE.md
 
 **Files:**
+
 - Modify: `evals/README.md` (drop PowersNexus_ROOT setup step)
 - Modify: `evals/CLAUDE.md` (drop PowersNexus_ROOT setup step)
 
@@ -549,13 +554,16 @@ git commit -m "evals: update test_backend.py for relaxed required_env contract"
 
 Find the section that looks like:
 
-```markdown
+````markdown
 Required environment:
+
 ```bash
 export PowersNexus_ROOT=/path/to/PowersNexus
 export ANTHROPIC_API_KEY=sk-...
 ```
-```
+````
+
+````
 
 Replace with:
 
@@ -563,10 +571,11 @@ Replace with:
 Required environment:
 ```bash
 export ANTHROPIC_API_KEY=sk-...
-```
+````
 
 `PowersNexus_ROOT` defaults to the parent of `evals/` (the PowersNexus repo root) and only needs to be set if you're running drill against a different PowersNexus checkout.
-```
+
+````
 
 - [ ] **Step 2: Edit evals/CLAUDE.md**
 
@@ -575,19 +584,23 @@ Find the section:
 ```markdown
 ## Required env
 
-```
+````
+
 PowersNexus_ROOT=/path/to/PowersNexus
 ANTHROPIC_API_KEY=sk-...
+
 ```
+
 ```
 
 Replace with:
 
 ```markdown
 ## Required env
-
 ```
+
 ANTHROPIC_API_KEY=sk-...
+
 ```
 
 `PowersNexus_ROOT` defaults to the parent of `evals/` (the PowersNexus repo root). Override only if running drill against a different PowersNexus checkout.
@@ -690,6 +703,7 @@ mark as UNMATCHED.
 ### Task 10a: Skill-triggering prompts (6 files)
 
 **Files:**
+
 - Delete: `tests/skill-triggering/prompts/dispatching-parallel-agents.txt`
 - Delete: `tests/skill-triggering/prompts/executing-plans.txt`
 - Delete: `tests/skill-triggering/prompts/requesting-code-review.txt`
@@ -700,14 +714,14 @@ mark as UNMATCHED.
 
 These prompt files are inputs to the bash runner — they don't have their own assertions. The runner script does the assertion. Map each prompt to its drill scenario:
 
-| Prompt | Drill scenario |
-|--------|----------------|
+| Prompt                          | Drill scenario                              |
+| ------------------------------- | ------------------------------------------- |
 | dispatching-parallel-agents.txt | triggering-dispatching-parallel-agents.yaml |
-| executing-plans.txt | triggering-executing-plans.yaml |
-| requesting-code-review.txt | triggering-requesting-code-review.yaml |
-| systematic-debugging.txt | triggering-systematic-debugging.yaml |
-| test-driven-development.txt | triggering-test-driven-development.yaml |
-| writing-plans.txt | triggering-writing-plans.yaml |
+| executing-plans.txt             | triggering-executing-plans.yaml             |
+| requesting-code-review.txt      | triggering-requesting-code-review.yaml      |
+| systematic-debugging.txt        | triggering-systematic-debugging.yaml        |
+| test-driven-development.txt     | triggering-test-driven-development.yaml     |
+| writing-plans.txt               | triggering-writing-plans.yaml               |
 
 - [ ] **Step 1: For each prompt file, dispatch the subagent**
 
@@ -747,20 +761,21 @@ canonical; bash runner has no remaining prompts to drive."
 ### Task 10b: explicit-skill-requests (selective deletion)
 
 **Files:**
+
 - Inspect: 6 files in `tests/explicit-skill-requests/`
 - Delete: only those verified to be 100% covered by drill scenarios
 - Keep: the rest
 
 Per the spec's updated coverage map, most of these have no drill counterpart. The likely-deletable ones:
 
-| Bash test | Candidate drill scenario | Likely outcome |
-|-----------|--------------------------|----------------|
-| `run-test.sh` | n/a (runner) | KEEP |
-| `run-all.sh` | n/a (runner) | KEEP |
-| `run-claude-describes-sdd.sh` | `mid-conversation-skill-invocation.yaml` | likely DELETE; verify |
-| `run-haiku-test.sh` | none (Haiku-specific) | KEEP |
-| `run-multiturn-test.sh`, `run-extended-multiturn-test.sh` | none | KEEP |
-| `prompts/please-use-brainstorming.txt`, `prompts/use-systematic-debugging.txt` | none | KEEP |
+| Bash test                                                                      | Candidate drill scenario                 | Likely outcome        |
+| ------------------------------------------------------------------------------ | ---------------------------------------- | --------------------- |
+| `run-test.sh`                                                                  | n/a (runner)                             | KEEP                  |
+| `run-all.sh`                                                                   | n/a (runner)                             | KEEP                  |
+| `run-claude-describes-sdd.sh`                                                  | `mid-conversation-skill-invocation.yaml` | likely DELETE; verify |
+| `run-haiku-test.sh`                                                            | none (Haiku-specific)                    | KEEP                  |
+| `run-multiturn-test.sh`, `run-extended-multiturn-test.sh`                      | none                                     | KEEP                  |
+| `prompts/please-use-brainstorming.txt`, `prompts/use-systematic-debugging.txt` | none                                     | KEEP                  |
 
 - [ ] **Step 1: Read each .sh file and prompt to confirm**
 
@@ -774,6 +789,7 @@ done
 - [ ] **Step 2: Dispatch subagent for `run-claude-describes-sdd.sh` only**
 
 Use the subagent prompt template above with:
+
 - Bash test content: `tests/explicit-skill-requests/run-claude-describes-sdd.sh`
 - Drill scenario: `evals/scenarios/mid-conversation-skill-invocation.yaml`
 
@@ -797,6 +813,7 @@ If KEEP: skip the deletion, document the gap as a future drill-scenario authorin
 ### Task 10c: subagent-driven-dev real-project tests
 
 **Files:**
+
 - Inspect: `tests/subagent-driven-dev/go-fractals/`, `tests/subagent-driven-dev/svelte-todo/`
 - Candidate scenarios: `evals/scenarios/sdd-go-fractals.yaml`, `evals/scenarios/sdd-svelte-todo.yaml`
 
@@ -962,6 +979,7 @@ test behavior, not description. No drill coverage; kept by design."
 ## Task 11: Stale-reference scrub
 
 **Files:**
+
 - Possibly modify: `docs/testing.md`, `README.md`, `CLAUDE.md`, `lefthook.yml`, `.opencode/INSTALL.md`, `.codex-plugin/INSTALL.md`, `.github/*`, `scripts/*`
 - Annotate (do not rewrite): `RELEASE-NOTES.md`, `docs/PowersNexus/plans/*.md`
 
@@ -995,27 +1013,28 @@ done < /tmp/deleted-paths.txt
 
 This finds every reference to a deleted file. Categorize each hit:
 
-| Hit location | Treatment |
-|--------------|-----------|
-| `docs/testing.md` | Update — actively documents the test |
-| `README.md` (Contributing section) | Update if it points at deleted tests |
-| `CLAUDE.md`, `GEMINI.md`, `AGENTS.md` | Update if they reference deleted tests |
-| `.github/workflows/*.yml` | Update — CI shouldn't try to run deleted tests |
-| `scripts/*` | Update if they run deleted tests |
-| `.opencode/INSTALL.md`, `.codex-plugin/INSTALL.md` | Update if they reference deleted tests |
-| `lefthook.yml` | Update if hooks invoke deleted tests |
-| `RELEASE-NOTES.md` | Annotate, don't rewrite (dated artifact) |
-| `docs/PowersNexus/plans/*.md` | Annotate, don't rewrite (dated artifact) |
+| Hit location                                       | Treatment                                      |
+| -------------------------------------------------- | ---------------------------------------------- |
+| `docs/testing.md`                                  | Update — actively documents the test           |
+| `README.md` (Contributing section)                 | Update if it points at deleted tests           |
+| `CLAUDE.md`, `GEMINI.md`, `AGENTS.md`              | Update if they reference deleted tests         |
+| `.github/workflows/*.yml`                          | Update — CI shouldn't try to run deleted tests |
+| `scripts/*`                                        | Update if they run deleted tests               |
+| `.opencode/INSTALL.md`, `.codex-plugin/INSTALL.md` | Update if they reference deleted tests         |
+| `lefthook.yml`                                     | Update if hooks invoke deleted tests           |
+| `RELEASE-NOTES.md`                                 | Annotate, don't rewrite (dated artifact)       |
+| `docs/PowersNexus/plans/*.md`                      | Annotate, don't rewrite (dated artifact)       |
 
 - [ ] **Step 3: Update active references**
 
 For each "Update" hit, edit the file to either:
+
 - Remove the reference if the deleted test was the only reason it was named.
 - Replace with a pointer to the drill scenario (e.g., "see `evals/scenarios/triggering-test-driven-development.yaml`").
 
 - [ ] **Step 4: Annotate dated artifacts**
 
-For each `RELEASE-NOTES.md` or `docs/PowersNexus/plans/*.md` hit, add an inline annotation at the *first* hit per file:
+For each `RELEASE-NOTES.md` or `docs/PowersNexus/plans/*.md` hit, add an inline annotation at the _first_ hit per file:
 
 ```markdown
 > Note: this section references `tests/skill-triggering/run-all.sh` and
@@ -1064,6 +1083,7 @@ not rewritten."
 ## Task 12: Top-level docs
 
 **Files:**
+
 - Modify: `docs/testing.md` — split into "Plugin tests" + "Skill behavior evals"
 - Modify: `CLAUDE.md` — add evals pointer
 - Modify: `README.md` — add Contributing-section pointer
@@ -1075,7 +1095,7 @@ The file is currently Claude-Code-centric. Split into two top-level sections.
 
 Open `/Users/jesse/Documents/GitHub/PowersNexus/PowersNexus/docs/testing.md` and replace the file content with this structure (preserve the existing Plugin-test details where applicable):
 
-```markdown
+````markdown
 # Testing PowersNexus
 
 PowersNexus has two distinct kinds of tests, each in its own directory:
@@ -1107,9 +1127,11 @@ uv sync
 export ANTHROPIC_API_KEY=sk-...
 uv run drill run triggering-test-driven-development -b claude
 ```
+````
 
 Drill scenarios are slow (3-30+ minutes each) and run real LLM sessions. They are not part of CI today; the natural follow-up is a tiered model (fast subset on PR, full sweep nightly + on-demand).
-```
+
+````
 
 - [ ] **Step 2: Update CLAUDE.md**
 
@@ -1119,7 +1141,7 @@ Read the current CLAUDE.md, find a spot near the project structure section, and 
 ## Eval harness
 
 Skill-behavior evals live at `evals/` — see `evals/README.md`. Drill (the harness) drives real tmux sessions of Claude Code / Codex / Gemini CLI / Copilot CLI and judges skill compliance with an LLM verifier. Plugin-infrastructure tests still live at `tests/`.
-```
+````
 
 - [ ] **Step 3: Update README.md**
 

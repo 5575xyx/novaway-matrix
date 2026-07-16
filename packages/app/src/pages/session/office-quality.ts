@@ -67,20 +67,31 @@ function pptChecks(artifact: OfficeArtifact): OfficeQualityCheck[] {
   ]
 }
 
-function slideCoverage(artifact: OfficeArtifact, predicate: (slide: OfficeArtifact["slides"][number]) => boolean, ratio: number) {
+function slideCoverage(
+  artifact: OfficeArtifact,
+  predicate: (slide: OfficeArtifact["slides"][number]) => boolean,
+  ratio: number,
+) {
   if (artifact.slides.length === 0) return false
   return artifact.slides.filter(predicate).length / artifact.slides.length >= ratio
 }
 
-function pptDesignLockChecks(artifact: OfficeArtifact, layouts: Set<OfficeArtifact["slides"][number]["layout"]>): OfficeQualityCheck[] {
-  const layoutList = artifact.slides.map((slide) => slide.layout).filter((layout): layout is NonNullable<typeof layout> => !!layout)
+function pptDesignLockChecks(
+  artifact: OfficeArtifact,
+  layouts: Set<OfficeArtifact["slides"][number]["layout"]>,
+): OfficeQualityCheck[] {
+  const layoutList = artifact.slides
+    .map((slide) => slide.layout)
+    .filter((layout): layout is NonNullable<typeof layout> => !!layout)
   return [
     {
       label: "页面节奏有起伏",
       passed:
         artifact.slides.length < 6 ||
         artifact.slides.some((slide) => /目录|大纲|议程|agenda|outline/.test(slide.title + slide.content)) ||
-        artifact.slides.some((slide) => /总结|结论|下一步|行动|收获|summary|conclusion|next/.test(slide.title + slide.content)),
+        artifact.slides.some((slide) =>
+          /总结|结论|下一步|行动|收获|summary|conclusion|next/.test(slide.title + slide.content),
+        ),
     },
     {
       label: "单页信息不过载",
@@ -90,8 +101,9 @@ function pptDesignLockChecks(artifact: OfficeArtifact, layouts: Set<OfficeArtifa
       label: "版式没有重复堆叠",
       passed:
         layoutList.length === 0 ||
-        Math.max(...Array.from(new Set(layoutList)).map((layout) => layoutList.filter((item) => item === layout).length)) <=
-          Math.ceil(artifact.slides.length * 0.55),
+        Math.max(
+          ...Array.from(new Set(layoutList)).map((layout) => layoutList.filter((item) => item === layout).length),
+        ) <= Math.ceil(artifact.slides.length * 0.55),
     },
     {
       label: "标题适合投影阅读",
@@ -106,8 +118,19 @@ function pptDesignLockChecks(artifact: OfficeArtifact, layouts: Set<OfficeArtifa
         Array.from(layouts)
           .filter((layout): layout is NonNullable<typeof layout> => !!layout)
           .some((layout) =>
-          ["pareto", "sankey", "gantt", "heatmap", "radar", "venn", "fishbone", "treemap", "financial", "team"].includes(layout),
-        ),
+            [
+              "pareto",
+              "sankey",
+              "gantt",
+              "heatmap",
+              "radar",
+              "venn",
+              "fishbone",
+              "treemap",
+              "financial",
+              "team",
+            ].includes(layout),
+          ),
     },
   ]
 }
@@ -121,9 +144,17 @@ function slideLines(input: string) {
 
 function pptChartDataChecks(artifact: OfficeArtifact): OfficeQualityCheck[] {
   return [
-    dataLayoutCheck(artifact, ["chart", "hbar", "line", "pareto", "bubble", "kpi", "gauge"], "数据图表包含可核验数值", hasNumericSignal),
-    dataLayoutCheck(artifact, ["donut", "treemap", "funnel"], "占比图表包含比例或构成项", (text, slide) =>
-      hasRatioSignal(text) || slideLines(slide.content).length >= 3,
+    dataLayoutCheck(
+      artifact,
+      ["chart", "hbar", "line", "pareto", "bubble", "kpi", "gauge"],
+      "数据图表包含可核验数值",
+      hasNumericSignal,
+    ),
+    dataLayoutCheck(
+      artifact,
+      ["donut", "treemap", "funnel"],
+      "占比图表包含比例或构成项",
+      (text, slide) => hasRatioSignal(text) || slideLines(slide.content).length >= 3,
     ),
     dataLayoutCheck(artifact, ["gantt", "schedule", "roadmap"], "排期图表包含阶段时间或负责人", hasTimelineSignal),
     dataLayoutCheck(artifact, ["waterfall", "financial"], "财务图表包含金额收入成本或利润", hasFinancialSignal),
@@ -138,26 +169,56 @@ function pptVisualReviewChecks(artifact: OfficeArtifact): OfficeQualityCheck[] {
   return [
     {
       label: "视觉说明具备可执行细节",
-      passed: slidesWithVisual.filter((slide) => hasExecutableVisual(slide.visual ?? "")).length / slidesWithVisual.length >= 0.6,
+      passed:
+        slidesWithVisual.filter((slide) => hasExecutableVisual(slide.visual ?? "")).length / slidesWithVisual.length >=
+        0.6,
     },
     {
       label: "关键视觉元素没有缺位",
-      passed: artifact.slides.every((slide) => !requiresVisualElement(slide.layout) || hasKeyVisualElement(slide.visual ?? "")),
+      passed: artifact.slides.every(
+        (slide) => !requiresVisualElement(slide.layout) || hasKeyVisualElement(slide.visual ?? ""),
+      ),
     },
   ]
 }
 
 function hasExecutableVisual(input: string) {
   const text = normalized(input)
-  return text.length >= 6 && !/^(普通卡片|左右分栏|重点页|图表|配图|视觉|页面)$/i.test(text) && hasKeyVisualElement(input)
+  return (
+    text.length >= 6 && !/^(普通卡片|左右分栏|重点页|图表|配图|视觉|页面)$/i.test(text) && hasKeyVisualElement(input)
+  )
 }
 
 function requiresVisualElement(layout: OfficeArtifact["slides"][number]["layout"]) {
-  return !!layout && ["chart", "architecture", "process", "map", "scene", "gantt", "donut", "waterfall", "heatmap", "radar", "journey", "hbar", "line", "pareto", "bubble", "sankey", "treemap", "financial"].includes(layout)
+  return (
+    !!layout &&
+    [
+      "chart",
+      "architecture",
+      "process",
+      "map",
+      "scene",
+      "gantt",
+      "donut",
+      "waterfall",
+      "heatmap",
+      "radar",
+      "journey",
+      "hbar",
+      "line",
+      "pareto",
+      "bubble",
+      "sankey",
+      "treemap",
+      "financial",
+    ].includes(layout)
+  )
 }
 
 function hasKeyVisualElement(input: string) {
-  return /颜色|图形|图表|配图|图片|插画|照片|图标|箭头|卡片|轴|标签|图例|区域|节点|人物|背景|留白|对比|分栏|矩阵|流程|甘特|柱|线|环|表|地图|场景|结构|层级|关系|布局|shape|chart|image|icon|axis|label|legend|node|arrow|card/i.test(input)
+  return /颜色|图形|图表|配图|图片|插画|照片|图标|箭头|卡片|轴|标签|图例|区域|节点|人物|背景|留白|对比|分栏|矩阵|流程|甘特|柱|线|环|表|地图|场景|结构|层级|关系|布局|shape|chart|image|icon|axis|label|legend|node|arrow|card/i.test(
+    input,
+  )
 }
 
 function dataLayoutCheck(
@@ -170,7 +231,9 @@ function dataLayoutCheck(
   if (slides.length === 0) return undefined
   return {
     label,
-    passed: slides.every((slide) => predicate(normalized(`${slide.title}\n${slide.content}\n${slide.visual ?? ""}\n${slide.notes ?? ""}`), slide)),
+    passed: slides.every((slide) =>
+      predicate(normalized(`${slide.title}\n${slide.content}\n${slide.visual ?? ""}\n${slide.notes ?? ""}`), slide),
+    ),
   }
 }
 
@@ -187,7 +250,9 @@ function hasTimelineSignal(text: string) {
 }
 
 function hasFinancialSignal(text: string) {
-  return /\d|¥|￥|\$|收入|成本|利润|预算|现金流|毛利|净利|费用|金额|同比|环比|revenue|cost|profit|budget|cash/i.test(text)
+  return /\d|¥|￥|\$|收入|成本|利润|预算|现金流|毛利|净利|费用|金额|同比|环比|revenue|cost|profit|budget|cash/i.test(
+    text,
+  )
 }
 
 function hasFlowSignal(text: string) {
@@ -218,9 +283,7 @@ function pptTopicChecks(body: string, layouts: Set<OfficeArtifact["slides"][numb
     /金字塔|层级|能力栈|价值栈|pyramid/.test(body)
       ? { label: "层级内容使用金字塔页", passed: layouts.has("pyramid") }
       : undefined,
-    /循环|飞轮|pdca|cycle/.test(body)
-      ? { label: "循环内容使用循环页", passed: layouts.has("cycle") }
-      : undefined,
+    /循环|飞轮|pdca|cycle/.test(body) ? { label: "循环内容使用循环页", passed: layouts.has("cycle") } : undefined,
     /框架|方法论|中心模型|framework/.test(body)
       ? { label: "框架内容使用框架页", passed: layouts.has("framework") }
       : undefined,
@@ -290,9 +353,7 @@ function pptTopicChecks(body: string, layouts: Set<OfficeArtifact["slides"][numb
     /帕累托|80\/20|二八|pareto/.test(body)
       ? { label: "贡献内容使用帕累托页", passed: layouts.has("pareto") }
       : undefined,
-    /气泡|三轴|组合矩阵|bubble/.test(body)
-      ? { label: "三轴内容使用气泡页", passed: layouts.has("bubble") }
-      : undefined,
+    /气泡|三轴|组合矩阵|bubble/.test(body) ? { label: "三轴内容使用气泡页", passed: layouts.has("bubble") } : undefined,
     /桑基|流向|来源去向|流量分配|sankey/.test(body)
       ? { label: "流向内容使用桑基页", passed: layouts.has("sankey") }
       : undefined,

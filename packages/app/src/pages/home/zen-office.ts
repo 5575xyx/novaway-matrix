@@ -48,7 +48,7 @@ export function emptyOfficeDraft(action: HomeAction): OfficeActionDraft {
 export function completeOfficeDraft(action: HomeAction, draft: OfficeActionDraft): OfficeActionDraft {
   return {
     subject: draft.subject.trim() || action.placeholder,
-    output: action.outputs.includes(draft.output) ? draft.output : action.outputs[0] ?? "",
+    output: action.outputs.includes(draft.output) ? draft.output : (action.outputs[0] ?? ""),
     audience: draft.audience.trim(),
     source: draft.source.trim(),
     requirements: draft.requirements.trim(),
@@ -96,7 +96,6 @@ export const zenActions: HomeAction[] = [
     ],
     primary: true,
   },
-
 ]
 
 export const zenSignals = [

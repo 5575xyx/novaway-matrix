@@ -32,52 +32,57 @@
 ### Task 1: Implement WebSocket protocol exports
 
 **Files:**
+
 - Create: `skills/brainstorming/scripts/server.js`
 - Test: `tests/brainstorm-server/ws-protocol.test.js` (already exists)
 
 - [ ] **Step 1: Create server.js with OPCODES constant and computeAcceptKey**
 
 ```js
-const crypto = require('crypto');
+const crypto = require("crypto")
 
-const OPCODES = { TEXT: 0x01, CLOSE: 0x08, PING: 0x09, PONG: 0x0A };
-const WS_MAGIC = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
+const OPCODES = { TEXT: 0x01, CLOSE: 0x08, PING: 0x09, PONG: 0x0a }
+const WS_MAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 function computeAcceptKey(clientKey) {
-  return crypto.createHash('sha1').update(clientKey + WS_MAGIC).digest('base64');
+  return crypto
+    .createHash("sha1")
+    .update(clientKey + WS_MAGIC)
+    .digest("base64")
 }
 ```
 
 - [ ] **Step 2: Implement encodeFrame**
 
 Server frames are never masked. Three length encodings:
+
 - payload < 126: 2-byte header (FIN+opcode, length)
 - 126-65535: 4-byte header (FIN+opcode, 126, 16-bit length)
 - &gt; 65535: 10-byte header (FIN+opcode, 127, 64-bit length)
 
 ```js
 function encodeFrame(opcode, payload) {
-  const fin = 0x80;
-  const len = payload.length;
-  let header;
+  const fin = 0x80
+  const len = payload.length
+  let header
 
   if (len < 126) {
-    header = Buffer.alloc(2);
-    header[0] = fin | opcode;
-    header[1] = len;
+    header = Buffer.alloc(2)
+    header[0] = fin | opcode
+    header[1] = len
   } else if (len < 65536) {
-    header = Buffer.alloc(4);
-    header[0] = fin | opcode;
-    header[1] = 126;
-    header.writeUInt16BE(len, 2);
+    header = Buffer.alloc(4)
+    header[0] = fin | opcode
+    header[1] = 126
+    header.writeUInt16BE(len, 2)
   } else {
-    header = Buffer.alloc(10);
-    header[0] = fin | opcode;
-    header[1] = 127;
-    header.writeBigUInt64BE(BigInt(len), 2);
+    header = Buffer.alloc(10)
+    header[0] = fin | opcode
+    header[1] = 127
+    header.writeBigUInt64BE(BigInt(len), 2)
   }
 
-  return Buffer.concat([header, payload]);
+  return Buffer.concat([header, payload])
 }
 ```
 
@@ -87,46 +92,46 @@ Client frames are always masked. Returns `{ opcode, payload, bytesConsumed }` or
 
 ```js
 function decodeFrame(buffer) {
-  if (buffer.length < 2) return null;
+  if (buffer.length < 2) return null
 
-  const firstByte = buffer[0];
-  const secondByte = buffer[1];
-  const opcode = firstByte & 0x0F;
-  const masked = (secondByte & 0x80) !== 0;
-  let payloadLen = secondByte & 0x7F;
-  let offset = 2;
+  const firstByte = buffer[0]
+  const secondByte = buffer[1]
+  const opcode = firstByte & 0x0f
+  const masked = (secondByte & 0x80) !== 0
+  let payloadLen = secondByte & 0x7f
+  let offset = 2
 
-  if (!masked) throw new Error('Client frames must be masked');
+  if (!masked) throw new Error("Client frames must be masked")
 
   if (payloadLen === 126) {
-    if (buffer.length < 4) return null;
-    payloadLen = buffer.readUInt16BE(2);
-    offset = 4;
+    if (buffer.length < 4) return null
+    payloadLen = buffer.readUInt16BE(2)
+    offset = 4
   } else if (payloadLen === 127) {
-    if (buffer.length < 10) return null;
-    payloadLen = Number(buffer.readBigUInt64BE(2));
-    offset = 10;
+    if (buffer.length < 10) return null
+    payloadLen = Number(buffer.readBigUInt64BE(2))
+    offset = 10
   }
 
-  const maskOffset = offset;
-  const dataOffset = offset + 4;
-  const totalLen = dataOffset + payloadLen;
-  if (buffer.length < totalLen) return null;
+  const maskOffset = offset
+  const dataOffset = offset + 4
+  const totalLen = dataOffset + payloadLen
+  if (buffer.length < totalLen) return null
 
-  const mask = buffer.slice(maskOffset, dataOffset);
-  const data = Buffer.alloc(payloadLen);
+  const mask = buffer.slice(maskOffset, dataOffset)
+  const data = Buffer.alloc(payloadLen)
   for (let i = 0; i < payloadLen; i++) {
-    data[i] = buffer[dataOffset + i] ^ mask[i % 4];
+    data[i] = buffer[dataOffset + i] ^ mask[i % 4]
   }
 
-  return { opcode, payload: data, bytesConsumed: totalLen };
+  return { opcode, payload: data, bytesConsumed: totalLen }
 }
 ```
 
 - [ ] **Step 4: Add module exports at the bottom of the file**
 
 ```js
-module.exports = { computeAcceptKey, encodeFrame, decodeFrame, OPCODES };
+module.exports = { computeAcceptKey, encodeFrame, decodeFrame, OPCODES }
 ```
 
 - [ ] **Step 5: Run unit tests**
@@ -148,26 +153,33 @@ git commit -m "Add WebSocket protocol layer for zero-dep brainstorm server"
 ### Task 2: Add HTTP server, file watching, and WebSocket connection handling
 
 **Files:**
+
 - Modify: `skills/brainstorming/scripts/server.js`
 - Test: `tests/brainstorm-server/server.test.js` (already exists)
 
 - [ ] **Step 1: Add configuration and constants at top of server.js (after requires)**
 
 ```js
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
+const http = require("http")
+const fs = require("fs")
+const path = require("path")
 
-const PORT = process.env.BRAINSTORM_PORT || (49152 + Math.floor(Math.random() * 16383));
-const HOST = process.env.BRAINSTORM_HOST || '127.0.0.1';
-const URL_HOST = process.env.BRAINSTORM_URL_HOST || (HOST === '127.0.0.1' ? 'localhost' : HOST);
-const SCREEN_DIR = process.env.BRAINSTORM_DIR || '/tmp/brainstorm';
+const PORT = process.env.BRAINSTORM_PORT || 49152 + Math.floor(Math.random() * 16383)
+const HOST = process.env.BRAINSTORM_HOST || "127.0.0.1"
+const URL_HOST = process.env.BRAINSTORM_URL_HOST || (HOST === "127.0.0.1" ? "localhost" : HOST)
+const SCREEN_DIR = process.env.BRAINSTORM_DIR || "/tmp/brainstorm"
 
 const MIME_TYPES = {
-  '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript',
-  '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.svg': 'image/svg+xml'
-};
+  ".html": "text/html",
+  ".css": "text/css",
+  ".js": "application/javascript",
+  ".json": "application/json",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".svg": "image/svg+xml",
+}
 ```
 
 - [ ] **Step 2: Add WAITING_PAGE, template loading at module scope, and helper functions**
@@ -182,30 +194,31 @@ const WAITING_PAGE = `<!DOCTYPE html>
 h1 { color: #333; } p { color: #666; }</style>
 </head>
 <body><h1>Brainstorm Companion</h1>
-<p>Waiting for Claude to push a screen...</p></body></html>`;
+<p>Waiting for Claude to push a screen...</p></body></html>`
 
-const frameTemplate = fs.readFileSync(path.join(__dirname, 'frame-template.html'), 'utf-8');
-const helperScript = fs.readFileSync(path.join(__dirname, 'helper.js'), 'utf-8');
-const helperInjection = '<script>\n' + helperScript + '\n</script>';
+const frameTemplate = fs.readFileSync(path.join(__dirname, "frame-template.html"), "utf-8")
+const helperScript = fs.readFileSync(path.join(__dirname, "helper.js"), "utf-8")
+const helperInjection = "<script>\n" + helperScript + "\n</script>"
 
 function isFullDocument(html) {
-  const trimmed = html.trimStart().toLowerCase();
-  return trimmed.startsWith('<!doctype') || trimmed.startsWith('<html');
+  const trimmed = html.trimStart().toLowerCase()
+  return trimmed.startsWith("<!doctype") || trimmed.startsWith("<html")
 }
 
 function wrapInFrame(content) {
-  return frameTemplate.replace('<!-- CONTENT -->', content);
+  return frameTemplate.replace("<!-- CONTENT -->", content)
 }
 
 function getNewestScreen() {
-  const files = fs.readdirSync(SCREEN_DIR)
-    .filter(f => f.endsWith('.html'))
-    .map(f => {
-      const fp = path.join(SCREEN_DIR, f);
-      return { path: fp, mtime: fs.statSync(fp).mtime.getTime() };
+  const files = fs
+    .readdirSync(SCREEN_DIR)
+    .filter((f) => f.endsWith(".html"))
+    .map((f) => {
+      const fp = path.join(SCREEN_DIR, f)
+      return { path: fp, mtime: fs.statSync(fp).mtime.getTime() }
     })
-    .sort((a, b) => b.mtime - a.mtime);
-  return files.length > 0 ? files[0].path : null;
+    .sort((a, b) => b.mtime - a.mtime)
+  return files.length > 0 ? files[0].path : null
 }
 ```
 
@@ -213,35 +226,35 @@ function getNewestScreen() {
 
 ```js
 function handleRequest(req, res) {
-  if (req.method === 'GET' && req.url === '/') {
-    const screenFile = getNewestScreen();
+  if (req.method === "GET" && req.url === "/") {
+    const screenFile = getNewestScreen()
     let html = screenFile
-      ? (raw => isFullDocument(raw) ? raw : wrapInFrame(raw))(fs.readFileSync(screenFile, 'utf-8'))
-      : WAITING_PAGE;
+      ? ((raw) => (isFullDocument(raw) ? raw : wrapInFrame(raw)))(fs.readFileSync(screenFile, "utf-8"))
+      : WAITING_PAGE
 
-    if (html.includes('</body>')) {
-      html = html.replace('</body>', helperInjection + '\n</body>');
+    if (html.includes("</body>")) {
+      html = html.replace("</body>", helperInjection + "\n</body>")
     } else {
-      html += helperInjection;
+      html += helperInjection
     }
 
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(html);
-  } else if (req.method === 'GET' && req.url.startsWith('/files/')) {
-    const fileName = req.url.slice(7); // strip '/files/'
-    const filePath = path.join(SCREEN_DIR, path.basename(fileName));
+    res.writeHead(200, { "Content-Type": "text/html" })
+    res.end(html)
+  } else if (req.method === "GET" && req.url.startsWith("/files/")) {
+    const fileName = req.url.slice(7) // strip '/files/'
+    const filePath = path.join(SCREEN_DIR, path.basename(fileName))
     if (!fs.existsSync(filePath)) {
-      res.writeHead(404);
-      res.end('Not found');
-      return;
+      res.writeHead(404)
+      res.end("Not found")
+      return
     }
-    const ext = path.extname(filePath).toLowerCase();
-    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-    res.writeHead(200, { 'Content-Type': contentType });
-    res.end(fs.readFileSync(filePath));
+    const ext = path.extname(filePath).toLowerCase()
+    const contentType = MIME_TYPES[ext] || "application/octet-stream"
+    res.writeHead(200, { "Content-Type": contentType })
+    res.end(fs.readFileSync(filePath))
   } else {
-    res.writeHead(404);
-    res.end('Not found');
+    res.writeHead(404)
+    res.end("Not found")
   }
 }
 ```
@@ -249,84 +262,93 @@ function handleRequest(req, res) {
 - [ ] **Step 4: Add WebSocket connection handling**
 
 ```js
-const clients = new Set();
+const clients = new Set()
 
 function handleUpgrade(req, socket) {
-  const key = req.headers['sec-websocket-key'];
-  if (!key) { socket.destroy(); return; }
+  const key = req.headers["sec-websocket-key"]
+  if (!key) {
+    socket.destroy()
+    return
+  }
 
-  const accept = computeAcceptKey(key);
+  const accept = computeAcceptKey(key)
   socket.write(
-    'HTTP/1.1 101 Switching Protocols\r\n' +
-    'Upgrade: websocket\r\n' +
-    'Connection: Upgrade\r\n' +
-    'Sec-WebSocket-Accept: ' + accept + '\r\n\r\n'
-  );
+    "HTTP/1.1 101 Switching Protocols\r\n" +
+      "Upgrade: websocket\r\n" +
+      "Connection: Upgrade\r\n" +
+      "Sec-WebSocket-Accept: " +
+      accept +
+      "\r\n\r\n",
+  )
 
-  let buffer = Buffer.alloc(0);
-  clients.add(socket);
+  let buffer = Buffer.alloc(0)
+  clients.add(socket)
 
-  socket.on('data', (chunk) => {
-    buffer = Buffer.concat([buffer, chunk]);
+  socket.on("data", (chunk) => {
+    buffer = Buffer.concat([buffer, chunk])
     while (buffer.length > 0) {
-      let result;
+      let result
       try {
-        result = decodeFrame(buffer);
+        result = decodeFrame(buffer)
       } catch (e) {
-        socket.end(encodeFrame(OPCODES.CLOSE, Buffer.alloc(0)));
-        clients.delete(socket);
-        return;
+        socket.end(encodeFrame(OPCODES.CLOSE, Buffer.alloc(0)))
+        clients.delete(socket)
+        return
       }
-      if (!result) break;
-      buffer = buffer.slice(result.bytesConsumed);
+      if (!result) break
+      buffer = buffer.slice(result.bytesConsumed)
 
       switch (result.opcode) {
         case OPCODES.TEXT:
-          handleMessage(result.payload.toString());
-          break;
+          handleMessage(result.payload.toString())
+          break
         case OPCODES.CLOSE:
-          socket.end(encodeFrame(OPCODES.CLOSE, Buffer.alloc(0)));
-          clients.delete(socket);
-          return;
+          socket.end(encodeFrame(OPCODES.CLOSE, Buffer.alloc(0)))
+          clients.delete(socket)
+          return
         case OPCODES.PING:
-          socket.write(encodeFrame(OPCODES.PONG, result.payload));
-          break;
+          socket.write(encodeFrame(OPCODES.PONG, result.payload))
+          break
         case OPCODES.PONG:
-          break;
+          break
         default:
           // Unsupported opcode — close with 1003
-          const closeBuf = Buffer.alloc(2);
-          closeBuf.writeUInt16BE(1003);
-          socket.end(encodeFrame(OPCODES.CLOSE, closeBuf));
-          clients.delete(socket);
-          return;
+          const closeBuf = Buffer.alloc(2)
+          closeBuf.writeUInt16BE(1003)
+          socket.end(encodeFrame(OPCODES.CLOSE, closeBuf))
+          clients.delete(socket)
+          return
       }
     }
-  });
+  })
 
-  socket.on('close', () => clients.delete(socket));
-  socket.on('error', () => clients.delete(socket));
+  socket.on("close", () => clients.delete(socket))
+  socket.on("error", () => clients.delete(socket))
 }
 
 function handleMessage(text) {
-  let event;
+  let event
   try {
-    event = JSON.parse(text);
+    event = JSON.parse(text)
   } catch (e) {
-    console.error('Failed to parse WebSocket message:', e.message);
-    return;
+    console.error("Failed to parse WebSocket message:", e.message)
+    return
   }
-  console.log(JSON.stringify({ source: 'user-event', ...event }));
+  console.log(JSON.stringify({ source: "user-event", ...event }))
   if (event.choice) {
-    const eventsFile = path.join(SCREEN_DIR, '.events');
-    fs.appendFileSync(eventsFile, JSON.stringify(event) + '\n');
+    const eventsFile = path.join(SCREEN_DIR, ".events")
+    fs.appendFileSync(eventsFile, JSON.stringify(event) + "\n")
   }
 }
 
 function broadcast(msg) {
-  const frame = encodeFrame(OPCODES.TEXT, Buffer.from(JSON.stringify(msg)));
+  const frame = encodeFrame(OPCODES.TEXT, Buffer.from(JSON.stringify(msg)))
   for (const socket of clients) {
-    try { socket.write(frame); } catch (e) { clients.delete(socket); }
+    try {
+      socket.write(frame)
+    } catch (e) {
+      clients.delete(socket)
+    }
   }
 }
 ```
@@ -334,7 +356,7 @@ function broadcast(msg) {
 - [ ] **Step 5: Add debounce timer map**
 
 ```js
-const debounceTimers = new Map();
+const debounceTimers = new Map()
 ```
 
 File watching logic is inlined in `startServer` (Step 6) to keep watcher lifecycle together with server lifecycle and include an `error` handler per spec.
@@ -345,42 +367,48 @@ File watching logic is inlined in `startServer` (Step 6) to keep watcher lifecyc
 
 ```js
 function startServer() {
-  if (!fs.existsSync(SCREEN_DIR)) fs.mkdirSync(SCREEN_DIR, { recursive: true });
+  if (!fs.existsSync(SCREEN_DIR)) fs.mkdirSync(SCREEN_DIR, { recursive: true })
 
-  const server = http.createServer(handleRequest);
-  server.on('upgrade', handleUpgrade);
+  const server = http.createServer(handleRequest)
+  server.on("upgrade", handleUpgrade)
 
   const watcher = fs.watch(SCREEN_DIR, (eventType, filename) => {
-    if (!filename || !filename.endsWith('.html')) return;
-    if (debounceTimers.has(filename)) clearTimeout(debounceTimers.get(filename));
-    debounceTimers.set(filename, setTimeout(() => {
-      debounceTimers.delete(filename);
-      const filePath = path.join(SCREEN_DIR, filename);
-      if (eventType === 'rename' && fs.existsSync(filePath)) {
-        const eventsFile = path.join(SCREEN_DIR, '.events');
-        if (fs.existsSync(eventsFile)) fs.unlinkSync(eventsFile);
-        console.log(JSON.stringify({ type: 'screen-added', file: filePath }));
-      } else if (eventType === 'change') {
-        console.log(JSON.stringify({ type: 'screen-updated', file: filePath }));
-      }
-      broadcast({ type: 'reload' });
-    }, 100));
-  });
-  watcher.on('error', (err) => console.error('fs.watch error:', err.message));
+    if (!filename || !filename.endsWith(".html")) return
+    if (debounceTimers.has(filename)) clearTimeout(debounceTimers.get(filename))
+    debounceTimers.set(
+      filename,
+      setTimeout(() => {
+        debounceTimers.delete(filename)
+        const filePath = path.join(SCREEN_DIR, filename)
+        if (eventType === "rename" && fs.existsSync(filePath)) {
+          const eventsFile = path.join(SCREEN_DIR, ".events")
+          if (fs.existsSync(eventsFile)) fs.unlinkSync(eventsFile)
+          console.log(JSON.stringify({ type: "screen-added", file: filePath }))
+        } else if (eventType === "change") {
+          console.log(JSON.stringify({ type: "screen-updated", file: filePath }))
+        }
+        broadcast({ type: "reload" })
+      }, 100),
+    )
+  })
+  watcher.on("error", (err) => console.error("fs.watch error:", err.message))
 
   server.listen(PORT, HOST, () => {
     const info = JSON.stringify({
-      type: 'server-started', port: Number(PORT), host: HOST,
-      url_host: URL_HOST, url: 'http://' + URL_HOST + ':' + PORT,
-      screen_dir: SCREEN_DIR
-    });
-    console.log(info);
-    fs.writeFileSync(path.join(SCREEN_DIR, '.server-info'), info + '\n');
-  });
+      type: "server-started",
+      port: Number(PORT),
+      host: HOST,
+      url_host: URL_HOST,
+      url: "http://" + URL_HOST + ":" + PORT,
+      screen_dir: SCREEN_DIR,
+    })
+    console.log(info)
+    fs.writeFileSync(path.join(SCREEN_DIR, ".server-info"), info + "\n")
+  })
 }
 
 if (require.main === module) {
-  startServer();
+  startServer()
 }
 ```
 
@@ -405,6 +433,7 @@ git commit -m "Add HTTP server, WebSocket handling, and file watching to server.
 ### Task 3: Update start-server.sh and remove old files
 
 **Files:**
+
 - Modify: `skills/brainstorming/scripts/start-server.sh:94,100`
 - Modify: `.gitignore:6`
 - Delete: `skills/brainstorming/scripts/index.js`

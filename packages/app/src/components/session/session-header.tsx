@@ -19,6 +19,7 @@ import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
 import { useTerminal } from "@/context/terminal"
 import { MemoryEvolutionPanel } from "@/components/memory-evolution-panel"
+import { StatusPopover } from "@/components/status-popover"
 import { ThemeSchemeToggle } from "@/components/theme-scheme-toggle"
 import { focusTerminalById } from "@/pages/session/helpers"
 import { useSessionLayout } from "@/pages/session/session-layout"
@@ -153,11 +154,11 @@ export function SessionHeader() {
   })
   const hotkey = createMemo(() => command.keybind("file.open"))
   const os = createMemo(() => detectOS(platform))
-  const isDesktopBeta = platform.platform === "desktop" && import.meta.env.VITE_OPENCODE_CHANNEL === "beta"
-  const search = createMemo(() => !isDesktopBeta || settings.general.showSearch())
-  const tree = createMemo(() => !isDesktopBeta || settings.general.showFileTree())
-  const term = createMemo(() => !isDesktopBeta || settings.general.showTerminal())
-  const status = createMemo(() => !isDesktopBeta || settings.general.showStatus())
+  const search = createMemo(() => settings.general.showSearch())
+  const tree = createMemo(() => settings.general.showFileTree())
+  const term = createMemo(() => settings.general.showTerminal())
+  const status = createMemo(() => settings.general.showStatus())
+  const nav = createMemo(() => settings.general.showNavigation())
 
   const [exists, setExists] = createStore<Partial<Record<OpenApp, boolean>>>({
     finder: true,
@@ -365,6 +366,9 @@ export function SessionHeader() {
         {(mount) => (
           <Portal mount={mount()}>
             <div class="flex items-center gap-2">
+              <Show when={status()}>
+                <StatusPopover />
+              </Show>
               <Show when={projectDirectory()}>
                 <div class="hidden">
                   <Show

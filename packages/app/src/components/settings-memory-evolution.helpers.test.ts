@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test"
-import type { EvolutionCandidate, EvolutionStatus, MemoryReviewCandidate, MemoryReviewStatus } from "@opencode-ai/sdk/v2/client"
+import type {
+  EvolutionCandidate,
+  EvolutionStatus,
+  MemoryReviewCandidate,
+  MemoryReviewStatus,
+} from "@opencode-ai/sdk/v2/client"
 import { pendingBadgeLabel } from "./review-ui-helpers"
 import {
   filterEvolutionCandidates,
@@ -88,7 +93,10 @@ describe("evolution UI helpers", () => {
         dismissed: { all: 2, background: "NaN", "session-end": 1 },
       },
     }
-    const candidates = [evolutionCandidate("evc_background", []), evolutionCandidate("evc_session", ["session-end", "mode:forge"])]
+    const candidates = [
+      evolutionCandidate("evc_background", []),
+      evolutionCandidate("evc_session", ["session-end", "mode:forge"]),
+    ]
 
     expect(evolutionCounts(status)).toEqual({ pending: 101, applied: 0, dismissed: 2 })
     expect(evolutionSourceCounts(status, "dismissed")).toEqual({ all: 2, background: 0, "session-end": 1 })

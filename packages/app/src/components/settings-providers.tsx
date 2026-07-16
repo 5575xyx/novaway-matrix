@@ -91,7 +91,9 @@ export const SettingsProviders: Component = () => {
     setAuthEntries(result)
   }
 
-  onMount(() => { void loadAuthEntries() })
+  onMount(() => {
+    void loadAuthEntries()
+  })
 
   const maskKey = (key: string) => {
     if (key.length <= 8) return "****"
@@ -172,12 +174,12 @@ export const SettingsProviders: Component = () => {
   return (
     <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
       <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--surface-stronger-non-alpha)_calc(100%_-_24px),transparent)]">
-        <div class="flex flex-col gap-1 pt-6 pb-8 max-w-[720px]">
+        <div class="flex flex-col gap-1 pt-6 pb-8 w-full">
           <h2 class="text-16-medium text-text-strong">{language.t("settings.providers.title")}</h2>
         </div>
       </div>
 
-      <div class="flex flex-col gap-8 max-w-[720px]">
+      <div class="flex flex-col gap-8 w-full">
         <div class="flex flex-col gap-1" data-component="connected-providers-section">
           <h3 class="text-14-medium text-text-strong pb-2">{language.t("settings.providers.section.connected")}</h3>
           <SettingsList>
@@ -217,7 +219,9 @@ export const SettingsProviders: Component = () => {
                             size="small"
                             variant="ghost"
                             onClick={() => {
-                              dialog.show(() => <DialogManageProviderModels providerID={item.id} providerName={item.name} />)
+                              dialog.show(() => (
+                                <DialogManageProviderModels providerID={item.id} providerName={item.name} />
+                              ))
                             }}
                           >
                             {language.t("dialog.model.manage")}
@@ -242,7 +246,11 @@ export const SettingsProviders: Component = () => {
                             {(entry, index) => (
                               <div class="flex items-center justify-between gap-2 text-13-regular text-text-base">
                                 <span class="truncate font-mono">
-                                  {entry.type === "api" ? maskKey(entry.key ?? "") : entry.type === "oauth" ? "OAuth" : "WellKnown"}
+                                  {entry.type === "api"
+                                    ? maskKey(entry.key ?? "")
+                                    : entry.type === "oauth"
+                                      ? "OAuth"
+                                      : "WellKnown"}
                                 </span>
                                 <button
                                   class="text-12-regular text-text-weak hover:text-text-critical-base shrink-0"
@@ -263,77 +271,21 @@ export const SettingsProviders: Component = () => {
           </SettingsList>
         </div>
 
-        <div class="flex flex-col gap-1">
-          <h3 class="text-14-medium text-text-strong pb-2">{language.t("settings.providers.section.popular")}</h3>
-          <SettingsList>
-            <For each={popular()}>
-              {(item) => (
-                <div class="flex flex-wrap items-center justify-between gap-4 min-h-16 py-3 border-b border-border-weak-base last:border-none">
-                  <div class="flex flex-col min-w-0">
-                    <div class="flex items-center gap-x-3">
-                      <ProviderIcon id={item.id} class="size-5 shrink-0 icon-strong-base" />
-                      <span class="text-14-medium text-text-strong">{item.name}</span>
-                      <Show when={item.id === "opencode"}>
-                        <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
-                      </Show>
-                      <Show when={item.id === "opencode-go"}>
-                        <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
-                      </Show>
-                    </div>
-                    <Show when={note(item.id)}>
-                      {(key) => <span class="text-12-regular text-text-weak pl-8">{language.t(key())}</span>}
-                    </Show>
-                  </div>
-                  <Button
-                    size="large"
-                    variant="secondary"
-                    icon="plus-small"
-                    onClick={() => {
-                      dialog.show(() => <DialogConnectProvider provider={item.id} />)
-                    }}
-                  >
-                    {language.t("common.connect")}
-                  </Button>
-                </div>
-              )}
-            </For>
-
-            <div
-              class="flex items-center justify-between gap-4 min-h-16 border-b border-border-weak-base last:border-none flex-wrap py-3"
-              data-component="custom-provider-section"
-            >
-              <div class="flex flex-col min-w-0">
-                <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <ProviderIcon id="synthetic" class="size-5 shrink-0 icon-strong-base" />
-                  <span class="text-14-medium text-text-strong">{language.t("provider.custom.title")}</span>
-                  <Tag>{language.t("settings.providers.tag.custom")}</Tag>
-                </div>
-                <span class="text-12-regular text-text-weak pl-8">
-                  {language.t("settings.providers.custom.description")}
-                </span>
-              </div>
-              <Button
-                size="large"
-                variant="secondary"
-                icon="plus-small"
-                onClick={() => {
-                  dialog.show(() => <DialogCustomProvider back="close" />)
-                }}
-              >
-                {language.t("common.connect")}
-              </Button>
-            </div>
-          </SettingsList>
-
+        <div class="flex flex-col gap-4">
           <Button
-            variant="ghost"
-            class="px-0 py-0 mt-5 text-14-medium text-text-interactive-base text-left justify-start hover:bg-transparent active:bg-transparent"
+            size="large"
+            variant="primary"
+            icon="plus-small"
+            class="w-full py-4"
             onClick={() => {
-              dialog.show(() => <DialogSelectProvider />)
+              dialog.show(() => <DialogCustomProvider back="close" />)
             }}
           >
-            {language.t("dialog.provider.viewAll")}
+            {language.t("settings.providers.add.provider")}
           </Button>
+          <p class="text-12-regular text-text-weak text-center">
+            {language.t("settings.providers.add.provider.description")}
+          </p>
         </div>
       </div>
     </div>

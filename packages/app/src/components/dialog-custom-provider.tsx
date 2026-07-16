@@ -13,8 +13,17 @@ import { Link } from "@/components/link"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
-import { type FormState, headerRow, modelRow, validateCustomProvider } from "./dialog-custom-provider-form"
+import { type FormState, headerRow, modelRow, type ModelType, validateCustomProvider } from "./dialog-custom-provider-form"
+
+import { SelectProviderCombobox } from "./select-provider-combobox"
 import { DialogSelectProvider } from "./dialog-select-provider"
+
+const MODEL_TYPES: { value: ModelType; label: string }[] = [
+  { value: "text", label: "文本模型" },
+  { value: "image", label: "图片生成" },
+  { value: "video", label: "视频生成" },
+  { value: "audio", label: "音频生成" },
+]
 
 type Props = {
   back?: "providers" | "close"
@@ -25,6 +34,12 @@ type RemoteModel = {
   name: string
 }
 
+type ProviderOption = {
+  id: string
+  name: string
+  baseURL?: string
+}
+
 export function DialogCustomProvider(props: Props) {
   const dialog = useDialog()
   const globalSync = useGlobalSync()
@@ -32,6 +47,16 @@ export function DialogCustomProvider(props: Props) {
   const language = useLanguage()
   const [remoteModels, setRemoteModels] = createSignal<RemoteModel[]>([])
   const [selectedRemoteModel, setSelectedRemoteModel] = createSignal<RemoteModel>()
+
+  const handleProviderSelect = (option: ProviderOption) => {
+    batch(() => {
+      setForm("providerID", option.id)
+      setForm("name", option.name)
+      if (option.baseURL) {
+        setForm("baseURL", option.baseURL)
+      }
+    })
+  }
 
   const [form, setForm] = createStore<FormState>({
     providerID: "",
@@ -102,6 +127,10 @@ export function DialogCustomProvider(props: Props) {
     })
   }
 
+  const setModelType = (index: number, value: ModelType) => {
+    setForm("models", index, "type", value)
+  }
+
   const setHeader = (index: number, key: "key" | "value", value: string) => {
     batch(() => {
       setForm("headers", index, key, value)
@@ -109,22 +138,32 @@ export function DialogCustomProvider(props: Props) {
     })
   }
 
+  const inferModelType = (id: string, name: string): ModelType => {
+    const text = `${id} ${name}`.toLowerCase()
+    if (text.includes("image") || text.includes("img") || text.includes("dall") || text.includes("picture")) return "image"
+    if (text.includes("video") || text.includes("clip")) return "video"
+    if (text.includes("audio") || text.includes("sound") || text.includes("speech") || text.includes("voice")) return "audio"
+    return "text"
+  }
+
   const applyRemoteModel = (model: RemoteModel) => {
     setSelectedRemoteModel(model)
     const existing = form.models.findIndex((row) => row.id.trim() === model.id)
     const target = existing >= 0 ? existing : form.models.findIndex((row) => !row.id.trim() && !row.name.trim())
+    const modelType = inferModelType(model.id, model.name)
 
     batch(() => {
       if (target >= 0) {
         setForm("models", target, "id", model.id)
         setForm("models", target, "name", model.name)
+        setForm("models", target, "type", modelType)
         setForm("models", target, "err", {})
         return
       }
       setForm(
         "models",
         produce((rows) => {
-          rows.push({ ...modelRow(), id: model.id, name: model.name })
+          rows.push({ ...modelRow(), id: model.id, name: model.name, type: modelType })
         }),
       )
     })
@@ -242,8 +281,13 @@ export function DialogCustomProvider(props: Props) {
           </p>
 
           <div class="flex flex-col gap-4">
+            <SelectProviderCombobox
+              class="w-full"
+              current={form.providerID ? { id: form.providerID, name: form.name, baseURL: form.baseURL } : undefined}
+              onSelect={handleProviderSelect}
+            />
+            <p class="text-11-regular text-text-weak">{language.t("provider.custom.field.provider.description")}</p>
             <TextField
-              autofocus
               label={language.t("provider.custom.field.providerID.label")}
               placeholder={language.t("provider.custom.field.providerID.placeholder")}
               description={language.t("provider.custom.field.providerID.description")}
@@ -344,6 +388,17 @@ export function DialogCustomProvider(props: Props) {
                       error={m.err.name}
                     />
                   </div>
+                  <div class="w-28 shrink-0">
+                    <Select
+                      size="small"
+                      options={MODEL_TYPES}
+                      current={MODEL_TYPES.find((t) => t.value === m.type)}
+                      value={(t) => t.value}
+                      label={(t) => t.label}
+                      onSelect={(t) => t && setModelType(i(), t.value)}
+                      placeholder="模型类型"
+                    />
+                  </div>
                   <IconButton
                     type="button"
                     icon="trash"
@@ -420,11 +475,7 @@ export function DialogCustomProvider(props: Props) {
   )
 }
 
-async function fetchOpenAICompatibleModels(input: {
-  baseURL: string
-  apiKey: string
-  headers: FormState["headers"]
-}) {
+async function fetchOpenAICompatibleModels(input: { baseURL: string; apiKey: string; headers: FormState["headers"] }) {
   const baseURL = input.baseURL.trim().replace(/\/+$/, "")
   if (!/^https?:\/\//.test(baseURL)) throw new Error("请先填写有效的基础 URL")
 

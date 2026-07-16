@@ -1,6 +1,7 @@
 # NovaWay 图标生成 - 快速指南
 
 ## 问题
+
 桌面应用图标仍然是旧的 OpenCode 图标，而不是新的 NovaWay 图标。
 
 ## 解决方案
@@ -28,7 +29,7 @@
 ```
 packages/desktop/icons/dev/icon.png    ← 256x256 PNG
 packages/desktop/icons/dev/icon.ico   ← Windows ICO
-packages/desktop/icons/beta/icon.png  ← 256x256 PNG  
+packages/desktop/icons/beta/icon.png  ← 256x256 PNG
 packages/desktop/icons/beta/icon.ico  ← Windows ICO
 packages/desktop/icons/prod/icon.png  ← 256x256 PNG
 packages/desktop/icons/prod/icon.ico  ← Windows ICO
@@ -37,6 +38,7 @@ packages/desktop/icons/prod/icon.ico  ← Windows ICO
 ### 步骤 4: 生成 macOS ICNS 文件（仅 macOS 开发需要）
 
 macOS 用户可以使用 Image2Icon 工具：
+
 1. 下载: https://img2icnsapp.com/
 2. 选择 "Big Sur Icon" 预设
 3. 导入 512x512 PNG
@@ -62,6 +64,7 @@ bun run package
 ## 技术说明
 
 NovaWay 图标设计：
+
 - **N+W 融合**: 字母 N 和 W 的几何组合
 - **渐变配色**: #0ea5e9 (浅蓝) → #38bdf8 (天蓝)
 - **背景色**: #0f172a (深蓝黑)
@@ -70,5 +73,6 @@ NovaWay 图标设计：
 ## 详细文档
 
 完整的图标生成说明请查看：
+
 - `packages/desktop/README-ICONS.md`
 - `packages/desktop/scripts/generate-ico.ps1`

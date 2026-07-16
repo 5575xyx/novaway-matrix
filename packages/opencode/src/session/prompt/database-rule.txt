@@ -1,29 +1,36 @@
 # 数据库连接与使用规则（内置全局规则）
 
-## 已保存的数据库连接自动注入
-AI 的系统提示中已自动注入所有在 UI Database Tab 中保存的数据库连接信息。
-如果提示中有连接信息，AI 应直接使用其中的参数，无需询问用户。
+## 使用 DBX MCP 工具
 
-如果没有已保存的连接（系统提示中无连接信息），AI 应询问用户输入连接参数。
+AI 必须使用 DBX MCP 工具来访问和操作数据库，而不是使用 shell CLI 或旧的 `database_sql` 工具。
 
-## 如何操作数据库（优先使用内置工具）
+## 可用 DBX 工具
 
-你有一个内置的 `database_sql` 工具，可以直接执行 SQL 语句。
-优先使用 `database_sql` 工具，而不是用 shell 工具手动调用数据库 CLI。
+- `dbx_dbx_list_connections`：列出已保存的数据库连接
+- `dbx_dbx_execute_query`：在指定的连接上执行 SQL
+- `dbx_dbx_list_tables`：列出某个连接下的所有表
+- `dbx_dbx_describe_table`：查看单张表的结构
+- `dbx_dbx_get_schema_context`：获取用于生成查询的数据库上下文
+- `dbx_dbx_execute_redis_command`：在 Redis 连接上执行命令
 
-### 使用方式
-1. 使用 `database_sql` 工具，传入连接参数和 SQL 即可
-2. 如果系统提示中有已保存的连接，优先使用其中的参数
-3. 连接参数包括：type（数据库类型）、host、port、user、password、database、sql
-4. 支持类型：mysql、postgresql、sqlite、sqlserver、mariadb
+## 使用方式
+
+1. 先调用 `dbx_dbx_list_connections` 查看可用的连接。
+2. 执行查询时，使用 `dbx_dbx_execute_query` 并传入 `connection_name` 和 `sql`。
+3. 如果不确定数据库结构，先用 `dbx_dbx_list_tables`、`dbx_dbx_describe_table` 或 `dbx_dbx_get_schema_context` 获取信息。
 
 ## DDL 与初始化
-- 创建表使用 `CREATE TABLE IF NOT EXISTS` 避免重复执行
-- 插入测试数据使用 INSERT 语句
-- DDL 和数据插入的结果应在 Database Tab 和对话中都可查看
+
+- 创建表使用 `CREATE TABLE IF NOT EXISTS`，避免重复执行报错。
+- 插入测试数据使用 INSERT 语句。
+- DDL 和数据插入的结果在对话中展示即可。
 
 ## 错误处理
-- 如果 CLI 工具未安装，提示用户安装对应数据库客户端
-- 如果连接失败，检查 host/port/credentials 是否正确
-- 如果是 SQL 语法错误，修正后重试
-- 如果 `database_sql` 工具不可用，回退到使用 shell 工具手动调用 CLI
+
+- 如果连接失败，检查 `connection_name` 是否正确，或重新调用 `dbx_dbx_list_connections`。
+- 如果是 SQL 语法错误，修正后重试。
+- 不要回退到 shell CLI 操作数据库。
+
+## 安全说明
+
+DBX 内置 SQL 安全检查与连接池管理。AI 直接使用 DBX 工具即可，不需要手动维护连接参数。

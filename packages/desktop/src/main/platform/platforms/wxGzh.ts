@@ -1,6 +1,14 @@
 import { BrowserWindow, screen, session } from "electron"
 import type { Cookie } from "electron"
-import { PlatformBase, type PlatformLoginResult, type PublishInput, type PublishResult, type PlatformAccountInfo, type AccountStats, type PublishRecord } from "../PlatformBase"
+import {
+  PlatformBase,
+  type PlatformLoginResult,
+  type PublishInput,
+  type PublishResult,
+  type PlatformAccountInfo,
+  type AccountStats,
+  type PublishRecord,
+} from "../PlatformBase"
 
 const LOGIN_URL = "https://mp.weixin.qq.com/"
 const COOKIE_URL = "https://mp.weixin.qq.com"
@@ -13,7 +21,11 @@ const DEFAULT_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
 function safeDecodeURIComponent(value: string) {
-  try { return decodeURIComponent(value) } catch { return value }
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
 }
 
 function parseCookies(value?: string): Cookie[] {
@@ -22,7 +34,9 @@ function parseCookies(value?: string): Cookie[] {
     const parsed = JSON.parse(value)
     if (!Array.isArray(parsed)) return []
     return parsed as Cookie[]
-  } catch { return [] }
+  } catch {
+    return []
+  }
 }
 
 function hasGzhLoginCookie(cookies: Cookie[]) {
@@ -40,7 +54,13 @@ export class WxGzhPlatform extends PlatformBase {
   readonly loginUrl = LOGIN_URL
   readonly cookieCheckField = "slave_sid"
 
-  async login(): Promise<{ loginCookie: string; uid: string; nickname: string; avatar: string; fansCount: number } | null> {
+  async login(): Promise<{
+    loginCookie: string
+    uid: string
+    nickname: string
+    avatar: string
+    fansCount: number
+  } | null> {
     const { win, partition } = await this.createAuthorizationWindow()
 
     try {
@@ -124,8 +144,14 @@ export class WxGzhPlatform extends PlatformBase {
       let timeoutTimer: NodeJS.Timeout | null = null
 
       const cleanup = () => {
-        if (intervalTimer) { clearInterval(intervalTimer); intervalTimer = null }
-        if (timeoutTimer) { clearTimeout(timeoutTimer); timeoutTimer = null }
+        if (intervalTimer) {
+          clearInterval(intervalTimer)
+          intervalTimer = null
+        }
+        if (timeoutTimer) {
+          clearTimeout(timeoutTimer)
+          timeoutTimer = null
+        }
         if (!win.isDestroyed()) {
           win.removeListener("closed", onClosed)
           win.webContents.removeListener("did-navigate", onNavigate)
@@ -161,16 +187,24 @@ export class WxGzhPlatform extends PlatformBase {
         }
       }
 
-      const onNavigate = () => { void checkLogin() }
+      const onNavigate = () => {
+        void checkLogin()
+      }
 
-      const onClosed = () => { fail(new Error("微信公众号登录窗口已关闭")) }
+      const onClosed = () => {
+        fail(new Error("微信公众号登录窗口已关闭"))
+      }
 
       win.once("closed", onClosed)
       win.webContents.on("did-navigate", onNavigate)
       win.webContents.on("did-navigate-in-page", onNavigate)
 
-      intervalTimer = setInterval(() => { void checkLogin() }, CHECK_INTERVAL_MS)
-      timeoutTimer = setTimeout(() => { fail(new Error("微信公众号登录超时，请重试")) }, LOGIN_TIMEOUT_MS)
+      intervalTimer = setInterval(() => {
+        void checkLogin()
+      }, CHECK_INTERVAL_MS)
+      timeoutTimer = setTimeout(() => {
+        fail(new Error("微信公众号登录超时，请重试"))
+      }, LOGIN_TIMEOUT_MS)
       intervalTimer.unref?.()
       timeoutTimer.unref?.()
       void checkLogin()
@@ -178,7 +212,9 @@ export class WxGzhPlatform extends PlatformBase {
   }
 
   private wait(ms: number) {
-    return new Promise<void>((resolve) => { setTimeout(() => resolve(), ms) })
+    return new Promise<void>((resolve) => {
+      setTimeout(() => resolve(), ms)
+    })
   }
 
   private async navigateToDashboard(win: BrowserWindow, token: string) {
@@ -186,7 +222,9 @@ export class WxGzhPlatform extends PlatformBase {
     const currentUrl = win.webContents.getURL() || ""
     if (this.isLoggedInUrl(currentUrl) && !!token) return
     try {
-      const url = token ? `https://mp.weixin.qq.com/cgi-bin/home?token=${token}&lang=zh_CN` : "https://mp.weixin.qq.com/cgi-bin/home"
+      const url = token
+        ? `https://mp.weixin.qq.com/cgi-bin/home?token=${token}&lang=zh_CN`
+        : "https://mp.weixin.qq.com/cgi-bin/home"
       console.debug("[wxGzh] navigating to dashboard:", url)
       await win.loadURL(url)
       await this.wait(PROFILE_WAIT_MS)
@@ -301,7 +339,9 @@ export class WxGzhPlatform extends PlatformBase {
     try {
       const parsed = new URL(url)
       return String(parsed.searchParams.get("token") || "").trim()
-    } catch { return "" }
+    } catch {
+      return ""
+    }
   }
 
   private isLoggedInUrl(url: string) {
@@ -331,10 +371,16 @@ export class WxGzhPlatform extends PlatformBase {
 
     const avatar = this.normalizeAvatar(profile?.avatar)
 
-    console.debug("[wxGzh] extractAccountInfo:", JSON.stringify({ uid, nickname, avatar }),
-      "cookie_nick_name:", cookieMap.get("nick_name"),
-      "cookie_fakeid:", cookieMap.get("fakeid"),
-      "profile:", JSON.stringify(profile))
+    console.debug(
+      "[wxGzh] extractAccountInfo:",
+      JSON.stringify({ uid, nickname, avatar }),
+      "cookie_nick_name:",
+      cookieMap.get("nick_name"),
+      "cookie_fakeid:",
+      cookieMap.get("fakeid"),
+      "profile:",
+      JSON.stringify(profile),
+    )
 
     return { uid, account: uid, nickname, avatar }
   }

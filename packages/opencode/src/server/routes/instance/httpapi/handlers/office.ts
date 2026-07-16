@@ -56,7 +56,9 @@ export const officeHandlers = HttpApiBuilder.group(InstanceHttpApi, "office", (h
       })
     })
 
-    const saveArtifact = Effect.fn("OfficeHttpApi.saveArtifact")(function* (ctx: { payload: typeof OfficeArtifactPayload.Type }) {
+    const saveArtifact = Effect.fn("OfficeHttpApi.saveArtifact")(function* (ctx: {
+      payload: typeof OfficeArtifactPayload.Type
+    }) {
       const filename = safeFilename(ctx.payload.filename)
       if (!filename || !ctx.payload.contentBase64.trim()) return yield* new HttpApiError.BadRequest({})
 
@@ -79,9 +81,14 @@ export const officeHandlers = HttpApiBuilder.group(InstanceHttpApi, "office", (h
       }
     })
 
-    const fillPptxTemplate = Effect.fn("OfficeHttpApi.fillPptxTemplate")(function* (ctx: { payload: typeof OfficePptxTemplateFillPayload.Type }) {
-      const filename = safeFilename(ctx.payload.filename.endsWith(".pptx") ? ctx.payload.filename : `${ctx.payload.filename}.pptx`)
-      if (!filename || !ctx.payload.templateBase64.trim() || ctx.payload.slides.length === 0) return yield* new HttpApiError.BadRequest({})
+    const fillPptxTemplate = Effect.fn("OfficeHttpApi.fillPptxTemplate")(function* (ctx: {
+      payload: typeof OfficePptxTemplateFillPayload.Type
+    }) {
+      const filename = safeFilename(
+        ctx.payload.filename.endsWith(".pptx") ? ctx.payload.filename : `${ctx.payload.filename}.pptx`,
+      )
+      if (!filename || !ctx.payload.templateBase64.trim() || ctx.payload.slides.length === 0)
+        return yield* new HttpApiError.BadRequest({})
 
       const state = yield* InstanceState.context
       const workspace = state.worktree === "/" ? state.directory : state.worktree
@@ -108,7 +115,10 @@ export const officeHandlers = HttpApiBuilder.group(InstanceHttpApi, "office", (h
       }
     })
 
-    return handlers.handle("listArtifacts", listArtifacts).handle("saveArtifact", saveArtifact).handle("fillPptxTemplate", fillPptxTemplate)
+    return handlers
+      .handle("listArtifacts", listArtifacts)
+      .handle("saveArtifact", saveArtifact)
+      .handle("fillPptxTemplate", fillPptxTemplate)
   }),
 )
 

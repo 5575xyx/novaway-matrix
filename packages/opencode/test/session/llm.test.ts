@@ -829,6 +829,117 @@ describe("session.llm.stream", () => {
     })
   })
 
+  test("routes image generation models and forwards uploaded image data URLs", async () => {
+    const server = state.server
+    if (!server) {
+      throw new Error("Server not initialized")
+    }
+
+    const source = await loadFixture("poe", "openai/gpt-image-2")
+    const model = source.model
+    const request = waitRequest(
+      "/images/generations",
+      new Response(JSON.stringify({ data: [{ url: "https://example.com/generated.png" }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    )
+    const image = `data:image/png;base64,${Buffer.from(
+      await Bun.file(path.join(import.meta.dir, "../tool/fixtures/large-image.png")).arrayBuffer(),
+    ).toString("base64")}`
+
+    await using tmp = await tmpdir({
+      init: async (dir) => {
+        await Bun.write(
+          path.join(dir, "novaway.json"),
+          JSON.stringify({
+            $schema: "https://opencode.ai/config.json",
+            enabled_providers: ["poe"],
+            provider: {
+              poe: {
+                name: "Poe",
+                env: ["POE_API_KEY"],
+                npm: "@ai-sdk/openai-compatible",
+                api: "https://api.poe.com/v1",
+                models: {
+                  [model.id]: configModel(model),
+                },
+                options: {
+                  apiKey: "test-poe-key",
+                  baseURL: `${server.url.origin}/v1`,
+                },
+              },
+            },
+          }),
+        )
+      },
+    })
+
+    await withTestInstance({
+      directory: tmp.path,
+      fn: async (ctx) => {
+        const previousAuth = process.env.OPENCODE_AUTH_CONTENT
+        process.env.OPENCODE_AUTH_CONTENT = JSON.stringify({
+          poe: [{ type: "api", key: "test-poe-key" }],
+        })
+
+        try {
+          const resolved = await getModel(ProviderID.make("poe"), ModelID.make(model.id), ctx)
+          const sessionID = SessionID.make("session-test-image-gen")
+          const agent = {
+            name: "test",
+            mode: "primary",
+            options: {},
+            permission: [{ permission: "*", pattern: "*", action: "allow" }],
+          } satisfies Agent.Info
+
+          const user = {
+            id: MessageID.make("msg_user-image-gen"),
+            sessionID,
+            role: "user",
+            time: { created: Date.now() },
+            agent: agent.name,
+            model: { providerID: ProviderID.make("poe"), modelID: resolved.id },
+          } satisfies MessageV2.User
+
+          await drain(
+            {
+              user,
+              sessionID,
+              model: resolved,
+              agent,
+              system: [],
+              messages: [
+                {
+                  role: "user",
+                  content: [
+                    { type: "text", text: "make it orange" },
+                    {
+                      type: "file",
+                      mediaType: "image/png",
+                      filename: "input.png",
+                      data: image,
+                    },
+                  ],
+                },
+              ] as ModelMessage[],
+              tools: {},
+            },
+            ctx,
+          )
+
+          const capture = await request
+          expect(capture.url.pathname.endsWith("/images/generations")).toBe(true)
+          expect(capture.body.model).toBe(resolved.id)
+          expect(capture.body.prompt).toBe("make it orange")
+          expect(capture.body.extra_body).toEqual({ response_format: "url", image: [image] })
+        } finally {
+          process.env.OPENCODE_AUTH_CONTENT = previousAuth
+        }
+      },
+    })
+  })
+
   test("sends messages API payload for Anthropic Compatible models", async () => {
     const server = state.server
     if (!server) {

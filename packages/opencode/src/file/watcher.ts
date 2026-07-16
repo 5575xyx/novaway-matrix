@@ -96,11 +96,22 @@ export const layer = Layer.effect(
           )
 
           const cb: ParcelWatcher.SubscribeCallback = bridge.bind((err, evts) => {
-            // if (err) return
+            if (err) {
+              log.error("watcher callback error", { error: err })
+            }
             for (const evt of evts) {
-              if (evt.type === "create") void Bus.publish(ctx, Event.Updated, { file: evt.path, event: "add" })
-              if (evt.type === "update") void Bus.publish(ctx, Event.Updated, { file: evt.path, event: "change" })
-              if (evt.type === "delete") void Bus.publish(ctx, Event.Updated, { file: evt.path, event: "unlink" })
+              const publish = (event: "add" | "change" | "unlink") =>
+                bridge.fork(
+                  Effect.promise(() => Bus.publish(ctx, Event.Updated, { file: evt.path, event })).pipe(
+                    Effect.tapError((error) =>
+                      Effect.sync(() => log.error("failed to publish watcher event", { file: evt.path, event, error })),
+                    ),
+                    Effect.orElseSucceed(() => undefined),
+                  ),
+                )
+              if (evt.type === "create") publish("add")
+              if (evt.type === "update") publish("change")
+              if (evt.type === "delete") publish("unlink")
             }
           })
 

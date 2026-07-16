@@ -39,12 +39,10 @@ export function PulseChatInput(props: PulseChatInputProps) {
   let modelBtnRef: HTMLButtonElement | undefined
 
   const agentList = createMemo(() =>
-    props.agents.filter((a) => !a.hidden && (a.mode !== "primary" || a.name === "pulse-orchestrator"))
+    props.agents.filter((a) => !a.hidden && (a.mode !== "primary" || a.name === "pulse-orchestrator")),
   )
 
-  const commandList = createMemo(() =>
-    props.commands.filter((c) => c.source === "skill" || c.source === "command")
-  )
+  const commandList = createMemo(() => props.commands.filter((c) => c.source === "skill" || c.source === "command"))
 
   const filteredAgents = createMemo(() => {
     const q = atQuery().toLowerCase()
@@ -55,7 +53,7 @@ export function PulseChatInput(props: PulseChatInputProps) {
   const filteredCommands = createMemo(() => {
     const q = slashQuery().toLowerCase()
     if (!q) return commandList()
-    return commandList().filter((c) => c.name.toLowerCase().includes(q) || (c.description?.toLowerCase().includes(q)))
+    return commandList().filter((c) => c.name.toLowerCase().includes(q) || c.description?.toLowerCase().includes(q))
   })
 
   const filteredModels = createMemo(() => {
@@ -102,7 +100,11 @@ export function PulseChatInput(props: PulseChatInputProps) {
         setShowAtPopover(false)
         setShowSlashPopover(false)
       }
-      if (modelBtnRef && !modelBtnRef.parentElement?.contains(target) && !(target as Element)?.closest?.("[data-model-popover]")) {
+      if (
+        modelBtnRef &&
+        !modelBtnRef.parentElement?.contains(target) &&
+        !(target as Element)?.closest?.("[data-model-popover]")
+      ) {
         setShowModelPopover(false)
       }
     }
@@ -198,7 +200,10 @@ export function PulseChatInput(props: PulseChatInputProps) {
   return (
     <>
       <DockShellForm
-        onSubmit={(e) => { e.preventDefault(); handleSend() }}
+        onSubmit={(e) => {
+          e.preventDefault()
+          handleSend()
+        }}
         class="group/pulse-input"
         style={{
           "border-radius": "16px",
@@ -225,9 +230,7 @@ export function PulseChatInput(props: PulseChatInputProps) {
               <Show when={!props.autoMode && props.currentModel?.provider?.id}>
                 <Icon name="providers" class="size-4 shrink-0 text-text-interactive-base" />
               </Show>
-              <span class="truncate">
-                {props.autoMode ? "Auto" : (props.currentModel?.name ?? "选择模型")}
-              </span>
+              <span class="truncate">{props.autoMode ? "Auto" : (props.currentModel?.name ?? "选择模型")}</span>
               <Icon name="chevron-down" size="small" class="shrink-0" />
             </Button>
           </div>
@@ -237,9 +240,7 @@ export function PulseChatInput(props: PulseChatInputProps) {
             <button
               type="button"
               class={`size-3.5 rounded-sm border flex items-center justify-center transition-colors ${
-                autoWeb() 
-                  ? "border-emerald-500 bg-emerald-500" 
-                  : "border-border-weak-base bg-background-base"
+                autoWeb() ? "border-emerald-500 bg-emerald-500" : "border-border-weak-base bg-background-base"
               }`}
               onClick={() => setAutoWeb(!autoWeb())}
             >
@@ -253,9 +254,7 @@ export function PulseChatInput(props: PulseChatInputProps) {
             <button
               type="button"
               class={`size-3.5 rounded-sm border flex items-center justify-center transition-colors ${
-                permissions() 
-                  ? "border-emerald-500 bg-emerald-500" 
-                  : "border-border-weak-base bg-background-base"
+                permissions() ? "border-emerald-500 bg-emerald-500" : "border-border-weak-base bg-background-base"
               }`}
               onClick={() => setPermissions(!permissions())}
             >
@@ -349,11 +348,11 @@ export function PulseChatInput(props: PulseChatInputProps) {
           data-model-popover
           class="fixed z-[9999] flex flex-col rounded-md border border-border-base overflow-hidden transition-all duration-200"
           style={{
-            "top": `${popoverPosition().top - 4}px`,
-            "left": `${popoverPosition().left}px`,
-            "width": "288px",
-            "transform": "translateY(-100%)",
-            "background": "var(--surface-raised-stronger-non-alpha)",
+            top: `${popoverPosition().top - 4}px`,
+            left: `${popoverPosition().left}px`,
+            width: "288px",
+            transform: "translateY(-100%)",
+            background: "var(--surface-raised-stronger-non-alpha)",
             "box-shadow": "0 4px 24px rgba(0, 0, 0, 0.08)",
             "max-height": props.autoMode ? "112px" : "320px",
           }}
@@ -377,7 +376,7 @@ export function PulseChatInput(props: PulseChatInputProps) {
                   class="pointer-events-none inline-block size-5 rounded-full bg-white shadow-lg transition-all duration-200 ease-in-out"
                   style={{
                     "margin-top": "1px",
-                    "transform": props.autoMode ? "translateX(22px)" : "translateX(1px)",
+                    transform: props.autoMode ? "translateX(22px)" : "translateX(1px)",
                     "box-shadow": "0 2px 8px rgba(0,0,0,0.3)",
                   }}
                 />
@@ -427,9 +426,7 @@ export function PulseChatInput(props: PulseChatInputProps) {
           <Show when={props.autoMode}>
             <div class="flex flex-col items-center justify-center py-3 px-3 text-center">
               <Icon name="autopilot" class="size-4 mb-1 opacity-60" />
-              <p class="text-11-regular text-text-secondary leading-snug">
-                Auto 基于效果与速度帮助您选择最优模型
-              </p>
+              <p class="text-11-regular text-text-secondary leading-snug">Auto 基于效果与速度帮助您选择最优模型</p>
             </div>
           </Show>
         </div>
@@ -439,11 +436,11 @@ export function PulseChatInput(props: PulseChatInputProps) {
         <div
           class="fixed z-[9999] border border-border-weak-base rounded-lg shadow-lg py-1 max-h-[240px] overflow-y-auto"
           style={{
-            "top": `${popoverPosition().top - 4}px`,
-            "left": `${popoverPosition().left}px`,
-            "width": `${popoverPosition().width}px`,
-            "transform": "translateY(-100%)",
-            "background": "var(--surface-raised-stronger-non-alpha)",
+            top: `${popoverPosition().top - 4}px`,
+            left: `${popoverPosition().left}px`,
+            width: `${popoverPosition().width}px`,
+            transform: "translateY(-100%)",
+            background: "var(--surface-raised-stronger-non-alpha)",
             "box-shadow": "0 0 0 1px var(--border-weak-base), 0 4px 24px rgba(0, 0, 0, 0.08)",
           }}
         >
@@ -467,11 +464,11 @@ export function PulseChatInput(props: PulseChatInputProps) {
         <div
           class="fixed z-[9999] border border-border-weak-base rounded-lg shadow-lg py-1 max-h-[240px] overflow-y-auto"
           style={{
-            "top": `${popoverPosition().top - 4}px`,
-            "left": `${popoverPosition().left}px`,
-            "width": `${popoverPosition().width}px`,
-            "transform": "translateY(-100%)",
-            "background": "var(--surface-raised-stronger-non-alpha)",
+            top: `${popoverPosition().top - 4}px`,
+            left: `${popoverPosition().left}px`,
+            width: `${popoverPosition().width}px`,
+            transform: "translateY(-100%)",
+            background: "var(--surface-raised-stronger-non-alpha)",
             "box-shadow": "0 0 0 1px var(--border-weak-base), 0 4px 24px rgba(0, 0, 0, 0.08)",
           }}
         >

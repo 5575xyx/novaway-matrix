@@ -64,10 +64,10 @@ BRANCH=$(git branch --show-current)
 
 Three outcomes:
 
-| Condition | Meaning | Action |
-|-----------|---------|--------|
-| `GIT_DIR == GIT_COMMON` | Normal repo checkout | Proceed to Step 0.5 |
-| `GIT_DIR != GIT_COMMON`, named branch | Already in a linked worktree | Skip to Step 3 (project setup). Report: "Already in isolated workspace at `<path>` on branch `<name>`." |
+| Condition                              | Meaning                                               | Action                                                                                                   |
+| -------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `GIT_DIR == GIT_COMMON`                | Normal repo checkout                                  | Proceed to Step 0.5                                                                                      |
+| `GIT_DIR != GIT_COMMON`, named branch  | Already in a linked worktree                          | Skip to Step 3 (project setup). Report: "Already in isolated workspace at `<path>` on branch `<name>`."  |
 | `GIT_DIR != GIT_COMMON`, detached HEAD | Externally managed worktree (e.g., Codex App sandbox) | Skip to Step 3. Report: "Already in isolated workspace at `<path>` (detached HEAD, externally managed)." |
 
 Step 0 does not care who created the worktree or which harness is running. A worktree is a worktree regardless of origin.
@@ -110,6 +110,7 @@ File splitting (Step 1b in a separate skill) was tested and proven unnecessary. 
 When no native tool is available, create a worktree manually.
 
 **Directory selection** (priority order):
+
 1. Check the project's agent instruction file (CLAUDE.md, GEMINI.md, AGENTS.md, .cursorrules, or equivalent) for a worktree directory preference.
 2. Check for existing `.worktrees/` or `worktrees/` directory — if found, use it. If both exist, `.worktrees/` wins.
 3. Default to `.worktrees/`.
@@ -171,10 +172,10 @@ GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" 2>/dev/null && pwd -P)
 
 Three paths:
 
-| State | Menu | Cleanup |
-|-------|------|---------|
-| `GIT_DIR == GIT_COMMON` (normal repo) | Standard 4 options | No worktree to clean up |
-| `GIT_DIR != GIT_COMMON`, named branch | Standard 4 options | Provenance-based (see Step 5) |
+| State                                  | Menu                                                       | Cleanup                                           |
+| -------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------- |
+| `GIT_DIR == GIT_COMMON` (normal repo)  | Standard 4 options                                         | No worktree to clean up                           |
+| `GIT_DIR != GIT_COMMON`, named branch  | Standard 4 options                                         | Provenance-based (see Step 5)                     |
 | `GIT_DIR != GIT_COMMON`, detached HEAD | Reduced menu: push as new branch + PR, keep as-is, discard | No merge options (can't merge from detached HEAD) |
 
 #### Step 2: Determine Base Branch (unchanged)
@@ -270,25 +271,25 @@ This applies to directory preference checks in Step 1b.
 
 ## Bug Fixes (bundled)
 
-| Bug | Problem | Fix | Location |
-|-----|---------|-----|----------|
-| #940 | Option 2 prose says "Then: Cleanup worktree (Step 5)" but quick reference says keep it. Step 5 says "For Options 1, 2, 4" but Common Mistakes says "Options 1 and 4 only." | Remove cleanup from Option 2. Step 5 applies to Options 1 and 4 only. | finishing SKILL.md |
-| #999 | Option 1 deletes branch before removing worktree. `git branch -d` can fail because worktree still references the branch. | Reorder to: merge → verify tests → remove worktree → delete branch. Merge must succeed before anything is removed. | finishing SKILL.md |
-| #238 | `git worktree remove` fails silently if CWD is inside the worktree being removed. | Add CWD guard: `cd` to main repo root before `git worktree remove`. | finishing SKILL.md |
+| Bug  | Problem                                                                                                                                                                    | Fix                                                                                                                | Location           |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------ |
+| #940 | Option 2 prose says "Then: Cleanup worktree (Step 5)" but quick reference says keep it. Step 5 says "For Options 1, 2, 4" but Common Mistakes says "Options 1 and 4 only." | Remove cleanup from Option 2. Step 5 applies to Options 1 and 4 only.                                              | finishing SKILL.md |
+| #999 | Option 1 deletes branch before removing worktree. `git branch -d` can fail because worktree still references the branch.                                                   | Reorder to: merge → verify tests → remove worktree → delete branch. Merge must succeed before anything is removed. | finishing SKILL.md |
+| #238 | `git worktree remove` fails silently if CWD is inside the worktree being removed.                                                                                          | Add CWD guard: `cd` to main repo root before `git worktree remove`.                                                | finishing SKILL.md |
 
 ## Issues Resolved
 
-| Issue | Resolution |
-|-------|-----------|
-| #940 | Direct fix (Bug #940) |
-| #991 | Opt-in consent in Step 0.5 |
-| #918 | Step 0 detection + Step 1.5 finishing detection |
-| #1009 | Resolved by Step 1a — agents use native tools (e.g., `EnterWorktree`) which create at harness-native paths. Depends on Step 1a working; see Risks. |
-| #999 | Direct fix (Bug #999) |
-| #238 | Direct fix (Bug #238) |
-| #1049 | Platform-neutral instruction file references |
-| #279 | Solved by detect-and-defer — native paths respected because we don't override them |
-| #574 | **Deferred.** Nothing in this spec touches the brainstorming skill where the bug lives. Full fix (adding a worktree step to brainstorming's checklist) is Phase 4. |
+| Issue | Resolution                                                                                                                                                         |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| #940  | Direct fix (Bug #940)                                                                                                                                              |
+| #991  | Opt-in consent in Step 0.5                                                                                                                                         |
+| #918  | Step 0 detection + Step 1.5 finishing detection                                                                                                                    |
+| #1009 | Resolved by Step 1a — agents use native tools (e.g., `EnterWorktree`) which create at harness-native paths. Depends on Step 1a working; see Risks.                 |
+| #999  | Direct fix (Bug #999)                                                                                                                                              |
+| #238  | Direct fix (Bug #238)                                                                                                                                              |
+| #1049 | Platform-neutral instruction file references                                                                                                                       |
+| #279  | Solved by detect-and-defer — native paths respected because we don't override them                                                                                 |
+| #574  | **Deferred.** Nothing in this spec touches the brainstorming skill where the bug lives. Full fix (adding a worktree step to brainstorming's checklist) is Phase 4. |
 
 ## Risks
 
@@ -302,22 +303,23 @@ Step 1a — agents preferring native worktree tools over the git fallback — is
 
 As of 2026-04-06, Claude Code is the only harness with an agent-callable mid-session worktree tool (`EnterWorktree`). All others either create worktrees before the agent starts (Codex App, Gemini CLI, Cursor) or have no native worktree support (Codex CLI, OpenCode). Step 1a is forward-compatible: when other harnesses add agent-callable worktree tools, agents will match them against the named examples and use them without skill changes.
 
-| Harness | Current worktree model | Skill mechanism | Tested |
-|---------|----------------------|-----------------|--------|
-| Claude Code | Agent-callable `EnterWorktree` | Step 1a | 50/50 (GREEN + PRESSURE) |
-| Codex CLI | No native tool (shell only) | Step 1b git fallback | 6/6 (`codex exec`) |
-| Gemini CLI | Launch-time `--worktree` flag, no agent tool | Step 0 if launched with flag, Step 1b if not | Step 0: 1/1, Step 1b: 1/1 (`gemini -p`) |
-| Cursor Agent | User-facing `/worktree`, no agent tool | Step 0 if user activated, Step 1b if not | Step 0: 1/1, Step 1b: 1/1 (`cursor-agent -p`) |
-| Codex App | Platform-managed, detached HEAD, no agent tool | Step 0 detects existing | 1/1 simulated |
-| OpenCode | Detection only (`ctx.worktree`), no agent tool | Step 1b git fallback | Untested (no CLI access) |
+| Harness      | Current worktree model                         | Skill mechanism                              | Tested                                        |
+| ------------ | ---------------------------------------------- | -------------------------------------------- | --------------------------------------------- |
+| Claude Code  | Agent-callable `EnterWorktree`                 | Step 1a                                      | 50/50 (GREEN + PRESSURE)                      |
+| Codex CLI    | No native tool (shell only)                    | Step 1b git fallback                         | 6/6 (`codex exec`)                            |
+| Gemini CLI   | Launch-time `--worktree` flag, no agent tool   | Step 0 if launched with flag, Step 1b if not | Step 0: 1/1, Step 1b: 1/1 (`gemini -p`)       |
+| Cursor Agent | User-facing `/worktree`, no agent tool         | Step 0 if user activated, Step 1b if not     | Step 0: 1/1, Step 1b: 1/1 (`cursor-agent -p`) |
+| Codex App    | Platform-managed, detached HEAD, no agent tool | Step 0 detects existing                      | 1/1 simulated                                 |
+| OpenCode     | Detection only (`ctx.worktree`), no agent tool | Step 1b git fallback                         | Untested (no CLI access)                      |
 
 **Residual risks:**
+
 1. If Anthropic changes `EnterWorktree`'s tool description to be more restrictive (e.g., "Do not use based on skill instructions"), the consent bridge breaks. Worth filing an issue requesting that the tool description accommodate skill-driven invocation.
 2. When other harnesses add agent-callable worktree tools, they may use names not in Step 1a's list. The list should be updated as new tools appear. The generic phrasing ("a worktree or workspace-isolation tool") provides some forward coverage.
 
 ### Provenance heuristic
 
-The `.worktrees/` or `worktrees/` = ours, anything else = hands off` heuristic works for every current harness. If a future harness adopts one of those project-local directories as its convention, we'd have a false positive (PowersNexus tries to clean up a harness-owned worktree). Similarly, if a user manually runs `git worktree add .worktrees/experiment` without PowersNexus, we'd incorrectly claim ownership. Both are low risk — every harness uses branded paths, and manual `.worktrees/` creation is unlikely — but worth noting.
+The `.worktrees/` or `worktrees/` = ours, anything else = hands off`heuristic works for every current harness. If a future harness adopts one of those project-local directories as its convention, we'd have a false positive (PowersNexus tries to clean up a harness-owned worktree). Similarly, if a user manually runs`git worktree add .worktrees/experiment`without PowersNexus, we'd incorrectly claim ownership. Both are low risk — every harness uses branded paths, and manual`.worktrees/` creation is unlikely — but worth noting.
 
 ### Detached HEAD finishing
 
@@ -333,7 +335,7 @@ Both skill files contain sections beyond the core steps that need updating durin
 - **Red Flags sections**: Update to reflect new priorities (e.g., "Never create a worktree when Step 0 detects existing isolation")
 - **Integration sections**: Update cross-references between skills
 
-The spec describes *what changes*; the implementation plan will specify exact edits to these secondary sections.
+The spec describes _what changes_; the implementation plan will specify exact edits to these secondary sections.
 
 ## Future Work (not in this spec)
 

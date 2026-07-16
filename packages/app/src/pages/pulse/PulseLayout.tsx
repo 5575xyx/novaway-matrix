@@ -45,11 +45,15 @@ function PulseLayoutInner() {
   })
 
   return (
-    <div class="flex h-full w-full bg-background-base transition-opacity duration-300"
-      style={{
-        "opacity": mounted() ? "1" : "0",
-        "--novaway-mode-color": modeColor(),
-      } as any}>
+    <div
+      class="flex h-full w-full bg-background-base transition-opacity duration-300"
+      style={
+        {
+          opacity: mounted() ? "1" : "0",
+          "--novaway-mode-color": modeColor(),
+        } as any
+      }
+    >
       <div class="w-64 shrink-0 border-r border-border-weak-base bg-background-weak/60">
         <PulseSidebar />
       </div>
@@ -57,7 +61,7 @@ function PulseLayoutInner() {
         <PulseMain />
       </div>
       <Show when={!assistantCollapsed()}>
-        <div 
+        <div
           class="shrink-0 border-l border-border-weak-base bg-background-weak/60 relative"
           style={{ width: `${assistantWidth()}px` }}
         >
@@ -76,7 +80,7 @@ function PulseLayoutInner() {
         </div>
       </Show>
       <Show when={assistantCollapsed()}>
-        <div 
+        <div
           class="shrink-0 border-l border-border-weak-base bg-background-weak/60 flex items-center justify-center cursor-pointer hover:bg-background-weak/80 transition-colors"
           style={{ width: "24px" }}
           onClick={handleExpand}

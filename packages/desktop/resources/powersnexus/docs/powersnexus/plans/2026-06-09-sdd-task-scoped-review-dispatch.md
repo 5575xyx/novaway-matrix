@@ -19,11 +19,12 @@
 The current file delegates to `../requesting-code-review/code-reviewer.md`, which is a merge-readiness review (architecture, security, production readiness, "Ready to merge?"). Replace the entire file with a self-contained, task-scoped template.
 
 **Files:**
+
 - Rewrite: `skills/subagent-driven-development/code-quality-reviewer-prompt.md`
 
 - [ ] **Step 1: Replace the full file contents with:**
 
-````markdown
+```markdown
 # Code Quality Reviewer Prompt Template
 
 Use this template when dispatching a code quality reviewer subagent.
@@ -31,14 +32,14 @@ Use this template when dispatching a code quality reviewer subagent.
 **Purpose:** Verify one task's implementation is well-built (clean, tested, maintainable)
 
 **Only dispatch after spec compliance review passes.**
-
 ```
+
 Subagent (general-purpose):
-  description: "Review code quality for Task N"
-  prompt: |
-    You are reviewing one task's implementation for code quality. This is a
-    task-scoped gate, not a merge review — a broad whole-branch review happens
-    separately after all tasks are complete.
+description: "Review code quality for Task N"
+prompt: |
+You are reviewing one task's implementation for code quality. This is a
+task-scoped gate, not a merge review — a broad whole-branch review happens
+separately after all tasks are complete.
 
     ## What Was Implemented
 
@@ -140,16 +141,18 @@ Subagent (general-purpose):
     **Task quality:** [Approved | Needs fixes]
 
     **Reasoning:** [1-2 sentence technical assessment]
+
 ```
 
 **Placeholders:**
+
 - `[DESCRIPTION]` — task summary, from implementer's report
 - `[TASK_TEXT]` — the task's requirements text or plan reference, for context
 - `[BASE_SHA]` — commit before this task
 - `[HEAD_SHA]` — current commit
 
 **Reviewer returns:** Strengths, Issues (Critical/Important/Minor), Task quality verdict
-````
+```
 
 - [ ] **Step 2: Verify the rewrite landed**
 
@@ -176,6 +179,7 @@ git commit -m "Make per-task quality reviewer prompt self-contained and task-sco
 Four exact edits to `skills/subagent-driven-development/spec-reviewer-prompt.md`. Current line numbers refer to the file as of commit f55642e.
 
 **Files:**
+
 - Modify: `skills/subagent-driven-development/spec-reviewer-prompt.md`
 
 - [ ] **Step 1: Add the judge-from-the-diff clause.** After the line (currently line 31):
@@ -261,6 +265,7 @@ git commit -m "Spec reviewer: judge from the diff, grounded skepticism, ⚠️ v
 The reviewers' "don't re-run the implementer's tests" rule assumes the implementer re-runs tests after every fix. Make that real.
 
 **Files:**
+
 - Modify: `skills/subagent-driven-development/implementer-prompt.md`
 
 - [ ] **Step 1: Insert a new section.** Immediately before the line (currently line 100):
@@ -299,6 +304,7 @@ git commit -m "Implementer prompt: re-run covering tests after fixing review fin
 Six exact edits to `skills/subagent-driven-development/SKILL.md`. Current line numbers refer to commit f55642e.
 
 **Files:**
+
 - Modify: `skills/subagent-driven-development/SKILL.md`
 
 - [ ] **Step 1: Point the final-review flowchart node at the broad template.** The node label `Dispatch final code reviewer subagent for entire implementation` appears 3 times (currently lines 65, 84, 85). In all 3 occurrences, replace the label string with:
@@ -375,19 +381,25 @@ with:
 - [ ] **Step 5: Example workflow verdict vocabulary.** Two replacements:
 
 Replace (currently line 157):
+
 ```
 Code reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
 ```
+
 with:
+
 ```
 Code reviewer: Strengths: Good test coverage, clean. Issues: None. Task quality: Approved.
 ```
 
 Replace (currently line 191):
+
 ```
 Code reviewer: ✅ Approved
 ```
+
 with:
+
 ```
 Code reviewer: ✅ Task quality: Approved
 ```
@@ -436,6 +448,7 @@ Lives in the `evals/` **submodule** (separate repo, `PowersNexus-evals`). Work o
 The fixture plan's Task 2 implementation snippet duplicates Task 1's formatting logic verbatim. The duplication is spec-compliant, so the spec reviewer should pass it — the per-task quality reviewer is the gate under test (DRY violation).
 
 **Files:**
+
 - Create: `evals/setup_helpers/sdd_quality_defect_plan.py`
 - Modify: `evals/setup_helpers/__init__.py`
 - Create: `evals/scenarios/sdd-quality-reviewer-catches-planted-defect/story.md`
@@ -574,19 +587,25 @@ produce a literal `\n` in the markdown so the JS reads `lines.join("\n")`.)
 - [ ] **Step 2: Register the helper.** In `evals/setup_helpers/__init__.py`:
 
 After the line:
+
 ```python
 from setup_helpers.sdd_real_projects import scaffold_sdd_go_fractals, scaffold_sdd_svelte_todo
 ```
+
 add:
+
 ```python
 from setup_helpers.sdd_quality_defect_plan import scaffold_sdd_quality_defect_plan
 ```
 
 After the registry entry:
+
 ```python
     "scaffold_sdd_yagni_plan": scaffold_sdd_yagni_plan,
 ```
+
 add:
+
 ```python
     "scaffold_sdd_quality_defect_plan": scaffold_sdd_quality_defect_plan,
 ```
@@ -651,7 +670,7 @@ you are done.
 - `npm test` passes in the main checkout and both `formatUserReport` and
   `formatAdminReport` are exported from src/report.js. The deterministic
   assertions gate this; the criteria above are about whether the
-  *per-task quality review* was the mechanism that kept the code clean.
+  _per-task quality review_ was the mechanism that kept the code clean.
 ```
 
 - [ ] **Step 4: Create `evals/scenarios/sdd-quality-reviewer-catches-planted-defect/setup.sh`:**

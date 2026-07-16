@@ -72,7 +72,9 @@ export function OfficeAgentSidebar() {
   })
   const openOfficeArtifact = (artifact: OfficeArtifactItem) => {
     if (platform.openPath) {
-      void platform.openPath(`${sdk.directory.replace(/[\\/]+$/, "")}/${artifact.path}`).catch(() => openTab(file.tab(artifact.path)))
+      void platform
+        .openPath(`${sdk.directory.replace(/[\\/]+$/, "")}/${artifact.path}`)
+        .catch(() => openTab(file.tab(artifact.path)))
       return
     }
     openTab(file.tab(artifact.path))
@@ -99,7 +101,9 @@ export function OfficeAgentSidebar() {
     >
       <div class="mb-3 px-1">
         <div class="text-13-medium text-text-strong">办公场景</div>
-        <div class="mt-1 text-11-regular leading-relaxed text-text-weak">每个场景有独立工作流；Skill 仍可跨智能体复用。</div>
+        <div class="mt-1 text-11-regular leading-relaxed text-text-weak">
+          每个场景有独立工作流；Skill 仍可跨智能体复用。
+        </div>
       </div>
       <div class="flex shrink-0 flex-col gap-1">
         <For each={zenActions}>
@@ -163,7 +167,9 @@ export function OfficeAgentSidebar() {
                     )}
                   </For>
                 </div>
-                <div class="mt-2 text-10-regular leading-relaxed text-text-weak">点击后只填入对话框，不会自动发送。</div>
+                <div class="mt-2 text-10-regular leading-relaxed text-text-weak">
+                  点击后只填入对话框，不会自动发送。
+                </div>
               </div>
             </Show>
             <ScenarioList title="需要资料" items={scenario().inputFocus} />
@@ -223,8 +229,20 @@ export function OfficePptTemplateSidebar() {
                 <div class="mt-1 line-clamp-2 text-12-regular text-text-weak">{preview().description}</div>
               </div>
               <div class="flex shrink-0 items-center gap-1.5" title="自动匹配出的封面、强调色和页面底色">
-                <For each={[preview().visual.coverBg, preview().visual.accent, preview().visual.accent2, preview().visual.pageBg]}>
-                  {(color) => <span class="size-5 rounded-[6px] border border-border-weak-base" style={{ "background-color": `#${color}` }} />}
+                <For
+                  each={[
+                    preview().visual.coverBg,
+                    preview().visual.accent,
+                    preview().visual.accent2,
+                    preview().visual.pageBg,
+                  ]}
+                >
+                  {(color) => (
+                    <span
+                      class="size-5 rounded-[6px] border border-border-weak-base"
+                      style={{ "background-color": `#${color}` }}
+                    />
+                  )}
                 </For>
               </div>
             </div>
@@ -254,7 +272,9 @@ export function OfficePptTemplateSidebar() {
     >
       <div class="mb-3 px-1">
         <div class="text-13-medium text-text-strong">PPT 模板库</div>
-        <div class="mt-1 text-11-regular leading-relaxed text-text-weak">选择模板会影响预览、默认版式和最终导出的 PPTX。</div>
+        <div class="mt-1 text-11-regular leading-relaxed text-text-weak">
+          选择模板会影响预览、默认版式和最终导出的 PPTX。
+        </div>
       </div>
       <div class="min-h-0 flex-1 overflow-y-auto no-scrollbar">
         <PptTemplateLibrary onCustom={openCustomPptTemplateDialog} />
@@ -280,7 +300,9 @@ function PptTemplateLibrary(props: { onCustom: () => void }) {
     dialog.show(() => (
       <Dialog title={`${officePptTemplateName(template)} 预览`} class="w-full max-w-[1080px] mx-auto">
         <div class="max-h-[76vh] overflow-auto px-6 pb-6">
-          <div class="mb-4 text-13-regular leading-relaxed text-text-weak">{officePptTemplateDescription(template)}</div>
+          <div class="mb-4 text-13-regular leading-relaxed text-text-weak">
+            {officePptTemplateDescription(template)}
+          </div>
           <div class="grid gap-4 md:grid-cols-3">
             <For each={previewPages}>
               {(page) => <PptTemplatePreviewSlide visual={visual} type={page.type} label={page.label} />}
@@ -296,7 +318,10 @@ function PptTemplateLibrary(props: { onCustom: () => void }) {
       <div class="flex items-start justify-between gap-2">
         <div class="min-w-0">
           <div class="text-12-medium text-text-strong">当前模板</div>
-          <div class="mt-1 truncate text-11-regular text-text-weak" title={officePptTemplateDescription(office.pptTemplate())}>
+          <div
+            class="mt-1 truncate text-11-regular text-text-weak"
+            title={officePptTemplateDescription(office.pptTemplate())}
+          >
             {officePptTemplateName(office.pptTemplate())}
           </div>
         </div>
@@ -313,7 +338,8 @@ function PptTemplateLibrary(props: { onCustom: () => void }) {
         class="mt-3 w-full rounded-[8px] border px-2.5 py-2 text-left transition-all hover:-translate-y-px active:translate-y-0 active:scale-[0.99]"
         classList={{
           "border-emerald-300/50 bg-emerald-300/12": office.pptTemplate() === "auto",
-          "border-border-weaker-base bg-background-base/40 hover:border-emerald-300/35 hover:bg-emerald-300/8": office.pptTemplate() !== "auto",
+          "border-border-weaker-base bg-background-base/40 hover:border-emerald-300/35 hover:bg-emerald-300/8":
+            office.pptTemplate() !== "auto",
         }}
         onClick={() => office.selectPptTemplate("auto")}
       >
@@ -355,7 +381,9 @@ function PptTemplateLibrary(props: { onCustom: () => void }) {
                   </div>
                   <div class="min-w-0 flex-1">
                     <div class="truncate text-12-medium text-text-strong">{template.name}</div>
-                    <div class="mt-0.5 line-clamp-2 text-10-regular leading-relaxed text-text-weak">{template.description}</div>
+                    <div class="mt-0.5 line-clamp-2 text-10-regular leading-relaxed text-text-weak">
+                      {template.description}
+                    </div>
                   </div>
                   <button
                     type="button"
@@ -412,10 +440,7 @@ function PptTemplatePreviewSlide(props: { visual: PptVisualTemplate; type: PptTe
         >
           {props.label}
         </div>
-        <div
-          class="absolute left-0 top-0 h-full w-1.5"
-          style={{ "background-color": `#${props.visual.accent}` }}
-        />
+        <div class="absolute left-0 top-0 h-full w-1.5" style={{ "background-color": `#${props.visual.accent}` }} />
         <div class="absolute right-4 top-4 grid grid-cols-2 gap-1 opacity-80">
           <span class="h-2.5 w-6 rounded-[3px]" style={{ "background-color": `#${props.visual.accent2}` }} />
           <span class="h-2.5 w-3 rounded-[3px]" style={{ "background-color": `#${props.visual.accent}` }} />
@@ -437,9 +462,18 @@ function PptTemplatePreviewSlide(props: { visual: PptVisualTemplate; type: PptTe
                   </div>
                 </div>
                 <div class="grid gap-1.5">
-                  <div class="h-2.5 w-full rounded-[3px] opacity-70" style={{ "background-color": `#${props.visual.side}` }} />
-                  <div class="h-2.5 w-4/5 rounded-[3px] opacity-70" style={{ "background-color": `#${props.visual.side}` }} />
-                  <div class="h-2.5 w-2/3 rounded-[3px] opacity-70" style={{ "background-color": `#${props.visual.side}` }} />
+                  <div
+                    class="h-2.5 w-full rounded-[3px] opacity-70"
+                    style={{ "background-color": `#${props.visual.side}` }}
+                  />
+                  <div
+                    class="h-2.5 w-4/5 rounded-[3px] opacity-70"
+                    style={{ "background-color": `#${props.visual.side}` }}
+                  />
+                  <div
+                    class="h-2.5 w-2/3 rounded-[3px] opacity-70"
+                    style={{ "background-color": `#${props.visual.side}` }}
+                  />
                 </div>
               </div>
               <PptTemplatePreviewPattern visual={props.visual} type={props.type} />
@@ -448,7 +482,10 @@ function PptTemplatePreviewSlide(props: { visual: PptVisualTemplate; type: PptTe
         >
           <div class="flex h-full flex-col justify-center pl-4">
             <div class="h-2 w-16 rounded-[3px]" style={{ "background-color": `#${props.visual.accent}` }} />
-            <div class="mt-5 max-w-[72%] text-[24px] font-semibold leading-tight" style={{ color: `#${props.visual.coverTitle}` }}>
+            <div
+              class="mt-5 max-w-[72%] text-[24px] font-semibold leading-tight"
+              style={{ color: `#${props.visual.coverTitle}` }}
+            >
               {title()}
             </div>
             <div class="mt-3 text-[11px] leading-relaxed opacity-85" style={{ color: `#${props.visual.coverText}` }}>
@@ -466,20 +503,37 @@ function PptTemplatePreviewPattern(props: { visual: PptVisualTemplate; type: Ppt
     return (
       <div class="grid content-center gap-1.5">
         {[1, 2, 3, 4].map((item) => (
-          <div class="flex items-center gap-2 rounded-[7px] p-2" style={{ "background-color": `#${props.visual.card}` }}>
-            <span class="grid size-5 place-items-center rounded-[4px] text-[9px] font-semibold" style={{ color: `#${props.visual.coverTitle}`, "background-color": `#${item % 2 ? props.visual.accent : props.visual.accent2}` }}>
+          <div
+            class="flex items-center gap-2 rounded-[7px] p-2"
+            style={{ "background-color": `#${props.visual.card}` }}
+          >
+            <span
+              class="grid size-5 place-items-center rounded-[4px] text-[9px] font-semibold"
+              style={{
+                color: `#${props.visual.coverTitle}`,
+                "background-color": `#${item % 2 ? props.visual.accent : props.visual.accent2}`,
+              }}
+            >
               {item}
             </span>
-            <span class="h-2 flex-1 rounded-[3px] opacity-75" style={{ "background-color": `#${props.visual.cardLine}` }} />
+            <span
+              class="h-2 flex-1 rounded-[3px] opacity-75"
+              style={{ "background-color": `#${props.visual.cardLine}` }}
+            />
           </div>
         ))}
       </div>
     )
   if (props.type === "chapter")
     return (
-      <div class="grid h-full grid-cols-[0.55fr_1fr] overflow-hidden rounded-[8px]" style={{ "background-color": `#${props.visual.side}` }}>
+      <div
+        class="grid h-full grid-cols-[0.55fr_1fr] overflow-hidden rounded-[8px]"
+        style={{ "background-color": `#${props.visual.side}` }}
+      >
         <div class="grid place-items-center" style={{ "background-color": `#${props.visual.accent}` }}>
-          <div class="text-[24px] font-semibold leading-none" style={{ color: `#${props.visual.coverTitle}` }}>01</div>
+          <div class="text-[24px] font-semibold leading-none" style={{ color: `#${props.visual.coverTitle}` }}>
+            01
+          </div>
         </div>
         <div class="flex flex-col justify-center gap-2 p-3">
           <div class="h-2 w-20 rounded-[3px]" style={{ "background-color": `#${props.visual.accent2}` }} />
@@ -490,7 +544,10 @@ function PptTemplatePreviewPattern(props: { visual: PptVisualTemplate; type: Ppt
     )
   if (props.type === "data" || props.visual.motif === "dashboard")
     return (
-      <div class="grid h-full grid-cols-4 items-end gap-2 rounded-[8px] p-3" style={{ "background-color": `#${props.visual.side}` }}>
+      <div
+        class="grid h-full grid-cols-4 items-end gap-2 rounded-[8px] p-3"
+        style={{ "background-color": `#${props.visual.side}` }}
+      >
         {[42, 70, 54, 88].map((height, index) => (
           <div
             class="rounded-t-[5px]"
@@ -509,13 +566,21 @@ function PptTemplatePreviewPattern(props: { visual: PptVisualTemplate; type: Ppt
           <div class="h-2 w-20 rounded-[3px]" style={{ "background-color": `#${props.visual.accent}` }} />
           <div class="mt-3 grid grid-cols-3 gap-1.5">
             {[0, 1, 2].map((item) => (
-              <div class="h-10 rounded-[6px] opacity-90" style={{ "background-color": `#${item % 2 ? props.visual.accent2 : props.visual.accentLight}` }} />
+              <div
+                class="h-10 rounded-[6px] opacity-90"
+                style={{ "background-color": `#${item % 2 ? props.visual.accent2 : props.visual.accentLight}` }}
+              />
             ))}
           </div>
         </div>
       </div>
     )
-  if (props.visual.motif === "circuit" || props.visual.motif === "network" || props.visual.motif === "ops-map" || props.visual.motif === "autotech")
+  if (
+    props.visual.motif === "circuit" ||
+    props.visual.motif === "network" ||
+    props.visual.motif === "ops-map" ||
+    props.visual.motif === "autotech"
+  )
     return (
       <div class="relative h-full rounded-[8px]" style={{ "background-color": `#${props.visual.side}` }}>
         {[0, 1, 2, 3].map((item) => (
@@ -529,9 +594,18 @@ function PptTemplatePreviewPattern(props: { visual: PptVisualTemplate; type: Ppt
             }}
           />
         ))}
-        <span class="absolute left-[25%] top-[31%] h-1 w-[44%] rounded-[3px]" style={{ "background-color": `#${props.visual.cardLine}` }} />
-        <span class="absolute left-[43%] top-[33%] h-[34%] w-1 rounded-[3px]" style={{ "background-color": `#${props.visual.cardLine}` }} />
-        <span class="absolute bottom-5 right-5 h-2 w-14 rounded-[3px]" style={{ "background-color": `#${props.visual.accent2}` }} />
+        <span
+          class="absolute left-[25%] top-[31%] h-1 w-[44%] rounded-[3px]"
+          style={{ "background-color": `#${props.visual.cardLine}` }}
+        />
+        <span
+          class="absolute left-[43%] top-[33%] h-[34%] w-1 rounded-[3px]"
+          style={{ "background-color": `#${props.visual.cardLine}` }}
+        />
+        <span
+          class="absolute bottom-5 right-5 h-2 w-14 rounded-[3px]"
+          style={{ "background-color": `#${props.visual.accent2}` }}
+        />
       </div>
     )
   if (props.visual.motif === "classroom")
@@ -559,8 +633,14 @@ function PptTemplatePreviewPattern(props: { visual: PptVisualTemplate; type: Ppt
       <div class="grid content-center gap-2">
         {[0, 1, 2].map((item) => (
           <div class="flex items-center gap-2">
-            <span class="size-5 rounded-[4px]" style={{ "background-color": `#${item % 2 ? props.visual.accent2 : props.visual.accent}` }} />
-            <span class="h-3 flex-1 rounded-[4px]" style={{ "background-color": `#${item === 1 ? props.visual.accentLight : props.visual.side}` }} />
+            <span
+              class="size-5 rounded-[4px]"
+              style={{ "background-color": `#${item % 2 ? props.visual.accent2 : props.visual.accent}` }}
+            />
+            <span
+              class="h-3 flex-1 rounded-[4px]"
+              style={{ "background-color": `#${item === 1 ? props.visual.accentLight : props.visual.side}` }}
+            />
           </div>
         ))}
       </div>
@@ -571,8 +651,14 @@ function PptTemplatePreviewPattern(props: { visual: PptVisualTemplate; type: Ppt
         {[0, 1, 2, 3, 4].map((item) => (
           <div class="grid grid-cols-[0.7fr_1fr_0.5fr] gap-1.5">
             <span class="h-3 rounded-[4px]" style={{ "background-color": `#${props.visual.cardLine}` }} />
-            <span class="h-3 rounded-[4px]" style={{ "background-color": `#${item % 2 ? props.visual.accentLight : props.visual.card}` }} />
-            <span class="h-3 rounded-[4px]" style={{ "background-color": `#${item % 2 ? props.visual.accent2 : props.visual.accent}` }} />
+            <span
+              class="h-3 rounded-[4px]"
+              style={{ "background-color": `#${item % 2 ? props.visual.accentLight : props.visual.card}` }}
+            />
+            <span
+              class="h-3 rounded-[4px]"
+              style={{ "background-color": `#${item % 2 ? props.visual.accent2 : props.visual.accent}` }}
+            />
           </div>
         ))}
       </div>
@@ -580,28 +666,56 @@ function PptTemplatePreviewPattern(props: { visual: PptVisualTemplate; type: Ppt
   if (props.visual.motif === "paper" || props.visual.motif === "university" || props.visual.motif === "clinical")
     return (
       <div class="grid h-full place-items-center">
-        <div class="w-4/5 rounded-[8px] border p-3" style={{ "background-color": `#${props.visual.card}`, "border-color": `#${props.visual.cardLine}` }}>
+        <div
+          class="w-4/5 rounded-[8px] border p-3"
+          style={{ "background-color": `#${props.visual.card}`, "border-color": `#${props.visual.cardLine}` }}
+        >
           <div class="h-2 w-16 rounded-[3px]" style={{ "background-color": `#${props.visual.accent}` }} />
           <div class="mt-3 grid gap-1.5">
             {[0, 1, 2, 3].map((item) => (
-              <div class="h-2 rounded-[3px]" style={{ "background-color": `#${item === 0 ? props.visual.accentLight : props.visual.cardLine}` }} />
+              <div
+                class="h-2 rounded-[3px]"
+                style={{ "background-color": `#${item === 0 ? props.visual.accentLight : props.visual.cardLine}` }}
+              />
             ))}
           </div>
         </div>
       </div>
     )
-  if (props.visual.motif === "collage" || props.visual.motif === "spotlight" || props.visual.motif === "story" || props.visual.motif === "therapy")
+  if (
+    props.visual.motif === "collage" ||
+    props.visual.motif === "spotlight" ||
+    props.visual.motif === "story" ||
+    props.visual.motif === "therapy"
+  )
     return (
       <div class="relative h-full">
-        <span class="absolute left-2 top-5 h-16 w-16 rounded-[12px]" style={{ "background-color": `#${props.visual.accent}` }} />
-        <span class="absolute right-3 top-10 h-14 w-20 rounded-[14px]" style={{ "background-color": `#${props.visual.accent2}` }} />
-        <span class="absolute bottom-4 left-10 h-12 w-24 rounded-full" style={{ "background-color": `#${props.visual.accentLight}` }} />
+        <span
+          class="absolute left-2 top-5 h-16 w-16 rounded-[12px]"
+          style={{ "background-color": `#${props.visual.accent}` }}
+        />
+        <span
+          class="absolute right-3 top-10 h-14 w-20 rounded-[14px]"
+          style={{ "background-color": `#${props.visual.accent2}` }}
+        />
+        <span
+          class="absolute bottom-4 left-10 h-12 w-24 rounded-full"
+          style={{ "background-color": `#${props.visual.accentLight}` }}
+        />
       </div>
     )
-  if (props.visual.motif === "seal" || props.visual.motif === "policy-blue" || props.visual.motif === "policy-red" || props.visual.motif === "certification")
+  if (
+    props.visual.motif === "seal" ||
+    props.visual.motif === "policy-blue" ||
+    props.visual.motif === "policy-red" ||
+    props.visual.motif === "certification"
+  )
     return (
       <div class="grid h-full place-items-center">
-        <div class="grid size-24 place-items-center rounded-full border-4" style={{ "border-color": `#${props.visual.accent}`, "background-color": `#${props.visual.accentLight}` }}>
+        <div
+          class="grid size-24 place-items-center rounded-full border-4"
+          style={{ "border-color": `#${props.visual.accent}`, "background-color": `#${props.visual.accentLight}` }}
+        >
           <div class="size-12 rounded-full" style={{ "background-color": `#${props.visual.accent2}` }} />
         </div>
       </div>
@@ -610,9 +724,18 @@ function PptTemplatePreviewPattern(props: { visual: PptVisualTemplate; type: Ppt
     return (
       <div class="grid h-full place-items-center">
         <div class="relative h-16 w-32 rounded-full border-2" style={{ "border-color": `#${props.visual.cardLine}` }}>
-          <span class="absolute left-5 top-5 size-5 rounded-full" style={{ "background-color": `#${props.visual.accent}` }} />
-          <span class="absolute right-5 top-5 size-5 rounded-full" style={{ "background-color": `#${props.visual.accent2}` }} />
-          <span class="absolute left-11 top-3 h-5 w-10 rounded-[6px]" style={{ "background-color": `#${props.visual.accentLight}` }} />
+          <span
+            class="absolute left-5 top-5 size-5 rounded-full"
+            style={{ "background-color": `#${props.visual.accent}` }}
+          />
+          <span
+            class="absolute right-5 top-5 size-5 rounded-full"
+            style={{ "background-color": `#${props.visual.accent2}` }}
+          />
+          <span
+            class="absolute left-11 top-3 h-5 w-10 rounded-[6px]"
+            style={{ "background-color": `#${props.visual.accentLight}` }}
+          />
         </div>
       </div>
     )
@@ -620,7 +743,12 @@ function PptTemplatePreviewPattern(props: { visual: PptVisualTemplate; type: Ppt
     return (
       <div class="grid h-full grid-cols-5 content-center gap-1.5">
         {Array.from({ length: 15 }, (_, item) => (
-          <span class="aspect-square" style={{ "background-color": `#${item % 3 === 0 ? props.visual.accent2 : item % 2 ? props.visual.accent : props.visual.cardLine}` }} />
+          <span
+            class="aspect-square"
+            style={{
+              "background-color": `#${item % 3 === 0 ? props.visual.accent2 : item % 2 ? props.visual.accent : props.visual.cardLine}`,
+            }}
+          />
         ))}
       </div>
     )
@@ -652,7 +780,10 @@ function OfficeArtifactLibrary(props: {
         <div class="text-10-regular text-text-weak">{props.total} 个文件</div>
       </div>
       <div class="mt-2 flex flex-col gap-1.5">
-        <Show when={!props.loading} fallback={<div class="py-3 text-11-regular text-text-weak">正在读取办公文件...</div>}>
+        <Show
+          when={!props.loading}
+          fallback={<div class="py-3 text-11-regular text-text-weak">正在读取办公文件...</div>}
+        >
           <Show
             when={props.artifacts.length > 0}
             fallback={<div class="py-3 text-11-regular leading-relaxed text-text-weak">当前场景还没有保存文件。</div>}
@@ -703,7 +834,11 @@ function OfficeArtifactLibrary(props: {
   )
 }
 
-function officeArtifactRevisionPrompt(artifact: OfficeArtifactItem, actionTitle: string, scenario: ReturnType<typeof officeAgentScenario>) {
+function officeArtifactRevisionPrompt(
+  artifact: OfficeArtifactItem,
+  actionTitle: string,
+  scenario: ReturnType<typeof officeAgentScenario>,
+) {
   return [
     `继续修改办公文件：${artifact.filename}`,
     "",
@@ -745,7 +880,11 @@ function ScenarioList(props: { title: string; items: string[] }) {
       <div class="text-11-medium text-text-weak">{props.title}</div>
       <div class="mt-2 flex flex-wrap gap-1.5">
         <For each={props.items}>
-          {(item) => <span class="rounded-[6px] border border-border-weaker-base px-2 py-1 text-11-regular text-text-base">{item}</span>}
+          {(item) => (
+            <span class="rounded-[6px] border border-border-weaker-base px-2 py-1 text-11-regular text-text-base">
+              {item}
+            </span>
+          )}
         </For>
       </div>
     </div>

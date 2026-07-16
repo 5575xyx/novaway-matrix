@@ -137,9 +137,9 @@ describe("config HttpApi", () => {
 
       expect(save.status).toBe(200)
       yield* Fiber.join(disposed)
-      expect(yield* Effect.promise(() => Bun.file(path.join(tmp.path, ".novaway", "rules", "engineering.md")).text())).toContain(
-        "所有实现计划都必须写入 .novaway/plans。",
-      )
+      expect(
+        yield* Effect.promise(() => Bun.file(path.join(tmp.path, ".novaway", "rules", "engineering.md")).text()),
+      ).toContain("所有实现计划都必须写入 .novaway/plans。")
 
       const list = yield* Effect.promise(() =>
         Promise.resolve(

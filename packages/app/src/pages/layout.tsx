@@ -11,10 +11,9 @@ import {
   ParentProps,
   Show,
   untrack,
-  type Accessor,
 } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
-import { useLocation, useNavigate, useParams } from "@solidjs/router"
+import { useNavigate, useParams } from "@solidjs/router"
 import { useLayout, LocalProject } from "@/context/layout"
 import { useGlobalSync } from "@/context/global-sync"
 import { Persist, persisted } from "@/utils/persist"
@@ -23,8 +22,8 @@ import { decode64 } from "@/utils/base64"
 import { ResizeHandle } from "@opencode-ai/ui/resize-handle"
 import { Button } from "@opencode-ai/ui/button"
 import { IconButton } from "@opencode-ai/ui/icon-button"
-import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
+import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { Dialog } from "@opencode-ai/ui/dialog"
 import { getFilename } from "@opencode-ai/core/util/path"
 import { Session, type Message } from "@opencode-ai/sdk/v2/client"
@@ -61,18 +60,13 @@ import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { useTheme, type ColorScheme } from "@opencode-ai/ui/theme/context"
 import { useCommand, type CommandOption } from "@/context/command"
 import { ConstrainDragXAxis, getDraggableId } from "@/utils/solid-dnd"
-import { DebugBar } from "@/components/debug-bar"
 import { Titlebar } from "@/components/titlebar"
+import { DialogSettings, type SettingsTab } from "@/components/dialog-settings"
+import { DatabasePage } from "@/pages/database"
 import { useServer } from "@/context/server"
 import { useLanguage, type Locale } from "@/context/language"
 import { pathKey } from "@/utils/path-key"
-import {
-  displayName,
-  effectiveWorkspaceOrder,
-  errorMessage,
-  latestRootSession,
-  sortedRootSessions,
-} from "./layout/helpers"
+import { effectiveWorkspaceOrder, errorMessage, latestRootSession, sortedRootSessions } from "./layout/helpers"
 import {
   collectNewSessionDeepLinks,
   collectOpenProjectDeepLinks,
@@ -100,6 +94,8 @@ export default function Layout(props: ParentProps) {
       workspaceName: {} as Record<string, string>,
       workspaceBranchName: {} as Record<string, Record<string, string>>,
       workspaceExpanded: {} as Record<string, boolean>,
+      workspacePanelExpanded: true,
+      workspaceSidebarExpanded: true,
       gettingStartedDismissed: false,
     }),
   )
@@ -128,7 +124,6 @@ export default function Layout(props: ParentProps) {
   const theme = useTheme()
   const language = useLanguage()
   const initialDirectory = decode64(params.dir)
-  const location = useLocation()
   const route = createMemo(() => {
     const slug = params.dir
     if (!slug) return { slug, dir: "" }
@@ -166,10 +161,17 @@ export default function Layout(props: ParentProps) {
     busyWorkspaces: {} as Record<string, boolean>,
     hoverProject: undefined as string | undefined,
     scrollSessionKey: undefined as string | undefined,
+    settings: {
+      open: false,
+      directory: undefined as string | undefined,
+      initialTab: undefined as SettingsTab | undefined,
+    },
+    databasePage: {
+      open: false,
+    },
 
     sortNow: Date.now(),
     sizing: false,
-
   })
 
   const editor = createInlineEditorController()
@@ -204,7 +206,6 @@ export default function Layout(props: ParentProps) {
     clearTimeout(sortNowTimeout)
     if (sortNowInterval) clearInterval(sortNowInterval)
     if (sizet !== undefined) clearTimeout(sizet)
-
   })
 
   onMount(() => {
@@ -219,7 +220,7 @@ export default function Layout(props: ParentProps) {
   createEffect(() => {
     if (layout.sidebar.opened()) layout.sidebar.close()
   })
-  const clearHoverProjectSoon = () => {} 
+  const clearHoverProjectSoon = () => {}
 
   createEffect(() => {
     if (!state.autoselect) return
@@ -236,7 +237,7 @@ export default function Layout(props: ParentProps) {
   const setEditor = editor.setEditor
   const InlineEditor = editor.InlineEditor
 
-  const clearSidebarHoverState = () => {} 
+  const clearSidebarHoverState = () => {}
 
   const navigateWithSidebarReset = (href: string) => {
     clearSidebarHoverState()
@@ -372,8 +373,22 @@ export default function Layout(props: ParentProps) {
           e.details?.type === "question.rejected" ||
           e.details?.type === "permission.replied"
         ) {
-          const props = e.details.properties as { sessionID: string }
+          const props = e.details.properties as { sessionID: string; requestID?: string }
           const sessionKey = `${e.name}:${props.sessionID}`
+          if (e.details.type === "question.replied" && props.requestID) {
+            void window.api?.resolveFloatingNotification?.({
+              sessionID: props.sessionID,
+              requestID: props.requestID,
+              status: "replied",
+            })
+          }
+          if (e.details.type === "question.rejected" && props.requestID) {
+            void window.api?.resolveFloatingNotification?.({
+              sessionID: props.sessionID,
+              requestID: props.requestID,
+              status: "dismissed",
+            })
+          }
           dismissSessionAlert(sessionKey)
           return
         }
@@ -394,10 +409,25 @@ export default function Layout(props: ParentProps) {
 
         const sessionTitle = session?.title ?? language.t("command.session.new")
         const projectName = getFilename(directory)
+        const questionDetails =
+          e.details.type === "question.asked"
+            ? e.details.properties.questions
+                .map((question) =>
+                  question.header === question.question
+                    ? question.question
+                    : `${question.header}：${question.question}`,
+                )
+                .join("\n")
+            : undefined
         const description =
           e.details.type === "permission.asked"
             ? language.t("notification.permission.description", { sessionTitle, projectName })
-            : language.t("notification.question.description", { sessionTitle, projectName })
+            : questionDetails
+              ? language.t("notification.question.details", {
+                  context: language.t("notification.question.description", { sessionTitle, projectName }),
+                  question: questionDetails,
+                })
+              : language.t("notification.question.description", { sessionTitle, projectName })
         const href = `/${base64Encode(directory)}/session/${props.sessionID}`
 
         const now = Date.now()
@@ -416,7 +446,10 @@ export default function Layout(props: ParentProps) {
 
         if (e.details.type === "question.asked") {
           if (settings.notifications.agent()) {
-            void platform.notify(title, description, href)
+            void platform.notify(title, description, href, {
+              sessionID: e.details.properties.sessionID,
+              requestID: e.details.properties.id,
+            })
           }
         }
 
@@ -999,6 +1032,34 @@ export default function Layout(props: ParentProps) {
         onSelect: () => openSettings(),
       },
       {
+        id: "settings.memory.open",
+        title: language.t("command.settings.open"),
+        category: language.t("command.category.settings"),
+        hidden: true,
+        onSelect: () => openSettings("memory"),
+      },
+      {
+        id: "settings.evolution.open",
+        title: language.t("command.settings.open"),
+        category: language.t("command.category.settings"),
+        hidden: true,
+        onSelect: () => openSettings("evolution"),
+      },
+      {
+        id: "database.open",
+        title: language.t("command.database.open"),
+        category: language.t("command.category.database"),
+        keybind: "mod+shift+d",
+        onSelect: () => openDatabasePage(),
+      },
+      {
+        id: "database.close",
+        title: language.t("command.database.close"),
+        category: language.t("command.category.database"),
+        hidden: true,
+        onSelect: () => closeDatabasePage(),
+      },
+      {
         id: "session.previous",
         title: language.t("command.session.previous"),
         category: language.t("command.category.session"),
@@ -1150,13 +1211,27 @@ export default function Layout(props: ParentProps) {
     })
   }
 
-  function openSettings() {
-    const run = ++dialogRun
+  function openSettings(initialTab?: SettingsTab) {
     const directory = currentProject()?.worktree ?? currentDir()
-    void import("@/components/dialog-settings").then((x) => {
-      if (dialogDead || dialogRun !== run) return
-      dialog.showDrawer(() => <x.DialogSettings directory={directory} />)
+    batch(() => {
+      setState("settings", "directory", directory)
+      setState("settings", "initialTab", initialTab)
+      setState("settings", "open", true)
     })
+  }
+
+  function closeSettings() {
+    setState("settings", "open", false)
+  }
+
+  function openDatabasePage() {
+    batch(() => {
+      setState("databasePage", "open", true)
+    })
+  }
+
+  function closeDatabasePage() {
+    setState("databasePage", "open", false)
   }
 
   function projectRoot(directory: string) {
@@ -1325,19 +1400,6 @@ export default function Layout(props: ParentProps) {
     handleDeepLinks(drainPendingDeepLinks(window))
     makeEventListener(window, deepLinkEvent, handler as EventListener)
   })
-
-  async function renameProject(project: LocalProject, next: string) {
-    const current = displayName(project)
-    if (next === current) return
-    const name = next === getFilename(project.worktree) ? "" : next
-
-    if (project.id && project.id !== "global") {
-      await globalSDK.client.project.update({ projectID: project.id, directory: project.worktree, name })
-      return
-    }
-
-    globalSync.project.meta(project.worktree, { name })
-  }
 
   const renameWorkspace = (directory: string, next: string, projectId?: string, branch?: string) => {
     const current = workspaceName(directory, projectId, branch) ?? branch ?? getFilename(directory)
@@ -1773,7 +1835,10 @@ export default function Layout(props: ParentProps) {
     document.documentElement.style.setProperty("--dialog-left-margin", `${sidebarWidth}px`)
   })
 
-  const side = createMemo(() => Math.max(layout.sidebar.width(), 244))
+  const side = createMemo(() => {
+    if (!store.workspaceSidebarExpanded) return 0
+    return Math.max(layout.sidebar.width(), 244)
+  })
   const panel = createMemo(() => side())
 
   const loadedSessionDirs = new Set<string>()
@@ -1963,10 +2028,7 @@ export default function Layout(props: ParentProps) {
     setWorkspaceExpanded: (directory, value) => setStore("workspaceExpanded", directory, value),
   }
 
-  const SidebarPanel = (panelProps: {
-    mobile?: boolean
-    merged?: boolean
-  }) => {
+  const SidebarPanel = (panelProps: { mobile?: boolean; merged?: boolean }) => {
     const merged = createMemo(() => panelProps.mobile || (panelProps.merged ?? layout.sidebar.opened()))
     const empty = createMemo(() => !params.dir && layout.projects.list().length === 0)
     const projectList = () => layout.projects.list()
@@ -2016,77 +2078,109 @@ export default function Layout(props: ParentProps) {
               工作区
               <span class="text-12-regular text-text-weak ml-1">项目数：{projectList().length}</span>
             </span>
-            <DropdownMenu>
-              <DropdownMenu.Trigger
-                as={IconButton}
-                icon="plus"
-                variant="ghost"
-                size="small"
-                aria-label={language.t("command.project.open")}
-              />
-              <DropdownMenu.Portal>
-                <DropdownMenu.Content>
-                  <DropdownMenu.Item onSelect={chooseProject}>
-                    <DropdownMenu.ItemLabel>{language.t("command.project.open")}</DropdownMenu.ItemLabel>
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Item onSelect={createProject}>
-                    <DropdownMenu.ItemLabel>{language.t("command.project.create")}</DropdownMenu.ItemLabel>
-                  </DropdownMenu.Item>
-                </DropdownMenu.Content>
-              </DropdownMenu.Portal>
-            </DropdownMenu>
+            <div class="flex items-center gap-0.5 shrink-0">
+              <DropdownMenu>
+                <DropdownMenu.Trigger
+                  as={IconButton}
+                  icon="plus"
+                  variant="ghost"
+                  size="small"
+                  aria-label={language.t("command.project.open")}
+                />
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content>
+                    <DropdownMenu.Item onSelect={chooseProject}>
+                      <DropdownMenu.ItemLabel>{language.t("command.project.open")}</DropdownMenu.ItemLabel>
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item onSelect={createProject}>
+                      <DropdownMenu.ItemLabel>{language.t("command.project.create")}</DropdownMenu.ItemLabel>
+                    </DropdownMenu.Item>
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu>
+              <Tooltip
+                value={
+                  store.workspacePanelExpanded
+                    ? language.t("sidebar.workspacePanel.collapse")
+                    : language.t("sidebar.workspacePanel.expand")
+                }
+                placement="bottom"
+              >
+                <IconButton
+                  icon={store.workspacePanelExpanded ? "chevron-down" : "chevron-right"}
+                  variant="ghost"
+                  size="small"
+                  aria-label={
+                    store.workspacePanelExpanded
+                      ? language.t("sidebar.workspacePanel.collapse")
+                      : language.t("sidebar.workspacePanel.expand")
+                  }
+                  onClick={() => setStore("workspacePanelExpanded", (value) => !value)}
+                />
+              </Tooltip>
+              <Tooltip value={language.t("sidebar.workspaceSidebar.collapse")} placement="bottom">
+                <IconButton
+                  icon="chevron-left"
+                  variant="ghost"
+                  size="small"
+                  aria-label={language.t("sidebar.workspaceSidebar.collapse")}
+                  onClick={() => setStore("workspaceSidebarExpanded", false)}
+                />
+              </Tooltip>
+            </div>
           </div>
         </div>
 
-        <Show
-          when={projectList().length > 0}
-          fallback={
-            <Show when={empty()}>
-              <div class="flex-1 min-h-0 -mt-4 flex items-center justify-center px-6 pb-64 text-center">
-                <div class="mt-8 flex max-w-60 flex-col items-center gap-6 text-center">
-                  <Button size="large" icon="folder-add-left" onClick={chooseProject}>
-                    {language.t("command.project.open")}
-                  </Button>
+        <Show when={store.workspacePanelExpanded}>
+          <Show
+            when={projectList().length > 0}
+            fallback={
+              <Show when={empty()}>
+                <div class="flex-1 min-h-0 -mt-4 flex items-center justify-center px-6 pb-64 text-center">
+                  <div class="mt-8 flex max-w-60 flex-col items-center gap-6 text-center">
+                    <Button size="large" icon="folder-add-left" onClick={chooseProject}>
+                      {language.t("command.project.open")}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </Show>
-          }
-        >
-          <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
-            <DragDropProvider
-              onDragStart={handleDragStart}
-              onDragEnd={handleDragEnd}
-              onDragOver={handleDragOver}
-              collisionDetector={closestCenter}
-            >
-              <DragDropSensors />
-              <ConstrainDragXAxis />
-              <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar [overflow-anchor:none]">
-                <SortableProvider ids={projectList().map((p) => p.worktree)}>
-                  <For each={projectList()}>
-                    {(proj, index) => {
-                      const [isExpanded, setIsExpanded] = createSignal(store.workspaceExpanded[proj.worktree] ?? true)
-                      return (
-                        <div class="py-1">
-                          <SortableProject
-                            ctx={projectSidebarCtx}
-                            project={proj}
-                            sortNow={sortNow}
-                            mobile={panelProps.mobile}
-                            index={index()}
-                            expanded={isExpanded}
-                            onToggleExpand={() => {
-                              const next = !isExpanded()
-                              setIsExpanded(next)
-                              setStore("workspaceExpanded", proj.worktree, next)
-                            }}
-                          />
-                          <Show when={isExpanded()}>
-                            <div class="pl-5 pt-1 pb-2 ml-3 border-l-2 border-border-weak-base">
-                              <Show
-                                when={workspacesEnabled()}
-                                fallback={
-                                  <div class="flex-1 min-h-0">
+              </Show>
+            }
+          >
+            <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
+              <DragDropProvider
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                onDragOver={handleDragOver}
+                collisionDetector={closestCenter}
+              >
+                <DragDropSensors />
+                <ConstrainDragXAxis />
+                <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar [overflow-anchor:none]">
+                  <SortableProvider ids={projectList().map((p) => p.worktree)}>
+                    <For each={projectList()}>
+                      {(proj, index) => {
+                        const [isExpanded, setIsExpanded] = createSignal(store.workspaceExpanded[proj.worktree] ?? true)
+                        return (
+                          <div class="py-1">
+                            <SortableProject
+                              ctx={projectSidebarCtx}
+                              project={proj}
+                              sortNow={sortNow}
+                              mobile={panelProps.mobile}
+                              index={index()}
+                              expanded={isExpanded}
+                              onToggleExpand={() => {
+                                const next = !isExpanded()
+                                setIsExpanded(next)
+                                setStore("workspaceExpanded", proj.worktree, next)
+                              }}
+                            />
+                            <Show when={isExpanded()}>
+                              <div class="pl-5 pt-1 pb-2 ml-3 border-l-2 border-border-weak-base">
+                                <Show
+                                  when={workspacesEnabled()}
+                                  fallback={
+                                    <div class="flex-1 min-h-0">
                                       <LocalWorkspace
                                         ctx={workspaceSidebarCtx}
                                         project={proj}
@@ -2094,69 +2188,70 @@ export default function Layout(props: ParentProps) {
                                         mobile={panelProps.mobile}
                                       />
                                     </div>
-                                }
-                              >
-                                <>
-                                  <div class="shrink-0 py-2">
-                                    <Button
-                                      size="large"
-                                      icon="plus-small"
-                                      class="w-full"
-                                      onClick={() => {
-                                        void createWorkspace(proj)
-                                      }}
-                                    >
-                                      {language.t("workspace.new")}
-                                    </Button>
-                                  </div>
-                                  <div class="relative flex-1 min-h-0">
-                                    <DragDropProvider
-                                      onDragStart={handleWorkspaceDragStart}
-                                      onDragEnd={handleWorkspaceDragEnd}
-                                      onDragOver={handleWorkspaceDragOver}
-                                      collisionDetector={closestCenter}
-                                    >
-                                      <DragDropSensors />
-                                      <ConstrainDragXAxis />
-                                      <div class="size-full flex flex-col py-2 gap-4 overflow-y-auto no-scrollbar [overflow-anchor:none]">
-                                        <SortableProvider ids={expandedWorkspaces()}>
-                                          <For each={expandedWorkspaces()}>
-                                            {(directory) => (
-                                              <SortableWorkspace
-                                                ctx={workspaceSidebarCtx}
-                                                directory={directory}
-                                                project={proj}
-                                                sortNow={sortNow}
-                                                mobile={panelProps.mobile}
-                                              />
-                                            )}
-                                          </For>
-                                        </SortableProvider>
-                                      </div>
-                                      <DragOverlay>
-                                        <WorkspaceDragOverlay
-                                          sidebarProject={sidebarProject}
-                                          activeWorkspace={() => store.activeWorkspace}
-                                          workspaceLabel={workspaceLabel}
-                                        />
-                                      </DragOverlay>
-                                    </DragDropProvider>
-                                  </div>
-                                </>
-                              </Show>
-                            </div>
-                          </Show>
-                        </div>
-                      )
-                    }}
-                  </For>
-                </SortableProvider>
-              </div>
-              <DragOverlay>
-                <ProjectDragOverlay projects={projects} activeProject={() => store.activeProject} />
-              </DragOverlay>
-            </DragDropProvider>
-          </div>
+                                  }
+                                >
+                                  <>
+                                    <div class="shrink-0 py-2">
+                                      <Button
+                                        size="large"
+                                        icon="plus-small"
+                                        class="w-full"
+                                        onClick={() => {
+                                          void createWorkspace(proj)
+                                        }}
+                                      >
+                                        {language.t("workspace.new")}
+                                      </Button>
+                                    </div>
+                                    <div class="relative flex-1 min-h-0">
+                                      <DragDropProvider
+                                        onDragStart={handleWorkspaceDragStart}
+                                        onDragEnd={handleWorkspaceDragEnd}
+                                        onDragOver={handleWorkspaceDragOver}
+                                        collisionDetector={closestCenter}
+                                      >
+                                        <DragDropSensors />
+                                        <ConstrainDragXAxis />
+                                        <div class="size-full flex flex-col py-2 gap-4 overflow-y-auto no-scrollbar [overflow-anchor:none]">
+                                          <SortableProvider ids={expandedWorkspaces()}>
+                                            <For each={expandedWorkspaces()}>
+                                              {(directory) => (
+                                                <SortableWorkspace
+                                                  ctx={workspaceSidebarCtx}
+                                                  directory={directory}
+                                                  project={proj}
+                                                  sortNow={sortNow}
+                                                  mobile={panelProps.mobile}
+                                                />
+                                              )}
+                                            </For>
+                                          </SortableProvider>
+                                        </div>
+                                        <DragOverlay>
+                                          <WorkspaceDragOverlay
+                                            sidebarProject={sidebarProject}
+                                            activeWorkspace={() => store.activeWorkspace}
+                                            workspaceLabel={workspaceLabel}
+                                          />
+                                        </DragOverlay>
+                                      </DragDropProvider>
+                                    </div>
+                                  </>
+                                </Show>
+                              </div>
+                            </Show>
+                          </div>
+                        )
+                      }}
+                    </For>
+                  </SortableProvider>
+                </div>
+                <DragOverlay>
+                  <ProjectDragOverlay projects={projects} activeProject={() => store.activeProject} />
+                </DragOverlay>
+              </DragDropProvider>
+            </div>
+          </Show>
         </Show>
 
         <div
@@ -2195,14 +2290,11 @@ export default function Layout(props: ParentProps) {
   const modeSelected = createMemo(() => layout.mode.hasSelected())
   const isPulseMode = createMemo(() => layout.mode.current() === "pulse")
   const showSidebar = createMemo(() => modeSelected() && !isPulseMode())
-  const projectOverlay = () => <ProjectDragOverlay projects={projects} activeProject={() => store.activeProject} />
   const sidebarContent = (mobile?: boolean) => (
     <SidebarContent
       mobile={mobile}
       opened={() => true}
-      renderPanel={() =>
-        mobile ? <SidebarPanel mobile /> : <SidebarPanel merged />
-      }
+      renderPanel={() => (mobile ? <SidebarPanel mobile /> : <SidebarPanel merged />)}
     />
   )
 
@@ -2213,11 +2305,11 @@ export default function Layout(props: ParentProps) {
       data-app-mode={layout.mode.current() ?? "none"}
     >
       {autoselecting() ?? ""}
-      <Titlebar />
+      <Titlebar settingsOpen={state.settings.open} databaseOpen={state.databasePage.open} />
       <div class="flex-1 min-h-0 min-w-0 flex">
         <div class="flex-1 min-h-0 relative">
           <div class="size-full relative overflow-x-hidden">
-            <Show when={showSidebar()}>
+            <Show when={showSidebar() && store.workspaceSidebarExpanded}>
               <nav
                 aria-label={language.t("sidebar.nav.projectsAndSessions")}
                 data-component="sidebar-nav-desktop"
@@ -2227,13 +2319,12 @@ export default function Layout(props: ParentProps) {
                   "z-10": true,
                 }}
                 style={{ width: `${side()}px` }}
-
               >
                 <div class="@container w-full h-full contain-strict">{sidebarContent()}</div>
               </nav>
             </Show>
 
-            <Show when={showSidebar()}>
+            <Show when={showSidebar() && store.workspaceSidebarExpanded}>
               <div
                 class="hidden xl:block absolute inset-y-0 z-30 w-0 overflow-visible"
                 style={{ left: `${side()}px` }}
@@ -2256,7 +2347,7 @@ export default function Layout(props: ParentProps) {
 
             <div
               class="hidden xl:block pointer-events-none absolute top-0 right-0 z-0 border-t border-border-weaker-base"
-              classList={{ hidden: !showSidebar() }}
+              classList={{ hidden: !showSidebar() || !store.workspaceSidebarExpanded }}
               style={{ left: "12px" }}
             />
 
@@ -2276,7 +2367,7 @@ export default function Layout(props: ParentProps) {
                   aria-label={language.t("sidebar.nav.projectsAndSessions")}
                   data-component="sidebar-nav-mobile"
                   classList={{
-                    "@container fixed top-[50px] bottom-0 left-0 z-50 w-full max-w-[400px] overflow-hidden border-r border-[#b8c8dc] bg-background-base transition-transform duration-200 ease-out": true,
+                    "@container fixed top-[50px] bottom-0 left-0 z-50 w-full max-w-[400px] overflow-hidden border-r border-border-weaker-base bg-background-base transition-transform duration-200 ease-out": true,
                     "translate-x-0": layout.mobileSidebar.opened(),
                     "-translate-x-full": !layout.mobileSidebar.opened(),
                   }}
@@ -2299,10 +2390,22 @@ export default function Layout(props: ParentProps) {
                 "--main-left": showSidebar() ? `${side()}px` : "0px",
               }}
             >
+              <Show when={showSidebar() && !store.workspaceSidebarExpanded}>
+                <Tooltip value={language.t("sidebar.workspaceSidebar.expand")} placement="right">
+                  <IconButton
+                    icon="chevron-right"
+                    variant="secondary"
+                    size="normal"
+                    class="hidden xl:flex absolute top-3 left-3 z-30 shadow-sm"
+                    aria-label={language.t("sidebar.workspaceSidebar.expand")}
+                    onClick={() => setStore("workspaceSidebarExpanded", true)}
+                  />
+                </Tooltip>
+              </Show>
               <main
                 classList={{
                   "size-full overflow-x-hidden flex flex-col items-start border-t border-border-weak-base glass dark:glass-dark page-transition": true,
-                  "xl:border-l xl:rounded-tl-[16px]": showSidebar(),
+                  "xl:border-l xl:rounded-tl-[16px]": showSidebar() && store.workspaceSidebarExpanded,
                 }}
               >
                 <Show when={!autoselecting.loading} fallback={<div class="size-full" />}>
@@ -2310,9 +2413,27 @@ export default function Layout(props: ParentProps) {
                 </Show>
               </main>
             </div>
-
-
           </div>
+          <Show when={state.settings.open}>
+            <section
+              class="absolute inset-0 z-[60] min-h-0 min-w-0 overflow-hidden bg-background-base"
+              aria-label={language.t("command.settings.open")}
+            >
+              <DialogSettings
+                initialTab={state.settings.initialTab}
+                directory={state.settings.directory}
+                onBack={closeSettings}
+              />
+            </section>
+          </Show>
+          <Show when={state.databasePage.open}>
+            <section
+              class="absolute inset-0 z-[60] min-h-0 min-w-0 overflow-hidden bg-background-base"
+              aria-label={language.t("command.database.open")}
+            >
+              <DatabasePage onBack={closeDatabasePage} />
+            </section>
+          </Show>
         </div>
         {/* DebugBar removed */}
       </div>

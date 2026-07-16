@@ -13,6 +13,7 @@
 ### 任务 1：新增 pulse-orchestrator agent 定义
 
 **文件：**
+
 - 修改：`packages/opencode/src/agent/agent.ts:450-451`（在 agents 对象末尾，`agencyAgents` 之前）
 
 - [ ] **Step 1：在 agents 对象中添加 pulse-orchestrator**
@@ -70,6 +71,7 @@
 ```bash
 bun typecheck
 ```
+
 预期：通过（仅 pre-existing error 在 opencode/test 中）
 
 - [ ] **Step 3：提交**
@@ -84,6 +86,7 @@ git commit -m "feat: add pulse-orchestrator agent definition"
 ### 任务 2：默认选中 pulse-orchestrator
 
 **文件：**
+
 - 修改：`packages/app/src/pages/pulse/PulseChatInput.tsx:58-60`
 
 - [ ] **Step 1：修改默认 agent 选择逻辑**
@@ -107,6 +110,7 @@ onMount(() => {
 ```bash
 cd packages/app && bun typecheck
 ```
+
 预期：通过
 
 - [ ] **Step 3：提交**
@@ -121,6 +125,7 @@ git commit -m "feat: default pulse-chat-input to pulse-orchestrator agent"
 ### 任务 3：更新 PulseAssistant 建议指令使用 orchestrator
 
 **文件：**
+
 - 修改：`packages/app/src/pages/pulse/PulseAssistant.tsx:97`
 
 - [ ] **Step 1：将 handleSuggestion 改为使用 pulse-orchestrator**
@@ -138,6 +143,7 @@ const handleSuggestion = (text: string) => {
 ```bash
 cd packages/app && bun typecheck
 ```
+
 预期：通过
 
 - [ ] **Step 3：提交**
@@ -156,6 +162,7 @@ git commit -m "feat: use pulse-orchestrator for pulse assistant suggestions"
 ```bash
 bun typecheck
 ```
+
 预期：opencode package 仅有 pre-existing test 错误，app package 通过
 
 - [ ] **验证 2：确认所有提交**
@@ -163,7 +170,9 @@ bun typecheck
 ```bash
 git log --oneline -5
 ```
+
 预期：
+
 ```
 <new> feat: use pulse-orchestrator for pulse assistant suggestions
 <new> feat: default pulse-chat-input to pulse-orchestrator agent

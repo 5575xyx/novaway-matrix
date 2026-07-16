@@ -11,7 +11,7 @@ describe("validateCustomProvider", () => {
         name: " Custom Provider ",
         baseURL: "https://api.example.com ",
         apiKey: " {env: CUSTOM_PROVIDER_KEY} ",
-        models: [{ row: "m0", id: " model-a ", name: " Model A ", err: {} }],
+        models: [{ row: "m0", id: " model-a ", name: " Model A ", type: "text", err: {} }],
         headers: [
           { row: "h0", key: " X-Test ", value: " enabled ", err: {} },
           { row: "h1", key: "", value: "", err: {} },
@@ -38,7 +38,7 @@ describe("validateCustomProvider", () => {
           },
         },
         models: {
-          "model-a": { name: "Model A" },
+          "model-a": { name: "Model A", modalities: { input: [], output: ["text"] } },
         },
       },
     })
@@ -52,8 +52,8 @@ describe("validateCustomProvider", () => {
         baseURL: "https://api.example.com",
         apiKey: "secret",
         models: [
-          { row: "m0", id: "model-a", name: "Model A", err: {} },
-          { row: "m1", id: "model-a", name: "Model A 2", err: {} },
+          { row: "m0", id: "model-a", name: "Model A", type: "text", err: {} },
+          { row: "m1", id: "model-a", name: "Model A 2", type: "text", err: {} },
         ],
         headers: [
           { row: "h0", key: "Authorization", value: "one", err: {} },

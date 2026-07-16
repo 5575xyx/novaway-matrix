@@ -2,21 +2,21 @@
 
 Skills speak in actions ("dispatch a subagent", "create a todo", "read a file"). On the Antigravity CLI (`agy`) these resolve to the tools below.
 
-| Action skills request | Antigravity CLI equivalent |
-|----------------------|----------------------|
-| Read a file | `view_file` |
-| Create a new file | `write_to_file` |
-| Edit a file | `replace_file_content` |
-| Edit a file in several places at once | `multi_replace_file_content` |
-| Run a shell command | `run_command` |
-| Search file contents | `grep_search` |
-| Find files by name / list a directory | `list_dir` (no dedicated glob tool — combine `list_dir` with `grep_search`) |
-| Fetch a URL | `read_url_content` |
-| Search the web | `search_web` |
-| Pose a structured question to your human partner | `ask_question` |
-| Dispatch a subagent (`Subagent (general-purpose):` template) | `invoke_subagent` with a built-in `TypeName` — `self` for full-capability work, `research` for read-only (see [Subagent support](#subagent-support)) |
-| Multiple parallel dispatches | Multiple entries in one `invoke_subagent` call's `Subagents` array |
-| Task tracking ("create a todo", "mark complete") | a **task artifact** — `write_to_file` with `IsArtifact: true` and `ArtifactType: "task"` (see [Task tracking](#task-tracking)). **Not** `manage_task`, which manages background processes. |
+| Action skills request                                        | Antigravity CLI equivalent                                                                                                                                                                 |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Read a file                                                  | `view_file`                                                                                                                                                                                |
+| Create a new file                                            | `write_to_file`                                                                                                                                                                            |
+| Edit a file                                                  | `replace_file_content`                                                                                                                                                                     |
+| Edit a file in several places at once                        | `multi_replace_file_content`                                                                                                                                                               |
+| Run a shell command                                          | `run_command`                                                                                                                                                                              |
+| Search file contents                                         | `grep_search`                                                                                                                                                                              |
+| Find files by name / list a directory                        | `list_dir` (no dedicated glob tool — combine `list_dir` with `grep_search`)                                                                                                                |
+| Fetch a URL                                                  | `read_url_content`                                                                                                                                                                         |
+| Search the web                                               | `search_web`                                                                                                                                                                               |
+| Pose a structured question to your human partner             | `ask_question`                                                                                                                                                                             |
+| Dispatch a subagent (`Subagent (general-purpose):` template) | `invoke_subagent` with a built-in `TypeName` — `self` for full-capability work, `research` for read-only (see [Subagent support](#subagent-support))                                       |
+| Multiple parallel dispatches                                 | Multiple entries in one `invoke_subagent` call's `Subagents` array                                                                                                                         |
+| Task tracking ("create a todo", "mark complete")             | a **task artifact** — `write_to_file` with `IsArtifact: true` and `ArtifactType: "task"` (see [Task tracking](#task-tracking)). **Not** `manage_task`, which manages background processes. |
 
 ## Invoking a skill — read its `SKILL.md`
 
@@ -25,12 +25,12 @@ start of each session, but it has **no `Skill`/`activate_skill` tool**. To load 
 skill, **read its `SKILL.md` with `view_file`, setting `IsSkillFile: true`** when
 the skill applies — e.g. `view_file` on
 `.../plugins/PowersNexus/skills/<skill-name>/SKILL.md` with `IsSkillFile: true`.
-(`IsSkillFile` is agy's own signal that you're reading a file to *execute its
-instructions*, not to edit or preview it — set it whenever you load a skill.)
+(`IsSkillFile` is agy's own signal that you're reading a file to _execute its
+instructions_, not to edit or preview it — set it whenever you load a skill.)
 
 This is the blessed skill-loading mechanism on this harness. The general rule
 "never read skill files manually" means "don't bypass your platform's
-skill-loading mechanism" — and on Antigravity, reading `SKILL.md` *is* that
+skill-loading mechanism" — and on Antigravity, reading `SKILL.md` _is_ that
 mechanism. Reading it honors the rule rather than breaking it.
 
 You already know which skills exist and what they're for: their names and
@@ -61,11 +61,11 @@ Skills dispatch with `Subagent (general-purpose):` and either reference a
 prompt-template file (e.g. `PowersNexus:subagent-driven-development`'s
 `./implementer-prompt.md`) or supply an inline prompt. On Antigravity:
 
-| Skill dispatch form | Antigravity equivalent |
-|---------------------|----------------------|
-| An implementer-style `*-prompt.md` template (writes code, runs tests) | Fill the template, then `invoke_subagent` with `TypeName: "self"` and the filled prompt |
-| A read-only reviewer template (`task-reviewer`, `code-reviewer`, `requesting-code-review`'s `./code-reviewer.md`) | `invoke_subagent` with `TypeName: "research"` and the filled review template |
-| Inline prompt (no template referenced) | `invoke_subagent` with `TypeName: "self"` (or `"research"` if the task only reads) and your inline prompt |
+| Skill dispatch form                                                                                               | Antigravity equivalent                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| An implementer-style `*-prompt.md` template (writes code, runs tests)                                             | Fill the template, then `invoke_subagent` with `TypeName: "self"` and the filled prompt                   |
+| A read-only reviewer template (`task-reviewer`, `code-reviewer`, `requesting-code-review`'s `./code-reviewer.md`) | `invoke_subagent` with `TypeName: "research"` and the filled review template                              |
+| Inline prompt (no template referenced)                                                                            | `invoke_subagent` with `TypeName: "self"` (or `"research"` if the task only reads) and your inline prompt |
 
 ### Prompt filling
 
@@ -83,7 +83,7 @@ serialize independent subagent tasks just to preserve a simpler history.
 ## Task tracking
 
 Antigravity has **no todo / `TodoWrite` tool** (`manage_task` manages background
-processes — `list`/`kill`/`status`/`send_input` — it is *not* a checklist). When a
+processes — `list`/`kill`/`status`/`send_input` — it is _not_ a checklist). When a
 skill says to create a todo list or track tasks, maintain a **task artifact**: a
 markdown checklist saved with `write_to_file` (`IsArtifact: true`,
 `ArtifactMetadata.ArtifactType: "task"`), edited with `replace_file_content` /

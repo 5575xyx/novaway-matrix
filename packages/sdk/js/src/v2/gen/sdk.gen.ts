@@ -28,14 +28,6 @@ import type {
   ConfigProvidersResponses,
   ConfigUpdateErrors,
   ConfigUpdateResponses,
-  DatabaseColumnsResponses,
-  DatabaseExecuteResponses,
-  DatabaseListResponses,
-  DatabaseLoadConnectionsResponses,
-  DatabaseQueryResponses,
-  DatabaseSaveConnectionsResponses,
-  DatabaseTablesResponses,
-  DatabaseTestResponses,
   EventSubscribeResponses,
   EventTuiCommandExecute2,
   EventTuiPromptAppend2,
@@ -267,6 +259,9 @@ import type {
   SyncStealErrors,
   SyncStealResponses,
   TextPartInput,
+  ToolCallErrors,
+  ToolCallPayload,
+  ToolCallResponses,
   ToolIdsErrors,
   ToolIdsResponses,
   ToolListErrors,
@@ -887,316 +882,6 @@ export class Config2 extends HeyApiClient {
   }
 }
 
-export class Database extends HeyApiClient {
-  /**
-   * Test database connection
-   *
-   * Test a database connection using the appropriate CLI tool and return the result.
-   */
-  public test<ThrowOnError extends boolean = false>(
-    parameters?: {
-      type?: "mysql" | "postgresql" | "sqlite" | "sqlserver" | "mariadb"
-      host?: string
-      port?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-      user?: string
-      password?: string
-      database?: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "body", key: "type" },
-            { in: "body", key: "host" },
-            { in: "body", key: "port" },
-            { in: "body", key: "user" },
-            { in: "body", key: "password" },
-            { in: "body", key: "database" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).post<DatabaseTestResponses, unknown, ThrowOnError>({
-      url: "/database/test",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    })
-  }
-
-  /**
-   * List databases on server
-   *
-   * Connect to a database server and list all available databases.
-   */
-  public list<ThrowOnError extends boolean = false>(
-    parameters?: {
-      type?: "mysql" | "postgresql" | "sqlite" | "sqlserver" | "mariadb"
-      host?: string
-      port?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-      user?: string
-      password?: string
-      database?: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "body", key: "type" },
-            { in: "body", key: "host" },
-            { in: "body", key: "port" },
-            { in: "body", key: "user" },
-            { in: "body", key: "password" },
-            { in: "body", key: "database" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).post<DatabaseListResponses, unknown, ThrowOnError>({
-      url: "/database/list",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    })
-  }
-
-  /**
-   * Execute SQL query
-   *
-   * Execute a SQL query on the connected database and return the result.
-   */
-  public execute<ThrowOnError extends boolean = false>(
-    parameters?: {
-      type?: "mysql" | "postgresql" | "sqlite" | "sqlserver" | "mariadb"
-      host?: string
-      port?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-      user?: string
-      password?: string
-      database?: string
-      sql?: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "body", key: "type" },
-            { in: "body", key: "host" },
-            { in: "body", key: "port" },
-            { in: "body", key: "user" },
-            { in: "body", key: "password" },
-            { in: "body", key: "database" },
-            { in: "body", key: "sql" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).post<DatabaseExecuteResponses, unknown, ThrowOnError>({
-      url: "/database/execute",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    })
-  }
-
-  /**
-   * List tables in database
-   *
-   * List all tables in the specified database.
-   */
-  public tables<ThrowOnError extends boolean = false>(
-    parameters?: {
-      type?: "mysql" | "postgresql" | "sqlite" | "sqlserver" | "mariadb"
-      host?: string
-      port?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-      user?: string
-      password?: string
-      database?: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "body", key: "type" },
-            { in: "body", key: "host" },
-            { in: "body", key: "port" },
-            { in: "body", key: "user" },
-            { in: "body", key: "password" },
-            { in: "body", key: "database" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).post<DatabaseTablesResponses, unknown, ThrowOnError>({
-      url: "/database/tables",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    })
-  }
-
-  /**
-   * Get table columns
-   *
-   * Get column definitions for a specific table.
-   */
-  public columns<ThrowOnError extends boolean = false>(
-    parameters?: {
-      type?: "mysql" | "postgresql" | "sqlite" | "sqlserver" | "mariadb"
-      host?: string
-      port?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-      user?: string
-      password?: string
-      database?: string
-      table?: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "body", key: "type" },
-            { in: "body", key: "host" },
-            { in: "body", key: "port" },
-            { in: "body", key: "user" },
-            { in: "body", key: "password" },
-            { in: "body", key: "database" },
-            { in: "body", key: "table" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).post<DatabaseColumnsResponses, unknown, ThrowOnError>({
-      url: "/database/columns",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    })
-  }
-
-  /**
-   * Execute read query
-   *
-   * Execute a SELECT query and return structured results.
-   */
-  public query<ThrowOnError extends boolean = false>(
-    parameters?: {
-      type?: "mysql" | "postgresql" | "sqlite" | "sqlserver" | "mariadb"
-      host?: string
-      port?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-      user?: string
-      password?: string
-      database?: string
-      sql?: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "body", key: "type" },
-            { in: "body", key: "host" },
-            { in: "body", key: "port" },
-            { in: "body", key: "user" },
-            { in: "body", key: "password" },
-            { in: "body", key: "database" },
-            { in: "body", key: "sql" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).post<DatabaseQueryResponses, unknown, ThrowOnError>({
-      url: "/database/query",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    })
-  }
-
-  /**
-   * Load database connections
-   *
-   * Load saved database connections from project file.
-   */
-  public loadConnections<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
-    return (options?.client ?? this.client).get<DatabaseLoadConnectionsResponses, unknown, ThrowOnError>({
-      url: "/database/connections",
-      ...options,
-    })
-  }
-
-  /**
-   * Save database connections
-   *
-   * Save database connections to project file for AI to use automatically.
-   */
-  public saveConnections<ThrowOnError extends boolean = false>(
-    parameters?: {
-      connections?: Array<{
-        name?: string
-        type: "mysql" | "postgresql" | "sqlite" | "sqlserver" | "mariadb"
-        host: string
-        port: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-        user: string
-        password: string
-        database: string
-      }>
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "body", key: "connections" }] }])
-    return (options?.client ?? this.client).post<DatabaseSaveConnectionsResponses, unknown, ThrowOnError>({
-      url: "/database/connections",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    })
-  }
-}
-
 export class Console extends HeyApiClient {
   /**
    * Get active Console provider metadata
@@ -1723,6 +1408,43 @@ export class Tool extends HeyApiClient {
       url: "/experimental/tool/ids",
       ...options,
       ...params,
+    })
+  }
+
+  /**
+   * Call a tool
+   *
+   * Call an available tool by ID, including dynamically registered MCP tools.
+   */
+  public call<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      toolCallPayload?: ToolCallPayload
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { key: "toolCallPayload", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<ToolCallResponses, ToolCallErrors, ThrowOnError>({
+      url: "/experimental/tool/call",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
     })
   }
 }
@@ -6834,11 +6556,6 @@ export class OpencodeClient extends HeyApiClient {
   private _config?: Config2
   get config(): Config2 {
     return (this._config ??= new Config2({ client: this.client }))
-  }
-
-  private _database?: Database
-  get database(): Database {
-    return (this._database ??= new Database({ client: this.client }))
   }
 
   private _experimental?: Experimental

@@ -33,6 +33,7 @@ import { ProviderID, ModelID } from "@/provider/schema"
 import { ToolJsonSchema } from "@/tool/json-schema"
 import { MessageID, SessionID } from "@/session/schema"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import { Auth } from "@/auth"
 
 const node = CrossSpawnSpawner.defaultLayer
 const configLayer = TestConfig.layer({
@@ -63,12 +64,12 @@ const registryLayer = (flags: Partial<RuntimeFlags.Info> = {}) =>
       Layer.provide(Ripgrep.defaultLayer),
       Layer.provide(Truncate.defaultLayer),
     )
-    .pipe(Layer.provide(RuntimeFlags.layer(flags)))
+    .pipe(Layer.provide(RuntimeFlags.layer(flags)), Layer.provide(Auth.defaultLayer))
 
-const it = testEffect(Layer.mergeAll(registryLayer(), node, Agent.defaultLayer))
-const scout = testEffect(Layer.mergeAll(registryLayer({ experimentalScout: true }), node, Agent.defaultLayer))
+const it = testEffect(Layer.mergeAll(registryLayer(), node, Agent.defaultLayer, Auth.defaultLayer))
+const scout = testEffect(Layer.mergeAll(registryLayer({ experimentalScout: true }), node, Agent.defaultLayer, Auth.defaultLayer))
 const background = testEffect(
-  Layer.mergeAll(registryLayer({ experimentalBackgroundSubagents: true }), node, Agent.defaultLayer),
+  Layer.mergeAll(registryLayer({ experimentalBackgroundSubagents: true }), node, Agent.defaultLayer, Auth.defaultLayer),
 )
 
 afterEach(async () => {

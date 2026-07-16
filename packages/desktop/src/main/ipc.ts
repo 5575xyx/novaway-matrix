@@ -1,10 +1,29 @@
 import { execFile } from "node:child_process"
-import { mkdir } from "node:fs/promises"
+import { mkdir, writeFile } from "node:fs/promises"
 import path from "node:path"
-import { BrowserWindow, Notification, app, clipboard, dialog, ipcMain, session, shell, webContents } from "electron"
-import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
+import {
+  BrowserWindow,
+  Notification,
+  app,
+  clipboard,
+  dialog,
+  ipcMain,
+  screen,
+  session,
+  shell,
+  webContents,
+} from "electron"
+import type { IpcMainEvent, IpcMainInvokeEvent, WebContents } from "electron"
+
+import { copyLocalFileToClipboard, downloadUrlToTempFile } from "./clipboard-file"
 
 import type {
+  FloatingAgentState,
+  FloatingNotification,
+  FloatingPetSkin,
+  FloatingTask,
+  FloatingTaskEvent,
+  FloatingTaskGroup,
   InitStep,
   ServerReadyData,
   SqliteMigrationProgress,
@@ -13,6 +32,13 @@ import type {
   WslConfig,
 } from "../preload/types"
 import { getStore } from "./store"
+import {
+  clearReadFloatingNotifications,
+  markFloatingNotificationsRead,
+  normalizeFloatingNotifications,
+  prependFloatingNotification,
+  resolveFloatingNotification,
+} from "./floating-notifications"
 import {
   getAccounts,
   addOrUpdateAccount,
@@ -28,11 +54,269 @@ import {
   getSupportedPlatforms,
   getPlatform,
 } from "./platform"
-import { appIconPath, setTitlebar, updateTitlebar } from "./windows"
+import {
+  FLOATING_COLLAPSED_SIZE,
+  FLOATING_ACTIVITY_PADDING,
+  FLOATING_SPEECH_PADDING_TOP,
+  appIconPath,
+  createFloatingPanelWindow,
+  createFloatingSkinWindow,
+  getFloatingCollapsedBounds,
+  positionFloatingPanel,
+  positionFloatingSkinMenu,
+  setFloatingCollapsedPosition,
+  setTitlebar,
+  updateTitlebar,
+} from "./windows"
 
 const pickerFilters = (ext?: string[]) => {
   if (!ext || ext.length === 0) return undefined
   return [{ name: "Files", extensions: ext }]
+}
+
+const isFloatingPetSkin = (value: string): value is FloatingPetSkin =>
+  value === "snow" ||
+  value === "honey" ||
+  value === "ash" ||
+  value === "aurora" ||
+  value === "violet" ||
+  value === "crimson" ||
+  /^#[0-9a-f]{6}$/i.test(value)
+
+let mainWindowRef: BrowserWindow | null = null
+let floatingWindowRef: BrowserWindow | null = null
+let floatingPanelWindowRef: BrowserWindow | null = null
+let floatingSkinWindowRef: BrowserWindow | null = null
+let floatingAgentState: FloatingAgentState = { agents: [] }
+let floatingWidgetReady = false
+let floatingWidgetVisible = false
+let floatingWidgetRequested = false
+const floatingDragOrigins = new WeakMap<WebContents, { pointerX: number; pointerY: number; x: number; y: number }>()
+const activeNotifications = new Set<Notification>()
+
+type FloatingTaskTiming = {
+  status: FloatingTask["status"]
+  startedAt?: number
+  completedAt?: number
+  durationMs?: number
+  updatedAt: number
+}
+
+function floatingTaskKey(group: FloatingTaskGroup, task: FloatingTask, index: number) {
+  return `${group.sessionID}:${task.id ?? `${task.content}:${task.priority}:${index}`}`
+}
+
+function restoreFloatingTaskTimings() {
+  const stored = getStore().get("floatingWidget.taskTimings")
+  if (!stored || typeof stored !== "object" || Array.isArray(stored)) return {} as Record<string, FloatingTaskTiming>
+  return stored as Record<string, FloatingTaskTiming>
+}
+
+function restoreFloatingTaskEvents() {
+  const stored = getStore().get("floatingWidget.taskEvents")
+  if (!Array.isArray(stored)) return [] as FloatingTaskEvent[]
+  return stored as FloatingTaskEvent[]
+}
+
+function restoreFloatingNotifications() {
+  return normalizeFloatingNotifications(getStore().get("floatingWidget.notifications"))
+}
+
+function restoreFloatingAgentNotifications() {
+  if (floatingAgentState.notifications) return
+  floatingAgentState = { ...floatingAgentState, notifications: restoreFloatingNotifications() }
+}
+
+function liveWebContents(win: BrowserWindow | null) {
+  if (!win || win.isDestroyed()) return
+  const contents = win.webContents
+  if (contents.isDestroyed()) return
+  return contents
+}
+
+function sendWindowEvent(win: BrowserWindow | null, channel: string, ...args: unknown[]) {
+  const contents = liveWebContents(win)
+  if (!contents) return
+  try {
+    contents.send(channel, ...args)
+  } catch (error) {
+    if (win?.isDestroyed() || contents.isDestroyed()) return
+    throw error
+  }
+}
+
+function broadcastFloatingAgentState(includeMain = false) {
+  const windows = includeMain
+    ? [mainWindowRef, floatingWindowRef, floatingPanelWindowRef]
+    : [floatingWindowRef, floatingPanelWindowRef]
+  for (const win of windows) {
+    sendWindowEvent(win, "floating-agent-change", floatingAgentState)
+  }
+}
+
+function applyFloatingTaskTimings(groups: FloatingTaskGroup[] | undefined) {
+  if (!groups) return undefined
+  const now = Date.now()
+  const stored = restoreFloatingTaskTimings()
+  const events: FloatingTaskEvent[] = []
+  const next: Record<string, FloatingTaskTiming> = {}
+  const normalized = groups.map((group) => {
+    let changed = false
+    const tasks = group.tasks.map((task, index) => {
+      const key = floatingTaskKey(group, task, index)
+      const previous = stored[key]
+      const restarted =
+        (previous?.status === "completed" || previous?.status === "cancelled") &&
+        (task.status === "pending" || task.status === "in_progress")
+      const startedAt =
+        task.startedAt ??
+        (restarted ? (task.status === "in_progress" ? now : undefined) : previous?.startedAt) ??
+        (task.status === "in_progress" ? now : undefined)
+      const completedAt =
+        task.completedAt ??
+        (restarted ? undefined : previous?.completedAt) ??
+        (task.status === "completed" && previous?.status === "in_progress" ? now : undefined)
+      const durationMs =
+        task.durationMs ??
+        (restarted ? undefined : previous?.durationMs) ??
+        (completedAt && startedAt ? Math.max(0, completedAt - startedAt) : undefined) ??
+        (task.status === "cancelled" && startedAt ? Math.max(0, now - startedAt) : undefined)
+      next[key] = { status: task.status, startedAt, completedAt, durationMs, updatedAt: now }
+      if (previous?.status !== task.status) {
+        changed = true
+        if (previous) {
+          events.push({
+            id: `${key}:${now}`,
+            groupID: group.id,
+            groupLabel: group.label,
+            taskContent: task.content,
+            status: task.status,
+            at: now,
+            durationMs,
+          })
+        }
+      }
+      return { ...task, startedAt, completedAt, durationMs }
+    })
+    const previousUpdate = Math.max(
+      0,
+      ...group.tasks.map((task, index) => stored[floatingTaskKey(group, task, index)]?.updatedAt ?? 0),
+    )
+    return { ...group, tasks, updatedAt: changed ? now : (group.updatedAt ?? previousUpdate) }
+  })
+  getStore().set("floatingWidget.taskTimings", next)
+  const taskEvents = [...events, ...restoreFloatingTaskEvents()].slice(0, 24)
+  getStore().set("floatingWidget.taskEvents", taskEvents)
+  return { taskGroups: normalized, taskEvents }
+}
+
+function restoreFloatingPetSkin() {
+  if (floatingAgentState.petSkin) return
+  const stored = getStore().get("floatingWidget.petSkin")
+  if (typeof stored !== "string" || !isFloatingPetSkin(stored)) return
+  floatingAgentState = { ...floatingAgentState, petSkin: stored }
+}
+
+export function setMainWindow(win: BrowserWindow | null) {
+  mainWindowRef = win
+}
+
+export function setFloatingWindow(win: BrowserWindow | null) {
+  floatingWindowRef = win
+  floatingWidgetReady = false
+  floatingWidgetVisible = false
+  floatingWidgetRequested = false
+  if (win) return
+  const panel = floatingPanelWindowRef
+  if (panel && !panel.isDestroyed()) panel.close()
+  floatingPanelWindowRef = null
+  const skin = floatingSkinWindowRef
+  if (skin && !skin.isDestroyed()) skin.close()
+  floatingSkinWindowRef = null
+}
+
+function presentFloatingWidget() {
+  const floating = floatingWindowRef
+  if (!floating || floating.isDestroyed() || !floatingWidgetReady || !floatingWidgetRequested || floatingWidgetVisible)
+    return
+  floatingWidgetVisible = true
+  floating.showInactive()
+  floating.webContents.send("floating-visibility-change", true)
+}
+
+function setFloatingPanelWindow(win: BrowserWindow | null) {
+  floatingPanelWindowRef = win
+}
+
+function presentFloatingPanel(tab: "monitor" | "notifications") {
+  const floating = floatingWindowRef
+  if (!floating || floating.isDestroyed()) return
+
+  const panel = floatingPanelWindowRef
+  if (panel && !panel.isDestroyed()) {
+    positionFloatingPanel(panel, floating)
+    panel.show()
+    sendWindowEvent(panel, "floating-panel-tab-change", tab)
+    notifyFloatingExpanded(true)
+    return
+  }
+
+  const next = createFloatingPanelWindow(floating, tab)
+  setFloatingPanelWindow(next)
+  next.once("ready-to-show", () => notifyFloatingExpanded(true))
+  next.on("closed", () => {
+    if (floatingPanelWindowRef === next) setFloatingPanelWindow(null)
+    notifyFloatingExpanded(false)
+  })
+}
+
+function notifyFloatingExpanded(expanded: boolean) {
+  sendWindowEvent(floatingWindowRef, "floating-expanded-change", expanded)
+}
+
+function notifyFloatingSkinMenu(visible: boolean) {
+  sendWindowEvent(floatingWindowRef, "floating-skin-menu-change", visible)
+}
+
+function beginFloatingWidgetDrag(sender: WebContents, pointerX: number, pointerY: number) {
+  const win = BrowserWindow.fromWebContents(sender)
+  if (!win || win.isDestroyed()) return
+  if (!Number.isFinite(pointerX) || !Number.isFinite(pointerY)) return
+  const bounds = getFloatingCollapsedBounds(win)
+  floatingDragOrigins.set(sender, { pointerX, pointerY, x: bounds.x, y: bounds.y })
+}
+
+function moveFloatingWidget(sender: WebContents, pointerX: number, pointerY: number) {
+  const win = BrowserWindow.fromWebContents(sender)
+  if (!win || win.isDestroyed()) return
+  if (!Number.isFinite(pointerX) || !Number.isFinite(pointerY)) return
+  const origin = floatingDragOrigins.get(sender)
+  if (!origin) return
+  const display = screen.getDisplayNearestPoint({
+    x: origin.x + FLOATING_COLLAPSED_SIZE / 2,
+    y: origin.y + FLOATING_COLLAPSED_SIZE / 2,
+  })
+  const work = display.workArea
+  const nextCollapsedX = Math.round(
+    Math.max(
+      work.x + FLOATING_ACTIVITY_PADDING,
+      Math.min(
+        origin.x + pointerX - origin.pointerX,
+        work.x + work.width - FLOATING_COLLAPSED_SIZE - FLOATING_ACTIVITY_PADDING,
+      ),
+    ),
+  )
+  const nextCollapsedY = Math.round(
+    Math.max(
+      work.y + FLOATING_SPEECH_PADDING_TOP,
+      Math.min(origin.y + pointerY - origin.pointerY, work.y + work.height - FLOATING_COLLAPSED_SIZE),
+    ),
+  )
+  setFloatingCollapsedPosition(win, { x: nextCollapsedX, y: nextCollapsedY })
+  const panel = floatingPanelWindowRef
+  if (panel && !panel.isDestroyed()) positionFloatingPanel(panel, win)
+  const skin = floatingSkinWindowRef
+  if (skin && !skin.isDestroyed()) positionFloatingSkinMenu(skin, win)
 }
 
 type Deps = {
@@ -114,6 +398,154 @@ export function registerIpcHandlers(deps: Deps) {
     return Object.keys(store.store).length
   })
 
+  ipcMain.handle("get-floating-agent-state", () => {
+    restoreFloatingPetSkin()
+    restoreFloatingAgentNotifications()
+    return floatingAgentState
+  })
+
+  ipcMain.on("floating-widget-ready", () => {
+    floatingWidgetReady = true
+    presentFloatingWidget()
+  })
+
+  ipcMain.handle("show-floating-widget", () => {
+    floatingWidgetRequested = true
+    presentFloatingWidget()
+  })
+
+  ipcMain.handle("set-floating-agent", (_event: IpcMainInvokeEvent, name: string) => {
+    floatingAgentState = { ...floatingAgentState, current: name }
+    broadcastFloatingAgentState(true)
+  })
+
+  ipcMain.handle("set-floating-pet-skin", (_event: IpcMainInvokeEvent, skin: string) => {
+    if (!isFloatingPetSkin(skin)) return
+    floatingAgentState = { ...floatingAgentState, petSkin: skin }
+    getStore().set("floatingWidget.petSkin", skin)
+    broadcastFloatingAgentState()
+  })
+
+  ipcMain.handle("mark-floating-notifications-read", (_event: IpcMainInvokeEvent, ids?: string[]) => {
+    restoreFloatingAgentNotifications()
+    const notifications = markFloatingNotificationsRead(floatingAgentState.notifications ?? [], ids)
+    floatingAgentState = { ...floatingAgentState, notifications }
+    getStore().set("floatingWidget.notifications", notifications)
+    broadcastFloatingAgentState()
+  })
+
+  ipcMain.handle("clear-floating-notifications", () => {
+    restoreFloatingAgentNotifications()
+    const notifications = clearReadFloatingNotifications(floatingAgentState.notifications ?? [])
+    floatingAgentState = { ...floatingAgentState, notifications }
+    getStore().set("floatingWidget.notifications", notifications)
+    broadcastFloatingAgentState()
+  })
+
+  ipcMain.handle("open-floating-notification", (_event: IpcMainInvokeEvent, id: string) => {
+    restoreFloatingAgentNotifications()
+    const notification = floatingAgentState.notifications?.find((item) => item.id === id)
+    if (!notification) return
+    const notifications = markFloatingNotificationsRead(floatingAgentState.notifications ?? [], [id])
+    floatingAgentState = { ...floatingAgentState, notifications }
+    getStore().set("floatingWidget.notifications", notifications)
+    const main = mainWindowRef
+    if (main && !main.isDestroyed()) {
+      if (main.isMinimized()) main.restore()
+      main.show()
+      main.focus()
+    }
+    sendWindowEvent(main, "notification-click", notification.href)
+    broadcastFloatingAgentState()
+  })
+
+  ipcMain.handle(
+    "resolve-floating-notification",
+    (_event: IpcMainInvokeEvent, input: { sessionID: string; requestID: string; status: "replied" | "dismissed" }) => {
+      restoreFloatingAgentNotifications()
+      const notifications = resolveFloatingNotification(floatingAgentState.notifications ?? [], input)
+      floatingAgentState = { ...floatingAgentState, notifications }
+      getStore().set("floatingWidget.notifications", notifications)
+      broadcastFloatingAgentState()
+    },
+  )
+
+  ipcMain.handle("toggle-floating-skin-menu", () => {
+    const floating = floatingWindowRef
+    if (!floating || floating.isDestroyed()) return
+    const existing = floatingSkinWindowRef
+    if (existing && !existing.isDestroyed()) {
+      existing.close()
+      return
+    }
+    const next = createFloatingSkinWindow(floating)
+    floatingSkinWindowRef = next
+    next.once("ready-to-show", () => notifyFloatingSkinMenu(true))
+    next.on("closed", () => {
+      if (floatingSkinWindowRef === next) floatingSkinWindowRef = null
+      notifyFloatingSkinMenu(false)
+    })
+  })
+
+  ipcMain.handle("update-floating-agent-state", (_event: IpcMainInvokeEvent, state: FloatingAgentState) => {
+    restoreFloatingPetSkin()
+    restoreFloatingAgentNotifications()
+    const petSkin = state.petSkin && isFloatingPetSkin(state.petSkin) ? state.petSkin : floatingAgentState.petSkin
+    const monitoring = applyFloatingTaskTimings(state.taskGroups)
+    const taskGroups = monitoring?.taskGroups
+    const tasks = taskGroups?.flatMap((group) => group.tasks) ?? state.tasks
+    const taskEvents = monitoring?.taskEvents ?? floatingAgentState.taskEvents
+    floatingAgentState = {
+      ...floatingAgentState,
+      ...state,
+      tasks,
+      taskGroups,
+      taskEvents,
+      ...(petSkin ? { petSkin } : {}),
+    }
+    if (petSkin) {
+      getStore().set("floatingWidget.petSkin", petSkin)
+    }
+    broadcastFloatingAgentState()
+  })
+
+  ipcMain.on("begin-floating-widget-drag", (event: IpcMainEvent, pointerX: number, pointerY: number) => {
+    beginFloatingWidgetDrag(event.sender, pointerX, pointerY)
+  })
+
+  ipcMain.on("move-floating-widget", (event: IpcMainEvent, pointerX: number, pointerY: number) => {
+    moveFloatingWidget(event.sender, pointerX, pointerY)
+  })
+
+  ipcMain.handle("save-floating-widget-bounds", (event: IpcMainInvokeEvent) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win || win.isDestroyed()) return
+    floatingDragOrigins.delete(event.sender)
+    // 始终以收起后的图标位置为锚点保存，避免展开/收起后位置偏移
+    const collapsedX = getFloatingCollapsedBounds(win).x
+    const collapsedY = getFloatingCollapsedBounds(win).y
+    getStore().set("floatingWidget.bounds", {
+      x: collapsedX,
+      y: collapsedY,
+      width: FLOATING_COLLAPSED_SIZE,
+      height: FLOATING_COLLAPSED_SIZE,
+    })
+  })
+
+  ipcMain.handle("set-floating-expanded", (_event: IpcMainInvokeEvent, expanded: boolean) => {
+    const floating = floatingWindowRef
+    if (!floating || floating.isDestroyed()) return
+
+    if (!expanded) {
+      const panel = floatingPanelWindowRef
+      if (panel && !panel.isDestroyed()) panel.close()
+      setFloatingPanelWindow(null)
+      return
+    }
+
+    presentFloatingPanel("monitor")
+  })
+
   ipcMain.handle(
     "open-directory-picker",
     async (_event: IpcMainInvokeEvent, opts?: { multiple?: boolean; title?: string; defaultPath?: string }) => {
@@ -146,13 +578,24 @@ export function registerIpcHandlers(deps: Deps) {
 
   ipcMain.handle(
     "save-file-picker",
-    async (_event: IpcMainInvokeEvent, opts?: { title?: string; defaultPath?: string }) => {
+    async (_event: IpcMainInvokeEvent, opts?: { title?: string; defaultPath?: string; data?: Uint8Array }) => {
       const result = await dialog.showSaveDialog({
         title: opts?.title ?? "Save file",
         defaultPath: opts?.defaultPath,
       })
-      if (result.canceled) return null
-      return result.filePath ?? null
+      if (result.canceled || !result.filePath) return null
+      if (opts?.data) await writeFile(result.filePath, Buffer.from(opts.data))
+      return result.filePath
+    },
+  )
+
+  ipcMain.handle(
+    "copy-file-to-clipboard",
+    async (_event: IpcMainInvokeEvent, opts?: { url?: string; filename?: string }) => {
+      if (!opts?.url) return false
+      const tempPath = await downloadUrlToTempFile(opts.url, opts.filename ?? "video.mp4")
+      if (!tempPath) return false
+      return copyLocalFileToClipboard(tempPath)
     },
   )
 
@@ -169,14 +612,11 @@ export function registerIpcHandlers(deps: Deps) {
     })
   })
 
-  ipcMain.handle(
-    "create-directory",
-    async (_event: IpcMainInvokeEvent, parentPath: string, dirName: string) => {
-      const targetPath = path.join(parentPath, dirName)
-      await mkdir(targetPath, { recursive: true })
-      return targetPath
-    },
-  )
+  ipcMain.handle("create-directory", async (_event: IpcMainInvokeEvent, parentPath: string, dirName: string) => {
+    const targetPath = path.join(parentPath, dirName)
+    await mkdir(targetPath, { recursive: true })
+    return targetPath
+  })
 
   ipcMain.handle("read-clipboard-image", () => {
     const image = clipboard.readImage()
@@ -186,9 +626,61 @@ export function registerIpcHandlers(deps: Deps) {
     return { buffer, width: size.width, height: size.height }
   })
 
-  ipcMain.on("show-notification", (_event: IpcMainEvent, title: string, body?: string) => {
-    new Notification({ title, body, icon: appIconPath() }).show()
-  })
+  ipcMain.on(
+    "show-notification",
+    (
+      _event: IpcMainEvent,
+      title: string,
+      body?: string,
+      href?: string,
+      showSystem = true,
+      context?: { sessionID?: string; requestID?: string },
+    ) => {
+      restoreFloatingAgentNotifications()
+      const at = Date.now()
+      const notification: FloatingNotification = {
+        id: `notification:${at}:${Math.random().toString(36).slice(2, 8)}`,
+        title,
+        ...(body ? { body } : {}),
+        ...(href ? { href } : {}),
+        ...(context?.sessionID ? { sessionID: context.sessionID } : {}),
+        ...(context?.requestID ? { requestID: context.requestID } : {}),
+        at,
+        read: false,
+      }
+      const notifications = prependFloatingNotification(floatingAgentState.notifications ?? [], notification)
+      floatingAgentState = { ...floatingAgentState, notifications }
+      getStore().set("floatingWidget.notifications", notifications)
+
+      if (floatingWidgetVisible) presentFloatingPanel("notifications")
+
+      if (showSystem && !floatingWidgetVisible && Notification.isSupported()) {
+        const systemNotification = new Notification({ title, body, icon: appIconPath() })
+        const release = () => activeNotifications.delete(systemNotification)
+        activeNotifications.add(systemNotification)
+        systemNotification.once("close", release)
+        systemNotification.once("failed", release)
+        systemNotification.on("click", () => {
+          const main = mainWindowRef
+          if (main && !main.isDestroyed()) {
+            if (main.isMinimized()) main.restore()
+            main.show()
+            main.focus()
+          }
+          sendWindowEvent(main, "notification-click", href)
+          release()
+        })
+        try {
+          systemNotification.show()
+        } catch (error) {
+          release()
+          console.error("系统通知显示失败", error)
+        }
+      }
+
+      broadcastFloatingAgentState()
+    },
+  )
 
   ipcMain.handle("get-window-count", () => BrowserWindow.getAllWindows().length)
 
@@ -232,7 +724,10 @@ export function registerIpcHandlers(deps: Deps) {
       console.error("[platform:create-webview] webContents not found for id:", data.webViewId)
       return { success: false, error: "webview not found" }
     }
-    console.log(`[platform:create-webview] Setting ${data.cookies.length} cookies, names:`, data.cookies.map((c) => c.name).join(", "))
+    console.log(
+      `[platform:create-webview] Setting ${data.cookies.length} cookies, names:`,
+      data.cookies.map((c) => c.name).join(", "),
+    )
     let setCount = 0
     for (const c of data.cookies) {
       try {

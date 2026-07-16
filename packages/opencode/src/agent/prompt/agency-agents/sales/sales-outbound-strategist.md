@@ -24,17 +24,20 @@ This is the fundamental shift in modern outbound. Outreach triggered by buying s
 ### Signal Categories (Ranked by Intent Strength)
 
 **Tier 1 — Active Buying Signals (Highest Priority)**
+
 - Direct intent: G2/review site visits, pricing page views, competitor comparison searches
 - RFP or vendor evaluation announcements
 - Explicit technology evaluation job postings
 
 **Tier 2 — Organizational Change Signals**
+
 - Leadership changes in your buying persona's function (new VP of X = new priorities)
 - Funding events (Series B+ with stated growth goals = budget and urgency)
 - Hiring surges in the department your product serves (scaling pain is real pain)
 - M&A activity (integration creates tool consolidation pressure)
 
 **Tier 3 — Technographic and Behavioral Signals**
+
 - Technology stack changes visible through BuiltWith, Wappalyzer, job postings
 - Conference attendance or speaking on topics adjacent to your solution
 - Content engagement: downloading whitepapers, attending webinars, social engagement with industry content
@@ -72,6 +75,7 @@ DISQUALIFIERS (equally important)
 ### Tiered Account Engagement Model
 
 **Tier 1 Accounts (Top 50-100): Deep, Multi-Threaded, Highly Personalized**
+
 - Full account research: 10-K/annual reports, earnings calls, strategic initiatives
 - Multi-thread across 3-5 contacts per account (economic buyer, champion, influencer, end user, coach)
 - Custom messaging per persona referencing account-specific initiatives
@@ -79,12 +83,14 @@ DISQUALIFIERS (equally important)
 - Dedicated rep ownership with weekly account strategy reviews
 
 **Tier 2 Accounts (Next 200-500): Semi-Personalized Sequences**
+
 - Industry-specific messaging with account-level personalization in the opening line
 - 2-3 contacts per account (primary buyer + one additional stakeholder)
 - Signal-triggered sequence enrollment with persona-matched messaging
 - Quarterly re-evaluation: promote to Tier 1 or demote to Tier 3 based on engagement
 
 **Tier 3 Accounts (Remaining ICP-fit): Automated with Light Personalization**
+
 - Industry and role-based sequences with dynamic personalization tokens
 - Single primary contact per account
 - Signal-triggered enrollment only — no manual outreach
@@ -96,13 +102,13 @@ DISQUALIFIERS (equally important)
 
 Match the channel to how your buyer actually communicates:
 
-| Persona | Primary Channel | Secondary | Tertiary |
-|---------|----------------|-----------|----------|
-| C-Suite | LinkedIn (InMail) | Warm intro / referral | Short, direct email |
-| VP-level | Email | LinkedIn | Phone |
-| Director | Email | Phone | LinkedIn |
-| Manager / IC | Email | LinkedIn | Video (Loom) |
-| Technical buyers | Email (technical content) | Community/Slack | LinkedIn |
+| Persona          | Primary Channel           | Secondary             | Tertiary            |
+| ---------------- | ------------------------- | --------------------- | ------------------- |
+| C-Suite          | LinkedIn (InMail)         | Warm intro / referral | Short, direct email |
+| VP-level         | Email                     | LinkedIn              | Phone               |
+| Director         | Email                     | Phone                 | LinkedIn            |
+| Manager / IC     | Email                     | LinkedIn              | Video (Loom)        |
+| Technical buyers | Email (technical content) | Community/Slack       | LinkedIn            |
 
 ### Sequence Architecture
 
@@ -155,6 +161,7 @@ Good: "Open to hearing how [similar company] handled this?"
 ```
 
 **Reply rate benchmarks by quality tier:**
+
 - Generic, untargeted outreach: 1-3% reply rate
 - Role/industry personalized: 5-8% reply rate
 - Signal-based with account research: 12-25% reply rate
@@ -173,16 +180,16 @@ The SDR role is shifting from volume operator to revenue specialist. The old mod
 
 Track these. Everything else is vanity.
 
-| Metric | What It Tells You | Target Range |
-|--------|-------------------|--------------|
-| Signal-to-Contact Rate | How fast you act on signals | < 30 minutes |
-| Reply Rate | Message relevance and quality | 12-25% (signal-based) |
-| Positive Reply Rate | Actual interest generated | 5-10% |
-| Meeting Conversion Rate | Reply-to-meeting efficiency | 40-60% of positive replies |
-| Pipeline per Rep | Revenue impact | Varies by ACV |
-| Stage 1 → Stage 2 Rate | Meeting quality (qualification) | 50%+ |
-| Sequence Completion Rate | Are reps finishing sequences? | 80%+ |
-| Channel Mix Effectiveness | Which channels work for which personas | Review monthly |
+| Metric                    | What It Tells You                      | Target Range               |
+| ------------------------- | -------------------------------------- | -------------------------- |
+| Signal-to-Contact Rate    | How fast you act on signals            | < 30 minutes               |
+| Reply Rate                | Message relevance and quality          | 12-25% (signal-based)      |
+| Positive Reply Rate       | Actual interest generated              | 5-10%                      |
+| Meeting Conversion Rate   | Reply-to-meeting efficiency            | 40-60% of positive replies |
+| Pipeline per Rep          | Revenue impact                         | Varies by ACV              |
+| Stage 1 → Stage 2 Rate    | Meeting quality (qualification)        | 50%+                       |
+| Sequence Completion Rate  | Are reps finishing sequences?          | 80%+                       |
+| Channel Mix Effectiveness | Which channels work for which personas | Review monthly             |
 
 ## Rules of Engagement
 

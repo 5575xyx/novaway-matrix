@@ -70,10 +70,12 @@ The current regex anchors on `<div class="feedback-footer">`, which is being rem
 ### `frame-template.html` (UI frame)
 
 **Remove:**
+
 - The `feedback-footer` div (textarea, Send button, label, `.feedback-row`)
 - Associated CSS (`.feedback-footer`, `.feedback-footer label`, `.feedback-row`, textarea and button styles within it)
 
 **Add:**
+
 - `<!-- CONTENT -->` placeholder inside `#claude-content`, replacing the default text
 - A selection indicator bar where the footer was, with two states:
   - Default: "Click an option above, then return to the terminal"
@@ -81,6 +83,7 @@ The current regex anchors on `<div class="feedback-footer">`, which is being rem
 - CSS for the indicator bar (subtle, similar visual weight to the existing header)
 
 **Keep unchanged:**
+
 - Header bar with "Brainstorm Companion" title and connection status
 - `.main` wrapper and `#claude-content` container
 - All component CSS (`.options`, `.cards`, `.mockup`, `.split`, `.pros-cons`, placeholders, mock elements)
@@ -89,6 +92,7 @@ The current regex anchors on `<div class="feedback-footer">`, which is being rem
 ### `helper.js` (client-side script)
 
 **Remove:**
+
 - `sendToClaude()` function and the "Sent to Claude" page takeover
 - `window.send()` function (was tied to the removed Send button)
 - Form submission handler — no purpose without the feedback textarea, adds log noise
@@ -96,6 +100,7 @@ The current regex anchors on `<div class="feedback-footer">`, which is being rem
 - `pageshow` event listener (was added to fix textarea persistence — no textarea anymore)
 
 **Keep:**
+
 - WebSocket connection, reconnect logic, event queue
 - Reload handler (`window.location.reload()` on server push)
 - `window.toggleSelect()` for selection highlighting
@@ -103,28 +108,34 @@ The current regex anchors on `<div class="feedback-footer">`, which is being rem
 - `window.brainstorm.send()` and `window.brainstorm.choice()` — these are distinct from the removed `window.send()`. They call `sendEvent` which logs to the server via WebSocket. Useful for custom full-document pages.
 
 **Narrow:**
+
 - Click handler: capture only `[data-choice]` clicks, not all buttons/links. The broad capture was needed when the browser was a feedback channel; now it's just for selection tracking.
 
 **Add:**
+
 - On `data-choice` click, update the selection indicator bar text to show which option was selected.
 
 **Remove from `window.brainstorm` API:**
+
 - `brainstorm.sendToClaude` — no longer exists
 
 ### `visual-companion.md` (skill instructions)
 
 **Rewrite "The Loop" section** to the non-blocking flow described above. Remove all references to:
+
 - `wait-for-feedback.sh`
 - `TaskOutput` blocking
 - Timeout/retry logic (600s timeout, 30-minute cap)
 - "User Feedback Format" section describing `send-to-claude` JSON
 
 **Replace with:**
+
 - The new loop (write HTML → end turn → user responds in terminal → read `.events` → iterate)
 - `.events` file format documentation
 - Guidance that the terminal message is the primary feedback; `.events` provides the full browser interaction stream for additional context
 
 **Keep:**
+
 - Server startup/shutdown instructions
 - Content fragment vs full document guidance
 - CSS class reference and available components
@@ -137,6 +148,7 @@ The current regex anchors on `<div class="feedback-footer">`, which is being rem
 ### `tests/brainstorm-server/server.test.js`
 
 Tests that need updating:
+
 - Test asserting `feedback-footer` presence in fragment responses — update to assert the selection indicator bar or `<!-- CONTENT -->` replacement
 - Test asserting `helper.js` contains `send` — update to reflect narrowed API
 - Test asserting `sendToClaude` CSS variable usage — remove (function no longer exists)

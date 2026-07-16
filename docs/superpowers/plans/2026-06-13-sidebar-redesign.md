@@ -12,13 +12,13 @@
 
 ## 文件结构
 
-| 文件路径 | 职责 | 变更类型 |
-|---------|------|---------|
-| `packages/app/src/pages/layout/sidebar-shell.tsx` | 侧边栏容器，移除侧边项目栏渲染 | 修改 |
-| `packages/app/src/pages/layout/sidebar-project.tsx` | 项目卡片组件，从图标变为可展开卡片 | 修改 |
-| `packages/app/src/pages/layout.tsx` | 主布局，移除`SidebarPanel`，调整悬停/预览逻辑 | 修改 |
-| `packages/app/src/pages/layout/sidebar-items.tsx` | 会话项组件，可能需要样式微调 | 可选修改 |
-| `packages/app/src/index.css` | 全局样式，可能需要新增项目卡片样式 | 可选修改 |
+| 文件路径                                            | 职责                                          | 变更类型 |
+| --------------------------------------------------- | --------------------------------------------- | -------- |
+| `packages/app/src/pages/layout/sidebar-shell.tsx`   | 侧边栏容器，移除侧边项目栏渲染                | 修改     |
+| `packages/app/src/pages/layout/sidebar-project.tsx` | 项目卡片组件，从图标变为可展开卡片            | 修改     |
+| `packages/app/src/pages/layout.tsx`                 | 主布局，移除`SidebarPanel`，调整悬停/预览逻辑 | 修改     |
+| `packages/app/src/pages/layout/sidebar-items.tsx`   | 会话项组件，可能需要样式微调                  | 可选修改 |
+| `packages/app/src/index.css`                        | 全局样式，可能需要新增项目卡片样式            | 可选修改 |
 
 ---
 
@@ -27,11 +27,13 @@
 **目标：** 修改`SidebarContent`组件，移除侧边项目栏渲染，只保留面板区域。
 
 **文件：**
+
 - 修改：`packages/app/src/pages/layout/sidebar-shell.tsx`
 
 - [ ] **步骤1：分析当前SidebarContent组件结构**
 
 当前组件结构：
+
 ```tsx
 export const SidebarContent = (props: { ... }): JSX.Element => {
   return (
@@ -132,11 +134,13 @@ git commit -m "refactor(sidebar): remove sidebar rail, keep panel area only"
 **目标：** 修改`SortableProject`组件，从图标变为可展开卡片，显示项目名称和路径。
 
 **文件：**
+
 - 修改：`packages/app/src/pages/layout/sidebar-project.tsx`
 
 - [ ] **步骤1：分析当前ProjectTile组件**
 
 当前组件是图标形式：
+
 ```tsx
 const ProjectTile = (props: { ... }): JSX.Element => {
   return (
@@ -277,11 +281,13 @@ git commit -m "feat(sidebar): replace project icon with expandable project card"
 **目标：** 在侧边栏顶部添加"打开项目"和"新建项目"按钮。
 
 **文件：**
+
 - 修改：`packages/app/src/pages/layout.tsx`
 
 - [ ] **步骤1：分析当前项目操作按钮位置**
 
 当前按钮在`HoverCard`中：
+
 ```tsx
 <HoverCard ...>
   <div class="flex flex-col gap-0.5 p-1">
@@ -372,6 +378,7 @@ git commit -m "feat(sidebar): add open/create project buttons at top"
 **目标：** 修改`layout.tsx`，移除悬停/预览相关逻辑，调整侧边栏宽度计算。
 
 **文件：**
+
 - 修改：`packages/app/src/pages/layout.tsx`
 
 - [ ] **步骤1：移除hoverProject相关状态**
@@ -414,7 +421,7 @@ const peekProject = createMemo(() => { ... })
 
 ```tsx
 const side = createMemo(() => Math.max(layout.sidebar.width(), 244))
-const panel = createMemo(() => side())  // 移除 -64 计算
+const panel = createMemo(() => side()) // 移除 -64 计算
 ```
 
 - [ ] **步骤4：移除悬停预览面板渲染**
@@ -472,6 +479,7 @@ git commit -m "refactor(sidebar): remove hover/peek preview logic"
 **目标：** 可能需要添加或调整项目卡片相关样式。
 
 **文件：**
+
 - 可选修改：`packages/app/src/index.css`
 
 - [ ] **步骤1：检查是否需要新增样式**
@@ -519,6 +527,7 @@ git commit -m "style(sidebar): add project card styles"
 **目标：** 运行测试，验证功能正常。
 
 **文件：**
+
 - 测试：`packages/app/src/pages/layout.test.ts`（如存在）
 
 - [ ] **步骤1：运行现有测试**

@@ -20,6 +20,7 @@ Implements RFC 6455 for text frames only:
 **Handshake:** Compute `Sec-WebSocket-Accept` from client's `Sec-WebSocket-Key` using SHA-1 + the RFC 6455 magic GUID. Return 101 Switching Protocols.
 
 **Frame decoding (client to server):** Handle three masked length encodings:
+
 - Small: payload < 126 bytes
 - Medium: 126-65535 bytes (16-bit extended)
 - Large: > 65535 bytes (64-bit extended)
@@ -90,11 +91,11 @@ Debounce per-filename with ~100ms timeout to prevent duplicate events (common on
 
 ## What Changes
 
-| Before | After |
-|---|---|
-| `index.js` + `package.json` + `package-lock.json` + 714 `node_modules` files | `server.js` (single file) |
-| express, ws, chokidar dependencies | none |
-| No static file serving | `/files/*` serves from screen directory |
+| Before                                                                       | After                                   |
+| ---------------------------------------------------------------------------- | --------------------------------------- |
+| `index.js` + `package.json` + `package-lock.json` + 714 `node_modules` files | `server.js` (single file)               |
+| express, ws, chokidar dependencies                                           | none                                    |
+| No static file serving                                                       | `/files/*` serves from screen directory |
 
 ## What Stays the Same
 

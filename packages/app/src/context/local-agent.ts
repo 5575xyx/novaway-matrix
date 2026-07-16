@@ -6,13 +6,13 @@ const buildIntentPattern =
 const planOnlyPattern =
   /(先别|不要|不需要|暂不|只要|仅|先).*?(执行|实施|修改|改|写入|创建|运行|动手|落地|execute|implement|edit|write|run|apply)|(只|仅).*?(规划|计划|方案|分析|讨论|评估|解释|plan|proposal|analysis|discuss|evaluate|explain)/i
 
-export function visibleAgentList<T extends { name: string; mode: string; hidden?: boolean; options?: Record<string, unknown> }>(
-  agents: readonly T[],
-  mode: AppMode | undefined,
-) {
+export function visibleAgentList<
+  T extends { name: string; mode: string; hidden?: boolean; options?: Record<string, unknown> },
+>(agents: readonly T[], mode: AppMode | undefined) {
   const primary = agents.filter((item) => item.mode !== "subagent" && !item.hidden)
   if (mode === "forge") return primary.filter((item) => forgeAgentNames.has(item.name))
-  if (mode === "zen") return primary.filter((item) => item.name.startsWith("office-") || item.options?.modeGroup === "office")
+  if (mode === "zen")
+    return primary.filter((item) => item.name.startsWith("office-") || item.options?.modeGroup === "office")
   if (!mode) return primary
   return primary.filter((item) => item.options?.modeGroup === mode)
 }
@@ -24,6 +24,7 @@ export function forgeAgentForPrompt(input: {
   promptMode?: "normal" | "shell"
 }) {
   if (input.mode !== "forge") return input.current
+  if (input.current === "plan" && !hasForgeBuildIntent(input.text)) return "plan"
   return "build"
 }
 

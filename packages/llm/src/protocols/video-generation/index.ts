@@ -1,9 +1,6 @@
 import { Effect } from "effect"
 import { HttpClient, HttpClientRequest } from "effect/unstable/http"
 
-/**
- * 视频生成请求参数
- */
 export interface VideoGenerationParams {
   readonly prompt: string
   readonly model: string
@@ -15,22 +12,16 @@ export interface VideoGenerationParams {
   readonly options?: Record<string, unknown>
 }
 
-/**
- * 任务状态
- */
-export type VideoTaskStatus = "queued" | "processing" | "completed" | "failed"
+export type VideoTaskStatus = "queued" | "processing" | "in_progress" | "completed" | "failed"
 
-/**
- * 任务创建响应
- */
+const resolveEndpoint = (baseURL: string, endpoint: string) =>
+  endpoint.startsWith("http://") || endpoint.startsWith("https://") ? endpoint : `${baseURL}${endpoint}`
+
 export interface VideoTaskCreateResult {
   readonly taskId: string
   readonly status: VideoTaskStatus
 }
 
-/**
- * 任务状态响应
- */
 export interface VideoTaskStatusResult {
   readonly taskId: string
   readonly status: VideoTaskStatus
@@ -39,23 +30,16 @@ export interface VideoTaskStatusResult {
   readonly error?: string
 }
 
-/**
- * 视频生成 Protocol 接口
- *
- * 各厂商需要实现此接口来适配不同的 API 格式。
- */
 export interface VideoGenerationProtocol {
   readonly id: string
   readonly baseURL: string
+  readonly createEndpoint: string
+  readonly statusEndpoint: string
   readonly buildCreateBody: (params: VideoGenerationParams) => Record<string, unknown>
   readonly parseCreateResponse: (raw: unknown) => VideoTaskCreateResult
-  readonly buildStatusUrl: (taskId: string) => string
   readonly parseStatusResponse: (raw: unknown) => VideoTaskStatusResult
 }
 
-/**
- * 视频生成 Service 接口
- */
 export interface VideoGenerationService {
   readonly createTask: (
     protocol: VideoGenerationProtocol,
@@ -72,17 +56,14 @@ export interface VideoGenerationService {
     taskId: string,
     apiKey: string,
     options?: { readonly pollIntervalMs?: number; readonly maxWaitMs?: number },
-  ) => Effect.Effect<VideoTaskStatusResult, Error, never>
+  ) => Effect.Effect<VideoTaskStatusResult, Error, HttpClient.HttpClient>
 }
 
-/**
- * 创建视频生成 Service
- */
 export const make = (): VideoGenerationService => ({
   createTask: (protocol, params, apiKey) =>
     Effect.gen(function* () {
       const body = protocol.buildCreateBody(params)
-      const url = `${protocol.baseURL}/videos`
+      const url = `${protocol.baseURL}${protocol.createEndpoint}`
       const bodyText = JSON.stringify(body)
 
       const request = HttpClientRequest.post(url).pipe(
@@ -100,7 +81,7 @@ export const make = (): VideoGenerationService => ({
 
   getStatus: (protocol, taskId, apiKey) =>
     Effect.gen(function* () {
-      const url = `${protocol.baseURL}${protocol.buildStatusUrl(taskId)}`
+      const url = resolveEndpoint(protocol.baseURL, protocol.statusEndpoint.replace("{taskId}", taskId))
 
       const request = HttpClientRequest.get(url).pipe(
         HttpClientRequest.setHeaders({
@@ -120,13 +101,17 @@ export const make = (): VideoGenerationService => ({
       const startTime = Date.now()
 
       while (true) {
-        const status = yield* Effect.promise(() =>
-          fetch(`${protocol.baseURL}${protocol.buildStatusUrl(taskId)}`, {
-            headers: { Authorization: `Bearer ${apiKey}` },
-          }).then((r) => r.json()),
+        const url = resolveEndpoint(protocol.baseURL, protocol.statusEndpoint.replace("{taskId}", taskId))
+
+        const request = HttpClientRequest.get(url).pipe(
+          HttpClientRequest.setHeaders({
+            Authorization: `Bearer ${apiKey}`,
+          }),
         )
 
-        const result = protocol.parseStatusResponse(status)
+        const response = yield* HttpClient.execute(request)
+        const raw = yield* response.json
+        const result = protocol.parseStatusResponse(raw)
 
         if (result.status === "completed" || result.status === "failed") {
           return result

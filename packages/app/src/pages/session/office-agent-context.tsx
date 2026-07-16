@@ -31,7 +31,11 @@ export const { use: useOfficeAgent, provider: OfficeAgentProvider } = createSimp
     )
     const activeID = createMemo(() => (isOfficeActionID(store.active) ? store.active : defaultOfficeActionID))
     const pptTemplate = createMemo<OfficePptTemplateChoice>(() =>
-      store.pptTemplate === "custom" && store.customPptTemplate ? store.customPptTemplate : store.pptTemplate === "custom" ? "auto" : store.pptTemplate,
+      store.pptTemplate === "custom" && store.customPptTemplate
+        ? store.customPptTemplate
+        : store.pptTemplate === "custom"
+          ? "auto"
+          : store.pptTemplate,
     )
 
     return {

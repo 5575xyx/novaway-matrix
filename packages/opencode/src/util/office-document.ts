@@ -74,25 +74,38 @@ export async function fillPptxTemplateText(input: { bytes: Uint8Array; plan: Ppt
   const imageReplacements = await pptxImageReplacementMap(input.bytes, input.plan)
   const chartReplacements = await pptxChartReplacementMap(input.bytes, input.plan)
   const reader = new ZipReader(new BlobReader(new Blob([Buffer.from(input.bytes)])))
-  const writer = new ZipWriter(new BlobWriter("application/vnd.openxmlformats-officedocument.presentationml.presentation"))
+  const writer = new ZipWriter(
+    new BlobWriter("application/vnd.openxmlformats-officedocument.presentationml.presentation"),
+  )
   try {
     for (const entry of await reader.getEntries()) {
       if (entry.directory) continue
       const image = imageReplacements.get(entry.filename)
       if (image) {
-        await writer.add(entry.filename, new BlobReader(new Blob([Buffer.from(image.dataBase64, "base64")], { type: image.mime })))
+        await writer.add(
+          entry.filename,
+          new BlobReader(new Blob([Buffer.from(image.dataBase64, "base64")], { type: image.mime })),
+        )
         continue
       }
       const chart = chartReplacements.get(entry.filename)
       if (chart) {
-        await writer.add(entry.filename, new TextReader(replacePptxChartXml((await entry.getData?.(new TextWriter())) ?? "", chart)))
+        await writer.add(
+          entry.filename,
+          new TextReader(replacePptxChartXml((await entry.getData?.(new TextWriter())) ?? "", chart)),
+        )
         continue
       }
       const slide = replacements.get(entry.filename)
       if (slide) {
         await writer.add(
           entry.filename,
-          new TextReader(replacePptxTextRuns(replacePptxTables((await entry.getData?.(new TextWriter())) ?? "", slide.tables ?? []), slide.texts)),
+          new TextReader(
+            replacePptxTextRuns(
+              replacePptxTables((await entry.getData?.(new TextWriter())) ?? "", slide.tables ?? []),
+              slide.texts,
+            ),
+          ),
         )
         continue
       }
@@ -106,7 +119,9 @@ export async function fillPptxTemplateText(input: { bytes: Uint8Array; plan: Ppt
 }
 
 async function pptxImageReplacementMap(bytes: Uint8Array, plan: PptxTextFillPlan) {
-  const bySlide = new Map(plan.slides.flatMap((slide) => (slide.images?.length ? [[slide.slide, slide.images] as const] : [])))
+  const bySlide = new Map(
+    plan.slides.flatMap((slide) => (slide.images?.length ? [[slide.slide, slide.images] as const] : [])),
+  )
   if (bySlide.size === 0) return new Map<string, { mime: string; dataBase64: string }>()
 
   const result = new Map<string, { mime: string; dataBase64: string }>()
@@ -127,7 +142,9 @@ async function pptxImageReplacementMap(bytes: Uint8Array, plan: PptxTextFillPlan
 }
 
 async function pptxChartReplacementMap(bytes: Uint8Array, plan: PptxTextFillPlan) {
-  const bySlide = new Map(plan.slides.flatMap((slide) => (slide.charts?.length ? [[slide.slide, slide.charts] as const] : [])))
+  const bySlide = new Map(
+    plan.slides.flatMap((slide) => (slide.charts?.length ? [[slide.slide, slide.charts] as const] : [])),
+  )
   if (bySlide.size === 0) {
     return new Map<
       string,
@@ -138,7 +155,10 @@ async function pptxChartReplacementMap(bytes: Uint8Array, plan: PptxTextFillPlan
     >()
   }
 
-  const result = new Map<string, { categories: ReadonlyArray<string>; series: ReadonlyArray<{ name: string; values: ReadonlyArray<number> }> }>()
+  const result = new Map<
+    string,
+    { categories: ReadonlyArray<string>; series: ReadonlyArray<{ name: string; values: ReadonlyArray<number> }> }
+  >()
   const rels = await zipTextEntries(bytes, (name) => /^ppt\/slides\/_rels\/slide\d+\.xml\.rels$/.test(name))
   for (const rel of rels) {
     const charts = bySlide.get(slideNumberFromRels(rel.name))
@@ -178,9 +198,7 @@ async function extractDocx(bytes: Uint8Array) {
   const entries = await zipTextEntries(
     bytes,
     (name) =>
-      name === "word/document.xml" ||
-      /^word\/(header|footer)\d+\.xml$/.test(name) ||
-      name === "docProps/core.xml",
+      name === "word/document.xml" || /^word\/(header|footer)\d+\.xml$/.test(name) || name === "docProps/core.xml",
   )
   return clamp(
     entries
@@ -202,18 +220,18 @@ async function extractPptx(bytes: Uint8Array) {
     [
       await pptxTemplateSignals(bytes, entries),
       entries
-      .map((entry, index) => {
-        const lines = xmlTextRuns(entry.text)
-        const noteLines = notes.get(slideNumber(entry.name)) ?? []
-        if (lines.length === 0 && noteLines.length === 0) return ""
-        return [
-          `## 第 ${index + 1} 页`,
-          ...lines,
-          ...(noteLines.length > 0 ? ["### 演讲备注", ...noteLines] : []),
-        ].join("\n")
-      })
-      .filter(Boolean)
-      .join("\n\n"),
+        .map((entry, index) => {
+          const lines = xmlTextRuns(entry.text)
+          const noteLines = notes.get(slideNumber(entry.name)) ?? []
+          if (lines.length === 0 && noteLines.length === 0) return ""
+          return [
+            `## 第 ${index + 1} 页`,
+            ...lines,
+            ...(noteLines.length > 0 ? ["### 演讲备注", ...noteLines] : []),
+          ].join("\n")
+        })
+        .filter(Boolean)
+        .join("\n\n"),
     ]
       .filter(Boolean)
       .join("\n\n"),
@@ -221,9 +239,15 @@ async function extractPptx(bytes: Uint8Array) {
 }
 
 async function pptxTemplateSignals(bytes: Uint8Array, slides: Array<{ name: string; text: string }>) {
-  const theme = (await zipTextEntries(bytes, (name) => /^ppt\/theme\/theme\d+\.xml$/.test(name))).map((entry) => entry.text).join("\n")
-  const colors = unique([...theme.matchAll(/<a:srgbClr\s+val="([0-9A-Fa-f]{6})"/g)].map((match) => `#${match[1]?.toUpperCase()}`)).slice(0, 8)
-  const fonts = unique([...theme.matchAll(/typeface="([^"]+)"/g)].map((match) => decodeXml(match[1] ?? "").trim()).filter(Boolean)).slice(0, 6)
+  const theme = (await zipTextEntries(bytes, (name) => /^ppt\/theme\/theme\d+\.xml$/.test(name)))
+    .map((entry) => entry.text)
+    .join("\n")
+  const colors = unique(
+    [...theme.matchAll(/<a:srgbClr\s+val="([0-9A-Fa-f]{6})"/g)].map((match) => `#${match[1]?.toUpperCase()}`),
+  ).slice(0, 8)
+  const fonts = unique(
+    [...theme.matchAll(/typeface="([^"]+)"/g)].map((match) => decodeXml(match[1] ?? "").trim()).filter(Boolean),
+  ).slice(0, 6)
   const library = slides
     .map((slide, index) => {
       const lines = xmlTextRuns(slide.text)
@@ -282,7 +306,10 @@ function pptxSlideSlots(xml: string) {
 
 function pptxSlotSummary(slots: ReturnType<typeof pptxSlideSlots>) {
   return Object.entries(
-    slots.reduce<Record<string, number>>((result, slot) => ({ ...result, [slot.role]: (result[slot.role] ?? 0) + 1 }), {}),
+    slots.reduce<Record<string, number>>(
+      (result, slot) => ({ ...result, [slot.role]: (result[slot.role] ?? 0) + 1 }),
+      {},
+    ),
   )
     .map(([role, count]) => `${pptxSlotRoleLabel(role)} ${count}`)
     .join("、")
@@ -359,9 +386,7 @@ function xmlParagraphs(xml: string) {
 }
 
 function xmlTextRuns(xml: string) {
-  const normalized = xml
-    .replace(/<(?:w|a):tab\s*\/>/g, "\t")
-    .replace(/<(?:w|a):br\s*\/>/g, "\n")
+  const normalized = xml.replace(/<(?:w|a):tab\s*\/>/g, "\t").replace(/<(?:w|a):br\s*\/>/g, "\n")
   return [...normalized.matchAll(/<(?:w:t|a:t|t)(?:\s[^>]*)?>([\s\S]*?)<\/(?:w:t|a:t|t)>/g)]
     .map((match) => decodeXml(match[1] ?? ""))
     .filter((text) => text.trim())
@@ -409,7 +434,9 @@ function replaceTableRows(xml: string, table: ReadonlyArray<ReadonlyArray<string
   return xml.replace(/<a:tr(?:\s[^>]*)?>[\s\S]*?<\/a:tr>/g, () => {
     if (replaced) return ""
     replaced = true
-    return table.map((row, index) => replaceTableRowCells(rows[Math.min(index, rows.length - 1)] ?? rows[0]!, row)).join("")
+    return table
+      .map((row, index) => replaceTableRowCells(rows[Math.min(index, rows.length - 1)] ?? rows[0]!, row))
+      .join("")
   })
 }
 
@@ -421,7 +448,9 @@ function replaceTableRowCells(xml: string, row: ReadonlyArray<string>) {
   return xml.replace(/<a:tc(?:\s[^>]*)?>[\s\S]*?<\/a:tc>/g, () => {
     if (replaced) return ""
     replaced = true
-    return row.map((cell, index) => replaceTableCellText(cells[Math.min(index, cells.length - 1)] ?? cells[0]!, cell)).join("")
+    return row
+      .map((cell, index) => replaceTableCellText(cells[Math.min(index, cells.length - 1)] ?? cells[0]!, cell))
+      .join("")
   })
 }
 
@@ -446,7 +475,14 @@ function replacePptxChartXml(
     if (replaced) return ""
     replaced = true
     return chart.series
-      .map((series, index) => replaceChartSeries(templateSeries[Math.min(index, templateSeries.length - 1)] ?? templateSeries[0]!, chart.categories, series, index))
+      .map((series, index) =>
+        replaceChartSeries(
+          templateSeries[Math.min(index, templateSeries.length - 1)] ?? templateSeries[0]!,
+          chart.categories,
+          series,
+          index,
+        ),
+      )
       .join("")
   })
 }
@@ -460,7 +496,9 @@ function replaceChartSeries(
   return replaceChartBlock(
     replaceChartBlock(
       replaceChartBlock(
-        xml.replace(/<c:idx\s+val="\d+"\s*\/>/, `<c:idx val="${index}"/>`).replace(/<c:order\s+val="\d+"\s*\/>/, `<c:order val="${index}"/>`),
+        xml
+          .replace(/<c:idx\s+val="\d+"\s*\/>/, `<c:idx val="${index}"/>`)
+          .replace(/<c:order\s+val="\d+"\s*\/>/, `<c:order val="${index}"/>`),
         "c:tx",
         chartTextCache(series.name),
       ),
@@ -539,9 +577,7 @@ function replaceShapeTextRuns(xml: string, replacements: ReadonlyArray<string>) 
 function chunkText(lines: ReadonlyArray<string>, count: number) {
   if (count <= 1) return [lines.join("\n")]
   return Array.from({ length: count }, (_, index) =>
-    lines
-      .slice(Math.ceil((lines.length * index) / count), Math.ceil((lines.length * (index + 1)) / count))
-      .join("\n"),
+    lines.slice(Math.ceil((lines.length * index) / count), Math.ceil((lines.length * (index + 1)) / count)).join("\n"),
   )
 }
 
@@ -555,7 +591,12 @@ function decodeXml(value: string) {
 }
 
 function encodeXml(value: string) {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;")
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;")
 }
 
 function extractLegacyOfficeText(bytes: Uint8Array) {

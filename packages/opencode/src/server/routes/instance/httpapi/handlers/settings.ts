@@ -92,7 +92,10 @@ export const settingsHandlers = HttpApiBuilder.group(InstanceHttpApi, "settings"
       const dir = path.dirname(relative.endsWith(suffix) ? relative.slice(0, -suffix.length) : relative)
       const parts = dir
         .split(/[\\/]+/)
-        .filter((part) => part && part !== "." && part !== "agent" && part !== "agents" && part !== "skills" && part !== "skill")
+        .filter(
+          (part) =>
+            part && part !== "." && part !== "agent" && part !== "agents" && part !== "skills" && part !== "skill",
+        )
       return cleanCategory(parts.join("/"))
     }
 
@@ -219,23 +222,25 @@ export const settingsHandlers = HttpApiBuilder.group(InstanceHttpApi, "settings"
       const assets = yield* Effect.forEach(
         files,
         (file) =>
-          parseAsset(file, configEntryNameFromPath(file, ["/.novaway/agent/", "/.novaway/agents/", "/agent/", "/agents/"])),
+          parseAsset(
+            file,
+            configEntryNameFromPath(file, ["/.novaway/agent/", "/.novaway/agents/", "/agent/", "/agents/"]),
+          ),
         { concurrency: "unbounded" },
       )
-      return assets
-        .filter((item) => item !== undefined)
-        .toSorted((a, b) => a.name.localeCompare(b.name))
+      return assets.filter((item) => item !== undefined).toSorted((a, b) => a.name.localeCompare(b.name))
     })
 
     const listSkills = Effect.fn("SettingsHttpApi.skillList")(function* () {
       const dirs = yield* configDirs()
       const runtime = (yield* skill.all())
-        .filter((item) => item.location === "<built-in>")
+        .filter((item) => item.builtIn)
         .map((item) => {
           return {
             name: item.name,
             location: item.location,
             editable: false,
+            builtIn: true,
             data: {
               name: item.name,
               ...(item.description ? { description: item.description } : {}),
@@ -247,17 +252,16 @@ export const settingsHandlers = HttpApiBuilder.group(InstanceHttpApi, "settings"
       const diskFiles = yield* Effect.forEach(
         dirs,
         (dir) =>
-          fs.glob("{skill,skills}/**/SKILL.md", { cwd: dir, absolute: true, dot: true, symlink: true }).pipe(Effect.orDie),
+          fs
+            .glob("{skill,skills}/**/SKILL.md", { cwd: dir, absolute: true, dot: true, symlink: true })
+            .pipe(Effect.orDie),
         { concurrency: "unbounded" },
       ).pipe(Effect.map((items) => items.flat()))
       const disk = yield* Effect.forEach(diskFiles, (file) => parseSkillFile(file, dirs), { concurrency: "unbounded" })
 
       return Array.from(
-        new Map(
-          [...runtime, ...disk.filter((item) => item !== undefined)].map((item) => [item.name, item]),
-        ).values(),
-      )
-        .toSorted((a, b) => a.name.localeCompare(b.name))
+        new Map([...runtime, ...disk.filter((item) => item !== undefined)].map((item) => [item.name, item])).values(),
+      ).toSorted((a, b) => a.name.localeCompare(b.name))
     })
 
     const reload = Effect.fn("SettingsHttpApi.reload")(function* () {
@@ -275,11 +279,9 @@ export const settingsHandlers = HttpApiBuilder.group(InstanceHttpApi, "settings"
       const files = yield* fs
         .glob("*.md", { cwd: dir, absolute: true, dot: true, symlink: true })
         .pipe(Effect.catch(() => Effect.succeed([])))
-      const assets = yield* Effect.forEach(
-        files,
-        (file) => parseAsset(file, path.basename(file, ".md")),
-        { concurrency: "unbounded" },
-      )
+      const assets = yield* Effect.forEach(files, (file) => parseAsset(file, path.basename(file, ".md")), {
+        concurrency: "unbounded",
+      })
       return assets.filter((item) => item !== undefined).toSorted((a, b) => a.name.localeCompare(b.name))
     })
 
@@ -302,7 +304,10 @@ export const settingsHandlers = HttpApiBuilder.group(InstanceHttpApi, "settings"
       return (yield* parseAsset(file, name))!
     })
 
-    const deleteRuleFile = Effect.fn("SettingsHttpApi.ruleDeleteFile")(function* (scope: "global" | "project", name: string) {
+    const deleteRuleFile = Effect.fn("SettingsHttpApi.ruleDeleteFile")(function* (
+      scope: "global" | "project",
+      name: string,
+    ) {
       yield* fs.remove(yield* ruleFile(scope, name)).pipe(Effect.orDie)
       yield* reload()
       return true
@@ -314,19 +319,21 @@ export const settingsHandlers = HttpApiBuilder.group(InstanceHttpApi, "settings"
 
     const projectInstructionTarget = Effect.fn("SettingsHttpApi.projectInstructionTarget")(function* () {
       const ctx = yield* InstanceState.context
-      const matches = yield* fs.findUp("AGENTS.md", ctx.directory, ctx.worktree).pipe(Effect.catch(() => Effect.succeed([])))
+      const matches = yield* fs
+        .findUp("AGENTS.md", ctx.directory, ctx.worktree)
+        .pipe(Effect.catch(() => Effect.succeed([])))
       return matches[0] ?? (yield* projectInstructionFile())
     })
 
     const projectInstructionAsset = Effect.fn("SettingsHttpApi.projectInstructionAsset")(function* () {
       const file = yield* projectInstructionTarget()
       const exists = yield* fs.existsSafe(file)
-      const content = yield* (exists
+      const content = yield* exists
         ? Effect.tryPromise({
             try: () => Bun.file(file).text(),
             catch: (error) => error,
           }).pipe(Effect.catch(() => Effect.succeed("")))
-        : Effect.succeed(""))
+        : Effect.succeed("")
       return {
         name: "AGENTS.md",
         location: file,
@@ -394,7 +401,13 @@ export const settingsHandlers = HttpApiBuilder.group(InstanceHttpApi, "settings"
           const category = importCategory(sourceRoot, file, ".md")
           const target = path.join(yield* globalDir(), "agent", category, `${name}.md`)
           if (!ctx.payload.overwrite && (yield* fs.existsSafe(target))) {
-            return { name, category: category || undefined, location: target, status: "skipped" as const, reason: "exists" }
+            return {
+              name,
+              category: category || undefined,
+              location: target,
+              status: "skipped" as const,
+              reason: "exists",
+            }
           }
 
           const data: Record<string, unknown> = {
@@ -403,7 +416,12 @@ export const settingsHandlers = HttpApiBuilder.group(InstanceHttpApi, "settings"
             ...(category ? { category } : {}),
             ...(typeof md.data.name === "string" ? { display_name: md.data.name } : {}),
             ...(Object.keys(agentPermissionFromTools(md.data.tools)).length > 0
-              ? { permission: { ...(isRecord(md.data.permission) ? md.data.permission : {}), ...agentPermissionFromTools(md.data.tools) } }
+              ? {
+                  permission: {
+                    ...(isRecord(md.data.permission) ? md.data.permission : {}),
+                    ...agentPermissionFromTools(md.data.tools),
+                  },
+                }
               : {}),
             ...(isValidColor(md.data.color) ? { color: md.data.color } : { color: undefined }),
           }
@@ -462,7 +480,9 @@ export const settingsHandlers = HttpApiBuilder.group(InstanceHttpApi, "settings"
       return yield* saveRuleFile(ctx.params.scope, name, ctx.payload)
     })
 
-    const deleteRule = Effect.fn("SettingsHttpApi.ruleDelete")(function* (ctx: { params: { scope: "global" | "project"; name: string } }) {
+    const deleteRule = Effect.fn("SettingsHttpApi.ruleDelete")(function* (ctx: {
+      params: { scope: "global" | "project"; name: string }
+    }) {
       const name = safeName(ctx.params.name)
       if (!name) return yield* new HttpApiError.BadRequest({})
       if (!(yield* fs.existsSafe(yield* ruleFile(ctx.params.scope, name)))) return yield* new HttpApiError.NotFound({})
@@ -493,7 +513,13 @@ export const settingsHandlers = HttpApiBuilder.group(InstanceHttpApi, "settings"
           const category = importCategory(sourceRoot, file, "SKILL.md")
           const target = path.join(yield* globalDir(), "skills", category, name, "SKILL.md")
           if (!ctx.payload.overwrite && (yield* fs.existsSafe(target))) {
-            return { name, category: category || undefined, location: target, status: "skipped" as const, reason: "exists" }
+            return {
+              name,
+              category: category || undefined,
+              location: target,
+              status: "skipped" as const,
+              reason: "exists",
+            }
           }
 
           yield* fs

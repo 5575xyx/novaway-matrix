@@ -1824,13 +1824,15 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         : yield* Effect.promise(() => generateObject(params).then((response) => response.object))
 
       return result.candidates
-        .map((candidate): MemoryReviewCandidateDraft => ({
-          ...candidate,
-          content: candidate.content.trim(),
-          summary: candidate.summary?.trim() || undefined,
-          tags: candidate.tags?.map((tag) => tag.trim()).filter(Boolean),
-          reason: candidate.reason?.trim() || undefined,
-        }))
+        .map(
+          (candidate): MemoryReviewCandidateDraft => ({
+            ...candidate,
+            content: candidate.content.trim(),
+            summary: candidate.summary?.trim() || undefined,
+            tags: candidate.tags?.map((tag) => tag.trim()).filter(Boolean),
+            reason: candidate.reason?.trim() || undefined,
+          }),
+        )
         .filter((candidate) => candidate.content.length >= 8)
         .slice(0, 3)
     })
@@ -1916,14 +1918,16 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         : yield* Effect.promise(() => generateObject(params).then((response) => response.object))
 
       return result.candidates
-        .map((candidate): EvolutionReviewCandidateDraft => ({
-          ...candidate,
-          target: candidate.target.trim(),
-          title: candidate.title.trim(),
-          content: candidate.content.trim(),
-          reason: candidate.reason.trim(),
-          tags: candidate.tags?.map((tag) => tag.trim()).filter(Boolean),
-        }))
+        .map(
+          (candidate): EvolutionReviewCandidateDraft => ({
+            ...candidate,
+            target: candidate.target.trim(),
+            title: candidate.title.trim(),
+            content: candidate.content.trim(),
+            reason: candidate.reason.trim(),
+            tags: candidate.tags?.map((tag) => tag.trim()).filter(Boolean),
+          }),
+        )
         .filter(
           (candidate) =>
             candidate.target.length >= 2 &&
@@ -2146,21 +2150,25 @@ NOTE: At any point in time through this workflow you should feel free to ask the
               cfg.evolution?.enabled === true &&
               cfg.evolution.review_llm === true &&
               (cfg.evolution.review_interval ?? 3) > 0
-            const memoryContext = memoryEnabled && memory
-              ? yield* memory
-                  .prefetch({
-                    query: textFromParts(lastUserMsg?.parts ?? []),
-                    projectID: session.projectID,
-                    sessionID,
-                    limit: cfg.memory?.prefetch_limit,
-                  })
-                  .pipe(Effect.catch(() => Effect.succeed("")))
-              : ""
+            const memoryContext =
+              memoryEnabled && memory
+                ? yield* memory
+                    .prefetch({
+                      query: textFromParts(lastUserMsg?.parts ?? []),
+                      projectID: session.projectID,
+                      sessionID,
+                      limit: cfg.memory?.prefetch_limit,
+                    })
+                    .pipe(Effect.catch(() => Effect.succeed("")))
+                : ""
             const projectContext = yield* ProjectContext.read({
               directory: ctx.directory,
               worktree: ctx.worktree,
               plan: Session.plan(session, ctx),
-            }).pipe(Effect.provideService(AppFileSystem.Service, fsys), Effect.catch(() => Effect.succeed("")))
+            }).pipe(
+              Effect.provideService(AppFileSystem.Service, fsys),
+              Effect.catch(() => Effect.succeed("")),
+            )
             const requestMessages = injectMemoryContext({
               messages: modelMsgs,
               context: [projectContext, memoryContext].filter(Boolean).join("\n\n"),
@@ -2175,7 +2183,10 @@ NOTE: At any point in time through this workflow you should feel free to ask the
               sessionID,
               parentSessionID: session.parentID,
               system,
-              messages: [...requestMessages, ...(isLastStep ? [{ role: "assistant" as const, content: MAX_STEPS }] : [])],
+              messages: [
+                ...requestMessages,
+                ...(isLastStep ? [{ role: "assistant" as const, content: MAX_STEPS }] : []),
+              ],
               tools,
               model,
               toolChoice: format.type === "json_schema" ? "required" : undefined,
@@ -2200,88 +2211,88 @@ NOTE: At any point in time through this workflow you should feel free to ask the
               }
             }
 
-              if (result === "stop") {
-                if (memoryReviewEnabled && memory && !handle.message.error) {
-                  const userContent = textFromParts(lastUserMsg?.parts ?? [])
-                  const due = yield* memory
-                    .reviewDue({
+            if (result === "stop") {
+              if (memoryReviewEnabled && memory && !handle.message.error) {
+                const userContent = textFromParts(lastUserMsg?.parts ?? [])
+                const due = yield* memory
+                  .reviewDue({
+                    userContent,
+                    projectID: session.projectID,
+                    sessionID,
+                    sourceMessageID: lastUser.id,
+                    agent: agent.name,
+                    reviewInterval: cfg.memory?.review_interval,
+                  })
+                  .pipe(Effect.catch(() => Effect.succeed(false)))
+                if (due) {
+                  const assistantMsg = yield* sessions
+                    .findMessage(sessionID, (message) => message.info.id === handle.message.id)
+                    .pipe(Effect.orDie)
+                  const assistantContent = Option.isSome(assistantMsg) ? textFromParts(assistantMsg.value.parts) : ""
+                  const candidates = yield* inferMemoryReviewCandidates({
+                    model,
+                    userContent,
+                    assistantContent,
+                  }).pipe(Effect.catch(() => Effect.succeed([])))
+                  yield* memory
+                    .review({
                       userContent,
+                      assistantContent,
                       projectID: session.projectID,
                       sessionID,
                       sourceMessageID: lastUser.id,
                       agent: agent.name,
-                      reviewInterval: cfg.memory?.review_interval,
-                    })
-                    .pipe(Effect.catch(() => Effect.succeed(false)))
-                  if (due) {
-                    const assistantMsg = yield* sessions
-                      .findMessage(sessionID, (message) => message.info.id === handle.message.id)
-                      .pipe(Effect.orDie)
-                    const assistantContent = Option.isSome(assistantMsg) ? textFromParts(assistantMsg.value.parts) : ""
-                    const candidates = yield* inferMemoryReviewCandidates({
-                      model,
-                      userContent,
-                      assistantContent,
-                    }).pipe(Effect.catch(() => Effect.succeed([])))
-                    yield* memory
-                      .review({
-                        userContent,
-                        assistantContent,
-                        projectID: session.projectID,
-                        sessionID,
-                        sourceMessageID: lastUser.id,
-                        agent: agent.name,
-                        candidates,
-                        skipReviewState: true,
-                      })
-                      .pipe(Effect.ignore)
-                  }
-                } else if (memoryEnabled && memory && cfg.memory?.auto_extract === true && !handle.message.error) {
-                  yield* memory
-                    .syncTurn({
-                      userContent: textFromParts(lastUserMsg?.parts ?? []),
-                      assistantContent: "",
-                      projectID: session.projectID,
-                      sessionID,
-                      originMessageID: lastUser.id,
-                      agent: agent.name,
+                      candidates,
+                      skipReviewState: true,
                     })
                     .pipe(Effect.ignore)
                 }
-                if (evolutionReviewEnabled && evolution && !handle.message.error) {
-                  const userContent = textFromParts(lastUserMsg?.parts ?? [])
-                  const due = yield* evolution
-                    .reviewDue({
-                      projectID: session.projectID,
-                      sessionID,
-                      sourceMessageID: lastUser.id,
-                      reviewInterval: cfg.evolution?.review_interval,
-                    })
-                    .pipe(Effect.catch(() => Effect.succeed(false)))
-                  if (due) {
-                    const assistantMsg = yield* sessions
-                      .findMessage(sessionID, (message) => message.info.id === handle.message.id)
-                      .pipe(Effect.orDie)
-                    const assistantContent = Option.isSome(assistantMsg) ? textFromParts(assistantMsg.value.parts) : ""
-                    const proposals = yield* inferEvolutionReviewCandidates({
-                      model,
-                      userContent,
-                      assistantContent,
-                    }).pipe(Effect.catch(() => Effect.succeed([])))
-                    if (proposals.length) {
-                      yield* evolution
-                        .review({
-                          proposals,
-                          projectID: session.projectID,
-                          sessionID,
-                          sourceMessageID: lastUser.id,
-                        })
-                        .pipe(Effect.ignore)
-                    }
+              } else if (memoryEnabled && memory && cfg.memory?.auto_extract === true && !handle.message.error) {
+                yield* memory
+                  .syncTurn({
+                    userContent: textFromParts(lastUserMsg?.parts ?? []),
+                    assistantContent: "",
+                    projectID: session.projectID,
+                    sessionID,
+                    originMessageID: lastUser.id,
+                    agent: agent.name,
+                  })
+                  .pipe(Effect.ignore)
+              }
+              if (evolutionReviewEnabled && evolution && !handle.message.error) {
+                const userContent = textFromParts(lastUserMsg?.parts ?? [])
+                const due = yield* evolution
+                  .reviewDue({
+                    projectID: session.projectID,
+                    sessionID,
+                    sourceMessageID: lastUser.id,
+                    reviewInterval: cfg.evolution?.review_interval,
+                  })
+                  .pipe(Effect.catch(() => Effect.succeed(false)))
+                if (due) {
+                  const assistantMsg = yield* sessions
+                    .findMessage(sessionID, (message) => message.info.id === handle.message.id)
+                    .pipe(Effect.orDie)
+                  const assistantContent = Option.isSome(assistantMsg) ? textFromParts(assistantMsg.value.parts) : ""
+                  const proposals = yield* inferEvolutionReviewCandidates({
+                    model,
+                    userContent,
+                    assistantContent,
+                  }).pipe(Effect.catch(() => Effect.succeed([])))
+                  if (proposals.length) {
+                    yield* evolution
+                      .review({
+                        proposals,
+                        projectID: session.projectID,
+                        sessionID,
+                        sourceMessageID: lastUser.id,
+                      })
+                      .pipe(Effect.ignore)
                   }
                 }
-                return "break" as const
               }
+              return "break" as const
+            }
             if (result === "compact") {
               yield* compaction.create({
                 sessionID,

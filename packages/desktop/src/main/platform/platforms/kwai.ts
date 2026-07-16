@@ -2,7 +2,15 @@ import { BrowserWindow, screen } from "electron"
 import type { Cookie } from "electron"
 import requestNet from "../kwai-request-net"
 import kwaiSign from "./kwai-sign/KwaiSign"
-import { PlatformBase, type PlatformLoginResult, type PublishInput, type PublishResult, type PlatformAccountInfo, type AccountStats, type PublishRecord } from "../PlatformBase"
+import {
+  PlatformBase,
+  type PlatformLoginResult,
+  type PublishInput,
+  type PublishResult,
+  type PlatformAccountInfo,
+  type AccountStats,
+  type PublishRecord,
+} from "../PlatformBase"
 
 const LOGIN_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36 Edg/135.0.0.0"
@@ -35,7 +43,13 @@ export class KwaiPlatform extends PlatformBase {
     }
   }
 
-  async login(): Promise<{ loginCookie: string; uid: string; nickname: string; avatar: string; fansCount: number } | null> {
+  async login(): Promise<{
+    loginCookie: string
+    uid: string
+    nickname: string
+    avatar: string
+    fansCount: number
+  } | null> {
     const req = await this.serviceLogin().catch(() => null)
     if (!req) return null
 
@@ -70,7 +84,11 @@ export class KwaiPlatform extends PlatformBase {
         resolved = true
         clearInterval(pollTimer)
         clearTimeout(timeoutTimer)
-        try { mainWindow.close() } catch { /* ignore */ }
+        try {
+          mainWindow.close()
+        } catch {
+          /* ignore */
+        }
         fn()
       }
 
@@ -115,15 +133,15 @@ export class KwaiPlatform extends PlatformBase {
           const gqlUserInfo = (userInfoReq as any)?.data?.data?.userInfo
           const gqlUserId = gqlUserInfo?.userId ?? gqlUserInfo?.id ?? gqlUserInfo?.eid
           if (userInfoReq?.status === 200 && gqlUserId) {
-            done(() => { resolve({ cookies, userInfo: userInfoReq }) })
+            done(() => {
+              resolve({ cookies, userInfo: userInfoReq })
+            })
             return
           }
 
-          const homeInfoReq = await this.withTimeout(
-            this.serviceGetHomeInfo(cookies),
-            10000,
-            "kwai getHomeInfo",
-          ).catch(() => null)
+          const homeInfoReq = await this.withTimeout(this.serviceGetHomeInfo(cookies), 10000, "kwai getHomeInfo").catch(
+            () => null,
+          )
           const fallbackUserId = homeInfoReq?.data?.data?.userId
           if (homeInfoReq?.status === 200 && fallbackUserId) {
             done(() => {
@@ -154,7 +172,9 @@ export class KwaiPlatform extends PlatformBase {
         }
       }
 
-      const pollTimer = setInterval(() => { void tryResolveLogin() }, 800)
+      const pollTimer = setInterval(() => {
+        void tryResolveLogin()
+      }, 800)
       void tryResolveLogin()
     })
   }
@@ -172,9 +192,8 @@ export class KwaiPlatform extends PlatformBase {
     const apiPhCookie = cookie.find((v) => v.name === "kuaishou.web.cp.api_ph")
     const apiPh = apiPhCookie?.value || ""
 
-    const finalBody = params.method === "POST"
-      ? { ...(params.body || {}), "kuaishou.web.cp.api_ph": apiPh }
-      : params.body
+    const finalBody =
+      params.method === "POST" ? { ...(params.body || {}), "kuaishou.web.cp.api_ph": apiPh } : params.body
 
     const finalHeaders: Record<string, string | string[]> = {
       ...(params.headers || {}),
@@ -212,12 +231,14 @@ export class KwaiPlatform extends PlatformBase {
       headers: {
         Origin: "https://cp.kuaishou.com",
         Referer: KWAI_CREATOR_PROFILE_URL,
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
       },
       body: {
         operationName: "userInfoQuery",
         variables: {},
-        query: "query userInfoQuery {\n  userInfo {\n    id\n    name\n    avatar\n    eid\n    userId\n    __typename\n  }\n}\n",
+        query:
+          "query userInfoQuery {\n  userInfo {\n    id\n    name\n    avatar\n    eid\n    userId\n    __typename\n  }\n}\n",
       },
     })
   }
@@ -324,7 +345,9 @@ export class KwaiPlatform extends PlatformBase {
 
     const [homeInfoRes, currentAccountRes] = await Promise.all([
       this.withTimeout(this.serviceGetHomeInfo(cookies), 10000, "kwai formatUserInfo getHomeInfo").catch(() => null),
-      this.withTimeout(this.serviceGetCurrentAccount(cookies), 10000, "kwai formatUserInfo getCurrentAccount").catch(() => null),
+      this.withTimeout(this.serviceGetCurrentAccount(cookies), 10000, "kwai formatUserInfo getCurrentAccount").catch(
+        () => null,
+      ),
     ])
 
     const homeInfo = (homeInfoRes?.data?.data || {}) as Record<string, any>
@@ -429,11 +452,9 @@ export class KwaiPlatform extends PlatformBase {
   }
 
   async getAccountInfo(cookies: Cookie[]): Promise<PlatformAccountInfo> {
-    const res = await this.withTimeout(
-      this.serviceGetAccountInfo(cookies),
-      10000,
-      "kwai getAccountInfo",
-    ).catch(() => null)
+    const res = await this.withTimeout(this.serviceGetAccountInfo(cookies), 10000, "kwai getAccountInfo").catch(
+      () => null,
+    )
     const info = await this.formatUserInfo(res, cookies)
     if (!info) return { nickname: "", avatar: "", platformUserId: "" }
     return {

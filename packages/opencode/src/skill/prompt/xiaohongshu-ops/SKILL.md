@@ -35,14 +35,19 @@ uv --version 2>&1
 
 - **如果输出包含 `uv`** → 继续下一步
 - **如果未安装** → 自动安装：
+
 ```bash
 pip install uv
 ```
+
 如果 `pip` 也不可用，尝试：
+
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
+
 安装后验证：
+
 ```bash
 uv --version
 ```
@@ -56,12 +61,14 @@ cd <SKILL_DIR> && uv sync
 ### 步骤 5：检测并安装 Chrome 扩展
 
 检查扩展是否已安装：
+
 ```bash
 # 检查常见 Chrome 扩展目录（Windows）
 ls "%LOCALAPPDATA%\Google\Chrome\User Data\Default\Extensions" 2>/dev/null
 ```
 
 如果未检测到 XHS Bridge 扩展，提示用户：
+
 1. 打开 Chrome，地址栏输入 `chrome://extensions/`
 2. 右上角开启"开发者模式"
 3. 点击"加载已解压的扩展程序"，选择 `<SKILL_DIR>/extension/` 目录
@@ -72,11 +79,13 @@ ls "%LOCALAPPDATA%\Google\Chrome\User Data\Default\Extensions" 2>/dev/null
 ### 步骤 6：启动 Bridge Server
 
 检查 bridge server 是否在运行：
+
 ```bash
 cd <SKILL_DIR> && python -c "import websockets.sync.client as c; ws=c.connect('ws://localhost:9333',open_timeout=2); ws.send('{\"role\":\"cli\",\"method\":\"ping_server\"}'); print(ws.recv(timeout=5))"
 ```
 
 如果未运行，在后台启动：
+
 ```bash
 cd <SKILL_DIR> && python scripts/bridge_server.py &
 ```
@@ -122,46 +131,46 @@ cd <SKILL_DIR> && python scripts/cli.py check-login
 
 ### 认证管理
 
-| 命令 | 功能 |
-|------|------|
-| `cli.py check-login` | 检查登录状态 |
-| `cli.py login` | 二维码登录 |
-| `cli.py send-code --phone <号码>` | 发送手机验证码 |
-| `cli.py verify-code --code <验证码>` | 提交验证码 |
-| `cli.py delete-cookies` | 清除 cookies |
+| 命令                                  | 功能            |
+| ------------------------------------- | --------------- |
+| `cli.py check-login`                  | 检查登录状态    |
+| `cli.py login`                        | 二维码登录      |
+| `cli.py send-code --phone <号码>`     | 发送手机验证码  |
+| `cli.py verify-code --code <验证码>`  | 提交验证码      |
+| `cli.py delete-cookies`               | 清除 cookies    |
 | `cli.py inject-cookies --file <path>` | 注入外部 cookie |
 
 ### 内容发布
 
-| 命令 | 功能 |
-|------|------|
-| `cli.py fill-publish` | 填写图文表单（分步） |
-| `cli.py click-publish` | 点击发布按钮 |
-| `cli.py publish` | 图文一步发布 |
+| 命令                        | 功能                 |
+| --------------------------- | -------------------- |
+| `cli.py fill-publish`       | 填写图文表单（分步） |
+| `cli.py click-publish`      | 点击发布按钮         |
+| `cli.py publish`            | 图文一步发布         |
 | `cli.py fill-publish-video` | 填写视频表单（分步） |
-| `cli.py publish-video` | 视频一步发布 |
-| `cli.py long-article` | 长文模式 |
-| `cli.py select-template` | 选择排版模板 |
-| `cli.py next-step` | 长文下一步 |
-| `cli.py save-draft` | 保存草稿 |
+| `cli.py publish-video`      | 视频一步发布         |
+| `cli.py long-article`       | 长文模式             |
+| `cli.py select-template`    | 选择排版模板         |
+| `cli.py next-step`          | 长文下一步           |
+| `cli.py save-draft`         | 保存草稿             |
 
 ### 内容发现
 
-| 命令 | 功能 |
-|------|------|
-| `cli.py list-feeds` | 首页推荐 Feed |
-| `cli.py search-feeds --keyword "关键词"` | 搜索笔记 |
-| `cli.py get-feed-detail --feed-id ID --xsec-token TOKEN` | 笔记详情 |
-| `cli.py user-profile --user-id ID --xsec-token TOKEN` | 用户主页 |
+| 命令                                                     | 功能          |
+| -------------------------------------------------------- | ------------- |
+| `cli.py list-feeds`                                      | 首页推荐 Feed |
+| `cli.py search-feeds --keyword "关键词"`                 | 搜索笔记      |
+| `cli.py get-feed-detail --feed-id ID --xsec-token TOKEN` | 笔记详情      |
+| `cli.py user-profile --user-id ID --xsec-token TOKEN`    | 用户主页      |
 
 ### 社交互动
 
-| 命令 | 功能 |
-|------|------|
-| `cli.py post-comment --feed-id ID --xsec-token TOKEN --content "内容"` | 发表评论 |
+| 命令                                                                                     | 功能     |
+| ---------------------------------------------------------------------------------------- | -------- |
+| `cli.py post-comment --feed-id ID --xsec-token TOKEN --content "内容"`                   | 发表评论 |
 | `cli.py reply-comment --feed-id ID --xsec-token TOKEN --content "内容" --comment-id CID` | 回复评论 |
-| `cli.py like-feed --feed-id ID --xsec-token TOKEN` | 点赞 |
-| `cli.py favorite-feed --feed-id ID --xsec-token TOKEN` | 收藏 |
+| `cli.py like-feed --feed-id ID --xsec-token TOKEN`                                       | 点赞     |
+| `cli.py favorite-feed --feed-id ID --xsec-token TOKEN`                                   | 收藏     |
 
 ## 失败处理
 

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron"
-import type { ElectronAPI, InitStep, SqliteMigrationProgress } from "./types"
+import type { ElectronAPI, FloatingAgentState, InitStep, SqliteMigrationProgress } from "./types"
 
 const api: ElectronAPI = {
   killSidecar: () => ipcRenderer.invoke("kill-sidecar"),
@@ -46,15 +46,63 @@ const api: ElectronAPI = {
     ipcRenderer.on("deep-link", handler)
     return () => ipcRenderer.removeListener("deep-link", handler)
   },
+  onNotificationClick: (cb) => {
+    const handler = (_: unknown, href?: string) => cb(href)
+    ipcRenderer.on("notification-click", handler)
+    return () => ipcRenderer.removeListener("notification-click", handler)
+  },
+
+  getFloatingAgentState: () => ipcRenderer.invoke("get-floating-agent-state"),
+  setFloatingAgent: (name) => ipcRenderer.invoke("set-floating-agent", name),
+  setFloatingPetSkin: (skin) => ipcRenderer.invoke("set-floating-pet-skin", skin),
+  markFloatingNotificationsRead: (ids) => ipcRenderer.invoke("mark-floating-notifications-read", ids),
+  clearFloatingNotifications: () => ipcRenderer.invoke("clear-floating-notifications"),
+  openFloatingNotification: (id) => ipcRenderer.invoke("open-floating-notification", id),
+  resolveFloatingNotification: (input) => ipcRenderer.invoke("resolve-floating-notification", input),
+  onFloatingAgentChange: (cb) => {
+    const handler = (_: unknown, state: FloatingAgentState) => cb(state)
+    ipcRenderer.on("floating-agent-change", handler)
+    return () => ipcRenderer.removeListener("floating-agent-change", handler)
+  },
+  onFloatingExpandedChange: (cb) => {
+    const handler = (_: unknown, expanded: boolean) => cb(expanded)
+    ipcRenderer.on("floating-expanded-change", handler)
+    return () => ipcRenderer.removeListener("floating-expanded-change", handler)
+  },
+  onFloatingPanelTabChange: (cb) => {
+    const handler = (_: unknown, tab: "monitor" | "notifications") => cb(tab)
+    ipcRenderer.on("floating-panel-tab-change", handler)
+    return () => ipcRenderer.removeListener("floating-panel-tab-change", handler)
+  },
+  onFloatingSkinMenuChange: (cb) => {
+    const handler = (_: unknown, visible: boolean) => cb(visible)
+    ipcRenderer.on("floating-skin-menu-change", handler)
+    return () => ipcRenderer.removeListener("floating-skin-menu-change", handler)
+  },
+  floatingWidgetReady: () => ipcRenderer.send("floating-widget-ready"),
+  showFloatingWidget: () => ipcRenderer.invoke("show-floating-widget"),
+  onFloatingVisibilityChange: (cb) => {
+    const handler = (_: unknown, visible: boolean) => cb(visible)
+    ipcRenderer.on("floating-visibility-change", handler)
+    return () => ipcRenderer.removeListener("floating-visibility-change", handler)
+  },
+  updateFloatingAgentState: (state) => ipcRenderer.invoke("update-floating-agent-state", state),
+  beginFloatingWidgetDrag: (pointerX, pointerY) => ipcRenderer.send("begin-floating-widget-drag", pointerX, pointerY),
+  moveFloatingWidget: (pointerX, pointerY) => ipcRenderer.send("move-floating-widget", pointerX, pointerY),
+  saveFloatingWidgetBounds: () => ipcRenderer.invoke("save-floating-widget-bounds"),
+  setFloatingExpanded: (expanded) => ipcRenderer.invoke("set-floating-expanded", expanded),
+  toggleFloatingSkinMenu: () => ipcRenderer.invoke("toggle-floating-skin-menu"),
 
   createDirectory: (parentPath, dirName) => ipcRenderer.invoke("create-directory", parentPath, dirName),
   openDirectoryPicker: (opts) => ipcRenderer.invoke("open-directory-picker", opts),
   openFilePicker: (opts) => ipcRenderer.invoke("open-file-picker", opts),
   saveFilePicker: (opts) => ipcRenderer.invoke("save-file-picker", opts),
+  copyFileToClipboard: (opts) => ipcRenderer.invoke("copy-file-to-clipboard", opts),
   openLink: (url) => ipcRenderer.send("open-link", url),
   openPath: (path, app) => ipcRenderer.invoke("open-path", path, app),
   readClipboardImage: () => ipcRenderer.invoke("read-clipboard-image"),
-  showNotification: (title, body) => ipcRenderer.send("show-notification", title, body),
+  showNotification: (title, body, href, showSystem, context) =>
+    ipcRenderer.send("show-notification", title, body, href, showSystem, context),
   getWindowFocused: () => ipcRenderer.invoke("get-window-focused"),
   setWindowFocus: () => ipcRenderer.invoke("set-window-focus"),
   showWindow: () => ipcRenderer.invoke("show-window"),
@@ -75,13 +123,15 @@ const api: ElectronAPI = {
     checkLogin: (id: string) => ipcRenderer.invoke("platform:check-login", id),
     batchCheckLogin: (ids: string[]) => ipcRenderer.invoke("platform:batch-check-login", ids),
     publish: (input: any) => ipcRenderer.invoke("platform:publish", input),
-    createWebview: (webViewId: number, cookies: any[]) => ipcRenderer.invoke("platform:create-webview", { webViewId, cookies }),
+    createWebview: (webViewId: number, cookies: any[]) =>
+      ipcRenderer.invoke("platform:create-webview", { webViewId, cookies }),
     destroyWebview: (webViewId: number) => ipcRenderer.invoke("platform:destroy-webview", webViewId),
     getGroups: () => ipcRenderer.invoke("platform:get-groups"),
     addGroup: (data: { name: string }) => ipcRenderer.invoke("platform:add-group", data),
     editGroup: (data: { id: number; name: string }) => ipcRenderer.invoke("platform:edit-group", data),
     deleteGroup: (id: number) => ipcRenderer.invoke("platform:delete-group", id),
-    moveAccountGroup: (data: { accountId: string; groupId: number }) => ipcRenderer.invoke("platform:move-account-group", data),
+    moveAccountGroup: (data: { accountId: string; groupId: number }) =>
+      ipcRenderer.invoke("platform:move-account-group", data),
   },
 }
 

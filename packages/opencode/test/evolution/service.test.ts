@@ -58,7 +58,6 @@ function seedProjectID(id: ProjectID) {
   )
 }
 
-
 describe("evolution candidate service", () => {
   test("keeps project-specific evolution candidates project-scoped even when scope is global", async () => {
     const projectID = ProjectID.make("evolution-scope-project")
@@ -97,7 +96,8 @@ describe("evolution candidate service", () => {
               scope: "global",
               target: "implementation-retrospective",
               title: "reusable implementation retrospective skill",
-              content: "Reusable cross-project skill: after implementation, summarize decisions, verification, and reusable workflow lessons.",
+              content:
+                "Reusable cross-project skill: after implementation, summarize decisions, verification, and reusable workflow lessons.",
               reason: "The workflow is reusable across projects and should be reviewed as a global skill candidate.",
               tags: ["reusable", "skill"],
             },
@@ -146,7 +146,9 @@ describe("evolution candidate service", () => {
     expect(await readFile(path.join(globalConfig, "skills", "implementation-retrospective", "SKILL.md"), "utf-8")).toBe(
       "Reusable cross-project skill body.\n",
     )
-    expect(await Bun.file(path.join(worktree, ".novaway", "skills", "implementation-retrospective", "SKILL.md")).exists()).toBe(false)
+    expect(
+      await Bun.file(path.join(worktree, ".novaway", "skills", "implementation-retrospective", "SKILL.md")).exists(),
+    ).toBe(false)
   })
 
   test("creates pending self-evolution candidates", async () => {
@@ -207,9 +209,13 @@ describe("evolution candidate service", () => {
         }),
       ),
     )
-    const dismissed = await runEvolution(Evolution.Service.use((evolution) => evolution.dismiss(dismissedCandidates[0].id)))
+    const dismissed = await runEvolution(
+      Evolution.Service.use((evolution) => evolution.dismiss(dismissedCandidates[0].id)),
+    )
     expect(dismissed?.status).toBe("dismissed")
-    expect(await runEvolution(Evolution.Service.use((evolution) => evolution.apply(dismissedCandidates[0].id)))).toBeUndefined()
+    expect(
+      await runEvolution(Evolution.Service.use((evolution) => evolution.apply(dismissedCandidates[0].id))),
+    ).toBeUndefined()
   })
 
   test("updates pending candidates and returns a preview diff", async () => {
@@ -373,7 +379,9 @@ describe("evolution candidate service", () => {
 
     expect(applied?.candidate.status).toBe("applied")
     expect(applied?.dryRun.files[0].exists).toBe(false)
-    expect(await readFile(path.join(worktree, ".novaway", "skills", target, "SKILL.md"), "utf-8")).toBe("new skill description.\n")
+    expect(await readFile(path.join(worktree, ".novaway", "skills", target, "SKILL.md"), "utf-8")).toBe(
+      "new skill description.\n",
+    )
   })
 
   test("applies a pending candidate by replacing an existing target file", async () => {
@@ -427,7 +435,11 @@ describe("evolution candidate service", () => {
     await runEvolution(Evolution.Service.use((evolution) => evolution.dismiss(candidates[0].id)))
 
     expect(
-      await runEvolution(Evolution.Service.use((evolution) => evolution.applyToDisk(candidates[0].id, { directory: worktree, worktree }))),
+      await runEvolution(
+        Evolution.Service.use((evolution) =>
+          evolution.applyToDisk(candidates[0].id, { directory: worktree, worktree }),
+        ),
+      ),
     ).toBeUndefined()
     expect(await Bun.file(path.join(worktree, ".novaway", "prompts", `${target}.md`)).exists()).toBe(false)
   })
@@ -503,11 +515,13 @@ describe("evolution candidate service", () => {
       ),
     )
     const exit = await Effect.runPromiseExit(
-      Evolution.Service.use((evolution) => evolution.applyToDisk(candidates[0].id, { directory: worktree, worktree })).pipe(
-        Effect.provide(Evolution.defaultLayer),
-      ),
+      Evolution.Service.use((evolution) =>
+        evolution.applyToDisk(candidates[0].id, { directory: worktree, worktree }),
+      ).pipe(Effect.provide(Evolution.defaultLayer)),
     )
-    const items = await runEvolution(Evolution.Service.use((evolution) => evolution.list({ status: "pending", limit: 1000 })))
+    const items = await runEvolution(
+      Evolution.Service.use((evolution) => evolution.list({ status: "pending", limit: 1000 })),
+    )
 
     expect(Exit.isFailure(exit)).toBe(true)
     expect(items.some((item) => item.id === candidates[0].id)).toBe(true)

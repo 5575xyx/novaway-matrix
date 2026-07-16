@@ -31,7 +31,7 @@ Plus one coined-term rename: **Claude Search Optimization (CSO) → Skill Discov
 
 Use a mix that reads naturally in English:
 
-- **Second person — "your agent"** when addressing the skill author about *their* runtime
+- **Second person — "your agent"** when addressing the skill author about _their_ runtime
   - "your agent reads the description"
 - **Third person — "the agent" / "agents" / "an agent"** when describing system behavior generically
   - "Future agents find your skills"
@@ -55,12 +55,12 @@ Pick whichever fits the surrounding sentence; do not force consistency at the co
 
 Approximate counts based on a `grep` filtered to exclude carve-outs:
 
-| File | Generic-prose mentions |
-|------|------------------------|
-| `skills/writing-skills/SKILL.md` | ~12 (includes CSO heading + body) |
-| `skills/writing-skills/anthropic-best-practices.md` | ~30 |
+| File                                                  | Generic-prose mentions                                                                                                                                    |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `skills/writing-skills/SKILL.md`                      | ~12 (includes CSO heading + body)                                                                                                                         |
+| `skills/writing-skills/anthropic-best-practices.md`   | ~30                                                                                                                                                       |
 | `skills/writing-skills/examples/CLAUDE_MD_TESTING.md` | ~1 — filename stays (it's a CLAUDE.md test artifact); the "Variant C: Claude.AI Emphatic Style" heading also stays (it's a label naming a specific style) |
-| `README.md` | ~1 |
+| `README.md`                                           | ~1                                                                                                                                                        |
 
 Final list confirmed during implementation by re-running the filtered grep.
 
@@ -71,7 +71,7 @@ Four atomic commits, in order:
 1. **Rename CSO → SDO** in `skills/writing-skills/SKILL.md`. Mechanical, isolated, easy to revert if we change our minds about the term.
 2. **Active skills prose** — generic "Claude" → "agent" forms across `skills/*/SKILL.md` and supporting `.md`, excluding `anthropic-best-practices.md`.
 3. **`anthropic-best-practices.md` prose** — same substitution rules. Separate commit because this file is a vendored adaptation of an external doc; isolating the change makes future reconciliation with upstream easier to read.
-4. **README.md prose** *(only if any generic-prose mentions remain after filtering)*. Skipped if empty.
+4. **README.md prose** _(only if any generic-prose mentions remain after filtering)_. Skipped if empty.
 
 Each commit message names the phase ("Phase A") and the slice ("rename CSO to SDO", "agent prose in active skills", etc.) so the series is self-documenting.
 

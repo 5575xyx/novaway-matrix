@@ -43,6 +43,20 @@ const getBase = (): Configuration => ({
       from: "resources/icons/",
       to: "icons/",
     },
+    {
+      from: "resources/dbx-mcp/",
+      to: "dbx-mcp/",
+      filter: ["**/*", "!**/*.map"],
+    },
+    {
+      from: "resources/node/",
+      to: "node/",
+      filter: ["**/*"],
+    },
+  ],
+  asarUnpack: [
+    "resources/dbx-mcp/node_modules/better-sqlite3/**/*.node",
+    "resources/dbx-mcp/node_modules/keytar/**/*.node",
   ],
   mac: {
     category: "public.app-category.developer-tools",

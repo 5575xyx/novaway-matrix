@@ -37,6 +37,7 @@ export interface ImageGenerationResult {
 export interface ImageGenerationProtocol {
   readonly id: string
   readonly baseURL: string
+  readonly endpoint: string
   readonly buildBody: (params: ImageGenerationParams) => Record<string, unknown>
   readonly parseResponse: (raw: unknown) => ImageGenerationResult
 }
@@ -59,7 +60,7 @@ export const make = (): ImageGenerationService => ({
   generate: (protocol, params, apiKey) =>
     Effect.gen(function* () {
       const body = protocol.buildBody(params)
-      const url = `${protocol.baseURL}/images/generations`
+      const url = `${protocol.baseURL}${protocol.endpoint}`
       const bodyText = JSON.stringify(body)
 
       const request = HttpClientRequest.post(url).pipe(
@@ -71,6 +72,10 @@ export const make = (): ImageGenerationService => ({
       )
 
       const response = yield* HttpClient.execute(request)
+      if (response.status >= 400) {
+        const text = yield* response.text
+        return yield* Effect.fail(new Error(`Image generation failed: ${response.status} ${text}`))
+      }
       const raw = yield* response.json
       return protocol.parseResponse(raw)
     }),

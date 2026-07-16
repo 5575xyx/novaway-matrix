@@ -7,14 +7,21 @@ import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import { getCACertificates, setDefaultCACertificates } from "node:tls"
 import type { Event } from "electron"
-import { app, BrowserWindow } from "electron"
+import { app, BrowserWindow, Menu, Tray } from "electron"
 
 import contextMenu from "electron-context-menu"
 
 import type { InitStep, ServerReadyData, SqliteMigrationProgress, WslConfig } from "../preload/types"
 import { checkAppExists, resolveAppPath, wslPath } from "./apps"
 import { CHANNEL, UPDATER_ENABLED } from "./constants"
-import { registerIpcHandlers, sendDeepLinks, sendMenuCommand, sendSqliteMigrationProgress } from "./ipc"
+import {
+  registerIpcHandlers,
+  sendDeepLinks,
+  sendMenuCommand,
+  sendSqliteMigrationProgress,
+  setFloatingWindow,
+  setMainWindow,
+} from "./ipc"
 import { initLogging } from "./logging"
 import { parseMarkdown } from "./markdown"
 import { createMenu } from "./menu"
@@ -28,8 +35,10 @@ import {
   type SidecarListener,
 } from "./server"
 import {
+  createFloatingWindow,
   createLoadingWindow,
   createMainWindow,
+  loadAppIcon,
   registerRendererProtocol,
   setBackgroundColor,
   setDockIcon,
@@ -51,7 +60,10 @@ const TEST_ONBOARDING = process.env.OPENCODE_TEST_ONBOARDING === "1"
 
 let logger: ReturnType<typeof initLogging>
 let mainWindow: BrowserWindow | null = null
+let floatingWindow: BrowserWindow | null = null
+let tray: Tray | null = null
 let server: SidecarListener | null = null
+let isQuitting = false
 
 const initEmitter = new EventEmitter()
 let initStep: InitStep = { phase: "server_waiting" }
@@ -84,6 +96,51 @@ async function killSidecar() {
   const current = server
   server = null
   await current.stop()
+}
+
+function showMainWindow() {
+  const win = mainWindow
+  if (!win || win.isDestroyed()) return
+  if (win.isMinimized()) win.restore()
+  win.show()
+  win.focus()
+}
+
+function hideMainWindow() {
+  const win = mainWindow
+  if (!win || win.isDestroyed()) return
+  win.hide()
+}
+
+function quitApp() {
+  isQuitting = true
+  app.quit()
+}
+
+function createTray() {
+  if (tray) return tray
+  tray = new Tray(loadAppIcon())
+  tray.setToolTip(APP_NAMES[CHANNEL])
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      {
+        label: "显示 NovaWay",
+        click: () => showMainWindow(),
+      },
+      {
+        label: "隐藏主窗口",
+        click: () => hideMainWindow(),
+      },
+      { type: "separator" },
+      {
+        label: "退出 NovaWay",
+        click: () => quitApp(),
+      },
+    ]),
+  )
+  tray.on("click", () => showMainWindow())
+  tray.on("double-click", () => showMainWindow())
+  return tray
 }
 
 function ensureLoopbackNoProxy() {
@@ -171,10 +228,7 @@ const main = Effect.gen(function* () {
       logger.log("deep link received via second-instance", { urls })
       emitDeepLinks(urls)
     }
-    if (mainWindow) {
-      mainWindow.show()
-      mainWindow.focus()
-    }
+    showMainWindow()
   })
 
   app.on("open-url", (event: Event, url: string) => {
@@ -184,11 +238,18 @@ const main = Effect.gen(function* () {
   })
 
   app.on("before-quit", () => {
+    isQuitting = true
     void killSidecar()
   })
 
   app.on("will-quit", () => {
     void killSidecar()
+  })
+
+  app.on("window-all-closed", () => {})
+
+  app.on("activate", () => {
+    showMainWindow()
   })
 
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
@@ -242,6 +303,7 @@ const main = Effect.gen(function* () {
   app.setAsDefaultProtocolClient("opencode")
   registerRendererProtocol()
   setDockIcon()
+  createTray()
   setupAutoUpdater()
 
   const needsMigration = ((): boolean => {
@@ -291,6 +353,19 @@ const main = Effect.gen(function* () {
 
     ensureLoopbackNoProxy()
     useEnvProxy()
+
+    const dbxMcpDir = app.isPackaged
+      ? join(process.resourcesPath, "dbx-mcp")
+      : join(app.getAppPath(), "resources", "dbx-mcp")
+    process.env.DBX_DATA_DIR = join(app.getPath("userData"), "dbx")
+    process.env.DBX_MCP_SERVER_PATH = join(dbxMcpDir, "dist", "index.js")
+    // 开发环境使用系统 Node.js；打包环境使用应用内置的独立 Node.js，
+    // 避免 Electron ABI 与 better-sqlite3/keytar 原生模块不匹配。
+    const bundledNode =
+      process.platform === "win32"
+        ? join(process.resourcesPath, "node", "node.exe")
+        : join(process.resourcesPath, "node", "bin", "node")
+    process.env.DBX_NODE_PATH = app.isPackaged ? bundledNode : "node"
 
     logger.log("spawning sidecar", { url })
     const { listener, health } = yield* Effect.promise(() =>
@@ -346,6 +421,7 @@ const main = Effect.gen(function* () {
   if (overlay) yield* Deferred.await(loadingComplete)
 
   mainWindow = createMainWindow()
+  setMainWindow(mainWindow)
   if (mainWindow) {
     createMenu({
       trigger: (id) => mainWindow && sendMenuCommand(mainWindow, id),
@@ -360,7 +436,29 @@ const main = Effect.gen(function* () {
         })
       },
     })
+
+    mainWindow.on("closed", () => {
+      if (floatingWindow && !floatingWindow.isDestroyed()) {
+        floatingWindow.close()
+      }
+      mainWindow = null
+      setMainWindow(null)
+    })
+
+    mainWindow.on("close", (event) => {
+      if (isQuitting) return
+      event.preventDefault()
+      hideMainWindow()
+    })
+
   }
+
+  floatingWindow = createFloatingWindow()
+  setFloatingWindow(floatingWindow)
+  floatingWindow.on("closed", () => {
+    floatingWindow = null
+    setFloatingWindow(null)
+  })
 
   overlay?.close()
 })

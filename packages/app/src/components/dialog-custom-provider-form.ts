@@ -13,10 +13,13 @@ export type HeaderErr = {
   value?: string
 }
 
+export type ModelType = "text" | "image" | "video" | "audio"
+
 export type ModelRow = {
   row: string
   id: string
   name: string
+  type: ModelType
   err: ModelErr
 }
 
@@ -92,7 +95,12 @@ export function validateCustomProvider(input: ValidateArgs) {
     return { id: idError, name: nameError }
   })
   const modelsValid = models.every((m) => !m.id && !m.name)
-  const modelConfig = Object.fromEntries(input.form.models.map((m) => [m.id.trim(), { name: m.name.trim() }]))
+  const modelConfig = Object.fromEntries(
+    input.form.models.map((m) => [
+      m.id.trim(),
+      { name: m.name.trim(), modalities: { input: [], output: [m.type] } },
+    ]),
+  )
 
   const seenHeaders = new Set<string>()
   const headers = input.form.headers.map((h) => {
@@ -154,5 +162,5 @@ let row = 0
 
 const nextRow = () => `row-${row++}`
 
-export const modelRow = (): ModelRow => ({ row: nextRow(), id: "", name: "", err: {} })
+export const modelRow = (): ModelRow => ({ row: nextRow(), id: "", name: "", type: "text", err: {} })
 export const headerRow = (): HeaderRow => ({ row: nextRow(), key: "", value: "", err: {} })

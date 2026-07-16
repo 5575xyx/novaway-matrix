@@ -51,6 +51,7 @@
 ## Task 0: Rebase And Baseline State
 
 **Files:**
+
 - No source edits
 - Verification target: git branch state
 
@@ -100,6 +101,7 @@ Expected: status shows the branch on top of `origin/dev`; second command prints 
 ## Task 1: Root Screen Containment
 
 **Files:**
+
 - Modify: `tests/brainstorm-server/server.test.js`
 - Modify: `skills/brainstorming/scripts/server.cjs`
 
@@ -110,38 +112,43 @@ In `tests/brainstorm-server/server.test.js`, add this helper after `waitForServe
 ```js
 class SkipTest extends Error {
   constructor(message) {
-    super(message);
-    this.skip = true;
+    super(message)
+    this.skip = true
   }
 }
 
 function skip(message) {
-  throw new SkipTest(message);
+  throw new SkipTest(message)
 }
 
 function serverStartedMessage(out) {
-  const line = out.trim().split('\n').find(l => l.includes('server-started'));
-  assert(line, 'server-started JSON should be present');
-  return JSON.parse(line);
+  const line = out
+    .trim()
+    .split("\n")
+    .find((l) => l.includes("server-started"))
+  assert(line, "server-started JSON should be present")
+  return JSON.parse(line)
 }
 
 function assertStartedOnExpectedPort(out) {
-  const msg = serverStartedMessage(out);
+  const msg = serverStartedMessage(out)
   assert.strictEqual(
     msg.port,
     TEST_PORT,
-    `server.test.js expected fixed port ${TEST_PORT}, got ${msg.port}; fixed-port tests must not run through fallback`
-  );
-  return msg;
+    `server.test.js expected fixed port ${TEST_PORT}, got ${msg.port}; fixed-port tests must not run through fallback`,
+  )
+  return msg
 }
 
 function ensureSymlinkWorks(target, link) {
   try {
-    fs.symlinkSync(target, link);
-    fs.unlinkSync(link);
+    fs.symlinkSync(target, link)
+    fs.unlinkSync(link)
   } catch (e) {
-    try { fs.unlinkSync(link); } catch (ignore) {}
-    skip(`symlink creation unavailable on this host: ${e.message}`);
+    try {
+      fs.unlinkSync(link)
+    } catch (ignore) {}
+    skip(`symlink creation unavailable on this host: ${e.message}`)
   }
 }
 ```
@@ -149,19 +156,19 @@ function ensureSymlinkWorks(target, link) {
 Then change the startup section from:
 
 ```js
-  const { stdout: initialStdout } = await waitForServer(server);
-  let passed = 0;
-  let failed = 0;
+const { stdout: initialStdout } = await waitForServer(server)
+let passed = 0
+let failed = 0
 ```
 
 to:
 
 ```js
-  const { stdout: initialStdout } = await waitForServer(server);
-  assertStartedOnExpectedPort(initialStdout);
-  let passed = 0;
-  let failed = 0;
-  let skipped = 0;
+const { stdout: initialStdout } = await waitForServer(server)
+assertStartedOnExpectedPort(initialStdout)
+let passed = 0
+let failed = 0
+let skipped = 0
 ```
 
 Change the `test()` helper catch block to handle skips:
@@ -183,7 +190,7 @@ Change the `test()` helper catch block to handle skips:
 Change the summary line to:
 
 ```js
-    console.log(`\n--- Results: ${passed} passed, ${failed} failed, ${skipped} skipped ---`);
+console.log(`\n--- Results: ${passed} passed, ${failed} failed, ${skipped} skipped ---`)
 ```
 
 - [ ] **Step 2: Make the existing `/files/*` symlink test skip-capable**
@@ -191,11 +198,13 @@ Change the summary line to:
 Replace the setup inside `does not serve symlinks that escape content dir via /files/` with:
 
 ```js
-      const target = path.join(STATE_DIR, 'server-info');
-      const link = path.join(CONTENT_DIR, 'linked-server-info.txt');
-      try { fs.unlinkSync(link); } catch (e) {}
-      ensureSymlinkWorks(target, link);
-      fs.symlinkSync(target, link);
+const target = path.join(STATE_DIR, "server-info")
+const link = path.join(CONTENT_DIR, "linked-server-info.txt")
+try {
+  fs.unlinkSync(link)
+} catch (e) {}
+ensureSymlinkWorks(target, link)
+fs.symlinkSync(target, link)
 ```
 
 Expected behavior: hosts that cannot create usable symlinks skip only this assertion.
@@ -205,44 +214,54 @@ Expected behavior: hosts that cannot create usable symlinks skip only this asser
 Add these tests after the existing `/files/*` hardlink test:
 
 ```js
-    await test('does not serve symlinks that escape content dir via root screen selection', async () => {
-      const target = path.join(STATE_DIR, 'server-info');
-      const link = path.join(CONTENT_DIR, 'root-linked-server-info.html');
-      try { fs.unlinkSync(link); } catch (e) {}
-      ensureSymlinkWorks(target, link);
-      fs.symlinkSync(target, link);
-      const future = new Date(Date.now() + 2000);
-      fs.utimesSync(target, future, future);
-      await sleep(300);
+await test("does not serve symlinks that escape content dir via root screen selection", async () => {
+  const target = path.join(STATE_DIR, "server-info")
+  const link = path.join(CONTENT_DIR, "root-linked-server-info.html")
+  try {
+    fs.unlinkSync(link)
+  } catch (e) {}
+  ensureSymlinkWorks(target, link)
+  fs.symlinkSync(target, link)
+  const future = new Date(Date.now() + 2000)
+  fs.utimesSync(target, future, future)
+  await sleep(300)
 
-      const res = await fetch(`http://localhost:${TEST_PORT}/`);
-      assert.strictEqual(res.status, 200);
-      assert(!res.body.includes('"type":"server-started"'), 'root screen must not serve state/server-info through a symlink');
-      assert(!res.body.includes('"state_dir"'), 'root screen must not include server-info body');
-    });
+  const res = await fetch(`http://localhost:${TEST_PORT}/`)
+  assert.strictEqual(res.status, 200)
+  assert(
+    !res.body.includes('"type":"server-started"'),
+    "root screen must not serve state/server-info through a symlink",
+  )
+  assert(!res.body.includes('"state_dir"'), "root screen must not include server-info body")
+})
 
-    await test('does not serve hard links that escape content dir via root screen selection', async () => {
-      const target = path.join(STATE_DIR, 'server-info');
-      const link = path.join(CONTENT_DIR, 'root-hard-linked-server-info.html');
-      try { fs.unlinkSync(link); } catch (e) {}
-      try {
-        fs.linkSync(target, link);
-      } catch (e) {
-        skip(`hardlink creation unavailable on this host: ${e.message}`);
-      }
-      const linkStat = fs.lstatSync(link);
-      if (linkStat.nlink <= 1) {
-        skip(`hardlink nlink did not expose multiple links: ${linkStat.nlink}`);
-      }
-      const future = new Date(Date.now() + 3000);
-      fs.utimesSync(target, future, future);
-      await sleep(300);
+await test("does not serve hard links that escape content dir via root screen selection", async () => {
+  const target = path.join(STATE_DIR, "server-info")
+  const link = path.join(CONTENT_DIR, "root-hard-linked-server-info.html")
+  try {
+    fs.unlinkSync(link)
+  } catch (e) {}
+  try {
+    fs.linkSync(target, link)
+  } catch (e) {
+    skip(`hardlink creation unavailable on this host: ${e.message}`)
+  }
+  const linkStat = fs.lstatSync(link)
+  if (linkStat.nlink <= 1) {
+    skip(`hardlink nlink did not expose multiple links: ${linkStat.nlink}`)
+  }
+  const future = new Date(Date.now() + 3000)
+  fs.utimesSync(target, future, future)
+  await sleep(300)
 
-      const res = await fetch(`http://localhost:${TEST_PORT}/`);
-      assert.strictEqual(res.status, 200);
-      assert(!res.body.includes('"type":"server-started"'), 'root screen must not serve state/server-info through a hardlink');
-      assert(!res.body.includes('"state_dir"'), 'root screen must not include server-info body');
-    });
+  const res = await fetch(`http://localhost:${TEST_PORT}/`)
+  assert.strictEqual(res.status, 200)
+  assert(
+    !res.body.includes('"type":"server-started"'),
+    "root screen must not serve state/server-info through a hardlink",
+  )
+  assert(!res.body.includes('"state_dir"'), "root screen must not include server-info body")
+})
 ```
 
 - [ ] **Step 4: Verify RED**
@@ -262,16 +281,17 @@ In `skills/brainstorming/scripts/server.cjs`, replace `getNewestScreen()` with:
 
 ```js
 function getNewestScreen() {
-  const files = fs.readdirSync(CONTENT_DIR)
-    .filter(f => !f.startsWith('.') && f.endsWith('.html'))
-    .map(f => {
-      const fp = path.join(CONTENT_DIR, f);
-      if (!isRegularFileInsideContentDir(fp)) return null;
-      return { path: fp, mtime: fs.statSync(fp).mtime.getTime() };
+  const files = fs
+    .readdirSync(CONTENT_DIR)
+    .filter((f) => !f.startsWith(".") && f.endsWith(".html"))
+    .map((f) => {
+      const fp = path.join(CONTENT_DIR, f)
+      if (!isRegularFileInsideContentDir(fp)) return null
+      return { path: fp, mtime: fs.statSync(fp).mtime.getTime() }
     })
     .filter(Boolean)
-    .sort((a, b) => b.mtime - a.mtime);
-  return files.length > 0 ? files[0].path : null;
+    .sort((a, b) => b.mtime - a.mtime)
+  return files.length > 0 ? files[0].path : null
 }
 ```
 
@@ -298,6 +318,7 @@ git commit -m "Harden root screen containment"
 ## Task 2: Fallback Token Isolation
 
 **Files:**
+
 - Modify: `tests/brainstorm-server/lifecycle.test.js`
 - Modify: `skills/brainstorming/scripts/server.cjs`
 
@@ -307,15 +328,15 @@ In `tests/brainstorm-server/lifecycle.test.js`, add this helper after `openCaptu
 
 ```js
 function httpStatus(port, key) {
-  return new Promise(resolve => {
-    const pathWithKey = key ? '/?key=' + encodeURIComponent(key) : '/';
-    require('http')
-      .get({ hostname: '127.0.0.1', port, path: pathWithKey }, res => {
-        res.resume();
-        resolve(res.statusCode);
+  return new Promise((resolve) => {
+    const pathWithKey = key ? "/?key=" + encodeURIComponent(key) : "/"
+    require("http")
+      .get({ hostname: "127.0.0.1", port, path: pathWithKey }, (res) => {
+        res.resume()
+        resolve(res.statusCode)
       })
-      .on('error', () => resolve(0));
-  });
+      .on("error", () => resolve(0))
+  })
 }
 ```
 
@@ -324,56 +345,59 @@ function httpStatus(port, key) {
 Add this test after `falls back to a random port when the preferred port is taken`:
 
 ```js
-  await test('fallback with persisted token generates a fresh unpersisted key', async () => {
-    const dir = fs.mkdtempSync('/tmp/bs-port-');
-    const portFile = path.join(dir, '.last-port');
-    const tokenFile = path.join(dir, '.last-token');
-    const preferredToken = 'abababababababababababababababab';
-    let a = null, b = null;
+await test("fallback with persisted token generates a fresh unpersisted key", async () => {
+  const dir = fs.mkdtempSync("/tmp/bs-port-")
+  const portFile = path.join(dir, ".last-port")
+  const tokenFile = path.join(dir, ".last-token")
+  const preferredToken = "abababababababababababababababab"
+  let a = null,
+    b = null
 
-    try {
-      a = spawn('node', [SERVER], {
-        env: {
-          ...process.env,
-          BRAINSTORM_DIR: path.join(dir, 'a'),
-          BRAINSTORM_PORT: 3422,
-          BRAINSTORM_TOKEN: preferredToken,
-          BRAINSTORM_LIFECYCLE_CHECK_MS: 100000
-        }
-      });
-      let outA = ''; a.stdout.on('data', d => outA += d.toString());
-      for (let i = 0; i < 60 && !outA.includes('server-started'); i++) await sleep(50);
-      assert(outA.includes('server-started'), 'preferred-port server should start');
+  try {
+    a = spawn("node", [SERVER], {
+      env: {
+        ...process.env,
+        BRAINSTORM_DIR: path.join(dir, "a"),
+        BRAINSTORM_PORT: 3422,
+        BRAINSTORM_TOKEN: preferredToken,
+        BRAINSTORM_LIFECYCLE_CHECK_MS: 100000,
+      },
+    })
+    let outA = ""
+    a.stdout.on("data", (d) => (outA += d.toString()))
+    for (let i = 0; i < 60 && !outA.includes("server-started"); i++) await sleep(50)
+    assert(outA.includes("server-started"), "preferred-port server should start")
 
-      fs.writeFileSync(portFile, '3422');
-      fs.writeFileSync(tokenFile, preferredToken, { mode: 0o600 });
+    fs.writeFileSync(portFile, "3422")
+    fs.writeFileSync(tokenFile, preferredToken, { mode: 0o600 })
 
-      b = spawn('node', [SERVER], {
-        env: {
-          ...process.env,
-          BRAINSTORM_DIR: path.join(dir, 'b'),
-          BRAINSTORM_PORT_FILE: portFile,
-          BRAINSTORM_TOKEN_FILE: tokenFile,
-          BRAINSTORM_LIFECYCLE_CHECK_MS: 100000
-        }
-      });
-      let outB = ''; b.stdout.on('data', d => outB += d.toString());
-      for (let i = 0; i < 60 && !outB.includes('server-started'); i++) await sleep(50);
-      const infoB = firstServerStarted(outB);
-      const fallbackKey = new URL(infoB.url).searchParams.get('key');
-      const persistedAfter = fs.readFileSync(tokenFile, 'utf8').trim();
-      const originalStatus = await httpStatus(3422, fallbackKey);
+    b = spawn("node", [SERVER], {
+      env: {
+        ...process.env,
+        BRAINSTORM_DIR: path.join(dir, "b"),
+        BRAINSTORM_PORT_FILE: portFile,
+        BRAINSTORM_TOKEN_FILE: tokenFile,
+        BRAINSTORM_LIFECYCLE_CHECK_MS: 100000,
+      },
+    })
+    let outB = ""
+    b.stdout.on("data", (d) => (outB += d.toString()))
+    for (let i = 0; i < 60 && !outB.includes("server-started"); i++) await sleep(50)
+    const infoB = firstServerStarted(outB)
+    const fallbackKey = new URL(infoB.url).searchParams.get("key")
+    const persistedAfter = fs.readFileSync(tokenFile, "utf8").trim()
+    const originalStatus = await httpStatus(3422, fallbackKey)
 
-      assert.notStrictEqual(infoB.port, 3422, 'fallback should use a different port');
-      assert.notStrictEqual(fallbackKey, preferredToken, 'fallback must not reuse persisted key');
-      assert.strictEqual(persistedAfter, preferredToken, 'fallback must not overwrite .last-token');
-      assert.strictEqual(originalStatus, 403, 'fallback key must not authenticate to original server');
-    } finally {
-      await killAndWait(a);
-      await killAndWait(b);
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
-  });
+    assert.notStrictEqual(infoB.port, 3422, "fallback should use a different port")
+    assert.notStrictEqual(fallbackKey, preferredToken, "fallback must not reuse persisted key")
+    assert.strictEqual(persistedAfter, preferredToken, "fallback must not overwrite .last-token")
+    assert.strictEqual(originalStatus, 403, "fallback key must not authenticate to original server")
+  } finally {
+    await killAndWait(a)
+    await killAndWait(b)
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
 ```
 
 - [ ] **Step 3: Add RED test for explicit-token fallback fail-closed**
@@ -381,52 +405,55 @@ Add this test after `falls back to a random port when the preferred port is take
 Add this test immediately after the persisted-token fallback test:
 
 ```js
-  await test('fallback with explicit BRAINSTORM_TOKEN fails closed', async () => {
-    const dir = fs.mkdtempSync('/tmp/bs-port-');
-    const portFile = path.join(dir, '.last-port');
-    const explicitToken = 'cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd';
-    let a = null, b = null;
+await test("fallback with explicit BRAINSTORM_TOKEN fails closed", async () => {
+  const dir = fs.mkdtempSync("/tmp/bs-port-")
+  const portFile = path.join(dir, ".last-port")
+  const explicitToken = "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+  let a = null,
+    b = null
 
-    try {
-      a = spawn('node', [SERVER], {
-        env: {
-          ...process.env,
-          BRAINSTORM_DIR: path.join(dir, 'a'),
-          BRAINSTORM_PORT: 3423,
-          BRAINSTORM_TOKEN: explicitToken,
-          BRAINSTORM_LIFECYCLE_CHECK_MS: 100000
-        }
-      });
-      let outA = ''; a.stdout.on('data', d => outA += d.toString());
-      for (let i = 0; i < 60 && !outA.includes('server-started'); i++) await sleep(50);
-      assert(outA.includes('server-started'), 'preferred-port server should start');
+  try {
+    a = spawn("node", [SERVER], {
+      env: {
+        ...process.env,
+        BRAINSTORM_DIR: path.join(dir, "a"),
+        BRAINSTORM_PORT: 3423,
+        BRAINSTORM_TOKEN: explicitToken,
+        BRAINSTORM_LIFECYCLE_CHECK_MS: 100000,
+      },
+    })
+    let outA = ""
+    a.stdout.on("data", (d) => (outA += d.toString()))
+    for (let i = 0; i < 60 && !outA.includes("server-started"); i++) await sleep(50)
+    assert(outA.includes("server-started"), "preferred-port server should start")
 
-      fs.writeFileSync(portFile, '3423');
-      b = spawn('node', [SERVER], {
-        env: {
-          ...process.env,
-          BRAINSTORM_DIR: path.join(dir, 'b'),
-          BRAINSTORM_PORT_FILE: portFile,
-          BRAINSTORM_TOKEN: explicitToken,
-          BRAINSTORM_LIFECYCLE_CHECK_MS: 100000
-        }
-      });
-      let outB = ''; let errB = '';
-      b.stdout.on('data', d => outB += d.toString());
-      b.stderr.on('data', d => errB += d.toString());
-      for (let i = 0; i < 60 && !outB.includes('server-started') && b.exitCode === null; i++) await sleep(50);
-      const exited = await waitForExit(b, 1500);
+    fs.writeFileSync(portFile, "3423")
+    b = spawn("node", [SERVER], {
+      env: {
+        ...process.env,
+        BRAINSTORM_DIR: path.join(dir, "b"),
+        BRAINSTORM_PORT_FILE: portFile,
+        BRAINSTORM_TOKEN: explicitToken,
+        BRAINSTORM_LIFECYCLE_CHECK_MS: 100000,
+      },
+    })
+    let outB = ""
+    let errB = ""
+    b.stdout.on("data", (d) => (outB += d.toString()))
+    b.stderr.on("data", (d) => (errB += d.toString()))
+    for (let i = 0; i < 60 && !outB.includes("server-started") && b.exitCode === null; i++) await sleep(50)
+    const exited = await waitForExit(b, 1500)
 
-      assert(exited, 'explicit-token fallback process should exit');
-      assert.notStrictEqual(b.exitCode, 0, 'explicit-token fallback should fail non-zero');
-      assert(!outB.includes('server-started'), 'explicit-token fallback must not start on a random port');
-      assert(/BRAINSTORM_TOKEN/.test(errB), `stderr should explain explicit token fallback refusal, got: ${errB}`);
-    } finally {
-      await killAndWait(a);
-      await killAndWait(b);
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
-  });
+    assert(exited, "explicit-token fallback process should exit")
+    assert.notStrictEqual(b.exitCode, 0, "explicit-token fallback should fail non-zero")
+    assert(!outB.includes("server-started"), "explicit-token fallback must not start on a random port")
+    assert(/BRAINSTORM_TOKEN/.test(errB), `stderr should explain explicit token fallback refusal, got: ${errB}`)
+  } finally {
+    await killAndWait(a)
+    await killAndWait(b)
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
 ```
 
 - [ ] **Step 4: Verify RED**
@@ -446,25 +473,27 @@ In `skills/brainstorming/scripts/server.cjs`, replace the current `const TOKEN =
 
 ```js
 function generateToken() {
-  return crypto.randomBytes(32).toString('hex');
+  return crypto.randomBytes(32).toString("hex")
 }
 
 function initialToken() {
   if (process.env.BRAINSTORM_TOKEN) {
-    return { value: process.env.BRAINSTORM_TOKEN, source: 'env' };
+    return { value: process.env.BRAINSTORM_TOKEN, source: "env" }
   }
   if (TOKEN_FILE) {
     try {
-      const t = fs.readFileSync(TOKEN_FILE, 'utf-8').trim();
-      if (/^[0-9a-f]{32,}$/i.test(t)) return { value: t, source: 'file' };
-    } catch (e) { /* no prior token recorded */ }
+      const t = fs.readFileSync(TOKEN_FILE, "utf-8").trim()
+      if (/^[0-9a-f]{32,}$/i.test(t)) return { value: t, source: "file" }
+    } catch (e) {
+      /* no prior token recorded */
+    }
   }
-  return { value: generateToken(), source: 'generated' };
+  return { value: generateToken(), source: "generated" }
 }
 
-const tokenInfo = initialToken();
-let TOKEN = tokenInfo.value;
-let tokenSource = tokenInfo.source;
+const tokenInfo = initialToken()
+let TOKEN = tokenInfo.value
+let tokenSource = tokenInfo.source
 ```
 
 - [ ] **Step 6: Rotate or fail closed on EADDRINUSE fallback**
@@ -510,6 +539,7 @@ git commit -m "Isolate companion fallback tokens"
 ## Task 3: Stop-Server Instance-Id Ownership
 
 **Files:**
+
 - Modify: `tests/brainstorm-server/stop-server.test.sh`
 - Modify: `skills/brainstorming/scripts/start-server.sh`
 - Modify: `skills/brainstorming/scripts/stop-server.sh`
@@ -777,6 +807,7 @@ git commit -m "Harden companion stop ownership proof"
 ## Task 4: Platform And Fixed-Port Test Hardening
 
 **Files:**
+
 - Modify: `tests/brainstorm-server/auth.test.js`
 - Modify: `tests/brainstorm-server/start-server.test.sh`
 - Modify: `tests/brainstorm-server/windows-lifecycle.test.sh`
@@ -787,26 +818,29 @@ In `tests/brainstorm-server/auth.test.js`, add this helper after `waitForServer(
 
 ```js
 function serverStartedMessage(out) {
-  const line = out.trim().split('\n').find(l => l.includes('server-started'));
-  assert(line, 'server-started JSON should be present');
-  return JSON.parse(line);
+  const line = out
+    .trim()
+    .split("\n")
+    .find((l) => l.includes("server-started"))
+  assert(line, "server-started JSON should be present")
+  return JSON.parse(line)
 }
 
 function assertStartedOnExpectedPort(out) {
-  const msg = serverStartedMessage(out);
+  const msg = serverStartedMessage(out)
   assert.strictEqual(
     msg.port,
     TEST_PORT,
-    `auth.test.js expected fixed port ${TEST_PORT}, got ${msg.port}; fixed-port tests must not run through fallback`
-  );
-  return msg;
+    `auth.test.js expected fixed port ${TEST_PORT}, got ${msg.port}; fixed-port tests must not run through fallback`,
+  )
+  return msg
 }
 ```
 
 After `const { stdout: initialStdout } = await waitForServer(server);`, add:
 
 ```js
-  assertStartedOnExpectedPort(initialStdout);
+assertStartedOnExpectedPort(initialStdout)
 ```
 
 - [ ] **Step 2: Verify auth fixed-port guard**
@@ -920,6 +954,7 @@ git commit -m "Harden companion platform tests"
 ## Task 5: Docs And PR Consistency
 
 **Files:**
+
 - Modify: `skills/brainstorming/visual-companion.md`
 - Modify: `docs/PowersNexus/plans/2026-06-09-visual-companion-issues.md`
 - Update: PR #1720 body through `gh pr edit`
@@ -1000,6 +1035,7 @@ git commit -m "Align visual companion docs with shipped scope"
 ## Task 6: Full Verification And Evidence
 
 **Files:**
+
 - No required source edits
 - Update: PR #1720 body
 

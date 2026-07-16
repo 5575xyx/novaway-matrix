@@ -397,16 +397,10 @@ export const McpLogoutCommand = effectCmd({
 })
 
 async function resolveConfigPath(baseDir: string, global = false) {
-  const candidates = [
-    path.join(baseDir, "novaway.jsonc"),
-    path.join(baseDir, "novaway.json"),
-  ]
+  const candidates = [path.join(baseDir, "novaway.jsonc"), path.join(baseDir, "novaway.json")]
 
   if (!global) {
-    candidates.push(
-      path.join(baseDir, ".novaway", "novaway.jsonc"),
-      path.join(baseDir, ".novaway", "novaway.json"),
-    )
+    candidates.push(path.join(baseDir, ".novaway", "novaway.jsonc"), path.join(baseDir, ".novaway", "novaway.json"))
   }
 
   for (const candidate of candidates) {

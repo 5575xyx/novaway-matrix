@@ -63,6 +63,7 @@ import { SyncEvent } from "@/sync"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { Memory } from "@/memory/service"
+import { Auth } from "@/auth"
 
 void Log.init({ print: false })
 
@@ -77,6 +78,7 @@ const mcp = Layer.succeed(
     add: () => Effect.succeed({ status: { status: "disabled" as const } }),
     connect: () => Effect.void,
     disconnect: () => Effect.void,
+    callTool: () => Effect.die("unexpected MCP callTool"),
     getPrompt: () => Effect.succeed(undefined),
     readResource: () => Effect.succeed(undefined),
     startAuth: () => Effect.die("unexpected MCP auth"),
@@ -132,6 +134,7 @@ function makeHttp() {
     status,
     SyncEvent.defaultLayer,
     EventV2Bridge.defaultLayer,
+    Auth.defaultLayer,
   ).pipe(Layer.provideMerge(infra))
   const question = Question.layer.pipe(Layer.provideMerge(deps))
   const todo = Todo.layer.pipe(Layer.provideMerge(deps))

@@ -7,6 +7,7 @@
 ## Architecture Decisions
 
 ### Decision: {{DECISION_NAME}}
+
 {{DECISION_EXPLANATION}}
 
 ## Data Flow

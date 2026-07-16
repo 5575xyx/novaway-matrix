@@ -19,6 +19,7 @@ This chunk adds the spec document reviewer to the brainstorming skill.
 ### Task 1: Create Spec Document Reviewer Prompt Template
 
 **Files:**
+
 - Create: `skills/brainstorming/spec-document-reviewer-prompt.md`
 
 - [ ] **Step 1:** Create the reviewer prompt template file
@@ -31,12 +32,12 @@ Use this template when dispatching a spec document reviewer subagent.
 **Purpose:** Verify the spec is complete, consistent, and ready for implementation planning.
 
 **Dispatch after:** Spec document is written to docs/PowersNexus/specs/
-
 ```
+
 Task tool (general-purpose):
-  description: "Review spec document"
-  prompt: |
-    You are a spec document reviewer. Verify this spec is complete and ready for planning.
+description: "Review spec document"
+prompt: |
+You are a spec document reviewer. Verify this spec is complete and ready for planning.
 
     **Spec to review:** [SPEC_FILE_PATH]
 
@@ -68,6 +69,7 @@ Task tool (general-purpose):
 
     **Recommendations (advisory):**
     - [suggestions that don't block approval]
+
 ```
 
 **Reviewer returns:** Status, Issues (if any), Recommendations
@@ -90,6 +92,7 @@ git commit -m "feat: add spec document reviewer prompt template"
 ### Task 2: Add Review Loop to Brainstorming Skill
 
 **Files:**
+
 - Modify: `skills/brainstorming/SKILL.md`
 
 - [ ] **Step 1:** Read the current brainstorming skill
@@ -103,6 +106,7 @@ Find the "After the Design" section and add a new "Spec Review Loop" section aft
 ```markdown
 **Spec Review Loop:**
 After writing the spec document:
+
 1. Dispatch spec-document-reviewer subagent (see spec-document-reviewer-prompt.md)
 2. If ❌ Issues Found:
    - Fix the issues in the spec document
@@ -111,6 +115,7 @@ After writing the spec document:
 3. If ✅ Approved: proceed to implementation setup
 
 **Review loop guidance:**
+
 - Same agent that wrote the spec fixes it (preserves context)
 - If loop exceeds 5 iterations, surface to human for guidance
 - Reviewers are advisory - explain disagreements if you believe feedback is incorrect
@@ -137,6 +142,7 @@ This chunk adds the plan document reviewer to the writing-plans skill.
 ### Task 3: Create Plan Document Reviewer Prompt Template
 
 **Files:**
+
 - Create: `skills/writing-plans/plan-document-reviewer-prompt.md`
 
 - [ ] **Step 1:** Create the reviewer prompt template file
@@ -149,12 +155,12 @@ Use this template when dispatching a plan document reviewer subagent.
 **Purpose:** Verify the plan chunk is complete, matches the spec, and has proper task decomposition.
 
 **Dispatch after:** Each plan chunk is written
-
 ```
+
 Task tool (general-purpose):
-  description: "Review plan chunk N"
-  prompt: |
-    You are a plan document reviewer. Verify this plan chunk is complete and ready for implementation.
+description: "Review plan chunk N"
+prompt: |
+You are a plan document reviewer. Verify this plan chunk is complete and ready for implementation.
 
     **Plan chunk to review:** [PLAN_FILE_PATH] - Chunk N only
     **Spec for reference:** [SPEC_FILE_PATH]
@@ -188,6 +194,7 @@ Task tool (general-purpose):
 
     **Recommendations (advisory):**
     - [suggestions that don't block approval]
+
 ```
 
 **Reviewer returns:** Status, Issues (if any), Recommendations
@@ -210,6 +217,7 @@ git commit -m "feat: add plan document reviewer prompt template"
 ### Task 4: Add Review Loop to Writing-Plans Skill
 
 **Files:**
+
 - Modify: `skills/writing-plans/SKILL.md`
 
 - [ ] **Step 1:** Read current skill file
@@ -245,7 +253,7 @@ Change the Task Structure section to show checkbox syntax:
 
 - [ ] **Step 1:** Write the failing test
   - File: `tests/path/test.py`
-  ...
+    ...
 ```
 
 - [ ] **Step 4:** Verify the review loop section was added
@@ -274,6 +282,7 @@ This chunk updates the plan document header template to reference the new checkb
 ### Task 5: Update Plan Header Template in Writing-Plans Skill
 
 **Files:**
+
 - Modify: `skills/writing-plans/SKILL.md`
 
 - [ ] **Step 1:** Read current plan header template

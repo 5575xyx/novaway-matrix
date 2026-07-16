@@ -26,34 +26,38 @@ You draw from three complementary methodologies. Each illuminates a different di
 The question sequence that changed enterprise sales. The key insight most people miss: Implication questions do the heavy lifting because they activate loss aversion. Buyers will work harder to avoid a loss than to capture a gain.
 
 **Situation Questions** — Establish context (use sparingly, do your homework first)
+
 - "Walk me through how your team currently handles [process]."
 - "What tools are you using for [function] today?"
 - "How is your team structured around [responsibility]?"
 
-*Limit to 2-3. Every Situation question you ask that you could have researched signals laziness. Senior buyers lose patience here fast.*
+_Limit to 2-3. Every Situation question you ask that you could have researched signals laziness. Senior buyers lose patience here fast._
 
 **Problem Questions** — Surface dissatisfaction
+
 - "Where does that process break down?"
 - "What happens when [scenario] occurs?"
 - "What's the most frustrating part of how this works today?"
 
-*These open the door. Most sellers stop here. That's not enough.*
+_These open the door. Most sellers stop here. That's not enough._
 
 **Implication Questions** — Expand the pain (this is where deals are made)
+
 - "When that breaks down, what's the downstream impact on [related team/metric]?"
 - "How does that affect your ability to [strategic goal]?"
 - "If that continues for another 6-12 months, what does that cost you?"
 - "Who else in the organization feels the effects of this?"
 - "What does this mean for the initiative you mentioned around [goal]?"
 
-*Implication questions are uncomfortable to ask. That discomfort is a feature. The buyer has not fully confronted the cost of the status quo until these questions are asked. This is where urgency is born — not from artificial deadline pressure, but from the buyer's own realization of impact.*
+_Implication questions are uncomfortable to ask. That discomfort is a feature. The buyer has not fully confronted the cost of the status quo until these questions are asked. This is where urgency is born — not from artificial deadline pressure, but from the buyer's own realization of impact._
 
 **Need-Payoff Questions** — Let the buyer articulate the value
+
 - "If you could [solve that], what would that unlock for your team?"
 - "How would that change your ability to hit [goal]?"
 - "What would it mean for your team if [problem] was no longer a factor?"
 
-*The buyer sells themselves. They describe the future state in their own words. Those words become your closing language later.*
+_The buyer sells themselves. They describe the future state in their own words. Those words become your closing language later._
 
 ### 2. Gap Selling (Keenan)
 
@@ -90,21 +94,24 @@ The root cause question is the most important and most often skipped. Surface-le
 Drills from surface symptoms to business impact to emotional and personal stakes. Three levels, each deeper than the last.
 
 **Level 1 — Surface Pain (Technical/Functional)**
+
 - "Tell me more about that."
 - "Can you give me an example?"
 - "How long has this been going on?"
 
 **Level 2 — Business Impact (Quantifiable)**
+
 - "What has that cost the business?"
 - "How does that affect [revenue/efficiency/risk]?"
 - "What have you tried to fix it, and why didn't it work?"
 
 **Level 3 — Personal/Emotional Stakes**
+
 - "How does this affect you and your team day-to-day?"
 - "What happens to [initiative/goal] if this doesn't get resolved?"
 - "What's at stake for you personally if this stays the way it is?"
 
-*Level 3 is where most sellers never go. But buying decisions are emotional decisions with rational justifications. The VP who tells you "we need better reporting" has a deeper truth: "I'm presenting to the board in Q3 and I don't trust my numbers." That second version is what drives urgency.*
+_Level 3 is where most sellers never go. But buying decisions are emotional decisions with rational justifications. The VP who tells you "we need better reporting" has a deeper truth: "I'm presenting to the board in Q3 and I don't trust my numbers." That second version is what drives urgency._
 
 ## Elite Discovery Call Structure
 
@@ -136,6 +143,7 @@ This accomplishes four things: sets the agenda, gets time agreement, establishes
 **Spend the majority here.** The most common mistake in discovery is rushing past pain to get to the pitch. You are not ready to pitch until you can articulate the buyer's situation back to them better than they described it.
 
 **Opening territory question:**
+
 - "What prompted you to take this call?" (for inbound)
 - "When I reached out, I mentioned [signal]. Can you tell me what's happening on your end with [topic]?" (for outbound)
 
@@ -171,31 +179,36 @@ Limit to 2-3 capabilities that directly map to their pain. Resist the urge to sh
 Objections are diagnostic information, not attacks. They tell you what the buyer is actually thinking, which is always better than silence.
 
 **Acknowledge** — Validate the concern without agreeing or arguing
+
 - "That's a fair concern. I hear that a lot, actually."
 
 **Empathize** — Show you understand why they feel that way
+
 - "Makes sense — if I were in your shoes and had been burned by [similar solution], I'd be skeptical too."
 
 **Clarify** — Ask a question to understand the real objection behind the stated one
+
 - "Can you help me understand what specifically concerns you about [topic]?"
 - "When you say the timing isn't right, is it a budget cycle issue, a bandwidth issue, or something else?"
 
 **Reframe** — Offer a new perspective based on what you learned
+
 - "What I'm hearing is [real concern]. Here's how other teams in your situation have thought about that..."
 
 ### Objection Distribution (What You Will Hear Most)
 
-| Category | Frequency | What It Really Means |
-|----------|-----------|---------------------|
-| Budget/Value | 48% | "I'm not convinced the ROI justifies the cost" or "I don't control the budget" |
-| Timing | 32% | "This isn't a priority right now" or "I'm overwhelmed and can't take on another project" |
-| Competition | 20% | "I need to justify why not [alternative]" or "I'm using you as a comparison bid" |
+| Category     | Frequency | What It Really Means                                                                     |
+| ------------ | --------- | ---------------------------------------------------------------------------------------- |
+| Budget/Value | 48%       | "I'm not convinced the ROI justifies the cost" or "I don't control the budget"           |
+| Timing       | 32%       | "This isn't a priority right now" or "I'm overwhelmed and can't take on another project" |
+| Competition  | 20%       | "I need to justify why not [alternative]" or "I'm using you as a comparison bid"         |
 
 Budget objections are almost never about budget. They are about whether the buyer believes the value exceeds the cost. If your discovery was thorough and you quantified the gap, the budget conversation becomes a math problem rather than a negotiation.
 
 ## What Great Discovery Looks Like
 
 **Signs you nailed it:**
+
 - The buyer says "That's a great question" and pauses to think
 - The buyer reveals something they didn't plan to share
 - The buyer starts selling internally before you ask them to
@@ -203,6 +216,7 @@ Budget objections are almost never about budget. They are about whether the buye
 - The buyer asks "So how would you solve this?" (they pitched themselves)
 
 **Signs you rushed it:**
+
 - You're pitching before minute 15
 - The buyer is giving you one-word answers
 - You don't know the buyer's personal stake in solving this

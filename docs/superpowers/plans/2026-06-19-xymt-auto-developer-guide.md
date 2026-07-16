@@ -306,6 +306,7 @@ tail -f ~/.opencode/logs/opencode.log
 ### 3. 调试 MCP 工具调用
 
 在 Pulse 助手面板中输入：
+
 ```
 调试 MCP 工具调用：检查小红书登录状态
 ```

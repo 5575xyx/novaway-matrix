@@ -13,12 +13,14 @@
 ### Task 1: Pi package manifest and extension tests
 
 **Files:**
+
 - Modify: `package.json`
 - Create: `tests/pi/test-pi-extension.mjs`
 
 - [ ] **Step 1: Write failing package/extension tests**
 
 Create `tests/pi/test-pi-extension.mjs` with tests that import `extensions/PowersNexus.ts`, register fake Pi handlers, and assert:
+
 - root `package.json` has `keywords` containing `pi-package`
 - root `package.json` has `pi.skills: ["./skills"]`
 - root `package.json` has `pi.extensions: ["./extensions/PowersNexus.ts"]`
@@ -41,6 +43,7 @@ Update `package.json` with `description`, `keywords`, `pi.extensions`, and `pi.s
 - [ ] **Step 4: Implement `extensions/PowersNexus.ts`**
 
 Create a zero-runtime-dependency extension that:
+
 - locates the package root from `import.meta.url`
 - reads `skills/using-PowersNexus/SKILL.md`
 - strips YAML frontmatter
@@ -60,6 +63,7 @@ Expected: PASS.
 ### Task 2: Pi tool mapping reference
 
 **Files:**
+
 - Create: `skills/using-PowersNexus/references/pi-tools.md`
 - Modify: `tests/pi/test-pi-extension.mjs`
 
@@ -86,6 +90,7 @@ Expected: PASS.
 ### Task 3: Drill Pi backend and session log normalization
 
 **Files:**
+
 - Create: `evals/backends/pi.yaml`
 - Modify: `evals/drill/backend.py`
 - Modify: `evals/drill/engine.py`
@@ -96,6 +101,7 @@ Expected: PASS.
 - [ ] **Step 1: Write failing backend/normalizer tests**
 
 Add pytest coverage for:
+
 - `load_backend("pi")` returns `family == "pi"`
 - Pi backend command starts with `pi` and includes `-e ${PowersNexus_ROOT}`
 - `_resolve_log_dir()` for Pi points under `~/.pi/agent/sessions`
@@ -125,6 +131,7 @@ Expected: PASS.
 ### Task 4: Documentation and full verification
 
 **Files:**
+
 - Modify: `README.md`
 - Modify: `evals/README.md`
 
@@ -135,6 +142,7 @@ Add Pi to README quickstart/install list and add backend entry/usage to `evals/R
 - [ ] **Step 2: Run verification**
 
 Run:
+
 ```bash
 node --experimental-strip-types --test tests/pi/test-pi-extension.mjs
 uv run pytest evals/tests/test_backend.py evals/tests/test_setup.py evals/tests/test_normalizer.py -q

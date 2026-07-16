@@ -13,52 +13,58 @@
  *   - 页面渲染 404（HTTP 200 但内容被屏蔽）
  */
 
-(function () {
-  "use strict";
+;(function () {
+  "use strict"
 
-  const BLOCKED = new Set([404, 461, 403, 999]);
-  const XHS_API = /xiaohongshu\.com\/api\//;
+  const BLOCKED = new Set([404, 461, 403, 999])
+  const XHS_API = /xiaohongshu\.com\/api\//
 
-  const RESP_BODY_MAX = 4096;
+  const RESP_BODY_MAX = 4096
 
   // ── Cookie 快照 ──────────────────────────────────────────────
 
   function captureCookies() {
-    const map = {};
+    const map = {}
     for (const part of document.cookie.split(";")) {
-      const idx = part.indexOf("=");
-      if (idx < 0) continue;
-      const k = part.slice(0, idx).trim();
-      const v = part.slice(idx + 1).trim();
-      map[k] = v;
+      const idx = part.indexOf("=")
+      if (idx < 0) continue
+      const k = part.slice(0, idx).trim()
+      const v = part.slice(idx + 1).trim()
+      map[k] = v
     }
     return {
-      has_a1:          "a1" in map,
+      has_a1: "a1" in map,
       has_web_session: "web_session" in map,
-      has_webId:       "webId" in map,
-      has_gid:         "gid" in map,
+      has_webId: "webId" in map,
+      has_gid: "gid" in map,
       // 部分预览（不暴露完整 token）
-      a1_preview:          map["a1"]          ? map["a1"].slice(0, 12)          + "…" : null,
+      a1_preview: map["a1"] ? map["a1"].slice(0, 12) + "…" : null,
       web_session_preview: map["web_session"] ? map["web_session"].slice(0, 10) + "…" : null,
-    };
+    }
   }
 
   // ── URL 解析 ─────────────────────────────────────────────────
 
   function urlParam(url, key) {
-    try { return new URL(url).searchParams.get(key); } catch (_) { return null; }
+    try {
+      return new URL(url).searchParams.get(key)
+    } catch (_) {
+      return null
+    }
   }
 
-  function isApiUrl(url) { return XHS_API.test(url); }
+  function isApiUrl(url) {
+    return XHS_API.test(url)
+  }
 
   // ── 根因分析 ─────────────────────────────────────────────────
 
   function diagnose(status, url, headers, cookies) {
-    const xsecToken  = urlParam(url, "xsec_token");
-    const xsecSource = urlParam(url, "xsec_source");
-    const hasXs  = !!(headers["xs"] || headers["X-S"] || headers["x-s"]);
-    const hasXt  = !!(headers["xt"] || headers["X-T"] || headers["x-t"]);
-    const isPage = !isApiUrl(url);
+    const xsecToken = urlParam(url, "xsec_token")
+    const xsecSource = urlParam(url, "xsec_source")
+    const hasXs = !!(headers["xs"] || headers["X-S"] || headers["x-s"])
+    const hasXt = !!(headers["xt"] || headers["X-T"] || headers["x-t"])
+    const isPage = !isApiUrl(url)
 
     // ── 999：系统级封禁 ──────────────────────────────────────
     if (status === 999) {
@@ -69,9 +75,8 @@
           "小红书用 HTTP 999 标记被彻底封禁的账号或 IP 段，" +
           "所有请求无论携带什么凭证均被拒绝。需更换 IP 或重新注册账号。",
         confidence: "high",
-        how_xhs_decides:
-          "服务端在路由层维护封禁名单（IP CIDR + userId），命中即返回 999，不经业务逻辑。",
-      };
+        how_xhs_decides: "服务端在路由层维护封禁名单（IP CIDR + userId），命中即返回 999，不经业务逻辑。",
+      }
     }
 
     // ── 403：WAF / 防火墙 ────────────────────────────────────
@@ -87,7 +92,7 @@
         how_xhs_decides:
           "WAF 对每个请求计算特征向量：IP 信誉 × UA 合规性 × 请求间隔 × 头部完整性。" +
           "超过风险阈值时直接返回 403，不转发给后端。",
-      };
+      }
     }
 
     // ── 461：签名问题 ────────────────────────────────────────
@@ -104,7 +109,7 @@
             "服务端在 API 网关层检查 xs header 是否存在。" +
             "xs = HMAC(url_path + body_hash + timestamp, device_key)，" +
             "缺失 → 461，存在但验签失败 → 也是 461（但 detail 不同）。",
-        };
+        }
       }
       return {
         root_cause: `xs 签名存在但验证失败${hasXt ? "" : "（xt 时间戳头也缺失）"}`,
@@ -119,7 +124,7 @@
         how_xhs_decides:
           "服务端用从 a1 cookie 推导的 device_key 重新计算 HMAC，" +
           "对比请求中的 xs 值；同时校验 xt 时间戳与服务器时钟差是否在容忍窗口内。",
-      };
+      }
     }
 
     // ── 404：多种场景 ────────────────────────────────────────
@@ -138,7 +143,7 @@
           how_xhs_decides:
             "服务端对所有笔记详情请求校验 xsec_token 签名；" +
             "token = HMAC(noteId + sessionContext, serverKey)，缺失直接 404。",
-        };
+        }
       }
       if (!cookies.has_web_session) {
         return {
@@ -152,7 +157,7 @@
           how_xhs_decides:
             "服务端将 xsec_token 与 web_session 绑定存储；" +
             "请求时查 session 是否存在，不存在则 token 无法解密 → 404。",
-        };
+        }
       }
       return {
         root_cause: `xsec_token 与当前 session / IP 绑定验证失败（来源: ${xsecSource || "未知"}）`,
@@ -168,7 +173,7 @@
         how_xhs_decides:
           "服务端用 serverKey 解密 xsec_token，提取 {noteId, userId, source, ts, ipHash}，" +
           "逐字段与当前请求对比：任一不符则 404。",
-      };
+      }
     }
 
     // API 级 404
@@ -177,13 +182,12 @@
         root_cause: "API 请求未携带有效 session（未登录）",
         cause_category: "session",
         detail:
-          "API 端点在 web_session 不存在时返回 404（而非 401），" +
-          "这是小红书对未登录访问私有 API 的有意混淆处理。",
+          "API 端点在 web_session 不存在时返回 404（而非 401），" + "这是小红书对未登录访问私有 API 的有意混淆处理。",
         confidence: "high",
         how_xhs_decides:
           "API 网关在 session 校验失败时根据端点配置选择响应码：" +
           "公开 API 返回空数据，私有 API 直接返回 404 以阻止枚举。",
-      };
+      }
     }
     if (!hasXs) {
       return {
@@ -194,9 +198,8 @@
           "使爬虫难以区分「不存在」和「无权访问」。",
         confidence: "medium",
         how_xhs_decides:
-          "API 网关根据端点安全级别配置响应码策略：" +
-          "普通端点 → 461，高敏感端点 → 404，以防止端点存在性探测。",
-      };
+          "API 网关根据端点安全级别配置响应码策略：" + "普通端点 → 461，高敏感端点 → 404，以防止端点存在性探测。",
+      }
     }
     return {
       root_cause: "IP 或账号维度风控封禁（所有凭证均有效但仍 404）",
@@ -212,253 +215,271 @@
         "服务端对每个 {IP, userId, deviceId} 三元组维护实时行为评分：" +
         "请求间隔方差、路径分布、滚动事件频率等，评分低于阈值时对特定内容返回 404，" +
         "但登录态保持正常（避免用户察觉），造成「内容消失」的假象。",
-    };
+    }
   }
 
   // ── 构造完整诊断事件 ─────────────────────────────────────────
 
   function buildEvent(url, method, status, headers, extra) {
-    const cookies = captureCookies();
-    const diag    = diagnose(status, url, headers, cookies);
+    const cookies = captureCookies()
+    const diag = diagnose(status, url, headers, cookies)
     return {
-      id:        `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       timestamp: new Date().toISOString(),
       url,
-      method:    method.toUpperCase(),
+      method: method.toUpperCase(),
       status,
-      pageUrl:   window.location.href,
+      pageUrl: window.location.href,
       request: {
-        xsec_token:    urlParam(url, "xsec_token"),
-        xsec_source:   urlParam(url, "xsec_source"),
-        has_xs:        !!(headers["xs"]      || headers["X-S"]           || headers["x-s"]),
-        has_xt:        !!(headers["xt"]      || headers["X-T"]           || headers["x-t"]),
-        has_referer:   !!(headers["referer"] || headers["Referer"]),
+        xsec_token: urlParam(url, "xsec_token"),
+        xsec_source: urlParam(url, "xsec_source"),
+        has_xs: !!(headers["xs"] || headers["X-S"] || headers["x-s"]),
+        has_xt: !!(headers["xt"] || headers["X-T"] || headers["x-t"]),
+        has_referer: !!(headers["referer"] || headers["Referer"]),
         sec_fetch_site: headers["Sec-Fetch-Site"] || headers["sec-fetch-site"] || null,
-        content_type:   headers["Content-Type"]   || headers["content-type"]   || null,
+        content_type: headers["Content-Type"] || headers["content-type"] || null,
       },
       cookies,
       diagnosis: diag,
       ...(extra || {}),
-    };
+    }
   }
 
   // 消息队列：content.js 在 document_idle 才就绪，早于此时的事件需要排队
-  const _pendingEvents = [];
-  let _contentReady = false;
+  const _pendingEvents = []
+  let _contentReady = false
 
   window.addEventListener("message", (e) => {
-    if (e.data?.source === "xhs-interceptor-ack") _contentReady = true;
-  });
+    if (e.data?.source === "xhs-interceptor-ack") _contentReady = true
+  })
 
   function emit(event) {
     if (_contentReady) {
-      window.postMessage({ source: "xhs-interceptor", type: "BLOCK_EVENT", event }, "*");
+      window.postMessage({ source: "xhs-interceptor", type: "BLOCK_EVENT", event }, "*")
     } else {
-      _pendingEvents.push(event);
+      _pendingEvents.push(event)
     }
   }
 
   function flushPending() {
-    _contentReady = true;
+    _contentReady = true
     for (const ev of _pendingEvents) {
-      window.postMessage({ source: "xhs-interceptor", type: "BLOCK_EVENT", event: ev }, "*");
+      window.postMessage({ source: "xhs-interceptor", type: "BLOCK_EVENT", event: ev }, "*")
     }
-    _pendingEvents.length = 0;
+    _pendingEvents.length = 0
   }
 
   // content.js 就绪后会发 xhs-interceptor-ready 消息，或 500ms 后强制 flush
   window.addEventListener("message", (e) => {
-    if (e.data?.source === "xhs-content-ready") flushPending();
-  });
-  setTimeout(flushPending, 800);
+    if (e.data?.source === "xhs-content-ready") flushPending()
+  })
+  setTimeout(flushPending, 800)
 
   // ── Response.prototype hook ─────────────────────────────────
   // XHS 在主 bundle 加载时会用混淆代码覆盖 window.fetch，绕过我们的 fetch hook。
   // 改为 hook Response.prototype.text/.json：任何代码读响应体都必须调这两个之一，
   // 包括 XHS 的 wrapper 链最终也得到 Response 对象。
 
-  const _respText = Response.prototype.text;
-  const _respJson = Response.prototype.json;
+  const _respText = Response.prototype.text
+  const _respJson = Response.prototype.json
 
   function _netlogReportResp(url, status, body) {
-    if (!url || !url.includes("xiaohongshu.com")) return;
-    let truncated = body;
+    if (!url || !url.includes("xiaohongshu.com")) return
+    let truncated = body
     if (typeof body === "string" && body.length > RESP_BODY_MAX) {
-      truncated = body.slice(0, RESP_BODY_MAX) + "…[cut]";
+      truncated = body.slice(0, RESP_BODY_MAX) + "…[cut]"
     }
     try {
-      window.postMessage({
-        source: "xhs-netlog-intercept",
-        method: "?",                // Response 对象拿不到原 method
-        url,
-        status,
-        reqHeaders: {},
-        respBody: truncated,
-        ts: Date.now(),
-      }, "*");
+      window.postMessage(
+        {
+          source: "xhs-netlog-intercept",
+          method: "?", // Response 对象拿不到原 method
+          url,
+          status,
+          reqHeaders: {},
+          respBody: truncated,
+          ts: Date.now(),
+        },
+        "*",
+      )
     } catch (_) {}
   }
 
-  Response.prototype.text = async function() {
-    const body = await _respText.call(this);
-    _netlogReportResp(this.url, this.status, body);
-    return body;
-  };
+  Response.prototype.text = async function () {
+    const body = await _respText.call(this)
+    _netlogReportResp(this.url, this.status, body)
+    return body
+  }
 
-  Response.prototype.json = async function() {
-    const data = await _respJson.call(this);
+  Response.prototype.json = async function () {
+    const data = await _respJson.call(this)
     try {
-      _netlogReportResp(this.url, this.status, JSON.stringify(data));
+      _netlogReportResp(this.url, this.status, JSON.stringify(data))
     } catch (_) {}
-    return data;
-  };
+    return data
+  }
 
   // ── fetch 拦截 ───────────────────────────────────────────────
 
-  const _fetch = window.fetch;
+  const _fetch = window.fetch
   window.fetch = async function (input, init) {
-    const url    = typeof input === "string" ? input : input?.url || String(input);
-    const method = init?.method || "GET";
-    const headers = {};
+    const url = typeof input === "string" ? input : input?.url || String(input)
+    const method = init?.method || "GET"
+    const headers = {}
     if (init?.headers) {
       if (init.headers instanceof Headers) {
-        init.headers.forEach((v, k) => { headers[k] = v; });
+        init.headers.forEach((v, k) => {
+          headers[k] = v
+        })
       } else {
-        Object.assign(headers, init.headers);
+        Object.assign(headers, init.headers)
       }
     }
 
-    const resp = await _fetch.call(this, input, init);
+    const resp = await _fetch.call(this, input, init)
 
     // 现有 BLOCKED 诊断保持不变
     if (BLOCKED.has(resp.status) && (isApiUrl(url) || url.includes("xiaohongshu.com"))) {
-      emit(buildEvent(url, method, resp.status, headers, { intercept_type: "fetch" }));
+      emit(buildEvent(url, method, resp.status, headers, { intercept_type: "fetch" }))
     }
 
     // NetLog 全量记录（background 单点过滤 _netEnabled）
     if (url.includes("xiaohongshu.com")) {
-      let respBody = null;
+      let respBody = null
       try {
-        const clone = resp.clone();
-        const text = await clone.text();
-        respBody = text.length > RESP_BODY_MAX ? text.slice(0, RESP_BODY_MAX) + "…[cut]" : text;
-      } catch (_) { respBody = "[unreadable]"; }
+        const clone = resp.clone()
+        const text = await clone.text()
+        respBody = text.length > RESP_BODY_MAX ? text.slice(0, RESP_BODY_MAX) + "…[cut]" : text
+      } catch (_) {
+        respBody = "[unreadable]"
+      }
 
-      window.postMessage({
-        source: "xhs-netlog-intercept",
-        method,
-        url,
-        status: resp.status,
-        reqHeaders: headers,
-        respBody,
-        ts: Date.now(),
-      }, "*");
+      window.postMessage(
+        {
+          source: "xhs-netlog-intercept",
+          method,
+          url,
+          status: resp.status,
+          reqHeaders: headers,
+          respBody,
+          ts: Date.now(),
+        },
+        "*",
+      )
     }
 
-    return resp;
-  };
+    return resp
+  }
 
   // ── XMLHttpRequest 拦截 ──────────────────────────────────────
 
-  const _xhrOpen      = XMLHttpRequest.prototype.open;
-  const _xhrSend      = XMLHttpRequest.prototype.send;
-  const _xhrSetHeader = XMLHttpRequest.prototype.setRequestHeader;
+  const _xhrOpen = XMLHttpRequest.prototype.open
+  const _xhrSend = XMLHttpRequest.prototype.send
+  const _xhrSetHeader = XMLHttpRequest.prototype.setRequestHeader
 
   XMLHttpRequest.prototype.open = function (method, url) {
-    this.__i_method  = method;
-    this.__i_url     = url;
-    this.__i_headers = {};
-    return _xhrOpen.apply(this, arguments);
-  };
+    this.__i_method = method
+    this.__i_url = url
+    this.__i_headers = {}
+    return _xhrOpen.apply(this, arguments)
+  }
 
   XMLHttpRequest.prototype.setRequestHeader = function (name, value) {
-    if (this.__i_headers) this.__i_headers[name] = value;
-    return _xhrSetHeader.apply(this, arguments);
-  };
+    if (this.__i_headers) this.__i_headers[name] = value
+    return _xhrSetHeader.apply(this, arguments)
+  }
 
   XMLHttpRequest.prototype.send = function () {
     this.addEventListener("loadend", () => {
-      const url = this.__i_url || "";
+      const url = this.__i_url || ""
 
       // 现有 BLOCKED 诊断保持不变
       if (BLOCKED.has(this.status) && (isApiUrl(url) || url.includes("xiaohongshu.com"))) {
-        emit(buildEvent(url, this.__i_method || "GET", this.status, this.__i_headers || {}, {
-          intercept_type: "xhr",
-        }));
+        emit(
+          buildEvent(url, this.__i_method || "GET", this.status, this.__i_headers || {}, {
+            intercept_type: "xhr",
+          }),
+        )
       }
 
       // NetLog 全量记录（background 单点过滤 _netEnabled）
       if (url.includes("xiaohongshu.com")) {
-        let respBody = null;
+        let respBody = null
         try {
-          const t = this.responseText || "";
-          respBody = t.length > RESP_BODY_MAX ? t.slice(0, RESP_BODY_MAX) + "…[cut]" : t;
-        } catch (_) { respBody = "[unreadable]"; }
+          const t = this.responseText || ""
+          respBody = t.length > RESP_BODY_MAX ? t.slice(0, RESP_BODY_MAX) + "…[cut]" : t
+        } catch (_) {
+          respBody = "[unreadable]"
+        }
 
-        window.postMessage({
-          source: "xhs-netlog-intercept",
-          method: this.__i_method || "GET",
-          url,
-          status: this.status,
-          reqHeaders: this.__i_headers || {},
-          respBody,
-          ts: Date.now(),
-        }, "*");
+        window.postMessage(
+          {
+            source: "xhs-netlog-intercept",
+            method: this.__i_method || "GET",
+            url,
+            status: this.status,
+            reqHeaders: this.__i_headers || {},
+            respBody,
+            ts: Date.now(),
+          },
+          "*",
+        )
       }
-    });
-    return _xhrSend.apply(this, arguments);
-  };
+    })
+    return _xhrSend.apply(this, arguments)
+  }
 
   // ── 页面渲染级 404 检测（HTTP 200 但内容被屏蔽）───────────────
 
   function checkPageRender404() {
-    const url = window.location.href;
-    if (!url.includes("xiaohongshu.com")) return;
+    const url = window.location.href
+    if (!url.includes("xiaohongshu.com")) return
 
-    let triggered = false;
-    let pageErrorDetail = null;
+    let triggered = false
+    let pageErrorDetail = null
 
     // 检查 __INITIAL_STATE__ 中的错误标记
     try {
-      const s = window.__INITIAL_STATE__;
+      const s = window.__INITIAL_STATE__
       if (s) {
         if (s.pageError || s.errorCode || s.forbidden) {
-          triggered = true;
+          triggered = true
           pageErrorDetail = {
-            pageError:  s.pageError  || null,
-            errorCode:  s.errorCode  || null,
-            forbidden:  s.forbidden  || null,
-          };
+            pageError: s.pageError || null,
+            errorCode: s.errorCode || null,
+            forbidden: s.forbidden || null,
+          }
         }
       }
     } catch (_) {}
 
     // 检查 DOM
     if (!triggered) {
-      const is404Dom = document.title.includes("404") ||
-        !!document.querySelector('[class*="not-found"], [class*="error-page"], [class*="page-not-found"]');
-      if (is404Dom) triggered = true;
+      const is404Dom =
+        document.title.includes("404") ||
+        !!document.querySelector('[class*="not-found"], [class*="error-page"], [class*="page-not-found"]')
+      if (is404Dom) triggered = true
     }
 
     if (triggered) {
-      const cookies = captureCookies();
-      const xsecToken = urlParam(url, "xsec_token");
+      const cookies = captureCookies()
+      const xsecToken = urlParam(url, "xsec_token")
       emit({
-        id:        `${Date.now()}_render`,
+        id: `${Date.now()}_render`,
         timestamp: new Date().toISOString(),
         url,
-        method:    "GET",
-        status:    "200→404",  // HTTP 成功但渲染出 404
-        pageUrl:   url,
+        method: "GET",
+        status: "200→404", // HTTP 成功但渲染出 404
+        pageUrl: url,
         intercept_type: "page_render",
         request: {
-          xsec_token:  xsecToken,
+          xsec_token: xsecToken,
           xsec_source: urlParam(url, "xsec_source"),
-          has_xs:      false,
-          has_xt:      false,
+          has_xs: false,
+          has_xt: false,
           has_referer: !!document.referrer,
           sec_fetch_site: null,
-          content_type:   null,
+          content_type: null,
         },
         cookies,
         page_error_state: pageErrorDetail,
@@ -479,17 +500,16 @@
               cause_category: "token",
               detail: "URL 不含 xsec_token，服务端返回了「内容不存在」的数据包，前端据此渲染 404 页面。",
               confidence: "high",
-              how_xhs_decides:
-                "同页面级 404 逻辑：token 缺失 → 服务端返回空 note 数据 → 前端渲染 notFound 组件。",
+              how_xhs_decides: "同页面级 404 逻辑：token 缺失 → 服务端返回空 note 数据 → 前端渲染 notFound 组件。",
             },
-      });
+      })
     }
   }
 
   // 在 DOMContentLoaded 之后检查页面状态
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => setTimeout(checkPageRender404, 500));
+    document.addEventListener("DOMContentLoaded", () => setTimeout(checkPageRender404, 500))
   } else {
-    setTimeout(checkPageRender404, 500);
+    setTimeout(checkPageRender404, 500)
   }
-})();
+})()

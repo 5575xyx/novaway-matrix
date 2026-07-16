@@ -169,7 +169,14 @@ it.instance("general agent denies todo tools", () =>
 it.instance("office mode exposes dedicated primary agents with office skills", () =>
   Effect.gen(function* () {
     const names = (yield* load((svc) => svc.list())).map((agent) => agent.name)
-    for (const name of ["office-document", "office-ppt", "office-meeting", "office-knowledge", "office-task", "office-communication"]) {
+    for (const name of [
+      "office-document",
+      "office-ppt",
+      "office-meeting",
+      "office-knowledge",
+      "office-task",
+      "office-communication",
+    ]) {
       expect(names).toContain(name)
       const agent = yield* load((svc) => svc.get(name))
       expect(agent?.mode).toBe("primary")
@@ -219,7 +226,17 @@ it.instance("compaction agent denies all permissions", () =>
 it.instance("all built-in agents allow every built-in skill", () =>
   Effect.gen(function* () {
     const agents = yield* load((svc) => svc.list())
-    const skills = ["customize-novaway", "find-skills", "skill-creator", "office-document", "office-ppt", "office-meeting", "office-knowledge", "office-task", "office-communication"]
+    const skills = [
+      "customize-novaway",
+      "find-skills",
+      "skill-creator",
+      "office-document",
+      "office-ppt",
+      "office-meeting",
+      "office-knowledge",
+      "office-task",
+      "office-communication",
+    ]
 
     for (const agent of agents) {
       if (!agent.native) continue

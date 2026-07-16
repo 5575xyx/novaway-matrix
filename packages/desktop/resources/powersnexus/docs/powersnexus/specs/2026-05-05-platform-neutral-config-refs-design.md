@@ -15,7 +15,7 @@ Two specific lines in active skills:
 
 ## Out of scope
 
-- **`skills/using-PowersNexus/SKILL.md:22, 26`** — instruction-priority list. The list already names all three (CLAUDE.md, GEMINI.md, AGENTS.md) inclusively, which is correct: the section is making a real claim about *what counts as user instruction* on a multi-platform plugin. No change needed.
+- **`skills/using-PowersNexus/SKILL.md:22, 26`** — instruction-priority list. The list already names all three (CLAUDE.md, GEMINI.md, AGENTS.md) inclusively, which is correct: the section is making a real claim about _what counts as user instruction_ on a multi-platform plugin. No change needed.
 - **Historical / example artifacts**:
   - `skills/systematic-debugging/CREATION-LOG.md` — attribution path (`~/.claude/CLAUDE.md`) is a historical fact.
   - `skills/writing-skills/examples/CLAUDE_MD_TESTING.md` — the entire file is a worked example testing CLAUDE.md content variants. The filename, body, and the reference from `testing-skills-with-subagents.md` all stay; normalizing them defeats the example.

@@ -7,20 +7,24 @@
 ## 完成的工作
 
 ### 1. MCP 服务器配置
+
 - ✅ 配置小红书 MCP 服务器到 opencode（使用 Docker）
 - ✅ 配置微信公众号 MCP 服务器到 opencode（使用 npm）
 
 ### 2. 代理集成
+
 - ✅ 更新 pulse-orchestrator 代理添加发布工具
 - ✅ 更新代理提示文件，添加发布工具说明
 - ✅ 配置代理权限，允许使用 MCP 工具
 
 ### 3. UI 组件集成
+
 - ✅ 在 PulseAssistant 组件中添加发布按钮
 - ✅ 集成现有的 PublishModal 组件
 - ✅ 修复类型检查错误
 
 ### 4. 文档编写
+
 - ✅ 编写用户指南
 - ✅ 编写开发者指南
 - ✅ 编写集成总结
@@ -28,16 +32,20 @@
 ## 修改的文件
 
 ### 1. 配置文件
+
 - `novaway.json` - 添加 MCP 服务器配置
 
 ### 2. 代理相关
+
 - `packages/opencode/src/agent/agent.ts` - 更新 pulse-orchestrator 代理配置
 - `packages/opencode/src/agent/prompt/pulse-orchestrator.txt` - 更新代理提示
 
 ### 3. UI 组件
+
 - `packages/app/src/pages/pulse/PulseAssistant.tsx` - 添加发布按钮和集成发布面板
 
 ### 4. 文档
+
 - `docs/superpowers/plans/2026-06-19-xymt-auto-integration-plan.md` - 集成计划
 - `docs/superpowers/plans/2026-06-19-xymt-auto-detailed-implementation.md` - 详细实现计划
 - `docs/superpowers/plans/2026-06-19-xymt-auto-user-guide.md` - 用户指南
@@ -49,6 +57,7 @@
 ### 1. MCP 服务器配置
 
 #### 小红书 MCP 服务器
+
 ```json
 {
   "xiaohongshu": {
@@ -61,6 +70,7 @@
 ```
 
 #### 微信公众号 MCP 服务器
+
 ```json
 {
   "wechat-official": {
@@ -122,6 +132,7 @@
 ## 支持的功能
 
 ### 1. 小红书发布
+
 - 检查登录状态
 - 获取登录二维码
 - 发布图文笔记
@@ -130,24 +141,28 @@
 - 获取用户信息
 
 ### 2. 微信公众号发布
+
 - 认证管理
 - 素材上传
 - 创建草稿
 - 发布草稿
 
 ### 3. 多平台分发
+
 - 支持同时发布到多个平台
 - 自动适配各平台格式
 
 ## 后续工作
 
 ### 1. 待完成
+
 - [ ] 构建小红书 MCP 服务器 Docker 镜像
 - [ ] 安装和配置微信公众号 MCP 服务器
 - [ ] 测试 MCP 服务器连接
 - [ ] 测试代理工具调用功能
 
 ### 2. 优化建议
+
 - 优化 MCP 服务器性能
 - 添加更多发布平台支持
 - 实现发布历史记录

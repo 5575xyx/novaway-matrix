@@ -97,6 +97,7 @@ export default defineConfig({
         input: {
           main: "src/renderer/index.html",
           loading: "src/renderer/loading.html",
+          floating: "src/renderer/floating.html",
         },
       },
     },

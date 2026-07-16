@@ -14,12 +14,13 @@ import { WriteTool } from "./write"
 import { InvalidTool } from "./invalid"
 import { SkillTool } from "./skill"
 import { MemoryTool } from "./memory"
-import { DatabaseSqlTool } from "./database-sql"
 import { GenerateImageTool } from "./generate_image"
 import { GenerateVideoTool } from "./generate_video"
 // import { BrowserTool } from "./browser"
 import * as Tool from "./tool"
 import { Config } from "@/config/config"
+import { ConfigProvider } from "@/config/provider"
+import { ProtocolRegistry } from "@opencode-ai/llm/protocols"
 import { type ToolContext as PluginToolContext, type ToolDefinition } from "@opencode-ai/plugin"
 import type { JSONSchema7, JSONSchema7Definition } from "@ai-sdk/provider"
 import { Schema } from "effect"
@@ -59,6 +60,7 @@ import { Reference } from "@/reference/reference"
 import { BackgroundJob } from "@/background/job"
 import { SessionStatus } from "@/session/status"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import { Auth } from "@/auth"
 
 const log = Log.create({ service: "tool.registry" })
 
@@ -110,7 +112,7 @@ export const layer: Layer.Layer<
   | Format.Service
   | Truncate.Service
   | RuntimeFlags.Service
-  | AppProcess.Service
+  | Auth.Service
 > = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -120,6 +122,7 @@ export const layer: Layer.Layer<
     const skill = yield* Skill.Service
     const truncate = yield* Truncate.Service
     const flags = yield* RuntimeFlags.Service
+    const auth = yield* Auth.Service
 
     const invalid = yield* InvalidTool
     const task = yield* TaskTool
@@ -141,7 +144,6 @@ export const layer: Layer.Layer<
     const patchtool = yield* ApplyPatchTool
     const skilltool = yield* SkillTool
     const memorytool = yield* MemoryTool
-    const databasesqltool = yield* DatabaseSqlTool
     const generateimagetool = yield* GenerateImageTool
     const generatevideotool = yield* GenerateVideoTool
     // const browsertool = yield* BrowserTool
@@ -250,7 +252,6 @@ export const layer: Layer.Layer<
           question: Tool.init(question),
           lsp: Tool.init(lsptool),
           plan: Tool.init(plan),
-          database_sql: Tool.init(databasesqltool),
           generate_image: Tool.init(generateimagetool),
           generate_video: Tool.init(generatevideotool),
           // browser: Tool.init(browsertool),
@@ -278,7 +279,6 @@ export const layer: Layer.Layer<
             tool.patch,
             ...(flags.experimentalLspTool ? [tool.lsp] : []),
             ...(flags.experimentalPlanMode && flags.client === "cli" ? [tool.plan] : []),
-            tool.database_sql,
             tool.generate_image,
             tool.generate_video,
             // tool.browser,
@@ -333,7 +333,18 @@ export const layer: Layer.Layer<
     })
 
     const tools: Interface["tools"] = Effect.fn("ToolRegistry.tools")(function* (input) {
-      const filtered = (yield* all()).filter((tool) => {
+      const allTools = yield* all()
+      const cfg = yield* config.get()
+      const hasImageOutput = (pcfg: ConfigProvider.Info) =>
+        Object.values(pcfg.models ?? {}).some((m) => m.modalities?.output?.includes("image"))
+
+      const isImageProvider = (pid: string, pcfg: ConfigProvider.Info) =>
+        ProtocolRegistry.listImageProviders().includes(pid) || hasImageOutput(pcfg)
+
+      const imageProviderAvailable =
+        Object.entries(cfg.provider ?? {}).some(([pid, pcfg]) => isImageProvider(pid, pcfg)) ||
+        !!process.env.AGNES_API_KEY
+      const filtered = allTools.filter((tool) => {
         if (tool.id === WebSearchTool.id) {
           return webSearchEnabled(input.providerID, { exa: flags.enableExa, parallel: flags.enableParallel })
         }
@@ -342,6 +353,10 @@ export const layer: Layer.Layer<
           input.modelID.includes("gpt-") && !input.modelID.includes("oss") && !input.modelID.includes("gpt-4")
         if (tool.id === ApplyPatchTool.id) return usePatch
         if (tool.id === EditTool.id || tool.id === WriteTool.id) return !usePatch
+
+        if ((tool.id === GenerateImageTool.id || tool.id === GenerateVideoTool.id)) {
+          return imageProviderAvailable
+        }
 
         return true
       })
@@ -412,10 +427,7 @@ export const defaultLayer = Layer.suspend(() =>
       Layer.provide(Ripgrep.defaultLayer),
       Layer.provide(Truncate.defaultLayer),
     )
-    .pipe(
-      Layer.provide(AppProcess.defaultLayer),
-      Layer.provide(RuntimeFlags.defaultLayer),
-    ),
+    .pipe(Layer.provide(AppProcess.defaultLayer), Layer.provide(RuntimeFlags.defaultLayer), Layer.provide(Auth.defaultLayer)),
 )
 
 function isZodType(value: unknown): value is z.ZodType {

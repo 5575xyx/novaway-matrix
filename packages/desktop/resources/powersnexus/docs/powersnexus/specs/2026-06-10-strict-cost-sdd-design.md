@@ -12,12 +12,12 @@ current config. Any quality regression kills the rung, full stop.
 
 ## Where the dollars are (final 2026-06-10 config, go-fractals, ~$13/run)
 
-| Component | $ | Driver |
-|---|---|---|
-| Controller (session model, opus) | ~6-7 | ~150 turns × resident context; prompt-immune turn floor (46% thinking/narration) |
-| Implementers (sonnet, 10-13 dispatches) | ~5-6 | the actual work; ~25 turns each; ~13 pre-edit exploration calls each |
-| Task reviewers (sonnet, 10) | ~1-1.5 | 3-9 turns each with package |
-| Final review + fixes | ~1 | 6 turns with branch package |
+| Component                               | $      | Driver                                                                           |
+| --------------------------------------- | ------ | -------------------------------------------------------------------------------- |
+| Controller (session model, opus)        | ~6-7   | ~150 turns × resident context; prompt-immune turn floor (46% thinking/narration) |
+| Implementers (sonnet, 10-13 dispatches) | ~5-6   | the actual work; ~25 turns each; ~13 pre-edit exploration calls each             |
+| Task reviewers (sonnet, 10)             | ~1-1.5 | 3-9 turns each with package                                                      |
+| Final review + fixes                    | ~1     | 6 turns with branch package                                                      |
 
 Review-loop count (2-4 per run) is the biggest run-to-run cost variance;
 loops are mostly caused by plan ambiguity the implementer resolved wrongly.
@@ -25,7 +25,7 @@ loops are mostly caused by plan ambiguity the implementer resolved wrongly.
 ## Judgment guardrail (co-invariant with quality)
 
 **Cheapen mechanics, never judgment.** Every rung must enumerate which
-decisions it moves to a cheaper model and show each is *mechanical* —
+decisions it moves to a cheaper model and show each is _mechanical_ —
 deterministic, scriptable, or cheaply verifiable after the fact. Judgment
 stays at the highest tier or with the human. The judgment points in SDD,
 explicitly:
@@ -113,7 +113,7 @@ execution economics. Changes to test:
 
 Validation: micro-test the planner output shape (recipe-style, per the
 instruction-design doctrine), then full runs. Note the 2026-06-10 result:
-plan *placeholders* cannot be elicited from current opus — these changes
+plan _placeholders_ cannot be elicited from current opus — these changes
 target economics and ambiguity, not placeholder hygiene.
 
 ### L2 — Controller tier (est. −$4-5/run; the biggest single lever, gated hardest)
@@ -197,7 +197,7 @@ designed judgment-first:
    execution-session tier.
 
 Caveat from this campaign: cheap-model turn inflation was measured on
-multi-step *work*, not dispatch loops; whether a mid-tier controller holds
+multi-step _work_, not dispatch loops; whether a mid-tier controller holds
 ~150 turns is part of what the experiment determines.
 
 ### L3 — Reviewer tier (est. −$0.7-1/run; most likely rung to die on the judgment guardrail)
@@ -207,7 +207,7 @@ forced-haiku task reviewers: 2 pass / 1 indeterminate / 2 fail (baseline
 5/5); per-task haiku cleanly flagged 0 of 10 planted defects at correct
 severity — 1 found-but-downgraded with the exact prohibited rationale,
 9 missed or rationalized (DRY praised as YAGNI; assert-nothing test
-called plan-compliant). Cheap reviewers fail by *advocating* for
+called plan-compliant). Cheap reviewers fail by _advocating_ for
 defects; passing runs survived only on controller redundancy or the
 final review. Recorded in the experiments log, Batch A-E. Do not
 re-propose without a structurally different design.
@@ -237,6 +237,7 @@ reviewers are bad" into recorded evidence.
 
 Recorded for completeness; each requires Jesse's explicit reversal before
 any experiment:
+
 - **Scoped re-reviews** (verify fix + regression scan instead of full
   re-review): vetoed 2026-06-09; worth ~$0.50/run at most.
 - **Dispatch-time task batching**: counter-thesis (see guardrail). L1.1

@@ -44,8 +44,7 @@ export const VideosApi = HttpApi.make("videos")
           OpenApi.annotations({
             identifier: "videos.generate",
             summary: "Create video generation task",
-            description:
-              "Create an asynchronous video generation task. Use the task ID to poll for completion.",
+            description: "Create an asynchronous video generation task. Use the task ID to poll for completion.",
           }),
         ),
       )

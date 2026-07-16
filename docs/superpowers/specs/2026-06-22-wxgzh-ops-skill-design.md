@@ -11,6 +11,7 @@
 ### 1.1 目标
 
 创建一个 opencode 内置 skill，实现微信公众号运营的全流程自动化，包括：
+
 - AI 生成文章内容（文本 + 配图）
 - 自动发布到微信公众号草稿箱
 
@@ -48,9 +49,9 @@ packages/opencode/src/skill/prompt/wxgzh-ops/
 ### 2.2 触发条件
 
 ```
-Use when the user wants to create and publish content to WeChat Official Account (微信公众号). 
-Covers AI article generation, image generation, and automated publishing via Electron WebView. 
-Make sure to use this skill whenever the user mentions "公众号", "微信公众号", "wechat official account", 
+Use when the user wants to create and publish content to WeChat Official Account (微信公众号).
+Covers AI article generation, image generation, and automated publishing via Electron WebView.
+Make sure to use this skill whenever the user mentions "公众号", "微信公众号", "wechat official account",
 or wants to create/publish articles to WeChat, even if they don't explicitly ask.
 ```
 
@@ -88,6 +89,7 @@ or wants to create/publish articles to WeChat, even if they don't explicitly ask
 ### 3.1 SKILL.md 核心结构
 
 **Frontmatter：**
+
 ```yaml
 ---
 name: wxgzh-ops
@@ -96,6 +98,7 @@ description: "Use when the user wants to create and publish content to WeChat Of
 ```
 
 **核心内容：**
+
 1. 使用场景说明
 2. 前置条件检查
 3. 三阶段工作流程
@@ -109,6 +112,7 @@ description: "Use when the user wants to create and publish content to WeChat Of
 #### 3.2.1 content-generation.md
 
 **内容：**
+
 - 表单状态结构（`DraftState` 类型定义）
 - 篇幅映射（short/medium/long 对应字数）
 - Prompt 构建规则（7 个必须要素）
@@ -119,6 +123,7 @@ description: "Use when the user wants to create and publish content to WeChat Of
 #### 3.2.2 image-generation.md
 
 **内容：**
+
 - 配图计划生成规则（1-5 张）
 - 配图类型说明（头图、核心观点图、行动建议图、要点图示）
 - 图片提示词构建规则（7 个必须要素）
@@ -129,6 +134,7 @@ description: "Use when the user wants to create and publish content to WeChat Of
 #### 3.2.3 publishing-workflow.md
 
 **内容：**
+
 - 前置检查（4 项）
 - 导航到编辑器（2 种方式）
 - 填充内容（标题、摘要、正文）
@@ -138,6 +144,7 @@ description: "Use when the user wants to create and publish content to WeChat Of
 #### 3.2.4 selectors-reference.md
 
 **内容：**
+
 - 标题输入框选择器（4 种）
 - 摘要输入框选择器（3 种）
 - 正文编辑器选择器（iframe + contenteditable）
@@ -149,6 +156,7 @@ description: "Use when the user wants to create and publish content to WeChat Of
 #### 3.3.1 article-system.txt
 
 **系统提示词要点：**
+
 - 角色：资深微信公众号运营总编
 - 输出格式：严格 JSON（无额外文字）
 - JSON 结构：title, summary, html, imagePlans
@@ -157,12 +165,14 @@ description: "Use when the user wants to create and publish content to WeChat Of
 #### 3.3.2 image-prompt.txt
 
 **提示词模板变量：**
+
 - `{topic}` - 文章主题
 - `{audience}` - 目标读者
 - `{tone}` - 内容风格
 - `{plan.prompt}` - 画面需求
 
 **强制要求：**
+
 - 构图要求（主体清晰、层次分明、光线自然）
 - 画质要求（高清、细节丰富、视觉高级感）
 - 强限制（禁止文字、logo、水印、二维码、签名）
@@ -174,6 +184,7 @@ description: "Use when the user wants to create and publish content to WeChat Of
 ### 4.1 权限配置
 
 **novaway.json 配置：**
+
 ```json
 {
   "permission": {
@@ -185,6 +196,7 @@ description: "Use when the user wants to create and publish content to WeChat Of
 ```
 
 **Agent 权限配置（agent.ts）：**
+
 ```typescript
 permission: {
   skill: {
@@ -258,13 +270,13 @@ permission: {
 
 ### 6.1 常见错误及解决方案
 
-| 错误 | 原因 | 解决方案 |
-|------|------|----------|
-| `token 提取失败` | WebView 未加载公众号页面 | 提示用户先登录公众号后台 |
-| `编辑器未就绪` | 页面加载中或选择器变化 | 重试 + 回退到直连 URL |
-| `AI 生成失败` | 模型配置错误或 API 不可用 | 检查 AI 模型配置 |
-| `图片生成失败` | 图片模型不可用 | 支持单独重绘配图 |
-| `保存草稿失败` | 网络连接或页面状态异常 | 检查网络连接和页面状态 |
+| 错误             | 原因                      | 解决方案                 |
+| ---------------- | ------------------------- | ------------------------ |
+| `token 提取失败` | WebView 未加载公众号页面  | 提示用户先登录公众号后台 |
+| `编辑器未就绪`   | 页面加载中或选择器变化    | 重试 + 回退到直连 URL    |
+| `AI 生成失败`    | 模型配置错误或 API 不可用 | 检查 AI 模型配置         |
+| `图片生成失败`   | 图片模型不可用            | 支持单独重绘配图         |
+| `保存草稿失败`   | 网络连接或页面状态异常    | 检查网络连接和页面状态   |
 
 ### 6.2 降级方案
 
@@ -279,12 +291,14 @@ permission: {
 ### 7.1 AI 模型配置
 
 需要配置以下 AI 模型：
+
 - **文本模型**：用于生成文章内容（支持 OpenAI 兼容 API）
 - **图片模型**：用于生成配图（支持 DALL-E、Flux 等）
 
 ### 7.2 WebView 配置
 
 需要确保：
+
 - Electron WebView 组件可用
 - 已加载微信公众平台页面（`mp.weixin.qq.com`）
 - JavaScript 执行权限已启用
@@ -295,15 +309,15 @@ permission: {
 
 ### 8.1 文件创建清单
 
-| 文件 | 优先级 | 预计行数 |
-|------|--------|----------|
-| `SKILL.md` | 高 | ~200 行 |
-| `references/content-generation.md` | 高 | ~150 行 |
-| `references/image-generation.md` | 高 | ~100 行 |
-| `references/publishing-workflow.md` | 高 | ~200 行 |
-| `references/selectors-reference.md` | 中 | ~100 行 |
-| `prompts/article-system.txt` | 高 | ~50 行 |
-| `prompts/image-prompt.txt` | 高 | ~20 行 |
+| 文件                                | 优先级 | 预计行数 |
+| ----------------------------------- | ------ | -------- |
+| `SKILL.md`                          | 高     | ~200 行  |
+| `references/content-generation.md`  | 高     | ~150 行  |
+| `references/image-generation.md`    | 高     | ~100 行  |
+| `references/publishing-workflow.md` | 高     | ~200 行  |
+| `references/selectors-reference.md` | 中     | ~100 行  |
+| `prompts/article-system.txt`        | 高     | ~50 行   |
+| `prompts/image-prompt.txt`          | 高     | ~20 行   |
 
 ### 8.2 实施步骤
 

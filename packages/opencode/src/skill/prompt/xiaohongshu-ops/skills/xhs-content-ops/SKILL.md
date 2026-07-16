@@ -31,21 +31,20 @@ metadata:
 
 **本技能允许使用的全部 CLI 子命令：**
 
-| 子命令 | 用途 |
-|--------|------|
-| `search-feeds` | 搜索笔记（支持筛选） |
-| `list-feeds` | 获取首页推荐 Feed |
-| `get-feed-detail` | 获取笔记详情和评论 |
-| `user-profile` | 获取用户主页信息 |
-| `post-comment` | 发表评论（需用户确认） |
-| `like-feed` | 点赞笔记 |
-| `favorite-feed` | 收藏笔记 |
-| `publish` | 图文发布（需用户确认） |
-| `fill-publish` | 填写图文表单（分步发布） |
-| `click-publish` | 点击发布按钮 |
+| 子命令            | 用途                     |
+| ----------------- | ------------------------ |
+| `search-feeds`    | 搜索笔记（支持筛选）     |
+| `list-feeds`      | 获取首页推荐 Feed        |
+| `get-feed-detail` | 获取笔记详情和评论       |
+| `user-profile`    | 获取用户主页信息         |
+| `post-comment`    | 发表评论（需用户确认）   |
+| `like-feed`       | 点赞笔记                 |
+| `favorite-feed`   | 收藏笔记                 |
+| `publish`         | 图文发布（需用户确认）   |
+| `fill-publish`    | 填写图文表单（分步发布） |
+| `click-publish`   | 点击发布按钮             |
 
 ---
-
 
 ## 输入判断
 
@@ -74,15 +73,19 @@ metadata:
 
 1. 确认分析目标（关键词、竞品账号）。
 2. 搜索相关笔记：
+
 ```bash
 python scripts/cli.py search-feeds \
   --keyword "目标关键词" --sort-by 最多点赞
 ```
+
 3. 从搜索结果中选取 3-5 篇高互动笔记，逐一获取详情：
+
 ```bash
 python scripts/cli.py get-feed-detail \
   --feed-id FEED_ID --xsec-token XSEC_TOKEN
 ```
+
 4. 整理分析报告，包含：
    - 标题风格分析
    - 封面图特点
@@ -102,6 +105,7 @@ python scripts/cli.py get-feed-detail \
 
 1. 确认追踪领域或关键词列表。
 2. 对每个关键词分别搜索：
+
 ```bash
 # 按最新排序，观察近期热度
 python scripts/cli.py search-feeds \
@@ -111,6 +115,7 @@ python scripts/cli.py search-feeds \
 python scripts/cli.py search-feeds \
   --keyword "关键词" --sort-by 最多点赞
 ```
+
 3. 对高互动笔记获取详情，分析内容模式。
 4. 输出趋势报告：
    - 各关键词热度排名
@@ -125,10 +130,12 @@ python scripts/cli.py search-feeds \
 
 1. 确认创作主题。
 2. 搜索相关笔记，获取灵感：
+
 ```bash
 python scripts/cli.py search-feeds \
   --keyword "主题关键词" --sort-by 最多点赞
 ```
+
 3. 选取 2-3 篇参考笔记，获取详情分析内容结构。
 4. 基于分析结果，辅助用户生成草稿：
    - 标题（符合小红书风格，UTF-16 长度 ≤ 20）
@@ -136,6 +143,7 @@ python scripts/cli.py search-feeds \
    - 话题标签
 5. 通过 `AskUserQuestion` 让用户确认最终内容。
 6. 执行发布（参考 xhs-publish 流程）：
+
 ```bash
 python scripts/cli.py publish \
   --title-file /tmp/xhs_title.txt \
@@ -152,25 +160,32 @@ python scripts/cli.py publish \
 
 1. 确认互动目标（关键词、话题领域）。
 2. 搜索目标笔记：
+
 ```bash
 python scripts/cli.py search-feeds \
   --keyword "目标关键词" --sort-by 最新
 ```
+
 3. 筛选适合互动的笔记（中等互动量、与自身领域相关）。
 4. 获取详情，了解笔记内容：
+
 ```bash
 python scripts/cli.py get-feed-detail \
   --feed-id FEED_ID --xsec-token XSEC_TOKEN
 ```
+
 5. 针对笔记内容生成有价值的评论建议。
 6. 用户确认评论内容后发送：
+
 ```bash
 python scripts/cli.py post-comment \
   --feed-id FEED_ID \
   --xsec-token XSEC_TOKEN \
   --content "评论内容"
 ```
+
 7. 可选：点赞或收藏：
+
 ```bash
 python scripts/cli.py like-feed \
   --feed-id FEED_ID --xsec-token XSEC_TOKEN
@@ -178,6 +193,7 @@ python scripts/cli.py like-feed \
 python scripts/cli.py favorite-feed \
   --feed-id FEED_ID --xsec-token XSEC_TOKEN
 ```
+
 8. 每次互动之间保持 30-60 秒间隔。
 
 ## 运营建议

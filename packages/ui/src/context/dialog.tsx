@@ -77,7 +77,8 @@ function init() {
 
   const show = (element: DialogElement, owner: Owner, onClose?: () => void, type: "dialog" | "drawer" = "dialog") => {
     const current = stack()
-    const kept = type === "dialog" && current[0]?.type === "drawer" ? current.filter((item) => item.type === "drawer") : []
+    const kept =
+      type === "dialog" && current[0]?.type === "drawer" ? current.filter((item) => item.type === "drawer") : []
     current.filter((item) => !kept.some((keptItem) => keptItem.id === item.id)).forEach((item) => item.dispose())
 
     if (timer.current !== undefined) {
@@ -98,6 +99,7 @@ function init() {
         return (
           <Kobalte
             modal
+            preventScroll={false}
             open={!closing()}
             onOpenChange={(open: boolean) => {
               if (open) return

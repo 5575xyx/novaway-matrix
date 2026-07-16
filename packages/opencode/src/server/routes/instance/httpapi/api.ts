@@ -4,7 +4,6 @@ import { BusEvent } from "@/bus/bus-event"
 import { SyncEvent } from "@/sync"
 import { ChatApi } from "./groups/chat"
 import { ConfigApi } from "./groups/config"
-import { DatabaseApi } from "./groups/database"
 import { ControlApi } from "./groups/control"
 import { EventApi } from "./groups/event"
 import { ExperimentalApi } from "./groups/experimental"
@@ -44,7 +43,6 @@ export const RootHttpApi = HttpApi.make("opencode-root")
 export const InstanceHttpApi = HttpApi.make("opencode-instance")
   .addHttpApi(ChatApi)
   .addHttpApi(ConfigApi)
-  .addHttpApi(DatabaseApi)
   .addHttpApi(ExperimentalApi)
   .addHttpApi(EvolutionApi)
   .addHttpApi(FileApi)

@@ -1,8 +1,12 @@
 import { useMarked } from "../context/marked"
 import { useI18n } from "../context/i18n"
+import { useDialog } from "../context/dialog"
+import { ImagePreview } from "./image-preview"
 import DOMPurify from "dompurify"
 import morphdom from "morphdom"
 import { checksum } from "@opencode-ai/core/util/encode"
+import { copyMediaToClipboard } from "../util/clipboard"
+import { downloadFile, filenameFromUrl } from "../util/download"
 import { ComponentProps, createEffect, createResource, createSignal, onCleanup, splitProps } from "solid-js"
 import { isServer } from "solid-js/web"
 import { stream } from "./markdown-stream"
@@ -33,13 +37,15 @@ const config = {
   SANITIZE_NAMED_PROPS: true,
   FORBID_TAGS: ["style"],
   FORBID_CONTENTS: ["style", "script"],
-  ADD_TAGS: ["svg", "path"],
-  ADD_ATTR: ["d", "viewBox", "preserveAspectRatio", "xmlns"],
+  ADD_TAGS: ["svg", "path", "img", "video"],
+  ADD_ATTR: ["d", "viewBox", "preserveAspectRatio", "xmlns", "src", "alt", "controls", "width"],
 }
 
 const iconPaths = {
   copy: '<path d="M6.2513 6.24935V2.91602H17.0846V13.7493H13.7513M13.7513 6.24935V17.0827H2.91797V6.24935H13.7513Z" stroke="currentColor" stroke-linecap="round"/>',
   check: '<path d="M5 11.9657L8.37838 14.7529L15 5.83398" stroke="currentColor" stroke-linecap="square"/>',
+  download:
+    '<path d="M13.9583 10.6257L10 14.584L6.04167 10.6257M10 2.08398V13.959M16.25 17.9173H3.75" stroke="currentColor" stroke-linecap="square"/>',
 }
 
 function sanitize(html: string) {
@@ -63,6 +69,9 @@ function fallback(markdown: string) {
 type CopyLabels = {
   copy: string
   copied: string
+  copyImage: string
+  copyVideo: string
+  download: string
 }
 
 const urlPattern = /^https?:\/\/[^\s<>()`"']+$/
@@ -175,12 +184,30 @@ function markCodeLinks(root: HTMLDivElement) {
   }
 }
 
-function decorate(root: HTMLDivElement, labels: CopyLabels) {
+function decorate(root: HTMLDivElement, labels: CopyLabels, openImagePreview: (url: string, alt?: string) => void) {
   const blocks = Array.from(root.querySelectorAll("pre"))
   for (const block of blocks) {
     ensureCodeWrapper(block, labels)
   }
   markCodeLinks(root)
+  setupImagePreview(root, openImagePreview)
+  setupMediaActions(root, labels)
+}
+
+function setupImagePreview(root: HTMLDivElement, openImagePreview: (url: string, alt?: string) => void) {
+  const images = Array.from(root.querySelectorAll("img"))
+  for (const img of images) {
+    img.style.cursor = "pointer"
+  }
+  const handler = (event: MouseEvent) => {
+    const target = event.target
+    if (!(target instanceof HTMLImageElement)) return
+    openImagePreview(target.src, target.alt)
+  }
+  root.addEventListener("click", handler)
+  return () => {
+    root.removeEventListener("click", handler)
+  }
 }
 
 function setupCodeCopy(root: HTMLDivElement, getLabels: () => CopyLabels) {
@@ -227,6 +254,96 @@ function setupCodeCopy(root: HTMLDivElement, getLabels: () => CopyLabels) {
   }
 }
 
+function createMediaButton(iconPath: string, label: string, onClick: () => void) {
+  const button = document.createElement("button")
+  button.type = "button"
+  button.setAttribute("data-component", "icon-button")
+  button.setAttribute("data-variant", "secondary")
+  button.setAttribute("data-size", "small")
+  button.setAttribute("aria-label", label)
+  button.style.display = "flex"
+  button.style.alignItems = "center"
+  button.style.justifyContent = "center"
+  button.style.padding = "4px"
+  button.style.background = "rgba(0, 0, 0, 0.6)"
+  button.style.color = "white"
+  button.style.border = "none"
+  button.style.borderRadius = "4px"
+  button.style.cursor = "pointer"
+  button.appendChild(createIcon(iconPath, "icon"))
+  button.addEventListener("click", (event) => {
+    event.stopPropagation()
+    onClick()
+  })
+  return button
+}
+
+function createMediaToolbar(url: string, kind: "image" | "video", labels: CopyLabels) {
+  const toolbar = document.createElement("div")
+  toolbar.setAttribute("data-slot", "markdown-media-toolbar")
+  toolbar.style.position = "absolute"
+  toolbar.style.bottom = "8px"
+  toolbar.style.right = "8px"
+  toolbar.style.display = "flex"
+  toolbar.style.gap = "6px"
+  toolbar.style.opacity = "0"
+  toolbar.style.transition = "opacity 0.15s ease"
+  toolbar.style.zIndex = "10"
+
+  const copyLabel = kind === "video" ? labels.copyVideo : labels.copyImage
+  let copiedTimeout: ReturnType<typeof setTimeout> | undefined
+  const copyButton = createMediaButton(iconPaths.copy, copyLabel, async () => {
+    if (await copyMediaToClipboard(url, kind)) {
+      copyButton.innerHTML = ""
+      copyButton.appendChild(createIcon(iconPaths.check, "icon"))
+      copyButton.setAttribute("aria-label", labels.copied)
+      if (copiedTimeout) clearTimeout(copiedTimeout)
+      copiedTimeout = setTimeout(() => {
+        copyButton.innerHTML = ""
+        copyButton.appendChild(createIcon(iconPaths.copy, "icon"))
+        copyButton.setAttribute("aria-label", copyLabel)
+      }, 2000)
+    }
+  })
+  toolbar.appendChild(copyButton)
+
+  const downloadButton = createMediaButton(iconPaths.download, labels.download, () => {
+    const fallback = kind === "video" ? "video.mp4" : "image.png"
+    void downloadFile(url, filenameFromUrl(url, fallback))
+  })
+  toolbar.appendChild(downloadButton)
+
+  return toolbar
+}
+
+function wrapMediaElement(element: HTMLImageElement | HTMLVideoElement, labels: CopyLabels) {
+  if (element.parentElement?.getAttribute("data-component") === "markdown-media") return
+  const url = element.src
+  const kind = element instanceof HTMLImageElement ? "image" : "video"
+  const container = document.createElement("div")
+  container.setAttribute("data-component", "markdown-media")
+  container.style.position = "relative"
+  container.style.display = "inline-block"
+  container.style.maxWidth = "100%"
+  element.parentNode?.replaceChild(container, element)
+  container.appendChild(element)
+  const toolbar = createMediaToolbar(url, kind, labels)
+  container.appendChild(toolbar)
+  container.addEventListener("mouseenter", () => {
+    toolbar.style.opacity = "1"
+  })
+  container.addEventListener("mouseleave", () => {
+    toolbar.style.opacity = "0"
+  })
+}
+
+function setupMediaActions(root: HTMLDivElement, labels: CopyLabels) {
+  const images = Array.from(root.querySelectorAll("img"))
+  const videos = Array.from(root.querySelectorAll("video"))
+  for (const img of images) wrapMediaElement(img, labels)
+  for (const video of videos) wrapMediaElement(video, labels)
+}
+
 function touch(key: string, value: Entry) {
   cache.delete(key)
   cache.set(key, value)
@@ -250,6 +367,7 @@ export function Markdown(
   const [local, others] = splitProps(props, ["text", "cacheKey", "streaming", "class", "classList"])
   const marked = useMarked()
   const i18n = useI18n()
+  const dialog = useDialog()
   const [root, setRoot] = createSignal<HTMLDivElement>()
   const [html] = createResource(
     () => ({
@@ -287,7 +405,12 @@ export function Markdown(
     { initialValue: fallback(local.text) },
   )
 
+  const openImagePreview = (url: string, alt?: string) => {
+    dialog.show(() => <ImagePreview src={url} alt={alt} />)
+  }
+
   let copyCleanup: (() => void) | undefined
+  let imagePreviewCleanup: (() => void) | undefined
 
   createEffect(() => {
     const container = root()
@@ -303,10 +426,13 @@ export function Markdown(
     const labels = {
       copy: i18n.t("ui.message.copy"),
       copied: i18n.t("ui.message.copied"),
+      copyImage: i18n.t("ui.message.copyImage"),
+      copyVideo: i18n.t("ui.message.copyVideo"),
+      download: i18n.t("ui.message.download"),
     }
     const temp = document.createElement("div")
     temp.innerHTML = content
-    decorate(temp, labels)
+    decorate(temp, labels, openImagePreview)
 
     morphdom(container, temp, {
       childrenOnly: true,
@@ -329,11 +455,16 @@ export function Markdown(
       copyCleanup = setupCodeCopy(container, () => ({
         copy: i18n.t("ui.message.copy"),
         copied: i18n.t("ui.message.copied"),
+        copyImage: i18n.t("ui.message.copyImage"),
+        copyVideo: i18n.t("ui.message.copyVideo"),
+        download: i18n.t("ui.message.download"),
       }))
+    if (!imagePreviewCleanup) imagePreviewCleanup = setupImagePreview(container, openImagePreview)
   })
 
   onCleanup(() => {
     if (copyCleanup) copyCleanup()
+    if (imagePreviewCleanup) imagePreviewCleanup()
   })
 
   return (

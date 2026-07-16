@@ -1,4 +1,4 @@
-import { Component, Show, createMemo, createResource, onMount, type JSX } from "solid-js"
+import { Component, Show, createMemo, createResource, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Button } from "@opencode-ai/ui/button"
 import { Icon } from "@opencode-ai/ui/icon"
@@ -164,10 +164,6 @@ export const SettingsGeneral: Component = () => {
     { initialValue: null as DisplayBackend | null },
   )
 
-  onMount(() => {
-    void theme.loadThemes()
-  })
-
   const autoOption = { id: "auto", value: "", label: language.t("settings.general.row.shell.autoDefault") }
   const currentShell = createMemo(() => globalSync.data.config.shell ?? "")
 
@@ -262,10 +258,7 @@ export const SettingsGeneral: Component = () => {
   const GeneralSection = () => (
     <div class="flex flex-col gap-1">
       <SettingsList>
-        <SettingsRow
-          title="工作模式"
-          description="清除当前模式记忆并返回模式选择首页。项目归属不会被删除。"
-        >
+        <SettingsRow title="工作模式" description="清除当前模式记忆并返回模式选择首页。项目归属不会被删除。">
           <Button
             variant="secondary"
             size="small"
@@ -358,6 +351,18 @@ export const SettingsGeneral: Component = () => {
             <Switch
               checked={settings.general.showTerminal()}
               onChange={(checked) => settings.general.setShowTerminal(checked)}
+            />
+          </div>
+        </SettingsRow>
+
+        <SettingsRow
+          title={language.t("settings.general.row.showDatabase.title")}
+          description={language.t("settings.general.row.showDatabase.description")}
+        >
+          <div data-action="settings-show-database">
+            <Switch
+              checked={settings.general.showDatabase()}
+              onChange={(checked) => settings.general.setShowDatabase(checked)}
             />
           </div>
         </SettingsRow>
@@ -561,7 +566,6 @@ export const SettingsGeneral: Component = () => {
     </div>
   )
 
-  console.log(import.meta.env)
   return (
     <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
       <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--surface-stronger-non-alpha)_calc(100%_-_24px),transparent)]">
@@ -572,6 +576,8 @@ export const SettingsGeneral: Component = () => {
 
       <div class="flex flex-col gap-8 w-full">
         <GeneralSection />
+
+        <AdvancedSection />
 
         <AppearanceSection />
       </div>

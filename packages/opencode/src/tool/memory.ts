@@ -76,7 +76,11 @@ export const MemoryTool = Tool.define(
             return {
               title: removed ? `Removed memory ${params.id}` : "Memory not found",
               output: JSON.stringify({ removed }, null, 2),
-              metadata: { id: params.id as MemorySchema.MemoryID | undefined, action: "remove", count: removed ? 1 : 0 },
+              metadata: {
+                id: params.id as MemorySchema.MemoryID | undefined,
+                action: "remove",
+                count: removed ? 1 : 0,
+              },
             }
           }
 
@@ -90,7 +94,11 @@ export const MemoryTool = Tool.define(
           return {
             title: params.action === "search" ? "Memory search results" : "Memory entries",
             output: JSON.stringify(items, null, 2),
-            metadata: { id: undefined as MemorySchema.MemoryID | undefined, action: params.action, count: items.length },
+            metadata: {
+              id: undefined as MemorySchema.MemoryID | undefined,
+              action: params.action,
+              count: items.length,
+            },
           }
         }).pipe(Effect.orDie),
     }

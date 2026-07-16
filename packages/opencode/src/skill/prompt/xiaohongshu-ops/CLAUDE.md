@@ -53,27 +53,27 @@ python scripts/cli.py publish --title-file t.txt --content-file c.txt --images p
 
 ## CLI 子命令对照表
 
-| CLI 子命令 | 对应 MCP 工具 | 分类 |
-|--|--|--|
-| `check-login` | check_login_status | 认证 |
-| `login` | get_login_qrcode | 认证 |
-| `phone-login` | — | 认证 |
-| `delete-cookies` | delete_cookies | 认证 |
-| `list-feeds` | list_feeds | 浏览 |
-| `search-feeds` | search_feeds | 浏览 |
-| `get-feed-detail` | get_feed_detail | 浏览 |
-| `user-profile` | user_profile | 浏览 |
-| `post-comment` | post_comment_to_feed | 互动 |
-| `reply-comment` | reply_comment_in_feed | 互动 |
-| `like-feed` | like_feed | 互动 |
-| `favorite-feed` | favorite_feed | 互动 |
-| `publish` | publish_content | 发布 |
-| `publish-video` | publish_with_video | 发布 |
-| `fill-publish` | — | 分步发布（图文填写） |
-| `fill-publish-video` | — | 分步发布（视频填写） |
-| `click-publish` | — | 分步发布（点击发布） |
-| `long-article` | — | 长文发布（填写+排版） |
-| `select-template` | — | 长文发布（选择模板） |
-| `next-step` | — | 长文发布（下一步+描述） |
-| `get-netlog` | — | 风控数据 |
-| `risk-report` | — | 风控数据 |
+| CLI 子命令           | 对应 MCP 工具         | 分类                    |
+| -------------------- | --------------------- | ----------------------- |
+| `check-login`        | check_login_status    | 认证                    |
+| `login`              | get_login_qrcode      | 认证                    |
+| `phone-login`        | —                     | 认证                    |
+| `delete-cookies`     | delete_cookies        | 认证                    |
+| `list-feeds`         | list_feeds            | 浏览                    |
+| `search-feeds`       | search_feeds          | 浏览                    |
+| `get-feed-detail`    | get_feed_detail       | 浏览                    |
+| `user-profile`       | user_profile          | 浏览                    |
+| `post-comment`       | post_comment_to_feed  | 互动                    |
+| `reply-comment`      | reply_comment_in_feed | 互动                    |
+| `like-feed`          | like_feed             | 互动                    |
+| `favorite-feed`      | favorite_feed         | 互动                    |
+| `publish`            | publish_content       | 发布                    |
+| `publish-video`      | publish_with_video    | 发布                    |
+| `fill-publish`       | —                     | 分步发布（图文填写）    |
+| `fill-publish-video` | —                     | 分步发布（视频填写）    |
+| `click-publish`      | —                     | 分步发布（点击发布）    |
+| `long-article`       | —                     | 长文发布（填写+排版）   |
+| `select-template`    | —                     | 长文发布（选择模板）    |
+| `next-step`          | —                     | 长文发布（下一步+描述） |
+| `get-netlog`         | —                     | 风控数据                |
+| `risk-report`        | —                     | 风控数据                |

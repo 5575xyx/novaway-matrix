@@ -21,16 +21,16 @@ This phase fixes the ordering. No prose changes.
 
 Both listings reorder to strict alphabetical:
 
-| Old order | New order |
-|-----------|-----------|
-| Claude Code | Claude Code |
-| Codex CLI | Codex App |
-| Codex App | Codex CLI |
-| Factory Droid | Cursor |
-| Gemini CLI | Factory Droid |
-| OpenCode | Gemini CLI |
-| Cursor | GitHub Copilot CLI |
-| GitHub Copilot CLI | OpenCode |
+| Old order          | New order          |
+| ------------------ | ------------------ |
+| Claude Code        | Claude Code        |
+| Codex CLI          | Codex App          |
+| Codex App          | Codex CLI          |
+| Factory Droid      | Cursor             |
+| Gemini CLI         | Factory Droid      |
+| OpenCode           | Gemini CLI         |
+| Cursor             | GitHub Copilot CLI |
+| GitHub Copilot CLI | OpenCode           |
 
 Three moves: Codex App swaps with Codex CLI; Cursor moves up two slots; GitHub Copilot CLI moves up one.
 

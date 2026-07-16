@@ -14,6 +14,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/solid-query"
 import { Effect } from "effect"
 import {
   type Component,
+  createEffect,
   createMemo,
   createResource,
   createSignal,
@@ -80,6 +81,48 @@ declare global {
     }
     api?: {
       setTitlebar?: (theme: { mode: "light" | "dark" }) => Promise<void>
+      updateFloatingAgentState?: (state: {
+        current?: string
+        agents: Array<{ name: string; mode: string; hidden?: boolean; options?: Record<string, unknown> }>
+        tasks?: Array<{
+          id?: string
+          content: string
+          status: string
+          priority: string
+          startedAt?: number
+          completedAt?: number
+          durationMs?: number
+        }>
+        taskGroups?: Array<{
+          id: string
+          label: string
+          sessionID: string
+          tasks: Array<{
+            id?: string
+            content: string
+            status: string
+            priority: string
+            startedAt?: number
+            completedAt?: number
+            durationMs?: number
+          }>
+          updatedAt?: number
+        }>
+        currentTaskGroupID?: string
+      }) => Promise<void>
+      showFloatingWidget?: () => Promise<void>
+      resolveFloatingNotification?: (input: {
+        sessionID: string
+        requestID: string
+        status: "replied" | "dismissed"
+      }) => Promise<void>
+      onFloatingAgentChange?: (
+        cb: (state: {
+          current?: string
+          agents: Array<{ name: string; mode: string; hidden?: boolean; options?: Record<string, unknown> }>
+          tasks?: Array<{ content: string; status: string; priority: string }>
+        }) => void,
+      ) => (() => void) | undefined
     }
   }
 }
@@ -200,6 +243,12 @@ function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean }>) {
           Effect.runPromise,
         ),
   )
+
+  createEffect(() => {
+    if (!startupHealthCheck() || typeof window === "undefined") return
+    const frame = requestAnimationFrame(() => void window.api?.showFloatingWidget?.())
+    onCleanup(() => cancelAnimationFrame(frame))
+  })
 
   return (
     <Suspense

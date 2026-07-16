@@ -47,6 +47,13 @@ const ToolListItem = Schema.Struct({
   parameters: Schema.Unknown,
 }).annotate({ identifier: "ToolListItem" })
 const ToolList = Schema.Array(ToolListItem).annotate({ identifier: "ToolList" })
+export const ToolCallPayload = Schema.Struct({
+  toolId: Schema.String,
+  arguments: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+}).annotate({ identifier: "ToolCallPayload" })
+export const ToolCallQuery = Schema.Struct({
+  ...WorkspaceRoutingQueryFields,
+})
 export const ToolListQuery = Schema.Struct({
   ...WorkspaceRoutingQueryFields,
   provider: ProviderID,
@@ -86,6 +93,7 @@ export const ExperimentalPaths = {
   consoleSwitch: "/experimental/console/switch",
   tool: "/experimental/tool",
   toolIDs: "/experimental/tool/ids",
+  toolCall: "/experimental/tool/call",
   worktree: "/experimental/worktree",
   worktreeReset: "/experimental/worktree/reset",
   session: "/experimental/session",
@@ -152,6 +160,18 @@ export const ExperimentalApi = HttpApi.make("experimental")
             summary: "List tool IDs",
             description:
               "Get a list of all available tool IDs, including both built-in tools and dynamically registered tools.",
+          }),
+        ),
+        HttpApiEndpoint.post("toolCall", ExperimentalPaths.toolCall, {
+          query: ToolCallQuery,
+          payload: ToolCallPayload,
+          success: described(Schema.Unknown, "Tool call result"),
+          error: HttpApiError.BadRequest,
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "tool.call",
+            summary: "Call a tool",
+            description: "Call an available tool by ID, including dynamically registered MCP tools.",
           }),
         ),
         HttpApiEndpoint.get("worktree", ExperimentalPaths.worktree, {

@@ -21,9 +21,7 @@ export const Mark = (props: { class?: string }) => {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <defs>
-        {glowFilter("novaGlow", "1.5")}
-      </defs>
+      <defs>{glowFilter("novaGlow", "1.5")}</defs>
       <g filter="url(#novaGlow)">
         <path d="M8 34V6L16 20V6H22V34H16V18L8 34Z" fill={iconFill} />
         <path d="M22 6H28L32 18L36 6H42V34H36V20L32 32L28 20V34H22V6Z" fill={iconFill} />
@@ -66,9 +64,7 @@ export const Logo = (props: { class?: string }) => {
       fill="none"
       classList={{ [props.class ?? ""]: !!props.class }}
     >
-      <defs>
-        {glowFilter("logoGlow", "1")}
-      </defs>
+      <defs>{glowFilter("logoGlow", "1")}</defs>
       <g filter="url(#logoGlow)">
         <path d="M30 6L54 30L30 54L6 30L30 6Z" fill={iconFill} opacity="0.15" />
         <path d="M12 46V14L24 30V14H30V46H24V28L12 46Z" fill={iconFill} />

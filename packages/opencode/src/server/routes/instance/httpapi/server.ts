@@ -65,7 +65,6 @@ import { EventApi } from "./groups/event"
 import { eventHandlers } from "./handlers/event"
 import { chatHandlers } from "./handlers/chat"
 import { configHandlers } from "./handlers/config"
-import { databaseHandlers } from "./handlers/database"
 import { controlHandlers } from "./handlers/control"
 import { experimentalHandlers } from "./handlers/experimental"
 import { evolutionHandlers } from "./handlers/evolution"
@@ -135,7 +134,6 @@ const instanceApiRoutes = HttpApiBuilder.layer(InstanceHttpApi).pipe(
   Layer.provide([
     chatHandlers,
     configHandlers,
-    databaseHandlers,
     experimentalHandlers,
     evolutionHandlers,
     fileHandlers,

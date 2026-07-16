@@ -42,7 +42,9 @@ export const ModeSwitchButton: Component<{
                   <div class="flex items-center gap-2">
                     <span class="text-13-medium text-text-strong">{mode.name}</span>
                     <Show when={props.current === mode.id}>
-                      <span class="rounded-full bg-surface-base-active px-1.5 py-0.5 text-10-medium text-text-base">当前</span>
+                      <span class="rounded-full bg-surface-base-active px-1.5 py-0.5 text-10-medium text-text-base">
+                        当前
+                      </span>
                     </Show>
                   </div>
                   <div class="truncate text-12-regular text-text-weak">{mode.description}</div>

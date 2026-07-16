@@ -201,9 +201,7 @@ test("seeds default global plugins into new config file", async () => {
     const content = await Filesystem.readText(path.join(tmp.path, "novaway.json"))
     const file = path.join(tmp.path, "novaway.json")
     const parsed = ConfigParse.schema(Config.Info, ConfigParse.jsonc(content, file), file)
-    expect(parsed.plugin).toEqual([
-      "superpowers@git+https://github.com/obra/superpowers.git",
-    ])
+    expect(parsed.plugin).toEqual(["PowersNexus@git+https://gitee.com/nova-way/powersnexus.git"])
   } finally {
     ;(Global.Path as { config: string }).config = prev
     await clear(true)
@@ -233,10 +231,7 @@ test("adds default global plugins to existing config file that lacks them", asyn
     const content = await Filesystem.readText(path.join(tmp.path, "novaway.json"))
     const file = path.join(tmp.path, "novaway.json")
     const parsed = ConfigParse.schema(Config.Info, ConfigParse.jsonc(content, file), file)
-    expect(parsed.plugin).toEqual([
-      "other-plugin@1.0",
-      "superpowers@git+https://github.com/obra/superpowers.git",
-    ])
+    expect(parsed.plugin).toEqual(["other-plugin@1.0", "PowersNexus@git+https://gitee.com/nova-way/powersnexus.git"])
   } finally {
     ;(Global.Path as { config: string }).config = prev
     await clear(true)
@@ -266,10 +261,7 @@ test("creates novaway.json with default plugins when only novaway.jsonc exists",
     const content = await Filesystem.readText(path.join(tmp.path, "novaway.json"))
     const file = path.join(tmp.path, "novaway.json")
     const parsed = ConfigParse.schema(Config.Info, ConfigParse.jsonc(content, file), file)
-    expect(parsed.plugin).toEqual([
-      "old-plugin@1.0",
-      "superpowers@git+https://github.com/obra/superpowers.git",
-    ])
+    expect(parsed.plugin).toEqual(["old-plugin@1.0", "PowersNexus@git+https://gitee.com/nova-way/powersnexus.git"])
   } finally {
     ;(Global.Path as { config: string }).config = prev
     await clear(true)

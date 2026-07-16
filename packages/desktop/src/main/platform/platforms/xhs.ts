@@ -1,6 +1,14 @@
 import { BrowserWindow, screen, session } from "electron"
 import type { Cookie } from "electron"
-import { PlatformBase, type PlatformLoginResult, type PublishInput, type PublishResult, type PlatformAccountInfo, type AccountStats, type PublishRecord } from "../PlatformBase"
+import {
+  PlatformBase,
+  type PlatformLoginResult,
+  type PublishInput,
+  type PublishResult,
+  type PlatformAccountInfo,
+  type AccountStats,
+  type PublishRecord,
+} from "../PlatformBase"
 
 const DEFAULT_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
@@ -19,7 +27,13 @@ export class XhsPlatform extends PlatformBase {
   private prevWebSession = ""
   private win?: BrowserWindow
 
-  async login(): Promise<{ loginCookie: string; uid: string; nickname: string; avatar: string; fansCount: number } | null> {
+  async login(): Promise<{
+    loginCookie: string
+    uid: string
+    nickname: string
+    avatar: string
+    fansCount: number
+  } | null> {
     try {
       const result = await this.loginOrView("login")
       if (!result.success || !result.cookies) return null
@@ -66,7 +80,9 @@ export class XhsPlatform extends PlatformBase {
     }
   }
 
-  private async createAuthorizationWindow(_existingCookies?: Cookie[] | null): Promise<{ winContentsId: number; partition: string }> {
+  private async createAuthorizationWindow(
+    _existingCookies?: Cookie[] | null,
+  ): Promise<{ winContentsId: number; partition: string }> {
     const partition = Date.now().toString()
     const { width, height } = screen.getPrimaryDisplay().workAreaSize
 

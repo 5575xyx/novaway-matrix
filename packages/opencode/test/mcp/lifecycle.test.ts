@@ -1,6 +1,12 @@
 import { expect, mock, beforeEach } from "bun:test"
-import { Effect, Exit } from "effect"
+import path from "path"
+import { Effect, Exit, Layer } from "effect"
+import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
+import { AppFileSystem } from "@opencode-ai/core/filesystem"
+import { Config } from "@/config/config"
+import { InstanceRef } from "../../src/effect/instance-ref"
 import type { MCP as MCPNS } from "../../src/mcp/index"
+import { TestConfig } from "../fixture/config"
 import { testEffect } from "../lib/effect"
 
 // --- Mock infrastructure ---
@@ -180,8 +186,31 @@ beforeEach(() => {
 // Import after mocks
 const { MCP } = await import("../../src/mcp/index")
 const { McpOAuthCallback } = await import("../../src/mcp/oauth-callback")
+const { McpAuth } = await import("../../src/mcp/auth")
+const { Bus } = await import("../../src/bus")
 
-const it = testEffect(MCP.defaultLayer)
+const testConfigLayer = TestConfig.layer({
+  get: () =>
+    Effect.gen(function* () {
+      const ctx = yield* InstanceRef
+      if (!ctx) return { mcp: {} } as Config.Info
+      const file = path.join(ctx.directory, "novaway.json")
+      const exists = yield* Effect.promise(() => Bun.file(file).exists())
+      if (!exists) return { mcp: {} } as Config.Info
+      const content = yield* Effect.promise(() => Bun.file(file).text())
+      return JSON.parse(content) as Config.Info
+    }),
+})
+
+const testLayer = MCP.layer.pipe(
+  Layer.provide(McpAuth.layer),
+  Layer.provide(Bus.layer),
+  Layer.provide(testConfigLayer),
+  Layer.provide(CrossSpawnSpawner.defaultLayer),
+  Layer.provide(AppFileSystem.defaultLayer),
+)
+
+const it = testEffect(testLayer)
 
 function statusName(status: Record<string, MCPNS.Status> | MCPNS.Status, server: string) {
   if ("status" in status) return status.status

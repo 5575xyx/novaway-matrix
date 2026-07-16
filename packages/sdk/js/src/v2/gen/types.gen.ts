@@ -1447,6 +1447,13 @@ export type ToolList = Array<ToolListItem>
 
 export type ToolIds = Array<string>
 
+export type ToolCallPayload = {
+  toolId: string
+  arguments?: {
+    [key: string]: unknown
+  }
+}
+
 export type WorktreeError = {
   name:
     | "WorktreeNotGitError"
@@ -4382,236 +4389,6 @@ export type ConfigProvidersResponses = {
 
 export type ConfigProvidersResponse = ConfigProvidersResponses[keyof ConfigProvidersResponses]
 
-export type DatabaseTestData = {
-  body?: {
-    type: "mysql" | "postgresql" | "sqlite" | "sqlserver" | "mariadb"
-    host: string
-    port: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-    user: string
-    password: string
-    database: string
-  }
-  path?: never
-  query?: never
-  url: "/database/test"
-}
-
-export type DatabaseTestResponses = {
-  /**
-   * Database connection test result
-   */
-  200: {
-    success: boolean
-    message: string
-    version?: string
-    pingMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-  }
-}
-
-export type DatabaseTestResponse = DatabaseTestResponses[keyof DatabaseTestResponses]
-
-export type DatabaseListData = {
-  body?: {
-    type: "mysql" | "postgresql" | "sqlite" | "sqlserver" | "mariadb"
-    host: string
-    port: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-    user: string
-    password: string
-    database: string
-  }
-  path?: never
-  query?: never
-  url: "/database/list"
-}
-
-export type DatabaseListResponses = {
-  /**
-   * List of database names
-   */
-  200: {
-    databases: Array<string>
-  }
-}
-
-export type DatabaseListResponse = DatabaseListResponses[keyof DatabaseListResponses]
-
-export type DatabaseExecuteData = {
-  body?: {
-    type: "mysql" | "postgresql" | "sqlite" | "sqlserver" | "mariadb"
-    host: string
-    port: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-    user: string
-    password: string
-    database: string
-    sql: string
-  }
-  path?: never
-  query?: never
-  url: "/database/execute"
-}
-
-export type DatabaseExecuteResponses = {
-  /**
-   * SQL execution result
-   */
-  200: {
-    success: boolean
-    message: string
-    columns?: Array<string>
-    rows?: Array<{
-      [key: string]: unknown
-    }>
-    affectedRows?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-  }
-}
-
-export type DatabaseExecuteResponse = DatabaseExecuteResponses[keyof DatabaseExecuteResponses]
-
-export type DatabaseTablesData = {
-  body?: {
-    type: "mysql" | "postgresql" | "sqlite" | "sqlserver" | "mariadb"
-    host: string
-    port: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-    user: string
-    password: string
-    database: string
-  }
-  path?: never
-  query?: never
-  url: "/database/tables"
-}
-
-export type DatabaseTablesResponses = {
-  /**
-   * List of table names
-   */
-  200: {
-    tables: Array<string>
-  }
-}
-
-export type DatabaseTablesResponse = DatabaseTablesResponses[keyof DatabaseTablesResponses]
-
-export type DatabaseColumnsData = {
-  body?: {
-    type: "mysql" | "postgresql" | "sqlite" | "sqlserver" | "mariadb"
-    host: string
-    port: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-    user: string
-    password: string
-    database: string
-    table: string
-  }
-  path?: never
-  query?: never
-  url: "/database/columns"
-}
-
-export type DatabaseColumnsResponses = {
-  /**
-   * Table column definitions
-   */
-  200: {
-    columns: Array<{
-      name: string
-      type: string
-      nullable: boolean
-      key?: string
-      defaultValue?: string
-      comment?: string
-    }>
-  }
-}
-
-export type DatabaseColumnsResponse = DatabaseColumnsResponses[keyof DatabaseColumnsResponses]
-
-export type DatabaseQueryData = {
-  body?: {
-    type: "mysql" | "postgresql" | "sqlite" | "sqlserver" | "mariadb"
-    host: string
-    port: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-    user: string
-    password: string
-    database: string
-    sql: string
-  }
-  path?: never
-  query?: never
-  url: "/database/query"
-}
-
-export type DatabaseQueryResponses = {
-  /**
-   * Query results with columns and rows
-   */
-  200: {
-    success: boolean
-    message: string
-    columns: Array<string>
-    rows: Array<{
-      [key: string]: unknown
-    }>
-    total: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-  }
-}
-
-export type DatabaseQueryResponse = DatabaseQueryResponses[keyof DatabaseQueryResponses]
-
-export type DatabaseLoadConnectionsData = {
-  body?: never
-  path?: never
-  query?: never
-  url: "/database/connections"
-}
-
-export type DatabaseLoadConnectionsResponses = {
-  /**
-   * Load database connections
-   */
-  200: {
-    connections: Array<{
-      name?: string
-      type: "mysql" | "postgresql" | "sqlite" | "sqlserver" | "mariadb"
-      host: string
-      port: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-      user: string
-      password: string
-      database: string
-    }>
-  }
-}
-
-export type DatabaseLoadConnectionsResponse = DatabaseLoadConnectionsResponses[keyof DatabaseLoadConnectionsResponses]
-
-export type DatabaseSaveConnectionsData = {
-  body?: {
-    connections: Array<{
-      name?: string
-      type: "mysql" | "postgresql" | "sqlite" | "sqlserver" | "mariadb"
-      host: string
-      port: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-      user: string
-      password: string
-      database: string
-    }>
-  }
-  path?: never
-  query?: never
-  url: "/database/connections"
-}
-
-export type DatabaseSaveConnectionsResponses = {
-  /**
-   * Save database connections
-   */
-  200: {
-    success: boolean
-    message: string
-  }
-}
-
-export type DatabaseSaveConnectionsResponse = DatabaseSaveConnectionsResponses[keyof DatabaseSaveConnectionsResponses]
-
 export type ExperimentalConsoleGetData = {
   body?: never
   path?: never
@@ -4759,6 +4536,32 @@ export type ToolIdsResponses = {
 }
 
 export type ToolIdsResponse = ToolIdsResponses[keyof ToolIdsResponses]
+
+export type ToolCallData = {
+  body?: ToolCallPayload
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/experimental/tool/call"
+}
+
+export type ToolCallErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type ToolCallError = ToolCallErrors[keyof ToolCallErrors]
+
+export type ToolCallResponses = {
+  /**
+   * Tool call result
+   */
+  200: unknown
+}
 
 export type WorktreeRemoveData = {
   body?: WorktreeRemoveInput
@@ -5585,6 +5388,7 @@ export type AppSkillsResponses = {
     description?: string
     location: string
     content: string
+    builtIn?: boolean
   }>
 }
 
@@ -7946,6 +7750,7 @@ export type SettingsAgentListResponses = {
     name: string
     location: string
     editable: boolean
+    builtIn?: boolean
     data: {
       [key: string]: unknown
     }
@@ -8064,6 +7869,7 @@ export type SettingsAgentSaveResponses = {
     name: string
     location: string
     editable: boolean
+    builtIn?: boolean
     data: {
       [key: string]: unknown
     }
@@ -8091,6 +7897,7 @@ export type SettingsSkillListResponses = {
     name: string
     location: string
     editable: boolean
+    builtIn?: boolean
     data: {
       [key: string]: unknown
     }
@@ -8207,6 +8014,7 @@ export type SettingsSkillSaveResponses = {
     name: string
     location: string
     editable: boolean
+    builtIn?: boolean
     data: {
       [key: string]: unknown
     }
@@ -8236,6 +8044,7 @@ export type SettingsRuleListResponses = {
     name: string
     location: string
     editable: boolean
+    builtIn?: boolean
     data: {
       [key: string]: unknown
     }
@@ -8314,6 +8123,7 @@ export type SettingsRuleSaveResponses = {
     name: string
     location: string
     editable: boolean
+    builtIn?: boolean
     data: {
       [key: string]: unknown
     }
@@ -8341,6 +8151,7 @@ export type SettingsProjectInstructionGetResponses = {
     name: string
     location: string
     editable: boolean
+    builtIn?: boolean
     data: {
       [key: string]: unknown
     }
@@ -8381,6 +8192,7 @@ export type SettingsProjectInstructionSaveResponses = {
     name: string
     location: string
     editable: boolean
+    builtIn?: boolean
     data: {
       [key: string]: unknown
     }

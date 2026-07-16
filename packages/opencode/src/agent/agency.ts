@@ -327,9 +327,7 @@ function agencyDescription(category: string, displayName: string) {
 function agencyDisplayName(id: string, fallback?: string) {
   if (AGENT_NAME_LABELS[id]) return AGENT_NAME_LABELS[id]
   const category = id.split("-")[0]
-  const words = id
-    .split("-")
-    .filter((word, index) => index !== 0 || !CATEGORY_LABELS[category])
+  const words = id.split("-").filter((word, index) => index !== 0 || !CATEGORY_LABELS[category])
   const translated = words.map((word) => WORD_LABELS[word] ?? fallbackWord(word)).join("")
   if (translated) return translated
   return fallback ?? id
