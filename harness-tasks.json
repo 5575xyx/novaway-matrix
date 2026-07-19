@@ -357,8 +357,37 @@
         }
       ],
       "completed_at": "2026-07-19T12:22:07.000Z"
+    },
+    {
+      "id": "task-013",
+      "title": "完成本地签名 stable 发布闭环脚手架",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [
+        "task-012"
+      ],
+      "attempts": 1,
+      "max_attempts": 3,
+      "started_at_commit": "57f52a7",
+      "validation": {
+        "command": "bun run test:stable-local",
+        "timeout_seconds": 300
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 3,
+          "total": 3,
+          "description": "check/install/activate/rollback + deferred + 占位 URL 拒绝通过",
+          "timestamp": "2026-07-19T12:56:49.000Z"
+        }
+      ],
+      "completed_at": "2026-07-19T12:56:49.000Z"
     }
   ],
-  "session_count": 6,
-  "last_session": "2026-07-19T12:22:07.000Z"
+  "session_count": 7,
+  "last_session": "2026-07-19T12:56:49.000Z"
 }

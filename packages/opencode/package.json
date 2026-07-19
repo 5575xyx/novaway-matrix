@@ -14,7 +14,8 @@
     "fix-node-pty": "bun run script/fix-node-pty.ts",
     "dev": "bun run --conditions=browser ./src/index.ts",
     "dev:temporary": "bun run --conditions=browser ./src/temporary.ts",
-    "db": "bun drizzle-kit"
+    "db": "bun drizzle-kit",
+    "test:stable-local": "bun test test/powersnexus/stable-local-harness.test.ts --timeout 60000"
   },
   "bin": {
     "opencode": "./bin/opencode"
@@ -67,6 +68,7 @@
     "why-is-node-running": "3.2.2"
   },
   "dependencies": {
+    "playwright-core": "1.60.0",
     "@actions/core": "1.11.1",
     "@actions/github": "6.0.1",
     "@agentclientprotocol/sdk": "0.21.0",
