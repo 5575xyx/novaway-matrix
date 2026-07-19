@@ -45,3 +45,7 @@ tmp-cdp-*.mjs
 test-redirect.json
 test-redirect.txt
 harness-tasks.json.corrupt-*
+
+# PowersNexus KPI nightly local records
+.codex/powersnexus-kpi/
+

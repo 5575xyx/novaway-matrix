@@ -618,8 +618,37 @@
         }
       ],
       "completed_at": "2026-07-19T15:29:53.000Z"
+    },
+    {
+      "id": "task-022",
+      "title": "7 天 KPI 夜间基线骨架",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [
+        "task-021"
+      ],
+      "attempts": 1,
+      "max_attempts": 3,
+      "started_at_commit": "2f340f3",
+      "validation": {
+        "command": "bun packages/desktop/scripts/run-kpi-nightly-baseline.mjs --summary-only",
+        "timeout_seconds": 120
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 3,
+          "total": 3,
+          "description": "首日 7 探针 PASS；7 日汇总因缺测日 ready=false",
+          "timestamp": "2026-07-19T15:42:56.000Z"
+        }
+      ],
+      "completed_at": "2026-07-19T15:42:56.000Z"
     }
   ],
-  "session_count": 15,
-  "last_session": "2026-07-19T15:29:53.000Z"
+  "session_count": 16,
+  "last_session": "2026-07-19T15:42:56.000Z"
 }
