@@ -153,4 +153,64 @@ export function assertNetworkTargetAllowed(
   return url
 }
 
+
+/** 工作区隔离临时目录（强制子进程 TEMP 落在 Worktree 内）。 */
+export function sandboxTempRoot(worktree: string, runID = "shared") {
+  const safeRun = runID.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 80) || "shared"
+  return path.join(path.resolve(worktree), ".novaway", "powersnexus", "tmp", safeRun)
+}
+
+function looksLikeFilesystemPath(arg: string): boolean {
+  if (!arg) return false
+  if (arg.startsWith("-")) {
+    const eq = arg.indexOf("=")
+    if (eq > 0) return looksLikeFilesystemPath(arg.slice(eq + 1))
+    return false
+  }
+  if (path.isAbsolute(arg)) return true
+  if (/^[A-Za-z]:[\\/]/.test(arg)) return true
+  if (arg.startsWith("\\\\") || arg.startsWith("//")) return true
+  return false
+}
+
+/** 拒绝 argv 中指向 Worktree/临时白名单之外的绝对路径参数。 */
+export function assertArgvWithinWriteRoots(
+  worktree: string,
+  argv: readonly string[],
+  options?: { tempRoots?: readonly string[] },
+) {
+  const roots = options?.tempRoots ?? [sandboxTempRoot(worktree)]
+  // argv[0] 是可执行文件本身，允许位于系统目录；只审查参数中的路径。
+  for (const raw of argv.slice(1)) {
+    const arg = raw.startsWith("-") && raw.includes("=") ? raw.slice(raw.indexOf("=") + 1) : raw
+    if (!looksLikeFilesystemPath(arg)) continue
+    assertWritablePath(worktree, arg, { tempRoots: roots })
+  }
+}
+
+/** 构造隔离子进程环境：强制 TEMP/TMP 进入 Worktree 沙箱。 */
+export function buildIsolatedProcessEnv(input: {
+  worktree: string
+  runID: string
+  base?: NodeJS.ProcessEnv
+}): { env: NodeJS.ProcessEnv; tempRoot: string } {
+  const worktree = path.resolve(input.worktree)
+  const tempRoot = sandboxTempRoot(worktree, input.runID)
+  const base = { ...(input.base ?? process.env) }
+  // 去掉可能把写入引到外部的变量，再强制覆盖
+  delete base.TMP
+  delete base.TEMP
+  delete base.TMPDIR
+  const env: NodeJS.ProcessEnv = {
+    ...base,
+    TEMP: tempRoot,
+    TMP: tempRoot,
+    TMPDIR: tempRoot,
+    POWERSNEXUS_WORKTREE: worktree,
+    POWERSNEXUS_WRITE_ROOTS: [worktree, tempRoot].join(path.delimiter),
+    POWERSNEXUS_ISOLATION: "1",
+  }
+  return { env, tempRoot }
+}
+
 export * as PowersNexusIsolation from "./isolation"

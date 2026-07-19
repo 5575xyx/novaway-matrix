@@ -11,7 +11,13 @@ import type { ChildProcessHandle } from "effect/unstable/process/ChildProcessSpa
 import { make as makeRunRepository, type RunStep } from "./run-repository"
 import { Event } from "./events"
 import { redactBytes } from "./redact"
-import { assertAutoLocalApprove, assertNetworkTargetAllowed } from "./isolation"
+import {
+  assertArgvWithinWriteRoots,
+  assertAutoLocalApprove,
+  assertNetworkTargetAllowed,
+  buildIsolatedProcessEnv,
+  sandboxTempRoot,
+} from "./isolation"
 import { createRunJob, disposeRunJob, getRunJob } from "./os-isolation"
 
 export type StepMode = "command" | "service"
@@ -100,6 +106,11 @@ function validateStep(step: StepInput, worktree: string) {
   const relative = path.relative(root, cwd)
   if (relative.startsWith("..") || path.isAbsolute(relative)) {
     throw runnerError("PATH_OUTSIDE_WORKTREE", "step cwd 必须位于当前 Worktree 内")
+  }
+  try {
+    assertArgvWithinWriteRoots(worktree, step.argv, { tempRoots: [sandboxTempRoot(worktree)] })
+  } catch (cause) {
+    throw runnerError("PATH_OUTSIDE_WORKTREE", cause instanceof Error ? cause.message : "step argv 路径越界")
   }
   return { ...step, cwd }
 }
@@ -226,6 +237,11 @@ export const make = Effect.fn("PowersNexus.Runner.make")(function* () {
 
   const execute = Effect.fnUntraced(function* (runID: string, input: RunInput, steps: StepInput[], logDirectory: string) {
     const isolationJob = createRunJob(runID)
+    const { env: isolatedEnv, tempRoot } = buildIsolatedProcessEnv({
+      worktree: input.worktree,
+      runID,
+    })
+    yield* fs.makeDirectory(tempRoot, { recursive: true })
     yield* repository.updateRun(runID, { status: "running", time_started: Date.now() })
     yield* bus.publish(Event.RunStarted, {
       runID,
@@ -258,6 +274,20 @@ export const make = Effect.fn("PowersNexus.Runner.make")(function* () {
             )
           }
         }
+        try {
+          assertArgvWithinWriteRoots(input.worktree, step.argv, { tempRoots: [tempRoot] })
+        } catch (cause) {
+          return yield* failRun(
+            runID,
+            input.bindingID,
+            step.id,
+            rowID,
+            stdoutFile,
+            stderrFile,
+            "PATH_OUTSIDE_WORKTREE",
+            cause instanceof Error ? cause.message : "step argv 路径越界",
+          )
+        }
         yield* repository.updateStep(rowID, { status: "running", time_started: Date.now() })
         yield* bus.publish(Event.StepStarted, { runID, stepID: step.id, timestamp: new Date().toISOString() })
 
@@ -266,7 +296,8 @@ export const make = Effect.fn("PowersNexus.Runner.make")(function* () {
             .spawn(
               ChildProcess.make(step.argv[0], step.argv.slice(1), {
                 cwd: step.cwd,
-                extendEnv: true,
+                env: isolatedEnv,
+                extendEnv: false,
                 stdin: "ignore",
                 stdout: "pipe",
                 stderr: "pipe",
@@ -336,6 +367,7 @@ export const make = Effect.fn("PowersNexus.Runner.make")(function* () {
         const isolated = yield* isolationJob.run(step.argv, {
           cwd: step.cwd,
           timeoutMs: step.timeoutMs ?? 10 * 60 * 1000,
+          env: isolatedEnv,
         })
         if (isolated.timedOut) {
           yield* stopServices(runID)

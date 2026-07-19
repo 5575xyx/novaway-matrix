@@ -1,46 +1,39 @@
 # PowersNexus 第一方集成验证报告
 
-生成时间：2026-07-19T13:45:00Z
+生成时间：2026-07-19T14:20:00Z
 
 ## 1. 审查结论
 
 | 维度 | 评分 | 说明 |
 |------|------|------|
-| 需求匹配 | 98 | 本地主链 + Browser/脱敏 + Windows 打包 + FR-08 + 本地 stable + Windows Job Object OS 隔离 |
-| 架构一致 | 96 | Runner 命令步骤走隔离 Job；取消/超时整树终止；不可用时降级 logical |
-| 代码质量 | 96 | Bun.FFI 绑定 kernel32 Job Object；KillOnJobClose；进程树跟踪 |
-| 测试覆盖 | 98 | isolation 7 项 + runner 7 项全通过 |
-| 风险评估 | 93 | 非 Windows 仍 logical；受限 Token 尚未做；生产 stable 仍缺真实端点 |
-| **综合** | **97** | **Windows OS 级进程隔离原型已落地并可验证** |
+| 需求匹配 | 98 | 完整本地主链 + Windows Job Object + Worktree 写路径强制 + TEMP 沙箱 |
+| 架构一致 | 97 | Runner 参数路径白名单、子进程 TEMP 强制进 Worktree |
+| 代码质量 | 96 | buildIsolatedProcessEnv / assertArgvWithinWriteRoots 与 Job Object 组合 |
+| 测试覆盖 | 98 | isolation+runner 18/18 |
+| 风险评估 | 93 | 仍非内核 ACL/受限 Token；跨平台与真实 stable 端点未完成 |
+| **综合** | **97** | **写路径强制已可执行，OS 隔离从“杀树”推进到“限写”** |
 
-## 2. 本轮新增（OS 隔离）
+## 2. 本轮新增（写路径强制）
 
-1. `packages/opencode/src/powersnexus/os-isolation.ts`
-   - Windows Job Object（CreateJobObject / AssignProcessToJobObject / TerminateJobObject）
-   - `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`
-   - 不可用时自动降级 logical + taskkill 树杀
-2. Runner 接入：
-   - 每个 run 创建 isolation job
-   - 命令步骤在 job 内执行
-   - service 步骤 assign pid
-   - cancel/失败/完成 dispose job
-3. `isolationStatus()` 在 Job 可用时报告 `mode: "os"`
+1. `assertArgvWithinWriteRoots`：拒绝参数中的 Worktree 外绝对路径
+2. `buildIsolatedProcessEnv`：强制 `TEMP/TMP/TMPDIR` 到 `.novaway/powersnexus/tmp/<runID>`
+3. Runner：校验 argv、创建沙箱目录、命令/服务步骤注入隔离环境
+4. 测试：argv 越界拒绝 + TEMP 沙箱断言
 
 ## 3. 验证
 
 | 项 | 结果 |
 |----|------|
-| isolation + runner | 14/14 通过 |
-| isOsIsolationAvailable (win32) | true |
-| packages/opencode typecheck | 通过 |
+| isolation + runner | 18/18 通过 |
+| typecheck | 通过 |
 
 ## 4. 仍未完成
 
-1. 真实 HTTPS stable 发布端点
-2. macOS/Linux 打包 E2E 与平台隔离
-3. Windows 受限 Token / 写路径内核强制
+1. 真实 HTTPS stable 端点
+2. Windows 受限 Token / 内核 ACL
+3. macOS/Linux 打包与隔离
 4. 7 天 KPI
 
 ## 5. 决策
 
-综合 97：Windows 上已具备可启用的 OS 级进程树隔离；完整沙箱（Token/文件系统 ACL）仍属后续。
+综合 97：交付子进程默认只能写 Worktree + 沙箱临时目录；越界 argv 启动即失败。

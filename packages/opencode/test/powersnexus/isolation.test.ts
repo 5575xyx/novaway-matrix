@@ -9,6 +9,9 @@ import {
   canAutoLocalApprove,
   classifyAction,
   isolationStatus,
+  assertArgvWithinWriteRoots,
+  buildIsolatedProcessEnv,
+  sandboxTempRoot,
 } from "../../src/powersnexus/isolation"
 import { createRunJob, disposeRunJob, isOsIsolationAvailable, processIsolationStatus } from "../../src/powersnexus/os-isolation"
 
@@ -88,4 +91,29 @@ test("OS 隔离 Job 可启动命令并在 terminate 后结束", async () => {
   } finally {
     disposeRunJob(job.id)
   }
+})
+
+
+test("argv 绝对路径越界被拒绝，Worktree 内路径允许", () => {
+  const worktree = path.resolve("E:/tmp/worktree-isolation")
+  expect(() => assertArgvWithinWriteRoots(worktree, ["node", "E:/outside/secret.txt"])).toThrow("禁止写入")
+  expect(() =>
+    assertArgvWithinWriteRoots(worktree, ["tool", `--out=${path.join(worktree, "dist", "a.js")}`]),
+  ).not.toThrow()
+  expect(() => assertArgvWithinWriteRoots(worktree, ["node", "-e", "console.log(1)"])).not.toThrow()
+})
+
+test("隔离子进程环境强制 TEMP 进入 Worktree 沙箱", () => {
+  const worktree = path.resolve("E:/tmp/worktree-isolation")
+  const { env, tempRoot } = buildIsolatedProcessEnv({
+    worktree,
+    runID: "run-abc",
+    base: { TEMP: "C:\\Windows\\Temp", PATH: process.env.PATH },
+  })
+  expect(tempRoot).toBe(sandboxTempRoot(worktree, "run-abc"))
+  expect(env.TEMP).toBe(tempRoot)
+  expect(env.TMP).toBe(tempRoot)
+  expect(env.TMPDIR).toBe(tempRoot)
+  expect(env.POWERSNEXUS_WORKTREE).toBe(worktree)
+  expect(env.TEMP?.includes("Windows")).toBe(false)
 })

@@ -1,5 +1,5 @@
 import { Effect, Schema } from "effect"
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process"
+import { spawn, type ChildProcess } from "node:child_process"
 import path from "node:path"
 import type { IsolationStatus } from "./isolation"
 
@@ -59,7 +59,7 @@ export function processIsolationStatus(): IsolationStatus {
       worktreeOnlyWrite: true,
       networkDefault: "ask",
       autoLocalDeliveryScope: "worktree_only",
-      note: "Windows Job Object 已启用：进程树 KillOnJobClose、取消/超时整树终止",
+      note: "Windows Job Object 已启用：进程树 KillOnJobClose；子进程 TEMP 强制落在 Worktree；argv 写路径白名单",
     }
   }
   return {
@@ -157,7 +157,7 @@ function getWin32Api(): Win32Api | null {
   }
   try {
     // Bun.FFI.dlopen — 绑定 kernel32 Job Object API
-    const { dlopen, ptr, toBuffer } = Bun.FFI as any
+    const { dlopen, ptr, toBuffer } = (Bun as any).FFI
     const lib = dlopen("kernel32.dll", {
       CreateJobObjectW: { args: ["ptr", "ptr"], returns: "ptr" },
       AssignProcessToJobObject: { args: ["ptr", "ptr"], returns: "bool" },
@@ -202,7 +202,7 @@ function enableKillOnJobClose(api: Win32Api, job: number) {
   const view = new DataView(buf)
   view.setUint32(16, 0x2000, true) // LimitFlags = KILL_ON_JOB_CLOSE
   try {
-    const { ptr } = Bun.FFI as any
+    const { ptr } = (Bun as any).FFI
     api.SetInformationJobObject(job, 9, ptr(buf), 144)
   } catch {
     // 若结构布局失败，仍保留 Job 用于 Assign/Terminate
@@ -275,7 +275,7 @@ function runTracked(
       resolve({ exitCode: 1, stdout: Buffer.alloc(0), stderr: Buffer.from("empty argv"), timedOut: false })
       return
     }
-    const child: ChildProcessWithoutNullStreams = spawn(argv[0], argv.slice(1), {
+    const child: ChildProcess = spawn(argv[0], argv.slice(1), {
       cwd: options.cwd,
       env: options.env ?? process.env,
       windowsHide: true,
@@ -299,8 +299,8 @@ function runTracked(
       }
     }, Math.max(1, options.timeoutMs))
 
-    child.stdout.on("data", (chunk) => stdoutChunks.push(Buffer.from(chunk)))
-    child.stderr.on("data", (chunk) => stderrChunks.push(Buffer.from(chunk)))
+    child.stdout?.on("data", (chunk) => stdoutChunks.push(Buffer.from(chunk)))
+    child.stderr?.on("data", (chunk) => stderrChunks.push(Buffer.from(chunk)))
     child.on("error", (err) => {
       clearTimeout(timer)
       resolve({

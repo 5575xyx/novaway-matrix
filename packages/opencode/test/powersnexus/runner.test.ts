@@ -437,3 +437,88 @@ setInterval(() => {}, 1 << 30);
   }),
   { git: true },
 )
+
+
+it.instance("拒绝 argv 指向 Worktree 外的绝对路径", () =>
+  Effect.gen(function* () {
+    const tmp = yield* TestInstance
+    const ctx = yield* InstanceState.context
+    const repository = yield* makeRepository()
+    const binding = yield* repository.create({
+      projectID: ctx.project.id,
+      worktree: tmp.directory,
+      changeName: "runner-path-guard",
+      level: "L2",
+      version: {
+        version: "6.1.0",
+        protocolVersion: "1.0",
+        digest: "c".repeat(64),
+        source: "bundled",
+        compatible: true,
+        verified: true,
+        cliPath: path.join(tmp.directory, "powersnexus-cli.js"),
+      },
+    })
+    const runner = yield* makeRunner()
+    const outside = path.resolve(tmp.directory, "..", "escape-outside.txt")
+    const exit = yield* Effect.exit(
+      runner.start({
+        bindingID: binding.id,
+        action: "verify",
+        snapshotRevision: 1,
+        worktree: tmp.directory,
+        steps: [{ id: "bad", argv: [process.execPath, outside], cwd: tmp.directory }],
+      }),
+    )
+    expect(exit._tag).toBe("Failure")
+  }),
+  { git: true },
+)
+
+it.instance("隔离子进程 TEMP 指向 Worktree 内沙箱", () =>
+  Effect.gen(function* () {
+    const tmp = yield* TestInstance
+    const ctx = yield* InstanceState.context
+    const repository = yield* makeRepository()
+    const binding = yield* repository.create({
+      projectID: ctx.project.id,
+      worktree: tmp.directory,
+      changeName: "runner-temp-sandbox",
+      level: "L2",
+      version: {
+        version: "6.1.0",
+        protocolVersion: "1.0",
+        digest: "d".repeat(64),
+        source: "bundled",
+        compatible: true,
+        verified: true,
+        cliPath: path.join(tmp.directory, "powersnexus-cli.js"),
+      },
+    })
+    const runner = yield* makeRunner()
+    const started = yield* runner.start({
+      bindingID: binding.id,
+      action: "verify",
+      snapshotRevision: 1,
+      worktree: tmp.directory,
+      steps: [
+        {
+          id: "temp",
+          argv: [
+            process.execPath,
+            "-e",
+            "const t=process.env.TEMP||''; if(!t.includes('.novaway') || !t.includes('powersnexus')) { console.error(t); process.exit(2)}; console.log('temp-ok')",
+          ],
+          cwd: tmp.directory,
+        },
+      ],
+    })
+    const waited = yield* runner.wait(started.runID, 30_000)
+    expect(waited.timedOut).toBe(false)
+    const result = yield* runner.get(started.runID)
+    expect(result.run?.status).toBe("passed")
+    const text = yield* Effect.promise(() => Bun.file(result.steps[0].stdout_file!).text())
+    expect(text).toContain("temp-ok")
+  }),
+  { git: true },
+)
