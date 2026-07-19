@@ -161,7 +161,12 @@ export const layer = Layer.effect(
         Effect.provideService(FileSystem.FileSystem, fs),
       )
       const publicKey = yield* fs.readFileString(publicKeyPath)
-      const keyID = process.env.POWERSNEXUS_RELEASE_KEY_ID ?? "powersnexus-bundled-2026-01"
+      const keyID = process.env.POWERSNEXUS_RELEASE_KEY_ID ?? "powersnexus-release-2026-01"
+      const trustedKeys: Record<string, string> = {
+        "powersnexus-bundled-2026-01": publicKey,
+        "powersnexus-release-2026-01": publicKey,
+        [keyID]: publicKey,
+      }
       const runtime: Runtime = {
         policy: effectivePolicy,
         root,
@@ -170,7 +175,7 @@ export const layer = Layer.effect(
         store,
         manifestUrls,
         allowedHosts,
-        trustedKeys: { [keyID]: publicKey },
+        trustedKeys,
         readRemote,
         stableGate: resolved.gate,
       }
