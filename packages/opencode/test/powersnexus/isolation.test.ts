@@ -151,3 +151,26 @@ test("隔离子进程环境在受限 Token 可用时标记 restricted", () => {
     expect(["restricted", "standard"]).toContain(env.POWERSNEXUS_TOKEN_LEVEL ?? "standard")
   }
 })
+
+
+test("CreateProcessAsUser 受限路径可启动命令且 restricted=true", async () => {
+  if (process.platform !== "win32" || !isRestrictedTokenAvailable()) return
+  const { Effect } = await import("effect")
+  const job = createRunJob(`asuser-${Date.now()}`)
+  try {
+    const comspec = process.env.ComSpec || "C:\\Windows\\System32\\cmd.exe"
+    const tempRoot = path.join(os.tmpdir(), `pn-asuser-${Date.now()}`)
+    const result = await Effect.runPromise(
+      job.run([comspec, "/c", "echo asuser-ok"], {
+        cwd: process.cwd(),
+        timeoutMs: 15_000,
+        env: { ...process.env, TEMP: tempRoot, TMP: tempRoot, TMPDIR: tempRoot },
+      }),
+    )
+    expect(result.exitCode).toBe(0)
+    expect(result.restricted).toBe(true)
+    expect(result.stdout.toString("utf8")).toContain("asuser-ok")
+  } finally {
+    disposeRunJob(job.id)
+  }
+})

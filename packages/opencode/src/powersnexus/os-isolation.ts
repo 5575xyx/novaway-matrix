@@ -1,6 +1,8 @@
 import { Effect, Schema } from "effect"
 import { spawn, type ChildProcess } from "node:child_process"
+import { readFileSync, unlinkSync, existsSync, mkdirSync } from "node:fs"
 import path from "node:path"
+import { randomUUID } from "node:crypto"
 import type { IsolationStatus } from "./isolation"
 
 export type ProcessIsolationMode = "logical" | "os"
@@ -69,6 +71,7 @@ export function isRestrictedTokenAvailable(): boolean {
 export type SandboxCapabilities = {
   jobObject: boolean
   restrictedToken: boolean
+  createProcessAsUser: boolean
   activeProcessLimit: number
   worktreeTempSandbox: boolean
   argvWriteGuard: boolean
@@ -78,6 +81,7 @@ export function sandboxCapabilities(): SandboxCapabilities {
   return {
     jobObject: isOsIsolationAvailable(),
     restrictedToken: isRestrictedTokenAvailable(),
+    createProcessAsUser: isRestrictedTokenAvailable() && process.platform === "win32",
     activeProcessLimit: DEFAULT_ACTIVE_PROCESS_LIMIT,
     worktreeTempSandbox: true,
     argvWriteGuard: true,
@@ -165,7 +169,7 @@ function createLogicalJob(runID: string): RunJob {
       pids.clear()
     },
     run(argv, options) {
-      return Effect.promise(() => runTracked(argv, options, (pid) => this.assign(pid)))
+      return Effect.promise(() => runTrackedSmart(argv, options, (pid) => this.assign(pid)))
     },
     dispose() {
       disposed = true
@@ -288,7 +292,7 @@ function createWin32Job(runID: string): RunJob {
     },
     run(argv, options) {
       return Effect.promise(() =>
-        runTracked(argv, options, (pid) => {
+        runTrackedSmart(argv, options, (pid) => {
           assign(pid)
         }),
       )
@@ -305,6 +309,283 @@ function createWin32Job(runID: string): RunJob {
       assigned.clear()
     },
   }
+}
+
+
+function isCrashExitCode(code: number) {
+  // NTSTATUS severity error bit (e.g. 0xC0000005 ACCESS_VIOLATION)
+  return code < 0 || code >= 0xc0000000
+}
+
+function toWide(s: string) {
+  const u = new Uint16Array(s.length + 1)
+  for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i)
+  return u
+}
+
+function quoteWinArg(arg: string) {
+  if (!/[ \t"]/g.test(arg)) return arg
+  return `"${arg.replace(/"/g, '\\"')}"`
+}
+
+function buildCommandLine(argv: string[]) {
+  return argv.map(quoteWinArg).join(" ")
+}
+
+function buildUnicodeEnvBlock(env: NodeJS.ProcessEnv): Uint16Array {
+  const lines: string[] = []
+  for (const [key, value] of Object.entries(env)) {
+    if (value === undefined) continue
+    lines.push(`${key}=${value}`)
+  }
+  // Windows requires SystemRoot etc; keep all provided keys
+  lines.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+  const joined = lines.join("\0") + "\0\0"
+  return toWide(joined.slice(0, -1) + "\0") // toWide already null-terminates one; ensure double null
+}
+
+/** CreateProcessAsUser + Safer Token；stdout/stderr 落到 TEMP 文件。失败返回 null。 */
+function runWithRestrictedToken(
+  argv: string[],
+  options: { cwd: string; timeoutMs: number; env?: NodeJS.ProcessEnv },
+  onSpawn: (pid: number) => void,
+): IsolatedRunResult | null {
+  if (process.platform !== "win32") return null
+  if (process.env.POWERSNEXUS_RESTRICTED_SPAWN === "0") return null
+  const token = createRestrictedTokenHandle()
+  if (!token) return null
+  const k32 = getWin32Api()
+  const create = getCreateProcessApi()
+  if (!k32 || !create) {
+    k32?.CloseHandle(token)
+    return null
+  }
+  const tempRoot = options.env?.TEMP || options.env?.TMP || process.env.TEMP || process.cwd()
+  try {
+    mkdirSync(tempRoot, { recursive: true })
+  } catch {
+    // ignore
+  }
+  const id = randomUUID()
+  const stdoutPath = path.join(tempRoot, `pn-out-${id}.log`)
+  const stderrPath = path.join(tempRoot, `pn-err-${id}.log`)
+  try {
+    const { ptr } = (Bun as any).FFI
+    // SECURITY_ATTRIBUTES { nLength=24, lpSecurityDescriptor=null, bInheritHandle=1 }
+    const sa = new ArrayBuffer(24)
+    const sav = new DataView(sa)
+    sav.setUint32(0, 24, true)
+    sav.setUint32(16, 1, true) // bInheritHandle = TRUE (offset 16 on x64 after 8-byte pointer)
+
+    const GENERIC_WRITE = 0x40000000
+    const FILE_SHARE_READ = 0x00000001
+    const CREATE_ALWAYS = 2
+    const FILE_ATTRIBUTE_NORMAL = 0x80
+    const OPEN_EXISTING = 3
+    const GENERIC_READ = 0x80000000
+
+    const outName = toWide(stdoutPath)
+    const errName = toWide(stderrPath)
+    const hOut = create.CreateFileW(ptr(outName), GENERIC_WRITE, FILE_SHARE_READ, ptr(sa), CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, null)
+    const hErr = create.CreateFileW(ptr(errName), GENERIC_WRITE, FILE_SHARE_READ, ptr(sa), CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, null)
+    if (!hOut || !hErr || hOut === -1 || hErr === -1) {
+      if (hOut && hOut !== -1) k32.CloseHandle(hOut)
+      if (hErr && hErr !== -1) k32.CloseHandle(hErr)
+      k32.CloseHandle(token)
+      return null
+    }
+
+    // STARTUPINFOW
+    const si = new ArrayBuffer(104)
+    const siv = new DataView(si)
+    siv.setUint32(0, 104, true) // cb
+    const STARTF_USESTDHANDLES = 0x00000100
+    const STARTF_USESHOWWINDOW = 0x00000001
+    siv.setUint32(60, STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW, true) // dwFlags
+    siv.setUint16(64, 0, true) // wShowWindow = SW_HIDE
+    // hStdInput INVALID
+    siv.setBigUint64(80, 0xffffffffffffffffn, true)
+    siv.setBigUint64(88, BigInt(hOut >>> 0) >= 0 ? BigInt(hOut) : BigInt(hOut), true)
+    siv.setBigUint64(96, BigInt(hErr >>> 0) >= 0 ? BigInt(hErr) : BigInt(hErr), true)
+    // Use unsigned conversion carefully
+    const setHandle = (offset: number, handle: number) => {
+      const big = BigInt(handle < 0 ? handle + 2 ** 32 : handle)
+      // for 64-bit handles from bun, Number may already be full
+      siv.setBigUint64(offset, BigInt.asUintN(64, BigInt(handle)), true)
+    }
+    setHandle(88, hOut)
+    setHandle(96, hErr)
+
+    const pi = new ArrayBuffer(24)
+    const app = toWide(argv[0])
+    const cmd = toWide(buildCommandLine(argv))
+    const cwd = toWide(options.cwd)
+    const env = options.env ?? process.env
+    // simplified env: null inherit parent may miss TEMP sandbox - build block
+    const envBlock = buildEnvBlock(env)
+
+    const CREATE_UNICODE_ENVIRONMENT = 0x00000400
+    const CREATE_NO_WINDOW = 0x08000000
+    const CREATE_SUSPENDED = 0x00000004
+    const flags = CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW | CREATE_SUSPENDED
+
+    const ok = create.CreateProcessAsUserW(
+      token,
+      ptr(app),
+      ptr(cmd),
+      null,
+      null,
+      true, // inherit handles for stdio files
+      flags,
+      ptr(envBlock),
+      ptr(cwd),
+      ptr(si),
+      ptr(pi),
+    )
+    // close thread/process std handles in parent
+    k32.CloseHandle(hOut)
+    k32.CloseHandle(hErr)
+
+    if (!ok) {
+      k32.CloseHandle(token)
+      cleanupFiles(stdoutPath, stderrPath)
+      return null
+    }
+
+    const piv = new DataView(pi)
+    const hProcess = Number(piv.getBigUint64(0, true))
+    const hThread = Number(piv.getBigUint64(8, true))
+    const pid = piv.getUint32(16, true)
+    if (pid) onSpawn(pid)
+
+    // resume after job assignment via onSpawn
+    create.ResumeThread(hThread)
+
+    const wait = create.WaitForSingleObject(hProcess, Math.max(1, options.timeoutMs))
+    const WAIT_TIMEOUT = 258
+    let timedOut = wait === WAIT_TIMEOUT
+    if (timedOut) {
+      try {
+        spawn("taskkill", ["/pid", String(pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" })
+      } catch {
+        // ignore
+      }
+      create.WaitForSingleObject(hProcess, 5000)
+    }
+    const codeBuf = new Uint32Array(1)
+    create.GetExitCodeProcess(hProcess, ptr(codeBuf))
+    const exitCode = codeBuf[0] >>> 0
+    k32.CloseHandle(hProcess)
+    if (hThread) k32.CloseHandle(hThread)
+    k32.CloseHandle(token)
+
+    if (isCrashExitCode(exitCode)) {
+      cleanupFiles(stdoutPath, stderrPath)
+      return null // caller falls back
+    }
+
+    const stdout = existsSync(stdoutPath) ? readFileSync(stdoutPath) : Buffer.alloc(0)
+    const stderr = existsSync(stderrPath) ? readFileSync(stderrPath) : Buffer.alloc(0)
+    cleanupFiles(stdoutPath, stderrPath)
+    return { exitCode, stdout, stderr, timedOut, restricted: true }
+  } catch {
+    k32.CloseHandle(token)
+    cleanupFiles(stdoutPath, stderrPath)
+    return null
+  }
+}
+
+function cleanupFiles(...files: string[]) {
+  for (const file of files) {
+    try {
+      if (existsSync(file)) unlinkSync(file)
+    } catch {
+      // ignore
+    }
+  }
+}
+
+function buildEnvBlock(env: NodeJS.ProcessEnv): Uint16Array {
+  const lines: string[] = []
+  for (const key of Object.keys(env)) {
+    const value = env[key]
+    if (value === undefined) continue
+    lines.push(`${key}=${value}`)
+  }
+  lines.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+  // double null terminated UTF-16LE
+  const parts: number[] = []
+  for (const line of lines) {
+    for (let i = 0; i < line.length; i++) parts.push(line.charCodeAt(i))
+    parts.push(0)
+  }
+  parts.push(0)
+  return new Uint16Array(parts)
+}
+
+type CreateProcessApi = {
+  CreateProcessAsUserW: (...args: any[]) => number
+  CreateFileW: (...args: any[]) => number
+  ResumeThread: (thread: number) => number
+  WaitForSingleObject: (handle: number, ms: number) => number
+  GetExitCodeProcess: (handle: number, codeOut: any) => number
+}
+
+let createProcessApi: CreateProcessApi | null | undefined
+
+function getCreateProcessApi(): CreateProcessApi | null {
+  if (createProcessApi !== undefined) return createProcessApi
+  if (process.platform !== "win32") {
+    createProcessApi = null
+    return null
+  }
+  try {
+    const { dlopen } = (Bun as any).FFI
+    const kernel = dlopen("kernel32.dll", {
+      CreateFileW: { args: ["ptr", "u32", "u32", "ptr", "u32", "u32", "ptr"], returns: "ptr" },
+      ResumeThread: { args: ["ptr"], returns: "u32" },
+      WaitForSingleObject: { args: ["ptr", "u32"], returns: "u32" },
+      GetExitCodeProcess: { args: ["ptr", "ptr"], returns: "bool" },
+    })
+    const adv = dlopen("advapi32.dll", {
+      CreateProcessAsUserW: {
+        args: ["ptr", "ptr", "ptr", "ptr", "ptr", "bool", "u32", "ptr", "ptr", "ptr", "ptr"],
+        returns: "i32",
+      },
+    })
+    createProcessApi = {
+      CreateProcessAsUserW: (...args: any[]) => (adv.symbols.CreateProcessAsUserW(...args) ? 1 : 0),
+      CreateFileW: (...args: any[]) => Number(kernel.symbols.CreateFileW(...args)),
+      ResumeThread: (thread) => Number(kernel.symbols.ResumeThread(thread)),
+      WaitForSingleObject: (handle, ms) => Number(kernel.symbols.WaitForSingleObject(handle, ms)),
+      GetExitCodeProcess: (handle, codeOut) => (kernel.symbols.GetExitCodeProcess(handle, codeOut) ? 1 : 0),
+    }
+    return createProcessApi
+  } catch {
+    createProcessApi = null
+    return null
+  }
+}
+
+function runTrackedSmart(
+  argv: string[],
+  options: { cwd: string; timeoutMs: number; env?: NodeJS.ProcessEnv },
+  onSpawn: (pid: number) => void,
+): Promise<IsolatedRunResult> {
+  return new Promise((resolve) => {
+    if (isRestrictedTokenAvailable()) {
+      try {
+        const restricted = runWithRestrictedToken(argv, options, onSpawn)
+        if (restricted) {
+          resolve(restricted)
+          return
+        }
+      } catch {
+        // fall through
+      }
+    }
+    void runTracked(argv, options, onSpawn).then(resolve)
+  })
 }
 
 function runTracked(
