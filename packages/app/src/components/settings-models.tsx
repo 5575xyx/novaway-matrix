@@ -1,4 +1,5 @@
 import { useFilteredList } from "@opencode-ai/ui/hooks"
+import type { ProviderConfig } from "@opencode-ai/sdk/v2/client"
 import { ProviderIcon } from "@opencode-ai/ui/provider-icon"
 import { Switch } from "@opencode-ai/ui/switch"
 import { Icon } from "@opencode-ai/ui/icon"
@@ -18,6 +19,10 @@ type ModelItem = ReturnType<ReturnType<typeof useModels>["list"]>[number]
 type KeyedModel = ModelItem & { keyIndex: number }
 
 type AuthEntry = { type: string; key?: string }
+
+type ModelModality = NonNullable<
+  NonNullable<NonNullable<ProviderConfig["models"]>[string]["modalities"]>["input"]
+>[number]
 
 const maskKey = (key: string | undefined) => {
   if (!key) return "****"
@@ -90,8 +95,8 @@ export const SettingsModels: Component = () => {
       const modelConfig = modelsConfig[marker.modelID] ?? {}
 
       const currentModalities = modelConfig.modalities ?? { input: ["text"], output: [] }
-      const inputModalities = new Set(currentModalities.input ?? ["text"])
-      const outputModalities = new Set(currentModalities.output ?? [])
+      const inputModalities = new Set<ModelModality>(currentModalities.input ?? ["text"])
+      const outputModalities = new Set<ModelModality>(currentModalities.output ?? [])
 
       if (marker.modality === "image") {
         inputModalities.add("image")

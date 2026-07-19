@@ -1,5 +1,6 @@
 import { type Component, createMemo, createSignal, For, onMount, Show } from "solid-js"
 import { createStore } from "solid-js/store"
+import type { ProviderConfig } from "@opencode-ai/sdk/v2/client"
 import { Dialog } from "@opencode-ai/ui/dialog"
 import { Switch } from "@opencode-ai/ui/switch"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
@@ -15,6 +16,10 @@ import { DialogSelectProvider } from "./dialog-select-provider"
 import { ModelCapabilitySummary } from "./model-capability-summary"
 
 type AuthEntry = { type: string; key?: string }
+
+type ModelModality = NonNullable<
+  NonNullable<NonNullable<ProviderConfig["models"]>[string]["modalities"]>["input"]
+>[number]
 
 type ModelMarker = {
   providerID: string
@@ -84,8 +89,8 @@ export const DialogManageModels: Component = () => {
 
       // 更新 modalities
       const currentModalities = modelConfig.modalities ?? { input: ["text"], output: [] }
-      const inputModalities = new Set(currentModalities.input ?? ["text"])
-      const outputModalities = new Set(currentModalities.output ?? [])
+      const inputModalities = new Set<ModelModality>(currentModalities.input ?? ["text"])
+      const outputModalities = new Set<ModelModality>(currentModalities.output ?? [])
 
       if (marker.modality === "image") {
         inputModalities.add("image")
