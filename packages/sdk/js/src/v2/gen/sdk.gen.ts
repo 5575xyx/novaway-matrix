@@ -147,6 +147,41 @@ import type {
   PermissionRespondErrors,
   PermissionRespondResponses,
   PermissionRuleset,
+  PowersnexusActionErrors,
+  PowersnexusActionResponses,
+  PowersnexusActivateErrors,
+  PowersnexusActivateResponses,
+  PowersnexusArchiveErrors,
+  PowersnexusArchiveResponses,
+  PowersnexusBindErrors,
+  PowersnexusBindResponses,
+  PowersnexusChangesErrors,
+  PowersnexusChangesResponses,
+  PowersnexusCheckErrors,
+  PowersnexusCheckResponses,
+  PowersnexusCreateChangeErrors,
+  PowersnexusCreateChangeResponses,
+  PowersnexusEvidenceErrors,
+  PowersnexusEvidenceResponses,
+  PowersnexusInstallErrors,
+  PowersnexusInstallResponses,
+  PowersnexusRollbackErrors,
+  PowersnexusRollbackResponses,
+  PowersnexusRunCancelErrors,
+  PowersnexusRunCancelResponses,
+  PowersnexusRunErrors,
+  PowersnexusRunLogErrors,
+  PowersnexusRunLogResponses,
+  PowersnexusRunResponses,
+  PowersnexusRunRetryErrors,
+  PowersnexusRunRetryResponses,
+  PowersNexusSha256,
+  PowersnexusStatusErrors,
+  PowersnexusStatusResponses,
+  PowersnexusVerifyErrors,
+  PowersnexusVerifyResponses,
+  PowersnexusVersionErrors,
+  PowersnexusVersionResponses,
   ProjectCurrentResponses,
   ProjectInitGitResponses,
   ProjectListResponses,
@@ -3285,6 +3320,625 @@ export class Project extends HeyApiClient {
         ...params.headers,
       },
     })
+  }
+}
+
+export class Powersnexus extends HeyApiClient {
+  public status<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      changeName?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "changeName" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<PowersnexusStatusResponses, PowersnexusStatusErrors, ThrowOnError>({
+      url: "/powersnexus/status",
+      ...options,
+      ...params,
+    })
+  }
+
+  public changes<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<PowersnexusChangesResponses, PowersnexusChangesErrors, ThrowOnError>({
+      url: "/powersnexus/changes",
+      ...options,
+      ...params,
+    })
+  }
+
+  public createChange<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      actionID?: string
+      expectedRevision?: 0
+      changeName?: string
+      level?: "L0" | "L1" | "L2" | "L3" | "L4"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "actionID" },
+            { in: "body", key: "expectedRevision" },
+            { in: "body", key: "changeName" },
+            { in: "body", key: "level" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      PowersnexusCreateChangeResponses,
+      PowersnexusCreateChangeErrors,
+      ThrowOnError
+    >({
+      url: "/powersnexus/changes",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public bind<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      actionID?: string
+      expectedRevision?: number
+      changeName?: string
+      sessionID?: string
+      handoff?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "actionID" },
+            { in: "body", key: "expectedRevision" },
+            { in: "body", key: "changeName" },
+            { in: "body", key: "sessionID" },
+            { in: "body", key: "handoff" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<PowersnexusBindResponses, PowersnexusBindErrors, ThrowOnError>({
+      url: "/powersnexus/bind",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public action<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      changeName?: string
+      actionID?: string
+      expectedRevision?: number
+      bindingID?: string
+      action?: string
+      input?: {
+        [key: string]: unknown
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "changeName" },
+            { in: "body", key: "actionID" },
+            { in: "body", key: "expectedRevision" },
+            { in: "body", key: "bindingID" },
+            { in: "body", key: "action" },
+            { in: "body", key: "input" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<PowersnexusActionResponses, PowersnexusActionErrors, ThrowOnError>({
+      url: "/powersnexus/actions",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public verify<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      actionID?: string
+      expectedRevision?: number
+      bindingID?: string
+      evidenceFiles?: Array<string>
+      browserQa?: {
+        scenarios: Array<{
+          id: string
+          url: string
+          steps?: Array<
+            | { type: "snapshot" }
+            | { type: "click"; ref: string }
+            | { type: "fill"; ref: string; value: string }
+            | { type: "press"; key: string; ref?: string }
+            | { type: "screenshot"; fullPage?: boolean }
+          >
+          requiredText?: Array<string>
+        }>
+        viewports?: Array<{ name: string; width: number; height: number }>
+        server?: {
+          argv: Array<string>
+          cwd: string
+          healthUrl: string
+          timeoutMs?: number
+        }
+      }
+      steps?: Array<{
+        id: string
+        argv: Array<string>
+        cwd: string
+        timeoutMs?: number
+      }>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "actionID" },
+            { in: "body", key: "expectedRevision" },
+            { in: "body", key: "bindingID" },
+            { in: "body", key: "evidenceFiles" },
+            { in: "body", key: "browserQa" },
+            { in: "body", key: "steps" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<PowersnexusVerifyResponses, PowersnexusVerifyErrors, ThrowOnError>({
+      url: "/powersnexus/verify",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public run<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<PowersnexusRunResponses, PowersnexusRunErrors, ThrowOnError>({
+      url: "/powersnexus/runs/{id}",
+      ...options,
+      ...params,
+    })
+  }
+
+  public runCancel<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+      workspace?: string
+      actionID?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "actionID" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      PowersnexusRunCancelResponses,
+      PowersnexusRunCancelErrors,
+      ThrowOnError
+    >({
+      url: "/powersnexus/runs/{id}/cancel",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public runRetry<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+      workspace?: string
+      actionID?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "actionID" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<PowersnexusRunRetryResponses, PowersnexusRunRetryErrors, ThrowOnError>(
+      {
+        url: "/powersnexus/runs/{id}/retry",
+        ...options,
+        ...params,
+        headers: {
+          "Content-Type": "application/json",
+          ...options?.headers,
+          ...params.headers,
+        },
+      },
+    )
+  }
+
+  public runLog<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+      workspace?: string
+      stepID: string
+      stream: "stdout" | "stderr"
+      offset?: string
+      limit?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "stepID" },
+            { in: "query", key: "stream" },
+            { in: "query", key: "offset" },
+            { in: "query", key: "limit" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<PowersnexusRunLogResponses, PowersnexusRunLogErrors, ThrowOnError>({
+      url: "/powersnexus/runs/{id}/log",
+      ...options,
+      ...params,
+    })
+  }
+
+  public evidence<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      bindingID?: string
+      runID?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "bindingID" },
+            { in: "query", key: "runID" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<PowersnexusEvidenceResponses, PowersnexusEvidenceErrors, ThrowOnError>({
+      url: "/powersnexus/evidence",
+      ...options,
+      ...params,
+    })
+  }
+
+  public archive<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      actionID?: string
+      expectedRevision?: number
+      bindingID?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "actionID" },
+            { in: "body", key: "expectedRevision" },
+            { in: "body", key: "bindingID" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<PowersnexusArchiveResponses, PowersnexusArchiveErrors, ThrowOnError>({
+      url: "/powersnexus/archive",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public version<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<PowersnexusVersionResponses, PowersnexusVersionErrors, ThrowOnError>({
+      url: "/powersnexus/version",
+      ...options,
+      ...params,
+    })
+  }
+
+  public check<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      requestID?: string
+      channel?: "stable"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "requestID" },
+            { in: "body", key: "channel" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<PowersnexusCheckResponses, PowersnexusCheckErrors, ThrowOnError>({
+      url: "/powersnexus/update/check",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public install<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      requestID?: string
+      targetDigest?: PowersNexusSha256
+      expectedActiveDigest?: PowersNexusSha256
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "requestID" },
+            { in: "body", key: "targetDigest" },
+            { in: "body", key: "expectedActiveDigest" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<PowersnexusInstallResponses, PowersnexusInstallErrors, ThrowOnError>({
+      url: "/powersnexus/update/install",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public activate<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      requestID?: string
+      targetDigest?: PowersNexusSha256
+      expectedActiveDigest?: PowersNexusSha256
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "requestID" },
+            { in: "body", key: "targetDigest" },
+            { in: "body", key: "expectedActiveDigest" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<PowersnexusActivateResponses, PowersnexusActivateErrors, ThrowOnError>(
+      {
+        url: "/powersnexus/update/activate",
+        ...options,
+        ...params,
+        headers: {
+          "Content-Type": "application/json",
+          ...options?.headers,
+          ...params.headers,
+        },
+      },
+    )
+  }
+
+  public rollback<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      requestID?: string
+      targetDigest?: PowersNexusSha256
+      expectedActiveDigest?: PowersNexusSha256
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "requestID" },
+            { in: "body", key: "targetDigest" },
+            { in: "body", key: "expectedActiveDigest" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<PowersnexusRollbackResponses, PowersnexusRollbackErrors, ThrowOnError>(
+      {
+        url: "/powersnexus/update/rollback",
+        ...options,
+        ...params,
+        headers: {
+          "Content-Type": "application/json",
+          ...options?.headers,
+          ...params.headers,
+        },
+      },
+    )
   }
 }
 
@@ -6641,6 +7295,11 @@ export class OpencodeClient extends HeyApiClient {
   private _project?: Project
   get project(): Project {
     return (this._project ??= new Project({ client: this.client }))
+  }
+
+  private _powersnexus?: Powersnexus
+  get powersnexus(): Powersnexus {
+    return (this._powersnexus ??= new Powersnexus({ client: this.client }))
   }
 
   private _pty?: Pty

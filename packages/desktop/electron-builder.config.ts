@@ -32,7 +32,13 @@ const getBase = (): Configuration => ({
     output: "dist",
     buildResources: "resources",
   },
-  files: ["out/**/*", "resources/**/*"],
+  files: [
+    "out/**/*",
+    "resources/**/*",
+    "!resources/powersnexus/**/*",
+    "!resources/powersnexus-baselines/**/*",
+    "!resources/powersnexus-release-public-key.pem",
+  ],
   extraResources: [
     {
       from: "native/",
@@ -52,6 +58,15 @@ const getBase = (): Configuration => ({
       from: "resources/node/",
       to: "node/",
       filter: ["**/*"],
+    },
+    {
+      from: "resources/powersnexus-baselines/",
+      to: "powersnexus/",
+      filter: ["**/*"],
+    },
+    {
+      from: "resources/powersnexus-release-public-key.pem",
+      to: "powersnexus-release-public-key.pem",
     },
   ],
   asarUnpack: [

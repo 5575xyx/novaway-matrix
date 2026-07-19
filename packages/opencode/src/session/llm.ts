@@ -24,13 +24,7 @@ import { RuntimeFlags } from "@/effect/runtime-flags"
 import * as Option from "effect/Option"
 import * as OtelTracer from "@effect/opentelemetry/Tracer"
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/unstable/http"
-import {
-  AgnesImage,
-  AgnesVideo,
-  ImageGeneration,
-  ProtocolRegistry,
-  VideoGeneration,
-} from "@opencode-ai/llm/protocols"
+import { AgnesImage, AgnesVideo, ImageGeneration, ProtocolRegistry, VideoGeneration } from "@opencode-ai/llm/protocols"
 
 const log = Log.create({ service: "llm" })
 export const OUTPUT_TOKEN_MAX = ProviderTransform.OUTPUT_TOKEN_MAX
@@ -568,9 +562,7 @@ const live: Layer.Layer<
                 }
 
                 const videoUrl = statusResult.videoUrl
-                const outputText = videoUrl
-                  ? `<video src="${videoUrl}" controls width="100%"></video>`
-                  : "视频生成完成"
+                const outputText = videoUrl ? `<video src="${videoUrl}" controls width="100%"></video>` : "视频生成完成"
 
                 return Stream.succeed(makeStartStep()).pipe(
                   Stream.concat(Stream.succeed({ type: "text-start" as const, id: textId })),

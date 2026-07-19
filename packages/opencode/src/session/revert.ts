@@ -9,6 +9,7 @@ import { MessageV2 } from "./message-v2"
 import { SessionID, MessageID, PartID } from "./schema"
 import { SessionRunState } from "./run-state"
 import { SessionSummary } from "./summary"
+import { BusEvent } from "@/bus/bus-event"
 
 const log = Log.create({ service: "session.revert" })
 
@@ -39,6 +40,13 @@ export const RevertInput = Schema.Struct({
   partID: Schema.optional(PartID),
 })
 export type RevertInput = Schema.Schema.Type<typeof RevertInput>
+
+export const Event = {
+  Changed: BusEvent.define(
+    "session.revert.changed",
+    Schema.Struct({ sessionID: SessionID, action: Schema.Literals(["revert", "unrevert"]) }),
+  ),
+}
 
 export interface Interface {
   readonly revert: (input: RevertInput) => Effect.Effect<Session.Info, Session.BusyError>
@@ -224,6 +232,7 @@ export const layer = Layer.effect(
       yield* stage({ session, messageID: input.messageID })
       const staged = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
       yield* commit(staged)
+      yield* bus.publish(Event.Changed, { sessionID: input.sessionID, action: "revert" })
       return yield* sessions.get(input.sessionID).pipe(Effect.orDie)
     })
 
@@ -236,6 +245,7 @@ export const layer = Layer.effect(
         yield* snap.checkout(session.revert.snapshot).pipe(Effect.orDie)
       }
       yield* sessions.clearRevert(input.sessionID)
+      yield* bus.publish(Event.Changed, { sessionID: input.sessionID, action: "unrevert" })
       return yield* sessions.get(input.sessionID).pipe(Effect.orDie)
     })
 

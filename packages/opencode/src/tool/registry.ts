@@ -16,7 +16,19 @@ import { SkillTool } from "./skill"
 import { MemoryTool } from "./memory"
 import { GenerateImageTool } from "./generate_image"
 import { GenerateVideoTool } from "./generate_video"
-// import { BrowserTool } from "./browser"
+import {
+  BrowserAccessibilityTool,
+  BrowserClickTool,
+  BrowserCloseTool,
+  BrowserConsoleTool,
+  BrowserFillTool,
+  BrowserNavigateTool,
+  BrowserNetworkTool,
+  BrowserPressTool,
+  BrowserScreenshotTool,
+  BrowserSnapshotTool,
+} from "./browser"
+import { PowersNexusBrowser } from "@/powersnexus/browser"
 import * as Tool from "./tool"
 import { Config } from "@/config/config"
 import { ConfigProvider } from "@/config/provider"
@@ -113,6 +125,7 @@ export const layer: Layer.Layer<
   | Truncate.Service
   | RuntimeFlags.Service
   | Auth.Service
+  | PowersNexusBrowser.Service
 > = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -146,7 +159,16 @@ export const layer: Layer.Layer<
     const memorytool = yield* MemoryTool
     const generateimagetool = yield* GenerateImageTool
     const generatevideotool = yield* GenerateVideoTool
-    // const browsertool = yield* BrowserTool
+    const browserNavigate = yield* BrowserNavigateTool
+    const browserSnapshot = yield* BrowserSnapshotTool
+    const browserClick = yield* BrowserClickTool
+    const browserFill = yield* BrowserFillTool
+    const browserPress = yield* BrowserPressTool
+    const browserScreenshot = yield* BrowserScreenshotTool
+    const browserConsole = yield* BrowserConsoleTool
+    const browserNetwork = yield* BrowserNetworkTool
+    const browserAccessibility = yield* BrowserAccessibilityTool
+    const browserClose = yield* BrowserCloseTool
     const agent = yield* Agent.Service
 
     const state = yield* InstanceState.make<State>(
@@ -254,7 +276,17 @@ export const layer: Layer.Layer<
           plan: Tool.init(plan),
           generate_image: Tool.init(generateimagetool),
           generate_video: Tool.init(generatevideotool),
-          // browser: Tool.init(browsertool),
+          browser_navigate: Tool.init(browserNavigate),
+          browser_open: Tool.init(browserNavigate),
+          browser_snapshot: Tool.init(browserSnapshot),
+          browser_click: Tool.init(browserClick),
+          browser_fill: Tool.init(browserFill),
+          browser_press: Tool.init(browserPress),
+          browser_screenshot: Tool.init(browserScreenshot),
+          browser_console: Tool.init(browserConsole),
+          browser_network: Tool.init(browserNetwork),
+          browser_accessibility: Tool.init(browserAccessibility),
+          browser_close: Tool.init(browserClose),
         })
 
         return {
@@ -281,7 +313,17 @@ export const layer: Layer.Layer<
             ...(flags.experimentalPlanMode && flags.client === "cli" ? [tool.plan] : []),
             tool.generate_image,
             tool.generate_video,
-            // tool.browser,
+            tool.browser_navigate,
+            tool.browser_open,
+            tool.browser_snapshot,
+            tool.browser_click,
+            tool.browser_fill,
+            tool.browser_press,
+            tool.browser_screenshot,
+            tool.browser_console,
+            tool.browser_network,
+            tool.browser_accessibility,
+            tool.browser_close,
           ],
           task: tool.task,
           read: tool.read,
@@ -354,7 +396,7 @@ export const layer: Layer.Layer<
         if (tool.id === ApplyPatchTool.id) return usePatch
         if (tool.id === EditTool.id || tool.id === WriteTool.id) return !usePatch
 
-        if ((tool.id === GenerateImageTool.id || tool.id === GenerateVideoTool.id)) {
+        if (tool.id === GenerateImageTool.id || tool.id === GenerateVideoTool.id) {
           return imageProviderAvailable
         }
 
@@ -403,7 +445,7 @@ export const layer: Layer.Layer<
   }),
 )
 
-export const defaultLayer = Layer.suspend(() =>
+export const defaultLayer: Layer.Layer<Service> = Layer.suspend(() =>
   layer
     .pipe(
       Layer.provide(Config.defaultLayer),
@@ -427,8 +469,13 @@ export const defaultLayer = Layer.suspend(() =>
       Layer.provide(Ripgrep.defaultLayer),
       Layer.provide(Truncate.defaultLayer),
     )
-    .pipe(Layer.provide(AppProcess.defaultLayer), Layer.provide(RuntimeFlags.defaultLayer), Layer.provide(Auth.defaultLayer)),
-)
+    .pipe(
+      Layer.provide(AppProcess.defaultLayer),
+      Layer.provide(PowersNexusBrowser.defaultLayer),
+      Layer.provide(RuntimeFlags.defaultLayer),
+      Layer.provide(Auth.defaultLayer),
+    ),
+) as Layer.Layer<Service>
 
 function isZodType(value: unknown): value is z.ZodType {
   return typeof value === "object" && value !== null && "_zod" in value

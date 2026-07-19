@@ -366,6 +366,15 @@ const main = Effect.gen(function* () {
         ? join(process.resourcesPath, "node", "node.exe")
         : join(process.resourcesPath, "node", "bin", "node")
     process.env.DBX_NODE_PATH = app.isPackaged ? bundledNode : "node"
+    process.env.POWERSNEXUS_FIRST_PARTY = "1"
+    process.env.POWERSNEXUS_UPDATE_POLICY = process.env.POWERSNEXUS_UPDATE_POLICY ?? "bundled"
+    process.env.POWERSNEXUS_NOVAWAY_VERSION = app.getVersion()
+    process.env.POWERSNEXUS_BUNDLED_ROOT = app.isPackaged
+      ? join(process.resourcesPath, "powersnexus")
+      : join(app.getAppPath(), "resources", "powersnexus-baselines")
+    process.env.POWERSNEXUS_RELEASE_PUBLIC_KEY = app.isPackaged
+      ? join(process.resourcesPath, "powersnexus-release-public-key.pem")
+      : join(app.getAppPath(), "resources", "powersnexus-release-public-key.pem")
 
     logger.log("spawning sidecar", { url })
     const { listener, health } = yield* Effect.promise(() =>
@@ -450,7 +459,6 @@ const main = Effect.gen(function* () {
       event.preventDefault()
       hideMainWindow()
     })
-
   }
 
   floatingWindow = createFloatingWindow()

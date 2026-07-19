@@ -9,6 +9,16 @@ export type Event =
   | EventTuiCommandExecute
   | EventTuiToastShow1
   | EventTuiSessionSelect
+  | EventPowersnexusSnapshotChanged
+  | EventPowersnexusPhaseChanged
+  | EventPowersnexusBindingChanged
+  | EventPowersnexusBlocked
+  | EventPowersnexusRunStarted
+  | EventPowersnexusStepStarted
+  | EventPowersnexusStepCompleted1
+  | EventPowersnexusRunCompleted
+  | EventPowersnexusEvidenceAdded
+  | EventPowersnexusArchived
   | EventServerConnected
   | EventGlobalDisposed
   | EventServerInstanceDisposed
@@ -33,6 +43,7 @@ export type Event =
   | EventMcpBrowserOpenFailed
   | EventCommandExecuted
   | EventProjectUpdated
+  | EventSessionRevertChanged
   | EventSessionCompacted
   | EventVcsBranchUpdated
   | EventWorkspaceReady
@@ -159,6 +170,78 @@ export type EventTuiSessionSelect = {
      */
     sessionID: string
   }
+}
+
+export type PowersNexusSha256 = string
+
+export type PowersNexusWorkflowSnapshot = {
+  protocolVersion: "1.0"
+  powersnexusVersion: string
+  powersnexusDigest: PowersNexusSha256
+  bindingID: string
+  projectID: string
+  projectRoot: string
+  worktree: string
+  changeName: string
+  profile?: "application" | "library" | "web"
+  level: "L0" | "L1" | "L2" | "L3" | "L4"
+  phase:
+    | "uninitialized"
+    | "needs_classification"
+    | "needs_clarification"
+    | "needs_specification"
+    | "needs_design"
+    | "needs_plan"
+    | "ready_to_implement"
+    | "implementing"
+    | "needs_traceability"
+    | "needs_delivery_config"
+    | "ready_to_verify"
+    | "verifying"
+    | "repairing"
+    | "ready_to_archive"
+    | "archiving"
+    | "completed"
+    | "blocked"
+  status: "idle" | "running" | "blocked" | "failed" | "completed-local" | "completed"
+  revision: number
+  artifactDigest: PowersNexusSha256
+  requirements: Array<{
+    id: string
+    module: string
+    status: "planned" | "implementing" | "verified" | "blocked"
+    implementationFiles: Array<string>
+    testFiles: Array<string>
+  }>
+  tasks: Array<{
+    id: string
+    requirementIDs: Array<string>
+    title: string
+    status: "pending" | "in_progress" | "completed" | "cancelled" | "blocked"
+    dependsOn: Array<string>
+    sessionID?: string
+  }>
+  delivery?: {
+    profile: string
+    status: "unconfigured" | "ready" | "running" | "failed" | "passed" | "expired"
+    activeRunID?: string
+    verifiedAt?: string
+    fingerprint?: PowersNexusSha256
+  }
+  nextAction?: {
+    action: string
+    label: string
+    automatic: boolean
+    requiresAuthority?: "user" | "admin" | "external-system"
+  }
+  blockers: Array<{
+    code: string
+    message: string
+    recoverable: boolean
+    evidence?: Array<string>
+    recoveryActions: Array<string>
+  }>
+  updatedAt: string
 }
 
 export type PermissionRequest = {
@@ -798,6 +881,16 @@ export type GlobalEvent = {
     | EventTuiCommandExecute
     | EventTuiToastShow
     | EventTuiSessionSelect
+    | EventPowersnexusSnapshotChanged
+    | EventPowersnexusPhaseChanged
+    | EventPowersnexusBindingChanged
+    | EventPowersnexusBlocked
+    | EventPowersnexusRunStarted
+    | EventPowersnexusStepStarted
+    | EventPowersnexusStepCompleted
+    | EventPowersnexusRunCompleted
+    | EventPowersnexusEvidenceAdded
+    | EventPowersnexusArchived
     | EventServerConnected
     | EventGlobalDisposed
     | EventServerInstanceDisposed
@@ -822,6 +915,7 @@ export type GlobalEvent = {
     | EventMcpBrowserOpenFailed
     | EventCommandExecuted
     | EventProjectUpdated
+    | EventSessionRevertChanged
     | EventSessionCompacted
     | EventVcsBranchUpdated
     | EventWorkspaceReady
@@ -1074,8 +1168,8 @@ export type ProviderConfig = {
         output: number
       }
       modalities?: {
-        input: Array<"text" | "audio" | "image" | "video" | "pdf">
-        output: Array<"text" | "audio" | "image" | "video" | "pdf">
+        input?: Array<"text" | "audio" | "image" | "video" | "pdf">
+        output?: Array<"text" | "audio" | "image" | "video" | "pdf">
       }
       experimental?: boolean
       status?: "alpha" | "beta" | "deprecated" | "active"
@@ -1144,6 +1238,15 @@ export type McpRemoteConfig = {
    */
   oauth?: McpOAuthConfig | false
   timeout?: number
+}
+
+export type ConfigPowersNexus = {
+  enabled?: boolean
+  updatePolicy?: "bundled" | "stable" | "manual" | "developer"
+  pinnedVersion?: string
+  releaseManifestUrls?: Array<string>
+  releaseAllowedHosts?: Array<string>
+  developerPath?: string
 }
 
 /**
@@ -1241,6 +1344,7 @@ export type Config = {
     review_llm?: boolean
     review_interval?: number
   }
+  powersnexus?: ConfigPowersNexus
   evolution?: {
     enabled?: boolean
     review_llm?: boolean
@@ -1931,6 +2035,41 @@ export type MemoryReviewCandidate = {
     updated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
     applied?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   }
+}
+
+export type PowersNexusBadRequest = {
+  code: string
+  message: string
+}
+
+export type PowersNexusForbidden = {
+  code: string
+  message: string
+}
+
+export type PowersNexusNotFound = {
+  code: string
+  message: string
+}
+
+export type PowersNexusConflict = {
+  code: string
+  message: string
+}
+
+export type PowersNexusUnprocessable = {
+  code: string
+  message: string
+}
+
+export type PowersNexusUnavailable = {
+  code: string
+  message: string
+}
+
+export type PowersNexusInternalError = {
+  code: string
+  message: string
 }
 
 export type EffectHttpApiErrorForbidden = {
@@ -2675,6 +2814,155 @@ export type SyncEventSessionNextCompactionEnded = {
   }
 }
 
+export type EventPowersnexusSnapshotChanged = {
+  id: string
+  type: "powersnexus.snapshot.changed"
+  properties: PowersNexusWorkflowSnapshot
+}
+
+export type EventPowersnexusPhaseChanged = {
+  id: string
+  type: "powersnexus.phase.changed"
+  properties: {
+    projectID: string
+    worktree: string
+    bindingID: string
+    revision: number
+    timestamp: string
+    from:
+      | "uninitialized"
+      | "needs_classification"
+      | "needs_clarification"
+      | "needs_specification"
+      | "needs_design"
+      | "needs_plan"
+      | "ready_to_implement"
+      | "implementing"
+      | "needs_traceability"
+      | "needs_delivery_config"
+      | "ready_to_verify"
+      | "verifying"
+      | "repairing"
+      | "ready_to_archive"
+      | "archiving"
+      | "completed"
+      | "blocked"
+    to:
+      | "uninitialized"
+      | "needs_classification"
+      | "needs_clarification"
+      | "needs_specification"
+      | "needs_design"
+      | "needs_plan"
+      | "ready_to_implement"
+      | "implementing"
+      | "needs_traceability"
+      | "needs_delivery_config"
+      | "ready_to_verify"
+      | "verifying"
+      | "repairing"
+      | "ready_to_archive"
+      | "archiving"
+      | "completed"
+      | "blocked"
+  }
+}
+
+export type EventPowersnexusBindingChanged = {
+  id: string
+  type: "powersnexus.binding.changed"
+  properties: {
+    projectID: string
+    worktree: string
+    bindingID: string
+    revision: number
+    timestamp: string
+    changeName: string
+  }
+}
+
+export type EventPowersnexusBlocked = {
+  id: string
+  type: "powersnexus.blocked"
+  properties: {
+    projectID: string
+    worktree: string
+    bindingID: string
+    revision: number
+    timestamp: string
+    errorCode: string
+    message: string
+  }
+}
+
+export type EventPowersnexusRunStarted = {
+  id: string
+  type: "powersnexus.run.started"
+  properties: {
+    runID: string
+    bindingID: string
+    action: string
+    timestamp: string
+  }
+}
+
+export type EventPowersnexusStepStarted = {
+  id: string
+  type: "powersnexus.step.started"
+  properties: {
+    runID: string
+    stepID: string
+    timestamp: string
+  }
+}
+
+export type EventPowersnexusStepCompleted = {
+  id: string
+  type: "powersnexus.step.completed"
+  properties: {
+    runID: string
+    stepID: string
+    status: string
+    exitCode?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    evidenceDigest?: string
+    timestamp: string
+  }
+}
+
+export type EventPowersnexusRunCompleted = {
+  id: string
+  type: "powersnexus.run.completed"
+  properties: {
+    runID: string
+    bindingID: string
+    status: string
+    errorCode?: string
+    timestamp: string
+  }
+}
+
+export type EventPowersnexusEvidenceAdded = {
+  id: string
+  type: "powersnexus.evidence.added"
+  properties: {
+    runID: string
+    bindingID: string
+    fingerprint: string
+    timestamp: string
+  }
+}
+
+export type EventPowersnexusArchived = {
+  id: string
+  type: "powersnexus.archived"
+  properties: {
+    bindingID: string
+    changeName: string
+    archivePath: string
+    timestamp: string
+  }
+}
+
 export type EventServerConnected = {
   id: string
   type: "server.connected"
@@ -2880,6 +3168,15 @@ export type EventProjectUpdated = {
   id: string
   type: "project.updated"
   properties: Project
+}
+
+export type EventSessionRevertChanged = {
+  id: string
+  type: "session.revert.changed"
+  properties: {
+    sessionID: string
+    action: "revert" | "unrevert"
+  }
 }
 
 export type EventSessionCompacted = {
@@ -3851,6 +4148,19 @@ export type EventTuiToastShow1 = {
     message: string
     variant: "info" | "success" | "warning" | "error"
     duration?: number
+  }
+}
+
+export type EventPowersnexusStepCompleted1 = {
+  id: string
+  type: "powersnexus.step.completed"
+  properties: {
+    runID: string
+    stepID: string
+    status: string
+    exitCode?: number | "NaN" | "Infinity" | "-Infinity"
+    evidenceDigest?: string
+    timestamp: string
   }
 }
 
@@ -6222,6 +6532,980 @@ export type ProjectUpdateResponses = {
 }
 
 export type ProjectUpdateResponse = ProjectUpdateResponses[keyof ProjectUpdateResponses]
+
+export type PowersnexusStatusData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+    changeName?: string
+  }
+  url: "/powersnexus/status"
+}
+
+export type PowersnexusStatusErrors = {
+  /**
+   * Error
+   */
+  500:
+    | PowersNexusBadRequest
+    | PowersNexusForbidden
+    | PowersNexusNotFound
+    | PowersNexusConflict
+    | PowersNexusUnprocessable
+    | PowersNexusUnavailable
+    | PowersNexusInternalError
+}
+
+export type PowersnexusStatusError = PowersnexusStatusErrors[keyof PowersnexusStatusErrors]
+
+export type PowersnexusStatusResponses = {
+  /**
+   * 当前 PowersNexus 工作流状态
+   */
+  200: PowersNexusWorkflowSnapshot
+}
+
+export type PowersnexusStatusResponse = PowersnexusStatusResponses[keyof PowersnexusStatusResponses]
+
+export type PowersnexusChangesData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/powersnexus/changes"
+}
+
+export type PowersnexusChangesErrors = {
+  /**
+   * Error
+   */
+  500:
+    | PowersNexusBadRequest
+    | PowersNexusForbidden
+    | PowersNexusNotFound
+    | PowersNexusConflict
+    | PowersNexusUnprocessable
+    | PowersNexusUnavailable
+    | PowersNexusInternalError
+}
+
+export type PowersnexusChangesError = PowersnexusChangesErrors[keyof PowersnexusChangesErrors]
+
+export type PowersnexusChangesResponses = {
+  /**
+   * PowersNexus Change 绑定列表
+   */
+  200: Array<{
+    id: string
+    projectID: string
+    worktree: string
+    changeName: string
+    rootSessionID?: string
+    powersnexusVersion: string
+    powersnexusDigest: PowersNexusSha256
+    protocolVersion: string
+    level: "L0" | "L1" | "L2" | "L3" | "L4"
+    active: boolean
+    revision: number
+    time: {
+      created: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      updated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+  }>
+}
+
+export type PowersnexusChangesResponse = PowersnexusChangesResponses[keyof PowersnexusChangesResponses]
+
+export type PowersnexusCreateChangeData = {
+  body?: {
+    actionID: string
+    expectedRevision: 0
+    changeName: string
+    level: "L0" | "L1" | "L2" | "L3" | "L4"
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/powersnexus/changes"
+}
+
+export type PowersnexusCreateChangeErrors = {
+  /**
+   * Error
+   */
+  500:
+    | PowersNexusBadRequest
+    | PowersNexusForbidden
+    | PowersNexusNotFound
+    | PowersNexusConflict
+    | PowersNexusUnprocessable
+    | PowersNexusUnavailable
+    | PowersNexusInternalError
+}
+
+export type PowersnexusCreateChangeError = PowersnexusCreateChangeErrors[keyof PowersnexusCreateChangeErrors]
+
+export type PowersnexusCreateChangeResponses = {
+  /**
+   * 新建 PowersNexus Change 绑定
+   */
+  200: {
+    id: string
+    projectID: string
+    worktree: string
+    changeName: string
+    rootSessionID?: string
+    powersnexusVersion: string
+    powersnexusDigest: PowersNexusSha256
+    protocolVersion: string
+    level: "L0" | "L1" | "L2" | "L3" | "L4"
+    active: boolean
+    revision: number
+    time: {
+      created: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      updated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+  }
+}
+
+export type PowersnexusCreateChangeResponse = PowersnexusCreateChangeResponses[keyof PowersnexusCreateChangeResponses]
+
+export type PowersnexusBindData = {
+  body?: {
+    actionID: string
+    expectedRevision: number
+    changeName: string
+    sessionID: string
+    handoff?: boolean
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/powersnexus/bind"
+}
+
+export type PowersnexusBindErrors = {
+  /**
+   * Error
+   */
+  500:
+    | PowersNexusBadRequest
+    | PowersNexusForbidden
+    | PowersNexusNotFound
+    | PowersNexusConflict
+    | PowersNexusUnprocessable
+    | PowersNexusUnavailable
+    | PowersNexusInternalError
+}
+
+export type PowersnexusBindError = PowersnexusBindErrors[keyof PowersnexusBindErrors]
+
+export type PowersnexusBindResponses = {
+  /**
+   * 绑定或移交 PowersNexus 根 Session
+   */
+  200: {
+    id: string
+    projectID: string
+    worktree: string
+    changeName: string
+    rootSessionID?: string
+    powersnexusVersion: string
+    powersnexusDigest: PowersNexusSha256
+    protocolVersion: string
+    level: "L0" | "L1" | "L2" | "L3" | "L4"
+    active: boolean
+    revision: number
+    time: {
+      created: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      updated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+  }
+}
+
+export type PowersnexusBindResponse = PowersnexusBindResponses[keyof PowersnexusBindResponses]
+
+export type PowersnexusActionData = {
+  body?: {
+    changeName: string
+    actionID: string
+    expectedRevision: number
+    bindingID?: string
+    action: string
+    input: {
+      [key: string]: unknown
+    }
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/powersnexus/actions"
+}
+
+export type PowersnexusActionErrors = {
+  /**
+   * Error
+   */
+  500:
+    | PowersNexusBadRequest
+    | PowersNexusForbidden
+    | PowersNexusNotFound
+    | PowersNexusConflict
+    | PowersNexusUnprocessable
+    | PowersNexusUnavailable
+    | PowersNexusInternalError
+}
+
+export type PowersnexusActionError = PowersnexusActionErrors[keyof PowersnexusActionErrors]
+
+export type PowersnexusActionResponses = {
+  /**
+   * PowersNexus 工作流动作结果
+   */
+  200: PowersNexusWorkflowSnapshot
+}
+
+export type PowersnexusActionResponse = PowersnexusActionResponses[keyof PowersnexusActionResponses]
+
+export type PowersnexusVerifyData = {
+  body?: {
+    actionID: string
+    expectedRevision: number
+    bindingID: string
+    evidenceFiles?: Array<string>
+    browserQa?: {
+      scenarios: Array<{
+        id: string
+        url: string
+        steps?: Array<
+          | { type: "snapshot" }
+          | { type: "click"; ref: string }
+          | { type: "fill"; ref: string; value: string }
+          | { type: "press"; key: string; ref?: string }
+          | { type: "screenshot"; fullPage?: boolean }
+        >
+        requiredText?: Array<string>
+      }>
+      viewports?: Array<{ name: string; width: number; height: number }>
+      server?: {
+        argv: Array<string>
+        cwd: string
+        healthUrl: string
+        timeoutMs?: number
+      }
+    }
+    steps: Array<{
+      id: string
+      argv: Array<string>
+      cwd: string
+      timeoutMs?: number
+    }>
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/powersnexus/verify"
+}
+
+export type PowersnexusVerifyErrors = {
+  /**
+   * Error
+   */
+  500:
+    | PowersNexusBadRequest
+    | PowersNexusForbidden
+    | PowersNexusNotFound
+    | PowersNexusConflict
+    | PowersNexusUnprocessable
+    | PowersNexusUnavailable
+    | PowersNexusInternalError
+}
+
+export type PowersnexusVerifyError = PowersnexusVerifyErrors[keyof PowersnexusVerifyErrors]
+
+export type PowersnexusVerifyResponses = {
+  /**
+   * 创建 PowersNexus 交付 run
+   */
+  200: {
+    runID: string
+  }
+}
+
+export type PowersnexusVerifyResponse = PowersnexusVerifyResponses[keyof PowersnexusVerifyResponses]
+
+export type PowersnexusRunData = {
+  body?: never
+  path: {
+    id: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/powersnexus/runs/{id}"
+}
+
+export type PowersnexusRunErrors = {
+  /**
+   * Error
+   */
+  500:
+    | PowersNexusBadRequest
+    | PowersNexusForbidden
+    | PowersNexusNotFound
+    | PowersNexusConflict
+    | PowersNexusUnprocessable
+    | PowersNexusUnavailable
+    | PowersNexusInternalError
+}
+
+export type PowersnexusRunError = PowersnexusRunErrors[keyof PowersnexusRunErrors]
+
+export type PowersnexusRunResponses = {
+  /**
+   * PowersNexus run 与步骤详情
+   */
+  200: {
+    run: {
+      id: string
+      binding_id: string
+      action: string
+      status: string
+      attempt: number
+      snapshot_revision: number
+      fingerprint: string
+      error_code: string
+      log_directory: string
+      recovery_policy: string
+      evidence_files: Array<string>
+      time_started: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      time_ended: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      time_created: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      time_updated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+    steps: Array<{
+      id: string
+      run_id: string
+      step_id: string
+      sequence: number
+      kind: "profile" | "retry_probe"
+      profile_step_id: string
+      argv: Array<string>
+      cwd: string
+      timeout_ms: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      status: string
+      exit_code: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      stdout_file: string
+      stderr_file: string
+      artifacts: Array<string>
+      evidence_digest: string
+      time_started: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      time_ended: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      time_created: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      time_updated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }>
+    job: unknown
+  }
+}
+
+export type PowersnexusRunResponse = PowersnexusRunResponses[keyof PowersnexusRunResponses]
+
+export type PowersnexusRunCancelData = {
+  body?: {
+    actionID: string
+  }
+  path: {
+    id: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/powersnexus/runs/{id}/cancel"
+}
+
+export type PowersnexusRunCancelErrors = {
+  /**
+   * Error
+   */
+  500:
+    | PowersNexusBadRequest
+    | PowersNexusForbidden
+    | PowersNexusNotFound
+    | PowersNexusConflict
+    | PowersNexusUnprocessable
+    | PowersNexusUnavailable
+    | PowersNexusInternalError
+}
+
+export type PowersnexusRunCancelError = PowersnexusRunCancelErrors[keyof PowersnexusRunCancelErrors]
+
+export type PowersnexusRunCancelResponses = {
+  /**
+   * 取消 PowersNexus run
+   */
+  200: unknown
+}
+
+export type PowersnexusRunRetryData = {
+  body?: {
+    actionID: string
+  }
+  path: {
+    id: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/powersnexus/runs/{id}/retry"
+}
+
+export type PowersnexusRunRetryErrors = {
+  /**
+   * Error
+   */
+  500:
+    | PowersNexusBadRequest
+    | PowersNexusForbidden
+    | PowersNexusNotFound
+    | PowersNexusConflict
+    | PowersNexusUnprocessable
+    | PowersNexusUnavailable
+    | PowersNexusInternalError
+}
+
+export type PowersnexusRunRetryError = PowersnexusRunRetryErrors[keyof PowersnexusRunRetryErrors]
+
+export type PowersnexusRunRetryResponses = {
+  /**
+   * 重试 PowersNexus run
+   */
+  200: {
+    runID: string
+  }
+}
+
+export type PowersnexusRunRetryResponse = PowersnexusRunRetryResponses[keyof PowersnexusRunRetryResponses]
+
+export type PowersnexusRunLogData = {
+  body?: never
+  path: {
+    id: string
+  }
+  query: {
+    directory?: string
+    workspace?: string
+    stepID: string
+    stream: "stdout" | "stderr"
+    offset?: string
+    limit?: string
+  }
+  url: "/powersnexus/runs/{id}/log"
+}
+
+export type PowersnexusRunLogErrors = {
+  /**
+   * Error
+   */
+  500:
+    | PowersNexusBadRequest
+    | PowersNexusForbidden
+    | PowersNexusNotFound
+    | PowersNexusConflict
+    | PowersNexusUnprocessable
+    | PowersNexusUnavailable
+    | PowersNexusInternalError
+}
+
+export type PowersnexusRunLogError = PowersnexusRunLogErrors[keyof PowersnexusRunLogErrors]
+
+export type PowersnexusRunLogResponses = {
+  /**
+   * 分页读取 PowersNexus step 日志
+   */
+  200: {
+    text: string
+    offset: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    nextOffset: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    eof: boolean
+  }
+}
+
+export type PowersnexusRunLogResponse = PowersnexusRunLogResponses[keyof PowersnexusRunLogResponses]
+
+export type PowersnexusEvidenceData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+    bindingID?: string
+    runID?: string
+  }
+  url: "/powersnexus/evidence"
+}
+
+export type PowersnexusEvidenceErrors = {
+  /**
+   * Error
+   */
+  500:
+    | PowersNexusBadRequest
+    | PowersNexusForbidden
+    | PowersNexusNotFound
+    | PowersNexusConflict
+    | PowersNexusUnprocessable
+    | PowersNexusUnavailable
+    | PowersNexusInternalError
+}
+
+export type PowersnexusEvidenceError = PowersnexusEvidenceErrors[keyof PowersnexusEvidenceErrors]
+
+export type PowersnexusEvidenceResponses = {
+  /**
+   * PowersNexus 交付证据与指纹
+   */
+  200: {
+    run: {
+      id: string
+      binding_id: string
+      action: string
+      status: string
+      attempt: number
+      snapshot_revision: number
+      fingerprint: string
+      error_code: string
+      log_directory: string
+      recovery_policy: string
+      evidence_files: Array<string>
+      time_started: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      time_ended: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      time_created: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      time_updated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+    steps: Array<{
+      id: string
+      run_id: string
+      step_id: string
+      sequence: number
+      kind: "profile" | "retry_probe"
+      profile_step_id: string
+      argv: Array<string>
+      cwd: string
+      timeout_ms: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      status: string
+      exit_code: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      stdout_file: string
+      stderr_file: string
+      artifacts: Array<string>
+      evidence_digest: string
+      time_started: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      time_ended: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      time_created: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      time_updated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }>
+    files: Array<string>
+  }
+}
+
+export type PowersnexusEvidenceResponse = PowersnexusEvidenceResponses[keyof PowersnexusEvidenceResponses]
+
+export type PowersnexusArchiveData = {
+  body?: {
+    actionID: string
+    expectedRevision: number
+    bindingID: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/powersnexus/archive"
+}
+
+export type PowersnexusArchiveErrors = {
+  /**
+   * Error
+   */
+  500:
+    | PowersNexusBadRequest
+    | PowersNexusForbidden
+    | PowersNexusNotFound
+    | PowersNexusConflict
+    | PowersNexusUnprocessable
+    | PowersNexusUnavailable
+    | PowersNexusInternalError
+}
+
+export type PowersnexusArchiveError = PowersnexusArchiveErrors[keyof PowersnexusArchiveErrors]
+
+export type PowersnexusArchiveResponses = {
+  /**
+   * PowersNexus 本地归档结果
+   */
+  200: {
+    bindingID: string
+    archivePath: string
+    replayed: boolean
+  }
+}
+
+export type PowersnexusArchiveResponse = PowersnexusArchiveResponses[keyof PowersnexusArchiveResponses]
+
+export type PowersnexusVersionData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/powersnexus/version"
+}
+
+export type PowersnexusVersionErrors = {
+  /**
+   * Error
+   */
+  500:
+    | PowersNexusBadRequest
+    | PowersNexusForbidden
+    | PowersNexusNotFound
+    | PowersNexusConflict
+    | PowersNexusUnprocessable
+    | PowersNexusUnavailable
+    | PowersNexusInternalError
+}
+
+export type PowersnexusVersionError = PowersnexusVersionErrors[keyof PowersnexusVersionErrors]
+
+export type PowersnexusVersionResponses = {
+  /**
+   * PowersNexus 版本状态
+   */
+  200: {
+    policy: "bundled" | "stable" | "manual" | "developer"
+    active: {
+      version: string
+      protocolVersion: string
+      digest: PowersNexusSha256
+      source: "bundled" | "downloaded" | "developer"
+      compatible: boolean
+      verified: boolean
+    }
+    bundled: {
+      version: string
+      protocolVersion: string
+      digest: PowersNexusSha256
+      source: "bundled" | "downloaded" | "developer"
+      compatible: boolean
+      verified: boolean
+    }
+    previous?: {
+      version: string
+      protocolVersion: string
+      digest: PowersNexusSha256
+      source: "bundled" | "downloaded" | "developer"
+      compatible: boolean
+      verified: boolean
+    }
+    installed: Array<{
+      version: string
+      protocolVersion: string
+      digest: PowersNexusSha256
+      source: "bundled" | "downloaded" | "developer"
+      compatible: boolean
+      verified: boolean
+    }>
+    available?: {
+      version: string
+      protocolVersion: string
+      digest: PowersNexusSha256
+      source: "bundled" | "downloaded" | "developer"
+      compatible: boolean
+      verified: boolean
+    }
+    activationDeferred: boolean
+    lastCheckedAt?: string
+    lastErrorCode?: string
+  }
+}
+
+export type PowersnexusVersionResponse = PowersnexusVersionResponses[keyof PowersnexusVersionResponses]
+
+export type PowersnexusCheckData = {
+  body?: {
+    requestID: string
+    channel: "stable"
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/powersnexus/update/check"
+}
+
+export type PowersnexusCheckErrors = {
+  /**
+   * Error
+   */
+  500:
+    | PowersNexusBadRequest
+    | PowersNexusForbidden
+    | PowersNexusNotFound
+    | PowersNexusConflict
+    | PowersNexusUnprocessable
+    | PowersNexusUnavailable
+    | PowersNexusInternalError
+}
+
+export type PowersnexusCheckError = PowersnexusCheckErrors[keyof PowersnexusCheckErrors]
+
+export type PowersnexusCheckResponses = {
+  /**
+   * PowersNexus 更新检查结果
+   */
+  200: {
+    policy: "bundled" | "stable" | "manual" | "developer"
+    active: {
+      version: string
+      protocolVersion: string
+      digest: PowersNexusSha256
+      source: "bundled" | "downloaded" | "developer"
+      compatible: boolean
+      verified: boolean
+    }
+    bundled: {
+      version: string
+      protocolVersion: string
+      digest: PowersNexusSha256
+      source: "bundled" | "downloaded" | "developer"
+      compatible: boolean
+      verified: boolean
+    }
+    previous?: {
+      version: string
+      protocolVersion: string
+      digest: PowersNexusSha256
+      source: "bundled" | "downloaded" | "developer"
+      compatible: boolean
+      verified: boolean
+    }
+    installed: Array<{
+      version: string
+      protocolVersion: string
+      digest: PowersNexusSha256
+      source: "bundled" | "downloaded" | "developer"
+      compatible: boolean
+      verified: boolean
+    }>
+    available?: {
+      version: string
+      protocolVersion: string
+      digest: PowersNexusSha256
+      source: "bundled" | "downloaded" | "developer"
+      compatible: boolean
+      verified: boolean
+    }
+    activationDeferred: boolean
+    lastCheckedAt?: string
+    lastErrorCode?: string
+  }
+}
+
+export type PowersnexusCheckResponse = PowersnexusCheckResponses[keyof PowersnexusCheckResponses]
+
+export type PowersnexusInstallData = {
+  body?: {
+    requestID: string
+    targetDigest: PowersNexusSha256
+    expectedActiveDigest: PowersNexusSha256
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/powersnexus/update/install"
+}
+
+export type PowersnexusInstallErrors = {
+  /**
+   * Error
+   */
+  500:
+    | PowersNexusBadRequest
+    | PowersNexusForbidden
+    | PowersNexusNotFound
+    | PowersNexusConflict
+    | PowersNexusUnprocessable
+    | PowersNexusUnavailable
+    | PowersNexusInternalError
+}
+
+export type PowersnexusInstallError = PowersnexusInstallErrors[keyof PowersnexusInstallErrors]
+
+export type PowersnexusInstallResponses = {
+  /**
+   * PowersNexus 安装结果
+   */
+  200: {
+    requestID: string
+    status: "installed" | "activated" | "deferred" | "rolled-back"
+    active: {
+      version: string
+      protocolVersion: string
+      digest: PowersNexusSha256
+      source: "bundled" | "downloaded" | "developer"
+      compatible: boolean
+      verified: boolean
+    }
+    target?: {
+      version: string
+      protocolVersion: string
+      digest: PowersNexusSha256
+      source: "bundled" | "downloaded" | "developer"
+      compatible: boolean
+      verified: boolean
+    }
+    replayed: boolean
+  }
+}
+
+export type PowersnexusInstallResponse = PowersnexusInstallResponses[keyof PowersnexusInstallResponses]
+
+export type PowersnexusActivateData = {
+  body?: {
+    requestID: string
+    targetDigest: PowersNexusSha256
+    expectedActiveDigest: PowersNexusSha256
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/powersnexus/update/activate"
+}
+
+export type PowersnexusActivateErrors = {
+  /**
+   * Error
+   */
+  500:
+    | PowersNexusBadRequest
+    | PowersNexusForbidden
+    | PowersNexusNotFound
+    | PowersNexusConflict
+    | PowersNexusUnprocessable
+    | PowersNexusUnavailable
+    | PowersNexusInternalError
+}
+
+export type PowersnexusActivateError = PowersnexusActivateErrors[keyof PowersnexusActivateErrors]
+
+export type PowersnexusActivateResponses = {
+  /**
+   * PowersNexus 激活结果
+   */
+  200: {
+    requestID: string
+    status: "installed" | "activated" | "deferred" | "rolled-back"
+    active: {
+      version: string
+      protocolVersion: string
+      digest: PowersNexusSha256
+      source: "bundled" | "downloaded" | "developer"
+      compatible: boolean
+      verified: boolean
+    }
+    target?: {
+      version: string
+      protocolVersion: string
+      digest: PowersNexusSha256
+      source: "bundled" | "downloaded" | "developer"
+      compatible: boolean
+      verified: boolean
+    }
+    replayed: boolean
+  }
+}
+
+export type PowersnexusActivateResponse = PowersnexusActivateResponses[keyof PowersnexusActivateResponses]
+
+export type PowersnexusRollbackData = {
+  body?: {
+    requestID: string
+    targetDigest?: PowersNexusSha256
+    expectedActiveDigest: PowersNexusSha256
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/powersnexus/update/rollback"
+}
+
+export type PowersnexusRollbackErrors = {
+  /**
+   * Error
+   */
+  500:
+    | PowersNexusBadRequest
+    | PowersNexusForbidden
+    | PowersNexusNotFound
+    | PowersNexusConflict
+    | PowersNexusUnprocessable
+    | PowersNexusUnavailable
+    | PowersNexusInternalError
+}
+
+export type PowersnexusRollbackError = PowersnexusRollbackErrors[keyof PowersnexusRollbackErrors]
+
+export type PowersnexusRollbackResponses = {
+  /**
+   * PowersNexus 回滚结果
+   */
+  200: {
+    requestID: string
+    status: "installed" | "activated" | "deferred" | "rolled-back"
+    active: {
+      version: string
+      protocolVersion: string
+      digest: PowersNexusSha256
+      source: "bundled" | "downloaded" | "developer"
+      compatible: boolean
+      verified: boolean
+    }
+    target?: {
+      version: string
+      protocolVersion: string
+      digest: PowersNexusSha256
+      source: "bundled" | "downloaded" | "developer"
+      compatible: boolean
+      verified: boolean
+    }
+    replayed: boolean
+  }
+}
+
+export type PowersnexusRollbackResponse = PowersnexusRollbackResponses[keyof PowersnexusRollbackResponses]
 
 export type PtyShellsData = {
   body?: never

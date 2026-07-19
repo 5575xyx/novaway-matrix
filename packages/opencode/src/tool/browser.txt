@@ -1,0 +1,14 @@
+控制隔离浏览器进行导航、页面快照、交互、截图与诊断。
+
+使用顺序建议：
+1. browser_navigate 打开目标 URL
+2. browser_snapshot 获取页面结构
+3. 用最近一次快照返回的 snapshot ref 执行 click/fill/press
+4. browser_screenshot 保存证据
+5. 需要时读取 console/network/accessibility
+6. browser_close 释放浏览器上下文
+
+约束：
+- 仅允许 http/https
+- 未配置 POWERSNEXUS_BROWSER_CDP_URL 时，需 POWERSNEXUS_BROWSER_ALLOW_LAUNCH=1 才可启动隔离浏览器
+- 截图写入当前 Worktree 的 .novaway/powersnexus/evidence/browser/

@@ -21,6 +21,7 @@ import { RuntimeFlags } from "@/effect/runtime-flags"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { SessionEvent } from "@opencode-ai/core/session-event"
 import { Memory } from "@/memory/service"
+import { PowersNexusWorkflow } from "@/powersnexus/service"
 
 const log = Log.create({ service: "session.compaction" })
 
@@ -428,7 +429,22 @@ export const layer = Layer.effect(
         { sessionID: input.sessionID },
         { context: [], prompt: undefined },
       )
-      const nextPrompt = compacting.prompt ?? buildPrompt({ previousSummary, context: compacting.context })
+      const workflow = Option.getOrUndefined(yield* Effect.serviceOption(PowersNexusWorkflow.Service))
+      const capsule = workflow
+        ? yield* workflow.capsule(input.sessionID).pipe(Effect.catch(() => Effect.succeed(undefined)))
+        : undefined
+      const context = capsule
+        ? [
+            ...compacting.context,
+            [
+              "<powersnexus-workflow-capsule>",
+              JSON.stringify(capsule),
+              "</powersnexus-workflow-capsule>",
+              "将此 capsule 视为权威的工作流连续性元数据。",
+            ].join("\n"),
+          ]
+        : compacting.context
+      const nextPrompt = compacting.prompt ?? buildPrompt({ previousSummary, context })
       const msgs = structuredClone(selected.head)
       yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
       const modelMessages = yield* MessageV2.toModelMessagesEffect(msgs, model, {
