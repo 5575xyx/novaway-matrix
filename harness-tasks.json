@@ -386,8 +386,37 @@
         }
       ],
       "completed_at": "2026-07-19T12:56:49.000Z"
+    },
+    {
+      "id": "task-014",
+      "title": "完成 Windows Job Object OS 级进程隔离原型",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [
+        "task-013"
+      ],
+      "attempts": 1,
+      "max_attempts": 3,
+      "started_at_commit": "babd8cf",
+      "validation": {
+        "command": "bun test test/powersnexus/isolation.test.ts test/powersnexus/runner.test.ts --timeout 60000",
+        "timeout_seconds": 300
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 3,
+          "total": 3,
+          "description": "Job Object 可用、Runner 接入、14/14 测试通过",
+          "timestamp": "2026-07-19T13:41:08.000Z"
+        }
+      ],
+      "completed_at": "2026-07-19T13:41:08.000Z"
     }
   ],
-  "session_count": 7,
-  "last_session": "2026-07-19T12:56:49.000Z"
+  "session_count": 8,
+  "last_session": "2026-07-19T13:41:08.000Z"
 }

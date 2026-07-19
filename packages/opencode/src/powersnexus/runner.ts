@@ -12,6 +12,7 @@ import { make as makeRunRepository, type RunStep } from "./run-repository"
 import { Event } from "./events"
 import { redactBytes } from "./redact"
 import { assertAutoLocalApprove, assertNetworkTargetAllowed } from "./isolation"
+import { createRunJob, disposeRunJob, getRunJob } from "./os-isolation"
 
 export type StepMode = "command" | "service"
 
@@ -132,6 +133,14 @@ export const make = Effect.fn("PowersNexus.Runner.make")(function* () {
     for (const handle of handles) {
       yield* handle.kill({ forceKillAfter: Duration.seconds(2) }).pipe(Effect.catch(() => Effect.void))
     }
+    const job = getRunJob(runID)
+    if (job) {
+      try {
+        job.terminate()
+      } catch {
+        // ignore
+      }
+    }
   })
 
   const waitForReady = Effect.fnUntraced(function* (
@@ -216,6 +225,7 @@ export const make = Effect.fn("PowersNexus.Runner.make")(function* () {
   })
 
   const execute = Effect.fnUntraced(function* (runID: string, input: RunInput, steps: StepInput[], logDirectory: string) {
+    const isolationJob = createRunJob(runID)
     yield* repository.updateRun(runID, { status: "running", time_started: Date.now() })
     yield* bus.publish(Event.RunStarted, {
       runID,
@@ -268,6 +278,12 @@ export const make = Effect.fn("PowersNexus.Runner.make")(function* () {
               ),
             )
           trackService(runID, handle)
+          try {
+            const pid = Number((handle as { pid?: number | string }).pid)
+            if (Number.isFinite(pid) && pid > 0) isolationJob.assign(pid)
+          } catch {
+            // ignore
+          }
           yield* waitForReady(meta.readyUrl, handle, step.timeoutMs ?? 10 * 60 * 1000).pipe(
             Effect.tapError(() =>
               Effect.gen(function* () {
@@ -317,43 +333,34 @@ export const make = Effect.fn("PowersNexus.Runner.make")(function* () {
           continue
         }
 
-        const result = yield* appProcess
-          .run(
-            ChildProcess.make(step.argv[0], step.argv.slice(1), {
-              cwd: step.cwd,
-              extendEnv: true,
-              stdin: "ignore",
-              stdout: "pipe",
-              stderr: "pipe",
-            }),
-            {
-              timeout: Duration.millis(step.timeoutMs ?? 10 * 60 * 1000),
-              maxOutputBytes: 64 * 1024 * 1024,
-              maxErrorBytes: 16 * 1024 * 1024,
-            },
+        const isolated = yield* isolationJob.run(step.argv, {
+          cwd: step.cwd,
+          timeoutMs: step.timeoutMs ?? 10 * 60 * 1000,
+        })
+        if (isolated.timedOut) {
+          yield* stopServices(runID)
+          yield* fs.writeFile(stdoutFile, isolated.stdout)
+          yield* fs.writeFile(stderrFile, isolated.stderr.length ? isolated.stderr : new TextEncoder().encode("进程执行失败"))
+          return yield* failRun(
+            runID,
+            input.bindingID,
+            step.id,
+            rowID,
+            stdoutFile,
+            stderrFile,
+            "RUN_PROCESS_ERROR",
+            `步骤超时：${step.id}`,
+            isolated.exitCode,
           )
-          .pipe(
-            Effect.onExit((exit) => {
-              if (Exit.isSuccess(exit)) return Effect.void
-              const cancelled = Cause.hasInterruptsOnly(exit.cause)
-              return Effect.all([
-                stopServices(runID),
-                fs.writeFile(stdoutFile, new Uint8Array()),
-                fs.writeFile(stderrFile, new TextEncoder().encode(cancelled ? "运行已取消" : "进程执行失败")),
-                repository.updateStep(rowID, {
-                  status: cancelled ? "cancelled" : "failed",
-                  stdout_file: stdoutFile,
-                  stderr_file: stderrFile,
-                  time_ended: Date.now(),
-                }),
-                repository.updateRun(runID, {
-                  status: cancelled ? "cancelled" : "failed",
-                  error_code: cancelled ? "RUN_CANCELLED" : "RUN_PROCESS_ERROR",
-                  time_ended: Date.now(),
-                }),
-              ]).pipe(Effect.asVoid)
-            }),
-          )
+        }
+        const result = {
+          command: step.argv.join(" "),
+          exitCode: isolated.exitCode,
+          stdout: isolated.stdout,
+          stderr: isolated.stderr,
+          stdoutTruncated: false,
+          stderrTruncated: false,
+        }
         const safeStdout = redactBytes(result.stdout)
         const safeStderr = redactBytes(result.stderr)
         yield* Effect.all([fs.writeFile(stdoutFile, safeStdout), fs.writeFile(stderrFile, safeStderr)])
@@ -415,6 +422,7 @@ export const make = Effect.fn("PowersNexus.Runner.make")(function* () {
           )
         : undefined
       yield* stopServices(runID)
+      disposeRunJob(runID)
       yield* repository.updateRun(runID, {
         status: "passed",
         fingerprint: finalized?.fingerprint,
@@ -437,6 +445,7 @@ export const make = Effect.fn("PowersNexus.Runner.make")(function* () {
       })
     } catch (cause) {
       yield* stopServices(runID)
+      disposeRunJob(runID)
       throw cause
     }
   })
@@ -517,6 +526,7 @@ export const make = Effect.fn("PowersNexus.Runner.make")(function* () {
           job?.status === "cancelled"
             ? Effect.all([
                 stopServices(runID),
+                Effect.sync(() => disposeRunJob(runID)),
                 repository.cancelRunningSteps(runID),
                 repository.updateRun(runID, {
                   status: "cancelled",

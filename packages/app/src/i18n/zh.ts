@@ -1311,6 +1311,7 @@ export const dict = {
   "settings.powersnexus.isolation.description": "正式自动批准前的执行边界。当前为逻辑权限模式，尚未启用 OS 级 Job Object/沙箱。",
   "settings.powersnexus.isolation.mode": "隔离模式",
   "settings.powersnexus.isolation.logical": "逻辑权限模式",
+  "settings.powersnexus.isolation.os": "OS 级隔离（Windows Job Object）",
   "settings.powersnexus.isolation.network": "网络默认策略",
   "settings.powersnexus.isolation.autoLocal": "自动本地交付范围",
   "settings.powersnexus.isolation.autoLocalWorktree": "仅 Worktree 内本地动作；外部发布或密钥等需逐次授权",

@@ -1,4 +1,4 @@
-﻿import { expect, test } from "bun:test"
+import { expect, test } from "bun:test"
 import path from "node:path"
 import os from "node:os"
 import {
@@ -10,14 +10,21 @@ import {
   classifyAction,
   isolationStatus,
 } from "../../src/powersnexus/isolation"
+import { createRunJob, disposeRunJob, isOsIsolationAvailable, processIsolationStatus } from "../../src/powersnexus/os-isolation"
 
-test("隔离状态默认为逻辑权限模式", () => {
+test("隔离状态在 Windows 可用时报告 OS Job Object，否则为逻辑模式", () => {
   const status = isolationStatus()
-  expect(status.mode).toBe("logical")
   expect(status.worktreeOnlyWrite).toBe(true)
   expect(status.autoLocalDeliveryScope).toBe("worktree_only")
   expect(status.networkDefault).toBe("ask")
-  expect(status.note).toContain("逻辑权限模式")
+  if (process.platform === "win32" && isOsIsolationAvailable()) {
+    expect(status.mode).toBe("os")
+    expect(status.note).toContain("Job Object")
+  } else {
+    expect(status.mode).toBe("logical")
+    expect(status.note).toContain("逻辑权限模式")
+  }
+  expect(processIsolationStatus().mode).toBe(status.mode)
 })
 
 test("拒绝 Worktree 外路径", () => {
@@ -38,7 +45,7 @@ test("动作分类符合 15.1 自动本地交付边界", () => {
   expect(classifyAction("unknown_thing")).toBe("external")
 })
 
-test("逻辑隔离仅允许自动批准本地交付动作", () => {
+test("逻辑/OS 隔离均仅允许自动批准本地交付动作", () => {
   expect(canAutoLocalApprove("verify")).toBe(true)
   expect(canAutoLocalApprove("build")).toBe(true)
   expect(canAutoLocalApprove("push")).toBe(false)
@@ -61,6 +68,24 @@ test("自动网络访问仅允许本机回环", () => {
   expect(assertNetworkTargetAllowed("http://127.0.0.1:4173/health").hostname).toBe("127.0.0.1")
   expect(assertNetworkTargetAllowed("http://localhost:3000").hostname).toBe("localhost")
   expect(() => assertNetworkTargetAllowed("https://evil.example.com/api")).toThrow("禁止自动访问外网")
-  // 非自动路径可放行形态校验，但仍要求 http/https
   expect(() => assertNetworkTargetAllowed("ftp://127.0.0.1/x")).toThrow("http/https")
+})
+
+test("OS 隔离 Job 可启动命令并在 terminate 后结束", async () => {
+  if (process.platform !== "win32") return
+  const job = createRunJob(`test-job-${Date.now()}`)
+  try {
+    expect(["os", "logical"]).toContain(job.mode)
+    const { Effect } = await import("effect")
+  const result = await Effect.runPromise(
+      job.run([process.execPath, "-e", "console.log('iso-ok')"], {
+        cwd: process.cwd(),
+        timeoutMs: 10_000,
+      }),
+    )
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout.toString("utf8")).toContain("iso-ok")
+  } finally {
+    disposeRunJob(job.id)
+  }
 })

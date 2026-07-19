@@ -49,18 +49,25 @@ const PRIVILEGED_ACTIONS = new Set(["elevate_system", "manage_secrets", "billing
 
 /** 当前实现为逻辑权限模式；OS 级 Job Object/沙箱尚未启用。 */
 export function isolationStatus(): IsolationStatus {
-  const osEnabled = process.env.POWERSNEXUS_OS_ISOLATION === "1"
-  // 显式环境开关也不能谎称 OS 级隔离已就绪；在真正实现前始终降级为 logical。
-  const mode: IsolationMode = osEnabled ? "logical" : "logical"
+  // 延迟引用，避免与 os-isolation 循环依赖在模块初始化阶段炸裂
+  if (process.platform === "win32" && process.env.POWERSNEXUS_OS_ISOLATION !== "0") {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const mod = require("./os-isolation") as typeof import("./os-isolation")
+      if (mod.isOsIsolationAvailable()) return mod.processIsolationStatus()
+    } catch {
+      // fall through to logical
+    }
+  }
   return {
-    mode,
+    mode: "logical",
     platform: process.platform,
     worktreeOnlyWrite: true,
     networkDefault: "ask",
     autoLocalDeliveryScope: "worktree_only",
     note:
       process.platform === "win32"
-        ? "Windows 尚未启用 Job Object/受限 Token，当前为逻辑权限模式"
+        ? "Windows Job Object 未启用或不可用，当前为逻辑权限模式"
         : "当前平台尚未启用 OS 级隔离，当前为逻辑权限模式",
   }
 }
