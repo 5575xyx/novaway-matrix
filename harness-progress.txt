@@ -44,3 +44,4 @@
 [2026-07-19T10:19:05.000Z] [SESSION-5] Completed [task-011] Windows 安装包 PowersNexus 资源离线门禁
 [2026-07-19T10:19:05.000Z] [SESSION-5] CHECKPOINT [task-011] step=4/4 "package:win 成功；digest 匹配 4c1915d9…；公钥与 NovaWay.exe 存在"
 [2026-07-19T10:19:05.000Z] [SESSION-5] STATS tasks_total=11 completed=11 failed=0 pending=0 blocked=0
+[2026-07-19T12:22:07.000Z] [SESSION-6] Completed [task-012] FR-08 逻辑隔离权限边界与 Windows 断网冒烟

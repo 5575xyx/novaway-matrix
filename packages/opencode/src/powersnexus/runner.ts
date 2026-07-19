@@ -11,6 +11,7 @@ import type { ChildProcessHandle } from "effect/unstable/process/ChildProcessSpa
 import { make as makeRunRepository, type RunStep } from "./run-repository"
 import { Event } from "./events"
 import { redactBytes } from "./redact"
+import { assertAutoLocalApprove, assertNetworkTargetAllowed } from "./isolation"
 
 export type StepMode = "command" | "service"
 
@@ -88,13 +89,9 @@ function validateStep(step: StepInput, worktree: string) {
   }
   if (step.mode === "service" && step.readyUrl) {
     try {
-      const url = new URL(step.readyUrl)
-      if (url.protocol !== "http:" && url.protocol !== "https:") {
-        throw runnerError("RUN_STEP_INVALID", "service readyUrl 仅允许 http/https")
-      }
+      assertNetworkTargetAllowed(step.readyUrl, undefined, { auto: true })
     } catch (cause) {
-      if (cause instanceof RunnerError) throw cause
-      throw runnerError("RUN_STEP_INVALID", "service readyUrl 无效")
+      throw runnerError("RUN_STEP_INVALID", cause instanceof Error ? cause.message : "service readyUrl 无效")
     }
   }
   const cwd = path.resolve(step.cwd)
@@ -446,6 +443,7 @@ export const make = Effect.fn("PowersNexus.Runner.make")(function* () {
 
   const start = Effect.fn("PowersNexus.Runner.start")(function* (input: RunInput) {
     const worktree = path.resolve(input.worktree)
+    assertAutoLocalApprove(input.action)
     const steps = yield* Effect.try({
       try: () => input.steps.map((step) => validateStep(step, worktree)),
       catch: (cause) => (cause instanceof RunnerError ? cause : runnerError("RUN_STEP_INVALID", "步骤配置无效")),

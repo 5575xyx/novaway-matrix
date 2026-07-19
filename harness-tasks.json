@@ -328,8 +328,37 @@
         }
       ],
       "completed_at": "2026-07-19T10:19:05.000Z"
+    },
+    {
+      "id": "task-012",
+      "title": "完成 FR-08 逻辑隔离权限边界与 Windows 断网冒烟",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [
+        "task-011"
+      ],
+      "attempts": 1,
+      "max_attempts": 3,
+      "started_at_commit": "39c8d40",
+      "validation": {
+        "command": "node packages/desktop/scripts/smoke-powersnexus-offline.mjs",
+        "timeout_seconds": 300
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 4,
+          "total": 4,
+          "description": "动作分类/自动批准边界、Runner 外网限制、offline doctor 通过",
+          "timestamp": "2026-07-19T12:22:07.000Z"
+        }
+      ],
+      "completed_at": "2026-07-19T12:22:07.000Z"
     }
   ],
-  "session_count": 5,
-  "last_session": "2026-07-19T10:19:05.000Z"
+  "session_count": 6,
+  "last_session": "2026-07-19T12:22:07.000Z"
 }

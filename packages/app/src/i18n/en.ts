@@ -1413,5 +1413,7 @@ export const dict = {
   "settings.powersnexus.isolation.mode": "Isolation mode",
   "settings.powersnexus.isolation.logical": "Logical permission mode",
   "settings.powersnexus.isolation.network": "Network default",
+  "settings.powersnexus.isolation.autoLocal": "Auto local delivery scope",
+  "settings.powersnexus.isolation.autoLocalWorktree": "Worktree-local actions only; external publish or secrets require per-request approval",
 
 } as const

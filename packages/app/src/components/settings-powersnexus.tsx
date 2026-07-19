@@ -165,6 +165,10 @@ export function SettingsPowersNexus(props: { directory?: string }) {
           value={language.t("settings.powersnexus.isolation.logical" as never)}
         />
         <Row label={language.t("settings.powersnexus.isolation.network" as never)} value="ask" />
+        <Row
+          label={language.t("settings.powersnexus.isolation.autoLocal" as never)}
+          value={language.t("settings.powersnexus.isolation.autoLocalWorktree" as never)}
+        />
       </Section>
 
       <Section title={language.t("settings.powersnexus.bundled.title" as never)}>
