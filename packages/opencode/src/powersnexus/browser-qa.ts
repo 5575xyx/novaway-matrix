@@ -5,6 +5,7 @@ import { Context, Effect, FileSystem, Layer, Schema } from "effect"
 import { ChildProcess } from "effect/unstable/process"
 import type { ChildProcessHandle } from "effect/unstable/process/ChildProcessSpawner"
 import { PowersNexusBrowser } from "./browser"
+import { redactSecrets, redactUrl } from "./redact"
 
 export type Viewport = { name: string; width: number; height: number }
 
@@ -75,7 +76,7 @@ export interface Interface {
 export class Service extends Context.Service<Service, Interface>()("@opencode/PowersNexusBrowserQa") {}
 
 function qaError(code: string, message: string) {
-  return new BrowserQaError({ code, message })
+  return new BrowserQaError({ code, message: redactSecrets(message) })
 }
 
 export const layer = Layer.effect(
@@ -159,8 +160,12 @@ export const layer = Layer.effect(
           const consoleLines = yield* map(browser.console())
           const network = yield* map(browser.network())
           const accessibility = yield* map(browser.accessibility())
-          const consoleErrors = consoleLines.filter((line) => line.includes("[error]") || line.includes("Error"))
-          const failedNetwork = network.filter((item) => typeof item.status === "number" && item.status >= 400)
+          const consoleErrors = consoleLines
+            .filter((line) => line.includes("[error]") || line.includes("Error"))
+            .map(redactSecrets)
+          const failedNetwork = network
+            .filter((item) => typeof item.status === "number" && item.status >= 400)
+            .map((item) => ({ ...item, url: redactUrl(item.url) }))
           const missingText = (scenario.requiredText ?? []).filter((text) => !snap.text.includes(text))
           const blank = snap.bodyText.trim().length === 0 && snap.refs.length === 0
           const overflow = snap.overflow

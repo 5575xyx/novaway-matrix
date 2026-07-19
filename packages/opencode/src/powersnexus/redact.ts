@@ -27,6 +27,26 @@ export function redactBytes(input: Uint8Array | Buffer): Buffer {
   return Buffer.from(redactSecrets(Buffer.from(input).toString("utf8")), "utf8")
 }
 
+export function redactUrl(input: string): string {
+  try {
+    const url = new URL(input)
+    for (const key of [...url.searchParams.keys()]) {
+      if (/(token|secret|password|passwd|api[_-]?key|authorization)/i.test(key)) {
+        url.searchParams.set(key, "***REDACTED***")
+      }
+    }
+    if (url.username) url.username = "***REDACTED***"
+    if (url.password) url.password = "***REDACTED***"
+    return redactSecrets(url.toString())
+  } catch {
+    return redactSecrets(input)
+  }
+}
+
+export function redactEvidence(input: readonly string[]): string[] {
+  return input.map((value) => redactUrl(value))
+}
+
 export function redactArgv(argv: readonly string[]): string[] {
   return argv.map((value, index) => {
     const previous = (argv[index - 1] ?? "").toLowerCase()

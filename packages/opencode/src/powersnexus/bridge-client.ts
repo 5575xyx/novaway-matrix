@@ -14,6 +14,7 @@ import {
 } from "./bridge-schema"
 import { BridgeClientError } from "./bridge-error"
 import type { VersionRef } from "./schema"
+import { redactEvidence, redactSecrets } from "./redact"
 
 const MAX_STDOUT = 8 * 1024 * 1024
 const MAX_STDERR = 1024 * 1024
@@ -29,10 +30,10 @@ type BaseInput = {
 function failure(code: string, message: string, options?: { exitCode?: number; evidence?: string[] }) {
   return new BridgeClientError({
     code,
-    message,
+    message: redactSecrets(message),
     traceID: randomUUID(),
     exitCode: options?.exitCode,
-    evidence: options?.evidence ?? [],
+    evidence: redactEvidence(options?.evidence ?? []),
   })
 }
 
@@ -90,12 +91,12 @@ const execute = Effect.fn("PowersNexus.Bridge.execute")(function* (
       maxOutputBytes: MAX_STDOUT,
       maxErrorBytes: MAX_STDERR,
     })
-    .pipe(Effect.mapError((cause) => failure("INTERNAL_WORKFLOW_ERROR", cause.message)))
+    .pipe(Effect.mapError((cause) => failure("INTERNAL_WORKFLOW_ERROR", redactSecrets(cause.message))))
   if (result.stdoutTruncated || result.stderrTruncated) {
     return yield* failure("ARTIFACT_INVALID", "Bridge 输出超过允许上限", { exitCode: result.exitCode })
   }
   if (result.exitCode === 0) return result.stdout.toString("utf8")
-  const parsed = yield* decodeJson(BridgeFailure, result.stderr.toString("utf8")).pipe(
+  const parsed = yield* decodeJson(BridgeFailure, redactSecrets(result.stderr.toString("utf8"))).pipe(
     Effect.catch(() => Effect.succeed(undefined)),
   )
   const exitCode = result.exitCode

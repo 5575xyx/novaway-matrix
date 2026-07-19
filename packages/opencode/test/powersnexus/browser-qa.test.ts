@@ -84,3 +84,54 @@ itMocked.instance("Browser QA 实际设置 viewport 并把快照报告纳入证�
     expect(results[0]?.evidenceFiles.some((file) => file.endsWith(".json"))).toBe(true)
   }),
 )
+
+const itRedacted = testEffect(
+  PowersNexusBrowserQa.layer.pipe(
+    Layer.provide(
+      Layer.mock(PowersNexusBrowser.Service, {
+        setViewport: () => Effect.void,
+        navigate: (url) => Effect.succeed({ url, title: "脱敏页面" }),
+        snapshot: () =>
+          Effect.succeed({
+            url: "https://example.test",
+            title: "脱敏页面",
+            text: "页面内容已加载",
+            bodyText: "页面内容已加载",
+            refs: [],
+            overflow: false,
+            focusVisible: true,
+          }),
+        click: () => Effect.void,
+        fill: () => Effect.void,
+        press: () => Effect.void,
+        screenshot: () => Effect.succeed({ path: path.join(tmpRoot, "safe.png") }),
+        console: () => Effect.succeed(["[error] Authorization: Bearer top-secret-token"]),
+        network: () =>
+          Effect.succeed([
+            { method: "GET", url: "https://example.test/api?access_token=top-secret-token", status: 500 },
+          ]),
+        accessibility: () => Effect.succeed("- main: 页面内容已加载"),
+        close: () => Effect.void,
+      }),
+    ),
+    Layer.provide(AppProcess.defaultLayer),
+    Layer.provide(NodeFileSystem.layer),
+  ),
+)
+
+itRedacted.instance("Browser QA 报告不会泄露 console 和 URL 中的秘密", () =>
+  Effect.gen(function* () {
+    const tmp = yield* TestInstance
+    tmpRoot = tmp.directory
+    const qa = yield* PowersNexusBrowserQa.Service
+    const results = yield* qa.run({
+      worktree: tmp.directory,
+      scenarios: [{ id: "redact", url: "https://example.test" }],
+      viewports: [{ name: "desktop", width: 1440, height: 900 }],
+    })
+    const report = JSON.stringify(results)
+    expect(report).not.toContain("top-secret-token")
+    expect(report).toContain("***REDACTED***")
+    expect(results[0]?.passed).toBe(false)
+  }),
+)

@@ -4,6 +4,7 @@ import { InstanceState } from "@/effect/instance-state"
 import { NodeFileSystem } from "@effect/platform-node"
 import { Context, Effect, FileSystem, Layer, Schema } from "effect"
 import { chromium, type Browser, type BrowserContext, type ElementHandle, type Page } from "playwright-core"
+import { redactSecrets, redactUrl } from "./redact"
 
 type SnapshotElement = HTMLElement | SVGElement
 
@@ -49,7 +50,7 @@ export interface Interface {
 export class Service extends Context.Service<Service, Interface>()("@opencode/PowersNexusBrowser") {}
 
 function browserError(code: string, message: string) {
-  return new BrowserError({ code, message })
+  return new BrowserError({ code, message: redactSecrets(message) })
 }
 
 export const layer = Layer.effect(
@@ -98,15 +99,17 @@ export const layer = Layer.effect(
       current.page = connected.page
       current.owned = connected.owned
       connected.page.on("console", (message) => {
-        current.console.push(`[${message.type()}] ${message.text()}`)
+        current.console.push(redactSecrets(`[${message.type()}] ${message.text()}`))
         if (current.console.length > 1000) current.console.shift()
       })
       connected.page.on("request", (request) => {
-        current.network.push({ method: request.method(), url: request.url() })
+        current.network.push({ method: request.method(), url: redactUrl(request.url()) })
         if (current.network.length > 2000) current.network.shift()
       })
       connected.page.on("response", (response) => {
-        const item = current.network.findLast((entry) => entry.url === response.url() && entry.status === undefined)
+        const item = current.network.findLast(
+          (entry) => entry.url === redactUrl(response.url()) && entry.status === undefined,
+        )
         if (item) item.status = response.status()
       })
       return connected.page

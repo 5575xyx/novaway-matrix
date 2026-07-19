@@ -105,3 +105,39 @@ it.instance("在执行前拒绝相对 CLI、越界 worktree 和不兼容协议",
     expect(invalidName._tag).toBe("Failure")
   }),
 )
+
+it.instance("Bridge 失败不会在错误消息和 evidence 中泄露秘密", () =>
+  Effect.gen(function* () {
+    const tmp = yield* TestInstance
+    const cliPath = path.join(tmp.directory, "powersnexus-failure.mjs")
+    yield* Effect.promise(() =>
+      Bun.write(
+        cliPath,
+        `process.stderr.write(JSON.stringify({
+          protocolVersion: "1.0",
+          error: {
+            code: "ARTIFACT_INVALID",
+            message: "Authorization: Bearer top-secret-token",
+            recoverable: true,
+            evidence: ["https://example.test/log?access_token=top-secret-token"]
+          }
+        })); process.exit(2)`,
+      ),
+    )
+    const version = {
+      version: "6.1.0",
+      protocolVersion: "1.0",
+      digest: "4".repeat(64),
+      source: "bundled" as const,
+      compatible: true,
+      verified: true,
+      cliPath,
+    }
+    const exit = yield* Effect.exit(inspect({ version, worktree: tmp.directory, changeName: "redact-test" }))
+    expect(exit._tag).toBe("Failure")
+    const rendered = JSON.stringify(exit)
+    expect(rendered).not.toContain("top-secret-token")
+    expect(rendered).toContain("***REDACTED***")
+  }),
+  { git: true },
+)

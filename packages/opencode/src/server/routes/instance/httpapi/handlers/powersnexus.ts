@@ -6,6 +6,7 @@ import { InstanceState } from "@/effect/instance-state"
 import { Effect } from "effect"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
+import { redactSecrets } from "@/powersnexus/redact"
 import {
   PowersNexusBadRequest,
   PowersNexusConflict,
@@ -17,10 +18,13 @@ import {
 } from "../groups/powersnexus"
 
 function apiError(code: string, message: string) {
+  const safeMessage = redactSecrets(message)
   if (["PATH_OUTSIDE_WORKTREE", "PERMISSION_REQUIRED", "EXTERNAL_ACTION_REQUIRED"].includes(code)) {
-    return new PowersNexusForbidden({ code, message })
+    return new PowersNexusForbidden({ code, message: safeMessage })
   }
-  if (["CHANGE_NOT_FOUND", "RUN_NOT_FOUND"].includes(code)) return new PowersNexusNotFound({ code, message })
+  if (["CHANGE_NOT_FOUND", "RUN_NOT_FOUND"].includes(code)) {
+    return new PowersNexusNotFound({ code, message: safeMessage })
+  }
   if (
     [
       "PROTOCOL_VERSION_UNSUPPORTED",
@@ -36,7 +40,7 @@ function apiError(code: string, message: string) {
       "BINDING_CONFLICT",
     ].includes(code)
   ) {
-    return new PowersNexusConflict({ code, message })
+    return new PowersNexusConflict({ code, message: safeMessage })
   }
   if (
     [
@@ -50,15 +54,15 @@ function apiError(code: string, message: string) {
       "REPAIR_LIMIT_REACHED",
     ].includes(code)
   ) {
-    return new PowersNexusUnprocessable({ code, message })
+    return new PowersNexusUnprocessable({ code, message: safeMessage })
   }
   if (["POWERSNEXUS_NOT_AVAILABLE", "BROWSER_UNAVAILABLE"].includes(code)) {
-    return new PowersNexusUnavailable({ code, message })
+    return new PowersNexusUnavailable({ code, message: safeMessage })
   }
   if (code === "INTERNAL_WORKFLOW_ERROR" || code === "BRIDGE_VERIFY_FAILED") {
-    return new PowersNexusInternalError({ code, message })
+    return new PowersNexusInternalError({ code, message: safeMessage })
   }
-  return new PowersNexusBadRequest({ code, message })
+  return new PowersNexusBadRequest({ code, message: safeMessage })
 }
 
 function mapError<A, E, R>(effect: Effect.Effect<A, E, R>) {
@@ -147,7 +151,15 @@ export const powersnexusHandlers = HttpApiBuilder.group(InstanceHttpApi, "powers
               expectedRevision: ctx.payload.expectedRevision,
               worktree: instance.worktree,
               evidenceFiles: [...(ctx.payload.evidenceFiles ?? [])],
-              steps: ctx.payload.steps.map((step) => ({ ...step, argv: [...step.argv] })),
+              steps: ctx.payload.steps.map((step) => ({
+                id: step.id,
+                argv: [...step.argv],
+                cwd: step.cwd,
+                timeoutMs: step.timeoutMs,
+                mode: step.mode,
+                readyUrl: step.readyUrl,
+                dependsOn: step.dependsOn ? [...step.dependsOn] : undefined,
+              })),
               ...(ctx.payload.browserQa ? { browserQa: ctx.payload.browserQa } : {}),
             }),
           )

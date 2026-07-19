@@ -453,7 +453,7 @@ export const make = Effect.fn("PowersNexus.Runner.make")(function* () {
     if (new Set(steps.map((step) => step.id)).size !== steps.length) {
       return yield* runnerError("RUN_STEP_INVALID", "同一 run 不能包含重复 step id")
     }
-    const runID = Identifier.create("run")
+    const runID = Identifier.create("run", "ascending")
     const logDirectory = path.join(worktree, ".novaway", "powersnexus", "runs", runID)
     yield* fs.makeDirectory(logDirectory, { recursive: true })
     const now = Date.now()
@@ -492,7 +492,7 @@ export const make = Effect.fn("PowersNexus.Runner.make")(function* () {
       type: "powersnexus.delivery",
       title: `PowersNexus ${input.action}`,
       metadata: { runID, bindingID: input.bindingID },
-      run: execute(runID, input, steps, logDirectory),
+      run: Effect.scoped(execute(runID, input, steps, logDirectory)).pipe(Effect.as("PowersNexus 交付运行完成")),
     })
     return { runID, job }
   })

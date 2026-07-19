@@ -241,8 +241,52 @@
         }
       ],
       "completed_at": "2026-07-19T05:32:53.562Z"
+    },
+    {
+      "id": "task-009",
+      "title": "完成 React Todo 真实 Browser QA 发布门槛",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": ["task-006"],
+      "attempts": 0,
+      "max_attempts": 3,
+      "started_at_commit": "7c66bf599b2689f30bdb1ff8fc2aa46d700120f2",
+      "validation": { "command": "node probe-browser-qa.cjs", "timeout_seconds": 120 },
+      "on_failure": { "cleanup": null },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 4,
+          "total": 4,
+          "description": "真实 Chrome 完成四 viewport、空/加载/主流程/错误态、键盘提交、刷新保持、a11y 与 16 张截图验收",
+          "timestamp": "2026-07-19T09:25:31.687Z"
+        }
+      ],
+      "completed_at": "2026-07-19T09:25:31.687Z"
+    },
+    {
+      "id": "task-010",
+      "title": "完成 PowersNexus 命令日志全链路秘密脱敏",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": ["task-009"],
+      "attempts": 0,
+      "max_attempts": 3,
+      "started_at_commit": "7c66bf599b2689f30bdb1ff8fc2aa46d700120f2",
+      "validation": { "command": "bun test test/powersnexus/redact.test.ts --timeout 30000", "timeout_seconds": 120 },
+      "on_failure": { "cleanup": null },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 4,
+          "total": 4,
+          "description": "Runner、Bridge、Browser console/network 与 HttpApi 错误响应已统一脱敏并通过专项测试",
+          "timestamp": "2026-07-19T09:27:15.580Z"
+        }
+      ],
+      "completed_at": "2026-07-19T09:27:15.580Z"
     }
   ],
-  "session_count": 3,
-  "last_session": "2026-07-19T05:32:53.562Z"
+  "session_count": 4,
+  "last_session": "2026-07-19T07:30:00.000Z"
 }

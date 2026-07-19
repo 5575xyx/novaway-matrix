@@ -37,3 +37,7 @@
 [2026-07-19T06:33:33Z] [SESSION-6] COMMIT 507d9c1 first-party powersnexus integration (265 files)
 [2026-07-19T06:33:33Z] [SESSION-6] RELEASE_BUILD unsigned artifact from workspace PowersNexus 6.1.0 commit=6b8bd9e filesSha256=20fc3aac... (sign blocked: no private key)
 [2026-07-19T06:39:56Z] [SESSION-7] TRIAGE no git remote; classified dirty worktree; expanded .gitignore for temp artifacts; wrote docs/workspace-change-triage.md
+[2026-07-19T09:25:31.687Z] [SESSION-8] Completed [task-009] React Todo 四 viewport × 四状态真实 Chrome 验收，16 张截图，键盘/刷新/a11y/overflow/console/network PASS
+[2026-07-19T09:27:15.580Z] [SESSION-8] Completed [task-010] Runner/Bridge/Browser/HttpApi 全链路秘密脱敏专项通过
+[2026-07-19T09:30:00.000Z] [SESSION-8] VALIDATION opencode typecheck PASS; powersnexus 55/55 257 assertions; packaging PASS; app typecheck blocked by existing provider model changes
+[2026-07-19T09:30:00.000Z] [SESSION-8] STATS tasks_total=10 completed=10 failed=0 pending=0 blocked=0 local_score=96
