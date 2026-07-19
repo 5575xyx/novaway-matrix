@@ -41,3 +41,6 @@
 [2026-07-19T09:27:15.580Z] [SESSION-8] Completed [task-010] Runner/Bridge/Browser/HttpApi 全链路秘密脱敏专项通过
 [2026-07-19T09:30:00.000Z] [SESSION-8] VALIDATION opencode typecheck PASS; powersnexus 55/55 257 assertions; packaging PASS; app typecheck blocked by existing provider model changes
 [2026-07-19T09:30:00.000Z] [SESSION-8] STATS tasks_total=10 completed=10 failed=0 pending=0 blocked=0 local_score=96
+[2026-07-19T10:19:05.000Z] [SESSION-5] Completed [task-011] Windows 安装包 PowersNexus 资源离线门禁
+[2026-07-19T10:19:05.000Z] [SESSION-5] CHECKPOINT [task-011] step=4/4 "package:win 成功；digest 匹配 4c1915d9…；公钥与 NovaWay.exe 存在"
+[2026-07-19T10:19:05.000Z] [SESSION-5] STATS tasks_total=11 completed=11 failed=0 pending=0 blocked=0

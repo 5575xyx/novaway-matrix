@@ -247,12 +247,19 @@
       "title": "完成 React Todo 真实 Browser QA 发布门槛",
       "status": "completed",
       "priority": "P0",
-      "depends_on": ["task-006"],
+      "depends_on": [
+        "task-006"
+      ],
       "attempts": 0,
       "max_attempts": 3,
       "started_at_commit": "7c66bf599b2689f30bdb1ff8fc2aa46d700120f2",
-      "validation": { "command": "node probe-browser-qa.cjs", "timeout_seconds": 120 },
-      "on_failure": { "cleanup": null },
+      "validation": {
+        "command": "node probe-browser-qa.cjs",
+        "timeout_seconds": 120
+      },
+      "on_failure": {
+        "cleanup": null
+      },
       "error_log": [],
       "checkpoints": [
         {
@@ -269,12 +276,19 @@
       "title": "完成 PowersNexus 命令日志全链路秘密脱敏",
       "status": "completed",
       "priority": "P0",
-      "depends_on": ["task-009"],
+      "depends_on": [
+        "task-009"
+      ],
       "attempts": 0,
       "max_attempts": 3,
       "started_at_commit": "7c66bf599b2689f30bdb1ff8fc2aa46d700120f2",
-      "validation": { "command": "bun test test/powersnexus/redact.test.ts --timeout 30000", "timeout_seconds": 120 },
-      "on_failure": { "cleanup": null },
+      "validation": {
+        "command": "bun test test/powersnexus/redact.test.ts --timeout 30000",
+        "timeout_seconds": 120
+      },
+      "on_failure": {
+        "cleanup": null
+      },
       "error_log": [],
       "checkpoints": [
         {
@@ -285,8 +299,37 @@
         }
       ],
       "completed_at": "2026-07-19T09:27:15.580Z"
+    },
+    {
+      "id": "task-011",
+      "title": "完成 Windows 安装包 PowersNexus 资源离线门禁",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [
+        "task-010"
+      ],
+      "attempts": 1,
+      "max_attempts": 3,
+      "started_at_commit": "c15b989",
+      "validation": {
+        "command": "node packages/desktop/scripts/verify-powersnexus-packaging.mjs",
+        "timeout_seconds": 1200
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 4,
+          "total": 4,
+          "description": "build-node chromium-bidi 兼容、desktop build/package:win 成功，win-unpacked 内 PowersNexus 6.1.0 基线 digest 与公钥断言通过",
+          "timestamp": "2026-07-19T10:19:05.000Z"
+        }
+      ],
+      "completed_at": "2026-07-19T10:19:05.000Z"
     }
   ],
-  "session_count": 4,
-  "last_session": "2026-07-19T07:30:00.000Z"
+  "session_count": 5,
+  "last_session": "2026-07-19T10:19:05.000Z"
 }

@@ -56,6 +56,40 @@ if (!mainText.includes('POWERSNEXUS_UPDATE_POLICY = process.env.POWERSNEXUS_UPDA
 if (!mainText.includes("POWERSNEXUS_FIRST_PARTY")) fail("桌面端未设置 FIRST_PARTY")
 else ok("桌面端设置 FIRST_PARTY")
 
+
+
+// 若本机已执行 package:win，则额外断言解包目录内的 PowersNexus 资源
+const unpackedResources = path.join(root, "dist/win-unpacked/resources")
+if (existsSync(unpackedResources)) {
+  const unpackedKey = path.join(unpackedResources, "powersnexus-release-public-key.pem")
+  const unpackedPn = path.join(unpackedResources, "powersnexus")
+  if (!existsSync(unpackedKey)) fail("win-unpacked 缺少 powersnexus-release-public-key.pem")
+  else ok("win-unpacked 公钥存在")
+  if (!existsSync(unpackedPn)) fail("win-unpacked 缺少 powersnexus 目录")
+  else {
+    const versions = readdirSync(unpackedPn).filter((name) => statSync(path.join(unpackedPn, name)).isDirectory())
+    if (versions.length === 0) fail("win-unpacked powersnexus 为空")
+    else ok(`win-unpacked 基线目录 ${versions.join(", ")}`)
+    for (const version of versions) {
+      const zip = readdirSync(path.join(unpackedPn, version)).find((name) => name.endsWith(".zip"))
+      if (!zip) fail(`win-unpacked ${version} 缺少 zip`)
+      else {
+        const bytes = readFileSync(path.join(unpackedPn, version, zip))
+        const digest = createHash("sha256").update(bytes).digest("hex")
+        ok(`win-unpacked ${version} zip digest=${digest.slice(0, 12)}… size=${bytes.length}`)
+        if (digest !== "4c1915d9506492b71a7026c013849e32223201e2aeba121c0aadaeffae72afd2") {
+          fail(`win-unpacked ${version} digest 与固定 6.1.0 基线不一致`)
+        } else ok("win-unpacked zip digest 匹配固定 6.1.0 基线")
+      }
+    }
+  }
+  const exe = path.join(root, "dist/win-unpacked/NovaWay.exe")
+  if (!existsSync(exe)) fail("win-unpacked 缺少 NovaWay.exe")
+  else ok(`win-unpacked NovaWay.exe size=${statSync(exe).size}`)
+} else {
+  notes.push("INFO 未检测到 dist/win-unpacked，跳过安装包解包资源断言")
+}
+
 console.log(notes.join("\n"))
 if (errors.length) {
   console.error("\n打包矩阵预检失败：\n" + errors.map((e) => `- ${e}`).join("\n"))
