@@ -1,42 +1,42 @@
 # PowersNexus 第一方集成验证报告
 
-生成时间：2026-07-19T15:40:00Z
+生成时间：2026-07-19T16:10:00Z
 
 ## 1. 审查结论
 
 | 维度 | 评分 | 说明 |
 |------|------|------|
-| 需求匹配 | 98 | Job Object + 写路径/TEMP + Safer Token + **CreateProcessAsUser 真正降权启动** |
-| 架构一致 | 97 | 受限启动失败/崩溃自动回退普通 spawn+Job |
-| 代码质量 | 96 | 文件重定向 stdout/stderr；Unicode 环境块；CREATE_SUSPENDED 后 assign 再 Resume |
-| 测试覆盖 | 98 | isolation 12/12（含 asuser restricted=true）+ runner 20/20 |
-| 风险评估 | 94 | 仍非内核 ACL；跨平台/真实 stable 未完成 |
-| **综合** | **98** | **Windows 交付子进程默认走受限 Token 启动** |
+| 需求匹配 | 98 | stable 生产门禁清单 + 严格降级 + 本机 harness 并存 |
+| 架构一致 | 97 | resolveUpdatePolicy 在公钥存在时启用完整门禁 |
+| 代码质量 | 96 | evaluateStableProductionGate 可机读清单 |
+| 测试覆盖 | 98 | config-release-urls 6/6 + stable-local 3/3 |
+| 风险评估 | 94 | 真实 CDN/私钥仍外部依赖 |
+| **综合** | **98** | **生产 stable 默认不可误开；清单可自动检查** |
 
-## 2. 本轮新增
+## 2. 本轮新增（stable 生产门禁）
 
-1. `runWithRestrictedToken`：Safer CONSTRAINED Token + `CreateProcessAsUserW`
-2. 成功时 `restricted: true`；AV/失败回退 `runTracked`（Job+spawn）
-3. stdout/stderr 写入 TEMP 文件再回读
-4. 能力面 `createProcessAsUser: true`
+1. `evaluateStableProductionGate` / `resolveUpdatePolicy`
+2. 校验：HTTPS URL、非占位、非内网、白名单覆盖、keyID、公钥 PEM
+3. 桌面端有公钥路径时自动 strict 门禁，失败降级 `bundled`
+4. CLI：`bun packages/desktop/scripts/check-stable-production-gate.mjs`
+5. 文档更新：`docs/powersnexus-stable-local-runbook.md`
 
 ## 3. 验证
 
 | 项 | 结果 |
 |----|------|
-| CreateProcessAsUser cmd | restricted=true, exit=0 |
-| CreateProcessAsUser node | restricted=true, exit=0（本机） |
-| isolation tests | 12/12 |
-| runner tests | 20/20 |
+| config-release-urls | 6/6 |
+| stable-local-harness | 3/3 |
+| 默认 bundled 门禁脚本 | ready=false（安全） |
 | typecheck | 通过 |
 
 ## 4. 仍未完成
 
-1. 真实 HTTPS stable 端点
-2. 内核级文件 ACL
-3. macOS/Linux 隔离与打包
+1. 真实 CDN 与发布私钥运维
+2. macOS/Linux 升级 E2E
+3. 内核 ACL
 4. 7 天 KPI
 
 ## 5. 决策
 
-综合 98：Windows OS 隔离链路（Job + 写门禁 + 受限 Token 启进程）已闭环可交付。
+综合 98：在真实端点就绪前，系统会拒绝/降级错误的 stable 配置。

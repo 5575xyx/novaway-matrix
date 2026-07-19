@@ -8,7 +8,7 @@ import { Config } from "@/config/config"
 import { Context, Effect, FileSystem, Layer, Ref, Schema } from "effect"
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/unstable/http"
 import { loadBundled } from "./bundled"
-import { assertReleaseUrlsReady } from "@/config/powersnexus"
+import { assertReleaseUrlsReady, resolveUpdatePolicy } from "@/config/powersnexus"
 import { loadDeveloper } from "./developer"
 import { checkForUpdate, installCheckedUpdate, type CheckedManifest, type ReadRemote } from "./update-service"
 import { make, type Interface as VersionStore, type MutationRequest, type MutationResult } from "./version-store"
@@ -118,11 +118,25 @@ export const layer = Layer.effect(
       const manifestUrls = info.powersnexus?.releaseManifestUrls ?? []
       const allowedHosts = info.powersnexus?.releaseAllowedHosts ?? []
       const configuredPolicy = info.powersnexus?.updatePolicy ?? process.env.POWERSNEXUS_UPDATE_POLICY ?? "bundled"
-      const policy = Schema.decodeUnknownSync(Schema.Literals(["bundled", "stable", "manual", "developer"]))(
-        configuredPolicy,
-      )
-      const effectivePolicy = policy === "stable" && manifestUrls.length === 0 ? "bundled" : policy
-      if (effectivePolicy === "stable") assertReleaseUrlsReady({ policy: effectivePolicy, releaseManifestUrls: manifestUrls })
+      const resolved = resolveUpdatePolicy({
+        policy: configuredPolicy,
+        releaseManifestUrls: manifestUrls,
+        releaseAllowedHosts: allowedHosts,
+        publicKeyPath: process.env.POWERSNEXUS_RELEASE_PUBLIC_KEY,
+        keyID: process.env.POWERSNEXUS_RELEASE_KEY_ID,
+        // 打包/生产路径提供了公钥时自动启用完整门禁
+        strictProductionGate: Boolean(process.env.POWERSNEXUS_RELEASE_PUBLIC_KEY) || process.env.POWERSNEXUS_STABLE_PRODUCTION_GATE === "1",
+      })
+      const effectivePolicy = resolved.policy
+      if (effectivePolicy === "stable") {
+        assertReleaseUrlsReady({
+          policy: effectivePolicy,
+          releaseManifestUrls: manifestUrls,
+          releaseAllowedHosts: allowedHosts,
+          publicKeyPath: process.env.POWERSNEXUS_RELEASE_PUBLIC_KEY,
+          keyID: process.env.POWERSNEXUS_RELEASE_KEY_ID,
+        })
+      }
       const developer =
         effectivePolicy === "developer"
           ? yield* loadDeveloper({

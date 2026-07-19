@@ -50,3 +50,4 @@
 [2026-07-19T14:17:57.000Z] [SESSION-9] Completed [task-015] Worktree 写路径强制与 TEMP 沙箱
 [2026-07-19T14:35:26.000Z] [SESSION-10] Completed [task-016] Windows Safer 受限 Token 原型
 [2026-07-19T14:50:34.000Z] [SESSION-11] Completed [task-017] CreateProcessAsUser 受限 Token 启进程
+[2026-07-19T15:02:42.000Z] [SESSION-12] Completed [task-018] stable 生产启用门禁与自动检查

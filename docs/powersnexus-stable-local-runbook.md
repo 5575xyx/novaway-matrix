@@ -68,3 +68,38 @@ README.local.txt
 5. 完成 Win/macOS/Linux 断网 + 在线升级 E2E
 
 在上述清单完成前，**禁止**把默认策略改为 stable。
+
+
+## 生产启用门禁（自动检查）
+
+```powershell
+# 默认（bundled）——应显示 ready=false / 未请求 stable
+bun packages/desktop/scripts/check-stable-production-gate.mjs
+
+# 模拟完整生产配置
+$env:POWERSNEXUS_UPDATE_POLICY = "stable"
+$env:POWERSNEXUS_RELEASE_MANIFEST_URLS = "https://cdn.novaway.ai/powersnexus/stable/manifest.json,https://releases.novaway.ai/powersnexus/stable/manifest.json"
+$env:POWERSNEXUS_RELEASE_ALLOWED_HOSTS = "cdn.novaway.ai,releases.novaway.ai"
+$env:POWERSNEXUS_RELEASE_PUBLIC_KEY = "$PWD\packages\desktop\resources\powersnexus-release-public-key.pem"
+$env:POWERSNEXUS_RELEASE_KEY_ID = "powersnexus-release-2026-01"
+bun packages/desktop/scripts/check-stable-production-gate.mjs
+```
+
+程序 API：
+
+- `evaluateStableProductionGate(...)`：返回检查清单
+- `resolveUpdatePolicy(...)`：stable 不满足时降级 `bundled`
+- 桌面端在设置了 `POWERSNEXUS_RELEASE_PUBLIC_KEY` 时自动启用严格门禁
+
+### 门禁项
+
+| ID | 要求 |
+|----|------|
+| manifest_urls_present | 至少一个 HTTPS Manifest |
+| url_* | 非占位、非内网（除非 ALLOW_LOCAL） |
+| allowed_hosts_present | releaseAllowedHosts 非空 |
+| hosts_cover_urls | 白名单覆盖 URL 主机 |
+| key_id | 生产 keyID（非 local/test） |
+| public_key | SPKI PEM 存在且非联调标记 |
+
+**默认策略必须保持 `bundled`，直到 `ready=true` 且完成三平台 E2E。**

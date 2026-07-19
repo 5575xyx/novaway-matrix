@@ -502,8 +502,37 @@
         }
       ],
       "completed_at": "2026-07-19T14:50:34.000Z"
+    },
+    {
+      "id": "task-018",
+      "title": "完成 stable 生产启用门禁与自动检查",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [
+        "task-017"
+      ],
+      "attempts": 1,
+      "max_attempts": 3,
+      "started_at_commit": "b36e5c1",
+      "validation": {
+        "command": "bun test test/powersnexus/config-release-urls.test.ts --timeout 30000",
+        "timeout_seconds": 120
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 3,
+          "total": 3,
+          "description": "门禁评估/降级/CLI 检查 + 6/6 测试",
+          "timestamp": "2026-07-19T15:02:42.000Z"
+        }
+      ],
+      "completed_at": "2026-07-19T15:02:42.000Z"
     }
   ],
-  "session_count": 11,
-  "last_session": "2026-07-19T14:50:34.000Z"
+  "session_count": 12,
+  "last_session": "2026-07-19T15:02:42.000Z"
 }
