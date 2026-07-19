@@ -19,6 +19,22 @@ export const ApiVersionRef = Schema.Struct({
   verified: Schema.Boolean,
 })
 
+export const StableGateCheck = Schema.Struct({
+  id: Schema.String,
+  title: Schema.String,
+  ok: Schema.Boolean,
+  detail: Schema.String,
+  required: Schema.Boolean,
+})
+
+export const StableGateReport = Schema.Struct({
+  ready: Schema.Boolean,
+  policy: Schema.String,
+  effectivePolicy: Schema.String,
+  checks: Schema.Array(StableGateCheck),
+  blockers: Schema.Array(Schema.String),
+})
+
 export const VersionStatus = Schema.Struct({
   policy: UpdatePolicy,
   active: ApiVersionRef,
@@ -29,6 +45,7 @@ export const VersionStatus = Schema.Struct({
   activationDeferred: Schema.Boolean,
   lastCheckedAt: Schema.optionalKey(Schema.String),
   lastErrorCode: Schema.optionalKey(Schema.String),
+  stableGate: Schema.optionalKey(StableGateReport),
 })
 
 export const CheckPayload = Schema.Struct({

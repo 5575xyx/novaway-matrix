@@ -58,6 +58,7 @@ export function SettingsPowersNexus(props: { directory?: string }) {
 
   const active = createMemo(() => version()?.active)
   const bundled = createMemo(() => version()?.bundled)
+  const stableGate = createMemo(() => version()?.stableGate)
 
   const toastError = (err: unknown) =>
     showToast({
@@ -154,6 +155,62 @@ export function SettingsPowersNexus(props: { directory?: string }) {
             {language.t("settings.powersnexus.action.rollback" as never)}
           </Button>
         </div>
+      </Section>
+
+
+      <Section
+        title={language.t("settings.powersnexus.stableGate.title" as never)}
+        description={language.t("settings.powersnexus.stableGate.description" as never)}
+      >
+        <Row
+          label={language.t("settings.powersnexus.stableGate.ready" as never)}
+          value={
+            stableGate()
+              ? stableGate()!.ready
+                ? language.t("settings.powersnexus.stableGate.readyYes" as never)
+                : language.t("settings.powersnexus.stableGate.readyNo" as never)
+              : language.t("settings.powersnexus.stableGate.unknown" as never)
+          }
+        />
+        <Row
+          label={language.t("settings.powersnexus.stableGate.effective" as never)}
+          value={stableGate()?.effectivePolicy ?? version()?.policy}
+        />
+        <Show when={(stableGate()?.blockers.length ?? 0) > 0}>
+          <div class="mt-2 rounded-lg border border-border-weak-base bg-surface-base px-3 py-2">
+            <div class="text-12-medium text-text-strong mb-1">
+              {language.t("settings.powersnexus.stableGate.blockers" as never)}
+            </div>
+            <ul class="list-disc pl-4 text-12-regular text-text-weak space-y-1">
+              <For each={stableGate()?.blockers ?? []}>{(item) => <li class="break-all">{item}</li>}</For>
+            </ul>
+          </div>
+        </Show>
+        <Show when={(stableGate()?.checks.length ?? 0) > 0}>
+          <div class="mt-3 flex flex-col gap-1">
+            <div class="text-12-medium text-text-strong">
+              {language.t("settings.powersnexus.stableGate.checks" as never)}
+            </div>
+            <For each={stableGate()?.checks ?? []}>
+              {(check) => (
+                <div class="flex items-start justify-between gap-3 py-1 border-b border-border-weak-base last:border-b-0">
+                  <div class="min-w-0">
+                    <div class="text-12-medium text-text-strong">
+                      {check.ok ? "PASS" : "FAIL"}
+                      {check.required ? " · REQ" : " · OPT"} · {check.title}
+                    </div>
+                    <div class="text-11-regular text-text-weak break-all">{check.detail}</div>
+                  </div>
+                </div>
+              )}
+            </For>
+          </div>
+        </Show>
+        <Show when={!stableGate()}>
+          <div class="text-12-regular text-text-weak">
+            {language.t("settings.powersnexus.stableGate.unavailable" as never)}
+          </div>
+        </Show>
       </Section>
 
       <Section

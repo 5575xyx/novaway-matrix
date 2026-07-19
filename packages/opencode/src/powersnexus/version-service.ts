@@ -8,7 +8,11 @@ import { Config } from "@/config/config"
 import { Context, Effect, FileSystem, Layer, Ref, Schema } from "effect"
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/unstable/http"
 import { loadBundled } from "./bundled"
-import { assertReleaseUrlsReady, resolveUpdatePolicy } from "@/config/powersnexus"
+import {
+  assertReleaseUrlsReady,
+  resolveUpdatePolicy,
+  type StableGateReport,
+} from "@/config/powersnexus"
 import { loadDeveloper } from "./developer"
 import { checkForUpdate, installCheckedUpdate, type CheckedManifest, type ReadRemote } from "./update-service"
 import { make, type Interface as VersionStore, type MutationRequest, type MutationResult } from "./version-store"
@@ -24,6 +28,7 @@ export type Status = {
   activationDeferred: boolean
   lastCheckedAt?: string
   lastErrorCode?: string
+  stableGate?: StableGateReport
 }
 
 type Runtime = {
@@ -39,6 +44,7 @@ type Runtime = {
   checked?: CheckedManifest
   lastCheckedAt?: string
   lastErrorCode?: string
+  stableGate: StableGateReport
 }
 
 export class VersionServiceError extends Schema.TaggedErrorClass<VersionServiceError>()(
@@ -166,6 +172,7 @@ export const layer = Layer.effect(
         allowedHosts,
         trustedKeys: { [keyID]: publicKey },
         readRemote,
+        stableGate: resolved.gate,
       }
       yield* Ref.set(state, runtime)
       return runtime
@@ -216,6 +223,7 @@ export const layer = Layer.effect(
         activationDeferred: current.activationDeferred,
         lastCheckedAt: runtime.lastCheckedAt,
         lastErrorCode: runtime.lastErrorCode,
+        stableGate: runtime.stableGate,
       } satisfies Status
     })
 

@@ -531,8 +531,37 @@
         }
       ],
       "completed_at": "2026-07-19T15:02:42.000Z"
+    },
+    {
+      "id": "task-019",
+      "title": "设置页展示 stable 生产门禁状态",
+      "status": "completed",
+      "priority": "P1",
+      "depends_on": [
+        "task-018"
+      ],
+      "attempts": 1,
+      "max_attempts": 3,
+      "started_at_commit": "ba90b1f",
+      "validation": {
+        "command": "bun typecheck",
+        "timeout_seconds": 300
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 3,
+          "total": 3,
+          "description": "API stableGate + 设置页 UI + typecheck",
+          "timestamp": "2026-07-19T15:12:56.000Z"
+        }
+      ],
+      "completed_at": "2026-07-19T15:12:56.000Z"
     }
   ],
-  "session_count": 12,
-  "last_session": "2026-07-19T15:02:42.000Z"
+  "session_count": 13,
+  "last_session": "2026-07-19T15:12:56.000Z"
 }

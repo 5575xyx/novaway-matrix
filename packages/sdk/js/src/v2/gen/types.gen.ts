@@ -7242,6 +7242,19 @@ export type PowersnexusVersionResponses = {
     activationDeferred: boolean
     lastCheckedAt?: string
     lastErrorCode?: string
+    stableGate?: {
+      ready: boolean
+      policy: string
+      effectivePolicy: string
+      checks: Array<{
+        id: string
+        title: string
+        ok: boolean
+        detail: string
+        required: boolean
+      }>
+      blockers: Array<string>
+    }
   }
 }
 
