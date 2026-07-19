@@ -34,3 +34,6 @@
 [2026-07-19T05:53:47Z] [SESSION-4] DELETE packages/desktop/resources/powersnexus (old unfixed copy); baselines+pubkey retained; packaging preflight PASS
 [2026-07-19T06:27:48Z] [SESSION-5] ROUTE real Chrome viewport probe + developer workspace + secret redact
 [2026-07-19T06:27:48Z] [SESSION-5] VALIDATION developer/redact/browser-live/runner7 packaging PASS score=94
+[2026-07-19T06:33:33Z] [SESSION-6] COMMIT 507d9c1 first-party powersnexus integration (265 files)
+[2026-07-19T06:33:33Z] [SESSION-6] RELEASE_BUILD unsigned artifact from workspace PowersNexus 6.1.0 commit=6b8bd9e filesSha256=20fc3aac... (sign blocked: no private key)
+[2026-07-19T06:39:56Z] [SESSION-7] TRIAGE no git remote; classified dirty worktree; expanded .gitignore for temp artifacts; wrote docs/workspace-change-triage.md

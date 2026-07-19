@@ -30,3 +30,18 @@ UPCOMING_CHANGELOG.md
 logs/
 *.bun-build
 tsconfig.tsbuildinfo
+
+
+# Local agent/temp artifacts (do not commit)
+.claude/test-node-download/
+.claude/test-bundled-node.ts
+.claude/test-native-load.cjs
+.dbx-test-data/
+packages/desktop/.tmp/
+packages/opencode/.tmp-browser-qa/
+packages/desktop/electron.vite.config.*.mjs
+packages/desktop/scripts/__pycache__/
+tmp-cdp-*.mjs
+test-redirect.json
+test-redirect.txt
+harness-tasks.json.corrupt-*
