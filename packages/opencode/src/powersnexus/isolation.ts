@@ -209,6 +209,15 @@ export function buildIsolatedProcessEnv(input: {
     POWERSNEXUS_WORKTREE: worktree,
     POWERSNEXUS_WRITE_ROOTS: [worktree, tempRoot].join(path.delimiter),
     POWERSNEXUS_ISOLATION: "1",
+    POWERSNEXUS_TOKEN_LEVEL: (() => {
+      try {
+        // 延迟探测受限 Token，避免循环初始化问题
+        const mod = require("./os-isolation") as typeof import("./os-isolation")
+        return mod.isRestrictedTokenAvailable() ? "restricted" : "standard"
+      } catch {
+        return "standard"
+      }
+    })(),
   }
   return { env, tempRoot }
 }

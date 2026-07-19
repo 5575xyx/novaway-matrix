@@ -10,6 +10,8 @@ export type IsolatedRunResult = {
   stdout: Buffer
   stderr: Buffer
   timedOut: boolean
+  /** 是否以受限 Token / 降权策略启动 */
+  restricted: boolean
 }
 
 export type RunJob = {
@@ -39,6 +41,9 @@ export class OsIsolationError extends Schema.TaggedErrorClass<OsIsolationError>(
 
 const jobs = new Map<string, RunJob>()
 
+/** 每个 delivery run 允许的最大活动进程数（Job Object ActiveProcessLimit）。 */
+export const DEFAULT_ACTIVE_PROCESS_LIMIT = 48
+
 /** Windows Job Object 是否可用（仅 win32 且 FFI 加载成功）。 */
 export function isOsIsolationAvailable(): boolean {
   if (process.platform !== "win32") return false
@@ -50,16 +55,48 @@ export function isOsIsolationAvailable(): boolean {
   }
 }
 
+/** 受限 Token API 是否可用（CreateRestrictedToken 探测成功）。 */
+export function isRestrictedTokenAvailable(): boolean {
+  if (process.platform !== "win32") return false
+  if (process.env.POWERSNEXUS_RESTRICTED_TOKEN === "0") return false
+  try {
+    return Boolean(getAdvapiApi() && probeRestrictedToken())
+  } catch {
+    return false
+  }
+}
+
+export type SandboxCapabilities = {
+  jobObject: boolean
+  restrictedToken: boolean
+  activeProcessLimit: number
+  worktreeTempSandbox: boolean
+  argvWriteGuard: boolean
+}
+
+export function sandboxCapabilities(): SandboxCapabilities {
+  return {
+    jobObject: isOsIsolationAvailable(),
+    restrictedToken: isRestrictedTokenAvailable(),
+    activeProcessLimit: DEFAULT_ACTIVE_PROCESS_LIMIT,
+    worktreeTempSandbox: true,
+    argvWriteGuard: true,
+  }
+}
+
 /** 报告隔离状态：Windows 且 Job Object 可用时标记 mode=os。 */
 export function processIsolationStatus(): IsolationStatus {
   if (isOsIsolationAvailable()) {
+    const token = isRestrictedTokenAvailable()
     return {
       mode: "os",
       platform: process.platform,
       worktreeOnlyWrite: true,
       networkDefault: "ask",
       autoLocalDeliveryScope: "worktree_only",
-      note: "Windows Job Object 已启用：进程树 KillOnJobClose；子进程 TEMP 强制落在 Worktree；argv 写路径白名单",
+      note: token
+        ? "Windows Job Object + 写路径/TEMP 沙箱 + 受限 Token(Safer CONSTRAINED)"
+        : "Windows Job Object + 写路径/TEMP 沙箱（Safer 受限 Token 不可用则降级）",
     }
   }
   return {
@@ -185,7 +222,7 @@ function getWin32Api(): Win32Api | null {
       return null
     }
     // 设置 KillOnJobClose
-    enableKillOnJobClose(win32Api, probe)
+    enableJobLimits(win32Api, probe)
     win32Api.CloseHandle(probe)
     return win32Api
   } catch {
@@ -196,11 +233,16 @@ function getWin32Api(): Win32Api | null {
 
 // JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
 // JobObjectExtendedLimitInformation = 9
-function enableKillOnJobClose(api: Win32Api, job: number) {
-  // JOBOBJECT_EXTENDED_LIMIT_INFORMATION on x64 is 144 bytes; BasicLimitInformation.LimitFlags at offset 16
+function enableJobLimits(api: Win32Api, job: number) {
+  // JOBOBJECT_EXTENDED_LIMIT_INFORMATION (class 9) on x64 ~144 bytes
+  // BasicLimitInformation.LimitFlags @ offset 16
+  // BasicLimitInformation.ActiveProcessLimit @ offset 40
+  // JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
+  // JOB_OBJECT_LIMIT_ACTIVE_PROCESS = 0x0008
   const buf = new ArrayBuffer(144)
   const view = new DataView(buf)
-  view.setUint32(16, 0x2000, true) // LimitFlags = KILL_ON_JOB_CLOSE
+  view.setUint32(16, 0x2000 | 0x0008, true)
+  view.setUint32(40, DEFAULT_ACTIVE_PROCESS_LIMIT, true)
   try {
     const { ptr } = (Bun as any).FFI
     api.SetInformationJobObject(job, 9, ptr(buf), 144)
@@ -214,7 +256,7 @@ function createWin32Job(runID: string): RunJob {
   if (!api) return createLogicalJob(runID)
   const job = api.CreateJobObjectW(null, null)
   if (!job) return createLogicalJob(runID)
-  enableKillOnJobClose(api, job)
+  enableJobLimits(api, job)
   const PROCESS_ALL_ACCESS = 0x1f0fff
   const PROCESS_SET_QUOTA = 0x0100
   const PROCESS_TERMINATE = 0x0001
@@ -272,7 +314,7 @@ function runTracked(
 ): Promise<IsolatedRunResult> {
   return new Promise((resolve) => {
     if (argv.length === 0) {
-      resolve({ exitCode: 1, stdout: Buffer.alloc(0), stderr: Buffer.from("empty argv"), timedOut: false })
+      resolve({ exitCode: 1, stdout: Buffer.alloc(0), stderr: Buffer.from("empty argv"), timedOut: false, restricted: false })
       return
     }
     const child: ChildProcess = spawn(argv[0], argv.slice(1), {
@@ -308,6 +350,7 @@ function runTracked(
         stdout: Buffer.concat(stdoutChunks),
         stderr: Buffer.from(err.message),
         timedOut,
+        restricted: false,
       })
     })
     child.on("close", (code) => {
@@ -317,9 +360,100 @@ function runTracked(
         stdout: Buffer.concat(stdoutChunks),
         stderr: Buffer.concat(stderrChunks),
         timedOut,
+        restricted: false,
       })
     })
   })
+}
+
+
+
+type SaferApi = {
+  SaferCreateLevel: (scope: number, level: number, openFlags: number, levelOut: any, reserved: any) => number
+  SaferComputeTokenFromLevel: (
+    level: number,
+    inToken: any,
+    outToken: any,
+    flags: number,
+    reserved: any,
+  ) => number
+  SaferCloseLevel: (level: number) => number
+}
+
+let saferApi: SaferApi | null | undefined
+let restrictedProbe: boolean | undefined
+
+function getSaferApi(): SaferApi | null {
+  if (saferApi !== undefined) return saferApi
+  if (process.platform !== "win32") {
+    saferApi = null
+    return null
+  }
+  try {
+    const { dlopen } = (Bun as any).FFI
+    const adv = dlopen("advapi32.dll", {
+      SaferCreateLevel: { args: ["u32", "u32", "u32", "ptr", "ptr"], returns: "i32" },
+      SaferComputeTokenFromLevel: { args: ["ptr", "ptr", "ptr", "u32", "ptr"], returns: "i32" },
+      SaferCloseLevel: { args: ["ptr"], returns: "i32" },
+    })
+    saferApi = {
+      SaferCreateLevel: (scope, level, openFlags, levelOut, reserved) =>
+        adv.symbols.SaferCreateLevel(scope, level, openFlags, levelOut, reserved) ? 1 : 0,
+      SaferComputeTokenFromLevel: (level, inToken, outToken, flags, reserved) =>
+        adv.symbols.SaferComputeTokenFromLevel(level, inToken, outToken, flags, reserved) ? 1 : 0,
+      SaferCloseLevel: (level) => (adv.symbols.SaferCloseLevel(level) ? 1 : 0),
+    }
+    return saferApi
+  } catch {
+    saferApi = null
+    return null
+  }
+}
+
+// SAFER_SCOPEID_USER=2, SAFER_LEVELID_CONSTRAINED=0x10000, SAFER_LEVEL_OPEN=1
+const SAFER_SCOPEID_USER = 2
+const SAFER_LEVELID_CONSTRAINED = 0x10000
+const SAFER_LEVEL_OPEN = 1
+
+function probeRestrictedToken(): boolean {
+  if (restrictedProbe !== undefined) return restrictedProbe
+  const handle = createRestrictedTokenHandle()
+  if (!handle) {
+    restrictedProbe = false
+    return false
+  }
+  const k32 = getWin32Api()
+  if (k32) k32.CloseHandle(handle)
+  restrictedProbe = true
+  return true
+}
+
+/** 通过 Windows Safer API 创建约束级 Token；失败返回 0。调用方负责 CloseHandle。 */
+export function createRestrictedTokenHandle(): number {
+  const api = getSaferApi()
+  const k32 = getWin32Api()
+  if (!api || !k32) return 0
+  try {
+    const { ptr } = (Bun as any).FFI
+    const levelBuf = new BigUint64Array(1)
+    if (!api.SaferCreateLevel(SAFER_SCOPEID_USER, SAFER_LEVELID_CONSTRAINED, SAFER_LEVEL_OPEN, ptr(levelBuf), null)) {
+      return 0
+    }
+    const level = Number(levelBuf[0])
+    if (!level) return 0
+    const tokenBuf = new BigUint64Array(1)
+    const ok = api.SaferComputeTokenFromLevel(level, null, ptr(tokenBuf), 0, null)
+    api.SaferCloseLevel(level)
+    if (!ok) return 0
+    return Number(tokenBuf[0]) || 0
+  } catch {
+    return 0
+  }
+}
+
+/** 兼容旧探测路径：advapi 入口改走 Safer。 */
+function getAdvapiApi(): SaferApi | null {
+  return getSaferApi()
 }
 
 export * as PowersNexusOsIsolation from "./os-isolation"

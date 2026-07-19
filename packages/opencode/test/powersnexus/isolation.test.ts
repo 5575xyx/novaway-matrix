@@ -13,7 +13,15 @@ import {
   buildIsolatedProcessEnv,
   sandboxTempRoot,
 } from "../../src/powersnexus/isolation"
-import { createRunJob, disposeRunJob, isOsIsolationAvailable, processIsolationStatus } from "../../src/powersnexus/os-isolation"
+import {
+  createRunJob,
+  createRestrictedTokenHandle,
+  disposeRunJob,
+  isOsIsolationAvailable,
+  isRestrictedTokenAvailable,
+  processIsolationStatus,
+  sandboxCapabilities,
+} from "../../src/powersnexus/os-isolation"
 
 test("隔离状态在 Windows 可用时报告 OS Job Object，否则为逻辑模式", () => {
   const status = isolationStatus()
@@ -116,4 +124,30 @@ test("隔离子进程环境强制 TEMP 进入 Worktree 沙箱", () => {
   expect(env.TMPDIR).toBe(tempRoot)
   expect(env.POWERSNEXUS_WORKTREE).toBe(worktree)
   expect(env.TEMP?.includes("Windows")).toBe(false)
+})
+
+
+test("沙箱能力面：Job Object / 写守卫 / TEMP 沙箱可用；受限 Token 在支持时可用", () => {
+  const caps = sandboxCapabilities()
+  expect(caps.worktreeTempSandbox).toBe(true)
+  expect(caps.argvWriteGuard).toBe(true)
+  expect(caps.activeProcessLimit).toBeGreaterThan(0)
+  if (process.platform === "win32") {
+    expect(caps.jobObject).toBe(isOsIsolationAvailable())
+    if (isRestrictedTokenAvailable()) {
+      expect(caps.restrictedToken).toBe(true)
+      const handle = createRestrictedTokenHandle()
+      expect(handle).toBeGreaterThan(0)
+    }
+  }
+})
+
+test("隔离子进程环境在受限 Token 可用时标记 restricted", () => {
+  const worktree = path.resolve("E:/tmp/worktree-isolation")
+  const { env } = buildIsolatedProcessEnv({ worktree, runID: "tok-1" })
+  if (process.platform === "win32" && isRestrictedTokenAvailable()) {
+    expect(env.POWERSNEXUS_TOKEN_LEVEL).toBe("restricted")
+  } else {
+    expect(["restricted", "standard"]).toContain(env.POWERSNEXUS_TOKEN_LEVEL ?? "standard")
+  }
 })

@@ -48,3 +48,4 @@
 [2026-07-19T12:56:49.000Z] [SESSION-7] Completed [task-013] 本地签名 stable 发布闭环脚手架
 [2026-07-19T13:41:08.000Z] [SESSION-8] Completed [task-014] Windows Job Object OS 级进程隔离原型
 [2026-07-19T14:17:57.000Z] [SESSION-9] Completed [task-015] Worktree 写路径强制与 TEMP 沙箱
+[2026-07-19T14:35:26.000Z] [SESSION-10] Completed [task-016] Windows Safer 受限 Token 原型

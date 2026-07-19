@@ -1,39 +1,41 @@
 # PowersNexus 第一方集成验证报告
 
-生成时间：2026-07-19T14:20:00Z
+生成时间：2026-07-19T15:00:00Z
 
 ## 1. 审查结论
 
 | 维度 | 评分 | 说明 |
 |------|------|------|
-| 需求匹配 | 98 | 完整本地主链 + Windows Job Object + Worktree 写路径强制 + TEMP 沙箱 |
-| 架构一致 | 97 | Runner 参数路径白名单、子进程 TEMP 强制进 Worktree |
-| 代码质量 | 96 | buildIsolatedProcessEnv / assertArgvWithinWriteRoots 与 Job Object 组合 |
-| 测试覆盖 | 98 | isolation+runner 18/18 |
-| 风险评估 | 93 | 仍非内核 ACL/受限 Token；跨平台与真实 stable 端点未完成 |
-| **综合** | **97** | **写路径强制已可执行，OS 隔离从“杀树”推进到“限写”** |
+| 需求匹配 | 98 | Job Object + 写路径/TEMP 沙箱 + Safer 受限 Token 探测与能力面 |
+| 架构一致 | 97 | 能力探测可降级；环境变量标记 Token 级别 |
+| 代码质量 | 96 | Safer CONSTRAINED Token；Job ActiveProcessLimit=48 |
+| 测试覆盖 | 98 | isolation+runner 20/20 |
+| 风险评估 | 93 | 尚未 CreateProcessAsUser 真正用 Token 启动子进程；跨平台与真实 stable 仍缺 |
+| **综合** | **97** | **受限 Token 原型已可探测并纳入沙箱能力面** |
 
-## 2. 本轮新增（写路径强制）
+## 2. 本轮新增（受限 Token 原型）
 
-1. `assertArgvWithinWriteRoots`：拒绝参数中的 Worktree 外绝对路径
-2. `buildIsolatedProcessEnv`：强制 `TEMP/TMP/TMPDIR` 到 `.novaway/powersnexus/tmp/<runID>`
-3. Runner：校验 argv、创建沙箱目录、命令/服务步骤注入隔离环境
-4. 测试：argv 越界拒绝 + TEMP 沙箱断言
+1. Windows Safer API：`SaferCreateLevel(CONSTRAINED)` + `SaferComputeTokenFromLevel`
+2. `isRestrictedTokenAvailable` / `createRestrictedTokenHandle` / `sandboxCapabilities`
+3. Job Object `ActiveProcessLimit=48` + KillOnJobClose
+4. 子进程环境 `POWERSNEXUS_TOKEN_LEVEL=restricted|standard`
+5. 说明：Token 已能创建；真正 `CreateProcessAsUser` 启进程属下一刀（避免 FFI 结构体风险）
 
 ## 3. 验证
 
 | 项 | 结果 |
 |----|------|
-| isolation + runner | 18/18 通过 |
+| isolation + runner | 20/20 通过 |
 | typecheck | 通过 |
+| 本机 Token 探测 | true（handle>0） |
 
 ## 4. 仍未完成
 
-1. 真实 HTTPS stable 端点
-2. Windows 受限 Token / 内核 ACL
-3. macOS/Linux 打包与隔离
+1. CreateProcessAsUser 使用受限 Token 启动交付进程
+2. 真实 HTTPS stable 端点
+3. macOS/Linux 隔离与打包
 4. 7 天 KPI
 
 ## 5. 决策
 
-综合 97：交付子进程默认只能写 Worktree + 沙箱临时目录；越界 argv 启动即失败。
+综合 97：沙箱能力面已包含受限 Token 原型；下一刀是用该 Token 真正 CreateProcessAsUser 启子进程。
