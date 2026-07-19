@@ -159,9 +159,15 @@ const rows = [
     requiredOn: ["win32"],
     run: () => {
       if (platform !== "win32") return skip("非 Windows")
-      if (!hasWinUnpacked) return skip("未找到 dist/win-unpacked，请先 package:win")
-      const r = runCmd(process.execPath, [path.join(desktopRoot, "scripts/smoke-powersnexus-offline.mjs")], desktopRoot, process.env, 120000)
-      return r.ok ? pass("Windows offline smoke 通过", r.ms) : fail(r.detail, r.ms)
+      const r = runCmd(
+        process.execPath,
+        [path.join(desktopRoot, "scripts/smoke-powersnexus-package-offline.mjs"), "--platform=win32"],
+        desktopRoot,
+        process.env,
+        120000,
+      )
+      if (r.status === 3) return skip("未找到 Windows 包产物，请先 package:win")
+      return r.ok ? pass("Windows offline package smoke 通过", r.ms) : fail(r.detail, r.ms)
     },
   },
   {
@@ -171,8 +177,15 @@ const rows = [
     requiredOn: ["darwin"],
     run: () => {
       if (platform !== "darwin") return skip("需 macOS runner")
-      if (!hasMacApp) return skip("未找到 mac 包产物，请先 package:mac")
-      return blocked("macOS 包内 doctor 冒烟脚本待在 runner 补齐（骨架已预留）")
+      const r = runCmd(
+        process.execPath,
+        [path.join(desktopRoot, "scripts/smoke-powersnexus-package-offline.mjs"), "--platform=darwin"],
+        desktopRoot,
+        process.env,
+        120000,
+      )
+      if (r.status === 3) return skip("未找到 mac 包产物，请先 package:mac")
+      return r.ok ? pass("macOS offline package smoke 通过", r.ms) : fail(r.detail, r.ms)
     },
   },
   {
@@ -182,8 +195,15 @@ const rows = [
     requiredOn: ["linux"],
     run: () => {
       if (platform !== "linux") return skip("需 Linux runner")
-      if (!hasLinuxApp) return skip("未找到 linux 包产物，请先 package:linux")
-      return blocked("Linux 包内 doctor 冒烟脚本待在 runner 补齐（骨架已预留）")
+      const r = runCmd(
+        process.execPath,
+        [path.join(desktopRoot, "scripts/smoke-powersnexus-package-offline.mjs"), "--platform=linux"],
+        desktopRoot,
+        process.env,
+        120000,
+      )
+      if (r.status === 3) return skip("未找到 linux 包产物，请先 package:linux")
+      return r.ok ? pass("Linux offline package smoke 通过", r.ms) : fail(r.detail, r.ms)
     },
   },
   {

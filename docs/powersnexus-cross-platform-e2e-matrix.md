@@ -47,9 +47,9 @@ bun packages/desktop/scripts/run-cross-platform-e2e-matrix.mjs --json > e2e-matr
 | M02 | stable 生产门禁（默认 bundled） | 必跑 | 必跑 | 必跑 | `check-stable-production-gate.mjs` |
 | M03 | 本地签名 stable 闭环 | 必跑 | 必跑 | 必跑 | `bun run test:stable-local` |
 | M04 | isolation + runner 单元 | 必跑 | 必跑 | 必跑 | `bun test test/powersnexus/isolation|runner` |
-| M05 | Windows 离线包资源+doctor | 本机 Win 有产物则跑 | SKIP | SKIP | `smoke-powersnexus-offline.mjs` |
-| M06 | macOS 离线包冒烟 | SKIP | 有产物则跑 | SKIP | 待 CI runner |
-| M07 | Linux 离线包冒烟 | SKIP | SKIP | 有产物则跑 | 待 CI runner |
+| M05 | Windows 离线包资源+doctor | 本机 Win 有产物则跑 | SKIP | SKIP | `smoke-powersnexus-package-offline.mjs --platform=win32` |
+| M06 | macOS 离线包冒烟 | SKIP | 有产物则跑 | SKIP | 同脚本 `--platform=darwin` |
+| M07 | Linux 离线包冒烟 | SKIP | SKIP | 有产物则跑 | 同脚本 `--platform=linux` |
 | M08 | 在线升级 E2E（真实 CDN） | BLOCKED | BLOCKED | BLOCKED | 需生产门禁 ready=true |
 | M09 | 跨版本回滚 E2E | 逻辑已覆盖 | 逻辑已覆盖 | 逻辑已覆盖 | stable-local harness |
 
@@ -57,7 +57,7 @@ bun packages/desktop/scripts/run-cross-platform-e2e-matrix.mjs --json > e2e-matr
 
 - **逻辑层**升级/回滚：本地 harness 已覆盖
 - **Windows 离线包**：有 `package:win` + smoke 脚本
-- **macOS/Linux 包冒烟**：骨架已定义，需在对应 OS runner 执行 `package:mac` / `package:linux` 后启用
+- **macOS/Linux 包冒烟**：可移植脚本已实现；无产物时 exit=3（矩阵记 SKIP），有产物时跑 digest+doctor
 - **真实在线升级**：被 stable 生产门禁阻塞（正确默认）
 
 ## CI 建议

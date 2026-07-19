@@ -589,8 +589,37 @@
         }
       ],
       "completed_at": "2026-07-19T15:22:02.000Z"
+    },
+    {
+      "id": "task-021",
+      "title": "可移植离线包 doctor 冒烟（M06/M07）",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [
+        "task-020"
+      ],
+      "attempts": 1,
+      "max_attempts": 3,
+      "started_at_commit": "14c78e8",
+      "validation": {
+        "command": "bun packages/desktop/scripts/smoke-powersnexus-package-offline.mjs --platform=win32",
+        "timeout_seconds": 180
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 3,
+          "total": 3,
+          "description": "可移植脚本 + 矩阵接线；Win PASS；mac/linux 无产物 exit 3",
+          "timestamp": "2026-07-19T15:29:53.000Z"
+        }
+      ],
+      "completed_at": "2026-07-19T15:29:53.000Z"
     }
   ],
-  "session_count": 14,
-  "last_session": "2026-07-19T15:22:02.000Z"
+  "session_count": 15,
+  "last_session": "2026-07-19T15:29:53.000Z"
 }
