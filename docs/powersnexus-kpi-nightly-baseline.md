@@ -65,3 +65,41 @@ bun packages/desktop/scripts/run-kpi-nightly-baseline.mjs --json
 - 本基线**不能**单独替代真实 20 次标准模板端到端人工样本
 - 本基线**可以**拦截：加载失败、隔离回归、升级逻辑回退、门禁被误关
 - 真实 stable 在线升级仍受生产门禁约束
+
+
+## 定时执行
+
+### Windows 任务计划（推荐本机桌面环境）
+
+```powershell
+# 在仓库根目录执行（当前用户，每天 02:15）
+powershell -NoProfile -ExecutionPolicy Bypass -File packages\desktop\scripts\register-kpi-nightly-task.ps1
+
+# 指定仓库路径 / 时间 / 强制重建
+powershell -NoProfile -ExecutionPolicy Bypass -File packages\desktop\scripts\register-kpi-nightly-task.ps1 `
+  -RepoRoot "E:\AImoney\NovaWay-Matrix\novaway-coder" -Time "02:15" -Force
+
+# 立即试跑
+schtasks /Run /TN "NovaWay-PowersNexus-KPI-Nightly"
+
+# 卸载
+powershell -NoProfile -ExecutionPolicy Bypass -File packages\desktop\scripts\unregister-kpi-nightly-task.ps1
+```
+
+任务实际调用：
+
+`packages/desktop/scripts/run-kpi-nightly-task.ps1`
+
+日志：
+
+`.codex/powersnexus-kpi/logs/`
+
+### GitHub Actions cron
+
+工作流：`.github/workflows/powersnexus-kpi-nightly.yml`
+
+- 每天 UTC 18:15（约北京时间 02:15）
+- `workflow_dispatch` 可手动触发
+- 上传 `.codex/powersnexus-kpi/**` 为 artifact（14 天）
+
+> 若默认分支不是 Actions 触发分支，请在仓库 Settings → Actions 中确认 schedule 生效分支。

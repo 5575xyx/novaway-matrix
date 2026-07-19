@@ -647,8 +647,37 @@
         }
       ],
       "completed_at": "2026-07-19T15:42:56.000Z"
+    },
+    {
+      "id": "task-023",
+      "title": "KPI 夜间定时：Windows 任务计划 + GH Actions cron",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [
+        "task-022"
+      ],
+      "attempts": 1,
+      "max_attempts": 3,
+      "started_at_commit": "34b484b",
+      "validation": {
+        "command": "powershell -NoProfile -ExecutionPolicy Bypass -File packages/desktop/scripts/run-kpi-nightly-task.ps1 -SummaryOnly",
+        "timeout_seconds": 120
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 3,
+          "total": 3,
+          "description": "包装器试跑通过；计划任务已注册；workflow 已添加",
+          "timestamp": "2026-07-19T16:03:49.000Z"
+        }
+      ],
+      "completed_at": "2026-07-19T16:03:49.000Z"
     }
   ],
-  "session_count": 16,
-  "last_session": "2026-07-19T15:42:56.000Z"
+  "session_count": 17,
+  "last_session": "2026-07-19T16:03:49.000Z"
 }
