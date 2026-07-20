@@ -208,6 +208,34 @@ test("seeds default global plugins into new config file", async () => {
   }
 })
 
+test("first-party PowersNexus mode does not seed a remote Git plugin", async () => {
+  await using tmp = await tmpdir()
+  const prev = Global.Path.config
+  const firstParty = process.env.POWERSNEXUS_FIRST_PARTY
+  ;(Global.Path as { config: string }).config = tmp.path
+  process.env.POWERSNEXUS_FIRST_PARTY = "1"
+  await clear(true)
+
+  try {
+    await withTestInstance({
+      directory: tmp.path,
+      fn: async (ctx) => {
+        await load(ctx)
+      },
+    })
+
+    const content = await Filesystem.readText(path.join(tmp.path, "novaway.json"))
+    const file = path.join(tmp.path, "novaway.json")
+    const parsed = ConfigParse.schema(Config.Info, ConfigParse.jsonc(content, file), file)
+    expect(parsed.plugin).toEqual([])
+  } finally {
+    ;(Global.Path as { config: string }).config = prev
+    if (firstParty === undefined) delete process.env.POWERSNEXUS_FIRST_PARTY
+    else process.env.POWERSNEXUS_FIRST_PARTY = firstParty
+    await clear(true)
+  }
+})
+
 test("adds default global plugins to existing config file that lacks them", async () => {
   await using tmp = await tmpdir()
   const prev = Global.Path.config

@@ -151,7 +151,8 @@ export const dict = {
   "provider.custom.description.link": "Anbieter-Konfigurationsdokumente",
   "provider.custom.description.suffix": ".",
   "provider.custom.field.provider.label": "Anbieter auswählen",
-  "provider.custom.field.provider.description": "Die Auswahl eines Anbieters füllt Anbieter-ID, Name und Basis-URL automatisch aus",
+  "provider.custom.field.provider.description":
+    "Die Auswahl eines Anbieters füllt Anbieter-ID, Name und Basis-URL automatisch aus",
   "provider.custom.field.provider.placeholder": "Anbieter auswählen",
   "provider.custom.field.providerID.label": "Anbieter-ID",
   "provider.custom.field.providerID.placeholder": "myprovider",

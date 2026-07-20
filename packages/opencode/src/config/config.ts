@@ -35,6 +35,7 @@ import { ConfigModelID } from "./model-id"
 import { ConfigParse } from "./parse"
 import { ConfigPaths } from "./paths"
 import { ConfigPermission } from "./permission"
+import { ConfigPowersNexus } from "./powersnexus"
 import { ConfigPlugin } from "./plugin"
 import { ConfigProvider } from "./provider"
 import { ConfigReference } from "./reference"
@@ -52,7 +53,11 @@ export const DEFAULT_GLOBAL_PLUGINS: string[] = ["PowersNexus@git+https://gitee.
 // Fallback plugin sources keyed by plugin name (without version prefix).
 // When the primary source fails to install, these URLs are tried in order.
 export const FALLBACK_GLOBAL_PLUGINS: Record<string, string[]> = {
-  PowersNexus: ["git+https://gitee.com/nova-way/powersnexus.git", "git+https://github.com/obra/superpowers.git"],
+  PowersNexus: ["git+https://gitee.com/nova-way/powersnexus.git"],
+}
+
+function defaultGlobalPlugins() {
+  return process.env.POWERSNEXUS_FIRST_PARTY === "1" ? [] : DEFAULT_GLOBAL_PLUGINS
 }
 
 // Default MCP servers seeded into the global config the first time it's created.
@@ -264,6 +269,9 @@ export const Info = Schema.Struct({
   memory: Schema.optional(ConfigMemory.Info).annotate({
     description: "Persistent memory configuration",
   }),
+  powersnexus: Schema.optional(ConfigPowersNexus.Info).annotate({
+    description: "PowersNexus 第一方工作流与独立更新配置",
+  }),
   evolution: Schema.optional(ConfigEvolution.Info).annotate({
     description: "Self-evolution candidate review configuration",
   }),
@@ -463,7 +471,7 @@ export const layer = Layer.effect(
             $schema: "https://opencode.ai/config.json",
           }
           if (!Flag.OPENCODE_DISABLE_DEFAULT_PLUGINS) {
-            seed.plugin = DEFAULT_GLOBAL_PLUGINS
+            seed.plugin = defaultGlobalPlugins()
           }
           // Add default MCP servers
           seed.mcp = DEFAULT_MCP_SERVERS
@@ -476,8 +484,9 @@ export const layer = Layer.effect(
 
       if (!Flag.OPENCODE_DISABLE_DEFAULT_PLUGINS) {
         const existing = result.plugin ?? []
-        if (!existing.some((p) => typeof p === "string" && p.startsWith("PowersNexus@"))) {
-          result.plugin = [...existing, ...DEFAULT_GLOBAL_PLUGINS]
+        const defaults = defaultGlobalPlugins()
+        if (defaults.length > 0 && !existing.some((p) => typeof p === "string" && p.startsWith("PowersNexus@"))) {
+          result.plugin = [...existing, ...defaults]
           const file = path.join(Global.Path.config, "novaway.json")
           const text = yield* readConfigFile(file)
           if (text) {

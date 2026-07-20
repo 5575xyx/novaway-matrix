@@ -1,0 +1,64 @@
+# Dependencies
+node_modules/
+.claude/
+.codex/
+.superpowers/
+.trellis/
+.worktrees/
+openspec/
+.mcp.json
+AGENTS.md
+CLAUDE.md
+
+# Build output
+dist/
+coverage/
+/target/
+plugins/jdbc/target/
+plugins/jdbc/dependency-reduced-pom.xml
+plugins/jdbc/lib/*.jar
+plugins/jdbc/dist/
+docs/.next/
+docs/out/
+docs/.source/
+docs/superpowers/
+src-tauri/*.dylib
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# GitHub (keep workflows)
+.github/*
+!.github/workflows/
+!.github/scripts/
+!.github/ISSUE_TEMPLATE/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Temp
+tmp/
+
+# Logs
+*.log
+
+
+# Generated changelog data
+releases-*.json
+
+test.pdb
+portable/
+DBX_*_x64-portable.zip
+.agents/skills
+.pnpm-store/*
+.dbx-web

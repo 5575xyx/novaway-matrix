@@ -95,9 +95,12 @@ export function NewSessionView(props: NewSessionViewProps) {
                       type="button"
                       class="flex-1 flex items-start gap-4 px-5 py-4 rounded-xl border text-left transition-all"
                       classList={{
-                        "border-border-weak-base bg-background-base/50 hover:border-border-strong-base hover:bg-surface-hover": !active(),
-                        "border-[var(--icon-agent-plan-base)]/40 bg-[var(--icon-agent-plan-base)]/10": active() && agent.name === "plan",
-                        "border-[var(--icon-agent-build-base)]/40 bg-[var(--icon-agent-build-base)]/10": active() && agent.name === "build",
+                        "border-border-weak-base bg-background-base/50 hover:border-border-strong-base hover:bg-surface-hover":
+                          !active(),
+                        "border-[var(--icon-agent-plan-base)]/40 bg-[var(--icon-agent-plan-base)]/10":
+                          active() && agent.name === "plan",
+                        "border-[var(--icon-agent-build-base)]/40 bg-[var(--icon-agent-build-base)]/10":
+                          active() && agent.name === "build",
                       }}
                       onClick={() => local.agent.set(agent.name)}
                     >

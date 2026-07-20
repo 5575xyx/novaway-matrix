@@ -127,12 +127,18 @@ export const GenerateImageTool = Tool.define(
             throw new Error(`No image generation protocol registered for provider "${candidate.providerId}".`)
           }
 
-          const imageResult = yield* imageService.generate(protocol, {
-            prompt: args.prompt,
-            model: candidate.modelName,
-            size: args.size,
-            image: args.image,
-          }, candidate.apiKey).pipe(Effect.provideService(HttpClient.HttpClient, http))
+          const imageResult = yield* imageService
+            .generate(
+              protocol,
+              {
+                prompt: args.prompt,
+                model: candidate.modelName,
+                size: args.size,
+                image: args.image,
+              },
+              candidate.apiKey,
+            )
+            .pipe(Effect.provideService(HttpClient.HttpClient, http))
 
           const firstImage = imageResult.images[0]
           if (!firstImage) {

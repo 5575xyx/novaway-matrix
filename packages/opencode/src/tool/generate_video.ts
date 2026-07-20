@@ -82,17 +82,26 @@ export const GenerateVideoTool = Tool.define(
             throw new Error(`No video generation protocol registered for provider "${providerId}".`)
           }
 
-          yield* Effect.logInfo("Creating video generation task", { prompt: args.prompt.slice(0, 50), model: modelName })
-
-          const createResult = yield* videoService.createTask(protocol, {
-            prompt: args.prompt,
+          yield* Effect.logInfo("Creating video generation task", {
+            prompt: args.prompt.slice(0, 50),
             model: modelName,
-            image: args.image?.[0],
-            options: {
-              size: args.size,
-              duration: args.duration,
-            },
-          }, apiKey).pipe(Effect.provideService(HttpClient.HttpClient, http))
+          })
+
+          const createResult = yield* videoService
+            .createTask(
+              protocol,
+              {
+                prompt: args.prompt,
+                model: modelName,
+                image: args.image?.[0],
+                options: {
+                  size: args.size,
+                  duration: args.duration,
+                },
+              },
+              apiKey,
+            )
+            .pipe(Effect.provideService(HttpClient.HttpClient, http))
 
           if (!createResult.taskId) {
             throw new Error("Failed to create video generation task")
@@ -102,16 +111,21 @@ export const GenerateVideoTool = Tool.define(
 
           yield* Effect.logInfo("Waiting for video generation completion", { taskId: createResult.taskId })
 
-          const statusResult = yield* videoService.waitForCompletion(protocol, createResult.taskId, apiKey, {
-            pollIntervalMs: 10_000,
-            maxWaitMs: 5 * 60 * 1000,
-          }).pipe(Effect.provideService(HttpClient.HttpClient, http))
+          const statusResult = yield* videoService
+            .waitForCompletion(protocol, createResult.taskId, apiKey, {
+              pollIntervalMs: 10_000,
+              maxWaitMs: 5 * 60 * 1000,
+            })
+            .pipe(Effect.provideService(HttpClient.HttpClient, http))
 
           if (statusResult.status === "failed") {
             throw new Error(statusResult.error ?? "Video generation failed")
           }
 
-          yield* Effect.logInfo("Video generation completed", { taskId: createResult.taskId, videoUrl: statusResult.videoUrl })
+          yield* Effect.logInfo("Video generation completed", {
+            taskId: createResult.taskId,
+            videoUrl: statusResult.videoUrl,
+          })
 
           return {
             title: `Generated video: ${args.prompt.slice(0, 50)}`,

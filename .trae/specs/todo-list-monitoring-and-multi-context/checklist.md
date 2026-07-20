@@ -1,0 +1,20 @@
+- [ ] Checkpoint 1: Task 类型包含 `startedAt`/`completedAt`/`durationMs` 字段
+- [ ] Checkpoint 2: todo 状态变为 in_progress 时记录开始时间
+- [ ] Checkpoint 3: todo 状态变为 completed 时计算并记录耗时
+- [ ] Checkpoint 4: cancelled 的 todo 不生成完成时间
+- [ ] Checkpoint 5: 悬浮窗能接收到按目录/会话分组的 todo 数据
+- [ ] Checkpoint 6: 弹窗中 todo 按项目/会话分组展示
+- [ ] Checkpoint 7: 当前会话分组始终置顶
+- [ ] Checkpoint 8: 分组头部显示项目名、总数、完成数、完成百分比
+- [ ] Checkpoint 9: 任务项显示状态与耗时
+- [ ] Checkpoint 10: 存在未完成 todo 时宠物进入运行中状态
+- [ ] Checkpoint 11: 新 todo 产生时弹窗自动展开
+- [ ] Checkpoint 12: 用户手动收起后不再因状态更新自动展开
+- [ ] Checkpoint 13: 全部完成后宠物退出运行中状态
+- [ ] Checkpoint 14: 运行中宠物心声显示实时进度摘要
+- [ ] Checkpoint 15: 无任务时宠物显示预设心声
+- [ ] Checkpoint 16: 点击弹窗外部区域可关闭弹窗
+- [ ] Checkpoint 17: 点击弹窗内部不关闭
+- [ ] Checkpoint 18: 新增国际化键在 zh.ts 和 en.ts 中已补充
+- [ ] Checkpoint 19: `packages/app` typecheck 通过
+- [ ] Checkpoint 20: `packages/desktop` typecheck 通过

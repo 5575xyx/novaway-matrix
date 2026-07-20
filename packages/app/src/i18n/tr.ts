@@ -164,7 +164,8 @@ export const dict = {
   "provider.custom.description.link": "Sağlayıcı yapılandırma dökümanları",
   "provider.custom.description.suffix": " sayfasına bakın.",
   "provider.custom.field.provider.label": "Sağlayıcı seçin",
-  "provider.custom.field.provider.description": "Bir sağlayıcı seçmek, sağlayıcı kimliğini, ad ve temel URL'yi otomatik olarak doldurur",
+  "provider.custom.field.provider.description":
+    "Bir sağlayıcı seçmek, sağlayıcı kimliğini, ad ve temel URL'yi otomatik olarak doldurur",
   "provider.custom.field.provider.placeholder": "Sağlayıcı seçin",
   "provider.custom.field.providerID.label": "Sağlayıcı kimlik",
   "provider.custom.field.providerID.placeholder": "saglayicim",

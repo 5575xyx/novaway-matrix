@@ -27,13 +27,17 @@ const MODEL_TYPES: { value: ModelType; label: string }[] = [
 
 function inferModelType(id: string, name: string): ModelType {
   const text = `${id} ${name}`.toLowerCase()
-  if (text.includes("image") || text.includes("img") || text.includes("dall") || text.includes("picture")) return "image"
+  if (text.includes("image") || text.includes("img") || text.includes("dall") || text.includes("picture"))
+    return "image"
   if (text.includes("video") || text.includes("clip")) return "video"
-  if (text.includes("audio") || text.includes("sound") || text.includes("speech") || text.includes("voice")) return "audio"
+  if (text.includes("audio") || text.includes("sound") || text.includes("speech") || text.includes("voice"))
+    return "audio"
   return "text"
 }
 
-function modelTypeFromCapabilities(model: { capabilities?: { output?: { image?: boolean; video?: boolean; audio?: boolean; text?: boolean } } }): ModelType {
+function modelTypeFromCapabilities(model: {
+  capabilities?: { output?: { image?: boolean; video?: boolean; audio?: boolean; text?: boolean } }
+}): ModelType {
   const output = model.capabilities?.output
   if (output?.image) return "image"
   if (output?.video) return "video"
@@ -251,7 +255,11 @@ export const DialogManageProviderModels: Component<{
     if (p) {
       const initial: Record<string, ModelType> = {}
       for (const [id, model] of Object.entries(p.models ?? {})) {
-        initial[id] = modelTypeFromCapabilities(model as { capabilities?: { output?: { image?: boolean; video?: boolean; audio?: boolean; text?: boolean } } })
+        initial[id] = modelTypeFromCapabilities(
+          model as {
+            capabilities?: { output?: { image?: boolean; video?: boolean; audio?: boolean; text?: boolean } }
+          },
+        )
       }
       setModelTypes(initial)
     }

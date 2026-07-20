@@ -15,6 +15,8 @@ import { TuiEvent } from "@/cli/cmd/tui/event"
 import { Cause, Effect, Exit, Option, Schema, Scope } from "effect"
 import { EffectBridge } from "@/effect/bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import { InstanceState } from "@/effect/instance-state"
+import { make as makePowersNexusRepository } from "@/powersnexus/repository"
 
 export interface TaskPromptOps {
   cancel(sessionID: SessionID): Effect.Effect<void>
@@ -42,6 +44,9 @@ const BaseParameters = Schema.Struct({
       "This should only be set if you mean to resume a previous task (you can pass a prior task_id and the task will continue the same subagent session as before instead of creating a fresh one)",
   }),
   command: Schema.optional(Schema.String).annotate({ description: "The command that triggered this task" }),
+  workflow_task_id: Schema.optional(Schema.String).annotate({
+    description: "PowersNexus workflow task ID inherited by the subagent when this session is bound to a Change",
+  }),
 })
 
 export const Parameters = Schema.Struct({
@@ -53,6 +58,9 @@ export const Parameters = Schema.Struct({
       "This should only be set if you mean to resume a previous task (you can pass a prior task_id and the task will continue the same subagent session as before instead of creating a fresh one)",
   }),
   command: Schema.optional(Schema.String).annotate({ description: "The command that triggered this task" }),
+  workflow_task_id: Schema.optional(Schema.String).annotate({
+    description: "PowersNexus workflow task ID inherited by the subagent when this session is bound to a Change",
+  }),
   background: Schema.optional(Schema.Boolean).annotate({
     description: "When true, launch the subagent in the background and return immediately",
   }),
@@ -146,6 +154,14 @@ export const TaskTool = Tool.define(
         ? yield* sessions.get(SessionID.make(taskID)).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
         : undefined
       const parent = yield* sessions.get(ctx.sessionID)
+      const instance = yield* InstanceState.context
+      const workflowBinding = yield* Effect.gen(function* () {
+        const repository = yield* makePowersNexusRepository()
+        const rootSessionID = yield* findRootSessionID(sessions, parent)
+        return (yield* repository.listActive(instance.project.id, instance.worktree)).find(
+          (binding) => binding.rootSessionID === rootSessionID,
+        )
+      }).pipe(Effect.catch(() => Effect.succeed(undefined)))
       const parentAgent = parent.agent
         ? yield* agent.get(parent.agent).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
         : undefined
@@ -180,6 +196,16 @@ export const TaskTool = Tool.define(
         sessionId: nextSession.id,
         model,
         ...(runInBackground ? { background: true } : {}),
+        ...(workflowBinding
+          ? {
+              bindingID: workflowBinding.id,
+              taskID:
+                params.workflow_task_id ??
+                /\b(?:TASK|REQ)-[A-Za-z0-9._-]+\b/.exec(`${params.description}\n${params.prompt}`)?.[0],
+              worktree: workflowBinding.worktree,
+              powersnexusDigest: workflowBinding.powersnexusDigest,
+            }
+          : {}),
       }
 
       yield* ctx.metadata({
@@ -343,3 +369,10 @@ export const TaskTool = Tool.define(
     }
   }),
 )
+
+function findRootSessionID(sessions: Session.Interface, session: Session.Info): Effect.Effect<SessionID> {
+  if (!session.parentID) return Effect.succeed(session.id)
+  return sessions
+    .get(session.parentID)
+    .pipe(Effect.orDie, Effect.flatMap((parent) => findRootSessionID(sessions, parent)))
+}

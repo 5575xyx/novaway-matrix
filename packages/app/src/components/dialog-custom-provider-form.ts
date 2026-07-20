@@ -96,10 +96,7 @@ export function validateCustomProvider(input: ValidateArgs) {
   })
   const modelsValid = models.every((m) => !m.id && !m.name)
   const modelConfig = Object.fromEntries(
-    input.form.models.map((m) => [
-      m.id.trim(),
-      { name: m.name.trim(), modalities: { input: [], output: [m.type] } },
-    ]),
+    input.form.models.map((m) => [m.id.trim(), { name: m.name.trim(), modalities: { input: [], output: [m.type] } }]),
   )
 
   const seenHeaders = new Set<string>()

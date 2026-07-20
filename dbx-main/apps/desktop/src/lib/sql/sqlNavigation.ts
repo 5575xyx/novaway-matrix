@@ -1,0 +1,249 @@
+/**
+ * Utilities for SQL identifier navigation (Ctrl/Cmd + click on table/column names).
+ */
+
+const SQL_KEYWORDS_SET = new Set([
+  "select",
+  "from",
+  "where",
+  "join",
+  "left",
+  "right",
+  "inner",
+  "outer",
+  "on",
+  "group",
+  "by",
+  "order",
+  "asc",
+  "desc",
+  "having",
+  "limit",
+  "offset",
+  "insert",
+  "into",
+  "values",
+  "update",
+  "set",
+  "delete",
+  "create",
+  "table",
+  "view",
+  "as",
+  "and",
+  "or",
+  "not",
+  "in",
+  "is",
+  "null",
+  "like",
+  "distinct",
+  "union",
+  "all",
+  "exists",
+  "between",
+  "case",
+  "when",
+  "then",
+  "else",
+  "end",
+  "count",
+  "sum",
+  "avg",
+  "min",
+  "max",
+  "coalesce",
+  "cast",
+  "alter",
+  "drop",
+  "add",
+  "column",
+  "index",
+  "primary",
+  "key",
+  "foreign",
+  "references",
+  "constraint",
+  "default",
+  "check",
+  "unique",
+  "begin",
+  "commit",
+  "rollback",
+  "truncate",
+  "explain",
+  "analyze",
+  "with",
+  "recursive",
+  "over",
+  "partition",
+  "row_number",
+  "rank",
+  "dense_rank",
+  "lag",
+  "lead",
+  "first_value",
+  "last_value",
+  "ntile",
+  "cross",
+  "full",
+  "natural",
+  "using",
+  "lateral",
+  "unnest",
+  "filter",
+  "exclude",
+  "replace",
+  "qualify",
+  "pivot",
+  "unpivot",
+  "asof",
+  "positional",
+  "anti",
+  "semi",
+  "sample",
+  "struct",
+  "map",
+  "list",
+  "array",
+  "lambda",
+  "copy",
+  "export",
+  "import",
+  "describe",
+  "show",
+  "summarize",
+  "pragma",
+  "tablesample",
+  "read_csv",
+  "read_parquet",
+  "read_json",
+  "list_transform",
+])
+
+type IdentifierPart = { value: string; start: number; end: number }
+
+function isIdentifierChar(char: string | undefined): boolean {
+  return !!char && /^[A-Za-z0-9_$]$/.test(char)
+}
+
+function readQuotedPart(text: string, start: number): IdentifierPart | null {
+  const open = text[start]
+  const close = open === "[" ? "]" : open
+  if (open !== "`" && open !== '"' && open !== "[") return null
+
+  let value = ""
+  for (let i = start + 1; i < text.length; i += 1) {
+    const char = text[i]
+    if (char === close) {
+      if (text[i + 1] === close) {
+        value += close
+        i += 1
+        continue
+      }
+      return { value, start, end: i + 1 }
+    }
+    value += char
+  }
+  return null
+}
+
+function readUnquotedPart(text: string, start: number): IdentifierPart | null {
+  if (!isIdentifierChar(text[start])) return null
+  let end = start + 1
+  while (end < text.length && isIdentifierChar(text[end])) end += 1
+  return { value: text.slice(start, end), start, end }
+}
+
+function readIdentifierPart(text: string, start: number): IdentifierPart | null {
+  return readQuotedPart(text, start) ?? readUnquotedPart(text, start)
+}
+
+function parseQualifiedIdentifier(
+  text: string,
+  start: number,
+): { parts: IdentifierPart[]; start: number; end: number } | null {
+  const first = readIdentifierPart(text, start)
+  if (!first) return null
+
+  const parts = [first]
+  let end = first.end
+  while (text[end] === ".") {
+    const next = readIdentifierPart(text, end + 1)
+    if (!next) break
+    parts.push(next)
+    end = next.end
+  }
+
+  return { parts, start, end }
+}
+
+function identifierSearchBounds(doc: string, pos: number): { start: number; end: number } {
+  let start = pos
+  while (start > 0 && doc[start - 1] !== "\n" && doc[start - 1] !== "\r") start -= 1
+
+  let end = pos
+  while (end < doc.length && doc[end] !== "\n" && doc[end] !== "\r") end += 1
+
+  return { start, end }
+}
+
+/** Extract identifier at position `pos` in the document. */
+export function extractIdentifierAt(doc: string, pos: number): string | null {
+  if (pos < 0 || pos > doc.length) return null
+
+  const clickPos = pos === doc.length ? pos - 1 : pos
+  if (clickPos < 0) return null
+
+  const bounds = identifierSearchBounds(doc, clickPos)
+  let index = bounds.start
+  while (index < bounds.end) {
+    const parsed = parseQualifiedIdentifier(doc, index)
+    if (parsed) {
+      if (clickPos >= parsed.start && clickPos < parsed.end) {
+        return parsed.parts.map((part) => part.value).join(".")
+      }
+      index = Math.max(parsed.end, index + 1)
+      continue
+    }
+    index += 1
+  }
+
+  return null
+}
+
+/** Check whether the identifier is a SQL keyword (not a table/column name). */
+export function isSqlKeyword(identifier: string): boolean {
+  return SQL_KEYWORDS_SET.has(identifier.toLowerCase())
+}
+
+export function splitQualifiedIdentifier(identifier: string): string[] {
+  const trimmed = identifier.trim()
+  if (!trimmed) return []
+
+  const parsed = parseQualifiedIdentifier(trimmed, 0)
+  if (!parsed || parsed.end !== trimmed.length) return [trimmed]
+  return parsed.parts.map((part) => part.value)
+}
+
+/** Match identifier against known table names (case-insensitive). Supports qualified identifiers like schema.table. */
+export function matchTable(
+  identifier: string,
+  tables: Array<{ name: string; schema?: string }>,
+): { name: string; schema?: string } | null {
+  const parts = splitQualifiedIdentifier(identifier)
+  const normalizedIdentifier = parts.length > 0 ? parts.join(".").toLowerCase() : identifier.toLowerCase()
+
+  const direct = tables.find((t) => t.name.toLowerCase() === normalizedIdentifier)
+  if (direct) return direct
+
+  if (parts.length >= 2) {
+    // Use the final two parts so catalog.schema.table still resolves against schema-scoped metadata.
+    const qualifier = parts[parts.length - 2].toLowerCase()
+    const name = parts[parts.length - 1].toLowerCase()
+    const qualified = tables.find((t) => t.name.toLowerCase() === name && t.schema?.toLowerCase() === qualifier)
+    if (qualified) return qualified
+  }
+
+  return null
+}

@@ -1,0 +1,342 @@
+name: Node Packages Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version to publish, for example 0.4.4"
+        required: true
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: dbx-release-main
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare package release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.13.0
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Check npm token
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "${NODE_AUTH_TOKEN}" ]; then
+            echo "::error::NPM_TOKEN secret is required to publish DBX Node packages."
+            exit 1
+          fi
+
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsecret-1-dev
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set package versions
+        id: version
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+        run: |
+          node <<'NODE'
+          const fs = require("fs");
+
+          const version = process.env.VERSION.trim();
+          if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(version)) {
+            throw new Error(`Invalid semver version: ${version}`);
+          }
+
+          const readJson = (path) => JSON.parse(fs.readFileSync(path, "utf8"));
+          const writeJson = (path, data) => fs.writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`);
+
+          for (const path of [
+            "packages/node-core/package.json",
+            "packages/cli/package.json",
+            "packages/mcp-server/package.json",
+          ]) {
+            const pkg = readJson(path);
+            pkg.version = version;
+            writeJson(path, pkg);
+          }
+
+          const serverPath = "packages/mcp-server/server.json";
+          const server = readJson(serverPath);
+          server.version = version;
+          for (const packageInfo of server.packages ?? []) {
+            if (packageInfo.registryType === "npm" && packageInfo.identifier === "@dbx-app/mcp-server") {
+              packageInfo.version = version;
+            }
+          }
+          writeJson(serverPath, server);
+
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\n`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `tag=packages-v${version}\n`);
+          NODE
+
+      - name: Run package tests
+        run: pnpm test:packages
+
+      - name: Build and pack packages
+        run: pnpm publish:dry-run
+
+      - name: Configure git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit package release version
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          git add packages/node-core/package.json packages/cli/package.json packages/mcp-server/package.json packages/mcp-server/server.json
+          if git diff --cached --quiet; then
+            echo "Package versions already committed for ${VERSION}."
+          else
+            git commit -m "chore(packages): release ${VERSION} [skip node-packages-release]"
+          fi
+
+      - name: Rebase package release commit and push
+        env:
+          RELEASE_TOKEN: ${{ secrets.MCP_RELEASE_TOKEN }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          if [ -n "${RELEASE_TOKEN}" ]; then
+            git remote set-url origin "https://x-access-token:${RELEASE_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          fi
+          git fetch origin main --no-tags
+          git rebase origin/main
+          REMOTE_TAG_SHA="$(git ls-remote --tags origin "refs/tags/${TAG}" | awk '{print $1}')"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          if [ -n "${REMOTE_TAG_SHA}" ]; then
+            if [ "${REMOTE_TAG_SHA}" != "${HEAD_SHA}" ]; then
+              echo "::error::Remote tag ${TAG} already exists at ${REMOTE_TAG_SHA}, expected ${HEAD_SHA}."
+              exit 1
+            fi
+            echo "Remote tag ${TAG} already points at ${HEAD_SHA}."
+          else
+            git tag -f "${TAG}" "${HEAD_SHA}"
+          fi
+          git push origin HEAD:main
+          if [ -z "${REMOTE_TAG_SHA}" ]; then
+            git push origin "refs/tags/${TAG}:refs/tags/${TAG}"
+          fi
+
+  publish-node-core:
+    name: Publish node-core
+    runs-on: ubuntu-latest
+    needs: prepare
+    outputs:
+      published-or-existing: ${{ steps.publish.outputs.published_or_existing }}
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.13.0
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsecret-1-dev
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Publish Node core
+        id: publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          if npm view "@dbx-app/node-core@${VERSION}" version >/dev/null 2>&1; then
+            echo "@dbx-app/node-core@${VERSION} already exists on npm; skipping."
+            echo "published_or_existing=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          pnpm --filter @dbx-app/node-core publish --access public --provenance --no-git-checks
+          echo "published_or_existing=true" >> "$GITHUB_OUTPUT"
+
+  publish-leaf-packages:
+    name: Publish ${{ matrix.package-name }}
+    runs-on: ubuntu-latest
+    needs: [prepare, publish-node-core]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package-name: "@dbx-app/cli"
+            filter: "@dbx-app/cli"
+          - package-name: "@dbx-app/mcp-server"
+            filter: "@dbx-app/mcp-server"
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.13.0
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsecret-1-dev
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace dependencies
+        run: pnpm --filter @dbx-app/node-core build
+
+      - name: Publish package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          PACKAGE_NAME: ${{ matrix.package-name }}
+          PACKAGE_FILTER: ${{ matrix.filter }}
+        run: |
+          if npm view "${PACKAGE_NAME}@${VERSION}" version >/dev/null 2>&1; then
+            echo "${PACKAGE_NAME}@${VERSION} already exists on npm; skipping."
+            exit 0
+          fi
+          pnpm --filter "${PACKAGE_FILTER}" publish --access public --provenance --no-git-checks
+
+  publish-homebrew-formula:
+    name: Publish Homebrew formula
+    runs-on: ubuntu-latest
+    needs: [prepare, publish-leaf-packages]
+    steps:
+      - name: Download CLI npm tarball and compute SHA256
+        id: cli-hash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          VERSION="${VERSION}"
+          NPM_TARBALL="cli-${VERSION}.tgz"
+          NPM_URL="https://registry.npmjs.org/@dbx-app/cli/-/${NPM_TARBALL}"
+
+          # Poll npm until the package is available (CDN propagation delay)
+          for i in $(seq 1 12); do
+            if curl -fsSLI "${NPM_URL}" >/dev/null 2>&1; then
+              echo "Package found on attempt ${i}"
+              break
+            fi
+            echo "Waiting for npm CDN (attempt ${i}/12)..."
+            sleep 10
+          done
+
+          curl -fsSL -o "${NPM_TARBALL}" "${NPM_URL}"
+          CLI_SHA256=$(sha256sum "${NPM_TARBALL}" | cut -d ' ' -f 1)
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "sha256=${CLI_SHA256}" >> "$GITHUB_OUTPUT"
+          echo "  cli version: ${VERSION}"
+          echo "  sha256: ${CLI_SHA256}"
+
+      - name: Push formula to homebrew-tap
+        env:
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          CLI_VERSION: ${{ steps.cli-hash.outputs.version }}
+          CLI_SHA256: ${{ steps.cli-hash.outputs.sha256 }}
+        run: |
+          git clone --depth 1 \
+            "https://x-access-token:${TAP_GITHUB_TOKEN}@github.com/t8y2/homebrew-tap.git" \
+            homebrew-tap
+          cd homebrew-tap
+          mkdir -p Formula
+
+          cat > Formula/dbx-cli.rb <<'RUBY_EOF'
+          class DbxCli < Formula
+            desc "Command-line interface for DBX database connections, schema, and safe queries"
+            homepage "https://github.com/t8y2/dbx"
+            url "https://registry.npmjs.org/@dbx-app/cli/-/cli-__CLI_VERSION__.tgz"
+            sha256 "__CLI_SHA256__"
+            license "Apache-2.0"
+
+            depends_on "node"
+
+            on_linux do
+              depends_on "pkgconf" => :build
+              depends_on "libsecret"
+            end
+
+            def install
+              system "npm", "install", *std_npm_args
+              bin.install_symlink libexec.glob("bin/*")
+
+              # Rebuild better-sqlite3 and keytar native bindings for the current platform.
+              # prebuild-install is blocked by the Homebrew sandbox during npm install,
+              # so we must rebuild them explicitly via node-gyp.
+              node_modules = libexec/"lib/node_modules/@dbx-app/cli/node_modules"
+
+              cd node_modules/"better-sqlite3" do
+                system "npm", "run", "build-release"
+              end
+
+              cd node_modules/"keytar" do
+                rm_r "prebuilds" if File.directory?("prebuilds")
+                system "npm", "run", "build"
+              end
+            end
+
+            test do
+              assert_path_exists bin/"dbx"
+              system bin/"dbx", "doctor"
+            end
+          end
+          RUBY_EOF
+
+          sed -i 's/^          //' Formula/dbx-cli.rb
+          sed -i "s/__CLI_VERSION__/${CLI_VERSION}/g" Formula/dbx-cli.rb
+          sed -i "s/__CLI_SHA256__/${CLI_SHA256}/g" Formula/dbx-cli.rb
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/dbx-cli.rb
+
+          if git diff --cached --quiet; then
+            echo "CLI Homebrew formula is already up to date."
+          else
+            git commit -m "dbx-cli ${CLI_VERSION}"
+            git push
+            echo "::notice::CLI Homebrew formula updated to ${CLI_VERSION}"
+          fi

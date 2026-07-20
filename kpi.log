@@ -1,0 +1,35 @@
+[kpi-nightly] day=2026-07-19 platform=win32
+PASS [REQ] P01 打包资源预检 — packaging preflight ok (78ms)
+PASS [REQ] P02 stable 门禁默认 bundled 安全 — default bundled gate rejects stable (303ms)
+PASS [REQ] P03 本地 stable 闭环 harness — stable-local pass (3487ms)
+PASS [REQ] P04 isolation + runner 对抗/恢复 — isolation/runner pass (41146ms)
+PASS [OPT] P05 本机离线包 smoke（可移植） — package offline smoke pass (427ms)
+PASS [REQ] P06 config 门禁单测 — config gate tests pass (1793ms)
+PASS [OPT] P07 门禁评估耗时 — evaluateStableProductionGate wall=0ms (threshold 200ms local) (0ms)
+day_pass=true pass=7 fail=0 skip=0
+
+# PowersNexus KPI 近 7 日汇总
+
+生成时间：2026-07-19T15:39:34.268Z
+
+窗口：2026-07-13 ~ 2026-07-19
+
+有数据日：2026-07-19
+
+缺测日：2026-07-13, 2026-07-14, 2026-07-15, 2026-07-16, 2026-07-17, 2026-07-18
+
+| KPI 代理 | 均值 | 门槛 | 是否达标 |
+|----------|------|------|----------|
+| powersnexus_load_success | 100.0% | 100% | YES |
+| e2e_local_delivery_success | 100.0% | ≥85% | YES |
+| permission_and_recovery | 100.0% | 100% | YES |
+| stable_gate_safe_default | 100.0% | 100% | YES |
+| unattended_handoff_proxy | 100.0% | ≥90% | YES |
+| severe_permission_violations | 0 | 0 | YES |
+| day_pass_rate | 100.0% | 趋势 | - |
+
+结论：近 7 天有缺测日，不得宣称 7 日 KPI 达标
+
+ready_for_release_proxy=false
+
+记录目录: E:\AImoney\NovaWay-Matrix\novaway-coder\.codex\powersnexus-kpi

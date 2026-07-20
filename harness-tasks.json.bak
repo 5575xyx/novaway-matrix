@@ -1,0 +1,654 @@
+{
+  "version": 2,
+  "created": "2026-07-16T13:39:33.051Z",
+  "session_config": {
+    "max_tasks_per_session": 20,
+    "max_sessions": 50
+  },
+  "repository_protection": {
+    "dirty_worktree": true,
+    "allow_reset": false,
+    "allow_clean": false,
+    "allow_commit": false
+  },
+  "tasks": [
+    {
+      "id": "task-001",
+      "title": "核验交接文档、现有实现和 PowersNexus 上游制品",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [],
+      "attempts": 0,
+      "max_attempts": 3,
+      "started_at_commit": "f069ed32af576c80365c7984efc97322b36e57ec",
+      "validation": {
+        "command": "npm.cmd run test:all",
+        "timeout_seconds": 180
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 3,
+          "total": 3,
+          "description": "已固定 ZIP、文件摘要、公钥与 bundled 资源",
+          "timestamp": "2026-07-18T10:24:07.5398523Z"
+        }
+      ],
+      "completed_at": "2026-07-18T10:24:07.5398523Z"
+    },
+    {
+      "id": "task-002",
+      "title": "完成 Phase 0 内置基线、更新器与 Bridge Client",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [
+        "task-001"
+      ],
+      "attempts": 0,
+      "max_attempts": 3,
+      "started_at_commit": "f069ed32af576c80365c7984efc97322b36e57ec",
+      "validation": {
+        "command": "bun test test/powersnexus --timeout 30000",
+        "timeout_seconds": 300
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 4,
+          "total": 4,
+          "description": "bundled、更新清单、ZIP 防护、版本存储和 Bridge Client 已实现并通过测试",
+          "timestamp": "2026-07-18T10:24:07.5398523Z"
+        }
+      ],
+      "completed_at": "2026-07-18T10:24:07.5398523Z"
+    },
+    {
+      "id": "task-003",
+      "title": "完成 Phase 1 Workflow Service、数据库、API 与只读 UI",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [
+        "task-002"
+      ],
+      "attempts": 0,
+      "max_attempts": 3,
+      "started_at_commit": "f069ed32af576c80365c7984efc97322b36e57ec",
+      "validation": {
+        "command": "bun test test/powersnexus --timeout 30000",
+        "timeout_seconds": 600
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 5,
+          "total": 5,
+          "description": "Workflow API 与设置页/工作流面板 UI 已完成",
+          "timestamp": "2026-07-19T04:36:32.0644296Z"
+        }
+      ],
+      "completed_at": "2026-07-19T04:36:32.0644296Z"
+    },
+    {
+      "id": "task-004",
+      "title": "完成 Phase 2 Session、Todo、Task 协调与恢复",
+      "status": "completed",
+      "priority": "P1",
+      "depends_on": [
+        "task-003"
+      ],
+      "attempts": 0,
+      "max_attempts": 3,
+      "started_at_commit": "f069ed32af576c80365c7984efc97322b36e57ec",
+      "validation": {
+        "command": "bun test test/powersnexus --timeout 30000",
+        "timeout_seconds": 600
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 4,
+          "total": 4,
+          "description": "Todo 双向同步、metadata、Capsule 与撤销指纹失效已完成",
+          "timestamp": "2026-07-18T14:34:54.8064699Z"
+        }
+      ],
+      "completed_at": "2026-07-18T14:34:54.8064699Z"
+    },
+    {
+      "id": "task-005",
+      "title": "完成 Phase 3 Runner、证据、自动修复与归档",
+      "status": "completed",
+      "priority": "P1",
+      "depends_on": [
+        "task-004"
+      ],
+      "attempts": 0,
+      "max_attempts": 3,
+      "started_at_commit": "f069ed32af576c80365c7984efc97322b36e57ec",
+      "validation": {
+        "command": "bun test test/powersnexus --timeout 30000",
+        "timeout_seconds": 600
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 5,
+          "total": 5,
+          "description": "Runner/Delivery verify、证据指纹、archive 门槛与 Browser 证据接入已完成",
+          "timestamp": "2026-07-19T05:32:53.562Z"
+        }
+      ],
+      "completed_at": "2026-07-19T05:32:53.562Z"
+    },
+    {
+      "id": "task-006",
+      "title": "完成 Phase 4 Browser QA 与视觉交互验收",
+      "status": "completed",
+      "priority": "P1",
+      "depends_on": [
+        "task-005"
+      ],
+      "attempts": 1,
+      "max_attempts": 3,
+      "started_at_commit": "f069ed32af576c80365c7984efc97322b36e57ec",
+      "validation": {
+        "command": "bun test test/powersnexus --timeout 30000",
+        "timeout_seconds": 1200
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 4,
+          "total": 4,
+          "description": "snapshot ref、真实 viewport、服务生命周期 health probe、Delivery 指纹接入已完成；真实 CDP UI E2E 仍依赖环境",
+          "timestamp": "2026-07-19T05:32:53.562Z"
+        }
+      ],
+      "completed_at": "2026-07-19T05:32:53.562Z"
+    },
+    {
+      "id": "task-007",
+      "title": "完成 Phase 5 隔离、打包评测、迁移与发布验收",
+      "status": "completed",
+      "priority": "P1",
+      "depends_on": [
+        "task-006"
+      ],
+      "attempts": 0,
+      "max_attempts": 3,
+      "started_at_commit": "f069ed32af576c80365c7984efc97322b36e57ec",
+      "validation": {
+        "command": "node packages/desktop/scripts/verify-powersnexus-packaging.mjs",
+        "timeout_seconds": 1200
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 3,
+          "total": 4,
+          "description": "逻辑隔离模式与 Windows 打包预检通过；OS 级隔离与跨平台安装包 E2E 为发布门槛",
+          "timestamp": "2026-07-19T05:32:53.562Z"
+        }
+      ],
+      "completed_at": "2026-07-19T05:32:53.562Z"
+    },
+    {
+      "id": "task-008",
+      "title": "执行完整本地验证并形成交付报告",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [
+        "task-007"
+      ],
+      "attempts": 1,
+      "max_attempts": 3,
+      "started_at_commit": "f069ed32af576c80365c7984efc97322b36e57ec",
+      "validation": {
+        "command": "bun test test/powersnexus --timeout 30000",
+        "timeout_seconds": 1200
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 3,
+          "total": 3,
+          "description": "PowersNexus 45 项定向测试分批全通过，打包预检通过，验证报告已更新",
+          "timestamp": "2026-07-19T05:32:53.562Z"
+        }
+      ],
+      "completed_at": "2026-07-19T05:32:53.562Z"
+    },
+    {
+      "id": "task-009",
+      "title": "完成 React Todo 真实 Browser QA 发布门槛",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [
+        "task-006"
+      ],
+      "attempts": 0,
+      "max_attempts": 3,
+      "started_at_commit": "7c66bf599b2689f30bdb1ff8fc2aa46d700120f2",
+      "validation": {
+        "command": "node probe-browser-qa.cjs",
+        "timeout_seconds": 120
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 4,
+          "total": 4,
+          "description": "真实 Chrome 完成四 viewport、空/加载/主流程/错误态、键盘提交、刷新保持、a11y 与 16 张截图验收",
+          "timestamp": "2026-07-19T09:25:31.687Z"
+        }
+      ],
+      "completed_at": "2026-07-19T09:25:31.687Z"
+    },
+    {
+      "id": "task-010",
+      "title": "完成 PowersNexus 命令日志全链路秘密脱敏",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [
+        "task-009"
+      ],
+      "attempts": 0,
+      "max_attempts": 3,
+      "started_at_commit": "7c66bf599b2689f30bdb1ff8fc2aa46d700120f2",
+      "validation": {
+        "command": "bun test test/powersnexus/redact.test.ts --timeout 30000",
+        "timeout_seconds": 120
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 4,
+          "total": 4,
+          "description": "Runner、Bridge、Browser console/network 与 HttpApi 错误响应已统一脱敏并通过专项测试",
+          "timestamp": "2026-07-19T09:27:15.580Z"
+        }
+      ],
+      "completed_at": "2026-07-19T09:27:15.580Z"
+    },
+    {
+      "id": "task-011",
+      "title": "完成 Windows 安装包 PowersNexus 资源离线门禁",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [
+        "task-010"
+      ],
+      "attempts": 1,
+      "max_attempts": 3,
+      "started_at_commit": "c15b989",
+      "validation": {
+        "command": "node packages/desktop/scripts/verify-powersnexus-packaging.mjs",
+        "timeout_seconds": 1200
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 4,
+          "total": 4,
+          "description": "build-node chromium-bidi 兼容、desktop build/package:win 成功，win-unpacked 内 PowersNexus 6.1.0 基线 digest 与公钥断言通过",
+          "timestamp": "2026-07-19T10:19:05.000Z"
+        }
+      ],
+      "completed_at": "2026-07-19T10:19:05.000Z"
+    },
+    {
+      "id": "task-012",
+      "title": "完成 FR-08 逻辑隔离权限边界与 Windows 断网冒烟",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [
+        "task-011"
+      ],
+      "attempts": 1,
+      "max_attempts": 3,
+      "started_at_commit": "39c8d40",
+      "validation": {
+        "command": "node packages/desktop/scripts/smoke-powersnexus-offline.mjs",
+        "timeout_seconds": 300
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 4,
+          "total": 4,
+          "description": "动作分类/自动批准边界、Runner 外网限制、offline doctor 通过",
+          "timestamp": "2026-07-19T12:22:07.000Z"
+        }
+      ],
+      "completed_at": "2026-07-19T12:22:07.000Z"
+    },
+    {
+      "id": "task-013",
+      "title": "完成本地签名 stable 发布闭环脚手架",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [
+        "task-012"
+      ],
+      "attempts": 1,
+      "max_attempts": 3,
+      "started_at_commit": "57f52a7",
+      "validation": {
+        "command": "bun run test:stable-local",
+        "timeout_seconds": 300
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 3,
+          "total": 3,
+          "description": "check/install/activate/rollback + deferred + 占位 URL 拒绝通过",
+          "timestamp": "2026-07-19T12:56:49.000Z"
+        }
+      ],
+      "completed_at": "2026-07-19T12:56:49.000Z"
+    },
+    {
+      "id": "task-014",
+      "title": "完成 Windows Job Object OS 级进程隔离原型",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [
+        "task-013"
+      ],
+      "attempts": 1,
+      "max_attempts": 3,
+      "started_at_commit": "babd8cf",
+      "validation": {
+        "command": "bun test test/powersnexus/isolation.test.ts test/powersnexus/runner.test.ts --timeout 60000",
+        "timeout_seconds": 300
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 3,
+          "total": 3,
+          "description": "Job Object 可用、Runner 接入、14/14 测试通过",
+          "timestamp": "2026-07-19T13:41:08.000Z"
+        }
+      ],
+      "completed_at": "2026-07-19T13:41:08.000Z"
+    },
+    {
+      "id": "task-015",
+      "title": "完成 Worktree 写路径强制与 TEMP 沙箱",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [
+        "task-014"
+      ],
+      "attempts": 1,
+      "max_attempts": 3,
+      "started_at_commit": "6f76968",
+      "validation": {
+        "command": "bun test test/powersnexus/isolation.test.ts test/powersnexus/runner.test.ts --timeout 60000",
+        "timeout_seconds": 300
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 3,
+          "total": 3,
+          "description": "argv 越界拒绝 + TEMP 沙箱 + 18/18 测试",
+          "timestamp": "2026-07-19T14:17:57.000Z"
+        }
+      ],
+      "completed_at": "2026-07-19T14:17:57.000Z"
+    },
+    {
+      "id": "task-016",
+      "title": "完成 Windows Safer 受限 Token 原型与沙箱能力面",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [
+        "task-015"
+      ],
+      "attempts": 1,
+      "max_attempts": 3,
+      "started_at_commit": "51adcf2",
+      "validation": {
+        "command": "bun test test/powersnexus/isolation.test.ts test/powersnexus/runner.test.ts --timeout 60000",
+        "timeout_seconds": 300
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 3,
+          "total": 3,
+          "description": "Safer Token 探测成功 + ActiveProcessLimit + 20/20 测试",
+          "timestamp": "2026-07-19T14:35:26.000Z"
+        }
+      ],
+      "completed_at": "2026-07-19T14:35:26.000Z"
+    },
+    {
+      "id": "task-017",
+      "title": "完成 CreateProcessAsUser 受限 Token 启进程",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [
+        "task-016"
+      ],
+      "attempts": 1,
+      "max_attempts": 3,
+      "started_at_commit": "d3018cf",
+      "validation": {
+        "command": "bun test test/powersnexus/isolation.test.ts test/powersnexus/runner.test.ts --timeout 90000",
+        "timeout_seconds": 300
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 3,
+          "total": 3,
+          "description": "CreateProcessAsUser restricted=true + 自动回退 + 全量测试通过",
+          "timestamp": "2026-07-19T14:50:34.000Z"
+        }
+      ],
+      "completed_at": "2026-07-19T14:50:34.000Z"
+    },
+    {
+      "id": "task-018",
+      "title": "完成 stable 生产启用门禁与自动检查",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [
+        "task-017"
+      ],
+      "attempts": 1,
+      "max_attempts": 3,
+      "started_at_commit": "b36e5c1",
+      "validation": {
+        "command": "bun test test/powersnexus/config-release-urls.test.ts --timeout 30000",
+        "timeout_seconds": 120
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 3,
+          "total": 3,
+          "description": "门禁评估/降级/CLI 检查 + 6/6 测试",
+          "timestamp": "2026-07-19T15:02:42.000Z"
+        }
+      ],
+      "completed_at": "2026-07-19T15:02:42.000Z"
+    },
+    {
+      "id": "task-019",
+      "title": "设置页展示 stable 生产门禁状态",
+      "status": "completed",
+      "priority": "P1",
+      "depends_on": [
+        "task-018"
+      ],
+      "attempts": 1,
+      "max_attempts": 3,
+      "started_at_commit": "ba90b1f",
+      "validation": {
+        "command": "bun typecheck",
+        "timeout_seconds": 300
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 3,
+          "total": 3,
+          "description": "API stableGate + 设置页 UI + typecheck",
+          "timestamp": "2026-07-19T15:12:56.000Z"
+        }
+      ],
+      "completed_at": "2026-07-19T15:12:56.000Z"
+    },
+    {
+      "id": "task-020",
+      "title": "跨平台升级 E2E 矩阵骨架",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [
+        "task-019"
+      ],
+      "attempts": 1,
+      "max_attempts": 3,
+      "started_at_commit": "3faec26",
+      "validation": {
+        "command": "bun packages/desktop/scripts/run-cross-platform-e2e-matrix.mjs",
+        "timeout_seconds": 600
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 3,
+          "total": 3,
+          "description": "Win 本机必跑 6 PASS；mac/linux SKIP；CDN BLOCKED",
+          "timestamp": "2026-07-19T15:22:02.000Z"
+        }
+      ],
+      "completed_at": "2026-07-19T15:22:02.000Z"
+    },
+    {
+      "id": "task-021",
+      "title": "可移植离线包 doctor 冒烟（M06/M07）",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [
+        "task-020"
+      ],
+      "attempts": 1,
+      "max_attempts": 3,
+      "started_at_commit": "14c78e8",
+      "validation": {
+        "command": "bun packages/desktop/scripts/smoke-powersnexus-package-offline.mjs --platform=win32",
+        "timeout_seconds": 180
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 3,
+          "total": 3,
+          "description": "可移植脚本 + 矩阵接线；Win PASS；mac/linux 无产物 exit 3",
+          "timestamp": "2026-07-19T15:29:53.000Z"
+        }
+      ],
+      "completed_at": "2026-07-19T15:29:53.000Z"
+    },
+    {
+      "id": "task-022",
+      "title": "7 天 KPI 夜间基线骨架",
+      "status": "completed",
+      "priority": "P0",
+      "depends_on": [
+        "task-021"
+      ],
+      "attempts": 1,
+      "max_attempts": 3,
+      "started_at_commit": "2f340f3",
+      "validation": {
+        "command": "bun packages/desktop/scripts/run-kpi-nightly-baseline.mjs --summary-only",
+        "timeout_seconds": 120
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [
+        {
+          "step": 3,
+          "total": 3,
+          "description": "首日 7 探针 PASS；7 日汇总因缺测日 ready=false",
+          "timestamp": "2026-07-19T15:42:56.000Z"
+        }
+      ],
+      "completed_at": "2026-07-19T15:42:56.000Z"
+    }
+  ],
+  "session_count": 16,
+  "last_session": "2026-07-19T15:42:56.000Z"
+}

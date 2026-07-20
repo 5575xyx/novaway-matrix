@@ -1,0 +1,171 @@
+use std::path::Path;
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter, State};
+
+use super::connection::AppState;
+pub use dbx_core::ai::*;
+
+#[tauri::command]
+pub async fn ai_test_connection(config: AiConfig) -> Result<AiTestConnectionResult, String> {
+    let config = resolve_codex_cli_config(config);
+    dbx_core::ai::test_connection_core(&config).await
+}
+
+#[tauri::command]
+pub async fn ai_list_models(config: AiConfig) -> Result<Vec<AiModelInfo>, String> {
+    let config = resolve_codex_cli_config(config);
+    dbx_core::ai::list_models_core(&config).await
+}
+
+#[tauri::command]
+pub async fn save_ai_config(state: State<'_, Arc<AppState>>, config: AiConfig) -> Result<(), String> {
+    state.storage.save_ai_config(&config).await
+}
+
+#[tauri::command]
+pub async fn load_ai_config(state: State<'_, Arc<AppState>>) -> Result<Option<AiConfig>, String> {
+    state.storage.load_ai_config().await
+}
+
+#[tauri::command]
+pub async fn save_ai_provider_config(
+    state: State<'_, Arc<AppState>>,
+    provider: String,
+    config: AiConfig,
+) -> Result<(), String> {
+    let parsed_provider: AiProvider = serde_json::from_value(serde_json::Value::String(provider.clone()))
+        .map_err(|_| format!("Invalid AI provider: {provider}"))?;
+    let mut config = config;
+    config.provider = parsed_provider;
+    state.storage.save_ai_provider_config(&provider, &config).await
+}
+
+#[tauri::command]
+pub async fn load_ai_provider_configs(
+    state: State<'_, Arc<AppState>>,
+) -> Result<std::collections::HashMap<String, AiConfig>, String> {
+    state.storage.load_ai_provider_configs().await
+}
+
+#[tauri::command]
+pub async fn ai_complete(request: AiCompletionRequest) -> Result<String, String> {
+    dbx_core::ai::complete(&request).await
+}
+
+#[tauri::command]
+pub async fn ai_stream(app: AppHandle, session_id: String, request: AiCompletionRequest) -> Result<(), String> {
+    let cancelled = dbx_core::ai::register_stream(&session_id).await;
+
+    let result = dbx_core::ai::stream(&session_id, &request, &cancelled, |chunk| {
+        let _ = app.emit("ai-stream-chunk", &chunk);
+    })
+    .await;
+
+    dbx_core::ai::unregister_stream(&session_id).await;
+    result
+}
+
+use dbx_core::agent_events::AgentEvent;
+use dbx_core::agent_loop::{run_agent_loop, AgentLoopContext};
+use dbx_core::ai_cli_agent::CliAgentCommandSpec;
+use dbx_core::models::connection::DatabaseType;
+
+#[tauri::command]
+pub async fn ai_cancel_stream(session_id: String) -> Result<bool, String> {
+    Ok(dbx_core::ai::cancel_stream(&session_id).await)
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub async fn ai_agent_stream(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+    session_id: String,
+    request: AiCompletionRequest,
+    connection_id: String,
+    database: String,
+    db_type: String,
+    mode: Option<String>,
+) -> Result<String, String> {
+    let request = resolve_codex_cli_request(request);
+    let cancelled = dbx_core::ai::register_stream(&session_id).await;
+
+    let parsed_db_type: DatabaseType =
+        serde_json::from_str(&format!("\"{}\"", db_type)).map_err(|_| format!("Unknown database type: {db_type}"))?;
+
+    let cli_mcp_server_command = if matches!(request.config.provider, AiProvider::CodexCli) {
+        super::mcp::resolve_mcp_server_command().map(|(program, args)| CliAgentCommandSpec { program, args })
+    } else {
+        None
+    };
+    let agent_ctx = AgentLoopContext {
+        state: state.inner().clone(),
+        connection_id,
+        database,
+        db_type: parsed_db_type,
+        cli_mcp_server_command,
+    };
+    let is_agent_mode = mode.as_deref() == Some("agent");
+
+    let result = run_agent_loop(
+        &request.config,
+        &request.system_prompt,
+        &request.messages,
+        &agent_ctx,
+        {
+            let app = app.clone();
+            move |event: AgentEvent| {
+                let _ = app.emit("ai-agent-event", &event);
+            }
+        },
+        &cancelled,
+        request.max_tokens,
+        request.task_contract.as_ref(),
+        is_agent_mode,
+    )
+    .await;
+
+    dbx_core::ai::unregister_stream(&session_id).await;
+    result
+}
+
+fn resolve_codex_cli_request(mut request: AiCompletionRequest) -> AiCompletionRequest {
+    request.config = resolve_codex_cli_config(request.config);
+    request
+}
+
+fn resolve_codex_cli_config(mut config: AiConfig) -> AiConfig {
+    if !matches!(config.provider, AiProvider::CodexCli) {
+        return config;
+    }
+
+    let command = config.codex_cli_path.as_deref().map(str::trim).filter(|path| !path.is_empty()).unwrap_or("codex");
+    if is_explicit_cli_path(command) {
+        return config;
+    }
+
+    if let Some(path) = super::mcp::locate_command(command) {
+        config.codex_cli_path = Some(path);
+    }
+    config
+}
+
+fn is_explicit_cli_path(command: &str) -> bool {
+    let path = Path::new(command);
+    path.is_absolute() || command.contains('/') || command.contains('\\')
+}
+
+#[tauri::command]
+pub async fn save_ai_conversation(state: State<'_, Arc<AppState>>, conversation: AiConversation) -> Result<(), String> {
+    state.storage.save_ai_conversation(&conversation).await
+}
+
+#[tauri::command]
+pub async fn load_ai_conversations(state: State<'_, Arc<AppState>>) -> Result<Vec<AiConversation>, String> {
+    state.storage.load_ai_conversations().await
+}
+
+#[tauri::command]
+pub async fn delete_ai_conversation(state: State<'_, Arc<AppState>>, id: String) -> Result<(), String> {
+    state.storage.delete_ai_conversation(&id).await
+}

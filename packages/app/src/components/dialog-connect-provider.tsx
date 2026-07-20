@@ -11,7 +11,18 @@ import { Spinner } from "@opencode-ai/ui/spinner"
 import { Switch as UISwitch } from "@opencode-ai/ui/switch"
 import { TextField } from "@opencode-ai/ui/text-field"
 import { showToast } from "@opencode-ai/ui/toast"
-import { createEffect, createMemo, createResource, createSignal, Match, onCleanup, onMount, For, Show, Switch } from "solid-js"
+import {
+  createEffect,
+  createMemo,
+  createResource,
+  createSignal,
+  Match,
+  onCleanup,
+  onMount,
+  For,
+  Show,
+  Switch,
+} from "solid-js"
 import { createStore, produce } from "solid-js/store"
 import { Link } from "@/components/link"
 import { useGlobalSDK } from "@/context/global-sdk"
@@ -428,7 +439,9 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
     })
     const [step, setStep] = createSignal<"auth" | "models">("auth")
     const [remoteModels, setRemoteModels] = createSignal<RemoteModel[]>([])
-    const [selectedModels, setSelectedModels] = createStore<Record<string, { id: string; name: string; type: ModelType }>>({})
+    const [selectedModels, setSelectedModels] = createStore<
+      Record<string, { id: string; name: string; type: ModelType }>
+    >({})
     const [fetching, setFetching] = createSignal(false)
     const [modelTypes, setModelTypes] = createStore<Record<string, ModelType>>({})
 
@@ -605,9 +618,7 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
               <Button class="w-auto" type="submit" size="large" variant="primary">
                 {language.t("common.continue")}
               </Button>
-              <div class="text-12-regular text-text-weak mt-1">
-                {language.t("provider.connect.fetchModelsHint")}
-              </div>
+              <div class="text-12-regular text-text-weak mt-1">{language.t("provider.connect.fetchModelsHint")}</div>
             </form>
           </Show>
           <Show when={provider().id === "ollama"}>
@@ -695,7 +706,8 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
               </div>
               <div class="flex justify-between items-center pt-2 border-t border-border-weak-base">
                 <span class="text-12-medium text-text-weak">
-                  {Object.values(selectedModels).filter(Boolean).length}/{remoteModels().length} {language.t("common.selected")}
+                  {Object.values(selectedModels).filter(Boolean).length}/{remoteModels().length}{" "}
+                  {language.t("common.selected")}
                 </span>
                 <div class="flex gap-2">
                   <Button size="small" variant="ghost" onClick={() => setStep("auth")}>

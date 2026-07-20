@@ -1,0 +1,171 @@
+import { computed, ref } from "vue"
+import { useI18n } from "vue-i18n"
+import { isTauriRuntime } from "@/lib/backend/tauriRuntime"
+import { useToast } from "@/composables/useToast"
+import * as api from "@/lib/backend/api"
+import { useSettingsStore } from "@/stores/settingsStore"
+import type { UpdateDownloadSource as SettingsUpdateDownloadSource } from "@/stores/settingsStore"
+import type { UpdateDownloadProgress } from "@/lib/backend/tauri"
+
+export function shouldOpenUpdateDialog(options: { silent?: boolean }) {
+  return options.silent !== true
+}
+
+export function canDownloadAndInstallUpdate(info: api.UpdateInfo | null, isDesktop: boolean) {
+  return isDesktop && info?.update_available === true && info.portable_mode !== true
+}
+
+export function normalizeUpdateDownloadSource(value: unknown): SettingsUpdateDownloadSource {
+  if (value === "atomgit") return "atomgit"
+  return value === "cnb" ? "cnb" : "official"
+}
+
+export function tagVersion(version: string): string {
+  const trimmed = version.trim()
+  return trimmed.startsWith("v") ? trimmed : `v${trimmed}`
+}
+
+export function resolveUpdateReleaseUrl(info: api.UpdateInfo | null, source: unknown, fallbackUrl: string): string {
+  const normalizedSource = normalizeUpdateDownloadSource(source)
+  if (normalizedSource === "cnb" && info?.latest_version) {
+    return `https://cnb.cool/dbxio.com/dbx/-/releases/tag/${tagVersion(info.latest_version)}`
+  }
+  if (normalizedSource === "atomgit" && info?.latest_version) {
+    return `https://atomgit.com/t8y2/dbx/releases/${tagVersion(info.latest_version)}`
+  }
+  return info?.release_url || fallbackUrl
+}
+
+export async function resolveUpdaterProxy(): Promise<string | undefined> {
+  if (!isTauriRuntime()) return undefined
+  try {
+    const proxy = await api.getSystemProxyUrl()
+    return proxy || undefined
+  } catch {
+    return undefined
+  }
+}
+
+export function useAppUpdater() {
+  const { t } = useI18n()
+  const { toast } = useToast()
+  const settingsStore = useSettingsStore()
+
+  const checkingUpdates = ref(false)
+  const updateInfo = ref<api.UpdateInfo | null>(null)
+  const updateCheckMessage = ref("")
+  const showUpdateDialog = ref(false)
+  const isDownloadingUpdate = ref(false)
+  const downloadProgress = ref(0)
+  const updateReady = ref(false)
+  const hasUpdateAvailable = computed(() => updateInfo.value?.update_available === true)
+  const latestReleaseUrl = "https://github.com/t8y2/dbx/releases/latest"
+
+  function openUrl(url: string) {
+    if (isTauriRuntime()) {
+      import("@tauri-apps/plugin-shell").then(({ open }) => open(url))
+    } else {
+      window.open(url, "_blank")
+    }
+  }
+
+  async function checkUpdates(options: { silent?: boolean } = {}) {
+    if (checkingUpdates.value) return
+    checkingUpdates.value = true
+    updateCheckMessage.value = ""
+    try {
+      const info = await api.checkForUpdates()
+      updateInfo.value = info
+      if (info.update_available) {
+        if (shouldOpenUpdateDialog({ silent: options.silent })) {
+          showUpdateDialog.value = true
+        }
+      } else if (!options.silent) {
+        updateCheckMessage.value = t("updates.upToDate", { version: info.current_version })
+        showUpdateDialog.value = true
+      }
+    } catch (e: any) {
+      if (!options.silent) {
+        updateCheckMessage.value = formatUpdateError(String(e))
+        showUpdateDialog.value = true
+      }
+    } finally {
+      checkingUpdates.value = false
+    }
+  }
+
+  function formatUpdateError(message: string): string {
+    const lower = message.toLowerCase()
+    if (lower.includes("403") || lower.includes("rate limit")) {
+      return t("updates.rateLimited")
+    }
+    return t("updates.failed", { error: message })
+  }
+
+  function openLatestRelease() {
+    const url = resolveUpdateReleaseUrl(
+      updateInfo.value,
+      settingsStore.editorSettings.updateDownloadSource,
+      latestReleaseUrl,
+    )
+    openUrl(url)
+  }
+
+  async function downloadAndInstallUpdate() {
+    if (!isTauriRuntime() || isDownloadingUpdate.value) return
+    if (!canDownloadAndInstallUpdate(updateInfo.value, true)) {
+      openLatestRelease()
+      return
+    }
+    isDownloadingUpdate.value = true
+    downloadProgress.value = 0
+    let unlisten: (() => void) | undefined
+    const latestVersion = updateInfo.value?.latest_version
+    try {
+      const { listen } = await import("@tauri-apps/api/event")
+      unlisten = await listen<UpdateDownloadProgress>("update-download-progress", (event) => {
+        const total = event.payload.total ?? 0
+        downloadProgress.value = total > 0 ? Math.round((event.payload.downloaded / total) * 100) : 0
+      })
+      await api.downloadAndInstallUpdate(
+        normalizeUpdateDownloadSource(settingsStore.editorSettings.updateDownloadSource),
+        latestVersion,
+      )
+      downloadProgress.value = 100
+      updateReady.value = true
+    } catch (e: any) {
+      toast(t("updates.downloadFailed", { error: e?.message || String(e) }), 5000)
+    } finally {
+      unlisten?.()
+      isDownloadingUpdate.value = false
+    }
+  }
+
+  async function restartApp() {
+    if (!isTauriRuntime()) return
+    try {
+      const { relaunch } = await import("@tauri-apps/plugin-process")
+      await relaunch()
+    } catch (e: any) {
+      toast(t("updates.restartFailed", { error: e?.message || String(e) }), 5000)
+    }
+  }
+
+  return {
+    checkingUpdates,
+    updateInfo,
+    updateCheckMessage,
+    showUpdateDialog,
+    isDownloadingUpdate,
+    downloadProgress,
+    updateReady,
+    hasUpdateAvailable,
+    latestReleaseUrl,
+    openUrl,
+    checkUpdates,
+    formatUpdateError,
+    openLatestRelease,
+    downloadAndInstallUpdate,
+    restartApp,
+  }
+}

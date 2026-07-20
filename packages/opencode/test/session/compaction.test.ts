@@ -31,6 +31,7 @@ import { SyncEvent } from "@/sync"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { Memory } from "@/memory/service"
+import { PowersNexusWorkflow } from "@/powersnexus/service"
 
 void Log.init({ print: false })
 
@@ -227,11 +228,20 @@ function cfg(input?: Config.Info["compaction"] | TestConfigInput) {
   })
 }
 
+function idlePlugin() {
+  return Layer.mock(Plugin.Service, {
+    trigger: <Name extends string, Input, Output>(_name: Name, _input: Input, output: Output) => Effect.succeed(output),
+    list: () => Effect.succeed([]),
+    init: () => Effect.void,
+  })
+}
+
+
 const deps = Layer.mergeAll(
   wide().layer,
   layer("continue"),
   Agent.defaultLayer,
-  Plugin.defaultLayer,
+  idlePlugin(),
   Bus.layer,
   Memory.defaultLayer,
   Config.defaultLayer,
@@ -257,6 +267,7 @@ type CompactionProcessOptions = {
   plugin?: Layer.Layer<Plugin.Service>
   provider?: ReturnType<typeof ProviderTest.fake>
   config?: Layer.Layer<Config.Service>
+  workflow?: Layer.Layer<PowersNexusWorkflow.Service>
 }
 
 function withCompaction(options?: CompactionProcessOptions) {
@@ -280,6 +291,7 @@ function compactionProcessLayer(options?: CompactionProcessOptions) {
     bus,
     status,
     Memory.defaultLayer,
+    options?.workflow ?? Layer.empty,
   ).pipe(
     Layer.provide(SessionNs.defaultLayer),
     Layer.provide((options?.provider ?? wide()).layer),
@@ -287,7 +299,7 @@ function compactionProcessLayer(options?: CompactionProcessOptions) {
     Layer.provide(options?.llm ?? LLM.defaultLayer),
     Layer.provide(Permission.defaultLayer),
     Layer.provide(Agent.defaultLayer),
-    Layer.provide(options?.plugin ?? Plugin.defaultLayer),
+    Layer.provide(options?.plugin ?? idlePlugin()),
     Layer.provide(status),
     Layer.provide(bus),
     Layer.provide(options?.config ?? Config.defaultLayer),
@@ -1426,6 +1438,53 @@ describe("session.compaction.process", () => {
         expect(summary?.info.role).toBe("assistant")
         expect(summary?.parts.some((part) => part.type === "tool")).toBe(false)
       }).pipe(withCompaction({ llm: stub.layer }))
+    },
+    { git: true },
+  )
+
+  itCompaction.instance(
+    "injects the PowersNexus workflow capsule into compaction context",
+    () => {
+      const stub = llm()
+      let captured = ""
+      stub.push(
+        reply("summary", (input) => {
+          captured = JSON.stringify(input.messages)
+        }),
+      )
+      const workflow = Layer.mock(PowersNexusWorkflow.Service, {
+        capsule: () =>
+          Effect.succeed({
+            bindingID: "pnb_capsule",
+            changeName: "capsule-change",
+            phase: "implementing" as const,
+            taskID: "TASK-301",
+            revision: 301,
+            artifactDigest: "a".repeat(64),
+            nextAction: { action: "start_implementation", label: "开始实施", automatic: true },
+            worktree: "C:/workspace",
+            powersnexusDigest: "b".repeat(64),
+          }),
+      })
+      return Effect.gen(function* () {
+        const ssn = yield* SessionNs.Service
+        const session = yield* ssn.create({})
+        yield* createUserMessage(session.id, "old workflow context")
+        yield* createUserMessage(session.id, "keep this turn")
+        yield* createUserMessage(session.id, "keep this turn too")
+        yield* createCompactionMarker(session.id)
+        const msgs = yield* ssn.messages({ sessionID: session.id })
+        const parent = msgs.at(-1)?.info.id
+        yield* SessionCompaction.use.process({
+          parentID: parent!,
+          messages: msgs,
+          sessionID: session.id,
+          auto: false,
+        })
+        expect(captured).toContain("<powersnexus-workflow-capsule>")
+        expect(captured).toContain("pnb_capsule")
+        expect(captured).toContain("TASK-301")
+      }).pipe(withCompaction({ llm: stub.layer, workflow }))
     },
     { git: true },
   )

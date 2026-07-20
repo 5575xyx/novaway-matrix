@@ -1,0 +1,38 @@
+import type { TreeNode, TreeNodeType } from "@/types/database"
+
+export const SIDEBAR_TREE_ROW_HEIGHT = 28
+export const SIDEBAR_TREE_SCROLL_BUFFER = 600
+export const SIDEBAR_TREE_PRERENDER_COUNT = 48
+
+export interface FlatTreeNode {
+  node: TreeNode
+  depth: number
+  id: string
+  type: TreeNodeType
+  poolType: string
+}
+
+function walk(children: TreeNode[], depth: number, result: FlatTreeNode[]) {
+  for (const node of children) {
+    result.push({
+      node,
+      depth,
+      id: node.id,
+      type: node.type,
+      poolType: node.type === "connection-group" ? `${node.type}:${node.id}` : node.type,
+    })
+    if (node.isExpanded && node.children) {
+      walk(node.children, depth + 1, result)
+    }
+  }
+}
+
+export function flattenTree(nodes: TreeNode[]): FlatTreeNode[] {
+  const result: FlatTreeNode[] = []
+  walk(nodes, 0, result)
+  return result
+}
+
+export function shouldVirtualizeFlatTree(count: number): boolean {
+  return count > 0
+}

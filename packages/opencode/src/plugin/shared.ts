@@ -208,7 +208,7 @@ export async function checkPluginCompatibility(target: string, opencodeVersion: 
 // Keys are the bare plugin name (matches npa.name from DEFAULT_GLOBAL_PLUGINS).
 // Order matters: each URL is tried until one succeeds.
 export const PLUGIN_FALLBACK_URLS: Record<string, string[]> = {
-  PowersNexus: ["git+https://gitee.com/nova-way/powersnexus.git", "git+https://github.com/obra/superpowers.git"],
+  PowersNexus: ["git+https://gitee.com/nova-way/powersnexus.git"],
 }
 
 function extractPluginName(spec: string): string | undefined {

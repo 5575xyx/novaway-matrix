@@ -17,6 +17,7 @@ import { MemoryApi } from "./groups/memory"
 import { OfficeApi } from "./groups/office"
 import { PermissionApi } from "./groups/permission"
 import { ProjectApi } from "./groups/project"
+import { PowersNexusApi } from "./groups/powersnexus"
 import { ProviderApi } from "./groups/provider"
 import { PtyApi, PtyConnectApi } from "./groups/pty"
 import { QuestionApi } from "./groups/question"
@@ -52,6 +53,7 @@ export const InstanceHttpApi = HttpApi.make("opencode-instance")
   .addHttpApi(MemoryApi)
   .addHttpApi(OfficeApi)
   .addHttpApi(ProjectApi)
+  .addHttpApi(PowersNexusApi)
   .addHttpApi(PtyApi)
   .addHttpApi(QuestionApi)
   .addHttpApi(PermissionApi)

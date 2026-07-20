@@ -13,7 +13,13 @@ import { Link } from "@/components/link"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
-import { type FormState, headerRow, modelRow, type ModelType, validateCustomProvider } from "./dialog-custom-provider-form"
+import {
+  type FormState,
+  headerRow,
+  modelRow,
+  type ModelType,
+  validateCustomProvider,
+} from "./dialog-custom-provider-form"
 
 import { SelectProviderCombobox } from "./select-provider-combobox"
 import { DialogSelectProvider } from "./dialog-select-provider"
@@ -140,9 +146,11 @@ export function DialogCustomProvider(props: Props) {
 
   const inferModelType = (id: string, name: string): ModelType => {
     const text = `${id} ${name}`.toLowerCase()
-    if (text.includes("image") || text.includes("img") || text.includes("dall") || text.includes("picture")) return "image"
+    if (text.includes("image") || text.includes("img") || text.includes("dall") || text.includes("picture"))
+      return "image"
     if (text.includes("video") || text.includes("clip")) return "video"
-    if (text.includes("audio") || text.includes("sound") || text.includes("speech") || text.includes("voice")) return "audio"
+    if (text.includes("audio") || text.includes("sound") || text.includes("speech") || text.includes("voice"))
+      return "audio"
     return "text"
   }
 

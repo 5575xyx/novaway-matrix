@@ -163,7 +163,8 @@ export const dict = {
   "provider.custom.description.link": "dokumentasjon for leverandørkonfigurasjon",
   "provider.custom.description.suffix": ".",
   "provider.custom.field.provider.label": "Velg leverandør",
-  "provider.custom.field.provider.description": "Velger en leverandør fyller automatisk ut leverandør-ID, navn og base-URL",
+  "provider.custom.field.provider.description":
+    "Velger en leverandør fyller automatisk ut leverandør-ID, navn og base-URL",
   "provider.custom.field.provider.placeholder": "Velg leverandør",
   "provider.custom.field.providerID.label": "Leverandør-ID",
   "provider.custom.field.providerID.placeholder": "minleverandør",

@@ -6,13 +6,13 @@
 
 ## 需求匹配度
 
-| 用户需求 | 实现状态 | 说明 |
-|---|---|---|
-| 悬浮图标可拖动 | 已完成 | `AssistantPanel` 已基于 Pointer Events 实现拖拽；`move-floating-widget` IPC 处理移动与位置持久化 |
-| 最小化后仍悬浮桌面 | 已完成 | 悬浮窗独立 `BrowserWindow`，`alwaysOnTop: true`、`skipTaskbar: true`；主窗口最小化后仍保持可见 |
-| build mode 实时切换智能体 | 已完成 | 主窗口 `local.agent.set` → `update-floating-agent-state` → 悬浮窗 `onFloatingAgentChange` 链路已通 |
-| 悬浮窗切换智能体同步主窗口 | 已修复 | `ipc.ts` 中 `set-floating-agent` 向主窗口发送的通道已统一为 `"floating-agent-change"` |
-| 查看待办清单 | 已修复 | 扩展 `FloatingAgentState.tasks`，主窗口推送当前会话 `session_todo`，悬浮窗渲染真实任务 |
+| 用户需求                   | 实现状态 | 说明                                                                                               |
+| -------------------------- | -------- | -------------------------------------------------------------------------------------------------- |
+| 悬浮图标可拖动             | 已完成   | `AssistantPanel` 已基于 Pointer Events 实现拖拽；`move-floating-widget` IPC 处理移动与位置持久化   |
+| 最小化后仍悬浮桌面         | 已完成   | 悬浮窗独立 `BrowserWindow`，`alwaysOnTop: true`、`skipTaskbar: true`；主窗口最小化后仍保持可见     |
+| build mode 实时切换智能体  | 已完成   | 主窗口 `local.agent.set` → `update-floating-agent-state` → 悬浮窗 `onFloatingAgentChange` 链路已通 |
+| 悬浮窗切换智能体同步主窗口 | 已修复   | `ipc.ts` 中 `set-floating-agent` 向主窗口发送的通道已统一为 `"floating-agent-change"`              |
+| 查看待办清单               | 已修复   | 扩展 `FloatingAgentState.tasks`，主窗口推送当前会话 `session_todo`，悬浮窗渲染真实任务             |
 
 ## 技术维度评分
 
