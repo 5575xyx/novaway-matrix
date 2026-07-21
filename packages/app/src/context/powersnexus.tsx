@@ -123,11 +123,27 @@ export const { use: usePowersNexus, provider: PowersNexusProvider } = createSimp
       }
     }
 
-    const refreshStatus = async (changeName?: string) => {
-      const name = changeName ?? store.selectedChangeName
+    const refreshStatus = async (changeName?: string, sessionID?: string) => {
       try {
+        let name = changeName ?? store.selectedChangeName
+        // 按会话隔离：优先本会话已绑定的 Change
+        if (sessionID) {
+          const own = store.changes.find((item) => item.rootSessionID === sessionID)
+          if (own) name = own.changeName
+          else if (!changeName) {
+            // 未指定且本会话无绑定：不显示其它会话的工作流
+            setStore({ snapshot: null, selectedChangeName: undefined })
+            return null
+          } else {
+            const target = store.changes.find((item) => item.changeName === name)
+            if (target?.rootSessionID && target.rootSessionID !== sessionID) {
+              setStore({ snapshot: null, selectedChangeName: undefined })
+              return null
+            }
+          }
+        }
         const snapshot = await sdk.client.powersnexus
-          .status(name ? { changeName: name } : undefined)
+          .status(name ? { changeName: name, ...(sessionID ? { sessionID } : {}) } as never)
           .then((x) => x.data)
         setStore({
           snapshot: snapshot ?? null,
@@ -142,12 +158,12 @@ export const { use: usePowersNexus, provider: PowersNexusProvider } = createSimp
       }
     }
 
-    const refreshAll = async () => {
+    const refreshAll = async (sessionID?: string) => {
       setStore({ loading: true, error: undefined })
       try {
         await refreshVersion()
         await refreshChanges()
-        await refreshStatus()
+        await refreshStatus(undefined, sessionID)
         setStore({ ready: true, loading: false })
       } catch {
         setStore({ ready: true, loading: false })
@@ -283,9 +299,11 @@ export const { use: usePowersNexus, provider: PowersNexusProvider } = createSimp
       title?: string
     }) => {
       if (!input.sessionID) throw new Error(language.t("powersnexus.error.noSession" as never))
-      const changeName = slugPowersNexusChangeName(
+      const baseName = slugPowersNexusChangeName(
         input.changeName || input.title || `session-${input.sessionID.slice(-8)}`,
       )
+      // 同项目多会话：名称带会话后缀，避免撞名/串任务
+      const changeName = slugPowersNexusChangeName(`${baseName}-${input.sessionID.slice(-6)}`)
       const level = input.level ?? assessWorkflowLevel(input.title || input.changeName || changeName)
       setStore({ loading: true, error: undefined })
       try {
@@ -307,7 +325,7 @@ export const { use: usePowersNexus, provider: PowersNexusProvider } = createSimp
         })
         setStore("selectedChangeName", created.changeName)
         await refreshChanges()
-        await refreshStatus(created.changeName)
+        await refreshStatus(created.changeName, input.sessionID)
         setStore({ loading: false, ready: true })
         return created
       } catch (err) {
@@ -324,31 +342,16 @@ export const { use: usePowersNexus, provider: PowersNexusProvider } = createSimp
       try {
         await refreshChanges()
       } catch {
-        // version 可用时仍尝试创建
+        // ignore
       }
-      if (store.snapshot?.bindingID) return store.snapshot
-      const existing = store.changes[0]
-      if (existing) {
-        setStore({ loading: true, error: undefined })
-        try {
-          await sdk.client.powersnexus.bind({
-            actionID: `ui-bind-existing-${Date.now()}`,
-            expectedRevision: existing.revision,
-            changeName: existing.changeName,
-            sessionID: input.sessionID,
-            handoff: Boolean(existing.rootSessionID && existing.rootSessionID !== input.sessionID),
-          })
-          setStore("selectedChangeName", existing.changeName)
-          await refreshStatus(existing.changeName)
-          setStore({ loading: false, ready: true })
-          return store.snapshot
-        } catch (err) {
-          setStore({
-            loading: false,
-            error: errorMessage(err, language.t("powersnexus.error.bind" as never)),
-          })
-        }
+      // 本会话已有绑定则直接展示
+      const own = store.changes.find((item) => item.rootSessionID === input.sessionID)
+      if (own) {
+        setStore("selectedChangeName", own.changeName)
+        await refreshStatus(own.changeName, input.sessionID)
+        return store.snapshot
       }
+      // 会话隔离：不复用其它会话的 Change，始终新建
       await createAndBind({ sessionID: input.sessionID, title: input.title })
       return store.snapshot
     }

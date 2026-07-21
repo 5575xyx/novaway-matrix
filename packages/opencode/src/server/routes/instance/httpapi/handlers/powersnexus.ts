@@ -151,7 +151,7 @@ export const powersnexusHandlers = HttpApiBuilder.group(InstanceHttpApi, "powers
     const delivery = yield* PowersNexusDelivery.Service
 
     return handlers
-      .handle("status", (ctx) => mapError(workflow.status(ctx.query.changeName)).pipe(Effect.map((value) => value ?? null)))
+      .handle("status", (ctx) => mapError(workflow.status(ctx.query.changeName, ctx.query.sessionID)).pipe(Effect.map((value) => value ?? null)))
       .handle("changes", () => mapError(workflow.list()))
       .handle("createChange", (ctx) =>
         mapError(workflow.create({ changeName: ctx.payload.changeName, level: ctx.payload.level })),

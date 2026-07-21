@@ -39,7 +39,7 @@ export interface Interface {
     changeName: string
     level: typeof WorkflowLevel.Type
   }) => Effect.Effect<Binding, WorkflowServiceError>
-  readonly status: (changeName?: string) => Effect.Effect<WorkflowSnapshot | undefined, WorkflowServiceError>
+  readonly status: (changeName?: string, sessionID?: SessionID) => Effect.Effect<WorkflowSnapshot | undefined, WorkflowServiceError>
   readonly inspect: (changeName: string) => Effect.Effect<WorkflowSnapshot, WorkflowServiceError>
   readonly bind: (input: {
     changeName: string
@@ -314,9 +314,16 @@ export const layer = Layer.effect(
       return updated
     })
 
-    const status = Effect.fnUntraced(function* (changeName?: string) {
+    const status = Effect.fnUntraced(function* (changeName?: string, sessionID?: SessionID) {
       if (changeName) return yield* inspect(changeName)
       const bindings = yield* list()
+      if (sessionID) {
+        const rootSessionID = yield* findRootSessionID(sessions, yield* sessions.get(sessionID).pipe(Effect.orDie))
+        const forSession = bindings.find((item) => item.rootSessionID === rootSessionID)
+        if (!forSession) return undefined
+        return yield* inspect(forSession.changeName)
+      }
+      // 无 session 时保持兼容：最近更新的 binding
       const binding = bindings.sort((left, right) => right.time.updated - left.time.updated)[0]
       if (!binding) return undefined
       return yield* inspect(binding.changeName)

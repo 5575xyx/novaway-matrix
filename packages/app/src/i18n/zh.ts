@@ -1276,7 +1276,7 @@ export const dict = {
   "settings.powersnexus.action.rollback": "回滚到上一版本",
   "powersnexus.panel.title": "工作流",
   "powersnexus.panel.noChange": "尚未绑定 Change",
-  "powersnexus.panel.empty": "当前会话尚未接入工作流。发送第一条任务消息后会自动评估级别并绑定；也可手动点击下方按钮。",
+  "powersnexus.panel.empty": "当前会话尚未接入工作流（按会话隔离）。发送第一条任务消息后会为本会话新建 Change 并评估级别；也可手动点击下方按钮。",
   "powersnexus.field.revision": "Revision",
   "powersnexus.field.digest": "Digest",
   "powersnexus.field.profile": "Profile",

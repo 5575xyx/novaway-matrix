@@ -91,6 +91,7 @@ export const Binding = Schema.Struct({
 export const StatusQuery = Schema.Struct({
   ...WorkspaceRoutingQueryFields,
   changeName: Schema.optional(Schema.String),
+  sessionID: Schema.optional(SessionID),
 })
 
 export const CreatePayload = Schema.Struct({

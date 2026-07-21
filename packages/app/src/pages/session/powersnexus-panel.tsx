@@ -62,7 +62,7 @@ export function PowersNexusPanel() {
   })
 
   createEffect(() => {
-    if (shown() && !pn.store.ready) void pn.refreshAll()
+    if (shown() && !pn.store.ready) void pn.refreshAll(sessionID())
   })
 
   const toastError = (err: unknown) =>
@@ -125,7 +125,7 @@ export function PowersNexusPanel() {
         setShown(open)
         pn.setPanelOpen(open)
         // 仅刷新状态；不在打开面板时创建 Change（等级需等用户发任务后再评估）
-        if (open) void pn.refreshAll()
+        if (open) void pn.refreshAll(sessionID())
       }}
       triggerAs={IconButton}
       triggerProps={{

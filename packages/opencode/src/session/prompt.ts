@@ -2192,28 +2192,22 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                     .slice(0, 40)
                   const safeName =
                     /^[a-z0-9][a-z0-9._-]{0,79}$/.test(ascii) && ascii ? ascii : `task-${Date.now().toString(36)}`
+                  // 按会话隔离：本会话未绑定则始终新建 Change，不复用其它会话的任务
                   capsule = yield* Effect.gen(function* () {
-                    const bindings = yield* workflow.list()
-                    if (bindings.length > 0) {
-                      const existing = bindings[0]
-                      yield* workflow.bind({
-                        changeName: existing.changeName,
-                        sessionID,
-                        expectedRevision: existing.revision,
-                        handoff: Boolean(existing.rootSessionID && existing.rootSessionID !== sessionID),
-                      })
-                    } else {
-                      const created = yield* workflow.create({
-                        changeName: safeName,
-                        level: assessed.level,
-                      })
-                      yield* workflow.bind({
-                        changeName: created.changeName,
-                        sessionID,
-                        expectedRevision: created.revision,
-                        handoff: false,
-                      })
-                    }
+                    const uniqueName = `${safeName}-${String(sessionID).slice(-6).toLowerCase()}`.replace(
+                      /[^a-z0-9._-]+/g,
+                      "-",
+                    )
+                    const created = yield* workflow.create({
+                      changeName: uniqueName.slice(0, 80),
+                      level: assessed.level,
+                    })
+                    yield* workflow.bind({
+                      changeName: created.changeName,
+                      sessionID,
+                      expectedRevision: created.revision,
+                      handoff: false,
+                    })
                     return yield* workflow.capsule(sessionID)
                   }).pipe(Effect.catch(() => Effect.succeed(undefined)))
                 }
