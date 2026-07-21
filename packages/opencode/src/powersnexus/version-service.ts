@@ -112,9 +112,14 @@ export const layer = Layer.effect(
           message: "PowersNexus 内置基线资源配置不完整",
         })
       }
-      const novaWayVersion =
+      const rawNovaWayVersion =
         process.env.POWERSNEXUS_NOVAWAY_VERSION ??
         (InstallationVersion === "local" ? packageJson.version : InstallationVersion)
+      // packaging 占位 1.0.0 会导致 bundled 基线 semver 检查失败
+      const novaWayVersion =
+        !rawNovaWayVersion || rawNovaWayVersion === "0.0.0" || rawNovaWayVersion === "1.0.0"
+          ? packageJson.version
+          : rawNovaWayVersion
       const loaded = yield* loadBundled({
         resourceRoot,
         publicKeyPath,
@@ -248,9 +253,12 @@ export const layer = Layer.effect(
         manifestUrls: runtime.manifestUrls,
         allowedHosts: runtime.allowedHosts,
         trustedKeys: runtime.trustedKeys,
-        novaWayVersion:
-          process.env.POWERSNEXUS_NOVAWAY_VERSION ??
-          (InstallationVersion === "local" ? packageJson.version : InstallationVersion),
+        novaWayVersion: (() => {
+          const raw =
+            process.env.POWERSNEXUS_NOVAWAY_VERSION ??
+            (InstallationVersion === "local" ? packageJson.version : InstallationVersion)
+          return !raw || raw === "0.0.0" || raw === "1.0.0" ? packageJson.version : raw
+        })(),
         readRemote: runtime.readRemote,
       }).pipe(
         Effect.catch((cause) =>

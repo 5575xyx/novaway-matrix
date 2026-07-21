@@ -374,7 +374,19 @@ const main = Effect.gen(function* () {
     process.env.POWERSNEXUS_RELEASE_ALLOWED_HOSTS = process.env.POWERSNEXUS_RELEASE_ALLOWED_HOSTS ?? "gitee.com,foruda.gitee.com"
     process.env.POWERSNEXUS_RELEASE_KEY_ID =
       process.env.POWERSNEXUS_RELEASE_KEY_ID ?? "powersnexus-release-2026-01"
-    process.env.POWERSNEXUS_NOVAWAY_VERSION = app.getVersion()
+    // electron-builder 本地/开发包版本常为 1.0.0，不能用于 PowersNexus semver 兼容判断（基线要求 >=1.3.0）
+    {
+      const appVersion = app.getVersion()
+      const fallbackProductVersion = "1.15.4"
+      const usable =
+        appVersion &&
+        appVersion !== "0.0.0" &&
+        appVersion !== "1.0.0" &&
+        !appVersion.startsWith("0.")
+          ? appVersion
+          : fallbackProductVersion
+      process.env.POWERSNEXUS_NOVAWAY_VERSION = process.env.POWERSNEXUS_NOVAWAY_VERSION ?? usable
+    }
     process.env.POWERSNEXUS_BUNDLED_ROOT = app.isPackaged
       ? join(process.resourcesPath, "powersnexus")
       : join(app.getAppPath(), "resources", "powersnexus-baselines")
