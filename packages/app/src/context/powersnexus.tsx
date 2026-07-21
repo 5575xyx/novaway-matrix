@@ -68,6 +68,16 @@ function errorMessage(err: unknown, fallback: string) {
 
 
 /** changeName 仅允许 a-z0-9._- ，最长 80 */
+function assessWorkflowLevel(description: string): "L0" | "L1" | "L2" | "L3" | "L4" {
+  const text = (description || "").toLowerCase()
+  if (!text.trim()) return "L2"
+  if (/typo|拼写|文案|配置|改个|修复一个字|改一下字|rename\b|注释/.test(text)) return "L0"
+  if (/小功能|小优化|小 bug|小bug|简单|quick|hotfix|修一个|小改/.test(text)) return "L1"
+  if (/核心架构|重大重构|系统级|重量级|平台化|从零搭建大型/.test(text)) return "L4"
+  if (/大型|架构|重构|跨模块|完整流程|端到端|全栈/.test(text)) return "L3"
+  return "L2"
+}
+
 export function slugPowersNexusChangeName(raw: string) {
   const slug = raw
     .trim()
@@ -276,7 +286,7 @@ export const { use: usePowersNexus, provider: PowersNexusProvider } = createSimp
       const changeName = slugPowersNexusChangeName(
         input.changeName || input.title || `session-${input.sessionID.slice(-8)}`,
       )
-      const level = input.level ?? "L2"
+      const level = input.level ?? assessWorkflowLevel(input.title || input.changeName || changeName)
       setStore({ loading: true, error: undefined })
       try {
         const created = await sdk.client.powersnexus

@@ -53,6 +53,7 @@ export interface Interface {
         bindingID: string
         changeName: string
         phase: WorkflowSnapshot["phase"]
+        level: WorkflowSnapshot["level"]
         taskID?: string
         revision: number
         artifactDigest: string
@@ -364,6 +365,7 @@ export const layer = Layer.effect(
         bindingID: binding.id,
         changeName: binding.changeName,
         phase: snapshot.phase,
+        level: snapshot.level,
         ...(task ? { taskID: task.id } : {}),
         revision: snapshot.revision,
         artifactDigest: snapshot.artifactDigest,

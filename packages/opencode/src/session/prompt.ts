@@ -49,6 +49,7 @@ import { SessionStatus } from "./status"
 import { LLM } from "./llm"
 import { Memory } from "@/memory/service"
 import { injectMemoryContext } from "@/memory/context"
+import { PowersNexusWorkflow } from "@/powersnexus/service"
 import { ProjectContext } from "@/context/project-context"
 import { Evolution } from "@/evolution/service"
 import { Shell } from "@/shell/shell"
@@ -2174,6 +2175,30 @@ NOTE: At any point in time through this workflow you should feel free to ask the
               context: [projectContext, memoryContext].filter(Boolean).join("\n\n"),
             })
             const system = [...env, ...instructions, ...(skills ? [skills] : [])]
+            // 绑定 PowersNexus 时每轮注入工作流 capsule，驱动 Agent 走流程而非直接堆代码
+            {
+              const workflow = Option.getOrUndefined(yield* Effect.serviceOption(PowersNexusWorkflow.Service))
+              if (workflow) {
+                const capsule = yield* workflow.capsule(sessionID).pipe(Effect.catch(() => Effect.succeed(undefined)))
+                if (capsule) {
+                  system.push(
+                    [
+                      "<powersnexus-workflow>",
+                      "你正在执行 NovaWay 第一方 PowersNexus 工作流。必须优先推进工作流状态，禁止在规格/任务未就绪时直接大量编写业务代码。",
+                      `changeName=${capsule.changeName}`,
+                      `phase=${capsule.phase}`,
+                      `level=${capsule.level}`,
+                      `nextAction=${capsule.nextAction?.action ?? "none"} (${capsule.nextAction?.label ?? ""})`,
+                      "工件目录：.novaway/powersnexus/changes/" + capsule.changeName + "/",
+                      "请按 nextAction 更新 proposal.md / delta-specs/*/spec.md / design.md / tasks.md 等工件，再实现代码。",
+                      "权威快照 JSON：",
+                      JSON.stringify(capsule),
+                      "</powersnexus-workflow>",
+                    ].join("\n"),
+                  )
+                }
+              }
+            }
             const format = lastUser.format ?? { type: "text" as const }
             if (format.type === "json_schema") system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)
             const result = yield* handle.process({
