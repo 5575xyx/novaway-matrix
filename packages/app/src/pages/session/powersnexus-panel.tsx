@@ -8,6 +8,8 @@ import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js"
 import { useLanguage } from "@/context/language"
 import { usePowersNexus } from "@/context/powersnexus"
+import { useSessionLayout } from "@/pages/session/session-layout"
+import { useSync } from "@/context/sync"
 
 const phaseLabel: Record<string, string> = {
   uninitialized: "未初始化",
@@ -37,7 +39,16 @@ function shortDigest(value?: string) {
 export function PowersNexusPanel() {
   const language = useLanguage()
   const pn = usePowersNexus()
+  const { params } = useSessionLayout()
+  const sync = useSync()
   const [shown, setShown] = createSignal(false)
+  const [creating, setCreating] = createSignal(false)
+  const sessionID = createMemo(() => params.id)
+  const sessionTitle = createMemo(() => {
+    const id = sessionID()
+    if (!id) return undefined
+    return sync.data.session.find((item) => item.id === id)?.title
+  })
   const snapshot = createMemo(() => pn.store.snapshot)
   const tasks = createMemo(() => snapshot()?.tasks ?? [])
   const blockers = createMemo(() => snapshot()?.blockers ?? [])
@@ -60,6 +71,28 @@ export function PowersNexusPanel() {
       title: language.t("common.requestFailed"),
       description: err instanceof Error ? err.message : String(err),
     })
+
+  const onCreateAndBind = async () => {
+    const id = sessionID()
+    if (!id) {
+      toastError(new Error(language.t("powersnexus.error.noSession" as never)))
+      return
+    }
+    setCreating(true)
+    try {
+      await pn.createAndBind({ sessionID: id, title: sessionTitle() })
+      showToast({
+        variant: "success",
+        icon: "circle-check",
+        title: language.t("powersnexus.toast.createOk" as never),
+        description: language.t("powersnexus.toast.createOkDesc" as never),
+      })
+    } catch (err) {
+      toastError(err)
+    } finally {
+      setCreating(false)
+    }
+  }
 
   const onArchive = async () => {
     try {
@@ -91,7 +124,19 @@ export function PowersNexusPanel() {
       onOpenChange={(open) => {
         setShown(open)
         pn.setPanelOpen(open)
-        if (open) void pn.refreshAll()
+        if (open) {
+          void (async () => {
+            await pn.refreshAll()
+            const id = sessionID()
+            if (id && !pn.store.snapshot) {
+              try {
+                await pn.ensureBound({ sessionID: id, title: sessionTitle() })
+              } catch {
+                // 用户可点按钮重试
+              }
+            }
+          })()
+        }
       }}
       triggerAs={IconButton}
       triggerProps={{
@@ -148,8 +193,24 @@ export function PowersNexusPanel() {
           <Show
             when={snapshot()}
             fallback={
-              <div class="py-8 text-center text-13-regular text-text-weak">
-                {language.t("powersnexus.panel.empty" as never)}
+              <div class="flex flex-col items-center gap-3 py-8 px-2 text-center">
+                <div class="text-13-regular text-text-weak">
+                  {language.t("powersnexus.panel.empty" as never)}
+                </div>
+                <Button
+                  size="small"
+                  disabled={creating() || pn.store.loading || !sessionID()}
+                  onClick={() => void onCreateAndBind()}
+                >
+                  {creating() || pn.store.loading
+                    ? language.t("powersnexus.action.creating" as never)
+                    : language.t("powersnexus.action.createBind" as never)}
+                </Button>
+                <Show when={!sessionID()}>
+                  <div class="text-12-regular text-text-weak">
+                    {language.t("powersnexus.panel.needSession" as never)}
+                  </div>
+                </Show>
               </div>
             }
           >

@@ -66,6 +66,19 @@ function errorMessage(err: unknown, fallback: string) {
   return fallback
 }
 
+
+/** changeName 仅允许 a-z0-9._- ，最长 80 */
+export function slugPowersNexusChangeName(raw: string) {
+  const slug = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^[-._]+|[-._]+$/g, "")
+    .slice(0, 48)
+  return slug || `change-${Date.now().toString(36)}`
+}
+
 export const { use: usePowersNexus, provider: PowersNexusProvider } = createSimpleContext({
   name: "PowersNexus",
   init: () => {
@@ -253,6 +266,83 @@ export const { use: usePowersNexus, provider: PowersNexusProvider } = createSimp
       })
     })
 
+    const createAndBind = async (input: {
+      sessionID: string
+      changeName?: string
+      level?: "L0" | "L1" | "L2" | "L3" | "L4"
+      title?: string
+    }) => {
+      if (!input.sessionID) throw new Error(language.t("powersnexus.error.noSession" as never))
+      const changeName = slugPowersNexusChangeName(
+        input.changeName || input.title || `session-${input.sessionID.slice(-8)}`,
+      )
+      const level = input.level ?? "L2"
+      setStore({ loading: true, error: undefined })
+      try {
+        const created = await sdk.client.powersnexus
+          .createChange({
+            actionID: `ui-create-${Date.now()}`,
+            expectedRevision: 0,
+            changeName,
+            level,
+          })
+          .then((x) => x.data)
+        if (!created) throw new Error(language.t("powersnexus.error.create" as never))
+        await sdk.client.powersnexus.bind({
+          actionID: `ui-bind-${Date.now()}`,
+          expectedRevision: created.revision,
+          changeName: created.changeName,
+          sessionID: input.sessionID,
+          handoff: false,
+        })
+        setStore("selectedChangeName", created.changeName)
+        await refreshChanges()
+        await refreshStatus(created.changeName)
+        setStore({ loading: false, ready: true })
+        return created
+      } catch (err) {
+        setStore({
+          loading: false,
+          error: errorMessage(err, language.t("powersnexus.error.create" as never)),
+        })
+        throw err
+      }
+    }
+
+    const ensureBound = async (input: { sessionID: string; title?: string }) => {
+      if (!input.sessionID) return undefined
+      try {
+        await refreshChanges()
+      } catch {
+        // version 可用时仍尝试创建
+      }
+      if (store.snapshot?.bindingID) return store.snapshot
+      const existing = store.changes[0]
+      if (existing) {
+        setStore({ loading: true, error: undefined })
+        try {
+          await sdk.client.powersnexus.bind({
+            actionID: `ui-bind-existing-${Date.now()}`,
+            expectedRevision: existing.revision,
+            changeName: existing.changeName,
+            sessionID: input.sessionID,
+            handoff: Boolean(existing.rootSessionID && existing.rootSessionID !== input.sessionID),
+          })
+          setStore("selectedChangeName", existing.changeName)
+          await refreshStatus(existing.changeName)
+          setStore({ loading: false, ready: true })
+          return store.snapshot
+        } catch (err) {
+          setStore({
+            loading: false,
+            error: errorMessage(err, language.t("powersnexus.error.bind" as never)),
+          })
+        }
+      }
+      await createAndBind({ sessionID: input.sessionID, title: input.title })
+      return store.snapshot
+    }
+
     return {
       store,
       setPanelOpen: (open: boolean) => setStore("panelOpen", open),
@@ -269,6 +359,8 @@ export const { use: usePowersNexus, provider: PowersNexusProvider } = createSimp
       checkUpdate,
       rollback,
       archive,
+      createAndBind,
+      ensureBound,
     }
   },
 })

@@ -233,6 +233,16 @@ export const layer = Layer.effect(
         level: input.level,
         version,
       })
+      // 创建最小工件目录，使 bridge inspect 可聚合快照（否则 CHANGE_NOT_FOUND）
+      const changeDir = path.join(ctx.worktree, ".novaway", "powersnexus", "changes", changeName)
+      yield* fs.makeDirectory(changeDir, { recursive: true })
+      const proposal = path.join(changeDir, "proposal.md")
+      if (!(yield* fs.exists(proposal))) {
+        yield* fs.writeFileString(
+          proposal,
+          [`# ${changeName}`, "", "## Intent", "", "(待补充用户需求与验收标准)", "", "## Notes", "", `- level: ${input.level}`, `- createdAt: ${new Date().toISOString()}`, ""].join("\n"),
+        )
+      }
       yield* bus.publish(Event.BindingChanged, {
         projectID: ctx.project.id,
         worktree: ctx.worktree,
