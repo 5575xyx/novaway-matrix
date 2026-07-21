@@ -5,6 +5,7 @@ import { AppProcess } from "@opencode-ai/core/process"
 import { Duration, Effect, FileSystem, Schema } from "effect"
 import { ChildProcess } from "effect/unstable/process"
 import type { VersionRef } from "./schema"
+import { powersnexusNodeExecutable } from "./node-exec"
 
 export class DeveloperVersionError extends Schema.TaggedErrorClass<DeveloperVersionError>()(
   "PowersNexusDeveloperVersionError",
@@ -65,7 +66,7 @@ export const loadDeveloper = Effect.fn("PowersNexus.loadDeveloper")(function* (o
     return yield* unavailable("developerPath 必须保持已跟踪文件干净，避免执行内容漂移")
   }
   const doctor = yield* appProcess.run(
-    ChildProcess.make(process.execPath, [cliPath, "doctor"], { cwd: directory, extendEnv: true }),
+    ChildProcess.make(powersnexusNodeExecutable(), [cliPath, "doctor"], { cwd: directory, extendEnv: true }),
     { timeout: Duration.seconds(30), maxOutputBytes: 1024 * 1024, maxErrorBytes: 1024 * 1024 },
   )
   if (doctor.exitCode !== 0 || doctor.stdoutTruncated || doctor.stderrTruncated) {

@@ -20,6 +20,7 @@ import { PowersNexusVersion } from "./version-service"
 import { ChangeName, WorkflowLevel, type WorkflowSnapshot } from "./workflow-schema"
 import { reconcileTasks, taskTodos, todoRevision } from "./reconcile"
 import { make as makeRunRepository } from "./run-repository"
+import { powersnexusNodeExecutable } from "./node-exec"
 
 export class WorkflowServiceError extends Schema.TaggedErrorClass<WorkflowServiceError>()(
   "PowersNexusWorkflowServiceError",
@@ -411,7 +412,7 @@ export const layer = Layer.effect(
       }
       const version = yield* resolveVersion(binding, versions)
       const result = yield* appProcess.run(
-        ChildProcess.make(process.execPath, [version.cliPath, "archive", binding.changeName], {
+        ChildProcess.make(powersnexusNodeExecutable(), [version.cliPath, "archive", binding.changeName], {
           cwd: ctx.worktree,
           extendEnv: true,
           stdin: "ignore",

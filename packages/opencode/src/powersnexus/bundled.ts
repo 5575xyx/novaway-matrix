@@ -7,6 +7,7 @@ import { ChildProcess } from "effect/unstable/process"
 import { verifySignedManifest } from "./update-manifest"
 import { verifyArtifact } from "./update-service"
 import type { VersionRef } from "./schema"
+import { powersnexusNodeExecutable } from "./node-exec"
 
 const BUNDLED_KEY_ID = "powersnexus-bundled-2026-01"
 
@@ -87,7 +88,7 @@ export const loadBundled = Effect.fn("PowersNexus.loadBundled")(function* (optio
     const cliPath = path.join(target, "src", "cli", "powersnexus-cli.js")
     if (!(yield* fs.exists(cliPath))) return yield* unavailable("内置制品缺少 Bridge CLI")
     const doctor = yield* appProcess.run(
-      ChildProcess.make(process.execPath, [cliPath, "doctor"], {
+      ChildProcess.make(powersnexusNodeExecutable(), [cliPath, "doctor"], {
         cwd: target,
         extendEnv: true,
         stdin: "ignore",

@@ -15,6 +15,7 @@ import {
 import { BridgeClientError } from "./bridge-error"
 import type { VersionRef } from "./schema"
 import { redactEvidence, redactSecrets } from "./redact"
+import { powersnexusNodeExecutable } from "./node-exec"
 
 const MAX_STDOUT = 8 * 1024 * 1024
 const MAX_STDERR = 1024 * 1024
@@ -73,7 +74,7 @@ const execute = Effect.fn("PowersNexus.Bridge.execute")(function* (
   const processService = yield* AppProcess.Service
   const format = subcommand === "transition" ? "jsonl" : "json"
   const command = ChildProcess.make(
-    process.execPath,
+    powersnexusNodeExecutable(),
     [input.version.cliPath, "bridge", subcommand, "--change", input.changeName, "--format", format],
     {
       cwd: input.worktree,

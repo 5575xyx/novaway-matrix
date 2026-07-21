@@ -366,6 +366,8 @@ const main = Effect.gen(function* () {
         ? join(process.resourcesPath, "node", "node.exe")
         : join(process.resourcesPath, "node", "bin", "node")
     process.env.DBX_NODE_PATH = app.isPackaged ? bundledNode : "node"
+    // PowersNexus CLI 必须用 Node，不能用 Electron utilityProcess 的 execPath
+    process.env.POWERSNEXUS_NODE_PATH = process.env.POWERSNEXUS_NODE_PATH ?? process.env.DBX_NODE_PATH
     process.env.POWERSNEXUS_FIRST_PARTY = "1"
     process.env.POWERSNEXUS_UPDATE_POLICY = process.env.POWERSNEXUS_UPDATE_POLICY ?? "bundled"
     process.env.POWERSNEXUS_RELEASE_MANIFEST_URLS =

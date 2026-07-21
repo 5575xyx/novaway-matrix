@@ -7,6 +7,7 @@ import { Duration, Effect, FileSystem, Schema } from "effect"
 import { ChildProcess } from "effect/unstable/process"
 import { verifySignedManifest, type SignedUpdateManifest } from "./update-manifest"
 import type { VersionRef } from "./schema"
+import { powersnexusNodeExecutable } from "./node-exec"
 import type { Interface as VersionStore } from "./version-store"
 
 export type ArtifactLimits = {
@@ -341,7 +342,7 @@ export const installCheckedUpdate = Effect.fn("PowersNexus.installCheckedUpdate"
 function runDoctor(appProcess: AppProcess.Interface, cliPath: string, cwd: string) {
   return Effect.gen(function* () {
     const result = yield* appProcess.run(
-      ChildProcess.make(process.execPath, [cliPath, "doctor"], {
+      ChildProcess.make(powersnexusNodeExecutable(), [cliPath, "doctor"], {
         cwd,
         extendEnv: true,
         stdin: "ignore",
