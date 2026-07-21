@@ -98,13 +98,48 @@ function publicVersion(version: {
 }
 
 function publicStatus(status: PowersNexusVersion.Status) {
+  // optionalKey 字段必须省略，不能传 undefined，否则 HttpApi 编码会 400/500
   return {
-    ...status,
+    policy: status.policy,
     active: publicVersion(status.active),
     bundled: publicVersion(status.bundled),
-    previous: status.previous ? publicVersion(status.previous) : undefined,
+    ...(status.previous ? { previous: publicVersion(status.previous) } : {}),
     installed: status.installed.map(publicVersion),
-    available: status.available ? publicVersion(status.available) : undefined,
+    ...(status.available ? { available: publicVersion(status.available) } : {}),
+    activationDeferred: status.activationDeferred,
+    ...(status.lastCheckedAt ? { lastCheckedAt: status.lastCheckedAt } : {}),
+    ...(status.lastErrorCode ? { lastErrorCode: status.lastErrorCode } : {}),
+    ...(status.stableGate ? { stableGate: status.stableGate } : {}),
+  }
+}
+
+function publicMutation(result: {
+  requestID: string
+  status: "installed" | "activated" | "deferred" | "rolled-back"
+  active: {
+    version: string
+    protocolVersion: string
+    digest: string
+    source: "bundled" | "downloaded" | "developer"
+    compatible: boolean
+    verified: boolean
+  }
+  target?: {
+    version: string
+    protocolVersion: string
+    digest: string
+    source: "bundled" | "downloaded" | "developer"
+    compatible: boolean
+    verified: boolean
+  }
+  replayed: boolean
+}) {
+  return {
+    requestID: result.requestID,
+    status: result.status,
+    active: publicVersion(result.active),
+    ...(result.target ? { target: publicVersion(result.target) } : {}),
+    replayed: result.replayed,
   }
 }
 
@@ -201,31 +236,13 @@ export const powersnexusHandlers = HttpApiBuilder.group(InstanceHttpApi, "powers
       .handle("version", () => mapError(versions.status()).pipe(Effect.map(publicStatus)))
       .handle("check", () => mapError(versions.check()).pipe(Effect.map(publicStatus)))
       .handle("install", (ctx) =>
-        mapError(versions.install(ctx.payload)).pipe(
-          Effect.map((result) => ({
-            ...result,
-            active: publicVersion(result.active),
-            target: result.target ? publicVersion(result.target) : undefined,
-          })),
-        ),
+        mapError(versions.install(ctx.payload)).pipe(Effect.map(publicMutation)),
       )
       .handle("activate", (ctx) =>
-        mapError(versions.activate(ctx.payload)).pipe(
-          Effect.map((result) => ({
-            ...result,
-            active: publicVersion(result.active),
-            target: result.target ? publicVersion(result.target) : undefined,
-          })),
-        ),
+        mapError(versions.activate(ctx.payload)).pipe(Effect.map(publicMutation)),
       )
       .handle("rollback", (ctx) =>
-        mapError(versions.rollback(ctx.payload)).pipe(
-          Effect.map((result) => ({
-            ...result,
-            active: publicVersion(result.active),
-            target: result.target ? publicVersion(result.target) : undefined,
-          })),
-        ),
+        mapError(versions.rollback(ctx.payload)).pipe(Effect.map(publicMutation)),
       )
   }),
 )
