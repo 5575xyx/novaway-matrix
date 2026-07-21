@@ -50,6 +50,7 @@ import { LLM } from "./llm"
 import { Memory } from "@/memory/service"
 import { injectMemoryContext } from "@/memory/context"
 import { PowersNexusWorkflow } from "@/powersnexus/service"
+import { assessWorkflowLevel } from "@/powersnexus/level"
 import { ProjectContext } from "@/context/project-context"
 import { Evolution } from "@/evolution/service"
 import { Shell } from "@/shell/shell"
@@ -2175,11 +2176,47 @@ NOTE: At any point in time through this workflow you should feel free to ask the
               context: [projectContext, memoryContext].filter(Boolean).join("\n\n"),
             })
             const system = [...env, ...instructions, ...(skills ? [skills] : [])]
-            // 绑定 PowersNexus 时每轮注入工作流 capsule，驱动 Agent 走流程而非直接堆代码
+            // 用户发起任务后再创建/绑定 Change，并每轮注入工作流 capsule
             {
               const workflow = Option.getOrUndefined(yield* Effect.serviceOption(PowersNexusWorkflow.Service))
               if (workflow) {
-                const capsule = yield* workflow.capsule(sessionID).pipe(Effect.catch(() => Effect.succeed(undefined)))
+                const userText = textFromParts(lastUserMsg?.parts ?? []).trim()
+                let capsule = yield* workflow.capsule(sessionID).pipe(Effect.catch(() => Effect.succeed(undefined)))
+                if (!capsule && userText && !session.parentID) {
+                  const assessed = assessWorkflowLevel(userText)
+                  const ascii = userText
+                    .toLowerCase()
+                    .replace(/[^a-z0-9._-]+/g, "-")
+                    .replace(/-+/g, "-")
+                    .replace(/^[-._]+|[-._]+$/g, "")
+                    .slice(0, 40)
+                  const safeName =
+                    /^[a-z0-9][a-z0-9._-]{0,79}$/.test(ascii) && ascii ? ascii : `task-${Date.now().toString(36)}`
+                  capsule = yield* Effect.gen(function* () {
+                    const bindings = yield* workflow.list()
+                    if (bindings.length > 0) {
+                      const existing = bindings[0]
+                      yield* workflow.bind({
+                        changeName: existing.changeName,
+                        sessionID,
+                        expectedRevision: existing.revision,
+                        handoff: Boolean(existing.rootSessionID && existing.rootSessionID !== sessionID),
+                      })
+                    } else {
+                      const created = yield* workflow.create({
+                        changeName: safeName,
+                        level: assessed.level,
+                      })
+                      yield* workflow.bind({
+                        changeName: created.changeName,
+                        sessionID,
+                        expectedRevision: created.revision,
+                        handoff: false,
+                      })
+                    }
+                    return yield* workflow.capsule(sessionID)
+                  }).pipe(Effect.catch(() => Effect.succeed(undefined)))
+                }
                 if (capsule) {
                   system.push(
                     [

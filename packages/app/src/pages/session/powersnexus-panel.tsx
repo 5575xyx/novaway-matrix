@@ -124,19 +124,8 @@ export function PowersNexusPanel() {
       onOpenChange={(open) => {
         setShown(open)
         pn.setPanelOpen(open)
-        if (open) {
-          void (async () => {
-            await pn.refreshAll()
-            const id = sessionID()
-            if (id && !pn.store.snapshot) {
-              try {
-                await pn.ensureBound({ sessionID: id, title: sessionTitle() })
-              } catch {
-                // 用户可点按钮重试
-              }
-            }
-          })()
-        }
+        // 仅刷新状态；不在打开面板时创建 Change（等级需等用户发任务后再评估）
+        if (open) void pn.refreshAll()
       }}
       triggerAs={IconButton}
       triggerProps={{
