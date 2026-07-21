@@ -4,6 +4,8 @@
 目标仓库：`https://gitee.com/nova-way/powersnexus`  
 发布脚本：`packages/desktop/scripts/publish-powersnexus-gitee-release.mjs`
 
+> **完整日常 SOP / stable 策略切换**：见 `docs/powersnexus-update-and-stable-ops-guide.md`。
+
 ## 1. 发布结构
 
 Gitee Release 没有可直接作为签名 Manifest 使用的“latest 附件固定地址”，因此采用两个 Release：

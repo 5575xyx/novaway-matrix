@@ -4,6 +4,8 @@
 适用仓库：`E:\AImoney\NovaWay-Matrix\novaway-coder`  
 适用版本：PowersNexus `6.1.0`、NovaWay Coder `1.3.x`
 
+> **日常更新与 stable 操作总手册**：`docs/powersnexus-update-and-stable-ops-guide.md`。
+
 > 已确定使用 **Gitee Release**。实际发布请优先按照 `docs/powersnexus-gitee-release-runbook.md` 操作；本文保留平台通用设计和验收要求。
 
 ## 1. 教程目标
