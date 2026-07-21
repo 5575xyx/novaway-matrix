@@ -103,3 +103,22 @@ powershell -NoProfile -ExecutionPolicy Bypass -File packages\desktop\scripts\unr
 - 上传 `.codex/powersnexus-kpi/**` 为 artifact（14 天）
 
 > 若默认分支不是 Actions 触发分支，请在仓库 Settings → Actions 中确认 schedule 生效分支。
+
+## 当前本机状态（2026-07-21）
+
+- 计划任务：`NovaWay-PowersNexus-KPI-Nightly` 已启用，每日 02:15
+- 注册：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File packages\desktop\scripts\register-kpi-nightly-task.ps1 -Force
+```
+
+- 试跑：
+
+```powershell
+schtasks /Run /TN "NovaWay-PowersNexus-KPI-Nightly"
+```
+
+- 2026-07-21：完整探针 `day_pass=true`
+- 7 日汇总仍因历史缺测日 `ready_for_release_proxy=false`
+

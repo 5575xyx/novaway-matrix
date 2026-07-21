@@ -49,6 +49,18 @@
 - M09 回滚逻辑：PASS
 
 计数：PASS=7 FAIL=0 SKIP=2 BLOCKED=0
+
+## 3.3 KPI 夜间定时与当日探针
+
+生成时间：2026-07-21
+
+1. Windows 计划任务已重新注册：`NovaWay-PowersNexus-KPI-Nightly`
+2. 调度：每天本地时间 02:15；下次运行 2026-07-22 02:15
+3. 包装器：`packages/desktop/scripts/run-kpi-nightly-task.ps1`（完整探针，非 summary-only）
+4. 2026-07-21 完整探针：`day_pass=true`，7/7 PASS（含 P04 sequential）
+5. 近 7 日仍有缺测日（15-18、20），`ready_for_release_proxy=false`
+6. 后续保持机器在 02:15 可登录运行，连续有数据日自然累积即可
+
 ## 4. 仍未完成
 
 1. 连续 7 天跑满
