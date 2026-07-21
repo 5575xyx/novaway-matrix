@@ -2,6 +2,10 @@
 
 生成时间：2026-07-20
 
+> 生产对象存储、CI Secret、上传顺序、远程验签、三平台灰度和回滚的完整步骤见：`docs/powersnexus-production-release-tutorial.md`。
+> 已选择 Gitee Release，实际上传步骤见：`docs/powersnexus-gitee-release-runbook.md`。
+
+
 ## 密钥位置
 
 | 物品 | 位置 | 进 Git？ |

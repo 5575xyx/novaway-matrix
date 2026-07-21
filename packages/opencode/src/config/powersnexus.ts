@@ -25,6 +25,13 @@ export const Info = Schema.Struct({
 
 export type Info = Schema.Schema.Type<typeof Info>
 
+export function parseReleaseList(value?: string | null) {
+  return (value ?? "")
+    .split(/[,;\s]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
 const PLACEHOLDER_MARKERS = [
   "gitee-release-endpoint",
   "novaway-mirror",

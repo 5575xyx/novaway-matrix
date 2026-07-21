@@ -553,22 +553,21 @@ export const make = Effect.fn("PowersNexus.Runner.make")(function* () {
         return { run, steps: yield* repository.listSteps(run.id), files: run.evidence_files }
       }),
     cancel: (runID: string) =>
-      jobs.cancel(runID).pipe(
-        Effect.tap((job) =>
-          job?.status === "cancelled"
-            ? Effect.all([
-                stopServices(runID),
-                Effect.sync(() => disposeRunJob(runID)),
-                repository.cancelRunningSteps(runID),
-                repository.updateRun(runID, {
-                  status: "cancelled",
-                  error_code: "RUN_CANCELLED",
-                  time_ended: Date.now(),
-                }),
-              ])
-            : Effect.void,
-        ),
-      ),
+      Effect.gen(function* () {
+        yield* stopServices(runID)
+        const job = yield* jobs.cancel(runID)
+        if (job?.status !== "cancelled") return job
+        yield* Effect.all([
+          Effect.sync(() => disposeRunJob(runID)),
+          repository.cancelRunningSteps(runID),
+          repository.updateRun(runID, {
+            status: "cancelled",
+            error_code: "RUN_CANCELLED",
+            time_ended: Date.now(),
+          }),
+        ])
+        return job
+      }),
     retry: (runID: string, finalize?: Finalize) =>
       Effect.gen(function* () {
         const previous = yield* repository.getRun(runID)

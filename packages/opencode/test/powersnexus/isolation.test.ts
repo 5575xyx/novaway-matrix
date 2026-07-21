@@ -155,6 +155,8 @@ test("隔离子进程环境在受限 Token 可用时标记 restricted", () => {
 
 test("CreateProcessAsUser 受限路径可启动命令且 restricted=true", async () => {
   if (process.platform !== "win32" || !isRestrictedTokenAvailable()) return
+  const previous = process.env.POWERSNEXUS_RESTRICTED_SPAWN
+  process.env.POWERSNEXUS_RESTRICTED_SPAWN = "1"
   const { Effect } = await import("effect")
   const job = createRunJob(`asuser-${Date.now()}`)
   try {
@@ -172,5 +174,7 @@ test("CreateProcessAsUser 受限路径可启动命令且 restricted=true", async
     expect(result.stdout.toString("utf8")).toContain("asuser-ok")
   } finally {
     disposeRunJob(job.id)
+    if (previous === undefined) delete process.env.POWERSNEXUS_RESTRICTED_SPAWN
+    else process.env.POWERSNEXUS_RESTRICTED_SPAWN = previous
   }
 })

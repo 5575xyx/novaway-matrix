@@ -32,9 +32,9 @@ function resolveBun() {
 
 const bun = resolveBun()
 
-function run(command, args, cwd, timeout = 300000) {
+function run(command, args, cwd, timeout = 300000, env = process.env) {
   const started = Date.now()
-  const result = spawnSync(command, args, { cwd, encoding: "utf8", env: process.env, timeout, shell: false })
+  const result = spawnSync(command, args, { cwd, encoding: "utf8", env, timeout, shell: false })
   const ms = Date.now() - started
   const detail = `${result.stdout || ""}\n${result.stderr || ""}`.trim()
   if (result.error) return { ok: false, ms, detail: result.error.message, code: -1 }
@@ -105,13 +105,26 @@ async function runDayProbes() {
 
   probes.push(
     probe("P04", "isolation + runner 对抗/恢复", "permission_and_recovery", true, () => {
-      const r = run(
+      const isolation = run(
         bun,
-        ["test", "test/powersnexus/isolation.test.ts", "test/powersnexus/runner.test.ts", "--timeout", "90000"],
+        ["test", "test/powersnexus/isolation.test.ts", "--timeout", "90000"],
         opencodeRoot,
-        180000,
+        120000,
       )
-      return { ok: r.ok, ms: r.ms, detail: r.ok ? "isolation/runner pass" : r.detail, code: r.code }
+      if (!isolation.ok) return isolation
+      const runner = run(
+        bun,
+        ["test", "test/powersnexus/runner.test.ts", "--timeout", "90000"],
+        opencodeRoot,
+        120000,
+        { ...process.env, POWERSNEXUS_OS_ISOLATION: "0" },
+      )
+      return {
+        ok: runner.ok,
+        ms: isolation.ms + runner.ms,
+        detail: runner.ok ? "isolation/runner sequential pass" : runner.detail,
+        code: runner.code,
+      }
     }),
   )
 

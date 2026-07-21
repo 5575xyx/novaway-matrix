@@ -368,6 +368,12 @@ const main = Effect.gen(function* () {
     process.env.DBX_NODE_PATH = app.isPackaged ? bundledNode : "node"
     process.env.POWERSNEXUS_FIRST_PARTY = "1"
     process.env.POWERSNEXUS_UPDATE_POLICY = process.env.POWERSNEXUS_UPDATE_POLICY ?? "bundled"
+    process.env.POWERSNEXUS_RELEASE_MANIFEST_URLS =
+      process.env.POWERSNEXUS_RELEASE_MANIFEST_URLS ??
+      "https://gitee.com/nova-way/powersnexus/releases/download/powersnexus-stable/manifest.json"
+    process.env.POWERSNEXUS_RELEASE_ALLOWED_HOSTS = process.env.POWERSNEXUS_RELEASE_ALLOWED_HOSTS ?? "gitee.com,foruda.gitee.com"
+    process.env.POWERSNEXUS_RELEASE_KEY_ID =
+      process.env.POWERSNEXUS_RELEASE_KEY_ID ?? "powersnexus-release-2026-01"
     process.env.POWERSNEXUS_NOVAWAY_VERSION = app.getVersion()
     process.env.POWERSNEXUS_BUNDLED_ROOT = app.isPackaged
       ? join(process.resourcesPath, "powersnexus")

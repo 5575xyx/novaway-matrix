@@ -10,6 +10,7 @@ import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/unstable/
 import { loadBundled } from "./bundled"
 import {
   assertReleaseUrlsReady,
+  parseReleaseList,
   resolveUpdatePolicy,
   type StableGateReport,
 } from "@/config/powersnexus"
@@ -121,8 +122,10 @@ export const layer = Layer.effect(
         novaWayVersion,
       }).pipe(Effect.provideService(FileSystem.FileSystem, fs), Effect.provideService(AppProcess.Service, appProcess))
       const info = yield* config.get()
-      const manifestUrls = info.powersnexus?.releaseManifestUrls ?? []
-      const allowedHosts = info.powersnexus?.releaseAllowedHosts ?? []
+      const manifestUrls =
+        info.powersnexus?.releaseManifestUrls ?? parseReleaseList(process.env.POWERSNEXUS_RELEASE_MANIFEST_URLS)
+      const allowedHosts =
+        info.powersnexus?.releaseAllowedHosts ?? parseReleaseList(process.env.POWERSNEXUS_RELEASE_ALLOWED_HOSTS)
       const configuredPolicy = info.powersnexus?.updatePolicy ?? process.env.POWERSNEXUS_UPDATE_POLICY ?? "bundled"
       const resolved = resolveUpdatePolicy({
         policy: configuredPolicy,

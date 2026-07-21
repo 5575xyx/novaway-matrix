@@ -7,7 +7,7 @@
  *   bun packages/desktop/scripts/run-cross-platform-e2e-matrix.mjs --json
  *   bun packages/desktop/scripts/run-cross-platform-e2e-matrix.mjs --strict-all-platforms
  */
-import { existsSync, mkdirSync, writeFileSync, readdirSync } from "node:fs"
+import { existsSync, mkdirSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { spawnSync } from "node:child_process"
@@ -67,20 +67,6 @@ function blocked(detail) {
   return { status: "BLOCKED", detail }
 }
 
-const hasWinUnpacked = existsSync(path.join(desktopRoot, "dist/win-unpacked/resources/powersnexus"))
-const hasMacApp = existsSync(path.join(desktopRoot, "dist/mac")) || existsSync(path.join(desktopRoot, "dist/mac-arm64"))
-const hasLinuxApp = (() => {
-  if (existsSync(path.join(desktopRoot, "dist/linux-unpacked"))) return true
-  const dist = path.join(desktopRoot, "dist")
-  if (!existsSync(dist)) return false
-  try {
-    return readdirSync(dist).some(
-      (f) => /\.(AppImage|deb|rpm)$/i.test(f) || f.toLowerCase().includes("linux"),
-    )
-  } catch {
-    return false
-  }
-})()
 
 /** @type {MatrixRow[]} */
 const rows = [
@@ -142,14 +128,23 @@ const rows = [
     platforms: ["win32", "darwin", "linux"],
     requiredOn: ["win32", "darwin", "linux"],
     run: () => {
-      const r = runCmd(
+      const isolation = runCmd(
         bun,
-        ["test", "test/powersnexus/isolation.test.ts", "test/powersnexus/runner.test.ts", "--timeout", "90000"],
+        ["test", "test/powersnexus/isolation.test.ts", "--timeout", "90000"],
         opencodeRoot,
         process.env,
-        180000,
+        120000,
       )
-      return r.ok ? pass("isolation/runner 通过", r.ms) : fail(r.detail, r.ms)
+      if (!isolation.ok) return fail(isolation.detail, isolation.ms)
+      const runner = runCmd(
+        bun,
+        ["test", "test/powersnexus/runner.test.ts", "--timeout", "90000"],
+        opencodeRoot,
+        { ...process.env, POWERSNEXUS_OS_ISOLATION: "0" },
+        120000,
+      )
+      const ms = isolation.ms + runner.ms
+      return runner.ok ? pass("isolation/runner 顺序执行通过", ms) : fail(runner.detail, ms)
     },
   },
   {
@@ -208,11 +203,22 @@ const rows = [
   },
   {
     id: "M08",
-    title: "真实 CDN 在线升级 E2E",
+    title: "真实 stable 在线升级 E2E",
     platforms: ["win32", "darwin", "linux"],
     requiredOn: [],
-    run: () =>
-      blocked("需 stable 生产门禁 ready=true 与真实签名端点；当前默认 bundled 正确阻塞"),
+    run: () => {
+      if (process.env.POWERSNEXUS_UPDATE_POLICY !== "stable") {
+        return blocked("需显式设置 stable 策略；默认 bundled 正确阻塞")
+      }
+      const r = runCmd(
+        bun,
+        [path.join(opencodeRoot, "script/powersnexus-stable-online.ts")],
+        opencodeRoot,
+        process.env,
+        180000,
+      )
+      return r.ok ? pass("真实 stable check/install/activate/rollback 通过", r.ms) : fail(r.detail, r.ms)
+    },
   },
   {
     id: "M09",

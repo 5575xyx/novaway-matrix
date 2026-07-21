@@ -55,6 +55,12 @@ if (!mainText.includes('POWERSNEXUS_UPDATE_POLICY = process.env.POWERSNEXUS_UPDA
 } else ok("桌面端默认 bundled 策略")
 if (!mainText.includes("POWERSNEXUS_FIRST_PARTY")) fail("桌面端未设置 FIRST_PARTY")
 else ok("桌面端设置 FIRST_PARTY")
+if (!mainText.includes("https://gitee.com/nova-way/powersnexus/releases/download/powersnexus-stable/manifest.json")) {
+  fail("桌面端未内置 Gitee stable Manifest 地址")
+} else ok("桌面端内置 Gitee stable Manifest 地址")
+if (!mainText.includes('POWERSNEXUS_RELEASE_ALLOWED_HOSTS ?? "gitee.com,foruda.gitee.com"')) {
+  fail("桌面端未内置 Gitee 发布域名白名单")
+} else ok("桌面端内置 Gitee 发布域名白名单")
 
 
 

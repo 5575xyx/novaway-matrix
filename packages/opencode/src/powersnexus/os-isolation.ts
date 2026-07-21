@@ -1,5 +1,5 @@
 import { Effect, Schema } from "effect"
-import { spawn, type ChildProcess } from "node:child_process"
+import { spawn, spawnSync, type ChildProcess } from "node:child_process"
 import { readFileSync, unlinkSync, existsSync, mkdirSync } from "node:fs"
 import path from "node:path"
 import { randomUUID } from "node:crypto"
@@ -140,6 +140,27 @@ export function disposeRunJob(runID: string) {
   jobs.delete(runID)
 }
 
+function killProcessTree(pid: number) {
+  try {
+    process.kill(pid, "SIGKILL")
+  } catch {
+    // 进程可能已经结束
+  }
+  if (process.platform !== "win32") {
+    try {
+      process.kill(-pid, "SIGKILL")
+    } catch {
+      // 进程组可能不存在
+    }
+    return
+  }
+  try {
+    spawnSync("taskkill", ["/pid", String(pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" })
+  } catch {
+    // direct kill 已执行，taskkill 仅用于清理后代
+  }
+}
+
 function createLogicalJob(runID: string): RunJob {
   const pids = new Set<number>()
   let disposed = false
@@ -151,21 +172,7 @@ function createLogicalJob(runID: string): RunJob {
       if (!disposed && Number.isFinite(pid) && pid > 0) pids.add(pid)
     },
     terminate() {
-      for (const pid of pids) {
-        try {
-          if (process.platform === "win32") {
-            spawn("taskkill", ["/pid", String(pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" })
-          } else {
-            process.kill(-pid, "SIGKILL")
-          }
-        } catch {
-          try {
-            process.kill(pid, "SIGKILL")
-          } catch {
-            // ignore
-          }
-        }
-      }
+      for (const pid of pids) killProcessTree(pid)
       pids.clear()
     },
     run(argv, options) {
@@ -268,9 +275,11 @@ function createWin32Job(runID: string): RunJob {
   const assignAccess = PROCESS_SET_QUOTA | PROCESS_TERMINATE | PROCESS_SUSPEND_RESUME | 0x0400 // SYNCHRONIZE-ish
   let disposed = false
   const assigned = new Set<number>()
+  const tracked = new Set<number>()
 
   const assign = (pid: number) => {
-    if (disposed || !Number.isFinite(pid) || pid <= 0 || assigned.has(pid)) return
+    if (disposed || !Number.isFinite(pid) || pid <= 0 || tracked.has(pid)) return
+    tracked.add(pid)
     const handle = api.OpenProcess(PROCESS_ALL_ACCESS, 0, pid) || api.OpenProcess(assignAccess, 0, pid)
     if (!handle) return
     try {
@@ -288,13 +297,25 @@ function createWin32Job(runID: string): RunJob {
     terminate() {
       if (disposed) return
       api.TerminateJobObject(job, 1)
+      for (const pid of tracked) killProcessTree(pid)
       assigned.clear()
+      tracked.clear()
     },
     run(argv, options) {
       return Effect.promise(() =>
-        runTrackedSmart(argv, options, (pid) => {
-          assign(pid)
-        }),
+        runTrackedSmart(
+          argv,
+          options,
+          (pid) => {
+            assign(pid)
+          },
+          () => {
+            api.TerminateJobObject(job, 1)
+            for (const pid of tracked) killProcessTree(pid)
+            assigned.clear()
+            tracked.clear()
+          },
+        ),
       )
     },
     dispose() {
@@ -305,8 +326,10 @@ function createWin32Job(runID: string): RunJob {
       } catch {
         // ignore
       }
+      for (const pid of tracked) killProcessTree(pid)
       api.CloseHandle(job)
       assigned.clear()
+      tracked.clear()
     },
   }
 }
@@ -345,13 +368,15 @@ function buildUnicodeEnvBlock(env: NodeJS.ProcessEnv): Uint16Array {
 }
 
 /** CreateProcessAsUser + Safer Token；stdout/stderr 落到 TEMP 文件。失败返回 null。 */
-function runWithRestrictedToken(
+async function runWithRestrictedToken(
   argv: string[],
   options: { cwd: string; timeoutMs: number; env?: NodeJS.ProcessEnv },
   onSpawn: (pid: number) => void,
-): IsolatedRunResult | null {
+  onTimeout?: () => void,
+): Promise<IsolatedRunResult | null> {
   if (process.platform !== "win32") return null
-  if (process.env.POWERSNEXUS_RESTRICTED_SPAWN === "0") return null
+  // 默认关闭：受限 Token 下复杂 node -e/文件写入脚本在 Windows 上不可靠；仅显式 opt-in
+  if (process.env.POWERSNEXUS_RESTRICTED_SPAWN !== "1") return null
   const token = createRestrictedTokenHandle()
   if (!token) return null
   const k32 = getWin32Api()
@@ -461,33 +486,77 @@ function runWithRestrictedToken(
     // resume after job assignment via onSpawn
     create.ResumeThread(hThread)
 
-    const wait = create.WaitForSingleObject(hProcess, Math.max(1, options.timeoutMs))
-    const WAIT_TIMEOUT = 258
-    let timedOut = wait === WAIT_TIMEOUT
-    if (timedOut) {
-      try {
-        spawn("taskkill", ["/pid", String(pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" })
-      } catch {
-        // ignore
+    // 短轮询等待，避免长时间阻塞事件循环导致 cancel/terminate 无法介入
+    return await new Promise((resolve) => {
+      const WAIT_OBJECT_0 = 0
+      const WAIT_TIMEOUT = 258
+      const deadline = Date.now() + Math.max(1, options.timeoutMs)
+      let settled = false
+      const finish = (timedOut: boolean) => {
+        if (settled) return
+        settled = true
+        try {
+          if (timedOut) {
+            try {
+              create.TerminateProcess(hProcess, 1)
+              onTimeout?.()
+              killProcessTree(pid)
+            } catch {
+              // ignore
+            }
+            create.WaitForSingleObject(hProcess, 5000)
+          }
+          const codeBuf = new Uint32Array(1)
+          create.GetExitCodeProcess(hProcess, ptr(codeBuf))
+          const exitCode = codeBuf[0] >>> 0
+          k32.CloseHandle(hProcess)
+          if (hThread) k32.CloseHandle(hThread)
+          k32.CloseHandle(token)
+          const stdout = existsSync(stdoutPath) ? readFileSync(stdoutPath) : Buffer.alloc(0)
+          const stderr = existsSync(stderrPath) ? readFileSync(stderrPath) : Buffer.alloc(0)
+          cleanupFiles(stdoutPath, stderrPath)
+          // 进程已启动后不再回退到普通 spawn，避免副作用步骤被重放
+          resolve({
+            exitCode: isCrashExitCode(exitCode) ? exitCode || 1 : exitCode,
+            stdout,
+            stderr,
+            timedOut,
+            restricted: true,
+          })
+        } catch {
+          try {
+            k32.CloseHandle(hProcess)
+            if (hThread) k32.CloseHandle(hThread)
+            k32.CloseHandle(token)
+          } catch {
+            // ignore
+          }
+          cleanupFiles(stdoutPath, stderrPath)
+          resolve(null)
+        }
       }
-      create.WaitForSingleObject(hProcess, 5000)
-    }
-    const codeBuf = new Uint32Array(1)
-    create.GetExitCodeProcess(hProcess, ptr(codeBuf))
-    const exitCode = codeBuf[0] >>> 0
-    k32.CloseHandle(hProcess)
-    if (hThread) k32.CloseHandle(hThread)
-    k32.CloseHandle(token)
-
-    if (isCrashExitCode(exitCode)) {
-      cleanupFiles(stdoutPath, stderrPath)
-      return null // caller falls back
-    }
-
-    const stdout = existsSync(stdoutPath) ? readFileSync(stdoutPath) : Buffer.alloc(0)
-    const stderr = existsSync(stderrPath) ? readFileSync(stderrPath) : Buffer.alloc(0)
-    cleanupFiles(stdoutPath, stderrPath)
-    return { exitCode, stdout, stderr, timedOut, restricted: true }
+      const poll = () => {
+        if (settled) return
+        const remaining = deadline - Date.now()
+        if (remaining <= 0) {
+          finish(true)
+          return
+        }
+        const slice = Math.max(1, Math.min(50, remaining))
+        const wait = create.WaitForSingleObject(hProcess, slice)
+        if (wait === WAIT_OBJECT_0) {
+          finish(false)
+          return
+        }
+        if (wait === WAIT_TIMEOUT) {
+          setImmediate(poll)
+          return
+        }
+        // 其它等待结果按失败结束
+        finish(false)
+      }
+      setImmediate(poll)
+    })
   } catch {
     k32.CloseHandle(token)
     cleanupFiles(stdoutPath, stderrPath)
@@ -529,6 +598,7 @@ type CreateProcessApi = {
   ResumeThread: (thread: number) => number
   WaitForSingleObject: (handle: number, ms: number) => number
   GetExitCodeProcess: (handle: number, codeOut: any) => number
+  TerminateProcess: (handle: number, exitCode: number) => number
 }
 
 let createProcessApi: CreateProcessApi | null | undefined
@@ -546,6 +616,7 @@ function getCreateProcessApi(): CreateProcessApi | null {
       ResumeThread: { args: ["ptr"], returns: "u32" },
       WaitForSingleObject: { args: ["ptr", "u32"], returns: "u32" },
       GetExitCodeProcess: { args: ["ptr", "ptr"], returns: "bool" },
+      TerminateProcess: { args: ["ptr", "u32"], returns: "bool" },
     })
     const adv = dlopen("advapi32.dll", {
       CreateProcessAsUserW: {
@@ -559,6 +630,7 @@ function getCreateProcessApi(): CreateProcessApi | null {
       ResumeThread: (thread) => Number(kernel.symbols.ResumeThread(thread)),
       WaitForSingleObject: (handle, ms) => Number(kernel.symbols.WaitForSingleObject(handle, ms)),
       GetExitCodeProcess: (handle, codeOut) => (kernel.symbols.GetExitCodeProcess(handle, codeOut) ? 1 : 0),
+      TerminateProcess: (handle, exitCode) => (kernel.symbols.TerminateProcess(handle, exitCode) ? 1 : 0),
     }
     return createProcessApi
   } catch {
@@ -567,31 +639,28 @@ function getCreateProcessApi(): CreateProcessApi | null {
   }
 }
 
-function runTrackedSmart(
+async function runTrackedSmart(
   argv: string[],
   options: { cwd: string; timeoutMs: number; env?: NodeJS.ProcessEnv },
   onSpawn: (pid: number) => void,
+  onTimeout?: () => void,
 ): Promise<IsolatedRunResult> {
-  return new Promise((resolve) => {
-    if (isRestrictedTokenAvailable()) {
-      try {
-        const restricted = runWithRestrictedToken(argv, options, onSpawn)
-        if (restricted) {
-          resolve(restricted)
-          return
-        }
-      } catch {
-        // fall through
-      }
+  if (isRestrictedTokenAvailable() && process.env.POWERSNEXUS_RESTRICTED_SPAWN === "1") {
+    try {
+      const restricted = await runWithRestrictedToken(argv, options, onSpawn, onTimeout)
+      if (restricted) return restricted
+    } catch {
+      // fall through to unrestricted spawn only when restricted start failed
     }
-    void runTracked(argv, options, onSpawn).then(resolve)
-  })
+  }
+  return runTracked(argv, options, onSpawn, onTimeout)
 }
 
 function runTracked(
   argv: string[],
   options: { cwd: string; timeoutMs: number; env?: NodeJS.ProcessEnv },
   onSpawn: (pid: number) => void,
+  onTimeout?: () => void,
 ): Promise<IsolatedRunResult> {
   return new Promise((resolve) => {
     if (argv.length === 0) {
@@ -612,11 +681,9 @@ function runTracked(
     const timer = setTimeout(() => {
       timedOut = true
       try {
-        if (process.platform === "win32" && child.pid) {
-          spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" })
-        } else {
-          child.kill("SIGKILL")
-        }
+        child.kill("SIGKILL")
+        onTimeout?.()
+        if (child.pid) killProcessTree(child.pid)
       } catch {
         // ignore
       }

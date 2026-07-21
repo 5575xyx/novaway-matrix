@@ -5,6 +5,7 @@ import os from "node:os"
 import {
   assertReleaseUrlsReady,
   evaluateStableProductionGate,
+  parseReleaseList,
   resolveUpdatePolicy,
 } from "../../src/config/powersnexus"
 
@@ -119,4 +120,41 @@ test("resolveUpdatePolicy：无 URL 的 stable 降级 bundled", () => {
   const resolved = resolveUpdatePolicy({ policy: "stable", releaseManifestUrls: [] })
   expect(resolved.policy).toBe("bundled")
   expect(resolved.degraded).toBe(true)
+})
+
+test("解析桌面环境中的Gitee发布源", () => {
+  expect(
+    parseReleaseList(
+      "https://gitee.com/nova-way/powersnexus/releases/download/powersnexus-stable/manifest.json; gitee.com,foruda.gitee.com",
+    ),
+  ).toEqual([
+    "https://gitee.com/nova-way/powersnexus/releases/download/powersnexus-stable/manifest.json",
+    "gitee.com",
+    "foruda.gitee.com",
+  ])
+})
+
+test("生产门禁接受Gitee入口和附件重定向域名", () => {
+  const dir = path.join(os.tmpdir(), `pn-gitee-gate-${Date.now()}`)
+  mkdirSync(dir, { recursive: true })
+  const keyPath = path.join(dir, "public.pem")
+  writeFileSync(
+    keyPath,
+    "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAK9rF0QHrHX1LWmkq0LUi36nwFJtjjUM8sOfH7WXvku4=\n-----END PUBLIC KEY-----\n",
+  )
+  try {
+    const report = evaluateStableProductionGate({
+      policy: "stable",
+      releaseManifestUrls: [
+        "https://gitee.com/nova-way/powersnexus/releases/download/powersnexus-stable/manifest.json",
+      ],
+      releaseAllowedHosts: ["gitee.com", "foruda.gitee.com"],
+      publicKeyPath: keyPath,
+      keyID: "powersnexus-release-2026-01",
+    })
+    expect(report.ready).toBe(true)
+    expect(report.blockers).toEqual([])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
