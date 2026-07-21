@@ -1458,6 +1458,7 @@ describe("session.compaction.process", () => {
             bindingID: "pnb_capsule",
             changeName: "capsule-change",
             phase: "implementing" as const,
+            level: "L2" as const,
             taskID: "TASK-301",
             revision: 301,
             artifactDigest: "a".repeat(64),
