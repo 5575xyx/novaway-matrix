@@ -37,12 +37,18 @@ export const FindSymbolQuery = Schema.Struct({
   query: Schema.String,
 })
 
+export const FileWritePayload = Schema.Struct({
+  path: Schema.String,
+  content: Schema.String,
+})
+
 export const FilePaths = {
   findText: "/find",
   findFile: "/find/file",
   findSymbol: "/find/symbol",
   list: "/file",
   content: "/file/content",
+  write: "/file/write",
   status: "/file/status",
 } as const
 
@@ -98,6 +104,16 @@ export const FileApi = HttpApi.make("file")
             identifier: "file.read",
             summary: "Read file",
             description: "Read the content of a specified file.",
+          }),
+        ),
+        HttpApiEndpoint.post("write", FilePaths.write, {
+          payload: FileWritePayload,
+          success: described(Schema.Boolean, "Write succeeded"),
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "file.write",
+            summary: "Write file",
+            description: "Write text content to a file in the project directory.",
           }),
         ),
         HttpApiEndpoint.get("status", FilePaths.status, {

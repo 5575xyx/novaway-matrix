@@ -7,9 +7,7 @@ import { useParams } from "@solidjs/router"
 import { useLanguage } from "@/context/language"
 import { decode64 } from "@/utils/base64"
 import { SettingsGeneral } from "./settings-general"
-import { SettingsEvolution } from "./settings-evolution"
-import { SettingsMemory } from "./settings-memory"
-import { SettingsPowersNexus } from "./settings-powersnexus"
+import { SettingsMemoryEvolution } from "./settings-memory-evolution"
 import { SettingsProviders } from "./settings-providers"
 import { SettingsModels } from "./settings-models"
 import { SettingsAgents, SettingsMcp, SettingsPlugins, SettingsRules, SettingsSkills } from "./settings-runtime"
@@ -20,8 +18,6 @@ const settingsTabs = [
   "models",
   "agents",
   "memory",
-  "evolution",
-  "powersnexus",
   "skills",
   "rules",
   "mcp",
@@ -130,14 +126,6 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
                   <Icon name="review" />
                   {language.t("settings.memory.title" as never)}
                 </Tabs.Trigger>
-                <Tabs.Trigger value="evolution">
-                  <Icon name="branch" />
-                  {language.t("settings.evolution.title" as never)}
-                </Tabs.Trigger>
-                <Tabs.Trigger value="powersnexus">
-                  <Icon name="checklist" />
-                  {language.t("settings.powersnexus.title" as never)}
-                </Tabs.Trigger>
                 <Tabs.Trigger value="providers">
                   <Icon name="providers" />
                   {language.t("settings.providers.title")}
@@ -183,13 +171,7 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
           <SettingsAgents />
         </Tabs.Content>
         <Tabs.Content value="memory" class="no-scrollbar">
-          <SettingsMemory />
-        </Tabs.Content>
-        <Tabs.Content value="evolution" class="no-scrollbar">
-          <SettingsEvolution />
-        </Tabs.Content>
-        <Tabs.Content value="powersnexus" class="no-scrollbar">
-          <SettingsPowersNexus directory={directory()} />
+          <SettingsMemoryEvolution />
         </Tabs.Content>
         <Tabs.Content value="skills" class="no-scrollbar">
           <SettingsSkills />

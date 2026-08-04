@@ -28,9 +28,10 @@ import {
   BrowserScreenshotTool,
   BrowserSnapshotTool,
 } from "./browser"
-import { PowersNexusBrowser } from "@/powersnexus/browser"
+import { BrowserService } from "@/browser/browser"
 import * as Tool from "./tool"
 import { Config } from "@/config/config"
+import { ConfigMemory } from "@/config/memory"
 import { ConfigProvider } from "@/config/provider"
 import { ProtocolRegistry } from "@opencode-ai/llm/protocols"
 import { type ToolContext as PluginToolContext, type ToolDefinition } from "@opencode-ai/plugin"
@@ -95,6 +96,8 @@ export interface Interface {
   readonly all: () => Effect.Effect<Tool.Def[]>
   readonly named: () => Effect.Effect<{ task: TaskDef; read: ReadDef }>
   readonly tools: (model: { providerID: ProviderID; modelID: ModelID; agent: Agent.Info }) => Effect.Effect<Tool.Def[]>
+  /** Rediscover custom tools from disk for the current instance. */
+  readonly reload: () => Effect.Effect<string[]>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/ToolRegistry") {}
@@ -125,7 +128,7 @@ export const layer: Layer.Layer<
   | Truncate.Service
   | RuntimeFlags.Service
   | Auth.Service
-  | PowersNexusBrowser.Service
+  | BrowserService.Service
 > = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -228,9 +231,21 @@ export const layer: Layer.Layer<
         }
 
         const dirs = yield* config.directories()
-        const matches = dirs.flatMap((dir) =>
-          Glob.scanSync("{tool,tools}/*.{js,ts}", { cwd: dir, absolute: true, dot: true, symlink: true }),
-        )
+        const roots = new Set<string>(dirs)
+        // Always include current project config roots so evolved tools are discoverable
+        // even if config.directories was cached before .novaway existed.
+        for (const base of [ctx.directory, ctx.worktree]) {
+          if (!base) continue
+          roots.add(path.join(base, ".novaway"))
+          roots.add(path.join(base, ".opencode"))
+        }
+        const matches = Array.from(roots).flatMap((dir) => {
+          try {
+            return Glob.scanSync("{tool,tools}/*.{js,ts}", { cwd: dir, absolute: true, dot: true, symlink: true })
+          } catch {
+            return [] as string[]
+          }
+        })
         if (matches.length) yield* config.waitForDependencies()
         for (const match of matches) {
           const namespace = path.basename(match, path.extname(match))
@@ -307,7 +322,7 @@ export const layer: Layer.Layer<
             tool.search,
             ...(flags.experimentalScout ? [tool.repo_clone, tool.repo_overview] : []),
             tool.skill,
-            ...(cfg.memory?.enabled === true ? [tool.memory] : []),
+            ...(ConfigMemory.resolve(cfg.memory).enabled ? [tool.memory] : []),
             tool.patch,
             ...(flags.experimentalLspTool ? [tool.lsp] : []),
             ...(flags.experimentalPlanMode && flags.client === "cli" ? [tool.plan] : []),
@@ -441,7 +456,13 @@ export const layer: Layer.Layer<
       return { task: s.task, read: s.read }
     })
 
-    return Service.of({ ids, all, named, tools })
+    const reload = Effect.fn("ToolRegistry.reload")(function* () {
+      yield* config.invalidate()
+      yield* InstanceState.invalidate(state)
+      return yield* ids()
+    })
+
+    return Service.of({ ids, all, named, tools, reload })
   }),
 )
 
@@ -471,7 +492,7 @@ export const defaultLayer: Layer.Layer<Service> = Layer.suspend(() =>
     )
     .pipe(
       Layer.provide(AppProcess.defaultLayer),
-      Layer.provide(PowersNexusBrowser.defaultLayer),
+      Layer.provide(BrowserService.defaultLayer),
       Layer.provide(RuntimeFlags.defaultLayer),
       Layer.provide(Auth.defaultLayer),
     ),

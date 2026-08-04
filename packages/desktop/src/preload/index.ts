@@ -81,12 +81,26 @@ const api: ElectronAPI = {
   },
   floatingWidgetReady: () => ipcRenderer.send("floating-widget-ready"),
   showFloatingWidget: () => ipcRenderer.invoke("show-floating-widget"),
+  setFloatingWidgetVisible: (visible: boolean) => ipcRenderer.invoke("set-floating-widget-visible", visible),
+  getFloatingWidgetVisible: () => ipcRenderer.invoke("get-floating-widget-visible"),
+  restoreFloatingWidget: () => ipcRenderer.invoke("restore-floating-widget"),
+  onFloatingModeChange: (cb) => {
+    const handler = (_: unknown, mode: string) => cb(mode as "full" | "minimal")
+    ipcRenderer.on("floating-mode-change", handler)
+    return () => ipcRenderer.removeListener("floating-mode-change", handler)
+  },
   onFloatingVisibilityChange: (cb) => {
     const handler = (_: unknown, visible: boolean) => cb(visible)
     ipcRenderer.on("floating-visibility-change", handler)
     return () => ipcRenderer.removeListener("floating-visibility-change", handler)
   },
+  onFloatingCursorActive: (cb) => {
+    const handler = (_: unknown, active: boolean) => cb(active)
+    ipcRenderer.on("floating-cursor-active", handler)
+    return () => ipcRenderer.removeListener("floating-cursor-active", handler)
+  },
   updateFloatingAgentState: (state) => ipcRenderer.invoke("update-floating-agent-state", state),
+  setFloatingMousePassthrough: (ignore) => ipcRenderer.send("set-floating-mouse-passthrough", ignore),
   beginFloatingWidgetDrag: (pointerX, pointerY) => ipcRenderer.send("begin-floating-widget-drag", pointerX, pointerY),
   moveFloatingWidget: (pointerX, pointerY) => ipcRenderer.send("move-floating-widget", pointerX, pointerY),
   saveFloatingWidgetBounds: () => ipcRenderer.invoke("save-floating-widget-bounds"),

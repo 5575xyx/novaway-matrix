@@ -57,12 +57,13 @@ import { shouldMarkBoundaryGesture, normalizeWheelDelta } from "@/pages/session/
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { useLanguage } from "@/context/language"
-import { useSessionKey } from "@/pages/session/session-layout"
+import { useSessionLayout } from "@/pages/session/session-layout"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { usePlatform } from "@/context/platform"
 import { useSettings } from "@/context/settings"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
+import { useFile } from "@/context/file"
 import { messageAgentColor } from "@/utils/agent"
 import { sessionTitle } from "@/utils/session-title"
 import { makeTimer } from "@solid-primitives/timer"
@@ -207,6 +208,12 @@ function TimelineDiffSummaryRow(props: { diffs: SummaryDiff[] }) {
   const expanded = () => state.expanded
   const overflow = createMemo(() => Math.max(0, props.diffs.length - maxFiles))
   const visible = createMemo(() => (showAll() ? props.diffs : props.diffs.slice(0, maxFiles)))
+  const changedLabel = createMemo(() =>
+    language.t(
+      props.diffs.length === 1 ? "ui.sessionTurn.diffs.changed.one" : "ui.sessionTurn.diffs.changed.other",
+      { count: String(props.diffs.length) },
+    ),
+  )
 
   return (
     <div
@@ -215,10 +222,7 @@ function TimelineDiffSummaryRow(props: { diffs: SummaryDiff[] }) {
       data-show-all={showAll() || undefined}
     >
       <div data-slot="session-turn-diffs-header">
-        <span data-slot="session-turn-diffs-label">
-          {props.diffs.length} {language.t("ui.sessionTurn.diffs.changed")}{" "}
-          {language.t(props.diffs.length === 1 ? "ui.common.file.one" : "ui.common.file.other")}
-        </span>
+        <span data-slot="session-turn-diffs-label">{changedLabel()}</span>
         <DiffChanges changes={props.diffs} />
         <Show when={overflow() > 0}>
           <span data-slot="session-turn-diffs-toggle" onClick={() => setState("showAll", !showAll())}>
@@ -285,7 +289,7 @@ function TimelineDiffView(props: { diff: SummaryDiff }) {
 
   return (
     <div data-slot="session-turn-diff-view" data-scrollable>
-      <Dynamic component={fileComponent} mode="diff" fileDiff={view.fileDiff} />
+      <Dynamic component={fileComponent} mode="diff" virtualize={false} fileDiff={view.fileDiff} />
     </div>
   )
 }
@@ -320,7 +324,8 @@ export function MessageTimeline(props: {
   const settings = useSettings()
   const dialog = useDialog()
   const language = useLanguage()
-  const { params, sessionKey } = useSessionKey()
+  const { params, sessionKey, tabs } = useSessionLayout()
+  const file = useFile()
   const platform = usePlatform()
 
   let virtualizer: VirtualizerHandle | undefined
@@ -945,6 +950,14 @@ export function MessageTimeline(props: {
   }
 
   const getMsgPart = (messageID: string, partID: string) => getMsgParts(messageID).find((part) => part.id === partID)
+  const openOutputFile = (path: string) => {
+    const normalized = file.normalize(path)
+    if (!normalized) return
+    void file.load(normalized)
+    const tab = file.tab(normalized)
+    void tabs().open(tab)
+    tabs().setActive(tab)
+  }
 
   const renderAssistantPartGroup = (row: Accessor<TimelineRowMap["AssistantPart"]>) => {
     if (untrack(row).group.type === "context") {
@@ -987,6 +1000,7 @@ export function MessageTimeline(props: {
                     settings.general.editToolPartsExpanded(),
                   )}
                   deferToolContent={false}
+                  onFileOpen={openOutputFile}
                 />
                 <Show when={officeArtifact(part())}>
                   {(artifact) => <OfficeArtifactActions artifact={artifact()} agent={message().agent} />}
@@ -1603,19 +1617,6 @@ export function MessageTimeline(props: {
               "pl-2 pr-3 md:pl-4 md:pr-3": true,
             }}
           >
-            <Show when={workingStatus() !== "hidden" && settings.general.showSessionProgressBar()}>
-              <div
-                data-component="session-progress"
-                data-state={workingStatus()}
-                aria-hidden="true"
-                style={{
-                  "--session-progress-color": tint() ?? "var(--icon-interactive-base)",
-                  "--session-progress-ms": `${bar.ms}ms`,
-                }}
-              >
-                <div data-component="session-progress-bar" />
-              </div>
-            </Show>
             <div class="h-12 w-full flex items-center justify-between gap-2">
               <div class="flex items-center gap-1 min-w-0 flex-1 pr-3">
                 <div class="flex items-center min-w-0 grow-1">

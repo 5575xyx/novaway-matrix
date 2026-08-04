@@ -35,7 +35,6 @@ import { ConfigModelID } from "./model-id"
 import { ConfigParse } from "./parse"
 import { ConfigPaths } from "./paths"
 import { ConfigPermission } from "./permission"
-import { ConfigPowersNexus } from "./powersnexus"
 import { ConfigPlugin } from "./plugin"
 import { ConfigProvider } from "./provider"
 import { ConfigReference } from "./reference"
@@ -57,7 +56,8 @@ export const FALLBACK_GLOBAL_PLUGINS: Record<string, string[]> = {
 }
 
 function defaultGlobalPlugins() {
-  return process.env.POWERSNEXUS_FIRST_PARTY === "1" ? [] : DEFAULT_GLOBAL_PLUGINS
+  // PowersNexus 始终作为默认内置插件从 Gitee 种子安装（不再走第一方独立工作流）
+  return DEFAULT_GLOBAL_PLUGINS
 }
 
 // Default MCP servers seeded into the global config the first time it's created.
@@ -268,9 +268,6 @@ export const Info = Schema.Struct({
   ).annotate({ description: "MCP (Model Context Protocol) server configurations" }),
   memory: Schema.optional(ConfigMemory.Info).annotate({
     description: "Persistent memory configuration",
-  }),
-  powersnexus: Schema.optional(ConfigPowersNexus.Info).annotate({
-    description: "PowersNexus 第一方工作流与独立更新配置",
   }),
   evolution: Schema.optional(ConfigEvolution.Info).annotate({
     description: "Self-evolution candidate review configuration",
@@ -911,6 +908,8 @@ export const layer = Layer.effect(
 
     const invalidate = Effect.fn("Config.invalidate")(function* () {
       yield* invalidateGlobal
+      // Global updates and test cleanup may run without InstanceRef, so clear every per-directory entry.
+      yield* InstanceState.invalidateAll(state)
     })
 
     const updateGlobal = Effect.fn("Config.updateGlobal")(function* (config: Info) {

@@ -1,6 +1,7 @@
 import { describe, expect } from "bun:test"
 import { Effect, Layer } from "effect"
 import type { Agent } from "../../src/agent/agent"
+import { InstanceRef } from "../../src/effect/instance-ref"
 import { NamedError } from "@opencode-ai/core/util/error"
 import { Skill } from "../../src/skill"
 import { Permission } from "../../src/permission"
@@ -50,6 +51,7 @@ const it = testEffect(
           all: () => Effect.succeed(skills),
           dirs: () => Effect.succeed([]),
           available: () => Effect.succeed(skills),
+          reload: () => Effect.succeed(skills),
         }),
       ),
     ),
@@ -75,5 +77,30 @@ describe("session.system", () => {
       expect(zeta).toBeGreaterThan(middle)
       expect(output).not.toContain("manual-skill")
     }),
+  )
+
+  it.effect("environment uses the resolved model and is stable across calls", () =>
+    Effect.provideService(
+      Effect.gen(function* () {
+        const prompt = yield* SystemPrompt.Service
+        const model = {
+          providerID: "anthropic",
+          api: { id: "claude-opus-4-8" },
+        } as any
+
+        const first = yield* prompt.environment(model)
+        const second = yield* prompt.environment(model)
+
+        expect(first).toEqual(second)
+        expect(first.join("\n")).toContain("You are powered by the model named claude-opus-4-8")
+        expect(first.join("\n")).toContain("The exact model ID is anthropic/claude-opus-4-8")
+      }),
+      InstanceRef,
+      {
+        directory: "/tmp/project",
+        worktree: "/tmp/project",
+        project: { vcs: "git", id: "project-id" },
+      } as any,
+    ),
   )
 })

@@ -2,7 +2,7 @@ import { ProviderAuth } from "@/provider/auth"
 import { Provider } from "@/provider/provider"
 import { ProviderID } from "@/provider/schema"
 import { Schema } from "effect"
-import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
+import { HttpApi, HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
 import { Authorization } from "../middleware/authorization"
 import { InstanceContextMiddleware } from "../middleware/instance-context"
 import { WorkspaceRoutingMiddleware, WorkspaceRoutingQuery } from "../middleware/workspace-routing"
@@ -30,6 +30,36 @@ export class ProviderAuthApiError extends Schema.ErrorClass<ProviderAuthApiError
   { httpApiStatus: 400 },
 ) {}
 
+export const ProviderModelDiscoveryPayload = Schema.Struct({
+  baseURL: Schema.String,
+  apiKey: Schema.String,
+  headers: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+}).annotate({ identifier: "ProviderModelDiscoveryPayload" })
+
+export const ProviderModelDiscoveryResult = Schema.Struct({
+  models: Schema.Array(
+    Schema.Struct({
+      id: Schema.String,
+      name: Schema.String,
+      inputModalities: Schema.optional(Schema.Array(Schema.String)),
+      outputModalities: Schema.optional(Schema.Array(Schema.String)),
+    }),
+  ),
+}).annotate({ identifier: "ProviderModelDiscoveryResult" })
+
+export class ProviderModelDiscoveryApiError extends Schema.ErrorClass<ProviderModelDiscoveryApiError>(
+  "ProviderModelDiscoveryError",
+)(
+  {
+    name: Schema.Literal("ProviderModelDiscoveryError"),
+    data: Schema.Struct({
+      status: Schema.optional(Schema.Number),
+      message: Schema.String,
+    }),
+  },
+  { httpApiStatus: 502 },
+) {}
+
 export const ProviderApi = HttpApi.make("provider")
   .add(
     HttpApiGroup.make("provider")
@@ -52,6 +82,18 @@ export const ProviderApi = HttpApi.make("provider")
             identifier: "provider.auth",
             summary: "Get provider auth methods",
             description: "Retrieve available authentication methods for all AI providers.",
+          }),
+        ),
+        HttpApiEndpoint.post("models", `${root}/models`, {
+          query: WorkspaceRoutingQuery,
+          payload: ProviderModelDiscoveryPayload,
+          success: described(ProviderModelDiscoveryResult, "Discovered provider models"),
+          error: ProviderModelDiscoveryApiError,
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "provider.models",
+            summary: "Discover provider models",
+            description: "Fetch an OpenAI-compatible model list from the local server to avoid browser CORS limits.",
           }),
         ),
         HttpApiEndpoint.post("authorize", `${root}/:providerID/oauth/authorize`, {

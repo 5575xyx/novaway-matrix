@@ -1,4 +1,4 @@
-import { Component, Show, createMemo, createResource, type JSX } from "solid-js"
+import { Component, Show, createMemo, createResource, createSignal, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Button } from "@opencode-ai/ui/button"
 import { Icon } from "@opencode-ai/ui/icon"
@@ -255,6 +255,37 @@ export const SettingsGeneral: Component = () => {
     triggerVariant: "settings" as const,
   })
 
+  const PetVisibilityToggle: Component = () => {
+    const [visible, setVisible] = createSignal(true)
+    const [loading, setLoading] = createSignal(true)
+
+    void (async () => {
+      try {
+        const result = await (
+          window.api as unknown as { getFloatingWidgetVisible: () => Promise<boolean> }
+        ).getFloatingWidgetVisible()
+        setVisible(result)
+      } catch {
+        setVisible(true)
+      } finally {
+        setLoading(false)
+      }
+    })()
+
+    const handleChange = (value: boolean) => {
+      setVisible(value)
+      void (
+        window.api as unknown as { setFloatingWidgetVisible: (v: boolean) => Promise<void> }
+      ).setFloatingWidgetVisible(value)
+    }
+
+    return (
+      <div data-action="settings-pet-visible">
+        <Switch checked={visible()} disabled={loading()} onChange={handleChange} />
+      </div>
+    )
+  }
+
   const GeneralSection = () => (
     <div class="flex flex-col gap-1">
       <SettingsList>
@@ -389,6 +420,13 @@ export const SettingsGeneral: Component = () => {
               onChange={(checked) => settings.permissions.setAutoApprove(checked)}
             />
           </div>
+        </SettingsRow>
+
+        <SettingsRow
+          title={language.t("settings.desktop.pet.title" as never)}
+          description={language.t("settings.desktop.pet.description" as never)}
+        >
+          <PetVisibilityToggle />
         </SettingsRow>
       </SettingsList>
     </div>

@@ -13,9 +13,6 @@ import { Effect, Layer } from "effect"
 import { Config } from "@/config/config"
 import { Service } from "./bootstrap-service"
 import { Reference } from "@/reference/reference"
-import { PowersNexusVersion } from "@/powersnexus/version-service"
-import { PowersNexusWorkflow } from "@/powersnexus/service"
-import { PowersNexusRunner } from "@/powersnexus/runner"
 
 export { Service } from "./bootstrap-service"
 export type { Interface } from "./bootstrap-service"
@@ -33,9 +30,6 @@ export const layer = Layer.effect(
     const lsp = yield* LSP.Service
     const plugin = yield* Plugin.Service
     const project = yield* Project.Service
-    const powersnexusVersion = yield* PowersNexusVersion.Service
-    const powersnexusWorkflow = yield* PowersNexusWorkflow.Service
-    const powersnexusRunner = yield* PowersNexusRunner.Service
     const reference = yield* Reference.Service
     const shareNext = yield* ShareNext.Service
     const snapshot = yield* Snapshot.Service
@@ -46,11 +40,6 @@ export const layer = Layer.effect(
       yield* Effect.logInfo("bootstrapping").pipe(Effect.annotateLogs("directory", ctx.directory))
       // everything depends on config so eager load it for nice traces
       yield* config.get()
-      if (process.env.POWERSNEXUS_FIRST_PARTY === "1") {
-        yield* powersnexusVersion.init().pipe(Effect.orDie)
-        yield* powersnexusRunner.recover().pipe(Effect.orDie)
-        yield* powersnexusWorkflow.init()
-      }
       // Plugin can mutate config so it has to be initialized before anything else.
       yield* plugin.init()
       // Each service self-manages its own slow work via Effect.forkScoped against
@@ -76,9 +65,6 @@ export const defaultLayer: Layer.Layer<Service> = layer.pipe(
     LSP.defaultLayer,
     Plugin.defaultLayer,
     Project.defaultLayer,
-    PowersNexusVersion.defaultLayer,
-    PowersNexusWorkflow.defaultLayer,
-    PowersNexusRunner.defaultLayer,
     Reference.defaultLayer,
     ShareNext.defaultLayer,
     Snapshot.defaultLayer,

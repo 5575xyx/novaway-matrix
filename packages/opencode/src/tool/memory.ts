@@ -5,7 +5,7 @@ import { Session } from "@/session/session"
 import * as Tool from "./tool"
 
 const Parameters = Schema.Struct({
-  action: Schema.Literals(["add", "read", "search", "replace", "remove"]),
+  action: Schema.Literals(["add", "read", "search", "replace", "remove", "relations"]),
   target: Schema.optional(MemorySchema.Target).annotate({
     description: "memory 保存项目长期事实；user 保存用户画像、偏好和工作方式。",
   }),
@@ -17,6 +17,12 @@ const Parameters = Schema.Struct({
   }),
   query: Schema.optional(Schema.String).annotate({
     description: "search 时使用的关键词。",
+  }),
+  entity: Schema.optional(Schema.String).annotate({
+    description: "relations 时查询的实体名，例如人物、组织、产品或主题。",
+  }),
+  relation: Schema.optional(Schema.String).annotate({
+    description: "relations 时可选的关系关键词，例如负责、客户、属于。",
   }),
   scope: Schema.optional(MemorySchema.Scope).annotate({
     description: "global 跨项目可用，project 仅当前项目可用，session 仅当前会话可用。",
@@ -31,6 +37,7 @@ export const MemoryTool = Tool.define(
     return {
       description: [
         "Persist and recall durable memory across sessions.",
+        "The prompt may only include a short memory INDEX (ids + summaries). When you need full text or more items, call this tool (search/read).",
         "Save only stable facts, user preferences, project conventions, and decisions that will help future work.",
         "Do not save transient task state, secrets, credentials, temporary errors, or facts likely to become stale soon.",
       ].join(" "),
@@ -80,6 +87,24 @@ export const MemoryTool = Tool.define(
                 id: params.id as MemorySchema.MemoryID | undefined,
                 action: "remove",
                 count: removed ? 1 : 0,
+              },
+            }
+          }
+
+          if (params.action === "relations") {
+            const relations = yield* memory.listRelations({
+              projectID: session.projectID,
+              entity: params.entity,
+              relation: params.relation,
+              limit: 20,
+            })
+            return {
+              title: "Memory relations",
+              output: JSON.stringify(relations, null, 2),
+              metadata: {
+                id: undefined as MemorySchema.MemoryID | undefined,
+                action: "relations",
+                count: relations.length,
               },
             }
           }

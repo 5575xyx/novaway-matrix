@@ -44,9 +44,7 @@
       "title": "完成 Phase 0 内置基线、更新器与 Bridge Client",
       "status": "completed",
       "priority": "P0",
-      "depends_on": [
-        "task-001"
-      ],
+      "depends_on": ["task-001"],
       "attempts": 0,
       "max_attempts": 3,
       "started_at_commit": "f069ed32af576c80365c7984efc97322b36e57ec",
@@ -73,9 +71,7 @@
       "title": "完成 Phase 1 Workflow Service、数据库、API 与只读 UI",
       "status": "completed",
       "priority": "P0",
-      "depends_on": [
-        "task-002"
-      ],
+      "depends_on": ["task-002"],
       "attempts": 0,
       "max_attempts": 3,
       "started_at_commit": "f069ed32af576c80365c7984efc97322b36e57ec",
@@ -102,9 +98,7 @@
       "title": "完成 Phase 2 Session、Todo、Task 协调与恢复",
       "status": "completed",
       "priority": "P1",
-      "depends_on": [
-        "task-003"
-      ],
+      "depends_on": ["task-003"],
       "attempts": 0,
       "max_attempts": 3,
       "started_at_commit": "f069ed32af576c80365c7984efc97322b36e57ec",
@@ -131,9 +125,7 @@
       "title": "完成 Phase 3 Runner、证据、自动修复与归档",
       "status": "completed",
       "priority": "P1",
-      "depends_on": [
-        "task-004"
-      ],
+      "depends_on": ["task-004"],
       "attempts": 0,
       "max_attempts": 3,
       "started_at_commit": "f069ed32af576c80365c7984efc97322b36e57ec",
@@ -160,9 +152,7 @@
       "title": "完成 Phase 4 Browser QA 与视觉交互验收",
       "status": "completed",
       "priority": "P1",
-      "depends_on": [
-        "task-005"
-      ],
+      "depends_on": ["task-005"],
       "attempts": 1,
       "max_attempts": 3,
       "started_at_commit": "f069ed32af576c80365c7984efc97322b36e57ec",
@@ -189,9 +179,7 @@
       "title": "完成 Phase 5 隔离、打包评测、迁移与发布验收",
       "status": "completed",
       "priority": "P1",
-      "depends_on": [
-        "task-006"
-      ],
+      "depends_on": ["task-006"],
       "attempts": 0,
       "max_attempts": 3,
       "started_at_commit": "f069ed32af576c80365c7984efc97322b36e57ec",
@@ -218,9 +206,7 @@
       "title": "执行完整本地验证并形成交付报告",
       "status": "completed",
       "priority": "P0",
-      "depends_on": [
-        "task-007"
-      ],
+      "depends_on": ["task-007"],
       "attempts": 1,
       "max_attempts": 3,
       "started_at_commit": "f069ed32af576c80365c7984efc97322b36e57ec",
@@ -247,9 +233,7 @@
       "title": "完成 React Todo 真实 Browser QA 发布门槛",
       "status": "completed",
       "priority": "P0",
-      "depends_on": [
-        "task-006"
-      ],
+      "depends_on": ["task-006"],
       "attempts": 0,
       "max_attempts": 3,
       "started_at_commit": "7c66bf599b2689f30bdb1ff8fc2aa46d700120f2",
@@ -276,9 +260,7 @@
       "title": "完成 PowersNexus 命令日志全链路秘密脱敏",
       "status": "completed",
       "priority": "P0",
-      "depends_on": [
-        "task-009"
-      ],
+      "depends_on": ["task-009"],
       "attempts": 0,
       "max_attempts": 3,
       "started_at_commit": "7c66bf599b2689f30bdb1ff8fc2aa46d700120f2",
@@ -305,9 +287,7 @@
       "title": "完成 Windows 安装包 PowersNexus 资源离线门禁",
       "status": "completed",
       "priority": "P0",
-      "depends_on": [
-        "task-010"
-      ],
+      "depends_on": ["task-010"],
       "attempts": 1,
       "max_attempts": 3,
       "started_at_commit": "c15b989",
@@ -334,9 +314,7 @@
       "title": "完成 FR-08 逻辑隔离权限边界与 Windows 断网冒烟",
       "status": "completed",
       "priority": "P0",
-      "depends_on": [
-        "task-011"
-      ],
+      "depends_on": ["task-011"],
       "attempts": 1,
       "max_attempts": 3,
       "started_at_commit": "39c8d40",
@@ -363,9 +341,7 @@
       "title": "完成本地签名 stable 发布闭环脚手架",
       "status": "completed",
       "priority": "P0",
-      "depends_on": [
-        "task-012"
-      ],
+      "depends_on": ["task-012"],
       "attempts": 1,
       "max_attempts": 3,
       "started_at_commit": "57f52a7",
@@ -392,9 +368,7 @@
       "title": "完成 Windows Job Object OS 级进程隔离原型",
       "status": "completed",
       "priority": "P0",
-      "depends_on": [
-        "task-013"
-      ],
+      "depends_on": ["task-013"],
       "attempts": 1,
       "max_attempts": 3,
       "started_at_commit": "babd8cf",
@@ -421,9 +395,7 @@
       "title": "完成 Worktree 写路径强制与 TEMP 沙箱",
       "status": "completed",
       "priority": "P0",
-      "depends_on": [
-        "task-014"
-      ],
+      "depends_on": ["task-014"],
       "attempts": 1,
       "max_attempts": 3,
       "started_at_commit": "6f76968",
@@ -450,9 +422,7 @@
       "title": "完成 Windows Safer 受限 Token 原型与沙箱能力面",
       "status": "completed",
       "priority": "P0",
-      "depends_on": [
-        "task-015"
-      ],
+      "depends_on": ["task-015"],
       "attempts": 1,
       "max_attempts": 3,
       "started_at_commit": "51adcf2",
@@ -479,9 +449,7 @@
       "title": "完成 CreateProcessAsUser 受限 Token 启进程",
       "status": "completed",
       "priority": "P0",
-      "depends_on": [
-        "task-016"
-      ],
+      "depends_on": ["task-016"],
       "attempts": 1,
       "max_attempts": 3,
       "started_at_commit": "d3018cf",
@@ -508,9 +476,7 @@
       "title": "完成 stable 生产启用门禁与自动检查",
       "status": "completed",
       "priority": "P0",
-      "depends_on": [
-        "task-017"
-      ],
+      "depends_on": ["task-017"],
       "attempts": 1,
       "max_attempts": 3,
       "started_at_commit": "b36e5c1",
@@ -537,9 +503,7 @@
       "title": "设置页展示 stable 生产门禁状态",
       "status": "completed",
       "priority": "P1",
-      "depends_on": [
-        "task-018"
-      ],
+      "depends_on": ["task-018"],
       "attempts": 1,
       "max_attempts": 3,
       "started_at_commit": "ba90b1f",
@@ -566,9 +530,7 @@
       "title": "跨平台升级 E2E 矩阵骨架",
       "status": "completed",
       "priority": "P0",
-      "depends_on": [
-        "task-019"
-      ],
+      "depends_on": ["task-019"],
       "attempts": 1,
       "max_attempts": 3,
       "started_at_commit": "3faec26",
@@ -595,9 +557,7 @@
       "title": "可移植离线包 doctor 冒烟（M06/M07）",
       "status": "completed",
       "priority": "P0",
-      "depends_on": [
-        "task-020"
-      ],
+      "depends_on": ["task-020"],
       "attempts": 1,
       "max_attempts": 3,
       "started_at_commit": "14c78e8",
@@ -624,9 +584,7 @@
       "title": "7 天 KPI 夜间基线骨架",
       "status": "completed",
       "priority": "P0",
-      "depends_on": [
-        "task-021"
-      ],
+      "depends_on": ["task-021"],
       "attempts": 1,
       "max_attempts": 3,
       "started_at_commit": "2f340f3",
@@ -653,9 +611,7 @@
       "title": "KPI 夜间定时：Windows 任务计划 + GH Actions cron",
       "status": "completed",
       "priority": "P0",
-      "depends_on": [
-        "task-022"
-      ],
+      "depends_on": ["task-022"],
       "attempts": 1,
       "max_attempts": 3,
       "started_at_commit": "34b484b",

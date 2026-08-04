@@ -57,7 +57,7 @@ const skillAssetsMap = await createEmbeddedSkillAssetsBundle()
 
 // playwright-core@1.60 still requires historical chromium-bidi CJS subpaths.
 // chromium-bidi@16 only ships ESM, which breaks Bun.build resolution.
-// PowersNexus Browser QA uses CDP/channel; BiDi modules are not loaded at runtime.
+// Browser tools use CDP/channel; BiDi modules are not loaded at runtime.
 const chromiumBidiCjsStubPlugin = {
   name: "stub-chromium-bidi-cjs",
   setup(build: { onResolve: Function; onLoad: Function }) {

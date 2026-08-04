@@ -17,9 +17,12 @@ describe("memory CLI formatting", () => {
       id: MemoryID.ascending("mem_cli"),
       target: "memory",
       scope: "project",
+      domain: "general",
       content: "Remember that CLI output should stay easy to scan.",
       tags: ["cli"],
       importance: 0.75,
+      confidence: 0.7,
+      version: 1,
       source: "manual",
       time: { created: 1, updated: 2 },
     }
@@ -33,9 +36,12 @@ describe("memory CLI formatting", () => {
       id: ReviewCandidateID.ascending("mrc_cli"),
       target: "memory",
       scope: "global",
+      domain: "general",
       content: "Persist useful user preferences.",
       tags: ["review"],
       importance: 0.8,
+      confidence: 0.8,
+      operation: "add",
       reason: "Useful durable preference.",
       status: "pending",
       time: { created: 1, updated: 2 },
@@ -63,6 +69,7 @@ describe("curator CLI formatting", () => {
     const candidate: Candidate = {
       id: EvolutionCandidateID.ascending("evc_cli"),
       kind: "project",
+      domain: "general",
       target: "reviews",
       title: "Improve review summaries",
       content: "Always include verification commands.",
@@ -70,6 +77,7 @@ describe("curator CLI formatting", () => {
       reason: "Review reports are easier to audit.",
       tags: ["evolution"],
       status: "pending",
+      validationStatus: "pending",
       time: { created: 1, updated: 2 },
     }
     const status: StatusSummary = {

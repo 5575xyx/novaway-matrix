@@ -644,4 +644,163 @@ describe("evolution candidate service", () => {
     expect(candidates[0].tags).toContain("session-end")
     expect(due).toBe(false)
   })
+
+  test("applyToDisk marks validation status on skill candidates", async () => {
+    const worktree = await tempWorktree()
+    const candidates = await runEvolution(
+      Evolution.Service.use((evolution) =>
+        evolution.review({
+          proposals: [
+            {
+              kind: "skill",
+              domain: "coding",
+              target: "validated-skill",
+              title: "Validated skill",
+              content: "# Validated\n\nHot reload path.\n",
+              reason: "verify validation status fields.",
+              tags: ["test"],
+            },
+          ],
+        }),
+      ),
+    )
+    const applied = await runEvolution(
+      Evolution.Service.use((evolution) => evolution.applyToDisk(candidates[0].id, { directory: worktree, worktree })),
+    )
+    expect(applied?.candidate.status).toBe("applied")
+    expect(applied?.candidate.validationStatus).toBe("validated")
+    expect(applied?.candidate.validationNote).toBeTruthy()
+    expect(applied?.candidate.domain).toBe("coding")
+  })
+
+  test("applyToDisk marks validation status on agent candidates", async () => {
+    const worktree = await tempWorktree()
+    const candidates = await runEvolution(
+      Evolution.Service.use((evolution) =>
+        evolution.review({
+          proposals: [
+            {
+              kind: "agent",
+              domain: "office",
+              target: "hot-reload-agent",
+              title: "Hot reload agent",
+              content: "---\ndescription: Hot reload agent\nmode: primary\n---\n\n# Hot Reload Agent\n",
+              reason: "verify agent validation/hot-reload path.",
+              tags: ["test"],
+            },
+          ],
+        }),
+      ),
+    )
+    const applied = await runEvolution(
+      Evolution.Service.use((evolution) => evolution.applyToDisk(candidates[0].id, { directory: worktree, worktree })),
+    )
+    expect(applied?.candidate.status).toBe("applied")
+    expect(applied?.candidate.validationStatus).toBe("validated")
+    expect(applied?.candidate.domain).toBe("office")
+    expect(applied?.candidate.validationNote).toBeTruthy()
+  })
+
+  test("applyToDisk activates workflow as command artifact", async () => {
+    const worktree = await tempWorktree()
+    const candidates = await runEvolution(
+      Evolution.Service.use((evolution) =>
+        evolution.review({
+          proposals: [
+            {
+              kind: "workflow",
+              domain: "ops",
+              target: "incident-response",
+              title: "Incident response workflow",
+              content: "# Incident Response\n\n1. Triage\n2. Mitigate\n3. Postmortem\n",
+              reason: "verify workflow activation path.",
+              tags: ["test"],
+            },
+          ],
+        }),
+      ),
+    )
+    const applied = await runEvolution(
+      Evolution.Service.use((evolution) => evolution.applyToDisk(candidates[0].id, { directory: worktree, worktree })),
+    )
+    expect(applied?.candidate.status).toBe("applied")
+    expect(applied?.candidate.validationStatus).toBe("validated")
+    expect(applied?.candidate.domain).toBe("ops")
+    const file = path.join(worktree, ".novaway", "workflows", "incident-response.md")
+    expect(await Bun.file(file).exists()).toBe(true)
+    expect(await Bun.file(file).text()).toContain("Postmortem")
+  })
+
+  test("applyToDisk materializes executable tool modules", async () => {
+    const worktree = await tempWorktree()
+    const candidates = await runEvolution(
+      Evolution.Service.use((evolution) =>
+        evolution.review({
+          proposals: [
+            {
+              kind: "tool",
+              domain: "coding",
+              target: "repo-health-check",
+              title: "Repo health check tool",
+              content: "Check repository health: list dirty files, summarize git status, and suggest next actions.",
+              reason: "verify tool codegen and activation path.",
+              tags: ["test"],
+            },
+          ],
+        }),
+      ),
+    )
+    const applied = await runEvolution(
+      Evolution.Service.use((evolution) => evolution.applyToDisk(candidates[0].id, { directory: worktree, worktree })),
+    )
+    expect(applied?.candidate.status).toBe("applied")
+    expect(applied?.candidate.validationStatus).toBe("validated")
+    const file = path.join(worktree, ".novaway", "tools", "repo-health-check.ts")
+    expect(await Bun.file(file).exists()).toBe(true)
+    const source = await Bun.file(file).text()
+    expect(source).toContain("export default tool({")
+    expect(source).toContain("execute")
+    expect(source).toContain("@opencode-ai/plugin")
+    expect(source).toContain("Repo health check tool")
+  })
+
+  test("applyToDisk keeps executable tool typescript content intact", async () => {
+    const worktree = await tempWorktree()
+    const toolSource = [
+      'import { tool } from "@opencode-ai/plugin"',
+      "",
+      "export default tool({",
+      "  description: 'echo tool',",
+      "  args: { text: tool.schema.string() },",
+      "  async execute({ text }) {",
+      "    return text",
+      "  },",
+      "})",
+      "",
+    ].join("\n")
+    const candidates = await runEvolution(
+      Evolution.Service.use((evolution) =>
+        evolution.review({
+          proposals: [
+            {
+              kind: "tool",
+              domain: "coding",
+              target: "echo-tool",
+              title: "Echo tool",
+              content: toolSource,
+              reason: "verify raw tool source passthrough.",
+              tags: ["test"],
+            },
+          ],
+        }),
+      ),
+    )
+    await runEvolution(
+      Evolution.Service.use((evolution) => evolution.applyToDisk(candidates[0].id, { directory: worktree, worktree })),
+    )
+    const file = path.join(worktree, ".novaway", "tools", "echo-tool.ts")
+    const source = await Bun.file(file).text()
+    expect(source).toContain("description: 'echo tool'")
+    expect(source).toContain("return text")
+  })
 })

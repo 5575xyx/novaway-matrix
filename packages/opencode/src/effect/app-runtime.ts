@@ -31,10 +31,6 @@ import { SessionCompaction } from "@/session/compaction"
 import { SessionRevert } from "@/session/revert"
 import { SessionSummary } from "@/session/summary"
 import { SessionPrompt } from "@/session/prompt"
-import { PowersNexusVersion } from "@/powersnexus/version-service"
-import { PowersNexusWorkflow } from "@/powersnexus/service"
-import { PowersNexusRunner } from "@/powersnexus/runner"
-import { PowersNexusDelivery } from "@/powersnexus/delivery"
 import { Instruction } from "@/session/instruction"
 import { LLM } from "@/session/llm"
 import { LSP } from "@/lsp/lsp"
@@ -102,10 +98,6 @@ export const AppLayer = Layer.mergeAll(
   SessionRevert.defaultLayer,
   SessionSummary.defaultLayer,
   SessionPrompt.defaultLayer,
-  PowersNexusVersion.defaultLayer,
-  PowersNexusWorkflow.defaultLayer,
-  PowersNexusRunner.defaultLayer,
-  PowersNexusDelivery.defaultLayer,
   Instruction.defaultLayer,
   LLM.defaultLayer,
   LSP.defaultLayer,

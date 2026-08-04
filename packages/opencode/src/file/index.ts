@@ -315,6 +315,7 @@ export interface Interface {
   readonly init: () => Effect.Effect<void>
   readonly status: () => Effect.Effect<Info[]>
   readonly read: (file: string) => Effect.Effect<Content>
+  readonly write: (file: string, content: string) => Effect.Effect<void>
   readonly list: (dir?: string) => Effect.Effect<Node[]>
   readonly search: (input: {
     query: string
@@ -564,6 +565,20 @@ export const layer = Layer.effect(
       return { type: "text" as const, content }
     })
 
+    const write = Effect.fn("File.write")(function* (file: string, content: string) {
+      const ctx = yield* InstanceState.context
+      const full = path.join(ctx.directory, file)
+
+      if (!containsPath(full, ctx)) {
+        throw new Error("Access denied: path escapes project directory")
+      }
+      if (isBinaryByExtension(file) && !isTextByName(file)) {
+        throw new Error("Cannot edit binary files from the text editor")
+      }
+
+      yield* appFs.writeWithDirs(full, content).pipe(Effect.orDie)
+    })
+
     const list = Effect.fn("File.list")(function* (dir?: string) {
       const ctx = yield* InstanceState.context
       const exclude = [".git", ".DS_Store"]
@@ -638,7 +653,7 @@ export const layer = Layer.effect(
     })
 
     log.info("init")
-    return Service.of({ init, status, read, list, search })
+    return Service.of({ init, status, read, write, list, search })
   }),
 )
 

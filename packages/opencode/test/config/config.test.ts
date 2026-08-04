@@ -208,7 +208,7 @@ test("seeds default global plugins into new config file", async () => {
   }
 })
 
-test("first-party PowersNexus mode does not seed a remote Git plugin", async () => {
+test("PowersNexus remains seeded as default Gitee plugin even if FIRST_PARTY env is set", async () => {
   await using tmp = await tmpdir()
   const prev = Global.Path.config
   const firstParty = process.env.POWERSNEXUS_FIRST_PARTY
@@ -227,7 +227,7 @@ test("first-party PowersNexus mode does not seed a remote Git plugin", async () 
     const content = await Filesystem.readText(path.join(tmp.path, "novaway.json"))
     const file = path.join(tmp.path, "novaway.json")
     const parsed = ConfigParse.schema(Config.Info, ConfigParse.jsonc(content, file), file)
-    expect(parsed.plugin).toEqual([])
+    expect(parsed.plugin).toEqual(["PowersNexus@git+https://gitee.com/nova-way/powersnexus.git"])
   } finally {
     ;(Global.Path as { config: string }).config = prev
     if (firstParty === undefined) delete process.env.POWERSNEXUS_FIRST_PARTY
@@ -454,6 +454,34 @@ test("updates global config and omits empty shell key in json", async () => {
 
     const writtenConfig = await Filesystem.readJson<{ shell?: string }>(path.join(tmp.path, "novaway.json"))
     expect("shell" in writtenConfig).toBe(false)
+  } finally {
+    ;(Global.Path as { config: string }).config = prev
+    await clear(true)
+  }
+})
+
+test("updates global memory embedding mode without instance context", async () => {
+  await using tmp = await tmpdir({
+    init: async (dir) => {
+      await writeConfig(dir, {
+        $schema: "https://opencode.ai/config.json",
+        memory: { embedding_mode: "off" },
+      })
+    },
+  })
+
+  const prev = Global.Path.config
+  ;(Global.Path as { config: string }).config = tmp.path
+  await clear(true)
+
+  try {
+    const config = await saveGlobal({ memory: { embedding_mode: "auto" } })
+    expect(config.memory?.embedding_mode).toBe("auto")
+
+    const writtenConfig = await Filesystem.readJson<{ memory?: { embedding_mode?: string } }>(
+      path.join(tmp.path, "novaway.json"),
+    )
+    expect(writtenConfig.memory?.embedding_mode).toBe("auto")
   } finally {
     ;(Global.Path as { config: string }).config = prev
     await clear(true)
@@ -2700,7 +2728,7 @@ describe("OPENCODE_CONFIG_CONTENT token substitution", () => {
   })
 })
 
-// parseManagedPlist unit tests �?pure function, no OS interaction
+// parseManagedPlist unit tests - pure function, no OS interaction
 
 test("parseManagedPlist strips MDM metadata keys", async () => {
   const config = ConfigParse.schema(

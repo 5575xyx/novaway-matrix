@@ -1,0 +1,5 @@
+packages/opencode/src/memory/domain.ts: bom=True chinese=134 qmarks=10 size=1698
+packages/opencode/src/memory/fact.ts: bom=True chinese=66 qmarks=10 size=1356
+packages/opencode/src/memory/scope.ts: bom=False chinese=198 qmarks=16 size=2557
+packages/opencode/src/evolution/service.ts: bom=False chinese=125 qmarks=151 size=25007
+packages/opencode/src/session/prompt.ts: bom=False chinese=418 qmarks=234 size=108916

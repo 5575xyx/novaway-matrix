@@ -4,11 +4,11 @@ import type { ImageGenerationParams, ImageGenerationProtocol, ImageGenerationRes
  * Agnes Image 2.1 Flash 适配器
  *
  * API: POST /v1/images/generations
- * 文档: https://agnes-ai.com/doc/agnes-image-21-flash
+ * 文档: https://www.agnes-ai.cn/zh-Hans/docs/agnes-image-21-flash
  */
 export const agnesImage: ImageGenerationProtocol = {
   id: "agnes-image",
-  baseURL: "https://apihub.agnes-ai.com/v1",
+  baseURL: "https://api.agnes-ai.cn/v1",
   endpoint: "/images/generations",
 
   buildBody: (params: ImageGenerationParams) => {
@@ -16,6 +16,10 @@ export const agnesImage: ImageGenerationProtocol = {
       model: params.model || "agnes-image-2.1-flash",
       prompt: params.prompt,
       size: params.size || "1024x768",
+    }
+
+    if (params.ratio) {
+      body.ratio = params.ratio
     }
 
     // 图片编辑（图生图）时，image 数组需要放在 extra_body.image 中

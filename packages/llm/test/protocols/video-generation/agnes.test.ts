@@ -2,6 +2,10 @@ import { describe, expect, test } from "bun:test"
 import { agnesVideo } from "@opencode-ai/llm/protocols/video-generation/agnes"
 
 describe("agnes video protocol", () => {
+  test("uses the current Agnes API gateway", () => {
+    expect(agnesVideo.baseURL).toBe("https://api.agnes-ai.cn/v1")
+  })
+
   test("builds text-to-video body", () => {
     const body = agnesVideo.buildCreateBody({
       prompt: "a cat walking on the beach",
@@ -41,8 +45,8 @@ describe("agnes video protocol", () => {
     expect(body.image).toBe("https://example.com/image.png")
   })
 
-  test("status endpoint is absolute to avoid /v1 prefix", () => {
-    expect(agnesVideo.statusEndpoint).toStartWith("https://apihub.agnes-ai.com/agnesapi?video_id=")
+  test("status endpoint resolves outside the v1 prefix", () => {
+    expect(agnesVideo.statusEndpoint).toBe("../agnesapi?video_id={taskId}")
   })
 
   test("create response prefers video_id as task id", () => {
@@ -62,11 +66,25 @@ describe("agnes video protocol", () => {
       video_id: "video_456",
       status: "completed",
       progress: 100,
-      url: "https://platform-outputs.agnes-ai.space/videos/agnes-video-v2.0/video_xxxxxx.mp4",
+      metadata: {
+        url: "https://platform-outputs.agnes-ai.space/videos/agnes-video-v2.0/video_xxxxxx.mp4",
+      },
       error: null,
     })
+    expect(result.taskId).toBe("video_456")
     expect(result.status).toBe("completed")
     expect(result.videoUrl).toBe("https://platform-outputs.agnes-ai.space/videos/agnes-video-v2.0/video_xxxxxx.mp4")
+  })
+
+  test("status response extracts structured error message", () => {
+    const result = agnesVideo.parseStatusResponse({
+      task_id: "task_123",
+      status: "failed",
+      error: { message: "generation rejected" },
+    })
+
+    expect(result.taskId).toBe("task_123")
+    expect(result.error).toBe("generation rejected")
   })
 
   test("status response maps in_progress status", () => {

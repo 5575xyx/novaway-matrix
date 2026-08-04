@@ -39,7 +39,7 @@ function extract(messages: MessageV2.WithParts[]) {
 export interface Interface {
   readonly clear: (messageID: MessageID) => Effect.Effect<void>
   readonly systemPaths: () => Effect.Effect<Set<string>, AppFileSystem.Error>
-  readonly system: (input?: { prompt?: string }) => Effect.Effect<string[], AppFileSystem.Error>
+  readonly system: (input?: { prompt?: string }) => Effect.Effect<SystemOutput, AppFileSystem.Error>
   readonly find: (dir: string) => Effect.Effect<string | undefined, AppFileSystem.Error>
   readonly resolve: (
     messages: MessageV2.WithParts[],
@@ -49,6 +49,11 @@ export interface Interface {
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/Instruction") {}
+
+export interface SystemOutput {
+  readonly always: string[]
+  readonly triggered: string[]
+}
 
 type RuleTrigger = "always" | "mention" | "auto"
 
@@ -247,34 +252,50 @@ export const layer: Layer.Layer<
       const files = yield* Effect.forEach(Array.from(paths), read, { concurrency: 8 })
       const remote = yield* Effect.forEach(urls, fetch, { concurrency: 4 })
       const prompt = input?.prompt?.trim()
+      const always: string[] = []
+      const triggered: string[] = []
 
-      return [
-        // Built-in global rules ship with the binary
-        ...(BUILTIN_DATABASE_RULE
-          ? [`Instructions from: <built-in>/database.md\n${BUILTIN_DATABASE_RULE.trimEnd()}`]
-          : []),
-        ...Array.from(paths).flatMap((item, i) => {
-          const content = files[i]
-          if (!content) return []
-          if (!prompt || !isRulePath(item)) return [`Instructions from: ${item}\n${content}`]
+      // Built-in global rules ship with the binary.
+      if (BUILTIN_DATABASE_RULE) {
+        always.push(`Instructions from: <built-in>/database.md\n${BUILTIN_DATABASE_RULE.trimEnd()}`)
+      }
 
-          const parsed = parseRule(content)
-          const name = path.basename(item, ".md")
-          const trigger = ruleTrigger(parsed.data.trigger)
-          if (trigger === "mention" && !isMentioned(prompt, name)) return []
-          if (trigger === "auto") {
-            const normalized = normalizeText(prompt)
-            const terms = autoTerms({
-              name,
-              description: typeof parsed.data.description === "string" ? parsed.data.description : undefined,
-              content: parsed.content,
-            })
-            if (!isMentioned(prompt, name) && !terms.some((term) => normalized.includes(term))) return []
-          }
-          return [`Instructions from: ${item}\n${parsed.content.trimEnd()}`]
-        }),
-        ...urls.flatMap((item, i) => (remote[i] ? [`Instructions from: ${item}\n${remote[i]}`] : [])),
-      ]
+      for (const [index, item] of Array.from(paths).entries()) {
+        const content = files[index]
+        if (!content) continue
+
+        const text = `Instructions from: ${item}\n${content}`
+        if (!prompt || !isRulePath(item)) {
+          always.push(text)
+          continue
+        }
+
+        const parsed = parseRule(content)
+        const name = path.basename(item, ".md")
+        const trigger = ruleTrigger(parsed.data.trigger)
+        if (trigger === "always") {
+          always.push(text)
+          continue
+        }
+        if (trigger === "mention" && !isMentioned(prompt, name)) continue
+        if (trigger === "auto") {
+          const normalized = normalizeText(prompt)
+          const terms = autoTerms({
+            name,
+            description: typeof parsed.data.description === "string" ? parsed.data.description : undefined,
+            content: parsed.content,
+          })
+          if (!isMentioned(prompt, name) && !terms.some((term) => normalized.includes(term))) continue
+        }
+        triggered.push(`Instructions from: ${item}\n${parsed.content.trimEnd()}`)
+      }
+
+      for (const [index, item] of urls.entries()) {
+        const content = remote[index]
+        if (content) always.push(`Instructions from: ${item}\n${content}`)
+      }
+
+      return { always, triggered }
     })
 
     const find = Effect.fn("Instruction.find")(function* (dir: string) {

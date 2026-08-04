@@ -54,15 +54,20 @@ import {
   getSupportedPlatforms,
   getPlatform,
 } from "./platform"
+import { PET_VISIBLE_KEY } from "./constants"
+import { resolveFloatingRestoreAnchor, resolveFloatingWidgetMode } from "./floating-widget-state"
 import {
   FLOATING_COLLAPSED_SIZE,
-  FLOATING_ACTIVITY_PADDING,
-  FLOATING_SPEECH_PADDING_TOP,
+  FLOATING_MINIMAL_SIZE,
   appIconPath,
   createFloatingPanelWindow,
   createFloatingSkinWindow,
+  clampFloatingPetPosition,
   getFloatingCollapsedBounds,
+  getFloatingPetHitBounds,
+  positionFloatingMinimal,
   positionFloatingPanel,
+  positionFloatingRestore,
   positionFloatingSkinMenu,
   setFloatingCollapsedPosition,
   setTitlebar,
@@ -91,7 +96,13 @@ let floatingAgentState: FloatingAgentState = { agents: [] }
 let floatingWidgetReady = false
 let floatingWidgetVisible = false
 let floatingWidgetRequested = false
+/** 当前是否处于“捕获鼠标”状态（false=穿透） */
+let floatingMouseCapture = false
+/** 拖拽中强制保持捕获，避免拖出命中区后丢手势 */
+let floatingDragActive = false
+let floatingHitPollTimer: ReturnType<typeof setInterval> | undefined
 const floatingDragOrigins = new WeakMap<WebContents, { pointerX: number; pointerY: number; x: number; y: number }>()
+
 const activeNotifications = new Set<Notification>()
 
 type FloatingTaskTiming = {
@@ -226,7 +237,14 @@ export function setFloatingWindow(win: BrowserWindow | null) {
   floatingWidgetReady = false
   floatingWidgetVisible = false
   floatingWidgetRequested = false
-  if (win) return
+  floatingMouseCapture = false
+  floatingDragActive = false
+  stopFloatingHitPoll()
+  if (win) {
+    // 新建窗体默认穿透，等待显示后再开始命中轮询
+    win.setIgnoreMouseEvents(true, { forward: true })
+    return
+  }
   const panel = floatingPanelWindowRef
   if (panel && !panel.isDestroyed()) panel.close()
   floatingPanelWindowRef = null
@@ -235,12 +253,125 @@ export function setFloatingWindow(win: BrowserWindow | null) {
   floatingSkinWindowRef = null
 }
 
+function isMainInterfaceActive() {
+  const main = mainWindowRef
+  if (!main || main.isDestroyed()) return false
+  // 主窗口可见且获得焦点：视为用户正在主界面操作
+  return main.isVisible() && !main.isMinimized() && main.isFocused()
+}
+
+function stopFloatingHitPoll() {
+  if (floatingHitPollTimer === undefined) return
+  clearInterval(floatingHitPollTimer)
+  floatingHitPollTimer = undefined
+}
+
+let minimalHitPollTimer: ReturnType<typeof setInterval> | undefined
+
+function startMinimalHitPoll() {
+  if (minimalHitPollTimer !== undefined) return
+  minimalHitPollTimer = setInterval(() => {
+    const floating = floatingWindowRef
+    if (!floating || floating.isDestroyed()) return
+    const point = screen.getCursorScreenPoint()
+    const bounds = floating.getBounds()
+    const over =
+      point.x >= bounds.x &&
+      point.x <= bounds.x + bounds.width &&
+      point.y >= bounds.y &&
+      point.y <= bounds.y + bounds.height
+    setFloatingMousePassthrough(!over)
+    sendWindowEvent(floating, "floating-cursor-active", over)
+  }, 50)
+}
+
+function stopMinimalHitPoll() {
+  if (minimalHitPollTimer === undefined) return
+  clearInterval(minimalHitPollTimer)
+  minimalHitPollTimer = undefined
+}
+
+function presentFloatingMinimal() {
+  const floating = floatingWindowRef
+  if (!floating || floating.isDestroyed() || !floatingWidgetReady) return
+  const panel = floatingPanelWindowRef
+  if (panel && !panel.isDestroyed()) panel.close()
+  floatingPanelWindowRef = null
+  const skin = floatingSkinWindowRef
+  if (skin && !skin.isDestroyed()) skin.close()
+  floatingSkinWindowRef = null
+  floatingWidgetVisible = false
+  stopFloatingHitPoll()
+  positionFloatingMinimal(floating)
+  floating.showInactive()
+  floating.setIgnoreMouseEvents(true, { forward: true })
+  floatingMouseCapture = false
+  floating.webContents.send("floating-mode-change", "minimal")
+  floating.webContents.send("floating-visibility-change", false)
+  startMinimalHitPoll()
+}
+
+function startFloatingHitPoll() {
+  if (floatingHitPollTimer !== undefined) return
+  // ~60fps 轮询光标：指针一进宠物热区即可点，并同步抓取光标
+  floatingHitPollTimer = setInterval(() => {
+    syncFloatingMouseCaptureFromCursor()
+  }, 16)
+}
+
+function isCursorOverFloatingPet(
+  point: { x: number; y: number },
+  hit: { x: number; y: number; width: number; height: number },
+) {
+  return point.x >= hit.x && point.x <= hit.x + hit.width && point.y >= hit.y && point.y <= hit.y + hit.height
+}
+
+function setFloatingMousePassthrough(ignore: boolean) {
+  const floating = floatingWindowRef
+  if (!floating || floating.isDestroyed()) return
+  const capture = !ignore
+  if (floatingMouseCapture === capture) return
+  floatingMouseCapture = capture
+  floating.setIgnoreMouseEvents(ignore, { forward: true })
+  // 通知渲染进程切换光标（grab / 默认）
+  sendWindowEvent(floating, "floating-cursor-active", capture)
+}
+
+function syncFloatingMouseCaptureFromCursor() {
+  const floating = floatingWindowRef
+  if (!floating || floating.isDestroyed() || !floatingWidgetVisible) return
+  if (floatingDragActive) {
+    setFloatingMousePassthrough(false)
+    return
+  }
+  // 面板/皮肤菜单打开时，宠物窗本身仍保持穿透，交互由独立窗体处理
+  const panel = floatingPanelWindowRef
+  const skin = floatingSkinWindowRef
+  if ((panel && !panel.isDestroyed() && panel.isVisible()) || (skin && !skin.isDestroyed() && skin.isVisible())) {
+    setFloatingMousePassthrough(true)
+    return
+  }
+  const point = screen.getCursorScreenPoint()
+  const hit = getFloatingPetHitBounds(floating)
+  const over = isCursorOverFloatingPet(point, hit)
+  setFloatingMousePassthrough(!over)
+}
+
 function presentFloatingWidget() {
   const floating = floatingWindowRef
   if (!floating || floating.isDestroyed() || !floatingWidgetReady || !floatingWidgetRequested || floatingWidgetVisible)
     return
+  stopMinimalHitPoll()
+  const bounds = floating.getBounds()
+  if (bounds.width === FLOATING_MINIMAL_SIZE) {
+    positionFloatingRestore(floating, resolveFloatingRestoreAnchor(bounds, FLOATING_COLLAPSED_SIZE))
+  }
   floatingWidgetVisible = true
   floating.showInactive()
+  floating.setIgnoreMouseEvents(true, { forward: true })
+  floatingMouseCapture = false
+  floating.webContents.send("floating-mode-change", "full")
+  startFloatingHitPoll()
   floating.webContents.send("floating-visibility-change", true)
 }
 
@@ -282,6 +413,8 @@ function beginFloatingWidgetDrag(sender: WebContents, pointerX: number, pointerY
   const win = BrowserWindow.fromWebContents(sender)
   if (!win || win.isDestroyed()) return
   if (!Number.isFinite(pointerX) || !Number.isFinite(pointerY)) return
+  floatingDragActive = true
+  setFloatingMousePassthrough(false)
   const bounds = getFloatingCollapsedBounds(win)
   floatingDragOrigins.set(sender, { pointerX, pointerY, x: bounds.x, y: bounds.y })
 }
@@ -296,23 +429,14 @@ function moveFloatingWidget(sender: WebContents, pointerX: number, pointerY: num
     x: origin.x + FLOATING_COLLAPSED_SIZE / 2,
     y: origin.y + FLOATING_COLLAPSED_SIZE / 2,
   })
-  const work = display.workArea
-  const nextCollapsedX = Math.round(
-    Math.max(
-      work.x + FLOATING_ACTIVITY_PADDING,
-      Math.min(
-        origin.x + pointerX - origin.pointerX,
-        work.x + work.width - FLOATING_COLLAPSED_SIZE - FLOATING_ACTIVITY_PADDING,
-      ),
-    ),
+  const next = clampFloatingPetPosition(
+    {
+      x: origin.x + pointerX - origin.pointerX,
+      y: origin.y + pointerY - origin.pointerY,
+    },
+    display.workArea,
   )
-  const nextCollapsedY = Math.round(
-    Math.max(
-      work.y + FLOATING_SPEECH_PADDING_TOP,
-      Math.min(origin.y + pointerY - origin.pointerY, work.y + work.height - FLOATING_COLLAPSED_SIZE),
-    ),
-  )
-  setFloatingCollapsedPosition(win, { x: nextCollapsedX, y: nextCollapsedY })
+  setFloatingCollapsedPosition(win, { x: Math.round(next.x), y: Math.round(next.y) })
   const panel = floatingPanelWindowRef
   if (panel && !panel.isDestroyed()) positionFloatingPanel(panel, win)
   const skin = floatingSkinWindowRef
@@ -381,7 +505,11 @@ export function registerIpcHandlers(deps: Deps) {
     }
   })
   ipcMain.handle("store-set", (_event: IpcMainInvokeEvent, name: string, key: string, value: string) => {
-    getStore(name).set(key, value)
+    try {
+      getStore(name).set(key, value)
+    } catch (error) {
+      console.warn(`设置持久化失败，已保留本次运行状态: ${name}/${key}`, error)
+    }
   })
   ipcMain.handle("store-delete", (_event: IpcMainInvokeEvent, name: string, key: string) => {
     getStore(name).delete(key)
@@ -406,12 +534,66 @@ export function registerIpcHandlers(deps: Deps) {
 
   ipcMain.on("floating-widget-ready", () => {
     floatingWidgetReady = true
-    presentFloatingWidget()
+    floatingWidgetRequested = getStore().get(PET_VISIBLE_KEY, true) as boolean
+    if (resolveFloatingWidgetMode(floatingWidgetRequested) === "full") {
+      presentFloatingWidget()
+      return
+    }
+    presentFloatingMinimal()
   })
 
   ipcMain.handle("show-floating-widget", () => {
-    floatingWidgetRequested = true
+    floatingWidgetRequested = getStore().get(PET_VISIBLE_KEY, true) as boolean
+    if (resolveFloatingWidgetMode(floatingWidgetRequested) === "minimal") {
+      presentFloatingMinimal()
+      return
+    }
     presentFloatingWidget()
+  })
+
+  ipcMain.handle("set-floating-widget-visible", (_event: IpcMainInvokeEvent, visible: boolean) => {
+    floatingWidgetRequested = visible
+    const floating = floatingWindowRef
+    if (floating && !floating.isDestroyed() && visible) {
+      floatingWidgetRequested = true
+      presentFloatingWidget()
+    }
+    if (floating && !floating.isDestroyed() && !visible) {
+      presentFloatingMinimal()
+    }
+    try {
+      getStore().set(PET_VISIBLE_KEY, visible)
+    } catch (error) {
+      console.warn("悬浮宠物开关持久化失败，当前运行状态仍已生效", error)
+    }
+  })
+
+  ipcMain.handle("restore-floating-widget", () => {
+    const floating = floatingWindowRef
+    if (!floating || floating.isDestroyed()) return
+    if (floatingWidgetRequested) {
+      presentFloatingWidget()
+      return
+    }
+    presentFloatingMinimal()
+  })
+
+  ipcMain.handle("get-floating-widget-visible", () => {
+    return getStore().get(PET_VISIBLE_KEY, true) as boolean
+  })
+
+  ipcMain.handle("set-floating-widget-minimal", (_event: IpcMainInvokeEvent, minimal: boolean) => {
+    const floating = floatingWindowRef
+    if (!floating || floating.isDestroyed()) return
+    if (minimal) {
+      stopFloatingHitPoll()
+      positionFloatingMinimal(floating)
+      floating.webContents.send("floating-mode-change", "minimal")
+    } else {
+      positionFloatingRestore(floating)
+      floating.webContents.send("floating-mode-change", "full")
+      if (floatingWidgetVisible) startFloatingHitPoll()
+    }
   })
 
   ipcMain.handle("set-floating-agent", (_event: IpcMainInvokeEvent, name: string) => {
@@ -509,6 +691,12 @@ export function registerIpcHandlers(deps: Deps) {
     broadcastFloatingAgentState()
   })
 
+  ipcMain.on("set-floating-mouse-passthrough", (_event: IpcMainEvent, ignore: boolean) => {
+    // 拖拽中忽略渲染进程的穿透请求，防止半途丢鼠标
+    if (floatingDragActive) return
+    setFloatingMousePassthrough(ignore !== false)
+  })
+
   ipcMain.on("begin-floating-widget-drag", (event: IpcMainEvent, pointerX: number, pointerY: number) => {
     beginFloatingWidgetDrag(event.sender, pointerX, pointerY)
   })
@@ -520,7 +708,9 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle("save-floating-widget-bounds", (event: IpcMainInvokeEvent) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win || win.isDestroyed()) return
+    floatingDragActive = false
     floatingDragOrigins.delete(event.sender)
+    syncFloatingMouseCaptureFromCursor()
     // 始终以收起后的图标位置为锚点保存，避免展开/收起后位置偏移
     const collapsedX = getFloatingCollapsedBounds(win).x
     const collapsedY = getFloatingCollapsedBounds(win).y
@@ -652,7 +842,7 @@ export function registerIpcHandlers(deps: Deps) {
       floatingAgentState = { ...floatingAgentState, notifications }
       getStore().set("floatingWidget.notifications", notifications)
 
-      if (floatingWidgetVisible) presentFloatingPanel("notifications")
+      if (floatingWidgetVisible && !isMainInterfaceActive()) presentFloatingPanel("notifications")
 
       if (showSystem && !floatingWidgetVisible && Notification.isSupported()) {
         const systemNotification = new Notification({ title, body, icon: appIconPath() })

@@ -75,6 +75,9 @@ import type {
   FilePartSource,
   FileReadResponses,
   FileStatusResponses,
+  FileWriteErrors,
+  FileWritePayload,
+  FileWriteResponses,
   FindFilesResponses,
   FindSymbolsResponses,
   FindTextResponses,
@@ -108,16 +111,29 @@ import type {
   McpRemoteConfig,
   McpStatusResponses,
   MemoryAddErrors,
+  MemoryAddRelationErrors,
+  MemoryAddRelationResponses,
   MemoryAddResponses,
   MemoryApplyReviewCandidateErrors,
   MemoryApplyReviewCandidateResponses,
   MemoryDismissReviewCandidateErrors,
   MemoryDismissReviewCandidateResponses,
+  MemoryEmbeddingSetupLocalErrors,
+  MemoryEmbeddingSetupLocalResponses,
+  MemoryEmbeddingStatusErrors,
+  MemoryEmbeddingStatusResponses,
   MemoryListErrors,
+  MemoryListRelationsErrors,
+  MemoryListRelationsResponses,
   MemoryListResponses,
   MemoryListReviewCandidatesErrors,
   MemoryListReviewCandidatesResponses,
+  MemoryManualRelationInput,
+  MemoryRelationsForMemoryErrors,
+  MemoryRelationsForMemoryResponses,
   MemoryRemoveErrors,
+  MemoryRemoveRelationErrors,
+  MemoryRemoveRelationResponses,
   MemoryRemoveResponses,
   MemoryReviewCandidateProposal,
   MemoryReviewErrors,
@@ -147,41 +163,6 @@ import type {
   PermissionRespondErrors,
   PermissionRespondResponses,
   PermissionRuleset,
-  PowersnexusActionErrors,
-  PowersnexusActionResponses,
-  PowersnexusActivateErrors,
-  PowersnexusActivateResponses,
-  PowersnexusArchiveErrors,
-  PowersnexusArchiveResponses,
-  PowersnexusBindErrors,
-  PowersnexusBindResponses,
-  PowersnexusChangesErrors,
-  PowersnexusChangesResponses,
-  PowersnexusCheckErrors,
-  PowersnexusCheckResponses,
-  PowersnexusCreateChangeErrors,
-  PowersnexusCreateChangeResponses,
-  PowersnexusEvidenceErrors,
-  PowersnexusEvidenceResponses,
-  PowersnexusInstallErrors,
-  PowersnexusInstallResponses,
-  PowersnexusRollbackErrors,
-  PowersnexusRollbackResponses,
-  PowersnexusRunCancelErrors,
-  PowersnexusRunCancelResponses,
-  PowersnexusRunErrors,
-  PowersnexusRunLogErrors,
-  PowersnexusRunLogResponses,
-  PowersnexusRunResponses,
-  PowersnexusRunRetryErrors,
-  PowersnexusRunRetryResponses,
-  PowersNexusSha256,
-  PowersnexusStatusErrors,
-  PowersnexusStatusResponses,
-  PowersnexusVerifyErrors,
-  PowersnexusVerifyResponses,
-  PowersnexusVersionErrors,
-  PowersnexusVersionResponses,
   ProjectCurrentResponses,
   ProjectInitGitResponses,
   ProjectListResponses,
@@ -190,6 +171,9 @@ import type {
   Prompt,
   ProviderAuthResponses,
   ProviderListResponses,
+  ProviderModelDiscoveryPayload,
+  ProviderModelsErrors,
+  ProviderModelsResponses,
   ProviderOauthAuthorizeErrors,
   ProviderOauthAuthorizeResponses,
   ProviderOauthCallbackErrors,
@@ -1693,7 +1677,7 @@ export class Evolution extends HeyApiClient {
     parameters?: {
       directory?: string
       workspace?: string
-      kind?: "skill" | "agent" | "workflow" | "prompt" | "tool" | "project"
+      kind?: "skill" | "agent" | "workflow" | "prompt" | "tool" | "project" | "strategy" | "habit" | "knowledge"
       status?: "pending" | "applied" | "dismissed"
       limit?: number
     },
@@ -2052,6 +2036,38 @@ export class File extends HeyApiClient {
     )
     return (options?.client ?? this.client).get<FileReadResponses, unknown, ThrowOnError>({
       url: "/file/content",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Write file
+   *
+   * Write text content to a file in the project directory.
+   */
+  public write<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      fileWritePayload?: FileWritePayload
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { key: "fileWritePayload", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<FileWriteResponses, FileWriteErrors, ThrowOnError>({
+      url: "/file/write",
       ...options,
       ...params,
     })
@@ -2772,13 +2788,24 @@ export class Memory extends HeyApiClient {
       workspace?: string
       target?: "memory" | "user"
       scope?: "global" | "project" | "session"
+      domain?: "general" | "coding" | "office" | "personal" | "research" | "ops"
+      kind?: "episodic" | "semantic" | "preference" | "goal" | "decision" | "relationship" | "lesson" | "procedure"
+      entities?: Array<{
+        name: string
+        type?: string
+      }>
       content?: string
       summary?: string
       tags?: Array<string>
       importance?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      confidence?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      factKey?: string
+      operation?: "add" | "update" | "archive" | "confirm"
       source?: "manual" | "tool" | "turn" | "review" | "compaction"
       originMessageID?: string
       createdBy?: string
+      validFrom?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      validTo?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -2791,13 +2818,21 @@ export class Memory extends HeyApiClient {
             { in: "query", key: "workspace" },
             { in: "body", key: "target" },
             { in: "body", key: "scope" },
+            { in: "body", key: "domain" },
+            { in: "body", key: "kind" },
+            { in: "body", key: "entities" },
             { in: "body", key: "content" },
             { in: "body", key: "summary" },
             { in: "body", key: "tags" },
             { in: "body", key: "importance" },
+            { in: "body", key: "confidence" },
+            { in: "body", key: "factKey" },
+            { in: "body", key: "operation" },
             { in: "body", key: "source" },
             { in: "body", key: "originMessageID" },
             { in: "body", key: "createdBy" },
+            { in: "body", key: "validFrom" },
+            { in: "body", key: "validTo" },
           ],
         },
       ],
@@ -2859,6 +2894,208 @@ export class Memory extends HeyApiClient {
     )
     return (options?.client ?? this.client).get<MemoryReviewStatusResponses, MemoryReviewStatusErrors, ThrowOnError>({
       url: "/memory/review/status",
+      ...options,
+      ...params,
+    })
+  }
+
+  public embeddingStatus<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      MemoryEmbeddingStatusResponses,
+      MemoryEmbeddingStatusErrors,
+      ThrowOnError
+    >({
+      url: "/memory/embedding/status",
+      ...options,
+      ...params,
+    })
+  }
+
+  public embeddingSetupLocal<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      allowInstall?: boolean
+      model?: string
+      baseURL?: string
+      installDir?: string
+      modelsDir?: string
+      applyConfig?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "allowInstall" },
+            { in: "body", key: "model" },
+            { in: "body", key: "baseURL" },
+            { in: "body", key: "installDir" },
+            { in: "body", key: "modelsDir" },
+            { in: "body", key: "applyConfig" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      MemoryEmbeddingSetupLocalResponses,
+      MemoryEmbeddingSetupLocalErrors,
+      ThrowOnError
+    >({
+      url: "/memory/embedding/setup-local",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public listRelations<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      entity?: string
+      relation?: string
+      includeArchived?: "true" | "false"
+      limit?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "entity" },
+            { in: "query", key: "relation" },
+            { in: "query", key: "includeArchived" },
+            { in: "query", key: "limit" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<MemoryListRelationsResponses, MemoryListRelationsErrors, ThrowOnError>({
+      url: "/memory/relations",
+      ...options,
+      ...params,
+    })
+  }
+
+  public addRelation<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      memoryManualRelationInput?: MemoryManualRelationInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { key: "memoryManualRelationInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<MemoryAddRelationResponses, MemoryAddRelationErrors, ThrowOnError>({
+      url: "/memory/relations",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public removeRelation<ThrowOnError extends boolean = false>(
+    parameters: {
+      relationID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "relationID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      MemoryRemoveRelationResponses,
+      MemoryRemoveRelationErrors,
+      ThrowOnError
+    >({
+      url: "/memory/relations/{relationID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  public relationsForMemory<ThrowOnError extends boolean = false>(
+    parameters: {
+      memoryID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "memoryID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      MemoryRelationsForMemoryResponses,
+      MemoryRelationsForMemoryErrors,
+      ThrowOnError
+    >({
+      url: "/memory/{memoryID}/relations",
       ...options,
       ...params,
     })
@@ -2944,10 +3181,21 @@ export class Memory extends HeyApiClient {
   public applyReviewCandidate<ThrowOnError extends boolean = false>(
     parameters: {
       candidateID: string
+      scope?: "global" | "project" | "session"
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "candidateID" }] }])
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "candidateID" },
+            { in: "body", key: "scope" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).post<
       MemoryApplyReviewCandidateResponses,
       MemoryApplyReviewCandidateErrors,
@@ -2956,6 +3204,11 @@ export class Memory extends HeyApiClient {
       url: "/memory/review/candidate/{candidateID}/apply",
       ...options,
       ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
     })
   }
 
@@ -2998,7 +3251,19 @@ export class Memory extends HeyApiClient {
       summary?: string
       tags?: Array<string>
       importance?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      confidence?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      domain?: "general" | "coding" | "office" | "personal" | "research" | "ops"
+      kind?: "episodic" | "semantic" | "preference" | "goal" | "decision" | "relationship" | "lesson" | "procedure"
+      entities?: Array<{
+        name: string
+        type?: string
+      }>
+      factKey?: string
+      scope?: "global" | "project" | "session"
       archived?: boolean
+      validFrom?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      validTo?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      confirm?: boolean
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -3012,7 +3277,16 @@ export class Memory extends HeyApiClient {
             { in: "body", key: "summary" },
             { in: "body", key: "tags" },
             { in: "body", key: "importance" },
+            { in: "body", key: "confidence" },
+            { in: "body", key: "domain" },
+            { in: "body", key: "kind" },
+            { in: "body", key: "entities" },
+            { in: "body", key: "factKey" },
+            { in: "body", key: "scope" },
             { in: "body", key: "archived" },
+            { in: "body", key: "validFrom" },
+            { in: "body", key: "validTo" },
+            { in: "body", key: "confirm" },
           ],
         },
       ],
@@ -3320,625 +3594,6 @@ export class Project extends HeyApiClient {
         ...params.headers,
       },
     })
-  }
-}
-
-export class Powersnexus extends HeyApiClient {
-  public status<ThrowOnError extends boolean = false>(
-    parameters?: {
-      directory?: string
-      workspace?: string
-      changeName?: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { in: "query", key: "changeName" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).get<PowersnexusStatusResponses, PowersnexusStatusErrors, ThrowOnError>({
-      url: "/powersnexus/status",
-      ...options,
-      ...params,
-    })
-  }
-
-  public changes<ThrowOnError extends boolean = false>(
-    parameters?: {
-      directory?: string
-      workspace?: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).get<PowersnexusChangesResponses, PowersnexusChangesErrors, ThrowOnError>({
-      url: "/powersnexus/changes",
-      ...options,
-      ...params,
-    })
-  }
-
-  public createChange<ThrowOnError extends boolean = false>(
-    parameters?: {
-      directory?: string
-      workspace?: string
-      actionID?: string
-      expectedRevision?: 0
-      changeName?: string
-      level?: "L0" | "L1" | "L2" | "L3" | "L4"
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { in: "body", key: "actionID" },
-            { in: "body", key: "expectedRevision" },
-            { in: "body", key: "changeName" },
-            { in: "body", key: "level" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).post<
-      PowersnexusCreateChangeResponses,
-      PowersnexusCreateChangeErrors,
-      ThrowOnError
-    >({
-      url: "/powersnexus/changes",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    })
-  }
-
-  public bind<ThrowOnError extends boolean = false>(
-    parameters?: {
-      directory?: string
-      workspace?: string
-      actionID?: string
-      expectedRevision?: number
-      changeName?: string
-      sessionID?: string
-      handoff?: boolean
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { in: "body", key: "actionID" },
-            { in: "body", key: "expectedRevision" },
-            { in: "body", key: "changeName" },
-            { in: "body", key: "sessionID" },
-            { in: "body", key: "handoff" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).post<PowersnexusBindResponses, PowersnexusBindErrors, ThrowOnError>({
-      url: "/powersnexus/bind",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    })
-  }
-
-  public action<ThrowOnError extends boolean = false>(
-    parameters?: {
-      directory?: string
-      workspace?: string
-      changeName?: string
-      actionID?: string
-      expectedRevision?: number
-      bindingID?: string
-      action?: string
-      input?: {
-        [key: string]: unknown
-      }
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { in: "body", key: "changeName" },
-            { in: "body", key: "actionID" },
-            { in: "body", key: "expectedRevision" },
-            { in: "body", key: "bindingID" },
-            { in: "body", key: "action" },
-            { in: "body", key: "input" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).post<PowersnexusActionResponses, PowersnexusActionErrors, ThrowOnError>({
-      url: "/powersnexus/actions",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    })
-  }
-
-  public verify<ThrowOnError extends boolean = false>(
-    parameters?: {
-      directory?: string
-      workspace?: string
-      actionID?: string
-      expectedRevision?: number
-      bindingID?: string
-      evidenceFiles?: Array<string>
-      browserQa?: {
-        scenarios: Array<{
-          id: string
-          url: string
-          steps?: Array<
-            | { type: "snapshot" }
-            | { type: "click"; ref: string }
-            | { type: "fill"; ref: string; value: string }
-            | { type: "press"; key: string; ref?: string }
-            | { type: "screenshot"; fullPage?: boolean }
-          >
-          requiredText?: Array<string>
-        }>
-        viewports?: Array<{ name: string; width: number; height: number }>
-        server?: {
-          argv: Array<string>
-          cwd: string
-          healthUrl: string
-          timeoutMs?: number
-        }
-      }
-      steps?: Array<{
-        id: string
-        argv: Array<string>
-        cwd: string
-        timeoutMs?: number
-      }>
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { in: "body", key: "actionID" },
-            { in: "body", key: "expectedRevision" },
-            { in: "body", key: "bindingID" },
-            { in: "body", key: "evidenceFiles" },
-            { in: "body", key: "browserQa" },
-            { in: "body", key: "steps" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).post<PowersnexusVerifyResponses, PowersnexusVerifyErrors, ThrowOnError>({
-      url: "/powersnexus/verify",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    })
-  }
-
-  public run<ThrowOnError extends boolean = false>(
-    parameters: {
-      id: string
-      directory?: string
-      workspace?: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "path", key: "id" },
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).get<PowersnexusRunResponses, PowersnexusRunErrors, ThrowOnError>({
-      url: "/powersnexus/runs/{id}",
-      ...options,
-      ...params,
-    })
-  }
-
-  public runCancel<ThrowOnError extends boolean = false>(
-    parameters: {
-      id: string
-      directory?: string
-      workspace?: string
-      actionID?: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "path", key: "id" },
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { in: "body", key: "actionID" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).post<
-      PowersnexusRunCancelResponses,
-      PowersnexusRunCancelErrors,
-      ThrowOnError
-    >({
-      url: "/powersnexus/runs/{id}/cancel",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    })
-  }
-
-  public runRetry<ThrowOnError extends boolean = false>(
-    parameters: {
-      id: string
-      directory?: string
-      workspace?: string
-      actionID?: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "path", key: "id" },
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { in: "body", key: "actionID" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).post<PowersnexusRunRetryResponses, PowersnexusRunRetryErrors, ThrowOnError>(
-      {
-        url: "/powersnexus/runs/{id}/retry",
-        ...options,
-        ...params,
-        headers: {
-          "Content-Type": "application/json",
-          ...options?.headers,
-          ...params.headers,
-        },
-      },
-    )
-  }
-
-  public runLog<ThrowOnError extends boolean = false>(
-    parameters: {
-      id: string
-      directory?: string
-      workspace?: string
-      stepID: string
-      stream: "stdout" | "stderr"
-      offset?: string
-      limit?: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "path", key: "id" },
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { in: "query", key: "stepID" },
-            { in: "query", key: "stream" },
-            { in: "query", key: "offset" },
-            { in: "query", key: "limit" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).get<PowersnexusRunLogResponses, PowersnexusRunLogErrors, ThrowOnError>({
-      url: "/powersnexus/runs/{id}/log",
-      ...options,
-      ...params,
-    })
-  }
-
-  public evidence<ThrowOnError extends boolean = false>(
-    parameters?: {
-      directory?: string
-      workspace?: string
-      bindingID?: string
-      runID?: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { in: "query", key: "bindingID" },
-            { in: "query", key: "runID" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).get<PowersnexusEvidenceResponses, PowersnexusEvidenceErrors, ThrowOnError>({
-      url: "/powersnexus/evidence",
-      ...options,
-      ...params,
-    })
-  }
-
-  public archive<ThrowOnError extends boolean = false>(
-    parameters?: {
-      directory?: string
-      workspace?: string
-      actionID?: string
-      expectedRevision?: number
-      bindingID?: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { in: "body", key: "actionID" },
-            { in: "body", key: "expectedRevision" },
-            { in: "body", key: "bindingID" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).post<PowersnexusArchiveResponses, PowersnexusArchiveErrors, ThrowOnError>({
-      url: "/powersnexus/archive",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    })
-  }
-
-  public version<ThrowOnError extends boolean = false>(
-    parameters?: {
-      directory?: string
-      workspace?: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).get<PowersnexusVersionResponses, PowersnexusVersionErrors, ThrowOnError>({
-      url: "/powersnexus/version",
-      ...options,
-      ...params,
-    })
-  }
-
-  public check<ThrowOnError extends boolean = false>(
-    parameters?: {
-      directory?: string
-      workspace?: string
-      requestID?: string
-      channel?: "stable"
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { in: "body", key: "requestID" },
-            { in: "body", key: "channel" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).post<PowersnexusCheckResponses, PowersnexusCheckErrors, ThrowOnError>({
-      url: "/powersnexus/update/check",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    })
-  }
-
-  public install<ThrowOnError extends boolean = false>(
-    parameters?: {
-      directory?: string
-      workspace?: string
-      requestID?: string
-      targetDigest?: PowersNexusSha256
-      expectedActiveDigest?: PowersNexusSha256
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { in: "body", key: "requestID" },
-            { in: "body", key: "targetDigest" },
-            { in: "body", key: "expectedActiveDigest" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).post<PowersnexusInstallResponses, PowersnexusInstallErrors, ThrowOnError>({
-      url: "/powersnexus/update/install",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    })
-  }
-
-  public activate<ThrowOnError extends boolean = false>(
-    parameters?: {
-      directory?: string
-      workspace?: string
-      requestID?: string
-      targetDigest?: PowersNexusSha256
-      expectedActiveDigest?: PowersNexusSha256
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { in: "body", key: "requestID" },
-            { in: "body", key: "targetDigest" },
-            { in: "body", key: "expectedActiveDigest" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).post<PowersnexusActivateResponses, PowersnexusActivateErrors, ThrowOnError>(
-      {
-        url: "/powersnexus/update/activate",
-        ...options,
-        ...params,
-        headers: {
-          "Content-Type": "application/json",
-          ...options?.headers,
-          ...params.headers,
-        },
-      },
-    )
-  }
-
-  public rollback<ThrowOnError extends boolean = false>(
-    parameters?: {
-      directory?: string
-      workspace?: string
-      requestID?: string
-      targetDigest?: PowersNexusSha256
-      expectedActiveDigest?: PowersNexusSha256
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { in: "body", key: "requestID" },
-            { in: "body", key: "targetDigest" },
-            { in: "body", key: "expectedActiveDigest" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).post<PowersnexusRollbackResponses, PowersnexusRollbackErrors, ThrowOnError>(
-      {
-        url: "/powersnexus/update/rollback",
-        ...options,
-        ...params,
-        headers: {
-          "Content-Type": "application/json",
-          ...options?.headers,
-          ...params.headers,
-        },
-      },
-    )
   }
 }
 
@@ -4594,6 +4249,43 @@ export class Provider extends HeyApiClient {
       url: "/provider/auth",
       ...options,
       ...params,
+    })
+  }
+
+  /**
+   * Discover provider models
+   *
+   * Fetch an OpenAI-compatible model list from the local server to avoid browser CORS limits.
+   */
+  public models<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      providerModelDiscoveryPayload?: ProviderModelDiscoveryPayload
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { key: "providerModelDiscoveryPayload", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<ProviderModelsResponses, ProviderModelsErrors, ThrowOnError>({
+      url: "/provider/models",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
     })
   }
 
@@ -7295,11 +6987,6 @@ export class OpencodeClient extends HeyApiClient {
   private _project?: Project
   get project(): Project {
     return (this._project ??= new Project({ client: this.client }))
-  }
-
-  private _powersnexus?: Powersnexus
-  get powersnexus(): Powersnexus {
-    return (this._powersnexus ??= new Powersnexus({ client: this.client }))
   }
 
   private _pty?: Pty

@@ -1,0 +1,343 @@
+﻿ M .claude/context-summary-agnes-image-edit-video-image2video.md
+ M .claude/context-summary-agnes-media-display.md
+ M .claude/context-summary-database-page.md
+ M .claude/context-summary-skill-settings.md
+ M .claude/context-summary-video-copy-whole-file.md
+ M .claude/operations-log.md
+ M .claude/verification-report-agnes-media-display.md
+ M .claude/verification-report-database-page.md
+ M .claude/verification-report-dbx-bundled-node.md
+ M .claude/verification-report-dbx-mcp.md
+ M .claude/verification-report-media-actions.md
+ M .claude/verification-report.md
+ D .github/workflows/powersnexus-kpi-nightly.yml
+ M .prettierignore
+ M .trae/documents/desktop-floating-widget-drag-and-agent-sync.md
+ M .trae/documents/desktop-floating-widget-draggable.md
+ M .trae/documents/desktop-floating-widget-plan.md
+ M .trae/specs/forge-agent-selector/checklist.md
+ M .trae/specs/forge-agent-selector/spec.md
+ M .trae/specs/forge-agent-selector/tasks.md
+ M .trae/specs/replace-database-with-dbx-mcp/checklist.md
+ M .trae/specs/replace-database-with-dbx-mcp/spec.md
+ M .trae/specs/replace-database-with-dbx-mcp/tasks.md
+ M .trae/specs/todo-list-monitoring-and-multi-context/checklist.md
+ M .trae/specs/todo-list-monitoring-and-multi-context/spec.md
+ M .trae/specs/todo-list-monitoring-and-multi-context/tasks.md
+ D docs/novaway-coder-powersnexus-first-party-integration-prd.md
+ D docs/powersnexus-cross-platform-e2e-matrix.md
+ D docs/powersnexus-gitee-release-runbook.md
+ D docs/powersnexus-kpi-nightly-baseline.md
+ D docs/powersnexus-production-release-tutorial.md
+ D docs/powersnexus-release-keys-runbook.md
+ D docs/powersnexus-stable-local-runbook.md
+ D docs/powersnexus-update-and-stable-ops-guide.md
+ D docs/powersnexus-verification-report.md
+ M docs/workspace-change-triage.md
+ M harness-tasks.json
+ M packages/app/.claude/verification-report-agent-selector.md
+ M packages/app/src/components/assistant-panel.tsx
+ M packages/app/src/components/dialog-connect-provider.tsx
+ M packages/app/src/components/dialog-custom-provider-form.ts
+ M packages/app/src/components/dialog-custom-provider.test.ts
+ M packages/app/src/components/dialog-custom-provider.tsx
+ M packages/app/src/components/dialog-manage-models.tsx
+ M packages/app/src/components/dialog-manage-provider-models.tsx
+ M packages/app/src/components/dialog-select-provider-for-custom.tsx
+ M packages/app/src/components/dialog-settings.tsx
+ M packages/app/src/components/floating-agent-sync.tsx
+ M packages/app/src/components/memory-evolution-panel.tsx
+ M packages/app/src/components/prompt-input.tsx
+ M packages/app/src/components/prompt-input/submit.test.ts
+ M packages/app/src/components/prompt-input/submit.ts
+ M packages/app/src/components/select-provider-combobox.tsx
+ M packages/app/src/components/session/session-context-metrics.test.ts
+ M packages/app/src/components/session/session-context-metrics.ts
+ M packages/app/src/components/session/session-header.tsx
+ M packages/app/src/components/session/session-new-view.tsx
+ M packages/app/src/components/settings-evolution.helpers.ts
+ M packages/app/src/components/settings-evolution.tsx
+ M packages/app/src/components/settings-general.tsx
+ M packages/app/src/components/settings-memory-evolution.helpers.test.ts
+ M packages/app/src/components/settings-memory.helpers.ts
+ M packages/app/src/components/settings-memory.tsx
+ M packages/app/src/components/settings-models.tsx
+ D packages/app/src/components/settings-powersnexus.tsx
+ M packages/app/src/components/titlebar.tsx
+ M packages/app/src/context/file.tsx
+ M packages/app/src/context/global-sync.tsx
+ D packages/app/src/context/powersnexus.tsx
+ M packages/app/src/context/settings.tsx
+ M packages/app/src/i18n/de.ts
+ M packages/app/src/i18n/en.ts
+ M packages/app/src/i18n/no.ts
+ M packages/app/src/i18n/tr.ts
+ M packages/app/src/i18n/zh.ts
+ M packages/app/src/index.css
+ M packages/app/src/pages/database.tsx
+ M packages/app/src/pages/directory-layout.tsx
+ M packages/app/src/pages/layout.tsx
+ M packages/app/src/pages/session.tsx
+ M packages/app/src/pages/session/file-tabs.tsx
+ M packages/app/src/pages/session/message-timeline.data.ts
+ M packages/app/src/pages/session/message-timeline.tsx
+ D packages/app/src/pages/session/powersnexus-panel.tsx
+ M packages/app/src/utils/tool-call.ts
+ M packages/desktop/electron-builder.config.ts
+ M packages/desktop/package.json
+ D packages/desktop/resources/powersnexus-baselines/6.1.0-4c1915d9506492b71a7026c013849e32223201e2aeba121c0aadaeffae72afd2/files.sha256
+ D packages/desktop/resources/powersnexus-baselines/6.1.0-4c1915d9506492b71a7026c013849e32223201e2aeba121c0aadaeffae72afd2/manifest.canonical.json
+ D packages/desktop/resources/powersnexus-baselines/6.1.0-4c1915d9506492b71a7026c013849e32223201e2aeba121c0aadaeffae72afd2/manifest.json
+ D packages/desktop/resources/powersnexus-baselines/6.1.0-4c1915d9506492b71a7026c013849e32223201e2aeba121c0aadaeffae72afd2/manifest.unsigned.json
+ D packages/desktop/resources/powersnexus-baselines/6.1.0-4c1915d9506492b71a7026c013849e32223201e2aeba121c0aadaeffae72afd2/powersnexus-6.1.0.zip
+ D packages/desktop/resources/powersnexus-release-public-key.pem
+ D packages/desktop/scripts/check-stable-production-gate.mjs
+ D packages/desktop/scripts/publish-powersnexus-gitee-release.mjs
+ D packages/desktop/scripts/publish-powersnexus-gitee-release.test.ts
+ D packages/desktop/scripts/run-cross-platform-e2e-matrix.mjs
+ D packages/desktop/scripts/run-kpi-nightly-baseline.mjs
+ D packages/desktop/scripts/run-stable-local-harness.mjs
+ D packages/desktop/scripts/smoke-powersnexus-offline.mjs
+ D packages/desktop/scripts/smoke-powersnexus-package-offline.mjs
+ D packages/desktop/scripts/verify-powersnexus-packaging.mjs
+ M packages/desktop/src/main/clipboard-file.test.ts
+ M packages/desktop/src/main/clipboard-file.ts
+ M packages/desktop/src/main/constants.ts
+ M packages/desktop/src/main/floating-notifications.test.ts
+ M packages/desktop/src/main/floating-notifications.ts
+ M packages/desktop/src/main/index.ts
+ M packages/desktop/src/main/ipc.ts
+ M packages/desktop/src/main/windows.ts
+ M packages/desktop/src/preload/index.ts
+ M packages/desktop/src/preload/types.ts
+ M packages/desktop/src/renderer/floating.html
+ M packages/desktop/src/renderer/floating.tsx
+ M packages/desktop/src/renderer/platform.ts
+ M packages/llm/package.json
+ M packages/llm/src/protocols/image-generation/agnes.ts
+ M packages/llm/src/protocols/image-generation/index.ts
+ M packages/llm/src/protocols/index.ts
+ M packages/llm/src/protocols/registry.ts
+ M packages/llm/src/protocols/video-generation/agnes.ts
+ M packages/llm/src/protocols/video-generation/index.ts
+ M packages/llm/test/protocols/image-generation/agnes.test.ts
+ M packages/llm/test/protocols/video-generation/agnes.test.ts
+ M packages/llm/test/protocols/video-generation/service.test.ts
+ M packages/opencode/migration/20260717120744_powersnexus_workflow/snapshot.json
+ M packages/opencode/package.json
+ M packages/opencode/probe-browser-qa.cjs
+ M packages/opencode/script/build-node.ts
+ M packages/opencode/script/generate.ts
+ D packages/opencode/script/powersnexus-stable-online.ts
+ M packages/opencode/src/agent/agent.ts
+ M packages/opencode/src/command/index.ts
+ M packages/opencode/src/config/command.ts
+ M packages/opencode/src/config/config.ts
+ M packages/opencode/src/config/evolution.ts
+ M packages/opencode/src/config/memory.ts
+ D packages/opencode/src/config/powersnexus.ts
+ M packages/opencode/src/config/provider.ts
+ M packages/opencode/src/effect/app-runtime.ts
+ M packages/opencode/src/effect/instance-state.ts
+ M packages/opencode/src/evolution/evolution.sql.ts
+ M packages/opencode/src/evolution/schema.ts
+ M packages/opencode/src/evolution/service.ts
+ M packages/opencode/src/file/index.ts
+ M packages/opencode/src/memory/context.ts
+ M packages/opencode/src/memory/index.ts
+ M packages/opencode/src/memory/memory.sql.ts
+ M packages/opencode/src/memory/schema.ts
+ M packages/opencode/src/memory/service.ts
+ M packages/opencode/src/plugin/shared.ts
+ D packages/opencode/src/powersnexus/binding.sql.ts
+ D packages/opencode/src/powersnexus/bridge-client.ts
+ D packages/opencode/src/powersnexus/bridge-error.ts
+ D packages/opencode/src/powersnexus/bridge-schema.ts
+ D packages/opencode/src/powersnexus/browser-qa.ts
+ D packages/opencode/src/powersnexus/browser.ts
+ D packages/opencode/src/powersnexus/bundled.ts
+ D packages/opencode/src/powersnexus/delivery.ts
+ D packages/opencode/src/powersnexus/developer.ts
+ D packages/opencode/src/powersnexus/events.ts
+ D packages/opencode/src/powersnexus/evidence.ts
+ D packages/opencode/src/powersnexus/isolation.ts
+ D packages/opencode/src/powersnexus/level.ts
+ D packages/opencode/src/powersnexus/node-exec.ts
+ D packages/opencode/src/powersnexus/os-isolation.ts
+ D packages/opencode/src/powersnexus/reconcile.ts
+ D packages/opencode/src/powersnexus/redact.ts
+ D packages/opencode/src/powersnexus/repository.ts
+ D packages/opencode/src/powersnexus/run-repository.ts
+ D packages/opencode/src/powersnexus/run.sql.ts
+ D packages/opencode/src/powersnexus/runner.ts
+ D packages/opencode/src/powersnexus/schema.ts
+ D packages/opencode/src/powersnexus/service.ts
+ D packages/opencode/src/powersnexus/stable-local.ts
+ D packages/opencode/src/powersnexus/state.ts
+ D packages/opencode/src/powersnexus/update-manifest.ts
+ D packages/opencode/src/powersnexus/update-service.ts
+ D packages/opencode/src/powersnexus/version-service.ts
+ D packages/opencode/src/powersnexus/version-store.ts
+ D packages/opencode/src/powersnexus/workflow-schema.ts
+ M packages/opencode/src/project/bootstrap.ts
+ M packages/opencode/src/provider/transform.ts
+ M packages/opencode/src/server/routes/instance/httpapi/api.ts
+ M packages/opencode/src/server/routes/instance/httpapi/groups/file.ts
+ M packages/opencode/src/server/routes/instance/httpapi/groups/memory.ts
+ D packages/opencode/src/server/routes/instance/httpapi/groups/powersnexus.ts
+ M packages/opencode/src/server/routes/instance/httpapi/groups/provider.ts
+ M packages/opencode/src/server/routes/instance/httpapi/handlers/chat.ts
+ M packages/opencode/src/server/routes/instance/httpapi/handlers/file.ts
+ M packages/opencode/src/server/routes/instance/httpapi/handlers/images.ts
+ M packages/opencode/src/server/routes/instance/httpapi/handlers/memory.ts
+ D packages/opencode/src/server/routes/instance/httpapi/handlers/powersnexus.ts
+ M packages/opencode/src/server/routes/instance/httpapi/handlers/provider.ts
+ M packages/opencode/src/server/routes/instance/httpapi/handlers/videos.ts
+ M packages/opencode/src/server/routes/instance/httpapi/server.ts
+ M packages/opencode/src/session/compaction.ts
+ M packages/opencode/src/session/instruction.ts
+ M packages/opencode/src/session/llm.ts
+ M packages/opencode/src/session/prompt.ts
+ M packages/opencode/src/session/revert.ts
+ M packages/opencode/src/session/session.ts
+ M packages/opencode/src/session/system.ts
+ M packages/opencode/src/skill/index.ts
+ M packages/opencode/src/tool/browser.ts
+ M packages/opencode/src/tool/generate_image.ts
+ M packages/opencode/src/tool/generate_video.ts
+ M packages/opencode/src/tool/memory.ts
+ M packages/opencode/src/tool/registry.ts
+ M packages/opencode/src/tool/task.ts
+ M packages/opencode/test/agent/agent.test.ts
+ M packages/opencode/test/cli/memory-curator-command.test.ts
+ M packages/opencode/test/config/config.test.ts
+ M packages/opencode/test/evolution/service.test.ts
+ M packages/opencode/test/memory/context.test.ts
+ D packages/opencode/test/powersnexus/bridge-client.test.ts
+ D packages/opencode/test/powersnexus/browser-qa-live.test.ts
+ D packages/opencode/test/powersnexus/browser-qa.test.ts
+ D packages/opencode/test/powersnexus/browser-tools.test.ts
+ D packages/opencode/test/powersnexus/bundled.test.ts
+ D packages/opencode/test/powersnexus/config-release-urls.test.ts
+ D packages/opencode/test/powersnexus/delivery.test.ts
+ D packages/opencode/test/powersnexus/developer-workspace.test.ts
+ D packages/opencode/test/powersnexus/developer.test.ts
+ D packages/opencode/test/powersnexus/evidence.test.ts
+ D packages/opencode/test/powersnexus/isolation.test.ts
+ D packages/opencode/test/powersnexus/reconcile.test.ts
+ D packages/opencode/test/powersnexus/redact.test.ts
+ D packages/opencode/test/powersnexus/repository.test.ts
+ D packages/opencode/test/powersnexus/runner.test.ts
+ D packages/opencode/test/powersnexus/service.test.ts
+ D packages/opencode/test/powersnexus/stable-local-harness.test.ts
+ D packages/opencode/test/powersnexus/state.test.ts
+ D packages/opencode/test/powersnexus/update-flow.test.ts
+ D packages/opencode/test/powersnexus/update-manifest.test.ts
+ D packages/opencode/test/powersnexus/update-service.test.ts
+ D packages/opencode/test/powersnexus/version-store.test.ts
+ M packages/opencode/test/provider/transform.test.ts
+ M packages/opencode/test/server/httpapi-exercise/index.ts
+ M packages/opencode/test/server/httpapi-file.test.ts
+ M packages/opencode/test/session/compaction.test.ts
+ M packages/opencode/test/session/instruction.test.ts
+ M packages/opencode/test/session/llm.test.ts
+ M packages/opencode/test/session/prompt.test.ts
+ M packages/opencode/test/session/snapshot-tool-race.test.ts
+ M packages/opencode/test/session/system.test.ts
+ M packages/opencode/test/skill/skill.test.ts
+ M packages/opencode/test/tool/registry.test.ts
+ M packages/sdk/js/src/v2/gen/client.gen.ts
+ M packages/sdk/js/src/v2/gen/client/client.gen.ts
+ M packages/sdk/js/src/v2/gen/client/index.ts
+ M packages/sdk/js/src/v2/gen/client/types.gen.ts
+ M packages/sdk/js/src/v2/gen/client/utils.gen.ts
+ M packages/sdk/js/src/v2/gen/core/auth.gen.ts
+ M packages/sdk/js/src/v2/gen/core/bodySerializer.gen.ts
+ M packages/sdk/js/src/v2/gen/core/params.gen.ts
+ M packages/sdk/js/src/v2/gen/core/pathSerializer.gen.ts
+ M packages/sdk/js/src/v2/gen/core/queryKeySerializer.gen.ts
+ M packages/sdk/js/src/v2/gen/core/serverSentEvents.gen.ts
+ M packages/sdk/js/src/v2/gen/core/types.gen.ts
+ M packages/sdk/js/src/v2/gen/core/utils.gen.ts
+ M packages/sdk/js/src/v2/gen/sdk.gen.ts
+ M packages/sdk/js/src/v2/gen/types.gen.ts
+ M packages/sdk/openapi.json
+ M packages/ui/src/components/markdown.css
+ M packages/ui/src/components/markdown.tsx
+ M packages/ui/src/components/media-toolbar.tsx
+ M packages/ui/src/components/message-part.tsx
+ M packages/ui/src/components/session-turn.css
+ M packages/ui/src/components/typing-indicator.tsx
+ M packages/ui/src/i18n/en.ts
+ M packages/ui/src/i18n/zh.ts
+ M packages/ui/src/i18n/zht.ts
+ M packages/ui/src/util/clipboard.test.ts
+ M packages/ui/src/util/clipboard.ts
+ M packages/ui/src/util/download.test.ts
+ M packages/ui/src/util/download.ts
+ M script/generate.ts
+?? .claude/context-summary-evolution-refinement.md
+?? .github/workflows/memory-evolution-eval.yml
+?? .rollback-backups/
+?? .tmp-ev-build.log
+?? .tmp-load-bundled.err
+?? .tmp-load-bundled.out
+?? .tmp/
+?? docs/memory-evolution-eval.md
+?? docs/memory-retrieval-guide.md
+?? docs/powersnexus-plugin-mode.md
+?? packages/app/src/components/cache-usage-panel.tsx
+?? packages/app/src/components/settings-desktop.tsx
+?? packages/app/src/components/settings-memory-evolution.tsx
+?? packages/app/src/components/settings-memory-setup-state.test.ts
+?? packages/app/src/components/settings-memory-setup-state.ts
+?? packages/app/src/utils/provider-model-discovery.test.ts
+?? packages/app/src/utils/provider-model-discovery.ts
+?? packages/core/src/openai-compatible.ts
+?? packages/core/test/openai-compatible.test.ts
+?? packages/desktop/src/main/floating-pet-position.test.ts
+?? packages/desktop/src/main/floating-widget-state.test.ts
+?? packages/desktop/src/main/floating-widget-state.ts
+?? packages/llm/src/protocols/image-generation/sensenova.ts
+?? packages/llm/test/protocols/image-generation/registry.test.ts
+?? packages/llm/test/protocols/image-generation/sensenova.test.ts
+?? packages/opencode/.tmp/
+?? packages/opencode/migration/20260725090000_memory_lifecycle_fts/
+?? packages/opencode/migration/20260726090000_memory_dense_embedding/
+?? packages/opencode/migration/20260802000000_memory_relations/
+?? packages/opencode/migration/20260803000000_evolution_expected_outcomes/
+?? packages/opencode/src/browser/
+?? packages/opencode/src/evolution/eval.ts
+?? packages/opencode/src/memory/domain.ts
+?? packages/opencode/src/memory/embedder.ts
+?? packages/opencode/src/memory/eval.ts
+?? packages/opencode/src/memory/fact.ts
+?? packages/opencode/src/memory/kind.ts
+?? packages/opencode/src/memory/ollama-setup.ts
+?? packages/opencode/src/memory/prefetch.ts
+?? packages/opencode/src/memory/relations.ts
+?? packages/opencode/src/memory/scope.ts
+?? packages/opencode/src/memory/search.ts
+?? packages/opencode/src/memory/task-eval.ts
+?? packages/opencode/src/memory/vector.ts
+?? packages/opencode/src/provider/model-discovery.ts
+?? packages/opencode/test/config/command-evolution-load.test.ts
+?? packages/opencode/test/evolution/eval.test.ts
+?? packages/opencode/test/evolution/generic-kind.test.ts
+?? packages/opencode/test/memory/domain.test.ts
+?? packages/opencode/test/memory/embedder.test.ts
+?? packages/opencode/test/memory/eval.test.ts
+?? packages/opencode/test/memory/generic-kind.test.ts
+?? packages/opencode/test/memory/lifecycle.test.ts
+?? packages/opencode/test/memory/ollama-setup.test.ts
+?? packages/opencode/test/memory/prefetch.test.ts
+?? packages/opencode/test/memory/relation-persistence.test.ts
+?? packages/opencode/test/memory/relations.test.ts
+?? packages/opencode/test/memory/scope.test.ts
+?? packages/opencode/test/memory/task-eval.test.ts
+?? packages/opencode/test/memory/vector.test.ts
+?? packages/opencode/test/provider/model-discovery.test.ts
+?? packages/opencode/test/session/llm-media-input.test.ts
+?? packages/opencode/test/session/llm-media.test.ts
+?? packages/sdk/js/openapi.json
+?? packages/sdk/js/script/openapi-ts-error-1784797125180.log

@@ -34,6 +34,15 @@ type Metrics = {
   context: Context | undefined
 }
 
+export type SessionCacheMetrics = {
+  input: number
+  cacheRead: number
+  cacheWrite: number
+  totalInput: number
+  hitRate: number | null
+  calls: number
+}
+
 const tokenTotal = (msg: AssistantMessage) => {
   return msg.tokens.input + msg.tokens.output + msg.tokens.reasoning + msg.tokens.cache.read + msg.tokens.cache.write
 }
@@ -79,4 +88,32 @@ const build = (messages: Message[] = [], providers: Provider[] = []): Metrics =>
 
 export function getSessionContextMetrics(messages: Message[] = [], providers: Provider[] = []) {
   return build(messages, providers)
+}
+
+export function getSessionCacheMetrics(messages: Message[] = []): SessionCacheMetrics {
+  let input = 0
+  let cacheRead = 0
+  let cacheWrite = 0
+  let calls = 0
+
+  for (const message of messages) {
+    if (message.role !== "assistant") continue
+    const tokens = message.tokens
+    if (!tokens) continue
+    if (tokens.input + tokens.cache.read + tokens.cache.write <= 0) continue
+    input += tokens.input
+    cacheRead += tokens.cache.read
+    cacheWrite += tokens.cache.write
+    calls += 1
+  }
+
+  const totalInput = input + cacheRead + cacheWrite
+  return {
+    input,
+    cacheRead,
+    cacheWrite,
+    totalInput,
+    hitRate: totalInput > 0 ? cacheRead / totalInput : null,
+    calls,
+  }
 }

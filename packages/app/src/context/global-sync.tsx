@@ -349,6 +349,19 @@ function createGlobalSync() {
 
     invalidateMemoryEvolutionQueries(queryClient, event)
 
+    if (event.type === "evolution.autoApplyFileFailed") {
+      const props = event.properties as { candidateID: string; message?: string }
+      showToast({
+        variant: "error",
+        icon: "warning",
+        title: language.t("evolution.autoApplyFileFailed.title" as never),
+        description: language.t("evolution.autoApplyFileFailed.description" as never, {
+          candidate: props.candidateID,
+          message: props.message ?? "",
+        }),
+      })
+    }
+
     if (directory === "global") {
       applyGlobalEvent({
         event,

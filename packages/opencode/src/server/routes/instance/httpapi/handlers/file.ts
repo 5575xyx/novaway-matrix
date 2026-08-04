@@ -39,6 +39,13 @@ export const fileHandlers = HttpApiBuilder.group(InstanceHttpApi, "file", (handl
       return yield* svc.read(ctx.query.path)
     })
 
+    const write = Effect.fn("FileHttpApi.write")(function* (ctx: {
+      payload: { path: string; content: string }
+    }) {
+      yield* svc.write(ctx.payload.path, ctx.payload.content)
+      return true
+    })
+
     const status = Effect.fn("FileHttpApi.status")(function* () {
       return yield* svc.status()
     })
@@ -49,6 +56,7 @@ export const fileHandlers = HttpApiBuilder.group(InstanceHttpApi, "file", (handl
       .handle("findSymbol", findSymbol)
       .handle("list", list)
       .handle("content", content)
+      .handle("write", write)
       .handle("status", status)
   }),
 )

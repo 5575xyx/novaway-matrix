@@ -7,7 +7,6 @@ import { FloatingAgentSync } from "@/components/floating-agent-sync"
 import { useLanguage } from "@/context/language"
 import { LocalProvider } from "@/context/local"
 import { SDKProvider } from "@/context/sdk"
-import { PowersNexusProvider } from "@/context/powersnexus"
 import { SyncProvider, useSync } from "@/context/sync"
 import { decode64 } from "@/utils/base64"
 
@@ -77,11 +76,9 @@ export default function Layout(props: ParentProps) {
     <Show when={resolved()} keyed>
       {(resolved) => (
         <SDKProvider directory={() => resolved}>
-          <PowersNexusProvider>
-            <SyncProvider>
-              <DirectoryDataProvider directory={resolved}>{props.children}</DirectoryDataProvider>
-            </SyncProvider>
-          </PowersNexusProvider>
+          <SyncProvider>
+            <DirectoryDataProvider directory={resolved}>{props.children}</DirectoryDataProvider>
+          </SyncProvider>
         </SDKProvider>
       )}
     </Show>

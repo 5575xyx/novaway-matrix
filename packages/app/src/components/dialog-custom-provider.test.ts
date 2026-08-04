@@ -77,4 +77,25 @@ describe("validateCustomProvider", () => {
       value: undefined,
     })
   })
+
+  test("normalizes a SenseNova chat endpoint for discovery and runtime requests", () => {
+    const result = validateCustomProvider({
+      form: {
+        providerID: "sensenova",
+        name: "商汤日日新",
+        baseURL: "https://api.sensenova.cn/v1/llm/chat-completions",
+        apiKey: "token",
+        models: [{ row: "m0", id: "SenseChat-5", name: "SenseChat 5", type: "text", err: {} }],
+        headers: [{ row: "h0", key: "", value: "", err: {} }],
+        err: {},
+      },
+      t,
+      disabledProviders: [],
+      existingProviderIDs: new Set(),
+    })
+
+    expect(result.result?.config.options).toEqual({
+      baseURL: "https://token.sensenova.cn/v1",
+    })
+  })
 })

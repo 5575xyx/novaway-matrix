@@ -10,14 +10,15 @@ import { createMemo, createSignal, For, Show, type Component, type JSX } from "s
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
+import { ConfirmDialog } from "./dialog-confirm"
 import { ReviewActionButton } from "./review-action-button"
 import { finiteNumber } from "./review-ui-helpers"
-import { modeGroupLabel, modeGroups, type ModeGroup } from "./settings-mode-groups"
 import {
   evolutionCandidateSource,
   evolutionCounts,
-  evolutionSourceCounts,
-  filterEvolutionCandidates,
+  evolutionDomainLabel,
+  evolutionKindLabel,
+  evolutionValidationLabel,
   type CandidateSource,
   type CandidateStatus,
 } from "./settings-evolution.helpers"
@@ -118,59 +119,6 @@ const SegmentTabs: Component<{
     </div>
   )
 }
-
-const SourceFilter: Component<{
-  value: CandidateSource
-  onChange: (value: CandidateSource) => void
-  counts: Record<CandidateSource, number>
-}> = (props) => {
-  const language = useLanguage()
-  return (
-    <div class="flex flex-wrap gap-1">
-      <For each={["all", "background", "session-end"] as CandidateSource[]}>
-        {(value) => (
-          <button
-            type="button"
-            class="h-7 px-2.5 rounded-md text-12-medium border transition-colors"
-            classList={{
-              "bg-surface-base-active text-text-strong border-border-weak-base": props.value === value,
-              "bg-transparent text-text-weak border-transparent hover:bg-surface-base-hover hover:text-text-strong":
-                props.value !== value,
-            }}
-            onClick={() => props.onChange(value)}
-          >
-            {language.t(sourceLabels[value] as never)} {props.counts[value]}
-          </button>
-        )}
-      </For>
-    </div>
-  )
-}
-
-const ModeFilter: Component<{
-  value: ModeGroup
-  onChange: (value: ModeGroup) => void
-  counts: Record<ModeGroup, number>
-}> = (props) => (
-  <div class="flex flex-wrap gap-1">
-    <For each={modeGroups}>
-      {(group) => (
-        <button
-          type="button"
-          class="h-7 px-2.5 rounded-md text-12-medium border transition-colors"
-          classList={{
-            "bg-surface-base-active text-text-strong border-border-weak-base": props.value === group.value,
-            "bg-transparent text-text-weak border-transparent hover:bg-surface-base-hover hover:text-text-strong":
-              props.value !== group.value,
-          }}
-          onClick={() => props.onChange(group.value)}
-        >
-          {modeGroupLabel(group.value)} {props.counts[group.value]}
-        </button>
-      )}
-    </For>
-  </div>
-)
 
 const ContentFormatControl: Component<{
   value: CandidateContentFormat
@@ -279,7 +227,7 @@ const CandidateRow: Component<{
   }))
 
   return (
-    <div class="flex items-start justify-between gap-4 py-3 border-b border-border-weak-base last:border-none">
+    <div class="flex items-start justify-between gap-4 rounded-lg border border-border-weak-base bg-surface-base px-4 py-3">
       <div class="flex min-w-0 flex-1 items-start gap-3">
         <Icon name="branch" class="size-5 shrink-0 icon-strong-base mt-0.5" />
         <div class="flex min-w-0 flex-col gap-1">
@@ -293,7 +241,9 @@ const CandidateRow: Component<{
                   <Tag>
                     {language.t(sourceLabels[evolutionCandidateSource(candidateTags(props.candidate))] as never)}
                   </Tag>
-                  <Tag>{props.candidate.kind}</Tag>
+                  <Tag>{evolutionKindLabel(props.candidate.kind)}</Tag>
+                  <Tag>{evolutionDomainLabel(props.candidate.domain)}</Tag>
+                  <Tag>{evolutionValidationLabel(props.candidate.validationStatus)}</Tag>
                   <Tag>{props.candidate.target}</Tag>
                   <Tag>{props.candidate.contentFormat}</Tag>
                 </div>
@@ -302,6 +252,16 @@ const CandidateRow: Component<{
                   <span>{props.candidate.reason}</span>
                   <span>{created()}</span>
                 </div>
+                <Show when={props.candidate.validationNote}>
+                  <div class="text-12-regular text-text-weak break-words">
+                    验证说明：{props.candidate.validationNote}
+                  </div>
+                </Show>
+                <Show when={(props.candidate.expectedOutcomes?.length ?? 0) > 0}>
+                  <div class="flex flex-wrap gap-1 pt-1">
+                    <For each={props.candidate.expectedOutcomes}>{(outcome) => <Tag>预期：{outcome}</Tag>}</For>
+                  </div>
+                </Show>
                 <Show when={candidateTags(props.candidate).length > 0}>
                   <div class="flex flex-wrap gap-1 pt-1">
                     <For each={candidateTags(props.candidate)}>{(tag) => <Tag>{tag}</Tag>}</For>
@@ -338,7 +298,7 @@ const CandidateRow: Component<{
               <div class="flex flex-wrap items-center gap-2">
                 <Tag>{language.t(statusLabels[status()] as never)}</Tag>
                 <Tag>{language.t(sourceLabels[evolutionCandidateSource(candidateTags(props.candidate))] as never)}</Tag>
-                <Tag>{props.candidate.kind}</Tag>
+                <Tag>{evolutionKindLabel(props.candidate.kind)}</Tag>
                 <Tag>{props.candidate.target}</Tag>
                 <Tag>{props.candidate.contentFormat}</Tag>
               </div>
@@ -425,15 +385,26 @@ const CandidateRow: Component<{
   )
 }
 
-export const SettingsEvolution: Component = () => {
+export const SettingsEvolution: Component<{ embedded?: boolean }> = (props) => {
   const language = useLanguage()
   const globalSDK = useGlobalSDK()
   const globalSync = useGlobalSync()
   const queryClient = useQueryClient()
   const [tab, setTab] = createSignal<CandidateStatus>("pending")
-  const [source, setSource] = createSignal<CandidateSource>("all")
-  const [modeGroup, setModeGroup] = createSignal<ModeGroup>("all")
-  const evolutionConfig = createMemo(() => globalSync.data.config.evolution ?? {})
+  const [candidateSearch, setCandidateSearch] = createSignal("")
+  const [showAutoApplyFileConfirm, setShowAutoApplyFileConfirm] = createSignal(false)
+  const [pendingAutoApplyFileValue, setPendingAutoApplyFileValue] = createSignal(false)
+  const evolutionConfig = createMemo(() => {
+    const raw = globalSync.data.config.evolution ?? {}
+    return {
+      ...raw,
+      enabled: raw.enabled ?? true,
+      review_llm: raw.review_llm ?? true,
+      review_interval: raw.review_interval ?? 2,
+      auto_apply: raw.auto_apply ?? false,
+      auto_apply_file: raw.auto_apply_file ?? false,
+    }
+  })
 
   const status = useQuery(() => ({
     queryKey: ["settings", "evolution", "status"],
@@ -496,11 +467,20 @@ export const SettingsEvolution: Component = () => {
       }),
   }))
 
-  const toggleConfig = (key: "enabled" | "review_llm", value: boolean) =>
+  const toggleConfig = (key: "enabled" | "review_llm" | "auto_apply_file", value: boolean) =>
     updateConfig.mutate({
       ...evolutionConfig(),
       [key]: value,
     })
+
+  const onAutoApplyFileChange = (value: boolean) => {
+    if (value) {
+      setPendingAutoApplyFileValue(true)
+      setShowAutoApplyFileConfirm(true)
+      return
+    }
+    toggleConfig("auto_apply_file", false)
+  }
 
   const updateReviewInterval = (value: string) =>
     updateConfig.mutate({
@@ -509,27 +489,30 @@ export const SettingsEvolution: Component = () => {
     })
 
   const counts = createMemo(() => evolutionCounts(status.data))
-  const sourceCounts = createMemo(() => evolutionSourceCounts(status.data, tab()))
-  const sourceFilteredCandidates = createMemo(() => filterEvolutionCandidates(candidates.data ?? [], source()))
-  const modeCounts = createMemo(
-    () =>
-      Object.fromEntries(
-        modeGroups.map((group) => [
-          group.value,
-          filterEvolutionCandidates(sourceFilteredCandidates(), "all", group.value).length,
-        ]),
-      ) as Record<ModeGroup, number>,
-  )
-  const filteredCandidates = createMemo(() => filterEvolutionCandidates(candidates.data ?? [], source(), modeGroup()))
+  const filteredCandidates = createMemo(() => {
+    const query = candidateSearch().trim().toLowerCase()
+    const list = candidates.data ?? []
+    if (!query) return list
+    return list.filter((candidate) =>
+      [
+        candidate.title,
+        candidate.content,
+        candidate.reason,
+        candidate.kind,
+        candidate.domain,
+        candidate.target,
+        ...candidateTags(candidate),
+      ]
+        .map((value) => String(value ?? "").toLowerCase())
+        .some((value) => value.includes(query)),
+    )
+  })
 
-  return (
-    <SettingsPage
-      title={language.t("settings.evolution.title" as never)}
-      description={language.t("settings.evolution.description" as never)}
-    >
+  const body = (
+    <>
       <div>
         <SectionTitle title={language.t("settings.evolution.section.config" as never)} />
-        <SettingsList>
+        <div class="flex flex-col gap-2">
           <div class="flex items-center justify-between gap-4 py-3 border-b border-border-weak-base">
             <div class="flex flex-col gap-1">
               <span class="text-14-medium text-text-strong">
@@ -540,7 +523,7 @@ export const SettingsEvolution: Component = () => {
               </span>
             </div>
             <Switch
-              checked={evolutionConfig().enabled === true}
+              checked={evolutionConfig().enabled !== false}
               disabled={updateConfig.isPending}
               onChange={(value) => toggleConfig("enabled", value)}
               hideLabel
@@ -558,7 +541,7 @@ export const SettingsEvolution: Component = () => {
               </span>
             </div>
             <Switch
-              checked={evolutionConfig().review_llm === true}
+              checked={evolutionConfig().review_llm !== false}
               disabled={updateConfig.isPending || evolutionConfig().enabled !== true}
               onChange={(value) => toggleConfig("review_llm", value)}
               hideLabel
@@ -566,7 +549,7 @@ export const SettingsEvolution: Component = () => {
               {language.t("settings.evolution.config.llm.title" as never)}
             </Switch>
           </div>
-          <div class="flex items-center justify-between gap-4 py-3">
+          <div class="flex items-center justify-between gap-4 py-3 border-b border-border-weak-base">
             <div class="flex flex-col gap-1">
               <span class="text-14-medium text-text-strong">
                 {language.t("settings.evolution.config.interval.title" as never)}
@@ -593,7 +576,25 @@ export const SettingsEvolution: Component = () => {
               />
             </div>
           </div>
-        </SettingsList>
+          <div class="flex items-center justify-between gap-4 py-3">
+            <div class="flex flex-col gap-1">
+              <span class="text-14-medium text-text-strong">
+                {language.t("settings.evolution.config.autoApplyFile.title" as never)}
+              </span>
+              <span class="text-12-regular text-text-weak">
+                {language.t("settings.evolution.config.autoApplyFile.description" as never)}
+              </span>
+            </div>
+            <Switch
+              checked={evolutionConfig().auto_apply_file === true}
+              disabled={updateConfig.isPending || evolutionConfig().enabled !== true}
+              onChange={onAutoApplyFileChange}
+              hideLabel
+            >
+              {language.t("settings.evolution.config.autoApplyFile.title" as never)}
+            </Switch>
+          </div>
+        </div>
       </div>
 
       <div>
@@ -613,10 +614,16 @@ export const SettingsEvolution: Component = () => {
           </Button>
         </div>
         <div class="pb-3">
-          <SourceFilter value={source()} onChange={setSource} counts={sourceCounts()} />
-        </div>
-        <div class="pb-3">
-          <ModeFilter value={modeGroup()} onChange={setModeGroup} counts={modeCounts()} />
+          <TextField
+            label="搜索候选"
+            value={candidateSearch()}
+            onChange={setCandidateSearch}
+            placeholder="按标题、内容、类型或标签搜索"
+            spellcheck={false}
+            autocorrect="off"
+            autocomplete="off"
+            autocapitalize="off"
+          />
         </div>
         <SettingsList>
           <Show when={!candidates.isLoading && !status.isLoading} fallback={<LoadingState />}>
@@ -639,6 +646,29 @@ export const SettingsEvolution: Component = () => {
           </Show>
         </SettingsList>
       </div>
+
+      <ConfirmDialog
+        open={showAutoApplyFileConfirm()}
+        variant="danger"
+        title={language.t("settings.evolution.config.autoApplyFile.confirm.title" as never)}
+        description={language.t("settings.evolution.config.autoApplyFile.confirm.description" as never)}
+        confirmText={language.t("settings.evolution.config.autoApplyFile.confirm.confirm" as never)}
+        cancelText={language.t("settings.evolution.config.autoApplyFile.confirm.cancel" as never)}
+        onConfirm={() => toggleConfig("auto_apply_file", pendingAutoApplyFileValue())}
+        onClose={() => {
+          setShowAutoApplyFileConfirm(false)
+          setPendingAutoApplyFileValue(false)
+        }}
+      />
+    </>
+  )
+  if (props.embedded) return body
+  return (
+    <SettingsPage
+      title={language.t("settings.evolution.title" as never)}
+      description={language.t("settings.evolution.description" as never)}
+    >
+      {body}
     </SettingsPage>
   )
 }

@@ -30,6 +30,14 @@ export const ReviewCandidateQuery = Schema.Struct({
   limit: Schema.optional(Schema.NumberFromString),
 })
 
+export const RelationListQuery = Schema.Struct({
+  ...WorkspaceRoutingQueryFields,
+  entity: Schema.optional(Schema.String),
+  relation: Schema.optional(Schema.String),
+  includeArchived: Schema.optional(QueryBoolean),
+  limit: Schema.optional(Schema.NumberFromString),
+})
+
 export const MemoryPaths = {
   list: root,
   status: `${root}/status`,
@@ -38,10 +46,82 @@ export const MemoryPaths = {
   reviewCandidate: `${root}/review/candidate`,
   reviewCandidateApply: `${root}/review/candidate/:candidateID/apply`,
   reviewCandidateDismiss: `${root}/review/candidate/:candidateID/dismiss`,
+  embeddingStatus: `${root}/embedding/status`,
+  embeddingSetupLocal: `${root}/embedding/setup-local`,
+  relations: `${root}/relations`,
+  relationsRemove: `${root}/relations/:relationID`,
+  relationsForMemory: `${root}/:memoryID/relations`,
   get: `${root}/:memoryID`,
   update: `${root}/:memoryID`,
   remove: `${root}/:memoryID`,
 } as const
+
+const OllamaPhase = Schema.Literals([
+  "idle",
+  "checking",
+  "installing",
+  "starting",
+  "pulling",
+  "ready",
+  "needs_manual",
+  "error",
+])
+
+export const EmbeddingStatus = Schema.Struct({
+  platform: Schema.String,
+  baseURL: Schema.String,
+  preferredModel: Schema.String,
+  cliInstalled: Schema.Boolean,
+  cliPath: Schema.optional(Schema.String),
+  installDir: Schema.optional(Schema.String),
+  cliVersion: Schema.optional(Schema.String),
+  modelsDir: Schema.String,
+  daemonRunning: Schema.Boolean,
+  models: Schema.Array(Schema.String),
+  hasEmbedModel: Schema.Boolean,
+  selectedModel: Schema.optional(Schema.String),
+  ready: Schema.Boolean,
+  phase: OllamaPhase,
+  message: Schema.String,
+  hint: Schema.optional(Schema.String),
+  installCommand: Schema.optional(Schema.String),
+  downloadURL: Schema.String,
+  /** Currently resolved embedder backend label from auto/local/provider/ollama */
+  activeBackendLabel: Schema.String,
+  activeBackendKind: Schema.Literals(["local", "provider", "ollama", "off"]),
+  activeBackendModelId: Schema.String,
+}).annotate({ identifier: "MemoryEmbeddingStatus" })
+
+export const EmbeddingSetupStep = Schema.Struct({
+  step: Schema.String,
+  status: Schema.Literals(["running", "ok", "skip", "error", "manual"]),
+  detail: Schema.optional(Schema.String),
+})
+
+export const EmbeddingSetupLocalPayload = Schema.Struct({
+  allowInstall: Schema.optional(Schema.Boolean),
+  model: Schema.optional(Schema.String),
+  baseURL: Schema.optional(Schema.String),
+  installDir: Schema.optional(Schema.String),
+  modelsDir: Schema.optional(Schema.String),
+  /** When true, also write memory.embedding_* into resolved config defaults for this response guidance */
+  applyConfig: Schema.optional(Schema.Boolean),
+})
+
+export const EmbeddingSetupLocalResult = Schema.Struct({
+  ok: Schema.Boolean,
+  status: EmbeddingStatus,
+  steps: Schema.Array(EmbeddingSetupStep),
+  config: Schema.optional(
+    Schema.Struct({
+      embedding_mode: Schema.Literals(["ollama"]),
+      embedding_ollama_url: Schema.String,
+      embedding_ollama_model: Schema.String,
+      embedding_ollama_install_dir: Schema.optional(Schema.String),
+      embedding_ollama_models_dir: Schema.optional(Schema.String),
+    }),
+  ),
+}).annotate({ identifier: "MemoryEmbeddingSetupLocalResult" })
 
 export const MemoryApi = HttpApi.make("memory").add(
   HttpApiGroup.make("memory")
@@ -72,6 +152,40 @@ export const MemoryApi = HttpApi.make("memory").add(
         success: MemorySchema.ReviewStatus,
         error: HttpApiError.BadRequest,
       }),
+      HttpApiEndpoint.get("embeddingStatus", MemoryPaths.embeddingStatus, {
+        query: Schema.Struct(WorkspaceRoutingQueryFields),
+        success: EmbeddingStatus,
+        error: HttpApiError.BadRequest,
+      }),
+      HttpApiEndpoint.post("embeddingSetupLocal", MemoryPaths.embeddingSetupLocal, {
+        query: Schema.Struct(WorkspaceRoutingQueryFields),
+        payload: EmbeddingSetupLocalPayload,
+        success: EmbeddingSetupLocalResult,
+        error: HttpApiError.BadRequest,
+      }),
+      HttpApiEndpoint.get("listRelations", MemoryPaths.relations, {
+        query: RelationListQuery,
+        success: Schema.Array(MemorySchema.Relation),
+        error: HttpApiError.BadRequest,
+      }),
+      HttpApiEndpoint.post("addRelation", MemoryPaths.relations, {
+        query: Schema.Struct(WorkspaceRoutingQueryFields),
+        payload: MemorySchema.ManualRelationInput,
+        success: MemorySchema.Relation,
+        error: [HttpApiError.BadRequest, ApiNotFoundError],
+      }),
+      HttpApiEndpoint.delete("removeRelation", MemoryPaths.relationsRemove, {
+        params: { relationID: MemorySchema.RelationID },
+        query: Schema.Struct(WorkspaceRoutingQueryFields),
+        success: Schema.Boolean,
+        error: [HttpApiError.BadRequest, ApiNotFoundError],
+      }),
+      HttpApiEndpoint.get("relationsForMemory", MemoryPaths.relationsForMemory, {
+        params: { memoryID: MemorySchema.MemoryID },
+        query: Schema.Struct(WorkspaceRoutingQueryFields),
+        success: Schema.Array(MemorySchema.Relation),
+        error: HttpApiError.BadRequest,
+      }),
       HttpApiEndpoint.post("review", MemoryPaths.review, {
         query: Schema.Struct(WorkspaceRoutingQueryFields),
         payload: ReviewPayload,
@@ -85,6 +199,7 @@ export const MemoryApi = HttpApi.make("memory").add(
       }),
       HttpApiEndpoint.post("applyReviewCandidate", MemoryPaths.reviewCandidateApply, {
         params: { candidateID: MemorySchema.ReviewCandidateID },
+        payload: Schema.Struct({ scope: Schema.optional(MemorySchema.Scope) }),
         success: MemorySchema.Info,
         error: [HttpApiError.BadRequest, ApiNotFoundError],
       }),

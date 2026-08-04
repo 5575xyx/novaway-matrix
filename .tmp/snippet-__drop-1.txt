@@ -1,0 +1,43 @@
+on: proposal.reason?.trim() || \"LLM',\n    'reason: proposal.reason?.trim() || \"LLM-extracted durable memory',\n)\n# if broken reason line, replace whole assignment via regex\nimport re\ntext = re.sub(\n    r'reason: proposal\\.reason\\?\\.trim\\(\\) \\|\\| \"[^\"]*\",',\n    'reason: proposal.reason?.trim() || \"LLM-extracted durable memory\",',\n    text,\n)\ntext = re.sub(\n    r'reason: \"[\\u4e00-\\u9fff?A-Za-z \\u4e00-\\u9fff]*\\u7528\\u6237[^\"]*\",',\n    'reason: \"User explicitly requested to remember this content\",',\n    text,\n)\n# explicit candidate reason\ntext = text.replace(\n'''          operation: \"add\" as const,\n          reason: \"''',\n'''          operation: \"add\" as const,\n          reason: \"User explicitly requested to remember this content\",\n          __drop: \"'''\n)\n# cleanup botched replace if any - better direct\ntext2 = path.read_text(encoding='utf-8')  # no use\n# simpler: replace explicit reason line by scanning\nlines = text.splitlines()\nfor i, line in enumerate(lines):\n    if 'operation: \"add\" as const,' in line and i+1 < len(lines) and 'reason:' in lines[i+1]:\n        lines[i+1] = '          reason: \"User explicitly requested to remember this content\",'\n    if 'validation_note: note' in line:\n        pass\npath.write_text('\\n'.join(lines) + '\\n', encoding='utf-8')\nprint('service regex fixed')\n# verify\nt = Path(r\"packages/opencode/src/memory/service.ts\").read_text(encoding='utf-8')\nprint('chinese left?', any('\\u4e00' <= c <= '\\u9fff' for c in t))\nidx = t.find('function explicitMemory')\nprint(t[idx:idx+500])\n'@ | python -","workdir":"E:\\AImoney\\NovaWay-Matrix\\novaway-coder"}
+```
+
+
+## 2026-07-25T04:52:58.288Z shell_command
+
+```json
+{"command":"@'\nfrom pathlib import Path\nfor p in [\n r'packages/opencode/src/memory/domain.ts',\n r'packages/opencode/src/memory/fact.ts',\n r'packages/opencode/src/memory/scope.ts',\n r'packages/opencode/src/evolution/service.ts',\n]:\n    t = Path(p).read_text(encoding='utf-8')\n    print('====', p)\n    print(t[:400])\n    print('...')\n'@ | python -","workdir":"E:\\AImoney\\NovaWay-Matrix\\novaway-coder"}
+```
+
+
+## 2026-07-25T04:53:13.612Z shell_command
+
+```json
+{"command":"@'\nfrom pathlib import Path\nout = []\nfor p in [\n r'packages/opencode/src/memory/domain.ts',\n r'packages/opencode/src/memory/fact.ts',\n r'packages/opencode/src/memory/scope.ts',\n r'packages/opencode/src/evolution/service.ts',\n r'packages/opencode/src/session/prompt.ts',\n]:\n    raw = Path(p).read_bytes()\n    has_bom = raw.startswith(b'\\xef\\xbb\\xbf')\n    t = raw.decode('utf-8-sig')\n    chinese = sum(1 for c in t if '\\u4e00' <= c <= '\\u9fff')\n    q = t.count('?')\n    out.append(f'{p}: bom={has_bom} chinese={chinese} qmarks={q} size={len(t)}')\n    # strip bom if present\n    if has_bom:\n        Path(p).write_text(t, encoding='utf-8')\nPath(r'.tmp/check-enc.txt').write_text('\\n'.join(out), encoding='utf-8')\nprint('wrote .tmp/check-enc.txt')\n'@ | python -; Get-Content .tmp/check-enc.txt","workdir":"E:\\AImoney\\NovaWay-Matrix\\novaway-coder"}
+```
+
+
+## 2026-07-25T04:53:27.465Z shell_command
+
+```json
+{"command":"rg -n \"validation_note|已写入|下一会话|Session-end|global skill\" packages/opencode/src/evolution/service.ts | Select-Object -First 30; Write-Output '---'; rg -n \"function explicitSessionEnd|content = patterns|kind =\" packages/opencode/src/evolution/service.ts | Select-Object -First 20","workdir":"E:\\AImoney\\NovaWay-Matrix\\novaway-coder"}
+```
+
+
+## 2026-07-25T04:53:41.053Z shell_command
+
+```json
+{"command":"$i=0; Get-Content -Encoding UTF8 packages/opencode/src/evolution/service.ts | Select-Object -Skip 585 -First 30 | ForEach-Object { '{0,4}|{1}' -f (585+(++$i)), $_ }","workdir":"E:\\AImoney\\NovaWay-Matrix\\novaway-coder"}
+```
+
+
+## 2026-07-25T04:53:54.320Z shell_command
+
+```json
+{"command":"@'\nfrom pathlib import Path\np = Path(r\"packages/opencode/src/evolution/service.ts\")\nt = p.read_text(encoding=\"utf-8\")\nt = t.replace(\n'''      const note =\n        candidate.kind === \"skill\"\n          ? \"??? skill ???????/????????\"\n          : candidate.kind === \"agent\"\n            ? \"??? agent ?????????????\"\n            : \"??????????\"\n''',\n'''      const note =\n        candidate.kind === \"skill\"\n          ? \"Skill file written; takes effect after reload/next session.\"\n          : candidate.kind === \"agent\"\n            ? \"Agent config written; takes effect after reload.\"\n            : \"Evolution artifact written.\"\n'''\n)\np.write_text(t, encoding=\"utf-8\")\nprint('notes fixed')\n'@ | python -","workdir":"E:\\AImoney\\NovaWay-Matrix\\novaway-coder"}
+```
+
+
+## 2026-07-25T04:55:14.989Z shell_command
+
+```json
+{"command":"@'\nfrom pathlib import Path\n# fix conditions: archived list should include expired\np = Path(r\"packages/opencode/src/memory/service.ts\")\nt = p.read_text(encoding=\"utf-8\")\nold = '''function conditions(input?: ListInput) {\n  const now = Date.now()\n  return [\n    i

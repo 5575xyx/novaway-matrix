@@ -1,0 +1,8 @@
+packages/app/src/pages/session.tsx:225: QUESTION_LITERAL ? `${checksum(text) ?? text.length}-${Date.now()}`
+packages/desktop/src/main/ipc.ts:112: QUESTION_LITERAL return `${group.sessionID}:${task.id ?? `${task.content}:${task.priority}:${index}`}`
+packages/opencode/src/memory/service.ts:367: QUESTION_LITERAL `- confidence: ${row.confidence ?? 0.7}`,
+packages/opencode/src/memory/service.ts:369: QUESTION_LITERAL `- version: ${row.version ?? 1}`,
+packages/opencode/src/session/prompt.ts:1361: QUESTION_LITERAL `<attachment filename="${part.filename ?? "attachment"}">`,
+packages/opencode/src/session/prompt.ts:1416: QUESTION_LITERAL text: `Extracted Office attachment text from ${part.filename ?? path.basename(filepath)} (${document.kind})`,
+packages/opencode/src/session/prompt.ts:1424: QUESTION_LITERAL `<attachment filename="${part.filename ?? path.basename(filepath)}">`,
+packages/opencode/test/config/config.test.ts:2731: U+FFFD // parseManagedPlist unit tests �?pure function, no OS interaction

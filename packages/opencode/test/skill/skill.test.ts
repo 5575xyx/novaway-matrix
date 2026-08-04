@@ -559,3 +559,35 @@ description: A skill in the .novaway/skills directory.
     ),
   )
 })
+
+describe("skill reload", () => {
+  it.live("reload rediscovers newly written skills", () =>
+    provideTmpdirInstance(
+      (dir) =>
+        Effect.gen(function* () {
+          const skill = yield* Skill.Service
+          const before = yield* skill.all()
+          expect(before.some((item) => item.name === "hot-reload-skill")).toBe(false)
+
+          yield* Effect.promise(async () => {
+            const skillDir = path.join(dir, ".novaway", "skills", "hot-reload-skill")
+            await fs.mkdir(skillDir, { recursive: true })
+            await Bun.write(
+              path.join(skillDir, "SKILL.md"),
+              `---
+name: hot-reload-skill
+description: Created after initial skill discovery for reload testing.
+---
+
+# Hot Reload Skill
+`,
+            )
+          })
+
+          const after = yield* skill.reload()
+          expect(after.some((item) => item.name === "hot-reload-skill")).toBe(true)
+        }),
+      { git: true },
+    ),
+  )
+})

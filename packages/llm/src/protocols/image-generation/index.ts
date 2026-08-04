@@ -8,6 +8,7 @@ export interface ImageGenerationParams {
   readonly prompt: string
   readonly model: string
   readonly size?: string
+  readonly ratio?: string
   readonly n?: number
   readonly image?: ReadonlyArray<string>
   readonly options?: Record<string, unknown>

@@ -8,8 +8,8 @@ import type {
 /**
  * Agnes Video V2.0 适配器
  *
- * API: POST /v1/videos + GET /v1/videos/{task_id}
- * 文档: https://agnes-ai.com/doc/agnes-video-v20
+ * API: POST /v1/videos + GET /agnesapi?video_id={video_id}
+ * 文档: https://www.agnes-ai.cn/zh-Hans/docs/agnes-video-v20
  *
  * num_frames 必须满足 8n+1 且 ≤ 441，可选值: 81, 121, 161, 241, 441
  * frame_rate 范围: 1-60
@@ -17,9 +17,9 @@ import type {
  */
 export const agnesVideo: VideoGenerationProtocol = {
   id: "agnes-video",
-  baseURL: "https://apihub.agnes-ai.com/v1",
+  baseURL: "https://api.agnes-ai.cn/v1",
   createEndpoint: "/videos",
-  statusEndpoint: "https://apihub.agnes-ai.com/agnesapi?video_id={taskId}",
+  statusEndpoint: "../agnesapi?video_id={taskId}",
 
   buildCreateBody: (params: VideoGenerationParams) => {
     const body: Record<string, unknown> = {
@@ -65,18 +65,24 @@ export const agnesVideo: VideoGenerationProtocol = {
   parseStatusResponse: (raw: unknown): VideoTaskStatusResult => {
     const data = raw as {
       id?: string
+      task_id?: string
+      video_id?: string
       status?: string
       progress?: number
       video_url?: string
       url?: string
-      error?: string
+      metadata?: { url?: string }
+      error?: string | { message?: string; detail?: string }
     }
     return {
-      taskId: data.id ?? "",
+      taskId: data.video_id ?? data.task_id ?? data.id ?? "",
       status: (data.status as VideoTaskStatusResult["status"]) ?? "queued",
       progress: data.progress,
-      videoUrl: data.video_url ?? data.url ?? undefined,
-      error: data.error,
+      videoUrl: data.metadata?.url ?? data.video_url ?? data.url ?? undefined,
+      error:
+        typeof data.error === "string"
+          ? data.error
+          : data.error?.message ?? data.error?.detail ?? (data.error ? JSON.stringify(data.error) : undefined),
     }
   },
 }

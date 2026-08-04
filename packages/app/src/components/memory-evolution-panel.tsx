@@ -14,6 +14,8 @@ import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
 import { ReviewActionButton } from "./review-action-button"
 import { pendingBadgeLabel } from "./review-ui-helpers"
+import { memoryConfidenceLabel, memoryDomainLabel, memoryOperationLabel } from "./settings-memory.helpers"
+import { evolutionDomainLabel, evolutionValidationLabel } from "./settings-evolution.helpers"
 
 const queryOptions = {
   staleTime: 10_000,
@@ -50,8 +52,32 @@ export function MemoryEvolutionPanel() {
     ...queryOptions,
   }))
 
-  const memoryConfig = createMemo(() => globalSync.data.config.memory ?? {})
-  const evolutionConfig = createMemo(() => globalSync.data.config.evolution ?? {})
+  // 与后端 ConfigMemory/Evolution.resolve 默认一致：未配置即全自动学习
+  const memoryConfig = createMemo(() => {
+    const raw = globalSync.data.config.memory ?? {}
+    return {
+      ...raw,
+      enabled: raw.enabled ?? true,
+      auto_extract: raw.auto_extract ?? true,
+      review_enabled: raw.review_enabled ?? true,
+      review_llm: raw.review_llm ?? true,
+      review_interval: raw.review_interval ?? 1,
+      auto_apply: raw.auto_apply ?? true,
+      prefetch_limit: raw.prefetch_limit ?? 5,
+      prefetch_budget_chars: raw.prefetch_budget_chars ?? 1200,
+    }
+  })
+  const evolutionConfig = createMemo(() => {
+    const raw = globalSync.data.config.evolution ?? {}
+    return {
+      ...raw,
+      enabled: raw.enabled ?? true,
+      review_llm: raw.review_llm ?? true,
+      review_interval: raw.review_interval ?? 2,
+      auto_apply: raw.auto_apply ?? false,
+      auto_apply_file: raw.auto_apply_file ?? false,
+    }
+  })
   const pending = createMemo(() => number(memoryStatus.data?.pending) + number(evolutionStatus.data?.pending))
   const refresh = async () => {
     await Promise.all([
@@ -71,14 +97,16 @@ export function MemoryEvolutionPanel() {
     onError: toastError,
   }))
   const applyMemory = useMutation(() => ({
-    mutationFn: (candidateID: string) => globalSDK.client.memory.applyReviewCandidate({ candidateID }),
-    onSuccess: async () => {
+    mutationFn: (input: { candidateID: string; scope?: "global" | "project" | "session" }) =>
+      globalSDK.client.memory.applyReviewCandidate(input),
+    onSuccess: async (data, variables) => {
       await refresh()
+      const label = variables.scope === "global" ? "全局" : variables.scope === "session" ? "本会话" : "本项目"
       showToast({
         variant: "success",
         icon: "circle-check",
-        title: "已写入持久记忆",
-        description: "候选已转为记忆条目，可在设置 > 记忆 > 已应用查看。",
+        title: `已记为【${label}】`,
+        description: "记忆已写入，后续相关对话会按需召回。",
       })
     },
     onError: toastError,
@@ -123,10 +151,41 @@ export function MemoryEvolutionPanel() {
     onError: toastError,
   }))
 
-  const setMemory = (key: "enabled" | "review_enabled" | "review_llm", value: boolean) =>
+  const setMemory = (key: "enabled" | "review_enabled" | "review_llm" | "auto_apply", value: boolean) => {
+    // 打开「启用」时一键写入全自动学习配置
+    if (key === "enabled" && value) {
+      updateConfig.mutate({
+        memory: {
+          ...memoryConfig(),
+          enabled: true,
+          auto_extract: true,
+          review_enabled: true,
+          review_llm: true,
+          review_interval: 1,
+          auto_apply: true,
+          prefetch_limit: 5,
+          prefetch_budget_chars: 1200,
+        },
+      } as Config)
+      return
+    }
     updateConfig.mutate({ memory: { ...memoryConfig(), [key]: value } } as Config)
-  const setEvolution = (key: "enabled" | "review_llm", value: boolean) =>
+  }
+  const setEvolution = (key: "enabled" | "review_llm", value: boolean) => {
+    if (key === "enabled" && value) {
+      updateConfig.mutate({
+        evolution: {
+          ...evolutionConfig(),
+          enabled: true,
+          review_llm: true,
+          review_interval: 2,
+          auto_apply: false,
+        },
+      } as Config)
+      return
+    }
     updateConfig.mutate({ evolution: { ...evolutionConfig(), [key]: value } } as Config)
+  }
   const setMemoryInterval = (value: string) =>
     updateConfig.mutate({
       memory: {
@@ -195,9 +254,9 @@ export function MemoryEvolutionPanel() {
               icon="brain"
               title="持久记忆"
               count={number(memoryStatus.data?.pending)}
-              enabled={memoryConfig().enabled === true}
-              reviewEnabled={memoryConfig().review_enabled === true}
-              llmEnabled={memoryConfig().review_llm === true}
+              enabled={memoryConfig().enabled !== false}
+              reviewEnabled={memoryConfig().review_enabled !== false}
+              llmEnabled={memoryConfig().review_llm !== false}
               intervalLabel="审查间隔"
               intervalValue={memoryConfig().review_interval}
               intervalDefault={1}
@@ -214,7 +273,7 @@ export function MemoryEvolutionPanel() {
                 <MemoryRow
                   candidate={item}
                   disabled={applyMemory.isPending || dismissMemory.isPending}
-                  onApply={() => applyMemory.mutate(item.id)}
+                  onApply={(scope) => applyMemory.mutate({ candidateID: item.id, scope })}
                   onDismiss={() => dismissMemory.mutate(item.id)}
                 />
               )}
@@ -226,9 +285,9 @@ export function MemoryEvolutionPanel() {
               icon="branch"
               title="自我进化"
               count={number(evolutionStatus.data?.pending)}
-              enabled={evolutionConfig().enabled === true}
-              reviewEnabled={evolutionConfig().enabled === true}
-              llmEnabled={evolutionConfig().review_llm === true}
+              enabled={evolutionConfig().enabled !== false}
+              reviewEnabled={evolutionConfig().enabled !== false}
+              llmEnabled={evolutionConfig().review_llm !== false}
               intervalLabel="发现间隔"
               intervalValue={evolutionConfig().review_interval}
               intervalDefault={3}
@@ -238,6 +297,11 @@ export function MemoryEvolutionPanel() {
               onLLM={(value) => setEvolution("review_llm", value)}
               onInterval={setEvolutionInterval}
             />
+            <Show when={evolutionConfig().auto_apply_file === true}>
+              <div class="mb-2 rounded-md border border-rose-200/40 bg-rose-500/10 px-2.5 py-1.5 text-11-regular text-rose-600 dark:text-rose-400">
+                自动写入已开启：新产生的进化候选会直接写入 .novaway 文件，无需在此确认。
+              </div>
+            </Show>
             <CandidateList
               empty="暂无待审进化"
               items={evolutionCandidates.data ?? []}
@@ -340,17 +404,56 @@ function CandidateList<T>(props: { empty: string; items: readonly T[]; render: (
 function MemoryRow(props: {
   candidate: MemoryReviewCandidate
   disabled: boolean
-  onApply: () => void
+  onApply: (scope: "global" | "project") => void
   onDismiss: () => void
 }) {
+  const [scope, setScope] = createSignal<"global" | "project">(
+    props.candidate.scope === "global" ? "global" : "project",
+  )
   return (
     <div class="flex items-start justify-between gap-3 border-b border-border-weak-base px-3 py-2 last:border-none">
       <div class="min-w-0 flex-1">
         <div class="truncate text-12-medium text-text-strong">{props.candidate.summary || props.candidate.content}</div>
         <div class="mt-1 line-clamp-2 text-12-regular text-text-weak">{props.candidate.reason}</div>
+        <div class="mt-1 flex flex-wrap gap-1">
+          <Tag>{memoryDomainLabel(props.candidate.domain)}</Tag>
+          <Tag>{memoryOperationLabel(props.candidate.operation)}</Tag>
+          <Tag>{memoryConfidenceLabel(props.candidate.confidence)}</Tag>
+        </div>
+        <div class="mt-1.5 flex items-center gap-1">
+          <button
+            type="button"
+            class="h-6 rounded px-1.5 text-11-medium border transition-colors"
+            classList={{
+              "border-border-strong-base bg-surface-base-active text-text-strong": scope() === "global",
+              "border-transparent text-text-weak hover:bg-surface-base-hover": scope() !== "global",
+            }}
+            disabled={props.disabled}
+            onClick={() => setScope("global")}
+          >
+            全局
+          </button>
+          <button
+            type="button"
+            class="h-6 rounded px-1.5 text-11-medium border transition-colors"
+            classList={{
+              "border-border-strong-base bg-surface-base-active text-text-strong": scope() === "project",
+              "border-transparent text-text-weak hover:bg-surface-base-hover": scope() !== "project",
+            }}
+            disabled={props.disabled}
+            onClick={() => setScope("project")}
+          >
+            本项目
+          </button>
+        </div>
       </div>
       <div class="flex shrink-0 items-center gap-1">
-        <ReviewActionButton icon="check" disabled={props.disabled} onClick={props.onApply} label="应用记忆候选" />
+        <ReviewActionButton
+          icon="check"
+          disabled={props.disabled}
+          onClick={() => props.onApply(scope())}
+          label="应用记忆候选"
+        />
         <ReviewActionButton icon="close" disabled={props.disabled} onClick={props.onDismiss} label="忽略记忆候选" />
       </div>
     </div>
@@ -365,6 +468,8 @@ function EvolutionRow(props: {
   onApply: () => void
   onDismiss: () => void
 }) {
+  const language = useLanguage()
+  const scope = evolutionCandidateScope(props.candidate)
   return (
     <div class="flex flex-col gap-2 border-b border-border-weak-base px-3 py-2 last:border-none">
       <div class="flex items-start justify-between gap-3">
@@ -372,7 +477,17 @@ function EvolutionRow(props: {
           <div class="truncate text-12-medium text-text-strong">{props.candidate.title}</div>
           <div class="mt-1 flex flex-wrap gap-1">
             <Tag>{props.candidate.kind}</Tag>
+            <Tag>{evolutionDomainLabel(props.candidate.domain)}</Tag>
+            <Tag>{evolutionValidationLabel(props.candidate.validationStatus)}</Tag>
             <Tag>{props.candidate.target}</Tag>
+            <Tag
+              classList={{
+                "border-teal-200/50 bg-teal-500/15 text-teal-700 dark:text-teal-400": scope === "global",
+                "border-blue-200/50 bg-blue-500/15 text-blue-700 dark:text-blue-400": scope === "project",
+              }}
+            >
+              {language.t(`settings.evolution.scope.${scope}` as never)}
+            </Tag>
           </div>
         </div>
         <div class="flex shrink-0 items-center gap-1">
@@ -395,6 +510,11 @@ function EvolutionRow(props: {
       </Show>
     </div>
   )
+}
+
+function evolutionCandidateScope(candidate: EvolutionCandidate): "global" | "project" {
+  if (candidate.tags.includes("global") || !candidate.projectID) return "global"
+  return "project"
 }
 
 function number(value: number | string | undefined) {

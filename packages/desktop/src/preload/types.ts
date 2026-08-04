@@ -202,8 +202,14 @@ export type ElectronAPI = {
   onFloatingSkinMenuChange: (cb: (visible: boolean) => void) => () => void
   floatingWidgetReady: () => void
   showFloatingWidget: () => Promise<void>
+  setFloatingWidgetVisible: (visible: boolean) => Promise<void>
+  getFloatingWidgetVisible: () => Promise<boolean>
+  restoreFloatingWidget: () => Promise<void>
+  onFloatingModeChange: (cb: (mode: "full" | "minimal") => void) => () => void
   onFloatingVisibilityChange: (cb: (visible: boolean) => void) => () => void
+  onFloatingCursorActive: (cb: (active: boolean) => void) => () => void
   updateFloatingAgentState: (state: FloatingAgentState) => Promise<void>
+  setFloatingMousePassthrough: (ignore: boolean) => void
   beginFloatingWidgetDrag: (pointerX: number, pointerY: number) => void
   moveFloatingWidget: (pointerX: number, pointerY: number) => void
   saveFloatingWidgetBounds: () => Promise<void>

@@ -58,6 +58,8 @@ export const Default = {
 export interface Interface {
   readonly get: (name: string) => Effect.Effect<Info | undefined>
   readonly list: () => Effect.Effect<Info[]>
+  /** Reload config + command cache (includes evolved workflows/prompts). */
+  readonly reload: () => Effect.Effect<Info[]>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/Command") {}
@@ -168,7 +170,15 @@ export const layer = Layer.effect(
       return Object.values(s.commands)
     })
 
-    return Service.of({ get, list })
+    const reload = Effect.fn("Command.reload")(function* () {
+      yield* config.invalidate()
+      // Skills may have changed in the same evolution apply; refresh skill-backed commands too.
+      yield* skill.reload().pipe(Effect.catch(() => Effect.succeed([] as never[])))
+      yield* InstanceState.invalidate(state)
+      return yield* list()
+    })
+
+    return Service.of({ get, list, reload })
   }),
 )
 

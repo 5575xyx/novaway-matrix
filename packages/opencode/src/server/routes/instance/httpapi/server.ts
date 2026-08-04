@@ -76,7 +76,6 @@ import { memoryHandlers } from "./handlers/memory"
 import { officeHandlers } from "./handlers/office"
 import { permissionHandlers } from "./handlers/permission"
 import { projectHandlers } from "./handlers/project"
-import { powersnexusHandlers } from "./handlers/powersnexus"
 import { providerHandlers } from "./handlers/provider"
 import { ptyConnectRoute, ptyHandlers } from "./handlers/pty"
 import { questionHandlers } from "./handlers/question"
@@ -99,10 +98,6 @@ import { fenceLayer } from "./middleware/fence"
 import { schemaErrorLayer } from "./middleware/schema-error"
 import { Evolution } from "@/evolution/service"
 import { Memory } from "@/memory/service"
-import { PowersNexusVersion } from "@/powersnexus/version-service"
-import { PowersNexusWorkflow } from "@/powersnexus/service"
-import { PowersNexusRunner } from "@/powersnexus/runner"
-import { PowersNexusDelivery } from "@/powersnexus/delivery"
 
 export const context = Context.makeUnsafe<unknown>(new Map())
 
@@ -148,7 +143,6 @@ const instanceApiRoutes = HttpApiBuilder.layer(InstanceHttpApi).pipe(
     memoryHandlers,
     officeHandlers,
     projectHandlers,
-    powersnexusHandlers,
     ptyHandlers,
     questionHandlers,
     permissionHandlers,
@@ -227,10 +221,6 @@ export function createRoutes(
       Permission.defaultLayer,
       Plugin.defaultLayer,
       Project.defaultLayer,
-      PowersNexusVersion.defaultLayer,
-      PowersNexusWorkflow.defaultLayer,
-      PowersNexusRunner.defaultLayer,
-      PowersNexusDelivery.defaultLayer,
       ProviderAuth.defaultLayer,
       Provider.defaultLayer,
       Pty.defaultLayer,

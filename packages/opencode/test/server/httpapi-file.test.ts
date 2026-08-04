@@ -73,4 +73,26 @@ describe("file HttpApi", () => {
     expect(symbols.status).toBe(200)
     expect(await symbols.json()).toEqual([])
   })
+
+  test("writes text file content", async () => {
+    await using tmp = await tmpdir({ git: true })
+    await Bun.write(path.join(tmp.path, "hello.txt"), "before")
+
+    const url = new URL(`http://localhost${FilePaths.write}`)
+    const res = await HttpApiApp.webHandler().handler(
+      new Request(url, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-opencode-directory": tmp.path,
+        },
+        body: JSON.stringify({ path: "hello.txt", content: "after" }),
+      }),
+      context,
+    )
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toBe(true)
+    expect(await Bun.file(path.join(tmp.path, "hello.txt")).text()).toBe("after")
+  })
 })

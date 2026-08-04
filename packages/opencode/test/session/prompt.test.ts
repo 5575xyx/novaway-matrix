@@ -43,7 +43,7 @@ import { SystemPrompt } from "../../src/session/system"
 import { Shell } from "../../src/shell/shell"
 import { Snapshot } from "../../src/snapshot"
 import { ToolRegistry } from "@/tool/registry"
-import { PowersNexusBrowser } from "@/powersnexus/browser"
+import { BrowserService } from "@/browser/browser"
 import { Truncate } from "@/tool/truncate"
 import * as Log from "@opencode-ai/core/util/log"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
@@ -192,7 +192,7 @@ function makeHttp(input?: { processor?: "blocking" }) {
   const question = Question.layer.pipe(Layer.provideMerge(deps))
   const todo = Todo.layer.pipe(Layer.provideMerge(deps))
   const registry = ToolRegistry.layer.pipe(
-    Layer.provide(PowersNexusBrowser.defaultLayer),
+    Layer.provide(BrowserService.defaultLayer),
     Layer.provide(Skill.defaultLayer),
     Layer.provide(FetchHttpClient.layer),
     Layer.provide(CrossSpawnSpawner.defaultLayer),
@@ -1945,6 +1945,104 @@ it.instance(
       yield* sessions.remove(session.id)
     }),
   { git: true, config: cfg },
+)
+
+it.instance(
+  "routes image recognition to a vision model when the main model is text-only",
+  () =>
+    Effect.gen(function* () {
+      const { llm } = yield* useServerConfig((url) => ({
+        provider: {
+          test: {
+            name: "Test",
+            id: "test",
+            env: [],
+            npm: "@ai-sdk/openai-compatible",
+            models: {
+              "test-model": {
+                id: "test-model",
+                name: "Test Model",
+                attachment: false,
+                reasoning: false,
+                temperature: false,
+                tool_call: true,
+                release_date: "2025-01-01",
+                limit: { context: 100000, output: 10000 },
+                cost: { input: 0, output: 0 },
+                options: {},
+              },
+              "test-vision": {
+                id: "test-vision",
+                name: "Test Vision",
+                attachment: true,
+                reasoning: false,
+                temperature: false,
+                tool_call: true,
+                release_date: "2025-01-01",
+                limit: { context: 200000, output: 10000 },
+                cost: { input: 0, output: 0 },
+                modalities: { input: ["text", "image"], output: ["text"] },
+                options: {},
+              },
+            },
+            options: { apiKey: "test-key", baseURL: url },
+          },
+        },
+        agent: {
+          build: {
+            model: "test/test-model",
+          },
+        },
+      }))
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const session = yield* sessions.create({
+        title: "Vision routing",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+
+      yield* llm.text("图片中有一个红色苹果")
+      yield* llm.text("好的，我已经看到了")
+
+      const result = yield* prompt.prompt({
+        sessionID: session.id,
+        agent: "build",
+        parts: [
+          { type: "text", text: "图片里有什么？" },
+          {
+            type: "file",
+            mime: "image/png",
+            filename: "apple.png",
+            url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+          },
+        ],
+      })
+
+      expect(result.info.role).toBe("assistant")
+      const replyText = result.parts.filter((p) => p.type === "text").map((p) => p.text)
+      expect(replyText.includes("好的，我已经看到了")).toBe(true)
+
+      const storedMessages = yield* sessions.messages({ sessionID: session.id })
+      const userMsg = storedMessages.find((m) => m.info.role === "user")
+      expect(userMsg).toBeDefined()
+      const stored = yield* MessageV2.get({ sessionID: session.id, messageID: userMsg!.info.id })
+      const synthetic = stored.parts.filter(
+        (p): p is MessageV2.TextPart => p.type === "text" && p.synthetic === true,
+      )
+      expect(synthetic.some((p) => p.text.startsWith("[图片内容识别结果]"))).toBe(true)
+
+      const bodies = yield* llm.inputs
+      const visionCall = bodies.find((b) => b.model === "test-vision")
+      const mainCall = bodies.find((b) => b.model === "test-model")
+      expect(visionCall).toBeDefined()
+      expect(mainCall).toBeDefined()
+      expect(JSON.stringify(mainCall)).not.toContain("iVBORw0KGgo")
+      expect(JSON.stringify(mainCall)).toContain("图片中有一个红色苹果")
+
+      yield* sessions.remove(session.id)
+    }),
+  { git: true },
+  30_000,
 )
 
 it.instance(

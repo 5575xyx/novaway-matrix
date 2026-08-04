@@ -422,7 +422,6 @@ export default function Page() {
     changes: "git" as ChangeMode,
     newSessionWorktree: "main",
     deferRender: false,
-    inputTransition: false,
   })
 
   const [followup, setFollowup] = persisted(
@@ -450,16 +449,6 @@ export default function Page() {
     }
     return key
   }, sessionKey())
-
-  createComputed((prev) => {
-    const hasId = !!params.id
-    const hadId = !!prev
-    if (hasId && !hadId) {
-      setStore("inputTransition", true)
-      setTimeout(() => setStore("inputTransition", false), 2600)
-    }
-    return hasId
-  }, !!params.id)
 
   let reviewFrame: number | undefined
   let refreshFrame: number | undefined
@@ -1851,14 +1840,8 @@ export default function Page() {
             </Show>
 
             {/* New session view (centered) */}
-            <Show when={!params.id || store.inputTransition}>
-              <div
-                class="h-full"
-                classList={{
-                  "transition-all duration-[2500ms] ease-out": store.inputTransition,
-                  "opacity-0 scale-[0.97] pointer-events-none": store.inputTransition,
-                }}
-              >
+            <Show when={!params.id}>
+              <div class="h-full">
                 <NewSessionView
                   worktree={newSessionWorktree()}
                   centered={centered()}
@@ -1877,12 +1860,7 @@ export default function Page() {
           </div>
 
           <Show when={params.id}>
-            <div
-              classList={{
-                "transition-all duration-[2500ms] ease-[cubic-bezier(0.22,1,0.36,1)]": store.inputTransition,
-                "translate-y-[40px] opacity-0 scale-95": store.inputTransition,
-              }}
-            >
+            <div>
               <SessionComposerRegion
                 state={composer}
                 ready={!store.deferRender && messagesReady()}

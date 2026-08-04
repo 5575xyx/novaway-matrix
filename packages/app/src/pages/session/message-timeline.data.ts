@@ -2,6 +2,7 @@ import { parseCommentNote, readCommentMetadata } from "@/utils/comment-note"
 import { AssistantMessage, Part, SessionStatus, SnapshotFileDiff, UserMessage } from "@opencode-ai/sdk/v2"
 import { groupParts, PartGroup, renderable } from "@opencode-ai/ui/message-part"
 import { Data, Equal } from "effect"
+import { uniqueSummaryDiffs } from "./message-timeline.summary-diffs"
 
 export type SummaryDiff = SnapshotFileDiff & { file: string }
 
@@ -223,14 +224,7 @@ export namespace Timeline {
 
     if (isActive && status === "retry") rows.push(new TimelineRow.Retry({ userMessageID: userMessage.id }))
 
-    const diffs = (userMessage.summary?.diffs ?? [])
-      .reduceRight<SummaryDiff[]>((result, diff) => {
-        if (!isSummaryDiff(diff)) return result
-        if (result.some((item) => item.file === diff.file)) return result
-        result.push(diff)
-        return result
-      }, [])
-      .reverse()
+    const diffs = uniqueSummaryDiffs(userMessage.summary?.diffs)
     if (diffs.length > 0 && (status === "idle" || !isActive)) {
       rows.push(
         new TimelineRow.DiffSummary({
@@ -255,9 +249,6 @@ export namespace Timeline {
     return rows
   }
 
-  function isSummaryDiff(value: SnapshotFileDiff): value is SummaryDiff {
-    return typeof value.file === "string"
-  }
 
   function reasoningHeading(text: string) {
     const markdown = text.replace(/\r\n?/g, "\n")

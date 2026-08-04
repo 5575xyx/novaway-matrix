@@ -72,6 +72,10 @@ export const GenerateVideoTool = Tool.define(
             apiKey = process.env.AGNES_API_KEY
           }
 
+          if (baseURL && /^https?:\/\/apihub\.agnes-ai\.com(?:\/|$)/i.test(baseURL)) {
+            baseURL = AgnesVideo.agnesVideo.baseURL
+          }
+
           if (!apiKey) {
             throw new Error("No video generation provider configured. Please set up a provider with API key.")
           }
@@ -122,6 +126,10 @@ export const GenerateVideoTool = Tool.define(
             throw new Error(statusResult.error ?? "Video generation failed")
           }
 
+          if (!statusResult.videoUrl) {
+            throw new Error("Video generation completed, but Agnes did not return metadata.url")
+          }
+
           yield* Effect.logInfo("Video generation completed", {
             taskId: createResult.taskId,
             videoUrl: statusResult.videoUrl,
@@ -129,7 +137,7 @@ export const GenerateVideoTool = Tool.define(
 
           return {
             title: `Generated video: ${args.prompt.slice(0, 50)}`,
-            output: statusResult.videoUrl ?? "Video generation completed",
+            output: statusResult.videoUrl,
             metadata: {
               prompt: args.prompt,
               model: modelName,

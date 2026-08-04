@@ -16,12 +16,16 @@ export const imagesHandlers = HttpApiBuilder.group(InstanceHttpApi, "images", (h
       const model = ctx.payload.model || "agnes-image-2.1-flash"
 
       // Call Agnes Image API
-      const url = "https://apihub.agnes-ai.com/v1/images/generations"
+      const url = "https://api.agnes-ai.cn/v1/images/generations"
       const body = {
         model,
         prompt: ctx.payload.prompt,
         size: ctx.payload.size || "1024x768",
-        image: ctx.payload.image,
+        extra_body: {
+          image: ctx.payload.image,
+          response_format: "url",
+          ...ctx.payload.options,
+        },
       }
 
       const response = yield* Effect.tryPromise(() =>

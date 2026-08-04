@@ -366,35 +366,8 @@ const main = Effect.gen(function* () {
         ? join(process.resourcesPath, "node", "node.exe")
         : join(process.resourcesPath, "node", "bin", "node")
     process.env.DBX_NODE_PATH = app.isPackaged ? bundledNode : "node"
-    // PowersNexus CLI 必须用 Node，不能用 Electron utilityProcess 的 execPath
+    // 默认全局插件 PowersNexus 从 Gitee 安装；其 CLI 需要 Node（复用内置 Node）
     process.env.POWERSNEXUS_NODE_PATH = process.env.POWERSNEXUS_NODE_PATH ?? process.env.DBX_NODE_PATH
-    process.env.POWERSNEXUS_FIRST_PARTY = "1"
-    process.env.POWERSNEXUS_UPDATE_POLICY = process.env.POWERSNEXUS_UPDATE_POLICY ?? "bundled"
-    process.env.POWERSNEXUS_RELEASE_MANIFEST_URLS =
-      process.env.POWERSNEXUS_RELEASE_MANIFEST_URLS ??
-      "https://gitee.com/nova-way/powersnexus/releases/download/powersnexus-stable/manifest.json"
-    process.env.POWERSNEXUS_RELEASE_ALLOWED_HOSTS = process.env.POWERSNEXUS_RELEASE_ALLOWED_HOSTS ?? "gitee.com,foruda.gitee.com"
-    process.env.POWERSNEXUS_RELEASE_KEY_ID =
-      process.env.POWERSNEXUS_RELEASE_KEY_ID ?? "powersnexus-release-2026-01"
-    // electron-builder 本地/开发包版本常为 1.0.0，不能用于 PowersNexus semver 兼容判断（基线要求 >=1.3.0）
-    {
-      const appVersion = app.getVersion()
-      const fallbackProductVersion = "1.15.4"
-      const usable =
-        appVersion &&
-        appVersion !== "0.0.0" &&
-        appVersion !== "1.0.0" &&
-        !appVersion.startsWith("0.")
-          ? appVersion
-          : fallbackProductVersion
-      process.env.POWERSNEXUS_NOVAWAY_VERSION = process.env.POWERSNEXUS_NOVAWAY_VERSION ?? usable
-    }
-    process.env.POWERSNEXUS_BUNDLED_ROOT = app.isPackaged
-      ? join(process.resourcesPath, "powersnexus")
-      : join(app.getAppPath(), "resources", "powersnexus-baselines")
-    process.env.POWERSNEXUS_RELEASE_PUBLIC_KEY = app.isPackaged
-      ? join(process.resourcesPath, "powersnexus-release-public-key.pem")
-      : join(app.getAppPath(), "resources", "powersnexus-release-public-key.pem")
 
     logger.log("spawning sidecar", { url })
     const { listener, health } = yield* Effect.promise(() =>

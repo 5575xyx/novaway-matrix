@@ -1,5 +1,33 @@
 # 操作日志
 
+## 进化自动写盘优化与 scope 整理
+
+时间：2026-07-27
+
+### 问题定位
+
+- 用户反馈自动写盘失败时不应静默忽略，需要提示用户并将候选保留为人工确认状态。
+- 用户希望进化候选能明确区分为「通用/全局」与「项目级别」，分别写入全局配置目录和项目 `.novaway`。
+
+### 执行步骤
+
+1. 分析 `packages/opencode/src/evolution/service.ts` 中 `applyToDisk` 的错误处理与 `targetFile` 路径选择逻辑。
+2. 分析 `packages/opencode/src/session/prompt.ts` 中 `auto_apply_file` 调用链，确认 `Effect.ignore` 导致错误无感知。
+3. 参考记忆模块 `packages/opencode/src/memory/scope.ts` 的 scope 分类模式。
+4. 修改 `session/prompt.ts`：捕获 applyToDisk 错误并发布 Bus 事件，保留候选 pending 状态。
+5. 修改 `evolution/service.ts`：增强 scope 提示与全局路径处理。
+6. 修改 UI：监听失败事件弹出 toast，并在候选列表展示 scope 标签。
+7. 运行 `bun typecheck` 与定向 `oxlint` 验证。
+
+### 本地验证结果
+
+- 待补充
+
+### 已知风险
+
+- 全局候选写入 `Global.Path.config/.novaway`，需要确保目录递归创建。
+- 旧候选通过 `tags.includes("global")` 判断，新增显式 scope 字段需兼容。
+
 ## 视频复制完整文件 - 开始
 
 时间：2026-07-09

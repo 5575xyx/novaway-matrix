@@ -24,7 +24,18 @@ import { RuntimeFlags } from "@/effect/runtime-flags"
 import * as Option from "effect/Option"
 import * as OtelTracer from "@effect/opentelemetry/Tracer"
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/unstable/http"
-import { AgnesImage, AgnesVideo, ImageGeneration, ProtocolRegistry, VideoGeneration } from "@opencode-ai/llm/protocols"
+import {
+  AgnesImage,
+  AgnesVideo,
+  ImageGeneration,
+  ProtocolRegistry,
+  SenseNovaImage,
+  VideoGeneration,
+} from "@opencode-ai/llm/protocols"
+
+ProtocolRegistry.registerImageProtocol("sensenova", SenseNovaImage.sensenovaImage)
+ProtocolRegistry.registerImageProtocol("sense-nova", SenseNovaImage.sensenovaImage)
+ProtocolRegistry.registerImageProtocol("sensenova-image", SenseNovaImage.sensenovaImage)
 
 const log = Log.create({ service: "llm" })
 export const OUTPUT_TOKEN_MAX = ProviderTransform.OUTPUT_TOKEN_MAX
@@ -43,6 +54,10 @@ export type StreamInput = {
   permission?: Permission.Ruleset
   system: string[]
   messages: ModelMessage[]
+  media?: {
+    prompt: string
+    images: string[]
+  }
   small?: boolean
   tools: Record<string, Tool>
   retries?: number
@@ -60,6 +75,21 @@ export interface Interface {
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/LLM") {}
+
+export function mediaInput(parts: MessageV2.Part[]) {
+  return {
+    prompt: parts
+      .filter(
+        (part): part is MessageV2.TextPart =>
+          part.type === "text" && !part.ignored && !part.synthetic && part.text.trim().length > 0,
+      )
+      .map((part) => part.text.trim())
+      .join("\n\n"),
+    images: parts
+      .filter((part): part is MessageV2.FilePart => part.type === "file" && part.mime.startsWith("image/"))
+      .map((part) => part.url),
+  }
+}
 
 const live: Layer.Layer<
   Service,
@@ -110,32 +140,30 @@ const live: Layer.Layer<
       // TODO: move this to a proper hook
       const isOpenaiOauth = item.id === "openai" && info?.type === "oauth"
 
-      const system: string[] = []
-      system.push(
-        [
-          // use agent prompt otherwise provider prompt
-          ...(input.agent.prompt ? [input.agent.prompt] : SystemPrompt.provider(input.model)),
-          // any custom prompt passed into this call
-          ...input.system,
-          // any custom prompt from last user message
-          ...(input.user.system ? [input.user.system] : []),
-        ]
-          .filter((x) => x)
-          .join("\n"),
-      )
-
-      const header = system[0]
+      const systemParts = [
+        // use agent prompt otherwise provider prompt
+        ...(input.agent.prompt ? [input.agent.prompt] : SystemPrompt.provider(input.model)),
+        // any custom prompt passed into this call
+        ...input.system,
+        // any custom prompt from last user message
+        ...(input.user.system ? [input.user.system] : []),
+      ].filter((x) => x)
+      const splitSystem =
+        input.model.providerID === "anthropic" ||
+        input.model.providerID === "google-vertex-anthropic" ||
+        input.model.api.id.includes("anthropic") ||
+        input.model.api.id.includes("claude") ||
+        input.model.id.includes("anthropic") ||
+        input.model.id.includes("claude") ||
+        input.model.api.npm === "@ai-sdk/anthropic" ||
+        input.model.api.npm === "@ai-sdk/alibaba"
+      // 仅对支持显式缓存断点的模型保留多段 system；其他模型保持原来的单段 payload，避免兼容性变化。
+      const system = splitSystem ? systemParts : [systemParts.join("\n")]
       yield* plugin.trigger(
         "experimental.chat.system.transform",
         { sessionID: input.sessionID, model: input.model },
         { system },
       )
-      // rejoin to maintain 2-part structure for caching if header unchanged
-      if (system.length > 2 && system[0] === header) {
-        const rest = system.slice(1)
-        system.length = 0
-        system.push(header, rest.join("\n"))
-      }
 
       const variant =
         !input.small && input.model.variants && input.user.model.variant
@@ -425,9 +453,9 @@ const live: Layer.Layer<
             if (isImageModel || isVideoModel) {
               // 从消息中提取用户提示词和图片附件
               const lastUserMessage = input.messages.findLast((m) => m.role === "user")
-              let userPrompt = ""
-              const imageUrls: string[] = []
-              if (lastUserMessage) {
+              let userPrompt = input.media?.prompt ?? ""
+              const imageUrls = [...(input.media?.images ?? [])]
+              if (!input.media && lastUserMessage) {
                 if (typeof lastUserMessage.content === "string") {
                   userPrompt = lastUserMessage.content
                 } else if (Array.isArray(lastUserMessage.content)) {
@@ -472,6 +500,7 @@ const live: Layer.Layer<
               const providerBaseURL = providerConfig.options?.baseURL ?? providerConfig.options?.endpoint
               const resolveBaseURL = (protocolBase: string) => {
                 if (!providerBaseURL) return protocolBase
+                if (/^https?:\/\/apihub\.agnes-ai\.com(?:\/|$)/i.test(providerBaseURL)) return protocolBase
                 if (providerBaseURL.endsWith("/v1") || providerBaseURL.endsWith("/v1/")) return providerBaseURL
                 return protocolBase
               }
@@ -486,12 +515,11 @@ const live: Layer.Layer<
                   imageSizes: imageUrls.map((url) => url.length),
                 })
 
-                const baseURL = resolveBaseURL(AgnesImage.agnesImage.baseURL)
-                const protocol = ProtocolRegistry.getImageProtocol(input.model.providerID) ?? {
+                const protocol = ProtocolRegistry.getImageProtocol(input.model.providerID, providerBaseURL) ?? {
                   ...AgnesImage.agnesImage,
-                  baseURL,
+                  baseURL: resolveBaseURL(AgnesImage.agnesImage.baseURL),
                 }
-                const finalProtocol = { ...protocol, baseURL }
+                const finalProtocol = { ...protocol, baseURL: resolveBaseURL(protocol.baseURL) }
 
                 const result = yield* ImageGeneration.make()
                   .generate(finalProtocol, { prompt: userPrompt, model: input.model.id, image: imageUrls }, apiKey)
@@ -552,7 +580,7 @@ const live: Layer.Layer<
 
                 const statusResult = yield* videoService
                   .waitForCompletion(finalProtocol, createResult.taskId, apiKey, {
-                    pollIntervalMs: 2000,
+                    pollIntervalMs: 10_000,
                     maxWaitMs: 600000,
                   })
                   .pipe(Effect.provideService(HttpClient.HttpClient, http))
@@ -562,7 +590,10 @@ const live: Layer.Layer<
                 }
 
                 const videoUrl = statusResult.videoUrl
-                const outputText = videoUrl ? `<video src="${videoUrl}" controls width="100%"></video>` : "视频生成完成"
+                if (!videoUrl) {
+                  throw new Error("视频生成已完成，但 Agnes 响应中未返回 metadata.url")
+                }
+                const outputText = `<video src="${videoUrl}" controls width="100%"></video>`
 
                 return Stream.succeed(makeStartStep()).pipe(
                   Stream.concat(Stream.succeed({ type: "text-start" as const, id: textId })),

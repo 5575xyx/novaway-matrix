@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process"
+import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
@@ -32,13 +33,7 @@ const getBase = (): Configuration => ({
     output: "dist",
     buildResources: "resources",
   },
-  files: [
-    "out/**/*",
-    "resources/**/*",
-    "!resources/powersnexus/**/*",
-    "!resources/powersnexus-baselines/**/*",
-    "!resources/powersnexus-release-public-key.pem",
-  ],
+  files: ["out/**/*", "resources/**/*", "!resources/dbx-mcp/node_modules{,/**/*}"],
   extraResources: [
     {
       from: "native/",
@@ -59,20 +54,16 @@ const getBase = (): Configuration => ({
       to: "node/",
       filter: ["**/*"],
     },
-    {
-      from: "resources/powersnexus-baselines/",
-      to: "powersnexus/",
-      filter: ["**/*"],
-    },
-    {
-      from: "resources/powersnexus-release-public-key.pem",
-      to: "powersnexus-release-public-key.pem",
-    },
   ],
   asarUnpack: [
     "resources/dbx-mcp/node_modules/better-sqlite3/**/*.node",
     "resources/dbx-mcp/node_modules/keytar/**/*.node",
   ],
+  afterPack: async (context) => {
+    const dbxMcpSrc = path.join(context.packager.projectDir, "resources", "dbx-mcp")
+    const dbxMcpDest = path.join(context.appOutDir, "resources", "dbx-mcp")
+    fs.cpSync(dbxMcpSrc, dbxMcpDest, { recursive: true, dereference: true, force: true })
+  },
   mac: {
     category: "public.app-category.developer-tools",
     icon: `resources/icons/icon.icns`,

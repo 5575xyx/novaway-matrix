@@ -194,6 +194,14 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
       return promise
     }
 
+    const write = async (input: string, content: string) => {
+      const file = path.normalize(input)
+      if (!file) return
+      await sdk.client.file.write({ fileWritePayload: { path: file, content } })
+      const current = store.file[file]?.content
+      setLoaded(file, { ...(current ?? {}), type: "text", content })
+    }
+
     const search = (query: string, dirs: "true" | "false") =>
       sdk.client.find.files({ query, dirs }).then(
         (x) => (x.data ?? []).map(path.normalize),
@@ -267,6 +275,7 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
       },
       get,
       load,
+      write,
       scrollTop,
       scrollLeft,
       setScrollTop,

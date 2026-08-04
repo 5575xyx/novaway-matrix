@@ -41,6 +41,8 @@ import { NonNegativeInt, optionalOmitUndefined } from "@opencode-ai/core/schema"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Memory } from "@/memory/service"
 import { Config } from "@/config/config"
+import { ConfigMemory } from "@/config/memory"
+import { ConfigEvolution } from "@/config/evolution"
 import { Evolution } from "@/evolution/service"
 
 const log = Log.create({ service: "session" })
@@ -560,7 +562,7 @@ const rawLayer: Layer.Layer<
       const items = yield* messages({ sessionID: input.session.id }).pipe(Effect.catch(() => Effect.succeed([])))
       const text = sessionReviewText(items)
       if (!text) return
-      if (cfg?.memory?.enabled === true && cfg.memory.review_enabled === true) {
+      if (cfg && ConfigMemory.resolve(cfg.memory).enabled && ConfigMemory.resolve(cfg.memory).review_enabled) {
         yield* memory
           .reviewSessionEnd({
             messagesText: text,
@@ -570,7 +572,7 @@ const rawLayer: Layer.Layer<
           })
           .pipe(Effect.ignore)
       }
-      if (cfg?.evolution?.enabled === true) {
+      if (cfg && ConfigEvolution.resolve(cfg.evolution).enabled) {
         yield* evolution
           .reviewSessionEnd({
             messagesText: text,

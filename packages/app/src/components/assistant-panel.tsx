@@ -1292,7 +1292,7 @@ export function AssistantPanel(props: AssistantPanelProps) {
   }
 
   return (
-    <div class={`z-50 h-28 w-28 overflow-visible ${props.class ?? ""}`} style={props.style}>
+    <div class={`z-50 h-[152px] w-[152px] overflow-visible ${props.class ?? ""}`} style={props.style}>
       <Show when={props.expanded}>
         <div
           class={`absolute right-0 bottom-[120px] w-80 max-h-96 border rounded-xl shadow-2xl flex flex-col overflow-hidden ${
@@ -1338,13 +1338,16 @@ export function AssistantPanel(props: AssistantPanelProps) {
 
       <button
         type="button"
+        data-floating-hit="pet"
+        title="拖动移动 · 单击打开面板 · 右键换装"
         style={{
           "touch-action": "none",
           background: "transparent",
           "border-color": "transparent",
           "box-shadow": "none",
+          cursor: "grab",
         }}
-        class={`absolute bottom-0 -left-16 flex h-28 w-60 items-center justify-center overflow-visible text-icon-base transition-transform ${
+        class={`absolute inset-0 flex h-[152px] w-[152px] cursor-grab items-center justify-center overflow-visible text-icon-base transition-transform active:cursor-grabbing ${
           props.hasInProgressTask ? "animate-pulse" : ""
         }`}
         onPointerEnter={() => setMascot("hover", true)}
@@ -1354,9 +1357,19 @@ export function AssistantPanel(props: AssistantPanelProps) {
         }}
         onPointerDown={(event) => {
           setMascot("pressed", true)
+          if (event.currentTarget instanceof HTMLElement) {
+            event.currentTarget.style.cursor = "grabbing"
+            document.body.style.cursor = "grabbing"
+          }
           handlePointerDown(event)
         }}
-        onPointerUp={() => setMascot("pressed", false)}
+        onPointerUp={(event) => {
+          setMascot("pressed", false)
+          if (event.currentTarget instanceof HTMLElement) {
+            event.currentTarget.style.cursor = "grab"
+          }
+          document.body.style.cursor = "grab"
+        }}
         onContextMenu={(event) => {
           event.preventDefault()
           event.stopPropagation()

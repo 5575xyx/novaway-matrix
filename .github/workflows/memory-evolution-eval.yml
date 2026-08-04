@@ -1,0 +1,46 @@
+name: memory-evolution-eval
+
+on:
+  push:
+    branches:
+      - dev
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    name: memory-evolution-eval
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      - name: Run memory eval
+        working-directory: packages/opencode
+        run: bun run eval:memory
+
+      - name: Run task comparison eval
+        working-directory: packages/opencode
+        run: bun run eval:task
+
+      - name: Run memory relation eval
+        working-directory: packages/opencode
+        run: bun run eval:memory-relations
+
+      - name: Run evolution eval
+        working-directory: packages/opencode
+        run: bun run eval:evolution

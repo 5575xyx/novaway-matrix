@@ -16,7 +16,7 @@ export const videosHandlers = HttpApiBuilder.group(InstanceHttpApi, "videos", (h
       const model = ctx.payload.model || "agnes-video-v2.0"
 
       // Create video generation task
-      const createUrl = "https://apihub.agnes-ai.com/v1/videos"
+      const createUrl = "https://api.agnes-ai.cn/v1/videos"
       const createBody = {
         model,
         prompt: ctx.payload.prompt,
@@ -38,9 +38,9 @@ export const videosHandlers = HttpApiBuilder.group(InstanceHttpApi, "videos", (h
         }).then((r) => r.json()),
       ).pipe(Effect.mapError(() => new HttpApiError.InternalServerError({})))
 
-      const data = response as { id?: string; status?: string }
+      const data = response as { id?: string; task_id?: string; video_id?: string; status?: string }
       return VideoGenerateResponse.make({
-        taskId: data.id ?? "",
+        taskId: data.video_id ?? data.task_id ?? data.id ?? "",
         status: data.status ?? "queued",
       })
     })

@@ -34,6 +34,7 @@ import { useCommand } from "@/context/command"
 import { Persist, persisted } from "@/utils/persist"
 import { usePermission } from "@/context/permission"
 import { useLanguage } from "@/context/language"
+import { useSettings } from "@/context/settings"
 import { usePlatform } from "@/context/platform"
 import { useModels } from "@/context/models"
 import { useSessionLayout } from "@/pages/session/session-layout"
@@ -131,6 +132,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const command = useCommand()
   const permission = usePermission()
   const language = useLanguage()
+  const settings = useSettings()
   const platform = usePlatform()
   const modelsCtx = useModels()
   const office = useOfficeAgent()
@@ -273,6 +275,8 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     mode: "normal" | "shell"
     applyingHistory: boolean
     optimizing: boolean
+    /** 优化前原文，用于撤销 */
+    optimizeSnapshot: string | null
   }>({
     popover: null,
     historyIndex: -1,
@@ -282,6 +286,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     mode: "normal",
     applyingHistory: false,
     optimizing: false,
+    optimizeSnapshot: null,
   })
 
   const buttonsSpring = useSpring(() => (store.mode === "normal" ? 1 : 0), { visualDuration: 0.2, bounce: 0 })
@@ -1026,6 +1031,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         mirror.input = true
         prompt.set(DEFAULT_PROMPT, 0)
       }
+      if (store.optimizeSnapshot !== null) setStore("optimizeSnapshot", null)
       queueScroll()
       return
     }
@@ -1261,6 +1267,15 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     if (!id) return permission.isAutoAcceptingDirectory(sdk.directory)
     return permission.isAutoAccepting(id, sdk.directory)
   })
+  const globalAutoApprove = createMemo(() => settings.permissions.autoApprove())
+  const projectAutoAccept = createMemo(() => permission.isAutoAcceptingDirectory(sdk.directory))
+  const autoAcceptEffective = createMemo(() => globalAutoApprove() || projectAutoAccept())
+  const autoAcceptTooltip = createMemo(() => {
+    if (globalAutoApprove()) return language.t("permissions.prompt.tooltip.global")
+    return projectAutoAccept()
+      ? language.t("permissions.prompt.tooltip.on")
+      : language.t("permissions.prompt.tooltip.off")
+  })
 
   const { abort, handleSubmit } = createPromptSubmit({
     info,
@@ -1479,19 +1494,56 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     (p) => p,
   )
 
+  createEffect(() => {
+    if (blank() && store.optimizeSnapshot !== null && !store.optimizing) {
+      setStore("optimizeSnapshot", null)
+    }
+  })
+  const undoOptimize = () => {
+    const prev = store.optimizeSnapshot
+    if (!prev || store.optimizing) return
+    setEditorText(prev)
+    prompt.set([{ type: "text", content: prev, start: 0, end: prev.length }], prev.length)
+    setStore("optimizeSnapshot", null)
+    focusEditorEnd()
+  }
   const optimizePrompt = async () => {
-    const text = prompt
+    if (store.mode !== "normal" || store.optimizing) return
+
+    // 优先读编辑器 DOM，避免 store 未同步时按钮/逻辑误判为空
+    const editorText = (editorRef?.textContent ?? "").replace(/\u200B/g, "").trim()
+    const storeText = prompt
       .current()
       .map((part) => ("content" in part ? part.content : ""))
       .join("")
       .trim()
-    if (!text || store.mode !== "normal") return
+    const text = editorText || storeText
+    if (!text) {
+      showToast({ title: "没有可优化的内容", description: "请先输入提示词再点击优化", variant: "error" })
+      return
+    }
+
+    // 仅首次优化记录原文；失败则不保留撤销点
+    const isFirstOptimize = store.optimizeSnapshot === null
+    if (isFirstOptimize) setStore("optimizeSnapshot", text)
 
     setStore("optimizing", true)
 
     try {
-      const currentModel = local.model.current()
-      if (!currentModel) {
+      // 与发送消息一致：优先当前模型；Auto 时优先 opencode 可用模型
+      let currentModel = local.model.current()
+      if (modelsCtx.autoMode()) {
+        const opencodeModels = modelsCtx.list().filter((m) => m.provider?.id === "opencode")
+        const pool = opencodeModels.length > 0 ? opencodeModels : modelsCtx.list()
+        if (pool.length > 0) {
+          // 选上下文较大的模型，优化提示词通常不需要极小模型
+          currentModel = [...pool].sort((a, b) => (b.limit?.context ?? 0) - (a.limit?.context ?? 0))[0] ?? currentModel
+        }
+      }
+      if (!currentModel?.provider?.id || !currentModel.id) {
+        currentModel = modelsCtx.list().find((m) => m.provider?.id && m.id)
+      }
+      if (!currentModel?.provider?.id || !currentModel.id) {
         showToast({ title: "未选择模型", description: "请先选择一个模型再优化提示词", variant: "error" })
         return
       }
@@ -1513,6 +1565,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
 `
 
       const response = await sdk.client.chat.send({
+        directory: sdk.directory,
         chatPayload: {
           message: text,
           system: systemPrompt,
@@ -1523,7 +1576,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         },
       })
 
-      const optimizedText = response.data?.text?.trim() ?? ""
+      // 兼容不同 SDK 包装：{ data: { text } } 或直接 { text }
+      const payload = (response as { data?: { text?: string }; text?: string })?.data ?? response
+      const optimizedText = (payload as { text?: string })?.text?.trim() ?? ""
 
       if (optimizedText) {
         setEditorText(optimizedText)
@@ -1532,15 +1587,29 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
           optimizedText.length,
         )
         focusEditorEnd()
-        showToast({ title: "优化完成", description: "提示词已优化", variant: "success" })
       } else {
+        if (isFirstOptimize) setStore("optimizeSnapshot", null)
         showToast({ title: "优化失败", description: "AI 返回了空结果，请重试", variant: "error" })
       }
     } catch (err) {
+      if (isFirstOptimize) setStore("optimizeSnapshot", null)
       console.error("提示词优化失败", err)
+      const msg =
+        err instanceof Error
+          ? err.message
+          : typeof err === "object" &&
+              err &&
+              "message" in err &&
+              typeof (err as { message: unknown }).message === "string"
+            ? (err as { message: string }).message
+            : "请求出错，请检查模型配置或网络连接"
+      // 500 时给更可操作的提示
+      const hint = /500|Internal Server Error/i.test(msg)
+        ? "服务端优化接口异常，请确认当前模型可用，或切换到具体模型后再试"
+        : msg
       showToast({
         title: "优化失败",
-        description: err instanceof Error ? err.message : "请求出错，请检查模型配置或网络连接",
+        description: hint,
         variant: "error",
       })
     } finally {
@@ -1552,19 +1621,12 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     <div class="relative size-full _max-h-[600px] flex flex-col gap-0">
       {(promptReady(), null)}
       <style>{`
-        @keyframes optimize-glow {
-          0%, 100% { box-shadow: inset 0 0 0 0 color-mix(in srgb, var(--accent-base) 0%, transparent); }
-          50% { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-base) 25%, transparent), inset 0 0 8px 0 color-mix(in srgb, var(--accent-base) 10%, transparent); }
-        }
-        .animate-optimize-pulse {
-          animation: optimize-glow 1.2s ease-in-out infinite;
+        @keyframes optimize-spin {
+          to { transform: rotate(360deg); }
         }
         .animate-optimize-spin {
-          animation: spin 0.8s linear infinite;
+          animation: optimize-spin 0.8s linear infinite;
           transform-origin: center;
-        }
-        @keyframes spin {
-          to { transform: rotate(360deg); }
         }
       `}</style>
       <PromptPopover
@@ -1584,17 +1646,22 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       />
       <DockShellForm
         onSubmit={handleSubmit}
+        data-working={working() ? "true" : "false"}
+        data-optimizing={store.optimizing ? "true" : "false"}
         classList={{
           "group/prompt-input": true,
-          "focus-within:shadow-xs-border": true,
+          "focus-within:shadow-xs-border": !working() && !store.optimizing,
           "border-icon-info-active border-dashed": store.draggingType !== null,
           [props.class ?? ""]: !!props.class,
         }}
         style={{
           "border-radius": "16px",
           background: "var(--surface-raised-stronger-non-alpha)",
-          "box-shadow": "0 0 0 1px var(--border-weak-base), 0 4px 24px rgba(0, 0, 0, 0.08)",
-          transition: "all 0.2s ease",
+          "box-shadow":
+            working() || store.optimizing
+              ? undefined
+              : "0 0 0 1px var(--border-weak-base), 0 4px 24px rgba(0, 0, 0, 0.08)",
+          transition: working() || store.optimizing ? undefined : "box-shadow 0.2s ease",
         }}
       >
         <PromptDragOverlay
@@ -1840,16 +1907,30 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                 自动联网
               </div>
               <div data-component="prompt-auto-accept">
-                <Tooltip placement="top" gutter={4} value={language.t("command.permissions.autoaccept.enable")}>
+                <Tooltip placement="top" gutter={4} value={autoAcceptTooltip()}>
                   <div
                     data-action="prompt-auto-accept"
                     class="flex items-center gap-1.5 text-12-medium text-text-interactive-base cursor-pointer select-none"
                   >
-                    <span style={{ "font-weight": "var(--font-weight-semibold)" }}>权限</span>
+                    <span style={{ "font-weight": "var(--font-weight-semibold)" }}>
+                      {language.t("permissions.prompt.currentProject")}
+                    </span>
                     <Switch
-                      checked={permission.isAutoAcceptingDirectory(sdk.directory)}
-                      onChange={() => permission.toggleAutoAcceptDirectory(sdk.directory)}
+                      checked={autoAcceptEffective()}
+                      onChange={() => {
+                        if (globalAutoApprove()) {
+                          if (projectAutoAccept()) permission.toggleAutoAcceptDirectory(sdk.directory)
+                          settings.permissions.setAutoApprove(false)
+                          return
+                        }
+                        permission.toggleAutoAcceptDirectory(sdk.directory)
+                      }}
                     />
+                    <Show when={globalAutoApprove()}>
+                      <span class="px-1.5 py-0.5 rounded-md bg-surface-hover text-11-medium text-text-weak">
+                        {language.t("permissions.prompt.globalEnabled")}
+                      </span>
+                    </Show>
                   </div>
                 </Tooltip>
               </div>
@@ -1861,19 +1942,28 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
           onMouseDown={(e) => {
             const target = e.target
             if (!(target instanceof HTMLElement)) return
-            if (target.closest('[data-action="prompt-attach"], [data-action="prompt-submit"]')) {
+            if (
+              target.closest(
+                '[data-action="prompt-attach"], [data-action="prompt-submit"], [data-action="prompt-optimize"], [data-action="prompt-optimize-undo"]',
+              )
+            ) {
               return
             }
             editorRef?.focus()
           }}
         >
           <div
-            class="relative max-h-[680px] overflow-y-auto no-scrollbar"
+            class="relative max-h-[240px] overflow-y-auto"
             ref={(el) => (scrollRef = el)}
+            data-optimizing-content={store.optimizing ? "true" : "false"}
             style={{ "scroll-padding-bottom": space }}
           >
+            <Show when={store.optimizing}>
+              <div class="prompt-optimize-wave" aria-hidden="true" />
+            </Show>
             <div
               data-component="prompt-input"
+              data-optimizing={store.optimizing ? "true" : "false"}
               ref={(el) => {
                 editorRef = el
                 props.ref?.(el)
@@ -1900,7 +1990,6 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                 "[&_[data-type=file]]:text-syntax-property": true,
                 "[&_[data-type=agent]]:text-syntax-type": true,
                 "font-mono!": store.mode === "shell",
-                "animate-optimize-pulse": store.optimizing,
               }}
               style={{ "padding-bottom": space }}
             />
@@ -1935,21 +2024,71 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
               }}
             />
 
-            <div class="flex items-center gap-1 pointer-events-auto">
+            <div class="relative z-20 flex items-center gap-1 pointer-events-auto">
+              <Show when={store.optimizeSnapshot !== null && !store.optimizing}>
+                <Tooltip placement="top" value="撤销优化，恢复原文">
+                  <Button
+                    data-action="prompt-optimize-undo"
+                    type="button"
+                    variant="ghost"
+                    class="size-8 p-0"
+                    onMouseDown={(event: MouseEvent) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                    }}
+                    onClick={(event: MouseEvent) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      undoOptimize()
+                    }}
+                    disabled={store.mode !== "normal"}
+                    tabIndex={store.mode === "normal" ? undefined : -1}
+                    aria-label="撤销优化"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="size-4 text-text-interactive-base"
+                    >
+                      <path d="M3 7v6h6" />
+                      <path d="M3 13a9 9 0 1 0 3-7.7L3 7" />
+                    </svg>
+                  </Button>
+                </Tooltip>
+              </Show>
               <Tooltip
                 placement="top"
-                value={store.optimizing ? "优化中..." : "优化提示词"}
-                inactive={!blank() && !store.optimizing}
+                value={
+                  store.optimizing
+                    ? "优化中..."
+                    : blank()
+                      ? "先输入内容再优化提示词"
+                      : store.optimizeSnapshot !== null
+                        ? "再次优化提示词"
+                        : "优化提示词"
+                }
               >
                 <Button
                   data-action="prompt-optimize"
                   type="button"
                   variant="ghost"
                   class="size-8 p-0"
-                  onClick={() => void optimizePrompt()}
-                  disabled={store.mode !== "normal" || store.optimizing || blank()}
+                  onMouseDown={(event: MouseEvent) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                  }}
+                  onClick={(event: MouseEvent) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    void optimizePrompt()
+                  }}
+                  disabled={store.mode !== "normal" || store.optimizing}
                   tabIndex={store.mode === "normal" ? undefined : -1}
-                  aria-label="优化提示词"
+                  aria-label={store.optimizeSnapshot !== null ? "再次优化提示词" : "优化提示词"}
                 >
                   <Show
                     when={store.optimizing}

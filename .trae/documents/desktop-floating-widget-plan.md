@@ -3,6 +3,7 @@
 ## 摘要
 
 为 NovaWay 桌面端新增一个独立的可拖动悬浮助手挂件窗口：
+
 1. 只要应用运行，该挂件始终悬浮在桌面上，即使主窗口最小化也不消失。
 2. 挂件支持拖拽改变位置，可展开/收起，包含“当前智能体”和“待办清单”两个标签页。
 3. 对话过程中因用户输入触发 build/plan 切换时，挂件上的当前智能体实时同步。
@@ -24,6 +25,7 @@
 **文件**：`packages/app/src/components/assistant-panel.tsx`（新建）
 
 **内容**：
+
 - 将 `floating-todo-button.tsx` 中的 `RobotIcon`、`StatusIcon`、`AgentTab`、`TodoTab` 抽离为纯展示组件。
 - `AssistantPanel` 接收以下 props，不依赖 `useSessionLayout`：
   - `currentAgent?: AgentItem`
@@ -44,6 +46,7 @@
 **文件**：`packages/app/src/components/floating-todo-button.tsx`
 
 **内容**：
+
 - 删除内嵌的 `RobotIcon`、`StatusIcon`、`AgentTab`、`TodoTab` 实现。
 - 保留 `useSessionLayout` 获取当前会话、读取 `globalSync` 中的待办。
 - 渲染新的 `AssistantPanel`，把当前 agent、任务列表、展开状态等作为 props 传入。
@@ -54,10 +57,12 @@
 ### 3. 新增悬浮窗口 renderer 入口
 
 **文件**：
+
 - `packages/desktop/src/renderer/floating.html`（新建）
 - `packages/desktop/src/renderer/floating.tsx`（新建）
 
 **内容**：
+
 - `floating.html`：提供 `<div id="root">` 的极简 HTML。
 - `floating.tsx`：
   - 调用 `initI18n()`。
@@ -78,6 +83,7 @@
 **文件**：`packages/desktop/src/main/windows.ts`
 
 **内容**：
+
 - 新增 `createFloatingWindow()`：
   - `width: 320, height: 400`
   - `frame: false, transparent: true, alwaysOnTop: true, skipTaskbar: true, resizable: false, show: false`
@@ -95,6 +101,7 @@
 **文件**：`packages/desktop/src/main/index.ts`
 
 **内容**：
+
 - 在 `mainWindow = createMainWindow()` 之后调用 `floatingWindow = createFloatingWindow()`。
 - 主窗口关闭时（`mainWindow.on("closed")`）同步关闭悬浮窗口。
 - 监听主窗口最小化事件，悬浮窗口保持显示。
@@ -107,11 +114,13 @@
 ### 6. 扩展 IPC 以支持悬浮窗口状态查询与切换
 
 **文件**：
+
 - `packages/desktop/src/preload/types.ts`
 - `packages/desktop/src/preload/index.ts`
 - `packages/desktop/src/main/ipc.ts`
 
 **内容**：
+
 - 在 `ElectronAPI` 中新增：
   - `getFloatingAgentState: () => Promise<{ current?: string; agents: { name: string; mode: string; hidden?: boolean; options?: Record<string, unknown> }[] }>`
   - `setFloatingAgent: (name: string) => Promise<void>`
@@ -129,6 +138,7 @@
 **文件**：`packages/desktop/electron.vite.config.ts`
 
 **内容**：
+
 - 在 `renderer.build.rollupOptions.input` 中新增 `floating: "src/renderer/floating.html"`。
 
 **原因**：electron-vite 需要知道打包该入口。
@@ -138,6 +148,7 @@
 **文件**：`packages/desktop/src/renderer/index.tsx`（或新增 `src/renderer/floating-bridge.ts`）
 
 **内容**：
+
 - 在 `Inner` 组件或 `onMount` 中：
   - 监听 `request-floating-agent-state` IPC 事件，调用 `useLocal()` 读取当前 agent/list，通过 `window.api` 返回。
   - 监听 `set-floating-agent` IPC 事件，调用 `local.agent.set(name)`。
@@ -150,6 +161,7 @@
 **文件**：`packages/app/src/components/prompt-input/submit.ts`
 
 **内容**：
+
 - 确认现有代码已执行：
   ```ts
   if (agent !== currentAgent.name) {

@@ -39,6 +39,8 @@ import * as Stream from "effect/Stream"
 import { Command } from "../command"
 import { pathToFileURL, fileURLToPath } from "url"
 import { Config } from "@/config/config"
+import { ConfigMemory } from "@/config/memory"
+import { ConfigEvolution } from "@/config/evolution"
 import { ConfigMarkdown } from "@/config/markdown"
 import { SessionSummary } from "./summary"
 import { NamedError } from "@opencode-ai/core/util/error"
@@ -49,8 +51,6 @@ import { SessionStatus } from "./status"
 import { LLM } from "./llm"
 import { Memory } from "@/memory/service"
 import { injectMemoryContext } from "@/memory/context"
-import { PowersNexusWorkflow } from "@/powersnexus/service"
-import { assessWorkflowLevel } from "@/powersnexus/level"
 import { ProjectContext } from "@/context/project-context"
 import { Evolution } from "@/evolution/service"
 import { Shell } from "@/shell/shell"
@@ -97,16 +97,36 @@ IMPORTANT:
 
 const STRUCTURED_OUTPUT_SYSTEM_PROMPT = `IMPORTANT: The user has requested structured output. You MUST use the StructuredOutput tool to provide your final response. Do NOT respond with plain text - you MUST call the StructuredOutput tool with your answer formatted according to the schema.`
 
+// 图片识别子代理的系统提示词：主模型不支持图片输入时，由具备多模态能力的
+// 模型先识别附件图片，再把识别结果以文本注入对话，供主模型继续处理。
+const VISION_DESCRIBE_SYSTEM_PROMPT = [
+  "你是一个图片识别子代理，用户选择的主模型不支持图片输入。",
+  "请用简体中文仔细识别附件中的每一张图片，并输出图片内容：",
+  "画面主体与布局、图中的文字（逐字转写）、数字、图表、人物、动作，",
+  "以及与用户问题相关的细节。",
+  "只输出图片识别结果，不要询问、不要回复与识别无关的内容。",
+].join("\n")
+
+const VISION_DESCRIPTION_MARKER = "[图片内容识别结果]"
+
 const log = Log.create({ service: "session.prompt" })
 const elog = EffectLogger.create({ service: "session.prompt" })
 
 const MemoryReviewCandidateDraft = Schema.Struct({
   target: Schema.optional(Schema.Literals(["memory", "user"])),
   scope: Schema.optional(Schema.Literals(["global", "project", "session"])),
+  domain: Schema.optional(Schema.Literals(["general", "coding", "office", "personal", "research", "ops"])),
+  kind: Schema.optional(
+    Schema.Literals(["episodic", "semantic", "preference", "goal", "decision", "relationship", "lesson", "procedure"]),
+  ),
+  entities: Schema.optional(Schema.Array(Schema.Struct({ name: Schema.String, type: Schema.optional(Schema.String) }))),
   content: Schema.String,
   summary: Schema.optional(Schema.String),
   tags: Schema.optional(Schema.Array(Schema.String)),
   importance: Schema.optional(Schema.Number),
+  confidence: Schema.optional(Schema.Number),
+  factKey: Schema.optional(Schema.String),
+  operation: Schema.optional(Schema.Literals(["add", "update", "archive", "confirm"])),
   reason: Schema.optional(Schema.String),
 })
 
@@ -117,13 +137,14 @@ const MemoryReviewResult = Schema.Struct({
 type MemoryReviewCandidateDraft = Schema.Schema.Type<typeof MemoryReviewCandidateDraft>
 
 const EvolutionReviewCandidateDraft = Schema.Struct({
-  kind: Schema.Literals(["skill", "agent", "workflow", "prompt", "tool", "project"]),
+  kind: Schema.Literals(["skill", "agent", "workflow", "prompt", "tool", "project", "strategy", "habit", "knowledge"]),
   scope: Schema.optional(Schema.Literals(["global", "project"])),
   target: Schema.String,
   title: Schema.String,
   content: Schema.String,
   reason: Schema.String,
   tags: Schema.optional(Schema.Array(Schema.String)),
+  expectedOutcomes: Schema.optional(Schema.Array(Schema.String)),
 })
 
 const EvolutionReviewResult = Schema.Struct({
@@ -1756,17 +1777,19 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       assistantContent: string
     }) {
       const cfg = yield* config.get()
-      if (cfg.memory?.review_llm !== true) return []
+      if (ConfigMemory.resolve(cfg.memory).review_llm !== true) return []
       if (!input.userContent.trim() && !input.assistantContent.trim()) return []
 
       const language = yield* provider.getLanguage(input.model)
       const system = [
         [
           "你是 NovaWay 的长期记忆审查器。",
-          "从本轮对话中提取最多 3 条值得用户确认后长期保存的候选记忆。",
-          "只提取对未来会话有持续价值的信息，例如用户偏好、项目约定、长期目标、稳定事实、失败恢复经验。",
-          "不要提取临时任务、闲聊、一次性命令、工具输出噪音、凭据、密钥或敏感信息。",
-          "候选必须先由用户审查，当前步骤只生成候选，不代表已经写入长期记忆。",
+          "从本轮对话中提取最多 3 条值得长期保留的通用记忆候选，例如情景、事实、偏好、目标、决策、关系、经验教训或可复用流程。",
+          "不要提取临时任务、普通闲聊、一次性命令、工具输出噪音、凭据、密钥或敏感信息。",
+          "候选必须是未来对话可能复用的稳定信息，并尽量简洁。",
+          "每条候选必须包含 kind(episodic/semantic/preference/goal/decision/relationship/lesson/procedure)、factKey、operation(add/update/archive/confirm)、domain(general/coding/office/personal/research/ops) 和 confidence(0-1)。",
+          "如果记忆涉及人物、组织、地点、产品或主题，填写 entities 数组，每项包含 name 和可选 type。",
+          "若候选修正已知事实，使用 operation=update 并复用同一个 factKey。",
         ].join("\n"),
       ]
       yield* plugin.trigger("experimental.chat.system.transform", { model: input.model }, { system })
@@ -1845,7 +1868,8 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       assistantContent: string
     }) {
       const cfg = yield* config.get()
-      if (cfg.evolution?.enabled !== true || cfg.evolution.review_llm !== true) return []
+      if (!ConfigEvolution.resolve(cfg.evolution).enabled || !ConfigEvolution.resolve(cfg.evolution).review_llm)
+        return []
       if (!input.userContent.trim() && !input.assistantContent.trim()) return []
 
       const language = yield* provider.getLanguage(input.model)
@@ -1853,16 +1877,16 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         [
           "你是 NovaWay 的自我进化审查器。",
           "从本轮对话中提取最多 3 条值得用户确认的自我进化候选。",
-          "候选只能是可长期改进系统能力的建议，例如技能补充、Agent 行为调整、工作流固化、提示词改进、工具使用约定或项目规则沉淀。",
+          "候选只能是可长期改进系统能力或用户工作方式的建议，例如技能补充、Agent 行为调整、工作流固化、提示词改进、可执行工具、行为策略、个人习惯流程、知识模板或项目规则沉淀。",
           "不要提取临时任务、普通闲聊、一次性命令、工具输出噪音、凭据、密钥或敏感信息。",
           "候选必须具体说明目标、改进内容和原因；当前步骤只生成候选，不会自动改写任何文件。",
-          "kind 必须是 skill、agent、workflow、prompt、tool、project 之一。",
+          "候选必须提供 expectedOutcomes，即写盘后可通过内容检查验证的预期结果（2-5 条短句，必须出现在最终文件中）。",
+          "kind 可以是 skill、agent、workflow、prompt、tool、project、strategy、habit、knowledge；后三类分别用于通用行为策略、个人流程和知识模板。",
+          "scope 必须是 global 或 project：global 表示该候选是跨项目通用的能力（如通用技能、可复用工作流、全局提示词/工具），应写入全局配置；project 表示仅与当前项目相关（如项目规则、特定 Agent 行为、项目专属流程）。",
+          "当 kind=tool 时，content 优先给出可运行的 TypeScript 工具模块（export default tool({ description, args, execute })，可 import { tool } from @opencode-ai/plugin）；若暂时只能给自然语言，也要写清工具用途、输入输出与执行步骤。",
+          "当 kind=workflow 或 prompt 时，content 应是可直接作为命令模板使用的 Markdown 流程/提示词。",
         ].join("\n"),
       ]
-      system.push(
-        "Use scope=global only for reusable cross-project skill/workflow/prompt/tool improvements. Use scope=project for project-specific rules, codebase details, and one-off lessons.",
-        "When implementation reveals a reusable process, prefer kind=skill or kind=workflow with scope=global, but only as a pending candidate for user review.",
-      )
       yield* plugin.trigger("experimental.chat.system.transform", { model: input.model }, { system })
 
       const authInfo = auth ? yield* auth.get(input.model.providerID).pipe(Effect.orDie) : undefined
@@ -1969,6 +1993,58 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       throw new Error("Impossible")
     })
 
+    // 在已配置的提供方中挑选一个支持图片输入的模型，优先同提供方，其次 opencode，最后任意提供方。
+    const findVisionModel = Effect.fn("SessionPrompt.findVisionModel")(function* (preferred: Provider.Model) {
+      const providers = yield* provider.list()
+      const matches: Array<{ providerID: ProviderID; model: Provider.Model }> = []
+      for (const [providerID, info] of Object.entries(providers)) {
+        for (const model of Object.values(info.models)) {
+          if (!model.capabilities?.input?.image) continue
+          matches.push({ providerID: ProviderID.make(providerID), model })
+        }
+      }
+      if (matches.length === 0) return undefined
+      const best = (items: Array<{ providerID: ProviderID; model: Provider.Model }>) =>
+        items.sort((a, b) => (b.model.limit?.context ?? 0) - (a.model.limit?.context ?? 0))[0]?.model
+      return (
+        best(matches.filter((item) => item.providerID === preferred.providerID)) ??
+        best(matches.filter((item) => item.providerID === ProviderID.make("opencode"))) ??
+        best(matches)
+      )
+    })
+
+    // 使用多模态模型识别图片，返回识别文本；失败由调用方降级处理。
+    const describeImages = Effect.fn("SessionPrompt.describeImages")(function* (input: {
+      visionModel: Provider.Model
+      agent: Agent.Info
+      lastUser: MessageV2.User
+      parts: MessageV2.Part[]
+      sessionID: SessionID
+    }) {
+      const messages = yield* MessageV2.toModelMessagesEffect(
+        [{ info: input.lastUser, parts: input.parts }],
+        input.visionModel,
+      )
+      return yield* llm
+        .stream({
+          user: input.lastUser,
+          agent: input.agent,
+          system: [VISION_DESCRIBE_SYSTEM_PROMPT],
+          tools: {},
+          model: input.visionModel,
+          sessionID: input.sessionID,
+          retries: 2,
+          messages,
+        })
+        .pipe(
+          Stream.filter((e): e is Extract<LLM.Event, { type: "text-delta" }> => e.type === "text-delta"),
+          Stream.map((e) => e.text),
+          Stream.mkString,
+          Effect.orDie,
+        )
+        .pipe(Effect.map((text) => text.trim()))
+    })
+
     const runLoop: (sessionID: SessionID) => Effect.Effect<MessageV2.WithParts> = Effect.fn("SessionPrompt.run")(
       function* (sessionID: SessionID) {
         const ctx = yield* InstanceState.context
@@ -2017,6 +2093,10 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             }).pipe(Effect.ignore, Effect.forkIn(scope))
 
           const model = yield* getModel(lastUser.model.providerID, lastUser.model.modelID, sessionID)
+          // 媒体模型必须使用持久化的用户输入，而不是为聊天模型追加的提醒或插件注入内容。
+          const media = LLM.mediaInput(
+            msgs.findLast((message) => message.info.role === "user" && message.info.id === lastUser.id)?.parts ?? [],
+          )
           const task = tasks.pop()
 
           if (task?.type === "subtask") {
@@ -2056,6 +2136,51 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           const maxSteps = agent.steps ?? Infinity
           const isLastStep = step >= maxSteps
           msgs = yield* insertReminders({ messages: msgs, agent, session })
+
+          // 主模型不支持图片输入时，把图片识别交给多模态子代理完成，
+          // 识别结果以合成文本写入用户消息，主模型继续用文本处理对话。
+          const modelSupportsImages = model.capabilities?.input?.image
+          if (!modelSupportsImages) {
+            const visionUserMsg = msgs.findLast((m) => m.info.role === "user" && m.info.id === lastUser.id)
+            const visionImageParts = visionUserMsg?.parts.filter(
+              (p): p is MessageV2.FilePart => p.type === "file" && p.mime.startsWith("image/"),
+            )
+            const alreadyDescribed = visionUserMsg?.parts.some(
+              (p) => p.type === "text" && p.synthetic && p.text.startsWith(VISION_DESCRIPTION_MARKER),
+            )
+            if (visionUserMsg && visionImageParts?.length && !alreadyDescribed) {
+              const visionModel = yield* findVisionModel(model)
+              if (visionModel) {
+                const description = yield* describeImages({
+                  visionModel,
+                  agent,
+                  lastUser,
+                  parts: visionUserMsg.parts,
+                  sessionID,
+                }).pipe(
+                  Effect.catchCause((cause) => {
+                    log.error("image recognition failed, falling back to attachment placeholder", {
+                      error: Cause.squash(cause),
+                    })
+                    return Effect.succeed(undefined)
+                  }),
+                )
+                if (description) {
+                  const descriptionPart: MessageV2.TextPart = {
+                    id: PartID.ascending(),
+                    sessionID,
+                    messageID: lastUser.id,
+                    type: "text",
+                    synthetic: true,
+                    text: `${VISION_DESCRIPTION_MARKER}\n${description}`,
+                  }
+                  yield* sessions.updatePart(descriptionPart)
+                  // 同步更新内存中的消息，确保当前步骤主模型也能看到识别结果。
+                  visionUserMsg.parts.push(descriptionPart)
+                }
+              }
+            }
+          }
 
           const msg: MessageV2.Assistant = {
             id: MessageID.ascending(),
@@ -2138,20 +2263,20 @@ NOTE: At any point in time through this workflow you should feel free to ask the
 
             yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
 
-            const [skills, env, instructions, modelMsgs] = yield* Effect.all([
+            const [skills, env, instructionParts, modelMsgs] = yield* Effect.all([
               sys.skills(agent),
-              sys.environment(model, lastUser.autoMode),
+              sys.environment(model),
               instruction.system({ prompt: textFromParts(lastUserMsg?.parts ?? []) }).pipe(Effect.orDie),
-              MessageV2.toModelMessagesEffect(msgs, model),
+              MessageV2.toModelMessagesEffect(msgs, model, modelSupportsImages ? undefined : { stripMedia: true }),
             ])
             const cfg = yield* config.get()
-            const memoryEnabled = cfg.memory?.enabled === true
-            const memoryReviewEnabled =
-              memoryEnabled && cfg.memory?.review_enabled === true && (cfg.memory.review_interval ?? 1) > 0
+            const instanceCtx = yield* InstanceState.context
+            const memoryCfg = ConfigMemory.resolve(cfg.memory)
+            const evolutionCfg = ConfigEvolution.resolve(cfg.evolution)
+            const memoryEnabled = memoryCfg.enabled
+            const memoryReviewEnabled = memoryEnabled && memoryCfg.review_enabled && memoryCfg.review_interval > 0
             const evolutionReviewEnabled =
-              cfg.evolution?.enabled === true &&
-              cfg.evolution.review_llm === true &&
-              (cfg.evolution.review_interval ?? 3) > 0
+              evolutionCfg.enabled && evolutionCfg.review_llm && evolutionCfg.review_interval > 0
             const memoryContext =
               memoryEnabled && memory
                 ? yield* memory
@@ -2159,7 +2284,8 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                       query: textFromParts(lastUserMsg?.parts ?? []),
                       projectID: session.projectID,
                       sessionID,
-                      limit: cfg.memory?.prefetch_limit,
+                      limit: memoryCfg.prefetch_limit,
+                      maxChars: memoryCfg.prefetch_budget_chars,
                     })
                     .pipe(Effect.catch(() => Effect.succeed("")))
                 : ""
@@ -2175,61 +2301,12 @@ NOTE: At any point in time through this workflow you should feel free to ask the
               messages: modelMsgs,
               context: [projectContext, memoryContext].filter(Boolean).join("\n\n"),
             })
-            const system = [...env, ...instructions, ...(skills ? [skills] : [])]
-            // 用户发起任务后再创建/绑定 Change，并每轮注入工作流 capsule
-            {
-              const workflow = Option.getOrUndefined(yield* Effect.serviceOption(PowersNexusWorkflow.Service))
-              if (workflow) {
-                const userText = textFromParts(lastUserMsg?.parts ?? []).trim()
-                let capsule = yield* workflow.capsule(sessionID).pipe(Effect.catch(() => Effect.succeed(undefined)))
-                if (!capsule && userText && !session.parentID) {
-                  const assessed = assessWorkflowLevel(userText)
-                  const ascii = userText
-                    .toLowerCase()
-                    .replace(/[^a-z0-9._-]+/g, "-")
-                    .replace(/-+/g, "-")
-                    .replace(/^[-._]+|[-._]+$/g, "")
-                    .slice(0, 40)
-                  const safeName =
-                    /^[a-z0-9][a-z0-9._-]{0,79}$/.test(ascii) && ascii ? ascii : `task-${Date.now().toString(36)}`
-                  // 按会话隔离：本会话未绑定则始终新建 Change，不复用其它会话的任务
-                  capsule = yield* Effect.gen(function* () {
-                    const uniqueName = `${safeName}-${String(sessionID).slice(-6).toLowerCase()}`.replace(
-                      /[^a-z0-9._-]+/g,
-                      "-",
-                    )
-                    const created = yield* workflow.create({
-                      changeName: uniqueName.slice(0, 80),
-                      level: assessed.level,
-                    })
-                    yield* workflow.bind({
-                      changeName: created.changeName,
-                      sessionID,
-                      expectedRevision: created.revision,
-                      handoff: false,
-                    })
-                    return yield* workflow.capsule(sessionID)
-                  }).pipe(Effect.catch(() => Effect.succeed(undefined)))
-                }
-                if (capsule) {
-                  system.push(
-                    [
-                      "<powersnexus-workflow>",
-                      "你正在执行 NovaWay 第一方 PowersNexus 工作流。必须优先推进工作流状态，禁止在规格/任务未就绪时直接大量编写业务代码。",
-                      `changeName=${capsule.changeName}`,
-                      `phase=${capsule.phase}`,
-                      `level=${capsule.level}`,
-                      `nextAction=${capsule.nextAction?.action ?? "none"} (${capsule.nextAction?.label ?? ""})`,
-                      "工件目录：.novaway/powersnexus/changes/" + capsule.changeName + "/",
-                      "请按 nextAction 更新 proposal.md / delta-specs/*/spec.md / design.md / tasks.md 等工件，再实现代码。",
-                      "权威快照 JSON：",
-                      JSON.stringify(capsule),
-                      "</powersnexus-workflow>",
-                    ].join("\n"),
-                  )
-                }
-              }
-            }
+            // 静态指令/技能放在缓存前缀，环境信息放尾部，避免目录、日期或模型信息变化时整段缓存失效。
+            const staticSystem = [...instructionParts.always, ...(skills ? [skills] : [])]
+              .filter(Boolean)
+              .join("\n\n")
+            const dynamicSystem = [...instructionParts.triggered, ...env].filter(Boolean).join("\n\n")
+            const system = [staticSystem, dynamicSystem].filter(Boolean)
             const format = lastUser.format ?? { type: "text" as const }
             if (format.type === "json_schema") system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)
             const result = yield* handle.process({
@@ -2243,6 +2320,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                 ...requestMessages,
                 ...(isLastStep ? [{ role: "assistant" as const, content: MAX_STEPS }] : []),
               ],
+              media,
               tools,
               model,
               toolChoice: format.type === "json_schema" ? "required" : undefined,
@@ -2268,6 +2346,19 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             }
 
             if (result === "stop") {
+              // 全自动学习：显式抽取 + LLM 审查并行，不再互斥
+              if (memoryEnabled && memory && memoryCfg.auto_extract && !handle.message.error) {
+                yield* memory
+                  .syncTurn({
+                    userContent: textFromParts(lastUserMsg?.parts ?? []),
+                    assistantContent: "",
+                    projectID: session.projectID,
+                    sessionID,
+                    originMessageID: lastUser.id,
+                    agent: agent.name,
+                  })
+                  .pipe(Effect.ignore)
+              }
               if (memoryReviewEnabled && memory && !handle.message.error) {
                 const userContent = textFromParts(lastUserMsg?.parts ?? [])
                 const due = yield* memory
@@ -2277,7 +2368,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                     sessionID,
                     sourceMessageID: lastUser.id,
                     agent: agent.name,
-                    reviewInterval: cfg.memory?.review_interval,
+                    reviewInterval: memoryCfg.review_interval,
                   })
                   .pipe(Effect.catch(() => Effect.succeed(false)))
                 if (due) {
@@ -2290,7 +2381,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                     userContent,
                     assistantContent,
                   }).pipe(Effect.catch(() => Effect.succeed([])))
-                  yield* memory
+                  const reviewed = yield* memory
                     .review({
                       userContent,
                       assistantContent,
@@ -2301,19 +2392,15 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                       candidates,
                       skipReviewState: true,
                     })
-                    .pipe(Effect.ignore)
+                    .pipe(Effect.catch(() => Effect.succeed([] as never[])))
+                  // 自动写入：候选直接进长期记忆，越用越聪明无需点通过
+                  if (memoryCfg.auto_apply && reviewed.length) {
+                    for (const item of reviewed) {
+                      if (item.status !== "pending") continue
+                      yield* memory.applyReviewCandidate(item.id).pipe(Effect.ignore)
+                    }
+                  }
                 }
-              } else if (memoryEnabled && memory && cfg.memory?.auto_extract === true && !handle.message.error) {
-                yield* memory
-                  .syncTurn({
-                    userContent: textFromParts(lastUserMsg?.parts ?? []),
-                    assistantContent: "",
-                    projectID: session.projectID,
-                    sessionID,
-                    originMessageID: lastUser.id,
-                    agent: agent.name,
-                  })
-                  .pipe(Effect.ignore)
               }
               if (evolutionReviewEnabled && evolution && !handle.message.error) {
                 const userContent = textFromParts(lastUserMsg?.parts ?? [])
@@ -2322,7 +2409,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                     projectID: session.projectID,
                     sessionID,
                     sourceMessageID: lastUser.id,
-                    reviewInterval: cfg.evolution?.review_interval,
+                    reviewInterval: evolutionCfg.review_interval,
                   })
                   .pipe(Effect.catch(() => Effect.succeed(false)))
                 if (due) {
@@ -2336,14 +2423,32 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                     assistantContent,
                   }).pipe(Effect.catch(() => Effect.succeed([])))
                   if (proposals.length) {
-                    yield* evolution
+                    const reviewed = yield* evolution
                       .review({
                         proposals,
                         projectID: session.projectID,
                         sessionID,
                         sourceMessageID: lastUser.id,
                       })
-                      .pipe(Effect.ignore)
+                      .pipe(Effect.catch(() => Effect.succeed([] as never[])))
+                    // 自动写入磁盘：开启后进化候选无需人工确认直接落地到 .novaway 文件
+                    // 写盘失败时由 evolution.applyToDisk 发布 AutoApplyFileFailed 事件并保留候选 pending 状态，等待人工确认
+                    if (evolutionCfg.auto_apply_file && reviewed.length) {
+                      for (const item of reviewed) {
+                        if (item.status !== "pending") continue
+                        yield* evolution
+                          .applyToDisk(item.id, {
+                            directory: instanceCtx.directory,
+                            worktree: instanceCtx.worktree,
+                          })
+                          .pipe(
+                            Effect.ignoreCause({
+                              log: true,
+                              message: `evolution auto-apply to disk failed: ${item.id}`,
+                            }),
+                          )
+                      }
+                    }
                   }
                 }
               }

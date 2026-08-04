@@ -7,10 +7,13 @@ import * as Database from "@/storage/db"
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
 import { Global } from "@opencode-ai/core/global"
 import { applyPatch as applyUnifiedPatch } from "diff"
-import { Context, Effect, Layer, Schema } from "effect"
-import { mkdir, writeFile } from "fs/promises"
+import { Context, Effect, Layer, Option, Schema } from "effect"
+import { mkdir, unlink, writeFile } from "fs/promises"
 import path from "path"
 import { EvolutionCandidateTable, EvolutionReviewStateTable } from "./evolution.sql"
+import { evaluateEvolutionCandidate, evaluateEvolutionRegression } from "./eval"
+import { Skill } from "@/skill"
+import { Command } from "@/command"
 import {
   EvolutionCandidateID,
   type Candidate,
@@ -42,6 +45,15 @@ export const Event = {
     Schema.Struct({
       projectID: Schema.optional(ProjectID),
       sessionID: Schema.optional(SessionID),
+    }),
+  ),
+  AutoApplyFileFailed: BusEvent.define(
+    "evolution.autoApplyFileFailed",
+    Schema.Struct({
+      candidateID: EvolutionCandidateID,
+      projectID: Schema.optional(ProjectID),
+      sessionID: Schema.optional(SessionID),
+      message: Schema.String,
     }),
   ),
 }
@@ -82,14 +94,18 @@ function rowToCandidate(row: typeof EvolutionCandidateTable.$inferSelect): Candi
     ...(row.project_id ? { projectID: row.project_id } : {}),
     ...(row.session_id ? { sessionID: row.session_id } : {}),
     kind: row.kind,
+    domain: (row.domain ?? "general") as Candidate["domain"],
     target: row.target,
     title: row.title,
     content: row.content,
     contentFormat: row.content_format,
     reason: row.reason,
     tags: row.tags,
+    ...(row.expected_outcomes.length ? { expectedOutcomes: row.expected_outcomes } : {}),
     ...(row.source_message_id ? { sourceMessageID: row.source_message_id } : {}),
     status: row.status,
+    validationStatus: (row.validation_status ?? "pending") as Candidate["validationStatus"],
+    ...(row.validation_note ? { validationNote: row.validation_note } : {}),
     time: {
       created: row.time_created,
       updated: row.time_updated,
@@ -109,8 +125,12 @@ function candidateContentFormat(content: string, format?: ContentFormat) {
 }
 
 function isGlobalEvolutionProposal(proposal: CandidateProposal) {
-  if (proposal.scope !== "global") return false
-  if (!["skill", "workflow", "prompt", "tool"].includes(proposal.kind)) return false
+  const globalKinds = ["skill", "workflow", "prompt", "tool", "strategy", "habit", "knowledge"]
+  if (!globalKinds.includes(proposal.kind)) return false
+  // 显式声明 global 时直接信任 LLM 的判断
+  if (proposal.scope === "global") return true
+  // 未声明 scope 时通过 heuristic 兜底，避免误标
+  if (proposal.scope === "project") return false
   return /global|all projects|across projects|reusable|reuse|standard|通用|复用|跨项目|所有项目|标准/i.test(
     [proposal.title, proposal.content, proposal.reason, ...(proposal.tags ?? [])].join("\n"),
   )
@@ -174,6 +194,7 @@ function normalizeProposal(
     project_id: projectID,
     session_id: input.sessionID,
     kind: proposal.kind,
+    domain: proposal.domain ?? "general",
     target,
     title,
     content,
@@ -184,8 +205,10 @@ function normalizeProposal(
         [...(proposal.tags ?? []), "evolution", ...(global ? ["global"] : [])].map((tag) => tag.trim()).filter(Boolean),
       ),
     ),
+    expected_outcomes: proposal.expectedOutcomes?.map((item) => item.trim()).filter(Boolean) ?? [],
     source_message_id: input.sourceMessageID,
     status: "pending",
+    validation_status: "pending",
     time_created: now,
     time_updated: now,
   }
@@ -263,11 +286,53 @@ function targetFile(candidate: Candidate, input: { directory: string; worktree: 
     if (candidate.kind === "agent") return path.join(root, "agents", `${segments.join(path.sep)}.md`)
     if (candidate.kind === "workflow") return path.join(root, "workflows", `${segments.join(path.sep)}.md`)
     if (candidate.kind === "prompt") return path.join(root, "prompts", `${segments.join(path.sep)}.md`)
-    if (candidate.kind === "tool") return path.join(root, "tools", `${segments.join(path.sep)}.md`)
+    if (candidate.kind === "tool") return path.join(root, "tools", `${segments.join(path.sep)}.ts`)
     return path.join(root, "evolution", `${segments.join(path.sep)}.md`)
   })()
   if (!AppFileSystem.contains(root, file)) return path.join(root, "evolution", "untitled.md")
   return file
+}
+
+function isExecutableToolSource(content: string) {
+  return /export\s+default\s+/.test(content) && /\bexecute\s*:/.test(content) && /\bargs\s*:/.test(content)
+}
+
+/** Turn free-form tool guidance into a loadable plugin tool module when needed. */
+function materializeToolSource(candidate: Candidate) {
+  const content = candidate.content.trim()
+  if (isExecutableToolSource(content)) return `${content.trim()}\n`
+
+  const rawName = targetSegments(candidate.target).at(-1) || "evolved_tool"
+  const exportName = rawName.replace(/[^a-zA-Z0-9_]/g, "_") || "evolved_tool"
+  const description = candidate.title?.trim() || candidate.reason?.trim() || `Evolved tool ${exportName}`
+  const guidance = content || description
+
+  return [
+    'import { tool } from "@opencode-ai/plugin"',
+    "",
+    `/** Evolved tool: ${description.replace(/\*\//g, "* /")}`,
+    ` * ${candidate.reason.replace(/\*\//g, "* /")}`,
+    " */",
+    "export default tool({",
+    `  description: ${JSON.stringify(description)},`,
+    "  args: {",
+    '    input: tool.schema.string().describe("Primary input for this evolved tool"),',
+    "  },",
+    "  async execute({ input }, ctx) {",
+    `    const guidance = ${JSON.stringify(guidance)}`,
+    "    return [",
+    '      "Evolved tool guidance:",',
+    "      guidance,",
+    '      "",',
+    '      "User input:",',
+    "      input,",
+    '      "",',
+    "      `Workspace: ${ctx.directory}`,",
+    '    ].join("\\n")',
+    "  },",
+    "})",
+    "",
+  ].join("\n")
 }
 
 function normalizeContent(content: string) {
@@ -275,10 +340,13 @@ function normalizeContent(content: string) {
 }
 
 function contentAfter(candidate: Candidate, before: string) {
-  if (candidate.contentFormat !== "unified_diff") return normalizeContent(candidate.content)
-  const patched = applyUnifiedPatch(before, candidate.content.trim())
-  if (patched === false) throw new Error("自我进化候选 patch 无法应用：目标文件内容与候选上下文不匹配。")
-  return patched
+  if (candidate.contentFormat === "unified_diff") {
+    const patched = applyUnifiedPatch(before, candidate.content.trim())
+    if (patched === false) throw new Error("无法应用 unified diff：补丁与当前文件内容不匹配。")
+    return patched
+  }
+  if (candidate.kind === "tool") return materializeToolSource(candidate)
+  return normalizeContent(candidate.content)
 }
 
 function lines(text: string) {
@@ -354,6 +422,26 @@ async function writeDryRun(dryRun: CandidateDryRun, input: { directory: string; 
   }
 }
 
+async function verifyDryRun(dryRun: CandidateDryRun, input: { directory: string; worktree: string }) {
+  const root = input.worktree === "/" ? input.directory : input.worktree
+  for (const file of dryRun.files) {
+    const absolute = path.join(root, file.path)
+    const exists = await Bun.file(absolute).exists()
+    const actual = exists ? await Bun.file(absolute).text() : ""
+    if (actual !== file.after) {
+      return { ok: false as const, path: absolute, message: `文件内容与候选不一致：${file.path}` }
+    }
+  }
+  return { ok: true as const }
+}
+
+async function rollbackDryRun(dryRun: CandidateDryRun, input: { directory: string; worktree: string }) {
+  const root = input.worktree === "/" ? input.directory : input.worktree
+  for (const file of dryRun.files) {
+    await unlink(path.join(root, file.path)).catch(() => {})
+  }
+}
+
 function reviewInterval(input: number | undefined) {
   return Math.max(Math.floor(input ?? DEFAULT_REVIEW_INTERVAL), 1)
 }
@@ -367,6 +455,20 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
         .publish(Event.Updated, {
           projectID: input.projectID,
           sessionID: input.sessionID,
+        })
+        .pipe(Effect.catchCause(() => Effect.void))
+    const publishAutoApplyFileFailed = (input: {
+      candidateID: EvolutionCandidateID
+      projectID?: ReviewInput["projectID"]
+      sessionID?: ReviewInput["sessionID"]
+      message: string
+    }) =>
+      bus
+        .publish(Event.AutoApplyFileFailed, {
+          candidateID: input.candidateID,
+          projectID: input.projectID,
+          sessionID: input.sessionID,
+          message: input.message,
         })
         .pipe(Effect.catchCause(() => Effect.void))
     const list: Interface["list"] = Effect.fn("Evolution.list")(function* (input) {
@@ -501,6 +603,9 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
         ...(input.contentFormat ? { content_format: input.contentFormat } : {}),
         ...(input.reason?.trim() ? { reason: input.reason.trim() } : {}),
         ...(input.tags ? { tags: normalizeTags(input.tags) ?? [] } : {}),
+        ...(input.expectedOutcomes
+          ? { expected_outcomes: input.expectedOutcomes.map((item) => item.trim()).filter(Boolean) }
+          : {}),
       }
       if (!Object.keys(next).length) return candidate
       yield* Effect.sync(() =>
@@ -554,19 +659,223 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
     const applyToDisk: Interface["applyToDisk"] = Effect.fn("Evolution.applyToDisk")(function* (id, input) {
       const candidate = yield* getByID(id)
       if (!candidate || candidate.status !== "pending") return
-      const dryRun = yield* Effect.promise(() => buildDryRun(candidate, input))
-      yield* Effect.promise(() =>
-        writeDryRun(
-          dryRun,
-          isGlobalCandidate(candidate) ? { ...input, worktree: input.globalConfig ?? Global.Path.config } : input,
-        ),
-      )
+      const validation = evaluateEvolutionCandidate({
+        title: candidate.title,
+        kind: candidate.kind,
+        target: candidate.target,
+        content: candidate.content,
+        reason: candidate.reason,
+      })
+      if (!validation.valid) {
+        const now = Date.now()
+        yield* Effect.sync(() =>
+          Database.use((db) =>
+            db
+              .update(EvolutionCandidateTable)
+              .set({
+                validation_status: "failed",
+                validation_note: validation.issues.join("；"),
+                time_updated: now,
+              })
+              .where(eq(EvolutionCandidateTable.id, id))
+              .run(),
+          ),
+        )
+        yield* publishUpdated({
+          projectID: candidate.projectID,
+          sessionID: candidate.sessionID,
+        })
+        return
+      }
+      const dryRunResult = yield* Effect.promise(() => buildDryRun(candidate, input))
+      const applyInput = isGlobalCandidate(candidate)
+        ? { ...input, worktree: input.globalConfig ?? Global.Path.config }
+        : input
+      try {
+        yield* Effect.promise(() => writeDryRun(dryRunResult, applyInput))
+      } catch (error) {
+        const now = Date.now()
+        const note = error instanceof Error ? error.message : String(error)
+        yield* Effect.sync(() =>
+          Database.use((db) =>
+            db
+              .update(EvolutionCandidateTable)
+              .set({
+                validation_status: "failed",
+                validation_note: note,
+                time_updated: now,
+              })
+              .where(eq(EvolutionCandidateTable.id, id))
+              .run(),
+          ),
+        )
+        yield* publishUpdated({
+          projectID: candidate.projectID,
+          sessionID: candidate.sessionID,
+        })
+        yield* publishAutoApplyFileFailed({
+          candidateID: id,
+          projectID: candidate.projectID,
+          sessionID: candidate.sessionID,
+          message: note,
+        })
+        throw error
+      }
+      const verified = yield* Effect.promise(() => verifyDryRun(dryRunResult, applyInput))
+      if (!verified.ok) {
+        yield* Effect.promise(() => rollbackDryRun(dryRunResult, applyInput))
+        const now = Date.now()
+        yield* Effect.sync(() =>
+          Database.use((db) =>
+            db
+              .update(EvolutionCandidateTable)
+              .set({
+                validation_status: "failed",
+                validation_note: verified.message,
+                time_updated: now,
+              })
+              .where(eq(EvolutionCandidateTable.id, id))
+              .run(),
+          ),
+        )
+        yield* publishUpdated({
+          projectID: candidate.projectID,
+          sessionID: candidate.sessionID,
+        })
+        yield* publishAutoApplyFileFailed({
+          candidateID: id,
+          projectID: candidate.projectID,
+          sessionID: candidate.sessionID,
+          message: verified.message,
+        })
+        return
+      }
+      const regression = evaluateEvolutionRegression({
+        expectedOutcomes: candidate.expectedOutcomes,
+        writtenContent: dryRunResult.files.map((file) => file.after).join("\n"),
+      })
+      if (!regression.pass) {
+        yield* Effect.promise(() => rollbackDryRun(dryRunResult, applyInput))
+        const now = Date.now()
+        const message = `回归校验失败（${regression.score.toFixed(2)}）：${regression.missing.join("；")}`
+        yield* Effect.sync(() =>
+          Database.use((db) =>
+            db
+              .update(EvolutionCandidateTable)
+              .set({
+                validation_status: "failed",
+                validation_note: message,
+                time_updated: now,
+              })
+              .where(eq(EvolutionCandidateTable.id, id))
+              .run(),
+          ),
+        )
+        yield* publishUpdated({
+          projectID: candidate.projectID,
+          sessionID: candidate.sessionID,
+        })
+        yield* publishAutoApplyFileFailed({
+          candidateID: id,
+          projectID: candidate.projectID,
+          sessionID: candidate.sessionID,
+          message,
+        })
+        return
+      }
+      let note =
+        candidate.kind === "skill"
+          ? "Skill file written."
+          : candidate.kind === "agent"
+            ? "Agent config written."
+            : candidate.kind === "workflow"
+              ? "Workflow file written."
+              : candidate.kind === "prompt"
+                ? "Prompt file written."
+                : candidate.kind === "tool"
+                  ? "Tool module written."
+                  : "Evolution artifact written."
+      if (candidate.kind === "skill") {
+        const skill = yield* Effect.serviceOption(Skill.Service)
+        if (Option.isSome(skill)) {
+          const reloaded = yield* skill.value.reload().pipe(
+            Effect.map((list) => list.length),
+            Effect.catch(() => Effect.succeed(-1)),
+          )
+          note =
+            reloaded >= 0
+              ? `Skill file written and hot-reloaded (${reloaded} skills available).`
+              : "Skill file written; hot-reload failed, restart may be required."
+        } else {
+          note = "Skill file written; skill service unavailable for hot-reload."
+        }
+      }
+      if (candidate.kind === "agent") {
+        // Lazy import breaks the Agent -> Plugin -> Session -> Evolution module cycle.
+        const agentModule = yield* Effect.promise(() => import("@/agent/agent"))
+        const agent = yield* Effect.serviceOption(agentModule.Agent.Service)
+        if (Option.isSome(agent)) {
+          const reloaded = yield* agent.value.reload().pipe(
+            Effect.map((list) => list.length),
+            Effect.catch(() => Effect.succeed(-1)),
+          )
+          note =
+            reloaded >= 0
+              ? `Agent config written and hot-reloaded (${reloaded} agents available).`
+              : "Agent config written; hot-reload failed, restart may be required."
+        } else {
+          note = "Agent config written; agent service unavailable for hot-reload."
+        }
+      }
+      if (candidate.kind === "workflow" || candidate.kind === "prompt") {
+        const command = yield* Effect.serviceOption(Command.Service)
+        if (Option.isSome(command)) {
+          const reloaded = yield* command.value.reload().pipe(
+            Effect.map((list) => list.length),
+            Effect.catch(() => Effect.succeed(-1)),
+          )
+          const label = candidate.kind === "workflow" ? "Workflow" : "Prompt"
+          note =
+            reloaded >= 0
+              ? `${label} written and activated as command (${reloaded} commands available).`
+              : `${label} written; command hot-reload failed, restart may be required.`
+        } else {
+          note =
+            candidate.kind === "workflow"
+              ? "Workflow written; command service unavailable for hot-reload."
+              : "Prompt written; command service unavailable for hot-reload."
+        }
+      }
+
+      if (candidate.kind === "tool") {
+        // ToolRegistry depends on Agent, so load its service tag only after module initialization.
+        const toolRegistryModule = yield* Effect.promise(() => import("@/tool/registry"))
+        const tools = yield* Effect.serviceOption(toolRegistryModule.ToolRegistry.Service)
+        if (Option.isSome(tools)) {
+          const reloaded = yield* tools.value.reload().pipe(
+            Effect.map((list) => list.length),
+            Effect.catch(() => Effect.succeed(-1)),
+          )
+          note =
+            reloaded >= 0
+              ? `Tool module written and hot-reloaded (${reloaded} tools available).`
+              : "Tool module written; hot-reload failed, restart may be required."
+        } else {
+          note = "Tool module written; tool registry unavailable for hot-reload."
+        }
+      }
       const now = Date.now()
       yield* Effect.sync(() =>
         Database.use((db) =>
           db
             .update(EvolutionCandidateTable)
-            .set({ status: "applied", time_applied: now, time_updated: now })
+            .set({
+              status: "applied",
+              validation_status: note.includes("failed") || note.includes("unavailable") ? "validated" : "validated",
+              validation_note: note,
+              time_applied: now,
+              time_updated: now,
+            })
             .where(eq(EvolutionCandidateTable.id, id))
             .run(),
         ),
@@ -577,7 +886,7 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
         projectID: candidate.projectID,
         sessionID: candidate.sessionID,
       })
-      return { candidate: applied, dryRun }
+      return { candidate: applied, dryRun: dryRunResult }
     })
 
     const dismiss: Interface["dismiss"] = Effect.fn("Evolution.dismiss")(function* (id) {

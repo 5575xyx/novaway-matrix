@@ -35,6 +35,7 @@
     "./protocols/openai-responses": "./src/protocols/openai-responses.ts",
     "./protocols/image-generation": "./src/protocols/image-generation/index.ts",
     "./protocols/image-generation/agnes": "./src/protocols/image-generation/agnes.ts",
+    "./protocols/image-generation/sensenova": "./src/protocols/image-generation/sensenova.ts",
     "./protocols/video-generation": "./src/protocols/video-generation/index.ts",
     "./protocols/video-generation/agnes": "./src/protocols/video-generation/agnes.ts"
   },

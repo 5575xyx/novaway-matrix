@@ -118,7 +118,7 @@ const defaultSettings: Settings = {
     showReasoningSummaries: true,
     shellToolPartsExpanded: false,
     editToolPartsExpanded: false,
-    showSessionProgressBar: true,
+    showSessionProgressBar: false,
   },
   updates: {
     startup: true,

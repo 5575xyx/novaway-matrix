@@ -1,7 +1,7 @@
 import path from "node:path"
 import { Effect, Schema } from "effect"
 import { InstanceState } from "@/effect/instance-state"
-import { PowersNexusBrowser } from "@/powersnexus/browser"
+import { BrowserService } from "@/browser/browser"
 import * as Tool from "./tool"
 import DESCRIPTION from "./browser.txt"
 
@@ -43,7 +43,7 @@ function run<A>(effect: Effect.Effect<A, unknown>) {
 export const BrowserNavigateTool = Tool.define(
   "browser_navigate",
   Effect.gen(function* () {
-    const browser = yield* PowersNexusBrowser.Service
+    const browser = yield* BrowserService.Service
     return {
       description: DESCRIPTION + "\n\n动作：打开或导航到指定 URL。",
       parameters: NavigateParameters,
@@ -66,7 +66,7 @@ export const BrowserNavigateTool = Tool.define(
 export const BrowserSnapshotTool = Tool.define(
   "browser_snapshot",
   Effect.gen(function* () {
-    const browser = yield* PowersNexusBrowser.Service
+    const browser = yield* BrowserService.Service
     return {
       description: DESCRIPTION + "\n\n动作：获取当前页面标题、URL 与文本快照。",
       parameters: Schema.Struct({}),
@@ -89,7 +89,7 @@ export const BrowserSnapshotTool = Tool.define(
 export const BrowserClickTool = Tool.define(
   "browser_click",
   Effect.gen(function* () {
-    const browser = yield* PowersNexusBrowser.Service
+    const browser = yield* BrowserService.Service
     return {
       description: DESCRIPTION + "\n\n动作：点击 snapshot ref 对应元素。",
       parameters: RefParameters,
@@ -108,7 +108,7 @@ export const BrowserClickTool = Tool.define(
 export const BrowserFillTool = Tool.define(
   "browser_fill",
   Effect.gen(function* () {
-    const browser = yield* PowersNexusBrowser.Service
+    const browser = yield* BrowserService.Service
     return {
       description: DESCRIPTION + "\n\n动作：向 snapshot ref 对应输入框填写文本。",
       parameters: FillParameters,
@@ -131,7 +131,7 @@ export const BrowserFillTool = Tool.define(
 export const BrowserPressTool = Tool.define(
   "browser_press",
   Effect.gen(function* () {
-    const browser = yield* PowersNexusBrowser.Service
+    const browser = yield* BrowserService.Service
     return {
       description: DESCRIPTION + "\n\n动作：发送按键。",
       parameters: PressParameters,
@@ -150,7 +150,7 @@ export const BrowserPressTool = Tool.define(
 export const BrowserScreenshotTool = Tool.define(
   "browser_screenshot",
   Effect.gen(function* () {
-    const browser = yield* PowersNexusBrowser.Service
+    const browser = yield* BrowserService.Service
     return {
       description: DESCRIPTION + "\n\n动作：截取当前页面并保存到 Worktree 证据目录。",
       parameters: ScreenshotParameters,
@@ -183,7 +183,7 @@ export const BrowserScreenshotTool = Tool.define(
 export const BrowserConsoleTool = Tool.define(
   "browser_console",
   Effect.gen(function* () {
-    const browser = yield* PowersNexusBrowser.Service
+    const browser = yield* BrowserService.Service
     return {
       description: DESCRIPTION + "\n\n动作：读取浏览器 console 记录。",
       parameters: Schema.Struct({}),
@@ -206,7 +206,7 @@ export const BrowserConsoleTool = Tool.define(
 export const BrowserNetworkTool = Tool.define(
   "browser_network",
   Effect.gen(function* () {
-    const browser = yield* PowersNexusBrowser.Service
+    const browser = yield* BrowserService.Service
     return {
       description: DESCRIPTION + "\n\n动作：读取浏览器网络请求摘要。",
       parameters: Schema.Struct({}),
@@ -229,7 +229,7 @@ export const BrowserNetworkTool = Tool.define(
 export const BrowserAccessibilityTool = Tool.define(
   "browser_accessibility",
   Effect.gen(function* () {
-    const browser = yield* PowersNexusBrowser.Service
+    const browser = yield* BrowserService.Service
     return {
       description: DESCRIPTION + "\n\n动作：读取无障碍树摘要。",
       parameters: Schema.Struct({}),
@@ -252,7 +252,7 @@ export const BrowserAccessibilityTool = Tool.define(
 export const BrowserCloseTool = Tool.define(
   "browser_close",
   Effect.gen(function* () {
-    const browser = yield* PowersNexusBrowser.Service
+    const browser = yield* BrowserService.Service
     return {
       description: DESCRIPTION + "\n\n动作：关闭隔离浏览器上下文。",
       parameters: Schema.Struct({}),

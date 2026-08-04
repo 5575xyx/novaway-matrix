@@ -138,6 +138,7 @@ export interface MessageProps {
   actions?: UserActions
   showAssistantCopyPartID?: string | null
   showReasoningSummaries?: boolean
+  onFileOpen?: (path: string) => void
 }
 
 export type SessionAction = (input: { sessionID: string; messageID: string }) => Promise<void> | void
@@ -155,6 +156,7 @@ export interface MessagePartProps {
   deferToolContent?: boolean
   showAssistantCopyPartID?: string | null
   turnDurationMs?: number
+  onFileOpen?: (path: string) => void
 }
 
 export type PartComponent = Component<MessagePartProps>
@@ -235,7 +237,12 @@ function createPacedValue(getValue: () => string, live?: () => boolean) {
   return value
 }
 
-function PacedMarkdown(props: { text: string; cacheKey: string; streaming: boolean }) {
+function PacedMarkdown(props: {
+  text: string
+  cacheKey: string
+  streaming: boolean
+  onFileOpen?: (path: string) => void
+}) {
   const value = createPacedValue(
     () => props.text,
     () => props.streaming,
@@ -243,7 +250,12 @@ function PacedMarkdown(props: { text: string; cacheKey: string; streaming: boole
 
   return (
     <Show when={value()}>
-      <Markdown text={value()} cacheKey={props.cacheKey} streaming={props.streaming} />
+      <Markdown
+        text={value()}
+        cacheKey={props.cacheKey}
+        streaming={props.streaming}
+        onFileOpen={props.onFileOpen}
+      />
     </Show>
   )
 }
@@ -824,6 +836,7 @@ export function Message(props: MessageProps) {
             parts={props.parts}
             showAssistantCopyPartID={props.showAssistantCopyPartID}
             showReasoningSummaries={props.showReasoningSummaries}
+            onFileOpen={props.onFileOpen}
           />
         )}
       </Match>
@@ -836,6 +849,7 @@ export function AssistantMessageDisplay(props: {
   parts: PartType[]
   showAssistantCopyPartID?: string | null
   showReasoningSummaries?: boolean
+  onFileOpen?: (path: string) => void
 }) {
   const emptyTools: ToolPart[] = []
   const part = createMemo(() => index(props.parts))
@@ -895,6 +909,7 @@ export function AssistantMessageDisplay(props: {
                       part={item()!}
                       message={props.message}
                       showAssistantCopyPartID={props.showAssistantCopyPartID}
+                      onFileOpen={props.onFileOpen}
                     />
                   </Show>
                 )
@@ -1248,6 +1263,7 @@ export function Part(props: MessagePartProps) {
         deferToolContent={props.deferToolContent}
         showAssistantCopyPartID={props.showAssistantCopyPartID}
         turnDurationMs={props.turnDurationMs}
+        onFileOpen={props.onFileOpen}
       />
     </Show>
   )
@@ -1504,8 +1520,23 @@ PART_MAPPING["text"] = function TextPartDisplay(props) {
     <Show when={text()}>
       <div data-component="text-part" data-timeline-part-id={part().id}>
         <div data-slot="text-part-body">
-          <Show when={streaming()} fallback={<Markdown text={text()} cacheKey={part().id} streaming={false} />}>
-            <PacedMarkdown text={text()} cacheKey={part().id} streaming={streaming()} />
+          <Show
+            when={streaming()}
+            fallback={
+              <Markdown
+                text={text()}
+                cacheKey={part().id}
+                streaming={false}
+                onFileOpen={props.onFileOpen}
+              />
+            }
+          >
+            <PacedMarkdown
+              text={text()}
+              cacheKey={part().id}
+              streaming={streaming()}
+              onFileOpen={props.onFileOpen}
+            />
           </Show>
         </div>
         <Show when={showCopy()}>

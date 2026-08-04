@@ -2149,6 +2149,7 @@ describe("ProviderTransform.message - claude w/bedrock custom inference profile"
       expect.objectContaining({
         cachePoint: {
           type: "default",
+          ttl: "1h",
         },
       }),
     )
@@ -2186,7 +2187,7 @@ describe("ProviderTransform.message - bedrock caching with non-bedrock providerI
 
     // Cache should be at the message level and not the content-part level
     expect(result[0].providerOptions?.bedrock).toEqual({
-      cachePoint: { type: "default" },
+      cachePoint: { type: "default", ttl: "1h" },
     })
     expect(result[0].content).toBe("You are a helpful assistant")
   })
@@ -2265,6 +2266,7 @@ describe("ProviderTransform.message - cache control on gateway", () => {
       anthropic: {
         cacheControl: {
           type: "ephemeral",
+          ttl: "1h",
         },
       },
       openrouter: {
@@ -2275,6 +2277,7 @@ describe("ProviderTransform.message - cache control on gateway", () => {
       bedrock: {
         cachePoint: {
           type: "default",
+          ttl: "1h",
         },
       },
       openaiCompatible: {
@@ -2322,6 +2325,7 @@ describe("ProviderTransform.message - cache control on gateway", () => {
       anthropic: {
         cacheControl: {
           type: "ephemeral",
+          ttl: "1h",
         },
       },
       openrouter: {
@@ -2332,6 +2336,7 @@ describe("ProviderTransform.message - cache control on gateway", () => {
       bedrock: {
         cachePoint: {
           type: "default",
+          ttl: "1h",
         },
       },
       openaiCompatible: {
@@ -2350,6 +2355,32 @@ describe("ProviderTransform.message - cache control on gateway", () => {
         },
       },
     })
+  })
+})
+
+describe("ProviderTransform.message - cache prefix stability", () => {
+  test("marks static system messages but leaves dynamic env outside the cached prefix", () => {
+    const model = {
+      providerID: "anthropic",
+      api: {
+        id: "claude-sonnet-4",
+        url: "https://api.anthropic.com",
+        npm: "@ai-sdk/anthropic",
+      },
+      capabilities: { interleaved: false },
+    } as any
+    const msgs = [
+      { role: "system", content: "static header" },
+      { role: "system", content: "static instructions" },
+      { role: "system", content: "dynamic env" },
+      { role: "user", content: "Hello" },
+    ] as any[]
+
+    const result = ProviderTransform.message(msgs, model, {}) as any[]
+
+    expect(result[0].providerOptions?.anthropic?.cacheControl).toEqual({ type: "ephemeral", ttl: "1h" })
+    expect(result[1].providerOptions?.anthropic?.cacheControl).toEqual({ type: "ephemeral", ttl: "1h" })
+    expect(result[2].providerOptions).toBeUndefined()
   })
 })
 

@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, Match, on, onCleanup, Switch } from "solid-js"
+import { createEffect, createMemo, createSignal, For, Match, on, onCleanup, Show, Switch } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Dynamic } from "solid-js/web"
 import { makeEventListener } from "@solid-primitives/event-listener"
@@ -8,6 +8,7 @@ import { cloneSelectedLineRange, previewSelectedLines } from "@opencode-ai/ui/pi
 import { createLineCommentController } from "@opencode-ai/ui/line-comment-annotations"
 import { sampledChecksum } from "@opencode-ai/core/util/encode"
 import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
+import { Button } from "@opencode-ai/ui/button"
 import { IconButton } from "@opencode-ai/ui/icon-button"
 import { Tabs } from "@opencode-ai/ui/tabs"
 import { ScrollView } from "@opencode-ai/ui/scroll-view"
@@ -200,6 +201,22 @@ export function FileTabContent(props: { tab: string }) {
   })
   const contents = createMemo(() => state()?.content?.content ?? "")
   const cacheKey = createMemo(() => sampledChecksum(contents()))
+  const [draft, setDraft] = createSignal("")
+  const lineNumbers = createMemo(() => Array.from({ length: draft().split("\n").length }, (_, index) => index + 1))
+  const [saving, setSaving] = createSignal(false)
+  const [saveError, setSaveError] = createSignal(false)
+  const [contextComment, setContextComment] = createSignal("")
+  const [contextMenu, setContextMenu] = createSignal<{
+    x: number
+    y: number
+    selection: SelectedLineRange
+    mode: "menu" | "input"
+  }>()
+  let editorRef: HTMLTextAreaElement | undefined
+  let gutterRef: HTMLDivElement | undefined
+  let contentRef: HTMLDivElement | undefined
+  let contextCommentInputRef: HTMLTextAreaElement | undefined
+  let saveTimer: ReturnType<typeof setTimeout> | undefined
   const selectedLines = createMemo<SelectedLineRange | null>(() => {
     const p = path()
     if (!p) return null
@@ -289,6 +306,117 @@ export function FileTabContent(props: { tab: string }) {
     file.setSelectedLines(p, range ? cloneSelectedLineRange(range) : null)
   }
 
+  const saveEditing = async () => {
+    const p = path()
+    if (!p || saving()) return
+    if (saveTimer) {
+      clearTimeout(saveTimer)
+      saveTimer = undefined
+    }
+    setSaving(true)
+    setSaveError(false)
+    try {
+      await file.write(p, draft())
+      setSaveError(false)
+    } catch (error) {
+      setSaveError(true)
+      showToast({
+        variant: "error",
+        title: language.t("common.requestFailed"),
+        description: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const scheduleSave = () => {
+    setSaveError(false)
+    if (saveTimer) clearTimeout(saveTimer)
+    saveTimer = setTimeout(() => void saveEditing(), 800)
+  }
+
+  const saveStatus = createMemo(() => {
+    if (saving()) return "saving"
+    if (saveError()) return "error"
+    if (draft() !== contents()) return "dirty"
+    return "saved"
+  })
+
+  const textareaSelection = (): SelectedLineRange | undefined => {
+    const value = editorRef?.value ?? draft()
+    const rawStart = editorRef?.selectionStart ?? 0
+    const rawEnd = editorRef?.selectionEnd ?? rawStart
+    const startOffset = Math.min(rawStart, rawEnd)
+    const endOffset = Math.max(rawStart, rawEnd)
+    const lineAt = (offset: number) => value.slice(0, offset).split("\n").length
+    const endLine = rawStart === rawEnd ? lineAt(endOffset) : lineAt(Math.max(startOffset, endOffset - 1))
+    return {
+      start: lineAt(startOffset),
+      end: endLine,
+    }
+  }
+
+  const openContextMenu = (selection: SelectedLineRange, x: number, y: number) => {
+    const rect = contentRef?.getBoundingClientRect()
+    const menuWidth = 220
+    const menuHeight = 150
+    const left = rect ? Math.max(0, Math.min(x - rect.left, rect.width - menuWidth)) : x
+    const top = rect ? Math.max(0, Math.min(y - rect.top, rect.height - menuHeight)) : y
+    setContextComment("")
+    setContextMenu({ x: left, y: top, selection, mode: "menu" })
+  }
+
+  const openContextCommentInput = () => {
+    const current = contextMenu()
+    if (!current) return
+    setContextComment("")
+    setContextMenu({ ...current, mode: "input" })
+    requestAnimationFrame(() => contextCommentInputRef?.focus())
+  }
+
+  const handleEditorContextMenu = (event: MouseEvent) => {
+    event.preventDefault()
+    const value = editorRef?.value ?? draft()
+    const rect = editorRef?.getBoundingClientRect()
+    const clickedLine = rect
+      ? Math.max(
+          1,
+          Math.min(
+            value.split("\n").length,
+            Math.floor((event.clientY - rect.top + (editorRef?.scrollTop ?? 0)) / 24) + 1,
+          ),
+        )
+      : 1
+    const selected = textareaSelection()
+    const selection =
+      selected &&
+      clickedLine >= Math.min(selected.start, selected.end) &&
+      clickedLine <= Math.max(selected.start, selected.end)
+        ? selected
+        : { start: clickedLine, end: clickedLine }
+    openContextMenu(selection, event.clientX, event.clientY)
+  }
+
+  createEffect(() => {
+    if (!contextMenu()) return
+    const cleanup = makeEventListener(document, "pointerdown", (event: PointerEvent) => {
+      const target = event.target
+      if (target instanceof Element && !target.closest("[data-file-context-menu]")) setContextMenu(undefined)
+    })
+    onCleanup(cleanup)
+  })
+
+  const submitContextComment = () => {
+    const current = contextMenu()
+    const p = path()
+    const text = contextComment().trim()
+    if (!current || !p || !text) return
+    addCommentToContext({ file: p, selection: current.selection, comment: text, origin: "file" })
+    setContextMenu(undefined)
+    setContextComment("")
+  }
+
   const activeSelection = () => note.selected ?? selectedLines()
 
   const commentsUi = createLineCommentController({
@@ -358,11 +486,27 @@ export function FileTabContent(props: { tab: string }) {
     on(
       path,
       () => {
+        setDraft(contents())
+        setSaveError(false)
         commentsUi.note.reset()
       },
       { defer: true },
     ),
   )
+
+  createEffect(
+    on(
+      contents,
+      () => {
+        setDraft(contents())
+      },
+      { defer: true },
+    ),
+  )
+
+  onCleanup(() => {
+    if (saveTimer) clearTimeout(saveTimer)
+  })
 
   createEffect(() => {
     const focus = comments.focus()
@@ -442,15 +586,146 @@ export function FileTabContent(props: { tab: string }) {
 
   return (
     <Tabs.Content value={props.tab} class="mt-3 relative h-full">
-      <ScrollView class="h-full" viewportRef={scrollSync.setViewport} onScroll={scrollSync.handleScroll as any}>
-        <Switch>
-          <Match when={state()?.loaded}>{renderFile(contents())}</Match>
-          <Match when={state()?.loading}>
-            <div class="px-6 py-4 text-text-weak">{language.t("common.loading")}...</div>
-          </Match>
-          <Match when={state()?.error}>{(err) => <div class="px-6 py-4 text-text-weak">{err()}</div>}</Match>
-        </Switch>
-      </ScrollView>
+      <div ref={(el) => { contentRef = el }} class="relative h-full">
+        <div class="flex h-full flex-col">
+          <div class="flex items-center justify-between gap-3 px-4 pt-3 pb-2">
+            <span class="min-w-0 truncate text-12-regular text-text-weak">{path()}</span>
+            <span
+              class="shrink-0 text-12-regular"
+              classList={{
+                "text-text-weak": saveStatus() === "saved" || saveStatus() === "dirty",
+                "text-text-interactive-base": saveStatus() === "saving",
+                "text-text-on-critical-base": saveStatus() === "error",
+              }}
+            >
+              {saveStatus() === "saving"
+                ? language.t("common.saving")
+                : saveStatus() === "error"
+                  ? language.t("common.saveFailed")
+                  : saveStatus() === "dirty"
+                    ? language.t("common.unsaved")
+                    : language.t("common.saved")}
+            </span>
+          </div>
+          <div class="flex min-h-0 flex-1">
+            <div class="min-w-0 flex-1">
+              <Switch>
+                <Match when={state()?.loaded && state()?.content?.type !== "binary"}>
+                  <div class="flex h-full min-h-0">
+                    <div
+                      ref={(el) => {
+                        gutterRef = el
+                      }}
+                      class="w-12 shrink-0 overflow-hidden bg-background-base py-4 pr-2 text-right font-mono text-13 leading-6 text-text-weak select-none"
+                      style={{ "line-height": "24px" }}
+                    >
+                      <For each={lineNumbers()}>
+                        {(line) => (
+                          <div
+                            class="h-6"
+                            style={{ height: "24px", "line-height": "24px" }}
+                            onContextMenu={(event: MouseEvent) => {
+                              event.preventDefault()
+                              openContextMenu({ start: line, end: line }, event.clientX, event.clientY)
+                            }}
+                          >
+                            {line}
+                          </div>
+                        )}
+                      </For>
+                    </div>
+                    <textarea
+                      ref={(el) => {
+                        editorRef = el
+                      }}
+                      class="h-full min-w-0 flex-1 resize-none overflow-x-auto bg-background-base py-4 pr-4 font-mono text-13 leading-6 outline-none"
+                      style={{ "line-height": "24px" }}
+                      value={draft()}
+                      wrap="off"
+                      spellcheck={false}
+                      onScroll={(event) => {
+                        if (gutterRef) gutterRef.scrollTop = event.currentTarget.scrollTop
+                      }}
+                      onInput={(event) => {
+                        setDraft(event.currentTarget.value)
+                        scheduleSave()
+                      }}
+                      onBlur={() => {
+                        if (draft() !== contents()) void saveEditing()
+                      }}
+                      onContextMenu={handleEditorContextMenu}
+                      onKeyDown={(event) => {
+                        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+                          event.preventDefault()
+                          void saveEditing()
+                        }
+                      }}
+                    />
+                  </div>
+                </Match>
+                <Match when={state()?.loaded}>
+                  <div class="flex h-full items-center justify-center px-6 text-12-regular text-text-weak">
+                    二进制文件无法直接编辑
+                  </div>
+                </Match>
+                <Match when={state()?.loading}>
+                  <div class="px-6 py-4 text-text-weak">{language.t("common.loading")}...</div>
+                </Match>
+                <Match when={state()?.error}>{(err) => <div class="px-6 py-4 text-text-weak">{err()}</div>}</Match>
+              </Switch>
+            </div>
+          </div>
+        </div>
+        <Show when={contextMenu()}>
+          {(menu) => (
+            <div
+              data-file-context-menu
+              class="absolute z-50 min-w-[220px] rounded-lg border border-border-weak-base bg-surface-float-base p-1 shadow-[var(--shadow-lg-border-base)]"
+              style={{ left: `${menu().x}px`, top: `${menu().y}px` }}
+            >
+              <Show
+                when={menu().mode === "input"}
+                fallback={
+                  <Button
+                    variant="ghost"
+                    size="small"
+                    class="w-full justify-start"
+                    onClick={openContextCommentInput}
+                  >
+                    评论 L{menu().selection.start}
+                    {menu().selection.end !== menu().selection.start ? `-L${menu().selection.end}` : ""}
+                  </Button>
+                }
+              >
+                <div class="flex flex-col gap-2 p-1">
+                  <span class="text-11-regular text-text-weak">
+                    评论 L{menu().selection.start}
+                    {menu().selection.end !== menu().selection.start ? `-L${menu().selection.end}` : ""}
+                  </span>
+                  <textarea
+                    ref={(el) => {
+                      contextCommentInputRef = el
+                    }}
+                    class="h-24 w-full resize-none rounded-md border border-border-weak-base bg-background-base p-2 text-13-regular leading-5 outline-none focus:border-border-strong-base"
+                    value={contextComment()}
+                    placeholder="输入评论..."
+                    onInput={(event) => setContextComment(event.currentTarget.value)}
+                    onKeyDown={(event) => {
+                      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                        event.preventDefault()
+                        submitContextComment()
+                      }
+                    }}
+                  />
+                  <Button variant="primary" size="small" disabled={!contextComment().trim()} onClick={submitContextComment}>
+                    {language.t("common.submit")}
+                  </Button>
+                </div>
+              </Show>
+            </div>
+          )}
+        </Show>
+      </div>
     </Tabs.Content>
   )
 }

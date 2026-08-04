@@ -4,6 +4,25 @@ import type { VideoGenerationProtocol } from "./video-generation"
 const imageProtocols: Map<string, ImageGenerationProtocol> = new Map()
 const videoProtocols: Map<string, VideoGenerationProtocol> = new Map()
 
+function protocolByBaseURL(
+  protocols: Map<string, ImageGenerationProtocol>,
+  baseURL: string,
+): ImageGenerationProtocol | undefined {
+  let host: string
+  try {
+    host = new URL(baseURL).hostname.toLowerCase()
+  } catch {
+    return undefined
+  }
+  return Array.from(protocols.values()).find((protocol) => {
+    try {
+      return new URL(protocol.baseURL).hostname.toLowerCase() === host
+    } catch {
+      return false
+    }
+  })
+}
+
 export const registerImageProtocol = (providerId: string, protocol: ImageGenerationProtocol): void => {
   imageProtocols.set(providerId, protocol)
 }
@@ -13,7 +32,7 @@ export const registerVideoProtocol = (providerId: string, protocol: VideoGenerat
 }
 
 export const getImageProtocol = (providerId: string, baseURL?: string): ImageGenerationProtocol | undefined => {
-  const protocol = imageProtocols.get(providerId)
+  const protocol = (baseURL ? protocolByBaseURL(imageProtocols, baseURL) : undefined) ?? imageProtocols.get(providerId)
   if (!protocol) return undefined
   if (baseURL) {
     return { ...protocol, baseURL }

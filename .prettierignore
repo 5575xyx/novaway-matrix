@@ -1,2 +1,15 @@
 sst-env.d.ts
 packages/desktop/src/bindings.ts
+
+# 本地工作区目录，非仓库内容
+XYMT-AUTO/
+PowersNexus/
+dbx-main/
+
+# 符号链接/重定向文件，内容由目标文件提供
+packages/app/public/site.webmanifest
+packages/console/app/public/site.webmanifest
+packages/desktop/out/renderer/site.webmanifest
+packages/docs/openapi.json
+packages/enterprise/public/site.webmanifest
+packages/web/public/site.webmanifest

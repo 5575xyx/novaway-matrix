@@ -2,6 +2,10 @@ import { describe, expect, test } from "bun:test"
 import { agnesImage } from "@opencode-ai/llm/protocols/image-generation/agnes"
 
 describe("agnes image protocol", () => {
+  test("uses the current Agnes API gateway", () => {
+    expect(agnesImage.baseURL).toBe("https://api.agnes-ai.cn/v1")
+  })
+
   test("builds text-to-image body without image", () => {
     const body = agnesImage.buildBody({
       prompt: "a cat",
@@ -48,6 +52,23 @@ describe("agnes image protocol", () => {
     expect(body.extra_body).toEqual({
       response_format: "b64_json",
       image: ["https://example.com/input.png"],
+    })
+  })
+
+  test("adds a supported ratio for tiered sizes", () => {
+    const body = agnesImage.buildBody({
+      prompt: "a desktop wallpaper",
+      model: "agnes-image-2.1-flash",
+      size: "2K",
+      ratio: "16:9",
+    })
+
+    expect(body).toEqual({
+      model: "agnes-image-2.1-flash",
+      prompt: "a desktop wallpaper",
+      size: "2K",
+      ratio: "16:9",
+      extra_body: { response_format: "url" },
     })
   })
 

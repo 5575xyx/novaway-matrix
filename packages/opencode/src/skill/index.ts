@@ -192,6 +192,8 @@ export interface Interface {
   readonly all: () => Effect.Effect<Info[]>
   readonly dirs: () => Effect.Effect<string[]>
   readonly available: (agent?: Agent.Info) => Effect.Effect<Info[]>
+  /** Rediscover and reload skills from disk for the current instance. */
+  readonly reload: () => Effect.Effect<Info[]>
 }
 
 const add = Effect.fnUntraced(function* (state: State, match: string, bus: Bus.Interface) {
@@ -296,7 +298,13 @@ const discoverSkills = Effect.fnUntraced(function* (
   }
 
   const configDirs = yield* config.directories()
-  for (const dir of configDirs) {
+  // Always include the current instance .novaway paths so skills written after
+  // first config load (e.g. evolution apply + hot reload) are still discoverable.
+  const roots = new Set<string>(configDirs)
+  roots.add(path.join(directory, ".novaway"))
+  if (worktree && worktree !== directory) roots.add(path.join(worktree, ".novaway"))
+  for (const dir of roots) {
+    if (!(yield* fsys.isDir(dir))) continue
     yield* scan(state, dir, NOVAWAY_SKILL_PATTERN)
   }
 
@@ -394,7 +402,19 @@ export const layer = Layer.effect(
       return list.filter((skill) => Permission.evaluate("skill", skill.name, agent.permission).action !== "deny")
     })
 
-    return Service.of({ get, all, dirs, available })
+    const reload = Effect.fn("Skill.reload")(function* () {
+      yield* InstanceState.invalidate(discovered)
+      const nextDiscovered = yield* InstanceState.get(discovered)
+      yield* InstanceState.invalidate(state)
+      const next = yield* InstanceState.get(state)
+      log.info("reload", {
+        count: Object.keys(next.skills).length,
+        matches: nextDiscovered.matches.length,
+      })
+      return Object.values(next.skills).toSorted((a, b) => a.name.localeCompare(b.name))
+    })
+
+    return Service.of({ get, all, dirs, available, reload })
   }),
 )
 

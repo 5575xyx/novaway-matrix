@@ -14,6 +14,11 @@ import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
 import {
+  fetchOpenAICompatibleModels,
+  remoteModelType,
+  type RemoteProviderModel,
+} from "@/utils/provider-model-discovery"
+import {
   type FormState,
   headerRow,
   modelRow,
@@ -35,11 +40,6 @@ type Props = {
   back?: "providers" | "close"
 }
 
-type RemoteModel = {
-  id: string
-  name: string
-}
-
 type ProviderOption = {
   id: string
   name: string
@@ -51,8 +51,8 @@ export function DialogCustomProvider(props: Props) {
   const globalSync = useGlobalSync()
   const globalSDK = useGlobalSDK()
   const language = useLanguage()
-  const [remoteModels, setRemoteModels] = createSignal<RemoteModel[]>([])
-  const [selectedRemoteModel, setSelectedRemoteModel] = createSignal<RemoteModel>()
+  const [remoteModels, setRemoteModels] = createSignal<RemoteProviderModel[]>([])
+  const [selectedRemoteModel, setSelectedRemoteModel] = createSignal<RemoteProviderModel>()
 
   const handleProviderSelect = (option: ProviderOption) => {
     batch(() => {
@@ -144,7 +144,11 @@ export function DialogCustomProvider(props: Props) {
     })
   }
 
-  const inferModelType = (id: string, name: string): ModelType => {
+  const inferModelType = (model: RemoteProviderModel): ModelType => {
+    const fromModalities = remoteModelType(model)
+    if (fromModalities !== "text") return fromModalities
+    const id = model.id
+    const name = model.name
     const text = `${id} ${name}`.toLowerCase()
     if (text.includes("image") || text.includes("img") || text.includes("dall") || text.includes("picture"))
       return "image"
@@ -154,11 +158,11 @@ export function DialogCustomProvider(props: Props) {
     return "text"
   }
 
-  const applyRemoteModel = (model: RemoteModel) => {
+  const applyRemoteModel = (model: RemoteProviderModel) => {
     setSelectedRemoteModel(model)
     const existing = form.models.findIndex((row) => row.id.trim() === model.id)
     const target = existing >= 0 ? existing : form.models.findIndex((row) => !row.id.trim() && !row.name.trim())
-    const modelType = inferModelType(model.id, model.name)
+    const modelType = inferModelType(model)
 
     batch(() => {
       if (target >= 0) {
@@ -182,7 +186,18 @@ export function DialogCustomProvider(props: Props) {
       fetchOpenAICompatibleModels({
         baseURL: form.baseURL,
         apiKey: form.apiKey,
-        headers: form.headers,
+        discover: async (payload) =>
+          (
+            await globalSDK.client.provider.models({
+              providerModelDiscoveryPayload: payload,
+            })
+          ).data,
+        headers: Object.fromEntries(
+          form.headers
+            .map((header) => ({ key: header.key.trim(), value: header.value.trim() }))
+            .filter((header) => header.key && header.value)
+            .map((header) => [header.key, header.value]),
+        ),
       }),
     onSuccess: (models) => {
       setRemoteModels(models)
@@ -481,55 +496,4 @@ export function DialogCustomProvider(props: Props) {
       </div>
     </Dialog>
   )
-}
-
-async function fetchOpenAICompatibleModels(input: { baseURL: string; apiKey: string; headers: FormState["headers"] }) {
-  const baseURL = input.baseURL.trim().replace(/\/+$/, "")
-  if (!/^https?:\/\//.test(baseURL)) throw new Error("请先填写有效的基础 URL")
-
-  const headers = Object.fromEntries(
-    input.headers
-      .map((header) => ({ key: header.key.trim(), value: header.value.trim() }))
-      .filter((header) => header.key && header.value)
-      .map((header) => [header.key, header.value]),
-  )
-  const hasAuthorization = Object.keys(headers).some((key) => key.toLowerCase() === "authorization")
-  const apiKey = input.apiKey.trim()
-  const envKey = apiKey.match(/^\{env:([^}]+)\}$/)?.[1]?.trim()
-  const response = await fetch(`${baseURL}/models`, {
-    headers: {
-      Accept: "application/json",
-      ...(!hasAuthorization && apiKey && !envKey ? { Authorization: `Bearer ${apiKey}` } : {}),
-      ...headers,
-    },
-  })
-
-  if (!response.ok) throw new Error(`获取模型列表失败：HTTP ${response.status}`)
-
-  const payload = await response.json()
-  const models = parseRemoteModels(payload)
-  if (models.length === 0) throw new Error("没有从 /models 返回中识别到模型")
-  return models
-}
-
-function parseRemoteModels(payload: unknown): RemoteModel[] {
-  const rows = Array.isArray(payload)
-    ? payload
-    : typeof payload === "object" && payload !== null && Array.isArray((payload as { data?: unknown }).data)
-      ? (payload as { data: unknown[] }).data
-      : []
-
-  return rows
-    .map((row) => {
-      if (typeof row === "string") return { id: row, name: row }
-      if (typeof row !== "object" || row === null) return undefined
-
-      const value = row as { id?: unknown; name?: unknown }
-      if (typeof value.id !== "string" || !value.id.trim()) return undefined
-      return {
-        id: value.id.trim(),
-        name: typeof value.name === "string" && value.name.trim() ? value.name.trim() : value.id.trim(),
-      }
-    })
-    .filter((model): model is RemoteModel => !!model)
 }

@@ -1,0 +1,29 @@
+"missing\")\n'@ | python -","workdir":"E:\\AImoney\\NovaWay-Matrix\\novaway-coder"}
+```
+
+
+## 2026-07-25T06:19:33.389Z shell_command
+
+```json
+{"command":"@'\nfrom pathlib import Path\np = Path(r\"packages/opencode/src/evolution/service.ts\")\nt = p.read_text(encoding=\"utf-8\")\nold_start = t.find('if (patched === false) throw new Error(')\nold_end = t.find('\\n', old_start)\nprint(repr(t[old_start:old_end]))\nmsg = \"自我进化候选 patch 无法应用：目标文件内容与候选上下文不匹配。\"\nt = t[:old_start] + f'if (patched === false) throw new Error({msg!r})' + t[old_end:]\n# use json for proper escaping\nimport json\nt = Path(r\"packages/opencode/src/evolution/service.ts\").read_text(encoding=\"utf-8\")\nold_start = t.find('if (patched === false) throw new Error(')\nold_end = t.find('\\n', old_start)\nt = t[:old_start] + \"if (patched === false) throw new Error(\" + json.dumps(msg, ensure_ascii=False) + \")\" + t[old_end:]\np.write_text(t, encoding=\"utf-8\")\nprint(\"fixed\", \"无法应用\" in p.read_text(encoding=\"utf-8\"))\n\n# evolution LLM prompt update\npp = Path(r\"packages/opencode/src/session/prompt.ts\")\npt = pp.read_text(encoding=\"utf-8\")\n# find system array for evolution\nmarker = 'inferEvolutionReviewCandidates'\ni = pt.find(marker)\nj = pt.find('const system = [', i)\nk = pt.find('].join(', j)\nchunk = pt[j:k+20]\nprint(\"chunk preview\", chunk[:500])\n'@ | python -","workdir":"E:\\AImoney\\NovaWay-Matrix\\novaway-coder"}
+```
+
+
+## 2026-07-25T06:20:15.830Z shell_command
+
+```json
+{"command":"@'\nfrom pathlib import Path\npp = Path(r\"packages/opencode/src/session/prompt.ts\")\npt = pp.read_text(encoding=\"utf-8\")\nold = '''          \"你是 NovaWay 的自我进化审查器。\",\n          \"从本轮对话中提取最多 3 条值得用户确认的自我进化候选。\",\n          \"候选只能是可长期改进系统能力的建议，例如技能补充、Agent 行为调整、工作流固化、提示词改进、工具使用约定或项目规则沉淀。\",\n          \"不要提取临时任务、普通闲聊、一次性命令、工具输出噪音、凭据、密钥或敏感信息。\",\n          \"候选必须具体说明目标、改进内容和原因；当前步骤只生成候选，不会自动改写任何文件。\",\n          \"kind 必须是 skill、agent、workflow、prompt、tool、project 之一。\",\n'''\nnew = '''          \"你是 NovaWay 的自我进化审查器。\",\n          \"从本轮对话中提取最多 3 条值得用户确认的自我进化候选。\",\n          \"候选只能是可长期改进系统能力的建议，例如技能补充、Agent 行为调整、工作流固化、提示词改进、可执行工具或项目规则沉淀。\",\n          \"不要提取临时任务、普通闲聊、一次性命令、工具输出噪音、凭据、密钥或敏感信息。\",\n          \"候选必须具体说明目标、改进内容和原因；当前步骤只生成候选，不会自动改写任何文件。\",\n          \"kind 必须是 skill、agent、workflow、prompt、tool、project 之一。\",\n          \"当 kind=tool 时，content 优先给出可运行的 TypeScript 工具模块（export default tool({ description, args, execute })，可 import { tool } from @opencode-ai/plugin）；若暂时只能给自然语言，也要写清工具用途、输入输出与执行步骤。\",\n          \"当 kind=workflow 或 prompt 时，content 应是可直接作为命令模板使用的 Markdown 流程/提示词。\",\n'''\nif old not in pt:\n    raise SystemExit(\"evo system prompt not found\")\npp.write_text(pt.replace(old, new), encoding=\"utf-8\")\nprint(\"prompt updated\")\n'@ | python -","workdir":"E:\\AImoney\\NovaWay-Matrix\\novaway-coder"}
+```
+
+
+## 2026-07-25T06:20:49.307Z shell_command
+
+```json
+{"command":"@'\nfrom pathlib import Path\npp = Path(r\"packages/opencode/src/session/prompt.ts\")\nlines = pp.read_text(encoding=\"utf-8\").splitlines(keepends=True)\nout = []\ni = 0\nreplaced = False\nwhile i < len(lines):\n    if (not replaced) and \"inferEvolutionReviewCandidates\" in lines[i]:\n        while i < len(lines) and \"const system = [\" not in lines[i]:\n            out.append(lines[i]); i += 1\n        # skip until experimental.chat or join end and next yield\n        while i < len(lines) and \"experimental.chat.system.transform\" not in lines[i]:\n            i += 1\n        out.append(\"      const system = [\\n\")\n        out.append(\"        [\\n\")\n        out.append('          \"你是 NovaWay 的自我进化审查器。\",\\n')\n        out.append('          \"从本轮对话中提取最多 3 条值得用户确认的自我进化候选。\",\\n')\n        out.append('          \"候选只能是可长期改进系统能力的建议，例如技能补充、Agent 行为调整、工作流固化、提示词改进、可执行工具或项目规则沉淀。\",\\n')\n        out.append('          \"不要提取临时任务、普通闲聊、一次性命令、工具输出噪音、凭据、密钥或敏感信息。\",\\n')\n        out.append('          \"候选必须具体说明目标、改进内容和原因；当前步骤只生成候选，不会自动改写任何文件。\",\\n')\n        out.append('          \"kind 必须是 skill、agent、workflow、prompt、tool、project 之一。\",\\n')\n        out.append('          \"当 kind=tool 时，content 优先给出可运行的 TypeScript 工具模块（export default tool({ description, args, execute })，可 import { tool } from @opencode-ai/plugin）；若暂时只能给自然语言，也要写清工具用途、输入输出与执行步骤。\",\\n')\n        out.append('          \"当 kind=workflow 或 prompt 时，content 应是可直接作为命令模板使用的 Markdown 流程/提示词。\",\\n')\n        out.append('        ].join(\"\\\\n\"),\\n')\n        out.append(\"      ]\\n\")\n        out.append(lines[i]); i += 1\n        replaced = True\n        continue\n    out.append(lines[i]); i += 1\npp.write_text(\"\".join(out), encoding=\"utf-8\")\nprint(\"replaced\", replaced)\n'@ | python -","workdir":"E:\\AImoney\\NovaWay-Matrix\\novaway-coder"}
+```
+
+
+## 2026-07-25T10:20:41.717Z shell_command
+
+```json
+{"command":"Get-Content -Encoding UTF8 packages/opencode/src/memory/memory.sql.ts; Write-Output '--- service add snippet ---'; rg -n \"const add:|embedding|rowToInfo|MemoryEntryTable\" packages/openco

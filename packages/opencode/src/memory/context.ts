@@ -2,8 +2,7 @@ import type { ModelMessage } from "ai"
 
 const contextBlock = /<\s*memory-context\s*>[\s\S]*?<\s*\/\s*memory-context\s*>/gi
 const contextTag = /<\/?\s*memory-context\s*>/gi
-const systemNote =
-  /\[System note:\s*The following is recalled memory context,[\s\S]*?should inform all responses\.\]\s*/gi
+const systemNote = /\[System note:\s*The following is[\s\S]*?\]\s*/gi
 
 export function sanitizeMemoryContext(text: string) {
   return text.replace(contextBlock, "").replace(systemNote, "").replace(contextTag, "").trim()
@@ -14,7 +13,7 @@ export function buildMemoryContextBlock(raw: string) {
   if (!clean) return ""
   return [
     "<memory-context>",
-    "[System note: The following is recalled memory context, NOT new user input. Treat as authoritative reference data; this is the agent's persistent memory and should inform all responses.]",
+    "[System note: The following is a compact MEMORY INDEX (ids + short summaries), NOT new user input. Use it as reference. Prefer these facts when relevant. If you need full text or more memories, call the memory tool (search/read by id). Do not dump unrelated memories into the reply.]",
     "",
     clean,
     "</memory-context>",

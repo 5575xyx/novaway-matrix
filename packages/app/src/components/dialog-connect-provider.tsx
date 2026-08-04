@@ -29,8 +29,12 @@ import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
 import { useProviders } from "@/hooks/use-providers"
+import {
+  fetchOpenAICompatibleModels,
+  remoteModelType,
+  type RemoteProviderModel,
+} from "@/utils/provider-model-discovery"
 
-type RemoteModel = { id: string; name: string }
 type ModelType = "text" | "image" | "video" | "audio"
 
 const MODEL_TYPES: { value: ModelType; label: string }[] = [
@@ -438,7 +442,7 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
       error: undefined as string | undefined,
     })
     const [step, setStep] = createSignal<"auth" | "models">("auth")
-    const [remoteModels, setRemoteModels] = createSignal<RemoteModel[]>([])
+    const [remoteModels, setRemoteModels] = createSignal<RemoteProviderModel[]>([])
     const [selectedModels, setSelectedModels] = createStore<
       Record<string, { id: string; name: string; type: ModelType }>
     >({})
@@ -467,46 +471,22 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
 
       setFetching(true)
       try {
-        const url = baseURL.trim().replace(/\/+$/, "")
-        const envKey = apiKey.match(/^\{env:([^}]+)\}$/)?.[1]?.trim()
-        const response = await fetch(`${url}/models`, {
-          headers: {
-            Accept: "application/json",
-            ...(apiKey && !envKey ? { Authorization: `Bearer ${apiKey}` } : {}),
-          },
+        const models = await fetchOpenAICompatibleModels({
+          baseURL,
+          apiKey,
+          discover: async (payload) =>
+            (
+              await globalSDK.client.provider.models({
+                providerModelDiscoveryPayload: payload,
+              })
+            ).data,
         })
-
-        if (!response.ok) throw new Error(`获取模型列表失败：HTTP ${response.status}`)
-        const payload = await response.json()
-
-        const rows = Array.isArray(payload)
-          ? payload
-          : typeof payload === "object" && payload !== null && Array.isArray((payload as { data?: unknown }).data)
-            ? (payload as { data: unknown[] }).data
-            : []
-
-        const models: RemoteModel[] = rows
-          .map((row) => {
-            if (typeof row === "string") return { id: row, name: row }
-            if (typeof row !== "object" || row === null) return undefined
-            const value = row as { id?: unknown; name?: unknown }
-            if (typeof value.id !== "string" || !value.id.trim()) return undefined
-            return {
-              id: value.id.trim(),
-              name: typeof value.name === "string" && value.name.trim() ? value.name.trim() : value.id.trim(),
-            }
-          })
-          .filter((model): model is RemoteModel => !!model)
-
-        if (models.length === 0) {
-          await complete()
-          return
-        }
 
         setRemoteModels(models)
         models.forEach((m) => {
-          setModelTypes(m.id, "text")
-          setSelectedModels(m.id, { id: m.id, name: m.name, type: "text" })
+          const type = remoteModelType(m)
+          setModelTypes(m.id, type)
+          setSelectedModels(m.id, { id: m.id, name: m.name, type })
         })
         setStep("models")
       } catch (err: unknown) {
@@ -555,7 +535,7 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
       }
     }
 
-    async function saveModelsAndComplete(apiKey: string) {
+    async function saveModelsAndComplete() {
       const enabledModels = Object.values(selectedModels).filter((m) => m.id)
       const modelConfig: Record<string, unknown> = {}
       enabledModels.forEach((m) => {
@@ -713,7 +693,7 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
                   <Button size="small" variant="ghost" onClick={() => setStep("auth")}>
                     {language.t("common.back")}
                   </Button>
-                  <Button size="large" variant="primary" onClick={() => saveModelsAndComplete(formStore.value)}>
+                  <Button size="large" variant="primary" onClick={saveModelsAndComplete}>
                     {language.t("common.submit")}
                   </Button>
                 </div>

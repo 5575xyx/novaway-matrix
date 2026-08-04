@@ -18,7 +18,6 @@ import { useServer } from "@/context/server"
 import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
 import { useTerminal } from "@/context/terminal"
-import { PowersNexusPanel } from "@/pages/session/powersnexus-panel"
 import { StatusPopover } from "@/components/status-popover"
 import { ThemeSchemeToggle } from "@/components/theme-scheme-toggle"
 import { focusTerminalById } from "@/pages/session/helpers"
@@ -366,7 +365,6 @@ export function SessionHeader() {
         {(mount) => (
           <Portal mount={mount()}>
             <div class="flex items-center gap-2">
-              <PowersNexusPanel />
               <Show when={status()}>
                 <StatusPopover />
               </Show>

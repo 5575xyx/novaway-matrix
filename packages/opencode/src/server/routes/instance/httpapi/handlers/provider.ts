@@ -8,7 +8,13 @@ import { Effect, Schema } from "effect"
 import { HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
-import { ProviderAuthApiError } from "../groups/provider"
+import {
+  ProviderAuthApiError,
+  ProviderModelDiscoveryApiError,
+  ProviderModelDiscoveryPayload,
+  ProviderModelDiscoveryResult,
+} from "../groups/provider"
+import { discoverProviderModels, ModelDiscoveryError } from "@/provider/model-discovery"
 
 function mapProviderAuthError<A, R>(self: Effect.Effect<A, ProviderAuth.Error, R>) {
   return self.pipe(
@@ -61,6 +67,23 @@ export const providerHandlers = HttpApiBuilder.group(InstanceHttpApi, "provider"
       return yield* svc.methods()
     })
 
+    const models = Effect.fn("ProviderHttpApi.models")(function* (ctx: {
+      payload: typeof ProviderModelDiscoveryPayload.Type
+    }) {
+      const discovered = yield* Effect.tryPromise({
+        try: () => discoverProviderModels(ctx.payload),
+        catch: (error) => (error instanceof ModelDiscoveryError ? error : new ModelDiscoveryError(String(error))),
+      }).pipe(
+        Effect.mapError((error) => {
+          return new ProviderModelDiscoveryApiError({
+            name: "ProviderModelDiscoveryError",
+            data: { status: error.status, message: error.message },
+          })
+        }),
+      )
+      return ProviderModelDiscoveryResult.make({ models: discovered })
+    })
+
     const authorize = Effect.fn("ProviderHttpApi.authorize")(function* (ctx: {
       params: { providerID: ProviderID }
       payload: ProviderAuth.AuthorizeInput
@@ -106,6 +129,7 @@ export const providerHandlers = HttpApiBuilder.group(InstanceHttpApi, "provider"
     return handlers
       .handle("list", list)
       .handle("auth", auth)
+      .handle("models", models)
       .handleRaw("authorize", authorizeRaw)
       .handle("callback", callback)
   }),

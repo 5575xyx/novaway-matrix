@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { Message } from "@opencode-ai/sdk/v2/client"
-import { getSessionContextMetrics } from "./session-context-metrics"
+import { getSessionCacheMetrics, getSessionContextMetrics } from "./session-context-metrics"
 
 const assistant = (
   id: string,
@@ -97,5 +97,32 @@ describe("getSessionContextMetrics", () => {
 
     expect(metrics.totalCost).toBe(0)
     expect(metrics.context).toBeUndefined()
+  })
+})
+
+describe("getSessionCacheMetrics", () => {
+  test("aggregates cache read/write and computes hit rate from non-cached input", () => {
+    const messages = [
+      assistant("a1", { input: 300, output: 100, reasoning: 50, read: 25, write: 25 }, 1),
+      assistant("a2", { input: 100, output: 40, reasoning: 10, read: 50, write: 0 }, 1),
+      assistant("a3", { input: 0, output: 0, reasoning: 0, read: 0, write: 0 }, 0),
+    ]
+
+    const metrics = getSessionCacheMetrics(messages)
+
+    expect(metrics.input).toBe(400)
+    expect(metrics.cacheRead).toBe(75)
+    expect(metrics.cacheWrite).toBe(25)
+    expect(metrics.totalInput).toBe(500)
+    expect(metrics.hitRate).toBe(0.15)
+    expect(metrics.calls).toBe(2)
+  })
+
+  test("returns null hit rate when there is no usable token data", () => {
+    const metrics = getSessionCacheMetrics([])
+
+    expect(metrics.totalInput).toBe(0)
+    expect(metrics.hitRate).toBeNull()
+    expect(metrics.calls).toBe(0)
   })
 })

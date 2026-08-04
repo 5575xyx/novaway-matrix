@@ -15,6 +15,7 @@ import { initI18n, t } from "./i18n"
 import { createPlatform, listenForDeepLinks } from "./platform"
 import "@opencode-ai/app/index.css"
 import "./styles.css"
+import logoUrl from "./novaway-icon.svg"
 
 const root = document.getElementById("root")
 const query = new URLSearchParams(window.location.search)
@@ -99,6 +100,7 @@ render(() => {
   const [widgetVisible, setWidgetVisible] = createSignal(false)
   const [widgetListenersReady, setWidgetListenersReady] = createSignal(false)
   const [panelTab, setPanelTab] = createSignal<"monitor" | "notifications">(initialPanelTab)
+  const [minimalMode, setMinimalMode] = createSignal<boolean>(false)
 
   let hasActiveTasks = false
   let userDismissedActiveTasks = false
@@ -152,7 +154,22 @@ render(() => {
       if (panelOnly || skinOnly) return
       setWidgetVisible(visible)
     })
+    const cleanupModeChange = window.api.onFloatingModeChange?.((mode: "full" | "minimal") => {
+      if (panelOnly || skinOnly) return
+      setMinimalMode(mode === "minimal")
+    })
     setWidgetListenersReady(true)
+
+    // 命中与穿透由主进程轮询；进入热区时切换抓取光标
+    const applyCursor = (active: boolean) => {
+      const value = active ? "grab" : ""
+      document.documentElement.style.cursor = value
+      document.body.style.cursor = value
+      root?.style.setProperty("cursor", value)
+    }
+    const cleanupCursor = window.api.onFloatingCursorActive?.((active) => {
+      applyCursor(active)
+    })
 
     onCleanup(() => {
       cleanupAgent?.()
@@ -160,6 +177,9 @@ render(() => {
       cleanupPanelTab?.()
       cleanupSkinMenu?.()
       cleanupVisibility?.()
+      cleanupModeChange?.()
+      cleanupCursor?.()
+      applyCursor(false)
     })
   })
 
@@ -201,6 +221,11 @@ render(() => {
     void window.api.openFloatingNotification(notification.id)
   }
 
+  const handleMinimalClick = () => {
+    if (!minimalMode()) return
+    void window.api.setFloatingExpanded(true)
+  }
+
   const toggleExpand = () => {
     if (panelOnly) {
       void window.api.setFloatingExpanded(false)
@@ -218,69 +243,82 @@ render(() => {
     <PlatformProvider value={platform}>
       <AppBaseProviders>
         <Show when={sidecar()}>
-          <div
-            class={
-              skinOnly || panelOnly
-                ? "w-full h-full"
-                : `w-full h-full bg-transparent flex items-end justify-center p-4 ${
-                    widgetVisible() ? "nova-floating-widget-enter" : "nova-floating-widget-pending"
-                  }`
-            }
-          >
-            <Show
-              when={skinOnly}
-              fallback={
-                <AssistantPanel
-                  class={panelOnly ? "" : "relative"}
-                  currentAgent={current()}
-                  agents={agents()}
-                  tasks={tasks()}
-                  taskGroups={orderedTaskGroups()}
-                  currentTaskGroupID={currentTaskGroupID()}
-                  monitorSummary={monitorSummary()}
-                  taskEvents={taskEvents()}
-                  notifications={notifications()}
-                  onNotificationsRead={markNotificationsRead}
-                  onNotificationsClearRead={clearReadNotifications}
-                  onNotificationOpen={openNotification}
-                  initialTab={panelOnly ? panelTab() : undefined}
-                  expanded={panelOnly}
-                  onExpandToggle={toggleExpand}
-                  onAgentChange={(name) => {
-                    void window.api.setFloatingAgent(name)
-                    setCurrentAgent(name)
-                  }}
-                  petSkin={petSkin()}
-                  onPetSkinChange={applyPetSkin}
-                  onSkinMenuToggle={() => {
-                    setSkinMenuOpening(true)
-                    void window.api.toggleFloatingSkinMenu()
-                  }}
-                  opening={panelOpening() || skinMenuOpening()}
-                  onDragStart={(pointerX, pointerY) => {
-                    if (panelOnly) return
-                    window.api.beginFloatingWidgetDrag?.(pointerX, pointerY)
-                  }}
-                  onDragMove={(pointerX, pointerY) => {
-                    if (panelOnly) return
-                    if (!("beginFloatingWidgetDrag" in window.api)) return
-                    window.api.moveFloatingWidget(pointerX, pointerY)
-                  }}
-                  onDragEnd={() => {
-                    if (panelOnly) return
-                    void window.api.saveFloatingWidgetBounds()
-                  }}
-                  title={t("assistant.title")}
-                  hasInProgressTask={hasActiveTasks}
-                  unreadNotifications={unreadNotifications()}
-                  draggable={!panelOnly}
-                  panelOnly={panelOnly}
-                />
+          <Show when={minimalMode()}>
+            <div
+              class="w-full h-full flex items-center justify-center"
+              onClick={handleMinimalClick}
+              title="打开 NovaWay"
+            >
+              <div class="size-10 rounded-full bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center hover:bg-cyan-500/30 transition-colors">
+                <img src={logoUrl} alt="NovaWay" class="size-7 object-contain" draggable={false} />
+              </div>
+            </div>
+          </Show>
+          <Show when={!minimalMode()}>
+            <div
+              class={
+                skinOnly || panelOnly
+                  ? "w-full h-full"
+                  : `w-full h-full bg-transparent flex items-end justify-center p-4 ${
+                      widgetVisible() ? "nova-floating-widget-enter" : "nova-floating-widget-pending"
+                    }`
               }
             >
-              <SkinMenu skin={petSkin()} onChange={applyPetSkin} />
-            </Show>
-          </div>
+              <Show
+                when={skinOnly}
+                fallback={
+                  <AssistantPanel
+                    class={panelOnly ? "" : "relative"}
+                    currentAgent={current()}
+                    agents={agents()}
+                    tasks={tasks()}
+                    taskGroups={orderedTaskGroups()}
+                    currentTaskGroupID={currentTaskGroupID()}
+                    monitorSummary={monitorSummary()}
+                    taskEvents={taskEvents()}
+                    notifications={notifications()}
+                    onNotificationsRead={markNotificationsRead}
+                    onNotificationsClearRead={clearReadNotifications}
+                    onNotificationOpen={openNotification}
+                    initialTab={panelOnly ? panelTab() : undefined}
+                    expanded={panelOnly}
+                    onExpandToggle={toggleExpand}
+                    onAgentChange={(name) => {
+                      void window.api.setFloatingAgent(name)
+                      setCurrentAgent(name)
+                    }}
+                    petSkin={petSkin()}
+                    onPetSkinChange={applyPetSkin}
+                    onSkinMenuToggle={() => {
+                      setSkinMenuOpening(true)
+                      void window.api.toggleFloatingSkinMenu()
+                    }}
+                    opening={panelOpening() || skinMenuOpening()}
+                    onDragStart={(pointerX, pointerY) => {
+                      if (panelOnly) return
+                      window.api.beginFloatingWidgetDrag?.(pointerX, pointerY)
+                    }}
+                    onDragMove={(pointerX, pointerY) => {
+                      if (panelOnly) return
+                      if (!("beginFloatingWidgetDrag" in window.api)) return
+                      window.api.moveFloatingWidget(pointerX, pointerY)
+                    }}
+                    onDragEnd={() => {
+                      if (panelOnly) return
+                      void window.api.saveFloatingWidgetBounds()
+                    }}
+                    title={t("assistant.title")}
+                    hasInProgressTask={hasActiveTasks}
+                    unreadNotifications={unreadNotifications()}
+                    draggable={!panelOnly}
+                    panelOnly={panelOnly}
+                  />
+                }
+              >
+                <SkinMenu skin={petSkin()} onChange={applyPetSkin} />
+              </Show>
+            </div>
+          </Show>
         </Show>
       </AppBaseProviders>
     </PlatformProvider>

@@ -3,6 +3,7 @@
 ## 背景与目标
 
 用户希望把应用内的右下角悬浮助手（机器人图标 + 智能体/待办面板）变成**真正的桌面挂件**：
+
 - 可以用鼠标拖动到屏幕任意位置。
 - 即使 Novaway 桌面端主窗口最小化或隐藏，挂件仍然悬浮在桌面最上层。
 - 点击挂件后仍能展开“智能体/待办”面板。
@@ -23,27 +24,27 @@
 
 ### App 层（复用 UI + 状态桥接）
 
-| 文件 | 改动 |
-|---|---|
-| `packages/app/src/components/assistant-panel.tsx` | 新增。从 `floating-todo-button.tsx` 抽离出纯 UI：`RobotIcon`、`StatusIcon`、`AgentTab`、`TodoTab`、`AssistantPanel`。`AssistantPanel` 接收渲染所需的所有数据和回调（`mode`、`currentAgent`、`agents`、`tasks`、`uiStrings`、`onAgentSelect`、`onExpandedChange`、`variant`）。 |
-| `packages/app/src/components/floating-todo-button.tsx` | 改为上下文包装器：读取 `useLocal` / `useLayout` / `useGlobalSync` / `useSessionLayout`，计算状态后渲染 `<AssistantPanel variant="in-app" ... />`。 |
-| `packages/app/src/components/widget-state-bridge.tsx` | 新增。挂在目录布局内，聚合当前会话的 agent/todo/语言文案，通过 `window.api.sendWidgetState(state)` 推送给主进程；同时监听 `window.api.onWidgetRequestState` 并在收到请求时立即再推一次。 |
-| `packages/app/src/widget-state.ts` | 新增。定义 `WidgetAssistantState` 类型与 `filterAgentsForMode` 辅助函数。状态里包含已经翻译好的 UI 字符串（tab 名称、当前智能体/切换到、空状态等），让挂件无需自己加载 i18n 字典。 |
-| `packages/app/src/pages/directory-layout.tsx` | 在 `<LocalProvider>` 内部插入 `<WidgetStateBridge />`，使其能访问 Local / SDK / Sync / GlobalSync 上下文。 |
-| `packages/app/src/index.ts` | 导出 `AssistantPanel`、`WidgetStateBridge`、`WidgetAssistantState`，供 desktop 包引用。 |
+| 文件                                                   | 改动                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `packages/app/src/components/assistant-panel.tsx`      | 新增。从 `floating-todo-button.tsx` 抽离出纯 UI：`RobotIcon`、`StatusIcon`、`AgentTab`、`TodoTab`、`AssistantPanel`。`AssistantPanel` 接收渲染所需的所有数据和回调（`mode`、`currentAgent`、`agents`、`tasks`、`uiStrings`、`onAgentSelect`、`onExpandedChange`、`variant`）。 |
+| `packages/app/src/components/floating-todo-button.tsx` | 改为上下文包装器：读取 `useLocal` / `useLayout` / `useGlobalSync` / `useSessionLayout`，计算状态后渲染 `<AssistantPanel variant="in-app" ... />`。                                                                                                                             |
+| `packages/app/src/components/widget-state-bridge.tsx`  | 新增。挂在目录布局内，聚合当前会话的 agent/todo/语言文案，通过 `window.api.sendWidgetState(state)` 推送给主进程；同时监听 `window.api.onWidgetRequestState` 并在收到请求时立即再推一次。                                                                                       |
+| `packages/app/src/widget-state.ts`                     | 新增。定义 `WidgetAssistantState` 类型与 `filterAgentsForMode` 辅助函数。状态里包含已经翻译好的 UI 字符串（tab 名称、当前智能体/切换到、空状态等），让挂件无需自己加载 i18n 字典。                                                                                             |
+| `packages/app/src/pages/directory-layout.tsx`          | 在 `<LocalProvider>` 内部插入 `<WidgetStateBridge />`，使其能访问 Local / SDK / Sync / GlobalSync 上下文。                                                                                                                                                                     |
+| `packages/app/src/index.ts`                            | 导出 `AssistantPanel`、`WidgetStateBridge`、`WidgetAssistantState`，供 desktop 包引用。                                                                                                                                                                                        |
 
 ### Desktop 层（窗口、IPC、渲染入口）
 
-| 文件 | 改动 |
-|---|---|
-| `packages/desktop/src/preload/types.ts` | 扩展 `ElectronAPI`：增加 `sendWidgetState`、`onWidgetState`、`onWidgetRequestState`、`widgetMove`、`widgetSetExpanded`、`widgetDragStart`、`widgetDragEnd`、`widgetSelectAgent` 类型。 |
-| `packages/desktop/src/preload/index.ts` | 实现上述 API，用 `ipcRenderer.send` / `ipcRenderer.on` 封装。 |
-| `packages/desktop/src/main/windows.ts` | 新增 `createFloatingWidgetWindow()`、`showFloatingWidget()`、`moveFloatingWidget()`、`setFloatingWidgetExpanded()`、`destroyFloatingWidget()`，维护 `widgetWindow` 引用与位置持久化；加载 `widget.html`。 |
-| `packages/desktop/src/main/ipc.ts` | 注册 widget 通道：`widget:push-state`（缓存并转发给挂件）、`widget:move`、`widget:set-expanded`、`widget:drag-start/end`、`widget:select-agent`（转发给主窗口执行）。 |
-| `packages/desktop/src/main/index.ts` | 主窗口创建后创建并显示挂件；主窗口关闭/应用退出时销毁挂件。 |
-| `packages/desktop/src/renderer/widget.html` | 新增挂件入口 HTML。 |
-| `packages/desktop/src/renderer/widget.tsx` | 新增挂件渲染入口：导入应用样式，监听 `onWidgetState`，渲染 `<AssistantPanel variant="widget" ... />`；处理 pointer 拖拽事件与点击展开/收起。 |
-| `packages/desktop/electron.vite.config.ts` | `renderer.build.rollupOptions.input` 增加 `widget: "src/renderer/widget.html"`。 |
+| 文件                                        | 改动                                                                                                                                                                                                      |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/desktop/src/preload/types.ts`     | 扩展 `ElectronAPI`：增加 `sendWidgetState`、`onWidgetState`、`onWidgetRequestState`、`widgetMove`、`widgetSetExpanded`、`widgetDragStart`、`widgetDragEnd`、`widgetSelectAgent` 类型。                    |
+| `packages/desktop/src/preload/index.ts`     | 实现上述 API，用 `ipcRenderer.send` / `ipcRenderer.on` 封装。                                                                                                                                             |
+| `packages/desktop/src/main/windows.ts`      | 新增 `createFloatingWidgetWindow()`、`showFloatingWidget()`、`moveFloatingWidget()`、`setFloatingWidgetExpanded()`、`destroyFloatingWidget()`，维护 `widgetWindow` 引用与位置持久化；加载 `widget.html`。 |
+| `packages/desktop/src/main/ipc.ts`          | 注册 widget 通道：`widget:push-state`（缓存并转发给挂件）、`widget:move`、`widget:set-expanded`、`widget:drag-start/end`、`widget:select-agent`（转发给主窗口执行）。                                     |
+| `packages/desktop/src/main/index.ts`        | 主窗口创建后创建并显示挂件；主窗口关闭/应用退出时销毁挂件。                                                                                                                                               |
+| `packages/desktop/src/renderer/widget.html` | 新增挂件入口 HTML。                                                                                                                                                                                       |
+| `packages/desktop/src/renderer/widget.tsx`  | 新增挂件渲染入口：导入应用样式，监听 `onWidgetState`，渲染 `<AssistantPanel variant="widget" ... />`；处理 pointer 拖拽事件与点击展开/收起。                                                              |
+| `packages/desktop/electron.vite.config.ts`  | `renderer.build.rollupOptions.input` 增加 `widget: "src/renderer/widget.html"`。                                                                                                                          |
 
 ## 窗口与拖拽细节
 
@@ -116,6 +117,7 @@ interface WidgetAssistantState {
 - `uiStrings` 在主窗口里用当前语言 `t()` 生成，挂件无需单独加载 i18n。
 
 推送流程：
+
 1. `WidgetStateBridge` 用 `createEffect` 监听相关信号变化，调用 `window.api.sendWidgetState(state)`。
 2. 主进程 `ipcMain.on("widget:push-state", ...)` 缓存 `lastWidgetState` 并转发给 `widgetWindow.webContents.send("widget:state", state)`。
 3. 挂件 `webContents` 加载完成后，如果缓存存在立即补发一次；同时挂件 mount 后调用 `window.api.widgetRequestState()`，主进程向主窗口广播请求，`WidgetStateBridge` 收到后再推一次。
@@ -148,14 +150,14 @@ interface WidgetAssistantState {
 
 ## 风险与取舍
 
-| 风险 | 缓解 |
-|---|---|
-| 透明窗口在部分 Windows/Linux 环境下有渲染或点击穿透问题 | 先关闭透明验证基本功能，再开启透明；保留回退配置项 |
-| 拖拽出窗口外丢失指针事件 | 优先用 `setPointerCapture`，并预留主进程全局鼠标跟踪回退 |
-| 多显示器/DPI 变化导致保存位置跑到屏幕外 | 启动时用 `screen.getDisplayNearestPoint` 对 bounds 做 clamp |
-| 两个窗口同时操作 local.agent 可能竞态 | 所有 agent 切换统一在主窗口执行，挂件只发请求 |
-| 每次 todo 更新都推 IPC | 状态仅含当前会话任务，数据量小；可用 `requestAnimationFrame` 节流 |
-| 始终置顶可能遮挡用户其他工作 | 后续可增加系统托盘菜单或快捷键临时隐藏挂件 |
+| 风险                                                    | 缓解                                                              |
+| ------------------------------------------------------- | ----------------------------------------------------------------- |
+| 透明窗口在部分 Windows/Linux 环境下有渲染或点击穿透问题 | 先关闭透明验证基本功能，再开启透明；保留回退配置项                |
+| 拖拽出窗口外丢失指针事件                                | 优先用 `setPointerCapture`，并预留主进程全局鼠标跟踪回退          |
+| 多显示器/DPI 变化导致保存位置跑到屏幕外                 | 启动时用 `screen.getDisplayNearestPoint` 对 bounds 做 clamp       |
+| 两个窗口同时操作 local.agent 可能竞态                   | 所有 agent 切换统一在主窗口执行，挂件只发请求                     |
+| 每次 todo 更新都推 IPC                                  | 状态仅含当前会话任务，数据量小；可用 `requestAnimationFrame` 节流 |
+| 始终置顶可能遮挡用户其他工作                            | 后续可增加系统托盘菜单或快捷键临时隐藏挂件                        |
 
 ## 未包含在本期但可扩展的点
 

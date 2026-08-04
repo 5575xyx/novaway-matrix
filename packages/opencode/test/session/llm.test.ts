@@ -1296,6 +1296,7 @@ describe("session.llm.stream", () => {
                 input: { pattern: "**/*.pdf", path: "/root" },
                 cache_control: {
                   type: "ephemeral",
+                  ttl: "1h",
                 },
               },
             ],
@@ -1314,6 +1315,7 @@ describe("session.llm.stream", () => {
                 content: "No files found",
                 cache_control: {
                   type: "ephemeral",
+                  ttl: "1h",
                 },
               },
             ],

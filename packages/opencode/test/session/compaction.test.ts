@@ -31,7 +31,6 @@ import { SyncEvent } from "@/sync"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { Memory } from "@/memory/service"
-import { PowersNexusWorkflow } from "@/powersnexus/service"
 
 void Log.init({ print: false })
 
@@ -236,7 +235,6 @@ function idlePlugin() {
   })
 }
 
-
 const deps = Layer.mergeAll(
   wide().layer,
   layer("continue"),
@@ -267,7 +265,6 @@ type CompactionProcessOptions = {
   plugin?: Layer.Layer<Plugin.Service>
   provider?: ReturnType<typeof ProviderTest.fake>
   config?: Layer.Layer<Config.Service>
-  workflow?: Layer.Layer<PowersNexusWorkflow.Service>
 }
 
 function withCompaction(options?: CompactionProcessOptions) {
@@ -291,7 +288,6 @@ function compactionProcessLayer(options?: CompactionProcessOptions) {
     bus,
     status,
     Memory.defaultLayer,
-    options?.workflow ?? Layer.empty,
   ).pipe(
     Layer.provide(SessionNs.defaultLayer),
     Layer.provide((options?.provider ?? wide()).layer),
@@ -1438,54 +1434,6 @@ describe("session.compaction.process", () => {
         expect(summary?.info.role).toBe("assistant")
         expect(summary?.parts.some((part) => part.type === "tool")).toBe(false)
       }).pipe(withCompaction({ llm: stub.layer }))
-    },
-    { git: true },
-  )
-
-  itCompaction.instance(
-    "injects the PowersNexus workflow capsule into compaction context",
-    () => {
-      const stub = llm()
-      let captured = ""
-      stub.push(
-        reply("summary", (input) => {
-          captured = JSON.stringify(input.messages)
-        }),
-      )
-      const workflow = Layer.mock(PowersNexusWorkflow.Service, {
-        capsule: () =>
-          Effect.succeed({
-            bindingID: "pnb_capsule",
-            changeName: "capsule-change",
-            phase: "implementing" as const,
-            level: "L2" as const,
-            taskID: "TASK-301",
-            revision: 301,
-            artifactDigest: "a".repeat(64),
-            nextAction: { action: "start_implementation", label: "开始实施", automatic: true },
-            worktree: "C:/workspace",
-            powersnexusDigest: "b".repeat(64),
-          }),
-      })
-      return Effect.gen(function* () {
-        const ssn = yield* SessionNs.Service
-        const session = yield* ssn.create({})
-        yield* createUserMessage(session.id, "old workflow context")
-        yield* createUserMessage(session.id, "keep this turn")
-        yield* createUserMessage(session.id, "keep this turn too")
-        yield* createCompactionMarker(session.id)
-        const msgs = yield* ssn.messages({ sessionID: session.id })
-        const parent = msgs.at(-1)?.info.id
-        yield* SessionCompaction.use.process({
-          parentID: parent!,
-          messages: msgs,
-          sessionID: session.id,
-          auto: false,
-        })
-        expect(captured).toContain("<powersnexus-workflow-capsule>")
-        expect(captured).toContain("pnb_capsule")
-        expect(captured).toContain("TASK-301")
-      }).pipe(withCompaction({ llm: stub.layer, workflow }))
     },
     { git: true },
   )

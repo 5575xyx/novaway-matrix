@@ -3,7 +3,7 @@ import { ProjectTable } from "@/project/project.sql"
 import { SessionTable } from "@/session/session.sql"
 import type { ProjectID } from "@/project/schema"
 import type { SessionID, MessageID } from "@/session/schema"
-import type { ContentFormat, EvolutionCandidateID, Kind, Status } from "./schema"
+import type { ContentFormat, Domain, EvolutionCandidateID, Kind, Status, ValidationStatus } from "./schema"
 import { Timestamps } from "@/storage/schema.sql"
 
 export const EvolutionCandidateTable = sqliteTable(
@@ -17,14 +17,18 @@ export const EvolutionCandidateTable = sqliteTable(
       .$type<SessionID>()
       .references(() => SessionTable.id, { onDelete: "set null" }),
     kind: text().$type<Kind>().notNull(),
+    domain: text().$type<Domain>().notNull().default("general"),
     target: text().notNull(),
     title: text().notNull(),
     content: text().notNull(),
     content_format: text().$type<ContentFormat>().notNull().default("content"),
     reason: text().notNull(),
     tags: text({ mode: "json" }).$type<string[]>().notNull().default([]),
+    expected_outcomes: text({ mode: "json" }).$type<string[]>().notNull().default([]),
     source_message_id: text().$type<MessageID>(),
     status: text().$type<Status>().notNull().default("pending"),
+    validation_status: text().$type<ValidationStatus>().notNull().default("pending"),
+    validation_note: text(),
     ...Timestamps,
     time_applied: integer(),
   },
@@ -34,6 +38,8 @@ export const EvolutionCandidateTable = sqliteTable(
     index("evolution_candidate_kind_idx").on(table.kind),
     index("evolution_candidate_status_idx").on(table.status),
     index("evolution_candidate_source_idx").on(table.source_message_id),
+    index("evolution_candidate_domain_idx").on(table.domain),
+    index("evolution_candidate_validation_status_idx").on(table.validation_status),
   ],
 )
 

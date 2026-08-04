@@ -4,9 +4,21 @@ import { Tool } from "./tool"
 import { Config } from "@/config/config"
 import { ConfigProvider } from "@/config/provider"
 import { Auth } from "@/auth"
-import { ImageGeneration, AgnesImage, ProtocolRegistry } from "@opencode-ai/llm/protocols"
+import { ImageGeneration, AgnesImage, ProtocolRegistry, SenseNovaImage } from "@opencode-ai/llm/protocols"
 
 ProtocolRegistry.registerImageProtocol("agnes", AgnesImage.agnesImage)
+ProtocolRegistry.registerImageProtocol("sensenova", SenseNovaImage.sensenovaImage)
+ProtocolRegistry.registerImageProtocol("sense-nova", SenseNovaImage.sensenovaImage)
+ProtocolRegistry.registerImageProtocol("sensenova-image", SenseNovaImage.sensenovaImage)
+
+function isSenseNovaBaseURL(baseURL: string | undefined) {
+  if (!baseURL) return false
+  try {
+    return ["token.sensenova.cn", "api.sensenova.cn"].includes(new URL(baseURL).hostname.toLowerCase())
+  } catch {
+    return false
+  }
+}
 
 interface Metadata {
   prompt: string
@@ -19,6 +31,7 @@ const Parameters = Schema.Struct({
   prompt: Schema.String,
   model: Schema.optional(Schema.String),
   size: Schema.optional(Schema.String),
+  ratio: Schema.optional(Schema.String),
   image: Schema.optional(Schema.Array(Schema.String)),
 })
 
@@ -80,7 +93,7 @@ export const GenerateImageTool = Tool.define(
               candidate = {
                 providerId: pid,
                 apiKey: key,
-                baseURL: pcfg.options?.baseURL,
+                baseURL: pcfg.options?.baseURL ?? pcfg.options?.endpoint,
                 modelName: args.model,
               }
               break
@@ -93,11 +106,14 @@ export const GenerateImageTool = Tool.define(
               if (!isImageProvider(pid, pcfg)) continue
               const key = yield* resolveApiKey(pid, pcfg)
               if (!key) continue
-              const modelName = pickImageModel(pcfg, args.model) ?? "agnes-image-2.1-flash"
+              const fallbackModel = isSenseNovaBaseURL(pcfg.options?.baseURL ?? pcfg.options?.endpoint)
+                ? "sensenova-u1-fast"
+                : "agnes-image-2.1-flash"
+              const modelName = pickImageModel(pcfg, args.model) ?? fallbackModel
               candidate = {
                 providerId: pid,
                 apiKey: key,
-                baseURL: pcfg.options?.baseURL,
+                baseURL: pcfg.options?.baseURL ?? pcfg.options?.endpoint,
                 modelName,
               }
               break
@@ -111,10 +127,17 @@ export const GenerateImageTool = Tool.define(
               candidate = {
                 providerId: "agnes",
                 apiKey: envKey,
-                baseURL: "https://apihub.agnes-ai.com/v1",
+                baseURL: AgnesImage.agnesImage.baseURL,
                 modelName: args.model ?? "agnes-image-2.1-flash",
               }
             }
+          }
+
+          if (candidate?.baseURL && /^https?:\/\/apihub\.agnes-ai\.com(?:\/|$)/i.test(candidate.baseURL)) {
+            candidate.baseURL = AgnesImage.agnesImage.baseURL
+          }
+          if (isSenseNovaBaseURL(candidate?.baseURL) && candidate?.modelName === "agnes-image-2.1-flash") {
+            candidate.modelName = "sensenova-u1-fast"
           }
 
           if (!candidate) {
@@ -134,6 +157,7 @@ export const GenerateImageTool = Tool.define(
                 prompt: args.prompt,
                 model: candidate.modelName,
                 size: args.size,
+                ratio: args.ratio,
                 image: args.image,
               },
               candidate.apiKey,

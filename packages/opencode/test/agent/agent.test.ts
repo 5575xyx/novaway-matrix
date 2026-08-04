@@ -806,3 +806,36 @@ it.instance(
     },
   },
 )
+
+it.instance(
+  "reload rediscovers newly written agents",
+  () =>
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      const before = yield* load((svc) => svc.list())
+      expect(before.some((item) => item.name === "hot-reload-agent")).toBe(false)
+
+      yield* Effect.promise(async () => {
+        const agentDir = path.join(test.directory, ".novaway", "agents")
+        await Bun.write(
+          path.join(agentDir, "hot-reload-agent.md"),
+          `---
+description: Hot reload agent for testing
+mode: primary
+---
+
+# Hot Reload Agent
+
+You are a hot-reloaded agent.
+`,
+        )
+      })
+
+      const after = yield* load((svc) => svc.reload())
+      const found = after.find((item) => item.name === "hot-reload-agent")
+      expect(found).toBeDefined()
+      expect(found?.prompt).toContain("hot-reloaded agent")
+      expect(found?.native).toBe(false)
+    }),
+  { git: true },
+)

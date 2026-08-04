@@ -86,6 +86,15 @@
     flex-direction: column;
     align-self: stretch;
     gap: 12px;
+    border-left: 2px solid color-mix(in srgb, var(--text-interactive-base) 55%, transparent);
+    padding-left: 16px;
+    margin-left: 6px;
+    border-radius: 0 10px 10px 0;
+    background: linear-gradient(
+      to right,
+      color-mix(in srgb, var(--text-interactive-base) 5%, transparent),
+      transparent 42%
+    );
   }
 
   [data-slot="session-turn-diffs"] {
@@ -169,6 +178,8 @@
     display: flex;
     flex-grow: 1;
     min-width: 0;
+    direction: ltr;
+    unicode-bidi: isolate;
 
     font-family: var(--font-family-sans);
     font-size: var(--font-size-small);

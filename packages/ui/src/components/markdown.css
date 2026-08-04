@@ -77,6 +77,18 @@
     text-underline-offset: 2px;
   }
 
+  code[data-file-open] {
+    color: var(--text-interactive-base);
+    border-bottom: 1px dashed color-mix(in srgb, var(--text-interactive-base) 55%, transparent);
+    cursor: pointer;
+  }
+
+  code[data-file-open]:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    background: color-mix(in srgb, var(--text-interactive-base) 8%, transparent);
+  }
+
   /* Lists */
   ul,
   ol {

@@ -210,10 +210,14 @@ describe("Instruction.system", () => {
         expect(paths.has(path.join(projectTmp, "AGENTS.md"))).toBe(true)
         expect(paths.has(path.join(globalTmp, "AGENTS.md"))).toBe(true)
 
-        const rules = yield* svc.system()
-        expect(rules).toHaveLength(2)
-        expect(rules[0]).toBe(`Instructions from: ${path.join(globalTmp, "AGENTS.md")}\n# Global Instructions`)
-        expect(rules[1]).toBe(`Instructions from: ${path.join(projectTmp, "AGENTS.md")}\n# Project Instructions`)
+        const parts = yield* svc.system()
+        const agentRules = parts.always.filter((item) => !item.startsWith("Instructions from: <built-in>"))
+        expect(agentRules).toHaveLength(2)
+        expect(agentRules[0]).toBe(`Instructions from: ${path.join(globalTmp, "AGENTS.md")}\n# Global Instructions`)
+        expect(agentRules[1]).toBe(
+          `Instructions from: ${path.join(projectTmp, "AGENTS.md")}\n# Project Instructions`,
+        )
+        expect(parts.triggered).toEqual([])
       }).pipe(provideInstance(projectTmp), provideInstruction({ home: globalTmp, config: globalTmp }))
     }),
   )
@@ -229,11 +233,14 @@ describe("Instruction.system", () => {
         expect(paths.has(path.join(globalTmp, "rules", "global-rule.md"))).toBe(true)
         expect(paths.has(path.join(projectTmp, ".novaway", "rules", "project-rule.md"))).toBe(true)
 
-        const rules = yield* svc.system()
-        expect(rules).toContain(`Instructions from: ${path.join(globalTmp, "rules", "global-rule.md")}\n# Global Rule`)
-        expect(rules).toContain(
+        const parts = yield* svc.system()
+        expect(parts.always).toContain(
+          `Instructions from: ${path.join(globalTmp, "rules", "global-rule.md")}\n# Global Rule`,
+        )
+        expect(parts.always).toContain(
           `Instructions from: ${path.join(projectTmp, ".novaway", "rules", "project-rule.md")}\n# Project Rule`,
         )
+        expect(parts.triggered).toEqual([])
       }).pipe(provideInstance(projectTmp), provideInstruction({ home: globalTmp, config: globalTmp }))
     }),
   )
@@ -251,19 +258,19 @@ describe("Instruction.system", () => {
       yield* Effect.gen(function* () {
         const svc = yield* Instruction.Service
         const regular = yield* svc.system({ prompt: "请帮我修复这个问题" })
-        expect(regular.some((item) => item.includes("# Always Rule"))).toBe(true)
-        expect(regular.some((item) => item.includes("# Manual Rule"))).toBe(false)
-        expect(regular.some((item) => item.includes("# Plan Rule"))).toBe(false)
+        expect(regular.always.some((item) => item.includes("# Always Rule"))).toBe(true)
+        expect(regular.triggered.some((item) => item.includes("# Manual Rule"))).toBe(false)
+        expect(regular.triggered.some((item) => item.includes("# Plan Rule"))).toBe(false)
 
         const mentioned = yield* svc.system({ prompt: "请按 @manual 执行" })
-        expect(mentioned.some((item) => item.includes("# Always Rule"))).toBe(true)
-        expect(mentioned.some((item) => item.includes("# Manual Rule"))).toBe(true)
-        expect(mentioned.some((item) => item.includes("# Plan Rule"))).toBe(false)
+        expect(mentioned.always.some((item) => item.includes("# Always Rule"))).toBe(true)
+        expect(mentioned.triggered.some((item) => item.includes("# Manual Rule"))).toBe(true)
+        expect(mentioned.triggered.some((item) => item.includes("# Plan Rule"))).toBe(false)
 
         const automatic = yield* svc.system({ prompt: "请先输出规划蓝图" })
-        expect(automatic.some((item) => item.includes("# Always Rule"))).toBe(true)
-        expect(automatic.some((item) => item.includes("# Manual Rule"))).toBe(false)
-        expect(automatic.some((item) => item.includes("# Plan Rule"))).toBe(true)
+        expect(automatic.always.some((item) => item.includes("# Always Rule"))).toBe(true)
+        expect(automatic.triggered.some((item) => item.includes("# Manual Rule"))).toBe(false)
+        expect(automatic.triggered.some((item) => item.includes("# Plan Rule"))).toBe(true)
       }).pipe(provideInstance(projectTmp), provideInstruction({ home: globalTmp, config: globalTmp }))
     }),
   )
@@ -278,7 +285,9 @@ describe("Instruction.system", () => {
         const paths = yield* svc.systemPaths()
         expect(paths.has(path.join(globalTmp, ".claude", "CLAUDE.md"))).toBe(false)
         expect(paths.has(path.join(projectTmp, "CLAUDE.md"))).toBe(false)
-        expect(yield* svc.system()).toEqual([])
+        const parts = yield* svc.system()
+        expect(parts.always.some((item) => item.includes("CLAUDE.md"))).toBe(false)
+        expect(parts.triggered).toEqual([])
       }).pipe(
         provideInstance(projectTmp),
         provideInstruction({ home: globalTmp, config: globalTmp }, { disableClaudeCodePrompt: true }),

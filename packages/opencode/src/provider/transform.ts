@@ -341,15 +341,16 @@ function applyCaching(msgs: ModelMessage[], model: Provider.Model): ModelMessage
   const system = msgs.filter((msg) => msg.role === "system").slice(0, 2)
   const final = msgs.filter((msg) => msg.role !== "system").slice(-2)
 
+  // 长任务会在同一静态前缀上多次调用，使用 1h 缓存 TTL 避免 5m 过期。
   const providerOptions = {
     anthropic: {
-      cacheControl: { type: "ephemeral" },
+      cacheControl: { type: "ephemeral", ttl: "1h" },
     },
     openrouter: {
       cacheControl: { type: "ephemeral" },
     },
     bedrock: {
-      cachePoint: { type: "default" },
+      cachePoint: { type: "default", ttl: "1h" },
     },
     openaiCompatible: {
       cache_control: { type: "ephemeral" },

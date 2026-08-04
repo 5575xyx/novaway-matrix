@@ -8,7 +8,28 @@ import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
 import { Auth } from "@/auth"
 import { InstallationVersion } from "@opencode-ai/core/installation/version"
-import { streamText, wrapLanguageModel, type LanguageModelMiddleware } from "ai"
+import { generateText, wrapLanguageModel, type LanguageModelMiddleware } from "ai"
+import * as Log from "@opencode-ai/core/util/log"
+
+const log = Log.create({ service: "chat-httpapi" })
+
+function errorMessage(cause: unknown) {
+  if (cause instanceof Error && cause.message) return cause.message
+  if (typeof cause === "string" && cause) return cause
+  if (cause && typeof cause === "object") {
+    const obj = cause as {
+      message?: unknown
+      data?: { message?: unknown }
+      error?: { message?: unknown }
+      cause?: unknown
+    }
+    if (typeof obj.message === "string" && obj.message) return obj.message
+    if (typeof obj.data?.message === "string" && obj.data.message) return obj.data.message
+    if (typeof obj.error?.message === "string" && obj.error.message) return obj.error.message
+    if (obj.cause) return errorMessage(obj.cause)
+  }
+  return "Chat request failed"
+}
 
 export const chatHandlers = HttpApiBuilder.group(InstanceHttpApi, "chat", (handlers) =>
   Effect.gen(function* () {
@@ -18,27 +39,37 @@ export const chatHandlers = HttpApiBuilder.group(InstanceHttpApi, "chat", (handl
 
     const send = Effect.fn("ChatHttpApi.send")(function* (ctx: { payload: typeof ChatPayload.Type }) {
       const ctxState = yield* InstanceState.context
+      const providerID = ctx.payload.model.providerID
+      const modelID = ctx.payload.model.modelID
 
-      const model = yield* provider
-        .getModel(ctx.payload.model.providerID, ctx.payload.model.modelID)
-        .pipe(Effect.mapError(() => new HttpApiError.BadRequest({})))
-      const language = yield* provider
-        .getLanguage(model)
-        .pipe(Effect.mapError(() => new HttpApiError.InternalServerError({})))
+      const model = yield* provider.getModel(providerID, modelID).pipe(
+        Effect.mapError((err) => {
+          log.error("chat model not found", { providerID, modelID, err })
+          return new HttpApiError.BadRequest({})
+        }),
+      )
 
-      yield* auth.get(model.providerID).pipe(Effect.orDie)
+      const item = yield* provider.getProvider(providerID)
+      if (!item) {
+        log.error("chat provider missing", { providerID })
+        return yield* new HttpApiError.BadRequest({})
+      }
+
+      const language = yield* provider.getLanguage(model).pipe(
+        Effect.mapError((err) => {
+          log.error("chat language model failed", { providerID, modelID, err })
+          return new HttpApiError.InternalServerError({})
+        }),
+      )
+
+      // 与会话路径对齐：读取凭证；失败仅记录，避免 orDie 直接 500
+      yield* auth.get(providerID).pipe(Effect.catch(() => Effect.succeed(undefined)))
 
       const cfg = yield* config.get()
-
-      const messages: Array<{ role: "user" | "system"; content: string }> = [
-        ...(ctx.payload.system ? [{ role: "system" as const, content: ctx.payload.system }] : []),
-        { role: "user" as const, content: ctx.payload.message },
-      ]
-
       const baseOptions = ProviderTransform.options({
         model,
-        providerOptions: (yield* provider.getProvider(model.providerID)).options,
-        sessionID: "",
+        providerOptions: item.options,
+        sessionID: "chat-optimize",
       })
 
       const params = {
@@ -47,51 +78,65 @@ export const chatHandlers = HttpApiBuilder.group(InstanceHttpApi, "chat", (handl
         topP: ctx.payload.topP ?? ProviderTransform.topP(model),
       }
 
-      const opencodeProjectID = model.providerID.startsWith("opencode") ? ctxState.project.id : undefined
-
+      const opencodeProjectID = providerID.startsWith("opencode") ? ctxState.project.id : undefined
       const middleware: LanguageModelMiddleware[] = []
 
-      const stream = streamText({
-        messages,
-        model: wrapLanguageModel({
-          model: language,
-          middleware,
+      // 使用 generateText（非流式）更适合提示词优化这种一次性请求
+      const result = yield* Effect.tryPromise({
+        try: () =>
+          generateText({
+            system: ctx.payload.system,
+            messages: [{ role: "user" as const, content: ctx.payload.message }],
+            model: wrapLanguageModel({
+              model: language,
+              middleware,
+            }),
+            temperature: params.temperature,
+            topP: params.topP,
+            maxOutputTokens: params.maxOutputTokens,
+            providerOptions: ProviderTransform.providerOptions(model, baseOptions),
+            headers: {
+              ...(providerID.startsWith("opencode")
+                ? {
+                    "x-opencode-project": opencodeProjectID,
+                    "x-opencode-request": "chat",
+                    "User-Agent": `opencode/${InstallationVersion}`,
+                  }
+                : {
+                    "User-Agent": `opencode/${InstallationVersion}`,
+                  }),
+              ...model.headers,
+            },
+            maxRetries: 2,
+          }),
+        catch: (cause) => cause,
+      }).pipe(
+        Effect.mapError((cause) => {
+          const message = errorMessage(cause)
+          log.error("chat send failed", { providerID, modelID, message, cause })
+          const lower = message.toLowerCase()
+          if (
+            lower.includes("api key") ||
+            lower.includes("unauthorized") ||
+            lower.includes("invalid") ||
+            lower.includes("not found") ||
+            lower.includes("quota") ||
+            lower.includes("rate limit") ||
+            lower.includes("model") ||
+            lower.includes("credit") ||
+            lower.includes("permission")
+          ) {
+            return new HttpApiError.BadRequest({})
+          }
+          return new HttpApiError.InternalServerError({})
         }),
-        temperature: params.temperature,
-        topP: params.topP,
-        maxOutputTokens: params.maxOutputTokens,
-        providerOptions: ProviderTransform.providerOptions(model, baseOptions),
-        headers: {
-          ...(model.providerID.startsWith("opencode")
-            ? {
-                "x-opencode-project": opencodeProjectID,
-                "x-opencode-request": "chat",
-                "User-Agent": `opencode/${InstallationVersion}`,
-              }
-            : {
-                "User-Agent": `opencode/${InstallationVersion}`,
-              }),
-        },
-        maxRetries: 2,
-        abortSignal: undefined,
-        tools: {},
-        activeTools: [],
-        experimental_telemetry: {
-          isEnabled: cfg.experimental?.openTelemetry,
-          functionId: "chat",
-          metadata: {
-            modelID: model.id,
-            providerID: model.providerID,
-          },
-        },
-        onError(err) {
-          console.error("chat stream error", err)
-        },
-      })
-
-      const text = yield* Effect.tryPromise(() => stream.text).pipe(
-        Effect.mapError(() => new HttpApiError.InternalServerError({})),
       )
+
+      const text = (result.text ?? "").trim()
+      if (!text) {
+        log.error("chat empty response", { providerID, modelID })
+        return yield* new HttpApiError.InternalServerError({})
+      }
 
       return ChatResponse.make({ text })
     })

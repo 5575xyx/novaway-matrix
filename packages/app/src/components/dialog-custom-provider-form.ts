@@ -1,3 +1,5 @@
+import { resolveOpenAICompatibleEndpoint } from "@opencode-ai/core/openai-compatible"
+
 const PROVIDER_ID = /^[a-z0-9][a-z0-9-_]*$/
 const OPENAI_COMPATIBLE = "@ai-sdk/openai-compatible"
 
@@ -56,6 +58,7 @@ export function validateCustomProvider(input: ValidateArgs) {
   const name = input.form.name.trim()
   const baseURL = input.form.baseURL.trim()
   const apiKey = input.form.apiKey.trim()
+  const endpoint = resolveOpenAICompatibleEndpoint(baseURL)
 
   const env = apiKey.match(/^\{env:([^}]+)\}$/)?.[1]?.trim()
   const key = apiKey && !env ? apiKey : undefined
@@ -69,7 +72,7 @@ export function validateCustomProvider(input: ValidateArgs) {
   const nameError = !name ? input.t("provider.custom.error.name.required") : undefined
   const urlError = !baseURL
     ? input.t("provider.custom.error.baseURL.required")
-    : !/^https?:\/\//.test(baseURL)
+    : !endpoint
       ? input.t("provider.custom.error.baseURL.format")
       : undefined
 
@@ -146,7 +149,7 @@ export function validateCustomProvider(input: ValidateArgs) {
         name,
         ...(env ? { env: [env] } : {}),
         options: {
-          baseURL,
+          baseURL: endpoint!.baseURL,
           ...(Object.keys(headerConfig).length ? { headers: headerConfig } : {}),
         },
         models: modelConfig,

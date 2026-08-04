@@ -87,6 +87,57 @@ function codeUrl(text: string) {
   }
 }
 
+const filePathPattern = /^(?:[A-Za-z]:[\\/]|~[\\/]|\/|\.{1,2}[\\/])?(?:[\w@.$-]+[\\/])*[\w@.$-]+(?:\.[A-Za-z0-9]{1,12})?$/
+
+function filePath(text: string) {
+  const raw = text.trim().replace(/[),.;!?]+$/, "")
+  if (!raw || raw.length > 300) return
+  if (urlPattern.test(raw) || raw.includes("://") || raw.startsWith("data:")) return
+  const hasPath = /[\\/]/.test(raw)
+  const hasExtension = /\.[A-Za-z0-9]{1,12}$/.test(raw)
+  if (!hasPath && !hasExtension) return
+  if (!filePathPattern.test(raw)) return
+  return raw
+}
+
+function markFileLinks(root: HTMLDivElement) {
+  const codeNodes = Array.from(root.querySelectorAll(":not(pre) > code"))
+  for (const code of codeNodes) {
+    const parentLink =
+      code.parentElement instanceof HTMLAnchorElement && code.parentElement.classList.contains("external-link")
+        ? code.parentElement
+        : null
+    if (parentLink) continue
+    const path = filePath(code.textContent ?? "")
+    if (!path) continue
+    const element = code as HTMLElement
+    element.setAttribute("data-file-open", "")
+    element.setAttribute("data-file-path", path)
+    element.style.cursor = "pointer"
+  }
+}
+
+function setupFileOpen(root: HTMLDivElement, onFileOpen: ((path: string) => void) | undefined) {
+  if (!onFileOpen) return
+
+  const handler = (event: MouseEvent) => {
+    const target = event.target
+    if (!(target instanceof Element)) return
+    const node = target.closest("[data-file-open]")
+    if (!(node instanceof HTMLElement)) return
+    const path = node.getAttribute("data-file-path")
+    if (!path) return
+    event.preventDefault()
+    event.stopPropagation()
+    onFileOpen(path)
+  }
+
+  root.addEventListener("click", handler)
+  return () => {
+    root.removeEventListener("click", handler)
+  }
+}
+
 function createIcon(path: string, slot: string) {
   const icon = document.createElement("div")
   icon.setAttribute("data-component", "icon")
@@ -184,12 +235,18 @@ function markCodeLinks(root: HTMLDivElement) {
   }
 }
 
-function decorate(root: HTMLDivElement, labels: CopyLabels, openImagePreview: (url: string, alt?: string) => void) {
+function decorate(
+  root: HTMLDivElement,
+  labels: CopyLabels,
+  openImagePreview: (url: string, alt?: string) => void,
+  onFileOpen?: (path: string) => void,
+) {
   const blocks = Array.from(root.querySelectorAll("pre"))
   for (const block of blocks) {
     ensureCodeWrapper(block, labels)
   }
   markCodeLinks(root)
+  if (onFileOpen) markFileLinks(root)
   setupImagePreview(root, openImagePreview)
   setupMediaActions(root, labels)
 }
@@ -362,9 +419,10 @@ export function Markdown(
     streaming?: boolean
     class?: string
     classList?: Record<string, boolean>
+    onFileOpen?: (path: string) => void
   },
 ) {
-  const [local, others] = splitProps(props, ["text", "cacheKey", "streaming", "class", "classList"])
+  const [local, others] = splitProps(props, ["text", "cacheKey", "streaming", "class", "classList", "onFileOpen"])
   const marked = useMarked()
   const i18n = useI18n()
   const dialog = useDialog()
@@ -411,6 +469,7 @@ export function Markdown(
 
   let copyCleanup: (() => void) | undefined
   let imagePreviewCleanup: (() => void) | undefined
+  let fileOpenCleanup: (() => void) | undefined
 
   createEffect(() => {
     const container = root()
@@ -432,7 +491,7 @@ export function Markdown(
     }
     const temp = document.createElement("div")
     temp.innerHTML = content
-    decorate(temp, labels, openImagePreview)
+    decorate(temp, labels, openImagePreview, local.onFileOpen)
 
     morphdom(container, temp, {
       childrenOnly: true,
@@ -460,11 +519,13 @@ export function Markdown(
         download: i18n.t("ui.message.download"),
       }))
     if (!imagePreviewCleanup) imagePreviewCleanup = setupImagePreview(container, openImagePreview)
+    if (!fileOpenCleanup) fileOpenCleanup = setupFileOpen(container, local.onFileOpen)
   })
 
   onCleanup(() => {
     if (copyCleanup) copyCleanup()
     if (imagePreviewCleanup) imagePreviewCleanup()
+    if (fileOpenCleanup) fileOpenCleanup()
   })
 
   return (

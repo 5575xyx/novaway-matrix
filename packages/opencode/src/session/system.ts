@@ -33,7 +33,7 @@ export function provider(model: Provider.Model) {
 }
 
 export interface Interface {
-  readonly environment: (model: Provider.Model, autoMode?: boolean) => Effect.Effect<string[]>
+  readonly environment: (model: Provider.Model) => Effect.Effect<string[]>
   readonly skills: (agent: Agent.Info) => Effect.Effect<string | undefined>
 }
 
@@ -45,20 +45,11 @@ export const layer = Layer.effect(
     const skill = yield* Skill.Service
 
     return Service.of({
-      environment: Effect.fn("SystemPrompt.environment")(function* (model: Provider.Model, autoMode?: boolean) {
+      environment: Effect.fn("SystemPrompt.environment")(function* (model: Provider.Model) {
         const ctx = yield* InstanceState.context
-        // Auto 模式下随机选择模型名称
-        let modelName: string
-        let modelId: string
-        if (autoMode) {
-          const autoModels = ["claude-opus-4.8", "gpt-5.5"]
-          const randomIndex = Math.floor(Math.random() * autoModels.length)
-          modelName = autoModels[randomIndex]
-          modelId = `auto/${modelName}`
-        } else {
-          modelName = model.api.id
-          modelId = `${model.providerID}/${model.api.id}`
-        }
+        // 使用实际解析出的模型，避免 Auto 模式随机模型名破坏 system 前缀缓存。
+        const modelName = model.api.id
+        const modelId = `${model.providerID}/${model.api.id}`
         return [
           [
             `You are powered by the model named ${modelName}. The exact model ID is ${modelId}`,

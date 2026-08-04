@@ -15,6 +15,7 @@ import { useSettings } from "@/context/settings"
 import { applyPath, backPath, forwardPath } from "./titlebar-history"
 import { ModeSwitchButton } from "@/components/mode-switch"
 import { MemoryEvolutionPanel } from "@/components/memory-evolution-panel"
+import { CacheUsagePanel } from "@/components/cache-usage-panel"
 import { ThemeSchemeToggle } from "@/components/theme-scheme-toggle"
 
 type TauriDesktopWindow = {
@@ -322,6 +323,7 @@ export function Titlebar(props: { settingsOpen?: boolean; databaseOpen?: boolean
         >
           <div class="flex items-center gap-1 shrink-0 justify-end">
             <div id="opencode-titlebar-right" class="flex items-center gap-1 shrink-0 justify-end" />
+            <CacheUsagePanel />
             <MemoryEvolutionPanel />
             <ThemeSchemeToggle />
           </div>

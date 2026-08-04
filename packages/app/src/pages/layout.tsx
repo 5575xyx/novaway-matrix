@@ -1043,7 +1043,7 @@ export default function Layout(props: ParentProps) {
         title: language.t("command.settings.open"),
         category: language.t("command.category.settings"),
         hidden: true,
-        onSelect: () => openSettings("evolution"),
+        onSelect: () => openSettings("memory"),
       },
       {
         id: "database.open",

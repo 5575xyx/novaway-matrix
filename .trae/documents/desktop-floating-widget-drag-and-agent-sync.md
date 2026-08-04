@@ -27,13 +27,13 @@
 
 ### 需要修复的缺陷
 
-| 缺陷 | 影响 | 涉及文件 |
-|---|---|---|
-| 收起状态未设置鼠标穿透 | 72×72 透明窗口拦截桌面点击 | `packages/desktop/src/main/windows.ts` |
-| 桌面端同时渲染 App 内浮动按钮 | 双重悬浮入口，体验混乱 | `packages/app/src/pages/session.tsx` |
-| `set-floating-agent` 通道与 preload 监听不一致 | 从悬浮窗切 agent 后主窗口不同步 | `packages/desktop/src/main/ipc.ts` |
-| 悬浮窗任务列表为空 | 待办清单 tab 无数据 | `packages/desktop/src/renderer/floating.tsx`、`packages/desktop/src/renderer/index.tsx`、类型定义 |
-| 拖动按钮缺少 `touch-action: none` | 触控场景下可能滚动页面而非拖动 | `packages/app/src/components/assistant-panel.tsx` |
+| 缺陷                                           | 影响                            | 涉及文件                                                                                          |
+| ---------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------- |
+| 收起状态未设置鼠标穿透                         | 72×72 透明窗口拦截桌面点击      | `packages/desktop/src/main/windows.ts`                                                            |
+| 桌面端同时渲染 App 内浮动按钮                  | 双重悬浮入口，体验混乱          | `packages/app/src/pages/session.tsx`                                                              |
+| `set-floating-agent` 通道与 preload 监听不一致 | 从悬浮窗切 agent 后主窗口不同步 | `packages/desktop/src/main/ipc.ts`                                                                |
+| 悬浮窗任务列表为空                             | 待办清单 tab 无数据             | `packages/desktop/src/renderer/floating.tsx`、`packages/desktop/src/renderer/index.tsx`、类型定义 |
+| 拖动按钮缺少 `touch-action: none`              | 触控场景下可能滚动页面而非拖动  | `packages/app/src/components/assistant-panel.tsx`                                                 |
 
 ## 具体改动
 

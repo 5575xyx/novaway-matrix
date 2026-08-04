@@ -24,32 +24,69 @@ const decodeInfo = Schema.decodeUnknownExit(Info)
 
 export async function load(dir: string) {
   const result: Record<string, Info> = {}
-  for (const item of await Glob.scan("{command,commands}/**/*.md", {
-    cwd: dir,
-    absolute: true,
-    dot: true,
-    symlink: true,
-  })) {
-    const md = await ConfigMarkdown.parse(item).catch((err) => {
-      log.error("failed to load command", { command: item, err })
-      return undefined
-    })
-    if (!md) continue
+  // Slash commands + evolution-produced workflows/prompts (activated as commands).
+  const scans: Array<{ pattern: string; patterns: string[]; sourceLabel: string }> = [
+    {
+      pattern: "{command,commands}/**/*.md",
+      patterns: ["/.novaway/command/", "/.novaway/commands/", "/command/", "/commands/"],
+      sourceLabel: "command",
+    },
+    {
+      pattern: "{workflow,workflows}/**/*.md",
+      patterns: ["/.novaway/workflow/", "/.novaway/workflows/", "/workflow/", "/workflows/"],
+      sourceLabel: "workflow",
+    },
+    {
+      pattern: "{prompt,prompts}/**/*.md",
+      patterns: ["/.novaway/prompt/", "/.novaway/prompts/", "/prompt/", "/prompts/"],
+      sourceLabel: "prompt",
+    },
+  ]
 
-    const patterns = ["/.novaway/command/", "/.novaway/commands/", "/command/", "/commands/"]
-    const name = configEntryNameFromPath(item, patterns)
+  for (const scan of scans) {
+    for (const item of await Glob.scan(scan.pattern, {
+      cwd: dir,
+      absolute: true,
+      dot: true,
+      symlink: true,
+    })) {
+      const md = await ConfigMarkdown.parse(item).catch((err) => {
+        log.error(`failed to load ${scan.sourceLabel}`, { path: item, err })
+        return undefined
+      })
+      if (!md) continue
 
-    const config = {
-      name,
-      ...md.data,
-      template: md.content.trim(),
+      const name = configEntryNameFromPath(item, scan.patterns)
+      if (!name || result[name]) continue
+
+      const description =
+        typeof md.data?.description === "string"
+          ? md.data.description
+          : scan.sourceLabel === "command"
+            ? undefined
+            : `Evolved ${scan.sourceLabel}: ${name}`
+
+      const config = {
+        name,
+        ...md.data,
+        ...(description ? { description } : {}),
+        template: md.content.trim(),
+      }
+      const parsed = decodeInfo(config, { errors: "all", propertyOrder: "original" })
+      if (Exit.isSuccess(parsed)) {
+        result[config.name] = parsed.value
+        continue
+      }
+      // Evolution artifacts may be free-form markdown; accept content-only templates.
+      if (md.content.trim()) {
+        result[name] = {
+          template: md.content.trim(),
+          description,
+        }
+        continue
+      }
+      throw new InvalidError({ path: item, message: Cause.pretty(parsed.cause) }, { cause: Cause.squash(parsed.cause) })
     }
-    const parsed = decodeInfo(config, { errors: "all", propertyOrder: "original" })
-    if (Exit.isSuccess(parsed)) {
-      result[config.name] = parsed.value
-      continue
-    }
-    throw new InvalidError({ path: item, message: Cause.pretty(parsed.cause) }, { cause: Cause.squash(parsed.cause) })
   }
   return result
 }

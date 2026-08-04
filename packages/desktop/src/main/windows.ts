@@ -205,6 +205,7 @@ export function createLoadingWindow() {
 }
 
 export const FLOATING_COLLAPSED_SIZE = 144
+export const FLOATING_MINIMAL_SIZE = 48
 export const FLOATING_ACTIVITY_PADDING = 240
 export const FLOATING_SPEECH_PADDING_TOP = 52
 export const FLOATING_WINDOW_WIDTH = FLOATING_COLLAPSED_SIZE + FLOATING_ACTIVITY_PADDING * 2
@@ -217,15 +218,22 @@ const FLOATING_PADDING = 16
 const FLOATING_PANEL_GAP = 8
 const floatingAnchors = new WeakMap<BrowserWindow, { x: number; y: number }>()
 
+/** 宠物本体可贴到工作区边缘；外围气泡/活动留白允许伸出屏幕，不占用拖拽边界 */
+export function clampFloatingPetPosition(
+  position: { x: number; y: number },
+  work = screen.getDisplayNearestPoint(position).workArea,
+) {
+  const size = FLOATING_COLLAPSED_SIZE
+  const edge = FLOATING_PADDING
+  const x = Math.max(work.x + edge, Math.min(position.x, work.x + work.width - size - edge))
+  const y = Math.max(work.y + edge, Math.min(position.y, work.y + work.height - size - edge))
+  return { x, y }
+}
+
 function clampFloatingAnchor(bounds: { x: number; y: number; width: number; height: number }) {
   const display = screen.getDisplayNearestPoint({ x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 })
-  const work = display.workArea
-  const x = Math.max(
-    work.x + FLOATING_ACTIVITY_PADDING,
-    Math.min(bounds.x, work.x + work.width - bounds.width - FLOATING_ACTIVITY_PADDING),
-  )
-  const y = Math.max(work.y + FLOATING_SPEECH_PADDING_TOP, Math.min(bounds.y, work.y + work.height - bounds.height))
-  return { ...bounds, x, y }
+  const next = clampFloatingPetPosition({ x: bounds.x, y: bounds.y }, display.workArea)
+  return { ...bounds, x: next.x, y: next.y }
 }
 
 function saveFloatingBounds(bounds: { x: number; y: number; width: number; height: number }) {
@@ -277,6 +285,9 @@ export function createFloatingWindow() {
 
   floatingAnchors.set(win, { x: initial.x, y: initial.y })
 
+  // 默认点击穿透：仅在命中宠物交互区时由渲染进程临时关闭穿透
+  win.setIgnoreMouseEvents(true, { forward: true })
+
   allowRendererPermissions(win)
   loadWindow(win, "floating.html")
 
@@ -284,30 +295,30 @@ export function createFloatingWindow() {
 }
 
 export function positionFloatingPanel(panel: BrowserWindow, mascot: BrowserWindow) {
-  const mascotBounds = getFloatingCollapsedBounds(mascot)
+  const mascotBounds = getFloatingAnchorBounds(mascot)
   const display = screen.getDisplayNearestPoint({
-    x: mascotBounds.x + FLOATING_COLLAPSED_SIZE / 2,
-    y: mascotBounds.y + FLOATING_COLLAPSED_SIZE / 2,
+    x: mascotBounds.x + mascotBounds.width / 2,
+    y: mascotBounds.y + mascotBounds.height / 2,
   })
   const work = display.workArea
   const leftSpace = mascotBounds.x - work.x
-  const rightSpace = work.x + work.width - (mascotBounds.x + FLOATING_COLLAPSED_SIZE)
+  const rightSpace = work.x + work.width - (mascotBounds.x + mascotBounds.width)
   const x =
     leftSpace >= FLOATING_EXPANDED_WIDTH + FLOATING_PANEL_GAP
       ? mascotBounds.x - FLOATING_EXPANDED_WIDTH - FLOATING_PANEL_GAP
       : rightSpace >= FLOATING_EXPANDED_WIDTH + FLOATING_PANEL_GAP
-        ? mascotBounds.x + FLOATING_COLLAPSED_SIZE + FLOATING_PANEL_GAP
+        ? mascotBounds.x + mascotBounds.width + FLOATING_PANEL_GAP
         : Math.max(
             work.x,
             Math.min(
-              mascotBounds.x + FLOATING_COLLAPSED_SIZE - FLOATING_EXPANDED_WIDTH,
+              mascotBounds.x + mascotBounds.width - FLOATING_EXPANDED_WIDTH,
               work.x + work.width - FLOATING_EXPANDED_WIDTH,
             ),
           )
   const y = Math.max(
     work.y,
     Math.min(
-      mascotBounds.y + FLOATING_COLLAPSED_SIZE - FLOATING_EXPANDED_HEIGHT,
+      mascotBounds.y + mascotBounds.height - FLOATING_EXPANDED_HEIGHT,
       work.y + work.height - FLOATING_EXPANDED_HEIGHT,
     ),
   )
@@ -352,30 +363,30 @@ export function createFloatingPanelWindow(mascot: BrowserWindow, tab: "monitor" 
 }
 
 export function positionFloatingSkinMenu(menu: BrowserWindow, mascot: BrowserWindow) {
-  const mascotBounds = getFloatingCollapsedBounds(mascot)
+  const mascotBounds = getFloatingAnchorBounds(mascot)
   const display = screen.getDisplayNearestPoint({
-    x: mascotBounds.x + FLOATING_COLLAPSED_SIZE / 2,
-    y: mascotBounds.y + FLOATING_COLLAPSED_SIZE / 2,
+    x: mascotBounds.x + mascotBounds.width / 2,
+    y: mascotBounds.y + mascotBounds.height / 2,
   })
   const work = display.workArea
   const leftSpace = mascotBounds.x - work.x
-  const rightSpace = work.x + work.width - (mascotBounds.x + FLOATING_COLLAPSED_SIZE)
+  const rightSpace = work.x + work.width - (mascotBounds.x + mascotBounds.width)
   const x =
     leftSpace >= FLOATING_SKIN_MENU_WIDTH + FLOATING_PANEL_GAP
       ? mascotBounds.x - FLOATING_SKIN_MENU_WIDTH - FLOATING_PANEL_GAP
       : rightSpace >= FLOATING_SKIN_MENU_WIDTH + FLOATING_PANEL_GAP
-        ? mascotBounds.x + FLOATING_COLLAPSED_SIZE + FLOATING_PANEL_GAP
+        ? mascotBounds.x + mascotBounds.width + FLOATING_PANEL_GAP
         : Math.max(
             work.x,
             Math.min(
-              mascotBounds.x + FLOATING_COLLAPSED_SIZE - FLOATING_SKIN_MENU_WIDTH,
+              mascotBounds.x + mascotBounds.width - FLOATING_SKIN_MENU_WIDTH,
               work.x + work.width - FLOATING_SKIN_MENU_WIDTH,
             ),
           )
   const y = Math.max(
     work.y,
     Math.min(
-      mascotBounds.y + FLOATING_COLLAPSED_SIZE - FLOATING_SKIN_MENU_HEIGHT,
+      mascotBounds.y + mascotBounds.height - FLOATING_SKIN_MENU_HEIGHT,
       work.y + work.height - FLOATING_SKIN_MENU_HEIGHT,
     ),
   )
@@ -418,17 +429,42 @@ export function createFloatingSkinWindow(mascot: BrowserWindow) {
   return menu
 }
 
+/** 与渲染层布局一致：底部居中 p-4 + 可点区域贴近宠物本体（约 144） */
+export const FLOATING_HIT_WIDTH = 152
+export const FLOATING_HIT_HEIGHT = 152
+export const FLOATING_CONTENT_PAD = 16
+
+/**
+ * 宠物可交互热区（屏幕坐标）。
+ * 以窗口真实 bounds 计算，避免 anchor 与 flex 居中布局错位导致“点在宠物上却点不中”。
+ */
+export function getFloatingPetHitBounds(win: BrowserWindow) {
+  const bounds = win.getBounds()
+  const width = FLOATING_HIT_WIDTH
+  const height = FLOATING_HIT_HEIGHT
+  const x = Math.round(bounds.x + (bounds.width - width) / 2)
+  const y = Math.round(bounds.y + bounds.height - FLOATING_CONTENT_PAD - height)
+  return { x, y, width, height }
+}
+
 export function getFloatingCollapsedBounds(win: BrowserWindow) {
+  const hit = getFloatingPetHitBounds(win)
+  // 拖拽锚点取热区中心附近的 144 方块，保持与视觉宠物大致重合
+  const x = Math.round(hit.x + (hit.width - FLOATING_COLLAPSED_SIZE) / 2)
+  const y = Math.round(hit.y + (hit.height - FLOATING_COLLAPSED_SIZE) / 2)
   const anchor = floatingAnchors.get(win)
   if (anchor) return { ...anchor, width: FLOATING_COLLAPSED_SIZE, height: FLOATING_COLLAPSED_SIZE }
 
+  floatingAnchors.set(win, { x, y })
+  return { x, y, width: FLOATING_COLLAPSED_SIZE, height: FLOATING_COLLAPSED_SIZE }
+}
+
+function getFloatingAnchorBounds(win: BrowserWindow) {
   const bounds = win.getBounds()
-  const fallback = {
-    x: bounds.x + FLOATING_ACTIVITY_PADDING,
-    y: bounds.y + FLOATING_SPEECH_PADDING_TOP,
+  if (bounds.width === FLOATING_MINIMAL_SIZE && bounds.height === FLOATING_MINIMAL_SIZE) {
+    return bounds
   }
-  floatingAnchors.set(win, fallback)
-  return { ...fallback, width: FLOATING_COLLAPSED_SIZE, height: FLOATING_COLLAPSED_SIZE }
+  return getFloatingCollapsedBounds(win)
 }
 
 export function setFloatingCollapsedPosition(win: BrowserWindow, position: { x: number; y: number }) {
@@ -520,6 +556,37 @@ function isTrustedRendererUrl(value?: string) {
   const devUrl = process.env.ELECTRON_RENDERER_URL
   if (!devUrl || !URL.canParse(devUrl)) return false
   return url.origin === new URL(devUrl).origin
+}
+
+export function positionFloatingMinimal(win: BrowserWindow) {
+  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+  const work = display.workArea
+  const size = FLOATING_MINIMAL_SIZE
+  const margin = 16
+  const x = work.x + work.width - size - margin
+  const y = work.y + work.height - size - margin
+  win.setBounds({ x, y, width: size, height: size })
+  win.setAlwaysOnTop(true)
+}
+
+export function positionFloatingRestore(win: BrowserWindow, anchor?: { x: number; y: number }) {
+  const size = FLOATING_COLLAPSED_SIZE
+  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+  const work = display.workArea
+  const next = clampFloatingPetPosition(
+    anchor ?? {
+      x: work.x + work.width - size - FLOATING_PADDING,
+      y: work.y + work.height - size - FLOATING_PADDING,
+    },
+    work,
+  )
+  floatingAnchors.set(win, next)
+  win.setBounds({
+    x: next.x - FLOATING_ACTIVITY_PADDING,
+    y: next.y - FLOATING_SPEECH_PADDING_TOP,
+    width: FLOATING_WINDOW_WIDTH,
+    height: FLOATING_WINDOW_HEIGHT,
+  })
 }
 
 function wireZoom(win: BrowserWindow) {

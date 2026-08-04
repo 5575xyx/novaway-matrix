@@ -12,10 +12,15 @@ import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useProviders } from "@/hooks/use-providers"
 import { useLanguage } from "@/context/language"
+import {
+  fetchOpenAICompatibleModels,
+  remoteModelType,
+  type RemoteProviderModel,
+} from "@/utils/provider-model-discovery"
 
 type AuthEntry = { type: string; key?: string }
 
-type RemoteModel = { id: string; name: string }
+type RemoteModel = RemoteProviderModel
 type ModelType = "text" | "image" | "video" | "audio"
 
 const MODEL_TYPES: { value: ModelType; label: string }[] = [
@@ -25,7 +30,11 @@ const MODEL_TYPES: { value: ModelType; label: string }[] = [
   { value: "audio", label: "音频生成" },
 ]
 
-function inferModelType(id: string, name: string): ModelType {
+function inferModelType(model: RemoteProviderModel): ModelType {
+  const fromModalities = remoteModelType(model)
+  if (fromModalities !== "text") return fromModalities
+  const id = model.id
+  const name = model.name
   const text = `${id} ${name}`.toLowerCase()
   if (text.includes("image") || text.includes("img") || text.includes("dall") || text.includes("picture"))
     return "image"
@@ -97,48 +106,6 @@ const maskKey = (key: string | undefined) => {
   if (!key) return "****"
   if (key.length <= 8) return "****"
   return key.slice(0, 4) + "..." + key.slice(-4)
-}
-
-async function fetchOpenAICompatibleModels(input: { baseURL: string; apiKey: string }) {
-  const baseURL = input.baseURL.trim().replace(/\/+$/, "")
-  if (!/^https?:\/\//.test(baseURL)) throw new Error("请先填写有效的基础 URL")
-
-  const apiKey = input.apiKey.trim()
-  const envKey = apiKey.match(/^\{env:([^}]+)\}$/)?.[1]?.trim()
-  const response = await fetch(`${baseURL}/models`, {
-    headers: {
-      Accept: "application/json",
-      ...(apiKey && !envKey ? { Authorization: `Bearer ${apiKey}` } : {}),
-    },
-  })
-
-  if (!response.ok) throw new Error(`获取模型列表失败：HTTP ${response.status}`)
-
-  const payload = await response.json()
-  const models = parseRemoteModels(payload)
-  if (models.length === 0) throw new Error("没有从 /models 返回中识别到模型")
-  return models
-}
-
-function parseRemoteModels(payload: unknown): RemoteModel[] {
-  const rows = Array.isArray(payload)
-    ? payload
-    : typeof payload === "object" && payload !== null && Array.isArray((payload as { data?: unknown }).data)
-      ? (payload as { data: unknown[] }).data
-      : []
-
-  return rows
-    .map((row) => {
-      if (typeof row === "string") return { id: row, name: row }
-      if (typeof row !== "object" || row === null) return undefined
-      const value = row as { id?: unknown; name?: unknown }
-      if (typeof value.id !== "string" || !value.id.trim()) return undefined
-      return {
-        id: value.id.trim(),
-        name: typeof value.name === "string" && value.name.trim() ? value.name.trim() : value.id.trim(),
-      }
-    })
-    .filter((model): model is RemoteModel => !!model)
 }
 
 export const DialogManageProviderModels: Component<{
@@ -284,7 +251,16 @@ export const DialogManageProviderModels: Component<{
     }
     setFetching(keyIndex, true)
     try {
-      const models = await fetchOpenAICompatibleModels({ baseURL: url, apiKey: key })
+      const models = await fetchOpenAICompatibleModels({
+        baseURL: url,
+        apiKey: key,
+        discover: async (payload) =>
+          (
+            await globalSDK.client.provider.models({
+              providerModelDiscoveryPayload: payload,
+            })
+          ).data,
+      })
       const existing = new Set(allModels().map((m) => m.id))
       const filtered = models.filter((m) => !existing.has(m.id))
       setRemoteModels(keyIndex, filtered)
@@ -313,7 +289,7 @@ export const DialogManageProviderModels: Component<{
     if (extraModels[id]) return
     setExtraModels(id, model)
     setToggles(id, true)
-    setModelTypes(id, inferModelType(model.id, model.name))
+    setModelTypes(id, inferModelType(model))
     setSelectedRemoteModel(keyIndex, undefined)
     const updated = (remoteModels[keyIndex] ?? []).filter((m) => m.id !== id)
     setRemoteModels(keyIndex, updated)
