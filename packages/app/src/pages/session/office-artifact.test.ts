@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { extractOfficeArtifact, visibleOfficeMessage } from "./office-artifact"
+import { extractOfficeArtifact, rebuildOfficeArtifact, visibleOfficeMessage } from "./office-artifact"
 
 describe("extractOfficeArtifact", () => {
   test("extracts office body and memory suggestions from structured markdown", () => {
@@ -32,6 +32,14 @@ describe("extractOfficeArtifact", () => {
     expect(
       extractOfficeArtifact(
         ["# 办公产物", "", "## PPT 需求确认", "", "- 需要用户确认：本次数学主题与学段。"].join("\n"),
+      ),
+    ).toBeUndefined()
+  })
+
+  test("does not treat ppt outline confirmation as an exportable artifact", () => {
+    expect(
+      extractOfficeArtifact(
+        ["# 办公产物", "", "## PPT 大纲", "", "1. 封面：课程主题", "2. 学习目标：明确课堂产出"].join("\n"),
       ),
     ).toBeUndefined()
   })
@@ -341,5 +349,49 @@ describe("extractOfficeArtifact", () => {
 
     expect(artifact?.title).toBe("小学数学教学PPT")
     expect(artifact?.filename).toBe("小学数学教学PPT.md")
+  })
+})
+
+describe("rebuildOfficeArtifact", () => {
+  test("rebuilds edited slides into a re-parseable office artifact", () => {
+    const source = {
+      title: "季度复盘",
+      filename: "季度复盘.md",
+      memory: "",
+      body: "",
+      slides: [
+        {
+          index: 1,
+          title: "封面",
+          content: "- 标题：季度复盘",
+          layout: "highlight" as const,
+          visual: "深色封面与金色强调",
+          notes: "一句话说明本季度结论",
+        },
+        {
+          index: 2,
+          title: "经营结果",
+          content: "- 收入增长 20%",
+          layout: "chart" as const,
+          visual: "柱状图展示收入趋势",
+          notes: "强调增长来自新客",
+        },
+      ],
+    }
+
+    const rebuilt = rebuildOfficeArtifact(source, [
+      { ...source.slides[0], title: "年度封面" },
+      { ...source.slides[1], content: "- 收入增长 25%\n- 毛利提升 3 个百分点" },
+    ])
+    const parsed = extractOfficeArtifact(rebuilt.body)
+
+    expect(parsed?.slides).toHaveLength(2)
+    expect(parsed?.slides[0]).toMatchObject({ index: 1, title: "年度封面", layout: "highlight" })
+    expect(parsed?.slides[1]).toMatchObject({
+      index: 2,
+      content: "主文案：\n- 收入增长 25%\n- 毛利提升 3 个百分点",
+      layout: "chart",
+    })
+    expect(parsed?.slides[1]?.notes).toBe("强调增长来自新客")
   })
 })

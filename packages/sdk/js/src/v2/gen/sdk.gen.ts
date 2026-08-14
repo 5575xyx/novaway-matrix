@@ -23,7 +23,7 @@ import type {
   ChatSendErrors,
   ChatSendResponses,
   CommandListResponses,
-  Config as Config3,
+  Config as Config4,
   ConfigGetResponses,
   ConfigProvidersResponses,
   ConfigUpdateErrors,
@@ -75,8 +75,6 @@ import type {
   FilePartSource,
   FileReadResponses,
   FileStatusResponses,
-  FileWriteErrors,
-  FileWritePayload,
   FileWriteResponses,
   FindFilesResponses,
   FindSymbolsResponses,
@@ -148,6 +146,56 @@ import type {
   OfficeArtifactListResponses,
   OfficeArtifactSaveErrors,
   OfficeArtifactSaveResponses,
+  OfficePlatformArtifactListErrors,
+  OfficePlatformArtifactListResponses,
+  OfficePlatformArtifactRestoreErrors,
+  OfficePlatformArtifactRestoreResponses,
+  OfficePlatformBrowserSnapshotErrors,
+  OfficePlatformBrowserSnapshotResponses,
+  OfficePlatformBrowserStartErrors,
+  OfficePlatformBrowserStartResponses,
+  OfficePlatformBrowserStatusErrors,
+  OfficePlatformBrowserStatusResponses,
+  OfficePlatformBrowserStopErrors,
+  OfficePlatformBrowserStopResponses,
+  OfficePlatformConnectorActionErrors,
+  OfficePlatformConnectorActionResponses,
+  OfficePlatformConnectorConfigGetErrors,
+  OfficePlatformConnectorConfigGetResponses,
+  OfficePlatformConnectorConfigUpdateErrors,
+  OfficePlatformConnectorConfigUpdateResponses,
+  OfficePlatformConnectorConnectErrors,
+  OfficePlatformConnectorConnectResponses,
+  OfficePlatformConnectorDisconnectErrors,
+  OfficePlatformConnectorDisconnectResponses,
+  OfficePlatformConnectorListErrors,
+  OfficePlatformConnectorListResponses,
+  OfficePlatformRunListErrors,
+  OfficePlatformRunListResponses,
+  OfficePlatformScheduleCreateErrors,
+  OfficePlatformScheduleCreateResponses,
+  OfficePlatformScheduleDeleteErrors,
+  OfficePlatformScheduleDeleteResponses,
+  OfficePlatformScheduleListErrors,
+  OfficePlatformScheduleListResponses,
+  OfficePlatformScheduleRunErrors,
+  OfficePlatformScheduleRunResponses,
+  OfficePlatformScheduleUpdateErrors,
+  OfficePlatformScheduleUpdateResponses,
+  OfficePlatformStatusErrors,
+  OfficePlatformStatusResponses,
+  OfficePlatformWorkflowCreateErrors,
+  OfficePlatformWorkflowCreateResponses,
+  OfficePlatformWorkflowDeleteErrors,
+  OfficePlatformWorkflowDeleteResponses,
+  OfficePlatformWorkflowListErrors,
+  OfficePlatformWorkflowListResponses,
+  OfficePlatformWorkflowRunErrors,
+  OfficePlatformWorkflowRunResponses,
+  OfficePlatformWorkflowScheduleErrors,
+  OfficePlatformWorkflowScheduleResponses,
+  OfficePlatformWorkflowUpdateErrors,
+  OfficePlatformWorkflowUpdateResponses,
   OfficePptxTemplateFillErrors,
   OfficePptxTemplateFillResponses,
   OutputFormat,
@@ -646,7 +694,7 @@ export class Config extends HeyApiClient {
    */
   public update<ThrowOnError extends boolean = false>(
     parameters?: {
-      config?: Config3
+      config?: Config4
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -842,7 +890,7 @@ export class Config2 extends HeyApiClient {
     parameters?: {
       directory?: string
       workspace?: string
-      config?: Config3
+      config?: Config4
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -1987,6 +2035,7 @@ export class File extends HeyApiClient {
       directory?: string
       workspace?: string
       path: string
+      encoding?: "base64"
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -1998,6 +2047,7 @@ export class File extends HeyApiClient {
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
             { in: "query", key: "path" },
+            { in: "query", key: "encoding" },
           ],
         },
       ],
@@ -2019,6 +2069,7 @@ export class File extends HeyApiClient {
       directory?: string
       workspace?: string
       path: string
+      encoding?: "base64"
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -2030,6 +2081,7 @@ export class File extends HeyApiClient {
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
             { in: "query", key: "path" },
+            { in: "query", key: "encoding" },
           ],
         },
       ],
@@ -2048,9 +2100,8 @@ export class File extends HeyApiClient {
    */
   public write<ThrowOnError extends boolean = false>(
     parameters?: {
-      directory?: string
-      workspace?: string
-      fileWritePayload?: FileWritePayload
+      path?: string
+      content?: string
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -2059,17 +2110,21 @@ export class File extends HeyApiClient {
       [
         {
           args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { key: "fileWritePayload", map: "body" },
+            { in: "body", key: "path" },
+            { in: "body", key: "content" },
           ],
         },
       ],
     )
-    return (options?.client ?? this.client).post<FileWriteResponses, FileWriteErrors, ThrowOnError>({
+    return (options?.client ?? this.client).post<FileWriteResponses, unknown, ThrowOnError>({
       url: "/file/write",
       ...options,
       ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
     })
   }
 
@@ -3344,7 +3399,7 @@ export class Artifact extends HeyApiClient {
     parameters?: {
       directory?: string
       workspace?: string
-      kind?: "document" | "ppt" | "meeting" | "knowledge" | "task" | "communication"
+      kind?: "document" | "ppt" | "data" | "design" | "web" | "knowledge" | "meeting" | "task" | "communication"
       filename?: string
       mime?: string
       contentBase64?: string
@@ -3441,6 +3496,1166 @@ export class PptxTemplate extends HeyApiClient {
   }
 }
 
+export class Schedule extends HeyApiClient {
+  /**
+   * List office schedules
+   *
+   * List persisted office automation schedules.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      OfficePlatformScheduleListResponses,
+      OfficePlatformScheduleListErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform/schedules",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create office schedule
+   *
+   * Create a persisted office automation schedule.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      title?: string
+      scene?: string
+      prompt?: string
+      connectors?: Array<string>
+      browser?: {
+        enabled: boolean
+        url?: string
+      }
+      notificationUrl?: string
+      inputValues?: {
+        [key: string]: string
+      }
+      trigger?:
+        | {
+            type: "interval"
+            minutes: number
+          }
+        | {
+            type: "daily"
+            time: string
+          }
+        | {
+            type: "weekly"
+            dayOfWeek: number
+            time: string
+          }
+        | {
+            type: "monthly"
+            dayOfMonth: number
+            time: string
+          }
+        | {
+            type: "days"
+            everyDays: number
+            time: string
+          }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "title" },
+            { in: "body", key: "scene" },
+            { in: "body", key: "prompt" },
+            { in: "body", key: "connectors" },
+            { in: "body", key: "browser" },
+            { in: "body", key: "notificationUrl" },
+            { in: "body", key: "inputValues" },
+            { in: "body", key: "trigger" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      OfficePlatformScheduleCreateResponses,
+      OfficePlatformScheduleCreateErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform/schedules",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Delete office schedule
+   *
+   * Delete a persisted office automation schedule.
+   */
+  public delete<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      OfficePlatformScheduleDeleteResponses,
+      OfficePlatformScheduleDeleteErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform/schedules/{id}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Update office schedule
+   *
+   * Update a persisted office automation schedule.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+      workspace?: string
+      title?: string
+      scene?: string
+      prompt?: string
+      connectors?: Array<string>
+      browser?: {
+        enabled: boolean
+        url?: string
+      }
+      notificationUrl?: string
+      inputValues?: {
+        [key: string]: string
+      }
+      trigger?:
+        | {
+            type: "interval"
+            minutes: number
+          }
+        | {
+            type: "daily"
+            time: string
+          }
+        | {
+            type: "weekly"
+            dayOfWeek: number
+            time: string
+          }
+        | {
+            type: "monthly"
+            dayOfMonth: number
+            time: string
+          }
+        | {
+            type: "days"
+            everyDays: number
+            time: string
+          }
+      status?: "active" | "paused"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "title" },
+            { in: "body", key: "scene" },
+            { in: "body", key: "prompt" },
+            { in: "body", key: "connectors" },
+            { in: "body", key: "browser" },
+            { in: "body", key: "notificationUrl" },
+            { in: "body", key: "inputValues" },
+            { in: "body", key: "trigger" },
+            { in: "body", key: "status" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<
+      OfficePlatformScheduleUpdateResponses,
+      OfficePlatformScheduleUpdateErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform/schedules/{id}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Run office schedule now
+   *
+   * Run a persisted office automation schedule immediately.
+   */
+  public run<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      OfficePlatformScheduleRunResponses,
+      OfficePlatformScheduleRunErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform/schedules/{id}/run",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Run extends HeyApiClient {
+  /**
+   * List office runs
+   *
+   * List office automation run history.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      OfficePlatformRunListResponses,
+      OfficePlatformRunListErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform/runs",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Workflow extends HeyApiClient {
+  /**
+   * List office workflows
+   *
+   * List reusable office automation workflows.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      OfficePlatformWorkflowListResponses,
+      OfficePlatformWorkflowListErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform/workflows",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create office workflow
+   *
+   * Create a reusable office automation workflow.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      title?: string
+      scene?: string
+      prompt?: string
+      connectors?: Array<string>
+      browser?: {
+        enabled: boolean
+        url?: string
+      }
+      notificationUrl?: string
+      sourceSessionId?: string
+      enabled?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "title" },
+            { in: "body", key: "scene" },
+            { in: "body", key: "prompt" },
+            { in: "body", key: "connectors" },
+            { in: "body", key: "browser" },
+            { in: "body", key: "notificationUrl" },
+            { in: "body", key: "sourceSessionId" },
+            { in: "body", key: "enabled" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      OfficePlatformWorkflowCreateResponses,
+      OfficePlatformWorkflowCreateErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform/workflows",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Delete office workflow
+   *
+   * Delete a reusable office automation workflow.
+   */
+  public delete<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      OfficePlatformWorkflowDeleteResponses,
+      OfficePlatformWorkflowDeleteErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform/workflows/{id}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Update office workflow
+   *
+   * Update a reusable office automation workflow.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+      workspace?: string
+      title?: string
+      scene?: string
+      prompt?: string
+      connectors?: Array<string>
+      browser?: {
+        enabled: boolean
+        url?: string
+      }
+      notificationUrl?: string
+      sourceSessionId?: string
+      enabled?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "title" },
+            { in: "body", key: "scene" },
+            { in: "body", key: "prompt" },
+            { in: "body", key: "connectors" },
+            { in: "body", key: "browser" },
+            { in: "body", key: "notificationUrl" },
+            { in: "body", key: "sourceSessionId" },
+            { in: "body", key: "enabled" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<
+      OfficePlatformWorkflowUpdateResponses,
+      OfficePlatformWorkflowUpdateErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform/workflows/{id}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Run office workflow now
+   *
+   * Run a reusable office workflow immediately.
+   */
+  public run<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+      workspace?: string
+      inputValues?: {
+        [key: string]: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "inputValues" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      OfficePlatformWorkflowRunResponses,
+      OfficePlatformWorkflowRunErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform/workflows/{id}/run",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Schedule office workflow
+   *
+   * Create a persisted schedule from a reusable office workflow.
+   */
+  public schedule<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+      workspace?: string
+      trigger?:
+        | {
+            type: "interval"
+            minutes: number
+          }
+        | {
+            type: "daily"
+            time: string
+          }
+        | {
+            type: "weekly"
+            dayOfWeek: number
+            time: string
+          }
+        | {
+            type: "monthly"
+            dayOfMonth: number
+            time: string
+          }
+        | {
+            type: "days"
+            everyDays: number
+            time: string
+          }
+      notificationUrl?: string
+      browser?: {
+        enabled: boolean
+        url?: string
+      }
+      inputValues?: {
+        [key: string]: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "trigger" },
+            { in: "body", key: "notificationUrl" },
+            { in: "body", key: "browser" },
+            { in: "body", key: "inputValues" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      OfficePlatformWorkflowScheduleResponses,
+      OfficePlatformWorkflowScheduleErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform/workflows/{id}/schedule",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Artifact2 extends HeyApiClient {
+  /**
+   * List office artifact versions
+   *
+   * List versioned office artifacts produced by office workflows and saves.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      OfficePlatformArtifactListResponses,
+      OfficePlatformArtifactListErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform/artifacts",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Restore office artifact version
+   *
+   * Restore an office artifact version back into the workspace.
+   */
+  public restore<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+      workspace?: string
+      version?: number
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "version" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      OfficePlatformArtifactRestoreResponses,
+      OfficePlatformArtifactRestoreErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform/artifacts/{id}/restore",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Config3 extends HeyApiClient {
+  /**
+   * Get office connector config
+   *
+   * Get page-configured connector credentials for Tencent Docs and Feishu.
+   */
+  public get<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      OfficePlatformConnectorConfigGetResponses,
+      OfficePlatformConnectorConfigGetErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform/connectors/config",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Update office connector config
+   *
+   * Persist page-configured connector credentials for Tencent Docs and Feishu.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      feishuWebhookUrl?: string
+      tencentDocsToken?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "feishuWebhookUrl" },
+            { in: "body", key: "tencentDocsToken" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).put<
+      OfficePlatformConnectorConfigUpdateResponses,
+      OfficePlatformConnectorConfigUpdateErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform/connectors/config",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Connector extends HeyApiClient {
+  /**
+   * List office connectors
+   *
+   * List available office connectors backed by MCP servers.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      OfficePlatformConnectorListResponses,
+      OfficePlatformConnectorListErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform/connectors",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Connect office connector
+   *
+   * Connect a connector backed by an MCP server.
+   */
+  public connect<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      OfficePlatformConnectorConnectResponses,
+      OfficePlatformConnectorConnectErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform/connectors/{id}/connect",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Disconnect office connector
+   *
+   * Disconnect a connector backed by an MCP server.
+   */
+  public disconnect<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      OfficePlatformConnectorDisconnectResponses,
+      OfficePlatformConnectorDisconnectErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform/connectors/{id}/disconnect",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Run office connector action
+   *
+   * Run a connector action backed by a webhook or MCP tool.
+   */
+  public action<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+      workspace?: string
+      action?: string
+      arguments?: {
+        [key: string]: unknown
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "action" },
+            { in: "body", key: "arguments" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      OfficePlatformConnectorActionResponses,
+      OfficePlatformConnectorActionErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform/connectors/{id}/action",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  private _config?: Config3
+  get config(): Config3 {
+    return (this._config ??= new Config3({ client: this.client }))
+  }
+}
+
+export class Browser extends HeyApiClient {
+  /**
+   * Get office browser status
+   *
+   * Get whether office browser automation is configured and active.
+   */
+  public status<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      OfficePlatformBrowserStatusResponses,
+      OfficePlatformBrowserStatusErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform/browser",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Start office browser session
+   *
+   * Navigate an office browser session and return the first snapshot.
+   */
+  public start<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      url?: string
+      viewport?: {
+        width: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        height: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "url" },
+            { in: "body", key: "viewport" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      OfficePlatformBrowserStartResponses,
+      OfficePlatformBrowserStartErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform/browser/start",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Snapshot office browser session
+   *
+   * Return the current office browser page snapshot.
+   */
+  public snapshot<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      OfficePlatformBrowserSnapshotResponses,
+      OfficePlatformBrowserSnapshotErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform/browser/snapshot",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Stop office browser session
+   *
+   * Close the current office browser session.
+   */
+  public stop<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      OfficePlatformBrowserStopResponses,
+      OfficePlatformBrowserStopErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform/browser/stop",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Platform extends HeyApiClient {
+  /**
+   * Get office platform status
+   *
+   * Get scheduler, browser, and office platform capability status.
+   */
+  public status<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      OfficePlatformStatusResponses,
+      OfficePlatformStatusErrors,
+      ThrowOnError
+    >({
+      url: "/office/platform",
+      ...options,
+      ...params,
+    })
+  }
+
+  private _schedule?: Schedule
+  get schedule(): Schedule {
+    return (this._schedule ??= new Schedule({ client: this.client }))
+  }
+
+  private _run?: Run
+  get run(): Run {
+    return (this._run ??= new Run({ client: this.client }))
+  }
+
+  private _workflow?: Workflow
+  get workflow(): Workflow {
+    return (this._workflow ??= new Workflow({ client: this.client }))
+  }
+
+  private _artifact?: Artifact2
+  get artifact(): Artifact2 {
+    return (this._artifact ??= new Artifact2({ client: this.client }))
+  }
+
+  private _connector?: Connector
+  get connector(): Connector {
+    return (this._connector ??= new Connector({ client: this.client }))
+  }
+
+  private _browser?: Browser
+  get browser(): Browser {
+    return (this._browser ??= new Browser({ client: this.client }))
+  }
+}
+
 export class Office extends HeyApiClient {
   private _artifact?: Artifact
   get artifact(): Artifact {
@@ -3450,6 +4665,11 @@ export class Office extends HeyApiClient {
   private _pptxTemplate?: PptxTemplate
   get pptxTemplate(): PptxTemplate {
     return (this._pptxTemplate ??= new PptxTemplate({ client: this.client }))
+  }
+
+  private _platform?: Platform
+  get platform(): Platform {
+    return (this._platform ??= new Platform({ client: this.client }))
   }
 }
 

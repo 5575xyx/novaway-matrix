@@ -15,6 +15,7 @@ import { described } from "./metadata"
 export const FileQuery = Schema.Struct({
   ...WorkspaceRoutingQueryFields,
   path: Schema.String,
+  encoding: Schema.optional(Schema.Literal("base64")),
 })
 
 export const FindTextQuery = Schema.Struct({

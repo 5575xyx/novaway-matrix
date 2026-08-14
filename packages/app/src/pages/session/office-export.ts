@@ -1,5 +1,6 @@
-﻿import { marked } from "marked"
+import { marked } from "marked"
 import type { OfficeArtifact, OfficeSlide } from "./office-artifact"
+import { ommlMathXml, ommlWordXml, splitFormulaSegments } from "./office-omml"
 
 type ZipEntry = {
   path: string
@@ -23,7 +24,16 @@ export type OfficeExportFile = {
   label: string
 }
 
-export type OfficeArtifactKind = "document" | "ppt"
+export type OfficeArtifactKind =
+  | "document"
+  | "ppt"
+  | "data"
+  | "design"
+  | "web"
+  | "knowledge"
+  | "meeting"
+  | "task"
+  | "communication"
 export type OfficePptTemplateID =
   | "tech"
   | "business"
@@ -51,6 +61,46 @@ export type OfficePptTemplateID =
   | "medical"
   | "pixel"
   | "psychology"
+  | "presenton-dynamic"
+  | "presenton-editorial"
+  | "presenton-executive"
+  | "presenton-general"
+  | "presenton-modern"
+  | "presenton-momentum"
+  | "presenton-standard"
+  | "presenton-swift"
+  | "pptx-swiss-grid"
+  | "pptx-brutalist"
+  | "pptx-glassmorphism"
+  | "pptx-data-dashboard"
+  | "pptx-editorial-magazine"
+  | "pptx-memphis-pop"
+  | "pptx-risograph-zine"
+  | "pptx-architecture"
+  | "pptx-botanical"
+  | "pptx-finance"
+  | "pptx-tech-blueprint"
+  | "pptx-ai-ops"
+  | "pptx-minimal-luxury"
+  | "pptx-academic"
+  | "pptx-government"
+  | "pptx-startup-pitch"
+  | "pptx-medical"
+  | "pptx-engineering"
+  | "pptx-education"
+  | "pptx-retro-terminal"
+  | "reveal-black"
+  | "reveal-white"
+  | "reveal-league"
+  | "reveal-beige"
+  | "reveal-sky"
+  | "reveal-simple"
+  | "reveal-serif"
+  | "reveal-blood"
+  | "reveal-night"
+  | "reveal-moon"
+  | "reveal-solarized"
+  | "reveal-dracula"
 export type OfficePptCustomTemplate = {
   id: "custom"
   name: string
@@ -59,7 +109,363 @@ export type OfficePptCustomTemplate = {
 }
 export type OfficePptTemplateChoice = OfficePptTemplateID | "auto" | OfficePptCustomTemplate
 
-export const officePptTemplates: Array<{ id: OfficePptTemplateID; name: string; description: string }> = [
+export const officePptTemplates: Array<{
+  id: OfficePptTemplateID
+  name: string
+  description: string
+  preview?: string
+  template?: string
+  source?: "Presenton" | "Pptx" | "Reveal"
+  layoutCount?: number
+}> = [
+  {
+    id: "pptx-swiss-grid",
+    name: "Swiss Grid 瑞士网格",
+    description: "严格模块化网格、红黑强调和大量留白，适合设计、战略与作品集汇报。",
+    preview: "/assets/office-ppt-templates/pptx/swiss-grid/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/pptx/swiss-grid/template.pptx",
+    source: "Pptx",
+    layoutCount: 6,
+  },
+  {
+    id: "pptx-brutalist",
+    name: "Brutalist 粗野报纸",
+    description: "高对比黑白、粗边框、报刊式标题和醒目贴纸，适合创意发布与年度回顾。",
+    preview: "/assets/office-ppt-templates/pptx/brutalist/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/pptx/brutalist/template.pptx",
+    source: "Pptx",
+    layoutCount: 6,
+  },
+  {
+    id: "pptx-glassmorphism",
+    name: "Glassmorphism 玻璃拟态",
+    description: "深紫蓝渐变底、半透明圆角面板和青色光点，适合产品发布与 AI 技术汇报。",
+    preview: "/assets/office-ppt-templates/pptx/glassmorphism/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/pptx/glassmorphism/template.pptx",
+    source: "Pptx",
+    layoutCount: 6,
+  },
+  {
+    id: "pptx-data-dashboard",
+    name: "Data Dashboard 数据驾驶舱",
+    description: "深色驾驶舱、KPI 卡片、数据表和趋势条，适合经营分析、财报和增长复盘。",
+    preview: "/assets/office-ppt-templates/pptx/data-dashboard/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/pptx/data-dashboard/template.pptx",
+    source: "Pptx",
+    layoutCount: 6,
+  },
+  {
+    id: "pptx-editorial-magazine",
+    name: "Editorial 杂志叙事",
+    description: "米色纸感、衬线标题、垂直分栏和章节刊头，适合品牌故事、内容报告和案例研究。",
+    preview: "/assets/office-ppt-templates/pptx/editorial-magazine/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/pptx/editorial-magazine/template.pptx",
+    source: "Pptx",
+    layoutCount: 6,
+  },
+  {
+    id: "pptx-memphis-pop",
+    name: "Memphis 孟菲斯波普",
+    description: "大胆原色、几何拼贴和俏皮构图，适合活动策划、教育分享和创意提案。",
+    preview: "/assets/office-ppt-templates/pptx/memphis-pop/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/pptx/memphis-pop/template.pptx",
+    source: "Pptx",
+    layoutCount: 6,
+  },
+  {
+    id: "pptx-risograph-zine",
+    name: "Risograph 印刷小志",
+    description: "米白纸面、双色印刷感和手工错位排版，适合独立项目、书店文化和创意期刊。",
+    preview: "/assets/office-ppt-templates/pptx/risograph-zine/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/pptx/risograph-zine/template.pptx",
+    source: "Pptx",
+    layoutCount: 6,
+  },
+  {
+    id: "pptx-architecture",
+    name: "Architecture 建筑档案",
+    description: "中性石材色、细线网格和大画幅照片感构图，适合建筑、设计、文旅和空间项目。",
+    preview: "/assets/office-ppt-templates/pptx/architecture/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/pptx/architecture/template.pptx",
+    source: "Pptx",
+    layoutCount: 6,
+  },
+  {
+    id: "pptx-botanical",
+    name: "Botanical 自然植物",
+    description: "鼠尾草绿、陶土橙和有机圆角，适合乡村振兴、文旅、ESG 与生活方式内容。",
+    preview: "/assets/office-ppt-templates/pptx/botanical/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/pptx/botanical/template.pptx",
+    source: "Pptx",
+    layoutCount: 6,
+  },
+  {
+    id: "pptx-finance",
+    name: "Finance 金融数据",
+    description: "深蓝与墨绿、严谨表格和稳定面板，适合投资、财务、银行与经营汇报。",
+    preview: "/assets/office-ppt-templates/pptx/finance/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/pptx/finance/template.pptx",
+    source: "Pptx",
+    layoutCount: 6,
+  },
+  {
+    id: "pptx-tech-blueprint",
+    name: "Tech Blueprint 技术蓝图",
+    description: "深蓝图纸、细网格和工程标注，适合技术方案、产品架构与研发里程碑。",
+    preview: "/assets/office-ppt-templates/pptx/tech-blueprint/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/pptx/tech-blueprint/template.pptx",
+    source: "Pptx",
+    layoutCount: 6,
+  },
+  {
+    id: "pptx-ai-ops",
+    name: "AI Ops 智能运维",
+    description: "深空灰、青绿链路节点和自动化流程，适合基础设施、AI Agent 和数字化转型。",
+    preview: "/assets/office-ppt-templates/pptx/ai-ops/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/pptx/ai-ops/template.pptx",
+    source: "Pptx",
+    layoutCount: 6,
+  },
+  {
+    id: "pptx-minimal-luxury",
+    name: "Minimal Luxury 极简轻奢",
+    description: "暖白、黑金与大量留白，适合品牌发布、高端路演和年度战略。",
+    preview: "/assets/office-ppt-templates/pptx/minimal-luxury/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/pptx/minimal-luxury/template.pptx",
+    source: "Pptx",
+    layoutCount: 6,
+  },
+  {
+    id: "pptx-academic",
+    name: "Academic 学术答辩",
+    description: "正式蓝白、衬线标题和论文式结构，适合学位答辩、科研汇报和学术交流。",
+    preview: "/assets/office-ppt-templates/pptx/academic/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/pptx/academic/template.pptx",
+    source: "Pptx",
+    layoutCount: 6,
+  },
+  {
+    id: "pptx-government",
+    name: "Government 政务汇报",
+    description: "庄重蓝红、简洁标题栏和规范信息层级，适合政务、党建和公共项目汇报。",
+    preview: "/assets/office-ppt-templates/pptx/government/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/pptx/government/template.pptx",
+    source: "Pptx",
+    layoutCount: 6,
+  },
+  {
+    id: "pptx-startup-pitch",
+    name: "Startup Pitch 融资路演",
+    description: "珊瑚蓝撞色、大字号主张和分栏故事线，适合创业融资、产品发布与增长提案。",
+    preview: "/assets/office-ppt-templates/pptx/startup-pitch/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/pptx/startup-pitch/template.pptx",
+    source: "Pptx",
+    layoutCount: 6,
+  },
+  {
+    id: "pptx-medical",
+    name: "Medical 医学学术",
+    description: "清爽青白、圆角卡片和数据表格，适合病例讨论、医学培训和科研课题。",
+    preview: "/assets/office-ppt-templates/pptx/medical/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/pptx/medical/template.pptx",
+    source: "Pptx",
+    layoutCount: 6,
+  },
+  {
+    id: "pptx-engineering",
+    name: "Engineering 工程交付",
+    description: "工程橙与冷灰、节点图和进度面板，适合基建、工程项目与实施汇报。",
+    preview: "/assets/office-ppt-templates/pptx/engineering/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/pptx/engineering/template.pptx",
+    source: "Pptx",
+    layoutCount: 6,
+  },
+  {
+    id: "pptx-education",
+    name: "Education 教学课件",
+    description: "明快黄蓝、圆润卡片和清晰步骤，适合培训、课程、科普和校园分享。",
+    preview: "/assets/office-ppt-templates/pptx/education/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/pptx/education/template.pptx",
+    source: "Pptx",
+    layoutCount: 6,
+  },
+  {
+    id: "pptx-retro-terminal",
+    name: "Retro Terminal 复古终端",
+    description: "深黑、荧光绿和等宽字体，适合开发者大会、黑客马拉松和技术分享。",
+    preview: "/assets/office-ppt-templates/pptx/retro-terminal/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/pptx/retro-terminal/template.pptx",
+    source: "Pptx",
+    layoutCount: 6,
+  },
+  {
+    id: "presenton-dynamic",
+    name: "Dynamic 动态提案",
+    description: "Presenton 开源模板，32 个布局；高对比橙黑、强图片和动态构图，适合产品发布与营销提案。",
+    preview: "/assets/office-ppt-templates/presenton-pptx/dynamic/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/presenton-pptx/dynamic/template.pptx",
+    source: "Presenton",
+    layoutCount: 32,
+  },
+  {
+    id: "presenton-editorial",
+    name: "Editorial 杂志叙事",
+    description: "Presenton 开源模板，24 个布局；衬线标题、图文并茂的杂志式叙事，适合品牌故事、内容报告和创意案例。",
+    preview: "/assets/office-ppt-templates/presenton-pptx/editorial/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/presenton-pptx/editorial/template.pptx",
+    source: "Presenton",
+    layoutCount: 24,
+  },
+  {
+    id: "presenton-executive",
+    name: "Executive 高管汇报",
+    description: "Presenton 开源模板，32 个布局；紫黑、超大标题和强结论页，适合战略评审与董事会材料。",
+    preview: "/assets/office-ppt-templates/presenton-pptx/executive/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/presenton-pptx/executive/template.pptx",
+    source: "Presenton",
+    layoutCount: 32,
+  },
+  {
+    id: "presenton-general",
+    name: "General 通用商务",
+    description: "Presenton 开源模板，12 个布局；紫灰卡片与稳定信息层级，适合项目汇报和通用方案。",
+    preview: "/assets/office-ppt-templates/presenton-pptx/general/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/presenton-pptx/general/template.pptx",
+    source: "Presenton",
+    layoutCount: 12,
+  },
+  {
+    id: "presenton-modern",
+    name: "Modern 现代路演",
+    description: "Presenton 开源模板，10 个布局；蓝白、充足留白和现代无衬线，适合融资路演与创新方案。",
+    preview: "/assets/office-ppt-templates/presenton-pptx/modern/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/presenton-pptx/modern/template.pptx",
+    source: "Presenton",
+    layoutCount: 10,
+  },
+  {
+    id: "presenton-momentum",
+    name: "Momentum 业务复盘",
+    description: "Presenton 开源模板，28 个布局；黑白蓝、粗体标题和强节奏，适合里程碑复盘与团队动员。",
+    preview: "/assets/office-ppt-templates/presenton-pptx/momentum/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/presenton-pptx/momentum/template.pptx",
+    source: "Presenton",
+    layoutCount: 28,
+  },
+  {
+    id: "presenton-standard",
+    name: "Standard 正式报告",
+    description: "Presenton 开源模板，11 个布局；绿白、衬线标题和克制专业气质，适合咨询与正式报告。",
+    preview: "/assets/office-ppt-templates/presenton-pptx/standard/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/presenton-pptx/standard/template.pptx",
+    source: "Presenton",
+    layoutCount: 11,
+  },
+  {
+    id: "presenton-swift",
+    name: "Swift 快速简报",
+    description: "Presenton 开源模板，9 个布局；浅蓝黑与简洁几何，适合快速提案和轻量创意简报。",
+    preview: "/assets/office-ppt-templates/presenton-pptx/swift/preview/cover.jpg",
+    template: "/assets/office-ppt-templates/presenton-pptx/swift/template.pptx",
+    source: "Presenton",
+    layoutCount: 9,
+  },
+  {
+    id: "reveal-black",
+    name: "Black 黑色极简",
+    description: "Reveal.js 官方主题，黑色背景、高对比白色与蓝色强调，适合技术分享和正式发布。",
+    preview: "/assets/office-ppt-templates/reveal/black/cover.jpg",
+    source: "Reveal",
+    layoutCount: 6,
+  },
+  {
+    id: "reveal-white",
+    name: "White 白色干净",
+    description: "Reveal.js 官方主题，留白充足、现代蓝强调，适合通用商务和方案汇报。",
+    preview: "/assets/office-ppt-templates/reveal/white/cover.jpg",
+    source: "Reveal",
+    layoutCount: 6,
+  },
+  {
+    id: "reveal-league",
+    name: "League 深色发布会",
+    description: "Reveal.js 官方主题，深色底、粗壮标题和青蓝强调，适合产品发布与团队动员。",
+    preview: "/assets/office-ppt-templates/reveal/league/cover.jpg",
+    source: "Reveal",
+    layoutCount: 6,
+  },
+  {
+    id: "reveal-beige",
+    name: "Beige 米色商务",
+    description: "Reveal.js 官方主题，米色纸感背景、暖棕强调，适合咨询、品牌和人文内容。",
+    preview: "/assets/office-ppt-templates/reveal/beige/cover.jpg",
+    source: "Reveal",
+    layoutCount: 6,
+  },
+  {
+    id: "reveal-sky",
+    name: "Sky 天空清爽",
+    description: "Reveal.js 官方主题，浅蓝白背景、克制的蓝色强调，适合轻量汇报和创意简报。",
+    preview: "/assets/office-ppt-templates/reveal/sky/cover.jpg",
+    source: "Reveal",
+    layoutCount: 6,
+  },
+  {
+    id: "reveal-simple",
+    name: "Simple 简洁无衬线",
+    description: "Reveal.js 官方主题，黑白极简、蓝色链接强调，适合内部评审和快速演示。",
+    preview: "/assets/office-ppt-templates/reveal/simple/cover.jpg",
+    source: "Reveal",
+    layoutCount: 6,
+  },
+  {
+    id: "reveal-serif",
+    name: "Serif 衬线论文",
+    description: "Reveal.js 官方主题，米白纸面与衬线标题，适合研究报告、学术内容和正式材料。",
+    preview: "/assets/office-ppt-templates/reveal/serif/cover.jpg",
+    source: "Reveal",
+    layoutCount: 6,
+  },
+  {
+    id: "reveal-blood",
+    name: "Blood 深红高对比",
+    description: "Reveal.js 官方主题，深色背景与红色强调，适合策略评审、风险材料和决策汇报。",
+    preview: "/assets/office-ppt-templates/reveal/blood/cover.jpg",
+    source: "Reveal",
+    layoutCount: 6,
+  },
+  {
+    id: "reveal-night",
+    name: "Night 深蓝夜间",
+    description: "Reveal.js 官方主题，深黑蓝背景与金色强调，适合年度总结、战略发布和高端路演。",
+    preview: "/assets/office-ppt-templates/reveal/night/cover.jpg",
+    source: "Reveal",
+    layoutCount: 6,
+  },
+  {
+    id: "reveal-moon",
+    name: "Moon 冷灰月夜",
+    description: "Reveal.js 官方主题，深蓝灰背景与柔光文字，适合数据洞察、技术专题和夜场演示。",
+    preview: "/assets/office-ppt-templates/reveal/moon/cover.jpg",
+    source: "Reveal",
+    layoutCount: 6,
+  },
+  {
+    id: "reveal-solarized",
+    name: "Solarized 暖纸阅读",
+    description: "Reveal.js 官方主题，暖纸背景与低饱和文字，适合文档型汇报、知识科普和阅读型内容。",
+    preview: "/assets/office-ppt-templates/reveal/solarized/cover.jpg",
+    source: "Reveal",
+    layoutCount: 6,
+  },
+  {
+    id: "reveal-dracula",
+    name: "Dracula 暗色开发",
+    description: "Reveal.js 官方主题，深紫黑背景、粉紫与青色强调，适合开发者大会和技术架构分享。",
+    preview: "/assets/office-ppt-templates/reveal/dracula/cover.jpg",
+    source: "Reveal",
+    layoutCount: 6,
+  },
   {
     id: "tech",
     name: "\u79d1\u6280\u6df1\u8272",
@@ -130,7 +536,27 @@ export function createOfficeExportFile(
 
 export function officeArtifactKind(artifact: OfficeArtifact, agent?: string): OfficeArtifactKind {
   if (artifact.slides.length > 0 || agent === "office-ppt") return "ppt"
+  if (agent?.startsWith("office-")) {
+    const kind = agent.slice("office-".length)
+    if (isOfficeArtifactKind(kind)) return kind
+  }
   return "document"
+}
+
+const officeArtifactKinds = [
+  "document",
+  "ppt",
+  "data",
+  "design",
+  "web",
+  "knowledge",
+  "meeting",
+  "task",
+  "communication",
+] as const
+
+function isOfficeArtifactKind(value: string): value is OfficeArtifactKind {
+  return (officeArtifactKinds as readonly string[]).includes(value)
 }
 
 export function bytesToBase64(bytes: Uint8Array) {
@@ -248,6 +674,38 @@ function artifactPptTemplateSignal(artifact: OfficeArtifact) {
 }
 
 const templateScorers: Array<{ id: OfficePptTemplateID; patterns: RegExp[] }> = [
+  {
+    id: "presenton-editorial",
+    patterns: [/杂志|叙事|品牌故事|内容报告|创意案例|案例故事|editorial|magazine|brand story|case study/g],
+  },
+  {
+    id: "presenton-executive",
+    patterns: [/高管|董事会|管理层|战略评审|决策汇报|executive|board|leadership/g],
+  },
+  {
+    id: "presenton-dynamic",
+    patterns: [/产品发布|品牌活动|营销提案|增长方案|发布会|dynamic|campaign|launch/g],
+  },
+  {
+    id: "presenton-modern",
+    patterns: [/融资|路演|创新方案|创业|投资人|pitch|funding|startup|modern/g],
+  },
+  {
+    id: "presenton-momentum",
+    patterns: [/业务复盘|里程碑|团队动员|季度复盘|年度复盘|momentum|milestone/g],
+  },
+  {
+    id: "presenton-standard",
+    patterns: [/咨询报告|正式报告|研究交付|专业报告|consulting|formal report|standard/g],
+  },
+  {
+    id: "presenton-swift",
+    patterns: [/快速提案|简报|一页纸|轻量路演|brief|swift|quick pitch/g],
+  },
+  {
+    id: "presenton-general",
+    patterns: [/通用商务|项目汇报|业务方案|客户方案|general|business proposal/g],
+  },
   {
     id: "ai-ops",
     patterns: [/ai运维|智能运维|运维架构|it系统|基础设施|数字化转型|可观测|监控告警|ai ops|aiops|observability/g],
@@ -480,6 +938,16 @@ function parseTableRow(line: string): string[] {
 }
 
 function inlineToWordRuns(text: string, baseRunProps?: string): string {
+  return splitFormulaSegments(text)
+    .map((segment) =>
+      segment.kind === "text"
+        ? wordTextRuns(segment.value, baseRunProps)
+        : ommlWordXml(segment.latex, segment.kind === "block"),
+    )
+    .join("")
+}
+
+function wordTextRuns(text: string, baseRunProps?: string): string {
   const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/)
   return parts
     .filter(Boolean)
@@ -509,6 +977,27 @@ export function officePptTemplateDescription(value: OfficePptTemplateChoice) {
   if (typeof value === "object") return value.description
   if (value === "auto") return "根据当前 PPT 主题自动匹配模板"
   return officePptTemplates.find((item) => item.id === value)?.description ?? "根据当前 PPT 主题自动匹配模板"
+}
+
+export function officePptTemplatePreview(value: OfficePptTemplateChoice) {
+  if (typeof value === "object" || value === "auto") return undefined
+  return officePptTemplates.find((item) => item.id === value)?.preview
+}
+
+export function officePptTemplateSlidePreview(value: OfficePptTemplateChoice, role: string) {
+  const preview = officePptTemplatePreview(value)
+  if (!preview) return undefined
+  const base = preview.slice(0, preview.lastIndexOf("/") + 1)
+  return `${base}${role}.jpg`
+}
+
+export function officePptTemplateFile(value: OfficePptTemplateChoice) {
+  if (typeof value === "object" || value === "auto") return undefined
+  return officePptTemplates.find((item) => item.id === value)?.template
+}
+
+export function isRealPptxTemplate(value: OfficePptTemplateChoice): value is OfficePptTemplateID {
+  return typeof value === "string" && Boolean(officePptTemplateFile(value))
 }
 
 export function officePptTemplateVisual(value: OfficePptTemplateChoice) {
@@ -700,8 +1189,9 @@ function customTemplateName(description: string) {
 }
 
 function pptxEntries(artifact: OfficeArtifact, template: PptVisualTemplate): ZipEntry[] {
-  const slides =
-    artifact.slides.length > 0 ? artifact.slides : [{ index: 1, title: artifact.title, content: artifact.body }]
+  const slides = normalizePptSlides(
+    artifact.slides.length > 0 ? artifact.slides : [{ index: 1, title: artifact.title, content: artifact.body }],
+  )
   const images = pptSlideImages(slides)
   const noteSlides = slides.filter((slide) => slide.notes?.trim())
   const imageDefaults = Array.from(new Set(images.flatMap((slide) => slide.map((image) => imageDefaultXml(image)))))
@@ -844,6 +1334,10 @@ function pptxEntries(artifact: OfficeArtifact, template: PptVisualTemplate): Zip
   ]
 }
 
+function normalizePptSlides(slides: OfficeSlide[]) {
+  return slides.map((slide, index) => ({ ...slide, index: index + 1 }))
+}
+
 function slideTransitionXml(slide: OfficeSlide, index: number, total: number, template: PptVisualTemplate) {
   const transition = slideTransition(slide, index, total, template)
   return `<p:transition spd="${transition.speed}">${transition.body}</p:transition>`
@@ -881,8 +1375,17 @@ function designedSlide(
   template: PptVisualTemplate,
   images: PptSlideImage[],
 ) {
-  if (index === 0) return coverSlide(slide, total, deckTitle, template)
-  return contentSlide(slide, index, total, deckTitle, template, images)
+  const shapes =
+    index === 0
+      ? coverSlide(slide, total, deckTitle, template)
+      : contentSlide(slide, index, total, deckTitle, template, images)
+  return normalizeShapeIDs(shapes)
+}
+
+function normalizeShapeIDs(shapes: string[]) {
+  return shapes.map((shape, index) =>
+    shape.replace(/<p:cNvPr id="\d+" name="([^"]*)"/, `<p:cNvPr id="${index + 2}" name="$1"`),
+  )
 }
 
 function coverSlide(
@@ -1675,7 +2178,7 @@ function illustrationShapes(
       circle(id, x + 390000, y + 430000, 360000, template.accent, 76000),
       circle(id + 1, x + 790000, y + 590000, 460000, template.accent2, 70000),
       circle(id + 2, x + 1230000, y + 410000, 260000, template.accentLight, 90000),
-      rightArrow(id + 3, x + 480000, y + 870000, 820000, 130000, template.side),
+      connector(id + 3, x + 480000, y + 870000, x + 1300000, y + 1000000, template.side, 9525),
     ]
   return [
     circle(id, x + 370000, y + 430000, 240000, template.accent, 90000),
@@ -2090,7 +2593,7 @@ function processLayout(points: string[], template: PptVisualTemplate) {
           maxLines: 2,
         }),
         ...(index < items.length - 1
-          ? [rightArrow(34 + index * 6, x + 620000, y + 255000, 860000, 150000, template.accent)]
+          ? [connector(34 + index * 6, x + 620000, y + 330000, x + 1480000, y + 330000, template.accent)]
           : []),
       ]
     }),
@@ -2199,10 +2702,10 @@ function cycleLayout(points: string[], template: PptVisualTemplate) {
         maxLines: 2,
       }),
     ]),
-    rightArrow(70, 5300000, 1940000, 760000, 150000, template.accent),
-    rightArrow(71, 5300000, 3720000, 760000, 150000, template.accent),
-    rightArrow(72, 3300000, 1940000, 760000, 150000, template.accent2),
-    rightArrow(73, 3300000, 3720000, 760000, 150000, template.accent2),
+    connector(70, 5300000, 1940000, 6060000, 2090000, template.accent, 9525),
+    connector(71, 5300000, 3720000, 6060000, 3870000, template.accent, 9525),
+    connector(72, 3300000, 1940000, 4060000, 2090000, template.accent2, 9525),
+    connector(73, 3300000, 3720000, 4060000, 3870000, template.accent2, 9525),
   ]
 }
 
@@ -2517,7 +3020,7 @@ function fishboneLayout(points: string[], template: PptVisualTemplate) {
       maxLines: 1,
     }),
     rect(31, 1900000, 2840000, 5000000, 70000, template.accent),
-    rightArrow(32, 6800000, 2745000, 620000, 260000, template.accent),
+    connector(32, 6800000, 2745000, 7420000, 3005000, template.accent, 9525),
     roundedRect(33, 7350000, 2570000, 780000, 470000, template.side, 18000),
     textBox(34, 7470000, 2700000, 540000, 180000, "结果", 850, { color: template.coverTitle, bold: true, maxLines: 1 }),
     ...items.flatMap((point, index) => {
@@ -2711,13 +3214,15 @@ function mindmapLayout(points: string[], template: PptVisualTemplate) {
       maxLines: 1,
     }),
     ...nodes.flatMap((node, index) => [
-      rect(
+      connector(
         40 + index * 5,
         node.x < 3800000 ? node.x + 1200000 : 4760000,
-        node.y + 250000,
-        1120000,
-        50000,
+        node.y + 275000,
+        node.x < 3800000 ? 4240000 : 5880000,
+        node.y + 275000,
         template.cardLine,
+        9525,
+        false,
       ),
       roundedRect(
         41 + index * 5,
@@ -2850,12 +3355,12 @@ function orgTreeLayout(points: string[], template: PptVisualTemplate) {
       bold: true,
       maxLines: 1,
     }),
-    rect(33, 4530000, 2330000, 60000, 520000, template.cardLine),
-    rect(34, 2100000, 2850000, 4900000, 60000, template.cardLine),
+    connector(33, 4560000, 2330000, 4560000, 2850000, template.cardLine, 9525, false),
+    connector(34, 2100000, 2880000, 7000000, 2880000, template.cardLine, 9525, false),
     ...items.slice(1, 4).flatMap((point, index) => {
       const x = 1500000 + index * 2300000
       return [
-        rect(40 + index * 5, x + 720000, 2850000, 50000, 340000, template.cardLine),
+        connector(40 + index * 5, x + 745000, 2850000, x + 745000, 3190000, template.cardLine, 9525, false),
         roundedRect(41 + index * 5, x, 3180000, 1500000, 460000, template.accentLight, 18000, template.cardLine),
         textBox(42 + index * 5, x + 160000, 3310000, 1160000, 160000, point, 760, {
           color: template.text,
@@ -3027,7 +3532,7 @@ function sankeyLayout(points: string[], template: PptVisualTemplate) {
         color: template.text,
         maxLines: 1,
       }),
-      rightArrow(42 + index * 5, 2600000, 2140000 + index * 600000, 1500000, 150000 + index * 50000, template.accent),
+      connector(42 + index * 5, 2600000, 2215000 + index * 625000, 4100000, 2215000 + index * 625000, template.accent),
     ]),
     roundedRect(70, 4300000, 2500000, 1350000, 520000, template.side, 18000),
     textBox(71, 4500000, 2680000, 900000, 160000, items[3] ?? "核心节点", 780, {
@@ -3036,7 +3541,7 @@ function sankeyLayout(points: string[], template: PptVisualTemplate) {
       maxLines: 1,
     }),
     ...items.slice(4, 6).flatMap((point, index) => [
-      rightArrow(80 + index * 5, 5700000, 2500000 + index * 520000, 1120000, 160000, template.accent2),
+      connector(80 + index * 5, 5700000, 2580000 + index * 520000, 6820000, 2580000 + index * 520000, template.accent2),
       roundedRect(
         81 + index * 5,
         6900000,
@@ -3424,6 +3929,26 @@ export type PptTemplateMotif =
   | "policy-red"
   | "clinical"
   | "pixel"
+  | "presenton-dynamic"
+  | "presenton-editorial"
+  | "presenton-executive"
+  | "presenton-general"
+  | "presenton-modern"
+  | "presenton-momentum"
+  | "presenton-standard"
+  | "presenton-swift"
+  | "reveal-black"
+  | "reveal-white"
+  | "reveal-league"
+  | "reveal-beige"
+  | "reveal-sky"
+  | "reveal-simple"
+  | "reveal-serif"
+  | "reveal-blood"
+  | "reveal-night"
+  | "reveal-moon"
+  | "reveal-solarized"
+  | "reveal-dracula"
   | "therapy"
 
 function pptTemplate(id: OfficePptTemplateID): PptVisualTemplate {
@@ -3436,6 +3961,26 @@ function pptTemplate(id: OfficePptTemplateID): PptVisualTemplate {
 }
 
 function pptTemplateMotif(id: OfficePptTemplateID): PptTemplateMotif {
+  if (id === "presenton-dynamic") return "presenton-dynamic"
+  if (id === "presenton-editorial") return "presenton-editorial"
+  if (id === "presenton-executive") return "presenton-executive"
+  if (id === "presenton-general") return "presenton-general"
+  if (id === "presenton-modern") return "presenton-modern"
+  if (id === "presenton-momentum") return "presenton-momentum"
+  if (id === "presenton-standard") return "presenton-standard"
+  if (id === "presenton-swift") return "presenton-swift"
+  if (id === "reveal-black") return "reveal-black"
+  if (id === "reveal-white") return "reveal-white"
+  if (id === "reveal-league") return "reveal-league"
+  if (id === "reveal-beige") return "reveal-beige"
+  if (id === "reveal-sky") return "reveal-sky"
+  if (id === "reveal-simple") return "reveal-simple"
+  if (id === "reveal-serif") return "reveal-serif"
+  if (id === "reveal-blood") return "reveal-blood"
+  if (id === "reveal-night") return "reveal-night"
+  if (id === "reveal-moon") return "reveal-moon"
+  if (id === "reveal-solarized") return "reveal-solarized"
+  if (id === "reveal-dracula") return "reveal-dracula"
   if (id === "tech") return "circuit"
   if (id === "business") return "executive"
   if (id === "teaching") return "classroom"
@@ -3467,6 +4012,17 @@ function pptTemplateMotif(id: OfficePptTemplateID): PptTemplateMotif {
 function pptTemplateTypography(
   id: OfficePptTemplateID,
 ): Pick<PptVisualTemplate, "titleFont" | "bodyFont" | "latinFont"> {
+  if (id === "presenton-standard") return { titleFont: "Georgia", bodyFont: "Microsoft YaHei", latinFont: "Georgia" }
+  if (id === "presenton-editorial")
+    return { titleFont: "Playfair Display", bodyFont: "Microsoft YaHei", latinFont: "Georgia" }
+  if (id === "presenton-executive" || id === "presenton-dynamic" || id === "presenton-momentum")
+    return { titleFont: "Arial Black", bodyFont: "Microsoft YaHei", latinFont: "Arial" }
+  if (id.startsWith("presenton-"))
+    return { titleFont: "Microsoft YaHei", bodyFont: "Microsoft YaHei", latinFont: "Arial" }
+  if (id === "reveal-league") return { titleFont: "Arial Black", bodyFont: "Microsoft YaHei", latinFont: "Arial" }
+  if (id === "reveal-serif") return { titleFont: "Georgia", bodyFont: "Microsoft YaHei", latinFont: "Georgia" }
+  if (id === "reveal-simple") return { titleFont: "Arial", bodyFont: "Arial", latinFont: "Arial" }
+  if (id.startsWith("reveal-")) return { titleFont: "Microsoft YaHei", bodyFont: "Microsoft YaHei", latinFont: "Arial" }
   if (id === "cqu" || id === "academic")
     return { titleFont: "SimSun", bodyFont: "Microsoft YaHei", latinFont: "Georgia" }
   if (id === "telecom" || id === "cmb" || id === "government" || id === "government-blue" || id === "government-red")
@@ -3486,6 +4042,26 @@ function pptTemplateTypography(
 }
 
 function pptTemplateChromeStyle(id: OfficePptTemplateID): PptVisualTemplate["chromeStyle"] {
+  if (id === "presenton-dynamic") return "canvas"
+  if (id === "presenton-editorial") return "editorial"
+  if (id === "presenton-executive") return "editorial"
+  if (id === "presenton-general") return "sidebar"
+  if (id === "presenton-modern") return "topbar"
+  if (id === "presenton-momentum") return "hud"
+  if (id === "presenton-standard") return "thesis"
+  if (id === "presenton-swift") return "minimal"
+  if (id === "reveal-black") return "minimal"
+  if (id === "reveal-white") return "topbar"
+  if (id === "reveal-league") return "hud"
+  if (id === "reveal-beige") return "editorial"
+  if (id === "reveal-sky") return "topbar"
+  if (id === "reveal-simple") return "minimal"
+  if (id === "reveal-serif") return "thesis"
+  if (id === "reveal-blood") return "ribbon"
+  if (id === "reveal-night") return "canvas"
+  if (id === "reveal-moon") return "sidebar"
+  if (id === "reveal-solarized") return "thesis"
+  if (id === "reveal-dracula") return "hud"
   if (id === "telecom" || id === "cmb" || id === "government" || id === "government-blue" || id === "government-red")
     return "ribbon"
   if (
@@ -3514,6 +4090,346 @@ function pptTemplateChromeStyle(id: OfficePptTemplateID): PptVisualTemplate["chr
 }
 
 function pptTemplateColors(id: OfficePptTemplateID): PptVisualTemplate {
+  if (id === "presenton-dynamic")
+    return {
+      coverBg: "111111",
+      coverBand: "242424",
+      coverTitle: "FFFFFF",
+      coverText: "E6E6E6",
+      pageBg: "FFFFFF",
+      side: "111111",
+      card: "F7F7F7",
+      cardLine: "D9D9D9",
+      title: "111111",
+      text: "242424",
+      muted: "666666",
+      accent: "FD7536",
+      accent2: "FFB38A",
+      accentLight: "FFF0E8",
+    }
+  if (id === "presenton-editorial")
+    return {
+      coverBg: "F5F1E8",
+      coverBand: "2F2A24",
+      coverTitle: "2F2A24",
+      coverText: "6B635A",
+      pageBg: "FCFAF6",
+      side: "2F2A24",
+      card: "FFFFFF",
+      cardLine: "DED7CB",
+      title: "2F2A24",
+      text: "4A443D",
+      muted: "8A8177",
+      accent: "B85C38",
+      accent2: "6F8F6D",
+      accentLight: "F0E9DD",
+    }
+  if (id === "presenton-executive")
+    return {
+      coverBg: "0A0A0A",
+      coverBand: "211A37",
+      coverTitle: "FFFFFF",
+      coverText: "D8D2EE",
+      pageBg: "F7F5FC",
+      side: "211A37",
+      card: "FFFFFF",
+      cardLine: "D8D2EE",
+      title: "17121F",
+      text: "2F2940",
+      muted: "6B6478",
+      accent: "8958F4",
+      accent2: "5F4F9B",
+      accentLight: "EEE9FA",
+    }
+  if (id === "presenton-general")
+    return {
+      coverBg: "111827",
+      coverBand: "312E81",
+      coverTitle: "FFFFFF",
+      coverText: "E5E7EB",
+      pageBg: "F9FAFB",
+      side: "312E81",
+      card: "FFFFFF",
+      cardLine: "D1D5DB",
+      title: "111827",
+      text: "374151",
+      muted: "6B7280",
+      accent: "9333EA",
+      accent2: "6366F1",
+      accentLight: "F3E8FF",
+    }
+  if (id === "presenton-modern")
+    return {
+      coverBg: "FFFFFF",
+      coverBand: "F5F8FE",
+      coverTitle: "1E4CD9",
+      coverText: "334155",
+      pageBg: "FFFFFF",
+      side: "1E4CD9",
+      card: "F5F8FE",
+      cardLine: "D7E2FB",
+      title: "1E293B",
+      text: "334155",
+      muted: "64748B",
+      accent: "1E4CD9",
+      accent2: "234CD9",
+      accentLight: "E9EFFE",
+    }
+  if (id === "presenton-momentum")
+    return {
+      coverBg: "000000",
+      coverBand: "2E3545",
+      coverTitle: "FFFFFF",
+      coverText: "D7DAE1",
+      pageBg: "F6F7FC",
+      side: "1A3DB3",
+      card: "FFFFFF",
+      cardLine: "D7DAE1",
+      title: "111827",
+      text: "2E3545",
+      muted: "6B7280",
+      accent: "1A3DB3",
+      accent2: "6581E7",
+      accentLight: "E8ECFB",
+    }
+  if (id === "presenton-standard")
+    return {
+      coverBg: "FFFFFF",
+      coverBand: "EAF5EC",
+      coverTitle: "111827",
+      coverText: "4B5563",
+      pageBg: "FFFFFF",
+      side: "1B8C2D",
+      card: "F8FBF8",
+      cardLine: "D1E7D5",
+      title: "111827",
+      text: "374151",
+      muted: "6B7280",
+      accent: "1B8C2D",
+      accent2: "6AAB75",
+      accentLight: "EAF5EC",
+    }
+  if (id === "presenton-swift")
+    return {
+      coverBg: "BFF4FF",
+      coverBand: "DDF9FF",
+      coverTitle: "111827",
+      coverText: "374151",
+      pageBg: "FFFFFF",
+      side: "111827",
+      card: "F5FCFE",
+      cardLine: "BFEAF4",
+      title: "111827",
+      text: "374151",
+      muted: "6B7280",
+      accent: "00A8C6",
+      accent2: "111827",
+      accentLight: "DDF9FF",
+    }
+  if (id === "reveal-black")
+    return {
+      coverBg: "191919",
+      coverBand: "242424",
+      coverTitle: "FFFFFF",
+      coverText: "E5E7EB",
+      pageBg: "191919",
+      side: "42AFFA",
+      card: "242424",
+      cardLine: "42AFFA",
+      title: "FFFFFF",
+      text: "D1D5DB",
+      muted: "9CA3AF",
+      accent: "42AFFA",
+      accent2: "FFFFFF",
+      accentLight: "1F3A5F",
+    }
+  if (id === "reveal-white")
+    return {
+      coverBg: "FFFFFF",
+      coverBand: "F3F6FB",
+      coverTitle: "222222",
+      coverText: "4B5563",
+      pageBg: "FFFFFF",
+      side: "2A76DD",
+      card: "F8FAFC",
+      cardLine: "BFDBFE",
+      title: "222222",
+      text: "374151",
+      muted: "6B7280",
+      accent: "2A76DD",
+      accent2: "222222",
+      accentLight: "E8F0FE",
+    }
+  if (id === "reveal-league")
+    return {
+      coverBg: "2B2B2B",
+      coverBand: "3A3A3A",
+      coverTitle: "FFFFFF",
+      coverText: "D1D5DB",
+      pageBg: "2B2B2B",
+      side: "13DAEC",
+      card: "3A3A3A",
+      cardLine: "13DAEC",
+      title: "F5F5F5",
+      text: "D1D5DB",
+      muted: "9CA3AF",
+      accent: "13DAEC",
+      accent2: "FFFFFF",
+      accentLight: "0F2F3A",
+    }
+  if (id === "reveal-beige")
+    return {
+      coverBg: "F7F3DE",
+      coverBand: "EAE1C6",
+      coverTitle: "333333",
+      coverText: "514D3D",
+      pageBg: "F7F3DE",
+      side: "8B743D",
+      card: "FBF8EA",
+      cardLine: "D8C99B",
+      title: "333333",
+      text: "3F3A2C",
+      muted: "7A7257",
+      accent: "8B743D",
+      accent2: "333333",
+      accentLight: "EFE6C9",
+    }
+  if (id === "reveal-sky")
+    return {
+      coverBg: "F7FBFC",
+      coverBand: "EAF3F8",
+      coverTitle: "333333",
+      coverText: "4B5563",
+      pageBg: "F7FBFC",
+      side: "3B759E",
+      card: "FFFFFF",
+      cardLine: "B9D4E8",
+      title: "333333",
+      text: "374151",
+      muted: "6B7280",
+      accent: "3B759E",
+      accent2: "333333",
+      accentLight: "E8F3FA",
+    }
+  if (id === "reveal-simple")
+    return {
+      coverBg: "FFFFFF",
+      coverBand: "F5F5F5",
+      coverTitle: "000000",
+      coverText: "404040",
+      pageBg: "FFFFFF",
+      side: "00008B",
+      card: "F8F8FF",
+      cardLine: "C7C7EF",
+      title: "000000",
+      text: "1F2937",
+      muted: "6B7280",
+      accent: "00008B",
+      accent2: "000000",
+      accentLight: "E8E8FF",
+    }
+  if (id === "reveal-serif")
+    return {
+      coverBg: "F0F1EB",
+      coverBand: "E2E4DC",
+      coverTitle: "383D3D",
+      coverText: "2B2B2B",
+      pageBg: "F0F1EB",
+      side: "51483D",
+      card: "FBFBF7",
+      cardLine: "D8D5CC",
+      title: "383D3D",
+      text: "111111",
+      muted: "6B6B64",
+      accent: "51483D",
+      accent2: "383D3D",
+      accentLight: "ECE7DF",
+    }
+  if (id === "reveal-blood")
+    return {
+      coverBg: "222222",
+      coverBand: "3A161B",
+      coverTitle: "FFFFFF",
+      coverText: "D1D5DB",
+      pageBg: "222222",
+      side: "AA2233",
+      card: "333333",
+      cardLine: "AA2233",
+      title: "F5F5F5",
+      text: "D1D5DB",
+      muted: "9CA3AF",
+      accent: "AA2233",
+      accent2: "FFFFFF",
+      accentLight: "5A1420",
+    }
+  if (id === "reveal-night")
+    return {
+      coverBg: "111111",
+      coverBand: "2B2418",
+      coverTitle: "FFFFFF",
+      coverText: "E5E7EB",
+      pageBg: "111111",
+      side: "E7AD52",
+      card: "222222",
+      cardLine: "E7AD52",
+      title: "F5F5F5",
+      text: "D1D5DB",
+      muted: "9CA3AF",
+      accent: "E7AD52",
+      accent2: "FFFFFF",
+      accentLight: "3B2A12",
+    }
+  if (id === "reveal-moon")
+    return {
+      coverBg: "002B36",
+      coverBand: "073642",
+      coverTitle: "EEE8D5",
+      coverText: "93A1A1",
+      pageBg: "002B36",
+      side: "268BD2",
+      card: "073642",
+      cardLine: "586E75",
+      title: "EEE8D5",
+      text: "93A1A1",
+      muted: "839496",
+      accent: "268BD2",
+      accent2: "EEE8D5",
+      accentLight: "104E68",
+    }
+  if (id === "reveal-solarized")
+    return {
+      coverBg: "FDF6E3",
+      coverBand: "EEE8D5",
+      coverTitle: "586E75",
+      coverText: "657B83",
+      pageBg: "FDF6E3",
+      side: "268BD2",
+      card: "FFF8E7",
+      cardLine: "D6D2B8",
+      title: "586E75",
+      text: "657B83",
+      muted: "839496",
+      accent: "268BD2",
+      accent2: "586E75",
+      accentLight: "E6E1C8",
+    }
+  if (id === "reveal-dracula")
+    return {
+      coverBg: "282A36",
+      coverBand: "3A3C4D",
+      coverTitle: "BD93F9",
+      coverText: "F8F8F2",
+      pageBg: "282A36",
+      side: "FF79C6",
+      card: "343746",
+      cardLine: "6272A4",
+      title: "BD93F9",
+      text: "F8F8F2",
+      muted: "94A3B8",
+      accent: "FF79C6",
+      accent2: "8BE9FD",
+      accentLight: "563B5C",
+    }
   if (id === "ai-ops")
     return {
       coverBg: "07111F",
@@ -3971,7 +4887,7 @@ function textBox(
     `<p:sp>`,
     `<p:nvSpPr><p:cNvPr id="${id}" name="Text ${id}"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>`,
     `<p:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr>`,
-    `<p:txBody><a:bodyPr wrap="square"/><a:lstStyle/>`,
+    `<p:txBody>${textBodyProperties()}<a:lstStyle/>`,
     ...text
       .split("\n")
       .map((line) => line.trim())
@@ -4001,17 +4917,49 @@ function bulletTextBox(
     `<p:sp>`,
     `<p:nvSpPr><p:cNvPr id="${id}" name="Bullets ${id}"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>`,
     `<p:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr>`,
-    `<p:txBody><a:bodyPr wrap="square"/><a:lstStyle/>`,
-    ...lines.map((line) => {
-      const clean = line.replace(/^[-*]\s*/, "")
-      return `<a:p><a:pPr marL="260000" indent="-180000"><a:buChar char="•"/></a:pPr><a:r><a:rPr sz="${size}" lang="zh-CN"><a:solidFill><a:srgbClr val="${color}"/></a:solidFill></a:rPr><a:t>${xml(clean)}</a:t></a:r></a:p>`
-    }),
+    `<p:txBody>${textBodyProperties()}<a:lstStyle/>`,
+    ...lines.map((line) => bulletParagraph(line, size, color)),
     `</p:txBody></p:sp>`,
   ].join("")
 }
 
+function bulletParagraph(text: string, size: number, color: string) {
+  const clean = text.replace(/^[-*]\s*/, "")
+  const segments = splitFormulaSegments(clean)
+  const blockFormula = segments.some((segment) => segment.kind === "block")
+  const paragraphProps = blockFormula
+    ? `<a:lnSpc><a:spcPct val="105000"/></a:lnSpc><a:spcAft><a:spcPts val="200"/></a:spcAft>`
+    : `<a:lnSpc><a:spcPct val="105000"/></a:lnSpc><a:spcAft><a:spcPts val="200"/></a:spcAft><a:buChar char="•"/>`
+  const runs = segments
+    .map((segment) =>
+      segment.kind === "text"
+        ? textRun(segment.value, size, { color })
+        : ommlMathXml(segment.latex, segment.kind === "block"),
+    )
+    .join("")
+  return `<a:p><a:pPr marL="260000" indent="-180000">${paragraphProps}</a:pPr>${runs}<a:endParaRPr lang="zh-CN" altLang="en-US" sz="${size}"/></a:p>`
+}
+
+function textBodyProperties() {
+  return '<a:bodyPr wrap="square" lIns="0" tIns="0" rIns="0" bIns="0" anchor="t"><a:normAutofit fontScale="70000" lnSpcReduction="20000"/></a:bodyPr>'
+}
+
 function textParagraph(text: string, size: number, options?: { color?: string; bold?: boolean }) {
-  return `<a:p><a:r><a:rPr sz="${size}"${options?.bold ? ' b="1"' : ""}>${options?.color ? `<a:solidFill><a:srgbClr val="${options.color}"/></a:solidFill>` : ""}</a:rPr><a:t>${xml(text)}</a:t></a:r></a:p>`
+  return `<a:p><a:pPr><a:lnSpc><a:spcPct val="105000"/></a:lnSpc><a:spcAft><a:spcPts val="200"/></a:spcAft></a:pPr>${formulaAwareTextRuns(text, size, options)}<a:endParaRPr lang="zh-CN" altLang="en-US" sz="${size}"/></a:p>`
+}
+
+function formulaAwareTextRuns(text: string, size: number, options?: { color?: string; bold?: boolean }) {
+  return splitFormulaSegments(text)
+    .map((segment) =>
+      segment.kind === "text"
+        ? textRun(segment.value, size, options)
+        : ommlMathXml(segment.latex, segment.kind === "block"),
+    )
+    .join("")
+}
+
+function textRun(text: string, size: number, options?: { color?: string; bold?: boolean }) {
+  return `<a:r><a:rPr sz="${size}" lang="zh-CN" altLang="en-US" dirty="0"${options?.bold ? ' b="1"' : ""}>${options?.color ? `<a:solidFill><a:srgbClr val="${options.color}"/></a:solidFill>` : ""}</a:rPr><a:t>${xml(text)}</a:t></a:r>`
 }
 
 function rect(id: number, x: number, y: number, cx: number, cy: number, color: string) {
@@ -4035,13 +4983,34 @@ function circle(id: number, x: number, y: number, size: number, color: string, a
   return shape(id, "ellipse", x, y, size, size, color, alpha)
 }
 
-function rightArrow(id: number, x: number, y: number, cx: number, cy: number, color: string) {
-  return shape(id, "rightArrow", x, y, cx, cy, color)
+function connector(
+  id: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  color: string,
+  width = 19050,
+  arrow = true,
+) {
+  const flipH = x2 < x1 ? ' flipH="1"' : ""
+  const flipV = y2 < y1 ? ' flipV="1"' : ""
+  const x = Math.min(x1, x2)
+  const y = Math.min(y1, y2)
+  const cx = Math.max(1, Math.abs(x2 - x1))
+  const cy = Math.max(1, Math.abs(y2 - y1))
+  return [
+    `<p:cxnSp>`,
+    `<p:nvCxnSpPr><p:cNvPr id="${id}" name="Connector ${id}"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr>`,
+    `<p:spPr><a:xfrm${flipH}${flipV}><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="straightConnector1"><a:avLst/></a:prstGeom>`,
+    `<a:ln w="${width}"><a:solidFill><a:srgbClr val="${color}"/></a:solidFill>${arrow ? '<a:tailEnd type="triangle" w="med" len="med"/>' : ""}</a:ln>`,
+    `</p:spPr></p:cxnSp>`,
+  ].join("")
 }
 
 function shape(
   id: number,
-  preset: "rect" | "roundRect" | "ellipse" | "rightArrow",
+  preset: "rect" | "roundRect" | "ellipse",
   x: number,
   y: number,
   cx: number,

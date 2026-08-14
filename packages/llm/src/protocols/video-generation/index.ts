@@ -47,7 +47,11 @@ const retryAfterMs = (response: HttpClientResponse.HttpClientResponse, body: str
 const createRequest = (
   request: HttpClientRequest.HttpClientRequest,
   retries = 1,
-): Effect.Effect<HttpClientResponse.HttpClientResponse, Error | HttpClientError.HttpClientError, HttpClient.HttpClient> =>
+): Effect.Effect<
+  HttpClientResponse.HttpClientResponse,
+  Error | HttpClientError.HttpClientError,
+  HttpClient.HttpClient
+> =>
   Effect.gen(function* () {
     const response = yield* HttpClient.execute(request)
     if (response.status < 400) return response

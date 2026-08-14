@@ -33,6 +33,7 @@ tsconfig.tsbuildinfo
 
 
 # Local agent/temp artifacts (do not commit)
+.claude/settings.local.json
 .claude/test-node-download/
 .claude/test-bundled-node.ts
 .claude/test-native-load.cjs

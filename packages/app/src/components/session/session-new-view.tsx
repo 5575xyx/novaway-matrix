@@ -5,6 +5,7 @@ import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { useLocal } from "@/context/local"
 import { PromptInput } from "@/components/prompt-input"
+import { useOfficeAgent } from "@/pages/session/office-agent-context"
 import { Mark } from "@opencode-ai/ui/logo"
 
 const ROOT_CLASS = "size-full flex flex-col"
@@ -23,6 +24,7 @@ export function NewSessionView(props: NewSessionViewProps) {
   const language = useLanguage()
   const layout = useLayout()
   const local = useLocal()
+  const office = useOfficeAgent()
 
   const [ready, setReady] = createSignal(false)
   let timer: number | undefined
@@ -45,6 +47,7 @@ export function NewSessionView(props: NewSessionViewProps) {
   onCleanup(clear)
 
   const isForge = createMemo(() => layout.mode.current() === "forge")
+  const isOffice = createMemo(() => layout.mode.current() === "zen")
   const currentAgent = createMemo(() => {
     const name = local.agent.current()?.name
     if (name === "plan" || name === "build") return name
@@ -60,7 +63,14 @@ export function NewSessionView(props: NewSessionViewProps) {
               <Mark class="w-10 animate-[logo-breathe_4s_ease-in-out_infinite]" />
               <div class="absolute inset-0 blur-xl bg-gradient-to-br from-[rgba(100,160,230,0.2)] to-[rgba(140,200,210,0.2)] rounded-full -z-10" />
             </div>
-            <div class="text-20-medium gradient-text-aurora">{language.t("session.new.title")}</div>
+            <div class="text-20-medium gradient-text-aurora">
+              {isOffice() ? office.activeAction().title : language.t("session.new.title")}
+            </div>
+            <Show when={isOffice()}>
+              <div class="max-w-md text-13-regular leading-relaxed text-text-weak">
+                {office.activeAction().description}
+              </div>
+            </Show>
           </div>
           <div class="w-full flex flex-col gap-3 items-center">
             <Show when={sync.project}>

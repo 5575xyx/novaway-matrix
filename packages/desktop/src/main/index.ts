@@ -366,6 +366,18 @@ const main = Effect.gen(function* () {
         ? join(process.resourcesPath, "node", "node.exe")
         : join(process.resourcesPath, "node", "bin", "node")
     process.env.DBX_NODE_PATH = app.isPackaged ? bundledNode : "node"
+    // 浏览器 MCP 与 DBX 一样随安装包分发，打包环境使用内置 Node 和系统 Chrome/Edge，
+    // 避免依赖用户机器上的 npx、Node.js 或联网拉取。
+    const playwrightMcpDir = app.isPackaged
+      ? join(process.resourcesPath, "playwright-mcp")
+      : join(app.getAppPath(), "resources", "playwright-mcp")
+    const playwrightMcpCli = join(playwrightMcpDir, "node_modules", "@playwright", "mcp", "cli.js")
+    if (existsSync(playwrightMcpCli)) {
+      process.env.PLAYWRIGHT_MCP_SERVER_PATH = playwrightMcpCli
+      process.env.PLAYWRIGHT_MCP_NODE_PATH = app.isPackaged ? bundledNode : "node"
+      process.env.PLAYWRIGHT_MCP_BROWSER =
+        process.env.PLAYWRIGHT_MCP_BROWSER ?? (process.platform === "win32" ? "msedge" : "chrome")
+    }
     // 默认全局插件 PowersNexus 从 Gitee 安装；其 CLI 需要 Node（复用内置 Node）
     process.env.POWERSNEXUS_NODE_PATH = process.env.POWERSNEXUS_NODE_PATH ?? process.env.DBX_NODE_PATH
 

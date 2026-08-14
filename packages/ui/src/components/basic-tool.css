@@ -249,12 +249,29 @@
 
 /* Badge styling for tool triggers */
 [data-component="tool-trigger"][data-badge] {
-  border-radius: 10px;
-  border: 1px solid var(--badge-border);
-  background: var(--badge-bg);
-  padding: 8px 12px;
+  position: relative;
+  padding: 6px 12px 6px 14px;
   width: auto;
   max-width: 100%;
+
+  /* 左侧 NovaWay teal 渐变指示条 */
+  &::before {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 60%;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #2dd4bf 0%, #06b6d4 100%);
+    opacity: 0.5;
+    transition: opacity 0.15s ease;
+  }
+
+  &:hover::before {
+    opacity: 0.85;
+  }
 
   [data-slot="basic-tool-tool-trigger-content"] {
     width: auto;
@@ -274,78 +291,42 @@
   }
 
   [data-slot="basic-tool-tool-title"] {
-    color: var(--badge-text);
+    color: var(--text-strong);
   }
 
   [data-slot="basic-tool-tool-subtitle"] {
-    color: var(--badge-text-muted);
+    color: var(--text-base);
   }
 
   [data-slot="basic-tool-tool-arg"] {
-    color: var(--badge-text-muted);
+    color: var(--text-base);
   }
 }
 
 /* Badge icon */
 [data-component="tool-trigger"][data-badge] [data-slot="tool-badge-icon"] {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   display: grid;
   place-items: center;
-  border-radius: 8px;
-  border: 1px solid var(--badge-icon-border);
-  background: var(--badge-icon-bg);
-  color: var(--badge-icon-text);
+  border-radius: 7px;
+  background: linear-gradient(135deg, rgba(45, 212, 191, 0.16) 0%, rgba(6, 182, 212, 0.16) 100%);
+  color: #0d9488;
   flex-shrink: 0;
 }
 
-/* Badge color variants */
-[data-component="tool-trigger"][data-badge="green"] {
-  --badge-border: rgba(34, 197, 94, 0.3);
-  --badge-bg: rgba(34, 197, 94, 0.08);
-  --badge-text: inherit;
-  --badge-text-muted: inherit;
-  --badge-icon-border: rgba(34, 197, 94, 0.35);
-  --badge-icon-bg: rgba(34, 197, 94, 0.12);
-  --badge-icon-text: #4ade80;
-}
-
-[data-component="tool-trigger"][data-badge="purple"] {
-  --badge-border: rgba(192, 132, 252, 0.25);
-  --badge-bg: rgba(192, 132, 252, 0.07);
-  --badge-text: #e9d5ff;
-  --badge-text-muted: rgba(233, 213, 255, 0.65);
-  --badge-icon-border: rgba(192, 132, 252, 0.25);
-  --badge-icon-bg: rgba(192, 132, 252, 0.1);
-  --badge-icon-text: #e9d5ff;
-}
-
-[data-component="tool-trigger"][data-badge="blue"] {
-  --badge-border: rgba(96, 165, 250, 0.25);
-  --badge-bg: rgba(96, 165, 250, 0.07);
-  --badge-text: #bfdbfe;
-  --badge-text-muted: rgba(191, 219, 254, 0.65);
-  --badge-icon-border: rgba(96, 165, 250, 0.25);
-  --badge-icon-bg: rgba(96, 165, 250, 0.1);
-  --badge-icon-text: #bfdbfe;
-}
-
-[data-component="tool-trigger"][data-badge="orange"] {
-  --badge-border: rgba(249, 115, 22, 0.3);
-  --badge-bg: rgba(249, 115, 22, 0.08);
-  --badge-text: inherit;
-  --badge-text-muted: inherit;
-  --badge-icon-border: rgba(249, 115, 22, 0.35);
-  --badge-icon-bg: rgba(249, 115, 22, 0.12);
-  --badge-icon-text: #fb923c;
-}
-
+/* 统一 NovaWay teal 渐变标识，不再按工具类型分色 */
+[data-component="tool-trigger"][data-badge="green"],
+[data-component="tool-trigger"][data-badge="purple"],
+[data-component="tool-trigger"][data-badge="blue"],
+[data-component="tool-trigger"][data-badge="orange"],
 [data-component="tool-trigger"][data-badge="indigo"] {
-  --badge-border: rgba(129, 140, 248, 0.25);
-  --badge-bg: rgba(129, 140, 248, 0.07);
-  --badge-text: #c7d2fe;
-  --badge-text-muted: rgba(199, 210, 254, 0.65);
-  --badge-icon-border: rgba(129, 140, 248, 0.25);
-  --badge-icon-bg: rgba(129, 140, 248, 0.1);
-  --badge-icon-text: #c7d2fe;
+  &::before {
+    background: linear-gradient(180deg, #2dd4bf 0%, #06b6d4 100%);
+  }
+
+  [data-slot="tool-badge-icon"] {
+    background: linear-gradient(135deg, rgba(45, 212, 191, 0.16) 0%, rgba(6, 182, 212, 0.16) 100%);
+    color: #0d9488;
+  }
 }

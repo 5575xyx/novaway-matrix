@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="file:///E:/AImoney/NovaWay-Matrix/novaway-coder/script/vendor/reveal/reset.css" />
+    <link rel="stylesheet" href="file:///E:/AImoney/NovaWay-Matrix/novaway-coder/script/vendor/reveal/reveal.css" />
+    <link
+      rel="stylesheet"
+      href="file:///E:/AImoney/NovaWay-Matrix/novaway-coder/.tmp/reveal-preview-build/theme/beige.css"
+    />
+    <style>
+      html,
+      body {
+        width: 1280px;
+        height: 720px;
+        margin: 0;
+        overflow: hidden;
+      }
+      .reveal,
+      .reveal-viewport {
+        width: 1280px;
+        height: 720px;
+      }
+      .reveal .slides section.preview-slide {
+        width: 1280px;
+        height: 720px;
+        box-sizing: border-box;
+        padding: 72px 86px;
+        text-align: left;
+        font-family: var(--r-main-font), "Microsoft YaHei", "PingFang SC", sans-serif;
+      }
+      .preview-slide h1,
+      .preview-slide h2 {
+        margin: 12px 0 22px;
+        font-family: var(--r-heading-font), "Microsoft YaHei", "PingFang SC", sans-serif;
+        text-shadow: none;
+      }
+      .preview-slide h1 {
+        font-size: 62px;
+        line-height: 1.08;
+      }
+      .preview-slide h2 {
+        font-size: 40px;
+        line-height: 1.12;
+      }
+      .preview-kicker {
+        margin-bottom: 14px;
+        color: var(--r-link-color);
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+      }
+      .preview-subtitle {
+        max-width: 930px;
+        font-size: 22px;
+        line-height: 1.6;
+        opacity: 0.92;
+      }
+      .preview-meta {
+        margin-top: 44px;
+        font-size: 16px;
+        opacity: 0.68;
+      }
+      .preview-list,
+      .preview-grid,
+      .preview-columns {
+        display: grid;
+        gap: 14px;
+        margin-top: 28px;
+      }
+      .preview-list {
+        grid-template-columns: 1fr 1fr;
+      }
+      .preview-grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+      .preview-columns {
+        grid-template-columns: repeat(3, 1fr);
+      }
+      .preview-list > div,
+      .preview-grid > div,
+      .preview-columns > div {
+        padding: 18px 20px;
+        border: 1px solid color-mix(in srgb, var(--r-main-color) 22%, transparent);
+        border-radius: 8px;
+        background: color-mix(in srgb, var(--r-main-color) 8%, transparent);
+      }
+      .preview-list span,
+      .preview-grid span {
+        display: block;
+        margin-bottom: 10px;
+        color: var(--r-link-color);
+        font-size: 14px;
+        font-weight: 700;
+      }
+      .preview-list strong,
+      .preview-grid strong,
+      .preview-columns strong {
+        display: block;
+        font-size: 20px;
+        line-height: 1.3;
+      }
+      .preview-list p,
+      .preview-grid p,
+      .preview-columns p {
+        margin: 8px 0 0;
+        font-size: 15px;
+        line-height: 1.55;
+        opacity: 0.8;
+      }
+      .preview-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-top: 30px;
+      }
+      .preview-metrics > div {
+        padding: 20px;
+        border: 1px solid color-mix(in srgb, var(--r-main-color) 22%, transparent);
+        border-radius: 8px;
+        background: color-mix(in srgb, var(--r-main-color) 8%, transparent);
+      }
+      .preview-metrics strong {
+        display: block;
+        color: var(--r-link-color);
+        font-size: 38px;
+        line-height: 1;
+      }
+      .preview-metrics span {
+        display: block;
+        margin-top: 10px;
+        font-size: 15px;
+        opacity: 0.78;
+      }
+      .preview-bars {
+        display: grid;
+        gap: 12px;
+        margin-top: 28px;
+      }
+      .preview-bars > div {
+        display: grid;
+        grid-template-columns: 56px 1fr;
+        align-items: center;
+        gap: 12px;
+      }
+      .preview-bars span {
+        font-size: 14px;
+        font-weight: 700;
+        opacity: 0.8;
+      }
+      .preview-bars i {
+        display: block;
+        height: 16px;
+        border-radius: 8px;
+        background: var(--r-link-color);
+        opacity: 0.9;
+      }
+      .preview-closing-list {
+        display: grid;
+        gap: 14px;
+        margin-top: 28px;
+      }
+      .preview-closing-list > div {
+        padding: 16px 20px;
+        border-left: 4px solid var(--r-link-color);
+        background: color-mix(in srgb, var(--r-main-color) 7%, transparent);
+      }
+      .preview-closing-list strong {
+        font-size: 20px;
+      }
+      .preview-closing-list p {
+        margin: 6px 0 0;
+        font-size: 15px;
+        opacity: 0.78;
+      }
+      .preview-footer {
+        margin-top: 40px;
+        font-size: 15px;
+        font-weight: 700;
+        opacity: 0.72;
+      }
+      .preview-slide {
+        position: relative;
+      }
+      .layout-topline {
+        width: 180px;
+        height: 5px;
+        margin-bottom: 28px;
+        background: var(--r-link-color);
+      }
+      .split-frame {
+        display: grid;
+        grid-template-columns: 1fr 300px;
+        gap: 36px;
+        align-items: stretch;
+        min-height: 100%;
+      }
+      .split-main {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+      .split-side {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        gap: 10px;
+        padding: 28px 0 28px 34px;
+        border-left: 3px solid var(--r-link-color);
+        font-size: 16px;
+        opacity: 0.9;
+      }
+      .split-side strong {
+        font-size: 58px;
+        line-height: 1;
+      }
+      .paper-chapter {
+        margin-bottom: 22px;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        opacity: 0.72;
+      }
+      .terminal-window {
+        border: 1px solid color-mix(in srgb, var(--r-main-color) 28%, transparent);
+        border-radius: 10px;
+        overflow: hidden;
+        background: color-mix(in srgb, var(--r-main-color) 7%, transparent);
+      }
+      .terminal-bar {
+        display: flex;
+        justify-content: space-between;
+        padding: 12px 18px;
+        border-bottom: 1px solid color-mix(in srgb, var(--r-main-color) 22%, transparent);
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        opacity: 0.78;
+      }
+      .terminal-body {
+        padding: 28px 34px 34px;
+      }
+      .stack-list {
+        display: grid;
+        gap: 0;
+        margin-top: 22px;
+      }
+      .stack-list > div {
+        display: grid;
+        grid-template-columns: 70px 1fr 2fr;
+        gap: 18px;
+        align-items: center;
+        padding: 18px 4px;
+        border-bottom: 1px solid color-mix(in srgb, var(--r-main-color) 18%, transparent);
+      }
+      .stack-list span,
+      .stack-list b {
+        color: var(--r-link-color);
+        font-size: 18px;
+        font-weight: 800;
+      }
+      .stack-list strong {
+        font-size: 20px;
+      }
+      .stack-list p {
+        margin: 0;
+        font-size: 15px;
+        opacity: 0.78;
+      }
+      .chips {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+        margin-top: 28px;
+      }
+      .chips > div {
+        padding: 20px 18px;
+        border: 1px solid color-mix(in srgb, var(--r-main-color) 18%, transparent);
+        border-radius: 14px;
+        background: color-mix(in srgb, var(--r-main-color) 7%, transparent);
+      }
+      .chips span {
+        display: block;
+        color: var(--r-link-color);
+        font-size: 14px;
+        font-weight: 800;
+      }
+      .chips strong {
+        display: block;
+        margin-top: 12px;
+        font-size: 20px;
+      }
+      .chips p {
+        margin: 8px 0 0;
+        font-size: 14px;
+        line-height: 1.5;
+        opacity: 0.76;
+      }
+      .chapters {
+        display: grid;
+        gap: 10px;
+        margin-top: 26px;
+      }
+      .chapters > div {
+        display: grid;
+        grid-template-columns: 96px 1fr;
+        gap: 18px;
+        align-items: baseline;
+        padding: 15px 0;
+        border-bottom: 1px solid color-mix(in srgb, var(--r-main-color) 16%, transparent);
+      }
+      .chapters span {
+        color: var(--r-link-color);
+        font-size: 34px;
+        font-weight: 800;
+      }
+      .chapters strong {
+        font-size: 21px;
+      }
+      .chapters p {
+        margin: 5px 0 0;
+        font-size: 15px;
+        opacity: 0.76;
+      }
+      .ruled-table {
+        display: grid;
+        margin-top: 26px;
+        border-top: 2px solid color-mix(in srgb, var(--r-main-color) 45%, transparent);
+      }
+      .ruled-table > div {
+        display: grid;
+        grid-template-columns: 90px 1fr 1.4fr;
+        gap: 18px;
+        align-items: center;
+        padding: 16px 8px;
+        border-bottom: 1px solid color-mix(in srgb, var(--r-main-color) 18%, transparent);
+      }
+      .ruled-table span {
+        color: var(--r-link-color);
+        font-size: 20px;
+        font-weight: 800;
+      }
+      .ruled-table strong {
+        font-size: 19px;
+      }
+      .ruled-table p {
+        margin: 0;
+        font-size: 15px;
+        opacity: 0.76;
+      }
+      .code-lines {
+        display: grid;
+        gap: 12px;
+        font-family: Consolas, "SF Mono", monospace;
+      }
+      .code-lines > div {
+        display: grid;
+        grid-template-columns: 52px 1fr 1.4fr;
+        gap: 14px;
+        align-items: center;
+        padding: 10px 12px;
+        border-left: 3px solid var(--r-link-color);
+        background: color-mix(in srgb, var(--r-main-color) 6%, transparent);
+      }
+      .code-lines b {
+        color: var(--r-link-color);
+      }
+      .code-lines strong {
+        font-size: 17px;
+      }
+      .code-lines span {
+        font-size: 14px;
+        opacity: 0.74;
+      }
+      .grid-2x2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-top: 26px;
+      }
+      .grid-2x2 > div {
+        min-height: 138px;
+        padding: 20px 22px;
+        border: 1px solid color-mix(in srgb, var(--r-main-color) 22%, transparent);
+        border-radius: 8px;
+        background: color-mix(in srgb, var(--r-main-color) 8%, transparent);
+      }
+      .grid-2x2 span {
+        color: var(--r-link-color);
+        font-size: 14px;
+        font-weight: 800;
+      }
+      .grid-2x2 strong {
+        display: block;
+        margin-top: 12px;
+        font-size: 22px;
+      }
+      .grid-2x2 p {
+        margin: 8px 0 0;
+        font-size: 15px;
+        line-height: 1.5;
+        opacity: 0.78;
+      }
+      .vertical-cards {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        margin-top: 28px;
+      }
+      .vertical-cards > div {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        min-height: 300px;
+        padding: 20px;
+        border-top: 5px solid var(--r-link-color);
+        background: color-mix(in srgb, var(--r-main-color) 7%, transparent);
+      }
+      .vertical-cards span {
+        color: var(--r-link-color);
+        font-size: 14px;
+        font-weight: 800;
+      }
+      .vertical-cards strong {
+        display: block;
+        margin-top: auto;
+        font-size: 22px;
+      }
+      .vertical-cards p {
+        margin: 8px 0 0;
+        font-size: 15px;
+        line-height: 1.5;
+        opacity: 0.76;
+      }
+      .note-cards {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-top: 26px;
+      }
+      .note-cards > div {
+        padding: 18px 20px;
+        border-left: 4px solid var(--r-link-color);
+        background: color-mix(in srgb, var(--r-main-color) 6%, transparent);
+      }
+      .note-cards span {
+        color: var(--r-link-color);
+        font-size: 14px;
+        font-weight: 800;
+      }
+      .note-cards strong {
+        display: block;
+        margin-top: 8px;
+        font-size: 21px;
+      }
+      .note-cards p {
+        margin: 7px 0 0;
+        font-size: 15px;
+        opacity: 0.76;
+      }
+      .module-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .module-grid > div {
+        padding: 14px 16px;
+        border: 1px solid color-mix(in srgb, var(--r-main-color) 20%, transparent);
+        border-radius: 8px;
+        background: color-mix(in srgb, var(--r-main-color) 5%, transparent);
+      }
+      .module-grid b {
+        color: var(--r-link-color);
+        font-family: Consolas, monospace;
+      }
+      .module-grid strong {
+        display: block;
+        margin-top: 8px;
+        font-size: 18px;
+      }
+      .module-grid p {
+        margin: 6px 0 0;
+        font-size: 14px;
+        opacity: 0.76;
+      }
+      .risk-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-top: 28px;
+      }
+      .risk-grid > div {
+        padding: 22px;
+        border: 1px solid color-mix(in srgb, var(--r-main-color) 24%, transparent);
+        border-top: 6px solid var(--r-link-color);
+        background: color-mix(in srgb, var(--r-main-color) 7%, transparent);
+      }
+      .risk-grid span {
+        color: var(--r-link-color);
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: 1px;
+      }
+      .risk-grid strong {
+        display: block;
+        margin-top: 16px;
+        font-size: 23px;
+      }
+      .risk-grid p {
+        margin: 10px 0 0;
+        font-size: 15px;
+        line-height: 1.55;
+        opacity: 0.78;
+      }
+      .pillars {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-top: 28px;
+      }
+      .pillars > div {
+        padding: 24px;
+        background: color-mix(in srgb, var(--r-main-color) 7%, transparent);
+      }
+      .pillars b {
+        display: block;
+        color: var(--r-link-color);
+        font-size: 34px;
+      }
+      .pillars strong {
+        display: block;
+        margin-top: 16px;
+        font-size: 22px;
+      }
+      .pillars p {
+        margin: 10px 0 0;
+        font-size: 15px;
+        line-height: 1.55;
+        opacity: 0.78;
+      }
+      .manuscript {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 42px;
+        margin-top: 30px;
+      }
+      .manuscript p {
+        margin: 0;
+        font-size: 20px;
+        line-height: 1.85;
+        opacity: 0.9;
+      }
+      .split-content {
+        display: grid;
+        grid-template-columns: 1fr 1.15fr;
+        gap: 54px;
+        align-items: center;
+        min-height: 100%;
+      }
+      .split-content h2 {
+        font-size: 46px;
+      }
+      .split-copy p {
+        margin: 0 0 18px;
+        font-size: 17px;
+        line-height: 1.7;
+        opacity: 0.88;
+      }
+      .split-copy strong {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--r-link-color);
+      }
+      .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        margin-top: 30px;
+      }
+      .kpi-grid > div {
+        padding: 22px 18px;
+        border: 1px solid color-mix(in srgb, var(--r-main-color) 22%, transparent);
+        background: color-mix(in srgb, var(--r-main-color) 6%, transparent);
+      }
+      .kpi-grid strong {
+        display: block;
+        color: var(--r-link-color);
+        font-size: 38px;
+      }
+      .kpi-grid span {
+        display: block;
+        margin-top: 10px;
+        font-size: 14px;
+        opacity: 0.78;
+      }
+      .gauge-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 18px;
+        margin-top: 30px;
+        align-items: end;
+      }
+      .gauge-grid > div {
+        min-height: 260px;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        padding: 18px;
+        border: 1px solid color-mix(in srgb, var(--r-main-color) 20%, transparent);
+        background: color-mix(in srgb, var(--r-main-color) 5%, transparent);
+      }
+      .gauge-grid i {
+        display: block;
+        width: 100%;
+        background: var(--r-link-color);
+        opacity: 0.85;
+      }
+      .gauge-grid strong {
+        display: block;
+        margin-top: 14px;
+        color: var(--r-link-color);
+        font-size: 28px;
+      }
+      .gauge-grid span {
+        display: block;
+        margin-top: 6px;
+        font-size: 14px;
+        opacity: 0.78;
+      }
+      .terminal-metrics {
+        display: grid;
+        gap: 12px;
+        font-family: Consolas, "SF Mono", monospace;
+      }
+      .terminal-metrics > div {
+        display: grid;
+        grid-template-columns: 60px 90px 1fr;
+        gap: 14px;
+        align-items: center;
+      }
+      .terminal-metrics b {
+        color: var(--r-link-color);
+      }
+      .terminal-metrics span {
+        font-weight: 800;
+      }
+      .terminal-metrics i {
+        display: block;
+        height: 12px;
+        background: var(--r-link-color);
+      }
+      .preview-closing blockquote {
+        margin: 44px 0 0;
+        padding: 0 0 0 28px;
+        border-left: 5px solid var(--r-link-color);
+        font-size: 34px;
+        line-height: 1.5;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <section class="preview-slide preview-cover layout-paper">
+          <div class="paper-chapter">Chapter 01 · NovaWay AI Office</div>
+          <h1>2026 战略发展汇报</h1>
+          <p class="preview-subtitle">
+            从市场判断、关键举措到落地节奏，用一套完整叙事呈现业务路径、核心数据和下一阶段行动。
+          </p>
+          <div class="preview-meta">方案评审 · 增长与产品委员会 · 2026 Q3</div>
+        </section>
+        <section class="preview-slide preview-overview layout-list">
+          <div class="preview-kicker">Agenda</div>
+          <h2>汇报框架</h2>
+          <div class="stack-list">
+            <div>
+              <span>01</span><strong>市场判断</strong>
+              <p>行业趋势、客户需求与竞争格局</p>
+            </div>
+            <div>
+              <span>02</span><strong>核心策略</strong>
+              <p>产品主线、组织能力与增长路径</p>
+            </div>
+            <div>
+              <span>03</span><strong>关键指标</strong>
+              <p>经营结果、过程指标与健康度</p>
+            </div>
+            <div>
+              <span>04</span><strong>行动计划</strong>
+              <p>里程碑、责任人与风险应对</p>
+            </div>
+          </div>
+        </section>
+        <section class="preview-slide preview-content layout-manuscript">
+          <div class="preview-kicker">Core Strategy</div>
+          <h2>核心策略与执行路径</h2>
+          <div class="manuscript">
+            <p>
+              围绕企业办公、知识沉淀和协作效率，形成更清晰的客户价值闭环。AI
+              原生体验需要把生成、修订和交付嵌入真实工作流，而不是停留在单点功能。
+            </p>
+            <p>
+              通过标准接口和可复用组件，与行业伙伴共同扩展应用边界。经营结果、过程指标与健康度共同构成下一阶段的决策依据。
+            </p>
+          </div>
+        </section>
+        <section class="preview-slide preview-cards layout-notes">
+          <div class="preview-kicker">Solution Cards</div>
+          <h2>四大能力模块</h2>
+          <div class="note-cards">
+            <div>
+              <span>01</span><strong>智能文档</strong>
+              <p>从草稿到成稿的自动生成与专业排版</p>
+            </div>
+            <div>
+              <span>02</span><strong>演示设计</strong>
+              <p>基于真实模板输出规范、一致的高质量页面</p>
+            </div>
+            <div>
+              <span>03</span><strong>会议协同</strong>
+              <p>自动沉淀结论、决策和可执行行动项</p>
+            </div>
+            <div>
+              <span>04</span><strong>知识管理</strong>
+              <p>跨文档检索、摘要、对比与持续复用</p>
+            </div>
+          </div>
+        </section>
+        <section class="preview-slide preview-data layout-table">
+          <div class="preview-kicker">Key Metrics</div>
+          <h2>关键指标一览</h2>
+          <div class="ruled-table">
+            <div>
+              <span>指标</span><strong>本季度</strong>
+              <p>目标达成率</p>
+            </div>
+            <div>
+              <span>128%</span><strong>46%</strong>
+              <p>AI 生成内容采纳率</p>
+            </div>
+            <div>
+              <span>3.8x</span><strong>82%</strong>
+              <p>方案制作效率提升</p>
+            </div>
+            <div>
+              <span>96%</span><strong>18 项</strong>
+              <p>关键项目按时完成</p>
+            </div>
+          </div>
+        </section>
+        <section class="preview-slide preview-closing layout-quote">
+          <div class="preview-kicker">Takeaway</div>
+          <blockquote>让复杂工作更快被完成，而不是让工具变得更复杂。</blockquote>
+          <div class="preview-footer">NovaWay · 2026 战略发展汇报</div>
+        </section>
+      </div>
+    </div>
+    <script src="file:///E:/AImoney/NovaWay-Matrix/novaway-coder/script/vendor/reveal/reveal.js"></script>
+    <script>
+      Reveal.initialize({
+        width: 1280,
+        height: 720,
+        margin: 0,
+        minScale: 1,
+        maxScale: 1,
+        controls: false,
+        progress: false,
+        hash: false,
+        transition: "none",
+        slideNumber: false,
+      }).then(() => {
+        const slot = Number(new URLSearchParams(location.search).get("s") ?? 0)
+        Reveal.slide(slot, 0)
+      })
+    </script>
+  </body>
+</html>

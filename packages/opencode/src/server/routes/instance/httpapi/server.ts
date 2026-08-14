@@ -74,6 +74,7 @@ import { instanceHandlers } from "./handlers/instance"
 import { mcpHandlers } from "./handlers/mcp"
 import { memoryHandlers } from "./handlers/memory"
 import { officeHandlers } from "./handlers/office"
+import { officePlatformHandlers } from "./handlers/office-platform"
 import { permissionHandlers } from "./handlers/permission"
 import { projectHandlers } from "./handlers/project"
 import { providerHandlers } from "./handlers/provider"
@@ -98,6 +99,7 @@ import { fenceLayer } from "./middleware/fence"
 import { schemaErrorLayer } from "./middleware/schema-error"
 import { Evolution } from "@/evolution/service"
 import { Memory } from "@/memory/service"
+import { OfficePlatform } from "@/office/platform"
 
 export const context = Context.makeUnsafe<unknown>(new Map())
 
@@ -142,6 +144,7 @@ const instanceApiRoutes = HttpApiBuilder.layer(InstanceHttpApi).pipe(
     mcpHandlers,
     memoryHandlers,
     officeHandlers,
+    officePlatformHandlers,
     projectHandlers,
     ptyHandlers,
     questionHandlers,
@@ -217,6 +220,7 @@ export function createRoutes(
       LSP.defaultLayer,
       Installation.defaultLayer,
       MCP.defaultLayer,
+      OfficePlatform.defaultLayer,
       ModelsDev.defaultLayer,
       Permission.defaultLayer,
       Plugin.defaultLayer,

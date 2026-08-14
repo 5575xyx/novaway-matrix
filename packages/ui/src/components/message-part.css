@@ -638,6 +638,7 @@
 }
 
 [data-component="context-tool-group-trigger"] {
+  position: relative;
   width: fit-content;
   min-height: 24px;
   display: inline-flex;
@@ -645,6 +646,20 @@
   justify-content: flex-start;
   gap: 0px;
   cursor: default;
+
+  /* 左侧 NovaWay teal 渐变指示条 */
+  &::before {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 55%;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #2dd4bf 0%, #06b6d4 100%);
+    opacity: 0.5;
+  }
 
   [data-slot="context-tool-group-title"] {
     flex-shrink: 1;

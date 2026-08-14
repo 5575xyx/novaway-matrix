@@ -1,6 +1,6 @@
 import type { ComponentProps } from "solid-js"
 
-export type HomeActionId = "document" | "ppt"
+export type HomeActionId = "document" | "ppt" | "knowledge" | "data" | "design" | "web"
 
 type HomeActionIcon = ComponentProps<typeof import("@opencode-ai/ui/icon").Icon>["name"]
 
@@ -58,7 +58,7 @@ export function completeOfficeDraft(action: HomeAction, draft: OfficeActionDraft
 export const zenActions: HomeAction[] = [
   {
     id: "document",
-    title: "AI 文档",
+    title: "文档整理",
     description: "生成方案、报告、周报、会议纪要，并围绕选中文本持续润色。",
     icon: "pencil-line",
     accent: "from-emerald-400/22 via-cyan-300/12 to-transparent",
@@ -78,7 +78,7 @@ export const zenActions: HomeAction[] = [
   },
   {
     id: "ppt",
-    title: "AI PPT",
+    title: "PPT生成",
     description: "从主题或资料生成大纲、页面文案、图表建议和演讲备注。",
     icon: "layout-bottom",
     accent: "from-sky-400/22 via-indigo-300/12 to-transparent",
@@ -96,18 +96,97 @@ export const zenActions: HomeAction[] = [
     ],
     primary: true,
   },
+  {
+    id: "knowledge",
+    title: "AI 资料库",
+    description: "把资料、文档和多来源信息整理成可检索的知识资产和 FAQ。",
+    icon: "database",
+    accent: "from-cyan-400/22 via-teal-300/12 to-transparent",
+    meta: "摘要 / 索引 / 对比",
+    action: "开始整理",
+    placeholder: "例如：总结这份行业报告，提炼关键结论、术语、数据和可追问问题。",
+    detailLabel: "资料或来源",
+    detailPlaceholder: "粘贴资料正文、上传文件说明、网页摘录，或说明资料所在文件。",
+    outputLabel: "资料产物",
+    outputs: ["资料摘要", "主题索引", "多文档对比", "FAQ"],
+    templates: [
+      "把这份资料整理成可检索的知识摘要，保留来源和关键结论。",
+      "对比多份文档，列出共识、差异和证据线索。",
+      "根据资料生成 FAQ，覆盖读者最可能提出的问题。",
+    ],
+  },
+  {
+    id: "data",
+    title: "表格分析",
+    description: "把 CSV、Excel 和业务数据整理成可核验的分析结论、图表建议和行动建议。",
+    icon: "table",
+    accent: "from-teal-400/22 via-emerald-300/12 to-transparent",
+    meta: "清洗 / 透视 / 图表",
+    action: "开始分析",
+    placeholder: "例如：分析这份销售数据，找出增长最快的产品、下降原因和下一步行动。",
+    detailLabel: "数据资料或字段说明",
+    detailPlaceholder: "粘贴 CSV/Excel 内容、字段说明、业务目标，或说明数据文件所在路径。",
+    outputLabel: "分析产物",
+    outputs: ["数据摘要", "透视分析", "趋势洞察", "图表建议", "行动建议"],
+    templates: [
+      "分析这份销售数据，按产品、区域和月份输出增长与下降归因。",
+      "把原始表格整理成透视分析，包含关键指标、口径说明和结论。",
+      "根据这份 CSV 生成趋势洞察和图表建议，标注可核验的数据来源。",
+    ],
+    primary: true,
+  },
+  {
+    id: "design",
+    title: "视觉设计",
+    description: "把品牌、活动或内容目标转成海报、封面、配图、色板和视觉规范。",
+    icon: "photo",
+    accent: "from-violet-400/22 via-fuchsia-300/12 to-transparent",
+    meta: "海报 / 封面 / 配图",
+    action: "开始设计",
+    placeholder: "例如：为新品发布设计一张活动海报，包含主标题、副标题、关键信息和视觉基调。",
+    detailLabel: "设计背景或素材",
+    detailPlaceholder: "粘贴活动信息、品牌资料、目标人群、参考风格，或说明素材文件位置。",
+    outputLabel: "设计产物",
+    outputs: ["宣传海报", "社交封面", "演示配图", "品牌色板", "图标草稿"],
+    templates: [
+      "为新品发布会设计一张活动海报，给出标题、信息层级和视觉基调。",
+      "生成一套品牌色板，包含主色、辅助色、文字色和应用规则。",
+      "为这篇内容生成社交封面配图方案，说明构图、文案和视觉元素。",
+    ],
+    primary: true,
+  },
+  {
+    id: "web",
+    title: "网页看板",
+    description: "把数据、进度或业务信息转成可交互的 HTML 看板、追踪页和工具页。",
+    icon: "window-cursor",
+    accent: "from-orange-400/22 via-amber-300/12 to-transparent",
+    meta: "看板 / 工具 / 页面",
+    action: "开始构建",
+    placeholder: "例如：做一个销售周报看板，包含核心指标、趋势图、排名表和行动项。",
+    detailLabel: "页面内容或数据",
+    detailPlaceholder: "粘贴业务指标、数据表格、页面结构、目标用户，或说明数据文件位置。",
+    outputLabel: "网页产物",
+    outputs: ["数据看板", "项目追踪页", "客户工具页", "HTML 页面", "演示站点"],
+    templates: [
+      "生成一个销售周报 HTML 看板，包含核心指标、趋势图和排名表。",
+      "做一个项目追踪页，包含里程碑、风险、负责人和状态。",
+      "把这份资料转成一个单页演示站点，结构清晰、适合展示。",
+    ],
+    primary: true,
+  },
 ]
 
 export const zenSignals = [
   { label: "持久记忆", value: "写作偏好、汇报口径、常用模板" },
   { label: "自我进化", value: "从反复修改中优化文档与 PPT 策略" },
-  { label: "办公上下文", value: "围绕资料、会议、任务形成长期项目空间" },
+  { label: "办公上下文", value: "围绕文档、PPT、资料和数据形成长期项目空间" },
 ]
 
 export const zenWorkflow = [
-  "导入资料或打开办公项目",
-  "选择 AI 文档、PPT、会议等办公入口",
-  "预览 AI 产物并确认记忆与进化建议",
+  "选择 文档整理、PPT生成、资料库、表格分析、视觉设计或网页看板场景",
+  "输入任务或导入资料，立即开始办公",
+  "预览 AI 产物，继续修改、保存或导出",
 ]
 
 export function officeOutputContract(id: HomeActionId): OfficeOutputContract {
@@ -116,8 +195,12 @@ export function officeOutputContract(id: HomeActionId): OfficeOutputContract {
 
 export function createOfficePrompt(action: HomeAction, draft: OfficeActionDraft) {
   const taskNames: Record<HomeActionId, string> = {
-    document: "AI 文档生成与审阅",
-    ppt: "AI PPT 大纲与页面内容生成",
+    document: "文档整理与审阅",
+    ppt: "PPT生成：大纲与页面内容生成",
+    knowledge: "AI 资料摘要、索引与 FAQ 生成",
+    data: "表格分析与数据洞察",
+    design: "视觉设计与品牌方案生成",
+    web: "网页看板与 HTML 工具生成",
   }
   const outputGuides: Record<HomeActionId, string[]> = {
     document: ["先给出文档结构", "再生成正文草稿", "最后列出可继续补充的资料缺口"],
@@ -127,6 +210,10 @@ export function createOfficePrompt(action: HomeAction, draft: OfficeActionDraft)
       "标出适合图表、流程图、架构图或主题配图的位置",
       "配图优先使用用户提供的图片附件；未提供图片时，仅在必要页面给出可用于图片生成模型的中文配图提示词，全稿最多 5 张",
     ],
+    knowledge: ["先明确资料范围和核心问题", "再生成主题索引和关键观点", "最后补充来源线索、FAQ 和可追问问题"],
+    data: ["先确认数据范围和关键指标", "再完成清洗、透视和趋势分析", "最后生成图表建议和可执行结论"],
+    design: ["先确认设计目标、受众和品牌约束", "再给出信息层级、构图和视觉基调", "最后生成可执行的视觉规范"],
+    web: ["先确认页面目标、数据来源和用户", "再设计信息架构和页面区块", "最后生成可直接使用的 HTML 与说明"],
   }
   const contract = officeOutputContract(action.id)
 
@@ -178,5 +265,35 @@ const outputContracts: Record<HomeActionId, OfficeOutputContract> = {
       "避免整段长文堆叠",
       "配图建议必须说明使用附件图片、无需图片或需要生成图片；需要生成图片时写出清晰中文提示词，整份 PPT 最多 5 张",
     ],
+  },
+  knowledge: {
+    format: "Markdown 知识摘要，可直接复制保存为 .md",
+    sections: ["资料摘要", "主题索引", "关键观点", "来源与证据", "FAQ 与追问线索"],
+    rules: ["保留来源线索", "区分确定信息和推断", "按主题组织，便于检索", "正文和记忆建议分开"],
+  },
+  data: {
+    format: "Markdown 数据分析报告，可直接复制保存为 .md",
+    sections: ["数据摘要", "口径与来源", "透视与关键指标", "趋势与归因", "图表建议", "行动建议"],
+    rules: [
+      "数字必须来自用户资料或明确标注估算",
+      "区分事实、推断和待确认项",
+      "图表建议必须说明图表类型和维度",
+      "正文和记忆建议分开",
+    ],
+  },
+  design: {
+    format: "Markdown 视觉设计方案，可直接复制保存为 .md",
+    sections: ["设计目标", "受众与场景", "信息层级", "构图与视觉基调", "色彩与字体", "生成图片提示词"],
+    rules: [
+      "颜色和字体必须给出具体值",
+      "图片提示词必须说明主体、风格、构图和光线",
+      "避免描述页面内部功能或快捷键",
+      "正文和记忆建议分开",
+    ],
+  },
+  web: {
+    format: "Markdown 网页看板方案，包含可直接使用的 HTML 结构",
+    sections: ["页面目标", "数据与指标", "页面区块", "交互说明", "HTML 结构", "下一步"],
+    rules: ["HTML 必须使用语义化标签", "数据需要来源说明", "交互说明要具体可执行", "正文和记忆建议分开"],
   },
 }

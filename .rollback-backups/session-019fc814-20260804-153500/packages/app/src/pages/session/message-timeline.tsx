@@ -1567,10 +1567,7 @@ export function MessageTimeline(props: {
         return (
           <TimelineRowFrame row={diffSummaryRow}>
             <div data-slot="session-turn-message-container" class="w-full px-4 md:px-5">
-                <TimelineDiffSummaryRow
-                  diffs={diffSummaryRow().diffs}
-                  fallback={diffSummaryRow().fallback}
-                />
+              <TimelineDiffSummaryRow diffs={diffSummaryRow().diffs} fallback={diffSummaryRow().fallback} />
             </div>
           </TimelineRowFrame>
         )

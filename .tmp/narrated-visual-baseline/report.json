@@ -1,0 +1,43 @@
+{
+  "files": {
+    "cards.jpg": {
+      "status": "skipped",
+      "rmse": null,
+      "dhash": null
+    },
+    "closing.jpg": {
+      "status": "skipped",
+      "rmse": null,
+      "dhash": null
+    },
+    "content.jpg": {
+      "status": "skipped",
+      "rmse": null,
+      "dhash": null
+    },
+    "cover.jpg": {
+      "status": "ok",
+      "rmse": 30.0881,
+      "dhash": 9
+    },
+    "data.jpg": {
+      "status": "ok",
+      "rmse": 38.9021,
+      "dhash": 26
+    },
+    "overview.jpg": {
+      "status": "skipped",
+      "rmse": null,
+      "dhash": null
+    }
+  },
+  "summary": {
+    "total": 6,
+    "ok": 2,
+    "missing": 0,
+    "skipped": 4,
+    "avg_rmse": 34.4951,
+    "avg_dhash": 17.5,
+    "accepted": true
+  }
+}

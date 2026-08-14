@@ -80,21 +80,69 @@ const createEmbeddedWebUIBundle = async () => {
 
 const embeddedFileMap = skipEmbedWebUi ? null : await createEmbeddedWebUIBundle()
 
+const chromiumBidiCjsStubPlugin = {
+  name: "stub-chromium-bidi-cjs",
+  setup(build) {
+    build.onResolve({ filter: /^chromium-bidi\/lib\/cjs\// }, (args) => ({
+      path: args.path,
+      namespace: "chromium-bidi-cjs-stub",
+    }))
+    build.onLoad({ filter: /.*/, namespace: "chromium-bidi-cjs-stub" }, () => ({
+      contents: "export default {}",
+      loader: "js",
+    }))
+  },
+}
+
+const pptxWorkerBundlePath = path.join(dir, "dist", "ppt-worker", "worker.mjs")
+const pptxWorkerAssetPath = path.join(dir, "dist", "ppt-worker", "worker.asset")
+
+const buildPptxWorkerBundle = async () => {
+  console.log(`Building PPT browser worker bundle`)
+  await fs.promises.mkdir(path.dirname(pptxWorkerBundlePath), { recursive: true })
+  const result = await Bun.build({
+    target: "node",
+    entrypoints: [path.join(dir, "src/office/pptx/worker.mjs")],
+    outdir: path.dirname(pptxWorkerBundlePath),
+    naming: "worker.mjs",
+    format: "esm",
+    plugins: [chromiumBidiCjsStubPlugin],
+  })
+  if (!result.success) throw new Error("PPT worker \u6253\u5305\u5931\u8d25")
+  await fs.promises.copyFile(pptxWorkerBundlePath, pptxWorkerAssetPath)
+}
+
 const createEmbeddedSkillAssetsBundle = async () => {
   console.log(`Generating embedded skill assets bundle`)
+  await buildPptxWorkerBundle()
   const SKILL_DIRS = [
+    {
+      name: "office-ppt",
+      dir: path.join(dir, "src/skill/prompt/office-ppt"),
+      extraFiles: [{ key: "pptx-worker/worker.mjs", absPath: pptxWorkerAssetPath }],
+    },
     { name: "xiaohongshu-ops", dir: path.join(dir, "src/skill/prompt/xiaohongshu-ops") },
     { name: "wxgzh-ops", dir: path.join(dir, "src/skill/prompt/wxgzh-ops") },
   ]
-  const entries: { key: string; spec: string; idx: number }[] = []
+  const entries = []
   let fileIdx = 0
-  for (const { name, dir: skillDir } of SKILL_DIRS) {
+  for (const { name, dir: skillDir, extraFiles } of SKILL_DIRS) {
+    const extraEntries = []
+    for (const extra of extraFiles ?? []) {
+      const spec = path.relative(dir, extra.absPath).replaceAll("\\", "/")
+      extraEntries.push({
+        key: `${name}/${extra.key}`,
+        spec: spec.startsWith(".") ? spec : `./${spec}`,
+        idx: fileIdx++,
+      })
+    }
     const exists = await fs.promises.stat(skillDir).then(
       () => true,
       () => false,
     )
     if (!exists) {
-      console.log(`  ${name}: directory not found, skipping`)
+      entries.push(...extraEntries)
+      console.log(`  ${name}: directory not found, ${extraFiles?.length ?? 0} extra files`)
       continue
     }
     const files = (await Array.fromAsync(new Bun.Glob("**/*").scan({ cwd: skillDir })))
@@ -106,7 +154,8 @@ const createEmbeddedSkillAssetsBundle = async () => {
       const spec = path.relative(dir, absPath).replaceAll("\\", "/")
       entries.push({ key: `${name}/${file}`, spec: spec.startsWith(".") ? spec : `./${spec}`, idx: fileIdx++ })
     }
-    console.log(`  ${name}: ${files.length} files`)
+    entries.push(...extraEntries)
+    console.log(`  ${name}: ${files.length + (extraFiles?.length ?? 0)} files`)
   }
   if (entries.length === 0) return null
   const imports = entries.map((e) => `import file_${e.idx} from ${JSON.stringify(e.spec)} with { type: "file" };`)
@@ -235,7 +284,7 @@ for (const item of targets) {
   await Bun.build({
     conditions: ["browser"],
     tsconfig: "./tsconfig.json",
-    plugins: [plugin],
+    plugins: [plugin, chromiumBidiCjsStubPlugin],
     external: ["node-gyp"],
     format: "esm",
     minify: true,

@@ -75,12 +75,14 @@ import {
   createCustomPptTemplate,
   createOfficeExportFile,
   createOfficeHtmlExportFile,
+  isRealPptxTemplate,
   officeArtifactKind,
   officePptTemplateDescription,
   officePptTemplateName,
   officePptTemplates,
   type OfficePptTemplateChoice,
 } from "./office-export"
+import { createOfficeExportFileFromPptxTemplate } from "./office-ppt-template-fill"
 import { evaluateOfficeArtifactQuality } from "./office-quality"
 import {
   fillOfficePptxTemplate,
@@ -88,6 +90,11 @@ import {
   officePptxFillPlanSummary,
   officePptxTemplateFillFilename,
 } from "./office-template-fill"
+import { OfficeSlideEditor } from "./office-slide-editor"
+import { createOfficeSlideRevisionPrompt } from "./office-slide-revise"
+import { OfficeDataEditor } from "./office-data-editor"
+import { OfficeDesignEditor } from "./office-design-editor"
+import { OfficeWebEditor } from "./office-web-editor"
 
 const emptyMessages: MessageType[] = []
 const emptyParts: PartType[] = []
@@ -197,23 +204,26 @@ function TimelineThinkingRow(props: { reasoningHeading?: string; showReasoningSu
   )
 }
 
-function TimelineDiffSummaryRow(props: { diffs: SummaryDiff[] }) {
+function TimelineDiffSummaryRow(props: { diffs: SummaryDiff[]; fallback: boolean }) {
   const language = useLanguage()
   const maxFiles = 10
   const [state, setState] = createStore({
     showAll: false,
     expanded: [] as string[],
   })
+  const totalChanges = createMemo(() =>
+    props.diffs.reduce(
+      (acc, diff) => ({
+        additions: acc.additions + (diff.additions ?? 0),
+        deletions: acc.deletions + (diff.deletions ?? 0),
+      }),
+      { additions: 0, deletions: 0 },
+    ),
+  )
   const showAll = () => state.showAll
   const expanded = () => state.expanded
   const overflow = createMemo(() => Math.max(0, props.diffs.length - maxFiles))
   const visible = createMemo(() => (showAll() ? props.diffs : props.diffs.slice(0, maxFiles)))
-  const changedLabel = createMemo(() =>
-    language.t(
-      props.diffs.length === 1 ? "ui.sessionTurn.diffs.changed.one" : "ui.sessionTurn.diffs.changed.other",
-      { count: String(props.diffs.length) },
-    ),
-  )
 
   return (
     <div
@@ -222,8 +232,21 @@ function TimelineDiffSummaryRow(props: { diffs: SummaryDiff[] }) {
       data-show-all={showAll() || undefined}
     >
       <div data-slot="session-turn-diffs-header">
-        <span data-slot="session-turn-diffs-label">{changedLabel()}</span>
-        <DiffChanges changes={props.diffs} />
+        <span data-slot="session-turn-diffs-label">
+          {language.t(props.fallback ? "ui.sessionTurn.diffs.session" : "ui.sessionTurn.diffs.thisTurn", {
+            count: String(props.diffs.length),
+          })}
+        </span>
+        <Show when={totalChanges().additions > 0 || totalChanges().deletions > 0}>
+          <span data-slot="session-turn-diffs-total">
+            <span data-slot="session-turn-diffs-total-add">
+              {language.t("ui.sessionTurn.diffs.added", { count: String(totalChanges().additions) })}
+            </span>
+            <span data-slot="session-turn-diffs-total-del">
+              {language.t("ui.sessionTurn.diffs.deleted", { count: String(totalChanges().deletions) })}
+            </span>
+          </span>
+        </Show>
         <Show when={overflow() > 0}>
           <span data-slot="session-turn-diffs-toggle" onClick={() => setState("showAll", !showAll())}>
             {showAll() ? language.t("ui.sessionTurn.diffs.showLess") : language.t("ui.sessionTurn.diffs.showAll")}
@@ -289,7 +312,7 @@ function TimelineDiffView(props: { diff: SummaryDiff }) {
 
   return (
     <div data-slot="session-turn-diff-view" data-scrollable>
-      <Dynamic component={fileComponent} mode="diff" virtualize={false} fileDiff={view.fileDiff} />
+      <Dynamic component={fileComponent} mode="diff" fileDiff={view.fileDiff} />
     </div>
   )
 }
@@ -362,6 +385,12 @@ export function MessageTimeline(props: {
   const working = createMemo(() => sessionStatus().type !== "idle")
   const tint = createMemo(() => messageAgentColor(sessionMessages(), sync.data.agent))
 
+  createEffect(() => {
+    const id = sessionID()
+    if (!id || sync.data.session_diff[id] !== undefined) return
+    void sync.session.diff(id)
+  })
+
   const [timeoutDone, setTimeoutDone] = createSignal(true)
 
   const workingStatus = createMemo<"hidden" | "showing" | "hiding">((prev) => {
@@ -416,6 +445,29 @@ export function MessageTimeline(props: {
   })
   const parentTitle = createMemo(() => sessionTitle(parent()?.title) ?? language.t("command.session.new"))
   const getMsgParts = (msgId: string) => sync.data.part[msgId] ?? emptyParts
+
+  const latestUserPrompt = createMemo(() => {
+    const messages = sessionMessages()
+      .filter((message) => message.role === "user")
+      .slice(-3)
+    return messages
+      .map((message) =>
+        getMsgParts(message.id)
+          .filter((part): part is Extract<PartType, { type: "text" }> => part.type === "text")
+          .map((part) => part.text)
+          .filter(Boolean)
+          .join("\n"),
+      )
+      .filter(Boolean)
+      .join("\n\n")
+      .trim()
+  })
+  const latestWorkflowScene = createMemo(() => {
+    const last = sessionMessages().filter((message) => message.role === "assistant").at(-1)
+    const agent = last?.agent
+    if (agent?.startsWith("office-")) return agent.slice("office-".length)
+    return "document"
+  })
   const childTaskDescription = createMemo(() => {
     const id = sessionID()
     if (!id) return
@@ -752,6 +804,29 @@ export function MessageTimeline(props: {
     },
   }))
 
+  const saveConversationWorkflow = useMutation(() => ({
+    mutationFn: async () => {
+      const id = sessionID()
+      const prompt = latestUserPrompt()
+      if (!id || !prompt) throw new Error("当前对话还没有可保存的需求")
+      const result = await globalSDK.client.office.platform.workflow.create({
+        title: titleLabel() || "自定义工作流",
+        scene: latestWorkflowScene(),
+        prompt,
+        connectors: [],
+        browser: { enabled: false },
+        sourceSessionId: id,
+      })
+      return result.data
+    },
+    onSuccess: (result) => {
+      showToast({ title: "已存为工作流", description: result?.title ?? "可在办公平台中再次运行" })
+    },
+    onError: () => {
+      showToast({ title: "保存工作流失败", description: "请先在对话中描述办公需求。" })
+    },
+  }))
+
   createEffect(
     on(
       sessionKey,
@@ -1025,16 +1100,24 @@ export function MessageTimeline(props: {
     })
     const fillPlan = createMemo(() => officePptxFillPlanFromArtifact(input.artifact))
     const fillSummary = createMemo(() => officePptxFillPlanSummary(fillPlan()))
+    const [savedPath, setSavedPath] = createSignal("")
     const actionButton =
       "group inline-flex items-center gap-1.5 rounded-[8px] border border-border-weak-base bg-background-base px-2.5 py-1.5 text-12-medium text-text-weak shadow-[0_0_0_0_rgba(16,185,129,0)] outline-none transition-all duration-150 hover:-translate-y-px hover:border-emerald-300/55 hover:bg-emerald-300/[0.08] hover:text-emerald-100 hover:shadow-[0_8px_22px_rgba(16,185,129,0.12)] active:translate-y-0 active:scale-[0.98] active:border-emerald-300/70 active:bg-emerald-300/[0.14] focus-visible:border-emerald-300/70 focus-visible:ring-2 focus-visible:ring-emerald-300/25"
     const primaryActionButton =
       "group inline-flex items-center gap-1.5 rounded-[8px] border border-emerald-300/40 bg-emerald-300/10 px-2.5 py-1.5 text-12-medium text-emerald-100 shadow-[0_0_0_0_rgba(16,185,129,0)] outline-none transition-all duration-150 hover:-translate-y-px hover:border-emerald-300/70 hover:bg-emerald-300/18 hover:shadow-[0_8px_24px_rgba(16,185,129,0.16)] active:translate-y-0 active:scale-[0.98] active:bg-emerald-300/22 focus-visible:border-emerald-300/80 focus-visible:ring-2 focus-visible:ring-emerald-300/30 disabled:cursor-not-allowed disabled:translate-y-0 disabled:scale-100 disabled:opacity-60 disabled:shadow-none"
     const save = useMutation(() => ({
       mutationFn: async () => {
-        const file = createOfficeExportFile(input.artifact, { pptTemplate: pptTemplate() })
+        const file =
+          pptTemplate() && isRealPptxTemplate(pptTemplate())
+            ? await createOfficeExportFileFromPptxTemplate(input.artifact, pptTemplate(), {
+                includeAnimations: office.pptAnimationEnabled(),
+                includeNarration: office.pptNarrationEnabled(),
+                readAsset: readOfficeAssetForExport,
+              })
+            : createOfficeExportFile(input.artifact, { pptTemplate: pptTemplate() })
         const result = await globalSDK.client.office.artifact.save({
           directory: sdk.directory,
-          kind: kind(),
+          kind: kind() === "design" ? "ppt" : kind(),
           filename: file.filename,
           mime: file.mime,
           contentBase64: bytesToBase64(file.bytes),
@@ -1042,10 +1125,39 @@ export function MessageTimeline(props: {
         return result.data
       },
       onSuccess: (result) => {
+        setSavedPath(result?.path ?? "")
         void queryClient.invalidateQueries({ queryKey: ["office-artifacts", sdk.directory] })
         showToast({ title: "办公文件已保存", description: result?.path ?? ".novaway/office" })
       },
       onError: () => showToast({ title: "保存失败", description: "当前办公产物无法写入项目文件夹。" }),
+    }))
+
+    const saveWorkflow = useMutation(() => ({
+      mutationFn: async () => {
+        const scene =
+          kind() === "ppt"
+            ? "office-ppt"
+            : kind() === "data"
+              ? "office-data"
+              : kind() === "design"
+                ? "office-design"
+                : kind() === "web"
+                  ? "office-web"
+                  : "office-document"
+        const result = await globalSDK.client.office.platform.workflow.create({
+          title: input.artifact.title,
+          scene,
+          prompt: `继续处理并完善以下办公产物，按需生成最终交付文件：\n\n${input.artifact.body}`,
+          connectors: [],
+          browser: { enabled: false },
+          sourceSessionId: sessionID(),
+        })
+        return result.data
+      },
+      onSuccess: (result) => {
+        showToast({ title: "已存为工作流", description: result?.title ?? "可在办公平台中再次运行" })
+      },
+      onError: () => showToast({ title: "保存工作流失败", description: "当前会话无法沉淀为工作流。" }),
     }))
 
     const fillTemplate = useMutation(() => ({
@@ -1154,6 +1266,91 @@ export function MessageTimeline(props: {
       ))
     }
 
+    function openArtifactEditor() {
+      const kindValue = kind()
+      if (kindValue === "data") {
+        dialog.show(
+          () => (
+            <Dialog title="表格编辑" class="w-full max-w-4xl mx-auto">
+              <OfficeDataEditor artifact={input.artifact} onClose={() => dialog.close()} />
+            </Dialog>
+          ),
+          () => dialog.close(),
+        )
+        return
+      }
+      if (kindValue === "design") {
+        dialog.show(
+          () => (
+            <Dialog title="视觉设计画布" class="w-full max-w-4xl mx-auto">
+              <OfficeDesignEditor artifact={input.artifact} onClose={() => dialog.close()} />
+            </Dialog>
+          ),
+          () => dialog.close(),
+        )
+        return
+      }
+      if (kindValue === "web") {
+        dialog.show(
+          () => (
+            <Dialog title="网页看板预览" class="w-full max-w-5xl mx-auto">
+              <OfficeWebEditor artifact={input.artifact} onClose={() => dialog.close()} />
+            </Dialog>
+          ),
+          () => dialog.close(),
+        )
+      }
+    }
+
+    function openArtifactHistory() {
+      if (!savedPath()) {
+        showToast({ title: "暂无可查看版本", description: "请先保存到项目后再查看历史版本。" })
+        return
+      }
+      void globalSDK.client.office.platform.artifact.list().then((result) => {
+        const versions = (result.data ?? [])
+          .filter((artifact) => artifact.path === savedPath())
+          .sort((a, b) => Number(a.version) - Number(b.version))
+        dialog.show(
+          () => (
+            <Dialog title={`产物版本：${input.artifact.title}`} class="w-full max-w-[620px] mx-auto">
+              <div class="flex flex-col gap-2 px-6 pb-5">
+                <Show
+                  when={versions.length > 0}
+                  fallback={<div class="text-12-regular text-text-weak">当前文件还没有可恢复的历史版本。</div>}
+                >
+                  <For each={versions}>
+                    {(artifact) => (
+                      <div class="flex items-center justify-between gap-3 rounded-[8px] border border-border-weak-base bg-background-base p-3">
+                        <div class="min-w-0">
+                          <div class="text-12-medium text-text-strong">v{artifact.version}</div>
+                          <div class="mt-0.5 truncate text-11-regular text-text-weak">{artifact.path}</div>
+                        </div>
+                        <button
+                          type="button"
+                          class="h-8 shrink-0 rounded-[7px] border border-border-weak-base px-2.5 text-11-medium text-text-weak hover:text-emerald-200"
+                          onClick={() => void restoreArtifactVersion(artifact.id)}
+                        >
+                          恢复
+                        </button>
+                      </div>
+                    )}
+                  </For>
+                </Show>
+              </div>
+            </Dialog>
+          ),
+          () => dialog.close(),
+        )
+      })
+    }
+
+    async function restoreArtifactVersion(id: string) {
+      await globalSDK.client.office.platform.artifact.restore({ id })
+      dialog.close()
+      showToast({ title: "已恢复版本", description: "历史版本已复制回工作区。" })
+    }
+
     return (
       <div class="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-[8px] border border-emerald-300/20 bg-emerald-300/[0.06] px-3 py-2.5">
         <div class="flex min-w-0 items-center gap-2">
@@ -1240,9 +1437,55 @@ export function MessageTimeline(props: {
               <span>预览页</span>
             </button>
           </Show>
+          <Show when={input.artifact.slides.length > 0}>
+            <button type="button" class={actionButton} onClick={() => editOfficeSlides(input.artifact)}>
+              <Icon name="pencil-line" size="small" class="transition-transform duration-150 group-hover:scale-110" />
+              <span>编辑页</span>
+            </button>
+          </Show>
+          <Show when={kind() === "data" || kind() === "design" || kind() === "web"}>
+            <button type="button" class={actionButton} onClick={openArtifactEditor}>
+              <Icon name="edit" size="small" />
+              <span>{kind() === "data" ? "编辑表格" : kind() === "design" ? "编辑设计" : "预览网页"}</span>
+            </button>
+          </Show>
           <button type="button" class={actionButton} onClick={() => copyOfficeArtifact(input.artifact)}>
             <Icon name="copy" size="small" class="transition-transform duration-150 group-hover:scale-110" />
             <span>复制产物</span>
+          </button>
+          <button
+            type="button"
+            class={actionButton}
+            disabled={!savedPath()}
+            onClick={openArtifactHistory}
+            title={savedPath() ? "查看并恢复历史版本" : "请先保存到项目"}
+          >
+            <Icon name="archive" size="small" />
+            <span>历史版本</span>
+          </button>
+          <button
+            type="button"
+            class={actionButton}
+            classList={{
+              "border-emerald-300/55 bg-emerald-300/[0.08] text-emerald-100": office.pptAnimationEnabled(),
+            }}
+            onClick={() => office.setPptAnimationEnabled(!office.pptAnimationEnabled())}
+            title={office.pptAnimationEnabled() ? "当前导出会写入对象级动画" : "当前导出不会写入对象级动画"}
+          >
+            <Icon name="sliders" size="small" />
+            <span>{office.pptAnimationEnabled() ? "动画开" : "动画关"}</span>
+          </button>
+          <button
+            type="button"
+            class={actionButton}
+            classList={{
+              "border-emerald-300/55 bg-emerald-300/[0.08] text-emerald-100": office.pptNarrationEnabled(),
+            }}
+            onClick={() => office.setPptNarrationEnabled(!office.pptNarrationEnabled())}
+            title={office.pptNarrationEnabled() ? "已生成旁白会嵌入导出 PPTX" : "当前导出不嵌入旁白"}
+          >
+            <Icon name="bubble-5" size="small" />
+            <span>{office.pptNarrationEnabled() ? "旁白开" : "旁白关"}</span>
           </button>
           <button
             type="button"
@@ -1274,6 +1517,15 @@ export function MessageTimeline(props: {
               <span>{fillTemplate.isPending ? "套版中" : "套用PPTX模板"}</span>
             </button>
           </Show>
+          <button
+            type="button"
+            class={actionButton}
+            disabled={saveWorkflow.isPending}
+            onClick={() => saveWorkflow.mutate()}
+          >
+            <Icon name="branch" size="small" />
+            <span>{saveWorkflow.isPending ? "保存中" : "存为工作流"}</span>
+          </button>
           <button type="button" class={primaryActionButton} disabled={save.isPending} onClick={() => save.mutate()}>
             <Icon
               name={save.isPending ? "status" : "check"}
@@ -1300,13 +1552,27 @@ export function MessageTimeline(props: {
     )
   }
 
-  function downloadOfficeArtifact(artifact: OfficeArtifact, pptTemplate?: OfficePptTemplateChoice) {
+  async function downloadOfficeArtifact(artifact: OfficeArtifact, pptTemplate?: OfficePptTemplateChoice) {
+    const office = useOfficeAgent()
     if (typeof document === "undefined" || typeof URL === "undefined" || typeof Blob === "undefined") {
       showToast({ title: "导出失败", description: "当前环境无法创建办公文件。" })
       return
     }
 
-    const file = createOfficeExportFile(artifact, { pptTemplate })
+    let file
+    try {
+      file =
+        pptTemplate && isRealPptxTemplate(pptTemplate)
+          ? await createOfficeExportFileFromPptxTemplate(artifact, pptTemplate, {
+              includeAnimations: office.pptAnimationEnabled(),
+              includeNarration: office.pptNarrationEnabled(),
+              readAsset: readOfficeAssetForExport,
+            })
+          : createOfficeExportFile(artifact, { pptTemplate })
+    } catch (error) {
+      showToast({ title: "导出失败", description: error instanceof Error ? error.message : "模板填充失败。" })
+      return
+    }
     const body = file.bytes.buffer.slice(
       file.bytes.byteOffset,
       file.bytes.byteOffset + file.bytes.byteLength,
@@ -1315,7 +1581,9 @@ export function MessageTimeline(props: {
     const anchor = document.createElement("a")
     anchor.href = url
     anchor.download = file.filename
+    document.body.appendChild(anchor)
     anchor.click()
+    anchor.remove()
     window.setTimeout(() => URL.revokeObjectURL(url), 0)
     showToast({ title: "办公文件已导出", description: file.filename })
   }
@@ -1335,7 +1603,9 @@ export function MessageTimeline(props: {
     const anchor = document.createElement("a")
     anchor.href = url
     anchor.download = file.filename
+    document.body.appendChild(anchor)
     anchor.click()
+    anchor.remove()
     window.setTimeout(() => URL.revokeObjectURL(url), 0)
     showToast({ title: "办公文件已导出", description: file.filename })
   }
@@ -1370,6 +1640,77 @@ export function MessageTimeline(props: {
         </div>
       </Dialog>
     ))
+  }
+
+  function editOfficeSlides(artifact: OfficeArtifact) {
+    const office = useOfficeAgent()
+    const template = office.pptTemplate()
+    void dialog.show(() => (
+      <OfficeSlideEditor
+        artifact={artifact}
+        template={template}
+        assets={office.launchConfig()?.assets ?? []}
+        readAsset={readOfficeAssetForExport}
+        onCopy={(next) => copyOfficeArtifact(next)}
+        onExport={(next) => void downloadOfficeArtifact(next, template)}
+        onSave={(next) => void saveEditedOfficeArtifact(next)}
+        onRevise={(slide, mode) => requestOfficeSlideRevision(slide, mode)}
+      />
+    ))
+  }
+
+  async function readOfficeAssetForExport(file: string) {
+    const isXlsx = /\.xlsx?$/i.test(file)
+    const isImage = /\.(png|jpe?g|webp|gif)$/i.test(file)
+    const isAudio = /\.(mp3|wav|m4a|aac)$/i.test(file)
+    const needsBase64 = isXlsx || isImage || isAudio
+    const result = await sdk.client.file.read({
+      path: file,
+      ...(needsBase64 ? { encoding: "base64" as const } : {}),
+    })
+    const data = result.data
+    if (needsBase64 && data && typeof (data as { content?: unknown }).content === "string") {
+      return { content: (data as { content: string }).content, encoding: "base64" as const }
+    }
+    if (typeof data === "string") return data
+    if (data && typeof (data as { content?: unknown }).content === "string")
+      return (data as { content: string }).content
+    throw new Error(`无法读取素材：${file}`)
+  }
+
+  function requestOfficeSlideRevision(slide: OfficeSlide, mode: "polish" | "regenerate") {
+    const prompt = createOfficeSlideRevisionPrompt(slide, mode)
+    dialog.close()
+    navigate(`/${params.dir}/session/${sessionID() ?? ""}?prompt=${encodeURIComponent(prompt)}&submit=1`)
+  }
+
+  async function saveEditedOfficeArtifact(artifact: OfficeArtifact) {
+    const office = useOfficeAgent()
+    const template = office.pptTemplate()
+    try {
+      const file =
+        template && isRealPptxTemplate(template)
+          ? await createOfficeExportFileFromPptxTemplate(artifact, template, {
+              includeAnimations: office.pptAnimationEnabled(),
+              includeNarration: office.pptNarrationEnabled(),
+              readAsset: readOfficeAssetForExport,
+            })
+          : createOfficeExportFile(artifact, { pptTemplate: template })
+      const result = await globalSDK.client.office.artifact.save({
+        directory: sdk.directory,
+        kind: officeArtifactKind(artifact, undefined) === "design" ? "ppt" : officeArtifactKind(artifact, undefined),
+        filename: file.filename,
+        mime: file.mime,
+        contentBase64: bytesToBase64(file.bytes),
+      })
+      void queryClient.invalidateQueries({ queryKey: ["office-artifacts", sdk.directory] })
+      showToast({ title: "修改已保存", description: result.data?.path ?? ".novaway/office" })
+    } catch (error) {
+      showToast({
+        title: "保存修改失败",
+        description: error instanceof Error ? error.message : "当前修改无法写入项目文件夹。",
+      })
+    }
   }
 
   function slidePreviewLines(slide: OfficeSlide) {
@@ -1537,7 +1878,7 @@ export function MessageTimeline(props: {
         return (
           <TimelineRowFrame row={diffSummaryRow}>
             <div data-slot="session-turn-message-container" class="w-full px-4 md:px-5">
-              <TimelineDiffSummaryRow diffs={diffSummaryRow().diffs} />
+              <TimelineDiffSummaryRow diffs={diffSummaryRow().diffs} fallback={false} />
             </div>
           </TimelineRowFrame>
         )
@@ -1699,7 +2040,20 @@ export function MessageTimeline(props: {
                 </div>
               </div>
               <Show when={sessionID()} keyed>
-                {(id) => <div class="shrink-0 flex items-center gap-3" />}
+                {(id) => (
+                  <div class="shrink-0 flex items-center gap-3">
+                    <button
+                      type="button"
+                      class="hidden h-8 items-center gap-1.5 rounded-[7px] border border-border-weak-base bg-background-base px-2.5 text-11-medium text-text-weak outline-none transition-colors hover:border-emerald-300/50 hover:text-emerald-100 md:inline-flex"
+                      title="把当前对话需求保存为可复用工作流"
+                      disabled={saveConversationWorkflow.isPending || !latestUserPrompt()}
+                      onClick={() => saveConversationWorkflow.mutate()}
+                    >
+                      <Icon name="branch" size="small" />
+                      <span>{saveConversationWorkflow.isPending ? "保存中" : "存为工作流"}</span>
+                    </button>
+                  </div>
+                )}
               </Show>
             </div>
           </div>

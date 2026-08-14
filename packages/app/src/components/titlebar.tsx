@@ -179,12 +179,8 @@ export function Titlebar(props: { settingsOpen?: boolean; databaseOpen?: boolean
       class="h-[50px] shrink-0 bg-background-base/90 backdrop-blur-md relative overflow-hidden titlebar-gradient-border"
       style={{
         "min-height": minHeight(),
-        "background-color": pageOpen()
-          ? "light-dark(color-mix(in srgb, #ede9fe 88%, var(--background-base)), color-mix(in srgb, #3b2a5e 16%, var(--background-base)))"
-          : undefined,
-        "border-bottom": pageOpen()
-          ? "1px solid light-dark(color-mix(in srgb, #a78bfa 38%, transparent), color-mix(in srgb, #a78bfa 24%, transparent))"
-          : undefined,
+        "background-color": pageOpen() ? "var(--background-base)" : undefined,
+        "border-bottom": pageOpen() ? "1px solid var(--border-weak-base)" : undefined,
       }}
       data-tauri-drag-region
       onMouseDown={drag}

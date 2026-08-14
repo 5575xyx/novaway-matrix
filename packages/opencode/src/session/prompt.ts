@@ -2302,9 +2302,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
               context: [projectContext, memoryContext].filter(Boolean).join("\n\n"),
             })
             // 静态指令/技能放在缓存前缀，环境信息放尾部，避免目录、日期或模型信息变化时整段缓存失效。
-            const staticSystem = [...instructionParts.always, ...(skills ? [skills] : [])]
-              .filter(Boolean)
-              .join("\n\n")
+            const staticSystem = [...instructionParts.always, ...(skills ? [skills] : [])].filter(Boolean).join("\n\n")
             const dynamicSystem = [...instructionParts.triggered, ...env].filter(Boolean).join("\n\n")
             const system = [staticSystem, dynamicSystem].filter(Boolean)
             const format = lastUser.format ?? { type: "text" as const }

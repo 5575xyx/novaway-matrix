@@ -6,6 +6,60 @@ export type OfficeArtifact = {
   filename: string
 }
 
+export type OfficeSlideAudio = {
+  mime: string
+  dataBase64: string
+  name?: string
+  startFloor?: number
+  padding?: number
+  subtitles?: Array<{ startMs: number; endMs: number; text: string }>
+}
+
+export type OfficeSlideMotion = {
+  transition?: {
+    effect?: "fade" | "wipe" | "push"
+    duration?: number
+  }
+  animation?: {
+    effect?: "fade" | "wipe" | "fly" | "zoom"
+    duration?: number
+    stagger?: number
+  }
+}
+
+export type OfficeSlideShapeOverride = {
+  id: number
+  x?: number
+  y?: number
+  cx?: number
+  cy?: number
+}
+
+export type OfficeSlideChartType =
+  | "bar"
+  | "line"
+  | "area"
+  | "radar"
+  | "scatter"
+  | "bubble"
+  | "donut"
+  | "waterfall"
+  | "combo"
+
+export type OfficeSlideChartOptions = {
+  title?: string
+  xAxisTitle?: string
+  yAxisTitle?: string
+  xlsxSheet?: string
+  showDataLabels?: boolean
+  showLegend?: boolean
+  legendPosition?: "bottom" | "right" | "top" | "left"
+  showPercent?: boolean
+  showGridlines?: boolean
+  sortData?: "none" | "asc" | "desc"
+  colors?: string[]
+}
+
 export function visibleOfficeMessage(input: string) {
   return (
     input
@@ -13,6 +67,18 @@ export function visibleOfficeMessage(input: string) {
       .split(/^(?:#{1,6}\s*)?可沉淀记忆\/可进化建议\s*$/m)[0]
       ?.trimEnd() ?? ""
   )
+}
+
+export function rebuildOfficeArtifact(artifact: OfficeArtifact, slides: OfficeSlide[]): OfficeArtifact {
+  const normalized = slides.map((slide, index) => ({
+    ...slide,
+    index: slide.index || index + 1,
+  }))
+  return {
+    ...artifact,
+    slides: normalized,
+    body: `# 办公产物\n\n## ${artifact.title}\n\n${normalized.map(slideMarkdown).join("\n\n")}\n`,
+  }
 }
 
 export type OfficeSlide = {
@@ -62,6 +128,12 @@ export type OfficeSlide = {
     | "team"
   visual?: string
   notes?: string
+  audio?: OfficeSlideAudio
+  motion?: OfficeSlideMotion
+  shapeOverrides?: OfficeSlideShapeOverride[]
+  assets?: string[]
+  chartType?: OfficeSlideChartType
+  chartOptions?: OfficeSlideChartOptions
 }
 
 export function extractOfficeArtifact(input: string): OfficeArtifact | undefined {
@@ -98,6 +170,7 @@ export function extractOfficeArtifact(input: string): OfficeArtifact | undefined
 
 function isRequirementConfirmation(body: string) {
   if (/^#{2,6}\s*(?:PPT\s*)?需求确认\s*$/m.test(body)) return true
+  if (/^#{2,6}\s*(?:PPT\s*)?大纲\s*$/m.test(body)) return true
   return /需要用户确认[:：]/.test(body) && !/^#{2,4}\s*第\s*\d+\s*页/m.test(body)
 }
 
@@ -205,6 +278,7 @@ function slideFrom(input: { index: number; title: string; lines: string[] }) {
     layout: parsed.layout,
     visual: parsed.visual,
     notes: parsed.notes,
+    audio: parsed.audio,
   }
 }
 
@@ -215,7 +289,7 @@ function parseSlideFields(lines: string[]) {
   for (const raw of lines) {
     const line = raw.trim()
     const match = line.match(
-      /^[-*]?\s*(布局|版式|layout|视觉|visual|配图|配图建议|图片|图片建议|插图|插图建议|生成图片提示词|备注|演讲备注|notes)\s*[:：]\s*(.*)$/i,
+      /^[-*]?\s*(布局|版式|layout|视觉|visual|配图|配图建议|图片|图片建议|插图|插图建议|生成图片提示词|备注|演讲备注|notes|音频|旁白|audio|narration)\s*[:：]\s*(.*)$/i,
     )
     if (match?.[1]) {
       active = match[1].toLowerCase()
@@ -252,7 +326,34 @@ function parseSlideFields(lines: string[]) {
       [...(fields.get("备注") ?? []), ...(fields.get("演讲备注") ?? []), ...(fields.get("notes") ?? [])]
         .join("\n")
         .trim() || undefined,
+    audio: parseSlideAudio(
+      [
+        ...(fields.get("音频") ?? []),
+        ...(fields.get("旁白") ?? []),
+        ...(fields.get("audio") ?? []),
+        ...(fields.get("narration") ?? []),
+      ]
+        .join("\n")
+        .trim(),
+    ),
   }
+}
+
+function parseSlideAudio(input: string): OfficeSlideAudio | undefined {
+  const match = input.match(/^data:(audio\/(?:mpeg|mp3|wav|x-wav|mp4|m4a|aac));base64,([A-Za-z0-9+/=\s]+)$/i)
+  if (!match?.[1] || !match[2]) return undefined
+  return {
+    mime: normalizeAudioMime(match[1]),
+    dataBase64: match[2].replace(/\s+/g, ""),
+    name: "旁白",
+  }
+}
+
+function normalizeAudioMime(mime: string) {
+  const value = mime.toLowerCase()
+  if (value === "audio/mp3" || value === "audio/x-mp3") return "audio/mpeg"
+  if (value === "audio/x-wav" || value === "audio/wav") return "audio/wav"
+  return value
 }
 
 function normalizeSlideLayout(input: string): OfficeSlide["layout"] | undefined {
@@ -297,4 +398,24 @@ function normalizeSlideLayout(input: string): OfficeSlide["layout"] | undefined 
   if (/流程|时间线|timeline|步骤/.test(value)) return "timeline"
   if (/强调|结论|highlight|重点/.test(value)) return "highlight"
   if (/分栏|拆分|split/.test(value)) return "split"
+}
+
+function slideMarkdown(slide: OfficeSlide) {
+  const lines = [`### 第 ${slide.index} 页：${slide.title}`]
+  if (slide.layout) lines.push(`布局：${slide.layout}`)
+  if (slide.visual?.trim()) lines.push(`视觉：${slide.visual.trim()}`)
+  if (slide.content.trim()) lines.push(`主文案：\n${indentBullets(slide.content)}`)
+  if (slide.notes?.trim()) lines.push(`演讲备注：\n${indentBullets(slide.notes)}`)
+  return lines.join("\n")
+}
+
+function indentBullets(input: string) {
+  return input
+    .trim()
+    .split("\n")
+    .map((line) => {
+      const value = line.trim()
+      return value.startsWith("-") ? value : `- ${value}`
+    })
+    .join("\n")
 }

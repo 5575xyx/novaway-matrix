@@ -214,9 +214,7 @@ describe("Instruction.system", () => {
         const agentRules = parts.always.filter((item) => !item.startsWith("Instructions from: <built-in>"))
         expect(agentRules).toHaveLength(2)
         expect(agentRules[0]).toBe(`Instructions from: ${path.join(globalTmp, "AGENTS.md")}\n# Global Instructions`)
-        expect(agentRules[1]).toBe(
-          `Instructions from: ${path.join(projectTmp, "AGENTS.md")}\n# Project Instructions`,
-        )
+        expect(agentRules[1]).toBe(`Instructions from: ${path.join(projectTmp, "AGENTS.md")}\n# Project Instructions`)
         expect(parts.triggered).toEqual([])
       }).pipe(provideInstance(projectTmp), provideInstruction({ home: globalTmp, config: globalTmp }))
     }),

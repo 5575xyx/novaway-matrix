@@ -33,7 +33,12 @@ const getBase = (): Configuration => ({
     output: "dist",
     buildResources: "resources",
   },
-  files: ["out/**/*", "resources/**/*", "!resources/dbx-mcp/node_modules{,/**/*}"],
+  files: [
+    "out/**/*",
+    "resources/**/*",
+    "!resources/dbx-mcp/node_modules{,/**/*}",
+    "!resources/playwright-mcp/node_modules{,/**/*}",
+  ],
   extraResources: [
     {
       from: "native/",
@@ -50,6 +55,11 @@ const getBase = (): Configuration => ({
       filter: ["**/*", "!**/*.map"],
     },
     {
+      from: "resources/playwright-mcp/",
+      to: "playwright-mcp/",
+      filter: ["**/*", "!**/*.map"],
+    },
+    {
       from: "resources/node/",
       to: "node/",
       filter: ["**/*"],
@@ -63,6 +73,9 @@ const getBase = (): Configuration => ({
     const dbxMcpSrc = path.join(context.packager.projectDir, "resources", "dbx-mcp")
     const dbxMcpDest = path.join(context.appOutDir, "resources", "dbx-mcp")
     fs.cpSync(dbxMcpSrc, dbxMcpDest, { recursive: true, dereference: true, force: true })
+    const playwrightMcpSrc = path.join(context.packager.projectDir, "resources", "playwright-mcp")
+    const playwrightMcpDest = path.join(context.appOutDir, "resources", "playwright-mcp")
+    fs.cpSync(playwrightMcpSrc, playwrightMcpDest, { recursive: true, dereference: true, force: true })
   },
   mac: {
     category: "public.app-category.developer-tools",

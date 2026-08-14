@@ -26,6 +26,7 @@ export function SessionComposerRegion(props: {
   state: SessionComposerState
   ready: boolean
   centered: boolean
+  embedded?: boolean
   inputRef: (el: HTMLDivElement) => void
   autoSubmitKey?: string
   newSessionWorktree: string
@@ -129,7 +130,7 @@ export function SessionComposerRegion(props: {
   const value = createMemo(() => Math.max(0, Math.min(1, progress())))
   const dock = createMemo(() => (store.ready && props.state.dock()) || value() > 0.001)
   const rolled = createMemo(() => (props.revert?.items.length ? props.revert : undefined))
-  const lift = createMemo(() => (rolled() ? 18 : 36 * value()))
+  const lift = createMemo(() => (props.embedded ? 0 : rolled() ? 18 : 36 * value()))
   const full = createMemo(() => Math.max(78, store.height))
 
   const openParent = () => {
@@ -174,12 +175,16 @@ export function SessionComposerRegion(props: {
     <div
       ref={props.setPromptDockRef}
       data-component="session-prompt-dock"
-      class="shrink-0 w-full pb-4 flex flex-col justify-center items-center bg-background-stronger/80 backdrop-blur-sm pointer-events-none"
+      classList={{
+        "shrink-0 w-full flex flex-col justify-center items-center pointer-events-none": true,
+        "pb-4 bg-background-stronger/80 backdrop-blur-sm": !props.embedded,
+      }}
     >
       <div
         classList={{
-          "w-full px-4 pointer-events-auto": true,
-          "md:w-[75%] mx-auto": props.centered,
+          "w-full pointer-events-auto": true,
+          "px-4": !props.embedded,
+          "md:w-[75%] mx-auto": props.centered && !props.embedded,
           "w-full": !props.centered,
         }}
       >
@@ -237,7 +242,7 @@ export function SessionComposerRegion(props: {
               {(revert) => (
                 <div
                   style={{
-                    "margin-top": `${-36 * value()}px`,
+                    "margin-top": props.embedded ? "0px" : `${-36 * value()}px`,
                   }}
                 >
                   <SessionRevertDock

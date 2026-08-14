@@ -1,0 +1,9 @@
+{
+  "name": "@novaway/playwright-mcp-bundle",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@playwright/mcp": "0.0.79"
+  }
+}

@@ -60,9 +60,38 @@ function defaultGlobalPlugins() {
   return DEFAULT_GLOBAL_PLUGINS
 }
 
+function browserMcpFlags() {
+  const flags = process.env.PLAYWRIGHT_MCP_BROWSER ? ["--browser", process.env.PLAYWRIGHT_MCP_BROWSER] : []
+  if (process.env.PLAYWRIGHT_MCP_HEADLESS !== "0") flags.push("--headless")
+  return flags
+}
+
 // Default MCP servers seeded into the global config the first time it's created.
 // Users can remove or override these entries in their own config file.
-export const DEFAULT_MCP_SERVERS: Record<string, { command: string[]; enabled: boolean; type: "local" }> = {
+export const DEFAULT_MCP_SERVERS: Record<string, ConfigMCP.Info> = {
+  browser: {
+    command: process.env.PLAYWRIGHT_MCP_SERVER_PATH
+      ? [
+          process.env.PLAYWRIGHT_MCP_NODE_PATH ?? process.env.DBX_NODE_PATH ?? "node",
+          process.env.PLAYWRIGHT_MCP_SERVER_PATH,
+          ...browserMcpFlags(),
+        ]
+      : process.platform === "win32"
+        ? ["cmd", "/c", "npx", "-y", "@playwright/mcp", ...browserMcpFlags()]
+        : ["npx", "-y", "@playwright/mcp", ...browserMcpFlags()],
+    enabled: true,
+    type: "local",
+  },
+  // 腾讯文档官方远程 MCP，Token 通过环境变量注入，避免密钥写入配置文件。
+  "tencent-docs": {
+    type: "remote",
+    url: "https://docs.qq.com/openapi/mcp",
+    headers: {
+      Authorization: "{env:TENCENT_DOCS_TOKEN}",
+    },
+    oauth: false,
+    enabled: true,
+  },
   context7: {
     command: ["cmd", "/c", "npx", "-y", "@upstash/context7-mcp"],
     enabled: true,
@@ -543,6 +572,32 @@ export const layer = Layer.effect(
             }
           }
         }
+
+        // 打包环境使用内置 Playwright MCP 服务器，检测到路径时覆盖旧 npx 命令。
+        const browserMcp = result.mcp?.browser
+        if (process.env.PLAYWRIGHT_MCP_SERVER_PATH && browserMcp && Schema.is(ConfigMCP.Local)(browserMcp)) {
+          const browserCommand = [
+            process.env.PLAYWRIGHT_MCP_NODE_PATH ?? process.env.DBX_NODE_PATH ?? "node",
+            process.env.PLAYWRIGHT_MCP_SERVER_PATH,
+            ...browserMcpFlags(),
+          ]
+          if (JSON.stringify(browserMcp.command) !== JSON.stringify(browserCommand)) {
+            result.mcp = {
+              ...result.mcp,
+              browser: {
+                ...browserMcp,
+                command: browserCommand,
+                type: "local",
+              },
+            }
+            const file = path.join(Global.Path.config, "novaway.json")
+            const text = yield* readConfigFile(file)
+            if (text) {
+              const patched = patchJsonc(text, result.mcp, ["mcp"])
+              yield* fs.writeFileString(file, patched).pipe(Effect.catch(() => Effect.void))
+            }
+          }
+        }
       }
 
       const legacy = path.join(Global.Path.config, "config")
@@ -598,6 +653,29 @@ export const layer = Layer.effect(
 
     const loadInstanceState = Effect.fn("Config.loadInstanceState")(
       function* (ctx: InstanceContext) {
+        const workspace = ctx.worktree === "/" ? ctx.directory : ctx.worktree
+        const officePlatformFile = path.join(workspace, ".novaway", "office", "platform.json")
+        const officePlatformRaw = yield* Effect.promise(() =>
+          fsNode.readFile(officePlatformFile, "utf8").catch(() => ""),
+        )
+        if (officePlatformRaw) {
+          try {
+            const parsed = JSON.parse(officePlatformRaw) as {
+              connectorConfig?: {
+                feishuWebhookUrl?: string
+                tencentDocsToken?: string
+              }
+            }
+            if (parsed.connectorConfig?.feishuWebhookUrl) {
+              process.env.FEISHU_WEBHOOK_URL = parsed.connectorConfig.feishuWebhookUrl
+            }
+            if (parsed.connectorConfig?.tencentDocsToken) {
+              process.env.TENCENT_DOCS_TOKEN = parsed.connectorConfig.tencentDocsToken
+            }
+          } catch {
+            // 配置文件损坏时不阻断办公平台启动
+          }
+        }
         const auth = yield* authSvc.all().pipe(Effect.orDie)
 
         let result: Info = {}

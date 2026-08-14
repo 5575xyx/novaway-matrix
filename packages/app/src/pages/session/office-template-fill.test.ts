@@ -136,6 +136,51 @@ describe("fillOfficePptxTemplate", () => {
     ])
   })
 
+  test("sorts chart data by the first series when configured", () => {
+    const plan = officePptxFillPlanFromArtifact({
+      title: "Chart Plan",
+      filename: "chart.md",
+      body: "",
+      memory: "",
+      slides: [
+        {
+          index: 1,
+          title: "Metrics",
+          content: "| Month | Revenue |\n| --- | --- |\n| Jan | 120 |\n| Feb | 160 |",
+          chartOptions: { sortData: "desc" },
+        },
+      ],
+    })
+    expect(plan[0]?.charts?.[0]?.categories).toEqual(["Feb", "Jan"])
+    expect(plan[0]?.charts?.[0]?.series[0]?.values).toEqual([160, 120])
+  })
+
+  test("infers waterfall and combo chart types from slide content", () => {
+    const plan = officePptxFillPlanFromArtifact({
+      title: "Chart Plan",
+      filename: "chart.md",
+      body: "",
+      memory: "",
+      slides: [
+        {
+          index: 1,
+          title: "瀑布",
+          content: "| 指标 | 金额 |\n| --- | --- |\n| 收入 | 120 |",
+          layout: "waterfall",
+        },
+        {
+          index: 2,
+          title: "组合",
+          content: "| 月份 | 收入 | 成本 |\n| --- | --- | --- |\n| Q1 | 120 | 80 |",
+          layout: "chart",
+          chartType: "combo",
+        },
+      ],
+    })
+    expect(plan[0]?.charts?.[0]?.chartType).toBe("waterfall")
+    expect(plan[1]?.charts?.[0]?.chartType).toBe("combo")
+  })
+
   test("creates safe pptx template fill filename", () => {
     expect(
       officePptxTemplateFillFilename({

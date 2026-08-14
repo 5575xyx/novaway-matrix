@@ -197,7 +197,7 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
     const write = async (input: string, content: string) => {
       const file = path.normalize(input)
       if (!file) return
-      await sdk.client.file.write({ fileWritePayload: { path: file, content } })
+      await sdk.client.file.write({ path: file, content })
       const current = store.file[file]?.content
       setLoaded(file, { ...(current ?? {}), type: "text", content })
     }

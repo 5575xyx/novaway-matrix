@@ -6,7 +6,17 @@ import { InstanceContextMiddleware } from "../middleware/instance-context"
 import { WorkspaceRoutingMiddleware, WorkspaceRoutingQuery } from "../middleware/workspace-routing"
 
 const root = "/office"
-const OfficeArtifactKind = Schema.Literals(["document", "ppt", "meeting", "knowledge", "task", "communication"])
+const OfficeArtifactKind = Schema.Literals([
+  "document",
+  "ppt",
+  "data",
+  "design",
+  "web",
+  "knowledge",
+  "meeting",
+  "task",
+  "communication",
+])
 
 export const OfficeArtifactPayload = Schema.Struct({
   kind: OfficeArtifactKind,
@@ -26,6 +36,7 @@ export const OfficeArtifact = Schema.Struct({
 export const OfficeArtifactSaveResponse = Schema.Struct({
   path: Schema.String,
   bytes: Schema.Number,
+  version: Schema.Number,
 })
 
 export const OfficePptxTemplateFillPayload = Schema.Struct({

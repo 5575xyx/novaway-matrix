@@ -42,6 +42,20 @@ function documentChecks(artifact: OfficeArtifact, kind: OfficeArtifactKind): Off
     { label: "正文充实", passed: body.length >= 80 },
     { label: "结构分区", passed: /^##\s+/m.test(artifact.body) || markdownTable(artifact.body) },
     sceneCheck(kind, body),
+    ...(kind === "data" ? dataChecks(artifact, body) : []),
+  ]
+}
+
+function dataChecks(artifact: OfficeArtifact, body: string): OfficeQualityCheck[] {
+  return [
+    { label: "数据口径清晰", passed: /口径|来源|字段|单位|时间范围|统计范围/.test(body) },
+    { label: "包含可核验数字", passed: /\d|%|％|百万|万|亿元|元|人|单/.test(body) },
+    { label: "包含透视或趋势结论", passed: /透视|趋势|增长|下降|环比|同比|占比|对比|归因/.test(body) },
+    { label: "包含图表建议", passed: /图表|柱状|折线|饼图|热力|散点|仪表盘|可视化|chart/.test(body) },
+    {
+      label: "行动建议可执行",
+      passed: /建议|下一步|优先|跟进|优化|投入|止损|扩大/.test(body) && artifact.body.includes("行动建议"),
+    },
   ]
 }
 

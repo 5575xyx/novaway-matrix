@@ -369,16 +369,6 @@
       color-mix(in srgb, var(--background-base) 92%, var(--novaway-mode-color, transparent) 8%);
   }
 
-  [data-app-mode] main {
-    background:
-      radial-gradient(circle at 12% 0%, var(--novaway-mode-soft, transparent), transparent 34%),
-      radial-gradient(
-        circle at 88% 12%,
-        color-mix(in srgb, var(--novaway-mode-color, #14b8a6) 7%, transparent),
-        transparent 36%
-      );
-  }
-
   [data-app-mode="zen"] main {
     border-top-left-radius: 28px;
   }

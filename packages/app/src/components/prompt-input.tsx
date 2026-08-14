@@ -63,7 +63,9 @@ import { useQueryOptions } from "@/context/global-sync"
 import { agentDisplayName } from "@/utils/agent"
 import { pathKey } from "@/utils/path-key"
 import { useOfficeAgent } from "@/pages/session/office-agent-context"
+import { ProjectSwitcherChip } from "@/components/project-switcher"
 import { officeAgentScenario } from "@/pages/session/office-agent-scenarios"
+import { transformOfficePrompt } from "@/pages/session/office-agent-prompt"
 
 interface PromptInputProps {
   class?: string
@@ -143,6 +145,12 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   let fileInputRef: HTMLInputElement | undefined
   let scrollRef!: HTMLDivElement
   let slashPopoverRef!: HTMLDivElement
+
+  createEffect(() => {
+    if (!zenOfficeMode()) return
+    const next = officeAgentScenario(office.activeID())
+    if (local.agent.list().some((agent) => agent.name === next.agentName)) local.agent.set(next.agentName)
+  })
 
   const mirror = { input: false }
   const inset = 84
@@ -1220,47 +1228,17 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   })
 
   const variants = createMemo(() => ["default", ...local.model.variant.list()])
-  const transformOfficePrompt = (value: Prompt) => {
+  const transformPrompt = (value: Prompt) => {
     if (!zenOfficeMode() || store.mode !== "normal") return value
-    const text = value.map((part) => ("content" in part ? part.content : "")).join("")
-    if (text.trim().startsWith("/")) return value
-    if (/NovaWay|办公产物|可沉淀记忆|可进化建议/.test(text)) return value
-    const action = office.activeAction()
-    const scenario = officeAgentScenario(action.id)
-    const prefix = [
-      `场景目标：${scenario.intent}`,
-      "",
-      "场景工作流：",
-      ...scenario.workflow.map((item, index) => `${index + 1}. ${item}`),
-      "",
-      "需要资料：",
-      ...scenario.inputFocus.map((item, index) => `${index + 1}. ${item}`),
-      "",
-      "适合附件：",
-      ...scenario.attachmentHints.map((item, index) => `${index + 1}. ${item}`),
-      "",
-      "交付产物：",
-      ...scenario.deliverables.map((item, index) => `${index + 1}. ${item}`),
-      "",
-      "输出重点：",
-      ...scenario.outputFocus.map((item, index) => `${index + 1}. ${item}`),
-      "",
-      "质量检查：",
-      ...scenario.qualityChecks.map((item, index) => `${index + 1}. ${item}`),
-      "",
-      "发送前确认：",
-      ...scenario.reviewQuestions.map((item, index) => `${index + 1}. ${item}`),
-      "",
-      "记忆与进化重点：",
-      ...scenario.memoryFocus.map((item, index) => `${index + 1}. ${item}`),
-      "",
-      `你现在处于 NovaWay 禅意模式（办公模式），当前办公场景是「${action.title}」。`,
-      `请按「${action.meta}」场景处理用户输入，优先输出可直接复制使用的办公产物。`,
-      `开始处理前请优先调用 skill 工具加载「${scenario.skillName}」Skill，并按该 Skill 的流程组织结果。`,
-      "输出中必须把正文和长期沉淀建议分开：正文使用「# 办公产物」作为一级标题；末尾使用「# 可沉淀记忆/可进化建议」作为一级标题，并分别列出「可沉淀记忆」「可进化建议」「需要用户确认」。",
-      "不要把未确认的偏好写成确定事实。",
-    ].join("\n")
-    return { prompt: value, syntheticText: prefix }
+    const launchConfig = office.launchConfig()
+    const result = transformOfficePrompt({
+      prompt: value,
+      actionID: office.activeID(),
+      quickMode: office.quickMode(),
+      pptTemplate: office.pptTemplate(),
+      launchConfig,
+    })
+    return result
   }
   const accepting = createMemo(() => {
     const id = params.id
@@ -1299,7 +1277,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     onQueue: props.onQueue,
     onAbort: props.onAbort,
     onSubmit: props.onSubmit,
-    transformPrompt: transformOfficePrompt,
+    transformPrompt,
   })
   let submittedAutoKey: string | undefined
 
@@ -1307,6 +1285,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     const key = props.autoSubmitKey
     if (!key) return
     if (submittedAutoKey === key) return
+    if (zenOfficeMode() && !office.ready()) return
     if (blank() || working() || store.optimizing) return
 
     submittedAutoKey = key
@@ -1691,6 +1670,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         />
         <Show when={store.mode === "normal" || store.mode === "shell"}>
           <div class="px-2 pb-1 pt-2 flex items-center gap-2 min-w-0 border-b border-border-weak-base">
+            <ProjectSwitcherChip />
             <Show when={store.mode === "shell"}>
               <div class="flex items-center gap-1.5 min-w-0">
                 <Icon name="console" />

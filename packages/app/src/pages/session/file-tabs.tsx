@@ -586,7 +586,12 @@ export function FileTabContent(props: { tab: string }) {
 
   return (
     <Tabs.Content value={props.tab} class="mt-3 relative h-full">
-      <div ref={(el) => { contentRef = el }} class="relative h-full">
+      <div
+        ref={(el) => {
+          contentRef = el
+        }}
+        class="relative h-full"
+      >
         <div class="flex h-full flex-col">
           <div class="flex items-center justify-between gap-3 px-4 pt-3 pb-2">
             <span class="min-w-0 truncate text-12-regular text-text-weak">{path()}</span>
@@ -686,12 +691,7 @@ export function FileTabContent(props: { tab: string }) {
               <Show
                 when={menu().mode === "input"}
                 fallback={
-                  <Button
-                    variant="ghost"
-                    size="small"
-                    class="w-full justify-start"
-                    onClick={openContextCommentInput}
-                  >
+                  <Button variant="ghost" size="small" class="w-full justify-start" onClick={openContextCommentInput}>
                     评论 L{menu().selection.start}
                     {menu().selection.end !== menu().selection.start ? `-L${menu().selection.end}` : ""}
                   </Button>
@@ -717,7 +717,12 @@ export function FileTabContent(props: { tab: string }) {
                       }
                     }}
                   />
-                  <Button variant="primary" size="small" disabled={!contextComment().trim()} onClick={submitContextComment}>
+                  <Button
+                    variant="primary"
+                    size="small"
+                    disabled={!contextComment().trim()}
+                    onClick={submitContextComment}
+                  >
                     {language.t("common.submit")}
                   </Button>
                 </div>

@@ -249,7 +249,6 @@ export namespace Timeline {
     return rows
   }
 
-
   function reasoningHeading(text: string) {
     const markdown = text.replace(/\r\n?/g, "\n")
     const html = markdown.match(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/i)

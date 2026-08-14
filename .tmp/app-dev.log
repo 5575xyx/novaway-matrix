@@ -1,0 +1,140 @@
+
+  [32m[1mVITE[22m v7.1.4[39m  [2mready in [0m[1m2914[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m4444[22m/[39m
+[2m[32m  ➜[39m[22m[2m  press [22m[1mh + enter[22m[2m to show help[22m
+[2m12:21:14[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/office-ppt-template-preview.tsx[22m
+[2m12:21:17[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/office-template-gallery.tsx[22m
+[2m13:21:14[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/entry.tsx, /src/index.css[22m
+[2m13:21:17[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/entry.tsx[22m
+[2m13:21:17[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/entry.tsx[22m
+[2m13:22:12[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.tsx, /src/components/office-template-gallery.tsx, /src/components/office-ppt-template-preview.tsx, /src/index.css[22m
+[2m13:25:27[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.tsx, /src/components/office-template-gallery.tsx, /src/components/office-ppt-template-preview.tsx, /src/index.css[22m
+[2m13:25:43[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/office-template-gallery.tsx[22m
+[2m13:25:58[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/office-ppt-template-preview.tsx[22m
+[2m13:26:16[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/office-template-gallery.tsx[22m
+[2m13:32:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m13:44:55[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m13:45:54[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m13:47:00[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m13:49:19[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m13:49:33[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m13:50:36[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m13:53:50[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m14:05:44[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m14:07:22[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m14:14:04[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m14:14:17[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m14:19:44[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m14:24:17[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m14:24:50[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m14:27:53[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m14:47:05[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/office-template-gallery.tsx[22m
+[2m15:18:49[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:21:10[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:23:04[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/office-template-gallery.tsx[22m
+[2m15:23:20[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:28:53[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/office-ppt-template-preview.tsx[22m
+[2m15:29:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:29:50[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m15:32:12[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m16:40:15[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.tsx, /src/components/office-template-gallery.tsx, /src/components/office-ppt-template-preview.tsx, /src/index.css[22m
+[2m16:40:50[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.tsx, /src/components/office-template-gallery.tsx, /src/components/office-ppt-template-preview.tsx, /src/index.css[22m
+[2m16:41:11[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m16:41:54[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/office-ppt-template-preview.tsx[22m
+[2m16:42:08[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m16:42:30[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m16:42:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m16:43:08[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m16:43:23[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m16:56:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/office-template-gallery.tsx[22m
+[2m16:56:46[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m17:00:34[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m17:00:59[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m17:01:21[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m17:03:09[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m17:04:06[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m17:05:04[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m17:08:01[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m17:08:25[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m17:08:45[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m17:14:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m17:14:58[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m17:19:23[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m17:21:53[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m17:24:05[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m17:26:16[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m17:26:30[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m17:29:39[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m17:44:37[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m17:47:09[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m17:47:26[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m17:48:57[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m17:54:22[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m17:54:43[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m17:58:27[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m18:05:51[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m18:06:50[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m18:07:13[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m18:07:47[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m18:15:18[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m18:15:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m19:04:25[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m19:04:47[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m19:05:22[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m19:05:48[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m19:10:09[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m19:10:20[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m19:13:25[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m19:21:18[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m19:23:59[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m19:47:53[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m19:49:26[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m19:54:33[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m19:54:56[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m19:56:41[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m19:56:57[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m20:19:57[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m20:20:14[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m20:24:07[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m20:24:09[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m20:43:43[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m20:43:46[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m20:43:48[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m20:43:48[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m20:43:51[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m20:46:16[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m20:51:07[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m20:51:53[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m20:52:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m20:52:58[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m20:56:33[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m20:58:01[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m20:58:17[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m21:09:24[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m21:37:28[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m21:37:54[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m21:38:11[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m21:44:26[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m21:48:33[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.tsx, /src/index.css[22m
+[2m21:48:53[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m21:49:12[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m21:50:17[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m21:50:39[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m21:56:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m22:16:11[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m22:20:19[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m22:20:21[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m22:23:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m22:24:37[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m22:25:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m22:27:58[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m22:53:24[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m23:05:09[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m23:05:22[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m23:25:35[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m23:26:01[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m23:27:16[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m23:27:26[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m23:27:36[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m23:39:46[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m

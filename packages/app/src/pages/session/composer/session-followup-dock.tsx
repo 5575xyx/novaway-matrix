@@ -2,6 +2,7 @@ import { For, Show, createMemo } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Button } from "@opencode-ai/ui/button"
 import { DockTray } from "@opencode-ai/ui/dock-surface"
+import { Icon } from "@opencode-ai/ui/icon"
 import { IconButton } from "@opencode-ai/ui/icon-button"
 import { useLanguage } from "@/context/language"
 
@@ -45,9 +46,15 @@ export function SessionFollowupDock(props: {
           toggle()
         }}
       >
+        <span class="flex size-5 shrink-0 items-center justify-center rounded-md bg-surface-interactive-base text-text-interactive-base">
+          <Icon name="autopilot" size="small" />
+        </span>
         <span class="shrink-0 text-13-medium text-text-strong cursor-default">{label()}</span>
         <Show when={store.collapsed && preview()}>
           <span class="min-w-0 flex-1 truncate text-13-regular text-text-base cursor-default">{preview()}</span>
+        </Show>
+        <Show when={!store.collapsed}>
+          <span class="shrink-0 text-11-regular text-text-weak cursor-default">将按顺序自动发送</span>
         </Show>
         <div class="ml-auto shrink-0">
           <IconButton
@@ -78,9 +85,27 @@ export function SessionFollowupDock(props: {
       <Show when={!store.collapsed}>
         <div class="px-3 pb-7 flex flex-col gap-1.5 max-h-42 overflow-y-auto no-scrollbar">
           <For each={props.items}>
-            {(item) => (
-              <div class="flex items-center gap-2 min-w-0 py-1">
+            {(item, index) => (
+              <div
+                class="group flex items-center gap-2 rounded-md border px-2 py-1.5 transition-colors"
+                classList={{
+                  "border-border-weak-base bg-surface-base hover:bg-surface-base-hover": item.id !== props.sending,
+                  "border-border-interactive-base bg-surface-interactive-base": item.id === props.sending,
+                }}
+              >
+                <span
+                  class="flex size-5 shrink-0 items-center justify-center rounded-full text-11-medium tabular-nums"
+                  classList={{
+                    "bg-surface-interactive-base text-text-interactive-base": index() === 0,
+                    "bg-surface-base-active text-text-weak": index() !== 0,
+                  }}
+                >
+                  {index() + 1}
+                </span>
                 <span class="min-w-0 flex-1 truncate text-13-regular text-text-strong">{item.text}</span>
+                <Show when={item.id === props.sending}>
+                  <span class="shrink-0 text-11-regular text-text-interactive-base">发送中…</span>
+                </Show>
                 <Button
                   size="small"
                   variant="secondary"

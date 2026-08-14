@@ -86,25 +86,9 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
         value={tab()}
         onChange={changeTab}
         class="h-full settings-drawer"
-        style={{
-          "--settings-accent": "light-dark(#7c3aed, #a78bfa)",
-          "--settings-sidebar-bg":
-            "light-dark(color-mix(in srgb, #ede9fe 72%, var(--background-base)), color-mix(in srgb, #3b2a5e 18%, var(--background-base)))",
-          "--settings-sidebar-border":
-            "light-dark(color-mix(in srgb, #a78bfa 34%, var(--border-weak-base)), color-mix(in srgb, #a78bfa 24%, var(--border-weak-base)))",
-          "--settings-nav-hover":
-            "light-dark(color-mix(in srgb, #ddd6fe 58%, transparent), color-mix(in srgb, #a78bfa 12%, var(--surface-base-hover)))",
-          "--settings-nav-active":
-            "light-dark(color-mix(in srgb, #c4b5fd 38%, var(--surface-base-active)), color-mix(in srgb, #7c3aed 24%, var(--surface-base-active)))",
-          "--settings-nav-text-active": "var(--text-strong)",
-        }}
+        style={{ "--settings-accent": "var(--text-interactive-base)" }}
       >
-        <Tabs.List
-          style={{
-            "background-color": "var(--settings-sidebar-bg)",
-            "border-right-color": "var(--settings-sidebar-border)",
-          }}
-        >
+        <Tabs.List>
           <div class="flex flex-col justify-between h-full w-full">
             <div class="flex flex-col gap-3 w-full">
               <Button

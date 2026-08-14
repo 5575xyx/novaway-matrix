@@ -16,6 +16,7 @@ import { SkillTool } from "./skill"
 import { MemoryTool } from "./memory"
 import { GenerateImageTool } from "./generate_image"
 import { GenerateVideoTool } from "./generate_video"
+import { GenerateNarrationTool, TTS_PROVIDERS } from "./generate_narration"
 import {
   BrowserAccessibilityTool,
   BrowserClickTool,
@@ -162,6 +163,7 @@ export const layer: Layer.Layer<
     const memorytool = yield* MemoryTool
     const generateimagetool = yield* GenerateImageTool
     const generatevideotool = yield* GenerateVideoTool
+    const generateNarrationTool = yield* GenerateNarrationTool
     const browserNavigate = yield* BrowserNavigateTool
     const browserSnapshot = yield* BrowserSnapshotTool
     const browserClick = yield* BrowserClickTool
@@ -291,6 +293,7 @@ export const layer: Layer.Layer<
           plan: Tool.init(plan),
           generate_image: Tool.init(generateimagetool),
           generate_video: Tool.init(generatevideotool),
+          generate_narration: Tool.init(generateNarrationTool),
           browser_navigate: Tool.init(browserNavigate),
           browser_open: Tool.init(browserNavigate),
           browser_snapshot: Tool.init(browserSnapshot),
@@ -328,6 +331,7 @@ export const layer: Layer.Layer<
             ...(flags.experimentalPlanMode && flags.client === "cli" ? [tool.plan] : []),
             tool.generate_image,
             tool.generate_video,
+            tool.generate_narration,
             tool.browser_navigate,
             tool.browser_open,
             tool.browser_snapshot,
@@ -397,10 +401,19 @@ export const layer: Layer.Layer<
 
       const isImageProvider = (pid: string, pcfg: ConfigProvider.Info) =>
         ProtocolRegistry.listImageProviders().includes(pid) || hasImageOutput(pcfg)
+      const hasAudioOutput = (pcfg: ConfigProvider.Info) =>
+        Object.values(pcfg.models ?? {}).some((m) => m.modalities?.output?.includes("audio"))
+      const isNarrationProvider = (pid: string, pcfg: ConfigProvider.Info) =>
+        TTS_PROVIDERS.has(pid) || hasAudioOutput(pcfg)
 
       const imageProviderAvailable =
         Object.entries(cfg.provider ?? {}).some(([pid, pcfg]) => isImageProvider(pid, pcfg)) ||
         !!process.env.AGNES_API_KEY
+      const narrationProviderAvailable =
+        Object.entries(cfg.provider ?? {}).some(([pid, pcfg]) => isNarrationProvider(pid, pcfg)) ||
+        ["OPENAI_API_KEY", "DASHSCOPE_API_KEY", "MINIMAX_API_KEY", "ELEVENLABS_API_KEY", "SILICONFLOW_API_KEY"].some(
+          (key) => !!process.env[key],
+        )
       const filtered = allTools.filter((tool) => {
         if (tool.id === WebSearchTool.id) {
           return webSearchEnabled(input.providerID, { exa: flags.enableExa, parallel: flags.enableParallel })
@@ -414,6 +427,7 @@ export const layer: Layer.Layer<
         if (tool.id === GenerateImageTool.id || tool.id === GenerateVideoTool.id) {
           return imageProviderAvailable
         }
+        if (tool.id === GenerateNarrationTool.id) return narrationProviderAvailable
 
         return true
       })

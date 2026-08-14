@@ -250,12 +250,7 @@ function PacedMarkdown(props: {
 
   return (
     <Show when={value()}>
-      <Markdown
-        text={value()}
-        cacheKey={props.cacheKey}
-        streaming={props.streaming}
-        onFileOpen={props.onFileOpen}
-      />
+      <Markdown text={value()} cacheKey={props.cacheKey} streaming={props.streaming} onFileOpen={props.onFileOpen} />
     </Show>
   )
 }
@@ -942,15 +937,18 @@ export function ContextToolGroup(props: { parts: ToolPart[]; busy?: boolean }) {
       <Collapsible.Trigger>
         <div
           data-component="context-tool-group-trigger"
-          class="rounded-[10px] border border-indigo-300/25 bg-indigo-300/[0.07] px-3 py-2"
+          class="relative rounded-[10px] px-3 py-2 transition-colors hover:bg-teal-400/[0.05]"
         >
           <span
             data-slot="context-tool-group-title"
-            class="min-w-0 flex items-center gap-2 text-14-medium text-indigo-100"
+            class="min-w-0 flex items-center gap-2 text-14-medium text-text-strong"
           >
             <span
               data-slot="tool-badge-icon"
-              class="grid size-7 place-items-center rounded-[8px] border border-indigo-300/25 bg-indigo-300/10 text-indigo-100"
+              class="grid size-7 place-items-center rounded-[8px] text-teal-600 dark:text-teal-400"
+              style={{
+                "background-image": "linear-gradient(135deg, rgba(45,212,191,0.16) 0%, rgba(6,182,212,0.16) 100%)",
+              }}
             >
               <Icon name="magnifying-glass" size="small" />
             </span>
@@ -964,7 +962,7 @@ export function ContextToolGroup(props: { parts: ToolPart[]; busy?: boolean }) {
             </span>
             <span
               data-slot="context-tool-group-summary"
-              class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-indigo-100/65"
+              class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-text-weak"
             >
               <AnimatedCountList
                 items={[
@@ -1522,21 +1520,9 @@ PART_MAPPING["text"] = function TextPartDisplay(props) {
         <div data-slot="text-part-body">
           <Show
             when={streaming()}
-            fallback={
-              <Markdown
-                text={text()}
-                cacheKey={part().id}
-                streaming={false}
-                onFileOpen={props.onFileOpen}
-              />
-            }
+            fallback={<Markdown text={text()} cacheKey={part().id} streaming={false} onFileOpen={props.onFileOpen} />}
           >
-            <PacedMarkdown
-              text={text()}
-              cacheKey={part().id}
-              streaming={streaming()}
-              onFileOpen={props.onFileOpen}
-            />
+            <PacedMarkdown text={text()} cacheKey={part().id} streaming={streaming()} onFileOpen={props.onFileOpen} />
           </Show>
         </div>
         <Show when={showCopy()}>

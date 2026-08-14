@@ -320,6 +320,7 @@ export async function bootstrapDirectory(input: {
     const slowErrs = errors(await runAll(slow))
     if (slowErrs.length > 0) {
       console.error("Failed to finish bootstrap instance", slowErrs[0])
+
       const project = getFilename(input.directory)
       showToast({
         variant: "error",

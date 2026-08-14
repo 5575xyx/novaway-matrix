@@ -986,6 +986,13 @@ export default function Layout(props: ParentProps) {
         onSelect: () => chooseProject(),
       },
       {
+        id: "project.switch",
+        title: language.t("command.project.switch"),
+        category: language.t("command.category.project"),
+        keybind: "mod+shift+alt+o",
+        onSelect: () => layout.projectPicker.toggle(),
+      },
+      {
         id: "project.previous",
         title: language.t("command.project.previous"),
         category: language.t("command.category.project"),

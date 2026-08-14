@@ -151,8 +151,8 @@
   /* NovaWay 浅色主题 — 柔和蓝灰色调，降低亮度 */
   --background-base: #eef1f5;
   --background-weak: #e4e8ee;
-  --background-strong: #f4f6f9;
-  --background-stronger: #f4f6f9;
+  --background-strong: #eef2f6;
+  --background-stronger: #eef2f6;
   --surface-base: rgba(30, 58, 95, 0.05);
   --base: rgba(30, 58, 95, 0.055);
   --surface-base-hover: rgba(30, 58, 95, 0.085);
@@ -169,15 +169,15 @@
   --surface-float-base-hover: #1c1c1c;
   --surface-raised-base-hover: rgba(30, 58, 95, 0.07);
   --surface-raised-base-active: rgba(30, 58, 95, 0.12);
-  --surface-raised-strong: #f4f6f9;
-  --surface-raised-strong-hover: #f8f9fb;
-  --surface-raised-stronger: #f8f9fb;
-  --surface-raised-stronger-hover: #fafbfc;
+  --surface-raised-strong: #eef2f6;
+  --surface-raised-strong-hover: #f1f4f8;
+  --surface-raised-stronger: #f1f4f8;
+  --surface-raised-stronger-hover: #f4f7fa;
   --surface-weak: rgba(30, 58, 95, 0.07);
   --surface-weaker: rgba(30, 58, 95, 0.095);
-  --surface-strong: #f8f9fb;
+  --surface-strong: #f1f4f8;
   --surface-stronger-non-alpha: var(--surface-raised-stronger-non-alpha);
-  --surface-raised-stronger-non-alpha: #f8f9fb;
+  --surface-raised-stronger-non-alpha: #f1f4f8;
   --surface-brand-base: #dcde8d;
   --surface-brand-hover: #d0d283;
   --surface-interactive-base: #ecf3ff;

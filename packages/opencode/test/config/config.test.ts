@@ -1,7 +1,7 @@
 import { test, expect, describe, mock, afterEach, beforeEach } from "bun:test"
 import { Effect, Layer, Option } from "effect"
 import { NodeFileSystem, NodePath } from "@effect/platform-node"
-import { Config } from "@/config/config"
+import { Config, DEFAULT_MCP_SERVERS } from "@/config/config"
 import { ConfigManaged } from "@/config/managed"
 import { ConfigParse } from "../../src/config/parse"
 import { EffectFlock } from "@opencode-ai/core/util/effect-flock"
@@ -162,6 +162,26 @@ test("loads config with defaults when no files exist", async () => {
   })
 })
 
+test("seeds built-in browser MCP by default", () => {
+  const browser = DEFAULT_MCP_SERVERS.browser
+  expect(browser).toMatchObject({ enabled: true, type: "local" })
+  if (browser?.type === "local") {
+    expect(browser.command.join(" ")).toContain("@playwright/mcp")
+  }
+})
+
+test("seeds built-in Tencent Docs remote MCP by default", () => {
+  expect(DEFAULT_MCP_SERVERS["tencent-docs"]).toMatchObject({
+    type: "remote",
+    url: "https://docs.qq.com/openapi/mcp",
+    enabled: true,
+    oauth: false,
+    headers: {
+      Authorization: "{env:TENCENT_DOCS_TOKEN}",
+    },
+  })
+})
+
 test("creates global jsonc config with schema when no global configs exist", async () => {
   await using tmp = await tmpdir()
   const prev = Global.Path.config
@@ -178,6 +198,9 @@ test("creates global jsonc config with schema when no global configs exist", asy
 
     const content = await Filesystem.readText(path.join(tmp.path, "novaway.json"))
     expect(content).toContain('"$schema": "https://opencode.ai/config.json"')
+    expect(content).toContain('"tencent-docs"')
+    expect(content).toContain('"https://docs.qq.com/openapi/mcp"')
+    expect(content).toContain('"{env:TENCENT_DOCS_TOKEN}"')
   } finally {
     ;(Global.Path as { config: string }).config = prev
     await clear(true)

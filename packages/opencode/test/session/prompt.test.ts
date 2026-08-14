@@ -2026,9 +2026,7 @@ it.instance(
       const userMsg = storedMessages.find((m) => m.info.role === "user")
       expect(userMsg).toBeDefined()
       const stored = yield* MessageV2.get({ sessionID: session.id, messageID: userMsg!.info.id })
-      const synthetic = stored.parts.filter(
-        (p): p is MessageV2.TextPart => p.type === "text" && p.synthetic === true,
-      )
+      const synthetic = stored.parts.filter((p): p is MessageV2.TextPart => p.type === "text" && p.synthetic === true)
       expect(synthetic.some((p) => p.text.startsWith("[图片内容识别结果]"))).toBe(true)
 
       const bodies = yield* llm.inputs

@@ -17,11 +17,14 @@ import * as Log from "@opencode-ai/core/util/log"
 import { Discovery } from "./discovery"
 import CUSTOMIZE_NOVAWAY_SKILL_BODY from "./prompt/customize-novaway.md" with { type: "text" }
 import OFFICE_COMMUNICATION_SKILL_BODY from "./prompt/office-communication.md" with { type: "text" }
+import OFFICE_DATA_SKILL_BODY from "./prompt/office-data.md" with { type: "text" }
+import OFFICE_DESIGN_SKILL_BODY from "./prompt/office-design.md" with { type: "text" }
 import OFFICE_DOCUMENT_SKILL_BODY from "./prompt/office-document.md" with { type: "text" }
 import OFFICE_KNOWLEDGE_SKILL_BODY from "./prompt/office-knowledge.md" with { type: "text" }
 import OFFICE_MEETING_SKILL_BODY from "./prompt/office-meeting.md" with { type: "text" }
-import OFFICE_PPT_SKILL_BODY from "./prompt/office-ppt.md" with { type: "text" }
+import OFFICE_PPT_SKILL_BODY from "./prompt/office-ppt/SKILL.md" with { type: "text" }
 import OFFICE_TASK_SKILL_BODY from "./prompt/office-task.md" with { type: "text" }
+import OFFICE_WEB_SKILL_BODY from "./prompt/office-web.md" with { type: "text" }
 import FIND_SKILLS_BODY from "./prompt/find-skills.md" with { type: "text" }
 import SKILL_CREATOR_BODY from "./prompt/skill-creator.md" with { type: "text" }
 import WXGZH_OPS_BODY from "./prompt/wxgzh-ops/SKILL.md" with { type: "text" }
@@ -100,6 +103,18 @@ const BUILT_IN_SKILLS = [
     content: OFFICE_DOCUMENT_SKILL_BODY,
   },
   {
+    name: "office-data",
+    description:
+      "Use when NovaWay office mode needs CSV/Excel data cleaning, pivot analysis, trend attribution, chart recommendations, or evidence-backed analysis reports.",
+    content: OFFICE_DATA_SKILL_BODY,
+  },
+  {
+    name: "office-design",
+    description:
+      "Use when NovaWay office mode needs posters, social covers, visual assets, brand palettes, icon drafts, or executable visual specs.",
+    content: OFFICE_DESIGN_SKILL_BODY,
+  },
+  {
     name: "office-ppt",
     description:
       "Use when NovaWay office mode needs AI PPT outlines, page-by-page content, presentation storylines, speaker notes, visual suggestions, proposals, or project reports.",
@@ -122,6 +137,12 @@ const BUILT_IN_SKILLS = [
     description:
       "Use when NovaWay office mode needs task breakdown, priorities, execution plans, weekly plans, risk boards, dependencies, or follow-up cadence.",
     content: OFFICE_TASK_SKILL_BODY,
+  },
+  {
+    name: "office-web",
+    description:
+      "Use when NovaWay office mode needs HTML dashboards, project tracker pages, customer tools, data pages, or single-page demo sites.",
+    content: OFFICE_WEB_SKILL_BODY,
   },
   {
     name: "office-communication",

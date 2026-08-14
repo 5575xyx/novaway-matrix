@@ -52,6 +52,7 @@ export interface Interface {
   readonly console: () => Effect.Effect<string[], BrowserError>
   readonly network: () => Effect.Effect<Array<{ method: string; url: string; status?: number }>, BrowserError>
   readonly accessibility: () => Effect.Effect<string, BrowserError>
+  readonly status: () => Effect.Effect<{ active: boolean }, BrowserError>
   readonly close: () => Effect.Effect<void>
 }
 
@@ -185,6 +186,11 @@ export const layer = Layer.effect(
       yield* closeState(yield* InstanceState.get(state))
     })
 
+    const status = Effect.fn("Browser.status")(function* () {
+      const current = yield* InstanceState.get(state)
+      return { active: Boolean(current.page && !current.page.isClosed()) }
+    })
+
     const snapshot = Effect.fn("Browser.snapshot")(function* () {
       yield* clearSnapshotRefs()
       const page = yield* getPage()
@@ -294,6 +300,7 @@ export const layer = Layer.effect(
       console: () => InstanceState.get(state).pipe(Effect.map((value) => [...value.console])),
       network: () => InstanceState.get(state).pipe(Effect.map((value) => value.network.map((entry) => ({ ...entry })))),
       accessibility: () => usePage((page) => page.locator("body").ariaSnapshot(), "Browser 无障碍快照失败"),
+      status,
       close,
     })
   }),

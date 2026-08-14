@@ -82,7 +82,7 @@ export const agnesVideo: VideoGenerationProtocol = {
       error:
         typeof data.error === "string"
           ? data.error
-          : data.error?.message ?? data.error?.detail ?? (data.error ? JSON.stringify(data.error) : undefined),
+          : (data.error?.message ?? data.error?.detail ?? (data.error ? JSON.stringify(data.error) : undefined)),
     }
   },
 }

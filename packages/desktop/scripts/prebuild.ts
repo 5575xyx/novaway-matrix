@@ -12,10 +12,19 @@ process.env.TEMP = tmp
 process.env.TMPDIR = tmp
 
 const channel = resolveChannel()
+const resourcesDir = join(process.cwd(), "resources")
 await $`bun ./scripts/copy-icons.ts ${channel}`
 await $`bun ./scripts/copy-metainfo.ts ${channel}`
 
 await $`cd ../opencode && bun script/build-node.ts`
+
+// 浏览器自动化 MCP 随安装包分发，避免打包后的桌面端依赖系统 npx 或联网拉取。
+const playwrightMcpDir = join(resourcesDir, "playwright-mcp")
+const playwrightMcpCli = join(playwrightMcpDir, "node_modules", "@playwright", "mcp", "cli.js")
+if (!existsSync(playwrightMcpCli)) {
+  console.log("Installing bundled Playwright MCP")
+  await $`bun install --cwd ${playwrightMcpDir}`
+}
 
 // 打包环境下 DBX MCP Server 需要独立的 Node.js 运行时，避免 Electron ABI 与
 // better-sqlite3/keytar 等原生模块不匹配。下面下载与当前构建机同版本的 Node.js
@@ -39,7 +48,6 @@ function getNodeTarget() {
 }
 
 async function downloadNodeBinary(target: ReturnType<typeof getNodeTarget>) {
-  const resourcesDir = join(process.cwd(), "resources")
   const nodeDir = join(resourcesDir, "node")
   const tmpDir = join(process.cwd(), ".tmp", "node-download")
 

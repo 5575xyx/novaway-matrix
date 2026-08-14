@@ -5274,6 +5274,7 @@ export type FileListData = {
     directory?: string
     workspace?: string
     path: string
+    encoding?: "base64"
   }
   url: "/file"
 }
@@ -5294,6 +5295,7 @@ export type FileReadData = {
     directory?: string
     workspace?: string
     path: string
+    encoding?: "base64"
   }
   url: "/file/content"
 }
@@ -5307,18 +5309,13 @@ export type FileReadResponses = {
 
 export type FileReadResponse = FileReadResponses[keyof FileReadResponses]
 
-export type FileWritePayload = {
-  path: string
-  content: string
-}
-
 export type FileWriteData = {
-  body?: FileWritePayload
-  path?: never
-  query?: {
-    directory?: string
-    workspace?: string
+  body?: {
+    path: string
+    content: string
   }
+  path?: never
+  query?: never
   url: "/file/write"
 }
 
@@ -5330,19 +5327,6 @@ export type FileWriteResponses = {
 }
 
 export type FileWriteResponse = FileWriteResponses[keyof FileWriteResponses]
-
-export type FileWriteErrors = {
-  /**
-   * Bad request
-   */
-  400: BadRequestError
-  /**
-   * InternalServerError
-   */
-  500: EffectHttpApiErrorInternalServerError
-}
-
-export type FileWriteError = FileWriteErrors[keyof FileWriteErrors]
 
 export type FileStatusData = {
   body?: never
@@ -6452,7 +6436,7 @@ export type OfficeArtifactListResponses = {
    * Office artifacts
    */
   200: Array<{
-    kind: "document" | "ppt" | "meeting" | "knowledge" | "task" | "communication"
+    kind: "document" | "ppt" | "data" | "design" | "web" | "knowledge" | "meeting" | "task" | "communication"
     path: string
     filename: string
     bytes: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
@@ -6464,7 +6448,7 @@ export type OfficeArtifactListResponse = OfficeArtifactListResponses[keyof Offic
 
 export type OfficeArtifactSaveData = {
   body?: {
-    kind: "document" | "ppt" | "meeting" | "knowledge" | "task" | "communication"
+    kind: "document" | "ppt" | "data" | "design" | "web" | "knowledge" | "meeting" | "task" | "communication"
     filename: string
     mime: string
     contentBase64: string
@@ -6493,6 +6477,7 @@ export type OfficeArtifactSaveResponses = {
   200: {
     path: string
     bytes: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    version: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   }
 }
 
@@ -6543,10 +6528,1269 @@ export type OfficePptxTemplateFillResponses = {
   200: {
     path: string
     bytes: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    version: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   }
 }
 
 export type OfficePptxTemplateFillResponse = OfficePptxTemplateFillResponses[keyof OfficePptxTemplateFillResponses]
+
+export type OfficePlatformStatusData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform"
+}
+
+export type OfficePlatformStatusErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficePlatformStatusError = OfficePlatformStatusErrors[keyof OfficePlatformStatusErrors]
+
+export type OfficePlatformStatusResponses = {
+  /**
+   * Office platform status
+   */
+  200: {
+    schedulerEnabled: true
+    scheduleCount: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    activeScheduleCount: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    browserConfigured: boolean
+    diagnostics: {
+      browser: "configured" | "connected" | "failed"
+      tencentDocs: "configured" | "missing"
+      feishu: "configured" | "missing"
+    }
+  }
+}
+
+export type OfficePlatformStatusResponse = OfficePlatformStatusResponses[keyof OfficePlatformStatusResponses]
+
+export type OfficePlatformScheduleListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform/schedules"
+}
+
+export type OfficePlatformScheduleListErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficePlatformScheduleListError = OfficePlatformScheduleListErrors[keyof OfficePlatformScheduleListErrors]
+
+export type OfficePlatformScheduleListResponses = {
+  /**
+   * Office schedules
+   */
+  200: Array<{
+    id: string
+    title: string
+    scene: string
+    prompt: string
+    connectors: Array<string>
+    browser: {
+      enabled: boolean
+      url?: string
+    }
+    notificationUrl?: string
+    inputValues?: {
+      [key: string]: string
+    }
+    trigger:
+      | {
+          type: "interval"
+          minutes: number
+        }
+      | {
+          type: "daily"
+          time: string
+        }
+      | {
+          type: "weekly"
+          dayOfWeek: number
+          time: string
+        }
+      | {
+          type: "monthly"
+          dayOfMonth: number
+          time: string
+        }
+      | {
+          type: "days"
+          everyDays: number
+          time: string
+        }
+    status: "active" | "paused"
+    nextRunAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }>
+}
+
+export type OfficePlatformScheduleListResponse =
+  OfficePlatformScheduleListResponses[keyof OfficePlatformScheduleListResponses]
+
+export type OfficePlatformScheduleCreateData = {
+  body?: {
+    title: string
+    scene: string
+    prompt: string
+    connectors?: Array<string>
+    browser?: {
+      enabled: boolean
+      url?: string
+    }
+    notificationUrl?: string
+    inputValues?: {
+      [key: string]: string
+    }
+    trigger:
+      | {
+          type: "interval"
+          minutes: number
+        }
+      | {
+          type: "daily"
+          time: string
+        }
+      | {
+          type: "weekly"
+          dayOfWeek: number
+          time: string
+        }
+      | {
+          type: "monthly"
+          dayOfMonth: number
+          time: string
+        }
+      | {
+          type: "days"
+          everyDays: number
+          time: string
+        }
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform/schedules"
+}
+
+export type OfficePlatformScheduleCreateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficePlatformScheduleCreateError =
+  OfficePlatformScheduleCreateErrors[keyof OfficePlatformScheduleCreateErrors]
+
+export type OfficePlatformScheduleCreateResponses = {
+  /**
+   * Created office schedule
+   */
+  200: {
+    id: string
+    title: string
+    scene: string
+    prompt: string
+    connectors: Array<string>
+    browser: {
+      enabled: boolean
+      url?: string
+    }
+    notificationUrl?: string
+    inputValues?: {
+      [key: string]: string
+    }
+    trigger:
+      | {
+          type: "interval"
+          minutes: number
+        }
+      | {
+          type: "daily"
+          time: string
+        }
+      | {
+          type: "weekly"
+          dayOfWeek: number
+          time: string
+        }
+      | {
+          type: "monthly"
+          dayOfMonth: number
+          time: string
+        }
+      | {
+          type: "days"
+          everyDays: number
+          time: string
+        }
+    status: "active" | "paused"
+    nextRunAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type OfficePlatformScheduleCreateResponse =
+  OfficePlatformScheduleCreateResponses[keyof OfficePlatformScheduleCreateResponses]
+
+export type OfficePlatformScheduleDeleteData = {
+  body?: never
+  path: {
+    id: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform/schedules/{id}"
+}
+
+export type OfficePlatformScheduleDeleteErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficePlatformScheduleDeleteError =
+  OfficePlatformScheduleDeleteErrors[keyof OfficePlatformScheduleDeleteErrors]
+
+export type OfficePlatformScheduleDeleteResponses = {
+  /**
+   * Office schedule deleted
+   */
+  200: boolean
+}
+
+export type OfficePlatformScheduleDeleteResponse =
+  OfficePlatformScheduleDeleteResponses[keyof OfficePlatformScheduleDeleteResponses]
+
+export type OfficePlatformScheduleUpdateData = {
+  body?: {
+    title?: string
+    scene?: string
+    prompt?: string
+    connectors?: Array<string>
+    browser?: {
+      enabled: boolean
+      url?: string
+    }
+    notificationUrl?: string
+    inputValues?: {
+      [key: string]: string
+    }
+    trigger?:
+      | {
+          type: "interval"
+          minutes: number
+        }
+      | {
+          type: "daily"
+          time: string
+        }
+      | {
+          type: "weekly"
+          dayOfWeek: number
+          time: string
+        }
+      | {
+          type: "monthly"
+          dayOfMonth: number
+          time: string
+        }
+      | {
+          type: "days"
+          everyDays: number
+          time: string
+        }
+    status?: "active" | "paused"
+  }
+  path: {
+    id: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform/schedules/{id}"
+}
+
+export type OfficePlatformScheduleUpdateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type OfficePlatformScheduleUpdateError =
+  OfficePlatformScheduleUpdateErrors[keyof OfficePlatformScheduleUpdateErrors]
+
+export type OfficePlatformScheduleUpdateResponses = {
+  /**
+   * Updated office schedule
+   */
+  200: {
+    id: string
+    title: string
+    scene: string
+    prompt: string
+    connectors: Array<string>
+    browser: {
+      enabled: boolean
+      url?: string
+    }
+    notificationUrl?: string
+    inputValues?: {
+      [key: string]: string
+    }
+    trigger:
+      | {
+          type: "interval"
+          minutes: number
+        }
+      | {
+          type: "daily"
+          time: string
+        }
+      | {
+          type: "weekly"
+          dayOfWeek: number
+          time: string
+        }
+      | {
+          type: "monthly"
+          dayOfMonth: number
+          time: string
+        }
+      | {
+          type: "days"
+          everyDays: number
+          time: string
+        }
+    status: "active" | "paused"
+    nextRunAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type OfficePlatformScheduleUpdateResponse =
+  OfficePlatformScheduleUpdateResponses[keyof OfficePlatformScheduleUpdateResponses]
+
+export type OfficePlatformScheduleRunData = {
+  body?: never
+  path: {
+    id: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform/schedules/{id}/run"
+}
+
+export type OfficePlatformScheduleRunErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type OfficePlatformScheduleRunError = OfficePlatformScheduleRunErrors[keyof OfficePlatformScheduleRunErrors]
+
+export type OfficePlatformScheduleRunResponses = {
+  /**
+   * Office run
+   */
+  200: {
+    id: string
+    scheduleId?: string
+    workflowId?: string
+    status: "running" | "completed" | "error"
+    startedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    completedAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    output?: string
+    error?: string
+    logs: Array<string>
+  }
+}
+
+export type OfficePlatformScheduleRunResponse =
+  OfficePlatformScheduleRunResponses[keyof OfficePlatformScheduleRunResponses]
+
+export type OfficePlatformRunListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform/runs"
+}
+
+export type OfficePlatformRunListErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficePlatformRunListError = OfficePlatformRunListErrors[keyof OfficePlatformRunListErrors]
+
+export type OfficePlatformRunListResponses = {
+  /**
+   * Office runs
+   */
+  200: Array<{
+    id: string
+    scheduleId?: string
+    workflowId?: string
+    status: "running" | "completed" | "error"
+    startedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    completedAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    output?: string
+    error?: string
+    logs: Array<string>
+  }>
+}
+
+export type OfficePlatformRunListResponse = OfficePlatformRunListResponses[keyof OfficePlatformRunListResponses]
+
+export type OfficePlatformWorkflowListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform/workflows"
+}
+
+export type OfficePlatformWorkflowListErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficePlatformWorkflowListError = OfficePlatformWorkflowListErrors[keyof OfficePlatformWorkflowListErrors]
+
+export type OfficePlatformWorkflowListResponses = {
+  /**
+   * Office workflows
+   */
+  200: Array<{
+    id: string
+    title: string
+    scene: string
+    prompt: string
+    connectors: Array<string>
+    browser: {
+      enabled: boolean
+      url?: string
+    }
+    notificationUrl?: string
+    sourceSessionId?: string
+    enabled: boolean
+    version: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }>
+}
+
+export type OfficePlatformWorkflowListResponse =
+  OfficePlatformWorkflowListResponses[keyof OfficePlatformWorkflowListResponses]
+
+export type OfficePlatformWorkflowCreateData = {
+  body?: {
+    title: string
+    scene: string
+    prompt: string
+    connectors?: Array<string>
+    browser?: {
+      enabled: boolean
+      url?: string
+    }
+    notificationUrl?: string
+    sourceSessionId?: string
+    enabled?: boolean
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform/workflows"
+}
+
+export type OfficePlatformWorkflowCreateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficePlatformWorkflowCreateError =
+  OfficePlatformWorkflowCreateErrors[keyof OfficePlatformWorkflowCreateErrors]
+
+export type OfficePlatformWorkflowCreateResponses = {
+  /**
+   * Created office workflow
+   */
+  200: {
+    id: string
+    title: string
+    scene: string
+    prompt: string
+    connectors: Array<string>
+    browser: {
+      enabled: boolean
+      url?: string
+    }
+    notificationUrl?: string
+    sourceSessionId?: string
+    enabled: boolean
+    version: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type OfficePlatformWorkflowCreateResponse =
+  OfficePlatformWorkflowCreateResponses[keyof OfficePlatformWorkflowCreateResponses]
+
+export type OfficePlatformWorkflowDeleteData = {
+  body?: never
+  path: {
+    id: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform/workflows/{id}"
+}
+
+export type OfficePlatformWorkflowDeleteErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficePlatformWorkflowDeleteError =
+  OfficePlatformWorkflowDeleteErrors[keyof OfficePlatformWorkflowDeleteErrors]
+
+export type OfficePlatformWorkflowDeleteResponses = {
+  /**
+   * Office workflow deleted
+   */
+  200: boolean
+}
+
+export type OfficePlatformWorkflowDeleteResponse =
+  OfficePlatformWorkflowDeleteResponses[keyof OfficePlatformWorkflowDeleteResponses]
+
+export type OfficePlatformWorkflowUpdateData = {
+  body?: {
+    title?: string
+    scene?: string
+    prompt?: string
+    connectors?: Array<string>
+    browser?: {
+      enabled: boolean
+      url?: string
+    }
+    notificationUrl?: string
+    sourceSessionId?: string
+    enabled?: boolean
+  }
+  path: {
+    id: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform/workflows/{id}"
+}
+
+export type OfficePlatformWorkflowUpdateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type OfficePlatformWorkflowUpdateError =
+  OfficePlatformWorkflowUpdateErrors[keyof OfficePlatformWorkflowUpdateErrors]
+
+export type OfficePlatformWorkflowUpdateResponses = {
+  /**
+   * Updated office workflow
+   */
+  200: {
+    id: string
+    title: string
+    scene: string
+    prompt: string
+    connectors: Array<string>
+    browser: {
+      enabled: boolean
+      url?: string
+    }
+    notificationUrl?: string
+    sourceSessionId?: string
+    enabled: boolean
+    version: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type OfficePlatformWorkflowUpdateResponse =
+  OfficePlatformWorkflowUpdateResponses[keyof OfficePlatformWorkflowUpdateResponses]
+
+export type OfficePlatformWorkflowRunData = {
+  body?: {
+    inputValues?: {
+      [key: string]: string
+    }
+  }
+  path: {
+    id: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform/workflows/{id}/run"
+}
+
+export type OfficePlatformWorkflowRunErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type OfficePlatformWorkflowRunError = OfficePlatformWorkflowRunErrors[keyof OfficePlatformWorkflowRunErrors]
+
+export type OfficePlatformWorkflowRunResponses = {
+  /**
+   * Office workflow run
+   */
+  200: {
+    id: string
+    scheduleId?: string
+    workflowId?: string
+    status: "running" | "completed" | "error"
+    startedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    completedAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    output?: string
+    error?: string
+    logs: Array<string>
+  }
+}
+
+export type OfficePlatformWorkflowRunResponse =
+  OfficePlatformWorkflowRunResponses[keyof OfficePlatformWorkflowRunResponses]
+
+export type OfficePlatformWorkflowScheduleData = {
+  body?: {
+    trigger:
+      | {
+          type: "interval"
+          minutes: number
+        }
+      | {
+          type: "daily"
+          time: string
+        }
+      | {
+          type: "weekly"
+          dayOfWeek: number
+          time: string
+        }
+      | {
+          type: "monthly"
+          dayOfMonth: number
+          time: string
+        }
+      | {
+          type: "days"
+          everyDays: number
+          time: string
+        }
+    notificationUrl?: string
+    browser?: {
+      enabled: boolean
+      url?: string
+    }
+    inputValues?: {
+      [key: string]: string
+    }
+  }
+  path: {
+    id: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform/workflows/{id}/schedule"
+}
+
+export type OfficePlatformWorkflowScheduleErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type OfficePlatformWorkflowScheduleError =
+  OfficePlatformWorkflowScheduleErrors[keyof OfficePlatformWorkflowScheduleErrors]
+
+export type OfficePlatformWorkflowScheduleResponses = {
+  /**
+   * Office schedule created from workflow
+   */
+  200: {
+    id: string
+    title: string
+    scene: string
+    prompt: string
+    connectors: Array<string>
+    browser: {
+      enabled: boolean
+      url?: string
+    }
+    notificationUrl?: string
+    inputValues?: {
+      [key: string]: string
+    }
+    trigger:
+      | {
+          type: "interval"
+          minutes: number
+        }
+      | {
+          type: "daily"
+          time: string
+        }
+      | {
+          type: "weekly"
+          dayOfWeek: number
+          time: string
+        }
+      | {
+          type: "monthly"
+          dayOfMonth: number
+          time: string
+        }
+      | {
+          type: "days"
+          everyDays: number
+          time: string
+        }
+    status: "active" | "paused"
+    nextRunAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type OfficePlatformWorkflowScheduleResponse =
+  OfficePlatformWorkflowScheduleResponses[keyof OfficePlatformWorkflowScheduleResponses]
+
+export type OfficePlatformArtifactListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform/artifacts"
+}
+
+export type OfficePlatformArtifactListErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficePlatformArtifactListError = OfficePlatformArtifactListErrors[keyof OfficePlatformArtifactListErrors]
+
+export type OfficePlatformArtifactListResponses = {
+  /**
+   * Office artifact versions
+   */
+  200: Array<{
+    id: string
+    kind: "document" | "ppt" | "data" | "design" | "web" | "knowledge" | "meeting" | "task" | "communication"
+    name: string
+    filename: string
+    path: string
+    workflowId?: string
+    runId?: string
+    version: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }>
+}
+
+export type OfficePlatformArtifactListResponse =
+  OfficePlatformArtifactListResponses[keyof OfficePlatformArtifactListResponses]
+
+export type OfficePlatformArtifactRestoreData = {
+  body?: {
+    version?: number
+  }
+  path: {
+    id: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform/artifacts/{id}/restore"
+}
+
+export type OfficePlatformArtifactRestoreErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type OfficePlatformArtifactRestoreError =
+  OfficePlatformArtifactRestoreErrors[keyof OfficePlatformArtifactRestoreErrors]
+
+export type OfficePlatformArtifactRestoreResponses = {
+  /**
+   * Office artifact restored
+   */
+  200: {
+    id: string
+    kind: "document" | "ppt" | "data" | "design" | "web" | "knowledge" | "meeting" | "task" | "communication"
+    name: string
+    filename: string
+    path: string
+    workflowId?: string
+    runId?: string
+    version: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type OfficePlatformArtifactRestoreResponse =
+  OfficePlatformArtifactRestoreResponses[keyof OfficePlatformArtifactRestoreResponses]
+
+export type OfficePlatformConnectorListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform/connectors"
+}
+
+export type OfficePlatformConnectorListErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficePlatformConnectorListError =
+  OfficePlatformConnectorListErrors[keyof OfficePlatformConnectorListErrors]
+
+export type OfficePlatformConnectorListResponses = {
+  /**
+   * Office connectors
+   */
+  200: Array<{
+    id: string
+    provider: string
+    name: string
+    description: string
+    status: "connected" | "failed" | "disabled"
+    capabilities: Array<string>
+    configured: boolean
+  }>
+}
+
+export type OfficePlatformConnectorListResponse =
+  OfficePlatformConnectorListResponses[keyof OfficePlatformConnectorListResponses]
+
+export type OfficePlatformConnectorConnectData = {
+  body?: never
+  path: {
+    id: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform/connectors/{id}/connect"
+}
+
+export type OfficePlatformConnectorConnectErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficePlatformConnectorConnectError =
+  OfficePlatformConnectorConnectErrors[keyof OfficePlatformConnectorConnectErrors]
+
+export type OfficePlatformConnectorConnectResponses = {
+  /**
+   * Office connector connected
+   */
+  200: boolean
+}
+
+export type OfficePlatformConnectorConnectResponse =
+  OfficePlatformConnectorConnectResponses[keyof OfficePlatformConnectorConnectResponses]
+
+export type OfficePlatformConnectorDisconnectData = {
+  body?: never
+  path: {
+    id: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform/connectors/{id}/disconnect"
+}
+
+export type OfficePlatformConnectorDisconnectErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficePlatformConnectorDisconnectError =
+  OfficePlatformConnectorDisconnectErrors[keyof OfficePlatformConnectorDisconnectErrors]
+
+export type OfficePlatformConnectorDisconnectResponses = {
+  /**
+   * Office connector disconnected
+   */
+  200: boolean
+}
+
+export type OfficePlatformConnectorDisconnectResponse =
+  OfficePlatformConnectorDisconnectResponses[keyof OfficePlatformConnectorDisconnectResponses]
+
+export type OfficePlatformConnectorActionData = {
+  body?: {
+    action: string
+    arguments?: {
+      [key: string]: unknown
+    }
+  }
+  path: {
+    id: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform/connectors/{id}/action"
+}
+
+export type OfficePlatformConnectorActionErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficePlatformConnectorActionError =
+  OfficePlatformConnectorActionErrors[keyof OfficePlatformConnectorActionErrors]
+
+export type OfficePlatformConnectorActionResponses = {
+  /**
+   * Office connector action completed
+   */
+  200: boolean
+}
+
+export type OfficePlatformConnectorActionResponse =
+  OfficePlatformConnectorActionResponses[keyof OfficePlatformConnectorActionResponses]
+
+export type OfficePlatformConnectorConfigGetData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform/connectors/config"
+}
+
+export type OfficePlatformConnectorConfigGetErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficePlatformConnectorConfigGetError =
+  OfficePlatformConnectorConfigGetErrors[keyof OfficePlatformConnectorConfigGetErrors]
+
+export type OfficePlatformConnectorConfigGetResponses = {
+  /**
+   * Office connector config
+   */
+  200: {
+    feishuWebhookUrl?: string
+    tencentDocsToken?: string
+  }
+}
+
+export type OfficePlatformConnectorConfigGetResponse =
+  OfficePlatformConnectorConfigGetResponses[keyof OfficePlatformConnectorConfigGetResponses]
+
+export type OfficePlatformConnectorConfigUpdateData = {
+  body?: {
+    feishuWebhookUrl?: string
+    tencentDocsToken?: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform/connectors/config"
+}
+
+export type OfficePlatformConnectorConfigUpdateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficePlatformConnectorConfigUpdateError =
+  OfficePlatformConnectorConfigUpdateErrors[keyof OfficePlatformConnectorConfigUpdateErrors]
+
+export type OfficePlatformConnectorConfigUpdateResponses = {
+  /**
+   * Updated office connector config
+   */
+  200: {
+    feishuWebhookUrl?: string
+    tencentDocsToken?: string
+  }
+}
+
+export type OfficePlatformConnectorConfigUpdateResponse =
+  OfficePlatformConnectorConfigUpdateResponses[keyof OfficePlatformConnectorConfigUpdateResponses]
+
+export type OfficePlatformBrowserStatusData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform/browser"
+}
+
+export type OfficePlatformBrowserStatusErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficePlatformBrowserStatusError =
+  OfficePlatformBrowserStatusErrors[keyof OfficePlatformBrowserStatusErrors]
+
+export type OfficePlatformBrowserStatusResponses = {
+  /**
+   * Office browser status
+   */
+  200: {
+    configured: boolean
+    active: boolean
+  }
+}
+
+export type OfficePlatformBrowserStatusResponse =
+  OfficePlatformBrowserStatusResponses[keyof OfficePlatformBrowserStatusResponses]
+
+export type OfficePlatformBrowserStartData = {
+  body?: {
+    url: string
+    viewport?: {
+      width: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      height: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform/browser/start"
+}
+
+export type OfficePlatformBrowserStartErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficePlatformBrowserStartError = OfficePlatformBrowserStartErrors[keyof OfficePlatformBrowserStartErrors]
+
+export type OfficePlatformBrowserStartResponses = {
+  /**
+   * Office browser started
+   */
+  200: {
+    url: string
+    title: string
+    text: string
+    bodyText: string
+    refs: Array<{
+      ref: string
+      role: string
+      name: string
+      tag: string
+    }>
+    overflow: boolean
+    focusVisible: boolean
+  }
+}
+
+export type OfficePlatformBrowserStartResponse =
+  OfficePlatformBrowserStartResponses[keyof OfficePlatformBrowserStartResponses]
+
+export type OfficePlatformBrowserSnapshotData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform/browser/snapshot"
+}
+
+export type OfficePlatformBrowserSnapshotErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficePlatformBrowserSnapshotError =
+  OfficePlatformBrowserSnapshotErrors[keyof OfficePlatformBrowserSnapshotErrors]
+
+export type OfficePlatformBrowserSnapshotResponses = {
+  /**
+   * Office browser snapshot
+   */
+  200: {
+    url: string
+    title: string
+    text: string
+    bodyText: string
+    refs: Array<{
+      ref: string
+      role: string
+      name: string
+      tag: string
+    }>
+    overflow: boolean
+    focusVisible: boolean
+  }
+}
+
+export type OfficePlatformBrowserSnapshotResponse =
+  OfficePlatformBrowserSnapshotResponses[keyof OfficePlatformBrowserSnapshotResponses]
+
+export type OfficePlatformBrowserStopData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/platform/browser/stop"
+}
+
+export type OfficePlatformBrowserStopErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficePlatformBrowserStopError = OfficePlatformBrowserStopErrors[keyof OfficePlatformBrowserStopErrors]
+
+export type OfficePlatformBrowserStopResponses = {
+  /**
+   * Office browser stopped
+   */
+  200: boolean
+}
+
+export type OfficePlatformBrowserStopResponse =
+  OfficePlatformBrowserStopResponses[keyof OfficePlatformBrowserStopResponses]
 
 export type ProjectListData = {
   body?: never

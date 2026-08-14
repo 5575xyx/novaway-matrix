@@ -1,0 +1,185 @@
+{
+  "version": 1,
+  "defaults": {
+    "transition": {
+      "effect": "fade",
+      "duration": 0.35
+    },
+    "animation": {
+      "effect": "fade",
+      "duration": 0.4,
+      "stagger": 0.16,
+      "trigger": "after-previous"
+    }
+  },
+  "slides": {
+    "cover": {
+      "groups": [
+        {
+          "selector": "title",
+          "effect": "fade",
+          "duration": 0.6,
+          "delay": 0
+        },
+        {
+          "selector": "image",
+          "effect": "zoom",
+          "duration": 0.55,
+          "delay": 0.2
+        },
+        {
+          "selector": "body",
+          "effect": "fade",
+          "duration": 0.5,
+          "delay": 0.25
+        }
+      ]
+    },
+    "overview": {
+      "groups": [
+        {
+          "selector": "title",
+          "effect": "fade",
+          "duration": 0.5,
+          "delay": 0
+        },
+        {
+          "selector": "body",
+          "effect": "fade",
+          "duration": 0.4,
+          "delay": 0.2
+        },
+        {
+          "selector": "cards",
+          "effect": "fly",
+          "duration": 0.4,
+          "delay": 0.16
+        },
+        {
+          "selector": "chart",
+          "effect": "wipe",
+          "duration": 0.5,
+          "delay": 0.16
+        }
+      ]
+    },
+    "content": {
+      "groups": [
+        {
+          "selector": "title",
+          "effect": "fade",
+          "duration": 0.5,
+          "delay": 0
+        },
+        {
+          "selector": "body",
+          "effect": "fade",
+          "duration": 0.4,
+          "delay": 0.2
+        },
+        {
+          "selector": "cards",
+          "effect": "fly",
+          "duration": 0.4,
+          "delay": 0.16
+        },
+        {
+          "selector": "image",
+          "effect": "zoom",
+          "duration": 0.5,
+          "delay": 0.16
+        },
+        {
+          "selector": "chart",
+          "effect": "wipe",
+          "duration": 0.5,
+          "delay": 0.16
+        }
+      ]
+    },
+    "cards": {
+      "groups": [
+        {
+          "selector": "title",
+          "effect": "fade",
+          "duration": 0.5,
+          "delay": 0
+        },
+        {
+          "selector": "cards",
+          "effect": "fly",
+          "duration": 0.4,
+          "delay": 0.16
+        },
+        {
+          "selector": "body",
+          "effect": "fade",
+          "duration": 0.4,
+          "delay": 0.16
+        },
+        {
+          "selector": "image",
+          "effect": "zoom",
+          "duration": 0.5,
+          "delay": 0.16
+        },
+        {
+          "selector": "chart",
+          "effect": "wipe",
+          "duration": 0.5,
+          "delay": 0.16
+        }
+      ]
+    },
+    "data": {
+      "groups": [
+        {
+          "selector": "title",
+          "effect": "fade",
+          "duration": 0.5,
+          "delay": 0
+        },
+        {
+          "selector": "chart",
+          "effect": "wipe",
+          "duration": 0.55,
+          "delay": 0.15
+        },
+        {
+          "selector": "body",
+          "effect": "fade",
+          "duration": 0.4,
+          "delay": 0.2
+        },
+        {
+          "selector": "cards",
+          "effect": "fly",
+          "duration": 0.35,
+          "delay": 0.16
+        }
+      ]
+    },
+    "closing": {
+      "groups": [
+        {
+          "selector": "title",
+          "effect": "fade",
+          "duration": 0.6,
+          "delay": 0
+        },
+        {
+          "selector": "body",
+          "effect": "fade",
+          "duration": 0.5,
+          "delay": 0.3
+        },
+        {
+          "selector": "image",
+          "effect": "zoom",
+          "duration": 0.5,
+          "delay": 0.25
+        }
+      ]
+    }
+  }
+}

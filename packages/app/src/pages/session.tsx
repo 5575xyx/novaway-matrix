@@ -1,4 +1,4 @@
-import type { AssistantMessage, Project, UserMessage } from "@opencode-ai/sdk/v2"
+import type { Project, UserMessage } from "@opencode-ai/sdk/v2"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { createQuery, skipToken, useMutation, useQueryClient } from "@tanstack/solid-query"
 import {
@@ -19,7 +19,6 @@ import { makeEventListener } from "@solid-primitives/event-listener"
 import { createMediaQuery } from "@solid-primitives/media"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { useLocal } from "@/context/local"
-import { useCommand } from "@/context/command"
 import { selectionFromLines, useFile, type FileSelection, type SelectedLineRange } from "@/context/file"
 import { createStore } from "solid-js/store"
 import { Select } from "@opencode-ai/ui/select"
@@ -40,7 +39,6 @@ import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
 import { usePrompt } from "@/context/prompt"
 import { useSDK } from "@/context/sdk"
-import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
 import { useTerminal } from "@/context/terminal"
 import { type FollowupDraft, sendFollowupDraft } from "@/components/prompt-input/submit"
@@ -53,18 +51,14 @@ import {
   shouldFocusTerminalOnKeyDown,
 } from "@/pages/session/helpers"
 import { MessageTimeline } from "@/pages/session/message-timeline"
-import {
-  OFFICE_AGENT_SIDEBAR_WIDTH,
-  OFFICE_PPT_TEMPLATE_SIDEBAR_WIDTH,
-  OfficeAgentSidebar,
-  OfficePptTemplateSidebar,
-} from "@/pages/session/office-agent-sidebar"
-import { useOfficeAgent } from "@/pages/session/office-agent-context"
 import { type DiffStyle, SessionReviewTab, type SessionReviewTabProps } from "@/pages/session/review-tab"
 import { useSessionLayout } from "@/pages/session/session-layout"
+import { sessionAutoSubmitKey } from "@/pages/session/auto-submit"
+import { showOfficeNewSessionWorkspace, showOfficeSessionComposer } from "@/pages/session/office-workspace-route"
 import { syncSessionModel } from "@/pages/session/session-model-helpers"
 import { SessionSidePanel } from "@/pages/session/session-side-panel"
 import { FloatingTodoButton } from "@/components/floating-todo-button"
+import { OfficeSessionComposer, OfficeSessionWorkspace } from "@/components/office-session-workspace"
 import { TerminalPanel } from "@/pages/session/terminal-panel"
 import { useSessionCommands } from "@/pages/session/use-session-commands"
 import { useSessionHashScroll } from "@/pages/session/use-session-hash-scroll"
@@ -198,14 +192,19 @@ export default function Page() {
   const dialog = useDialog()
   const language = useLanguage()
   const sdk = useSDK()
-  const settings = useSettings()
   const prompt = usePrompt()
-  const office = useOfficeAgent()
   const comments = useComments()
   const terminal = useTerminal()
-  const command = useCommand()
   const platform = usePlatform()
-  const [searchParams, setSearchParams] = useSearchParams<{ prompt?: string; submit?: string }>()
+  const [searchParams, setSearchParams] = useSearchParams<{
+    prompt?: string
+    submit?: string
+    officeRole?: string
+    officeUseCase?: string
+    officeAudience?: string
+    officePages?: string
+    officeMaterial?: string
+  }>()
   const location = useLocation()
   const { params, sessionKey, tabs, view } = useSessionLayout()
   const [autoSubmitKey, setAutoSubmitKey] = createSignal<string>()
@@ -220,12 +219,17 @@ export default function Page() {
         return
       }
       prompt.set([{ type: "text", content: text, start: 0, end: text.length }], text.length)
-      setAutoSubmitKey(
-        searchParams.submit === "1" && layout.mode.current() !== "zen"
-          ? `${checksum(text) ?? text.length}-${Date.now()}`
-          : undefined,
-      )
-      setSearchParams({ ...searchParams, prompt: undefined, submit: undefined })
+      setAutoSubmitKey(sessionAutoSubmitKey(text, searchParams.submit))
+      setSearchParams({
+        ...searchParams,
+        prompt: undefined,
+        submit: undefined,
+        officeRole: undefined,
+        officeUseCase: undefined,
+        officeAudience: undefined,
+        officePages: undefined,
+        officeMaterial: undefined,
+      })
     })
   })
 
@@ -313,12 +317,6 @@ export default function Page() {
     ),
   )
   const isChildSession = createMemo(() => !!info()?.parentID)
-  const diffs = createMemo(
-    on(
-      () => params.id,
-      (id) => (id ? untrack(() => list(sync.data.session_diff[id])) : []),
-    ),
-  )
   const canReview = createMemo(() => !!sync.project)
   const reviewTab = createMemo(() => isDesktop())
   const tabState = createSessionTabs({
@@ -334,14 +332,7 @@ export default function Page() {
     () => isDesktop() && view().reviewPanel.opened() && (activeFileTab() !== undefined || activeTab() === "context"),
   )
   const desktopFileTreeOpen = createMemo(() => isDesktop() && layout.fileTree.opened())
-  const officeAgentMode = createMemo(() => layout.mode.current() === "zen")
-  const desktopOfficeAgentOpen = createMemo(() => isDesktop() && officeAgentMode())
-  const desktopOfficePptTemplateOpen = createMemo(() => desktopOfficeAgentOpen() && office.activeID() === "ppt")
-  const officeReservedWidth = createMemo(
-    () =>
-      (desktopOfficeAgentOpen() ? OFFICE_AGENT_SIDEBAR_WIDTH : 0) +
-      (desktopOfficePptTemplateOpen() ? OFFICE_PPT_TEMPLATE_SIDEBAR_WIDTH : 0),
-  )
+  const officeReservedWidth = createMemo(() => 0)
   const desktopSidePanelOpen = createMemo(() => desktopReviewOpen() || desktopFileTreeOpen())
   const sessionPanelWidth = createMemo(() => {
     const reserved = officeReservedWidth()
@@ -1453,7 +1444,7 @@ export default function Page() {
   const queueEnabled = createMemo(() => {
     const id = params.id
     if (!id) return false
-    return settings.general.followup() === "queue" && busy(id) && !composer.blocked() && !isChildSession()
+    return busy(id) && !composer.blocked() && !isChildSession()
   })
 
   const followupText = (item: FollowupDraft) => {
@@ -1739,206 +1730,272 @@ export default function Page() {
 
   useUsageExceededDialogs()
 
+  const composerRegion = (options: {
+    centered: boolean
+    embedded?: boolean
+    setPromptDockRef: (el: HTMLDivElement) => void
+  }) => (
+    <SessionComposerRegion
+      state={composer}
+      ready={!store.deferRender && messagesReady()}
+      centered={options.centered}
+      embedded={options.embedded}
+      inputRef={(el) => {
+        inputRef = el
+      }}
+      autoSubmitKey={autoSubmitKey()}
+      newSessionWorktree={newSessionWorktree()}
+      onNewSessionWorktreeReset={() => setStore("newSessionWorktree", "main")}
+      onSubmit={() => {
+        comments.clear()
+        resumeScroll()
+      }}
+      onResponseSubmit={resumeScroll}
+      followup={
+        params.id && !isChildSession()
+          ? {
+              queue: queueEnabled,
+              items: followupDock(),
+              sending: sendingFollowup(),
+              edit: editingFollowup(),
+              onQueue: queueFollowup,
+              onAbort: () => {
+                const id = params.id
+                if (!id) return
+                setFollowup("paused", id, true)
+              },
+              onSend: (id) => {
+                void sendFollowup(params.id!, id, { manual: true })
+              },
+              onEdit: editFollowup,
+              onEditLoaded: clearFollowupEdit,
+            }
+          : undefined
+      }
+      revert={
+        rolled().length > 0
+          ? {
+              items: rolled(),
+              restoring: restoring(),
+              disabled: reverting(),
+              onRestore: restore,
+            }
+          : undefined
+      }
+      setPromptDockRef={options.setPromptDockRef}
+    />
+  )
+
   return (
-    <div class="relative bg-background-base size-full overflow-hidden flex flex-col">
-      {sessionSync() ?? ""}
-      <SessionHeader />
-      <div class="flex-1 min-h-0 flex flex-col md:flex-row">
-        <Show when={officeAgentMode()}>
-          <OfficeAgentSidebar />
-        </Show>
-
-        <Show when={!isDesktop() && !!params.id}>
-          <Tabs value={store.mobileTab} class="h-auto">
-            <Tabs.List>
-              <Tabs.Trigger
-                value="session"
-                class="!w-1/2 !max-w-none"
-                classes={{ button: "w-full" }}
-                onClick={() => setStore("mobileTab", "session")}
-              >
-                {language.t("session.tab.session")}
-              </Tabs.Trigger>
-              <Tabs.Trigger
-                value="changes"
-                class="!w-1/2 !max-w-none !border-r-0"
-                classes={{ button: "w-full" }}
-                onClick={() => setStore("mobileTab", "changes")}
-              >
-                {hasReview()
-                  ? language.t("session.review.filesChanged", { count: reviewCount() })
-                  : language.t("session.review.change.other")}
-              </Tabs.Trigger>
-            </Tabs.List>
-          </Tabs>
-        </Show>
-
-        {/* Session panel */}
-        <div
-          classList={{
-            "@container relative shrink-0 flex flex-col min-h-0 h-full bg-background-panel flex-1 md:flex-none": true,
-            "transition-[width] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width] motion-reduce:transition-none":
-              !size.active() && !ui.reviewSnap && !desktopOfficeAgentOpen(),
-          }}
-          style={{
-            width: sessionPanelWidth(),
-          }}
-        >
-          <div class="flex-1 min-h-0 overflow-hidden">
-            {/* Mobile changes view */}
-            <Show when={params.id && mobileChanges()}>
-              <div class="relative h-full overflow-hidden">
-                {reviewContent({
-                  diffStyle: "unified",
-                  classes: {
-                    root: "pb-8",
-                    header: "px-4",
-                    container: "px-4",
-                  },
-                  loadingClass: "px-4 py-4 text-text-weak",
-                  emptyClass: "h-full pb-64 -mt-4 flex flex-col items-center justify-center text-center gap-6",
-                })}
-              </div>
+    <Show
+      when={showOfficeNewSessionWorkspace(layout.mode.current(), params.id)}
+      fallback={
+        <div class="relative bg-background-base size-full overflow-hidden flex flex-col">
+          {sessionSync() ?? ""}
+          <SessionHeader />
+          <div class="flex-1 min-h-0 flex flex-col md:flex-row">
+            <Show when={!isDesktop() && !!params.id}>
+              <Tabs value={store.mobileTab} class="h-auto">
+                <Tabs.List>
+                  <Tabs.Trigger
+                    value="session"
+                    class="!w-1/2 !max-w-none"
+                    classes={{ button: "w-full" }}
+                    onClick={() => setStore("mobileTab", "session")}
+                  >
+                    {language.t("session.tab.session")}
+                  </Tabs.Trigger>
+                  <Tabs.Trigger
+                    value="changes"
+                    class="!w-1/2 !max-w-none !border-r-0"
+                    classes={{ button: "w-full" }}
+                    onClick={() => setStore("mobileTab", "changes")}
+                  >
+                    {hasReview()
+                      ? language.t("session.review.filesChanged", { count: reviewCount() })
+                      : language.t("session.review.change.other")}
+                  </Tabs.Trigger>
+                </Tabs.List>
+              </Tabs>
             </Show>
 
-            {/* Session view (message timeline) */}
-            <Show when={params.id && !mobileChanges()}>
-              <div class="h-full">
-                <Show when={messagesReady()}>
-                  <MessageTimeline
-                    actions={actions}
-                    scroll={ui.scroll}
-                    onResumeScroll={resumeScroll}
-                    setScrollRef={setScrollRef}
-                    onScheduleScrollState={scheduleScrollState}
-                    onAutoScrollHandleScroll={autoScroll.handleScroll}
-                    onMarkScrollGesture={markScrollGesture}
-                    hasScrollGesture={hasScrollGesture}
-                    onUserScroll={markUserScroll}
-                    onHistoryScroll={historyLoader.onScrollerScroll}
-                    onAutoScrollInteraction={autoScroll.handleInteraction}
-                    shouldAnchorBottom={() =>
-                      !location.hash && !store.messageId && !ui.pendingMessage && !autoScroll.userScrolled()
-                    }
-                    centered={centered()}
-                    setContentRef={(el) => {
-                      content = el
-                      autoScroll.contentRef(el)
+            {/* Session panel */}
+            <div
+              classList={{
+                "@container relative shrink-0 flex flex-col min-h-0 h-full bg-background-panel flex-1 md:flex-none": true,
+                "transition-[width] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width] motion-reduce:transition-none":
+                  !size.active() && !ui.reviewSnap,
+              }}
+              style={{
+                width: sessionPanelWidth(),
+              }}
+            >
+              <div class="flex-1 min-h-0 overflow-hidden">
+                {/* Mobile changes view */}
+                <Show when={params.id && mobileChanges()}>
+                  <div class="relative h-full overflow-hidden">
+                    {reviewContent({
+                      diffStyle: "unified",
+                      classes: {
+                        root: "pb-8",
+                        header: "px-4",
+                        container: "px-4",
+                      },
+                      loadingClass: "px-4 py-4 text-text-weak",
+                      emptyClass: "h-full pb-64 -mt-4 flex flex-col items-center justify-center text-center gap-6",
+                    })}
+                  </div>
+                </Show>
 
-                      const root = scroller
-                      if (root) scheduleScrollState(root)
-                    }}
-                    historyShift={historyLoader.shift()}
-                    userMessages={historyLoader.userMessages()}
-                    anchor={anchor}
-                    setRevealMessage={(fn) => {
-                      revealMessage = fn
-                    }}
-                  />
+                {/* Session view (message timeline) */}
+                <Show when={params.id && !mobileChanges()}>
+                  <div class="h-full">
+                    <Show when={messagesReady()}>
+                      <MessageTimeline
+                        actions={actions}
+                        scroll={ui.scroll}
+                        onResumeScroll={resumeScroll}
+                        setScrollRef={setScrollRef}
+                        onScheduleScrollState={scheduleScrollState}
+                        onAutoScrollHandleScroll={autoScroll.handleScroll}
+                        onMarkScrollGesture={markScrollGesture}
+                        hasScrollGesture={hasScrollGesture}
+                        onUserScroll={markUserScroll}
+                        onHistoryScroll={historyLoader.onScrollerScroll}
+                        onAutoScrollInteraction={autoScroll.handleInteraction}
+                        shouldAnchorBottom={() =>
+                          !location.hash && !store.messageId && !ui.pendingMessage && !autoScroll.userScrolled()
+                        }
+                        centered={centered()}
+                        setContentRef={(el) => {
+                          content = el
+                          autoScroll.contentRef(el)
+
+                          const root = scroller
+                          if (root) scheduleScrollState(root)
+                        }}
+                        historyShift={historyLoader.shift()}
+                        userMessages={historyLoader.userMessages()}
+                        anchor={anchor}
+                        setRevealMessage={(fn) => {
+                          revealMessage = fn
+                        }}
+                      />
+                    </Show>
+                  </div>
+                </Show>
+
+                {/* New session view (centered) */}
+                <Show when={!params.id}>
+                  <div class="h-full">
+                    <NewSessionView
+                      worktree={newSessionWorktree()}
+                      centered={centered()}
+                      inputRef={(el) => {
+                        inputRef = el
+                      }}
+                      autoSubmitKey={autoSubmitKey()}
+                      onNewSessionWorktreeReset={() => setStore("newSessionWorktree", "main")}
+                      onSubmit={() => {
+                        comments.clear()
+                        resumeScroll()
+                      }}
+                    />
+                  </div>
                 </Show>
               </div>
-            </Show>
 
-            {/* New session view (centered) */}
-            <Show when={!params.id}>
-              <div class="h-full">
-                <NewSessionView
-                  worktree={newSessionWorktree()}
-                  centered={centered()}
-                  inputRef={(el) => {
-                    inputRef = el
-                  }}
-                  autoSubmitKey={autoSubmitKey()}
-                  onNewSessionWorktreeReset={() => setStore("newSessionWorktree", "main")}
-                  onSubmit={() => {
-                    comments.clear()
-                    resumeScroll()
-                  }}
-                />
-              </div>
-            </Show>
+              <Show when={params.id}>
+                <div>
+                  <Show
+                    when={showOfficeSessionComposer(layout.mode.current(), params.id)}
+                    fallback={composerRegion({
+                      centered: centered(),
+                      setPromptDockRef: (el) => {
+                        promptDock = el
+                      },
+                    })}
+                  >
+                    <OfficeSessionComposer
+                      centered={centered()}
+                      setPromptDockRef={(el) => {
+                        promptDock = el
+                      }}
+                      composer={composerRegion({
+                        centered: false,
+                        embedded: true,
+                        setPromptDockRef: () => {},
+                      })}
+                    />
+                  </Show>
+                </div>
+              </Show>
+            </div>
+
+            <SessionSidePanel
+              canReview={canReview}
+              diffs={reviewDiffs}
+              diffsReady={reviewReady}
+              empty={reviewEmptyText}
+              hasReview={hasReview}
+              reviewCount={reviewCount}
+              reviewPanel={reviewPanel}
+              activeDiff={tree.activeDiff}
+              focusReviewDiff={focusReviewDiff}
+              reviewSnap={ui.reviewSnap}
+              size={size}
+              reservedWidth={officeReservedWidth}
+            />
           </div>
 
-          <Show when={params.id}>
-            <div>
-              <SessionComposerRegion
-                state={composer}
-                ready={!store.deferRender && messagesReady()}
-                centered={centered()}
-                inputRef={(el) => {
-                  inputRef = el
-                }}
-                autoSubmitKey={autoSubmitKey()}
-                newSessionWorktree={newSessionWorktree()}
-                onNewSessionWorktreeReset={() => setStore("newSessionWorktree", "main")}
-                onSubmit={() => {
-                  comments.clear()
-                  resumeScroll()
-                }}
-                onResponseSubmit={resumeScroll}
-                followup={
-                  params.id && !isChildSession()
-                    ? {
-                        queue: queueEnabled,
-                        items: followupDock(),
-                        sending: sendingFollowup(),
-                        edit: editingFollowup(),
-                        onQueue: queueFollowup,
-                        onAbort: () => {
-                          const id = params.id
-                          if (!id) return
-                          setFollowup("paused", id, true)
-                        },
-                        onSend: (id) => {
-                          void sendFollowup(params.id!, id, { manual: true })
-                        },
-                        onEdit: editFollowup,
-                        onEditLoaded: clearFollowupEdit,
-                      }
-                    : undefined
-                }
-                revert={
-                  rolled().length > 0
-                    ? {
-                        items: rolled(),
-                        restoring: restoring(),
-                        disabled: reverting(),
-                        onRestore: restore,
-                      }
-                    : undefined
-                }
-                setPromptDockRef={(el) => {
-                  promptDock = el
-                }}
-              />
-            </div>
+          <TerminalPanel />
+          <Show when={platform.platform !== "desktop"}>
+            <FloatingTodoButton />
           </Show>
         </div>
+      }
+    >
+      <div class="relative bg-background-base size-full overflow-hidden flex flex-col">
+        {sessionSync() ?? ""}
+        <div class="flex-1 min-h-0 flex flex-col md:flex-row">
+          <div
+            class="relative min-h-0 h-full flex-1 md:flex-none"
+            style={{
+              width: sessionPanelWidth(),
+            }}
+          >
+            <OfficeSessionWorkspace
+              composer={composerRegion({
+                centered: false,
+                embedded: true,
+                setPromptDockRef: (el) => {
+                  promptDock = el
+                },
+              })}
+            />
+          </div>
 
-        <SessionSidePanel
-          canReview={canReview}
-          diffs={reviewDiffs}
-          diffsReady={reviewReady}
-          empty={reviewEmptyText}
-          hasReview={hasReview}
-          reviewCount={reviewCount}
-          reviewPanel={reviewPanel}
-          activeDiff={tree.activeDiff}
-          focusReviewDiff={focusReviewDiff}
-          reviewSnap={ui.reviewSnap}
-          size={size}
-          reservedWidth={officeReservedWidth}
-        />
+          <SessionSidePanel
+            canReview={canReview}
+            diffs={reviewDiffs}
+            diffsReady={reviewReady}
+            empty={reviewEmptyText}
+            hasReview={hasReview}
+            reviewCount={reviewCount}
+            reviewPanel={reviewPanel}
+            activeDiff={tree.activeDiff}
+            focusReviewDiff={focusReviewDiff}
+            reviewSnap={ui.reviewSnap}
+            size={size}
+            reservedWidth={officeReservedWidth}
+          />
+        </div>
 
-        <Show when={desktopOfficePptTemplateOpen()}>
-          <OfficePptTemplateSidebar />
+        <TerminalPanel />
+        <Show when={platform.platform !== "desktop"}>
+          <FloatingTodoButton />
         </Show>
       </div>
-
-      <TerminalPanel />
-      <Show when={platform.platform !== "desktop"}>
-        <FloatingTodoButton />
-      </Show>
-    </div>
+    </Show>
   )
 }

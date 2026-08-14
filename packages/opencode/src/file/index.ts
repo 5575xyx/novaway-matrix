@@ -314,7 +314,7 @@ interface State {
 export interface Interface {
   readonly init: () => Effect.Effect<void>
   readonly status: () => Effect.Effect<Info[]>
-  readonly read: (file: string) => Effect.Effect<Content>
+  readonly read: (file: string, options?: { encoding?: "base64" }) => Effect.Effect<Content>
   readonly write: (file: string, content: string) => Effect.Effect<void>
   readonly list: (dir?: string) => Effect.Effect<Node[]>
   readonly search: (input: {
@@ -496,13 +496,27 @@ export const layer = Layer.effect(
       })
     })
 
-    const read: Interface["read"] = Effect.fn("File.read")(function* (file: string) {
+    const read: Interface["read"] = Effect.fn("File.read")(function* (file: string, options?: { encoding?: "base64" }) {
       using _ = log.time("read", { file })
       const ctx = yield* InstanceState.context
       const full = path.join(ctx.directory, file)
 
       if (!containsPath(full, ctx)) {
         throw new Error("Access denied: path escapes project directory")
+      }
+
+      if (options?.encoding === "base64") {
+        const exists = yield* appFs.existsSafe(full)
+        if (exists) {
+          const bytes = yield* appFs.readFile(full).pipe(Effect.catch(() => Effect.succeed(new Uint8Array())))
+          return {
+            type: "binary" as const,
+            content: Buffer.from(bytes).toString("base64"),
+            mimeType: AppFileSystem.mimeType(full),
+            encoding: "base64" as const,
+          }
+        }
+        return { type: "binary" as const, content: "" }
       }
 
       if (isImageByExtension(file)) {

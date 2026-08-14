@@ -65,6 +65,7 @@
     "effect": "catalog:",
     "fuzzysort": "catalog:",
     "ghostty-web": "github:anomalyco/ghostty-web#main",
+    "jszip": "catalog:",
     "luxon": "catalog:",
     "marked": "catalog:",
     "marked-shiki": "catalog:",

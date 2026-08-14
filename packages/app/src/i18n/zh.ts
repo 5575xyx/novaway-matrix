@@ -40,6 +40,14 @@ export const dict = {
   "command.project.create.dialog.error.nameRequired": "请输入文件夹名称",
   "command.project.create.dialog.error.pathRequired": "请选择创建位置",
   "command.project.create.dialog.error.createFailed": "创建文件夹失败",
+  "command.project.switch": "切换项目",
+  "project.switch.tooltip": "更改项目",
+  "project.switch.search": "搜索项目",
+  "project.switch.empty": "暂无项目",
+  "project.switch.noMatch": "没有匹配的项目",
+  "project.switch.create": "新建项目",
+  "project.switch.leave": "不在项目中工作",
+  "project.switch.none": "未选择项目",
 
   "command.provider.connect": "连接供应商",
 

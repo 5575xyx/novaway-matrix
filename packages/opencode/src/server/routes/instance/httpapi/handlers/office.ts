@@ -4,6 +4,7 @@ import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
 import { mkdir, readdir, stat, writeFile } from "fs/promises"
 import path from "path"
 import { InstanceState } from "@/effect/instance-state"
+import { OfficePlatform } from "@/office/platform"
 import { fillPptxTemplateText } from "@/util/office-document"
 import { InstanceHttpApi } from "../api"
 import { OfficeArtifactPayload, OfficePptxTemplateFillPayload } from "../groups/office"
@@ -11,6 +12,9 @@ import { OfficeArtifactPayload, OfficePptxTemplateFillPayload } from "../groups/
 const kindDir = {
   document: "documents",
   ppt: "ppt",
+  data: "data",
+  design: "design",
+  web: "web",
   meeting: "meetings",
   knowledge: "knowledge",
   task: "tasks",
@@ -24,6 +28,8 @@ const kindByDir = Object.fromEntries(Object.entries(kindDir).map(([kind, dir]) =
 
 export const officeHandlers = HttpApiBuilder.group(InstanceHttpApi, "office", (handlers) =>
   Effect.gen(function* () {
+    const platform = yield* OfficePlatform.Service
+
     const listArtifacts = Effect.fn("OfficeHttpApi.listArtifacts")(function* () {
       const state = yield* InstanceState.context
       const workspace = state.worktree === "/" ? state.directory : state.worktree
@@ -75,9 +81,18 @@ export const officeHandlers = HttpApiBuilder.group(InstanceHttpApi, "office", (h
         await writeFile(target, bytes)
       })
 
+      const relativePath = path.relative(state.worktree === "/" ? state.directory : state.worktree, target)
+      const artifact = yield* platform.registerArtifact({
+        kind: ctx.payload.kind,
+        name: filename,
+        filename,
+        path: relativePath,
+      })
+
       return {
-        path: path.relative(state.worktree === "/" ? state.directory : state.worktree, target),
+        path: relativePath,
         bytes: bytes.length,
+        version: artifact?.version ?? 1,
       }
     })
 
@@ -112,6 +127,7 @@ export const officeHandlers = HttpApiBuilder.group(InstanceHttpApi, "office", (h
       return {
         path: path.relative(workspace, target),
         bytes: bytes.length,
+        version: 1,
       }
     })
 

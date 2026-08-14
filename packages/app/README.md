@@ -45,6 +45,16 @@ Environment options:
 - `PLAYWRIGHT_PORT` (Vite dev server port, default: `3000`)
 - `PLAYWRIGHT_BASE_URL` (override base URL, default: `http://localhost:<PLAYWRIGHT_PORT>`)
 
+### 办公/AIPPT E2E
+
+```bash
+bunx @playwright/test@1.59.1 install chromium
+bun dev serve
+bun run test:e2e:local -- --grep office
+```
+
+`office.spec.ts` 覆盖办公模式进入、全部办公场景切换、真实 PPT 模板选择与逐页预览、会话模板锁定、Provider 设置入口和项目目录选择。需要本地 API 监听 `4096`，测试不会触发真实模型生成。
+
 ## Deployment
 
 You can deploy the `dist` folder to any static host provider (netlify, surge, now, etc.)

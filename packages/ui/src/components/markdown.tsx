@@ -87,7 +87,8 @@ function codeUrl(text: string) {
   }
 }
 
-const filePathPattern = /^(?:[A-Za-z]:[\\/]|~[\\/]|\/|\.{1,2}[\\/])?(?:[\w@.$-]+[\\/])*[\w@.$-]+(?:\.[A-Za-z0-9]{1,12})?$/
+const filePathPattern =
+  /^(?:[A-Za-z]:[\\/]|~[\\/]|\/|\.{1,2}[\\/])?(?:[\w@.$-]+[\\/])*[\w@.$-]+(?:\.[A-Za-z0-9]{1,12})?$/
 
 function filePath(text: string) {
   const raw = text.trim().replace(/[),.;!?]+$/, "")

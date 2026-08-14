@@ -5,9 +5,13 @@ import {
   createOfficeExportFile,
   officeArtifactKind,
   officePptTemplates,
+  officePptTemplateFile,
+  officePptTemplatePreview,
+  officePptTemplateSlidePreview,
   officePptTemplateVisual,
 } from "./office-export"
 import type { OfficeArtifact } from "./office-artifact"
+import { officePptTemplateSlideShapes } from "./office-ppt-template-fill"
 
 function artifact(input?: Partial<OfficeArtifact>): OfficeArtifact {
   return {
@@ -37,6 +41,18 @@ function zipText(bytes: Uint8Array) {
 }
 
 describe("createOfficeExportFile", () => {
+  test("maps every office agent to its artifact kind", () => {
+    expect(officeArtifactKind(artifact(), "office-document")).toBe("document")
+    expect(officeArtifactKind(artifact(), "office-ppt")).toBe("ppt")
+    expect(officeArtifactKind(artifact(), "office-data")).toBe("data")
+    expect(officeArtifactKind(artifact(), "office-design")).toBe("design")
+    expect(officeArtifactKind(artifact(), "office-web")).toBe("web")
+    expect(officeArtifactKind(artifact(), "office-meeting")).toBe("meeting")
+    expect(officeArtifactKind(artifact(), "office-knowledge")).toBe("knowledge")
+    expect(officeArtifactKind(artifact(), "office-task")).toBe("task")
+    expect(officeArtifactKind(artifact(), "office-communication")).toBe("communication")
+  })
+
   test("exports document artifacts as docx packages", () => {
     const file = createOfficeExportFile(artifact())
 
@@ -47,6 +63,21 @@ describe("createOfficeExportFile", () => {
     expect(file.bytes[1]).toBe(0x4b)
     expect(zipText(file.bytes)).toContain("word/document.xml")
     expect(zipText(file.bytes)).toContain("产品周报")
+  })
+
+  test("exports document formulas as editable OMML", () => {
+    const text = zipText(
+      createOfficeExportFile(
+        artifact({
+          body: "# 数学文档\n\n能量公式 $E=mc^2$。\n\n分数：\n\n$$\\frac{a}{b}$$",
+        }),
+      ).bytes,
+    )
+
+    expect(text).toContain("<m:oMath")
+    expect(text).toContain('<m:oMathPara xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">')
+    expect(text).toContain("<m:sSup>")
+    expect(text).toContain("<m:f>")
   })
 
   test("exports slide artifacts as pptx packages", () => {
@@ -66,6 +97,30 @@ describe("createOfficeExportFile", () => {
     expect(zipText(file.bytes)).toContain("项目目标")
   })
 
+  test("exposes real PPTX preview and template assets", () => {
+    expect(officePptTemplatePreview("pptx-swiss-grid")).toBe(
+      "/assets/office-ppt-templates/pptx/swiss-grid/preview/cover.jpg",
+    )
+    expect(officePptTemplatePreview("pptx-glassmorphism")).toBe(
+      "/assets/office-ppt-templates/pptx/glassmorphism/preview/cover.jpg",
+    )
+    expect(officePptTemplateFile("pptx-swiss-grid")).toBe("/assets/office-ppt-templates/pptx/swiss-grid/template.pptx")
+    expect(officePptTemplateFile("pptx-ai-ops")).toBe("/assets/office-ppt-templates/pptx/ai-ops/template.pptx")
+    expect(officePptTemplatePreview("presenton-swift")).toBe(
+      "/assets/office-ppt-templates/presenton-pptx/swift/preview/cover.jpg",
+    )
+    expect(officePptTemplateFile("presenton-swift")).toBe(
+      "/assets/office-ppt-templates/presenton-pptx/swift/template.pptx",
+    )
+    expect(officePptTemplateSlidePreview("pptx-swiss-grid", "data")).toBe(
+      "/assets/office-ppt-templates/pptx/swiss-grid/preview/data.jpg",
+    )
+    expect(officePptTemplateSlidePreview("presenton-swift", "closing")).toBe(
+      "/assets/office-ppt-templates/presenton-pptx/swift/preview/closing.jpg",
+    )
+    expect(officePptTemplatePreview("tech")).toBeUndefined()
+  })
+
   test("exports ppt bullet text with valid Chinese OOXML text runs", () => {
     const text = zipText(
       createOfficeExportFile(
@@ -80,14 +135,58 @@ describe("createOfficeExportFile", () => {
 
     expect(text).toContain(`char="•"`)
     expect(text).toContain(`lang="zh-CN"`)
+    expect(text).toContain("<a:normAutofit")
     expect(text).not.toContain("鈥")
   })
 
+  test("exports editable native formulas from latex markers", () => {
+    const text = zipText(
+      createOfficeExportFile(
+        slideArtifact({
+          slides: [
+            {
+              index: 1,
+              title: "数学公式",
+              content: "- 能量公式：$E=mc^2$\n- 平方根：$\\sqrt{x}$\n- 分数：$$\\frac{a}{b}$$",
+              layout: "highlight",
+            },
+          ],
+        }),
+      ).bytes,
+    )
+
+    expect(text).toContain("<a14:m")
+    expect(text).toContain("<m:oMath>")
+    expect(text).toContain("<m:sSup>")
+    expect(text).toContain("<m:rad>")
+    expect(text).toContain("<m:f>")
+    expect(text).not.toContain("$E=mc^2$")
+  })
+
+  test("normalizes model-provided slide numbers before packaging", () => {
+    const text = zipText(
+      createOfficeExportFile(
+        slideArtifact({
+          slides: [
+            { index: 3, title: "封面", content: "- 项目汇报" },
+            { index: 3, title: "结论", content: "- 统一页码" },
+          ],
+        }),
+      ).bytes,
+    )
+
+    expect(text).toContain("ppt/slides/slide1.xml")
+    expect(text).toContain("ppt/slides/slide2.xml")
+    expect(text).not.toContain("ppt/slides/slide3.xml")
+  })
+
   test("exports every built-in ppt template with distinct styling", () => {
-    const outputs = officePptTemplates.map((template) => ({
-      template,
-      text: zipText(createOfficeExportFile(slideArtifact(), { pptTemplate: template.id }).bytes),
-    }))
+    const outputs = officePptTemplates
+      .filter((template) => template.source !== "Pptx")
+      .map((template) => ({
+        template,
+        text: zipText(createOfficeExportFile(slideArtifact(), { pptTemplate: template.id }).bytes),
+      }))
 
     expect(outputs.length).toBeGreaterThanOrEqual(10)
     expect(outputs.every((item) => item.text.includes("ppt/slides/slide1.xml"))).toBe(true)
@@ -95,10 +194,11 @@ describe("createOfficeExportFile", () => {
   })
 
   test("assigns every built-in ppt template a unique visual motif", () => {
-    const motifs = officePptTemplates.map((template) => officePptTemplateVisual(template.id).motif)
+    const legacy = officePptTemplates.filter((template) => template.source !== "Pptx")
+    const motifs = legacy.map((template) => officePptTemplateVisual(template.id).motif)
 
     expect(motifs.every(Boolean)).toBe(true)
-    expect(new Set(motifs).size).toBe(officePptTemplates.length)
+    expect(new Set(motifs).size).toBe(legacy.length)
   })
 
   test("uses different page chrome styles across ppt templates", () => {
@@ -317,8 +417,25 @@ describe("createOfficeExportFile", () => {
     expect(text).toContain("关键指标")
     expect(text).toContain("洞察")
     expect(text).toContain("Shape 72")
-    expect(text).toContain(`prst="rightArrow"`)
+    expect(text).toContain("<p:cxnSp>")
+    expect(text).toContain(`prst="straightConnector1"`)
     expect(text).toContain("slide4.xml")
+  })
+
+  test("reads native connectors back from template slide shape parsing", async () => {
+    const bytes = createOfficeExportFile(
+      slideArtifact({
+        slides: [
+          { index: 1, title: "方案汇报", content: "- 从流程说明整体方案", layout: "highlight" },
+          { index: 2, title: "处理闭环", content: "- 提交\n- 审核\n- 生成\n- 发布", layout: "process" },
+        ],
+      }),
+    ).bytes
+    const shapes = await officePptTemplateSlideShapes("auto", "content", bytes, {
+      pageIndex: 1,
+      totalPages: 2,
+    })
+    expect(shapes.some((shape) => shape.name.startsWith("Connector") && shape.kind === "shape")).toBe(true)
   })
 
   test("renders consulting infographic layouts from ppt master patterns", () => {
@@ -418,7 +535,8 @@ describe("createOfficeExportFile", () => {
     expect(text).toContain("鱼骨根因")
     expect(text).toContain("旅程地图")
     expect(text).toContain(`prst="ellipse"`)
-    expect(text).toContain(`prst="rightArrow"`)
+    expect(text).toContain(`<p:cxnSp>`)
+    expect(text).toContain(`prst="straightConnector1"`)
   })
 
   test("renders ppt master office layouts as editable shapes", () => {
@@ -474,6 +592,7 @@ describe("createOfficeExportFile", () => {
     expect(text).toContain("帕累托 80/20")
     expect(text).toContain("气泡矩阵")
     expect(text).toContain("桑基流向")
+    expect(text).toContain("<p:cxnSp>")
     expect(text).toContain("面积树图")
     expect(text).toContain("财务报表")
     expect(text).toContain("团队名册")

@@ -1,5 +1,5 @@
-import { createStore, produce } from "solid-js/store"
-import { batch, createEffect, createMemo, onCleanup, onMount, type Accessor } from "solid-js"
+﻿import { createStore, produce } from "solid-js/store"
+import { batch, createEffect, createMemo, createSignal, onCleanup, onMount, type Accessor } from "solid-js"
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { useGlobalSync } from "./global-sync"
@@ -625,6 +625,8 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       if (sessionTimer !== undefined) window.clearTimeout(sessionTimer)
     })
 
+    const [projectPickerOpen, setProjectPickerOpen] = createSignal(false)
+
     return {
       ready,
       handoff: {
@@ -635,6 +637,18 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         clearTabs() {
           if (!store.handoff?.tabs) return
           setStore("handoff", "tabs", undefined)
+        },
+      },
+      projectPicker: {
+        open: projectPickerOpen,
+        show() {
+          setProjectPickerOpen(true)
+        },
+        hide() {
+          setProjectPickerOpen(false)
+        },
+        toggle() {
+          setProjectPickerOpen((value) => !value)
         },
       },
       projects: {

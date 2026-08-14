@@ -35,13 +35,11 @@ export const fileHandlers = HttpApiBuilder.group(InstanceHttpApi, "file", (handl
       return yield* svc.list(ctx.query.path)
     })
 
-    const content = Effect.fn("FileHttpApi.content")(function* (ctx: { query: { path: string } }) {
-      return yield* svc.read(ctx.query.path)
+    const content = Effect.fn("FileHttpApi.content")(function* (ctx: { query: { path: string; encoding?: "base64" } }) {
+      return yield* svc.read(ctx.query.path, { encoding: ctx.query.encoding })
     })
 
-    const write = Effect.fn("FileHttpApi.write")(function* (ctx: {
-      payload: { path: string; content: string }
-    }) {
+    const write = Effect.fn("FileHttpApi.write")(function* (ctx: { payload: { path: string; content: string } }) {
       yield* svc.write(ctx.payload.path, ctx.payload.content)
       return true
     })
