@@ -112,6 +112,7 @@ const api: ElectronAPI = {
   openFilePicker: (opts) => ipcRenderer.invoke("open-file-picker", opts),
   saveFilePicker: (opts) => ipcRenderer.invoke("save-file-picker", opts),
   copyFileToClipboard: (opts) => ipcRenderer.invoke("copy-file-to-clipboard", opts),
+  writeTextToClipboard: (opts) => ipcRenderer.invoke("write-text-to-clipboard", opts),
   openLink: (url) => ipcRenderer.send("open-link", url),
   openPath: (path, app) => ipcRenderer.invoke("open-path", path, app),
   readClipboardImage: () => ipcRenderer.invoke("read-clipboard-image"),

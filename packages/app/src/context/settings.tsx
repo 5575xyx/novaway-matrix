@@ -7,6 +7,14 @@ export interface NotificationSettings {
   agent: boolean
   permissions: boolean
   errors: boolean
+  feishu: {
+    enabled: boolean
+    onlyWhenUnfocused: boolean
+    agent: boolean
+    permissions: boolean
+    errors: boolean
+    questions: boolean
+  }
 }
 
 export interface SoundSettings {
@@ -137,6 +145,14 @@ const defaultSettings: Settings = {
     agent: true,
     permissions: true,
     errors: false,
+    feishu: {
+      enabled: false,
+      onlyWhenUnfocused: false,
+      agent: true,
+      permissions: true,
+      errors: true,
+      questions: true,
+    },
   },
   sounds: {
     agentEnabled: true,
@@ -302,6 +318,50 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         errors: withFallback(() => store.notifications?.errors, defaultSettings.notifications.errors),
         setErrors(value: boolean) {
           setStore("notifications", "errors", value)
+        },
+        feishu: {
+          enabled: withFallback(
+            () => store.notifications?.feishu?.enabled,
+            defaultSettings.notifications.feishu.enabled,
+          ),
+          setEnabled(value: boolean) {
+            setStore("notifications", "feishu", "enabled", value)
+          },
+          onlyWhenUnfocused: withFallback(
+            () => store.notifications?.feishu?.onlyWhenUnfocused,
+            defaultSettings.notifications.feishu.onlyWhenUnfocused,
+          ),
+          setOnlyWhenUnfocused(value: boolean) {
+            setStore("notifications", "feishu", "onlyWhenUnfocused", value)
+          },
+          agent: withFallback(
+            () => store.notifications?.feishu?.agent,
+            defaultSettings.notifications.feishu.agent,
+          ),
+          setAgent(value: boolean) {
+            setStore("notifications", "feishu", "agent", value)
+          },
+          permissions: withFallback(
+            () => store.notifications?.feishu?.permissions,
+            defaultSettings.notifications.feishu.permissions,
+          ),
+          setPermissions(value: boolean) {
+            setStore("notifications", "feishu", "permissions", value)
+          },
+          errors: withFallback(
+            () => store.notifications?.feishu?.errors,
+            defaultSettings.notifications.feishu.errors,
+          ),
+          setErrors(value: boolean) {
+            setStore("notifications", "feishu", "errors", value)
+          },
+          questions: withFallback(
+            () => store.notifications?.feishu?.questions,
+            defaultSettings.notifications.feishu.questions,
+          ),
+          setQuestions(value: boolean) {
+            setStore("notifications", "feishu", "questions", value)
+          },
         },
       },
       sounds: {

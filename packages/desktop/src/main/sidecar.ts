@@ -84,6 +84,7 @@ async function start(command: StartCommand) {
     })
     parentPort.postMessage({ type: "ready" })
   } catch (error) {
+    console.error("[sidecar] failed to start", error)
     parentPort.postMessage({ type: "error", error: serializeError(error) })
     setImmediate(() => process.exit(1))
   }

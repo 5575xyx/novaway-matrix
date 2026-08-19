@@ -37,6 +37,8 @@ export type Platform = {
 
   saveFilePickerDialog?(opts?: SaveFilePickerOptions): Promise<string | null>
 
+  writeTextToClipboard?(text: string): Promise<boolean>
+
   storage?: (name?: string) => SyncStorage | AsyncStorage
 
   checkUpdate?(): Promise<UpdateInfo>

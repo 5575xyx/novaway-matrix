@@ -4246,6 +4246,10 @@ export class Config3 extends HeyApiClient {
       directory?: string
       workspace?: string
       feishuWebhookUrl?: string
+      feishuKeyword?: string
+      feishuAppId?: string
+      feishuAppSecret?: string
+      feishuUserId?: string
       tencentDocsToken?: string
     },
     options?: Options<never, ThrowOnError>,
@@ -4258,6 +4262,10 @@ export class Config3 extends HeyApiClient {
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
             { in: "body", key: "feishuWebhookUrl" },
+            { in: "body", key: "feishuKeyword" },
+            { in: "body", key: "feishuAppId" },
+            { in: "body", key: "feishuAppSecret" },
+            { in: "body", key: "feishuUserId" },
             { in: "body", key: "tencentDocsToken" },
           ],
         },

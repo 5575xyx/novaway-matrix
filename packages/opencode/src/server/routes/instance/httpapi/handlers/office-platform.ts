@@ -2,6 +2,7 @@ import { Effect } from "effect"
 import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
 import { MCP } from "@/mcp"
 import { OfficePlatform } from "@/office/platform"
+import type { FeishuReplyRoute } from "@/office/feishu"
 import { InstanceHttpApi } from "../api"
 import {
   BrowserStartPayload,
@@ -52,11 +53,7 @@ export const officePlatformHandlers = HttpApiBuilder.group(InstanceHttpApi, "off
       const statusMap = yield* mcp.status()
       const browserInfo = statusMap.browser
       const browser: "configured" | "connected" | "failed" =
-        browserInfo?.status === "connected"
-          ? "connected"
-          : browserInfo?.status === "failed"
-            ? "failed"
-            : "configured"
+        browserInfo?.status === "connected" ? "connected" : browserInfo?.status === "failed" ? "failed" : "configured"
       return {
         ...base,
         diagnostics: {
@@ -181,8 +178,8 @@ export const officePlatformHandlers = HttpApiBuilder.group(InstanceHttpApi, "off
         {
           id: "feishu",
           name: "飞书通知",
-          description: "通过群机器人 Webhook 发送消息和定时任务失败通知。",
-          capabilities: ["im", "webhook"],
+          description: "发送 NovaWay 消息通知，配置企业自建应用后可在飞书内回复并继续对应会话。",
+          capabilities: ["im", "webhook", "reply"],
         },
       ] as const
 
@@ -190,7 +187,8 @@ export const officePlatformHandlers = HttpApiBuilder.group(InstanceHttpApi, "off
         const info = item.id === "feishu" ? undefined : statusMap[item.id]
         const configured =
           item.id === "feishu"
-            ? Boolean(process.env.FEISHU_WEBHOOK_URL)
+            ? Boolean(process.env.FEISHU_WEBHOOK_URL) ||
+              Boolean(process.env.FEISHU_APP_ID && process.env.FEISHU_APP_SECRET)
             : item.id === "tencent-docs"
               ? Boolean(process.env.TENCENT_DOCS_TOKEN)
               : Boolean(info && info.status !== "disabled")
@@ -207,11 +205,11 @@ export const officePlatformHandlers = HttpApiBuilder.group(InstanceHttpApi, "off
                   : info?.status === "failed"
                     ? "failed"
                     : "disabled"
-            : info?.status === "connected"
-              ? "connected"
-              : info?.status === "failed"
-                ? "failed"
-                : "disabled"
+              : info?.status === "connected"
+                ? "connected"
+                : info?.status === "failed"
+                  ? "failed"
+                  : "disabled"
         return {
           id: item.id,
           provider: item.id,
@@ -232,8 +230,20 @@ export const officePlatformHandlers = HttpApiBuilder.group(InstanceHttpApi, "off
       payload: typeof OfficeConnectorConfig.Type
     }) {
       const result = yield* platform.saveConnectorConfig(ctx.payload)
-      if (ctx.payload.tencentDocsToken !== undefined) {
-        yield* mcp.connect("tencent-docs").pipe(Effect.ignore)
+      if (result.tencentDocsToken) {
+        yield* mcp
+          .add("tencent-docs", {
+            type: "remote",
+            url: "https://docs.qq.com/openapi/mcp",
+            headers: {
+              Authorization: result.tencentDocsToken,
+            },
+            oauth: false,
+            enabled: true,
+          })
+          .pipe(Effect.ignore)
+      } else {
+        yield* mcp.disconnect("tencent-docs").pipe(Effect.ignore)
       }
       return result
     })
@@ -254,23 +264,57 @@ export const officePlatformHandlers = HttpApiBuilder.group(InstanceHttpApi, "off
       return true
     })
 
+    const parseFeishuQuestions = (value: unknown): FeishuReplyRoute["questions"] | undefined => {
+      if (!Array.isArray(value)) return undefined
+      type FeishuQuestion = NonNullable<FeishuReplyRoute["questions"]>[number]
+      type FeishuOption = FeishuQuestion["options"][number]
+      const questions = value.flatMap((item): FeishuQuestion[] => {
+        if (!item || typeof item !== "object") return []
+        const record = item as Record<string, unknown>
+        if (!Array.isArray(record.options)) return []
+        const options = record.options.flatMap((option): FeishuOption[] => {
+          if (!option || typeof option !== "object") return []
+          const optionRecord = option as Record<string, unknown>
+          if (typeof optionRecord.label !== "string" || typeof optionRecord.description !== "string") {
+            return []
+          }
+          return [{ label: optionRecord.label, description: optionRecord.description }]
+        })
+        if (options.length === 0) return []
+        return [
+          {
+            header: typeof record.header === "string" ? record.header : undefined,
+            question: typeof record.question === "string" ? record.question : undefined,
+            multiple: typeof record.multiple === "boolean" ? record.multiple : undefined,
+            custom: typeof record.custom === "boolean" ? record.custom : undefined,
+            options,
+          },
+        ]
+      })
+      return questions.length > 0 ? questions : undefined
+    }
+
     const connectorAction = Effect.fn("OfficePlatformHttpApi.connectorAction")(function* (ctx: {
       params: { id: string }
       payload: typeof OfficeConnectorActionPayload.Type
     }) {
       if (ctx.params.id === "feishu" && ctx.payload.action === "send_message") {
-        const webhook = process.env.FEISHU_WEBHOOK_URL
-        if (!webhook) return yield* new HttpApiError.BadRequest({})
-        const text = String(ctx.payload.arguments?.text ?? "")
-        if (!text.trim()) return yield* new HttpApiError.BadRequest({})
-        yield* Effect.tryPromise(async () => {
-          const response = await fetch(webhook, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ msg_type: "text", content: { text } }),
-          })
-          if (!response.ok) throw new Error(`Feishu webhook failed: ${response.status}`)
-        }).pipe(Effect.mapError(() => new HttpApiError.BadRequest({})))
+        const text = String(ctx.payload.arguments?.text ?? "").trim()
+        if (!text) return yield* new HttpApiError.BadRequest({})
+        const argumentsRecord = ctx.payload.arguments as Record<string, unknown> | undefined
+        const directory = typeof argumentsRecord?.directory === "string" ? argumentsRecord.directory : undefined
+        const sessionID = typeof argumentsRecord?.sessionID === "string" ? argumentsRecord.sessionID : undefined
+        const questionRequestID =
+          typeof argumentsRecord?.questionRequestID === "string" ? argumentsRecord.questionRequestID : undefined
+        const questions = parseFeishuQuestions(argumentsRecord?.questions)
+        const sent = yield* platform.sendFeishuMessage({
+          text,
+          directory,
+          sessionID,
+          questionRequestID,
+          questions,
+        })
+        if (!sent) return yield* new HttpApiError.BadRequest({})
         return true
       }
 
@@ -289,13 +333,8 @@ export const officePlatformHandlers = HttpApiBuilder.group(InstanceHttpApi, "off
       const statusMap = yield* mcp.status()
       const server = statusMap.browser
       const configured = Boolean(server && server.status !== "disabled")
-      const active =
-        server?.status === "connected"
-          ? yield* mcpSnapshot()
-              .pipe(Effect.as(true))
-              .pipe(Effect.catch(() => Effect.succeed(false)))
-          : false
-      return { configured, active }
+      // 状态检查不主动打开浏览器，只有 Agent 真正调用浏览器工具时才启动。
+      return { configured, active: false }
     })
 
     const browserStart = Effect.fn("OfficePlatformHttpApi.browserStart")(function* (ctx: {

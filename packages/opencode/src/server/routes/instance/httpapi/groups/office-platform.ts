@@ -194,6 +194,10 @@ export const OfficeConnectorActionPayload = Schema.Struct({
 
 export const OfficeConnectorConfig = Schema.Struct({
   feishuWebhookUrl: Schema.optional(Schema.String),
+  feishuKeyword: Schema.optional(Schema.String),
+  feishuAppId: Schema.optional(Schema.String),
+  feishuAppSecret: Schema.optional(Schema.String),
+  feishuUserId: Schema.optional(Schema.String),
   tencentDocsToken: Schema.optional(Schema.String),
 })
 

@@ -789,6 +789,15 @@ export function registerIpcHandlers(deps: Deps) {
     },
   )
 
+  ipcMain.handle(
+    "write-text-to-clipboard",
+    (_event: IpcMainInvokeEvent, opts?: { text?: string }) => {
+      if (!opts?.text) return false
+      clipboard.writeText(opts.text)
+      return clipboard.readText() === opts.text
+    },
+  )
+
   ipcMain.on("open-link", (_event: IpcMainEvent, url: string) => {
     void shell.openExternal(url)
   })

@@ -9596,6 +9596,18 @@
                     "feishuWebhookUrl": {
                       "type": "string"
                     },
+                    "feishuKeyword": {
+                      "type": "string"
+                    },
+                    "feishuAppId": {
+                      "type": "string"
+                    },
+                    "feishuAppSecret": {
+                      "type": "string"
+                    },
+                    "feishuUserId": {
+                      "type": "string"
+                    },
                     "tencentDocsToken": {
                       "type": "string"
                     }
@@ -9658,6 +9670,18 @@
                     "feishuWebhookUrl": {
                       "type": "string"
                     },
+                    "feishuKeyword": {
+                      "type": "string"
+                    },
+                    "feishuAppId": {
+                      "type": "string"
+                    },
+                    "feishuAppSecret": {
+                      "type": "string"
+                    },
+                    "feishuUserId": {
+                      "type": "string"
+                    },
                     "tencentDocsToken": {
                       "type": "string"
                     }
@@ -9688,6 +9712,18 @@
                 "type": "object",
                 "properties": {
                   "feishuWebhookUrl": {
+                    "type": "string"
+                  },
+                  "feishuKeyword": {
+                    "type": "string"
+                  },
+                  "feishuAppId": {
+                    "type": "string"
+                  },
+                  "feishuAppSecret": {
+                    "type": "string"
+                  },
+                  "feishuUserId": {
                     "type": "string"
                   },
                   "tencentDocsToken": {

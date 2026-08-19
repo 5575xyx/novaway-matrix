@@ -62,7 +62,7 @@ function defaultGlobalPlugins() {
 
 function browserMcpFlags() {
   const flags = process.env.PLAYWRIGHT_MCP_BROWSER ? ["--browser", process.env.PLAYWRIGHT_MCP_BROWSER] : []
-  if (process.env.PLAYWRIGHT_MCP_HEADLESS !== "0") flags.push("--headless")
+  if (process.env.PLAYWRIGHT_MCP_HEADLESS === "1") flags.push("--headless")
   return flags
 }
 
@@ -663,14 +663,32 @@ export const layer = Layer.effect(
             const parsed = JSON.parse(officePlatformRaw) as {
               connectorConfig?: {
                 feishuWebhookUrl?: string
+                feishuKeyword?: string
+                feishuAppId?: string
+                feishuAppSecret?: string
+                feishuUserId?: string
                 tencentDocsToken?: string
               }
             }
             if (parsed.connectorConfig?.feishuWebhookUrl) {
               process.env.FEISHU_WEBHOOK_URL = parsed.connectorConfig.feishuWebhookUrl
             }
-            if (parsed.connectorConfig?.tencentDocsToken) {
-              process.env.TENCENT_DOCS_TOKEN = parsed.connectorConfig.tencentDocsToken
+            const feishuKeyword = parsed.connectorConfig?.feishuKeyword?.trim() || "NovaWay"
+            process.env.FEISHU_KEYWORD = feishuKeyword
+            if (parsed.connectorConfig?.feishuAppId?.trim()) {
+              process.env.FEISHU_APP_ID = parsed.connectorConfig.feishuAppId.trim()
+            }
+            if (parsed.connectorConfig?.feishuAppSecret?.trim()) {
+              process.env.FEISHU_APP_SECRET = parsed.connectorConfig.feishuAppSecret.trim()
+            }
+            if (parsed.connectorConfig?.feishuUserId?.trim()) {
+              process.env.FEISHU_USER_ID = parsed.connectorConfig.feishuUserId.trim()
+            }
+            const tencentDocsToken = parsed.connectorConfig?.tencentDocsToken?.trim() ?? ""
+            if (tencentDocsToken) {
+              process.env.TENCENT_DOCS_TOKEN = tencentDocsToken.toLowerCase().startsWith("bearer ")
+                ? tencentDocsToken.slice(7).trim()
+                : tencentDocsToken
             }
           } catch {
             // 配置文件损坏时不阻断办公平台启动
@@ -935,6 +953,24 @@ export const layer = Layer.effect(
         }
         if (Flag.OPENCODE_DISABLE_PRUNE) {
           result.compaction = { ...result.compaction, prune: false }
+        }
+
+        // 腾讯文档官方鉴权固定为 Authorization: Token，不带 Bearer。
+        // 这里覆盖旧版默认配置或用户手动配置中的错误 Header，避免 401。
+        const tencentDocs = result.mcp?.["tencent-docs"]
+        if (tencentDocs && Schema.is(ConfigMCP.Remote)(tencentDocs)) {
+          result.mcp = {
+            ...result.mcp,
+            "tencent-docs": {
+              ...tencentDocs,
+              type: "remote",
+              url: "https://docs.qq.com/openapi/mcp",
+              headers: {
+                Authorization: process.env.TENCENT_DOCS_TOKEN ?? "",
+              },
+              oauth: false,
+            },
+          }
         }
 
         return {

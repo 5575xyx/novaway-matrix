@@ -11,9 +11,11 @@ import { SettingsMemoryEvolution } from "./settings-memory-evolution"
 import { SettingsProviders } from "./settings-providers"
 import { SettingsModels } from "./settings-models"
 import { SettingsAgents, SettingsMcp, SettingsPlugins, SettingsRules, SettingsSkills } from "./settings-runtime"
+import { SettingsNotifications } from "./settings-notifications"
 
 const settingsTabs = [
   "general",
+  "notifications",
   "providers",
   "models",
   "agents",
@@ -106,6 +108,10 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
                   <Icon name="sliders" />
                   {language.t("settings.tab.general")}
                 </Tabs.Trigger>
+                <Tabs.Trigger value="notifications">
+                  <Icon name="speech-bubble" />
+                  消息通知
+                </Tabs.Trigger>
                 <Tabs.Trigger value="memory">
                   <Icon name="review" />
                   {language.t("settings.memory.title" as never)}
@@ -144,6 +150,9 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
         </Tabs.List>
         <Tabs.Content value="general" class="no-scrollbar">
           <SettingsGeneral />
+        </Tabs.Content>
+        <Tabs.Content value="notifications" class="no-scrollbar">
+          <SettingsNotifications />
         </Tabs.Content>
         <Tabs.Content value="providers" class="no-scrollbar">
           <SettingsProviders />

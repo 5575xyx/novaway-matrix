@@ -26,7 +26,7 @@ import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { Dialog } from "@opencode-ai/ui/dialog"
 import { getFilename } from "@opencode-ai/core/util/path"
-import { Session, type Message } from "@opencode-ai/sdk/v2/client"
+import { Session, type Message, type QuestionRequest } from "@opencode-ai/sdk/v2/client"
 import { usePlatform } from "@/context/platform"
 import { useSettings } from "@/context/settings"
 import { createStore, produce, reconcile } from "solid-js/store"
@@ -83,6 +83,26 @@ import {
 import { ProjectDragOverlay, SortableProject, type ProjectSidebarContext } from "./layout/sidebar-project"
 import { SidebarContent } from "./layout/sidebar-shell"
 
+function feishuQuestionText(questions: QuestionRequest["questions"]) {
+  if (!Array.isArray(questions)) return ""
+  return questions
+    .map((question, index) => {
+      const options = (Array.isArray(question.options) ? question.options : [])
+        .map((option, optionIndex) => {
+          const code = String.fromCharCode(65 + optionIndex)
+          return `${code}. ${option.label ?? ""}${option.description ? ` - ${option.description}` : ""}`
+        })
+        .join("\n")
+      const title =
+        question.header && question.header !== question.question
+          ? `${question.header}：${question.question}`
+          : question.question
+      const hint = question.multiple ? "（可多选，多个选项用逗号分隔）" : ""
+      return `问题 ${index + 1}：${title}${hint}\n${options}`
+    })
+    .join("\n\n")
+}
+
 export default function Layout(props: ParentProps) {
   const [store, setStore, , ready] = persisted(
     Persist.global("layout.page", ["layout.page.v1"]),
@@ -117,6 +137,63 @@ export default function Layout(props: ParentProps) {
   const notification = useNotification()
   const permission = usePermission()
   const navigate = useNavigate()
+
+  const sendFeishuNotification = (
+    title: string,
+    description: string,
+    href: string,
+    enabledType: boolean,
+    directory?: string,
+    sessionID?: string,
+    question?: {
+      requestID: string
+      questions: QuestionRequest["questions"]
+    },
+  ) => {
+    if (!settings.notifications.feishu.enabled()) {
+      if (question) showToast({ title: "飞书问题通知未发送", description: "飞书消息通知总开关未开启。" })
+      return
+    }
+    if (!enabledType) {
+      if (question) showToast({ title: "飞书问题通知未发送", description: "收到问题通知开关未开启。" })
+      return
+    }
+    if (settings.notifications.feishu.onlyWhenUnfocused() && document.hasFocus()) {
+      if (question)
+        showToast({ title: "飞书问题通知已跳过", description: "当前窗口在前台，已按“仅在窗口不在前台时转发”跳过。" })
+      return
+    }
+    const projectName = directory ? directory.split(/[\\/]/).filter(Boolean).pop() : undefined
+    const questionBody = question ? feishuQuestionText(question.questions) : undefined
+    const text = question
+      ? `NovaWay：${title}${projectName ? `\n项目：${projectName}` : ""}\n${questionBody}\n回复示例：1=A 2=B,C`
+      : `NovaWay：${title}${projectName ? `\n项目：${projectName}` : ""}${description ? `\n${description}` : ""}${href ? `\n${href}` : ""}\n直接回复这条消息即可继续该会话。`
+    void globalSDK.client.office.platform.connector
+      .action({
+        id: "feishu",
+        action: "send_message",
+        arguments: {
+          text,
+          ...(directory ? { directory } : {}),
+          ...(sessionID ? { sessionID } : {}),
+          ...(question?.requestID ? { questionRequestID: question.requestID } : {}),
+          ...(question ? { questions: question.questions } : {}),
+        },
+      })
+      .then(() => {
+        if (question) showToast({ title: "飞书问题通知已发送", description: "请到飞书查看问题选项并回复。" })
+      })
+      .catch((error) => {
+        console.error("[feishu] send notification failed", error)
+        if (question) {
+          showToast({
+            title: "飞书问题通知发送失败",
+            description: String(error instanceof Error ? error.message : error),
+          })
+        }
+      })
+  }
+
   setNavigate(navigate)
   const providers = useProviders()
   const dialog = useDialog()
@@ -368,6 +445,23 @@ export default function Layout(props: ParentProps) {
           return
         }
 
+        const details = e.details as
+          | { type?: string; properties?: { requestID?: string; answers?: string[][] } }
+          | undefined
+        if (details?.type === "question.feishu.replied") {
+          const props = details.properties as { requestID: string; answers: string[][] }
+          void globalSDK.client.question
+            .reply({
+              requestID: props.requestID,
+              answers: props.answers,
+              directory: e.name,
+            })
+            .catch((error) => {
+              console.error("[feishu] question reply via app failed", error)
+            })
+          return
+        }
+
         if (
           e.details?.type === "question.replied" ||
           e.details?.type === "question.rejected" ||
@@ -432,7 +526,12 @@ export default function Layout(props: ParentProps) {
 
         const now = Date.now()
         const lastAlerted = alertedAtBySession.get(sessionKey) ?? 0
-        if (now - lastAlerted < cooldownMs) return
+        if (now - lastAlerted < cooldownMs) {
+          if (e.details.type === "question.asked") {
+            showToast({ title: "飞书问题通知被冷却跳过", description: "5 秒内已经处理过同一会话的问题通知。" })
+          }
+          return
+        }
         alertedAtBySession.set(sessionKey, now)
 
         if (e.details.type === "permission.asked") {
@@ -452,6 +551,23 @@ export default function Layout(props: ParentProps) {
             })
           }
         }
+
+        sendFeishuNotification(
+          title,
+          description,
+          href,
+          e.details.type === "permission.asked"
+            ? settings.notifications.feishu.permissions()
+            : settings.notifications.feishu.questions(),
+          directory,
+          props.sessionID,
+          e.details.type === "question.asked"
+            ? {
+                requestID: e.details.properties.id,
+                questions: e.details.properties.questions,
+              }
+            : undefined,
+        )
 
         const currentSession = params.id
         if (pathKey(directory) === pathKey(currentDir()) && props.sessionID === currentSession) return

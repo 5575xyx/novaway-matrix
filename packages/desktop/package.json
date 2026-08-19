@@ -12,7 +12,7 @@
   "scripts": {
     "typecheck": "tsgo -b",
     "predev": "bun ./scripts/predev.ts",
-    "dev": "node --max-old-space-size=4096 ./node_modules/electron-vite/bin/electron-vite.js dev",
+    "dev": "node --max-old-space-size=3072 ./node_modules/electron-vite/bin/electron-vite.js dev",
     "prebuild": "bun ./scripts/prebuild.ts",
     "build": "electron-vite build",
     "preview": "electron-vite preview",

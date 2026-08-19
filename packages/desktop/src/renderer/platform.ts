@@ -126,6 +126,10 @@ export function createPlatform(): Platform {
       return handleWslPicker(result)
     },
 
+    async writeTextToClipboard(text: string) {
+      return window.api.writeTextToClipboard({ text })
+    },
+
     openLink(url: string) {
       window.api.openLink(url)
     },

@@ -226,6 +226,28 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
       return sessionID === activeSession
     }
 
+    const sendFeishuNotification = (
+      title: string,
+      description: string | undefined,
+      href: string | undefined,
+      enabledType: boolean,
+      directory?: string,
+      sessionID?: string,
+    ) => {
+      if (!settings.notifications.feishu.enabled()) return
+      if (!enabledType) return
+      if (settings.notifications.feishu.onlyWhenUnfocused() && document.hasFocus()) return
+      const projectName = directory ? directory.split(/[\\/]/).filter(Boolean).pop() : undefined
+      const text = `NovaWay：${title}${projectName ? `\n项目：${projectName}` : ""}${description ? `\n${description}` : ""}${href ? `\n${href}` : ""}\n直接回复这条消息即可继续该会话。`
+      void globalSDK.client.office.platform.connector
+        .action({
+          id: "feishu",
+          action: "send_message",
+          arguments: { text, ...(directory ? { directory } : {}), ...(sessionID ? { sessionID } : {}) },
+        })
+        .catch(() => {})
+    }
+
     const handleSessionIdle = (directory: string, event: { properties: { sessionID?: string } }, time: number) => {
       const sessionID = event.properties.sessionID
       void lookup(directory, sessionID).then((session) => {
@@ -249,6 +271,14 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
         if (settings.notifications.agent()) {
           void platform.notify(language.t("notification.session.responseReady.title"), session.title ?? sessionID, href)
         }
+        sendFeishuNotification(
+          language.t("notification.session.responseReady.title"),
+          session.title ?? sessionID,
+          href,
+          settings.notifications.feishu.agent(),
+          directory,
+          sessionID,
+        )
       })
     }
 
@@ -282,6 +312,14 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
         if (settings.notifications.errors()) {
           void platform.notify(language.t("notification.session.error.title"), description, href)
         }
+        sendFeishuNotification(
+          language.t("notification.session.error.title"),
+          description,
+          href,
+          settings.notifications.feishu.errors(),
+          directory,
+          sessionID,
+        )
       })
     }
 

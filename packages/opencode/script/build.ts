@@ -165,6 +165,7 @@ const createEmbeddedSkillAssetsBundle = async () => {
   )
 }
 
+await $`rm -rf dist`
 const skillAssetsMap = await createEmbeddedSkillAssetsBundle()
 
 const allTargets: {
@@ -250,8 +251,6 @@ const targets = singleFlag
       return true
     })
   : allTargets
-
-await $`rm -rf dist`
 
 const binaries: Record<string, string> = {}
 if (!skipInstall) {

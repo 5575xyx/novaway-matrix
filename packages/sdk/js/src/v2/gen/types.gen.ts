@@ -7596,6 +7596,10 @@ export type OfficePlatformConnectorConfigGetResponses = {
    */
   200: {
     feishuWebhookUrl?: string
+    feishuKeyword?: string
+    feishuAppId?: string
+    feishuAppSecret?: string
+    feishuUserId?: string
     tencentDocsToken?: string
   }
 }
@@ -7606,6 +7610,10 @@ export type OfficePlatformConnectorConfigGetResponse =
 export type OfficePlatformConnectorConfigUpdateData = {
   body?: {
     feishuWebhookUrl?: string
+    feishuKeyword?: string
+    feishuAppId?: string
+    feishuAppSecret?: string
+    feishuUserId?: string
     tencentDocsToken?: string
   }
   path?: never
@@ -7632,6 +7640,10 @@ export type OfficePlatformConnectorConfigUpdateResponses = {
    */
   200: {
     feishuWebhookUrl?: string
+    feishuKeyword?: string
+    feishuAppId?: string
+    feishuAppSecret?: string
+    feishuUserId?: string
     tencentDocsToken?: string
   }
 }
