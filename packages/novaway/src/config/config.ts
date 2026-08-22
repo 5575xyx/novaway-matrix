@@ -69,15 +69,17 @@ function browserMcpFlags() {
 // Users can remove or override these entries in their own config file.
 export const DEFAULT_MCP_SERVERS: Record<string, ConfigMCP.Info> = {
   browser: {
-    command: process.env.PLAYWRIGHT_MCP_SERVER_PATH
-      ? [
+    command: (() => {
+      if (process.env.PLAYWRIGHT_MCP_SERVER_PATH) {
+        return [
           process.env.PLAYWRIGHT_MCP_NODE_PATH ?? process.env.DBX_NODE_PATH ?? "node",
           process.env.PLAYWRIGHT_MCP_SERVER_PATH,
           ...browserMcpFlags(),
         ]
-      : process.platform === "win32"
-        ? ["cmd", "/c", "npx", "-y", "@playwright/mcp", ...browserMcpFlags()]
-        : ["npx", "-y", "@playwright/mcp", ...browserMcpFlags()],
+      }
+      if (process.platform === "win32") return ["cmd", "/c", "npx", "-y", "@playwright/mcp", ...browserMcpFlags()]
+      return ["npx", "-y", "@playwright/mcp", ...browserMcpFlags()]
+    })(),
     enabled: true,
     type: "local",
   },
@@ -96,9 +98,10 @@ export const DEFAULT_MCP_SERVERS: Record<string, ConfigMCP.Info> = {
     type: "local",
   },
   dbx: {
-    command: process.env.DBX_MCP_SERVER_PATH
-      ? [process.env.DBX_NODE_PATH ?? "node", process.env.DBX_MCP_SERVER_PATH]
-      : ["cmd", "/c", "npx", "-y", "@dbx-app/mcp-server"],
+    command: (() => {
+      if (process.env.DBX_MCP_SERVER_PATH) return [process.env.DBX_NODE_PATH ?? "node", process.env.DBX_MCP_SERVER_PATH]
+      return ["cmd", "/c", "npx", "-y", "@dbx-app/mcp-server"]
+    })(),
     enabled: true,
     type: "local",
   },
