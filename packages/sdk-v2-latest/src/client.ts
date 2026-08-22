@@ -3,7 +3,7 @@ export * from "./gen/types.gen.js"
 import { createClient } from "./gen/client/client.gen.js"
 import { type Config } from "./gen/client/types.gen.js"
 import { NovawayClient } from "./gen/sdk.gen.js"
-import { wrapClientError } from "../error-interceptor.js"
+import { wrapClientError } from "./error-interceptor.js"
 export { type Config as NovawayClientConfig, NovawayClient }
 
 function pick(value: string | null, fallback?: string) {
