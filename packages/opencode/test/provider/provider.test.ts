@@ -2160,6 +2160,28 @@ test("models.dev normalization fills required response fields", () => {
   expect(model.release_date).toBe("")
 })
 
+test("models.dev initializes the OpenCode provider as Default", () => {
+  const provider = {
+    id: "opencode",
+    name: "OpenCode Zen",
+    env: [],
+    models: {},
+  } as ModelsDev.Provider
+
+  expect(Provider.fromModelsDevProvider(provider).name).toBe("Default")
+})
+
+test("models.dev keeps other provider names unchanged", () => {
+  const provider = {
+    id: "anthropic",
+    name: "Anthropic",
+    env: [],
+    models: {},
+  } as ModelsDev.Provider
+
+  expect(Provider.fromModelsDevProvider(provider).name).toBe("Anthropic")
+})
+
 test("model variants are generated for reasoning models", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {

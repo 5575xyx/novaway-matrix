@@ -21,7 +21,8 @@
     "db": "bun drizzle-kit"
   },
   "bin": {
-    "opencode": "./bin/opencode"
+    "opencode": "./bin/opencode",
+    "novaway": "./bin/opencode"
   },
   "exports": {
     "./*": "./src/*.ts"
@@ -108,6 +109,8 @@
     "@opencode-ai/plugin": "workspace:*",
     "@opencode-ai/script": "workspace:*",
     "@opencode-ai/sdk": "workspace:*",
+    "@opencode-ai/sdk-v2-latest": "workspace:*",
+    "@opencode-ai/tui": "workspace:*",
     "@opencode-ai/ui": "workspace:*",
     "@openrouter/ai-sdk-provider": "2.8.1",
     "@opentelemetry/api": "1.9.0",

@@ -12,6 +12,8 @@ export const CatalogModelStatus = Schema.Literals(["alpha", "beta", "deprecated"
 export type CatalogModelStatus = typeof CatalogModelStatus.Type
 
 const USER_AGENT = `opencode/${InstallationChannel}/${InstallationVersion}/${Flag.OPENCODE_CLIENT}`
+const FETCH_TIMEOUT = "2 seconds"
+const DEFAULT_MODELS_URL = "https://models.opencode.ai"
 
 const CostTier = Schema.Struct({
   input: Schema.Finite,
@@ -128,10 +130,10 @@ export const layer = Layer.effect(
       ),
     )
 
-    const source = Flag.OPENCODE_MODELS_URL || "https://models.dev"
+    const source = Flag.OPENCODE_MODELS_URL || DEFAULT_MODELS_URL
     const filepath = path.join(
       Global.Path.cache,
-      source === "https://models.dev" ? "models.json" : `models-${Hash.fast(source)}.json`,
+      source === DEFAULT_MODELS_URL ? "models.json" : `models-${Hash.fast(source)}.json`,
     )
     const ttl = Duration.minutes(5)
     const lockKey = `models-dev:${filepath}`
@@ -148,7 +150,7 @@ export const layer = Layer.effect(
         HttpClientRequest.setHeader("User-Agent", USER_AGENT),
         http.execute,
         Effect.flatMap((res) => res.text),
-        Effect.timeout("10 seconds"),
+        Effect.timeout(FETCH_TIMEOUT),
       )
     })
 
@@ -181,7 +183,15 @@ export const layer = Layer.effect(
         }),
       )
       return JSON.parse(text) as Record<string, Provider>
-    }).pipe(Effect.withSpan("ModelsDev.populate"), Effect.orDie)
+    }).pipe(
+      Effect.withSpan("ModelsDev.populate"),
+      Effect.catchCause((cause) =>
+        Effect.logWarning("Failed to fetch models.dev; continuing without the remote model catalog").pipe(
+          Effect.annotateLogs("cause", cause),
+          Effect.as({}),
+        ),
+      ),
+    )
 
     const [cachedGet, invalidate] = yield* Effect.cachedInvalidateWithTTL(populate, Duration.infinity)
 

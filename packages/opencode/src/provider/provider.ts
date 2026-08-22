@@ -1187,7 +1187,7 @@ export function fromModelsDevProvider(provider: ModelsDev.Provider): Info {
   return {
     id: ProviderID.make(provider.id),
     source: "custom",
-    name: provider.name,
+    name: provider.id === ProviderID.opencode ? "Default" : provider.name,
     env: [...(provider.env ?? [])],
     options: {},
     models,
@@ -1357,7 +1357,7 @@ export const layer = Layer.effect(
                   providerID,
                 },
               ]),
-            )
+            ) as typeof provider.models
           })
         }
 

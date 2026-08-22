@@ -36,6 +36,11 @@ export type NetworkOptions = InferredOptionTypes<typeof options>
 export function withNetworkOptions<T>(yargs: Argv<T>) {
   return yargs.options(options)
 }
+
+export function hasArg(name: string) {
+  return process.argv.includes(name) || process.argv.some((arg) => arg.startsWith(name + "="))
+}
+
 export const resolveNetworkOptions = Effect.fn("Cli.resolveNetworkOptions")(function* (args: NetworkOptions) {
   const config = yield* Config.Service.use((cfg) => cfg.getGlobal())
   return resolveNetworkOptionsNoConfig(args, config)

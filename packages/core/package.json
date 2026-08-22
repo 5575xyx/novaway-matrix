@@ -23,7 +23,8 @@
     "@types/cross-spawn": "catalog:",
     "@types/npm-package-arg": "6.1.4",
     "@types/npmcli__arborist": "6.3.3",
-    "@types/semver": "catalog:"
+    "@types/semver": "catalog:",
+    "@types/which": "3.0.4"
   },
   "dependencies": {
     "@ai-sdk/alibaba": "1.0.17",
@@ -68,6 +69,7 @@
     "npm-package-arg": "13.0.2",
     "semver": "^7.6.3",
     "venice-ai-sdk-provider": "2.0.1",
+    "which": "6.0.1",
     "xdg-basedir": "5.1.0",
     "zod": "catalog:"
   },

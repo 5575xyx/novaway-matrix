@@ -149,6 +149,25 @@ describe("ModelsDev Service", () => {
     }),
   )
 
+  it.live("get() returns an empty catalog when models.dev is unavailable", () =>
+    Effect.gen(function* () {
+      const previous = Flag.OPENCODE_DISABLE_MODELS_FETCH
+      Flag.OPENCODE_DISABLE_MODELS_FETCH = false
+      try {
+        const state = yield* Ref.make({ ...initialState, status: 503 })
+        const result = yield* provided(
+          state,
+          ModelsDev.Service.use((s) => s.get()),
+        )
+        expect(result).toEqual({})
+        const final = yield* Ref.get(state)
+        expect(final.calls.length).toBeGreaterThanOrEqual(1)
+      } finally {
+        Flag.OPENCODE_DISABLE_MODELS_FETCH = previous
+      }
+    }),
+  )
+
   it.live("get() is single-flight under concurrent calls", () =>
     Effect.gen(function* () {
       yield* writeCache(fixture)

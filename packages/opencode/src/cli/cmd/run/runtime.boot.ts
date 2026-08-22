@@ -7,8 +7,8 @@
 // none block each other.
 import { Context, Effect, Layer } from "effect"
 import { stringifyKeyStroke } from "@opentui/keymap"
-import { TuiConfig } from "@/cli/cmd/tui/config/tui"
-import { TuiKeybind } from "@/cli/cmd/tui/config/keybind"
+import { TuiConfig } from "@/config/tui"
+import { TuiKeybind } from "@opencode-ai/tui/config/keybind"
 import { makeRuntime } from "@/effect/run-service"
 import { reusePendingTask } from "./runtime.shared"
 import { resolveSession, sessionHistory } from "./session.shared"

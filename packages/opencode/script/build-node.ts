@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import { Script } from "@opencode-ai/script"
+import type { BunPlugin } from "bun"
 import fs from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
@@ -13,7 +14,7 @@ process.chdir(dir)
 
 const generated = await import("./generate.ts")
 
-const chromiumBidiCjsStubPlugin = {
+const chromiumBidiCjsStubPlugin: BunPlugin = {
   name: "stub-chromium-bidi-cjs",
   setup(build) {
     build.onResolve({ filter: /^chromium-bidi\/lib\/cjs\// }, (args) => ({

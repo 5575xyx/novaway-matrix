@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { $ } from "bun"
+import { $, type BunPlugin } from "bun"
 import fs from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
@@ -80,7 +80,7 @@ const createEmbeddedWebUIBundle = async () => {
 
 const embeddedFileMap = skipEmbedWebUi ? null : await createEmbeddedWebUIBundle()
 
-const chromiumBidiCjsStubPlugin = {
+const chromiumBidiCjsStubPlugin: BunPlugin = {
   name: "stub-chromium-bidi-cjs",
   setup(build) {
     build.onResolve({ filter: /^chromium-bidi\/lib\/cjs\// }, (args) => ({
@@ -274,7 +274,7 @@ for (const item of targets) {
   const localPath = path.resolve(dir, "node_modules/@opentui/core/parser.worker.js")
   const rootPath = path.resolve(dir, "../../node_modules/@opentui/core/parser.worker.js")
   const parserWorker = fs.realpathSync(fs.existsSync(localPath) ? localPath : rootPath)
-  const workerPath = "./src/cli/cmd/tui/worker.ts"
+  const workerPath = "./src/cli/tui/worker.ts"
 
   // Use platform-specific bunfs root path based on target OS
   const bunfsRoot = item.os === "win32" ? "B:/~BUN/root/" : "/$bunfs/root/"

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, mock, spyOn, test } from "bun:test"
 import { OpencodeClient, type Provider } from "@opencode-ai/sdk/v2"
-import { TuiConfig, type Resolved } from "@/cli/cmd/tui/config/tui"
+import { TuiConfig, type Resolved } from "@/config/tui"
 import { formatBindings } from "@/cli/cmd/run/keymap.shared"
 import { resolveDiffStyle, resolveFooterKeybinds, resolveModelInfo } from "@/cli/cmd/run/runtime.boot"
 import { createTuiResolvedConfig } from "../../fixture/tui-runtime"

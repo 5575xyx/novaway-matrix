@@ -10,6 +10,7 @@ import { useLocal } from "@/context/local"
 import { popularProviders, useProviders } from "@/hooks/use-providers"
 import { ModelTooltip } from "./model-tooltip"
 import { useLanguage } from "@/context/language"
+import { displayModelName } from "@/utils/model-name"
 
 type ModelState = ReturnType<typeof useLocal>["model"]
 
@@ -75,8 +76,7 @@ export const DialogSelectModelUnpaid: Component<{ model?: ModelState }> = (props
         >
           {(i) => (
             <div class="w-full flex items-center gap-x-2.5">
-              <span>{i.name}</span>
-              <Tag>{language.t("model.tag.free")}</Tag>
+              <span>{displayModelName(i.name, i.provider.id, true)}</span>
               <Show when={i.latest}>
                 <Tag>{language.t("model.tag.latest")}</Tag>
               </Show>
