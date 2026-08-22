@@ -8,12 +8,12 @@ import {
   type Task,
   type TaskEvent,
   type TaskGroup,
-} from "@opencode-ai/app"
+} from "@novaway/app"
 import { createEffect, createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js"
 import { render } from "solid-js/web"
 import { initI18n, t } from "./i18n"
 import { createPlatform, listenForDeepLinks } from "./platform"
-import "@opencode-ai/app/index.css"
+import "@novaway/app/index.css"
 import "./styles.css"
 import logoUrl from "./novaway-icon.svg"
 

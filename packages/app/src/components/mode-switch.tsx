@@ -1,6 +1,6 @@
 import { For, Show, type Component } from "solid-js"
-import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
-import { Tooltip } from "@opencode-ai/ui/tooltip"
+import { DropdownMenu } from "@novaway/ui/dropdown-menu"
+import { Tooltip } from "@novaway/ui/tooltip"
 import { appModeConfig, type AppMode, type AppModeConfig } from "@/context/layout"
 import { ModeBadge } from "@/components/mode-visual"
 

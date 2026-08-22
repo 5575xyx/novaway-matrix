@@ -1,6 +1,6 @@
 // Vendored from Presenton (Apache-2.0), fixed commit
 // bed1fc6c31b94d844191893a1c212d8fbe0f6d0b.
-// See packages/opencode/src/skill/prompt/office-ppt/licenses/Presenton-Apache-2.0.txt.
+// See packages/novaway/src/skill/prompt/office-ppt/licenses/Presenton-Apache-2.0.txt.
 
 // ../../../presenton-preview-build/stubs/api.mjs
 function resolveBackendAssetUrl(value) {

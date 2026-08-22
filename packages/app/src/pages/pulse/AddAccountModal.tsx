@@ -1,5 +1,5 @@
-import { Dialog } from "@opencode-ai/ui/dialog"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { Dialog } from "@novaway/ui/dialog"
+import { useDialog } from "@novaway/ui/context/dialog"
 import { PLATFORM_LIST, usePlatformAccounts } from "@/context/platform-accounts"
 
 export function AddAccountModal() {

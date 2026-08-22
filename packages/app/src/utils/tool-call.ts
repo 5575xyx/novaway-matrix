@@ -21,7 +21,7 @@ export async function callTool({
     "content-type": "application/json",
   }
   if (http.password) {
-    headers.authorization = `Basic ${btoa(`${http.username ?? "opencode"}:${http.password}`)}`
+    headers.authorization = `Basic ${btoa(`${http.username ?? "NovaWay"}:${http.password}`)}`
   }
 
   const response = await fetch(url.toString(), {

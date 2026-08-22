@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { parseRemoteProviderModels } from "@opencode-ai/core/openai-compatible"
+import { parseRemoteProviderModels } from "@novaway/core/openai-compatible"
 import { fetchOpenAICompatibleModels, remoteModelType } from "./provider-model-discovery"
 
 describe("provider model discovery", () => {

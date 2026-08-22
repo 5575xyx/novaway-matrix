@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { SnapshotFileDiff } from "@opencode-ai/sdk/v2"
+import type { SnapshotFileDiff } from "@novaway/sdk/v2"
 import { uniqueSummaryDiffs } from "./message-timeline.summary-diffs"
 
 const diff = (file: string, additions: number) =>

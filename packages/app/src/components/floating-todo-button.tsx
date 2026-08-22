@@ -7,7 +7,7 @@ import { useGlobalSync } from "@/context/global-sync"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { Persist, persisted } from "@/utils/persist"
 import { AssistantPanel, type AgentItem, type Task } from "./assistant-panel"
-import type { Todo } from "@opencode-ai/sdk/v2/client"
+import type { Todo } from "@novaway/sdk/v2/client"
 
 const COLLAPSED_SIZE = 112
 const EDGE_PADDING = 8

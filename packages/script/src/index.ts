@@ -18,10 +18,10 @@ if (!semver.satisfies(process.versions.bun, expectedBunVersionRange)) {
 }
 
 const env = {
-  OPENCODE_CHANNEL: process.env["OPENCODE_CHANNEL"],
-  OPENCODE_BUMP: process.env["OPENCODE_BUMP"],
-  OPENCODE_VERSION: process.env["OPENCODE_VERSION"],
-  OPENCODE_RELEASE: process.env["OPENCODE_RELEASE"],
+  OPENCODE_CHANNEL: process.env["NOVAWAY_CHANNEL"],
+  OPENCODE_BUMP: process.env["NOVAWAY_BUMP"],
+  OPENCODE_VERSION: process.env["NOVAWAY_VERSION"],
+  OPENCODE_RELEASE: process.env["NOVAWAY_RELEASE"],
 }
 const CHANNEL = await (async () => {
   if (env.OPENCODE_CHANNEL) return env.OPENCODE_CHANNEL

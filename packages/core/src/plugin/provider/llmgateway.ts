@@ -9,9 +9,9 @@ export const LLMGatewayPlugin = PluginV2.define({
       "provider.update": Effect.fn(function* (evt) {
         if (evt.provider.id !== ProviderV2.ID.make("llmgateway")) return
         if (evt.provider.enabled === false) return
-        evt.provider.options.headers["HTTP-Referer"] = "https://opencode.ai/"
-        evt.provider.options.headers["X-Title"] = "opencode"
-        evt.provider.options.headers["X-Source"] = "opencode"
+        evt.provider.options.headers["HTTP-Referer"] = "https://NovaWay.ai/"
+        evt.provider.options.headers["X-Title"] = "NovaWay"
+        evt.provider.options.headers["X-Source"] = "NovaWay"
       }),
     }
   }),

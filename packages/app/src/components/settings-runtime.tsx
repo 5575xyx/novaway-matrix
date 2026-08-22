@@ -7,17 +7,17 @@ import type {
   SettingsAgentListResponse,
   SettingsRuleListResponse,
   SettingsSkillListResponse,
-} from "@opencode-ai/sdk/v2/client"
-import { Button } from "@opencode-ai/ui/button"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
-import { Dialog } from "@opencode-ai/ui/dialog"
-import { Icon } from "@opencode-ai/ui/icon"
-import { IconButton } from "@opencode-ai/ui/icon-button"
-import { Select } from "@opencode-ai/ui/select"
-import { Switch } from "@opencode-ai/ui/switch"
-import { Tag } from "@opencode-ai/ui/tag"
-import { TextField } from "@opencode-ai/ui/text-field"
-import { showToast } from "@opencode-ai/ui/toast"
+} from "@novaway/sdk/v2/client"
+import { Button } from "@novaway/ui/button"
+import { useDialog } from "@novaway/ui/context/dialog"
+import { Dialog } from "@novaway/ui/dialog"
+import { Icon } from "@novaway/ui/icon"
+import { IconButton } from "@novaway/ui/icon-button"
+import { Select } from "@novaway/ui/select"
+import { Switch } from "@novaway/ui/switch"
+import { Tag } from "@novaway/ui/tag"
+import { TextField } from "@novaway/ui/text-field"
+import { showToast } from "@novaway/ui/toast"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query"
 import { createEffect, createMemo, createSignal, For, onCleanup, Show, type Component, type JSX } from "solid-js"
 import { useGlobalSDK } from "@/context/global-sdk"
@@ -2608,8 +2608,8 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
     if (first) return { providerID: provider.id, modelID: first.id }
   }
   const defaultProjectInstructionModel = () => {
-    const opencode = firstProviderModel("opencode")
-    if (opencode) return opencode
+    const NovaWay = firstProviderModel("NovaWay")
+    if (NovaWay) return NovaWay
     const configured = configState().model?.split("/")
     if (configured?.[0] && configured[1]) {
       const model = { providerID: configured[0], modelID: configured[1] }

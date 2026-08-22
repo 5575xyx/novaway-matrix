@@ -19,9 +19,9 @@ import { Dynamic } from "solid-js/web"
 import { useNavigate } from "@solidjs/router"
 import { useMutation, useQueryClient } from "@tanstack/solid-query"
 import { Virtualizer, type VirtualizerHandle } from "virtua/solid"
-import { Accordion } from "@opencode-ai/ui/accordion"
-import { Button } from "@opencode-ai/ui/button"
-import { Card } from "@opencode-ai/ui/card"
+import { Accordion } from "@novaway/ui/accordion"
+import { Button } from "@novaway/ui/button"
+import { Card } from "@novaway/ui/card"
 import {
   ContextToolGroup,
   Message,
@@ -29,32 +29,32 @@ import {
   Part as MessagePart,
   partDefaultOpen,
   type UserActions,
-} from "@opencode-ai/ui/message-part"
-import { DiffChanges } from "@opencode-ai/ui/diff-changes"
-import { FileIcon } from "@opencode-ai/ui/file-icon"
-import { Icon } from "@opencode-ai/ui/icon"
-import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
-import { Dialog } from "@opencode-ai/ui/dialog"
-import { InlineInput } from "@opencode-ai/ui/inline-input"
-import { SessionRetry } from "@opencode-ai/ui/session-retry"
-import { ScrollView } from "@opencode-ai/ui/scroll-view"
-import { StickyAccordionHeader } from "@opencode-ai/ui/sticky-accordion-header"
-import { TextReveal } from "@opencode-ai/ui/text-reveal"
-import { TextShimmer } from "@opencode-ai/ui/text-shimmer"
+} from "@novaway/ui/message-part"
+import { DiffChanges } from "@novaway/ui/diff-changes"
+import { FileIcon } from "@novaway/ui/file-icon"
+import { Icon } from "@novaway/ui/icon"
+import { DropdownMenu } from "@novaway/ui/dropdown-menu"
+import { Dialog } from "@novaway/ui/dialog"
+import { InlineInput } from "@novaway/ui/inline-input"
+import { SessionRetry } from "@novaway/ui/session-retry"
+import { ScrollView } from "@novaway/ui/scroll-view"
+import { StickyAccordionHeader } from "@novaway/ui/sticky-accordion-header"
+import { TextReveal } from "@novaway/ui/text-reveal"
+import { TextShimmer } from "@novaway/ui/text-shimmer"
 import type {
   AssistantMessage,
   Message as MessageType,
   Part as PartType,
   ToolPart,
   UserMessage,
-} from "@opencode-ai/sdk/v2"
-import { showToast } from "@opencode-ai/ui/toast"
-import { Binary } from "@opencode-ai/core/util/binary"
-import { getDirectory, getFilename } from "@opencode-ai/core/util/path"
-import { normalize } from "@opencode-ai/ui/session-diff"
-import { useFileComponent } from "@opencode-ai/ui/context/file"
+} from "@novaway/sdk/v2"
+import { showToast } from "@novaway/ui/toast"
+import { Binary } from "@novaway/core/util/binary"
+import { getDirectory, getFilename } from "@novaway/core/util/path"
+import { normalize } from "@novaway/ui/session-diff"
+import { useFileComponent } from "@novaway/ui/context/file"
 import { shouldMarkBoundaryGesture, normalizeWheelDelta } from "@/pages/session/message-gesture"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { useDialog } from "@novaway/ui/context/dialog"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { useLanguage } from "@/context/language"
 import { useSessionLayout } from "@/pages/session/session-layout"

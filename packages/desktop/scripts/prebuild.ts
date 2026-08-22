@@ -16,7 +16,7 @@ const resourcesDir = join(process.cwd(), "resources")
 await $`bun ./scripts/copy-icons.ts ${channel}`
 await $`bun ./scripts/copy-metainfo.ts ${channel}`
 
-await $`cd ../opencode && bun script/build-node.ts`
+await $`cd ../NovaWay && bun script/build-node.ts`
 
 // 浏览器自动化 MCP 随安装包分发，避免打包后的桌面端依赖系统 npx 或联网拉取。
 const playwrightMcpDir = join(resourcesDir, "playwright-mcp")

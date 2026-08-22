@@ -1,10 +1,10 @@
 import { Component, Show } from "solid-js"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { useDialog } from "@novaway/ui/context/dialog"
 import { popularProviders, useProviders } from "@/hooks/use-providers"
-import { Dialog } from "@opencode-ai/ui/dialog"
-import { List } from "@opencode-ai/ui/list"
-import { Tag } from "@opencode-ai/ui/tag"
-import { ProviderIcon } from "@opencode-ai/ui/provider-icon"
+import { Dialog } from "@novaway/ui/dialog"
+import { List } from "@novaway/ui/list"
+import { Tag } from "@novaway/ui/tag"
+import { ProviderIcon } from "@novaway/ui/provider-icon"
 import { useLanguage } from "@/context/language"
 import { useGlobalSDK } from "@/context/global-sdk"
 
@@ -31,7 +31,7 @@ export const DialogSelectProviderForCustom: Component<Props> = (props) => {
     if (id === "anthropic") return language.t("dialog.provider.anthropic.note")
     if (id === "openai") return language.t("dialog.provider.openai.note")
     if (id.startsWith("github-copilot")) return language.t("dialog.provider.copilot.note")
-    if (id === "opencode-go") return language.t("dialog.provider.opencodeGo.tagline")
+    if (id === "NovaWay-go") return language.t("dialog.provider.NovaWayGo.tagline")
     if (id === "ollama") return language.t("dialog.provider.ollama.note")
   }
 
@@ -79,14 +79,14 @@ export const DialogSelectProviderForCustom: Component<Props> = (props) => {
           <div class="px-1.25 w-full flex items-center gap-x-3">
             <ProviderIcon data-slot="list-item-extra-icon" id={i.id} />
             <span>{i.name}</span>
-            <Show when={i.id === "opencode"}>
-              <div class="text-14-regular text-text-weak">{language.t("dialog.provider.opencode.tagline")}</div>
+            <Show when={i.id === "NovaWay"}>
+              <div class="text-14-regular text-text-weak">{language.t("dialog.provider.NovaWay.tagline")}</div>
             </Show>
-            <Show when={i.id === "opencode"}>
+            <Show when={i.id === "NovaWay"}>
               <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
             </Show>
             <Show when={note(i.id)}>{(value) => <div class="text-14-regular text-text-weak">{value()}</div>}</Show>
-            <Show when={i.id === "opencode-go"}>
+            <Show when={i.id === "NovaWay-go"}>
               <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
             </Show>
           </div>

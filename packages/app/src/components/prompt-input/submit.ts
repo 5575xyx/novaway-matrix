@@ -1,7 +1,7 @@
-import type { Message, Session } from "@opencode-ai/sdk/v2/client"
-import { showToast } from "@opencode-ai/ui/toast"
-import { base64Encode } from "@opencode-ai/core/util/encode"
-import { Binary } from "@opencode-ai/core/util/binary"
+import type { Message, Session } from "@novaway/sdk/v2/client"
+import { showToast } from "@novaway/ui/toast"
+import { base64Encode } from "@novaway/core/util/encode"
+import { Binary } from "@novaway/core/util/binary"
 import { useNavigate, useParams } from "@solidjs/router"
 import { batch, type Accessor } from "solid-js"
 import type { FileSelection } from "@/context/file"
@@ -452,11 +452,11 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       return
     }
 
-    // Auto Mode: 智能选择最佳 OpenCode Zen 模型
+    // Auto Mode: 智能选择最佳 NovaWay Zen 模型
     let finalModel = currentModel
     if (modelsCtx.autoMode()) {
-      const opencodeModels = modelsCtx.list().filter((m) => m.provider.id === "opencode")
-      if (opencodeModels.length > 0) {
+      const NovaWayModels = modelsCtx.list().filter((m) => m.provider.id === "NovaWay")
+      if (NovaWayModels.length > 0) {
         // 分析用户输入特征
         const textLower = text.toLowerCase()
         const hasImages = images.length > 0
@@ -501,7 +501,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
         const isComplex = text.length > 500 || isCodeTask || isAnalysisTask
 
         // 根据特征筛选模型
-        let candidates = opencodeModels
+        let candidates = NovaWayModels
 
         // 如果有附件，必须选择支持附件的模型
         if (hasAttachments) {
@@ -510,7 +510,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
 
         // 如果没有找到支持附件的模型，回退到所有模型
         if (candidates.length === 0) {
-          candidates = opencodeModels
+          candidates = NovaWayModels
         }
 
         // 按优先级排序

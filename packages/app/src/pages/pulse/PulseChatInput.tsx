@@ -1,11 +1,11 @@
 import { createSignal, createMemo, For, Show, onMount, onCleanup } from "solid-js"
-import { DockShellForm } from "@opencode-ai/ui/dock-surface"
-import { Icon } from "@opencode-ai/ui/icon"
-import { IconButton } from "@opencode-ai/ui/icon-button"
-import { Tooltip } from "@opencode-ai/ui/tooltip"
-import { Button } from "@opencode-ai/ui/button"
+import { DockShellForm } from "@novaway/ui/dock-surface"
+import { Icon } from "@novaway/ui/icon"
+import { IconButton } from "@novaway/ui/icon-button"
+import { Tooltip } from "@novaway/ui/tooltip"
+import { Button } from "@novaway/ui/button"
 import { agentDisplayName } from "@/utils/agent"
-import type { Agent, Command } from "@opencode-ai/sdk/v2"
+import type { Agent, Command } from "@novaway/sdk/v2"
 
 type ModelItem = { id: string; name: string; provider: { id: string; name: string } }
 

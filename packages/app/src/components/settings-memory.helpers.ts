@@ -2,7 +2,7 @@ import type {
   Memory,
   MemoryReviewCandidate,
   MemoryReviewStatus as MemoryReviewSummary,
-} from "@opencode-ai/sdk/v2/client"
+} from "@novaway/sdk/v2/client"
 import { finiteNumber } from "./review-ui-helpers"
 import { matchesModeGroup, type ModeGroup } from "./settings-mode-groups"
 

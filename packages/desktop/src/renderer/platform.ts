@@ -6,19 +6,19 @@ import {
   type Locale,
   type Platform,
   ServerConnection,
-} from "@opencode-ai/app"
+} from "@novaway/app"
 import type { AsyncStorage } from "@solid-primitives/storage"
 import pkg from "../../package.json"
 import { t } from "./i18n"
 import { webviewZoom } from "./webview-zoom"
 
-const deepLinkEvent = "opencode:deep-link"
+const deepLinkEvent = "NovaWay:deep-link"
 
 export const emitDeepLinks = (urls: string[]) => {
   if (urls.length === 0) return
-  window.__OPENCODE__ ??= {}
-  const pending = window.__OPENCODE__.deepLinks ?? []
-  window.__OPENCODE__.deepLinks = [...pending, ...urls]
+  window.__NovaWay__ ??= {}
+  const pending = window.__NovaWay__.deepLinks ?? []
+  window.__NovaWay__.deepLinks = [...pending, ...urls]
   window.dispatchEvent(new CustomEvent(deepLinkEvent, { detail: { urls } }))
 }
 

@@ -6,7 +6,7 @@ import { persisted } from "@/utils/persist"
 import { PulseSidebar } from "./PulseSidebar"
 import { PulseMain } from "./PulseMain"
 import { PulseAssistant } from "./PulseAssistant"
-import { ResizeHandle } from "@opencode-ai/ui/resize-handle"
+import { ResizeHandle } from "@novaway/ui/resize-handle"
 
 function PulseLayoutInner() {
   const layout = useLayout()

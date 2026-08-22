@@ -4,7 +4,7 @@ import type {
   EvolutionStatus,
   MemoryReviewCandidate,
   MemoryReviewStatus,
-} from "@opencode-ai/sdk/v2/client"
+} from "@novaway/sdk/v2/client"
 import { pendingBadgeLabel } from "./review-ui-helpers"
 import {
   filterEvolutionByDomain,

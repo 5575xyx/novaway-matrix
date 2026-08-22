@@ -24,9 +24,9 @@ jobs:
 
       - name: Check duplicates and compliance
         env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          NOVAWAY_API_KEY: ${{ secrets.NOVAWAY_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OPENCODE_PERMISSION: |
+          NOVAWAY_PERMISSION: |
             {
               "bash": {
                 "*": "deny",
@@ -136,9 +136,9 @@ jobs:
 
       - name: Recheck compliance
         env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          NOVAWAY_API_KEY: ${{ secrets.NOVAWAY_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OPENCODE_PERMISSION: |
+          NOVAWAY_PERMISSION: |
             {
               "bash": {
                 "*": "deny",

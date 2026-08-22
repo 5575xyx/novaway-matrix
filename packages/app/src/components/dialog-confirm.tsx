@@ -1,7 +1,7 @@
 import { JSX } from "solid-js"
 import { Dialog as Kobalte } from "@kobalte/core/dialog"
-import { Button } from "@opencode-ai/ui/button"
-import { Dialog } from "@opencode-ai/ui/dialog"
+import { Button } from "@novaway/ui/button"
+import { Dialog } from "@novaway/ui/dialog"
 
 export type ConfirmVariant = "danger" | "normal"
 

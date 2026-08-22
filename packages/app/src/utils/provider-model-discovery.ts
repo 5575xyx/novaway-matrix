@@ -1,6 +1,6 @@
-import { parseRemoteProviderModels, type RemoteProviderModel } from "@opencode-ai/core/openai-compatible"
+import { parseRemoteProviderModels, type RemoteProviderModel } from "@novaway/core/openai-compatible"
 
-export type { RemoteProviderModel } from "@opencode-ai/core/openai-compatible"
+export type { RemoteProviderModel } from "@novaway/core/openai-compatible"
 
 export type RemoteModelType = "text" | "image" | "video" | "audio"
 

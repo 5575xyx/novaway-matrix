@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { agnesImage } from "@opencode-ai/llm/protocols/image-generation/agnes"
+import { agnesImage } from "@novaway/llm/protocols/image-generation/agnes"
 
 describe("agnes image protocol", () => {
   test("uses the current Agnes API gateway", () => {

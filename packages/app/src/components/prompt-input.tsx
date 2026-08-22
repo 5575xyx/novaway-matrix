@@ -1,5 +1,5 @@
-import { useFilteredList } from "@opencode-ai/ui/hooks"
-import { useSpring } from "@opencode-ai/ui/motion-spring"
+import { useFilteredList } from "@novaway/ui/hooks"
+import { useSpring } from "@novaway/ui/motion-spring"
 import { createEffect, on, Component, Show, onCleanup, createMemo, createSignal, createResource } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLocal } from "@/context/local"
@@ -18,16 +18,16 @@ import { useLayout } from "@/context/layout"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import { useComments } from "@/context/comments"
-import { showToast } from "@opencode-ai/ui/toast"
-import { Button } from "@opencode-ai/ui/button"
-import { DockShellForm, DockTray } from "@opencode-ai/ui/dock-surface"
-import { Icon } from "@opencode-ai/ui/icon"
-import { ProviderIcon } from "@opencode-ai/ui/provider-icon"
-import { Tooltip, TooltipKeybind } from "@opencode-ai/ui/tooltip"
-import { IconButton } from "@opencode-ai/ui/icon-button"
-import { Select } from "@opencode-ai/ui/select"
-import { Switch } from "@opencode-ai/ui/switch"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { showToast } from "@novaway/ui/toast"
+import { Button } from "@novaway/ui/button"
+import { DockShellForm, DockTray } from "@novaway/ui/dock-surface"
+import { Icon } from "@novaway/ui/icon"
+import { ProviderIcon } from "@novaway/ui/provider-icon"
+import { Tooltip, TooltipKeybind } from "@novaway/ui/tooltip"
+import { IconButton } from "@novaway/ui/icon-button"
+import { Select } from "@novaway/ui/select"
+import { Switch } from "@novaway/ui/switch"
+import { useDialog } from "@novaway/ui/context/dialog"
 import { ModelSelectorPopover } from "@/components/dialog-select-model"
 import { useProviders } from "@/hooks/use-providers"
 import { useCommand } from "@/context/command"
@@ -57,7 +57,7 @@ import { PromptContextItems } from "./prompt-input/context-items"
 import { PromptImageAttachments } from "./prompt-input/image-attachments"
 import { PromptDragOverlay } from "./prompt-input/drag-overlay"
 import { promptPlaceholder } from "./prompt-input/placeholder"
-import { ImagePreview } from "@opencode-ai/ui/image-preview"
+import { ImagePreview } from "@novaway/ui/image-preview"
 import { useQueries } from "@tanstack/solid-query"
 import { useQueryOptions } from "@/context/global-sync"
 import { agentDisplayName } from "@/utils/agent"
@@ -1509,11 +1509,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     setStore("optimizing", true)
 
     try {
-      // 与发送消息一致：优先当前模型；Auto 时优先 opencode 可用模型
+      // 与发送消息一致：优先当前模型；Auto 时优先 NovaWay 可用模型
       let currentModel = local.model.current()
       if (modelsCtx.autoMode()) {
-        const opencodeModels = modelsCtx.list().filter((m) => m.provider?.id === "opencode")
-        const pool = opencodeModels.length > 0 ? opencodeModels : modelsCtx.list()
+        const NovaWayModels = modelsCtx.list().filter((m) => m.provider?.id === "NovaWay")
+        const pool = NovaWayModels.length > 0 ? NovaWayModels : modelsCtx.list()
         if (pool.length > 0) {
           // 选上下文较大的模型，优化提示词通常不需要极小模型
           currentModel = [...pool].sort((a, b) => (b.limit?.context ?? 0) - (a.limit?.context ?? 0))[0] ?? currentModel

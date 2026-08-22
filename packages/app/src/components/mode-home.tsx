@@ -1,6 +1,6 @@
 import { For, type Component } from "solid-js"
 import { APP_MODES, type AppMode } from "@/context/layout"
-import { Mark } from "@opencode-ai/ui/logo"
+import { Mark } from "@novaway/ui/logo"
 import { ModeBadge, modeGradient, modeGlow } from "@/components/mode-visual"
 
 export const ModeHomePage: Component<{ onSelect: (mode: AppMode) => void }> = (props) => (

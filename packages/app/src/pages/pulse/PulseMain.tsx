@@ -1,5 +1,5 @@
 import { Show } from "solid-js"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { useDialog } from "@novaway/ui/context/dialog"
 import { usePlatformAccounts, PLATFORM_LIST } from "@/context/platform-accounts"
 import type { PlatformAccount } from "@/context/platform-accounts"
 import { PlatformWebView } from "./PlatformWebView"

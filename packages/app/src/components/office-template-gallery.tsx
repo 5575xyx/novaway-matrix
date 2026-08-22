@@ -1,6 +1,6 @@
 import { createMemo, For, Show } from "solid-js"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
-import { Icon } from "@opencode-ai/ui/icon"
+import { useDialog } from "@novaway/ui/context/dialog"
+import { Icon } from "@novaway/ui/icon"
 import { OfficePptTemplatePreview } from "@/components/office-ppt-template-preview"
 import { OfficeSceneSwitcher } from "@/components/office-scene-switcher"
 import { officeTemplateCards, type OfficeTemplateCard } from "@/pages/home/office-template-cards"

@@ -2,7 +2,7 @@ import type { ComponentProps } from "solid-js"
 
 export type HomeActionId = "document" | "ppt" | "knowledge" | "data" | "design" | "web"
 
-type HomeActionIcon = ComponentProps<typeof import("@opencode-ai/ui/icon").Icon>["name"]
+type HomeActionIcon = ComponentProps<typeof import("@novaway/ui/icon").Icon>["name"]
 
 export type HomeAction = {
   id: HomeActionId

@@ -1,16 +1,16 @@
-import type { ProviderAuthAuthorization, ProviderAuthMethod } from "@opencode-ai/sdk/v2/client"
-import { Button } from "@opencode-ai/ui/button"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
-import { Dialog } from "@opencode-ai/ui/dialog"
-import { Icon } from "@opencode-ai/ui/icon"
-import { IconButton } from "@opencode-ai/ui/icon-button"
-import { List, type ListRef } from "@opencode-ai/ui/list"
-import { ProviderIcon } from "@opencode-ai/ui/provider-icon"
-import { Select } from "@opencode-ai/ui/select"
-import { Spinner } from "@opencode-ai/ui/spinner"
-import { Switch as UISwitch } from "@opencode-ai/ui/switch"
-import { TextField } from "@opencode-ai/ui/text-field"
-import { showToast } from "@opencode-ai/ui/toast"
+import type { ProviderAuthAuthorization, ProviderAuthMethod } from "@novaway/sdk/v2/client"
+import { Button } from "@novaway/ui/button"
+import { useDialog } from "@novaway/ui/context/dialog"
+import { Dialog } from "@novaway/ui/dialog"
+import { Icon } from "@novaway/ui/icon"
+import { IconButton } from "@novaway/ui/icon-button"
+import { List, type ListRef } from "@novaway/ui/list"
+import { ProviderIcon } from "@novaway/ui/provider-icon"
+import { Select } from "@novaway/ui/select"
+import { Spinner } from "@novaway/ui/spinner"
+import { Switch as UISwitch } from "@novaway/ui/switch"
+import { TextField } from "@novaway/ui/text-field"
+import { showToast } from "@novaway/ui/toast"
 import {
   createEffect,
   createMemo,
@@ -560,16 +560,16 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
       <div class="flex flex-col gap-6">
         <Show when={step() === "auth"}>
           <Switch>
-            <Match when={provider().id === "opencode"}>
+            <Match when={provider().id === "NovaWay"}>
               <div class="flex flex-col gap-4">
-                <div class="text-14-regular text-text-base">{language.t("provider.connect.opencodeZen.line1")}</div>
-                <div class="text-14-regular text-text-base">{language.t("provider.connect.opencodeZen.line2")}</div>
+                <div class="text-14-regular text-text-base">{language.t("provider.connect.NovaWayZen.line1")}</div>
+                <div class="text-14-regular text-text-base">{language.t("provider.connect.NovaWayZen.line2")}</div>
                 <div class="text-14-regular text-text-base">
-                  {language.t("provider.connect.opencodeZen.visit.prefix")}
-                  <Link href="https://opencode.ai/zen" tabIndex={-1}>
-                    {language.t("provider.connect.opencodeZen.visit.link")}
+                  {language.t("provider.connect.NovaWayZen.visit.prefix")}
+                  <Link href="https://NovaWay.ai/zen" tabIndex={-1}>
+                    {language.t("provider.connect.NovaWayZen.visit.link")}
                   </Link>
-                  {language.t("provider.connect.opencodeZen.visit.suffix")}
+                  {language.t("provider.connect.NovaWayZen.visit.suffix")}
                 </div>
               </div>
             </Match>

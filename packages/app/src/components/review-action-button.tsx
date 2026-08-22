@@ -1,5 +1,5 @@
-import { IconButton } from "@opencode-ai/ui/icon-button"
-import { Tooltip } from "@opencode-ai/ui/tooltip"
+import { IconButton } from "@novaway/ui/icon-button"
+import { Tooltip } from "@novaway/ui/tooltip"
 import type { Component, ComponentProps } from "solid-js"
 
 export const ReviewActionButton: Component<{

@@ -1,10 +1,10 @@
-import { useFilteredList } from "@opencode-ai/ui/hooks"
-import type { ProviderConfig } from "@opencode-ai/sdk/v2/client"
-import { ProviderIcon } from "@opencode-ai/ui/provider-icon"
-import { Switch } from "@opencode-ai/ui/switch"
-import { Icon } from "@opencode-ai/ui/icon"
-import { IconButton } from "@opencode-ai/ui/icon-button"
-import { TextField } from "@opencode-ai/ui/text-field"
+import { useFilteredList } from "@novaway/ui/hooks"
+import type { ProviderConfig } from "@novaway/sdk/v2/client"
+import { ProviderIcon } from "@novaway/ui/provider-icon"
+import { Switch } from "@novaway/ui/switch"
+import { Icon } from "@novaway/ui/icon"
+import { IconButton } from "@novaway/ui/icon-button"
+import { TextField } from "@novaway/ui/text-field"
 import { type Component, createMemo, createSignal, For, onMount, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useGlobalSDK } from "@/context/global-sdk"
@@ -165,8 +165,8 @@ export const SettingsModels: Component = () => {
     const all = models.list()
     const result: KeyedModel[] = []
     for (const model of all) {
-      // 隐藏 OpenCode Zen 模型（Auto Mode 专用）
-      if (model.provider.id === "opencode") continue
+      // 隐藏 NovaWay Zen 模型（Auto Mode 专用）
+      if (model.provider.id === "NovaWay") continue
 
       const keys = getProviderKeys(model.provider.id)
       keys.forEach((_, keyIndex) => {

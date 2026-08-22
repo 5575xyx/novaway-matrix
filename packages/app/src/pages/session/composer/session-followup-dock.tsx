@@ -1,9 +1,9 @@
 import { For, Show, createMemo } from "solid-js"
 import { createStore } from "solid-js/store"
-import { Button } from "@opencode-ai/ui/button"
-import { DockTray } from "@opencode-ai/ui/dock-surface"
-import { Icon } from "@opencode-ai/ui/icon"
-import { IconButton } from "@opencode-ai/ui/icon-button"
+import { Button } from "@novaway/ui/button"
+import { DockTray } from "@novaway/ui/dock-surface"
+import { Icon } from "@novaway/ui/icon"
+import { IconButton } from "@novaway/ui/icon-button"
 import { useLanguage } from "@/context/language"
 
 export function SessionFollowupDock(props: {

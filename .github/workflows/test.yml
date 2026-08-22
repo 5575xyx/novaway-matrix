@@ -66,11 +66,11 @@ jobs:
       - name: Run unit tests
         run: bun turbo test:ci
         env:
-          OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER: ${{ runner.os == 'Windows' && 'true' || 'false' }}
+          NOVAWAY_EXPERIMENTAL_DISABLE_FILEWATCHER: ${{ runner.os == 'Windows' && 'true' || 'false' }}
 
       - name: Run HttpApi exerciser gates
         if: runner.os == 'Linux'
-        working-directory: packages/opencode
+        working-directory: packages/novaway
         run: bun run test:httpapi
 
       - name: Publish unit reports

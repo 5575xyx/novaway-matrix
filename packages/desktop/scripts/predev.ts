@@ -8,6 +8,6 @@ process.env.TMP = tmp
 process.env.TEMP = tmp
 process.env.TMPDIR = tmp
 
-await $`bun ./scripts/copy-icons.ts ${process.env.OPENCODE_CHANNEL ?? "dev"}`
+await $`bun ./scripts/copy-icons.ts ${process.env.NovaWay_CHANNEL ?? "dev"}`
 
-await $`cd ../opencode && bun script/build-node.ts`
+await $`cd ../NovaWay && bun script/build-node.ts`

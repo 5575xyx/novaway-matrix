@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { sensenovaImage } from "@opencode-ai/llm/protocols/image-generation/sensenova"
+import { sensenovaImage } from "@novaway/llm/protocols/image-generation/sensenova"
 
 describe("sensenova image protocol", () => {
   test("uses the Token Plan image generation endpoint", () => {

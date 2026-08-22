@@ -1,4 +1,4 @@
-import type { SnapshotFileDiff } from "@opencode-ai/sdk/v2"
+import type { SnapshotFileDiff } from "@novaway/sdk/v2"
 import type { SummaryDiff } from "./message-timeline.data"
 
 export function uniqueSummaryDiffs(diffs: SnapshotFileDiff[] | undefined) {

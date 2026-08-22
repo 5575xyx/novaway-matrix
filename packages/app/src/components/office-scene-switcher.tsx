@@ -1,5 +1,5 @@
 import { For } from "solid-js"
-import { Icon } from "@opencode-ai/ui/icon"
+import { Icon } from "@novaway/ui/icon"
 import { zenActions, type HomeActionId } from "@/pages/home/zen-office"
 
 export function OfficeSceneSwitcher(props: {

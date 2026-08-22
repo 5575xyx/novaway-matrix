@@ -159,7 +159,7 @@ describe("downloadUrlToTempFile", () => {
     const result = await downloadUrlToTempFile("https://example.com/video.mp4", "video.mp4")
 
     expect(result).toBeString()
-    expect(result).toInclude("opencode-clipboard-")
+    expect(result).toInclude("NovaWay-clipboard-")
     expect(result).toEndWith(".mp4")
   })
 

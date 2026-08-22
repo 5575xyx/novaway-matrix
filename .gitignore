@@ -39,7 +39,7 @@ tsconfig.tsbuildinfo
 .claude/test-native-load.cjs
 .dbx-test-data/
 packages/desktop/.tmp/
-packages/opencode/.tmp-browser-qa/
+packages/novaway/.tmp-browser-qa/
 packages/desktop/electron.vite.config.*.mjs
 packages/desktop/scripts/__pycache__/
 tmp-cdp-*.mjs

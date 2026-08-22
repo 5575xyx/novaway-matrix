@@ -3,21 +3,21 @@ import { Component, ComponentProps, createMemo, JSX, Show, ValidComponent } from
 import { createStore } from "solid-js/store"
 import { useLocal } from "@/context/local"
 import { useModels } from "@/context/models"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { useDialog } from "@novaway/ui/context/dialog"
 import { popularProviders } from "@/hooks/use-providers"
-import { Button } from "@opencode-ai/ui/button"
-import { Switch } from "@opencode-ai/ui/switch"
-import { Tag } from "@opencode-ai/ui/tag"
-import { Icon } from "@opencode-ai/ui/icon"
-import { Dialog } from "@opencode-ai/ui/dialog"
-import { List } from "@opencode-ai/ui/list"
-import { Tooltip } from "@opencode-ai/ui/tooltip"
+import { Button } from "@novaway/ui/button"
+import { Switch } from "@novaway/ui/switch"
+import { Tag } from "@novaway/ui/tag"
+import { Icon } from "@novaway/ui/icon"
+import { Dialog } from "@novaway/ui/dialog"
+import { List } from "@novaway/ui/list"
+import { Tooltip } from "@novaway/ui/tooltip"
 import { ModelTooltip } from "./model-tooltip"
 import { useLanguage } from "@/context/language"
 import { displayModelGroup, displayModelName } from "@/utils/model-name"
 
 const isFree = (provider: string, cost: { input: number } | undefined) =>
-  provider === "opencode" && (!cost || cost.input === 0)
+  provider === "NovaWay" && (!cost || cost.input === 0)
 
 type ModelState = ReturnType<typeof useLocal>["model"]
 

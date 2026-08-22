@@ -40,8 +40,8 @@ export function DialogModel(props: { providerID?: string }) {
             title: displayModelName(model.name ?? item.modelID, provider.id, model.cost?.input === 0),
             description: provider.name,
             category,
-            disabled: provider.id === "opencode" && model.id.includes("-nano"),
-            free: model.cost?.input === 0 && provider.id === "opencode",
+            disabled: provider.id === "NovaWay" && model.id.includes("-nano"),
+            free: model.cost?.input === 0 && provider.id === "NovaWay",
             onSelect: () => {
               onSelect(provider.id, model.id)
             },
@@ -61,7 +61,7 @@ export function DialogModel(props: { providerID?: string }) {
     const providerOptions = pipe(
       sync.data.provider,
       sortBy(
-        (provider) => provider.id !== "opencode",
+        (provider) => provider.id !== "NovaWay",
         (provider) => provider.name,
       ),
       flatMap((provider) =>
@@ -78,8 +78,8 @@ export function DialogModel(props: { providerID?: string }) {
               ? "(Favorite)"
               : undefined,
             category: connected() ? displayModelGroup(provider.id, provider.name) : undefined,
-            disabled: provider.id === "opencode" && model.includes("-nano"),
-            free: info.cost?.input === 0 && provider.id === "opencode",
+            disabled: provider.id === "NovaWay" && model.includes("-nano"),
+            free: info.cost?.input === 0 && provider.id === "NovaWay",
             onSelect() {
               onSelect(provider.id, model)
             },
@@ -197,11 +197,11 @@ export function sortModelOptions<T extends { free?: boolean; releaseDate: string
 }
 
 export function displayModelName(name: string, providerID: string, free: boolean) {
-  if (providerID !== "opencode" || !free) return name
+  if (providerID !== "NovaWay" || !free) return name
   return name.replace(/\s+free(?=\s*\(|$)/i, "").trim()
 }
 
 export function displayModelGroup(providerID: string, providerName: string) {
-  if (providerID === "opencode") return "Default"
+  if (providerID === "NovaWay") return "Default"
   return providerName
 }

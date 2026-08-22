@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { agnesVideo } from "@opencode-ai/llm/protocols/video-generation/agnes"
+import { agnesVideo } from "@novaway/llm/protocols/video-generation/agnes"
 
 describe("agnes video protocol", () => {
   test("uses the current Agnes API gateway", () => {

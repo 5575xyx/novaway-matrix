@@ -1,7 +1,7 @@
 import { Show, For, createSignal, createEffect, onCleanup, onMount, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
-import { Icon } from "@opencode-ai/ui/icon"
-import { useSpring } from "@opencode-ai/ui/motion-spring"
+import { Icon } from "@novaway/ui/icon"
+import { useSpring } from "@novaway/ui/motion-spring"
 import { useLanguage } from "@/context/language"
 import { agentColor, agentDisplayName } from "@/utils/agent"
 

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "name": "@opencode-ai/plugin",
+  "name": "@novaway/plugin",
   "version": "1.0.0",
   "type": "module",
   "license": "MIT",
@@ -17,8 +17,8 @@
     "dist"
   ],
   "dependencies": {
-    "@opencode-ai/sdk": "workspace:*",
-    "@opencode-ai/sdk-v2-latest": "workspace:*",
+    "@novaway/sdk": "workspace:*",
+    "@novaway/sdk-v2-latest": "workspace:*",
     "effect": "catalog:",
     "zod": "catalog:"
   },

@@ -1,10 +1,10 @@
 import { describe, expect, beforeAll, beforeEach, afterAll } from "bun:test"
 import { Effect, Layer, Ref } from "effect"
 import { HttpClient, HttpClientResponse } from "effect/unstable/http"
-import { AppFileSystem } from "@opencode-ai/core/filesystem"
-import { Flag } from "@opencode-ai/core/flag/flag"
-import { Global } from "@opencode-ai/core/global"
-import { ModelsDev } from "@opencode-ai/core/models-dev"
+import { AppFileSystem } from "@novaway/core/filesystem"
+import { Flag } from "@novaway/core/flag/flag"
+import { Global } from "@novaway/core/global"
+import { ModelsDev } from "@novaway/core/models-dev"
 import { it } from "./lib/effect"
 import { rm, writeFile, utimes, mkdir } from "fs/promises"
 import path from "path"
@@ -12,17 +12,17 @@ import path from "path"
 // test/preload.ts pins OPENCODE_MODELS_PATH to a fixture so other tests can
 // resolve providers without network. These tests need to drive the on-disk
 // cache themselves and silence the eager refresh fork. Save/restore around
-// the suite — never leak the mutation to subsequent test files in the same
+// the suite 鈥?never leak the mutation to subsequent test files in the same
 // bun process.
-const ORIGINAL_MODELS_PATH = Flag.OPENCODE_MODELS_PATH
-const ORIGINAL_DISABLE_FETCH = Flag.OPENCODE_DISABLE_MODELS_FETCH
+const ORIGINAL_MODELS_PATH = Flag.NOVAWAY_MODELS_PATH
+const ORIGINAL_DISABLE_FETCH = Flag.NOVAWAY_DISABLE_MODELS_FETCH
 beforeAll(() => {
-  Flag.OPENCODE_MODELS_PATH = undefined
-  Flag.OPENCODE_DISABLE_MODELS_FETCH = true
+  Flag.NOVAWAY_MODELS_PATH = undefined
+  Flag.NOVAWAY_DISABLE_MODELS_FETCH = true
 })
 afterAll(() => {
-  Flag.OPENCODE_MODELS_PATH = ORIGINAL_MODELS_PATH
-  Flag.OPENCODE_DISABLE_MODELS_FETCH = ORIGINAL_DISABLE_FETCH
+  Flag.NOVAWAY_MODELS_PATH = ORIGINAL_MODELS_PATH
+  Flag.NOVAWAY_DISABLE_MODELS_FETCH = ORIGINAL_DISABLE_FETCH
 })
 
 const cacheFile = path.join(Global.Path.cache, "models.json")
@@ -87,7 +87,7 @@ const makeMockClient = (state: Ref.Ref<MockState>) =>
 
 const buildLayer = (state: Ref.Ref<MockState>) =>
   // Layer.fresh is required: ModelsDev.layer is a module-level Layer constant,
-  // and Effect.provide uses a process-global MemoMap by default — without fresh,
+  // and Effect.provide uses a process-global MemoMap by default 鈥?without fresh,
   // every test would reuse the cachedInvalidateWithTTL state from the first run.
   Layer.fresh(ModelsDev.layer).pipe(
     Layer.provide(Layer.succeed(HttpClient.HttpClient, makeMockClient(state))),
@@ -151,8 +151,8 @@ describe("ModelsDev Service", () => {
 
   it.live("get() returns an empty catalog when models.dev is unavailable", () =>
     Effect.gen(function* () {
-      const previous = Flag.OPENCODE_DISABLE_MODELS_FETCH
-      Flag.OPENCODE_DISABLE_MODELS_FETCH = false
+      const previous = Flag.NOVAWAY_DISABLE_MODELS_FETCH
+      Flag.NOVAWAY_DISABLE_MODELS_FETCH = false
       try {
         const state = yield* Ref.make({ ...initialState, status: 503 })
         const result = yield* provided(
@@ -163,7 +163,7 @@ describe("ModelsDev Service", () => {
         const final = yield* Ref.get(state)
         expect(final.calls.length).toBeGreaterThanOrEqual(1)
       } finally {
-        Flag.OPENCODE_DISABLE_MODELS_FETCH = previous
+        Flag.NOVAWAY_DISABLE_MODELS_FETCH = previous
       }
     }),
   )
@@ -194,7 +194,7 @@ describe("ModelsDev Service", () => {
         Effect.gen(function* () {
           const svc = yield* ModelsDev.Service
           const a = yield* svc.get()
-          // mutate disk between calls — cache should mask the change
+          // mutate disk between calls 鈥?cache should mask the change
           yield* writeCache(fixture2)
           const b = yield* svc.get()
           return { a, b }

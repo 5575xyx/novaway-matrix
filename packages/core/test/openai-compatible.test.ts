@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { parseRemoteProviderModels, resolveOpenAICompatibleEndpoint } from "@opencode-ai/core/openai-compatible"
+import { parseRemoteProviderModels, resolveOpenAICompatibleEndpoint } from "@novaway/core/openai-compatible"
 
 describe("OpenAI-compatible endpoint", () => {
   test("keeps a standard base URL", () => {

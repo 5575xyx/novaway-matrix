@@ -1,19 +1,19 @@
 import { useSDK } from "@/context/sdk"
 import { Persist, persisted } from "@/utils/persist"
-import { SessionStatus } from "@opencode-ai/sdk/v2"
+import { SessionStatus } from "@novaway/sdk/v2"
 import { onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useSessionLayout } from "./session-layout"
-import { useDialog } from "@opencode-ai/ui/context"
+import { useDialog } from "@novaway/ui/context"
 import { DialogUsageExceeded } from "@/components/dialog-usage-exceeded"
-import { useI18n } from "@opencode-ai/ui/context"
+import { useI18n } from "@novaway/ui/context"
 
 const GO_UPSELL_FREE_TIER_LAST_SEEN_AT = "go_upsell_last_seen_at"
 const GO_UPSELL_FREE_TIER_DONT_SHOW = "go_upsell_dont_show"
 const GO_UPSELL_ACCOUNT_RATE_LIMIT_LAST_SEEN_AT = "go_upsell_account_rate_limit_last_seen_at"
 const GO_UPSELL_ACCOUNT_RATE_LIMIT_DONT_SHOW = "go_upsell_account_rate_limit_dont_show"
 const GO_UPSELL_WINDOW = 86_400_000 // 24 hrs
-const GO_UPSELL_PROVIDERS = new Set(["opencode", "opencode-go"])
+const GO_UPSELL_PROVIDERS = new Set(["NovaWay", "NovaWay-go"])
 
 function goUpsellKeys(status: SessionStatus) {
   if (status.type !== "retry" || !status.action) return

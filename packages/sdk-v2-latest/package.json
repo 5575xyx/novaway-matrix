@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "name": "@opencode-ai/sdk-v2-latest",
+  "name": "@novaway/sdk-v2-latest",
   "version": "1.18.18",
   "private": true,
   "type": "module",

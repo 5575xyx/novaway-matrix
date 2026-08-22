@@ -2,10 +2,10 @@ import { useFile } from "@/context/file"
 import { encodeFilePath } from "@/context/file/path"
 import { usePlatform } from "@/context/platform"
 import { useSDK } from "@/context/sdk"
-import { Collapsible } from "@opencode-ai/ui/collapsible"
-import { ContextMenu } from "@opencode-ai/ui/context-menu"
-import { FileIcon } from "@opencode-ai/ui/file-icon"
-import { Icon } from "@opencode-ai/ui/icon"
+import { Collapsible } from "@novaway/ui/collapsible"
+import { ContextMenu } from "@novaway/ui/context-menu"
+import { FileIcon } from "@novaway/ui/file-icon"
+import { Icon } from "@novaway/ui/icon"
 import {
   createEffect,
   createMemo,
@@ -20,7 +20,7 @@ import {
   type ParentProps,
 } from "solid-js"
 import { Dynamic } from "solid-js/web"
-import type { FileNode } from "@opencode-ai/sdk/v2"
+import type { FileNode } from "@novaway/sdk/v2"
 
 const MAX_DEPTH = 128
 

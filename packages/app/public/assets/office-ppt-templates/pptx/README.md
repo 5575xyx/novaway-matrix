@@ -5,7 +5,7 @@
 - `template.pptx`：PowerPoint 原生可编辑模板文件。
 - `preview/cover.jpg`、`preview/overview.jpg`、`preview/content.jpg`、`preview/cards.jpg`、`preview/data.jpg`、`preview/closing.jpg`：由 PowerPoint 直接从 `template.pptx` 导出的真实页面预览。
 
-模板通过开源库 `pptxgenjs` 生成，生成脚本位于 `packages/opencode/script/generate-real-ppt-templates.mjs`，预览渲染脚本位于 `script/render-real-ppt-previews.ps1`。
+模板通过开源库 `pptxgenjs` 生成，生成脚本位于 `packages/novaway/script/generate-real-ppt-templates.mjs`，预览渲染脚本位于 `script/render-real-ppt-previews.ps1`。
 
 这 20 套不是同一套版式换色。每套模板拥有独立的封面、目录、内容、卡片、数据和收尾组合；当前版式签名覆盖：封面 11 种、目录 10 种、内容 9 种、卡片 14 种、数据 7 种、收尾 7 种。
 

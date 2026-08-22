@@ -1,5 +1,5 @@
-import { Tooltip } from "@opencode-ai/ui/tooltip"
-import { useTheme, type ColorScheme } from "@opencode-ai/ui/theme/context"
+import { Tooltip } from "@novaway/ui/tooltip"
+import { useTheme, type ColorScheme } from "@novaway/ui/theme/context"
 
 export function ThemeSchemeToggle() {
   const theme = useTheme()

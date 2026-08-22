@@ -1,7 +1,7 @@
-import { getFilename } from "@opencode-ai/core/util/path"
-import { base64Encode } from "@opencode-ai/core/util/encode"
-import { Dialog } from "@opencode-ai/ui/dialog"
-import { Icon } from "@opencode-ai/ui/icon"
+import { getFilename } from "@novaway/core/util/path"
+import { base64Encode } from "@novaway/core/util/encode"
+import { Dialog } from "@novaway/ui/dialog"
+import { Icon } from "@novaway/ui/icon"
 import { createEffect, createMemo, createSignal, For, Show, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useNavigate } from "@solidjs/router"
@@ -10,7 +10,7 @@ import { DialogSelectDirectory } from "@/components/dialog-select-directory"
 import { useSDK } from "@/context/sdk"
 import { useServer } from "@/context/server"
 import { usePlatform } from "@/context/platform"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { useDialog } from "@novaway/ui/context/dialog"
 import {
   defaultOfficeHomeDraft,
   normalizeOfficeLaunchConfig,

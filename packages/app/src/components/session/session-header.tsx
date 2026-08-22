@@ -1,12 +1,12 @@
-import { AppIcon } from "@opencode-ai/ui/app-icon"
-import { Button } from "@opencode-ai/ui/button"
-import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
-import { Icon } from "@opencode-ai/ui/icon"
-import { IconButton } from "@opencode-ai/ui/icon-button"
-import { Keybind } from "@opencode-ai/ui/keybind"
-import { showToast } from "@opencode-ai/ui/toast"
-import { Tooltip, TooltipKeybind } from "@opencode-ai/ui/tooltip"
-import { getFilename } from "@opencode-ai/core/util/path"
+import { AppIcon } from "@novaway/ui/app-icon"
+import { Button } from "@novaway/ui/button"
+import { DropdownMenu } from "@novaway/ui/dropdown-menu"
+import { Icon } from "@novaway/ui/icon"
+import { IconButton } from "@novaway/ui/icon-button"
+import { Keybind } from "@novaway/ui/keybind"
+import { showToast } from "@novaway/ui/toast"
+import { Tooltip, TooltipKeybind } from "@novaway/ui/tooltip"
+import { getFilename } from "@novaway/core/util/path"
 import { createEffect, createMemo, createSignal, For, onMount, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Portal } from "solid-js/web"
@@ -273,9 +273,9 @@ export function SessionHeader() {
   const [sessionActionsMount, setSessionActionsMount] = createSignal<HTMLElement | null>(null)
   const [rightMount, setRightMount] = createSignal<HTMLElement | null>(null)
   onMount(() => {
-    setSearchMount(document.getElementById("opencode-titlebar-search"))
-    setSessionActionsMount(document.getElementById("opencode-titlebar-session-actions"))
-    setRightMount(document.getElementById("opencode-titlebar-right"))
+    setSearchMount(document.getElementById("NovaWay-titlebar-search"))
+    setSessionActionsMount(document.getElementById("NovaWay-titlebar-session-actions"))
+    setRightMount(document.getElementById("NovaWay-titlebar-right"))
   })
 
   return (

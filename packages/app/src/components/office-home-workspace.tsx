@@ -1,6 +1,6 @@
 import { createMemo, For, type JSX, Show } from "solid-js"
 import { createStore } from "solid-js/store"
-import { Icon } from "@opencode-ai/ui/icon"
+import { Icon } from "@novaway/ui/icon"
 import { OfficePlatformPanel } from "@/components/office-platform-panel"
 import { OfficeSceneSwitcher } from "@/components/office-scene-switcher"
 import { OfficeTemplateGallery } from "@/components/office-template-gallery"

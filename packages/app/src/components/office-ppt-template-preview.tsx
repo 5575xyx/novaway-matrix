@@ -1,5 +1,5 @@
 import { createMemo, For, Show } from "solid-js"
-import { Dialog } from "@opencode-ai/ui/dialog"
+import { Dialog } from "@novaway/ui/dialog"
 import {
   officePptTemplateDescription,
   officePptTemplateName,

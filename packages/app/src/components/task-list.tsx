@@ -1,5 +1,5 @@
 import { Show, For, createMemo } from "solid-js"
-import { Icon } from "@opencode-ai/ui/icon"
+import { Icon } from "@novaway/ui/icon"
 import { useLanguage } from "@/context/language"
 import { useGlobalSync } from "@/context/global-sync"
 import { useSessionLayout } from "@/pages/session/session-layout"

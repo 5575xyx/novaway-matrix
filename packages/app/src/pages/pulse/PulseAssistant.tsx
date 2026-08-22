@@ -3,13 +3,13 @@ import { createStore } from "solid-js/store"
 import { usePlatformAccounts } from "@/context/platform-accounts"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useModels } from "@/context/models"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
-import { DataProvider } from "@opencode-ai/ui/context"
-import { Message } from "@opencode-ai/ui/message-part"
-import { TypingIndicator } from "@opencode-ai/ui/typing-indicator"
+import { useDialog } from "@novaway/ui/context/dialog"
+import { DataProvider } from "@novaway/ui/context"
+import { Message } from "@novaway/ui/message-part"
+import { TypingIndicator } from "@novaway/ui/typing-indicator"
 import { PulseChatInput } from "./PulseChatInput"
 import { PublishModal } from "./PublishModal"
-import type { Message as MessageType, Part, Session, SessionStatus, SnapshotFileDiff } from "@opencode-ai/sdk/v2"
+import type { Message as MessageType, Part, Session, SessionStatus, SnapshotFileDiff } from "@novaway/sdk/v2"
 
 const SUGGESTIONS = [
   { icon: "📝", text: "生成小红书种草文案", desc: "根据关键词生成种草笔记" },
@@ -147,8 +147,8 @@ export function PulseAssistant() {
       let model: { providerID: string; modelID: string } | undefined
 
       if (autoMode) {
-        const opencodeModels = modelsCtx.list().filter((m) => m.provider.id === "opencode")
-        if (opencodeModels.length > 0) {
+        const NovaWayModels = modelsCtx.list().filter((m) => m.provider.id === "NovaWay")
+        if (NovaWayModels.length > 0) {
           const textLower = text.toLowerCase()
           const isCodeTask =
             textLower.includes("代码") ||
@@ -172,7 +172,7 @@ export function PulseAssistant() {
             textLower.includes("summarize")
           const isComplex = text.length > 500 || isCodeTask || isAnalysisTask
 
-          const scored = opencodeModels.map((m) => {
+          const scored = NovaWayModels.map((m) => {
             let score = 50
             const ctx = m.limit?.context ?? 0
             if (isCodeTask) score += 20

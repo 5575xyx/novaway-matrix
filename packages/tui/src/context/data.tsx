@@ -17,7 +17,7 @@ import type {
   SessionV2Info,
   SkillV2Info,
   V2Event,
-} from "@opencode-ai/sdk-v2-latest/v2"
+} from "@novaway/sdk-v2-latest/v2"
 import { createStore, produce } from "solid-js/store"
 import { createSimpleContext } from "./helper"
 import { useSDK } from "./sdk"

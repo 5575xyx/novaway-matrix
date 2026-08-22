@@ -1,11 +1,11 @@
 import { createEffect, createMemo, Show, untrack } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLocation, useNavigate } from "@solidjs/router"
-import { IconButton } from "@opencode-ai/ui/icon-button"
-import { Icon } from "@opencode-ai/ui/icon"
-import { Button } from "@opencode-ai/ui/button"
-import { Tooltip, TooltipKeybind } from "@opencode-ai/ui/tooltip"
-import { useTheme } from "@opencode-ai/ui/theme/context"
+import { IconButton } from "@novaway/ui/icon-button"
+import { Icon } from "@novaway/ui/icon"
+import { Button } from "@novaway/ui/button"
+import { Tooltip, TooltipKeybind } from "@novaway/ui/tooltip"
+import { useTheme } from "@novaway/ui/theme/context"
 
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
@@ -291,8 +291,8 @@ export function Titlebar(props: { settingsOpen?: boolean; databaseOpen?: boolean
                 </Button>
               </TooltipKeybind>
             </Show>
-            <div id="opencode-titlebar-session-actions" class="flex flex-row items-center gap-1 shrink-0" />
-            <div id="opencode-titlebar-search" class="ml-2 hidden min-w-0 shrink md:flex" />
+            <div id="NovaWay-titlebar-session-actions" class="flex flex-row items-center gap-1 shrink-0" />
+            <div id="NovaWay-titlebar-search" class="ml-2 hidden min-w-0 shrink md:flex" />
           </div>
         </div>
 
@@ -318,7 +318,7 @@ export function Titlebar(props: { settingsOpen?: boolean; databaseOpen?: boolean
           onMouseDown={drag}
         >
           <div class="flex items-center gap-1 shrink-0 justify-end">
-            <div id="opencode-titlebar-right" class="flex items-center gap-1 shrink-0 justify-end" />
+            <div id="NovaWay-titlebar-right" class="flex items-center gap-1 shrink-0 justify-end" />
             <CacheUsagePanel />
             <MemoryEvolutionPanel />
             <ThemeSchemeToggle />

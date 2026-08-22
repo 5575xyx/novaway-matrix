@@ -1,7 +1,7 @@
 import { createMemo, createSignal, For, Show } from "solid-js"
-import { Dialog } from "@opencode-ai/ui/dialog"
-import { Icon } from "@opencode-ai/ui/icon"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { Dialog } from "@novaway/ui/dialog"
+import { Icon } from "@novaway/ui/icon"
+import { useDialog } from "@novaway/ui/context/dialog"
 import { PLATFORM_LIST } from "@/context/platform-accounts"
 import { ConfirmDialog } from "@/components/dialog-confirm"
 

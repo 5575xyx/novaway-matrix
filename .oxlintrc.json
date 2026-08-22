@@ -54,6 +54,6 @@
     "**/.sst",
     "**/*.d.ts",
     "**/sdk.gen.ts",
-    "packages/opencode/src/office/pptx/vendor/**"
+    "packages/novaway/src/office/pptx/vendor/**"
   ]
 }

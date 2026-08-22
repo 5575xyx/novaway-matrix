@@ -1,7 +1,7 @@
 import { For, Show, createSignal, type JSX } from "solid-js"
-import { Icon } from "@opencode-ai/ui/icon"
-import { showToast } from "@opencode-ai/ui/toast"
-import { writeClipboard } from "@opencode-ai/ui/util/clipboard"
+import { Icon } from "@novaway/ui/icon"
+import { showToast } from "@novaway/ui/toast"
+import { writeClipboard } from "@novaway/ui/util/clipboard"
 import { usePlatform } from "@/context/platform"
 
 type GuideLink = {

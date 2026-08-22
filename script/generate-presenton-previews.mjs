@@ -6,7 +6,7 @@ import { templateV2UiToHtml } from "./vendor/presenton-template-v2-json-to-html.
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(scriptDir, "..")
-const templateRoot = resolve(repoRoot, "packages/opencode/src/skill/prompt/office-ppt/templates/presenton")
+const templateRoot = resolve(repoRoot, "packages/novaway/src/skill/prompt/office-ppt/templates/presenton")
 const outputRoot = resolve(repoRoot, "packages/app/public/assets/office-ppt-templates/presenton")
 const upstreamRoot = resolve(repoRoot, ".tmp/presenton-upstream/servers/nextjs")
 const chartScript = join(upstreamRoot, "public/vendor/chart-4.5.1.umd.min.js")

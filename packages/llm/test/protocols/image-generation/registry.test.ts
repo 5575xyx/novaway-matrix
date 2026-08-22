@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import { ProtocolRegistry } from "@opencode-ai/llm/protocols"
-import { agnesImage } from "@opencode-ai/llm/protocols/image-generation/agnes"
-import { sensenovaImage } from "@opencode-ai/llm/protocols/image-generation/sensenova"
+import { ProtocolRegistry } from "@novaway/llm/protocols"
+import { agnesImage } from "@novaway/llm/protocols/image-generation/agnes"
+import { sensenovaImage } from "@novaway/llm/protocols/image-generation/sensenova"
 
 ProtocolRegistry.registerImageProtocol("agnes", agnesImage)
 ProtocolRegistry.registerImageProtocol("sensenova", sensenovaImage)

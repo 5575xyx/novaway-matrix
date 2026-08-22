@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { Effect, Layer } from "effect"
 import { HttpClient, HttpClientError, HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
-import { VideoGeneration } from "@opencode-ai/llm/protocols/video-generation"
-import { agnesVideo } from "@opencode-ai/llm/protocols/video-generation/agnes"
+import { VideoGeneration } from "@novaway/llm/protocols/video-generation"
+import { agnesVideo } from "@novaway/llm/protocols/video-generation/agnes"
 
 const mockHttpClient = (requests: Array<{ url: string; method: string }>) =>
   Layer.succeed(

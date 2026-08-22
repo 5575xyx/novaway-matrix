@@ -113,8 +113,8 @@ const icons = {
   table: `<path d="M2.5 4.58333C2.5 3.57149 3.32149 2.75 4.33333 2.75H15.6667C16.6785 2.75 17.5 3.57149 17.5 4.58333V15.4167C17.5 16.4285 16.6785 17.25 15.6667 17.25H4.33333C3.32149 17.25 2.5 16.4285 2.5 15.4167V4.58333ZM2.5 8.25H17.5M2.5 12.75H17.5M8.75 2.75V17.25" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>`,
 }
 
-const spriteID = "opencode-icon-sprite"
-const symbol = (name: keyof typeof icons) => `opencode-icon-${name}`
+const spriteID = "NovaWay-icon-sprite"
+const symbol = (name: keyof typeof icons) => `NovaWay-icon-${name}`
 let spriteInserted = false
 
 function viewBox(name: keyof typeof icons) {

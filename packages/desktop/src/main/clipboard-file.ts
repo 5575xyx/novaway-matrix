@@ -69,7 +69,7 @@ export async function downloadUrlToTempFile(url: string, filename: string): Prom
     const response = await fetch(url)
     if (!response.ok) return null
     const buffer = Buffer.from(await response.arrayBuffer())
-    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "opencode-clipboard-"))
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "NovaWay-clipboard-"))
     const ext = path.extname(filename) || ".mp4"
     const base = path.basename(filename, ext) || "video"
     const targetPath = path.join(tmpDir, `${base}${ext}`)

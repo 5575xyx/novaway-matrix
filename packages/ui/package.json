@@ -1,5 +1,5 @@
 {
-  "name": "@opencode-ai/ui",
+  "name": "@novaway/ui",
   "version": "1.0.0",
   "type": "module",
   "license": "MIT",
@@ -47,8 +47,8 @@
   },
   "dependencies": {
     "@kobalte/core": "catalog:",
-    "@opencode-ai/sdk": "workspace:*",
-    "@opencode-ai/core": "workspace:*",
+    "@novaway/sdk": "workspace:*",
+    "@novaway/core": "workspace:*",
     "@pierre/diffs": "catalog:",
     "@shikijs/transformers": "3.9.2",
     "@solid-primitives/bounds": "0.1.3",

@@ -17,10 +17,10 @@ export function TestTuiContexts(
   return (
     <TuiPathsProvider
       value={{
-        cwd: props.cwd ?? props.directory ?? "/tmp/opencode/packages/tui",
-        home: "/tmp/opencode/home",
-        state: "/tmp/opencode/state",
-        worktree: "/tmp/opencode",
+        cwd: props.cwd ?? props.directory ?? "/tmp/NovaWay/packages/tui",
+        home: "/tmp/NovaWay/home",
+        state: "/tmp/NovaWay/state",
+        worktree: "/tmp/NovaWay",
         ...props.paths,
       }}
     >

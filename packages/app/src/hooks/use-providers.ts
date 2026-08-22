@@ -38,7 +38,7 @@ export function useProviders() {
     paid: () => {
       const connected = new Set(providers().connected)
       return providers().all.filter(
-        (p) => connected.has(p.id) && (p.id !== "opencode" || Object.values(p.models).some((m) => m.cost?.input)),
+        (p) => connected.has(p.id) && (p.id !== "NovaWay" || Object.values(p.models).some((m) => m.cost?.input)),
       )
     },
   }

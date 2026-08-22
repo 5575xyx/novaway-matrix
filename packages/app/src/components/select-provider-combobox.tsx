@@ -1,8 +1,8 @@
 import { createMemo, createSignal, Show, splitProps, type ComponentProps } from "solid-js"
 import { pipe, groupBy, entries, map } from "remeda"
-import { Icon } from "@opencode-ai/ui/icon"
-import { Tag } from "@opencode-ai/ui/tag"
-import { ProviderIcon } from "@opencode-ai/ui/provider-icon"
+import { Icon } from "@novaway/ui/icon"
+import { Tag } from "@novaway/ui/tag"
+import { ProviderIcon } from "@novaway/ui/provider-icon"
 import { useLanguage } from "@/context/language"
 import { popularProviders, useProviders } from "@/hooks/use-providers"
 import { useGlobalSDK } from "@/context/global-sdk"
@@ -36,7 +36,7 @@ export function SelectProviderCombobox(props: Props) {
     if (id === "anthropic") return language.t("dialog.provider.anthropic.note")
     if (id === "openai") return language.t("dialog.provider.openai.note")
     if (id.startsWith("github-copilot")) return language.t("dialog.provider.copilot.note")
-    if (id === "opencode-go") return language.t("dialog.provider.opencodeGo.tagline")
+    if (id === "NovaWay-go") return language.t("dialog.provider.NovaWayGo.tagline")
     if (id === "ollama") return language.t("dialog.provider.ollama.note")
   }
 
@@ -148,16 +148,16 @@ export function SelectProviderCombobox(props: Props) {
                   >
                     <ProviderIcon id={option.id} />
                     <span class="flex-1 text-14-regular text-text-strong">{option.name}</span>
-                    {option.id === "opencode" && (
+                    {option.id === "NovaWay" && (
                       <>
                         <div class="text-14-regular text-text-weak">
-                          {language.t("dialog.provider.opencode.tagline")}
+                          {language.t("dialog.provider.NovaWay.tagline")}
                         </div>
                         <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
                       </>
                     )}
                     {note(option.id) && <div class="text-14-regular text-text-weak">{note(option.id)}</div>}
-                    {option.id === "opencode-go" && <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>}
+                    {option.id === "NovaWay-go" && <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>}
                     {local.current?.id === option.id && <Icon name="check-small" size="small" class="text-text-weak" />}
                   </button>
                 ))}

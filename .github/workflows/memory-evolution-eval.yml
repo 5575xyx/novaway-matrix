@@ -30,17 +30,17 @@ jobs:
         uses: ./.github/actions/setup-bun
 
       - name: Run memory eval
-        working-directory: packages/opencode
+        working-directory: packages/novaway
         run: bun run eval:memory
 
       - name: Run task comparison eval
-        working-directory: packages/opencode
+        working-directory: packages/novaway
         run: bun run eval:task
 
       - name: Run memory relation eval
-        working-directory: packages/opencode
+        working-directory: packages/novaway
         run: bun run eval:memory-relations
 
       - name: Run evolution eval
-        working-directory: packages/opencode
+        working-directory: packages/novaway
         run: bun run eval:evolution

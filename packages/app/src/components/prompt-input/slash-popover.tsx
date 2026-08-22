@@ -1,7 +1,7 @@
 import { Component, For, Match, Show, Switch } from "solid-js"
-import { FileIcon } from "@opencode-ai/ui/file-icon"
-import { Icon } from "@opencode-ai/ui/icon"
-import { getDirectory, getFilename } from "@opencode-ai/core/util/path"
+import { FileIcon } from "@novaway/ui/file-icon"
+import { Icon } from "@novaway/ui/icon"
+import { getDirectory, getFilename } from "@novaway/core/util/path"
 
 export type AtOption =
   | { type: "category"; category: "rule" | "agent"; display: string; description: string }

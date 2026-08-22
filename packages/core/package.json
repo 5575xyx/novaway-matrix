@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "version": "1.0.0",
-  "name": "@opencode-ai/core",
+  "name": "@novaway/core",
   "type": "module",
   "license": "MIT",
   "private": true,
@@ -9,9 +9,6 @@
     "test": "bun test",
     "test:ci": "mkdir -p .artifacts/unit && bun test --timeout 30000 --reporter=junit --reporter-outfile=.artifacts/unit/junit.xml",
     "typecheck": "tsgo --noEmit"
-  },
-  "bin": {
-    "opencode": "./bin/opencode"
   },
   "exports": {
     "./*": "./src/*.ts"

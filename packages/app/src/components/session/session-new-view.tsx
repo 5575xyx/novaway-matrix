@@ -6,7 +6,7 @@ import { useLayout } from "@/context/layout"
 import { useLocal } from "@/context/local"
 import { PromptInput } from "@/components/prompt-input"
 import { useOfficeAgent } from "@/pages/session/office-agent-context"
-import { Mark } from "@opencode-ai/ui/logo"
+import { Mark } from "@novaway/ui/logo"
 
 const ROOT_CLASS = "size-full flex flex-col"
 

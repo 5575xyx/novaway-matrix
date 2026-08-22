@@ -1,4 +1,4 @@
-import { resolveOpenAICompatibleEndpoint } from "@opencode-ai/core/openai-compatible"
+import { resolveOpenAICompatibleEndpoint } from "@novaway/core/openai-compatible"
 
 const PROVIDER_ID = /^[a-z0-9][a-z0-9-_]*$/
 const OPENAI_COMPATIBLE = "@ai-sdk/openai-compatible"

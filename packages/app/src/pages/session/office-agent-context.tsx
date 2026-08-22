@@ -1,6 +1,6 @@
 import { createEffect, createMemo } from "solid-js"
 import { createStore } from "solid-js/store"
-import { createSimpleContext } from "@opencode-ai/ui/context"
+import { createSimpleContext } from "@novaway/ui/context"
 import { useSDK } from "@/context/sdk"
 import { Persist, persisted } from "@/utils/persist"
 import {
