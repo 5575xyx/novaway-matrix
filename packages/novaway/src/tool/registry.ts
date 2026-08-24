@@ -1,4 +1,5 @@
 import { PlanExitTool } from "./plan"
+import { GoalTool } from "./goal"
 import { Session } from "@/session/session"
 import { QuestionTool } from "./question"
 import { ShellTool } from "./shell"
@@ -35,7 +36,7 @@ import { Config } from "@/config/config"
 import { ConfigMemory } from "@/config/memory"
 import { ConfigProvider } from "@/config/provider"
 import { ProtocolRegistry } from "@novaway/llm/protocols"
-import { type ToolContext as PluginToolContext, type ToolDefinition } from "@novaway/plugin"
+import { type ToolContext as PluginToolContext, type ToolDefinition } from "@opencode/plugin"
 import type { JSONSchema7, JSONSchema7Definition } from "@ai-sdk/provider"
 import { Schema } from "effect"
 import z from "zod"
@@ -75,6 +76,7 @@ import { BackgroundJob } from "@/background/job"
 import { SessionStatus } from "@/session/status"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Auth } from "@/auth"
+import { Goal } from "@/session/goal"
 
 const log = Log.create({ service: "tool.registry" })
 
@@ -130,6 +132,7 @@ export const layer: Layer.Layer<
   | RuntimeFlags.Service
   | Auth.Service
   | BrowserService.Service
+  | Goal.Service
 > = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -174,6 +177,7 @@ export const layer: Layer.Layer<
     const browserNetwork = yield* BrowserNetworkTool
     const browserAccessibility = yield* BrowserAccessibilityTool
     const browserClose = yield* BrowserCloseTool
+    const goal = yield* GoalTool
     const agent = yield* Agent.Service
 
     const state = yield* InstanceState.make<State>(
@@ -305,6 +309,7 @@ export const layer: Layer.Layer<
           browser_network: Tool.init(browserNetwork),
           browser_accessibility: Tool.init(browserAccessibility),
           browser_close: Tool.init(browserClose),
+          goal: Tool.init(goal),
         })
 
         return {
@@ -343,6 +348,7 @@ export const layer: Layer.Layer<
             tool.browser_network,
             tool.browser_accessibility,
             tool.browser_close,
+            tool.goal,
           ],
           task: tool.task,
           read: tool.read,
@@ -509,6 +515,7 @@ export const defaultLayer: Layer.Layer<Service> = Layer.suspend(() =>
       Layer.provide(BrowserService.defaultLayer),
       Layer.provide(RuntimeFlags.defaultLayer),
       Layer.provide(Auth.defaultLayer),
+      Layer.provide(Goal.defaultLayer),
     ),
 ) as Layer.Layer<Service>
 
