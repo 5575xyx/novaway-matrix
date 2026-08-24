@@ -1,5 +1,6 @@
 import { PlanExitTool } from "./plan"
 import { GoalTool } from "./goal"
+import { Service as WorkflowService } from "@/workflow/workflow"
 import { Session } from "@/session/session"
 import { QuestionTool } from "./question"
 import { ShellTool } from "./shell"
@@ -50,6 +51,7 @@ import * as Log from "@novaway/core/util/log"
 import { LspTool } from "./lsp"
 import * as Truncate from "./truncate"
 import { ApplyPatchTool } from "./apply_patch"
+import { WorkflowTool } from "./workflow"
 import { Glob } from "@novaway/core/util/glob"
 import path from "path"
 import { pathToFileURL } from "url"
@@ -133,6 +135,7 @@ export const layer: Layer.Layer<
   | Auth.Service
   | BrowserService.Service
   | Goal.Service
+  | WorkflowService
 > = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -178,6 +181,7 @@ export const layer: Layer.Layer<
     const browserAccessibility = yield* BrowserAccessibilityTool
     const browserClose = yield* BrowserCloseTool
     const goal = yield* GoalTool
+    const workflow = yield* WorkflowTool
     const agent = yield* Agent.Service
 
     const state = yield* InstanceState.make<State>(
@@ -310,6 +314,7 @@ export const layer: Layer.Layer<
           browser_accessibility: Tool.init(browserAccessibility),
           browser_close: Tool.init(browserClose),
           goal: Tool.init(goal),
+          workflow: Tool.init(workflow),
         })
 
         return {
@@ -349,6 +354,7 @@ export const layer: Layer.Layer<
             tool.browser_accessibility,
             tool.browser_close,
             tool.goal,
+            tool.workflow,
           ],
           task: tool.task,
           read: tool.read,
@@ -516,6 +522,7 @@ export const defaultLayer: Layer.Layer<Service> = Layer.suspend(() =>
       Layer.provide(RuntimeFlags.defaultLayer),
       Layer.provide(Auth.defaultLayer),
       Layer.provide(Goal.defaultLayer),
+      Layer.provide(WorkflowService.defaultLayer),
     ),
 ) as Layer.Layer<Service>
 
