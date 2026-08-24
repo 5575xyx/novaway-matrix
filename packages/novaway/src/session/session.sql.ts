@@ -145,3 +145,4 @@ export const PermissionTable = sqliteTable("permission", {
 
 export * as SessionCheckpoint from "./checkpoint.sql"
 export * as Goal from "./goal.sql"
+export * as Workflow from "../workflow/workflow.sql"
