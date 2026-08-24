@@ -48,6 +48,8 @@ import { SessionProcessor } from "./processor"
 import { Tool } from "@/tool/tool"
 import { Permission } from "@/permission"
 import { SessionStatus } from "./status"
+import { DreamService } from "./dream"
+import { DistillService } from "./distill"
 import { LLM } from "./llm"
 import { Memory } from "@/memory/service"
 import { injectMemoryContext } from "@/memory/context"
@@ -80,9 +82,30 @@ import { eq } from "@/storage/db"
 import * as Database from "@/storage/db"
 import { SessionTable } from "./session.sql"
 import { Auth } from "@/auth"
+import { GoalService } from "./goal"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
+
+const buildGoalContext = Effect.fn("SystemPrompt.buildGoalContext")(function* (
+  goalService: GoalService | undefined,
+  sessionId: string,
+) {
+  if (!goalService) return ""
+
+  const goals = yield* goalService.list(sessionId)
+
+  if (goals.length === 0) return ""
+
+  const activeGoals = goals.filter((g) => g.status === "in_progress" || g.status === "pending")
+  if (activeGoals.length === 0) return ""
+
+  const goalText = activeGoals
+    .map((g) => `- ${g.title} [${g.status}] ${g.progress}% 完成`)
+    .join("\n")
+
+  return `\n\n## 当前目标\n${goalText}\n\n请优先完成上述目标，或根据目标分解任务。`
+})
 
 const decodeMessageInfo = Schema.decodeUnknownExit(MessageV2.Info)
 const decodeMessagePart = Schema.decodeUnknownExit(MessageV2.Part)
@@ -288,6 +311,7 @@ export const layer = Layer.effect(
     const references = yield* Reference.Service
     const events = yield* EventV2Bridge.Service
     const flags = yield* RuntimeFlags.Service
+    const goalService = Option.getOrUndefined(yield* Effect.serviceOption(GoalService))
     const runner = Effect.fn("SessionPrompt.runner")(function* () {
       return yield* EffectBridge.make()
     })
@@ -1883,7 +1907,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           "候选必须提供 expectedOutcomes，即写盘后可通过内容检查验证的预期结果（2-5 条短句，必须出现在最终文件中）。",
           "kind 可以是 skill、agent、workflow、prompt、tool、project、strategy、habit、knowledge；后三类分别用于通用行为策略、个人流程和知识模板。",
           "scope 必须是 global 或 project：global 表示该候选是跨项目通用的能力（如通用技能、可复用工作流、全局提示词/工具），应写入全局配置；project 表示仅与当前项目相关（如项目规则、特定 Agent 行为、项目专属流程）。",
-          "当 kind=tool 时，content 优先给出可运行的 TypeScript 工具模块（export default tool({ description, args, execute })，可 import { tool } from @novaway/plugin）；若暂时只能给自然语言，也要写清工具用途、输入输出与执行步骤。",
+          "当 kind=tool 时，content 优先给出可运行的 TypeScript 工具模块（export default tool({ description, args, execute })，可 import { tool } from @opencode/plugin）；若暂时只能给自然语言，也要写清工具用途、输入输出与执行步骤。",
           "当 kind=workflow 或 prompt 时，content 应是可直接作为命令模板使用的 Markdown 流程/提示词。",
         ].join("\n"),
       ]
@@ -2305,6 +2329,8 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             const staticSystem = [...instructionParts.always, ...(skills ? [skills] : [])].filter(Boolean).join("\n\n")
             const dynamicSystem = [...instructionParts.triggered, ...env].filter(Boolean).join("\n\n")
             const system = [staticSystem, dynamicSystem].filter(Boolean)
+            const goalContext = yield* buildGoalContext(goalService, sessionID).pipe(Effect.catch(() => Effect.succeed("")))
+            if (goalContext) system.push(goalContext)
             const format = lastUser.format ?? { type: "text" as const }
             if (format.type === "json_schema") system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)
             const result = yield* handle.process({
@@ -2471,6 +2497,18 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         }
 
         yield* compaction.prune({ sessionID }).pipe(Effect.ignore, Effect.forkIn(scope))
+
+        // Dream/Distill 自我改进集成
+        yield* Effect.either(
+          Effect.gen(function* () {
+            const dream = yield* DreamService
+            const distill = yield* DistillService
+            const analysis = yield* dream.analyzeSession(sessionID)
+            const distillResult = yield* distill.fromAnalysis(analysis)
+            yield* distill.applyMemories(distillResult)
+          }),
+        ).pipe(Effect.ignore, Effect.forkIn(scope))
+
         return yield* lastAssistant(sessionID)
       },
     )
