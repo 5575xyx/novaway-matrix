@@ -103,6 +103,7 @@ export const TodoTable = sqliteTable(
       .$type<SessionID>()
       .notNull()
       .references(() => SessionTable.id, { onDelete: "cascade" }),
+    goal_id: text("goal_id"),
     content: text().notNull(),
     status: text().notNull(),
     priority: text().notNull(),
@@ -141,3 +142,6 @@ export const PermissionTable = sqliteTable("permission", {
   ...Timestamps,
   data: text({ mode: "json" }).notNull().$type<Permission.Ruleset>(),
 })
+
+export * as SessionCheckpoint from "./checkpoint.sql"
+export * as Goal from "./goal.sql"
