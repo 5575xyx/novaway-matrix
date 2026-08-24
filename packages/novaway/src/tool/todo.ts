@@ -12,6 +12,7 @@ const TodoItem = Schema.Struct({
     description: "Current status of the task: pending, in_progress, completed, cancelled",
   }),
   priority: Schema.String.annotate({ description: "Priority level of the task: high, medium, low" }),
+  goalId: Schema.optional(Schema.String.annotate({ description: "ID of the goal this todo is associated with" })),
 })
 
 export const Parameters = Schema.Struct({
