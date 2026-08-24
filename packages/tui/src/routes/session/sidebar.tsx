@@ -14,6 +14,7 @@ import { MemoryPanel } from "../../component/memory-panel"
 import { EvolutionPanel } from "../../component/evolution-panel"
 import { CheckpointPanel } from "../../component/checkpoint-panel"
 import { GoalPanel } from "../../component/goal-panel"
+import { WorkflowPanel } from "../../component/workflow-panel"
 
 export interface SidebarProps {
   sessionID: string
@@ -22,7 +23,7 @@ export interface SidebarProps {
   onFileDoubleClick?: (filePath: string) => void
 }
 
-type SidebarTab = "files" | "info" | "memory" | "evolution" | "checkpoint" | "goal"
+type SidebarTab = "files" | "info" | "memory" | "evolution" | "checkpoint" | "goal" | "workflow"
 
 export function Sidebar(props: SidebarProps) {
   const pluginRuntime = usePluginRuntime()
@@ -90,6 +91,12 @@ export function Sidebar(props: SidebarProps) {
             onMouseUp={() => setActiveTab("goal")}
           >
             🎯 目标
+          </text>
+          <text
+            fg={activeTab() === "workflow" ? theme.primary : theme.textMuted}
+            onMouseUp={() => setActiveTab("workflow")}
+          >
+            🔄 工作流
           </text>
         </box>
 
@@ -239,6 +246,24 @@ export function Sidebar(props: SidebarProps) {
           >
             <box flexShrink={0} gap={1} paddingRight={1}>
               <GoalPanel sessionID={props.sessionID} />
+            </box>
+          </scrollbox>
+        </Show>
+
+        {/* 工作流标签页 */}
+        <Show when={activeTab() === "workflow"}>
+          <scrollbox
+            flexGrow={1}
+            scrollAcceleration={scrollAcceleration()}
+            verticalScrollbarOptions={{
+              trackOptions: {
+                backgroundColor: theme.background,
+                foregroundColor: theme.borderActive,
+              },
+            }}
+          >
+            <box flexShrink={0} gap={1} paddingRight={1}>
+              <WorkflowPanel sessionID={props.sessionID} />
             </box>
           </scrollbox>
         </Show>
