@@ -3,6 +3,7 @@ import { HttpApi } from "effect/unstable/httpapi"
 import { BusEvent } from "@/bus/bus-event"
 import { SyncEvent } from "@/sync"
 import { ChatApi } from "./groups/chat"
+import { CheckpointApi } from "./groups/checkpoint"
 import { ConfigApi } from "./groups/config"
 import { ControlApi } from "./groups/control"
 import { EventApi } from "./groups/event"
@@ -28,6 +29,8 @@ import { TuiApi } from "./groups/tui"
 import { VideosApi } from "./groups/videos"
 import { WorkspaceApi } from "./groups/workspace"
 import { V2Api } from "./groups/v2"
+import { GoalApi } from "./groups/goal"
+import { WorkflowApi } from "./groups/workflow"
 import { Authorization } from "./middleware/authorization"
 import { SchemaErrorMiddleware } from "./middleware/schema-error"
 
@@ -43,6 +46,7 @@ export const RootHttpApi = HttpApi.make("NovaWay-root")
 
 export const InstanceHttpApi = HttpApi.make("NovaWay-instance")
   .addHttpApi(ChatApi)
+  .addHttpApi(CheckpointApi)
   .addHttpApi(ConfigApi)
   .addHttpApi(ExperimentalApi)
   .addHttpApi(EvolutionApi)
@@ -65,6 +69,8 @@ export const InstanceHttpApi = HttpApi.make("NovaWay-instance")
   .addHttpApi(VideosApi)
   .addHttpApi(TuiApi)
   .addHttpApi(WorkspaceApi)
+  .addHttpApi(GoalApi)
+  .addHttpApi(WorkflowApi)
   .middleware(SchemaErrorMiddleware)
 
 export const NovaWayHttpApi = HttpApi.make("novaway")

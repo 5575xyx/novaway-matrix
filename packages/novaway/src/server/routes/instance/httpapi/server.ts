@@ -44,6 +44,8 @@ import { SessionRunState } from "@/session/run-state"
 import { SessionStatus } from "@/session/status"
 import { SessionSummary } from "@/session/summary"
 import { Todo } from "@/session/todo"
+import { Goal } from "@/session/goal"
+import { defaultLayer as WorkflowDefaultLayer } from "@/workflow/workflow"
 import { SessionShare } from "@/share/session"
 import { ShareNext } from "@/share/share-next"
 import { EventV2Bridge } from "@/event-v2-bridge"
@@ -64,6 +66,7 @@ import { authorizationLayer, authorizationRouterMiddleware } from "./middleware/
 import { EventApi } from "./groups/event"
 import { eventHandlers } from "./handlers/event"
 import { chatHandlers } from "./handlers/chat"
+import { checkpointHandlers } from "./handlers/checkpoint"
 import { configHandlers } from "./handlers/config"
 import { controlHandlers } from "./handlers/control"
 import { experimentalHandlers } from "./handlers/experimental"
@@ -88,6 +91,8 @@ import { v2Handlers } from "./handlers/v2"
 import { workspaceHandlers } from "./handlers/workspace"
 import { imagesHandlers } from "./handlers/images"
 import { videosHandlers } from "./handlers/videos"
+import { goalHandlers } from "./handlers/goal"
+import { workflowHandlers } from "./handlers/workflow"
 import { instanceContextLayer, instanceRouterMiddleware } from "./middleware/instance-context"
 import { workspaceRouterMiddleware, workspaceRoutingLayer } from "./middleware/workspace-routing"
 import { disposeMiddleware } from "./lifecycle"
@@ -135,6 +140,7 @@ const eventApiRoutes = HttpApiBuilder.layer(EventApi).pipe(
 const instanceApiRoutes = HttpApiBuilder.layer(InstanceHttpApi).pipe(
   Layer.provide([
     chatHandlers,
+    checkpointHandlers,
     configHandlers,
     experimentalHandlers,
     evolutionHandlers,
@@ -157,6 +163,8 @@ const instanceApiRoutes = HttpApiBuilder.layer(InstanceHttpApi).pipe(
     videosHandlers,
     tuiHandlers,
     workspaceHandlers,
+    goalHandlers,
+    workflowHandlers,
   ]),
 )
 
@@ -247,6 +255,8 @@ export function createRoutes(
       Layer.mergeAll(Bus.layer, Evolution.layer, Memory.layer).pipe(Layer.provide(Bus.layer)),
       Skill.defaultLayer,
       Todo.defaultLayer,
+      Goal.defaultLayer,
+      WorkflowDefaultLayer,
       ToolRegistry.defaultLayer,
       Vcs.defaultLayer,
       Workspace.defaultLayer,
