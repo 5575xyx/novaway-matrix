@@ -10,7 +10,7 @@ import { MessageV2 } from "@/session/message-v2"
 import { SessionID } from "@/session/schema"
 
 export const Parameters = Schema.Struct({
-  action: Schema.Literal(
+  action: Schema.Literals([
     "create",
     "create_from_template",
     "list",
@@ -20,7 +20,7 @@ export const Parameters = Schema.Struct({
     "pause",
     "resume",
     "templates",
-  ),
+  ]),
   workflowId: Schema.optional(Schema.String).annotate({ description: "工作流ID" }),
   name: Schema.optional(Schema.String).annotate({ description: "工作流名称" }),
   description: Schema.optional(Schema.String).annotate({ description: "工作流描述" }),

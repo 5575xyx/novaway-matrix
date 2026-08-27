@@ -179,9 +179,9 @@ export const layer = Layer.effect(
 
     const getByGoal = Effect.fn("Todo.getByGoal")(function* (goalId: string) {
       const rows = yield* Effect.sync(() =>
-        Database.use((db) => db.select().from(TodoTable).where(eq(TodoTable.goal_id, goalId))),
+        Database.use((db) => db.select().from(TodoTable).where(eq(TodoTable.goal_id, goalId)).all()),
       )
-      return rows.map((row) => ({
+      return rows.map((row: any) => ({
         content: row.content,
         status: row.status,
         priority: row.priority,

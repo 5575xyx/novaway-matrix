@@ -146,7 +146,7 @@ describe("workflow executor", () => {
     const workflow = makeWorkflow(steps)
     const runRow = makeRun()
     const { service, calls } = makeFakeService(runRow)
-    const runAgent: RunAgent = () => Effect.fail(new Error("agent blew up"))
+    const runAgent: RunAgent = (() => Effect.fail(new Error("agent blew up")) as any) as RunAgent
 
     const final = await run(executeRun({ workflow, run: runRow, runAgent, defaultAgent: "build", service }))
 

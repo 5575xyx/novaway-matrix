@@ -471,12 +471,12 @@ export const layer = Layer.effect(
       })
     })
 
-    const createComposition = Effect.fn("Skill.createComposition")(function* (input: {
+    const createComposition = (input: {
       name: string
       description: string
       skills: string[]
       config?: Record<string, any>
-    }) {
+    }): Effect.Effect<SkillComposition, never, never> => {
       const composition: SkillComposition = {
         id: Date.now().toString(36) + Math.random().toString(36).slice(2),
         name: input.name,
@@ -485,25 +485,25 @@ export const layer = Layer.effect(
         config: input.config ?? {},
         createdAt: new Date(),
       }
+      return loadCompositions().pipe(
+        Effect.flatMap((compositions) => {
+          compositions.push(composition)
+          return saveCompositions(compositions).pipe(Effect.as(composition))
+        }),
+        Effect.orDie
+      )
+    }
 
-      const compositions = yield* loadCompositions()
-      compositions.push(composition)
-      yield* saveCompositions(compositions)
-      return composition
-    })
+    const listCompositions = (): Effect.Effect<SkillComposition[], never, never> => loadCompositions()
 
-    const listCompositions = Effect.fn("Skill.listCompositions")(function* () {
-      return yield* loadCompositions()
-    })
-
-    const getComposition = Effect.fn("Skill.getComposition")(function* (compositionId: string) {
+    const getComposition = (compositionId: string): Effect.Effect<SkillComposition | null, never, never> => Effect.gen(function* () {
       const compositions = yield* loadCompositions()
       return compositions.find((c) => c.id === compositionId) ?? null
     })
 
-    const executeComposition = Effect.fn("Skill.executeComposition")(function* (compositionId: string, context: Record<string, any>) {
+    const executeComposition = (compositionId: string, context: Record<string, any>): Effect.Effect<void, never, never> => Effect.gen(function* () {
       const composition = yield* getComposition(compositionId)
-      if (!composition) return yield* Effect.fail(new Error("Composition not found"))
+      if (!composition) return yield* Effect.die(new Error("Composition not found"))
 
       for (const skillId of composition.skills) {
         const skill = yield* get(skillId)

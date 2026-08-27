@@ -1,18 +1,19 @@
 import { Schema } from "effect"
-import { HttpApiEndpoint, HttpApiGroup } from "effect/unstable/httpapi"
-import { described } from "./metadata"
+import { HttpApiEndpoint, HttpApiError, HttpApiGroup } from "effect/unstable/httpapi"
 
 const root = "/session/:sessionId/goals"
 
 export const GoalApi = HttpApiGroup.make("goal")
   .add(
     HttpApiEndpoint.get("listGoals", root, {
+      params: { sessionId: Schema.String },
       success: Schema.Array(Schema.Any),
       error: Schema.Never,
     }),
   )
   .add(
     HttpApiEndpoint.post("createGoal", root, {
+      params: { sessionId: Schema.String },
       payload: Schema.Struct({
         title: Schema.String,
         description: Schema.optional(Schema.String),
@@ -28,12 +29,14 @@ export const GoalApi = HttpApiGroup.make("goal")
   )
   .add(
     HttpApiEndpoint.get("getGoal", "/goals/:goalId", {
+      params: { goalId: Schema.String },
       success: Schema.Any,
-      error: Schema.Never,
+      error: HttpApiError.NotFound,
     }),
   )
   .add(
     HttpApiEndpoint.patch("updateGoal", "/goals/:goalId", {
+      params: { goalId: Schema.String },
       payload: Schema.Struct({
         title: Schema.optional(Schema.String),
         description: Schema.optional(Schema.String),
@@ -49,13 +52,16 @@ export const GoalApi = HttpApiGroup.make("goal")
   )
   .add(
     HttpApiEndpoint.delete("deleteGoal", "/goals/:goalId", {
+      params: { goalId: Schema.String },
       success: Schema.Any,
       error: Schema.Never,
     }),
   )
   .add(
     HttpApiEndpoint.get("getGoalProgress", "/goals/:goalId/progress", {
+      params: { goalId: Schema.String },
       success: Schema.Any,
       error: Schema.Never,
     }),
   )
+

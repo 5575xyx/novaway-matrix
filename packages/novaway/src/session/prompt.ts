@@ -97,11 +97,11 @@ const buildGoalContext = Effect.fn("SystemPrompt.buildGoalContext")(function* (
 
   if (goals.length === 0) return ""
 
-  const activeGoals = goals.filter((g) => g.status === "in_progress" || g.status === "pending")
+  const activeGoals = goals.filter((g: any) => g.status === "in_progress" || g.status === "pending")
   if (activeGoals.length === 0) return ""
 
   const goalText = activeGoals
-    .map((g) => `- ${g.title} [${g.status}] ${g.progress}% 完成`)
+    .map((g: any) => `- ${g.title} [${g.status}] ${g.progress}% 完成`)
     .join("\n")
 
   return `\n\n## 当前目标\n${goalText}\n\n请优先完成上述目标，或根据目标分解任务。`
@@ -2065,7 +2065,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       return result as Schema.Schema.Type<typeof GoalJudgeResult>
     })
 
-    const prompt: (input: PromptInput) => Effect.Effect<MessageV2.WithParts, Image.Error> = Effect.fn(
+    const prompt: (input: PromptInput) => Effect.Effect<MessageV2.WithParts, Image.Error, never> = Effect.fn(
       "SessionPrompt.prompt",
     )(function* (input: PromptInput) {
       const session = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
@@ -2146,13 +2146,13 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         .pipe(Effect.map((text) => text.trim()))
     })
 
-    const runLoop: (sessionID: SessionID) => Effect.Effect<MessageV2.WithParts> = Effect.fn("SessionPrompt.run")(
-      function* (sessionID: SessionID) {
-        const ctx = yield* InstanceState.context
-        const slog = elog.with({ sessionID })
-        let structured: unknown
-        let step = 0
+    const runLoop: (sessionID: SessionID) => Effect.Effect<MessageV2.WithParts, never, never> = (Effect.fn("SessionPrompt.run")(function* (sessionID: SessionID) {
+      const ctx = yield* InstanceState.context
+      const slog = elog.with({ sessionID })
+      let structured: unknown
+      let step = 0
         const session = yield* sessions.get(sessionID).pipe(Effect.orDie)
+        let loopModel: Provider.Model | undefined = undefined
 
         while (true) {
           yield* status.set(sessionID, { type: "busy" })
@@ -2194,6 +2194,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             }).pipe(Effect.ignore, Effect.forkIn(scope))
 
           const model = yield* getModel(lastUser.model.providerID, lastUser.model.modelID, sessionID)
+          loopModel = model
           // 媒体模型必须使用持久化的用户输入，而不是为聊天模型追加的提醒或插件注入内容。
           const media = LLM.mediaInput(
             msgs.findLast((message) => message.info.role === "user" && message.info.id === lastUser.id)?.parts ?? [],
@@ -2591,35 +2592,28 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         {
           const dreamCfg = ConfigDream.resolve((yield* config.get()).dream)
           if (dreamCfg.enabled && dreamCfg.interval > 0 && dreamDue(sessionID, dreamCfg.interval)) {
-            yield* Effect.either(
-              Effect.gen(function* () {
-                const { DreamService } = yield* Effect.tryPromise({
-                  try: () => import("./dream"),
-                  catch: () => ({ DreamService: undefined as any }),
-                }).pipe(Effect.catch(() => Effect.succeed({ DreamService: undefined })))
-                const { DistillService } = yield* Effect.tryPromise({
-                  try: () => import("./distill"),
-                  catch: () => ({ DistillService: undefined as any }),
-                }).pipe(Effect.catch(() => Effect.succeed({ DistillService: undefined })))
-                if (!DreamService || !DistillService) return
-                const dream = yield* DreamService
-                const distill = yield* DistillService
-                const analysis = yield* dream.analyzeSession(sessionID, model)
+            const capturedModel = loopModel
+            if (capturedModel) {
+              yield* Effect.gen(function* () {
+                const dreamModule = yield* Effect.tryPromise(() => import("./dream"))
+                const distillModule = yield* Effect.tryPromise(() => import("./distill"))
+                const dream = yield* dreamModule.Service
+                const distill = yield* distillModule.Service
+                const analysis = yield* dream.analyzeSession(sessionID, capturedModel)
                 const distillResult = yield* distill.fromAnalysis(analysis)
                 yield* distill.applyMemories(distillResult)
-              }),
-            ).pipe(Effect.ignore, Effect.forkIn(scope))
+              }).pipe(Effect.catch(() => Effect.void), Effect.forkIn(scope))
+            }
           }
         }
 
         return yield* lastAssistant(sessionID)
-      },
-    )
+      } as any)) as any
 
-    const loop: (input: LoopInput) => Effect.Effect<MessageV2.WithParts> = Effect.fn("SessionPrompt.loop")(function* (
+    const loop: (input: LoopInput) => Effect.Effect<MessageV2.WithParts, never, never> = Effect.fn("SessionPrompt.loop")(function* (
       input: LoopInput,
     ) {
-      let result = yield* state.ensureRunning(input.sessionID, lastAssistant(input.sessionID), runLoop(input.sessionID))
+      let result = yield* state.ensureRunning(input.sessionID, lastAssistant(input.sessionID), runLoop(input.sessionID) as any)
 
       // 目标驱动自主循环:每轮结束后用裁判模型判断活动目标是否达成,未达成则
       // 顺序(不 fork)追加一轮,受硬性 max_iterations 上限约束防跑飞。默认关闭。

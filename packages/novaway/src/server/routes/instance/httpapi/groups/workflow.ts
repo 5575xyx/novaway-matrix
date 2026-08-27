@@ -1,18 +1,19 @@
 import { Schema } from "effect"
-import { HttpApiEndpoint, HttpApiGroup } from "effect/unstable/httpapi"
-import { described } from "./metadata"
+import { HttpApiEndpoint, HttpApiError, HttpApiGroup } from "effect/unstable/httpapi"
 
 const root = "/session/:sessionId/workflows"
 
 export const WorkflowApi = HttpApiGroup.make("workflow")
   .add(
     HttpApiEndpoint.get("listWorkflows", root, {
+      params: { sessionId: Schema.String },
       success: Schema.Array(Schema.Any),
       error: Schema.Never,
     }),
   )
   .add(
     HttpApiEndpoint.post("createWorkflow", root, {
+      params: { sessionId: Schema.String },
       payload: Schema.Struct({
         name: Schema.String,
         description: Schema.optional(Schema.String),
@@ -33,12 +34,14 @@ export const WorkflowApi = HttpApiGroup.make("workflow")
   )
   .add(
     HttpApiEndpoint.get("getWorkflow", "/workflows/:workflowId", {
+      params: { workflowId: Schema.String },
       success: Schema.Any,
-      error: Schema.Never,
+      error: HttpApiError.NotFound,
     }),
   )
   .add(
     HttpApiEndpoint.patch("updateWorkflow", "/workflows/:workflowId", {
+      params: { workflowId: Schema.String },
       payload: Schema.Struct({
         name: Schema.optional(Schema.String),
         description: Schema.optional(Schema.String),
@@ -51,18 +54,21 @@ export const WorkflowApi = HttpApiGroup.make("workflow")
   )
   .add(
     HttpApiEndpoint.delete("deleteWorkflow", "/workflows/:workflowId", {
+      params: { workflowId: Schema.String },
       success: Schema.Any,
       error: Schema.Never,
     }),
   )
   .add(
     HttpApiEndpoint.post("startWorkflow", "/workflows/:workflowId/start", {
+      params: { workflowId: Schema.String },
       success: Schema.Any,
-      error: Schema.Never,
+      error: HttpApiError.NotFound,
     }),
   )
   .add(
     HttpApiEndpoint.get("listWorkflowRuns", "/workflows/:workflowId/runs", {
+      params: { workflowId: Schema.String },
       success: Schema.Array(Schema.Any),
       error: Schema.Never,
     }),
@@ -75,12 +81,13 @@ export const WorkflowApi = HttpApiGroup.make("workflow")
   )
   .add(
     HttpApiEndpoint.post("createWorkflowFromTemplate", "/session/:sessionId/workflows/from-template", {
+      params: { sessionId: Schema.String },
       payload: Schema.Struct({
         template: Schema.String,
         name: Schema.optional(Schema.String),
         description: Schema.optional(Schema.String),
       }),
       success: Schema.Any,
-      error: Schema.Never,
+      error: HttpApiError.NotFound,
     }),
   )

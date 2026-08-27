@@ -1,5 +1,5 @@
 import { Schema } from "effect"
-import { HttpApiEndpoint, HttpApiGroup } from "effect/unstable/httpapi"
+import { HttpApiEndpoint, HttpApiError, HttpApiGroup } from "effect/unstable/httpapi"
 
 const root = "/session/:sessionId/orchestrator/plans"
 
@@ -13,12 +13,14 @@ const TaskInput = Schema.Struct({
 export const OrchestratorApi = HttpApiGroup.make("orchestrator")
   .add(
     HttpApiEndpoint.get("listOrchestratorPlans", root, {
+      params: { sessionId: Schema.String },
       success: Schema.Array(Schema.Any),
       error: Schema.Never,
     }),
   )
   .add(
     HttpApiEndpoint.post("createOrchestratorPlan", root, {
+      params: { sessionId: Schema.String },
       payload: Schema.Struct({
         name: Schema.String,
         tasks: Schema.Array(TaskInput),
@@ -29,19 +31,23 @@ export const OrchestratorApi = HttpApiGroup.make("orchestrator")
   )
   .add(
     HttpApiEndpoint.get("getOrchestratorPlan", "/orchestrator/plans/:planId", {
+      params: { planId: Schema.String },
       success: Schema.Any,
-      error: Schema.Never,
+      error: HttpApiError.NotFound,
     }),
   )
   .add(
     HttpApiEndpoint.post("executeOrchestratorPlan", "/orchestrator/plans/:planId/execute", {
+      params: { planId: Schema.String },
       success: Schema.Any,
-      error: Schema.Never,
+      error: HttpApiError.NotFound,
     }),
   )
   .add(
     HttpApiEndpoint.delete("deleteOrchestratorPlan", "/orchestrator/plans/:planId", {
+      params: { planId: Schema.String },
       success: Schema.Any,
       error: Schema.Never,
     }),
   )
+

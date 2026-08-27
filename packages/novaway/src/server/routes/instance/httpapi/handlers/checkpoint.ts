@@ -31,7 +31,7 @@ export const checkpointHandlers = HttpApiBuilder.group(InstanceHttpApi, "checkpo
     return handlers
       .handle("listCheckpoints", (ctx) =>
         Effect.gen(function* () {
-          const sessionId = SessionID.make(ctx.path.sessionId)
+          const sessionId = SessionID.make(ctx.params.sessionId)
           const checkpoints = yield* checkpoint.list(sessionId)
           return checkpoints.map((cp) => ({
             id: cp.id,
@@ -46,14 +46,14 @@ export const checkpointHandlers = HttpApiBuilder.group(InstanceHttpApi, "checkpo
       )
       .handle("createCheckpoint", (ctx) =>
         Effect.gen(function* () {
-          const sessionId = SessionID.make(ctx.path.sessionId)
-          const messages = yield* session.messages({ sessionID: sessionId })
-          const snapshotId = yield* snapshot.track()
+          const sessionId = SessionID.make(ctx.params.sessionId)
+          const messages = yield* session.messages({ sessionID: sessionId }).pipe(Effect.orDie)
+          const snapshotId = yield* snapshot.track().pipe(Effect.orDie)
           const result = yield* checkpoint.create({
             sessionId,
             name: ctx.payload.name,
             reason: ctx.payload.reason,
-            tags: ctx.payload.tags,
+            tags: ctx.payload.tags as string[] | undefined,
             messages,
             snapshot: snapshotId,
           })
@@ -70,7 +70,7 @@ export const checkpointHandlers = HttpApiBuilder.group(InstanceHttpApi, "checkpo
       )
       .handle("getCheckpoint", (ctx) =>
         Effect.gen(function* () {
-          const cp = yield* checkpoint.get(ctx.path.checkpointId)
+          const cp = yield* checkpoint.get(ctx.params.checkpointId)
           if (!cp) {
             return yield* Effect.fail(new HttpApiError.NotFound({}))
           }
@@ -87,13 +87,13 @@ export const checkpointHandlers = HttpApiBuilder.group(InstanceHttpApi, "checkpo
       )
       .handle("restoreCheckpoint", (ctx) =>
         Effect.gen(function* () {
-          const data = yield* checkpoint.restore(ctx.path.checkpointId)
+          const data = yield* checkpoint.restore(ctx.params.checkpointId)
           return data
         }),
       )
       .handle("deleteCheckpoint", (ctx) =>
         Effect.gen(function* () {
-          yield* checkpoint.delete(ctx.path.checkpointId)
+          yield* checkpoint.delete(ctx.params.checkpointId)
           return { success: true }
         }),
       )

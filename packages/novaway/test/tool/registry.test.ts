@@ -71,12 +71,12 @@ const registryLayer = (flags: Partial<RuntimeFlags.Info> = {}) =>
       Layer.provide(BrowserService.defaultLayer),
     )
 
-const it = testEffect(Layer.mergeAll(registryLayer(), node, Agent.defaultLayer, Auth.defaultLayer))
+const it = testEffect(Layer.mergeAll(registryLayer(), node, Agent.defaultLayer, Auth.defaultLayer) as any)
 const scout = testEffect(
-  Layer.mergeAll(registryLayer({ experimentalScout: true }), node, Agent.defaultLayer, Auth.defaultLayer),
+  Layer.mergeAll(registryLayer({ experimentalScout: true }), node, Agent.defaultLayer, Auth.defaultLayer) as any,
 )
 const background = testEffect(
-  Layer.mergeAll(registryLayer({ experimentalBackgroundSubagents: true }), node, Agent.defaultLayer, Auth.defaultLayer),
+  Layer.mergeAll(registryLayer({ experimentalBackgroundSubagents: true }), node, Agent.defaultLayer, Auth.defaultLayer) as any,
 )
 
 afterEach(async () => {
@@ -120,7 +120,7 @@ describe("tool.registry", () => {
       const build = yield* agent.get("build")
       if (!build) throw new Error("build agent not found")
       const task = (yield* registry.tools({
-        providerID: ProviderID.opencode,
+        providerID: ProviderID.NovaWay,
         modelID: ModelID.make("test"),
         agent: build,
       })).find((tool) => tool.id === "task")
@@ -256,7 +256,7 @@ describe("tool.registry", () => {
 
       const agents = yield* Agent.Service
       const promptTools = yield* registry.tools({
-        providerID: ProviderID.opencode,
+        providerID: ProviderID.NovaWay,
         modelID: ModelID.make("test"),
         agent: yield* agents.defaultInfo(),
       })

@@ -103,8 +103,8 @@ describe("orchestrator executePlan", () => {
 
   test("marks the plan failed but does not crash when a task errors", async () => {
     const sessionID = seedSession(`ses_orch_err_${Date.now()}`)
-    const runAgent: RunAgent = (input) =>
-      input.title === "bad" ? Effect.fail(new Error("task boom")) : Effect.succeed("ok")
+    const runAgent: RunAgent = ((input: any) =>
+      (input.title === "bad" ? Effect.fail(new Error("task boom")) : Effect.succeed("ok")) as any) as RunAgent
 
     const result = await runOrch(
       OrchestratorService.use((orch) =>

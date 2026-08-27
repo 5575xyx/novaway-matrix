@@ -2,11 +2,13 @@ import { createBindingLookup } from "@opentui/keymap/extras"
 import { TuiConfig } from "@/config/tui"
 import { TuiKeybind } from "@novaway/tui/config/keybind"
 
-type ResolvedInput = Omit<TuiConfig.Resolved, "attention" | "keybinds" | "leader_timeout" | "mouse"> & {
+type ResolvedInput = Omit<TuiConfig.Resolved, "attention" | "keybinds" | "leader_timeout" | "mouse" | "icons" | "default_agent"> & {
   attention?: Partial<TuiConfig.Resolved["attention"]>
   keybinds?: Partial<TuiKeybind.Keybinds>
   leader_timeout?: number
   mouse?: boolean
+  icons?: "nerdfont" | "emoji" | "ascii"
+  default_agent?: string
 }
 
 export function createTuiResolvedKeybinds(input: Partial<TuiKeybind.Keybinds> = {}): TuiConfig.Resolved["keybinds"] {
@@ -21,6 +23,8 @@ export function createTuiResolvedConfig(input: ResolvedInput = {}): TuiConfig.Re
   const keybinds = TuiKeybind.Keybinds.parse(input.keybinds ?? {})
   return {
     ...input,
+    icons: "nerdfont",
+    default_agent: "agents-orchestrator",
     mouse: true,
     attention: {
       enabled: false,

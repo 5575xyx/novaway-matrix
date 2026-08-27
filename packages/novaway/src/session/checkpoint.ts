@@ -52,7 +52,7 @@ export interface Interface {
   readonly delete: (checkpointId: string) => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Interface>()("@NovaWay/CheckpointService") {}
+export class Service extends Context.Service<Service, Interface>()("@NovaWay/CheckpointService") {}
 
 const generateId = () => `cp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
 
@@ -94,8 +94,8 @@ export const layer = Layer.effect(
               reason: checkpoint.reason,
               tags: checkpoint.tags,
               data: checkpoint.data as any,
-              created_at: checkpoint.createdAt.getTime(),
-              updated_at: checkpoint.updatedAt.getTime(),
+              created_at: checkpoint.createdAt,
+              updated_at: checkpoint.updatedAt,
             })
             .run(),
           ),
@@ -169,9 +169,9 @@ export const layer = Layer.effect(
         const restored = decodeMessages(data.messages)
         for (const msg of restored) {
           // 检查点来自同一会话,消息/部件的 sessionID、id 均保持不变,直接回写即为原地恢复。
-          yield* sessions.updateMessage(msg.info).pipe(Effect.orDie)
+          yield* sessions.updateMessage(msg.info as MessageV2.Info).pipe(Effect.orDie)
           for (const part of msg.parts) {
-            yield* sessions.updatePart(part).pipe(Effect.orDie)
+            yield* sessions.updatePart(part as MessageV2.Part).pipe(Effect.orDie)
           }
         }
 
@@ -215,8 +215,8 @@ export const layer = Layer.effect(
               reason: checkpoint.reason,
               tags: checkpoint.tags,
               data: checkpoint.data as any,
-              created_at: checkpoint.createdAt.getTime(),
-              updated_at: checkpoint.updatedAt.getTime(),
+              created_at: checkpoint.createdAt,
+              updated_at: checkpoint.updatedAt,
             })
             .run(),
           ),

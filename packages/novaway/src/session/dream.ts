@@ -1,6 +1,7 @@
 import { Context, Effect, Layer, Schema } from "effect"
 import { generateObject, type ModelMessage } from "ai"
-import { Session, type SessionID } from "./session"
+import { Session } from "./session"
+import type { SessionID } from "./schema"
 import { MessageV2 } from "./message-v2"
 import { Provider } from "@/provider/provider"
 
@@ -65,7 +66,7 @@ export interface Interface {
   readonly analyzeHistory: (model: Provider.Model, limit?: number) => Effect.Effect<DreamAnalysis[]>
 }
 
-export class Service extends Context.Service<Interface>()("@NovaWay/DreamService") {}
+export class Service extends Context.Service<Service, Interface>()("@NovaWay/DreamService") {}
 export { Service as DreamService }
 
 function textFromParts(parts: readonly MessageV2.Part[]) {
@@ -88,16 +89,13 @@ function transcript(messages: readonly MessageV2.WithParts[], maxChars = 12000) 
   return joined.length > maxChars ? joined.slice(joined.length - maxChars) : joined
 }
 
-export const layer = Layer.effect(
+export const layer: Layer.Layer<Service, never, Session.Service | Provider.Service> = Layer.effect(
   Service,
   Effect.gen(function* () {
     const session = yield* Session.Service
     const provider = yield* Provider.Service
 
-    const analyzeTranscript = Effect.fn("DreamService.analyzeTranscript")(function* (input: {
-      model: Provider.Model
-      transcript: string
-    }) {
+    const analyzeTranscript = (input: { model: Provider.Model; transcript: string }) => Effect.gen(function* () {
       const empty = {
         patterns: [] as DreamPattern[],
         insights: [] as DreamInsight[],
@@ -130,22 +128,22 @@ export const layer = Layer.effect(
           messages,
           schema: Object.assign(Schema.toStandardSchemaV1(DreamResult), Schema.toStandardJSONSchemaV1(DreamResult)),
         }).then((r) => r.object as Schema.Schema.Type<typeof DreamResult>),
-      ).pipe(Effect.catch(() => Effect.succeed(undefined)))
+      ).pipe(Effect.catch((err) => Effect.succeed(undefined)))
 
       if (!result) return empty
       return {
-        patterns: result.patterns.map((p) => ({
+        patterns: result.patterns.map((p: any) => ({
           type: p.type,
           description: p.description,
           frequency: p.frequency,
           examples: p.examples ? [...p.examples] : [],
         })),
-        insights: result.insights.map((i) => ({
+        insights: result.insights.map((i: any) => ({
           category: i.category,
           observation: i.observation,
           confidence: i.confidence,
         })),
-        suggestions: result.suggestions.map((s) => ({
+        suggestions: result.suggestions.map((s: any) => ({
           type: s.type,
           title: s.title,
           description: s.description,
@@ -155,7 +153,7 @@ export const layer = Layer.effect(
     })
 
     return {
-      analyzeSession: Effect.fn("DreamService.analyzeSession")(function* (sessionId, model) {
+      analyzeSession: (sessionId: SessionID, model: Provider.Model) => Effect.gen(function* () {
         const messages = yield* session.messages({ sessionID: sessionId }).pipe(Effect.orDie)
         const analysis = yield* analyzeTranscript({ model, transcript: transcript(messages) })
         return {
@@ -163,9 +161,9 @@ export const layer = Layer.effect(
           ...analysis,
           analyzedAt: new Date(),
         }
-      }),
+      }).pipe(Effect.orDie),
 
-      analyzeHistory: Effect.fn("DreamService.analyzeHistory")(function* (model, limit = 10) {
+      analyzeHistory: (model: Provider.Model, limit = 10) => Effect.gen(function* () {
         const sessions = yield* session.list({ limit })
         const analyses: DreamAnalysis[] = []
         for (const s of sessions) {
@@ -174,7 +172,7 @@ export const layer = Layer.effect(
           analyses.push({ sessionId: s.id, ...analysis, analyzedAt: new Date() })
         }
         return analyses
-      }),
+      }).pipe(Effect.orDie),
     }
   }),
 )
