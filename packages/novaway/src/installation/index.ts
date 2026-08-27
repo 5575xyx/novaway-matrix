@@ -14,9 +14,12 @@ import { NpmConfig } from "@novaway/core/npm-config"
 
 const log = Log.create({ service: "installation" })
 
-// The lightweight wrapper is published to npm under this name (see script/publish-lite.ts),
-// and its platform binaries are hosted on GitHub Releases of this repo.
-export const NPM_PACKAGE = "xymt-novaway"
+// The main wrapper package published to npm. Its per-platform binaries are published as
+// `${NPM_PACKAGE}-<os>-<arch>` and pulled in via optionalDependencies (see script/publish.ts).
+// build.ts injects NovaWay_NPM_PACKAGE so a binary self-updates the same package it was published as
+// (default account: xymt-novaway; backup account build sets NOVAWAY_MAIN_PACKAGE=novaway).
+declare const NovaWay_NPM_PACKAGE: string | undefined
+export const NPM_PACKAGE = typeof NovaWay_NPM_PACKAGE === "string" ? NovaWay_NPM_PACKAGE : "xymt-novaway"
 export const GITHUB_REPO = "5575xyx/novaway-matrix"
 
 export type Method = "curl" | "npm" | "yarn" | "pnpm" | "bun" | "brew" | "scoop" | "choco" | "unknown"

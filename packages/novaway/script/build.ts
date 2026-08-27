@@ -17,6 +17,10 @@ const generated = await import("./generate.ts")
 import { Script } from "@novaway/script"
 import pkg from "../package.json"
 
+// 主包名（用户 `npm i -g` 装的）。平台包统一命名为 `${MAIN_PACKAGE}-<os>-<arch>`。
+// 默认 xymt-novaway（账号 A）；备份到另一账号时用 NOVAWAY_MAIN_PACKAGE=novaway 切换。
+const MAIN_PACKAGE = process.env.NOVAWAY_MAIN_PACKAGE || "xymt-novaway"
+
 // Load migrations from migration directories
 const migrationDirs = (
   await fs.promises.readdir(path.join(dir, "migration"), {
@@ -219,16 +223,12 @@ if (!skipInstall) {
   await $`bun install --os="*" --cpu="*" @parcel/watcher@${pkg.dependencies["@parcel/watcher"]}`
 }
 for (const item of targets) {
-  const name = [
-    pkg.name,
-    // changing to win32 flags npm for some reason
-    item.os === "win32" ? "windows" : item.os,
-    item.arch,
-    item.avx2 === false ? "baseline" : undefined,
-    item.abi === undefined ? undefined : item.abi,
-  ]
-    .filter(Boolean)
-    .join("-")
+  // 平台包名 = `${MAIN_PACKAGE}-<os>-<arch>`，与主包同属一个 npm 账号。
+  // changing to win32 flags npm for some reason
+  const osName = item.os === "win32" ? "windows" : item.os
+  const name = [MAIN_PACKAGE, osName, item.arch].join("-")
+  // bun 编译 target 单独构造，避免把包名里的字段 replace 坏。
+  const bunTarget = ["bun", osName, item.arch].join("-")
   console.log(`building ${name}`)
   await $`mkdir -p dist/${name}/bin`
 
@@ -255,7 +255,7 @@ for (const item of targets) {
       autoloadDotenv: false,
       autoloadTsconfig: true,
       autoloadPackageJson: true,
-      target: name.replace(pkg.name, "bun") as any,
+      target: bunTarget as any,
       outfile: `dist/${name}/bin/novaway`,
       execArgv: [`--user-agent=novaway/${Script.version}`, "--use-system-ca", "--"],
       windows: {},
@@ -283,6 +283,8 @@ for (const item of targets) {
       // so the published binary reports its real version/channel (not "local") and update checks work.
       NovaWay_VERSION: `'${Script.version}'`,
       NovaWay_CHANNEL: `'${Script.channel}'`,
+      // 让二进制知道自己发布用的主包名，auto-update 才会升级正确的包（账号切换时随之变）。
+      NovaWay_NPM_PACKAGE: `'${MAIN_PACKAGE}'`,
     },
   })
 

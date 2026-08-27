@@ -149,6 +149,7 @@ await Bun.build({
     // Keep installation/version.ts globals populated in the node build too.
     NovaWay_VERSION: `'${Script.version}'`,
     NovaWay_CHANNEL: `'${Script.channel}'`,
+    NovaWay_NPM_PACKAGE: `'${process.env.NOVAWAY_MAIN_PACKAGE || "xymt-novaway"}'`,
   },
   files: {
     "opencode-web-ui.gen.ts": "",

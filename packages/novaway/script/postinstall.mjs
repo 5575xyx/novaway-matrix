@@ -24,7 +24,9 @@ const archMap = {
 
 const platform = platformMap[os.platform()] ?? os.platform()
 const arch = archMap[os.arch()] ?? os.arch()
-const base = `novaway-${platform}-${arch}`
+// 平台包名 = `${主包名}-<os>-<arch>`。从本包 package.json 的 name 派生，自动适配
+// xymt-novaway 或 novaway（切换账号发布时无需改此脚本）。
+const base = `${packageJson.name}-${platform}-${arch}`
 const sourceBinary = platform === "windows" ? "novaway.exe" : "novaway"
 const targetBinary = path.join(__dirname, "bin", "novaway.exe")
 

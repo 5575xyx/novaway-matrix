@@ -7,9 +7,10 @@ import { fileURLToPath } from "url"
 const dir = fileURLToPath(new URL("..", import.meta.url))
 process.chdir(dir)
 
-// npm 上的主包名（用户 `npm i -g` 装的就是它）。平台二进制包为 novaway-<os>-<arch>，
+// npm 上的主包名（用户 `npm i -g` 装的就是它）。平台二进制包为 `${MAIN_PACKAGE}-<os>-<arch>`，
 // 由 build.ts 产出并挂在主包的 optionalDependencies 下，npm 按 os/cpu 只装匹配的那个。
-const MAIN_PACKAGE = "xymt-novaway"
+// 默认 xymt-novaway（账号 A）；备份发布到另一账号时用 NOVAWAY_MAIN_PACKAGE=novaway 切换（并把 NPM_TOKEN 换成该账号）。
+const MAIN_PACKAGE = process.env.NOVAWAY_MAIN_PACKAGE || "xymt-novaway"
 
 async function published(name: string, version: string) {
   return (await $`npm view ${name}@${version} version`.nothrow()).exitCode === 0
