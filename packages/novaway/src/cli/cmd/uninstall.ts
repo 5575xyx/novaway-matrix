@@ -129,10 +129,10 @@ async function showRemovalSummary(targets: RemovalTargets, method: Installation.
 
   if (method !== "curl" && method !== "unknown") {
     const cmds: Record<string, string> = {
-      npm: "npm uninstall -g NovaWay-ai",
-      pnpm: "pnpm uninstall -g NovaWay-ai",
-      bun: "bun remove -g NovaWay-ai",
-      yarn: "yarn global remove NovaWay-ai",
+      npm: `npm uninstall -g ${Installation.NPM_PACKAGE}`,
+      pnpm: `pnpm uninstall -g ${Installation.NPM_PACKAGE}`,
+      bun: `bun remove -g ${Installation.NPM_PACKAGE}`,
+      yarn: `yarn global remove ${Installation.NPM_PACKAGE}`,
       brew: "brew uninstall NovaWay",
       choco: "choco uninstall NovaWay",
       scoop: "scoop uninstall NovaWay",
@@ -180,10 +180,10 @@ async function executeUninstall(method: Installation.Method, targets: RemovalTar
 
   if (method !== "curl" && method !== "unknown") {
     const cmds: Record<string, string[]> = {
-      npm: ["npm", "uninstall", "-g", "NovaWay-ai"],
-      pnpm: ["pnpm", "uninstall", "-g", "NovaWay-ai"],
-      bun: ["bun", "remove", "-g", "NovaWay-ai"],
-      yarn: ["yarn", "global", "remove", "NovaWay-ai"],
+      npm: ["npm", "uninstall", "-g", Installation.NPM_PACKAGE],
+      pnpm: ["pnpm", "uninstall", "-g", Installation.NPM_PACKAGE],
+      bun: ["bun", "remove", "-g", Installation.NPM_PACKAGE],
+      yarn: ["yarn", "global", "remove", Installation.NPM_PACKAGE],
       brew: ["brew", "uninstall", "novaway"],
       choco: ["choco", "uninstall", "novaway"],
       scoop: ["scoop", "uninstall", "novaway"],

@@ -318,6 +318,10 @@ for (const item of targets) {
       OPENCODE_WORKER_PATH: workerPath,
       OPENCODE_CHANNEL: `'${Script.channel}'`,
       OPENCODE_LIBC: item.os === "linux" ? `'${item.abi ?? "glibc"}'` : "",
+      // installation/version.ts reads these globals; keep them in sync with the OPENCODE_* defines
+      // so the published binary reports its real version/channel (not "local") and update checks work.
+      NovaWay_VERSION: `'${Script.version}'`,
+      NovaWay_CHANNEL: `'${Script.channel}'`,
     },
   })
 
