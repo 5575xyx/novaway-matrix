@@ -7,41 +7,45 @@ import { fileURLToPath } from "url"
 const dir = fileURLToPath(new URL("..", import.meta.url))
 process.chdir(dir)
 
+// 使用新的包名避免限流
+const NPM_PACKAGE_NAME = "xymt-novaway"
+const BIN_NAME = "novaway"
+
 async function published(name: string, version: string) {
   return (await $`npm view ${name}@${version} version`.nothrow()).exitCode === 0
 }
 
-// 只发布 novaway-ai 主包，不包含二进制文件
+// 只发布主包，不包含二进制文件
 // 二进制文件已上传到 GitHub Releases
 const version = Script.version
 
-await $`mkdir -p ./dist/${pkg.name}`
-await $`mkdir -p ./dist/${pkg.name}/bin`
-await $`cp ./script/postinstall-lite.mjs ./dist/${pkg.name}/postinstall.mjs`
-await Bun.file(`./dist/${pkg.name}/LICENSE`).write(await Bun.file("../../LICENSE").text())
+await $`mkdir -p ./dist/${NPM_PACKAGE_NAME}`
+await $`mkdir -p ./dist/${NPM_PACKAGE_NAME}/bin`
+await $`cp ./script/postinstall-lite.mjs ./dist/${NPM_PACKAGE_NAME}/postinstall.mjs`
+await Bun.file(`./dist/${NPM_PACKAGE_NAME}/LICENSE`).write(await Bun.file("../../LICENSE").text())
 
 // 占位文件，提示用户 postinstall 脚本会下载二进制
-await Bun.file(`./dist/${pkg.name}/bin/${pkg.name}.exe`).write(
+await Bun.file(`./dist/${NPM_PACKAGE_NAME}/bin/${BIN_NAME}.exe`).write(
   [
-    `echo "Error: ${pkg.name}-ai's postinstall script was not run." >&2`,
+    `echo "Error: ${NPM_PACKAGE_NAME}'s postinstall script was not run." >&2`,
     'echo "" >&2',
     'echo "This occurs when using --ignore-scripts during installation." >&2',
     'echo "" >&2',
     'echo "To fix this, run the postinstall script manually:" >&2',
-    `echo "  cd node_modules/${pkg.name}-ai && node postinstall.mjs" >&2`,
+    `echo "  cd node_modules/${NPM_PACKAGE_NAME} && node postinstall.mjs" >&2`,
     'echo "" >&2',
-    `echo "Or reinstall ${pkg.name}-ai without the --ignore-scripts flag." >&2`,
+    `echo "Or reinstall ${NPM_PACKAGE_NAME} without the --ignore-scripts flag." >&2`,
     "exit 1",
     "",
   ].join("\n"),
 )
 
-await Bun.file(`./dist/${pkg.name}/package.json`).write(
+await Bun.file(`./dist/${NPM_PACKAGE_NAME}/package.json`).write(
   JSON.stringify(
     {
-      name: pkg.name + "-ai",
+      name: NPM_PACKAGE_NAME,
       bin: {
-        [pkg.name]: `./bin/${pkg.name}.exe`,
+        [BIN_NAME]: `./bin/${BIN_NAME}.exe`,
       },
       scripts: {
         postinstall: "node ./postinstall.mjs",
@@ -54,18 +58,22 @@ await Bun.file(`./dist/${pkg.name}/package.json`).write(
         type: "git",
         url: "https://github.com/5575xyx/novaway-matrix.git",
       },
+      description: "AI coding agent built for the terminal - NovaWay Matrix Edition",
+      keywords: ["ai", "cli", "coding-assistant", "novaway", "opencode"],
     },
     null,
     2,
   ),
 )
 
-if (await published(`${pkg.name}-ai`, version)) {
-  console.log(`already published ${pkg.name}-ai@${version}`)
+if (await published(NPM_PACKAGE_NAME, version)) {
+  console.log(`already published ${NPM_PACKAGE_NAME}@${version}`)
   process.exit(0)
 }
 
-await $`bun pm pack`.cwd(`./dist/${pkg.name}`)
-await $`npm publish *.tgz --access public --tag ${Script.channel}`.cwd(`./dist/${pkg.name}`)
+await $`bun pm pack`.cwd(`./dist/${NPM_PACKAGE_NAME}`)
+await $`npm publish *.tgz --access public --tag ${Script.channel}`.cwd(`./dist/${NPM_PACKAGE_NAME}`)
 
-console.log(`✅ Published ${pkg.name}-ai@${version} to npm with tag ${Script.channel}`)
+console.log(`✅ Published ${NPM_PACKAGE_NAME}@${version} to npm with tag ${Script.channel}`)
+console.log(`\nInstall with: npm install -g ${NPM_PACKAGE_NAME}@${Script.channel}`)
+
