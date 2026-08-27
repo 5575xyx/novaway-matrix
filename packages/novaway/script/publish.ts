@@ -72,10 +72,10 @@ await Bun.file(`./dist/${pkg.name}/package.json`).write(
   ),
 )
 
-// 顺序发布以避免 npm 速率限制，每个包之间延迟 10 秒
+// 顺序发布以避免 npm 速率限制，每个包之间延迟 30 秒
 for (const [name] of Object.entries(binaries)) {
   await publish(`./dist/${name}`, name, binaries[name])
-  await new Promise((resolve) => setTimeout(resolve, 10000))
+  await new Promise((resolve) => setTimeout(resolve, 30000))
 }
 await publish(`./dist/${pkg.name}`, `${pkg.name}-ai`, version)
 
