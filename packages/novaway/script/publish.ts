@@ -7,6 +7,10 @@ import { fileURLToPath } from "url"
 const dir = fileURLToPath(new URL("..", import.meta.url))
 process.chdir(dir)
 
+// npm 上的主包名（用户 `npm i -g` 装的就是它）。平台二进制包为 novaway-<os>-<arch>，
+// 由 build.ts 产出并挂在主包的 optionalDependencies 下，npm 按 os/cpu 只装匹配的那个。
+const MAIN_PACKAGE = "xymt-novaway"
+
 async function published(name: string, version: string) {
   return (await $`npm view ${name}@${version} version`.nothrow()).exitCode === 0
 }
@@ -37,15 +41,15 @@ await $`cp ./script/postinstall.mjs ./dist/${pkg.name}/postinstall.mjs`
 await Bun.file(`./dist/${pkg.name}/LICENSE`).write(await Bun.file("../../LICENSE").text())
 await Bun.file(`./dist/${pkg.name}/bin/${pkg.name}.exe`).write(
   [
-    `echo "Error: ${pkg.name}-ai's postinstall script was not run." >&2`,
+    `echo "Error: ${MAIN_PACKAGE}'s postinstall script was not run." >&2`,
     'echo "" >&2',
     'echo "This occurs when using --ignore-scripts during installation, or when using a" >&2',
     'echo "package manager like pnpm that does not run postinstall scripts by default." >&2',
     'echo "" >&2',
     'echo "To fix this, run the postinstall script manually:" >&2',
-    `echo "  cd node_modules/${pkg.name}-ai && node postinstall.mjs" >&2`,
+    `echo "  cd node_modules/${MAIN_PACKAGE} && node postinstall.mjs" >&2`,
     'echo "" >&2',
-    `echo "Or reinstall ${pkg.name}-ai without the --ignore-scripts flag." >&2`,
+    `echo "Or reinstall ${MAIN_PACKAGE} without the --ignore-scripts flag." >&2`,
     "exit 1",
     "",
   ].join("\n"),
@@ -54,7 +58,7 @@ await Bun.file(`./dist/${pkg.name}/bin/${pkg.name}.exe`).write(
 await Bun.file(`./dist/${pkg.name}/package.json`).write(
   JSON.stringify(
     {
-      name: pkg.name + "-ai",
+      name: MAIN_PACKAGE,
       bin: {
         [pkg.name]: `./bin/${pkg.name}.exe`,
       },
@@ -66,6 +70,12 @@ await Bun.file(`./dist/${pkg.name}/package.json`).write(
       os: ["darwin", "linux", "win32"],
       cpu: ["arm64", "x64"],
       optionalDependencies: binaries,
+      repository: {
+        type: "git",
+        url: "https://github.com/5575xyx/novaway-matrix.git",
+      },
+      description: "AI coding agent built for the terminal - NovaWay Matrix Edition",
+      keywords: ["ai", "cli", "coding-assistant", "novaway", "opencode"],
     },
     null,
     2,
@@ -94,7 +104,7 @@ for (const [name] of Object.entries(binaries)) {
   }
 }
 
-await publish(`./dist/${pkg.name}`, `${pkg.name}-ai`, version)
+await publish(`./dist/${pkg.name}`, MAIN_PACKAGE, version)
 
 const image = "ghcr.io/anomalyco/opencode"
 const platforms = "linux/amd64,linux/arm64"
@@ -102,7 +112,7 @@ const tags = [`${image}:${version}`, `${image}:${Script.channel}`]
 const tagFlags = tags.flatMap((t) => ["-t", t])
 
 // registries
-// 默认仅发布 npm(平台包 + novaway-ai 包装包)。Docker/AUR/Homebrew 仍指向 opencode 官方仓库,
+// 默认仅发布 npm(平台包 + xymt-novaway 主包)。Docker/AUR/Homebrew 仍指向 opencode 官方仓库,
 // 需显式设 NOVAWAY_PUBLISH_EXTRAS=true 才会执行(且需先把下面的镜像/tap 改成你自己的)。
 if (!Script.preview && process.env.NOVAWAY_PUBLISH_EXTRAS === "true") {
   await $`docker buildx build --platform ${platforms} ${tagFlags} --push .`

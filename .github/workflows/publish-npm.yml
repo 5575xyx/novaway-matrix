@@ -54,7 +54,7 @@ jobs:
           draft: false
           prerelease: ${{ inputs.channel != 'latest' }}
 
-      # 上传所有平台的二进制文件到 Release
+      # 上传所有平台的二进制文件到 Release(被动备份;npm 原生安装不依赖它)
       - name: Upload Release Assets
         working-directory: packages/novaway
         run: |
@@ -85,31 +85,18 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 上传同一批二进制到国内自建镜像(腾讯云静态服务器),作为 postinstall 首选下载源。
-      # 需要在仓库 Secrets 里配置 CN_MIRROR_SSH_KEY(服务器 ubuntu 用户的 SSH 私钥)。
-      # 若上传失败不阻断发布——用户仍可从 GitHub Release 兜底下载(只是慢)。
-      - name: Upload binaries to CN mirror
-        continue-on-error: true
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: 119.29.157.227
-          username: ubuntu
-          key: ${{ secrets.CN_MIRROR_SSH_KEY }}
-          port: 22
-          source: "packages/novaway/*.tar.gz,packages/novaway/*.zip"
-          target: "/var/www/html/novaway/"
-          strip_components: 2
-
       # 配置 npm 鉴权(令牌来自仓库 Secret: NPM_TOKEN)
       - name: Configure npm auth
         run: echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > "$HOME/.npmrc"
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      # 发布轻量级 npm 包(不包含二进制文件)
+      # 发布 npm 包:各平台二进制包 xymt-novaway-<os>-<arch> + 主包 xymt-novaway(挂 optionalDependencies)。
+      # 用户 `npm i -g xymt-novaway` 时,npm 按 os/cpu 只装匹配平台的二进制包,无需从 GitHub 下载。
+      # 国内用户把 registry 指向 https://registry.npmmirror.com 即可高速安装。
       - name: Publish to npm
         working-directory: packages/novaway
-        run: bun run script/publish-lite.ts
+        run: bun run script/publish.ts
         env:
           NOVAWAY_VERSION: ${{ inputs.version }}
           NOVAWAY_CHANNEL: ${{ inputs.channel }}
