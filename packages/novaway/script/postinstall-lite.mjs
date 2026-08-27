@@ -14,15 +14,19 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, "package.jso
 
 const GITHUB_REPO = "5575xyx/novaway-matrix"
 const VERSION = packageJson.version
+const GH_RELEASE_PATH = `${GITHUB_REPO}/releases/download/v${VERSION}`
 
-// 镜像源配置（按优先级排序）
+// 镜像源配置（按优先级排序，任一失败自动切换下一个）
 const MIRROR_SOURCES = [
-  // 1. 环境变量自定义源
+  // 1. 环境变量自定义源（最高优先级；可指向你自建的国内镜像/对象存储）
   process.env.NOVAWAY_MIRROR_URL,
-  // 2. GitHub 加速镜像（国内可用）
-  `https://mirror.ghproxy.com/https://github.com/${GITHUB_REPO}/releases/download/v${VERSION}`,
-  // 3. GitHub 官方源
-  `https://github.com/${GITHUB_REPO}/releases/download/v${VERSION}`,
+  // 2. GitHub 加速镜像（国内可用，多个互为兜底）
+  `https://ghfast.top/https://github.com/${GH_RELEASE_PATH}`,
+  `https://gh-proxy.com/https://github.com/${GH_RELEASE_PATH}`,
+  `https://ghproxy.net/https://github.com/${GH_RELEASE_PATH}`,
+  `https://mirror.ghproxy.com/https://github.com/${GH_RELEASE_PATH}`,
+  // 3. GitHub 官方源（最后兜底）
+  `https://github.com/${GH_RELEASE_PATH}`,
 ].filter(Boolean)
 
 const platformMap = {
@@ -147,7 +151,17 @@ function downloadBinary(packageName) {
       const baseUrl = MIRROR_SOURCES[i]
       const url = `${baseUrl}/${filename}`
 
-      console.log(`\n[*] 尝试源 ${i + 1}/${MIRROR_SOURCES.length}: ${baseUrl.includes('gitee') ? 'Gitee(国内)' : baseUrl.includes('ghproxy') ? 'GitHub镜像' : 'GitHub官方'}`)
+      console.log(
+        `\n[*] 尝试源 ${i + 1}/${MIRROR_SOURCES.length}: ${
+          i === 0 && process.env.NOVAWAY_MIRROR_URL
+            ? "自定义源(NOVAWAY_MIRROR_URL)"
+            : baseUrl.includes("gitee")
+              ? "Gitee(国内)"
+              : baseUrl.includes("/https://github.com/")
+                ? "GitHub加速镜像"
+                : "GitHub官方"
+        }`,
+      )
 
       try {
         await tryDownload(url, isWindows, packageName)
