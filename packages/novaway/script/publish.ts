@@ -72,11 +72,28 @@ await Bun.file(`./dist/${pkg.name}/package.json`).write(
   ),
 )
 
-// 顺序发布以避免 npm 速率限制，每个包之间延迟 30 秒
+// npm 免费账户限制：每小时 10 个包
+// 策略：发布 8 个包后暂停 1 小时，然后继续发布剩余包
+let publishCount = 0
+const MAX_PACKAGES_PER_HOUR = 8 // 留 2 个配额余量
+const DELAY_BETWEEN_PACKAGES = 60000 // 1 分钟
+const DELAY_AFTER_BATCH = 3660000 // 1 小时 + 1 分钟
+
 for (const [name] of Object.entries(binaries)) {
   await publish(`./dist/${name}`, name, binaries[name])
-  await new Promise((resolve) => setTimeout(resolve, 30000))
+  publishCount++
+
+  if (publishCount >= MAX_PACKAGES_PER_HOUR && publishCount < Object.keys(binaries).length) {
+    console.log(`\n⏸️  Published ${publishCount} packages. Waiting 1 hour to avoid npm rate limit...`)
+    await new Promise((resolve) => setTimeout(resolve, DELAY_AFTER_BATCH))
+    console.log(`✅ Rate limit window passed. Continuing with remaining packages...\n`)
+    publishCount = 0
+  } else if (publishCount < Object.keys(binaries).length) {
+    // 包之间延迟 1 分钟
+    await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_PACKAGES))
+  }
 }
+
 await publish(`./dist/${pkg.name}`, `${pkg.name}-ai`, version)
 
 const image = "ghcr.io/anomalyco/opencode"
