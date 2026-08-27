@@ -15,6 +15,18 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, "package.jso
 const GITHUB_REPO = "5575xyx/novaway-matrix"
 const VERSION = packageJson.version
 
+// 镜像源配置（按优先级排序）
+const MIRROR_SOURCES = [
+  // 1. 环境变量自定义源
+  process.env.NOVAWAY_MIRROR_URL,
+  // 2. Gitee 镜像（国内推荐）
+  `https://gitee.com/stalkerno1/novaway-matrix/releases/download/v${VERSION}`,
+  // 3. GitHub 官方源
+  `https://github.com/${GITHUB_REPO}/releases/download/v${VERSION}`,
+  // 4. GitHub 加速镜像
+  `https://mirror.ghproxy.com/https://github.com/${GITHUB_REPO}/releases/download/v${VERSION}`,
+].filter(Boolean)
+
 const platformMap = {
   darwin: "darwin",
   linux: "linux",
@@ -125,23 +137,53 @@ function formatBytes(bytes) {
 }
 
 function downloadBinary(packageName) {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     const isWindows = platform === "windows"
     const ext = isWindows ? "zip" : "tar.gz"
-    const url = `https://github.com/${GITHUB_REPO}/releases/download/v${VERSION}/${packageName}-${VERSION}.${ext}`
+    const filename = `${packageName}-${VERSION}.${ext}`
 
     console.log(`\n📦 Downloading novaway binary for ${platform}-${arch}...`)
-    console.log(`🔗 ${url}\n`)
 
-    https
-      .get(url, (response) => {
-        if (response.statusCode === 302 || response.statusCode === 301) {
-          // Follow redirect
-          return https.get(response.headers.location, (res) => handleResponse(res, resolve, reject, isWindows, packageName))
+    // 尝试所有镜像源
+    for (let i = 0; i < MIRROR_SOURCES.length; i++) {
+      const baseUrl = MIRROR_SOURCES[i]
+      const url = `${baseUrl}/${filename}`
+
+      console.log(`\n🔗 尝试源 ${i + 1}/${MIRROR_SOURCES.length}: ${baseUrl.includes('gitee') ? 'Gitee(国内)' : baseUrl.includes('ghproxy') ? 'GitHub镜像' : 'GitHub官方'}`)
+
+      try {
+        await tryDownload(url, isWindows, packageName)
+        resolve()
+        return
+      } catch (error) {
+        console.log(`❌ 下载失败: ${error.message}`)
+        if (i === MIRROR_SOURCES.length - 1) {
+          reject(new Error(`所有镜像源均下载失败。请检查网络连接或稍后重试。\n\n如需手动下载：\n1. 访问 https://github.com/${GITHUB_REPO}/releases/download/v${VERSION}/${filename}\n2. 解压到 ${path.dirname(targetBinary)}`))
         }
-        handleResponse(response, resolve, reject, isWindows, packageName)
-      })
-      .on("error", reject)
+      }
+    }
+  })
+}
+
+function tryDownload(url, isWindows, packageName) {
+  return new Promise((resolve, reject) => {
+    const protocol = url.startsWith('https') ? https : require('http')
+
+    const request = protocol.get(url, { timeout: 30000 }, (response) => {
+      if (response.statusCode === 302 || response.statusCode === 301) {
+        // Follow redirect
+        return protocol.get(response.headers.location, { timeout: 30000 }, (res) =>
+          handleResponse(res, resolve, reject, isWindows, packageName)
+        ).on('error', reject)
+      }
+      handleResponse(response, resolve, reject, isWindows, packageName)
+    })
+
+    request.on('error', reject)
+    request.on('timeout', () => {
+      request.destroy()
+      reject(new Error('下载超时'))
+    })
   })
 }
 
