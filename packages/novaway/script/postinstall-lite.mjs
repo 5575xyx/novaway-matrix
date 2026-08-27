@@ -18,13 +18,11 @@ const GH_RELEASE_PATH = `${GITHUB_REPO}/releases/download/v${VERSION}`
 
 // 镜像源配置（按优先级排序，任一失败自动切换下一个）
 const MIRROR_SOURCES = [
-  // 1. 环境变量自定义源（最高优先级；可指向你自建的国内镜像/对象存储）
+  // 1. 环境变量自定义源（最高优先级；指向你自建的国内镜像/对象存储时最可靠）
   process.env.NOVAWAY_MIRROR_URL,
-  // 2. GitHub 加速镜像（国内可用，多个互为兜底）
+  // 2. GitHub 加速镜像（公共代理，稳定性不保证，仅作兜底；已实测响应的两个）
   `https://ghfast.top/https://github.com/${GH_RELEASE_PATH}`,
   `https://gh-proxy.com/https://github.com/${GH_RELEASE_PATH}`,
-  `https://ghproxy.net/https://github.com/${GH_RELEASE_PATH}`,
-  `https://mirror.ghproxy.com/https://github.com/${GH_RELEASE_PATH}`,
   // 3. GitHub 官方源（最后兜底）
   `https://github.com/${GH_RELEASE_PATH}`,
 ].filter(Boolean)
