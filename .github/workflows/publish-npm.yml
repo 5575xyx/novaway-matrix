@@ -17,7 +17,7 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write  # 需要写权限以创建 Release
 
 jobs:
   publish:
@@ -42,16 +42,59 @@ jobs:
           NOVAWAY_VERSION: ${{ inputs.version }}
           NOVAWAY_CHANNEL: ${{ inputs.channel }}
 
+      # 创建 GitHub Release 并上传二进制文件
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ inputs.version }}
+          release_name: v${{ inputs.version }}
+          draft: false
+          prerelease: ${{ inputs.channel != 'latest' }}
+
+      # 上传所有平台的二进制文件到 Release
+      - name: Upload Release Assets
+        working-directory: packages/novaway
+        run: |
+          for dir in dist/novaway-*/; do
+            platform=$(basename "$dir")
+            binary="novaway"
+            if [[ "$platform" == *"windows"* ]]; then
+              binary="novaway.exe"
+            fi
+
+            if [ -f "$dir/bin/$binary" ]; then
+              # 打包二进制文件
+              tar_name="${platform}-${{ inputs.version }}.tar.gz"
+              if [[ "$platform" == *"windows"* ]]; then
+                zip_name="${platform}-${{ inputs.version }}.zip"
+                (cd "$dir/bin" && zip -q "../../../$zip_name" "$binary")
+
+                # 上传到 Release
+                gh release upload "v${{ inputs.version }}" "$zip_name" --clobber
+              else
+                (cd "$dir/bin" && tar czf "../../../$tar_name" "$binary")
+
+                # 上传到 Release
+                gh release upload "v${{ inputs.version }}" "$tar_name" --clobber
+              fi
+            fi
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       # 配置 npm 鉴权(令牌来自仓库 Secret: NPM_TOKEN)
       - name: Configure npm auth
         run: echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > "$HOME/.npmrc"
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      # 发布平台包 + novaway-ai 包装包(默认仅 npm,不触发 Docker/AUR/Homebrew)
+      # 发布轻量级 npm 包(不包含二进制文件)
       - name: Publish to npm
         working-directory: packages/novaway
-        run: bun run script/publish.ts
+        run: bun run script/publish-lite.ts
         env:
           NOVAWAY_VERSION: ${{ inputs.version }}
           NOVAWAY_CHANNEL: ${{ inputs.channel }}
