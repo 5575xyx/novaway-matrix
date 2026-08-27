@@ -63,7 +63,7 @@ export interface Interface {
   }) => Effect.Effect<WorkflowRun>
 }
 
-export class Service extends Context.Service<Interface>()("@NovaWay/WorkflowService") {}
+export class Service extends Context.Service<Service, Interface>()("@NovaWay/WorkflowService") {}
 export { Service as WorkflowService }
 
 const generateId = () => `wf_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
@@ -120,8 +120,8 @@ export const layer = Layer.effect(
               steps: workflow.steps,
               status: workflow.status,
               state: workflow.state,
-              created_at: workflow.createdAt.getTime(),
-              updated_at: workflow.updatedAt.getTime(),
+              created_at: workflow.createdAt,
+              updated_at: workflow.updatedAt,
             })
             .run(),
           ),
@@ -160,7 +160,7 @@ export const layer = Layer.effect(
                 ...(input.description !== undefined && { description: input.description }),
                 ...(input.steps && { steps: input.steps }),
                 ...(input.status && { status: input.status }),
-                updated_at: now.getTime(),
+                updated_at: now,
               })
               .where(eq(WorkflowTable.id, input.workflowId))
               .run(),
@@ -179,8 +179,11 @@ export const layer = Layer.effect(
       }),
 
       startRun: Effect.fn("WorkflowService.startRun")(function* (workflowId) {
-        const workflow = yield* this.get(workflowId)
-        if (!workflow) return yield* Effect.fail(new Error("Workflow not found"))
+        const existing = yield* Effect.sync(() =>
+          Database.use((db) => db.select().from(WorkflowTable).where(eq(WorkflowTable.id, workflowId)).limit(1).all()),
+        )
+        const workflow = existing.length === 0 ? null : toWorkflow(existing[0])
+        if (!workflow) return yield* Effect.die(new Error("Workflow not found"))
 
         const now = new Date()
         const firstStep = workflow.steps[0]
@@ -212,9 +215,9 @@ export const layer = Layer.effect(
               status: run.status,
               state: run.state,
               error: run.error,
-              started_at: run.startedAt?.getTime() ?? null,
-              completed_at: run.completedAt?.getTime() ?? null,
-              created_at: run.createdAt.getTime(),
+              started_at: run.startedAt,
+              completed_at: run.completedAt,
+              created_at: run.createdAt,
             })
             .run(),
           ),
@@ -251,7 +254,7 @@ export const layer = Layer.effect(
                 state: input.state,
                 ...(input.status && { status: input.status }),
                 ...(input.error !== undefined && { error: input.error }),
-                ...(input.status === "completed" && { completed_at: Date.now() }),
+                ...(input.status === "completed" && { completed_at: new Date() }),
               })
               .where(eq(WorkflowRunTable.id, input.runId))
               .run(),

@@ -1,4 +1,4 @@
-import { Context, Effect, Layer } from "effect"
+import { Cause, Context, Effect, Layer } from "effect"
 import { eq } from "drizzle-orm"
 import { Database } from "@/storage/db"
 import { OrchestratorPlanTable, type OrchestratorTask } from "./orchestrator.sql"
@@ -55,7 +55,7 @@ export interface Interface {
   readonly delete: (planId: string) => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Interface>()("@NovaWay/OrchestratorService") {}
+export class Service extends Context.Service<Service, Interface>()("@NovaWay/OrchestratorService") {}
 export { Service as OrchestratorService }
 
 const generateId = () => `orch_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
@@ -99,7 +99,7 @@ export const layer = Layer.effect(
               ...(patch.tasks && { tasks: patch.tasks }),
               ...(patch.status && { status: patch.status }),
               ...(patch.error !== undefined && { error: patch.error }),
-              updated_at: Date.now(),
+              updated_at: new Date(),
             })
             .where(eq(OrchestratorPlanTable.id, planId))
             .run(),
@@ -134,8 +134,8 @@ export const layer = Layer.effect(
               tasks: plan.tasks,
               status: plan.status,
               error: plan.error,
-              created_at: plan.createdAt.getTime(),
-              updated_at: plan.updatedAt.getTime(),
+              created_at: plan.createdAt,
+              updated_at: plan.updatedAt,
             })
             .run(),
           ),
@@ -145,7 +145,7 @@ export const layer = Layer.effect(
 
       executePlan: Effect.fn("OrchestratorService.executePlan")(function* (input) {
         const initial = yield* getPlan(input.planId)
-        if (!initial) return yield* Effect.fail(new Error("Plan not found"))
+        if (!initial) return yield* Effect.die(new Error("Plan not found"))
 
         const tasks = initial.tasks.map((t) => ({ ...t }))
         const byId = new Map(tasks.map((t) => [t.id, t]))
@@ -174,11 +174,12 @@ export const layer = Layer.effect(
             ;(cur as any).result = out
             results[task.id] = out
           }).pipe(
-            Effect.catch((error) =>
+            Effect.catchCause((cause) =>
               Effect.sync(() => {
+                const squashed: unknown = Cause.squash(cause)
                 const cur = byId.get(task.id)!
                 ;(cur as any).status = "failed"
-                ;(cur as any).error = error instanceof Error ? error.message : String(error)
+                ;(cur as any).error = squashed instanceof Error ? squashed.message : String(squashed)
               }),
             ),
           )
@@ -233,7 +234,7 @@ export const layer = Layer.effect(
 
       addTask: Effect.fn("OrchestratorService.addTask")(function* (input) {
         const plan = yield* getPlan(input.planId)
-        if (!plan) return yield* Effect.fail(new Error("Plan not found"))
+        if (!plan) return yield* Effect.die(new Error("Plan not found"))
         const task: OrchestratorTask = { ...input.task, id: `task_${plan.tasks.length}`, status: "pending" }
         yield* persist(input.planId, { tasks: [...plan.tasks, task] })
         return task
@@ -241,7 +242,7 @@ export const layer = Layer.effect(
 
       updateTaskStatus: Effect.fn("OrchestratorService.updateTaskStatus")(function* (input) {
         const plan = yield* getPlan(input.planId)
-        if (!plan) return yield* Effect.fail(new Error("Plan not found"))
+        if (!plan) return yield* Effect.die(new Error("Plan not found"))
         const updatedTasks = plan.tasks.map((t) =>
           t.id === input.taskId ? { ...t, status: input.status, result: input.result, error: input.error } : t,
         )

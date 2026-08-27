@@ -11,7 +11,7 @@ export const goalHandlers = HttpApiBuilder.group(InstanceHttpApi, "goal", (handl
     return handlers
       .handle("listGoals", (ctx) =>
         Effect.gen(function* () {
-          const sessionId = SessionID.make(ctx.path.sessionId)
+          const sessionId = SessionID.make(ctx.params.sessionId)
           const goals = yield* goal.list(sessionId)
           return goals.map((g) => ({
             id: g.id,
@@ -32,16 +32,16 @@ export const goalHandlers = HttpApiBuilder.group(InstanceHttpApi, "goal", (handl
       )
       .handle("createGoal", (ctx) =>
         Effect.gen(function* () {
-          const sessionId = SessionID.make(ctx.path.sessionId)
+          const sessionId = SessionID.make(ctx.params.sessionId)
           const created = yield* goal.create({
             sessionId,
             parentId: ctx.payload.parentId,
             title: ctx.payload.title,
             description: ctx.payload.description,
             priority: ctx.payload.priority as any,
-            successCriteria: ctx.payload.successCriteria,
+            successCriteria: ctx.payload.successCriteria as string[] | undefined,
             deadline: ctx.payload.deadline ? new Date(ctx.payload.deadline) : undefined,
-            tags: ctx.payload.tags,
+            tags: ctx.payload.tags as string[] | undefined,
           })
           return {
             id: created.id,
@@ -62,7 +62,7 @@ export const goalHandlers = HttpApiBuilder.group(InstanceHttpApi, "goal", (handl
       )
       .handle("getGoal", (ctx) =>
         Effect.gen(function* () {
-          const g = yield* goal.get(ctx.path.goalId)
+          const g = yield* goal.get(ctx.params.goalId)
           if (!g) {
             return yield* Effect.fail(new HttpApiError.NotFound({}))
           }
@@ -86,10 +86,12 @@ export const goalHandlers = HttpApiBuilder.group(InstanceHttpApi, "goal", (handl
       .handle("updateGoal", (ctx) =>
         Effect.gen(function* () {
           const updated = yield* goal.update({
-            goalId: ctx.path.goalId,
+            goalId: ctx.params.goalId,
             ...ctx.payload,
             status: ctx.payload.status as any,
             priority: ctx.payload.priority as any,
+            successCriteria: ctx.payload.successCriteria as string[] | undefined,
+            tags: ctx.payload.tags as string[] | undefined,
             deadline: ctx.payload.deadline ? new Date(ctx.payload.deadline) : undefined,
           })
           return {
@@ -111,13 +113,13 @@ export const goalHandlers = HttpApiBuilder.group(InstanceHttpApi, "goal", (handl
       )
       .handle("deleteGoal", (ctx) =>
         Effect.gen(function* () {
-          yield* goal.delete(ctx.path.goalId)
+          yield* goal.delete(ctx.params.goalId)
           return { success: true }
         }),
       )
       .handle("getGoalProgress", (ctx) =>
         Effect.gen(function* () {
-          const progress = yield* goal.getProgress(ctx.path.goalId)
+          const progress = yield* goal.getProgress(ctx.params.goalId)
           return progress
         }),
       )

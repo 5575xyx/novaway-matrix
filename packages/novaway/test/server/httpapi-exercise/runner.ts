@@ -147,7 +147,7 @@ function withContext<A, E>(
                 time: { created: Date.now() },
                 agent: "build",
                 model: {
-                  providerID: ProviderID.opencode,
+                  providerID: ProviderID.NovaWay,
                   modelID: ModelID.make("test"),
                 },
               }

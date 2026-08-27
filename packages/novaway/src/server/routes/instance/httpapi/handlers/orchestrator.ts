@@ -41,14 +41,14 @@ export const orchestratorHandlers = HttpApiBuilder.group(InstanceHttpApi, "orche
     return handlers
       .handle("listOrchestratorPlans", (ctx) =>
         Effect.gen(function* () {
-          const plans = yield* orchestrator.listPlans(SessionID.make(ctx.path.sessionId))
+          const plans = yield* orchestrator.listPlans(SessionID.make(ctx.params.sessionId))
           return plans.map(toPlan)
         }),
       )
       .handle("createOrchestratorPlan", (ctx) =>
         Effect.gen(function* () {
           const plan = yield* orchestrator.createPlan({
-            sessionId: SessionID.make(ctx.path.sessionId),
+            sessionId: SessionID.make(ctx.params.sessionId),
             name: ctx.payload.name,
             tasks: ctx.payload.tasks as any,
           })
@@ -57,14 +57,14 @@ export const orchestratorHandlers = HttpApiBuilder.group(InstanceHttpApi, "orche
       )
       .handle("getOrchestratorPlan", (ctx) =>
         Effect.gen(function* () {
-          const plan = yield* orchestrator.getPlan(ctx.path.planId)
+          const plan = yield* orchestrator.getPlan(ctx.params.planId)
           if (!plan) return yield* Effect.fail(new HttpApiError.NotFound({}))
           return toPlan(plan)
         }),
       )
       .handle("executeOrchestratorPlan", (ctx) =>
         Effect.gen(function* () {
-          const plan = yield* orchestrator.getPlan(ctx.path.planId)
+          const plan = yield* orchestrator.getPlan(ctx.params.planId)
           if (!plan) return yield* Effect.fail(new HttpApiError.NotFound({}))
 
           // 解析默认模型:优先取会话内最近一条 assistant 消息的模型,否则用 provider 默认。
@@ -110,7 +110,7 @@ export const orchestratorHandlers = HttpApiBuilder.group(InstanceHttpApi, "orche
       )
       .handle("deleteOrchestratorPlan", (ctx) =>
         Effect.gen(function* () {
-          yield* orchestrator.delete(ctx.path.planId)
+          yield* orchestrator.delete(ctx.params.planId)
           return { success: true }
         }),
       )

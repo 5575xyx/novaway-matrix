@@ -116,11 +116,11 @@ export const layer = Layer.effect(
             status: goal.status,
             priority: goal.priority,
             success_criteria: goal.successCriteria ? JSON.stringify(goal.successCriteria) : null,
-            deadline: goal.deadline?.getTime() ?? null,
+            deadline: goal.deadline ?? null,
             progress: goal.progress,
             tags: goal.tags,
-            created_at: goal.createdAt.getTime(),
-            updated_at: goal.updatedAt.getTime(),
+            created_at: goal.createdAt,
+            updated_at: goal.updatedAt,
           })
           .run(),
         ),
@@ -170,10 +170,10 @@ export const layer = Layer.effect(
                 success_criteria: input.successCriteria ? JSON.stringify(input.successCriteria) : null,
               }),
               ...(input.deadline !== undefined && {
-                deadline: input.deadline?.getTime() ?? null,
+                deadline: input.deadline ?? null,
               }),
               ...(input.tags !== undefined && { tags: input.tags }),
-              updated_at: now.getTime(),
+              updated_at: now,
             })
             .where(eq(GoalTable.id, input.goalId))
             .run(),
@@ -209,7 +209,7 @@ export const layer = Layer.effect(
         Database.use((db) =>
           db
             .update(GoalTable)
-            .set({ progress: progress.percentage, updated_at: Date.now() })
+            .set({ progress: progress.percentage, updated_at: new Date() })
             .where(eq(GoalTable.id, goalId))
             .run(),
         ),

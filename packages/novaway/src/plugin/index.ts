@@ -58,14 +58,14 @@ export class Service extends Context.Service<Service, Interface>()("@NovaWay/Plu
 
 // Built-in plugins that are directly imported (not installed from npm)
 const INTERNAL_PLUGINS: PluginInstance[] = [
-  CodexAuthPlugin,
-  CopilotAuthPlugin,
-  GitlabAuthPlugin,
-  PoeAuthPlugin,
-  CloudflareWorkersAuthPlugin,
-  CloudflareAIGatewayAuthPlugin,
-  AzureAuthPlugin,
-  DigitalOceanAuthPlugin,
+  CodexAuthPlugin as any,
+  CopilotAuthPlugin as any,
+  GitlabAuthPlugin as any,
+  PoeAuthPlugin as any,
+  CloudflareWorkersAuthPlugin as any,
+  CloudflareAIGatewayAuthPlugin as any,
+  AzureAuthPlugin as any,
+  DigitalOceanAuthPlugin as any,
 ]
 
 function isServerPlugin(value: unknown): value is PluginInstance {

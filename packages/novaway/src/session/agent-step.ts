@@ -3,6 +3,7 @@ import { Session } from "./session"
 import { Agent } from "../agent/agent"
 import { MessageID, SessionID } from "./schema"
 import { deriveSubagentSessionPermission } from "../agent/subagent-permissions"
+import { ModelID, ProviderID } from "../provider/schema"
 import type { SessionPrompt } from "./prompt"
 import type { MessageV2 } from "./message-v2"
 
@@ -84,7 +85,7 @@ export function makeRunAgent(config: MakeRunAgentConfig): RunAgent {
       const result = yield* ops.prompt({
         messageID: MessageID.ascending(),
         sessionID: child.id,
-        model: { modelID: model.modelID, providerID: model.providerID },
+        model: { modelID: ModelID.make(model.modelID), providerID: ProviderID.make(model.providerID) },
         agent: resolvedName,
         parts,
       })

@@ -1,4 +1,5 @@
 import { WorkflowService } from "@/workflow/workflow"
+import type { WorkflowStep } from "@/workflow/workflow.sql"
 import { executeRun } from "@/workflow/executor"
 import { getTemplate, listTemplates } from "@/workflow/templates"
 import { makeRunAgent, type RunAgentPromptOps } from "@/session/agent-step"
@@ -23,7 +24,7 @@ export const workflowHandlers = HttpApiBuilder.group(InstanceHttpApi, "workflow"
     return handlers
       .handle("listWorkflows", (ctx) =>
         Effect.gen(function* () {
-          const sessionId = SessionID.make(ctx.path.sessionId)
+          const sessionId = SessionID.make(ctx.params.sessionId)
           const workflows = yield* workflow.list(sessionId)
           return workflows.map((w) => ({
             id: w.id,
@@ -40,7 +41,7 @@ export const workflowHandlers = HttpApiBuilder.group(InstanceHttpApi, "workflow"
       )
       .handle("createWorkflow", (ctx) =>
         Effect.gen(function* () {
-          const sessionId = SessionID.make(ctx.path.sessionId)
+          const sessionId = SessionID.make(ctx.params.sessionId)
           const created = yield* workflow.create({
             sessionId,
             name: ctx.payload.name,
@@ -62,7 +63,7 @@ export const workflowHandlers = HttpApiBuilder.group(InstanceHttpApi, "workflow"
       )
       .handle("getWorkflow", (ctx) =>
         Effect.gen(function* () {
-          const w = yield* workflow.get(ctx.path.workflowId)
+          const w = yield* workflow.get(ctx.params.workflowId)
           if (!w) {
             return yield* Effect.fail(new HttpApiError.NotFound({}))
           }
@@ -82,8 +83,9 @@ export const workflowHandlers = HttpApiBuilder.group(InstanceHttpApi, "workflow"
       .handle("updateWorkflow", (ctx) =>
         Effect.gen(function* () {
           const updated = yield* workflow.update({
-            workflowId: ctx.path.workflowId,
+            workflowId: ctx.params.workflowId,
             ...ctx.payload,
+            steps: ctx.payload.steps as WorkflowStep[] | undefined,
           })
           return {
             id: updated.id,
@@ -100,16 +102,16 @@ export const workflowHandlers = HttpApiBuilder.group(InstanceHttpApi, "workflow"
       )
       .handle("deleteWorkflow", (ctx) =>
         Effect.gen(function* () {
-          yield* workflow.delete(ctx.path.workflowId)
+          yield* workflow.delete(ctx.params.workflowId)
           return { success: true }
         }),
       )
       .handle("startWorkflow", (ctx) =>
         Effect.gen(function* () {
-          const wf = yield* workflow.get(ctx.path.workflowId)
+          const wf = yield* workflow.get(ctx.params.workflowId)
           if (!wf) return yield* Effect.fail(new HttpApiError.NotFound({}))
 
-          const run = yield* workflow.startRun(ctx.path.workflowId)
+          const run = yield* workflow.startRun(ctx.params.workflowId)
 
           // 解析默认模型:优先取会话内最近一条 assistant 消息的模型,否则用 provider 默认。
           const msgs = yield* sessions
@@ -160,7 +162,7 @@ export const workflowHandlers = HttpApiBuilder.group(InstanceHttpApi, "workflow"
       )
       .handle("listWorkflowRuns", (ctx) =>
         Effect.gen(function* () {
-          const runs = yield* workflow.listRuns(ctx.path.workflowId)
+          const runs = yield* workflow.listRuns(ctx.params.workflowId)
           return runs.map((r) => ({
             id: r.id,
             workflowId: r.workflowId,
@@ -188,7 +190,7 @@ export const workflowHandlers = HttpApiBuilder.group(InstanceHttpApi, "workflow"
         Effect.gen(function* () {
           const template = getTemplate(ctx.payload.template)
           if (!template) return yield* Effect.fail(new HttpApiError.NotFound({}))
-          const sessionId = SessionID.make(ctx.path.sessionId)
+          const sessionId = SessionID.make(ctx.params.sessionId)
           const created = yield* workflow.create({
             sessionId,
             name: ctx.payload.name ?? template.name,

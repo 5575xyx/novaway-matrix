@@ -37,7 +37,7 @@ describe("websearch provider", () => {
   })
 
   test("is only enabled for opencode or explicit websearch provider flags", () => {
-    expect(webSearchEnabled(ProviderID.opencode, { exa: false, parallel: false })).toBe(true)
+    expect(webSearchEnabled(ProviderID.NovaWay, { exa: false, parallel: false })).toBe(true)
     expect(webSearchEnabled(ProviderID.openai, { exa: false, parallel: false })).toBe(false)
     expect(webSearchEnabled(ProviderID.openai, { exa: true, parallel: false })).toBe(true)
     expect(webSearchEnabled(ProviderID.openai, { exa: false, parallel: true })).toBe(true)

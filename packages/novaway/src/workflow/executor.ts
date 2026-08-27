@@ -1,4 +1,4 @@
-import { Effect } from "effect"
+import { Cause, Effect } from "effect"
 import type { Interface as WorkflowInterface, Workflow, WorkflowRun } from "./workflow"
 import type { WorkflowStep, WorkflowState } from "./workflow.sql"
 import type { RunAgent } from "@/session/agent-step"
@@ -150,9 +150,10 @@ export const executeRun = (deps: ExecuteRunDeps): Effect.Effect<WorkflowRun> =>
     })
     return finalRun
   }).pipe(
-    Effect.catch((error) =>
+    Effect.catchCause((cause) =>
       Effect.gen(function* () {
-        const message = error instanceof Error ? error.message : String(error)
+        const squashed: unknown = Cause.squash(cause)
+        const message = squashed instanceof Error ? squashed.message : String(squashed)
         yield* deps.service.update({ workflowId: deps.workflow.id, status: "failed" }).pipe(Effect.ignore)
         return yield* deps.service.updateRunState({
           runId: deps.run.id,

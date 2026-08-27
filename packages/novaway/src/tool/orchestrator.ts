@@ -7,7 +7,7 @@ import { Agent } from "@/agent/agent"
 import { MessageV2 } from "@/session/message-v2"
 
 export const Parameters = Schema.Struct({
-  action: Schema.Literal("create_plan", "add_task", "execute", "status", "list"),
+  action: Schema.Literals(["create_plan", "add_task", "execute", "status", "list"]),
   planId: Schema.optional(Schema.String).annotate({ description: "编排计划ID" }),
   name: Schema.optional(Schema.String).annotate({ description: "计划名称" }),
   tasks: Schema.optional(Schema.String).annotate({

@@ -10,8 +10,8 @@ export interface DistillResult {
 
 export interface DistillMemory {
   readonly content: string
-  readonly domain: "global" | "project" | "session"
-  readonly kind: "explicit" | "implicit" | "derived"
+  readonly domain?: "general" | "coding" | "office" | "personal" | "research" | "ops"
+  readonly kind?: "episodic" | "semantic" | "procedure" | "goal" | "preference" | "lesson" | "relationship" | "decision"
   readonly tags: string[]
 }
 
@@ -30,7 +30,7 @@ export interface Interface {
   readonly applyMemories: (result: DistillResult) => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Interface>()("@NovaWay/DistillService") {}
+export class Service extends Context.Service<Service, Interface>()("@NovaWay/DistillService") {}
 export { Service as DistillService }
 
 const patternMap = new Map<string, { count: number; success: number }>()
@@ -54,8 +54,8 @@ export const layer = Layer.effect(
           if (pattern.type === "success" && pattern.frequency > 2) {
             memories.push({
               content: `成功模式: ${pattern.description}`,
-              domain: "project",
-              kind: "derived",
+              domain: "coding",
+              kind: "procedure",
               tags: ["pattern", "success"],
             })
           }
@@ -63,8 +63,8 @@ export const layer = Layer.effect(
           if (pattern.type === "failure" && pattern.frequency > 1) {
             memories.push({
               content: `失败模式: ${pattern.description} - 需要避免`,
-              domain: "project",
-              kind: "derived",
+              domain: "coding",
+              kind: "lesson",
               tags: ["pattern", "failure", "warning"],
             })
           }
@@ -74,8 +74,8 @@ export const layer = Layer.effect(
           if (insight.confidence > 0.7) {
             memories.push({
               content: `${insight.category} 洞察: ${insight.observation}`,
-              domain: "project",
-              kind: "derived",
+              domain: "coding",
+              kind: "semantic",
               tags: ["insight", insight.category],
             })
           }
@@ -85,8 +85,8 @@ export const layer = Layer.effect(
           if (suggestion.priority === "high") {
             memories.push({
               content: `改进建议: ${suggestion.title} - ${suggestion.description}`,
-              domain: "project",
-              kind: "derived",
+              domain: "coding",
+              kind: "goal",
               tags: ["suggestion", suggestion.type],
             })
           }

@@ -241,8 +241,8 @@ function makeHttp(input?: { processor?: "blocking" }) {
   ).pipe(Layer.provide(summary))
 }
 
-const it = testEffect(makeHttp())
-const race = testEffect(makeHttp({ processor: "blocking" }))
+const it = testEffect(makeHttp() as any)
+const race = testEffect(makeHttp({ processor: "blocking" }) as any)
 const unix = process.platform !== "win32" ? it.instance : it.instance.skip
 
 // Config that registers a custom "test" provider with a "test-model" model
