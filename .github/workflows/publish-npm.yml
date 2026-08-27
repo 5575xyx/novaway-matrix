@@ -15,6 +15,11 @@ on:
         required: false
         default: "latest"
         type: string
+      main_package:
+        description: "主包名。默认 xymt-novaway(账号A);备份发布到另一账号填 novaway(须先把 NPM_TOKEN 换成该账号)"
+        required: false
+        default: "xymt-novaway"
+        type: string
 
 permissions:
   contents: write  # 需要写权限以创建 Release
@@ -41,6 +46,7 @@ jobs:
         env:
           NOVAWAY_VERSION: ${{ inputs.version }}
           NOVAWAY_CHANNEL: ${{ inputs.channel }}
+          NOVAWAY_MAIN_PACKAGE: ${{ inputs.main_package }}
 
       # 创建 GitHub Release 并上传二进制文件
       - name: Create GitHub Release
@@ -58,7 +64,7 @@ jobs:
       - name: Upload Release Assets
         working-directory: packages/novaway
         run: |
-          for dir in dist/novaway-*/; do
+          for dir in dist/${{ inputs.main_package }}-*/; do
             platform=$(basename "$dir")
             binary="novaway"
             if [[ "$platform" == *"windows"* ]]; then
@@ -100,3 +106,4 @@ jobs:
         env:
           NOVAWAY_VERSION: ${{ inputs.version }}
           NOVAWAY_CHANNEL: ${{ inputs.channel }}
+          NOVAWAY_MAIN_PACKAGE: ${{ inputs.main_package }}
