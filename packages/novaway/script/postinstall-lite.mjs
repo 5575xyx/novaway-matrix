@@ -116,37 +116,73 @@ function getPackageNames() {
   return [base]
 }
 
+function formatBytes(bytes) {
+  if (bytes === 0) return "0 B"
+  const k = 1024
+  const sizes = ["B", "KB", "MB", "GB"]
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + " " + sizes[i]
+}
+
 function downloadBinary(packageName) {
   return new Promise((resolve, reject) => {
     const isWindows = platform === "windows"
     const ext = isWindows ? "zip" : "tar.gz"
     const url = `https://github.com/${GITHUB_REPO}/releases/download/v${VERSION}/${packageName}-${VERSION}.${ext}`
 
-    console.log(`Downloading ${packageName} from ${url}...`)
+    console.log(`\n📦 Downloading novaway binary for ${platform}-${arch}...`)
+    console.log(`🔗 ${url}\n`)
 
     https
       .get(url, (response) => {
         if (response.statusCode === 302 || response.statusCode === 301) {
           // Follow redirect
-          return https.get(response.headers.location, (res) => handleResponse(res, resolve, reject, isWindows))
+          return https.get(response.headers.location, (res) => handleResponse(res, resolve, reject, isWindows, packageName))
         }
-        handleResponse(response, resolve, reject, isWindows)
+        handleResponse(response, resolve, reject, isWindows, packageName)
       })
       .on("error", reject)
   })
 }
 
-function handleResponse(response, resolve, reject, isWindows) {
+function handleResponse(response, resolve, reject, isWindows, packageName) {
   if (response.statusCode !== 200) {
     return reject(new Error(`Download failed with status ${response.statusCode}`))
   }
 
+  const totalBytes = parseInt(response.headers["content-length"], 10)
+  let downloadedBytes = 0
+  let lastUpdate = Date.now()
+
   const tempFile = path.join(os.tmpdir(), `novaway-download-${Date.now()}${isWindows ? ".zip" : ".tar.gz"}`)
   const fileStream = fs.createWriteStream(tempFile)
+
+  if (totalBytes) {
+    console.log(`📊 Total size: ${formatBytes(totalBytes)}`)
+  }
+
+  response.on("data", (chunk) => {
+    downloadedBytes += chunk.length
+    const now = Date.now()
+
+    // Update progress every 500ms
+    if (now - lastUpdate > 500 || downloadedBytes === totalBytes) {
+      const percent = totalBytes ? ((downloadedBytes / totalBytes) * 100).toFixed(1) : "?"
+      const downloaded = formatBytes(downloadedBytes)
+      const bar = "█".repeat(Math.floor(percent / 2)) + "░".repeat(50 - Math.floor(percent / 2))
+
+      process.stdout.write(`\r⏳ [${bar}] ${percent}% (${downloaded})`)
+      lastUpdate = now
+    }
+  })
 
   response.pipe(fileStream)
 
   fileStream.on("finish", () => {
+    process.stdout.write("\n")
+    console.log("✅ Download complete!")
+    console.log("📂 Extracting binary...\n")
+
     fileStream.close()
     extractBinary(tempFile, isWindows)
       .then(() => {
@@ -157,7 +193,9 @@ function handleResponse(response, resolve, reject, isWindows) {
   })
 
   fileStream.on("error", (err) => {
-    fs.unlinkSync(tempFile)
+    try {
+      fs.unlinkSync(tempFile)
+    } catch {}
     reject(err)
   })
 }
