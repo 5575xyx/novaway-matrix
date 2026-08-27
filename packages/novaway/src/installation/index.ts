@@ -14,6 +14,11 @@ import { NpmConfig } from "@novaway/core/npm-config"
 
 const log = Log.create({ service: "installation" })
 
+// The lightweight wrapper is published to npm under this name (see script/publish-lite.ts),
+// and its platform binaries are hosted on GitHub Releases of this repo.
+export const NPM_PACKAGE = "xymt-novaway"
+export const GITHUB_REPO = "5575xyx/novaway-matrix"
+
 export type Method = "curl" | "npm" | "yarn" | "pnpm" | "bun" | "brew" | "scoop" | "choco" | "unknown"
 
 export type ReleaseType = "patch" | "minor" | "major"
@@ -187,7 +192,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
         for (const check of checks) {
           const output = yield* check.command()
           const installedName =
-            check.name === "brew" || check.name === "choco" || check.name === "scoop" ? "novaway" : "NovaWay-ai"
+            check.name === "brew" || check.name === "choco" || check.name === "scoop" ? "novaway" : NPM_PACKAGE
           if (output.includes(installedName)) {
             return check.name
           }
@@ -217,7 +222,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
         if (detectedMethod === "npm" || detectedMethod === "bun" || detectedMethod === "pnpm") {
           const response = yield* httpOk.execute(
             HttpClientRequest.get(
-              `${yield* NpmConfig.registry(process.cwd())}/NovaWay-ai/${InstallationChannel}`,
+              `${yield* NpmConfig.registry(process.cwd())}/${NPM_PACKAGE}/${InstallationChannel}`,
             ).pipe(HttpClientRequest.acceptJson),
           )
           const data = yield* HttpClientResponse.schemaBodyJson(NpmPackage)(response)
@@ -245,7 +250,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
         }
 
         const response = yield* httpOk.execute(
-          HttpClientRequest.get("https://api.github.com/repos/anomalyco/NovaWay/releases/latest").pipe(
+          HttpClientRequest.get(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`).pipe(
             HttpClientRequest.acceptJson,
           ),
         )
@@ -259,13 +264,13 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
             upgradeResult = yield* upgradeCurl(target)
             break
           case "npm":
-            upgradeResult = yield* run(["npm", "install", "-g", `NovaWay-ai@${target}`])
+            upgradeResult = yield* run(["npm", "install", "-g", `${NPM_PACKAGE}@${target}`])
             break
           case "pnpm":
-            upgradeResult = yield* run(["pnpm", "install", "-g", `NovaWay-ai@${target}`])
+            upgradeResult = yield* run(["pnpm", "install", "-g", `${NPM_PACKAGE}@${target}`])
             break
           case "bun":
-            upgradeResult = yield* run(["bun", "install", "-g", `NovaWay-ai@${target}`])
+            upgradeResult = yield* run(["bun", "install", "-g", `${NPM_PACKAGE}@${target}`])
             break
           case "brew": {
             const formula = yield* getBrewFormula()
