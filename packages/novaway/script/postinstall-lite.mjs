@@ -140,21 +140,21 @@ function downloadBinary(packageName) {
     const ext = isWindows ? "zip" : "tar.gz"
     const filename = `${packageName}-${VERSION}.${ext}`
 
-    console.log(`\n📦 Downloading novaway binary for ${platform}-${arch}...`)
+    console.log(`\n[>] Downloading novaway binary for ${platform}-${arch}...`)
 
     // 尝试所有镜像源
     for (let i = 0; i < MIRROR_SOURCES.length; i++) {
       const baseUrl = MIRROR_SOURCES[i]
       const url = `${baseUrl}/${filename}`
 
-      console.log(`\n🔗 尝试源 ${i + 1}/${MIRROR_SOURCES.length}: ${baseUrl.includes('gitee') ? 'Gitee(国内)' : baseUrl.includes('ghproxy') ? 'GitHub镜像' : 'GitHub官方'}`)
+      console.log(`\n[*] 尝试源 ${i + 1}/${MIRROR_SOURCES.length}: ${baseUrl.includes('gitee') ? 'Gitee(国内)' : baseUrl.includes('ghproxy') ? 'GitHub镜像' : 'GitHub官方'}`)
 
       try {
         await tryDownload(url, isWindows, packageName)
         resolve()
         return
       } catch (error) {
-        console.log(`❌ 下载失败: ${error.message}`)
+        console.log(`[x] 下载失败: ${error.message}`)
         if (i === MIRROR_SOURCES.length - 1) {
           reject(new Error(`所有镜像源均下载失败。请检查网络连接或稍后重试。\n\n如需手动下载：\n1. 访问 https://github.com/${GITHUB_REPO}/releases/download/v${VERSION}/${filename}\n2. 解压到 ${path.dirname(targetBinary)}`))
         }
@@ -198,7 +198,7 @@ function handleResponse(response, resolve, reject, isWindows, packageName) {
   const fileStream = fs.createWriteStream(tempFile)
 
   if (totalBytes) {
-    console.log(`📊 Total size: ${formatBytes(totalBytes)}`)
+    console.log(`[>] Total size: ${formatBytes(totalBytes)}`)
   }
 
   response.on("data", (chunk) => {
@@ -209,9 +209,9 @@ function handleResponse(response, resolve, reject, isWindows, packageName) {
     if (now - lastUpdate > 500 || downloadedBytes === totalBytes) {
       const percent = totalBytes ? ((downloadedBytes / totalBytes) * 100).toFixed(1) : "?"
       const downloaded = formatBytes(downloadedBytes)
-      const bar = "█".repeat(Math.floor(percent / 2)) + "░".repeat(50 - Math.floor(percent / 2))
+      const bar = "=".repeat(Math.floor(percent / 2)) + ">".padEnd(50 - Math.floor(percent / 2), "-")
 
-      process.stdout.write(`\r⏳ [${bar}] ${percent}% (${downloaded})`)
+      process.stdout.write(`\r[${bar}] ${percent}% (${downloaded})`)
       lastUpdate = now
     }
   })
@@ -220,8 +220,8 @@ function handleResponse(response, resolve, reject, isWindows, packageName) {
 
   fileStream.on("finish", () => {
     process.stdout.write("\n")
-    console.log("✅ Download complete!")
-    console.log("📂 Extracting binary...\n")
+    console.log("[✓] Download complete!")
+    console.log("[>] Extracting binary...\n")
 
     fileStream.close()
     extractBinary(tempFile, isWindows)
