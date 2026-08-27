@@ -19,12 +19,10 @@ const VERSION = packageJson.version
 const MIRROR_SOURCES = [
   // 1. 环境变量自定义源
   process.env.NOVAWAY_MIRROR_URL,
-  // 2. Gitee 镜像（国内推荐）
-  `https://gitee.com/stalkerno1/novaway-matrix/releases/download/v${VERSION}`,
+  // 2. GitHub 加速镜像（国内可用）
+  `https://mirror.ghproxy.com/https://github.com/${GITHUB_REPO}/releases/download/v${VERSION}`,
   // 3. GitHub 官方源
   `https://github.com/${GITHUB_REPO}/releases/download/v${VERSION}`,
-  // 4. GitHub 加速镜像
-  `https://mirror.ghproxy.com/https://github.com/${GITHUB_REPO}/releases/download/v${VERSION}`,
 ].filter(Boolean)
 
 const platformMap = {
