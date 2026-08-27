@@ -38,8 +38,8 @@ export function DialogPrompt(props: DialogPromptProps) {
     commands: [
       {
         name: "dialog.prompt.submit",
-        title: "Submit dialog prompt",
-        category: "Dialog",
+        title: "提交对话框提示",
+        category: "对话框",
         run: confirm,
       },
     ],
@@ -99,7 +99,7 @@ export function DialogPrompt(props: DialogPromptProps) {
           cursorStyle={tuiConfig.cursor}
         />
         <Show when={props.busy}>
-          <Spinner color={theme.textMuted}>{props.busyText ?? "Working..."}</Spinner>
+          <Spinner color={theme.textMuted}>{props.busyText ?? "处理中..."}</Spinner>
         </Show>
       </box>
       <box paddingBottom={1} gap={1} flexDirection="row">

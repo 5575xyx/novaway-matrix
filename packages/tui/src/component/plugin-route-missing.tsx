@@ -5,9 +5,9 @@ export function PluginRouteMissing(props: { id: string; onHome: () => void }) {
 
   return (
     <box width="100%" height="100%" alignItems="center" justifyContent="center" flexDirection="column" gap={1}>
-      <text fg={theme.warning}>Unknown plugin route: {props.id}</text>
+      <text fg={theme.warning}>未知插件路由: {props.id}</text>
       <box onMouseUp={props.onHome} backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
-        <text fg={theme.text}>go home</text>
+        <text fg={theme.text}>返回首页</text>
       </box>
     </box>
   )

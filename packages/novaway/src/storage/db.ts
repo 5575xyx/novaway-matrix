@@ -15,7 +15,7 @@ import { EffectBridge } from "@/effect/bridge"
 import { init } from "#db"
 import { Effect, Schema } from "effect"
 
-declare const NovaWay_MIGRATIONS: { sql: string; timestamp: number; name: string }[] | undefined
+declare const NOVAWAY_MIGRATIONS: { sql: string; timestamp: number; name: string }[] | undefined
 
 export const NotFoundError = NamedError.create("NotFoundError", {
   message: Schema.String,
@@ -109,13 +109,13 @@ export const Client = Object.assign(
 
     // Apply schema migrations
     const entries =
-      typeof NovaWay_MIGRATIONS !== "undefined"
-        ? NovaWay_MIGRATIONS
+      typeof NOVAWAY_MIGRATIONS !== "undefined"
+        ? NOVAWAY_MIGRATIONS
         : migrations(path.join(import.meta.dirname, "../../migration"))
     if (entries.length > 0) {
       log.info("applying migrations", {
         count: entries.length,
-        mode: typeof NovaWay_MIGRATIONS !== "undefined" ? "bundled" : "dev",
+        mode: typeof NOVAWAY_MIGRATIONS !== "undefined" ? "bundled" : "dev",
       })
       if (flags.skipMigrations) {
         for (const item of entries) {

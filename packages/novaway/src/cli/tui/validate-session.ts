@@ -1,4 +1,4 @@
-import { createNovaWayClient } from "@novaway/sdk-v2-latest/v2"
+import { createNovawayClient } from "@novaway/sdk-v2-latest/v2"
 import { SessionID } from "@/session/schema"
 import { Schema } from "effect"
 
@@ -20,7 +20,7 @@ export async function validateSession(input: {
     throw new Error(`Invalid session ID: ${error instanceof Error ? error.message : "unknown error"}`, { cause: error })
   }
 
-  await createNovaWayClient({
+  await createNovawayClient({
     baseUrl: input.url,
     directory: input.directory,
     fetch: input.fetch,

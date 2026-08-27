@@ -14,10 +14,10 @@ function getRelativeTime(timestamp: number): string {
   const hours = Math.floor(minutes / 60)
   const days = Math.floor(hours / 24)
 
-  if (seconds < 60) return "just now"
-  if (minutes < 60) return `${minutes}m ago`
-  if (hours < 24) return `${hours}h ago`
-  if (days < 7) return `${days}d ago`
+  if (seconds < 60) return "刚刚"
+  if (minutes < 60) return `${minutes}分钟前`
+  if (hours < 24) return `${hours}小时前`
+  if (days < 7) return `${days}天前`
   return Locale.datetime(timestamp)
 }
 
@@ -54,7 +54,7 @@ export function DialogStash(props: { onSelect: (entry: StashEntry) => void }) {
 
   return (
     <DialogSelect
-      title="Stash"
+      title="暂存"
       options={options()}
       onMove={() => {
         setToDelete(undefined)
@@ -71,7 +71,7 @@ export function DialogStash(props: { onSelect: (entry: StashEntry) => void }) {
       actions={[
         {
           command: "stash.delete",
-          title: "delete",
+          title: "删除",
           onTrigger: (option) => {
             if (toDelete() === option.value) {
               stash.remove(option.value)

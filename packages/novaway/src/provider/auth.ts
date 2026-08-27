@@ -1,4 +1,4 @@
-import type { AuthOAuthResult, Hooks } from "@novaway/plugin"
+import type { AuthOAuthResult, Hooks } from "@opencode/plugin"
 import { Auth } from "@/auth"
 import { InstanceState } from "@/effect/instance-state"
 import { optionalOmitUndefined } from "@novaway/core/schema"

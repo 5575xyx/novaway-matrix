@@ -84,7 +84,9 @@ const tags = [`${image}:${version}`, `${image}:${Script.channel}`]
 const tagFlags = tags.flatMap((t) => ["-t", t])
 
 // registries
-if (!Script.preview) {
+// 默认仅发布 npm(平台包 + novaway-ai 包装包)。Docker/AUR/Homebrew 仍指向 opencode 官方仓库,
+// 需显式设 NOVAWAY_PUBLISH_EXTRAS=true 才会执行(且需先把下面的镜像/tap 改成你自己的)。
+if (!Script.preview && process.env.NOVAWAY_PUBLISH_EXTRAS === "true") {
   await $`docker buildx build --platform ${platforms} ${tagFlags} --push .`
   // Calculate SHA values
   const arm64Sha = await $`sha256sum ./dist/opencode-linux-arm64.tar.gz | cut -d' ' -f1`.text().then((x) => x.trim())

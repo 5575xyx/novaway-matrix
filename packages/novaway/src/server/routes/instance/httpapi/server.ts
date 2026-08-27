@@ -40,12 +40,16 @@ import { Session } from "@/session/session"
 import { SessionCompaction } from "@/session/compaction"
 import { SessionPrompt } from "@/session/prompt"
 import { SessionRevert } from "@/session/revert"
+import { SessionCheckpoint } from "@/session/checkpoint"
 import { SessionRunState } from "@/session/run-state"
 import { SessionStatus } from "@/session/status"
 import { SessionSummary } from "@/session/summary"
 import { Todo } from "@/session/todo"
 import { Goal } from "@/session/goal"
 import { defaultLayer as WorkflowDefaultLayer } from "@/workflow/workflow"
+import { defaultLayer as OrchestratorDefaultLayer } from "@/orchestrator/orchestrator"
+import { defaultLayer as DreamDefaultLayer } from "@/session/dream"
+import { defaultLayer as DistillDefaultLayer } from "@/session/distill"
 import { SessionShare } from "@/share/session"
 import { ShareNext } from "@/share/share-next"
 import { EventV2Bridge } from "@/event-v2-bridge"
@@ -93,6 +97,7 @@ import { imagesHandlers } from "./handlers/images"
 import { videosHandlers } from "./handlers/videos"
 import { goalHandlers } from "./handlers/goal"
 import { workflowHandlers } from "./handlers/workflow"
+import { orchestratorHandlers } from "./handlers/orchestrator"
 import { instanceContextLayer, instanceRouterMiddleware } from "./middleware/instance-context"
 import { workspaceRouterMiddleware, workspaceRoutingLayer } from "./middleware/workspace-routing"
 import { disposeMiddleware } from "./lifecycle"
@@ -165,6 +170,7 @@ const instanceApiRoutes = HttpApiBuilder.layer(InstanceHttpApi).pipe(
     workspaceHandlers,
     goalHandlers,
     workflowHandlers,
+    orchestratorHandlers,
   ]),
 )
 
@@ -244,6 +250,7 @@ export function createRoutes(
       SessionCompaction.defaultLayer,
       SessionPrompt.defaultLayer,
       SessionRevert.defaultLayer,
+      SessionCheckpoint.defaultLayer,
       SessionShare.defaultLayer,
       SessionRunState.defaultLayer,
       SessionStatus.defaultLayer,
@@ -257,6 +264,9 @@ export function createRoutes(
       Todo.defaultLayer,
       Goal.defaultLayer,
       WorkflowDefaultLayer,
+      OrchestratorDefaultLayer,
+      DreamDefaultLayer,
+      DistillDefaultLayer,
       ToolRegistry.defaultLayer,
       Vcs.defaultLayer,
       Workspace.defaultLayer,

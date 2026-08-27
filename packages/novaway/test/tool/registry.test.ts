@@ -290,7 +290,7 @@ describe("tool.registry", () => {
         yield* Effect.promise(() =>
           Bun.write(
             path.join(plugin, "package.json"),
-            JSON.stringify({ name: "@novaway/plugin", type: "module", exports: { ".": "./dist/index.js" } }),
+            JSON.stringify({ name: "@opencode/plugin", type: "module", exports: { ".": "./dist/index.js" } }),
           ),
         )
         yield* Effect.promise(() =>
@@ -310,7 +310,7 @@ describe("tool.registry", () => {
           Bun.write(
             path.join(customTools, "addition.ts"),
             [
-              'import { tool } from "@novaway/plugin"',
+              'import { tool } from "@opencode/plugin"',
               "export default tool({",
               "  description: 'Use this tool to add two numbers and return their sum.',",
               "  args: {",
@@ -427,7 +427,7 @@ describe("tool.registry", () => {
           JSON.stringify({
             name: "custom-tools",
             dependencies: {
-              "@novaway/plugin": "^0.0.0",
+              "@opencode/plugin": "^0.0.0",
               cowsay: "^1.6.0",
             },
           }),
@@ -442,7 +442,7 @@ describe("tool.registry", () => {
             packages: {
               "": {
                 dependencies: {
-                  "@novaway/plugin": "^0.0.0",
+                  "@opencode/plugin": "^0.0.0",
                   cowsay: "^1.6.0",
                 },
               },

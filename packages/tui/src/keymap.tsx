@@ -34,6 +34,7 @@ type CommandSlashEntry = {
   display: string
   description?: string
   aliases?: string[]
+  order?: number
   onSelect: () => void
 }
 type Command = ReturnType<OpenTuiKeymap["getCommands"]>[number]
@@ -257,6 +258,92 @@ export function useCommandShortcut(command: string): Accessor<string> {
   )
 }
 
+// 斜杠命令的中文显示名。命中的命令在斜杠面板显示为 /中文,英文原名保留为别名(仍可 /english 输入)。
+// 想改某条中文名或新增别名,改这里对应一行即可。
+export const SLASH_ZH: Record<string, string[]> = {
+  sessions: ["会话"],
+  new: ["新会话"],
+  workspaces: ["工作区"],
+  models: ["模型"],
+  agents: ["智能体"],
+  "background-subagents": ["后台并行", "后台子代理", "并行"],
+  mcps: ["MCP服务"],
+  variants: ["变体"],
+  connect: ["连接"],
+  org: ["组织"],
+  status: ["状态"],
+  debug: ["调试"],
+  themes: ["主题"],
+  help: ["帮助"],
+  exit: ["退出"],
+  share: ["分享"],
+  rename: ["重命名"],
+  timeline: ["时间线"],
+  fork: ["分叉"],
+  compact: ["压缩"],
+  unshare: ["取消分享"],
+  undo: ["撤销"],
+  redo: ["重做"],
+  timestamps: ["时间戳"],
+  thinking: ["思考"],
+  copy: ["复制"],
+  export: ["导出"],
+  memory: ["记忆"],
+  evolution: ["进化"],
+  icon: ["图标"],
+  editor: ["编辑器"],
+  skills: ["技能"],
+  diff: ["差异"],
+  warp: ["传送"],
+  move: ["移动会话"],
+  review: ["审查"],
+  init: ["初始化"],
+  fetch: ["抓取"],
+}
+
+// 斜杠面板的优先级排序:靠前的先显示。未列出的排在最后并按名称字母序。
+const SLASH_PRIORITY = [
+  "agents",
+  "models",
+  "connect",
+  "skills",
+  "sessions",
+  "new",
+  "workspaces",
+  "background-subagents",
+  "variants",
+  "memory",
+  "evolution",
+  "icon",
+  "themes",
+  "compact",
+  "fork",
+  "timeline",
+  "rename",
+  "share",
+  "unshare",
+  "undo",
+  "redo",
+  "copy",
+  "export",
+  "init",
+  "review",
+  "fetch",
+  "editor",
+  "move",
+  "warp",
+  "timestamps",
+  "thinking",
+  "diff",
+  "mcps",
+  "org",
+  "status",
+  "debug",
+  "help",
+  "exit",
+]
+export const SLASH_ORDER: Record<string, number> = Object.fromEntries(SLASH_PRIORITY.map((name, i) => [name, i]))
+
 export function useCommandSlashes(): Accessor<readonly CommandSlashEntry[]> {
   const keymap = useNovaWayKeymap()
   const entries = useKeymapSelector((keymap: OpenTuiKeymap) =>
@@ -272,17 +359,26 @@ export function useCommandSlashes(): Accessor<readonly CommandSlashEntry[]> {
       const slashName = entry.command.slashName
       if (typeof slashName !== "string" || !slashName) return []
       const slashAliases = entry.command.slashAliases
+      // 中文优先展示;英文原名与其它别名一并保留为可输入别名。
+      const zh = SLASH_ZH[slashName]
+      const primary = zh?.[0]
+      const display = primary ? `/${primary}` : `/${slashName}`
+      const aliasSet = new Set<string>()
+      if (primary) aliasSet.add(`/${slashName}`)
+      if (zh) for (const z of zh.slice(1)) aliasSet.add(`/${z}`)
+      if (Array.isArray(slashAliases))
+        for (const a of slashAliases) if (typeof a === "string") aliasSet.add(`/${a}`)
+      aliasSet.delete(display)
       return {
-        display: `/${slashName}`,
+        display,
         description:
           typeof entry.command.desc === "string"
             ? entry.command.desc
             : typeof entry.command.title === "string"
               ? entry.command.title
               : undefined,
-        aliases: Array.isArray(slashAliases)
-          ? slashAliases.filter((alias): alias is string => typeof alias === "string").map((alias) => `/${alias}`)
-          : undefined,
+        aliases: aliasSet.size ? [...aliasSet] : undefined,
+        order: SLASH_ORDER[slashName],
         onSelect: () => keymap.dispatchCommand(entry.command.name),
       }
     }),

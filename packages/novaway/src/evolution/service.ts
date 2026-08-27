@@ -308,7 +308,7 @@ function materializeToolSource(candidate: Candidate) {
   const guidance = content || description
 
   return [
-    'import { tool } from "@novaway/plugin"',
+    'import { tool } from "@opencode/plugin"',
     "",
     `/** Evolved tool: ${description.replace(/\*\//g, "* /")}`,
     ` * ${candidate.reason.replace(/\*\//g, "* /")}`,

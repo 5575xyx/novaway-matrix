@@ -148,7 +148,7 @@ export function SelectProviderCombobox(props: Props) {
                   >
                     <ProviderIcon id={option.id} />
                     <span class="flex-1 text-14-regular text-text-strong">{option.name}</span>
-                    {option.id === "NovaWay" && (
+                    {option.id === "opencode" && (
                       <>
                         <div class="text-14-regular text-text-weak">
                           {language.t("dialog.provider.NovaWay.tagline")}

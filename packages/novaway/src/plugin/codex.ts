@@ -1,4 +1,4 @@
-import type { Hooks, PluginInput } from "@novaway/plugin"
+import type { Hooks, PluginInput } from "@opencode/plugin"
 import * as Log from "@novaway/core/util/log"
 import { Installation } from "../installation"
 import { InstallationVersion } from "@novaway/core/installation/version"

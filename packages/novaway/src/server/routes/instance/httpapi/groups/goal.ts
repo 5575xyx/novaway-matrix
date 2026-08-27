@@ -6,48 +6,56 @@ const root = "/session/:sessionId/goals"
 
 export const GoalApi = HttpApiGroup.make("goal")
   .add(
-    HttpApiEndpoint.get("listGoals", root)
-      .annotate(described, { summary: "获取会话目标列表" }),
+    HttpApiEndpoint.get("listGoals", root, {
+      success: Schema.Array(Schema.Any),
+      error: Schema.Never,
+    }),
   )
   .add(
-    HttpApiEndpoint.post("createGoal", root)
-      .annotate(described, { summary: "创建目标" })
-      .payload(
-        Schema.Struct({
-          title: Schema.String,
-          description: Schema.optional(Schema.String),
-          parentId: Schema.optional(Schema.String),
-          priority: Schema.optional(Schema.Literals(["high", "medium", "low"])),
-          successCriteria: Schema.optional(Schema.Array(Schema.String)),
-          deadline: Schema.optional(Schema.String),
-          tags: Schema.optional(Schema.Array(Schema.String)),
-        }),
-      ),
+    HttpApiEndpoint.post("createGoal", root, {
+      payload: Schema.Struct({
+        title: Schema.String,
+        description: Schema.optional(Schema.String),
+        parentId: Schema.optional(Schema.String),
+        priority: Schema.optional(Schema.Literals(["high", "medium", "low"])),
+        successCriteria: Schema.optional(Schema.Array(Schema.String)),
+        deadline: Schema.optional(Schema.String),
+        tags: Schema.optional(Schema.Array(Schema.String)),
+      }),
+      success: Schema.Any,
+      error: Schema.Never,
+    }),
   )
   .add(
-    HttpApiEndpoint.get("getGoal", "/goals/:goalId")
-      .annotate(described, { summary: "获取目标详情" }),
+    HttpApiEndpoint.get("getGoal", "/goals/:goalId", {
+      success: Schema.Any,
+      error: Schema.Never,
+    }),
   )
   .add(
-    HttpApiEndpoint.patch("updateGoal", "/goals/:goalId")
-      .annotate(described, { summary: "更新目标" })
-      .payload(
-        Schema.Struct({
-          title: Schema.optional(Schema.String),
-          description: Schema.optional(Schema.String),
-          status: Schema.optional(Schema.Literals(["pending", "in_progress", "completed", "cancelled"])),
-          priority: Schema.optional(Schema.Literals(["high", "medium", "low"])),
-          successCriteria: Schema.optional(Schema.Array(Schema.String)),
-          deadline: Schema.optional(Schema.String),
-          tags: Schema.optional(Schema.Array(Schema.String)),
-        }),
-      ),
+    HttpApiEndpoint.patch("updateGoal", "/goals/:goalId", {
+      payload: Schema.Struct({
+        title: Schema.optional(Schema.String),
+        description: Schema.optional(Schema.String),
+        status: Schema.optional(Schema.Literals(["pending", "in_progress", "completed", "cancelled"])),
+        priority: Schema.optional(Schema.Literals(["high", "medium", "low"])),
+        successCriteria: Schema.optional(Schema.Array(Schema.String)),
+        deadline: Schema.optional(Schema.String),
+        tags: Schema.optional(Schema.Array(Schema.String)),
+      }),
+      success: Schema.Any,
+      error: Schema.Never,
+    }),
   )
   .add(
-    HttpApiEndpoint.del("deleteGoal", "/goals/:goalId")
-      .annotate(described, { summary: "删除目标" }),
+    HttpApiEndpoint.delete("deleteGoal", "/goals/:goalId", {
+      success: Schema.Any,
+      error: Schema.Never,
+    }),
   )
   .add(
-    HttpApiEndpoint.get("getGoalProgress", "/goals/:goalId/progress")
-      .annotate(described, { summary: "获取目标进度" }),
+    HttpApiEndpoint.get("getGoalProgress", "/goals/:goalId/progress", {
+      success: Schema.Any,
+      error: Schema.Never,
+    }),
   )

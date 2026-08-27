@@ -4,18 +4,18 @@ import type {
   Plugin as PluginInstance,
   PluginModule,
   WorkspaceAdapter as PluginWorkspaceAdapter,
-} from "@novaway/plugin"
+} from "@opencode/plugin"
 import { Config } from "@/config/config"
 import { Bus } from "../bus"
 import * as Log from "@novaway/core/util/log"
-import { createNovaWayClient } from "@novaway/sdk"
+import { createOpencodeClient } from "@novaway/sdk"
 import { ServerAuth } from "@/server/auth"
 import { CodexAuthPlugin } from "./codex"
 import { Session } from "@/session/session"
 import { NamedError } from "@novaway/core/util/error"
 import { CopilotAuthPlugin } from "./github-copilot/copilot"
-import { gitlabAuthPlugin as GitlabAuthPlugin } from "NovaWay-gitlab-auth"
-import { PoeAuthPlugin } from "NovaWay-poe-auth"
+import { gitlabAuthPlugin as GitlabAuthPlugin } from "opencode-gitlab-auth"
+import { PoeAuthPlugin } from "opencode-poe-auth"
 import { CloudflareAIGatewayAuthPlugin, CloudflareWorkersAuthPlugin } from "./cloudflare"
 import { AzureAuthPlugin } from "./azure"
 import { DigitalOceanAuthPlugin } from "./digitalocean"
@@ -125,7 +125,7 @@ export const layer = Layer.effect(
 
         const { Server } = yield* Effect.promise(() => import("../server/server"))
 
-        const client = createNovaWayClient({
+        const client = createOpencodeClient({
           baseUrl: "http://localhost:4096",
           directory: ctx.directory,
           headers: ServerAuth.headers(),

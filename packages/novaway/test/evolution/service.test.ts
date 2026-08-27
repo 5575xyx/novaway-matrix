@@ -760,14 +760,14 @@ describe("evolution candidate service", () => {
     const source = await Bun.file(file).text()
     expect(source).toContain("export default tool({")
     expect(source).toContain("execute")
-    expect(source).toContain("@novaway/plugin")
+    expect(source).toContain("@opencode/plugin")
     expect(source).toContain("Repo health check tool")
   })
 
   test("applyToDisk keeps executable tool typescript content intact", async () => {
     const worktree = await tempWorktree()
     const toolSource = [
-      'import { tool } from "@novaway/plugin"',
+      'import { tool } from "@opencode/plugin"',
       "",
       "export default tool({",
       "  description: 'echo tool',",

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import Notifications from "../../../../src/feature-plugins/system/notifications"
 import type { Event, PermissionRequest, QuestionRequest, Session } from "@novaway/sdk-v2-latest/v2"
-import type { TuiAttentionNotifyInput } from "@novaway/plugin/tui"
+import type { TuiAttentionNotifyInput } from "@opencode/plugin/tui"
 import { createTuiPluginApi } from "../../../fixture/tui-plugin"
 
 async function setup() {

@@ -32,14 +32,14 @@ export function usePromptWorkspace(sessionID?: string) {
     } catch (err) {
       setSelection(undefined)
       setCreating(false)
-      toast.show({ title: "Creating workspace failed", message: errorMessage(err), variant: "error" })
+      toast.show({ title: "创建工作区失败", message: errorMessage(err), variant: "error" })
       return
     }
     if (result.error || !result.data) {
       setSelection(undefined)
       setCreating(false)
       toast.show({
-        title: "Creating workspace failed",
+        title: "创建工作区失败",
         message: errorMessage(result.error ?? "no response"),
         variant: "error",
       })
@@ -73,7 +73,7 @@ export function usePromptWorkspace(sessionID?: string) {
 
     const workspace =
       selection.type === "none"
-        ? { id: null, name: "local project" }
+        ? { id: null, name: "本地项目" }
         : selection.type === "existing"
           ? { id: selection.workspaceID, name: selection.workspaceName }
           : await create(selection)

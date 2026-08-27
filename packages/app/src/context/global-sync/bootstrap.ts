@@ -1,6 +1,6 @@
 import type {
   Config,
-  NovaWayClient,
+  OpencodeClient,
   Path,
   PermissionRequest,
   Project,
@@ -83,13 +83,13 @@ function showErrors(input: {
   })
 }
 
-export const loadGlobalConfigQuery = (sdk: NovaWayClient) =>
+export const loadGlobalConfigQuery = (sdk: OpencodeClient) =>
   queryOptions({
     queryKey: ["config"],
     queryFn: () => retry(() => sdk.global.config.get().then((x) => x.data!)),
   })
 
-export const loadProjectsQuery = (sdk: NovaWayClient) =>
+export const loadProjectsQuery = (sdk: OpencodeClient) =>
   queryOptions({
     queryKey: ["project"],
     queryFn: () =>
@@ -105,7 +105,7 @@ export const loadProjectsQuery = (sdk: NovaWayClient) =>
   })
 
 export async function bootstrapGlobal(input: {
-  globalSDK: NovaWayClient
+  globalSDK: OpencodeClient
   requestFailedTitle: string
   translate: (key: string, vars?: Record<string, string | number>) => string
   formatMoreCount: (count: number) => string
@@ -162,7 +162,7 @@ function warmSessions(input: {
   ids: string[]
   store: Store<State>
   setStore: SetStoreFunction<State>
-  sdk: NovaWayClient
+  sdk: OpencodeClient
 }) {
   const known = new Set(input.store.session.map((item) => item.id))
   const ids = [...new Set(input.ids)].filter((id) => !!id && !known.has(id))
@@ -178,19 +178,19 @@ function warmSessions(input: {
   ).then(() => undefined)
 }
 
-export const loadProvidersQuery = (directory: string | null, sdk: NovaWayClient) =>
+export const loadProvidersQuery = (directory: string | null, sdk: OpencodeClient) =>
   queryOptions({
     queryKey: [directory, "providers"],
     queryFn: () => retry(() => sdk.provider.list().then((x) => normalizeProviderList(x.data!))),
   })
 
-export const loadAgentsQuery = (directory: string | null, sdk: NovaWayClient) =>
+export const loadAgentsQuery = (directory: string | null, sdk: OpencodeClient) =>
   queryOptions({
     queryKey: [directory, "agents"],
     queryFn: () => retry(() => sdk.app.agents().then((x) => normalizeAgentList(x.data))),
   })
 
-export const loadPathQuery = (directory: string | null, sdk: NovaWayClient) =>
+export const loadPathQuery = (directory: string | null, sdk: OpencodeClient) =>
   queryOptions<Path>({
     queryKey: [directory, "path"],
     queryFn: () => retry(() => sdk.path.get().then((x) => x.data!)),
@@ -198,7 +198,7 @@ export const loadPathQuery = (directory: string | null, sdk: NovaWayClient) =>
 
 export async function bootstrapDirectory(input: {
   directory: string
-  sdk: NovaWayClient
+  sdk: OpencodeClient
   store: Store<State>
   setStore: SetStoreFunction<State>
   vcsCache: VcsCache

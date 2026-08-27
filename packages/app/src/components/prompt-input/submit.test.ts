@@ -64,7 +64,7 @@ beforeAll(async () => {
   }))
 
   mock.module("@novaway/sdk/v2/client", () => ({
-    createNovaWayClient: (input: { directory: string }) => {
+    createOpencodeClient: (input: { directory: string }) => {
       createdClients.push(input.directory)
       return clientFor(input.directory)
     },

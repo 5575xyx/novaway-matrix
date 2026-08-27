@@ -107,7 +107,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.933.0",
-    "@novaway/plugin": "workspace:*",
+    "@opencode/plugin": "workspace:*",
     "@novaway/script": "workspace:*",
     "@novaway/sdk": "workspace:*",
     "@silvia-odwyer/photon-node": "0.3.4",

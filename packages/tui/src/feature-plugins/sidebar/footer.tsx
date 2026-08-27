@@ -1,4 +1,4 @@
-import type { TuiPlugin, TuiPluginApi } from "@novaway/plugin/tui"
+import type { TuiPlugin, TuiPluginApi } from "@opencode/plugin/tui"
 import type { BuiltinTuiPlugin } from "../builtins"
 import { createMemo, Show } from "solid-js"
 import { abbreviateHome } from "../../runtime"
@@ -48,18 +48,18 @@ function View(props: { api: TuiPluginApi; sessionID: string }) {
           <box flexGrow={1} gap={1}>
             <box flexDirection="row" justifyContent="space-between">
               <text fg={theme().text}>
-                <b>Getting started</b>
+                <b>快速开始</b>
               </text>
               <text fg={theme().textMuted} onMouseDown={() => props.api.kv.set("dismissed_getting_started", true)}>
                 ✕
               </text>
             </box>
-            <text fg={theme().textMuted}>{TUI_BRAND.name} includes free models so you can start immediately.</text>
+            <text fg={theme().textMuted}>{TUI_BRAND.name} 包含免费模型，您可以立即开始使用。</text>
             <text fg={theme().textMuted}>
-              Connect from 75+ providers to use other models, including Claude, GPT, Gemini etc
+              连接 75+ 提供商以使用其他模型，包括 Claude、GPT、Gemini 等
             </text>
             <box flexDirection="row" gap={1} justifyContent="space-between">
-              <text fg={theme().text}>Connect provider</text>
+              <text fg={theme().text}>连接提供商</text>
               <text fg={theme().textMuted}>/connect</text>
             </box>
           </box>

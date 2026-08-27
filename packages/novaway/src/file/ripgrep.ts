@@ -9,7 +9,7 @@ import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner
 import { CrossSpawnSpawner } from "@novaway/core/cross-spawn-spawner"
 import { Global } from "@novaway/core/global"
 import * as Log from "@novaway/core/util/log"
-import { sanitizedProcessEnv } from "@novaway/core/util/NovaWay-process"
+import { sanitizedProcessEnv } from "@novaway/core/util/opencode-process"
 import { which } from "@/util/which"
 import { NonNegativeInt } from "@novaway/core/schema"
 

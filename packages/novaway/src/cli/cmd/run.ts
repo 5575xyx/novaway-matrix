@@ -20,7 +20,7 @@ import { effectCmd } from "../effect-cmd"
 import { ServerAuth } from "@/server/auth"
 import { EOL } from "os"
 import { Filesystem } from "@/util/filesystem"
-import { createNovaWayClient, type NovaWayClient, type ToolPart } from "@novaway/sdk/v2"
+import { createOpencodeClient, type OpencodeClient, type ToolPart } from "@novaway/sdk/v2"
 import { Agent } from "@/agent/agent"
 import { Permission } from "@/permission"
 import { RuntimeFlags } from "@/effect/runtime-flags"
@@ -29,7 +29,7 @@ import { FormatError, FormatUnknownError } from "../error"
 import { INTERACTIVE_INPUT_ERROR, resolveInteractiveStdin } from "./run/runtime.stdin"
 
 const runtimeTask = import("./run/runtime")
-type ModelInput = Parameters<NovaWayClient["session"]["prompt"]>[0]["model"]
+type ModelInput = Parameters<OpencodeClient["session"]["prompt"]>[0]["model"]
 
 function pick(value: string | undefined): ModelInput | undefined {
   if (!value) return undefined
@@ -334,7 +334,7 @@ export const RunCommand = effectCmd({
         ? ServerAuth.headers({ password: args.password, username: args.username })
         : undefined
       const attachSDK = (dir?: string) => {
-        return createNovaWayClient({
+        return createOpencodeClient({
           baseUrl: args.attach!,
           directory: dir,
           headers: attachHeaders,
@@ -403,7 +403,7 @@ export const RunCommand = effectCmd({
         return message.slice(0, 50) + (message.length > 50 ? "..." : "")
       }
 
-      async function session(sdk: NovaWayClient): Promise<SessionInfo | undefined> {
+      async function session(sdk: OpencodeClient): Promise<SessionInfo | undefined> {
         if (args.session) {
           const current = await sdk.session
             .get({
@@ -482,7 +482,7 @@ export const RunCommand = effectCmd({
         }
       }
 
-      async function share(sdk: NovaWayClient, sessionID: string) {
+      async function share(sdk: OpencodeClient, sessionID: string) {
         const cfg = await sdk.config.get()
         if (!cfg.data) return
         if (cfg.data.share !== "auto" && !flags.autoShare && !args.share) return
@@ -498,7 +498,7 @@ export const RunCommand = effectCmd({
       }
 
       async function createFreshSession(
-        sdk: NovaWayClient,
+        sdk: OpencodeClient,
         input: { agent: string | undefined; model: ModelInput | undefined; variant: string | undefined },
       ): Promise<SessionInfo> {
         const result = await sdk.session.create({
@@ -525,7 +525,7 @@ export const RunCommand = effectCmd({
         }
       }
 
-      async function current(sdk: NovaWayClient): Promise<string> {
+      async function current(sdk: OpencodeClient): Promise<string> {
         if (!args.attach) {
           return directory ?? root
         }
@@ -568,7 +568,7 @@ export const RunCommand = effectCmd({
         return name
       }
 
-      async function attachAgent(sdk: NovaWayClient) {
+      async function attachAgent(sdk: OpencodeClient) {
         if (!args.agent) return undefined
         const name = args.agent
 
@@ -608,7 +608,7 @@ export const RunCommand = effectCmd({
         return name
       }
 
-      async function pickAgent(sdk: NovaWayClient) {
+      async function pickAgent(sdk: OpencodeClient) {
         if (!args.agent) return undefined
         if (args.attach) {
           return attachAgent(sdk)
@@ -617,7 +617,7 @@ export const RunCommand = effectCmd({
         return localAgent()
       }
 
-      async function execute(sdk: NovaWayClient) {
+      async function execute(sdk: OpencodeClient) {
         const sess = await session(sdk)
         if (!sess?.id) {
           UI.error("Session not found")
@@ -644,7 +644,7 @@ export const RunCommand = effectCmd({
         // to stdout/UI. `client` is passed explicitly because attach mode may
         // rebind the SDK to the session's directory after the subscription is
         // created, and replies issued from inside the loop must use that client.
-        async function loop(client: NovaWayClient, events: Awaited<ReturnType<typeof sdk.event.subscribe>>) {
+        async function loop(client: OpencodeClient, events: Awaited<ReturnType<typeof sdk.event.subscribe>>) {
           const toggles = new Map<string, boolean>()
           let error: string | undefined
 
@@ -882,7 +882,7 @@ export const RunCommand = effectCmd({
         const request = new Request(input, init)
         return Server.Default().app.fetch(request)
       }) as typeof globalThis.fetch
-      const sdk = createNovaWayClient({
+      const sdk = createOpencodeClient({
         baseUrl: "http://NovaWay.internal",
         fetch: fetchFn,
         directory,

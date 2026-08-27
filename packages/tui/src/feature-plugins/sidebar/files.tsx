@@ -1,4 +1,4 @@
-import type { TuiPlugin, TuiPluginApi } from "@novaway/plugin/tui"
+import type { TuiPlugin, TuiPluginApi } from "@opencode/plugin/tui"
 import type { BuiltinTuiPlugin } from "../builtins"
 import { createMemo, For, Show, createSignal } from "solid-js"
 import { Locale } from "../../util/locale"
@@ -24,7 +24,7 @@ function View(props: { api: TuiPluginApi; session_id: string }) {
             <text fg={theme().text}>{open() ? "▼" : "▶"}</text>
           </Show>
           <text fg={theme().text}>
-            <b>Modified Files</b>
+            <b>修改的文件</b>
           </text>
         </box>
         <Show when={list().length <= 2 || open()}>

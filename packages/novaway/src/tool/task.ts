@@ -117,10 +117,13 @@ export const TaskTool = Tool.define(
       ctx: Tool.Context,
     ) {
       const cfg = yield* config.get()
+      // 后台并行开关:配置 experimental.background_subagents 优先(可被 /后台并行 命令切换并持久化),
+      // 未设置时回退到运行时 flag(默认开)。
+      const bgEnabled = cfg.experimental?.background_subagents ?? flags.experimentalBackgroundSubagents
       const runInBackground = params.background === true
-      if (runInBackground && !flags.experimentalBackgroundSubagents) {
+      if (runInBackground && !bgEnabled) {
         return yield* Effect.fail(
-          new Error("Background subagents require NovaWay_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true"),
+          new Error("后台子代理已被禁用。用 /后台并行 命令开启,或设置 experimental.background_subagents=true。"),
         )
       }
 

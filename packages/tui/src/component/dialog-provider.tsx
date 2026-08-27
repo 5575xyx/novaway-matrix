@@ -59,20 +59,20 @@ export function providerOptions(list: { id: string; name: string }[]): ProviderO
         value: provider.id,
         providerID: provider.id,
         description: {
-          NovaWay: "(Recommended)",
-          anthropic: "(API key)",
-          openai: "(ChatGPT Plus/Pro or API key)",
-          "NovaWay-go": "Low cost subscription for everyone",
+          NovaWay: "(推荐)",
+          anthropic: "(API 密钥)",
+          openai: "(ChatGPT Plus/Pro 或 API 密钥)",
+          "NovaWay-go": "低成本订阅，适合所有人",
         }[provider.id],
-        category: provider.id in PROVIDER_PRIORITY ? "Popular" : "Providers",
+        category: provider.id in PROVIDER_PRIORITY ? "热门" : "提供商",
       })),
     ),
     {
       type: "custom",
-      title: "Other",
+      title: "其他",
       value: CUSTOM_PROVIDER_OPTION_VALUE,
-      description: "Custom provider",
-      category: "Providers",
+      description: "自定义提供商",
+      category: "提供商",
     },
   ]
 }
@@ -92,11 +92,11 @@ export function createDialogProviderOptions() {
   const onboarded = useConnected()
 
   async function promptCustomProviderID(): Promise<string | undefined> {
-    const value = await DialogPrompt.show(dialog, "Other", {
-      placeholder: "Provider id",
+    const value = await DialogPrompt.show(dialog, "其他", {
+      placeholder: "提供商 ID",
       description: () => (
         <text fg={theme.textMuted}>
-          This only stores a credential. Configure the provider in NovaWay.json to use it.
+          这只会存储一个凭据。请在 NovaWay.json 中配置提供商以使用它。
         </text>
       ),
     })
@@ -108,7 +108,7 @@ export function createDialogProviderOptions() {
     toast.show({
       variant: "error",
       message:
-        "Provider ids must start with a lowercase letter or number and only use lowercase letters, numbers, hyphens, and underscores",
+        "提供商 ID 必须以小写字母或数字开头，且仅使用小写字母、数字、连字符和下划线",
     })
     return promptCustomProviderID()
   }
@@ -126,7 +126,7 @@ export function createDialogProviderOptions() {
             async onSelect() {
               const providerID = await promptCustomProviderID()
               if (!providerID) return
-              return dialog.replace(() => <ApiMethod providerID={providerID} title="API key" custom />)
+              return dialog.replace(() => <ApiMethod providerID={providerID} title="API 密钥" custom />)
             },
           }
         }
@@ -148,7 +148,7 @@ export function createDialogProviderOptions() {
             const methods = sync.data.provider_auth[providerID] ?? [
               {
                 type: "api",
-                label: "API key",
+                label: "API 密钥",
               },
             ]
             let index: number | null = 0
@@ -157,7 +157,7 @@ export function createDialogProviderOptions() {
                 dialog.replace(
                   () => (
                     <DialogSelect
-                      title="Select auth method"
+                      title="选择认证方式"
                       options={methods.map((x, index) => ({
                         title: x.label,
                         value: index,
@@ -227,7 +227,7 @@ export function createDialogProviderOptions() {
 
 export function DialogProvider() {
   const options = createDialogProviderOptions()
-  return <DialogSelect title="Connect a provider" options={options()} />
+  return <DialogSelect title="连接提供商" options={options()} />
 }
 
 interface AutoMethodProps {
@@ -248,14 +248,14 @@ function AutoMethod(props: AutoMethodProps) {
     bindings: [
       {
         key: "c",
-        desc: "Copy provider code",
-        group: "Dialog",
+        desc: "复制提供商代码",
+        group: "对话框",
         cmd: () => {
           const code =
             props.authorization.instructions.match(/[A-Z0-9]{4}-[A-Z0-9]{4,5}/)?.[0] ?? props.authorization.url
           clipboard
             .write?.(code)
-            .then(() => toast.show({ message: "Copied to clipboard", variant: "info" }))
+            .then(() => toast.show({ message: "已复制到剪贴板", variant: "info" }))
             .catch(toast.error)
         },
       },
@@ -297,9 +297,9 @@ function AutoMethod(props: AutoMethodProps) {
         <Link href={props.authorization.url} fg={theme.primary} />
         <text fg={theme.textMuted}>{props.authorization.instructions}</text>
       </box>
-      <text fg={theme.textMuted}>Waiting for authorization...</text>
+      <text fg={theme.textMuted}>等待授权中...</text>
       <text fg={theme.text}>
-        c <span style={{ fg: theme.textMuted }}>copy</span>
+        c <span style={{ fg: theme.textMuted }}>复制</span>
       </text>
     </box>
   )
@@ -321,7 +321,7 @@ function CodeMethod(props: CodeMethodProps) {
   return (
     <DialogPrompt
       title={props.title}
-      placeholder="Authorization code"
+      placeholder="授权码"
       onConfirm={async (value) => {
         const { error } = await sdk.client.provider.oauth.callback({
           providerID: props.providerID,
@@ -365,7 +365,7 @@ function ApiMethod(props: ApiMethodProps) {
   return (
     <DialogPrompt
       title={props.title}
-      placeholder="API key"
+      placeholder="API 密钥"
       description={() =>
         ({
           NovaWay: (

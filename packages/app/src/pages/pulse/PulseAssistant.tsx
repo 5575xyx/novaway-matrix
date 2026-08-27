@@ -147,8 +147,8 @@ export function PulseAssistant() {
       let model: { providerID: string; modelID: string } | undefined
 
       if (autoMode) {
-        const NovaWayModels = modelsCtx.list().filter((m) => m.provider.id === "NovaWay")
-        if (NovaWayModels.length > 0) {
+        const openCodeModels = modelsCtx.list().filter((m) => m.provider.id === "opencode")
+        if (openCodeModels.length > 0) {
           const textLower = text.toLowerCase()
           const isCodeTask =
             textLower.includes("代码") ||
@@ -172,7 +172,7 @@ export function PulseAssistant() {
             textLower.includes("summarize")
           const isComplex = text.length > 500 || isCodeTask || isAnalysisTask
 
-          const scored = NovaWayModels.map((m) => {
+          const scored = openCodeModels.map((m) => {
             let score = 50
             const ctx = m.limit?.context ?? 0
             if (isCodeTask) score += 20

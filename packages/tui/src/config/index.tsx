@@ -30,6 +30,10 @@ export const ScrollAcceleration = Schema.Struct({
 export const DiffStyle = Schema.Literals(["auto", "stacked"]).annotate({
   description: "Control diff rendering style: 'auto' adapts to terminal width, 'stacked' always shows single column",
 })
+export const Icons = Schema.Literals(["nerdfont", "emoji", "ascii"]).annotate({
+  description:
+    "Sidebar/panel/file-tree icon style: 'nerdfont' (default, needs a Nerd Font terminal font — otherwise glyphs show as boxes), 'emoji' (widest compatibility fallback), 'ascii' (plain text markers)",
+})
 export const Cursor = Schema.Struct({
   style: Schema.optional(Schema.Literals(["block", "underline", "line", "default"])).annotate({
     description: "Cursor shape. Use 'default' to preserve the terminal setting",
@@ -70,12 +74,16 @@ export const Info = Schema.Struct({
   scroll_speed: Schema.optional(ScrollSpeed).annotate({ description: "TUI scroll speed" }),
   scroll_acceleration: Schema.optional(ScrollAcceleration),
   diff_style: Schema.optional(DiffStyle),
+  icons: Schema.optional(Icons),
+  default_agent: Schema.optional(Schema.String).annotate({
+    description: "TUI 启动时默认选中的代理名称。默认 agents-orchestrator(Agent 编排总控)。若该代理不存在则回退到列表首个。",
+  }),
   cursor: Schema.optional(Cursor),
   mouse: Schema.optional(Schema.Boolean).annotate({ description: "Enable or disable mouse capture (default: true)" }),
 })
 export type Info = Schema.Schema.Type<typeof Info>
 
-export type Resolved = Omit<Info, "attention" | "keybinds" | "leader_timeout" | "mouse" | "cursor"> & {
+export type Resolved = Omit<Info, "attention" | "keybinds" | "leader_timeout" | "mouse" | "cursor" | "icons"> & {
   attention: {
     enabled: boolean
     notifications: boolean
@@ -87,6 +95,7 @@ export type Resolved = Omit<Info, "attention" | "keybinds" | "leader_timeout" | 
   keybinds: TuiKeybind.BindingLookupView
   leader_timeout: number
   mouse: boolean
+  icons: Schema.Schema.Type<typeof Icons>
   cursor?: {
     style: "block" | "underline" | "line" | "default"
     blinking: boolean
@@ -126,6 +135,7 @@ export function resolve(input: Info, options: ResolveOptions): Resolved {
     }),
     leader_timeout: input.leader_timeout ?? LeaderTimeoutDefault,
     mouse: input.mouse ?? true,
+    icons: input.icons ?? "nerdfont",
     cursor: input.cursor
       ? {
           style: input.cursor.style ?? "block",

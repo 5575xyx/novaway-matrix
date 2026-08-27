@@ -1,4 +1,4 @@
-import type { TuiPlugin, TuiPluginApi } from "@novaway/plugin/tui"
+import type { TuiPlugin, TuiPluginApi } from "@opencode/plugin/tui"
 import type { BuiltinTuiPlugin } from "../builtins"
 import { createMemo, For, Show, createSignal } from "solid-js"
 import { TodoItem } from "../../component/todo-item"
@@ -19,7 +19,7 @@ function View(props: { api: TuiPluginApi; session_id: string }) {
             <text fg={theme().text}>{open() ? "▼" : "▶"}</text>
           </Show>
           <text fg={theme().text}>
-            <b>Todo</b>
+            <b>待办事项</b>
           </text>
         </box>
         <Show when={list().length <= 2 || open()}>

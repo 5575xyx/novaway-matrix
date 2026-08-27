@@ -5,6 +5,7 @@ import { useDialog } from "../ui/dialog"
 import { useSDK } from "../context/sdk"
 import { useTheme } from "../context/theme"
 import { errorMessage } from "../util/error"
+import { skillDisplayName } from "../util/agent-name"
 
 export type DialogSkillProps = {
   onSelect: (skill: string) => void
@@ -35,12 +36,13 @@ export function DialogSkill(props: DialogSkillProps) {
   const options = createMemo<DialogSelectOption<string>[]>(() => {
     if (showError()) return []
     const list = skills() ?? []
-    const maxWidth = Math.max(0, ...list.map((s) => s.name.length))
-    return list.map((skill) => ({
-      title: skill.name.padEnd(maxWidth),
+    const rows = list.map((skill) => ({ skill, display: skillDisplayName(skill.name, skill as Record<string, unknown>) }))
+    const maxWidth = Math.max(0, ...rows.map((r) => r.display.length))
+    return rows.map(({ skill, display }) => ({
+      title: display.padEnd(maxWidth),
       description: skill.description?.replace(/\s+/g, " ").trim(),
       value: skill.name,
-      category: "Skills",
+      category: "技能",
       onSelect: () => {
         props.onSelect(skill.name)
         dialog.clear()
@@ -50,8 +52,8 @@ export function DialogSkill(props: DialogSkillProps) {
 
   return (
     <DialogSelect
-      title="Skills"
-      placeholder="Search skills..."
+      title="技能"
+      placeholder="搜索技能..."
       options={options()}
       renderFilter={!showError()}
       locked={showError()}
@@ -59,7 +61,7 @@ export function DialogSkill(props: DialogSkillProps) {
         showError() ? (
           <box paddingLeft={4} paddingRight={4}>
             <text fg={theme.error} attributes={TextAttributes.BOLD}>
-              Could not load skills
+              无法加载技能
             </text>
             <text fg={theme.textMuted}>{errorMessage(loadError())}</text>
           </box>

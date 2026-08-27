@@ -1,6 +1,6 @@
 import { PlanExitTool } from "./plan"
 import { GoalTool } from "./goal"
-import { Service as WorkflowService } from "@/workflow/workflow"
+import { Service as WorkflowService, defaultLayer as WorkflowDefaultLayer } from "@/workflow/workflow"
 import { Session } from "@/session/session"
 import { QuestionTool } from "./question"
 import { ShellTool } from "./shell"
@@ -52,6 +52,8 @@ import { LspTool } from "./lsp"
 import * as Truncate from "./truncate"
 import { ApplyPatchTool } from "./apply_patch"
 import { WorkflowTool } from "./workflow"
+import { OrchestratorTool } from "./orchestrator"
+import { OrchestratorService, defaultLayer as OrchestratorDefaultLayer } from "@/orchestrator/orchestrator"
 import { Glob } from "@novaway/core/util/glob"
 import path from "path"
 import { pathToFileURL } from "url"
@@ -136,6 +138,7 @@ export const layer: Layer.Layer<
   | BrowserService.Service
   | Goal.Service
   | WorkflowService
+  | OrchestratorService
 > = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -182,6 +185,7 @@ export const layer: Layer.Layer<
     const browserClose = yield* BrowserCloseTool
     const goal = yield* GoalTool
     const workflow = yield* WorkflowTool
+    const orchestrator = yield* OrchestratorTool
     const agent = yield* Agent.Service
 
     const state = yield* InstanceState.make<State>(
@@ -277,6 +281,9 @@ export const layer: Layer.Layer<
 
         const cfg = yield* config.get()
         const questionEnabled = ["app", "cli", "desktop"].includes(flags.client) || flags.enableQuestionTool
+        // 后台并行开关:配置优先(可被 /后台并行 切换),回退运行时 flag。
+        const backgroundSubagentsEnabled =
+          cfg.experimental?.background_subagents ?? flags.experimentalBackgroundSubagents
 
         const tool = yield* Effect.all({
           invalid: Tool.init(invalid),
@@ -315,6 +322,7 @@ export const layer: Layer.Layer<
           browser_close: Tool.init(browserClose),
           goal: Tool.init(goal),
           workflow: Tool.init(workflow),
+          orchestrator: Tool.init(orchestrator),
         })
 
         return {
@@ -329,7 +337,7 @@ export const layer: Layer.Layer<
             tool.edit,
             tool.write,
             tool.task,
-            ...(flags.experimentalBackgroundSubagents ? [tool.task_status] : []),
+            ...(backgroundSubagentsEnabled ? [tool.task_status] : []),
             tool.fetch,
             tool.todo,
             tool.search,
@@ -355,6 +363,7 @@ export const layer: Layer.Layer<
             tool.browser_close,
             tool.goal,
             tool.workflow,
+            tool.orchestrator,
           ],
           task: tool.task,
           read: tool.read,
@@ -522,7 +531,8 @@ export const defaultLayer: Layer.Layer<Service> = Layer.suspend(() =>
       Layer.provide(RuntimeFlags.defaultLayer),
       Layer.provide(Auth.defaultLayer),
       Layer.provide(Goal.defaultLayer),
-      Layer.provide(WorkflowService.defaultLayer),
+      Layer.provide(WorkflowDefaultLayer),
+      Layer.provide(OrchestratorDefaultLayer),
     ),
 ) as Layer.Layer<Service>
 

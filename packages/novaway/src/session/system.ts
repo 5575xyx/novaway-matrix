@@ -11,6 +11,11 @@ import PROMPT_KIMI from "./prompt/kimi.txt"
 
 import PROMPT_CODEX from "./prompt/codex.txt"
 import PROMPT_TRINITY from "./prompt/trinity.txt"
+import PROMPT_DEEPSEEK from "./prompt/deepseek.txt"
+import PROMPT_GLM from "./prompt/glm.txt"
+import PROMPT_QWEN from "./prompt/qwen.txt"
+import PROMPT_MINIMAX from "./prompt/minimax.txt"
+import PROMPT_MIMO from "./prompt/mimo.txt"
 import type { Provider } from "@/provider/provider"
 import type { Agent } from "@/agent/agent"
 import { Permission } from "@/permission"
@@ -29,6 +34,13 @@ export function provider(model: Provider.Model) {
   if (model.api.id.includes("claude")) return [PROMPT_ANTHROPIC]
   if (model.api.id.toLowerCase().includes("trinity")) return [PROMPT_TRINITY]
   if (model.api.id.toLowerCase().includes("kimi")) return [PROMPT_KIMI]
+  // 国产模型专用系统提示词(按各自特性适配),置于默认之前。
+  const domesticId = model.api.id.toLowerCase()
+  if (domesticId.includes("deepseek")) return [PROMPT_DEEPSEEK]
+  if (domesticId.includes("glm")) return [PROMPT_GLM]
+  if (domesticId.includes("qwen") || domesticId.includes("qwq")) return [PROMPT_QWEN]
+  if (domesticId.includes("minimax")) return [PROMPT_MINIMAX]
+  if (domesticId.includes("mimo")) return [PROMPT_MIMO]
   return [PROMPT_DEFAULT]
 }
 

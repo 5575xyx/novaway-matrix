@@ -455,8 +455,8 @@ export function createPromptSubmit(input: PromptSubmitInput) {
     // Auto Mode: 智能选择最佳 NovaWay Zen 模型
     let finalModel = currentModel
     if (modelsCtx.autoMode()) {
-      const NovaWayModels = modelsCtx.list().filter((m) => m.provider.id === "NovaWay")
-      if (NovaWayModels.length > 0) {
+      const openCodeModels = modelsCtx.list().filter((m) => m.provider.id === "opencode")
+      if (openCodeModels.length > 0) {
         // 分析用户输入特征
         const textLower = text.toLowerCase()
         const hasImages = images.length > 0
@@ -501,7 +501,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
         const isComplex = text.length > 500 || isCodeTask || isAnalysisTask
 
         // 根据特征筛选模型
-        let candidates = NovaWayModels
+        let candidates = openCodeModels
 
         // 如果有附件，必须选择支持附件的模型
         if (hasAttachments) {
@@ -510,7 +510,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
 
         // 如果没有找到支持附件的模型，回退到所有模型
         if (candidates.length === 0) {
-          candidates = NovaWayModels
+          candidates = openCodeModels
         }
 
         // 按优先级排序

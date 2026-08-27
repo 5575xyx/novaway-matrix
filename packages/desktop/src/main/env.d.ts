@@ -6,7 +6,7 @@ interface ImportMeta {
   readonly env: ImportMetaEnv
 }
 
-declare module "virtual:NovaWay-server" {
+declare module "virtual:novaway-server" {
   export namespace Server {
     export const listen: typeof import("../../../NovaWay/dist/types/src/node").Server.listen
     export type Listener = import("../../../NovaWay/dist/types/src/node").Server.Listener

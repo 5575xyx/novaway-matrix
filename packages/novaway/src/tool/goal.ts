@@ -1,6 +1,19 @@
 import { Effect, Schema } from "effect"
+import { generateObject, type ModelMessage } from "ai"
 import * as Tool from "./tool"
 import { Goal } from "@/session/goal"
+import { Provider } from "@/provider/provider"
+import { MessageV2 } from "@/session/message-v2"
+
+const DecomposeResult = Schema.Struct({
+  subGoals: Schema.Array(
+    Schema.Struct({
+      title: Schema.String,
+      description: Schema.optional(Schema.String),
+      successCriteria: Schema.optional(Schema.Array(Schema.String)),
+    }),
+  ),
+})
 
 const CreateParams = Schema.Struct({
   action: Schema.Literal("create"),
@@ -70,10 +83,11 @@ type Metadata = {
   action?: string
 }
 
-export const GoalTool = Tool.define<typeof Parameters, Metadata, Goal.Service>(
+export const GoalTool = Tool.define<typeof Parameters, Metadata, Goal.Service | Provider.Service>(
   "goal",
   Effect.gen(function* () {
     const goalService = yield* Goal.Service
+    const provider = yield* Provider.Service
 
     return {
       description: "管理目标（Goal）- 创建、更新、查看、分解目标",
@@ -188,9 +202,63 @@ export const GoalTool = Tool.define<typeof Parameters, Metadata, Goal.Service>(
                   metadata: { goalId: params.goalId, action: "decompose" },
                 }
               }
+              // 用当轮 assistant 模型做真实 LLM 分解,产出子目标并落库为子目标。
+              const msg = yield* MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID }).pipe(
+                Effect.orDie,
+              )
+              if (msg.info.role !== "assistant") {
+                return yield* Effect.fail(new Error("目标分解必须在 assistant 轮次内执行"))
+              }
+              const model = yield* provider.getModel(msg.info.providerID, msg.info.modelID)
+              const language = yield* provider.getLanguage(model)
+              const system = [
+                "你是目标分解助手。把给定的高层目标拆解为 2-6 个具体、可独立推进的子目标。",
+                "每个子目标要有清晰的 title;尽量给出 description 和可验证的 successCriteria。",
+                "子目标应覆盖父目标、彼此尽量不重叠,顺序体现推进路径。不要输出与目标无关的内容。",
+              ].join("\n")
+              const messages: ModelMessage[] = [
+                { role: "system", content: system },
+                {
+                  role: "user",
+                  content: [
+                    `父目标: ${targetGoal.title}`,
+                    targetGoal.description ? `描述: ${targetGoal.description}` : "",
+                    targetGoal.successCriteria?.length ? `成功标准: ${targetGoal.successCriteria.join("; ")}` : "",
+                  ]
+                    .filter(Boolean)
+                    .join("\n"),
+                },
+              ]
+              const result = yield* Effect.promise(() =>
+                generateObject({
+                  model: language,
+                  temperature: 0.2,
+                  maxOutputTokens: 900,
+                  messages,
+                  schema: Object.assign(
+                    Schema.toStandardSchemaV1(DecomposeResult),
+                    Schema.toStandardJSONSchemaV1(DecomposeResult),
+                  ),
+                }).then((r) => r.object as Schema.Schema.Type<typeof DecomposeResult>),
+              )
+              const created: string[] = []
+              for (const sg of result.subGoals) {
+                if (!sg.title?.trim()) continue
+                const child = yield* goalService.create({
+                  sessionId,
+                  parentId: targetGoal.id,
+                  title: sg.title.trim(),
+                  description: sg.description,
+                  successCriteria: sg.successCriteria ? [...sg.successCriteria] : undefined,
+                })
+                created.push(`${child.id}: ${child.title}`)
+              }
               return {
                 title: `分解目标: ${targetGoal.title}`,
-                output: `目标 "${targetGoal.title}" 需要手动分解为子目标`,
+                output:
+                  created.length > 0
+                    ? `已分解为 ${created.length} 个子目标:\n${created.join("\n")}`
+                    : "未能生成子目标,请补充目标描述后重试",
                 metadata: { goalId: targetGoal.id, action: "decompose" },
               }
             }

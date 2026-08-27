@@ -140,7 +140,17 @@ const live: Layer.Layer<
       // TODO: move this to a proper hook
       const isOpenaiOauth = item.id === "openai" && info?.type === "oauth"
 
+      // 全局语言指令:置于 system 前缀最前(常量,不破坏缓存),强制所有模型/代理用简体中文回答。
+      const LANGUAGE_DIRECTIVE = [
+        "<language>",
+        "无论用户使用何种语言提问,你都必须始终使用简体中文回答。",
+        "代码、命令、变量名、文件路径、专有名词与技术术语保持原文不翻译;但所有解释、说明、总结与对话内容必须使用简体中文。",
+        "</language>",
+      ].join("\n")
+
       const systemParts = [
+        // 语言指令(最高优先级,置顶)
+        LANGUAGE_DIRECTIVE,
         // use agent prompt otherwise provider prompt
         ...(input.agent.prompt ? [input.agent.prompt] : SystemPrompt.provider(input.model)),
         // any custom prompt passed into this call

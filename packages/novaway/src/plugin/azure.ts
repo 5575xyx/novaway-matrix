@@ -1,4 +1,4 @@
-import type { Hooks, PluginInput } from "@novaway/plugin"
+import type { Hooks, PluginInput } from "@opencode/plugin"
 
 export async function AzureAuthPlugin(_input: PluginInput): Promise<Hooks> {
   const prompts = []

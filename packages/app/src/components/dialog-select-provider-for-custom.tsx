@@ -79,10 +79,10 @@ export const DialogSelectProviderForCustom: Component<Props> = (props) => {
           <div class="px-1.25 w-full flex items-center gap-x-3">
             <ProviderIcon data-slot="list-item-extra-icon" id={i.id} />
             <span>{i.name}</span>
-            <Show when={i.id === "NovaWay"}>
+            <Show when={i.id === "opencode"}>
               <div class="text-14-regular text-text-weak">{language.t("dialog.provider.NovaWay.tagline")}</div>
             </Show>
-            <Show when={i.id === "NovaWay"}>
+            <Show when={i.id === "opencode"}>
               <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
             </Show>
             <Show when={note(i.id)}>{(value) => <div class="text-14-regular text-text-weak">{value()}</div>}</Show>

@@ -55,6 +55,7 @@ export interface Interface {
 }
 
 export class Service extends Context.Service<Service, Interface>()("@NovaWay/GoalService") {}
+export { Service as GoalService }
 
 const generateId = () => `goal_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
 
@@ -120,7 +121,8 @@ export const layer = Layer.effect(
             tags: goal.tags,
             created_at: goal.createdAt.getTime(),
             updated_at: goal.updatedAt.getTime(),
-          }),
+          })
+          .run(),
         ),
       )
 
@@ -130,7 +132,7 @@ export const layer = Layer.effect(
     const list = Effect.fn("GoalService.list")(function* (sessionId: string) {
       const rows = yield* Effect.sync(() =>
         Database.use((db) =>
-          db.select().from(GoalTable).where(eq(GoalTable.session_id, sessionId)).orderBy(GoalTable.created_at),
+          db.select().from(GoalTable).where(eq(GoalTable.session_id, sessionId)).orderBy(GoalTable.created_at).all(),
         ),
       )
       return rows.map(toGoal)
@@ -138,7 +140,7 @@ export const layer = Layer.effect(
 
     const get = Effect.fn("GoalService.get")(function* (goalId: string) {
       const rows = yield* Effect.sync(() =>
-        Database.use((db) => db.select().from(GoalTable).where(eq(GoalTable.id, goalId)).limit(1)),
+        Database.use((db) => db.select().from(GoalTable).where(eq(GoalTable.id, goalId)).limit(1).all()),
       )
       if (rows.length === 0) return null
       return toGoal(rows[0])
@@ -173,24 +175,25 @@ export const layer = Layer.effect(
               ...(input.tags !== undefined && { tags: input.tags }),
               updated_at: now.getTime(),
             })
-            .where(eq(GoalTable.id, input.goalId)),
+            .where(eq(GoalTable.id, input.goalId))
+            .run(),
         ),
       )
 
       const rows = yield* Effect.sync(() =>
-        Database.use((db) => db.select().from(GoalTable).where(eq(GoalTable.id, input.goalId)).limit(1)),
+        Database.use((db) => db.select().from(GoalTable).where(eq(GoalTable.id, input.goalId)).limit(1).all()),
       )
 
       return toGoal(rows[0])
     })
 
     const deleteGoal = Effect.fn("GoalService.delete")(function* (goalId: string) {
-      yield* Effect.sync(() => Database.use((db) => db.delete(GoalTable).where(eq(GoalTable.id, goalId))))
+      yield* Effect.sync(() => Database.use((db) => db.delete(GoalTable).where(eq(GoalTable.id, goalId)).run()))
     })
 
     const getProgress = Effect.fn("GoalService.getProgress")(function* (goalId: string) {
       const todos = yield* Effect.sync(() =>
-        Database.use((db) => db.select().from(TodoTable).where(eq(TodoTable.goal_id, goalId))),
+        Database.use((db) => db.select().from(TodoTable).where(eq(TodoTable.goal_id, goalId)).all()),
       )
 
       const total = todos.length
@@ -207,7 +210,8 @@ export const layer = Layer.effect(
           db
             .update(GoalTable)
             .set({ progress: progress.percentage, updated_at: Date.now() })
-            .where(eq(GoalTable.id, goalId)),
+            .where(eq(GoalTable.id, goalId))
+            .run(),
         ),
       )
     })

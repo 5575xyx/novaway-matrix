@@ -50,12 +50,12 @@ export function DialogModel(props: { providerID?: string }) {
       })
     }
 
-    const favoriteOptions = toOptions(favorites, "Favorites")
+    const favoriteOptions = toOptions(favorites, "收藏")
     const recentOptions = toOptions(
       recents.filter(
         (item) => !favorites.some((fav) => fav.providerID === item.providerID && fav.modelID === item.modelID),
       ),
-      "Recent",
+      "最近使用",
     )
 
     const providerOptions = pipe(
@@ -75,7 +75,7 @@ export function DialogModel(props: { providerID?: string }) {
             title: displayModelName(info.name ?? model, provider.id, info.cost?.input === 0),
             releaseDate: info.release_date,
             description: favorites.some((item) => item.providerID === provider.id && item.modelID === model)
-              ? "(Favorite)"
+              ? "(收藏)"
               : undefined,
             category: connected() ? displayModelGroup(provider.id, provider.name) : undefined,
             disabled: provider.id === "NovaWay" && model.includes("-nano"),
@@ -110,7 +110,7 @@ export function DialogModel(props: { providerID?: string }) {
           providers(),
           map((option) => ({
             ...option,
-            category: "Popular providers",
+            category: "热门提供商",
           })),
           take(6),
         )
@@ -135,7 +135,7 @@ export function DialogModel(props: { providerID?: string }) {
 
   const title = createMemo(() => {
     const value = provider()
-    if (!value) return "Select model"
+    if (!value) return "选择模型"
     return value.name
   })
 
@@ -160,14 +160,14 @@ export function DialogModel(props: { providerID?: string }) {
       actions={[
         {
           command: "model.dialog.provider",
-          title: connected() ? "Connect provider" : "View all providers",
+          title: connected() ? "连接提供商" : "查看所有提供商",
           onTrigger() {
             dialog.replace(() => <DialogProvider />)
           },
         },
         {
           command: "model.dialog.favorite",
-          title: "Favorite",
+          title: "收藏",
           hidden: !connected(),
           onTrigger: (option) => {
             local.model.toggleFavorite(option.value as { providerID: string; modelID: string })
@@ -202,6 +202,6 @@ export function displayModelName(name: string, providerID: string, free: boolean
 }
 
 export function displayModelGroup(providerID: string, providerName: string) {
-  if (providerID === "NovaWay") return "Default"
+  if (providerID === "NovaWay") return "默认"
   return providerName
 }

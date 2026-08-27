@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "name": "@novaway/plugin",
+  "name": "@opencode/plugin",
   "version": "1.0.0",
   "type": "module",
   "license": "MIT",

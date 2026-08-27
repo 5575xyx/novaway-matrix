@@ -260,7 +260,7 @@ const layer = Layer.effect(
           .install(dir, {
             add: [
               {
-                name: "@novaway/plugin",
+                name: "@opencode/plugin",
                 version: InstallationLocal ? undefined : InstallationVersion,
               },
             ],

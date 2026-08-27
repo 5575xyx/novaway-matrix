@@ -3,7 +3,7 @@ import type {
   TuiPluginInstallOptions,
   TuiPluginInstallResult,
   TuiPluginStatus,
-} from "@novaway/plugin/tui"
+} from "@opencode/plugin/tui"
 import type { TuiConfig } from "../config"
 import { createContext, createSignal, useContext, type JSX, type ParentProps } from "solid-js"
 import { createPluginRoutes } from "./api"
@@ -52,7 +52,7 @@ const emptyCommands: PluginRuntimeCommands = {
     return false
   },
   async install() {
-    return { ok: false, message: "Plugin runtime is not available." }
+    return { ok: false, message: "插件运行时不可用。" }
   },
 }
 

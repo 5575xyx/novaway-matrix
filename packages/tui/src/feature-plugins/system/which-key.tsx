@@ -4,7 +4,7 @@ import { useTerminalDimensions } from "@opentui/solid"
 import { createEffect, createMemo, createSignal, For, Show } from "solid-js"
 import { useBindings, useKeymapSelector } from "../../keymap"
 import type { ActiveKey } from "@opentui/keymap"
-import type { TuiPlugin, TuiPluginApi } from "@novaway/plugin/tui"
+import type { TuiPlugin, TuiPluginApi } from "@opencode/plugin/tui"
 import type { BuiltinTuiPlugin } from "../builtins"
 
 const command = {
@@ -46,7 +46,7 @@ const MAX_PANEL_HEIGHT = 16
 const PANEL_TOP_PADDING = 1
 const FOOTER_HEIGHT = 1
 const FOOTER_MARGIN = 1
-const UNKNOWN = "Unknown"
+const UNKNOWN = "未知"
 
 type Layout = "dock" | "overlay"
 
@@ -119,7 +119,7 @@ function activeKeyLabel(active: ActiveKey<Renderable, KeyEvent>) {
 }
 
 function activeKeyGroup(active: ActiveKey<Renderable, KeyEvent>) {
-  if (active.continues) return "System"
+  if (active.continues) return "系统"
   return text(active.commandAttrs?.category) ?? text(active.bindingAttrs?.group) ?? UNKNOWN
 }
 
@@ -175,7 +175,7 @@ function HomeHint(props: { api: TuiPluginApi }) {
   return (
     <box width="100%" maxWidth={75} alignItems="center" paddingTop={1} flexShrink={0}>
       <text fg={look().muted} wrapMode="none">
-        Show keyboard shortcuts with <span style={{ fg: look().subtle }}>{trigger() || command.toggle}</span>
+        按 <span style={{ fg: look().subtle }}>{trigger() || command.toggle}</span> 显示键盘快捷键
       </text>
     </box>
   )
@@ -289,72 +289,72 @@ function WhichKeyPanel(props: {
     commands: [
       {
         name: command.groupPrevious,
-        title: "Previous key binding group",
-        desc: "Show the previous which-key group",
-        category: "System",
+        title: "上一个快捷键分组",
+        desc: "显示上一个快捷键分组",
+        category: "系统",
         run() {
           moveGroup(-1)
         },
       },
       {
         name: command.groupNext,
-        title: "Next key binding group",
-        desc: "Show the next which-key group",
-        category: "System",
+        title: "下一个快捷键分组",
+        desc: "显示下一个快捷键分组",
+        category: "系统",
         run() {
           moveGroup(1)
         },
       },
       {
         name: command.scrollUp,
-        title: "Scroll key bindings up",
-        desc: "Scroll the which-key panel up",
-        category: "System",
+        title: "向上滚动快捷键",
+        desc: "向上滚动快捷键面板",
+        category: "系统",
         run() {
           scroll(-columns())
         },
       },
       {
         name: command.scrollDown,
-        title: "Scroll key bindings down",
-        desc: "Scroll the which-key panel down",
-        category: "System",
+        title: "向下滚动快捷键",
+        desc: "向下滚动快捷键面板",
+        category: "系统",
         run() {
           scroll(columns())
         },
       },
       {
         name: command.pageUp,
-        title: "Page key bindings up",
-        desc: "Page the which-key panel up",
-        category: "System",
+        title: "向上翻页快捷键",
+        desc: "向上翻页快捷键面板",
+        category: "系统",
         run() {
           scroll(-pageSize())
         },
       },
       {
         name: command.pageDown,
-        title: "Page key bindings down",
-        desc: "Page the which-key panel down",
-        category: "System",
+        title: "向下翻页快捷键",
+        desc: "向下翻页快捷键面板",
+        category: "系统",
         run() {
           scroll(pageSize())
         },
       },
       {
         name: command.home,
-        title: "First key binding",
-        desc: "Jump to the first which-key binding",
-        category: "System",
+        title: "第一个快捷键",
+        desc: "跳转到第一个快捷键",
+        category: "系统",
         run() {
           setOffset(0)
         },
       },
       {
         name: command.end,
-        title: "Last key binding",
-        desc: "Jump to the last which-key binding",
-        category: "System",
+        title: "最后一个快捷键",
+        desc: "跳转到最后一个快捷键",
+        category: "系统",
         run() {
           setOffset(maxOffset())
         },
@@ -455,7 +455,7 @@ function WhichKeyPanel(props: {
           <box height={TAB_CONTENT_GAP} flexShrink={0} />
         </Show>
         <box height={rows()} flexShrink={0} flexDirection="column">
-          <Show when={shown().length > 0} fallback={<text fg={look().muted}>No reachable bindings</text>}>
+          <Show when={shown().length > 0} fallback={            <text fg={look().muted}>无可访问的快捷键</text>}>
             <For each={rowIndexes()}>
               {(row) => (
                 <box width="100%" flexDirection="row" justifyContent="center" gap={COLUMN_GAP}>
@@ -514,12 +514,12 @@ function WhichKeyPanel(props: {
           <box width="100%" flexDirection="row" justifyContent="space-between" flexShrink={0}>
             <box>
               <text fg={look().text} wrapMode="none">
-                toggle <span style={{ fg: look().subtle }}>{trigger() || command.toggle}</span>
+                切换 <span style={{ fg: look().subtle }}>{trigger() || command.toggle}</span>
               </text>
             </box>
             <box>
               <text fg={look().text} wrapMode="none">
-                {nextMode()} <span style={{ fg: look().subtle }}>{modeTrigger() || command.toggleLayout}</span>
+                {nextMode() === "dock" ? "停靠" : "覆盖"} <span style={{ fg: look().subtle }}>{modeTrigger() || command.toggleLayout}</span>
               </text>
             </box>
           </box>
@@ -539,18 +539,18 @@ const tui: TuiPlugin = async (api) => {
     commands: [
       {
         name: command.toggle,
-        title: "Show key bindings",
-        desc: "Toggle which-key overlay",
-        category: "System",
+        title: "显示快捷键",
+        desc: "切换快捷键覆盖层",
+        category: "系统",
         run() {
           setPinned((value) => !value)
         },
       },
       {
         name: command.toggleLayout,
-        title: "Toggle key bindings layout",
-        desc: "Switch which-key between dock and overlay mode",
-        category: "System",
+        title: "切换快捷键布局",
+        desc: "在停靠和覆盖模式之间切换快捷键",
+        category: "系统",
         run() {
           setMode((value) => {
             const next = value === "dock" ? "overlay" : "dock"
@@ -561,9 +561,9 @@ const tui: TuiPlugin = async (api) => {
       },
       {
         name: command.togglePending,
-        title: "Toggle pending key preview",
-        desc: "Automatically show which-key for pending key sequences in overlay mode",
-        category: "System",
+        title: "切换待处理按键预览",
+        desc: "在覆盖模式下自动显示待处理按键序列的快捷键",
+        category: "系统",
         run() {
           setPendingPreview((value) => {
             api.kv.set(KV_PENDING_PREVIEW, !value)

@@ -10,12 +10,12 @@ import { useSDK } from "../context/sdk"
 function Status(props: { enabled: boolean; loading: boolean }) {
   const { theme } = useTheme()
   if (props.loading) {
-    return <span style={{ fg: theme.textMuted }}>⋯ Loading</span>
+    return <span style={{ fg: theme.textMuted }}>⋯ 加载中</span>
   }
   if (props.enabled) {
-    return <span style={{ fg: theme.success, attributes: TextAttributes.BOLD }}>✓ Enabled</span>
+    return <span style={{ fg: theme.success, attributes: TextAttributes.BOLD }}>✓ 已启用</span>
   }
-  return <span style={{ fg: theme.textMuted }}>○ Disabled</span>
+  return <span style={{ fg: theme.textMuted }}>○ 已禁用</span>
 }
 
 export function DialogMcp() {
@@ -74,7 +74,7 @@ export function DialogMcp() {
   return (
     <DialogSelect
       ref={setRef}
-      title="MCPs"
+      title="MCP 服务"
       options={options()}
       actions={actions()}
       onSelect={(_option) => {

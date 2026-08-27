@@ -5,7 +5,7 @@ import { AgentSideConnection, ndJsonStream } from "@agentclientprotocol/sdk"
 import { ACP } from "@/acp/agent"
 import { Server } from "@/server/server"
 import { ServerAuth } from "@/server/auth"
-import { createNovaWayClient } from "@novaway/sdk/v2"
+import { createOpencodeClient } from "@novaway/sdk/v2"
 import { withNetworkOptions, resolveNetworkOptions } from "../network"
 
 const log = Log.create({ service: "acp-command" })
@@ -25,7 +25,7 @@ export const AcpCommand = effectCmd({
     const opts = yield* resolveNetworkOptions(args)
     const server = yield* Effect.promise(() => Server.listen(opts))
 
-    const sdk = createNovaWayClient({
+    const sdk = createOpencodeClient({
       baseUrl: `http://${server.hostname}:${server.port}`,
       headers: ServerAuth.headers(),
     })

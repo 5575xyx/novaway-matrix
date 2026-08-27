@@ -1,4 +1,5 @@
 import path from "path"
+import fs from "fs/promises"
 import { pathToFileURL, fileURLToPath } from "url"
 import matter from "gray-matter"
 import { Effect, Layer, Context, Schema } from "effect"
@@ -165,6 +166,15 @@ export const Info = Schema.Struct({
 })
 export type Info = Schema.Schema.Type<typeof Info>
 
+export interface SkillComposition {
+  readonly id: string
+  readonly name: string
+  readonly description: string
+  readonly skills: string[]
+  readonly config: Record<string, any>
+  readonly createdAt: Date
+}
+
 const Issue = Schema.StructWithRest(
   Schema.Struct({
     message: Schema.String,
@@ -215,6 +225,15 @@ export interface Interface {
   readonly available: (agent?: Agent.Info) => Effect.Effect<Info[]>
   /** Rediscover and reload skills from disk for the current instance. */
   readonly reload: () => Effect.Effect<Info[]>
+  readonly createComposition: (input: {
+    name: string
+    description: string
+    skills: string[]
+    config?: Record<string, any>
+  }) => Effect.Effect<SkillComposition>
+  readonly listCompositions: () => Effect.Effect<readonly SkillComposition[]>
+  readonly getComposition: (compositionId: string) => Effect.Effect<SkillComposition | null>
+  readonly executeComposition: (compositionId: string, context: Record<string, any>) => Effect.Effect<void>
 }
 
 const add = Effect.fnUntraced(function* (state: State, match: string, bus: Bus.Interface) {
@@ -435,7 +454,66 @@ export const layer = Layer.effect(
       return Object.values(next.skills).toSorted((a, b) => a.name.localeCompare(b.name))
     })
 
-    return Service.of({ get, all, dirs, available, reload })
+    const compositionsFilePath = path.join(process.cwd(), ".novaway", "compositions.json")
+
+    const loadCompositions = Effect.fn("Skill.loadCompositions")(function* () {
+      const content = yield* Effect.tryPromise({
+        try: () => fs.readFile(compositionsFilePath, "utf-8"),
+        catch: (error) => error,
+      }).pipe(Effect.catch(() => Effect.succeed("[]")))
+      return JSON.parse(content) as SkillComposition[]
+    })
+
+    const saveCompositions = Effect.fn("Skill.saveCompositions")(function* (compositions: SkillComposition[]) {
+      yield* Effect.tryPromise({
+        try: () => fs.writeFile(compositionsFilePath, JSON.stringify(compositions, null, 2)),
+        catch: (error) => error,
+      })
+    })
+
+    const createComposition = Effect.fn("Skill.createComposition")(function* (input: {
+      name: string
+      description: string
+      skills: string[]
+      config?: Record<string, any>
+    }) {
+      const composition: SkillComposition = {
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+        name: input.name,
+        description: input.description,
+        skills: input.skills,
+        config: input.config ?? {},
+        createdAt: new Date(),
+      }
+
+      const compositions = yield* loadCompositions()
+      compositions.push(composition)
+      yield* saveCompositions(compositions)
+      return composition
+    })
+
+    const listCompositions = Effect.fn("Skill.listCompositions")(function* () {
+      return yield* loadCompositions()
+    })
+
+    const getComposition = Effect.fn("Skill.getComposition")(function* (compositionId: string) {
+      const compositions = yield* loadCompositions()
+      return compositions.find((c) => c.id === compositionId) ?? null
+    })
+
+    const executeComposition = Effect.fn("Skill.executeComposition")(function* (compositionId: string, context: Record<string, any>) {
+      const composition = yield* getComposition(compositionId)
+      if (!composition) return yield* Effect.fail(new Error("Composition not found"))
+
+      for (const skillId of composition.skills) {
+        const skill = yield* get(skillId)
+        if (skill) {
+          log.info("执行技能", { skillId })
+        }
+      }
+    })
+
+    return Service.of({ get, all, dirs, available, reload, createComposition, listCompositions, getComposition, executeComposition })
   }),
 )
 

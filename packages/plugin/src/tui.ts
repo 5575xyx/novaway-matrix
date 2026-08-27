@@ -206,6 +206,7 @@ export type TuiPromptRef = {
   blur(): void
   focus(): void
   submit(): void
+  insertText(text: string): void
 }
 
 export type TuiPromptProps = {

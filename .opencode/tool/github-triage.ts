@@ -1,5 +1,5 @@
 /// <reference path="../env.d.ts" />
-import { tool } from "@novaway/plugin"
+import { tool } from "@opencode/plugin"
 
 const TEAM = {
   tui: ["kommander", "simonklee"],

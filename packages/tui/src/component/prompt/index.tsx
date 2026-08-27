@@ -39,6 +39,7 @@ import { type AutocompleteRef, Autocomplete } from "./autocomplete"
 import { useRenderer, useTerminalDimensions, type JSX } from "@opentui/solid"
 import type { AssistantMessage, FilePart, UserMessage } from "@novaway/sdk-v2-latest/v2"
 import { Locale } from "../../util/locale"
+import { agentDisplayName } from "../../util/agent-name"
 import { errorMessage } from "../../util/error"
 import { formatDuration } from "../../util/format"
 import { createColors, createFrames } from "../../ui/spinner"
@@ -94,6 +95,7 @@ export type PromptRef = {
   blur(): void
   focus(): void
   submit(): void
+  insertText(text: string): void
 }
 
 const money = new Intl.NumberFormat("en-US", {
@@ -129,14 +131,14 @@ function getEditorRangeLabel(selection: EditorSelection["ranges"][number]) {
 function formatEditorContext(selection: EditorSelection) {
   const selected = selection.ranges.filter(hasEditorRangeSelection)
   if (selected.length === 0)
-    return `<system-reminder>Note: The user opened the file "${selection.filePath}". This may or may not be relevant to the current task.</system-reminder>\n`
+    return `<system-reminder>注意：用户打开了文件 "${selection.filePath}"。这可能与当前任务相关，也可能不相关。</system-reminder>\n`
 
   const ranges = selected.map((range, index) => {
     const prefix = selected.length > 1 ? `Selection ${index + 1}: ` : ""
-    return `Note: The user selected ${prefix}${getEditorRangeLabel(range)} from "${selection.filePath}". \`\`\`${range.text}\`\`\`\n\n`
+    return `注意：用户选择了 ${prefix}${getEditorRangeLabel(range)} 来自 "${selection.filePath}"。\`\`\`${range.text}\`\`\`\n\n`
   })
 
-  return `<system-reminder>${ranges.join("\n")} This may or may not be relevant to the current task.</system-reminder>\n`
+  return `<system-reminder>${ranges.join("\n")} 这可能与当前任务相关，也可能不相关。</system-reminder>\n`
 }
 
 let stashed: { prompt: PromptInfo; cursor: number } | undefined
@@ -217,7 +219,7 @@ export function Prompt(props: PromptProps) {
   function promptModelWarning() {
     toast.show({
       variant: "warning",
-      message: "Connect a provider to send prompts",
+      message: "连接提供商以发送提示",
       duration: 3000,
     })
     if (sync.data.provider.length === 0) {
@@ -336,7 +338,7 @@ export function Prompt(props: PromptProps) {
   const promptCommands = createMemo(() =>
     [
       {
-        title: "Clear prompt",
+        title: "清除提示",
         name: "prompt.clear",
         category: "Prompt",
         hidden: true,
@@ -346,7 +348,7 @@ export function Prompt(props: PromptProps) {
         },
       },
       {
-        title: "Submit prompt",
+        title: "提交提示",
         name: "prompt.submit",
         category: "Prompt",
         hidden: true,
@@ -359,7 +361,7 @@ export function Prompt(props: PromptProps) {
         },
       },
       {
-        title: "Remove editor context",
+        title: "移除编辑器上下文",
         name: "prompt.editor_context.clear",
         category: "Prompt",
         enabled: Boolean(editorContext()),
@@ -369,7 +371,7 @@ export function Prompt(props: PromptProps) {
         },
       },
       {
-        title: "Paste",
+        title: "粘贴",
         name: "prompt.paste",
         category: "Prompt",
         hidden: true,
@@ -391,7 +393,7 @@ export function Prompt(props: PromptProps) {
         },
       },
       {
-        title: "Interrupt session",
+        title: "中断会话",
         name: "session.interrupt",
         category: "Session",
         hidden: true,
@@ -422,7 +424,7 @@ export function Prompt(props: PromptProps) {
         },
       },
       {
-        title: "Open editor",
+        title: "打开编辑器",
         category: "Session",
         name: "prompt.editor",
         slashName: "editor",
@@ -514,7 +516,7 @@ export function Prompt(props: PromptProps) {
         },
       },
       {
-        title: "Skills",
+        title: "技能",
         name: "prompt.skills",
         category: "Prompt",
         slashName: "skills",
@@ -534,8 +536,8 @@ export function Prompt(props: PromptProps) {
         },
       },
       {
-        title: "Warp",
-        desc: "Change the workspace for the session",
+        title: "传送",
+        desc: "更改会话的工作区",
         name: "workspace.set",
         category: "Session",
         enabled: Flag.NOVAWAY_EXPERIMENTAL_WORKSPACES,
@@ -545,8 +547,8 @@ export function Prompt(props: PromptProps) {
         },
       },
       {
-        title: "Move session",
-        desc: "Move to another project dir",
+        title: "移动会话",
+        desc: "移动到其他项目目录",
         name: "session.move",
         category: "Session",
         slashName: "move",
@@ -610,6 +612,9 @@ export function Prompt(props: PromptProps) {
     },
     submit() {
       void submit()
+    },
+    insertText(text: string) {
+      input.insertText(text)
     },
   }
 
@@ -737,7 +742,7 @@ export function Prompt(props: PromptProps) {
   const stashCommands = createMemo(() =>
     [
       {
-        title: "Stash prompt",
+        title: "暂存提示",
         name: "prompt.stash",
         category: "Prompt",
         enabled: !!store.prompt.input,
@@ -755,7 +760,7 @@ export function Prompt(props: PromptProps) {
         },
       },
       {
-        title: "Stash pop",
+        title: "暂存弹出",
         name: "prompt.stash.pop",
         category: "Prompt",
         enabled: stash.list().length > 0,
@@ -771,7 +776,7 @@ export function Prompt(props: PromptProps) {
         },
       },
       {
-        title: "Stash list",
+        title: "暂存列表",
         name: "prompt.stash.list",
         category: "Prompt",
         enabled: stash.list().length > 0,
@@ -830,7 +835,7 @@ export function Prompt(props: PromptProps) {
       bindings: [
         {
           key: "!",
-          desc: "Shell mode",
+          desc: "Shell 模式",
           group: "Prompt",
           cmd: () => {
             setStore("placeholder", randomIndex(shell().length))
@@ -845,7 +850,7 @@ export function Prompt(props: PromptProps) {
     return {
       target: inputTarget,
       enabled: inputTarget() !== undefined && store.mode === "shell",
-      bindings: [{ key: "escape", desc: "Exit shell mode", group: "Prompt", cmd: () => setStore("mode", "normal") }],
+      bindings: [{ key: "escape", desc: "退出 Shell 模式", group: "Prompt", cmd: () => setStore("mode", "normal") }],
     }
   })
 
@@ -856,7 +861,7 @@ export function Prompt(props: PromptProps) {
         cursorVersion()
         return inputTarget() !== undefined && store.mode === "shell" && input?.visualCursor.offset === 0
       })(),
-      bindings: [{ key: "backspace", desc: "Exit shell mode", group: "Prompt", cmd: () => setStore("mode", "normal") }],
+      bindings: [{ key: "backspace", desc: "退出 Shell 模式", group: "Prompt", cmd: () => setStore("mode", "normal") }],
     }
   })
 
@@ -870,7 +875,7 @@ export function Prompt(props: PromptProps) {
       commands: [
         {
           name: "prompt.history.previous",
-          title: "Previous prompt history",
+          title: "上一个提示历史",
           category: "Prompt",
           run() {
             if (input.cursorOffset !== 0) {
@@ -902,7 +907,7 @@ export function Prompt(props: PromptProps) {
       commands: [
         {
           name: "prompt.history.next",
-          title: "Next prompt history",
+          title: "下一个提示历史",
           category: "Prompt",
           run() {
             if (input.cursorOffset !== input.plainText.length) {
@@ -1014,7 +1019,7 @@ export function Prompt(props: PromptProps) {
         console.log("Creating a session failed:", res.error)
 
         toast.show({
-          message: "Creating a session failed. Open console for more details.",
+          message: "创建会话失败。打开控制台查看详情。",
           variant: "error",
         })
 
@@ -1113,7 +1118,7 @@ export function Prompt(props: PromptProps) {
         )
         .catch((error) => {
           toast.show({
-            title: "Failed to send prompt",
+            title: "发送提示失败",
             message: errorMessage(error),
             variant: "error",
           })
@@ -1448,14 +1453,14 @@ export function Prompt(props: PromptProps) {
                   {(agent) => (
                     <>
                       <text fg={fadeColor(highlight(), agentMetaAlpha())}>
-                        {store.mode === "shell" ? "Shell" : Locale.titlecase(agent().name)}
+                        {store.mode === "shell" ? "Shell" : agentDisplayName(agent().name, agent().options)}
                       </text>
                       <Show when={store.mode === "normal" && local.permission.mode === "auto"}>
                         <text fg={fadeColor(theme.textMuted, agentMetaAlpha())}>auto</text>
                       </Show>
                       <Show when={store.mode === "normal"}>
                         <box flexDirection="row" gap={1}>
-                          <text fg={fadeColor(theme.textMuted, modelMetaAlpha())}>路</text>
+                           <text fg={fadeColor(theme.textMuted, modelMetaAlpha())}>·</text>
                           <text
                             flexShrink={0}
                             fg={fadeColor(leader() ? theme.textMuted : theme.text, modelMetaAlpha())}
@@ -1464,7 +1469,7 @@ export function Prompt(props: PromptProps) {
                           </text>
                           <text fg={fadeColor(theme.textMuted, modelMetaAlpha())}>{currentProviderLabel()}</text>
                           <Show when={showVariant()}>
-                            <text fg={fadeColor(theme.textMuted, variantMetaAlpha())}>路</text>
+                             <text fg={fadeColor(theme.textMuted, variantMetaAlpha())}>·</text>
                             <text>
                               <span style={{ fg: fadeColor(theme.warning, variantMetaAlpha()), bold: true }}>
                                 {local.model.variant.current()}
@@ -1502,7 +1507,7 @@ export function Prompt(props: PromptProps) {
               theme.backgroundElement.a !== 0
                 ? {
                     ...EmptyBorder,
-                    horizontal: "鈻€",
+                    horizontal: "\u2500",
                   }
                 : {
                     ...EmptyBorder,
@@ -1522,7 +1527,7 @@ export function Prompt(props: PromptProps) {
               >
                 <box flexShrink={0} flexDirection="row" gap={1}>
                   <box marginLeft={1}>
-                    <Show when={kv.get("animations_enabled", true)} fallback={<text fg={theme.textMuted}>[鈰痌</text>}>
+                    <Show when={kv.get("animations_enabled", true)} fallback={<text fg={theme.textMuted}>[--]</text>}>
                       <spinner color={spinnerDef().color} frames={spinnerDef().frames} interval={40} />
                     </Show>
                   </box>
@@ -1588,7 +1593,7 @@ export function Prompt(props: PromptProps) {
                 <text fg={store.interrupt > 0 ? theme.primary : theme.text}>
                   esc{" "}
                   <span style={{ fg: store.interrupt > 0 ? theme.primary : theme.textMuted }}>
-                    {store.interrupt > 0 ? "again to interrupt" : "interrupt"}
+                    {store.interrupt > 0 ? "再次中断" : "中断"}
                   </span>
                 </text>
               </box>
@@ -1666,7 +1671,7 @@ export function Prompt(props: PromptProps) {
                     <Match when={usage()}>
                       {(item) => (
                         <text fg={theme.textMuted} wrapMode="none">
-                          {[item().context, item().cost].filter(Boolean).join(" 路 ")}
+                          {[item().context, item().cost].filter(Boolean).join(" · ")}
                         </text>
                       )}
                     </Match>

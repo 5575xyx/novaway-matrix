@@ -115,6 +115,11 @@ export const Definitions = {
   session_quick_switch_8: keybind("<leader>8", "Switch to session in quick slot 8"),
   session_quick_switch_9: keybind("<leader>9", "Switch to session in quick slot 9"),
 
+  memory_review: keybind("<leader>M", "Open memory review dialog"),
+  memory_sidebar: keybind("none", "Switch sidebar to memory tab"),
+  evolution_review: keybind("<leader>E", "Open evolution review dialog"),
+  evolution_sidebar: keybind("none", "Switch sidebar to evolution tab"),
+
   stash_delete: keybind("ctrl+d", "Delete stash entry"),
   model_provider_list: keybind("ctrl+a", "Open provider list from model dialog"),
   model_favorite_toggle: keybind("ctrl+f", "Toggle model favorite status"),
@@ -321,6 +326,10 @@ export const CommandMap = {
   session_quick_switch_7: "session.quick_switch.7",
   session_quick_switch_8: "session.quick_switch.8",
   session_quick_switch_9: "session.quick_switch.9",
+  memory_review: "memory.review",
+  memory_sidebar: "memory.sidebar",
+  evolution_review: "evolution.review",
+  evolution_sidebar: "evolution.sidebar",
   stash_delete: "stash.delete",
   model_provider_list: "model.dialog.provider",
   model_favorite_toggle: "model.dialog.favorite",

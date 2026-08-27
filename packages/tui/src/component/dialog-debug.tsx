@@ -24,12 +24,12 @@ export function DialogDebug() {
   const entries = createMemo(() => {
     const model = local.model.current()
     return [
-      { label: "Version", value: `${InstallationVersion} (${InstallationChannel})` },
-      { label: "Date", value: new Date().toISOString() },
-      { label: "OS", value: describeOS() },
-      { label: "Terminal", value: describeTerminal() },
-      { label: "Session ID", value: route.data.type === "session" ? route.data.sessionID : "n/a" },
-      { label: "Model", value: model ? `${model.providerID}/${model.modelID}` : "n/a" },
+      { label: "版本", value: `${InstallationVersion} (${InstallationChannel})` },
+      { label: "日期", value: new Date().toISOString() },
+      { label: "系统", value: describeOS() },
+      { label: "终端", value: describeTerminal() },
+      { label: "会话 ID", value: route.data.type === "session" ? route.data.sessionID : "n/a" },
+      { label: "模型", value: model ? `${model.providerID}/${model.modelID}` : "n/a" },
     ]
   })
 
@@ -41,21 +41,21 @@ export function DialogDebug() {
       .write?.(text)
       .then(() => {
         setCopied(true)
-        toast.show({ message: "Debug info copied to clipboard", variant: "info" })
+        toast.show({ message: "调试信息已复制到剪贴板", variant: "info" })
       })
       .catch(toast.error)
   }
 
   useBindings(() => ({
-    bindings: [{ key: "return", desc: "Copy debug info", group: "Dialog", cmd: copy }],
+    bindings: [{ key: "return", desc: "复制调试信息", group: "对话框", cmd: copy }],
   }))
 
   return (
     <box paddingLeft={2} paddingRight={2} gap={1} paddingBottom={1}>
       <box flexDirection="row" justifyContent="space-between">
-        <text fg={theme.text} attributes={TextAttributes.BOLD}>
-          Debug
-        </text>
+          <text fg={theme.text} attributes={TextAttributes.BOLD}>
+            调试信息
+          </text>
         <text fg={theme.textMuted} onMouseUp={() => dialog.clear()}>
           esc
         </text>
@@ -77,10 +77,10 @@ export function DialogDebug() {
         </For>
       </box>
       <box flexDirection="row" justifyContent="space-between">
-        <text fg={theme.textMuted}>Share this when reporting an issue.</text>
+        <text fg={theme.textMuted}>报告问题时请分享此信息。</text>
         <text onMouseUp={copy}>
           <span style={{ fg: copied() ? theme.success : theme.text }}>
-            <b>{copied() ? "✓ copied" : "copy"}</b>{" "}
+            <b>{copied() ? "✓ 已复制" : "复制"}</b>{" "}
           </span>
           <span style={{ fg: theme.textMuted }}>enter</span>
         </text>

@@ -10,7 +10,7 @@ import {
   type TuiPluginStatus,
   type TuiSlotPlugin,
   type TuiTheme,
-} from "@novaway/plugin/tui"
+} from "@opencode/plugin/tui"
 import path from "path"
 import { fileURLToPath } from "url"
 import { TuiConfig } from "@/config/tui"

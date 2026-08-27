@@ -40,7 +40,11 @@ export class Service extends ConfigService.Service<Service>()("@NovaWay/RuntimeF
   enableExperimentalModels: bool("NovaWay_ENABLE_EXPERIMENTAL_MODELS"),
   enableQuestionTool: bool("NovaWay_ENABLE_QUESTION_TOOL"),
   experimentalScout: enabledByExperimental("NovaWay_EXPERIMENTAL_SCOUT"),
-  experimentalBackgroundSubagents: enabledByExperimental("NovaWay_EXPERIMENTAL_BACKGROUND_SUBAGENTS"),
+  // 后台子代理默认开启(异步并行);显式设 NovaWay_EXPERIMENTAL_BACKGROUND_SUBAGENTS=false 可关闭。
+  experimentalBackgroundSubagents: Config.all({
+    experimental,
+    enabled: Config.boolean("NovaWay_EXPERIMENTAL_BACKGROUND_SUBAGENTS").pipe(Config.withDefault(true)),
+  }).pipe(Config.map((flags) => flags.experimental || flags.enabled)),
   experimentalLspTy: bool("NovaWay_EXPERIMENTAL_LSP_TY"),
   experimentalLspTool: enabledByExperimental("NovaWay_EXPERIMENTAL_LSP_TOOL"),
   experimentalOxfmt: enabledByExperimental("NovaWay_EXPERIMENTAL_OXFMT"),

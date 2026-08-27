@@ -6,9 +6,9 @@
       "name": "novaway",
       "dependencies": {
         "@aws-sdk/client-s3": "3.933.0",
-        "@novaway/plugin": "workspace:*",
         "@novaway/script": "workspace:*",
         "@novaway/sdk": "workspace:*",
+        "@opencode/plugin": "workspace:*",
         "@silvia-odwyer/photon-node": "0.3.4",
         "chromium-bidi": "16.0.1",
         "electron": "42.1.0",
@@ -429,7 +429,6 @@
         "@lydell/node-pty": "catalog:",
         "@modelcontextprotocol/sdk": "1.27.1",
         "@novaway/llm": "workspace:*",
-        "@novaway/plugin": "workspace:*",
         "@novaway/script": "workspace:*",
         "@novaway/sdk": "workspace:*",
         "@novaway/sdk-v2-latest": "workspace:*",
@@ -438,6 +437,7 @@
         "@octokit/graphql": "9.0.2",
         "@octokit/rest": "catalog:",
         "@openauthjs/openauth": "catalog:",
+        "@opencode/plugin": "workspace:*",
         "@openrouter/ai-sdk-provider": "2.8.1",
         "@opentelemetry/api": "1.9.0",
         "@opentelemetry/context-async-hooks": "2.6.1",
@@ -535,7 +535,7 @@
       },
     },
     "packages/plugin": {
-      "name": "@novaway/plugin",
+      "name": "@opencode/plugin",
       "version": "1.0.0",
       "dependencies": {
         "@novaway/sdk": "workspace:*",
@@ -643,9 +643,9 @@
       "version": "1.18.19",
       "dependencies": {
         "@novaway/core": "workspace:*",
-        "@novaway/plugin": "workspace:*",
         "@novaway/sdk-v2-latest": "workspace:*",
         "@novaway/ui": "workspace:*",
+        "@opencode/plugin": "workspace:*",
         "@opentui/core": "catalog:",
         "@opentui/keymap": "catalog:",
         "@opentui/solid": "catalog:",
@@ -1540,8 +1540,6 @@
 
     "@novaway/llm": ["@novaway/llm@workspace:packages/llm"],
 
-    "@novaway/plugin": ["@novaway/plugin@workspace:packages/plugin"],
-
     "@novaway/script": ["@novaway/script@workspace:packages/script"],
 
     "@novaway/sdk": ["@novaway/sdk@workspace:packages/sdk/js"],
@@ -1637,6 +1635,8 @@
     "@opencode-ai/plugin": ["@opencode-ai/plugin@1.18.18", "https://registry.npmmirror.com/@opencode-ai/plugin/-/plugin-1.18.18.tgz", { "dependencies": { "@ai-sdk/provider": "3.0.8", "@opencode-ai/sdk": "1.18.18", "effect": "4.0.0-beta.83", "zod": "4.1.8" }, "peerDependencies": { "@opentui/core": ">=0.4.5", "@opentui/keymap": ">=0.4.5", "@opentui/solid": ">=0.4.5" }, "optionalPeers": ["@opentui/core", "@opentui/keymap", "@opentui/solid"] }, "sha512-vqQeqJtn9c+J+tIQDzYk88xip/NVNN1hym1ATmckxo6zINHAoXoul4Sw/jgnvL00rLsfAvhja28qax4h3g/5Jg=="],
 
     "@opencode-ai/sdk": ["@opencode-ai/sdk@1.18.18", "https://registry.npmmirror.com/@opencode-ai/sdk/-/sdk-1.18.18.tgz", { "dependencies": { "cross-spawn": "7.0.6" } }, "sha512-zJlwXskIR47V1dkPJqeKBgq7nejG1uU8lJaGIGqbX3MWRCT8vKn0fEotbxuPCKnTdmWsDyNGNg9q1qIliDSMDA=="],
+
+    "@opencode/plugin": ["@opencode/plugin@workspace:packages/plugin"],
 
     "@openrouter/ai-sdk-provider": ["@openrouter/ai-sdk-provider@2.8.1", "https://registry.npmmirror.com/@openrouter/ai-sdk-provider/-/ai-sdk-provider-2.8.1.tgz", { "peerDependencies": { "ai": "^6.0.0", "zod": "^3.25.0 || ^4.0.0" } }, "sha512-Y6j3yivgoEUf/kutD/k5GX/mzZfioRFoSx0gbQ+mIOzMaH/vJv1rCkztiuvlLw5xRYQil7oxHUZvmSfXqOx1NQ=="],
 

@@ -10,6 +10,7 @@ import { useSDK } from "./sdk"
 import { RGBA } from "@opentui/core"
 import { readJson, writeJsonAtomic } from "../util/persistence"
 import { useTheme } from "./theme"
+import { useTuiConfig } from "../config"
 import { useToast } from "../ui/toast"
 import { useRoute } from "./route"
 import { usePermission } from "./permission"
@@ -55,6 +56,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
     const sdk = useSDK()
     const toast = useToast()
     const theme = useTheme().theme
+    const tuiConfig = useTuiConfig()
     const route = useRoute()
     const paths = useTuiPaths()
     const args = useArgs()
@@ -78,7 +80,8 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       const agents = createMemo(() => sync.data.agent.filter((agent) => agent.mode !== "subagent" && !agent.hidden))
       const visibleAgents = createMemo(() => sync.data.agent.filter((agent) => !agent.hidden))
       const [agentStore, setAgentStore] = createStore({
-        current: undefined as string | undefined,
+        // 默认代理来自 tui 配置 default_agent,缺省为「Agent 编排总控」;若不存在,current() 回退到列表首个。
+        current: (tuiConfig.default_agent ?? "agents-orchestrator") as string | undefined,
       })
       const colors = createMemo(() => [
         theme.secondary,
@@ -259,8 +262,8 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           const value = currentModel()
           if (!value) {
             return {
-              provider: "Connect a provider",
-              model: "No provider selected",
+              provider: "连接提供商",
+              model: "未选择提供商",
               reasoning: false,
             }
           }
@@ -292,7 +295,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           if (!favorites.length) {
             toast.show({
               variant: "info",
-              message: "Add a favorite model to use this shortcut",
+              message: "添加收藏模型以使用此快捷方式",
               duration: 3000,
             })
             return

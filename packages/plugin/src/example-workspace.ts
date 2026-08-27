@@ -1,4 +1,4 @@
-import type { Plugin } from "@novaway/plugin"
+import type { Plugin } from "@opencode/plugin"
 import { mkdir, rm } from "node:fs/promises"
 
 export const FolderWorkspacePlugin: Plugin = async ({ experimental_workspace }) => {

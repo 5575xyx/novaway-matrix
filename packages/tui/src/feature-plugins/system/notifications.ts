@@ -1,5 +1,5 @@
 import type { Event } from "@novaway/sdk-v2-latest/v2"
-import type { TuiAttentionSoundName, TuiPlugin, TuiPluginApi } from "@novaway/plugin/tui"
+import type { TuiAttentionSoundName, TuiPlugin, TuiPluginApi } from "@opencode/plugin/tui"
 import type { BuiltinTuiPlugin } from "../builtins"
 
 const id = "internal:notifications"

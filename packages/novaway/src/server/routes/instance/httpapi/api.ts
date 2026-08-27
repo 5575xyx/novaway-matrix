@@ -31,6 +31,7 @@ import { WorkspaceApi } from "./groups/workspace"
 import { V2Api } from "./groups/v2"
 import { GoalApi } from "./groups/goal"
 import { WorkflowApi } from "./groups/workflow"
+import { OrchestratorApi } from "./groups/orchestrator"
 import { Authorization } from "./middleware/authorization"
 import { SchemaErrorMiddleware } from "./middleware/schema-error"
 
@@ -46,7 +47,7 @@ export const RootHttpApi = HttpApi.make("NovaWay-root")
 
 export const InstanceHttpApi = HttpApi.make("NovaWay-instance")
   .addHttpApi(ChatApi)
-  .addHttpApi(CheckpointApi)
+  .add(CheckpointApi)
   .addHttpApi(ConfigApi)
   .addHttpApi(ExperimentalApi)
   .addHttpApi(EvolutionApi)
@@ -69,8 +70,9 @@ export const InstanceHttpApi = HttpApi.make("NovaWay-instance")
   .addHttpApi(VideosApi)
   .addHttpApi(TuiApi)
   .addHttpApi(WorkspaceApi)
-  .addHttpApi(GoalApi)
-  .addHttpApi(WorkflowApi)
+  .add(GoalApi)
+  .add(WorkflowApi)
+  .add(OrchestratorApi)
   .middleware(SchemaErrorMiddleware)
 
 export const NovaWayHttpApi = HttpApi.make("novaway")

@@ -15,7 +15,7 @@
 // The tick counter prevents stale idle events from resolving the wrong turn.
 // We also re-check live session status before resolving an idle event so a
 // delayed idle from an older turn cannot complete a newer busy turn.
-import type { Event, GlobalEvent, NovaWayClient } from "@novaway/sdk/v2"
+import type { Event, GlobalEvent, OpencodeClient } from "@novaway/sdk/v2"
 import { Context, Deferred, Effect, Exit, Layer, Scope, Stream } from "effect"
 import { makeRuntime } from "@/effect/run-service"
 import {
@@ -63,7 +63,7 @@ type Trace = {
 }
 
 type StreamInput = {
-  sdk: NovaWayClient
+  sdk: OpencodeClient
   directory?: string
   sessionID: string
   thinking: boolean

@@ -56,7 +56,7 @@ function locationQuery(ref?: LocationRef) {
 }
 
 export const { use: useData, provider: DataProvider } = createSimpleContext({
-  name: "Data",
+  name: "数据",
   init: () => {
     const [store, setStore] = createStore<Data>({
       session: {

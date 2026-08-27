@@ -2,16 +2,32 @@ import { sentryVitePlugin } from "@sentry/vite-plugin"
 import { defineConfig } from "electron-vite"
 import appPlugin from "@novaway/app/vite"
 import * as fs from "node:fs/promises"
+import { readFileSync } from "node:fs"
 import path from "node:path"
+import os from "node:os"
 
 const channel = (() => {
-  const raw = process.env.OPENCODE_CHANNEL
+  const raw = process.env.NOVAWAY_CHANNEL
   if (raw === "dev" || raw === "beta" || raw === "prod") return raw
   return "dev"
 })()
 
-const OPENCODE_SERVER_DIST = "../opencode/dist/node"
-const OPENCODE_MIGRATION_DIR = "../opencode/migration"
+function loadModelsDevSnapshot(): string {
+  const cacheDir = path.join(os.homedir(), ".cache", "novaway")
+  const cachePath = path.join(cacheDir, "models.json")
+  try {
+    const raw = readFileSync(cachePath, "utf-8")
+    JSON.parse(raw)
+    return raw
+  } catch {
+    return "{}"
+  }
+}
+
+const NOVAWAY_MODELS_DEV = loadModelsDevSnapshot()
+
+const NOVAWAY_SERVER_DIST = "../novaway/dist/node"
+const NOVAWAY_MIGRATION_DIR = "../novaway/migration"
 
 const nodePtyPkg = `@lydell/node-pty-${process.platform}-${process.arch}`
 
@@ -37,9 +53,10 @@ const migrations = await loadMigrations()
 export default defineConfig({
   main: {
     define: {
-      "import.meta.env.OPENCODE_CHANNEL": JSON.stringify(channel),
-      OPENCODE_CHANNEL: JSON.stringify(channel),
-      OPENCODE_MIGRATIONS: JSON.stringify(migrations),
+          "import.meta.env.NOVAWAY_CHANNEL": JSON.stringify(channel),
+          NOVAWAY_CHANNEL: JSON.stringify(channel),
+      NOVAWAY_MIGRATIONS: JSON.stringify(migrations),
+      OPENCODE_MODELS_DEV: NOVAWAY_MODELS_DEV,
     },
     build: {
       rollupOptions: {
@@ -49,25 +66,25 @@ export default defineConfig({
     },
     plugins: [
       {
-        name: "opencode:node-pty-narrower",
+        name: "novaway:node-pty-narrower",
         enforce: "pre",
         resolveId(s) {
           if (s === "@lydell/node-pty") return nodePtyPkg
         },
       },
       {
-        name: "opencode:virtual-server-module",
+        name: "novaway:virtual-server-module",
         enforce: "pre",
         resolveId(id) {
-          if (id === "virtual:opencode-server") return this.resolve(`${OPENCODE_SERVER_DIST}/node.js`)
+          if (id === "virtual:novaway-server") return this.resolve(`${NOVAWAY_SERVER_DIST}/node.js`)
         },
       },
       {
-        name: "opencode:copy-server-assets",
+        name: "novaway:copy-server-assets",
         async writeBundle() {
-          for (const l of await fs.readdir(OPENCODE_SERVER_DIST)) {
+          for (const l of await fs.readdir(NOVAWAY_SERVER_DIST)) {
             if (!l.endsWith(".wasm")) continue
-            await fs.writeFile(`./out/main/chunks/${l}`, await fs.readFile(`${OPENCODE_SERVER_DIST}/${l}`))
+            await fs.writeFile(`./out/main/chunks/${l}`, await fs.readFile(`${NOVAWAY_SERVER_DIST}/${l}`))
           }
         },
       },
@@ -89,7 +106,7 @@ export default defineConfig({
     publicDir: "../../../app/public",
     root: "src/renderer",
     define: {
-      "import.meta.env.VITE_OPENCODE_CHANNEL": JSON.stringify(channel),
+        "import.meta.env.VITE_NOVAWAY_CHANNEL": JSON.stringify(channel),
     },
     build: {
       sourcemap: true,
@@ -105,14 +122,14 @@ export default defineConfig({
 })
 
 async function loadMigrations() {
-  const dirs = (await fs.readdir(OPENCODE_MIGRATION_DIR, { withFileTypes: true }))
+  const dirs = (await fs.readdir(NOVAWAY_MIGRATION_DIR, { withFileTypes: true }))
     .filter((entry) => entry.isDirectory() && /^\d{4}\d{2}\d{2}\d{2}\d{2}\d{2}/.test(entry.name))
     .map((entry) => entry.name)
     .sort()
 
   return Promise.all(
     dirs.map(async (name) => ({
-      sql: await fs.readFile(path.join(OPENCODE_MIGRATION_DIR, name, "migration.sql"), "utf-8"),
+        sql: await fs.readFile(path.join(NOVAWAY_MIGRATION_DIR, name, "migration.sql"), "utf-8"),
       timestamp: time(name),
       name,
     })),

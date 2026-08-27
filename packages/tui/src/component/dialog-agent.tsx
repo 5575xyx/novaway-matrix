@@ -2,6 +2,7 @@ import { createMemo } from "solid-js"
 import { useLocal } from "../context/local"
 import { DialogSelect } from "../ui/dialog-select"
 import { useDialog } from "../ui/dialog"
+import { agentDisplayName } from "../util/agent-name"
 
 export function DialogAgent() {
   const local = useLocal()
@@ -11,7 +12,7 @@ export function DialogAgent() {
     local.agent.list().map((item) => {
       return {
         value: item.name,
-        title: item.name,
+        title: agentDisplayName(item.name, item.options),
         description: item.native ? "native" : item.description,
       }
     }),
@@ -19,7 +20,7 @@ export function DialogAgent() {
 
   return (
     <DialogSelect
-      title="Select agent"
+      title="选择代理"
       current={local.agent.current()?.name}
       options={options()}
       onSelect={(option) => {

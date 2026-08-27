@@ -41,6 +41,9 @@ import { pathToFileURL, fileURLToPath } from "url"
 import { Config } from "@/config/config"
 import { ConfigMemory } from "@/config/memory"
 import { ConfigEvolution } from "@/config/evolution"
+import { ConfigGoal } from "@/config/goal"
+import { ConfigCheckpoint } from "@/config/checkpoint"
+import { ConfigDream } from "@/config/dream"
 import { ConfigMarkdown } from "@/config/markdown"
 import { SessionSummary } from "./summary"
 import { NamedError } from "@novaway/core/util/error"
@@ -48,8 +51,6 @@ import { SessionProcessor } from "./processor"
 import { Tool } from "@/tool/tool"
 import { Permission } from "@/permission"
 import { SessionStatus } from "./status"
-import { DreamService } from "./dream"
-import { DistillService } from "./distill"
 import { LLM } from "./llm"
 import { Memory } from "@/memory/service"
 import { injectMemoryContext } from "@/memory/context"
@@ -82,13 +83,12 @@ import { eq } from "@/storage/db"
 import * as Database from "@/storage/db"
 import { SessionTable } from "./session.sql"
 import { Auth } from "@/auth"
-import { GoalService } from "./goal"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
 
 const buildGoalContext = Effect.fn("SystemPrompt.buildGoalContext")(function* (
-  goalService: GoalService | undefined,
+  goalService: any,
   sessionId: string,
 ) {
   if (!goalService) return ""
@@ -174,6 +174,13 @@ const EvolutionReviewResult = Schema.Struct({
   candidates: Schema.Array(EvolutionReviewCandidateDraft),
 })
 
+// 目标裁判:判断活动目标是否已达成,未达成时给出下一步动作建议。
+const GoalJudgeResult = Schema.Struct({
+  goalMet: Schema.Boolean,
+  reasoning: Schema.String,
+  nextAction: Schema.optional(Schema.String),
+})
+
 type EvolutionReviewCandidateDraft = Schema.Schema.Type<typeof EvolutionReviewCandidateDraft>
 
 function textFromParts(parts: MessageV2.Part[]) {
@@ -182,6 +189,15 @@ function textFromParts(parts: MessageV2.Part[]) {
     .map((part) => part.text.trim())
     .filter(Boolean)
     .join("\n\n")
+}
+
+// dream 反思的进程内轮次计数:按会话累加,turn % interval === 0 时触发。重启后归零,属软节流可接受。
+const dreamTurns = new Map<string, number>()
+function dreamDue(sessionID: string, interval: number) {
+  if (interval <= 0) return false
+  const next = (dreamTurns.get(sessionID) ?? 0) + 1
+  dreamTurns.set(sessionID, next)
+  return next % interval === 0
 }
 
 type ReferencePromptMetadata = {
@@ -311,7 +327,18 @@ export const layer = Layer.effect(
     const references = yield* Reference.Service
     const events = yield* EventV2Bridge.Service
     const flags = yield* RuntimeFlags.Service
-    const goalService = Option.getOrUndefined(yield* Effect.serviceOption(GoalService))
+    const { GoalService } = yield* Effect.tryPromise({
+      try: () => import("./goal"),
+      catch: () => ({ GoalService: undefined as any }),
+    }).pipe(Effect.catch(() => Effect.succeed({ GoalService: undefined })))
+    const goalService = GoalService ? Option.getOrUndefined(yield* Effect.serviceOption(GoalService)) : undefined
+    const { SessionCheckpoint } = yield* Effect.tryPromise({
+      try: () => import("./checkpoint"),
+      catch: () => ({ SessionCheckpoint: undefined as any }),
+    }).pipe(Effect.catch(() => Effect.succeed({ SessionCheckpoint: undefined })))
+    const checkpointService = SessionCheckpoint
+      ? Option.getOrUndefined(yield* Effect.serviceOption(SessionCheckpoint.Service))
+      : undefined
     const runner = Effect.fn("SessionPrompt.runner")(function* () {
       return yield* EffectBridge.make()
     })
@@ -1988,6 +2015,56 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         .slice(0, 3)
     })
 
+    // 目标裁判:输入活动目标(含成功标准)与本轮对话文本,判断目标是否达成。
+    const inferGoalJudge = Effect.fn("SessionPrompt.inferGoalJudge")(function* (input: {
+      model: Provider.Model
+      goalsText: string
+      userContent: string
+      assistantContent: string
+    }) {
+      const system = [
+        "你是 NovaWay 的目标裁判(judge)。",
+        "根据给定的活动目标及其成功标准,结合本轮对话,判断这些目标是否已经全部达成。",
+        "goalMet=true 仅当所有活动目标的成功标准都已满足;否则为 false。",
+        "当 goalMet=false 时,nextAction 必须给出一句具体、可执行的下一步指令,推动完成目标。",
+        "reasoning 用一到两句话说明判断依据。不要编造未发生的进展。",
+      ].join("\n")
+
+      const messages = [
+        { role: "system", content: system } satisfies ModelMessage,
+        {
+          role: "user",
+          content: [
+            "<goals>",
+            input.goalsText,
+            "</goals>",
+            "",
+            "<user>",
+            input.userContent,
+            "</user>",
+            "",
+            "<assistant>",
+            input.assistantContent,
+            "</assistant>",
+          ].join("\n"),
+        } satisfies ModelMessage,
+      ]
+
+      const params = {
+        model: yield* provider.getLanguage(input.model),
+        temperature: 0.1,
+        maxOutputTokens: 400,
+        messages,
+        schema: Object.assign(
+          Schema.toStandardSchemaV1(GoalJudgeResult),
+          Schema.toStandardJSONSchemaV1(GoalJudgeResult),
+        ),
+      } satisfies Parameters<typeof generateObject>[0]
+
+      const result = yield* Effect.promise(() => generateObject(params).then((response) => response.object))
+      return result as Schema.Schema.Type<typeof GoalJudgeResult>
+    })
+
     const prompt: (input: PromptInput) => Effect.Effect<MessageV2.WithParts, Image.Error> = Effect.fn(
       "SessionPrompt.prompt",
     )(function* (input: PromptInput) {
@@ -2476,6 +2553,18 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                   }
                 }
               }
+              // 自动检查点:在压缩/剪枝之前按间隔捕获会话消息+文件快照,便于回滚。默认关闭。
+              if (checkpointService && !handle.message.error) {
+                const checkpointCfg = ConfigCheckpoint.resolve(cfg.checkpoint)
+                if (checkpointCfg.auto_enabled && checkpointCfg.auto_interval > 0) {
+                  const due = yield* checkpointService
+                    .autoDue({ sessionId: sessionID, interval: checkpointCfg.auto_interval })
+                    .pipe(Effect.catch(() => Effect.succeed(false)))
+                  if (due) {
+                    yield* checkpointService.createAuto({ sessionId: sessionID }).pipe(Effect.ignore)
+                  }
+                }
+              }
               return "break" as const
             }
             if (result === "compact") {
@@ -2498,16 +2587,30 @@ NOTE: At any point in time through this workflow you should feel free to ask the
 
         yield* compaction.prune({ sessionID }).pipe(Effect.ignore, Effect.forkIn(scope))
 
-        // Dream/Distill 自我改进集成
-        yield* Effect.either(
-          Effect.gen(function* () {
-            const dream = yield* DreamService
-            const distill = yield* DistillService
-            const analysis = yield* dream.analyzeSession(sessionID)
-            const distillResult = yield* distill.fromAnalysis(analysis)
-            yield* distill.applyMemories(distillResult)
-          }),
-        ).pipe(Effect.ignore, Effect.forkIn(scope))
+        // Dream/Distill 自我改进集成:默认关闭,开启后按 interval 轮用 LLM 反思会话并蒸馏进长期记忆。
+        {
+          const dreamCfg = ConfigDream.resolve((yield* config.get()).dream)
+          if (dreamCfg.enabled && dreamCfg.interval > 0 && dreamDue(sessionID, dreamCfg.interval)) {
+            yield* Effect.either(
+              Effect.gen(function* () {
+                const { DreamService } = yield* Effect.tryPromise({
+                  try: () => import("./dream"),
+                  catch: () => ({ DreamService: undefined as any }),
+                }).pipe(Effect.catch(() => Effect.succeed({ DreamService: undefined })))
+                const { DistillService } = yield* Effect.tryPromise({
+                  try: () => import("./distill"),
+                  catch: () => ({ DistillService: undefined as any }),
+                }).pipe(Effect.catch(() => Effect.succeed({ DistillService: undefined })))
+                if (!DreamService || !DistillService) return
+                const dream = yield* DreamService
+                const distill = yield* DistillService
+                const analysis = yield* dream.analyzeSession(sessionID, model)
+                const distillResult = yield* distill.fromAnalysis(analysis)
+                yield* distill.applyMemories(distillResult)
+              }),
+            ).pipe(Effect.ignore, Effect.forkIn(scope))
+          }
+        }
 
         return yield* lastAssistant(sessionID)
       },
@@ -2516,7 +2619,83 @@ NOTE: At any point in time through this workflow you should feel free to ask the
     const loop: (input: LoopInput) => Effect.Effect<MessageV2.WithParts> = Effect.fn("SessionPrompt.loop")(function* (
       input: LoopInput,
     ) {
-      return yield* state.ensureRunning(input.sessionID, lastAssistant(input.sessionID), runLoop(input.sessionID))
+      let result = yield* state.ensureRunning(input.sessionID, lastAssistant(input.sessionID), runLoop(input.sessionID))
+
+      // 目标驱动自主循环:每轮结束后用裁判模型判断活动目标是否达成,未达成则
+      // 顺序(不 fork)追加一轮,受硬性 max_iterations 上限约束防跑飞。默认关闭。
+      const cfg = yield* config.get().pipe(Effect.catch(() => Effect.succeed({} as any)))
+      const goalCfg = ConfigGoal.resolve(cfg.goal)
+      if (!goalCfg.enabled || !goalService || goalCfg.max_iterations <= 0) return result
+
+      let iterations = 0
+      while (iterations < goalCfg.max_iterations) {
+        const goals = yield* goalService.list(input.sessionID).pipe(Effect.catch(() => Effect.succeed([] as any[])))
+        const active = goals.filter((g: any) => g.status === "in_progress" || g.status === "pending")
+        if (active.length === 0) break
+
+        const msgs = yield* sessions.messages({ sessionID: input.sessionID }).pipe(Effect.catch(() => Effect.succeed([])))
+        const lastAssistantMsg = [...msgs].reverse().find((m) => m.info.role === "assistant")
+        const lastUserMsg = [...msgs].reverse().find((m) => m.info.role === "user")
+        if (!lastAssistantMsg || lastAssistantMsg.info.role !== "assistant") break
+        if (lastAssistantMsg.info.error) break
+
+        // 裁判模型:优先配置 judge_model("provider/model"),否则复用当轮 assistant 模型。
+        const judgeRef = (() => {
+          if (goalCfg.judge_model && goalCfg.judge_model.includes("/")) {
+            const [providerID, ...rest] = goalCfg.judge_model.split("/")
+            return { providerID: ProviderID.make(providerID), modelID: rest.join("/") as ModelID }
+          }
+          return {
+            providerID: lastAssistantMsg.info.providerID as ProviderID,
+            modelID: lastAssistantMsg.info.modelID as ModelID,
+          }
+        })()
+        const judgeModel = yield* provider
+          .getModel(judgeRef.providerID, judgeRef.modelID)
+          .pipe(Effect.catch(() => Effect.succeed(undefined)))
+        if (!judgeModel) break
+
+        const goalsText = active
+          .map((g: any) => {
+            const criteria =
+              Array.isArray(g.successCriteria) && g.successCriteria.length
+                ? `\n  成功标准: ${g.successCriteria.join("; ")}`
+                : ""
+            return `- ${g.title} [${g.status}]${criteria}`
+          })
+          .join("\n")
+        const userContent = textFromParts(lastUserMsg?.parts ?? [])
+        const assistantContent = textFromParts(lastAssistantMsg.parts)
+
+        const verdict = yield* inferGoalJudge({
+          model: judgeModel,
+          goalsText,
+          userContent,
+          assistantContent,
+        }).pipe(Effect.catch(() => Effect.succeed(null)))
+        if (!verdict) break
+
+        if (verdict.goalMet) {
+          for (const g of active) {
+            yield* goalService.update({ goalId: g.id, status: "completed" }).pipe(Effect.ignore)
+          }
+          break
+        }
+
+        iterations++
+        const nextText = verdict.nextAction?.trim() || "继续完成当前目标。"
+        result = yield* prompt({
+          sessionID: input.sessionID,
+          agent: lastUserMsg?.info.role === "user" ? lastUserMsg.info.agent : undefined,
+          model:
+            lastUserMsg?.info.role === "user" && lastUserMsg.info.model
+              ? { providerID: lastUserMsg.info.model.providerID, modelID: lastUserMsg.info.model.modelID }
+              : undefined,
+          parts: [{ type: "text", text: nextText }],
+        }).pipe(Effect.catch(() => Effect.succeed(result)))
+      }
+
+      return result
     })
 
     const shell: (input: ShellInput) => Effect.Effect<MessageV2.WithParts, Session.BusyError> = Effect.fn(

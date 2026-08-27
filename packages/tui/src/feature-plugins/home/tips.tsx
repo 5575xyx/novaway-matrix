@@ -1,4 +1,4 @@
-import type { TuiPlugin, TuiPluginApi } from "@novaway/plugin/tui"
+import type { TuiPlugin, TuiPluginApi } from "@opencode/plugin/tui"
 import type { BuiltinTuiPlugin } from "../builtins"
 import { createMemo, Show } from "solid-js"
 import { Tips } from "./tips-view"
@@ -11,8 +11,8 @@ function View(props: { api: TuiPluginApi; hidden: boolean; show: boolean; connec
     commands: [
       {
         name: "tips.toggle",
-        title: props.hidden ? "Show tips" : "Hide tips",
-        category: "System",
+        title: props.hidden ? "显示提示" : "隐藏提示",
+        category: "系统",
         namespace: "palette",
         run() {
           props.api.kv.set("tips_hidden", !props.api.kv.get("tips_hidden", false))

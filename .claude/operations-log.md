@@ -158,3 +158,31 @@
 - `bun typecheck`（packages/opencode）：通过
 - `bun test test/session/llm.test.ts -t "routes image generation models"`：通过
 - `bun test test/protocols/image-generation/agnes.test.ts test/protocols/video-generation/agnes.test.ts`（packages/llm）：11 个测试全部通过
+
+---
+
+## TUI UI 增强：预览与面板合并
+
+时间：2026-08-23
+
+### 需求
+
+1. 预览页面添加行号显示
+2. 预览页面支持基本编辑功能
+3. 合并文件树和右侧边栏为标签页切换
+
+### 执行步骤
+
+1. 更新 `file-preview.tsx`：添加行号显示、基本编辑功能（textarea）、保存/取消按钮
+2. 更新 `sidebar.tsx`：添加文件树/Context/MCP/LSP 标签页切换，文件树作为标签页之一
+3. 更新 `session/index.tsx`：移除左侧文件树面板，将文件树处理函数传递给侧边栏
+
+### 修改文件
+
+- `packages/tui/src/component/file-preview.tsx`：行号显示 + 基本编辑
+- `packages/tui/src/routes/session/sidebar.tsx`：标签页切换
+- `packages/tui/src/routes/session/index.tsx`：移除左侧文件树，传递处理函数
+
+### 本地验证结果
+
+- `bun typecheck`（packages/tui）：通过

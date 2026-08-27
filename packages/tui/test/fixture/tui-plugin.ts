@@ -1,4 +1,4 @@
-import type { TuiPluginApi } from "@novaway/plugin/tui"
+import type { TuiPluginApi } from "@opencode/plugin/tui"
 import { RGBA } from "@opentui/core"
 import { createTuiResolvedConfig } from "./tui-runtime"
 

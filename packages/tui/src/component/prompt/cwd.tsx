@@ -20,7 +20,7 @@ import { useTerminalDimensions } from "@opentui/solid"
 import { Locale } from "../../util/locale"
 import type { PromptInfo } from "../../prompt/history"
 import { useFrecency } from "../../prompt/frecency"
-import { useBindings, useCommandSlashes, useNovaWayModeStack } from "../../keymap"
+import { useBindings, useCommandSlashes, useNovaWayModeStack, SLASH_ZH, SLASH_ORDER } from "../../keymap"
 import { displayCharAt, mentionTriggerIndex } from "../../prompt/display"
 import type { FileSystemEntry } from "@novaway/sdk-v2-latest/v2"
 
@@ -68,6 +68,7 @@ export type AutocompleteOption = {
   disabled?: boolean
   description?: string
   isDirectory?: boolean
+  order?: number
   onSelect?: () => void
   path?: string
 }
@@ -450,8 +451,11 @@ export function Autocomplete(props: {
     for (const serverCommand of sync.data.command) {
       if (serverCommand.source === "skill") continue
       const label = serverCommand.source === "mcp" ? ":mcp" : ""
+      const zh = SLASH_ZH[serverCommand.name]?.[0]
       results.push({
-        display: "/" + serverCommand.name + label,
+        display: "/" + (zh ?? serverCommand.name) + label,
+        aliases: zh ? ["/" + serverCommand.name + label] : undefined,
+        order: SLASH_ORDER[serverCommand.name],
         description: serverCommand.description,
         onSelect: () => {
           const newText = "/" + serverCommand.name + " "
@@ -463,7 +467,11 @@ export function Autocomplete(props: {
       })
     }
 
-    results.sort((a, b) => a.display.localeCompare(b.display))
+    results.sort(
+      (a, b) =>
+        (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER) ||
+        a.display.localeCompare(b.display),
+    )
 
     const max = firstBy(results, [(x) => x.display.length, "desc"])?.display.length
     if (!max) return results
@@ -584,7 +592,7 @@ export function Autocomplete(props: {
     commands: [
       {
         name: "prompt.autocomplete.prev",
-        title: "Previous autocomplete item",
+        title: "上一个自动完成项",
         category: "Autocomplete",
         run() {
           setStore("input", "keyboard")
@@ -593,7 +601,7 @@ export function Autocomplete(props: {
       },
       {
         name: "prompt.autocomplete.next",
-        title: "Next autocomplete item",
+        title: "下一个自动完成项",
         category: "Autocomplete",
         run() {
           setStore("input", "keyboard")
@@ -602,7 +610,7 @@ export function Autocomplete(props: {
       },
       {
         name: "prompt.autocomplete.hide",
-        title: "Hide autocomplete",
+        title: "隐藏自动完成",
         category: "Autocomplete",
         run() {
           hide()
@@ -610,7 +618,7 @@ export function Autocomplete(props: {
       },
       {
         name: "prompt.autocomplete.select",
-        title: "Select autocomplete item",
+        title: "选择自动完成项",
         category: "Autocomplete",
         run() {
           select()
@@ -618,7 +626,7 @@ export function Autocomplete(props: {
       },
       {
         name: "prompt.autocomplete.complete",
-        title: "Complete autocomplete item",
+        title: "完成自动完成项",
         category: "Autocomplete",
         run() {
           const selected = options()[store.selected]
@@ -741,7 +749,7 @@ export function Autocomplete(props: {
           each={options()}
           fallback={
             <box paddingLeft={1} paddingRight={1}>
-              <text fg={theme.textMuted}>No matching items</text>
+              <text fg={theme.textMuted}>无匹配项</text>
             </box>
           }
         >

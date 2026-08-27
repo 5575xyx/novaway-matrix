@@ -31,6 +31,9 @@ import { ConfigManaged } from "./managed"
 import { ConfigMCP } from "./mcp"
 import { ConfigMemory } from "./memory"
 import { ConfigEvolution } from "./evolution"
+import { ConfigGoal } from "./goal"
+import { ConfigCheckpoint } from "./checkpoint"
+import { ConfigDream } from "./dream"
 import { ConfigModelID } from "./model-id"
 import { ConfigParse } from "./parse"
 import { ConfigPaths } from "./paths"
@@ -56,7 +59,8 @@ export const FALLBACK_GLOBAL_PLUGINS: Record<string, string[]> = {
 }
 
 function defaultGlobalPlugins() {
-  // PowersNexus 濮嬬粓浣滀负榛樿鍐呯疆鎻掍欢浠?Gitee 绉嶅瓙瀹夎锛堜笉鍐嶈蛋绗竴鏂圭嫭绔嬪伐浣滄祦锛?  return DEFAULT_GLOBAL_PLUGINS
+  // PowersNexus 始终作为默认内置插件，从 Gitee 种子安装（不再走第一方独立工作流）。
+  return DEFAULT_GLOBAL_PLUGINS
 }
 
 function browserMcpFlags() {
@@ -67,23 +71,26 @@ function browserMcpFlags() {
 
 // Default MCP servers seeded into the global config the first time it's created.
 // Users can remove or override these entries in their own config file.
+const browserCommand = process.env.PLAYWRIGHT_MCP_SERVER_PATH
+  ? [
+      process.env.PLAYWRIGHT_MCP_NODE_PATH ?? process.env.DBX_NODE_PATH ?? "node",
+      process.env.PLAYWRIGHT_MCP_SERVER_PATH,
+      ...browserMcpFlags(),
+    ]
+  : process.platform === "win32"
+    ? ["cmd", "/c", "npx", "-y", "@playwright/mcp", ...browserMcpFlags()]
+    : ["npx", "-y", "@playwright/mcp", ...browserMcpFlags()]
+const dbxCommand = process.env.DBX_MCP_SERVER_PATH
+  ? [process.env.DBX_NODE_PATH ?? "node", process.env.DBX_MCP_SERVER_PATH]
+  : ["cmd", "/c", "npx", "-y", "@dbx-app/mcp-server"]
 export const DEFAULT_MCP_SERVERS: Record<string, ConfigMCP.Info> = {
   browser: {
-    command: (() => {
-      if (process.env.PLAYWRIGHT_MCP_SERVER_PATH) {
-        return [
-          process.env.PLAYWRIGHT_MCP_NODE_PATH ?? process.env.DBX_NODE_PATH ?? "node",
-          process.env.PLAYWRIGHT_MCP_SERVER_PATH,
-          ...browserMcpFlags(),
-        ]
-      }
-      if (process.platform === "win32") return ["cmd", "/c", "npx", "-y", "@playwright/mcp", ...browserMcpFlags()]
-      return ["npx", "-y", "@playwright/mcp", ...browserMcpFlags()]
-    })(),
+    command: browserCommand,
     enabled: true,
     type: "local",
   },
-  // 鑵捐鏂囨。瀹樻柟杩滅▼ MCP锛孴oken 閫氳繃鐜鍙橀噺娉ㄥ叆锛岄伩鍏嶅瘑閽ュ啓鍏ラ厤缃枃浠躲€?  "tencent-docs": {
+  // 腾讯文档官方远程 MCP，Token 通过环境变量注入，避免密钥写入配置文件。
+  "tencent-docs": {
     type: "remote",
     url: "https://docs.qq.com/openapi/mcp",
     headers: {
@@ -98,10 +105,7 @@ export const DEFAULT_MCP_SERVERS: Record<string, ConfigMCP.Info> = {
     type: "local",
   },
   dbx: {
-    command: (() => {
-      if (process.env.DBX_MCP_SERVER_PATH) return [process.env.DBX_NODE_PATH ?? "node", process.env.DBX_MCP_SERVER_PATH]
-      return ["cmd", "/c", "npx", "-y", "@dbx-app/mcp-server"]
-    })(),
+    command: dbxCommand,
     enabled: true,
     type: "local",
   },
@@ -302,6 +306,15 @@ export const Info = Schema.Struct({
   evolution: Schema.optional(ConfigEvolution.Info).annotate({
     description: "Self-evolution candidate review configuration",
   }),
+  goal: Schema.optional(ConfigGoal.Info).annotate({
+    description: "Goal-driven autonomous loop configuration (judge model, max iterations)",
+  }),
+  checkpoint: Schema.optional(ConfigCheckpoint.Info).annotate({
+    description: "Automatic checkpoint configuration (auto capture session messages + file snapshot by turn interval)",
+  }),
+  dream: Schema.optional(ConfigDream.Info).annotate({
+    description: "Dream/distill self-improvement configuration (LLM session reflection distilled into long-term memory)",
+  }),
   formatter: Schema.optional(ConfigFormatter.Info).annotate({
     description:
       "Enable or configure formatters. Omit or set to false to disable, true to enable built-ins, or an object to enable built-ins with overrides.",
@@ -360,6 +373,9 @@ export const Info = Schema.Struct({
   experimental: Schema.optional(
     Schema.Struct({
       disable_paste_summary: Schema.optional(Schema.Boolean),
+      background_subagents: Schema.optional(Schema.Boolean).annotate({
+        description: "启用后台并行子代理(异步派生、并行执行)。未设置时回退到 NovaWay_EXPERIMENTAL_BACKGROUND_SUBAGENTS 运行时开关(默认开)。",
+      }),
       batch_tool: Schema.optional(Schema.Boolean).annotate({ description: "Enable the batch tool" }),
       openTelemetry: Schema.optional(Schema.Boolean).annotate({
         description: "Enable OpenTelemetry spans for AI SDK calls (using the 'experimental_telemetry' flag)",
@@ -473,8 +489,8 @@ export const layer = Layer.effect(
 
       yield* Effect.promise(() => resolveLoadedPlugins(data, options.path))
       if (!data.$schema) {
-        data.$schema = "https://NovaWay.ai/config.json"
-        const updated = text.replace(/^\s*\{/, '{\n  "$schema": "https://NovaWay.ai/config.json",')
+        data.$schema = "https://opencode.ai/config.json"
+        const updated = text.replace(/^\s*\{/, '{\n  "$schema": "https://opencode.ai/config.json",')
         yield* fs.writeFileString(options.path, updated).pipe(Effect.catch(() => Effect.void))
       }
       return data
@@ -495,7 +511,7 @@ export const layer = Layer.effect(
         const file = globalConfigFile()
         if (!existsSync(file)) {
           const seed: Record<string, unknown> = {
-            $schema: "https://NovaWay.ai/config.json",
+            $schema: "https://opencode.ai/config.json",
           }
           if (!Flag.NOVAWAY_DISABLE_DEFAULT_PLUGINS) {
             seed.plugin = defaultGlobalPlugins()
@@ -523,7 +539,7 @@ export const layer = Layer.effect(
             yield* fs
               .writeWithDirs(
                 file,
-                JSON.stringify({ $schema: "https://NovaWay.ai/config.json", plugin: result.plugin }, null, 2),
+                JSON.stringify({ $schema: "https://opencode.ai/config.json", plugin: result.plugin }, null, 2),
               )
               .pipe(Effect.catch(() => Effect.void))
           }
@@ -545,13 +561,15 @@ export const layer = Layer.effect(
             yield* fs
               .writeWithDirs(
                 file,
-                JSON.stringify({ $schema: "https://NovaWay.ai/config.json", mcp: result.mcp }, null, 2),
+                JSON.stringify({ $schema: "https://opencode.ai/config.json", mcp: result.mcp }, null, 2),
               )
               .pipe(Effect.catch(() => Effect.void))
           }
         }
 
-        // 褰撶幆澧冨彉閲忔寚瀹氫簡鏈湴 DBX MCP Server 璺緞鏃讹紝寮哄埗瑕嗙洊閰嶇疆鏂囦欢涓殑 command锛?        // 閬垮厤鐢ㄦ埛閰嶇疆閲屼繚瀛樼殑鏃?npx 鐗堟湰缁х画琚娇鐢ㄣ€?        const dbxMcp = result.mcp?.dbx
+        // 当环境变量指定了本地 DBX MCP Server 路径时，强制覆盖配置文件中的 command。
+        // 避免用户配置里保存的旧 npx 版本继续被使用。
+        const dbxMcp = result.mcp?.dbx
         if (process.env.DBX_MCP_SERVER_PATH && dbxMcp && Schema.is(ConfigMCP.Local)(dbxMcp)) {
           const dbxCommand = [process.env.DBX_NODE_PATH ?? "node", process.env.DBX_MCP_SERVER_PATH]
           if (JSON.stringify(dbxMcp.command) !== JSON.stringify(dbxCommand)) {
@@ -572,7 +590,8 @@ export const layer = Layer.effect(
           }
         }
 
-        // 鎵撳寘鐜浣跨敤鍐呯疆 Playwright MCP 鏈嶅姟鍣紝妫€娴嬪埌璺緞鏃惰鐩栨棫 npx 鍛戒护銆?        const browserMcp = result.mcp?.browser
+        // 打包环境使用内置 Playwright MCP 服务器，检测到路径时覆盖旧 npx 命令。
+        const browserMcp = result.mcp?.browser
         if (process.env.PLAYWRIGHT_MCP_SERVER_PATH && browserMcp && Schema.is(ConfigMCP.Local)(browserMcp)) {
           const browserCommand = [
             process.env.PLAYWRIGHT_MCP_NODE_PATH ?? process.env.DBX_NODE_PATH ?? "node",
@@ -817,7 +836,7 @@ export const layer = Layer.effect(
             .install(dir, {
               add: [
                 {
-                  name: "@novaway/plugin",
+                  name: "@opencode/plugin",
                   version: InstallationLocal ? undefined : InstallationVersion,
                 },
               ],
@@ -953,7 +972,9 @@ export const layer = Layer.effect(
           result.compaction = { ...result.compaction, prune: false }
         }
 
-        // 鑵捐鏂囨。瀹樻柟閴存潈鍥哄畾涓?Authorization: Token锛屼笉甯?Bearer銆?        // 杩欓噷瑕嗙洊鏃х増榛樿閰嶇疆鎴栫敤鎴锋墜鍔ㄩ厤缃腑鐨勯敊璇?Header锛岄伩鍏?401銆?        const tencentDocs = result.mcp?.["tencent-docs"]
+        // 腾讯文档官方鉴权固定 Authorization: Token，不用 Bearer。
+        // 这里覆盖旧版默认配置或用户手动配置中的错误 Header，避免 401。
+        const tencentDocs = result.mcp?.["tencent-docs"]
         if (tencentDocs && Schema.is(ConfigMCP.Remote)(tencentDocs)) {
           result.mcp = {
             ...result.mcp,

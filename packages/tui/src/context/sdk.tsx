@@ -1,4 +1,4 @@
-import { createNovaWayClient } from "@novaway/sdk-v2-latest/v2"
+import { createNovawayClient } from "@novaway/sdk-v2-latest/v2"
 import type { GlobalEvent } from "@novaway/sdk-v2-latest/v2"
 import { Flag } from "@novaway/core/flag/flag"
 import { createSimpleContext } from "./helper"
@@ -21,7 +21,7 @@ export const { use: useSDK, provider: SDKProvider } = createSimpleContext({
     let sse: AbortController | undefined
 
     function createSDK() {
-      return createNovaWayClient({
+      return createNovawayClient({
         baseUrl: props.url,
         signal: abort.signal,
         directory: props.directory,

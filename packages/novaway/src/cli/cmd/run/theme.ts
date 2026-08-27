@@ -6,7 +6,7 @@
 // the run footer + scrollback color model. Falls back to a hardcoded dark-mode
 // palette if detection fails.
 import { RGBA, SyntaxStyle, type CliRenderer, type ColorInput, type TerminalColors } from "@opentui/core"
-import type { TuiThemeCurrent } from "@novaway/plugin/tui"
+import type { TuiThemeCurrent } from "@opencode/plugin/tui"
 import type { EntryKind } from "./types"
 
 type Tone = {

@@ -24,9 +24,9 @@ const archMap = {
 
 const platform = platformMap[os.platform()] ?? os.platform()
 const arch = archMap[os.arch()] ?? os.arch()
-const base = `opencode-${platform}-${arch}`
-const sourceBinary = platform === "windows" ? "opencode.exe" : "opencode"
-const targetBinary = path.join(__dirname, "bin", "opencode.exe")
+const base = `novaway-${platform}-${arch}`
+const sourceBinary = platform === "windows" ? "novaway.exe" : "novaway"
+const targetBinary = path.join(__dirname, "bin", "novaway.exe")
 
 function supportsAvx2() {
   if (arch !== "x64") return false
@@ -175,7 +175,7 @@ function main() {
   }
 
   throw new Error(
-    `It seems your package manager failed to install the right opencode CLI package. Try manually installing ${packageNames()
+    `It seems your package manager failed to install the right novaway CLI package. Try manually installing ${packageNames()
       .map((name) => JSON.stringify(name))
       .join(" or ")}.`,
   )

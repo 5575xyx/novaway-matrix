@@ -170,7 +170,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
           },
         },
       }),
-    NovaWay: Effect.fnUntraced(function* (input: Info) {
+    opencode: Effect.fnUntraced(function* (input: Info) {
       const env = yield* dep.env()
       const hasKey = iife(() => {
         if (input.env.some((item) => env[item])) return true
@@ -179,7 +179,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
       const ok =
         hasKey ||
         Boolean(yield* dep.auth(input.id)) ||
-        Boolean((yield* dep.config()).provider?.["novaway"]?.options?.apiKey)
+        Boolean((yield* dep.config()).provider?.["opencode"]?.options?.apiKey)
 
       if (!ok) {
         for (const [key, value] of Object.entries(input.models)) {
@@ -872,7 +872,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
                 models[modelID] = {
                   id: modelID,
                   providerID: "ollama" as ProviderID,
-                  name: model.name,
+    name: model.name,
                   family: "",
                   capabilities: {
                     temperature: true,
@@ -1113,7 +1113,7 @@ function fromModelsDevModel(provider: ModelsDev.Provider, model: ModelsDev.Model
   const base: Model = {
     id: ModelID.make(model.id),
     providerID: ProviderID.make(provider.id),
-    name: model.name,
+    name: model.name.replace(/\s*Free\s*/g, " ").trim(),
     family: model.family,
     api: {
       id: model.id,
@@ -1187,7 +1187,7 @@ export function fromModelsDevProvider(provider: ModelsDev.Provider): Info {
   return {
     id: ProviderID.make(provider.id),
     source: "custom",
-    name: provider.id === ProviderID.NovaWay ? "Default" : provider.name,
+    name: provider.id === "opencode" ? "Default" : provider.name,
     env: [...(provider.env ?? [])],
     options: {},
     models,

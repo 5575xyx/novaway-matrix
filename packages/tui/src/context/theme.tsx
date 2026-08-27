@@ -93,14 +93,14 @@ const [store, setStore] = createStore<State>({
   themes: allThemes(),
   mode: "dark",
   lock: undefined,
-  active: "NovaWay",
+  active: "novaway",
   ready: false,
 })
 
 subscribeThemes((themes) => setStore("themes", themes))
 
 export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
-  name: "Theme",
+  name: "主题",
   init: (props: { mode: "dark" | "light"; source?: ThemeSource }) => {
     const renderer = useRenderer()
     const config = useTuiConfig()
@@ -118,8 +118,8 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
         if (!lock && pick(kv.get("theme_mode")) !== undefined) kv.set("theme_mode", undefined)
         draft.mode = mode
         draft.lock = lock
-        const active = config.theme ?? kv.get("theme", "NovaWay")
-        draft.active = typeof active === "string" ? active : "NovaWay"
+        const active = config.theme ?? kv.get("theme", "novaway")
+        draft.active = typeof active === "string" ? active : "novaway"
         draft.ready = false
       }),
     )
@@ -140,7 +140,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
             }, {}),
           )
         })
-        .catch(() => setStore("active", "NovaWay"))
+          .catch(() => setStore("active", "novaway"))
     }
 
     onMount(() => {
@@ -159,7 +159,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
           if (!colors.palette[0]) {
             if (hasResolvedSystemTheme) return
             setSystemTheme(undefined)
-            if (store.active === "system") setStore("active", "NovaWay")
+            if (store.active === "system") setStore("active", "novaway")
             return
           }
           const next = store.lock ?? terminalMode(colors) ?? mode
@@ -174,7 +174,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
         .catch(() => {
           if (hasResolvedSystemTheme) return
           setSystemTheme(undefined)
-          if (store.active === "system") setStore("active", "NovaWay")
+          if (store.active === "system") setStore("active", "novaway")
         })
     }
 
@@ -263,7 +263,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
         if (theme) return resolveTheme(theme, store.mode)
       }
 
-      return resolveTheme(store.themes.NovaWay, store.mode)
+      return resolveTheme(store.themes.novaway, store.mode)
     })
 
     createEffect(() => renderer.setBackgroundColor(values().background))

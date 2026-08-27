@@ -1,12 +1,13 @@
 import { useProject } from "../../context/project"
 import { useSync } from "../../context/sync"
-import { createMemo, createSignal, Show } from "solid-js"
+import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js"
 import { useTheme } from "../../context/theme"
 import { useTuiConfig } from "../../config"
 import { InstallationChannel, InstallationVersion } from "@novaway/core/installation/version"
 import { usePluginRuntime } from "../../plugin/runtime"
 
 import { getScrollAcceleration } from "../../util/scroll"
+import { icon } from "../../util/panel-icons"
 import { WorkspaceLabel } from "../../component/workspace-label"
 import { TUI_BRAND } from "../../brand"
 import { FileTree } from "../../component/file-tree"
@@ -15,6 +16,7 @@ import { EvolutionPanel } from "../../component/evolution-panel"
 import { CheckpointPanel } from "../../component/checkpoint-panel"
 import { GoalPanel } from "../../component/goal-panel"
 import { WorkflowPanel } from "../../component/workflow-panel"
+import { OrchestratorPanel } from "../../component/orchestrator-panel"
 
 export interface SidebarProps {
   sessionID: string
@@ -23,7 +25,19 @@ export interface SidebarProps {
   onFileDoubleClick?: (filePath: string) => void
 }
 
-type SidebarTab = "files" | "info" | "memory" | "evolution" | "checkpoint" | "goal" | "workflow"
+type SidebarTab = "files" | "info" | "hub"
+
+// 智能中枢内的可折叠分区(记忆 / 进化 / 检查点 / 目标 / 工作流)
+type HubSection = "memory" | "evolution" | "checkpoint" | "goal" | "workflow" | "orchestrator"
+
+const HUB_SECTIONS: Array<{ id: HubSection; text: string }> = [
+  { id: "memory", text: "记忆" },
+  { id: "evolution", text: "进化" },
+  { id: "checkpoint", text: "检查点" },
+  { id: "goal", text: "目标" },
+  { id: "workflow", text: "工作流" },
+  { id: "orchestrator", text: "编排" },
+]
 
 export function Sidebar(props: SidebarProps) {
   const pluginRuntime = usePluginRuntime()
@@ -40,6 +54,16 @@ export function Sidebar(props: SidebarProps) {
   const scrollAcceleration = createMemo(() => getScrollAcceleration(tuiConfig))
 
   const [activeTab, setActiveTab] = createSignal<SidebarTab>("info")
+
+  // 折叠状态:记录被折叠的分区;默认全部展开(集合为空)
+  const [collapsed, setCollapsed] = createSignal<Set<HubSection>>(new Set())
+  const toggleSection = (id: HubSection) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
 
   return (
     <Show when={session()}>
@@ -60,46 +84,21 @@ export function Sidebar(props: SidebarProps) {
             fg={activeTab() === "info" ? theme.primary : theme.textMuted}
             onMouseUp={() => setActiveTab("info")}
           >
-            📋 信息
+            {icon("info")} 信息
           </text>
           <text
             fg={activeTab() === "files" ? theme.primary : theme.textMuted}
             onMouseUp={() => setActiveTab("files")}
           >
-            📁 文件
+            {icon("files")} 文件
           </text>
           <text
-            fg={activeTab() === "memory" ? theme.primary : theme.textMuted}
-            onMouseUp={() => setActiveTab("memory")}
+            fg={activeTab() === "hub" ? theme.primary : theme.textMuted}
+            onMouseUp={() => setActiveTab("hub")}
           >
-            🧠 记忆
-          </text>
-          <text
-            fg={activeTab() === "evolution" ? theme.primary : theme.textMuted}
-            onMouseUp={() => setActiveTab("evolution")}
-          >
-            🧬 进化
-          </text>
-          <text
-            fg={activeTab() === "checkpoint" ? theme.primary : theme.textMuted}
-            onMouseUp={() => setActiveTab("checkpoint")}
-          >
-            📸 检查点
-          </text>
-          <text
-            fg={activeTab() === "goal" ? theme.primary : theme.textMuted}
-            onMouseUp={() => setActiveTab("goal")}
-          >
-            🎯 目标
-          </text>
-          <text
-            fg={activeTab() === "workflow" ? theme.primary : theme.textMuted}
-            onMouseUp={() => setActiveTab("workflow")}
-          >
-            🔄 工作流
+            {icon("hub")} 智能中枢
           </text>
         </box>
-
         {/* 文件树标签页 */}
         <Show when={activeTab() === "files"}>
           <scrollbox
@@ -177,9 +176,8 @@ export function Sidebar(props: SidebarProps) {
             </box>
           </scrollbox>
         </Show>
-
-        {/* 记忆标签页 */}
-        <Show when={activeTab() === "memory"}>
+        {/* 智能中枢标签页:记忆 / 进化 / 检查点 / 目标 / 工作流 合并为可折叠分区 */}
+        <Show when={activeTab() === "hub"}>
           <scrollbox
             flexGrow={1}
             scrollAcceleration={scrollAcceleration()}
@@ -191,79 +189,40 @@ export function Sidebar(props: SidebarProps) {
             }}
           >
             <box flexShrink={0} gap={1} paddingRight={1}>
-              <MemoryPanel sessionID={props.sessionID} />
-            </box>
-          </scrollbox>
-        </Show>
-
-        {/* 进化标签页 */}
-        <Show when={activeTab() === "evolution"}>
-          <scrollbox
-            flexGrow={1}
-            scrollAcceleration={scrollAcceleration()}
-            verticalScrollbarOptions={{
-              trackOptions: {
-                backgroundColor: theme.background,
-                foregroundColor: theme.borderActive,
-              },
-            }}
-          >
-            <box flexShrink={0} gap={1} paddingRight={1}>
-              <EvolutionPanel sessionID={props.sessionID} />
-            </box>
-          </scrollbox>
-        </Show>
-
-        {/* 检查点标签页 */}
-        <Show when={activeTab() === "checkpoint"}>
-          <scrollbox
-            flexGrow={1}
-            scrollAcceleration={scrollAcceleration()}
-            verticalScrollbarOptions={{
-              trackOptions: {
-                backgroundColor: theme.background,
-                foregroundColor: theme.borderActive,
-              },
-            }}
-          >
-            <box flexShrink={0} gap={1} paddingRight={1}>
-              <CheckpointPanel sessionID={props.sessionID} />
-            </box>
-          </scrollbox>
-        </Show>
-
-        {/* 目标标签页 */}
-        <Show when={activeTab() === "goal"}>
-          <scrollbox
-            flexGrow={1}
-            scrollAcceleration={scrollAcceleration()}
-            verticalScrollbarOptions={{
-              trackOptions: {
-                backgroundColor: theme.background,
-                foregroundColor: theme.borderActive,
-              },
-            }}
-          >
-            <box flexShrink={0} gap={1} paddingRight={1}>
-              <GoalPanel sessionID={props.sessionID} />
-            </box>
-          </scrollbox>
-        </Show>
-
-        {/* 工作流标签页 */}
-        <Show when={activeTab() === "workflow"}>
-          <scrollbox
-            flexGrow={1}
-            scrollAcceleration={scrollAcceleration()}
-            verticalScrollbarOptions={{
-              trackOptions: {
-                backgroundColor: theme.background,
-                foregroundColor: theme.borderActive,
-              },
-            }}
-          >
-            <box flexShrink={0} gap={1} paddingRight={1}>
-              <WorkflowPanel sessionID={props.sessionID} />
+              <For each={HUB_SECTIONS}>
+                {(section) => (
+                  <box flexDirection="column" gap={1}>
+                    {/* 分区标题:点击可折叠/展开 */}
+                    <text fg={theme.text} onMouseUp={() => toggleSection(section.id)}>
+                      <span style={{ fg: theme.textMuted }}>{collapsed().has(section.id) ? "▶" : "▼"}</span>{" "}
+                      <b>{icon(section.id)} {section.text}</b>
+                    </text>
+                    {/* 分区内容:未折叠时渲染对应面板 */}
+                    <Show when={!collapsed().has(section.id)}>
+                      <Switch>
+                        <Match when={section.id === "memory"}>
+                          <MemoryPanel sessionID={props.sessionID} />
+                        </Match>
+                        <Match when={section.id === "evolution"}>
+                          <EvolutionPanel sessionID={props.sessionID} />
+                        </Match>
+                        <Match when={section.id === "checkpoint"}>
+                          <CheckpointPanel sessionID={props.sessionID} />
+                        </Match>
+                        <Match when={section.id === "goal"}>
+                          <GoalPanel sessionID={props.sessionID} />
+                        </Match>
+                        <Match when={section.id === "workflow"}>
+                          <WorkflowPanel sessionID={props.sessionID} />
+                        </Match>
+                        <Match when={section.id === "orchestrator"}>
+                          <OrchestratorPanel sessionID={props.sessionID} />
+                        </Match>
+                      </Switch>
+                    </Show>
+                  </box>
+                )}
+              </For>
             </box>
           </scrollbox>
         </Show>

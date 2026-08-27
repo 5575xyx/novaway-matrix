@@ -1,6 +1,6 @@
 import { test, expect, describe } from "bun:test"
 import { resolvePluginProviders } from "../../src/cli/cmd/providers"
-import type { Hooks } from "@novaway/plugin"
+import type { Hooks } from "@opencode/plugin"
 
 function hookWithAuth(provider: string): Hooks {
   return {

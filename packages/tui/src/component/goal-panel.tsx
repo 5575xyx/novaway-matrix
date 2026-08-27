@@ -1,19 +1,8 @@
-import { createSignal, createMemo, onMount, For, Show, batch } from "solid-js"
+import { createSignal, createMemo, onMount, For, Show } from "solid-js"
 import { useSDK } from "../context/sdk"
 import { useTheme } from "../context/theme"
-import { useDialog } from "../ui/dialog"
-import { DialogConfirm } from "../ui/dialog-confirm"
-
-interface Goal {
-  id: string
-  title: string
-  description: string | null
-  status: "pending" | "in_progress" | "completed" | "cancelled"
-  priority: "high" | "medium" | "low"
-  progress: number
-  tags: string[]
-  createdAt: Date
-}
+import { goalApi, type GoalItem, type GoalStatus } from "../util/mimo-panel-api"
+import { icon } from "../util/panel-icons"
 
 export interface GoalPanelProps {
   sessionID: string
@@ -22,9 +11,8 @@ export interface GoalPanelProps {
 export function GoalPanel(props: GoalPanelProps) {
   const sdk = useSDK()
   const { theme } = useTheme()
-  const dialog = useDialog()
 
-  const [goals, setGoals] = createSignal<Goal[]>([])
+  const [goals, setGoals] = createSignal<GoalItem[]>([])
   const [loading, setLoading] = createSignal(true)
   const [filter, setFilter] = createSignal<"all" | "pending" | "in_progress" | "completed">("all")
 
@@ -36,10 +24,7 @@ export function GoalPanel(props: GoalPanelProps) {
   async function loadData() {
     setLoading(true)
     try {
-      const result = await (sdk.client as any).get(`/session/${props.sessionID}/goals`)
-      setGoals(result.data ?? [])
-    } catch {
-      // 静默失败
+      setGoals(await goalApi.list(sdk.client, props.sessionID))
     } finally {
       setLoading(false)
     }
@@ -50,25 +35,13 @@ export function GoalPanel(props: GoalPanelProps) {
   }
 
   async function createGoal() {
-    // 这里可以打开创建对话框
-    try {
-      await (sdk.client as any).post(`/session/${props.sessionID}/goals`, {
-        title: "新目标",
-        priority: "medium",
-      })
-      await refresh()
-    } catch {
-      // 静默失败
-    }
+    const ok = await goalApi.create(sdk.client, props.sessionID, "新目标", "medium")
+    if (ok) await refresh()
   }
 
-  async function updateGoalStatus(goalId: string, status: Goal["status"]) {
-    try {
-      await (sdk.client as any).patch(`/goals/${goalId}`, { status })
-      await refresh()
-    } catch {
-      // 静默失败
-    }
+  async function updateGoalStatus(goalId: string, status: GoalStatus) {
+    const ok = await goalApi.updateStatus(sdk.client, goalId, status)
+    if (ok) await refresh()
   }
 
   function priorityLabel(priority: string): string {
@@ -97,7 +70,7 @@ export function GoalPanel(props: GoalPanelProps) {
       {/* 标题 */}
       <box flexDirection="row" justifyContent="space-between">
         <text fg={theme.text}>
-          <b>🎯 目标</b>
+          <b>{icon("goal")} 目标</b>
         </text>
         <text fg={theme.textMuted} onMouseUp={refresh}>
           {loading() ? "..." : "刷新"}

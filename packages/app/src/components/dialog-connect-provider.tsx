@@ -560,7 +560,7 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
       <div class="flex flex-col gap-6">
         <Show when={step() === "auth"}>
           <Switch>
-            <Match when={provider().id === "NovaWay"}>
+            <Match when={provider().id === "opencode"}>
               <div class="flex flex-col gap-4">
                 <div class="text-14-regular text-text-base">{language.t("provider.connect.NovaWayZen.line1")}</div>
                 <div class="text-14-regular text-text-base">{language.t("provider.connect.NovaWayZen.line2")}</div>

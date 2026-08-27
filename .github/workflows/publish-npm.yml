@@ -1,0 +1,57 @@
+name: publish-npm
+run-name: "publish novaway-ai ${{ inputs.version }}"
+
+# 精简版纯 npm 发布:单 Linux runner 交叉编译全平台二进制 + 发布 novaway-ai 及各平台包。
+# 手动触发(Actions 页面 → publish-npm → Run workflow)。首次请填明确的版本号。
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "版本号,例如 1.0.0"
+        required: true
+        type: string
+      channel:
+        description: "npm dist-tag(正式版用 latest;预览用 beta 等)"
+        required: false
+        default: "latest"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 复用仓库已有的 bun 安装 action(与项目要求的 bun 版本一致)
+      - uses: ./.github/actions/setup-bun
+
+      - name: Install deps
+        run: bun install
+
+      # 交叉编译各平台二进制到 packages/novaway/dist/novaway-*
+      # 若因内嵌 Web UI 报错,在下行 build 后加 --skip-embed-web-ui
+      - name: Build all-platform binaries
+        working-directory: packages/novaway
+        run: bun run build
+        env:
+          NOVAWAY_VERSION: ${{ inputs.version }}
+          NOVAWAY_CHANNEL: ${{ inputs.channel }}
+
+      # 配置 npm 鉴权(令牌来自仓库 Secret: NPM_TOKEN)
+      - name: Configure npm auth
+        run: echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > "$HOME/.npmrc"
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # 发布平台包 + novaway-ai 包装包(默认仅 npm,不触发 Docker/AUR/Homebrew)
+      - name: Publish to npm
+        working-directory: packages/novaway
+        run: bun run script/publish.ts
+        env:
+          NOVAWAY_VERSION: ${{ inputs.version }}
+          NOVAWAY_CHANNEL: ${{ inputs.channel }}

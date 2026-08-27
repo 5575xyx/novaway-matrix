@@ -137,15 +137,15 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
     <Switch>
       <Match when={store.stage === "always"}>
         <Prompt
-          title="Always allow"
+          title="始终允许"
           body={
             <Switch>
               <Match when={props.request.always.length === 1 && props.request.always[0] === "*"}>
-                <TextBody title={"This will allow " + props.request.permission + " until NovaWay is restarted."} />
+                <TextBody title={"这将允许 " + props.request.permission + " 直到 NovaWay 重新启动。"} />
               </Match>
               <Match when={true}>
                 <box paddingLeft={1} gap={1}>
-                  <text fg={theme.textMuted}>This will allow the following patterns until NovaWay is restarted</text>
+                  <text fg={theme.textMuted}>这将允许以下模式直到 NovaWay 重新启动</text>
                   <box>
                     <For each={props.request.always}>
                       {(pattern) => (
@@ -160,7 +160,7 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
               </Match>
             </Switch>
           }
-          options={{ confirm: "Confirm", cancel: "Cancel" }}
+          options={{ confirm: "确认", cancel: "取消" }}
           escapeKey="cancel"
           onSelect={(option) => {
             setStore("stage", "permission")
@@ -201,7 +201,7 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
               const filepath = typeof raw === "string" ? raw : ""
               return {
                 icon: "→",
-                title: `Edit ${pathFormatter.format(filepath)}`,
+                title: `编辑 ${pathFormatter.format(filepath)}`,
                 body: <EditBody request={props.request} />,
               }
             }
@@ -211,11 +211,11 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
               const filePath = typeof raw === "string" ? raw : ""
               return {
                 icon: "→",
-                title: `Read ${pathFormatter.format(filePath)}`,
+                title: `读取 ${pathFormatter.format(filePath)}`,
                 body: (
                   <Show when={filePath}>
                     <box paddingLeft={1}>
-                      <text fg={theme.textMuted}>{"Path: " + pathFormatter.format(filePath)}</text>
+                      <text fg={theme.textMuted}>{"路径: " + pathFormatter.format(filePath)}</text>
                     </box>
                   </Show>
                 ),
@@ -226,11 +226,11 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
               const pattern = typeof data.pattern === "string" ? data.pattern : ""
               return {
                 icon: "✱",
-                title: `Glob "${pattern}"`,
+                title: `匹配 "${pattern}"`,
                 body: (
                   <Show when={pattern}>
                     <box paddingLeft={1}>
-                      <text fg={theme.textMuted}>{"Pattern: " + pattern}</text>
+                      <text fg={theme.textMuted}>{"模式: " + pattern}</text>
                     </box>
                   </Show>
                 ),
@@ -272,7 +272,7 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
               const command = typeof data.command === "string" ? data.command : ""
               return {
                 icon: "#",
-                title: "Shell command",
+                title: "Shell 命令",
                 body: (
                   <Show when={command}>
                     <box paddingLeft={1}>
@@ -284,11 +284,11 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
             }
 
             if (permission === "task") {
-              const type = typeof data.subagent_type === "string" ? data.subagent_type : "Unknown"
+              const type = typeof data.subagent_type === "string" ? data.subagent_type : "未知"
               const desc = typeof data.description === "string" ? data.description : ""
               return {
                 icon: "#",
-                title: `${Locale.titlecase(type)} Task`,
+                title: `${Locale.titlecase(type)} 任务`,
                 body: (
                   <Show when={desc}>
                     <box paddingLeft={1}>
@@ -303,7 +303,7 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
               const url = typeof data.url === "string" ? data.url : ""
               return {
                 icon: "%",
-                title: `WebFetch ${url}`,
+                title: `获取网页 ${url}`,
                 body: (
                   <Show when={url}>
                     <box paddingLeft={1}>
@@ -322,7 +322,7 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
                 body: (
                   <Show when={query}>
                     <box paddingLeft={1}>
-                      <text fg={theme.textMuted}>{"Query: " + query}</text>
+                      <text fg={theme.textMuted}>{"查询: " + query}</text>
                     </box>
                   </Show>
                 ),
@@ -343,11 +343,11 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
 
               return {
                 icon: "←",
-                title: `Access external directory ${dir}`,
+                title: `访问外部目录 ${dir}`,
                 body: (
                   <Show when={patterns.length > 0}>
                     <box paddingLeft={1} gap={1}>
-                      <text fg={theme.textMuted}>Patterns</text>
+                      <text fg={theme.textMuted}>模式</text>
                       <box>
                         <For each={patterns}>{(p) => <text fg={theme.text}>{"- " + p}</text>}</For>
                       </box>
@@ -360,10 +360,10 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
             if (permission === "doom_loop") {
               return {
                 icon: "⟳",
-                title: "Continue after repeated failures",
+                title: "重复失败后继续",
                 body: (
                   <box paddingLeft={1}>
-                    <text fg={theme.textMuted}>This keeps the session running despite repeated failures.</text>
+                    <text fg={theme.textMuted}>这将使会话在重复失败时继续运行。</text>
                   </box>
                 ),
               }
@@ -371,10 +371,10 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
 
             return {
               icon: "⚙",
-              title: `Call tool ${permission}`,
+              title: `调用工具 ${permission}`,
               body: (
                 <box paddingLeft={1}>
-                  <text fg={theme.textMuted}>{"Tool: " + permission}</text>
+                  <text fg={theme.textMuted}>{"工具: " + permission}</text>
                 </box>
               ),
             }
@@ -386,7 +386,7 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
             <box flexDirection="column" gap={0}>
               <box flexDirection="row" gap={1} flexShrink={0}>
                 <text fg={theme.warning}>{"△"}</text>
-                <text fg={theme.text}>Permission required</text>
+                <text fg={theme.text}>需要权限</text>
               </box>
               <box flexDirection="row" gap={1} paddingLeft={2} flexShrink={0}>
                 <text fg={theme.textMuted} flexShrink={0}>
@@ -399,10 +399,10 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
 
           const body = (
             <Prompt
-              title="Permission required"
+              title="需要权限"
               header={header()}
               body={current.body}
-              options={{ once: "Allow once", always: "Allow always", reject: "Reject" }}
+              options={{ once: "允许一次", always: "始终允许", reject: "拒绝" }}
               escapeKey="reject"
               fullscreen
               onSelect={(option) => {
@@ -451,20 +451,20 @@ function RejectPrompt(props: { onConfirm: (message: string) => void; onCancel: (
     commands: [
       {
         name: "app.exit",
-        title: "Cancel permission rejection",
-        category: "Permission",
+        title: "取消权限拒绝",
+        category: "权限",
         run() {
           props.onCancel()
         },
       },
     ],
     bindings: [
-      { key: "escape", desc: "Cancel permission rejection", group: "Permission", cmd: () => props.onCancel() },
+      { key: "escape", desc: "取消权限拒绝", group: "权限", cmd: () => props.onCancel() },
       ...tuiConfig.keybinds.get("app.exit"),
       {
         key: "return",
-        desc: "Confirm permission rejection",
-        group: "Permission",
+        desc: "确认权限拒绝",
+        group: "权限",
         cmd: () => props.onConfirm(input.plainText),
       },
     ],
