@@ -46,11 +46,12 @@ const processMetadata = ensureProcessMetadata("main")
 
 process.on("unhandledRejection", (e) => {
   const message = errorMessage(e)
-  // @opentui/core eagerly resolves a bundled asset at startup; inside a Bun single-file
-  // binary that lookup returns undefined and its normalizeLoadedFilePath() throws
-  // `undefined ... $.startsWith`. It's caught here, non-fatal (both CLI and TUI still work),
-  // and there is no asset to point it at in a compiled binary — so downgrade this specific
-  // benign upstream rejection to debug instead of alarming users with a red ERROR line.
+  // Defense-in-depth for the @opentui/core startup asset probe. The real fix lives in the build
+  // (script/build.ts patchOpentuiParserWorkerCrash + src/cli/tui/otui-assets.ts asset extraction),
+  // which stops the parser.worker module-init from throwing `undefined ... $.startsWith` in a Bun
+  // single-file binary. If a future @opentui bump slips that patch, this keeps the benign probe
+  // rejection from surfacing as a red ERROR on non-TUI commands (the TUI path fails loudly on its
+  // own await chain regardless). Downgrade only this specific upstream rejection to debug.
   const stack = (e as any)?.stack
   const isBenignOpentuiAssetRejection =
     message.includes("$.startsWith") ||
