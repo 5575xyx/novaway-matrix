@@ -45,8 +45,22 @@ import { isRecord } from "@/util/record"
 const processMetadata = ensureProcessMetadata("main")
 
 process.on("unhandledRejection", (e) => {
+  const message = errorMessage(e)
+  // @opentui/core eagerly resolves a bundled asset at startup; inside a Bun single-file
+  // binary that lookup returns undefined and its normalizeLoadedFilePath() throws
+  // `undefined ... $.startsWith`. It's caught here, non-fatal (both CLI and TUI still work),
+  // and there is no asset to point it at in a compiled binary — so downgrade this specific
+  // benign upstream rejection to debug instead of alarming users with a red ERROR line.
+  const stack = (e as any)?.stack
+  const isBenignOpentuiAssetRejection =
+    message.includes("$.startsWith") ||
+    (message.includes("startsWith") && typeof stack === "string" && stack.includes("@opentui"))
+  if (isBenignOpentuiAssetRejection) {
+    Log.Default.debug("rejection", { e: message })
+    return
+  }
   Log.Default.error("rejection", {
-    e: errorMessage(e),
+    e: message,
   })
 })
 
