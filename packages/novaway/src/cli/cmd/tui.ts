@@ -14,6 +14,7 @@ import { writeHeapSnapshot } from "v8"
 import { ServerAuth } from "@/server/auth"
 import { validateSession } from "../tui/validate-session"
 import { win32InstallCtrlCGuard } from "@novaway/tui/terminal-win32"
+import { ensureOtuiAssets } from "../tui/otui-assets"
 
 declare global {
   const NovaWay_WORKER_PATH: string
@@ -123,6 +124,9 @@ export const TuiThreadCommand = cmd({
   handler: async (args) => {
     const unguard = win32InstallCtrlCGuard()
     try {
+      // Extract embedded @opentui/core runtime assets and set OTUI_ASSET_ROOT before
+      // opentui is imported (below) or the render worker is spawned (it inherits env).
+      await ensureOtuiAssets()
       const { TuiConfig } = await import("@/config/tui")
       if (args.fork && !args.continue && !args.session) {
         UI.error("--fork requires --continue or --session")
