@@ -245,7 +245,7 @@ for (const item of targets) {
     conditions: ["browser"],
     tsconfig: "./tsconfig.json",
     plugins: [plugin, chromiumBidiCjsStubPlugin],
-    external: ["node-gyp"],
+    external: ["node-gyp", "playwright-core", "chromium-bidi"],
     format: "esm",
     minify: true,
     sourcemap: sourcemapsFlag ? "linked" : "none",

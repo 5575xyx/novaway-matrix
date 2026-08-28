@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto"
 import { InstanceState } from "@/effect/instance-state"
 import { NodeFileSystem } from "@effect/platform-node"
 import { Context, Effect, FileSystem, Layer, Schema } from "effect"
-import { chromium, type Browser, type BrowserContext, type ElementHandle, type Page } from "playwright-core"
+import type { Browser, BrowserContext, ElementHandle, Page } from "playwright-core"
 import { redactSecrets, redactUrl } from "./redact"
 
 type SnapshotElement = HTMLElement | SVGElement
@@ -79,6 +79,12 @@ export const layer = Layer.effect(
       if (current.page && !current.page.isClosed()) return current.page
       const connected = yield* Effect.tryPromise({
         try: async () => {
+          const { chromium } = await import("playwright-core").catch(() => {
+            throw browserError(
+              "BROWSER_UNAVAILABLE",
+              "原生浏览器工具在打包二进制中不可用；请设置 BROWSER_CDP_URL 连接外部 Chrome，或改用 @playwright/mcp 浏览器",
+            )
+          })
           const endpoint = process.env.BROWSER_CDP_URL
           const browser = endpoint
             ? await chromium.connectOverCDP(endpoint)
