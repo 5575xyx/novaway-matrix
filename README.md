@@ -80,19 +80,39 @@ bun run package:win      # 打包 Windows（或 package:mac / package:linux）
 - **国产大模型开箱即用** —— 为 DeepSeek、通义千问（Qwen）、智谱 GLM、Kimi、MiniMax、小米 MiMo 等分别内置了针对性系统提示词；同时兼容 Claude、GPT、Gemini。
 - **全中文界面** —— 终端 TUI 与 Electron 桌面端均已中文化，并换上 NovaWay 品牌图标。
 - **内置技能（Skills）** —— 一句话生成 PPT（office-ppt）、小红书运营（xiaohongshu-ops）、微信公众号运营（wxgzh-ops），以及文档 / 数据 / 会议 / 设计 / 网页等 Office 系列技能。
-- **多 Agent 编排** —— Orchestrator 协调多个子 Agent 协作，配合 Workflow 编排复杂任务，并支持后台并行开关。
+- **多 Agent 编排** —— 内置 Orchestrator 编排器：建立带依赖关系的任务计划，按拓扑顺序并发派生子 Agent 执行，并在任务间传递结果；配合 Workflow 编排复杂流程，支持后台并行开关。它对各主 Agent 默认可用、由模型按需调用（并非自动常驻运行），而 pulse-orchestrator 运营主 Agent 会主动借助它完成多步编排。
 - **会话智能** —— 目标（goal）、检查点（checkpoint）、蒸馏（distill）等会话记忆与自我组织机制。
 - **MCP 生态** —— 预置 context7（实时文档）、sequential-thinking、memory、browser、desktop-commander 等 MCP 服务。
 - **数据库管理** —— 内置可视化数据库客户端：管理多个连接、树形浏览库/表/字段、直接执行 SQL 并查看结果。
 
 ## 内置 Agent
 
-用 `Tab` 键在两个内置 Agent 间切换：
+主 Agent 可用 `Tab` 键切换，分为三类：
 
-- **build** —— 默认全权限开发 Agent，负责读写代码、执行命令等实际工作。
-- **plan** —— 只读分析 Agent，默认禁止改文件、执行命令前询问，适合探索陌生代码库或做方案规划。
+### 开发
 
-另有 **general** 子 Agent 用于复杂搜索与多步任务，可在消息中用 `@general` 调用。
+- **build** —— 默认主 Agent，按配置权限调用全部工具（读写文件、执行命令、跑测试）。特点是端到端完成编码任务，从实现到验证一站式落地。
+- **plan** —— 只读规划 Agent，禁用一切编辑工具、执行命令前先询问。优势在于安全地探索陌生代码库、先定方案再动手，杜绝误改。
+
+### 办公模式（Office）
+
+一组专职「员工」Agent，把日常办公场景拆成各有所长的角色：
+
+- **文档整理**（office-document）—— 写作、改写、审稿、方案、报告与周报 / 月报。优势：把零散素材整理成规范、可直接交付的结构化文档。
+- **PPT 生成**（office-ppt）—— 汇报大纲、页级故事线、页面文案、图表建议与演讲备注。优势：从主题到完整故事线，配合 PPT 技能可直接产出 `.pptx`。
+- **表格分析**（office-data）—— CSV / Excel 清洗、透视、趋势归因、图表建议。优势：把原始表格变成带结论的分析报告。
+- **视觉设计**（office-design）—— 海报、封面、配图、品牌色板与视觉规范。优势：产出风格统一、符合品牌的视觉素材。
+- **网页看板**（office-web）—— HTML 数据看板、项目追踪页、客户工具页与演示站点。优势：无需前端工程即可生成可用网页。
+- **AI 会议**（office-meeting）—— 纪要、决议、行动项、负责人、截止时间与风险跟进。优势：把一场会议结构化为可执行清单。
+- **AI 资料库**（office-knowledge）—— 资料摘要、多文档对比、知识索引与 FAQ。优势：沉淀可复用的项目知识并支持快速检索。
+- **AI 任务**（office-task）—— 目标拆解、优先级、周计划、风险看板与依赖梳理。优势：把模糊目标转成可跟踪的执行节奏。
+- **AI 沟通**（office-communication）—— 邮件、通知、商务表达、中英双语与语气改写。优势：快速产出得体、分寸到位的商务沟通文本。
+
+### 运营
+
+- **运营主 Agent**（pulse-orchestrator）—— 内容运营总控：分析用户意图，自动编排并协调子 Agent 分步完成运营任务。
+
+此外还有 **general** / **explore** / **scout** 等内置子 Agent，供主 Agent 内部调用或用 `@` 唤起，负责复杂搜索、代码库探索与外部资料研究。
 
 ## 数据库管理
 
