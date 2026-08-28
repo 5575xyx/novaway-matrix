@@ -273,12 +273,16 @@ for (const item of targets) {
     ],
     define: {
       OPENCODE_VERSION: `'${Script.version}'`,
-      OPENCODE_MIGRATIONS: JSON.stringify(migrations),
+      // 运行时读的是 NOVAWAY_MIGRATIONS（见 storage/db.ts）；若写成 OPENCODE_MIGRATIONS
+      // 则该全局在二进制里为 undefined，迁移逻辑会回退去 scandir 一个不存在的 migration 目录
+      // （Windows 上解析成 B:\migration）而崩溃。build-node.ts 已用正确名字，这里对齐。
+      NOVAWAY_MIGRATIONS: JSON.stringify(migrations),
       OPENCODE_MODELS_DEV: generated.modelsData,
       OTUI_TREE_SITTER_WORKER_PATH: bunfsRoot + workerRelativePath,
       OPENCODE_WORKER_PATH: workerPath,
       OPENCODE_CHANNEL: `'${Script.channel}'`,
-      OPENCODE_LIBC: item.os === "linux" ? `'${item.abi ?? "glibc"}'` : "",
+      // watcher.ts 读的是 NovaWay_LIBC；始终注入合法字符串字面量（非 linux 用不到，但保持替换合法）。
+      NovaWay_LIBC: `'${item.abi ?? "glibc"}'`,
       // installation/version.ts reads these globals; keep them in sync with the OPENCODE_* defines
       // so the published binary reports its real version/channel (not "local") and update checks work.
       NovaWay_VERSION: `'${Script.version}'`,
