@@ -49,16 +49,20 @@ jobs:
           NOVAWAY_MAIN_PACKAGE: ${{ inputs.main_package }}
 
       # 创建 GitHub Release 并上传二进制文件
+      # 幂等：Release 已存在就跳过创建（否则同版本「补发」重跑会在这一步 422 already_exists 直接中断，
+      # 后面的 npm 发布根本执行不到）。publish.ts 本身对已发布的包也是跳过，所以整条流程可安全重跑。
       - name: Create GitHub Release
-        id: create_release
-        uses: actions/create-release@v1
+        run: |
+          if gh release view "v${{ inputs.version }}" >/dev/null 2>&1; then
+            echo "release v${{ inputs.version }} already exists, skip create"
+          else
+            gh release create "v${{ inputs.version }}" \
+              --title "v${{ inputs.version }}" \
+              --notes "v${{ inputs.version }}" \
+              ${{ inputs.channel != 'latest' && '--prerelease' || '' }}
+          fi
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ inputs.version }}
-          release_name: v${{ inputs.version }}
-          draft: false
-          prerelease: ${{ inputs.channel != 'latest' }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # 上传所有平台的二进制文件到 Release(被动备份;npm 原生安装不依赖它)
       - name: Upload Release Assets

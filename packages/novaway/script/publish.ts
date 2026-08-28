@@ -25,7 +25,24 @@ async function publish(dir: string, name: string, version: string) {
     return
   }
   await $`bun pm pack`.cwd(dir)
-  await $`npm publish *.tgz --access public --tag ${Script.channel}`.cwd(dir)
+  // 180MB+ 的平台包上传偶发「npm publish 退出码 0，但 registry 从未落库」：
+  // 0.1.4 的 xymt-novaway-windows-x64 就是这样静默丢失的 —— CI 全绿(conclusion=success)、
+  // GitHub Release 里 windows zip 也在，但 registry 上该版本 E404，用户 `npm i -g` 时 npm
+  // 把这个 optionalDependency 静默跳过 → postinstall 找不到二进制 → 整个安装回滚。
+  // 因此不能只信退出码：发布后必须回查 registry 确认版本真的可解析，没落库就重发，
+  // 始终不落库则让流程失败，绝不再把「少一个平台包」当成发布成功。
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    await $`npm publish *.tgz --access public --tag ${Script.channel}`.cwd(dir).nothrow()
+    for (let i = 0; i < 12; i++) {
+      if (await published(name, version)) {
+        console.log(`✅ verified on registry: ${name}@${version}`)
+        return
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10000))
+    }
+    console.error(`⚠️  ${name}@${version} 发布后 2 分钟内仍未出现在 registry（第 ${attempt}/3 次），重发`)
+  }
+  throw new Error(`failed to publish ${name}@${version}: registry never served this version after 3 attempts`)
 }
 
 const binaries: Record<string, string> = {}
@@ -106,6 +123,18 @@ for (const [name] of Object.entries(binaries)) {
 }
 
 await publish(`./dist/${pkg.name}`, MAIN_PACKAGE, version)
+
+// 最后再整体断言一次：主包的每个 optionalDependency 都必须能在 registry 上解析到。
+// 少任何一个平台包 = 该平台用户 `npm i -g` 直接失败，这种发布必须报错而不是绿灯。
+const missing: string[] = []
+for (const [name, ver] of Object.entries(binaries)) {
+  if (!(await published(name, ver))) missing.push(`${name}@${ver}`)
+}
+if (missing.length > 0) {
+  console.error(`❌ 平台包缺失，主包 ${MAIN_PACKAGE}@${version} 在这些平台上装不了：${missing.join(", ")}`)
+  process.exit(1)
+}
+console.log(`✅ ${MAIN_PACKAGE}@${version} + ${Object.keys(binaries).length} 个平台包全部在 registry 上验证通过`)
 
 const image = "ghcr.io/anomalyco/opencode"
 const platforms = "linux/amd64,linux/arm64"
