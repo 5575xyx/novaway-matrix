@@ -344,6 +344,15 @@ for (const item of targets) {
   // Use platform-specific bunfs root path based on target OS
   const bunfsRoot = item.os === "win32" ? "B:/~BUN/root/" : "/$bunfs/root/"
   const workerRelativePath = path.relative(dir, parserWorker).replaceAll("\\", "/")
+  // The tui RPC worker (workerPath) is a Bun entrypoint; in the single-file binary it lands at
+  // `<bunfsRoot>/src/cli/tui/worker.js`. tui.ts's target() reads the global NovaWay_WORKER_PATH to
+  // locate it — WITHOUT this define the global is undefined and target() falls back to
+  // `new URL("./cli/tui/worker.js", import.meta.url)`, which resolves against a bundled CHUNK's url
+  // (root-level, no `src/`) → wrong path → Worker fails to load → the first RPC postMessage throws
+  // and the TUI never renders. Inject the real bunfs path here (same pattern as
+  // OTUI_TREE_SITTER_WORKER_PATH). Stays undefined in dev, where target()'s source-relative fallback
+  // resolves correctly.
+  const workerBunfsPath = bunfsRoot + workerPath.replace(/^\.\//, "").replace(/\.ts$/, ".js")
 
   await Bun.build({
     conditions: ["browser"],
@@ -385,7 +394,7 @@ for (const item of targets) {
       NOVAWAY_MIGRATIONS: JSON.stringify(migrations),
       OPENCODE_MODELS_DEV: generated.modelsData,
       OTUI_TREE_SITTER_WORKER_PATH: bunfsRoot + workerRelativePath,
-      OPENCODE_WORKER_PATH: workerPath,
+      NovaWay_WORKER_PATH: JSON.stringify(workerBunfsPath),
       OPENCODE_CHANNEL: `'${Script.channel}'`,
       // watcher.ts 读的是 NovaWay_LIBC；始终注入合法字符串字面量（非 linux 用不到，但保持替换合法）。
       NovaWay_LIBC: `'${item.abi ?? "glibc"}'`,
