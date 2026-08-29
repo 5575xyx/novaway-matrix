@@ -259,6 +259,22 @@ const scenarios: Scenario[] = [
       },
       "status",
     ),
+  http.protected
+    .get("/project/{projectID}/directories", "project.directories")
+    .seeded((ctx) => ctx.project())
+    .at((ctx) => ({
+      path: route("/project/{projectID}/directories", { projectID: ctx.state.id }),
+      headers: ctx.headers(),
+    }))
+    .json(
+      200,
+      (body, ctx) => {
+        array(body)
+        const main = body.findLast((item) => isRecord(item) && item.strategy === undefined)
+        check(isRecord(main) && main.directory === ctx.directory, "project directories should end with the worktree")
+      },
+      "status",
+    ),
   http.protected.get("/provider", "provider.list").json(),
   http.protected.get("/provider/auth", "provider.auth").json(),
   http.protected
