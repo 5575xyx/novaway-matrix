@@ -11,9 +11,31 @@ process.chdir(dir)
 // 由 build.ts 产出并挂在主包的 optionalDependencies 下，npm 按 os/cpu 只装匹配的那个。
 // 默认 xymt-novaway（账号 A）；备份发布到另一账号时用 NOVAWAY_MAIN_PACKAGE=novaway 切换（并把 NPM_TOKEN 换成该账号）。
 const MAIN_PACKAGE = process.env.NOVAWAY_MAIN_PACKAGE || "xymt-novaway"
+const REGISTRY = (process.env.NOVAWAY_PUBLISH_REGISTRY || "https://registry.npmjs.org").replace(/\/$/, "")
 
+// 回查「某版本是否真的在 registry 上」必须绕开所有缓存，否则会得到假阴性：
+// `npm view` 先命中 npm 自己的 cacache，而 registry 的 packument 又带 `cache-control: max-age=300`，
+// 于是刚发布成功的版本在长达 5 分钟内仍可能被报成 E404 —— 0.1.5 的 xymt-novaway-windows-x64
+// 就是这么被误判的：它 05:50:09Z 明明发布成功了，回查却一直 404，白重发两次，最后还让整条流程红掉。
+// 这里直接打单版本端点 `/<name>/<version>`（200/404 语义明确），并用查询串破 CDN 缓存。
 async function published(name: string, version: string) {
-  return (await $`npm view ${name}@${version} version`.nothrow()).exitCode === 0
+  const url = `${REGISTRY}/${encodeURIComponent(name)}/${encodeURIComponent(version)}?_=${Date.now()}`
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const res = await fetch(url, {
+        headers: { "cache-control": "no-cache", pragma: "no-cache" },
+        signal: AbortSignal.timeout(30000),
+      })
+      if (res.status === 200) return true
+      if (res.status === 404) return false
+      console.error(`registry ${res.status} for ${name}@${version}`)
+    } catch (error) {
+      console.error(`registry probe failed for ${name}@${version}: ${error}`)
+    }
+    await new Promise((resolve) => setTimeout(resolve, 3000))
+  }
+  // 网络实在不通时退回 npm view，--prefer-online 强制回源校验而不是吃本地缓存。
+  return (await $`npm view ${name}@${version} version --prefer-online`.nothrow().quiet()).exitCode === 0
 }
 
 async function publish(dir: string, name: string, version: string) {
@@ -25,22 +47,28 @@ async function publish(dir: string, name: string, version: string) {
     return
   }
   await $`bun pm pack`.cwd(dir)
-  // 180MB+ 的平台包上传偶发「npm publish 退出码 0，但 registry 从未落库」：
-  // 0.1.4 的 xymt-novaway-windows-x64 就是这样静默丢失的 —— CI 全绿(conclusion=success)、
-  // GitHub Release 里 windows zip 也在，但 registry 上该版本 E404，用户 `npm i -g` 时 npm
-  // 把这个 optionalDependency 静默跳过 → postinstall 找不到二进制 → 整个安装回滚。
-  // 因此不能只信退出码：发布后必须回查 registry 确认版本真的可解析，没落库就重发，
-  // 始终不落库则让流程失败，绝不再把「少一个平台包」当成发布成功。
+  // 180MB+ 的平台包上传偶发失败，且失败方式不止一种（退出码非 0、退出码 0 但 registry 落库很慢）。
+  // 所以既不能只信退出码，也不能把回查的 404 直接当成「没发上去」——见 published() 的注释。
+  // 发布输出必须打出来：早先这里 .nothrow() 把 npm 的真实报错整个吞掉了，排查时完全瞎。
   for (let attempt = 1; attempt <= 3; attempt++) {
-    await $`npm publish *.tgz --access public --tag ${Script.channel}`.cwd(dir).nothrow()
-    for (let i = 0; i < 12; i++) {
+    const result = await $`npm publish *.tgz --access public --tag ${Script.channel} --fetch-timeout=1800000 --fetch-retries=5`
+      .cwd(dir)
+      .nothrow()
+      .quiet()
+    const output = `${result.stdout.toString()}${result.stderr.toString()}`.trim()
+    if (output) console.log(output)
+    // 「不能覆盖已发布版本」说明它已经在 registry 上了，属于成功而不是失败。
+    const conflict = /EPUBLISHCONFLICT|cannot publish over|previously published/i.test(output)
+    if (result.exitCode !== 0 && !conflict)
+      console.error(`⚠️  npm publish ${name}@${version} 退出码 ${result.exitCode}（第 ${attempt}/3 次）`)
+    for (let i = 0; i < 18; i++) {
       if (await published(name, version)) {
         console.log(`✅ verified on registry: ${name}@${version}`)
         return
       }
       await new Promise((resolve) => setTimeout(resolve, 10000))
     }
-    console.error(`⚠️  ${name}@${version} 发布后 2 分钟内仍未出现在 registry（第 ${attempt}/3 次），重发`)
+    console.error(`⚠️  ${name}@${version} 发布后 3 分钟内仍未出现在 registry（第 ${attempt}/3 次），重发`)
   }
   throw new Error(`failed to publish ${name}@${version}: registry never served this version after 3 attempts`)
 }
