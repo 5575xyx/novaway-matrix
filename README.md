@@ -12,6 +12,11 @@
   <img alt="platform" src="https://img.shields.io/badge/platform-win--x64%20%7C%20mac--arm64%2Fx64%20%7C%20linux--x64-lightgrey?style=flat-square">
 </p>
 
+<p align="center">
+  <b>简体中文</b> |
+  <a href="README.en.md">English</a>
+</p>
+
 ---
 
 NovaWay Matrix 基于开源项目 [opencode](https://github.com/anomalyco/opencode) 构建，是一款 AI 编程与办公自动化 Agent，提供**终端（TUI）**与 **Electron 桌面端**两种形态。在原版能力之上，针对国内用户做了深度改造：内置国产大模型专属提示词、全中文界面与 NovaWay 品牌图标，以及 PPT / 小红书 / 公众号等中文办公技能。命令行入口为 `novaway`。
@@ -20,8 +25,10 @@ NovaWay Matrix 基于开源项目 [opencode](https://github.com/anomalyco/openco
 
 ## 安装
 
+需要 Node.js ≥ 18（用于全局安装与 postinstall 解包）。支持 **Windows x64**、**macOS**（Apple Silicon 与 Intel）、**Linux x64**；npm 会按你的 `os` / `cpu` 自动只装匹配平台的二进制包，无需手动选择。
+
 ```bash
-npm i -g xymt-novaway
+npm install -g xymt-novaway
 ```
 
 装完直接运行：
@@ -30,16 +37,46 @@ npm i -g xymt-novaway
 novaway
 ```
 
-> **国内提速**：平台二进制直接随 npm 分发（不再从 GitHub 下载 100MB 文件）。把 registry 指向淘宝镜像即可高速安装：
->
-> ```bash
-> npm config set registry https://registry.npmmirror.com
-> npm i -g xymt-novaway
-> ```
->
-> 同样支持 `pnpm` / `yarn` / `bun` 全局安装。
+### 国内加速（强烈建议）
 
-支持平台：**Windows x64**、**macOS**（Apple Silicon 与 Intel）、**Linux x64**。npm 会按你的系统自动只装匹配平台的二进制包，无需手动选择。
+平台二进制随 npm 分发（不再从 GitHub 下载），单个平台包约 **180 MB**。官方源在国内实测只有几十 KB/s，很容易超时；而平台包挂在 `optionalDependencies` 下，**下载失败时 npm 会静默跳过它**，紧接着 postinstall 报 `Try manually installing xymt-novaway-<os>-<arch>` 并回滚整个安装 —— 看着像包坏了，其实只是网慢。所以国内请走淘宝镜像：
+
+```bash
+npm install -g xymt-novaway --registry=https://registry.npmmirror.com --foreground-scripts
+```
+
+`--foreground-scripts` 只是把 postinstall 的输出打出来，便于确认二进制真的解包成功（可选）。想长期生效就把镜像设为默认源：
+
+```bash
+npm config set registry https://registry.npmmirror.com
+```
+
+如果镜像报 404 或版本偏旧，说明它还没同步到最新版，手动触发一次同步（约 1 分钟后重试安装）：
+
+```bash
+curl -X PUT "https://registry-direct.npmmirror.com/-/package/xymt-novaway/syncs"
+curl -X PUT "https://registry-direct.npmmirror.com/-/package/xymt-novaway-windows-x64/syncs"
+```
+
+> 第二条把 `windows-x64` 换成你的平台：`darwin-arm64` / `darwin-x64` / `linux-x64`。
+
+### 其他包管理器
+
+```bash
+pnpm add -g xymt-novaway
+yarn global add xymt-novaway
+bun add -g xymt-novaway
+```
+
+> `pnpm` 默认不执行 postinstall 脚本。若安装后运行 `novaway` 提示 `postinstall script was not run`，手动补跑一次：
+> `cd $(pnpm root -g)/xymt-novaway && node postinstall.mjs`
+
+### 验证安装
+
+```bash
+novaway --version     # 应打印版本号，如 0.1.5
+novaway               # 进入 TUI
+```
 
 ## 桌面端（Desktop）
 
@@ -134,10 +171,63 @@ bun run package:win      # 打包 Windows（或 package:mac / package:linux）
 ## 更新
 
 ```bash
-novaway upgrade
+novaway upgrade              # 升级到最新版
+novaway upgrade 0.1.5        # 升级到指定版本
 ```
 
-会拉取 `xymt-novaway` 的最新版本（含各平台二进制），全程走 npm。
+它会自动识别你的安装方式（npm / pnpm / bun / yarn / brew / scoop / choco），底层执行等价的 `npm install -g xymt-novaway@<版本>`，并且**沿用你的 npm registry 配置** —— 设过淘宝镜像的话升级也走镜像。识别不准时用 `-m` 指定：`novaway upgrade -m npm`。
+
+直接重装同样有效：
+
+```bash
+npm install -g xymt-novaway@latest --registry=https://registry.npmmirror.com
+```
+
+## 卸载
+
+内置命令会一并清理配置、数据、缓存，并调用你的包管理器卸载程序本体：
+
+```bash
+novaway uninstall              # 列出将删除的内容并确认
+novaway uninstall --dry-run    # 只预览，不实际删除
+novaway uninstall -f           # 跳过确认
+novaway uninstall -c -d        # 保留配置(-c)与会话数据(-d)，只卸载程序
+```
+
+只想卸载程序、不动任何数据，用包管理器原生命令即可：
+
+```bash
+npm uninstall -g xymt-novaway
+# 或 pnpm uninstall -g xymt-novaway / yarn global remove xymt-novaway / bun remove -g xymt-novaway
+```
+
+用户数据目录（`novaway uninstall` 会清理，手动卸载不会动）：
+
+| 用途 | Linux / macOS | Windows |
+| --- | --- | --- |
+| 配置 | `~/.config/novaway` | `C:\Users\<你>\.config\novaway` |
+| 数据（会话 / 日志 / 快照） | `~/.local/share/novaway` | `C:\Users\<你>\.local\share\novaway` |
+| 缓存 | `~/.cache/novaway` | `C:\Users\<你>\.cache\novaway` |
+| 状态 | `~/.local/state/novaway` | `C:\Users\<你>\.local\state\novaway` |
+
+## 安装故障排查
+
+**`failed to install the right novaway CLI package` / `Try manually installing xymt-novaway-<os>-<arch>`**
+
+180 MB 的平台二进制包没下完就超时了，npm 把它当 optional 静默跳过，postinstall 随即失败并回滚。换淘宝镜像重装即可（见上文「国内加速」）。也可以先把大包单独灌进 npm 缓存再装：
+
+```bash
+npm cache add xymt-novaway-windows-x64@latest --registry=https://registry.npmmirror.com
+npm install -g xymt-novaway --registry=https://registry.npmmirror.com
+```
+
+**`postinstall script was not run`**
+
+用了 `--ignore-scripts`，或用了默认不跑 postinstall 的包管理器。到全局安装目录手动补跑：`cd <全局 node_modules>/xymt-novaway && node postinstall.mjs`。
+
+**安装卡住不动**
+
+先看是不是在下那个 180 MB 的包（`--foreground-scripts` 能看到进度）。确认是官方源太慢就直接中断，换镜像重来；重装前先 `npm uninstall -g xymt-novaway` 清掉残留的半成品安装。
 
 ## 从源码构建
 
