@@ -14,6 +14,15 @@ const UpdatePayload = Schema.Struct({
   commands: Schema.optional(Project.Info.fields.commands),
 })
 
+// 项目已知的本地目录：主 worktree + 已发现的其他 checkout（git worktree/sandbox）。
+// `strategy` 只用于「项目副本」这类派生目录（本服务端暂未实现），真实 checkout 不带该字段。
+const ProjectDirectories = Schema.Array(
+  Schema.Struct({
+    directory: Schema.String,
+    strategy: Schema.optional(Schema.String),
+  }).annotate({ identifier: "ProjectDirectory" }),
+)
+
 export const ProjectApi = HttpApi.make("project")
   .add(
     HttpApiGroup.make("project")
@@ -59,6 +68,18 @@ export const ProjectApi = HttpApi.make("project")
             identifier: "project.update",
             summary: "Update project",
             description: "Update project properties such as name, icon, and commands.",
+          }),
+        ),
+        HttpApiEndpoint.get("directories", `${root}/:projectID/directories`, {
+          params: { projectID: ProjectID },
+          query: WorkspaceRoutingQuery,
+          success: described(ProjectDirectories, "Project directories"),
+          error: [HttpApiError.BadRequest],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "project.directories",
+            summary: "List project directories",
+            description: "List known local absolute directories for a project.",
           }),
         ),
       )

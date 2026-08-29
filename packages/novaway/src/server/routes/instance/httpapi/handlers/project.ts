@@ -3,7 +3,7 @@ import * as InstanceState from "@/effect/instance-state"
 import { Project } from "@/project/project"
 import { ProjectID } from "@/project/schema"
 import { Effect } from "effect"
-import { HttpApiBuilder } from "effect/unstable/httpapi"
+import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
 import { markInstanceForReload } from "../lifecycle"
 
@@ -39,6 +39,27 @@ export const projectHandlers = HttpApiBuilder.group(InstanceHttpApi, "project", 
       return yield* svc.update({ ...ctx.payload, projectID: ctx.params.projectID })
     })
 
-    return handlers.handle("list", list).handle("current", current).handle("initGit", initGit).handle("update", update)
+    // TUI 启动时 project.sync() 会无条件调用它；缺这条路由请求会落到 UI 兜底路由拿到
+    // text/html，SDK 拦截器直接抛错，TUI 根本渲染不出来。
+    // 顺序有意义：TUI 取 `list.findLast(item => item.strategy === undefined).directory` 当主目录，
+    // 所以主 worktree 必须排在最后。
+    const directories = Effect.fn("ProjectHttpApi.directories")(function* (ctx: {
+      params: { projectID: ProjectID }
+    }) {
+      const project = yield* svc.get(ctx.params.projectID)
+      if (!project) return yield* Effect.fail(new HttpApiError.BadRequest())
+      const sandboxes = yield* svc.sandboxes(ctx.params.projectID)
+      return [
+        ...sandboxes.filter((directory) => directory !== project.worktree).map((directory) => ({ directory })),
+        { directory: project.worktree },
+      ]
+    })
+
+    return handlers
+      .handle("list", list)
+      .handle("current", current)
+      .handle("initGit", initGit)
+      .handle("update", update)
+      .handle("directories", directories)
   }),
 )
