@@ -19,7 +19,7 @@ describe("displayModelName", () => {
 
 describe("displayModelGroup", () => {
   test("uses the default group for NovaWay models", () => {
-    expect(displayModelGroup("NovaWay", "NovaWay Zen")).toBe("Default")
+    expect(displayModelGroup("NovaWay", "NovaWay Zen")).toBe("默认")
   })
 
   test("keeps other provider group names unchanged", () => {

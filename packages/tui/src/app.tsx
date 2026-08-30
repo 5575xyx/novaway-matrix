@@ -9,7 +9,7 @@ import { ClipboardProvider, useClipboard } from "./context/clipboard"
 import { ExitProvider, useExit } from "./context/exit"
 import { EpilogueProvider } from "./context/epilogue"
 import * as Selection from "./util/selection"
-import { setIconStyle, ICON_STYLES, type IconStyle } from "./util/panel-icons"
+import { setIconStyle, ICON_STYLES, icon, type IconStyle } from "./util/panel-icons"
 import { createCliRenderer, MouseButton } from "@opentui/core"
 import { RouteProvider, useRoute } from "./context/route"
 import {
@@ -86,11 +86,16 @@ import { createTuiAttention } from "./attention"
 import * as TuiAudio from "./audio"
 import { win32DisableProcessedInput, win32FlushInputBuffer } from "./terminal-win32"
 import { destroyRenderer } from "./util/renderer"
+import { redraw } from "./util/redraw"
+import { redirectConsoleToLog } from "./util/console"
 import { cliErrorMessage, errorFormat } from "./util/error"
 
 registerNovaWaySpinner()
 
 const appGlobalBindingCommands = [
+  // 重绘是**恢复手段**,所以必须挂在全局、不带 mode:画花或者某个 mode 被卡住的时候,
+  // 挂在 NovaWay_BASE_MODE 上的键位恰好是那批失效的,重绘键不能跟它们一起哑掉。
+  "app.redraw",
   "session.list",
   "session.new",
   "session.quick_switch.1",
@@ -188,6 +193,11 @@ function isVersionGreater(left: string, right: string) {
 
 export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
   const global = yield* Global.Service
+  // 必须在 createCliRenderer 之前接管 console:alternate-screen 模式下 opentui 对外部
+  // 输出只有 passthrough,任何 console.log/warn/error 都会直写终端,一个 "\n" 就把
+  // 物理屏幕上滚一行,画面从此和 renderer 记的状态错位(顶部标签栏消失、ctrl+l 才能救)。
+  // 逃生口 NOVAWAY_TUI_STDOUT=1 恢复直写,用来排日志系统自身的问题。
+  if (!Flag.NOVAWAY_TUI_STDOUT) redirectConsoleToLog(global.log)
   // 落定图标风格(nerdfont/emoji/ascii);渲染期 icon()/fileIcon() 据此取值。
   setIconStyle(input.config.icons)
   const exit = { epilogue: undefined as string | undefined, reason: undefined as unknown }
@@ -381,6 +391,17 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
     const saved = kv.get("icons", tuiConfig.icons)
     if (ICON_STYLES.includes(saved as IconStyle)) setIconStyle(saved as IconStyle)
   })
+  // 首帧有可能是按兜底尺寸(80x24)画出来的:renderer 在终端报出真实尺寸之前就已经
+  // 进了 alternate screen,而之后 SIGWINCH 是唯一的 resize 来源、且相同尺寸直接 return,
+  // 于是没有任何自愈路径 —— 这就是"开终端时显示不全,拉一下窗口才好"。
+  // 这里挂载后核对一次真实尺寸,不一致才补一次 resize;一致就什么都不做,不会白闪。
+  onMount(() => {
+    const width = process.stdout.columns
+    const height = process.stdout.rows
+    if (!width || !height) return
+    if (width === renderer.terminalWidth && height === renderer.terminalHeight) return
+    renderer.resize(width, height)
+  })
   const keymap = useNovaWayKeymap()
   const event = useEvent()
   const sdk = useSDK()
@@ -559,6 +580,16 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
   )
 
   const connected = useConnected()
+  // 后台并行子代理开关的当前状态:全局配置优先,回退服务端能力位。
+  // 提取成 memo 是为了让斜杠面板/命令面板的说明能直接写"当前已开启/已关闭"。
+  const backgroundSubagentsEnabled = createMemo(
+    () =>
+      ((sync.data.config.experimental as Record<string, unknown> | undefined)?.background_subagents as
+        | boolean
+        | undefined) ??
+      sync.data.capabilities.experimentalBackgroundSubagents ??
+      true,
+  )
   const currentWorktreeWorkspace = createMemo(() => {
     const workspaceID = project.workspace.current()
     if (!workspaceID) return
@@ -579,7 +610,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       },
       {
         name: "session.list",
-        title: "切换会话",
+        title: "会话记录:浏览并切换历史会话",
         category: "会话",
         suggested: sync.data.session.length > 0,
         slashName: "sessions",
@@ -816,6 +847,42 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
         category: "系统",
       },
       {
+        name: "icon.style",
+        title: `${icon("hub")} 切换图标风格`,
+        category: "外观",
+        slashName: "icon",
+        run: async () => {
+          // 弹出选择器:上下移动即时预览,回车确认并持久化到 kv。
+          const { DialogIconList } = await import("./component/dialog-icon-list")
+          dialog.replace(() => <DialogIconList />)
+        },
+      },
+      {
+        name: "background.subagents.toggle",
+        title: `${icon("orchestrator")} 后台并行子代理`,
+        // 开关状态放在说明里,斜杠面板/命令面板都会显示在命令名后面。
+        desc: backgroundSubagentsEnabled() ? "当前已开启 · 回车关闭" : "当前已关闭 · 回车开启",
+        category: "外观",
+        slashName: "background-subagents",
+        slashAliases: ["background", "parallel"],
+        run: async () => {
+          // 真开关:写入【全局】配置 experimental.background_subagents 并持久化(全局 novaway.json,加载器会读回、写后失效缓存)。
+          // 注意:必须走 global.config.update(写全局 novaway.json),而非 config.update(写项目 config.json,加载器不读)。
+          const next = !backgroundSubagentsEnabled()
+          try {
+            await sdk.client.global.config.update({ config: { experimental: { background_subagents: next } } } as any)
+            toast.show({
+              variant: next ? "success" : "info",
+              message: next
+                ? "后台并行子代理:已开启(子代理可异步并行执行,已持久化)"
+                : "后台并行子代理:已关闭(子代理仅前台顺序执行,已持久化)",
+            })
+          } catch (e) {
+            toast.error(e)
+          }
+        },
+      },
+      {
         name: "help.show",
         title: "帮助",
         slashName: "help",
@@ -870,6 +937,16 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
             message: `堆快照已写入 ${files?.join(", ")}`,
             duration: 5000,
           })
+          dialog.clear()
+        },
+      },
+      {
+        name: "app.redraw",
+        title: "重绘界面",
+        slashName: "redraw",
+        category: "系统",
+        run: () => {
+          redraw(renderer)
           dialog.clear()
         },
       },

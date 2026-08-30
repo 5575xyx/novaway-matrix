@@ -77,11 +77,11 @@ describe("DiffViewerFileTree", () => {
       <DiffViewerFileTree width={32} files={[]} loading={false} error={undefined} theme={theme} />
     ))
 
-    expect(loading).not.toContain("Loading diff...")
-    expect(loading).not.toContain("No files")
-    expect(failed).not.toContain("Failed to load diff")
-    expect(failed).not.toContain("No files")
-    expect(empty).toContain("No files")
+    expect(loading).not.toContain("加载差异中")
+    expect(loading).not.toContain("没有文件")
+    expect(failed).not.toContain("加载差异失败")
+    expect(failed).not.toContain("没有文件")
+    expect(empty).toContain("没有文件")
   })
 
   test("does not render text markers for highlighted rows", async () => {

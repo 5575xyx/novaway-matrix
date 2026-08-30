@@ -4,14 +4,14 @@ import { normalizeCustomProviderID, providerOptions } from "../../../../src/comp
 describe("providerOptions", () => {
   test("includes a synthetic Other option for custom providers", () => {
     expect(providerOptions([{ id: "openai", name: "OpenAI" }]).at(-1)).toMatchObject({
-      title: "Other",
-      description: "Custom provider",
-      category: "Providers",
+      title: "其他",
+      description: "自定义提供商",
+      category: "提供商",
     })
   })
 
   test("does not use Other as the generic provider category", () => {
-    expect(providerOptions([{ id: "mistral", name: "Mistral" }])[0]?.category).toBe("Providers")
+    expect(providerOptions([{ id: "mistral", name: "Mistral" }])[0]?.category).toBe("提供商")
   })
 
   test("keeps popular providers first and sorts the rest alphabetically", () => {

@@ -157,6 +157,32 @@ export function agentDisplayName(name: string, options?: Record<string, unknown>
   return agentLabels[name] ?? localizedName(name)
 }
 
+// 启动页中央的特征词(不显示 agent 名字,只显示它擅长什么)。内置代理手写;
+// 办公类代理从 server 的中文 description 里提取("用于A、B和C" → [A,B,C])。
+const agentFeatureWords: Record<string, string[]> = {
+  "agents-orchestrator": ["任务拆解", "多体协作", "自动推进"],
+  build: ["读写代码", "执行命令", "修复测试"],
+  plan: ["只读分析", "方案设计", "确认后执行"],
+  general: ["深度调研", "多步执行", "知识问答"],
+}
+
+const fallbackFeatures = ["多轮对话", "任务执行", "代码协作"]
+
+export function agentFeatureList(name: string, description?: string): string[] {
+  const words = agentFeatureWords[name]
+  if (words) return words
+  if (description) {
+    const used = description.split("用于")[1]?.replace(/[。.]\s*$/, "") ?? ""
+    const items = used
+      .split(/[、,，]/)
+      .flatMap((item) => item.split(/和/))
+      .map((item) => item.trim())
+      .filter((item) => item && item.length <= 6)
+    if (items.length >= 2) return items.slice(0, 3)
+  }
+  return fallbackFeatures
+}
+
 export function skillDisplayName(name: string, data?: Record<string, unknown>) {
   const explicit = explicitDisplayName(data)
   if (explicit && explicit !== name) return localizedName(explicit)

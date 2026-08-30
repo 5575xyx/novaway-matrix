@@ -1,5 +1,4 @@
-import { createSignal, onMount, For, Show } from "solid-js"
-import { icon } from "../util/panel-icons"
+import { createSignal, For, Show } from "solid-js"
 import { useSDK } from "../context/sdk"
 import { useTheme } from "../context/theme"
 import { useDialog } from "../ui/dialog"
@@ -10,6 +9,7 @@ import {
   type WorkflowRunItem,
   type WorkflowTemplateItem,
 } from "../util/mimo-panel-api"
+import { useAutoRefresh } from "../util/auto-refresh"
 
 export interface WorkflowPanelProps {
   sessionID: string
@@ -102,20 +102,11 @@ export function WorkflowPanel(props: WorkflowPanelProps) {
     return colors[status] ?? theme.text
   }
 
-  onMount(loadData)
+  // 挂载即加载 + 定时轮询(分区折叠/切走标签页时面板卸载,轮询自动停)
+  useAutoRefresh(loadData)
 
   return (
     <box flexDirection="column" gap={1}>
-      {/* 标题 */}
-      <box flexDirection="row" justifyContent="space-between">
-        <text fg={theme.text}>
-          <b>{icon("workflow")} 工作流</b>
-        </text>
-        <text fg={theme.textMuted} onMouseUp={refresh}>
-          {loading() ? "..." : "刷新"}
-        </text>
-      </box>
-
       {/* 创建入口 */}
       <box flexDirection="row" gap={2}>
         <text fg={theme.primary} onMouseUp={createWorkflow}>

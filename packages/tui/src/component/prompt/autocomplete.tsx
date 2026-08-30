@@ -20,7 +20,7 @@ import { useTerminalDimensions } from "@opentui/solid"
 import { Locale } from "../../util/locale"
 import type { PromptInfo } from "../../prompt/history"
 import { useFrecency } from "../../prompt/frecency"
-import { useBindings, useCommandSlashes, useNovaWayModeStack, SLASH_ZH, SLASH_ORDER } from "../../keymap"
+import { useBindings, useCommandSlashes, useNovaWayModeStack, SLASH_ZH, SLASH_DESC_ZH, SLASH_ORDER } from "../../keymap"
 import { displayCharAt, mentionTriggerIndex } from "../../prompt/display"
 import type { FileSystemEntry } from "@novaway/sdk-v2-latest/v2"
 
@@ -456,7 +456,8 @@ export function Autocomplete(props: {
         display: "/" + (zh ?? serverCommand.name) + label,
         aliases: zh ? ["/" + serverCommand.name + label] : undefined,
         order: SLASH_ORDER[serverCommand.name],
-        description: serverCommand.description,
+        // 服务端/MCP 命令的说明常是英文,SLASH_DESC_ZH 里有中文覆盖就用中文。
+        description: SLASH_DESC_ZH[serverCommand.name] ?? serverCommand.description,
         onSelect: () => {
           const newText = "/" + serverCommand.name + " "
           const cursor = props.input().logicalCursor
@@ -592,8 +593,8 @@ export function Autocomplete(props: {
     commands: [
       {
         name: "prompt.autocomplete.prev",
-        title: "Previous autocomplete item",
-        category: "Autocomplete",
+        title: "上一个自动完成项",
+        category: "自动完成",
         run() {
           setStore("input", "keyboard")
           move(-1)
@@ -601,8 +602,8 @@ export function Autocomplete(props: {
       },
       {
         name: "prompt.autocomplete.next",
-        title: "Next autocomplete item",
-        category: "Autocomplete",
+        title: "下一个自动完成项",
+        category: "自动完成",
         run() {
           setStore("input", "keyboard")
           move(1)
@@ -610,24 +611,24 @@ export function Autocomplete(props: {
       },
       {
         name: "prompt.autocomplete.hide",
-        title: "Hide autocomplete",
-        category: "Autocomplete",
+        title: "隐藏自动完成",
+        category: "自动完成",
         run() {
           hide()
         },
       },
       {
         name: "prompt.autocomplete.select",
-        title: "Select autocomplete item",
-        category: "Autocomplete",
+        title: "选择自动完成项",
+        category: "自动完成",
         run() {
           select()
         },
       },
       {
         name: "prompt.autocomplete.complete",
-        title: "Complete autocomplete item",
-        category: "Autocomplete",
+        title: "完成自动完成项",
+        category: "自动完成",
         run() {
           const selected = options()[store.selected]
           if (selected?.isDirectory) {

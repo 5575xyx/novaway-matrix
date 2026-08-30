@@ -103,7 +103,7 @@ export function DialogWorkspaceList() {
       actions={[
         {
           command: "session.delete",
-          title: "delete",
+          title: "删除",
           onTrigger: (option) => void remove(option.value.workspace),
         },
       ]}

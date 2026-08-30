@@ -57,6 +57,11 @@ export function Dialog(
         }}
         width={width()}
         maxWidth={dimensions().width - 2}
+        // 对话框从屏幕 1/4 处开始画,内容多了就一路长到屏幕外面去 ——
+        // 而它是 zIndex 3000 的浮层,长出去的部分正好盖住下面的界面。
+        // 这里给所有对话框统一封一个高度上限:超出的内容裁掉,而不是把界面顶烂。
+        maxHeight={Math.max(3, dimensions().height - Math.floor(dimensions().height / 4) - 1)}
+        overflow="hidden"
         backgroundColor={theme.backgroundPanel}
         paddingTop={1}
       >

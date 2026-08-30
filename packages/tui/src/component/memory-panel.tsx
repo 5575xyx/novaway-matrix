@@ -1,5 +1,4 @@
-import { createSignal, createMemo, onMount, For, Show, batch } from "solid-js"
-import { icon } from "../util/panel-icons"
+import { createSignal, createMemo, For, Show, batch } from "solid-js"
 import { useSDK } from "../context/sdk"
 import { useTheme } from "../context/theme"
 import { useDialog } from "../ui/dialog"
@@ -9,6 +8,7 @@ import {
   type MemoryReviewCandidate,
   type MemoryReviewStatus,
 } from "../util/memory-evolution-api"
+import { useAutoRefresh } from "../util/auto-refresh"
 
 type FilterStatus = "pending" | "applied" | "dismissed"
 
@@ -113,20 +113,11 @@ export function MemoryPanel(props: MemoryPanelProps) {
     setCandidates(data)
   }
 
-  onMount(loadData)
+  // 挂载即加载 + 定时轮询(分区折叠/切走标签页时面板卸载,轮询自动停)
+  useAutoRefresh(loadData)
 
   return (
     <box flexDirection="column" gap={1}>
-      {/* 标题 */}
-      <box flexDirection="row" justifyContent="space-between">
-        <text fg={theme.text}>
-          <b>{icon("memory")} 持久记忆</b>
-        </text>
-        <text fg={theme.textMuted} onMouseUp={refresh}>
-          {loading() ? "..." : "刷新"}
-        </text>
-      </box>
-
       {/* 统计 */}
       <text fg={theme.textMuted}>
         {pendingCount()} 待审 · {status()?.total ?? 0} 总计

@@ -12,6 +12,14 @@ import { AppRuntime } from "@/effect/app-runtime"
 import { Effect } from "effect"
 import { disposeAllInstancesAndEmitGlobalDisposed } from "@/server/global-lifecycle"
 import * as Log from "@novaway/core/util/log"
+import { Global } from "@novaway/core/global"
+import { redirectConsoleToLog } from "@novaway/tui/util/console"
+
+// 这个 worker 和 TUI 共享同一个终端。Worker 有自己独立的 console 对象,
+// TUI 主进程的重定向罩不住这里 —— 任何 server 侧的 console.log(比如调试残留)
+// 都会带着 "\n" 直写终端,把 alternate screen 的画面顶上去一行,整屏错位。
+// 必须先于其它可能打日志的模块接管。
+redirectConsoleToLog(Global.Path.log, "tui-worker.log")
 
 await Log.init({
   print: false,

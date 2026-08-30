@@ -80,7 +80,7 @@ export function DialogConfirm(props: DialogConfirmProps) {
               }}
             >
               <text fg={key === store.active ? theme.selectedListItemText : theme.textMuted}>
-                {Locale.titlecase(key === "cancel" ? (props.label ?? key) : key)}
+                {Locale.titlecase(key === "cancel" ? (props.label ?? "取消") : "确定")}
               </text>
             </box>
           )}

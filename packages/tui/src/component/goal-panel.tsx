@@ -1,8 +1,8 @@
-import { createSignal, createMemo, onMount, For, Show } from "solid-js"
+import { createSignal, createMemo, For, Show } from "solid-js"
 import { useSDK } from "../context/sdk"
 import { useTheme } from "../context/theme"
 import { goalApi, type GoalItem, type GoalStatus } from "../util/mimo-panel-api"
-import { icon } from "../util/panel-icons"
+import { useAutoRefresh } from "../util/auto-refresh"
 
 export interface GoalPanelProps {
   sessionID: string
@@ -63,20 +63,11 @@ export function GoalPanel(props: GoalPanelProps) {
     return labels[status] ?? status
   }
 
-  onMount(loadData)
+  // 挂载即加载 + 定时轮询(分区折叠/切走标签页时面板卸载,轮询自动停)
+  useAutoRefresh(loadData)
 
   return (
     <box flexDirection="column" gap={1}>
-      {/* 标题 */}
-      <box flexDirection="row" justifyContent="space-between">
-        <text fg={theme.text}>
-          <b>{icon("goal")} 目标</b>
-        </text>
-        <text fg={theme.textMuted} onMouseUp={refresh}>
-          {loading() ? "..." : "刷新"}
-        </text>
-      </box>
-
       {/* 创建按钮 */}
       <text fg={theme.primary} onMouseUp={createGoal}>
         [创建目标]

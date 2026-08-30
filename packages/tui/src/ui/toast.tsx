@@ -4,6 +4,7 @@ import { useTheme } from "../context/theme"
 import { useTerminalDimensions } from "@opentui/solid"
 import { SplitBorder } from "./border"
 import { TextAttributes } from "@opentui/core"
+import { Locale } from "../util/locale"
 export type ToastOptions = {
   title?: string
   message: string
@@ -11,6 +12,13 @@ export type ToastOptions = {
   duration: number
 }
 type ToastInput = Omit<ToastOptions, "duration"> & { duration?: number }
+
+// toast 是 position="absolute" 的浮层:它有多高就盖住多少界面。
+// 而 message 的来源是 err.message —— provider 返回的错误体经常是整段多行 JSON。
+// 不设上限的话一次报错就能糊满整屏,看起来就是界面坏了。所以内容和高度都要钉上限。
+const TITLE_MAX = 60
+const MESSAGE_MAX = 300
+const HEIGHT_MAX = 14
 
 export function Toast() {
   const toast = useToast()
@@ -27,6 +35,8 @@ export function Toast() {
           top={2}
           right={2}
           maxWidth={Math.min(60, dimensions().width - 6)}
+          maxHeight={Math.min(HEIGHT_MAX, Math.max(3, dimensions().height - 4))}
+          overflow="hidden"
           paddingLeft={2}
           paddingRight={2}
           paddingTop={1}
@@ -38,11 +48,11 @@ export function Toast() {
         >
           <Show when={current().title}>
             <text attributes={TextAttributes.BOLD} marginBottom={1} fg={theme.text}>
-              {current().title}
+              {Locale.oneLine(current().title!, TITLE_MAX)}
             </text>
           </Show>
           <text fg={theme.text} wrapMode="word" width="100%">
-            {current().message}
+            {Locale.oneLine(current().message, MESSAGE_MAX)}
           </text>
         </box>
       )}
