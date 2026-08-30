@@ -261,12 +261,12 @@ export function useCommandShortcut(command: string): Accessor<string> {
 // 斜杠命令的中文显示名。命中的命令在斜杠面板显示为 /中文,英文原名保留为别名(仍可 /english 输入)。
 // 想改某条中文名或新增别名,改这里对应一行即可。
 export const SLASH_ZH: Record<string, string[]> = {
-  sessions: ["会话"],
+  sessions: ["会话记录", "会话"],
   new: ["新会话"],
   workspaces: ["工作区"],
   models: ["模型"],
   agents: ["智能体"],
-  "background-subagents": ["后台并行", "后台子代理", "并行"],
+  "background-subagents": ["后台并行子代理", "后台并行", "后台子代理", "并行"],
   mcps: ["MCP服务"],
   variants: ["变体"],
   connect: ["连接"],
@@ -299,6 +299,16 @@ export const SLASH_ZH: Record<string, string[]> = {
   review: ["审查"],
   init: ["初始化"],
   fetch: ["抓取"],
+}
+
+// 斜杠命令的中文说明。服务端内置命令(init/review)和第三方 MCP 提示词的 description 常常是英文,
+// 斜杠面板会直接照搬,于是出现"/初始化  guided AGENTS.md setup"这种中英混排。
+// 这里按命令名覆盖成中文;命令名在 sync.data.command 里是什么就写什么,没列出的沿用原始 description。
+export const SLASH_DESC_ZH: Record<string, string> = {
+  init: "引导生成 AGENTS.md 项目说明",
+  review: "审查代码改动 [提交|分支|PR],默认审查未提交的改动",
+  fetch: "抓取网页内容并转成 Markdown",
+  fetch_url: "抓取网页内容并转成 Markdown",
 }
 
 // 斜杠面板的优先级排序:靠前的先显示。未列出的排在最后并按名称字母序。
@@ -372,11 +382,12 @@ export function useCommandSlashes(): Accessor<readonly CommandSlashEntry[]> {
       return {
         display,
         description:
-          typeof entry.command.desc === "string"
+          SLASH_DESC_ZH[slashName] ??
+          (typeof entry.command.desc === "string"
             ? entry.command.desc
             : typeof entry.command.title === "string"
               ? entry.command.title
-              : undefined,
+              : undefined),
         aliases: aliasSet.size ? [...aliasSet] : undefined,
         order: SLASH_ORDER[slashName],
         onSelect: () => keymap.dispatchCommand(entry.command.name),

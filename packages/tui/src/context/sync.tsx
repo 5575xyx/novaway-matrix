@@ -28,7 +28,7 @@ import { useTuiStartup } from "./runtime"
 import { createSimpleContext } from "./helper"
 import { useExit } from "./exit"
 import { useArgs } from "./args"
-import { batch, onMount } from "solid-js"
+import { batch, onCleanup, onMount } from "solid-js"
 import path from "path"
 import { useKV } from "./kv"
 import { usePermission } from "./permission"
@@ -156,6 +156,59 @@ export const {
     const touchPart = (sessionID: string, partID: string) => {
       hydratingSessions.get(sessionID)?.parts.add(partID)
     }
+
+    // 流式增量的合并窗口(毫秒)。
+    //
+    // 每产出一个 token,服务端就发一条 message.part.delta,原来是一条一条直接写进 store。
+    // 一次 setStore 就是一次渲染,而文本部件每次渲染都要把**已累积的全文**重新走一遍
+    // markdown 解析和语法高亮 —— 写得越长每帧越贵,长回答到后半段就是逐字卡顿,
+    // 用户说的"很容易卡死"有一半是这个。现在把一个窗口内的增量按 (部件, 字段) 攒起来,
+    // 一个窗口只落一次 store,渲染次数从"每 token 一次"降到"每 32ms 最多一次"。
+    const DELTA_FLUSH_MS = 32
+    const pendingDeltas = new Map<string, { messageID: string; partID: string; field: string; text: string }>()
+    let deltaTimer: ReturnType<typeof setTimeout> | undefined
+
+    function flushDeltas() {
+      if (deltaTimer) {
+        clearTimeout(deltaTimer)
+        deltaTimer = undefined
+      }
+      if (pendingDeltas.size === 0) return
+      const queued = [...pendingDeltas.values()]
+      pendingDeltas.clear()
+      batch(() => {
+        for (const item of queued) {
+          const parts = store.part[item.messageID]
+          if (!parts) continue
+          const result = search(parts, item.partID, (part) => part.id)
+          if (!result.found) continue
+          setStore(
+            "part",
+            item.messageID,
+            produce((draft) => {
+              const part = draft[result.index]
+              const field = item.field as keyof typeof part
+              const existing = part[field] as string | undefined
+              ;(part[field] as string) = (existing ?? "") + item.text
+            }),
+          )
+        }
+      })
+    }
+
+    // 服务端刚送来这个部件的完整快照时,把还没落库的增量丢掉:
+    // 事件是按序发的,快照必然已经包含这些增量,再补一次就是重复文本。
+    function dropDeltas(partID: string) {
+      for (const [key, item] of pendingDeltas) {
+        if (item.partID === partID) pendingDeltas.delete(key)
+      }
+    }
+
+    onCleanup(() => {
+      if (deltaTimer) clearTimeout(deltaTimer)
+      deltaTimer = undefined
+      pendingDeltas.clear()
+    })
 
     function sessionListQuery(): { scope?: "project"; path?: string } {
       if (!kv.get("session_directory_filter_enabled", true)) return { scope: "project" }
@@ -375,6 +428,7 @@ export const {
         }
         case "message.part.updated": {
           touchPart(event.properties.part.sessionID, event.properties.part.id)
+          dropDeltas(event.properties.part.id)
           const parts = store.part[event.properties.part.messageID]
           if (!parts) {
             setStore("part", event.properties.part.messageID, [event.properties.part])
@@ -401,21 +455,24 @@ export const {
           const result = search(parts, event.properties.partID, (part) => part.id)
           if (!result.found) break
           touchPart(event.properties.sessionID, event.properties.partID)
-          setStore(
-            "part",
-            event.properties.messageID,
-            produce((draft) => {
-              const part = draft[result.index]
-              const field = event.properties.field as keyof typeof part
-              const existing = part[field] as string | undefined
-              ;(part[field] as string) = (existing ?? "") + event.properties.delta
-            }),
-          )
+          // 同一个部件同一个字段的增量在窗口内直接拼字符串,不碰 store。
+          const key = `${event.properties.partID} ${event.properties.field}`
+          const pending = pendingDeltas.get(key)
+          if (pending) pending.text += event.properties.delta
+          else
+            pendingDeltas.set(key, {
+              messageID: event.properties.messageID,
+              partID: event.properties.partID,
+              field: event.properties.field,
+              text: event.properties.delta,
+            })
+          if (!deltaTimer) deltaTimer = setTimeout(flushDeltas, DELTA_FLUSH_MS)
           break
         }
 
         case "message.part.removed": {
           touchPart(event.properties.sessionID, event.properties.partID)
+          dropDeltas(event.properties.partID)
           const parts = store.part[event.properties.messageID]
           const result = search(parts, event.properties.partID, (part) => part.id)
           if (result.found) {

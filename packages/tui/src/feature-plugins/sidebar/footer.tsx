@@ -21,7 +21,11 @@ function View(props: { api: TuiPluginApi; sessionID: string }) {
     const session = props.api.state.session.get(props.sessionID)
     const dir = session?.directory || props.api.state.path.directory || paths.cwd
     const out = abbreviateHome(dir, paths.home)
-    const branch = session?.directory === props.api.state.path.directory ? props.api.state.vcs?.branch : undefined
+    // 首屏没有会话(sessionID 为空),此时目录就是实例目录,分支照样要显示
+    const branch =
+      (session?.directory ?? props.api.state.path.directory) === props.api.state.path.directory
+        ? props.api.state.vcs?.branch
+        : undefined
     const text = branch ? out + ":" + branch : out
     const list = text.split("/")
     return {

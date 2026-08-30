@@ -24,7 +24,8 @@ function View(props: { api: TuiPluginApi; hidden: boolean; show: boolean; connec
   }))
 
   return (
-    <box width="100%" maxWidth={75} alignItems="center" paddingTop={3} flexShrink={1}>
+    // 提示区现在紧贴输入框上方(输入框贴底),不再需要原来那 3 行下推留白
+    <box width="100%" maxWidth={75} alignItems="center" paddingTop={1} flexShrink={1}>
       <Show when={props.show}>
         <Tips api={props.api} connected={props.connected} />
       </Show>

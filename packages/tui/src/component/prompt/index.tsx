@@ -16,7 +16,6 @@ import { fileURLToPath } from "url"
 import { useLocal } from "../../context/local"
 import { Flag } from "@novaway/core/flag/flag"
 import { tint, useTheme } from "../../context/theme"
-import { EmptyBorder, SplitBorder } from "../../ui/border"
 import { useTuiPaths, useTuiTerminalEnvironment } from "../../context/runtime"
 import { useClipboard } from "../../context/clipboard"
 import { Spinner } from "../spinner"
@@ -237,18 +236,22 @@ export function Prompt(props: PromptProps) {
   let promptPartTypeId = 0
   const event = useEvent()
 
-  event.on("tui.prompt.append", (evt, { workspace }) => {
-    if (workspace !== project.workspace.current()) return
-    if (!input || input.isDestroyed) return
-    input.insertText(evt.properties.text)
-    setTimeout(() => {
-      // setTimeout is a workaround and needs to be addressed properly
+  // 退订函数必须收着:Prompt 会随会话切换重建,漏一次就多一个永久监听,
+  // 而它捕获的 input 是上一个已销毁的输入框。
+  onCleanup(
+    event.on("tui.prompt.append", (evt, { workspace }) => {
+      if (workspace !== project.workspace.current()) return
       if (!input || input.isDestroyed) return
-      input.getLayoutNode().markDirty()
-      input.gotoBufferEnd()
-      renderer.requestRender()
-    }, 0)
-  })
+      input.insertText(evt.properties.text)
+      setTimeout(() => {
+        // setTimeout is a workaround and needs to be addressed properly
+        if (!input || input.isDestroyed) return
+        input.getLayoutNode().markDirty()
+        input.gotoBufferEnd()
+        renderer.requestRender()
+      }, 0)
+    }),
+  )
 
   createEffect(() => {
     if (!input || input.isDestroyed) return
@@ -340,7 +343,7 @@ export function Prompt(props: PromptProps) {
       {
         title: "清除提示",
         name: "prompt.clear",
-        category: "Prompt",
+        category: "输入",
         hidden: true,
         run: () => {
           clearPrompt()
@@ -350,7 +353,7 @@ export function Prompt(props: PromptProps) {
       {
         title: "提交提示",
         name: "prompt.submit",
-        category: "Prompt",
+        category: "输入",
         hidden: true,
         run: async () => {
           if (!input.focused) return
@@ -363,7 +366,7 @@ export function Prompt(props: PromptProps) {
       {
         title: "移除编辑器上下文",
         name: "prompt.editor_context.clear",
-        category: "Prompt",
+        category: "输入",
         enabled: Boolean(editorContext()),
         run: () => {
           dismissEditorContext()
@@ -373,7 +376,7 @@ export function Prompt(props: PromptProps) {
       {
         title: "粘贴",
         name: "prompt.paste",
-        category: "Prompt",
+        category: "输入",
         hidden: true,
         run: async (ctx: CommandContext<Renderable, KeyEvent>) => {
           ctx.event.preventDefault()
@@ -395,7 +398,7 @@ export function Prompt(props: PromptProps) {
       {
         title: "中断会话",
         name: "session.interrupt",
-        category: "Session",
+        category: "会话",
         hidden: true,
         enabled: status().type !== "idle",
         run: () => {
@@ -425,7 +428,7 @@ export function Prompt(props: PromptProps) {
       },
       {
         title: "打开编辑器",
-        category: "Session",
+        category: "会话",
         name: "prompt.editor",
         slashName: "editor",
         run: async () => {
@@ -518,7 +521,7 @@ export function Prompt(props: PromptProps) {
       {
         title: "技能",
         name: "prompt.skills",
-        category: "Prompt",
+        category: "输入",
         slashName: "skills",
         run: () => {
           dialog.replace(() => (
@@ -539,7 +542,7 @@ export function Prompt(props: PromptProps) {
         title: "传送",
         desc: "更改会话的工作区",
         name: "workspace.set",
-        category: "Session",
+        category: "会话",
         enabled: Flag.NOVAWAY_EXPERIMENTAL_WORKSPACES,
         slashName: "warp",
         run: () => {
@@ -550,7 +553,7 @@ export function Prompt(props: PromptProps) {
         title: "移动会话",
         desc: "移动到其他项目目录",
         name: "session.move",
-        category: "Session",
+        category: "会话",
         slashName: "move",
         run: () => {
           move.open()
@@ -744,7 +747,7 @@ export function Prompt(props: PromptProps) {
       {
         title: "暂存提示",
         name: "prompt.stash",
-        category: "Prompt",
+        category: "输入",
         enabled: !!store.prompt.input,
         run: () => {
           if (!store.prompt.input) return
@@ -762,7 +765,7 @@ export function Prompt(props: PromptProps) {
       {
         title: "暂存弹出",
         name: "prompt.stash.pop",
-        category: "Prompt",
+        category: "输入",
         enabled: stash.list().length > 0,
         run: () => {
           const entry = stash.pop()
@@ -778,7 +781,7 @@ export function Prompt(props: PromptProps) {
       {
         title: "暂存列表",
         name: "prompt.stash.list",
-        category: "Prompt",
+        category: "输入",
         enabled: stash.list().length > 0,
         run: () => {
           dialog.replace(() => (
@@ -876,7 +879,7 @@ export function Prompt(props: PromptProps) {
         {
           name: "prompt.history.previous",
           title: "上一个提示历史",
-          category: "Prompt",
+          category: "输入",
           run() {
             if (input.cursorOffset !== 0) {
               if (input.scrollY + input.visualCursor.visualRow === 0) input.cursorOffset = 0
@@ -908,7 +911,7 @@ export function Prompt(props: PromptProps) {
         {
           name: "prompt.history.next",
           title: "下一个提示历史",
-          category: "Prompt",
+          category: "输入",
           run() {
             if (input.cursorOffset !== input.plainText.length) {
               if (
@@ -1319,10 +1322,10 @@ export function Prompt(props: PromptProps) {
     if (store.mode === "shell") {
       if (!shell().length) return undefined
       const example = shell()[store.placeholder % shell().length]
-      return `Run a command... "${example}"`
+      return `运行命令... "${example}"`
     }
     if (!list().length) return undefined
-    return `Ask anything... "${list()[store.placeholder % list().length]}"`
+    return `问我任何事... "${list()[store.placeholder % list().length]}"`
   })
 
   const spinnerDef = createMemo(() => {
@@ -1354,24 +1357,14 @@ export function Prompt(props: PromptProps) {
   return (
     <>
       <box ref={(r: BoxRenderable) => (anchor = r)} visible={props.visible !== false} width="100%">
-        <box
-          width="100%"
-          border={["left"]}
-          borderColor={borderHighlight()}
-          customBorderChars={{
-            ...SplitBorder.customBorderChars,
-            bottomLeft: "\u2514",
-          }}
-        >
-          <box
-            paddingLeft={2}
-            paddingRight={2}
-            paddingTop={1}
-            flexShrink={0}
-            backgroundColor={theme.backgroundElement}
-            flexGrow={1}
-            width="100%"
-          >
+        {/* crush \u5f0f\u65e0\u6846\u7f16\u8f91\u5668:\u5de6\u8272\u6761/\u7070\u5e95/\u5e95\u90e8\u6a2a\u7ebf\u5168\u90e8\u53bb\u6389,\u4e3b\u9898\u8272\u6536\u655b\u5230\u884c\u9996\u63d0\u793a\u7b26\u3002
+            \u63d0\u793a\u7b26\u989c\u8272\u6cbf\u7528\u539f\u5de6\u8fb9\u6761\u7684\u9ad8\u4eae\u903b\u8f91(agent \u8272 / leader / shell \u6a21\u5f0f)\u3002 */}
+        <box width="100%" flexDirection="row" paddingTop={1} flexShrink={0}>
+          <box flexShrink={0} width={2} height={1}>
+            {/* ASCII ">" \u800c\u4e0d\u662f \u276f:U+276F \u5c5e\u4e8e East-Asian Ambiguous \u5bbd\u5ea6,CJK \u7ec8\u7aef\u4f1a\u6e32\u67d3\u6210\u5bbd\u5b57\u7b26/\u4e71\u7801 */}
+            <text fg={props.disabled ? theme.textMuted : borderHighlight()}>{">"}</text>
+          </box>
+          <box paddingRight={2} flexGrow={1} flexShrink={0} width="100%">
             <textarea
               width="100%"
               placeholder={placeholderText()}
@@ -1442,12 +1435,11 @@ export function Prompt(props: PromptProps) {
                 }, 0)
               }}
               onMouseDown={(r: MouseEvent) => r.target?.focus()}
-              focusedBackgroundColor={theme.backgroundElement}
               cursorColor={props.disabled ? theme.backgroundElement : theme.text}
               cursorStyle={tuiConfig.cursor}
               syntaxStyle={syntax()}
             />
-            <box flexDirection="row" flexShrink={0} paddingTop={1} gap={1} justifyContent="space-between">
+            <box flexDirection="row" flexShrink={0} paddingTop={1} gap={1} justifyContent="space-between" paddingLeft={2}>
               <box flexDirection="row" gap={1}>
                 <Show when={local.agent.current()} fallback={<box height={1} />}>
                   {(agent) => (
@@ -1489,32 +1481,6 @@ export function Prompt(props: PromptProps) {
               </Show>
             </box>
           </box>
-        </box>
-        <box
-          height={1}
-          border={["left"]}
-          borderColor={borderHighlight()}
-          customBorderChars={{
-            ...EmptyBorder,
-            vertical: theme.backgroundElement.a !== 0 ? "\u2502" : " ",
-          }}
-        >
-          <box
-            height={1}
-            border={["bottom"]}
-            borderColor={theme.backgroundElement}
-            customBorderChars={
-              theme.backgroundElement.a !== 0
-                ? {
-                    ...EmptyBorder,
-                    horizontal: "\u2500",
-                  }
-                : {
-                    ...EmptyBorder,
-                    horizontal: " ",
-                  }
-            }
-          />
         </box>
         <box width="100%" flexDirection="row" justifyContent="space-between">
           <Switch>

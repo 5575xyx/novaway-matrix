@@ -3,6 +3,8 @@ import { For, type JSX } from "solid-js"
 import { tint, useTheme } from "../context/theme"
 import { logo } from "../logo"
 
+// 启动页顶部的大字 NOVA+WAY 像素 wordmark(带暗色投影),由外层居中布局水平居中。
+// 智能体特征行在它下方,输入框再往下 —— 大 Logo 只在最上面出现一次。
 export function Logo() {
   const { theme } = useTheme()
 
@@ -47,7 +49,7 @@ export function Logo() {
   }
 
   return (
-    <box>
+    <box flexShrink={0}>
       <For each={logo.left}>
         {(line, index) => (
           <box flexDirection="row" gap={1}>

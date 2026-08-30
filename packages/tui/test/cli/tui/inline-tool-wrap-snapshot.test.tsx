@@ -24,29 +24,24 @@ afterEach(() => {
   testSetup = undefined
 })
 
-type ToolFixture = { icon: string; label: string; error?: string }
+type ToolFixture = { label: string; error?: string }
 
 const tools: readonly ToolFixture[] = [
   {
-    icon: "✱",
     label:
       'Grep "NovaWay.*DB|database|sqlite|drizzle|dev.*db|data.*dir|xdg|APPDATA" in packages/NovaWay/src (151 matches)',
   },
   {
-    icon: "✱",
     label: 'Glob "**/*db*" in packages/NovaWay (6 matches)',
   },
   {
-    icon: "→",
     label: "Read packages/NovaWay/src/storage/db.ts [offset=1, limit=130]",
   },
   {
-    icon: "→",
     label: "Read packages/NovaWay/src/index.ts [offset=1, limit=100]",
     error: "No LSP server available for this file type.",
   },
   {
-    icon: "✱",
     label:
       'Grep "export const NovaWay_DB|NovaWay_DB|NovaWay_DEV|Global\\.Path\\.data|data =" in packages/NovaWay/src (115 matches)',
   },
@@ -89,7 +84,6 @@ function Fixture(props: { errorExpanded?: boolean; before?: "shell" | "user" }) 
         <For each={tools}>
           {(item) => (
             <InlineToolRow
-              icon={item.icon}
               complete={true}
               pending=""
               failed={Boolean(item.error)}
@@ -108,16 +102,16 @@ function Fixture(props: { errorExpanded?: boolean; before?: "shell" | "user" }) 
 function TaskRowsFixture() {
   return (
     <box flexDirection="column" width={72}>
-      <InlineToolRow icon="✱" complete={true} pending="">
+      <InlineToolRow complete={true} pending="">
         Grep "Task" (2 matches)
       </InlineToolRow>
-      <InlineToolRow icon="⠙" complete={true} pending="" separate={true}>
+      <InlineToolRow complete={true} pending="" separate={true}>
         Explore Task — Inspect active task spacing
       </InlineToolRow>
-      <InlineToolRow icon="✓" complete={true} pending="" separate={true}>
+      <InlineToolRow complete={true} pending="" separate={true}>
         {"General Task — Confirm completed task spacing\n↳ 1 toolcall · 501ms"}
       </InlineToolRow>
-      <InlineToolRow icon="→" complete={true} pending="">
+      <InlineToolRow complete={true} pending="">
         Read src/cli/cmd/tui/routes/session/index.tsx
       </InlineToolRow>
     </box>
@@ -127,13 +121,13 @@ function TaskRowsFixture() {
 function LoadedReadBeforeTaskFixture() {
   return (
     <box flexDirection="column" width={72}>
-      <InlineToolRow icon="→" complete={true} pending="">
+      <InlineToolRow complete={true} pending="">
         Read src/cli/cmd/tui/routes/session/index.tsx
       </InlineToolRow>
       <box paddingLeft={3}>
         <text paddingLeft={3}>↳ Loaded src/cli/cmd/tui/routes/session/tools.tsx</text>
       </box>
-      <InlineToolRow icon="✓" complete={true} pending="" separate={true}>
+      <InlineToolRow complete={true} pending="" separate={true}>
         {"Explore Task — Inspect active task spacing\n↳ 1 toolcall · 501ms"}
       </InlineToolRow>
     </box>
@@ -146,7 +140,7 @@ function AssistantSummaryBeforeInlineFixture() {
       <box ref={(el: BoxRenderable) => alwaysSeparate.add(el)} paddingLeft={3}>
         <text>▣ Build · Little Frank · 53.1s</text>
       </box>
-      <InlineToolRow icon="✓" complete={true} pending="">
+      <InlineToolRow complete={true} pending="">
         {"Build Task — Review changes\n↳ 48 toolcalls · 1m 40s"}
       </InlineToolRow>
     </box>
@@ -165,7 +159,7 @@ function AssistantErrorBeforeInlineFixture() {
       >
         <text>Managed inference requires an active Member plan</text>
       </box>
-      <InlineToolRow icon="✓" complete={true} pending="">
+      <InlineToolRow complete={true} pending="">
         {"Build Task — Review changes\n↳ 48 toolcalls · 1m 40s"}
       </InlineToolRow>
     </box>
@@ -186,7 +180,7 @@ function StickyScrollFixture(props: { separated: boolean; scroll: (scroll: Scrol
           <text>Assistant text</text>
         </box>
       </Show>
-      <InlineToolRow icon="→" complete={true} pending="">
+      <InlineToolRow complete={true} pending="">
         Read src/cli/cmd/tui/routes/session/index.tsx
       </InlineToolRow>
     </scrollbox>
@@ -195,7 +189,7 @@ function StickyScrollFixture(props: { separated: boolean; scroll: (scroll: Scrol
 
 function FailedPendingToolFixture() {
   return (
-    <InlineToolRow icon="%" complete={false} pending="Preparing patch..." failed={true} failure="Patch failed">
+    <InlineToolRow complete={false} pending="Preparing patch..." failed={true} failure="Patch failed">
       Patch
     </InlineToolRow>
   )
@@ -203,7 +197,7 @@ function FailedPendingToolFixture() {
 
 function FailedCompleteToolFixture() {
   return (
-    <InlineToolRow icon="→" complete={true} pending="Reading file..." failed={true} failure="Read failed">
+    <InlineToolRow complete={true} pending="Reading file..." failed={true} failure="Read failed">
       Read src/index.ts
     </InlineToolRow>
   )

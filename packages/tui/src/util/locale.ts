@@ -63,6 +63,25 @@ export function truncate(str: string, len: number): string {
   return str.slice(0, len - 1) + "…"
 }
 
+/**
+ * 把任意文本压成"保证只占一行"的形式:换行/制表/连续空白全部折成单个空格,
+ * 顺便去掉 C0 控制字符,最后按 len 截断。
+ *
+ * 存在的理由:模型和工具产出的文本经常是整段多行的(sequential-thinking 的 thought、
+ * LSP 诊断、provider 的错误体……)。这些文本被塞进一个"逻辑上是一行"的渲染行里时,
+ * 里面的 \n 是硬换行,渲染器压不住,这一行就变成几十行高 —— 高度失控,行尾的字符
+ * 还会被甩到下一行行首,看起来就是整个界面变形。wrapMode="none" 只能压软折行,
+ * 压不住硬换行,所以必须在数据层面先抹掉。
+ */
+export function oneLine(str: string, len: number): string {
+  const flattened = str
+    // \p{Cc} = C0/C1 控制字符,换行、制表、回车都在里面,统统换成空格。
+    .replace(/\p{Cc}+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+  return truncate(flattened, len)
+}
+
 export function truncateLeft(str: string, len: number): string {
   if (str.length <= len) return str
   return "…" + str.slice(-(len - 1))

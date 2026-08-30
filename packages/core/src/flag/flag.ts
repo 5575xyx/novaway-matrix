@@ -60,6 +60,9 @@ export const Flag = {
   get NOVAWAY_PURE() {
     return truthy("NOVAWAY_PURE")
   },
+  get NOVAWAY_TUI_STDOUT() {
+    return truthy("NOVAWAY_TUI_STDOUT")
+  },
   get NOVAWAY_PLUGIN_META_FILE() {
     return process.env["NOVAWAY_PLUGIN_META_FILE"]
   },

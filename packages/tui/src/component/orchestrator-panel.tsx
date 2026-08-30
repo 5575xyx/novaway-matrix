@@ -4,7 +4,7 @@ import { useTheme } from "../context/theme"
 import { useDialog } from "../ui/dialog"
 import { DialogConfirm } from "../ui/dialog-confirm"
 import { orchestratorApi, type OrchestratorPlanItem } from "../util/mimo-panel-api"
-import { icon } from "../util/panel-icons"
+import { useAutoRefresh } from "../util/auto-refresh"
 
 export interface OrchestratorPanelProps {
   sessionID: string
@@ -68,9 +68,10 @@ export function OrchestratorPanel(props: OrchestratorPanelProps) {
     return colors[status] ?? theme.text
   }
 
+  // 挂载即加载 + 定时轮询(分区折叠/切走标签页时面板卸载,轮询自动停)。
+  // 运行中的计划在后台推进,这里另加一个更快的轮询盯着任务状态。
+  useAutoRefresh(loadData)
   onMount(() => {
-    loadData()
-    // 运行中的计划在后台推进,轮询刷新任务状态。
     timer = setInterval(() => {
       if (plans().some((p) => p.status === "running")) void refresh()
     }, 2000)
@@ -79,15 +80,6 @@ export function OrchestratorPanel(props: OrchestratorPanelProps) {
 
   return (
     <box flexDirection="column" gap={1}>
-      <box flexDirection="row" justifyContent="space-between">
-        <text fg={theme.text}>
-          <b>{icon("orchestrator")} 编排</b>
-        </text>
-        <text fg={theme.textMuted} onMouseUp={refresh}>
-          {loading() ? "..." : "刷新"}
-        </text>
-      </box>
-
       <text fg={theme.textMuted} wrapMode="word">
         通过 orchestrator 工具或让代理创建含依赖的任务计划,此处可执行与监控。
       </text>

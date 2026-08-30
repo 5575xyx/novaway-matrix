@@ -17,6 +17,9 @@ import { useTuiConfig } from "../../config"
 import { NovaWay_BASE_MODE, useBindings, useCommandShortcut } from "../../keymap"
 import { usePathFormatter } from "../../context/path-format"
 
+// 权限卡片抬头里那一行的上限。
+const PERMISSION_TITLE_MAX = 120
+
 type PermissionStage = "permission" | "always" | "reject"
 
 function EditBody(props: { request: PermissionRequest }) {
@@ -392,7 +395,9 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
                 <text fg={theme.textMuted} flexShrink={0}>
                   {current.icon}
                 </text>
-                <text fg={theme.text}>{current.title}</text>
+                {/* title 常常就是被请求执行的 bash 命令,heredoc / 多行管道都可能出现在里面,
+                    而这里是一个横排 —— 必须压平,否则这一排会被撑成好几行。 */}
+                <text fg={theme.text}>{Locale.oneLine(current.title, PERMISSION_TITLE_MAX)}</text>
               </box>
             </box>
           )
@@ -547,8 +552,8 @@ function Prompt<const T extends Record<string, string>>(props: {
     commands: [
       {
         name: "app.exit",
-        title: "Reject permission",
-        category: "Permission",
+        title: "拒绝权限请求",
+        category: "权限",
         run() {
           if (!props.escapeKey) return
           props.onSelect(props.escapeKey)
@@ -556,8 +561,8 @@ function Prompt<const T extends Record<string, string>>(props: {
       },
       {
         name: "permission.prompt.fullscreen",
-        title: "Toggle permission fullscreen",
-        category: "Permission",
+        title: "切换权限全屏",
+        category: "权限",
         run() {
           if (!props.fullscreen) return
           setStore("expanded", (v) => !v)

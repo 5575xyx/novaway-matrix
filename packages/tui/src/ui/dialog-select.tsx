@@ -20,6 +20,11 @@ import { getScrollAcceleration } from "../util/scroll"
 import { useTuiConfig } from "../config"
 import { formatKeyBindings, useBindings, useKeymapSelector } from "../keymap"
 
+// 列表行是"逻辑上一行"的东西,标题和说明都必须先压平再显示,
+// 否则一个 \n 就把这一行撑成多行,整张列表的高度跟着错位。
+const ROW_TITLE_FLAT_MAX = 500
+const ROW_DESCRIPTION_MAX = 120
+
 export interface DialogSelectProps<T> {
   title: string
   titleView?: JSX.Element
@@ -773,12 +778,17 @@ function Option(props: {
       >
         {props.titleView ??
           (props.truncateTitle === false
-            ? props.title
+            ? // 即使调用方明确不截断,也得压平:这一行是 wrapMode="none",
+              // 它压得住软折行,压不住标题里的 \n —— 一个换行就让这"一行"变成两行。
+              Locale.oneLine(props.title, ROW_TITLE_FLAT_MAX)
             : props.truncateTitle === "left"
               ? Locale.truncateLeft(props.title, props.titleWidth ?? 61)
               : Locale.truncate(props.title, props.titleWidth ?? 61))}
         <Show when={props.description}>
-          <span style={{ fg: props.active && !props.muted ? fg : theme.textMuted }}> {props.description}</span>
+          {/* description 来源很杂(技能 frontmatter、插件 package.json、模型元数据),多行的很常见 */}
+          <span style={{ fg: props.active && !props.muted ? fg : theme.textMuted }}>
+            {" " + Locale.oneLine(props.description!, ROW_DESCRIPTION_MAX)}
+          </span>
         </Show>
       </text>
       <Show when={props.footer}>

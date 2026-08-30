@@ -25,7 +25,9 @@ import { SplitBorder } from "../../ui/border"
 import { useTuiPaths, useTuiTerminalEnvironment } from "../../context/runtime"
 import { Spinner } from "../../component/spinner"
 import { FilePreview } from "../../component/file-preview"
+import { GitDiffView } from "../../component/git-diff-view"
 import { TabBar, type TabItem } from "../../component/tab-bar"
+import { EmptySessionHero } from "../../component/empty-session-hero"
 import { createSyntaxStyleMemo, generateSubtleSyntax, selectedForeground, useTheme } from "../../context/theme"
 import { BoxRenderable, ScrollBoxRenderable, addDefaultParsers, TextAttributes, RGBA } from "@opentui/core"
 import { Prompt, type PromptRef } from "../../component/prompt"
@@ -56,7 +58,8 @@ import { DialogConfirm } from "../../ui/dialog-confirm"
 import { DialogTimeline } from "./dialog-timeline"
 import { DialogForkFromTimeline } from "./dialog-fork-from-timeline"
 import { DialogSessionRename } from "../../component/dialog-session-rename"
-import { Sidebar } from "./sidebar"
+import { Sidebar, SIDEBAR_TABS, cycleSidebarTab, setSidebarTab } from "./sidebar"
+import { DiffStatList, uniqueDiffStats } from "../../component/diff-stat-list"
 import { SubagentFooter } from "./subagent-footer.tsx"
 import { filetype } from "../../util/filetype"
 import parsers from "../../parsers-config"
@@ -78,10 +81,16 @@ import { useTuiConfig } from "../../config"
 import { useClipboard } from "../../context/clipboard"
 import { nextThinkingMode, reasoningSummary, useThinkingMode, type ThinkingMode } from "../../context/thinking"
 import { getScrollAcceleration } from "../../util/scroll"
-import { collapseToolOutput } from "../../util/collapse-tool-output"
+import { collapseHint, collapseToolOutput } from "../../util/collapse-tool-output"
+import { messageJump } from "../../util/message-jump"
 import { usePluginRuntime } from "../../plugin/runtime"
 import { DialogRetryAction } from "../../component/dialog-retry-action"
 import { getRevertDiffFiles } from "../../util/revert-diff"
+import {
+  expandMessageWindow,
+  MESSAGE_WINDOW_INITIAL,
+  messageWindow,
+} from "../../util/message-window"
 import { NovaWay_BASE_MODE, useBindings, useCommandShortcut, useNovaWayKeymap } from "../../keymap"
 import { usePathFormatter } from "../../context/path-format"
 import { LocationProvider } from "../../context/location"
@@ -284,6 +293,14 @@ export function Session() {
     return false
   })
   const showTimestamps = createMemo(() => timestamps() === "show")
+  // 切面板前先确保侧栏是开着的,否则"切换到文件"这类命令会静默什么都不做。
+  const showSidebar = () => {
+    if (sidebarVisible()) return
+    batch(() => {
+      setSidebar(() => "auto")
+      setSidebarOpen(true)
+    })
+  }
   const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() ? 42 : 0) - 4)
   const providers = createMemo(() => Model.index(sync.data.provider))
 
@@ -293,10 +310,12 @@ export function Session() {
   const editor = useEditorContext()
 
   // Tab management functions
+  const activeTab = createMemo(() => tabs().find((t) => t.id === activeTabId()))
+
   const openPreviewTab = (filePath: string) => {
     const fileName = filePath.split(/[\\/]/).pop() || filePath
     const tabId = `preview-${filePath}`
-    
+
     // Check if tab already exists
     const existingTab = tabs().find(t => t.id === tabId)
     if (existingTab) {
@@ -313,6 +332,24 @@ export function Session() {
       closable: true,
       filePath: filePath
     }])
+    setActiveTabId(tabId)
+    setSelectedFile(filePath)
+  }
+
+  // Git 页点变更文件名打开的是"改动差异"而不是整文件编辑:差异标签页和预览标签页
+  // 共用 filePath 槽位,但类型不同,渲染时按 activeTab().type 分发。
+  const openDiffTab = (filePath: string) => {
+    const fileName = filePath.split(/[\\/]/).pop() || filePath
+    const tabId = `gitdiff-${filePath}`
+    if (tabs().find((t) => t.id === tabId)) {
+      setActiveTabId(tabId)
+      setSelectedFile(filePath)
+      return
+    }
+    setTabs((prev) => [
+      ...prev,
+      { id: tabId, title: `± ${fileName}`, type: "git-diff", closable: true, filePath },
+    ])
     setActiveTabId(tabId)
     setSelectedFile(filePath)
   }
@@ -383,21 +420,26 @@ export function Session() {
   })
 
   let lastSwitch: string | undefined = undefined
-  event.on("message.part.updated", (evt) => {
-    const part = evt.properties.part
-    if (part.type !== "tool") return
-    if (part.sessionID !== route.sessionID) return
-    if (part.state.status !== "completed") return
-    if (part.id === lastSwitch) return
+  // event.on 返回退订函数。这里原来直接把它丢了 —— 而 Session 是按 sessionID keyed 的,
+  // 每开一个会话/切一次标签页就多挂一个永不摘除的监听,还把旧的 route 闭包一起留住。
+  // 用久了每条事件都要在一串死监听里跑一遍,越用越慢。
+  onCleanup(
+    event.on("message.part.updated", (evt) => {
+      const part = evt.properties.part
+      if (part.type !== "tool") return
+      if (part.sessionID !== route.sessionID) return
+      if (part.state.status !== "completed") return
+      if (part.id === lastSwitch) return
 
-    if (part.tool === "plan_exit") {
-      local.agent.set("build")
-      lastSwitch = part.id
-    } else if (part.tool === "plan_enter") {
-      local.agent.set("plan")
-      lastSwitch = part.id
-    }
-  })
+      if (part.tool === "plan_exit") {
+        local.agent.set("build")
+        lastSwitch = part.id
+      } else if (part.tool === "plan_enter") {
+        local.agent.set("plan")
+        lastSwitch = part.id
+      }
+    }),
+  )
 
   let seeded = false
   let scroll: ScrollBoxRenderable
@@ -413,25 +455,27 @@ export function Session() {
   const dialog = useDialog()
   const renderer = useRenderer()
 
-  event.on("session.status", (evt) => {
-    if (evt.properties.sessionID !== route.sessionID) return
-    if (evt.properties.status.type !== "retry") return
-    if (!evt.properties.status.action) return
-    if (dialog.stack.length > 0) return
+  onCleanup(
+    event.on("session.status", (evt) => {
+      if (evt.properties.sessionID !== route.sessionID) return
+      if (evt.properties.status.type !== "retry") return
+      if (!evt.properties.status.action) return
+      if (dialog.stack.length > 0) return
 
-    const keys = goUpsellKeys(evt.properties.status.action)
-    if (!keys) return
+      const keys = goUpsellKeys(evt.properties.status.action)
+      if (!keys) return
 
-    const seen = kv.get(keys.lastSeenAt)
-    if (typeof seen === "number" && Date.now() - seen < GO_UPSELL_WINDOW) return
+      const seen = kv.get(keys.lastSeenAt)
+      if (typeof seen === "number" && Date.now() - seen < GO_UPSELL_WINDOW) return
 
-    if (kv.get(keys.dontShow)) return
+      if (kv.get(keys.dontShow)) return
 
-    void DialogRetryAction.show(dialog, evt.properties.status.action).then((dontShowAgain) => {
-      if (dontShowAgain) kv.set(keys.dontShow, true)
-      kv.set(keys.lastSeenAt, Date.now())
-    })
-  })
+      void DialogRetryAction.show(dialog, evt.properties.status.action).then((dontShowAgain) => {
+        if (dontShowAgain) kv.set(keys.dontShow, true)
+        kv.set(keys.lastSeenAt, Date.now())
+      })
+    }),
+  )
 
   // Helper: Find next visible message boundary in direction
   const findNextVisibleMessage = (direction: "next" | "prev"): string | null => {
@@ -741,6 +785,32 @@ export function Session() {
         dialog.clear()
       },
     },
+    // 侧栏面板切换原来只有 onMouseUp 一条路,标签行一旦没画出来就彻底切不动了。
+    // 这里补上命令入口:ctrl+p 里能搜到,/ 面板里也能打出来,不用依赖能点到那一行。
+    {
+      title: "侧边栏:切换到下一个面板",
+      value: "session.sidebar.cycle",
+      category: "会话",
+      slash: {
+        name: "sidebar",
+        aliases: ["侧边栏"],
+      },
+      run: () => {
+        showSidebar()
+        cycleSidebarTab()
+        dialog.clear()
+      },
+    },
+    ...SIDEBAR_TABS.map((tab) => ({
+      title: `侧边栏:${tab.text}`,
+      value: `session.sidebar.${tab.id}`,
+      category: "会话",
+      run: () => {
+        showSidebar()
+        setSidebarTab(tab.id)
+        dialog.clear()
+      },
+    })),
     {
       title: conceal() ? "禁用代码隐藏" : "启用代码隐藏",
       value: "session.toggle.conceal",
@@ -1164,50 +1234,8 @@ export function Session() {
         dialog.replace(() => <DialogEvolutionReview sessionID={route.sessionID} />)
       },
     },
-    {
-      title: `${icon("hub")} 切换图标风格`,
-      value: "icon.style",
-      category: "外观",
-      slash: {
-        name: "icon",
-      },
-      run: async () => {
-        // 弹出选择器:上下移动即时预览,回车确认并持久化到 kv。
-        const { DialogIconList } = await import("../../component/dialog-icon-list")
-        dialog.replace(() => <DialogIconList />)
-      },
-    },
-    {
-      title: `${icon("orchestrator")} 后台并行子代理`,
-      value: "background.subagents.toggle",
-      category: "外观",
-      slash: {
-        name: "background-subagents",
-        aliases: ["background", "parallel"],
-      },
-      run: async () => {
-        // 真开关:写入【全局】配置 experimental.background_subagents 并持久化(全局 novaway.json,加载器会读回、写后失效缓存)。
-        // 注意:必须走 global.config.update(写全局 novaway.json),而非 config.update(写项目 config.json,加载器不读)。
-        const cur =
-          ((sync.data.config.experimental as Record<string, unknown> | undefined)?.background_subagents as
-            | boolean
-            | undefined) ??
-          sync.data.capabilities.experimentalBackgroundSubagents ??
-          true
-        const next = !cur
-        try {
-          await sdk.client.global.config.update({ config: { experimental: { background_subagents: next } } } as any)
-          toast.show({
-            variant: next ? "success" : "info",
-            message: next
-              ? "后台并行子代理:已开启(子代理可异步并行执行,已持久化)"
-              : "后台并行子代理:已关闭(子代理仅前台顺序执行,已持久化)",
-          })
-        } catch (e) {
-          toast.error(e)
-        }
-      },
-    },
+    // /图标 与 /后台并行子代理 是全局设置,已挪到 app.tsx 的全局命令表,
+    // 这样在首页(还没进会话)按 / 也能找到,不会"命令不见了"。
   ])
 
   const sessionCommands = createMemo(() =>
@@ -1278,6 +1306,69 @@ export function Session() {
     }
   })
 
+  // 消息窗口:先只从尾部挂载一段,滚到顶部再往前扩。
+  // 同步上限是 100 条消息,但一条消息会展开成工具行 + markdown + 语法高亮,
+  // 一口气全部挂载就是打开长会话、切换会话时那一下明显的卡顿。
+  // 窗口状态放在组件里:Session 按 sessionID 重建,换会话自然回到初始窗口。
+  const [messageWindowSize, setMessageWindow] = createSignal(MESSAGE_WINDOW_INITIAL)
+  const visibleWindow = createMemo(() => messageWindow(messages().length, messageWindowSize()))
+  const windowOffset = createMemo(() => visibleWindow().offset)
+  const visibleMessages = createMemo(() => messages().slice(windowOffset()))
+  const hiddenMessages = createMemo(() => visibleWindow().hidden)
+
+  // 信息页"消息"列表的跳转:切回聊天标签,必要时把消息窗口扩到包含目标,再滚过去。
+  // 切标签会重建聊天区的滚动容器,所以带几次重试,等它挂载完成再定位。
+  const jumpToMessage = (messageID: string) => {
+    switchTab("chat")
+    const index = messages().findIndex((m) => m.id === messageID)
+    if (index === -1) return
+    if (index < windowOffset()) {
+      setMessageWindow(messages().length - index)
+    }
+    const tryScroll = (remaining: number) => {
+      setTimeout(() => {
+        if (!scroll || scroll.isDestroyed) return
+        const child = scroll.getChildren().find((c) => c.id === messageID)
+        if (child) {
+          scroll.scrollBy(child.y - scroll.y - 1)
+        } else if (remaining > 0) {
+          tryScroll(remaining - 1)
+        }
+      }, 60)
+    }
+    tryScroll(4)
+  }
+  createEffect(() => {
+    const target = messageJump()
+    if (!target) return
+    jumpToMessage(target.messageID)
+  })
+
+  // 滚到顶时往前扩一段窗口。scrollTop 没有变化事件(opentui 的 ScrollBox 只暴露 getter),
+  // 只能低频轮询;getter 就是读一个数,开销可忽略。
+  // 扩完把滚动位置补回高度差,让正在看的那条消息不跳。
+  // 冷却时间保证一次滚到顶不会连着扩好几段;而 messages() 本身被同步层封在 100 条以内,
+  // 所以扩到 hiddenMessages() 为 0 就自然停下。
+  const EXPAND_COOLDOWN = 400
+  let lastExpand = 0
+  onMount(() => {
+    const timer = setInterval(() => {
+      if (!scroll || scroll.isDestroyed) return
+      if (scroll.scrollTop > 0) return
+      if (hiddenMessages() === 0) return
+      const now = Date.now()
+      if (now - lastExpand < EXPAND_COOLDOWN) return
+      lastExpand = now
+      const before = scroll.scrollHeight
+      setMessageWindow((size) => expandMessageWindow(size))
+      setTimeout(() => {
+        if (!scroll || scroll.isDestroyed) return
+        scroll.scrollTop += scroll.scrollHeight - before
+      }, 32)
+    }, 150)
+    onCleanup(() => clearInterval(timer))
+  })
+
   // snap to bottom when session changes
   createEffect(on(() => route.sessionID, toBottom))
 
@@ -1302,6 +1393,54 @@ export function Session() {
         }}
       >
         <box flexDirection="row" flexGrow={1} minHeight={0}>
+          <Show when={sidebarVisible()}>
+            <Switch>
+              <Match when={wide()}>
+                <Sidebar
+                  sessionID={route.sessionID}
+                  onFileSelect={(filePath) => openPreviewTab(filePath)}
+                  onOpenDiff={(filePath) => openDiffTab(filePath)}
+                  onFileDoubleClick={(filePath) => {
+                    if (session()) {
+                      const relativePath = path.relative(session()!.directory, filePath)
+                      const ref = promptRef.current
+                      if (ref) {
+                        ref.insertText(`@${relativePath} `)
+                        ref.focus()
+                      }
+                    }
+                  }}
+                />
+              </Match>
+              <Match when={!wide()}>
+                <box
+                  position="absolute"
+                  top={0}
+                  left={0}
+                  right={0}
+                  bottom={0}
+                  alignItems="flex-start"
+                  backgroundColor={RGBA.fromInts(0, 0, 0, 70)}
+                >
+                  <Sidebar
+                    sessionID={route.sessionID}
+                    onFileSelect={(filePath) => openPreviewTab(filePath)}
+                    onOpenDiff={(filePath) => openDiffTab(filePath)}
+                    onFileDoubleClick={(filePath) => {
+                      if (session()) {
+                        const relativePath = path.relative(session()!.directory, filePath)
+                        const ref = promptRef.current
+                        if (ref) {
+                          ref.insertText(`@${relativePath} `)
+                          ref.focus()
+                        }
+                      }
+                    }}
+                  />
+                </box>
+              </Match>
+            </Switch>
+          </Show>
           <box flexGrow={1} minHeight={0} flexDirection="column">
             <TabBar
               tabs={tabs()}
@@ -1330,8 +1469,21 @@ export function Session() {
                   scrollAcceleration={scrollAcceleration()}
                 >
                 <box height={1} />
-                <For each={messages()}>
-                  {(message, index) => (
+                {/* 空会话的首屏:Logo + 智能体特征行 + 快捷键提示(和首页首屏共用同一块) */}
+                <Show when={messages().length === 0 && !pending()}>
+                  <EmptySessionHero />
+                </Show>
+                {/* 顶部还有没挂载的历史时给一行提示,滚到顶会自动往前扩 */}
+                <Show when={hiddenMessages() > 0}>
+                  <box paddingLeft={3} flexShrink={0}>
+                    <text fg={theme.textMuted}>上方还有 {hiddenMessages()} 条历史消息,滚到顶自动加载</text>
+                  </box>
+                </Show>
+                <For each={visibleMessages()}>
+                  {(message, localIndex) => {
+                    // index 是**全量**下标:pending()/revertMessageIndex() 都是按 messages() 算的
+                    const index = () => windowOffset() + localIndex()
+                    return (
                     <Switch>
                       <Match when={message.id === revert()?.messageID}>
                         {(function () {
@@ -1342,8 +1494,8 @@ export function Session() {
                           const handleUnrevert = async () => {
                             const confirmed = await DialogConfirm.show(
                               dialog,
-                              "Confirm Redo",
-                              "Are you sure you want to restore the reverted messages?",
+                              "确认重做",
+                              "确定要恢复已撤销的消息吗?",
                             )
                             if (confirmed) {
                               keymap.dispatchCommand("session.redo")
@@ -1367,25 +1519,19 @@ export function Session() {
                                 paddingLeft={2}
                                 backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
                               >
-                                <text fg={theme.textMuted}>{revert()!.reverted.length} message reverted</text>
+                                <text fg={theme.textMuted}>已撤销 {revert()!.reverted.length} 条消息</text>
                                 <text fg={theme.textMuted}>
-                                  <span style={{ fg: theme.text }}>{redoShortcut()}</span> or /redo to restore
+                                  <span style={{ fg: theme.text }}>{redoShortcut()}</span> 或 /redo 恢复
                                 </text>
                                 <Show when={revert()!.diffFiles?.length}>
                                   <box marginTop={1}>
-                                    <For each={revert()!.diffFiles}>
-                                      {(file) => (
-                                        <text fg={theme.text}>
-                                          {file.filename}
-                                          <Show when={file.additions > 0}>
-                                            <span style={{ fg: theme.diffAdded }}> +{file.additions}</span>
-                                          </Show>
-                                          <Show when={file.deletions > 0}>
-                                            <span style={{ fg: theme.diffRemoved }}> -{file.deletions}</span>
-                                          </Show>
-                                        </text>
-                                      )}
-                                    </For>
+                                    <DiffStatList
+                                      files={revert()!.diffFiles!.map((file) => ({
+                                        file: file.filename,
+                                        additions: file.additions,
+                                        deletions: file.deletions,
+                                      }))}
+                                    />
                                   </box>
                                 </Show>
                               </box>
@@ -1424,15 +1570,23 @@ export function Session() {
                         />
                       </Match>
                     </Switch>
-                  )}
+                    )
+                  }}
                 </For>
               </scrollbox>
             </Show>
             <Show when={activeTabId() !== "chat" && selectedFile()}>
-              <FilePreview
-                filePath={selectedFile()}
-                onClose={() => closeTab(activeTabId())}
-              />
+              {/* 按标签类型分发:preview = 整文件编辑,git-diff = 该文件相对 HEAD 的改动差异 */}
+              <Show
+                when={activeTab()?.type === "git-diff"}
+                fallback={<FilePreview filePath={selectedFile()} onClose={() => closeTab(activeTabId())} />}
+              >
+                <GitDiffView
+                  filePath={selectedFile()!}
+                  rootPath={session()?.directory}
+                  onClose={() => closeTab(activeTabId())}
+                />
+              </Show>
             </Show>
             <Show when={activeTabId() === "chat"}>
               <box flexShrink={0}>
@@ -1478,52 +1632,6 @@ export function Session() {
             <Toast />
             </box>
           </box>
-          <Show when={sidebarVisible()}>
-            <Switch>
-              <Match when={wide()}>
-                <Sidebar
-                  sessionID={route.sessionID}
-                  onFileSelect={(filePath) => openPreviewTab(filePath)}
-                  onFileDoubleClick={(filePath) => {
-                    if (session()) {
-                      const relativePath = path.relative(session()!.directory, filePath)
-                      const ref = promptRef.current
-                      if (ref) {
-                        ref.insertText(`@${relativePath} `)
-                        ref.focus()
-                      }
-                    }
-                  }}
-                />
-              </Match>
-              <Match when={!wide()}>
-                <box
-                  position="absolute"
-                  top={0}
-                  left={0}
-                  right={0}
-                  bottom={0}
-                  alignItems="flex-end"
-                  backgroundColor={RGBA.fromInts(0, 0, 0, 70)}
-                >
-                <Sidebar
-                  sessionID={route.sessionID}
-                  onFileSelect={(filePath) => openPreviewTab(filePath)}
-                  onFileDoubleClick={(filePath) => {
-                    if (session()) {
-                      const relativePath = path.relative(session()!.directory, filePath)
-                      const ref = promptRef.current
-                      if (ref) {
-                        ref.insertText(`@${relativePath} `)
-                        ref.focus()
-                      }
-                    }
-                  }}
-                />
-                </box>
-              </Match>
-            </Switch>
-          </Show>
         </box>
       </context.Provider>
     </LocationProvider>
@@ -1563,23 +1671,23 @@ function UserMessage(props: {
   return (
     <>
       <Show when={text()}>
+        {/* crush 式聚焦条:悬停整行时右缘的细条 ┃ 升级成半块 ▌,标记"当前聚焦的消息" */}
         <box
           id={props.message.id}
           ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
           border={["right"]}
           borderColor={color()}
-          customBorderChars={SplitBorder.customBorderChars}
+          customBorderChars={{
+            ...SplitBorder.customBorderChars,
+            vertical: hover() ? "▌" : SplitBorder.customBorderChars.vertical,
+          }}
           marginTop={props.index === 0 ? 0 : 1}
-          justifyContent="flex-end"
+          alignItems="flex-end"
           width="100%"
+          onMouseOver={() => setHover(true)}
+          onMouseOut={() => setHover(false)}
         >
           <box
-            onMouseOver={() => {
-              setHover(true)
-            }}
-            onMouseOut={() => {
-              setHover(false)
-            }}
             onMouseUp={props.onMouseUp}
             paddingTop={1}
             paddingBottom={1}
@@ -1588,9 +1696,12 @@ function UserMessage(props: {
             backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
             flexShrink={0}
             maxWidth="70%"
-            justifyContent="flex-end"
+            alignItems="flex-end"
           >
-            <text fg={theme.text} width="100%">{text()}</text>
+            {/* 气泡靠右:外层 alignItems="flex-end" 把气泡推到内容列右缘(紧贴右侧那条 agent 色条),
+                内层同样右对齐让附件/时间戳跟着靠右。这里的 text 不能再写 width="100%" ——
+                那会把气泡撑满整列,右对齐就失效;去掉后气泡按文字自然宽度收缩,长文本到 70% 才折行。 */}
+            <text fg={theme.text}>{text()}</text>
             <Show when={files().length}>
               <box flexDirection="row" paddingBottom={metadataVisible() ? 1 : 0} paddingTop={1} gap={1} flexWrap="wrap">
                 <For each={files()}>
@@ -1663,6 +1774,16 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
   const childShortcut = useCommandShortcut("session.child.first")
   const backgroundShortcut = useCommandShortcut("session.background")
 
+  // 本轮改了哪些文件。服务端每轮结束都会把该轮的 diff 写在**父用户消息**的 summary.diffs 上
+  // (packages/novaway/src/session/summary.ts:120-127,每轮由 processor.ts 触发),
+  // 这里只负责显示,不自己去算,也不去解析补丁文本。
+  const turnDiffs = createMemo(() => {
+    const user = messages().find((x) => x.role === "user" && x.id === props.message.parentID)
+    return uniqueDiffStats(user?.role === "user" ? user.summary?.diffs : undefined)
+  })
+  const turnAdditions = createMemo(() => turnDiffs().reduce((sum, x) => sum + x.additions, 0))
+  const turnDeletions = createMemo(() => turnDiffs().reduce((sum, x) => sum + x.deletions, 0))
+
   return (
     <>
       <For each={props.parts}>
@@ -1721,8 +1842,17 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
       </Show>
       <Switch>
         <Match when={props.last || final() || props.message.error?.name === "MessageAbortedError"}>
-          <box ref={(el: BoxRenderable) => alwaysSeparate.add(el)} paddingLeft={3}>
-            <text marginTop={1}>
+          {/* crush 式节标题:◇ + 一行摘要 + "─" 填满剩余宽度,代替边框给会话流分区 */}
+          <box
+            ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
+            flexDirection="row"
+            alignItems="center"
+            gap={1}
+            paddingLeft={3}
+            marginTop={1}
+            flexShrink={0}
+          >
+            <text flexShrink={0}>
               <span
                 style={{
                   fg:
@@ -1731,7 +1861,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
                       : local.agent.color(props.message.agent),
                 }}
               >
-                ▣{" "}
+                ◇{" "}
               </span>{" "}
               <span style={{ fg: theme.text }}>{Locale.titlecase(props.message.mode)}</span>
               <span style={{ fg: theme.textMuted }}> · {model()}</span>
@@ -1742,7 +1872,23 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
                 <span style={{ fg: theme.textMuted }}> · 已中断</span>
               </Show>
             </text>
+            <box flexGrow={1} flexShrink={1} height={1} border={["top"]} borderColor={theme.border} />
           </box>
+          {/* 本轮改动:文件数固定有上限(见 DiffStatList),不会把这一屏顶掉。 */}
+          <Show when={turnDiffs().length}>
+            <box ref={(el: BoxRenderable) => alwaysSeparate.add(el)} paddingLeft={3} marginTop={1} flexShrink={0}>
+              <text fg={theme.textMuted}>
+                本轮改动 {turnDiffs().length} 个文件
+                <Show when={turnAdditions() > 0}>
+                  <span style={{ fg: theme.diffAdded }}> +{turnAdditions()}</span>
+                </Show>
+                <Show when={turnDeletions() > 0}>
+                  <span style={{ fg: theme.diffRemoved }}> -{turnDeletions()}</span>
+                </Show>
+              </text>
+              <DiffStatList files={turnDiffs()} />
+            </box>
+          </Show>
         </Match>
       </Switch>
     </>
@@ -1794,29 +1940,32 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
         flexDirection="column"
         flexShrink={0}
       >
-        <box onMouseUp={toggle}>
-          <ReasoningHeader
-            toggleable={inMinimal() && !opaque()}
-            open={!inMinimal() || expanded()}
-            done={isDone()}
-            title={summary().title}
-            duration={isDone() ? Locale.duration(duration()) : undefined}
-            encrypted={opaque()}
-          />
-        </box>
-        <Show when={!opaque() && (!inMinimal() || expanded()) && summary().body}>
-          <box paddingLeft={inMinimal() ? 2 : 0} marginTop={1}>
-            <code
-              filetype="markdown"
-              drawUnstyledText={false}
-              streaming={true}
-              syntaxStyle={syntax()}
-              content={summary().body}
-              conceal={ctx.conceal()}
-              fg={theme.textMuted}
+        {/* crush 式思考块:muted 字 + 第 2 级灰底、无边框,和工具输出同一套弱对比语言 */}
+        <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
+          <box onMouseUp={toggle}>
+            <ReasoningHeader
+              toggleable={inMinimal() && !opaque()}
+              open={!inMinimal() || expanded()}
+              done={isDone()}
+              title={summary().title}
+              duration={isDone() ? Locale.duration(duration()) : undefined}
+              encrypted={opaque()}
             />
           </box>
-        </Show>
+          <Show when={!opaque() && (!inMinimal() || expanded()) && summary().body}>
+            <box paddingLeft={inMinimal() ? 2 : 0}>
+              <code
+                filetype="markdown"
+                drawUnstyledText={false}
+                streaming={true}
+                syntaxStyle={syntax()}
+                content={summary().body}
+                conceal={ctx.conceal()}
+                fg={theme.textMuted}
+              />
+            </box>
+          </Show>
+        </box>
       </box>
     </Show>
   )
@@ -1831,25 +1980,25 @@ function ReasoningHeader(props: {
   encrypted?: boolean
 }) {
   const { theme } = useTheme()
-  const fg = () =>
-    props.open
-      ? RGBA.fromValues(theme.warning.r, theme.warning.g, theme.warning.b, theme.thinkingOpacity)
-      : theme.warning
   const completed = () => {
-    if (props.encrypted) return `思考${props.duration ? ` · ${props.duration}` : ""}`
+    if (props.encrypted) return `思考过程${props.duration ? ` · ${props.duration}` : ""}`
     const detail = [props.title, props.duration].filter(Boolean).join(" · ")
-    return `${props.toggleable ? (props.open ? "- " : "+ ") : ""}思考${detail ? `: ${detail}` : ""}`
+    return `${props.toggleable ? (props.open ? "- " : "+ ") : ""}思考过程${detail ? `: ${detail}` : ""}`
   }
 
   return (
     <Switch>
       <Match when={!props.done}>
         <box flexDirection="row">
-          <Spinner color={fg()}>{props.title ? "Thinking: " + props.title : "Thinking"}</Spinner>
+          <Spinner color={theme.warning}>
+            {/* title 是 provider 给的推理摘要,内容和换行都不受控;这里和图标是横排,必须压成一行。 */}
+            {props.title ? `正在思考:${Locale.oneLine(props.title, 120)}` : "正在思考你的问题"}
+          </Spinner>
         </box>
       </Match>
       <Match when={true}>
-        <text fg={fg()} wrapMode="none">
+        {/* 完成后的思考块按 crush 的纪律降到最弱对比:muted 灰字,不再用警告色抢注意力 */}
+        <text fg={theme.textMuted} wrapMode="none">
           {completed()}
         </text>
       </Match>
@@ -1981,25 +2130,25 @@ function GenericTool(props: ToolProps) {
     if (expanded() || !collapsed().overflow) return output()
     return collapsed().output
   })
+  // 工具名来自 MCP 服务端的声明,长度和内容都不受我们控制
+  const name = createMemo(() => Locale.oneLine(props.tool, 80))
 
   return (
     <Show
       when={props.output && ctx.showGenericToolOutput()}
       fallback={
-        <InlineTool icon="⚙" pending="正在执行命令..." complete={true} part={props.part}>
-          {props.tool} {input(props.input)}
-        </InlineTool>
+        <InlineTool pending="正在执行命令..." complete={true} part={props.part} label={{ name: name(), params: toolParams(props.input) }} />
       }
     >
       <BlockTool
-        title={`# ${props.tool} ${input(props.input)}`}
+        title={`# ${name()} ${input(props.input)}`}
         part={props.part}
         onClick={collapsed().overflow ? () => setExpanded((prev) => !prev) : undefined}
       >
         <box gap={1}>
           <text fg={theme.text}>{limited()}</text>
           <Show when={collapsed().overflow}>
-            <text fg={theme.textMuted}>{expanded() ? "点击折叠" : "点击展开"}</text>
+            <text fg={theme.textMuted}>{collapseHint(expanded(), collapsed().hidden)}</text>
           </Show>
         </box>
       </BlockTool>
@@ -2008,15 +2157,15 @@ function GenericTool(props: ToolProps) {
 }
 
 function InlineTool(props: {
-  icon: string
-  iconColor?: RGBA
   color?: RGBA
   complete: unknown
   pending: string
   failure?: string
   spinner?: boolean
   separate?: boolean
-  children: JSX.Element
+  /** crush 式结构化标签:工具名 + 截断过的参数;给了 label 就不再用 children 当正文 */
+  label?: { name: string; params?: string }
+  children?: JSX.Element
   part: ToolPart
   onClick?: () => void
 }) {
@@ -2056,10 +2205,9 @@ function InlineTool(props: {
 
   return (
     <InlineToolRow
-      icon={props.icon}
-      iconColor={props.iconColor}
       color={fg()}
       errorColor={theme.error}
+      successColor={theme.success}
       failed={failed()}
       denied={Boolean(denied())}
       error={error()}
@@ -2080,16 +2228,15 @@ function InlineTool(props: {
         props.onClick?.()
       }}
     >
-      {props.children}
+      {props.label ? <ToolLabel name={props.label.name} params={props.label.params} failed={failed()} errorColor={theme.error} /> : props.children}
     </InlineToolRow>
   )
 }
 
 export function InlineToolRow(props: {
-  icon: string
-  iconColor?: RGBA
   color?: RGBA
   errorColor?: RGBA
+  successColor?: RGBA
   failed?: boolean
   denied?: boolean
   error?: string
@@ -2099,11 +2246,15 @@ export function InlineToolRow(props: {
   failure?: string
   spinner?: boolean
   separate?: boolean
-  children: JSX.Element
+  children?: JSX.Element
   onMouseOver?: () => void
   onMouseOut?: () => void
   onMouseUp?: () => void
 }) {
+  // crush 式状态图标:图标列只表达状态(✓ 成功 / × 失败),不再按工具各用各的符号;
+  // 工具身份由后面的文字(工具名 + 参数)承担。
+  // 颜色一律由外面注入(和 errorColor 同一规矩),这一层不碰主题 context ——
+  // 渲染测试就是脱开 Provider 直接挂它的。
   return (
     <box
       paddingLeft={3}
@@ -2132,7 +2283,7 @@ export function InlineToolRow(props: {
                 fg={props.color}
                 attributes={props.denied ? TextAttributes.STRIKETHROUGH : undefined}
               >
-                ~ {props.pending}
+                ● {props.pending}
               </text>
             }
             when={props.complete || props.failed}
@@ -2140,10 +2291,10 @@ export function InlineToolRow(props: {
             <box flexDirection="row">
               <text
                 width={INLINE_TOOL_ICON_WIDTH}
-                fg={props.failed ? props.errorColor : (props.iconColor ?? props.color)}
+                fg={props.failed ? props.errorColor : props.successColor}
                 attributes={props.denied ? TextAttributes.STRIKETHROUGH : undefined}
               >
-                {props.icon}
+                {props.failed ? "×" : "✓"}
               </text>
               <text
                 flexGrow={1}
@@ -2163,6 +2314,31 @@ export function InlineToolRow(props: {
       </Show>
     </box>
   )
+}
+
+// crush 式工具行文案:工具名用 info 色、参数写成截断过的 (k=v),名字是身份、参数是细节。
+// 失败时整体退到 errorColor,不和状态色打架。只允许出现在 InlineToolRow 的 text 里。
+function ToolLabel(props: { name: string; params?: string; failed?: boolean; errorColor?: RGBA }) {
+  const { theme } = useTheme()
+  const fg = () => (props.failed ? props.errorColor : theme.info)
+  return (
+    <>
+      <span style={{ fg: fg() }}>{props.name}</span>
+      <Show when={props.params}>
+        {(params) => <span style={{ fg: fg() }}> {params()}</span>}
+      </Show>
+    </>
+  )
+}
+
+// 参数串 "(k=v, k=v)" 的截断上限:一条工具行放得下为主,超了直接断,不折行。
+const TOOL_PARAMS_MAX = 60
+
+function toolParams(params: Record<string, unknown>, omit?: string[]): string {
+  const summary = input(params, omit)
+  if (!summary) return ""
+  // input() 返回 "[k=v, k=v]";crush 的形状是圆括号,顺手换掉。
+  return `(${Locale.oneLine(summary.slice(1, -1), TOOL_PARAMS_MAX)})`
 }
 
 function BlockTool(props: {
@@ -2185,7 +2361,7 @@ function BlockTool(props: {
       paddingLeft={2}
       marginTop={1}
       gap={1}
-      backgroundColor={hover() ? theme.backgroundMenu : theme.backgroundPanel}
+      backgroundColor={hover() ? theme.backgroundMenu : theme.backgroundElement}
       customBorderChars={SplitBorder.customBorderChars}
       borderColor={theme.background}
       onMouseOver={() => props.onClick && setHover(true)}
@@ -2255,21 +2431,24 @@ function Shell(props: ToolProps) {
           onClick={collapsed().overflow ? () => setExpanded((prev) => !prev) : undefined}
         >
           <box gap={1}>
+            {/* fallback 是 BlockTool 里的整块展示,命令原样多行是这里想要的;
+                但 Spinner 是"转圈图标 + 一行文字"的横排,多行会把图标列错开,所以要压平。 */}
             <Show when={isRunning()} fallback={<text fg={theme.text}>$ {stringValue(props.input.command)}</text>}>
-              <Spinner color={theme.text}>{stringValue(props.input.command)}</Spinner>
+              <Spinner color={theme.text}>{toolLine(props.input.command)}</Spinner>
             </Show>
             <Show when={output()}>
               <text fg={theme.text}>{limited()}</text>
             </Show>
             <Show when={collapsed().overflow}>
-            <text fg={theme.textMuted}>{expanded() ? "点击折叠" : "点击展开"}</text>
+              <text fg={theme.textMuted}>{collapseHint(expanded(), collapsed().hidden)}</text>
             </Show>
           </box>
         </BlockTool>
       </Match>
       <Match when={true}>
-        <InlineTool icon="$" pending="正在执行命令..." complete={stringValue(props.input.command)} part={props.part}>
-          {stringValue(props.input.command)}
+        <InlineTool pending="正在执行命令..." complete={stringValue(props.input.command)} part={props.part}>
+          {/* heredoc、多行管道、带反斜杠续行的命令都很常见,这一行放不下多行 */}
+          {toolLine(props.input.command)}
         </InlineTool>
       </Match>
     </Switch>
@@ -2301,13 +2480,11 @@ function Write(props: ToolProps) {
       </Match>
       <Match when={true}>
         <InlineTool
-          icon="←"
           pending="正在准备写入..."
           complete={stringValue(props.input.filePath)}
           part={props.part}
-        >
-          Write {pathFormatter.format(stringValue(props.input.filePath))}
-        </InlineTool>
+          label={{ name: "写入", params: pathFormatter.format(stringValue(props.input.filePath)) }}
+        />
       </Match>
     </Switch>
   )
@@ -2316,13 +2493,21 @@ function Write(props: ToolProps) {
 function Glob(props: ToolProps) {
   const pathFormatter = usePathFormatter()
   return (
-    <InlineTool icon="✱" pending="正在查找文件..." complete={stringValue(props.input.pattern)} part={props.part}>
-      匹配 "{stringValue(props.input.pattern)}"{" "}
-      <Show when={stringValue(props.input.path)}>于 {pathFormatter.format(stringValue(props.input.path))} </Show>
-      <Show when={numberValue(props.metadata.count)}>
-        ({numberValue(props.metadata.count)} {numberValue(props.metadata.count) === 1 ? "个文件" : "个文件"})
-      </Show>
-    </InlineTool>
+    <InlineTool
+      pending="正在查找文件..."
+      complete={stringValue(props.input.pattern)}
+      part={props.part}
+      label={{
+        name: "匹配",
+        params: [
+          `"${toolLine(props.input.pattern)}"`,
+          stringValue(props.input.path) ? `于 ${pathFormatter.format(stringValue(props.input.path))}` : undefined,
+          numberValue(props.metadata.count) ? `${numberValue(props.metadata.count)} 个文件` : undefined,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      }}
+    />
   )
 }
 
@@ -2340,14 +2525,20 @@ function Read(props: ToolProps) {
   return (
     <>
       <InlineTool
-        icon="→"
         pending="正在读取文件..."
         complete={stringValue(props.input.filePath)}
         spinner={isRunning()}
         part={props.part}
-      >
-        读取 {pathFormatter.format(stringValue(props.input.filePath))} {input(props.input, ["filePath"])}
-      </InlineTool>
+        label={{
+          name: "读取",
+          params: [
+            pathFormatter.format(stringValue(props.input.filePath)),
+            toolParams(props.input, ["filePath"]),
+          ]
+            .filter(Boolean)
+            .join(" "),
+        }}
+      />
       <For each={loaded()}>
         {(filepath) => (
           <box paddingLeft={3}>
@@ -2364,30 +2555,52 @@ function Read(props: ToolProps) {
 function Grep(props: ToolProps) {
   const pathFormatter = usePathFormatter()
   return (
-    <InlineTool icon="✱" pending="正在搜索内容..." complete={stringValue(props.input.pattern)} part={props.part}>
-      搜索 "{stringValue(props.input.pattern)}"{" "}
-      <Show when={stringValue(props.input.path)}>于 {pathFormatter.format(stringValue(props.input.path))} </Show>
-      <Show when={numberValue(props.metadata.matches)}>
-        ({numberValue(props.metadata.matches)} {numberValue(props.metadata.matches) === 1 ? "个匹配" : "个匹配"})
-      </Show>
-    </InlineTool>
+    <InlineTool
+      pending="正在搜索内容..."
+      complete={stringValue(props.input.pattern)}
+      part={props.part}
+      label={{
+        name: "搜索",
+        params: [
+          `"${toolLine(props.input.pattern)}"`,
+          stringValue(props.input.path) ? `于 ${pathFormatter.format(stringValue(props.input.path))}` : undefined,
+          numberValue(props.metadata.matches) ? `${numberValue(props.metadata.matches)} 个匹配` : undefined,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      }}
+    />
   )
 }
 
 function WebFetch(props: ToolProps) {
   return (
-    <InlineTool icon="%" pending="正在获取网页..." complete={stringValue(props.input.url)} part={props.part}>
-      获取网页 {stringValue(props.input.url)}
-    </InlineTool>
+    <InlineTool
+      pending="正在获取网页..."
+      complete={stringValue(props.input.url)}
+      part={props.part}
+      label={{ name: "取网页", params: toolLine(props.input.url) }}
+    />
   )
 }
 
 function WebSearch(props: ToolProps) {
   return (
-    <InlineTool icon="◈" pending="正在搜索网页..." complete={stringValue(props.input.query)} part={props.part}>
-      {webSearchProviderLabel(props.metadata.provider)} "{stringValue(props.input.query)}"{" "}
-      <Show when={numberValue(props.metadata.numResults)}>({numberValue(props.metadata.numResults)} 个结果)</Show>
-    </InlineTool>
+    <InlineTool
+      pending="正在搜索网页..."
+      complete={stringValue(props.input.query)}
+      part={props.part}
+      label={{
+        name: "搜网页",
+        params: [
+          webSearchProviderLabel(props.metadata.provider),
+          `"${toolLine(props.input.query)}"`,
+          numberValue(props.metadata.numResults) ? `${numberValue(props.metadata.numResults)} 个结果` : undefined,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      }}
+    />
   )
 }
 
@@ -2439,7 +2652,9 @@ function Task(props: ToolProps) {
   })
 
   const content = createMemo(() => {
-    const description = stringValue(props.input.description)
+    // content 最后是用 "\n" 拼起来的:这里的每一段都必须自己就是一行,
+    // 否则多出来的换行会插进 ↳ 列表中间,把这一块的行数和缩进全弄乱。
+    const description = toolLine(props.input.description)
     if (!description) return ""
     let content = [
       formatSubagentTitle(
@@ -2451,11 +2666,12 @@ function Task(props: ToolProps) {
 
     const retrying = retry()
     if (isRunning() && retrying) {
-      content.push(`↳ ${formatSubagentRetry(retrying.attempt, Locale.truncate(retrying.message, 80))}`)
+      // 重试原因是 provider 返回的错误串,多行的很常见 —— truncate 只截长度、不消换行
+      content.push(`↳ ${formatSubagentRetry(retrying.attempt, Locale.oneLine(retrying.message, 80))}`)
     } else if (isRunning() && tools().length > 0) {
       if (current()) {
         const state = current()!.state
-        const title = state.status === "running" || state.status === "completed" ? state.title : undefined
+        const title = state.status === "running" || state.status === "completed" ? toolLine(state.title) : undefined
         content.push(`↳ ${Locale.titlecase(current()!.tool)} ${title}`)
       } else content.push(`↳ ${formatSubagentToolcalls(tools().length)}`)
     }
@@ -2469,7 +2685,6 @@ function Task(props: ToolProps) {
 
   return (
     <InlineTool
-      icon={props.part.state.status === "completed" ? "✓" : "│"}
       separate={true}
       color={retry() ? theme.error : undefined}
       spinner={isRunning()}
@@ -2541,7 +2756,6 @@ function Execute(props: ToolProps) {
   return (
     <>
       <InlineTool
-        icon={hasRuntimeError() ? "✗" : props.part.state.status === "completed" ? "✓" : "│"}
         color={hasRuntimeError() ? theme.error : undefined}
         spinner={isLoading()}
         pending="execute"
@@ -2611,9 +2825,20 @@ function Edit(props: ToolProps) {
         </BlockTool>
       </Match>
       <Match when={true}>
-        <InlineTool icon="←" pending="正在准备编辑..." complete={stringValue(props.input.filePath)} part={props.part}>
-          编辑 {pathFormatter.format(stringValue(props.input.filePath))} {input({ replaceAll: props.input.replaceAll })}
-        </InlineTool>
+        <InlineTool
+          pending="正在准备编辑..."
+          complete={stringValue(props.input.filePath)}
+          part={props.part}
+          label={{
+            name: "编辑",
+            params: [
+              pathFormatter.format(stringValue(props.input.filePath)),
+              toolParams({ replaceAll: props.input.replaceAll }),
+            ]
+              .filter(Boolean)
+              .join(" "),
+          }}
+        />
       </Match>
     </Switch>
   )
@@ -2687,9 +2912,7 @@ function ApplyPatch(props: ToolProps) {
         </For>
       </Match>
       <Match when={true}>
-        <InlineTool icon="%" pending="正在准备补丁..." failure="补丁失败" complete={false} part={props.part}>
-          补丁
-        </InlineTool>
+        <InlineTool pending="正在准备补丁..." failure="补丁失败" complete={false} part={props.part} label={{ name: "补丁" }} />
       </Match>
     </Switch>
   )
@@ -2708,7 +2931,6 @@ function TodoWrite(props: ToolProps) {
       </Match>
       <Match when={true}>
         <InlineTool
-          icon="⚙"
           pending="正在更新待办事项..."
           failure="待办事项更新失败"
           complete={false}
@@ -2728,7 +2950,7 @@ function Question(props: ToolProps) {
   const count = createMemo(() => questions().length)
 
   function format(answer?: ReadonlyArray<string>) {
-    if (!answer?.length) return "(no answer)"
+    if (!answer?.length) return "(未回答)"
     return answer.join(", ")
   }
 
@@ -2749,9 +2971,7 @@ function Question(props: ToolProps) {
         </BlockTool>
       </Match>
       <Match when={true}>
-        <InlineTool icon="→" pending="提问中..." complete={count()} part={props.part}>
-          已提问 {count()} 个问题
-        </InlineTool>
+        <InlineTool pending="提问中..." complete={count()} part={props.part} label={{ name: "提问", params: `${count()} 个问题` }} />
       </Match>
     </Switch>
   )
@@ -2759,11 +2979,17 @@ function Question(props: ToolProps) {
 
 function Skill(props: ToolProps) {
   return (
-    <InlineTool icon="→" pending="正在加载技能..." complete={stringValue(props.input.name)} part={props.part}>
-      技能 "{stringValue(props.input.name)}"
-    </InlineTool>
+    <InlineTool
+      pending="正在加载技能..."
+      complete={stringValue(props.input.name)}
+      part={props.part}
+      label={{ name: "技能", params: `"${toolLine(props.input.name)}"` }}
+    />
   )
 }
+
+// LSP 诊断信息的单行上限。
+const DIAGNOSTIC_MESSAGE_MAX = 200
 
 function Diagnostics(props: { diagnostics: unknown; filePath: string }) {
   const { theme } = useTheme()
@@ -2782,7 +3008,9 @@ function Diagnostics(props: { diagnostics: unknown; filePath: string }) {
         <For each={errors()}>
           {(diagnostic) => (
             <text fg={theme.error}>
-              Error [{diagnostic.range.start.line + 1}:{diagnostic.range.start.character + 1}] {diagnostic.message}
+              错误 [{diagnostic.range.start.line + 1}:{diagnostic.range.start.character + 1}]{" "}
+              {/* LSP 的 message 经常是多行的(TS 的嵌套类型错误尤其),压成一行再交给渲染器折行 */}
+              {Locale.oneLine(diagnostic.message, DIAGNOSTIC_MESSAGE_MAX)}
             </text>
           )}
         </For>
@@ -2791,17 +3019,42 @@ function Diagnostics(props: { diagnostics: unknown; filePath: string }) {
   )
 }
 
-function input(input: Record<string, unknown>, omit?: string[]): string {
+// 单个参数值 / 整行参数摘要的显示上限。
+// MCP 工具的参数经常是整段文本(sequential-thinking 的 thought 就是几百字带换行的思考过程),
+// 原样拼进工具行会变成几十行高的一坨:换行让这一"行"不再是一行,高度失控,
+// 行尾的 "]" 还会被甩到下一行的行首,看起来就是 UI 变形。
+const INPUT_VALUE_MAX = 80
+const INPUT_TOTAL_MAX = 240
+
+export function input(input: Record<string, unknown>, omit?: string[]): string {
   const primitives = Object.entries(input).filter(([key, value]) => {
     if (omit?.includes(key)) return false
     return typeof value === "string" || typeof value === "number" || typeof value === "boolean"
   })
   if (primitives.length === 0) return ""
-  return `[${primitives.map(([key, value]) => `${key}=${value}`).join(", ")}]`
+  const summary = primitives
+    // oneLine 而不是自己 replace:除了换行和连续空白,它还会抹掉 ESC / 响铃这类控制字符 ——
+    // 工具参数里的 ESC 原样送到终端就是一段会被解释执行的转义序列。
+    .map(([key, value]) => `${key}=${Locale.oneLine(String(value), INPUT_VALUE_MAX)}`)
+    .join(", ")
+  return `[${Locale.oneLine(summary, INPUT_TOTAL_MAX)}]`
 }
 
 function stringValue(value: unknown) {
   return typeof value === "string" ? value : undefined
+}
+
+// 工具行的单行上限。
+// 工具行是"逻辑上的一行":固定宽度的图标列 + flexGrow 的内容列并排。内容里只要有一个 \n,
+// 内容列就变成 N 行高而图标列还是 1 行,行尾字符被甩到下一行的行首 —— 这就是截图里那种变形。
+// wrapMode="none" 压得住软折行,压不住硬换行,所以必须在数据层压平。
+const TOOL_LINE_MAX = 200
+
+/** 取字符串参数并压成一行:凡是把模型给的字符串直接塞进工具行的地方都要走这里。 */
+function toolLine(value: unknown, max = TOOL_LINE_MAX) {
+  const text = stringValue(value)
+  if (text === undefined) return undefined
+  return Locale.oneLine(text, max)
 }
 
 function numberValue(value: unknown) {

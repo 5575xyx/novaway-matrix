@@ -1,7 +1,7 @@
 import type { AssistantMessage } from "@novaway/sdk-v2-latest/v2"
 import type { TuiPlugin, TuiPluginApi } from "@opencode/plugin/tui"
 import type { BuiltinTuiPlugin } from "../builtins"
-import { createMemo } from "solid-js"
+import { createMemo, Show } from "solid-js"
 
 const id = "internal:sidebar-context"
 
@@ -34,6 +34,35 @@ function View(props: { api: TuiPluginApi; session_id: string }) {
     }
   })
 
+  // 缓存命中率:全会话累计(和桌面端 session-context-metrics 的 getSessionCacheMetrics 同一算法)
+  // 命中率 = 缓存读取 / 总输入(未命中输入 + 缓存读 + 缓存写),只统计真的带了输入的助手消息。
+  const cache = createMemo(() => {
+    let input = 0
+    let cacheRead = 0
+    let cacheWrite = 0
+    let calls = 0
+    for (const message of msg()) {
+      if (message.role !== "assistant") continue
+      const tokens = message.tokens
+      if (!tokens) continue
+      if (tokens.input + tokens.cache.read + tokens.cache.write <= 0) continue
+      input += tokens.input
+      cacheRead += tokens.cache.read
+      cacheWrite += tokens.cache.write
+      calls += 1
+    }
+    const totalInput = input + cacheRead + cacheWrite
+    return {
+      calls,
+      hitRate: totalInput > 0 ? cacheRead / totalInput : null,
+    }
+  })
+  const hitRateText = createMemo(() => {
+    const value = cache().hitRate
+    if (value == null) return undefined
+    return `${Math.round(value * 1000) / 10}%`
+  })
+
   return (
     <box>
       <text fg={theme().text}>
@@ -41,6 +70,9 @@ function View(props: { api: TuiPluginApi; session_id: string }) {
       </text>
       <text fg={theme().textMuted}>{state().tokens.toLocaleString()} tokens</text>
       <text fg={theme().textMuted}>{state().percent ?? 0}% 已使用</text>
+      <Show when={hitRateText()}>
+        {(text) => <text fg={theme().textMuted}>缓存命中 {text()} · {cache().calls} 次</text>}
+      </Show>
       <text fg={theme().textMuted}>{money.format(cost())} 已花费</text>
     </box>
   )

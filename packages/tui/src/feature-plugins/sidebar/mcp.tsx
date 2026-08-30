@@ -1,8 +1,13 @@
 import type { TuiPlugin, TuiPluginApi } from "@opencode/plugin/tui"
 import type { BuiltinTuiPlugin } from "../builtins"
 import { createMemo, For, Match, Show, Switch, createSignal } from "solid-js"
+import { Locale } from "../../util/locale"
 
 const id = "internal:sidebar-mcp"
+
+// MCP 的连接错误经常是整段带换行的堆栈或响应体。侧栏是一根窄条,
+// 原样铺进去这一格就能长到几十行高,把下面的面板全顶掉。
+const ERROR_MAX = 120
 
 function View(props: { api: TuiPluginApi }) {
   const [open, setOpen] = createSignal(true)
@@ -61,7 +66,7 @@ function View(props: { api: TuiPluginApi }) {
                     <Switch fallback={item.status}>
                       <Match when={item.status === "connected"}>已连接</Match>
                       <Match when={item.status === "failed"}>
-                        <i>{item.error}</i>
+                        <i>{Locale.oneLine(item.error ?? "", ERROR_MAX)}</i>
                       </Match>
                       <Match when={item.status === "disabled"}>已禁用</Match>
                       <Match when={item.status === "needs_auth"}>需要认证</Match>

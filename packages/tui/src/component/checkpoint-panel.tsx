@@ -1,10 +1,10 @@
-import { createSignal, onMount, For, Show } from "solid-js"
+import { createSignal, For, Show } from "solid-js"
 import { useSDK } from "../context/sdk"
 import { useTheme } from "../context/theme"
 import { useDialog } from "../ui/dialog"
 import { DialogConfirm } from "../ui/dialog-confirm"
 import { checkpointApi, type CheckpointItem } from "../util/mimo-panel-api"
-import { icon } from "../util/panel-icons"
+import { useAutoRefresh } from "../util/auto-refresh"
 
 export interface CheckpointPanelProps {
   sessionID: string
@@ -55,20 +55,11 @@ export function CheckpointPanel(props: CheckpointPanelProps) {
     if (ok) await refresh()
   }
 
-  onMount(loadData)
+  // 挂载即加载 + 定时轮询(分区折叠/切走标签页时面板卸载,轮询自动停)
+  useAutoRefresh(loadData)
 
   return (
     <box flexDirection="column" gap={1}>
-      {/* 标题 */}
-      <box flexDirection="row" justifyContent="space-between">
-        <text fg={theme.text}>
-          <b>{icon("checkpoint")} 检查点</b>
-        </text>
-        <text fg={theme.textMuted} onMouseUp={refresh}>
-          {loading() ? "..." : "刷新"}
-        </text>
-      </box>
-
       {/* 创建按钮 */}
       <text fg={theme.primary} onMouseUp={createCheckpoint}>
         [创建检查点]

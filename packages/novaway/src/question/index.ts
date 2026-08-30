@@ -176,12 +176,10 @@ export const layer = Layer.effect(
       const pending = (yield* InstanceState.get(state)).pending
       const existing = pending.get(input.requestID)
       if (!existing) {
-        console.log("[question] unknown request", input.requestID)
         log.warn("reply for unknown request", { requestID: input.requestID })
         return
       }
       pending.delete(input.requestID)
-      console.log("[question] replied", input.requestID, input.answers)
       log.info("replied", { requestID: input.requestID, answers: input.answers })
       yield* bus.publish(Event.Replied, {
         sessionID: existing.info.sessionID,
