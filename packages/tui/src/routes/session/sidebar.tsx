@@ -1,6 +1,7 @@
 import { useProject } from "../../context/project"
 import { useSync } from "../../context/sync"
 import { createEffect, createMemo, createSignal, For, Match, on, Show, Switch } from "solid-js"
+import { useTerminalDimensions } from "@opentui/solid"
 import { useTheme } from "../../context/theme"
 import { useTuiConfig } from "../../config"
 import { InstallationChannel, InstallationVersion } from "@novaway/core/installation/version"
@@ -18,7 +19,9 @@ import { GoalPanel } from "../../component/goal-panel"
 import { WorkflowPanel } from "../../component/workflow-panel"
 import { OrchestratorPanel } from "../../component/orchestrator-panel"
 import { GitPanel } from "../../component/git-panel"
+import { DbPanel } from "../../component/db-panel"
 import { Locale } from "../../util/locale"
+import { sidebarWidth } from "../../util/sidebar-width"
 
 // 会话标题是模型生成的,没有长度和换行保证;侧栏这一格放不下多行。
 const SESSION_TITLE_MAX = 60
@@ -35,12 +38,13 @@ export interface SidebarProps {
   onFileDoubleClick?: (filePath: string) => void
 }
 
-export type SidebarTab = "files" | "info" | "git" | "hub"
+export type SidebarTab = "files" | "info" | "git" | "db" | "hub"
 
 export const SIDEBAR_TABS: Array<{ id: SidebarTab; text: string }> = [
   { id: "files", text: "文件" },
   { id: "info", text: "信息" },
   { id: "git", text: "Git" },
+  { id: "db", text: "数据" },
   { id: "hub", text: "智能中枢" },
 ]
 
@@ -75,6 +79,7 @@ export function Sidebar(props: SidebarProps) {
   const sync = useSync()
   const { theme } = useTheme()
   const tuiConfig = useTuiConfig()
+  const dimensions = useTerminalDimensions()
   const session = createMemo(() => (props.sessionID ? sync.session.get(props.sessionID) : undefined))
   // 会话专属面板要用的 id;没有会话时给空串,插件槽里的 state 查询对未知 id 都返回空值。
   const sessionID = createMemo(() => props.sessionID ?? "")
@@ -114,7 +119,7 @@ export function Sidebar(props: SidebarProps) {
   return (
     <box
       backgroundColor={theme.backgroundPanel}
-      width={42}
+      width={sidebarWidth(dimensions().width)}
       height="100%"
       paddingTop={1}
       paddingBottom={1}
@@ -124,8 +129,9 @@ export function Sidebar(props: SidebarProps) {
       flexDirection="column"
     >
       {/* 标签页栏。flexShrink={0}:这一行是唯一的切换入口,任何情况下都不许被下面的
-            面板内容挤掉高度,否则就变成"看得见面板、切不动面板"。 */}
-      <box flexDirection="row" gap={2} paddingBottom={1} flexShrink={0}>
+            面板内容挤掉高度,否则就变成"看得见面板、切不动面板"。
+            gap 随宽度收:窄侧栏(44 列)五个标签靠 gap=1 才排得下。 */}
+      <box flexDirection="row" gap={dimensions().width > 160 ? 2 : 1} paddingBottom={1} flexShrink={0}>
         <For each={SIDEBAR_TABS}>
           {(tab) => (
             <text fg={activeTab() === tab.id ? theme.primary : theme.textMuted} onMouseUp={() => setActiveTab(tab.id)}>
@@ -235,6 +241,24 @@ export function Sidebar(props: SidebarProps) {
                 props.onOpenDiff?.(filePath)
               }}
             />
+          </box>
+        </scrollbox>
+      </Show>
+
+      {/* 数据标签页:数据库连接管理(功能对齐桌面端"数据库"页) */}
+      <Show when={activeTab() === "db"}>
+        <scrollbox
+          flexGrow={1}
+          scrollAcceleration={scrollAcceleration()}
+          verticalScrollbarOptions={{
+            trackOptions: {
+              backgroundColor: theme.background,
+              foregroundColor: theme.borderActive,
+            },
+          }}
+        >
+          <box flexShrink={0} gap={1} paddingRight={1}>
+            <DbPanel directory={session()?.directory ?? project.instance.directory()} />
           </box>
         </scrollbox>
       </Show>

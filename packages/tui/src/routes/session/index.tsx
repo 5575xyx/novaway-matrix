@@ -83,6 +83,7 @@ import { nextThinkingMode, reasoningSummary, useThinkingMode, type ThinkingMode 
 import { getScrollAcceleration } from "../../util/scroll"
 import { collapseHint, collapseToolOutput } from "../../util/collapse-tool-output"
 import { messageJump } from "../../util/message-jump"
+import { sidebarWidth } from "../../util/sidebar-width"
 import { usePluginRuntime } from "../../plugin/runtime"
 import { DialogRetryAction } from "../../component/dialog-retry-action"
 import { getRevertDiffFiles } from "../../util/revert-diff"
@@ -301,7 +302,10 @@ export function Session() {
       setSidebarOpen(true)
     })
   }
-  const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() ? 42 : 0) - 4)
+  // 侧栏宽度自适应(sidebarWidth),内容宽度要跟着算,不能再写死 42。
+  const contentWidth = createMemo(
+    () => dimensions().width - (sidebarVisible() ? sidebarWidth(dimensions().width) : 0) - 4,
+  )
   const providers = createMemo(() => Model.index(sync.data.provider))
 
   const scrollAcceleration = createMemo(() => getScrollAcceleration(tuiConfig))

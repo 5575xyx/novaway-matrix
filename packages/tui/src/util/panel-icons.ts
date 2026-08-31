@@ -6,12 +6,12 @@
 import { createSignal } from "solid-js"
 
 export type IconStyle = "nerdfont" | "emoji" | "ascii"
-export type PanelIconKey = "info" | "files" | "git" | "hub" | "memory" | "evolution" | "checkpoint" | "goal" | "workflow" | "orchestrator" | "chat" | "doc"
+export type PanelIconKey = "info" | "files" | "git" | "db" | "hub" | "memory" | "evolution" | "checkpoint" | "goal" | "workflow" | "orchestrator" | "chat" | "doc"
 
 const PANEL_SETS: Record<IconStyle, Record<PanelIconKey, string>> = {
-  nerdfont: { git: "", info:"", files: "", hub: "", memory: "", evolution: "", checkpoint: "", goal: "", workflow: "", orchestrator: "", chat: "", doc: "" },
-  emoji: { git: "🌿", info: "📋", files: "📁", hub: "🧩", memory: "🧠", evolution: "🧬", checkpoint: "📸", goal: "🎯", workflow: "🔄", orchestrator: "🕹️", chat: "💬", doc: "📄" },
-  ascii: { git: "g", info: ">", files: "/", hub: "#", memory: "~", evolution: "^", checkpoint: "*", goal: "@", workflow: "&", orchestrator: "%", chat: ":", doc: "." },
+  nerdfont: { db: "", git: "", info:"", files: "", hub: "", memory: "", evolution: "", checkpoint: "", goal: "", workflow: "", orchestrator: "", chat: "", doc: "" },
+  emoji: { db: "🗄️", git: "🌿", info: "📋", files: "📁", hub: "🧩", memory: "🧠", evolution: "🧬", checkpoint: "📸", goal: "🎯", workflow: "🔄", orchestrator: "🕹️", chat: "💬", doc: "📄" },
+  ascii: { db: "d", git: "g", info: ">", files: "/", hub: "#", memory: "~", evolution: "^", checkpoint: "*", goal: "@", workflow: "&", orchestrator: "%", chat: ":", doc: "." },
 }
 
 // 文件树图标。键是"图标分组",不是扩展名本身:先按整个文件名查 FILE_NAME_GROUP,再按扩展名(经 EXT_GROUP 归并)查,最后回落 default。
