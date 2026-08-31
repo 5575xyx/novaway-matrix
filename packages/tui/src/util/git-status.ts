@@ -105,3 +105,18 @@ export function parseGitStashList(output: string): GitStashEntry[] {
       return sep === -1 ? { ref: line.trim(), message: "" } : { ref: line.slice(0, sep), message: line.slice(sep + 2) }
     })
 }
+
+// git remote -v 的输出:每个远程两行(fetch/push),取 fetch 行的地址,按名字去重。
+export interface GitRemote {
+  name: string
+  url: string
+}
+
+export function parseGitRemotes(output: string): GitRemote[] {
+  const byName = new Map<string, string>()
+  for (const line of output.split("\n")) {
+    const match = /^(\S+)\t(\S+) \(fetch\)$/.exec(line.trim())
+    if (match) byName.set(match[1]!, match[2]!)
+  }
+  return [...byName].map(([name, url]) => ({ name, url }))
+}

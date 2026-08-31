@@ -1,18 +1,12 @@
 import type { NovawayClient } from "@novaway/sdk-v2-latest/v2"
+import { rawClient } from "./raw-client"
 
 // checkpoint / goal / workflow 这几个后端组已在服务端注册,但生成的类型化 SDK
-// 尚未包含它们的方法。NovawayClient 本身没有通用的 get/post/patch/delete——
-// 这些低层方法位于内部 hey-api 客户端 (_client) 上,以 { url, body } 调用,
-// 返回 { data, error }。这里取出该客户端直连这些路由。
-type RawClient = {
-  get: (opts: { url: string }) => Promise<{ data?: unknown; error?: unknown }>
-  post: (opts: { url: string; body?: unknown }) => Promise<{ data?: unknown; error?: unknown }>
-  patch: (opts: { url: string; body?: unknown }) => Promise<{ data?: unknown; error?: unknown }>
-  delete: (opts: { url: string }) => Promise<{ data?: unknown; error?: unknown }>
-}
-
-function raw(client: NovawayClient): RawClient {
-  return (client as any)._client
+// 尚未包含它们的方法。这里取底层 hey-api 客户端直连这些路由
+// (字段名的坑见 raw-client.ts —— 之前写 `_client` 取到 undefined,
+// 这几个面板一直在静默返回空列表)。
+function raw(client: NovawayClient) {
+  return rawClient(client)
 }
 
 // ---- 检查点 ----

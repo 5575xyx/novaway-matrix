@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test"
-import { parseGitBranches, parseGitCommit, parseGitStatus, parseGitStashList } from "../../src/util/git-status"
+import {
+  parseGitBranches,
+  parseGitCommit,
+  parseGitRemotes,
+  parseGitStatus,
+  parseGitStashList,
+} from "../../src/util/git-status"
 
 describe("git status 解析", () => {
   test("分支行:分支名 + 上游 + 领先/落后", () => {
@@ -81,5 +87,21 @@ describe("git stash list 解析", () => {
 
   test("空输出返回空数组", () => {
     expect(parseGitStashList("")).toEqual([])
+  })
+})
+
+describe("git remote 解析", () => {
+  test("fetch/push 两行取一行,按名字去重", () => {
+    const result = parseGitRemotes(
+      "origin\thttps://github.com/x/y.git (fetch)\norigin\thttps://github.com/x/y.git (push)\ngithub\tgit@github.com:a/b.git (fetch)\n",
+    )
+    expect(result).toEqual([
+      { name: "origin", url: "https://github.com/x/y.git" },
+      { name: "github", url: "git@github.com:a/b.git" },
+    ])
+  })
+
+  test("空输出返回空数组", () => {
+    expect(parseGitRemotes("")).toEqual([])
   })
 })
