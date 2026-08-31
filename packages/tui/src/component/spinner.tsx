@@ -15,6 +15,11 @@ const ANIM_FRAME_COUNT = 120
 const ANIM_FRAMES = animFrames(ANIM_WIDTH, ANIM_FRAME_COUNT)
 const ANIM_INTERVAL = 50
 
+// `novaway run` 的子代理页脚不在 TUI 组件树里(自己一套 scrollback 渲染),
+// 但转场动画得和 TUI 一致,所以把帧和节奏导出去给它用。
+export const SPINNER_FRAMES = ANIM_FRAMES
+export const SPINNER_INTERVAL = ANIM_INTERVAL
+
 export function Spinner(props: { children?: JSX.Element; color?: RGBA }) {
   const { theme } = useTheme()
   const kv = useKV()
