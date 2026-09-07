@@ -130,6 +130,9 @@ const getBase = (): Configuration => ({
     installerHeaderIcon: `resources/icons/icon.ico`,
   },
   linux: {
+    // 包名是 @novaway/desktop，electron-builder 默认从包名推 executableName 会得到
+    // "@novawaydesktop"，AppImage 直接拒收(路径非法字符 @)，必须显式指定干净的名字。
+    executableName: "novaway",
     icon: `resources/icons`,
     category: "Development",
     target: ["AppImage", "deb", "rpm"],
