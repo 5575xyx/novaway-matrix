@@ -80,25 +80,18 @@ export function retryable(error: Err, provider: string) {
         const days = Math.floor(seconds / 86_400)
         const hours = Math.floor((seconds % 86_400) / 3_600)
         const minutes = Math.ceil((seconds % 3_600) / 60)
-        const unit = (value: number, name: string) => `${value} ${name}${value === 1 ? "" : "s"}`
 
-        if (days > 0) return hours > 0 ? `${unit(days, "天")} ${unit(hours, "小时")}` : unit(days, "天")
-        if (hours > 0) return minutes > 0 ? `${unit(hours, "小时")} ${unit(minutes, "分钟")}` : unit(hours, "小时")
-        return minutes > 0 ? unit(minutes, "分钟") : "不到 1 分钟"
+        if (days > 0) return hours > 0 ? `${days} 天 ${hours} 小时` : `${days} 天`
+        if (hours > 0) return minutes > 0 ? `${hours} 小时 ${minutes} 分钟` : `${hours} 小时`
+        return minutes > 0 ? `${minutes} 分钟` : "不到 1 分钟"
       })
 
-      const message = resetIn ? `免费额度已用完，${resetIn} 后重置` : "免费额度已用完，将在每天重置"
-
-      return {
-        message,
-        action: {
-          reason: "free_tier_limit",
-          provider,
-          title: "免费额度已用完",
-          message,
-          label: "不再显示",
-        },
-      }
+      // 内置免费模型走公共免费通道(opencode Zen 匿名层),限额按出口 IP 每日共享。
+      // 只在重试状态条给一句短文案,不弹窗不打断 —— 原因和恢复时间都压缩在这一句里。
+      const message = resetIn
+        ? `公共免费通道今日额度已用完，${resetIn} 后重置；可先切换其他模型`
+        : "公共免费通道今日额度已用完，每天重置；可先切换其他模型"
+      return { message }
     }
     if (error.data.responseBody?.includes("GoUsageLimitError")) {
       const body = parseJSON(error.data.responseBody)
