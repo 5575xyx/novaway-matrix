@@ -35,13 +35,15 @@ if (!existsSync(playwrightMcpCli)) {
 const DBX_MCP_VERSION = "0.4.21"
 const dbxMcpDir = join(resourcesDir, "dbx-mcp")
 const dbxMcpEntry = join(dbxMcpDir, "dist", "index.js")
+const dbxMcpTarballName = `dbx-app-mcp-server-${DBX_MCP_VERSION}.tgz`
 if (!existsSync(dbxMcpEntry)) {
   console.log(`Vendoring bundled DBX MCP server @${DBX_MCP_VERSION} from npm`)
   await $`mkdir -p ${dbxMcpDir}`
   await $`npm pack @dbx-app/mcp-server@${DBX_MCP_VERSION} --pack-destination ${dbxMcpDir}`
-  const dbxMcpTarball = join(dbxMcpDir, `dbx-app-mcp-server-${DBX_MCP_VERSION}.tgz`)
-  await $`tar -xzf ${dbxMcpTarball} -C ${dbxMcpDir} --strip-components=1`
-  await $`rm -f ${dbxMcpTarball}`
+  // Windows 的 GNU tar 会把 "D:\..." 开头的绝对路径当成 remote-host:path 解释
+  // (报 "Cannot connect to D: resolve failed")，所以必须 cd 进目录用相对文件名解包。
+  await $`cd ${dbxMcpDir} && tar -xzf ${dbxMcpTarballName} --strip-components=1`
+  await $`cd ${dbxMcpDir} && rm -f ${dbxMcpTarballName}`
   await $`npm install --omit=dev --no-audit --no-fund`.cwd(dbxMcpDir)
 }
 

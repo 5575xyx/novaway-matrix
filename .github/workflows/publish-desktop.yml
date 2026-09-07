@@ -47,12 +47,13 @@ jobs:
           - os: macos-latest
             platform_flag: --mac --arm64
             bun_install_flags: --os=darwin --cpu=arm64
-          # Intel macOS runner 已收费,在 arm64 机器上交叉打包 x64:原生模块全是 npm
-          # 预编译产物(bun install --cpu=x64 拉对应预编译),随包分发的 Node.js 用
-          # NOVAWAY_DESKTOP_NODE_ARCH 指定成 x64,重编时该 Node 在 Rosetta 下以 x64 跑。
+          # Intel macOS runner 已收费,在 arm64 机器上交叉打包 x64:随包分发的 Node.js 用
+          # NOVAWAY_DESKTOP_NODE_ARCH 指定成 x64(重编时该 Node 在 Rosetta 下以 x64 跑)。
+          # 注意 bun_install_flags 必须留空:构建工具链(rollup/esbuild 等原生模块)按
+          # 运行时架构选 arm64,一步在下面补装 x64 可选依赖给 electron-builder 打包用。
           - os: macos-latest
             platform_flag: --mac --x64
-            bun_install_flags: --os=darwin --cpu=x64
+            bun_install_flags: ""
             node_arch: x64
           - os: ubuntu-latest
             platform_flag: --linux
@@ -77,6 +78,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
+
+      # mac-x64 交叉打包:默认安装只有 arm64 原生模块,补装 x64 的可选依赖
+      # (node-pty/watcher/msgpackr 等)进 node_modules,electron-builder 打 x64 包时
+      # 按目标架构自己挑,与 arm64 的工具链模块互不冲突。
+      - name: Add darwin-x64 optional deps (mac x64 cross-build)
+        if: runner.os == 'macOS' && matrix.settings.node_arch == 'x64'
+        run: bun install --os=darwin --cpu=x64
 
       - name: Import macOS code signing certificate
         if: runner.os == 'macOS' && env.HAS_APPLE_CERTIFICATE == 'true'
