@@ -22,9 +22,25 @@ async function signWindows(configuration: { path: string }) {
 }
 
 const channel = (() => {
-  const raw = process.env.OPENCODE_CHANNEL
+  // fork 改名后统一用 NOVAWAY_CHANNEL;保留对旧 OPENCODE_CHANNEL 的兼容。
+  const raw = process.env.NOVAWAY_CHANNEL ?? process.env.OPENCODE_CHANNEL
   if (raw === "dev" || raw === "beta" || raw === "prod") return raw
   return "dev"
+})()
+
+// macOS 签名与公证只在配置了 APPLE_CERTIFICATE 时进行(工作流把对应 Secret 注入进来);
+// 没有证书却强制 notarize 会让 electron-builder 在 CI 上直接失败。未签名包用户首次打开
+// 需右键 → 打开(或系统设置里放行),功能不受影响。
+const signMac = !!process.env.APPLE_CERTIFICATE
+
+// 在 GitHub Actions 里构建时,自动更新源指向当前仓库(fork),而不是写死的上游 anomalyco/*;
+// 工作流会把 electron-builder 生成的 latest*.yml 和安装包一起上传到同一份 Release,
+// 这样桌面端的"检查更新"才能真的找到新版本。
+const selfPublish = (() => {
+  const repo = process.env.GITHUB_REPOSITORY
+  if (!repo) return undefined
+  const [owner, name] = repo.split("/")
+  return { provider: "github" as const, owner, repo: name, channel: "latest" }
 })()
 
 const getBase = (): Configuration => ({
@@ -80,15 +96,19 @@ const getBase = (): Configuration => ({
   mac: {
     category: "public.app-category.developer-tools",
     icon: `resources/icons/icon.icns`,
-    hardenedRuntime: true,
-    gatekeeperAssess: false,
-    entitlements: "resources/entitlements.plist",
-    entitlementsInherit: "resources/entitlements.plist",
-    notarize: true,
     target: ["dmg", "zip"],
+    ...(signMac
+      ? {
+          hardenedRuntime: true,
+          gatekeeperAssess: false,
+          entitlements: "resources/entitlements.plist",
+          entitlementsInherit: "resources/entitlements.plist",
+          notarize: true,
+        }
+      : {}),
   },
   dmg: {
-    sign: true,
+    sign: signMac,
   },
   protocols: {
     name: "NovaWay",
@@ -134,7 +154,7 @@ function getConfig() {
         appId: "ai.novaway.desktop.beta",
         productName: "NovaWay Beta",
         protocols: { name: "NovaWay Beta", schemes: ["novaway"] },
-        publish: { provider: "github", owner: "anomalyco", repo: "novaway-beta", channel: "latest" },
+        publish: selfPublish ?? { provider: "github", owner: "anomalyco", repo: "novaway-beta", channel: "latest" },
         rpm: { packageName: "novaway-beta" },
       }
     }
@@ -144,7 +164,7 @@ function getConfig() {
         appId: "ai.novaway.desktop",
         productName: "NovaWay",
         protocols: { name: "NovaWay", schemes: ["novaway"] },
-        publish: { provider: "github", owner: "anomalyco", repo: "novaway", channel: "latest" },
+        publish: selfPublish ?? { provider: "github", owner: "anomalyco", repo: "novaway", channel: "latest" },
         rpm: { packageName: "novaway" },
       }
     }
