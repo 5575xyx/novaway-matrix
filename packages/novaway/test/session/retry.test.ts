@@ -235,7 +235,7 @@ describe("session.retry.retryable", () => {
     expect(retryable).toEqual({ message: "Response decompression failed" })
   })
 
-  test("maps free limits to Go upsell action", () => {
+  test("maps free limits to a short shared-channel status line", () => {
     const error = Schema.decodeUnknownSync(MessageV2.APIError.Schema)(
       new MessageV2.APIError({
         message: "Free usage exceeded",
@@ -248,17 +248,13 @@ describe("session.retry.retryable", () => {
       }).toObject(),
     )
 
-    expect(SessionRetry.retryable(error, "opencode")).toEqual({
-      message: SessionRetry.GO_UPSELL_MESSAGE,
-      action: {
-        reason: "free_tier_limit",
-        provider: "opencode",
-        title: "Free limit reached",
-        message: "Subscribe to OpenCode Go for reliable access to the best open-source models, starting at $5/month.",
-        label: "subscribe",
-        link: SessionRetry.GO_UPSELL_URL,
-      },
-    })
+    const result = SessionRetry.retryable(error, "opencode")
+    expect(result).toBeDefined()
+    // 只有一句短文案:公共免费通道、何时重置、可切换模型;不弹详情窗。
+    expect(result!.message).toContain("公共免费通道")
+    expect(result!.message).toContain("重置")
+    expect(result!.message).toContain("切换其他模型")
+    expect(result!.action).toBeUndefined()
   })
 
   test("maps Go subscription limits to workspace PAYG upsell", () => {

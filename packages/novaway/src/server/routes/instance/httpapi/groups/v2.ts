@@ -1,4 +1,5 @@
 import { HttpApi, OpenApi } from "effect/unstable/httpapi"
+import { FsGroup } from "./v2/fs"
 import { MessageGroup } from "./v2/message"
 import { ModelGroup } from "./v2/model"
 import { ProviderGroup } from "./v2/provider"
@@ -9,6 +10,7 @@ export const V2Api = HttpApi.make("v2")
   .add(MessageGroup)
   .add(ModelGroup)
   .add(ProviderGroup)
+  .add(FsGroup)
   .annotateMerge(
     OpenApi.annotations({
       title: "NovaWay experimental HttpApi",
