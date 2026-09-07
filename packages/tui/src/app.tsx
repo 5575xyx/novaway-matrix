@@ -5,6 +5,7 @@ import { Deferred, Effect } from "effect"
 import { Global } from "@novaway/core/global"
 import { Flag } from "@novaway/core/flag/flag"
 import { InstallationVersion } from "@novaway/core/installation/version"
+import { rawClient } from "./util/raw-client"
 import { ClipboardProvider, useClipboard } from "./context/clipboard"
 import { ExitProvider, useExit } from "./context/exit"
 import { EpilogueProvider } from "./context/epilogue"
@@ -1123,9 +1124,9 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
 
     const choice = await DialogConfirm.show(
       dialog,
-      `Update Available`,
-      `A new release v${version} is available. Would you like to update now?`,
-      "skip",
+      "发现新版本",
+      `新版本 v${version} 已发布，现在更新吗？`,
+      "跳过",
     )
 
     if (choice === false) {
@@ -1137,7 +1138,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
 
     toast.show({
       variant: "info",
-      message: `Updating to v${version}...`,
+      message: `正在更新到 v${version}...`,
       duration: 30000,
     })
 
@@ -1160,6 +1161,26 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
     )
 
     void exit()
+  })
+
+  // 版本握手:客户端(二进制)连到的是另一套版本的服务端时(--port/--attach、桌面端
+  // sidecar),服务端没有的路由会命中 catch-all 返回 HTML,SDK 直接抛错把会话炸掉。
+  // 启动时先探一次 /global/health,不一致就明说,让用户重启服务端,而不是看崩溃屏。
+  // health 本身拿不到(旧到连 health 都没有、网络错误)就保持沉默 —— 那种情况怎么
+  // 提示都拦不住启动请求,只能靠升级服务端。
+  onMount(() => {
+    void (async () => {
+      const res = await rawClient(sdk.client)
+        .get({ url: "/global/health" })
+        .catch(() => undefined)
+      const serverVersion = (res?.data as { version?: string } | undefined)?.version
+      if (!serverVersion || serverVersion === "local" || serverVersion === InstallationVersion) return
+      DialogAlert.show(
+        dialog,
+        "版本不一致",
+        `客户端是 v${InstallationVersion}，但连接的服务端是 v${serverVersion}。请重启或升级服务端后再用，否则会报"请求不被支持"。`,
+      )
+    })()
   })
 
   const plugin = createMemo(() => {

@@ -40,3 +40,17 @@ export function animColors(base: RGBA) {
     )
   }
 }
+
+// crush 式工作渐变:两种颜色沿列插值,相位随帧滚动(crush 的 WorkingGrad = primary→secondary)。
+// 这是"正在干活"的专用信号,颜色固定走主题色对,不跟 agent 色走。
+export function animGradient(from: RGBA, to: RGBA) {
+  return (frameIndex: number, charIndex: number, _totalFrames: number, totalChars: number): ColorInput => {
+    const t = ((charIndex + frameIndex) % totalChars) / Math.max(1, totalChars - 1)
+    return RGBA.fromValues(
+      from.r + (to.r - from.r) * t,
+      from.g + (to.g - from.g) * t,
+      from.b + (to.b - from.b) * t,
+      from.a + (to.a - from.a) * t,
+    )
+  }
+}

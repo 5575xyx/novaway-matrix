@@ -5,8 +5,8 @@ import { onCleanup } from "solid-js"
 import { ICON_STYLES, currentIconStyle, setIconStyle, type IconStyle } from "../util/panel-icons"
 
 const LABELS: Record<IconStyle, string> = {
-  nerdfont: "Nerd Font — 单色矢量字形(需 Nerd Font 终端字体,否则方块)",
-  emoji: "Emoji — 彩色图标,兼容性最好(没装 Nerd Font 选这个)",
+  emoji: "Emoji — 彩色图标,任何终端都能显示(默认)",
+  nerdfont: "Nerd Font — 单色矢量字形,更锐利(需装 Nerd Font 终端字体)",
   ascii: "ASCII — 纯文本符号,零字体依赖",
 }
 

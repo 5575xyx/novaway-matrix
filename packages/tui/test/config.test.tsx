@@ -61,6 +61,8 @@ test("resolves host-neutral defaults", () => {
   })
   expect(config.leader_timeout).toBe(LeaderTimeoutDefault)
   expect(config.mouse).toBe(true)
+  // 图标默认 emoji:不依赖任何终端字体,新用户开箱不会看到一排方块。
+  expect(config.icons).toBe("emoji")
   expect(config.keybinds.has("terminal.suspend")).toBe(true)
   expect(config.keybinds.has("session.list")).toBe(true)
   expect(config.cursor).toBeUndefined()
