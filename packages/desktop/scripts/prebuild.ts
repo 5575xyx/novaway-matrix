@@ -90,10 +90,11 @@ async function downloadNodeBinary(target: ReturnType<typeof getNodeTarget>) {
 
   const extractDir = join(tmpDir, "extracted")
   mkdirSync(extractDir, { recursive: true })
-  // Windows 的 GNU tar 把 "D:\..." 绝对路径当 remote-host:path 解释(报 Cannot connect
-  // to D:)，所以 cd 进解压目录、用相对路径指向上一层压缩包；bsdtar/GNU tar 都适用。
+  // Windows 有两个坑:Git Bash 的 GNU tar 把 "D:\..." 绝对路径当 remote-host:path
+  // (Cannot connect to D:)，而且它解不了 zip —— Node 的 win 分发包恰恰是 .zip。
+  // System32 自带的 tar 是 bsdtar，zip 和冒号都没问题，显式指过去。
   if (isWin) {
-    await $`cd ${extractDir} && tar -xf ${`../${filename}`}`
+    await $`cd ${extractDir} && ${"C:/Windows/System32/tar.exe"} -xf ${`../${filename}`}`
   } else {
     await $`cd ${extractDir} && tar -xzf ${`../${filename}`}`
   }
