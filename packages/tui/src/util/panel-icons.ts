@@ -1,6 +1,6 @@
-// 侧栏/面板/文件树/标签栏图标。三套可切:nerdfont(默认,需 Nerd Font 终端字体)/ emoji(兜底,几乎不乱码)/ ascii(纯文本)。
+// 侧栏/面板/文件树/标签栏图标。三套可切:emoji(默认,任何终端都能显示)/ nerdfont(单色矢量,需 Nerd Font 终端字体)/ ascii(纯文本)。
 // 由 tui config 的 `icons` 决定;app 启动时调用 setIconStyle() 落定,渲染时用 icon()/fileIcon()/treeArrow() 取值。
-// 注意:终端不上报字形是否渲染成方块,故无法"检测到方块自动回退";没装 Nerd Font 请显式设 icons: "emoji"。
+// 注意:终端不上报字形是否渲染成方块,故无法"检测到方块自动回退";装了 Nerd Font 想要更锐利的单色矢量,显式设 icons: "nerdfont"。
 // nerdfont 一律写成 \uXXXX 转义 + 行内注释,因为私有区字形在编辑器里本来就看不出是什么。
 
 import { createSignal } from "solid-js"
@@ -58,10 +58,11 @@ const ARROW_SETS: Record<IconStyle, { open: string; closed: string }> = {
   ascii: { open: "-", closed: "+" },
 }
 
-export const ICON_STYLES: readonly IconStyle[] = ["nerdfont", "emoji", "ascii"]
+// 顺序即 /icon 选择器里的展示顺序,默认的排最前。
+export const ICON_STYLES: readonly IconStyle[] = ["emoji", "nerdfont", "ascii"]
 
 // 响应式:用 Solid signal 存当前风格,渲染期读 style() 会被追踪,/icon 切换后 UI 立即重绘。
-const [style, setStyle] = createSignal<IconStyle>("nerdfont")
+const [style, setStyle] = createSignal<IconStyle>("emoji")
 export function setIconStyle(next: IconStyle) {
   setStyle(next)
 }

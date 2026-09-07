@@ -41,7 +41,8 @@ import { Locale } from "../../util/locale"
 import { agentDisplayName } from "../../util/agent-name"
 import { errorMessage } from "../../util/error"
 import { formatDuration } from "../../util/format"
-import { createColors, createFrames } from "../../ui/spinner"
+import { animGradient } from "../../util/anim-spinner"
+import { SPINNER_FRAMES, SPINNER_INTERVAL } from "../spinner"
 import { useDialog } from "../../ui/dialog"
 import { DialogProvider as DialogProviderConnect } from "../dialog-provider"
 import { DialogAlert } from "../../ui/dialog-alert"
@@ -1328,27 +1329,13 @@ export function Prompt(props: PromptProps) {
     return `问我任何事... "${list()[store.placeholder % list().length]}"`
   })
 
+  // crush 式工作指示:扰动字符带主题双色(primary→secondary)渐变,颜色固定,
+  // 不再跟 agent 色走 —— 这是"正在干活"的全局信号,和聊天区的思考/工具指示同一套。
   const spinnerDef = createMemo(() => {
-    const agent =
-      status().type !== "idle"
-        ? (local.agent.list().find((a) => a.name === lastUserMessage()?.agent) ?? local.agent.current())
-        : local.agent.current()
-    const color = agent ? local.agent.color(agent.name) : theme.border
     return {
-      frames: createFrames({
-        color,
-        style: "blocks",
-        inactiveFactor: 0.6,
-        // enableFading: false,
-        minAlpha: 0.3,
-      }),
-      color: createColors({
-        color,
-        style: "blocks",
-        inactiveFactor: 0.6,
-        // enableFading: false,
-        minAlpha: 0.3,
-      }),
+      frames: SPINNER_FRAMES,
+      interval: SPINNER_INTERVAL,
+      color: animGradient(theme.primary, theme.secondary),
     }
   })
   const maxHeight = createMemo(() => tuiConfig.prompt?.max_height ?? Math.max(6, Math.floor(dimensions().height / 3)))

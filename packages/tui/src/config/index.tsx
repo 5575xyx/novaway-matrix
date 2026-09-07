@@ -30,9 +30,9 @@ export const ScrollAcceleration = Schema.Struct({
 export const DiffStyle = Schema.Literals(["auto", "stacked"]).annotate({
   description: "Control diff rendering style: 'auto' adapts to terminal width, 'stacked' always shows single column",
 })
-export const Icons = Schema.Literals(["nerdfont", "emoji", "ascii"]).annotate({
+export const Icons = Schema.Literals(["emoji", "nerdfont", "ascii"]).annotate({
   description:
-    "Sidebar/panel/file-tree icon style: 'nerdfont' (default, needs a Nerd Font terminal font — otherwise glyphs show as boxes), 'emoji' (widest compatibility fallback), 'ascii' (plain text markers)",
+    "Sidebar/panel/file-tree icon style: 'emoji' (default, renders in every terminal), 'nerdfont' (monochrome vector glyphs, needs a Nerd Font terminal font — otherwise glyphs show as boxes), 'ascii' (plain text markers)",
 })
 export const Cursor = Schema.Struct({
   style: Schema.optional(Schema.Literals(["block", "underline", "line", "default"])).annotate({
@@ -135,7 +135,7 @@ export function resolve(input: Info, options: ResolveOptions): Resolved {
     }),
     leader_timeout: input.leader_timeout ?? LeaderTimeoutDefault,
     mouse: input.mouse ?? true,
-    icons: input.icons ?? "nerdfont",
+    icons: input.icons ?? "emoji",
     cursor: input.cursor
       ? {
           style: input.cursor.style ?? "block",

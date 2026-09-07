@@ -23,7 +23,8 @@ import { useSync } from "../../context/sync"
 import { useEvent } from "../../context/event"
 import { SplitBorder } from "../../ui/border"
 import { useTuiPaths, useTuiTerminalEnvironment } from "../../context/runtime"
-import { Spinner } from "../../component/spinner"
+import { Spinner, SPINNER_FRAMES, WorkingSpinner } from "../../component/spinner"
+import { animGradient } from "../../util/anim-spinner"
 import { FilePreview } from "../../component/file-preview"
 import { GitDiffView } from "../../component/git-diff-view"
 import { TabBar, type TabItem } from "../../component/tab-bar"
@@ -264,6 +265,15 @@ export function Session() {
 
   const lastAssistant = createMemo(() => {
     return messages().findLast((x) => x.role === "assistant")
+  })
+
+  // 会话是否正在干活(回答/思考/执行工具),驱动聊天区末尾的工作指示。
+  const sessionWorking = createMemo(() => (sync.data.session_status?.[route.sessionID]?.type ?? "idle") === "busy")
+  // 思考中:最后一条助手消息还有没结束的推理块(time.end 未落)。
+  const thinkingActive = createMemo(() => {
+    const last = lastAssistant()
+    if (!last) return false
+    return (sync.data.part[last.id] ?? []).some((part) => part.type === "reasoning" && part.time.end === undefined)
   })
 
   const dimensions = useTerminalDimensions()
@@ -1577,6 +1587,11 @@ export function Session() {
                     )
                   }}
                 </For>
+                {/* crush 式回答中指示:消息流末尾挂一条主题双色扰动动画;
+                    思考阶段给"思考中"标签,其余只显示已用时长。随会话状态自动出现/消失。 */}
+                <Show when={sessionWorking()}>
+                  <WorkingLine sessionID={route.sessionID} thinking={thinkingActive()} />
+                </Show>
               </scrollbox>
             </Show>
             <Show when={activeTabId() !== "chat" && selectedFile()}>
@@ -1994,10 +2009,11 @@ function ReasoningHeader(props: {
     <Switch>
       <Match when={!props.done}>
         <box flexDirection="row">
-          <Spinner color={theme.warning}>
+          {/* crush 式思考中:主题双色扰动动画 + muted 标签,颜色固定不跟语义色走 */}
+          <WorkingSpinner>
             {/* title 是 provider 给的推理摘要,内容和换行都不受控;这里和图标是横排,必须压成一行。 */}
             {props.title ? `正在思考:${Locale.oneLine(props.title, 120)}` : "正在思考你的问题"}
-          </Spinner>
+          </WorkingSpinner>
         </box>
       </Match>
       <Match when={true}>
@@ -2007,6 +2023,25 @@ function ReasoningHeader(props: {
         </text>
       </Match>
     </Switch>
+  )
+}
+
+// crush 式回答中指示:主题双色扰动动画挂在消息流末尾,muted 文本 + 跳动的已用时长。
+// 组件随会话状态挂载/卸载,计时器从挂载起算,正好是这一轮工作的时长。
+function WorkingLine(props: { sessionID: string; thinking: boolean }) {
+  const { theme } = useTheme()
+  const [seconds, setSeconds] = createSignal(0)
+  onMount(() => {
+    const timer = setInterval(() => setSeconds((value) => value + 1), 1000)
+    onCleanup(() => clearInterval(timer))
+  })
+  return (
+    <box ref={(el: BoxRenderable) => alwaysSeparate.add(el)} paddingLeft={2} paddingTop={1} flexShrink={0}>
+      <WorkingSpinner>
+        {props.thinking ? "思考中" : "正在回答"}
+        <span style={{ fg: theme.textMuted }}> · {Locale.duration(seconds() * 1000)}</span>
+      </WorkingSpinner>
+    </box>
   )
 }
 
@@ -2198,6 +2233,11 @@ function InlineTool(props: {
 
   const failed = createMemo(() => Boolean(error() && !denied()))
   const clickable = createMemo(() => Boolean(props.onClick || failed()))
+  // 执行中动画:主题双色渐变固定不变,一次算好,别每帧重建生成器。
+  const pendingSpinner = createMemo(() => ({
+    frames: SPINNER_FRAMES,
+    color: animGradient(theme.primary, theme.secondary),
+  }))
   const fg = createMemo(() => {
     if (props.color) return props.color
     if (permission()) return theme.warning
@@ -2221,6 +2261,7 @@ function InlineTool(props: {
       failure={props.failure}
       spinner={props.spinner}
       separate={props.separate}
+      pendingSpinner={pendingSpinner()}
       onMouseOver={() => clickable() && setHover(true)}
       onMouseOut={() => setHover(false)}
       onMouseUp={() => {
@@ -2250,6 +2291,11 @@ export function InlineToolRow(props: {
   failure?: string
   spinner?: boolean
   separate?: boolean
+  /** 执行中动画的帧与配色,由有主题的调用方注入(本组件不碰 context) */
+  pendingSpinner?: {
+    frames: string[]
+    color: (frame: number, char: number, totalFrames: number, totalChars: number) => import("@opentui/core").ColorInput
+  }
   children?: JSX.Element
   onMouseOver?: () => void
   onMouseOut?: () => void
@@ -2282,13 +2328,21 @@ export function InlineToolRow(props: {
         <Match when={true}>
           <Show
             fallback={
-              <text
-                paddingLeft={3}
-                fg={props.color}
-                attributes={props.denied ? TextAttributes.STRIKETHROUGH : undefined}
-              >
-                ● {props.pending}
-              </text>
+              <box flexDirection="row" gap={1}>
+                {/* crush 式执行中:主题双色扰动动画;InlineToolRow 脱离 Provider 挂载,
+                    颜色/帧由外面注入,拿不到就退回 ● 占位 */}
+                <Show
+                  when={props.pendingSpinner}
+                  fallback={<text paddingLeft={3} fg={props.color}>● {props.pending}</text>}
+                >
+                  {(def) => (
+                    <box paddingLeft={3} flexDirection="row" gap={1}>
+                      <spinner frames={def().frames} interval={50} color={def().color} />
+                      <text fg={props.color}>{props.pending}</text>
+                    </box>
+                  )}
+                </Show>
+              </box>
             }
             when={props.complete || props.failed}
           >
