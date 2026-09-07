@@ -1,0 +1,148 @@
+name: publish-desktop
+run-name: "publish desktop ${{ inputs.version }}"
+
+# 桌面端(Electron)安装包构建与发布:
+#   Windows NSIS / macOS DMG+ZIP / Linux AppImage+deb+rpm,上传到 GitHub Release v<版本>,
+#   同时上传 electron-updater 用的 latest*.yml(自动更新元数据)。
+# 手动触发(Actions 页面 → publish-desktop → Run workflow)。与 publish-npm 相互独立,
+# 建议用同一个版本号,两个工作流谁先跑都行(Release 已存在就复用)。
+#
+# macOS 签名与公证:仓库配置了 APPLE_CERTIFICATE / APPLE_CERTIFICATE_PASSWORD /
+# APPLE_API_KEY_PATH / APPLE_API_KEY / APPLE_API_ISSUER 这些 Secret 就会自动签名公证;
+# 没配置则打未签名包(用户首次打开需右键 → 打开),不会让构建失败。
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "版本号,例如 1.0.0(建议与 publish-npm 一致)"
+        required: true
+        type: string
+      channel:
+        description: "渠道(prod=正式;beta=测试)。影响应用名/图标/更新通道"
+        required: false
+        default: "prod"
+        type: choice
+        options:
+          - prod
+          - beta
+
+permissions:
+  contents: write # 需要写权限以上传 Release 资产
+
+concurrency: publish-desktop-${{ github.ref }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - os: windows-latest
+            platform_flag: --win
+            bun_install_flags: ""
+          - os: macos-latest
+            platform_flag: --mac --arm64
+            bun_install_flags: --os=darwin --cpu=arm64
+          # Intel macOS runner 已收费,在 arm64 机器上交叉打包 x64:原生模块全是 npm
+          # 预编译产物(bun install --cpu=x64 拉对应预编译),随包分发的 Node.js 用
+          # NOVAWAY_DESKTOP_NODE_ARCH 指定成 x64,重编时该 Node 在 Rosetta 下以 x64 跑。
+          - os: macos-latest
+            platform_flag: --mac --x64
+            bun_install_flags: --os=darwin --cpu=x64
+            node_arch: x64
+          - os: ubuntu-latest
+            platform_flag: --linux
+            bun_install_flags: ""
+    runs-on: ${{ matrix.settings.os }}
+    timeout-minutes: 90
+    env:
+      NOVAWAY_CHANNEL: ${{ inputs.channel }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-bun
+        with:
+          install-flags: ${{ matrix.settings.bun_install_flags }}
+
+      # prebuild 会下载与该版本号相同的 Node.js 随安装包分发(dbx-mcp 需要独立于
+      # Electron ABI 的运行时),pin 到固定版本保证产物可复现;它同时提供 npm。
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Import macOS code signing certificate
+        if: runner.os == 'macOS' && secrets.APPLE_CERTIFICATE != ''
+        uses: apple-actions/import-codesign-certs@8f3fb608891dd2244cdab3d69cd68c0d37a7fe93 # v2.0.0
+        with:
+          keychain: build
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      - name: Setup Apple API key (notarization)
+        if: runner.os == 'macOS' && secrets.APPLE_API_KEY_PATH != ''
+        run: echo "${{ secrets.APPLE_API_KEY_PATH }}" > "$RUNNER_TEMP/apple-api-key.p8"
+
+      - name: Install rpm tooling (linux only)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends rpm
+
+      # mac-x64 在 arm64 机器上交叉打包:x64 的 Node/原生模块重编依赖 Rosetta 转译
+      - name: Ensure Rosetta (mac x64 cross-build)
+        if: runner.os == 'macOS' && matrix.settings.node_arch == 'x64'
+        run: /usr/sbin/softwareupdate --install-rosetta --agree-to-license || true
+
+      - name: Prepare (icons, metainfo, server bundle, bundled Node, dbx-mcp)
+        working-directory: packages/desktop
+        run: bun ./scripts/prepare.ts
+        env:
+          NOVAWAY_VERSION: ${{ inputs.version }}
+          NOVAWAY_DESKTOP_NODE_ARCH: ${{ matrix.settings.node_arch }}
+
+      - name: Build (electron-vite)
+        working-directory: packages/desktop
+        run: bun run build
+
+      - name: Package (electron-builder)
+        working-directory: packages/desktop
+        run: npx electron-builder ${{ matrix.settings.platform_flag }} --publish never --config electron-builder.config.ts
+        env:
+          # 没配证书时禁止 electron-builder 自动搜寻本机签名身份;配了则按 config 内部逻辑签名
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.APPLE_CERTIFICATE == '' && 'false' || '' }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_API_KEY: ${{ runner.temp }}/apple-api-key.p8
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+
+      # 幂等:Release 可能已被 publish-npm(或上次重跑)创建,存在就复用
+      - name: Create GitHub Release (if missing)
+        run: |
+          if gh release view "v${{ inputs.version }}" >/dev/null 2>&1; then
+            echo "release v${{ inputs.version }} already exists, skip create"
+          else
+            gh release create "v${{ inputs.version }}" \
+              --title "v${{ inputs.version }}" \
+              --notes "v${{ inputs.version }}" \
+              ${{ inputs.channel != 'prod' && '--prerelease' || '' }}
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 上传安装包与自动更新元数据(--clobber 允许补发重跑覆盖同名资产)
+      - name: Upload artifacts to Release
+        working-directory: packages/desktop
+        run: |
+          shopt -s nullglob
+          files=()
+          for f in dist/novaway-desktop-*; do files+=("$f"); done
+          for f in dist/latest*.yml; do files+=("$f"); done
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "no desktop artifacts found in dist/" >&2
+            exit 1
+          fi
+          gh release upload "v${{ inputs.version }}" "${files[@]}" --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

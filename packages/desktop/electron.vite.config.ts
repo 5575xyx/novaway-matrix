@@ -29,7 +29,10 @@ const NOVAWAY_MODELS_DEV = loadModelsDevSnapshot()
 const NOVAWAY_SERVER_DIST = "../novaway/dist/node"
 const NOVAWAY_MIGRATION_DIR = "../novaway/migration"
 
-const nodePtyPkg = `@lydell/node-pty-${process.platform}-${process.arch}`
+// CI 在 arm64 mac 上交叉打 x64 包时(prebuild 同款环境变量),pty 原生模块要按目标
+// 架构 externalize,而不是按构建机自身架构,否则 x64 包里会找不到 arm64 的预编译模块。
+const desktopArch = process.env.NOVAWAY_DESKTOP_NODE_ARCH ?? process.arch
+const nodePtyPkg = `@lydell/node-pty-${process.platform}-${desktopArch}`
 
 const sentry =
   process.env.SENTRY_AUTH_TOKEN && process.env.SENTRY_ORG && process.env.SENTRY_PROJECT

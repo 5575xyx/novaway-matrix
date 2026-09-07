@@ -16,7 +16,9 @@ const resourcesDir = join(process.cwd(), "resources")
 await $`bun ./scripts/copy-icons.ts ${channel}`
 await $`bun ./scripts/copy-metainfo.ts ${channel}`
 
-await $`cd ../NovaWay && bun script/build-node.ts`
+// 小心大小写:包目录是 packages/novaway(小写 n)。写 ../NovaWay 在 Windows/macOS 的
+// 大小写不敏感文件系统上碰巧能跑,在 Linux CI 上会直接 cd 失败。
+await $`cd ../novaway && bun script/build-node.ts`
 
 // 浏览器自动化 MCP 随安装包分发，避免打包后的桌面端依赖系统 npx 或联网拉取。
 const playwrightMcpDir = join(resourcesDir, "playwright-mcp")
@@ -24,6 +26,23 @@ const playwrightMcpCli = join(playwrightMcpDir, "node_modules", "@playwright", "
 if (!existsSync(playwrightMcpCli)) {
   console.log("Installing bundled Playwright MCP")
   await $`bun install --cwd ${playwrightMcpDir}`
+}
+
+// DBX MCP Server(数据库面板的 MCP 后端)整个 resources/dbx-mcp 不进 git —— 本地 vendor 的
+// node_modules 有 400+ MB(整仓依赖搬进来的),没法当源码提交。CI 全新 checkout 上这个目录
+// 不存在,所以从 npm 还原同版本的官方 tarball,再只装运行时依赖;better-sqlite3/keytar 等
+// 原生模块由下方 rebuildNativeModules 按随包分发的 Node.js ABI 重新编译。
+const DBX_MCP_VERSION = "0.4.21"
+const dbxMcpDir = join(resourcesDir, "dbx-mcp")
+const dbxMcpEntry = join(dbxMcpDir, "dist", "index.js")
+if (!existsSync(dbxMcpEntry)) {
+  console.log(`Vendoring bundled DBX MCP server @${DBX_MCP_VERSION} from npm`)
+  await $`mkdir -p ${dbxMcpDir}`
+  await $`npm pack @dbx-app/mcp-server@${DBX_MCP_VERSION} --pack-destination ${dbxMcpDir}`
+  const dbxMcpTarball = join(dbxMcpDir, `dbx-app-mcp-server-${DBX_MCP_VERSION}.tgz`)
+  await $`tar -xzf ${dbxMcpTarball} -C ${dbxMcpDir} --strip-components=1`
+  await $`rm -f ${dbxMcpTarball}`
+  await $`npm install --omit=dev --no-audit --no-fund`.cwd(dbxMcpDir)
 }
 
 // 打包环境下 DBX MCP Server 需要独立的 Node.js 运行时，避免 Electron ABI 与
@@ -103,6 +122,16 @@ async function rebuildNativeModules() {
   console.log("Native modules rebuilt")
 }
 
-const nodeTarget = getNodeTarget()
+// 随包分发的 Node.js 默认取构建机自身平台;CI 上在 arm64 mac 交叉打 x64 包时
+// (Intel runner 已收费),用 NOVAWAY_DESKTOP_NODE_ARCH=x64 指定目标架构,
+// 下面的 rebuildNativeModules 会用这个 x64 Node 重编出 x64 的原生模块。
+const nodeTarget = (() => {
+  const override = process.env.NOVAWAY_DESKTOP_NODE_ARCH
+  if (!override) return getNodeTarget()
+  const target = NODE_TARGETS.find((t) => t.platform === process.platform && t.arch === override)
+  if (!target) throw new Error(`Unsupported NOVAWAY_DESKTOP_NODE_ARCH: ${override}`)
+  return target
+})()
+
 await downloadNodeBinary(nodeTarget)
 await rebuildNativeModules()

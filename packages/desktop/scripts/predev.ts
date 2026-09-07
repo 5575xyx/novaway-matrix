@@ -10,4 +10,5 @@ process.env.TMPDIR = tmp
 
 await $`bun ./scripts/copy-icons.ts ${process.env.NovaWay_CHANNEL ?? "dev"}`
 
-await $`cd ../NovaWay && bun script/build-node.ts`
+// 包目录是 packages/novaway(小写 n);写 ../NovaWay 在 Linux 上会 cd 失败。
+await $`cd ../novaway && bun script/build-node.ts`

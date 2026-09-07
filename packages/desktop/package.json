@@ -5,6 +5,7 @@
   "type": "module",
   "license": "MIT",
   "homepage": "https://novaway.ai",
+  "description": "NovaWay desktop - AI coding & office agent powered by the same novaway core",
   "author": {
     "name": "NovaWay",
     "email": "hello@novaway.ai"
