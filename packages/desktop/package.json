@@ -13,9 +13,9 @@
   "scripts": {
     "typecheck": "tsgo -b",
     "predev": "bun ./scripts/predev.ts",
-    "dev": "node --max-old-space-size=3072 ./node_modules/electron-vite/bin/electron-vite.js dev",
+    "dev": "node scripts/electron-vite.mjs dev",
     "prebuild": "bun ./scripts/prebuild.ts",
-    "build": "node --max-old-space-size=4096 ./node_modules/electron-vite/bin/electron-vite.js build",
+    "build": "node scripts/electron-vite.mjs build",
     "preview": "electron-vite preview",
     "package": "electron-builder --config electron-builder.config.ts",
     "package:mac": "electron-builder --mac --config electron-builder.config.ts",
