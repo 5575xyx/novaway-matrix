@@ -90,10 +90,12 @@ async function downloadNodeBinary(target: ReturnType<typeof getNodeTarget>) {
 
   const extractDir = join(tmpDir, "extracted")
   mkdirSync(extractDir, { recursive: true })
+  // Windows 的 GNU tar 把 "D:\..." 绝对路径当 remote-host:path 解释(报 Cannot connect
+  // to D:)，所以 cd 进解压目录、用相对路径指向上一层压缩包；bsdtar/GNU tar 都适用。
   if (isWin) {
-    await $`tar -xf ${archivePath} -C ${extractDir}`
+    await $`cd ${extractDir} && tar -xf ${`../${filename}`}`
   } else {
-    await $`tar -xzf ${archivePath} -C ${extractDir}`
+    await $`cd ${extractDir} && tar -xzf ${`../${filename}`}`
   }
 
   const entries = readdirSync(extractDir).filter((entry) => entry.startsWith(`node-v${NODE_VERSION}`))
