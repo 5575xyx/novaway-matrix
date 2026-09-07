@@ -61,6 +61,10 @@ jobs:
     timeout-minutes: 90
     env:
       NOVAWAY_CHANNEL: ${{ inputs.channel }}
+      # secrets 上下文不能出现在 step 的 if 里(工作文件校验直接 Startup failure)，
+      # 所以在这里把「有没有配签名证书」折算成 env 标志，下面用 env.* 判断。
+      HAS_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE != '' }}
+      HAS_APPLE_API_KEY: ${{ secrets.APPLE_API_KEY_PATH != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -75,7 +79,7 @@ jobs:
           node-version: "24"
 
       - name: Import macOS code signing certificate
-        if: runner.os == 'macOS' && secrets.APPLE_CERTIFICATE != ''
+        if: runner.os == 'macOS' && env.HAS_APPLE_CERTIFICATE == 'true'
         uses: apple-actions/import-codesign-certs@8f3fb608891dd2244cdab3d69cd68c0d37a7fe93 # v2.0.0
         with:
           keychain: build
@@ -83,7 +87,7 @@ jobs:
           p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
 
       - name: Setup Apple API key (notarization)
-        if: runner.os == 'macOS' && secrets.APPLE_API_KEY_PATH != ''
+        if: runner.os == 'macOS' && env.HAS_APPLE_API_KEY == 'true'
         run: echo "${{ secrets.APPLE_API_KEY_PATH }}" > "$RUNNER_TEMP/apple-api-key.p8"
 
       - name: Install rpm tooling (linux only)
@@ -111,7 +115,7 @@ jobs:
         run: npx electron-builder ${{ matrix.settings.platform_flag }} --publish never --config electron-builder.config.ts
         env:
           # 没配证书时禁止 electron-builder 自动搜寻本机签名身份;配了则按 config 内部逻辑签名
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.APPLE_CERTIFICATE == '' && 'false' || '' }}
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ env.HAS_APPLE_CERTIFICATE == 'true' && '' || 'false' }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_API_KEY: ${{ runner.temp }}/apple-api-key.p8
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY }}
