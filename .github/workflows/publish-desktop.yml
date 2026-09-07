@@ -62,6 +62,10 @@ jobs:
     timeout-minutes: 90
     env:
       NOVAWAY_CHANNEL: ${{ inputs.channel }}
+      # 版本号必须 job 级可见:Prepare 用它写 package.json(electron-builder 产物元数据),
+      # Build 里 novaway 的 build-node.ts 把它打进 server bundle 的 NovaWay_VERSION 全局 ——
+      # 只挂在 Prepare 上的话,server bundle 会 fallback 成 0.0.0-<channel>-<时间戳>。
+      NOVAWAY_VERSION: ${{ inputs.version }}
       # secrets 上下文不能出现在 step 的 if 里(工作文件校验直接 Startup failure)，
       # 所以在这里把「有没有配签名证书」折算成 env 标志，下面用 env.* 判断。
       HAS_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE != '' }}
@@ -111,7 +115,6 @@ jobs:
         working-directory: packages/desktop
         run: bun ./scripts/prepare.ts
         env:
-          NOVAWAY_VERSION: ${{ inputs.version }}
           NOVAWAY_DESKTOP_NODE_ARCH: ${{ matrix.settings.node_arch }}
 
       - name: Build (electron-vite)
