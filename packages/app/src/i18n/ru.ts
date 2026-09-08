@@ -96,6 +96,7 @@ export const dict = {
   "dialog.provider.search.placeholder": "Поиск провайдеров",
   "dialog.provider.empty": "Провайдеры не найдены",
   "dialog.provider.group.popular": "Популярные",
+  "dialog.provider.group.free": "Бесплатный доступ",
   "dialog.provider.group.other": "Другие",
   "dialog.provider.tag.recommended": "Рекомендуемые",
   "dialog.provider.NovaWay.note": "Отобранные модели, включая Claude, GPT, Gemini и другие",

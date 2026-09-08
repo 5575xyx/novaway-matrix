@@ -92,6 +92,7 @@ export const dict = {
   "dialog.provider.search.placeholder": "Anbieter durchsuchen",
   "dialog.provider.empty": "Keine Anbieter gefunden",
   "dialog.provider.group.popular": "Beliebt",
+  "dialog.provider.group.free": "Kostenloser Zugang",
   "dialog.provider.group.other": "Andere",
   "dialog.provider.tag.recommended": "Empfohlen",
   "dialog.provider.NovaWay.note": "Kuratierte Modelle inklusive Claude, GPT, Gemini und mehr",

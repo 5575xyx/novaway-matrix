@@ -252,6 +252,7 @@ export const DialogManageProviderModels: Component<{
     setFetching(keyIndex, true)
     try {
       const models = await fetchOpenAICompatibleModels({
+        providerID: props.providerID,
         baseURL: url,
         apiKey: key,
         discover: async (payload) =>

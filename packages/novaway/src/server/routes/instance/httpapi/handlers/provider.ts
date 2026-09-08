@@ -15,6 +15,7 @@ import {
   ProviderModelDiscoveryResult,
 } from "../groups/provider"
 import { discoverProviderModels, ModelDiscoveryError } from "@/provider/model-discovery"
+import { filterRemoteModelsToFree } from "@novaway/core/free-provider-policy"
 
 function mapProviderAuthError<A, R>(self: Effect.Effect<A, ProviderAuth.Error, R>) {
   return self.pipe(
@@ -81,7 +82,16 @@ export const providerHandlers = HttpApiBuilder.group(InstanceHttpApi, "provider"
           })
         }),
       )
-      return ProviderModelDiscoveryResult.make({ models: discovered })
+      return ProviderModelDiscoveryResult.make({
+        models: filterRemoteModelsToFree(ctx.payload.providerID ?? "", discovered).map((model) => ({
+          id: model.id,
+          name: model.name,
+          ...(model.inputModalities ? { inputModalities: model.inputModalities } : {}),
+          ...(model.outputModalities ? { outputModalities: model.outputModalities } : {}),
+          ...(model.contextLength !== undefined ? { contextLength: model.contextLength } : {}),
+          ...(model.pricing ? { pricing: model.pricing } : {}),
+        })),
+      })
     })
 
     const authorize = Effect.fn("ProviderHttpApi.authorize")(function* (ctx: {

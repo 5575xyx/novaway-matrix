@@ -1,3 +1,4 @@
+import { filterRemoteModelsToFree } from "@novaway/core/free-provider-policy"
 import { parseRemoteProviderModels, type RemoteProviderModel } from "@novaway/core/openai-compatible"
 
 export type { RemoteProviderModel } from "@novaway/core/openai-compatible"
@@ -12,13 +13,19 @@ export function remoteModelType(model: RemoteProviderModel): RemoteModelType {
   return "text"
 }
 
+export function filterFreeProviderModels(providerID: string | undefined, models: RemoteProviderModel[]) {
+  return providerID ? filterRemoteModelsToFree(providerID, models) : models
+}
+
 type DiscoveryPayload = {
+  providerID?: string
   baseURL: string
   apiKey: string
   headers?: Record<string, string>
 }
 
 export async function fetchOpenAICompatibleModels(input: {
+  providerID?: string
   baseURL: string
   apiKey: string
   headers?: Record<string, string>
@@ -26,6 +33,7 @@ export async function fetchOpenAICompatibleModels(input: {
 }) {
   const response = await input
     .discover({
+      ...(input.providerID ? { providerID: input.providerID } : {}),
       baseURL: input.baseURL,
       apiKey: input.apiKey,
       ...(input.headers ? { headers: input.headers } : {}),
@@ -44,5 +52,7 @@ export async function fetchOpenAICompatibleModels(input: {
   const models = typeof result === "object" && result !== null ? Reflect.get(result, "models") : undefined
   const parsed = parseRemoteProviderModels(models)
   if (parsed.length === 0) throw new Error("模型发现接口没有返回可识别的模型")
-  return parsed
+  const filtered = filterFreeProviderModels(input.providerID, parsed)
+  if (filtered.length === 0 && input.providerID) throw new Error("该免费供应商没有返回可免费使用的模型")
+  return filtered
 }

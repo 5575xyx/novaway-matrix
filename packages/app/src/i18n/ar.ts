@@ -88,6 +88,7 @@ export const dict = {
   "dialog.provider.search.placeholder": "البحث عن موفرين",
   "dialog.provider.empty": "لم يتم العثور على موفرين",
   "dialog.provider.group.popular": "شائع",
+  "dialog.provider.group.free": "وصول مجاني",
   "dialog.provider.group.other": "آخر",
   "dialog.provider.tag.recommended": "موصى به",
   "dialog.provider.NovaWay.note": "نماذج مختارة تتضمن Claude و GPT و Gemini والمزيد",

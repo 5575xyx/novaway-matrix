@@ -1163,6 +1163,31 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
     void exit()
   })
 
+  // 静默自动更新(patch 版本,worker 里跑)的结果反馈。此前成败都无声:失败被 .catch 吞掉,
+  // npmmirror 二进制包滞后时 0.1.6→0.1.7 的静默失败实际发生过,用户停在旧版还毫不知情。
+  // update-failed 是服务端新加的事件,SDK 类型联合还没重新生成,所以统一走 subscribe
+  // 手动收窄,不走类型安全的 event.on。
+  event.subscribe((evt) => {
+    if (evt.type === "installation.updated") {
+      toast.show({
+        variant: "success",
+        title: "自动更新完成",
+        message: `已自动更新到 v${evt.properties.version}，重启后生效`,
+        duration: 8000,
+      })
+      return
+    }
+    if ((evt.type as string) === "installation.update-failed") {
+      const { version, reason } = evt.properties as { version: string; reason: string }
+      toast.show({
+        variant: "error",
+        title: "自动更新失败",
+        message: `更新到 v${version} 没成功：${reason}。可稍后运行 novaway upgrade 手动更新`,
+        duration: 12000,
+      })
+    }
+  })
+
   // 版本握手:客户端(二进制)连到的是另一套版本的服务端时(--port/--attach、桌面端
   // sidecar),服务端没有的路由会命中 catch-all 返回 HTML,SDK 直接抛错把会话炸掉。
   // 启动时先探一次 /global/health,不一致就明说,让用户重启服务端,而不是看崩溃屏。

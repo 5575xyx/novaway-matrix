@@ -19,10 +19,113 @@ import { useClipboard } from "../context/clipboard"
 const PROVIDER_PRIORITY: Record<string, number> = {
   NovaWay: 0,
   "NovaWay-go": 1,
-  openai: 2,
-  "github-copilot": 3,
-  anthropic: 4,
-  google: 5,
+  sensenova: 2,
+  modelscope: 3,
+  iflowcn: 4,
+  openrouter: 5,
+  zhipuai: 6,
+  agnes: 7,
+  google: 8,
+  groq: 9,
+  nvidia: 10,
+  kilo: 11,
+  "siliconflow-cn": 12,
+  openai: 13,
+  "github-copilot": 14,
+  anthropic: 15,
+}
+
+// 免费通道的「免费性质」决定了徽章措辞：
+// - 免费：模型定价就是 0
+// - 限速免费：key 的免费层限速可用，模型本身有标价（Gemini、Groq）
+// - 免费额度：注册送固定次数，用完转付费（NVIDIA NIM）
+// 徽章只出现在接入引导里；模型选择器的免费标记仍以价格为准。
+type FreeBadge = "免费" | "限速免费" | "免费额度"
+
+// 有免费档的供应商策展：用户粘一个 key 就能直接用上一批免费模型。
+// 免费政策随时会变，文案写「亮点」别写死承诺；keyUrl 只放稳定的官网/控制台入口。
+// 数据核对日期：2026-09（来源 models.dev 目录 + 各家官方说明 + 厂商 live 接口实测）。
+const FREE_PROVIDERS: Record<
+  string,
+  { badge: FreeBadge; tagline: string; keyUrl: string; keyHint: string; steps: string[] }
+> = {
+  sensenova: {
+    badge: "免费",
+    tagline: "免费模型最多：GLM-5.2、DeepSeek-V4-Pro、Kimi-K3 等",
+    keyUrl: "https://platform.sensenova.cn",
+    keyHint: "platform.sensenova.cn",
+    steps: ["注册商汤开放平台账号，在控制台的「API 密钥」页面创建密钥"],
+  },
+  modelscope: {
+    badge: "免费",
+    tagline: "海量开源模型每日免费额度：Qwen3、DeepSeek、GLM 等全系",
+    keyUrl: "https://modelscope.cn/my/myaccesstoken",
+    keyHint: "modelscope.cn → 访问令牌",
+    steps: ["注册魔搭社区账号，在「访问令牌」页面一键复制 API-KEY"],
+  },
+  iflowcn: {
+    badge: "免费",
+    tagline: "全部免费：Qwen3-Coder-Plus、GLM-4.6、Kimi-K2、DeepSeek-V3.2",
+    keyUrl: "https://iflow.cn",
+    keyHint: "iflow.cn",
+    steps: ["注册心流账号，在个人中心的 API 密钥页面创建密钥"],
+  },
+  openrouter: {
+    badge: "免费",
+    tagline: "21 个免费模型（认准 :free 后缀），每天 50 次",
+    keyUrl: "https://openrouter.ai/settings/keys",
+    keyHint: "openrouter.ai → Keys",
+    steps: ["注册 OpenRouter 后创建 API Key；充值 $10 可把免费额度提到 1000 次/天"],
+  },
+  zhipuai: {
+    badge: "免费",
+    tagline: "GLM-4.7-Flash / GLM-4.5-Flash / GLM-4-Flash 免费，写码够用",
+    keyUrl: "https://open.bigmodel.cn",
+    keyHint: "open.bigmodel.cn",
+    steps: ["注册智谱开放平台，在「API 密钥」页面创建密钥"],
+  },
+  agnes: {
+    badge: "免费",
+    tagline: "Agnes-2.5-Flash / Agnes-2.0-Flash 免费",
+    keyUrl: "https://www.agnes-ai.com",
+    keyHint: "agnes-ai.com",
+    steps: ["注册 Agnes AI，在 API Hub 创建密钥"],
+  },
+  google: {
+    badge: "限速免费",
+    tagline: "免费档限速：Gemini Flash 系列每天 250～1000 次，无需信用卡",
+    keyUrl: "https://aistudio.google.com/apikey",
+    keyHint: "aistudio.google.com → API 密钥",
+    steps: ["打开 Google AI Studio，一键创建 API 密钥（免费档的对话数据会用于模型改进）"],
+  },
+  groq: {
+    badge: "限速免费",
+    tagline: "免费档速度极快：Llama 3.3 70B 等每天上万次请求",
+    keyUrl: "https://console.groq.com/keys",
+    keyHint: "console.groq.com → API Keys",
+    steps: ["打开 Groq 控制台注册并创建 API Key"],
+  },
+  nvidia: {
+    badge: "免费额度",
+    tagline: "注册送 1000 次推理额度，用完转付费：Llama、Nemotron、DeepSeek 等 80+ 模型",
+    keyUrl: "https://build.nvidia.com",
+    keyHint: "build.nvidia.com",
+    steps: ["打开 build.nvidia.com 注册登录，在任意模型页点「Get API Key」创建密钥"],
+  },
+  kilo: {
+    badge: "免费",
+    tagline: "聚合网关免费池：MiniMax-M3、Nemotron、Ling 等 17+ 免费模型",
+    keyUrl: "https://www.kilo.ai",
+    keyHint: "kilo.ai",
+    steps: ["注册 Kilo，在控制台创建 API Key"],
+  },
+  "siliconflow-cn": {
+    badge: "免费",
+    tagline: "部分模型永久免费：Qwen3.5-4B、DeepSeek-OCR 等，注册另送体验额度",
+    keyUrl: "https://cloud.siliconflow.cn/account/ak",
+    keyHint: "cloud.siliconflow.cn → API 密钥",
+    steps: ["注册硅基流动，在「API 密钥」页面新建密钥"],
+  },
 }
 
 const CUSTOM_PROVIDER_OPTION_VALUE = "__NovaWay_custom_provider__"
@@ -53,19 +156,24 @@ export function providerOptions(list: { id: string; name: string }[]): ProviderO
         (x) => x.name.toLowerCase(),
         (x) => x.id,
       ),
-      map((provider) => ({
-        type: "provider" as const,
-        title: provider.name,
-        value: provider.id,
-        providerID: provider.id,
-        description: {
-          NovaWay: "(推荐)",
-          anthropic: "(API 密钥)",
-          openai: "(ChatGPT Plus/Pro 或 API 密钥)",
-          "NovaWay-go": "低成本订阅，适合所有人",
-        }[provider.id],
-        category: provider.id in PROVIDER_PRIORITY ? "热门" : "提供商",
-      })),
+      map((provider) => {
+        const free = FREE_PROVIDERS[provider.id]
+        return {
+          type: "provider" as const,
+          title: provider.name,
+          value: provider.id,
+          providerID: provider.id,
+          description: free
+            ? `（${free.badge}）${free.tagline}`
+            : {
+                NovaWay: "(推荐)",
+                anthropic: "(API 密钥)",
+                openai: "(ChatGPT Plus/Pro 或 API 密钥)",
+                "NovaWay-go": "低成本订阅，适合所有人",
+              }[provider.id],
+          category: free ? "免费接入" : provider.id in PROVIDER_PRIORITY ? "热门" : "提供商",
+        }
+      }),
     ),
     {
       type: "custom",
@@ -366,32 +474,44 @@ function ApiMethod(props: ApiMethodProps) {
     <DialogPrompt
       title={props.title}
       placeholder="API 密钥"
-      description={() =>
-        ({
-          NovaWay: (
+      description={() => {
+        const free = FREE_PROVIDERS[props.providerID]
+        if (free) {
+          return (
             <box gap={1}>
-              <text fg={theme.textMuted}>
-                NovaWay Zen gives you access to all the best coding models at the cheapest prices with a single API
-                key.
-              </text>
-              <text fg={theme.text}>
-                Go to <span style={{ fg: theme.primary }}>https://NovaWay.ai/zen</span> to get a key
-              </text>
+              <text fg={theme.textMuted}>{free.tagline}</text>
+              <text fg={theme.text}>获取密钥：打开 {free.keyHint}</text>
+              <text fg={theme.textMuted}>{free.steps.join("；")}</text>
             </box>
-          ),
-          "NovaWay-go": (
-            <box gap={1}>
-              <text fg={theme.textMuted}>
-                NovaWay Go is a $10 per month subscription that provides reliable access to popular open coding models
-                with generous usage limits.
-              </text>
-              <text fg={theme.text}>
-                Go to <span style={{ fg: theme.primary }}>https://NovaWay.ai/go</span> and enable NovaWay Go
-              </text>
-            </box>
-          ),
-        })[props.providerID] ?? undefined
-      }
+          )
+        }
+        return (
+          ({
+            NovaWay: (
+              <box gap={1}>
+                <text fg={theme.textMuted}>
+                  NovaWay Zen gives you access to all the best coding models at the cheapest prices with a single API
+                  key.
+                </text>
+                <text fg={theme.text}>
+                  Go to <span style={{ fg: theme.primary }}>https://NovaWay.ai/zen</span> to get a key
+                </text>
+              </box>
+            ),
+            "NovaWay-go": (
+              <box gap={1}>
+                <text fg={theme.textMuted}>
+                  NovaWay Go is a $10 per month subscription that provides reliable access to popular open coding models
+                  with generous usage limits.
+                </text>
+                <text fg={theme.text}>
+                  Go to <span style={{ fg: theme.primary }}>https://NovaWay.ai/go</span> and enable NovaWay Go
+                </text>
+              </box>
+            ),
+          })[props.providerID]
+        )
+      }}
       onConfirm={async (value) => {
         if (!value) return
         await sdk.client.auth.set({

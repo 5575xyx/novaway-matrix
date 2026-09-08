@@ -100,6 +100,7 @@ export const dict = {
   "dialog.provider.search.placeholder": "搜尋提供者",
   "dialog.provider.empty": "找不到提供者",
   "dialog.provider.group.popular": "熱門",
+  "dialog.provider.group.free": "免費接入",
   "dialog.provider.group.other": "其他",
   "dialog.provider.tag.recommended": "推薦",
   "dialog.provider.NovaWay.note": "精選模型，包含 Claude、GPT、Gemini 等等",

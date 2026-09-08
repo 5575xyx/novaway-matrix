@@ -7,6 +7,7 @@ import { Tag } from "@novaway/ui/tag"
 import { ProviderIcon } from "@novaway/ui/provider-icon"
 import { useLanguage } from "@/context/language"
 import { useGlobalSDK } from "@/context/global-sdk"
+import { providerGroup, providerGroupOrder } from "@/utils/provider-groups"
 
 type ProviderOption = {
   id: string
@@ -24,8 +25,13 @@ export const DialogSelectProviderForCustom: Component<Props> = (props) => {
   const language = useLanguage()
   const globalSDK = useGlobalSDK()
 
+  const freeGroup = () => language.t("dialog.provider.group.free")
   const popularGroup = () => language.t("dialog.provider.group.popular")
   const otherGroup = () => language.t("dialog.provider.group.other")
+  const groupLabel = (id: string) => {
+    const group = providerGroup(id)
+    return group === "free" ? freeGroup() : group === "popular" ? popularGroup() : otherGroup()
+  }
   const customLabel = () => language.t("settings.providers.tag.custom")
   const note = (id: string) => {
     if (id === "anthropic") return language.t("dialog.provider.anthropic.note")
@@ -61,17 +67,18 @@ export const DialogSelectProviderForCustom: Component<Props> = (props) => {
           return providers.all()
         }}
         filterKeys={["id", "name"]}
-        groupBy={(x) => (popularProviders.includes(x.id) ? popularGroup() : otherGroup())}
+        groupBy={(x) => groupLabel(x.id)}
         sortBy={(a, b) => {
+          const order = providerGroupOrder(providerGroup(a.id)) - providerGroupOrder(providerGroup(b.id))
+          if (order !== 0) return order
           if (popularProviders.includes(a.id) && popularProviders.includes(b.id))
             return popularProviders.indexOf(a.id) - popularProviders.indexOf(b.id)
           return a.name.localeCompare(b.name)
         }}
         sortGroupsBy={(a, b) => {
-          const popular = popularGroup()
-          if (a.category === popular && b.category !== popular) return -1
-          if (b.category === popular && a.category !== popular) return 1
-          return 0
+          const group = (category: string) =>
+            category === freeGroup() ? "free" : category === popularGroup() ? "popular" : "other"
+          return providerGroupOrder(group(a.category)) - providerGroupOrder(group(b.category))
         }}
         onSelect={handleSelect}
       >

@@ -96,6 +96,7 @@ export const dict = {
   "dialog.provider.search.placeholder": "Søg udbydere",
   "dialog.provider.empty": "Ingen udbydere fundet",
   "dialog.provider.group.popular": "Populære",
+  "dialog.provider.group.free": "Gratis adgang",
   "dialog.provider.group.other": "Andre",
   "dialog.provider.tag.recommended": "Anbefalet",
   "dialog.provider.NovaWay.note": "Udvalgte modeller inklusive Claude, GPT, Gemini og flere",

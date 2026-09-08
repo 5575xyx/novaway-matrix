@@ -2100,6 +2100,7 @@ export type ProviderAuthMethod = {
 }
 
 export type ProviderModelDiscoveryPayload = {
+  providerID?: string
   baseURL: string
   apiKey: string
   headers?: {
@@ -2113,6 +2114,11 @@ export type ProviderModelDiscoveryResult = {
     name: string
     inputModalities?: Array<string>
     outputModalities?: Array<string>
+    contextLength?: number
+    pricing?: {
+      prompt: number | null
+      completion: number | null
+    }
   }>
 }
 

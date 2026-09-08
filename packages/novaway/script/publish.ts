@@ -203,6 +203,68 @@ if (missing.length > 0) {
 }
 console.log(`✅ ${MAIN_PACKAGE}@${version} + ${Object.keys(binaries).length} 个平台包全部在 registry 上验证通过`)
 
+// 国内用户大多把 npm registry 指到 npmmirror,而它的同步是惰性的:主包常常几分钟就跟上,
+// 平台二进制包却可能滞后几小时 —— 0.1.6→0.1.7 那次就是主包到了、windows-x64 没到,
+// 镜像用户的自动更新 `npm i -g xymt-novaway@0.1.7` 解析 optionalDependencies 失败,
+// 又被升级链路的三层 .catch 静默吞掉,用户毫无感知地停在旧版。所以发布收尾时主动触发
+// npmmirror 的同步接口,并等到镜像真的供上新版本才收工;等不到就大声报警 + 给出手动命令
+// (不判发布失败:源 registry 已完整,镜像只是慢)。NOVAWAY_SKIP_MIRROR_SYNC=true 可整个跳过。
+const MIRROR = "https://registry-direct.npmmirror.com"
+
+async function mirrorVersion(name: string, tag: string) {
+  const res = await fetch(`${MIRROR}/${encodeURIComponent(name)}/${encodeURIComponent(tag)}?_=${Date.now()}`, {
+    headers: { "cache-control": "no-cache", pragma: "no-cache" },
+    signal: AbortSignal.timeout(30000),
+  }).catch(() => undefined)
+  if (!res || res.status !== 200) return undefined
+  const body = (await res.json().catch(() => undefined)) as { version?: string } | undefined
+  return body?.version
+}
+
+async function syncNpmmirror(entries: [string, string][]) {
+  if (process.env.NOVAWAY_SKIP_MIRROR_SYNC === "true") {
+    console.log("⏭️  NOVAWAY_SKIP_MIRROR_SYNC=true,跳过 npmmirror 同步")
+    return
+  }
+  console.log(`\n🔄 触发 npmmirror 同步（${entries.length} 个包）...`)
+  for (const [name] of entries) {
+    const ok = await fetch(`${MIRROR}/-/package/${encodeURIComponent(name)}/syncs`, {
+      method: "PUT",
+      signal: AbortSignal.timeout(30000),
+    })
+      .then((res) => res.ok)
+      .catch((error) => {
+        console.error(`   ⚠️ 同步触发请求失败 ${name}: ${error}`)
+        return false
+      })
+    console.log(`   ${ok ? "已触发" : "⚠️ 触发失败（仍会轮询确认）"}: ${name}`)
+  }
+  const timeoutMinutes = Number(process.env.NOVAWAY_MIRROR_SYNC_TIMEOUT ?? 10)
+  if (!(timeoutMinutes > 0)) {
+    console.log("⏭️  NOVAWAY_MIRROR_SYNC_TIMEOUT<=0,只触发不等待")
+    return
+  }
+  const pending = [...entries]
+  const deadline = Date.now() + timeoutMinutes * 60_000
+  while (pending.length > 0) {
+    for (const [name, version] of [...pending]) {
+      if ((await mirrorVersion(name, Script.channel)) === version) pending.splice(pending.findIndex(([n]) => n === name), 1)
+    }
+    if (pending.length === 0) break
+    if (Date.now() > deadline) {
+      console.error(`⚠️  ${timeoutMinutes} 分钟后 npmmirror 仍未供上：${pending.map(([n, v]) => `${n}@${v}`).join(", ")}`)
+      console.error(`   源 registry 已完整,发布继续;但镜像用户的自动更新会静默失败。手动补同步:`)
+      for (const [name] of pending) console.error(`   curl -X PUT ${MIRROR}/-/package/${name}/syncs`)
+      return
+    }
+    console.log(`⏳ 等待 npmmirror 供上（剩 ${Math.ceil((deadline - Date.now()) / 60_000)} 分钟）：${pending.map(([n]) => n).join(", ")}`)
+    await sleep(30000)
+  }
+  console.log(`✅ npmmirror 已供上全部 ${entries.length} 个包,镜像用户的自动更新可用`)
+}
+
+await syncNpmmirror([...Object.entries(binaries), [MAIN_PACKAGE, version]])
+
 const image = "ghcr.io/anomalyco/opencode"
 const platforms = "linux/amd64,linux/arm64"
 const tags = [`${image}:${version}`, `${image}:${Script.channel}`]

@@ -8,6 +8,11 @@ export type RemoteProviderModel = {
   name: string
   inputModalities?: string[]
   outputModalities?: string[]
+  contextLength?: number
+  pricing?: {
+    prompt: number | null
+    completion: number | null
+  }
 }
 
 const STANDARD_CHAT_COMPLETIONS_PATH = "/chat/completions"
@@ -56,6 +61,25 @@ export function parseRemoteProviderModels(payload: unknown): RemoteProviderModel
         model.inputModalities = inputModalities.filter((item): item is string => typeof item === "string")
       if (Array.isArray(outputModalities))
         model.outputModalities = outputModalities.filter((item): item is string => typeof item === "string")
+      const toNumber = (value: unknown) => {
+        if (typeof value !== "string" && typeof value !== "number") return null
+        const parsed = Number(value)
+        return Number.isFinite(parsed) ? parsed : null
+      }
+      // OpenRouter 风格的定价块（字符串数值，单位：美元/百万 token）。有就带上，
+      // 让上层能按「prompt=0 且 completion=0」精确判定免费，不依赖 :free 后缀。
+      const pricing = Reflect.get(row, "pricing")
+      if (typeof pricing === "object" && pricing !== null) {
+        const prompt = Reflect.get(pricing, "prompt")
+        const completion = Reflect.get(pricing, "completion")
+        const parsedPrompt = toNumber(prompt)
+        const parsedCompletion = toNumber(completion)
+        if (parsedPrompt !== null || parsedCompletion !== null) {
+          model.pricing = { prompt: parsedPrompt, completion: parsedCompletion }
+        }
+      }
+      const contextLength = toNumber(Reflect.get(row, "context_length"))
+      if (contextLength !== null && contextLength > 0) model.contextLength = contextLength
       return model
     })
     .filter((model): model is RemoteProviderModel => {

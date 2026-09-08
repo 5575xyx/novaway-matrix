@@ -6,6 +6,7 @@ import { ProviderIcon } from "@novaway/ui/provider-icon"
 import { useLanguage } from "@/context/language"
 import { popularProviders, useProviders } from "@/hooks/use-providers"
 import { useGlobalSDK } from "@/context/global-sdk"
+import { providerGroup, providerGroupOrder } from "@/utils/provider-groups"
 
 type ProviderOption = {
   id: string
@@ -29,8 +30,13 @@ export function SelectProviderCombobox(props: Props) {
   const [open, setOpen] = createSignal(false)
   const [query, setQuery] = createSignal("")
 
+  const freeGroup = () => language.t("dialog.provider.group.free")
   const popularGroup = () => language.t("dialog.provider.group.popular")
   const otherGroup = () => language.t("dialog.provider.group.other")
+  const groupLabel = (id: string) => {
+    const group = providerGroup(id)
+    return group === "free" ? freeGroup() : group === "popular" ? popularGroup() : otherGroup()
+  }
 
   const note = (id: string) => {
     if (id === "anthropic") return language.t("dialog.provider.anthropic.note")
@@ -70,14 +76,14 @@ export function SelectProviderCombobox(props: Props) {
   const grouped = createMemo(() => {
     const groups = pipe(
       filtered(),
-      groupBy((x) => (popularProviders.includes(x.id) ? popularGroup() : otherGroup())),
+      groupBy((x) => groupLabel(x.id)),
       entries(),
       map(([k, v]) => ({ category: k, options: v })),
     )
     return groups.sort((a, b) => {
-      if (a.category === popularGroup()) return -1
-      if (b.category === popularGroup()) return 1
-      return 0
+      const group = (category: string) =>
+        category === freeGroup() ? "free" : category === popularGroup() ? "popular" : "other"
+      return providerGroupOrder(group(a.category)) - providerGroupOrder(group(b.category))
     })
   })
 

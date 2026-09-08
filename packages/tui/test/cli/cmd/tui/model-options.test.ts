@@ -1,19 +1,36 @@
 import { describe, expect, test } from "bun:test"
-import { displayModelGroup, displayModelName, sortModelOptions } from "../../../../src/component/dialog-model"
+import { displayModelGroup, displayModelName, joinDescription, sortModelOptions } from "../../../../src/component/dialog-model"
 
 describe("displayModelName", () => {
-  test("removes the trailing Free suffix from free NovaWay models", () => {
+  test("removes the trailing Free suffix from free models of any provider", () => {
     expect(displayModelName("Hy3 Free", "NovaWay", true)).toBe("Hy3")
     expect(displayModelName("Nemotron 3 Ultra Free", "NovaWay", true)).toBe("Nemotron 3 Ultra")
     expect(displayModelName("Ox Alpha Free (Unlimited)", "NovaWay", true)).toBe("Ox Alpha (Unlimited)")
   })
 
-  test("keeps other model names unchanged", () => {
+  test("strips free markers from free-tier catalogs (OpenRouter style)", () => {
+    expect(displayModelName("DeepSeek V4 Flash:free", "openrouter", true)).toBe("DeepSeek V4 Flash")
+    expect(displayModelName("Gemma 4 31B (free)", "openrouter", true)).toBe("Gemma 4 31B")
+    expect(displayModelName("Kimi K3 Free", "sensenova", true)).toBe("Kimi K3")
+  })
+
+  test("keeps non-free model names unchanged", () => {
     expect(displayModelName("Big Pickle", "NovaWay", true)).toBe("Big Pickle")
     expect(displayModelName("Free Model", "NovaWay", true)).toBe("Free Model")
     expect(displayModelName("Muse Free Spark", "NovaWay", true)).toBe("Muse Free Spark")
-    expect(displayModelName("Other Free", "other", true)).toBe("Other Free")
-    expect(displayModelName("Other Free", "NovaWay", false)).toBe("Other Free")
+    expect(displayModelName("Other Free", "other", false)).toBe("Other Free")
+  })
+})
+
+describe("joinDescription", () => {
+  test("appends the free marker to the base description", () => {
+    expect(joinDescription("OpenRouter", true)).toBe("OpenRouter · 免费")
+    expect(joinDescription(undefined, true)).toBe("免费")
+  })
+
+  test("keeps the base description unchanged for paid models", () => {
+    expect(joinDescription("Anthropic", false)).toBe("Anthropic")
+    expect(joinDescription(undefined, false)).toBeUndefined()
   })
 })
 

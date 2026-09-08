@@ -99,6 +99,7 @@ export const dict = {
   "dialog.provider.search.placeholder": "Søk etter leverandører",
   "dialog.provider.empty": "Ingen leverandører funnet",
   "dialog.provider.group.popular": "Populære",
+  "dialog.provider.group.free": "Gratis tilgang",
   "dialog.provider.group.other": "Andre",
   "dialog.provider.tag.recommended": "Anbefalt",
   "dialog.provider.NovaWay.note": "Utvalgte modeller inkludert Claude, GPT, Gemini og mer",
