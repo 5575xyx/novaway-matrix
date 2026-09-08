@@ -31,6 +31,7 @@ export class ProviderAuthApiError extends Schema.ErrorClass<ProviderAuthApiError
 ) {}
 
 export const ProviderModelDiscoveryPayload = Schema.Struct({
+  providerID: Schema.optional(ProviderID),
   baseURL: Schema.String,
   apiKey: Schema.String,
   headers: Schema.optional(Schema.Record(Schema.String, Schema.String)),
@@ -43,6 +44,13 @@ export const ProviderModelDiscoveryResult = Schema.Struct({
       name: Schema.String,
       inputModalities: Schema.optional(Schema.Array(Schema.String)),
       outputModalities: Schema.optional(Schema.Array(Schema.String)),
+      contextLength: Schema.optional(Schema.Number),
+      pricing: Schema.optional(
+        Schema.Struct({
+          prompt: Schema.NullOr(Schema.Number),
+          completion: Schema.NullOr(Schema.Number),
+        }),
+      ),
     }),
   ),
 }).annotate({ identifier: "ProviderModelDiscoveryResult" })

@@ -39,6 +39,15 @@ export const Event = {
       version: Schema.String,
     }),
   ),
+  // 静默自动更新(patch)失败时发出。此前失败被 .catch 吞掉,镜像滞后等场景下
+  // 用户停在旧版还毫不知情(0.1.6→0.1.7 实际发生过)。
+  UpdateFailed: BusEvent.define(
+    "installation.update-failed",
+    Schema.Struct({
+      version: Schema.String,
+      reason: Schema.String,
+    }),
+  ),
 }
 
 export function getReleaseType(current: string, latest: string): ReleaseType {

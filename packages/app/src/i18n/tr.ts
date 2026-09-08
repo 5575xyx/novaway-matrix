@@ -100,6 +100,7 @@ export const dict = {
   "dialog.provider.search.placeholder": "Sağlayıcı ara",
   "dialog.provider.empty": "Sağlayıcı bulunamadı",
   "dialog.provider.group.popular": "Popüler",
+  "dialog.provider.group.free": "Ücretsiz erişim",
   "dialog.provider.group.other": "Diğer",
   "dialog.provider.tag.recommended": "Önerilen",
   "dialog.provider.NovaWay.note": "Claude, GPT, Gemini ve daha fazlasını içeren seçilmiş modeller",

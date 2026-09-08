@@ -151,6 +151,7 @@ export const dict = {
   "dialog.provider.search.placeholder": "搜索供应商",
   "dialog.provider.empty": "未找到供应商",
   "dialog.provider.group.popular": "热门",
+  "dialog.provider.group.free": "免费接入",
   "dialog.provider.group.other": "其他",
   "dialog.provider.tag.recommended": "推荐",
   "dialog.provider.NovaWay.note": "使用 NovaWay Zen 或 API 密钥连接",

@@ -28,6 +28,16 @@ import * as ProviderTransform from "./transform"
 import { ModelID, ProviderID } from "./schema"
 import { ModelStatus } from "./model-status"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import {
+  discoverFreeProviderModels,
+  discoverFreeProviderSnapshot,
+  filterCatalogToFreeModels,
+  shouldPruneStale,
+  KILO_FREE_MODEL_IDS,
+  SILICONFLOW_FREE_MODEL_IDS,
+  AGNES_FREE_MODEL_IDS,
+  type FreeDiscoverySnapshot,
+} from "./freeproviders"
 
 const log = Log.create({ service: "provider" })
 
@@ -131,13 +141,18 @@ const BUNDLED_PROVIDERS: Record<string, () => Promise<(opts: any) => BundledSDK>
 
 type CustomModelLoader = (sdk: any, modelID: string, options?: Record<string, any>) => Promise<any>
 type CustomVarsLoader = (options: Record<string, any>) => Record<string, string>
-type CustomDiscoverModels = () => Promise<Record<string, Model>>
+type CustomDiscoverModels = () => Promise<Record<string, Model> | FreeDiscoverySnapshot>
 type CustomLoader = (provider: Info) => Effect.Effect<{
   autoload: boolean
   getModel?: CustomModelLoader
   vars?: CustomVarsLoader
   options?: Record<string, any>
+  models?: Record<string, Model>
+  replaceModels?: boolean
   discoverModels?: CustomDiscoverModels
+  // 免费通道专用：discoverModels 返回的是厂商 live 全量列表时，
+  // 允许把「目录有但 live 没有」的模型清掉（须通过 shouldPruneStale 的防误杀检查）
+  discoverPrune?: boolean
 }>
 
 type CustomDep = {
@@ -181,12 +196,16 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
         Boolean(yield* dep.auth(input.id)) ||
         Boolean((yield* dep.config()).provider?.["opencode"]?.options?.apiKey)
 
-      if (!ok) {
-        for (const [key, value] of Object.entries(input.models)) {
-          if (value.cost.input === 0) continue
-          delete input.models[key]
-        }
+      // Zen 网关在服务端校验客户端身份，免费档明确只对 opencode 官方客户端开放
+      // （请求会收到 "OpenCode's free tier can only be used in OpenCode"）。
+      // NovaWay 的请求无论是否带 console key 都过不了这道门槛，所以免费模型
+      // 一律从列表移除，免得用户选了必报错。付费模型不受此限制，但没 key 时
+      // 同样用不了（"public" 只是个占位）——只有 env/auth/config 里配了真实
+      // key 才保留付费模型。
+      for (const [key, value] of Object.entries(input.models)) {
+        if (value.cost.input === 0) delete input.models[key]
       }
+      if (!ok) input.models = {}
 
       return {
         autoload: Object.keys(input.models).length > 0,
@@ -427,27 +446,6 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
             "HTTP-Referer": "https://novaway.ai/",
             "X-Title": "novaway",
             "X-Source": "novaway",
-          },
-        },
-      }),
-    openrouter: () =>
-      Effect.succeed({
-        autoload: false,
-        options: {
-          headers: {
-            "HTTP-Referer": "https://novaway.ai/",
-            "X-Title": "novaway",
-          },
-        },
-      }),
-    nvidia: (provider) =>
-      Effect.succeed({
-        autoload: provider.source === "config",
-        options: {
-          headers: {
-            "HTTP-Referer": "https://novaway.ai/",
-            "X-Title": "novaway",
-            "X-BILLING-INVOKE-ORIGIN": "novaway",
           },
         },
       }),
@@ -841,16 +839,244 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
           },
         },
       }),
-    kilo: () =>
+    google: (provider) =>
       Effect.succeed({
         autoload: false,
-        options: {
-          headers: {
-            "HTTP-Referer": "https://novaway.ai/",
-            "X-Title": "novaway",
-          },
-        },
+        options: {},
+        models: filterCatalogToFreeModels(provider.id, provider.models),
+        replaceModels: true,
       }),
+    agnes: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("AGNES_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              {
+                providerID: "agnes",
+                baseURL: "https://api.agnes-ai.cn/v1",
+                requireZeroPricing: true,
+                freeModelIDs: AGNES_FREE_MODEL_IDS,
+              },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    groq: (provider) =>
+      Effect.succeed({
+        autoload: false,
+        options: {},
+        models: filterCatalogToFreeModels(provider.id, provider.models),
+        replaceModels: true,
+      }),
+    kilo: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("KILO_API_KEY"))
+        return {
+          autoload: false,
+          options: {
+            headers: {
+              "HTTP-Referer": "https://novaway.ai/",
+              "X-Title": "novaway",
+            },
+          },
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              {
+                providerID: "kilo",
+                baseURL: "https://api.kilo.ai/api/gateway",
+                requireZeroPricing: true,
+                freeModelIDs: KILO_FREE_MODEL_IDS,
+                headers: {
+                  "HTTP-Referer": "https://novaway.ai/",
+                  "X-Title": "novaway",
+                },
+              },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    // 免费通道策展（见 freeproviders.ts）：这几家的 live /models 可以决定
+    // 「当前真正可用的免费模型」，填 key 后 bootstrap 时合并进目录，
+    // 目录过期（魔搭实测缺 46 个、3 个已下架）不再坑人。
+    openrouter: (input) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(input.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("OPENROUTER_API_KEY"))
+        // 自定义模型由配置合入后，OpenRouter 仍需执行严格免费筛选；否则配置中的
+        // 付费模型会绕过静态目录过滤直接出现在选择器中。
+        for (const [modelID, model] of Object.entries(input.models)) {
+          if (model.cost.input !== 0 || model.cost.output !== 0) delete input.models[modelID]
+        }
+        return {
+          autoload: false,
+          options: {
+            headers: {
+              "HTTP-Referer": "https://novaway.ai/",
+              "X-Title": "novaway",
+            },
+          },
+          models: Object.fromEntries(
+            Object.entries(input.models).filter(([, model]) => model.cost.input === 0 && model.cost.output === 0),
+          ),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              {
+                providerID: "openrouter",
+                baseURL: "https://openrouter.ai/api/v1",
+                requireZeroPricing: true,
+              },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    nvidia: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("NVIDIA_API_KEY"))
+        return {
+          autoload: provider.source === "config",
+          options: {
+            headers: {
+              "HTTP-Referer": "https://novaway.ai/",
+              "X-Title": "novaway",
+              "X-BILLING-INVOKE-ORIGIN": "novaway",
+            },
+          },
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderModels(
+              {
+                providerID: "nvidia",
+                baseURL: "https://integrate.api.nvidia.com/v1",
+                freeByDefault: true,
+                headers: {
+                  "HTTP-Referer": "https://novaway.ai/",
+                  "X-Title": "novaway",
+                  "X-BILLING-INVOKE-ORIGIN": "novaway",
+                },
+              },
+              apiKey,
+            ),
+        }
+      })(),
+    modelscope: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const env = yield* dep.env()
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("MODELSCOPE_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          // 魔搭 api-inference 全量免费（每日额度制），live 列表比目录新得多，
+          // 且免 key 也能拉——发现成功时把目录里已下架的模型一并清掉
+          discoverModels: () =>
+            discoverFreeProviderModels(
+              {
+                providerID: "modelscope",
+                baseURL: "https://api-inference.modelscope.cn/v1",
+                freeByDefault: true,
+              },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    sensenova: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("SENSENOVA_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderModels(
+              {
+                providerID: "sensenova",
+                baseURL: "https://token.sensenova.cn/v1",
+                freeByDefault: true,
+              },
+              apiKey,
+            ),
+        }
+      })(),
+    iflowcn: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("IFLOW_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderModels(
+              {
+                providerID: "iflowcn",
+                baseURL: "https://apis.iflow.cn/v1",
+                freeByDefault: true,
+              },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    "siliconflow-cn": (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("SILICONFLOW_CN_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderModels(
+              {
+                providerID: "siliconflow-cn",
+                baseURL: "https://api.siliconflow.cn/v1",
+                requireZeroPricing: true,
+                freeModelIDs: SILICONFLOW_FREE_MODEL_IDS,
+              },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    zhipuai: Effect.fnUntraced(function* (input: Info) {
+      const models = filterCatalogToFreeModels(input.id, input.models)
+      const template = Object.values(models).find((model) => model.cost.input === 0 && model.cost.output === 0)
+      if (template && !models["glm-4-flash-250414"]) {
+        const patched: Model = structuredClone(template)
+        patched.id = ModelID.make("glm-4-flash-250414")
+        patched.name = "GLM-4-Flash-250414"
+        patched.release_date = "2025-04-14"
+        models["glm-4-flash-250414"] = patched
+      }
+      return {
+        autoload: false,
+        options: {},
+        models,
+        replaceModels: true,
+      }
+    }),
     ollama: (input: Info) =>
       Effect.succeed({
         autoload: true,
@@ -1298,6 +1524,7 @@ export const layer = Layer.effect(
         const discoveryLoaders: {
           [providerID: string]: CustomDiscoverModels
         } = {}
+        const discoveryPrune = new Set<ProviderID>()
         const dep = {
           auth: (id: string) => auth.get(id).pipe(Effect.orDie),
           config: () => config.get(),
@@ -1307,17 +1534,17 @@ export const layer = Layer.effect(
 
         log.info("init")
 
-        function mergeProvider(providerID: ProviderID, provider: Partial<Info>) {
+        function mergeProvider(providerID: ProviderID, provider: Partial<Info>, replaceModels = false) {
           const existing = providers[providerID]
           if (existing) {
-            // @ts-expect-error
-            providers[providerID] = mergeDeep(existing, provider)
+            const merged = mergeDeep(existing, provider) as Info
+            providers[providerID] = replaceModels && provider.models ? { ...merged, models: provider.models } : merged
             return
           }
           const match = database[providerID]
           if (!match) return
-          // @ts-expect-error
-          providers[providerID] = mergeDeep(match, provider)
+          const merged = mergeDeep(match, provider) as Info
+          providers[providerID] = replaceModels && provider.models ? { ...merged, models: provider.models } : merged
         }
 
         // load plugins first so config() hook runs before reading cfg.provider
@@ -1512,9 +1739,19 @@ export const layer = Layer.effect(
             if (result.getModel) modelLoaders[providerID] = result.getModel
             if (result.vars) varsLoaders[providerID] = result.vars
             if (result.discoverModels) discoveryLoaders[providerID] = result.discoverModels
+            if (result.discoverPrune) discoveryPrune.add(providerID)
             const opts = result.options ?? {}
-            const patch: Partial<Info> = providers[providerID] ? { options: opts } : { source: "custom", options: opts }
-            mergeProvider(providerID, patch)
+            const patch: Partial<Info> = providers[providerID]
+              ? {
+                  options: opts,
+                  ...(result.models ? { models: result.models } : {}),
+                }
+              : {
+                  source: "custom",
+                  options: opts,
+                  ...(result.models ? { models: result.models } : {}),
+                }
+            mergeProvider(providerID, patch, result.replaceModels === true)
           }
         }
 
@@ -1528,36 +1765,51 @@ export const layer = Layer.effect(
           mergeProvider(providerID, partial)
         }
 
-        const gitlab = ProviderID.make("gitlab")
-        if (discoveryLoaders[gitlab] && providers[gitlab] && isProviderAllowed(gitlab)) {
+        // 通用模型发现：各 loader 拉厂商 live /models（或本地实例），
+        // 只补目录没有的模型；配置了 discoverPrune 的免费通道额外清理
+        // 「目录有但 live 已下架」的条目。网络失败只记日志，不影响列表构建。
+        if (!process.env.NOVAWAY_DISABLE_MODEL_DISCOVERY) {
           yield* Effect.promise(async () => {
-            try {
-              const discovered = await discoveryLoaders[gitlab]()
-              for (const [modelID, model] of Object.entries(discovered)) {
-                if (!providers[gitlab].models[modelID]) {
-                  providers[gitlab].models[modelID] = model
+            await Promise.allSettled(
+              Object.entries(discoveryLoaders).map(async ([id, loader]) => {
+                const providerID = ProviderID.make(id)
+                const target = providers[providerID]
+                if (!target || !isProviderAllowed(providerID)) return
+                try {
+                  const discoveredResult = await loader()
+                  const snapshot =
+                    "liveModelIDs" in discoveredResult &&
+                    Array.isArray((discoveredResult as FreeDiscoverySnapshot).liveModelIDs)
+                      ? (discoveredResult as FreeDiscoverySnapshot)
+                      : undefined
+                  const discovered = snapshot ? snapshot.models : discoveredResult
+                  const discoveredIDs = snapshot ? snapshot.liveModelIDs : Object.keys(discovered)
+                  const catalogCount = Object.keys(target.models).length
+                  for (const [modelID, model] of Object.entries(discovered)) {
+                    if (snapshot?.replaceExisting || !target.models[modelID]) {
+                      target.models[modelID] = model
+                    }
+                  }
+                  if (
+                    discoveryPrune.has(providerID) &&
+                    shouldPruneStale(discoveredIDs.length, catalogCount)
+                  ) {
+                    const live = new Set(Object.keys(discovered))
+                    for (const modelID of Object.keys(target.models)) {
+                      if (!live.has(modelID)) {
+                        log.info("discovery prune: catalog model missing from live list", {
+                          providerID: id,
+                          modelID,
+                        })
+                        delete target.models[modelID]
+                      }
+                    }
+                  }
+                } catch (e) {
+                  log.warn("state discovery error", { id, error: e })
                 }
-              }
-            } catch (e) {
-              log.warn("state discovery error", { id: "gitlab", error: e })
-            }
-          })
-        }
-
-        // Load Ollama models discovery
-        const ollama = ProviderID.make("ollama")
-        if (discoveryLoaders[ollama] && providers[ollama] && isProviderAllowed(ollama)) {
-          yield* Effect.promise(async () => {
-            try {
-              const discovered = await discoveryLoaders[ollama]()
-              for (const [modelID, model] of Object.entries(discovered)) {
-                if (!providers[ollama].models[modelID]) {
-                  providers[ollama].models[modelID] = model
-                }
-              }
-            } catch (e) {
-              log.warn("state discovery error", { id: "ollama", error: e })
-            }
+              }),
+            )
           })
         }
 
@@ -1777,8 +2029,12 @@ export const layer = Layer.effect(
       const provider = s.providers[providerID]
       if (!provider) {
         const catalogProvider = s.catalog[providerID]
-        const suggestions = catalogProvider
-          ? modelSuggestions(catalogProvider, modelID, runtimeFlags.enableExperimentalModels)
+        // ProviderID.NovaWay 是 NovaWay 的本地别名，catalog 中仍沿用上游的
+        // "opencode" 键；别名未加载时也要从实际 catalog 提示可用付费模型。
+        const suggestionSource =
+          catalogProvider ?? (providerID === ProviderID.NovaWay ? s.catalog[ProviderID.make("opencode")] : undefined)
+        const suggestions = suggestionSource
+          ? modelSuggestions(suggestionSource, modelID, runtimeFlags.enableExperimentalModels)
           : fuzzysort
               .go(providerID, Object.keys({ ...s.catalog, ...s.providers }), { limit: 3, threshold: -10000 })
               .map((m) => m.target)

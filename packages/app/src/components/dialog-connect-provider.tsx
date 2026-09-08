@@ -472,6 +472,7 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
       setFetching(true)
       try {
         const models = await fetchOpenAICompatibleModels({
+          providerID: props.provider,
           baseURL,
           apiKey,
           discover: async (payload) =>

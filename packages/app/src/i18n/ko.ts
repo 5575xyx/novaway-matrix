@@ -88,6 +88,7 @@ export const dict = {
   "dialog.provider.search.placeholder": "공급자 검색",
   "dialog.provider.empty": "공급자 없음",
   "dialog.provider.group.popular": "인기",
+  "dialog.provider.group.free": "무료 이용",
   "dialog.provider.group.other": "기타",
   "dialog.provider.tag.recommended": "추천",
   "dialog.provider.NovaWay.note": "Claude, GPT, Gemini 등을 포함한 엄선된 모델",

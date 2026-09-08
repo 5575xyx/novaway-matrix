@@ -88,6 +88,7 @@ export const dict = {
   "dialog.provider.search.placeholder": "プロバイダーを検索",
   "dialog.provider.empty": "プロバイダーが見つかりません",
   "dialog.provider.group.popular": "人気",
+  "dialog.provider.group.free": "無料アクセス",
   "dialog.provider.group.other": "その他",
   "dialog.provider.tag.recommended": "推奨",
   "dialog.provider.NovaWay.note": "Claude, GPT, Geminiなどを含む厳選されたモデル",

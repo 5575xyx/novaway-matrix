@@ -88,6 +88,7 @@ export const dict = {
   "dialog.provider.search.placeholder": "Rechercher des fournisseurs",
   "dialog.provider.empty": "Aucun fournisseur trouvé",
   "dialog.provider.group.popular": "Populaire",
+  "dialog.provider.group.free": "Accès gratuit",
   "dialog.provider.group.other": "Autre",
   "dialog.provider.tag.recommended": "Recommandé",
   "dialog.provider.NovaWay.note": "Modèles sélectionnés incluant Claude, GPT, Gemini et plus",

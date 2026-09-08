@@ -96,6 +96,7 @@ export const dict = {
   "dialog.provider.search.placeholder": "Pretraži provajdere",
   "dialog.provider.empty": "Nema pronađenih provajdera",
   "dialog.provider.group.popular": "Popularno",
+  "dialog.provider.group.free": "Besplatan pristup",
   "dialog.provider.group.other": "Ostalo",
   "dialog.provider.tag.recommended": "Preporučeno",
   "dialog.provider.NovaWay.note": "Kurirani modeli uključujući Claude, GPT, Gemini i druge",

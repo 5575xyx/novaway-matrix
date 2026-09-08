@@ -38,10 +38,10 @@ export function DialogModel(props: { providerID?: string }) {
             key: item,
             value: { providerID: provider.id, modelID: model.id },
             title: displayModelName(model.name ?? item.modelID, provider.id, model.cost?.input === 0),
-            description: provider.name,
+            description: joinDescription(provider.name, model.cost?.input === 0),
             category,
             disabled: provider.id === "NovaWay" && model.id.includes("-nano"),
-            free: model.cost?.input === 0 && provider.id === "NovaWay",
+            free: model.cost?.input === 0,
             onSelect: () => {
               onSelect(provider.id, model.id)
             },
@@ -74,12 +74,15 @@ export function DialogModel(props: { providerID?: string }) {
             value: { providerID: provider.id, modelID: model },
             title: displayModelName(info.name ?? model, provider.id, info.cost?.input === 0),
             releaseDate: info.release_date,
-            description: favorites.some((item) => item.providerID === provider.id && item.modelID === model)
-              ? "(收藏)"
-              : undefined,
+            description: joinDescription(
+              favorites.some((item) => item.providerID === provider.id && item.modelID === model)
+                ? "(收藏)"
+                : undefined,
+              info.cost?.input === 0,
+            ),
             category: connected() ? displayModelGroup(provider.id, provider.name) : undefined,
             disabled: provider.id === "NovaWay" && model.includes("-nano"),
-            free: info.cost?.input === 0 && provider.id === "NovaWay",
+            free: info.cost?.input === 0,
             onSelect() {
               onSelect(provider.id, model)
             },
@@ -197,8 +200,19 @@ export function sortModelOptions<T extends { free?: boolean; releaseDate: string
 }
 
 export function displayModelName(name: string, providerID: string, free: boolean) {
-  if (providerID !== "NovaWay" || !free) return name
-  return name.replace(/\s+free(?=\s*\(|$)/i, "").trim()
+  if (!free) return name
+  // 免费标识的写法各家不一：官方池 "X Free"、"X Free (Unlimited)"，
+  // OpenRouter 一系 "X:free" / "X (free)"。只摘显示名，不影响真实 model id。
+  return name
+    .replace(/\s*[:：]\s*free$/i, "")
+    .replace(/\s*[(（]\s*free\s*[)）]$/i, "")
+    .replace(/\s+free(?=\s*[(（]|$)/i, "")
+    .trim()
+}
+
+export function joinDescription(base: string | undefined, free: boolean) {
+  if (!free) return base
+  return [base, "免费"].filter(Boolean).join(" · ")
 }
 
 export function displayModelGroup(providerID: string, providerName: string) {

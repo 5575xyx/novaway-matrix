@@ -8,6 +8,7 @@ import { ProviderIcon } from "@novaway/ui/provider-icon"
 import { DialogConnectProvider } from "./dialog-connect-provider"
 import { useLanguage } from "@/context/language"
 import { DialogCustomProvider } from "./dialog-custom-provider"
+import { providerGroup, providerGroupOrder } from "@/utils/provider-groups"
 
 const CUSTOM_ID = "_custom"
 
@@ -16,8 +17,16 @@ export const DialogSelectProvider: Component = () => {
   const providers = useProviders()
   const language = useLanguage()
 
+  const freeGroup = () => language.t("dialog.provider.group.free")
   const popularGroup = () => language.t("dialog.provider.group.popular")
   const otherGroup = () => language.t("dialog.provider.group.other")
+  const groupLabel = (id: string) => {
+    const group = providerGroup(id, CUSTOM_ID)
+    if (group === "free") return freeGroup()
+    if (group === "popular") return popularGroup()
+    if (group === "custom") return customLabel()
+    return otherGroup()
+  }
   const customLabel = () => language.t("settings.providers.tag.custom")
   const note = (id: string) => {
     if (id === "anthropic") return language.t("dialog.provider.anthropic.note")
@@ -39,20 +48,23 @@ export const DialogSelectProvider: Component = () => {
           return [{ id: CUSTOM_ID, name: customLabel() }, ...providers.all()]
         }}
         filterKeys={["id", "name"]}
-        groupBy={(x) => (popularProviders.includes(x.id) ? popularGroup() : otherGroup())}
+        groupBy={(x) => groupLabel(x.id)}
         sortBy={(a, b) => {
+          const groupA = providerGroup(a.id, CUSTOM_ID)
+          const groupB = providerGroup(b.id, CUSTOM_ID)
+          const order = providerGroupOrder(groupA) - providerGroupOrder(groupB)
+          if (order !== 0) return order
           if (a.id === CUSTOM_ID) return -1
           if (b.id === CUSTOM_ID) return 1
           if (popularProviders.includes(a.id) && popularProviders.includes(b.id))
             return popularProviders.indexOf(a.id) - popularProviders.indexOf(b.id)
           return a.name.localeCompare(b.name)
         }}
-        sortGroupsBy={(a, b) => {
-          const popular = popularGroup()
-          if (a.category === popular && b.category !== popular) return -1
-          if (b.category === popular && a.category !== popular) return 1
-          return 0
-        }}
+        sortGroupsBy={(a, b) => providerGroupOrder(
+          a.category === freeGroup() ? "free" : a.category === popularGroup() ? "popular" : a.category === otherGroup() ? "other" : "custom",
+        ) - providerGroupOrder(
+          b.category === freeGroup() ? "free" : b.category === popularGroup() ? "popular" : b.category === otherGroup() ? "other" : "custom",
+        )}
         onSelect={(x) => {
           if (!x) return
           if (x.id === CUSTOM_ID) {
