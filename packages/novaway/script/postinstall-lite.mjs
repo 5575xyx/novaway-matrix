@@ -111,7 +111,9 @@ function isMusl() {
 
 function getPackageNames() {
   const baseline = arch === "x64" && !supportsAvx2()
-  const base = `novaway-${platform}-${arch}`
+  // The platform packages are published under the same name as the wrapper
+  // package. This must not be hardcoded to the old `novaway` package name.
+  const base = `${packageJson.name}-${platform}-${arch}`
 
   if (platform === "linux") {
     if (isMusl()) {
