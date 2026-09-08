@@ -26,6 +26,14 @@ export type Method = "curl" | "npm" | "yarn" | "pnpm" | "bun" | "brew" | "scoop"
 
 export type ReleaseType = "patch" | "minor" | "major"
 
+function packageManagerCommand(name: "npm" | "yarn" | "pnpm" | "bun") {
+  // Windows exposes npm/yarn/pnpm as .cmd shims. Effect's process runner
+  // invokes commands directly rather than through a shell, so the extension
+  // must be explicit or CreateProcess reports that the batch file is missing.
+  if (process.platform === "win32" && name !== "bun") return `${name}.cmd`
+  return name
+}
+
 export const Event = {
   Updated: BusEvent.define(
     "installation.updated",
@@ -184,10 +192,10 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
         const exec = process.execPath.toLowerCase()
 
         const checks: Array<{ name: Method; command: () => Effect.Effect<string> }> = [
-          { name: "npm", command: () => text(["npm", "list", "-g", "--depth=0"]) },
-          { name: "yarn", command: () => text(["yarn", "global", "list"]) },
-          { name: "pnpm", command: () => text(["pnpm", "list", "-g", "--depth=0"]) },
-          { name: "bun", command: () => text(["bun", "pm", "ls", "-g"]) },
+          { name: "npm", command: () => text([packageManagerCommand("npm"), "list", "-g", "--depth=0"]) },
+          { name: "yarn", command: () => text([packageManagerCommand("yarn"), "global", "list"]) },
+          { name: "pnpm", command: () => text([packageManagerCommand("pnpm"), "list", "-g", "--depth=0"]) },
+          { name: "bun", command: () => text([packageManagerCommand("bun"), "pm", "ls", "-g"]) },
           { name: "brew", command: () => text(["brew", "list", "--formula", "novaway"]) },
           { name: "scoop", command: () => text(["scoop", "list", "novaway"]) },
           { name: "choco", command: () => text(["choco", "list", "--limit-output", "novaway"]) },
@@ -276,13 +284,13 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
             upgradeResult = yield* upgradeCurl(target)
             break
           case "npm":
-            upgradeResult = yield* run(["npm", "install", "-g", `${NPM_PACKAGE}@${target}`])
+            upgradeResult = yield* run([packageManagerCommand("npm"), "install", "-g", `${NPM_PACKAGE}@${target}`])
             break
           case "pnpm":
-            upgradeResult = yield* run(["pnpm", "install", "-g", `${NPM_PACKAGE}@${target}`])
+            upgradeResult = yield* run([packageManagerCommand("pnpm"), "install", "-g", `${NPM_PACKAGE}@${target}`])
             break
           case "bun":
-            upgradeResult = yield* run(["bun", "install", "-g", `${NPM_PACKAGE}@${target}`])
+            upgradeResult = yield* run([packageManagerCommand("bun"), "install", "-g", `${NPM_PACKAGE}@${target}`])
             break
           case "brew": {
             const formula = yield* getBrewFormula()
