@@ -5,14 +5,34 @@ import { Installation } from "@/installation"
 import { InstallationVersion } from "@novaway/core/installation/version"
 import { GlobalBus } from "@/bus/global"
 import { errorMessage } from "@/util/error"
+import { Cause } from "effect"
 
 // 失败原因压成一行塞进事件里:npm 的 stderr 经常是十几行,toast 只吃得下一句。
+function errorStderr(error: unknown, seen = new Set<object>()): string | undefined {
+  if (typeof error !== "object" || error === null || seen.has(error)) return undefined
+  seen.add(error)
+
+  if (Cause.isCause(error)) return errorStderr(Cause.squash(error), seen)
+  const value = error as Record<string, unknown>
+  if (typeof value.stderr === "string" && value.stderr.trim()) return value.stderr
+
+  for (const key of ["cause", "error", "defect", "reasons"] as const) {
+    const child = value[key]
+    if (child !== undefined) {
+      const stderr = errorStderr(child, seen)
+      if (stderr) return stderr
+    }
+  }
+  return undefined
+}
+
 function shortReason(error: unknown): string {
-  const line = errorMessage(error)
+  const message = errorStderr(error) || errorMessage(error)
+  const line = message
     .split(/\r?\n/)
     .map((s) => s.trim())
     .find(Boolean)
-  if (!line) return "原因未知，可稍后运行 novaway upgrade 重试"
+  if (!line || line === "UpgradeFailedError") return "原因未知，可稍后运行 novaway upgrade 重试"
   return line.length > 120 ? `${line.slice(0, 117)}...` : line
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect } from "bun:test"
-import { Effect, Layer, Stream } from "effect"
+import { Cause, Effect, Exit, Layer, Stream } from "effect"
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import { Installation } from "../../src/installation"
@@ -14,19 +14,22 @@ function mockHttpClient(handler: (request: HttpClientRequest.HttpClientRequest) 
   return Layer.succeed(HttpClient.HttpClient, client)
 }
 
-function mockSpawner(handler: (cmd: string, args: readonly string[]) => string = () => "") {
+type SpawnResponse = string | { stdout?: string; stderr?: string; exitCode?: number }
+
+function mockSpawner(handler: (cmd: string, args: readonly string[]) => SpawnResponse = () => "") {
   const spawner = ChildProcessSpawner.make((command) => {
     const std = ChildProcess.isStandardCommand(command) ? command : undefined
-    const output = handler(std?.command ?? "", std?.args ?? [])
+    const response = handler(std?.command ?? "", std?.args ?? [])
+    const output = typeof response === "string" ? { stdout: response } : response
     return Effect.succeed(
       ChildProcessSpawner.makeHandle({
         pid: ChildProcessSpawner.ProcessId(0),
-        exitCode: Effect.succeed(ChildProcessSpawner.ExitCode(0)),
+        exitCode: Effect.succeed(ChildProcessSpawner.ExitCode(output.exitCode ?? 0)),
         isRunning: Effect.succeed(false),
         kill: () => Effect.void,
         stdin: { [Symbol.for("effect/Sink/TypeId")]: Symbol.for("effect/Sink/TypeId") } as any,
-        stdout: output ? Stream.make(encoder.encode(output)) : Stream.empty,
-        stderr: Stream.empty,
+        stdout: output.stdout ? Stream.make(encoder.encode(output.stdout)) : Stream.empty,
+        stderr: output.stderr ? Stream.make(encoder.encode(output.stderr)) : Stream.empty,
         all: Stream.empty,
         getInputFd: () => ({ [Symbol.for("effect/Sink/TypeId")]: Symbol.for("effect/Sink/TypeId") }) as any,
         getOutputFd: () => Stream.empty,
@@ -46,7 +49,7 @@ function jsonResponse(body: unknown) {
 
 function testLayer(
   httpHandler: (request: HttpClientRequest.HttpClientRequest) => Response,
-  spawnHandler?: (cmd: string, args: readonly string[]) => string,
+  spawnHandler?: (cmd: string, args: readonly string[]) => SpawnResponse,
 ) {
   const appProcess = AppProcess.layer.pipe(Layer.provide(mockSpawner(spawnHandler)))
   return Installation.layer.pipe(Layer.provide(mockHttpClient(httpHandler)), Layer.provide(appProcess))
@@ -164,6 +167,22 @@ describe("installation", () => {
       Effect.gen(function* () {
         const result = yield* Installation.Service.use((svc) => svc.latest("brew"))
         expect(result).toBe("2.1.0")
+      }),
+    )
+
+    testEffect(
+      testLayer(
+        () => jsonResponse({}),
+        (cmd) => (cmd === "npm.cmd" ? { exitCode: 1, stderr: "npm ERR! EACCES permission denied" } : ""),
+      ),
+    ).effect("preserves package manager stderr when upgrade fails", () =>
+      Effect.gen(function* () {
+        const exit = yield* Installation.Service.use((svc) => svc.upgrade("npm", "0.1.9").pipe(Effect.exit))
+        expect(Exit.isFailure(exit)).toBe(true)
+        if (Exit.isFailure(exit)) {
+          const error = Cause.squash(exit.cause)
+          expect(error).toMatchObject({ stderr: "npm ERR! EACCES permission denied" })
+        }
       }),
     )
   })

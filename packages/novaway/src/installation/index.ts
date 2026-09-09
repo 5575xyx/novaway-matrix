@@ -135,6 +135,14 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
       Effect.catch(() => Effect.succeed("")),
     )
 
+    function processErrorMessage(error: unknown) {
+      if (typeof error === "object" && error !== null) {
+        const stderr = Reflect.get(error, "stderr")
+        if (typeof stderr === "string" && stderr.trim()) return stderr
+      }
+      return errorMessage(error)
+    }
+
     const run = Effect.fnUntraced(
       function* (cmd: string[], opts?: { cwd?: string; env?: Record<string, string> }) {
         const result = yield* appProcess.run(
@@ -150,7 +158,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
           stderr: result.stderr.toString("utf8"),
         }
       },
-      Effect.catch((err) => Effect.succeed({ code: 1, stdout: "", stderr: errorMessage(err) })),
+      Effect.catch((err) => Effect.succeed({ code: 1, stdout: "", stderr: processErrorMessage(err) })),
     )
 
     const getBrewFormula = Effect.fnUntraced(function* () {
