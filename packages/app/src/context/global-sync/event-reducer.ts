@@ -97,6 +97,7 @@ export function applyDirectoryEvent(input: {
   push: (directory: string) => void
   directory: string
   loadLsp: () => void
+  loadProviders?: () => void
   vcsCache?: VcsCache
   setSessionTodo?: (sessionID: string, todos: Todo[] | undefined) => void
 }) {
@@ -105,6 +106,11 @@ export function applyDirectoryEvent(input: {
     case "server.instance.disposed": {
       input.push(input.directory)
       return
+    }
+    // 服务端免费模型目录刷新（周期 live 发现发现增删）后广播：重拉 provider 查询
+    case "catalog.updated": {
+      input.loadProviders?.()
+      break
     }
     case "session.created": {
       const info = (event.properties as { info: Session }).info

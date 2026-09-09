@@ -29,7 +29,7 @@ const SESSION_TITLE_MAX = 60
 export interface SidebarProps {
   // 首屏(还没有任何会话)也要显示同一条侧栏,所以 sessionID 允许缺席:
   // 缺席时只隐藏会话专属的那几块(标题、检查点/目标/工作流/编排),
-  // 目录树、MCP、LSP、品牌页脚这些项目级信息照旧显示。
+  // 目录树、LSP、品牌页脚这些项目级信息照旧显示。
   sessionID?: string
   overlay?: boolean
   onFileSelect?: (filePath: string) => void
@@ -42,7 +42,7 @@ export type SidebarTab = "files" | "info" | "git" | "db" | "hub"
 
 export const SIDEBAR_TABS: Array<{ id: SidebarTab; text: string }> = [
   { id: "files", text: "文件" },
-  { id: "info", text: "信息" },
+  { id: "info", text: "待办与统计" },
   { id: "git", text: "Git" },
   { id: "db", text: "数据" },
   { id: "hub", text: "智能中枢" },
@@ -103,7 +103,7 @@ export function Sidebar(props: SidebarProps) {
       return next
     })
 
-  // 有了 todo 就自动跳到"信息"(todo 列表在那边):默认的"文件"页没有 todo,
+  // 有了 todo 就自动跳到"待办与统计"(todo 列表在那边):默认的"文件"页没有 todo,
   // 只有从空到有的那一刻跳一次,用户手动切走后不再抢。
   const todos = createMemo(() => sync.data.todo[props.sessionID ?? ""] ?? [])
   createEffect(
@@ -164,7 +164,7 @@ export function Sidebar(props: SidebarProps) {
         </scrollbox>
       </Show>
 
-      {/* 原始侧边栏内容（Context、MCP、LSP 等全部在一起） */}
+      {/* 待办与统计内容:上下文统计、消息列表和待办事项 */}
       <Show when={activeTab() === "info"}>
         <scrollbox
           flexGrow={1}

@@ -168,3 +168,49 @@ export function shouldPruneStale(liveCount: number, catalogCount: number): boole
   if (catalogCount === 0) return false
   return liveCount >= catalogCount
 }
+
+export type DiscoveryDiff = {
+  added: string[]
+  removed: string[]
+}
+
+export type DiscoveryApplyOptions = {
+  /** 厂商返回的原始模型 ID（含付费），仅用于清理前的数量护栏；缺省时用 discovered 的键 */
+  liveIDs?: readonly string[]
+  /** 清理「目录有但 live 已下架/转付费」的条目 */
+  prune?: boolean
+  /** 用户手动配置的模型 ID，清理不得误删 */
+  protectedIDs?: ReadonlySet<string>
+  /** live 数据是同 ID 模型的权威来源，直接覆盖 */
+  replaceExisting?: boolean
+}
+
+/**
+ * 把一次发现结果合入目录模型表，返回增删的模型 ID（变更检测用：
+ * 增删均为空 ⇒ 目录没变，不需要通知客户端）。
+ * 清理时以 discovered（免费过滤后的集合）为准：转付费的模型仍会出现在
+ * 厂商 raw /models 里，但不在免费集合中，同样要清掉。
+ */
+export function applyDiscovery(
+  target: Record<string, Model>,
+  discovered: Record<string, Model>,
+  opts: DiscoveryApplyOptions = {},
+): DiscoveryDiff {
+  const before = new Set(Object.keys(target))
+  for (const [modelID, model] of Object.entries(discovered)) {
+    if (opts.replaceExisting || !target[modelID]) target[modelID] = model
+  }
+  const liveIDs = opts.liveIDs ?? Object.keys(discovered)
+  if (opts.prune && shouldPruneStale(liveIDs.length, before.size)) {
+    const free = new Set(Object.keys(discovered))
+    for (const modelID of Object.keys(target)) {
+      if (free.has(modelID) || opts.protectedIDs?.has(modelID)) continue
+      delete target[modelID]
+    }
+  }
+  const after = new Set(Object.keys(target))
+  return {
+    added: [...after].filter((modelID) => !before.has(modelID)),
+    removed: [...before].filter((modelID) => !after.has(modelID)),
+  }
+}

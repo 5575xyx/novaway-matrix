@@ -231,6 +231,11 @@ export const {
         case "server.instance.disposed":
           void bootstrap()
           break
+        // 服务端免费模型目录刷新（周期 live 发现发现增删）后广播：
+        // 重拉 config.providers + provider.list，模型选择器即跟上。
+        case "catalog.updated":
+          void bootstrap()
+          break
         case "permission.replied": {
           const requests = store.permission[event.properties.sessionID]
           if (!requests) break
