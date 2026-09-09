@@ -17,10 +17,12 @@ import { iife } from "@/util/iife"
 import { Global } from "@novaway/core/global"
 import path from "path"
 import { pathToFileURL } from "url"
-import { Effect, Layer, Context, Schema, Types } from "effect"
+import { Effect, Layer, Context, Schema, Types, Schedule, Duration } from "effect"
 import { EffectBridge } from "@/effect/bridge"
 import { InstanceState } from "@/effect/instance-state"
 import { EffectPromise } from "@/effect/promise"
+import { GlobalBus } from "@/bus/global"
+import { WorkspaceContext } from "@/control-plane/workspace-context"
 import { AppFileSystem } from "@novaway/core/filesystem"
 import { isRecord } from "@/util/record"
 import { optionalOmitUndefined } from "@novaway/core/schema"
@@ -29,10 +31,10 @@ import { ModelID, ProviderID } from "./schema"
 import { ModelStatus } from "./model-status"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import {
+  applyDiscovery,
   discoverFreeProviderModels,
   discoverFreeProviderSnapshot,
   filterCatalogToFreeModels,
-  shouldPruneStale,
   KILO_FREE_MODEL_IDS,
   SILICONFLOW_FREE_MODEL_IDS,
   AGNES_FREE_MODEL_IDS,
@@ -40,6 +42,25 @@ import {
 } from "./freeproviders"
 
 const log = Log.create({ service: "provider" })
+
+const REFRESH_INTERVAL = Duration.minutes(15)
+
+function asDiscoverySnapshot(result: Record<string, Model> | FreeDiscoverySnapshot): {
+  models: Record<string, Model>
+  liveIDs?: readonly string[]
+  replaceExisting?: boolean
+} {
+  // Record<string, Model> 带索引签名，`in` 收窄不掉，直接按候选字段判断
+  const candidate = result as Partial<FreeDiscoverySnapshot>
+  if (Array.isArray(candidate.liveModelIDs)) {
+    return {
+      models: candidate.models ?? {},
+      liveIDs: candidate.liveModelIDs,
+      replaceExisting: candidate.replaceExisting === true,
+    }
+  }
+  return { models: result as Record<string, Model> }
+}
 
 function shouldUseCopilotResponsesApi(modelID: string): boolean {
   const match = /^gpt-(\d+)/.exec(modelID)
@@ -1298,6 +1319,11 @@ interface State {
   sdk: Map<string, BundledSDK>
   modelLoaders: Record<string, CustomModelLoader>
   varsLoaders: Record<string, CustomVarsLoader>
+  discoveryLoaders: Record<string, CustomDiscoverModels>
+  discoveryPrune: Set<ProviderID>
+  allowed: (providerID: ProviderID) => boolean
+  /** novaway.json 里手动配置的模型 ID（按 provider 分组），发现清理不得误删 */
+  configModels: Record<string, ReadonlySet<string>>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@NovaWay/Provider") {}
@@ -1463,8 +1489,9 @@ export const layer = Layer.effect(
     const modelsDevSvc = yield* ModelsDev.Service
     const runtimeFlags = yield* RuntimeFlags.Service
 
-    const state = yield* InstanceState.make<State>(() =>
+    const state = yield* InstanceState.make<State>((ctx) =>
       Effect.gen(function* () {
+        const directory = ctx.directory
         using _ = log.time("state")
         const bridge = yield* EffectBridge.make()
         const cfg = yield* config.get()
@@ -1554,10 +1581,24 @@ export const layer = Layer.effect(
         const configProviders = Object.entries(cfg.provider ?? {})
         const disabled = new Set(cfg.disabled_providers ?? [])
         const enabled = cfg.enabled_providers ? new Set(cfg.enabled_providers) : null
+        const configModels: Record<string, ReadonlySet<string>> = {}
+        for (const [id, provider] of configProviders) {
+          const ids = Object.keys(provider.models ?? {})
+          if (ids.length > 0) configModels[id] = new Set(ids)
+        }
 
         function isProviderAllowed(providerID: ProviderID): boolean {
           if (enabled && !enabled.has(providerID)) return false
           if (disabled.has(providerID)) return false
+          return true
+        }
+
+        // 配置级模型过滤（blacklist/whitelist）；周期刷新绕过了 bootstrap
+        // 末尾的统一过滤循环，必须在合入发现结果前自行应用
+        function configAllowsModel(providerID: string, modelID: string): boolean {
+          const configProvider = cfg.provider?.[providerID]
+          if (configProvider?.blacklist && configProvider.blacklist.includes(modelID)) return false
+          if (configProvider?.whitelist && !configProvider.whitelist.includes(modelID)) return false
           return true
         }
 
@@ -1767,7 +1808,8 @@ export const layer = Layer.effect(
 
         // 通用模型发现：各 loader 拉厂商 live /models（或本地实例），
         // 只补目录没有的模型；配置了 discoverPrune 的免费通道额外清理
-        // 「目录有但 live 已下架」的条目。网络失败只记日志，不影响列表构建。
+        // 「目录有但 live 已下架」的条目（用户手动配置的模型受保护）。
+        // 网络失败只记日志，不影响列表构建。
         if (!process.env.NOVAWAY_DISABLE_MODEL_DISCOVERY) {
           yield* Effect.promise(async () => {
             await Promise.allSettled(
@@ -1776,34 +1818,18 @@ export const layer = Layer.effect(
                 const target = providers[providerID]
                 if (!target || !isProviderAllowed(providerID)) return
                 try {
-                  const discoveredResult = await loader()
-                  const snapshot =
-                    "liveModelIDs" in discoveredResult &&
-                    Array.isArray((discoveredResult as FreeDiscoverySnapshot).liveModelIDs)
-                      ? (discoveredResult as FreeDiscoverySnapshot)
-                      : undefined
-                  const discovered = snapshot ? snapshot.models : discoveredResult
-                  const discoveredIDs = snapshot ? snapshot.liveModelIDs : Object.keys(discovered)
-                  const catalogCount = Object.keys(target.models).length
-                  for (const [modelID, model] of Object.entries(discovered)) {
-                    if (snapshot?.replaceExisting || !target.models[modelID]) {
-                      target.models[modelID] = model
-                    }
-                  }
-                  if (
-                    discoveryPrune.has(providerID) &&
-                    shouldPruneStale(discoveredIDs.length, catalogCount)
-                  ) {
-                    const live = new Set(Object.keys(discovered))
-                    for (const modelID of Object.keys(target.models)) {
-                      if (!live.has(modelID)) {
-                        log.info("discovery prune: catalog model missing from live list", {
-                          providerID: id,
-                          modelID,
-                        })
-                        delete target.models[modelID]
-                      }
-                    }
+                  const snapshot = asDiscoverySnapshot(await loader())
+                  const diff = applyDiscovery(target.models, snapshot.models, {
+                    liveIDs: snapshot.liveIDs,
+                    prune: discoveryPrune.has(providerID),
+                    protectedIDs: configModels[id],
+                    replaceExisting: snapshot.replaceExisting,
+                  })
+                  for (const modelID of diff.removed) {
+                    log.info("discovery prune: catalog model missing from live list", {
+                      providerID: id,
+                      modelID,
+                    })
                   }
                 } catch (e) {
                   log.warn("state discovery error", { id, error: e })
@@ -1811,6 +1837,65 @@ export const layer = Layer.effect(
               }),
             )
           })
+        }
+
+        // 周期重跑 live 发现：厂商把模型转付费或上新免费模型后，目录最长
+        // 一个间隔内自动跟上；真有增删时广播 catalog.updated，让已连接的
+        // 客户端重拉 provider/model 列表。fiber 挂在本目录状态的 scope 上，
+        // 实例销毁或状态失效时随之中断。loader 闭包沿用 bootstrap 时解析
+        // 的 API key；换 key 会走实例重建，不在这里处理。
+        // 注意：这里直接操作 init 局部的可变对象（State 里存的就是它们），
+        // 不经 InstanceState.get(state)，否则 state 的类型推断会成环。
+        const refresh = Effect.fn("Provider.refreshDiscovery")(function* () {
+          const entries = Object.entries(discoveryLoaders)
+          if (entries.length === 0) return
+          const changed = yield* Effect.promise(async () => {
+            const added: string[] = []
+            const removed: string[] = []
+            await Promise.allSettled(
+              entries.map(async ([id, loader]) => {
+                const providerID = ProviderID.make(id)
+                const target = providers[providerID]
+                if (!target || !isProviderAllowed(providerID)) return
+                try {
+                  const snapshot = asDiscoverySnapshot(await loader())
+                  const allowed = Object.fromEntries(
+                    Object.entries(snapshot.models).filter(([modelID]) => configAllowsModel(id, modelID)),
+                  )
+                  const diff = applyDiscovery(target.models, allowed, {
+                    liveIDs: snapshot.liveIDs,
+                    prune: discoveryPrune.has(providerID),
+                    protectedIDs: configModels[id],
+                    replaceExisting: snapshot.replaceExisting,
+                  })
+                  for (const modelID of diff.added) added.push(`${id}/${modelID}`)
+                  for (const modelID of diff.removed) removed.push(`${id}/${modelID}`)
+                  // 厂商把免费模型清光时与 bootstrap 语义对齐：移除空 provider
+                  if (Object.keys(target.models).length === 0) delete providers[providerID]
+                } catch (e) {
+                  log.warn("discovery refresh error", { id, error: e })
+                }
+              }),
+            )
+            return { added, removed }
+          })
+          if (changed.added.length === 0 && changed.removed.length === 0) return
+          log.info("discovery refresh applied catalog changes", changed)
+          yield* Effect.sync(() =>
+            GlobalBus.emit("event", {
+              directory,
+              project: ctx.project.id,
+              workspace: WorkspaceContext.workspaceID,
+              payload: { type: "catalog.updated", properties: {} },
+            }),
+          )
+        })
+
+        if (!process.env.NOVAWAY_DISABLE_MODEL_DISCOVERY && Object.keys(discoveryLoaders).length > 0) {
+          yield* Effect.gen(function* () {
+            yield* Effect.sleep(REFRESH_INTERVAL)
+            yield* refresh()
+          }).pipe(Effect.repeat(Schedule.spaced(REFRESH_INTERVAL)), Effect.ignore, Effect.forkScoped)
         }
 
         for (const [id, provider] of Object.entries(providers)) {
@@ -1871,6 +1956,10 @@ export const layer = Layer.effect(
           sdk,
           modelLoaders,
           varsLoaders,
+          discoveryLoaders,
+          discoveryPrune,
+          allowed: isProviderAllowed,
+          configModels,
         }
       }),
     )

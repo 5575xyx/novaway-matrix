@@ -396,6 +396,9 @@ function createGlobalSync() {
       loadLsp: () => {
         void queryClient.fetchQuery(queryOptionsApi.lsp(key))
       },
+      loadProviders: () => {
+        void queryClient.fetchQuery(queryOptionsApi.providers(key))
+      },
     })
   })
 

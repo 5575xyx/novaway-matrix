@@ -474,6 +474,9 @@ const main = Effect.gen(function* () {
   })
 
   overlay?.close()
+
+  // 不阻塞首屏加载；检查会在后台下载，安装前仍由用户确认重启。
+  void checkForUpdates(false, killSidecar)
 })
 
 Effect.runFork(main)

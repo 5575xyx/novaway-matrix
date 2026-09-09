@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { parseRemoteProviderModels } from "@novaway/core/openai-compatible"
 import {
+  applyDiscovery,
   buildDiscoveredModels,
   discoverFreeProviderModels,
   discoverFreeProviderSnapshot,
@@ -8,6 +9,7 @@ import {
   shouldPruneStale,
   type FreeDiscoveryConfig,
 } from "@/provider/freeproviders"
+import type { Model } from "@/provider/provider"
 
 const config: FreeDiscoveryConfig = {
   providerID: "modelscope",
@@ -197,5 +199,84 @@ describe("discoverFreeProviderModels", () => {
     })
     await expect(run).rejects.toThrow()
     expect(calls).toBe(1)
+  })
+})
+
+describe("applyDiscovery", () => {
+  const stubModel = (id: string): Model =>
+    ({
+      id,
+      providerID: "modelscope",
+      name: id,
+      family: "",
+      api: { id, url: "https://api-inference.modelscope.cn/v1", npm: "@ai-sdk/openai-compatible" },
+      status: "active",
+      headers: {},
+      options: {},
+      cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
+      limit: { context: 8192, output: 4096 },
+      capabilities: {},
+      release_date: "",
+      variants: {},
+    }) as Model
+
+  test("补入新模型并报告新增（厂商上新免费模型）", () => {
+    const target = { existing: stubModel("existing") }
+    const diff = applyDiscovery(target, { fresh: stubModel("fresh") })
+    expect(Object.keys(target).sort()).toEqual(["existing", "fresh"])
+    expect(diff.added).toEqual(["fresh"])
+    expect(diff.removed).toEqual([])
+  })
+
+  test("非 replaceExisting 时同 ID 条目保留目录版", () => {
+    const catalogVersion = stubModel("m")
+    const target = { m: catalogVersion }
+    const diff = applyDiscovery(target, { m: stubModel("m") })
+    expect(target.m).toBe(catalogVersion)
+    expect(diff.added).toEqual([])
+    expect(diff.removed).toEqual([])
+  })
+
+  test("replaceExisting 时 live 数据覆盖同 ID 条目", () => {
+    const liveVersion = stubModel("m")
+    const target = { m: stubModel("m") }
+    applyDiscovery(target, { m: liveVersion }, { replaceExisting: true })
+    expect(target.m).toBe(liveVersion)
+  })
+
+  test("prune 清理被转付费的条目（仍在 raw live 列表但不在免费集合）", () => {
+    const target = { gone: stubModel("gone"), kept: stubModel("kept") }
+    const diff = applyDiscovery(
+      target,
+      { kept: stubModel("kept") },
+      { prune: true, liveIDs: ["gone", "kept", "paid", "new"] },
+    )
+    expect(Object.keys(target)).toEqual(["kept"])
+    expect(diff.removed).toEqual(["gone"])
+    expect(diff.added).toEqual([])
+  })
+
+  test("raw live 列表异常地少时不清理（防误杀）", () => {
+    const target = { a: stubModel("a"), b: stubModel("b") }
+    const diff = applyDiscovery(target, { a: stubModel("a") }, { prune: true, liveIDs: ["a"] })
+    expect(Object.keys(target).sort()).toEqual(["a", "b"])
+    expect(diff.removed).toEqual([])
+  })
+
+  test("用户手动配置的模型在清理中受保护", () => {
+    const target = { stale: stubModel("stale"), mine: stubModel("mine") }
+    const diff = applyDiscovery(
+      target,
+      { fresh: stubModel("fresh") },
+      { prune: true, liveIDs: ["fresh", "raw1", "raw2"], protectedIDs: new Set(["mine"]) },
+    )
+    expect(Object.keys(target).sort()).toEqual(["fresh", "mine"])
+    expect(diff.removed).toEqual(["stale"])
+  })
+
+  test("目录无变化时增删均为空（不触发 catalog.updated）", () => {
+    const target = { m: stubModel("m") }
+    const diff = applyDiscovery(target, { m: stubModel("m") }, { replaceExisting: true })
+    expect(diff).toEqual({ added: [], removed: [] })
   })
 })
