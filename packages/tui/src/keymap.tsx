@@ -299,16 +299,57 @@ export const SLASH_ZH: Record<string, string[]> = {
   review: ["审查"],
   init: ["初始化"],
   fetch: ["抓取"],
+  redraw: ["重绘"],
+  sidebar: ["侧边栏"],
+  workbench: ["工作台", "工具箱"],
 }
 
 // 斜杠命令的中文说明。服务端内置命令(init/review)和第三方 MCP 提示词的 description 常常是英文,
 // 斜杠面板会直接照搬,于是出现"/初始化  guided AGENTS.md setup"这种中英混排。
-// 这里按命令名覆盖成中文;命令名在 sync.data.command 里是什么就写什么,没列出的沿用原始 description。
 export const SLASH_DESC_ZH: Record<string, string> = {
   init: "引导生成 AGENTS.md 项目说明",
   review: "审查代码改动 [提交|分支|PR],默认审查未提交的改动",
   fetch: "抓取网页内容并转成 Markdown",
   fetch_url: "抓取网页内容并转成 Markdown",
+  diff: "打开差异查看器",
+  mcps: "切换 MCP 服务",
+  status: "查看状态",
+  debug: "查看调试信息",
+  help: "帮助",
+  exit: "退出应用",
+  redraw: "重绘界面",
+  sidebar: "侧边栏：切换到下一个面板",
+  workbench: "打开工具工作台",
+}
+
+const HAN_CHARACTER = /\p{Script=Han}/u
+
+function containsChinese(value: string) {
+  return HAN_CHARACTER.test(value)
+}
+
+export function slashTranslationKey(name: string) {
+  const normalized = name.replace(/:mcp$/i, "")
+  if (SLASH_ZH[normalized] || SLASH_DESC_ZH[normalized] || SLASH_ORDER[normalized] !== undefined) return normalized
+  return normalized.split(":", 1)[0] ?? normalized
+}
+
+export function slashDisplayName(name: string, source?: string) {
+  const key = slashTranslationKey(name)
+  const primary = SLASH_ZH[key]?.[0]
+  if (!primary) return `/${name}`
+  const isMcp = source === "mcp" || /:mcp$/i.test(name)
+  return `/${primary}${isMcp ? "（MCP）" : ""}`
+}
+
+export function slashDescription(name: string, description?: string, title?: string, source?: string) {
+  const key = slashTranslationKey(name)
+  const localized = SLASH_DESC_ZH[key]
+  if (localized) return localized
+  if (description && containsChinese(description)) return description
+  if (title && containsChinese(title)) return title
+  if (source === "mcp" || /:mcp$/i.test(name)) return "执行 MCP 命令"
+  return description ?? title
 }
 
 // 斜杠面板的优先级排序:靠前的先显示。未列出的排在最后并按名称字母序。
@@ -351,6 +392,9 @@ const SLASH_PRIORITY = [
   "debug",
   "help",
   "exit",
+  "redraw",
+  "sidebar",
+  "workbench",
 ]
 export const SLASH_ORDER: Record<string, number> = Object.fromEntries(SLASH_PRIORITY.map((name, i) => [name, i]))
 
@@ -370,26 +414,24 @@ export function useCommandSlashes(): Accessor<readonly CommandSlashEntry[]> {
       if (typeof slashName !== "string" || !slashName) return []
       const slashAliases = entry.command.slashAliases
       // 中文优先展示;英文原名与其它别名一并保留为可输入别名。
-      const zh = SLASH_ZH[slashName]
-      const primary = zh?.[0]
-      const display = primary ? `/${primary}` : `/${slashName}`
+      const key = slashTranslationKey(slashName)
+      const zh = SLASH_ZH[key]
+      const display = slashDisplayName(slashName)
       const aliasSet = new Set<string>()
-      if (primary) aliasSet.add(`/${slashName}`)
+      if (display !== `/${slashName}`) aliasSet.add(`/${slashName}`)
       if (zh) for (const z of zh.slice(1)) aliasSet.add(`/${z}`)
       if (Array.isArray(slashAliases))
         for (const a of slashAliases) if (typeof a === "string") aliasSet.add(`/${a}`)
       aliasSet.delete(display)
       return {
         display,
-        description:
-          SLASH_DESC_ZH[slashName] ??
-          (typeof entry.command.desc === "string"
-            ? entry.command.desc
-            : typeof entry.command.title === "string"
-              ? entry.command.title
-              : undefined),
+        description: slashDescription(
+          slashName,
+          typeof entry.command.desc === "string" ? entry.command.desc : undefined,
+          typeof entry.command.title === "string" ? entry.command.title : undefined,
+        ),
         aliases: aliasSet.size ? [...aliasSet] : undefined,
-        order: SLASH_ORDER[slashName],
+        order: SLASH_ORDER[key],
         onSelect: () => keymap.dispatchCommand(entry.command.name),
       }
     }),

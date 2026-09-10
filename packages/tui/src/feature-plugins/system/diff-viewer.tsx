@@ -1054,7 +1054,7 @@ const tui: TuiPlugin = async (api) => {
     commands: [
       {
         name: "diff.open",
-        title: "打开 Diff 查看器",
+        title: "打开差异查看器",
         slashName: "diff",
         category: "版本控制",
         namespace: "palette",

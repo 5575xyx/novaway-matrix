@@ -1,6 +1,6 @@
 import { useProject } from "../../context/project"
 import { useSync } from "../../context/sync"
-import { createEffect, createMemo, createSignal, For, Match, on, Show, Switch } from "solid-js"
+import { createEffect, createMemo, createSignal, For, on, Show } from "solid-js"
 import { useTerminalDimensions } from "@opentui/solid"
 import { useTheme } from "../../context/theme"
 import { useTuiConfig } from "../../config"
@@ -12,14 +12,7 @@ import { icon } from "../../util/panel-icons"
 import { WorkspaceLabel } from "../../component/workspace-label"
 import { TUI_BRAND } from "../../brand"
 import { FileTree } from "../../component/file-tree"
-import { MemoryPanel } from "../../component/memory-panel"
-import { EvolutionPanel } from "../../component/evolution-panel"
-import { CheckpointPanel } from "../../component/checkpoint-panel"
-import { GoalPanel } from "../../component/goal-panel"
-import { WorkflowPanel } from "../../component/workflow-panel"
-import { OrchestratorPanel } from "../../component/orchestrator-panel"
 import { GitPanel } from "../../component/git-panel"
-import { DbPanel } from "../../component/db-panel"
 import { Locale } from "../../util/locale"
 import { sidebarWidth } from "../../util/sidebar-width"
 
@@ -38,14 +31,12 @@ export interface SidebarProps {
   onFileDoubleClick?: (filePath: string) => void
 }
 
-export type SidebarTab = "files" | "info" | "git" | "db" | "hub"
+export type SidebarTab = "files" | "info" | "git"
 
 export const SIDEBAR_TABS: Array<{ id: SidebarTab; text: string }> = [
   { id: "files", text: "文件" },
   { id: "info", text: "待办与统计" },
   { id: "git", text: "Git" },
-  { id: "db", text: "数据" },
-  { id: "hub", text: "智能中枢" },
 ]
 
 // 侧栏当前面板提到模块作用域:原来它是 Sidebar 内部的局部 signal,只有那三个
@@ -60,18 +51,6 @@ export function cycleSidebarTab(step = 1) {
   const next = (index + step + SIDEBAR_TABS.length) % SIDEBAR_TABS.length
   setSidebarTab(SIDEBAR_TABS[next]!.id)
 }
-
-// 智能中枢内的可折叠分区(记忆 / 进化 / 检查点 / 目标 / 工作流)
-type HubSection = "memory" | "evolution" | "checkpoint" | "goal" | "workflow" | "orchestrator"
-
-const HUB_SECTIONS: Array<{ id: HubSection; text: string }> = [
-  { id: "memory", text: "持久记忆" },
-  { id: "evolution", text: "自我进化" },
-  { id: "checkpoint", text: "检查点" },
-  { id: "goal", text: "目标" },
-  { id: "workflow", text: "工作流" },
-  { id: "orchestrator", text: "编排" },
-]
 
 export function Sidebar(props: SidebarProps) {
   const pluginRuntime = usePluginRuntime()
@@ -93,18 +72,7 @@ export function Sidebar(props: SidebarProps) {
   const activeTab = sidebarTab
   const setActiveTab = setSidebarTab
 
-  // 折叠状态:记录被折叠的分区;默认全部展开(集合为空)
-  const [collapsed, setCollapsed] = createSignal<Set<HubSection>>(new Set())
-  const toggleSection = (id: HubSection) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-
-  // 有了 todo 就自动跳到"待办与统计"(todo 列表在那边):默认的"文件"页没有 todo,
-  // 只有从空到有的那一刻跳一次,用户手动切走后不再抢。
+  // 有了 todo 就自动跳到"待办与统计",用户手动切走后不再抢回。
   const todos = createMemo(() => sync.data.todo[props.sessionID ?? ""] ?? [])
   createEffect(
     on(
@@ -128,9 +96,7 @@ export function Sidebar(props: SidebarProps) {
       position={props.overlay ? "absolute" : "relative"}
       flexDirection="column"
     >
-      {/* 标签页栏。flexShrink={0}:这一行是唯一的切换入口,任何情况下都不许被下面的
-            面板内容挤掉高度,否则就变成"看得见面板、切不动面板"。
-            gap 随宽度收:窄侧栏(44 列)五个标签靠 gap=1 才排得下。 */}
+      {/* 标签页栏。常驻只保留文件、待办与统计、Git。 */}
       <box flexDirection="row" gap={dimensions().width > 160 ? 2 : 1} paddingBottom={1} flexShrink={0}>
         <For each={SIDEBAR_TABS}>
           {(tab) => (
@@ -241,81 +207,6 @@ export function Sidebar(props: SidebarProps) {
                 props.onOpenDiff?.(filePath)
               }}
             />
-          </box>
-        </scrollbox>
-      </Show>
-
-      {/* 数据标签页:数据库连接管理(功能对齐桌面端"数据库"页) */}
-      <Show when={activeTab() === "db"}>
-        <scrollbox
-          flexGrow={1}
-          scrollAcceleration={scrollAcceleration()}
-          verticalScrollbarOptions={{
-            trackOptions: {
-              backgroundColor: theme.background,
-              foregroundColor: theme.borderActive,
-            },
-          }}
-        >
-          <box flexShrink={0} gap={1} paddingRight={1}>
-            <DbPanel directory={session()?.directory ?? project.instance.directory()} />
-          </box>
-        </scrollbox>
-      </Show>
-
-      {/* 智能中枢标签页:记忆 / 进化 / 检查点 / 目标 / 工作流 合并为可折叠分区 */}
-      <Show when={activeTab() === "hub"}>
-        <scrollbox
-          flexGrow={1}
-          scrollAcceleration={scrollAcceleration()}
-          verticalScrollbarOptions={{
-            trackOptions: {
-              backgroundColor: theme.background,
-              foregroundColor: theme.borderActive,
-            },
-          }}
-        >
-          <box flexShrink={0} gap={1} paddingRight={1}>
-            <For each={HUB_SECTIONS}>
-              {(section) => (
-                <box flexDirection="column" gap={1}>
-                  {/* 分区标题:点击可折叠/展开 */}
-                  <text fg={theme.text} onMouseUp={() => toggleSection(section.id)}>
-                    <span style={{ fg: theme.textMuted }}>{collapsed().has(section.id) ? "▶" : "▼"}</span>{" "}
-                    <b>
-                      {icon(section.id)} {section.text}
-                    </b>
-                  </text>
-                  {/* 分区内容:未折叠时渲染对应面板。检查点/目标/工作流/编排要按会话查询,
-                      首屏还没有会话,直接给一行说明,不去用空 id 打接口。 */}
-                  <Show when={!collapsed().has(section.id)}>
-                    <Switch>
-                      <Match when={section.id === "memory"}>
-                        <MemoryPanel sessionID={sessionID()} />
-                      </Match>
-                      <Match when={section.id === "evolution"}>
-                        <EvolutionPanel sessionID={sessionID()} />
-                      </Match>
-                      <Match when={!props.sessionID}>
-                        <text fg={theme.textMuted}>开始对话后可用</text>
-                      </Match>
-                      <Match when={section.id === "checkpoint"}>
-                        <CheckpointPanel sessionID={sessionID()} />
-                      </Match>
-                      <Match when={section.id === "goal"}>
-                        <GoalPanel sessionID={sessionID()} />
-                      </Match>
-                      <Match when={section.id === "workflow"}>
-                        <WorkflowPanel sessionID={sessionID()} />
-                      </Match>
-                      <Match when={section.id === "orchestrator"}>
-                        <OrchestratorPanel sessionID={sessionID()} />
-                      </Match>
-                    </Switch>
-                  </Show>
-                </box>
-              )}
-            </For>
           </box>
         </scrollbox>
       </Show>
