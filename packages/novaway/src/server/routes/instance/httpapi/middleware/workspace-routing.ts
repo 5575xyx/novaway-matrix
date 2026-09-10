@@ -68,7 +68,13 @@ function selectedWorkspaceID(url: URL, sessionWorkspaceID?: WorkspaceID): Worksp
 }
 
 function defaultDirectory(request: HttpServerRequest.HttpServerRequest, url: URL): string {
-  return url.searchParams.get("directory") || request.headers["x-NovaWay-directory"] || process.cwd()
+  return (
+    url.searchParams.get("directory") ||
+    request.headers["x-novaway-directory"] ||
+    request.headers["x-NovaWay-directory"] ||
+    request.headers["x-opencode-directory"] ||
+    process.cwd()
+  )
 }
 
 function shouldStayOnControlPlane(request: HttpServerRequest.HttpServerRequest, url: URL): boolean {
