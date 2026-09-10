@@ -20,7 +20,15 @@ import { useTerminalDimensions } from "@opentui/solid"
 import { Locale } from "../../util/locale"
 import type { PromptInfo } from "../../prompt/history"
 import { useFrecency } from "../../prompt/frecency"
-import { useBindings, useCommandSlashes, useNovaWayModeStack, SLASH_ZH, SLASH_DESC_ZH, SLASH_ORDER } from "../../keymap"
+import {
+  useBindings,
+  useCommandSlashes,
+  useNovaWayModeStack,
+  slashDescription,
+  slashDisplayName,
+  slashTranslationKey,
+  SLASH_ORDER,
+} from "../../keymap"
 import { displayCharAt, mentionTriggerIndex } from "../../prompt/display"
 import type { FileSystemEntry } from "@novaway/sdk-v2-latest/v2"
 
@@ -450,14 +458,14 @@ export function Autocomplete(props: {
 
     for (const serverCommand of sync.data.command) {
       if (serverCommand.source === "skill") continue
-      const label = serverCommand.source === "mcp" ? ":mcp" : ""
-      const zh = SLASH_ZH[serverCommand.name]?.[0]
+      const rawName = serverCommand.source === "mcp" ? `${serverCommand.name}:mcp` : serverCommand.name
+      const display = slashDisplayName(rawName, serverCommand.source)
+      const key = slashTranslationKey(rawName)
       results.push({
-        display: "/" + (zh ?? serverCommand.name) + label,
-        aliases: zh ? ["/" + serverCommand.name + label] : undefined,
-        order: SLASH_ORDER[serverCommand.name],
-        // 服务端/MCP 命令的说明常是英文,SLASH_DESC_ZH 里有中文覆盖就用中文。
-        description: SLASH_DESC_ZH[serverCommand.name] ?? serverCommand.description,
+        display,
+        aliases: display !== `/${rawName}` ? [`/${rawName}`] : undefined,
+        order: SLASH_ORDER[key],
+        description: slashDescription(rawName, serverCommand.description, undefined, serverCommand.source),
         onSelect: () => {
           const newText = "/" + serverCommand.name + " "
           const cursor = props.input().logicalCursor

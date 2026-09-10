@@ -44,6 +44,7 @@ import { PermissionProvider } from "./context/permission"
 import { DialogModel } from "./component/dialog-model"
 import { useConnected } from "./component/use-connected"
 import { DialogMcp } from "./component/dialog-mcp"
+import { DialogWorkbench } from "./component/dialog-workbench"
 import { DialogStatus } from "./component/dialog-status"
 import { DialogDebug } from "./component/dialog-debug"
 import { DialogThemeList } from "./component/dialog-theme-list"
@@ -129,6 +130,7 @@ const appBindingCommands = [
   "console.org.switch",
   "NovaWay.status",
   "NovaWay.debug",
+  "workbench.open",
   "theme.switch",
   "theme.switch_mode",
   "theme.mode.lock",
@@ -726,7 +728,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       },
       {
         name: "mcp.list",
-        title: "切换 MCP",
+        title: "切换 MCP 服务",
         category: "代理",
         slashName: "mcps",
         run: () => {
@@ -818,6 +820,19 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
           dialog.replace(() => <DialogDebug />)
         },
         category: "系统",
+      },
+      {
+        name: "workbench.open",
+        title: "打开工具工作台",
+        category: "系统",
+        slashName: "workbench",
+        slashAliases: ["工具箱", "工作台"],
+        run: () => {
+          const session = route.data.type === "session" ? sync.session.get(route.data.sessionID) : undefined
+          dialog.replace(() => (
+            <DialogWorkbench directory={session?.directory ?? project.instance.directory()} sessionID={session?.id} />
+          ))
+        },
       },
       {
         name: "theme.switch",

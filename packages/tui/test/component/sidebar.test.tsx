@@ -13,10 +13,30 @@ import { SyncProvider } from "../../src/context/sync"
 import { ArgsProvider } from "../../src/context/args"
 import { PluginRuntimeProvider, createPluginRuntime } from "../../src/plugin/runtime"
 import { Sidebar } from "../../src/routes/session/sidebar"
+import { workbenchOptions } from "../../src/component/dialog-workbench"
 import { TestTuiContexts } from "../fixture/tui-environment"
 import { createFetch, eventSource } from "../fixture/tui-sdk"
 
-// 首屏(还没有任何会话)也挂同一条侧栏,所以 Sidebar 必须容忍 sessionID 缺席:
+test("工具工作台按数据与智能中枢分组选项", async () => {
+  let options: ReturnType<typeof workbenchOptions> = []
+  const app = await testRender(
+    () => {
+      options = workbenchOptions()
+      return <text>{options.map((option) => option.title).join(" ")}</text>
+    },
+    { width: 80, height: 5 },
+  )
+
+  try {
+    await app.renderOnce()
+    expect(options).toHaveLength(7)
+    expect(options[0]).toMatchObject({ value: "data", category: "数据", title: "数据" })
+    expect(options.slice(1).every((option) => option.category === "智能中枢")).toBe(true)
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
 // 标签行照旧渲染,会话专属内容(标题、检查点/目标/工作流/编排)跳过,不崩。
 test("侧栏在无会话时渲染标签行,跳过会话专属内容", async () => {
   const runtime = createPluginRuntime()
@@ -61,12 +81,14 @@ test("侧栏在无会话时渲染标签行,跳过会话专属内容", async () =
       await app.renderOnce()
       frame = app.captureCharFrame()
       // 等 sync 拉完、标签行画出来
-      if (frame.includes("信息") && frame.includes("智能中枢")) break
+      if (frame.includes("待办与统计") && frame.includes("Git")) break
       await new Promise((resolve) => setTimeout(resolve, 25))
     }
-    expect(frame).toContain("信息")
+    expect(frame).toContain("待办与统计")
     expect(frame).toContain("文件")
-    expect(frame).toContain("智能中枢")
+    expect(frame).toContain("Git")
+    expect(frame).not.toContain("智能中枢")
+    expect(frame).not.toContain("数据")
   } finally {
     app.renderer.destroy()
   }
