@@ -120,7 +120,7 @@ function writeProviderAuthPlugin(dir: string) {
     const fs = yield* AppFileSystem.Service
 
     yield* fs.writeWithDirs(
-      path.join(dir, ".opencode", "plugin", "provider-oauth-parity.ts"),
+      path.join(dir, ".novaway", "plugin", "provider-oauth-parity.ts"),
       [
         "export default {",
         '  id: "test.provider-oauth-parity",',
@@ -154,7 +154,7 @@ function writeProviderAuthValidationPlugin(dir: string) {
     const fs = yield* AppFileSystem.Service
 
     yield* fs.writeWithDirs(
-      path.join(dir, ".opencode", "plugin", "provider-oauth-validation.ts"),
+      path.join(dir, ".novaway", "plugin", "provider-oauth-validation.ts"),
       [
         "export default {",
         '  id: "test.provider-oauth-validation",',
@@ -195,7 +195,7 @@ function writeFunctionOptionsPlugin(dir: string) {
     const fs = yield* AppFileSystem.Service
 
     yield* fs.writeWithDirs(
-      path.join(dir, ".opencode", "plugin", "provider-function-options.ts"),
+      path.join(dir, ".novaway", "plugin", "provider-function-options.ts"),
       [
         "export default {",
         '  id: "test.provider-function-options",',
@@ -226,7 +226,7 @@ function writeProviderModelsMutationPlugin(dir: string) {
     const fs = yield* AppFileSystem.Service
 
     yield* fs.writeWithDirs(
-      path.join(dir, ".opencode", "plugin", "provider-models-mutation.ts"),
+      path.join(dir, ".novaway", "plugin", "provider-models-mutation.ts"),
       [
         "export default {",
         '  id: "test.provider-models-mutation",',
