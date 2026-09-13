@@ -559,7 +559,7 @@ function MinesweeperGame(props: { onReward: (score: number) => void; difficulty?
   const mineCount = () => mineConfig().count
   const mineIndex = (row: number, col: number) => row * mineCols() + col
   const mineNeighbors = (index: number) => {
-    const row = Math.floor(index / MINE_COLS)
+    const row = Math.floor(index / mineCols())
     const col = index % mineCols()
     const result: number[] = []
     for (let dr = -1; dr <= 1; dr += 1) {

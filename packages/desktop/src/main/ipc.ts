@@ -779,7 +779,17 @@ export function registerIpcHandlers(deps: Deps) {
       const avatar: FloatingPetAvatar = input.avatar === "nova" || input.avatar === "fox" || input.avatar === "cat" || input.avatar === "robot" ? input.avatar : current.avatar
       const accessory: FloatingPetAccessory = input.accessory === "none" || input.accessory === "crown" || input.accessory === "glasses" || input.accessory === "scarf" ? input.accessory : current.accessory
       const gameSettings = input.gameSettings
-        ? Object.fromEntries(PET_GAMES.map((game) => [game, PET_DIFFICULTIES.includes(input.gameSettings?.[game] as FloatingPetDifficulty) ? input.gameSettings[game] : current.gameSettings[game]])) as FloatingPetProfile["gameSettings"]
+        ? (() => {
+            const inputGameSettings = input.gameSettings
+            return Object.fromEntries(
+              PET_GAMES.map((game) => [
+                game,
+                PET_DIFFICULTIES.includes(inputGameSettings[game] as FloatingPetDifficulty)
+                  ? inputGameSettings[game]
+                  : current.gameSettings[game],
+              ]),
+            ) as FloatingPetProfile["gameSettings"]
+          })()
         : current.gameSettings
       const name = typeof input.name === "string" ? input.name.trim().slice(0, 24) : current.name
       const profile = saveFloatingPetProfile({ ...current, name: name || current.name, preset, skin, avatar, accessory, gameSettings })
