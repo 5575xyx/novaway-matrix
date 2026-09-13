@@ -22,6 +22,9 @@ import {
   readPluginId,
   readV1Plugin,
   resolvePluginId,
+  isGitPluginSpec,
+  startGitPluginRefresh,
+  waitForGitPluginRefresh,
   type PluginPackage,
   type PluginSource,
 } from "@/plugin/shared"
@@ -115,6 +118,7 @@ type RuntimeState = {
   plugins_by_id: Map<string, PluginEntry>
   pending: Map<string, ConfigPlugin.Origin>
   dispose_timeout_ms: number
+  background?: Promise<void>
 }
 
 const DISPOSE_TIMEOUT_MS = 5000
@@ -771,6 +775,22 @@ async function resolveExternalPlugins(list: ConfigPlugin.Origin[], wait: () => P
   })
 }
 
+async function refreshGitPlugins(origins: ConfigPlugin.Origin[]) {
+  const specs = origins
+    .map((origin) => ConfigPlugin.pluginSpecifier(origin.spec))
+    .filter((spec) => isGitPluginSpec(spec))
+  startGitPluginRefresh(specs, {
+    kind: "tui",
+    onResult(spec, result) {
+      if (result.state === "updated") {
+        warn("git tui plugin updated; restart to activate", { path: spec, revision: result.revision })
+      } else if (result.state === "offline" || result.state === "failed") {
+        warn("git tui plugin refresh skipped", { path: spec, error: result.error })
+      }
+    },
+  })
+}
+
 async function addExternalPluginEntries(state: RuntimeState, ready: PluginLoad[]) {
   if (!ready.length) return { plugins: [] as PluginEntry[], ok: true }
 
@@ -1032,6 +1052,9 @@ export async function dispose() {
   const state = runtime
   runtime = undefined
   if (!state) return
+  await waitForGitPluginRefresh(state.dispose_timeout_ms).catch((error) =>
+    fail("failed to finish refreshing tui plugins during disposal", { error }),
+  )
   const queue = [...state.plugins].reverse()
   for (const plugin of queue) {
     await deactivatePluginEntry(state, plugin, false).catch((error) =>
@@ -1114,6 +1137,9 @@ async function load(input: {
       await activatePluginEntry(next, plugin, false)
     }
     next.view.update({ status: listPluginStatus(next) })
+    next.background = refreshGitPlugins(records).catch((error) => {
+      fail("failed to schedule git tui plugin refresh", { directory: cwd, error })
+    })
   } catch (error) {
     fail("failed to load tui plugins", { directory: cwd, error })
   }

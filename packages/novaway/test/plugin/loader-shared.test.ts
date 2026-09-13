@@ -281,6 +281,32 @@ describe("plugin.loader.shared", () => {
     ),
   )
 
+  it.live("loads cached git plugin without forcing an update", () =>
+    withTmp(
+      async (dir) => {
+        const mod = path.join(dir, "mods", "acme-plugin")
+        await fs.mkdir(mod, { recursive: true })
+        await Bun.write(path.join(mod, "package.json"), JSON.stringify({ name: "acme-plugin", main: "index.js" }))
+        await Bun.write(path.join(mod, "index.js"), "export default { server: async () => ({}) }\n")
+        await Bun.write(
+          path.join(dir, "novaway.json"),
+          JSON.stringify({ plugin: ["acme-plugin@git+https://github.com/opencode/acme.git"] }),
+        )
+        return { mod }
+      },
+      (tmp) =>
+        Effect.gen(function* () {
+          const add = spyOn(Npm, "add").mockResolvedValue({ directory: tmp.extra.mod, entrypoint: undefined })
+          try {
+            yield* load(tmp.path)
+            expect(add.mock.calls).toContainEqual(["acme-plugin@git+https://github.com/opencode/acme.git"])
+          } finally {
+            add.mockRestore()
+          }
+        }),
+    ),
+  )
+
   it.live("loads npm server plugin from package ./server export", () =>
     withTmp(
       async (dir) => {

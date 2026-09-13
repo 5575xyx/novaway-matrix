@@ -1224,7 +1224,6 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
   })
 
   const plugin = createMemo(() => {
-    if (!ready()) return
     if (route.data.type !== "plugin") return
     const render = pluginRuntime.routes.get(route.data.id)
     if (!render) return <PluginRouteMissing id={route.data.id} onHome={() => route.navigate({ type: "home" })} />
@@ -1254,25 +1253,23 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       <Show when={Flag.NOVAWAY_SHOW_TTFD}>
         <TimeToFirstDraw />
       </Show>
-      <Show when={ready()}>
-        <box flexGrow={1} minHeight={0} flexDirection="column">
-          <Switch>
-            <Match when={route.data.type === "home"}>
-              <Home />
-            </Match>
-            <Match when={route.data.type === "session"}>
-              <Show when={route.data.type === "session" ? route.data.sessionID : undefined} keyed>
-                {(_) => <Session />}
-              </Show>
-            </Match>
-          </Switch>
-          {plugin()}
-        </box>
-        <box flexShrink={0}>
-          <pluginRuntime.Slot name="app_bottom" />
-        </box>
-        <pluginRuntime.Slot name="app" />
-      </Show>
+      <box flexGrow={1} minHeight={0} flexDirection="column">
+        <Switch>
+          <Match when={route.data.type === "home"}>
+            <Home />
+          </Match>
+          <Match when={route.data.type === "session"}>
+            <Show when={route.data.type === "session" ? route.data.sessionID : undefined} keyed>
+              {(_) => <Session />}
+            </Show>
+          </Match>
+        </Switch>
+        {plugin()}
+      </box>
+      <box flexShrink={0}>
+        <pluginRuntime.Slot name="app_bottom" />
+      </box>
+      <pluginRuntime.Slot name="app" />
       <Show when={!startup.skipInitialLoading}>
         <StartupLoading ready={ready} />
       </Show>

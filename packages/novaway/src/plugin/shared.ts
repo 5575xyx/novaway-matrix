@@ -3,8 +3,10 @@ import { fileURLToPath, pathToFileURL } from "url"
 import npa from "npm-package-arg"
 import semver from "semver"
 import { Filesystem } from "@/util/filesystem"
+import { Process } from "@/util/process"
 import { isRecord } from "@/util/record"
 import { Npm } from "@novaway/core/npm"
+import { InstallationVersion } from "@novaway/core/installation/version"
 
 // Old npm package names for plugins that are now built-in
 export const DEPRECATED_PLUGIN_PACKAGES = ["opencode-openai-codex-auth", "opencode-copilot-auth"]
@@ -56,6 +58,15 @@ const INDEX_FILES = ["index.ts", "index.tsx", "index.js", "index.mjs", "index.cj
 export function pluginSource(spec: string): PluginSource {
   if (isPathPluginSpec(spec)) return "file"
   return "npm"
+}
+
+export function isGitPluginSpec(spec: string) {
+  const hit = parse(spec)
+  if (hit?.type !== "git") return false
+  const values = [hit.gitRange, hit.rawSpec, hit.fetchSpec].filter(
+    (value): value is string => typeof value === "string",
+  )
+  return !values.some((value) => /^(?:git\+)?file:/i.test(value))
 }
 
 function resolveExportPath(raw: string, dir: string) {
@@ -230,7 +241,181 @@ function extractGitHost(spec: string): string | undefined {
 
 function buildFallbackSpec(spec: string, fallbackUrl: string): string {
   const name = extractPluginName(spec) ?? spec
-  return `${name}@git+${fallbackUrl}`
+  const ref = parse(spec)?.gitCommittish
+  return `${name}@${fallbackUrl}${ref ? `#${ref}` : ""}`
+}
+
+function gitRemote(spec: string) {
+  const hit = parse(spec)
+  if (hit?.type !== "git" || !hit.fetchSpec) return
+  return {
+    url: hit.fetchSpec,
+    ref: hit.gitCommittish ?? "HEAD",
+  }
+}
+
+const gitRefreshes = new Map<string, Promise<GitRefreshResult>>()
+
+export type GitRefreshResult =
+  | { state: "unchanged"; revision: string }
+  | { state: "updated"; revision: string; directory: string }
+  | { state: "offline" | "failed"; error: unknown }
+
+const gitRefreshManager = new Map<string, Promise<GitRefreshResult>>()
+
+export function startGitPluginRefresh(
+  specs: Iterable<string>,
+  options: {
+    timeoutMs?: number
+    kind?: PluginKind
+    onResult?: (spec: string, result: GitRefreshResult) => void
+  } = {},
+) {
+  const tasks: Promise<GitRefreshResult>[] = []
+  for (const spec of new Set(specs)) {
+    if (!isGitPluginSpec(spec)) continue
+    const task = gitRefreshManager.get(spec) ?? refreshGitPlugin(spec, options)
+    gitRefreshManager.set(spec, task)
+    tasks.push(task)
+    void task.then(
+      (result) => options.onResult?.(spec, result),
+      () => {},
+    )
+  }
+  return tasks
+}
+
+export async function waitForGitPluginRefresh(timeoutMs = 5000) {
+  const tasks = [...gitRefreshManager.values()]
+  if (!tasks.length) return
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, timeoutMs)
+    void Promise.allSettled(tasks).then(() => {
+      clearTimeout(timer)
+      resolve()
+    })
+  })
+}
+async function localGitRevision(directory: string, timeout: number) {
+  const result = await Process.text(["git", "-C", directory, "rev-parse", "HEAD"], {
+    timeout,
+    nothrow: true,
+  })
+  if (result.code === 0) {
+    const revision = result.text.trim()
+    if (revision) return revision
+  }
+
+  let current = directory
+  for (let i = 0; i < 5; i++) {
+    const lockFile = path.join(current, "package-lock.json")
+    const lock = await Filesystem.readJson<{ packages?: Record<string, { resolved?: string; version?: string }> }>(lockFile).catch(
+      () => undefined,
+    )
+    if (lock?.packages) {
+      const relative = path.relative(current, directory).split(path.sep).join("/")
+      const item = lock.packages[relative]
+      const source = `${item?.resolved ?? ""} ${item?.version ?? ""}`
+      const revision = source.match(/#([0-9a-f]{7,40})(?:$|[?#])/i)?.[1]
+      if (revision) return revision
+    }
+    const parent = path.dirname(current)
+    if (parent === current) break
+    current = parent
+  }
+}
+
+async function remoteGitRevision(spec: string, timeout: number) {
+  const remote = gitRemote(spec)
+  if (!remote) throw new Error(`Plugin ${spec} is not a remote Git plugin`)
+  const result = await Process.text(["git", "ls-remote", remote.url, remote.ref], {
+    timeout,
+    nothrow: true,
+  })
+  if (result.code !== 0) {
+    throw new Process.RunFailedError(
+      ["git", "ls-remote", remote.url, remote.ref],
+      result.code,
+      result.stdout,
+      result.stderr,
+    )
+  }
+  const revision = result.text.trim().split(/\s+/, 1)[0]
+  if (!revision) throw new Error(`Git remote ${remote.url} returned no revision for ${remote.ref}`)
+  return revision
+}
+
+export function gitPluginRemote(spec: string) {
+  return gitRemote(spec)
+}
+
+async function resolveGitTarget(spec: string) {
+  try {
+    const result = await Npm.add(spec)
+    return { spec, directory: result.directory }
+  } catch (primaryError) {
+    const name = extractPluginName(spec)
+    const failedHost = extractGitHost(spec)
+    for (const url of name ? PLUGIN_FALLBACK_URLS[name] ?? [] : []) {
+      if (failedHost) {
+        try {
+          if (new URL(url).host === failedHost) continue
+        } catch {}
+      }
+      const candidate = buildFallbackSpec(spec, url)
+      try {
+        const result = await Npm.add(candidate)
+        return { spec: candidate, directory: result.directory }
+      } catch {}
+    }
+    throw primaryError
+  }
+}
+
+async function validateGitPluginTarget(spec: string, target: string, kind: PluginKind) {
+  const pkg = await readPluginPackage(target)
+  const entry = resolvePackageEntrypoint(spec, kind, pkg)
+  if (!entry) throw new Error(`Plugin ${spec} does not expose a ${kind} entrypoint`)
+  await checkPluginCompatibility(target, InstallationVersion, pkg)
+  const mod = await import(entry)
+  if (!isRecord(mod)) throw new TypeError(`Plugin ${spec} module is empty`)
+  if (readV1Plugin(mod, spec, kind, "detect")) return
+  const valid = Object.values(mod).some((value) => {
+    if (typeof value === "function") return true
+    return isRecord(value) && typeof value[kind] === "function"
+  })
+  if (!valid) throw new TypeError(`Plugin ${spec} has no valid ${kind} export`)
+}
+
+export async function refreshGitPlugin(
+  spec: string,
+  options: { timeoutMs?: number; kind?: PluginKind } = {},
+): Promise<GitRefreshResult> {
+  if (!isGitPluginSpec(spec)) return { state: "failed", error: new Error(`Plugin ${spec} is not a remote Git plugin`) }
+  const key = spec
+  const existing = gitRefreshes.get(key)
+  if (existing) return existing
+
+  const task = (async (): Promise<GitRefreshResult> => {
+    const timeout = options.timeoutMs ?? 8000
+    try {
+      const current = await resolveGitTarget(spec)
+      const local = await localGitRevision(current.directory, timeout)
+      const remote = await remoteGitRevision(current.spec, timeout)
+      if (local && local === remote) return { state: "unchanged", revision: remote }
+      const updated = await Npm.add(current.spec, { update: true })
+      if (options.kind) await validateGitPluginTarget(current.spec, updated.directory, options.kind)
+      return { state: "updated", revision: remote, directory: updated.directory }
+    } catch (error) {
+      return { state: "offline", error }
+    }
+  })()
+  gitRefreshes.set(key, task)
+  try {
+    return await task
+  } finally {
+    if (gitRefreshes.get(key) === task) gitRefreshes.delete(key)
+  }
 }
 
 export async function resolvePluginTarget(spec: string) {
@@ -243,14 +428,12 @@ export async function resolvePluginTarget(spec: string) {
     return result.directory
   } catch (primaryError) {
     const name = extractPluginName(spec)
-    if (!name) throw primaryError
-    const fallbacks = PLUGIN_FALLBACK_URLS[name]
-    if (!fallbacks?.length) throw primaryError
+    const fallbacks = name ? PLUGIN_FALLBACK_URLS[name] : undefined
 
     // Skip fallbacks that point to the same host we already failed on (likely same network failure).
     const failedHost = extractGitHost(spec)
 
-    for (const url of fallbacks) {
+    for (const url of fallbacks ?? []) {
       if (failedHost) {
         try {
           if (new URL(url).host === failedHost) continue
@@ -266,6 +449,7 @@ export async function resolvePluginTarget(spec: string) {
         // try next fallback
       }
     }
+
     throw primaryError
   }
 }

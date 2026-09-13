@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron"
-import type { ElectronAPI, FloatingAgentState, InitStep, SqliteMigrationProgress } from "./types"
+import type { ElectronAPI, FloatingAgentState, FloatingPanelTab, InitStep, SqliteMigrationProgress } from "./types"
 
 const api: ElectronAPI = {
   killSidecar: () => ipcRenderer.invoke("kill-sidecar"),
@@ -53,8 +53,15 @@ const api: ElectronAPI = {
   },
 
   getFloatingAgentState: () => ipcRenderer.invoke("get-floating-agent-state"),
+  getFloatingPetManagementState: () => ipcRenderer.invoke("get-floating-pet-management-state"),
+  updateFloatingPetProfile: (input) => ipcRenderer.invoke("update-floating-pet-profile", input),
+  resetFloatingPetProgress: () => ipcRenderer.invoke("reset-floating-pet-progress"),
   setFloatingAgent: (name) => ipcRenderer.invoke("set-floating-agent", name),
   setFloatingPetSkin: (skin) => ipcRenderer.invoke("set-floating-pet-skin", skin),
+  setFloatingPetReaction: (reaction) => ipcRenderer.invoke("set-floating-pet-reaction", reaction),
+  petAction: (action) => ipcRenderer.invoke("floating-pet-action", action),
+  playFloatingPetRps: (choice) => ipcRenderer.invoke("floating-pet-rps", choice),
+  claimFloatingPetGameReward: (game, score) => ipcRenderer.invoke("floating-pet-game-reward", game, score),
   markFloatingNotificationsRead: (ids) => ipcRenderer.invoke("mark-floating-notifications-read", ids),
   clearFloatingNotifications: () => ipcRenderer.invoke("clear-floating-notifications"),
   openFloatingNotification: (id) => ipcRenderer.invoke("open-floating-notification", id),
@@ -70,7 +77,7 @@ const api: ElectronAPI = {
     return () => ipcRenderer.removeListener("floating-expanded-change", handler)
   },
   onFloatingPanelTabChange: (cb) => {
-    const handler = (_: unknown, tab: "monitor" | "notifications") => cb(tab)
+    const handler = (_: unknown, tab: FloatingPanelTab) => cb(tab)
     ipcRenderer.on("floating-panel-tab-change", handler)
     return () => ipcRenderer.removeListener("floating-panel-tab-change", handler)
   },
@@ -104,7 +111,7 @@ const api: ElectronAPI = {
   beginFloatingWidgetDrag: (pointerX, pointerY) => ipcRenderer.send("begin-floating-widget-drag", pointerX, pointerY),
   moveFloatingWidget: (pointerX, pointerY) => ipcRenderer.send("move-floating-widget", pointerX, pointerY),
   saveFloatingWidgetBounds: () => ipcRenderer.invoke("save-floating-widget-bounds"),
-  setFloatingExpanded: (expanded) => ipcRenderer.invoke("set-floating-expanded", expanded),
+  setFloatingExpanded: (expanded, tab) => ipcRenderer.invoke("set-floating-expanded", expanded, tab),
   toggleFloatingSkinMenu: () => ipcRenderer.invoke("toggle-floating-skin-menu"),
 
   createDirectory: (parentPath, dirName) => ipcRenderer.invoke("create-directory", parentPath, dirName),

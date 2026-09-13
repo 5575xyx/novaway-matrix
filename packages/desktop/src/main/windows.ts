@@ -3,7 +3,7 @@ import { app, BrowserWindow, net, nativeImage, nativeTheme, protocol, screen } f
 import { existsSync } from "node:fs"
 import { dirname, isAbsolute, join, relative, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
-import type { TitlebarTheme } from "../preload/types"
+import type { FloatingPanelTab, TitlebarTheme } from "../preload/types"
 import { getStore } from "./store"
 
 const root = dirname(fileURLToPath(import.meta.url))
@@ -210,8 +210,8 @@ export const FLOATING_ACTIVITY_PADDING = 240
 export const FLOATING_SPEECH_PADDING_TOP = 52
 export const FLOATING_WINDOW_WIDTH = FLOATING_COLLAPSED_SIZE + FLOATING_ACTIVITY_PADDING * 2
 export const FLOATING_WINDOW_HEIGHT = FLOATING_COLLAPSED_SIZE + FLOATING_SPEECH_PADDING_TOP
-const FLOATING_EXPANDED_WIDTH = 380
-const FLOATING_EXPANDED_HEIGHT = 500
+const FLOATING_EXPANDED_WIDTH = 520
+const FLOATING_EXPANDED_HEIGHT = 660
 const FLOATING_SKIN_MENU_WIDTH = 226
 const FLOATING_SKIN_MENU_HEIGHT = 276
 const FLOATING_PADDING = 16
@@ -325,7 +325,7 @@ export function positionFloatingPanel(panel: BrowserWindow, mascot: BrowserWindo
   panel.setBounds({ x, y, width: FLOATING_EXPANDED_WIDTH, height: FLOATING_EXPANDED_HEIGHT })
 }
 
-export function createFloatingPanelWindow(mascot: BrowserWindow, tab: "monitor" | "notifications" = "monitor") {
+export function createFloatingPanelWindow(mascot: BrowserWindow, tab: FloatingPanelTab = "monitor") {
   const appIcon = loadAppIcon()
   const panel = new BrowserWindow({
     width: FLOATING_EXPANDED_WIDTH,
@@ -429,15 +429,12 @@ export function createFloatingSkinWindow(mascot: BrowserWindow) {
   return menu
 }
 
-/** 与渲染层布局一致：底部居中 p-4 + 可点区域贴近宠物本体（约 144） */
-export const FLOATING_HIT_WIDTH = 152
-export const FLOATING_HIT_HEIGHT = 152
-export const FLOATING_CONTENT_PAD = 16
+/** 与渲染层布局一致：宠物本体与右侧宠物屋按钮共用一个命中区域 */
+export const FLOATING_HIT_WIDTH = 400
+export const FLOATING_HIT_HEIGHT = 196
+export const FLOATING_CONTENT_PAD = 0
 
-/**
- * 宠物可交互热区（屏幕坐标）。
- * 以窗口真实 bounds 计算，避免 anchor 与 flex 居中布局错位导致“点在宠物上却点不中”。
- */
+/** 宠物可交互热区（屏幕坐标）。以宠物本体为中心，包含贴近身侧的“宠物屋”按钮。 */
 export function getFloatingPetHitBounds(win: BrowserWindow) {
   const bounds = win.getBounds()
   const width = FLOATING_HIT_WIDTH

@@ -1,0 +1,37 @@
+INFO  2026-08-28T05:19:26 +127ms service=default version=local args=["stats"] process_role=main run_id=99cba4ec-57eb-4b96-9db7-c493248cf285 novaway
+INFO  2026-08-28T05:19:26 +10ms service=db path=E:\AImoney\NovaWay-Matrix\novaway-coder\packages\novaway\.nwtest-dev-1787894361\novaway\novaway-local.db opening database
+INFO  2026-08-28T05:19:26 +12ms service=db count=33 mode=dev applying migrations
+INFO  2026-08-28T05:19:26 +43ms service=json-migration storage directory does not exist, skipping migration
+INFO  2026-08-28T05:19:26 +11ms service=file init
+INFO  2026-08-28T05:19:27 +73ms service=data-migration name=session_usage_from_messages running data migration
+INFO  2026-08-28T05:19:27 +165ms service=default directory=E:\AImoney\NovaWay-Matrix\novaway-coder\packages\novaway creating instance
+INFO  2026-08-28T05:19:27 +0ms service=project directory=E:\AImoney\NovaWay-Matrix\novaway-coder\packages\novaway fromDirectory
+INFO  2026-08-28T05:19:27 +405ms service=default directory=E:\AImoney\NovaWay-Matrix\novaway-coder\packages\novaway bootstrapping
+INFO  2026-08-28T05:19:27 +12ms service=config path=C:\Users\13428\.config\novaway\config.json loading
+INFO  2026-08-28T05:19:27 +1ms service=config path=C:\Users\13428\.config\novaway\novaway.jsonc loading
+INFO  2026-08-28T05:19:27 +1ms service=config path=C:\Users\13428\.config\novaway\novaway.json loading
+INFO  2026-08-28T05:19:27 +17ms service=config path=E:\AImoney\NovaWay-Matrix\novaway-coder\novaway.json loading
+DEBUG 2026-08-28T05:19:28 +578ms service=config loading config from E:\AImoney\NovaWay-Matrix\novaway-coder\.novaway\novaway.json
+INFO  2026-08-28T05:19:28 +0ms service=config path=E:\AImoney\NovaWay-Matrix\novaway-coder\.novaway\novaway.json loading
+DEBUG 2026-08-28T05:19:28 +2ms service=config loading config from E:\AImoney\NovaWay-Matrix\novaway-coder\.novaway\novaway.jsonc
+INFO  2026-08-28T05:19:28 +0ms service=config path=E:\AImoney\NovaWay-Matrix\novaway-coder\.novaway\novaway.jsonc loading
+DEBUG 2026-08-28T05:19:28 +48ms service=config loading config from C:\Users\13428\.novaway\novaway.json
+INFO  2026-08-28T05:19:28 +0ms service=config path=C:\Users\13428\.novaway\novaway.json loading
+DEBUG 2026-08-28T05:19:28 +11ms service=config loading config from C:\Users\13428\.novaway\novaway.jsonc
+INFO  2026-08-28T05:19:28 +0ms service=config path=C:\Users\13428\.novaway\novaway.jsonc loading
+INFO  2026-08-28T05:19:28 +43ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-08-28T05:19:28 +0ms service=plugin name=CopilotAuthPlugin loading internal plugin
+INFO  2026-08-28T05:19:28 +1ms service=plugin name=gitlabAuthPlugin loading internal plugin
+INFO  2026-08-28T05:19:28 +0ms service=plugin name=PoeAuthPlugin loading internal plugin
+INFO  2026-08-28T05:19:28 +0ms service=plugin name=CloudflareWorkersAuthPlugin loading internal plugin
+INFO  2026-08-28T05:19:28 +0ms service=plugin name=CloudflareAIGatewayAuthPlugin loading internal plugin
+INFO  2026-08-28T05:19:28 +0ms service=plugin name=AzureAuthPlugin loading internal plugin
+INFO  2026-08-28T05:19:28 +0ms service=plugin name=DigitalOceanAuthPlugin loading internal plugin
+WARN  2026-08-28T05:19:32 +4196ms service=config dir=C:\Users\13428\.novaway error=Cause([Fail(NpmInstallFailedError (cause: HttpErrorGeneral: 404 Not Found - GET https://registry.npmjs.org/@opencode%2fplugin - Not found))]) background dependency install failed
+WARN  2026-08-28T05:19:33 +622ms service=config dir=C:\Users\13428\.config\novaway error=Cause([Fail(NpmInstallFailedError (cause: HttpErrorGeneral: 404 Not Found - GET https://registry.npmjs.org/@opencode%2fplugin - Not found))]) background dependency install failed
+WARN  2026-08-28T05:19:34 +879ms service=config dir=E:\AImoney\NovaWay-Matrix\novaway-coder\.novaway error=Cause([Fail(NpmInstallFailedError (cause: HttpErrorGeneral: 404 Not Found - GET https://registry.npmjs.org/@opencode%2fplugin - Not found))]) background dependency install failed
+INFO  2026-08-28T05:19:34 +1ms service=plugin path=PowersNexus@git+https://gitee.com/nova-way/powersnexus.git loading plugin
+INFO  2026-08-28T05:19:34 +8ms service=bus type=* subscribing
+INFO  2026-08-28T05:19:34 +2ms service=lsp all LSPs are disabled
+INFO  2026-08-28T05:19:34 +0ms service=bus type=session.updated subscribing
+INFO  2026-08-28T05:19:34 +1ms service=bus type=message.updated subscribing

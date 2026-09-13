@@ -9,6 +9,7 @@ export const FREE_PROVIDER_NATURE: Record<string, FreeNature> = {
   openrouter: "model",
   zhipuai: "model",
   agnes: "model",
+  opencode: "model",
   google: "rate-limited",
   groq: "rate-limited",
   nvidia: "credits",

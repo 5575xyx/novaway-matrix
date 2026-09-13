@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { parsePluginSpecifier } from "../../src/plugin/shared"
+import { isGitPluginSpec, parsePluginSpecifier } from "../../src/plugin/shared"
 
 describe("parsePluginSpecifier", () => {
   test("parses standard npm package without version", () => {
@@ -84,5 +84,18 @@ describe("parsePluginSpecifier", () => {
       pkg: "@opencode/acme",
       version: "latest",
     })
+  })
+})
+
+describe("isGitPluginSpec", () => {
+  test("recognizes remote Git specs", () => {
+    expect(isGitPluginSpec("acme@git+https://github.com/opencode/acme.git#main")).toBe(true)
+    expect(isGitPluginSpec("acme@git+ssh://git@github.com/opencode/acme.git#v1")).toBe(true)
+  })
+
+  test("excludes local and non-Git specs", () => {
+    expect(isGitPluginSpec("acme@git+file:../acme")).toBe(false)
+    expect(isGitPluginSpec("file:../acme")).toBe(false)
+    expect(isGitPluginSpec("acme@1.0.0")).toBe(false)
   })
 })

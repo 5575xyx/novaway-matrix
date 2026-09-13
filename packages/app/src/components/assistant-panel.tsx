@@ -133,6 +133,8 @@ type MascotActivity =
   | "side-run"
   | "scan"
 
+type MascotReaction = "feed" | "drink" | "play" | "rps" | "think" | "jump" | "win"
+
 const PET_SKINS: Array<{ id: PetSkin; color: string; filter: string }> = [
   { id: "snow", color: "#f8fafc", filter: "" },
   { id: "honey", color: "#f59e0b", filter: "hue-rotate(180deg) saturate(1.45)" },
@@ -183,6 +185,7 @@ const MascotIcon = (props: {
   completedTasks?: number
   totalTasks?: number
   taskGroups?: TaskGroup[]
+  petReaction?: { name: MascotReaction; id: number }
 }) => {
   const language = useLanguage()
   const core = () => (props.mood === "busy" ? "#fbbf24" : props.mood === "active" ? "#a3e635" : "#22d3ee")
@@ -377,6 +380,28 @@ const MascotIcon = (props: {
     playFramedActivity(next)
     nextActivity = setTimeout(scheduleActivity, framedActivityDuration(next) + nextActivityDelay())
   }
+
+  const reactionActivity = (reaction: MascotReaction): keyof typeof frameCounts => {
+    if (reaction === "feed") return "groom"
+    if (reaction === "drink") return "pant"
+    if (reaction === "play" || reaction === "jump") return "side-run"
+    if (reaction === "rps" || reaction === "win") return "tail"
+    return "stand"
+  }
+
+  let previousReactionID = props.petReaction?.id
+  createEffect(() => {
+    const reaction = props.petReaction
+    if (!reaction || reaction.id === previousReactionID) return
+    previousReactionID = reaction.id
+    if (nextActivity) clearTimeout(nextActivity)
+    clearActivityTimers()
+    playFramedActivity(reactionActivity(reaction.name), true)
+    nextActivity = setTimeout(
+      scheduleActivity,
+      framedActivityDuration(reactionActivity(reaction.name)) + nextActivityDelay(),
+    )
+  })
 
   let previousMood = props.mood
   createEffect(() => {
@@ -689,6 +714,7 @@ export type AssistantPanelProps = {
   hasInProgressTask?: boolean
   unreadNotifications?: number
   panelOnly?: boolean
+  petReaction?: { name: MascotReaction; id: number }
   class?: string
   style?: JSX.CSSProperties
 }
@@ -1397,6 +1423,7 @@ export function AssistantPanel(props: AssistantPanelProps) {
           completedTasks={props.tasks.filter((task) => task.status === "completed").length}
           totalTasks={props.tasks.length}
           taskGroups={props.taskGroups}
+          petReaction={props.petReaction}
         />
       </button>
     </div>

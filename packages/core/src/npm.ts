@@ -22,7 +22,12 @@ export interface EntryPoint {
 }
 
 export interface Interface {
-  readonly add: (pkg: string) => Effect.Effect<EntryPoint, InstallFailedError | EffectFlock.LockError>
+  readonly add: (
+    pkg: string,
+    options?: {
+      update?: boolean
+    },
+  ) => Effect.Effect<EntryPoint, InstallFailedError | EffectFlock.LockError>
   readonly install: (
     dir: string,
     input?: {
@@ -75,7 +80,7 @@ export const layer = Layer.effect(
     const fs = yield* FileSystem.FileSystem
     const flock = yield* EffectFlock.Service
     const directory = (pkg: string) => path.join(global.cache, "packages", sanitize(pkg))
-    const reify = (input: { dir: string; add?: string[] }) =>
+    const reify = (input: { dir: string; add?: string[]; update?: string[] }) =>
       Effect.gen(function* () {
         yield* flock.acquire(`npm-install:${input.dir}`)
         const { Arborist } = yield* Effect.promise(() => import("@npmcli/arborist"))
@@ -94,6 +99,7 @@ export const layer = Layer.effect(
             arborist.reify({
               ...npmOptions,
               add,
+              update: input.update ? { names: input.update } : undefined,
               save: true,
               saveType: "prod",
             }),
@@ -110,7 +116,7 @@ export const layer = Layer.effect(
         }),
       )
 
-    const add = Effect.fn("Npm.add")(function* (pkg: string) {
+    const add = Effect.fn("Npm.add")(function* (pkg: string, options?: { update?: boolean }) {
       const dir = directory(pkg)
       const name = (() => {
         try {
@@ -120,11 +126,11 @@ export const layer = Layer.effect(
         }
       })()
 
-      if (yield* afs.existsSafe(path.join(dir, "node_modules", name))) {
+      if (!options?.update && (yield* afs.existsSafe(path.join(dir, "node_modules", name)))) {
         return resolveEntryPoint(name, path.join(dir, "node_modules", name))
       }
 
-      const tree = yield* reify({ dir, add: [pkg] })
+      const tree = yield* reify({ dir, add: [pkg], update: options?.update ? [name] : undefined })
       const first = tree.edgesOut.values().next().value?.to
       if (!first) {
         const result = resolveEntryPoint(name, path.join(dir, "node_modules", name))

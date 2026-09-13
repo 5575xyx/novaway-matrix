@@ -20,7 +20,21 @@ import { copyLocalFileToClipboard, downloadUrlToTempFile } from "./clipboard-fil
 import type {
   FloatingAgentState,
   FloatingNotification,
+  FloatingPanelTab,
+  FloatingPetAction,
+  FloatingPetActionResult,
+  FloatingPetGame,
+  FloatingPetGameResult,
+  FloatingPetProfile,
+  FloatingPetPreset,
+  FloatingPetAvatar,
+  FloatingPetAccessory,
+  FloatingPetDifficulty,
+  FloatingPetReaction,
+  FloatingPetRpsChoice,
+  FloatingPetRpsResult,
   FloatingPetSkin,
+  FloatingPetState,
   FloatingTask,
   FloatingTaskEvent,
   FloatingTaskGroup,
@@ -93,6 +107,7 @@ let floatingWindowRef: BrowserWindow | null = null
 let floatingPanelWindowRef: BrowserWindow | null = null
 let floatingSkinWindowRef: BrowserWindow | null = null
 let floatingAgentState: FloatingAgentState = { agents: [] }
+let floatingPetReactionID = 0
 let floatingWidgetReady = false
 let floatingWidgetVisible = false
 let floatingWidgetRequested = false
@@ -226,6 +241,217 @@ function restoreFloatingPetSkin() {
   const stored = getStore().get("floatingWidget.petSkin")
   if (typeof stored !== "string" || !isFloatingPetSkin(stored)) return
   floatingAgentState = { ...floatingAgentState, petSkin: stored }
+}
+
+const PET_STATE_KEY = "floatingWidget.petState"
+const PET_PROFILE_KEY = "floatingWidget.petProfile"
+const PET_MAX = 100
+const PET_DECAY_PER_HOUR = { satiety: 2, hydration: 3, mood: 1, energy: 1 }
+const PET_ACTIONS: Record<
+  FloatingPetAction,
+  { key: keyof Omit<FloatingPetState, "coins" | "xp" | "lastUpdatedAt">; amount: number; message: string }
+> = {
+  feed: { key: "satiety", amount: 24, message: "吃得饱饱的，心情真好！" },
+  drink: { key: "hydration", amount: 28, message: "喝到水啦，精神起来了！" },
+  play: { key: "mood", amount: 20, message: "玩得很开心，获得了小奖励！" },
+}
+
+const PET_GAMES: FloatingPetGame[] = ["gomoku", "minesweeper", "sudoku", "tetris", "2048"]
+const PET_DIFFICULTIES: FloatingPetDifficulty[] = ["easy", "normal", "hard"]
+
+function defaultFloatingPetProfile(): FloatingPetProfile {
+  return {
+    name: "Nova",
+    preset: "snow",
+    skin: "snow",
+    avatar: "nova",
+    accessory: "none",
+    gamesPlayed: 0,
+    highScores: { gomoku: 0, minesweeper: 0, sudoku: 0, tetris: 0, "2048": 0 },
+    gameSettings: { gomoku: "normal", minesweeper: "normal", sudoku: "normal", tetris: "normal", "2048": "normal" },
+  }
+}
+
+function normalizeFloatingPetProfile(value: unknown): FloatingPetProfile {
+  const base = defaultFloatingPetProfile()
+  if (!value || typeof value !== "object" || Array.isArray(value)) return base
+  const stored = value as Partial<FloatingPetProfile>
+  const name = typeof stored.name === "string" ? stored.name.trim().slice(0, 24) : base.name
+  const skin = typeof stored.skin === "string" && isFloatingPetSkin(stored.skin) ? stored.skin : base.skin
+  const avatar: FloatingPetAvatar =
+    stored.avatar === "nova" || stored.avatar === "fox" || stored.avatar === "cat" || stored.avatar === "robot"
+      ? stored.avatar
+      : base.avatar
+  const accessory: FloatingPetAccessory =
+    stored.accessory === "none" || stored.accessory === "crown" || stored.accessory === "glasses" || stored.accessory === "scarf"
+      ? stored.accessory
+      : base.accessory
+  const preset: FloatingPetPreset =
+    stored.preset === "snow" || stored.preset === "honey" || stored.preset === "ash" || stored.preset === "aurora" ||
+    stored.preset === "violet" || stored.preset === "crimson" || stored.preset === "custom"
+      ? stored.preset
+      : skin.startsWith("#") ? "custom" : skin === "snow" || skin === "honey" || skin === "ash" || skin === "aurora" || skin === "violet" || skin === "crimson" ? skin : "snow"
+  const scores = (stored.highScores ?? {}) as Partial<Record<FloatingPetGame, number>>
+  const settings = (stored.gameSettings ?? {}) as Partial<Record<FloatingPetGame, FloatingPetDifficulty>>
+  const gameSettings = Object.fromEntries(PET_GAMES.map((game) => [game, PET_DIFFICULTIES.includes(settings[game] as FloatingPetDifficulty) ? settings[game] : base.gameSettings[game]])) as FloatingPetProfile["gameSettings"]
+  return {
+    name: name || base.name, preset, skin, avatar, accessory,
+    gamesPlayed: Math.max(0, Math.floor(typeof stored.gamesPlayed === "number" ? stored.gamesPlayed : 0)),
+    highScores: Object.fromEntries(PET_GAMES.map((game) => [game, Math.max(0, Math.floor(typeof scores[game] === "number" ? scores[game] : 0))])) as Record<FloatingPetGame, number>,
+    gameSettings,
+  }
+}
+
+function restoreFloatingPetProfile() {
+  const profile = normalizeFloatingPetProfile(floatingAgentState.petProfile ?? getStore().get(PET_PROFILE_KEY))
+  floatingAgentState = { ...floatingAgentState, petProfile: profile, petSkin: profile.skin }
+  getStore().set(PET_PROFILE_KEY, profile)
+  return profile
+}
+
+function saveFloatingPetProfile(profile: FloatingPetProfile) {
+  floatingAgentState = { ...floatingAgentState, petProfile: profile, petSkin: profile.skin }
+  getStore().set(PET_PROFILE_KEY, profile)
+  getStore().set("floatingWidget.petSkin", profile.skin)
+  broadcastFloatingAgentState()
+  return profile
+}
+
+function clampPet(value: number) {
+  return Math.max(0, Math.min(PET_MAX, Math.round(value)))
+}
+
+function defaultFloatingPetState(): FloatingPetState {
+  return { satiety: 76, hydration: 78, mood: 82, energy: 80, coins: 0, xp: 0, lastUpdatedAt: Date.now() }
+}
+
+function normalizeFloatingPetState(value: unknown): FloatingPetState {
+  const base = defaultFloatingPetState()
+  if (!value || typeof value !== "object" || Array.isArray(value)) return base
+  const stored = value as Partial<FloatingPetState>
+  return {
+    satiety: clampPet(typeof stored.satiety === "number" ? stored.satiety : base.satiety),
+    hydration: clampPet(typeof stored.hydration === "number" ? stored.hydration : base.hydration),
+    mood: clampPet(typeof stored.mood === "number" ? stored.mood : base.mood),
+    energy: clampPet(typeof stored.energy === "number" ? stored.energy : base.energy),
+    coins: Math.max(0, Math.round(typeof stored.coins === "number" ? stored.coins : base.coins)),
+    xp: Math.max(0, Math.round(typeof stored.xp === "number" ? stored.xp : base.xp)),
+    lastUpdatedAt: typeof stored.lastUpdatedAt === "number" ? stored.lastUpdatedAt : base.lastUpdatedAt,
+  }
+}
+
+function restoreFloatingPetState() {
+  const pet = normalizeFloatingPetState(floatingAgentState.pet ?? getStore().get(PET_STATE_KEY))
+  const elapsedHours = Math.max(0, (Date.now() - pet.lastUpdatedAt) / 3_600_000)
+  const next: FloatingPetState = {
+    ...pet,
+    satiety: clampPet(pet.satiety - elapsedHours * PET_DECAY_PER_HOUR.satiety),
+    hydration: clampPet(pet.hydration - elapsedHours * PET_DECAY_PER_HOUR.hydration),
+    mood: clampPet(pet.mood - elapsedHours * PET_DECAY_PER_HOUR.mood),
+    energy: clampPet(pet.energy - elapsedHours * PET_DECAY_PER_HOUR.energy),
+    lastUpdatedAt: Date.now(),
+  }
+  floatingAgentState = { ...floatingAgentState, pet: next }
+  getStore().set(PET_STATE_KEY, next)
+  return next
+}
+
+function saveFloatingPetState(pet: FloatingPetState) {
+  floatingAgentState = { ...floatingAgentState, pet }
+  getStore().set(PET_STATE_KEY, pet)
+  broadcastFloatingAgentState()
+  return pet
+}
+
+function setFloatingPetReaction(reaction: FloatingPetReaction) {
+  floatingPetReactionID += 1
+  floatingAgentState = {
+    ...floatingAgentState,
+    petReaction: { name: reaction, id: floatingPetReactionID },
+  }
+  broadcastFloatingAgentState()
+}
+
+function performFloatingPetAction(action: FloatingPetAction): FloatingPetActionResult {
+  const config = PET_ACTIONS[action]
+  setFloatingPetReaction(action)
+  const pet = restoreFloatingPetState()
+  const reward = action === "play" ? 2 : 1
+  const next = saveFloatingPetState({
+    ...pet,
+    [config.key]: clampPet(pet[config.key] + config.amount),
+    mood: clampPet(pet.mood + (action === "play" ? 6 : 2)),
+    coins: pet.coins + reward,
+    xp: pet.xp + 3,
+    lastUpdatedAt: Date.now(),
+  })
+  return { pet: next, message: config.message, reward }
+}
+
+function playFloatingPetRps(player: FloatingPetRpsChoice): FloatingPetRpsResult {
+  const choices: FloatingPetRpsChoice[] = ["rock", "paper", "scissors"]
+  const petChoice = choices[Math.floor(Math.random() * choices.length)] ?? "rock"
+  const outcome =
+    player === petChoice
+      ? "draw"
+      : (player === "rock" && petChoice === "scissors") ||
+          (player === "paper" && petChoice === "rock") ||
+          (player === "scissors" && petChoice === "paper")
+        ? "win"
+        : "lose"
+  const pet = restoreFloatingPetState()
+  const reward = outcome === "win" ? 5 : outcome === "draw" ? 2 : 1
+  const message =
+    outcome === "win"
+      ? "你赢啦！宠物送你 5 枚星星币。"
+      : outcome === "draw"
+        ? "平局！你们默契十足。"
+        : "这局宠物赢了，再来一局吧！"
+  const next = saveFloatingPetState({
+    ...pet,
+    mood: clampPet(pet.mood + (outcome === "lose" ? 4 : 8)),
+    energy: clampPet(pet.energy - 2),
+    coins: pet.coins + reward,
+    xp: pet.xp + 5,
+    lastUpdatedAt: Date.now(),
+  })
+  setFloatingPetReaction(outcome === "win" ? "win" : "rps")
+  return { pet: next, player, petChoice, outcome, message, reward }
+}
+
+function claimFloatingPetGameReward(game: FloatingPetGame, score: number): FloatingPetGameResult {
+  setFloatingPetReaction("win")
+  const normalized = Math.max(0, Math.min(9999, Math.floor(Number.isFinite(score) ? score : 0)))
+  const pet = restoreFloatingPetState()
+  const reward =
+    game === "gomoku"
+      ? Math.min(12, 3 + Math.floor(normalized / 2))
+      : game === "minesweeper"
+        ? Math.min(10, 1 + Math.floor(normalized / 6))
+        : Math.min(12, 2 + Math.floor(normalized / 100))
+  const gameLabels: Record<FloatingPetGame, string> = {
+    gomoku: "五子棋",
+    minesweeper: "扫雷",
+    sudoku: "数独",
+    tetris: "俄罗斯方块",
+    "2048": "2048",
+  }
+  const message = `${gameLabels[game]}得分 ${normalized}，获得 ${reward} 枚星星币。`
+  const next = saveFloatingPetState({
+    ...pet,
+    mood: clampPet(pet.mood + 6),
+    energy: clampPet(pet.energy - 3),
+    coins: pet.coins + reward,
+    xp: pet.xp + reward * 2,
+    lastUpdatedAt: Date.now(),
+  })
+  const profile = restoreFloatingPetProfile()
+  saveFloatingPetProfile({
+    ...profile,
+    gamesPlayed: profile.gamesPlayed + 1,
+    highScores: { ...profile.highScores, [game]: Math.max(profile.highScores[game], normalized) },
+  })
+  return { pet: next, game, score: normalized, message, reward }
 }
 
 export function setMainWindow(win: BrowserWindow | null) {
@@ -379,7 +605,7 @@ function setFloatingPanelWindow(win: BrowserWindow | null) {
   floatingPanelWindowRef = win
 }
 
-function presentFloatingPanel(tab: "monitor" | "notifications") {
+function presentFloatingPanel(tab: FloatingPanelTab) {
   const floating = floatingWindowRef
   if (!floating || floating.isDestroyed()) return
 
@@ -528,8 +754,51 @@ export function registerIpcHandlers(deps: Deps) {
 
   ipcMain.handle("get-floating-agent-state", () => {
     restoreFloatingPetSkin()
+    restoreFloatingPetProfile()
+    restoreFloatingPetState()
     restoreFloatingAgentNotifications()
     return floatingAgentState
+  })
+
+  ipcMain.handle("get-floating-pet-management-state", () => {
+    const profile = restoreFloatingPetProfile()
+    const pet = restoreFloatingPetState()
+    return { visible: getStore().get(PET_VISIBLE_KEY, true) as boolean, profile, pet }
+  })
+
+  ipcMain.handle(
+    "update-floating-pet-profile",
+    (_event: IpcMainInvokeEvent, input: Partial<Pick<FloatingPetProfile, "name" | "preset" | "skin" | "avatar" | "accessory" | "gameSettings">>) => {
+      const current = restoreFloatingPetProfile()
+      const skin = typeof input.skin === "string" && isFloatingPetSkin(input.skin) ? input.skin : current.skin
+      const preset: FloatingPetPreset =
+        input.preset === "snow" || input.preset === "honey" || input.preset === "ash" || input.preset === "aurora" ||
+        input.preset === "violet" || input.preset === "crimson" || input.preset === "custom"
+          ? input.preset
+          : current.preset
+      const avatar: FloatingPetAvatar = input.avatar === "nova" || input.avatar === "fox" || input.avatar === "cat" || input.avatar === "robot" ? input.avatar : current.avatar
+      const accessory: FloatingPetAccessory = input.accessory === "none" || input.accessory === "crown" || input.accessory === "glasses" || input.accessory === "scarf" ? input.accessory : current.accessory
+      const gameSettings = input.gameSettings
+        ? Object.fromEntries(PET_GAMES.map((game) => [game, PET_DIFFICULTIES.includes(input.gameSettings?.[game] as FloatingPetDifficulty) ? input.gameSettings[game] : current.gameSettings[game]])) as FloatingPetProfile["gameSettings"]
+        : current.gameSettings
+      const name = typeof input.name === "string" ? input.name.trim().slice(0, 24) : current.name
+      const profile = saveFloatingPetProfile({ ...current, name: name || current.name, preset, skin, avatar, accessory, gameSettings })
+      const pet = restoreFloatingPetState()
+      return { visible: getStore().get(PET_VISIBLE_KEY, true) as boolean, profile, pet }
+    },
+  )
+
+  ipcMain.handle("reset-floating-pet-progress", () => {
+    const profile = restoreFloatingPetProfile()
+    const pet = defaultFloatingPetState()
+    saveFloatingPetState(pet)
+    const nextProfile = saveFloatingPetProfile({
+      ...profile,
+      gamesPlayed: 0,
+      highScores: { gomoku: 0, minesweeper: 0, sudoku: 0, tetris: 0, "2048": 0 },
+      gameSettings: { ...profile.gameSettings },
+    })
+    return { visible: getStore().get(PET_VISIBLE_KEY, true) as boolean, profile: nextProfile, pet }
   })
 
   ipcMain.on("floating-widget-ready", () => {
@@ -608,6 +877,38 @@ export function registerIpcHandlers(deps: Deps) {
     broadcastFloatingAgentState()
   })
 
+  ipcMain.handle("set-floating-pet-reaction", (_event: IpcMainInvokeEvent, reaction: FloatingPetReaction) => {
+    if (
+      reaction !== "feed" &&
+      reaction !== "drink" &&
+      reaction !== "play" &&
+      reaction !== "rps" &&
+      reaction !== "think" &&
+      reaction !== "jump" &&
+      reaction !== "win"
+    ) {
+      throw new Error("Invalid pet reaction")
+    }
+    setFloatingPetReaction(reaction)
+  })
+
+  ipcMain.handle("floating-pet-action", (_event: IpcMainInvokeEvent, action: FloatingPetAction) => {
+    if (action !== "feed" && action !== "drink" && action !== "play") throw new Error("Invalid pet action")
+    return performFloatingPetAction(action)
+  })
+
+  ipcMain.handle("floating-pet-rps", (_event: IpcMainInvokeEvent, choice: FloatingPetRpsChoice) => {
+    if (choice !== "rock" && choice !== "paper" && choice !== "scissors") throw new Error("Invalid RPS choice")
+    return playFloatingPetRps(choice)
+  })
+
+  ipcMain.handle("floating-pet-game-reward", (_event: IpcMainInvokeEvent, game: FloatingPetGame, score: number) => {
+    if (game !== "gomoku" && game !== "minesweeper" && game !== "sudoku" && game !== "tetris" && game !== "2048") {
+      throw new Error("Invalid pet game")
+    }
+    return claimFloatingPetGameReward(game, score)
+  })
+
   ipcMain.handle("mark-floating-notifications-read", (_event: IpcMainInvokeEvent, ids?: string[]) => {
     restoreFloatingAgentNotifications()
     const notifications = markFloatingNotificationsRead(floatingAgentState.notifications ?? [], ids)
@@ -671,8 +972,10 @@ export function registerIpcHandlers(deps: Deps) {
 
   ipcMain.handle("update-floating-agent-state", (_event: IpcMainInvokeEvent, state: FloatingAgentState) => {
     restoreFloatingPetSkin()
+    restoreFloatingPetState()
     restoreFloatingAgentNotifications()
     const petSkin = state.petSkin && isFloatingPetSkin(state.petSkin) ? state.petSkin : floatingAgentState.petSkin
+    const pet = state.pet ? normalizeFloatingPetState(state.pet) : floatingAgentState.pet
     const monitoring = applyFloatingTaskTimings(state.taskGroups)
     const taskGroups = monitoring?.taskGroups
     const tasks = taskGroups?.flatMap((group) => group.tasks) ?? state.tasks
@@ -684,9 +987,13 @@ export function registerIpcHandlers(deps: Deps) {
       taskGroups,
       taskEvents,
       ...(petSkin ? { petSkin } : {}),
+      ...(pet ? { pet } : {}),
     }
     if (petSkin) {
       getStore().set("floatingWidget.petSkin", petSkin)
+    }
+    if (pet) {
+      getStore().set(PET_STATE_KEY, pet)
     }
     broadcastFloatingAgentState()
   })
@@ -722,7 +1029,7 @@ export function registerIpcHandlers(deps: Deps) {
     })
   })
 
-  ipcMain.handle("set-floating-expanded", (_event: IpcMainInvokeEvent, expanded: boolean) => {
+  ipcMain.handle("set-floating-expanded", (_event: IpcMainInvokeEvent, expanded: boolean, tab?: FloatingPanelTab) => {
     const floating = floatingWindowRef
     if (!floating || floating.isDestroyed()) return
 
@@ -733,7 +1040,7 @@ export function registerIpcHandlers(deps: Deps) {
       return
     }
 
-    presentFloatingPanel("monitor")
+    presentFloatingPanel(tab === "notifications" || tab === "pet" ? tab : "monitor")
   })
 
   ipcMain.handle(
@@ -789,14 +1096,11 @@ export function registerIpcHandlers(deps: Deps) {
     },
   )
 
-  ipcMain.handle(
-    "write-text-to-clipboard",
-    (_event: IpcMainInvokeEvent, opts?: { text?: string }) => {
-      if (!opts?.text) return false
-      clipboard.writeText(opts.text)
-      return clipboard.readText() === opts.text
-    },
-  )
+  ipcMain.handle("write-text-to-clipboard", (_event: IpcMainInvokeEvent, opts?: { text?: string }) => {
+    if (!opts?.text) return false
+    clipboard.writeText(opts.text)
+    return clipboard.readText() === opts.text
+  })
 
   ipcMain.on("open-link", (_event: IpcMainEvent, url: string) => {
     void shell.openExternal(url)

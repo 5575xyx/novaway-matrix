@@ -117,6 +117,65 @@ export type FloatingNotification = {
 export type FloatingNotificationContext = Pick<FloatingNotification, "sessionID" | "requestID">
 
 export type FloatingPetSkin = "snow" | "honey" | "ash" | "aurora" | "violet" | "crimson" | `#${string}`
+export type FloatingPetPreset = "snow" | "honey" | "ash" | "aurora" | "violet" | "crimson" | "custom"
+export type FloatingPetAvatar = "nova" | "fox" | "cat" | "robot"
+export type FloatingPetAccessory = "none" | "crown" | "glasses" | "scarf"
+export type FloatingPetDifficulty = "easy" | "normal" | "hard"
+export type FloatingPetGameSettings = Record<FloatingPetGame, FloatingPetDifficulty>
+export type FloatingPanelTab = "monitor" | "notifications" | "pet"
+
+export type FloatingPetProfile = {
+  name: string
+  preset: FloatingPetPreset
+  skin: FloatingPetSkin
+  avatar: FloatingPetAvatar
+  accessory: FloatingPetAccessory
+  gamesPlayed: number
+  highScores: Record<FloatingPetGame, number>
+  gameSettings: FloatingPetGameSettings
+}
+
+export type FloatingPetManagementState = {
+  visible: boolean
+  profile: FloatingPetProfile
+  pet: FloatingPetState
+}
+
+export type FloatingPetAction = "feed" | "drink" | "play"
+export type FloatingPetRpsChoice = "rock" | "paper" | "scissors"
+
+export type FloatingPetReaction = "feed" | "drink" | "play" | "rps" | "think" | "jump" | "win"
+export type FloatingPetReactionState = { name: FloatingPetReaction; id: number }
+
+export type FloatingPetState = {
+  satiety: number
+  hydration: number
+  mood: number
+  energy: number
+  coins: number
+  xp: number
+  lastUpdatedAt: number
+}
+
+export type FloatingPetActionResult = {
+  pet: FloatingPetState
+  message: string
+  reward?: number
+}
+
+export type FloatingPetRpsResult = FloatingPetActionResult & {
+  player: FloatingPetRpsChoice
+  petChoice: FloatingPetRpsChoice
+  outcome: "win" | "lose" | "draw"
+}
+
+export type FloatingPetGame = "gomoku" | "minesweeper" | "sudoku" | "tetris" | "2048"
+export type FloatingMiniGame = "rps" | FloatingPetGame
+
+export type FloatingPetGameResult = FloatingPetActionResult & {
+  game: FloatingPetGame
+  score: number
+}
 
 export type FloatingAgentState = {
   current?: string
@@ -127,6 +186,9 @@ export type FloatingAgentState = {
   taskEvents?: FloatingTaskEvent[]
   notifications?: FloatingNotification[]
   petSkin?: FloatingPetSkin
+  petProfile?: FloatingPetProfile
+  pet?: FloatingPetState
+  petReaction?: FloatingPetReactionState
 }
 
 export interface ElectronCookie {
@@ -186,8 +248,17 @@ export type ElectronAPI = {
   onNotificationClick: (cb: (href?: string) => void) => () => void
 
   getFloatingAgentState: () => Promise<FloatingAgentState>
+  getFloatingPetManagementState: () => Promise<FloatingPetManagementState>
+  updateFloatingPetProfile: (
+    input: Partial<Pick<FloatingPetProfile, "name" | "preset" | "skin">>,
+  ) => Promise<FloatingPetManagementState>
+  resetFloatingPetProgress: () => Promise<FloatingPetManagementState>
   setFloatingAgent: (name: string) => Promise<void>
   setFloatingPetSkin: (skin: FloatingPetSkin) => Promise<void>
+  setFloatingPetReaction: (reaction: FloatingPetReaction) => Promise<void>
+  petAction: (action: FloatingPetAction) => Promise<FloatingPetActionResult>
+  playFloatingPetRps: (choice: FloatingPetRpsChoice) => Promise<FloatingPetRpsResult>
+  claimFloatingPetGameReward: (game: FloatingPetGame, score: number) => Promise<FloatingPetGameResult>
   markFloatingNotificationsRead: (ids?: string[]) => Promise<void>
   clearFloatingNotifications: () => Promise<void>
   openFloatingNotification: (id: string) => Promise<void>
@@ -198,7 +269,7 @@ export type ElectronAPI = {
   }) => Promise<void>
   onFloatingAgentChange: (cb: (state: FloatingAgentState) => void) => () => void
   onFloatingExpandedChange: (cb: (expanded: boolean) => void) => () => void
-  onFloatingPanelTabChange: (cb: (tab: "monitor" | "notifications") => void) => () => void
+  onFloatingPanelTabChange: (cb: (tab: FloatingPanelTab) => void) => () => void
   onFloatingSkinMenuChange: (cb: (visible: boolean) => void) => () => void
   floatingWidgetReady: () => void
   showFloatingWidget: () => Promise<void>
@@ -213,7 +284,7 @@ export type ElectronAPI = {
   beginFloatingWidgetDrag: (pointerX: number, pointerY: number) => void
   moveFloatingWidget: (pointerX: number, pointerY: number) => void
   saveFloatingWidgetBounds: () => Promise<void>
-  setFloatingExpanded: (expanded: boolean) => Promise<void>
+  setFloatingExpanded: (expanded: boolean, tab?: FloatingPanelTab) => Promise<void>
   toggleFloatingSkinMenu: () => Promise<void>
 
   createDirectory: (parentPath: string, dirName: string) => Promise<string>
