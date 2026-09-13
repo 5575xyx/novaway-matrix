@@ -6,7 +6,7 @@ import { Spinner } from "@novaway/ui/spinner"
 import { useParams } from "@solidjs/router"
 import { useLanguage } from "@/context/language"
 import { decode64 } from "@/utils/base64"
-import { SettingsGeneral } from "./settings-general"
+import { SettingsGeneral, SettingsPet } from "./settings-general"
 import { SettingsMemoryEvolution } from "./settings-memory-evolution"
 import { SettingsProviders } from "./settings-providers"
 import { SettingsModels } from "./settings-models"
@@ -15,6 +15,7 @@ import { SettingsNotifications } from "./settings-notifications"
 
 const settingsTabs = [
   "general",
+  "desktop",
   "notifications",
   "providers",
   "models",
@@ -108,6 +109,10 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
                   <Icon name="sliders" />
                   {language.t("settings.tab.general")}
                 </Tabs.Trigger>
+                <Tabs.Trigger value="desktop">
+                  <Icon name="eye" />
+                  桌面宠物
+                </Tabs.Trigger>
                 <Tabs.Trigger value="notifications">
                   <Icon name="speech-bubble" />
                   消息通知
@@ -150,6 +155,9 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
         </Tabs.List>
         <Tabs.Content value="general" class="no-scrollbar">
           <SettingsGeneral />
+        </Tabs.Content>
+        <Tabs.Content value="desktop" class="no-scrollbar">
+          <SettingsPet />
         </Tabs.Content>
         <Tabs.Content value="notifications" class="no-scrollbar">
           <SettingsNotifications />

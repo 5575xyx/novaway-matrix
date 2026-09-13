@@ -1,4 +1,4 @@
-import { Component, Show, createMemo, createResource, createSignal, type JSX } from "solid-js"
+import { Component, Show, createMemo, createResource, createSignal, onMount, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
@@ -77,14 +77,228 @@ const playDemoSound = (id: string | undefined) => {
   }, 100)
 }
 
-export const SettingsGeneral: Component = () => {
-  const theme = useTheme()
+type PetManagementState = {
+  visible: boolean
+  profile: {
+    name: string
+    preset: string
+    skin: string
+    gamesPlayed: number
+    highScores: { gomoku: number; minesweeper: number; sudoku: number; tetris: number; "2048": number }
+  }
+  pet: {
+    satiety: number
+    hydration: number
+    mood: number
+    energy: number
+    coins: number
+    xp: number
+    lastUpdatedAt: number
+  }
+}
+
+const petPresets: Array<{ id: string; label: string; color: string }> = [
+  { id: "snow", label: "雪白", color: "#f8fafc" },
+  { id: "honey", label: "金橙", color: "#f59e0b" },
+  { id: "ash", label: "银灰", color: "#94a3b8" },
+  { id: "aurora", label: "翡翠", color: "#34d399" },
+  { id: "violet", label: "紫罗兰", color: "#a78bfa" },
+  { id: "crimson", label: "绯红", color: "#fb7185" },
+  { id: "custom", label: "自定义", color: "linear-gradient(135deg,#22d3ee,#a78bfa)" },
+]
+
+type DesktopPetApi = {
+  getFloatingPetManagementState?: () => Promise<PetManagementState>
+  updateFloatingPetProfile?: (input: { name?: string; preset?: string; skin?: string }) => Promise<PetManagementState>
+  resetFloatingPetProgress?: () => Promise<PetManagementState>
+  setFloatingWidgetVisible?: (visible: boolean) => Promise<void>
+}
+
+function PetManagementCard() {
   const language = useLanguage()
+  const [state, setState] = createSignal<PetManagementState>()
+  const [nameDraft, setNameDraft] = createSignal("")
+  const [customColor, setCustomColor] = createSignal("#22d3ee")
+  const [loading, setLoading] = createSignal(true)
+
+  const api = window.api as DesktopPetApi | undefined
+
+  const sync = (next?: PetManagementState) => {
+    if (!next) return
+    setState(next)
+    setNameDraft(next.profile.name)
+    if (next.profile.skin.startsWith("#")) setCustomColor(next.profile.skin)
+  }
+
+  onMount(() => {
+    void api
+      ?.getFloatingPetManagementState?.()
+      .then(sync)
+      .finally(() => setLoading(false))
+  })
+
+  const updateProfile = async (input: { name?: string; preset?: string; skin?: string }) => {
+    const next = await api?.updateFloatingPetProfile?.(input)
+    if (next) sync(next)
+  }
+
+  const resetProgress = async () => {
+    const next = await api?.resetFloatingPetProgress?.()
+    if (next) {
+      sync(next)
+      showToast({
+        variant: "success",
+        icon: "circle-check",
+        title: "宠物进度已重置",
+        description: "状态、星星币和游戏记录已恢复到初始值。",
+      })
+    }
+  }
+
+  const pet = () => state()?.pet
+  const profile = () => state()?.profile
+
+  return (
+    <div class="bg-surface-base rounded-lg p-4 flex flex-col gap-4">
+      <div class="flex flex-wrap items-center gap-4 py-3 border-b border-border-weak-base">
+        <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span class="text-14-medium text-text-strong">{language.t("settings.desktop.pet.title" as never)}</span>
+          <span class="text-12-regular text-text-weak">{language.t("settings.desktop.pet.description" as never)}</span>
+        </div>
+        <div data-action="settings-pet-visible">
+          <Switch
+            checked={state()?.visible ?? true}
+            disabled={loading()}
+            onChange={(value) => {
+              setState((current) => (current ? { ...current, visible: value } : current))
+              void api?.setFloatingWidgetVisible?.(value)
+            }}
+          />
+        </div>
+      </div>
+
+      <Show when={profile()}>
+        {(value) => (
+          <>
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="w-24 text-12-medium text-text-strong">昵称</span>
+              <input
+                class="min-w-40 flex-1 rounded-md border border-border-weak-base bg-transparent px-2 py-1.5 text-13-regular text-text-base"
+                value={nameDraft()}
+                maxLength={24}
+                onChange={(event) => setNameDraft(event.currentTarget.value)}
+                onBlur={() =>
+                  value().name !== nameDraft().trim() &&
+                  nameDraft().trim() &&
+                  void updateProfile({ name: nameDraft().trim() })
+                }
+              />
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="w-24 text-12-medium text-text-strong">预置宠物</span>
+              <div class="flex flex-wrap gap-2">
+                {petPresets.map((preset) => (
+                  <button
+                    type="button"
+                    title={preset.label}
+                    class={`flex items-center gap-1.5 rounded-md border px-2 py-1.5 text-12-medium transition ${
+                      preset.id === "custom"
+                        ? value().preset === "custom"
+                        : value().preset === preset.id
+                          ? "border-cyan-400 bg-cyan-400/10"
+                          : "border-border-weak-base hover:bg-surface-raised-base-hover"
+                    }`}
+                    onClick={() =>
+                      preset.id === "custom"
+                        ? void updateProfile({ preset: "custom", skin: customColor() })
+                        : void updateProfile({ preset: preset.id, skin: preset.id })
+                    }
+                  >
+                    <span class="size-4 rounded-full border border-white/60" style={{ background: preset.color }} />
+                    <span>{preset.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="w-24 text-12-medium text-text-strong">自定义颜色</span>
+              <input
+                type="color"
+                class="size-8 cursor-pointer rounded border border-border-weak-base bg-transparent p-0"
+                value={value().skin.startsWith("#") ? value().skin : customColor()}
+                onChange={(event) => setCustomColor(event.currentTarget.value)}
+                onBlur={() => void updateProfile({ preset: "custom", skin: customColor() })}
+              />
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div class="rounded-lg bg-surface-raised-base p-3">
+                <div class="text-11-regular text-text-weak">饱食</div>
+                <div class="mt-1 text-14-medium text-text-strong">{pet()?.satiety ?? 0}</div>
+              </div>
+              <div class="rounded-lg bg-surface-raised-base p-3">
+                <div class="text-11-regular text-text-weak">水分</div>
+                <div class="mt-1 text-14-medium text-text-strong">{pet()?.hydration ?? 0}</div>
+              </div>
+              <div class="rounded-lg bg-surface-raised-base p-3">
+                <div class="text-11-regular text-text-weak">心情</div>
+                <div class="mt-1 text-14-medium text-text-strong">{pet()?.mood ?? 0}</div>
+              </div>
+              <div class="rounded-lg bg-surface-raised-base p-3">
+                <div class="text-11-regular text-text-weak">精力</div>
+                <div class="mt-1 text-14-medium text-text-strong">{pet()?.energy ?? 0}</div>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3 text-12-regular text-text-weak">
+              <span>⭐ {pet()?.coins ?? 0} 星星币</span>
+              <span>· {value().gamesPlayed} 局游戏</span>
+              <span>· 五子棋最高分 {value().highScores.gomoku}</span>
+              <span>· 扫雷最高分 {value().highScores.minesweeper}</span>
+              <span>· 数独最高分 {value().highScores.sudoku}</span>
+              <span>· 俄罗斯方块最高分 {value().highScores.tetris}</span>
+              <span>· 2048 最高分 {value().highScores["2048"]}</span>
+            </div>
+
+            <div>
+              <Button variant="secondary" size="small" onClick={() => void resetProgress()}>
+                重置宠物进度
+              </Button>
+            </div>
+          </>
+        )}
+      </Show>
+      <Show when={loading()}>
+        <span class="text-12-regular text-text-weak">加载宠物设置中…</span>
+      </Show>
+    </div>
+  )
+}
+
+export const SettingsPet: Component = () => {
+  const language = useLanguage()
+
+  return (
+    <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
+      <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--surface-stronger-non-alpha)_calc(100%_-_24px),transparent)]">
+        <div class="flex flex-col gap-1 pt-6 pb-8">
+          <h2 class="text-16-medium text-text-strong">{language.t("settings.desktop.pet.title" as never)}</h2>
+        </div>
+      </div>
+      <PetManagementCard />
+    </div>
+  )
+}
+
+export const SettingsGeneral: Component = () => {
+  const language = useLanguage()
+  const theme = useTheme()
   const platform = usePlatform()
   const navigate = useNavigate()
   const layout = useLayout()
   const settings = useSettings()
-
   const [store, setStore] = createStore({
     checking: false,
   })
@@ -255,37 +469,6 @@ export const SettingsGeneral: Component = () => {
     triggerVariant: "settings" as const,
   })
 
-  const PetVisibilityToggle: Component = () => {
-    const [visible, setVisible] = createSignal(true)
-    const [loading, setLoading] = createSignal(true)
-
-    void (async () => {
-      try {
-        const result = await (
-          window.api as unknown as { getFloatingWidgetVisible: () => Promise<boolean> }
-        ).getFloatingWidgetVisible()
-        setVisible(result)
-      } catch {
-        setVisible(true)
-      } finally {
-        setLoading(false)
-      }
-    })()
-
-    const handleChange = (value: boolean) => {
-      setVisible(value)
-      void (
-        window.api as unknown as { setFloatingWidgetVisible: (v: boolean) => Promise<void> }
-      ).setFloatingWidgetVisible(value)
-    }
-
-    return (
-      <div data-action="settings-pet-visible">
-        <Switch checked={visible()} disabled={loading()} onChange={handleChange} />
-      </div>
-    )
-  }
-
   const GeneralSection = () => (
     <div class="flex flex-col gap-1">
       <SettingsList>
@@ -332,7 +515,6 @@ export const SettingsGeneral: Component = () => {
       </SettingsList>
     </div>
   )
-
   const AdvancedSection = () => (
     <div class="flex flex-col gap-1">
       <h3 class="text-14-medium text-text-strong pb-2">{language.t("settings.general.section.advanced")}</h3>
@@ -420,13 +602,6 @@ export const SettingsGeneral: Component = () => {
               onChange={(checked) => settings.permissions.setAutoApprove(checked)}
             />
           </div>
-        </SettingsRow>
-
-        <SettingsRow
-          title={language.t("settings.desktop.pet.title" as never)}
-          description={language.t("settings.desktop.pet.description" as never)}
-        >
-          <PetVisibilityToggle />
         </SettingsRow>
       </SettingsList>
     </div>
@@ -618,6 +793,12 @@ export const SettingsGeneral: Component = () => {
         <AdvancedSection />
 
         <AppearanceSection />
+
+        <NotificationsSection />
+
+        <SoundsSection />
+
+        <UpdatesSection />
       </div>
     </div>
   )

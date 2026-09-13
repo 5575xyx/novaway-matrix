@@ -1,0 +1,36 @@
+INFO  2026-08-28T05:17:49 +2ms service=default version=0.0.0-main-202608280515 args=["stats"] process_role=main run_id=096ecd47-46e9-432f-a44a-45a9d62a1490 novaway
+INFO  2026-08-28T05:17:49 +10ms service=db path=E:\AImoney\NovaWay-Matrix\novaway-coder\packages\novaway\.nwtest-1787894268\novaway\novaway-main.db opening database
+INFO  2026-08-28T05:17:49 +7ms service=db count=33 mode=bundled applying migrations
+INFO  2026-08-28T05:17:49 +31ms service=json-migration storage directory does not exist, skipping migration
+INFO  2026-08-28T05:17:49 +13ms service=file init
+INFO  2026-08-28T05:17:49 +103ms service=data-migration name=session_usage_from_messages running data migration
+INFO  2026-08-28T05:17:49 +46ms service=default directory=E:\AImoney\NovaWay-Matrix\novaway-coder\packages\novaway creating instance
+INFO  2026-08-28T05:17:49 +0ms service=project directory=E:\AImoney\NovaWay-Matrix\novaway-coder\packages\novaway fromDirectory
+INFO  2026-08-28T05:17:50 +157ms service=default directory=E:\AImoney\NovaWay-Matrix\novaway-coder\packages\novaway bootstrapping
+INFO  2026-08-28T05:17:50 +8ms service=config path=C:\Users\13428\.config\novaway\config.json loading
+INFO  2026-08-28T05:17:50 +0ms service=config path=C:\Users\13428\.config\novaway\novaway.jsonc loading
+INFO  2026-08-28T05:17:50 +5ms service=config path=C:\Users\13428\.config\novaway\novaway.json loading
+INFO  2026-08-28T05:17:50 +27ms service=config path=E:\AImoney\NovaWay-Matrix\novaway-coder\novaway.json loading
+INFO  2026-08-28T05:17:50 +21ms service=config path=E:\AImoney\NovaWay-Matrix\novaway-coder\.novaway\novaway.json loading
+INFO  2026-08-28T05:17:50 +0ms service=config path=E:\AImoney\NovaWay-Matrix\novaway-coder\.novaway\novaway.jsonc loading
+INFO  2026-08-28T05:17:50 +134ms service=config path=C:\Users\13428\.novaway\novaway.json loading
+INFO  2026-08-28T05:17:50 +4ms service=config path=C:\Users\13428\.novaway\novaway.jsonc loading
+INFO  2026-08-28T05:17:50 +38ms service=plugin name=KW loading internal plugin
+INFO  2026-08-28T05:17:50 +0ms service=plugin name=MW loading internal plugin
+INFO  2026-08-28T05:17:50 +0ms service=plugin name=aH loading internal plugin
+INFO  2026-08-28T05:17:50 +0ms service=plugin name=OX loading internal plugin
+INFO  2026-08-28T05:17:50 +0ms service=plugin name=zA loading internal plugin
+INFO  2026-08-28T05:17:50 +1ms service=plugin name=VA loading internal plugin
+INFO  2026-08-28T05:17:50 +0ms service=plugin name=wA loading internal plugin
+INFO  2026-08-28T05:17:50 +0ms service=plugin name=OA loading internal plugin
+WARN  2026-08-28T05:17:53 +3348ms service=config dir=C:\Users\13428\.config\novaway error=Cause([Fail(NpmInstallFailedError (cause: XK: 404 Not Found - GET https://registry.npmjs.org/@opencode%2fplugin - Not found))]) background dependency install failed
+WARN  2026-08-28T05:17:53 +0ms service=config dir=C:\Users\13428\.novaway error=Cause([Fail(NpmInstallFailedError (cause: XK: 404 Not Found - GET https://registry.npmjs.org/@opencode%2fplugin - Not found))]) background dependency install failed
+WARN  2026-08-28T05:18:02 +9283ms service=config dir=E:\AImoney\NovaWay-Matrix\novaway-coder\.novaway error=Cause([Fail(NpmInstallFailedError (cause: XK: 404 Not Found - GET https://registry.npmjs.org/@opencode%2fplugin - Not found))]) background dependency install failed
+INFO  2026-08-28T05:18:02 +1ms service=plugin path=PowersNexus@git+https://gitee.com/nova-way/powersnexus.git loading plugin
+INFO  2026-08-28T05:18:03 +58ms service=bus type=* subscribing
+INFO  2026-08-28T05:18:03 +1ms service=lsp all LSPs are disabled
+INFO  2026-08-28T05:18:03 +1ms service=bus type=session.updated subscribing
+INFO  2026-08-28T05:18:03 +0ms service=bus type=message.updated subscribing
+INFO  2026-08-28T05:18:03 +0ms service=bus type=message.part.updated subscribing
+INFO  2026-08-28T05:18:03 +0ms service=bus type=session.diff subscribing
+INFO  2026-08-28T05:18:03 +0ms service=bus type=session.deleted subscribing

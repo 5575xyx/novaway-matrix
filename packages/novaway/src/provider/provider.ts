@@ -208,29 +208,37 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
       }),
     opencode: Effect.fnUntraced(function* (input: Info) {
       const env = yield* dep.env()
-      const hasKey = iife(() => {
-        if (input.env.some((item) => env[item])) return true
-        return false
-      })
+      const auth = yield* dep.auth(input.id)
+      const apiKey =
+        (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("OPENCODE_API_KEY"))
+      const hasKey = apiKey !== undefined || input.env.some((item) => env[item])
       const ok =
         hasKey ||
-        Boolean(yield* dep.auth(input.id)) ||
         Boolean((yield* dep.config()).provider?.["opencode"]?.options?.apiKey)
 
-      // Zen 网关在服务端校验客户端身份，免费档明确只对 opencode 官方客户端开放
-      // （请求会收到 "OpenCode's free tier can only be used in OpenCode"）。
-      // NovaWay 的请求无论是否带 console key 都过不了这道门槛，所以免费模型
-      // 一律从列表移除，免得用户选了必报错。付费模型不受此限制，但没 key 时
-      // 同样用不了（"public" 只是个占位）——只有 env/auth/config 里配了真实
-      // key 才保留付费模型。
-      for (const [key, value] of Object.entries(input.models)) {
-        if (value.cost.input === 0) delete input.models[key]
-      }
-      if (!ok) input.models = {}
+      // 对齐 OpenCode 官方行为：
+      // - 无 Key 时使用 apiKey=public
+      // - 无 Key 时仅展示 catalog 中成本为 0 的免费模型
+      // - 有 Key 时展示全部模型
+      // - 不依赖 Zen live /models 发现（该接口不返回 pricing）
+      const models = ok ? input.models : filterCatalogToFreeModels("opencode", input.models)
 
       return {
-        autoload: Object.keys(input.models).length > 0,
-        options: ok ? {} : { apiKey: "public" },
+        autoload: Object.keys(models).length > 0,
+        options: ok
+          ? {}
+          : {
+              apiKey: "public",
+              headers: {
+                // 对齐 OpenCode 免费模型请求头格式
+                "x-opencode-session": `ses_${Hash.fast(`${Date.now()}-${Math.random()}`)}`,
+                "x-opencode-request": `msg_${Hash.fast(`${Date.now()}-${Math.random()}-req`)}`,
+                "x-opencode-client": "cli",
+                "User-Agent": `opencode/${InstallationVersion}`,
+              },
+            },
+        models,
+        replaceModels: true,
       }
     }),
     openai: () =>

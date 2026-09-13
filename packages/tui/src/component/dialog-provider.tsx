@@ -91,6 +91,13 @@ const FREE_PROVIDERS: Record<
     keyHint: "agnes-ai.com",
     steps: ["注册 Agnes AI，在 API Hub 创建密钥"],
   },
+  opencode: {
+    badge: "免费",
+    tagline: "OpenCode Zen 免费模型池：DeepSeek、GLM、MiniMax、Nemotron 等",
+    keyUrl: "https://opencode.ai",
+    keyHint: "opencode.ai",
+    steps: ["无需 Key 即可使用公开免费模型；如需全部模型，在 OpenCode 获取 API Key 后填入"],
+  },
   google: {
     badge: "限速免费",
     tagline: "免费档限速：Gemini Flash 系列每天 250～1000 次，无需信用卡",

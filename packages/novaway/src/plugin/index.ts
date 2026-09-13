@@ -24,10 +24,17 @@ import { EffectBridge } from "@/effect/bridge"
 import { InstanceState } from "@/effect/instance-state"
 import { errorMessage } from "@/util/error"
 import { PluginLoader } from "./loader"
-import { parsePluginSpecifier, readPluginId, readV1Plugin, resolvePluginId } from "./shared"
+import {
+  parsePluginSpecifier,
+  readPluginId,
+  readV1Plugin,
+  resolvePluginId,
+  startGitPluginRefresh,
+} from "./shared"
 import { registerAdapter } from "@/control-plane/adapters"
 import type { WorkspaceAdapter } from "@/control-plane/types"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import { ConfigPlugin } from "@/config/plugin"
 
 const log = Log.create({ service: "plugin" })
 
@@ -241,6 +248,20 @@ export const layer = Layer.effect(
             },
           }).pipe(Effect.ignore)
         }
+
+        startGitPluginRefresh(
+          plugins.map((origin) => ConfigPlugin.pluginSpecifier(origin.spec)),
+          {
+            kind: "server",
+            onResult(spec, result) {
+              if (result.state === "updated") {
+                log.info("git plugin updated; restart to activate", { path: spec, revision: result.revision })
+              } else if (result.state === "offline" || result.state === "failed") {
+                log.warn("git plugin refresh skipped", { path: spec, error: errorMessage(result.error) })
+              }
+            },
+          },
+        )
 
         // Subscribe to bus events, fiber interrupted when scope closes
         yield* bus.subscribeAll().pipe(

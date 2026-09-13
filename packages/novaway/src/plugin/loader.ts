@@ -11,6 +11,24 @@ import {
 import { ConfigPlugin } from "@/config/plugin"
 import { InstallationVersion } from "@novaway/core/installation/version"
 
+const INITIAL_PLUGIN_INSTALL_TIMEOUT_MS = 20_000
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), timeoutMs)
+    void promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      (error: unknown) => {
+        clearTimeout(timer)
+        reject(error)
+      },
+    )
+  })
+}
+
 export namespace PluginLoader {
   // A normalized plugin declaration derived from config before any filesystem or npm work happens.
   export type Plan = {
@@ -77,7 +95,15 @@ export namespace PluginLoader {
     // First make sure the plugin exists locally, installing npm plugins on demand.
     let target = ""
     try {
-      target = await resolvePluginTarget(plan.spec)
+      const targetPromise = resolvePluginTarget(plan.spec)
+      target =
+        pluginSource(plan.spec) === "npm"
+          ? await withTimeout(
+              targetPromise,
+              INITIAL_PLUGIN_INSTALL_TIMEOUT_MS,
+              `Timed out installing plugin ${plan.spec}`,
+            )
+          : await targetPromise
     } catch (error) {
       return { ok: false, stage: "install", error }
     }
