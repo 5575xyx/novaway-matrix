@@ -87,6 +87,20 @@ export const dict = {
 
   "command.terminal.toggle": "切换终端",
 
+  "command.preview.toggle": "切换浏览器预览",
+  "command.preview.toggle.description": "在聊天、分屏和预览三种视图之间切换",
+  "preview.title": "浏览器预览",
+  "preview.url.placeholder": "输入地址或本地文件路径，例如 http://localhost:3000",
+  "preview.go": "前往",
+  "preview.refresh": "刷新预览",
+  "preview.openExternal": "在外部浏览器打开",
+  "preview.invalid": "请输入有效的 http、https 地址或本地文件路径",
+  "preview.empty.description": "输入地址以预览本地开发服务器、本地 HTML 文件或任意网站。",
+  "preview.empty.hint": "本地文件按绝对路径打开。部分网站不允许被嵌入，会显示空白页面。",
+  "preview.suggestion.title": "检测到本地开发服务器",
+  "preview.suggestion.open": "打开预览",
+  "preview.suggestion.dismiss": "忽略",
+
   "command.fileTree.toggle": "切换文件树",
 
   "command.review.toggle": "切换审查",

@@ -846,6 +846,8 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       {
         name: "theme.switch_mode",
         title: mode() === "dark" ? "切换到浅色模式" : "切换到深色模式",
+        slashName: "theme-mode",
+        slashAliases: ["mode", "dark", "light"],
         run: () => {
           setMode(mode() === "dark" ? "light" : "dark")
           dialog.clear()
@@ -855,6 +857,8 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       {
         name: "theme.mode.lock",
         title: locked() ? "解锁主题模式" : "锁定主题模式",
+        slashName: "theme-lock",
+        slashAliases: ["lock", "theme_lock"],
         run: () => {
           if (locked()) unlock()
           else lock()
@@ -910,6 +914,8 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       {
         name: "docs.open",
         title: "打开文档",
+        slashName: "docs",
+        slashAliases: ["文档", "documentation"],
         run: () => {
           open("https://NovaWay.ai/docs").catch(() => {})
           dialog.clear()
@@ -927,6 +933,8 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       {
         name: "app.debug",
         title: "切换调试面板",
+        slashName: "debug-panel",
+        slashAliases: ["debugpanel", "debug_panel"],
         category: "系统",
         run: () => {
           renderer.toggleDebugOverlay()

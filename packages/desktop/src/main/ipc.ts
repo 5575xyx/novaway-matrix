@@ -1233,8 +1233,8 @@ export function registerIpcHandlers(deps: Deps) {
   // === Platform Management ===
   ipcMain.handle("platform:create-webview", async (_event, data: { webViewId: number; cookies: Electron.Cookie[] }) => {
     const wc = webContents.fromId(data.webViewId)
-    if (!wc) {
-      console.error("[platform:create-webview] webContents not found for id:", data.webViewId)
+    if (!wc || wc.isDestroyed()) {
+      console.error("[platform:create-webview] webContents not found or destroyed for id:", data.webViewId)
       return { success: false, error: "webview not found" }
     }
     console.log(
@@ -1243,6 +1243,8 @@ export function registerIpcHandlers(deps: Deps) {
     )
     let setCount = 0
     for (const c of data.cookies) {
+      // webview 可能在 await 间隙被 renderer 销毁，销毁后访问 session 会抛 "Object has been destroyed"
+      if (wc.isDestroyed()) return { success: true, setCount }
       try {
         const url = c.domain
           ? c.domain.startsWith(".")
@@ -1264,6 +1266,8 @@ export function registerIpcHandlers(deps: Deps) {
       }
     }
     console.log(`[platform:create-webview] Successfully set ${setCount}/${data.cookies.length} cookies`)
+    if (wc.isDestroyed()) return { success: true, setCount }
+
     // Verify by reading back
     try {
       const savedCookies = await wc.session.cookies.get({})

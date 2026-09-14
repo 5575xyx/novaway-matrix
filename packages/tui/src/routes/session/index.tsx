@@ -14,6 +14,7 @@ import {
   untrack,
   useContext,
 } from "solid-js"
+import { createStore } from "solid-js/store"
 import { Dynamic } from "solid-js/web"
 import path from "node:path"
 import { mkdir, writeFile } from "node:fs/promises"
@@ -29,7 +30,7 @@ import { FilePreview } from "../../component/file-preview"
 import { GitDiffView } from "../../component/git-diff-view"
 import { TabBar, type TabItem } from "../../component/tab-bar"
 import { EmptySessionHero } from "../../component/empty-session-hero"
-import { createSyntaxStyleMemo, generateSubtleSyntax, selectedForeground, useTheme } from "../../context/theme"
+import { createSyntaxStyleMemo, generateSubtleSyntax, useTheme } from "../../context/theme"
 import { BoxRenderable, ScrollBoxRenderable, addDefaultParsers, TextAttributes, RGBA } from "@opentui/core"
 import { Prompt, type PromptRef } from "../../component/prompt"
 import type {
@@ -58,6 +59,8 @@ import type { PromptInfo } from "../../component/prompt/history"
 import { DialogConfirm } from "../../ui/dialog-confirm"
 import { DialogTimeline } from "./dialog-timeline"
 import { DialogForkFromTimeline } from "./dialog-fork-from-timeline"
+import { QueueDock } from "./queue-dock"
+import type { QueueDraft } from "../../prompt/queue"
 import { DialogSessionRename } from "../../component/dialog-session-rename"
 import { Sidebar, SIDEBAR_TABS, cycleSidebarTab, setSidebarTab } from "./sidebar"
 import { DiffStatList, uniqueDiffStats } from "../../component/diff-stat-list"
@@ -83,7 +86,7 @@ import { useClipboard } from "../../context/clipboard"
 import { nextThinkingMode, reasoningSummary, useThinkingMode, type ThinkingMode } from "../../context/thinking"
 import { getScrollAcceleration } from "../../util/scroll"
 import { collapseHint, collapseToolOutput } from "../../util/collapse-tool-output"
-import { messageJump } from "../../util/message-jump"
+import { subscribeMessageJump } from "../../util/message-jump"
 import { sidebarWidth } from "../../util/sidebar-width"
 import { usePluginRuntime } from "../../plugin/runtime"
 import { DialogRetryAction } from "../../component/dialog-retry-action"
@@ -296,6 +299,14 @@ export function Session() {
   const [_animationsEnabled, _setAnimationsEnabled] = kv.signal("animations_enabled", true)
   const [showGenericToolOutput, setShowGenericToolOutput] = kv.signal("generic_tool_output_visibility", false)
 
+  // 排队草稿：会话忙碌时用户提交的提示暂存在本地，等会话空闲后按顺序自动发送。
+  const [queueStore, setQueueStore] = createStore({
+    items: [] as QueueDraft[],
+    sending: undefined as string | undefined,
+    failed: undefined as string | undefined,
+  })
+  const [queueCollapsed, setQueueCollapsed] = kv.signal("queue_collapsed", false)
+
   const wide = createMemo(() => dimensions().width > 120)
   const sidebarVisible = createMemo(() => {
     if (session()?.parentID) return false
@@ -322,6 +333,53 @@ export function Session() {
   const toast = useToast()
   const sdk = useSDK()
   const editor = useEditorContext()
+
+  // 排队消息发送逻辑：会话空闲时自动发送队列中的第一条。
+  async function sendQueueItem(draft: QueueDraft) {
+    setQueueStore("sending", draft.id)
+    setQueueStore("failed", undefined)
+    try {
+      const parts = [
+        ...(draft.editorParts ?? []),
+        { type: "text" as const, text: draft.inputText },
+        ...draft.nonTextParts,
+      ]
+      await sdk.client.session.prompt(
+        {
+          sessionID: draft.sessionID,
+          ...draft.model,
+          agent: draft.agent,
+          model: draft.model,
+          variant: draft.model.variant,
+          parts,
+        },
+        { throwOnError: true },
+      )
+      setQueueStore("items", (items) => items.filter((x) => x.id !== draft.id))
+      toBottom()
+    } catch (err) {
+      setQueueStore("failed", draft.id)
+      toast.show({
+        title: "发送排队消息失败",
+        message: err instanceof Error ? err.message : "未知错误",
+        variant: "error",
+      })
+    } finally {
+      setQueueStore("sending", undefined)
+    }
+  }
+
+  // 自动发送：会话空闲 + 队列非空 + 无发送中/失败项 → 发送第一条。
+  createEffect(() => {
+    const items = queueStore.items
+    if (items.length === 0) return
+    if (queueStore.sending) return
+    if (queueStore.failed && queueStore.failed === items[0]?.id) return
+    if (sessionWorking()) return
+    if (session()?.parentID) return
+
+    void sendQueueItem(items[0])
+  })
 
   // Tab management functions
   const activeTab = createMemo(() => tabs().find((t) => t.id === activeTabId()))
@@ -1176,6 +1234,17 @@ export function Session() {
       },
     },
     {
+      title: queueStore.items.length > 0 ? `排队消息 (${queueStore.items.length})` : "排队消息",
+      value: "session.queued_prompts",
+      category: "会话",
+      hidden: true,
+      enabled: queueStore.items.length > 0,
+      run: () => {
+        setQueueCollapsed((v) => !v)
+        dialog.clear()
+      },
+    },
+    {
       title: "转到子会话",
       value: "session.child.first",
       category: "会话",
@@ -1352,11 +1421,7 @@ export function Session() {
     }
     tryScroll(4)
   }
-  createEffect(() => {
-    const target = messageJump()
-    if (!target) return
-    jumpToMessage(target.messageID)
-  })
+  subscribeMessageJump(jumpToMessage)
 
   // 滚到顶时往前扩一段窗口。scrollTop 没有变化事件(opentui 的 ScrollBox 只暴露 getter),
   // 只能低频轮询;getter 就是读一个数,开销可忽略。
@@ -1573,7 +1638,6 @@ export function Session() {
                           }}
                           message={message as UserMessage}
                           parts={sync.data.part[message.id] ?? []}
-                          pending={pending()}
                         />
                       </Match>
                       <Match when={message.role === "assistant"}>
@@ -1624,6 +1688,35 @@ export function Session() {
                 <Show when={session()?.parentID}>
                   <SubagentFooter />
                 </Show>
+                <Show when={queueStore.items.length > 0}>
+                  <QueueDock
+                    items={queueStore.items}
+                    sending={queueStore.sending}
+                    collapsed={queueCollapsed()}
+                    onToggle={() => setQueueCollapsed((v) => !v)}
+                    onSend={(id) => {
+                      const item = queueStore.items.find((x) => x.id === id)
+                      if (!item || queueStore.sending) return
+                      setQueueStore("items", (items) => items.filter((x) => x.id !== id))
+                      void sendQueueItem(item)
+                    }}
+                    onEdit={(id) => {
+                      const item = queueStore.items.find((x) => x.id === id)
+                      if (!item) return
+                      setQueueStore("items", (items) => items.filter((x) => x.id !== id))
+                      prompt?.set({
+                        input: item.inputText,
+                        parts: item.nonTextParts,
+                      })
+                    }}
+                    onDelete={(id) => {
+                      setQueueStore("items", (items) => items.filter((x) => x.id !== id))
+                    }}
+                    onClearAll={() => {
+                      setQueueStore("items", [])
+                    }}
+                  />
+                </Show>
                 <Show when={visible()}>
                   <pluginRuntime.Slot
                     name="session_prompt"
@@ -1642,6 +1735,14 @@ export function Session() {
                           toBottom()
                         }}
                         sessionID={route.sessionID}
+                        shouldQueue={() =>
+                          sessionWorking() && !disabled() && !session()?.parentID
+                        }
+                        onQueue={(draft) => {
+                          setQueueStore("items", (items) => [...items, draft])
+                          setQueueStore("failed", undefined)
+                          setQueueCollapsed(() => false)
+                        }}
                         right={<pluginRuntime.Slot name="session_prompt_right" session_id={route.sessionID} />}
                       />
                     </pluginRuntime.Slot>
@@ -1662,7 +1763,6 @@ function UserMessage(props: {
   parts: Part[]
   onMouseUp: () => void
   index: number
-  pending?: number
 }) {
   const ctx = use()
   const local = useLocal()
@@ -1680,10 +1780,7 @@ function UserMessage(props: {
   const files = createMemo(() => props.parts.flatMap((x) => (x.type === "file" ? [x] : [])))
   const { theme } = useTheme()
   const [hover, setHover] = createSignal(false)
-  const queued = createMemo(() => props.pending !== undefined && props.index > props.pending)
   const color = createMemo(() => local.agent.color(props.message.agent))
-  const queuedFg = createMemo(() => selectedForeground(theme, color()))
-  const metadataVisible = createMemo(() => queued() || ctx.showTimestamps())
 
   const compaction = createMemo(() => props.parts.find((x) => x.type === "compaction"))
 
@@ -1722,7 +1819,7 @@ function UserMessage(props: {
                 那会把气泡撑满整列,右对齐就失效;去掉后气泡按文字自然宽度收缩,长文本到 70% 才折行。 */}
             <text fg={theme.text}>{text()}</text>
             <Show when={files().length}>
-              <box flexDirection="row" paddingBottom={metadataVisible() ? 1 : 0} paddingTop={1} gap={1} flexWrap="wrap">
+              <box flexDirection="row" paddingBottom={ctx.showTimestamps() ? 1 : 0} paddingTop={1} gap={1} flexWrap="wrap">
                 <For each={files()}>
                   {(file) => {
                     const directory = file.mime === "application/x-directory"
@@ -1738,20 +1835,11 @@ function UserMessage(props: {
                 </For>
               </box>
             </Show>
-            <Show
-              when={queued()}
-              fallback={
-                <Show when={ctx.showTimestamps()}>
-                  <text fg={theme.textMuted}>
-                    <span style={{ fg: theme.textMuted }}>
-                      {Locale.todayTimeOrDateTime(props.message.time.created)}
-                    </span>
-                  </text>
-                </Show>
-              }
-            >
+            <Show when={ctx.showTimestamps()}>
               <text fg={theme.textMuted}>
-                <span style={{ bg: color(), fg: queuedFg(), bold: true }}> 排队中 </span>
+                <span style={{ fg: theme.textMuted }}>
+                  {Locale.todayTimeOrDateTime(props.message.time.created)}
+                </span>
               </text>
             </Show>
           </box>

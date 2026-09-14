@@ -1,0 +1,17 @@
+Make one change to the current todo list instead of resending the whole list. Use `todowrite` to create or fully rebuild the list, then use this tool for every single change afterwards.
+
+## Actions
+- `add` - append a new todo. Needs `content`, optional `priority` and `goalId`.
+- `edit` - change one item's text. Needs `position` and `content`.
+- `complete` - mark one item `completed`. Needs `position`.
+- `reopen` - move one item back to `pending`. Needs `position`.
+- `progress` - move one item to `in_progress`. Needs `position`.
+- `cancel` - mark one item `cancelled`. Needs `position`.
+- `remove` - delete one item. Needs `position`.
+
+## Rules
+- `position` is the 0-based index shown in the current list, exactly as the previous output numbered it.
+- Positions shift after `add` (new item appended at the end) and `remove` (items after it move up). Re-read the last output before choosing a position.
+- Prefer this over `todowrite` for a single status change: resending all items wastes output tokens and risks dropping or rewording items you did not touch.
+- Keep the `todowrite` rules: at most one `in_progress` item while work remains, and never mark something `completed` on intent alone - only after the work is actually done and verified.
+- If the list is large, use this tool repeatedly instead of rebuilding it; each call returns the full updated list.

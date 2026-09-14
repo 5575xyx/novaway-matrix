@@ -140,6 +140,14 @@ export function SessionHeader() {
   const terminal = useTerminal()
   const { params, view } = useSessionLayout()
 
+  // 三态用图标直接表达当前状态：未开、分屏、全屏
+  const previewIcon = () =>
+    view().viewMode.get() === "chat"
+      ? "layout-right"
+      : view().viewMode.get() === "split"
+        ? "layout-right-partial"
+        : "layout-right-full"
+
   const projectDirectory = createMemo(() => decode64(params.dir) ?? "")
   const project = createMemo(() => {
     const directory = projectDirectory()
@@ -314,6 +322,29 @@ export function SessionHeader() {
         {(mount) => (
           <Portal mount={mount()}>
             <div class="flex flex-row items-center gap-1 shrink-0">
+              <TooltipKeybind
+                class="inline-flex shrink-0"
+                title={language.t("command.preview.toggle")}
+                keybind={command.keybind("preview.toggle")}
+              >
+                <Button
+                  variant="ghost"
+                  class="group/preview-toggle titlebar-icon w-8 h-8 p-0 box-border rounded-xl text-icon-base hover:bg-surface-base-hover transition-all duration-150 hover:scale-105"
+                  onClick={() => view().viewMode.toggle()}
+                  aria-label={language.t("command.preview.toggle")}
+                  aria-pressed={view().viewMode.get() !== "chat"}
+                  aria-controls="preview-panel"
+                >
+                  <Icon
+                    size="small"
+                    name={previewIcon()}
+                    classList={{
+                      "text-icon-strong": view().viewMode.get() !== "chat",
+                      "text-icon-weak": view().viewMode.get() === "chat",
+                    }}
+                  />
+                </Button>
+              </TooltipKeybind>
               <Show when={term()}>
                 <TooltipKeybind
                   class="inline-flex shrink-0"

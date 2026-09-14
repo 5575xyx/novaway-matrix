@@ -31,6 +31,7 @@ import { promptOffsetWidth } from "../../prompt/display"
 import { createStore, produce, unwrap } from "solid-js/store"
 import { usePromptHistory, type PromptInfo } from "../../prompt/history"
 import { computePromptTraits } from "../../prompt/traits"
+import { nextQueueId, type QueueDraft } from "../../prompt/queue"
 import { expandPastedTextPlaceholders, expandTrackedPastedText } from "../../prompt/part"
 import { usePromptStash } from "../../prompt/stash"
 import { DialogStash } from "../dialog-stash"
@@ -74,6 +75,10 @@ export type PromptProps = {
     normal?: string[]
     shell?: string[]
   }
+  /** 返回 true 时，正常提示模式下的提交会被暂存到队列而非直接发送 */
+  shouldQueue?: () => boolean
+  /** 排队回调：会话忙碌时由 submitInner 调用 */
+  onQueue?: (draft: QueueDraft) => void
 }
 
 function pastedFilepath(value: string, platform: string) {
@@ -1065,6 +1070,39 @@ export function Prompt(props: PromptProps) {
             },
           ]
         : []
+
+    // 会话忙碌且父会话允许排队时，把当前提示暂存到队列而不是直接发送。
+    // 队列由 session 层管理，等会话空闲后按顺序自动发送。
+    if (store.mode === "normal" && sessionID && props.shouldQueue?.() && props.onQueue) {
+      move.startSubmit()
+      props.onQueue({
+        id: nextQueueId(),
+        sessionID,
+        agent: agent.name,
+        model: {
+          providerID: selectedModel.providerID,
+          modelID: selectedModel.modelID,
+          variant,
+        },
+        inputText,
+        nonTextParts,
+        editorParts,
+      })
+      history.append({
+        ...store.prompt,
+        mode: currentMode,
+      })
+      input.extmarks.clear()
+      setStore("prompt", {
+        input: "",
+        parts: [],
+      })
+      setStore("extmarkToPartIndex", new Map())
+      props.onSubmit?.()
+      if (editorParts.length > 0) editor.markSelectionSent()
+      if (finishMoveProgress) move.finishSubmit()
+      return true
+    }
 
     if (store.mode === "shell") {
       move.startSubmit()

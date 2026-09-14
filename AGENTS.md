@@ -1,6 +1,6 @@
 # NovaWay monorepo
 
-Default branch is `master` (remote is a Gitee fork: `gitee.com/stalkerno1/novaway-matrix`). Use `origin/master` for diffs.
+Default branch is `main` (`origin` → Gitee `gitee.com/stalkerno1/novaway-matrix`; `github` → `github.com/5575xyx/novaway-matrix`). Use `origin/main` for diffs.
 Bun 1.3+ monorepo with Turborepo v2.8. Package manager: `bun` (exact versions via catalog in root `package.json`).
 
 ## Commands
@@ -16,14 +16,14 @@ All from repo root unless noted.
 | `bun dev web`                                  | Server + open web UI                       |
 | `bun dev .`                                    | Run against NovaWay repo itself           |
 | `./script/generate.ts`                         | Regenerate SDK + OpenAPI after API changes |
-| `bun run --cwd packages/NovaWay test:httpapi` | HttpApi exerciser gates                    |
+| `bun run --cwd packages/novaway test:httpapi` | HttpApi exerciser gates                    |
 
 Root convenience scripts: `bun dev:desktop`, `bun dev:web`, `bun dev:console`, `bun dev:storybook` (see root `package.json`).
 
 Tests cannot run from root (`bunfig.toml` guard `do-not-run-tests-from-root`). Run from package dir:
 
 ```
-cd packages/NovaWay && bun test --timeout 30000
+cd packages/novaway && bun test --timeout 30000
 ```
 
 Fastest verification loop: `lint -> typecheck -> test`.
@@ -34,7 +34,7 @@ Fastest verification loop: `lint -> typecheck -> test`.
 
 | Package                | npm name              | What                                            |
 | ---------------------- | --------------------- | ----------------------------------------------- |
-| `packages/NovaWay`    | — (private)           | Core CLI/TUI/server (`src/index.ts`, yargs CLI) |
+| `packages/novaway`    | — (private)           | Core CLI/TUI/server (`src/index.ts`, yargs CLI) |
 | `packages/core`        | `@NovaWay-ai/core`   | Shared utilities                                |
 | `packages/llm`         | `@NovaWay-ai/llm`    | Effect Schema-first LLM core                    |
 | `packages/app`         | `@NovaWay-ai/app`    | Web UI (SolidJS + Vite)                         |
@@ -49,16 +49,16 @@ Fastest verification loop: `lint -> typecheck -> test`.
 Also present: `storybook`, `slack`, `script`, `sdk-v2-latest`, `enterprise`, `function`, `http-recorder`, plus `console/{core,function,mail,resource}`. Note: `packages/containers`, `docs`, `extensions` have no package.json and are not workspace packages.
 
 Infra: SST (Cloudflare home) in `infra/` + `sst.config.ts`.
-Entrypoint paths: `packages/NovaWay/src/index.ts` is the main CLI.
+Entrypoint paths: `packages/novaway/src/index.ts` is the main CLI.
 
 ## Per-package guidance
 
 Read these before working in that area. Each has deep, package-specific context:
 
-- `packages/NovaWay/AGENTS.md` — Drizzle SQLite/DB, Effect v4 patterns, module shape (no `export namespace`), InstanceState lifecycle, Effect services
-- `packages/NovaWay/test/AGENTS.md` — test fixtures (`tmpdir`), Effect test patterns (`testEffect`, `it.live` vs `it.effect`), concurrency synchronization (avoid fixed `sleep`)
-- `packages/NovaWay/test/server/AGENTS.md` — server/E2E test patterns
-- `packages/NovaWay/src/server/routes/instance/httpapi/AGENTS.md` — HttpApiBuilder vs raw HttpRouter
+- `packages/novaway/AGENTS.md` — Drizzle SQLite/DB, Effect v4 patterns, module shape (no `export namespace`), InstanceState lifecycle, Effect services
+- `packages/novaway/test/AGENTS.md` — test fixtures (`tmpdir`), Effect test patterns (`testEffect`, `it.live` vs `it.effect`), concurrency synchronization (avoid fixed `sleep`)
+- `packages/novaway/test/server/AGENTS.md` — server/E2E test patterns
+- `packages/novaway/src/server/routes/instance/httpapi/AGENTS.md` — HttpApiBuilder vs raw HttpRouter
 - `packages/llm/AGENTS.md` — routes/protocols/providers architecture, cassette-based recorded tests
 - `packages/app/AGENTS.md` — local web dev servers, SolidJS conventions, browser automation
 - `packages/desktop/AGENTS.md` — Electron IPC (renderer calls `window.api`, main registers handlers in `ipc.ts`)
@@ -69,7 +69,7 @@ Read these before working in that area. Each has deep, package-specific context:
 - Avoid `try`/`catch`. Avoid `any`. Use Bun APIs (e.g. `Bun.file()`).
 - Rely on type inference; explicit annotations only for exports or clarity.
 - Prefer functional array methods (`flatMap`, `filter`, `map`) with type guards on filter.
-- In `packages/NovaWay/src/config`, follow self-export: `export * as ConfigAgent from "./agent"`.
+- In `packages/novaway/src/config`, follow self-export: `export * as ConfigAgent from "./agent"`.
 - Use dot notation, not destructuring. Prefer `obj.a` over `const { a } = obj`.
 - Prefer `const` over `let`; ternaries or early returns over reassignment.
 - Avoid `else`; use early returns.
@@ -86,7 +86,7 @@ const table = sqliteTable("session", {
 
 ## Effect v4 specifics
 
-See `packages/NovaWay/AGENTS.md` for full reference. Non-obvious:
+See `packages/novaway/AGENTS.md` for full reference. Non-obvious:
 
 - `Effect.fork` / `Effect.forkDaemon` do **not** exist; use `Effect.forkIn(scope)`
 - Use `Effect.void` not `Effect.succeed(undefined)`
@@ -111,7 +111,7 @@ See `packages/NovaWay/AGENTS.md` for full reference. Non-obvious:
 
 ## Build & generation
 
-- Standalone binary: `bun run script/build.ts --single` from `packages/NovaWay`
+- Standalone binary: `bun run script/build.ts --single` from `packages/novaway`
 - SDK build: `bun ./script/build.ts` from `packages/sdk/js`
 - Desktop production: `bun run build && bun run package` from `packages/desktop`
 - Generate SDK + OpenAPI after API changes: `./script/generate.ts` from root
@@ -119,9 +119,10 @@ See `packages/NovaWay/AGENTS.md` for full reference. Non-obvious:
 
 ## Misc
 
-- Debug breakpoints: use `bun dev spawn` (not regular `bun dev`) — server runs in worker thread otherwise.
-- `bun install` runs `postinstall` hook (`fix-node-pty` in `packages/NovaWay`) and `husky` (`prepare`).
-- `packages/NovaWay/src/index.ts` has `#db` and `#pty` as conditional subpath imports (bun vs node).
+- `bun dev serve` warns and runs unsecured if `NOVAWAY_SERVER_PASSWORD` is unset; set it (and optionally `NOVAWAY_SERVER_USERNAME`, default `novaway`) before exposing the port.
+- `bun install` runs `postinstall` hook (`fix-node-pty` in `packages/novaway`) and `husky` (`prepare`).
+- `.husky/pre-push` enforces the `packageManager` bun version and runs `bun typecheck` before every push.
+- `packages/novaway/src/index.ts` has `#db` and `#pty` as conditional subpath imports (bun vs node).
 - Oxlint ignore: `**/node_modules`, `**/dist`, `**/.build`, `**/.sst`, `**/*.d.ts`, `**/sdk.gen.ts`.
 - Prettier: `semi: false`, `printWidth: 120`.
 - Formatting command: `./script/format.ts`.
