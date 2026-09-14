@@ -21,6 +21,7 @@ import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { useLocal } from "@/context/local"
 import { selectionFromLines, useFile, type FileSelection, type SelectedLineRange } from "@/context/file"
 import { createStore } from "solid-js/store"
+import { ResizeHandle } from "@novaway/ui/resize-handle"
 import { Select } from "@novaway/ui/select"
 import { Tabs } from "@novaway/ui/tabs"
 import { createAutoScroll } from "@novaway/ui/hooks"
@@ -59,6 +60,8 @@ import { syncSessionModel } from "@/pages/session/session-model-helpers"
 import { SessionSidePanel } from "@/pages/session/session-side-panel"
 import { FloatingTodoButton } from "@/components/floating-todo-button"
 import { OfficeSessionComposer, OfficeSessionWorkspace } from "@/components/office-session-workspace"
+import { DevServerSuggestion } from "@/pages/session/dev-server-suggestion"
+import { PreviewPanel } from "@/pages/session/preview-panel"
 import { TerminalPanel } from "@/pages/session/terminal-panel"
 import { useSessionCommands } from "@/pages/session/use-session-commands"
 import { useSessionHashScroll } from "@/pages/session/use-session-hash-scroll"
@@ -287,6 +290,7 @@ export default function Page() {
 
   const isDesktop = createMediaQuery("(min-width: 768px)")
   const size = createSizing()
+  const previewSize = createSizing()
 
   function normalizeTab(tab: string) {
     if (!tab.startsWith("file://")) return tab
@@ -413,7 +417,12 @@ export default function Page() {
     changes: "git" as ChangeMode,
     newSessionWorktree: "main",
     deferRender: false,
+    view: typeof window === "undefined" ? 1000 : (window.visualViewport?.width ?? window.innerWidth),
   })
+
+  // 依赖 store.view，必须在 store 之后声明（createMemo 会立即执行，前向引用会触发 TDZ）
+  const previewMaxWidth = () => Math.max(320, Math.round(store.view * 0.6))
+  const previewPaneWidth = createMemo(() => Math.min(view().previewWidth.get(), previewMaxWidth()))
 
   const [followup, setFollowup] = persisted(
     Persist.workspace(sdk.directory, "followup", ["followup.v1"]),
@@ -1714,6 +1723,13 @@ export default function Page() {
 
   onMount(() => {
     makeEventListener(document, "keydown", handleKeyDown)
+
+    const syncPreviewWidth = () => setStore("view", window.visualViewport?.width ?? window.innerWidth)
+    const viewport = window.visualViewport
+
+    syncPreviewWidth()
+    makeEventListener(window, "resize", syncPreviewWidth)
+    if (viewport) makeEventListener(viewport, "resize", syncPreviewWidth)
   })
 
   onCleanup(() => {
@@ -1830,106 +1846,154 @@ export default function Page() {
                 width: sessionPanelWidth(),
               }}
             >
-              <div class="flex-1 min-h-0 overflow-hidden">
-                {/* Mobile changes view */}
-                <Show when={params.id && mobileChanges()}>
-                  <div class="relative h-full overflow-hidden">
-                    {reviewContent({
-                      diffStyle: "unified",
-                      classes: {
-                        root: "pb-8",
-                        header: "px-4",
-                        container: "px-4",
-                      },
-                      loadingClass: "px-4 py-4 text-text-weak",
-                      emptyClass: "h-full pb-64 -mt-4 flex flex-col items-center justify-center text-center gap-6",
-                    })}
-                  </div>
-                </Show>
+              <div class="relative flex-1 min-h-0 overflow-hidden flex flex-col md:flex-row">
+                <div
+                  class="min-h-0 flex flex-col"
+                  classList={{
+                    "flex-1 min-w-0": view().viewMode.get() !== "preview",
+                    hidden: view().viewMode.get() === "preview",
+                  }}
+                >
+                  <div class="flex-1 min-h-0 overflow-hidden">
+                    {/* Mobile changes view */}
+                    <Show when={params.id && mobileChanges()}>
+                      <div class="relative h-full overflow-hidden">
+                        {reviewContent({
+                          diffStyle: "unified",
+                          classes: {
+                            root: "pb-8",
+                            header: "px-4",
+                            container: "px-4",
+                          },
+                          loadingClass: "px-4 py-4 text-text-weak",
+                          emptyClass: "h-full pb-64 -mt-4 flex flex-col items-center justify-center text-center gap-6",
+                        })}
+                      </div>
+                    </Show>
 
-                {/* Session view (message timeline) */}
-                <Show when={params.id && !mobileChanges()}>
-                  <div class="h-full">
-                    <Show when={messagesReady()}>
-                      <MessageTimeline
-                        actions={actions}
-                        scroll={ui.scroll}
-                        onResumeScroll={resumeScroll}
-                        setScrollRef={setScrollRef}
-                        onScheduleScrollState={scheduleScrollState}
-                        onAutoScrollHandleScroll={autoScroll.handleScroll}
-                        onMarkScrollGesture={markScrollGesture}
-                        hasScrollGesture={hasScrollGesture}
-                        onUserScroll={markUserScroll}
-                        onHistoryScroll={historyLoader.onScrollerScroll}
-                        onAutoScrollInteraction={autoScroll.handleInteraction}
-                        shouldAnchorBottom={() =>
-                          !location.hash && !store.messageId && !ui.pendingMessage && !autoScroll.userScrolled()
-                        }
-                        centered={centered()}
-                        setContentRef={(el) => {
-                          content = el
-                          autoScroll.contentRef(el)
+                    {/* Session view (message timeline) */}
+                    <Show when={params.id && !mobileChanges()}>
+                      <div class="h-full">
+                        <Show when={messagesReady()}>
+                          <MessageTimeline
+                            actions={actions}
+                            scroll={ui.scroll}
+                            onResumeScroll={resumeScroll}
+                            setScrollRef={setScrollRef}
+                            onScheduleScrollState={scheduleScrollState}
+                            onAutoScrollHandleScroll={autoScroll.handleScroll}
+                            onMarkScrollGesture={markScrollGesture}
+                            hasScrollGesture={hasScrollGesture}
+                            onUserScroll={markUserScroll}
+                            onHistoryScroll={historyLoader.onScrollerScroll}
+                            onAutoScrollInteraction={autoScroll.handleInteraction}
+                            shouldAnchorBottom={() =>
+                              !location.hash && !store.messageId && !ui.pendingMessage && !autoScroll.userScrolled()
+                            }
+                            centered={centered()}
+                            setContentRef={(el) => {
+                              content = el
+                              autoScroll.contentRef(el)
 
-                          const root = scroller
-                          if (root) scheduleScrollState(root)
-                        }}
-                        historyShift={historyLoader.shift()}
-                        userMessages={historyLoader.userMessages()}
-                        anchor={anchor}
-                        setRevealMessage={(fn) => {
-                          revealMessage = fn
-                        }}
-                      />
+                              const root = scroller
+                              if (root) scheduleScrollState(root)
+                            }}
+                            historyShift={historyLoader.shift()}
+                            userMessages={historyLoader.userMessages()}
+                            anchor={anchor}
+                            setRevealMessage={(fn) => {
+                              revealMessage = fn
+                            }}
+                          />
+                        </Show>
+                      </div>
+                    </Show>
+
+                    {/* New session view (centered) */}
+                    <Show when={!params.id}>
+                      <div class="h-full">
+                        <NewSessionView
+                          worktree={newSessionWorktree()}
+                          centered={centered()}
+                          inputRef={(el) => {
+                            inputRef = el
+                          }}
+                          autoSubmitKey={autoSubmitKey()}
+                          onNewSessionWorktreeReset={() => setStore("newSessionWorktree", "main")}
+                          onSubmit={() => {
+                            comments.clear()
+                            resumeScroll()
+                          }}
+                        />
+                      </div>
                     </Show>
                   </div>
-                </Show>
 
-                {/* New session view (centered) */}
-                <Show when={!params.id}>
-                  <div class="h-full">
-                    <NewSessionView
-                      worktree={newSessionWorktree()}
-                      centered={centered()}
-                      inputRef={(el) => {
-                        inputRef = el
-                      }}
-                      autoSubmitKey={autoSubmitKey()}
-                      onNewSessionWorktreeReset={() => setStore("newSessionWorktree", "main")}
-                      onSubmit={() => {
-                        comments.clear()
-                        resumeScroll()
+                  {/* 对话框随左栏一起收窄，不能横跨到预览下面 */}
+                  <Show when={params.id && view().viewMode.get() !== "preview"}>
+                    <div>
+                      <Show
+                        when={showOfficeSessionComposer(layout.mode.current(), params.id)}
+                        fallback={composerRegion({
+                          centered: centered(),
+                          setPromptDockRef: (el) => {
+                            promptDock = el
+                          },
+                        })}
+                      >
+                        <OfficeSessionComposer
+                          centered={centered()}
+                          setPromptDockRef={(el) => {
+                            promptDock = el
+                          }}
+                          composer={composerRegion({
+                            centered: false,
+                            embedded: true,
+                            setPromptDockRef: () => {},
+                          })}
+                        />
+                      </Show>
+                    </div>
+                  </Show>
+                </div>
+
+                <Show when={view().viewMode.get() === "split" && isDesktop()}>
+                  {/* 手柄是 absolute 定位，靠自身的 relative 才能贴在分隔线上 */}
+                  <div class="relative w-px shrink-0" onPointerDown={() => previewSize.start()}>
+                    <ResizeHandle
+                      direction="horizontal"
+                      edge="start"
+                      size={previewPaneWidth()}
+                      min={320}
+                      max={previewMaxWidth()}
+                      onResize={(width) => {
+                        previewSize.touch()
+                        view().previewWidth.set(width)
                       }}
                     />
                   </div>
                 </Show>
-              </div>
 
-              <Show when={params.id}>
-                <div>
-                  <Show
-                    when={showOfficeSessionComposer(layout.mode.current(), params.id)}
-                    fallback={composerRegion({
-                      centered: centered(),
-                      setPromptDockRef: (el) => {
-                        promptDock = el
-                      },
-                    })}
-                  >
-                    <OfficeSessionComposer
-                      centered={centered()}
-                      setPromptDockRef={(el) => {
-                        promptDock = el
-                      }}
-                      composer={composerRegion({
-                        centered: false,
-                        embedded: true,
-                        setPromptDockRef: () => {},
-                      })}
-                    />
-                  </Show>
+                <div
+                  class="min-h-0 overflow-hidden"
+                  classList={{
+                    hidden: view().viewMode.get() === "chat",
+                    "flex-1 min-w-0":
+                      view().viewMode.get() === "preview" || (!isDesktop() && view().viewMode.get() === "split"),
+                    "shrink-0": isDesktop() && view().viewMode.get() === "split",
+                  }}
+                  style={{
+                    width:
+                      isDesktop() && view().viewMode.get() === "split"
+                        ? `min(${previewPaneWidth()}px, 60%)`
+                        : undefined,
+                  }}
+                >
+                  <PreviewPanel />
                 </div>
-              </Show>
+
+                <DevServerSuggestion />
+              </div>
             </div>
 
             <SessionSidePanel

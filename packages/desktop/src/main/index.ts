@@ -39,6 +39,7 @@ import {
   createLoadingWindow,
   createMainWindow,
   loadAppIcon,
+  registerLocalFileProtocol,
   registerRendererProtocol,
   setBackgroundColor,
   setDockIcon,
@@ -302,6 +303,7 @@ const main = Effect.gen(function* () {
 
   app.setAsDefaultProtocolClient("NovaWay")
   registerRendererProtocol()
+  registerLocalFileProtocol()
   setDockIcon()
   createTray()
   setupAutoUpdater()

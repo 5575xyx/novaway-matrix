@@ -7,6 +7,7 @@ import type { FitAddon, Ghostty, Terminal as Term } from "ghostty-web"
 import { type ComponentProps, createEffect, createMemo, onCleanup, onMount, splitProps } from "solid-js"
 import { SerializeAddon } from "@/addons/serialize"
 import { matchKeybind, parseKeybind } from "@/context/command"
+import { useDevServers } from "@/context/dev-server"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { useSDK } from "@/context/sdk"
@@ -160,6 +161,7 @@ export const Terminal = (props: TerminalProps) => {
   const settings = useSettings()
   const theme = useTheme()
   const language = useLanguage()
+  const devServers = useDevServers()
   const server = useServer()
   const directory = sdk.directory
   const client = sdk.client
@@ -574,6 +576,7 @@ export const Terminal = (props: TerminalProps) => {
 
           const data = typeof event.data === "string" ? event.data : ""
           if (!data) return
+          devServers.report(data)
           output?.push(data)
           cursor += data.length
           seek = cursor

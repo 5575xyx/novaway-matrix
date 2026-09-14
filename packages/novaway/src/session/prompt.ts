@@ -5,6 +5,7 @@ import { MessageV2 } from "./message-v2"
 import * as Log from "@novaway/core/util/log"
 import { SessionRevert } from "./revert"
 import * as Session from "./session"
+import { Todo } from "./todo"
 import { Agent } from "../agent/agent"
 import { Provider } from "@/provider/provider"
 import { ModelID, ProviderID } from "../provider/schema"
@@ -131,6 +132,53 @@ const VISION_DESCRIBE_SYSTEM_PROMPT = [
 ].join("\n")
 
 const VISION_DESCRIPTION_MARKER = "[图片内容识别结果]"
+
+// 待办收尾清扫:模型更新过待办清单,但这一轮结束时清单里仍有未完成项,就再跑一轮
+// 提醒它自己把状态收敛到真实进度。decideTodoSweep 是无状态判定——只看清单状态和
+// 消息顺序,不依赖任何会话内计数器,因此天然幂等,重复进入 loop 也不会误判。
+export const TODO_SWEEP_MARKER = "[待办清单收尾提醒]"
+const TODO_SWEEP_MAX = 2
+const TODO_TOOL_IDS = new Set(["todowrite", "todoedit"])
+
+const hasTodoToolCall = (message: MessageV2.WithParts) =>
+  message.parts.some((part) => part.type === "tool" && TODO_TOOL_IDS.has(part.tool))
+const hasSweepReminder = (message: MessageV2.WithParts) =>
+  message.parts.some((part) => part.type === "text" && part.text.includes(TODO_SWEEP_MARKER))
+
+export type TodoSweepReason = "clean" | "no_todo_call" | "recently_swept" | "limit" | "sweep"
+
+export function decideTodoSweep(input: {
+  todos: Todo.Info[]
+  messages: MessageV2.WithParts[]
+}): TodoSweepReason {
+  const unfinished = input.todos.filter((todo) => todo.status === "pending" || todo.status === "in_progress")
+  if (unfinished.length === 0) return "clean"
+
+  const lastTodoCall = input.messages.findLastIndex(hasTodoToolCall)
+  if (lastTodoCall === -1) return "no_todo_call"
+
+  // 上一次提醒排在最后一次 todo 调用之后,说明这段历史已经被提醒过。
+  if (input.messages.findLastIndex(hasSweepReminder) > lastTodoCall) return "recently_swept"
+  // 硬上限:提醒本身也会触发新一轮,不设上限会和 todo 更新互相触发到停不下来。
+  if (input.messages.filter(hasSweepReminder).length >= TODO_SWEEP_MAX) return "limit"
+
+  return "sweep"
+}
+
+export function todoSweepReminder(todos: Todo.Info[]): string {
+  const unfinished = todos
+    .map((todo, position) => ({ ...todo, position }))
+    .filter((todo) => todo.status === "pending" || todo.status === "in_progress")
+  return [
+    TODO_SWEEP_MARKER,
+    `待办清单共 ${todos.length} 条,其中 ${unfinished.length} 条未完成(position 是 0 起索引):`,
+    unfinished.map((todo) => `${todo.position}. ${todo.content} [${todo.status}]`).join("\n"),
+    "",
+    "这一轮收尾时请用 todoedit 把状态改到真实进度:确实做完并验证过的用 complete,不再需要的用 cancel,仍在进行的保持 progress(同时最多一条)。",
+    "不要用 todowrite 重写整份清单,position 以上面的编号为准。",
+    "如果确实没有需要改的,就回一句简短说明,不要新增条目。",
+  ].join("\n")
+}
 
 const log = Log.create({ service: "session.prompt" })
 const elog = EffectLogger.create({ service: "session.prompt" })
@@ -300,6 +348,7 @@ export const layer = Layer.effect(
     const auth = Option.getOrUndefined(yield* Effect.serviceOption(Auth.Service))
     const status = yield* SessionStatus.Service
     const sessions = yield* Session.Service
+    const todo = yield* Todo.Service
     const agents = yield* Agent.Service
     const provider = yield* Provider.Service
     const processor = yield* SessionProcessor.Service
@@ -2610,6 +2659,24 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         return yield* lastAssistant(sessionID)
       } as any)) as any
 
+    // 待办收尾清扫:一轮结束时清单里还有未完成项,就再跑一轮让模型自己收敛状态。
+    // 判定见 decideTodoSweep——无状态、有硬上限,不会和 todo 更新互相触发到停不下来。
+    const sweepTodos = Effect.fn("SessionPrompt.sweepTodos")(function* (sessionID: SessionID) {
+      const todos = yield* todo.get(sessionID).pipe(Effect.catch(() => Effect.succeed([] as Todo.Info[])))
+      const msgs = yield* sessions.messages({ sessionID }).pipe(Effect.catch(() => Effect.succeed([] as MessageV2.WithParts[])))
+      if (decideTodoSweep({ todos, messages: msgs }) !== "sweep") return undefined
+
+      const lastUser = [...msgs].reverse().find((message) => message.info.role === "user")
+      if (!lastUser || lastUser.info.role !== "user") return undefined
+
+      return yield* prompt({
+        sessionID,
+        agent: lastUser.info.agent,
+        model: { providerID: lastUser.info.model.providerID, modelID: lastUser.info.model.modelID },
+        parts: [{ type: "text", text: todoSweepReminder(todos) }],
+      }).pipe(Effect.catch(() => Effect.succeed(undefined)))
+    })
+
     const loop: (input: LoopInput) => Effect.Effect<MessageV2.WithParts, never, never> = Effect.fn("SessionPrompt.loop")(function* (
       input: LoopInput,
     ) {
@@ -2619,7 +2686,15 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       // 顺序(不 fork)追加一轮,受硬性 max_iterations 上限约束防跑飞。默认关闭。
       const cfg = yield* config.get().pipe(Effect.catch(() => Effect.succeed({} as any)))
       const goalCfg = ConfigGoal.resolve(cfg.goal)
-      if (!goalCfg.enabled || !goalService || goalCfg.max_iterations <= 0) return result
+
+      // 收尾统一出口:清扫提醒可能追加一轮,追加轮的结果取代原结果返回。
+      const finish = (sessionID: SessionID) =>
+        sweepTodos(sessionID).pipe(
+          Effect.catch(() => Effect.succeed(undefined)),
+          Effect.map((swept) => swept ?? result),
+        )
+
+      if (!goalCfg.enabled || !goalService || goalCfg.max_iterations <= 0) return yield* finish(input.sessionID)
 
       let iterations = 0
       while (iterations < goalCfg.max_iterations) {
@@ -2689,7 +2764,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         }).pipe(Effect.catch(() => Effect.succeed(result)))
       }
 
-      return result
+      return yield* finish(input.sessionID)
     })
 
     const shell: (input: ShellInput) => Effect.Effect<MessageV2.WithParts, Session.BusyError> = Effect.fn(
@@ -2858,6 +2933,7 @@ export const defaultLayer = Layer.suspend(() =>
         Bus.layer,
         CrossSpawnSpawner.defaultLayer,
         RuntimeFlags.defaultLayer,
+        Todo.defaultLayer,
       ),
     ),
   ),

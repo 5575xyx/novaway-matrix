@@ -10,7 +10,7 @@ export interface DiffStatFile {
 
 // 一次最多列几个文件。上限是必须的:一轮里改上百个文件的情况真实存在,
 // 全列出来这一块能把整屏顶掉 —— 那就变成一边修变形、一边造变形。
-export const DIFF_STAT_MAX_FILES = 10
+export const DIFF_STAT_MAX_FILES = 5
 
 // 文件名的显示上限。真实路径基本都短于这个数,超了从左边截,保住更有信息量的尾部。
 const FILE_NAME_MAX = 64

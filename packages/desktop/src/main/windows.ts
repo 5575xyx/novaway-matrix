@@ -4,19 +4,27 @@ import { existsSync } from "node:fs"
 import { dirname, isAbsolute, join, relative, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import type { FloatingPanelTab, TitlebarTheme } from "../preload/types"
+import { LOCAL_FILE_HOST, LOCAL_FILE_PROTOCOL, RENDERER_HOST, RENDERER_PROTOCOL } from "../shared/protocol"
+import { getLogger } from "./logging"
 import { getStore } from "./store"
 
 const root = dirname(fileURLToPath(import.meta.url))
 const rendererRoot = join(root, "../renderer")
-const rendererProtocol = "oc"
-const rendererHost = "renderer"
 const clipboardWritePermission = "clipboard-sanitized-write"
 const notificationPermission = "notifications"
 const rendererPermissions = new Set([clipboardWritePermission, notificationPermission])
 
 protocol.registerSchemesAsPrivileged([
   {
-    scheme: rendererProtocol,
+    scheme: RENDERER_PROTOCOL,
+    privileges: {
+      secure: true,
+      standard: true,
+      supportFetchAPI: true,
+    },
+  },
+  {
+    scheme: LOCAL_FILE_PROTOCOL,
     privileges: {
       secure: true,
       standard: true,
@@ -94,6 +102,7 @@ export function setTitlebar(win: BrowserWindow, theme: Partial<TitlebarTheme> = 
 export function updateTitlebar(win: BrowserWindow) {
   if (process.platform !== "win32") return
   if (!titlebarOverlayWindows.has(win)) return
+  if (win.isDestroyed()) return
   win.setTitleBarOverlay(overlay(titlebarThemes.get(win), win.webContents.getZoomFactor()))
 }
 
@@ -495,11 +504,11 @@ export function resizeFloatingWindow(win: BrowserWindow, expanded: boolean) {
 }
 
 export function registerRendererProtocol() {
-  if (protocol.isProtocolHandled(rendererProtocol)) return
+  if (protocol.isProtocolHandled(RENDERER_PROTOCOL)) return
 
-  protocol.handle(rendererProtocol, (request) => {
+  protocol.handle(RENDERER_PROTOCOL, (request) => {
     const url = new URL(request.url)
-    if (url.host !== rendererHost) {
+    if (url.host !== RENDERER_HOST) {
       return new Response("Not found", { status: 404 })
     }
 
@@ -513,16 +522,50 @@ export function registerRendererProtocol() {
   })
 }
 
+export function registerLocalFileProtocol() {
+  if (protocol.isProtocolHandled(LOCAL_FILE_PROTOCOL)) return
+
+  protocol.handle(LOCAL_FILE_PROTOCOL, (request) => {
+    // 协议 handler 必须返回 Response：抛错会变成 ERR_UNEXPECTED，iframe 会反复加载
+    const file = resolveLocalFileTarget(request.url)
+    if (!file) {
+      getLogger().warn("[oc-file] 本地文件地址无法解析", { request: request.url })
+      return new Response("Not found", { status: 404 })
+    }
+    if (!existsSync(file)) {
+      // 走 electron-log 而非 console：主进程的 console.* 不进 main.log，崩溃后拿不到终端就查不到
+      getLogger().warn("[oc-file] 本地文件预览未找到", { request: request.url, file })
+      return new Response("Not found", { status: 404 })
+    }
+    return net.fetch(pathToFileURL(file).toString())
+  })
+}
+
+function resolveLocalFileTarget(requestUrl: string): string | undefined {
+  try {
+    const url = new URL(requestUrl)
+    if (url.host !== LOCAL_FILE_HOST || !url.pathname) return undefined
+    // URL 的 pathname 里中文等字符是百分号编码的，Windows 上 /C:/ 也不算绝对路径，
+    // 直接用 resolve 会拿到字面量的 %E9%87%8D 路径。必须走 fileURLToPath 解码并识别盘符。
+    return fileURLToPath(new URL(`file://${url.pathname}`))
+  } catch {
+    // 双斜杠、非盘符路径等畸形地址会抛 ERR_INVALID_FILE_URL_PATH，统一按未命中处理
+    return undefined
+  }
+}
+
 function loadWindow(win: BrowserWindow, html: string) {
   const devUrl = process.env.ELECTRON_RENDERER_URL
-  const url = devUrl ? new URL(html, devUrl).toString() : `${rendererProtocol}://${rendererHost}/${html}`
+  const url = devUrl ? new URL(html, devUrl).toString() : `${RENDERER_PROTOCOL}://${RENDERER_HOST}/${html}`
 
   const load = () => {
     void win.loadURL(url)
   }
 
-  // 开发模式下 Vite dev server 可能还没就绪，加载失败时自动重试
-  win.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
+  // 开发模式下 Vite dev server 可能还没就绪，加载失败时自动重试。
+  // 必须只处理主帧：iframe（预览）失败若也触发重载，会连坐整个窗口并循环闪烁
+  win.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    if (!isMainFrame) return
     if (errorCode === -3) return // ERR_ABORTED，通常是刷新或导航导致，不需要重试
     console.warn(`窗口加载失败: ${validatedURL} - ${errorDescription} (${errorCode})，500ms 后重试`)
     setTimeout(load, 500)
@@ -549,7 +592,7 @@ function allowRendererPermissions(win: BrowserWindow) {
 function isTrustedRendererUrl(value?: string) {
   if (!value || !URL.canParse(value)) return false
   const url = new URL(value)
-  if (url.protocol === `${rendererProtocol}:` && url.host === rendererHost) return true
+  if (url.protocol === `${RENDERER_PROTOCOL}:` && url.host === RENDERER_HOST) return true
   const devUrl = process.env.ELECTRON_RENDERER_URL
   if (!devUrl || !URL.canParse(devUrl)) return false
   return url.origin === new URL(devUrl).origin
@@ -589,6 +632,7 @@ export function positionFloatingRestore(win: BrowserWindow, anchor?: { x: number
 function wireZoom(win: BrowserWindow) {
   win.webContents.setZoomFactor(1)
   win.webContents.on("zoom-changed", () => {
+    if (win.isDestroyed()) return
     win.webContents.setZoomFactor(1)
     updateTitlebar(win)
   })

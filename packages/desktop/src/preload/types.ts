@@ -325,5 +325,7 @@ export type ElectronAPI = {
   checkUpdate: () => Promise<{ updateAvailable: boolean; version?: string }>
   installUpdate: () => Promise<void>
   setBackgroundColor: (color: string) => Promise<void>
+  // file:// 地址转成本地文件预览协议，iframe 才能嵌入本机 HTML
+  toPreviewUrl: (url: string) => string
   platform: PlatformAPI
 }

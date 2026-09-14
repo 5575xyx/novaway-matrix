@@ -22,6 +22,7 @@ Skip when:
 - `cancelled` - no longer needed
 
 ## Rules
+- Use `todoedit` for a single status change (for example `{"action": "complete", "position": 2}`) instead of resending the whole list; only rebuild the list here when several items change at once
 - Update status in real time; don't batch completions
 - Mark `completed` only after the required work is actually done, including any required verification. Never based on intent.
 - Keep exactly one `in_progress` while work remains

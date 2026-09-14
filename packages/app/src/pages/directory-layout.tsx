@@ -6,6 +6,8 @@ import { createEffect, createMemo, createResource, type ParentProps, Show } from
 import { FloatingAgentSync } from "@/components/floating-agent-sync"
 import { useLanguage } from "@/context/language"
 import { LocalProvider } from "@/context/local"
+import { DevServerProvider } from "@/context/dev-server"
+import { PreviewProvider } from "@/context/preview"
 import { SDKProvider } from "@/context/sdk"
 import { SyncProvider, useSync } from "@/context/sync"
 import { decode64 } from "@/utils/base64"
@@ -77,7 +79,11 @@ export default function Layout(props: ParentProps) {
       {(resolved) => (
         <SDKProvider directory={() => resolved}>
           <SyncProvider>
-            <DirectoryDataProvider directory={resolved}>{props.children}</DirectoryDataProvider>
+            <PreviewProvider directory={() => resolved}>
+              <DevServerProvider>
+                <DirectoryDataProvider directory={resolved}>{props.children}</DirectoryDataProvider>
+              </DevServerProvider>
+            </PreviewProvider>
           </SyncProvider>
         </SDKProvider>
       )}

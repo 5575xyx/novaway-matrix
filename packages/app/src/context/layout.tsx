@@ -19,6 +19,7 @@ const DEFAULT_SIDEBAR_WIDTH = 344
 const DEFAULT_FILE_TREE_WIDTH = 200
 const DEFAULT_SESSION_WIDTH = 600
 const DEFAULT_TERMINAL_HEIGHT = 280
+const DEFAULT_PREVIEW_WIDTH = 640
 export type AvatarColorKey = (typeof AVATAR_COLOR_KEYS)[number]
 export type AppMode = "forge" | "zen" | "spark" | "pulse" | "future"
 
@@ -107,6 +108,8 @@ type SessionView = {
   pendingMessageAt?: number
   todoCollapsed?: boolean
   todoHeight?: number
+  previewWidth?: number
+  viewMode?: "chat" | "split" | "preview"
 }
 
 type TabHandoff = {
@@ -854,6 +857,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         const s = createMemo(() => store.sessionView[key()] ?? { scroll: {} })
         const terminalOpened = createMemo(() => store.terminal?.opened ?? false)
         const reviewPanelOpened = createMemo(() => store.review?.panelOpened ?? true)
+        const viewMode = createMemo(() => s().viewMode ?? ("chat" as const))
 
         function setTerminalOpened(next: boolean) {
           const current = store.terminal
@@ -877,6 +881,18 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           const value = current.panelOpened ?? true
           if (value === next) return
           setStore("review", "panelOpened", next)
+        }
+
+        function setViewMode(next: "chat" | "split" | "preview") {
+          const session = key()
+          const current = store.sessionView[session]
+          if (!current) {
+            setStore("sessionView", session, { scroll: {}, viewMode: next })
+            return
+          }
+
+          if (current.viewMode === next) return
+          setStore("sessionView", session, "viewMode", next)
         }
 
         return {
@@ -908,6 +924,26 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
               } else {
                 setStore("sessionView", session, "todoHeight", height)
               }
+            },
+          },
+          previewWidth: {
+            get: () => s().previewWidth ?? DEFAULT_PREVIEW_WIDTH,
+            set(width: number) {
+              const session = key()
+              const current = store.sessionView[session]
+              if (!current) {
+                setStore("sessionView", session, { scroll: {}, previewWidth: width })
+              } else {
+                setStore("sessionView", session, "previewWidth", width)
+              }
+            },
+          },
+          viewMode: {
+            get: viewMode,
+            set: setViewMode,
+            toggle() {
+              const current = viewMode()
+              setViewMode(current === "chat" ? "split" : current === "split" ? "preview" : "chat")
             },
           },
           terminal: {

@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron"
+import { toLocalFileUrl } from "../shared/protocol"
 import type { ElectronAPI, FloatingAgentState, FloatingPanelTab, InitStep, SqliteMigrationProgress } from "./types"
 
 const api: ElectronAPI = {
@@ -137,6 +138,7 @@ const api: ElectronAPI = {
   checkUpdate: () => ipcRenderer.invoke("check-update"),
   installUpdate: () => ipcRenderer.invoke("install-update"),
   setBackgroundColor: (color: string) => ipcRenderer.invoke("set-background-color", color),
+  toPreviewUrl: (url) => toLocalFileUrl(url),
   platform: {
     getAccounts: () => ipcRenderer.invoke("platform:get-accounts"),
     getSupportedPlatforms: () => ipcRenderer.invoke("platform:get-supported-platforms"),

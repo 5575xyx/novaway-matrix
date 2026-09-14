@@ -81,6 +81,7 @@ declare global {
     }
     api?: {
       setTitlebar?: (theme: { mode: "light" | "dark" }) => Promise<void>
+      toPreviewUrl?: (url: string) => string
       updateFloatingAgentState?: (state: {
         current?: string
         agents: Array<{ name: string; mode: string; hidden?: boolean; options?: Record<string, unknown> }>

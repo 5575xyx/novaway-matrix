@@ -302,6 +302,12 @@ export const SLASH_ZH: Record<string, string[]> = {
   redraw: ["重绘"],
   sidebar: ["侧边栏"],
   workbench: ["工作台", "工具箱"],
+  "theme-mode": ["深浅色", "主题模式", "明暗"],
+  "theme-lock": ["锁定主题", "锁定模式"],
+  docs: ["文档", "打开文档"],
+  "debug-panel": ["调试面板", "调试窗"],
+  plugins: ["插件", "插件列表"],
+  "install-plugin": ["安装插件", "安装"],
 }
 
 // 斜杠命令的中文说明。服务端内置命令(init/review)和第三方 MCP 提示词的 description 常常是英文,
@@ -320,6 +326,12 @@ export const SLASH_DESC_ZH: Record<string, string> = {
   redraw: "重绘界面",
   sidebar: "侧边栏：切换到下一个面板",
   workbench: "打开工具工作台",
+  "theme-mode": "切换深色/浅色模式",
+  "theme-lock": "锁定或解锁主题模式",
+  docs: "打开在线文档",
+  "debug-panel": "切换调试面板",
+  plugins: "查看插件列表",
+  "install-plugin": "安装新插件",
 }
 
 const HAN_CHARACTER = /\p{Script=Han}/u
@@ -395,6 +407,12 @@ const SLASH_PRIORITY = [
   "redraw",
   "sidebar",
   "workbench",
+  "plugins",
+  "install-plugin",
+  "theme-mode",
+  "theme-lock",
+  "docs",
+  "debug-panel",
 ]
 export const SLASH_ORDER: Record<string, number> = Object.fromEntries(SLASH_PRIORITY.map((name, i) => [name, i]))
 

@@ -3,8 +3,7 @@ import { Bus } from "@/bus"
 import { SessionID } from "./schema"
 import { Effect, Layer, Context, Schema } from "effect"
 import { Database } from "@/storage/db"
-import { eq } from "drizzle-orm"
-import { asc } from "drizzle-orm"
+import { asc, and, eq, sql } from "drizzle-orm"
 import { TodoTable } from "./session.sql"
 
 export const Info = Schema.Struct({
@@ -37,7 +36,7 @@ export interface Interface {
     goalId?: string
   }) => Effect.Effect<Info>
   readonly updateSingle: (input: {
-    todoId: string
+    position: number
     sessionID: SessionID
     status?: Info["status"]
     content?: string
@@ -65,6 +64,7 @@ export const layer = Layer.effect(
                 content: todo.content,
                 status: todo.status,
                 priority: todo.priority,
+                goal_id: todo.goalId ?? null,
                 position,
               })),
             )
@@ -88,6 +88,12 @@ export const layer = Layer.effect(
       }))
     })
 
+    // 单条写入的方法也必须发同一条 Updated 事件,否则侧栏和插件槽收不到变更。
+    const publishUpdated = (sessionID: SessionID) =>
+      Effect.gen(function* () {
+        yield* bus.publish(Event.Updated, { sessionID, todos: yield* get(sessionID) })
+      })
+
     const add = Effect.fn("Todo.add")(function* (input: {
       sessionID: SessionID
       content: string
@@ -97,11 +103,11 @@ export const layer = Layer.effect(
       const result = yield* Effect.sync(() =>
         Database.transaction((db) => {
           const maxPosition = db
-            .select({ max: TodoTable.position })
+            .select({ value: sql<number>`max(${TodoTable.position})` })
             .from(TodoTable)
             .where(eq(TodoTable.session_id, input.sessionID))
-            .all()
-          const position = maxPosition.length > 0 ? (maxPosition[0].max ?? -1) + 1 : 0
+            .get()
+          const position = (maxPosition?.value ?? -1) + 1
 
           db.insert(TodoTable)
             .values({
@@ -117,11 +123,12 @@ export const layer = Layer.effect(
           return { content: input.content, status: "pending", priority: input.priority ?? "medium", goalId: input.goalId }
         }),
       )
+      yield* publishUpdated(input.sessionID)
       return result
     })
 
     const updateSingle = Effect.fn("Todo.updateSingle")(function* (input: {
-      todoId: string
+      position: number
       sessionID: SessionID
       status?: Info["status"]
       content?: string
@@ -131,18 +138,17 @@ export const layer = Layer.effect(
           const todo = db
             .select()
             .from(TodoTable)
-            .where(eq(TodoTable.session_id, input.sessionID))
-            .all()
-            .find((t) => t.content === input.todoId || `${t.session_id}_${t.position}` === input.todoId)
+            .where(and(eq(TodoTable.session_id, input.sessionID), eq(TodoTable.position, input.position)))
+            .get()
 
-          if (!todo) throw new Error("Todo not found")
+          if (!todo) throw new Error(`Todo not found at position ${input.position}`)
 
           db.update(TodoTable)
             .set({
               ...(input.status && { status: input.status }),
               ...(input.content && { content: input.content }),
             })
-            .where(eq(TodoTable.session_id, input.sessionID))
+            .where(and(eq(TodoTable.session_id, input.sessionID), eq(TodoTable.position, input.position)))
             .run()
 
           return {
@@ -153,6 +159,7 @@ export const layer = Layer.effect(
           }
         }),
       )
+      yield* publishUpdated(input.sessionID)
       return result
     })
 
@@ -160,7 +167,7 @@ export const layer = Layer.effect(
       yield* Effect.sync(() =>
         Database.transaction((db) => {
           db.delete(TodoTable)
-            .where(eq(TodoTable.session_id, input.sessionID))
+            .where(and(eq(TodoTable.session_id, input.sessionID), eq(TodoTable.position, input.position)))
             .run()
 
           const remaining = db
@@ -171,17 +178,22 @@ export const layer = Layer.effect(
             .all()
 
           remaining.forEach((todo, index) => {
-            db.update(TodoTable).set({ position: index }).where(eq(TodoTable.session_id, input.sessionID)).run()
+            if (todo.position === index) return
+            db.update(TodoTable)
+              .set({ position: index })
+              .where(and(eq(TodoTable.session_id, input.sessionID), eq(TodoTable.position, todo.position)))
+              .run()
           })
         }),
       )
+      yield* publishUpdated(input.sessionID)
     })
 
     const getByGoal = Effect.fn("Todo.getByGoal")(function* (goalId: string) {
       const rows = yield* Effect.sync(() =>
         Database.use((db) => db.select().from(TodoTable).where(eq(TodoTable.goal_id, goalId)).all()),
       )
-      return rows.map((row: any) => ({
+      return rows.map((row) => ({
         content: row.content,
         status: row.status,
         priority: row.priority,

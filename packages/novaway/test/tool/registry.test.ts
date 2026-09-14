@@ -14,6 +14,9 @@ import { AppFileSystem } from "@novaway/core/filesystem"
 import { Plugin } from "@/plugin"
 import { Question } from "@/question"
 import { Todo } from "@/session/todo"
+import { Goal } from "@/session/goal"
+import { defaultLayer as WorkflowDefaultLayer } from "@/workflow/workflow"
+import { defaultLayer as OrchestratorDefaultLayer } from "@/orchestrator/orchestrator"
 import { Skill } from "@/skill"
 import { Agent } from "@/agent/agent"
 import { BackgroundJob } from "@/background/job"
@@ -69,6 +72,9 @@ const registryLayer = (flags: Partial<RuntimeFlags.Info> = {}) =>
       Layer.provide(RuntimeFlags.layer(flags)),
       Layer.provide(Auth.defaultLayer),
       Layer.provide(BrowserService.defaultLayer),
+      Layer.provide(Goal.defaultLayer),
+      Layer.provide(WorkflowDefaultLayer),
+      Layer.provide(OrchestratorDefaultLayer),
     )
 
 const it = testEffect(Layer.mergeAll(registryLayer(), node, Agent.defaultLayer, Auth.defaultLayer) as any)

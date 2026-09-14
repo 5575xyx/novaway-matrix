@@ -11,7 +11,7 @@
 
 ## Development server
 
-- Running `bun dev` from `packages/NovaWay` starts the live interactive TUI. Do not run it as a blocking foreground command when you need to inspect the result.
+- Running `bun dev` from `packages/novaway` starts the live interactive TUI. Do not run it as a blocking foreground command when you need to inspect the result.
 - Start it in `tmux` instead: `tmux new-session -d -s NovaWay-dev 'bun dev'`.
 - Capture the current TUI output with: `tmux capture-pane -pt NovaWay-dev`.
 - Stop the session explicitly when done: `tmux kill-session -t NovaWay-dev`.
