@@ -121,9 +121,26 @@ jobs:
         working-directory: packages/desktop
         run: bun run build
 
+      # electron-builder 下载 electron binary 时偶发 600s 超时(GitHub runner 到下载服务器
+      # 的网络波动)。缓存二进制避免 4 个矩阵 job 重复下载 ~100MB;步骤内重试兜底偶发抖动,
+      # 避免一次网络失败让整个矩阵 job 重跑(90 分钟 timeout 的代价)。
+      - name: Cache electron binary
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron/
+            ~/.electron/
+          key: ${{ runner.os }}-electron-v42.1.0-${{ matrix.settings.platform_flag | replace(' ', '-') }}
+
       - name: Package (electron-builder)
         working-directory: packages/desktop
-        run: npx electron-builder ${{ matrix.settings.platform_flag }} --publish never --config electron-builder.config.ts
+        run: |
+          for i in 1 2 3; do
+            npx electron-builder ${{ matrix.settings.platform_flag }} --publish never --config electron-builder.config.ts && break
+            if [ "$i" -eq 3 ]; then echo "3 retries exhausted" >&2; exit 1; fi
+            echo "Retry $i/3 after failure..."
+            sleep $((i * 30))
+          done
         env:
           # 没配证书时禁止 electron-builder 自动搜寻本机签名身份;配了则按 config 内部逻辑签名
           CSC_IDENTITY_AUTO_DISCOVERY: ${{ env.HAS_APPLE_CERTIFICATE == 'true' && '' || 'false' }}
