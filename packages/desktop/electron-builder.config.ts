@@ -116,8 +116,14 @@ const getBase = (): Configuration => ({
   },
   win: {
     icon: `resources/icons/icon.ico`,
+    // 显式 executableName,避免不同 channel(beta/prod)下 productName 漂移导致
+    // 安装目录里既没有 NovaWay.exe 也没有 NovaWay Beta.exe 的"装完找不到入口"问题
+    executableName: "NovaWay",
     signtoolOptions: {
       sign: signWindows,
+      // 把 Electron 自带的 ffmpeg.dll / vulkan-1.dll 等也签名,未签名 DLL 同样是
+      // Windows Defender 隔离目标 —— 自签 + SHA256 + 时间戳即可大幅降低误报
+      signDlls: true,
     },
     target: ["nsis"],
     verifyUpdateCodeSignature: false,
@@ -125,9 +131,21 @@ const getBase = (): Configuration => ({
   nsis: {
     oneClick: false,
     allowToChangeInstallationDirectory: true,
+    // perMachine=true 时安装到 Program Files,系统对该目录下的未签名 exe/DLL
+    // 信任度仍低于已签名,但 UAC 提权的安装过程会让 Defender 走更宽松的策略;
+    // 同时 perMachine=false 装到 %LocalAppData%\Programs 是 Defender 重点盯防区
     perMachine: false,
+    allowElevation: true,
+    // installer 申请管理员权限,确保能写到 Program Files / 写 HKLM 注册表项;
+    // 非管理员运行时 NSIS 会自动请求提权,失败则提示用户
+    requestedExecutionLevel: "requireAdministrator",
     installerIcon: `resources/icons/icon.ico`,
     installerHeaderIcon: `resources/icons/icon.ico`,
+    // 卸载时清干净,避免旧版本残留导致用户重装时 Defender 把旧 exe 拉黑名单后
+    // 把新装的也连带干掉
+    deleteAppDataOnUninstall: true,
+    createDesktopShortcut: true,
+    createStartMenuShortcut: true,
   },
   linux: {
     // 包名是 @novaway/desktop，electron-builder 默认从包名推 executableName 会得到
