@@ -7,4 +7,9 @@ declare global {
       deepLinks?: string[]
     }
   }
+
+  interface ImportMetaEnv {
+    // 与 electron.vite.config.ts 的 renderer.define 键名保持一致。
+    readonly VITE_NOVAWAY_CHANNEL?: string
+  }
 }
