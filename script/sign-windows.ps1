@@ -3,10 +3,13 @@ param(
   [string[]] $Path
 )
 
-$ErrorActionPreference = "Stop"
+# 用 Continue 而不是 Stop:任何签名/证书相关异常都转 warning,绝不 throw,
+# 避免 electron-builder 把单文件签名失败升级成整个 build 失败(用户连 setup.exe 都拿不到)
+$ErrorActionPreference = "Continue"
 
 if (-not $Path -or $Path.Count -eq 0) {
-  throw "At least one path is required"
+  Write-Warning "No paths provided to sign-windows.ps1, nothing to sign"
+  exit 0
 }
 
 if ($env:GITHUB_ACTIONS -ne "true") {
@@ -101,18 +104,33 @@ try {
   $exitCode = 0
   foreach ($f in $files) {
     Write-Host "Self-signing: $f"
-    $sig = Set-AuthenticodeSignature `
-      -FilePath $f `
-      -Certificate $cert `
-      -TimestampServer $timestampServer `
-      -HashAlgorithm SHA256
+    try {
+      $sig = Set-AuthenticodeSignature `
+        -FilePath $f `
+        -Certificate $cert `
+        -TimestampServer $timestampServer `
+        -HashAlgorithm SHA256
 
-    if ($sig.Status -ne "Valid") {
-      Write-Warning "Signature status for ${f}: $($sig.Status) - $($sig.StatusMessage)"
+      if ($sig.Status -ne "Valid") {
+        Write-Warning "Signature status for ${f}: $($sig.Status) - $($sig.StatusMessage)"
+        $exitCode = 1
+      } else {
+        Write-Host "  -> Signed ($($sig.SignerCertificate.Subject))"
+      }
+    } catch {
+      Write-Warning "Set-AuthenticodeSignature threw for ${f}: $($_.Exception.Message)"
       $exitCode = 1
-    } else {
-      Write-Host "  -> Signed ($(($sig.SignerCertificate.Subject))"
     }
+  }
+
+  if ($exitCode -ne 0) {
+    # 关键: 签名部分失败(证书创建失败 / 时间戳服务器不通 / 文件被锁)也不能
+    # 让 electron-builder fail 整个 build —— 否则 Release 啥都拿不到。
+    # 把 exit code 强制清零,错误信息已经打到 stderr,warning 状态。
+    Write-Warning "One or more files failed to sign — uploading unsigned installer"
+    Write-Warning "Windows Defender may quarantine NovaWay.exe on user machines"
+    Write-Warning "Consider setting AZURE_TRUSTED_SIGNING_* secrets for production releases"
+    $exitCode = 0
   }
 
   Write-Host "Self-signed fallback signing complete (timestamp: $timestampServer)"
