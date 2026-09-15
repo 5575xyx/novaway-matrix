@@ -1,5 +1,6 @@
 interface ImportMetaEnv {
-  readonly NovaWay_CHANNEL: string
+  // 与 electron.vite.config.ts 的 define 键名、CI 的 NOVAWAY_CHANNEL 环境变量保持一致。
+  readonly NOVAWAY_CHANNEL: string
 }
 
 interface ImportMeta {
