@@ -132,6 +132,75 @@ jobs:
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
 
+      # 打包后自检:Windows 平台必须确认 NSIS 安装包 + 中间产物 win-unpacked/
+      # 都有 NovaWay.exe 及关键 DLL,缺一即 fail —— 否则 Release 一旦上传出
+      # 残缺安装包,Windows 用户装出来就是"找不到快捷方式"(Defender 把 exe 隔离
+      # 之前的最后一道防线:确认包本身是完整的)
+      - name: Verify Windows installer contents
+        if: runner.os == 'Windows'
+        shell: pwsh
+        working-directory: packages/desktop
+        run: |
+          $ErrorActionPreference = "Stop"
+          $errors = @()
+
+          # 1) 中间产物 win-unpacked/ 必须有主程序 + 关键 DLL
+          $unpacked = "dist/win-unpacked"
+          $requiredFiles = @(
+            "NovaWay.exe",
+            "ffmpeg.dll",
+            "libGLESv2.dll",
+            "libEGL.dll",
+            "v8_context_snapshot.bin",
+            "snapshot_blob.bin",
+            "resources/app.asar"
+          )
+          foreach ($f in $requiredFiles) {
+            $p = Join-Path $unpacked $f
+            if (-not (Test-Path $p)) {
+              $errors += "Missing in win-unpacked/: $f"
+            } else {
+              $size = (Get-Item $p).Length
+              Write-Host "  OK  $f ($([math]::Round($size/1MB,2)) MB)"
+              # 主程序小于 100MB 说明 electron-builder 没把 Electron runtime 完整拷进去
+              if ($f -eq "NovaWay.exe" -and $size -lt 100MB) {
+                $errors += "NovaWay.exe is suspiciously small ($([math]::Round($size/1MB,2)) MB), expected > 100MB"
+              }
+            }
+          }
+
+          # 2) NSIS 安装包(.exe)必须存在且能解开包含 NovaWay.exe
+          $setup = Get-ChildItem -Path dist -Filter "novaway-desktop-win-*.exe" | Select-Object -First 1
+          if (-not $setup) {
+            $errors += "No NSIS installer found in dist/ (expected novaway-desktop-win-*.exe)"
+          } else {
+            Write-Host "NSIS installer: $($setup.Name) ($([math]::Round($setup.Length/1MB,2)) MB)"
+            # NSIS 是自解压 archive,用 7z(win runner 预装)扫一下里面有没有主程序
+            $7z = Get-Command 7z -ErrorAction SilentlyContinue
+            if ($7z) {
+              $tmp = New-Item -ItemType Directory -Path (Join-Path $env:RUNNER_TEMP "nsis-probe") -Force
+              # NSIS 安装包顶层不直接有 app/ 目录,只能验证整体解出来能拿到 exe
+              # 用 7z l 看清单就够了
+              $listing = & 7z l -slt -ba $setup.FullName | Select-String -Pattern "NovaWay\.exe|app\.asar|ffmpeg\.dll"
+              if (-not $listing) {
+                $errors += "NSIS installer does not contain NovaWay.exe / app.asar / ffmpeg.dll — installation will produce broken app"
+              } else {
+                Write-Host "  NSIS listing OK, contains:"
+                $listing | Select-Object -First 5 | ForEach-Object { Write-Host "    $_" }
+              }
+              Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
+            } else {
+              Write-Host "  (7z not on PATH, skipping NSIS content check — only verifying win-unpacked)"
+            }
+          }
+
+          if ($errors.Count -gt 0) {
+            Write-Host "::error::Windows installer verification failed:"
+            $errors | ForEach-Object { Write-Host "::error::  $_" }
+            exit 1
+          }
+          Write-Host "Windows installer verification passed"
+
       # 幂等:Release 可能已被 publish-npm(或上次重跑)创建,存在就复用
       - name: Create GitHub Release (if missing)
         run: |
