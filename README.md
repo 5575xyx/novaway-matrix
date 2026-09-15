@@ -101,6 +101,9 @@ bun add -g xymt-novaway
 
 不喜欢终端？NovaWay 还有一套 **Electron 桌面应用**（并非简单套壳），以 Sidecar 方式驱动同一个 `novaway` 内核，中文界面、16 种语言、自动更新：
 
+> ⚠️ **Windows 用户请先看**：[docs/windows-defender.md](docs/windows-defender.md)
+> 桌面端在 Windows 上首次安装可能被 Defender / SmartScreen 拦截（找不到快捷方式/弹"未知应用"），三步即可解决：① Defender 保护历史记录还原文件 ② 安装目录加入 Defender 排除项 ③ SmartScreen 弹窗选"仍要运行"。
+
 **① 工作台窗口** —— 完整的主窗口，承载 AI 编程与办公对话；支持自定义服务地址、深链唤起、Windows 下的 WSL 配置。
 
 **② 悬浮桌宠** —— 常驻桌面的 AI 精灵，可跟随光标、随时唤起：

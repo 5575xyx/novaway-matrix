@@ -14,11 +14,21 @@ async function signWindows(configuration: { path: string }) {
   if (process.platform !== "win32") return
   if (process.env.GITHUB_ACTIONS !== "true") return
 
-  await execFileAsync(
-    "pwsh",
-    ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", signScript, configuration.path],
-    { cwd: rootDir },
-  )
+  // 关键: 签名失败不能让整个 electron-builder build fail,否则用户连 setup.exe 都拿不到。
+  // 签名失败时只 warn,继续走 NSIS 打包 —— 然后由 CI 后置 Verify 步骤和人工反馈闭环。
+  // 用 stderr inherit 让 PowerShell 的真实错误信息(signing status, cert 错误等)直接
+  // 出现在 GitHub Actions 日志里,方便排查。
+  try {
+    await execFileAsync(
+      "pwsh",
+      ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", signScript, configuration.path],
+      { cwd: rootDir, stdio: "inherit" },
+    )
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.warn(`[signWindows] signing failed for ${configuration.path} — continuing without signature`)
+    console.warn(`[signWindows] error: ${message}`)
+  }
 }
 
 const channel = (() => {
