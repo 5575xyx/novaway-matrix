@@ -4,7 +4,8 @@
 
 **Goal:** 实现会话级检查点保存/恢复系统，以及后台 Dream/Distill 自我改进机制，使 NovaWay 具备 MiMo-Code 的状态持久化和自我学习能力。
 
-**Architecture:** 
+**Architecture:**
+
 - **Checkpoint 系统**: 在 SQLite 中添加 `session_checkpoint` 表，扩展 Session.Service 支持保存/恢复完整会话状态（消息、工具结果、上下文）
 - **Dream 系统**: 新增 Dream.Service，后台 fiber 分析历史会话，提取成功/失败模式，生成改进建议
 - **Distill 系统**: 扩展 Memory 系统，从 Dream 分析中提取可复用的模式知识
@@ -16,6 +17,7 @@
 ## Task 1: 添加 Checkpoint 数据库表
 
 **Files:**
+
 - Create: `packages/NovaWay/src/session/schema/checkpoint.ts`
 - Modify: `packages/NovaWay/src/session/schema.ts` (导出新模块)
 
@@ -80,6 +82,7 @@ git commit -m "feat(session): add checkpoint schema for session state persistenc
 ## Task 2: 实现 Checkpoint.Service
 
 **Files:**
+
 - Create: `packages/NovaWay/src/session/checkpoint.ts`
 - Modify: `packages/NovaWay/src/session/index.ts` (导出新模块)
 
@@ -149,7 +152,7 @@ export const layer = Layer.effect(
       Effect.fn("CheckpointService.state")(function* (ctx) {
         yield* Effect.void
         return { lastAutoCheckpoint: new Map<string, number>() }
-      })
+      }),
     )
 
     const generateId = () => `cp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
@@ -197,7 +200,7 @@ export const layer = Layer.effect(
           .where(eq(SessionCheckpoint.session_id, sessionId))
           .orderBy(SessionCheckpoint.created_at)
 
-        return rows.map(row => ({
+        return rows.map((row) => ({
           id: row.id,
           sessionId: row.session_id,
           name: row.name,
@@ -210,11 +213,7 @@ export const layer = Layer.effect(
       }),
 
       get: Effect.fn("CheckpointService.get")(function* (checkpointId) {
-        const row = yield* db
-          .select()
-          .from(SessionCheckpoint)
-          .where(eq(SessionCheckpoint.id, checkpointId))
-          .limit(1)
+        const row = yield* db.select().from(SessionCheckpoint).where(eq(SessionCheckpoint.id, checkpointId)).limit(1)
 
         if (row.length === 0) return null
 
@@ -264,7 +263,7 @@ export const layer = Layer.effect(
         return yield* Effect.succeed(null) // 实际实现需要获取当前会话消息
       }),
     })
-  })
+  }),
 )
 
 export const defaultLayer = layer.pipe(Layer.provide(InstanceState.layer))
@@ -289,12 +288,13 @@ git commit -m "feat(session): implement CheckpointService for session state pers
 ## Task 3: 创建 Dream 分析服务
 
 **Files:**
+
 - Create: `packages/NovaWay/src/session/dream.ts`
 - Modify: `packages/NovaWay/src/session/index.ts` (导出新模块)
 
 - [ ] **Step 1: 创建 Dream.Service 定义**
 
-```typescript
+````typescript
 // packages/NovaWay/src/session/dream.ts
 import { Context, Effect, Layer } from "effect"
 import { InstanceState } from "../effect/instance-state"
@@ -351,7 +351,7 @@ export const layer = Layer.effect(
     let backgroundFiber: any = null
 
     const analyzeMessages = Effect.fn("DreamService.analyzeMessages")(function* (
-      messages: Array<{ role: string; content: string }>
+      messages: Array<{ role: string; content: string }>,
     ) {
       // 分析消息模式
       const patterns: DreamPattern[] = []
@@ -360,32 +360,34 @@ export const layer = Layer.effect(
 
       // 查找成功模式
       const successMessages = messages.filter(
-        m => m.role === "assistant" && m.content.includes("✓") || m.content.includes("成功")
+        (m) => (m.role === "assistant" && m.content.includes("✓")) || m.content.includes("成功"),
       )
       if (successMessages.length > 0) {
         patterns.push({
           type: "success",
           description: `发现 ${successMessages.length} 个成功操作`,
           frequency: successMessages.length,
-          examples: successMessages.slice(0, 3).map(m => m.content.slice(0, 100)),
+          examples: successMessages.slice(0, 3).map((m) => m.content.slice(0, 100)),
         })
       }
 
       // 查找失败模式
       const failureMessages = messages.filter(
-        m => m.role === "assistant" && (m.content.includes("✗") || m.content.includes("失败") || m.content.includes("错误"))
+        (m) =>
+          m.role === "assistant" &&
+          (m.content.includes("✗") || m.content.includes("失败") || m.content.includes("错误")),
       )
       if (failureMessages.length > 0) {
         patterns.push({
           type: "failure",
           description: `发现 ${failureMessages.length} 个失败操作`,
           frequency: failureMessages.length,
-          examples: failureMessages.slice(0, 3).map(m => m.content.slice(0, 100)),
+          examples: failureMessages.slice(0, 3).map((m) => m.content.slice(0, 100)),
         })
       }
 
       // 代码风格分析
-      const codeMessages = messages.filter(m => m.content.includes("```"))
+      const codeMessages = messages.filter((m) => m.content.includes("```"))
       if (codeMessages.length > 5) {
         insights.push({
           category: "code_style",
@@ -416,7 +418,7 @@ export const layer = Layer.effect(
 
         // 获取会话消息
         const messages = yield* Session.messages({ sessionId })
-        const messageTexts = messages.map(m => ({
+        const messageTexts = messages.map((m) => ({
           role: m.role,
           content: typeof m.content === "string" ? m.content : JSON.stringify(m.content),
         }))
@@ -447,18 +449,20 @@ export const layer = Layer.effect(
       startBackgroundDream: Effect.fn("DreamService.startBackgroundDream")(function* () {
         if (backgroundFiber) return
 
-        backgroundFiber = yield* Effect.forkIn(Effect.forever(
-          Effect.gen(function* () {
-            // 每小时分析一次历史会话
-            yield* Effect.sleep("1 hour")
-            const analyses = yield* Effect.either(this.analyzeHistory(5))
-            if (analyses._tag === "Right") {
-              for (const analysis of analyses.right) {
-                yield* bus.publish("dream.analysis", analysis)
+        backgroundFiber = yield* Effect.forkIn(
+          Effect.forever(
+            Effect.gen(function* () {
+              // 每小时分析一次历史会话
+              yield* Effect.sleep("1 hour")
+              const analyses = yield* Effect.either(this.analyzeHistory(5))
+              if (analyses._tag === "Right") {
+                for (const analysis of analyses.right) {
+                  yield* bus.publish("dream.analysis", analysis)
+                }
               }
-            }
-          })
-        ))
+            }),
+          ),
+        )
       }),
 
       stopBackgroundDream: Effect.fn("DreamService.stopBackgroundDream")(function* () {
@@ -468,11 +472,11 @@ export const layer = Layer.effect(
         }
       }),
     })
-  })
+  }),
 )
 
 export const defaultLayer = layer.pipe(Layer.provide(InstanceState.layer))
-```
+````
 
 - [ ] **Step 2: 导出 Dream 模块**
 
@@ -493,6 +497,7 @@ git commit -m "feat(session): implement DreamService for background session anal
 ## Task 4: 创建 Distill 模式提取服务
 
 **Files:**
+
 - Create: `packages/NovaWay/src/session/distill.ts`
 - Modify: `packages/NovaWay/src/session/index.ts` (导出新模块)
 
@@ -633,7 +638,7 @@ export const layer = Layer.effect(
         }
       }),
     })
-  })
+  }),
 )
 
 export const defaultLayer = layer.pipe(Layer.provide(Memory.defaultLayer))
@@ -658,6 +663,7 @@ git commit -m "feat(session): implement DistillService for pattern extraction an
 ## Task 5: 创建 Checkpoint UI 组件
 
 **Files:**
+
 - Create: `packages/tui/src/component/checkpoint-panel.tsx`
 - Modify: `packages/tui/src/routes/session/sidebar.tsx` (添加检查点标签页)
 
@@ -677,13 +683,15 @@ export function CheckpointPanel(props: CheckpointPanelProps) {
   const sdk = useSDK()
   const route = useRoute()
 
-  const [checkpoints, setCheckpoints] = createSignal<Array<{
-    id: string
-    name: string
-    reason: string | null
-    tags: string[]
-    createdAt: Date
-  }>>([])
+  const [checkpoints, setCheckpoints] = createSignal<
+    Array<{
+      id: string
+      name: string
+      reason: string | null
+      tags: string[]
+      createdAt: Date
+    }>
+  >([])
   const [loading, setLoading] = createSignal(false)
 
   const loadCheckpoints = async () => {
@@ -742,10 +750,7 @@ export function CheckpointPanel(props: CheckpointPanelProps) {
         [创建检查点]
       </text>
 
-      <Show
-        when={checkpoints().length > 0}
-        fallback={<text fg={theme.textMuted}>暂无检查点</text>}
-      >
+      <Show when={checkpoints().length > 0} fallback={<text fg={theme.textMuted}>暂无检查点</text>}>
         <For each={checkpoints()}>
           {(cp) => (
             <box flexDirection="column" gap={0} paddingBottom={1}>
@@ -755,16 +760,10 @@ export function CheckpointPanel(props: CheckpointPanelProps) {
               <Show when={cp.reason}>
                 <text fg={theme.textMuted}>原因: {cp.reason}</text>
               </Show>
-              <text fg={theme.textMuted}>
-                {cp.createdAt.toLocaleString()}
-              </text>
+              <text fg={theme.textMuted}>{cp.createdAt.toLocaleString()}</text>
               <Show when={cp.tags.length > 0}>
                 <box flexDirection="row" gap={1} flexWrap="wrap">
-                  <For each={cp.tags.slice(0, 3)}>
-                    {(tag) => (
-                      <text fg={theme.textMuted}>[{tag}]</text>
-                    )}
-                  </For>
+                  <For each={cp.tags.slice(0, 3)}>{(tag) => <text fg={theme.textMuted}>[{tag}]</text>}</For>
                 </box>
               </Show>
               <text fg={theme.success} onMouseUp={() => restoreCheckpoint(cp.id)}>
@@ -806,6 +805,7 @@ git commit -m "feat(tui): add checkpoint panel for session state management"
 ## Task 6: 注册 Checkpoint/Dream/Distill API 路由
 
 **Files:**
+
 - Create: `packages/NovaWay/src/server/routes/session/checkpoint.ts`
 - Modify: `packages/NovaWay/src/server/routes/session/index.ts` (注册路由)
 
@@ -894,6 +894,7 @@ git commit -m "feat(server): add checkpoint API routes for session state managem
 ## Task 7: 集成 Dream/Distill 到会话生命周期
 
 **Files:**
+
 - Modify: `packages/NovaWay/src/session/processor.ts` (会话结束时触发 Dream 分析)
 
 - [ ] **Step 1: 在会话结束时触发 Dream 分析**
@@ -931,6 +932,7 @@ git commit -m "feat(session): integrate Dream/Distill into session lifecycle"
 ## Task 8: 测试验证
 
 **Files:**
+
 - Create: `packages/NovaWay/test/session/checkpoint.test.ts`
 - Create: `packages/NovaWay/test/session/dream.test.ts`
 
@@ -960,7 +962,7 @@ describe("CheckpointService", () => {
       const retrieved = yield* service.get(checkpoint.id)
       expect(retrieved).not.toBeNull()
       expect(retrieved?.name).toBe("Test Checkpoint")
-    }).pipe(Effect.provide(layer))
+    }).pipe(Effect.provide(layer)),
   )
 
   it.effect("lists checkpoints by session", () =>
@@ -980,7 +982,7 @@ describe("CheckpointService", () => {
       const list = yield* service.list("session-1")
       expect(list.length).toBe(1)
       expect(list[0].name).toBe("CP1")
-    }).pipe(Effect.provide(layer))
+    }).pipe(Effect.provide(layer)),
   )
 })
 ```

@@ -20,9 +20,9 @@ describe("斜杠命令的中文名", () => {
     expect(slashDisplayName("fetch:fetch:mcp", "mcp")).toBe("/抓取（MCP）")
     expect(slashTranslationKey("fetch:fetch:mcp")).toBe("fetch")
     expect(slashDescription("diff", "Open Diff viewer")).toBe("打开差异查看器")
-    expect(slashDescription("fetch:fetch:mcp", "Fetch a URL and extract its contents as markdown", undefined, "mcp")).toBe(
-      "抓取网页内容并转成 Markdown",
-    )
+    expect(
+      slashDescription("fetch:fetch:mcp", "Fetch a URL and extract its contents as markdown", undefined, "mcp"),
+    ).toBe("抓取网页内容并转成 Markdown")
     expect(slashDescription("unknown:tool:mcp", "An English MCP description", undefined, "mcp")).toBe("执行 MCP 命令")
   })
   test("中文名和别名互不冲突,否则面板里会互相盖掉", () => {
@@ -37,7 +37,6 @@ describe("斜杠命令的中文名", () => {
     }
     expect(collisions).toEqual([])
   })
-
 
   test("后台并行子代理用全名做主显示名,简称仍可输入", () => {
     expect(SLASH_ZH["background-subagents"]?.[0]).toBe("后台并行子代理")

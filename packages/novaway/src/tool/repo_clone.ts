@@ -1,6 +1,7 @@
 import { Effect, Schema } from "effect"
 import { AppFileSystem } from "@novaway/core/filesystem"
 import { Git } from "@/git"
+import { Config } from "@/config/config"
 import DESCRIPTION from "./repo_clone.txt"
 import * as Tool from "./tool"
 import { parseRemoteRepositoryReference, repositoryCachePath, validateRepositoryBranch } from "@/util/repository"
@@ -28,11 +29,12 @@ type Metadata = {
   branch?: string
 }
 
-export const RepoCloneTool = Tool.define<typeof Parameters, Metadata, AppFileSystem.Service | Git.Service>(
+export const RepoCloneTool = Tool.define<typeof Parameters, Metadata, AppFileSystem.Service | Git.Service | Config.Service>(
   "repo_clone",
   Effect.gen(function* () {
     const fs = yield* AppFileSystem.Service
     const git = yield* Git.Service
+    const config = yield* Config.Service
 
     return {
       description: DESCRIPTION,
@@ -59,8 +61,9 @@ export const RepoCloneTool = Tool.define<typeof Parameters, Metadata, AppFileSys
             },
           })
 
+          const cfg = yield* config.get()
           const result = yield* RepositoryCache.ensure(
-            { reference, refresh: params.refresh, branch: params.branch },
+            { reference, refresh: params.refresh, branch: params.branch, timeoutMs: cfg.experimental?.git_timeout },
             { fs, git },
           )
           return {

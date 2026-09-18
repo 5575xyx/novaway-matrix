@@ -283,5 +283,4 @@ const TIPS: Tip[] = [
 ]
 
 const INPUT_UNDO_TIP: Tip = (shortcuts) => press(shortcuts.inputUndo(), "撤销提示中的更改")
-const TERMINAL_SUSPEND_TIP: Tip = (shortcuts) =>
-  press(shortcuts.terminalSuspend(), "挂起终端并返回 shell")
+const TERMINAL_SUSPEND_TIP: Tip = (shortcuts) => press(shortcuts.terminalSuspend(), "挂起终端并返回 shell")

@@ -40,11 +40,7 @@ export interface Interface {
   readonly restore: (checkpointId: string) => Effect.Effect<CheckpointData>
 
   // 自动检查点:捕获当前会话消息+文件快照并落库,供 prompt 循环按间隔调用。
-  readonly createAuto: (input: {
-    sessionId: string
-    name?: string
-    reason?: string
-  }) => Effect.Effect<Checkpoint>
+  readonly createAuto: (input: { sessionId: string; name?: string; reason?: string }) => Effect.Effect<Checkpoint>
 
   // 间隔门控:按会话累加轮次,turn % interval === 0 时返回 true。interval<=0 恒 false。
   readonly autoDue: (input: { sessionId: string; interval: number }) => Effect.Effect<boolean>
@@ -87,17 +83,19 @@ export const layer = Layer.effect(
 
         yield* Effect.sync(() =>
           Database.use((db) =>
-            db.insert(SessionCheckpointTable).values({
-              id: checkpoint.id,
-              session_id: checkpoint.sessionId,
-              name: checkpoint.name,
-              reason: checkpoint.reason,
-              tags: checkpoint.tags,
-              data: checkpoint.data as any,
-              created_at: checkpoint.createdAt,
-              updated_at: checkpoint.updatedAt,
-            })
-            .run(),
+            db
+              .insert(SessionCheckpointTable)
+              .values({
+                id: checkpoint.id,
+                session_id: checkpoint.sessionId,
+                name: checkpoint.name,
+                reason: checkpoint.reason,
+                tags: checkpoint.tags,
+                data: checkpoint.data as any,
+                created_at: checkpoint.createdAt,
+                updated_at: checkpoint.updatedAt,
+              })
+              .run(),
           ),
         )
 
@@ -107,7 +105,12 @@ export const layer = Layer.effect(
       list: Effect.fn("CheckpointService.list")(function* (sessionId) {
         const rows = yield* Effect.sync(() =>
           Database.use((db) =>
-            db.select().from(SessionCheckpointTable).where(eq(SessionCheckpointTable.session_id, sessionId)).orderBy(SessionCheckpointTable.created_at).all(),
+            db
+              .select()
+              .from(SessionCheckpointTable)
+              .where(eq(SessionCheckpointTable.session_id, sessionId))
+              .orderBy(SessionCheckpointTable.created_at)
+              .all(),
           ),
         )
 
@@ -208,17 +211,19 @@ export const layer = Layer.effect(
         }
         yield* Effect.sync(() =>
           Database.use((db) =>
-            db.insert(SessionCheckpointTable).values({
-              id: checkpoint.id,
-              session_id: checkpoint.sessionId,
-              name: checkpoint.name,
-              reason: checkpoint.reason,
-              tags: checkpoint.tags,
-              data: checkpoint.data as any,
-              created_at: checkpoint.createdAt,
-              updated_at: checkpoint.updatedAt,
-            })
-            .run(),
+            db
+              .insert(SessionCheckpointTable)
+              .values({
+                id: checkpoint.id,
+                session_id: checkpoint.sessionId,
+                name: checkpoint.name,
+                reason: checkpoint.reason,
+                tags: checkpoint.tags,
+                data: checkpoint.data as any,
+                created_at: checkpoint.createdAt,
+                updated_at: checkpoint.updatedAt,
+              })
+              .run(),
           ),
         )
         return checkpoint
@@ -260,7 +265,9 @@ export const layer = Layer.effect(
 
       delete: Effect.fn("CheckpointService.delete")(function* (checkpointId) {
         yield* Effect.sync(() =>
-          Database.use((db) => db.delete(SessionCheckpointTable).where(eq(SessionCheckpointTable.id, checkpointId)).run()),
+          Database.use((db) =>
+            db.delete(SessionCheckpointTable).where(eq(SessionCheckpointTable.id, checkpointId)).run(),
+          ),
         )
       }),
     }

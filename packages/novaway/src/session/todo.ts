@@ -120,7 +120,12 @@ export const layer = Layer.effect(
             })
             .run()
 
-          return { content: input.content, status: "pending", priority: input.priority ?? "medium", goalId: input.goalId }
+          return {
+            content: input.content,
+            status: "pending",
+            priority: input.priority ?? "medium",
+            goalId: input.goalId,
+          }
         }),
       )
       yield* publishUpdated(input.sessionID)

@@ -77,10 +77,7 @@ export function GoalPanel(props: GoalPanelProps) {
       <box flexDirection="row" gap={1}>
         <For each={["all", "pending", "in_progress", "completed"] as const}>
           {(f) => (
-            <text
-              fg={filter() === f ? theme.primary : theme.textMuted}
-              onMouseUp={() => setFilter(f)}
-            >
+            <text fg={filter() === f ? theme.primary : theme.textMuted} onMouseUp={() => setFilter(f)}>
               [{f === "all" ? "全部" : statusLabel(f)}]
             </text>
           )}
@@ -110,11 +107,7 @@ export function GoalPanel(props: GoalPanelProps) {
               </box>
               <Show when={goal.tags.length > 0}>
                 <box flexDirection="row" gap={1} flexWrap="wrap">
-                  <For each={goal.tags.slice(0, 3)}>
-                    {(tag) => (
-                      <text fg={theme.textMuted}>[{tag}]</text>
-                    )}
-                  </For>
+                  <For each={goal.tags.slice(0, 3)}>{(tag) => <text fg={theme.textMuted}>[{tag}]</text>}</For>
                 </box>
               </Show>
               {/* 操作按钮 */}

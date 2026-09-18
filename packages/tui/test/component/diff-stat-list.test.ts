@@ -15,7 +15,12 @@ describe("每轮改动统计的去重与归一", () => {
   })
 
   test("没有 file 字段的条目直接丢掉:二进制文件的 diff 就是这样", () => {
-    expect(uniqueDiffStats([{ additions: 0, deletions: 0 }, { file: "", additions: 1, deletions: 1 }])).toEqual([])
+    expect(
+      uniqueDiffStats([
+        { additions: 0, deletions: 0 },
+        { file: "", additions: 1, deletions: 1 },
+      ]),
+    ).toEqual([])
   })
 
   test("缺失的增删行数补 0,不会渲染出 undefined", () => {

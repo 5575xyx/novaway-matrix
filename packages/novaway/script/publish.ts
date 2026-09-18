@@ -62,10 +62,11 @@ async function publish(dir: string, name: string, version: string): Promise<"liv
   await $`bun pm pack`.cwd(dir)
   // 发布输出必须打出来：早先这里 .nothrow() 把 npm 的真实报错整个吞掉了，排查时完全瞎。
   for (let attempt = 1; attempt <= 3; attempt++) {
-    const result = await $`npm publish *.tgz --access public --tag ${Script.channel} --fetch-timeout=1800000 --fetch-retries=5`
-      .cwd(dir)
-      .nothrow()
-      .quiet()
+    const result =
+      await $`npm publish *.tgz --access public --tag ${Script.channel} --fetch-timeout=1800000 --fetch-retries=5`
+        .cwd(dir)
+        .nothrow()
+        .quiet()
     const output = `${result.stdout.toString()}${result.stderr.toString()}`.trim()
     if (output) console.log(output)
 
@@ -104,7 +105,6 @@ async function waitForLive(entries: [string, string][], minutes: number) {
     await sleep(30000)
   }
 }
-
 
 const binaries: Record<string, string> = {}
 for (const filepath of new Bun.Glob("*/package.json").scanSync({ cwd: "./dist" })) {
@@ -248,16 +248,24 @@ async function syncNpmmirror(entries: [string, string][]) {
   const deadline = Date.now() + timeoutMinutes * 60_000
   while (pending.length > 0) {
     for (const [name, version] of [...pending]) {
-      if ((await mirrorVersion(name, Script.channel)) === version) pending.splice(pending.findIndex(([n]) => n === name), 1)
+      if ((await mirrorVersion(name, Script.channel)) === version)
+        pending.splice(
+          pending.findIndex(([n]) => n === name),
+          1,
+        )
     }
     if (pending.length === 0) break
     if (Date.now() > deadline) {
-      console.error(`⚠️  ${timeoutMinutes} 分钟后 npmmirror 仍未供上：${pending.map(([n, v]) => `${n}@${v}`).join(", ")}`)
+      console.error(
+        `⚠️  ${timeoutMinutes} 分钟后 npmmirror 仍未供上：${pending.map(([n, v]) => `${n}@${v}`).join(", ")}`,
+      )
       console.error(`   源 registry 已完整,发布继续;但镜像用户的自动更新会静默失败。手动补同步:`)
       for (const [name] of pending) console.error(`   curl -X PUT ${MIRROR}/-/package/${name}/syncs`)
       return
     }
-    console.log(`⏳ 等待 npmmirror 供上（剩 ${Math.ceil((deadline - Date.now()) / 60_000)} 分钟）：${pending.map(([n]) => n).join(", ")}`)
+    console.log(
+      `⏳ 等待 npmmirror 供上（剩 ${Math.ceil((deadline - Date.now()) / 60_000)} 分钟）：${pending.map(([n]) => n).join(", ")}`,
+    )
     await sleep(30000)
   }
   console.log(`✅ npmmirror 已供上全部 ${entries.length} 个包,镜像用户的自动更新可用`)

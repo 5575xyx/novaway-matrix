@@ -42,7 +42,15 @@ jobs:
       matrix:
         settings:
           - os: windows-latest
-            platform_flag: --win
+            platform_flag: --win --x64
+            bun_install_flags: ""
+          # Windows ARM64:2026 年 Copilot+ PC / Snapdragon X Elite 设备普及,
+          # Surface Pro 11、ThinkPad X13s 等原生 ARM64 用户跑 x64 包会触发
+          # "此应用无法在你的电脑上运行" 错误,必须单独出 ARM64 包。
+          # Windows-latest runner 仍是 x86,需要靠 electron-builder 交叉编译 ARM64
+          # (electron 42 已支持 win-arm64 target,不需要 QEMU)
+          - os: windows-latest
+            platform_flag: --win --arm64
             bun_install_flags: ""
           - os: macos-latest
             platform_flag: --mac --arm64

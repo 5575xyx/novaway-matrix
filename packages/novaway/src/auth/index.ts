@@ -74,7 +74,10 @@ export const layer = Layer.effect(
     const readFile = Effect.fn("Auth.readFile")(function* () {
       if (process.env.NovaWay_AUTH_CONTENT || process.env.OPENCODE_AUTH_CONTENT) {
         try {
-          return JSON.parse(process.env.NovaWay_AUTH_CONTENT ?? process.env.OPENCODE_AUTH_CONTENT!) as Record<string, unknown>
+          return JSON.parse(process.env.NovaWay_AUTH_CONTENT ?? process.env.OPENCODE_AUTH_CONTENT!) as Record<
+            string,
+            unknown
+          >
         } catch (_) {}
       }
       return (yield* fsys.readJson(file).pipe(Effect.orElseSucceed(() => ({})))) as Record<string, unknown>

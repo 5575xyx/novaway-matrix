@@ -13,11 +13,13 @@ import { useTuiConfig } from "../config"
 import {
   parseGitBranches,
   parseGitCommit,
+  parseGitNumstat,
   parseGitRemotes,
   parseGitStatus,
   parseGitStashList,
   type GitBranch,
   type GitFileEntry,
+  type GitNumstatEntry,
   type GitRemote,
   type GitStashEntry,
 } from "../util/git-status"
@@ -33,8 +35,12 @@ import { useToast } from "../ui/toast"
 const COMMIT_LIMIT = 8
 // 每组文件最多显示几行:用户改动几十个文件时,不把"历史"段挤出屏幕。
 const FILE_GROUP_MAX = 12
-// 文件名截断宽度:侧栏 42 列减去状态码、悬停出现的"丢弃"按钮和内边距。
-const FILE_LABEL_MAX = 24
+// 文件名截断宽度:40 列内容区减去状态码、+N/-M 统计、悬停出现的"丢弃"按钮和内边距。
+// 统计数字是 lazygit 和 VS Code 都摆在每行上的核心信息,文件名给它让位。
+const FILE_LABEL_MAX = 19
+// 贮藏列表最多显示几条:点哪条弹哪条,不再只能盲弹最近一次。
+const STASH_MAX = 3
+const STASH_MESSAGE_MAX = 26
 const COMMIT_SUBJECT_MAX = 30
 const COMMIT_MESSAGE_MAX = 200
 // 提交详情弹窗最多展示的行数,大提交的 --stat 清单截断。
@@ -84,6 +90,9 @@ export function GitPanel(props: GitPanelProps) {
   const [branches, setBranches] = createSignal<GitBranch[]>([])
   const [stashes, setStashes] = createSignal<GitStashEntry[]>([])
   const [remotes, setRemotes] = createSignal<GitRemote[]>([])
+  // 未暂存和已暂存是两次不同的 diff,同一个文件两边的数字不一样,分开存。
+  const [unstagedNumstat, setUnstagedNumstat] = createSignal<GitNumstatEntry[]>([])
+  const [stagedNumstat, setStagedNumstat] = createSignal<GitNumstatEntry[]>([])
   const [error, setError] = createSignal<string>("")
   const [loading, setLoading] = createSignal(true)
   const [busy, setBusy] = createSignal(false)
@@ -99,19 +108,25 @@ export function GitPanel(props: GitPanelProps) {
     if (!cwd) return
     setLoading(true)
     try {
-      const [status, log, branchOut, stashOut, remoteOut] = await Promise.all([
+      const [status, log, branchOut, stashOut, remoteOut, unstagedOut, stagedOut] = await Promise.all([
         git(["status", "--porcelain=v1", "-b"]),
         // 单独兜底:空仓库(一个提交都没有)时 log 会失败,但 status 是好的,别让 log 把整页拖成报错。
         git(["log", "--oneline", "-n", String(COMMIT_LIMIT)]).catch(() => ({ stdout: "" })),
         git(["branch"]).catch(() => ({ stdout: "" })),
         git(["stash", "list"]).catch(() => ({ stdout: "" })),
         git(["remote", "-v"]).catch(() => ({ stdout: "" })),
+        // numstat 只算行号,比完整 diff 便宜很多,但大仓库仍要 100ms 上下;
+        // 失败就留空,文件行不显示统计,不让它把整页拖成报错。
+        git(["diff", "--numstat", "--", "."]).catch(() => ({ stdout: "" })),
+        git(["diff", "--cached", "--numstat", "--", "."]).catch(() => ({ stdout: "" })),
       ])
       setSummary(parseGitStatus(status.stdout))
       setCommits(log.stdout.split("\n").filter((line) => line.length > 0))
       setBranches(parseGitBranches(branchOut.stdout))
       setStashes(parseGitStashList(stashOut.stdout))
       setRemotes(parseGitRemotes(remoteOut.stdout))
+      setUnstagedNumstat(parseGitNumstat(unstagedOut.stdout))
+      setStagedNumstat(parseGitNumstat(stagedOut.stdout))
       setError("")
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
@@ -120,6 +135,8 @@ export function GitPanel(props: GitPanelProps) {
       setBranches([])
       setStashes([])
       setRemotes([])
+      setUnstagedNumstat([])
+      setStagedNumstat([])
       setError(message.includes("not a git repository") ? "不是 git 仓库" : "git 不可用")
     } finally {
       setLoading(false)
@@ -141,6 +158,11 @@ export function GitPanel(props: GitPanelProps) {
   // 未跟踪文件算"未暂存"组,和 lazygit 的分法一致。
   const staged = createMemo(() => (summary()?.entries ?? []).filter((entry) => entry.staged))
   const unstaged = createMemo(() => (summary()?.entries ?? []).filter((entry) => entry.unstaged))
+  // 文件列表和 numstat 是两次独立查询,按路径对上号;按路径索引比每行线性找便宜。
+  const toNumstatMap = (entries: GitNumstatEntry[]) =>
+    new Map<string, GitNumstatEntry>(entries.map((entry) => [entry.file, entry]))
+  const unstagedNumstatByFile = createMemo(() => toNumstatMap(unstagedNumstat()))
+  const stagedNumstatByFile = createMemo(() => toNumstatMap(stagedNumstat()))
   // 空仓库的分支行是 "No commits yet on main"、detached 是 "(HEAD detached at …)",
   // 都不是可操作的分支名,提交/推送/切换一律当成"没有分支"。
   const branchName = createMemo(() => {
@@ -287,9 +309,11 @@ export function GitPanel(props: GitPanelProps) {
     await run(["stash", "push", "--include-untracked"], "已贮藏全部改动")
   }
 
-  const stashPop = async () => {
-    if (stashes().length === 0) return
-    await run(["stash", "pop"], "已弹出最近的贮藏")
+  // 弹出贮藏会把那条 stash 从贮藏里移除,不可逆,先确认;点哪条弹哪条,不再只弹最近一次。
+  const stashPop = async (ref: string) => {
+    const confirmed = await confirm("弹出贮藏", `将把 ${ref} 恢复回工作区并从贮藏里移除，确定?`)
+    if (!confirmed) return
+    await run(["stash", "pop", ref], `已弹出 ${ref}`)
   }
 
   const newBranch = async () => {
@@ -391,10 +415,15 @@ export function GitPanel(props: GitPanelProps) {
     </box>
   )
 
-  // 文件行:+M(点击 = 暂存/取消暂存)+ 文件名(点击 = 看改动差异)+ 悬停才显形的"丢弃"。
+  // 文件行:+M(点击 = 暂存/取消暂存)+ 文件名(点击 = 看改动差异)+ +N/-M 统计 + 悬停才显形的"丢弃"。
   // "丢弃"占位恒定:隐形时用背景色渲染,不改变行宽,避免悬停瞬间抖动。
   // span 挂不了鼠标事件,可点的部分必须是独立的 text 元素。
-  const FileRow = (entryProps: { entry: GitFileEntry; mode: "staged" | "unstaged" }) => {
+  // 二进制文件 numstat 给的是 "0/0" 占位,不算改动量,不显示统计以免误导。
+  const FileRow = (entryProps: {
+    entry: GitFileEntry
+    mode: "staged" | "unstaged"
+    stats: GitNumstatEntry | undefined
+  }) => {
     const [rowHover, setRowHover] = createSignal(false)
     return (
       <box
@@ -407,9 +436,7 @@ export function GitPanel(props: GitPanelProps) {
           width={2}
           flexShrink={0}
           fg={statusColor(entryProps.entry.status, theme)}
-          onMouseUp={() =>
-            entryProps.mode === "staged" ? unstage(entryProps.entry) : stage(entryProps.entry)
-          }
+          onMouseUp={() => (entryProps.mode === "staged" ? unstage(entryProps.entry) : stage(entryProps.entry))}
         >
           {entryProps.mode === "staged" ? "−" : "+"}
           {statusLetter(entryProps.entry)}
@@ -417,6 +444,12 @@ export function GitPanel(props: GitPanelProps) {
         <text flexGrow={1} fg={theme.text} wrapMode="none" onMouseUp={() => openDiff(entryProps.entry)}>
           {Locale.oneLine(entryProps.entry.file, FILE_LABEL_MAX)}
         </text>
+        {entryProps.stats && !entryProps.stats.binary ? (
+          <text flexShrink={0} paddingLeft={1} wrapMode="none">
+            <span style={{ fg: theme.diffAdded }}>+{entryProps.stats.added}</span>
+            <span style={{ fg: theme.diffRemoved }}> -{entryProps.stats.removed}</span>
+          </text>
+        ) : null}
         <Show when={entryProps.mode === "unstaged"}>
           <text
             flexShrink={0}
@@ -466,9 +499,7 @@ export function GitPanel(props: GitPanelProps) {
         onMouseOut={() => setRowHover(false)}
       >
         <text flexShrink={0} wrapMode="none" onMouseUp={() => void switchRemote(rowProps.name)}>
-          <span style={{ fg: isCurrent() ? theme.success : theme.backgroundPanel }}>
-            {isCurrent() ? "● " : "  "}
-          </span>
+          <span style={{ fg: isCurrent() ? theme.success : theme.backgroundPanel }}>{isCurrent() ? "● " : "  "}</span>
           <span style={{ fg: theme.text }}>{Locale.oneLine(rowProps.name, REMOTE_NAME_MAX)}</span>
         </text>
         <text flexGrow={1} fg={theme.textMuted} wrapMode="none" onMouseUp={() => void switchRemote(rowProps.name)}>
@@ -492,10 +523,7 @@ export function GitPanel(props: GitPanelProps) {
 
   return (
     <box flexDirection="column" gap={1}>
-      <Show
-        when={!error()}
-        fallback={<text fg={theme.textMuted}>{error()}</text>}
-      >
+      <Show when={!error()} fallback={<text fg={theme.textMuted}>{error()}</text>}>
         {/* 头部:分支名 + 上游 + 领先/落后,一眼看到"我在哪" */}
         <text fg={theme.text} wrapMode="none">
           <span style={{ fg: theme.primary }}>分支 </span>
@@ -584,7 +612,7 @@ export function GitPanel(props: GitPanelProps) {
                 </text>
               </box>
               <For each={unstaged().slice(0, FILE_GROUP_MAX)}>
-                {(entry) => <FileRow entry={entry} mode="unstaged" />}
+                {(entry) => <FileRow entry={entry} mode="unstaged" stats={unstagedNumstatByFile().get(entry.file)} />}
               </For>
               <Show when={unstaged().length > FILE_GROUP_MAX}>
                 <text fg={theme.textMuted}>… 还有 {unstaged().length - FILE_GROUP_MAX} 个文件</text>
@@ -592,22 +620,37 @@ export function GitPanel(props: GitPanelProps) {
             </Show>
             <Show when={staged().length > 0}>
               <text fg={theme.textMuted}>已暂存 ({staged().length})</text>
-              <For each={staged().slice(0, FILE_GROUP_MAX)}>{(entry) => <FileRow entry={entry} mode="staged" />}</For>
+              <For each={staged().slice(0, FILE_GROUP_MAX)}>
+                {(entry) => <FileRow entry={entry} mode="staged" stats={stagedNumstatByFile().get(entry.file)} />}
+              </For>
               <Show when={staged().length > FILE_GROUP_MAX}>
                 <text fg={theme.textMuted}>… 还有 {staged().length - FILE_GROUP_MAX} 个文件</text>
               </Show>
             </Show>
-            <Show when={(hasChanges() && !busy()) || (stashes().length > 0 && !busy())}>
-              <box flexDirection="row" gap={2} flexWrap="wrap">
-                <Show when={hasChanges() && !busy()}>
-                  <text fg={theme.secondary} onMouseUp={() => void stash()}>
-                    贮藏
-                  </text>
-                </Show>
-                <Show when={stashes().length > 0 && !busy()}>
-                  <text fg={theme.secondary} onMouseUp={() => void stashPop()}>
-                    弹出贮藏 ({stashes().length})
-                  </text>
+            <Show when={hasChanges() && !busy()}>
+              <text fg={theme.secondary} onMouseUp={() => void stash()}>
+                贮藏
+              </text>
+            </Show>
+            {/* 贮藏列表:多条时点哪条弹哪条,不再只能盲弹最近一次。说明可能很长,截断显示。 */}
+            <Show when={stashes().length > 0 && !busy()}>
+              <box flexDirection="column" gap={1}>
+                <text fg={theme.textMuted}>贮藏 ({stashes().length}) — 点一条弹出</text>
+                <For each={stashes().slice(0, STASH_MAX)}>
+                  {(item) => (
+                    <text
+                      fg={theme.secondary}
+                      paddingLeft={1}
+                      wrapMode="none"
+                      onMouseUp={() => void stashPop(item.ref)}
+                    >
+                      <span style={{ fg: theme.primary }}>{item.ref}</span>{" "}
+                      {Locale.oneLine(item.message, STASH_MESSAGE_MAX)}
+                    </text>
+                  )}
+                </For>
+                <Show when={stashes().length > STASH_MAX}>
+                  <text fg={theme.textMuted}>… 还有 {stashes().length - STASH_MAX} 个贮藏</text>
                 </Show>
               </box>
             </Show>
@@ -646,9 +689,7 @@ export function GitPanel(props: GitPanelProps) {
         {/* 远程节:多仓库维护 —— 添加多个远程,点一个设为当前分支的推送/拉取目标 */}
         <box flexDirection="column" gap={1}>
           <SectionHeader text={`远程 ${remotes().length}`} action="+ 添加远程" onAction={() => void addRemote()} />
-          <For each={remotes().slice(0, BRANCH_MAX)}>
-            {(item) => <RemoteRow name={item.name} url={item.url} />}
-          </For>
+          <For each={remotes().slice(0, BRANCH_MAX)}>{(item) => <RemoteRow name={item.name} url={item.url} />}</For>
           <Show when={remotes().length === 0}>
             <text fg={theme.textMuted}>还没有远程,点标题行的"+ 添加远程"</text>
           </Show>
@@ -663,14 +704,12 @@ export function GitPanel(props: GitPanelProps) {
                 const commitInfo = parseGitCommit(line)
                 if (!commitInfo) return null
                 return (
-                  <text
-                    wrapMode="none"
-                    paddingLeft={1}
-                    onMouseUp={() => void showCommit(commitInfo.hash)}
-                  >
+                  <text wrapMode="none" paddingLeft={1} onMouseUp={() => void showCommit(commitInfo.hash)}>
                     {/* 图表风格:● 节点 + 标题 + 短 hash,最新一条节点用强调色 */}
                     <span style={{ fg: i() === 0 ? theme.primary : theme.secondary }}>● </span>
-                    <span style={{ fg: theme.text }}>{Locale.oneLine(commitInfo.subject, COMMIT_SUBJECT_MAX)}</span>{" "}
+                    <span style={{ fg: theme.text }}>
+                      {Locale.oneLine(commitInfo.subject, COMMIT_SUBJECT_MAX)}
+                    </span>{" "}
                     <span style={{ fg: theme.textMuted }}>{commitInfo.hash.slice(0, 7)}</span>
                   </text>
                 )

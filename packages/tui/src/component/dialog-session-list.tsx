@@ -325,10 +325,10 @@ export function DialogSessionList() {
                   recover(session)
                 } else {
                   toast.show({
-                      variant: "error",
-                      title: "删除会话失败",
-                      message: errorMessage(err),
-                    })
+                    variant: "error",
+                    title: "删除会话失败",
+                    message: errorMessage(err),
+                  })
                 }
                 setToDelete(undefined)
                 return

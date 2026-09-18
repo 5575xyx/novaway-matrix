@@ -186,3 +186,50 @@
 ### 本地验证结果
 
 - `bun typecheck`（packages/tui）：通过
+
+---
+
+## TUI 信息页"消息"列表折叠
+
+时间：2026-09-18
+
+### 需求
+
+"待办与统计"信息页的"消息"块要能显示该会话全部消息记录；超过 5 条时折叠，可手动展开。
+
+### 编码前检查
+
+- 已查阅相似实现 3 处：
+  - `packages/tui/src/feature-plugins/sidebar/todo.tsx`：既有 ▼/▶ 折叠模式（`createSignal(true)` + `onMouseDown` 切换），本次沿用同一套交互约定
+  - `packages/tui/src/feature-plugins/sidebar/context.tsx`：上下文块（消息块排序在其后，order 150）
+  - `packages/tui/src/feature-plugins/sidebar/messages.tsx`：原实现
+- 已确认数据链路：`sync.tsx:665` 拉取消息带 `limit: 100`，`sync.tsx:687` `infos.slice(0, -100)` 会丢弃更早的消息及其 part。因此原"消息"块没有截断逻辑，它本来就渲染全部用户消息；用户看到的 3 条是会话实际只有 3 条用户消息
+- 可复用组件：`createSignal` / `createMemo` / `For` / `Show`（solid-js）、`Locale.oneLine`、`setMessageJump`
+- 命名约定：常量 UPPER_SNAKE_CASE，组件 PascalCase，props snake_case（与既有 sidebar 插件一致）
+- 未重复造轮子证明：`sidebar/` 下 8 个插件逐一核对，无现成的"消息折叠"或通用折叠组件；`todo.tsx` 的折叠是内联实现，未抽公共组件，故本次同样内联保持最小改动
+
+### 执行步骤
+
+1. `messages.tsx` 抽出纯函数 `visibleMessages(messages, open, limit)`：展开或条数未超阈值返回全部，否则 `slice(-limit)` 只留最近几条（列表按 `compareMessage` 时间正序，"最近"在尾部）
+2. 导出阈值常量 `MESSAGE_COLLAPSE_AT = 5`（">5 才折叠"，等于 5 不折叠）
+3. `View` 增加 `open` signal（默认折叠）、`collapsible` / `visible` / `hidden` memo
+4. 标题行加 ▼/▶ 箭头 + `onMouseDown` 切换；数量文案显示"总数 条 · 仅显示 N 条"，避免用户误以为消息丢失
+5. `on(() => props.session_id, () => setOpen(false), { defer: true })`：切会话回到默认折叠态
+6. 新增 `test/feature-plugins/sidebar-messages.test.tsx`：3 个纯函数阈值边界用例 + 3 个渲染帧断言
+
+### 修改文件
+
+- `packages/tui/src/feature-plugins/sidebar/messages.tsx`：折叠逻辑（+42 / -10）
+- `packages/tui/test/feature-plugins/sidebar-messages.test.tsx`：新增，5 个用例
+
+### 本地验证结果
+
+- `bun test test/feature-plugins/`（packages/tui）：27 pass / 0 fail
+- `bun test test/feature-plugins/ test/component/sidebar.test.tsx test/util/message-jump.test.ts`（packages/tui）：32 pass / 0 fail，无回归
+- `bun typecheck`（packages/tui）：通过
+- `bunx oxlint messages.tsx sidebar-messages.test.tsx`：0 errors，退出码 0；4 个 warning 全部是测试 mock 的 `no-unsafe-type-assertion`（fixture 缺 part/slots，断言不可避免；产品代码零告警），与既有 `diff-viewer.test.tsx:134` 同类断言一致
+
+### 已知取舍
+
+- 未覆盖"点击箭头展开"的交互测试：仓库内无鼠标事件测试基建（test/ 下无 mouseDown / dispatchEvent 先例），改以 `visibleMessages(messages, true)` 纯函数覆盖展开数据行为，交互层仅 `setOpen(x => !x)`
+- 会话切换的展开状态会重置为折叠，这是刻意行为，不是 bug

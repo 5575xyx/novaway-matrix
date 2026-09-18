@@ -327,5 +327,7 @@ export type ElectronAPI = {
   setBackgroundColor: (color: string) => Promise<void>
   // file:// 地址转成本地文件预览协议，iframe 才能嵌入本机 HTML
   toPreviewUrl: (url: string) => string
+  // 上报预览地址的源：主进程只对它的 http 文档注入元素选取脚本
+  setPreviewInspectorOrigin: (origin: string) => Promise<void>
   platform: PlatformAPI
 }

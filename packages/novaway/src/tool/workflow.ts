@@ -175,12 +175,20 @@ export const WorkflowTool = Tool.define<typeof Parameters, Metadata, WorkflowSer
 
             case "pause": {
               yield* workflowService.update({ workflowId: params.workflowId!, status: "paused" })
-              return { title: "暂停工作流", output: "工作流已暂停", metadata: { workflowId: params.workflowId, action: "pause" } }
+              return {
+                title: "暂停工作流",
+                output: "工作流已暂停",
+                metadata: { workflowId: params.workflowId, action: "pause" },
+              }
             }
 
             case "resume": {
               yield* workflowService.update({ workflowId: params.workflowId!, status: "running" })
-              return { title: "恢复工作流", output: "工作流已恢复", metadata: { workflowId: params.workflowId, action: "resume" } }
+              return {
+                title: "恢复工作流",
+                output: "工作流已恢复",
+                metadata: { workflowId: params.workflowId, action: "resume" },
+              }
             }
 
             default:

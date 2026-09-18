@@ -13,7 +13,4 @@ export const v2Handlers = Layer.mergeAll(
   modelHandlers,
   providerHandlers,
   fsHandlers,
-).pipe(
-  Layer.provide(v2LocationLayer),
-  Layer.provide(SessionV2.defaultLayer),
-)
+).pipe(Layer.provide(v2LocationLayer), Layer.provide(SessionV2.defaultLayer))

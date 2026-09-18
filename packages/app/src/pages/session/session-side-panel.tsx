@@ -22,6 +22,7 @@ import { useLayout } from "@/context/layout"
 import { useSettings } from "@/context/settings"
 import { createFileTabListSync } from "@/pages/session/file-tab-scroll"
 import { FileTabContent } from "@/pages/session/file-tabs"
+import { GitPanel } from "./git-panel"
 import { createOpenSessionFileTab, createSessionTabs, getTabReorderIndex, type Sizing } from "@/pages/session/helpers"
 import { setSessionHandoff } from "@/pages/session/handoff"
 import { useSessionLayout } from "@/pages/session/session-layout"
@@ -138,20 +139,22 @@ export function SessionSidePanel(props: {
     () => isDesktop() && view().reviewPanel.opened() && (activeFileTab() !== undefined || activeTab() === "context"),
   )
   const fileOpen = createMemo(() => isDesktop() && shown() && layout.fileTree.opened())
-  const open = createMemo(() => reviewOpen() || fileOpen())
+  const gitOpen = createMemo(() => isDesktop() && shown() && layout.git.opened())
+  const open = createMemo(() => reviewOpen() || fileOpen() || gitOpen())
   const panelWidth = createMemo(() => {
     const reserved = props.reservedWidth?.() ?? 0
     if (!open()) return "0px"
     if (reviewOpen()) return `calc(100% - ${layout.session.width()}px - ${reserved}px)`
-    return `${layout.fileTree.width()}px`
+    return layout.sidePanelWidth() || "0px"
   })
   const treeWidth = createMemo(() => (fileOpen() ? `${layout.fileTree.width()}px` : "0px"))
+  const gitWidth = createMemo(() => (gitOpen() ? `${layout.git.width()}px` : "0px"))
 
   const fileTreeTab = () => layout.fileTree.tab()
 
   const setFileTreeTabValue = (value: string) => {
     if (value !== "changes" && value !== "all" && value !== "review") return
-    layout.fileTree.setTab(value)
+    layout.fileTree.setTab(value as "changes" | "all" | "review")
   }
 
   const showAllFiles = () => {
@@ -346,6 +349,45 @@ export function SessionSidePanel(props: {
                 </div>
               </div>
             </div>
+
+            <Show when={shown()}>
+              <div
+                id="git-panel"
+                aria-hidden={!gitOpen()}
+                inert={!gitOpen()}
+                class="relative min-w-0 h-full shrink-0 overflow-hidden"
+                classList={{
+                  "pointer-events-none": !gitOpen(),
+                  "transition-[width] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width] motion-reduce:transition-none":
+                    !props.size.active(),
+                }}
+                style={{ width: gitWidth() }}
+              >
+                <Show when={gitOpen()}>
+                  <div
+                    class="h-full flex flex-col overflow-hidden bg-background-stronger"
+                    classList={{ "border-l border-border-weaker-base": reviewOpen() }}
+                  >
+                    <GitPanel />
+                  </div>
+                </Show>
+                <Show when={gitOpen()}>
+                  <div onPointerDown={() => props.size.start()}>
+                    <ResizeHandle
+                      direction="horizontal"
+                      edge="start"
+                      size={layout.git.width()}
+                      min={220}
+                      max={480}
+                      onResize={(width) => {
+                        props.size.touch()
+                        layout.git.resize(width)
+                      }}
+                    />
+                  </div>
+                </Show>
+              </div>
+            </Show>
 
             <Show when={shown()}>
               <div

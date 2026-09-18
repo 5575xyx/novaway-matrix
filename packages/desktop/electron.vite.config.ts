@@ -56,8 +56,8 @@ const migrations = await loadMigrations()
 export default defineConfig({
   main: {
     define: {
-          "import.meta.env.NOVAWAY_CHANNEL": JSON.stringify(channel),
-          NOVAWAY_CHANNEL: JSON.stringify(channel),
+      "import.meta.env.NOVAWAY_CHANNEL": JSON.stringify(channel),
+      NOVAWAY_CHANNEL: JSON.stringify(channel),
       NOVAWAY_MIGRATIONS: JSON.stringify(migrations),
       OPENCODE_MODELS_DEV: NOVAWAY_MODELS_DEV,
     },
@@ -109,7 +109,7 @@ export default defineConfig({
     publicDir: "../../../app/public",
     root: "src/renderer",
     define: {
-        "import.meta.env.VITE_NOVAWAY_CHANNEL": JSON.stringify(channel),
+      "import.meta.env.VITE_NOVAWAY_CHANNEL": JSON.stringify(channel),
     },
     build: {
       sourcemap: true,
@@ -132,7 +132,7 @@ async function loadMigrations() {
 
   return Promise.all(
     dirs.map(async (name) => ({
-        sql: await fs.readFile(path.join(NOVAWAY_MIGRATION_DIR, name, "migration.sql"), "utf-8"),
+      sql: await fs.readFile(path.join(NOVAWAY_MIGRATION_DIR, name, "migration.sql"), "utf-8"),
       timestamp: time(name),
       name,
     })),

@@ -12,13 +12,10 @@ const [messageJump, setMessageJump] = createSignal<{ messageID: string; nonce: n
 // 在 reactive owner 中调用(组件体内),随 owner 卸载自动停止订阅。
 export function subscribeMessageJump(handler: (messageID: string) => void) {
   createEffect(
-    on(
-      messageJump,
-      (target) => {
-        if (!target) return
-        handler(target.messageID)
-      },
-    ),
+    on(messageJump, (target) => {
+      if (!target) return
+      handler(target.messageID)
+    }),
   )
 }
 

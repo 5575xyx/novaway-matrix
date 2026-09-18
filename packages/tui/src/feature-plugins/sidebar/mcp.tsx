@@ -43,7 +43,7 @@ function View(props: { api: TuiPluginApi }) {
             <Show when={!open()}>
               <span style={{ fg: theme().textMuted }}>
                 {" "}
-                 ({on()} 活跃{bad() > 0 ? `, ${bad()} 错误${bad() > 1 ? "" : ""}` : ""})
+                ({on()} 活跃{bad() > 0 ? `, ${bad()} 错误${bad() > 1 ? "" : ""}` : ""})
               </span>
             </Show>
           </text>

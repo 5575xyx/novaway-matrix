@@ -27,7 +27,10 @@ export function nextQueueId(): string {
 
 /** 从草稿中提取首行非空文本作为预览 */
 export function draftPreview(draft: QueueDraft, maxLength = 60): string {
-  const text = draft.inputText.split(/\r?\n/).map((line) => line.trim()).find((line) => !!line)
+  const text = draft.inputText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => !!line)
   if (!text) return "[附件]"
   return text.length > maxLength ? text.slice(0, maxLength - 1) + "…" : text
 }

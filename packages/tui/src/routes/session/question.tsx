@@ -435,7 +435,9 @@ export function QuestionPrompt(props: { request: QuestionRequest; directory?: st
                       </box>
 
                       <box paddingLeft={3}>
-                        <text fg={theme.textMuted}>{Locale.oneLine(opt.description ?? "", OPTION_DESCRIPTION_MAX)}</text>
+                        <text fg={theme.textMuted}>
+                          {Locale.oneLine(opt.description ?? "", OPTION_DESCRIPTION_MAX)}
+                        </text>
                       </box>
                     </box>
                   )

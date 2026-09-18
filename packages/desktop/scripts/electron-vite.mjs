@@ -15,11 +15,10 @@ const require = createRequire(pathToFileURL(join(process.cwd(), "package.json"))
 const pkgPath = require.resolve("electron-vite/package.json")
 const binPath = join(pkgPath, "..", "bin", "electron-vite.js")
 
-const child = spawn(
-  process.execPath,
-  [`--max-old-space-size=${heap}`, binPath, mode, ...process.argv.slice(3)],
-  { stdio: "inherit", env: process.env },
-)
+const child = spawn(process.execPath, [`--max-old-space-size=${heap}`, binPath, mode, ...process.argv.slice(3)], {
+  stdio: "inherit",
+  env: process.env,
+})
 child.on("exit", (code) => {
   process.exitCode = code ?? 1
 })

@@ -313,7 +313,8 @@ export const Info = Schema.Struct({
     description: "Automatic checkpoint configuration (auto capture session messages + file snapshot by turn interval)",
   }),
   dream: Schema.optional(ConfigDream.Info).annotate({
-    description: "Dream/distill self-improvement configuration (LLM session reflection distilled into long-term memory)",
+    description:
+      "Dream/distill self-improvement configuration (LLM session reflection distilled into long-term memory)",
   }),
   formatter: Schema.optional(ConfigFormatter.Info).annotate({
     description:
@@ -374,7 +375,8 @@ export const Info = Schema.Struct({
     Schema.Struct({
       disable_paste_summary: Schema.optional(Schema.Boolean),
       background_subagents: Schema.optional(Schema.Boolean).annotate({
-        description: "启用后台并行子代理(异步派生、并行执行)。未设置时回退到 NovaWay_EXPERIMENTAL_BACKGROUND_SUBAGENTS 运行时开关(默认开)。",
+        description:
+          "启用后台并行子代理(异步派生、并行执行)。未设置时回退到 NovaWay_EXPERIMENTAL_BACKGROUND_SUBAGENTS 运行时开关(默认开)。",
       }),
       batch_tool: Schema.optional(Schema.Boolean).annotate({ description: "Enable the batch tool" }),
       openTelemetry: Schema.optional(Schema.Boolean).annotate({
@@ -388,6 +390,14 @@ export const Info = Schema.Struct({
       }),
       mcp_timeout: Schema.optional(PositiveInt).annotate({
         description: "Timeout in milliseconds for model context protocol (MCP) requests",
+      }),
+      bash_timeout: Schema.optional(PositiveInt).annotate({
+        description:
+          "默认超时时间（毫秒）。会话里执行的 shell 命令超过这个时间会被终止,避免会话卡在工具调用上。单次调用仍可用 timeout 参数覆盖,上限 30 分钟。",
+      }),
+      git_timeout: Schema.optional(PositiveInt).annotate({
+        description:
+          "git 网络操作（clone / fetch）的默认超时时间（毫秒）。未设置时 10 分钟。其他 git 命令默认 60 秒。",
       }),
     }),
   ),

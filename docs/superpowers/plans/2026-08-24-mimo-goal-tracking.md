@@ -4,7 +4,8 @@
 
 **Goal:** 实现正式的目标（Goal）实体，支持目标分解、进度跟踪、目标与任务关联，使 NovaWay 具备 MiMo-Code 的目标驱动能力。
 
-**Architecture:** 
+**Architecture:**
+
 - **Goal 系统**: 新增 GoalTable 和 GoalService，支持层级目标、进度跟踪、成功标准
 - **目标-任务关联**: 扩展 TodoTable，添加 goal_id 字段关联目标
 - **目标工具**: 新增 GoalTool，让 AI 可以创建、更新、评估目标
@@ -17,6 +18,7 @@
 ## Task 1: 添加 Goal 数据库表
 
 **Files:**
+
 - Create: `packages/NovaWay/src/session/goal.sql.ts`
 - Modify: `packages/NovaWay/src/session/session.sql.ts` (导出新模块)
 
@@ -41,11 +43,11 @@ export const GoalTable = sqliteTable("goal", {
   parent_id: text("parent_id"),
   title: text().notNull(),
   description: text(),
-  status: text("status").notNull().default("pending"),  // pending, in_progress, completed, cancelled
-  priority: text("priority").notNull().default("medium"),  // high, medium, low
-  success_criteria: text("success_criteria"),  // JSON array of success criteria
+  status: text("status").notNull().default("pending"), // pending, in_progress, completed, cancelled
+  priority: text("priority").notNull().default("medium"), // high, medium, low
+  success_criteria: text("success_criteria"), // JSON array of success criteria
   deadline: integer("deadline", { mode: "timestamp_ms" }),
-  progress: real("progress").notNull().default(0),  // 0-100 percentage
+  progress: real("progress").notNull().default(0), // 0-100 percentage
   tags: text({ mode: "json" }).$type<string[]>().default([]),
   created_at: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   updated_at: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
@@ -61,7 +63,7 @@ export const TodoTable = sqliteTable("todo", {
   session_id: text("session_id")
     .notNull()
     .references(() => SessionTable.id, { onDelete: "cascade" }),
-  goal_id: text("goal_id"),  // 新增：关联目标
+  goal_id: text("goal_id"), // 新增：关联目标
   content: text().notNull(),
   status: text("status").notNull().default("pending"),
   priority: text("priority").notNull().default("medium"),
@@ -88,6 +90,7 @@ git commit -m "feat(session): add goal schema for goal-driven task tracking"
 ## Task 2: 实现 Goal.Service
 
 **Files:**
+
 - Create: `packages/NovaWay/src/session/goal.ts`
 - Modify: `packages/NovaWay/src/session/todo.ts` (添加 goal_id 支持)
 
@@ -226,11 +229,7 @@ export const layer = Layer.effect(
       }),
 
       get: Effect.fn("GoalService.get")(function* (goalId) {
-        const row = yield* db
-          .select()
-          .from(GoalTable)
-          .where(eq(GoalTable.id, goalId))
-          .limit(1)
+        const row = yield* db.select().from(GoalTable).where(eq(GoalTable.id, goalId)).limit(1)
 
         if (row.length === 0) return null
         return toGoal(row[0])
@@ -256,11 +255,7 @@ export const layer = Layer.effect(
           })
           .where(eq(GoalTable.id, input.goalId))
 
-        const updated = yield* db
-          .select()
-          .from(GoalTable)
-          .where(eq(GoalTable.id, input.goalId))
-          .limit(1)
+        const updated = yield* db.select().from(GoalTable).where(eq(GoalTable.id, input.goalId)).limit(1)
 
         return toGoal(updated[0])
       }),
@@ -270,10 +265,7 @@ export const layer = Layer.effect(
       }),
 
       getProgress: Effect.fn("GoalService.getProgress")(function* (goalId) {
-        const todos = yield* db
-          .select()
-          .from(TodoTable)
-          .where(eq(TodoTable.goal_id, goalId))
+        const todos = yield* db.select().from(TodoTable).where(eq(TodoTable.goal_id, goalId))
 
         const total = todos.length
         const completed = todos.filter((t) => t.status === "completed").length
@@ -302,7 +294,12 @@ export const defaultLayer = layer
 // packages/NovaWay/src/session/todo.ts 修改
 export interface Interface {
   readonly list: (sessionId: string) => Effect.Effect<readonly Todo[]>
-  readonly add: (input: { sessionId: string; content: string; priority?: Todo["priority"]; goalId?: string }) => Effect.Effect<Todo>
+  readonly add: (input: {
+    sessionId: string
+    content: string
+    priority?: Todo["priority"]
+    goalId?: string
+  }) => Effect.Effect<Todo>
   readonly update: (input: { todoId: string; status?: Todo["status"]; content?: string }) => Effect.Effect<Todo>
   readonly remove: (todoId: string) => Effect.Effect<void>
 }
@@ -320,6 +317,7 @@ git commit -m "feat(session): implement GoalService for goal-driven task trackin
 ## Task 3: 创建 GoalTool
 
 **Files:**
+
 - Create: `packages/NovaWay/src/tool/goal.ts`
 - Modify: `packages/NovaWay/src/tool/registry.ts` (注册工具)
 
@@ -430,6 +428,7 @@ git commit -m "feat(tool): add GoalTool for AI-driven goal management"
 ## Task 4: 创建 Goal UI 组件
 
 **Files:**
+
 - Create: `packages/tui/src/component/goal-panel.tsx`
 - Modify: `packages/tui/src/routes/session/sidebar.tsx` (添加目标标签页)
 
@@ -552,10 +551,7 @@ export function GoalPanel(props: GoalPanelProps) {
       <box flexDirection="row" gap={1}>
         <For each={["all", "pending", "in_progress", "completed"] as const}>
           {(f) => (
-            <text
-              fg={filter() === f ? theme.primary : theme.textMuted}
-              onMouseUp={() => setFilter(f)}
-            >
+            <text fg={filter() === f ? theme.primary : theme.textMuted} onMouseUp={() => setFilter(f)}>
               [{f === "all" ? "全部" : statusLabel(f)}]
             </text>
           )}
@@ -585,11 +581,7 @@ export function GoalPanel(props: GoalPanelProps) {
               </box>
               <Show when={goal.tags.length > 0}>
                 <box flexDirection="row" gap={1} flexWrap="wrap">
-                  <For each={goal.tags.slice(0, 3)}>
-                    {(tag) => (
-                      <text fg={theme.textMuted}>[{tag}]</text>
-                    )}
-                  </For>
+                  <For each={goal.tags.slice(0, 3)}>{(tag) => <text fg={theme.textMuted}>[{tag}]</text>}</For>
                 </box>
               </Show>
               {/* 操作按钮 */}
@@ -658,6 +650,7 @@ git commit -m "feat(tui): add goal panel for goal-driven task tracking"
 ## Task 5: 注册 Goal API 路由
 
 **Files:**
+
 - Create: `packages/NovaWay/src/server/routes/instance/httpapi/groups/goal.ts`
 - Create: `packages/NovaWay/src/server/routes/instance/httpapi/handlers/goal.ts`
 - Modify: `packages/NovaWay/src/server/routes/instance/httpapi/api.ts` (注册路由)
@@ -674,10 +667,7 @@ import { described } from "./metadata"
 const root = "/session/:sessionId/goals"
 
 export const GoalApi = HttpApiGroup.make("goal")
-  .add(
-    HttpApiEndpoint.get("listGoals", root)
-      .annotate(described, { summary: "获取会话目标列表" }),
-  )
+  .add(HttpApiEndpoint.get("listGoals", root).annotate(described, { summary: "获取会话目标列表" }))
   .add(
     HttpApiEndpoint.post("createGoal", root)
       .annotate(described, { summary: "创建目标" })
@@ -693,10 +683,7 @@ export const GoalApi = HttpApiGroup.make("goal")
         }),
       ),
   )
-  .add(
-    HttpApiEndpoint.get("getGoal", "/goals/:goalId")
-      .annotate(described, { summary: "获取目标详情" }),
-  )
+  .add(HttpApiEndpoint.get("getGoal", "/goals/:goalId").annotate(described, { summary: "获取目标详情" }))
   .add(
     HttpApiEndpoint.patch("updateGoal", "/goals/:goalId")
       .annotate(described, { summary: "更新目标" })
@@ -712,13 +699,9 @@ export const GoalApi = HttpApiGroup.make("goal")
         }),
       ),
   )
+  .add(HttpApiEndpoint.del("deleteGoal", "/goals/:goalId").annotate(described, { summary: "删除目标" }))
   .add(
-    HttpApiEndpoint.del("deleteGoal", "/goals/:goalId")
-      .annotate(described, { summary: "删除目标" }),
-  )
-  .add(
-    HttpApiEndpoint.get("getGoalProgress", "/goals/:goalId/progress")
-      .annotate(described, { summary: "获取目标进度" }),
+    HttpApiEndpoint.get("getGoalProgress", "/goals/:goalId/progress").annotate(described, { summary: "获取目标进度" }),
   )
 ```
 
@@ -881,6 +864,7 @@ git commit -m "feat(server): add goal API routes for goal-driven task tracking"
 ## Task 6: 集成目标上下文到代理提示
 
 **Files:**
+
 - Modify: `packages/NovaWay/src/session/system.ts` (系统提示注入目标上下文)
 
 - [ ] **Step 1: 在系统提示中添加目标上下文**
@@ -888,26 +872,22 @@ git commit -m "feat(server): add goal API routes for goal-driven task tracking"
 ```typescript
 // packages/NovaWay/src/session/system.ts 修改
 // 在构建系统提示时添加目标上下文
-const buildGoalContext = Effect.fn("SystemPrompt.buildGoalContext")(function* (
-  sessionId: SessionID,
-) {
+const buildGoalContext = Effect.fn("SystemPrompt.buildGoalContext")(function* (sessionId: SessionID) {
   const goalService = yield* GoalService
   const goals = yield* goalService.list(sessionId)
-  
+
   if (goals.length === 0) return ""
-  
+
   const activeGoals = goals.filter((g) => g.status === "in_progress" || g.status === "pending")
   if (activeGoals.length === 0) return ""
-  
-  const goalText = activeGoals
-    .map((g) => `- ${g.title} [${g.status}] ${g.progress}% 完成`)
-    .join("\n")
-  
+
+  const goalText = activeGoals.map((g) => `- ${g.title} [${g.status}] ${g.progress}% 完成`).join("\n")
+
   return `\n\n## 当前目标\n${goalText}\n\n请优先完成上述目标，或根据目标分解任务。`
 })
 
 // 在系统提示构建中调用
-const goalContext = yield* buildGoalContext(sessionId)
+const goalContext = yield * buildGoalContext(sessionId)
 const systemPrompt = basePrompt + goalContext
 ```
 
@@ -923,6 +903,7 @@ git commit -m "feat(session): inject goal context into system prompt"
 ## Task 7: 测试验证
 
 **Files:**
+
 - Create: `packages/NovaWay/test/session/goal.test.ts`
 
 - [ ] **Step 1: 编写 Goal 测试**
@@ -952,7 +933,7 @@ describe("GoalService", () => {
       const retrieved = yield* service.get(goal.id)
       expect(retrieved).not.toBeNull()
       expect(retrieved?.title).toBe("Test Goal")
-    }).pipe(Effect.provide(layer))
+    }).pipe(Effect.provide(layer)),
   )
 
   it.effect("updates goal progress", () =>
@@ -971,7 +952,7 @@ describe("GoalService", () => {
       yield* service.updateProgress(goal.id)
       progress = yield* service.getProgress(goal.id)
       expect(progress.percentage).toBe(0) // 没有关联任务，进度仍为 0
-    }).pipe(Effect.provide(layer))
+    }).pipe(Effect.provide(layer)),
   )
 
   it.effect("lists goals by session", () =>
@@ -983,7 +964,7 @@ describe("GoalService", () => {
       const list = yield* service.list("session-1")
       expect(list.length).toBe(1)
       expect(list[0].title).toBe("Goal 1")
-    }).pipe(Effect.provide(layer))
+    }).pipe(Effect.provide(layer)),
   )
 })
 ```

@@ -1,6 +1,7 @@
 import { Component, Show } from "solid-js"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { popularProviders, useProviders } from "@/hooks/use-providers"
+import { FREE_PROVIDER_RANK } from "@novaway/core/free-provider-policy"
 import { Dialog } from "@novaway/ui/dialog"
 import { List } from "@novaway/ui/list"
 import { Tag } from "@novaway/ui/tag"
@@ -58,13 +59,36 @@ export const DialogSelectProvider: Component = () => {
           if (b.id === CUSTOM_ID) return 1
           if (popularProviders.includes(a.id) && popularProviders.includes(b.id))
             return popularProviders.indexOf(a.id) - popularProviders.indexOf(b.id)
+          // 免品通道组内按 FREE_PROVIDER_RANK（推荐优先级）排
+          if (groupA === "free" && groupB === "free") {
+            const rankA = FREE_PROVIDER_RANK.indexOf(a.id)
+            const rankB = FREE_PROVIDER_RANK.indexOf(b.id)
+            if (rankA !== -1 && rankB !== -1) return rankA - rankB
+            if (rankA !== -1) return -1
+            if (rankB !== -1) return 1
+          }
           return a.name.localeCompare(b.name)
         }}
-        sortGroupsBy={(a, b) => providerGroupOrder(
-          a.category === freeGroup() ? "free" : a.category === popularGroup() ? "popular" : a.category === otherGroup() ? "other" : "custom",
-        ) - providerGroupOrder(
-          b.category === freeGroup() ? "free" : b.category === popularGroup() ? "popular" : b.category === otherGroup() ? "other" : "custom",
-        )}
+        sortGroupsBy={(a, b) =>
+          providerGroupOrder(
+            a.category === freeGroup()
+              ? "free"
+              : a.category === popularGroup()
+                ? "popular"
+                : a.category === otherGroup()
+                  ? "other"
+                  : "custom",
+          ) -
+          providerGroupOrder(
+            b.category === freeGroup()
+              ? "free"
+              : b.category === popularGroup()
+                ? "popular"
+                : b.category === otherGroup()
+                  ? "other"
+                  : "custom",
+          )
+        }
         onSelect={(x) => {
           if (!x) return
           if (x.id === CUSTOM_ID) {

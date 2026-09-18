@@ -68,12 +68,18 @@ export function parseRemoteProviderModels(payload: unknown): RemoteProviderModel
       }
       // OpenRouter 风格的定价块（字符串数值，单位：美元/百万 token）。有就带上，
       // 让上层能按「prompt=0 且 completion=0」精确判定免费，不依赖 :free 后缀。
+      // 同时兼容：
+      //   1) Kenari / 国产网关风格的 { input, output } 字段
+      //   2) 直接打 "free: true" 标志（pricing.free 表示厂商已声明该模型免费）
       const pricing = Reflect.get(row, "pricing")
       if (typeof pricing === "object" && pricing !== null) {
-        const prompt = Reflect.get(pricing, "prompt")
-        const completion = Reflect.get(pricing, "completion")
-        const parsedPrompt = toNumber(prompt)
-        const parsedCompletion = toNumber(completion)
+        const prompt = toNumber(Reflect.get(pricing, "prompt"))
+        const completion = toNumber(Reflect.get(pricing, "completion"))
+        const input = toNumber(Reflect.get(pricing, "input"))
+        const output = toNumber(Reflect.get(pricing, "output"))
+        const pricingFree = Reflect.get(pricing, "free")
+        const parsedPrompt = prompt ?? input ?? (pricingFree === true ? 0 : null)
+        const parsedCompletion = completion ?? output ?? (pricingFree === true ? 0 : null)
         if (parsedPrompt !== null || parsedCompletion !== null) {
           model.pricing = { prompt: parsedPrompt, completion: parsedCompletion }
         }

@@ -3,12 +3,7 @@ import { useSDK } from "../context/sdk"
 import { useTheme } from "../context/theme"
 import { useDialog } from "../ui/dialog"
 import { DialogConfirm } from "../ui/dialog-confirm"
-import {
-  workflowApi,
-  type WorkflowItem,
-  type WorkflowRunItem,
-  type WorkflowTemplateItem,
-} from "../util/mimo-panel-api"
+import { workflowApi, type WorkflowItem, type WorkflowRunItem, type WorkflowTemplateItem } from "../util/mimo-panel-api"
 import { useAutoRefresh } from "../util/auto-refresh"
 
 export interface WorkflowPanelProps {

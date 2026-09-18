@@ -59,9 +59,7 @@ function View(props: { api: TuiPluginApi; sessionID: string }) {
               </text>
             </box>
             <text fg={theme().textMuted}>{TUI_BRAND.name} 包含免费模型，您可以立即开始使用。</text>
-            <text fg={theme().textMuted}>
-              连接 75+ 提供商以使用其他模型，包括 Claude、GPT、Gemini 等
-            </text>
+            <text fg={theme().textMuted}>连接 75+ 提供商以使用其他模型，包括 Claude、GPT、Gemini 等</text>
             <box flexDirection="row" gap={1} justifyContent="space-between">
               <text fg={theme().text}>连接提供商</text>
               <text fg={theme().textMuted}>/connect</text>

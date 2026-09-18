@@ -334,10 +334,7 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
           setOnlyWhenUnfocused(value: boolean) {
             setStore("notifications", "feishu", "onlyWhenUnfocused", value)
           },
-          agent: withFallback(
-            () => store.notifications?.feishu?.agent,
-            defaultSettings.notifications.feishu.agent,
-          ),
+          agent: withFallback(() => store.notifications?.feishu?.agent, defaultSettings.notifications.feishu.agent),
           setAgent(value: boolean) {
             setStore("notifications", "feishu", "agent", value)
           },
@@ -348,10 +345,7 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
           setPermissions(value: boolean) {
             setStore("notifications", "feishu", "permissions", value)
           },
-          errors: withFallback(
-            () => store.notifications?.feishu?.errors,
-            defaultSettings.notifications.feishu.errors,
-          ),
+          errors: withFallback(() => store.notifications?.feishu?.errors, defaultSettings.notifications.feishu.errors),
           setErrors(value: boolean) {
             setStore("notifications", "feishu", "errors", value)
           },

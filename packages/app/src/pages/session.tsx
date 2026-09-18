@@ -39,6 +39,7 @@ import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
 import { usePrompt } from "@/context/prompt"
+import { usePreview } from "@/context/preview"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import { useTerminal } from "@/context/terminal"
@@ -60,13 +61,14 @@ import { syncSessionModel } from "@/pages/session/session-model-helpers"
 import { SessionSidePanel } from "@/pages/session/session-side-panel"
 import { FloatingTodoButton } from "@/components/floating-todo-button"
 import { OfficeSessionComposer, OfficeSessionWorkspace } from "@/components/office-session-workspace"
-import { DevServerSuggestion } from "@/pages/session/dev-server-suggestion"
 import { PreviewPanel } from "@/pages/session/preview-panel"
 import { TerminalPanel } from "@/pages/session/terminal-panel"
 import { useSessionCommands } from "@/pages/session/use-session-commands"
 import { useSessionHashScroll } from "@/pages/session/use-session-hash-scroll"
 import { Identifier } from "@/utils/id"
 import { diffs as list } from "@/utils/diffs"
+import { resolveWorkspacePath, shouldAutoOpenHtml } from "@/utils/preview-sources"
+import { normalizePreviewUrl } from "@/utils/preview-url"
 import { Persist, persisted } from "@/utils/persist"
 import { extractPromptFromParts } from "@/utils/prompt"
 import { same } from "@/utils/same"
@@ -195,6 +197,7 @@ export default function Page() {
   const dialog = useDialog()
   const language = useLanguage()
   const sdk = useSDK()
+  const preview = usePreview()
   const prompt = usePrompt()
   const comments = useComments()
   const terminal = useTerminal()
@@ -336,13 +339,17 @@ export default function Page() {
     () => isDesktop() && view().reviewPanel.opened() && (activeFileTab() !== undefined || activeTab() === "context"),
   )
   const desktopFileTreeOpen = createMemo(() => isDesktop() && layout.fileTree.opened())
+  const desktopGitOpen = createMemo(() => isDesktop() && layout.git.opened())
   const officeReservedWidth = createMemo(() => 0)
-  const desktopSidePanelOpen = createMemo(() => desktopReviewOpen() || desktopFileTreeOpen())
+  const desktopSidePanelOpen = createMemo(
+    () => desktopReviewOpen() || desktopGitOpen() || desktopFileTreeOpen(),
+  )
   const sessionPanelWidth = createMemo(() => {
     const reserved = officeReservedWidth()
     if (!desktopSidePanelOpen()) return reserved ? `calc(100% - ${reserved}px)` : "100%"
     if (desktopReviewOpen()) return `${layout.session.width()}px`
-    return `calc(100% - ${layout.fileTree.width()}px - ${reserved}px)`
+    const side = layout.sidePanelWidth() || "0px"
+    return `calc(100% - (${side}) - ${reserved}px)`
   })
   const centered = createMemo(() => isDesktop() && !desktopReviewOpen())
   const revertMessageID = createMemo(() => info()?.revert?.messageID)
@@ -472,6 +479,34 @@ export default function Page() {
   }, desktopReviewOpen())
 
   const turnDiffs = createMemo(() => list(lastUserMessage()?.summary?.diffs))
+
+  // 本会话新写的 HTML 文件自动载入预览。diff 只在一轮结束时刷新一次，不会边写边抢焦点；
+  // 同一文件本会话只打开一次，用户手动改了地址也不会被拉回来
+  const autoOpenedHtml = new Set<string>()
+  createEffect(
+    on(
+      () => turnDiffs(),
+      (next) => {
+        const current = normalizePreviewUrl(preview.url())
+        for (const diff of next) {
+          const file = diff.file
+          if (!file || !shouldAutoOpenHtml(file)) continue
+
+          const url = normalizePreviewUrl(resolveWorkspacePath(file, sdk.directory))
+          if (!url || autoOpenedHtml.has(url)) continue
+
+          autoOpenedHtml.add(url)
+          if (url === current || !preview.setUrl(url)) continue
+
+          view().viewMode.set("split")
+          showToast({
+            title: language.t("preview.autoOpenedFile"),
+            description: file.split(/[\\/]/).pop() ?? file,
+          })
+        }
+      },
+    ),
+  )
   const nogit = createMemo(() => !!sync.project && sync.project.vcs !== "git")
   const changesOptions = createMemo<ChangeMode[]>(() => {
     const list: ChangeMode[] = []
@@ -1991,8 +2026,6 @@ export default function Page() {
                 >
                   <PreviewPanel />
                 </div>
-
-                <DevServerSuggestion />
               </div>
             </div>
 

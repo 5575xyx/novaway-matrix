@@ -13,9 +13,10 @@ async function callTool(client: NovawayClient, directory: string, toolId: string
     body: { toolId, arguments: args },
   })
   if (res.error) {
-    const message = typeof res.error === "object" && res.error !== null && "message" in res.error
-      ? String((res.error as { message: unknown }).message)
-      : String(res.error)
+    const message =
+      typeof res.error === "object" && res.error !== null && "message" in res.error
+        ? String((res.error as { message: unknown }).message)
+        : String(res.error)
     throw new Error(message || "工具调用失败")
   }
   return extractResultText(res.data)

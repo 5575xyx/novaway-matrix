@@ -71,7 +71,12 @@ describe("todoedit", () => {
       const result = yield* call({ action: "add", content: "  c  ", priority: "high", goalId: "goal_1" }, sessionID)
 
       expect((yield* rows(sessionID)).map((row) => row.content)).toEqual(["a", "c"])
-      expect(result.metadata.todos.at(-1)).toEqual({ content: "c", status: "pending", priority: "high", goalId: "goal_1" })
+      expect(result.metadata.todos.at(-1)).toEqual({
+        content: "c",
+        status: "pending",
+        priority: "high",
+        goalId: "goal_1",
+      })
       expect(result.output).toContain("1. [ ] c")
       expect(result.output).toContain("0/2 completed")
     }),
@@ -101,7 +106,12 @@ describe("todoedit", () => {
       yield* call({ action: "cancel", position: 2 }, sessionID)
       yield* call({ action: "reopen", position: 3 }, sessionID)
 
-      expect((yield* rows(sessionID)).map((row) => row.status)).toEqual(["in_progress", "completed", "cancelled", "pending"])
+      expect((yield* rows(sessionID)).map((row) => row.status)).toEqual([
+        "in_progress",
+        "completed",
+        "cancelled",
+        "pending",
+      ])
     }),
   )
 
@@ -186,7 +196,9 @@ describe("todoedit", () => {
 
       const result = yield* call({ action: "remove", position: 0 }, sessionID)
 
-      expect(result.output).toContain("the current list has 0 item(s), valid range is no valid position (the list is empty)")
+      expect(result.output).toContain(
+        "the current list has 0 item(s), valid range is no valid position (the list is empty)",
+      )
     }),
   )
 

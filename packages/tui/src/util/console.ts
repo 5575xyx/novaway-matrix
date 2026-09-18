@@ -34,7 +34,10 @@ export function redirectConsoleToLog(logDir: string, filename = "tui.log") {
     void appendFile(file, `[${new Date().toISOString()}] [${level}] ${text}\n`).catch(() => {})
   }
 
-  const redirect = (level: string) => (...args: unknown[]) => write(level, args)
+  const redirect =
+    (level: string) =>
+    (...args: unknown[]) =>
+      write(level, args)
   const originals = {
     log: console.log,
     info: console.info,

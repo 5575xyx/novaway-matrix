@@ -66,11 +66,7 @@ describe("Todo service", () => {
   it.instance("updateSingle only changes the targeted row", () =>
     Effect.gen(function* () {
       const sessionID = freshSession()
-      yield* seed(sessionID, [
-        { content: "a" },
-        { content: "b" },
-        { content: "c" },
-      ])
+      yield* seed(sessionID, [{ content: "a" }, { content: "b" }, { content: "c" }])
 
       const svc = yield* Todo.Service
       yield* svc.updateSingle({ sessionID, position: 1, status: "completed" })

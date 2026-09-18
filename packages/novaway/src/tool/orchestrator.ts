@@ -37,8 +37,7 @@ export const OrchestratorTool = Tool.define<
     const agents = yield* Agent.Service
 
     return {
-      description:
-        "多代理编排(Orchestrator)- 创建含依赖关系的任务计划,按拓扑顺序并发派生子代理执行,结果在任务间传递",
+      description: "多代理编排(Orchestrator)- 创建含依赖关系的任务计划,按拓扑顺序并发派生子代理执行,结果在任务间传递",
       parameters: Parameters,
       execute: (params: Schema.Schema.Type<typeof Parameters>, ctx: Tool.Context<Metadata>) =>
         Effect.gen(function* () {
@@ -51,7 +50,10 @@ export const OrchestratorTool = Tool.define<
                 tasks,
               })
               const summary = plan.tasks
-                .map((t) => `${t.id} [${t.type}]${t.dependencies.length ? ` ←(${t.dependencies.join(",")})` : ""}: ${t.name}`)
+                .map(
+                  (t) =>
+                    `${t.id} [${t.type}]${t.dependencies.length ? ` ←(${t.dependencies.join(",")})` : ""}: ${t.name}`,
+                )
                 .join("\n")
               return {
                 title: "创建编排计划",
@@ -78,9 +80,7 @@ export const OrchestratorTool = Tool.define<
               if (plans.length === 0) {
                 return { title: "列出编排计划", output: "暂无编排计划", metadata: { action: "list" } }
               }
-              const output = plans
-                .map((p) => `${p.id}: ${p.name} [${p.status}] (${p.tasks.length} 任务)`)
-                .join("\n")
+              const output = plans.map((p) => `${p.id}: ${p.name} [${p.status}] (${p.tasks.length} 任务)`).join("\n")
               return { title: "列出编排计划", output, metadata: { action: "list" } }
             }
 
@@ -92,9 +92,7 @@ export const OrchestratorTool = Tool.define<
               }
               const output = [
                 `计划: ${plan.id} - ${plan.name} [${plan.status}]`,
-                ...plan.tasks.map(
-                  (t) => `  ${t.id} [${t.status}] ${t.name}${t.error ? ` — 错误: ${t.error}` : ""}`,
-                ),
+                ...plan.tasks.map((t) => `  ${t.id} [${t.status}] ${t.name}${t.error ? ` — 错误: ${t.error}` : ""}`),
                 plan.error ? `错误: ${plan.error}` : "",
               ]
                 .filter(Boolean)
@@ -134,9 +132,7 @@ export const OrchestratorTool = Tool.define<
               })
               const output = [
                 `编排执行${final.status === "completed" ? "完成" : final.status}: ${final.id}`,
-                ...final.tasks.map(
-                  (t) => `  ${t.id} [${t.status}] ${t.name}${t.error ? ` — ${t.error}` : ""}`,
-                ),
+                ...final.tasks.map((t) => `  ${t.id} [${t.status}] ${t.name}${t.error ? ` — ${t.error}` : ""}`),
                 final.error ? `错误: ${final.error}` : "",
               ]
                 .filter(Boolean)

@@ -70,6 +70,55 @@ export function parseGitStatus(output: string): GitStatusSummary {
   return summary
 }
 
+// git diff --numstat 的输出:每行 "新增\t删除\tpath"。
+// 二进制文件两边是 "-";开重命名检测时 path 是 "old => new" 或 "{old => new}/rest"。
+// 未跟踪文件不出现在 numstat 里(git diff 只看索引里已有的内容)。
+export interface GitNumstatEntry {
+  file: string
+  added: number
+  removed: number
+  /** 二进制文件没有行号概念 */
+  binary: boolean
+}
+
+export function parseGitNumstat(output: string): GitNumstatEntry[] {
+  const entries: GitNumstatEntry[] = []
+  for (const line of output.split("\n")) {
+    if (line.length === 0) continue
+    const parts = line.split("\t")
+    if (parts.length < 3) continue
+    const added = numstatCount(parts[0])
+    const removed = numstatCount(parts[1])
+    entries.push({
+      file: numstatPath(parts.slice(2).join("\t")),
+      added: added ?? 0,
+      removed: removed ?? 0,
+      binary: added === null || removed === null,
+    })
+  }
+  return entries
+}
+
+function numstatCount(value: string): number | null {
+  return /^\d+$/.test(value) ? Number(value) : null
+}
+
+// 两种重命名写法都取新路径,和 porcelain 的 "old -> new" 一样只关心结果。
+// 花括号形式 "src/{old => new}/rest" 的 src/ 和 /rest 是新旧共有的前后缀,要保留。
+function numstatPath(path: string): string {
+  const open = path.indexOf("{")
+  if (open >= 0) {
+    const close = path.indexOf("}", open)
+    if (close > open) {
+      const inner = path.slice(open + 1, close)
+      const arrow = inner.indexOf(" => ")
+      if (arrow >= 0) return path.slice(0, open) + inner.slice(arrow + 4) + path.slice(close + 1)
+    }
+  }
+  const arrow = path.indexOf(" => ")
+  return arrow >= 0 ? path.slice(arrow + 4) : path
+}
+
 // 一条 git log --oneline 的输出("abc1234 标题")拆成 [hash, 标题]。
 export function parseGitCommit(line: string): { hash: string; subject: string } | undefined {
   const match = /^(\S+)\s+(.*)$/.exec(line.trim())

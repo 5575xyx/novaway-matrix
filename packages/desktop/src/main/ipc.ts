@@ -84,6 +84,7 @@ import {
   positionFloatingRestore,
   positionFloatingSkinMenu,
   setFloatingCollapsedPosition,
+  setPreviewInspectorOrigin,
   setTitlebar,
   updateTitlebar,
 } from "./windows"
@@ -283,21 +284,49 @@ function normalizeFloatingPetProfile(value: unknown): FloatingPetProfile {
       ? stored.avatar
       : base.avatar
   const accessory: FloatingPetAccessory =
-    stored.accessory === "none" || stored.accessory === "crown" || stored.accessory === "glasses" || stored.accessory === "scarf"
+    stored.accessory === "none" ||
+    stored.accessory === "crown" ||
+    stored.accessory === "glasses" ||
+    stored.accessory === "scarf"
       ? stored.accessory
       : base.accessory
   const preset: FloatingPetPreset =
-    stored.preset === "snow" || stored.preset === "honey" || stored.preset === "ash" || stored.preset === "aurora" ||
-    stored.preset === "violet" || stored.preset === "crimson" || stored.preset === "custom"
+    stored.preset === "snow" ||
+    stored.preset === "honey" ||
+    stored.preset === "ash" ||
+    stored.preset === "aurora" ||
+    stored.preset === "violet" ||
+    stored.preset === "crimson" ||
+    stored.preset === "custom"
       ? stored.preset
-      : skin.startsWith("#") ? "custom" : skin === "snow" || skin === "honey" || skin === "ash" || skin === "aurora" || skin === "violet" || skin === "crimson" ? skin : "snow"
+      : skin.startsWith("#")
+        ? "custom"
+        : skin === "snow" ||
+            skin === "honey" ||
+            skin === "ash" ||
+            skin === "aurora" ||
+            skin === "violet" ||
+            skin === "crimson"
+          ? skin
+          : "snow"
   const scores = (stored.highScores ?? {}) as Partial<Record<FloatingPetGame, number>>
   const settings = (stored.gameSettings ?? {}) as Partial<Record<FloatingPetGame, FloatingPetDifficulty>>
-  const gameSettings = Object.fromEntries(PET_GAMES.map((game) => [game, PET_DIFFICULTIES.includes(settings[game] as FloatingPetDifficulty) ? settings[game] : base.gameSettings[game]])) as FloatingPetProfile["gameSettings"]
+  const gameSettings = Object.fromEntries(
+    PET_GAMES.map((game) => [
+      game,
+      PET_DIFFICULTIES.includes(settings[game] as FloatingPetDifficulty) ? settings[game] : base.gameSettings[game],
+    ]),
+  ) as FloatingPetProfile["gameSettings"]
   return {
-    name: name || base.name, preset, skin, avatar, accessory,
+    name: name || base.name,
+    preset,
+    skin,
+    avatar,
+    accessory,
     gamesPlayed: Math.max(0, Math.floor(typeof stored.gamesPlayed === "number" ? stored.gamesPlayed : 0)),
-    highScores: Object.fromEntries(PET_GAMES.map((game) => [game, Math.max(0, Math.floor(typeof scores[game] === "number" ? scores[game] : 0))])) as Record<FloatingPetGame, number>,
+    highScores: Object.fromEntries(
+      PET_GAMES.map((game) => [game, Math.max(0, Math.floor(typeof scores[game] === "number" ? scores[game] : 0))]),
+    ) as Record<FloatingPetGame, number>,
     gameSettings,
   }
 }
@@ -768,16 +797,33 @@ export function registerIpcHandlers(deps: Deps) {
 
   ipcMain.handle(
     "update-floating-pet-profile",
-    (_event: IpcMainInvokeEvent, input: Partial<Pick<FloatingPetProfile, "name" | "preset" | "skin" | "avatar" | "accessory" | "gameSettings">>) => {
+    (
+      _event: IpcMainInvokeEvent,
+      input: Partial<Pick<FloatingPetProfile, "name" | "preset" | "skin" | "avatar" | "accessory" | "gameSettings">>,
+    ) => {
       const current = restoreFloatingPetProfile()
       const skin = typeof input.skin === "string" && isFloatingPetSkin(input.skin) ? input.skin : current.skin
       const preset: FloatingPetPreset =
-        input.preset === "snow" || input.preset === "honey" || input.preset === "ash" || input.preset === "aurora" ||
-        input.preset === "violet" || input.preset === "crimson" || input.preset === "custom"
+        input.preset === "snow" ||
+        input.preset === "honey" ||
+        input.preset === "ash" ||
+        input.preset === "aurora" ||
+        input.preset === "violet" ||
+        input.preset === "crimson" ||
+        input.preset === "custom"
           ? input.preset
           : current.preset
-      const avatar: FloatingPetAvatar = input.avatar === "nova" || input.avatar === "fox" || input.avatar === "cat" || input.avatar === "robot" ? input.avatar : current.avatar
-      const accessory: FloatingPetAccessory = input.accessory === "none" || input.accessory === "crown" || input.accessory === "glasses" || input.accessory === "scarf" ? input.accessory : current.accessory
+      const avatar: FloatingPetAvatar =
+        input.avatar === "nova" || input.avatar === "fox" || input.avatar === "cat" || input.avatar === "robot"
+          ? input.avatar
+          : current.avatar
+      const accessory: FloatingPetAccessory =
+        input.accessory === "none" ||
+        input.accessory === "crown" ||
+        input.accessory === "glasses" ||
+        input.accessory === "scarf"
+          ? input.accessory
+          : current.accessory
       const gameSettings = input.gameSettings
         ? (() => {
             const inputGameSettings = input.gameSettings
@@ -792,7 +838,15 @@ export function registerIpcHandlers(deps: Deps) {
           })()
         : current.gameSettings
       const name = typeof input.name === "string" ? input.name.trim().slice(0, 24) : current.name
-      const profile = saveFloatingPetProfile({ ...current, name: name || current.name, preset, skin, avatar, accessory, gameSettings })
+      const profile = saveFloatingPetProfile({
+        ...current,
+        name: name || current.name,
+        preset,
+        skin,
+        avatar,
+        accessory,
+        gameSettings,
+      })
       const pet = restoreFloatingPetState()
       return { visible: getStore().get(PET_VISIBLE_KEY, true) as boolean, profile, pet }
     },
@@ -1224,6 +1278,11 @@ export function registerIpcHandlers(deps: Deps) {
     if (!win) return
     updateTitlebar(win)
   })
+  // 渲染进程把当前预览地址的源报上来，主进程只对这个源的 http 文档做注入改写
+  ipcMain.handle("set-preview-inspector-origin", (_event, origin: string) => {
+    setPreviewInspectorOrigin(typeof origin === "string" ? origin : "")
+  })
+
   ipcMain.handle("set-titlebar", (event: IpcMainInvokeEvent, theme: TitlebarTheme) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return

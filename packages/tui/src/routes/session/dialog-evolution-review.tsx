@@ -4,10 +4,7 @@ import { useDialog, type DialogContext } from "../../ui/dialog"
 import { DialogSelect, type DialogSelectOption } from "../../ui/dialog-select"
 import { DialogConfirm } from "../../ui/dialog-confirm"
 import { createSignal, onMount, For } from "solid-js"
-import {
-  evolutionApi,
-  type EvolutionCandidate,
-} from "../../util/memory-evolution-api"
+import { evolutionApi, type EvolutionCandidate } from "../../util/memory-evolution-api"
 
 type FilterStatus = "pending" | "applied" | "dismissed"
 
@@ -123,11 +120,13 @@ export function DialogEvolutionReview(props: DialogEvolutionReviewProps) {
           dlg.replace(() => (
             <DialogSelect
               title={`预览: ${candidate.title}`}
-              options={[{
-                title: diff,
-                value: "diff",
-                onSelect: () => dlg.clear(),
-              }]}
+              options={[
+                {
+                  title: diff,
+                  value: "diff",
+                  onSelect: () => dlg.clear(),
+                },
+              ]}
             />
           ))
         },

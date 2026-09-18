@@ -31,9 +31,7 @@ export const Flag = {
   NOVAWAY_SERVER_USERNAME: process.env["NOVAWAY_SERVER_USERNAME"],
 
   // Experimental
-  NOVAWAY_EXPERIMENTAL_FILEWATCHER: Config.boolean("NOVAWAY_EXPERIMENTAL_FILEWATCHER").pipe(
-    Config.withDefault(false),
-  ),
+  NOVAWAY_EXPERIMENTAL_FILEWATCHER: Config.boolean("NOVAWAY_EXPERIMENTAL_FILEWATCHER").pipe(Config.withDefault(false)),
   NOVAWAY_EXPERIMENTAL_DISABLE_FILEWATCHER: Config.boolean("NOVAWAY_EXPERIMENTAL_DISABLE_FILEWATCHER").pipe(
     Config.withDefault(false),
   ),

@@ -91,11 +91,7 @@ import { sidebarWidth } from "../../util/sidebar-width"
 import { usePluginRuntime } from "../../plugin/runtime"
 import { DialogRetryAction } from "../../component/dialog-retry-action"
 import { getRevertDiffFiles } from "../../util/revert-diff"
-import {
-  expandMessageWindow,
-  MESSAGE_WINDOW_INITIAL,
-  messageWindow,
-} from "../../util/message-window"
+import { expandMessageWindow, MESSAGE_WINDOW_INITIAL, messageWindow } from "../../util/message-window"
 import { NovaWay_BASE_MODE, useBindings, useCommandShortcut, useNovaWayKeymap } from "../../keymap"
 import { usePathFormatter } from "../../context/path-format"
 import { LocationProvider } from "../../context/location"
@@ -283,9 +279,7 @@ export function Session() {
   const [sidebar, setSidebar] = kv.signal<"auto" | "hide">("sidebar", "auto")
   const [sidebarOpen, setSidebarOpen] = createSignal(false)
   const [selectedFile, setSelectedFile] = createSignal<string | null>(null)
-  const [tabs, setTabs] = createSignal<TabItem[]>([
-    { id: "chat", title: "聊天", type: "chat", closable: false }
-  ])
+  const [tabs, setTabs] = createSignal<TabItem[]>([{ id: "chat", title: "聊天", type: "chat", closable: false }])
   const [activeTabId, setActiveTabId] = createSignal<string>("chat")
   const [conceal, setConceal] = createSignal(true)
   const thinking = useThinkingMode()
@@ -389,7 +383,7 @@ export function Session() {
     const tabId = `preview-${filePath}`
 
     // Check if tab already exists
-    const existingTab = tabs().find(t => t.id === tabId)
+    const existingTab = tabs().find((t) => t.id === tabId)
     if (existingTab) {
       setActiveTabId(tabId)
       setSelectedFile(filePath)
@@ -397,13 +391,16 @@ export function Session() {
     }
 
     // Add new tab
-    setTabs(prev => [...prev, {
-      id: tabId,
-      title: fileName,
-      type: "preview",
-      closable: true,
-      filePath: filePath
-    }])
+    setTabs((prev) => [
+      ...prev,
+      {
+        id: tabId,
+        title: fileName,
+        type: "preview",
+        closable: true,
+        filePath: filePath,
+      },
+    ])
     setActiveTabId(tabId)
     setSelectedFile(filePath)
   }
@@ -418,19 +415,16 @@ export function Session() {
       setSelectedFile(filePath)
       return
     }
-    setTabs((prev) => [
-      ...prev,
-      { id: tabId, title: `± ${fileName}`, type: "git-diff", closable: true, filePath },
-    ])
+    setTabs((prev) => [...prev, { id: tabId, title: `± ${fileName}`, type: "git-diff", closable: true, filePath }])
     setActiveTabId(tabId)
     setSelectedFile(filePath)
   }
 
   const closeTab = (tabId: string) => {
     if (tabId === "chat") return // Cannot close chat tab
-    
-    setTabs(prev => prev.filter(t => t.id !== tabId))
-    
+
+    setTabs((prev) => prev.filter((t) => t.id !== tabId))
+
     // If closing active tab, switch to chat
     if (activeTabId() === tabId) {
       setActiveTabId("chat")
@@ -444,7 +438,7 @@ export function Session() {
       setSelectedFile(null)
     } else {
       // Find the tab's filePath and update selectedFile
-      const tab = tabs().find(t => t.id === tabId)
+      const tab = tabs().find((t) => t.id === tabId)
       if (tab?.filePath) {
         setSelectedFile(tab.filePath)
       }
@@ -1521,12 +1515,7 @@ export function Session() {
             </Switch>
           </Show>
           <box flexGrow={1} minHeight={0} flexDirection="column">
-            <TabBar
-              tabs={tabs()}
-              activeTabId={activeTabId()}
-              onTabClick={switchTab}
-              onTabClose={closeTab}
-            />
+            <TabBar tabs={tabs()} activeTabId={activeTabId()} onTabClick={switchTab} onTabClose={closeTab} />
             <box flexGrow={1} minHeight={0} paddingBottom={1} paddingLeft={2} paddingRight={2} gap={1}>
               <Show when={activeTabId() === "chat"}>
                 <scrollbox
@@ -1547,179 +1536,179 @@ export function Session() {
                   flexGrow={1}
                   scrollAcceleration={scrollAcceleration()}
                 >
-                <box height={1} />
-                {/* 空会话的首屏:Logo + 智能体特征行 + 快捷键提示(和首页首屏共用同一块) */}
-                <Show when={messages().length === 0 && !pending()}>
-                  <EmptySessionHero />
-                </Show>
-                {/* 顶部还有没挂载的历史时给一行提示,滚到顶会自动往前扩 */}
-                <Show when={hiddenMessages() > 0}>
-                  <box paddingLeft={3} flexShrink={0}>
-                    <text fg={theme.textMuted}>上方还有 {hiddenMessages()} 条历史消息,滚到顶自动加载</text>
-                  </box>
-                </Show>
-                <For each={visibleMessages()}>
-                  {(message, localIndex) => {
-                    // index 是**全量**下标:pending()/revertMessageIndex() 都是按 messages() 算的
-                    const index = () => windowOffset() + localIndex()
-                    return (
-                    <Switch>
-                      <Match when={message.id === revert()?.messageID}>
-                        {(function () {
-                          const redoShortcut = useCommandShortcut("session.redo")
-                          const [hover, setHover] = createSignal(false)
-                          const dialog = useDialog()
+                  <box height={1} />
+                  {/* 空会话的首屏:Logo + 智能体特征行 + 快捷键提示(和首页首屏共用同一块) */}
+                  <Show when={messages().length === 0 && !pending()}>
+                    <EmptySessionHero />
+                  </Show>
+                  {/* 顶部还有没挂载的历史时给一行提示,滚到顶会自动往前扩 */}
+                  <Show when={hiddenMessages() > 0}>
+                    <box paddingLeft={3} flexShrink={0}>
+                      <text fg={theme.textMuted}>上方还有 {hiddenMessages()} 条历史消息,滚到顶自动加载</text>
+                    </box>
+                  </Show>
+                  <For each={visibleMessages()}>
+                    {(message, localIndex) => {
+                      // index 是**全量**下标:pending()/revertMessageIndex() 都是按 messages() 算的
+                      const index = () => windowOffset() + localIndex()
+                      return (
+                        <Switch>
+                          <Match when={message.id === revert()?.messageID}>
+                            {(function () {
+                              const redoShortcut = useCommandShortcut("session.redo")
+                              const [hover, setHover] = createSignal(false)
+                              const dialog = useDialog()
 
-                          const handleUnrevert = async () => {
-                            const confirmed = await DialogConfirm.show(
-                              dialog,
-                              "确认重做",
-                              "确定要恢复已撤销的消息吗?",
-                            )
-                            if (confirmed) {
-                              keymap.dispatchCommand("session.redo")
-                            }
-                          }
+                              const handleUnrevert = async () => {
+                                const confirmed = await DialogConfirm.show(
+                                  dialog,
+                                  "确认重做",
+                                  "确定要恢复已撤销的消息吗?",
+                                )
+                                if (confirmed) {
+                                  keymap.dispatchCommand("session.redo")
+                                }
+                              }
 
-                          return (
-                            <box
-                              onMouseOver={() => setHover(true)}
-                              onMouseOut={() => setHover(false)}
-                              onMouseUp={handleUnrevert}
-                              marginTop={1}
-                              flexShrink={0}
-                              border={["left"]}
-                              customBorderChars={SplitBorder.customBorderChars}
-                              borderColor={theme.backgroundPanel}
-                            >
-                              <box
-                                paddingTop={1}
-                                paddingBottom={1}
-                                paddingLeft={2}
-                                backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
-                              >
-                                <text fg={theme.textMuted}>已撤销 {revert()!.reverted.length} 条消息</text>
-                                <text fg={theme.textMuted}>
-                                  <span style={{ fg: theme.text }}>{redoShortcut()}</span> 或 /redo 恢复
-                                </text>
-                                <Show when={revert()!.diffFiles?.length}>
-                                  <box marginTop={1}>
-                                    <DiffStatList
-                                      files={revert()!.diffFiles!.map((file) => ({
-                                        file: file.filename,
-                                        additions: file.additions,
-                                        deletions: file.deletions,
-                                      }))}
-                                    />
+                              return (
+                                <box
+                                  onMouseOver={() => setHover(true)}
+                                  onMouseOut={() => setHover(false)}
+                                  onMouseUp={handleUnrevert}
+                                  marginTop={1}
+                                  flexShrink={0}
+                                  border={["left"]}
+                                  customBorderChars={SplitBorder.customBorderChars}
+                                  borderColor={theme.backgroundPanel}
+                                >
+                                  <box
+                                    paddingTop={1}
+                                    paddingBottom={1}
+                                    paddingLeft={2}
+                                    backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
+                                  >
+                                    <text fg={theme.textMuted}>已撤销 {revert()!.reverted.length} 条消息</text>
+                                    <text fg={theme.textMuted}>
+                                      <span style={{ fg: theme.text }}>{redoShortcut()}</span> 或 /redo 恢复
+                                    </text>
+                                    <Show when={revert()!.diffFiles?.length}>
+                                      <box marginTop={1}>
+                                        <DiffStatList
+                                          files={revert()!.diffFiles!.map((file) => ({
+                                            file: file.filename,
+                                            additions: file.additions,
+                                            deletions: file.deletions,
+                                          }))}
+                                        />
+                                      </box>
+                                    </Show>
                                   </box>
-                                </Show>
-                              </box>
-                            </box>
-                          )
-                        })()}
-                      </Match>
-                      <Match
-                        when={revert()?.messageID && revertMessageIndex() !== -1 && index() >= revertMessageIndex()}
-                      >
-                        <></>
-                      </Match>
-                      <Match when={message.role === "user"}>
-                        <UserMessage
-                          index={index()}
-                          onMouseUp={() => {
-                            if (renderer.getSelection()?.getSelectedText()) return
-                            dialog.replace(() => (
-                              <DialogMessage
-                                messageID={message.id}
-                                sessionID={route.sessionID}
-                                setPrompt={(promptInfo) => prompt?.set(promptInfo)}
-                              />
-                            ))
-                          }}
-                          message={message as UserMessage}
-                          parts={sync.data.part[message.id] ?? []}
-                        />
-                      </Match>
-                      <Match when={message.role === "assistant"}>
-                        <AssistantMessage
-                          last={lastAssistant()?.id === message.id}
-                          message={message as AssistantMessage}
-                          parts={sync.data.part[message.id] ?? []}
-                        />
-                      </Match>
-                    </Switch>
-                    )
-                  }}
-                </For>
-                {/* crush 式回答中指示:消息流末尾挂一条主题双色扰动动画;
+                                </box>
+                              )
+                            })()}
+                          </Match>
+                          <Match
+                            when={revert()?.messageID && revertMessageIndex() !== -1 && index() >= revertMessageIndex()}
+                          >
+                            <></>
+                          </Match>
+                          <Match when={message.role === "user"}>
+                            <UserMessage
+                              index={index()}
+                              onMouseUp={() => {
+                                if (renderer.getSelection()?.getSelectedText()) return
+                                dialog.replace(() => (
+                                  <DialogMessage
+                                    messageID={message.id}
+                                    sessionID={route.sessionID}
+                                    setPrompt={(promptInfo) => prompt?.set(promptInfo)}
+                                  />
+                                ))
+                              }}
+                              message={message as UserMessage}
+                              parts={sync.data.part[message.id] ?? []}
+                            />
+                          </Match>
+                          <Match when={message.role === "assistant"}>
+                            <AssistantMessage
+                              last={lastAssistant()?.id === message.id}
+                              message={message as AssistantMessage}
+                              parts={sync.data.part[message.id] ?? []}
+                            />
+                          </Match>
+                        </Switch>
+                      )
+                    }}
+                  </For>
+                  {/* crush 式回答中指示:消息流末尾挂一条主题双色扰动动画;
                     思考阶段给"思考中"标签,其余只显示已用时长。随会话状态自动出现/消失。 */}
-                <Show when={sessionWorking()}>
-                  <WorkingLine sessionID={route.sessionID} thinking={thinkingActive()} />
-                </Show>
-              </scrollbox>
-            </Show>
-            <Show when={activeTabId() !== "chat" && selectedFile()}>
-              {/* 按标签类型分发:preview = 整文件编辑,git-diff = 该文件相对 HEAD 的改动差异 */}
-              <Show
-                when={activeTab()?.type === "git-diff"}
-                fallback={<FilePreview filePath={selectedFile()} onClose={() => closeTab(activeTabId())} />}
-              >
-                <GitDiffView
-                  filePath={selectedFile()!}
-                  rootPath={session()?.directory}
-                  onClose={() => closeTab(activeTabId())}
-                />
+                  <Show when={sessionWorking()}>
+                    <WorkingLine sessionID={route.sessionID} thinking={thinkingActive()} />
+                  </Show>
+                </scrollbox>
               </Show>
-            </Show>
-            <Show when={activeTabId() === "chat"}>
-              <box flexShrink={0}>
-                <Show when={permissions().length > 0}>
-                  <PermissionPrompt
-                    request={permissions()[0]}
-                    directory={sync.session.get(permissions()[0].sessionID)?.directory}
+              <Show when={activeTabId() !== "chat" && selectedFile()}>
+                {/* 按标签类型分发:preview = 整文件编辑,git-diff = 该文件相对 HEAD 的改动差异 */}
+                <Show
+                  when={activeTab()?.type === "git-diff"}
+                  fallback={<FilePreview filePath={selectedFile()} onClose={() => closeTab(activeTabId())} />}
+                >
+                  <GitDiffView
+                    filePath={selectedFile()!}
+                    rootPath={session()?.directory}
+                    onClose={() => closeTab(activeTabId())}
                   />
                 </Show>
-                <Show when={permissions().length === 0 && questions().length > 0}>
-                  <QuestionPrompt
-                    request={questions()[0]}
-                    directory={sync.session.get(questions()[0].sessionID)?.directory}
-                  />
-                </Show>
-                <Show when={session()?.parentID}>
-                  <SubagentFooter />
-                </Show>
-                <Show when={queueStore.items.length > 0}>
-                  <QueueDock
-                    items={queueStore.items}
-                    sending={queueStore.sending}
-                    collapsed={queueCollapsed()}
-                    onToggle={() => setQueueCollapsed((v) => !v)}
-                    onSend={(id) => {
-                      const item = queueStore.items.find((x) => x.id === id)
-                      if (!item || queueStore.sending) return
-                      setQueueStore("items", (items) => items.filter((x) => x.id !== id))
-                      void sendQueueItem(item)
-                    }}
-                    onEdit={(id) => {
-                      const item = queueStore.items.find((x) => x.id === id)
-                      if (!item) return
-                      setQueueStore("items", (items) => items.filter((x) => x.id !== id))
-                      prompt?.set({
-                        input: item.inputText,
-                        parts: item.nonTextParts,
-                      })
-                    }}
-                    onDelete={(id) => {
-                      setQueueStore("items", (items) => items.filter((x) => x.id !== id))
-                    }}
-                    onClearAll={() => {
-                      setQueueStore("items", [])
-                    }}
-                  />
-                </Show>
-                <Show when={visible()}>
-                  <pluginRuntime.Slot
-                    name="session_prompt"
+              </Show>
+              <Show when={activeTabId() === "chat"}>
+                <box flexShrink={0}>
+                  <Show when={permissions().length > 0}>
+                    <PermissionPrompt
+                      request={permissions()[0]}
+                      directory={sync.session.get(permissions()[0].sessionID)?.directory}
+                    />
+                  </Show>
+                  <Show when={permissions().length === 0 && questions().length > 0}>
+                    <QuestionPrompt
+                      request={questions()[0]}
+                      directory={sync.session.get(questions()[0].sessionID)?.directory}
+                    />
+                  </Show>
+                  <Show when={session()?.parentID}>
+                    <SubagentFooter />
+                  </Show>
+                  <Show when={queueStore.items.length > 0}>
+                    <QueueDock
+                      items={queueStore.items}
+                      sending={queueStore.sending}
+                      collapsed={queueCollapsed()}
+                      onToggle={() => setQueueCollapsed((v) => !v)}
+                      onSend={(id) => {
+                        const item = queueStore.items.find((x) => x.id === id)
+                        if (!item || queueStore.sending) return
+                        setQueueStore("items", (items) => items.filter((x) => x.id !== id))
+                        void sendQueueItem(item)
+                      }}
+                      onEdit={(id) => {
+                        const item = queueStore.items.find((x) => x.id === id)
+                        if (!item) return
+                        setQueueStore("items", (items) => items.filter((x) => x.id !== id))
+                        prompt?.set({
+                          input: item.inputText,
+                          parts: item.nonTextParts,
+                        })
+                      }}
+                      onDelete={(id) => {
+                        setQueueStore("items", (items) => items.filter((x) => x.id !== id))
+                      }}
+                      onClearAll={() => {
+                        setQueueStore("items", [])
+                      }}
+                    />
+                  </Show>
+                  <Show when={visible()}>
+                    <pluginRuntime.Slot
+                      name="session_prompt"
                       mode="replace"
                       session_id={route.sessionID}
                       visible={visible()}
@@ -1735,9 +1724,7 @@ export function Session() {
                           toBottom()
                         }}
                         sessionID={route.sessionID}
-                        shouldQueue={() =>
-                          sessionWorking() && !disabled() && !session()?.parentID
-                        }
+                        shouldQueue={() => sessionWorking() && !disabled() && !session()?.parentID}
                         onQueue={(draft) => {
                           setQueueStore("items", (items) => [...items, draft])
                           setQueueStore("failed", undefined)
@@ -1748,8 +1735,8 @@ export function Session() {
                     </pluginRuntime.Slot>
                   </Show>
                 </box>
-            </Show>
-            <Toast />
+              </Show>
+              <Toast />
             </box>
           </box>
         </box>
@@ -1758,12 +1745,7 @@ export function Session() {
   )
 }
 
-function UserMessage(props: {
-  message: UserMessage
-  parts: Part[]
-  onMouseUp: () => void
-  index: number
-}) {
+function UserMessage(props: { message: UserMessage; parts: Part[]; onMouseUp: () => void; index: number }) {
   const ctx = use()
   const local = useLocal()
   const text = createMemo(() => {
@@ -1819,7 +1801,13 @@ function UserMessage(props: {
                 那会把气泡撑满整列,右对齐就失效;去掉后气泡按文字自然宽度收缩,长文本到 70% 才折行。 */}
             <text fg={theme.text}>{text()}</text>
             <Show when={files().length}>
-              <box flexDirection="row" paddingBottom={ctx.showTimestamps() ? 1 : 0} paddingTop={1} gap={1} flexWrap="wrap">
+              <box
+                flexDirection="row"
+                paddingBottom={ctx.showTimestamps() ? 1 : 0}
+                paddingTop={1}
+                gap={1}
+                flexWrap="wrap"
+              >
                 <For each={files()}>
                   {(file) => {
                     const directory = file.mime === "application/x-directory"
@@ -1837,22 +1825,14 @@ function UserMessage(props: {
             </Show>
             <Show when={ctx.showTimestamps()}>
               <text fg={theme.textMuted}>
-                <span style={{ fg: theme.textMuted }}>
-                  {Locale.todayTimeOrDateTime(props.message.time.created)}
-                </span>
+                <span style={{ fg: theme.textMuted }}>{Locale.todayTimeOrDateTime(props.message.time.created)}</span>
               </text>
             </Show>
           </box>
         </box>
       </Show>
       <Show when={compaction()}>
-        <box
-          marginTop={1}
-          border={["top"]}
-          title=" 压缩 "
-          titleAlignment="center"
-          borderColor={theme.borderActive}
-        />
+        <box marginTop={1} border={["top"]} title=" 压缩 " titleAlignment="center" borderColor={theme.borderActive} />
       </Show>
     </>
   )
@@ -2264,7 +2244,12 @@ function GenericTool(props: ToolProps) {
     <Show
       when={props.output && ctx.showGenericToolOutput()}
       fallback={
-        <InlineTool pending="正在执行命令..." complete={true} part={props.part} label={{ name: name(), params: toolParams(props.input) }} />
+        <InlineTool
+          pending="正在执行命令..."
+          complete={true}
+          part={props.part}
+          label={{ name: name(), params: toolParams(props.input) }}
+        />
       }
     >
       <BlockTool
@@ -2361,7 +2346,11 @@ function InlineTool(props: {
         props.onClick?.()
       }}
     >
-      {props.label ? <ToolLabel name={props.label.name} params={props.label.params} failed={failed()} errorColor={theme.error} /> : props.children}
+      {props.label ? (
+        <ToolLabel name={props.label.name} params={props.label.params} failed={failed()} errorColor={theme.error} />
+      ) : (
+        props.children
+      )}
     </InlineToolRow>
   )
 }
@@ -2421,7 +2410,11 @@ export function InlineToolRow(props: {
                     颜色/帧由外面注入,拿不到就退回 ● 占位 */}
                 <Show
                   when={props.pendingSpinner}
-                  fallback={<text paddingLeft={3} fg={props.color}>● {props.pending}</text>}
+                  fallback={
+                    <text paddingLeft={3} fg={props.color}>
+                      ● {props.pending}
+                    </text>
+                  }
                 >
                   {(def) => (
                     <box paddingLeft={3} flexDirection="row" gap={1}>
@@ -2470,9 +2463,7 @@ function ToolLabel(props: { name: string; params?: string; failed?: boolean; err
   return (
     <>
       <span style={{ fg: fg() }}>{props.name}</span>
-      <Show when={props.params}>
-        {(params) => <span style={{ fg: fg() }}> {params()}</span>}
-      </Show>
+      <Show when={props.params}>{(params) => <span style={{ fg: fg() }}> {params()}</span>}</Show>
     </>
   )
 }
@@ -2677,10 +2668,7 @@ function Read(props: ToolProps) {
         part={props.part}
         label={{
           name: "读取",
-          params: [
-            pathFormatter.format(stringValue(props.input.filePath)),
-            toolParams(props.input, ["filePath"]),
-          ]
+          params: [pathFormatter.format(stringValue(props.input.filePath)), toolParams(props.input, ["filePath"])]
             .filter(Boolean)
             .join(" "),
         }}
@@ -3058,7 +3046,13 @@ function ApplyPatch(props: ToolProps) {
         </For>
       </Match>
       <Match when={true}>
-        <InlineTool pending="正在准备补丁..." failure="补丁失败" complete={false} part={props.part} label={{ name: "补丁" }} />
+        <InlineTool
+          pending="正在准备补丁..."
+          failure="补丁失败"
+          complete={false}
+          part={props.part}
+          label={{ name: "补丁" }}
+        />
       </Match>
     </Switch>
   )
@@ -3076,12 +3070,7 @@ function TodoWrite(props: ToolProps) {
         </BlockTool>
       </Match>
       <Match when={true}>
-        <InlineTool
-          pending="正在更新待办事项..."
-          failure="待办事项更新失败"
-          complete={false}
-          part={props.part}
-        >
+        <InlineTool pending="正在更新待办事项..." failure="待办事项更新失败" complete={false} part={props.part}>
           更新待办事项中...
         </InlineTool>
       </Match>
@@ -3117,7 +3106,12 @@ function Question(props: ToolProps) {
         </BlockTool>
       </Match>
       <Match when={true}>
-        <InlineTool pending="提问中..." complete={count()} part={props.part} label={{ name: "提问", params: `${count()} 个问题` }} />
+        <InlineTool
+          pending="提问中..."
+          complete={count()}
+          part={props.part}
+          label={{ name: "提问", params: `${count()} 个问题` }}
+        />
       </Match>
     </Switch>
   )

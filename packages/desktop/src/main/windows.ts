@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 import type { FloatingPanelTab, TitlebarTheme } from "../preload/types"
 import { LOCAL_FILE_HOST, LOCAL_FILE_PROTOCOL, RENDERER_HOST, RENDERER_PROTOCOL } from "../shared/protocol"
 import { getLogger } from "./logging"
+import { INSPECTOR_PATH, INSPECTOR_SOURCE } from "./preview-inspector"
 import { getStore } from "./store"
 
 const root = dirname(fileURLToPath(import.meta.url))
@@ -525,7 +526,10 @@ export function registerRendererProtocol() {
 export function registerLocalFileProtocol() {
   if (protocol.isProtocolHandled(LOCAL_FILE_PROTOCOL)) return
 
-  protocol.handle(LOCAL_FILE_PROTOCOL, (request) => {
+  protocol.handle(LOCAL_FILE_PROTOCOL, async (request) => {
+    const inspector = inspectorResponse(request.url)
+    if (inspector) return inspector
+
     // 协议 handler 必须返回 Response：抛错会变成 ERR_UNEXPECTED，iframe 会反复加载
     const file = resolveLocalFileTarget(request.url)
     if (!file) {
@@ -537,8 +541,137 @@ export function registerLocalFileProtocol() {
       getLogger().warn("[oc-file] 本地文件预览未找到", { request: request.url, file })
       return new Response("Not found", { status: 404 })
     }
-    return net.fetch(pathToFileURL(file).toString())
+    return withInspector(await net.fetch(pathToFileURL(file).toString()), file)
   })
+}
+
+/** 元素选取脚本的下发端点。返回 undefined 表示不是这个端点，继续按本地文件处理 */
+function inspectorResponse(requestUrl: string): Response | undefined {
+  try {
+    if (new URL(requestUrl).pathname !== INSPECTOR_PATH) return undefined
+  } catch {
+    return undefined
+  }
+  return new Response(INSPECTOR_SOURCE, {
+    status: 200,
+    headers: {
+      "content-type": "text/javascript; charset=utf-8",
+      "cache-control": "no-store",
+      // oc-file 对 dev server 页面是跨源的，开启 COEP 的页面没有这个头会拒绝加载
+      "cross-origin-resource-policy": "cross-origin",
+      "access-control-allow-origin": "*",
+    },
+  })
+}
+
+/** 渲染进程上报的预览地址源。只有这个源发出的文档请求才会被改写，其余 http 流量原样透传 */
+let previewOrigin = ""
+let previewHttpRegistered = false
+
+export function setPreviewInspectorOrigin(origin: string) {
+  previewOrigin = origin || ""
+}
+
+/** dev server 预览是跨源 iframe，本地协议塞不进去，只能在网络层改文档响应。
+ *  只有渲染进程上报的那个源的文档会被改写，SSE 这类非 HTML 响应走透传分支，保持流式。
+ *  handler 一旦抛错会让整个页面的 http 请求全断，所以任何异常都必须兜底回透传。 */
+export function registerPreviewHttpProtocol() {
+  if (previewHttpRegistered) return
+  previewHttpRegistered = true
+
+  for (const scheme of ["http", "https"]) {
+    try {
+      protocol.handle(scheme, handlePreviewScheme)
+    } catch (error) {
+      getLogger().warn("[preview] 无法接管该协议，对应预览不支持选取元素", { scheme, error })
+    }
+  }
+}
+
+async function handlePreviewScheme(request: Request): Promise<Response> {
+  try {
+    if (!previewOrigin || request.method !== "GET" || requestOrigin(request) !== previewOrigin) {
+      return passThrough(request)
+    }
+
+    const response = await passThrough(request)
+    if (!isHtmlResponse(response, request.url)) return response
+    return rewriteHtml(response, true)
+  } catch (error) {
+    getLogger().warn("[preview] 预览文档改写失败，原样透传", { request: request.url, error })
+    return passThrough(request)
+  }
+}
+
+/** net.fetch 默认会再次触发 protocol handler，透传必须显式绕过，否则会无限递归 */
+function passThrough(request: Request): Promise<Response> {
+  return net.fetch(request, { bypassCustomProtocolHandlers: true })
+}
+
+function requestOrigin(request: Request): string {
+  try {
+    return new URL(request.url).origin
+  } catch {
+    return ""
+  }
+}
+
+/** 改 HTML 文档：注入选取脚本。内容被改写后原来的长度与压缩头都失效，必须一并清掉。
+ *  stripCsp 用于跨源预览 —— 注入脚本来自 oc-file，dev server 的 script-src 'self' 会拦掉它，
+ *  文档既已改写，CSP 也必须一起去掉 */
+async function rewriteHtml(response: Response, stripCsp: boolean): Promise<Response> {
+  const body = Buffer.from(await response.arrayBuffer())
+  const headers = new Headers(response.headers)
+  headers.delete("content-length")
+  headers.delete("content-encoding")
+  headers.set("cache-control", "no-store")
+  if (stripCsp) {
+    headers.delete("content-security-policy")
+    headers.delete("content-security-policy-report-only")
+  }
+  return new Response(injectInspectorTag(body), {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  })
+}
+
+/** 只在 HTML 文档上注入选取脚本，其它资源原样透传 */
+async function withInspector(response: Response, file: string): Promise<Response> {
+  if (!isHtmlResponse(response, file)) return response
+  return rewriteHtml(response, false)
+}
+
+/** source 是本地文件路径或请求地址；带查询串时扩展名判断要放行分隔符 */
+function isHtmlResponse(response: Response, source: string): boolean {
+  if (/\.(?:x?html?)(?:[?#]|$)/i.test(source)) return true
+  return (response.headers.get("content-type") ?? "").includes("text/html")
+}
+
+/** 把 <script src> 拼进文档。latin1 与字节一一对应，解码只为做大小写不敏感的
+ * 标签查找，拼回去按字节，所以 GBK 这类非 UTF-8 编码的文档不会被改坏。
+ * 返回 Uint8Array 而非 Buffer：Buffer 的底层 ArrayBuffer 可能被池化带偏移，不能直接当 BodyInit */
+function injectInspectorTag(body: Buffer): Uint8Array<ArrayBuffer> {
+  const tag = `<script src="${LOCAL_FILE_PROTOCOL}://${LOCAL_FILE_HOST}${INSPECTOR_PATH}"></script>`
+  const text = body.toString("latin1")
+  const splice = (offset: number): Uint8Array<ArrayBuffer> =>
+    toBytes(`${text.slice(0, offset)}${tag}${text.slice(offset)}`)
+
+  const closing = text.match(/<\/body\s*>/i)
+  if (closing?.index !== undefined) return splice(closing.index)
+
+  const opening = text.match(/<body[^>]*>/i)
+  if (opening?.index !== undefined) return splice(opening.index + opening[0].length)
+
+  return toBytes(`${tag}${text}`)
+}
+
+function toBytes(text: string): Uint8Array<ArrayBuffer> {
+  const buffer = Buffer.from(text, "latin1")
+  // 必须落在新建的 ArrayBuffer 上：ArrayBufferLike（可能是池化视图）不满足 BodyInit 的类型
+  const bytes = new Uint8Array(new ArrayBuffer(buffer.byteLength))
+  bytes.set(buffer)
+  return bytes
 }
 
 function resolveLocalFileTarget(requestUrl: string): string | undefined {

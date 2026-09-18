@@ -16,7 +16,7 @@ afterEach(() => {
 })
 
 // 一条真实形状的多行 bash:heredoc 提交信息。模型天天生成这种东西。
-const MULTILINE_COMMAND = 'git commit -m "$(cat <<\'EOF\'\nfix: 修一下\n\n第二段说明\nEOF\n)"'
+const MULTILINE_COMMAND = "git commit -m \"$(cat <<'EOF'\nfix: 修一下\n\n第二段说明\nEOF\n)\""
 
 function TwoRows(props: { command: string }) {
   return (

@@ -20,12 +20,8 @@ const CreateParams = Schema.Struct({
   title: Schema.String.annotate({ description: "目标标题" }),
   description: Schema.optional(Schema.String.annotate({ description: "目标描述" })),
   parentId: Schema.optional(Schema.String.annotate({ description: "父目标ID" })),
-  priority: Schema.optional(
-    Schema.Literals(["high", "medium", "low"]).annotate({ description: "优先级" }),
-  ),
-  successCriteria: Schema.optional(
-    Schema.mutable(Schema.Array(Schema.String)).annotate({ description: "成功标准" }),
-  ),
+  priority: Schema.optional(Schema.Literals(["high", "medium", "low"]).annotate({ description: "优先级" })),
+  successCriteria: Schema.optional(Schema.mutable(Schema.Array(Schema.String)).annotate({ description: "成功标准" })),
   deadline: Schema.optional(Schema.String.annotate({ description: "截止日期 ISO 格式" })),
   tags: Schema.optional(Schema.mutable(Schema.Array(Schema.String)).annotate({ description: "标签" })),
 })
@@ -40,12 +36,8 @@ const UpdateParams = Schema.Struct({
       description: "目标状态",
     }),
   ),
-  priority: Schema.optional(
-    Schema.Literals(["high", "medium", "low"]).annotate({ description: "优先级" }),
-  ),
-  successCriteria: Schema.optional(
-    Schema.mutable(Schema.Array(Schema.String)).annotate({ description: "成功标准" }),
-  ),
+  priority: Schema.optional(Schema.Literals(["high", "medium", "low"]).annotate({ description: "优先级" })),
+  successCriteria: Schema.optional(Schema.mutable(Schema.Array(Schema.String)).annotate({ description: "成功标准" })),
   deadline: Schema.optional(Schema.String.annotate({ description: "截止日期 ISO 格式" })),
   tags: Schema.optional(Schema.mutable(Schema.Array(Schema.String)).annotate({ description: "标签" })),
 })
@@ -69,14 +61,7 @@ const DecomposeParams = Schema.Struct({
   goalId: Schema.String.annotate({ description: "目标ID" }),
 })
 
-const Parameters = Schema.Union([
-  CreateParams,
-  UpdateParams,
-  ListParams,
-  GetParams,
-  ProgressParams,
-  DecomposeParams,
-])
+const Parameters = Schema.Union([CreateParams, UpdateParams, ListParams, GetParams, ProgressParams, DecomposeParams])
 
 type Metadata = {
   goalId?: string
@@ -142,9 +127,7 @@ export const GoalTool = Tool.define<typeof Parameters, Metadata, Goal.Service | 
                   metadata: { action: "list" },
                 }
               }
-              const output = goals
-                .map((g) => `${g.id}: ${g.title} [${g.status}] ${g.progress}%`)
-                .join("\n")
+              const output = goals.map((g) => `${g.id}: ${g.title} [${g.status}] ${g.progress}%`).join("\n")
               return {
                 title: `目标列表 (${goals.length} 个)`,
                 output,

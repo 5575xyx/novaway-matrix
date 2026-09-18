@@ -36,3 +36,26 @@ export function normalizePreviewUrl(input: string): string | undefined {
   if (path.includes("://")) return undefined
   return parsePreviewUrl(`file:///${path.startsWith("/") ? path.slice(1) : path}`)?.toString()
 }
+
+/** 预览地址是 file:// 时取回本机绝对路径：元素选取要把选中的元素挂到这个文件上 */
+export function previewFilePath(input: string): string | undefined {
+  // 必须形态完整：file:bad 这类残缺输入会被 URL 解析成垃圾路径
+  if (!/^file:\/\//.test(input)) return undefined
+
+  let pathname: string
+  try {
+    pathname = new URL(input).pathname
+  } catch {
+    return undefined
+  }
+  if (!pathname) return undefined
+
+  // file:///C:/x 是 Windows 盘符，前导斜杠属于协议；POSIX 路径的斜杠是路径本身
+  const value = /^\/[A-Za-z]:/.test(pathname) ? pathname.slice(1) : pathname
+
+  try {
+    return decodeURIComponent(value) || undefined
+  } catch {
+    return value || undefined
+  }
+}

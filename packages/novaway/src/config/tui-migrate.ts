@@ -113,9 +113,7 @@ async function backupAndStripLegacy(file: string, source: string) {
 }
 
 async function NovaWayFiles(input: { directories: string[]; cwd: string }) {
-  const files = [
-    ...ConfigPaths.fileInDirectory(Global.Path.config, "novaway"),
-  ]
+  const files = [...ConfigPaths.fileInDirectory(Global.Path.config, "novaway")]
   for (const dir of unique(input.directories)) {
     files.push(...ConfigPaths.fileInDirectory(dir, "novaway"))
   }

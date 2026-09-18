@@ -51,9 +51,7 @@ const DB_TYPES: Array<{ value: string; label: string; port: string }> = [
 ]
 
 function previewRow(row: string[]): string {
-  const cells = row
-    .slice(0, PREVIEW_CELL_MAX)
-    .map((cell) => Locale.oneLine(cell, CELL_MAX))
+  const cells = row.slice(0, PREVIEW_CELL_MAX).map((cell) => Locale.oneLine(cell, CELL_MAX))
   const more = row.length > PREVIEW_CELL_MAX ? ` …${row.length - PREVIEW_CELL_MAX}列` : ""
   return Locale.oneLine(cells.join(" · ") + more, PREVIEW_MAX)
 }
@@ -299,18 +297,32 @@ export function DbPanel(props: { directory?: string }) {
     // 表头 + 分隔行之后的数据行,每行压成 "单元格 · 单元格" 预览
     const separatorIndex = lines.findIndex((line) => /^\s*\|(\s*[-:]+\s*\|)+$/.test(line))
     const headerLine = lines.find((line) => line.includes("|"))!
-    const headers = headerLine.split("|").slice(1, -1).map((cell) => cell.trim())
+    const headers = headerLine
+      .split("|")
+      .slice(1, -1)
+      .map((cell) => cell.trim())
     const dataLines = separatorIndex === -1 ? lines.slice(1) : lines.slice(separatorIndex + 1)
     const rows = dataLines
       .filter((line) => line.includes("|"))
-      .map((line) => line.split("|").slice(1, -1).map((cell) => cell.trim()))
+      .map((line) =>
+        line
+          .split("|")
+          .slice(1, -1)
+          .map((cell) => cell.trim()),
+      )
     const shown = rows.slice(0, p.rowMax)
     return (
       <box flexDirection="column">
         <text fg={theme.text} wrapMode="none" attributes={TextAttributes.BOLD}>
           {previewRow(headers)}
         </text>
-        <For each={shown}>{(row) => <text fg={theme.textMuted} wrapMode="none">{previewRow(row)}</text>}</For>
+        <For each={shown}>
+          {(row) => (
+            <text fg={theme.textMuted} wrapMode="none">
+              {previewRow(row)}
+            </text>
+          )}
+        </For>
         <Show when={rows.length > shown.length}>
           <text fg={theme.textMuted}>… 还有 {rows.length - shown.length} 行</text>
         </Show>
@@ -329,7 +341,10 @@ export function DbPanel(props: { directory?: string }) {
           </text>
         </box>
         <Show when={!loading()} fallback={<text fg={theme.textMuted}>读取连接中...</text>}>
-          <Show when={connections().length > 0} fallback={<text fg={theme.textMuted}>暂无连接,点上方"+ 添加连接"</text>}>
+          <Show
+            when={connections().length > 0}
+            fallback={<text fg={theme.textMuted}>暂无连接,点上方"+ 添加连接"</text>}
+          >
             <For each={connections()}>
               {(connection) => {
                 const dbKey = treeKey(["databases", connection.name])
@@ -373,7 +388,10 @@ export function DbPanel(props: { directory?: string }) {
                                           when={!loadingNodes()[tableKey]}
                                           fallback={<text fg={theme.textMuted}>读取表列表...</text>}
                                         >
-                                          <Show when={tableList().length > 0} fallback={<text fg={theme.textMuted}>暂无表</text>}>
+                                          <Show
+                                            when={tableList().length > 0}
+                                            fallback={<text fg={theme.textMuted}>暂无表</text>}
+                                          >
                                             <For each={tableList()}>
                                               {(table) => {
                                                 const active = () =>
@@ -384,9 +402,7 @@ export function DbPanel(props: { directory?: string }) {
                                                   <text
                                                     wrapMode="none"
                                                     fg={active() ? theme.primary : theme.textMuted}
-                                                    onMouseUp={() =>
-                                                      void selectTable(connection.name, database, table)
-                                                    }
+                                                    onMouseUp={() => void selectTable(connection.name, database, table)}
                                                   >
                                                     {active() ? "▪ " : "· "}
                                                     {Locale.oneLine(table, PREVIEW_MAX - 2)}
@@ -418,10 +434,7 @@ export function DbPanel(props: { directory?: string }) {
           {(target) => (
             <box flexDirection="column" gap={1}>
               <box flexDirection="row" gap={2}>
-                <text
-                  fg={view() === "data" ? theme.primary : theme.textMuted}
-                  onMouseUp={() => setView("data")}
-                >
+                <text fg={view() === "data" ? theme.primary : theme.textMuted} onMouseUp={() => setView("data")}>
                   数据
                 </text>
                 <text
@@ -442,9 +455,7 @@ export function DbPanel(props: { directory?: string }) {
                       when={selectedColumns().length > 0}
                       fallback={
                         <text fg={theme.textMuted}>
-                          {loadingNodes()[
-                            treeKey(["columns", target().connection, target().database, target().table])
-                          ]
+                          {loadingNodes()[treeKey(["columns", target().connection, target().database, target().table])]
                             ? "读取列信息..."
                             : "暂无列信息"}
                         </text>

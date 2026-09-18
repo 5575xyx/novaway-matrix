@@ -43,9 +43,7 @@ export const projectHandlers = HttpApiBuilder.group(InstanceHttpApi, "project", 
     // text/html，SDK 拦截器直接抛错，TUI 根本渲染不出来。
     // 顺序有意义：TUI 取 `list.findLast(item => item.strategy === undefined).directory` 当主目录，
     // 所以主 worktree 必须排在最后。
-    const directories = Effect.fn("ProjectHttpApi.directories")(function* (ctx: {
-      params: { projectID: ProjectID }
-    }) {
+    const directories = Effect.fn("ProjectHttpApi.directories")(function* (ctx: { params: { projectID: ProjectID } }) {
       const project = yield* svc.get(ctx.params.projectID)
       if (!project) return yield* Effect.fail(new HttpApiError.BadRequest())
       const sandboxes = yield* svc.sandboxes(ctx.params.projectID)

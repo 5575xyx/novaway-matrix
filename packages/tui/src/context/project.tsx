@@ -50,7 +50,9 @@ export const { use: useProject, provider: ProjectProvider } = createSimpleContex
         setStore("project", "worktree", project.data?.worktree)
 
         const list = Array.isArray(directories) ? directories : directories?.data
-        const mainDir = Array.isArray(list) ? list.findLast((item) => item.strategy === undefined)?.directory : undefined
+        const mainDir = Array.isArray(list)
+          ? list.findLast((item) => item.strategy === undefined)?.directory
+          : undefined
         setStore("project", "mainDir", mainDir)
       })
     }

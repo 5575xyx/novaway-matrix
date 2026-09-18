@@ -41,14 +41,7 @@ export function QueueDock(props: QueueDockProps) {
       customBorderChars={SplitBorder.customBorderChars}
       flexShrink={0}
     >
-      <box
-        paddingTop={1}
-        paddingBottom={1}
-        paddingLeft={2}
-        paddingRight={1}
-        gap={1}
-        flexShrink={0}
-      >
+      <box paddingTop={1} paddingBottom={1} paddingLeft={2} paddingRight={1} gap={1} flexShrink={0}>
         {/* 标题行：图标 + 条数 + 预览/提示 + 折叠按钮 */}
         <box
           flexDirection="row"
@@ -69,11 +62,15 @@ export function QueueDock(props: QueueDockProps) {
           </text>
           <Show when={props.collapsed}>
             <Show when={preview()}>
-              <text fg={theme.textMuted} wrapMode="none">· {preview()}</text>
+              <text fg={theme.textMuted} wrapMode="none">
+                · {preview()}
+              </text>
             </Show>
           </Show>
           <Show when={!props.collapsed}>
-            <text fg={theme.textMuted} wrapMode="none">将按顺序自动发送</text>
+            <text fg={theme.textMuted} wrapMode="none">
+              将按顺序自动发送
+            </text>
           </Show>
           <box flexGrow={1} />
           <text fg={theme.textMuted} wrapMode="none">
@@ -96,9 +93,7 @@ export function QueueDock(props: QueueDockProps) {
                     paddingRight={1}
                     paddingTop={1}
                     paddingBottom={1}
-                    backgroundColor={
-                      isSending() ? theme.backgroundElement : theme.backgroundPanel
-                    }
+                    backgroundColor={isSending() ? theme.backgroundElement : theme.backgroundPanel}
                     border={isLast() ? ["top"] : undefined}
                     borderColor={theme.border}
                     customBorderChars={SplitBorder.customBorderChars}
@@ -106,20 +101,11 @@ export function QueueDock(props: QueueDockProps) {
                     onMouseOver={() => setHover(`edit-${item.id}`)}
                     onMouseOut={() => setHover(null)}
                   >
-                    <text
-                      fg={
-                        index() === 0 ? theme.secondary : theme.textMuted
-                      }
-                      wrapMode="none"
-                    >
+                    <text fg={index() === 0 ? theme.secondary : theme.textMuted} wrapMode="none">
                       {index() + 1}
                     </text>
                     <text fg={theme.text} flexGrow={1}>
-                      {isSending() ? (
-                        <span style={{ fg: theme.secondary }}>发送中…</span>
-                      ) : (
-                        draftPreview(item, 80)
-                      )}
+                      {isSending() ? <span style={{ fg: theme.secondary }}>发送中…</span> : draftPreview(item, 80)}
                     </text>
                     <Show when={!isSending()}>
                       <box
@@ -146,9 +132,7 @@ export function QueueDock(props: QueueDockProps) {
                         }}
                         onMouseOver={() => setHover(`del-${item.id}`)}
                         onMouseOut={() => setHover(null)}
-                        backgroundColor={
-                          hover() === `del-${item.id}` ? theme.backgroundElement : theme.backgroundPanel
-                        }
+                        backgroundColor={hover() === `del-${item.id}` ? theme.backgroundElement : theme.backgroundPanel}
                         paddingLeft={1}
                         paddingRight={1}
                       >

@@ -71,7 +71,11 @@ function View(props: { api: TuiPluginApi; session_id: string }) {
       <text fg={theme().textMuted}>{state().tokens.toLocaleString()} tokens</text>
       <text fg={theme().textMuted}>{state().percent ?? 0}% 已使用</text>
       <Show when={hitRateText()}>
-        {(text) => <text fg={theme().textMuted}>缓存命中 {text()} · {cache().calls} 次</text>}
+        {(text) => (
+          <text fg={theme().textMuted}>
+            缓存命中 {text()} · {cache().calls} 次
+          </text>
+        )}
       </Show>
       <text fg={theme().textMuted}>{money.format(cost())} 已花费</text>
     </box>

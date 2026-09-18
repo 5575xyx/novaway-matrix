@@ -6,10 +6,10 @@
 
 打开安装目录（默认 `%LocalAppData%\Programs\NovaWay`）：
 
-| 看到 | 说明 |
-|---|---|
+| 看到                                                                                 | 说明                                                    |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------- |
 | 只有 `locales/`、`resources/`、`chrome_*.pak`、`icudtl.dat`、`Uninstall NovaWay.exe` | **中招了**：Defender 把 `NovaWay.exe` 和所有 DLL 隔离了 |
-| 完整列出 `NovaWay.exe`、`ffmpeg.dll`、`*.dll`、`v8_context_snapshot.bin` 等 | 不是这个问题，去看 [故障排查](#其他情况) |
+| 完整列出 `NovaWay.exe`、`ffmpeg.dll`、`*.dll`、`v8_context_snapshot.bin` 等          | 不是这个问题，去看 [故障排查](#其他情况)                |
 
 ## 为什么会这样
 
@@ -65,12 +65,12 @@ Microsoft Defender SmartScreen 阻止了无法识别的应用启动...
 
 ## 为什么我们暂时不签正式证书
 
-| 方案 | 优点 | 缺点 | 状态 |
-|---|---|---|---|
-| **自签证书**（当前 CI 行为） | 零成本，立竿见影让大多数 Defender 不再主动 quarantine | 部分企业环境 / 严格 Defender 策略仍会拦；SmartScreen 仍弹蓝屏 | ✅ 已加 |
-| **Azure Trusted Signing** | 微软官方 EV 替代，SmartScreen 即时获信誉 | 需 Azure 订阅 + 三组 Secret；个人项目成本偏高 | 📋 路线图 |
-| **传统 EV 代码签名证书**（DigiCert/Sectigo） | 行业标准，所有环境都认 | 年费 $300-500，需硬件 token；个人开发者门槛高 | 📋 路线图 |
-| **把整个安装目录加 NSIS 脚本杀软排除** | 用户零操作 | 仍可能被 SmartScreen 拦；不能跨杀软 | ❌ 不做（不可靠） |
+| 方案                                         | 优点                                                  | 缺点                                                          | 状态              |
+| -------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------- | ----------------- |
+| **自签证书**（当前 CI 行为）                 | 零成本，立竿见影让大多数 Defender 不再主动 quarantine | 部分企业环境 / 严格 Defender 策略仍会拦；SmartScreen 仍弹蓝屏 | ✅ 已加           |
+| **Azure Trusted Signing**                    | 微软官方 EV 替代，SmartScreen 即时获信誉              | 需 Azure 订阅 + 三组 Secret；个人项目成本偏高                 | 📋 路线图         |
+| **传统 EV 代码签名证书**（DigiCert/Sectigo） | 行业标准，所有环境都认                                | 年费 $300-500，需硬件 token；个人开发者门槛高                 | 📋 路线图         |
+| **把整个安装目录加 NSIS 脚本杀软排除**       | 用户零操作                                            | 仍可能被 SmartScreen 拦；不能跨杀软                           | ❌ 不做（不可靠） |
 
 短期方案让用户用上面三步自处理；正式证书等团队决定预算后再上。
 
@@ -89,3 +89,14 @@ Microsoft Defender SmartScreen 阻止了无法识别的应用启动...
 - [electron-builder 代码签名文档](https://www.electron.build/code-signing.html)
 - [Microsoft SmartScreen 行为说明](https://learn.microsoft.com/windows/security/identity-protection/virus-and-threat-protection/microsoft-defender-smartscreen/)
 - [Azure Trusted Signing 申请](https://learn.microsoft.com/azure/trusted-signing/overview)
+
+## 已知架构:Windows ARM64 用户的额外说明
+
+如果你是 **Surface Pro 11 / Snapdragon X Elite / Copilot+ PC** 等 Windows ARM64 设备,下载 `novaway-desktop-win-x64.exe` 会弹出 **"此应用无法在你的电脑上运行"**(PE 头不匹配),因为该包是 x64 架构,x64 包在 ARM64 上靠 Prism 转译运行,但 Electron 42 + 自签未签名 + 新设备的多重组合下,部分 ARM64 设备直接拒绝启动。
+
+**下载对应的 ARM64 包**:`novaway-desktop-win-arm64.exe`(CI 已从 2026-09 起同时出 x64 和 arm64 两份 Release 资产)。
+
+如何确认自己是不是 ARM64:
+
+- `设置` → `系统` → `系统信息` → `系统类型` 看是"基于 x64 的电脑"还是"基于 ARM 的电脑"
+- 或在 PowerShell 跑:`(Get-CimInstance Win32_Processor).Architecture`,9 = x64,12 = ARM64

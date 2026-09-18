@@ -59,7 +59,12 @@ export const goalApi = {
     if (res.error) return []
     return (res.data as GoalItem[]) ?? []
   },
-  async create(client: NovawayClient, sessionID: string, title: string, priority: "high" | "medium" | "low" = "medium"): Promise<boolean> {
+  async create(
+    client: NovawayClient,
+    sessionID: string,
+    title: string,
+    priority: "high" | "medium" | "low" = "medium",
+  ): Promise<boolean> {
     const res = await raw(client).post({ url: `/session/${sessionID}/goals`, body: { title, priority } })
     return !res.error
   },
@@ -121,7 +126,12 @@ export const workflowApi = {
     if (res.error) return []
     return (res.data as WorkflowTemplateItem[]) ?? []
   },
-  async createFromTemplate(client: NovawayClient, sessionID: string, template: string, name?: string): Promise<boolean> {
+  async createFromTemplate(
+    client: NovawayClient,
+    sessionID: string,
+    template: string,
+    name?: string,
+  ): Promise<boolean> {
     const res = await raw(client).post({
       url: `/session/${sessionID}/workflows/from-template`,
       body: { template, ...(name ? { name } : {}) },

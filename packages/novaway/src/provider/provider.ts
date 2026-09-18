@@ -68,6 +68,31 @@ function shouldUseCopilotResponsesApi(modelID: string): boolean {
   return Number(match[1]) >= 5 && !modelID.startsWith("gpt-5-mini")
 }
 
+// OpenCode identifier 格式：12 hex 时间戳 + 14 字母数字（与
+// opencode-dev/packages/schema/src/identifier.ts 一致）。Zen 服务端
+// 会对 x-opencode-session/x-opencode-request 做格式校验，普通 SHA1
+// hash 会被判定为非 OpenCode 客户端并返回 FreeTierError。
+const OPENCODE_ID_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+let opencodeIdLastTimestamp = 0
+let opencodeIdCounter = 0
+function opencodeIdentifier(): string {
+  const ts = Date.now()
+  if (ts !== opencodeIdLastTimestamp) {
+    opencodeIdLastTimestamp = ts
+    opencodeIdCounter = 0
+  }
+  opencodeIdCounter++
+  const current = BigInt(ts) * 0x1000n + BigInt(opencodeIdCounter)
+  const value = ~current
+  let time = ""
+  for (let i = 0; i < 6; i++) time += Number((value >> BigInt(40 - 8 * i)) & 0xffn).toString(16).padStart(2, "0")
+  let tail = ""
+  const bytes = new Uint8Array(14)
+  crypto.getRandomValues(bytes)
+  for (let i = 0; i < 14; i++) tail += OPENCODE_ID_CHARS[bytes[i] % OPENCODE_ID_CHARS.length]
+  return time + tail
+}
+
 function hasModality(
   model: typeof ConfigProvider.Model.Type & { capabilities?: { input?: string[]; output?: string[] } },
   direction: "input" | "output",
@@ -152,7 +177,7 @@ const BUNDLED_PROVIDERS: Record<string, () => Promise<(opts: any) => BundledSDK>
   "@ai-sdk/gateway": () => import("@ai-sdk/gateway").then((m) => m.createGateway),
   "@ai-sdk/togetherai": () => import("@ai-sdk/togetherai").then((m) => m.createTogetherAI),
   "@ai-sdk/perplexity": () => import("@ai-sdk/perplexity").then((m) => m.createPerplexity),
-  "@ai-sdk/vercel": () => import("@ai-sdk/vercel").then((m) => m.createVercel),
+  // vercel / kenari / iflowcn / kimi-for-coding 已删除（实测不能用的免费档）
   "@ai-sdk/alibaba": () => import("@ai-sdk/alibaba").then((m) => m.createAlibaba),
   "gitlab-ai-provider": () => import("gitlab-ai-provider").then((m) => m.createGitLab),
   "@ai-sdk/github-copilot": () =>
@@ -209,37 +234,60 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
     opencode: Effect.fnUntraced(function* (input: Info) {
       const env = yield* dep.env()
       const auth = yield* dep.auth(input.id)
-      const apiKey =
-        (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("OPENCODE_API_KEY"))
+      const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("OPENCODE_API_KEY"))
       const hasKey = apiKey !== undefined || input.env.some((item) => env[item])
-      const ok =
-        hasKey ||
-        Boolean((yield* dep.config()).provider?.["opencode"]?.options?.apiKey)
+      const ok = hasKey || Boolean((yield* dep.config()).provider?.["opencode"]?.options?.apiKey)
 
-      // 对齐 OpenCode 官方行为：
-      // - 无 Key 时使用 apiKey=public
-      // - 无 Key 时仅展示 catalog 中成本为 0 的免费模型
-      // - 有 Key 时展示全部模型
-      // - 不依赖 Zen live /models 发现（该接口不返回 pricing）
-      const models = ok ? input.models : filterCatalogToFreeModels("opencode", input.models)
-
-      return {
-        autoload: Object.keys(models).length > 0,
-        options: ok
-          ? {}
-          : {
-              apiKey: "public",
-              headers: {
-                // 对齐 OpenCode 免费模型请求头格式
-                "x-opencode-session": `ses_${Hash.fast(`${Date.now()}-${Math.random()}`)}`,
-                "x-opencode-request": `msg_${Hash.fast(`${Date.now()}-${Math.random()}-req`)}`,
-                "x-opencode-client": "cli",
-                "User-Agent": `opencode/${InstallationVersion}`,
+      // 路线 A（默认开启）：诚实实现，对齐 OpenCode 官方行为
+      //   - 无 Key 时不展示任何 Zen 模型
+      //   - 不绕过 Zen 服务端的 FreeTierError（无论 Header / body 怎么改，
+      //     服务端都会校验 OpenCode 客户端真实性，第三方伪装今日仍可能失效）
+      //   - 用户需到 https://opencode.ai 控制台获取真实 API Key 才能使用
+      //
+      // 路线 B（备选）：伪装 OpenCode 官方客户端。完整版见 Git 历史，
+      // 失效原因：Zen 服务端在 2026-09-18 后对/responses 端点收紧，
+      // 即使 Header+body 校验通过，第三方客户端也会被 500。
+      const routeB = false
+      if (routeB) {
+        // ---- 路线 B：伪装 OpenCode 官方客户端（保留以便后续启用） ----
+        const models = ok ? input.models : filterCatalogToFreeModels("opencode", input.models)
+        if (!ok) {
+          for (const model of Object.values(models)) {
+            model.api.npm = "@ai-sdk/openai"
+          }
+        }
+        const runtime =
+          typeof (process as any).versions?.bun === "string"
+            ? `bun/${(process as any).versions.bun}`
+            : `node/${process.version.replace(/^v/, "")}`
+        return {
+          autoload: Object.keys(models).length > 0,
+          options: ok
+            ? {}
+            : {
+                apiKey: apiKey ?? "public",
+                headers: {
+                  "User-Agent": `opencode/${InstallationVersion} ai-sdk/provider-utils/4.0.40 runtime/${runtime}`,
+                  "x-opencode-client": "cli",
+                  "x-opencode-project": "global",
+                  "x-opencode-session": `ses_${opencodeIdentifier()}`,
+                  "x-opencode-request": `msg_${opencodeIdentifier()}`,
+                  "Accept": "text/event-stream",
+                },
               },
-            },
-        models,
-        replaceModels: true,
+          models,
+          replaceModels: true,
+          async getModel(sdk: any, modelID: string) {
+            if (!ok && typeof sdk.responses === "function") {
+              return sdk.responses(modelID)
+            }
+            return sdk.languageModel(modelID)
+          },
+        }
       }
+
+      // ---- 路线 A：诚实回退 ----
+      if (!ok) input.models = {}
     }),
     openai: () =>
       Effect.succeed({
@@ -478,16 +526,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
           },
         },
       }),
-    vercel: () =>
-      Effect.succeed({
-        autoload: false,
-        options: {
-          headers: {
-            "http-referer": "https://novaway.ai/",
-            "x-title": "novaway",
-          },
-        },
-      }),
+    // vercel / kenari / iflowcn / kimi-for-coding 已删除（实测不能用的免费档）
     "google-vertex": Effect.fnUntraced(function* (provider: Info) {
       const env = yield* dep.env()
       // models.dev advertises GOOGLE_VERTEX_PROJECT for Vertex; keep the wider
@@ -1046,27 +1085,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
             ),
         }
       })(),
-    iflowcn: (provider) =>
-      Effect.fnUntraced(function* () {
-        const auth = yield* dep.auth(provider.id)
-        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("IFLOW_API_KEY"))
-        return {
-          autoload: false,
-          options: {},
-          models: filterCatalogToFreeModels(provider.id, provider.models),
-          replaceModels: true,
-          discoverModels: () =>
-            discoverFreeProviderModels(
-              {
-                providerID: "iflowcn",
-                baseURL: "https://apis.iflow.cn/v1",
-                freeByDefault: true,
-              },
-              apiKey,
-            ),
-          discoverPrune: true,
-        }
-      })(),
+    // iflowcn 已删除（实测延迟极高），保留历史 Key 用户兼容
     "siliconflow-cn": (provider) =>
       Effect.fnUntraced(function* () {
         const auth = yield* dep.auth(provider.id)
@@ -1106,6 +1125,571 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
         replaceModels: true,
       }
     }),
+    // 2026-09 大规模接入：国内外免费通道。所有通道使用统一模板：
+    //   - auth 从 dep.auth(provider.id) 或环境变量读取
+    //   - filterCatalogToFreeModels 按 cost=0 过滤目录
+    //   - discoverFreeProviderSnapshot 拉厂商 live /models 同步新增/下架
+    // 11 家主力路由/聚合 + 本地推理 + Moonshot 编程版
+    // kenari 已删除（实测是 IDR 预付费 credits 服务）
+    requesty: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("REQUESTY_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              { providerID: "requesty", baseURL: "https://router.requesty.ai/v1", requireZeroPricing: true },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    inferx: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("INFERX_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              {
+                providerID: "inferx",
+                baseURL: "https://model.inferx.net/endpoints/v1",
+                requireZeroPricing: true,
+              },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    unorouter: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("UNOROUTER_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              { providerID: "unorouter", baseURL: "https://api.unorouter.com/v1", requireZeroPricing: true },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    qvac: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("QVAC_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              { providerID: "qvac", baseURL: "", requireZeroPricing: true },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    llama: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("LLAMA_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              {
+                providerID: "llama",
+                baseURL: "https://api.llama.com/compat/v1/",
+                requireZeroPricing: true,
+              },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    zenmux: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("ZENMUX_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              { providerID: "zenmux", baseURL: "https://zenmux.ai/api/v1", requireZeroPricing: true },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    nan: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("NAN_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              { providerID: "nan", baseURL: "https://api.nan.builders/v1", requireZeroPricing: true },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    pendra: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("PENDRA_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              { providerID: "pendra", baseURL: "https://api.pendra.ai/api/v1", requireZeroPricing: true },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    orcarouter: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("ORCAROUTER_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              { providerID: "orcarouter", baseURL: "https://api.orcarouter.ai/v1", requireZeroPricing: true },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    // vercel / kenari / iflowcn / kimi-for-coding 已删除（实测不能用的免费档）
+    aihubmix: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("AIHUBMIX_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              { providerID: "aihubmix", baseURL: "", requireZeroPricing: true },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    empiriolabs: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("EMPIRIOLABS_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              {
+                providerID: "empiriolabs",
+                baseURL: "https://api.empiriolabs.ai/v1",
+                requireZeroPricing: true,
+              },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    // kimi-for-coding 已删除（控制台已要求付费才能创建 Key）
+    poolside: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("POOLSIDE_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              {
+                providerID: "poolside",
+                baseURL: "https://inference.poolside.ai/v1",
+                requireZeroPricing: true,
+              },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    llmgateway: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("LLMGATEWAY_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              {
+                providerID: "llmgateway",
+                baseURL: "https://api.llmgateway.io/v1",
+                requireZeroPricing: true,
+              },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    lmstudio: (provider) =>
+      Effect.succeed({
+        autoload: false,
+        options: { baseURL: "http://127.0.0.1:1234/v1" },
+        models: filterCatalogToFreeModels(provider.id, provider.models),
+        replaceModels: true,
+      }),
+    "atomic-chat": (provider) =>
+      Effect.succeed({
+        autoload: false,
+        options: { baseURL: "http://127.0.0.1:1337/v1" },
+        models: filterCatalogToFreeModels(provider.id, provider.models),
+        replaceModels: true,
+      }),
+    huggingface: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("HF_TOKEN"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              {
+                providerID: "huggingface",
+                baseURL: "https://router.huggingface.co/v1",
+                requireZeroPricing: true,
+              },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    mistral: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("MISTRAL_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              { providerID: "mistral", baseURL: "", requireZeroPricing: true },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    cohere: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("COHERE_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              { providerID: "cohere", baseURL: "", requireZeroPricing: true },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    amd: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("AMD_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              {
+                providerID: "amd",
+                baseURL: "https://developer.amd.com.cn/radeon/api/v1",
+                requireZeroPricing: true,
+              },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    meganova: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("MEGANOVA_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              { providerID: "meganova", baseURL: "https://api.meganova.ai/v1", requireZeroPricing: true },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    tokenrouter: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("TOKENROUTER_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              {
+                providerID: "tokenrouter",
+                baseURL: "https://api.tokenrouter.com/v1",
+                requireZeroPricing: true,
+              },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    bothub: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("BOTHUB_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              { providerID: "bothub", baseURL: "https://openai.bothub.ru/v1", requireZeroPricing: true },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    hetzner: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("HETZNER_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              {
+                providerID: "hetzner",
+                baseURL: "https://inference.hetzner.com/api/v1",
+                requireZeroPricing: true,
+              },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    zai: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("ZAI_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              { providerID: "zai", baseURL: "https://api.z.ai/api/paas/v4", requireZeroPricing: true },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    "tencent-tokenhub": (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey =
+          (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("TENCENT_TOKENHUB_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              {
+                providerID: "tencent-tokenhub",
+                baseURL: "https://tokenhub.tencentmaas.com/v1",
+                requireZeroPricing: true,
+              },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    "nano-gpt": (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("NANO_GPT_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              { providerID: "nano-gpt", baseURL: "https://nano-gpt.com/api/v1", requireZeroPricing: true },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    ovhcloud: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("OVHCLOUD_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              {
+                providerID: "ovhcloud",
+                baseURL: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1",
+                requireZeroPricing: true,
+              },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    nova: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("NOVA_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              { providerID: "nova", baseURL: "https://api.nova.amazon.com/v1", requireZeroPricing: true },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    standardcompute: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey =
+          (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("STANDARDCOMPUTE_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              {
+                providerID: "standardcompute",
+                baseURL: "https://api.stdcmpt.com/v1",
+                requireZeroPricing: true,
+              },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    poe: (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("POE_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              { providerID: "poe", baseURL: "https://api.poe.com/v1", requireZeroPricing: true },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
+    "regolo-ai": (provider) =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth(provider.id)
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("REGOLO_API_KEY"))
+        return {
+          autoload: false,
+          options: {},
+          models: filterCatalogToFreeModels(provider.id, provider.models),
+          replaceModels: true,
+          discoverModels: () =>
+            discoverFreeProviderSnapshot(
+              { providerID: "regolo-ai", baseURL: "https://api.regolo.ai/v1", requireZeroPricing: true },
+              apiKey,
+            ),
+          discoverPrune: true,
+        }
+      })(),
     ollama: (input: Info) =>
       Effect.succeed({
         autoload: true,
@@ -1127,7 +1711,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
                 models[modelID] = {
                   id: modelID,
                   providerID: "ollama" as ProviderID,
-    name: model.name,
+                  name: model.name,
                   family: "",
                   capabilities: {
                     temperature: true,

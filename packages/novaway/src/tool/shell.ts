@@ -26,6 +26,10 @@ import { BashArity } from "@/permission/arity"
 export { Parameters } from "./shell/prompt"
 
 const MAX_METADATA_LENGTH = 30_000
+// 默认 2 分钟,够跑大多数检查、测试和构建。
+const DEFAULT_TIMEOUT_MS = 2 * 60 * 1000
+// 硬上限 30 分钟。模型传一个离谱的 timeout 不该把会话无限挂在工具调用上。
+const MAX_TIMEOUT_MS = 30 * 60 * 1000
 const CWD = new Set(["cd", "chdir", "popd", "pushd", "push-location", "set-location"])
 const FILES = new Set([
   ...CWD,
@@ -340,7 +344,6 @@ export const ShellTool = Tool.define(
     const trunc = yield* Truncate.Service
     const plugin = yield* Plugin.Service
     const flags = yield* RuntimeFlags.Service
-    const defaultTimeout = flags.bashDefaultTimeoutMs ?? 2 * 60 * 1000
 
     const cygpath = Effect.fn("ShellTool.cygpath")(function* (shell: string, text: string) {
       const lines = yield* spawner
@@ -601,7 +604,13 @@ export const ShellTool = Tool.define(
         const shell = Shell.acceptable(cfg.shell)
         const name = Shell.name(shell)
         const limits = yield* trunc.limits()
-        const prompt = ShellPrompt.render(name, process.platform, limits)
+        // 配置文件 > 环境变量 > 内置默认值;单次调用仍可用 timeout 参数覆盖。
+        const defaultTimeout = cfg.experimental?.bash_timeout ?? flags.bashDefaultTimeoutMs ?? DEFAULT_TIMEOUT_MS
+        const prompt = ShellPrompt.render(name, process.platform, {
+          ...limits,
+          timeoutMs: defaultTimeout,
+          maxTimeoutMs: MAX_TIMEOUT_MS,
+        })
         log.info("shell tool using shell", { shell })
 
         return {
@@ -616,7 +625,7 @@ export const ShellTool = Tool.define(
               if (params.timeout !== undefined && params.timeout < 0) {
                 throw new Error(`Invalid timeout value: ${params.timeout}. Timeout must be a positive number.`)
               }
-              const timeout = params.timeout ?? defaultTimeout
+              const timeout = Math.min(params.timeout ?? defaultTimeout, MAX_TIMEOUT_MS)
               const ps = Shell.ps(shell)
               yield* Effect.scoped(
                 Effect.gen(function* () {

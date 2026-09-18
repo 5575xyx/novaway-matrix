@@ -28,9 +28,7 @@ export function ensureOtuiAssets(): Promise<void> {
 async function run() {
   if (process.env.OTUI_ASSET_ROOT) return
   const map = await // @ts-expect-error — generated at build time
-  import("opencode-otui-assets.gen.ts")
-    .then((m) => m.default as Record<string, string>)
-    .catch(() => null)
+  import("opencode-otui-assets.gen.ts").then((m) => m.default as Record<string, string>).catch(() => null)
   if (!map) return // dev / node build: assets resolve from node_modules
 
   const root = path.join(Global.Path.cache, "otui-assets", InstallationVersion)

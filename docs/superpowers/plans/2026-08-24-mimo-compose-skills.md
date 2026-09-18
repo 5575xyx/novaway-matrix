@@ -4,7 +4,8 @@
 
 **Goal:** 实现 MiMo-Code 的 Compose 工作流编排和技能组合能力，使 NovaWay 支持多步骤工作流定义、执行、技能链和参数化技能。
 
-**Architecture:** 
+**Architecture:**
+
 - **Workflow 引擎**: 新增 WorkflowService，支持步骤定义、条件分支、并行执行、状态管理
 - **技能组合**: 扩展 SkillService，支持技能依赖、技能链、参数化技能
 - **编排器**: 新增 OrchestratorService，支持多代理协作、任务分发、结果聚合
@@ -17,6 +18,7 @@
 ## Task 1: 创建 Workflow 数据库表
 
 **Files:**
+
 - Create: `packages/NovaWay/src/workflow/workflow.sql.ts`
 - Modify: `packages/NovaWay/src/session/session.sql.ts` (导出新模块)
 
@@ -54,7 +56,7 @@ export const WorkflowTable = sqliteTable("workflow", {
   name: text().notNull(),
   description: text(),
   steps: text({ mode: "json" }).$type<WorkflowStep[]>().notNull(),
-  status: text("status").notNull().default("draft"),  // draft, running, paused, completed, failed
+  status: text("status").notNull().default("draft"), // draft, running, paused, completed, failed
   state: text({ mode: "json" }).$type<WorkflowState>(),
   created_at: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   updated_at: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
@@ -68,7 +70,7 @@ export const WorkflowRunTable = sqliteTable("workflow_run", {
   session_id: text("session_id")
     .notNull()
     .references(() => SessionTable.id, { onDelete: "cascade" }),
-  status: text("status").notNull().default("pending"),  // pending, running, completed, failed
+  status: text("status").notNull().default("pending"), // pending, running, completed, failed
   state: text({ mode: "json" }).$type<WorkflowState>(),
   error: text(),
   started_at: integer("started_at", { mode: "timestamp_ms" }),
@@ -95,6 +97,7 @@ git commit -m "feat(workflow): add workflow schema for compose workflows"
 ## Task 2: 实现 Workflow.Service
 
 **Files:**
+
 - Create: `packages/NovaWay/src/workflow/workflow.ts`
 
 - [ ] **Step 1: 创建 Workflow.Service 定义**
@@ -240,11 +243,7 @@ export const layer = Layer.effect(
       }),
 
       get: Effect.fn("WorkflowService.get")(function* (workflowId) {
-        const row = yield* db
-          .select()
-          .from(WorkflowTable)
-          .where(eq(WorkflowTable.id, workflowId))
-          .limit(1)
+        const row = yield* db.select().from(WorkflowTable).where(eq(WorkflowTable.id, workflowId)).limit(1)
 
         if (row.length === 0) return null
         return toWorkflow(row[0])
@@ -263,11 +262,7 @@ export const layer = Layer.effect(
           })
           .where(eq(WorkflowTable.id, input.workflowId))
 
-        const updated = yield* db
-          .select()
-          .from(WorkflowTable)
-          .where(eq(WorkflowTable.id, input.workflowId))
-          .limit(1)
+        const updated = yield* db.select().from(WorkflowTable).where(eq(WorkflowTable.id, input.workflowId)).limit(1)
 
         return toWorkflow(updated[0])
       }),
@@ -317,11 +312,7 @@ export const layer = Layer.effect(
       }),
 
       getRun: Effect.fn("WorkflowService.getRun")(function* (runId) {
-        const row = yield* db
-          .select()
-          .from(WorkflowRunTable)
-          .where(eq(WorkflowRunTable.id, runId))
-          .limit(1)
+        const row = yield* db.select().from(WorkflowRunTable).where(eq(WorkflowRunTable.id, runId)).limit(1)
 
         if (row.length === 0) return null
         return toRun(row[0])
@@ -348,11 +339,7 @@ export const layer = Layer.effect(
           })
           .where(eq(WorkflowRunTable.id, input.runId))
 
-        const updated = yield* db
-          .select()
-          .from(WorkflowRunTable)
-          .where(eq(WorkflowRunTable.id, input.runId))
-          .limit(1)
+        const updated = yield* db.select().from(WorkflowRunTable).where(eq(WorkflowRunTable.id, input.runId)).limit(1)
 
         return toRun(updated[0])
       }),
@@ -375,6 +362,7 @@ git commit -m "feat(workflow): implement WorkflowService for compose workflows"
 ## Task 3: 创建 Workflow 工具
 
 **Files:**
+
 - Create: `packages/NovaWay/src/tool/workflow.ts`
 - Modify: `packages/NovaWay/src/tool/registry.ts` (注册工具)
 
@@ -403,40 +391,42 @@ export const WorkflowTool = Tool.define({
     switch (params.action) {
       case "create":
         const steps = params.steps ? JSON.parse(params.steps) : []
-        const created = yield* workflowService.create({
-          sessionId,
-          name: params.name!,
-          description: params.description,
-          steps,
-        })
+        const created =
+          yield *
+          workflowService.create({
+            sessionId,
+            name: params.name!,
+            description: params.description,
+            steps,
+          })
         return `工作流已创建: ${created.id} - ${created.name}`
 
       case "list":
-        const workflows = yield* workflowService.list(sessionId)
+        const workflows = yield * workflowService.list(sessionId)
         if (workflows.length === 0) return "暂无工作流"
         return workflows.map((w) => `${w.id}: ${w.name} [${w.status}]`).join("\n")
 
       case "get":
-        const workflow = yield* workflowService.get(params.workflowId!)
+        const workflow = yield * workflowService.get(params.workflowId!)
         if (!workflow) return "工作流不存在"
         return `ID: ${workflow.id}\n名称: ${workflow.name}\n状态: ${workflow.status}\n步骤数: ${workflow.steps.length}`
 
       case "start":
-        const run = yield* workflowService.startRun(params.workflowId!)
+        const run = yield * workflowService.startRun(params.workflowId!)
         return `工作流已启动: ${run.id}`
 
       case "status":
-        const runs = yield* workflowService.listRuns(params.workflowId!)
+        const runs = yield * workflowService.listRuns(params.workflowId!)
         if (runs.length === 0) return "暂无运行记录"
         const latest = runs[runs.length - 1]
         return `最新运行: ${latest.id} [${latest.status}]`
 
       case "pause":
-        yield* workflowService.update({ workflowId: params.workflowId!, status: "paused" })
+        yield * workflowService.update({ workflowId: params.workflowId!, status: "paused" })
         return "工作流已暂停"
 
       case "resume":
-        yield* workflowService.update({ workflowId: params.workflowId!, status: "running" })
+        yield * workflowService.update({ workflowId: params.workflowId!, status: "running" })
         return "工作流已恢复"
 
       default:
@@ -471,6 +461,7 @@ git commit -m "feat(tool): add WorkflowTool for compose workflow management"
 ## Task 4: 创建 Workflow UI 组件
 
 **Files:**
+
 - Create: `packages/tui/src/component/workflow-panel.tsx`
 - Modify: `packages/tui/src/routes/session/sidebar.tsx` (添加工作流标签页)
 
@@ -592,12 +583,8 @@ export function WorkflowPanel(props: WorkflowPanelProps) {
                 <span style={{ fg: theme.accent }}>●</span> {workflow.name}
               </text>
               <box flexDirection="row" gap={1}>
-                <text fg={statusColor(workflow.status)}>
-                  {statusLabel(workflow.status)}
-                </text>
-                <text fg={theme.textMuted}>
-                  · {workflow.steps.length} 步骤
-                </text>
+                <text fg={statusColor(workflow.status)}>{statusLabel(workflow.status)}</text>
+                <text fg={theme.textMuted}>· {workflow.steps.length} 步骤</text>
               </box>
               <Show when={workflow.description}>
                 <text fg={theme.textMuted}>{workflow.description}</text>
@@ -668,6 +655,7 @@ git commit -m "feat(tui): add workflow panel for compose workflows"
 ## Task 5: 注册 Workflow API 路由
 
 **Files:**
+
 - Create: `packages/NovaWay/src/server/routes/instance/httpapi/groups/workflow.ts`
 - Create: `packages/NovaWay/src/server/routes/instance/httpapi/handlers/workflow.ts`
 - Modify: `packages/NovaWay/src/server/routes/instance/httpapi/api.ts` (注册路由)
@@ -684,10 +672,7 @@ import { described } from "./metadata"
 const root = "/session/:sessionId/workflows"
 
 export const WorkflowApi = HttpApiGroup.make("workflow")
-  .add(
-    HttpApiEndpoint.get("listWorkflows", root)
-      .annotate(described, { summary: "获取会话工作流列表" }),
-  )
+  .add(HttpApiEndpoint.get("listWorkflows", root).annotate(described, { summary: "获取会话工作流列表" }))
   .add(
     HttpApiEndpoint.post("createWorkflow", root)
       .annotate(described, { summary: "创建工作流" })
@@ -695,23 +680,22 @@ export const WorkflowApi = HttpApiGroup.make("workflow")
         Schema.Struct({
           name: Schema.String,
           description: Schema.optional(Schema.String),
-          steps: Schema.Array(Schema.Struct({
-            id: Schema.String,
-            name: Schema.String,
-            type: Schema.Literals(["agent", "tool", "skill", "condition", "parallel"]),
-            config: Schema.Record({ key: Schema.String, value: Schema.Unknown }),
-            next: Schema.optional(Schema.String),
-            nextTrue: Schema.optional(Schema.String),
-            nextFalse: Schema.optional(Schema.String),
-            steps: Schema.optional(Schema.Array(Schema.String)),
-          })),
+          steps: Schema.Array(
+            Schema.Struct({
+              id: Schema.String,
+              name: Schema.String,
+              type: Schema.Literals(["agent", "tool", "skill", "condition", "parallel"]),
+              config: Schema.Record({ key: Schema.String, value: Schema.Unknown }),
+              next: Schema.optional(Schema.String),
+              nextTrue: Schema.optional(Schema.String),
+              nextFalse: Schema.optional(Schema.String),
+              steps: Schema.optional(Schema.Array(Schema.String)),
+            }),
+          ),
         }),
       ),
   )
-  .add(
-    HttpApiEndpoint.get("getWorkflow", "/workflows/:workflowId")
-      .annotate(described, { summary: "获取工作流详情" }),
-  )
+  .add(HttpApiEndpoint.get("getWorkflow", "/workflows/:workflowId").annotate(described, { summary: "获取工作流详情" }))
   .add(
     HttpApiEndpoint.patch("updateWorkflow", "/workflows/:workflowId")
       .annotate(described, { summary: "更新工作流" })
@@ -724,17 +708,16 @@ export const WorkflowApi = HttpApiGroup.make("workflow")
         }),
       ),
   )
+  .add(HttpApiEndpoint.del("deleteWorkflow", "/workflows/:workflowId").annotate(described, { summary: "删除工作流" }))
   .add(
-    HttpApiEndpoint.del("deleteWorkflow", "/workflows/:workflowId")
-      .annotate(described, { summary: "删除工作流" }),
+    HttpApiEndpoint.post("startWorkflow", "/workflows/:workflowId/start").annotate(described, {
+      summary: "启动工作流",
+    }),
   )
   .add(
-    HttpApiEndpoint.post("startWorkflow", "/workflows/:workflowId/start")
-      .annotate(described, { summary: "启动工作流" }),
-  )
-  .add(
-    HttpApiEndpoint.get("listWorkflowRuns", "/workflows/:workflowId/runs")
-      .annotate(described, { summary: "获取工作流运行记录" }),
+    HttpApiEndpoint.get("listWorkflowRuns", "/workflows/:workflowId/runs").annotate(described, {
+      summary: "获取工作流运行记录",
+    }),
   )
 ```
 
@@ -900,6 +883,7 @@ git commit -m "feat(server): add workflow API routes for compose workflows"
 ## Task 6: 创建技能组合能力
 
 **Files:**
+
 - Modify: `packages/NovaWay/src/skill/index.ts` (添加技能组合支持)
 
 - [ ] **Step 1: 在 SkillService 中添加组合功能**
@@ -912,7 +896,7 @@ export interface SkillComposition {
   readonly id: string
   readonly name: string
   readonly description: string
-  readonly skills: string[]  // 技能ID列表
+  readonly skills: string[] // 技能ID列表
   readonly config: Record<string, any>
   readonly createdAt: Date
 }
@@ -989,6 +973,7 @@ git commit -m "feat(skill): add skill composition support"
 ## Task 7: 创建 Orchestrator 服务
 
 **Files:**
+
 - Create: `packages/NovaWay/src/orchestrator/orchestrator.ts`
 
 - [ ] **Step 1: 创建 Orchestrator.Service 定义**
@@ -1086,7 +1071,7 @@ export const layer = Layer.effect(
         for (const task of plan.tasks) {
           // 检查依赖是否完成
           const depsCompleted = task.dependencies.every(
-            (dep) => plan.tasks.find((t) => t.id === dep)?.status === "completed"
+            (dep) => plan.tasks.find((t) => t.id === dep)?.status === "completed",
           )
 
           if (!depsCompleted) {
@@ -1098,13 +1083,11 @@ export const layer = Layer.effect(
           try {
             yield* Effect.log(`执行任务: ${task.name}`)
             // 这里应该调用 taskService 或其他服务执行实际任务
-            const updatedTasks = plan.tasks.map((t) =>
-              t.id === task.id ? { ...t, status: "completed" as const } : t
-            )
+            const updatedTasks = plan.tasks.map((t) => (t.id === task.id ? { ...t, status: "completed" as const } : t))
             plans.set(planId, { ...plan, tasks: updatedTasks })
           } catch (error) {
             const updatedTasks = plan.tasks.map((t) =>
-              t.id === task.id ? { ...t, status: "failed" as const, error: String(error) } : t
+              t.id === task.id ? { ...t, status: "failed" as const, error: String(error) } : t,
             )
             plans.set(planId, { ...plan, tasks: updatedTasks, status: "failed" })
             return yield* Effect.fail(new Error(`Task ${task.id} failed: ${error}`))
@@ -1144,9 +1127,7 @@ export const layer = Layer.effect(
         if (!plan) return yield* Effect.fail(new Error("Plan not found"))
 
         const updatedTasks = plan.tasks.map((t) =>
-          t.id === input.taskId
-            ? { ...t, status: input.status, result: input.result, error: input.error }
-            : t
+          t.id === input.taskId ? { ...t, status: input.status, result: input.result, error: input.error } : t,
         )
 
         plans.set(input.planId, { ...plan, tasks: updatedTasks })
@@ -1170,6 +1151,7 @@ git commit -m "feat(orchestrator): implement OrchestratorService for multi-agent
 ## Task 8: 测试验证
 
 **Files:**
+
 - Create: `packages/NovaWay/test/workflow/workflow.test.ts`
 
 - [ ] **Step 1: 编写 Workflow 测试**
@@ -1201,7 +1183,7 @@ describe("WorkflowService", () => {
       const retrieved = yield* service.get(workflow.id)
       expect(retrieved).not.toBeNull()
       expect(retrieved?.name).toBe("Test Workflow")
-    }).pipe(Effect.provide(layer))
+    }).pipe(Effect.provide(layer)),
   )
 
   it.effect("starts workflow run", () =>
@@ -1216,7 +1198,7 @@ describe("WorkflowService", () => {
       const run = yield* service.startRun(workflow.id)
       expect(run.status).toBe("running")
       expect(run.state?.currentStep).toBe("step1")
-    }).pipe(Effect.provide(layer))
+    }).pipe(Effect.provide(layer)),
   )
 
   it.effect("lists workflows by session", () =>
@@ -1228,7 +1210,7 @@ describe("WorkflowService", () => {
       const list = yield* service.list("session-1")
       expect(list.length).toBe(1)
       expect(list[0].name).toBe("WF 1")
-    }).pipe(Effect.provide(layer))
+    }).pipe(Effect.provide(layer)),
   )
 })
 ```

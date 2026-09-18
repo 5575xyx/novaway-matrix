@@ -2,7 +2,10 @@ import { createBindingLookup } from "@opentui/keymap/extras"
 import { TuiConfig } from "@/config/tui"
 import { TuiKeybind } from "@novaway/tui/config/keybind"
 
-type ResolvedInput = Omit<TuiConfig.Resolved, "attention" | "keybinds" | "leader_timeout" | "mouse" | "icons" | "default_agent"> & {
+type ResolvedInput = Omit<
+  TuiConfig.Resolved,
+  "attention" | "keybinds" | "leader_timeout" | "mouse" | "icons" | "default_agent"
+> & {
   attention?: Partial<TuiConfig.Resolved["attention"]>
   keybinds?: Partial<TuiKeybind.Keybinds>
   leader_timeout?: number

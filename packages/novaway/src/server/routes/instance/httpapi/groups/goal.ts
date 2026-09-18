@@ -64,4 +64,3 @@ export const GoalApi = HttpApiGroup.make("goal")
       error: Schema.Never,
     }),
   )
-
