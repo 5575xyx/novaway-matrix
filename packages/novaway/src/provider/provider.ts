@@ -288,6 +288,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
 
       // ---- 路线 A：诚实回退 ----
       if (!ok) input.models = {}
+      return { autoload: ok }
     }),
     openai: () =>
       Effect.succeed({
@@ -1224,7 +1225,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
           discoverPrune: true,
         }
       })(),
-    zenmux: (provider) =>
+    "zenmux-free": (provider) =>
       Effect.fnUntraced(function* () {
         const auth = yield* dep.auth(provider.id)
         const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("ZENMUX_API_KEY"))
@@ -1353,7 +1354,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
           discoverPrune: true,
         }
       })(),
-    llmgateway: (provider) =>
+    "llmgateway-free": (provider) =>
       Effect.fnUntraced(function* () {
         const auth = yield* dep.auth(provider.id)
         const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("LLMGATEWAY_API_KEY"))
