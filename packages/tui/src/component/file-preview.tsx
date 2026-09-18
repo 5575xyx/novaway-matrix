@@ -155,14 +155,7 @@ export function FilePreview(props: FilePreviewProps) {
 
   return (
     <Show when={props.filePath}>
-      <box
-        flexDirection="column"
-        flexGrow={1}
-        paddingTop={1}
-        paddingBottom={1}
-        paddingLeft={1}
-        paddingRight={1}
-      >
+      <box flexDirection="column" flexGrow={1} paddingTop={1} paddingBottom={1} paddingLeft={1} paddingRight={1}>
         <box flexDirection="row" justifyContent="space-between" paddingBottom={1}>
           <text fg={theme.primary} attributes={TextAttributes.BOLD}>
             {fileIcon(fileName(), false)} {fileName()} {isModified() ? "(已修改)" : ""} {isSaving() ? "保存中..." : ""}

@@ -3,11 +3,7 @@ import { useSDK } from "../context/sdk"
 import { useTheme } from "../context/theme"
 import { useDialog } from "../ui/dialog"
 import { DialogConfirm } from "../ui/dialog-confirm"
-import {
-  evolutionApi,
-  type EvolutionCandidate,
-  type EvolutionStatus,
-} from "../util/memory-evolution-api"
+import { evolutionApi, type EvolutionCandidate, type EvolutionStatus } from "../util/memory-evolution-api"
 import { useAutoRefresh } from "../util/auto-refresh"
 
 type FilterStatus = "pending" | "applied" | "dismissed"
@@ -122,10 +118,7 @@ export function EvolutionPanel(props: EvolutionPanelProps) {
       <box flexDirection="row" gap={1}>
         <For each={["pending", "applied", "dismissed"] as const}>
           {(s) => (
-            <text
-              fg={filter() === s ? theme.primary : theme.textMuted}
-              onMouseUp={() => switchFilter(s)}
-            >
+            <text fg={filter() === s ? theme.primary : theme.textMuted} onMouseUp={() => switchFilter(s)}>
               [{s === "pending" ? "待审" : s === "applied" ? "已应用" : "已驳回"}]
             </text>
           )}
@@ -154,11 +147,7 @@ export function EvolutionPanel(props: EvolutionPanelProps) {
               </box>
               <Show when={candidate.tags.length > 0}>
                 <box flexDirection="row" gap={1} flexWrap="wrap">
-                  <For each={candidate.tags.slice(0, 3)}>
-                    {(tag) => (
-                      <text fg={theme.textMuted}>[{tag}]</text>
-                    )}
-                  </For>
+                  <For each={candidate.tags.slice(0, 3)}>{(tag) => <text fg={theme.textMuted}>[{tag}]</text>}</For>
                 </box>
               </Show>
               <Show when={candidate.validationStatus !== "pending"}>

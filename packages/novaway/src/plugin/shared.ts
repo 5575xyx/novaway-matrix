@@ -309,9 +309,9 @@ async function localGitRevision(directory: string, timeout: number) {
   let current = directory
   for (let i = 0; i < 5; i++) {
     const lockFile = path.join(current, "package-lock.json")
-    const lock = await Filesystem.readJson<{ packages?: Record<string, { resolved?: string; version?: string }> }>(lockFile).catch(
-      () => undefined,
-    )
+    const lock = await Filesystem.readJson<{ packages?: Record<string, { resolved?: string; version?: string }> }>(
+      lockFile,
+    ).catch(() => undefined)
     if (lock?.packages) {
       const relative = path.relative(current, directory).split(path.sep).join("/")
       const item = lock.packages[relative]
@@ -356,7 +356,7 @@ async function resolveGitTarget(spec: string) {
   } catch (primaryError) {
     const name = extractPluginName(spec)
     const failedHost = extractGitHost(spec)
-    for (const url of name ? PLUGIN_FALLBACK_URLS[name] ?? [] : []) {
+    for (const url of name ? (PLUGIN_FALLBACK_URLS[name] ?? []) : []) {
       if (failedHost) {
         try {
           if (new URL(url).host === failedHost) continue

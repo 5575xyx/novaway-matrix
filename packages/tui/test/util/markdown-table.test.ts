@@ -26,9 +26,7 @@ describe("markdown 表格解析(dbx 工具输出)", () => {
 
 describe("工具结果取文本", () => {
   test("MCP content 数组取第一个 text", () => {
-    expect(
-      extractResultText({ content: [{ type: "text", text: "| a |\n| 1 |" }] }),
-    ).toBe("| a |\n| 1 |")
+    expect(extractResultText({ content: [{ type: "text", text: "| a |\n| 1 |" }] })).toBe("| a |\n| 1 |")
   })
 
   test("字符串直通,其他返回空", () => {

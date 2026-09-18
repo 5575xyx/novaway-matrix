@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test"
-import { displayModelGroup, displayModelName, joinDescription, sortModelOptions } from "../../../../src/component/dialog-model"
+import {
+  displayModelGroup,
+  displayModelName,
+  joinDescription,
+  sortModelOptions,
+} from "../../../../src/component/dialog-model"
 
 describe("displayModelName", () => {
   test("removes the trailing Free suffix from free models of any provider", () => {

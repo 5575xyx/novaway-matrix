@@ -1,0 +1,130 @@
+﻿bun : $ oxlint packages/novaway/src/git/index.ts packages/novaway/src/reference/repository-cache.ts packages/novaway/sr
+c/tool/repo_clone.ts packages/novaway/src/tool/shell.ts packages/novaway/src/tool/shell/prompt.ts packages/novaway/src/
+server/routes/instance/httpapi/handlers/git.ts packages/novaway/test/tool/repo_clone.test.ts
+所在位置 行:1 字符: 1
++ bun lint packages/novaway/src/git/index.ts packages/novaway/src/refer ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ($ oxlint packag...o_clone.test.ts:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+  ! typescript-eslint(consistent-return): Function 'auto' expected a return value.
+     ,-[packages/novaway/src/tool/shell.ts:154:1]
+ 153 |     
+ 154 | ,-> function auto(key: string, cwd: string, shell: string) {
+ 155 | |     const name = key.toUpperCase()
+ 156 | |     if (name === "HOME") return os.homedir()
+ 157 | |     if (name === "PWD") return cwd
+ 158 | |     if (name === "PSHOME") return path.dirname(shell)
+ 159 | `-> }
+ 160 |     
+     `----
+
+  ! typescript-eslint(consistent-return): Function 'provider' expected no return value.
+     ,-[packages/novaway/src/tool/shell.ts:173:5]
+ 172 |     if (match[1].toLowerCase() !== "filesystem") return
+ 173 |     return match[2]
+     :     ^^^^^^^^^^^^^^^
+ 174 |   }
+     `----
+
+  ! typescript-eslint(consistent-return): Function 'provider' expected no return value.
+     ,-[packages/novaway/src/tool/shell.ts:176:16]
+ 175 |   const prefix = text.match(/^([A-Za-z]+):(.*)$/)
+ 176 |   if (!prefix) return text
+     :                ^^^^^^^^^^^
+ 177 |   if (prefix[1].length === 1) return text
+     `----
+
+  ! typescript-eslint(consistent-return): Function 'provider' expected no return value.
+     ,-[packages/novaway/src/tool/shell.ts:177:31]
+ 176 |   if (!prefix) return text
+ 177 |   if (prefix[1].length === 1) return text
+     :                               ^^^^^^^^^^^
+ 178 |   return
+     `----
+
+  ! typescript-eslint(consistent-return): Function 'prefix' expected a return value.
+     ,-[packages/novaway/src/tool/shell.ts:191:26]
+ 190 |   if (!match) return text
+ 191 |   if (match.index === 0) return
+     :                          ^^^^^^
+ 192 |   return text.slice(0, match.index)
+     `----
+
+  ! typescript-eslint(consistent-return): Function expected no return value.
+     ,-[packages/novaway/src/git/index.ts:171:7]
+ 170 |       if (!name || !list.includes(name)) return
+ 171 |       return { name, ref: name } satisfies Base
+     :       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 172 |     })
+     `----
+
+  ! typescript-eslint(consistent-return): Function expected no return value.
+     ,-[packages/novaway/src/git/index.ts:186:7]
+ 185 |       const text = out(result)
+ 186 |       return text || undefined
+     :       ^^^^^^^^^^^^^^^^^^^^^^^^
+ 187 |     })
+     `----
+
+  ! typescript-eslint(consistent-return): Function expected a return value.
+     ,-[packages/novaway/src/git/index.ts:195:58]
+ 194 |     
+ 195 | ,->     const defaultBranch = Effect.fn("Git.defaultBranch")(function* (cwd: string) {
+ 196 | |         const remote = yield* primary(cwd)
+ 197 | |         if (remote) {
+ 198 | |           const head = yield* run(["symbolic-ref", `refs/remotes/${remote}/HEAD`], { cwd })
+ 199 | |           if (head.exitCode === 0) {
+ 200 | |             const ref = out(head).replace(/^refs\/remotes\//, "")
+ 201 | |             const name = ref.startsWith(`${remote}/`) ? ref.slice(`${remote}/`.length) : ""
+ 202 | |             if (name) return { name, ref } satisfies Base
+ 203 | |           }
+ 204 | |         }
+ 205 | |   
+ 206 | |         const list = yield* refs(cwd)
+ 207 | |         const next = yield* configured(cwd, list)
+ 208 | |         if (next) return next
+ 209 | |         if (list.includes("main")) return { name: "main", ref: "main" } satisfies Base
+ 210 | |         if (list.includes("master")) return { name: "master", ref: "master" } satisfies Base
+ 211 | `->     })
+ 212 |     
+     `----
+
+  ! typescript-eslint(consistent-return): Function expected no return value.
+     ,-[packages/novaway/src/git/index.ts:222:7]
+ 221 |       const text = out(result)
+ 222 |       return text || undefined
+     :       ^^^^^^^^^^^^^^^^^^^^^^^^
+ 223 |     })
+     `----
+
+  ! typescript-eslint(consistent-return): Function expected no return value.
+     ,-[packages/novaway/src/git/index.ts:333:7]
+ 332 |           const deletions = parts[1] === "-" ? 0 : Number.parseInt(parts[1] || "0", 10)
+ 333 | ,->       return {
+ 334 | |           file,
+ 335 | |           additions: Number.isFinite(additions) ? additions : 0,
+ 336 | |           deletions: Number.isFinite(deletions) ? deletions : 0,
+ 337 | `->       } satisfies Stat
+ 338 |         })
+     `----
+
+  ! typescript-eslint(consistent-return): Function expected no return value.
+     ,-[packages/novaway/src/tool/shell.ts:354:7]
+ 353 |       if (!file) return
+ 354 |       return AppFileSystem.normalizePath(file)
+     :       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 355 |     })
+     `----
+
+  ! typescript-eslint(consistent-return): Function expected no return value.
+     ,-[packages/novaway/src/tool/shell.ts:374:7]
+ 373 |       if (!next) return
+ 374 |       return yield* resolvePath(next, cwd, shell)
+     :       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 375 |     })
+     `----
+
+Found 12 warnings and 0 errors.
+Finished in 3.6s on 7 files with 130 rules using 16 threads.

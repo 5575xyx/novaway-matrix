@@ -455,7 +455,7 @@ function WhichKeyPanel(props: {
           <box height={TAB_CONTENT_GAP} flexShrink={0} />
         </Show>
         <box height={rows()} flexShrink={0} flexDirection="column">
-          <Show when={shown().length > 0} fallback={            <text fg={look().muted}>无可访问的快捷键</text>}>
+          <Show when={shown().length > 0} fallback={<text fg={look().muted}>无可访问的快捷键</text>}>
             <For each={rowIndexes()}>
               {(row) => (
                 <box width="100%" flexDirection="row" justifyContent="center" gap={COLUMN_GAP}>
@@ -519,7 +519,8 @@ function WhichKeyPanel(props: {
             </box>
             <box>
               <text fg={look().text} wrapMode="none">
-                {nextMode() === "dock" ? "停靠" : "覆盖"} <span style={{ fg: look().subtle }}>{modeTrigger() || command.toggleLayout}</span>
+                {nextMode() === "dock" ? "停靠" : "覆盖"}{" "}
+                <span style={{ fg: look().subtle }}>{modeTrigger() || command.toggleLayout}</span>
               </text>
             </box>
           </box>

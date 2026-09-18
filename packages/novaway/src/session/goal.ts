@@ -107,22 +107,24 @@ export const layer = Layer.effect(
 
       yield* Effect.sync(() =>
         Database.use((db) =>
-          db.insert(GoalTable).values({
-            id: goal.id,
-            session_id: goal.sessionId,
-            parent_id: goal.parentId,
-            title: goal.title,
-            description: goal.description,
-            status: goal.status,
-            priority: goal.priority,
-            success_criteria: goal.successCriteria ? JSON.stringify(goal.successCriteria) : null,
-            deadline: goal.deadline ?? null,
-            progress: goal.progress,
-            tags: goal.tags,
-            created_at: goal.createdAt,
-            updated_at: goal.updatedAt,
-          })
-          .run(),
+          db
+            .insert(GoalTable)
+            .values({
+              id: goal.id,
+              session_id: goal.sessionId,
+              parent_id: goal.parentId,
+              title: goal.title,
+              description: goal.description,
+              status: goal.status,
+              priority: goal.priority,
+              success_criteria: goal.successCriteria ? JSON.stringify(goal.successCriteria) : null,
+              deadline: goal.deadline ?? null,
+              progress: goal.progress,
+              tags: goal.tags,
+              created_at: goal.createdAt,
+              updated_at: goal.updatedAt,
+            })
+            .run(),
         ),
       )
 

@@ -36,7 +36,10 @@ export function DialogSkill(props: DialogSkillProps) {
   const options = createMemo<DialogSelectOption<string>[]>(() => {
     if (showError()) return []
     const list = skills() ?? []
-    const rows = list.map((skill) => ({ skill, display: skillDisplayName(skill.name, skill as Record<string, unknown>) }))
+    const rows = list.map((skill) => ({
+      skill,
+      display: skillDisplayName(skill.name, skill as Record<string, unknown>),
+    }))
     const maxWidth = Math.max(0, ...rows.map((r) => r.display.length))
     return rows.map(({ skill, display }) => ({
       title: display.padEnd(maxWidth),

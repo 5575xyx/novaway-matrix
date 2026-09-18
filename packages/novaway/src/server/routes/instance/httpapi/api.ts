@@ -10,6 +10,7 @@ import { EventApi } from "./groups/event"
 import { ExperimentalApi } from "./groups/experimental"
 import { EvolutionApi } from "./groups/evolution"
 import { FileApi } from "./groups/file"
+import { GitApi } from "./groups/git"
 import { GlobalApi } from "./groups/global"
 import { ImagesApi } from "./groups/images"
 import { InstanceApi } from "./groups/instance"
@@ -52,6 +53,7 @@ export const InstanceHttpApi = HttpApi.make("NovaWay-instance")
   .addHttpApi(ExperimentalApi)
   .addHttpApi(EvolutionApi)
   .addHttpApi(FileApi)
+  .addHttpApi(GitApi)
   .addHttpApi(ImagesApi)
   .addHttpApi(InstanceApi)
   .addHttpApi(McpApi)

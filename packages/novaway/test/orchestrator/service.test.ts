@@ -44,21 +44,21 @@ describe("orchestrator executePlan", () => {
     const result = await runOrch(
       OrchestratorService.use((orch) =>
         Effect.gen(function* () {
-        const plan = yield* orch.createPlan({
-          sessionId: sessionID,
-          name: "deps",
-          tasks: [
-            { name: "first", type: "agent", config: { agent: "build", prompt: "do first" }, dependencies: [] },
-            {
-              name: "second",
-              type: "agent",
-              // 依赖 task_0,提示词插值上游结果
-              config: { agent: "build", prompt: "use {{task_0}}" },
-              dependencies: ["task_0"],
-            },
-          ],
-        })
-        return yield* orch.executePlan({ planId: plan.id, runAgent, defaultAgent: "build" })
+          const plan = yield* orch.createPlan({
+            sessionId: sessionID,
+            name: "deps",
+            tasks: [
+              { name: "first", type: "agent", config: { agent: "build", prompt: "do first" }, dependencies: [] },
+              {
+                name: "second",
+                type: "agent",
+                // 依赖 task_0,提示词插值上游结果
+                config: { agent: "build", prompt: "use {{task_0}}" },
+                dependencies: ["task_0"],
+              },
+            ],
+          })
+          return yield* orch.executePlan({ planId: plan.id, runAgent, defaultAgent: "build" })
         }),
       ),
     )
@@ -79,19 +79,19 @@ describe("orchestrator executePlan", () => {
     const result = await runOrch(
       OrchestratorService.use((orch) =>
         Effect.gen(function* () {
-        const plan = yield* orch.createPlan({
-          sessionId: sessionID,
-          name: "missing-dep",
-          tasks: [
-            {
-              name: "orphan",
-              type: "agent",
-              config: { agent: "build", prompt: "never runs" },
-              dependencies: ["task_99"], // 不存在的依赖
-            },
-          ],
-        })
-        return yield* orch.executePlan({ planId: plan.id, runAgent, defaultAgent: "build" })
+          const plan = yield* orch.createPlan({
+            sessionId: sessionID,
+            name: "missing-dep",
+            tasks: [
+              {
+                name: "orphan",
+                type: "agent",
+                config: { agent: "build", prompt: "never runs" },
+                dependencies: ["task_99"], // 不存在的依赖
+              },
+            ],
+          })
+          return yield* orch.executePlan({ planId: plan.id, runAgent, defaultAgent: "build" })
         }),
       ),
     )
@@ -109,15 +109,15 @@ describe("orchestrator executePlan", () => {
     const result = await runOrch(
       OrchestratorService.use((orch) =>
         Effect.gen(function* () {
-        const plan = yield* orch.createPlan({
-          sessionId: sessionID,
-          name: "one-fails",
-          tasks: [
-            { name: "good", type: "agent", config: { agent: "build", prompt: "ok" }, dependencies: [] },
-            { name: "bad", type: "agent", config: { agent: "build", prompt: "fail" }, dependencies: [] },
-          ],
-        })
-        return yield* orch.executePlan({ planId: plan.id, runAgent, defaultAgent: "build" })
+          const plan = yield* orch.createPlan({
+            sessionId: sessionID,
+            name: "one-fails",
+            tasks: [
+              { name: "good", type: "agent", config: { agent: "build", prompt: "ok" }, dependencies: [] },
+              { name: "bad", type: "agent", config: { agent: "build", prompt: "fail" }, dependencies: [] },
+            ],
+          })
+          return yield* orch.executePlan({ planId: plan.id, runAgent, defaultAgent: "build" })
         }),
       ),
     )

@@ -36,6 +36,9 @@ import {
 ProtocolRegistry.registerImageProtocol("sensenova", SenseNovaImage.sensenovaImage)
 ProtocolRegistry.registerImageProtocol("sense-nova", SenseNovaImage.sensenovaImage)
 ProtocolRegistry.registerImageProtocol("sensenova-image", SenseNovaImage.sensenovaImage)
+// 注意：Vercel AI Gateway 的图片/视频生成没有独立 HTTP 端点（/v1/videos 404），
+// 必须走 Chat Completions API 多模态输出，与 NovaWay 当前的 image/video 架构不兼容。
+// 等后续用 AI SDK generateImage / experimental_generateVideo 重构后再加回来。
 
 const log = Log.create({ service: "llm" })
 export const OUTPUT_TOKEN_MAX = ProviderTransform.OUTPUT_TOKEN_MAX
@@ -560,12 +563,13 @@ const live: Layer.Layer<
               if (isVideoModel) {
                 log.info("routing to video generation", { modelID: input.model.id, prompt: userPrompt.slice(0, 100) })
 
-                const baseURL = resolveBaseURL(AgnesVideo.agnesVideo.baseURL)
-                const protocol = ProtocolRegistry.getVideoProtocol(input.model.providerID) ?? {
-                  ...AgnesVideo.agnesVideo,
-                  baseURL,
-                }
-                const finalProtocol = { ...protocol, baseURL }
+                const protocol = ProtocolRegistry.getVideoProtocol(input.model.providerID)
+                const finalProtocol =
+                  protocol ??
+                  ({
+                    ...AgnesVideo.agnesVideo,
+                    baseURL: resolveBaseURL(AgnesVideo.agnesVideo.baseURL),
+                  } as typeof AgnesVideo.agnesVideo)
                 const videoService = VideoGeneration.make()
 
                 const createResult = yield* videoService
@@ -601,7 +605,7 @@ const live: Layer.Layer<
 
                 const videoUrl = statusResult.videoUrl
                 if (!videoUrl) {
-                  throw new Error("视频生成已完成，但 Agnes 响应中未返回 metadata.url")
+                  throw new Error("视频生成已完成，但响应中未返回视频 URL")
                 }
                 const outputText = `<video src="${videoUrl}" controls width="100%"></video>`
 

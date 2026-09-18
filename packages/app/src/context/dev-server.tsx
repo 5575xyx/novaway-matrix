@@ -1,21 +1,23 @@
+import { showToast } from "@novaway/ui/toast"
 import { createSimpleContext } from "@novaway/ui/context"
-import { createEffect, createSignal, onCleanup } from "solid-js"
+import { createEffect, onCleanup } from "solid-js"
+import { useLanguage } from "@/context/language"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { createDevServerDetector } from "@/utils/dev-server-detect"
 import { normalizePreviewUrl } from "@/utils/preview-url"
 import { usePreview } from "./preview"
 import { useSDK } from "./sdk"
 
-// 终端输出里发现本地 dev server 后的「建议打开预览」状态。
-// 探测到地址只生成建议，不改动用户正在看的预览；地址在 accept() 时才写入。
+// 终端输出里首次发现本地 dev server，就自动载入预览并切到分屏。
+// 同一地址本会话只动作一次：重复输出不再打扰，用户手动改了地址也不会被抢回来。
 export const { use: useDevServers, provider: DevServerProvider } = createSimpleContext({
   name: "DevServer",
   init: () => {
+    const language = useLanguage()
     const sdk = useSDK()
     const preview = usePreview()
     const { sessionKey, view } = useSessionLayout()
 
-    const [, setPending] = createSignal<string | undefined>(undefined)
     let detector = createDevServerDetector()
     let lastDirectory = ""
     let lastSession = ""
@@ -24,41 +26,27 @@ export const { use: useDevServers, provider: DevServerProvider } = createSimpleC
       const directory = sdk.directory
       const session = sessionKey()
 
-      if (directory !== lastDirectory) {
+      // 换工作区或换会话就重建去重集合：A 工作区见过的地址要在 B 工作区再次打开
+      if (directory !== lastDirectory || session !== lastSession) {
         lastDirectory = directory
-        // 换工作区就重建去重集合，否则在 A 工作区见过的地址不会在 B 工作区再次提示
-        detector = createDevServerDetector()
-      }
-
-      if (session !== lastSession) {
         lastSession = session
-        setPending(undefined)
+        detector = createDevServerDetector()
       }
     })
 
     const report = (chunk: string): void => {
-      if (setPending()) return
-
       const current = normalizePreviewUrl(preview.url())
       for (const url of detector.report(chunk)) {
         const normalized = normalizePreviewUrl(url)
-        if (!normalized) continue
-        if (normalized === current) continue
-        setPending(url)
+        if (!normalized || normalized === current) continue
+
+        if (!preview.setUrl(normalized)) continue
+        view().viewMode.set("split")
+        showToast({
+          title: language.t("preview.autoOpened"),
+          description: normalized,
+        })
       }
-    }
-
-    const dismiss = (): void => {
-      setPending(undefined)
-    }
-
-    // 单一入口：写入预览地址并切到分屏
-    const accept = (): void => {
-      const url = setPending()
-      if (!url) return
-      if (!preview.setUrl(url)) return
-      setPending(undefined)
-      view().viewMode.set("split")
     }
 
     onCleanup(() => {
@@ -66,13 +54,6 @@ export const { use: useDevServers, provider: DevServerProvider } = createSimpleC
       lastSession = ""
     })
 
-    return {
-      get pending() {
-        return setPending()
-      },
-      report,
-      dismiss,
-      accept,
-    }
+    return { report }
   },
 })

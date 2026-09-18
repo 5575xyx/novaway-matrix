@@ -88,10 +88,7 @@ import { Auth } from "@/auth"
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
 
-const buildGoalContext = Effect.fn("SystemPrompt.buildGoalContext")(function* (
-  goalService: any,
-  sessionId: string,
-) {
+const buildGoalContext = Effect.fn("SystemPrompt.buildGoalContext")(function* (goalService: any, sessionId: string) {
   if (!goalService) return ""
 
   const goals = yield* goalService.list(sessionId)
@@ -101,9 +98,7 @@ const buildGoalContext = Effect.fn("SystemPrompt.buildGoalContext")(function* (
   const activeGoals = goals.filter((g: any) => g.status === "in_progress" || g.status === "pending")
   if (activeGoals.length === 0) return ""
 
-  const goalText = activeGoals
-    .map((g: any) => `- ${g.title} [${g.status}] ${g.progress}% 完成`)
-    .join("\n")
+  const goalText = activeGoals.map((g: any) => `- ${g.title} [${g.status}] ${g.progress}% 完成`).join("\n")
 
   return `\n\n## 当前目标\n${goalText}\n\n请优先完成上述目标，或根据目标分解任务。`
 })
@@ -147,10 +142,7 @@ const hasSweepReminder = (message: MessageV2.WithParts) =>
 
 export type TodoSweepReason = "clean" | "no_todo_call" | "recently_swept" | "limit" | "sweep"
 
-export function decideTodoSweep(input: {
-  todos: Todo.Info[]
-  messages: MessageV2.WithParts[]
-}): TodoSweepReason {
+export function decideTodoSweep(input: { todos: Todo.Info[]; messages: MessageV2.WithParts[] }): TodoSweepReason {
   const unfinished = input.todos.filter((todo) => todo.status === "pending" || todo.status === "in_progress")
   if (unfinished.length === 0) return "clean"
 
@@ -2195,475 +2187,481 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         .pipe(Effect.map((text) => text.trim()))
     })
 
-    const runLoop: (sessionID: SessionID) => Effect.Effect<MessageV2.WithParts, never, never> = (Effect.fn("SessionPrompt.run")(function* (sessionID: SessionID) {
+    const runLoop: (sessionID: SessionID) => Effect.Effect<MessageV2.WithParts, never, never> = Effect.fn(
+      "SessionPrompt.run",
+    )(function* (sessionID: SessionID) {
       const ctx = yield* InstanceState.context
       const slog = elog.with({ sessionID })
       let structured: unknown
       let step = 0
-        const session = yield* sessions.get(sessionID).pipe(Effect.orDie)
-        let loopModel: Provider.Model | undefined = undefined
+      const session = yield* sessions.get(sessionID).pipe(Effect.orDie)
+      let loopModel: Provider.Model | undefined = undefined
 
-        while (true) {
-          yield* status.set(sessionID, { type: "busy" })
-          yield* slog.info("loop", { step })
+      while (true) {
+        yield* status.set(sessionID, { type: "busy" })
+        yield* slog.info("loop", { step })
 
-          let msgs = yield* MessageV2.filterCompactedEffect(sessionID)
+        let msgs = yield* MessageV2.filterCompactedEffect(sessionID)
 
-          const { user: lastUser, assistant: lastAssistant, finished: lastFinished, tasks } = MessageV2.latest(msgs)
+        const { user: lastUser, assistant: lastAssistant, finished: lastFinished, tasks } = MessageV2.latest(msgs)
 
-          if (!lastUser) throw new Error("No user message found in stream. This should never happen.")
+        if (!lastUser) throw new Error("No user message found in stream. This should never happen.")
 
-          const lastAssistantMsg = msgs.findLast(
-            (msg) => msg.info.role === "assistant" && msg.info.id === lastAssistant?.id,
-          )
-          // Some providers return "stop" even when the assistant message contains tool calls.
-          // Keep the loop running so tool results can be sent back to the model.
-          // Skip provider-executed tool parts — those were fully handled within the
-          // provider's stream (e.g. DWS Agent Platform) and don't need a re-loop.
-          const hasToolCalls =
-            lastAssistantMsg?.parts.some((part) => part.type === "tool" && !part.metadata?.providerExecuted) ?? false
+        const lastAssistantMsg = msgs.findLast(
+          (msg) => msg.info.role === "assistant" && msg.info.id === lastAssistant?.id,
+        )
+        // Some providers return "stop" even when the assistant message contains tool calls.
+        // Keep the loop running so tool results can be sent back to the model.
+        // Skip provider-executed tool parts — those were fully handled within the
+        // provider's stream (e.g. DWS Agent Platform) and don't need a re-loop.
+        const hasToolCalls =
+          lastAssistantMsg?.parts.some((part) => part.type === "tool" && !part.metadata?.providerExecuted) ?? false
 
-          if (
-            lastAssistant?.finish &&
-            !["tool-calls"].includes(lastAssistant.finish) &&
-            !hasToolCalls &&
-            lastUser.id < lastAssistant.id
-          ) {
-            yield* slog.info("exiting loop")
-            break
-          }
+        if (
+          lastAssistant?.finish &&
+          !["tool-calls"].includes(lastAssistant.finish) &&
+          !hasToolCalls &&
+          lastUser.id < lastAssistant.id
+        ) {
+          yield* slog.info("exiting loop")
+          break
+        }
 
-          step++
-          if (step === 1)
-            yield* title({
-              session,
-              modelID: lastUser.model.modelID,
-              providerID: lastUser.model.providerID,
-              history: msgs,
-            }).pipe(Effect.ignore, Effect.forkIn(scope))
+        step++
+        if (step === 1)
+          yield* title({
+            session,
+            modelID: lastUser.model.modelID,
+            providerID: lastUser.model.providerID,
+            history: msgs,
+          }).pipe(Effect.ignore, Effect.forkIn(scope))
 
-          const model = yield* getModel(lastUser.model.providerID, lastUser.model.modelID, sessionID)
-          loopModel = model
-          // 媒体模型必须使用持久化的用户输入，而不是为聊天模型追加的提醒或插件注入内容。
-          const media = LLM.mediaInput(
-            msgs.findLast((message) => message.info.role === "user" && message.info.id === lastUser.id)?.parts ?? [],
-          )
-          const task = tasks.pop()
+        const model = yield* getModel(lastUser.model.providerID, lastUser.model.modelID, sessionID)
+        loopModel = model
+        // 媒体模型必须使用持久化的用户输入，而不是为聊天模型追加的提醒或插件注入内容。
+        const media = LLM.mediaInput(
+          msgs.findLast((message) => message.info.role === "user" && message.info.id === lastUser.id)?.parts ?? [],
+        )
+        const task = tasks.pop()
 
-          if (task?.type === "subtask") {
-            yield* handleSubtask({ task, model, lastUser, sessionID, session, msgs })
-            continue
-          }
-
-          if (task?.type === "compaction") {
-            const result = yield* compaction.process({
-              messages: msgs,
-              parentID: lastUser.id,
-              sessionID,
-              auto: task.auto,
-              overflow: task.overflow,
-            })
-            if (result === "stop") break
-            continue
-          }
-
-          if (
-            lastFinished &&
-            lastFinished.summary !== true &&
-            (yield* compaction.isOverflow({ tokens: lastFinished.tokens, model }))
-          ) {
-            yield* compaction.create({ sessionID, agent: lastUser.agent, model: lastUser.model, auto: true })
-            continue
-          }
-
-          const agent = yield* agents.get(lastUser.agent)
-          if (!agent) {
-            const available = (yield* agents.list()).filter((a) => !a.hidden).map((a) => a.name)
-            const hint = available.length ? ` Available agents: ${available.join(", ")}` : ""
-            const error = new NamedError.Unknown({ message: `Agent not found: "${lastUser.agent}".${hint}` })
-            yield* bus.publish(Session.Event.Error, { sessionID, error: error.toObject() })
-            throw error
-          }
-          const maxSteps = agent.steps ?? Infinity
-          const isLastStep = step >= maxSteps
-          msgs = yield* insertReminders({ messages: msgs, agent, session })
-
-          // 主模型不支持图片输入时，把图片识别交给多模态子代理完成，
-          // 识别结果以合成文本写入用户消息，主模型继续用文本处理对话。
-          const modelSupportsImages = model.capabilities?.input?.image
-          if (!modelSupportsImages) {
-            const visionUserMsg = msgs.findLast((m) => m.info.role === "user" && m.info.id === lastUser.id)
-            const visionImageParts = visionUserMsg?.parts.filter(
-              (p): p is MessageV2.FilePart => p.type === "file" && p.mime.startsWith("image/"),
-            )
-            const alreadyDescribed = visionUserMsg?.parts.some(
-              (p) => p.type === "text" && p.synthetic && p.text.startsWith(VISION_DESCRIPTION_MARKER),
-            )
-            if (visionUserMsg && visionImageParts?.length && !alreadyDescribed) {
-              const visionModel = yield* findVisionModel(model)
-              if (visionModel) {
-                const description = yield* describeImages({
-                  visionModel,
-                  agent,
-                  lastUser,
-                  parts: visionUserMsg.parts,
-                  sessionID,
-                }).pipe(
-                  Effect.catchCause((cause) => {
-                    log.error("image recognition failed, falling back to attachment placeholder", {
-                      error: Cause.squash(cause),
-                    })
-                    return Effect.succeed(undefined)
-                  }),
-                )
-                if (description) {
-                  const descriptionPart: MessageV2.TextPart = {
-                    id: PartID.ascending(),
-                    sessionID,
-                    messageID: lastUser.id,
-                    type: "text",
-                    synthetic: true,
-                    text: `${VISION_DESCRIPTION_MARKER}\n${description}`,
-                  }
-                  yield* sessions.updatePart(descriptionPart)
-                  // 同步更新内存中的消息，确保当前步骤主模型也能看到识别结果。
-                  visionUserMsg.parts.push(descriptionPart)
-                }
-              }
-            }
-          }
-
-          const msg: MessageV2.Assistant = {
-            id: MessageID.ascending(),
-            parentID: lastUser.id,
-            role: "assistant",
-            mode: agent.name,
-            agent: agent.name,
-            variant: lastUser.model.variant,
-            path: { cwd: ctx.directory, root: ctx.worktree },
-            cost: 0,
-            tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
-            modelID: model.id,
-            providerID: model.providerID,
-            time: { created: Date.now() },
-            sessionID,
-          }
-          yield* sessions.updateMessage(msg)
-
-          const finalizeInterruptedAssistant = Effect.gen(function* () {
-            if (msg.time.completed) return
-            msg.error ??= MessageV2.fromError(new DOMException("Aborted", "AbortError"), {
-              providerID: msg.providerID,
-              aborted: true,
-            })
-            msg.time.completed = Date.now()
-            yield* sessions.updateMessage(msg)
-          })
-
-          const handle = yield* processor
-            .create({
-              assistantMessage: msg,
-              sessionID,
-              model,
-            })
-            .pipe(Effect.onInterrupt(() => finalizeInterruptedAssistant))
-
-          const outcome: "break" | "continue" = yield* Effect.gen(function* () {
-            const lastUserMsg = msgs.findLast((m) => m.info.role === "user")
-            const bypassAgentCheck = lastUserMsg?.parts.some((p) => p.type === "agent") ?? false
-
-            const tools = yield* resolveTools({
-              agent,
-              session,
-              model,
-              tools: lastUser.tools,
-              processor: handle,
-              bypassAgentCheck,
-              messages: msgs,
-            })
-
-            if (lastUser.format?.type === "json_schema") {
-              tools["StructuredOutput"] = createStructuredOutputTool({
-                schema: lastUser.format.schema,
-                onSuccess(output) {
-                  structured = output
-                },
-              })
-            }
-
-            if (step === 1)
-              yield* summary.summarize({ sessionID, messageID: lastUser.id }).pipe(Effect.ignore, Effect.forkIn(scope))
-
-            if (step > 1 && lastFinished) {
-              for (const m of msgs) {
-                if (m.info.role !== "user" || m.info.id <= lastFinished.id) continue
-                for (const p of m.parts) {
-                  if (p.type !== "text" || p.ignored || p.synthetic) continue
-                  if (!p.text.trim()) continue
-                  p.text = [
-                    "<system-reminder>",
-                    "The user sent the following message:",
-                    p.text,
-                    "",
-                    "Please address this message and continue with your tasks.",
-                    "</system-reminder>",
-                  ].join("\n")
-                }
-              }
-            }
-
-            yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
-
-            const [skills, env, instructionParts, modelMsgs] = yield* Effect.all([
-              sys.skills(agent),
-              sys.environment(model),
-              instruction.system({ prompt: textFromParts(lastUserMsg?.parts ?? []) }).pipe(Effect.orDie),
-              MessageV2.toModelMessagesEffect(msgs, model, modelSupportsImages ? undefined : { stripMedia: true }),
-            ])
-            const cfg = yield* config.get()
-            const instanceCtx = yield* InstanceState.context
-            const memoryCfg = ConfigMemory.resolve(cfg.memory)
-            const evolutionCfg = ConfigEvolution.resolve(cfg.evolution)
-            const memoryEnabled = memoryCfg.enabled
-            const memoryReviewEnabled = memoryEnabled && memoryCfg.review_enabled && memoryCfg.review_interval > 0
-            const evolutionReviewEnabled =
-              evolutionCfg.enabled && evolutionCfg.review_llm && evolutionCfg.review_interval > 0
-            const memoryContext =
-              memoryEnabled && memory
-                ? yield* memory
-                    .prefetch({
-                      query: textFromParts(lastUserMsg?.parts ?? []),
-                      projectID: session.projectID,
-                      sessionID,
-                      limit: memoryCfg.prefetch_limit,
-                      maxChars: memoryCfg.prefetch_budget_chars,
-                    })
-                    .pipe(Effect.catch(() => Effect.succeed("")))
-                : ""
-            const projectContext = yield* ProjectContext.read({
-              directory: ctx.directory,
-              worktree: ctx.worktree,
-              plan: Session.plan(session, ctx),
-            }).pipe(
-              Effect.provideService(AppFileSystem.Service, fsys),
-              Effect.catch(() => Effect.succeed("")),
-            )
-            const requestMessages = injectMemoryContext({
-              messages: modelMsgs,
-              context: [projectContext, memoryContext].filter(Boolean).join("\n\n"),
-            })
-            // 静态指令/技能放在缓存前缀，环境信息放尾部，避免目录、日期或模型信息变化时整段缓存失效。
-            const staticSystem = [...instructionParts.always, ...(skills ? [skills] : [])].filter(Boolean).join("\n\n")
-            const dynamicSystem = [...instructionParts.triggered, ...env].filter(Boolean).join("\n\n")
-            const system = [staticSystem, dynamicSystem].filter(Boolean)
-            const goalContext = yield* buildGoalContext(goalService, sessionID).pipe(Effect.catch(() => Effect.succeed("")))
-            if (goalContext) system.push(goalContext)
-            const format = lastUser.format ?? { type: "text" as const }
-            if (format.type === "json_schema") system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)
-            const result = yield* handle.process({
-              user: lastUser,
-              agent,
-              permission: session.permission,
-              sessionID,
-              parentSessionID: session.parentID,
-              system,
-              messages: [
-                ...requestMessages,
-                ...(isLastStep ? [{ role: "assistant" as const, content: MAX_STEPS }] : []),
-              ],
-              media,
-              tools,
-              model,
-              toolChoice: format.type === "json_schema" ? "required" : undefined,
-            })
-
-            if (structured !== undefined) {
-              handle.message.structured = structured
-              handle.message.finish = handle.message.finish ?? "stop"
-              yield* sessions.updateMessage(handle.message)
-              return "break" as const
-            }
-
-            const finished = handle.message.finish && !["tool-calls", "unknown"].includes(handle.message.finish)
-            if (finished && !handle.message.error) {
-              if (format.type === "json_schema") {
-                handle.message.error = new MessageV2.StructuredOutputError({
-                  message: "Model did not produce structured output",
-                  retries: 0,
-                }).toObject()
-                yield* sessions.updateMessage(handle.message)
-                return "break" as const
-              }
-            }
-
-            if (result === "stop") {
-              // 全自动学习：显式抽取 + LLM 审查并行，不再互斥
-              if (memoryEnabled && memory && memoryCfg.auto_extract && !handle.message.error) {
-                yield* memory
-                  .syncTurn({
-                    userContent: textFromParts(lastUserMsg?.parts ?? []),
-                    assistantContent: "",
-                    projectID: session.projectID,
-                    sessionID,
-                    originMessageID: lastUser.id,
-                    agent: agent.name,
-                  })
-                  .pipe(Effect.ignore)
-              }
-              if (memoryReviewEnabled && memory && !handle.message.error) {
-                const userContent = textFromParts(lastUserMsg?.parts ?? [])
-                const due = yield* memory
-                  .reviewDue({
-                    userContent,
-                    projectID: session.projectID,
-                    sessionID,
-                    sourceMessageID: lastUser.id,
-                    agent: agent.name,
-                    reviewInterval: memoryCfg.review_interval,
-                  })
-                  .pipe(Effect.catch(() => Effect.succeed(false)))
-                if (due) {
-                  const assistantMsg = yield* sessions
-                    .findMessage(sessionID, (message) => message.info.id === handle.message.id)
-                    .pipe(Effect.orDie)
-                  const assistantContent = Option.isSome(assistantMsg) ? textFromParts(assistantMsg.value.parts) : ""
-                  const candidates = yield* inferMemoryReviewCandidates({
-                    model,
-                    userContent,
-                    assistantContent,
-                  }).pipe(Effect.catch(() => Effect.succeed([])))
-                  const reviewed = yield* memory
-                    .review({
-                      userContent,
-                      assistantContent,
-                      projectID: session.projectID,
-                      sessionID,
-                      sourceMessageID: lastUser.id,
-                      agent: agent.name,
-                      candidates,
-                      skipReviewState: true,
-                    })
-                    .pipe(Effect.catch(() => Effect.succeed([] as never[])))
-                  // 自动写入：候选直接进长期记忆，越用越聪明无需点通过
-                  if (memoryCfg.auto_apply && reviewed.length) {
-                    for (const item of reviewed) {
-                      if (item.status !== "pending") continue
-                      yield* memory.applyReviewCandidate(item.id).pipe(Effect.ignore)
-                    }
-                  }
-                }
-              }
-              if (evolutionReviewEnabled && evolution && !handle.message.error) {
-                const userContent = textFromParts(lastUserMsg?.parts ?? [])
-                const due = yield* evolution
-                  .reviewDue({
-                    projectID: session.projectID,
-                    sessionID,
-                    sourceMessageID: lastUser.id,
-                    reviewInterval: evolutionCfg.review_interval,
-                  })
-                  .pipe(Effect.catch(() => Effect.succeed(false)))
-                if (due) {
-                  const assistantMsg = yield* sessions
-                    .findMessage(sessionID, (message) => message.info.id === handle.message.id)
-                    .pipe(Effect.orDie)
-                  const assistantContent = Option.isSome(assistantMsg) ? textFromParts(assistantMsg.value.parts) : ""
-                  const proposals = yield* inferEvolutionReviewCandidates({
-                    model,
-                    userContent,
-                    assistantContent,
-                  }).pipe(Effect.catch(() => Effect.succeed([])))
-                  if (proposals.length) {
-                    const reviewed = yield* evolution
-                      .review({
-                        proposals,
-                        projectID: session.projectID,
-                        sessionID,
-                        sourceMessageID: lastUser.id,
-                      })
-                      .pipe(Effect.catch(() => Effect.succeed([] as never[])))
-                    // 自动写入磁盘：开启后进化候选无需人工确认直接落地到 .novaway 文件
-                    // 写盘失败时由 evolution.applyToDisk 发布 AutoApplyFileFailed 事件并保留候选 pending 状态，等待人工确认
-                    if (evolutionCfg.auto_apply_file && reviewed.length) {
-                      for (const item of reviewed) {
-                        if (item.status !== "pending") continue
-                        yield* evolution
-                          .applyToDisk(item.id, {
-                            directory: instanceCtx.directory,
-                            worktree: instanceCtx.worktree,
-                          })
-                          .pipe(
-                            Effect.ignoreCause({
-                              log: true,
-                              message: `evolution auto-apply to disk failed: ${item.id}`,
-                            }),
-                          )
-                      }
-                    }
-                  }
-                }
-              }
-              // 自动检查点:在压缩/剪枝之前按间隔捕获会话消息+文件快照,便于回滚。默认关闭。
-              if (checkpointService && !handle.message.error) {
-                const checkpointCfg = ConfigCheckpoint.resolve(cfg.checkpoint)
-                if (checkpointCfg.auto_enabled && checkpointCfg.auto_interval > 0) {
-                  const due = yield* checkpointService
-                    .autoDue({ sessionId: sessionID, interval: checkpointCfg.auto_interval })
-                    .pipe(Effect.catch(() => Effect.succeed(false)))
-                  if (due) {
-                    yield* checkpointService.createAuto({ sessionId: sessionID }).pipe(Effect.ignore)
-                  }
-                }
-              }
-              return "break" as const
-            }
-            if (result === "compact") {
-              yield* compaction.create({
-                sessionID,
-                agent: lastUser.agent,
-                model: lastUser.model,
-                auto: true,
-                overflow: !handle.message.finish,
-              })
-            }
-            return "continue" as const
-          }).pipe(
-            Effect.ensuring(instruction.clear(handle.message.id)),
-            Effect.onInterrupt(() => finalizeInterruptedAssistant),
-          )
-          if (outcome === "break") break
+        if (task?.type === "subtask") {
+          yield* handleSubtask({ task, model, lastUser, sessionID, session, msgs })
           continue
         }
 
-        yield* compaction.prune({ sessionID }).pipe(Effect.ignore, Effect.forkIn(scope))
+        if (task?.type === "compaction") {
+          const result = yield* compaction.process({
+            messages: msgs,
+            parentID: lastUser.id,
+            sessionID,
+            auto: task.auto,
+            overflow: task.overflow,
+          })
+          if (result === "stop") break
+          continue
+        }
 
-        // Dream/Distill 自我改进集成:默认关闭,开启后按 interval 轮用 LLM 反思会话并蒸馏进长期记忆。
-        {
-          const dreamCfg = ConfigDream.resolve((yield* config.get()).dream)
-          if (dreamCfg.enabled && dreamCfg.interval > 0 && dreamDue(sessionID, dreamCfg.interval)) {
-            const capturedModel = loopModel
-            if (capturedModel) {
-              yield* Effect.gen(function* () {
-                const dreamModule = yield* Effect.tryPromise(() => import("./dream"))
-                const distillModule = yield* Effect.tryPromise(() => import("./distill"))
-                const dream = yield* dreamModule.Service
-                const distill = yield* distillModule.Service
-                const analysis = yield* dream.analyzeSession(sessionID, capturedModel)
-                const distillResult = yield* distill.fromAnalysis(analysis)
-                yield* distill.applyMemories(distillResult)
-              }).pipe(Effect.catch(() => Effect.void), Effect.forkIn(scope))
+        if (
+          lastFinished &&
+          lastFinished.summary !== true &&
+          (yield* compaction.isOverflow({ tokens: lastFinished.tokens, model }))
+        ) {
+          yield* compaction.create({ sessionID, agent: lastUser.agent, model: lastUser.model, auto: true })
+          continue
+        }
+
+        const agent = yield* agents.get(lastUser.agent)
+        if (!agent) {
+          const available = (yield* agents.list()).filter((a) => !a.hidden).map((a) => a.name)
+          const hint = available.length ? ` Available agents: ${available.join(", ")}` : ""
+          const error = new NamedError.Unknown({ message: `Agent not found: "${lastUser.agent}".${hint}` })
+          yield* bus.publish(Session.Event.Error, { sessionID, error: error.toObject() })
+          throw error
+        }
+        const maxSteps = agent.steps ?? Infinity
+        const isLastStep = step >= maxSteps
+        msgs = yield* insertReminders({ messages: msgs, agent, session })
+
+        // 主模型不支持图片输入时，把图片识别交给多模态子代理完成，
+        // 识别结果以合成文本写入用户消息，主模型继续用文本处理对话。
+        const modelSupportsImages = model.capabilities?.input?.image
+        if (!modelSupportsImages) {
+          const visionUserMsg = msgs.findLast((m) => m.info.role === "user" && m.info.id === lastUser.id)
+          const visionImageParts = visionUserMsg?.parts.filter(
+            (p): p is MessageV2.FilePart => p.type === "file" && p.mime.startsWith("image/"),
+          )
+          const alreadyDescribed = visionUserMsg?.parts.some(
+            (p) => p.type === "text" && p.synthetic && p.text.startsWith(VISION_DESCRIPTION_MARKER),
+          )
+          if (visionUserMsg && visionImageParts?.length && !alreadyDescribed) {
+            const visionModel = yield* findVisionModel(model)
+            if (visionModel) {
+              const description = yield* describeImages({
+                visionModel,
+                agent,
+                lastUser,
+                parts: visionUserMsg.parts,
+                sessionID,
+              }).pipe(
+                Effect.catchCause((cause) => {
+                  log.error("image recognition failed, falling back to attachment placeholder", {
+                    error: Cause.squash(cause),
+                  })
+                  return Effect.succeed(undefined)
+                }),
+              )
+              if (description) {
+                const descriptionPart: MessageV2.TextPart = {
+                  id: PartID.ascending(),
+                  sessionID,
+                  messageID: lastUser.id,
+                  type: "text",
+                  synthetic: true,
+                  text: `${VISION_DESCRIPTION_MARKER}\n${description}`,
+                }
+                yield* sessions.updatePart(descriptionPart)
+                // 同步更新内存中的消息，确保当前步骤主模型也能看到识别结果。
+                visionUserMsg.parts.push(descriptionPart)
+              }
             }
           }
         }
 
-        return yield* lastAssistant(sessionID)
-      } as any)) as any
+        const msg: MessageV2.Assistant = {
+          id: MessageID.ascending(),
+          parentID: lastUser.id,
+          role: "assistant",
+          mode: agent.name,
+          agent: agent.name,
+          variant: lastUser.model.variant,
+          path: { cwd: ctx.directory, root: ctx.worktree },
+          cost: 0,
+          tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+          modelID: model.id,
+          providerID: model.providerID,
+          time: { created: Date.now() },
+          sessionID,
+        }
+        yield* sessions.updateMessage(msg)
+
+        const finalizeInterruptedAssistant = Effect.gen(function* () {
+          if (msg.time.completed) return
+          msg.error ??= MessageV2.fromError(new DOMException("Aborted", "AbortError"), {
+            providerID: msg.providerID,
+            aborted: true,
+          })
+          msg.time.completed = Date.now()
+          yield* sessions.updateMessage(msg)
+        })
+
+        const handle = yield* processor
+          .create({
+            assistantMessage: msg,
+            sessionID,
+            model,
+          })
+          .pipe(Effect.onInterrupt(() => finalizeInterruptedAssistant))
+
+        const outcome: "break" | "continue" = yield* Effect.gen(function* () {
+          const lastUserMsg = msgs.findLast((m) => m.info.role === "user")
+          const bypassAgentCheck = lastUserMsg?.parts.some((p) => p.type === "agent") ?? false
+
+          const tools = yield* resolveTools({
+            agent,
+            session,
+            model,
+            tools: lastUser.tools,
+            processor: handle,
+            bypassAgentCheck,
+            messages: msgs,
+          })
+
+          if (lastUser.format?.type === "json_schema") {
+            tools["StructuredOutput"] = createStructuredOutputTool({
+              schema: lastUser.format.schema,
+              onSuccess(output) {
+                structured = output
+              },
+            })
+          }
+
+          if (step === 1)
+            yield* summary.summarize({ sessionID, messageID: lastUser.id }).pipe(Effect.ignore, Effect.forkIn(scope))
+
+          if (step > 1 && lastFinished) {
+            for (const m of msgs) {
+              if (m.info.role !== "user" || m.info.id <= lastFinished.id) continue
+              for (const p of m.parts) {
+                if (p.type !== "text" || p.ignored || p.synthetic) continue
+                if (!p.text.trim()) continue
+                p.text = [
+                  "<system-reminder>",
+                  "The user sent the following message:",
+                  p.text,
+                  "",
+                  "Please address this message and continue with your tasks.",
+                  "</system-reminder>",
+                ].join("\n")
+              }
+            }
+          }
+
+          yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
+
+          const [skills, env, instructionParts, modelMsgs] = yield* Effect.all([
+            sys.skills(agent),
+            sys.environment(model),
+            instruction.system({ prompt: textFromParts(lastUserMsg?.parts ?? []) }).pipe(Effect.orDie),
+            MessageV2.toModelMessagesEffect(msgs, model, modelSupportsImages ? undefined : { stripMedia: true }),
+          ])
+          const cfg = yield* config.get()
+          const instanceCtx = yield* InstanceState.context
+          const memoryCfg = ConfigMemory.resolve(cfg.memory)
+          const evolutionCfg = ConfigEvolution.resolve(cfg.evolution)
+          const memoryEnabled = memoryCfg.enabled
+          const memoryReviewEnabled = memoryEnabled && memoryCfg.review_enabled && memoryCfg.review_interval > 0
+          const evolutionReviewEnabled =
+            evolutionCfg.enabled && evolutionCfg.review_llm && evolutionCfg.review_interval > 0
+          const memoryContext =
+            memoryEnabled && memory
+              ? yield* memory
+                  .prefetch({
+                    query: textFromParts(lastUserMsg?.parts ?? []),
+                    projectID: session.projectID,
+                    sessionID,
+                    limit: memoryCfg.prefetch_limit,
+                    maxChars: memoryCfg.prefetch_budget_chars,
+                  })
+                  .pipe(Effect.catch(() => Effect.succeed("")))
+              : ""
+          const projectContext = yield* ProjectContext.read({
+            directory: ctx.directory,
+            worktree: ctx.worktree,
+            plan: Session.plan(session, ctx),
+          }).pipe(
+            Effect.provideService(AppFileSystem.Service, fsys),
+            Effect.catch(() => Effect.succeed("")),
+          )
+          const requestMessages = injectMemoryContext({
+            messages: modelMsgs,
+            context: [projectContext, memoryContext].filter(Boolean).join("\n\n"),
+          })
+          // 静态指令/技能放在缓存前缀，环境信息放尾部，避免目录、日期或模型信息变化时整段缓存失效。
+          const staticSystem = [...instructionParts.always, ...(skills ? [skills] : [])].filter(Boolean).join("\n\n")
+          const dynamicSystem = [...instructionParts.triggered, ...env].filter(Boolean).join("\n\n")
+          const system = [staticSystem, dynamicSystem].filter(Boolean)
+          const goalContext = yield* buildGoalContext(goalService, sessionID).pipe(
+            Effect.catch(() => Effect.succeed("")),
+          )
+          if (goalContext) system.push(goalContext)
+          const format = lastUser.format ?? { type: "text" as const }
+          if (format.type === "json_schema") system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)
+          const result = yield* handle.process({
+            user: lastUser,
+            agent,
+            permission: session.permission,
+            sessionID,
+            parentSessionID: session.parentID,
+            system,
+            messages: [...requestMessages, ...(isLastStep ? [{ role: "assistant" as const, content: MAX_STEPS }] : [])],
+            media,
+            tools,
+            model,
+            toolChoice: format.type === "json_schema" ? "required" : undefined,
+          })
+
+          if (structured !== undefined) {
+            handle.message.structured = structured
+            handle.message.finish = handle.message.finish ?? "stop"
+            yield* sessions.updateMessage(handle.message)
+            return "break" as const
+          }
+
+          const finished = handle.message.finish && !["tool-calls", "unknown"].includes(handle.message.finish)
+          if (finished && !handle.message.error) {
+            if (format.type === "json_schema") {
+              handle.message.error = new MessageV2.StructuredOutputError({
+                message: "Model did not produce structured output",
+                retries: 0,
+              }).toObject()
+              yield* sessions.updateMessage(handle.message)
+              return "break" as const
+            }
+          }
+
+          if (result === "stop") {
+            // 全自动学习：显式抽取 + LLM 审查并行，不再互斥
+            if (memoryEnabled && memory && memoryCfg.auto_extract && !handle.message.error) {
+              yield* memory
+                .syncTurn({
+                  userContent: textFromParts(lastUserMsg?.parts ?? []),
+                  assistantContent: "",
+                  projectID: session.projectID,
+                  sessionID,
+                  originMessageID: lastUser.id,
+                  agent: agent.name,
+                })
+                .pipe(Effect.ignore)
+            }
+            if (memoryReviewEnabled && memory && !handle.message.error) {
+              const userContent = textFromParts(lastUserMsg?.parts ?? [])
+              const due = yield* memory
+                .reviewDue({
+                  userContent,
+                  projectID: session.projectID,
+                  sessionID,
+                  sourceMessageID: lastUser.id,
+                  agent: agent.name,
+                  reviewInterval: memoryCfg.review_interval,
+                })
+                .pipe(Effect.catch(() => Effect.succeed(false)))
+              if (due) {
+                const assistantMsg = yield* sessions
+                  .findMessage(sessionID, (message) => message.info.id === handle.message.id)
+                  .pipe(Effect.orDie)
+                const assistantContent = Option.isSome(assistantMsg) ? textFromParts(assistantMsg.value.parts) : ""
+                const candidates = yield* inferMemoryReviewCandidates({
+                  model,
+                  userContent,
+                  assistantContent,
+                }).pipe(Effect.catch(() => Effect.succeed([])))
+                const reviewed = yield* memory
+                  .review({
+                    userContent,
+                    assistantContent,
+                    projectID: session.projectID,
+                    sessionID,
+                    sourceMessageID: lastUser.id,
+                    agent: agent.name,
+                    candidates,
+                    skipReviewState: true,
+                  })
+                  .pipe(Effect.catch(() => Effect.succeed([] as never[])))
+                // 自动写入：候选直接进长期记忆，越用越聪明无需点通过
+                if (memoryCfg.auto_apply && reviewed.length) {
+                  for (const item of reviewed) {
+                    if (item.status !== "pending") continue
+                    yield* memory.applyReviewCandidate(item.id).pipe(Effect.ignore)
+                  }
+                }
+              }
+            }
+            if (evolutionReviewEnabled && evolution && !handle.message.error) {
+              const userContent = textFromParts(lastUserMsg?.parts ?? [])
+              const due = yield* evolution
+                .reviewDue({
+                  projectID: session.projectID,
+                  sessionID,
+                  sourceMessageID: lastUser.id,
+                  reviewInterval: evolutionCfg.review_interval,
+                })
+                .pipe(Effect.catch(() => Effect.succeed(false)))
+              if (due) {
+                const assistantMsg = yield* sessions
+                  .findMessage(sessionID, (message) => message.info.id === handle.message.id)
+                  .pipe(Effect.orDie)
+                const assistantContent = Option.isSome(assistantMsg) ? textFromParts(assistantMsg.value.parts) : ""
+                const proposals = yield* inferEvolutionReviewCandidates({
+                  model,
+                  userContent,
+                  assistantContent,
+                }).pipe(Effect.catch(() => Effect.succeed([])))
+                if (proposals.length) {
+                  const reviewed = yield* evolution
+                    .review({
+                      proposals,
+                      projectID: session.projectID,
+                      sessionID,
+                      sourceMessageID: lastUser.id,
+                    })
+                    .pipe(Effect.catch(() => Effect.succeed([] as never[])))
+                  // 自动写入磁盘：开启后进化候选无需人工确认直接落地到 .novaway 文件
+                  // 写盘失败时由 evolution.applyToDisk 发布 AutoApplyFileFailed 事件并保留候选 pending 状态，等待人工确认
+                  if (evolutionCfg.auto_apply_file && reviewed.length) {
+                    for (const item of reviewed) {
+                      if (item.status !== "pending") continue
+                      yield* evolution
+                        .applyToDisk(item.id, {
+                          directory: instanceCtx.directory,
+                          worktree: instanceCtx.worktree,
+                        })
+                        .pipe(
+                          Effect.ignoreCause({
+                            log: true,
+                            message: `evolution auto-apply to disk failed: ${item.id}`,
+                          }),
+                        )
+                    }
+                  }
+                }
+              }
+            }
+            // 自动检查点:在压缩/剪枝之前按间隔捕获会话消息+文件快照,便于回滚。默认关闭。
+            if (checkpointService && !handle.message.error) {
+              const checkpointCfg = ConfigCheckpoint.resolve(cfg.checkpoint)
+              if (checkpointCfg.auto_enabled && checkpointCfg.auto_interval > 0) {
+                const due = yield* checkpointService
+                  .autoDue({ sessionId: sessionID, interval: checkpointCfg.auto_interval })
+                  .pipe(Effect.catch(() => Effect.succeed(false)))
+                if (due) {
+                  yield* checkpointService.createAuto({ sessionId: sessionID }).pipe(Effect.ignore)
+                }
+              }
+            }
+            return "break" as const
+          }
+          if (result === "compact") {
+            yield* compaction.create({
+              sessionID,
+              agent: lastUser.agent,
+              model: lastUser.model,
+              auto: true,
+              overflow: !handle.message.finish,
+            })
+          }
+          return "continue" as const
+        }).pipe(
+          Effect.ensuring(instruction.clear(handle.message.id)),
+          Effect.onInterrupt(() => finalizeInterruptedAssistant),
+        )
+        if (outcome === "break") break
+        continue
+      }
+
+      yield* compaction.prune({ sessionID }).pipe(Effect.ignore, Effect.forkIn(scope))
+
+      // Dream/Distill 自我改进集成:默认关闭,开启后按 interval 轮用 LLM 反思会话并蒸馏进长期记忆。
+      {
+        const dreamCfg = ConfigDream.resolve((yield* config.get()).dream)
+        if (dreamCfg.enabled && dreamCfg.interval > 0 && dreamDue(sessionID, dreamCfg.interval)) {
+          const capturedModel = loopModel
+          if (capturedModel) {
+            yield* Effect.gen(function* () {
+              const dreamModule = yield* Effect.tryPromise(() => import("./dream"))
+              const distillModule = yield* Effect.tryPromise(() => import("./distill"))
+              const dream = yield* dreamModule.Service
+              const distill = yield* distillModule.Service
+              const analysis = yield* dream.analyzeSession(sessionID, capturedModel)
+              const distillResult = yield* distill.fromAnalysis(analysis)
+              yield* distill.applyMemories(distillResult)
+            }).pipe(
+              Effect.catch(() => Effect.void),
+              Effect.forkIn(scope),
+            )
+          }
+        }
+      }
+
+      return yield* lastAssistant(sessionID)
+    } as any) as any
 
     // 待办收尾清扫:一轮结束时清单里还有未完成项,就再跑一轮让模型自己收敛状态。
     // 判定见 decideTodoSweep——无状态、有硬上限,不会和 todo 更新互相触发到停不下来。
     const sweepTodos = Effect.fn("SessionPrompt.sweepTodos")(function* (sessionID: SessionID) {
       const todos = yield* todo.get(sessionID).pipe(Effect.catch(() => Effect.succeed([] as Todo.Info[])))
-      const msgs = yield* sessions.messages({ sessionID }).pipe(Effect.catch(() => Effect.succeed([] as MessageV2.WithParts[])))
+      const msgs = yield* sessions
+        .messages({ sessionID })
+        .pipe(Effect.catch(() => Effect.succeed([] as MessageV2.WithParts[])))
       if (decideTodoSweep({ todos, messages: msgs }) !== "sweep") return undefined
 
       const lastUser = [...msgs].reverse().find((message) => message.info.role === "user")
@@ -2677,10 +2675,14 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       }).pipe(Effect.catch(() => Effect.succeed(undefined)))
     })
 
-    const loop: (input: LoopInput) => Effect.Effect<MessageV2.WithParts, never, never> = Effect.fn("SessionPrompt.loop")(function* (
-      input: LoopInput,
-    ) {
-      let result = yield* state.ensureRunning(input.sessionID, lastAssistant(input.sessionID), runLoop(input.sessionID) as any)
+    const loop: (input: LoopInput) => Effect.Effect<MessageV2.WithParts, never, never> = Effect.fn(
+      "SessionPrompt.loop",
+    )(function* (input: LoopInput) {
+      let result = yield* state.ensureRunning(
+        input.sessionID,
+        lastAssistant(input.sessionID),
+        runLoop(input.sessionID) as any,
+      )
 
       // 目标驱动自主循环:每轮结束后用裁判模型判断活动目标是否达成,未达成则
       // 顺序(不 fork)追加一轮,受硬性 max_iterations 上限约束防跑飞。默认关闭。
@@ -2702,7 +2704,9 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         const active = goals.filter((g: any) => g.status === "in_progress" || g.status === "pending")
         if (active.length === 0) break
 
-        const msgs = yield* sessions.messages({ sessionID: input.sessionID }).pipe(Effect.catch(() => Effect.succeed([])))
+        const msgs = yield* sessions
+          .messages({ sessionID: input.sessionID })
+          .pipe(Effect.catch(() => Effect.succeed([])))
         const lastAssistantMsg = [...msgs].reverse().find((m) => m.info.role === "assistant")
         const lastUserMsg = [...msgs].reverse().find((m) => m.info.role === "user")
         if (!lastAssistantMsg || lastAssistantMsg.info.role !== "assistant") break

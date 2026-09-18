@@ -14,8 +14,17 @@ export const { use: usePreview, provider: PreviewProvider } = createSimpleContex
       createStore({ url: "" }),
     )
 
+    const url = createMemo(() => prefs.url)
+    // 桌面端 iframe 嵌不了 file://，主进程换成受信任的自定义协议地址。
+    // 放在 context 里而不是面板里：元素选取的消息校验也要拿同一个地址比对来源
+    const embedUrl = createMemo(() => {
+      if (!url()) return undefined
+      return window.api?.toPreviewUrl?.(url()) ?? url()
+    })
+
     return {
-      url: createMemo(() => prefs.url),
+      url,
+      embedUrl,
       setUrl(input: string): boolean {
         const normalized = normalizePreviewUrl(input)
         if (!normalized) return false

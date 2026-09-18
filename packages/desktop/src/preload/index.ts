@@ -139,6 +139,7 @@ const api: ElectronAPI = {
   installUpdate: () => ipcRenderer.invoke("install-update"),
   setBackgroundColor: (color: string) => ipcRenderer.invoke("set-background-color", color),
   toPreviewUrl: (url) => toLocalFileUrl(url),
+  setPreviewInspectorOrigin: (origin) => ipcRenderer.invoke("set-preview-inspector-origin", origin),
   platform: {
     getAccounts: () => ipcRenderer.invoke("platform:get-accounts"),
     getSupportedPlatforms: () => ipcRenderer.invoke("platform:get-supported-platforms"),

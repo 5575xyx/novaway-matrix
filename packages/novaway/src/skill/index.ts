@@ -490,30 +490,45 @@ export const layer = Layer.effect(
           compositions.push(composition)
           return saveCompositions(compositions).pipe(Effect.as(composition))
         }),
-        Effect.orDie
+        Effect.orDie,
       )
     }
 
     const listCompositions = (): Effect.Effect<SkillComposition[], never, never> => loadCompositions()
 
-    const getComposition = (compositionId: string): Effect.Effect<SkillComposition | null, never, never> => Effect.gen(function* () {
-      const compositions = yield* loadCompositions()
-      return compositions.find((c) => c.id === compositionId) ?? null
-    })
+    const getComposition = (compositionId: string): Effect.Effect<SkillComposition | null, never, never> =>
+      Effect.gen(function* () {
+        const compositions = yield* loadCompositions()
+        return compositions.find((c) => c.id === compositionId) ?? null
+      })
 
-    const executeComposition = (compositionId: string, context: Record<string, any>): Effect.Effect<void, never, never> => Effect.gen(function* () {
-      const composition = yield* getComposition(compositionId)
-      if (!composition) return yield* Effect.die(new Error("Composition not found"))
+    const executeComposition = (
+      compositionId: string,
+      context: Record<string, any>,
+    ): Effect.Effect<void, never, never> =>
+      Effect.gen(function* () {
+        const composition = yield* getComposition(compositionId)
+        if (!composition) return yield* Effect.die(new Error("Composition not found"))
 
-      for (const skillId of composition.skills) {
-        const skill = yield* get(skillId)
-        if (skill) {
-          log.info("执行技能", { skillId })
+        for (const skillId of composition.skills) {
+          const skill = yield* get(skillId)
+          if (skill) {
+            log.info("执行技能", { skillId })
+          }
         }
-      }
-    })
+      })
 
-    return Service.of({ get, all, dirs, available, reload, createComposition, listCompositions, getComposition, executeComposition })
+    return Service.of({
+      get,
+      all,
+      dirs,
+      available,
+      reload,
+      createComposition,
+      listCompositions,
+      getComposition,
+      executeComposition,
+    })
   }),
 )
 

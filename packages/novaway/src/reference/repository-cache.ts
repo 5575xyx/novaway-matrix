@@ -21,6 +21,9 @@ export type Result = {
   branch?: string
 }
 
+// clone 和 fetch 都走网络,大仓库或网络抖动时耗时不可控,单独给一个宽松上限。
+const NETWORK_TIMEOUT_MS = 10 * 60 * 1000
+
 function statusForRepository(input: { reuse: boolean; refresh?: boolean; branchMatches?: boolean }) {
   if (!input.reuse) return "cloned" as const
   if (input.branchMatches === false) return "refreshed" as const
@@ -48,6 +51,7 @@ export const ensure = Effect.fn("RepositoryCache.ensure")(function* (
     reference: RepositoryReference
     refresh?: boolean
     branch?: string
+    timeoutMs?: number
   },
   services: {
     fs: AppFileSystem.Interface
@@ -88,7 +92,7 @@ export const ensure = Effect.fn("RepositoryCache.ensure")(function* (
         if (status === "cloned") {
           const clone = yield* services.git.run(
             ["clone", "--depth", "100", ...(input.branch ? ["--branch", input.branch] : []), "--", remote, localPath],
-            { cwd: path.dirname(localPath) },
+            { cwd: path.dirname(localPath), timeoutMs: input.timeoutMs ?? NETWORK_TIMEOUT_MS },
           )
           if (clone.exitCode !== 0) {
             throw new Error(clone.stderr.toString().trim() || clone.text().trim() || `Failed to clone ${repository}`)
@@ -96,7 +100,10 @@ export const ensure = Effect.fn("RepositoryCache.ensure")(function* (
         }
 
         if (status === "refreshed") {
-          const fetch = yield* services.git.run(["fetch", "--all", "--prune"], { cwd: localPath })
+          const fetch = yield* services.git.run(["fetch", "--all", "--prune"], {
+            cwd: localPath,
+            timeoutMs: input.timeoutMs ?? NETWORK_TIMEOUT_MS,
+          })
           if (fetch.exitCode !== 0) {
             throw new Error(fetch.stderr.toString().trim() || fetch.text().trim() || `Failed to refresh ${repository}`)
           }

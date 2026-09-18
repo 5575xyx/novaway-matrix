@@ -92,16 +92,12 @@ export const orchestratorHandlers = HttpApiBuilder.group(InstanceHttpApi, "orche
           })
 
           // 后台执行:UI 通过 getOrchestratorPlan 轮询状态。
-          yield* orchestrator
-            .executePlan({ planId: plan.id, runAgent, defaultAgent })
-            .pipe(
-              Effect.catchCause((cause) =>
-                Effect.logError("orchestrator execution failed").pipe(
-                  Effect.annotateLogs({ planId: plan.id, cause }),
-                ),
-              ),
-              Effect.forkIn(scope, { startImmediately: true }),
-            )
+          yield* orchestrator.executePlan({ planId: plan.id, runAgent, defaultAgent }).pipe(
+            Effect.catchCause((cause) =>
+              Effect.logError("orchestrator execution failed").pipe(Effect.annotateLogs({ planId: plan.id, cause })),
+            ),
+            Effect.forkIn(scope, { startImmediately: true }),
+          )
 
           // 返回置为 running 的当前状态(执行在后台推进)。
           const current = yield* orchestrator.getPlan(plan.id)

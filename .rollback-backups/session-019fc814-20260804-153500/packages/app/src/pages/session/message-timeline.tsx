@@ -41,13 +41,7 @@ import { ScrollView } from "@novaway/ui/scroll-view"
 import { StickyAccordionHeader } from "@novaway/ui/sticky-accordion-header"
 import { TextReveal } from "@novaway/ui/text-reveal"
 import { TextShimmer } from "@novaway/ui/text-shimmer"
-import type {
-  AssistantMessage,
-  Message as MessageType,
-  Part as PartType,
-  ToolPart,
-  UserMessage,
-} from "@novaway/sdk/v2"
+import type { AssistantMessage, Message as MessageType, Part as PartType, ToolPart, UserMessage } from "@novaway/sdk/v2"
 import { showToast } from "@novaway/ui/toast"
 import { Binary } from "@novaway/core/util/binary"
 import { getDirectory, getFilename } from "@novaway/core/util/path"

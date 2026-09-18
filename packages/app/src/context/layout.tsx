@@ -17,6 +17,7 @@ import { pathKey } from "@/utils/path-key"
 const AVATAR_COLOR_KEYS = ["pink", "mint", "orange", "purple", "cyan", "lime"] as const
 const DEFAULT_SIDEBAR_WIDTH = 344
 const DEFAULT_FILE_TREE_WIDTH = 200
+const DEFAULT_GIT_PANEL_WIDTH = 260
 const DEFAULT_SESSION_WIDTH = 600
 const DEFAULT_TERMINAL_HEIGHT = 280
 const DEFAULT_PREVIEW_WIDTH = 640
@@ -234,9 +235,11 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
 
       const review = value.review
       const fileTree = value.fileTree
+      const gitPanel = value.git
       const migratedFileTree = (() => {
         if (!isRecord(fileTree)) return fileTree
-        if (fileTree.tab === "changes" || fileTree.tab === "all" || fileTree.tab === "review") return fileTree
+        if (fileTree.tab === "changes" || fileTree.tab === "all" || fileTree.tab === "review")
+          return fileTree
 
         const width = typeof fileTree.width === "number" ? fileTree.width : DEFAULT_FILE_TREE_WIDTH
         return {
@@ -245,6 +248,14 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           width: width === 260 ? DEFAULT_FILE_TREE_WIDTH : width,
           tab: "changes",
         }
+      })()
+
+      const migratedGit = (() => {
+        if (!isRecord(gitPanel)) return { opened: false, width: DEFAULT_GIT_PANEL_WIDTH }
+        if (typeof gitPanel.opened === "boolean") return gitPanel
+
+        const width = typeof gitPanel.width === "number" ? gitPanel.width : DEFAULT_GIT_PANEL_WIDTH
+        return { opened: false, width }
       })()
 
       const migratedReview = (() => {
@@ -287,6 +298,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         migratedSidebar === sidebar &&
         migratedReview === review &&
         migratedFileTree === fileTree &&
+        migratedGit === gitPanel &&
         migratedSessionTabs === sessionTabs
       ) {
         return value
@@ -297,6 +309,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         sidebar: migratedSidebar,
         review: migratedReview,
         fileTree: migratedFileTree,
+        git: migratedGit,
         sessionTabs: migratedSessionTabs,
       }
     }
@@ -324,6 +337,10 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           opened: false,
           width: DEFAULT_FILE_TREE_WIDTH,
           tab: "changes" as "changes" | "all" | "review",
+        },
+        git: {
+          opened: false,
+          width: DEFAULT_GIT_PANEL_WIDTH,
         },
         session: {
           width: DEFAULT_SESSION_WIDTH,
@@ -787,6 +804,46 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           setStore("fileTree", "width", width)
         },
       },
+      git: {
+        opened: createMemo(() => store.git?.opened ?? false),
+        width: createMemo(() => store.git?.width ?? DEFAULT_GIT_PANEL_WIDTH),
+        open() {
+          if (!store.git) {
+            setStore("git", { opened: true, width: DEFAULT_GIT_PANEL_WIDTH })
+            return
+          }
+          setStore("git", "opened", true)
+        },
+        close() {
+          if (!store.git) {
+            setStore("git", { opened: false, width: DEFAULT_GIT_PANEL_WIDTH })
+            return
+          }
+          setStore("git", "opened", false)
+        },
+        toggle() {
+          if (!store.git) {
+            setStore("git", { opened: true, width: DEFAULT_GIT_PANEL_WIDTH })
+            return
+          }
+          setStore("git", "opened", (x) => !x)
+        },
+        resize(width: number) {
+          if (!store.git) {
+            setStore("git", { opened: true, width })
+            return
+          }
+          setStore("git", "width", width)
+        },
+      },
+      // 右侧独立面板总宽（review 面板不参与，它由 session 宽度反推），
+      // 供 session 内容宽度反推用，两处在同一处计算避免宽度算法分叉。
+      sidePanelWidth: createMemo(() => {
+        const parts: string[] = []
+        if (store.git?.opened) parts.push(`${store.git.width ?? DEFAULT_GIT_PANEL_WIDTH}px`)
+        if (store.fileTree?.opened) parts.push(`${store.fileTree.width ?? DEFAULT_FILE_TREE_WIDTH}px`)
+        return parts.join(" + ")
+      }),
       session: {
         width: createMemo(() => store.session?.width ?? DEFAULT_SESSION_WIDTH),
         resize(width: number) {

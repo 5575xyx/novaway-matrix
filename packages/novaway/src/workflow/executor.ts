@@ -99,9 +99,7 @@ export const executeRun = (deps: ExecuteRunDeps): Effect.Effect<WorkflowRun> =>
         outputs[step.id] = truthy
         next = truthy ? step.nextTrue : step.nextFalse
       } else if (step.type === "parallel") {
-        const children = (step.steps ?? [])
-          .map((id) => stepMap.get(id))
-          .filter((s): s is WorkflowStep => Boolean(s))
+        const children = (step.steps ?? []).map((id) => stepMap.get(id)).filter((s): s is WorkflowStep => Boolean(s))
         const results = yield* Effect.forEach(
           children,
           (child) => runSingle(child).pipe(Effect.map((out) => [child.id, out] as const)),

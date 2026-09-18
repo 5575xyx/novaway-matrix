@@ -2,7 +2,7 @@ import { $ } from "bun"
 import { describe, expect } from "bun:test"
 import fs from "fs/promises"
 import path from "path"
-import { Effect } from "effect"
+import { Effect, Stream } from "effect"
 import { Git } from "../../src/git"
 import { tmpdir } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
@@ -173,6 +173,35 @@ describe("Git", () => {
       const git = yield* Git.Service
       const text = yield* git.show(tmp.path, "HEAD", "bin.dat")
       expect(text).toBe("")
+    }),
+  )
+
+  // 永不结束的 stdin 让 git 一直等输入,不会自己退出,可以确定性地触发超时路径。
+  it.live("run() kills the command and reports timedOut when the timeout expires", () =>
+    Effect.gen(function* () {
+      const tmp = yield* scopedTmpdir({ git: true })
+      const git = yield* Git.Service
+      const started = Date.now()
+      const result = yield* git.run(["apply", "--cached", "-"], {
+        cwd: tmp.path,
+        stdin: Stream.never,
+        timeoutMs: 1_000,
+      })
+      expect(result.timedOut).toBe(true)
+      expect(result.exitCode).toBe(1)
+      expect(result.truncated).toBe(false)
+      expect(result.text()).toBe("")
+      expect(Date.now() - started).toBeLessThan(10_000)
+    }),
+  )
+
+  it.live("run() reports timedOut: false on a fast command with the default timeout", () =>
+    Effect.gen(function* () {
+      const tmp = yield* scopedTmpdir({ git: true })
+      const git = yield* Git.Service
+      const result = yield* git.run(["rev-parse", "--git-dir"], { cwd: tmp.path })
+      expect(result.timedOut).toBe(false)
+      expect(result.exitCode).toBe(0)
     }),
   )
 })

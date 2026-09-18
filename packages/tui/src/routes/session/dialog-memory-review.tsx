@@ -4,10 +4,7 @@ import { useDialog, type DialogContext } from "../../ui/dialog"
 import { DialogSelect, type DialogSelectOption } from "../../ui/dialog-select"
 import { DialogConfirm } from "../../ui/dialog-confirm"
 import { createSignal, onMount, For } from "solid-js"
-import {
-  memoryApi,
-  type MemoryReviewCandidate,
-} from "../../util/memory-evolution-api"
+import { memoryApi, type MemoryReviewCandidate } from "../../util/memory-evolution-api"
 
 type FilterStatus = "pending" | "applied" | "dismissed"
 

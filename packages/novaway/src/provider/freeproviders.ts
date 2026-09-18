@@ -93,9 +93,7 @@ export function buildDiscoveredModels(
     // 定价未知的不合入——宁缺毋滥，避免把按量计费的模型伪装成免费。
     if (!free && !priced) continue
     // 走到这里只有两种情况：免费（成本 0）或 priced 已定义
-    const cost = free
-      ? { input: 0, output: 0 }
-      : { input: priced?.input ?? 0, output: priced?.output ?? 0 }
+    const cost = free ? { input: 0, output: 0 } : { input: priced?.input ?? 0, output: priced?.output ?? 0 }
     models[item.id] = {
       id: ModelID.make(item.id),
       providerID,

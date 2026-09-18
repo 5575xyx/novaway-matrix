@@ -140,7 +140,7 @@ function formatBytes(bytes) {
   const k = 1024
   const sizes = ["B", "KB", "MB", "GB"]
   const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + " " + sizes[i]
+  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i]
 }
 
 function downloadBinary(packageName) {
@@ -175,7 +175,11 @@ function downloadBinary(packageName) {
       } catch (error) {
         console.log(`[x] 下载失败: ${error.message}`)
         if (i === MIRROR_SOURCES.length - 1) {
-          reject(new Error(`所有镜像源均下载失败。请检查网络连接或稍后重试。\n\n如需手动下载：\n1. 访问 https://github.com/${GITHUB_REPO}/releases/download/v${VERSION}/${filename}\n2. 解压到 ${path.dirname(targetBinary)}`))
+          reject(
+            new Error(
+              `所有镜像源均下载失败。请检查网络连接或稍后重试。\n\n如需手动下载：\n1. 访问 https://github.com/${GITHUB_REPO}/releases/download/v${VERSION}/${filename}\n2. 解压到 ${path.dirname(targetBinary)}`,
+            ),
+          )
         }
       }
     }
@@ -184,22 +188,24 @@ function downloadBinary(packageName) {
 
 function tryDownload(url, isWindows, packageName) {
   return new Promise((resolve, reject) => {
-    const protocol = url.startsWith('https') ? https : require('http')
+    const protocol = url.startsWith("https") ? https : require("http")
 
     const request = protocol.get(url, { timeout: 30000 }, (response) => {
       if (response.statusCode === 302 || response.statusCode === 301) {
         // Follow redirect
-        return protocol.get(response.headers.location, { timeout: 30000 }, (res) =>
-          handleResponse(res, resolve, reject, isWindows, packageName)
-        ).on('error', reject)
+        return protocol
+          .get(response.headers.location, { timeout: 30000 }, (res) =>
+            handleResponse(res, resolve, reject, isWindows, packageName),
+          )
+          .on("error", reject)
       }
       handleResponse(response, resolve, reject, isWindows, packageName)
     })
 
-    request.on('error', reject)
-    request.on('timeout', () => {
+    request.on("error", reject)
+    request.on("timeout", () => {
       request.destroy()
-      reject(new Error('下载超时'))
+      reject(new Error("下载超时"))
     })
   })
 }
@@ -321,8 +327,7 @@ async function main() {
   }
 
   throw new Error(
-    `Failed to download novaway binary for your platform (${platform}-${arch}). ` +
-      `Tried: ${packageNames.join(", ")}`
+    `Failed to download novaway binary for your platform (${platform}-${arch}). ` + `Tried: ${packageNames.join(", ")}`,
   )
 }
 

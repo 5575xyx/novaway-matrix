@@ -1043,9 +1043,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       },
       {
         name: "app.toggle.session_directory_filter",
-        title: kv.get("session_directory_filter_enabled", true)
-          ? "禁用会话目录过滤"
-          : "启用会话目录过滤",
+        title: kv.get("session_directory_filter_enabled", true) ? "禁用会话目录过滤" : "启用会话目录过滤",
         category: "系统",
         run: async () => {
           kv.set("session_directory_filter_enabled", !kv.get("session_directory_filter_enabled", true))
@@ -1055,8 +1053,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       },
       {
         name: "permission.mode",
-        title:
-          local.permission.mode === "auto" ? "禁用自动批准权限" : "启用自动批准权限",
+        title: local.permission.mode === "auto" ? "禁用自动批准权限" : "启用自动批准权限",
         category: "系统",
         run: () => {
           local.permission.toggle()
@@ -1145,12 +1142,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
     const skipped = kv.get("skipped_version")
     if (skipped && !isVersionGreater(version, skipped)) return
 
-    const choice = await DialogConfirm.show(
-      dialog,
-      "发现新版本",
-      `新版本 v${version} 已发布，现在更新吗？`,
-      "跳过",
-    )
+    const choice = await DialogConfirm.show(dialog, "发现新版本", `新版本 v${version} 已发布，现在更新吗？`, "跳过")
 
     if (choice === false) {
       kv.set("skipped_version", version)
@@ -1177,11 +1169,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       return
     }
 
-    await DialogAlert.show(
-      dialog,
-      "更新完成",
-      `已成功更新到 NovaWay v${result.data.version}。请重启应用程序。`,
-    )
+    await DialogAlert.show(dialog, "更新完成", `已成功更新到 NovaWay v${result.data.version}。请重启应用程序。`)
 
     void exit()
   })
@@ -1253,9 +1241,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
         evt.stopPropagation()
       }}
       onMouseUp={
-        !Flag.NOVAWAY_EXPERIMENTAL_DISABLE_COPY_ON_SELECT
-          ? () => Selection.copy(renderer, toast, clipboard)
-          : undefined
+        !Flag.NOVAWAY_EXPERIMENTAL_DISABLE_COPY_ON_SELECT ? () => Selection.copy(renderer, toast, clipboard) : undefined
       }
     >
       <Show when={Flag.NOVAWAY_SHOW_TTFD}>

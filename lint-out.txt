@@ -1,0 +1,270 @@
+﻿bun : $ oxlint packages/app/src/context/layout.tsx packages/app/src/pages/session/session-side-panel.tsx packages/app/s
+rc/components/session/session-header.tsx packages/app/src/pages/session/use-session-commands.tsx packages/app/src/compo
+nents/settings-keybinds.tsx
+所在位置 行:1 字符: 1
++ bun lint packages/app/src/context/layout.tsx packages/app/src/pages/s ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ($ oxlint packag...gs-keybinds.tsx:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+  ! eslint(no-unused-vars): Variable 'platform' is declared but never used. Unused variables should start with a '_'.
+    ,-[packages/app/src/pages/session/use-session-commands.tsx:44:9]
+ 43 |   const permission = usePermission()
+ 44 |   const platform = usePlatform()
+    :         ^^^^|^^^
+    :             `-- 'platform' is declared here
+ 45 |   const prompt = usePrompt()
+    `----
+  help: Consider removing this declaration.
+
+  ! eslint(no-unused-vars): Identifier 'Tooltip' is imported but never used.
+   ,-[packages/app/src/components/session/session-header.tsx:8:10]
+ 7 | import { showToast } from "@novaway/ui/toast"
+ 8 | import { Tooltip, TooltipKeybind } from "@novaway/ui/tooltip"
+   :          ^^^|^^^
+   :             `-- 'Tooltip' is imported here
+ 9 | import { getFilename } from "@novaway/core/util/path"
+   `----
+  help: Consider removing this import.
+
+  ! eslint(no-unused-vars): Identifier 'ThemeSchemeToggle' is imported but never used.
+    ,-[packages/app/src/components/session/session-header.tsx:22:10]
+ 21 | import { StatusPopover } from "@/components/status-popover"
+ 22 | import { ThemeSchemeToggle } from "@/components/theme-scheme-toggle"
+    :          ^^^^^^^^|^^^^^^^^
+    :                  `-- 'ThemeSchemeToggle' is imported here
+ 23 | import { focusTerminalById } from "@/pages/session/helpers"
+    `----
+  help: Consider removing this import.
+
+  ! eslint(no-unused-vars): Variable 'nav' is declared but never used. Unused variables should start with a '_'.
+     ,-[packages/app/src/components/session/session-header.tsx:168:9]
+ 167 |   const status = createMemo(() => settings.general.showStatus())
+ 168 |   const nav = createMemo(() => settings.general.showNavigation())
+     :         ^|^
+     :          `-- 'nav' is declared here
+ 169 | 
+     `----
+  help: Consider removing this declaration.
+
+  ! eslint(no-unused-vars): Variable 'tint' is declared but never used. Unused variables should start with a '_'.
+     ,-[packages/app/src/components/session/session-header.tsx:239:9]
+ 238 |   const opening = createMemo(() => openRequest.app !== undefined)
+ 239 |   const tint = createMemo(() =>
+     :         ^^|^
+     :           `-- 'tint' is declared here
+ 240 |     messageAgentColor(params.id ? sync.data.message[params.id] : undefined, sync.data.agent),
+     `----
+  help: Consider removing this declaration.
+
+  ! typescript-eslint(no-unsafe-type-assertion): Unsafe type assertion: type '"cyan" | "lime" | "mint" | "orange" | "pink" | "purple"' is more narrow than the original type.
+    ,-[packages/app/src/context/layout.tsx:88:41]
+ 87 | export function getAvatarColors(key?: string) {
+ 88 |   if (key && AVATAR_COLOR_KEYS.includes(key as AvatarColorKey)) {
+    :                                         ^^^^^^^^^^^^^^^^^^^^^
+ 89 |     return {
+    `----
+
+  ! typescript-eslint(consistent-return): Function 'sessionPath' expected no return value.
+     ,-[packages/app/src/context/layout.tsx:176:3]
+ 175 |   if (!root) return
+ 176 |   return createPathHelpers(() => root)
+     :   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 177 | }
+     `----
+
+  ! typescript-eslint(unbound-method): Avoid referencing unbound methods which may cause unintentional scoping of `this`.
+     ,-[packages/app/src/context/layout.tsx:203:16]
+ 202 | 
+ 203 | export const { use: useLayout, provider: LayoutProvider } = createSimpleContext({
+     :                ^^^
+ 204 |   name: "Layout",
+     `----
+  help: If your function does not access `this`, you can annotate it with `this: void`, or consider using an arrow function instead.
+
+  ! typescript-eslint(no-meaningless-void-operator): void operator shouldn't be used on void; it should convey that a return value is being ignored
+     ,-[packages/app/src/context/layout.tsx:387:11]
+ 386 |           const target = session ? Persist.session(dir, session, entry.key) : Persist.workspace(dir, entry.key)
+ 387 |           void removePersisted(target, platform)
+     :           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 388 | 
+     `----
+
+  ! typescript-eslint(no-meaningless-void-operator): void operator shouldn't be used on void; it should convey that a return value is being ignored
+     ,-[packages/app/src/context/layout.tsx:390:11]
+ 389 |           const legacyKey = `${dir}/${entry.legacy}${session ? "/" + session : ""}.${entry.version}`
+ 390 |           void removePersisted({ key: legacyKey }, platform)
+     :           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 391 |         }
+     `----
+
+  ! typescript-eslint(unbound-method): Avoid referencing unbound methods which may cause unintentional scoping of `this`.
+     ,-[packages/app/src/pages/session/session-side-panel.tsx:120:14]
+ 119 |     normalizeTab,
+ 120 |     openTab: tabs().open,
+     :              ^^^^^^^^^^^|
+     :                   |     `-- This reference may be unbound and lose `this` context
+ 121 |     pathFromTab: file.pathFromTab,
+     `----
+  help: If your function does not access `this`, you can annotate it with `this: void`, or consider using an arrow function instead.
+
+  ! typescript-eslint(unbound-method): Avoid referencing unbound methods which may cause unintentional scoping of `this`.
+     ,-[packages/app/src/pages/session/session-side-panel.tsx:124:16]
+ 123 |     openReviewPanel,
+ 124 |     setActive: tabs().setActive,
+     :                ^^^^^^^^^^^^^^^^|
+     :                        |       `-- This reference may be unbound and lose `this` context
+ 125 |   })
+     `----
+  help: If your function does not access `this`, you can annotate it with `this: void`, or consider using an arrow function instead.
+
+  ! typescript-eslint(no-unnecessary-type-assertion): This assertion is unnecessary since it does not change the type of the expression.
+     ,-[packages/app/src/pages/session/session-side-panel.tsx:157:34]
+ 156 |     if (value !== "changes" && value !== "all" && value !== "review") return
+ 157 |     layout.fileTree.setTab(value as "changes" | "all" | "review")
+     :                            ^^|^^ ^^^^^^^^^^^^^^^|^^^^^^^^^^^^^^^^
+     :                              |                  `-- Casting it to '"all" | "changes" | "review"' is unnecessary
+     :                              `-- This expression already has the type '"all" | "changes" | "review"'
+ 158 |   }
+     `----
+
+  ! typescript-eslint(no-unsafe-type-assertion): Unsafe type assertion: type 'SelectedLineRange' is more narrow than the original type.
+     ,-[packages/app/src/pages/session/session-side-panel.tsx:202:18]
+ 201 |             selected && typeof selected === "object" && "start" in selected && "end" in selected
+ 202 |               ? (selected as SelectedLineRange)
+     :                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 203 |               : null
+     `----
+
+  ! typescript-eslint(consistent-return): Function expected no return value.
+     ,-[packages/app/src/components/session/session-header.tsx:155:5]
+ 154 |     if (!directory) return
+ 155 |     return layout.projects.list().find((p) => p.worktree === directory || p.sandboxes?.includes(directory))
+     :     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 156 |   })
+     `----
+
+  ! typescript-eslint(consistent-return): Function 'info' expected no return value.
+    ,-[packages/app/src/pages/session/use-session-commands.tsx:57:5]
+ 56 |     if (!id) return
+ 57 |     return sync.session.get(id)
+    :     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 58 |   }
+    `----
+
+  ! typescript-eslint(no-unnecessary-type-assertion): This assertion is unnecessary since it does not change the type of the expression.
+    ,-[packages/app/src/pages/session/use-session-commands.tsx:80:74]
+ 79 |   }
+ 80 |   const userMessages = () => messages().filter((m) => m.role === "user") as UserMessage[]
+    :                              ^^^^^^^^^^^^^^^^^^^^^|^^^^^^^^^^^^^^^^^^^^^ ^^^^^^^^|^^^^^^^^
+    :                                                   |                              `-- Casting it to 'UserMessage[]' is unnecessary
+    :                                                   `-- This expression already has the type 'UserMessage[]'
+ 81 |   const visibleUserMessages = () => {
+    `----
+
+  ! typescript-eslint(consistent-return): Function 'consume' expected no return value.
+     ,-[packages/app/src/context/layout.tsx:909:11]
+ 908 |           if (Date.now() - at > PENDING_MESSAGE_TTL_MS) return
+ 909 |           return message
+     :           ^^^^^^^^^^^^^^
+ 910 |         },
+     `----
+
+  ! typescript-eslint(no-floating-promises): Promises must be awaited, add void operator to ignore.
+     ,-[packages/app/src/pages/session/use-session-commands.tsx:220:7]
+ 219 |     void import("@/components/dialog-select-file").then((x) => {
+ 220 |       dialog.show(() => <x.DialogSelectFile onOpenFile={showAllFiles} />)
+     :       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 221 |     })
+     `----
+  help: The promise must end with a call to .catch, or end with a call to .then with a rejection handler, or be explicitly marked as ignored with the `void` operator.
+
+  ! typescript-eslint(no-unsafe-type-assertion): Unsafe type assertion: type 'SelectedLineRange | null | undefined' is more narrow than the original type.
+     ,-[packages/app/src/pages/session/use-session-commands.tsx:237:19]
+ 236 | 
+ 237 |     const range = file.selectedLines(path) as SelectedLineRange | null | undefined
+     :                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 238 |     if (!range) {
+     `----
+
+  ! typescript-eslint(no-floating-promises): Promises must be awaited, add void operator to ignore.
+     ,-[packages/app/src/pages/session/use-session-commands.tsx:265:7]
+ 264 |     void import("@/components/dialog-select-model").then((x) => {
+ 265 |       dialog.show(() => <x.DialogSelectModel model={local.model} />)
+     :       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 266 |     })
+     `----
+  help: The promise must end with a call to .catch, or end with a call to .then with a rejection handler, or be explicitly marked as ignored with the `void` operator.
+
+  ! typescript-eslint(no-floating-promises): Promises must be awaited, add void operator to ignore.
+     ,-[packages/app/src/pages/session/use-session-commands.tsx:271:7]
+ 270 |     void import("@/components/dialog-select-mcp").then((x) => {
+ 271 |       dialog.show(() => <x.DialogSelectMcp />)
+     :       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 272 |     })
+     `----
+  help: The promise must end with a call to .catch, or end with a call to .then with a rejection handler, or be explicitly marked as ignored with the `void` operator.
+
+  ! typescript-eslint(unbound-method): Avoid referencing unbound methods which may cause unintentional scoping of `this`.
+     ,-[packages/app/src/pages/session/session-side-panel.tsx:283:76]
+ 282 |                             <For each={openedTabs()}>
+ 283 |                               {(tab) => <SortableTab tab={tab} onTabClose={tabs().close} />}
+     :                                                                            ^^^^^^^^^^^^|
+     :                                                                                  |     `-- This reference may be unbound and lose `this` context
+ 284 |                             </For>
+     `----
+  help: If your function does not access `this`, you can annotate it with `this: void`, or consider using an arrow function instead.
+
+  ! typescript-eslint(no-floating-promises): Promises must be awaited, add void operator to ignore.
+     ,-[packages/app/src/pages/session/session-side-panel.tsx:299:37]
+ 298 |                                   void import("@/components/dialog-select-file").then((x) => {
+ 299 |                                     dialog.show(() => <x.DialogSelectFile mode="files" onOpenFile={showAllFiles} />)
+     :                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 300 |                                   })
+     `----
+  help: The promise must end with a call to .catch, or end with a call to .then with a rejection handler, or be explicitly marked as ignored with the `void` operator.
+
+  ! typescript-eslint(no-floating-promises): Promises must be awaited, add void operator to ignore.
+     ,-[packages/app/src/pages/session/use-session-commands.tsx:359:7]
+ 358 |     void import("@/components/dialog-fork").then((x) => {
+ 359 |       dialog.show(() => <x.DialogFork />)
+     :       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 360 |     })
+     `----
+  help: The promise must end with a call to .catch, or end with a call to .then with a rejection handler, or be explicitly marked as ignored with the `void` operator.
+
+  ! typescript-eslint(consistent-return): Function 'recordKeybind' expected no return value.
+    ,-[packages/app/src/components/settings-keybinds.tsx:94:3]
+ 93 | 
+ 94 |   return parts.join("+")
+    :   ^^^^^^^^^^^^^^^^^^^^^^
+ 95 | }
+    `----
+
+  ! typescript-eslint(no-unsafe-type-assertion): Unsafe type assertion: type 'KeybindMap' is more narrow than the original type.
+     ,-[packages/app/src/components/settings-keybinds.tsx:117:10]
+ 116 |   if (!value || typeof value !== "object" || Array.isArray(value)) return {}
+ 117 |   return value as KeybindMap
+     :          ^^^^^^^^^^^^^^^^^^^
+ 118 | }
+     `----
+
+  ! typescript-eslint(no-unsafe-type-assertion): Unsafe type assertion: type '"android-studio" | "antigravity" | "cursor" | "finder" | "ghostty" | "iterm2" | "powershell" | "sublime-text" | "terminal" | "textmate" | "vscode" | "warp" | "xcode" | "zed"' is more narrow than the original type.
+     ,-[packages/app/src/components/session/session-header.tsx:493:61]
+ 492 |                                   onChange={(value) => {
+ 493 |                                     if (!OPEN_APPS.includes(value as OpenApp)) return
+     :                                                             ^^^^^^^^^^^^^^^^
+ 494 |                                     selectApp(value as OpenApp)
+     `----
+
+  ! typescript-eslint(no-unsafe-type-assertion): Unsafe type assertion: type '"android-studio" | "antigravity" | "cursor" | "finder" | "ghostty" | "iterm2" | "powershell" | "sublime-text" | "terminal" | "textmate" | "vscode" | "warp" | "xcode" | "zed"' is more narrow than the original type.
+     ,-[packages/app/src/components/session/session-header.tsx:494:47]
+ 493 |                                     if (!OPEN_APPS.includes(value as OpenApp)) return
+ 494 |                                     selectApp(value as OpenApp)
+     :                                               ^^^^^^^^^^^^^^^^
+ 495 |                                   }}
+     `----
+
+Found 29 warnings and 0 errors.
+Finished in 528ms on 5 files with 130 rules using 16 threads.

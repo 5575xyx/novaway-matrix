@@ -17,16 +17,18 @@ export const WorkflowApi = HttpApiGroup.make("workflow")
       payload: Schema.Struct({
         name: Schema.String,
         description: Schema.optional(Schema.String),
-        steps: Schema.Array(Schema.Struct({
-          id: Schema.String,
-          name: Schema.String,
-          type: Schema.Literals(["agent", "tool", "skill", "condition", "parallel"]),
-          config: Schema.Record(Schema.String, Schema.Unknown),
-          next: Schema.optional(Schema.String),
-          nextTrue: Schema.optional(Schema.String),
-          nextFalse: Schema.optional(Schema.String),
-          steps: Schema.optional(Schema.Array(Schema.String)),
-        })),
+        steps: Schema.Array(
+          Schema.Struct({
+            id: Schema.String,
+            name: Schema.String,
+            type: Schema.Literals(["agent", "tool", "skill", "condition", "parallel"]),
+            config: Schema.Record(Schema.String, Schema.Unknown),
+            next: Schema.optional(Schema.String),
+            nextTrue: Schema.optional(Schema.String),
+            nextFalse: Schema.optional(Schema.String),
+            steps: Schema.optional(Schema.Array(Schema.String)),
+          }),
+        ),
       }),
       success: Schema.Any,
       error: Schema.Never,

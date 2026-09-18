@@ -1,5 +1,5 @@
 import { AppProcess } from "@novaway/core/process"
-import { Effect, Layer, Context, Stream } from "effect"
+import { Effect, Layer, Context, Stream, Duration } from "effect"
 import { ChildProcess } from "effect/unstable/process"
 
 const cfg = [
@@ -16,8 +16,20 @@ const cfg = [
   "core.quotepath=false",
 ] as const
 
+// 单次 git 调用的默认上限。网络类操作(clone/fetch/push/pull)由调用方显式传更长的值。
+// 没有这个兜底的话,克隆大仓库或远端无响应会让会话无限挂在工具调用上。
+const DEFAULT_TIMEOUT_MS = 60_000
+
 const out = (result: { text(): string }) => result.text().trim()
 const nuls = (text: string) => text.split("\0").filter(Boolean)
+
+// 超时时 AppProcess 抛的是带 cause: Error("Timed out") 的 AppProcessError,
+// 这里把它还原成布尔位,调用方好给出明确的错误文案。
+const timedOut = (cause: unknown) => {
+  const reason = cause && typeof cause === "object" && "cause" in cause ? (cause as { cause?: unknown }).cause : undefined
+  return reason instanceof Error && reason.message === "Timed out"
+}
+
 const fail = (err: unknown) =>
   ({
     exitCode: 1,
@@ -25,6 +37,7 @@ const fail = (err: unknown) =>
     stdout: Buffer.alloc(0),
     stderr: Buffer.from(err instanceof Error ? err.message : String(err)),
     truncated: false,
+    timedOut: timedOut(err),
   }) satisfies Result
 
 export type Kind = "added" | "deleted" | "modified"
@@ -62,6 +75,7 @@ export interface Result {
   readonly stdout: Buffer
   readonly stderr: Buffer
   readonly truncated: boolean
+  readonly timedOut: boolean
 }
 
 export interface Options {
@@ -69,6 +83,7 @@ export interface Options {
   readonly env?: Record<string, string>
   readonly maxOutputBytes?: number
   readonly stdin?: ChildProcess.CommandInput
+  readonly timeoutMs?: number
 }
 
 export interface Interface {
@@ -117,7 +132,10 @@ export const layer = Layer.effect(
             stdout: "pipe",
             stderr: "pipe",
           }),
-          { maxOutputBytes: opts.maxOutputBytes },
+          {
+            maxOutputBytes: opts.maxOutputBytes,
+            timeout: Duration.millis(opts.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+          },
         )
         return {
           exitCode: result.exitCode,
@@ -125,6 +143,7 @@ export const layer = Layer.effect(
           stdout: result.stdout,
           stderr: result.stderr,
           truncated: result.stdoutTruncated || result.stderrTruncated,
+          timedOut: false,
         } satisfies Result
       },
       Effect.catch((err) => Effect.succeed(fail(err))),

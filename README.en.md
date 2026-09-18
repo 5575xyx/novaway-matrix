@@ -198,12 +198,12 @@ npm uninstall -g xymt-novaway
 
 User data directories (cleared by `novaway uninstall`, untouched by a manual uninstall):
 
-| Purpose | Linux / macOS | Windows |
-| --- | --- | --- |
-| Config | `~/.config/novaway` | `C:\Users\<you>\.config\novaway` |
+| Purpose                            | Linux / macOS            | Windows                               |
+| ---------------------------------- | ------------------------ | ------------------------------------- |
+| Config                             | `~/.config/novaway`      | `C:\Users\<you>\.config\novaway`      |
 | Data (sessions / logs / snapshots) | `~/.local/share/novaway` | `C:\Users\<you>\.local\share\novaway` |
-| Cache | `~/.cache/novaway` | `C:\Users\<you>\.cache\novaway` |
-| State | `~/.local/state/novaway` | `C:\Users\<you>\.local\state\novaway` |
+| Cache                              | `~/.cache/novaway`       | `C:\Users\<you>\.cache\novaway`       |
+| State                              | `~/.local/state/novaway` | `C:\Users\<you>\.local\state\novaway` |
 
 ## Install troubleshooting
 

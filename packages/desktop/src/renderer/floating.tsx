@@ -684,12 +684,14 @@ function MinesweeperGame(props: { onReward: (score: number) => void; difficulty?
     <div class="flex flex-col items-center gap-3 py-2">
       <div class="flex w-full items-center gap-2">
         <div class="flex flex-1 items-center gap-1 rounded-lg bg-surface-raised-base p-1">
-          <For each={(["easy", "normal", "hard"] as const)}>
+          <For each={["easy", "normal", "hard"] as const}>
             {(option) => (
               <button
                 type="button"
                 class={`flex-1 rounded-md px-1 py-0.5 text-11-medium transition-colors ${
-                  difficulty() === option ? "bg-cyan-400/15 text-cyan-600 dark:text-cyan-300" : "text-text-weak hover:text-text-base"
+                  difficulty() === option
+                    ? "bg-cyan-400/15 text-cyan-600 dark:text-cyan-300"
+                    : "text-text-weak hover:text-text-base"
                 }`}
                 onClick={() => {
                   if (difficulty() === option) return

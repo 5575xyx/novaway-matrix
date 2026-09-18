@@ -5,6 +5,7 @@ import { Cause, Effect, Exit, Layer } from "effect"
 import { AppFileSystem } from "@novaway/core/filesystem"
 import { Agent } from "../../src/agent/agent"
 import { CrossSpawnSpawner } from "@novaway/core/cross-spawn-spawner"
+import { Config } from "../../src/config/config"
 import { Git } from "../../src/git"
 import { Global } from "@novaway/core/global"
 import { MessageID, SessionID } from "../../src/session/schema"
@@ -33,6 +34,7 @@ const it = testEffect(
     Agent.defaultLayer,
     AppFileSystem.defaultLayer,
     CrossSpawnSpawner.defaultLayer,
+    Config.defaultLayer,
     Git.defaultLayer,
     Truncate.defaultLayer,
   ),

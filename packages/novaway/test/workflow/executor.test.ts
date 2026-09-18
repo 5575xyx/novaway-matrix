@@ -43,8 +43,7 @@ function makeRun(): WorkflowRun {
 function makeFakeService(run: WorkflowRun) {
   const calls: Array<{ status?: string; error?: string; currentStep: string }> = []
   const service = {
-    update: (_: { workflowId: string; status?: Workflow["status"] }) =>
-      Effect.succeed({} as Workflow),
+    update: (_: { workflowId: string; status?: Workflow["status"] }) => Effect.succeed({} as Workflow),
     updateRunState: (input: {
       runId: string
       state: WorkflowRun["state"]
@@ -101,7 +100,14 @@ describe("workflow executor", () => {
   test("condition step routes to nextTrue when predicate matches", async () => {
     const steps: WorkflowStep[] = [
       { id: "s1", name: "ask", type: "agent", config: { prompt: "yes please" }, next: "c" },
-      { id: "c", name: "check", type: "condition", config: { input: "s1", contains: "yes" }, nextTrue: "tYes", nextFalse: "tNo" },
+      {
+        id: "c",
+        name: "check",
+        type: "condition",
+        config: { input: "s1", contains: "yes" },
+        nextTrue: "tYes",
+        nextFalse: "tNo",
+      },
       { id: "tYes", name: "yesbranch", type: "agent", config: { prompt: "took yes branch" } },
       { id: "tNo", name: "nobranch", type: "agent", config: { prompt: "took no branch" } },
     ]
@@ -140,9 +146,7 @@ describe("workflow executor", () => {
   })
 
   test("marks the run failed when an agent step throws", async () => {
-    const steps: WorkflowStep[] = [
-      { id: "s1", name: "boom", type: "agent", config: { prompt: "explode" } },
-    ]
+    const steps: WorkflowStep[] = [{ id: "s1", name: "boom", type: "agent", config: { prompt: "explode" } }]
     const workflow = makeWorkflow(steps)
     const runRow = makeRun()
     const { service, calls } = makeFakeService(runRow)

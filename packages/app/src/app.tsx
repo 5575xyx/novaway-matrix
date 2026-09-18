@@ -9,10 +9,11 @@ import { Font } from "@novaway/ui/font"
 import { Splash } from "@novaway/ui/logo"
 import { ThemeProvider } from "@novaway/ui/theme/context"
 import { MetaProvider } from "@solidjs/meta"
-import { type BaseRouterProps, Navigate, Route, Router } from "@solidjs/router"
+import { type BaseRouterProps, Navigate, Route, Router, useParams } from "@solidjs/router"
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query"
 import { Effect } from "effect"
 import {
+  type Accessor,
   type Component,
   createEffect,
   createMemo,
@@ -39,6 +40,7 @@ import { LayoutProvider } from "@/context/layout"
 import { ModelsProvider } from "@/context/models"
 import { NotificationProvider } from "@/context/notification"
 import { PermissionProvider } from "@/context/permission"
+import { PreviewInspectionProvider } from "@/context/preview-inspection"
 import { PromptProvider } from "@/context/prompt"
 import { ServerConnection, ServerProvider, serverName, useServer } from "@/context/server"
 import { SettingsProvider } from "@/context/settings"
@@ -46,6 +48,7 @@ import { TerminalProvider } from "@/context/terminal"
 import DirectoryLayout from "@/pages/directory-layout"
 import { OfficeAgentProvider } from "@/pages/session/office-agent-context"
 import Layout from "@/pages/layout"
+import { decode64 } from "@/utils/base64"
 import { ErrorPage } from "./pages/error"
 import { useCheckServerHealth } from "./utils/server-health"
 
@@ -59,11 +62,17 @@ if (typeof location === "object" && /\/session(?:\/|$)/.test(location.pathname))
   void loadSession()
 }
 
-const SessionRoute = () => (
-  <SessionProviders>
-    <Session />
-  </SessionProviders>
-)
+function SessionRoute() {
+  const params = useParams()
+  // 目录从路由参数解：元素选取挂在会话作用域，需要 PromptProvider，而它只在会话路由内
+  const directory = createMemo(() => decode64(params.dir) ?? "")
+
+  return (
+    <SessionProviders directory={directory}>
+      <Session />
+    </SessionProviders>
+  )
+}
 
 const SessionIndexRoute = () => <Navigate href="session" />
 
@@ -82,6 +91,7 @@ declare global {
     api?: {
       setTitlebar?: (theme: { mode: "light" | "dark" }) => Promise<void>
       toPreviewUrl?: (url: string) => string
+      setPreviewInspectorOrigin?: (origin: string) => Promise<void>
       updateFloatingAgentState?: (state: {
         current?: string
         agents: Array<{ name: string; mode: string; hidden?: boolean; options?: Record<string, unknown> }>
@@ -161,14 +171,16 @@ function AppShellProviders(props: ParentProps) {
   )
 }
 
-function SessionProviders(props: ParentProps) {
+function SessionProviders(props: ParentProps<{ directory: Accessor<string> }>) {
   return (
     <TerminalProvider>
       <FileProvider>
         <PromptProvider>
-          <OfficeAgentProvider>
-            <CommentsProvider>{props.children}</CommentsProvider>
-          </OfficeAgentProvider>
+          <PreviewInspectionProvider directory={props.directory}>
+            <OfficeAgentProvider>
+              <CommentsProvider>{props.children}</CommentsProvider>
+            </OfficeAgentProvider>
+          </PreviewInspectionProvider>
         </PromptProvider>
       </FileProvider>
     </TerminalProvider>

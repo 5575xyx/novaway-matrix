@@ -140,7 +140,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
             }, {}),
           )
         })
-          .catch(() => setStore("active", "novaway"))
+        .catch(() => setStore("active", "novaway"))
     }
 
     onMount(() => {

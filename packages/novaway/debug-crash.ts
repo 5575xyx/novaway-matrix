@@ -37,7 +37,11 @@ import { InstanceState } from "@/effect/instance-state"
 const LOG = path.join(process.env.TEMP ?? ".", "registry-crash.log")
 const stage = (name: string) => {
   const mem = process.memoryUsage()
-  writeFileSync(LOG, `[${name}] rss=${Math.round(mem.rss / 1024 / 1024)}MB heap=${Math.round(mem.heapUsed / 1024 / 1024)}MB\n`, { flag: "a" })
+  writeFileSync(
+    LOG,
+    `[${name}] rss=${Math.round(mem.rss / 1024 / 1024)}MB heap=${Math.round(mem.heapUsed / 1024 / 1024)}MB\n`,
+    { flag: "a" },
+  )
 }
 
 writeFileSync(LOG, "")
@@ -49,35 +53,37 @@ const configLayer = TestConfig.layer({
 })
 
 const registryLayer = Layer.suspend(() =>
-  ToolRegistry.layer.pipe(
-    Layer.provide(configLayer),
-    Layer.provide(Plugin.defaultLayer),
-    Layer.provide(Question.defaultLayer),
-    Layer.provide(Todo.defaultLayer),
-    Layer.provide(Skill.defaultLayer),
-    Layer.provide(Agent.defaultLayer),
-    Layer.provide(Session.defaultLayer),
-    Layer.provide(Layer.mergeAll(SessionStatus.defaultLayer, BackgroundJob.defaultLayer)),
-    Layer.provide(Provider.defaultLayer),
-    Layer.provide(Git.defaultLayer),
-    Layer.provide(Reference.defaultLayer),
-    Layer.provide(LSP.defaultLayer),
-    Layer.provide(Instruction.defaultLayer),
-    Layer.provide(AppFileSystem.defaultLayer),
-    Layer.provide(Bus.layer),
-    Layer.provide(FetchHttpClient.layer),
-    Layer.provide(Format.defaultLayer),
-    Layer.provide(node),
-    Layer.provide(Ripgrep.defaultLayer),
-    Layer.provide(Truncate.defaultLayer),
-  ).pipe(
-    Layer.provide(RuntimeFlags.defaultLayer),
-    Layer.provide(Auth.defaultLayer),
-    Layer.provide(BrowserService.defaultLayer),
-    Layer.provide(Goal.defaultLayer),
-    Layer.provide(WorkflowDefaultLayer),
-    Layer.provide(OrchestratorDefaultLayer),
-  ),
+  ToolRegistry.layer
+    .pipe(
+      Layer.provide(configLayer),
+      Layer.provide(Plugin.defaultLayer),
+      Layer.provide(Question.defaultLayer),
+      Layer.provide(Todo.defaultLayer),
+      Layer.provide(Skill.defaultLayer),
+      Layer.provide(Agent.defaultLayer),
+      Layer.provide(Session.defaultLayer),
+      Layer.provide(Layer.mergeAll(SessionStatus.defaultLayer, BackgroundJob.defaultLayer)),
+      Layer.provide(Provider.defaultLayer),
+      Layer.provide(Git.defaultLayer),
+      Layer.provide(Reference.defaultLayer),
+      Layer.provide(LSP.defaultLayer),
+      Layer.provide(Instruction.defaultLayer),
+      Layer.provide(AppFileSystem.defaultLayer),
+      Layer.provide(Bus.layer),
+      Layer.provide(FetchHttpClient.layer),
+      Layer.provide(Format.defaultLayer),
+      Layer.provide(node),
+      Layer.provide(Ripgrep.defaultLayer),
+      Layer.provide(Truncate.defaultLayer),
+    )
+    .pipe(
+      Layer.provide(RuntimeFlags.defaultLayer),
+      Layer.provide(Auth.defaultLayer),
+      Layer.provide(BrowserService.defaultLayer),
+      Layer.provide(Goal.defaultLayer),
+      Layer.provide(WorkflowDefaultLayer),
+      Layer.provide(OrchestratorDefaultLayer),
+    ),
 )
 
 stage("B layer constructed")

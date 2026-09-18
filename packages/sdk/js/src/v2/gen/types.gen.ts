@@ -30,6 +30,7 @@ export type Event =
   | EventQuestionAsked
   | EventQuestionReplied
   | EventQuestionRejected
+  | EventQuestionFeishuReplied
   | EventTodoUpdated
   | EventSessionStatus
   | EventSessionIdle
@@ -48,6 +49,7 @@ export type Event =
   | EventPtyDeleted
   | EventInstallationUpdated
   | EventInstallationUpdateAvailable
+  | EventInstallationUpdateFailed
   | EventMessageUpdated
   | EventMessageRemoved
   | EventMessagePartUpdated
@@ -303,6 +305,11 @@ export type QuestionRejected = {
   requestID: string
 }
 
+export type QuestionFeishuReplied = {
+  requestID: string
+  answers: Array<QuestionAnswer>
+}
+
 export type Todo = {
   /**
    * Brief description of the task
@@ -316,6 +323,10 @@ export type Todo = {
    * Priority level of the task: high, medium, low
    */
   priority: string
+  /**
+   * ID of the goal this todo is associated with
+   */
+  goalId?: string
 }
 
 export type SessionStatus =
@@ -821,6 +832,7 @@ export type GlobalEvent = {
     | EventQuestionAsked
     | EventQuestionReplied
     | EventQuestionRejected
+    | EventQuestionFeishuReplied
     | EventTodoUpdated
     | EventSessionStatus
     | EventSessionIdle
@@ -839,6 +851,7 @@ export type GlobalEvent = {
     | EventPtyDeleted
     | EventInstallationUpdated
     | EventInstallationUpdateAvailable
+    | EventInstallationUpdateFailed
     | EventMessageUpdated
     | EventMessageRemoved
     | EventMessagePartUpdated
@@ -914,7 +927,7 @@ export type GlobalEvent = {
 export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR"
 
 /**
- * Server configuration for opencode serve and web commands
+ * Server configuration for NovaWay serve and web commands
  */
 export type ServerConfig = {
   port?: number
@@ -964,6 +977,7 @@ export type PermissionConfig =
       task?: PermissionRuleConfig
       external_directory?: PermissionRuleConfig
       todowrite?: PermissionActionConfig
+      todoedit?: PermissionActionConfig
       question?: PermissionActionConfig
       webfetch?: PermissionActionConfig
       websearch?: PermissionActionConfig
@@ -1261,6 +1275,19 @@ export type Config = {
     auto_apply?: boolean
     auto_apply_file?: boolean
   }
+  goal?: {
+    enabled?: boolean
+    max_iterations?: number
+    judge_model?: string
+  }
+  checkpoint?: {
+    auto_enabled?: boolean
+    auto_interval?: number
+  }
+  dream?: {
+    enabled?: boolean
+    interval?: number
+  }
   /**
    * Enable or configure formatters. Omit or set to false to disable, true to enable built-ins, or an object to enable built-ins with overrides.
    */
@@ -1321,6 +1348,7 @@ export type Config = {
   }
   experimental?: {
     disable_paste_summary?: boolean
+    background_subagents?: boolean
     batch_tool?: boolean
     openTelemetry?: boolean
     primary_tools?: Array<string>
@@ -1733,6 +1761,13 @@ export type File = {
   status: "added" | "deleted" | "modified"
 }
 
+export type GitError = {
+  name: "GitError"
+  data: {
+    message: string
+  }
+}
+
 export type ImageGeneratePayload = {
   prompt: string
   model?: string
@@ -2062,6 +2097,11 @@ export type MemoryReviewCandidate = {
   }
 }
 
+export type ProjectDirectory = {
+  directory: string
+  strategy?: string
+}
+
 export type EffectHttpApiErrorForbidden = {
   _tag: "Forbidden"
 }
@@ -2114,10 +2154,10 @@ export type ProviderModelDiscoveryResult = {
     name: string
     inputModalities?: Array<string>
     outputModalities?: Array<string>
-    contextLength?: number
+    contextLength?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
     pricing?: {
-      prompt: number | null
-      completion: number | null
+      prompt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      completion: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
     }
   }>
 }
@@ -2213,6 +2253,25 @@ export type V2SessionMessagesResponse = {
     previous?: string
     next?: string
   }
+}
+
+export type V2LocationInfo = {
+  directory: string
+  workspaceID?: string
+  project: {
+    id: string
+    directory: string
+  }
+}
+
+export type FileSystemEntry = {
+  path: string
+  type: "file" | "directory"
+}
+
+export type V2FsFindResponse = {
+  location: V2LocationInfo
+  data: Array<FileSystemEntry>
 }
 
 export type VideoGeneratePayload = {
@@ -3021,6 +3080,12 @@ export type EventQuestionRejected = {
   properties: QuestionRejected
 }
 
+export type EventQuestionFeishuReplied = {
+  id: string
+  type: "question.feishu.replied"
+  properties: QuestionFeishuReplied
+}
+
 export type EventTodoUpdated = {
   id: string
   type: "todo.updated"
@@ -3166,6 +3231,15 @@ export type EventInstallationUpdateAvailable = {
   type: "installation.update-available"
   properties: {
     version: string
+  }
+}
+
+export type EventInstallationUpdateFailed = {
+  id: string
+  type: "installation.update-failed"
+  properties: {
+    version: string
+    reason: string
   }
 }
 
@@ -4498,6 +4572,130 @@ export type ChatSendResponses = {
 
 export type ChatSendResponse = ChatSendResponses[keyof ChatSendResponses]
 
+export type CheckpointListCheckpointsData = {
+  body?: never
+  path: {
+    sessionId: string
+  }
+  query?: never
+  url: "/session/{sessionId}/checkpoints"
+}
+
+export type CheckpointListCheckpointsErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type CheckpointListCheckpointsResponses = {
+  /**
+   * Success
+   */
+  200: Array<unknown>
+}
+
+export type CheckpointListCheckpointsResponse =
+  CheckpointListCheckpointsResponses[keyof CheckpointListCheckpointsResponses]
+
+export type CheckpointCreateCheckpointData = {
+  body?: {
+    name: string
+    reason?: string
+    tags?: Array<string>
+  }
+  path: {
+    sessionId: string
+  }
+  query?: never
+  url: "/session/{sessionId}/checkpoints"
+}
+
+export type CheckpointCreateCheckpointErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type CheckpointCreateCheckpointResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type CheckpointDeleteCheckpointData = {
+  body?: never
+  path: {
+    checkpointId: string
+  }
+  query?: never
+  url: "/checkpoints/{checkpointId}"
+}
+
+export type CheckpointDeleteCheckpointErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type CheckpointDeleteCheckpointResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type CheckpointGetCheckpointData = {
+  body?: never
+  path: {
+    checkpointId: string
+  }
+  query?: never
+  url: "/checkpoints/{checkpointId}"
+}
+
+export type CheckpointGetCheckpointErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type CheckpointGetCheckpointError = CheckpointGetCheckpointErrors[keyof CheckpointGetCheckpointErrors]
+
+export type CheckpointGetCheckpointResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type CheckpointRestoreCheckpointData = {
+  body?: never
+  path: {
+    checkpointId: string
+  }
+  query?: never
+  url: "/checkpoints/{checkpointId}/restore"
+}
+
+export type CheckpointRestoreCheckpointErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type CheckpointRestoreCheckpointResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
 export type ConfigGetData = {
   body?: never
   path?: never
@@ -5352,6 +5550,665 @@ export type FileStatusResponses = {
 }
 
 export type FileStatusResponse = FileStatusResponses[keyof FileStatusResponses]
+
+export type GitSnapshotData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/git"
+}
+
+export type GitSnapshotErrors = {
+  /**
+   * GitError
+   */
+  400: GitError
+}
+
+export type GitSnapshotError = GitSnapshotErrors[keyof GitSnapshotErrors]
+
+export type GitSnapshotResponses = {
+  /**
+   * Git snapshot
+   */
+  200: {
+    branch: {
+      branch?: string
+      upstream?: string
+      ahead: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      behind: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+    changes: Array<{
+      file: string
+      code: string
+      status: "added" | "deleted" | "modified" | "renamed" | "untracked" | "unmerged"
+      staged: boolean
+      unstaged: boolean
+      additions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      deletions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      binary: boolean
+    }>
+    branches: Array<{
+      name: string
+      current: boolean
+    }>
+    remotes: Array<{
+      name: string
+      url: string
+      current: boolean
+    }>
+    stash: Array<{
+      ref: string
+      message: string
+    }>
+    log: Array<{
+      hash: string
+      subject: string
+      author: string
+      date: string
+    }>
+  }
+}
+
+export type GitSnapshotResponse = GitSnapshotResponses[keyof GitSnapshotResponses]
+
+export type GitAddData = {
+  body?: {
+    files: Array<string>
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/git/add"
+}
+
+export type GitAddErrors = {
+  /**
+   * GitError
+   */
+  400: GitError
+}
+
+export type GitAddError = GitAddErrors[keyof GitAddErrors]
+
+export type GitAddResponses = {
+  /**
+   * Git snapshot
+   */
+  200: {
+    branch: {
+      branch?: string
+      upstream?: string
+      ahead: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      behind: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+    changes: Array<{
+      file: string
+      code: string
+      status: "added" | "deleted" | "modified" | "renamed" | "untracked" | "unmerged"
+      staged: boolean
+      unstaged: boolean
+      additions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      deletions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      binary: boolean
+    }>
+    branches: Array<{
+      name: string
+      current: boolean
+    }>
+    remotes: Array<{
+      name: string
+      url: string
+      current: boolean
+    }>
+    stash: Array<{
+      ref: string
+      message: string
+    }>
+    log: Array<{
+      hash: string
+      subject: string
+      author: string
+      date: string
+    }>
+  }
+}
+
+export type GitAddResponse = GitAddResponses[keyof GitAddResponses]
+
+export type GitUnstageData = {
+  body?: {
+    files: Array<string>
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/git/unstage"
+}
+
+export type GitUnstageErrors = {
+  /**
+   * GitError
+   */
+  400: GitError
+}
+
+export type GitUnstageError = GitUnstageErrors[keyof GitUnstageErrors]
+
+export type GitUnstageResponses = {
+  /**
+   * Git snapshot
+   */
+  200: {
+    branch: {
+      branch?: string
+      upstream?: string
+      ahead: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      behind: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+    changes: Array<{
+      file: string
+      code: string
+      status: "added" | "deleted" | "modified" | "renamed" | "untracked" | "unmerged"
+      staged: boolean
+      unstaged: boolean
+      additions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      deletions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      binary: boolean
+    }>
+    branches: Array<{
+      name: string
+      current: boolean
+    }>
+    remotes: Array<{
+      name: string
+      url: string
+      current: boolean
+    }>
+    stash: Array<{
+      ref: string
+      message: string
+    }>
+    log: Array<{
+      hash: string
+      subject: string
+      author: string
+      date: string
+    }>
+  }
+}
+
+export type GitUnstageResponse = GitUnstageResponses[keyof GitUnstageResponses]
+
+export type GitDiscardData = {
+  body?: {
+    files: Array<string>
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/git/discard"
+}
+
+export type GitDiscardErrors = {
+  /**
+   * GitError
+   */
+  400: GitError
+}
+
+export type GitDiscardError = GitDiscardErrors[keyof GitDiscardErrors]
+
+export type GitDiscardResponses = {
+  /**
+   * Git snapshot
+   */
+  200: {
+    branch: {
+      branch?: string
+      upstream?: string
+      ahead: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      behind: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+    changes: Array<{
+      file: string
+      code: string
+      status: "added" | "deleted" | "modified" | "renamed" | "untracked" | "unmerged"
+      staged: boolean
+      unstaged: boolean
+      additions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      deletions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      binary: boolean
+    }>
+    branches: Array<{
+      name: string
+      current: boolean
+    }>
+    remotes: Array<{
+      name: string
+      url: string
+      current: boolean
+    }>
+    stash: Array<{
+      ref: string
+      message: string
+    }>
+    log: Array<{
+      hash: string
+      subject: string
+      author: string
+      date: string
+    }>
+  }
+}
+
+export type GitDiscardResponse = GitDiscardResponses[keyof GitDiscardResponses]
+
+export type GitCommitData = {
+  body?: {
+    message: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/git/commit"
+}
+
+export type GitCommitErrors = {
+  /**
+   * GitError
+   */
+  400: GitError
+}
+
+export type GitCommitError = GitCommitErrors[keyof GitCommitErrors]
+
+export type GitCommitResponses = {
+  /**
+   * Git snapshot
+   */
+  200: {
+    branch: {
+      branch?: string
+      upstream?: string
+      ahead: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      behind: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+    changes: Array<{
+      file: string
+      code: string
+      status: "added" | "deleted" | "modified" | "renamed" | "untracked" | "unmerged"
+      staged: boolean
+      unstaged: boolean
+      additions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      deletions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      binary: boolean
+    }>
+    branches: Array<{
+      name: string
+      current: boolean
+    }>
+    remotes: Array<{
+      name: string
+      url: string
+      current: boolean
+    }>
+    stash: Array<{
+      ref: string
+      message: string
+    }>
+    log: Array<{
+      hash: string
+      subject: string
+      author: string
+      date: string
+    }>
+  }
+}
+
+export type GitCommitResponse = GitCommitResponses[keyof GitCommitResponses]
+
+export type GitPushData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/git/push"
+}
+
+export type GitPushErrors = {
+  /**
+   * GitError
+   */
+  400: GitError
+}
+
+export type GitPushError = GitPushErrors[keyof GitPushErrors]
+
+export type GitPushResponses = {
+  /**
+   * Git snapshot
+   */
+  200: {
+    branch: {
+      branch?: string
+      upstream?: string
+      ahead: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      behind: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+    changes: Array<{
+      file: string
+      code: string
+      status: "added" | "deleted" | "modified" | "renamed" | "untracked" | "unmerged"
+      staged: boolean
+      unstaged: boolean
+      additions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      deletions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      binary: boolean
+    }>
+    branches: Array<{
+      name: string
+      current: boolean
+    }>
+    remotes: Array<{
+      name: string
+      url: string
+      current: boolean
+    }>
+    stash: Array<{
+      ref: string
+      message: string
+    }>
+    log: Array<{
+      hash: string
+      subject: string
+      author: string
+      date: string
+    }>
+  }
+}
+
+export type GitPushResponse = GitPushResponses[keyof GitPushResponses]
+
+export type GitPullData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/git/pull"
+}
+
+export type GitPullErrors = {
+  /**
+   * GitError
+   */
+  400: GitError
+}
+
+export type GitPullError = GitPullErrors[keyof GitPullErrors]
+
+export type GitPullResponses = {
+  /**
+   * Git snapshot
+   */
+  200: {
+    branch: {
+      branch?: string
+      upstream?: string
+      ahead: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      behind: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+    changes: Array<{
+      file: string
+      code: string
+      status: "added" | "deleted" | "modified" | "renamed" | "untracked" | "unmerged"
+      staged: boolean
+      unstaged: boolean
+      additions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      deletions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      binary: boolean
+    }>
+    branches: Array<{
+      name: string
+      current: boolean
+    }>
+    remotes: Array<{
+      name: string
+      url: string
+      current: boolean
+    }>
+    stash: Array<{
+      ref: string
+      message: string
+    }>
+    log: Array<{
+      hash: string
+      subject: string
+      author: string
+      date: string
+    }>
+  }
+}
+
+export type GitPullResponse = GitPullResponses[keyof GitPullResponses]
+
+export type GitStashData = {
+  body?: {
+    ref?: string
+    includeUntracked?: boolean
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/git/stash"
+}
+
+export type GitStashErrors = {
+  /**
+   * GitError
+   */
+  400: GitError
+}
+
+export type GitStashError = GitStashErrors[keyof GitStashErrors]
+
+export type GitStashResponses = {
+  /**
+   * Git snapshot
+   */
+  200: {
+    branch: {
+      branch?: string
+      upstream?: string
+      ahead: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      behind: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+    changes: Array<{
+      file: string
+      code: string
+      status: "added" | "deleted" | "modified" | "renamed" | "untracked" | "unmerged"
+      staged: boolean
+      unstaged: boolean
+      additions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      deletions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      binary: boolean
+    }>
+    branches: Array<{
+      name: string
+      current: boolean
+    }>
+    remotes: Array<{
+      name: string
+      url: string
+      current: boolean
+    }>
+    stash: Array<{
+      ref: string
+      message: string
+    }>
+    log: Array<{
+      hash: string
+      subject: string
+      author: string
+      date: string
+    }>
+  }
+}
+
+export type GitStashResponse = GitStashResponses[keyof GitStashResponses]
+
+export type GitBranchData = {
+  body?: {
+    name: string
+    create?: boolean
+    remove?: boolean
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/git/branch"
+}
+
+export type GitBranchErrors = {
+  /**
+   * GitError
+   */
+  400: GitError
+}
+
+export type GitBranchError = GitBranchErrors[keyof GitBranchErrors]
+
+export type GitBranchResponses = {
+  /**
+   * Git snapshot
+   */
+  200: {
+    branch: {
+      branch?: string
+      upstream?: string
+      ahead: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      behind: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+    changes: Array<{
+      file: string
+      code: string
+      status: "added" | "deleted" | "modified" | "renamed" | "untracked" | "unmerged"
+      staged: boolean
+      unstaged: boolean
+      additions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      deletions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      binary: boolean
+    }>
+    branches: Array<{
+      name: string
+      current: boolean
+    }>
+    remotes: Array<{
+      name: string
+      url: string
+      current: boolean
+    }>
+    stash: Array<{
+      ref: string
+      message: string
+    }>
+    log: Array<{
+      hash: string
+      subject: string
+      author: string
+      date: string
+    }>
+  }
+}
+
+export type GitBranchResponse = GitBranchResponses[keyof GitBranchResponses]
+
+export type GitRemoteData = {
+  body?: {
+    name: string
+    url?: string
+    remove?: boolean
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/git/remote"
+}
+
+export type GitRemoteErrors = {
+  /**
+   * GitError
+   */
+  400: GitError
+}
+
+export type GitRemoteError = GitRemoteErrors[keyof GitRemoteErrors]
+
+export type GitRemoteResponses = {
+  /**
+   * Git snapshot
+   */
+  200: {
+    branch: {
+      branch?: string
+      upstream?: string
+      ahead: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      behind: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+    changes: Array<{
+      file: string
+      code: string
+      status: "added" | "deleted" | "modified" | "renamed" | "untracked" | "unmerged"
+      staged: boolean
+      unstaged: boolean
+      additions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      deletions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      binary: boolean
+    }>
+    branches: Array<{
+      name: string
+      current: boolean
+    }>
+    remotes: Array<{
+      name: string
+      url: string
+      current: boolean
+    }>
+    stash: Array<{
+      ref: string
+      message: string
+    }>
+    log: Array<{
+      hash: string
+      subject: string
+      author: string
+      date: string
+    }>
+  }
+}
+
+export type GitRemoteResponse = GitRemoteResponses[keyof GitRemoteResponses]
 
 export type ImagesGenerateData = {
   body?: ImageGeneratePayload
@@ -7914,6 +8771,36 @@ export type ProjectUpdateResponses = {
 
 export type ProjectUpdateResponse = ProjectUpdateResponses[keyof ProjectUpdateResponses]
 
+export type ProjectDirectoriesData = {
+  body?: never
+  path: {
+    projectID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/project/{projectID}/directories"
+}
+
+export type ProjectDirectoriesErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type ProjectDirectoriesError = ProjectDirectoriesErrors[keyof ProjectDirectoriesErrors]
+
+export type ProjectDirectoriesResponses = {
+  /**
+   * Project directories
+   */
+  200: Array<ProjectDirectory>
+}
+
+export type ProjectDirectoriesResponse = ProjectDirectoriesResponses[keyof ProjectDirectoriesResponses]
+
 export type PtyShellsData = {
   body?: never
   path?: never
@@ -10287,6 +11174,28 @@ export type V2ProviderGetResponses = {
 
 export type V2ProviderGetResponse = V2ProviderGetResponses[keyof V2ProviderGetResponses]
 
+export type V2FsFindData = {
+  body?: never
+  path?: never
+  query: {
+    directory?: string
+    workspace?: string
+    query: string
+    type?: "file" | "directory"
+    limit?: string
+  }
+  url: "/api/fs/find"
+}
+
+export type V2FsFindResponses = {
+  /**
+   * V2FsFindResponse
+   */
+  200: V2FsFindResponse
+}
+
+export type V2FsFindResponse2 = V2FsFindResponses[keyof V2FsFindResponses]
+
 export type VideosGenerateData = {
   body?: VideoGeneratePayload
   path?: never
@@ -10809,6 +11718,542 @@ export type ExperimentalWorkspaceWarpResponses = {
 
 export type ExperimentalWorkspaceWarpResponse =
   ExperimentalWorkspaceWarpResponses[keyof ExperimentalWorkspaceWarpResponses]
+
+export type GoalListGoalsData = {
+  body?: never
+  path: {
+    sessionId: string
+  }
+  query?: never
+  url: "/session/{sessionId}/goals"
+}
+
+export type GoalListGoalsErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type GoalListGoalsResponses = {
+  /**
+   * Success
+   */
+  200: Array<unknown>
+}
+
+export type GoalListGoalsResponse = GoalListGoalsResponses[keyof GoalListGoalsResponses]
+
+export type GoalCreateGoalData = {
+  body?: {
+    title: string
+    description?: string
+    parentId?: string
+    priority?: "high" | "medium" | "low"
+    successCriteria?: Array<string>
+    deadline?: string
+    tags?: Array<string>
+  }
+  path: {
+    sessionId: string
+  }
+  query?: never
+  url: "/session/{sessionId}/goals"
+}
+
+export type GoalCreateGoalErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type GoalCreateGoalResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type GoalDeleteGoalData = {
+  body?: never
+  path: {
+    goalId: string
+  }
+  query?: never
+  url: "/goals/{goalId}"
+}
+
+export type GoalDeleteGoalErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type GoalDeleteGoalResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type GoalGetGoalData = {
+  body?: never
+  path: {
+    goalId: string
+  }
+  query?: never
+  url: "/goals/{goalId}"
+}
+
+export type GoalGetGoalErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type GoalGetGoalError = GoalGetGoalErrors[keyof GoalGetGoalErrors]
+
+export type GoalGetGoalResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type GoalUpdateGoalData = {
+  body?: {
+    title?: string
+    description?: string
+    status?: "pending" | "in_progress" | "completed" | "cancelled"
+    priority?: "high" | "medium" | "low"
+    successCriteria?: Array<string>
+    deadline?: string
+    tags?: Array<string>
+  }
+  path: {
+    goalId: string
+  }
+  query?: never
+  url: "/goals/{goalId}"
+}
+
+export type GoalUpdateGoalErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type GoalUpdateGoalResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type GoalGetGoalProgressData = {
+  body?: never
+  path: {
+    goalId: string
+  }
+  query?: never
+  url: "/goals/{goalId}/progress"
+}
+
+export type GoalGetGoalProgressErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type GoalGetGoalProgressResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type WorkflowListWorkflowsData = {
+  body?: never
+  path: {
+    sessionId: string
+  }
+  query?: never
+  url: "/session/{sessionId}/workflows"
+}
+
+export type WorkflowListWorkflowsErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type WorkflowListWorkflowsResponses = {
+  /**
+   * Success
+   */
+  200: Array<unknown>
+}
+
+export type WorkflowListWorkflowsResponse = WorkflowListWorkflowsResponses[keyof WorkflowListWorkflowsResponses]
+
+export type WorkflowCreateWorkflowData = {
+  body?: {
+    name: string
+    description?: string
+    steps: Array<{
+      id: string
+      name: string
+      type: "agent" | "tool" | "skill" | "condition" | "parallel"
+      config: {
+        [key: string]: unknown
+      }
+      next?: string
+      nextTrue?: string
+      nextFalse?: string
+      steps?: Array<string>
+    }>
+  }
+  path: {
+    sessionId: string
+  }
+  query?: never
+  url: "/session/{sessionId}/workflows"
+}
+
+export type WorkflowCreateWorkflowErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type WorkflowCreateWorkflowResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type WorkflowDeleteWorkflowData = {
+  body?: never
+  path: {
+    workflowId: string
+  }
+  query?: never
+  url: "/workflows/{workflowId}"
+}
+
+export type WorkflowDeleteWorkflowErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type WorkflowDeleteWorkflowResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type WorkflowGetWorkflowData = {
+  body?: never
+  path: {
+    workflowId: string
+  }
+  query?: never
+  url: "/workflows/{workflowId}"
+}
+
+export type WorkflowGetWorkflowErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type WorkflowGetWorkflowError = WorkflowGetWorkflowErrors[keyof WorkflowGetWorkflowErrors]
+
+export type WorkflowGetWorkflowResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type WorkflowUpdateWorkflowData = {
+  body?: {
+    name?: string
+    description?: string
+    steps?: Array<unknown>
+    status?: "draft" | "running" | "paused" | "completed" | "failed"
+  }
+  path: {
+    workflowId: string
+  }
+  query?: never
+  url: "/workflows/{workflowId}"
+}
+
+export type WorkflowUpdateWorkflowErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type WorkflowUpdateWorkflowResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type WorkflowStartWorkflowData = {
+  body?: never
+  path: {
+    workflowId: string
+  }
+  query?: never
+  url: "/workflows/{workflowId}/start"
+}
+
+export type WorkflowStartWorkflowErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type WorkflowStartWorkflowError = WorkflowStartWorkflowErrors[keyof WorkflowStartWorkflowErrors]
+
+export type WorkflowStartWorkflowResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type WorkflowListWorkflowRunsData = {
+  body?: never
+  path: {
+    workflowId: string
+  }
+  query?: never
+  url: "/workflows/{workflowId}/runs"
+}
+
+export type WorkflowListWorkflowRunsErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type WorkflowListWorkflowRunsResponses = {
+  /**
+   * Success
+   */
+  200: Array<unknown>
+}
+
+export type WorkflowListWorkflowRunsResponse =
+  WorkflowListWorkflowRunsResponses[keyof WorkflowListWorkflowRunsResponses]
+
+export type WorkflowListWorkflowTemplatesData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/workflow-templates"
+}
+
+export type WorkflowListWorkflowTemplatesErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type WorkflowListWorkflowTemplatesResponses = {
+  /**
+   * Success
+   */
+  200: Array<unknown>
+}
+
+export type WorkflowListWorkflowTemplatesResponse =
+  WorkflowListWorkflowTemplatesResponses[keyof WorkflowListWorkflowTemplatesResponses]
+
+export type WorkflowCreateWorkflowFromTemplateData = {
+  body?: {
+    template: string
+    name?: string
+    description?: string
+  }
+  path: {
+    sessionId: string
+  }
+  query?: never
+  url: "/session/{sessionId}/workflows/from-template"
+}
+
+export type WorkflowCreateWorkflowFromTemplateErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type WorkflowCreateWorkflowFromTemplateError =
+  WorkflowCreateWorkflowFromTemplateErrors[keyof WorkflowCreateWorkflowFromTemplateErrors]
+
+export type WorkflowCreateWorkflowFromTemplateResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type OrchestratorListOrchestratorPlansData = {
+  body?: never
+  path: {
+    sessionId: string
+  }
+  query?: never
+  url: "/session/{sessionId}/orchestrator/plans"
+}
+
+export type OrchestratorListOrchestratorPlansErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type OrchestratorListOrchestratorPlansResponses = {
+  /**
+   * Success
+   */
+  200: Array<unknown>
+}
+
+export type OrchestratorListOrchestratorPlansResponse =
+  OrchestratorListOrchestratorPlansResponses[keyof OrchestratorListOrchestratorPlansResponses]
+
+export type OrchestratorCreateOrchestratorPlanData = {
+  body?: {
+    name: string
+    tasks: Array<{
+      name: string
+      type: "agent" | "tool" | "skill"
+      config: {
+        [key: string]: unknown
+      }
+      dependencies: Array<string>
+    }>
+  }
+  path: {
+    sessionId: string
+  }
+  query?: never
+  url: "/session/{sessionId}/orchestrator/plans"
+}
+
+export type OrchestratorCreateOrchestratorPlanErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type OrchestratorCreateOrchestratorPlanResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type OrchestratorDeleteOrchestratorPlanData = {
+  body?: never
+  path: {
+    planId: string
+  }
+  query?: never
+  url: "/orchestrator/plans/{planId}"
+}
+
+export type OrchestratorDeleteOrchestratorPlanErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type OrchestratorDeleteOrchestratorPlanResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type OrchestratorGetOrchestratorPlanData = {
+  body?: never
+  path: {
+    planId: string
+  }
+  query?: never
+  url: "/orchestrator/plans/{planId}"
+}
+
+export type OrchestratorGetOrchestratorPlanErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type OrchestratorGetOrchestratorPlanError =
+  OrchestratorGetOrchestratorPlanErrors[keyof OrchestratorGetOrchestratorPlanErrors]
+
+export type OrchestratorGetOrchestratorPlanResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type OrchestratorExecuteOrchestratorPlanData = {
+  body?: never
+  path: {
+    planId: string
+  }
+  query?: never
+  url: "/orchestrator/plans/{planId}/execute"
+}
+
+export type OrchestratorExecuteOrchestratorPlanErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type OrchestratorExecuteOrchestratorPlanError =
+  OrchestratorExecuteOrchestratorPlanErrors[keyof OrchestratorExecuteOrchestratorPlanErrors]
+
+export type OrchestratorExecuteOrchestratorPlanResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
 
 export type PtyConnectData = {
   body?: never

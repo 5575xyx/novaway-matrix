@@ -7,15 +7,15 @@ Bun 1.3+ monorepo with Turborepo v2.8. Package manager: `bun` (exact versions vi
 
 All from repo root unless noted.
 
-| Command                                        | What                                       |
-| ---------------------------------------------- | ------------------------------------------ |
-| `bun dev`                                      | Start TUI (blocking; use `tmux`/`screen`)  |
-| `bun lint`                                     | oxlint (w/ `typeAware: true`)              |
-| `bun typecheck`                                | `bun turbo typecheck` across packages      |
-| `bun dev serve`                                | Headless API server on :4096               |
-| `bun dev web`                                  | Server + open web UI                       |
-| `bun dev .`                                    | Run against NovaWay repo itself           |
-| `./script/generate.ts`                         | Regenerate SDK + OpenAPI after API changes |
+| Command                                       | What                                       |
+| --------------------------------------------- | ------------------------------------------ |
+| `bun dev`                                     | Start TUI (blocking; use `tmux`/`screen`)  |
+| `bun lint`                                    | oxlint (w/ `typeAware: true`)              |
+| `bun typecheck`                               | `bun turbo typecheck` across packages      |
+| `bun dev serve`                               | Headless API server on :4096               |
+| `bun dev web`                                 | Server + open web UI                       |
+| `bun dev .`                                   | Run against NovaWay repo itself            |
+| `./script/generate.ts`                        | Regenerate SDK + OpenAPI after API changes |
 | `bun run --cwd packages/novaway test:httpapi` | HttpApi exerciser gates                    |
 
 Root convenience scripts: `bun dev:desktop`, `bun dev:web`, `bun dev:console`, `bun dev:storybook` (see root `package.json`).
@@ -32,19 +32,19 @@ Fastest verification loop: `lint -> typecheck -> test`.
 
 22 workspace packages under `packages/`. Key ones and their entrypoint:
 
-| Package                | npm name              | What                                            |
-| ---------------------- | --------------------- | ----------------------------------------------- |
-| `packages/novaway`    | — (private)           | Core CLI/TUI/server (`src/index.ts`, yargs CLI) |
+| Package                | npm name             | What                                            |
+| ---------------------- | -------------------- | ----------------------------------------------- |
+| `packages/novaway`     | — (private)          | Core CLI/TUI/server (`src/index.ts`, yargs CLI) |
 | `packages/core`        | `@NovaWay-ai/core`   | Shared utilities                                |
 | `packages/llm`         | `@NovaWay-ai/llm`    | Effect Schema-first LLM core                    |
 | `packages/app`         | `@NovaWay-ai/app`    | Web UI (SolidJS + Vite)                         |
 | `packages/ui`          | `@NovaWay-ai/ui`     | Shared UI components (SolidJS)                  |
 | `packages/tui`         | `@NovaWay-ai/tui`    | OpenTUI-based terminal UI                       |
-| `packages/desktop`     | `@novaway/desktop`    | Electron app wrapping web UI                    |
+| `packages/desktop`     | `@novaway/desktop`   | Electron app wrapping web UI                    |
 | `packages/sdk/js`      | `@NovaWay-ai/sdk`    | JS SDK (generated from OpenAPI)                 |
 | `packages/plugin`      | `@NovaWay-ai/plugin` | Plugin system                                   |
-| `packages/web`         | — (private)           | Landing site (Astro)                            |
-| `packages/console/app` | — (private)           | Console web app                                 |
+| `packages/web`         | — (private)          | Landing site (Astro)                            |
+| `packages/console/app` | — (private)          | Console web app                                 |
 
 Also present: `storybook`, `slack`, `script`, `sdk-v2-latest`, `enterprise`, `function`, `http-recorder`, plus `console/{core,function,mail,resource}`. Note: `packages/containers`, `docs`, `extensions` have no package.json and are not workspace packages.
 

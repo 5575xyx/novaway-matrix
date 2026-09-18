@@ -8,6 +8,7 @@ import { DialogPrompt } from "../ui/dialog-prompt"
 import { Link } from "../ui/link"
 import { useTheme } from "../context/theme"
 import { TextAttributes } from "@opentui/core"
+import { FREE_PROVIDER_RANK } from "@novaway/core/free-provider-policy"
 import type { ProviderAuthAuthorization, ProviderAuthMethod } from "@novaway/sdk-v2-latest/v2"
 import { DialogModel } from "./dialog-model"
 import { useToast } from "../ui/toast"
@@ -17,22 +18,21 @@ import { useBindings } from "../keymap"
 import { useClipboard } from "../context/clipboard"
 
 const PROVIDER_PRIORITY: Record<string, number> = {
-  NovaWay: 0,
-  "NovaWay-go": 1,
+  opencode: 0,
+  "opencode-go": 1,
   sensenova: 2,
   modelscope: 3,
-  iflowcn: 4,
-  openrouter: 5,
-  zhipuai: 6,
-  agnes: 7,
-  google: 8,
-  groq: 9,
-  nvidia: 10,
-  kilo: 11,
-  "siliconflow-cn": 12,
-  openai: 13,
-  "github-copilot": 14,
-  anthropic: 15,
+  openrouter: 4,
+  zhipuai: 5,
+  agnes: 6,
+  google: 7,
+  groq: 8,
+  nvidia: 9,
+  kilo: 10,
+  "siliconflow-cn": 11,
+  openai: 12,
+  "github-copilot": 13,
+  anthropic: 14,
 }
 
 // 免费通道的「免费性质」决定了徽章措辞：
@@ -49,26 +49,19 @@ const FREE_PROVIDERS: Record<
   string,
   { badge: FreeBadge; tagline: string; keyUrl: string; keyHint: string; steps: string[] }
 > = {
-  sensenova: {
-    badge: "免费",
-    tagline: "免费模型最多：GLM-5.2、DeepSeek-V4-Pro、Kimi-K3 等",
-    keyUrl: "https://platform.sensenova.cn",
-    keyHint: "platform.sensenova.cn",
-    steps: ["注册商汤开放平台账号，在控制台的「API 密钥」页面创建密钥"],
-  },
+  // 第一梯队：免费额度最大、最稳定（推荐）
   modelscope: {
     badge: "免费",
     tagline: "海量开源模型每日免费额度：Qwen3、DeepSeek、GLM 等全系",
     keyUrl: "https://modelscope.cn/my/myaccesstoken",
     keyHint: "modelscope.cn → 访问令牌",
     steps: ["注册魔搭社区账号，在「访问令牌」页面一键复制 API-KEY"],
-  },
-  iflowcn: {
+  },  sensenova: {
     badge: "免费",
-    tagline: "全部免费：Qwen3-Coder-Plus、GLM-4.6、Kimi-K2、DeepSeek-V3.2",
-    keyUrl: "https://iflow.cn",
-    keyHint: "iflow.cn",
-    steps: ["注册心流账号，在个人中心的 API 密钥页面创建密钥"],
+    tagline: "免费模型最多：GLM-5.2、DeepSeek-V4-Pro、Kimi-K3 等",
+    keyUrl: "https://platform.sensenova.cn",
+    keyHint: "platform.sensenova.cn",
+    steps: ["注册商汤开放平台账号，在控制台的「API 密钥」页面创建密钥"],
   },
   openrouter: {
     badge: "免费",
@@ -77,12 +70,84 @@ const FREE_PROVIDERS: Record<
     keyHint: "openrouter.ai → Keys",
     steps: ["注册 OpenRouter 后创建 API Key；充值 $10 可把免费额度提到 1000 次/天"],
   },
+  kilo: {
+    badge: "免费",
+    tagline: "聚合网关免费池：MiniMax-M3、Nemotron、Ling 等 17+ 免费模型",
+    keyUrl: "https://www.kilo.ai",
+    keyHint: "kilo.ai",
+    steps: ["注册 Kilo，在控制台创建 API Key"],
+  },
+  requesty: {
+    badge: "免费",
+    tagline: "12 个免费档路由：Nemotron / Ling / Gemma / GPT-OSS 全免费",
+    keyUrl: "https://requesty.ai",
+    keyHint: "requesty.ai",
+    steps: ["注册 Requesty，在 Keys 页面创建 API Key"],
+  },
+  inferx: {
+    badge: "免费",
+    tagline: "12 个免费档：Qwen3-Coder-Next FP8、DeepSeek、GLM 主力",
+    keyUrl: "https://model.inferx.net",
+    keyHint: "inferx.net",
+    steps: ["注册 InferX，在控制台创建 API Key"],
+  },
+  unorouter: {
+    badge: "免费",
+    tagline: "11 个 :free 模型路由：DeepSeek / Qwen3.5 / GLM / Nemotron / GPT-5.5",
+    keyUrl: "https://unorouter.com",
+    keyHint: "unorouter.com",
+    steps: ["注册 UnoRouter，在 Keys 页面创建 API Key"],
+  },
+  // vercel / kenari / kimi-for-coding 已删除（实测不能用的免费档）
+  // 第二梯队：5-10 个免费模型的主力档
+  qvac: {
+    badge: "免费",
+    tagline: "9 个全免费档：Qwen3.5/3.6、Gemma 4、GPT-OSS 20B/120B",
+    keyUrl: "https://www.npmjs.com/package/@qvac/ai-sdk-provider",
+    keyHint: "qvac.ai",
+    steps: ["访问 QVAC 控制台注册并创建 API Key"],
+  },
   zhipuai: {
     badge: "免费",
     tagline: "GLM-4.7-Flash / GLM-4.5-Flash / GLM-4-Flash 免费，写码够用",
     keyUrl: "https://open.bigmodel.cn",
     keyHint: "open.bigmodel.cn",
     steps: ["注册智谱开放平台，在「API 密钥」页面创建密钥"],
+  },
+  llama: {
+    badge: "免费",
+    tagline: "Meta Llama API：Llama 3.x / 4 全系列免费档",
+    keyUrl: "https://llama.developer.meta.com",
+    keyHint: "llama.developer.meta.com",
+    steps: ["注册 Meta Developer，在 Llama API 页面创建 Key"],
+  },
+  zenmux: {
+    badge: "免费",
+    tagline: "7 个免费档路由：Kimi-K3 / Claude-Sonnet / GLM-5.2 / Step-3.7 全免费",
+    keyUrl: "https://zenmux.ai",
+    keyHint: "zenmux.ai",
+    steps: ["注册 ZenMux，在控制台创建 API Key"],
+  },
+  nan: {
+    badge: "免费",
+    tagline: "7 个全免费档：GLM-5.3、Qwen3.6/3.8、DeepSeek-V4-Flash",
+    keyUrl: "https://nan.builders",
+    keyHint: "nan.builders",
+    steps: ["注册 NaN，在控制台创建 API Key"],
+  },
+  pendra: {
+    badge: "免费",
+    tagline: "6 个全免费档：DeepSeek-V4-Flash / Qwen3-Coder / GLM-4.7-Flash",
+    keyUrl: "https://pendra.ai",
+    keyHint: "pendra.ai",
+    steps: ["注册 Pendra，在控制台创建 API Key"],
+  },
+  orcarouter: {
+    badge: "免费",
+    tagline: "5 个 :free 模型路由：DeepSeek / Tencent-Hy3 / GLM-5.3-Flash",
+    keyUrl: "https://docs.orcarouter.ai",
+    keyHint: "orcarouter.ai",
+    steps: ["注册 OrcaRouter，在控制台创建 API Key"],
   },
   agnes: {
     badge: "免费",
@@ -91,12 +156,22 @@ const FREE_PROVIDERS: Record<
     keyHint: "agnes-ai.com",
     steps: ["注册 Agnes AI，在 API Hub 创建密钥"],
   },
-  opencode: {
+  // 第三梯队：本地推理 / 试用档
+  lmstudio: {
     badge: "免费",
-    tagline: "OpenCode Zen 免费模型池：DeepSeek、GLM、MiniMax、Nemotron 等",
-    keyUrl: "https://opencode.ai",
-    keyHint: "opencode.ai",
-    steps: ["无需 Key 即可使用公开免费模型；如需全部模型，在 OpenCode 获取 API Key 后填入"],
+    tagline: "本地推理：启动 LM Studio 自带的 OpenAI 兼容服务即可",
+    keyUrl: "https://lmstudio.ai/models",
+    keyHint: "lmstudio.ai",
+    steps: ["下载 LM Studio，启动本地 OpenAI 兼容服务（默认 127.0.0.1:1234）"],
+  },
+
+  // iflowcn / kimi-for-coding / kenari / vercel 已删除（实测不能用的免费档）
+  "atomic-chat": {
+    badge: "免费",
+    tagline: "本地推理：Atomic Chat 自带 OpenAI 兼容服务（127.0.0.1:1337）",
+    keyUrl: "https://atomic.chat",
+    keyHint: "atomic.chat",
+    steps: ["下载 Atomic Chat，启动本地服务（默认 127.0.0.1:1337）"],
   },
   google: {
     badge: "限速免费",
@@ -106,11 +181,14 @@ const FREE_PROVIDERS: Record<
     steps: ["打开 Google AI Studio，一键创建 API 密钥（免费档的对话数据会用于模型改进）"],
   },
   groq: {
-    badge: "限速免费",
-    tagline: "免费档速度极快：Llama 3.3 70B 等每天上万次请求",
+    badge: "免费额度",
+    tagline: "⚠️ Groq 已下线免费档：Llama 3.1/3.3 改成 Enterprise only；GPT-OSS / Qwen 按 token 收费（最便宜 $0.075/1M），需绑卡",
     keyUrl: "https://console.groq.com/keys",
     keyHint: "console.groq.com → API Keys",
-    steps: ["打开 Groq 控制台注册并创建 API Key"],
+    steps: [
+      "⚠️ Groq 当前没有真免费档，全部按 token 付费（GPT OSS 20B 最便宜 $0.075/1M）",
+      "需要绑信用卡才能用，可考虑跳过",
+    ],
   },
   nvidia: {
     badge: "免费额度",
@@ -119,12 +197,146 @@ const FREE_PROVIDERS: Record<
     keyHint: "build.nvidia.com",
     steps: ["打开 build.nvidia.com 注册登录，在任意模型页点「Get API Key」创建密钥"],
   },
-  kilo: {
+  aihubmix: {
     badge: "免费",
-    tagline: "聚合网关免费池：MiniMax-M3、Nemotron、Ling 等 17+ 免费模型",
-    keyUrl: "https://www.kilo.ai",
-    keyHint: "kilo.ai",
-    steps: ["注册 Kilo，在控制台创建 API Key"],
+    tagline: "4 个国产免费档：MiMo-V2.5 / MiniMax-M2.7 / GLM-5.1",
+    keyUrl: "https://docs.aihubmix.com",
+    keyHint: "aihubmix.com",
+    steps: ["注册 AIHubMix，在控制台创建 API Key"],
+  },
+  empiriolabs: {
+    badge: "免费",
+    tagline: "4 个全免费档：GLM-4.5/4.7/4.6v-Flash + Gemma-3-27B",
+    keyUrl: "https://docs.empiriolabs.ai",
+    keyHint: "empiriolabs.ai",
+    steps: ["注册 EmpirioLabs，在控制台创建 API Key"],
+  },
+  poolside: {
+    badge: "免费",
+    tagline: "Poolside Laguna 主力免费档：XS/S/M 三档全免",
+    keyUrl: "https://platform.poolside.ai",
+    keyHint: "platform.poolside.ai",
+    steps: ["注册 Poolside，在控制台创建 API Key"],
+  },
+  llmgateway: {
+    badge: "免费",
+    tagline: "3 个免费档：atria-dawn-preview 等代理免费档",
+    keyUrl: "https://llmgateway.io",
+    keyHint: "llmgateway.io",
+    steps: ["注册 LLMGateway，在控制台创建 API Key"],
+  },
+  zai: {
+    badge: "免费",
+    tagline: "智谱 Z.AI 海外：GLM-4.5/4.7-Flash 永久免费",
+    keyUrl: "https://z.ai",
+    keyHint: "z.ai",
+    steps: ["注册 Z.AI 账号，在 API Keys 页面创建 Key"],
+  },
+  "tencent-tokenhub": {
+    badge: "免费",
+    tagline: "腾讯 TokenHub：Hunyuan-Yuan3.5 Hy3 / Hy3-Preview",
+    keyUrl: "https://cloud.tencent.com/product/tokenhub",
+    keyHint: "cloud.tencent.com → TokenHub",
+    steps: ["登录腾讯云，在 TokenHub 控制台创建 API Key"],
+  },
+  nova: {
+    badge: "免费",
+    tagline: "Amazon Nova 试用档：nova-2-lite / nova-2-pro",
+    keyUrl: "https://nova.amazon.com/dev/documentation",
+    keyHint: "nova.amazon.com",
+    steps: ["登录 AWS，在 Amazon Nova 控制台创建 API Key"],
+  },
+  huggingface: {
+    badge: "限速免费",
+    tagline: "HF Inference Providers：GLM-4.7-Flash 等免费档",
+    keyUrl: "https://huggingface.co/settings/tokens",
+    keyHint: "huggingface.co → Tokens",
+    steps: ["注册 Hugging Face，在 Settings → Tokens 创建 Read token"],
+  },
+  mistral: {
+    badge: "限速免费",
+    tagline: "Mistral La Plateforme 试用层：Devstral-Small 免费",
+    keyUrl: "https://console.mistral.ai",
+    keyHint: "console.mistral.ai",
+    steps: ["注册 Mistral，在 API Keys 页面创建 Key"],
+  },
+  cohere: {
+    badge: "限速免费",
+    tagline: "Cohere Trial：north-mini-code 试用档",
+    keyUrl: "https://dashboard.cohere.com",
+    keyHint: "dashboard.cohere.com",
+    steps: ["注册 Cohere，在 API Keys 页面创建 Trial Key"],
+  },
+  amd: {
+    badge: "免费额度",
+    tagline: "AMD Developer Cloud 试用：Qwen3.8-27B",
+    keyUrl: "https://developer.amd.com.cn/radeon/tokenfactory",
+    keyHint: "developer.amd.com.cn",
+    steps: ["登录 AMD Developer Cloud，在 Token Factory 创建 API Key"],
+  },
+  // 第四梯队：小众档
+  bothub: {
+    badge: "免费",
+    tagline: "俄罗斯代理：Nemotron-3-Ultra / Gemma-4-31B :free",
+    keyUrl: "https://bothub.ru",
+    keyHint: "bothub.ru",
+    steps: ["注册 Bothub，在控制台创建 API Key"],
+  },
+  hetzner: {
+    badge: "免费",
+    tagline: "Hetzner Cloud Inference 试用：Qwen3.6/3.8",
+    keyUrl: "https://experiments.hetzner.com/docs/inference",
+    keyHint: "hetzner.com",
+    steps: ["登录 Hetzner Cloud，在 Inference 项目页创建 API Key"],
+  },
+  poe: {
+    badge: "免费",
+    tagline: "Poe API：GPT-5.3-Codex-Spark / Kimi-K2.5-FW / Gemma-4-31B",
+    keyUrl: "https://creator.poe.com/docs/external-applications/openai-compatible-api",
+    keyHint: "creator.poe.com",
+    steps: ["注册 Poe 开发者账号，在 API Keys 页面创建 Key"],
+  },
+  "regolo-ai": {
+    badge: "免费",
+    tagline: "Regolo AI 欧洲免费档：faster-whisper-large-v3 等",
+    keyUrl: "https://docs.regolo.ai",
+    keyHint: "regolo.ai",
+    steps: ["注册 Regolo AI，在控制台创建 API Key"],
+  },
+  "nano-gpt": {
+    badge: "免费",
+    tagline: "NanoGPT 免费档：auto-model 自动路由",
+    keyUrl: "https://docs.nano-gpt.com",
+    keyHint: "nano-gpt.com",
+    steps: ["注册 NanoGPT，在控制台创建 API Key"],
+  },
+  ovhcloud: {
+    badge: "免费",
+    tagline: "OVHcloud AI Endpoints 试用：Qwen3Guard 系列",
+    keyUrl: "https://www.ovhcloud.com/en/public-cloud/ai-endpoints",
+    keyHint: "ovhcloud.com",
+    steps: ["注册 OVHcloud，在 AI Endpoints 控制台创建 API Key"],
+  },
+  meganova: {
+    badge: "免费",
+    tagline: "Meganova 免费档：Mistral-Small-3.2-24B 等",
+    keyUrl: "https://docs.meganova.ai",
+    keyHint: "meganova.ai",
+    steps: ["注册 Meganova，在控制台创建 API Key"],
+  },
+  tokenrouter: {
+    badge: "免费",
+    tagline: "TokenRouter 免费档：GLM-5.3-free",
+    keyUrl: "https://www.tokenrouter.com",
+    keyHint: "tokenrouter.com",
+    steps: ["注册 TokenRouter，在控制台创建 API Key"],
+  },
+  standardcompute: {
+    badge: "免费",
+    tagline: "Standard Compute 试用：standardcompute 模型",
+    keyUrl: "https://standardcompute.com",
+    keyHint: "standardcompute.com",
+    steps: ["注册 Standard Compute，在控制台创建 API Key"],
   },
   "siliconflow-cn": {
     badge: "免费",
@@ -159,7 +371,13 @@ export function providerOptions(list: { id: string; name: string }[]): ProviderO
     ...pipe(
       list,
       sortBy(
-        (x) => PROVIDER_PRIORITY[x.id] ?? 99,
+        // 免费通道置顶（0），其次 PROVIDER_PRIORITY（1..），最后兜底（99）
+        (x) => (FREE_PROVIDERS[x.id] ? 0 : PROVIDER_PRIORITY[x.id] !== undefined ? 1 : 2),
+        // 同分组内：免费通道按 FREE_PROVIDER_RANK 排；其他按 PROVIDER_PRIORITY 排
+        (x) => {
+          if (FREE_PROVIDERS[x.id]) return FREE_PROVIDER_RANK.indexOf(x.id) + 100
+          return PROVIDER_PRIORITY[x.id] ?? 99
+        },
         (x) => x.name.toLowerCase(),
         (x) => x.id,
       ),
@@ -173,10 +391,10 @@ export function providerOptions(list: { id: string; name: string }[]): ProviderO
           description: free
             ? `（${free.badge}）${free.tagline}`
             : {
-                NovaWay: "(推荐)",
+                opencode: "(推荐)",
                 anthropic: "(API 密钥)",
                 openai: "(ChatGPT Plus/Pro 或 API 密钥)",
-                "NovaWay-go": "低成本订阅，适合所有人",
+                "opencode-go": "低成本订阅，适合所有人",
               }[provider.id],
           category: free ? "免费接入" : provider.id in PROVIDER_PRIORITY ? "热门" : "提供商",
         }
@@ -209,11 +427,7 @@ export function createDialogProviderOptions() {
   async function promptCustomProviderID(): Promise<string | undefined> {
     const value = await DialogPrompt.show(dialog, "其他", {
       placeholder: "提供商 ID",
-      description: () => (
-        <text fg={theme.textMuted}>
-          这只会存储一个凭据。请在 NovaWay.json 中配置提供商以使用它。
-        </text>
-      ),
+      description: () => <text fg={theme.textMuted}>这只会存储一个凭据。请在 NovaWay.json 中配置提供商以使用它。</text>,
     })
     if (value === null) return
 
@@ -222,8 +436,7 @@ export function createDialogProviderOptions() {
 
     toast.show({
       variant: "error",
-      message:
-        "提供商 ID 必须以小写字母或数字开头，且仅使用小写字母、数字、连字符和下划线",
+      message: "提供商 ID 必须以小写字母或数字开头，且仅使用小写字母、数字、连字符和下划线",
     })
     return promptCustomProviderID()
   }
@@ -476,11 +689,14 @@ function ApiMethod(props: ApiMethodProps) {
   const sync = useSync()
   const toast = useToast()
   const { theme } = useTheme()
+  const [busy, setBusy] = createSignal(false)
 
   return (
     <DialogPrompt
       title={props.title}
       placeholder="API 密钥"
+      busy={busy()}
+      busyText="连接中..."
       description={() => {
         const free = FREE_PROVIDERS[props.providerID]
         if (free) {
@@ -492,58 +708,73 @@ function ApiMethod(props: ApiMethodProps) {
             </box>
           )
         }
-        return (
-          ({
-            NovaWay: (
-              <box gap={1}>
-                <text fg={theme.textMuted}>
-                  NovaWay Zen gives you access to all the best coding models at the cheapest prices with a single API
-                  key.
-                </text>
-                <text fg={theme.text}>
-                  Go to <span style={{ fg: theme.primary }}>https://NovaWay.ai/zen</span> to get a key
-                </text>
-              </box>
-            ),
-            "NovaWay-go": (
-              <box gap={1}>
-                <text fg={theme.textMuted}>
-                  NovaWay Go is a $10 per month subscription that provides reliable access to popular open coding models
-                  with generous usage limits.
-                </text>
-                <text fg={theme.text}>
-                  Go to <span style={{ fg: theme.primary }}>https://NovaWay.ai/go</span> and enable NovaWay Go
-                </text>
-              </box>
-            ),
-          })[props.providerID]
-        )
+        return {
+          opencode: (
+            <box gap={1}>
+              <text fg={theme.textMuted}>
+                NovaWay Zen gives you access to all the best coding models at the cheapest prices with a single API key.
+              </text>
+              <text fg={theme.text}>
+                Go to <span style={{ fg: theme.primary }}>https://opencode.ai/zen</span> to get a key
+              </text>
+            </box>
+          ),
+          "opencode-go": (
+            <box gap={1}>
+              <text fg={theme.textMuted}>
+                OpenCode Go is a $10 per month subscription that provides reliable access to popular open coding models
+                with generous usage limits.
+              </text>
+              <text fg={theme.text}>
+                Go to <span style={{ fg: theme.primary }}>https://opencode.ai/go</span> and enable OpenCode Go
+              </text>
+            </box>
+          ),
+        }[props.providerID]
       }}
       onConfirm={async (value) => {
         if (!value) return
-        await sdk.client.auth.set({
-          providerID: props.providerID,
-          auth: {
-            type: "api",
-            key: value,
-            ...(props.metadata ? { metadata: props.metadata } : {}),
-          },
-        })
-        await sdk.client.instance.dispose()
-        await sync.bootstrap()
-        if (props.custom && !sync.data.provider_next.all.some((provider) => provider.id === props.providerID)) {
-          toast.show({
-            variant: "info",
-            message: `Saved credential for ${props.providerID}. Configure it in NovaWay.json to use it.`,
+        setBusy(true)
+        try {
+          await sdk.client.auth.set({
+            providerID: props.providerID,
+            auth: {
+              type: "api",
+              key: value,
+              ...(props.metadata ? { metadata: props.metadata } : {}),
+            },
           })
-          dialog.clear()
-          return
+          await sdk.client.instance.dispose()
+          // instance.dispose 是响应后异步执行的；sync.bootstrap 立刻调
+          // 仍然拿到旧实例的 provider 列表，会显示「未找到结果」。
+          // 多调几次 bootstrap，等新实例起来后刷新出 Kenari 等新通道。
+          await sync.bootstrap()
+          for (let attempt = 0; attempt < 5; attempt++) {
+            if (sync.data.provider.some((p) => p.id === props.providerID)) break
+            await new Promise((r) => setTimeout(r, 250))
+            await sync.bootstrap()
+          }
+          if (props.custom && !sync.data.provider_next.all.some((provider) => provider.id === props.providerID)) {
+            toast.show({
+              variant: "info",
+              message: `Saved credential for ${props.providerID}. Configure it in NovaWay.json to use it.`,
+            })
+            dialog.clear()
+            return
+          }
+          dialog.replace(() => <DialogModel providerID={props.providerID} />)
+        } catch (err) {
+          toast.show({
+            variant: "error",
+            message: `连接 ${props.providerID} 失败：${err instanceof Error ? err.message : String(err)}`,
+          })
+          setBusy(false)
         }
-        dialog.replace(() => <DialogModel providerID={props.providerID} />)
       }}
     />
   )
 }
+
 
 interface PromptsMethodProps {
   dialog: ReturnType<typeof useDialog>

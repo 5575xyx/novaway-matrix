@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "opencode",
+    "title": "novaway",
     "version": "1.0.0",
-    "description": "opencode api"
+    "description": "NovaWay api"
   },
   "paths": {
     "/auth/{providerID}": {
@@ -377,7 +377,7 @@
             }
           }
         },
-        "description": "Get health information about the OpenCode server.",
+        "description": "Get health information about the NovaWay server.",
         "summary": "Get health",
         "x-codeSamples": [
           {
@@ -404,7 +404,7 @@
             }
           }
         },
-        "description": "Subscribe to global events from the OpenCode system using server-sent events.",
+        "description": "Subscribe to global events from the NovaWay system using server-sent events.",
         "summary": "Get global events",
         "x-codeSamples": [
           {
@@ -431,7 +431,7 @@
             }
           }
         },
-        "description": "Retrieve the current global OpenCode configuration settings and preferences.",
+        "description": "Retrieve the current global NovaWay configuration settings and preferences.",
         "summary": "Get global configuration",
         "x-codeSamples": [
           {
@@ -466,7 +466,7 @@
             }
           }
         },
-        "description": "Update global OpenCode configuration settings and preferences.",
+        "description": "Update global NovaWay configuration settings and preferences.",
         "summary": "Update global configuration",
         "requestBody": {
           "content": {
@@ -503,7 +503,7 @@
             }
           }
         },
-        "description": "Clean up and dispose all OpenCode instances, releasing all resources.",
+        "description": "Clean up and dispose all NovaWay instances, releasing all resources.",
         "summary": "Dispose instance",
         "x-codeSamples": [
           {
@@ -570,8 +570,8 @@
             }
           }
         },
-        "description": "Upgrade opencode to the specified version or latest if not specified.",
-        "summary": "Upgrade opencode",
+        "description": "Upgrade NovaWay to the specified version or latest if not specified.",
+        "summary": "Upgrade NovaWay",
         "requestBody": {
           "content": {
             "application/json": {
@@ -712,6 +712,239 @@
         ]
       }
     },
+    "/session/{sessionId}/checkpoints": {
+      "get": {
+        "tags": ["checkpoint"],
+        "operationId": "checkpoint.listCheckpoints",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.checkpoint.listCheckpoints({\n  ...\n})"
+          }
+        ]
+      },
+      "post": {
+        "tags": ["checkpoint"],
+        "operationId": "checkpoint.createCheckpoint",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["name"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.checkpoint.createCheckpoint({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/checkpoints/{checkpointId}": {
+      "get": {
+        "tags": ["checkpoint"],
+        "operationId": "checkpoint.getCheckpoint",
+        "parameters": [
+          {
+            "name": "checkpointId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.checkpoint.getCheckpoint({\n  ...\n})"
+          }
+        ]
+      },
+      "delete": {
+        "tags": ["checkpoint"],
+        "operationId": "checkpoint.deleteCheckpoint",
+        "parameters": [
+          {
+            "name": "checkpointId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.checkpoint.deleteCheckpoint({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/checkpoints/{checkpointId}/restore": {
+      "post": {
+        "tags": ["checkpoint"],
+        "operationId": "checkpoint.restoreCheckpoint",
+        "parameters": [
+          {
+            "name": "checkpointId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.checkpoint.restoreCheckpoint({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/config": {
       "get": {
         "tags": ["config"],
@@ -746,7 +979,7 @@
             }
           }
         },
-        "description": "Retrieve the current OpenCode configuration settings and preferences.",
+        "description": "Retrieve the current NovaWay configuration settings and preferences.",
         "summary": "Get configuration",
         "x-codeSamples": [
           {
@@ -798,7 +1031,7 @@
             }
           }
         },
-        "description": "Update OpenCode configuration settings and preferences.",
+        "description": "Update NovaWay configuration settings and preferences.",
         "summary": "Update configuration",
         "requestBody": {
           "content": {
@@ -1054,7 +1287,7 @@
             }
           }
         },
-        "description": "Persist a new active Console account/org selection for the current local OpenCode state.",
+        "description": "Persist a new active Console account/org selection for the current local NovaWay state.",
         "summary": "Switch active Console org",
         "requestBody": {
           "content": {
@@ -1615,7 +1848,7 @@
             }
           }
         },
-        "description": "Get a list of all OpenCode sessions across projects, sorted by most recently updated. Archived sessions are excluded by default.",
+        "description": "Get a list of all NovaWay sessions across projects, sorted by most recently updated. Archived sessions are excluded by default.",
         "summary": "List sessions",
         "x-codeSamples": [
           {
@@ -2753,6 +2986,2891 @@
         ]
       }
     },
+    "/git": {
+      "get": {
+        "tags": ["git"],
+        "operationId": "git.snapshot",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Git snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "branch": {
+                      "type": "object",
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "upstream": {
+                          "type": "string"
+                        },
+                        "ahead": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        },
+                        "behind": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        }
+                      },
+                      "required": ["ahead", "behind"],
+                      "additionalProperties": false
+                    },
+                    "changes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "file": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["added", "deleted", "modified", "renamed", "untracked", "unmerged"]
+                          },
+                          "staged": {
+                            "type": "boolean"
+                          },
+                          "unstaged": {
+                            "type": "boolean"
+                          },
+                          "additions": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "deletions": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "binary": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "file",
+                          "code",
+                          "status",
+                          "staged",
+                          "unstaged",
+                          "additions",
+                          "deletions",
+                          "binary"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "branches": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "current"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "remotes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "url", "current"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "stash": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ref": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["ref", "message"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "log": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "hash": {
+                            "type": "string"
+                          },
+                          "subject": {
+                            "type": "string"
+                          },
+                          "author": {
+                            "type": "string"
+                          },
+                          "date": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["hash", "subject", "author", "date"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["branch", "changes", "branches", "remotes", "stash", "log"],
+                  "additionalProperties": false,
+                  "description": "Git snapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "GitError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Branch, changes, branches, remotes, stash and recent commits of the project in one call.",
+        "summary": "Get git snapshot",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.git.snapshot({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/git/add": {
+      "post": {
+        "tags": ["git"],
+        "operationId": "git.add",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Git snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "branch": {
+                      "type": "object",
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "upstream": {
+                          "type": "string"
+                        },
+                        "ahead": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        },
+                        "behind": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        }
+                      },
+                      "required": ["ahead", "behind"],
+                      "additionalProperties": false
+                    },
+                    "changes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "file": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["added", "deleted", "modified", "renamed", "untracked", "unmerged"]
+                          },
+                          "staged": {
+                            "type": "boolean"
+                          },
+                          "unstaged": {
+                            "type": "boolean"
+                          },
+                          "additions": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "deletions": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "binary": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "file",
+                          "code",
+                          "status",
+                          "staged",
+                          "unstaged",
+                          "additions",
+                          "deletions",
+                          "binary"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "branches": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "current"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "remotes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "url", "current"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "stash": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ref": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["ref", "message"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "log": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "hash": {
+                            "type": "string"
+                          },
+                          "subject": {
+                            "type": "string"
+                          },
+                          "author": {
+                            "type": "string"
+                          },
+                          "date": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["hash", "subject", "author", "date"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["branch", "changes", "branches", "remotes", "stash", "log"],
+                  "additionalProperties": false,
+                  "description": "Git snapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "GitError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Stage the given files in the git index.",
+        "summary": "Stage files",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["files"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.git.add({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/git/unstage": {
+      "post": {
+        "tags": ["git"],
+        "operationId": "git.unstage",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Git snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "branch": {
+                      "type": "object",
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "upstream": {
+                          "type": "string"
+                        },
+                        "ahead": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        },
+                        "behind": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        }
+                      },
+                      "required": ["ahead", "behind"],
+                      "additionalProperties": false
+                    },
+                    "changes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "file": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["added", "deleted", "modified", "renamed", "untracked", "unmerged"]
+                          },
+                          "staged": {
+                            "type": "boolean"
+                          },
+                          "unstaged": {
+                            "type": "boolean"
+                          },
+                          "additions": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "deletions": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "binary": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "file",
+                          "code",
+                          "status",
+                          "staged",
+                          "unstaged",
+                          "additions",
+                          "deletions",
+                          "binary"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "branches": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "current"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "remotes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "url", "current"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "stash": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ref": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["ref", "message"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "log": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "hash": {
+                            "type": "string"
+                          },
+                          "subject": {
+                            "type": "string"
+                          },
+                          "author": {
+                            "type": "string"
+                          },
+                          "date": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["hash", "subject", "author", "date"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["branch", "changes", "branches", "remotes", "stash", "log"],
+                  "additionalProperties": false,
+                  "description": "Git snapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "GitError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Remove the given files from the git index, keeping the working tree changes.",
+        "summary": "Unstage files",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["files"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.git.unstage({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/git/discard": {
+      "post": {
+        "tags": ["git"],
+        "operationId": "git.discard",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Git snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "branch": {
+                      "type": "object",
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "upstream": {
+                          "type": "string"
+                        },
+                        "ahead": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        },
+                        "behind": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        }
+                      },
+                      "required": ["ahead", "behind"],
+                      "additionalProperties": false
+                    },
+                    "changes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "file": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["added", "deleted", "modified", "renamed", "untracked", "unmerged"]
+                          },
+                          "staged": {
+                            "type": "boolean"
+                          },
+                          "unstaged": {
+                            "type": "boolean"
+                          },
+                          "additions": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "deletions": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "binary": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "file",
+                          "code",
+                          "status",
+                          "staged",
+                          "unstaged",
+                          "additions",
+                          "deletions",
+                          "binary"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "branches": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "current"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "remotes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "url", "current"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "stash": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ref": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["ref", "message"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "log": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "hash": {
+                            "type": "string"
+                          },
+                          "subject": {
+                            "type": "string"
+                          },
+                          "author": {
+                            "type": "string"
+                          },
+                          "date": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["hash", "subject", "author", "date"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["branch", "changes", "branches", "remotes", "stash", "log"],
+                  "additionalProperties": false,
+                  "description": "Git snapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "GitError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Revert the given files. Untracked files are deleted, tracked files are restored from the index.",
+        "summary": "Discard changes",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["files"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.git.discard({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/git/commit": {
+      "post": {
+        "tags": ["git"],
+        "operationId": "git.commit",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Git snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "branch": {
+                      "type": "object",
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "upstream": {
+                          "type": "string"
+                        },
+                        "ahead": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        },
+                        "behind": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        }
+                      },
+                      "required": ["ahead", "behind"],
+                      "additionalProperties": false
+                    },
+                    "changes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "file": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["added", "deleted", "modified", "renamed", "untracked", "unmerged"]
+                          },
+                          "staged": {
+                            "type": "boolean"
+                          },
+                          "unstaged": {
+                            "type": "boolean"
+                          },
+                          "additions": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "deletions": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "binary": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "file",
+                          "code",
+                          "status",
+                          "staged",
+                          "unstaged",
+                          "additions",
+                          "deletions",
+                          "binary"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "branches": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "current"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "remotes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "url", "current"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "stash": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ref": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["ref", "message"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "log": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "hash": {
+                            "type": "string"
+                          },
+                          "subject": {
+                            "type": "string"
+                          },
+                          "author": {
+                            "type": "string"
+                          },
+                          "date": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["hash", "subject", "author", "date"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["branch", "changes", "branches", "remotes", "stash", "log"],
+                  "additionalProperties": false,
+                  "description": "Git snapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "GitError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Commit the staged changes. Stages everything first when the index is empty.",
+        "summary": "Commit",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": ["message"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.git.commit({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/git/push": {
+      "post": {
+        "tags": ["git"],
+        "operationId": "git.push",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Git snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "branch": {
+                      "type": "object",
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "upstream": {
+                          "type": "string"
+                        },
+                        "ahead": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        },
+                        "behind": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        }
+                      },
+                      "required": ["ahead", "behind"],
+                      "additionalProperties": false
+                    },
+                    "changes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "file": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["added", "deleted", "modified", "renamed", "untracked", "unmerged"]
+                          },
+                          "staged": {
+                            "type": "boolean"
+                          },
+                          "unstaged": {
+                            "type": "boolean"
+                          },
+                          "additions": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "deletions": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "binary": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "file",
+                          "code",
+                          "status",
+                          "staged",
+                          "unstaged",
+                          "additions",
+                          "deletions",
+                          "binary"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "branches": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "current"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "remotes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "url", "current"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "stash": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ref": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["ref", "message"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "log": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "hash": {
+                            "type": "string"
+                          },
+                          "subject": {
+                            "type": "string"
+                          },
+                          "author": {
+                            "type": "string"
+                          },
+                          "date": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["hash", "subject", "author", "date"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["branch", "changes", "branches", "remotes", "stash", "log"],
+                  "additionalProperties": false,
+                  "description": "Git snapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "GitError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Push the current branch. Establishes tracking on the first push when no upstream exists.",
+        "summary": "Push",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.git.push({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/git/pull": {
+      "post": {
+        "tags": ["git"],
+        "operationId": "git.pull",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Git snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "branch": {
+                      "type": "object",
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "upstream": {
+                          "type": "string"
+                        },
+                        "ahead": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        },
+                        "behind": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        }
+                      },
+                      "required": ["ahead", "behind"],
+                      "additionalProperties": false
+                    },
+                    "changes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "file": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["added", "deleted", "modified", "renamed", "untracked", "unmerged"]
+                          },
+                          "staged": {
+                            "type": "boolean"
+                          },
+                          "unstaged": {
+                            "type": "boolean"
+                          },
+                          "additions": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "deletions": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "binary": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "file",
+                          "code",
+                          "status",
+                          "staged",
+                          "unstaged",
+                          "additions",
+                          "deletions",
+                          "binary"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "branches": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "current"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "remotes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "url", "current"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "stash": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ref": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["ref", "message"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "log": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "hash": {
+                            "type": "string"
+                          },
+                          "subject": {
+                            "type": "string"
+                          },
+                          "author": {
+                            "type": "string"
+                          },
+                          "date": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["hash", "subject", "author", "date"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["branch", "changes", "branches", "remotes", "stash", "log"],
+                  "additionalProperties": false,
+                  "description": "Git snapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "GitError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Pull and merge the upstream of the current branch.",
+        "summary": "Pull",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.git.pull({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/git/stash": {
+      "post": {
+        "tags": ["git"],
+        "operationId": "git.stash",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Git snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "branch": {
+                      "type": "object",
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "upstream": {
+                          "type": "string"
+                        },
+                        "ahead": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        },
+                        "behind": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        }
+                      },
+                      "required": ["ahead", "behind"],
+                      "additionalProperties": false
+                    },
+                    "changes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "file": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["added", "deleted", "modified", "renamed", "untracked", "unmerged"]
+                          },
+                          "staged": {
+                            "type": "boolean"
+                          },
+                          "unstaged": {
+                            "type": "boolean"
+                          },
+                          "additions": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "deletions": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "binary": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "file",
+                          "code",
+                          "status",
+                          "staged",
+                          "unstaged",
+                          "additions",
+                          "deletions",
+                          "binary"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "branches": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "current"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "remotes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "url", "current"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "stash": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ref": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["ref", "message"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "log": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "hash": {
+                            "type": "string"
+                          },
+                          "subject": {
+                            "type": "string"
+                          },
+                          "author": {
+                            "type": "string"
+                          },
+                          "date": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["hash", "subject", "author", "date"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["branch", "changes", "branches", "remotes", "stash", "log"],
+                  "additionalProperties": false,
+                  "description": "Git snapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "GitError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Stash the current changes, or pop the stash entry identified by ref.",
+        "summary": "Stash or pop",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string"
+                  },
+                  "includeUntracked": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.git.stash({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/git/branch": {
+      "post": {
+        "tags": ["git"],
+        "operationId": "git.branch",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Git snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "branch": {
+                      "type": "object",
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "upstream": {
+                          "type": "string"
+                        },
+                        "ahead": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        },
+                        "behind": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        }
+                      },
+                      "required": ["ahead", "behind"],
+                      "additionalProperties": false
+                    },
+                    "changes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "file": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["added", "deleted", "modified", "renamed", "untracked", "unmerged"]
+                          },
+                          "staged": {
+                            "type": "boolean"
+                          },
+                          "unstaged": {
+                            "type": "boolean"
+                          },
+                          "additions": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "deletions": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "binary": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "file",
+                          "code",
+                          "status",
+                          "staged",
+                          "unstaged",
+                          "additions",
+                          "deletions",
+                          "binary"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "branches": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "current"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "remotes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "url", "current"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "stash": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ref": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["ref", "message"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "log": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "hash": {
+                            "type": "string"
+                          },
+                          "subject": {
+                            "type": "string"
+                          },
+                          "author": {
+                            "type": "string"
+                          },
+                          "date": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["hash", "subject", "author", "date"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["branch", "changes", "branches", "remotes", "stash", "log"],
+                  "additionalProperties": false,
+                  "description": "Git snapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "GitError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Create, switch to, or delete a local branch.",
+        "summary": "Manage branch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "create": {
+                    "type": "boolean"
+                  },
+                  "remove": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["name"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.git.branch({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/git/remote": {
+      "post": {
+        "tags": ["git"],
+        "operationId": "git.remote",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Git snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "branch": {
+                      "type": "object",
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "upstream": {
+                          "type": "string"
+                        },
+                        "ahead": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        },
+                        "behind": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        }
+                      },
+                      "required": ["ahead", "behind"],
+                      "additionalProperties": false
+                    },
+                    "changes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "file": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["added", "deleted", "modified", "renamed", "untracked", "unmerged"]
+                          },
+                          "staged": {
+                            "type": "boolean"
+                          },
+                          "unstaged": {
+                            "type": "boolean"
+                          },
+                          "additions": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "deletions": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "binary": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "file",
+                          "code",
+                          "status",
+                          "staged",
+                          "unstaged",
+                          "additions",
+                          "deletions",
+                          "binary"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "branches": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "current"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "remotes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "url", "current"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "stash": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ref": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["ref", "message"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "log": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "hash": {
+                            "type": "string"
+                          },
+                          "subject": {
+                            "type": "string"
+                          },
+                          "author": {
+                            "type": "string"
+                          },
+                          "date": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["hash", "subject", "author", "date"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["branch", "changes", "branches", "remotes", "stash", "log"],
+                  "additionalProperties": false,
+                  "description": "Git snapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "GitError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Add or remove a git remote.",
+        "summary": "Manage remote",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "remove": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["name"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.git.remote({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/images/generate": {
       "post": {
         "tags": ["Images"],
@@ -2861,7 +5979,7 @@
             }
           }
         },
-        "description": "Clean up and dispose the current OpenCode instance, releasing all resources.",
+        "description": "Clean up and dispose the current NovaWay instance, releasing all resources.",
         "summary": "Dispose instance",
         "x-codeSamples": [
           {
@@ -2905,7 +6023,7 @@
             }
           }
         },
-        "description": "Retrieve the current working directory and related path information for the OpenCode instance.",
+        "description": "Retrieve the current working directory and related path information for the NovaWay instance.",
         "summary": "Get paths",
         "x-codeSamples": [
           {
@@ -3224,7 +6342,7 @@
             }
           }
         },
-        "description": "Get a list of all available commands in the OpenCode system.",
+        "description": "Get a list of all available commands in the NovaWay system.",
         "summary": "List commands",
         "x-codeSamples": [
           {
@@ -3272,7 +6390,7 @@
             }
           }
         },
-        "description": "Get a list of all available AI agents in the OpenCode system.",
+        "description": "Get a list of all available AI agents in the NovaWay system.",
         "summary": "List agents",
         "x-codeSamples": [
           {
@@ -3339,7 +6457,7 @@
             }
           }
         },
-        "description": "Get a list of all available skills in the OpenCode system.",
+        "description": "Get a list of all available skills in the NovaWay system.",
         "summary": "List skills",
         "x-codeSamples": [
           {
@@ -10168,7 +13286,7 @@
             }
           }
         },
-        "description": "Get a list of projects that have been opened with OpenCode.",
+        "description": "Get a list of projects that have been opened with NovaWay.",
         "summary": "List all projects",
         "x-codeSamples": [
           {
@@ -10212,7 +13330,7 @@
             }
           }
         },
-        "description": "Retrieve the currently active project that OpenCode is working with.",
+        "description": "Retrieve the currently active project that NovaWay is working with.",
         "summary": "Get current project",
         "x-codeSamples": [
           {
@@ -10378,6 +13496,72 @@
         ]
       }
     },
+    "/project/{projectID}/directories": {
+      "get": {
+        "tags": ["project"],
+        "operationId": "project.directories",
+        "parameters": [
+          {
+            "name": "projectID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project directories",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectDirectory"
+                  },
+                  "description": "Project directories"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "description": "List known local absolute directories for a project.",
+        "summary": "List project directories",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.project.directories({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/pty/shells": {
       "get": {
         "tags": ["pty"],
@@ -10477,7 +13661,7 @@
             }
           }
         },
-        "description": "Get a list of all active pseudo-terminal (PTY) sessions managed by OpenCode.",
+        "description": "Get a list of all active pseudo-terminal (PTY) sessions managed by NovaWay.",
         "summary": "List PTY sessions",
         "x-codeSamples": [
           {
@@ -11675,7 +14859,7 @@
             }
           }
         },
-        "description": "Get a list of all OpenCode sessions, sorted by most recently updated.",
+        "description": "Get a list of all NovaWay sessions, sorted by most recently updated.",
         "summary": "List sessions",
         "x-codeSamples": [
           {
@@ -11727,7 +14911,7 @@
             }
           }
         },
-        "description": "Create a new OpenCode session for interacting with AI assistants and managing conversations.",
+        "description": "Create a new NovaWay session for interacting with AI assistants and managing conversations.",
         "summary": "Create session",
         "requestBody": {
           "content": {
@@ -11903,7 +15087,7 @@
             }
           }
         },
-        "description": "Retrieve detailed information about a specific OpenCode session.",
+        "description": "Retrieve detailed information about a specific NovaWay session.",
         "summary": "Get session",
         "x-codeSamples": [
           {
@@ -16332,6 +19516,75 @@
         ]
       }
     },
+    "/api/fs/find": {
+      "get": {
+        "tags": ["v2 fs"],
+        "operationId": "v2.fs.find",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["file", "directory"]
+            },
+            "required": false
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "V2FsFindResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2FsFindResponse"
+                }
+              }
+            }
+          }
+        },
+        "description": "Fuzzy-find files and directories for the @ mention search.",
+        "summary": "Find files",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.fs.find({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/videos/generate": {
       "post": {
         "tags": ["Videos"],
@@ -17598,6 +20851,1059 @@
         ]
       }
     },
+    "/session/{sessionId}/goals": {
+      "get": {
+        "tags": ["goal"],
+        "operationId": "goal.listGoals",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.goal.listGoals({\n  ...\n})"
+          }
+        ]
+      },
+      "post": {
+        "tags": ["goal"],
+        "operationId": "goal.createGoal",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "parentId": {
+                    "type": "string"
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": ["high", "medium", "low"]
+                  },
+                  "successCriteria": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "deadline": {
+                    "type": "string"
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["title"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.goal.createGoal({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/goals/{goalId}": {
+      "get": {
+        "tags": ["goal"],
+        "operationId": "goal.getGoal",
+        "parameters": [
+          {
+            "name": "goalId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.goal.getGoal({\n  ...\n})"
+          }
+        ]
+      },
+      "patch": {
+        "tags": ["goal"],
+        "operationId": "goal.updateGoal",
+        "parameters": [
+          {
+            "name": "goalId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": ["pending", "in_progress", "completed", "cancelled"]
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": ["high", "medium", "low"]
+                  },
+                  "successCriteria": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "deadline": {
+                    "type": "string"
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.goal.updateGoal({\n  ...\n})"
+          }
+        ]
+      },
+      "delete": {
+        "tags": ["goal"],
+        "operationId": "goal.deleteGoal",
+        "parameters": [
+          {
+            "name": "goalId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.goal.deleteGoal({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/goals/{goalId}/progress": {
+      "get": {
+        "tags": ["goal"],
+        "operationId": "goal.getGoalProgress",
+        "parameters": [
+          {
+            "name": "goalId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.goal.getGoalProgress({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/session/{sessionId}/workflows": {
+      "get": {
+        "tags": ["workflow"],
+        "operationId": "workflow.listWorkflows",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.workflow.listWorkflows({\n  ...\n})"
+          }
+        ]
+      },
+      "post": {
+        "tags": ["workflow"],
+        "operationId": "workflow.createWorkflow",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "steps": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": ["agent", "tool", "skill", "condition", "parallel"]
+                        },
+                        "config": {
+                          "type": "object"
+                        },
+                        "next": {
+                          "type": "string"
+                        },
+                        "nextTrue": {
+                          "type": "string"
+                        },
+                        "nextFalse": {
+                          "type": "string"
+                        },
+                        "steps": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": ["id", "name", "type", "config"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["name", "steps"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.workflow.createWorkflow({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/workflows/{workflowId}": {
+      "get": {
+        "tags": ["workflow"],
+        "operationId": "workflow.getWorkflow",
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.workflow.getWorkflow({\n  ...\n})"
+          }
+        ]
+      },
+      "patch": {
+        "tags": ["workflow"],
+        "operationId": "workflow.updateWorkflow",
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "steps": {
+                    "type": "array"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": ["draft", "running", "paused", "completed", "failed"]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.workflow.updateWorkflow({\n  ...\n})"
+          }
+        ]
+      },
+      "delete": {
+        "tags": ["workflow"],
+        "operationId": "workflow.deleteWorkflow",
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.workflow.deleteWorkflow({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/workflows/{workflowId}/start": {
+      "post": {
+        "tags": ["workflow"],
+        "operationId": "workflow.startWorkflow",
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.workflow.startWorkflow({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/workflows/{workflowId}/runs": {
+      "get": {
+        "tags": ["workflow"],
+        "operationId": "workflow.listWorkflowRuns",
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.workflow.listWorkflowRuns({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/workflow-templates": {
+      "get": {
+        "tags": ["workflow"],
+        "operationId": "workflow.listWorkflowTemplates",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.workflow.listWorkflowTemplates({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/session/{sessionId}/workflows/from-template": {
+      "post": {
+        "tags": ["workflow"],
+        "operationId": "workflow.createWorkflowFromTemplate",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "template": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "required": ["template"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.workflow.createWorkflowFromTemplate({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/session/{sessionId}/orchestrator/plans": {
+      "get": {
+        "tags": ["orchestrator"],
+        "operationId": "orchestrator.listOrchestratorPlans",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.orchestrator.listOrchestratorPlans({\n  ...\n})"
+          }
+        ]
+      },
+      "post": {
+        "tags": ["orchestrator"],
+        "operationId": "orchestrator.createOrchestratorPlan",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "tasks": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": ["agent", "tool", "skill"]
+                        },
+                        "config": {
+                          "type": "object"
+                        },
+                        "dependencies": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": ["name", "type", "config", "dependencies"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["name", "tasks"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.orchestrator.createOrchestratorPlan({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/orchestrator/plans/{planId}": {
+      "get": {
+        "tags": ["orchestrator"],
+        "operationId": "orchestrator.getOrchestratorPlan",
+        "parameters": [
+          {
+            "name": "planId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.orchestrator.getOrchestratorPlan({\n  ...\n})"
+          }
+        ]
+      },
+      "delete": {
+        "tags": ["orchestrator"],
+        "operationId": "orchestrator.deleteOrchestratorPlan",
+        "parameters": [
+          {
+            "name": "planId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.orchestrator.deleteOrchestratorPlan({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/orchestrator/plans/{planId}/execute": {
+      "post": {
+        "tags": ["orchestrator"],
+        "operationId": "orchestrator.executeOrchestratorPlan",
+        "parameters": [
+          {
+            "name": "planId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.orchestrator.executeOrchestratorPlan({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/pty/{ptyID}/connect": {
       "get": {
         "tags": ["pty"],
@@ -17753,6 +22059,9 @@
             "$ref": "#/components/schemas/EventQuestionRejected"
           },
           {
+            "$ref": "#/components/schemas/EventQuestionFeishuReplied"
+          },
+          {
             "$ref": "#/components/schemas/EventTodoUpdated"
           },
           {
@@ -17805,6 +22114,9 @@
           },
           {
             "$ref": "#/components/schemas/EventInstallationUpdate-available"
+          },
+          {
+            "$ref": "#/components/schemas/EventInstallationUpdate-failed"
           },
           {
             "$ref": "#/components/schemas/EventMessageUpdated"
@@ -18566,6 +22878,23 @@
         "required": ["sessionID", "requestID"],
         "additionalProperties": false
       },
+      "QuestionFeishuReplied": {
+        "type": "object",
+        "properties": {
+          "requestID": {
+            "type": "string",
+            "pattern": "^que"
+          },
+          "answers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuestionAnswer"
+            }
+          }
+        },
+        "required": ["requestID", "answers"],
+        "additionalProperties": false
+      },
       "Todo": {
         "type": "object",
         "properties": {
@@ -18580,6 +22909,10 @@
           "priority": {
             "type": "string",
             "description": "Priority level of the task: high, medium, low"
+          },
+          "goalId": {
+            "type": "string",
+            "description": "ID of the goal this todo is associated with"
           }
         },
         "required": ["content", "status", "priority"],
@@ -20154,6 +24487,9 @@
                 "$ref": "#/components/schemas/EventQuestionRejected"
               },
               {
+                "$ref": "#/components/schemas/EventQuestionFeishuReplied"
+              },
+              {
                 "$ref": "#/components/schemas/EventTodoUpdated"
               },
               {
@@ -20206,6 +24542,9 @@
               },
               {
                 "$ref": "#/components/schemas/EventInstallationUpdate-available"
+              },
+              {
+                "$ref": "#/components/schemas/EventInstallationUpdate-failed"
               },
               {
                 "$ref": "#/components/schemas/EventMessageUpdated"
@@ -20521,7 +24860,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Server configuration for opencode serve and web commands"
+        "description": "Server configuration for NovaWay serve and web commands"
       },
       "ReferenceConfigEntry": {
         "anyOf": [
@@ -20614,6 +24953,9 @@
                 "$ref": "#/components/schemas/PermissionRuleConfig"
               },
               "todowrite": {
+                "$ref": "#/components/schemas/PermissionActionConfig"
+              },
+              "todoedit": {
                 "$ref": "#/components/schemas/PermissionActionConfig"
               },
               "question": {
@@ -21377,6 +25719,48 @@
             },
             "additionalProperties": false
           },
+          "goal": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "max_iterations": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "judge_model": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          "checkpoint": {
+            "type": "object",
+            "properties": {
+              "auto_enabled": {
+                "type": "boolean"
+              },
+              "auto_interval": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          },
+          "dream": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "interval": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          },
           "formatter": {
             "anyOf": [
               {
@@ -21544,6 +25928,9 @@
             "type": "object",
             "properties": {
               "disable_paste_summary": {
+                "type": "boolean"
+              },
+              "background_subagents": {
                 "type": "boolean"
               },
               "batch_tool": {
@@ -23275,6 +27662,27 @@
           }
         },
         "required": ["path", "added", "removed", "status"],
+        "additionalProperties": false
+      },
+      "GitError": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": ["GitError"]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": ["message"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["name", "data"],
         "additionalProperties": false
       },
       "ImageGeneratePayload": {
@@ -25378,6 +29786,19 @@
         ],
         "additionalProperties": false
       },
+      "ProjectDirectory": {
+        "type": "object",
+        "properties": {
+          "directory": {
+            "type": "string"
+          },
+          "strategy": {
+            "type": "string"
+          }
+        },
+        "required": ["directory"],
+        "additionalProperties": false
+      },
       "effect_HttpApiError_Forbidden": {
         "type": "object",
         "properties": {
@@ -25503,6 +29924,9 @@
       "ProviderModelDiscoveryPayload": {
         "type": "object",
         "properties": {
+          "providerID": {
+            "type": "string"
+          },
           "baseURL": {
             "type": "string"
           },
@@ -25544,6 +29968,82 @@
                   "items": {
                     "type": "string"
                   }
+                },
+                "contextLength": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["NaN"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["Infinity"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["-Infinity"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["Infinity", "-Infinity", "NaN"]
+                    }
+                  ]
+                },
+                "pricing": {
+                  "type": "object",
+                  "properties": {
+                    "prompt": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["NaN"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["-Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    },
+                    "completion": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["NaN"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["-Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    }
+                  },
+                  "required": ["prompt", "completion"],
+                  "additionalProperties": false
                 }
               },
               "required": ["id", "name"],
@@ -25843,6 +30343,62 @@
           }
         },
         "required": ["items", "cursor"],
+        "additionalProperties": false
+      },
+      "V2LocationInfo": {
+        "type": "object",
+        "properties": {
+          "directory": {
+            "type": "string"
+          },
+          "workspaceID": {
+            "type": "string"
+          },
+          "project": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "directory": {
+                "type": "string"
+              }
+            },
+            "required": ["id", "directory"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["directory", "project"],
+        "additionalProperties": false
+      },
+      "FileSystemEntry": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["file", "directory"]
+          }
+        },
+        "required": ["path", "type"],
+        "additionalProperties": false
+      },
+      "V2FsFindResponse": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "$ref": "#/components/schemas/V2LocationInfo"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FileSystemEntry"
+            }
+          }
+        },
+        "required": ["location", "data"],
         "additionalProperties": false
       },
       "VideoGeneratePayload": {
@@ -28595,6 +33151,23 @@
         "required": ["id", "type", "properties"],
         "additionalProperties": false
       },
+      "EventQuestionFeishuReplied": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["question.feishu.replied"]
+          },
+          "properties": {
+            "$ref": "#/components/schemas/QuestionFeishuReplied"
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
       "EventTodoUpdated": {
         "type": "object",
         "properties": {
@@ -29045,6 +33618,33 @@
               }
             },
             "required": ["version"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventInstallationUpdate-failed": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["installation.update-failed"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": ["version", "reason"],
             "additionalProperties": false
           }
         },
@@ -32027,6 +36627,9 @@
       "description": "Direct model chat API. No session required."
     },
     {
+      "name": "checkpoint"
+    },
+    {
       "name": "config",
       "description": "Experimental HttpApi config routes."
     },
@@ -32041,6 +36644,10 @@
     {
       "name": "file",
       "description": "Experimental HttpApi file routes."
+    },
+    {
+      "name": "git",
+      "description": "Git source control routes for the source control panel."
     },
     {
       "name": "Images",
@@ -32115,6 +36722,10 @@
       "description": "Experimental v2 provider routes."
     },
     {
+      "name": "v2 fs",
+      "description": "Experimental v2 filesystem routes."
+    },
+    {
       "name": "Videos",
       "description": "Video generation API."
     },
@@ -32125,6 +36736,15 @@
     {
       "name": "workspace",
       "description": "Experimental HttpApi workspace routes."
+    },
+    {
+      "name": "goal"
+    },
+    {
+      "name": "workflow"
+    },
+    {
+      "name": "orchestrator"
     },
     {
       "name": "pty",

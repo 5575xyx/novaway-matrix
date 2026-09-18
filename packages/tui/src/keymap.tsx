@@ -438,8 +438,7 @@ export function useCommandSlashes(): Accessor<readonly CommandSlashEntry[]> {
       const aliasSet = new Set<string>()
       if (display !== `/${slashName}`) aliasSet.add(`/${slashName}`)
       if (zh) for (const z of zh.slice(1)) aliasSet.add(`/${z}`)
-      if (Array.isArray(slashAliases))
-        for (const a of slashAliases) if (typeof a === "string") aliasSet.add(`/${a}`)
+      if (Array.isArray(slashAliases)) for (const a of slashAliases) if (typeof a === "string") aliasSet.add(`/${a}`)
       aliasSet.delete(display)
       return {
         display,

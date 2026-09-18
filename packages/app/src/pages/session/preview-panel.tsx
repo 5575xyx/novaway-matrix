@@ -1,13 +1,12 @@
 import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { Tooltip } from "@novaway/ui/tooltip"
-import { createMemo, on, createEffect, Show } from "solid-js"
+import { on, createEffect, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
 import { usePreview } from "@/context/preview"
+import { usePreviewInspection } from "@/context/preview-inspection"
 import { normalizePreviewUrl } from "@/utils/preview-url"
-
-const DEFAULT_PREVIEW_URL = "http://localhost:3000"
 
 const IFRAME_SANDBOX =
   "allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads allow-pointer-lock"
@@ -17,17 +16,13 @@ const IFRAME_ALLOW = "fullscreen"
 export function PreviewPanel() {
   const language = useLanguage()
   const preview = usePreview()
+  const inspection = usePreviewInspection()
 
   const url = preview.url
-
-  // 桌面端跑在自定义协议上，iframe 嵌不了 file://，需要 preload 换成受信任的标准协议
-  const embedUrl = createMemo(() => {
-    const value = url()
-    return value ? (window.api?.toPreviewUrl?.(value) ?? value) : undefined
-  })
+  const embedUrl = preview.embedUrl
 
   const [store, setStore] = createStore({
-    draft: url() || DEFAULT_PREVIEW_URL,
+    draft: url(),
     invalid: false,
     reload: 1,
   })
@@ -45,6 +40,8 @@ export function PreviewPanel() {
   )
 
   const go = () => {
+    // 空输入表示还没填，不是非法地址；红字报错在这里是噪音，占位提示已经说明了格式
+    if (!store.draft.trim()) return
     const normalized = normalizePreviewUrl(store.draft)
     if (!normalized) {
       setStore("invalid", true)
@@ -98,6 +95,22 @@ export function PreviewPanel() {
             </span>
           </Show>
         </div>
+        <Tooltip
+          value={inspection.ready() ? language.t("preview.pick.toggle") : language.t("preview.pick.unavailable")}
+          placement="top"
+        >
+          <IconButton
+            icon="window-cursor"
+            variant="ghost"
+            onClick={inspection.toggle}
+            disabled={!inspection.ready()}
+            classList={{
+              "bg-surface-interactive-hover text-text-strong": inspection.armed(),
+            }}
+            aria-label={language.t("preview.pick.toggle")}
+            aria-pressed={inspection.armed()}
+          />
+        </Tooltip>
         <Tooltip value={language.t("preview.go")} placement="top">
           <IconButton icon="enter" variant="ghost" onClick={go} aria-label={language.t("preview.go")} />
         </Tooltip>
@@ -132,6 +145,7 @@ export function PreviewPanel() {
               sandbox={IFRAME_SANDBOX}
               allow={IFRAME_ALLOW}
               referrerPolicy="no-referrer-when-downgrade"
+              ref={(element) => inspection.setFrame(element)}
             />
           )}
         </Show>

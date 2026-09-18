@@ -79,16 +79,10 @@ export function CheckpointPanel(props: CheckpointPanelProps) {
               <Show when={cp.reason}>
                 <text fg={theme.textMuted}>原因: {cp.reason}</text>
               </Show>
-              <text fg={theme.textMuted}>
-                {new Date(cp.createdAt).toLocaleString()}
-              </text>
+              <text fg={theme.textMuted}>{new Date(cp.createdAt).toLocaleString()}</text>
               <Show when={cp.tags.length > 0}>
                 <box flexDirection="row" gap={1} flexWrap="wrap">
-                  <For each={cp.tags.slice(0, 3)}>
-                    {(tag) => (
-                      <text fg={theme.textMuted}>[{tag}]</text>
-                    )}
-                  </For>
+                  <For each={cp.tags.slice(0, 3)}>{(tag) => <text fg={theme.textMuted}>[{tag}]</text>}</For>
                 </box>
               </Show>
               <box flexDirection="row" gap={1}>

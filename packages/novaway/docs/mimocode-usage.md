@@ -27,20 +27,20 @@ cd packages/novaway && bun run dev
   "$schema": "https://opencode.ai/config.json",
 
   "goal": {
-    "enabled": false,          // 目标驱动自主循环总开关
-    "max_iterations": 8,       // 单目标最大自动追加轮次(硬上限,防跑飞)
-    "judge_model": "anthropic/claude-opus-4-8"  // 可选:裁判模型;省略则复用当轮模型
+    "enabled": false, // 目标驱动自主循环总开关
+    "max_iterations": 8, // 单目标最大自动追加轮次(硬上限,防跑飞)
+    "judge_model": "anthropic/claude-opus-4-8", // 可选:裁判模型;省略则复用当轮模型
   },
 
   "checkpoint": {
-    "auto_enabled": false,     // 自动检查点总开关
-    "auto_interval": 5         // 每 N 个 assistant 回合自动存一次
+    "auto_enabled": false, // 自动检查点总开关
+    "auto_interval": 5, // 每 N 个 assistant 回合自动存一次
   },
 
   "dream": {
-    "enabled": false,          // dream/distill 自我蒸馏总开关
-    "interval": 8              // 每 N 轮反思一次会话并蒸馏进长期记忆
-  }
+    "enabled": false, // dream/distill 自我蒸馏总开关
+    "interval": 8, // 每 N 轮反思一次会话并蒸馏进长期记忆
+  },
 }
 ```
 
@@ -53,10 +53,12 @@ cd packages/novaway && bun run dev
 **开启**:`novaway.json` 里 `"goal": { "enabled": true }`。
 
 **建目标**(对话里说即可,agent 会调 `goal` 工具):
+
 - “创建目标:重构 auth 模块;成功标准:所有测试通过、无 any 类型。”
 - `goal` 工具 action:`create` / `update` / `list` / `get` / `progress` / `decompose`(把大目标 LLM 拆成子目标)。
 
 **运行时行为**:
+
 - 裁判判定 `goalMet=false` → 用它给出的 `nextAction` 顺序追加一轮(不并发),`iterations++`。
 - `goalMet=true` → 把活动目标标记为 `completed` 并停止。
 - 触及 `max_iterations` → 强制停止(防跑飞)。
@@ -72,10 +74,12 @@ cd packages/novaway && bun run dev
 **4 个内置模板**:`compose`(规划→执行→评审→综合)、`deep-research`、`fact-check`、`research-experiment`。
 
 **用法 A — 对话**:
+
 - “用 deep-research 模板建一个关于 X 的工作流并启动。”
 - `workflow` 工具 action:`create` / `create_from_template` / `list` / `get` / `start` / `status` / `pause` / `resume` / `templates`。
 
 **用法 B — HTTP**:
+
 ```
 GET  /session/:sessionId/workflow-templates          # 列模板
 POST /session/:sessionId/workflows/from-template     # body: { templateId }
@@ -94,10 +98,12 @@ GET  /session/:sessionId/workflows/:workflowId/runs   # 轮询运行状态
 **作用**:建含依赖的多任务计划,按依赖拓扑排序执行,无冲突的任务并发跑,结果写回。
 
 **用法 — 对话**(agent 调 `orchestrator` 工具):
+
 - “建编排计划:任务A 调研现状;任务B 基于A 出方案(依赖A);任务C 评审B(依赖B);然后执行。”
 - action:`create_plan` / `add_task`(可带 `dependencies`)/ `execute` / `status` / `list`。
 
 **用法 — HTTP**:
+
 ```
 GET    /session/:sessionId/orchestrator/plans
 POST   /session/:sessionId/orchestrator/plans/:planId/execute
@@ -116,6 +122,7 @@ DELETE /session/:sessionId/orchestrator/plans/:planId
 **自动**:`"checkpoint": { "auto_enabled": true, "auto_interval": 5 }` — 每 5 个 assistant 回合自动存一次。
 
 **手动**:
+
 - 对话:“存一个检查点” / “恢复到检查点 X”。
 - HTTP:
   ```
@@ -152,4 +159,3 @@ DELETE /session/:sessionId/orchestrator/plans/:planId
 - **目标循环不触发**:确认 `goal.enabled:true`、`max_iterations>0`、存在 `in_progress`/`pending` 的活动目标、且当轮 assistant 消息无 error。
 - **工作流卡在 step0**:确认是走 `start`(会后台执行)而非只 `create`;用 `runs`/`status` 轮询。
 - **自测**:`cd packages/novaway && bun test test/workflow/executor.test.ts test/orchestrator/service.test.ts test/session/checkpoint.test.ts`(应 9 pass)。
-

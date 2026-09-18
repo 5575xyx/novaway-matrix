@@ -388,6 +388,29 @@ export function SessionHeader() {
                   </Button>
                 </TooltipKeybind>
               </Show>
+              <TooltipKeybind
+                class="inline-flex shrink-0"
+                title={language.t("command.git.toggle")}
+                keybind={command.keybind("git.toggle")}
+              >
+                <Button
+                  variant="ghost"
+                  class="titlebar-icon w-8 h-8 p-0 box-border rounded-xl text-icon-base hover:bg-surface-base-hover transition-all duration-150 hover:scale-105"
+                  onClick={() => layout.git.toggle()}
+                  aria-label={language.t("command.git.toggle")}
+                  aria-expanded={layout.git.opened()}
+                  aria-controls="git-panel"
+                >
+                  <Icon
+                    size="small"
+                    name="branch"
+                    classList={{
+                      "text-icon-strong": layout.git.opened(),
+                      "text-icon-weak": !layout.git.opened(),
+                    }}
+                  />
+                </Button>
+              </TooltipKeybind>
             </div>
           </Portal>
         )}

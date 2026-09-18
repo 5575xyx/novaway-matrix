@@ -59,7 +59,10 @@ export const TodoWriteTool = Tool.define<typeof Parameters, Metadata, Todo.Servi
 )
 
 // 动作到状态值的映射。add/edit/remove 不改状态,显式给 undefined 让索引类型闭合。
-const STATUS_BY_ACTION: Record<"add" | "edit" | "complete" | "reopen" | "progress" | "cancel" | "remove", string | undefined> = {
+const STATUS_BY_ACTION: Record<
+  "add" | "edit" | "complete" | "reopen" | "progress" | "cancel" | "remove",
+  string | undefined
+> = {
   add: undefined,
   edit: undefined,
   complete: "completed",
@@ -87,10 +90,13 @@ export const TodoEditParameters = Schema.Struct({
     Schema.Literal("remove"),
   ]).annotate({ description: "The single change to apply: add, edit, complete, reopen, progress, cancel or remove" }),
   position: Schema.optional(Schema.Number).annotate({
-    description: "0-based index of the item to change, exactly as numbered in the current list. Required for every action except add.",
+    description:
+      "0-based index of the item to change, exactly as numbered in the current list. Required for every action except add.",
   }),
   content: Schema.optional(Schema.String).annotate({ description: "New task text. Required for add and edit." }),
-  priority: Schema.optional(Schema.Union([Schema.Literal("high"), Schema.Literal("medium"), Schema.Literal("low")])).annotate({
+  priority: Schema.optional(
+    Schema.Union([Schema.Literal("high"), Schema.Literal("medium"), Schema.Literal("low")]),
+  ).annotate({
     description: "Priority for a newly added item. Defaults to medium.",
   }),
   goalId: Schema.optional(Schema.String).annotate({ description: "Goal ID to attach a newly added item to." }),
@@ -162,7 +168,8 @@ export const TodoEditTool = Tool.define<typeof TodoEditParameters, Metadata, Tod
           return {
             title: `todoedit: ${params.action}`,
             output: [
-              next.map((item, index) => `${index}. ${MARK[item.status] ?? "[ ]"} ${item.content}`).join("\n") || "(no todos)",
+              next.map((item, index) => `${index}. ${MARK[item.status] ?? "[ ]"} ${item.content}`).join("\n") ||
+                "(no todos)",
               `${done}/${next.length} completed`,
             ].join("\n"),
             metadata: {

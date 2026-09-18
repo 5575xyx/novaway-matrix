@@ -94,9 +94,9 @@ describe("createDevServerDetector", () => {
     expect(d.report(vite)).toEqual(["http://localhost:5173"])
 
     const d2 = createDevServerDetector()
-    expect(
-      d2.report("▲ Next.js 14.0.0\n  Local: http://localhost:3000\n  Start date: 2026-09-14"),
-    ).toEqual(["http://localhost:3000"])
+    expect(d2.report("▲ Next.js 14.0.0\n  Local: http://localhost:3000\n  Start date: 2026-09-14")).toEqual([
+      "http://localhost:3000",
+    ])
 
     const d3 = createDevServerDetector()
     expect(d3.report("Ready on http://127.0.0.1:8080")).toEqual(["http://127.0.0.1:8080"])

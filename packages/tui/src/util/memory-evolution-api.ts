@@ -5,7 +5,11 @@ import type { NovawayClient } from "@novaway/sdk-v2-latest/v2"
 // 以 { url, body } 形式调用后端已注册但尚未生成类型的路由。
 function raw(client: NovawayClient): {
   get: (opts: { url: string }) => Promise<{ data?: unknown; error?: unknown }>
-  post: (opts: { url: string; body?: unknown; headers?: Record<string, string> }) => Promise<{ data?: unknown; error?: unknown }>
+  post: (opts: {
+    url: string
+    body?: unknown
+    headers?: Record<string, string>
+  }) => Promise<{ data?: unknown; error?: unknown }>
 } {
   return (client as any)._client
 }
@@ -127,10 +131,7 @@ export const memoryApi = {
     }
   },
 
-  async applyReviewCandidate(
-    client: NovawayClient,
-    params: { candidateID: string; scope?: string },
-  ): Promise<boolean> {
+  async applyReviewCandidate(client: NovawayClient, params: { candidateID: string; scope?: string }): Promise<boolean> {
     try {
       await raw(client).post({
         url: `/memory/review/candidate/${params.candidateID}/apply`,

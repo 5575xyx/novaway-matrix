@@ -553,15 +553,18 @@ it.instance("supports tuple plugin specs with options in tui.json", () =>
 
       const config = yield* getTuiConfig(test.directory)
       const origins = yield* getTuiPluginOrigins(test.directory)
-  expect(config.plugin).toEqual([DEFAULT_GLOBAL_PLUGINS[0], ["acme-plugin@1.2.3", { enabled: true, label: "demo" }]])
-  expect(origins).toEqual([
-    {
-      spec: DEFAULT_GLOBAL_PLUGINS[0],
-      scope: "global",
-      source: path.join(Global.Path.config, "novaway.json"),
-    },
-    {
-      spec: ["acme-plugin@1.2.3", { enabled: true, label: "demo" }],
+      expect(config.plugin).toEqual([
+        DEFAULT_GLOBAL_PLUGINS[0],
+        ["acme-plugin@1.2.3", { enabled: true, label: "demo" }],
+      ])
+      expect(origins).toEqual([
+        {
+          spec: DEFAULT_GLOBAL_PLUGINS[0],
+          scope: "global",
+          source: path.join(Global.Path.config, "novaway.json"),
+        },
+        {
+          spec: ["acme-plugin@1.2.3", { enabled: true, label: "demo" }],
           scope: "local",
           source: path.join(test.directory, "tui.json"),
         },
@@ -587,19 +590,19 @@ it.instance("deduplicates tuple plugin specs by name with higher precedence winn
 
       const config = yield* getTuiConfig(test.directory)
       const origins = yield* getTuiPluginOrigins(test.directory)
-  expect(config.plugin).toEqual([
-    DEFAULT_GLOBAL_PLUGINS[0],
-    ["acme-plugin@2.0.0", { source: "project" }],
+      expect(config.plugin).toEqual([
+        DEFAULT_GLOBAL_PLUGINS[0],
+        ["acme-plugin@2.0.0", { source: "project" }],
         ["second-plugin@3.0.0", { source: "project" }],
       ])
-  expect(origins).toEqual([
-    {
-      spec: DEFAULT_GLOBAL_PLUGINS[0],
-      scope: "global",
-      source: path.join(Global.Path.config, "novaway.json"),
-    },
-    {
-      spec: ["acme-plugin@2.0.0", { source: "project" }],
+      expect(origins).toEqual([
+        {
+          spec: DEFAULT_GLOBAL_PLUGINS[0],
+          scope: "global",
+          source: path.join(Global.Path.config, "novaway.json"),
+        },
+        {
+          spec: ["acme-plugin@2.0.0", { source: "project" }],
           scope: "local",
           source: path.join(test.directory, "tui.json"),
         },
@@ -623,18 +626,18 @@ it.instance("tracks global and local plugin metadata in merged tui config", () =
 
       const config = yield* getTuiConfig(test.directory)
       const origins = yield* getTuiPluginOrigins(test.directory)
-  expect(config.plugin).toEqual(["global-plugin@1.0.0", DEFAULT_GLOBAL_PLUGINS[0], "local-plugin@2.0.0"])
-  expect(origins).toEqual([
-    {
-      spec: "global-plugin@1.0.0",
-      scope: "global",
-      source: path.join(Global.Path.config, "tui.json"),
-    },
-    {
-      spec: DEFAULT_GLOBAL_PLUGINS[0],
-      scope: "global",
-      source: path.join(Global.Path.config, "novaway.json"),
-    },
+      expect(config.plugin).toEqual(["global-plugin@1.0.0", DEFAULT_GLOBAL_PLUGINS[0], "local-plugin@2.0.0"])
+      expect(origins).toEqual([
+        {
+          spec: "global-plugin@1.0.0",
+          scope: "global",
+          source: path.join(Global.Path.config, "tui.json"),
+        },
+        {
+          spec: DEFAULT_GLOBAL_PLUGINS[0],
+          scope: "global",
+          source: path.join(Global.Path.config, "novaway.json"),
+        },
         {
           spec: "local-plugin@2.0.0",
           scope: "local",

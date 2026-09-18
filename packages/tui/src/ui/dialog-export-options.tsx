@@ -173,14 +173,12 @@ export function DialogExportOptions(props: DialogExportOptionsProps) {
       </box>
       <Show when={store.active !== "filename"}>
         <text fg={theme.textMuted} paddingBottom={1}>
-          按 <span style={{ fg: theme.text }}>空格</span> 切换，按 <span style={{ fg: theme.text }}>回车</span>{" "}
-          确认
+          按 <span style={{ fg: theme.text }}>空格</span> 切换，按 <span style={{ fg: theme.text }}>回车</span> 确认
         </text>
       </Show>
       <Show when={store.active === "filename"}>
         <text fg={theme.textMuted} paddingBottom={1}>
-          按 <span style={{ fg: theme.text }}>回车</span> 确认，按 <span style={{ fg: theme.text }}>Tab</span>{" "}
-          查看选项
+          按 <span style={{ fg: theme.text }}>回车</span> 确认，按 <span style={{ fg: theme.text }}>Tab</span> 查看选项
         </text>
       </Show>
     </box>

@@ -24,13 +24,7 @@ import { EffectBridge } from "@/effect/bridge"
 import { InstanceState } from "@/effect/instance-state"
 import { errorMessage } from "@/util/error"
 import { PluginLoader } from "./loader"
-import {
-  parsePluginSpecifier,
-  readPluginId,
-  readV1Plugin,
-  resolvePluginId,
-  startGitPluginRefresh,
-} from "./shared"
+import { parsePluginSpecifier, readPluginId, readV1Plugin, resolvePluginId, startGitPluginRefresh } from "./shared"
 import { registerAdapter } from "@/control-plane/adapters"
 import type { WorkspaceAdapter } from "@/control-plane/types"
 import { RuntimeFlags } from "@/effect/runtime-flags"

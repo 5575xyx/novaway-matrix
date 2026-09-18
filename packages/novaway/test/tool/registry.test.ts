@@ -82,7 +82,12 @@ const scout = testEffect(
   Layer.mergeAll(registryLayer({ experimentalScout: true }), node, Agent.defaultLayer, Auth.defaultLayer) as any,
 )
 const background = testEffect(
-  Layer.mergeAll(registryLayer({ experimentalBackgroundSubagents: true }), node, Agent.defaultLayer, Auth.defaultLayer) as any,
+  Layer.mergeAll(
+    registryLayer({ experimentalBackgroundSubagents: true }),
+    node,
+    Agent.defaultLayer,
+    Auth.defaultLayer,
+  ) as any,
 )
 
 afterEach(async () => {

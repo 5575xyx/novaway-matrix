@@ -487,6 +487,12 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
         ]
       : []),
     viewCommand({
+      id: "git.toggle",
+      title: language.t("command.git.toggle"),
+      keybind: "mod+shift+g",
+      onSelect: () => layout.git.toggle(),
+    }),
+    viewCommand({
       id: "taskList.toggle",
       title: language.t("command.taskList.toggle"),
       keybind: "mod+shift+t",

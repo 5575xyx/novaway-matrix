@@ -3,11 +3,7 @@ import { useSDK } from "../context/sdk"
 import { useTheme } from "../context/theme"
 import { useDialog } from "../ui/dialog"
 import { DialogConfirm } from "../ui/dialog-confirm"
-import {
-  memoryApi,
-  type MemoryReviewCandidate,
-  type MemoryReviewStatus,
-} from "../util/memory-evolution-api"
+import { memoryApi, type MemoryReviewCandidate, type MemoryReviewStatus } from "../util/memory-evolution-api"
 import { useAutoRefresh } from "../util/auto-refresh"
 
 type FilterStatus = "pending" | "applied" | "dismissed"
@@ -128,10 +124,7 @@ export function MemoryPanel(props: MemoryPanelProps) {
         <text fg={theme.textMuted}>范围:</text>
         <For each={["global", "project", "session"] as const}>
           {(s) => (
-            <text
-              fg={scope() === s ? theme.primary : theme.textMuted}
-              onMouseUp={() => setScope(s)}
-            >
+            <text fg={scope() === s ? theme.primary : theme.textMuted} onMouseUp={() => setScope(s)}>
               [{s === "global" ? "全局" : s === "project" ? "项目" : "会话"}]
             </text>
           )}
@@ -142,10 +135,7 @@ export function MemoryPanel(props: MemoryPanelProps) {
       <box flexDirection="row" gap={1}>
         <For each={["pending", "applied", "dismissed"] as const}>
           {(s) => (
-            <text
-              fg={filter() === s ? theme.primary : theme.textMuted}
-              onMouseUp={() => switchFilter(s)}
-            >
+            <text fg={filter() === s ? theme.primary : theme.textMuted} onMouseUp={() => switchFilter(s)}>
               [{s === "pending" ? "待审" : s === "applied" ? "已应用" : "已驳回"}]
             </text>
           )}
@@ -161,8 +151,7 @@ export function MemoryPanel(props: MemoryPanelProps) {
           {(candidate) => (
             <box flexDirection="column" gap={0} paddingBottom={1}>
               <text fg={theme.text} wrapMode="none">
-                <span style={{ fg: theme.accent }}>●</span>{" "}
-                {candidate.summary ?? candidate.content.slice(0, 40)}
+                <span style={{ fg: theme.accent }}>●</span> {candidate.summary ?? candidate.content.slice(0, 40)}
               </text>
               <box flexDirection="row" gap={1}>
                 <text fg={theme.textMuted}>
@@ -174,11 +163,7 @@ export function MemoryPanel(props: MemoryPanelProps) {
               </box>
               <Show when={candidate.tags.length > 0}>
                 <box flexDirection="row" gap={1} flexWrap="wrap">
-                  <For each={candidate.tags.slice(0, 3)}>
-                    {(tag) => (
-                      <text fg={theme.textMuted}>[{tag}]</text>
-                    )}
-                  </For>
+                  <For each={candidate.tags.slice(0, 3)}>{(tag) => <text fg={theme.textMuted}>[{tag}]</text>}</For>
                 </box>
               </Show>
               <Show when={candidate.status === "pending"}>

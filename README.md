@@ -201,12 +201,12 @@ npm uninstall -g xymt-novaway
 
 用户数据目录（`novaway uninstall` 会清理，手动卸载不会动）：
 
-| 用途 | Linux / macOS | Windows |
-| --- | --- | --- |
-| 配置 | `~/.config/novaway` | `C:\Users\<你>\.config\novaway` |
+| 用途                       | Linux / macOS            | Windows                              |
+| -------------------------- | ------------------------ | ------------------------------------ |
+| 配置                       | `~/.config/novaway`      | `C:\Users\<你>\.config\novaway`      |
 | 数据（会话 / 日志 / 快照） | `~/.local/share/novaway` | `C:\Users\<你>\.local\share\novaway` |
-| 缓存 | `~/.cache/novaway` | `C:\Users\<你>\.cache\novaway` |
-| 状态 | `~/.local/state/novaway` | `C:\Users\<你>\.local\state\novaway` |
+| 缓存                       | `~/.cache/novaway`       | `C:\Users\<你>\.cache\novaway`       |
+| 状态                       | `~/.local/state/novaway` | `C:\Users\<你>\.local\state\novaway` |
 
 ## 安装故障排查
 

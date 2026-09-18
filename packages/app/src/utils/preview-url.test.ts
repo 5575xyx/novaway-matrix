@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { normalizePreviewUrl } from "./preview-url"
+import { normalizePreviewUrl, previewFilePath } from "./preview-url"
 
 test("完整 http 地址被规范化", () => {
   expect(normalizePreviewUrl("localhost:3000")).toBe("http://localhost:3000/")
@@ -33,4 +33,16 @@ test("畸形地址被拒绝", () => {
   expect(normalizePreviewUrl("http://")).toBeUndefined()
   expect(normalizePreviewUrl("file:")).toBeUndefined()
   expect(normalizePreviewUrl("file:///")).toBeUndefined()
+})
+
+test("file:// 地址取回本机绝对路径", () => {
+  expect(previewFilePath("file:///C:/work/index.html")).toBe("C:/work/index.html")
+  expect(previewFilePath("file:///Users/foo/demo.html")).toBe("/Users/foo/demo.html")
+  expect(previewFilePath("file:///D:/360data/%E6%B5%8B%E8%AF%95.html")).toBe("D:/360data/测试.html")
+})
+
+test("非 file:// 地址取不到文件路径", () => {
+  expect(previewFilePath("http://localhost:3000/")).toBeUndefined()
+  expect(previewFilePath("file:/bad")).toBeUndefined()
+  expect(previewFilePath("")).toBeUndefined()
 })

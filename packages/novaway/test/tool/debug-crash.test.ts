@@ -37,7 +37,11 @@ import { TestConfig } from "../fixture/config"
 const LOG = path.join(process.env.TEMP ?? ".", "registry-crash-test.log")
 const stage = (name: string) => {
   const mem = process.memoryUsage()
-  writeFileSync(LOG, `[${name}] rss=${Math.round(mem.rss / 1024 / 1024)}MB heap=${Math.round(mem.heapUsed / 1024 / 1024)}MB\n`, { flag: "a" })
+  writeFileSync(
+    LOG,
+    `[${name}] rss=${Math.round(mem.rss / 1024 / 1024)}MB heap=${Math.round(mem.heapUsed / 1024 / 1024)}MB\n`,
+    { flag: "a" },
+  )
 }
 writeFileSync(LOG, "")
 stage("T1 module top-level")
@@ -80,7 +84,14 @@ const registryLayer = (flags: Partial<RuntimeFlags.Info> = {}) =>
       Layer.provide(OrchestratorDefaultLayer),
     )
 
-const it = testEffect(Layer.mergeAll(registryLayer({ pure: true, disableDefaultPlugins: true }), node, Agent.defaultLayer, Auth.defaultLayer) as any)
+const it = testEffect(
+  Layer.mergeAll(
+    registryLayer({ pure: true, disableDefaultPlugins: true }),
+    node,
+    Agent.defaultLayer,
+    Auth.defaultLayer,
+  ) as any,
+)
 
 describe("debug-crash", () => {
   it.instance("ids", () =>

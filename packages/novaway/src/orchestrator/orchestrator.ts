@@ -127,17 +127,19 @@ export const layer = Layer.effect(
         }
         yield* Effect.sync(() =>
           Database.use((db) =>
-            db.insert(OrchestratorPlanTable).values({
-              id: plan.id,
-              session_id: plan.sessionId,
-              name: plan.name,
-              tasks: plan.tasks,
-              status: plan.status,
-              error: plan.error,
-              created_at: plan.createdAt,
-              updated_at: plan.updatedAt,
-            })
-            .run(),
+            db
+              .insert(OrchestratorPlanTable)
+              .values({
+                id: plan.id,
+                session_id: plan.sessionId,
+                name: plan.name,
+                tasks: plan.tasks,
+                status: plan.status,
+                error: plan.error,
+                created_at: plan.createdAt,
+                updated_at: plan.updatedAt,
+              })
+              .run(),
           ),
         )
         return plan
@@ -162,7 +164,10 @@ export const layer = Layer.effect(
             if (task.type === "tool" || task.type === "skill") {
               const target = task.type === "tool" ? c.tool : c.skill
               const kind = task.type === "tool" ? "工具" : "技能"
-              promptText = [`请使用${kind} \`${String(target ?? "")}\` 完成以下任务：`, interpolate(String(c.prompt ?? ""), results)]
+              promptText = [
+                `请使用${kind} \`${String(target ?? "")}\` 完成以下任务：`,
+                interpolate(String(c.prompt ?? ""), results),
+              ]
                 .filter(Boolean)
                 .join("\n")
             } else {
@@ -189,9 +194,7 @@ export const layer = Layer.effect(
         while (guard.budget-- > 0) {
           const pending = tasks.filter((t) => t.status === "pending")
           if (pending.length === 0) break
-          const ready = pending.filter((t) =>
-            t.dependencies.every((dep) => byId.get(dep)?.status === "completed"),
-          )
+          const ready = pending.filter((t) => t.dependencies.every((dep) => byId.get(dep)?.status === "completed"))
           if (ready.length === 0) {
             // 剩余任务的依赖无法满足(缺失/失败/环)——终止。
             for (const t of pending) {

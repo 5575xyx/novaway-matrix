@@ -22,7 +22,7 @@ on:
         type: string
 
 permissions:
-  contents: write  # 需要写权限以创建 Release
+  contents: write # 需要写权限以创建 Release
 
 jobs:
   publish:

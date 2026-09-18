@@ -112,18 +112,20 @@ export const layer = Layer.effect(
 
         yield* Effect.sync(() =>
           Database.use((db) =>
-            db.insert(WorkflowTable).values({
-              id: workflow.id,
-              session_id: workflow.sessionId,
-              name: workflow.name,
-              description: workflow.description,
-              steps: workflow.steps,
-              status: workflow.status,
-              state: workflow.state,
-              created_at: workflow.createdAt,
-              updated_at: workflow.updatedAt,
-            })
-            .run(),
+            db
+              .insert(WorkflowTable)
+              .values({
+                id: workflow.id,
+                session_id: workflow.sessionId,
+                name: workflow.name,
+                description: workflow.description,
+                steps: workflow.steps,
+                status: workflow.status,
+                state: workflow.state,
+                created_at: workflow.createdAt,
+                updated_at: workflow.updatedAt,
+              })
+              .run(),
           ),
         )
 
@@ -133,7 +135,12 @@ export const layer = Layer.effect(
       list: Effect.fn("WorkflowService.list")(function* (sessionId) {
         const rows = yield* Effect.sync(() =>
           Database.use((db) =>
-            db.select().from(WorkflowTable).where(eq(WorkflowTable.session_id, sessionId)).orderBy(WorkflowTable.created_at).all(),
+            db
+              .select()
+              .from(WorkflowTable)
+              .where(eq(WorkflowTable.session_id, sessionId))
+              .orderBy(WorkflowTable.created_at)
+              .all(),
           ),
         )
 
@@ -168,14 +175,18 @@ export const layer = Layer.effect(
         )
 
         const updated = yield* Effect.sync(() =>
-          Database.use((db) => db.select().from(WorkflowTable).where(eq(WorkflowTable.id, input.workflowId)).limit(1).all()),
+          Database.use((db) =>
+            db.select().from(WorkflowTable).where(eq(WorkflowTable.id, input.workflowId)).limit(1).all(),
+          ),
         )
 
         return toWorkflow(updated[0])
       }),
 
       delete: Effect.fn("WorkflowService.delete")(function* (workflowId) {
-        yield* Effect.sync(() => Database.use((db) => db.delete(WorkflowTable).where(eq(WorkflowTable.id, workflowId)).run()))
+        yield* Effect.sync(() =>
+          Database.use((db) => db.delete(WorkflowTable).where(eq(WorkflowTable.id, workflowId)).run()),
+        )
       }),
 
       startRun: Effect.fn("WorkflowService.startRun")(function* (workflowId) {
@@ -208,18 +219,20 @@ export const layer = Layer.effect(
 
         yield* Effect.sync(() =>
           Database.use((db) =>
-            db.insert(WorkflowRunTable).values({
-              id: run.id,
-              workflow_id: run.workflowId,
-              session_id: run.sessionId,
-              status: run.status,
-              state: run.state,
-              error: run.error,
-              started_at: run.startedAt,
-              completed_at: run.completedAt,
-              created_at: run.createdAt,
-            })
-            .run(),
+            db
+              .insert(WorkflowRunTable)
+              .values({
+                id: run.id,
+                workflow_id: run.workflowId,
+                session_id: run.sessionId,
+                status: run.status,
+                state: run.state,
+                error: run.error,
+                started_at: run.startedAt,
+                completed_at: run.completedAt,
+                created_at: run.createdAt,
+              })
+              .run(),
           ),
         )
 
@@ -238,7 +251,12 @@ export const layer = Layer.effect(
       listRuns: Effect.fn("WorkflowService.listRuns")(function* (workflowId) {
         const rows = yield* Effect.sync(() =>
           Database.use((db) =>
-            db.select().from(WorkflowRunTable).where(eq(WorkflowRunTable.workflow_id, workflowId)).orderBy(WorkflowRunTable.created_at).all(),
+            db
+              .select()
+              .from(WorkflowRunTable)
+              .where(eq(WorkflowRunTable.workflow_id, workflowId))
+              .orderBy(WorkflowRunTable.created_at)
+              .all(),
           ),
         )
 
@@ -262,7 +280,9 @@ export const layer = Layer.effect(
         )
 
         const updated = yield* Effect.sync(() =>
-          Database.use((db) => db.select().from(WorkflowRunTable).where(eq(WorkflowRunTable.id, input.runId)).limit(1).all()),
+          Database.use((db) =>
+            db.select().from(WorkflowRunTable).where(eq(WorkflowRunTable.id, input.runId)).limit(1).all(),
+          ),
         )
 
         return toRun(updated[0])

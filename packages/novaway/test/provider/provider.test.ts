@@ -2831,8 +2831,8 @@ test("opencode loader keeps paid models when auth exists", async () => {
     })
 
     // 免费/付费都依赖 key：没 key 时免费模型已移除、付费模型不可用，
-  // opencode 整个不会出现在列表里
-  expect(none).toBeUndefined()
+    // opencode 整个不会出现在列表里
+    expect(none).toBeUndefined()
     expect(keyedCount).toBeGreaterThan(0)
   } finally {
     if (prev !== undefined) {

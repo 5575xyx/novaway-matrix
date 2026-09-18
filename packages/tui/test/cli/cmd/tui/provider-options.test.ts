@@ -37,7 +37,12 @@ describe("providerOptions", () => {
       { id: "sensenova", name: "SenseNova (China)" },
       { id: "NovaWay", name: "NovaWay" },
     ])
-    expect(options.map((option) => option.value)).toEqual(["NovaWay", "sensenova", "openai", "__NovaWay_custom_provider__"])
+    expect(options.map((option) => option.value)).toEqual([
+      "NovaWay",
+      "sensenova",
+      "openai",
+      "__NovaWay_custom_provider__",
+    ])
     const sense = options.find((option) => option.value === "sensenova")!
     expect(sense.category).toBe("免费接入")
     expect(sense.description).toContain("免费")

@@ -41,13 +41,7 @@ import { ScrollView } from "@novaway/ui/scroll-view"
 import { StickyAccordionHeader } from "@novaway/ui/sticky-accordion-header"
 import { TextReveal } from "@novaway/ui/text-reveal"
 import { TextShimmer } from "@novaway/ui/text-shimmer"
-import type {
-  AssistantMessage,
-  Message as MessageType,
-  Part as PartType,
-  ToolPart,
-  UserMessage,
-} from "@novaway/sdk/v2"
+import type { AssistantMessage, Message as MessageType, Part as PartType, ToolPart, UserMessage } from "@novaway/sdk/v2"
 import { showToast } from "@novaway/ui/toast"
 import { Binary } from "@novaway/core/util/binary"
 import { getDirectory, getFilename } from "@novaway/core/util/path"
@@ -463,7 +457,9 @@ export function MessageTimeline(props: {
       .trim()
   })
   const latestWorkflowScene = createMemo(() => {
-    const last = sessionMessages().filter((message) => message.role === "assistant").at(-1)
+    const last = sessionMessages()
+      .filter((message) => message.role === "assistant")
+      .at(-1)
     const agent = last?.agent
     if (agent?.startsWith("office-")) return agent.slice("office-".length)
     return "document"

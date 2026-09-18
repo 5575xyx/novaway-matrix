@@ -124,18 +124,25 @@ async function syncNpmmirror(entries: [string, string][]) {
   const deadline = Date.now() + timeoutMinutes * 60_000
   while (pending.length > 0) {
     for (const [name, version] of [...pending]) {
-      if ((await mirrorVersion(name, Script.channel)) === version) pending.splice(pending.findIndex(([n]) => n === name), 1)
+      if ((await mirrorVersion(name, Script.channel)) === version)
+        pending.splice(
+          pending.findIndex(([n]) => n === name),
+          1,
+        )
     }
     if (pending.length === 0) break
     if (Date.now() > deadline) {
-      console.error(`⚠️  ${timeoutMinutes} 分钟后 npmmirror 仍未供上：${pending.map(([n, v]) => `${n}@${v}`).join(", ")}`)
+      console.error(
+        `⚠️  ${timeoutMinutes} 分钟后 npmmirror 仍未供上：${pending.map(([n, v]) => `${n}@${v}`).join(", ")}`,
+      )
       console.error(`   源 registry 已完整,发布继续;但镜像用户的自动更新会静默失败。手动补同步:`)
       for (const [name] of pending) console.error(`   curl -X PUT ${MIRROR}/-/package/${name}/syncs`)
       return
     }
-    console.log(`⏳ 等待 npmmirror 供上（剩 ${Math.ceil((deadline - Date.now()) / 60_000)} 分钟）：${pending.map(([n]) => n).join(", ")}`)
+    console.log(
+      `⏳ 等待 npmmirror 供上（剩 ${Math.ceil((deadline - Date.now()) / 60_000)} 分钟）：${pending.map(([n]) => n).join(", ")}`,
+    )
     await sleep(30000)
   }
   console.log(`✅ npmmirror 已供上全部 ${entries.length} 个包,镜像用户的自动更新可用`)
 }
-

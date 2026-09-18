@@ -22,6 +22,16 @@ import type {
   ChatPayload,
   ChatSendErrors,
   ChatSendResponses,
+  CheckpointCreateCheckpointErrors,
+  CheckpointCreateCheckpointResponses,
+  CheckpointDeleteCheckpointErrors,
+  CheckpointDeleteCheckpointResponses,
+  CheckpointGetCheckpointErrors,
+  CheckpointGetCheckpointResponses,
+  CheckpointListCheckpointsErrors,
+  CheckpointListCheckpointsResponses,
+  CheckpointRestoreCheckpointErrors,
+  CheckpointRestoreCheckpointResponses,
   CommandListResponses,
   Config as Config4,
   ConfigGetResponses,
@@ -80,6 +90,26 @@ import type {
   FindSymbolsResponses,
   FindTextResponses,
   FormatterStatusResponses,
+  GitAddErrors,
+  GitAddResponses,
+  GitBranchErrors,
+  GitBranchResponses,
+  GitCommitErrors,
+  GitCommitResponses,
+  GitDiscardErrors,
+  GitDiscardResponses,
+  GitPullErrors,
+  GitPullResponses,
+  GitPushErrors,
+  GitPushResponses,
+  GitRemoteErrors,
+  GitRemoteResponses,
+  GitSnapshotErrors,
+  GitSnapshotResponses,
+  GitStashErrors,
+  GitStashResponses,
+  GitUnstageErrors,
+  GitUnstageResponses,
   GlobalConfigGetResponses,
   GlobalConfigUpdateErrors,
   GlobalConfigUpdateResponses,
@@ -88,6 +118,18 @@ import type {
   GlobalHealthResponses,
   GlobalUpgradeErrors,
   GlobalUpgradeResponses,
+  GoalCreateGoalErrors,
+  GoalCreateGoalResponses,
+  GoalDeleteGoalErrors,
+  GoalDeleteGoalResponses,
+  GoalGetGoalErrors,
+  GoalGetGoalProgressErrors,
+  GoalGetGoalProgressResponses,
+  GoalGetGoalResponses,
+  GoalListGoalsErrors,
+  GoalListGoalsResponses,
+  GoalUpdateGoalErrors,
+  GoalUpdateGoalResponses,
   ImageGeneratePayload,
   ImagesGenerateErrors,
   ImagesGenerateResponses,
@@ -198,6 +240,16 @@ import type {
   OfficePlatformWorkflowUpdateResponses,
   OfficePptxTemplateFillErrors,
   OfficePptxTemplateFillResponses,
+  OrchestratorCreateOrchestratorPlanErrors,
+  OrchestratorCreateOrchestratorPlanResponses,
+  OrchestratorDeleteOrchestratorPlanErrors,
+  OrchestratorDeleteOrchestratorPlanResponses,
+  OrchestratorExecuteOrchestratorPlanErrors,
+  OrchestratorExecuteOrchestratorPlanResponses,
+  OrchestratorGetOrchestratorPlanErrors,
+  OrchestratorGetOrchestratorPlanResponses,
+  OrchestratorListOrchestratorPlansErrors,
+  OrchestratorListOrchestratorPlansResponses,
   OutputFormat,
   Part as Part2,
   PartDeleteErrors,
@@ -212,6 +264,8 @@ import type {
   PermissionRespondResponses,
   PermissionRuleset,
   ProjectCurrentResponses,
+  ProjectDirectoriesErrors,
+  ProjectDirectoriesResponses,
   ProjectInitGitResponses,
   ProjectListResponses,
   ProjectUpdateErrors,
@@ -350,6 +404,7 @@ import type {
   TuiSelectSessionResponses,
   TuiShowToastResponses,
   TuiSubmitPromptResponses,
+  V2FsFindResponses,
   V2ModelListResponses,
   V2ProviderGetErrors,
   V2ProviderGetResponses,
@@ -371,6 +426,24 @@ import type {
   VideoGeneratePayload,
   VideosGenerateErrors,
   VideosGenerateResponses,
+  WorkflowCreateWorkflowErrors,
+  WorkflowCreateWorkflowFromTemplateErrors,
+  WorkflowCreateWorkflowFromTemplateResponses,
+  WorkflowCreateWorkflowResponses,
+  WorkflowDeleteWorkflowErrors,
+  WorkflowDeleteWorkflowResponses,
+  WorkflowGetWorkflowErrors,
+  WorkflowGetWorkflowResponses,
+  WorkflowListWorkflowRunsErrors,
+  WorkflowListWorkflowRunsResponses,
+  WorkflowListWorkflowsErrors,
+  WorkflowListWorkflowsResponses,
+  WorkflowListWorkflowTemplatesErrors,
+  WorkflowListWorkflowTemplatesResponses,
+  WorkflowStartWorkflowErrors,
+  WorkflowStartWorkflowResponses,
+  WorkflowUpdateWorkflowErrors,
+  WorkflowUpdateWorkflowResponses,
   WorktreeCreateErrors,
   WorktreeCreateInput,
   WorktreeCreateResponses,
@@ -616,7 +689,7 @@ export class App extends HeyApiClient {
   /**
    * List agents
    *
-   * Get a list of all available AI agents in the OpenCode system.
+   * Get a list of all available AI agents in the NovaWay system.
    */
   public agents<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -646,7 +719,7 @@ export class App extends HeyApiClient {
   /**
    * List skills
    *
-   * Get a list of all available skills in the OpenCode system.
+   * Get a list of all available skills in the NovaWay system.
    */
   public skills<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -678,7 +751,7 @@ export class Config extends HeyApiClient {
   /**
    * Get global configuration
    *
-   * Retrieve the current global OpenCode configuration settings and preferences.
+   * Retrieve the current global NovaWay configuration settings and preferences.
    */
   public get<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
     return (options?.client ?? this.client).get<GlobalConfigGetResponses, unknown, ThrowOnError>({
@@ -690,7 +763,7 @@ export class Config extends HeyApiClient {
   /**
    * Update global configuration
    *
-   * Update global OpenCode configuration settings and preferences.
+   * Update global NovaWay configuration settings and preferences.
    */
   public update<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -716,7 +789,7 @@ export class Global extends HeyApiClient {
   /**
    * Get health
    *
-   * Get health information about the OpenCode server.
+   * Get health information about the NovaWay server.
    */
   public health<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
     return (options?.client ?? this.client).get<GlobalHealthResponses, unknown, ThrowOnError>({
@@ -728,7 +801,7 @@ export class Global extends HeyApiClient {
   /**
    * Get global events
    *
-   * Subscribe to global events from the OpenCode system using server-sent events.
+   * Subscribe to global events from the NovaWay system using server-sent events.
    */
   public event<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
     return (options?.client ?? this.client).sse.get<GlobalEventResponses, unknown, ThrowOnError>({
@@ -740,7 +813,7 @@ export class Global extends HeyApiClient {
   /**
    * Dispose instance
    *
-   * Clean up and dispose all OpenCode instances, releasing all resources.
+   * Clean up and dispose all NovaWay instances, releasing all resources.
    */
   public dispose<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
     return (options?.client ?? this.client).post<GlobalDisposeResponses, unknown, ThrowOnError>({
@@ -750,9 +823,9 @@ export class Global extends HeyApiClient {
   }
 
   /**
-   * Upgrade opencode
+   * Upgrade NovaWay
    *
-   * Upgrade opencode to the specified version or latest if not specified.
+   * Upgrade NovaWay to the specified version or latest if not specified.
    */
   public upgrade<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -850,11 +923,123 @@ export class Chat extends HeyApiClient {
   }
 }
 
+export class Checkpoint extends HeyApiClient {
+  public listCheckpoints<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionId: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "sessionId" }] }])
+    return (options?.client ?? this.client).get<
+      CheckpointListCheckpointsResponses,
+      CheckpointListCheckpointsErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionId}/checkpoints",
+      ...options,
+      ...params,
+    })
+  }
+
+  public createCheckpoint<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionId: string
+      name?: string
+      reason?: string
+      tags?: Array<string>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionId" },
+            { in: "body", key: "name" },
+            { in: "body", key: "reason" },
+            { in: "body", key: "tags" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      CheckpointCreateCheckpointResponses,
+      CheckpointCreateCheckpointErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionId}/checkpoints",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public deleteCheckpoint<ThrowOnError extends boolean = false>(
+    parameters: {
+      checkpointId: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "checkpointId" }] }])
+    return (options?.client ?? this.client).delete<
+      CheckpointDeleteCheckpointResponses,
+      CheckpointDeleteCheckpointErrors,
+      ThrowOnError
+    >({
+      url: "/checkpoints/{checkpointId}",
+      ...options,
+      ...params,
+    })
+  }
+
+  public getCheckpoint<ThrowOnError extends boolean = false>(
+    parameters: {
+      checkpointId: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "checkpointId" }] }])
+    return (options?.client ?? this.client).get<
+      CheckpointGetCheckpointResponses,
+      CheckpointGetCheckpointErrors,
+      ThrowOnError
+    >({
+      url: "/checkpoints/{checkpointId}",
+      ...options,
+      ...params,
+    })
+  }
+
+  public restoreCheckpoint<ThrowOnError extends boolean = false>(
+    parameters: {
+      checkpointId: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "checkpointId" }] }])
+    return (options?.client ?? this.client).post<
+      CheckpointRestoreCheckpointResponses,
+      CheckpointRestoreCheckpointErrors,
+      ThrowOnError
+    >({
+      url: "/checkpoints/{checkpointId}/restore",
+      ...options,
+      ...params,
+    })
+  }
+}
+
 export class Config2 extends HeyApiClient {
   /**
    * Get configuration
    *
-   * Retrieve the current OpenCode configuration settings and preferences.
+   * Retrieve the current NovaWay configuration settings and preferences.
    */
   public get<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -884,7 +1069,7 @@ export class Config2 extends HeyApiClient {
   /**
    * Update configuration
    *
-   * Update OpenCode configuration settings and preferences.
+   * Update NovaWay configuration settings and preferences.
    */
   public update<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -1021,7 +1206,7 @@ export class Console extends HeyApiClient {
   /**
    * Switch active Console org
    *
-   * Persist a new active Console account/org selection for the current local OpenCode state.
+   * Persist a new active Console account/org selection for the current local NovaWay state.
    */
   public switchOrg<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -1062,7 +1247,7 @@ export class Session extends HeyApiClient {
   /**
    * List sessions
    *
-   * Get a list of all OpenCode sessions across projects, sorted by most recently updated. Archived sessions are excluded by default.
+   * Get a list of all NovaWay sessions across projects, sorted by most recently updated. Archived sessions are excluded by default.
    */
   public list<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -2159,6 +2344,367 @@ export class File extends HeyApiClient {
   }
 }
 
+export class Git extends HeyApiClient {
+  /**
+   * Get git snapshot
+   *
+   * Branch, changes, branches, remotes, stash and recent commits of the project in one call.
+   */
+  public snapshot<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<GitSnapshotResponses, GitSnapshotErrors, ThrowOnError>({
+      url: "/git",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Stage files
+   *
+   * Stage the given files in the git index.
+   */
+  public add<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      files?: Array<string>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "files" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<GitAddResponses, GitAddErrors, ThrowOnError>({
+      url: "/git/add",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Unstage files
+   *
+   * Remove the given files from the git index, keeping the working tree changes.
+   */
+  public unstage<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      files?: Array<string>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "files" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<GitUnstageResponses, GitUnstageErrors, ThrowOnError>({
+      url: "/git/unstage",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Discard changes
+   *
+   * Revert the given files. Untracked files are deleted, tracked files are restored from the index.
+   */
+  public discard<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      files?: Array<string>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "files" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<GitDiscardResponses, GitDiscardErrors, ThrowOnError>({
+      url: "/git/discard",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Commit
+   *
+   * Commit the staged changes. Stages everything first when the index is empty.
+   */
+  public commit<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      message?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "message" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<GitCommitResponses, GitCommitErrors, ThrowOnError>({
+      url: "/git/commit",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Push
+   *
+   * Push the current branch. Establishes tracking on the first push when no upstream exists.
+   */
+  public push<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<GitPushResponses, GitPushErrors, ThrowOnError>({
+      url: "/git/push",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Pull
+   *
+   * Pull and merge the upstream of the current branch.
+   */
+  public pull<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<GitPullResponses, GitPullErrors, ThrowOnError>({
+      url: "/git/pull",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Stash or pop
+   *
+   * Stash the current changes, or pop the stash entry identified by ref.
+   */
+  public stash<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      ref?: string
+      includeUntracked?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "ref" },
+            { in: "body", key: "includeUntracked" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<GitStashResponses, GitStashErrors, ThrowOnError>({
+      url: "/git/stash",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Manage branch
+   *
+   * Create, switch to, or delete a local branch.
+   */
+  public branch<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      name?: string
+      create?: boolean
+      remove?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "name" },
+            { in: "body", key: "create" },
+            { in: "body", key: "remove" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<GitBranchResponses, GitBranchErrors, ThrowOnError>({
+      url: "/git/branch",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Manage remote
+   *
+   * Add or remove a git remote.
+   */
+  public remote<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      name?: string
+      url?: string
+      remove?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "name" },
+            { in: "body", key: "url" },
+            { in: "body", key: "remove" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<GitRemoteResponses, GitRemoteErrors, ThrowOnError>({
+      url: "/git/remote",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class Images extends HeyApiClient {
   /**
    * Generate images from text prompt
@@ -2202,7 +2748,7 @@ export class Instance extends HeyApiClient {
   /**
    * Dispose instance
    *
-   * Clean up and dispose the current OpenCode instance, releasing all resources.
+   * Clean up and dispose the current NovaWay instance, releasing all resources.
    */
   public dispose<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -2234,7 +2780,7 @@ export class Path extends HeyApiClient {
   /**
    * Get paths
    *
-   * Retrieve the current working directory and related path information for the OpenCode instance.
+   * Retrieve the current working directory and related path information for the NovaWay instance.
    */
   public get<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -2434,7 +2980,7 @@ export class Command extends HeyApiClient {
   /**
    * List commands
    *
-   * Get a list of all available commands in the OpenCode system.
+   * Get a list of all available commands in the NovaWay system.
    */
   public list<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -4685,7 +5231,7 @@ export class Project extends HeyApiClient {
   /**
    * List all projects
    *
-   * Get a list of projects that have been opened with OpenCode.
+   * Get a list of projects that have been opened with NovaWay.
    */
   public list<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -4715,7 +5261,7 @@ export class Project extends HeyApiClient {
   /**
    * Get current project
    *
-   * Retrieve the currently active project that OpenCode is working with.
+   * Retrieve the currently active project that NovaWay is working with.
    */
   public current<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -4823,6 +5369,38 @@ export class Project extends HeyApiClient {
       },
     })
   }
+
+  /**
+   * List project directories
+   *
+   * List known local absolute directories for a project.
+   */
+  public directories<ThrowOnError extends boolean = false>(
+    parameters: {
+      projectID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "projectID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ProjectDirectoriesResponses, ProjectDirectoriesErrors, ThrowOnError>({
+      url: "/project/{projectID}/directories",
+      ...options,
+      ...params,
+    })
+  }
 }
 
 export class Pty extends HeyApiClient {
@@ -4859,7 +5437,7 @@ export class Pty extends HeyApiClient {
   /**
    * List PTY sessions
    *
-   * Get a list of all active pseudo-terminal (PTY) sessions managed by OpenCode.
+   * Get a list of all active pseudo-terminal (PTY) sessions managed by NovaWay.
    */
   public list<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -5527,7 +6105,7 @@ export class Session2 extends HeyApiClient {
   /**
    * List sessions
    *
-   * Get a list of all OpenCode sessions, sorted by most recently updated.
+   * Get a list of all NovaWay sessions, sorted by most recently updated.
    */
   public list<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -5569,7 +6147,7 @@ export class Session2 extends HeyApiClient {
   /**
    * Create session
    *
-   * Create a new OpenCode session for interacting with AI assistants and managing conversations.
+   * Create a new NovaWay session for interacting with AI assistants and managing conversations.
    */
   public create<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -5682,7 +6260,7 @@ export class Session2 extends HeyApiClient {
   /**
    * Get session
    *
-   * Retrieve detailed information about a specific OpenCode session.
+   * Retrieve detailed information about a specific NovaWay session.
    */
   public get<ThrowOnError extends boolean = false>(
     parameters: {
@@ -7591,6 +8169,44 @@ export class Provider2 extends HeyApiClient {
   }
 }
 
+export class Fs extends HeyApiClient {
+  /**
+   * Find files
+   *
+   * Fuzzy-find files and directories for the @ mention search.
+   */
+  public find<ThrowOnError extends boolean = false>(
+    parameters: {
+      directory?: string
+      workspace?: string
+      query: string
+      type?: "file" | "directory"
+      limit?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "query" },
+            { in: "query", key: "type" },
+            { in: "query", key: "limit" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<V2FsFindResponses, unknown, ThrowOnError>({
+      url: "/api/fs/find",
+      ...options,
+      ...params,
+    })
+  }
+}
+
 export class V2 extends HeyApiClient {
   private _session?: Session3
   get session(): Session3 {
@@ -7605,6 +8221,11 @@ export class V2 extends HeyApiClient {
   private _provider?: Provider2
   get provider(): Provider2 {
     return (this._provider ??= new Provider2({ client: this.client }))
+  }
+
+  private _fs?: Fs
+  get fs(): Fs {
+    return (this._fs ??= new Fs({ client: this.client }))
   }
 }
 
@@ -8094,6 +8715,488 @@ export class Tui extends HeyApiClient {
   }
 }
 
+export class Goal extends HeyApiClient {
+  public listGoals<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionId: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "sessionId" }] }])
+    return (options?.client ?? this.client).get<GoalListGoalsResponses, GoalListGoalsErrors, ThrowOnError>({
+      url: "/session/{sessionId}/goals",
+      ...options,
+      ...params,
+    })
+  }
+
+  public createGoal<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionId: string
+      title?: string
+      description?: string
+      parentId?: string
+      priority?: "high" | "medium" | "low"
+      successCriteria?: Array<string>
+      deadline?: string
+      tags?: Array<string>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionId" },
+            { in: "body", key: "title" },
+            { in: "body", key: "description" },
+            { in: "body", key: "parentId" },
+            { in: "body", key: "priority" },
+            { in: "body", key: "successCriteria" },
+            { in: "body", key: "deadline" },
+            { in: "body", key: "tags" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<GoalCreateGoalResponses, GoalCreateGoalErrors, ThrowOnError>({
+      url: "/session/{sessionId}/goals",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public deleteGoal<ThrowOnError extends boolean = false>(
+    parameters: {
+      goalId: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "goalId" }] }])
+    return (options?.client ?? this.client).delete<GoalDeleteGoalResponses, GoalDeleteGoalErrors, ThrowOnError>({
+      url: "/goals/{goalId}",
+      ...options,
+      ...params,
+    })
+  }
+
+  public getGoal<ThrowOnError extends boolean = false>(
+    parameters: {
+      goalId: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "goalId" }] }])
+    return (options?.client ?? this.client).get<GoalGetGoalResponses, GoalGetGoalErrors, ThrowOnError>({
+      url: "/goals/{goalId}",
+      ...options,
+      ...params,
+    })
+  }
+
+  public updateGoal<ThrowOnError extends boolean = false>(
+    parameters: {
+      goalId: string
+      title?: string
+      description?: string
+      status?: "pending" | "in_progress" | "completed" | "cancelled"
+      priority?: "high" | "medium" | "low"
+      successCriteria?: Array<string>
+      deadline?: string
+      tags?: Array<string>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "goalId" },
+            { in: "body", key: "title" },
+            { in: "body", key: "description" },
+            { in: "body", key: "status" },
+            { in: "body", key: "priority" },
+            { in: "body", key: "successCriteria" },
+            { in: "body", key: "deadline" },
+            { in: "body", key: "tags" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<GoalUpdateGoalResponses, GoalUpdateGoalErrors, ThrowOnError>({
+      url: "/goals/{goalId}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public getGoalProgress<ThrowOnError extends boolean = false>(
+    parameters: {
+      goalId: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "goalId" }] }])
+    return (options?.client ?? this.client).get<GoalGetGoalProgressResponses, GoalGetGoalProgressErrors, ThrowOnError>({
+      url: "/goals/{goalId}/progress",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Workflow2 extends HeyApiClient {
+  public listWorkflows<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionId: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "sessionId" }] }])
+    return (options?.client ?? this.client).get<
+      WorkflowListWorkflowsResponses,
+      WorkflowListWorkflowsErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionId}/workflows",
+      ...options,
+      ...params,
+    })
+  }
+
+  public createWorkflow<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionId: string
+      name?: string
+      description?: string
+      steps?: Array<{
+        id: string
+        name: string
+        type: "agent" | "tool" | "skill" | "condition" | "parallel"
+        config: {
+          [key: string]: unknown
+        }
+        next?: string
+        nextTrue?: string
+        nextFalse?: string
+        steps?: Array<string>
+      }>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionId" },
+            { in: "body", key: "name" },
+            { in: "body", key: "description" },
+            { in: "body", key: "steps" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      WorkflowCreateWorkflowResponses,
+      WorkflowCreateWorkflowErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionId}/workflows",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public deleteWorkflow<ThrowOnError extends boolean = false>(
+    parameters: {
+      workflowId: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "workflowId" }] }])
+    return (options?.client ?? this.client).delete<
+      WorkflowDeleteWorkflowResponses,
+      WorkflowDeleteWorkflowErrors,
+      ThrowOnError
+    >({
+      url: "/workflows/{workflowId}",
+      ...options,
+      ...params,
+    })
+  }
+
+  public getWorkflow<ThrowOnError extends boolean = false>(
+    parameters: {
+      workflowId: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "workflowId" }] }])
+    return (options?.client ?? this.client).get<WorkflowGetWorkflowResponses, WorkflowGetWorkflowErrors, ThrowOnError>({
+      url: "/workflows/{workflowId}",
+      ...options,
+      ...params,
+    })
+  }
+
+  public updateWorkflow<ThrowOnError extends boolean = false>(
+    parameters: {
+      workflowId: string
+      name?: string
+      description?: string
+      steps?: Array<unknown>
+      status?: "draft" | "running" | "paused" | "completed" | "failed"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "workflowId" },
+            { in: "body", key: "name" },
+            { in: "body", key: "description" },
+            { in: "body", key: "steps" },
+            { in: "body", key: "status" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<
+      WorkflowUpdateWorkflowResponses,
+      WorkflowUpdateWorkflowErrors,
+      ThrowOnError
+    >({
+      url: "/workflows/{workflowId}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public startWorkflow<ThrowOnError extends boolean = false>(
+    parameters: {
+      workflowId: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "workflowId" }] }])
+    return (options?.client ?? this.client).post<
+      WorkflowStartWorkflowResponses,
+      WorkflowStartWorkflowErrors,
+      ThrowOnError
+    >({
+      url: "/workflows/{workflowId}/start",
+      ...options,
+      ...params,
+    })
+  }
+
+  public listWorkflowRuns<ThrowOnError extends boolean = false>(
+    parameters: {
+      workflowId: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "workflowId" }] }])
+    return (options?.client ?? this.client).get<
+      WorkflowListWorkflowRunsResponses,
+      WorkflowListWorkflowRunsErrors,
+      ThrowOnError
+    >({
+      url: "/workflows/{workflowId}/runs",
+      ...options,
+      ...params,
+    })
+  }
+
+  public listWorkflowTemplates<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<
+      WorkflowListWorkflowTemplatesResponses,
+      WorkflowListWorkflowTemplatesErrors,
+      ThrowOnError
+    >({ url: "/workflow-templates", ...options })
+  }
+
+  public createWorkflowFromTemplate<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionId: string
+      template?: string
+      name?: string
+      description?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionId" },
+            { in: "body", key: "template" },
+            { in: "body", key: "name" },
+            { in: "body", key: "description" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      WorkflowCreateWorkflowFromTemplateResponses,
+      WorkflowCreateWorkflowFromTemplateErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionId}/workflows/from-template",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Orchestrator extends HeyApiClient {
+  public listOrchestratorPlans<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionId: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "sessionId" }] }])
+    return (options?.client ?? this.client).get<
+      OrchestratorListOrchestratorPlansResponses,
+      OrchestratorListOrchestratorPlansErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionId}/orchestrator/plans",
+      ...options,
+      ...params,
+    })
+  }
+
+  public createOrchestratorPlan<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionId: string
+      name?: string
+      tasks?: Array<{
+        name: string
+        type: "agent" | "tool" | "skill"
+        config: {
+          [key: string]: unknown
+        }
+        dependencies: Array<string>
+      }>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionId" },
+            { in: "body", key: "name" },
+            { in: "body", key: "tasks" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      OrchestratorCreateOrchestratorPlanResponses,
+      OrchestratorCreateOrchestratorPlanErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionId}/orchestrator/plans",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public deleteOrchestratorPlan<ThrowOnError extends boolean = false>(
+    parameters: {
+      planId: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "planId" }] }])
+    return (options?.client ?? this.client).delete<
+      OrchestratorDeleteOrchestratorPlanResponses,
+      OrchestratorDeleteOrchestratorPlanErrors,
+      ThrowOnError
+    >({
+      url: "/orchestrator/plans/{planId}",
+      ...options,
+      ...params,
+    })
+  }
+
+  public getOrchestratorPlan<ThrowOnError extends boolean = false>(
+    parameters: {
+      planId: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "planId" }] }])
+    return (options?.client ?? this.client).get<
+      OrchestratorGetOrchestratorPlanResponses,
+      OrchestratorGetOrchestratorPlanErrors,
+      ThrowOnError
+    >({
+      url: "/orchestrator/plans/{planId}",
+      ...options,
+      ...params,
+    })
+  }
+
+  public executeOrchestratorPlan<ThrowOnError extends boolean = false>(
+    parameters: {
+      planId: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "planId" }] }])
+    return (options?.client ?? this.client).post<
+      OrchestratorExecuteOrchestratorPlanResponses,
+      OrchestratorExecuteOrchestratorPlanErrors,
+      ThrowOnError
+    >({
+      url: "/orchestrator/plans/{planId}/execute",
+      ...options,
+      ...params,
+    })
+  }
+}
+
 export class OpencodeClient extends HeyApiClient {
   public static readonly __registry = new HeyApiRegistry<OpencodeClient>()
 
@@ -8125,6 +9228,11 @@ export class OpencodeClient extends HeyApiClient {
   private _chat?: Chat
   get chat(): Chat {
     return (this._chat ??= new Chat({ client: this.client }))
+  }
+
+  private _checkpoint?: Checkpoint
+  get checkpoint(): Checkpoint {
+    return (this._checkpoint ??= new Checkpoint({ client: this.client }))
   }
 
   private _config?: Config2
@@ -8160,6 +9268,11 @@ export class OpencodeClient extends HeyApiClient {
   private _file?: File
   get file(): File {
     return (this._file ??= new File({ client: this.client }))
+  }
+
+  private _git?: Git
+  get git(): Git {
+    return (this._git ??= new Git({ client: this.client }))
   }
 
   private _images?: Images
@@ -8270,5 +9383,20 @@ export class OpencodeClient extends HeyApiClient {
   private _tui?: Tui
   get tui(): Tui {
     return (this._tui ??= new Tui({ client: this.client }))
+  }
+
+  private _goal?: Goal
+  get goal(): Goal {
+    return (this._goal ??= new Goal({ client: this.client }))
+  }
+
+  private _workflow?: Workflow2
+  get workflow(): Workflow2 {
+    return (this._workflow ??= new Workflow2({ client: this.client }))
+  }
+
+  private _orchestrator?: Orchestrator
+  get orchestrator(): Orchestrator {
+    return (this._orchestrator ??= new Orchestrator({ client: this.client }))
   }
 }

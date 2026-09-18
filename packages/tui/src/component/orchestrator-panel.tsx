@@ -107,7 +107,13 @@ export function OrchestratorPanel(props: OrchestratorPanelProps) {
                   <For each={plan.tasks}>
                     {(task) => (
                       <text fg={statusColor(task.status)} wrapMode="none">
-                        {task.status === "completed" ? "✓" : task.status === "failed" ? "✗" : task.status === "running" ? "▸" : "○"}{" "}
+                        {task.status === "completed"
+                          ? "✓"
+                          : task.status === "failed"
+                            ? "✗"
+                            : task.status === "running"
+                              ? "▸"
+                              : "○"}{" "}
                         {task.name}
                         <Show when={task.dependencies.length > 0}>
                           <span style={{ fg: theme.textMuted }}> ←({task.dependencies.join(",")})</span>

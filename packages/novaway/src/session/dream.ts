@@ -95,84 +95,87 @@ export const layer: Layer.Layer<Service, never, Session.Service | Provider.Servi
     const session = yield* Session.Service
     const provider = yield* Provider.Service
 
-    const analyzeTranscript = (input: { model: Provider.Model; transcript: string }) => Effect.gen(function* () {
-      const empty = {
-        patterns: [] as DreamPattern[],
-        insights: [] as DreamInsight[],
-        suggestions: [] as DreamSuggestion[],
-      }
-      if (!input.transcript.trim()) return empty
+    const analyzeTranscript = (input: { model: Provider.Model; transcript: string }) =>
+      Effect.gen(function* () {
+        const empty = {
+          patterns: [] as DreamPattern[],
+          insights: [] as DreamInsight[],
+          suggestions: [] as DreamSuggestion[],
+        }
+        if (!input.transcript.trim()) return empty
 
-      const language = yield* provider.getLanguage(input.model)
-      const system = [
-        "你是 NovaWay 的会话反思器(dream)。回顾整段会话,提炼可复用的经验。",
-        "patterns: 归纳成功/失败/优化模式,frequency 为大致出现次数,examples 给 1-3 个简短例子。",
-        "insights: 关于代码风格、错误处理、性能、架构的观察,confidence 为 0-1 的置信度。",
-        "suggestions: 值得沉淀的改进建议,type 区分 memory(记忆)/evolution(能力进化)/workflow(工作流),priority 为 high/medium/low。",
-        "只输出真正有价值、可泛化的条目;没有则返回空数组。不要编造未发生的事,不要泄露密钥或敏感信息。",
-      ].join("\n")
+        const language = yield* provider.getLanguage(input.model)
+        const system = [
+          "你是 NovaWay 的会话反思器(dream)。回顾整段会话,提炼可复用的经验。",
+          "patterns: 归纳成功/失败/优化模式,frequency 为大致出现次数,examples 给 1-3 个简短例子。",
+          "insights: 关于代码风格、错误处理、性能、架构的观察,confidence 为 0-1 的置信度。",
+          "suggestions: 值得沉淀的改进建议,type 区分 memory(记忆)/evolution(能力进化)/workflow(工作流),priority 为 high/medium/low。",
+          "只输出真正有价值、可泛化的条目;没有则返回空数组。不要编造未发生的事,不要泄露密钥或敏感信息。",
+        ].join("\n")
 
-      const messages: ModelMessage[] = [
-        { role: "system", content: system },
-        {
-          role: "user",
-          content: ["请分析以下会话转录:", "", "<transcript>", input.transcript, "</transcript>"].join("\n"),
-        },
-      ]
+        const messages: ModelMessage[] = [
+          { role: "system", content: system },
+          {
+            role: "user",
+            content: ["请分析以下会话转录:", "", "<transcript>", input.transcript, "</transcript>"].join("\n"),
+          },
+        ]
 
-      const result = yield* Effect.promise(() =>
-        generateObject({
-          model: language,
-          temperature: 0.2,
-          maxOutputTokens: 1200,
-          messages,
-          schema: Object.assign(Schema.toStandardSchemaV1(DreamResult), Schema.toStandardJSONSchemaV1(DreamResult)),
-        }).then((r) => r.object as Schema.Schema.Type<typeof DreamResult>),
-      ).pipe(Effect.catch((err) => Effect.succeed(undefined)))
+        const result = yield* Effect.promise(() =>
+          generateObject({
+            model: language,
+            temperature: 0.2,
+            maxOutputTokens: 1200,
+            messages,
+            schema: Object.assign(Schema.toStandardSchemaV1(DreamResult), Schema.toStandardJSONSchemaV1(DreamResult)),
+          }).then((r) => r.object as Schema.Schema.Type<typeof DreamResult>),
+        ).pipe(Effect.catch((err) => Effect.succeed(undefined)))
 
-      if (!result) return empty
-      return {
-        patterns: result.patterns.map((p: any) => ({
-          type: p.type,
-          description: p.description,
-          frequency: p.frequency,
-          examples: p.examples ? [...p.examples] : [],
-        })),
-        insights: result.insights.map((i: any) => ({
-          category: i.category,
-          observation: i.observation,
-          confidence: i.confidence,
-        })),
-        suggestions: result.suggestions.map((s: any) => ({
-          type: s.type,
-          title: s.title,
-          description: s.description,
-          priority: s.priority,
-        })),
-      }
-    })
+        if (!result) return empty
+        return {
+          patterns: result.patterns.map((p: any) => ({
+            type: p.type,
+            description: p.description,
+            frequency: p.frequency,
+            examples: p.examples ? [...p.examples] : [],
+          })),
+          insights: result.insights.map((i: any) => ({
+            category: i.category,
+            observation: i.observation,
+            confidence: i.confidence,
+          })),
+          suggestions: result.suggestions.map((s: any) => ({
+            type: s.type,
+            title: s.title,
+            description: s.description,
+            priority: s.priority,
+          })),
+        }
+      })
 
     return {
-      analyzeSession: (sessionId: SessionID, model: Provider.Model) => Effect.gen(function* () {
-        const messages = yield* session.messages({ sessionID: sessionId }).pipe(Effect.orDie)
-        const analysis = yield* analyzeTranscript({ model, transcript: transcript(messages) })
-        return {
-          sessionId,
-          ...analysis,
-          analyzedAt: new Date(),
-        }
-      }).pipe(Effect.orDie),
-
-      analyzeHistory: (model: Provider.Model, limit = 10) => Effect.gen(function* () {
-        const sessions = yield* session.list({ limit })
-        const analyses: DreamAnalysis[] = []
-        for (const s of sessions) {
-          const messages = yield* session.messages({ sessionID: s.id }).pipe(Effect.orDie)
+      analyzeSession: (sessionId: SessionID, model: Provider.Model) =>
+        Effect.gen(function* () {
+          const messages = yield* session.messages({ sessionID: sessionId }).pipe(Effect.orDie)
           const analysis = yield* analyzeTranscript({ model, transcript: transcript(messages) })
-          analyses.push({ sessionId: s.id, ...analysis, analyzedAt: new Date() })
-        }
-        return analyses
-      }).pipe(Effect.orDie),
+          return {
+            sessionId,
+            ...analysis,
+            analyzedAt: new Date(),
+          }
+        }).pipe(Effect.orDie),
+
+      analyzeHistory: (model: Provider.Model, limit = 10) =>
+        Effect.gen(function* () {
+          const sessions = yield* session.list({ limit })
+          const analyses: DreamAnalysis[] = []
+          for (const s of sessions) {
+            const messages = yield* session.messages({ sessionID: s.id }).pipe(Effect.orDie)
+            const analysis = yield* analyzeTranscript({ model, transcript: transcript(messages) })
+            analyses.push({ sessionId: s.id, ...analysis, analyzedAt: new Date() })
+          }
+          return analyses
+        }).pipe(Effect.orDie),
     }
   }),
 )

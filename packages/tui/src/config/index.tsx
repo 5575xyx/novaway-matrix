@@ -76,7 +76,8 @@ export const Info = Schema.Struct({
   diff_style: Schema.optional(DiffStyle),
   icons: Schema.optional(Icons),
   default_agent: Schema.optional(Schema.String).annotate({
-    description: "TUI 启动时默认选中的代理名称。默认 agents-orchestrator(Agent 编排总控)。若该代理不存在则回退到列表首个。",
+    description:
+      "TUI 启动时默认选中的代理名称。默认 agents-orchestrator(Agent 编排总控)。若该代理不存在则回退到列表首个。",
   }),
   cursor: Schema.optional(Cursor),
   mouse: Schema.optional(Schema.Boolean).annotate({ description: "Enable or disable mouse capture (default: true)" }),

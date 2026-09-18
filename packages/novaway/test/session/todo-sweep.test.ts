@@ -4,11 +4,11 @@ import { decideTodoSweep, TODO_SWEEP_MARKER, todoSweepReminder } from "../../src
 import type { Todo } from "../../src/session/todo"
 
 // decideTodoSweep 只看清单状态和消息顺序,不碰 Effect,所以直接断言纯函数。
-const text = (value: string): MessageV2.Part => ({ type: "text", text: value } as unknown as MessageV2.Part)
+const text = (value: string): MessageV2.Part => ({ type: "text", text: value }) as unknown as MessageV2.Part
 const toolCall = (tool: string): MessageV2.Part =>
-  ({ type: "tool", callID: "call_1", tool, state: { status: "completed" } } as unknown as MessageV2.Part)
+  ({ type: "tool", callID: "call_1", tool, state: { status: "completed" } }) as unknown as MessageV2.Part
 const message = (parts: MessageV2.Part[] = []): MessageV2.WithParts =>
-  ({ info: { id: "msg", role: "assistant" }, parts } as unknown as MessageV2.WithParts)
+  ({ info: { id: "msg", role: "assistant" }, parts }) as unknown as MessageV2.WithParts
 
 const todo = (content: string, status = "pending"): Todo.Info => ({ content, status, priority: "medium" })
 
@@ -97,7 +97,12 @@ describe("decideTodoSweep", () => {
 
 describe("todoSweepReminder", () => {
   it("lists only unfinished items with their 0-based positions", () => {
-    const body = todoSweepReminder([todo("a", "completed"), todo("b", "in_progress"), todo("c", "cancelled"), todo("d")])
+    const body = todoSweepReminder([
+      todo("a", "completed"),
+      todo("b", "in_progress"),
+      todo("c", "cancelled"),
+      todo("d"),
+    ])
 
     expect(body.startsWith(TODO_SWEEP_MARKER)).toBe(true)
     expect(body).toContain("共 4 条,其中 2 条未完成")

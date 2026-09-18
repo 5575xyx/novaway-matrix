@@ -35,10 +35,7 @@ export const WorkflowTable = sqliteTable(
     created_at: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     updated_at: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
   },
-  (table) => [
-    index("workflow_session_idx").on(table.session_id),
-    index("workflow_status_idx").on(table.status),
-  ],
+  (table) => [index("workflow_session_idx").on(table.session_id), index("workflow_status_idx").on(table.status)],
 )
 
 export const WorkflowRunTable = sqliteTable(
