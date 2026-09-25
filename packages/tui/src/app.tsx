@@ -672,12 +672,21 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       })),
       {
         name: "model.list",
-        title: "切换模型",
+        // Auto 开时,/模型 变成"关闭 Auto";关掉后才是普通的模型选择入口。
+        title: local.model.autoMode() ? "关闭 Auto(当前使用内置 Auto 模型)" : "切换模型",
         suggested: true,
         category: "代理",
         slashName: "models",
         slashAliases: ["mo"],
         run: () => {
+          if (local.model.autoMode()) {
+            local.model.setAutoMode(false)
+            toast.show({
+              title: "Auto 已关闭",
+              message: "已切回手动模式,请在下方选择具体模型。",
+              variant: "info",
+            })
+          }
           dialog.replace(() => <DialogModel />)
         },
       },

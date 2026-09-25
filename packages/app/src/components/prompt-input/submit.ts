@@ -208,57 +208,6 @@ type CommentItem = {
   preview?: string
 }
 
-type ModelFeatures = {
-  isComplex: boolean
-  isCodeTask: boolean
-  isCreativeTask: boolean
-  isAnalysisTask: boolean
-  hasAttachments: boolean
-}
-
-// 模型评分函数：根据任务类型和模型能力计算匹配度
-function getModelIndex(model: any, features: ModelFeatures): number {
-  let score = 0
-  const caps = model.capabilities
-  const context = model.limit?.context ?? 0
-
-  // 基础分：有上下文窗口能力的基础分
-  if (context > 0) score += 1
-
-  // 附件支持加分
-  if (features.hasAttachments) {
-    if (caps?.input?.image) score += 10
-    if (caps?.attachment) score += 5
-  }
-
-  // 代码任务：优先选择支持推理的模型
-  if (features.isCodeTask) {
-    if (caps?.reasoning) score += 8
-    if (context >= 128000) score += 3 // 大上下文窗口更适合代码
-  }
-
-  // 创意任务：优先选择支持输出的模型
-  if (features.isCreativeTask) {
-    if (caps?.output?.text) score += 5
-    if (context >= 32000) score += 2
-  }
-
-  // 分析任务：优先选择大上下文窗口
-  if (features.isAnalysisTask) {
-    if (context >= 128000) score += 6
-    if (caps?.reasoning) score += 4
-  }
-
-  // 复杂任务：大上下文窗口加分
-  if (features.isComplex) {
-    if (context >= 256000) score += 5
-    else if (context >= 128000) score += 3
-    else if (context >= 32000) score += 1
-  }
-
-  return score
-}
-
 export function createPromptSubmit(input: PromptSubmitInput) {
   const navigate = useNavigate()
   const sdk = useSDK()
@@ -452,85 +401,12 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       return
     }
 
-    // Auto Mode: 智能选择最佳 NovaWay Zen 模型
+    // Auto Mode：固定走内置网关的 auto，由网关选择具体模型。
+    // 注意不要把 builtin/auto 写回用户选中状态——那会让关闭 Auto 后残留内置模型。
     let finalModel = currentModel
     if (modelsCtx.autoMode()) {
-      const openCodeModels = modelsCtx.list().filter((m) => m.provider.id === "opencode")
-      if (openCodeModels.length > 0) {
-        // 分析用户输入特征
-        const textLower = text.toLowerCase()
-        const hasImages = images.length > 0
-        const hasFiles = prompt.context.items().some((item) => item.type === "file")
-        const hasAttachments = hasImages || hasFiles
-
-        // 语义分析：识别任务类型
-        const isCodeTask =
-          textLower.includes("代码") ||
-          textLower.includes("函数") ||
-          textLower.includes("实现") ||
-          textLower.includes("bug") ||
-          textLower.includes("修复") ||
-          textLower.includes("重构") ||
-          textLower.includes("debug") ||
-          textLower.includes("code") ||
-          textLower.includes("function") ||
-          textLower.includes("implement") ||
-          textLower.includes("fix")
-
-        const isCreativeTask =
-          textLower.includes("写") ||
-          textLower.includes("创作") ||
-          textLower.includes("设计") ||
-          textLower.includes("文案") ||
-          textLower.includes("故事") ||
-          textLower.includes("文章") ||
-          textLower.includes("write") ||
-          textLower.includes("create") ||
-          textLower.includes("design")
-
-        const isAnalysisTask =
-          textLower.includes("分析") ||
-          textLower.includes("解释") ||
-          textLower.includes("总结") ||
-          textLower.includes("对比") ||
-          textLower.includes("evaluate") ||
-          textLower.includes("analyze") ||
-          textLower.includes("explain") ||
-          textLower.includes("summarize")
-
-        const isComplex = text.length > 500 || isCodeTask || isAnalysisTask
-
-        // 根据特征筛选模型
-        let candidates = openCodeModels
-
-        // 如果有附件，必须选择支持附件的模型
-        if (hasAttachments) {
-          candidates = candidates.filter((m) => m.capabilities?.input?.image || m.capabilities?.attachment)
-        }
-
-        // 如果没有找到支持附件的模型，回退到所有模型
-        if (candidates.length === 0) {
-          candidates = openCodeModels
-        }
-
-        // 按优先级排序
-        const sorted = [...candidates].sort((a, b) => {
-          const aContext = a.limit?.context ?? 0
-          const bContext = b.limit?.context ?? 0
-          const aScore = getModelIndex(a, { isComplex, isCodeTask, isCreativeTask, isAnalysisTask, hasAttachments })
-          const bScore = getModelIndex(b, { isComplex, isCodeTask, isCreativeTask, isAnalysisTask, hasAttachments })
-
-          // 优先按评分排序
-          if (aScore !== bScore) return bScore - aScore
-          // 评分相同时，简单问题选轻量模型，复杂问题选重量模型
-          if (!isComplex) return aContext - bContext
-          return bContext - aContext
-        })
-
-        finalModel = sorted[0]
-        // 更新本地模型选择
-        local.model.set({ modelID: finalModel.id, providerID: finalModel.provider.id })
-      }
+      const builtin = modelsCtx.list().find((m) => m.provider.id === "builtin" && m.id === "auto")
+      if (builtin) finalModel = builtin
     }
 
     const model = {

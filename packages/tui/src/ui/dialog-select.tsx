@@ -47,6 +47,8 @@ export interface DialogSelectProps<T> {
     side?: "left" | "right"
     hidden?: boolean
     disabled?: boolean | ((option: DialogSelectOption<T> | undefined) => boolean)
+    // 不依赖选中项的全局动作(如切换 Auto):列表为空时仍可触发。
+    global?: boolean
     onTrigger: (option: DialogSelectOption<T>) => void
   }[]
   footerHints?: {
@@ -447,8 +449,8 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
             if (isActionDisabled(item)) return
             setStore("input", "keyboard")
             const option = selected()
-            if (!option) return
-            item.onTrigger(option)
+            if (!option && !item.global) return
+            item.onTrigger(option!)
           },
         })),
       ],
@@ -510,8 +512,8 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
     if (!item || !isActionItem(item) || isActionDisabled(item)) return
     setStore("input", "keyboard")
     const option = selected()
-    if (!option) return
-    item.onTrigger(option)
+    if (!option && !item.global) return
+    item.onTrigger(option!)
   }
 
   function isActionItem(item: VisibleAction): item is Action & { label: string } {

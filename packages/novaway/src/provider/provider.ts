@@ -40,6 +40,7 @@ import {
   AGNES_FREE_MODEL_IDS,
   type FreeDiscoverySnapshot,
 } from "./freeproviders"
+import { discoverProviderModels } from "./model-discovery"
 
 const log = Log.create({ service: "provider" })
 
@@ -156,6 +157,15 @@ function wrapSSE(res: Response, ms: number, ctl: AbortController) {
 type BundledSDK = {
   languageModel(modelId: string): LanguageModelV3
 }
+
+// 内置网关密钥。发布包通过构建期环境变量 NOVAWAY_GATEWAY_EMBED_KEY 注入
+// (build-node.ts 的 define 把它内联进 bundle;GitHub Actions 走 secrets.NOVAWAY_GATEWAY_API_KEY)。
+// 源码里绝不硬编码 key。留空时回退到运行时环境变量 NOVAWAY_GATEWAY_API_KEY 或本机 auth。
+const BUILTIN_GATEWAY_API_KEY = process.env.NOVAWAY_GATEWAY_EMBED_KEY ?? ""
+
+// 内置网关地址。同样构建期注入(build-node.ts 的 define 内联),源码不出现真实地址。
+// 留空时回退运行时 NOVAWAY_GATEWAY_URL;两者都空则内置提供商不可用(用户需自配)。
+const BUILTIN_GATEWAY_BASE_URL = process.env.NOVAWAY_GATEWAY_EMBED_URL || process.env.NOVAWAY_GATEWAY_URL || ""
 
 const BUNDLED_PROVIDERS: Record<string, () => Promise<(opts: any) => BundledSDK>> = {
   "@ai-sdk/amazon-bedrock": () => import("@ai-sdk/amazon-bedrock").then((m) => m.createAmazonBedrock),
@@ -1691,6 +1701,84 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
           discoverPrune: true,
         }
       })(),
+    builtin: () =>
+      Effect.fnUntraced(function* () {
+        const auth = yield* dep.auth("builtin")
+        const apiKey =
+          BUILTIN_GATEWAY_API_KEY ||
+          (yield* dep.get("NOVAWAY_GATEWAY_API_KEY")) ||
+          (auth?.type === "api" ? auth.key : undefined)
+        const baseURL = BUILTIN_GATEWAY_BASE_URL
+        return {
+          autoload: true,
+          options: {
+            baseURL,
+            ...(apiKey ? { apiKey } : {}),
+          },
+          async discoverModels() {
+            if (!apiKey) return {}
+            try {
+              const remote = await discoverProviderModels({ baseURL, apiKey })
+              const models: Record<string, Model> = {}
+              for (const item of remote) {
+                if (item.id === "auto") continue
+                const inputs = new Set(item.inputModalities ?? ["text", "image", "audio", "video", "pdf"])
+                const outputs = new Set(item.outputModalities ?? ["text"])
+                models[item.id] = {
+                  id: ModelID.make(item.id),
+                  providerID: "builtin" as ProviderID,
+                  name: item.name,
+                  family: "",
+                  api: {
+                    id: item.id,
+                    url: baseURL,
+                    npm: "@ai-sdk/openai-compatible",
+                  },
+                  status: "active",
+                  headers: {},
+                  options: {},
+                  cost: {
+                    input: 0,
+                    output: 0,
+                    cache: { read: 0, write: 0 },
+                  },
+                  limit: {
+                    context: item.contextLength ?? 128_000,
+                    output: 32_768,
+                  },
+                  capabilities: {
+                    temperature: true,
+                    reasoning: true,
+                    attachment: inputs.has("image") || inputs.has("pdf"),
+                    toolcall: true,
+                    input: {
+                      text: inputs.has("text"),
+                      audio: inputs.has("audio"),
+                      image: inputs.has("image"),
+                      video: inputs.has("video"),
+                      pdf: inputs.has("pdf"),
+                    },
+                    output: {
+                      text: outputs.has("text"),
+                      audio: outputs.has("audio"),
+                      image: outputs.has("image"),
+                      video: outputs.has("video"),
+                      pdf: outputs.has("pdf"),
+                    },
+                    interleaved: false,
+                  },
+                  release_date: "",
+                  variants: {},
+                }
+              }
+              return models
+            } catch (error) {
+              log.warn("builtin gateway model discovery failed", { error })
+              return {}
+            }
+          },
+        }
+      })(),
     ollama: (input: Info) =>
       Effect.succeed({
         autoload: true,
@@ -2130,6 +2218,48 @@ export const layer = Layer.effect(
           },
         }
         catalog.ollama = ollamaProvider
+        const builtinBaseURL = BUILTIN_GATEWAY_BASE_URL
+        const builtinProvider: Info = {
+          id: "builtin" as ProviderID,
+          name: "内置",
+          source: "custom",
+          env: ["NOVAWAY_GATEWAY_API_KEY"],
+          options: {
+            baseURL: builtinBaseURL,
+          },
+          models: {
+            auto: {
+              id: ModelID.make("auto"),
+              providerID: "builtin" as ProviderID,
+              name: "Auto",
+              family: "",
+              capabilities: {
+                temperature: true,
+                reasoning: true,
+                attachment: true,
+                toolcall: true,
+                input: { text: true, audio: true, image: true, video: true, pdf: true },
+                output: { text: true, audio: false, image: false, video: false, pdf: false },
+                interleaved: false,
+              },
+              cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
+              limit: { context: 128_000, output: 32_768 },
+              status: "active",
+              options: {},
+              headers: {},
+              release_date: "",
+              variants: {},
+              api: {
+                id: "auto",
+                url: builtinBaseURL,
+                npm: "@ai-sdk/openai-compatible",
+              },
+            },
+          },
+        }
+        // 只有拿到网关地址(构建期内联或运行时 NOVAWAY_GATEWAY_URL)才注册内置提供商;
+        // 否则不注册,避免暴露出一个指向空地址的死端点,Auto 也自然不可选。
+        if (builtinBaseURL) catalog.builtin = builtinProvider
         const database = mapValues(catalog, toPublicInfo)
 
         const providers: Record<ProviderID, Info> = {} as Record<ProviderID, Info>
@@ -2365,7 +2495,8 @@ export const layer = Layer.effect(
           if (disabled.has(providerID)) continue
           const data = database[providerID]
           if (!data) {
-            log.error("Provider does not exist in model list " + providerID)
+            // builtin 在未配置网关地址时故意不注册(见 catalog.builtin),不算异常。
+            if (id !== "builtin") log.error("Provider does not exist in model list " + providerID)
             continue
           }
           const result = yield* fn(data)
@@ -2852,6 +2983,12 @@ export const layer = Layer.effect(
         if (!provider) continue
         if (!provider.models[entry.modelID]) continue
         return { providerID: entry.providerID, modelID: entry.modelID }
+      }
+
+      const builtinID = ProviderID.make("builtin")
+      const builtinModelID = ModelID.make("auto")
+      if (s.providers[builtinID]?.models[builtinModelID]) {
+        return { providerID: builtinID, modelID: builtinModelID }
       }
 
       const provider = Object.values(s.providers).find((p) => !cfg.provider || Object.keys(cfg.provider).includes(p.id))

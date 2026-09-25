@@ -1509,15 +1509,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     setStore("optimizing", true)
 
     try {
-      // 与发送消息一致：优先当前模型；Auto 时优先 NovaWay 可用模型
+      // Auto 时走内置 auto，和发送消息一致
       let currentModel = local.model.current()
       if (modelsCtx.autoMode()) {
-        const openCodeModels = modelsCtx.list().filter((m) => m.provider?.id === "opencode")
-        const pool = openCodeModels.length > 0 ? openCodeModels : modelsCtx.list()
-        if (pool.length > 0) {
-          // 选上下文较大的模型，优化提示词通常不需要极小模型
-          currentModel = [...pool].sort((a, b) => (b.limit?.context ?? 0) - (a.limit?.context ?? 0))[0] ?? currentModel
-        }
+        const builtin = modelsCtx.list().find((m) => m.provider?.id === "builtin" && m.id === "auto")
+        if (builtin) currentModel = builtin
       }
       if (!currentModel?.provider?.id || !currentModel.id) {
         currentModel = modelsCtx.list().find((m) => m.provider?.id && m.id)

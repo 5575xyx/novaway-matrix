@@ -150,6 +150,12 @@ await Bun.build({
     NovaWay_VERSION: `'${Script.version}'`,
     NovaWay_CHANNEL: `'${Script.channel}'`,
     NovaWay_NPM_PACKAGE: `'${process.env.NOVAWAY_MAIN_PACKAGE || "xymt-novaway"}'`,
+    // 内置网关凭据:构建期注入(发布机/GitHub Actions 设 env),打包时内联进 bundle。
+    // 不设置则内联为空串,运行时回退 NOVAWAY_GATEWAY_API_KEY 或本机 auth。
+    // key 写成 "process.env.XXX" 点路径,与 provider.ts 源码里的读取形式对应。
+    "process.env.NOVAWAY_GATEWAY_EMBED_KEY": JSON.stringify(process.env.NOVAWAY_GATEWAY_EMBED_KEY ?? ""),
+    // 内置网关地址:同理构建期注入;为空则内置提供商不注册(见 provider.ts catalog.builtin)。
+    "process.env.NOVAWAY_GATEWAY_EMBED_URL": JSON.stringify(process.env.NOVAWAY_GATEWAY_EMBED_URL ?? ""),
   },
   files: {
     "opencode-web-ui.gen.ts": "",

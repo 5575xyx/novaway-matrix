@@ -150,15 +150,21 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       if (validModel(model)) return model
     }
 
+    const isAutoModel = (item: ModelKey) => item.providerID === "builtin" && item.modelID === "auto"
+
     const recentModel = () => {
       for (const item of models.recent.list()) {
+        // Auto 关闭后,内置提供商的模型不再生效,跳过继续找下一个
+        if (item.providerID === "builtin") continue
         if (validModel(item)) return item
       }
     }
 
     const defaultModel = () => {
+      // 内置提供商承载 Auto + 网关发现的模型,手动模式不要回退到它
       const defaults = providers.default()
       for (const provider of providers.connected()) {
+        if (provider.id === "builtin") continue
         const configured = defaults[provider.id]
         if (configured) {
           const model = { providerID: provider.id, modelID: configured }
@@ -226,8 +232,17 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
 
     const current = () => {
       const item = firstModel(
-        () => scope()?.model,
-        () => agent.current()?.model,
+        () => {
+          const m = scope()?.model
+          // 手动模式下忽略残留的内置模型(Auto 开启时写入的)
+          if (m && m.providerID === "builtin") return undefined
+          return m
+        },
+        () => {
+          const m = agent.current()?.model
+          if (m && m.providerID === "builtin") return undefined
+          return m
+        },
         fallback,
       )
       if (!item) return

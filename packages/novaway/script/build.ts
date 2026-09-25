@@ -404,6 +404,13 @@ for (const item of targets) {
       NovaWay_CHANNEL: `'${Script.channel}'`,
       // 让二进制知道自己发布用的主包名，auto-update 才会升级正确的包（账号切换时随之变）。
       NovaWay_NPM_PACKAGE: `'${MAIN_PACKAGE}'`,
+      // 内置网关凭据:构建期注入(env),打包时内联;不设置则内联为空串,
+      // 运行时回退 NOVAWAY_GATEWAY_API_KEY 或本机 auth。与 build-node.ts 保持一致。
+      // 注意 key 必须写成 "process.env.XXX":provider.ts 源码里读的是 process.env,
+      // define 按这个点路径做字面替换,构建机上的值才会固化进产物。
+      "process.env.NOVAWAY_GATEWAY_EMBED_KEY": JSON.stringify(process.env.NOVAWAY_GATEWAY_EMBED_KEY ?? ""),
+      // 内置网关地址:同理构建期注入。为空则内置提供商不注册(见 provider.ts catalog.builtin)。
+      "process.env.NOVAWAY_GATEWAY_EMBED_URL": JSON.stringify(process.env.NOVAWAY_GATEWAY_EMBED_URL ?? ""),
     },
   })
 
