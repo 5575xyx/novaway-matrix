@@ -491,5 +491,7 @@ jobs:
           GH_REPO: ${{ needs.version.outputs.repo }}
           NPM_CONFIG_PROVENANCE: false
           LATEST_YML_DIR: /tmp/latest-yml
+          # 国内镜像下载源(注入 postinstall 脚本;未配置则保持占位符、运行时跳过该源)
+          NOVAWAY_CN_MIRROR: ${{ secrets.NOVAWAY_CN_MIRROR }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}

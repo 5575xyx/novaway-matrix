@@ -16,8 +16,14 @@ const GITHUB_REPO = "5575xyx/novaway-matrix"
 const VERSION = packageJson.version
 const GH_RELEASE_PATH = `${GITHUB_REPO}/releases/download/v${VERSION}`
 
-// 国内自建下载源（腾讯云静态服务器，文件平铺，命名与 GitHub Release 一致）
-const CN_MIRROR = "http://119.29.157.227/novaway"
+// 国内自建下载源（静态服务器，文件平铺，命名与 GitHub Release 一致）。
+// 地址在发布时由 publish-lite.ts 用 NOVAWAY_CN_MIRROR 注入替换下面这个占位符——
+// 源码里不出现真实地址。未注入(占位未替换)时该源自动跳过,只剩 GitHub 源。
+const CN_MIRROR = (() => {
+  const raw = "__NOVAWAY_CN_MIRROR__"
+  if (raw.startsWith("__") || !/^https?:\/\//.test(raw)) return ""
+  return raw.replace(/\/+$/, "")
+})()
 
 // 镜像源配置（按优先级排序，任一失败自动切换下一个）
 const MIRROR_SOURCES = [
