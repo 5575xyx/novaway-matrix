@@ -93,6 +93,10 @@ jobs:
         env:
           NOVAWAY_VERSION: ${{ needs.version.outputs.version }}
           NOVAWAY_RELEASE: ${{ needs.version.outputs.release }}
+          # 内置网关凭据+地址:构建期注入,由 build.ts 的 define 内联进二进制。
+          # 未配置 secret 时内联为空串,内置提供商不注册(用户可自配 NOVAWAY_GATEWAY_URL/API_KEY)。
+          NOVAWAY_GATEWAY_EMBED_KEY: ${{ secrets.NOVAWAY_GATEWAY_API_KEY }}
+          NOVAWAY_GATEWAY_EMBED_URL: ${{ secrets.NOVAWAY_GATEWAY_URL }}
           GH_REPO: ${{ needs.version.outputs.repo }}
           GH_TOKEN: ${{ steps.committer.outputs.token }}
 

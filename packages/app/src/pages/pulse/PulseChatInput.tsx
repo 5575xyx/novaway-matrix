@@ -426,7 +426,7 @@ export function PulseChatInput(props: PulseChatInputProps) {
           <Show when={props.autoMode}>
             <div class="flex flex-col items-center justify-center py-3 px-3 text-center">
               <Icon name="autopilot" class="size-4 mb-1 opacity-60" />
-              <p class="text-11-regular text-text-secondary leading-snug">Auto 基于效果与速度帮助您选择最优模型</p>
+              <p class="text-11-regular text-text-secondary leading-snug">Auto 使用内置模型，由网关按任务选择</p>
             </div>
           </Show>
         </div>

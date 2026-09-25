@@ -1,4 +1,5 @@
-import { createMemo, createSignal } from "solid-js"
+import { createMemo, createSignal, Show } from "solid-js"
+import { TextAttributes } from "@opentui/core"
 import { useLocal } from "../context/local"
 import { map, pipe, flatMap, entries, filter, sortBy, take } from "remeda"
 import { DialogSelect } from "../ui/dialog-select"
@@ -8,12 +9,15 @@ import { DialogVariant } from "./dialog-variant"
 import * as fuzzysort from "fuzzysort"
 import { useConnected } from "./use-connected"
 import { useSync } from "../context/sync"
+import { useTheme } from "../context/theme"
 
 export function DialogModel(props: { providerID?: string }) {
   const local = useLocal()
   const sync = useSync()
   const dialog = useDialog()
+  const theme = useTheme().theme
   const [query, setQuery] = createSignal("")
+  const autoMode = createMemo(() => local.model.autoMode())
 
   const connected = useConnected()
   const providers = createDialogProviderOptions()
@@ -21,10 +25,14 @@ export function DialogModel(props: { providerID?: string }) {
   const showExtra = createMemo(() => connected() && !props.providerID)
 
   const options = createMemo(() => {
+    if (autoMode()) return []
     const needle = query().trim()
     const showSections = showExtra() && needle.length === 0
     const favorites = connected() ? local.model.favorite() : []
-    const recents = local.model.recent()
+    // Auto 关闭后,builtin/auto 不再是可选项,别让它出现在收藏/最近使用里。
+    const isAutoModel = (item: { providerID: string; modelID: string }) =>
+      item.providerID === "builtin" && item.modelID === "auto"
+    const recents = local.model.recent().filter((item) => !isAutoModel(item))
 
     function toOptions(items: typeof favorites, category: string) {
       if (!showSections) return []
@@ -50,7 +58,7 @@ export function DialogModel(props: { providerID?: string }) {
       })
     }
 
-    const favoriteOptions = toOptions(favorites, "收藏")
+    const favoriteOptions = toOptions(favorites.filter((item) => !isAutoModel(item)), "收藏")
     const recentOptions = toOptions(
       recents.filter(
         (item) => !favorites.some((fav) => fav.providerID === item.providerID && fav.modelID === item.modelID),
@@ -60,6 +68,8 @@ export function DialogModel(props: { providerID?: string }) {
 
     const providerOptions = pipe(
       sync.data.provider,
+      // Auto 关闭后,builtin/auto 不再是可选项,从提供商列表中隐藏。
+      filter((provider) => !(autoMode() === false && provider.id === "builtin")),
       sortBy(
         (provider) => provider.id !== "NovaWay",
         (provider) => provider.name,
@@ -143,6 +153,7 @@ export function DialogModel(props: { providerID?: string }) {
   })
 
   function onSelect(providerID: string, modelID: string) {
+    local.model.setAutoMode(false)
     local.model.set({ providerID, modelID }, { recent: true })
     const list = local.model.variant.list()
     const cur = local.model.variant.selected()
@@ -160,10 +171,29 @@ export function DialogModel(props: { providerID?: string }) {
   return (
     <DialogSelect<ReturnType<typeof options>[number]["value"]>
       options={options()}
+      titleView={
+        <text fg={theme.text} attributes={TextAttributes.BOLD}>
+          {autoMode() ? "Auto Mode 开" : title()}
+        </text>
+      }
+      emptyView={
+        <Show when={autoMode()}>
+          <text fg={theme.textMuted}>Auto 使用内置模型，由网关按任务选择。关闭 Auto 后可选具体模型。</text>
+        </Show>
+      }
       actions={[
         {
+          command: "model.dialog.auto",
+          title: autoMode() ? "关闭 Auto" : "开启 Auto",
+          // Auto 开时模型列表为空、没有选中项,此动作必须标记为 global 才能触发。
+          global: true,
+          onTrigger() {
+            local.model.setAutoMode(!autoMode())
+          },
+        },
+        {
           command: "model.dialog.provider",
-          title: connected() ? "连接提供商" : "查看所有提供商",
+          title: connected() ? "添加模型" : "查看所有提供商",
           onTrigger() {
             dialog.replace(() => <DialogProvider />)
           },

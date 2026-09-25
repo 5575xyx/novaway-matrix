@@ -36,9 +36,11 @@ const ModelList: Component<{
     // Auto Mode ON 时，返回空列表（隐藏模型列表）
     if (modelsCtx.autoMode()) return []
 
+    // Auto 关闭后，「内置」提供商（auto + 网关发现的模型）整体不再是可选项。
     return model
       .list()
       .filter((m) => model.visible({ modelID: m.id, providerID: m.provider.id }))
+      .filter((m) => m.provider.id !== "builtin")
       .filter((m) => (props.provider ? m.provider.id === props.provider : true))
   })
 
@@ -183,7 +185,7 @@ export function ModelSelectorPopover(props: {
           <Show when={modelsCtx.autoMode()}>
             <div class="flex flex-col items-center justify-center py-2 px-2 text-center">
               <Icon name="autopilot" class="size-4 mb-1 opacity-60" />
-              <p class="text-11-regular text-text-secondary leading-snug">Auto 基于效果与速度帮助您选择最优模型</p>
+              <p class="text-11-regular text-text-secondary leading-snug">Auto 使用内置模型，由网关按任务选择</p>
             </div>
           </Show>
         </Kobalte.Content>
@@ -228,7 +230,7 @@ export const DialogSelectModel: Component<{ provider?: string; model?: ModelStat
       <Show when={modelsCtx.autoMode()}>
         <div class="flex flex-col items-center justify-center py-6 px-4 text-center">
           <Icon name="autopilot" class="size-6 mb-3 opacity-60" />
-          <p class="text-13-regular text-text-secondary leading-snug">Auto 基于效果与速度帮助您选择最优模型</p>
+          <p class="text-13-regular text-text-secondary leading-snug">Auto 使用内置模型，由网关按任务选择</p>
         </div>
       </Show>
     </Dialog>

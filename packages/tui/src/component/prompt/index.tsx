@@ -1101,6 +1101,7 @@ export function Prompt(props: PromptProps) {
       props.onSubmit?.()
       if (editorParts.length > 0) editor.markSelectionSent()
       if (finishMoveProgress) move.finishSubmit()
+      input.clear()
       return true
     }
 

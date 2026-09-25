@@ -124,6 +124,10 @@ jobs:
         run: bun ./scripts/prepare.ts
         env:
           NOVAWAY_DESKTOP_NODE_ARCH: ${{ matrix.settings.node_arch }}
+          # 内置网关凭据+地址:构建期注入,由 prebuild→build-node.ts 的 define 内联进 server bundle。
+          # 未配置 secret 时内联为空串,内置提供商不注册(用户可自配 NOVAWAY_GATEWAY_URL/API_KEY)。
+          NOVAWAY_GATEWAY_EMBED_KEY: ${{ secrets.NOVAWAY_GATEWAY_API_KEY }}
+          NOVAWAY_GATEWAY_EMBED_URL: ${{ secrets.NOVAWAY_GATEWAY_URL }}
 
       - name: Build (electron-vite)
         working-directory: packages/desktop

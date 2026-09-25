@@ -576,8 +576,8 @@ test("defaultModel returns first available model when no config set", async () =
     fn: async (ctx) => {
       set(ctx, "ANTHROPIC_API_KEY", "test-api-key")
       const model = await defaultModel(ctx)
-      expect(model.providerID).toBeDefined()
-      expect(model.modelID).toBeDefined()
+      expect(String(model.providerID)).toBe("builtin")
+      expect(String(model.modelID)).toBe("auto")
     },
   })
 })

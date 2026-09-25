@@ -156,12 +156,15 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           modelID: string
         }[]
         variant: Record<string, string | undefined>
+        autoMode: boolean
+        lastManual?: { providerID: string; modelID: string }
       }>({
         ready: false,
         model: {},
         recent: [],
         favorite: [],
         variant: {},
+        autoMode: true,
       })
 
       const filePath = path.join(paths.state, "model.json")
@@ -179,6 +182,8 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           recent: modelStore.recent,
           favorite: modelStore.favorite,
           variant: modelStore.variant,
+          autoMode: modelStore.autoMode,
+          lastManual: modelStore.lastManual,
         })
       }
 
@@ -190,6 +195,18 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           if (Array.isArray(value.favorite)) setModelStore("favorite", value.favorite)
           if (typeof value.variant === "object" && value.variant !== null)
             setModelStore("variant", value.variant as Record<string, string | undefined>)
+          if (typeof value.autoMode === "boolean") setModelStore("autoMode", value.autoMode)
+          const manual = (value as Record<string, unknown>).lastManual
+          if (
+            manual &&
+            typeof manual === "object" &&
+            typeof (manual as Record<string, unknown>).providerID === "string" &&
+            typeof (manual as Record<string, unknown>).modelID === "string"
+          )
+            setModelStore("lastManual", {
+              providerID: (manual as Record<string, unknown>).providerID as string,
+              modelID: (manual as Record<string, unknown>).modelID as string,
+            })
         })
         .catch(() => {})
         .finally(() => {
@@ -219,12 +236,22 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         }
 
         for (const item of modelStore.recent) {
+          // Auto 关闭后,builtin/auto 不再生效,跳过它继续找下一个可用模型
+          if (item.providerID === "builtin" && item.modelID === "auto") continue
           if (isModelValid(item)) {
             return item
           }
         }
 
-        const provider = sync.data.provider[0]
+        // 上次手动选择的模型是比"最近使用"更优先的回退(关闭 Auto 时已写入 agent 绑定,
+        // 这里兜底覆盖 agent 缺失的场景)
+        {
+          const manual = modelStore.lastManual
+          if (manual && isModelValid(manual)) return manual
+        }
+
+        // 内置提供商只承载 Auto 模型,手动模式不要回退到它
+        const provider = sync.data.provider.find((item) => item.id !== "builtin")
         if (!provider) return undefined
         const defaultModel = sync.data.provider_default[provider.id]
         const firstModel = Object.values(provider.models)[0]
@@ -237,11 +264,24 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       })
 
       const currentModel = createMemo(() => {
+        if (modelStore.autoMode) {
+          const builtin = { providerID: "builtin", modelID: "auto" }
+          if (isModelValid(builtin)) return builtin
+        }
         const a = agent.current()
         return (
           getFirstValidModel(
-            () => a && modelStore.model[a.name],
-            () => a && a.model,
+            () => {
+              const m = a && modelStore.model[a.name]
+              // 手动模式下忽略残留的 builtin/auto(Auto 开启时写入的)
+              if (m && m.providerID === "builtin" && m.modelID === "auto") return undefined
+              return m
+            },
+            () => {
+              const m = a && a.model
+              if (m && m.providerID === "builtin" && m.modelID === "auto") return undefined
+              return m
+            },
             fallbackModel,
           ) ?? undefined
         )
@@ -259,6 +299,13 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           return modelStore.favorite
         },
         parsed: createMemo(() => {
+          if (modelStore.autoMode && isModelValid({ providerID: "builtin", modelID: "auto" })) {
+            return {
+              provider: "内置",
+              model: "Auto",
+              reasoning: true,
+            }
+          }
           const value = currentModel()
           if (!value) {
             return {
@@ -319,6 +366,28 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           setModelStore("model", a.name, { ...next })
           setModelStore("recent", recentModels(next, modelStore.recent))
           save()
+        },
+        autoMode() {
+          return modelStore.autoMode
+        },
+        setAutoMode(value: boolean) {
+          batch(() => {
+            // 开启 Auto 前记住当前手动模型;关闭 Auto 时优先恢复它,
+            // 而不是回退到"最近使用"里残留的更早记录。
+            if (value) {
+              const manual = currentModel()
+              if (manual && !(manual.providerID === "builtin" && manual.modelID === "auto"))
+                setModelStore("lastManual", { ...manual })
+            } else {
+              const manual = modelStore.lastManual
+              if (manual) {
+                const a = agent.current()
+                if (a && isModelValid(manual)) setModelStore("model", a.name, { ...manual })
+              }
+            }
+            setModelStore("autoMode", value)
+            save()
+          })
         },
         set(model: { providerID: string; modelID: string }, options?: { recent?: boolean }) {
           batch(() => {

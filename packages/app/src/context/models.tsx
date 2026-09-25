@@ -15,6 +15,7 @@ type Store = {
   recent: ModelKey[]
   variant?: Record<string, string | undefined>
   autoMode: boolean
+  lastManual?: ModelKey
 }
 
 const RECENT_LIMIT = 5
@@ -35,6 +36,7 @@ export const { use: useModels, provider: ModelsProvider } = createSimpleContext(
         recent: [],
         variant: {},
         autoMode: true,
+        lastManual: undefined,
       }),
     )
 
@@ -149,6 +151,19 @@ export const { use: useModels, provider: ModelsProvider } = createSimpleContext(
     const autoMode = createMemo(() => store.autoMode)
 
     const setAutoMode = (value: boolean) => {
+      if (value) {
+        // 开启 Auto:记住当前手动模型(recent 按时间排序,取第一个非内置项)
+        const manual = store.recent.find((item) => item.providerID !== "builtin")
+        if (manual) setStore("lastManual", { ...manual })
+      } else {
+        // 关闭 Auto:恢复上次手动模型到最近使用首位,让 fallback 链第一个命中它
+        const manual = store.lastManual
+        if (manual && manual.providerID !== "builtin") {
+          const uniq = uniqueBy([manual, ...store.recent], (x) => `${x.providerID}:${x.modelID}`)
+          if (uniq.length > RECENT_LIMIT) uniq.pop()
+          setStore("recent", uniq)
+        }
+      }
       setStore("autoMode", value)
     }
 

@@ -147,47 +147,8 @@ export function PulseAssistant() {
       let model: { providerID: string; modelID: string } | undefined
 
       if (autoMode) {
-        const openCodeModels = modelsCtx.list().filter((m) => m.provider.id === "opencode")
-        if (openCodeModels.length > 0) {
-          const textLower = text.toLowerCase()
-          const isCodeTask =
-            textLower.includes("代码") ||
-            textLower.includes("函数") ||
-            textLower.includes("实现") ||
-            textLower.includes("bug") ||
-            textLower.includes("code") ||
-            textLower.includes("function")
-          const isCreativeTask =
-            textLower.includes("写") ||
-            textLower.includes("创作") ||
-            textLower.includes("文案") ||
-            textLower.includes("文章") ||
-            textLower.includes("write") ||
-            textLower.includes("create")
-          const isAnalysisTask =
-            textLower.includes("分析") ||
-            textLower.includes("总结") ||
-            textLower.includes("对比") ||
-            textLower.includes("analyze") ||
-            textLower.includes("summarize")
-          const isComplex = text.length > 500 || isCodeTask || isAnalysisTask
-
-          const scored = openCodeModels.map((m) => {
-            let score = 50
-            const ctx = m.limit?.context ?? 0
-            if (isCodeTask) score += 20
-            if (isCreativeTask) score += 15
-            if (isAnalysisTask) score += 10
-            if (isComplex) {
-              if (ctx >= 256000) score += 5
-              else if (ctx >= 128000) score += 3
-            }
-            return { model: m, score }
-          })
-          scored.sort((a, b) => b.score - a.score)
-          const best = scored[0].model
-          model = { providerID: best.provider.id, modelID: best.id }
-        }
+        const builtin = modelsCtx.list().find((m) => m.provider.id === "builtin" && m.id === "auto")
+        if (builtin) model = { providerID: builtin.provider.id, modelID: builtin.id }
       } else {
         const sm = selectedModel()
         if (sm) {
