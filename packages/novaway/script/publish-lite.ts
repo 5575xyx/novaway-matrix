@@ -23,7 +23,17 @@ const version = Script.version
 
 await $`mkdir -p ./dist/${NPM_PACKAGE_NAME}`
 await $`mkdir -p ./dist/${NPM_PACKAGE_NAME}/bin`
-await $`cp ./script/postinstall-lite.mjs ./dist/${NPM_PACKAGE_NAME}/postinstall.mjs`
+
+// postinstall 脚本里的国内镜像地址在发布时注入,源码只留占位符 __NOVAWAY_CN_MIRROR__,
+// 避免真实地址进 git。CI 通过 secrets.NOVAWAY_CN_MIRROR / 本地 env 提供;未提供则
+// 保持占位符,postinstall 运行时自动跳过该源(只剩 GitHub 源)。
+{
+  const raw = await Bun.file("./script/postinstall-lite.mjs").text()
+  const mirror = (process.env.NOVAWAY_CN_MIRROR ?? "").trim().replace(/\/+$/, "")
+  const content = raw.replace("__NOVAWAY_CN_MIRROR__", mirror)
+  await Bun.file(`./dist/${NPM_PACKAGE_NAME}/postinstall.mjs`).write(content)
+  console.log(mirror ? `postinstall: 已注入国内镜像源 ${mirror}` : "postinstall: 未配置 NOVAWAY_CN_MIRROR,跳过国内源")
+}
 await Bun.file(`./dist/${NPM_PACKAGE_NAME}/LICENSE`).write(await Bun.file("../../LICENSE").text())
 
 // 占位文件，提示用户 postinstall 脚本会下载二进制

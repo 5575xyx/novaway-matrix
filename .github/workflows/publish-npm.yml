@@ -115,3 +115,5 @@ jobs:
           NOVAWAY_VERSION: ${{ inputs.version }}
           NOVAWAY_CHANNEL: ${{ inputs.channel }}
           NOVAWAY_MAIN_PACKAGE: ${{ inputs.main_package }}
+          # 国内镜像下载源(注入 postinstall 脚本;未配置则保持占位符、运行时跳过该源)
+          NOVAWAY_CN_MIRROR: ${{ secrets.NOVAWAY_CN_MIRROR }}
