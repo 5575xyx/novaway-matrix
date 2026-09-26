@@ -152,13 +152,39 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         working-directory: packages/desktop
+        env:
+          # 通过 env 传入,交给下面的脚本推断 appOutDir 的 arch 后缀
+          PLATFORM_FLAG: ${{ matrix.settings.platform_flag }}
         run: |
           $ErrorActionPreference = "Stop"
           $errors = @()
           $warnings = @()
 
-          # 1) 中间产物 win-unpacked/ 必须有主程序 + 关键 DLL
-          $unpacked = "dist/win-unpacked"
+          # 1) 中间产物 appOutDir 必须有主程序 + 关键 DLL。
+          #    目录名不是恒定的 win-unpacked:electron-builder 是
+          #    `${buildConfigurationKey}${getArchSuffix(arch, defaultArch)}-unpacked`
+          #    (见 app-builder-lib/out/platformPackager.js computeAppOutDir),
+          #    getArchSuffix 在 arch === defaultArch 时返回空串、否则返回 "-<arch>"。
+          #    交叉编译 arm64 时 defaultArch 仍按宿主平台算成 x64,于是 x64 落
+          #    win-unpacked/、arm64 落 win-arm64-unpacked/ —— 写死 win-unpacked 会让
+          #    arm64 那一格误报「缺文件」。按当前 platform_flag 动态定位。
+          # 注意只能匹配显式的架构开关(--win/--mac 也在同一串里,泛化 \w+ 会先命中 "win")
+          $archSuffix = if ($env:PLATFORM_FLAG -match "--(x64|arm64|ia32|armv7l)") { $Matches[1] } else { "x64" }
+          $unpacked = if ($archSuffix -eq "x64") { "dist/win-unpacked" } else { "dist/win-$archSuffix-unpacked" }
+          # 兜底:目录名与推断不符时(未来 electron-builder 改命名)直接扫盘找一个,
+          # 找不到再报错,避免为了一个目录名把整条发布卡死。
+          if (-not (Test-Path $unpacked)) {
+            $candidate = Get-ChildItem -Path dist -Directory -Filter "win*-unpacked" |
+              Where-Object { $_.Name -match $archSuffix -or $_.Name -eq "win-unpacked" } |
+              Select-Object -First 1
+            if ($candidate) {
+              Write-Host "  (appOutDir inferred as $unpacked not found, using $($candidate.Name))"
+              $unpacked = $candidate.FullName
+            } else {
+              $errors += "No win*-unpacked/ directory found in dist/ for arch $archSuffix"
+            }
+          }
+          Write-Host "Verifying appOutDir: $unpacked (arch=$archSuffix)"
           $requiredFiles = @(
             "NovaWay.exe",
             "ffmpeg.dll",
@@ -171,7 +197,7 @@ jobs:
           foreach ($f in $requiredFiles) {
             $p = Join-Path $unpacked $f
             if (-not (Test-Path $p)) {
-              $errors += "Missing in win-unpacked/: $f"
+              $errors += "Missing in $unpacked`: $f"
             } else {
               $size = (Get-Item $p).Length
               Write-Host "  OK  $f ($([math]::Round($size/1MB,2)) MB)"
