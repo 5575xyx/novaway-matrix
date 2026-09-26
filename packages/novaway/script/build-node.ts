@@ -134,6 +134,20 @@ const migrations = await Promise.all(
 )
 console.log(`Loaded ${migrations.length} migrations`)
 
+// 内置网关地址为空时给个显眼警告:这会让内置提供商不注册(Auto 模式失效)。
+// 之所以要警告而不是静默:这个 bundle 会被 desktop 的 `bun run build` 重建一次,
+// 若那次重建看不到 pipeline 里的 env(GitHub Secrets 只挂在某个 step 上),就会把
+// 上一次已经注入好的值覆盖成空串 —— 症状是装出来的包 Auto 点了没反应。
+const builtinGatewayUrl = process.env.NOVAWAY_GATEWAY_EMBED_URL ?? ""
+const builtinGatewayKey = process.env.NOVAWAY_GATEWAY_EMBED_KEY ?? ""
+if (!builtinGatewayUrl) {
+  console.warn(
+    "[build-node] 警告: NOVAWAY_GATEWAY_EMBED_URL 为空 —— 内置提供商不会被注册,Auto 模式不可用。\n" +
+      "            本地开发请在仓库根放 .env.local(已由 --env-file 加载);\n" +
+      "            CI 请把 Secrets 挂到 job 级 env(见 .github/workflows/publish-desktop.yml)。",
+  )
+}
+
 await Bun.build({
   target: "node",
   entrypoints: ["./src/node.ts"],
@@ -153,9 +167,9 @@ await Bun.build({
     // 内置网关凭据:构建期注入(发布机/GitHub Actions 设 env),打包时内联进 bundle。
     // 不设置则内联为空串,运行时回退 NOVAWAY_GATEWAY_API_KEY 或本机 auth。
     // key 写成 "process.env.XXX" 点路径,与 provider.ts 源码里的读取形式对应。
-    "process.env.NOVAWAY_GATEWAY_EMBED_KEY": JSON.stringify(process.env.NOVAWAY_GATEWAY_EMBED_KEY ?? ""),
+    "process.env.NOVAWAY_GATEWAY_EMBED_KEY": JSON.stringify(builtinGatewayKey),
     // 内置网关地址:同理构建期注入;为空则内置提供商不注册(见 provider.ts catalog.builtin)。
-    "process.env.NOVAWAY_GATEWAY_EMBED_URL": JSON.stringify(process.env.NOVAWAY_GATEWAY_EMBED_URL ?? ""),
+    "process.env.NOVAWAY_GATEWAY_EMBED_URL": JSON.stringify(builtinGatewayUrl),
   },
   files: {
     "opencode-web-ui.gen.ts": "",

@@ -78,6 +78,15 @@ jobs:
       # 所以在这里把「有没有配签名证书」折算成 env 标志，下面用 env.* 判断。
       HAS_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE != '' }}
       HAS_APPLE_API_KEY: ${{ secrets.APPLE_API_KEY_PATH != '' }}
+      # 内置网关凭据+地址必须挂在 job 级,不能只挂在 Prepare 上:
+      # `bun run build` 会自动跑 prebuild 钩子 → build-node.ts,把
+      # packages/novaway/dist/node/node.js **整个重建一遍**。若这个重建过程看不到
+      # 这两个变量,define 会把它们内联成空串,把 Prepare 里已经注入好的值覆盖掉,
+      # 于是打出来的包里内置提供商不注册 —— Auto 开关能开,但请求仍走用户上次选的模型。
+      # (实测:Prepare 后 bundle 里是网关地址,再执行 Build 后变回空。)
+      # 未配置 secret 时为空串,内置提供商不注册(用户可自配 NOVAWAY_GATEWAY_URL/API_KEY)。
+      NOVAWAY_GATEWAY_EMBED_KEY: ${{ secrets.NOVAWAY_GATEWAY_API_KEY }}
+      NOVAWAY_GATEWAY_EMBED_URL: ${{ secrets.NOVAWAY_GATEWAY_URL }}
     steps:
       - uses: actions/checkout@v4
 
