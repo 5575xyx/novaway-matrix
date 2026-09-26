@@ -227,6 +227,12 @@ jobs:
       AZURE_TRUSTED_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
       AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE }}
       AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+      # 内置网关凭据+地址必须挂 job 级:Prepare 与 Build 都会重建
+      # packages/novaway/dist/node/node.js(`bun run build` 自动触发 prebuild 钩子),
+      # 只挂其中一个 step 的话,另一次重建会把值内联成空串覆盖掉,打出的包内置提供商
+      # 不注册(Auto 开关能开但请求仍走用户上次选的模型)。
+      NOVAWAY_GATEWAY_EMBED_KEY: ${{ secrets.NOVAWAY_GATEWAY_API_KEY }}
+      NOVAWAY_GATEWAY_EMBED_URL: ${{ secrets.NOVAWAY_GATEWAY_URL }}
     strategy:
       fail-fast: false
       matrix:

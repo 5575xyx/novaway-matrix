@@ -50,3 +50,6 @@ harness-tasks.json.corrupt-*
 # PowersNexus KPI nightly local records
 .codex/powersnexus-kpi/
 
+
+# Claude Code 本地临时目录(下载/解包产物,勿提交)
+.claude-tmp/
