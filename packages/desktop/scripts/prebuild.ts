@@ -16,9 +16,13 @@ const resourcesDir = join(process.cwd(), "resources")
 await $`bun ./scripts/copy-icons.ts ${channel}`
 await $`bun ./scripts/copy-metainfo.ts ${channel}`
 
-// 小心大小写:包目录是 packages/novaway(小写 n)。写 ../NovaWay 在 Windows/macOS 的
+// 包目录是 packages/novaway(小写 n)。写 ../NovaWay 在 Windows/macOS 的
 // 大小写不敏感文件系统上碰巧能跑,在 Linux CI 上会直接 cd 失败。
-await $`cd ../novaway && bun script/build-node.ts`
+// --env-file 显式指到仓库根的 .env.local(相对 packages/novaway 就是 ../../.env.local):
+// bun 的 .env 自动加载是按 cwd 找的,cd 进 packages/novaway 后够不到根目录的 .env.local,
+// 导致 NOVAWAY_GATEWAY_EMBED_URL/KEY 为空、内置提供商不注册(Auto 模式失效)。
+// CI 上该文件不存在也无妨:--env-file 找不到文件不报错,secrets 走 env 传入。
+await $`cd ../novaway && bun --env-file=../../.env.local script/build-node.ts`
 
 // 浏览器自动化 MCP 随安装包分发，避免打包后的桌面端依赖系统 npx 或联网拉取。
 const playwrightMcpDir = join(resourcesDir, "playwright-mcp")
