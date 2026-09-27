@@ -147,6 +147,13 @@ const getBase = (): Configuration => ({
     allowElevation: true,
     installerIcon: `resources/icons/icon.ico`,
     installerHeaderIcon: `resources/icons/icon.ico`,
+    // 安装器视觉:自绘的深色品牌图(164×314 侧栏/150×57 页头)。不配的话
+    // electron-builder 会用 NSIS 自带的 nsis3-metro 灰蓝图,观感很老。
+    installerSidebar: `resources/installer/installerSidebar.bmp`,
+    installerHeader: `resources/installer/installerHeader.bmp`,
+    // 自定义脚本:更新时跳过"为哪位用户安装"页并沿用上次模式、装完直接重启。
+    // 详见 resources/installer/installer.nsh 顶部注释。
+    include: `resources/installer/installer.nsh`,
     // 卸载时清干净,避免旧版本残留导致用户重装时 Defender 把旧 exe 拉黑名单后
     // 把新装的也连带干掉
     deleteAppDataOnUninstall: true,

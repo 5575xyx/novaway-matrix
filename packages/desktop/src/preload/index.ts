@@ -42,6 +42,11 @@ const api: ElectronAPI = {
     ipcRenderer.on("menu-command", handler)
     return () => ipcRenderer.removeListener("menu-command", handler)
   },
+  onUpdateAvailable: (cb) => {
+    const handler = (_: unknown, info: { version?: string }) => cb(info)
+    ipcRenderer.on("update-available", handler)
+    return () => ipcRenderer.removeListener("update-available", handler)
+  },
   onDeepLink: (cb) => {
     const handler = (_: unknown, urls: string[]) => cb(urls)
     ipcRenderer.on("deep-link", handler)

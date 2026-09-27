@@ -1486,6 +1486,11 @@ export function sendMenuCommand(win: BrowserWindow, id: string) {
   win.webContents.send("menu-command", id)
 }
 
+// 更新已下载:推给渲染进程,由应用内 toast(而非主进程原生对话框)提示用户。
+export function sendUpdateAvailable(win: BrowserWindow, info: { version?: string }) {
+  win.webContents.send("update-available", info)
+}
+
 export function sendDeepLinks(win: BrowserWindow, urls: string[]) {
   win.webContents.send("deep-link", urls)
 }

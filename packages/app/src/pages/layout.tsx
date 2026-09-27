@@ -373,29 +373,41 @@ export default function Layout(props: ParentProps) {
       let toastId: number | undefined
       let interval: ReturnType<typeof setInterval> | undefined
 
+      // 更新提示可能来自两处:定时轮询(web/手动)与主进程的 download 完成推送(桌面端)。
+      // 共用同一个 toastId,保证同一时刻只有一条提示。
+      const showUpdate = (version?: string) => {
+        if (toastId !== undefined) return
+        toastId = showToast({
+          persistent: true,
+          icon: "download",
+          title: language.t("toast.update.title"),
+          description: language.t("toast.update.description", { version: version ?? "" }),
+          actions: [
+            {
+              label: language.t("toast.update.action.installRestart"),
+              onClick: async () => {
+                await platform.updateAndRestart!()
+              },
+            },
+            {
+              label: language.t("toast.update.action.notYet"),
+              onClick: "dismiss",
+            },
+          ],
+        })
+      }
+
       const pollUpdate = () =>
         platform.checkUpdate!().then(({ updateAvailable, version }) => {
           if (!updateAvailable) return
-          if (toastId !== undefined) return
-          toastId = showToast({
-            persistent: true,
-            icon: "download",
-            title: language.t("toast.update.title"),
-            description: language.t("toast.update.description", { version: version ?? "" }),
-            actions: [
-              {
-                label: language.t("toast.update.action.installRestart"),
-                onClick: async () => {
-                  await platform.updateAndRestart!()
-                },
-              },
-              {
-                label: language.t("toast.update.action.notYet"),
-                onClick: "dismiss",
-              },
-            ],
-          })
+          showUpdate(version)
         })
+
+      // 桌面端:主进程后台下载完成后主动推送(取代了老式原生 dialog)。这个推送早于
+      // 这里的轮询,所以收到后立即提示,不必等下一次 checkUpdate。
+      const disposeUpdateReady = platform.onUpdateReady?.((event) => {
+        showUpdate(event.version)
+      })
 
       createEffect(() => {
         if (!settings.ready()) return
@@ -413,6 +425,7 @@ export default function Layout(props: ParentProps) {
       })
 
       onCleanup(() => {
+        disposeUpdateReady?.()
         if (interval === undefined) return
         clearInterval(interval)
       })

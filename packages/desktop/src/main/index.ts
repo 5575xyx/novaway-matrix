@@ -19,6 +19,7 @@ import {
   sendDeepLinks,
   sendMenuCommand,
   sendSqliteMigrationProgress,
+  sendUpdateAvailable,
   setFloatingWindow,
   setMainWindow,
 } from "./ipc"
@@ -112,6 +113,27 @@ function hideMainWindow() {
   const win = mainWindow
   if (!win || win.isDestroyed()) return
   win.hide()
+}
+
+/**
+ * 把"更新已下载"交给渲染进程,用应用内的现代 toast 提示(替代老式原生对话框)。
+ * 返回 true 表示已成功投递:webContents 存在且还没有开始销毁。
+ *
+ * 注意这里刻意不检查监听器是否已注册 —— 渲染进程的 preload 在页面加载时就会注册
+ * `onUpdateAvailable`,而 IPC 消息在 webContents 上会排队直到页面处理。启动时的后台
+ * 检查(不 alertOnFail)会等到主窗口创建后才跑,所以正常都能投递成功;万一渲染进程
+ * 已经销毁(退出中)才回退到原生对话框。
+ */
+function notifyRendererUpdateReady(info: { version?: string }) {
+  const win = mainWindow
+  if (!win || win.isDestroyed()) return false
+  const wc = win.webContents
+  if (wc.isDestroyed()) return false
+  sendUpdateAvailable(win, info)
+  if (win.isMinimized()) win.restore()
+  win.show()
+  win.focus()
+  return true
 }
 
 function quitApp() {
@@ -294,7 +316,7 @@ const main = Effect.gen(function* () {
     wslPath: async (path, mode) => wslPath(path, mode),
     resolveAppPath: async (appName) => resolveAppPath(appName),
     loadingWindowComplete: () => Deferred.doneUnsafe(loadingComplete, Effect.void),
-    runUpdater: async (alertOnFail) => checkForUpdates(alertOnFail, killSidecar),
+    runUpdater: async (alertOnFail) => checkForUpdates(alertOnFail, killSidecar, notifyRendererUpdateReady),
     checkUpdate: async () => checkUpdate(),
     installUpdate: async () => installUpdate(killSidecar),
     setBackgroundColor: (color) => setBackgroundColor(color),
@@ -444,7 +466,7 @@ const main = Effect.gen(function* () {
     createMenu({
       trigger: (id) => mainWindow && sendMenuCommand(mainWindow, id),
       checkForUpdates: () => {
-        void checkForUpdates(true, killSidecar)
+        void checkForUpdates(true, killSidecar, notifyRendererUpdateReady)
       },
       reload: () => mainWindow?.reload(),
       relaunch: () => {
@@ -479,8 +501,9 @@ const main = Effect.gen(function* () {
 
   overlay?.close()
 
-  // 不阻塞首屏加载；检查会在后台下载，安装前仍由用户确认重启。
-  void checkForUpdates(false, killSidecar)
+  // 不阻塞首屏加载;检查会在后台下载,下载完成后推给渲染进程弹应用内 toast,
+  // 用户点"安装并重启"才真正安装(装完由安装器 --force-run 直接拉起新版本)。
+  void checkForUpdates(false, killSidecar, notifyRendererUpdateReady)
 })
 
 Effect.runFork(main)
