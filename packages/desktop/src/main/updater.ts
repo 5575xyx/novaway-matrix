@@ -68,7 +68,10 @@ export async function installUpdate(killSidecar: () => Promise<void>) {
       version: downloadedVersion,
     })
     await killSidecar()
-    autoUpdater.quitAndInstall()
+    // isForceRunAfter=true → 给安装器加 --force-run,装完直接拉起新版本。
+    // 配合安装器里的 HIDE_RUN_AFTER_FINISH(见 electron-builder.config.ts),
+    // 用户不会再看到"运行 NovaWay"复选框,也不需要再确认一次。
+    autoUpdater.quitAndInstall(false, true)
     return
   }
 
@@ -83,10 +86,20 @@ export async function installUpdate(killSidecar: () => Promise<void>) {
     version: result.version ?? null,
   })
   await killSidecar()
-  autoUpdater.quitAndInstall()
+  autoUpdater.quitAndInstall(false, true)
 }
 
-export async function checkForUpdates(alertOnFail: boolean, killSidecar: () => Promise<void>) {
+/**
+ * 通知渲染进程"更新已下载"。返回 true 表示已交给应用内的现代 toast 提示,
+ * 主进程就不要再弹那个老式原生对话框了(见 checkForUpdates)。
+ */
+export type UpdateNotifier = (info: { version?: string }) => boolean
+
+export async function checkForUpdates(
+  alertOnFail: boolean,
+  killSidecar: () => Promise<void>,
+  notify?: UpdateNotifier,
+) {
   if (!UPDATER_ENABLED) return
   logger.log("checkForUpdates invoked", { alertOnFail })
   const result = await checkUpdate()
@@ -109,6 +122,14 @@ export async function checkForUpdates(alertOnFail: boolean, killSidecar: () => P
       message: "You're up to date.",
       title: "No Updates",
     })
+    return
+  }
+
+  // 更新已下载:优先让应用内渲染进程用现代 toast 提示(带"安装并重启/稍后"),
+  // 与设置页里手动检查更新时的提示样式保持一致。只有主窗口不存在/已销毁
+  // (例如启动早期或没有界面)时才退回原生对话框。
+  if (notify?.({ version: result.version })) {
+    logger.log("update ready delegated to renderer", { version: result.version ?? null })
     return
   }
 

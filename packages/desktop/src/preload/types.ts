@@ -244,6 +244,7 @@ export type ElectronAPI = {
   getWindowCount: () => Promise<number>
   onSqliteMigrationProgress: (cb: (progress: SqliteMigrationProgress) => void) => () => void
   onMenuCommand: (cb: (id: string) => void) => () => void
+  onUpdateAvailable: (cb: (info: { version?: string }) => void) => () => void
   onDeepLink: (cb: (urls: string[]) => void) => () => void
   onNotificationClick: (cb: (href?: string) => void) => () => void
 

@@ -164,6 +164,10 @@ export function createPlatform(): Platform {
       return window.api.checkUpdate()
     },
 
+    // 主进程后台下载完更新会推 update-available;这里原样转成应用层事件。
+    // 主进程用「有没有 listener」判断能不能走应用内 toast(见 main/updater.ts)。
+    onUpdateReady: (cb) => window.api.onUpdateAvailable((info) => cb({ version: info.version })),
+
     updateAndRestart: async () => {
       const config = await window.api.getWindowConfig().catch(() => ({ updaterEnabled: false }))
       if (!config.updaterEnabled) return

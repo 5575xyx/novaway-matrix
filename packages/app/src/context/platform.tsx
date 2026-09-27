@@ -9,6 +9,7 @@ type OpenFilePickerOptions = { title?: string; multiple?: boolean; accept?: stri
 type SaveFilePickerOptions = { title?: string; defaultPath?: string; data?: Uint8Array }
 type UpdateInfo = { updateAvailable: boolean; version?: string }
 export type NotificationMetadata = { sessionID?: string; requestID?: string }
+export type UpdateReadyEvent = { version?: string }
 
 export type Platform = {
   platform: "web" | "desktop"
@@ -42,6 +43,9 @@ export type Platform = {
   storage?: (name?: string) => SyncStorage | AsyncStorage
 
   checkUpdate?(): Promise<UpdateInfo>
+
+  /** 桌面端后台下载完更新时由主进程主动推送,应用内据此弹现代 toast(替代原生对话框)。 */
+  onUpdateReady?(cb: (event: UpdateReadyEvent) => void): () => void
 
   updateAndRestart?(): Promise<void>
 
