@@ -50,9 +50,9 @@
 !insertmacro _NOVAWAY_STR NOVAWAY_WELCOME_TITLE \
   "Welcome to NovaWay" "欢迎使用 NovaWay" "歡迎使用 NovaWay"
 !insertmacro _NOVAWAY_STR NOVAWAY_WELCOME_TEXT \
-  "This wizard will install NovaWay — your AI coding agent.$\r$\n$\r$\nClick Next to continue." \
-  "本向导将为你安装 NovaWay —— 你的 AI 编程助手。$\r$\n$\r$\n点击「下一步」继续。" \
-  "本精靈將為你安裝 NovaWay —— 你的 AI 程式設計助手。$\r$\n$\r$\n點擊「下一步」繼續。"
+  "This wizard will install NovaWay — your all-in-one AI workspace.$\r$\n$\r$\nClick Next to continue." \
+  "本向导将为你安装 NovaWay —— 你的 AI 全能工作舱。$\r$\n$\r$\n点击「下一步」继续。" \
+  "本精靈將為你安裝 NovaWay —— 你的 AI 全能工作艙。$\r$\n$\r$\n點擊「下一步」繼續。"
 !insertmacro _NOVAWAY_STR NOVAWAY_FINISH_TITLE \
   "NovaWay is ready" "NovaWay 安装完成" "NovaWay 安裝完成"
 !insertmacro _NOVAWAY_STR NOVAWAY_FINISH_TEXT \
