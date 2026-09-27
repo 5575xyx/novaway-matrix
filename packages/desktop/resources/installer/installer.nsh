@@ -12,6 +12,78 @@
 !include "LogicLib.nsh"
 
 # ---------------------------------------------------------------------------
+# 0) 首次安装时的文案(欢迎页 / 完成页)
+# ---------------------------------------------------------------------------
+# electron-builder 默认给 26 种语言都注册了 MUI_LANGUAGE,并且用 -WX(警告即错误)编译,
+# 所以任何自定义 LangString 都必须对这 26 个语言表都有定义,否则 makensis 直接报
+# "warning 6040: LangString ... is not set in language table"(LCID 取值见 nsisLang 的 lcid 映射)。
+# 下面用 _NOVAWAY_STR 一次性把 26 个语言都填满:英文兜底,简繁中文单独本地化。
+!macro _NOVAWAY_STR name en zhCN zhTW
+  LangString ${name} 1033 "${en}" # en_US
+  LangString ${name} 1031 "${en}" # de_DE
+  LangString ${name} 1036 "${en}" # fr_FR
+  LangString ${name} 3082 "${en}" # es_ES
+  LangString ${name} 2052 "${zhCN}" # zh_CN
+  LangString ${name} 1028 "${zhTW}" # zh_TW
+  LangString ${name} 1041 "${en}" # ja_JP
+  LangString ${name} 1042 "${en}" # ko_KR
+  LangString ${name} 1040 "${en}" # it_IT
+  LangString ${name} 1043 "${en}" # nl_NL
+  LangString ${name} 1030 "${en}" # da_DK
+  LangString ${name} 1053 "${en}" # sv_SE
+  LangString ${name} 1044 "${en}" # nb_NO
+  LangString ${name} 1035 "${en}" # fi_FI
+  LangString ${name} 1049 "${en}" # ru_RU
+  LangString ${name} 2070 "${en}" # pt_PT
+  LangString ${name} 1046 "${en}" # pt_BR
+  LangString ${name} 1045 "${en}" # pl_PL
+  LangString ${name} 1058 "${en}" # uk_UA
+  LangString ${name} 1029 "${en}" # cs_CZ
+  LangString ${name} 1051 "${en}" # sk_SK
+  LangString ${name} 1038 "${en}" # hu_HU
+  LangString ${name} 1025 "${en}" # ar_SA
+  LangString ${name} 1055 "${en}" # tr_TR
+  LangString ${name} 1054 "${en}" # th_TH
+  LangString ${name} 1066 "${en}" # vi_VN
+!macroend
+
+!insertmacro _NOVAWAY_STR NOVAWAY_WELCOME_TITLE \
+  "Welcome to NovaWay" "欢迎使用 NovaWay" "歡迎使用 NovaWay"
+!insertmacro _NOVAWAY_STR NOVAWAY_WELCOME_TEXT \
+  "This wizard will install NovaWay — your AI coding agent.$\r$\n$\r$\nClick Next to continue." \
+  "本向导将为你安装 NovaWay —— 你的 AI 编程助手。$\r$\n$\r$\n点击「下一步」继续。" \
+  "本精靈將為你安裝 NovaWay —— 你的 AI 程式設計助手。$\r$\n$\r$\n點擊「下一步」繼續。"
+!insertmacro _NOVAWAY_STR NOVAWAY_FINISH_TITLE \
+  "NovaWay is ready" "NovaWay 安装完成" "NovaWay 安裝完成"
+!insertmacro _NOVAWAY_STR NOVAWAY_FINISH_TEXT \
+  "NovaWay has been installed successfully.$\r$\nClick Finish to get started." \
+  "NovaWay 已成功安装。$\r$\n点击「完成」即可开始使用。" \
+  "NovaWay 已成功安裝。$\r$\n點擊「完成」即可開始使用。"
+!insertmacro _NOVAWAY_STR NOVAWAY_FINISH_RUN \
+  "Run NovaWay" "运行 NovaWay" "執行 NovaWay"
+
+# ---------------------------------------------------------------------------
+# 0b) 首次安装的欢迎页(更新时跳过)
+# ---------------------------------------------------------------------------
+# electron-builder 的 assisted installer 只有在定义了 customWelcomePage 时才插入欢迎页
+# (见 templates/nsis/assistedInstaller.nsh)。默认流程第一屏就是"为哪位用户安装",比较生硬;
+# 这里补一个品牌欢迎页。注意它没有 skipPageIfUpdated,所以更新时要自己在 PRE 里 Abort。
+!macro customWelcomePage
+  !ifndef BUILD_UNINSTALLER
+    Function NovaWayWelcomePre
+      ${if} ${isUpdated}
+        Abort
+      ${endif}
+    FunctionEnd
+
+    !define MUI_PAGE_CUSTOMFUNCTION_PRE NovaWayWelcomePre
+    !define MUI_WELCOMEPAGE_TITLE "$(NOVAWAY_WELCOME_TITLE)"
+    !define MUI_WELCOMEPAGE_TEXT "$(NOVAWAY_WELCOME_TEXT)"
+    !insertmacro MUI_PAGE_WELCOME
+  !endif
+!macroend
+
+# ---------------------------------------------------------------------------
 # 1) 更新时沿用上次的安装模式,跳过安装模式选择页
 # ---------------------------------------------------------------------------
 # multiUserUi.nsh 的 InstallModePre 会先置 $isForceMachineInstall/$isForceCurrentInstall
@@ -47,7 +119,7 @@
 
 # 用自定义完成页替换默认完成页(默认那份在有/无 runAfterFinish 时行为不同,这里统一接管):
 #   - 更新:在 PRE 里直接 Abort 跳过完成页(应用已经在 customInstall 里拉起,无需再确认);
-#   - 全新安装:保留"运行 NovaWay"复选框,行为与原先一致。
+#   - 全新安装:保留"运行 NovaWay"复选框,但标题/正文/勾选项都换成上面的品牌文案。
 !macro customFinishPage
   !ifndef BUILD_UNINSTALLER
     Function StartApp
@@ -66,7 +138,11 @@
     FunctionEnd
 
     !define MUI_PAGE_CUSTOMFUNCTION_PRE NovaWayFinishPre
+    !define MUI_FINISHPAGE_TITLE "$(NOVAWAY_FINISH_TITLE)"
+    !define MUI_FINISHPAGE_TEXT "$(NOVAWAY_FINISH_TEXT)"
+    !define MUI_FINISHPAGE_TEXT_LARGE
     !define MUI_FINISHPAGE_RUN
+    !define MUI_FINISHPAGE_RUN_TEXT "$(NOVAWAY_FINISH_RUN)"
     !define MUI_FINISHPAGE_RUN_FUNCTION "StartApp"
     !insertmacro MUI_PAGE_FINISH
   !endif
