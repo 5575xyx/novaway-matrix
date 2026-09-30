@@ -9,7 +9,7 @@ import { useArgs } from "./args"
 import { useSDK } from "./sdk"
 import { RGBA } from "@opentui/core"
 import { readJson, writeJsonAtomic } from "../util/persistence"
-import { isAutoModel } from "../util/model"
+import { isAutoModel, stripProviderPrefix } from "../util/model"
 import { useTheme } from "./theme"
 import { useTuiConfig } from "../config"
 import { useToast } from "../ui/toast"
@@ -300,6 +300,8 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         )
       })
 
+      const providerIDs = createMemo(() => new Set(sync.data.provider.map((item) => item.id)))
+
       return {
         current: currentModel,
         get ready() {
@@ -329,9 +331,11 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           }
           const provider = sync.data.provider.find((item) => item.id === value.providerID)
           const info = provider?.models[value.modelID]
+          const modelName = info?.name ?? value.modelID
           return {
             provider: provider?.name ?? value.providerID,
-            model: info?.name ?? value.modelID,
+            model:
+              value.providerID === "builtin" ? stripProviderPrefix(modelName, providerIDs()) : modelName,
             reasoning: info?.capabilities?.reasoning ?? false,
           }
         }),
