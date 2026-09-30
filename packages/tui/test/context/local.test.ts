@@ -38,6 +38,7 @@ test("内置提供商在手动模式下排除 auto，但保留实时模型作为
   }
   expect(defaultSelectableModel(builtin, { builtin: "auto" })).toBe("gpt-5")
   expect(defaultSelectableModel(builtin, {})).toBe("gpt-5")
+  expect(defaultSelectableModel(builtin, { builtin: "gpt-5" })).toBe("gpt-5")
 })
 
 test("仅含 auto 的内置提供商没有可兜底模型", () => {

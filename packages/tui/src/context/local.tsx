@@ -9,6 +9,7 @@ import { useArgs } from "./args"
 import { useSDK } from "./sdk"
 import { RGBA } from "@opentui/core"
 import { readJson, writeJsonAtomic } from "../util/persistence"
+import { isAutoModel } from "../util/model"
 import { useTheme } from "./theme"
 import { useTuiConfig } from "../config"
 import { useToast } from "../ui/toast"
@@ -53,9 +54,10 @@ export function defaultSelectableModel(
   provider: { id: string; models: Record<string, { id: string }> },
   defaults: Record<string, string | undefined>,
 ) {
+  // 返回值仅供回退候选,调用方仍需用 isModelValid 校验模型真实存在且 provider 已连接
   const preferred = defaults[provider.id]
-  if (preferred && !(provider.id === "builtin" && preferred === "auto")) return preferred
-  return Object.keys(provider.models).find((id) => !(provider.id === "builtin" && id === "auto"))
+  if (preferred && !isAutoModel(provider.id, preferred)) return preferred
+  return Object.keys(provider.models).find((id) => !isAutoModel(provider.id, id))
 }
 
 export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
@@ -246,7 +248,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
 
         for (const item of modelStore.recent) {
           // Auto 关闭后,builtin/auto 不再生效,跳过它继续找下一个可用模型
-          if (item.providerID === "builtin" && item.modelID === "auto") continue
+          if (isAutoModel(item.providerID, item.modelID)) continue
           if (isModelValid(item)) {
             return item
           }
@@ -285,12 +287,12 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
             () => {
               const m = a && modelStore.model[a.name]
               // 手动模式下忽略残留的 builtin/auto(Auto 开启时写入的)
-              if (m && m.providerID === "builtin" && m.modelID === "auto") return undefined
+              if (m && isAutoModel(m.providerID, m.modelID)) return undefined
               return m
             },
             () => {
               const m = a && a.model
-              if (m && m.providerID === "builtin" && m.modelID === "auto") return undefined
+              if (m && isAutoModel(m.providerID, m.modelID)) return undefined
               return m
             },
             fallbackModel,
@@ -387,7 +389,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
             // 而不是回退到"最近使用"里残留的更早记录。
             if (value) {
               const manual = currentModel()
-              if (manual && !(manual.providerID === "builtin" && manual.modelID === "auto"))
+              if (manual && !isAutoModel(manual.providerID, manual.modelID))
                 setModelStore("lastManual", { ...manual })
             } else {
               const manual = modelStore.lastManual
