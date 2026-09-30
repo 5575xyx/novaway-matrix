@@ -97,15 +97,13 @@ export const { use: useModels, provider: ModelsProvider } = createSimpleContext(
       return map
     })
 
-    const providerIDs = createMemo(() => new Set(providers.all().map((item) => item.id)))
-
     const list = createMemo(() =>
       available().map((m) => {
         const name = m.name.replace("(latest)", "").trim()
         return {
           ...m,
-          // 内置网关返回的模型名带上游供应商前缀(如 opencode:big-pickle),显示时仅对内置剥离。
-          name: m.provider.id === "builtin" ? stripProviderPrefix(name, providerIDs()) : name,
+          // 内置网关返回的模型名带上游供应商前缀(如 opencode:big-pickle、qwen/qwen3.8-27b),显示时仅对内置剥离。
+          name: m.provider.id === "builtin" ? stripProviderPrefix(name) : name,
           latest: m.name.includes("(latest)"),
         }
       }),
