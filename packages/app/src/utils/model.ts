@@ -16,10 +16,9 @@ export function orderFallbackProviders<T extends { id: string }>(providers: T[])
   return [...providers].sort((a, b) => Number(a.id === "builtin") - Number(b.id === "builtin"))
 }
 
-export function stripProviderPrefix(name: string, providerIDs: ReadonlySet<string>): string {
-  const index = name.indexOf(":")
-  if (index <= 0) return name
-  const prefix = name.slice(0, index)
-  if (!providerIDs.has(prefix)) return name
-  return name.slice(index + 1).trim()
+export function stripProviderPrefix(name: string): string {
+  const match = /^[^:/]+[:/]/.exec(name)
+  if (!match) return name
+  const rest = name.slice(match[0].length).trim()
+  return rest || name
 }
