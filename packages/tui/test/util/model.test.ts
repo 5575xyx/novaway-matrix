@@ -9,17 +9,15 @@ describe("util.model", () => {
 })
 
 describe("stripProviderPrefix", () => {
-  const providerIDs = new Set(["opencode", "anthropic"])
-
-  test("strips a leading known provider prefix", () => {
-    expect(stripProviderPrefix("opencode:big-pickle", providerIDs)).toBe("big-pickle")
-    expect(stripProviderPrefix("anthropic:claude-4", providerIDs)).toBe("claude-4")
+  test("strips a leading provider separator for both colon and slash forms", () => {
+    expect(stripProviderPrefix("opencode:big-pickle")).toBe("big-pickle")
+    expect(stripProviderPrefix("qwen/qwen3.8-27b")).toBe("qwen3.8-27b")
   })
 
-  test("keeps the name when the prefix is not a known provider", () => {
-    expect(stripProviderPrefix("X:free", providerIDs)).toBe("X:free")
-    expect(stripProviderPrefix("big-pickle", providerIDs)).toBe("big-pickle")
-    expect(stripProviderPrefix(":foo", providerIDs)).toBe(":foo")
-    expect(stripProviderPrefix("", providerIDs)).toBe("")
+  test("keeps names without a leading provider prefix", () => {
+    expect(stripProviderPrefix("Big Pickle")).toBe("Big Pickle")
+    expect(stripProviderPrefix(":foo")).toBe(":foo")
+    expect(stripProviderPrefix("qwen/")).toBe("qwen/")
+    expect(stripProviderPrefix("")).toBe("")
   })
 })
