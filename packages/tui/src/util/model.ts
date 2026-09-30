@@ -26,3 +26,7 @@ export function name(
 ) {
   return get(list, providerID, modelID)?.name ?? modelID
 }
+
+export function isAutoModel(providerID: string, modelID: string) {
+  return providerID === "builtin" && modelID === "auto"
+}

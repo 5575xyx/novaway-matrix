@@ -10,10 +10,9 @@ import * as fuzzysort from "fuzzysort"
 import { useConnected } from "./use-connected"
 import { useSync } from "../context/sync"
 import { useTheme } from "../context/theme"
+import { isAutoModel } from "../util/model"
 
-export function isAutoModel(providerID: string, modelID: string) {
-  return providerID === "builtin" && modelID === "auto"
-}
+export { isAutoModel }
 
 export function selectableModelEntries<T>(
   provider: { id: string; models: Record<string, T> },
