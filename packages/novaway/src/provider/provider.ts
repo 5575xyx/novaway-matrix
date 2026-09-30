@@ -7,7 +7,6 @@ import { NoSuchModelError, type Provider as SDK } from "ai"
 import * as Log from "@novaway/core/util/log"
 import { Npm } from "@novaway/core/npm"
 import { Hash } from "@novaway/core/util/hash"
-import { stripProviderPrefix } from "@novaway/core/openai-compatible"
 import { Plugin } from "../plugin"
 import { type LanguageModelV3 } from "@ai-sdk/provider"
 import * as ModelsDev from "@novaway/core/models-dev"
@@ -1728,7 +1727,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
                 models[item.id] = {
                   id: ModelID.make(item.id),
                   providerID: "builtin" as ProviderID,
-                  name: stripProviderPrefix(item.name),
+                  name: item.name,
                   family: "",
                   api: {
                     id: item.id,

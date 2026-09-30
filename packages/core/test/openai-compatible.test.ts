@@ -1,9 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import {
-  parseRemoteProviderModels,
-  resolveOpenAICompatibleEndpoint,
-  stripProviderPrefix,
-} from "@novaway/core/openai-compatible"
+import { parseRemoteProviderModels, resolveOpenAICompatibleEndpoint } from "@novaway/core/openai-compatible"
 
 describe("OpenAI-compatible endpoint", () => {
   test("keeps a standard base URL", () => {
@@ -63,19 +59,5 @@ describe("OpenAI-compatible endpoint", () => {
         outputModalities: ["image"],
       },
     ])
-  })
-})
-
-describe("stripProviderPrefix", () => {
-  test("strips a leading provider separator for both colon and slash forms", () => {
-    expect(stripProviderPrefix("opencode:big-pickle")).toBe("big-pickle")
-    expect(stripProviderPrefix("qwen/qwen3.8-27b")).toBe("qwen3.8-27b")
-  })
-
-  test("keeps names without a leading provider prefix", () => {
-    expect(stripProviderPrefix("Big Pickle")).toBe("Big Pickle")
-    expect(stripProviderPrefix(":foo")).toBe(":foo")
-    expect(stripProviderPrefix("qwen/")).toBe("qwen/")
-    expect(stripProviderPrefix("")).toBe("")
   })
 })
