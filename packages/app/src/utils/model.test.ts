@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { firstSelectableModel, isAutoModel } from "./model"
+import { firstSelectableModel, isAutoModel, orderFallbackProviders } from "./model"
 
 describe("isAutoModel", () => {
   test("only flags the built-in auto entry", () => {
@@ -42,5 +42,27 @@ describe("firstSelectableModel", () => {
     }
     const isValid = (id: string) => id === "claude-4"
     expect(firstSelectableModel(anthropic, { anthropic: "gone" }, isValid)).toBe("claude-4")
+  })
+
+  test("内置提供商默认值为有效实时模型", () => {
+    expect(firstSelectableModel({ id: "builtin", models: { gpt: { id: "gpt" } } }, { builtin: "gpt" }, alwaysValid)).toBe(
+      "gpt",
+    )
+  })
+
+  test("全部候选无效返回 undefined", () => {
+    expect(firstSelectableModel({ id: "anthropic", models: { a: { id: "a" } } }, {}, () => false)).toBeUndefined()
+  })
+
+  test("非内置 provider 中名为 auto 的模型不应被剔除", () => {
+    expect(firstSelectableModel({ id: "anthropic", models: { auto: { id: "auto" } } }, {}, alwaysValid)).toBe("auto")
+  })
+})
+
+describe("orderFallbackProviders", () => {
+  test("把 builtin 排到最后且不改变其它顺序、不修改入参", () => {
+    const input = [{ id: "builtin" }, { id: "anthropic" }, { id: "opencode" }]
+    expect(orderFallbackProviders(input).map((p) => p.id)).toEqual(["anthropic", "opencode", "builtin"])
+    expect(input.map((p) => p.id)).toEqual(["builtin", "anthropic", "opencode"])
   })
 })

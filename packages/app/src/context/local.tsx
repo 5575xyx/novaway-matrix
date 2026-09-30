@@ -5,7 +5,7 @@ import { batch, createEffect, createMemo } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useModels } from "@/context/models"
 import { useProviders } from "@/hooks/use-providers"
-import { firstSelectableModel, isAutoModel } from "@/utils/model"
+import { firstSelectableModel, isAutoModel, orderFallbackProviders } from "@/utils/model"
 import { Persist, persisted } from "@/utils/persist"
 import { cycleModelVariant, getConfiguredAgentVariant, resolveModelVariant } from "./model-variant"
 import { visibleAgentList } from "./local-agent"
@@ -162,9 +162,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
     const defaultModel = () => {
       // 内置提供商承载 Auto + 网关发现的模型,手动模式只排除 auto;优先非内置提供商
       const defaults = providers.default()
-      const ordered = [...providers.connected()].sort(
-        (a, b) => Number(a.id === "builtin") - Number(b.id === "builtin"),
-      )
+      const ordered = orderFallbackProviders(providers.connected())
       for (const provider of ordered) {
         const modelID = firstSelectableModel(provider, defaults, (id) =>
           validModel({ providerID: provider.id, modelID: id }),
