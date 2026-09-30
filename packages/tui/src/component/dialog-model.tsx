@@ -1,7 +1,7 @@
 import { createMemo, createSignal, Show } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import { useLocal } from "../context/local"
-import { map, pipe, flatMap, entries, filter, sortBy, take } from "remeda"
+import { map, pipe, flatMap, filter, sortBy, take } from "remeda"
 import { DialogSelect } from "../ui/dialog-select"
 import { useDialog } from "../ui/dialog"
 import { createDialogProviderOptions, DialogProvider } from "./dialog-provider"
@@ -13,6 +13,16 @@ import { useTheme } from "../context/theme"
 
 export function isAutoModel(providerID: string, modelID: string) {
   return providerID === "builtin" && modelID === "auto"
+}
+
+export function selectableModelEntries<T>(
+  provider: { id: string; models: Record<string, T> },
+): [string, T][] {
+  return Object.entries(provider.models).filter(([model]) => !isAutoModel(provider.id, model))
+}
+
+export function withoutAuto<T extends { providerID: string; modelID: string }>(items: T[]) {
+  return items.filter((item) => !isAutoModel(item.providerID, item.modelID))
 }
 
 export function DialogModel(props: { providerID?: string }) {
@@ -33,8 +43,8 @@ export function DialogModel(props: { providerID?: string }) {
     const needle = query().trim()
     const showSections = showExtra() && needle.length === 0
     const favorites = connected() ? local.model.favorite() : []
-    // Auto 关闭后,builtin/auto 不再是可选项,别让它出现在收藏/最近使用里。
-    const recents = local.model.recent().filter((item) => !isAutoModel(item.providerID, item.modelID))
+    // Auto 关闭后,仅 builtin/auto 不可选,别让它出现在收藏/最近使用里。
+    const recents = withoutAuto(local.model.recent())
 
     function toOptions(items: typeof favorites, category: string) {
       if (!showSections) return []
@@ -60,10 +70,7 @@ export function DialogModel(props: { providerID?: string }) {
       })
     }
 
-    const favoriteOptions = toOptions(
-      favorites.filter((item) => !isAutoModel(item.providerID, item.modelID)),
-      "收藏",
-    )
+    const favoriteOptions = toOptions(withoutAuto(favorites), "收藏")
     const recentOptions = toOptions(
       recents.filter(
         (item) => !favorites.some((fav) => fav.providerID === item.providerID && fav.modelID === item.modelID),
@@ -79,9 +86,7 @@ export function DialogModel(props: { providerID?: string }) {
       ),
       flatMap((provider) =>
         pipe(
-          provider.models,
-          entries(),
-          filter(([model]) => !isAutoModel(provider.id, model)),
+          selectableModelEntries(provider),
           filter(([_, info]) => info.status !== "deprecated"),
           filter(([_, info]) => (props.providerID ? info.providerID === props.providerID : true)),
           map(([model, info]) => ({

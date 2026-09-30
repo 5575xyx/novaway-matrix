@@ -4,7 +4,9 @@ import {
   displayModelName,
   isAutoModel,
   joinDescription,
+  selectableModelEntries,
   sortModelOptions,
+  withoutAuto,
 } from "../../../../src/component/dialog-model"
 
 describe("displayModelName", () => {
@@ -85,5 +87,39 @@ describe("isAutoModel", () => {
     expect(isAutoModel("builtin", "auto")).toBe(true)
     expect(isAutoModel("builtin", "gpt-5")).toBe(false)
     expect(isAutoModel("anthropic", "auto")).toBe(false)
+  })
+})
+
+describe("selectableModelEntries", () => {
+  test("内置提供商展示实时模型但排除 auto", () => {
+    const builtin = {
+      id: "builtin",
+      models: { auto: { id: "auto" }, "gpt-5": { id: "gpt-5" } },
+    }
+    expect(selectableModelEntries(builtin).map(([id]) => id)).toEqual(["gpt-5"])
+  })
+
+  test("仅含 auto 的内置提供商不产生条目", () => {
+    const builtin = { id: "builtin", models: { auto: { id: "auto" } } }
+    expect(selectableModelEntries(builtin)).toEqual([])
+  })
+
+  test("其它提供商的 auto 不受影响", () => {
+    const anthropic = { id: "anthropic", models: { auto: { id: "auto" } } }
+    expect(selectableModelEntries(anthropic).map(([id]) => id)).toEqual(["auto"])
+  })
+})
+
+describe("withoutAuto", () => {
+  test("从收藏/最近使用中剔除 builtin/auto", () => {
+    const items = [
+      { providerID: "builtin", modelID: "auto" },
+      { providerID: "builtin", modelID: "gpt-5" },
+      { providerID: "anthropic", modelID: "auto" },
+    ]
+    expect(withoutAuto(items)).toEqual([
+      { providerID: "builtin", modelID: "gpt-5" },
+      { providerID: "anthropic", modelID: "auto" },
+    ])
   })
 })
