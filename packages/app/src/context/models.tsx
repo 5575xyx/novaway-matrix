@@ -4,7 +4,7 @@ import { DateTime } from "luxon"
 import { filter, firstBy, flat, groupBy, mapValues, pipe, uniqueBy, values } from "remeda"
 import { createSimpleContext } from "@novaway/ui/context"
 import { useProviders } from "@/hooks/use-providers"
-import { isAutoModel } from "@/utils/model-name"
+import { isAutoModel } from "@/utils/model"
 import { Persist, persisted } from "@/utils/persist"
 
 export type ModelKey = { providerID: string; modelID: string }

@@ -14,7 +14,8 @@ import { List } from "@novaway/ui/list"
 import { Tooltip } from "@novaway/ui/tooltip"
 import { ModelTooltip } from "./model-tooltip"
 import { useLanguage } from "@/context/language"
-import { displayModelGroup, displayModelName, isAutoModel } from "@/utils/model-name"
+import { isAutoModel } from "@/utils/model"
+import { displayModelGroup, displayModelName } from "@/utils/model-name"
 
 const isFree = (provider: string, cost: { input: number } | undefined) =>
   provider === "opencode" && (!cost || cost.input === 0)

@@ -7,7 +7,3 @@ export function displayModelGroup(providerID: string, providerName: string, defa
   if (providerID === "opencode") return defaultName
   return providerName
 }
-
-export function isAutoModel(providerID: string, modelID: string) {
-  return providerID === "builtin" && modelID === "auto"
-}
