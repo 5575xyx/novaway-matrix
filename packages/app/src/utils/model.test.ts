@@ -1,10 +1,46 @@
 import { describe, expect, test } from "bun:test"
-import { isAutoModel } from "./model"
+import { firstSelectableModel, isAutoModel } from "./model"
 
 describe("isAutoModel", () => {
   test("only flags the built-in auto entry", () => {
     expect(isAutoModel("builtin", "auto")).toBe(true)
     expect(isAutoModel("builtin", "gpt-5")).toBe(false)
     expect(isAutoModel("anthropic", "auto")).toBe(false)
+  })
+})
+
+describe("firstSelectableModel", () => {
+  const alwaysValid = () => true
+
+  test("内置提供商排除 auto，返回首个实时模型", () => {
+    const builtin = {
+      id: "builtin",
+      models: { auto: { id: "auto" }, "gpt-5": { id: "gpt-5" } },
+    }
+    expect(firstSelectableModel(builtin, { builtin: "auto" }, alwaysValid)).toBe("gpt-5")
+    expect(firstSelectableModel(builtin, {}, alwaysValid)).toBe("gpt-5")
+  })
+
+  test("仅含 auto 的内置提供商没有可选模型", () => {
+    const builtin = { id: "builtin", models: { auto: { id: "auto" } } }
+    expect(firstSelectableModel(builtin, { builtin: "auto" }, alwaysValid)).toBeUndefined()
+  })
+
+  test("非内置提供商优先使用默认模型", () => {
+    const anthropic = {
+      id: "anthropic",
+      models: { "claude-4": { id: "claude-4" }, "claude-3": { id: "claude-3" } },
+    }
+    expect(firstSelectableModel(anthropic, { anthropic: "claude-3" }, alwaysValid)).toBe("claude-3")
+    expect(firstSelectableModel(anthropic, {}, alwaysValid)).toBe("claude-4")
+  })
+
+  test("默认模型无效时回退到首个有效模型", () => {
+    const anthropic = {
+      id: "anthropic",
+      models: { "claude-4": { id: "claude-4" } },
+    }
+    const isValid = (id: string) => id === "claude-4"
+    expect(firstSelectableModel(anthropic, { anthropic: "gone" }, isValid)).toBe("claude-4")
   })
 })
