@@ -4,6 +4,7 @@ import { DateTime } from "luxon"
 import { filter, firstBy, flat, groupBy, mapValues, pipe, uniqueBy, values } from "remeda"
 import { createSimpleContext } from "@novaway/ui/context"
 import { useProviders } from "@/hooks/use-providers"
+import { isAutoModel } from "@/utils/model-name"
 import { Persist, persisted } from "@/utils/persist"
 
 export type ModelKey = { providerID: string; modelID: string }
@@ -152,13 +153,13 @@ export const { use: useModels, provider: ModelsProvider } = createSimpleContext(
 
     const setAutoMode = (value: boolean) => {
       if (value) {
-        // 开启 Auto:记住当前手动模型(recent 按时间排序,取第一个非内置项)
-        const manual = store.recent.find((item) => item.providerID !== "builtin")
+        // 开启 Auto:记住当前手动模型(recent 按时间排序,取第一个非 auto 项)
+        const manual = store.recent.find((item) => !isAutoModel(item.providerID, item.modelID))
         if (manual) setStore("lastManual", { ...manual })
       } else {
         // 关闭 Auto:恢复上次手动模型到最近使用首位,让 fallback 链第一个命中它
         const manual = store.lastManual
-        if (manual && manual.providerID !== "builtin") {
+        if (manual && !isAutoModel(manual.providerID, manual.modelID)) {
           const uniq = uniqueBy([manual, ...store.recent], (x) => `${x.providerID}:${x.modelID}`)
           if (uniq.length > RECENT_LIMIT) uniq.pop()
           setStore("recent", uniq)

@@ -14,7 +14,7 @@ import { List } from "@novaway/ui/list"
 import { Tooltip } from "@novaway/ui/tooltip"
 import { ModelTooltip } from "./model-tooltip"
 import { useLanguage } from "@/context/language"
-import { displayModelGroup, displayModelName } from "@/utils/model-name"
+import { displayModelGroup, displayModelName, isAutoModel } from "@/utils/model-name"
 
 const isFree = (provider: string, cost: { input: number } | undefined) =>
   provider === "opencode" && (!cost || cost.input === 0)
@@ -36,11 +36,11 @@ const ModelList: Component<{
     // Auto Mode ON 时，返回空列表（隐藏模型列表）
     if (modelsCtx.autoMode()) return []
 
-    // Auto 关闭后，「内置」提供商（auto + 网关发现的模型）整体不再是可选项。
+    // Auto 关闭后，仅排除内置的 auto 条目，内置实时模型仍可选择。
     return model
       .list()
       .filter((m) => model.visible({ modelID: m.id, providerID: m.provider.id }))
-      .filter((m) => m.provider.id !== "builtin")
+      .filter((m) => !isAutoModel(m.provider.id, m.id))
       .filter((m) => (props.provider ? m.provider.id === props.provider : true))
   })
 
