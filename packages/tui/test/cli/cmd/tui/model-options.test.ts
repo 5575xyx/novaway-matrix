@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import {
   displayModelGroup,
   displayModelName,
+  isAutoModel,
   joinDescription,
   sortModelOptions,
 } from "../../../../src/component/dialog-model"
@@ -76,5 +77,13 @@ describe("sortModelOptions", () => {
     )
 
     expect(sorted.map((model) => model.title)).toEqual(["Free new", "Free old", "GLM 5.2", "GLM 5.1", "GLM 5"])
+  })
+})
+
+describe("isAutoModel", () => {
+  test("only flags the built-in auto entry", () => {
+    expect(isAutoModel("builtin", "auto")).toBe(true)
+    expect(isAutoModel("builtin", "gpt-5")).toBe(false)
+    expect(isAutoModel("anthropic", "auto")).toBe(false)
   })
 })
