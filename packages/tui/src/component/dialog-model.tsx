@@ -37,10 +37,9 @@ export function DialogModel(props: { providerID?: string }) {
 
   const showExtra = createMemo(() => connected() && !props.providerID)
 
-  const providerIDs = createMemo(() => new Set(sync.data.provider.map((item) => item.id)))
-  // 内置网关返回的模型名带上游供应商前缀(如 opencode:big-pickle),显示时仅对内置剥离。
+  // 内置网关返回的模型名带上游供应商前缀(如 opencode:big-pickle、qwen/qwen3.8-27b),显示时仅对内置剥离。
   const modelDisplayName = (providerID: string, name: string) =>
-    providerID === "builtin" ? stripProviderPrefix(name, providerIDs()) : name
+    providerID === "builtin" ? stripProviderPrefix(name) : name
 
   const options = createMemo(() => {
     if (autoMode()) return []

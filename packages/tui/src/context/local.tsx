@@ -300,8 +300,6 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         )
       })
 
-      const providerIDs = createMemo(() => new Set(sync.data.provider.map((item) => item.id)))
-
       return {
         current: currentModel,
         get ready() {
@@ -335,7 +333,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           return {
             provider: provider?.name ?? value.providerID,
             model:
-              value.providerID === "builtin" ? stripProviderPrefix(modelName, providerIDs()) : modelName,
+              value.providerID === "builtin" ? stripProviderPrefix(modelName) : modelName,
             reasoning: info?.capabilities?.reasoning ?? false,
           }
         }),

@@ -31,10 +31,9 @@ export function isAutoModel(providerID: string, modelID: string) {
   return providerID === "builtin" && modelID === "auto"
 }
 
-export function stripProviderPrefix(name: string, providerIDs: ReadonlySet<string>) {
-  const index = name.indexOf(":")
-  if (index <= 0) return name
-  const prefix = name.slice(0, index)
-  if (!providerIDs.has(prefix)) return name
-  return name.slice(index + 1).trim()
+export function stripProviderPrefix(name: string) {
+  const match = /^[^:/]+[:/]/.exec(name)
+  if (!match) return name
+  const rest = name.slice(match[0].length).trim()
+  return rest || name
 }
