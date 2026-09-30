@@ -11,6 +11,10 @@ import { useConnected } from "./use-connected"
 import { useSync } from "../context/sync"
 import { useTheme } from "../context/theme"
 
+export function isAutoModel(providerID: string, modelID: string) {
+  return providerID === "builtin" && modelID === "auto"
+}
+
 export function DialogModel(props: { providerID?: string }) {
   const local = useLocal()
   const sync = useSync()
@@ -30,9 +34,7 @@ export function DialogModel(props: { providerID?: string }) {
     const showSections = showExtra() && needle.length === 0
     const favorites = connected() ? local.model.favorite() : []
     // Auto 关闭后,builtin/auto 不再是可选项,别让它出现在收藏/最近使用里。
-    const isAutoModel = (item: { providerID: string; modelID: string }) =>
-      item.providerID === "builtin" && item.modelID === "auto"
-    const recents = local.model.recent().filter((item) => !isAutoModel(item))
+    const recents = local.model.recent().filter((item) => !isAutoModel(item.providerID, item.modelID))
 
     function toOptions(items: typeof favorites, category: string) {
       if (!showSections) return []
@@ -58,7 +60,10 @@ export function DialogModel(props: { providerID?: string }) {
       })
     }
 
-    const favoriteOptions = toOptions(favorites.filter((item) => !isAutoModel(item)), "收藏")
+    const favoriteOptions = toOptions(
+      favorites.filter((item) => !isAutoModel(item.providerID, item.modelID)),
+      "收藏",
+    )
     const recentOptions = toOptions(
       recents.filter(
         (item) => !favorites.some((fav) => fav.providerID === item.providerID && fav.modelID === item.modelID),
@@ -68,8 +73,6 @@ export function DialogModel(props: { providerID?: string }) {
 
     const providerOptions = pipe(
       sync.data.provider,
-      // Auto 关闭后,builtin/auto 不再是可选项,从提供商列表中隐藏。
-      filter((provider) => !(autoMode() === false && provider.id === "builtin")),
       sortBy(
         (provider) => provider.id !== "NovaWay",
         (provider) => provider.name,
@@ -78,6 +81,7 @@ export function DialogModel(props: { providerID?: string }) {
         pipe(
           provider.models,
           entries(),
+          filter(([model]) => !isAutoModel(provider.id, model)),
           filter(([_, info]) => info.status !== "deprecated"),
           filter(([_, info]) => (props.providerID ? info.providerID === props.providerID : true)),
           map(([model, info]) => ({
