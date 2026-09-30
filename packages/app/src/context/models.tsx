@@ -4,7 +4,7 @@ import { DateTime } from "luxon"
 import { filter, firstBy, flat, groupBy, mapValues, pipe, uniqueBy, values } from "remeda"
 import { createSimpleContext } from "@novaway/ui/context"
 import { useProviders } from "@/hooks/use-providers"
-import { isAutoModel } from "@/utils/model"
+import { isAutoModel, stripProviderPrefix } from "@/utils/model"
 import { Persist, persisted } from "@/utils/persist"
 
 export type ModelKey = { providerID: string; modelID: string }
@@ -97,12 +97,18 @@ export const { use: useModels, provider: ModelsProvider } = createSimpleContext(
       return map
     })
 
+    const providerIDs = createMemo(() => new Set(providers.all().map((item) => item.id)))
+
     const list = createMemo(() =>
-      available().map((m) => ({
-        ...m,
-        name: m.name.replace("(latest)", "").trim(),
-        latest: m.name.includes("(latest)"),
-      })),
+      available().map((m) => {
+        const name = m.name.replace("(latest)", "").trim()
+        return {
+          ...m,
+          // 内置网关返回的模型名带上游供应商前缀(如 opencode:big-pickle),显示时仅对内置剥离。
+          name: m.provider.id === "builtin" ? stripProviderPrefix(name, providerIDs()) : name,
+          latest: m.name.includes("(latest)"),
+        }
+      }),
     )
 
     const find = (key: ModelKey) => list().find((m) => m.id === key.modelID && m.provider.id === key.providerID)
