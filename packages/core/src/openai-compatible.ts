@@ -95,6 +95,13 @@ export function parseRemoteProviderModels(payload: unknown): RemoteProviderModel
     })
 }
 
+export function stripProviderPrefix(name: string): string {
+  const match = /^[^:/]+[:/]/.exec(name)
+  if (!match) return name
+  const rest = name.slice(match[0].length).trim()
+  return rest || name
+}
+
 export function resolveOpenAICompatibleEndpoint(input: string): OpenAICompatibleEndpoint | undefined {
   const value = input.trim()
   if (!URL.canParse(value)) return undefined
