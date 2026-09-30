@@ -5,6 +5,7 @@ import { batch, createEffect, createMemo } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useModels } from "@/context/models"
 import { useProviders } from "@/hooks/use-providers"
+import { isAutoModel } from "@/utils/model-name"
 import { Persist, persisted } from "@/utils/persist"
 import { cycleModelVariant, getConfiguredAgentVariant, resolveModelVariant } from "./model-variant"
 import { visibleAgentList } from "./local-agent"
@@ -150,12 +151,10 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       if (validModel(model)) return model
     }
 
-    const isAutoModel = (item: ModelKey) => item.providerID === "builtin" && item.modelID === "auto"
-
     const recentModel = () => {
       for (const item of models.recent.list()) {
-        // Auto 关闭后,内置提供商的模型不再生效,跳过继续找下一个
-        if (item.providerID === "builtin") continue
+        // Auto 关闭后,仅跳过内置 auto 条目,内置实时模型仍可回退
+        if (isAutoModel(item.providerID, item.modelID)) continue
         if (validModel(item)) return item
       }
     }
@@ -234,13 +233,13 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       const item = firstModel(
         () => {
           const m = scope()?.model
-          // 手动模式下忽略残留的内置模型(Auto 开启时写入的)
-          if (m && m.providerID === "builtin") return undefined
+          // 手动模式下忽略残留的内置 auto(Auto 开启时写入的)
+          if (m && isAutoModel(m.providerID, m.modelID)) return undefined
           return m
         },
         () => {
           const m = agent.current()?.model
-          if (m && m.providerID === "builtin") return undefined
+          if (m && isAutoModel(m.providerID, m.modelID)) return undefined
           return m
         },
         fallback,
