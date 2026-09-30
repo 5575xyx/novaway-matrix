@@ -49,6 +49,15 @@ export function recentModels(
     .map((item) => ({ providerID: item.providerID, modelID: item.modelID }))
 }
 
+export function defaultSelectableModel(
+  provider: { id: string; models: Record<string, { id: string }> },
+  defaults: Record<string, string | undefined>,
+) {
+  const preferred = defaults[provider.id]
+  if (preferred && !(provider.id === "builtin" && preferred === "auto")) return preferred
+  return Object.keys(provider.models).find((id) => !(provider.id === "builtin" && id === "auto"))
+}
+
 export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
   name: "Local",
   init: () => {
@@ -250,12 +259,14 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           if (manual && isModelValid(manual)) return manual
         }
 
-        // 内置提供商只承载 Auto 模型,手动模式不要回退到它
-        const provider = sync.data.provider.find((item) => item.id !== "builtin")
+        // 优先非内置提供商;仅当没有其它提供商时,内置实时模型也可作为最后兜底(排除 auto)
+        const provider =
+          sync.data.provider.find((item) => item.id !== "builtin") ??
+          sync.data.provider.find(
+            (item) => defaultSelectableModel(item, sync.data.provider_default) !== undefined,
+          )
         if (!provider) return undefined
-        const defaultModel = sync.data.provider_default[provider.id]
-        const firstModel = Object.values(provider.models)[0]
-        const model = defaultModel ?? firstModel?.id
+        const model = defaultSelectableModel(provider, sync.data.provider_default)
         if (!model) return undefined
         return {
           providerID: provider.id,
