@@ -53,7 +53,7 @@ const has =
 async function renderFrame(
   body: () => JSX.Element,
   options: { width: number; height: number },
-  ready: (lines: string[]) => boolean = has("X"),
+  ready: (lines: string[]) => boolean,
 ) {
   // body 必须当组件渲染(<Body />)而不是直接调 body():后者在 provider 的 children
   // getter 里就把 JSX 建好了,不在任何渲染作用域内,插不进渲染树(实测整帧全空)。
