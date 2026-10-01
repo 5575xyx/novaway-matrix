@@ -59,6 +59,8 @@ import { usePromptWorkspace } from "./workspace"
 import { usePromptMove } from "./move"
 import { readLocalAttachment } from "./local-attachment"
 import { useLocation } from "../../context/location"
+import { NeonRail } from "../neon-rail"
+import { neonStops } from "../../ui/neon"
 
 registerNovaWaySpinner()
 
@@ -180,6 +182,9 @@ export function Prompt(props: PromptProps) {
   const { theme, syntax } = useTheme()
   const kv = useKV()
   const animationsEnabled = createMemo(() => kv.get("animations_enabled", true))
+  // 聚焦态驱动输入框上方的流动霓虹导轨:on:focused/on:blurred 是 Renderable 的
+  // EventEmitter 事件,由 solid 的 on: 前缀接线。
+  const [promptFocused, setPromptFocused] = createSignal(false)
   const list = createMemo(() => props.placeholders?.normal ?? [])
   const shell = createMemo(() => props.placeholders?.shell ?? [])
   const fileContextEnabled = createMemo(() => kv.get("file_context_enabled", true))
@@ -1383,6 +1388,9 @@ export function Prompt(props: PromptProps) {
   return (
     <>
       <box ref={(r: BoxRenderable) => (anchor = r)} visible={props.visible !== false} width="100%">
+        <Show when={promptFocused()}>
+          <NeonRail stops={neonStops(theme)} animated />
+        </Show>
         {/* crush \u5f0f\u65e0\u6846\u7f16\u8f91\u5668:\u5de6\u8272\u6761/\u7070\u5e95/\u5e95\u90e8\u6a2a\u7ebf\u5168\u90e8\u53bb\u6389,\u4e3b\u9898\u8272\u6536\u655b\u5230\u884c\u9996\u63d0\u793a\u7b26\u3002
             \u63d0\u793a\u7b26\u989c\u8272\u6cbf\u7528\u539f\u5de6\u8fb9\u6761\u7684\u9ad8\u4eae\u903b\u8f91(agent \u8272 / leader / shell \u6a21\u5f0f)\u3002 */}
         <box width="100%" flexDirection="row" paddingTop={1} flexShrink={0}>
@@ -1461,6 +1469,8 @@ export function Prompt(props: PromptProps) {
                 }, 0)
               }}
               onMouseDown={(r: MouseEvent) => r.target?.focus()}
+              on:focused={() => setPromptFocused(true)}
+              on:blurred={() => setPromptFocused(false)}
               cursorColor={props.disabled ? theme.backgroundElement : theme.text}
               cursorStyle={tuiConfig.cursor}
               syntaxStyle={syntax()}
