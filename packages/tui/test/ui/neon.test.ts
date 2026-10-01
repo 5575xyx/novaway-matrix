@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { RGBA } from "@opentui/core"
-import { gradientAt, perimeterCells } from "../../src/ui/neon"
+import { gradientAt, neonStops, perimeterCells, semanticStops } from "../../src/ui/neon"
+import { resolveTheme, type ThemeJson } from "../../src/theme"
+import novaway from "../../src/theme/assets/novaway.json" with { type: "json" }
 
 describe("gradientAt", () => {
   const red = RGBA.fromHex("#ff0000")
@@ -78,5 +80,40 @@ describe("perimeterCells", () => {
       [0, 2],
       [0, 1],
     ])
+  })
+})
+
+describe("semanticStops", () => {
+  const theme = resolveTheme(novaway as ThemeJson, "dark")
+
+  test("助手=青蓝双段", () => {
+    expect(semanticStops(theme, "assistant")).toEqual([theme.info, theme.primary])
+  })
+
+  test("用户=粉紫双段", () => {
+    expect(semanticStops(theme, "user")).toEqual([theme.accent, theme.neonMid])
+  })
+
+  test("思考=紫青双段", () => {
+    expect(semanticStops(theme, "thinking")).toEqual([theme.neonMid, theme.neonEnd])
+  })
+
+  test("错误/提示是单段语义色", () => {
+    expect(semanticStops(theme, "error")).toEqual([theme.error])
+    expect(semanticStops(theme, "tip")).toEqual([theme.warning])
+  })
+
+  test("工具/输入走全段霓虹", () => {
+    expect(semanticStops(theme, "tool")).toEqual(neonStops(theme))
+    expect(semanticStops(theme, "input")).toEqual(neonStops(theme))
+  })
+
+  test("每个 role 都返回 2 或 3 段的非空色板", () => {
+    const roles = ["user", "assistant", "thinking", "tool", "input"] as const
+    for (const role of roles) {
+      const stops = semanticStops(theme, role)
+      expect(stops.length).toBeGreaterThanOrEqual(2)
+      expect(stops.length).toBeLessThanOrEqual(3)
+    }
   })
 })
