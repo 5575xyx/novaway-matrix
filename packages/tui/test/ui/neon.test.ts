@@ -66,4 +66,17 @@ describe("perimeterCells", () => {
     expect(cells[cells.length - 1]!.t).toBe(1)
     expect(cells.every((cell, index) => index === 0 || cell.t >= cells[index - 1]!.t)).toBe(true)
   })
+
+  test("3×3 按 上(左→右)→右(上→下)→下(右→左)→左(下→上) 遍历", () => {
+    expect(perimeterCells(3, 3).map((cell) => [cell.x, cell.y])).toEqual([
+      [0, 0],
+      [1, 0],
+      [2, 0],
+      [2, 1],
+      [2, 2],
+      [1, 2],
+      [0, 2],
+      [0, 1],
+    ])
+  })
 })
