@@ -1,6 +1,7 @@
 import {
   BoxRenderable,
   RGBA,
+  StyledText,
   TextareaRenderable,
   MouseEvent,
   PasteEvent,
@@ -53,14 +54,13 @@ import { createFadeIn } from "../../util/signal"
 import { DialogSkill } from "../dialog-skill"
 import { DialogWorkspaceUnavailable } from "../dialog-workspace-unavailable"
 import { useArgs } from "../../context/args"
-import { NovaWay_BASE_MODE, useBindings, useCommandShortcut, useLeaderActive, useNovaWayKeymap } from "../../keymap"
+import { NovaWay_BASE_MODE, useBindings, useLeaderActive, useNovaWayKeymap } from "../../keymap"
 import { useTuiConfig } from "../../config"
 import { usePromptWorkspace } from "./workspace"
 import { usePromptMove } from "./move"
 import { readLocalAttachment } from "./local-attachment"
 import { useLocation } from "../../context/location"
-import { NeonRail } from "../neon-rail"
-import { neonStops } from "../../ui/neon"
+import { PromptCard, PromptHints, PromptSend } from "./card"
 
 registerNovaWaySpinner()
 
@@ -112,6 +112,9 @@ const money = new Intl.NumberFormat("en-US", {
 
 const DRAFT_RETENTION_MIN_CHARS = 20
 
+// 示例占位符比提示语更沉的一档(alpha 见 buildPlaceholder 的调用处)。
+const PLACEHOLDER_EXAMPLE_ALPHA = 0.55
+
 function randomIndex(count: number) {
   if (count <= 0) return 0
   return Math.floor(Math.random() * count)
@@ -127,6 +130,29 @@ function hasEditorRangeSelection(selection: EditorSelection["ranges"][number]) {
     selection.selection.start.line !== selection.selection.end.line ||
     selection.selection.start.character !== selection.selection.end.character
   )
+}
+
+// 占位符是两段式:提示语用 textMuted,后面那个示例再压暗一档 —— 原型里
+// 「问我任何事...」和「"示例"」是主次两级,单色字符串区分不出来。
+// Textarea 的 placeholder 收 StyledText,按两段 chunk 分别给色。
+// exampleAlpha 把 textMuted 的 alpha 压下去:占位符画在输入卡的背景上,alpha 越低越沉。
+// 抽成纯函数是为了能直接单测 —— Prompt 挂载要整套 session/local context,拆不动。
+export function buildPlaceholder(input: {
+  prefix: string
+  examples: readonly string[]
+  index: number
+  muted: RGBA
+  exampleAlpha: number
+}) {
+  if (input.examples.length === 0) return undefined
+  return new StyledText([
+    { __isChunk: true, text: input.prefix, fg: input.muted },
+    {
+      __isChunk: true,
+      text: `"${input.examples[input.index % input.examples.length]}"`,
+      fg: fadeColor(input.muted, input.exampleAlpha),
+    },
+  ])
 }
 
 function getEditorRangeLabel(selection: EditorSelection["ranges"][number]) {
@@ -174,15 +200,13 @@ export function Prompt(props: PromptProps) {
   const history = usePromptHistory()
   const stash = usePromptStash()
   const keymap = useNovaWayKeymap()
-  const agentShortcut = useCommandShortcut("agent.cycle")
-  const paletteShortcut = useCommandShortcut("command.palette.show")
   const renderer = useRenderer()
   const exit = useExit()
   const dimensions = useTerminalDimensions()
   const { theme, syntax } = useTheme()
   const kv = useKV()
   const animationsEnabled = createMemo(() => kv.get("animations_enabled", true))
-  // 聚焦态驱动输入框上方的流动霓虹导轨:on:focused/on:blurred 是 Renderable 的
+  // 聚焦态驱动输入卡的流动描边(animated):on:focused/on:blurred 是 Renderable 的
   // EventEmitter 事件,由 solid 的 on: 前缀接线。
   const [promptFocused, setPromptFocused] = createSignal(false)
   const list = createMemo(() => props.placeholders?.normal ?? [])
@@ -224,7 +248,18 @@ export function Prompt(props: PromptProps) {
   const move = usePromptMove({ projectID: project.project, sessionID: () => props.sessionID })
   const [cursorVersion, setCursorVersion] = createSignal(0)
   const currentProviderLabel = createMemo(() => local.model.parsed().provider)
-  const hasRightContent = createMemo(() => Boolean(props.right))
+  // 发送按钮能不能点:与 submitInner 的前置守卫(见下面 disabled / creating / 弹层可见 /
+  // 空输入 / 无 agent 那五条)同一组条件,只是提前把结果画在按钮上 —— 真判定仍在
+  // submit() 里,这里不给它开旁路。
+  const canSend = createMemo(
+    () =>
+      !props.disabled &&
+      !workspace.creating() &&
+      !move.creating() &&
+      !auto()?.visible &&
+      Boolean(store.prompt.input) &&
+      Boolean(local.agent.current()),
+  )
 
   function promptModelWarning() {
     toast.show({
@@ -1364,13 +1399,14 @@ export function Prompt(props: PromptProps) {
 
   const placeholderText = createMemo(() => {
     if (props.showPlaceholder === false) return undefined
-    if (store.mode === "shell") {
-      if (!shell().length) return undefined
-      const example = shell()[store.placeholder % shell().length]
-      return `运行命令... "${example}"`
-    }
-    if (!list().length) return undefined
-    return `问我任何事... "${list()[store.placeholder % list().length]}"`
+    const shellMode = store.mode === "shell"
+    return buildPlaceholder({
+      prefix: shellMode ? "运行命令... " : "问我任何事... ",
+      examples: shellMode ? shell() : list(),
+      index: store.placeholder,
+      muted: theme.textMuted,
+      exampleAlpha: PLACEHOLDER_EXAMPLE_ALPHA,
+    })
   })
 
   // crush 式工作指示:扰动字符带主题双色(primary→secondary)渐变,颜色固定,
@@ -1387,125 +1423,139 @@ export function Prompt(props: PromptProps) {
 
   return (
     <>
-      <box ref={(r: BoxRenderable) => (anchor = r)} visible={props.visible !== false} width="100%">
-        <Show when={promptFocused()}>
-          <NeonRail stops={neonStops(theme)} animated />
-        </Show>
-        {/* crush \u5f0f\u65e0\u6846\u7f16\u8f91\u5668:\u5de6\u8272\u6761/\u7070\u5e95/\u5e95\u90e8\u6a2a\u7ebf\u5168\u90e8\u53bb\u6389,\u4e3b\u9898\u8272\u6536\u655b\u5230\u884c\u9996\u63d0\u793a\u7b26\u3002
-            \u63d0\u793a\u7b26\u989c\u8272\u6cbf\u7528\u539f\u5de6\u8fb9\u6761\u7684\u9ad8\u4eae\u903b\u8f91(agent \u8272 / leader / shell \u6a21\u5f0f)\u3002 */}
-        <box width="100%" flexDirection="row" paddingTop={1} flexShrink={0}>
-          <box flexShrink={0} width={2} height={1}>
-            {/* ASCII ">" \u800c\u4e0d\u662f \u276f:U+276F \u5c5e\u4e8e East-Asian Ambiguous \u5bbd\u5ea6,CJK \u7ec8\u7aef\u4f1a\u6e32\u67d3\u6210\u5bbd\u5b57\u7b26/\u4e71\u7801 */}
-            <text fg={props.disabled ? theme.textMuted : borderHighlight()}>{">"}</text>
-          </box>
-          <box paddingRight={2} flexGrow={1} flexShrink={0} width="100%">
-            <textarea
-              width="100%"
-              placeholder={placeholderText()}
-              placeholderColor={theme.textMuted}
-              textColor={leader() ? theme.textMuted : theme.text}
-              focusedTextColor={leader() ? theme.textMuted : theme.text}
-              minHeight={1}
-              maxHeight={maxHeight()}
-              onContentChange={() => {
-                const value = input.plainText
-                setStore("prompt", "input", value)
-                auto()?.onInput(value)
-                syncExtmarksWithPromptParts()
-                setCursorVersion((value) => value + 1)
-              }}
-              onCursorChange={() => setCursorVersion((value) => value + 1)}
-              onKeyDown={(e: { preventDefault(): void }) => {
-                if (props.disabled) {
-                  e.preventDefault()
-                  return
-                }
-              }}
-              onSubmit={() => {
-                // IME: double-defer so the last composed character (e.g. Korean
-                // hangul) is flushed to plainText before we read it for submission.
-                setTimeout(() => setTimeout(() => submit(), 0), 0)
-              }}
-              onPaste={async (event: PasteEvent) => {
-                if (props.disabled) {
+      <box
+        ref={(r: BoxRenderable) => (anchor = r)}
+        visible={props.visible !== false}
+        width="100%"
+        flexDirection="column"
+      >
+        {/* 输入区霓虹输入卡:两行(输入行 / 提示行),聚焦时描边流动 + 扫光。
+            卡壳与提示行在 ./card 里 —— 只依赖 useTheme/useKV/键位表,测试能直接挂载真壳。
+            anchor 仍是这个最外层盒子:autocomplete 弹层按它的 x/y/width 定位到卡片上方。 */}
+        <PromptCard focused={promptFocused()}>
+          <box width="100%" flexDirection="row" gap={1} flexShrink={0}>
+            <box flexShrink={0} width={2} height={1}>
+              {/* ASCII ">" 而不是 ❯:U+276F 属于 East-Asian Ambiguous 宽度,CJK 终端会渲染成宽字符/乱码 */}
+              <text fg={props.disabled ? theme.textMuted : borderHighlight()}>{">"}</text>
+            </box>
+            <box flexGrow={1} flexShrink={1} minWidth={4}>
+              <textarea
+                width="100%"
+                placeholder={placeholderText()}
+                placeholderColor={theme.textMuted}
+                textColor={leader() ? theme.textMuted : theme.text}
+                focusedTextColor={leader() ? theme.textMuted : theme.text}
+                minHeight={1}
+                maxHeight={maxHeight()}
+                onContentChange={() => {
+                  const value = input.plainText
+                  setStore("prompt", "input", value)
+                  auto()?.onInput(value)
+                  syncExtmarksWithPromptParts()
+                  setCursorVersion((value) => value + 1)
+                }}
+                onCursorChange={() => setCursorVersion((value) => value + 1)}
+                onKeyDown={(e: { preventDefault(): void }) => {
+                  if (props.disabled) {
+                    e.preventDefault()
+                    return
+                  }
+                }}
+                onSubmit={() => {
+                  // IME: double-defer so the last composed character (e.g. Korean
+                  // hangul) is flushed to plainText before we read it for submission.
+                  setTimeout(() => setTimeout(() => submit(), 0), 0)
+                }}
+                onPaste={async (event: PasteEvent) => {
+                  if (props.disabled) {
+                    event.preventDefault()
+                    return
+                  }
+
+                  // Normalize line endings at the boundary
+                  // Windows ConPTY/Terminal often sends CR-only newlines in bracketed paste
+                  // Replace CRLF first, then any remaining CR
+                  const normalizedText = decodePasteBytes(event.bytes).replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+                  const pastedContent = normalizedText.trim()
+
+                  // Windows Terminal <1.25 can surface image-only clipboard as an
+                  // empty bracketed paste. Windows Terminal 1.25+ does not.
+                  if (!pastedContent) {
+                    keymap.dispatchCommand("prompt.paste")
+                    return
+                  }
+
+                  // Once we cross an async boundary below, the terminal may perform its
+                  // default paste unless we suppress it first and handle insertion ourselves.
                   event.preventDefault()
-                  return
-                }
 
-                // Normalize line endings at the boundary
-                // Windows ConPTY/Terminal often sends CR-only newlines in bracketed paste
-                // Replace CRLF first, then any remaining CR
-                const normalizedText = decodePasteBytes(event.bytes).replace(/\r\n/g, "\n").replace(/\r/g, "\n")
-                const pastedContent = normalizedText.trim()
-
-                // Windows Terminal <1.25 can surface image-only clipboard as an
-                // empty bracketed paste. Windows Terminal 1.25+ does not.
-                if (!pastedContent) {
-                  keymap.dispatchCommand("prompt.paste")
-                  return
-                }
-
-                // Once we cross an async boundary below, the terminal may perform its
-                // default paste unless we suppress it first and handle insertion ourselves.
-                event.preventDefault()
-
-                await pasteInputText(normalizedText)
-              }}
-              ref={(r: TextareaRenderable) => {
-                input = r
-                Object.assign(r, {
-                  getClipboardText: (text: string) => expandPastedTextPlaceholders(text, store.prompt.parts),
-                })
-                setInputTarget(r)
-                if (promptPartTypeId === 0) {
-                  promptPartTypeId = input.extmarks.registerType("prompt-part")
-                }
-                props.ref?.(ref)
-                setTimeout(() => {
-                  // setTimeout is a workaround and needs to be addressed properly
-                  if (!input || input.isDestroyed) return
-                  input.cursorColor = theme.text
-                  if (tuiConfig.cursor) input.cursorStyle = tuiConfig.cursor
-                }, 0)
-              }}
-              onMouseDown={(r: MouseEvent) => r.target?.focus()}
-              on:focused={() => setPromptFocused(true)}
-              on:blurred={() => setPromptFocused(false)}
-              cursorColor={props.disabled ? theme.backgroundElement : theme.text}
-              cursorStyle={tuiConfig.cursor}
-              syntaxStyle={syntax()}
+                  await pasteInputText(normalizedText)
+                }}
+                ref={(r: TextareaRenderable) => {
+                  input = r
+                  Object.assign(r, {
+                    getClipboardText: (text: string) => expandPastedTextPlaceholders(text, store.prompt.parts),
+                  })
+                  setInputTarget(r)
+                  if (promptPartTypeId === 0) {
+                    promptPartTypeId = input.extmarks.registerType("prompt-part")
+                  }
+                  props.ref?.(ref)
+                  setTimeout(() => {
+                    // setTimeout is a workaround and needs to be addressed properly
+                    if (!input || input.isDestroyed) return
+                    input.cursorColor = theme.text
+                    if (tuiConfig.cursor) input.cursorStyle = tuiConfig.cursor
+                  }, 0)
+                }}
+                onMouseDown={(r: MouseEvent) => r.target?.focus()}
+                on:focused={() => setPromptFocused(true)}
+                on:blurred={() => setPromptFocused(false)}
+                cursorColor={props.disabled ? theme.backgroundElement : theme.text}
+                cursorStyle={tuiConfig.cursor}
+                syntaxStyle={syntax()}
+              />
+            </box>
+            <PromptSend
+              model={store.mode === "normal" ? local.model.parsed().model : ""}
+              canSend={canSend()}
+              onSend={() => void submit()}
             />
-            <box
-              flexDirection="row"
-              flexShrink={0}
-              paddingTop={1}
-              gap={1}
-              justifyContent="space-between"
-              paddingLeft={2}
-            >
+          </box>
+          {/* 卡内第二行:插件槽 + agent/权限/提供商/变体 meta(左,可截断)+ 键位提示(右,不截断)。
+              模型名不在这里 —— 它是输入行右端的芯片;这行只留「和模型相关的其余信息」。
+              meta 里的每一段都 wrapMode="none" + flexShrink={0}:少了前者会被软折行顶高一倍,
+              少了后者会被 yoga 按内容宽度压、同一段文字折成好几行。两个都固定住之后,
+              整段保持自然宽,由 PromptHints 里 minWidth=0 + overflow hidden 的盒子从右边裁掉。 */}
+          <PromptHints
+            shell={store.mode === "shell"}
+            right={props.right}
+            meta={
               <box flexDirection="row" gap={1}>
                 <Show when={local.agent.current()} fallback={<box height={1} />}>
                   {(agent) => (
                     <>
-                      <text fg={fadeColor(highlight(), agentMetaAlpha())}>
+                      <text flexShrink={0} fg={fadeColor(highlight(), agentMetaAlpha())} wrapMode="none">
                         {store.mode === "shell" ? "Shell" : agentDisplayName(agent().name, agent().options)}
                       </text>
                       <Show when={store.mode === "normal" && local.permission.mode === "auto"}>
-                        <text fg={fadeColor(theme.textMuted, agentMetaAlpha())}>auto</text>
+                        <text flexShrink={0} fg={fadeColor(theme.textMuted, agentMetaAlpha())} wrapMode="none">
+                          auto
+                        </text>
                       </Show>
                       <Show when={store.mode === "normal"}>
                         <box flexDirection="row" gap={1}>
-                          <text fg={fadeColor(theme.textMuted, modelMetaAlpha())}>·</text>
-                          <text
-                            flexShrink={0}
-                            fg={fadeColor(leader() ? theme.textMuted : theme.text, modelMetaAlpha())}
-                          >
-                            {local.model.parsed().model}
+                          <text flexShrink={0} fg={fadeColor(theme.textMuted, modelMetaAlpha())} wrapMode="none">
+                            ·
                           </text>
-                          <text fg={fadeColor(theme.textMuted, modelMetaAlpha())}>{currentProviderLabel()}</text>
+                          <text flexShrink={0} fg={fadeColor(theme.textMuted, modelMetaAlpha())} wrapMode="none">
+                            {currentProviderLabel()}
+                          </text>
                           <Show when={showVariant()}>
-                            <text fg={fadeColor(theme.textMuted, variantMetaAlpha())}>·</text>
-                            <text>
+                            <text flexShrink={0} fg={fadeColor(theme.textMuted, variantMetaAlpha())} wrapMode="none">
+                              ·
+                            </text>
+                            <text flexShrink={0} wrapMode="none">
                               <span style={{ fg: fadeColor(theme.warning, variantMetaAlpha()), bold: true }}>
                                 {local.model.variant.current()}
                               </span>
@@ -1517,15 +1567,13 @@ export function Prompt(props: PromptProps) {
                   )}
                 </Show>
               </box>
-              <Show when={hasRightContent()}>
-                <box flexDirection="row" gap={1} alignItems="center">
-                  {props.right}
-                </box>
-              </Show>
-            </box>
-          </box>
-        </box>
-        <box width="100%" flexDirection="row" justifyContent="space-between">
+            }
+          />
+        </PromptCard>
+        {/* 状态行留在卡外:目录 / 工作指示 / retry / token 花费都属于「这次会话」,
+            不属于输入卡。flexShrink={0} 是补的 —— 原来这里没钉,长 retry 文案
+            (「retrying in … attempt #3」)会把上面的输入卡挤扁。 */}
+        <box width="100%" flexDirection="row" justifyContent="space-between" flexShrink={0}>
           <Switch>
             <Match when={status().type !== "idle"}>
               <box
@@ -1668,38 +1716,21 @@ export function Prompt(props: PromptProps) {
             </Match>
           </Switch>
           <Show when={status().type !== "retry"}>
-            <box gap={2} flexDirection="row">
+            <box gap={2} flexDirection="row" flexShrink={0}>
               <Show when={editorContextLabelState() !== "none" ? editorFileLabelDisplay() : undefined}>
                 {(file) => (
                   <text fg={editorContextLabelState() === "pending" ? theme.secondary : theme.textMuted}>{file()}</text>
                 )}
               </Show>
-              <Switch>
-                <Match when={store.mode === "normal"}>
-                  <Switch>
-                    <Match when={usage()}>
-                      {(item) => (
-                        <text fg={theme.textMuted} wrapMode="none">
-                          {[item().context, item().cost].filter(Boolean).join(" · ")}
-                        </text>
-                      )}
-                    </Match>
-                    <Match when={true}>
-                      <text fg={theme.text}>
-                        {agentShortcut()} <span style={{ fg: theme.textMuted }}>agents</span>
-                      </text>
-                    </Match>
-                  </Switch>
-                  <text fg={theme.text}>
-                    {paletteShortcut()} <span style={{ fg: theme.textMuted }}>commands</span>
+              {/* 键位提示(tab agents / ctrl+p commands / esc exit shell mode)搬进了输入卡的提示行,
+                  这里只留「不是键位」的状态:编辑器文件标签 + token/花费。 */}
+              <Show when={store.mode === "normal" && usage()}>
+                {(item) => (
+                  <text fg={theme.textMuted} wrapMode="none">
+                    {[item().context, item().cost].filter(Boolean).join(" · ")}
                   </text>
-                </Match>
-                <Match when={store.mode === "shell"}>
-                  <text fg={theme.text}>
-                    esc <span style={{ fg: theme.textMuted }}>exit shell mode</span>
-                  </text>
-                </Match>
-              </Switch>
+                )}
+              </Show>
             </box>
           </Show>
         </box>

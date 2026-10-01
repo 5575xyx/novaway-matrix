@@ -110,6 +110,14 @@ const GO_UPSELL_PROVIDERS = new Set(["NovaWay", "NovaWay-go"])
 
 export const alwaysSeparate = new WeakSet<BoxRenderable>()
 
+// 会话页的占位符。会话页之前**一个都没传**,聚焦时输入框里只有光标 —— 原型的
+// 输入卡靠「问我任何事... "示例"」占位,空着的话整张卡左半边是白的。
+// 「继续刚才的任务」就是原型 card-design-v7.html 里那一行示例。
+export const SESSION_PLACEHOLDERS = {
+  normal: ["继续刚才的任务", "总结目前的进展", "解释这段代码", "把失败的测试修好"],
+  shell: ["ls -la", "git status", "pwd"],
+}
+
 // 助手气泡卡内 part 的顶 margin 策略:卡内首个子节点的 previous 是 undefined → 拿 0
 // (那一行空行由气泡 wrapper 的 marginTop=1 承担),**只要有前一个兄弟就给 1**。
 // 判定只看「有没有前兄弟」,不看前兄弟的行数、也不看它在不在 alwaysSeparate 里:
@@ -1811,6 +1819,7 @@ export function Session() {
                           setQueueCollapsed(() => false)
                         }}
                         right={<pluginRuntime.Slot name="session_prompt_right" session_id={route.sessionID} />}
+                        placeholders={SESSION_PLACEHOLDERS}
                       />
                     </pluginRuntime.Slot>
                   </Show>
