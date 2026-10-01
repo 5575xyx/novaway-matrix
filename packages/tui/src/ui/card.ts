@@ -7,12 +7,14 @@ export type NeonBoxOptions = BoxOptions<NeonBoxRenderable> & {
 }
 
 // padding 允许百分比,构造期无法换算成格数只能原样透传;数字统一夹到 ≥1 格。
-const minPadding = (value: number | `${number}%` | undefined): number | `${number}%` =>
+const minPadding = (value: number | `${number}%` | null | undefined): number | `${number}%` =>
   typeof value === "number" ? Math.max(1, value) : (value ?? 1)
 
 // 霓虹玻璃卡片:不走 <box border> 的单色边框,而是在 renderSelf 之后
 // 按周长格子逐格重绘圆角边框字符 + 渐变色,对齐 mockup 的渐变描边。
-// 约定:四边 padding ≥ 1(构造时强制),否则内容首行/首列会被边框字符盖住。
+// 约定:四边 padding ≥ 1 —— 数字在构造函数与 paddingTop/Bottom/Left/Right setter 双路夹紧;
+// 子内容在边框之后绘制,padding 解析为 0 时是内容盖掉边框字符(边框缺格),不是反过来。
+// 单边百分比 padding 构造期无法换算成格数、夹不了,解析为 0 格由调用方兜底 —— 禁止传单边百分比 padding。
 export class NeonBoxRenderable extends BoxRenderable {
   private stops: readonly RGBA[] | undefined
 
@@ -37,6 +39,24 @@ export class NeonBoxRenderable extends BoxRenderable {
   set gradientStops(value: readonly RGBA[] | undefined) {
     this.stops = value
     this.requestRender()
+  }
+
+  // JSX 属性经 solid setProperty 直写 node[name],会绕过构造函数的 padding 夹紧,
+  // 所以四个 setter 同样夹到 ≥1 格;百分比原样透传(构造期换算不了格数)。
+  override set paddingTop(value: number | `${number}%` | null | undefined) {
+    super.paddingTop = minPadding(value)
+  }
+
+  override set paddingBottom(value: number | `${number}%` | null | undefined) {
+    super.paddingBottom = minPadding(value)
+  }
+
+  override set paddingLeft(value: number | `${number}%` | null | undefined) {
+    super.paddingLeft = minPadding(value)
+  }
+
+  override set paddingRight(value: number | `${number}%` | null | undefined) {
+    super.paddingRight = minPadding(value)
   }
 
   protected override renderSelf(buffer: OptimizedBuffer, deltaTime = 0): void {
