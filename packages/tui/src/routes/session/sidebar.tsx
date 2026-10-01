@@ -15,6 +15,8 @@ import { FileTree } from "../../component/file-tree"
 import { GitPanel } from "../../component/git-panel"
 import { Locale } from "../../util/locale"
 import { sidebarWidth } from "../../util/sidebar-width"
+import "../../ui/card"
+import { neonStops } from "../../ui/neon"
 
 // 会话标题是模型生成的,没有长度和换行保证;侧栏这一格放不下多行。
 const SESSION_TITLE_MAX = 60
@@ -85,8 +87,9 @@ export function Sidebar(props: SidebarProps) {
   )
 
   return (
-    <box
+    <neonbox
       backgroundColor={theme.backgroundPanel}
+      gradientStops={neonStops(theme)}
       width={sidebarWidth(dimensions().width)}
       height="100%"
       paddingTop={1}
@@ -222,6 +225,6 @@ export function Sidebar(props: SidebarProps) {
           </text>
         </pluginRuntime.Slot>
       </box>
-    </box>
+    </neonbox>
   )
 }
