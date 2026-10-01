@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { RGBA } from "@opentui/core"
-import { animColors, animFrames } from "../../src/util/anim-spinner"
+import { animColors, animFrames, animFramesCached } from "../../src/util/anim-spinner"
 
 describe("anim spinner 帧生成", () => {
   test("确定性:同一列同一帧永远同一个字符", () => {
@@ -34,6 +34,12 @@ describe("anim spinner 帧生成", () => {
     const frames = animFrames(7, 40)
     const changed = frames.some((frame, i) => i > 0 && frame !== frames[i - 1])
     expect(changed).toBe(true)
+  })
+
+  test("animFramesCached:同参数复用同一数组,宽度正确", () => {
+    expect(animFramesCached(24)).toBe(animFramesCached(24))
+    expect(animFramesCached(24)[0]).toHaveLength(24)
+    expect(animFramesCached(24)).toEqual(animFrames(24, 120))
   })
 })
 

@@ -54,3 +54,16 @@ export function animGradient(from: RGBA, to: RGBA) {
     )
   }
 }
+
+// 同参数复用同一套帧:WorkingSpinner 的可选宽度会随组件重渲染反复请求,
+// 缓存避免重复生成;键含 count/birth,参数不同不串台。
+const FRAME_CACHE = new Map<string, string[]>()
+
+export function animFramesCached(width: number, count = 120, birth = 20): string[] {
+  const key = `${width}:${count}:${birth}`
+  const cached = FRAME_CACHE.get(key)
+  if (cached) return cached
+  const frames = animFrames(width, count, birth)
+  FRAME_CACHE.set(key, frames)
+  return frames
+}

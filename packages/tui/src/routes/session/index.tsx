@@ -2107,7 +2107,7 @@ function WorkingLine(props: { sessionID: string; thinking: boolean }) {
   })
   return (
     <box ref={(el: BoxRenderable) => alwaysSeparate.add(el)} paddingLeft={2} paddingTop={1} flexShrink={0}>
-      <WorkingSpinner>
+      <WorkingSpinner width={24}>
         {props.thinking ? "思考中" : "正在回答"}
         <span style={{ fg: theme.textMuted }}> · {Locale.duration(seconds() * 1000)}</span>
       </WorkingSpinner>
