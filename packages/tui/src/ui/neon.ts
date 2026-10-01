@@ -26,6 +26,18 @@ export function gradientAt(stops: readonly RGBA[], t: number): RGBA {
 
 export type BorderCell = { x: number; y: number; ch: string; t: number }
 
+export type NeonRole = "user" | "assistant" | "thinking" | "tool" | "error" | "tip" | "input"
+
+// 原型设计语言③的语义映射:提示=琥珀、用户=粉紫、助手=青蓝、思考=紫青、工具=全段、错误=红、输入=全段。
+export function semanticStops(theme: Theme, role: NeonRole): readonly RGBA[] {
+  if (role === "assistant") return [theme.info, theme.primary]
+  if (role === "user") return [theme.accent, theme.neonMid]
+  if (role === "thinking") return [theme.neonMid, theme.neonEnd]
+  if (role === "error") return [theme.error]
+  if (role === "tip") return [theme.warning]
+  return neonStops(theme)
+}
+
 // 矩形周长格子,按「上(左→右) → 右(上→下) → 下(右→左) → 左(下→上)」顺序连续一圈,
 // t 是该格在整圈上的归一化进度 —— NeonBox 用它把渐变色沿边框绕一圈。
 export function perimeterCells(width: number, height: number): BorderCell[] {

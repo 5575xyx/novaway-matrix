@@ -32,7 +32,7 @@ import { TabBar, type TabItem } from "../../component/tab-bar"
 import { EmptySessionHero } from "../../component/empty-session-hero"
 import { createSyntaxStyleMemo, generateSubtleSyntax, useTheme } from "../../context/theme"
 import "../../ui/card"
-import { neonStops } from "../../ui/neon"
+import { neonStops, semanticStops } from "../../ui/neon"
 import { BoxRenderable, ScrollBoxRenderable, addDefaultParsers, TextAttributes, RGBA } from "@opentui/core"
 import { Prompt, type PromptRef } from "../../component/prompt"
 import type {
@@ -70,6 +70,7 @@ import { SubagentFooter } from "./subagent-footer.tsx"
 import { filetype } from "../../util/filetype"
 import parsers from "../../parsers-config"
 import { errorMessage } from "../../util/error"
+import { agentDisplayName } from "../../util/agent-name"
 import { Toast, useToast } from "../../ui/toast"
 import { useKV } from "../../context/kv.tsx"
 import stripAnsi from "strip-ansi"
@@ -108,6 +109,16 @@ const GO_UPSELL_WINDOW = 86_400_000 // 24 hrs
 const GO_UPSELL_PROVIDERS = new Set(["NovaWay", "NovaWay-go"])
 
 export const alwaysSeparate = new WeakSet<BoxRenderable>()
+
+// 助手气泡卡内 part 的顶 margin 策略。卡内首个子节点的 previous 是 undefined → 拿 0
+// (那一行空行由气泡 wrapper 的 marginTop=1 承担),之后按「前一个兄弟多行 或 在
+// alwaysSeparate 里」补 1。TextPart / ReasoningPart 共用,避免两处策略各改各的漂移。
+export function partSiblingRef(el: BoxRenderable) {
+  alwaysSeparate.add(el)
+  setPreLayoutSiblingMargin(el, (previous) =>
+    previous instanceof BoxRenderable && (previous.height > 1 || alwaysSeparate.has(previous)) ? 1 : 0,
+  )
+}
 
 type RetryAction = Extract<SessionStatus, { type: "retry" }>["action"]
 
@@ -1868,21 +1879,52 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
 
   return (
     <>
-      <For each={props.parts}>
-        {(part, index) => {
-          const component = createMemo(() => PART_MAPPING[part.type as keyof typeof PART_MAPPING])
-          return (
-            <Show when={component()}>
-              <Dynamic
-                last={index() === props.parts.length - 1}
-                component={component()}
-                part={part as any}
-                message={props.message}
-              />
-            </Show>
-          )
-        }}
-      </For>
+      {/* 助手气泡:meta 行(智能体 · 模型 · 时间)+ 霓虹描边正文卡。
+          wrapper 必须带 id —— 会话跳转(跳到消息/上一条下一条)是按 scrollbox **直接子节点**的 id 查的。
+          wrapper 自己承担 marginTop=1:卡内每个 part 的 margin 由 setPreLayoutSiblingMargin 按兄弟链算,
+          首 part 的 previous 是 undefined → 0,不会再多顶一行。 */}
+      <box id={props.message.id} ref={(el: BoxRenderable) => alwaysSeparate.add(el)} marginTop={1} flexShrink={0}>
+        <box flexDirection="row" gap={1} paddingLeft={1} flexShrink={0}>
+          <text wrapMode="none">
+            <span style={{ fg: local.agent.color(props.message.agent) }}>◆</span>
+            <span style={{ fg: theme.text }}> {agentDisplayName(props.message.agent)}</span>
+            {/* 模型名与 agent 名长度不受控,压成一行再截断,避免把 meta 行顶成两行 */}
+            <span style={{ fg: theme.textMuted }}>
+              {" · "}
+              {Locale.oneLine(model(), 60)}
+              {" · "}
+              {Locale.todayTimeOrDateTime(props.message.time.created)}
+            </span>
+          </text>
+        </box>
+        {/* paddingRight=1:NeonBox 不占边框格、边框画在最外列上,右留 1 格才能让正文不压到右边框。
+            四边 padding 合计 3 列 = 卡内可用宽度相对 ctx.width 的扣减(工具输出折叠常量按 −9 算)。 */}
+        <neonbox
+          gradientStops={semanticStops(theme, "assistant")}
+          paddingTop={1}
+          paddingBottom={1}
+          paddingLeft={2}
+          paddingRight={1}
+          width="100%"
+          flexShrink={0}
+        >
+          <For each={props.parts}>
+            {(part, index) => {
+              const component = createMemo(() => PART_MAPPING[part.type as keyof typeof PART_MAPPING])
+              return (
+                <Show when={component()}>
+                  <Dynamic
+                    last={index() === props.parts.length - 1}
+                    component={component()}
+                    part={part as any}
+                    message={props.message}
+                  />
+                </Show>
+              )
+            }}
+          </For>
+        </neonbox>
+      </box>
       <Show when={props.parts.some((x) => x.type === "tool" && x.tool === "task")}>
         <box paddingTop={1} paddingLeft={3}>
           <text fg={theme.text}>
@@ -1958,6 +2000,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
           </box>
           {/* 本轮改动:文件数固定有上限(见 DiffStatList),不会把这一屏顶掉。 */}
           <Show when={turnDiffs().length}>
+            {/* 注意:这个 box 在助手气泡卡**外面**(scrollbox 直属),保留自己的 paddingLeft/marginTop */}
             <box ref={(el: BoxRenderable) => alwaysSeparate.add(el)} paddingLeft={3} marginTop={1} flexShrink={0}>
               <text fg={theme.textMuted}>
                 本轮改动 {turnDiffs().length} 个文件
@@ -2015,13 +2058,7 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
 
   return (
     <Show when={content() || opaque()}>
-      <box
-        ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
-        paddingLeft={3}
-        marginTop={1}
-        flexDirection="column"
-        flexShrink={0}
-      >
+      <box ref={partSiblingRef} flexShrink={0}>
         {/* crush 式思考块:紫青渐变描边卡片 + 第 2 级灰底,和工具输出同一套弱对比语言 */}
         <neonbox
           gradientStops={[theme.neonMid, theme.neonEnd]}
@@ -2120,7 +2157,10 @@ function TextPart(props: { last: boolean; part: TextPart; message: AssistantMess
   const { theme, syntax } = useTheme()
   return (
     <Show when={props.part.text.trim()}>
-      <box ref={(el: BoxRenderable) => alwaysSeparate.add(el)} paddingLeft={3} marginTop={1} flexShrink={0}>
+      {/* paddingLeft 已删:缩进由助手气泡卡的 paddingLeft=2 提供,再叠 3 列会双重缩进;
+          嵌套列表的层级缩进由 markdown 的 internalBlockMode="top-level" 自己给
+          (回归见 test/routes/session/assistant-card.test.tsx)。 */}
+      <box ref={partSiblingRef} flexShrink={0}>
         <markdown
           syntaxStyle={syntax()}
           streaming={true}
@@ -2227,13 +2267,16 @@ type ToolProps = {
   output?: string
   part: ToolPart
 }
+// 工具输出的折叠宽度:助手卡现在把工具包在里面,正文比原来窄 3 列(卡 padding 2+1),
+// 再扣 BlockTool 自己的 padding 3 列,再加回原有的 3 列保守余量 → 相对 ctx.width 扣 9。
+// 卡内可用列数由 test/routes/session/assistant-card.test.tsx 实测锁定(顶层 45 / 卡内 42)。
 function GenericTool(props: ToolProps) {
   const { theme } = useTheme()
   const ctx = use()
   const output = createMemo(() => props.output?.trim() ?? "")
   const [expanded, setExpanded] = createSignal(false)
   const maxLines = 3
-  const maxChars = createMemo(() => maxLines * Math.max(20, ctx.width - 6))
+  const maxChars = createMemo(() => maxLines * Math.max(20, ctx.width - 9))
   const collapsed = createMemo(() => collapseToolOutput(output(), maxLines, maxChars()))
   const limited = createMemo(() => {
     if (expanded() || !collapsed().overflow) return output()
@@ -2540,7 +2583,7 @@ function Shell(props: ToolProps) {
   const output = createMemo(() => stripAnsi(stringValue(props.metadata.output)?.trim() ?? ""))
   const [expanded, setExpanded] = createSignal(false)
   const maxLines = 10
-  const maxChars = createMemo(() => maxLines * Math.max(20, ctx.width - 6))
+  const maxChars = createMemo(() => maxLines * Math.max(20, ctx.width - 9))
   const collapsed = createMemo(() => collapseToolOutput(output(), maxLines, maxChars()))
   const limited = createMemo(() => {
     if (expanded() || !collapsed().overflow) return output()
@@ -2878,7 +2921,7 @@ function Execute(props: ToolProps) {
   const calls = createMemo(() => executeCalls(props.metadata.toolCalls))
   const output = createMemo(() => stripAnsi(props.output?.trim() ?? ""))
   const hasRuntimeError = createMemo(() => props.metadata.error === true)
-  const outputPreview = createMemo(() => collapseToolOutput(output(), 4, 4 * Math.max(20, ctx.width - 6)).output)
+  const outputPreview = createMemo(() => collapseToolOutput(output(), 4, 4 * Math.max(20, ctx.width - 9)).output)
   const showOutput = createMemo(() => output() && hasRuntimeError())
   const content = createMemo(() => {
     const lines = ["execute"]
@@ -2925,7 +2968,8 @@ function Edit(props: ToolProps) {
     const diffStyle = ctx.tui.diff_style
     if (diffStyle === "stacked") return "unified"
     // Default to "auto" behavior
-    return ctx.width > 120 ? "split" : "unified"
+    // 并排 diff 阈值跟着助手卡一起上调 3 列:卡内正文比原来窄 3 列,阈值不动的效果是提前 3 列切并排。
+    return ctx.width > 123 ? "split" : "unified"
   })
 
   const ft = createMemo(() => filetype(stringValue(props.input.filePath)))
@@ -2990,7 +3034,8 @@ function ApplyPatch(props: ToolProps) {
   const view = createMemo(() => {
     const diffStyle = ctx.tui.diff_style
     if (diffStyle === "stacked") return "unified"
-    return ctx.width > 120 ? "split" : "unified"
+    // 并排 diff 阈值跟着助手卡一起上调 3 列:卡内正文比原来窄 3 列,阈值不动的效果是提前 3 列切并排。
+    return ctx.width > 123 ? "split" : "unified"
   })
 
   function Diff(p: { diff: string; filePath: string }) {
