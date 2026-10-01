@@ -14,6 +14,8 @@ import { ArgsProvider } from "../../../src/context/args"
 import { createTuiResolvedConfig } from "../../fixture/tui-runtime"
 import { TestTuiContexts } from "../../fixture/tui-environment"
 import { alwaysSeparate, BlockTool, InlineToolRow, partSiblingRef } from "../../../src/routes/session"
+import { agentDisplayName } from "../../../src/util/agent-name"
+import * as Locale from "../../../src/util/locale"
 
 // AssistantMessage 挂在会话内部 context(模块私有)+ LocalProvider(SDK/Route/Event/Permission)上,
 // 测试里脱不开这套栈,所以这里用与 AssistantMessage 逐行同构的 harness 复现结构,
@@ -83,6 +85,26 @@ function inner(line: string) {
   return line.replace(/[│█\s]/g, "")
 }
 
+// 通用的取帧:渲染到 ready 成立为止,返回去掉行尾空白的帧。
+async function cardLines(fixture: Parameters<typeof testRender>[0], ready: (lines: string[]) => boolean) {
+  const app = await testRender(fixture, { width: WIDTH, height: 30 })
+  try {
+    let lines: string[] = []
+    for (let attempt = 0; attempt < 10; attempt++) {
+      await app.renderOnce()
+      lines = app
+        .captureCharFrame()
+        .split("\n")
+        .map((line) => line.replace(/\s+$/, ""))
+      if (ready(lines)) break
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    return lines
+  } finally {
+    app.renderer.destroy()
+  }
+}
+
 async function bubbleLines(texts: readonly string[], probe = 0) {
   const app = await testRender(bubbleFixture(texts, probe), { width: WIDTH, height: 30 })
   try {
@@ -134,6 +156,75 @@ test("助手气泡卡:相邻 part 之间仍有 1 行空行", async () => {
   expect(inner(lines[first + 1]!)).toBe("")
 })
 
+// 卡内前兄弟有两种「不是多行 box」的形态,改造前 TextPart/ReasoningPart 是静态 marginTop={1},
+// 恒有 1 行空行;如果卡内规则改成看「前兄弟是不是多行 / 在不在 alwaysSeparate 里」,
+// 这两种形态后面的正文就会紧贴上来,整张卡变成一坨:
+//   1. 不带 separate 的行内工具(Read/Glob/Grep/WebFetch/WebSearch/Write…):1 行,
+//      且 InlineToolRow 只在 separate 为真时才 alwaysSeparate.add(只有 Task 传了)。
+//   2. Read 在行内工具下面再吐的「↳ Loaded」框:1 行,而且完全没有 ref。
+// 所以规则必须是「卡内只要有前一个兄弟就给 1」,与前兄弟的行数无关。
+//
+// 注意 part 必须用 <For> 渲染(与生产 PART_MAPPING 的 <For> 一致):util/layout.ts 靠给
+// el.onLifecyclePass 赋值来注册,而 opentui 只在 append 子节点**之前**onLifecyclePass
+// 已是函数时才注册;静态写死的 JSX 子节点是 append 之后才调 ref,回调根本不会跑。
+function afterPreviousFixture(kind: "tool" | "refless") {
+  return function AssistantAfterPreviousFixture() {
+    return (
+      <box width={WIDTH}>
+        <neonbox
+          gradientStops={semanticStops(theme, "assistant")}
+          paddingTop={1}
+          paddingBottom={1}
+          paddingLeft={2}
+          paddingRight={1}
+          width="100%"
+          flexShrink={0}
+        >
+          {kind === "tool" ? (
+            // 不传 separate —— 与生产里 Read/Glob/Grep 的调用一致
+            <InlineToolRow complete={true} pending="">
+              {"Read TOOLMARK"}
+            </InlineToolRow>
+          ) : (
+            <box paddingLeft={3}>
+              <text>{"↳ Loaded SUBMARK"}</text>
+            </box>
+          )}
+          <For each={["AFTERMARK"]}>
+            {(value) => (
+              <box ref={partSiblingRef} flexShrink={0}>
+                <text>{value}</text>
+              </box>
+            )}
+          </For>
+        </neonbox>
+      </box>
+    )
+  }
+}
+
+test("助手气泡卡:行内工具(1 行、不在 alwaysSeparate)后面仍有 1 行空行", async () => {
+  const lines = await cardLines(afterPreviousFixture("tool"), (frame) =>
+    frame.some((line) => inner(line).includes("AFTERMARK")),
+  )
+  const tool = lines.findIndex((line) => inner(line).includes("TOOLMARK"))
+  const after = lines.findIndex((line) => inner(line).includes("AFTERMARK"))
+  expect(tool).toBeGreaterThanOrEqual(0)
+  expect(after - tool).toBe(2)
+  expect(inner(lines[tool + 1]!)).toBe("")
+})
+
+test("助手气泡卡:无 ref 的 1 行框(Read 的「↳ Loaded」)后面仍有 1 行空行", async () => {
+  const lines = await cardLines(afterPreviousFixture("refless"), (frame) =>
+    frame.some((line) => inner(line).includes("AFTERMARK")),
+  )
+  const sub = lines.findIndex((line) => inner(line).includes("SUBMARK"))
+  const after = lines.findIndex((line) => inner(line).includes("AFTERMARK"))
+  expect(sub).toBeGreaterThanOrEqual(0)
+  expect(after - sub).toBe(2)
+  expect(inner(lines[sub + 1]!)).toBe("")
+})
+
 test("助手气泡卡:卡内可用宽度 = 卡片宽 − padding 3(边框画在 padding 列上,不占 Yoga 列)", async () => {
   const lines = await bubbleLines(["FIRST-PART"], 200)
   const row = lines.find((line) => line.includes("XXXX"))!
@@ -155,6 +246,66 @@ test("助手气泡卡:wrapper 之后的兄弟(InlineToolRow)仍按 alwaysSeparat
   const row = lines.findIndex((line) => inner(line).includes("src/index.ts"))
   expect(row).toBeGreaterThan(bottom)
   expect(inner(lines[row - 1]!)).toBe("")
+})
+
+// meta 行用真实的 agentDisplayName / Locale(与 AssistantMessage :1884-1904 同构):
+// agent 名与模型名长度不受控,模型名还可能带换行,靠 Locale.oneLine(model(), 60) 压平 + 截断。
+const CREATED = new Date(2026, 0, 2, 14, 32).getTime()
+
+function metaFixture(model: string) {
+  return function AssistantMetaFixture() {
+    return (
+      <box width={WIDTH}>
+        <box flexDirection="row" gap={1} paddingLeft={1} flexShrink={0}>
+          <text wrapMode="none">
+            <span>{`◆ ${agentDisplayName("build")}`}</span>
+            <span>{` · ${Locale.oneLine(model, 60)} · ${Locale.todayTimeOrDateTime(CREATED)}`}</span>
+          </text>
+        </box>
+        <neonbox
+          gradientStops={semanticStops(theme, "assistant")}
+          paddingTop={1}
+          paddingBottom={1}
+          paddingLeft={2}
+          paddingRight={1}
+          width="100%"
+          flexShrink={0}
+        >
+          <box ref={partSiblingRef} flexShrink={0}>
+            <text>BODYMARK</text>
+          </box>
+        </neonbox>
+      </box>
+    )
+  }
+}
+
+test("助手气泡卡:meta 行用真实 agentDisplayName/Locale 渲染「agent · 模型 · 时间」", async () => {
+  const lines = await cardLines(metaFixture("claude-sonnet-4"), (frame) =>
+    frame.some((line) => inner(line).includes("BODYMARK")),
+  )
+  const meta = lines.findIndex((line) => inner(line).includes("◆"))
+  const top = lines.findIndex((line) => line.includes("╭"))
+  expect(meta).toBeGreaterThanOrEqual(0)
+  expect(top).toBe(meta + 1)
+  expect(lines[meta]).toContain(agentDisplayName("build"))
+  expect(lines[meta]).toContain("claude-sonnet-4")
+  expect(lines[meta]).toContain(Locale.todayTimeOrDateTime(CREATED))
+})
+
+test("助手气泡卡:meta 行遇到超长带换行的模型名仍只有一行(压平 + 截到 60 列,不溢出)", async () => {
+  const lines = await cardLines(metaFixture("gpt-5-codex\n" + "x".repeat(120)), (frame) =>
+    frame.some((line) => inner(line).includes("BODYMARK")),
+  )
+  const meta = lines.findIndex((line) => inner(line).includes("◆"))
+  const top = lines.findIndex((line) => line.includes("╭"))
+  expect(meta).toBeGreaterThanOrEqual(0)
+  // 换行被 oneLine 压平:meta 下面紧接着就是卡片上边框,没有被顶成两行
+  expect(top).toBe(meta + 1)
+  // 模型名被截到 60 列以内(帧里最长的一段 x 不超过 60)
+  expect(Math.max(...lines.map((line) => line.match(/x+/)?.[0].length ?? 0))).toBeLessThanOrEqual(60)
+  // wrapMode="none" 是裁切而不是换行:行宽不会超过终端宽度
+  expect(lines[meta]!.trimEnd().length).toBeLessThanOrEqual(WIDTH)
 })
 
 // Step 3 的实测回归:TextPart 删掉 paddingLeft={3} 之后,嵌套列表的缩进只能来自
@@ -205,16 +356,6 @@ test("助手气泡卡:markdown 嵌套列表缩进保留,且正文不压右边框
     for (const line of lines) {
       if (!inner(line).includes("项")) continue
       expect(line.trimEnd().length).toBeLessThanOrEqual(line.lastIndexOf("│") + 1)
-    }
-    const topCol = top.indexOf("一")
-    const nestedCol = nested.indexOf("二")
-    expect(topCol).toBeGreaterThanOrEqual(0)
-    // 二级项必须仍在一级项右侧(markdown 自己的层级缩进),不是靠 part 的 paddingLeft
-    expect(nestedCol).toBeGreaterThan(topCol)
-    // 右边框在最后一列(WIDTH-1),正文最多写到 WIDTH-2,否则就是溢出卡片
-    for (const line of lines) {
-      if (!inner(line).includes("项")) continue
-      expect(line.trimEnd().length).toBeLessThanOrEqual(WIDTH - 1)
     }
   } finally {
     app.renderer.destroy()

@@ -110,14 +110,18 @@ const GO_UPSELL_PROVIDERS = new Set(["NovaWay", "NovaWay-go"])
 
 export const alwaysSeparate = new WeakSet<BoxRenderable>()
 
-// 助手气泡卡内 part 的顶 margin 策略。卡内首个子节点的 previous 是 undefined → 拿 0
-// (那一行空行由气泡 wrapper 的 marginTop=1 承担),之后按「前一个兄弟多行 或 在
-// alwaysSeparate 里」补 1。TextPart / ReasoningPart 共用,避免两处策略各改各的漂移。
+// 助手气泡卡内 part 的顶 margin 策略:卡内首个子节点的 previous 是 undefined → 拿 0
+// (那一行空行由气泡 wrapper 的 marginTop=1 承担),**只要有前一个兄弟就给 1**。
+// 判定只看「有没有前兄弟」,不看前兄弟的行数、也不看它在不在 alwaysSeparate 里:
+//   - Read/Glob/Grep/WebFetch/WebSearch/Write 等行内工具是单行,且 InlineToolRow 只在
+//     separate 为真时才注册(alwaysSeparate),只有 Task 传了;
+//   - Read 还会再吐一个没有 ref 的「↳ Loaded」单行框。
+// 这两类前兄弟拿不到 1,正文就会紧贴上来,整张卡变成一坨。改造前 TextPart/ReasoningPart
+// 是静态 marginTop={1},恒有 1 行空行 —— 这里等价地把那个「恒 1」换成「有前兄弟就 1」。
+// TextPart / ReasoningPart 共用,避免两处策略各改各的漂移。
 export function partSiblingRef(el: BoxRenderable) {
   alwaysSeparate.add(el)
-  setPreLayoutSiblingMargin(el, (previous) =>
-    previous instanceof BoxRenderable && (previous.height > 1 || alwaysSeparate.has(previous)) ? 1 : 0,
-  )
+  setPreLayoutSiblingMargin(el, (previous) => (previous ? 1 : 0))
 }
 
 type RetryAction = Extract<SessionStatus, { type: "retry" }>["action"]
@@ -1926,7 +1930,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
         </neonbox>
       </box>
       <Show when={props.parts.some((x) => x.type === "tool" && x.tool === "task")}>
-        <box paddingTop={1} paddingLeft={3}>
+        <box paddingTop={1} paddingLeft={2}>
           <text fg={theme.text}>
             {childShortcut()}
             <span style={{ fg: theme.textMuted }}> 查看子代理</span>
@@ -1972,7 +1976,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
             flexDirection="row"
             alignItems="center"
             gap={1}
-            paddingLeft={3}
+            paddingLeft={2}
             marginTop={1}
             flexShrink={0}
           >
@@ -2000,8 +2004,8 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
           </box>
           {/* 本轮改动:文件数固定有上限(见 DiffStatList),不会把这一屏顶掉。 */}
           <Show when={turnDiffs().length}>
-            {/* 注意:这个 box 在助手气泡卡**外面**(scrollbox 直属),保留自己的 paddingLeft/marginTop */}
-            <box ref={(el: BoxRenderable) => alwaysSeparate.add(el)} paddingLeft={3} marginTop={1} flexShrink={0}>
+            {/* paddingLeft=2:与助手气泡卡的 paddingLeft 对齐(正文起于第 2 列),三行同起一条竖线 */}
+            <box ref={(el: BoxRenderable) => alwaysSeparate.add(el)} paddingLeft={2} marginTop={1} flexShrink={0}>
               <text fg={theme.textMuted}>
                 本轮改动 {turnDiffs().length} 个文件
                 <Show when={turnAdditions() > 0}>
