@@ -9,7 +9,7 @@ import { useArgs } from "./args"
 import { useSDK } from "./sdk"
 import { RGBA } from "@opentui/core"
 import { readJson, writeJsonAtomic } from "../util/persistence"
-import { isAutoModel, stripProviderPrefix } from "../util/model"
+import { isAutoModel } from "../util/model"
 import { useTheme } from "./theme"
 import { useTuiConfig } from "../config"
 import { useToast } from "../ui/toast"
@@ -58,6 +58,17 @@ export function defaultSelectableModel(
   const preferred = defaults[provider.id]
   if (preferred && !isAutoModel(provider.id, preferred)) return preferred
   return Object.keys(provider.models).find((id) => !isAutoModel(provider.id, id))
+}
+
+export function configuredModel(
+  value: string | undefined,
+  isValid: (model: { providerID: string; modelID: string }) => boolean,
+): { providerID: string; modelID: string } | undefined {
+  if (!value) return
+  const model = parseModel(value)
+  // Auto 关闭后 config.model/CLI 写死的 builtin/auto 不再生效(仓库默认配置就是它)
+  if (isAutoModel(model.providerID, model.modelID)) return
+  if (isValid(model)) return model
 }
 
 export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
@@ -226,25 +237,9 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         })
 
       const fallbackModel = createMemo(() => {
-        if (args.model) {
-          const { providerID, modelID } = parseModel(args.model)
-          if (isModelValid({ providerID, modelID })) {
-            return {
-              providerID,
-              modelID,
-            }
-          }
-        }
-
-        if (sync.data.config.model) {
-          const { providerID, modelID } = parseModel(sync.data.config.model)
-          if (isModelValid({ providerID, modelID })) {
-            return {
-              providerID,
-              modelID,
-            }
-          }
-        }
+        const explicit =
+          configuredModel(args.model, isModelValid) ?? configuredModel(sync.data.config.model, isModelValid)
+        if (explicit) return explicit
 
         for (const item of modelStore.recent) {
           // Auto 关闭后,builtin/auto 不再生效,跳过它继续找下一个可用模型
@@ -329,11 +324,9 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           }
           const provider = sync.data.provider.find((item) => item.id === value.providerID)
           const info = provider?.models[value.modelID]
-          const modelName = info?.name ?? value.modelID
           return {
             provider: provider?.name ?? value.providerID,
-            model:
-              value.providerID === "builtin" ? stripProviderPrefix(modelName) : modelName,
+            model: info?.name ?? value.modelID,
             reasoning: info?.capabilities?.reasoning ?? false,
           }
         }),

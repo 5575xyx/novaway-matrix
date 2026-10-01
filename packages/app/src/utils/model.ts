@@ -2,6 +2,18 @@ export function isAutoModel(providerID: string, modelID: string): boolean {
   return providerID === "builtin" && modelID === "auto"
 }
 
+export function configuredModel(
+  configModel: string | undefined,
+  isValid: (model: { providerID: string; modelID: string }) => boolean,
+): { providerID: string; modelID: string } | undefined {
+  if (!configModel) return
+  const [providerID, modelID] = configModel.split("/")
+  // Auto 关闭后 config.model 写死的 builtin/auto 不再生效(仓库默认配置就是它)
+  if (isAutoModel(providerID, modelID)) return
+  const model = { providerID, modelID }
+  if (isValid(model)) return model
+}
+
 export function firstSelectableModel(
   provider: { id: string; models: Record<string, { id: string }> },
   defaults: Record<string, string | undefined>,
@@ -14,11 +26,4 @@ export function firstSelectableModel(
 
 export function orderFallbackProviders<T extends { id: string }>(providers: T[]): T[] {
   return [...providers].sort((a, b) => Number(a.id === "builtin") - Number(b.id === "builtin"))
-}
-
-export function stripProviderPrefix(name: string): string {
-  const match = /^[^:/]+[:/]/.exec(name)
-  if (!match) return name
-  const rest = name.slice(match[0].length).trim()
-  return rest || name
 }

@@ -1,19 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { firstSelectableModel, isAutoModel, orderFallbackProviders, stripProviderPrefix } from "./model"
-
-describe("stripProviderPrefix", () => {
-  test("strips a leading provider separator for both colon and slash forms", () => {
-    expect(stripProviderPrefix("opencode:big-pickle")).toBe("big-pickle")
-    expect(stripProviderPrefix("qwen/qwen3.8-27b")).toBe("qwen3.8-27b")
-  })
-
-  test("keeps names without a leading provider prefix", () => {
-    expect(stripProviderPrefix("Big Pickle")).toBe("Big Pickle")
-    expect(stripProviderPrefix(":foo")).toBe(":foo")
-    expect(stripProviderPrefix("qwen/")).toBe("qwen/")
-    expect(stripProviderPrefix("")).toBe("")
-  })
-})
+import { configuredModel, firstSelectableModel, isAutoModel, orderFallbackProviders } from "./model"
 
 describe("isAutoModel", () => {
   test("only flags the built-in auto entry", () => {
@@ -70,6 +56,27 @@ describe("firstSelectableModel", () => {
 
   test("非内置 provider 中名为 auto 的模型不应被剔除", () => {
     expect(firstSelectableModel({ id: "anthropic", models: { auto: { id: "auto" } } }, {}, alwaysValid)).toBe("auto")
+  })
+})
+
+describe("configuredModel", () => {
+  const alwaysValid = () => true
+
+  test("配置为 builtin/auto 时手动模式忽略它", () => {
+    expect(configuredModel("builtin/auto", alwaysValid)).toBeUndefined()
+  })
+
+  test("配置为普通模型时原样返回", () => {
+    expect(configuredModel("anthropic/claude-4", alwaysValid)).toEqual({
+      providerID: "anthropic",
+      modelID: "claude-4",
+    })
+    expect(configuredModel("builtin/gpt-5", alwaysValid)).toEqual({ providerID: "builtin", modelID: "gpt-5" })
+  })
+
+  test("未配置或校验不通过时返回 undefined", () => {
+    expect(configuredModel(undefined, alwaysValid)).toBeUndefined()
+    expect(configuredModel("anthropic/gone", (m) => m.modelID === "claude-4")).toBeUndefined()
   })
 })
 

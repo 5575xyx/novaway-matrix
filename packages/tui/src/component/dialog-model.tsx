@@ -10,7 +10,7 @@ import * as fuzzysort from "fuzzysort"
 import { useConnected } from "./use-connected"
 import { useSync } from "../context/sync"
 import { useTheme } from "../context/theme"
-import { isAutoModel, stripProviderPrefix } from "../util/model"
+import { isAutoModel } from "../util/model"
 
 export { isAutoModel }
 
@@ -37,10 +37,6 @@ export function DialogModel(props: { providerID?: string }) {
 
   const showExtra = createMemo(() => connected() && !props.providerID)
 
-  // 内置网关返回的模型名带上游供应商前缀(如 opencode:big-pickle、qwen/qwen3.8-27b),显示时仅对内置剥离。
-  const modelDisplayName = (providerID: string, name: string) =>
-    providerID === "builtin" ? stripProviderPrefix(name) : name
-
   const options = createMemo(() => {
     if (autoMode()) return []
     const needle = query().trim()
@@ -60,7 +56,7 @@ export function DialogModel(props: { providerID?: string }) {
           {
             key: item,
             value: { providerID: provider.id, modelID: model.id },
-            title: displayModelName(modelDisplayName(provider.id, model.name ?? item.modelID), provider.id, model.cost?.input === 0),
+            title: displayModelName(model.name ?? item.modelID, provider.id, model.cost?.input === 0),
             description: joinDescription(provider.name, model.cost?.input === 0),
             category,
             disabled: provider.id === "NovaWay" && model.id.includes("-nano"),
@@ -94,7 +90,7 @@ export function DialogModel(props: { providerID?: string }) {
           filter(([_, info]) => (props.providerID ? info.providerID === props.providerID : true)),
           map(([model, info]) => ({
             value: { providerID: provider.id, modelID: model },
-            title: displayModelName(modelDisplayName(provider.id, info.name ?? model), provider.id, info.cost?.input === 0),
+            title: displayModelName(info.name ?? model, provider.id, info.cost?.input === 0),
             releaseDate: info.release_date,
             description: joinDescription(
               favorites.some((item) => item.providerID === provider.id && item.modelID === model)
