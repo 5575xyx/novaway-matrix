@@ -1791,7 +1791,7 @@ function UserMessage(props: { message: UserMessage; parts: Part[]; onMouseUp: ()
             maxWidth="70%"
             alignItems="flex-end"
           >
-            {/* 气泡靠右:外层 alignItems="flex-end" 把气泡推到内容列右缘(紧贴右侧那条 agent 色条),
+            {/* 气泡靠右:外层 alignItems="flex-end" 把气泡推到内容列右缘(靠 neonbox 自身 maxWidth 收窄,不再有 agent 色条),
                 内层同样右对齐让附件/时间戳跟着靠右。这里的 text 不能再写 width="100%" ——
                 那会把气泡撑满整列,右对齐就失效;去掉后气泡按文字自然宽度收缩,长文本到 70% 才折行。 */}
             <text fg={theme.text}>{text()}</text>
@@ -1908,6 +1908,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
         </box>
       </Show>
       <Show when={props.message.error && props.message.error.name !== "MessageAbortedError"}>
+        {/* paddingRight=1:NeonBox 不占边框格、边框画在最外列上,右留 1 格才能让文本宽度与旧 border=["left"] 版一致 */}
         <neonbox
           ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
           gradientStops={[theme.error]}
@@ -2491,6 +2492,7 @@ function BlockTool(props: {
   const [hover, setHover] = createSignal(false)
   const error = createMemo(() => (props.part?.state.status === "error" ? props.part.state.error : undefined))
   return (
+    // paddingRight=1:NeonBox 不占边框格、边框画在最外列上,右留 1 格才能让文本宽度与旧 border=["left"] 版一致
     <neonbox
       ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
       gradientStops={neonStops(theme)}
