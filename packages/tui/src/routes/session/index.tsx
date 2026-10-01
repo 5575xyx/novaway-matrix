@@ -31,6 +31,8 @@ import { GitDiffView } from "../../component/git-diff-view"
 import { TabBar, type TabItem } from "../../component/tab-bar"
 import { EmptySessionHero } from "../../component/empty-session-hero"
 import { createSyntaxStyleMemo, generateSubtleSyntax, useTheme } from "../../context/theme"
+import "../../ui/card"
+import { neonStops } from "../../ui/neon"
 import { BoxRenderable, ScrollBoxRenderable, addDefaultParsers, TextAttributes, RGBA } from "@opentui/core"
 import { Prompt, type PromptRef } from "../../component/prompt"
 import type {
@@ -1747,7 +1749,6 @@ export function Session() {
 
 function UserMessage(props: { message: UserMessage; parts: Part[]; onMouseUp: () => void; index: number }) {
   const ctx = use()
-  const local = useLocal()
   const text = createMemo(() => {
     const texts = props.parts
       .map((x) => {
@@ -1762,36 +1763,30 @@ function UserMessage(props: { message: UserMessage; parts: Part[]; onMouseUp: ()
   const files = createMemo(() => props.parts.flatMap((x) => (x.type === "file" ? [x] : [])))
   const { theme } = useTheme()
   const [hover, setHover] = createSignal(false)
-  const color = createMemo(() => local.agent.color(props.message.agent))
 
   const compaction = createMemo(() => props.parts.find((x) => x.type === "compaction"))
 
   return (
     <>
       <Show when={text()}>
-        {/* crush 式聚焦条:悬停整行时右缘的细条 ┃ 升级成半块 ▌,标记"当前聚焦的消息" */}
+        {/* crush 式用户气泡:霓虹渐变描边卡片,靠右对齐;悬停只提亮底色。 */}
         <box
           id={props.message.id}
           ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
-          border={["right"]}
-          borderColor={color()}
-          customBorderChars={{
-            ...SplitBorder.customBorderChars,
-            vertical: hover() ? "▌" : SplitBorder.customBorderChars.vertical,
-          }}
           marginTop={props.index === 0 ? 0 : 1}
           alignItems="flex-end"
           width="100%"
           onMouseOver={() => setHover(true)}
           onMouseOut={() => setHover(false)}
         >
-          <box
+          <neonbox
             onMouseUp={props.onMouseUp}
+            gradientStops={neonStops(theme)}
+            backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
             paddingTop={1}
             paddingBottom={1}
             paddingLeft={2}
             paddingRight={2}
-            backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
             flexShrink={0}
             maxWidth="70%"
             alignItems="flex-end"
@@ -1828,7 +1823,7 @@ function UserMessage(props: { message: UserMessage; parts: Part[]; onMouseUp: ()
                 <span style={{ fg: theme.textMuted }}>{Locale.todayTimeOrDateTime(props.message.time.created)}</span>
               </text>
             </Show>
-          </box>
+          </neonbox>
         </box>
       </Show>
       <Show when={compaction()}>
@@ -1913,19 +1908,18 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
         </box>
       </Show>
       <Show when={props.message.error && props.message.error.name !== "MessageAbortedError"}>
-        <box
+        <neonbox
           ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
-          border={["left"]}
+          gradientStops={[theme.error]}
           paddingTop={1}
           paddingBottom={1}
           paddingLeft={2}
+          paddingRight={1}
           marginTop={1}
           backgroundColor={theme.backgroundPanel}
-          customBorderChars={SplitBorder.customBorderChars}
-          borderColor={theme.error}
         >
           <text fg={theme.textMuted}>{errorMessage(props.message.error)}</text>
-        </box>
+        </neonbox>
       </Show>
       <Switch>
         <Match when={props.last || final() || props.message.error?.name === "MessageAbortedError"}>
@@ -2027,8 +2021,15 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
         flexDirection="column"
         flexShrink={0}
       >
-        {/* crush 式思考块:muted 字 + 第 2 级灰底、无边框,和工具输出同一套弱对比语言 */}
-        <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
+        {/* crush 式思考块:紫青渐变描边卡片 + 第 2 级灰底,和工具输出同一套弱对比语言 */}
+        <neonbox
+          gradientStops={[theme.neonMid, theme.neonEnd]}
+          backgroundColor={theme.backgroundElement}
+          paddingTop={1}
+          paddingBottom={1}
+          paddingLeft={2}
+          paddingRight={2}
+        >
           <box onMouseUp={toggle}>
             <ReasoningHeader
               toggleable={inMinimal() && !opaque()}
@@ -2052,7 +2053,7 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
               />
             </box>
           </Show>
-        </box>
+        </neonbox>
       </box>
     </Show>
   )
@@ -2490,17 +2491,16 @@ function BlockTool(props: {
   const [hover, setHover] = createSignal(false)
   const error = createMemo(() => (props.part?.state.status === "error" ? props.part.state.error : undefined))
   return (
-    <box
+    <neonbox
       ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
-      border={["left"]}
+      gradientStops={neonStops(theme)}
       paddingTop={1}
       paddingBottom={1}
       paddingLeft={2}
+      paddingRight={1}
       marginTop={1}
       gap={1}
       backgroundColor={hover() ? theme.backgroundMenu : theme.backgroundElement}
-      customBorderChars={SplitBorder.customBorderChars}
-      borderColor={theme.background}
       onMouseOver={() => props.onClick && setHover(true)}
       onMouseOut={() => setHover(false)}
       onMouseUp={() => {
@@ -2526,7 +2526,7 @@ function BlockTool(props: {
       <Show when={error()}>
         <text fg={theme.error}>{error()}</text>
       </Show>
-    </box>
+    </neonbox>
   )
 }
 
