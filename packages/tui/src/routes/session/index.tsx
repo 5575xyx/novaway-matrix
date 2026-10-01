@@ -2480,7 +2480,7 @@ function toolParams(params: Record<string, unknown>, omit?: string[]): string {
   return `(${Locale.oneLine(summary.slice(1, -1), TOOL_PARAMS_MAX)})`
 }
 
-function BlockTool(props: {
+export function BlockTool(props: {
   title?: string
   children: JSX.Element
   onClick?: () => void
