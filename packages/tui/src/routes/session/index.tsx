@@ -124,6 +124,66 @@ export function partSiblingRef(el: BoxRenderable) {
   setPreLayoutSiblingMargin(el, (previous) => (previous ? 1 : 0))
 }
 
+// meta 行里模型名的截断上限。26 = ◆(1) + agent 名(实测最长 ≈16)+ 两个「 · 」(4)
+// + todayTimeOrDateTime 最长一档(非今天时是「14:32 · 2026/1/2」= 18 列)再留一点余量。
+// 下限 12:再窄也要给模型名留一截,否则只剩个「 · 」很难看。
+export function metaModelLimit(width: number) {
+  return Math.max(12, width - 26)
+}
+
+// 助手气泡卡壳:霓虹描边 + 固定内边距的正文容器。
+// 只依赖 useTheme(),不碰 session/local context,所以测试能直接挂载它来量真实几何 ——
+// 与导出的 BlockTool / InlineToolRow 同理。手抄一份 neonbox 到测试里的话,改这里的
+// padding 不会让任何测试变红,`ctx.width - 9` 那类宽度常量就会悄悄失准。
+// paddingRight=1:NeonBox 不占边框格、边框画在最外列上,右留 1 格才能让正文不压到右边框。
+// 四边 padding 合计 3 列 = 卡内可用宽度相对 ctx.width 的扣减。
+export function AssistantCard(props: { children: JSX.Element }) {
+  const { theme } = useTheme()
+  return (
+    <neonbox
+      gradientStops={semanticStops(theme, "assistant")}
+      paddingTop={1}
+      paddingBottom={1}
+      paddingLeft={2}
+      paddingRight={1}
+      width="100%"
+      flexShrink={0}
+    >
+      {props.children}
+    </neonbox>
+  )
+}
+
+// 助手气泡的 meta 行。agent 颜色由调用方注入,所以这里只依赖 useTheme(),
+// 测试能直接挂载 —— 顺序和截断都是可见行为,值得让测试盯住,而不是在测试里抄一份。
+export function AssistantMeta(props: {
+  agentColor: RGBA
+  agent: string
+  created: number
+  model: string
+  width: number
+}) {
+  const { theme } = useTheme()
+  return (
+    <box flexDirection="row" gap={1} paddingLeft={1} flexShrink={0}>
+      <text wrapMode="none">
+        <span style={{ fg: props.agentColor }}>◆</span>
+        <span style={{ fg: theme.text }}> {agentDisplayName(props.agent)}</span>
+        {/* 顺序是「agent · 时间 · 模型」而不是原型的「agent · 模型 · 时间」:
+            wrapMode="none" 是尾部裁切,把不受控的模型名排在定长的时间前面,窄终端上
+            时间戳会先被裁掉。模型名放最后 = 被裁时优先丢模型名、保住时间;
+            再用 metaModelLimit 按剩余宽度截一次,不指望它被终端裁。 */}
+        <span style={{ fg: theme.textMuted }}>
+          {" · "}
+          {Locale.todayTimeOrDateTime(props.created)}
+          {" · "}
+          {Locale.oneLine(props.model, metaModelLimit(props.width))}
+        </span>
+      </text>
+    </box>
+  )
+}
+
 type RetryAction = Extract<SessionStatus, { type: "retry" }>["action"]
 
 function goUpsellKeys(action: RetryAction) {
@@ -1880,6 +1940,10 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
   })
   const turnAdditions = createMemo(() => turnDiffs().reduce((sum, x) => sum + x.additions, 0))
   const turnDeletions = createMemo(() => turnDiffs().reduce((sum, x) => sum + x.deletions, 0))
+  // 有没有能真正渲染出来的 part。PART_MAPPING 只覆盖 text/tool/reasoning,其余类型会被
+  // <Show when={component()}> 丢掉;流式早期可能一个都没有,这时不画卡壳 —— 否则会多出一个
+  // 3 行高的空霓虹卡加一行 meta(改造前这种情况下什么都不渲染)。
+  const renderableParts = createMemo(() => props.parts.filter((x) => PART_MAPPING[x.type as keyof typeof PART_MAPPING]))
 
   return (
     <>
@@ -1888,46 +1952,32 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
           wrapper 自己承担 marginTop=1:卡内每个 part 的 margin 由 setPreLayoutSiblingMargin 按兄弟链算,
           首 part 的 previous 是 undefined → 0,不会再多顶一行。 */}
       <box id={props.message.id} ref={(el: BoxRenderable) => alwaysSeparate.add(el)} marginTop={1} flexShrink={0}>
-        <box flexDirection="row" gap={1} paddingLeft={1} flexShrink={0}>
-          <text wrapMode="none">
-            <span style={{ fg: local.agent.color(props.message.agent) }}>◆</span>
-            <span style={{ fg: theme.text }}> {agentDisplayName(props.message.agent)}</span>
-            {/* 模型名与 agent 名长度不受控,压成一行再截断,避免把 meta 行顶成两行 */}
-            <span style={{ fg: theme.textMuted }}>
-              {" · "}
-              {Locale.oneLine(model(), 60)}
-              {" · "}
-              {Locale.todayTimeOrDateTime(props.message.time.created)}
-            </span>
-          </text>
-        </box>
-        {/* paddingRight=1:NeonBox 不占边框格、边框画在最外列上,右留 1 格才能让正文不压到右边框。
-            四边 padding 合计 3 列 = 卡内可用宽度相对 ctx.width 的扣减(工具输出折叠常量按 −9 算)。 */}
-        <neonbox
-          gradientStops={semanticStops(theme, "assistant")}
-          paddingTop={1}
-          paddingBottom={1}
-          paddingLeft={2}
-          paddingRight={1}
-          width="100%"
-          flexShrink={0}
-        >
-          <For each={props.parts}>
-            {(part, index) => {
-              const component = createMemo(() => PART_MAPPING[part.type as keyof typeof PART_MAPPING])
-              return (
-                <Show when={component()}>
-                  <Dynamic
-                    last={index() === props.parts.length - 1}
-                    component={component()}
-                    part={part as any}
-                    message={props.message}
-                  />
-                </Show>
-              )
-            }}
-          </For>
-        </neonbox>
+        <AssistantMeta
+          agentColor={local.agent.color(props.message.agent)}
+          agent={props.message.agent}
+          created={props.message.time.created}
+          model={model()}
+          width={ctx.width}
+        />
+        <Show when={renderableParts().length}>
+          <AssistantCard>
+            <For each={props.parts}>
+              {(part, index) => {
+                const component = createMemo(() => PART_MAPPING[part.type as keyof typeof PART_MAPPING])
+                return (
+                  <Show when={component()}>
+                    <Dynamic
+                      last={index() === props.parts.length - 1}
+                      component={component()}
+                      part={part as any}
+                      message={props.message}
+                    />
+                  </Show>
+                )
+              }}
+            </For>
+          </AssistantCard>
+        </Show>
       </box>
       <Show when={props.parts.some((x) => x.type === "tool" && x.tool === "task")}>
         <box paddingTop={1} paddingLeft={2}>
@@ -1957,7 +2007,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
         {/* paddingRight=1:NeonBox 不占边框格、边框画在最外列上,右留 1 格才能让文本宽度与旧 border=["left"] 版一致 */}
         <neonbox
           ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
-          gradientStops={[theme.error]}
+          gradientStops={semanticStops(theme, "error")}
           paddingTop={1}
           paddingBottom={1}
           paddingLeft={2}
@@ -2065,7 +2115,7 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
       <box ref={partSiblingRef} flexShrink={0}>
         {/* crush 式思考块:紫青渐变描边卡片 + 第 2 级灰底,和工具输出同一套弱对比语言 */}
         <neonbox
-          gradientStops={[theme.neonMid, theme.neonEnd]}
+          gradientStops={semanticStops(theme, "thinking")}
           backgroundColor={theme.backgroundElement}
           paddingTop={1}
           paddingBottom={1}
@@ -2271,9 +2321,11 @@ type ToolProps = {
   output?: string
   part: ToolPart
 }
-// 工具输出的折叠宽度:助手卡现在把工具包在里面,正文比原来窄 3 列(卡 padding 2+1),
-// 再扣 BlockTool 自己的 padding 3 列,再加回原有的 3 列保守余量 → 相对 ctx.width 扣 9。
-// 卡内可用列数由 test/routes/session/assistant-card.test.tsx 实测锁定(顶层 45 / 卡内 42)。
+// 工具输出的折叠宽度,相对 ctx.width 扣 9 = 助手卡 padding 3 + BlockTool 自己的 padding 3
+// + 3 列保守余量。测试只锁住了中间那两项(卡 → BlockTool 确实差 3 列,见
+// test/routes/session/assistant-card.test.tsx),那 3 列余量是估的,吸收的是会话流外层的
+// 内边距:消息流宿主的 paddingLeft/Right={2} 与滚动条 viewportOptions.paddingRight: 1。
+// 这两处任一改动都要回来重算 −9。
 function GenericTool(props: ToolProps) {
   const { theme } = useTheme()
   const ctx = use()
@@ -2542,7 +2594,7 @@ export function BlockTool(props: {
     // paddingRight=1:NeonBox 不占边框格、边框画在最外列上,右留 1 格才能让文本宽度与旧 border=["left"] 版一致
     <neonbox
       ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
-      gradientStops={neonStops(theme)}
+      gradientStops={semanticStops(theme, "tool")}
       paddingTop={1}
       paddingBottom={1}
       paddingLeft={2}
