@@ -51,6 +51,9 @@ export type Theme = {
   readonly border: RGBA
   readonly borderActive: RGBA
   readonly borderSubtle: RGBA
+  readonly neonStart: RGBA
+  readonly neonMid: RGBA
+  readonly neonEnd: RGBA
   readonly diffAdded: RGBA
   readonly diffRemoved: RGBA
   readonly diffContext: RGBA
@@ -120,9 +123,15 @@ type ColorValue = HexColor | RefName | Variant | RGBA
 export type ThemeJson = {
   $schema?: string
   defs?: Record<string, HexColor | RefName>
-  theme: Omit<Record<ThemeColor, ColorValue>, "selectedListItemText" | "backgroundMenu"> & {
+  theme: Omit<
+    Record<ThemeColor, ColorValue>,
+    "selectedListItemText" | "backgroundMenu" | "neonStart" | "neonMid" | "neonEnd"
+  > & {
     selectedListItemText?: ColorValue
     backgroundMenu?: ColorValue
+    neonStart?: ColorValue
+    neonMid?: ColorValue
+    neonEnd?: ColorValue
     thinkingOpacity?: number
   }
 }
@@ -265,7 +274,15 @@ export function resolveTheme(theme: ThemeJson, mode: "dark" | "light") {
 
   const resolved = Object.fromEntries(
     Object.entries(theme.theme)
-      .filter(([key]) => key !== "selectedListItemText" && key !== "backgroundMenu" && key !== "thinkingOpacity")
+      .filter(
+        ([key]) =>
+          key !== "selectedListItemText" &&
+          key !== "backgroundMenu" &&
+          key !== "thinkingOpacity" &&
+          key !== "neonStart" &&
+          key !== "neonMid" &&
+          key !== "neonEnd",
+      )
       .map(([key, value]) => {
         return [key, resolveColor(value as ColorValue)]
       }),
@@ -287,6 +304,12 @@ export function resolveTheme(theme: ThemeJson, mode: "dark" | "light") {
   } else {
     resolved.backgroundMenu = resolved.backgroundElement
   }
+
+  // 霓虹渐变三端色:可选 token,未定义时(含 generateSystem 生成的主题)回落到
+  // primary/secondary/accent,内置 JSON 主题一个都不用改。
+  resolved.neonStart = theme.theme.neonStart !== undefined ? resolveColor(theme.theme.neonStart) : resolved.primary
+  resolved.neonMid = theme.theme.neonMid !== undefined ? resolveColor(theme.theme.neonMid) : resolved.secondary
+  resolved.neonEnd = theme.theme.neonEnd !== undefined ? resolveColor(theme.theme.neonEnd) : resolved.accent
 
   // Handle thinkingOpacity - optional with default of 0.6
   const thinkingOpacity = theme.theme.thinkingOpacity ?? 0.6
