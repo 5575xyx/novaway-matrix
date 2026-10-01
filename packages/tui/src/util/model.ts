@@ -30,10 +30,3 @@ export function name(
 export function isAutoModel(providerID: string, modelID: string) {
   return providerID === "builtin" && modelID === "auto"
 }
-
-export function stripProviderPrefix(name: string) {
-  const match = /^[^:/]+[:/]/.exec(name)
-  if (!match) return name
-  const rest = name.slice(match[0].length).trim()
-  return rest || name
-}

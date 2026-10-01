@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { defaultSelectableModel, parseModel, recentModels } from "../../src/context/local"
+import { configuredModel, defaultSelectableModel, parseModel, recentModels } from "../../src/context/local"
 import { fadeColor } from "../../src/component/prompt"
 import { RGBA } from "@opentui/core"
 
@@ -53,4 +53,23 @@ test("非内置提供商沿用默认模型或首个模型", () => {
   }
   expect(defaultSelectableModel(anthropic, { anthropic: "claude-3" })).toBe("claude-3")
   expect(defaultSelectableModel(anthropic, {})).toBe("claude-4")
+})
+
+test("配置/CLI 指定 builtin/auto 时手动模式忽略它", () => {
+  const alwaysValid = () => true
+  expect(configuredModel("builtin/auto", alwaysValid)).toBeUndefined()
+})
+
+test("配置/CLI 指定普通模型时原样返回", () => {
+  const alwaysValid = () => true
+  expect(configuredModel("builtin/gpt-5", alwaysValid)).toEqual({ providerID: "builtin", modelID: "gpt-5" })
+  expect(configuredModel("anthropic/family/model", alwaysValid)).toEqual({
+    providerID: "anthropic",
+    modelID: "family/model",
+  })
+})
+
+test("未配置或校验不通过时返回 undefined", () => {
+  expect(configuredModel(undefined, () => true)).toBeUndefined()
+  expect(configuredModel("anthropic/gone", (m) => m.modelID === "claude-4")).toBeUndefined()
 })

@@ -5,7 +5,7 @@ import { batch, createEffect, createMemo } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useModels } from "@/context/models"
 import { useProviders } from "@/hooks/use-providers"
-import { firstSelectableModel, isAutoModel, orderFallbackProviders } from "@/utils/model"
+import { configuredModel, firstSelectableModel, isAutoModel, orderFallbackProviders } from "@/utils/model"
 import { Persist, persisted } from "@/utils/persist"
 import { cycleModelVariant, getConfiguredAgentVariant, resolveModelVariant } from "./model-variant"
 import { visibleAgentList } from "./local-agent"
@@ -144,13 +144,6 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       handoff.delete(key)
     })
 
-    const configuredModel = () => {
-      if (!sync.data.config.model) return
-      const [providerID, modelID] = sync.data.config.model.split("/")
-      const model = { providerID, modelID }
-      if (validModel(model)) return model
-    }
-
     const recentModel = () => {
       for (const item of models.recent.list()) {
         // Auto 关闭后,仅跳过内置 auto 条目,内置实时模型仍可回退
@@ -172,7 +165,9 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       }
     }
 
-    const fallback = createMemo<ModelKey | undefined>(() => configuredModel() ?? recentModel() ?? defaultModel())
+    const fallback = createMemo<ModelKey | undefined>(
+      () => configuredModel(sync.data.config.model, validModel) ?? recentModel() ?? defaultModel(),
+    )
 
     const agent = {
       list,
