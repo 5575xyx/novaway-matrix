@@ -58,6 +58,34 @@ describe("NeonBox 渐变卡片", () => {
     }
   })
 
+  test("JSX 直写 padding=0/paddingX=0 简写也被 setter 夹到 1,内容不盖掉边框", async () => {
+    const app = await testRender(
+      () => (
+        <neonbox
+          width={10}
+          height={3}
+          backgroundColor={RGBA.fromHex("#101010")}
+          gradientStops={[RGBA.fromHex("#ff0000"), RGBA.fromHex("#0000ff")]}
+          padding={0}
+          paddingX={0}
+        >
+          <text>ab</text>
+        </neonbox>
+      ),
+      { width: 20, height: 6 },
+    )
+    try {
+      await app.renderOnce()
+      const frame = app.captureCharFrame()
+      const lines = frame.split("\n")
+      expect(frame).toContain("╭────────╮")
+      expect(frame).toContain("│ab")
+      expect(lines.some((line) => line.startsWith("ab"))).toBe(false)
+    } finally {
+      app.renderer.destroy()
+    }
+  })
+
   test("不给 gradientStops 时不画边框(退回普通 box 行为)", async () => {
     const app = await testRender(
       () => (
