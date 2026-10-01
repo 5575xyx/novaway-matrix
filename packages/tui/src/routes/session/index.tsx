@@ -124,8 +124,11 @@ export function partSiblingRef(el: BoxRenderable) {
   setPreLayoutSiblingMargin(el, (previous) => (previous ? 1 : 0))
 }
 
-// meta 行里模型名的截断上限。26 = ◆(1) + agent 名(实测最长 ≈16)+ 两个「 · 」(4)
-// + todayTimeOrDateTime 最长一档(非今天时是「14:32 · 2026/1/2」= 18 列)再留一点余量。
+// meta 行里模型名的截断上限。26 是个经验值,不是精确推导:
+// 能算准的固定开销是 ◆(1) + 它后面的空格(1) + 两个「 · 」(2×3=6) + 时间戳最长一档
+// 「14:32 · 2026/1/2」(locale.ts 的 `time · localDate` = 5+3+8 = 16),合计 24;
+// 余下 2 列是保守余量。它**没有**把 agentDisplayName 算进去 —— agent 名通常 4~6 列,
+// 名字特别长时会进一步挤掉模型名,这是「保住 agent 与时间、优先丢模型」的有意取舍。
 // 下限 12:再窄也要给模型名留一截,否则只剩个「 · 」很难看。
 export function metaModelLimit(width: number) {
   return Math.max(12, width - 26)
@@ -1941,13 +1944,14 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
   const turnAdditions = createMemo(() => turnDiffs().reduce((sum, x) => sum + x.additions, 0))
   const turnDeletions = createMemo(() => turnDiffs().reduce((sum, x) => sum + x.deletions, 0))
   // 有没有能真正渲染出来的 part。PART_MAPPING 只覆盖 text/tool/reasoning,其余类型会被
-  // <Show when={component()}> 丢掉;流式早期可能一个都没有,这时不画卡壳 —— 否则会多出一个
-  // 3 行高的空霓虹卡加一行 meta(改造前这种情况下什么都不渲染)。
+  // <Show when={component()}> 丢掉;流式早期可能一个都没有,这时只跳过卡壳,不画那个 3 行高的
+  // 空霓虹卡。meta 行照常渲染 —— 它标的是「这条助手消息在这」,即使正文还没到。
+  // 改造前没有卡也没有 meta,所以这里不是「恢复原样」,而是新形态下选的取舍。
   const renderableParts = createMemo(() => props.parts.filter((x) => PART_MAPPING[x.type as keyof typeof PART_MAPPING]))
 
   return (
     <>
-      {/* 助手气泡:meta 行(智能体 · 模型 · 时间)+ 霓虹描边正文卡。
+      {/* 助手气泡:meta 行(智能体 · 时间 · 模型)+ 霓虹描边正文卡。meta 的顺序与截断见 AssistantMeta。
           wrapper 必须带 id —— 会话跳转(跳到消息/上一条下一条)是按 scrollbox **直接子节点**的 id 查的。
           wrapper 自己承担 marginTop=1:卡内每个 part 的 margin 由 setPreLayoutSiblingMargin 按兄弟链算,
           首 part 的 previous 是 undefined → 0,不会再多顶一行。 */}
@@ -2321,11 +2325,13 @@ type ToolProps = {
   output?: string
   part: ToolPart
 }
-// 工具输出的折叠宽度,相对 ctx.width 扣 9 = 助手卡 padding 3 + BlockTool 自己的 padding 3
-// + 3 列保守余量。测试只锁住了中间那两项(卡 → BlockTool 确实差 3 列,见
-// test/routes/session/assistant-card.test.tsx),那 3 列余量是估的,吸收的是会话流外层的
-// 内边距:消息流宿主的 paddingLeft/Right={2} 与滚动条 viewportOptions.paddingRight: 1。
-// 这两处任一改动都要回来重算 −9。
+// 工具输出的折叠宽度,相对 ctx.width 扣 9。能算准的两项:助手卡 padding 3
+// (paddingLeft 2 + paddingRight 1)+ BlockTool 自己的 padding 3,合计 6。
+// 余下 3 列是保守余量,不是从宿主内边距推出来的 —— 宿主那 4 列
+// (paddingLeft/Right={2} 与滚动条 viewportOptions.paddingRight)早在 contentWidth()
+// 的 `- 4` 里就扣掉了,ctx.width 已经是净值,再算一遍是重复扣。
+// 也就是说真实余量只有 1~2 列。这 3 列没有测试锁定(测试只量到「顶层 45 / 卡内 42」),
+// 所以卡 padding 或宿主 padding 任一变化,都必须重新实测这个数,不能沿用。
 function GenericTool(props: ToolProps) {
   const { theme } = useTheme()
   const ctx = use()
