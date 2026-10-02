@@ -19,7 +19,8 @@ import { PluginRuntimeProvider, createPluginRuntime } from "../../src/plugin/run
 import { Sidebar, setSidebarTab } from "../../src/routes/session/sidebar"
 import { SidebarCard } from "../../src/component/sidebar-card"
 import { clearFileTreeCache, setSelectedPath } from "../../src/component/file-tree"
-import { SIDEBAR_CARD_MIN_CONTENT, SIDEBAR_FILES_CARD_MIN_CONTENT } from "../../src/util/sidebar-metrics"
+import { sidebarCardContentWidth, SIDEBAR_CARD_MIN_CONTENT } from "../../src/util/sidebar-metrics"
+import { SIDEBAR_MIN_WIDTH } from "../../src/util/sidebar-width"
 import { workbenchOptions } from "../../src/component/dialog-workbench"
 import { TestTuiContexts } from "../fixture/tui-environment"
 import { createFetch, eventSource, json } from "../fixture/tui-sdk"
@@ -138,7 +139,11 @@ async function renderSidebar(input: {
   tab: "files" | "info"
   directory: string
   terminalWidth: number
+  /** 默认 12:宽度模型那几条只关心列数,行数给矮一点反而更容易溢出。 */
+  terminalHeight?: number
   registerProbeCard?: boolean
+  /** 在 sidebar_footer 槽里插一张有内容的探针 —— 默认那张槽在测试里没人注册,渲染成空。 */
+  registerProbeFooter?: boolean
   /** 等这一段出现在帧里;省略就是各页自己的老条件。 */
   waitFor?: string
 }) {
@@ -148,7 +153,7 @@ async function renderSidebar(input: {
     const renderer = useRenderer()
     // 生产里这层卡是内置插件(slot)插进来的;测试里注册一张同名探针卡,
     // 量的是完全相同的嵌套:根卡 → scrollbox → <box paddingRight={1}> → SidebarCard。
-    if (input.registerProbeCard) {
+    if (input.registerProbeCard || input.registerProbeFooter) {
       runtime.setupSlots({ renderer, theme: { current: {} } } as unknown as TuiPluginApi).register({
         id: "test:probe-card",
         slots: {
@@ -157,6 +162,7 @@ async function renderSidebar(input: {
               <text>内容</text>
             </SidebarCard>
           ),
+          ...(input.registerProbeFooter ? { sidebar_footer: () => <text>FOOTER-PROBE</text> } : {}),
         },
       })
     }
@@ -200,7 +206,7 @@ async function renderSidebar(input: {
         </TuiConfigProvider>
       </TestTuiContexts>
     ),
-    { width: input.terminalWidth, height: 12 },
+    { width: input.terminalWidth, height: input.terminalHeight ?? 12 },
   )
   let frame = ""
   const ready = input.waitFor ?? (input.tab === "files" ? "file-0" : "探针卡")
@@ -226,7 +232,7 @@ test("分区卡的可用列数:侧栏 44 时文件页 37、待办页 36(照真�
       expect(card.width).toBe(39)
       // 卡内可用列 = 卡宽 − 2(左右边框,内边距列就是边框列)。
       expect(card.width - 2).toBe(37)
-      expect(SIDEBAR_FILES_CARD_MIN_CONTENT).toBe(37)
+      expect(sidebarCardContentWidth(SIDEBAR_MIN_WIDTH, "files")).toBe(37)
     } finally {
       files.app.renderer.destroy()
     }
@@ -274,9 +280,11 @@ test("分区卡在侧栏最窄时也不把正文顶到右边框外", async () =>
   }
 })
 
-// 「快速预览」卡挂在文件页里、与文件树同一个 scrollbox,所以要验的是「它真的看得见」:
-// 40 个文件把树撑到溢出,预览卡若被挤到滚动区外面,用户点了文件也看不到内容。
-test("侧栏文件页:选中文件后「快速预览」卡在同一屏里看得见", async () => {
+// 「快速预览」卡挂在文件页里、在 scrollbox **外面**,所以要验的是「它出现了而且有内容」。
+//
+// 这条只钉住「预览卡出现 + 有内容」,不碰高度:高度那条归下面 height 24 的用例管。
+// 高度得给 20(默认 12 那个是宽度模型用的)—— previewMaxLines(12) 是 0 行,正文根本不会出现。
+test("侧栏文件页:选中文件后「快速预览」卡出现并有内容", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "nw-sidebar-preview-"))
   clearFileTreeCache()
   for (let index = 0; index < 40; index++) await writeFile(path.join(root, `file-${index}-long-name.ts`), "")
@@ -284,7 +292,13 @@ test("侧栏文件页:选中文件后「快速预览」卡在同一屏里看得�
   await writeFile(picked, ["export const quick = true", "export const preview = 7"].join("\n"))
   setSelectedPath(picked)
   try {
-    const files = await renderSidebar({ tab: "files", directory: root, terminalWidth: 120, waitFor: "quick" })
+    const files = await renderSidebar({
+      tab: "files",
+      directory: root,
+      terminalWidth: 120,
+      terminalHeight: 20,
+      waitFor: "quick",
+    })
     try {
       expect(files.frame).toContain("快速预览")
       expect(files.frame).toContain("file-7-long-name.ts")
@@ -299,6 +313,49 @@ test("侧栏文件页:选中文件后「快速预览」卡在同一屏里看得�
       } finally {
         empty.app.renderer.destroy()
       }
+    } finally {
+      files.app.renderer.destroy()
+    }
+  } finally {
+    setSelectedPath(null)
+    clearFileTreeCache()
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+// 24 行终端上,一张**长**文件的预览卡曾经吃掉 16 行,加上侧栏 6 行固定开销是 22 行,文件树
+// 只剩 2 行;20 行的终端直接 0 行,而根侧栏卡当时也没有 overflow="hidden",品牌页脚被顶出去。
+// 封顶按 util/file-preview-head 的 previewMaxLines 算:24 行给正文 9 行。
+//
+// 三件事都要成立:预览正文在、文件树第一行在、品牌页脚在。只断言「预览看得见」的话,
+// 预览把树吃光也照样绿 —— 上一条就栽在这里(它按 12 行终端渲染,树必然有地方)。
+test("侧栏文件页(24 行):预览卡按可用高度封顶,文件树与品牌页脚都还在屏内", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "nw-sidebar-cap-"))
+  clearFileTreeCache()
+  for (let index = 0; index < 40; index++) await writeFile(path.join(root, `file-${index}-long-name.ts`), "")
+  const picked = path.join(root, "file-7-long-name.ts")
+  // 40 行:不封顶的话预览卡会要满 12 行,封顶后只给 9 行。
+  await writeFile(picked, Array.from({ length: 40 }, (_, i) => `export const quick${i} = ${i}`).join("\n"))
+  setSelectedPath(picked)
+  try {
+    const files = await renderSidebar({
+      tab: "files",
+      directory: root,
+      terminalWidth: 120,
+      terminalHeight: 24,
+      registerProbeFooter: true,
+      waitFor: "quick0",
+    })
+    try {
+      expect(files.frame).toContain("快速预览")
+      // 截断提示在 = 正文真的被截到 9 行,而不是文件本来就那么短。
+      expect(files.frame).toContain("还有 31 行")
+      expect(files.frame).toContain("export const quick8")
+      expect(files.frame).not.toContain("quick12")
+      // 文件树还在:封顶就是为它留的位置(不封顶时树只剩卡头与边框,一个文件名都放不下)。
+      expect(files.frame).toContain("file-0")
+      // 品牌页脚也没被顶出去。footer 槽在测试里默认没人注册(渲染成空盒子),所以插一张探针。
+      expect(files.frame).toContain("FOOTER-PROBE")
     } finally {
       files.app.renderer.destroy()
     }

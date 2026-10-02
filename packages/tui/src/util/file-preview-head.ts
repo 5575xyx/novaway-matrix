@@ -9,10 +9,42 @@ import { SIDEBAR_CARD_MIN_CONTENT } from "./sidebar-metrics"
  */
 
 /**
- * 预览显示的最大行数。侧栏文件页下面还有文件树,预览卡不该把整屏吃掉;
+ * 预览显示的行数**上限**。侧栏文件页下面还有文件树,预览卡不该把整屏吃掉;
  * 12 行够看出一个文件在干什么,再多就该双击进主区标签页看全文了。
+ *
+ * 实际给几行由 previewMaxLines 按终端高度再压一道 —— 这个数只是天花板。
  */
 export const PREVIEW_MAX_LINES = 12
+
+// 预览卡能占的行数是**减法**出来的,减的每一项都对应一个真实存在的行:
+//
+//   SIDEBAR_FILES_CHROME_ROWS = 侧栏固定开销:根卡 paddingTop 1 + 标签行(1 行标签 +
+//     1 行 paddingBottom)= 2 + 品牌页脚(paddingTop 1 + 1 行)= 2 + 根卡 paddingBottom 1。
+//   SIDEBAR_FILES_TREE_MIN_ROWS = 「资源管理器」卡至少要留这么多行。少了它,文件树会被
+//     预览卡挤成只剩一条标题 —— 那正是这张卡当初被挪到 scrollbox 外面时要避免的事。
+//   PREVIEW_CARD_ROWS = 预览卡自己的固定行:上下两行边框(内边距行就是边框行)+ 1 行卡头。
+//   PREVIEW_NOTICE_ROWS = 「… 还有 N 行」那一行。只在真截断时出现,但先扣掉 —— 反过来算的
+//     话,一个 3 行的文件会把文件树少分 3 行,为了一个用不上的提示去挤压另一张卡不划算。
+//
+// 24 行的终端:24 − 6 − 5 − 3 − 1 = 9 行正文(+1 行提示),预览卡 13 行,文件树还剩 5 行。
+// 30 行及以上才轮到 PREVIEW_MAX_LINES 那个天花板。
+export const SIDEBAR_FILES_CHROME_ROWS = 6
+export const SIDEBAR_FILES_TREE_MIN_ROWS = 5
+const PREVIEW_CARD_ROWS = 3
+const PREVIEW_NOTICE_ROWS = 1
+
+/**
+ * 终端有 `height` 行高时,预览正文最多给几行。
+ *
+ * 不封顶的话那张卡会吃掉几乎整列:根侧栏卡是 `height="100%"` 且**没有** overflow="hidden",
+ * 固定开销 6 行 + 预览 16 行 = 22 行,20 行的终端上文件树分到 0 行、品牌页脚被顶出屏幕。
+ * 这里把「树至少要有的行数」当成硬预算先扣掉,剩下的才是预览的。
+ */
+export function previewMaxLines(terminalHeight: number) {
+  const room =
+    terminalHeight - SIDEBAR_FILES_CHROME_ROWS - SIDEBAR_FILES_TREE_MIN_ROWS - PREVIEW_CARD_ROWS - PREVIEW_NOTICE_ROWS
+  return Math.max(0, Math.min(PREVIEW_MAX_LINES, room))
+}
 
 /**
  * 体积上限。侧栏预览是「随手看一眼」,不是编辑器:超过这个体积就不读正文,
@@ -41,15 +73,6 @@ export function isCodeModel(model: PreviewModel): model is CodePreview {
 /** 卡头徽标 = 文件名。path.basename 对 Windows 反斜杠同样有效。 */
 export function previewBadge(filePath: string) {
   return path.basename(filePath)
-}
-
-/**
- * 预览正文的列预算。默认取**窄的那一档**分区卡内容宽(sidebar-metrics 里 info/git 页的 36):
- * 预览卡挂在文件页(那一档是 37),按 36 算就天然留 1 列余量,写死 37 的话哪天挪到别的
- * 页就会顶到右边框上,而那种溢出在字符帧里看起来仍然「有内容」。
- */
-export function previewColumns(columns = SIDEBAR_CARD_MIN_CONTENT) {
-  return columns
 }
 
 /** 二进制判定:正文里有 NUL 字节就不是可预览的文本。 */
@@ -91,7 +114,10 @@ export function previewModel(input: {
   if (lines.length === 0) return { kind: "notice", text: "空文件" }
 
   const maxLines = input.maxLines ?? PREVIEW_MAX_LINES
-  const columns = previewColumns(input.columns)
+  // 列预算默认取**窄的那一档**分区卡内容宽(sidebar-metrics 里 info/git 页的 36):
+  // 预览卡挂在文件页(那一档是 37),按 36 算就天然留 1 列余量,写死 37 的话哪天挪到别的
+  // 页就会顶到右边框上,而那种溢出在字符帧里看起来仍然「有内容」。
+  const columns = input.columns ?? SIDEBAR_CARD_MIN_CONTENT
   const kept = lines.slice(0, maxLines).map((line) => Locale.truncateToWidth(line, columns))
   return {
     kind: "code",

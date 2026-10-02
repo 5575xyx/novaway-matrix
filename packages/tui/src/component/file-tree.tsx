@@ -100,6 +100,16 @@ export function clearFileTreeCache() {
 const [selectedPath, setSelectedPath] = createSignal<string | null>(null)
 export { selectedPath, setSelectedPath }
 
+/**
+ * 这个路径在不在这棵树底下。跨盘符时(Windows 的 C: → D:)path.relative 会直接给一个
+ * 绝对路径,所以绝对路径也判成「不在底下」。
+ */
+function insideTree(rootPath: string, target: string | null) {
+  if (!target) return true
+  const relative = path.relative(rootPath, target)
+  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative)
+}
+
 export interface FileTreeProps {
   rootPath: string
   onFileSelect?: (filePath: string) => void
@@ -133,6 +143,17 @@ export function FileTree(props: FileTreeProps) {
       (rootPath) => {
         setChildren({})
         setExpandedDirs(new Set([rootPath]))
+        // 换根目录就把选中项清掉 —— 它是**模块级**的(见上面 selectedPath 的注释),不随组件
+        // 重挂而消失:换到另一个会话的目录之后它还指着上一个目录的文件,快速预览卡会去读一个
+        // 不存在的路径,正文变成「无法读取该文件」—— 一张看起来坏掉的卡,而不是干脆没有卡。
+        //
+        // 判据是「选中项还在不在这棵树底下」而不是「这是不是首挂载」:首挂载时那个选中项
+        // 同样可能是上一个会话留下的(模块级状态跨重挂存活),而测试里也普遍在挂载前就预设
+        // 选中项。按 rootPath 是否变化来判,两种情况都会误伤其中一边。
+        if (!insideTree(rootPath, selectedPath())) {
+          setSelectedFile(null)
+          setSelectedPath(null)
+        }
         void load(rootPath)
       },
     ),

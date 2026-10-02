@@ -107,6 +107,11 @@ export function Sidebar(props: SidebarProps) {
       paddingBottom={1}
       paddingLeft={2}
       paddingRight={2}
+      /* overflow="hidden":这一列是固定高度,子内容(预览卡 + scrollbox + 页脚)一旦超过
+         terminalHeight,没有裁剪的话最后几行会画到**下一行**去 —— 品牌页脚先被顶出去。
+         预览卡已经按可用高度封顶(quick-preview-card 的 previewMaxLines),这一层是兜底:
+         终端再矮也不该看到溢出到面板外面的内容。 */
+      overflow="hidden"
       position={props.overlay ? "absolute" : "relative"}
       flexDirection="column"
     >

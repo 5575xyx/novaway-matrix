@@ -36,8 +36,6 @@ export function sidebarCardContentWidth(sidebarColumns: number, page: SidebarCar
 
 /** info / git 页(插件槽与 GitPanel 外面多一层 paddingRight 的盒子)。 */
 export const SIDEBAR_CARD_MIN_CONTENT = sidebarCardContentWidth(SIDEBAR_MIN_WIDTH)
-/** 文件页(「资源管理器」卡直接挂在 scrollbox 里,宽 1 列)。 */
-export const SIDEBAR_FILES_CARD_MIN_CONTENT = sidebarCardContentWidth(SIDEBAR_MIN_WIDTH, "files")
 /**
  * 分区卡**外面**那一层的内容区(Git 页的「同步 / 远程 / 历史」三个节标题和它们的行):
  * 比卡里宽 2 列 —— 那 2 列正是卡自己的左右边框。
