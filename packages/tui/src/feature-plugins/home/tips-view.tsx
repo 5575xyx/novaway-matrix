@@ -1,11 +1,12 @@
 import type { TuiPluginApi } from "@opencode/plugin/tui"
-import { createMemo, For, type Accessor } from "solid-js"
-import { DEFAULT_THEMES, useTheme } from "../../context/theme"
+import { createMemo, Show, type Accessor } from "solid-js"
+import { useTerminalDimensions } from "@opentui/solid"
+import { DEFAULT_THEMES } from "../../context/theme"
 import { useCommandShortcut } from "../../keymap"
+import { TipCard, tipCardContentWidth, tipPlainText, type TipAction, type TipPart } from "./tip-card"
 
 const themeCount = Object.keys(DEFAULT_THEMES).length
 
-type TipPart = { text: string; highlight: boolean }
 type TipShortcut = Accessor<string>
 type Shortcuts = {
   agentCycle: TipShortcut
@@ -42,7 +43,21 @@ type Shortcuts = {
   terminalSuspend: TipShortcut
   themeList: TipShortcut
 }
-type Tip = string | ((shortcuts: Shortcuts) => string | undefined)
+
+/**
+ * 一条提示的内容。正文 + 可选的动作按钮。
+ *
+ * 绝大多数提示只是文案(写成裸字符串即可),只有「有话可说」的少数几条才升级成对象 ——
+ * 原型 card-design-v7.html:906-912 那张卡上的「升级 / 稍后」就是这么来的。
+ */
+export type TipContent = { text: string; actions?: TipAction[] }
+
+/** 提示条外面那层容器的宽度上限(见 tips.tsx 的 `<box maxWidth={75}>`)。 */
+const TIP_BAR_MAX = 75
+/** 那层容器自己的左右内边距(home.tsx 的消息区 paddingLeft/paddingRight 各 2)。 */
+const TIP_BAR_PADDING = 4
+
+type Tip = string | TipContent | ((shortcuts: Shortcuts) => string | TipContent | undefined)
 
 function parse(tip: string): TipPart[] {
   const parts: TipPart[] = []
@@ -94,9 +109,32 @@ function configShortcut(api: TuiPluginApi, command: string): TipShortcut {
       .join(", ")
 }
 
-export function Tips(props: { api: TuiPluginApi; connected?: boolean }) {
-  const theme = useTheme().theme
+/**
+ * 把一条提示条目归一成「正文 + 动作」。字符串与对象都从这里进来,渲染层只认一种形状。
+ * 取不到文案(快捷键没绑、筛掉的那几条)返回 undefined,调用方把它丢出候选。
+ */
+function resolveTip(value: string | TipContent): TipContent {
+  return typeof value === "string" ? { text: value } : value
+}
+
+export function Tips(props: {
+  api: TuiPluginApi
+  connected?: boolean
+  /**
+   * 已被「稍后」消解的那条提示的**纯文本**(tipPlainText 去标记后的形状)。
+   * 候选里会跳过它,所以同一条不会在这次挂载里立刻又冒出来。
+   * 状态本身由 tips.tsx 存在 api.kv 里(与 tips_hidden 同一个存储),这里不碰。
+   */
+  dismissed?: string
+  onDismiss?: () => void
+}) {
+  const dimensions = useTerminalDimensions()
   const tipOffset = Math.random()
+  // 卡壳的可用列 = 提示条容器宽 − NeonCard 的内边距。提示条容器的宽度就是 tips.tsx 里
+  // 那个 `<box width="100%" maxWidth={75}>` 夹在消息区左右内边距之间的结果。
+  const width = createMemo(() =>
+    tipCardContentWidth(Math.max(0, Math.min(TIP_BAR_MAX, dimensions().width - TIP_BAR_PADDING))),
+  )
   const shortcuts: Shortcuts = {
     agentCycle: useCommandShortcut("agent.cycle"),
     childFirst: configShortcut(props.api, "session.child.first"),
@@ -133,32 +171,63 @@ export function Tips(props: { api: TuiPluginApi; connected?: boolean }) {
     themeList: useCommandShortcut("theme.switch"),
   }
   const tip = createMemo(() => {
-    if (props.connected === false) return NO_MODELS_TIP
-    const tips = [...TIPS, process.platform !== "win32" ? TERMINAL_SUSPEND_TIP : INPUT_UNDO_TIP].flatMap((item) => {
-      const value = typeof item === "string" ? item : item(shortcuts)
-      return value ? [value] : []
+    const tips = (
+      props.connected === false
+        ? [NO_MODELS_TIP]
+        : [...TIPS, process.platform !== "win32" ? TERMINAL_SUSPEND_TIP : INPUT_UNDO_TIP]
+    ).flatMap((item) => {
+      const value = typeof item === "function" ? item(shortcuts) : item
+      return value ? [resolveTip(value)] : []
     })
-    return tips[Math.floor(tipOffset * tips.length)] ?? NO_MODELS_TIP
-  }, NO_MODELS_TIP)
+    // 「稍后」消解掉的那一条不进候选池 —— 它不是「藏起来」,是真的这条不用再说了。
+    const pool = props.dismissed ? tips.filter((item) => tipPlainText(item.text) !== props.dismissed) : tips
+    if (pool.length === 0) return undefined
+    return pool[Math.floor(tipOffset * pool.length)]
+  })
   // Solid can expose a memo's initial value while a pure computation is pending.
   const parts = createMemo(() => {
     const value = tip()
-    if (typeof value === "string") return parse(value)
-    return NO_MODELS_PARTS
+    if (!value) return []
+    return parse(value.text)
   }, NO_MODELS_PARTS)
+  /**
+   * 动作按钮通过**插件接口**派发,不走别的通道:
+   * `api.keymap.dispatchCommand(name)` 是 api.command 官方标注的替代品
+   * (见 packages/plugin/src/tui.ts 里 TuiPluginApi.command 的 @deprecated 注释),
+   * 也是 TUI 内部唯一那条命令派发通道(app.tsx 的 keymap、command-palette 都走它)。
+   * 这里**不**去执行外部命令 —— 「升级」派发的是 app.upgrade 命令,那条命令走的是 TUI
+   * 本来就有的 sdk.client.global.upgrade(服务端自己换二进制),不是 shell。
+   */
+  const dispatch = (command: string) => props.api.keymap.dispatchCommand(command)
 
   return (
-    <box flexDirection="row" maxWidth="100%">
-      <text flexShrink={0} style={{ fg: theme.warning }}>
-        ● 提示{" "}
-      </text>
-      <text flexShrink={1} wrapMode="word">
-        <For each={parts()}>
-          {(part) => <span style={{ fg: part.highlight ? theme.text : theme.textMuted }}>{part.text}</span>}
-        </For>
-      </text>
+    <box flexDirection="column" maxWidth="100%">
+      <Show when={tip()}>
+        {(item) => (
+          <TipCard
+            parts={parts()}
+            actions={item().actions}
+            width={width()}
+            onAction={dispatch}
+            onDismiss={props.onDismiss}
+          />
+        )}
+      </Show>
     </box>
   )
+}
+
+/**
+ * 唯一带动作按钮的提示(原型 card-design-v7.html:906-912 的那张卡):正文说「运行
+ * `NovaWay upgrade`」,那颗「升级」按钮把同一次更新真正做掉 —— 派发 `app.upgrade` 命令,
+ * 那条命令在 app.tsx 里做的是 TUI 本来就在做的事(确认对话框 → sdk.client.global.upgrade
+ * → 提示重启),不是另开一条 shell。
+ *
+ * 「稍后」不由这里给:消解是卡片自己的语义(tip-card 在 onDismiss 存在时才补那颗按钮)。
+ */
+const UPGRADE_TIP: TipContent = {
+  text: "运行 {highlight}NovaWay upgrade{/highlight} 更新到最新版本",
+  actions: [{ label: "升级", command: "app.upgrade" }],
 }
 
 const TIPS: Tip[] = [
@@ -240,7 +309,7 @@ const TIPS: Tip[] = [
   "使用 {highlight}--format json{/highlight} 在脚本中获取机器可读的输出",
   "运行 {highlight}NovaWay serve{/highlight} 获取 NovaWay 的无头 API 访问",
   "使用 {highlight}NovaWay run --attach{/highlight} 连接到正在运行的服务器",
-  "运行 {highlight}NovaWay upgrade{/highlight} 更新到最新版本",
+  UPGRADE_TIP,
   "运行 {highlight}NovaWay auth list{/highlight} 查看所有已配置的提供商",
   "运行 {highlight}NovaWay agent create{/highlight} 进行引导式代理创建",
   "在 GitHub issues/PRs 中使用 {highlight}/NovaWay{/highlight} 触发 AI 操作",

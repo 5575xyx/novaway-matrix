@@ -588,8 +588,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
   const backgroundSubagentsEnabled = createMemo(
     () =>
       ((sync.data.config.experimental as Record<string, unknown> | undefined)?.background_subagents as
-        | boolean
-        | undefined) ??
+        boolean | undefined) ??
       sync.data.capabilities.experimentalBackgroundSubagents ??
       true,
   )
@@ -600,6 +599,56 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
     if (workspace?.type !== "worktree" || !workspace.directory) return
     return workspace
   })
+  /**
+   * 更新到最新版:确认 → sdk.client.global.upgrade → 提示重启 → 退出。
+   *
+   * 这一段原先只长在 `installation.update-available` 事件处理器里(服务端主动报新版本时弹),
+   * 于是「没有新版本事件、但用户就是想更新」在 TUI 里没有任何入口 —— 提示卡上那颗「升级」
+   * 按钮派发的正是这条 `app.upgrade` 命令。它做的是**进程内**的更新(服务端换自己的二进制),
+   * 和在 shell 里另起一个 `NovaWay upgrade` 是同一件事,但 TUI 不需要为此发明外部命令通道。
+   *
+   * `version` 省略 = 升到最新(SDK 的 `/global/upgrade` 里 target 可省);给了就是升到那一个
+   * 版本 —— 事件路径必须给,否则用户看到的提示和实际装的版本对不上。
+   */
+  const runUpgrade = async (version?: string) => {
+    const choice = await DialogConfirm.show(
+      dialog,
+      "发现新版本",
+      version ? `新版本 v${version} 已发布，现在更新吗？` : "现在更新到最新版本吗？",
+      "跳过",
+    )
+
+    if (choice === false) {
+      // 「跳过」只在知道是哪个版本时才有意义(那是事件路径);命令路径没有版本号可跳。
+      if (version) kv.set("skipped_version", version)
+      return
+    }
+
+    if (choice !== true) return
+
+    toast.show({
+      variant: "info",
+      message: version ? `正在更新到 v${version}...` : "正在更新到最新版本...",
+      duration: 30000,
+    })
+
+    const result = await sdk.client.global.upgrade(version ? { target: version } : undefined)
+
+    if (result.error || !result.data?.success) {
+      toast.show({
+        variant: "error",
+        title: "更新失败",
+        message: "更新失败",
+        duration: 10000,
+      })
+      return
+    }
+
+    await DialogAlert.show(dialog, "更新完成", `已成功更新到 NovaWay v${result.data.version}。请重启应用程序。`)
+
+    void exit()
+  }
+
   const appCommands = createMemo(() =>
     [
       {
@@ -940,6 +989,16 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
         category: "系统",
       },
       {
+        name: "app.upgrade",
+        title: "更新到最新版本",
+        category: "系统",
+        slashName: "upgrade",
+        run: async () => {
+          await runUpgrade()
+          dialog.clear()
+        },
+      },
+      {
         name: "app.debug",
         title: "切换调试面板",
         slashName: "debug-panel",
@@ -1151,36 +1210,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
     const skipped = kv.get("skipped_version")
     if (skipped && !isVersionGreater(version, skipped)) return
 
-    const choice = await DialogConfirm.show(dialog, "发现新版本", `新版本 v${version} 已发布，现在更新吗？`, "跳过")
-
-    if (choice === false) {
-      kv.set("skipped_version", version)
-      return
-    }
-
-    if (choice !== true) return
-
-    toast.show({
-      variant: "info",
-      message: `正在更新到 v${version}...`,
-      duration: 30000,
-    })
-
-    const result = await sdk.client.global.upgrade({ target: version })
-
-    if (result.error || !result.data?.success) {
-      toast.show({
-        variant: "error",
-        title: "更新失败",
-        message: "更新失败",
-        duration: 10000,
-      })
-      return
-    }
-
-    await DialogAlert.show(dialog, "更新完成", `已成功更新到 NovaWay v${result.data.version}。请重启应用程序。`)
-
-    void exit()
+    await runUpgrade(version)
   })
 
   // 静默自动更新(patch 版本,worker 里跑)的结果反馈。此前成败都无声:失败被 .catch 吞掉,
