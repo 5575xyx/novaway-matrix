@@ -21,6 +21,7 @@ export type PanelIconKey =
   | "orchestrator"
   | "chat"
   | "doc"
+  | "view"
   | "check"
   | "gear"
   | "key"
@@ -51,6 +52,8 @@ const PANEL_SETS: Record<IconStyle, Record<PanelIconKey, string>> = {
     orchestrator: "",
     chat: "",
     doc: "",
+    // fa-th-large: 视图切换在 Nerd Font 里最贴的字形(布局网格)。
+    view: "\uF009",
     check: "ok",
     gear: "cfg",
     key: "key",
@@ -72,6 +75,10 @@ const PANEL_SETS: Record<IconStyle, Record<PanelIconKey, string>> = {
     orchestrator: "🕹️",
     chat: "💬",
     doc: "📄",
+    // ◱ (U+25F1) 是 East-Asian Ambiguous:标准口径 1 列,开了 ambiguous-wide 的 CJK 终端
+    // 会渲成 2 列。emoji 风格照原型保留它(它已经和 · 一样踩在这条线上,见文件头),
+    // 另外两套降级成宽度恒定的单字形。
+    view: "◱",
     check: "✓",
     gear: "⚙",
     key: "🔑",
@@ -93,6 +100,8 @@ const PANEL_SETS: Record<IconStyle, Record<PanelIconKey, string>> = {
     orchestrator: "%",
     chat: ":",
     doc: ".",
+    // 「视图」退化成 1 列的 # :◱ 的宽度在 CJK 终端上不可预测,而胶囊行右侧没有余量去容它。
+    view: "#",
     check: "ok",
     gear: "cfg",
     key: "key",
