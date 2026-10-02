@@ -181,7 +181,8 @@ test("输入卡:发送按钮与模型芯片在卡片内", async () => {
   const app = await renderReady(card({ focused: false }), { width: WIDTH, height: 10 }, (text) => text.includes("发送"))
   try {
     const text = frame(app)
-    expect(text).toContain("发送 Enter")
+    // 按钮上的键位现取 input.submit(默认渲染成小写 "enter");写死 "Enter" 会被这条打红。
+    expect(text).toContain(`发送 ${expectedShortcut("input.submit")}`)
     expect(text).toContain("◆ big-pickle")
   } finally {
     app.renderer.destroy()
@@ -276,7 +277,7 @@ test("输入卡:模型芯片按终端宽截断,不给它挤掉输入框的宽度
     // 芯片吃掉的宽度是有上限的:输入框那一行仍然是「提示符 + 输入框 + 芯片 + 发送」四段,
     // 没被顶到折行(折行会把「发送」甩到第二行)。
     const input = lines(app).find((line) => line.includes("L0"))!
-    expect(input).toContain("发送 Enter")
+    expect(input).toContain(`发送 ${expectedShortcut("input.submit")}`)
     expect(input).toContain(">")
   } finally {
     app.renderer.destroy()
