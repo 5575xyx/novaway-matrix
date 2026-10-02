@@ -49,7 +49,7 @@ import { FlowCanvas } from "../../component/flow/canvas"
 import { createSyntaxStyleMemo, generateSubtleSyntax, useTheme } from "../../context/theme"
 import "../../ui/card"
 import { neonStops, semanticStops } from "../../ui/neon"
-import { createEnterBaseline } from "../../ui/enter"
+import { createEnterBaselineStore } from "../../ui/enter"
 import { useCardHover } from "../../ui/hover"
 import { BoxRenderable, ScrollBoxRenderable, addDefaultParsers, TextAttributes, RGBA } from "@opentui/core"
 import { Prompt, type PromptRef } from "../../component/prompt"
@@ -1688,18 +1688,28 @@ export function Session() {
   const hiddenMessages = createMemo(() => visibleWindow().hidden)
 
   // 卡片阶梯入场的基线:Session 首次挂载时的消息 id 快照,之后只增不减。
-  // 建在组件体里(不是 createMemo):换会话时 Session 整个重建,基线自然跟着重开,
-  // 而同一场会话里不管窗口怎么扩、消息怎么增,基线都不会被重算。
   // 首挂载时消息通常还没从服务端回来,基线就是空的 —— 之后陆续到达的消息逐条领一个
   // 递增的入场延迟,正好就是「打开会话时消息流逐条亮起」;反过来,向上滚动补载的
-  // 历史消息早就被记进基线,永远不会二次入场(这才是整屏闪烁的真正来源)。
-  const enterBaseline = createEnterBaseline(messages().map((message) => message.id))
+  // 历史消息早就被记进基线,永远不会二次入场(这才是整屏闪烁的真正的来源)。
+  //
+  // `resetOn` 是**第二个**会重挂消息子树的通道,与窗口补载不同源:下面那两个
+  // `Show when={chatView() ...}` 是当场销毁旧视图建新视图,`Show when={activeTabId() ===
+  // "chat"}` 那一层(开文件标签页)同理。它们各自让整棵消息子树拿到全新的卡片实例,而
+  // ui/card.ts 的「入场只播一次」是**按实例**记的 —— 不作废基线的话,切回气泡视图后
+  // 整屏卡又会重播一遍 320ms + 150ms 的阶梯。理由与取舍见 ui/enter 的
+  // createEnterBaselineStore。
+  const enterBaseline = createEnterBaselineStore({
+    known: () => messages().map((message) => message.id),
+    resetOn: () => [chatView(), activeTabId()],
+  })
   // animations_enabled 关掉时不传 enterDelay —— NeonBox 的约定是「不传即终态」,
-  // 不留淡入残影。但基线照样要问:否则用户中途把动画打开时,这条消息会拿到一个
+  // 不留淡入残影。基线照样要问:否则用户中途把动画打开时,这条消息会拿到一个
   // 「迟到」的入场延迟,凭空淡入一次。
+  // 读的是本组件里那个**信号**版(animationsEnabled)而不是 kv.get:同一个 key 已经有信号了,
+  // 两个访问器读同一个键必然漂 —— 响应式的那一份才能让「中途关掉动画」立刻掐掉淡入。
   const enterDelayFor = (messageID: string) => {
-    const delay = enterBaseline.delayFor(messageID)
-    return kv.get("animations_enabled", true) ? delay : undefined
+    const delay = enterBaseline().delayFor(messageID)
+    return animationsEnabled() ? delay : undefined
   }
 
   // 信息页"消息"列表的跳转:切回聊天标签,必要时把消息窗口扩到包含目标,再滚过去。
