@@ -38,6 +38,11 @@ export function sidebarCardContentWidth(sidebarColumns: number, page: SidebarCar
 export const SIDEBAR_CARD_MIN_CONTENT = sidebarCardContentWidth(SIDEBAR_MIN_WIDTH)
 /** 文件页(「资源管理器」卡直接挂在 scrollbox 里,宽 1 列)。 */
 export const SIDEBAR_FILES_CARD_MIN_CONTENT = sidebarCardContentWidth(SIDEBAR_MIN_WIDTH, "files")
+/**
+ * 分区卡**外面**那一层的内容区(Git 页的「同步 / 远程 / 历史」三个节标题和它们的行):
+ * 比卡里宽 2 列 —— 那 2 列正是卡自己的左右边框。
+ */
+export const SIDEBAR_SECTION_MIN_CONTENT = SIDEBAR_CARD_MIN_CONTENT + 2
 
 // Git 变更文件行的固定开销:行左内边距 1 + 状态码列 2 + 统计左内边距 1
 // + 统计最坏情况「+999 -999」= 4+1+4 = 9 + 悬停才显形的「 丢弃」= 空格 1 + 丢弃 4 = 5。

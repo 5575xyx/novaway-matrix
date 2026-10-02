@@ -1,8 +1,13 @@
 /** @jsxImportSource @opentui/solid */
 import { expect, test } from "bun:test"
 import { testRender } from "@opentui/solid"
+import { createMockMouse } from "@opentui/core/testing"
 import type { JSX } from "solid-js"
-import messagesPlugin, { MESSAGE_COLLAPSE_AT, visibleMessages } from "../../src/feature-plugins/sidebar/messages"
+import messagesPlugin, {
+  MESSAGE_COLLAPSE_AT,
+  messageBadge,
+  visibleMessages,
+} from "../../src/feature-plugins/sidebar/messages"
 import { createTuiPluginApi } from "../fixture/tui-plugin"
 import { ThemeReady, ThemeTestProviders } from "../fixture/providers"
 
@@ -17,6 +22,15 @@ test("超过阈值时默认只保留最近几条,展开后恢复全部", () => {
   // 列表按时间正序,"最近"在尾部。
   expect(visibleMessages(messages, false).map((item) => item.id)).toEqual(["m2", "m3", "m4", "m5", "m6"])
   expect(visibleMessages(messages, true)).toEqual(messages)
+})
+
+// 徽标要说实话:折叠时说「8 条 · 仅显示 5 条」,展开后所有 8 行都在画面上,
+// 再写「仅显示 5 条」就是假信息(它曾经就是错的 —— 徽标算的是常量 MESSAGE_COLLAPSE_AT,
+// 不看 open,所以展开后仍然这么说)。
+test("messageBadge 按当前可见条数说话", () => {
+  expect(messageBadge(8, 5)).toBe("8 条 · 仅显示 5 条")
+  expect(messageBadge(8, 8)).toBe("8 条")
+  expect(messageBadge(3, 3)).toBe("3 条")
 })
 
 // fixture 里只有 session 和 theme,这里补上取摘要用的 part,并把 slots.register 换成
@@ -111,3 +125,52 @@ test("渲染:没有用户消息时整个消息块不出现", async () => {
   const frame = await captureFrame(await renderMessageList(0), 6)
   expect(frame).not.toContain("消息")
 })
+
+// 展开态以前没人测过(全套测试没有点击模拟),于是徽标可以在展开后继续撒谎。
+// 这里真的点一下卡头:opentui 的 createMockMouse 会把事件送进渲染树的 onMouseDown。
+test("渲染:点开之后徽标不再说「仅显示 5 条」,而且画面上的行数与徽标一致", async () => {
+  const total = MESSAGE_COLLAPSE_AT + 3
+  const render = await renderMessageList(total)
+  const app = await testRender(
+    () => (
+      <ThemeTestProviders>
+        <ThemeReady />
+        {render()}
+      </ThemeTestProviders>
+    ),
+    { width: 46, height: 20 },
+  )
+  try {
+    let frame = ""
+    for (let attempt = 0; attempt < 200; attempt++) {
+      await app.renderOnce()
+      frame = app.captureCharFrame()
+      if (frame.includes("READY") && frame.includes("仅显示")) break
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    expect(frame).toContain("READY")
+    expect(frame).toContain(`仅显示 ${MESSAGE_COLLAPSE_AT} 条`)
+    expect(countRows(frame, `m`)).toBe(MESSAGE_COLLAPSE_AT)
+
+    // 卡头那一行(标题「消息」所在行)就是折叠开关,点它的中间。
+    const rows = frame.split("\n")
+    const headerRow = rows.findIndex((row) => row.includes("消息"))
+    expect(headerRow).toBeGreaterThan(0)
+    await createMockMouse(app.renderer).click(10, headerRow)
+    for (let attempt = 0; attempt < 20; attempt++) await app.renderOnce()
+
+    const expanded = app.captureCharFrame()
+    // 展开后所有消息都在画面上,徽标必须跟着改口。
+    expect(expanded).not.toContain("仅显示")
+    expect(expanded).toContain(`${total} 条`)
+    expect(countRows(expanded, `m`)).toBe(total)
+    // 折叠箭头也翻了。
+    expect(expanded).toContain("▼")
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+function countRows(frame: string, prefix: string) {
+  return frame.split("\n").filter((row) => new RegExp(`${prefix}\\d`).test(row)).length
+}
