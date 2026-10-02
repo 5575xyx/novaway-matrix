@@ -21,7 +21,20 @@ export type PanelIconKey =
   | "orchestrator"
   | "chat"
   | "doc"
+  | "check"
+  | "gear"
+  | "key"
+  | "branch"
+  | "led"
 
+// 会话页底栏的 5 个字形(原型 card-design-v7.html:1134-1144 的 `.footer`):
+// `✓ LSP` / `⚙ MCP` / `🔑 权限` / `⑂ 分支` / `● 品牌`。
+//
+// 为什么 nerdfont 这一套也是 ASCII 而不是 Nerd Font 字形:原型的 ✓(U+2713)、⚙(U+2699)、
+// ⑂(U+2442)、●(U+25CF) 都是 East-Asian Ambiguous —— 按 Unicode 标准记 1 列,Bun.stringWidth
+// 也这么记,但开了 ambiguous-wide(Windows 简体中文 / 部分 CJK 终端)的字体设置会把它们渲成
+// 2 列,一行里凭空多出 4 列,底栏右端最先被顶出去。🔑(U+1F511) 本来就是 Wide,占 2 列。
+// 三套风格统一用「宽度可预测」的 ASCII 降级,比让渲染器去撞歧义宽度稳。
 const PANEL_SETS: Record<IconStyle, Record<PanelIconKey, string>> = {
   nerdfont: {
     db: "",
@@ -38,6 +51,11 @@ const PANEL_SETS: Record<IconStyle, Record<PanelIconKey, string>> = {
     orchestrator: "",
     chat: "",
     doc: "",
+    check: "ok",
+    gear: "cfg",
+    key: "key",
+    branch: "br",
+    led: "o",
   },
   emoji: {
     db: "🗄️",
@@ -54,6 +72,11 @@ const PANEL_SETS: Record<IconStyle, Record<PanelIconKey, string>> = {
     orchestrator: "🕹️",
     chat: "💬",
     doc: "📄",
+    check: "✓",
+    gear: "⚙",
+    key: "🔑",
+    branch: "⑂",
+    led: "●",
   },
   ascii: {
     db: "d",
@@ -70,6 +93,11 @@ const PANEL_SETS: Record<IconStyle, Record<PanelIconKey, string>> = {
     orchestrator: "%",
     chat: ":",
     doc: ".",
+    check: "ok",
+    gear: "cfg",
+    key: "key",
+    branch: "br",
+    led: "o",
   },
 }
 

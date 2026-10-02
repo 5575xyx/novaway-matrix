@@ -67,6 +67,7 @@ import { DialogSessionRename } from "../../component/dialog-session-rename"
 import { Sidebar, SIDEBAR_TABS, cycleSidebarTab, setSidebarTab } from "./sidebar"
 import { DiffStatList, uniqueDiffStats } from "../../component/diff-stat-list"
 import { SubagentFooter } from "./subagent-footer.tsx"
+import { Footer } from "./footer"
 import { filetype } from "../../util/filetype"
 import parsers from "../../parsers-config"
 import { errorMessage } from "../../util/error"
@@ -1794,6 +1795,13 @@ export function Session() {
                       }}
                     />
                   </Show>
+                  {/* 底栏(原型 card-design-v7.html 的 `.footer`):一行低调的小字,左组目录 /
+                      LSP / MCP / 权限,右组分支 / 编码 / 品牌+版本。
+                      放在 Prompt **上方**而不是下面:输入卡自己已经带一行状态行(完整目录路径 +
+                      token 花费),底栏若紧贴在它下面,屏幕上就是两条连续的暗色小字行、彼此没有
+                      分隔;放在上面则由输入卡的霓虹上边框把两组信息分开。宽度传 contentWidth()
+                      (已扣掉侧栏与主区 padding 的净值),底栏不再重复扣。 */}
+                  <Footer width={contentWidth()} />
                   <Show when={visible()}>
                     <pluginRuntime.Slot
                       name="session_prompt"
