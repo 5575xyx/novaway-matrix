@@ -11,13 +11,15 @@ import { gradientAt, perimeterCells } from "./neon"
 
 export type NeonBoxOptions = BoxOptions<NeonBoxRenderable> & {
   gradientStops?: readonly RGBA[]
-  /** 描边流动 + 扫光。相位由本类自己推进,见 animated 的 setter。 */
-  animated?: boolean
   /**
-   * 相位推进的开关(对应 KV 的 animations_enabled)。渲染器类没有 KV 上下文,
-   * 由调用方注入 `() => kv.get("animations_enabled", true)`;不传则恒为真。
+   * 描边流动 + 扫光。相位由本类自己推进(见 animated 的 setter)。
+   *
+   * 这是唯一的开关 —— 「要不要动」完全由调用方决定,类自己不读任何全局设置。
+   * animations_enabled 这类用户设置请在调用方响应式地折进 animated
+   * (PromptCard 就是这么做的:`focused && visible && kv.get("animations_enabled", true)`),
+   * 这样关掉→打开能自动恢复;类里再挂一个只能停、不能恢复的拉式门控只会是个坑。
    */
-  animationsEnabled?: () => boolean
+  animated?: boolean
 }
 
 // 相位用 0..99 的整数计数表示(0.01 的分辨率对一圈渐变足够),每 80ms 走一格 ——
@@ -26,8 +28,10 @@ const PHASE_STEPS = 100
 const PHASE_INTERVAL = 80
 
 // 扫光窗口(周长归一化进度为单位):相位头后方这一小段边框被向白色提亮,
-// 峰值在头部、线性衰减到窗口尾。窗口占一圈的 12% —— 120 列的输入卡约 55 格,
-// 视觉上是一道窄高光而不是半张脸的白。
+// 峰值在头部、线性衰减到窗口尾。窗口占一圈的 12%。
+// 折成格数:周长 = 2×宽 + 2×(高−2)(perimeterCells 的四段循环各画一遍),
+// 120 列 × 4 行的输入卡 = 2×120 + 2×2 = 244 格,12% ≈ 29 格 ——
+// 视觉上是一道窄高光,不是半张脸的白。
 const SWEEP_WIDTH = 0.12
 // 头部最大提亮量:向白插值 55%。
 const SWEEP_STRENGTH = 0.55
@@ -36,21 +40,26 @@ const SWEEP_STRENGTH = 0.55
 const minPadding = (value: number | `${number}%` | null | undefined): number | `${number}%` =>
   typeof value === "number" ? Math.max(1, value) : (value ?? 1)
 
-// 相位头已经越过该格多远(0..1 的环形距离)。用 mod-1 而不是直接相减:
-// phase 从 0.99 绕回 0.00 时窗口仍然连续,不会在周长接缝处断开。
-function sweepBehind(phase: number, t: number) {
+/**
+ * 相位头已经越过该格多远(0..1 的环形距离)。
+ *
+ * 用 mod-1 而不是直接相减:phase 从 0.99 绕回 0.00 时窗口仍然连续,不会在周长接缝处断开。
+ * `t = 0` 与 `t = 1` 算出同一个值(都算「头部」),因为 perimeterCells 给末格 t = 1、
+ * 给首格 t = 0,两者是周长上的同一个接缝位置。
+ */
+export function sweepBehind(phase: number, t: number) {
   return (phase - t + 1) % 1
 }
 
-// 该格该提亮多少(0..SWEEP_STRENGTH)。窗口内线性衰减,窗口外为 0。
-function sweepMix(phase: number, t: number) {
+/** 该格该提亮多少(0..SWEEP_STRENGTH)。窗口内线性衰减,窗口外为 0。 */
+export function sweepMix(phase: number, t: number) {
   const behind = sweepBehind(phase, t)
   if (behind > SWEEP_WIDTH) return 0
   return SWEEP_STRENGTH * (1 - behind / SWEEP_WIDTH)
 }
 
+// mix 的调用点已经保证 > 0,这里不再兜一遍。
 function sweepColor(base: RGBA, mix: number) {
-  if (mix <= 0) return base
   return RGBA.fromValues(base.r + (1 - base.r) * mix, base.g + (1 - base.g) * mix, base.b + (1 - base.b) * mix, base.a)
 }
 
@@ -86,10 +95,9 @@ export class NeonBoxRenderable extends BoxRenderable {
   private phase = 0
   private animating = false
   private phaseTimer: ReturnType<typeof setInterval> | undefined
-  private readonly animationsEnabled: () => boolean
 
   constructor(ctx: RenderContext, options: NeonBoxOptions = {}) {
-    const { gradientStops, animated, animationsEnabled, ...rest } = options
+    const { gradientStops, animated, ...rest } = options
     // rest 带 renderBefore 等 this: NeonBoxRenderable 回调,基类要求 this: BoxRenderable,
     // 二者仅 this 参数不同,向下收敛为 BoxOptions 交给 super。
     super(ctx, {
@@ -100,7 +108,6 @@ export class NeonBoxRenderable extends BoxRenderable {
       paddingRight: minPadding(options.paddingRight),
     })
     this.stops = gradientStops
-    this.animationsEnabled = animationsEnabled ?? (() => true)
     if (animated) this.animated = true
   }
 
@@ -134,14 +141,19 @@ export class NeonBoxRenderable extends BoxRenderable {
   // (opentui Renderable.destroy 的最后一步就是 this.destroySelf()),所以卡片被卸载后
   // 表一定停。定时器本身也再判一次 isDestroyed 兜底:万一某条销毁路径没走到 destroySelf,
   // 表会在下一拍自停,不会把进程吊住。
+  //
+  // 「要不要动」只有一个入口:animated。调用方(而不是这里)响应式地决定它 ——
+  // animations_enabled 这类用户设置折进 animated 之后,关掉是 setter 停表、
+  // 打开是 setter 再起表,两边对称,不存在「只能停不能恢复」的拉式门控。
   private startPhaseTimer() {
+    // 开头这一句就是「不叠表」这条不变量真正的保证:即使有人绕过相等守卫直接重复起表,
+    // 旧表也会先被清掉。
     this.stopPhaseTimer()
     this.phaseTimer = setInterval(() => {
       if (this.isDestroyed) {
         this.stopPhaseTimer()
         return
       }
-      if (!this.animationsEnabled()) return
       this.phase = (this.phase + 1) % PHASE_STEPS
       this.requestRender()
     }, PHASE_INTERVAL)
@@ -199,14 +211,20 @@ export class NeonBoxRenderable extends BoxRenderable {
     const originY = this.screenY
     const background = this.backgroundColor
     const clip = visibleClip(buffer, this)
+    // phase = 0(从未动画过)时**不做环绕**:周长末格 cell.t = 1,`(1 + 0) % 1` 会把它送回
+    // t = 0,那一格就渲染成起点色而不是终点色 —— 所有静止的卡(助手气泡卡 / 侧栏卡 /
+    // 输入卡的失焦态)都会在接缝处偏一格。phase ≠ 0 才需要环绕,因为那里色带本来就在流动。
+    // phase 只增不减:动画过后失焦会停在最后一格(而不是跳回起点),所以「逐格等于
+    // gradientAt(stops, t)」这条只对从未动画过的卡片成立。
     const phase = this.phase / PHASE_STEPS
     for (const cell of cells) {
       const x = originX + cell.x
       const y = originY + cell.y
       if (x < clip.x || x >= clip.right || y < clip.y || y >= clip.bottom) continue
-      const base = gradientAt(stops, (cell.t + phase) % 1)
-      // 扫光只在流动中生效:相位恒 0 时周长末格(cell.t=1)的环形距离恰好是 0,
-      // 会凭空多出一个白点。关掉动画必须逐格与改造前完全同色。
+      const base = gradientAt(stops, this.phase === 0 ? cell.t : (cell.t + phase) % 1)
+      // 扫光的门控是「animating」而不是「相位动过」:animated 为真但相位还没走过一格时,
+      // 扫光就已经画在 t = 0 那一头上了。生产里 animated 是被调用方响应式算出来的
+      // (聚焦 && 可见 && animations_enabled),三者同时成立才会有扫光。
       const mix = this.animating ? sweepMix(phase, cell.t) : 0
       buffer.setCell(x, y, cell.ch, mix > 0 ? sweepColor(base, mix) : base, background)
     }

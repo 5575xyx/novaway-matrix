@@ -116,7 +116,7 @@ export const alwaysSeparate = new WeakSet<BoxRenderable>()
 export const SESSION_PLACEHOLDERS = {
   normal: ["继续刚才的任务", "总结目前的进展", "解释这段代码", "把失败的测试修好"],
   shell: ["ls -la", "git status", "pwd"],
-}
+} as const
 
 // 助手气泡卡内 part 的顶 margin 策略:卡内首个子节点的 previous 是 undefined → 拿 0
 // (那一行空行由气泡 wrapper 的 marginTop=1 承担),**只要有前一个兄弟就给 1**。

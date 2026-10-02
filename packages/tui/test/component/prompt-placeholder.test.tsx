@@ -1,5 +1,6 @@
 /** @jsxImportSource @opentui/solid */
 import { expect, test } from "bun:test"
+import { testRender } from "@opentui/solid"
 import { RGBA } from "@opentui/core"
 import { buildPlaceholder } from "../../src/component/prompt"
 import { SESSION_PLACEHOLDERS } from "../../src/routes/session"
@@ -37,4 +38,40 @@ test("会话页传了占位符,含原型里的「继续刚才的任务」", () =
   expect(SESSION_PLACEHOLDERS.normal.length).toBeGreaterThan(0)
   expect(SESSION_PLACEHOLDERS.shell.length).toBeGreaterThan(0)
   expect(SESSION_PLACEHOLDERS.normal).toContain("继续刚才的任务")
+})
+
+// 纯函数断言只证明 buildPlaceholder 返回了两个 chunk;真正的风险是
+// 「Textarea 哪天不认 StyledText」。所以最后再挂一次真 textarea,在 captureSpans()
+// 上确认两段确实以两种 fg 落到了屏幕上。
+test("真 textarea 把两段占位符渲染成两个不同 fg 的 span", async () => {
+  const placeholder = build(["继续刚才的任务"], 0)
+  const app = await testRender(
+    () => (
+      <box width={60}>
+        <textarea width="100%" minHeight={1} placeholder={placeholder} placeholderColor={MUTED} />
+      </box>
+    ),
+    { width: 60, height: 4 },
+  )
+  try {
+    let spans: { text: string; fg: string }[] = []
+    for (let attempt = 0; attempt < 200; attempt++) {
+      await app.renderOnce()
+      spans = app.captureSpans().lines.flatMap((line) =>
+        line.spans.map((span) => ({
+          text: span.text,
+          fg: `${span.fg.r.toFixed(3)},${span.fg.g.toFixed(3)},${span.fg.b.toFixed(3)},${span.fg.a.toFixed(3)}`,
+        })),
+      )
+      if (spans.some((span) => span.text.includes("继续刚才的任务"))) break
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    const head = spans.findIndex((span) => span.text.includes("问我任何事"))
+    const tail = spans.findIndex((span) => span.text.includes("继续刚才的任务"))
+    expect(head).toBeGreaterThanOrEqual(0)
+    expect(tail).toBe(head + 1)
+    expect(spans[head]!.fg).not.toBe(spans[tail]!.fg)
+  } finally {
+    app.renderer.destroy()
+  }
 })
