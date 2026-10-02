@@ -259,7 +259,7 @@ test("提示卡:点「升级」派发命令名,点「稍后」走消解回调", 
     (text) => text.includes("升级") && text.includes("稍后"),
   )
   try {
-    const buttons = clickableBoxes(app.renderer.root as Node)
+    const buttons = clickableBoxes(app.renderer.root as unknown as Node)
     // 两颗:「升级」与「稍后」(按 Pill 的渲染顺序即点击顺序)。
     expect(buttons).toHaveLength(2)
     click(buttons[0]!)
