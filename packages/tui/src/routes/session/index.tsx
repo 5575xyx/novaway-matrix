@@ -2274,7 +2274,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
       {/* 助手气泡:meta 行(智能体 · 时间 · 模型)+ 霓虹描边正文卡。meta 的顺序与截断见 AssistantMeta。
           外层是消息锚点 —— 会话跳转(跳到消息/上一条下一条)是按 scrollbox **直接子节点**的 id
           查的,那个 id 与这层盒子的形状都由 MessageAnchor 保证(见 message-anchor.tsx 的注释:
-          四条寻址路径全靠它,删掉会静默失效)。
+          六处寻址全靠它,删掉会静默失效)。
           锚点自己承担 marginTop=1:卡内每个 part 的 margin 由 setPreLayoutSiblingMargin 按兄弟链算,
           首 part 的 previous 是 undefined → 0,不会再多顶一行。 */}
       <MessageAnchor messageID={props.message.id} marginTop={1} flexShrink={0}>
