@@ -2,6 +2,7 @@ import { useProject } from "../../context/project"
 import { useSync } from "../../context/sync"
 import { createEffect, createMemo, createSignal, For, on, Show } from "solid-js"
 import { useTerminalDimensions } from "@opentui/solid"
+import path from "node:path"
 import { useTheme } from "../../context/theme"
 import { useTuiConfig } from "../../config"
 import { InstallationChannel, InstallationVersion } from "@novaway/core/installation/version"
@@ -13,6 +14,7 @@ import { WorkspaceLabel } from "../../component/workspace-label"
 import { TUI_BRAND } from "../../brand"
 import { FileTree } from "../../component/file-tree"
 import { GitPanel } from "../../component/git-panel"
+import { SidebarCard } from "../../component/sidebar-card"
 import { Locale } from "../../util/locale"
 import { sidebarWidth } from "../../util/sidebar-width"
 import "../../ui/card"
@@ -74,6 +76,11 @@ export function Sidebar(props: SidebarProps) {
   const activeTab = sidebarTab
   const setActiveTab = setSidebarTab
 
+  // 文件树与 Git 页共用同一个根目录:会话目录优先,没有会话才落回实例目录。
+  const rootDir = createMemo(() => session()?.directory ?? project.instance.directory())
+  // 徽标只取目录名那一段(path.basename 对 Windows 的反斜杠路径同样有效)。
+  const rootDirName = createMemo(() => path.basename(rootDir()))
+
   // 有了 todo 就自动跳到"待办与统计",用户手动切走后不再抢回。
   const todos = createMemo(() => sync.data.todo[props.sessionID ?? ""] ?? [])
   createEffect(
@@ -109,7 +116,9 @@ export function Sidebar(props: SidebarProps) {
           )}
         </For>
       </box>
-      {/* 文件树标签页 */}
+      {/* 文件树标签页。文件树现在是自己的霓虹卡:标题是分区名,徽标是仓库目录名 ——
+          原型里那张「快速预览」卡对应的是主区的 file-preview 标签页(见 index.tsx 的
+          openPreviewTab),内容预览不在侧栏里,所以侧栏不造那张空壳卡。 */}
       <Show when={activeTab() === "files"}>
         <scrollbox
           flexGrow={1}
@@ -121,15 +130,17 @@ export function Sidebar(props: SidebarProps) {
             },
           }}
         >
-          <FileTree
-            rootPath={session()?.directory ?? project.instance.directory()}
-            onFileSelect={(filePath) => {
-              props.onFileSelect?.(filePath)
-            }}
-            onFileDoubleClick={(filePath) => {
-              props.onFileDoubleClick?.(filePath)
-            }}
-          />
+          <SidebarCard title="资源管理器" icon={icon("files")} badge={rootDirName()}>
+            <FileTree
+              rootPath={rootDir()}
+              onFileSelect={(filePath) => {
+                props.onFileSelect?.(filePath)
+              }}
+              onFileDoubleClick={(filePath) => {
+                props.onFileDoubleClick?.(filePath)
+              }}
+            />
+          </SidebarCard>
         </scrollbox>
       </Show>
 
@@ -205,7 +216,7 @@ export function Sidebar(props: SidebarProps) {
         >
           <box flexShrink={0} gap={1} paddingRight={1}>
             <GitPanel
-              rootPath={session()?.directory ?? project.instance.directory()}
+              rootPath={rootDir()}
               onOpenDiff={(filePath) => {
                 props.onOpenDiff?.(filePath)
               }}

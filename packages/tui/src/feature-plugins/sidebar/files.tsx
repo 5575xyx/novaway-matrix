@@ -1,6 +1,9 @@
 import type { TuiPlugin, TuiPluginApi } from "@opencode/plugin/tui"
 import type { BuiltinTuiPlugin } from "../builtins"
 import { createMemo, For, Show, createSignal } from "solid-js"
+import { SidebarCard } from "../../component/sidebar-card"
+import { icon } from "../../util/panel-icons"
+import { SIDEBAR_CARD_MIN_CONTENT } from "../../util/sidebar-metrics"
 import { Locale } from "../../util/locale"
 
 const id = "internal:sidebar-files"
@@ -18,21 +21,22 @@ function View(props: { api: TuiPluginApi; session_id: string }) {
 
   return (
     <Show when={list().length > 0}>
-      <box>
-        <box flexDirection="row" gap={1} onMouseDown={() => list().length > 2 && setOpen((x) => !x)}>
-          <Show when={list().length > 2}>
-            <text fg={theme().text}>{open() ? "▼" : "▶"}</text>
-          </Show>
-          <text fg={theme().text}>
-            <b>修改的文件</b>
-          </text>
-        </box>
+      <SidebarCard
+        title="修改的文件"
+        icon={icon("files")}
+        badge={`${list().length} files`}
+        collapsible={list().length > 2}
+        collapsed={!open()}
+        onToggle={() => list().length > 2 && setOpen((x) => !x)}
+      >
         <Show when={list().length <= 2 || open()}>
           <For each={list()}>
             {(item) => (
               <box flexDirection="row" gap={1} justifyContent="space-between">
                 <text fg={theme().textMuted} wrapMode="none">
-                  {Locale.truncateLeft(item.file, Math.max(2, 36 - changeCountWidth(item)))}
+                  {/* 这一行落在「修改的文件」分区卡里,预算是分区卡内容区的最窄值 35 列,
+                      再减去右侧的 +N/-M 统计宽度。 */}
+                  {Locale.truncateLeft(item.file, Math.max(2, SIDEBAR_CARD_MIN_CONTENT - changeCountWidth(item)))}
                 </text>
                 <box flexDirection="row" gap={1} flexShrink={0}>
                   <Show when={item.additions}>
@@ -46,7 +50,7 @@ function View(props: { api: TuiPluginApi; session_id: string }) {
             )}
           </For>
         </Show>
-      </box>
+      </SidebarCard>
     </Show>
   )
 }

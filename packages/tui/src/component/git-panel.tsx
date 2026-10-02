@@ -2,14 +2,15 @@
 // 不经过服务器。查询只读;可逆操作(暂存/提交/贮藏/切分支)直接做;
 // 不可逆或对外的操作(推送/拉取/丢弃/删分支/撤销提交)一律先弹确认框再执行。
 // 轮询自动刷新;点变更文件名开"改动差异"标签页。
-// 版式:crush 式节标题(标题 + ─ 填满)把面板切成 同步/变更/分支/历史 四段;
-// 危险按钮(丢弃/删分支)平时隐形、悬停行才显形,避免满屏红字。
+// 版式:「分支」「变更」两块是各自的霓虹卡(SidebarCard),其余还是 crush 式节标题
+// (标题 + ─ 填满);危险按钮(丢弃/删分支)平时隐形、悬停行才显形,避免满屏红字。
 import { createMemo, createSignal, For, Show } from "solid-js"
 import path from "node:path"
 import { TextAttributes, type TextareaRenderable } from "@opentui/core"
 import { useTheme } from "../context/theme"
 import { useBindings } from "../keymap"
 import { useTuiConfig } from "../config"
+import { SidebarCard } from "./sidebar-card"
 import {
   parseGitBranches,
   parseGitCommit,
@@ -23,6 +24,7 @@ import {
   type GitRemote,
   type GitStashEntry,
 } from "../util/git-status"
+import { icon } from "../util/panel-icons"
 import { useAutoRefresh } from "../util/auto-refresh"
 import { gitExec } from "../util/git-exec"
 import { Locale } from "../util/locale"
@@ -31,13 +33,11 @@ import { DialogPrompt } from "../ui/dialog-prompt"
 import { DialogConfirm } from "../ui/dialog-confirm"
 import { DialogAlert } from "../ui/dialog-alert"
 import { useToast } from "../ui/toast"
+import { GIT_FILE_LABEL_MAX } from "../util/sidebar-metrics"
 
 const COMMIT_LIMIT = 8
 // 每组文件最多显示几行:用户改动几十个文件时,不把"历史"段挤出屏幕。
 const FILE_GROUP_MAX = 12
-// 文件名截断宽度:40 列内容区减去状态码、+N/-M 统计、悬停出现的"丢弃"按钮和内边距。
-// 统计数字是 lazygit 和 VS Code 都摆在每行上的核心信息,文件名给它让位。
-const FILE_LABEL_MAX = 19
 // 贮藏列表最多显示几条:点哪条弹哪条,不再只能盲弹最近一次。
 const STASH_MAX = 3
 const STASH_MESSAGE_MAX = 26
@@ -47,11 +47,18 @@ const COMMIT_MESSAGE_MAX = 200
 const COMMIT_DETAIL_MAX = 40
 // 分支列表最多显示几行,再多走"还有 N 个"。
 const BRANCH_MAX = 10
+// 分支行落在「分支」分区卡里:行内 paddingLeft 1 + 名字 + 悬停「 删」3,
+// 分区卡内容区最窄 35 列,所以 22 绰绰有余。
 const BRANCH_LABEL_MAX = 22
-// 远程行:名字和地址各截到这个宽,42 列侧栏放得下。
+// 卡头徽标是分支名。卡头这一行已经占了:图标 2 + gap 1 + 「分支」4 + gap 1
+// + 动作「+ 新建分支」10 = 18,再加弹性空隙 1,35 − 19 = 16。
+const BRANCH_CARD_BADGE_MAX = 16
+// 远程行不在分区卡里(还是普通的节标题 + 行),按侧栏根卡的内容区算:
+// 39~55 列。名字和地址各截到这个宽,「● 」2 + 名字 10 + 地址 20 + 「 删」3 + 行内边距 1 = 36。
 const REMOTE_NAME_MAX = 10
 const REMOTE_URL_MAX = 20
-// 节标题的横线填充,行宽 40 足够溢出被裁掉。
+// 节标题的横线填充。节标题有两种宽度:卡外的在侧栏根卡内容区(39~55 列),
+// 「同步」节在「分支」卡里(35~51 列);40 一律溢出被裁掉,不会反过来把标题顶走。
 const DASH_RUN = "─".repeat(40)
 
 export interface GitPanelProps {
@@ -442,7 +449,10 @@ export function GitPanel(props: GitPanelProps) {
           {statusLetter(entryProps.entry)}
         </text>
         <text flexGrow={1} fg={theme.text} wrapMode="none" onMouseUp={() => openDiff(entryProps.entry)}>
-          {Locale.oneLine(entryProps.entry.file, FILE_LABEL_MAX)}
+          {/* 文件行落在「变更」分区卡里:GIT_FILE_LABEL_MAX = 分区卡内容区最窄值 35
+              − 状态码/统计/悬停「 丢弃」/内边距 18 − 余量 2。统计数字是 lazygit 和
+              VS Code 都摆在每行上的核心信息,文件名给它让位。 */}
+          {Locale.oneLine(entryProps.entry.file, GIT_FILE_LABEL_MAX)}
         </text>
         {entryProps.stats && !entryProps.stats.binary ? (
           <text flexShrink={0} paddingLeft={1} wrapMode="none">
@@ -524,23 +534,56 @@ export function GitPanel(props: GitPanelProps) {
   return (
     <box flexDirection="column" gap={1}>
       <Show when={!error()} fallback={<text fg={theme.textMuted}>{error()}</text>}>
-        {/* 头部:分支名 + 上游 + 领先/落后,一眼看到"我在哪" */}
-        <text fg={theme.text} wrapMode="none">
-          <span style={{ fg: theme.primary }}>分支 </span>
-          <Show when={branch()} fallback={<span style={{ fg: theme.textMuted }}>无</span>}>
-            {(name) => (
-              <>
-                <span style={{ fg: theme.text }}>{name()}</span>
-                <Show when={upstream()}>
-                  <span style={{ fg: theme.textMuted }}> → {upstream()}</span>
-                </Show>
-                <Show when={tracking()}>
-                  <span style={{ fg: theme.warning }}> {tracking()}</span>
-                </Show>
-              </>
-            )}
-          </Show>
-        </text>
+        {/* 分支卡:徽标是当前分支名,正文第一行仍是「分支名 + 上游 + 领先/落后」——
+            徽标给的是"我在哪个分支",正文给的是"它跟着谁、差几个提交"。
+            卡头右侧的「+ 新建分支」原来挂在节标题上,卡片化之后移到卡头,功能不丢。 */}
+        <SidebarCard
+          title="分支"
+          icon={icon("git")}
+          badge={Locale.oneLine(branchName() ?? "无", BRANCH_CARD_BADGE_MAX)}
+          action="+ 新建分支"
+          onAction={() => void newBranch()}
+        >
+          <box flexDirection="column" gap={1}>
+            <text fg={theme.text} wrapMode="none">
+              <Show when={branch()} fallback={<span style={{ fg: theme.textMuted }}>无</span>}>
+                {(name) => (
+                  <>
+                    <span style={{ fg: theme.text }}>{name()}</span>
+                    <Show when={upstream()}>
+                      <span style={{ fg: theme.textMuted }}> → {upstream()}</span>
+                    </Show>
+                    <Show when={tracking()}>
+                      <span style={{ fg: theme.warning }}> {tracking()}</span>
+                    </Show>
+                  </>
+                )}
+              </Show>
+            </text>
+            {/* 分支列表:点名字切换;当前分支标 ●;悬停行显形"删"。
+                「分支 N」那个节标题去掉了 —— 它和卡头是同一句话;动作已移到卡头。 */}
+            <Show when={branches().length > 0}>
+              <For each={branches().slice(0, BRANCH_MAX)}>
+                {(item) => (
+                  <Show
+                    when={!item.current}
+                    fallback={
+                      <text wrapMode="none" paddingLeft={1}>
+                        <span style={{ fg: theme.success }}>● </span>
+                        <span style={{ fg: theme.text }}>{item.name}</span>
+                      </text>
+                    }
+                  >
+                    <BranchRow name={item.name} />
+                  </Show>
+                )}
+              </For>
+              <Show when={branches().length > BRANCH_MAX}>
+                <text fg={theme.textMuted}>… 还有 {branches().length - BRANCH_MAX} 个分支</text>
+              </Show>
+            </Show>
+          </box>
+        </SidebarCard>
 
         {/* 同步节:拉取(有上游才有得拉)+ 推送(有领先提交,或还没建立跟踪) */}
         <Show when={upstream() || showPush()}>
@@ -561,129 +604,106 @@ export function GitPanel(props: GitPanelProps) {
           </box>
         </Show>
 
-        {/* 变更节:提交说明框(常驻,VS Code 式)+ 未暂存/已暂存两组 + 组尾操作 */}
+        {/* 变更卡:徽标是未暂存 + 已暂存的文件数。提交说明框常驻卡内(VS Code 式),
+            底下是未暂存/已暂存两组 + 组尾操作。 */}
         <Show when={unstaged().length > 0 || staged().length > 0}>
-          <box flexDirection="column" gap={1}>
-            <SectionHeader text={`变更 ${staged().length + unstaged().length}`} />
-            {/* 提交说明框:点击聚焦,回车提交;暂存区空时自动先暂存全部。
+          <SidebarCard title="变更" icon="±" badge={`${staged().length + unstaged().length} files`}>
+            <box flexDirection="column" gap={1}>
+              {/* 提交说明框:点击聚焦,回车提交;暂存区空时自动先暂存全部。
                 不能自动聚焦 —— 一开 Git 页就把聊天输入框的焦点抢走了。 */}
-            <box flexDirection="column" gap={1} flexShrink={0}>
-              <textarea
-                height={3}
-                ref={(val: TextareaRenderable) => setCommitInputTarget(val)}
-                initialValue=""
-                onContentChange={() => {
-                  const input = commitInputTarget()
-                  if (input) setCommitMessage(input.plainText)
-                }}
-                onMouseUp={() => commitInputTarget()?.focus()}
-                placeholder={busy() ? "提交中..." : `消息（点击这里输入，回车在 ${branch() ?? "当前分支"} 上提交）`}
-                placeholderColor={theme.textMuted}
-                backgroundColor={theme.backgroundElement}
-                textColor={theme.text}
-                focusedTextColor={theme.text}
-                cursorColor={theme.text}
-                cursorStyle={tuiConfig.cursor}
-                wrapMode="none"
-              />
-              {/* 全宽提交按钮:灰底、居中,和 VS Code 的"✓ 提交"一个样子 */}
-              <box
-                height={1}
-                justifyContent="center"
-                backgroundColor={theme.backgroundMenu}
-                onMouseUp={() => void submitCommit()}
-              >
-                <text fg={theme.text} attributes={TextAttributes.BOLD}>
-                  {busy()
-                    ? "提交中..."
-                    : staged().length > 0
-                      ? `✓ 提交 ${staged().length} 个文件`
-                      : hasChanges()
-                        ? "✓ 暂存全部并提交"
-                        : "✓ 提交"}
-                </text>
+              <box flexDirection="column" gap={1} flexShrink={0}>
+                <textarea
+                  height={3}
+                  ref={(val: TextareaRenderable) => setCommitInputTarget(val)}
+                  initialValue=""
+                  onContentChange={() => {
+                    const input = commitInputTarget()
+                    if (input) setCommitMessage(input.plainText)
+                  }}
+                  onMouseUp={() => commitInputTarget()?.focus()}
+                  placeholder={busy() ? "提交中..." : `消息（点击这里输入，回车在 ${branch() ?? "当前分支"} 上提交）`}
+                  placeholderColor={theme.textMuted}
+                  backgroundColor={theme.backgroundElement}
+                  textColor={theme.text}
+                  focusedTextColor={theme.text}
+                  cursorColor={theme.text}
+                  cursorStyle={tuiConfig.cursor}
+                  wrapMode="none"
+                />
+                {/* 全宽提交按钮:灰底、居中,和 VS Code 的"✓ 提交"一个样子 */}
+                <box
+                  height={1}
+                  justifyContent="center"
+                  backgroundColor={theme.backgroundMenu}
+                  onMouseUp={() => void submitCommit()}
+                >
+                  <text fg={theme.text} attributes={TextAttributes.BOLD}>
+                    {busy()
+                      ? "提交中..."
+                      : staged().length > 0
+                        ? `✓ 提交 ${staged().length} 个文件`
+                        : hasChanges()
+                          ? "✓ 暂存全部并提交"
+                          : "✓ 提交"}
+                  </text>
+                </box>
               </box>
-            </box>
-            <Show when={unstaged().length > 0}>
-              <box flexDirection="row">
-                <text fg={theme.textMuted}>未暂存 ({unstaged().length})</text>
-                <text fg={theme.primary} onMouseUp={stageAll}>
-                  {"  暂存全部"}
-                </text>
-              </box>
-              <For each={unstaged().slice(0, FILE_GROUP_MAX)}>
-                {(entry) => <FileRow entry={entry} mode="unstaged" stats={unstagedNumstatByFile().get(entry.file)} />}
-              </For>
-              <Show when={unstaged().length > FILE_GROUP_MAX}>
-                <text fg={theme.textMuted}>… 还有 {unstaged().length - FILE_GROUP_MAX} 个文件</text>
-              </Show>
-            </Show>
-            <Show when={staged().length > 0}>
-              <text fg={theme.textMuted}>已暂存 ({staged().length})</text>
-              <For each={staged().slice(0, FILE_GROUP_MAX)}>
-                {(entry) => <FileRow entry={entry} mode="staged" stats={stagedNumstatByFile().get(entry.file)} />}
-              </For>
-              <Show when={staged().length > FILE_GROUP_MAX}>
-                <text fg={theme.textMuted}>… 还有 {staged().length - FILE_GROUP_MAX} 个文件</text>
-              </Show>
-            </Show>
-            <Show when={hasChanges() && !busy()}>
-              <text fg={theme.secondary} onMouseUp={() => void stash()}>
-                贮藏
-              </text>
-            </Show>
-            {/* 贮藏列表:多条时点哪条弹哪条,不再只能盲弹最近一次。说明可能很长,截断显示。 */}
-            <Show when={stashes().length > 0 && !busy()}>
-              <box flexDirection="column" gap={1}>
-                <text fg={theme.textMuted}>贮藏 ({stashes().length}) — 点一条弹出</text>
-                <For each={stashes().slice(0, STASH_MAX)}>
-                  {(item) => (
-                    <text
-                      fg={theme.secondary}
-                      paddingLeft={1}
-                      wrapMode="none"
-                      onMouseUp={() => void stashPop(item.ref)}
-                    >
-                      <span style={{ fg: theme.primary }}>{item.ref}</span>{" "}
-                      {Locale.oneLine(item.message, STASH_MESSAGE_MAX)}
-                    </text>
-                  )}
+              <Show when={unstaged().length > 0}>
+                <box flexDirection="row">
+                  <text fg={theme.textMuted}>未暂存 ({unstaged().length})</text>
+                  <text fg={theme.primary} onMouseUp={stageAll}>
+                    {"  暂存全部"}
+                  </text>
+                </box>
+                <For each={unstaged().slice(0, FILE_GROUP_MAX)}>
+                  {(entry) => <FileRow entry={entry} mode="unstaged" stats={unstagedNumstatByFile().get(entry.file)} />}
                 </For>
-                <Show when={stashes().length > STASH_MAX}>
-                  <text fg={theme.textMuted}>… 还有 {stashes().length - STASH_MAX} 个贮藏</text>
+                <Show when={unstaged().length > FILE_GROUP_MAX}>
+                  <text fg={theme.textMuted}>… 还有 {unstaged().length - FILE_GROUP_MAX} 个文件</text>
                 </Show>
-              </box>
-            </Show>
-          </box>
+              </Show>
+              <Show when={staged().length > 0}>
+                <text fg={theme.textMuted}>已暂存 ({staged().length})</text>
+                <For each={staged().slice(0, FILE_GROUP_MAX)}>
+                  {(entry) => <FileRow entry={entry} mode="staged" stats={stagedNumstatByFile().get(entry.file)} />}
+                </For>
+                <Show when={staged().length > FILE_GROUP_MAX}>
+                  <text fg={theme.textMuted}>… 还有 {staged().length - FILE_GROUP_MAX} 个文件</text>
+                </Show>
+              </Show>
+              <Show when={hasChanges() && !busy()}>
+                <text fg={theme.secondary} onMouseUp={() => void stash()}>
+                  贮藏
+                </text>
+              </Show>
+              {/* 贮藏列表:多条时点哪条弹哪条,不再只能盲弹最近一次。说明可能很长,截断显示。 */}
+              <Show when={stashes().length > 0 && !busy()}>
+                <box flexDirection="column" gap={1}>
+                  <text fg={theme.textMuted}>贮藏 ({stashes().length}) — 点一条弹出</text>
+                  <For each={stashes().slice(0, STASH_MAX)}>
+                    {(item) => (
+                      <text
+                        fg={theme.secondary}
+                        paddingLeft={1}
+                        wrapMode="none"
+                        onMouseUp={() => void stashPop(item.ref)}
+                      >
+                        <span style={{ fg: theme.primary }}>{item.ref}</span>{" "}
+                        {Locale.oneLine(item.message, STASH_MESSAGE_MAX)}
+                      </text>
+                    )}
+                  </For>
+                  <Show when={stashes().length > STASH_MAX}>
+                    <text fg={theme.textMuted}>… 还有 {stashes().length - STASH_MAX} 个贮藏</text>
+                  </Show>
+                </box>
+              </Show>
+            </box>
+          </SidebarCard>
         </Show>
 
         <Show when={!hasChanges() && !loading()}>
           <text fg={theme.textMuted}>工作区干净</text>
-        </Show>
-
-        {/* 分支节:点名字切换;当前分支标 ●;悬停行显形"删" */}
-        <Show when={branches().length > 0}>
-          <box flexDirection="column" gap={1}>
-            <SectionHeader text={`分支 ${branches().length}`} action="+ 新建分支" onAction={() => void newBranch()} />
-            <For each={branches().slice(0, BRANCH_MAX)}>
-              {(item) => (
-                <Show
-                  when={!item.current}
-                  fallback={
-                    <text wrapMode="none" paddingLeft={1}>
-                      <span style={{ fg: theme.success }}>● </span>
-                      <span style={{ fg: theme.text }}>{item.name}</span>
-                    </text>
-                  }
-                >
-                  <BranchRow name={item.name} />
-                </Show>
-              )}
-            </For>
-            <Show when={branches().length > BRANCH_MAX}>
-              <text fg={theme.textMuted}>… 还有 {branches().length - BRANCH_MAX} 个分支</text>
-            </Show>
-          </box>
         </Show>
 
         {/* 远程节:多仓库维护 —— 添加多个远程,点一个设为当前分支的推送/拉取目标 */}
