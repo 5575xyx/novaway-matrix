@@ -34,6 +34,7 @@ import { createSyntaxStyleMemo, generateSubtleSyntax, useTheme } from "../../con
 import "../../ui/card"
 import { neonStops, semanticStops } from "../../ui/neon"
 import { createEnterBaseline } from "../../ui/enter"
+import { useCardHover } from "../../ui/hover"
 import { BoxRenderable, ScrollBoxRenderable, addDefaultParsers, TextAttributes, RGBA } from "@opentui/core"
 import { Prompt, type PromptRef } from "../../component/prompt"
 import type {
@@ -145,22 +146,30 @@ export function metaModelLimit(width: number) {
 }
 
 // 助手气泡卡壳:霓虹描边 + 固定内边距的正文容器。
-// 只依赖 useTheme(),不碰 session/local context,所以测试能直接挂载它来量真实几何 ——
-// 与导出的 BlockTool / InlineToolRow 同理。手抄一份 neonbox 到测试里的话,改这里的
-// padding 不会让任何测试变红,`ctx.width - 9` 那类宽度常量就会悄悄失准。
+// 只依赖 useTheme() 与 useKV()(悬停动效要读 animations_enabled),不碰 session/local context,
+// 所以测试能直接挂载它来量真实几何 —— 与导出的 BlockTool / InlineToolRow 同理。手抄一份
+// neonbox 到测试里的话,改这里的 padding 不会让任何测试变红,`ctx.width - 9` 那类宽度常量就会悄悄失准。
 // paddingRight=1:NeonBox 不占边框格、边框画在最外列上,右留 1 格才能让正文不压到右边框。
 // 四边 padding 合计 3 列 = 卡内可用宽度相对 ctx.width 的扣减。
 //
 // enterFrom 用 theme.border:这张卡是透明卡(没有自己的 backgroundColor),而终端里没有半透明,
 // 淡入必须从一个**实色**长出来。未通电时那条描边就该是主题里最普通的那个边框色,
 // 亮起来才是渐变描边 —— 拿 theme.backgroundPanel 当起点会先糊一层灰边再变彩,反而更脏。
+//
+// 悬停:渐变缓慢流动 + 描边朝 theme.text 提亮(原型 `.msg.assistant .bubble:hover { animation: gbFlow }`)。
+// 两个信号都由 useCardHover 折进 animated/boost,所以 animations_enabled 关闭时悬停也不动。
 export function AssistantCard(props: { children: JSX.Element; enterDelay?: number }) {
   const { theme } = useTheme()
+  const hover = useCardHover()
   return (
     <neonbox
       gradientStops={semanticStops(theme, "assistant")}
       enterFrom={theme.border}
       enterDelay={props.enterDelay}
+      animated={hover.animated()}
+      boost={hover.boost(theme.text)}
+      onMouseOver={hover.onMouseOver}
+      onMouseOut={hover.onMouseOut}
       paddingTop={1}
       paddingBottom={1}
       paddingLeft={2}
@@ -1882,7 +1891,10 @@ function UserMessage(props: { message: UserMessage; parts: Part[]; onMouseUp: ()
   })
   const files = createMemo(() => props.parts.flatMap((x) => (x.type === "file" ? [x] : [])))
   const { theme } = useTheme()
-  const [hover, setHover] = createSignal(false)
+  // hover 的事件挂在外层盒子上(那一层是消息占位,内层气泡比它窄,靠右),而描边在内层卡上。
+  // useCardHover 返回的是一组接线而不是「一个布尔」,所以同一个 signal 能同时喂给外层的
+  // onMouseOver/onMouseOut 与内层的 animated/boost —— 不需要再往里传一遍 hover 状态。
+  const hover = useCardHover()
 
   const compaction = createMemo(() => props.parts.find((x) => x.type === "compaction"))
 
@@ -1896,16 +1908,18 @@ function UserMessage(props: { message: UserMessage; parts: Part[]; onMouseUp: ()
           marginTop={props.index === 0 ? 0 : 1}
           alignItems="flex-end"
           width="100%"
-          onMouseOver={() => setHover(true)}
-          onMouseOut={() => setHover(false)}
+          onMouseOver={hover.onMouseOver}
+          onMouseOut={hover.onMouseOut}
         >
           <neonbox
             onMouseUp={props.onMouseUp}
             gradientStops={neonStops(theme)}
-            backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
+            backgroundColor={hover.hover() ? theme.backgroundElement : theme.backgroundPanel}
             /* 这张卡有自己的 backgroundColor,所以不传 enterFrom:淡入的起点色就是它的底色
                (ui/card.ts 的 enterFrom 默认取 backgroundColor)。 */
             enterDelay={ctx.enterDelayFor(props.message.id)}
+            animated={hover.animated()}
+            boost={hover.boost(theme.text)}
             paddingTop={1}
             paddingBottom={1}
             paddingLeft={2}
@@ -2054,8 +2068,8 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
       </Show>
       <Show when={props.message.error && props.message.error.name !== "MessageAbortedError"}>
         {/* paddingRight=1:NeonBox 不占边框格、边框画在最外列上,右留 1 格才能让文本宽度与旧 border=["left"] 版一致
-            错误卡不加 enterDelay:它是助手消息的附属物,跟着那张卡一起入场已经够了;
-            单独再淡入一次就是同一屏里闪两下。 */}
+            错误卡不加 enterDelay、也没有悬停:它是助手消息的附属物,跟着那张卡一起入场已经够了;
+            单独再淡入一次就是同一屏里闪两下。悬停同理 —— 报错时用户要的是看清文字,不是看边框流动。 */}
         <neonbox
           ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
           gradientStops={semanticStops(theme, "error")}
@@ -2166,7 +2180,8 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
       <box ref={partSiblingRef} flexShrink={0}>
         {/* crush 式思考块:紫青渐变描边卡片 + 第 2 级灰底,和工具输出同一套弱对比语言。
             不加 enterDelay:思考块是在流式输出**过程中**随 reasoning 到达而挂上的,
-            一轮里可能来好几块,淡入会让「正在想」这件事变成「边框在闪」。 */}
+            一轮里可能来好几块,淡入会让「正在想」这件事变成「边框在闪」。
+            也没有悬停 —— 折叠/展开的点击区是 header 那一行,整卡流动会让可点范围看起来是整张卡。 */}
         <neonbox
           gradientStops={semanticStops(theme, "thinking")}
           backgroundColor={theme.backgroundElement}
@@ -2643,25 +2658,28 @@ export function BlockTool(props: {
 }) {
   const { theme } = useTheme()
   const renderer = useRenderer()
-  const [hover, setHover] = createSignal(false)
+  const hover = useCardHover()
   const error = createMemo(() => (props.part?.state.status === "error" ? props.part.state.error : undefined))
   return (
     // paddingRight=1:NeonBox 不占边框格、边框画在最外列上,右留 1 格才能让文本宽度与旧 border=["left"] 版一致
-    // 不加 enterDelay(阶梯入场):工具卡是流式输出期间一张接一张长出来的,一轮里可能连着挂
-    // 五六张;再加淡入就是工具输出「噼里啪啦」地闪,而卡本身还在长高,半亮的边框配着
-    // 变动的正文比不动更乱。
+    // 悬停:渐变流动 + 描边提亮。**不加 enterDelay(阶梯入场)** —— 工具卡是流式输出期间
+    // 一张接一张长出来的,一轮里可能连着挂五六张;再加淡入就是工具输出「噼里啪啦」地闪,
+    // 而卡本身还在长高,半亮的边框配着变动的正文比不动更乱。悬停是用户驱动的,流式输出时
+    // 鼠标不在上面,两者不会打架。
     <neonbox
       ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
       gradientStops={semanticStops(theme, "tool")}
+      animated={hover.animated()}
+      boost={hover.boost(theme.text)}
       paddingTop={1}
       paddingBottom={1}
       paddingLeft={2}
       paddingRight={1}
       marginTop={1}
       gap={1}
-      backgroundColor={hover() ? theme.backgroundMenu : theme.backgroundElement}
-      onMouseOver={() => props.onClick && setHover(true)}
-      onMouseOut={() => setHover(false)}
+      backgroundColor={hover.hover() ? theme.backgroundMenu : theme.backgroundElement}
+      onMouseOver={() => props.onClick && hover.onMouseOver()}
+      onMouseOut={hover.onMouseOut}
       onMouseUp={() => {
         if (renderer.getSelection()?.getSelectedText()) return
         props.onClick?.()

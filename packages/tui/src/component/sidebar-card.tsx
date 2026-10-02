@@ -3,6 +3,7 @@ import { useTerminalDimensions } from "@opentui/solid"
 import { useTheme } from "../context/theme"
 import { treeArrow } from "../util/panel-icons"
 import { semanticStops } from "../ui/neon"
+import { useCardHover } from "../ui/hover"
 import { Locale } from "../util/locale"
 import { sidebarCardContentWidth, type SidebarCardPage } from "../util/sidebar-metrics"
 import { sidebarWidth } from "../util/sidebar-width"
@@ -45,8 +46,8 @@ export interface SidebarCardProps {
  * 修改的文件 / 分支 / 变更)各自一张霓虹卡,首行是 header(图标 + 标题 + 可选动作 +
  * 右对齐徽标),其余是正文。
  *
- * 与助手气泡卡(AssistantCard)、输入卡(PromptCard)同一条规矩:只依赖 useTheme(),
- * 不碰 session/local context,所以测试能直接挂载真壳量真实几列。手抄一个 neonbox 到
+ * 与助手气泡卡(AssistantCard)、输入卡(PromptCard)同一条规矩:只依赖 useTheme() 与
+ * useKV(),不碰 session/local context,所以测试能直接挂载真壳量真实几列。手抄一个 neonbox 到
  * 测试里的话,改这里的 padding 不会让任何测试变红,sidebar-metrics 里的列数推导也会悄悄失准。
  *
  * padding 四边 1:NeonBox 把边框画在最外行/列上,内容从第 1 行/列开始,所以内容压不到
@@ -62,6 +63,7 @@ export interface SidebarCardProps {
 export function SidebarCard(props: SidebarCardProps) {
   const { theme } = useTheme()
   const dimensions = useTerminalDimensions()
+  const hover = useCardHover()
   const columns = createMemo(() => sidebarCardContentWidth(sidebarWidth(dimensions().width), props.page))
 
   // 卡头里除徽标外的固定开销:折叠箭头 + 图标 + 标题 + 动作,段间各 1 列。
@@ -86,6 +88,15 @@ export function SidebarCard(props: SidebarCardProps) {
   return (
     <neonbox
       gradientStops={semanticStops(theme, "tool")}
+      // 悬停:整卡描边缓慢流动 + 朝 theme.text 提亮(原型 `.card:hover { animation: gbFlow }`)。
+      // **只有描边动**:标题、徽标、折叠箭头都不动 —— 分区卡是常驻布局,一旦箭头也跟着
+      // 呼吸,用户会以为箭头可点之外整张卡都变了语义。事件挂在整卡上而不是 header 上,
+      // 因为「整卡提亮」正是这条视觉语言要表达的(这一片区域现在被关注着)。
+      // 动画只改前景色、不动任何几何(yoga 布局不受影响),所以不会带得整栏抖一下。
+      animated={hover.animated()}
+      boost={hover.boost(theme.text)}
+      onMouseOver={hover.onMouseOver}
+      onMouseOut={hover.onMouseOut}
       paddingTop={1}
       paddingBottom={1}
       paddingLeft={1}

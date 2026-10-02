@@ -41,6 +41,28 @@ export function fadeIn(from: RGBA, to: RGBA, k: number): RGBA {
   )
 }
 
+/**
+ * 把 color 朝 towards 混合 amount(0..1,越界夹紧)。alpha 原样保留 ——
+ * 提亮改的是「亮不亮」,不是「透不透明」;卡片的 alpha 是「这只卡有没有底色」的事。
+ */
+export function brighten(color: RGBA, amount: number, towards: RGBA): RGBA {
+  const k = Math.min(1, Math.max(0, amount))
+  return RGBA.fromValues(
+    color.r + (towards.r - color.r) * k,
+    color.g + (towards.g - color.g) * k,
+    color.b + (towards.b - color.b) * k,
+    color.a,
+  )
+}
+
+// 悬停「光晕加深」的等效实现:终端里没有 box-shadow 也没有半透明,描边色只能朝亮部混一点。
+// 12% 的来历:原型 .card:hover 把外发光从 rgba(79,209,224,.05)/14px 抬到 rgba(255,92,158,.14)/26px
+// —— 强度约 2.8 倍、半径约 1.9 倍。终端只有「边框色 vs 底色」这一个维度,没有半径,
+// 2.8 倍直接照搬会把描边推成另一种颜色(不再是原来的语义色),所以只取一半左右、
+// 取一个在 8bit 量化下仍然看得见(≥ 4/255 ≈ 1.6%)又不会盖掉渐变本身的一档:12%。
+// ui/hover.ts 的调用点用它。
+export const HOVER_BOOST = 0.12
+
 export type BorderCell = { x: number; y: number; ch: string; t: number }
 
 export type NeonRole = "user" | "assistant" | "thinking" | "tool" | "error" | "tip" | "input"

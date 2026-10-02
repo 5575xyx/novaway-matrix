@@ -22,6 +22,12 @@ import "../../ui/card"
 //              会 12.5 次/秒地空 requestRender 一棵没人看的树;
 //   animations_enabled —— 用户显式关掉动画。此时不是「空转但跳过相位」,而是
 //              animated 直接变 false、setter 把表停掉;KV 再打开时 setter 又把表起回来。
+//
+// **不叠悬停流动**。聚焦已经是这张卡唯一的「我在工作」信号,鼠标恰好停在这张卡上是常态
+// (输入区就贴在光标下面),叠上去的结果是这圈描边永远在动,聚焦反而看不出差别了。
+// 同理不加悬停提亮:聚焦时已经有扫光这一层高光,再混 12% 提亮只会把扫光洗平。
+// 原型那边也是同一套判断 —— `.prompt.hot`(聚焦)是常态,`.card:hover` 才带 gbFlow。
+// 另外也不加 enterDelay:输入卡是常驻的,不存在「入场」这回事。
 export function PromptCard(props: { focused: boolean; visible?: boolean; children: JSX.Element }) {
   const { theme } = useTheme()
   const kv = useKV()
