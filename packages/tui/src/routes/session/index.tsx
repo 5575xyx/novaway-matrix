@@ -44,6 +44,7 @@ import {
   type ChatView,
 } from "./chat-view"
 import { EmptySessionHero } from "../../component/empty-session-hero"
+import { FlowCanvas } from "../../component/flow/canvas"
 import { createSyntaxStyleMemo, generateSubtleSyntax, useTheme } from "../../context/theme"
 import "../../ui/card"
 import { neonStops, semanticStops } from "../../ui/neon"
@@ -160,42 +161,10 @@ export function metaModelLimit(width: number) {
   return Math.max(12, width - 26)
 }
 
-// 助手气泡卡壳:霓虹描边 + 固定内边距的正文容器。
-// 只依赖 useTheme() 与 useKV()(悬停动效要读 animations_enabled),不碰 session/local context,
-// 所以测试能直接挂载它来量真实几何 —— 与导出的 BlockTool / InlineToolRow 同理。手抄一份
-// neonbox 到测试里的话,改这里的 padding 不会让任何测试变红,`ctx.width - 9` 那类宽度常量就会悄悄失准。
-// paddingRight=1:NeonBox 不占边框格、边框画在最外列上,右留 1 格才能让正文不压到右边框。
-// 四边 padding 合计 3 列 = 卡内可用宽度相对 ctx.width 的扣减。
-//
-// enterFrom 用 theme.border:这张卡是透明卡(没有自己的 backgroundColor),而终端里没有半透明,
-// 淡入必须从一个**实色**长出来。未通电时那条描边就该是主题里最普通的那个边框色,
-// 亮起来才是渐变描边 —— 拿 theme.backgroundPanel 当起点会先糊一层灰边再变彩,反而更脏。
-//
-// 悬停:渐变缓慢流动 + 描边朝 theme.text 提亮(原型 `.msg.assistant .bubble:hover { animation: gbFlow }`)。
-// 两个信号都由 useCardHover 折进 animated/boost,所以 animations_enabled 关闭时悬停也不动。
-export function AssistantCard(props: { children: JSX.Element; enterDelay?: number }) {
-  const { theme } = useTheme()
-  const hover = useCardHover()
-  return (
-    <neonbox
-      gradientStops={semanticStops(theme, "assistant")}
-      enterFrom={theme.border}
-      enterDelay={props.enterDelay}
-      animated={hover.animated()}
-      boost={hover.boost(theme.text)}
-      onMouseOver={hover.onMouseOver}
-      onMouseOut={hover.onMouseOut}
-      paddingTop={1}
-      paddingBottom={1}
-      paddingLeft={2}
-      paddingRight={1}
-      width="100%"
-      flexShrink={0}
-    >
-      {props.children}
-    </neonbox>
-  )
-}
+// 助手气泡卡壳住在 component/assistant-card:流程图画布要拿**同一张壳**画节点卡,
+// 而画布挂在这一页里 —— 壳留在这一页就成环。re-export 保住既有 import 路径。
+import { AssistantCard } from "../../component/assistant-card"
+export { AssistantCard }
 
 // 助手气泡的 meta 行。agent 颜色由调用方注入,所以这里只依赖 useTheme(),
 // 测试能直接挂载 —— 顺序和截断都是可见行为,值得让测试盯住,而不是在测试里抄一份。
@@ -223,48 +192,6 @@ export function AssistantMeta(props: {
           {Locale.oneLine(props.model, metaModelLimit(props.width))}
         </span>
       </text>
-    </box>
-  )
-}
-
-/**
- * 流程图视图的占位。**D3 会整块替换掉这个组件**,连同下面那处 `<Match when={chatView()==="flow"}>`。
- *
- * 为什么必须有它:D2 已经把 `/布局 flow` 与那颗胶囊接好了,用户现在就能切过去。切过去之后如果
- * 什么都不渲染,看到的是一片空白 —— 那是「界面坏了」而不是「这个视图还没做」,用户会去怀疑
- * 是不是自己按错了什么。所以这里明确说清两件事:这一版画布还没做、怎么切回去。
- *
- * 与助手气泡卡(AssistantCard)同一条规矩:只依赖 useTheme(),所以测试能直接挂载它来量几何。
- */
-export function ChatViewFlowPlaceholder() {
-  const { theme } = useTheme()
-  return (
-    <box flexGrow={1} minHeight={0} alignItems="center" justifyContent="center">
-      <box
-        flexDirection="column"
-        alignItems="center"
-        gap={1}
-        paddingLeft={2}
-        paddingRight={2}
-        paddingTop={1}
-        paddingBottom={1}
-        backgroundColor={theme.backgroundPanel}
-        borderColor={theme.border}
-        {...SplitBorder}
-      >
-        <text fg={theme.text} wrapMode="none">
-          <span style={{ fg: theme.primary }}>{icon("view")} </span>
-          流程图视图 · 画布尚未实现
-        </text>
-        <text fg={theme.textMuted} wrapMode="none">
-          节点链式连接的那一版画布由后续任务补上;切回气泡视图继续对话
-        </text>
-        <text fg={theme.textMuted} wrapMode="none">
-          /layout bubble 或点标签行的
-          <span style={{ fg: theme.primary }}>视图</span>
-          胶囊
-        </text>
-      </box>
     </box>
   )
 }
@@ -834,6 +761,23 @@ export function Session() {
     }, 50)
   }
 
+  // `scroll` 只有**气泡视图**才挂载:流程图视图(那一版画布自己的滚动容器)与文件预览标签下
+  // 那个 scrollbox 都不在,ref 也就没被写进去 —— 而 ref 在元素销毁时不会被再调用一次置空,
+  // 所以 `scroll` 会一直指着一个**已销毁**的 renderable。翻页 / 跳消息这些命令仍然能被键盘
+  // 触发,直接解引用就会抛,整条命令链断在那里。
+  //
+  // 所以滚动一律走这两个入口:没有容器就静默收手(翻页类还要把弹窗关掉,否则弹窗会留在屏幕上)。
+  function scrollTo(action: (target: ScrollBoxRenderable) => void) {
+    if (!scroll || scroll.isDestroyed) return
+    action(scroll)
+  }
+  function withScroll(action: (target: ScrollBoxRenderable) => void) {
+    return () => {
+      scrollTo(action)
+      dialog.clear()
+    }
+  }
+
   const local = useLocal()
 
   function enterChild(sessionID: string) {
@@ -969,10 +913,10 @@ export function Session() {
         dialog.replace(() => (
           <DialogTimeline
             onMove={(messageID) => {
-              const child = scroll.getChildren().find((child) => {
-                return child.id === messageID
+              scrollTo((target) => {
+                const child = target.getChildren().find((c) => c.id === messageID)
+                if (child) target.scrollBy(child.y - target.y - 1)
               })
-              if (child) scroll.scrollBy(child.y - scroll.y - 1)
             }}
             sessionID={route.sessionID}
             setPrompt={(promptInfo) => prompt?.set(promptInfo)}
@@ -992,10 +936,10 @@ export function Session() {
           <DialogForkFromTimeline
             onMove={(messageID) => {
               if (!messageID) return
-              const child = scroll.getChildren().find((child) => {
-                return child.id === messageID
+              scrollTo((target) => {
+                const child = target.getChildren().find((c) => c.id === messageID)
+                if (child) target.scrollBy(child.y - target.y - 1)
               })
-              if (child) scroll.scrollBy(child.y - scroll.y - 1)
             }}
             sessionID={route.sessionID}
           />
@@ -1223,80 +1167,56 @@ export function Session() {
       value: "session.page.up",
       category: "会话",
       hidden: true,
-      run: () => {
-        scroll.scrollBy(-scroll.height / 2)
-        dialog.clear()
-      },
+      run: withScroll((target) => target.scrollBy(-target.height / 2)),
     },
     {
       title: "向下翻页",
       value: "session.page.down",
       category: "会话",
       hidden: true,
-      run: () => {
-        scroll.scrollBy(scroll.height / 2)
-        dialog.clear()
-      },
+      run: withScroll((target) => target.scrollBy(target.height / 2)),
     },
     {
       title: "向上滚动一行",
       value: "session.line.up",
       category: "会话",
       hidden: true,
-      run: () => {
-        scroll.scrollBy(-1)
-        dialog.clear()
-      },
+      run: withScroll((target) => target.scrollBy(-1)),
     },
     {
       title: "向下滚动一行",
       value: "session.line.down",
       category: "会话",
       hidden: true,
-      run: () => {
-        scroll.scrollBy(1)
-        dialog.clear()
-      },
+      run: withScroll((target) => target.scrollBy(1)),
     },
     {
       title: "向上翻半页",
       value: "session.half.page.up",
       category: "会话",
       hidden: true,
-      run: () => {
-        scroll.scrollBy(-scroll.height / 4)
-        dialog.clear()
-      },
+      run: withScroll((target) => target.scrollBy(-target.height / 4)),
     },
     {
       title: "向下翻半页",
       value: "session.half.page.down",
       category: "会话",
       hidden: true,
-      run: () => {
-        scroll.scrollBy(scroll.height / 4)
-        dialog.clear()
-      },
+      run: withScroll((target) => target.scrollBy(target.height / 4)),
     },
     {
       title: "第一条消息",
       value: "session.first",
       category: "会话",
       hidden: true,
-      run: () => {
-        scroll.scrollTo(0)
-        dialog.clear()
-      },
+      run: withScroll((target) => target.scrollTo(0)),
     },
     {
       title: "最后一条消息",
       value: "session.last",
       category: "会话",
       hidden: true,
-      run: () => {
-        scroll.scrollTo(scroll.scrollHeight)
-        dialog.clear()
-      },
+      run: withScroll((target) => target.scrollTo(target.scrollHeight)),
     },
     {
       title: "跳转到最近的用户消息",
@@ -1320,10 +1240,10 @@ export function Session() {
           )
 
           if (hasValidTextPart) {
-            const child = scroll.getChildren().find((child) => {
-              return child.id === message.id
+            scrollTo((target) => {
+              const child = target.getChildren().find((c) => c.id === message.id)
+              if (child) target.scrollBy(child.y - target.y - 1)
             })
-            if (child) scroll.scrollBy(child.y - scroll.y - 1)
             break
           }
         }
@@ -1820,10 +1740,12 @@ export function Session() {
             <box flexGrow={1} minHeight={0} paddingBottom={1} paddingLeft={2} paddingRight={2} gap={1}>
               <Show when={activeTabId() === "chat"}>
                 <Switch>
-                  {/* 流程图视图。D3 会用真正的画布替换掉 ChatViewFlowPlaceholder 这个 Match,
-                      并去掉外层这个 Switch —— 到那时这一层才有两种互斥的渲染。 */}
+                  {/* 流程图视图。D2 备下的 ChatViewFlowPlaceholder 已被真正的画布整块替换,
+                      那份「画布尚未实现」的占位连同它的测试一起删掉了 ——
+                      空白不是可接受的降级,而现在这一版画的就是节点链。
+                      数据直接取会话自己的同步数据(消息 + part),不另存一份中间态。 */}
                   <Match when={chatView() === "flow"}>
-                    <ChatViewFlowPlaceholder />
+                    <FlowCanvas messages={messages()} parts={sync.data.part} />
                   </Match>
                   <Match when={chatView() !== "flow"}>
                     <scrollbox
