@@ -8,8 +8,12 @@ import { sidebarCardContentWidth, type SidebarCardPage } from "../util/sidebar-m
 import { sidebarWidth } from "../util/sidebar-width"
 import "../ui/card"
 
-// 卡头里两段固定内容之间、徽标与右边框之间的余量。留 0 的话徽标会顶到边框上,
-// 标题又因为 flexShrink 被压到 0 宽(整张卡只剩一个徽标,标题凭空消失)。
+// 卡头里两段固定内容之间、徽标与右边框之间的余量。
+//
+// HEAD_GAP 是每一段之间的 gap(徽标左边那个空隙就是它);HEAD_MARGIN 是**分完之后刻意
+// 剩下的空余** —— flexGrow 空隙会把剩余宽度吃掉,这个数是分账时先扣掉、留给「意外多出
+// 来的宽度」的。留 0 的话徽标会顶到边框上,标题又因为 flexShrink 被压到 0 宽
+// (整张卡只剩一个徽标,标题凭空消失)。
 const HEAD_GAP = 1
 const HEAD_MARGIN = 2
 // 标题的保底宽度:再挤也至少留这么多列,否则「资源管理器」这类标题会被徽标整段吃掉。
@@ -123,7 +127,13 @@ export function SidebarCard(props: SidebarCardProps) {
 export interface CollapsibleSidebarCardProps {
   title: string
   icon?: string
-  badge?: string
+  /**
+   * 徽标。可以是常量,也可以是一个吃「当前是否展开」的函数 —— 折叠态和展开态说法不同的
+   * 那些(「8 条 · 仅显示 5 条」/「8 条」)必须走函数,常量徽标不会重新求值。
+   *
+   * 无论哪种,最后都交给 SidebarCard 按显示列封顶,走的是同一条路径。
+   */
+  badge?: string | ((open: Accessor<boolean>) => string)
   /** 列表项数。超过 collapseAt 才出现折叠箭头(和「少于一屏就不必折」是同一条判断)。 */
   count: number
   /** 超过多少项开始折叠。 */
@@ -157,6 +167,12 @@ export function CollapsibleSidebarCard(props: CollapsibleSidebarCardProps) {
   const [open, setOpen] = createSignal(props.defaultOpen ?? true)
   const collapsible = createMemo(() => props.count > props.collapseAt)
   const show = createMemo(() => !collapsible() || open())
+  // 函数式徽标在这里求值(它读 open(),所以是响应式的),求值结果按字符串交给 SidebarCard,
+  // 封顶走的是 SidebarCard 那一条路径 —— 调用方不需要、也不应该再自己截一次。
+  const badge = createMemo(() => (typeof props.badge === "function" ? props.badge(open) : props.badge))
+  // 折叠时是否还留着正文。hideWhenCollapsed=false 的那一种(消息列表)自己按 open 算可见集合,
+  // 卡壳不能替它把正文收掉。
+  const keepBody = createMemo(() => props.hideWhenCollapsed === false || show())
   createEffect(
     on(
       () => props.resetKey,
@@ -168,13 +184,13 @@ export function CollapsibleSidebarCard(props: CollapsibleSidebarCardProps) {
     <SidebarCard
       title={props.title}
       icon={props.icon}
-      badge={props.badge}
+      badge={badge()}
       page={props.page}
       collapsible={collapsible()}
       collapsed={!open()}
       onToggle={() => collapsible() && setOpen((value) => !value)}
     >
-      <Show when={show() || props.hideWhenCollapsed === false}>{props.children(open)}</Show>
+      <Show when={keepBody()}>{props.children(open)}</Show>
     </SidebarCard>
   )
 }

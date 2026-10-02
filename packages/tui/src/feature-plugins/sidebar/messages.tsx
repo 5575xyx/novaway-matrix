@@ -33,6 +33,17 @@ export function visibleMessages<T extends { id: string }>(
   return messages.slice(-limit)
 }
 
+/**
+ * 徽标要说实话:折叠时标「总数 · 仅显示 N 条」,全部可见时就只说总数。
+ *
+ * visible 必须来自 visibleMessages 的实时结果(也就是跟着 open 走),不能拿
+ * MESSAGE_COLLAPSE_AT 顶替 —— 那样展开之后画面上是 8 行、徽标却还写着「仅显示 5 条」。
+ */
+export function messageBadge(total: number, visible: number): string {
+  if (visible >= total) return `${total} 条`
+  return `${total} 条 · 仅显示 ${visible} 条`
+}
+
 function MessageRow(props: { api: TuiPluginApi; sessionID: string; messageID: string }) {
   const theme = () => props.api.theme.current
   // 摘要 = 该消息第一条有效的用户文本;纯附件消息给个占位。
@@ -69,12 +80,8 @@ function View(props: { api: TuiPluginApi; session_id: string }) {
       <CollapsibleSidebarCard
         title="消息"
         icon={icon("chat")}
-        // 徽标标出「总数 / 当前显示数」,免得用户以为消息丢了(没超阈值时只说总数)。
-        badge={
-          all().length > MESSAGE_COLLAPSE_AT
-            ? `${all().length} 条 · 仅显示 ${MESSAGE_COLLAPSE_AT} 条`
-            : `${all().length} 条`
-        }
+        // 徽标跟着当前可见条数走:展开之后不再说「仅显示 5 条」。
+        badge={(open) => messageBadge(all().length, visibleMessages(all(), open()).length)}
         count={all().length}
         collapseAt={MESSAGE_COLLAPSE_AT}
         defaultOpen={false}

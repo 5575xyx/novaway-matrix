@@ -33,35 +33,82 @@ import { DialogPrompt } from "../ui/dialog-prompt"
 import { DialogConfirm } from "../ui/dialog-confirm"
 import { DialogAlert } from "../ui/dialog-alert"
 import { useToast } from "../ui/toast"
-import { GIT_FILE_LABEL_MAX, SIDEBAR_CARD_MIN_CONTENT } from "../util/sidebar-metrics"
+import { GIT_FILE_LABEL_MAX, SIDEBAR_CARD_MIN_CONTENT, SIDEBAR_SECTION_MIN_CONTENT } from "../util/sidebar-metrics"
 
 const COMMIT_LIMIT = 8
 // 每组文件最多显示几行:用户改动几十个文件时,不把"历史"段挤出屏幕。
 const FILE_GROUP_MAX = 12
 // 贮藏列表最多显示几条:点哪条弹哪条,不再只能盲弹最近一次。
 const STASH_MAX = 3
-const STASH_MESSAGE_MAX = 26
-const COMMIT_SUBJECT_MAX = 30
+// 下面这四个上限全部按**显示列**算(配合 Locale.oneLineToWidth),按码元算的话
+// 一条中文贮藏说明就是 52 列,直接把边框顶掉。
+//
+// 贮藏行落在「变更」卡里(卡内容区最窄 36 列):行内左内边距 1 + 最长的 ref
+// 「stash@{99}」10 + 标题后的空格 1 = 12,再留 2 列余量。
+export const STASH_MESSAGE_MAX = SIDEBAR_CARD_MIN_CONTENT - 14
+// 提交行在「历史」节里(分区卡外面,内容区 38 列):左内边距 1 + 「● 」2 + 标题后的
+// 空格 1 + 短 hash 7 = 11,再留 2 列余量。
+// (旧值 30 是按码元定的:1+2+30+1+7 = 41 > 38,纯 ASCII 就已经超 3 列。)
+export const COMMIT_SUBJECT_MAX = SIDEBAR_SECTION_MIN_CONTENT - 13
 const COMMIT_MESSAGE_MAX = 200
 // 提交详情弹窗最多展示的行数,大提交的 --stat 清单截断。
 const COMMIT_DETAIL_MAX = 40
 // 分支列表最多显示几行,再多走"还有 N 个"。
 const BRANCH_MAX = 10
-// 分支行落在「分支」分区卡里:行内 paddingLeft 1 + 名字 + 悬停「 删」3,卡里放得下 32 列,
-// 这里留 10 列余量 —— 分支名超长时截尾比把统计挤掉好。
-const BRANCH_LABEL_MAX = SIDEBAR_CARD_MIN_CONTENT - 14
-// 「分支」卡头的徽标。卡头固定段:图标 2 + gap 1 + 标题「分支 N」≤ 8 + gap 1
-// + 动作「+ 新建分支」10 = 22,剩下的才是徽标,再留 2 列余量。
-// (卡片本身还会按可用列数再封一次顶,这里是语义上限:分支名比动作重要,但不该把动作挤没。)
-const BRANCH_CARD_BADGE_MAX = SIDEBAR_CARD_MIN_CONTENT - 20
-// 远程行不在分区卡里(还是普通的节标题 + 行),按侧栏根卡的内容区算:38~54 列。
-// 「● 」2 + 名字 10 + 地址 20 + 「 删」3 + 行内边距 1 = 36。
-const REMOTE_NAME_MAX = 10
-const REMOTE_URL_MAX = 20
-// 节标题的横线填充。三个节标题(同步 / 远程 / 历史)都在分区卡**外面**,宽度就是侧栏
-// 根卡内容区减掉滚动条与那层 paddingRight 的盒子 = 38~54 列;40 一律溢出被裁掉,
-// 不会反过来把标题顶走。
+// 分支行落在「分支」卡里:行内左内边距 1 + 名字 + 悬停「 删」3 = 4,卡里放得下 32 列,
+// 这里留 10 列余量 —— 分支名超长时截尾比把「删」挤掉好。
+export const BRANCH_LABEL_MAX = SIDEBAR_CARD_MIN_CONTENT - 14
+// 「分支」卡头的徽标就是当前分支名,**不在这里给上限**:卡壳按显示列封顶本来就是这行的
+// 职责(固定段 = 图标 2 + 标题「分支 N」≤ 8 + 动作「+ 新建分支」10 + 两个 gap = 22,
+// 36 − 22 − 2 余量,徽标实际最多拿到 12 列),再在这里写一个永远不生效的常量只会误导。
+// 分支名在这一行之外的完整形态见下面的 branchHeadline(正文那一行)。
+// 远程行在分区卡外面(还是普通的节标题 + 行),内容区 38 列:
+// 左内边距 1 + 「● 」2 + 名字 10 + 地址 20 + 悬停「 删」3 = 36,留 2 列余量。
+export const REMOTE_NAME_MAX = SIDEBAR_SECTION_MIN_CONTENT - 28
+export const REMOTE_URL_MAX = SIDEBAR_SECTION_MIN_CONTENT - 18
+// 节标题的横线填充。三个节标题(同步 / 远程 / 历史)都在分区卡**外面**,那一层是 38~54 列。
+// 40 是按窄端取的:够填到右边框,宽端(54)则不够长、会留一小段空白 —— 这没问题,
+// 标题文本永远在前,横线只是个填充,被 overflow="hidden" 裁掉也不会顶到别的东西。
 const DASH_RUN = "─".repeat(40)
+
+/**
+ * 「当前分支 → 上游 领先/落后」那一行的两段文本,按实际可用列截断。
+ *
+ * 这一行以前完全不截断:一个 46 字符的分支名会画 55 列,被视口静默裁掉且没有省略号。
+ * 上游和领先数逐仓库不同,所以预算按它们的**实际宽度**现算,而不是拍一个固定上限。
+ * `columns` 由调用方给(卡内容区的最窄值),测试可以直接传别的值。
+ */
+export function branchHeadline(input: { name: string; upstream?: string; tracking: string; columns: number }): {
+  name: string
+  upstream: string
+} {
+  const MARGIN = 2
+  // 固定段:` → ` 3 列,加上 tracking 前面那个空格(没有领先/落后时就没有这 1 列)。
+  const fixed = 3 + (input.tracking ? 1 + Locale.displayWidth(input.tracking) : 0) + MARGIN
+  // 上游最多拿 12 列:它只是补充信息,分支名才是这一行的主体。
+  const upstream = Locale.truncateToWidth(input.upstream ?? "", Math.min(Locale.displayWidth(input.upstream ?? ""), 12))
+  const nameColumns = Math.max(4, input.columns - fixed - Locale.displayWidth(upstream))
+  return { name: Locale.truncateToWidth(input.name, nameColumns), upstream }
+}
+
+// 下面这几个是「窄行上的一段文本」的生产实现。抽成函数不是为了好看,而是为了让测试
+// 打到真正的调用点:只测常量的测试在有人把 oneLineToWidth 换回 oneLine 时照样绿,
+// 而那正是这批上限一开始按码元定的原因。
+export function stashMessageText(message: string): string {
+  return Locale.oneLineToWidth(message, STASH_MESSAGE_MAX)
+}
+
+export function commitSubjectText(subject: string): string {
+  return Locale.oneLineToWidth(subject, COMMIT_SUBJECT_MAX)
+}
+
+export function remoteNameText(name: string): string {
+  return Locale.oneLineToWidth(name, REMOTE_NAME_MAX)
+}
+
+export function remoteUrlText(url: string): string {
+  return Locale.oneLineToWidth(url, REMOTE_URL_MAX)
+}
 
 export interface GitPanelProps {
   rootPath?: string
@@ -181,6 +228,12 @@ export function GitPanel(props: GitPanelProps) {
   })
   // 当前分支的推送/拉取目标 = 上游里的远程名("github/main" → "github")。
   const currentRemote = createMemo(() => upstream()?.split("/")[0])
+  // 「当前分支 → 上游 领先/落后」那一行的两段文本:按实际可用列截断(见 branchHeadline)。
+  const headline = createMemo(() => {
+    const name = branch()
+    if (!name) return undefined
+    return branchHeadline({ name, upstream: upstream(), tracking: tracking(), columns: SIDEBAR_CARD_MIN_CONTENT })
+  })
   const hasChanges = createMemo(() => staged().length + unstaged().length > 0)
 
   const openDiff = (entry: GitFileEntry) => {
@@ -511,10 +564,10 @@ export function GitPanel(props: GitPanelProps) {
       >
         <text flexShrink={0} wrapMode="none" onMouseUp={() => void switchRemote(rowProps.name)}>
           <span style={{ fg: isCurrent() ? theme.success : theme.backgroundPanel }}>{isCurrent() ? "● " : "  "}</span>
-          <span style={{ fg: theme.text }}>{Locale.oneLine(rowProps.name, REMOTE_NAME_MAX)}</span>
+          <span style={{ fg: theme.text }}>{remoteNameText(rowProps.name)}</span>
         </text>
         <text flexGrow={1} fg={theme.textMuted} wrapMode="none" onMouseUp={() => void switchRemote(rowProps.name)}>
-          {Locale.oneLine(rowProps.url, REMOTE_URL_MAX)}
+          {remoteUrlText(rowProps.url)}
         </text>
         <text
           flexShrink={0}
@@ -542,24 +595,23 @@ export function GitPanel(props: GitPanelProps) {
         <SidebarCard
           title={`分支 ${branches().length}`}
           icon={icon("git")}
-          badge={Locale.truncateToWidth(branchName() ?? "无", BRANCH_CARD_BADGE_MAX)}
+          badge={branchName() ?? "无"}
           action="+ 新建分支"
           onAction={() => void newBranch()}
         >
           <box flexDirection="column" gap={1}>
+            {/* 这一行的名字与上游按实际剩余列截断(branchHeadline),否则长分支名会被
+                视口静默裁掉、没有省略号。徽标那点宽度是卡壳封的,正文这一行才是
+                完整分支名该待的地方。 */}
             <text fg={theme.text} wrapMode="none">
-              <Show when={branch()} fallback={<span style={{ fg: theme.textMuted }}>无</span>}>
-                {(name) => (
-                  <>
-                    <span style={{ fg: theme.text }}>{name()}</span>
-                    <Show when={upstream()}>
-                      <span style={{ fg: theme.textMuted }}> → {upstream()}</span>
-                    </Show>
-                    <Show when={tracking()}>
-                      <span style={{ fg: theme.warning }}> {tracking()}</span>
-                    </Show>
-                  </>
-                )}
+              <Show when={headline()} fallback={<span style={{ fg: theme.textMuted }}>无</span>}>
+                <span style={{ fg: theme.text }}>{headline()?.name}</span>
+                <Show when={upstream()}>
+                  <span style={{ fg: theme.textMuted }}> → {headline()?.upstream}</span>
+                </Show>
+                <Show when={tracking()}>
+                  <span style={{ fg: theme.warning }}> {tracking()}</span>
+                </Show>
               </Show>
             </text>
             {/* 分支列表:点名字切换;当前分支标 ●;悬停行显形"删"。
@@ -690,8 +742,7 @@ export function GitPanel(props: GitPanelProps) {
                         wrapMode="none"
                         onMouseUp={() => void stashPop(item.ref)}
                       >
-                        <span style={{ fg: theme.primary }}>{item.ref}</span>{" "}
-                        {Locale.oneLine(item.message, STASH_MESSAGE_MAX)}
+                        <span style={{ fg: theme.primary }}>{item.ref}</span> {stashMessageText(item.message)}
                       </text>
                     )}
                   </For>
@@ -729,9 +780,7 @@ export function GitPanel(props: GitPanelProps) {
                   <text wrapMode="none" paddingLeft={1} onMouseUp={() => void showCommit(commitInfo.hash)}>
                     {/* 图表风格:● 节点 + 标题 + 短 hash,最新一条节点用强调色 */}
                     <span style={{ fg: i() === 0 ? theme.primary : theme.secondary }}>● </span>
-                    <span style={{ fg: theme.text }}>
-                      {Locale.oneLine(commitInfo.subject, COMMIT_SUBJECT_MAX)}
-                    </span>{" "}
+                    <span style={{ fg: theme.text }}>{commitSubjectText(commitInfo.subject)}</span>{" "}
                     <span style={{ fg: theme.textMuted }}>{commitInfo.hash.slice(0, 7)}</span>
                   </text>
                 )
