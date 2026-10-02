@@ -33,6 +33,7 @@ import { EmptySessionHero } from "../../component/empty-session-hero"
 import { createSyntaxStyleMemo, generateSubtleSyntax, useTheme } from "../../context/theme"
 import "../../ui/card"
 import { neonStops, semanticStops } from "../../ui/neon"
+import { createEnterBaseline } from "../../ui/enter"
 import { BoxRenderable, ScrollBoxRenderable, addDefaultParsers, TextAttributes, RGBA } from "@opentui/core"
 import { Prompt, type PromptRef } from "../../component/prompt"
 import type {
@@ -149,11 +150,17 @@ export function metaModelLimit(width: number) {
 // padding 不会让任何测试变红,`ctx.width - 9` 那类宽度常量就会悄悄失准。
 // paddingRight=1:NeonBox 不占边框格、边框画在最外列上,右留 1 格才能让正文不压到右边框。
 // 四边 padding 合计 3 列 = 卡内可用宽度相对 ctx.width 的扣减。
-export function AssistantCard(props: { children: JSX.Element }) {
+//
+// enterFrom 用 theme.border:这张卡是透明卡(没有自己的 backgroundColor),而终端里没有半透明,
+// 淡入必须从一个**实色**长出来。未通电时那条描边就该是主题里最普通的那个边框色,
+// 亮起来才是渐变描边 —— 拿 theme.backgroundPanel 当起点会先糊一层灰边再变彩,反而更脏。
+export function AssistantCard(props: { children: JSX.Element; enterDelay?: number }) {
   const { theme } = useTheme()
   return (
     <neonbox
       gradientStops={semanticStops(theme, "assistant")}
+      enterFrom={theme.border}
+      enterDelay={props.enterDelay}
       paddingTop={1}
       paddingBottom={1}
       paddingLeft={2}
@@ -269,6 +276,8 @@ const context = createContext<{
   providers: () => ReadonlyMap<string, Provider>
   sync: ReturnType<typeof useSync>
   tui: ReturnType<typeof useTuiConfig>
+  /** 这条消息的卡片入场延迟(毫秒);undefined = 不入场。判定见 ui/enter.ts。 */
+  enterDelayFor: (messageID: string) => number | undefined
 }>()
 
 function use() {
@@ -1482,6 +1491,21 @@ export function Session() {
   const visibleMessages = createMemo(() => messages().slice(windowOffset()))
   const hiddenMessages = createMemo(() => visibleWindow().hidden)
 
+  // 卡片阶梯入场的基线:Session 首次挂载时的消息 id 快照,之后只增不减。
+  // 建在组件体里(不是 createMemo):换会话时 Session 整个重建,基线自然跟着重开,
+  // 而同一场会话里不管窗口怎么扩、消息怎么增,基线都不会被重算。
+  // 首挂载时消息通常还没从服务端回来,基线就是空的 —— 之后陆续到达的消息逐条领一个
+  // 递增的入场延迟,正好就是「打开会话时消息流逐条亮起」;反过来,向上滚动补载的
+  // 历史消息早就被记进基线,永远不会二次入场(这才是整屏闪烁的真正来源)。
+  const enterBaseline = createEnterBaseline(messages().map((message) => message.id))
+  // animations_enabled 关掉时不传 enterDelay —— NeonBox 的约定是「不传即终态」,
+  // 不留淡入残影。但基线照样要问:否则用户中途把动画打开时,这条消息会拿到一个
+  // 「迟到」的入场延迟,凭空淡入一次。
+  const enterDelayFor = (messageID: string) => {
+    const delay = enterBaseline.delayFor(messageID)
+    return kv.get("animations_enabled", true) ? delay : undefined
+  }
+
   // 信息页"消息"列表的跳转:切回聊天标签,必要时把消息窗口扩到包含目标,再滚过去。
   // 切标签会重建聊天区的滚动容器,所以带几次重试,等它挂载完成再定位。
   const jumpToMessage = (messageID: string) => {
@@ -1552,6 +1576,7 @@ export function Session() {
           providers,
           sync,
           tui: tuiConfig,
+          enterDelayFor,
         }}
       >
         <box flexDirection="row" flexGrow={1} minHeight={0}>
@@ -1864,7 +1889,7 @@ function UserMessage(props: { message: UserMessage; parts: Part[]; onMouseUp: ()
   return (
     <>
       <Show when={text()}>
-        {/* crush 式用户气泡:霓虹渐变描边卡片,靠右对齐;悬停只提亮底色。 */}
+        {/* crush 式用户气泡:霓虹渐变描边卡片,靠右对齐;悬停提亮底色 + 描边流动与提亮。 */}
         <box
           id={props.message.id}
           ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
@@ -1878,6 +1903,9 @@ function UserMessage(props: { message: UserMessage; parts: Part[]; onMouseUp: ()
             onMouseUp={props.onMouseUp}
             gradientStops={neonStops(theme)}
             backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
+            /* 这张卡有自己的 backgroundColor,所以不传 enterFrom:淡入的起点色就是它的底色
+               (ui/card.ts 的 enterFrom 默认取 backgroundColor)。 */
+            enterDelay={ctx.enterDelayFor(props.message.id)}
             paddingTop={1}
             paddingBottom={1}
             paddingLeft={2}
@@ -1981,7 +2009,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
           width={ctx.width}
         />
         <Show when={renderableParts().length}>
-          <AssistantCard>
+          <AssistantCard enterDelay={ctx.enterDelayFor(props.message.id)}>
             <For each={props.parts}>
               {(part, index) => {
                 const component = createMemo(() => PART_MAPPING[part.type as keyof typeof PART_MAPPING])
@@ -2025,7 +2053,9 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
         </box>
       </Show>
       <Show when={props.message.error && props.message.error.name !== "MessageAbortedError"}>
-        {/* paddingRight=1:NeonBox 不占边框格、边框画在最外列上,右留 1 格才能让文本宽度与旧 border=["left"] 版一致 */}
+        {/* paddingRight=1:NeonBox 不占边框格、边框画在最外列上,右留 1 格才能让文本宽度与旧 border=["left"] 版一致
+            错误卡不加 enterDelay:它是助手消息的附属物,跟着那张卡一起入场已经够了;
+            单独再淡入一次就是同一屏里闪两下。 */}
         <neonbox
           ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
           gradientStops={semanticStops(theme, "error")}
@@ -2134,7 +2164,9 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
   return (
     <Show when={content() || opaque()}>
       <box ref={partSiblingRef} flexShrink={0}>
-        {/* crush 式思考块:紫青渐变描边卡片 + 第 2 级灰底,和工具输出同一套弱对比语言 */}
+        {/* crush 式思考块:紫青渐变描边卡片 + 第 2 级灰底,和工具输出同一套弱对比语言。
+            不加 enterDelay:思考块是在流式输出**过程中**随 reasoning 到达而挂上的,
+            一轮里可能来好几块,淡入会让「正在想」这件事变成「边框在闪」。 */}
         <neonbox
           gradientStops={semanticStops(theme, "thinking")}
           backgroundColor={theme.backgroundElement}
@@ -2615,6 +2647,9 @@ export function BlockTool(props: {
   const error = createMemo(() => (props.part?.state.status === "error" ? props.part.state.error : undefined))
   return (
     // paddingRight=1:NeonBox 不占边框格、边框画在最外列上,右留 1 格才能让文本宽度与旧 border=["left"] 版一致
+    // 不加 enterDelay(阶梯入场):工具卡是流式输出期间一张接一张长出来的,一轮里可能连着挂
+    // 五六张;再加淡入就是工具输出「噼里啪啦」地闪,而卡本身还在长高,半亮的边框配着
+    // 变动的正文比不动更乱。
     <neonbox
       ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
       gradientStops={semanticStops(theme, "tool")}

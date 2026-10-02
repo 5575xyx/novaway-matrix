@@ -24,6 +24,23 @@ export function gradientAt(stops: readonly RGBA[], t: number): RGBA {
   )
 }
 
+/**
+ * 入场淡入:描边色从 from 插值到 to,k ∈ [0,1] 越界夹紧。
+ *
+ * 终端没有 opacity(真彩色 SGR 只有 RGB 三元组,alpha 到终端这一层必然被丢掉),
+ * 「淡入」只能是两个实色之间插值 —— 与 CSS 的 opacity 0→1 语义上不可比,
+ * 但在这条设计语言里(卡片只有一圈渐变描边)它就是描边亮起来的过程。
+ */
+export function fadeIn(from: RGBA, to: RGBA, k: number): RGBA {
+  const clamped = Math.min(1, Math.max(0, k))
+  return RGBA.fromValues(
+    from.r + (to.r - from.r) * clamped,
+    from.g + (to.g - from.g) * clamped,
+    from.b + (to.b - from.b) * clamped,
+    from.a + (to.a - from.a) * clamped,
+  )
+}
+
 export type BorderCell = { x: number; y: number; ch: string; t: number }
 
 export type NeonRole = "user" | "assistant" | "thinking" | "tool" | "error" | "tip" | "input"

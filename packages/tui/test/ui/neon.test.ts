@@ -1,8 +1,43 @@
 import { describe, expect, test } from "bun:test"
 import { RGBA } from "@opentui/core"
-import { gradientAt, neonStops, perimeterCells, semanticStops } from "../../src/ui/neon"
+import { fadeIn, gradientAt, neonStops, perimeterCells, semanticStops } from "../../src/ui/neon"
 import { resolveTheme, type ThemeJson } from "../../src/theme"
 import novaway from "../../src/theme/assets/novaway.json" with { type: "json" }
+
+describe("fadeIn", () => {
+  const red = RGBA.fromHex("#ff0000")
+  const blue = RGBA.fromHex("#0000ff")
+
+  test("k = 0 取起点、k = 1 取终点", () => {
+    expect(fadeIn(red, blue, 0)).toEqual(red)
+    expect(fadeIn(red, blue, 1)).toEqual(blue)
+  })
+
+  test("k 越界夹紧到 [0,1]", () => {
+    expect(fadeIn(red, blue, -3)).toEqual(red)
+    expect(fadeIn(red, blue, 7)).toEqual(blue)
+  })
+
+  test("k = 0.5 是两端中点", () => {
+    const mid = fadeIn(red, blue, 0.5)
+    expect(mid.r).toBeCloseTo(0.5, 2)
+    expect(mid.b).toBeCloseTo(0.5, 2)
+    expect(mid.g).toBeCloseTo(0, 2)
+  })
+
+  test("单调递增:每一步都不比上一步更靠近终点", () => {
+    let previous = -1
+    for (let k = 0; k <= 1; k += 0.05) {
+      const b = fadeIn(red, blue, k).b
+      expect(b).toBeGreaterThanOrEqual(previous - 1e-12)
+      previous = b
+    }
+    // 循环最后一次 k = 0.95,离终色还差 5%;RGBA 走 8bit 量化(见 card-sweep 的说明),
+    // 这里只断言「已经走到接近终点」,精确的 k = 1 由上一条钉死。
+    expect(previous).toBeGreaterThan(0.9)
+    expect(previous).toBeLessThanOrEqual(1)
+  })
+})
 
 describe("gradientAt", () => {
   const red = RGBA.fromHex("#ff0000")
