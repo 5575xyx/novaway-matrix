@@ -21,6 +21,7 @@ import { useTheme } from "../context/theme"
 import { useTuiPaths } from "../context/runtime"
 import { NovaWay_BASE_MODE, useBindings } from "../keymap"
 import { Sidebar, SIDEBAR_TABS, cycleSidebarTab, setSidebarTab } from "./session/sidebar"
+import { sidebarWidth } from "../util/sidebar-width"
 import { getScrollAcceleration } from "../util/scroll"
 import { HomeSessionDestinationProvider, useHomeSessionDestination } from "./home/session-destination"
 
@@ -239,7 +240,15 @@ function HomeBody() {
           </Switch>
         </Show>
         <box flexGrow={1} minHeight={0} flexDirection="column">
-          <TabBar tabs={tabs()} activeTabId={activeTabId()} onTabClick={switchTab} onTabClose={closeTab} />
+          <TabBar
+            tabs={tabs()}
+            activeTabId={activeTabId()}
+            onTabClick={switchTab}
+            onTabClose={closeTab}
+            // 首页没有右侧胶囊,但标签栏的可用宽度仍要显式给(会话页那边是 contentWidth + 2):
+            // 侧栏挤掉的那一列在这里同样要去掉。
+            width={dimensions().width - (sidebarVisible() ? sidebarWidth(dimensions().width) : 0)}
+          />
           <box flexGrow={1} minHeight={0} paddingBottom={1} paddingLeft={2} paddingRight={2} gap={1}>
             {/* 消息区(首屏为空):滚动容器的参数和会话页一致,内容是共用的空会话首屏 */}
             <Show when={activeTabId() === "chat"}>

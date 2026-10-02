@@ -13,6 +13,7 @@ import {
   Switch,
   untrack,
   useContext,
+  type Accessor,
 } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Dynamic } from "solid-js/web"
@@ -29,6 +30,19 @@ import { animGradient } from "../../util/anim-spinner"
 import { FilePreview } from "../../component/file-preview"
 import { GitDiffView } from "../../component/git-diff-view"
 import { TabBar, type TabItem } from "../../component/tab-bar"
+import { PillRow, type PillSpec } from "../../component/pill"
+import {
+  CHAT_VIEW_ITEMS,
+  CHAT_VIEW_KEY,
+  DEFAULT_CHAT_VIEW,
+  LAYOUT_COMMAND_ALIASES,
+  LAYOUT_COMMAND_NAME,
+  chatViewArgumentError,
+  chatViewShort,
+  otherChatView,
+  resolveChatViewCommand,
+  type ChatView,
+} from "./chat-view"
 import { EmptySessionHero } from "../../component/empty-session-hero"
 import { createSyntaxStyleMemo, generateSubtleSyntax, useTheme } from "../../context/theme"
 import "../../ui/card"
@@ -94,6 +108,7 @@ import { getScrollAcceleration } from "../../util/scroll"
 import { collapseHint, collapseToolOutput } from "../../util/collapse-tool-output"
 import { subscribeMessageJump } from "../../util/message-jump"
 import { sidebarWidth } from "../../util/sidebar-width"
+import { sessionUsage } from "../../util/usage"
 import { usePluginRuntime } from "../../plugin/runtime"
 import { DialogRetryAction } from "../../component/dialog-retry-action"
 import { getRevertDiffFiles } from "../../util/revert-diff"
@@ -212,6 +227,48 @@ export function AssistantMeta(props: {
   )
 }
 
+/**
+ * 流程图视图的占位。**D3 会整块替换掉这个组件**,连同下面那处 `<Match when={chatView()==="flow"}>`。
+ *
+ * 为什么必须有它:D2 已经把 `/布局 flow` 与那颗胶囊接好了,用户现在就能切过去。切过去之后如果
+ * 什么都不渲染,看到的是一片空白 —— 那是「界面坏了」而不是「这个视图还没做」,用户会去怀疑
+ * 是不是自己按错了什么。所以这里明确说清两件事:这一版画布还没做、怎么切回去。
+ *
+ * 与助手气泡卡(AssistantCard)同一条规矩:只依赖 useTheme(),所以测试能直接挂载它来量几何。
+ */
+export function ChatViewFlowPlaceholder() {
+  const { theme } = useTheme()
+  return (
+    <box flexGrow={1} minHeight={0} alignItems="center" justifyContent="center">
+      <box
+        flexDirection="column"
+        alignItems="center"
+        gap={1}
+        paddingLeft={2}
+        paddingRight={2}
+        paddingTop={1}
+        paddingBottom={1}
+        backgroundColor={theme.backgroundPanel}
+        borderColor={theme.border}
+        {...SplitBorder}
+      >
+        <text fg={theme.text} wrapMode="none">
+          <span style={{ fg: theme.primary }}>{icon("view")} </span>
+          流程图视图 · 画布尚未实现
+        </text>
+        <text fg={theme.textMuted} wrapMode="none">
+          节点链式连接的那一版画布由后续任务补上;切回气泡视图继续对话
+        </text>
+        <text fg={theme.textMuted} wrapMode="none">
+          /layout bubble 或点标签行的
+          <span style={{ fg: theme.primary }}>视图</span>
+          胶囊
+        </text>
+      </box>
+    </box>
+  )
+}
+
 type RetryAction = Extract<SessionStatus, { type: "retry" }>["action"]
 
 function goUpsellKeys(action: RetryAction) {
@@ -282,6 +339,11 @@ const context = createContext<{
   showDetails: () => boolean
   showGenericToolOutput: () => boolean
   diffWrapMode: () => "word" | "none"
+  /**
+   * 聊天区当前视图(bubble 气泡 / flow 流程图)。D2 把它备好并挂在 context 上,
+   * 真正按它渲染流程图画布的是 D3 —— 那里直接读这个 accessor 即可,不必再从 KV 读一遍。
+   */
+  chatView: Accessor<ChatView>
   providers: () => ReadonlyMap<string, Provider>
   sync: ReturnType<typeof useSync>
   tui: ReturnType<typeof useTuiConfig>
@@ -399,6 +461,12 @@ export function Session() {
   const [diffWrapMode] = kv.signal<"word" | "none">("diff_wrap_mode", "word")
   const [_animationsEnabled, _setAnimationsEnabled] = kv.signal("animations_enabled", true)
   const [showGenericToolOutput, setShowGenericToolOutput] = kv.signal("generic_tool_output_visibility", false)
+  // 聊天视图(气泡 / 流程图)。存 KV 而不是组件内 signal:它是用户挑的显示偏好,
+  // 换终端、换会话都该还在(与 timestamps / animations_enabled 同一类)。
+  // 写值一律用函数形式 `setChatView(() => next)`:solid 的 Setter<in out T> 在「直接传一个
+  // 联合类型的值」上推不出 U(会退化成 string 而报 TS2345),函数形式才过得了类型检查 ——
+  // 本文件里其它 kv signal(setTimestamps / setSidebar / setQueueCollapsed)也是这么写的。
+  const [chatView, setChatView] = kv.signal<ChatView>(CHAT_VIEW_KEY, DEFAULT_CHAT_VIEW)
 
   // 排队草稿：会话忙碌时用户提交的提示暂存在本地，等会话空闲后按顺序自动发送。
   const [queueStore, setQueueStore] = createStore({
@@ -429,6 +497,13 @@ export function Session() {
     () => dimensions().width - (sidebarVisible() ? sidebarWidth(dimensions().width) : 0) - 4,
   )
   const providers = createMemo(() => Model.index(sync.data.provider))
+
+  // 标签行胶囊能用的列数。contentWidth 扣掉的是消息区自己的 paddingLeft/Right 各 2 列,
+  // 而标签栏那一条另有自己的 paddingLeft/Right 各 1 列,所以这里要**加回** 2:
+  //   标签栏内宽 = 终端宽 − 侧栏宽 − 2(它自己的 padding)= contentWidth + 2。
+  // PillRow 自己还会再留 1 列作为与标签的最小间距(见 component/pill.tsx 的 SPACER)。
+  const tabBarWidth = createMemo(() => contentWidth() + 2)
+  const paletteShortcut = useCommandShortcut("command.palette.show")
 
   const scrollAcceleration = createMemo(() => getScrollAcceleration(tuiConfig))
   const toast = useToast()
@@ -628,6 +703,54 @@ export function Session() {
   const dialog = useDialog()
   const renderer = useRenderer()
 
+  // 标签行右端那四颗胶囊的数据。宽窄全交给 PillRow(降级阶梯见 component/pill.tsx),
+  // 这里只负责「每一颗说的是什么」:视图(可点,accent 表示当前态)、/ 命令(可点,键位取真实
+  // 键位而不是写死 ctrl+p)、session 短 id、上下文占用。
+  // session 短 id 取尾部 6 位:标签栏一行放不下完整 id,而尾部那几位已经足够把两个会话分开。
+  const SESSION_ID_TAIL = 6
+  const chatViewPills = createMemo<PillSpec[]>(() => {
+    const usage = sessionUsage(sync, route.sessionID)
+    const command = paletteShortcut()
+    return [
+      {
+        label: `视图·${chatViewShort(chatView())}`,
+        icon: icon("view"),
+        tone: "accent",
+        onClick: () => setChatView(() => otherChatView(chatView())),
+        priority: 3,
+        iconOnly: true,
+      },
+      {
+        label: command ? `/ 命令 ${command}` : "/ 命令",
+        onClick: () => keymap.dispatchCommand("command.palette.show"),
+        priority: 2,
+      },
+      {
+        label: `session #${route.sessionID.slice(-SESSION_ID_TAIL)}`,
+        priority: 1,
+      },
+      {
+        // 还没有任何助手消息时整颗不画(没有 label 就是没有胶囊),而不是画一颗写着 0 ctx 的。
+        label: usage ? `${Locale.number(usage.tokens)} ctx` : "",
+        priority: 0,
+      },
+    ]
+  })
+
+  // 输入框里手打整行 `/布局 [bubble|flow]` 的那条路。斜杠菜单里选中命令是**立刻派发**的
+  // (keymap.tsx 的 useCommandSlashes),不经过输入框,所以带参数的写法必须在这里拦一次 ——
+  // 否则 `/布局 flow` 会作为一条提示词发给模型。
+  const onLocalCommand = (line: string) => {
+    const result = resolveChatViewCommand(line)
+    if (!result) return false
+    if (!result.ok) {
+      toast.show({ message: chatViewArgumentError(result.argument), variant: "error" })
+      return true
+    }
+    setChatView(() => result.view ?? otherChatView(chatView()))
+    return true
+  }
+
   onCleanup(
     event.on("session.status", (evt) => {
       if (evt.properties.sessionID !== route.sessionID) return
@@ -652,6 +775,9 @@ export function Session() {
 
   // Helper: Find next visible message boundary in direction
   const findNextVisibleMessage = (direction: "next" | "prev"): string | null => {
+    // 消息滚动容器只在气泡视图下挂着:流程图视图(D3)与文件预览标签都不挂它。
+    // 这里原来是无条件解引用的,切到那种视图再按「下一条消息」就会炸 —— 加一道存在性判断。
+    if (!scroll || scroll.isDestroyed) return null
     const children = scroll.getChildren()
     const messagesList = messages()
     const scrollTop = scroll.y
@@ -686,6 +812,11 @@ export function Session() {
     const targetID = findNextVisibleMessage(direction)
 
     if (!targetID) {
+      // 滚动容器不在(流程图视图 / 文件预览标签):没有可翻的页,静默收手而不是解引用 undefined。
+      if (!scroll || scroll.isDestroyed) {
+        dialog.clear()
+        return
+      }
       scroll.scrollBy(direction === "next" ? scroll.height : -scroll.height)
       dialog.clear()
       return
@@ -739,6 +870,43 @@ export function Session() {
   }
 
   const sessionCommandList = createMemo(() => [
+    // 聊天视图的三条命令(原型 card-design-v7.html:1109-1113 的「命令菜单 · 切换聊天布局视图」)。
+    //
+    // 为什么是「两条指定 + 一条切换」而不是只有一条 `/布局`:
+    //   - 斜杠菜单是**平铺**的一列,没有子菜单 / 二级列表这种结构(useCommandSlashes 把每条命令
+    //     摊成一行 display + description)。所以「二选一」只能表达成两条独立命令,而原型那两条
+    //     带说明文字的选项正好一一对应上:`/气泡视图` 与 `/流程图视图`。
+    //   - 说明文字挂在**标题**上而不是 SLASH_DESC_ZH:slashDescription() 先查 SLASH_DESC_ZH 的
+    //     静态文案,查不到才回落到命令标题。所以这里不登记静态说明,标题就是菜单里那一列文字。
+    //   - 「✓ 当前」同样只能靠标题表达:它是响应式的,写进任何静态表都会变成永远不变的死文案。
+    //   - `/布局` 保留成「无参切换」,既给「我只想来回切」一个短名字,也是输入框里
+    //     `/布局 flow` 的那个头(参数校验见 chat-view.ts 的 resolveChatViewCommand)。
+    {
+      title: chatView() === "bubble" ? "切换到流程图视图" : "切换到气泡视图",
+      value: "session.layout.toggle",
+      category: "会话",
+      slash: {
+        name: LAYOUT_COMMAND_NAME,
+        aliases: [...LAYOUT_COMMAND_ALIASES, "layout-toggle"],
+      },
+      run: () => {
+        setChatView(() => otherChatView(chatView()))
+        dialog.clear()
+      },
+    },
+    ...CHAT_VIEW_ITEMS.map((item) => ({
+      title: item.description + (chatView() === item.view ? ` ${icon("check")} 当前` : ""),
+      value: `session.layout.${item.view}`,
+      category: "会话",
+      slash: {
+        name: item.command,
+        aliases: [item.view, item.label],
+      },
+      run: () => {
+        setChatView(() => item.view)
+        dialog.clear()
+      },
+    })),
     {
       title: session()?.share?.url ? "复制分享链接" : "分享会话",
       value: "session.share",
@@ -1582,6 +1750,7 @@ export function Session() {
           showDetails,
           showGenericToolOutput,
           diffWrapMode,
+          chatView,
           providers,
           sync,
           tui: tuiConfig,
@@ -1638,137 +1807,157 @@ export function Session() {
             </Switch>
           </Show>
           <box flexGrow={1} minHeight={0} flexDirection="column">
-            <TabBar tabs={tabs()} activeTabId={activeTabId()} onTabClick={switchTab} onTabClose={closeTab} />
+            {/* 右侧胶囊由会话页组装(用量、session 短 id 都是这一层的数据),TabBar 只负责摆位置
+                并把「标签右侧还剩多少列」算出来。 */}
+            <TabBar
+              tabs={tabs()}
+              activeTabId={activeTabId()}
+              onTabClick={switchTab}
+              onTabClose={closeTab}
+              width={tabBarWidth()}
+              pills={(available) => <PillRow width={available} pills={chatViewPills()} />}
+            />
             <box flexGrow={1} minHeight={0} paddingBottom={1} paddingLeft={2} paddingRight={2} gap={1}>
               <Show when={activeTabId() === "chat"}>
-                <scrollbox
-                  ref={(r) => (scroll = r)}
-                  viewportOptions={{
-                    paddingRight: showScrollbar() ? 1 : 0,
-                  }}
-                  verticalScrollbarOptions={{
-                    paddingLeft: 1,
-                    visible: showScrollbar(),
-                    trackOptions: {
-                      backgroundColor: theme.backgroundElement,
-                      foregroundColor: theme.border,
-                    },
-                  }}
-                  stickyScroll={true}
-                  stickyStart="bottom"
-                  flexGrow={1}
-                  scrollAcceleration={scrollAcceleration()}
-                >
-                  <box height={1} />
-                  {/* 空会话的首屏:Logo + 智能体特征行 + 快捷键提示(和首页首屏共用同一块) */}
-                  <Show when={messages().length === 0 && !pending()}>
-                    <EmptySessionHero />
-                  </Show>
-                  {/* 顶部还有没挂载的历史时给一行提示,滚到顶会自动往前扩 */}
-                  <Show when={hiddenMessages() > 0}>
-                    <box paddingLeft={3} flexShrink={0}>
-                      <text fg={theme.textMuted}>上方还有 {hiddenMessages()} 条历史消息,滚到顶自动加载</text>
-                    </box>
-                  </Show>
-                  <For each={visibleMessages()}>
-                    {(message, localIndex) => {
-                      // index 是**全量**下标:pending()/revertMessageIndex() 都是按 messages() 算的
-                      const index = () => windowOffset() + localIndex()
-                      return (
-                        <Switch>
-                          <Match when={message.id === revert()?.messageID}>
-                            {(function () {
-                              const redoShortcut = useCommandShortcut("session.redo")
-                              const [hover, setHover] = createSignal(false)
-                              const dialog = useDialog()
+                <Switch>
+                  {/* 流程图视图。D3 会用真正的画布替换掉 ChatViewFlowPlaceholder 这个 Match,
+                      并去掉外层这个 Switch —— 到那时这一层才有两种互斥的渲染。 */}
+                  <Match when={chatView() === "flow"}>
+                    <ChatViewFlowPlaceholder />
+                  </Match>
+                  <Match when={chatView() !== "flow"}>
+                    <scrollbox
+                      ref={(r) => (scroll = r)}
+                      viewportOptions={{
+                        paddingRight: showScrollbar() ? 1 : 0,
+                      }}
+                      verticalScrollbarOptions={{
+                        paddingLeft: 1,
+                        visible: showScrollbar(),
+                        trackOptions: {
+                          backgroundColor: theme.backgroundElement,
+                          foregroundColor: theme.border,
+                        },
+                      }}
+                      stickyScroll={true}
+                      stickyStart="bottom"
+                      flexGrow={1}
+                      scrollAcceleration={scrollAcceleration()}
+                    >
+                      <box height={1} />
+                      {/* 空会话的首屏:Logo + 智能体特征行 + 快捷键提示(和首页首屏共用同一块) */}
+                      <Show when={messages().length === 0 && !pending()}>
+                        <EmptySessionHero />
+                      </Show>
+                      {/* 顶部还有没挂载的历史时给一行提示,滚到顶会自动往前扩 */}
+                      <Show when={hiddenMessages() > 0}>
+                        <box paddingLeft={3} flexShrink={0}>
+                          <text fg={theme.textMuted}>上方还有 {hiddenMessages()} 条历史消息,滚到顶自动加载</text>
+                        </box>
+                      </Show>
+                      <For each={visibleMessages()}>
+                        {(message, localIndex) => {
+                          // index 是**全量**下标:pending()/revertMessageIndex() 都是按 messages() 算的
+                          const index = () => windowOffset() + localIndex()
+                          return (
+                            <Switch>
+                              <Match when={message.id === revert()?.messageID}>
+                                {(function () {
+                                  const redoShortcut = useCommandShortcut("session.redo")
+                                  const [hover, setHover] = createSignal(false)
+                                  const dialog = useDialog()
 
-                              const handleUnrevert = async () => {
-                                const confirmed = await DialogConfirm.show(
-                                  dialog,
-                                  "确认重做",
-                                  "确定要恢复已撤销的消息吗?",
-                                )
-                                if (confirmed) {
-                                  keymap.dispatchCommand("session.redo")
-                                }
-                              }
+                                  const handleUnrevert = async () => {
+                                    const confirmed = await DialogConfirm.show(
+                                      dialog,
+                                      "确认重做",
+                                      "确定要恢复已撤销的消息吗?",
+                                    )
+                                    if (confirmed) {
+                                      keymap.dispatchCommand("session.redo")
+                                    }
+                                  }
 
-                              return (
-                                <box
-                                  onMouseOver={() => setHover(true)}
-                                  onMouseOut={() => setHover(false)}
-                                  onMouseUp={handleUnrevert}
-                                  marginTop={1}
-                                  flexShrink={0}
-                                  border={["left"]}
-                                  customBorderChars={SplitBorder.customBorderChars}
-                                  borderColor={theme.backgroundPanel}
-                                >
-                                  <box
-                                    paddingTop={1}
-                                    paddingBottom={1}
-                                    paddingLeft={2}
-                                    backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
-                                  >
-                                    <text fg={theme.textMuted}>已撤销 {revert()!.reverted.length} 条消息</text>
-                                    <text fg={theme.textMuted}>
-                                      <span style={{ fg: theme.text }}>{redoShortcut()}</span> 或 /redo 恢复
-                                    </text>
-                                    <Show when={revert()!.diffFiles?.length}>
-                                      <box marginTop={1}>
-                                        <DiffStatList
-                                          files={revert()!.diffFiles!.map((file) => ({
-                                            file: file.filename,
-                                            additions: file.additions,
-                                            deletions: file.deletions,
-                                          }))}
-                                        />
+                                  return (
+                                    <box
+                                      onMouseOver={() => setHover(true)}
+                                      onMouseOut={() => setHover(false)}
+                                      onMouseUp={handleUnrevert}
+                                      marginTop={1}
+                                      flexShrink={0}
+                                      border={["left"]}
+                                      customBorderChars={SplitBorder.customBorderChars}
+                                      borderColor={theme.backgroundPanel}
+                                    >
+                                      <box
+                                        paddingTop={1}
+                                        paddingBottom={1}
+                                        paddingLeft={2}
+                                        backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
+                                      >
+                                        <text fg={theme.textMuted}>已撤销 {revert()!.reverted.length} 条消息</text>
+                                        <text fg={theme.textMuted}>
+                                          <span style={{ fg: theme.text }}>{redoShortcut()}</span> 或 /redo 恢复
+                                        </text>
+                                        <Show when={revert()!.diffFiles?.length}>
+                                          <box marginTop={1}>
+                                            <DiffStatList
+                                              files={revert()!.diffFiles!.map((file) => ({
+                                                file: file.filename,
+                                                additions: file.additions,
+                                                deletions: file.deletions,
+                                              }))}
+                                            />
+                                          </box>
+                                        </Show>
                                       </box>
-                                    </Show>
-                                  </box>
-                                </box>
-                              )
-                            })()}
-                          </Match>
-                          <Match
-                            when={revert()?.messageID && revertMessageIndex() !== -1 && index() >= revertMessageIndex()}
-                          >
-                            <></>
-                          </Match>
-                          <Match when={message.role === "user"}>
-                            <UserMessage
-                              index={index()}
-                              onMouseUp={() => {
-                                if (renderer.getSelection()?.getSelectedText()) return
-                                dialog.replace(() => (
-                                  <DialogMessage
-                                    messageID={message.id}
-                                    sessionID={route.sessionID}
-                                    setPrompt={(promptInfo) => prompt?.set(promptInfo)}
-                                  />
-                                ))
-                              }}
-                              message={message as UserMessage}
-                              parts={sync.data.part[message.id] ?? []}
-                            />
-                          </Match>
-                          <Match when={message.role === "assistant"}>
-                            <AssistantMessage
-                              last={lastAssistant()?.id === message.id}
-                              message={message as AssistantMessage}
-                              parts={sync.data.part[message.id] ?? []}
-                            />
-                          </Match>
-                        </Switch>
-                      )
-                    }}
-                  </For>
-                  {/* crush 式回答中指示:消息流末尾挂一条主题双色扰动动画;
-                    思考阶段给"思考中"标签,其余只显示已用时长。随会话状态自动出现/消失。 */}
-                  <Show when={sessionWorking()}>
-                    <WorkingLine sessionID={route.sessionID} thinking={thinkingActive()} />
-                  </Show>
-                </scrollbox>
+                                    </box>
+                                  )
+                                })()}
+                              </Match>
+                              <Match
+                                when={
+                                  revert()?.messageID && revertMessageIndex() !== -1 && index() >= revertMessageIndex()
+                                }
+                              >
+                                <></>
+                              </Match>
+                              <Match when={message.role === "user"}>
+                                <UserMessage
+                                  index={index()}
+                                  onMouseUp={() => {
+                                    if (renderer.getSelection()?.getSelectedText()) return
+                                    dialog.replace(() => (
+                                      <DialogMessage
+                                        messageID={message.id}
+                                        sessionID={route.sessionID}
+                                        setPrompt={(promptInfo) => prompt?.set(promptInfo)}
+                                      />
+                                    ))
+                                  }}
+                                  message={message as UserMessage}
+                                  parts={sync.data.part[message.id] ?? []}
+                                />
+                              </Match>
+                              <Match when={message.role === "assistant"}>
+                                <AssistantMessage
+                                  last={lastAssistant()?.id === message.id}
+                                  message={message as AssistantMessage}
+                                  parts={sync.data.part[message.id] ?? []}
+                                />
+                              </Match>
+                            </Switch>
+                          )
+                        }}
+                      </For>
+                      {/* crush 式回答中指示:消息流末尾挂一条主题双色扰动动画;
+                        思考阶段给"思考中"标签,其余只显示已用时长。随会话状态自动出现/消失。 */}
+                      <Show when={sessionWorking()}>
+                        <WorkingLine sessionID={route.sessionID} thinking={thinkingActive()} />
+                      </Show>
+                    </scrollbox>
+                  </Match>
+                </Switch>
               </Show>
               <Show when={activeTabId() !== "chat" && selectedFile()}>
                 {/* 按标签类型分发:preview = 整文件编辑,git-diff = 该文件相对 HEAD 的改动差异 */}
@@ -1862,6 +2051,7 @@ export function Session() {
                         }}
                         right={<pluginRuntime.Slot name="session_prompt_right" session_id={route.sessionID} />}
                         placeholders={SESSION_PLACEHOLDERS}
+                        onLocalCommand={onLocalCommand}
                       />
                     </pluginRuntime.Slot>
                   </Show>

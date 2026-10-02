@@ -38,7 +38,7 @@ import { usePromptStash } from "../../prompt/stash"
 import { DialogStash } from "../dialog-stash"
 import { type AutocompleteRef, Autocomplete } from "./autocomplete"
 import { useRenderer, useTerminalDimensions, type JSX } from "@opentui/solid"
-import type { AssistantMessage, FilePart, UserMessage } from "@novaway/sdk-v2-latest/v2"
+import type { FilePart, UserMessage } from "@novaway/sdk-v2-latest/v2"
 import { Locale } from "../../util/locale"
 import { agentDisplayName } from "../../util/agent-name"
 import { errorMessage } from "../../util/error"
@@ -60,6 +60,7 @@ import { usePromptWorkspace } from "./workspace"
 import { usePromptMove } from "./move"
 import { readLocalAttachment } from "./local-attachment"
 import { useLocation } from "../../context/location"
+import { sessionUsage } from "../../util/usage"
 import { PromptCard, PromptHints, PromptSend } from "./card"
 
 registerNovaWaySpinner()
@@ -83,6 +84,15 @@ export type PromptProps = {
   shouldQueue?: () => boolean
   /** 排队回调：会话忙碌时由 submitInner 调用 */
   onQueue?: (draft: QueueDraft) => void
+  /**
+   * 客户端本地斜杠命令。收到以 `/` 开头的整行输入时先问它:返回 true = 已就地处理、
+   * 不要把它发给模型(输入框由 Prompt 清空),返回 false = 不是本地命令,照常发送。
+   *
+   * 只给真正需要在输入框里带参数的客户端命令用(会话页的 `/布局 bubble|flow`);
+   * 纯开关类命令(时间戳、侧栏)走斜杠菜单选中即派发的那条路,不需要这个钩子。
+   * 首页不传 —— 那里还没有会话,视图命令也就无从谈起。
+   */
+  onLocalCommand?: (line: string) => boolean
 }
 
 function pastedFilepath(value: string, platform: string) {
@@ -106,11 +116,6 @@ export type PromptRef = {
   submit(): void
   insertText(text: string): void
 }
-
-const money = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-})
 
 const DRAFT_RETENTION_MIN_CHARS = 20
 
@@ -322,25 +327,8 @@ export function Prompt(props: PromptProps) {
     return messages.findLast((m): m is UserMessage => m.role === "user")
   })
 
-  const usage = createMemo(() => {
-    if (!props.sessionID) return
-    const session = sync.session.get(props.sessionID)
-    const msg = sync.data.message[props.sessionID] ?? []
-    const last = msg.findLast((item): item is AssistantMessage => item.role === "assistant" && item.tokens.output > 0)
-    if (!last) return
-
-    const tokens =
-      last.tokens.input + last.tokens.output + last.tokens.reasoning + last.tokens.cache.read + last.tokens.cache.write
-    if (tokens <= 0) return
-
-    const model = sync.data.provider.find((item) => item.id === last.providerID)?.models[last.modelID]
-    const pct = model?.limit.context ? `${Math.round((tokens / model.limit.context) * 100)}%` : undefined
-    const cost = session?.cost ?? 0
-    return {
-      context: pct ? `${Locale.number(tokens)} (${pct})` : Locale.number(tokens),
-      cost: cost > 0 ? money.format(cost) : undefined,
-    }
-  })
+  // 上下文占用。口径在 util/usage:输入卡状态行与标签行的 `8.2K ctx` 胶囊问的是同一个数。
+  const usage = createMemo(() => (props.sessionID ? sessionUsage(sync, props.sessionID) : undefined))
 
   const [store, setStore] = createStore<{
     prompt: PromptInfo
@@ -1026,6 +1014,16 @@ export function Prompt(props: PromptProps) {
     const trimmed = store.prompt.input.trim()
     if (trimmed === "exit" || trimmed === "quit" || trimmed === ":q") {
       void exit()
+      return true
+    }
+    // 客户端本地斜杠命令(会话页的 `/布局 bubble|flow`)。必须排在建会话与选模型**之前**:
+    // 这类命令根本不产生一条消息,让它走到发送路径就等于把「/布局 flow」当提示词发给模型。
+    // 不写进 history —— 它不是一条提示,上下方向键翻出来的应该是用户真发过的话。
+    if (trimmed.startsWith("/") && props.onLocalCommand?.(trimmed)) {
+      input.extmarks.clear()
+      setStore("prompt", { input: "", parts: [] })
+      setStore("extmarkToPartIndex", new Map())
+      input.clear()
       return true
     }
     const selectedModel = local.model.current()
