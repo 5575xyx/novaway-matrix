@@ -4,7 +4,9 @@ import { testRender } from "@opentui/solid"
 import { RGBA, type CapturedFrame } from "@opentui/core"
 import { SidebarCard } from "../../src/component/sidebar-card"
 import { AssistantCard, BlockTool } from "../../src/routes/session"
-import { brighten, HOVER_BOOST } from "../../src/ui/neon"
+import { brighten, HOVER_BOOST, semanticStops } from "../../src/ui/neon"
+import { resolveTheme, type ThemeJson } from "../../src/theme"
+import novaway from "../../src/theme/assets/novaway.json" with { type: "json" }
 import { ThemeReady, ThemeTestProviders } from "../fixture/providers"
 import "../../src/ui/card"
 
@@ -53,6 +55,10 @@ function borderCell(app: { captureSpans(): CapturedFrame; captureCharFrame(): st
 function brightness(cell: { r: number; g: number; b: number }) {
   return cell.r + cell.g + cell.b
 }
+
+// ThemeTestProviders 固定 mode="dark" 且默认主题就是 novaway,所以助手卡的色板可以直接
+// 解析出来取它的亮度上沿(见下面助手卡那条测试的用法)。
+const RAMP_CEILING = Math.max(...semanticStops(resolveTheme(novaway as ThemeJson, "dark"), "assistant").map(brightness))
 
 // TestRendererSetup 只在 @opentui/core/testing 里导出,这里从 testRender 的返回值推。
 type Harness = Awaited<ReturnType<typeof testRender>>
@@ -162,10 +168,14 @@ test("工具卡:悬停期间描边逐帧流动,移开后静止", async () => {
   )
 })
 
-// 助手气泡卡的「动」是扫光而不是色带平移:它的色板是 [theme.info, theme.primary],
-// 而 novaway 深色主题里这两个 token **是同一个颜色**(0,0.898,1.0)——渐变本身是平的,
-// 相位推不推动都画得一模一样。所以这里断言的是扫光:相位头在这一格里停留 12% × 8s ≈ 1s,
-// 采样窗要盖住它。顺带钉住「静止时这一格永远是 theme.info」—— 有扫光说明 animated 接上了。
+// 助手气泡卡:色板是真有坡的(novaway 深色 #00e5ff → #4d7cff,见 src/ui/neon 的
+// semanticStops),所以这一格在相位推进时本来就会换色相 —— 亮度也跟着动,
+// 于是「变亮」这个量本身分不清是色带平移还是扫光。
+// 这里换一个与相位无关的判据:亮过**色板自身的亮度上沿**。
+// 色板两端是 #00e5ff(1.898)与 #4d7cff(1.788),相位平移取到的亮度必然落在 [1.788, 1.898]
+// 之间;只有扫光(向白插 55%)才顶得出这个区间。这样「有扫光」与「色带在流动」
+// 就成了两件互不冒名的事。
+// 顺带钉住「移开后扫光真的停了」——移开后亮度必须回到色板区间内。
 test("助手气泡卡:悬停期间有扫光扫过这一格,移开后不再有", async () => {
   const app = await settle(
     await testRender(
@@ -183,7 +193,6 @@ test("助手气泡卡:悬停期间有扫光扫过这一格,移开后不再有", 
   )
   try {
     await app.renderOnce()
-    const resting = brightness(borderCell(app))
     await overCard(app)
     await app.renderOnce()
     const samples: number[] = []
@@ -192,8 +201,8 @@ test("助手气泡卡:悬停期间有扫光扫过这一格,移开后不再有", 
       await app.renderOnce()
       samples.push(brightness(borderCell(app)))
     }
-    // 扫光峰值提亮 55%,8bit 量化下这一格至少 +0.3 亮度 —— 用 0.1 的门槛足够稳。
-    expect(Math.max(...samples)).toBeGreaterThan(resting + 0.1)
+    // 扫光峰值提亮 55%,8bit 量化下这一格至少 +0.3 亮度 —— 用 0.2 的门槛足够稳。
+    expect(Math.max(...samples)).toBeGreaterThan(RAMP_CEILING + 0.2)
 
     await offCard(app)
     await app.renderOnce()
@@ -201,8 +210,8 @@ test("助手气泡卡:悬停期间有扫光扫过这一格,移开后不再有", 
     await app.renderOnce()
     await new Promise((resolve) => setTimeout(resolve, PHASE_WAIT))
     await app.renderOnce()
-    // 移开后没有扫光,这一格就是 theme.info 本身。
-    expect(brightness(borderCell(app))).toBeCloseTo(resting, 3)
+    // 移开后没有扫光,这一格落在色板自身的亮度区间里(相位冻结在哪一格就取哪一格的值)。
+    expect(brightness(borderCell(app))).toBeLessThan(RAMP_CEILING + 0.05)
   } finally {
     app.renderer.destroy()
   }

@@ -149,11 +149,58 @@ describe("perimeterCells", () => {
   })
 })
 
+// HSL 色相(0..360°)。判断「渐变真的画得出来」要用色相而不是 RGB 距离:
+// 两端只要色相分开,描边上就看得出来颜色在走;反过来,亮度差很大但色相相同
+// (青 #00e5ff 与它自己提亮两成)在终端里只读得出「更亮」,读不出「换色了」。
+function hue(color: RGBA) {
+  const max = Math.max(color.r, color.g, color.b)
+  const min = Math.min(color.r, color.g, color.b)
+  if (max === min) return 0
+  const delta = max - min
+  if (max === color.r) return 60 * (((color.g - color.b) / delta + 6) % 6)
+  if (max === color.g) return 60 * ((color.b - color.r) / delta + 2)
+  return 60 * ((color.r - color.g) / delta + 4)
+}
+
+function hex(color: RGBA) {
+  return (
+    "#" +
+    [color.r, color.g, color.b]
+      .map((value) =>
+        Math.round(value * 255)
+          .toString(16)
+          .padStart(2, "0"),
+      )
+      .join("")
+  )
+}
+
 describe("semanticStops", () => {
   const theme = resolveTheme(novaway as ThemeJson, "dark")
 
-  test("助手=青蓝双段", () => {
-    expect(semanticStops(theme, "assistant")).toEqual([theme.info, theme.primary])
+  // 回归守卫(1b):助手卡是整个 UI 里最显眼的一圈描边,渐变一旦退化成平色就整张卡哑掉。
+  // 原来的映射是 [info, primary],而 novaway 的 defs.darkCyan 与 defs.darkStep9 都是 #00e5ff
+  // —— 默认深色主题下两端解析成同一个颜色,原型那条青蓝坡一点都画不出来。
+  // 浅色主题碰巧不撞(lightCyan #0077aa ≠ lightStep9 #0066cc),所以只有默认深色这条路会坏。
+  test("助手=青蓝双段:primary(青 #00e5ff)→ secondary(蓝 #4d7cff)", () => {
+    expect(semanticStops(theme, "assistant")).toEqual([theme.primary, theme.secondary])
+  })
+
+  test("助手两端是两个不同色相,且起点偏青、终点偏蓝", () => {
+    const stops = semanticStops(theme, "assistant")
+    expect(stops[0]).not.toEqual(stops[1])
+    expect(hue(stops[0]!)).toBeGreaterThan(170)
+    expect(hue(stops[0]!)).toBeLessThan(200)
+    expect(hue(stops[1]!)).toBeGreaterThan(210)
+    expect(hue(stops[1]!)).toBeLessThan(260)
+  })
+
+  // 浅色主题也钉一遍,免得换端色时只顾深色。
+  test("浅色主题下助手两端同样不撞色(lightCyan 与 lightStep9 本来就不同)", () => {
+    const light = resolveTheme(novaway as ThemeJson, "light")
+    const stops = semanticStops(light, "assistant")
+    expect(stops).toEqual([light.primary, light.secondary])
+    expect(Math.abs(hue(stops[0]!) - hue(stops[1]!))).toBeGreaterThan(10)
   })
 
   test("用户=粉紫双段", () => {
@@ -164,6 +211,9 @@ describe("semanticStops", () => {
     expect(semanticStops(theme, "thinking")).toEqual([theme.neonMid, theme.neonEnd])
   })
 
+  // error / tip 故意单色:这两种语义靠「整圈都是那个红 / 那个琥珀」传达,
+  // 加渐变反而会被读成装饰(而且报的错也可能只是一半红一半粉,读不出严重性)。
+  // 原型也是纯红框 / 纯琥珀框,这里保持一致。
   test("错误/提示是单段语义色", () => {
     expect(semanticStops(theme, "error")).toEqual([theme.error])
     expect(semanticStops(theme, "tip")).toEqual([theme.warning])
@@ -181,5 +231,34 @@ describe("semanticStops", () => {
       expect(stops.length).toBeGreaterThanOrEqual(2)
       expect(stops.length).toBeLessThanOrEqual(3)
     }
+  })
+
+  // 兜底是给「某个主题把两端配成了同一个色」准备的,所以必须在 synthetic 主题上验。
+  // 用真实主题改 token 的办法造退化场景:resolved Theme 上直接覆盖即可。
+  test("两端解析成同一个色时,第二端换成 accent", () => {
+    const flat = { ...theme, primary: theme.secondary, secondary: theme.secondary }
+    expect(semanticStops(flat, "assistant")).toEqual([theme.secondary, theme.accent])
+  })
+
+  test("accent 也等于第一端时再退到 neonEnd", () => {
+    // default 主题的 neonMid 就是 secondary,所以这里 user 的两端 = accent 与 neonMid 都撞成蓝色。
+    const flat = { ...theme, accent: theme.secondary, secondary: theme.secondary }
+    expect(semanticStops(flat, "user")).toEqual([theme.secondary, theme.neonEnd])
+  })
+
+  // 默认深色主题下每个多段 role 解析出的实际色板(报告口径):
+  //   user      #ff2d7b → #4d7cff          粉 → 蓝
+  //   assistant #00e5ff → #4d7cff          青 → 蓝
+  //   thinking  #4d7cff → #ff2d7b          蓝 → 品红
+  //   tool      #00e5ff → #4d7cff → #ff2d7b
+  //   input     #00e5ff → #4d7cff → #ff2d7b
+  // 一条都不能出现「解析出来一模一样」的两端 —— 那圈描边就没有坡了。
+  test("多段 role 在默认深色主题下都不平(渐变真的画得出来)", () => {
+    const roles = ["user", "assistant", "thinking", "tool", "input"] as const
+    const flat = roles.filter((role) => {
+      const stops = semanticStops(theme, role)
+      return new Set(stops.map(hex)).size !== stops.length
+    })
+    expect(flat).toEqual([])
   })
 })
