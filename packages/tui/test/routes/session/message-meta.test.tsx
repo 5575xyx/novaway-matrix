@@ -20,7 +20,12 @@ import {
 } from "../../../src/routes/session"
 import { agentDisplayName } from "../../../src/util/agent-name"
 import { Locale } from "../../../src/util/locale"
+import { semanticStops } from "../../../src/ui/neon"
+import { resolveTheme, type ThemeJson } from "../../../src/theme"
+import novaway from "../../../src/theme/assets/novaway.json" with { type: "json" }
 import { ThemeReady, ThemeTestProviders } from "../../fixture/providers"
+
+const theme = resolveTheme(novaway as ThemeJson, "dark")
 
 const WIDTH = 48
 
@@ -142,6 +147,62 @@ test("用户消息:meta 行与助手 meta 行从同一列起(两条标注视觉�
   // 用户那条不带 ◆ 与模型名:它标的是「你」,不是智能体
   expect(lines[user]).not.toContain("◆")
   expect(lines[user]).not.toContain("claude-sonnet-4")
+})
+
+/**
+ * 同 renderFrame,但取的是 marker 那一格的**字色**(captureCharFrame 里没有颜色)。
+ * 颜色断言只能走这条:改「你」的颜色不会让字符帧有任何变化。
+ */
+async function renderCellColor(body: () => JSX.Element, ready: (lines: string[]) => boolean, marker: string) {
+  const Body = () => body()
+  const app = await testRender(
+    () => (
+      <ThemeTestProviders>
+        <ThemeReady />
+        <Body />
+      </ThemeTestProviders>
+    ),
+    { width: WIDTH, height: 24 },
+  )
+  try {
+    let lines: string[] = []
+    for (let attempt = 0; attempt < 40; attempt++) {
+      await app.renderOnce()
+      lines = app
+        .captureCharFrame()
+        .split("\n")
+        .map((line) => line.replace(/\s+$/, ""))
+      if (ready(lines)) break
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    const row = lines.findIndex((line) => line.includes(marker))
+    expect(row, `帧里没有 ${marker}`).toBeGreaterThanOrEqual(0)
+    const column = lines[row]!.indexOf(marker)
+    const captured = app.captureSpans().lines[row]!.spans
+    let offset = 0
+    for (const span of captured) {
+      if (column < offset + span.text.length) return span.fg.toInts()
+      offset += span.text.length
+    }
+    throw new Error(`${marker} 落在 span 之外`)
+  } finally {
+    app.renderer.destroy()
+  }
+}
+
+// ---------- 颜色:时间戳 muted,「你」是 user 语义色 ----------
+
+// 原型 card-design-v7.html:397-399 的两段规则:
+//   .msg-meta { color: var(--muted) }  .msg.user .msg-meta .who { color: var(--pink) }
+// 所以用户那条 meta 里,时间戳 muted、而「你」是 user 语义色(theme.accent,novaway 深色 #ff2d7b)。
+// 之前把「你」也画成 muted 是对原型的误读:整行 muted 之后那一行就没有任何彩色了。
+test("用户消息:「你」是 user 语义色(theme.accent),时间戳仍是 muted", async () => {
+  const who = await renderCellColor(userBubbleBody(), has("USER-BODY"), "你")
+  const stamp = await renderCellColor(userBubbleBody(), has("USER-BODY"), STAMP.slice(0, 2))
+  expect(who).toEqual(semanticStops(theme, "user")[0]!.toInts())
+  expect(stamp).toEqual(theme.textMuted.toInts())
+  // 两者必须不同 —— 这一条才是「你 不再是 muted」的真正判据
+  expect(who).not.toEqual(stamp)
 })
 
 // ---------- timestamps 旗标的语义 ----------

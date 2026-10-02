@@ -1,4 +1,4 @@
-import {
+﻿import {
   batch,
   createContext,
   createEffect,
@@ -43,7 +43,7 @@ import {
   resolveChatViewCommand,
   type ChatView,
 } from "./chat-view"
-import { ChatViewStage } from "./view-slide"
+import { ViewEntrance } from "./view-entrance"
 import { EmptySessionHero } from "../../component/empty-session-hero"
 import { FlowCanvas } from "../../component/flow/canvas"
 import { createSyntaxStyleMemo, generateSubtleSyntax, useTheme } from "../../context/theme"
@@ -169,6 +169,11 @@ export { NeonCard }
 
 // 助手气泡的 meta 行。agent 颜色由调用方注入,所以这里只依赖 useTheme(),
 // 测试能直接挂载 —— 顺序和截断都是可见行为,值得让测试盯住,而不是在测试里抄一份。
+//
+// **一处有意的偏离原型**:原型 `.msg.assistant .msg-meta .who` 是固定的 --cyan,而这里的 ◆
+// 取 `local.agent.color(agent)` —— 哪个子代理答的就带哪个颜色。这是本仓库已有的约定
+// (节标题 ◇ 与思考/工具卡的语义色都取同一处),色相本来就编码了「谁在说话」,
+// 压成一个固定的青反而把信息丢了。
 export function AssistantMeta(props: {
   agentColor: RGBA
   agent: string
@@ -226,21 +231,28 @@ export function userMetaVisible(timestamps: "hide" | "show") {
 /**
  * 用户消息的 meta 行:`14:32 你`(原型 card-design-v7.html:918)。
  *
- * 与助手那条 `◆ 智能体 · 时间 · 模型` 只差一个「你」:它标的是**发消息的人**,不是智能体,
- * 所以没有 ◆ 也没有模型名,整行都是 theme.textMuted —— meta 是标注,user 语义色由整张气泡卡的
- * 渐变描边承担(见 UserMessage 的 neonStops),不必在标注里再点一次色。
- * (原型里「你」是粉色 .msg.user .msg-meta .who;这里刻意用 muted:两条 meta 行在会话流里
- * 是同一类东西,一个彩色一个灰会让人以为用户消息和助手消息来自不同的信息层级。)
+ * 颜色照原型的两段规则走(card-design-v7.html:397-399):
+ * ```css
+ * .msg-meta { color: var(--muted); }                    ← 整行默认 muted:时间戳那一段
+ * .msg-meta .who { color: var(--cyan); font-weight: 700; }
+ * .msg.user .msg-meta .who { color: var(--pink); }      ← 用户那条的「你」是 user 语义色
+ * ```
+ * 所以**时间戳 muted、「你」user 语义色**:这里取 semanticStops(theme, "user")[0],它就是
+ * theme.accent(novaway 深色 #ff2d7b),与用户气泡卡那圈粉紫描边的首端同色 —— 「user 是粉的」
+ * 在本实现里只有这一处定义,标注与卡片不会各挑一个粉。
+ * 终端没有 font-weight,所以原型那个加粗只能靠颜色本身顶着(整行 muted 时它就是那一行唯一的彩色)。
  *
- * 位置与助手卡对称:meta 在**卡外**的上一行,卡内第一行留给正文。
- * 时间格式与助手 meta 共用 Locale.todayTimeOrDateTime(今天只显示时分,更早显示「时间 · 日期」)。
+ * 形状与助手那条对称:没有 ◆(标的是人不是智能体)、没有模型名,meta 在**卡外**的上一行,
+ * 卡内第一行留给正文。时间格式与助手 meta 共用 Locale.todayTimeOrDateTime
+ * (今天只显示时分,更早显示「时间 · 日期」)。
  */
 export function UserMeta(props: { created: number }) {
   const { theme } = useTheme()
   return (
     <box flexDirection="row" gap={1} paddingLeft={1} flexShrink={0}>
       <text wrapMode="none">
-        <span style={{ fg: theme.textMuted }}>{Locale.todayTimeOrDateTime(props.created)} 你</span>
+        <span style={{ fg: theme.textMuted }}>{Locale.todayTimeOrDateTime(props.created)} </span>
+        <span style={{ fg: semanticStops(theme, "user")[0] }}>你</span>
       </text>
     </box>
   )
@@ -458,7 +470,7 @@ export function Session() {
   const [showScrollbar, setShowScrollbar] = kv.signal("scrollbar_visible", false)
   const [diffWrapMode] = kv.signal<"word" | "none">("diff_wrap_mode", "word")
   // 动效总闸。调用方把它折进各处的「要不要动」,这一层自己不读全局设置(ui/card 的约定):
-  // 卡片阶梯入场(enterDelayFor)、视图侧滑(ChatViewStage 的 animate)都拿它当终态乘子。
+  // 卡片阶梯入场(enterDelayFor)、视图切换的入场过渡(ViewEntrance 的 animate)都拿它当终态乘子。
   const [animationsEnabled] = kv.signal("animations_enabled", true)
   const [showGenericToolOutput, setShowGenericToolOutput] = kv.signal("generic_tool_output_visibility", false)
   // 聊天视图(气泡 / 流程图)。存 KV 而不是组件内 signal:它是用户挑的显示偏好,
@@ -836,16 +848,14 @@ export function Session() {
   }
 
   // 两个视图各有一个滚动容器:气泡视图那个 scrollbox(气泡态挂载)、流程图画布自己那个
-  // (画布通过 onScrollBox 交出来)。翻页 / 跳消息命令要作用在**当前活着的那个**上。
+  // (画布通过 onScrollBox 交出来)。翻页 / 跳消息命令作用在**当前视图**那个上。
+  //
+  // 原型是「旧视图当场消失 + 只有新视图在入场」(见 view-entrance 的注释),所以这里**不需要**
+  // 「两个容器同时活着时该选谁」的判断:换视图的那一拍旧容器就已经被销毁了。仍要过 alive() ——
+  // solid 的 `ref={(r) => (box = r)}` 在元素销毁时不会被回调置空,变量会一直指着已销毁的盒子。
   let flowScroll: ScrollBoxRenderable | undefined
   const alive = (box: ScrollBoxRenderable | undefined) => (box && !box.isDestroyed ? box : undefined)
-  // 侧滑过渡期间**两个容器同时活着**(旧视图还没被卸载),所以「谁还活着」已经定不下来 ——
-  // 该按**目标视图**挑:往流程图切的那 200ms 里用户看到的是流程图,翻页就该翻流程图,而不是
-  // 作用在正在滑走的气泡流上。兜底仍是另一个还活着的:目标那一侧的容器还没挂上时,静默落空
-  // 不如作用在唯一存在的那个上;再由 scrollIfAlive 兜一层 isDestroyed(ref 在销毁时不会被
-  // 再回调置空,所以这两个变量都可能指着已销毁的盒子)。
-  const activeScroll = () =>
-    chatView() === "flow" ? (alive(flowScroll) ?? alive(scroll)) : (alive(scroll) ?? alive(flowScroll))
+  const activeScroll = () => alive(chatView() === "flow" ? flowScroll : scroll)
 
   // `scroll` 只在气泡视图挂载,而 ref 在元素销毁时不会被再调用一次置空 —— 所以它会一直指着
   // 一个**已销毁**的 renderable。统一走 scrollIfAlive:没有容器就静默收手(翻页类还要把弹窗
@@ -1823,28 +1833,25 @@ export function Session() {
             />
             <box flexGrow={1} minHeight={0} paddingBottom={1} paddingLeft={2} paddingRight={2} gap={1}>
               <Show when={activeTabId() === "chat"}>
-                {/* 气泡 / 流程图两个视图交给 ChatViewStage 摆(任务 D4):静止时只渲染目标视图,
-                    切视图时两个视图同帧共存做侧滑,走完再卸载旧视图。
-                    传的是**返回 JSX 的函数**而不是 JSX 本身 —— 惰性,没轮到的那个分支不会被求值,
-                    不会先把另一个视图的 renderable 建出来。
-                    width 传 contentWidth():舞台就在这一层自己的 paddingLeft/Right 各 2 列里面,
-                    两边是同一份净值。 */}
-                <ChatViewStage
-                  view={chatView()}
-                  width={contentWidth()}
-                  animate={animationsEnabled()}
-                  flow={() => (
-                    // 流程图视图。D2 备下的 ChatViewFlowPlaceholder 已被真正的画布整块替换,
-                    // 那份「画布尚未实现」的占位连同它的测试一起删掉了 ——
-                    // 空白不是可接受的降级,而现在这一版画的就是节点链。
-                    // 数据直接取会话自己的同步数据(消息 + part),不另存一份中间态。
+                {/* 气泡 / 流程图两个视图由 ViewEntrance 包一层(任务 D4):它负责「换视图的那一拍
+                    把新视图从下面 3 行、透明度 0 走回终态」——原型 viewIn 的 translateY(12px)
+                    + opacity 的终端等价(px→行的换算见 view-entrance 的注释)。
+                    视图的取舍留给这里的两个 Show:它们在条件翻转时**当场**销毁旧视图、建出新视图,
+                    正是原型 off.remove('show') + on.add('show') 的语义,所以两个视图从不共存。
+                    标签切换(开会话文件)也会重挂这一层,但入场只由 view 的变化触发,不会跟着重播。 */}
+                <ViewEntrance view={chatView()} animate={animationsEnabled()}>
+                  <Show when={chatView() === "flow"}>
+                    {/* 流程图视图。D2 备下的 ChatViewFlowPlaceholder 已被真正的画布整块替换,
+                        那份「画布尚未实现」的占位连同它的测试一起删掉了 ——
+                        空白不是可接受的降级,而现在这一版画的就是节点链。
+                        数据直接取会话自己的同步数据(消息 + part),不另存一份中间态。 */}
                     <FlowCanvas
                       messages={messages()}
                       parts={sync.data.part}
                       onScrollBox={(box) => (flowScroll = box)}
                     />
-                  )}
-                  bubble={() => (
+                  </Show>
+                  <Show when={chatView() !== "flow"}>
                     <scrollbox
                       ref={(r) => (scroll = r)}
                       viewportOptions={{
@@ -1975,8 +1982,8 @@ export function Session() {
                         <WorkingLine sessionID={route.sessionID} thinking={thinkingActive()} />
                       </Show>
                     </scrollbox>
-                  )}
-                />
+                  </Show>
+                </ViewEntrance>
               </Show>
               <Show when={activeTabId() !== "chat" && selectedFile()}>
                 {/* 按标签类型分发:preview = 整文件编辑,git-diff = 该文件相对 HEAD 的改动差异 */}
