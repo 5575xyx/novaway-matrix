@@ -105,7 +105,7 @@ import { setPreLayoutSiblingMargin } from "../../util/layout"
 import { useTuiConfig } from "../../config"
 import { useClipboard } from "../../context/clipboard"
 import { nextThinkingMode, reasoningSummary, useThinkingMode, type ThinkingMode } from "../../context/thinking"
-import { getScrollAcceleration } from "../../util/scroll"
+import { getScrollAcceleration, scrollIfAlive } from "../../util/scroll"
 import { collapseHint, collapseToolOutput } from "../../util/collapse-tool-output"
 import { subscribeMessageJump } from "../../util/message-jump"
 import { sidebarWidth } from "../../util/sidebar-width"
@@ -161,10 +161,10 @@ export function metaModelLimit(width: number) {
   return Math.max(12, width - 26)
 }
 
-// 助手气泡卡壳住在 component/assistant-card:流程图画布要拿**同一张壳**画节点卡,
+// 霓虹卡壳住在 component/neon-card:助手气泡与流程图节点卡共用它(名字与理由见那边),
 // 而画布挂在这一页里 —— 壳留在这一页就成环。re-export 保住既有 import 路径。
-import { AssistantCard } from "../../component/assistant-card"
-export { AssistantCard }
+import { NeonCard } from "../../component/neon-card"
+export { NeonCard }
 
 // 助手气泡的 meta 行。agent 颜色由调用方注入,所以这里只依赖 useTheme(),
 // 测试能直接挂载 —— 顺序和截断都是可见行为,值得让测试盯住,而不是在测试里抄一份。
@@ -582,7 +582,7 @@ export function Session() {
       }
       editor.reconnect(result.data.directory)
       await sync.session.sync(sessionID)
-      if (route.sessionID === sessionID && scroll) scroll.scrollBy(100_000)
+      if (route.sessionID === sessionID) scrollTo((target) => target.scrollBy(100_000))
     })().catch((error) => {
       if (route.sessionID !== sessionID) return
       toast.show({
@@ -761,15 +761,16 @@ export function Session() {
     }, 50)
   }
 
-  // `scroll` 只有**气泡视图**才挂载:流程图视图(那一版画布自己的滚动容器)与文件预览标签下
-  // 那个 scrollbox 都不在,ref 也就没被写进去 —— 而 ref 在元素销毁时不会被再调用一次置空,
-  // 所以 `scroll` 会一直指着一个**已销毁**的 renderable。翻页 / 跳消息这些命令仍然能被键盘
-  // 触发,直接解引用就会抛,整条命令链断在那里。
-  //
-  // 所以滚动一律走这两个入口:没有容器就静默收手(翻页类还要把弹窗关掉,否则弹窗会留在屏幕上)。
+  // 两个视图各有一个滚动容器:气泡视图那个 scrollbox(气泡态挂载)、流程图画布自己那个
+  // (画布通过 onScrollBox 交出来)。翻页 / 跳消息命令要作用在**当前活着的那个**上。
+  let flowScroll: ScrollBoxRenderable | undefined
+  const activeScroll = () => (scroll && !scroll.isDestroyed ? scroll : flowScroll)
+
+  // `scroll` 只在气泡视图挂载,而 ref 在元素销毁时不会被再调用一次置空 —— 所以它会一直指着
+  // 一个**已销毁**的 renderable。统一走 scrollIfAlive:没有容器就静默收手(翻页类还要把弹窗
+  // 关掉,否则弹窗会留在屏幕上)。见 util/scroll 的 scrollIfAlive。
   function scrollTo(action: (target: ScrollBoxRenderable) => void) {
-    if (!scroll || scroll.isDestroyed) return
-    action(scroll)
+    return scrollIfAlive(activeScroll(), action)
   }
   function withScroll(action: (target: ScrollBoxRenderable) => void) {
     return () => {
@@ -1745,7 +1746,11 @@ export function Session() {
                       空白不是可接受的降级,而现在这一版画的就是节点链。
                       数据直接取会话自己的同步数据(消息 + part),不另存一份中间态。 */}
                   <Match when={chatView() === "flow"}>
-                    <FlowCanvas messages={messages()} parts={sync.data.part} />
+                    <FlowCanvas
+                      messages={messages()}
+                      parts={sync.data.part}
+                      onScrollBox={(box) => (flowScroll = box)}
+                    />
                   </Match>
                   <Match when={chatView() !== "flow"}>
                     <scrollbox
@@ -2135,7 +2140,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
           width={ctx.width}
         />
         <Show when={renderableParts().length}>
-          <AssistantCard enterDelay={ctx.enterDelayFor(props.message.id)}>
+          <NeonCard enterDelay={ctx.enterDelayFor(props.message.id)}>
             <For each={props.parts}>
               {(part, index) => {
                 const component = createMemo(() => PART_MAPPING[part.type as keyof typeof PART_MAPPING])
@@ -2151,7 +2156,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
                 )
               }}
             </For>
-          </AssistantCard>
+          </NeonCard>
         </Show>
       </box>
       <Show when={props.parts.some((x) => x.type === "tool" && x.tool === "task")}>

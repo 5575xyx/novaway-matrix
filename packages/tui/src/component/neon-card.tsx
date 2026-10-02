@@ -4,12 +4,22 @@ import { useTheme } from "../context/theme"
 import { semanticStops } from "../ui/neon"
 import { useCardHover } from "../ui/hover"
 
-// 助手气泡卡壳:霓虹描边 + 固定内边距的正文容器。
+// 霓虹卡壳:渐变描边 + 固定内边距的正文容器。
+//
+// **为什么叫 NeonCard 而不是 AssistantCard**:它现在同时是助手气泡卡的壳与流程图节点卡的壳
+// (见 component/flow/canvas.tsx)。原型里 `.msg.assistant .bubble` 与 `.fcard` 本来就是同一套
+// 卡片语言 —— 渐变描边、圆角、扫光、悬停提亮,一样都不少。名字里带「助手」会让读代码的人以为
+// 流程图另写了一套卡片外观,而那正是这一层要避免的事。
+//
 // 只依赖 useTheme() 与 useKV()(悬停动效要读 animations_enabled),不碰 session/local context,
 // 所以测试能直接挂载它来量真实几何 —— 与导出的 BlockTool / InlineToolRow 同理。手抄一份
 // neonbox 到测试里的话,改这里的 padding 不会让任何测试变红,`ctx.width - 9` 那类宽度常量就会悄悄失准。
 // paddingRight=1:NeonBox 不占边框格、边框画在最外列上,右留 1 格才能让正文不压到右边框。
 // 四边 padding 合计 3 列 = 卡内可用宽度相对 ctx.width 的扣减。
+//
+// **padding 行/列就是边框行/列**:NeonBox 把边框画在自己第 0 行/列与最后一行/列,而 padding
+// 各为 1,所以 padding 不额外占行。「类型行 + 标题行」的卡因此是 4 行而不是 6 行 —— 流程图的
+// NODE_HEIGHT 与它对齐,写大了连线的中线会落到卡片底边框那一行(见 layout.ts 的注释)。
 //
 // enterFrom 用 theme.border:这张卡是透明卡(没有自己的 backgroundColor),而终端里没有半透明,
 // 淡入必须从一个**实色**长出来。未通电时那条描边就该是主题里最普通的那个边框色,
@@ -18,12 +28,9 @@ import { useCardHover } from "../ui/hover"
 // 悬停:渐变缓慢流动 + 描边朝 theme.text 提亮(原型 `.msg.assistant .bubble:hover { animation: gbFlow }`)。
 // 两个信号都由 useCardHover 折进 animated/boost,所以 animations_enabled 关闭时悬停也不动。
 //
-// **为什么住在 component/ 而不是 routes/session**:流程图画布(见 component/flow/canvas.tsx)
-// 要拿同一张壳来画节点卡 —— 原型的节点卡与气泡卡是同一套卡片语言(渐变描边、圆角、扫光、
-// 悬停提亮),另写一套就等于把这个仓库里「四张卡共用一套外观」的规矩破掉。而画布要挂在
-// 会话页里,会话页也要 import 画布:壳留在 routes/session 就成了一个环。routes/session 那边
-// 仍然 re-export 它,既有 import 路径与测试都不用改。
-export function AssistantCard(props: {
+// **为什么住在 component/ 而不是 routes/session**:流程图画布挂在会话页里,会话页也要 import
+// 画布 —— 壳留在 routes/session 就成了一个环。routes/session 那边仍然 re-export 它。
+export function NeonCard(props: {
   children: JSX.Element
   enterDelay?: number
   /**

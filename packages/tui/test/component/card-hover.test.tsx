@@ -3,7 +3,7 @@ import { expect, test } from "bun:test"
 import { testRender } from "@opentui/solid"
 import { RGBA, type CapturedFrame } from "@opentui/core"
 import { SidebarCard } from "../../src/component/sidebar-card"
-import { AssistantCard, BlockTool } from "../../src/routes/session"
+import { NeonCard, BlockTool } from "../../src/routes/session"
 import { brighten, HOVER_BOOST, semanticStops } from "../../src/ui/neon"
 import { resolveTheme, type ThemeJson } from "../../src/theme"
 import novaway from "../../src/theme/assets/novaway.json" with { type: "json" }
@@ -182,9 +182,9 @@ test("助手气泡卡:悬停期间有扫光扫过这一格,移开后不再有", 
       () => (
         <ThemeTestProviders>
           <ThemeReady />
-          <AssistantCard>
+          <NeonCard>
             <text>BODYMARK</text>
-          </AssistantCard>
+          </NeonCard>
         </ThemeTestProviders>
       ),
       { width: 48, height: 8 },

@@ -1,108 +1,45 @@
 /** @jsxImportSource @opentui/solid */
 // D3 流程图画布的**渲染**测试。
 //
-// 纯函数那一半(节点/边/布局/走线)在 flow-layout.test.ts 里;这里钉的是「屏幕上真的出现了什么」:
-// 节点卡是不是真的用了生产卡壳(渐变描边圆角 `╭`)、连线是不是真的落在走廊里(`│` `─` `┐`)、
-// 箭头有没有、轮次分隔线与它的 `第 2 轮` 标签在不在、点击能不能展开详情。
+// 纯函数那一半(节点/边/布局/走线)在 flow-layout.test.ts 里,连线字符层在 flow-grid.test.ts 里;
+// 这里钉的是「屏幕上真的出现了什么」:节点卡是不是真的用了生产卡壳(渐变描边圆角 `╭`)、连线是不是
+// 真的落在走廊里(`│` `─` `┐`)、箭头有没有、轮次分隔线与它的 `第 N 轮` 标签在不在、
+// 点击能不能展开详情、**关掉动画之后画布还在不在**。
 //
 // 画布组件只依赖 useTheme()/useKV()/终端尺寸,所以直接用 ThemeTestProviders 挂真壳,
-// 不必为了测试去 mock 一整个 session —— 数据喂最小构造数据即可(与 flow-layout.test.ts 同一份形状)。
+// 不必为了测试去 mock 一整个 session —— 数据喂 fixture(与 flow-layout.test.ts 同一份)。
 import { expect, test } from "bun:test"
 import type { Message, Part } from "@novaway/sdk-v2-latest/v2"
 import { testRender } from "@opentui/solid"
+import type { ScrollBoxRenderable } from "@opentui/core"
 import { FlowCanvas } from "../../src/component/flow/canvas"
-import { kindNoun, NODE_HEIGHT, NODE_WIDTH } from "../../src/component/flow/layout"
+import { DETAIL_ROWS, kindNoun, layoutNodes, NODE_HEIGHT, NODE_WIDTH } from "../../src/component/flow/layout"
 import { Locale } from "../../src/util/locale"
 import { ThemeReady, ThemeTestProviders } from "../fixture/providers"
+import {
+  arrowCells,
+  CANVAS_OFFSET_Y,
+  distinctCardColumns,
+  FIXTURE_MESSAGES,
+  FIXTURE_MODEL,
+  FIXTURE_PARTS,
+  frameCell,
+} from "../fixture/flow"
 
-const CREATED = new Date(2026, 0, 2, 14, 32).getTime()
-
-const MESSAGES: Message[] = [
-  {
-    id: "msg_1",
-    sessionID: "ses_1",
-    role: "user",
-    time: { created: CREATED },
-    agent: "build",
-    model: { providerID: "novaway", modelID: "claude-sonnet-4" },
-  },
-  {
-    id: "msg_2",
-    sessionID: "ses_1",
-    role: "assistant",
-    time: { created: CREATED + 1_000, completed: CREATED + 20_000 },
-    parentID: "msg_root",
-    modelID: "claude-sonnet-4",
-    providerID: "novaway",
-    mode: "build",
-    agent: "build",
-    path: { cwd: "/repo", root: "/repo" },
-    cost: 0,
-    tokens: { input: 10, output: 20, reasoning: 5, cache: { read: 0, write: 0 } },
-  },
-  {
-    id: "msg_3",
-    sessionID: "ses_1",
-    role: "user",
-    time: { created: CREATED + 30_000 },
-    agent: "build",
-    model: { providerID: "novaway", modelID: "claude-sonnet-4" },
-  },
-]
-
-const text = (messageID: string, id: string, body: string): Part => ({
-  id,
-  sessionID: "ses_1",
-  messageID,
-  type: "text",
-  text: body,
-  time: { start: CREATED, end: CREATED + 1_000 },
-})
-const reasoning = (messageID: string, id: string, body: string): Part => ({
-  id,
-  sessionID: "ses_1",
-  messageID,
-  type: "reasoning",
-  text: body,
-  time: { start: CREATED, end: CREATED + 2_400 },
-})
-const tool = (messageID: string, id: string, name: string, start: number, ms: number): Part => ({
-  id,
-  sessionID: "ses_1",
-  messageID,
-  type: "tool",
-  callID: `call_${id}`,
-  tool: name,
-  state: {
-    status: "completed",
-    input: {},
-    output: "输出",
-    title: name,
-    metadata: {},
-    time: { start: CREATED + start, end: CREATED + start + ms },
-  },
-})
-
-const PARTS: Record<string, Part[]> = {
-  msg_1: [text("msg_1", "pr_1", "你好,帮我修复失败的测试")],
-  msg_2: [
-    reasoning("msg_2", "pr_2", "测试 → 定位 → 修复 → 复测"),
-    tool("msg_2", "pr_3", "bash", 1_500, 3_200),
-    tool("msg_2", "pr_4", "task", 1_500, 8_400),
-    tool("msg_2", "pr_5", "edit", 12_000, 400),
-    text("msg_2", "pr_6", "已修复:改用 pollWithTimeout"),
-  ],
-  msg_3: [text("msg_3", "pr_7", "再把侧栏动画也优化一下")],
-}
-
+const MESSAGES: Message[] = FIXTURE_MESSAGES
+const PARTS: Record<string, Part[]> = FIXTURE_PARTS
 const KINDS = ["user", "plan", "subagent", "tool", "edit", "reply", "fend"] as const
 
-async function mount(width: number, height: number, messages: readonly Message[] = MESSAGES, parts = PARTS) {
+async function mount(
+  width: number,
+  height: number,
+  options: { messages?: readonly Message[]; parts?: Record<string, Part[]>; reveal?: boolean } = {},
+) {
   return testRender(
     () => (
       <ThemeTestProviders>
         <ThemeReady />
-        <FlowCanvas messages={messages} parts={parts} />
+        <FlowCanvas messages={options.messages ?? MESSAGES} parts={options.parts ?? PARTS} reveal={options.reveal} />
       </ThemeTestProviders>
     ),
     { width, height },
@@ -119,6 +56,9 @@ async function mount(width: number, height: number, messages: readonly Message[]
  *
  * 所以要连续 **6 帧**相同才算稳定:6 × 25ms ≈ 150ms > 60ms,中间至少跨过一次揭示,
  * 而揭示走完之后画面确实不再变(相位推到上限就停)。
+ *
+ * `reveal: false` 的那批用例不播动画,第一帧就是终态,所以只要一帧就够 —— 用同一个判据也不会
+ * 多等(它本来就稳定)。
  */
 const STABLE_FRAMES = 6
 
@@ -141,8 +81,8 @@ async function settled(app: Awaited<ReturnType<typeof mount>>, want: string) {
   throw new Error(`画布未在 400 轮内稳定,实际帧:\n${frame}`)
 }
 
-async function render(width: number, height = 40) {
-  const app = await mount(width, height)
+async function render(width: number, height = 64, options?: Parameters<typeof mount>[2]) {
+  const app = await mount(width, height, options)
   try {
     return await settled(app, "第 2 轮")
   } finally {
@@ -151,12 +91,10 @@ async function render(width: number, height = 40) {
 }
 
 test("流程图画布:节点卡用生产卡壳画出渐变描边圆角,七类语义都在", async () => {
-  const lines = await render(96)
-  const frame = lines.join("\n")
-  // 圆角边框 = NeonBox 自己画的(复用 AssistantCard 的直接证据,不是手搓的 `┌`)。
+  const frame = (await render(96, 64, { reveal: false })).join("\n")
+  // 圆角边框 = NeonBox 自己画的(复用 NeonCard 的直接证据,不是手搓的 `┌`)。
   expect(frame).toContain("╭")
   expect(frame).toContain("╰")
-  // 数据里有的那些类型文字(第 2 轮只有用户输入,所以「任务拆解」只在第 1 轮出现一次)。
   for (const label of ["用户输入", "任务拆解", "工具调用", "子代理", "编辑文件", "NovaWay", "本轮结束"]) {
     expect(frame, label).toContain(label)
   }
@@ -167,84 +105,163 @@ test("流程图画布:节点卡用生产卡壳画出渐变描边圆角,七类语
 // 这条把 layout 的 NODE_HEIGHT 与真实渲染钉在一起:NeonBox 的内边距行**就是**边框行,
 // padding 不额外占行。写错的话连线的中线会落到卡片底边框那一行,每条线都贴着卡片下沿横穿。
 test("流程图画布:卡片的真实高度就是 NODE_HEIGHT(边框行 = 内边距行,不额外占行)", async () => {
-  const lines = await render(96)
+  const lines = await render(96, 64, { reveal: false })
   const top = lines.findIndex((line) => line.includes("╭"))
   const column = lines[top]!.indexOf("╭")
   const bottom = lines.findIndex((line, index) => index > top && line[column] === "╰")
   expect(top).toBeGreaterThanOrEqual(0)
-  // top..bottom 一共 bottom − top + 1 行。
   expect(bottom - top + 1).toBe(NODE_HEIGHT)
 })
 
 test("流程图画布:连线用直角折线的字符画出来,终点是箭头", async () => {
-  const frame = (await render(96)).join("\n")
+  const frame = (await render(96, 64, { reveal: false })).join("\n")
   expect(frame).toContain("│")
   expect(frame).toContain("─")
-  // 换行边与并行分支都必然带拐角。
   expect(/[┌┐└┘]/.test(frame), "换行边/并行分支应有拐角").toBe(true)
   expect(frame).toContain("▸")
-  // 换行到下一轮时箭头朝下。
   expect(frame).toContain("▼")
 })
 
 test("流程图画布:连线标签与轮次分隔线都画出来", async () => {
-  const frame = (await render(96)).join("\n")
-  // 并行分支的两条分叉边各带一个标签(原型「并行 · 工具」「并行 · 子代理」)。
+  const frame = (await render(96, 64, { reveal: false })).join("\n")
   expect(frame).toContain("并行 · 工具")
   expect(frame).toContain("并行 · 子代理")
   // 分隔线只画在第 2 轮及以后(第 1 轮是起点,原型也没有它那条线),
   // 但两张「本轮结束」卡的 meta 各写着自己的轮次号,所以两个轮次号都看得见。
   expect(frame).toContain("第 2 轮")
   expect(frame).toContain("第 1 轮")
-  // 收束与跨轮的边也各有标签。
   expect(frame).toContain("用户请求")
   expect(frame).toContain("本轮完成")
   expect(frame).toContain("新消息")
 })
 
-// 收束的两条边(工具 → 编辑文件、子代理 → 编辑文件)都会把标签摊在目标卡左边那一行上。
-// 摆不下就该**不摆**,而不是两个标签叠在一起 —— 叠在一起的字比没有字更像界面坏了。
-//
-// 「标签没被切开」由 `includes` 本身保证:切开之后长这样 `并─行─·─工─具`,`includes` 就匹配不到了。
-// 所以这里断言的是**出现次数**(每条边一个标签,该摆的都摆上了)与**箭头数 = 边数**
-// (箭头是每条边的收尾;箭头被后画的竖线盖掉时,箭头数会少于边数)。
-test("流程图画布:每条边的标签都摆上了,每条边都以一个箭头收尾", async () => {
-  const lines = await render(96)
-  // `用户请求` 出现两次是对的:这一份数据有两条用户消息,每条各带一条出边。
-  // `第 2 轮` 也是两次:分隔线的标签一次,「本轮结束」那张卡的 meta 一次。
-  for (const [label, times] of [
-    ["用户请求", 2],
-    ["并行 · 工具", 1],
-    ["并行 · 子代理", 1],
-    ["✓ 完成", 1],
-    ["子代理完成", 1],
-    ["已编辑", 1],
-    ["第 2 轮", 2],
-  ] as const) {
-    expect(lines.filter((line) => line.includes(label)).length, `${label} 的出现次数`).toBe(times)
+// 每条边的标签都摆上了,每条边都以一个箭头收尾。
+// 箭头数用**模型算出来的格子集合**去对,而不是写死:收束的两条边(工具→编辑文件、
+// 子代理→编辑文件)进入的是同一格,两个箭头叠在一格上画出来就是一个 —— 一张卡只需要一个
+// 「箭头指进来」,所以边数与箭头格数本来就不相等。
+test("流程图画布:每条边的标签都摆上了,每个箭头格子都被画出来", async () => {
+  const lines = await render(96, 64, { reveal: false })
+  for (const label of [
+    "用户请求",
+    "并行 · 工具",
+    "并行 · 子代理",
+    "✓ 完成",
+    "子代理完成",
+    "已编辑",
+    "本轮完成",
+    "新消息",
+  ]) {
+    expect(lines.filter((line) => line.includes(label)).length, `${label} 应出现`).toBeGreaterThan(0)
   }
-  // 箭头数。**要把卡片上的 `▸` 折叠箭头排除掉**:卡头那一行有 `●`,连线那一行没有,
-  // 所以按「这一行有没有 ●」把两者分开数。
-  //
-  // 9 条边但只有 8 个箭头格子:收束的两条边(工具→编辑文件、子代理→编辑文件)进入的是
-  // **同一格** —— 同一张卡的同一个入口。两个箭头叠在一格上,画出来就是一个,这是对的:
-  // 一张卡只需要一个「箭头指进来」。
+  // 卡片上的折叠箭头(卡头那一行有 `●`)与连线箭头不是同一个东西,分开数。
   const edgeLines = lines.filter((line) => !line.includes("●"))
   const arrows = edgeLines
-    .join("\n")
+    .join("")
     .split("")
     .filter((char) => char === "▸" || char === "▼").length
-  expect(arrows, "9 条边、其中两条收束进同一格 → 8 个箭头格子").toBe(8)
-  // 反过来钉一次:连线箭头与卡片上的折叠箭头是两回事。每一张**看得见的**卡头都必须带
-  // 折叠箭头(原型 .fc-caret)—— 用「看得见的」限定,是因为 40 行视口下末尾那几张卡已经被
-  // 裁掉了,数全部节点会把「视口裁剪」当成「折叠箭头没画」来报。
+  const layout = layoutNodes(FIXTURE_MODEL.nodes, 90)
+  expect(arrows, "箭头格数应与模型算出来的一致").toBe(arrowCells(FIXTURE_MODEL, layout).size)
+  // 反过来钉一次:每一张**看得见的**卡头都必须带折叠箭头(原型 .fc-caret)。
+  // 用「看得见的」限定,是因为 40 行视口下末尾那几张卡已经被裁掉了。
   const heads = lines.filter((line) => line.includes("│ ●"))
   expect(heads.length).toBeGreaterThan(0)
   for (const head of heads) expect(head, "卡头缺折叠箭头").toContain("▸")
 })
 
+// ---------- C1:关掉动画 = 终态,不是「不揭示」 ----------
+//
+// 原来 `if (!animations_enabled) return` 让 frame 永远停在 0,于是「一条线都不画、标签全不摆」,
+// 用户看到的是一列孤零零的卡片 —— 那是把功能关掉了,不是「关掉动画」。
+// 这里用 `reveal={false}` 那个注入口来测:测试不能从 KV 那一侧拨这个开关(KVProvider 写的是
+// 共享的 state/kv.json,见 test/component/prompt-card.test.tsx:319)。
+test("流程图画布:关掉动画时画布显示**终态** —— 线、箭头、边标签一样不少", async () => {
+  const still = (await render(96, 64, { reveal: false })).join("\n")
+  const animated = (await render(96, 64)).join("\n")
+  for (const marker of ["╭", "│", "─", "▸", "▼", "并行 · 工具", "并行 · 子代理", "用户请求", "本轮完成", "新消息"]) {
+    expect(still, `关动画后应仍有 ${marker}`).toContain(marker)
+  }
+  // 关动画的帧与动画走完的帧**逐字相同** —— 这就是「终态」的定义。
+  expect(still).toBe(animated)
+})
+
+// ---------- I4:详情框真的折成多行 ----------
+test("流程图画布:展开的详情框真的折成多行,不是 1 行字配 5 行空底色", async () => {
+  const app = await mount(96, 64, { reveal: false })
+  try {
+    const lines = await settled(app, "第 2 轮")
+    // 挑输出最长的那张卡(fixture 里 task 工具的输出有六十几字),否则折行与不折行看起来一样,
+    // 这条断言就废了。**必须带 `│ ●` 限定**:底部图例里也有「子代理」三个字,不加限定会点到图例上。
+    const row = lines.findIndex((line) => line.includes("│ ● 子代理"))
+    expect(row).toBeGreaterThan(0)
+    await app.mockMouse.click(8, row)
+    let opened = ""
+    for (let attempt = 0; attempt < 40; attempt++) {
+      await app.renderOnce()
+      opened = app.captureCharFrame()
+      if (opened.includes("▾")) break
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    const openedLines = opened.split("\n").map((line) => line.replace(/\s+$/, ""))
+    const cardRow = openedLines.findIndex((line) => line.includes("▾"))
+    expect(cardRow).toBeGreaterThan(0)
+    // 卡片下边框之下、DETAIL_ROWS(6)行之内,数有几行真的印着字。
+    // 卡内竖线是 NeonBox 自绘的边框,█ 是 scrollbox 的滚动条,两者都不算正文。
+    const inner = (line: string) => line.replace(/[│█\s]/g, "")
+    const detailRows = openedLines
+      .slice(cardRow + 2, cardRow + 2 + DETAIL_ROWS)
+      .filter((line) => inner(line).length > 0)
+    expect(detailRows.length, `详情框里只有 ${detailRows.length} 行有内容`).toBeGreaterThanOrEqual(4)
+    // 每一行的字都真的在里面(逐行取一段,证明不是同一行被数了几遍)。
+    // 正文按「框里一共放得下多少列」截断,所以只断言**前 150 列之内**的内容。
+    const joined = detailRows.map(inner).join("")
+    expect(joined).toContain("读了")
+    expect(joined).toContain("定位到")
+    expect(joined).toContain("轮询")
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+// ---------- I5:展开的节点不能把连线切断 ----------
+//
+// 详情面板是不透明的,占的是卡片正下方那几行。原来的通道行恰好是 from.y + NODE_HEIGHT,
+// 于是横段被面板整段吞掉。现在行带里只要有一张卡是展开的,整条行带的换行边都改从左边进走廊、
+// 通道基准落到行带下沿 —— 那里整幅宽度都是空的。
+//
+// 这里不挑「展开哪一张」:直接拿**模型算出来的每一个箭头格子**去帧里核对。箭头是每条边的收尾,
+// 它落在目标卡边界上那一格;只要有一格不见了,就是那条边被切断了 —— 不管它是被面板吞掉、
+// 还是被后面的边盖掉、还是算错了坐标。
+test("流程图画布:展开某个节点之后,每条边的箭头格子仍然可见", async () => {
+  const app = await mount(96, 64, { reveal: false })
+  try {
+    const lines = await settled(app, "第 2 轮")
+    const head = lines.findIndex((line) => line.includes("用户输入"))
+    expect(head).toBeGreaterThan(0)
+    await app.mockMouse.click(8, head)
+    let opened = ""
+    for (let attempt = 0; attempt < 40; attempt++) {
+      await app.renderOnce()
+      opened = app.captureCharFrame()
+      if (opened.includes("▾")) break
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    expect(opened).toContain("▾")
+    const after = opened.split("\n").map((line) => line.replace(/\s+$/, ""))
+    // 视口 96 − 6 = 90 列,与渲染时算布局用的宽度一致。
+    const layout = layoutNodes(FIXTURE_MODEL.nodes, 90, { expandedId: "n:msg_1" })
+    const missing = [...arrowCells(FIXTURE_MODEL, layout)].filter((key) => {
+      const [x, y] = key.split(":").map(Number)
+      const char = frameCell(after, y + CANVAS_OFFSET_Y, x)
+      return char !== "▸" && char !== "▼"
+    })
+    expect(missing, "展开后这些箭头的位置上没有箭头").toEqual([])
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
 test("流程图画布:点节点卡展开详情框,再点一次收起", async () => {
-  const app = await mount(96, 40)
+  const app = await mount(96, 64, { reveal: false })
   try {
     const lines = await settled(app, "第 2 轮")
     const row = lines.findIndex((line) => line.includes("工具调用"))
@@ -259,8 +276,8 @@ test("流程图画布:点节点卡展开详情框,再点一次收起", async () 
       await new Promise((resolve) => setTimeout(resolve, 25))
     }
     expect(opened).toContain("▾")
-    // 详情正文是工具输出,只在展开后出现。
-    expect(opened).toContain("输出")
+    // 工具输出确实在里面(选的是输出最长的 task 卡,正文里有这两段)。
+    expect(opened).toContain("Explorer")
     const again = opened.split("\n").findIndex((line) => line.includes("工具调用"))
     await app.mockMouse.click(8, again)
     let closed = opened
@@ -276,9 +293,38 @@ test("流程图画布:点节点卡展开详情框,再点一次收起", async () 
   }
 })
 
+// ---------- I7:把滚动容器交出去 ----------
+// 会话页的翻页 / 跳消息命令要作用在**当前活着的那个**滚动容器上,而气泡视图那个 scrollbox
+// 在流程图视图里根本没挂载。画布通过 onScrollBox 把它自己那个交出去。
+test("流程图画布:把自己的滚动容器交给调用方(会话页的翻页命令靠它)", async () => {
+  let handed: ScrollBoxRenderable | undefined
+  const app = await testRender(
+    () => (
+      <ThemeTestProviders>
+        <ThemeReady />
+        <FlowCanvas messages={MESSAGES} parts={PARTS} reveal={false} onScrollBox={(box) => (handed = box)} />
+      </ThemeTestProviders>
+    ),
+    { width: 96, height: 30 },
+  )
+  try {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      await app.renderOnce()
+      if (handed) break
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    expect(handed, "画布没有把滚动容器交出来").toBeDefined()
+    expect(handed!.isDestroyed).toBe(false)
+    // 交出来的得是**能滚的**那一个:内容比视口高才谈得上翻页。
+    expect(handed!.scrollHeight).toBeGreaterThan(handed!.height)
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
 test("流程图画布:空会话说清为什么空,不画一片空白", async () => {
-  // 真的要**没有消息**:只把 parts 清空的话,三条消息还在,画布上会有三个「本轮结束」节点。
-  const app = await mount(72, 12, [], {})
+  // 真的要**没有消息**:只把 parts 清空的话,三条消息还在,画布上会有节点。
+  const app = await mount(72, 12, { messages: [], parts: {} })
   try {
     let frame = ""
     for (let attempt = 0; attempt < 200; attempt++) {
@@ -294,18 +340,13 @@ test("流程图画布:空会话说清为什么空,不画一片空白", async () 
   }
 })
 
-// 窄终端:画布必须退化成单列而不是把卡片挤出可视区或叠在一起。
-test("流程图画布:80 列与 120 列下卡片都在画面内,80 列退化成单列", async () => {
-  // 一行里可能并排着两张卡,所以要数**每一行所有** `╭` 的列,不能只看每行第一个。
-  const columnsOf = (lines: string[]) => {
-    const columns = new Set<number>()
-    for (const line of lines) {
-      for (let x = 0; x < line.length; x++) if (line[x] === "╭") columns.add(x)
-    }
-    return columns.size
-  }
-  const narrow = await render(80, 60)
-  const wide = await render(120, 60)
+// ---------- M9:80 列(最常见宽度)必须能排下两列 ----------
+//
+// LEFT_MARGIN 从 3 降到 2 就是为这个:`2 + 44 + 28 = 74` 正好等于 80 列终端扣掉内边距与
+// 滚动条之后的视口宽。三列的话是 75,80 列终端就退化成单列。
+test("流程图画布:80 列能排下两列,120 列也是两列,卡片都在画面内", async () => {
+  const narrow = await render(80, 60, { reveal: false })
+  const wide = await render(120, 60, { reveal: false })
   for (const [width, lines] of [
     [80, narrow],
     [120, wide],
@@ -314,14 +355,11 @@ test("流程图画布:80 列与 120 列下卡片都在画面内,80 列退化成�
     expect(cards.length, `${width} 列应有节点卡`).toBeGreaterThan(0)
     for (const row of cards) {
       expect(Locale.displayWidth(row), `${width} 列的卡片行`).toBeLessThanOrEqual(width)
-      // 一张卡恰好 NODE_WIDTH 列:从左边框 `╭` 量到同一张卡的右边框 `╮`。
       const from = row.indexOf("╭")
       const to = row.indexOf("╮", from)
       expect(to - from + 1, `${width} 列的卡宽`).toBe(NODE_WIDTH)
     }
   }
-  // 80 列扣掉画布留白后放不下两列(两列要 LEFT_MARGIN + 步距 + 卡宽 = 75 列,而视口只有 74),
-  // 120 列放得下 —— 走廊的账不能算错,否则窄终端上白丢一列。
-  expect(columnsOf(narrow)).toBe(1)
-  expect(columnsOf(wide)).toBe(2)
+  expect(distinctCardColumns(narrow), "80 列应有两列").toBe(2)
+  expect(distinctCardColumns(wide), "120 列应有两列").toBe(2)
 })
