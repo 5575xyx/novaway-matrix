@@ -8,6 +8,11 @@ import { Locale } from "../../util/locale"
 
 const id = "internal:sidebar-files"
 
+// 这一行的预算是「修改的文件」分区卡的内容区:最窄侧栏(44 列)下 35 列,见 util/sidebar-metrics。
+// 再减去右侧 +N/-M 统计的宽度,再留 2 列余量 —— 统计那段是 flexShrink=0,行放不下时
+// 被压缩的是文件名,不给余量就会把「…」和扩展名裁掉。
+const PATH_MAX = SIDEBAR_CARD_MIN_CONTENT - 2
+
 function changeCountWidth(item: { additions: number; deletions: number }) {
   return [item.additions ? `+${item.additions}` : "", item.deletions ? `-${item.deletions}` : ""]
     .filter(Boolean)
@@ -34,9 +39,7 @@ function View(props: { api: TuiPluginApi; session_id: string }) {
             {(item) => (
               <box flexDirection="row" gap={1} justifyContent="space-between">
                 <text fg={theme().textMuted} wrapMode="none">
-                  {/* 这一行落在「修改的文件」分区卡里,预算是分区卡内容区的最窄值 35 列,
-                      再减去右侧的 +N/-M 统计宽度。 */}
-                  {Locale.truncateLeft(item.file, Math.max(2, SIDEBAR_CARD_MIN_CONTENT - changeCountWidth(item)))}
+                  {Locale.truncateLeft(item.file, Math.max(2, PATH_MAX - changeCountWidth(item)))}
                 </text>
                 <box flexDirection="row" gap={1} flexShrink={0}>
                   <Show when={item.additions}>
