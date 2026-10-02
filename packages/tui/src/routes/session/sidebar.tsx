@@ -97,6 +97,9 @@ export function Sidebar(props: SidebarProps) {
     <neonbox
       backgroundColor={theme.backgroundPanel}
       gradientStops={neonStops(theme)}
+      /* 侧栏根卡既不悬停也不入场:它是整列的容器,鼠标几乎永远在它范围内 ——
+         「悬停才提亮」在这里等于「一直亮着」,这条视觉信号就废了;入场同理,
+         它比里面任何一张分区卡都活得久。分区卡自己那层才有悬停动效(见 sidebar-card.tsx)。 */
       width={sidebarWidth(dimensions().width)}
       height="100%"
       paddingTop={1}

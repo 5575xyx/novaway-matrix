@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { RGBA } from "@opentui/core"
-import { fadeIn, gradientAt, neonStops, perimeterCells, semanticStops } from "../../src/ui/neon"
+import { brighten, fadeIn, gradientAt, HOVER_BOOST, neonStops, perimeterCells, semanticStops } from "../../src/ui/neon"
 import { resolveTheme, type ThemeJson } from "../../src/theme"
 import novaway from "../../src/theme/assets/novaway.json" with { type: "json" }
 
@@ -36,6 +36,37 @@ describe("fadeIn", () => {
     // 这里只断言「已经走到接近终点」,精确的 k = 1 由上一条钉死。
     expect(previous).toBeGreaterThan(0.9)
     expect(previous).toBeLessThanOrEqual(1)
+  })
+})
+
+describe("brighten", () => {
+  const dim = RGBA.fromValues(0.2, 0.4, 0.6, 1)
+  const white = RGBA.fromValues(1, 1, 1, 1)
+
+  test("amount = 0 原样返回", () => {
+    expect(brighten(dim, 0, white)).toEqual(dim)
+  })
+
+  test("按 amount 朝 towards 线性插值", () => {
+    // RGBA 走 8bit 量化:0.7 落盘是 179/255 = 0.70196,精度取 1 位(±0.05)足够。
+    expect(brighten(dim, 0.5, white).r).toBeCloseTo(0.6, 1)
+    expect(brighten(dim, 0.5, white).g).toBeCloseTo(0.7, 1)
+    expect(brighten(dim, 0.5, white).b).toBeCloseTo(0.8, 1)
+  })
+
+  test("amount 越界夹紧到 [0,1]", () => {
+    expect(brighten(dim, -1, white)).toEqual(dim)
+    expect(brighten(dim, 2, white)).toEqual(white)
+  })
+
+  test("alpha 原样保留:提亮改的是「亮不亮」,不是「透不透明」", () => {
+    const translucent = RGBA.fromValues(0.2, 0.4, 0.6, 0.5)
+    expect(brighten(translucent, HOVER_BOOST, white).a).toBeCloseTo(0.5, 1)
+  })
+
+  test("HOVER_BOOST 是可感又不抢戏的一档(8%~15%)", () => {
+    expect(HOVER_BOOST).toBeGreaterThan(0.08)
+    expect(HOVER_BOOST).toBeLessThan(0.15)
   })
 })
 

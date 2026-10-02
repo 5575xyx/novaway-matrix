@@ -7,7 +7,7 @@ import {
   type RenderContext,
 } from "@opentui/core"
 import { extend } from "@opentui/solid"
-import { fadeIn, gradientAt, perimeterCells } from "./neon"
+import { brighten, fadeIn, gradientAt, HOVER_BOOST, perimeterCells } from "./neon"
 
 export type NeonBoxOptions = BoxOptions<NeonBoxRenderable> & {
   gradientStops?: readonly RGBA[]
@@ -33,6 +33,11 @@ export type NeonBoxOptions = BoxOptions<NeonBoxRenderable> & {
    * 不知道背后是什么颜色时凭空挑一个起点,只会闪出一圈脏边。
    */
   enterFrom?: RGBA
+  /**
+   * 悬停提亮:把描边朝这个色混 HOVER_BOOST(见 ui/neon)。传入即开、undefined 即关,
+   * 与 animated 独立 —— 提亮不需要流动,也不需要扫光。
+   */
+  boost?: RGBA
 }
 
 // 相位用 0..99 的整数计数表示(0.01 的分辨率对一圈渐变足够),每 80ms 走一格 ——
@@ -121,9 +126,10 @@ export class NeonBoxRenderable extends BoxRenderable {
   private enteredAt = 0
   private enterTimer: ReturnType<typeof setInterval> | undefined
   private painted = false
+  private boostColor: RGBA | undefined
 
   constructor(ctx: RenderContext, options: NeonBoxOptions = {}) {
-    const { gradientStops, animated, enterDelay, enterFrom, ...rest } = options
+    const { gradientStops, animated, enterDelay, enterFrom, boost, ...rest } = options
     // rest 带 renderBefore 等 this: NeonBoxRenderable 回调,基类要求 this: BoxRenderable,
     // 二者仅 this 参数不同,向下收敛为 BoxOptions 交给 super。
     super(ctx, {
@@ -137,6 +143,7 @@ export class NeonBoxRenderable extends BoxRenderable {
     if (animated) this.animated = true
     // 顺序要紧:enterFrom 必须先于 enterDelay 落定 —— 后者会在渲染时向前者要起点色。
     if (enterFrom) this.enterFrom = enterFrom
+    if (boost) this.boost = boost
     if (enterDelay !== undefined) this.enterDelay = enterDelay
   }
 
@@ -192,6 +199,16 @@ export class NeonBoxRenderable extends BoxRenderable {
   set enterFrom(value: RGBA | undefined) {
     if (value === this.enterColor) return
     this.enterColor = value
+    this.requestRender()
+  }
+
+  get boost(): RGBA | undefined {
+    return this.boostColor
+  }
+
+  set boost(value: RGBA | undefined) {
+    if (value === this.boostColor) return
+    this.boostColor = value
     this.requestRender()
   }
 
@@ -316,14 +333,17 @@ export class NeonBoxRenderable extends BoxRenderable {
     const entered = this.enterMs === undefined ? 1 : this.enterProgress()
     const from = this.enterColor ?? this.backgroundColor
     const fading = entered < 1 && from
+    const boost = this.boostColor
     for (const cell of cells) {
       const x = originX + cell.x
       const y = originY + cell.y
       if (x < clip.x || x >= clip.right || y < clip.y || y >= clip.bottom) continue
       const gradient = gradientAt(stops, this.phase === 0 ? cell.t : (cell.t + phase) % 1)
-      // 入场淡入包在渐变外面。k = 1(不传 enterDelay,或已经淡完)时 faded 直接就是 gradient,
-      // 逐格色与之前完全一致 —— 静止卡的「逐格等于 gradientAt(stops, t)」那条契约不受影响。
-      const faded = fading ? fadeIn(from, gradient, entered) : gradient
+      // 顺序是「渐变 → 悬停提亮 → 入场淡入 → 扫光」:
+      //   提亮要在入场之前,这样淡入的终点就是「悬停时的亮边」(k = 1 时两者等价,顺序不打架);
+      //   扫光放最后,它提亮的是**当前这一帧画出来的颜色**,入场与悬停叠加时高光跟着一起淡入。
+      const lifted = boost ? brighten(gradient, HOVER_BOOST, boost) : gradient
+      const faded = fading ? fadeIn(from, lifted, entered) : lifted
       const mix = this.animating ? sweepMix(phase, cell.t) : 0
       buffer.setCell(x, y, cell.ch, mix > 0 ? sweepColor(faded, mix) : faded, background)
     }
