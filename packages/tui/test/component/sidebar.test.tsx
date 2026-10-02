@@ -18,6 +18,7 @@ import { ArgsProvider } from "../../src/context/args"
 import { PluginRuntimeProvider, createPluginRuntime } from "../../src/plugin/runtime"
 import { Sidebar, setSidebarTab } from "../../src/routes/session/sidebar"
 import { SidebarCard } from "../../src/component/sidebar-card"
+import { clearFileTreeCache, setSelectedPath } from "../../src/component/file-tree"
 import { SIDEBAR_CARD_MIN_CONTENT, SIDEBAR_FILES_CARD_MIN_CONTENT } from "../../src/util/sidebar-metrics"
 import { workbenchOptions } from "../../src/component/dialog-workbench"
 import { TestTuiContexts } from "../fixture/tui-environment"
@@ -138,6 +139,8 @@ async function renderSidebar(input: {
   directory: string
   terminalWidth: number
   registerProbeCard?: boolean
+  /** 等这一段出现在帧里;省略就是各页自己的老条件。 */
+  waitFor?: string
 }) {
   setSidebarTab(input.tab)
   const runtime = createPluginRuntime()
@@ -200,10 +203,11 @@ async function renderSidebar(input: {
     { width: input.terminalWidth, height: 12 },
   )
   let frame = ""
+  const ready = input.waitFor ?? (input.tab === "files" ? "file-0" : "探针卡")
   for (let attempt = 0; attempt < 200; attempt++) {
     await app.renderOnce()
     frame = app.captureCharFrame()
-    if (input.tab === "files" ? frame.includes("file-0") : frame.includes("探针卡")) break
+    if (frame.includes(ready)) break
     await new Promise((resolve) => setTimeout(resolve, 25))
   }
   return { app, frame }
@@ -266,6 +270,41 @@ test("分区卡在侧栏最窄时也不把正文顶到右边框外", async () =>
       files.app.renderer.destroy()
     }
   } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+// 「快速预览」卡挂在文件页里、与文件树同一个 scrollbox,所以要验的是「它真的看得见」:
+// 40 个文件把树撑到溢出,预览卡若被挤到滚动区外面,用户点了文件也看不到内容。
+test("侧栏文件页:选中文件后「快速预览」卡在同一屏里看得见", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "nw-sidebar-preview-"))
+  clearFileTreeCache()
+  for (let index = 0; index < 40; index++) await writeFile(path.join(root, `file-${index}-long-name.ts`), "")
+  const picked = path.join(root, "file-7-long-name.ts")
+  await writeFile(picked, ["export const quick = true", "export const preview = 7"].join("\n"))
+  setSelectedPath(picked)
+  try {
+    const files = await renderSidebar({ tab: "files", directory: root, terminalWidth: 120, waitFor: "quick" })
+    try {
+      expect(files.frame).toContain("快速预览")
+      expect(files.frame).toContain("file-7-long-name.ts")
+      expect(files.frame).toContain("export const quick = true")
+      // 没选中文件时这张卡整个不存在(空态)。
+      setSelectedPath(null)
+      await files.app.renderOnce()
+      const empty = await renderSidebar({ tab: "files", directory: root, terminalWidth: 120 })
+      try {
+        expect(empty.frame).toContain("file-0")
+        expect(empty.frame).not.toContain("快速预览")
+      } finally {
+        empty.app.renderer.destroy()
+      }
+    } finally {
+      files.app.renderer.destroy()
+    }
+  } finally {
+    setSelectedPath(null)
+    clearFileTreeCache()
     await rm(root, { recursive: true, force: true })
   }
 })

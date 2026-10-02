@@ -84,6 +84,22 @@ export function clearFileTreeCache() {
   cache.clear()
 }
 
+/**
+ * 文件树当前选中的文件,提到模块作用域(先例:sidebar.tsx 的 sidebarTab)。
+ *
+ * 为什么不能只留组件内部那个 signal:文件树自己只用它给选中行加内衬高亮,而侧栏那张
+ * 「快速预览」卡要显示**同一个**选中文件的内容 —— 两者必须看同一个值。组件内的 signal
+ * 只有文件树自己读得到,侧栏卡片拿不到。
+ *
+ * 也不复用 routes/session/index.tsx 与 routes/home.tsx 里那两个同名的 selectedFile:
+ * 它们是**路由局部**的,记的是「当前打开的预览标签页指向哪个文件」,关掉标签页就会被清成
+ * null,而侧栏要的是「用户在树上点了哪一行」—— 点一下就已经选中了,不该非要再开一个标签页。
+ * 两件事会分叉(点文件树也会开标签页,但关掉标签页不该把树里的高亮和预览一起抹掉),
+ * 所以这里单开一个,并在文件树点选时写入。
+ */
+const [selectedPath, setSelectedPath] = createSignal<string | null>(null)
+export { selectedPath, setSelectedPath }
+
 export interface FileTreeProps {
   rootPath: string
   onFileSelect?: (filePath: string) => void
@@ -145,7 +161,9 @@ export function FileTree(props: FileTreeProps) {
       setLastClickFile(null)
       return
     }
+    // 组件内那份只管高亮这一行;模块级那份给侧栏的快速预览卡读(见上面的注释)。
     setSelectedFile(filePath)
+    setSelectedPath(filePath)
     props.onFileSelect?.(filePath)
     setLastClickTime(now)
     setLastClickFile(filePath)

@@ -13,6 +13,7 @@ import { icon } from "../../util/panel-icons"
 import { WorkspaceLabel } from "../../component/workspace-label"
 import { TUI_BRAND } from "../../brand"
 import { FileTree } from "../../component/file-tree"
+import { QuickPreviewCard } from "../../component/quick-preview-card"
 import { GitPanel } from "../../component/git-panel"
 import { SidebarCard } from "../../component/sidebar-card"
 import { Locale } from "../../util/locale"
@@ -119,10 +120,18 @@ export function Sidebar(props: SidebarProps) {
           )}
         </For>
       </box>
-      {/* 文件树标签页。文件树现在是自己的霓虹卡:标题是分区名,徽标是仓库目录名 ——
-          原型里那张「快速预览」卡对应的是主区的 file-preview 标签页(见 index.tsx 的
-          openPreviewTab),内容预览不在侧栏里,所以侧栏不造那张空壳卡。 */}
+      {/* 文件树标签页 = 「快速预览」卡 + 可滚动的文件树卡。
+          预览卡读的是文件树写进模块级 selectedPath 的那一个文件(见 component/file-tree 与
+          component/quick-preview-card);没选中文件时它整张不出现(空态)。
+
+          **它是树上面那张,不是原型 :795-817 里下面那张** —— 这是被 scrollbox 逼出来的:
+          侧栏文件页整列只有一个 scrollbox,列里的内容高度是自适应的,于是 flexShrink 永不生效,
+          行数不封顶的文件树会把同列后面任何一张卡挤出可视区(实测 40 个文件时树正好占满,
+          预览卡连边框都看不到)。把预览卡放在 scrollbox **外面**、让 scrollbox 自己
+          flexGrow={1} 拿剩下的高度,两张卡才同时在屏内 —— 而树该让位的是可见行数,不是
+          「点一下看得到的那段代码」。 */}
       <Show when={activeTab() === "files"}>
+        <QuickPreviewCard />
         <scrollbox
           flexGrow={1}
           scrollAcceleration={scrollAcceleration()}
