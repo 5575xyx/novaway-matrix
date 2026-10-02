@@ -66,9 +66,14 @@ function View(props: { api: TuiPluginApi; session_id: string }) {
   })
 
   return (
-    <SidebarCard title="上下文" icon={icon("info")} badge={`${state().percent ?? 0}%`}>
+    // 徽标是「已用百分比」,正文里就不再说一遍 —— percent 为 null(模型没有 context 上限)
+    // 时**不挂徽标**:显示「0%」是把「没有上限」说成「一点没用」。
+    <SidebarCard
+      title="上下文"
+      icon={icon("info")}
+      badge={state().percent === null ? undefined : `${state().percent}%`}
+    >
       <text fg={theme().textMuted}>{state().tokens.toLocaleString()} tokens</text>
-      <text fg={theme().textMuted}>{state().percent ?? 0}% 已使用</text>
       <Show when={hitRateText()}>
         {(text) => (
           <text fg={theme().textMuted}>

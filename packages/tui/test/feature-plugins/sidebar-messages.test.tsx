@@ -3,13 +3,8 @@ import { expect, test } from "bun:test"
 import { testRender } from "@opentui/solid"
 import type { JSX } from "solid-js"
 import messagesPlugin, { MESSAGE_COLLAPSE_AT, visibleMessages } from "../../src/feature-plugins/sidebar/messages"
-import { ArgsProvider } from "../../src/context/args"
-import { KVProvider } from "../../src/context/kv"
-import { ThemeProvider } from "../../src/context/theme"
-import { TuiConfigProvider } from "../../src/config"
 import { createTuiPluginApi } from "../fixture/tui-plugin"
-import { createTuiResolvedConfig } from "../fixture/tui-runtime"
-import { TestTuiContexts } from "../fixture/tui-environment"
+import { ThemeReady, ThemeTestProviders } from "../fixture/providers"
 
 test("未超阈值时全部消息可见", () => {
   const messages = Array.from({ length: MESSAGE_COLLAPSE_AT }, (_, index) => ({ id: `m${index}` }))
@@ -58,27 +53,18 @@ async function renderMessageList(count: number) {
   return () => slot!({}, { session_id: "s1" })
 }
 
-// 消息块现在是一张 SidebarCard,卡壳要读 useTheme();生产里 Slot 是在侧栏的
-// ThemeProvider 树里渲染的,所以这里挂同一串 provider —— 少挂一层就会因为
-// "主题 context 必须有 provider" 而根本渲染不出框,测不到别的东西。
+// 消息块是一张 SidebarCard,卡壳要读 useTheme();生产里 Slot 是在侧栏的 ThemeProvider 树里
+// 渲染的,所以这里挂同一串 provider(见 fixture/providers 的 ThemeTestProviders)。
 //
-// READY 那个字是就绪闸门:ThemeProvider 在主题读盘完成前只渲染空白(见 context/helper
-// 的 provider),而"没有消息"那条测的正是空白,所以不能拿"帧里有内容"当就绪信号。
+// READY 是就绪闸门:ThemeProvider 在主题读盘完成前只渲染空白,而"没有消息"那条测的正是空白,
+// 所以不能拿「帧里有内容」当就绪信号 —— 那样负向用例会在空白帧上空跑通过。
 async function captureFrame(render: () => JSX.Element, height = 16) {
   const app = await testRender(
     () => (
-      <TestTuiContexts>
-        <TuiConfigProvider config={createTuiResolvedConfig()}>
-          <ArgsProvider>
-            <KVProvider>
-              <ThemeProvider mode="dark">
-                <text>READY</text>
-                {render()}
-              </ThemeProvider>
-            </KVProvider>
-          </ArgsProvider>
-        </TuiConfigProvider>
-      </TestTuiContexts>
+      <ThemeTestProviders>
+        <ThemeReady />
+        {render()}
+      </ThemeTestProviders>
     ),
     { width: 46, height },
   )
@@ -90,6 +76,8 @@ async function captureFrame(render: () => JSX.Element, height = 16) {
       if (frame.includes("READY")) break
       await new Promise((resolve) => setTimeout(resolve, 25))
     }
+    // 闸门本身也要断言:主题没到位的话下面每一条断言都是在空白帧上跑的。
+    expect(frame).toContain("READY")
     return frame
   } finally {
     app.renderer.destroy()

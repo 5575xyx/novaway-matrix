@@ -6,18 +6,18 @@
 // (和"待办事项"块是同一套折叠模式)。
 import type { TuiPlugin, TuiPluginApi } from "@opencode/plugin/tui"
 import type { BuiltinTuiPlugin } from "../builtins"
-import { createEffect, createMemo, createSignal, For, on, Show } from "solid-js"
-import { SidebarCard } from "../../component/sidebar-card"
+import { createMemo, For, Show } from "solid-js"
+import { CollapsibleSidebarCard } from "../../component/sidebar-card"
 import { icon } from "../../util/panel-icons"
 import { setMessageJump } from "../../util/message-jump"
 import { Locale } from "../../util/locale"
+import { SIDEBAR_CARD_MIN_CONTENT } from "../../util/sidebar-metrics"
 
 const id = "internal:sidebar-messages"
 
-// 消息摘要一行放得下:这条摘要落在「消息」分区卡的内容区里,最窄侧栏(44 列)下是 35 列
-// (侧栏根卡内边距 4 + 滚动条预留 1 + 分区卡边框与内边距 4,见 util/sidebar-metrics),
-// 26 留 9 列余量。
-const MESSAGE_MAX = 26
+// 消息摘要一行放得下:这条摘要落在「消息」分区卡的内容区里,最窄侧栏(44 列)下是 36 列
+// (见 util/sidebar-metrics),26 留 10 列余量。按显示列算,中文摘要同样不会被撑破。
+const MESSAGE_MAX = SIDEBAR_CARD_MIN_CONTENT - 10
 
 // 超过这个条数才折叠:默认只留最近的几条,点箭头展开。
 export const MESSAGE_COLLAPSE_AT = 5
@@ -36,12 +36,14 @@ export function visibleMessages<T extends { id: string }>(
 function MessageRow(props: { api: TuiPluginApi; sessionID: string; messageID: string }) {
   const theme = () => props.api.theme.current
   // 摘要 = 该消息第一条有效的用户文本;纯附件消息给个占位。
+  // 按显示列压平成一行并截断(见 util/locale 的 oneLineToWidth):硬换行压不住,
+  // 中文摘要按码元算又会超预算。
   const label = createMemo(() => {
     const parts = props.api.state.part(props.messageID)
     const text = parts.find(
       (part) => part.type === "text" && !part.synthetic && !part.ignored && part.text.trim().length > 0,
     )
-    return text?.type === "text" ? Locale.oneLine(text.text, MESSAGE_MAX) : "(附件)"
+    return text?.type === "text" ? Locale.oneLineToWidth(text.text, MESSAGE_MAX) : "(附件)"
   })
   return (
     <text
@@ -55,41 +57,38 @@ function MessageRow(props: { api: TuiPluginApi; sessionID: string; messageID: st
 }
 
 function View(props: { api: TuiPluginApi; session_id: string }) {
-  // 默认折叠:超阈值时新消息照样出现在列表末尾,旧消息藏在箭头后面。
-  const [open, setOpen] = createSignal(false)
-  // 切会话回到默认折叠态,否则上个会话手动展开过的状态会被带过来。
-  createEffect(
-    on(
-      () => props.session_id,
-      () => setOpen(false),
-      { defer: true },
-    ),
-  )
   const all = createMemo(() =>
     props.api.state.session.messages(props.session_id).filter((message) => message.role === "user"),
   )
-  const collapsible = createMemo(() => all().length > MESSAGE_COLLAPSE_AT)
-  const visible = createMemo(() => visibleMessages(all(), open()))
-  // 隐藏条数 > 0 就说明当前处于折叠态,顺手把"总数 / 当前显示数"都标出来,
-  // 免得用户以为消息丢了。
-  const hidden = createMemo(() => all().length - visible().length)
 
   return (
     <Show when={all().length > 0}>
-      <SidebarCard
+      {/* 默认折叠:超阈值时新消息照样出现在列表末尾,旧消息藏在箭头后面。
+          折叠态只留最近几条(visibleMessages 那一段),展开后给全部。
+          resetKey 让切会话回到默认折叠态。 */}
+      <CollapsibleSidebarCard
         title="消息"
         icon={icon("chat")}
-        // 隐藏条数 > 0 就说明当前处于折叠态,顺手把「总数 / 当前显示数」都标进徽标,
-        // 免得用户以为消息丢了。
-        badge={hidden() > 0 ? `${all().length} 条 · 仅显示 ${visible().length} 条` : `${all().length} 条`}
-        collapsible={collapsible()}
-        collapsed={!open()}
-        onToggle={() => collapsible() && setOpen((value) => !value)}
+        // 徽标标出「总数 / 当前显示数」,免得用户以为消息丢了(没超阈值时只说总数)。
+        badge={
+          all().length > MESSAGE_COLLAPSE_AT
+            ? `${all().length} 条 · 仅显示 ${MESSAGE_COLLAPSE_AT} 条`
+            : `${all().length} 条`
+        }
+        count={all().length}
+        collapseAt={MESSAGE_COLLAPSE_AT}
+        defaultOpen={false}
+        resetKey={props.session_id}
+        // 消息卡折叠时**不是**藏起来,而是只留最近几条 —— 所以由下面的 visibleMessages
+        // 自己决定显示哪几条,不能让卡壳把正文一起收掉。
+        hideWhenCollapsed={false}
       >
-        <For each={visible()}>
-          {(message) => <MessageRow api={props.api} sessionID={props.session_id} messageID={message.id} />}
-        </For>
-      </SidebarCard>
+        {(open) => (
+          <For each={visibleMessages(all(), open())}>
+            {(message) => <MessageRow api={props.api} sessionID={props.session_id} messageID={message.id} />}
+          </For>
+        )}
+      </CollapsibleSidebarCard>
     </Show>
   )
 }

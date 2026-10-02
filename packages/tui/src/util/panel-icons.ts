@@ -10,6 +10,7 @@ export type PanelIconKey =
   | "info"
   | "files"
   | "git"
+  | "diff"
   | "db"
   | "hub"
   | "memory"
@@ -25,6 +26,7 @@ const PANEL_SETS: Record<IconStyle, Record<PanelIconKey, string>> = {
   nerdfont: {
     db: "",
     git: "",
+    diff: "", // fa-equals (ASCII 风格之外的等价字形)
     info: "",
     files: "",
     hub: "",
@@ -40,6 +42,7 @@ const PANEL_SETS: Record<IconStyle, Record<PanelIconKey, string>> = {
   emoji: {
     db: "🗄️",
     git: "🌿",
+    diff: "±",
     info: "📋",
     files: "📁",
     hub: "🧩",
@@ -55,6 +58,7 @@ const PANEL_SETS: Record<IconStyle, Record<PanelIconKey, string>> = {
   ascii: {
     db: "d",
     git: "g",
+    diff: "+-",
     info: ">",
     files: "/",
     hub: "#",

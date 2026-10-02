@@ -5,24 +5,17 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import type { JSX } from "solid-js"
-import { ArgsProvider } from "../../src/context/args"
-import { KVProvider } from "../../src/context/kv"
-import { ThemeProvider } from "../../src/context/theme"
-import { TuiConfigProvider } from "../../src/config"
-import { SidebarCard } from "../../src/component/sidebar-card"
+import { CollapsibleSidebarCard, SidebarCard } from "../../src/component/sidebar-card"
 import { FileTree, clearFileTreeCache } from "../../src/component/file-tree"
-import {
-  FILE_TREE_NAME_MAX,
-  GIT_FILE_LABEL_MAX,
-  SIDEBAR_CARD_MAX_CONTENT,
-  SIDEBAR_CARD_MIN_CONTENT,
-  sidebarCardContentWidth,
-} from "../../src/util/sidebar-metrics"
-import { createTuiResolvedConfig } from "../fixture/tui-runtime"
-import { TestTuiContexts } from "../fixture/tui-environment"
+import { Locale } from "../../src/util/locale"
+import { SIDEBAR_CARD_MIN_CONTENT, SIDEBAR_FILES_CARD_MIN_CONTENT } from "../../src/util/sidebar-metrics"
+import { ThemeReady, ThemeTestProviders } from "../fixture/providers"
 
-// 卡壳只依赖 useTheme():不挂 session/local context 也能量真实几列,
-// 所以这里刻意用最轻的一串 provider —— 少挂一层就少一处「测试里补了、生产里没有」的风险。
+// 这一份只测**卡壳自己**的行为(卡头怎么排、徽标怎么封顶、折叠箭头怎么显隐)。
+// 「侧栏里这张卡到底有多宽」不在这儿测 —— 那是 test/component/sidebar.test.tsx 照真实
+// 嵌套量的事情:把 SidebarCard 单独挂在终端上时它比生产宽好几列,在这种宽度上写的宽度
+// 断言是没有意义的。
+
 async function renderCard(
   body: () => JSX.Element,
   options: { width: number; height: number },
@@ -30,27 +23,23 @@ async function renderCard(
 ) {
   const app = await testRender(
     () => (
-      <TestTuiContexts>
-        <TuiConfigProvider config={createTuiResolvedConfig()}>
-          <ArgsProvider>
-            <KVProvider>
-              <ThemeProvider mode="dark">{body()}</ThemeProvider>
-            </KVProvider>
-          </ArgsProvider>
-        </TuiConfigProvider>
-      </TestTuiContexts>
+      <ThemeTestProviders>
+        <ThemeReady />
+        {body()}
+      </ThemeTestProviders>
     ),
     options,
   )
   let text = ""
   for (let attempt = 0; attempt < 200; attempt++) {
     await app.renderOnce()
-    text = lines(app).join("\n")
-    if (ready(text)) return app
+    text = frame(app)
+    if (ready(text)) break
     await new Promise((resolve) => setTimeout(resolve, 25))
   }
-  app.renderer.destroy()
-  throw new Error("渲染未在 200 轮内就绪,实际帧:\n" + text)
+  // 主题没就绪的话后面每一条断言都是在空白帧上空跑,必须在这里就炸出来。
+  expect(text).toContain("READY")
+  return app
 }
 
 function lines(app: { captureCharFrame(): string }) {
@@ -60,7 +49,11 @@ function lines(app: { captureCharFrame(): string }) {
     .map((line) => line.replace(/\s+$/, ""))
 }
 
-// 去掉霓虹边框字符,只留卡内那一段正文。左右各 1 列边框 + 1 列内边距。
+function frame(app: { captureCharFrame(): string }) {
+  return lines(app).join("\n")
+}
+
+// 去掉霓虹边框字符,只留卡内那一段正文。左右各 1 列边框(内边距列就是边框列)。
 function stripBorder(line: string) {
   return line.replace(/^[╭╰│]─*/, "").replace(/[─]*[╮╯│]$/, "")
 }
@@ -72,18 +65,26 @@ function cardRows(rows: string[]) {
   return rows.slice(top, bottom + 1)
 }
 
-// 取第一张卡的 header 正文。NeonBox 的 paddingTop 行就是上边框那一行,所以 header 在
-// 第二行。取不到就直接断言失败,免得后面的 undefined 报成别的错。
+// NeonBox 的 paddingTop 行就是上边框那一行,所以 header 在第二行。
 function cardHeader(app: { captureCharFrame(): string }) {
   const card = cardRows(lines(app))
   expect(card.length).toBeGreaterThan(1)
   return stripBorder(card[1]!)
 }
 
+/**
+ * 单元测试里这张卡是**单独**挂在终端上的(卡宽 = 终端宽),比它在侧栏里的实际宽度宽,
+ * 所以这组断言的预算取「卡宽 − 2」,不是 sidebarCardContentWidth —— 后者的数字由
+ * test/component/sidebar.test.tsx 照真实嵌套量出来。
+ */
+function cardContentColumns(terminalWidth: number) {
+  return terminalWidth - 2
+}
+
 test("分区卡:图标、标题、徽标在同一行,正文在霓虹边框内", async () => {
   const app = await renderCard(
     () => (
-      <SidebarCard title="资源管理器" icon="@" badge="novaway-coder">
+      <SidebarCard title="资源管理器" icon="@" badge="novaway-coder" page="files">
         <text>文件树正文</text>
       </SidebarCard>
     ),
@@ -91,19 +92,16 @@ test("分区卡:图标、标题、徽标在同一行,正文在霓虹边框内", 
     (text) => text.includes("文件树正文"),
   )
   try {
-    const rows = lines(app)
-    const card = cardRows(rows)
-    expect(card.length).toBeGreaterThan(0)
+    const card = cardRows(lines(app))
     // 正文行左右两侧都是竖边框:内容没有被边框字符吃掉,也没有漏到卡外。
     const body = card.slice(1, -1)
     expect(body.length).toBeGreaterThan(0)
     for (const row of body) expect(row.startsWith("│")).toBe(true)
-    expect(rows.join("\n")).toContain("文件树正文")
+    expect(frame(app)).toContain("文件树正文")
 
     const header = cardHeader(app)
     expect(header).toContain("@")
     expect(header).toContain("资源管理器")
-    expect(header).toContain("novaway-coder")
     // 右对齐:徽标是这一行最后一段内容,标题与徽标之间只有空白。
     expect(header.trimEnd().endsWith("novaway-coder")).toBe(true)
     const gap = header.slice(header.indexOf("资源管理器") + "资源管理器".length, header.length - "novaway-coder".length)
@@ -127,7 +125,6 @@ test("分区卡:头部动作与徽标同行,不占正文", async () => {
     const header = cardHeader(app)
     expect(header).toContain("分支")
     expect(header).toContain("+ 新建分支")
-    expect(header).toContain("main")
     expect(header.trimEnd().endsWith("main")).toBe(true)
   } finally {
     app.renderer.destroy()
@@ -135,101 +132,152 @@ test("分区卡:头部动作与徽标同行,不占正文", async () => {
 })
 
 // 折叠交互(▼/▶ + 点击 header 切换)是插件原本就有的能力,卡片化之后不能丢。
-test("分区卡:可折叠时头部给箭头,展开是 ▼、折叠是 ▶", async () => {
-  const open = await renderCard(
+test("可折叠分区卡:项数超阈值才出箭头,展开是开箭头、折叠是收箭头", async () => {
+  const expanded = await renderCard(
     () => (
-      <SidebarCard title="待办事项" badge="2/5" collapsible collapsed={false}>
-        <text>待办正文</text>
-      </SidebarCard>
-    ),
-    { width: 44, height: 8 },
-    (text) => text.includes("待办正文"),
-  )
-  let openHeader = ""
-  try {
-    openHeader = cardHeader(open)
-  } finally {
-    open.renderer.destroy()
-  }
-  expect(openHeader).toContain("▼")
-  expect(openHeader).toContain("待办事项")
-
-  const closed = await renderCard(
-    () => (
-      <SidebarCard title="待办事项" badge="2/5" collapsible collapsed={true}>
-        <text>待办正文</text>
-      </SidebarCard>
+      <CollapsibleSidebarCard title="待办事项" badge="2/5" count={5} collapseAt={2}>
+        {() => <text>待办正文</text>}
+      </CollapsibleSidebarCard>
     ),
     { width: 44, height: 8 },
     (text) => text.includes("待办正文"),
   )
   try {
-    const header = cardHeader(closed)
-    expect(header).toContain("▶")
-    expect(header).not.toContain("▼")
-    expect(header).toContain("2/5")
+    // emoji 风格下开/收箭头分别是 ▼/▶。
+    expect(cardHeader(expanded)).toContain(treeArrowOpen())
   } finally {
-    closed.renderer.destroy()
+    expanded.renderer.destroy()
+  }
+
+  // 折叠态由 CollapsibleSidebarCard 自己持有,这里用 count=1 制造「不折叠」对照,
+  // 再用 resetKey 之外的路径验证:项数少时没有箭头,内容照常显示。
+  const short = await renderCard(
+    () => (
+      <CollapsibleSidebarCard title="待办事项" badge="1/1" count={1} collapseAt={2}>
+        {() => <text>待办正文</text>}
+      </CollapsibleSidebarCard>
+    ),
+    { width: 44, height: 8 },
+    (text) => text.includes("待办正文"),
+  )
+  try {
+    const header = cardHeader(short)
+    expect(header).not.toContain(treeArrowOpen())
+    expect(header).not.toContain(treeArrowClosed())
+    expect(header).toContain("1/1")
+  } finally {
+    short.renderer.destroy()
   }
 })
 
-// 侧栏分区卡的内容宽度是所有「按宽度截断」常量的地基:根卡内边距 4 列 + 插件槽给
-// 滚动条留的 1 列 + 分区卡自己的边框 2 与内边距 2,合计 9 列固定开销。
-// 入参是侧栏宽(44~60),所以最窄侧栏剩 35 列,最宽剩 51 列。
-test("侧栏分区卡内容宽度:最窄侧栏剩 35,最宽侧栏剩 51", () => {
-  expect(sidebarCardContentWidth(44)).toBe(35)
-  expect(sidebarCardContentWidth(60)).toBe(51)
-  expect(SIDEBAR_CARD_MIN_CONTENT).toBe(35)
-  expect(SIDEBAR_CARD_MAX_CONTENT).toBe(51)
-  // 永远比侧栏本身窄,不会因为上限没生效而反向溢出。
-  expect(SIDEBAR_CARD_MAX_CONTENT).toBeLessThan(60)
+function treeArrowOpen() {
+  return "▼"
+}
+function treeArrowClosed() {
+  return "▶"
+}
+
+// 徽标封顶做在卡壳里:这是 1024 条 · 仅显示 5 条 这类随数据涨的字符串唯一的兜底。
+// 之前每个调用点各给一个上限,调用点一多就必然漏;而且徽标是 flexShrink=0,封顶一旦
+// 算错,被挤掉的不是徽标而是标题 —— 标题会整段缩到 0 宽、凭空消失。
+const LONG_BADGE = "1024 条 · 仅显示 5 条 · 最早一条来自三天前的会话 · 已归档"
+
+test("分区卡:超长徽标被截断,标题仍然完整可见", async () => {
+  const app = await renderCard(
+    () => (
+      <SidebarCard title="消息" icon="💬" badge={LONG_BADGE}>
+        <text>消息正文</text>
+      </SidebarCard>
+    ),
+    { width: 44, height: 8 },
+    (text) => text.includes("消息正文"),
+  )
+  try {
+    const header = cardHeader(app)
+    // 标题一个都不能少。
+    expect(header).toContain("消息")
+    // 徽标被截了(带省略号),而且截出来的部分一定不超预算。
+    expect(header).toContain("…")
+    expect(header).not.toContain(LONG_BADGE)
+    const shown = header.slice(header.indexOf("1024")).trim()
+    expect(Locale.displayWidth(shown)).toBeLessThanOrEqual(SIDEBAR_CARD_MIN_CONTENT)
+    // 卡头整行(去掉边框字符)放得进卡的内容区。
+    expect(Locale.displayWidth(header)).toBeLessThanOrEqual(cardContentColumns(44))
+  } finally {
+    app.renderer.destroy()
+  }
 })
 
-// 截断上限必须落在最窄分区卡里,否则窄终端上文件名会压到右边框上。
-test("截断上限:文件名与 Git 文件名都放得进最窄分区卡", () => {
-  // 文件树一行 = 缩进 2×深度 + 箭头 2 + 图标 2 + 名字前空格 1 + paddingRight 1 = 2×深度 + 6。
-  // 名字上限 18 时第 5 层(2×5+6+18 = 34)仍有余量,第 6 层开始由渲染器裁尾。
-  expect(FILE_TREE_NAME_MAX + 2 * 5 + 6).toBeLessThanOrEqual(SIDEBAR_CARD_MIN_CONTENT)
-  // Git 文件行 = 名字 + paddingLeft 1 + 状态码 2 + 统计左边距 1 + 最坏 ±999 的 9 + 悬停「 丢弃」5 + 余量 2。
-  expect(GIT_FILE_LABEL_MAX + 18 + 2).toBe(SIDEBAR_CARD_MIN_CONTENT)
+// 这条是「标题被徽标吃掉」那个 bug 的守门测试:标题 + 动作 + 长徽标同时出现时标题必须原样留着 ——
+// 徽标是 flexShrink=0,没有封顶的话挤掉的一定是标题。
+test("分区卡:标题 + 动作 + 超长徽标同在时标题不被挤没,徽标被截", async () => {
+  const app = await renderCard(
+    () => (
+      <SidebarCard title="分支" icon="🌿" badge={LONG_BADGE} action="+ 新建分支" onAction={() => {}}>
+        <text>分支正文</text>
+      </SidebarCard>
+    ),
+    { width: 44, height: 8 },
+    (text) => text.includes("分支正文"),
+  )
+  try {
+    const header = cardHeader(app)
+    expect(header).toContain("分")
+    expect(header).toContain("支")
+    expect(header).toContain("新建分支")
+    expect(header).toContain("…")
+    expect(Locale.displayWidth(header)).toBeLessThanOrEqual(cardContentColumns(44))
+  } finally {
+    app.renderer.destroy()
+  }
 })
 
-// 实测:44 列(最窄)与 60 列(最宽)下,文件树装进分区卡后每一行的右边框都还在 ——
-// 也就是说文件名/徽标都没有溢出边框。
-for (const width of [44, 60]) {
-  test(`文件树装进分区卡:${width} 列下没有一行溢出右边框`, async () => {
+test("分区卡:中文徽标按列截断,不按字符数截", async () => {
+  const badge = "一个非常非常长的中文分支名称-给分支卡当徽标用"
+  const app = await renderCard(
+    () => (
+      <SidebarCard title="分支" badge={badge}>
+        <text>分支正文</text>
+      </SidebarCard>
+    ),
+    { width: 44, height: 8 },
+    (text) => text.includes("分支正文"),
+  )
+  try {
+    const header = cardHeader(app)
+    expect(header).toContain("分支")
+    expect(header).not.toContain(badge)
+    // 这一行按「列」算得下 —— 按码元算的话中文徽标会撑到 40 列以上,把边框顶掉。
+    expect(Locale.displayWidth(header)).toBeLessThanOrEqual(cardContentColumns(44))
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+// 文件名超长时文件树那一行不能把边框顶掉:名字是可缩的,多的部分由自己的行裁掉。
+test("文件树装进分区卡:44 与 60 列下每一行的最后非空字符仍是竖边框", async () => {
+  for (const width of [44, 60]) {
     const root = await mkdtemp(path.join(tmpdir(), "nw-sidebar-card-"))
     clearFileTreeCache()
     await mkdir(path.join(root, "packages", "novaway"), { recursive: true })
+    await mkdir(path.join(root, "中文目录"), { recursive: true })
     await writeFile(path.join(root, "a-very-long-entry-name-for-truncation.ts"), "")
-    await writeFile(path.join(root, "packages", "novaway", "index.ts"), "")
-
+    await writeFile(path.join(root, "中文目录", "很长的中文文件名.ts"), "")
     const app = await renderCard(
       () => (
-        <SidebarCard title="资源管理器" icon="@" badge={path.basename(root)}>
+        <SidebarCard title="资源管理器" icon="@" badge={path.basename(root)} page="files">
           <FileTree rootPath={root} />
         </SidebarCard>
       ),
-      { width, height: 10 },
-      (text) => text.includes("资源管理器") && text.includes("a-very-long"),
+      { width, height: 12 },
+      (text) => text.includes("a-very-long") && text.includes("中文"),
     )
     try {
-      const rows = lines(app)
-      const card = cardRows(rows)
+      const card = cardRows(lines(app))
       expect(card.length).toBeGreaterThan(1)
-      expect(cardHeader(app)).toContain("资源管理器")
-      // 文件树读盘是异步的,等它把内容铺出来再逐行查边框。
-      let ok = false
-      for (let attempt = 0; attempt < 200 && !ok; attempt++) {
-        await app.renderOnce()
-        const body = cardRows(lines(app)).slice(1, -1)
-        ok = body.some((row) => row.includes("index.ts") || row.includes("a-very-long"))
-        if (!ok) await new Promise((resolve) => setTimeout(resolve, 25))
-      }
-      const body = cardRows(lines(app)).slice(1, -1)
-      const withContent = body.filter((row) => row.trim() !== "││" && row.trim() !== "│ │")
-      expect(withContent.length).toBeGreaterThan(0)
-      for (const row of withContent) {
+      const body = card.slice(1, -1).filter((row) => row.trim() !== "│" && row.trim() !== "")
+      expect(body.length).toBeGreaterThan(0)
+      for (const row of body) {
         expect(row.startsWith("│")).toBe(true)
         // 卡宽 = 终端宽,正文行最后一列必须还是右边框。
         expect(row.trimEnd().endsWith("│")).toBe(true)
@@ -239,5 +287,10 @@ for (const width of [44, 60]) {
       clearFileTreeCache()
       await rm(root, { recursive: true, force: true })
     }
-  })
-}
+  }
+})
+
+test("侧栏宽度档位:info/git 页 36 列、文件页 37 列", () => {
+  expect(SIDEBAR_CARD_MIN_CONTENT).toBe(36)
+  expect(SIDEBAR_FILES_CARD_MIN_CONTENT).toBe(37)
+})
