@@ -1,7 +1,7 @@
 import type { TuiPlugin, TuiPluginApi } from "@opencode/plugin/tui"
 import type { BuiltinTuiPlugin } from "../builtins"
-import { createMemo, For, Match, Show, Switch, createSignal } from "solid-js"
-import { SidebarCard } from "../../component/sidebar-card"
+import { createMemo, For, Match, Show, Switch } from "solid-js"
+import { CollapsibleSidebarCard } from "../../component/sidebar-card"
 import { icon } from "../../util/panel-icons"
 import { Locale } from "../../util/locale"
 
@@ -12,7 +12,6 @@ const id = "internal:sidebar-mcp"
 const ERROR_MAX = 120
 
 function View(props: { api: TuiPluginApi }) {
-  const [open, setOpen] = createSignal(true)
   const theme = () => props.api.theme.current
   const list = createMemo(() => props.api.state.mcp())
   const on = createMemo(() => list().filter((item) => item.status === "connected").length)
@@ -35,16 +34,15 @@ function View(props: { api: TuiPluginApi }) {
 
   return (
     <Show when={list().length > 0}>
-      <SidebarCard
+      {/* 徽标里是活跃/错误数:折叠时也一直看得见,不用先展开才知道有几个服务器活着。 */}
+      <CollapsibleSidebarCard
         title="MCP"
         icon={icon("hub")}
-        // 活跃/错误数搬进徽标:折叠时也一直看得见,不用先展开才知道有几个服务器活着。
         badge={`${on()} 活跃${bad() > 0 ? `, ${bad()} 错误` : ""}`}
-        collapsible={list().length > 2}
-        collapsed={!open()}
-        onToggle={() => list().length > 2 && setOpen((x) => !x)}
+        count={list().length}
+        collapseAt={2}
       >
-        <Show when={list().length <= 2 || open()}>
+        {() => (
           <For each={list()}>
             {(item) => (
               <box flexDirection="row" gap={1}>
@@ -73,8 +71,8 @@ function View(props: { api: TuiPluginApi }) {
               </box>
             )}
           </For>
-        </Show>
-      </SidebarCard>
+        )}
+      </CollapsibleSidebarCard>
     </Show>
   )
 }

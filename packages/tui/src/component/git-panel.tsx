@@ -33,7 +33,7 @@ import { DialogPrompt } from "../ui/dialog-prompt"
 import { DialogConfirm } from "../ui/dialog-confirm"
 import { DialogAlert } from "../ui/dialog-alert"
 import { useToast } from "../ui/toast"
-import { GIT_FILE_LABEL_MAX } from "../util/sidebar-metrics"
+import { GIT_FILE_LABEL_MAX, SIDEBAR_CARD_MIN_CONTENT } from "../util/sidebar-metrics"
 
 const COMMIT_LIMIT = 8
 // 每组文件最多显示几行:用户改动几十个文件时,不把"历史"段挤出屏幕。
@@ -47,18 +47,20 @@ const COMMIT_MESSAGE_MAX = 200
 const COMMIT_DETAIL_MAX = 40
 // 分支列表最多显示几行,再多走"还有 N 个"。
 const BRANCH_MAX = 10
-// 分支行落在「分支」分区卡里:行内 paddingLeft 1 + 名字 + 悬停「 删」3,
-// 分区卡内容区最窄 35 列,所以 22 绰绰有余。
-const BRANCH_LABEL_MAX = 22
-// 卡头徽标是分支名。卡头这一行已经占了:图标 2 + gap 1 + 「分支」4 + gap 1
-// + 动作「+ 新建分支」10 = 18,再加弹性空隙 1,35 − 19 = 16。
-const BRANCH_CARD_BADGE_MAX = 16
-// 远程行不在分区卡里(还是普通的节标题 + 行),按侧栏根卡的内容区算:
-// 39~55 列。名字和地址各截到这个宽,「● 」2 + 名字 10 + 地址 20 + 「 删」3 + 行内边距 1 = 36。
+// 分支行落在「分支」分区卡里:行内 paddingLeft 1 + 名字 + 悬停「 删」3,卡里放得下 32 列,
+// 这里留 10 列余量 —— 分支名超长时截尾比把统计挤掉好。
+const BRANCH_LABEL_MAX = SIDEBAR_CARD_MIN_CONTENT - 14
+// 「分支」卡头的徽标。卡头固定段:图标 2 + gap 1 + 标题「分支 N」≤ 8 + gap 1
+// + 动作「+ 新建分支」10 = 22,剩下的才是徽标,再留 2 列余量。
+// (卡片本身还会按可用列数再封一次顶,这里是语义上限:分支名比动作重要,但不该把动作挤没。)
+const BRANCH_CARD_BADGE_MAX = SIDEBAR_CARD_MIN_CONTENT - 20
+// 远程行不在分区卡里(还是普通的节标题 + 行),按侧栏根卡的内容区算:38~54 列。
+// 「● 」2 + 名字 10 + 地址 20 + 「 删」3 + 行内边距 1 = 36。
 const REMOTE_NAME_MAX = 10
 const REMOTE_URL_MAX = 20
-// 节标题的横线填充。节标题有两种宽度:卡外的在侧栏根卡内容区(39~55 列),
-// 「同步」节在「分支」卡里(35~51 列);40 一律溢出被裁掉,不会反过来把标题顶走。
+// 节标题的横线填充。三个节标题(同步 / 远程 / 历史)都在分区卡**外面**,宽度就是侧栏
+// 根卡内容区减掉滚动条与那层 paddingRight 的盒子 = 38~54 列;40 一律溢出被裁掉,
+// 不会反过来把标题顶走。
 const DASH_RUN = "─".repeat(40)
 
 export interface GitPanelProps {
@@ -449,10 +451,9 @@ export function GitPanel(props: GitPanelProps) {
           {statusLetter(entryProps.entry)}
         </text>
         <text flexGrow={1} fg={theme.text} wrapMode="none" onMouseUp={() => openDiff(entryProps.entry)}>
-          {/* 文件行落在「变更」分区卡里:GIT_FILE_LABEL_MAX = 分区卡内容区最窄值 35
-              − 状态码/统计/悬停「 丢弃」/内边距 18 − 余量 2。统计数字是 lazygit 和
-              VS Code 都摆在每行上的核心信息,文件名给它让位。 */}
-          {Locale.oneLine(entryProps.entry.file, GIT_FILE_LABEL_MAX)}
+          {/* 文件行落在「变更」分区卡里:GIT_FILE_LABEL_MAX = 卡内容区最窄值 36
+              − 状态码/统计/悬停「 丢弃」/内边距 18 − 余量 2。按显示列截,中文路径也不会撑破。 */}
+          {Locale.truncateToWidth(entryProps.entry.file, GIT_FILE_LABEL_MAX)}
         </text>
         {entryProps.stats && !entryProps.stats.binary ? (
           <text flexShrink={0} paddingLeft={1} wrapMode="none">
@@ -484,7 +485,7 @@ export function GitPanel(props: GitPanelProps) {
         onMouseOut={() => setRowHover(false)}
       >
         <text flexGrow={1} fg={theme.textMuted} wrapMode="none" onMouseUp={() => void switchBranch(rowProps.name)}>
-          {Locale.oneLine(rowProps.name, BRANCH_LABEL_MAX)}
+          {Locale.truncateToWidth(rowProps.name, BRANCH_LABEL_MAX)}
         </text>
         <text
           flexShrink={0}
@@ -534,13 +535,14 @@ export function GitPanel(props: GitPanelProps) {
   return (
     <box flexDirection="column" gap={1}>
       <Show when={!error()} fallback={<text fg={theme.textMuted}>{error()}</text>}>
-        {/* 分支卡:徽标是当前分支名,正文第一行仍是「分支名 + 上游 + 领先/落后」——
-            徽标给的是"我在哪个分支",正文给的是"它跟着谁、差几个提交"。
-            卡头右侧的「+ 新建分支」原来挂在节标题上,卡片化之后移到卡头,功能不丢。 */}
+        {/* 分支卡:标题带分支总数(卡片化之前「分支 N」那个节标题就在这儿,信息不能丢),
+            徽标是当前分支名 —— 标题给「一共几个」,徽标给「我在哪个」,
+            正文第一行补上「它跟着谁、差几个提交」。卡头右侧的「+ 新建分支」原来也挂在
+            节标题上,一并挪到卡头。 */}
         <SidebarCard
-          title="分支"
+          title={`分支 ${branches().length}`}
           icon={icon("git")}
-          badge={Locale.oneLine(branchName() ?? "无", BRANCH_CARD_BADGE_MAX)}
+          badge={Locale.truncateToWidth(branchName() ?? "无", BRANCH_CARD_BADGE_MAX)}
           action="+ 新建分支"
           onAction={() => void newBranch()}
         >
@@ -607,7 +609,7 @@ export function GitPanel(props: GitPanelProps) {
         {/* 变更卡:徽标是未暂存 + 已暂存的文件数。提交说明框常驻卡内(VS Code 式),
             底下是未暂存/已暂存两组 + 组尾操作。 */}
         <Show when={unstaged().length > 0 || staged().length > 0}>
-          <SidebarCard title="变更" icon="±" badge={`${staged().length + unstaged().length} files`}>
+          <SidebarCard title="变更" icon={icon("diff")} badge={`${staged().length + unstaged().length} 个文件`}>
             <box flexDirection="column" gap={1}>
               {/* 提交说明框:点击聚焦,回车提交;暂存区空时自动先暂存全部。
                 不能自动聚焦 —— 一开 Git 页就把聊天输入框的焦点抢走了。 */}

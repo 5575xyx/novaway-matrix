@@ -130,7 +130,7 @@ export function Sidebar(props: SidebarProps) {
             },
           }}
         >
-          <SidebarCard title="资源管理器" icon={icon("files")} badge={rootDirName()}>
+          <SidebarCard title="资源管理器" icon={icon("files")} badge={rootDirName()} page="files">
             <FileTree
               rootPath={rootDir()}
               onFileSelect={(filePath) => {

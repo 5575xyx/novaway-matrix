@@ -179,7 +179,7 @@ export function FileTree(props: FileTreeProps) {
   const renderNode = (node: FileSystemNode, depth: number = 0) => {
     const isExpanded = createMemo(() => expandedDirs().has(node.path))
     const isSelected = createMemo(() => selectedFile() === node.path)
-    const truncatedName = Locale.truncate(node.name, FILE_TREE_NAME_MAX)
+    const truncatedName = Locale.truncateToWidth(node.name, FILE_TREE_NAME_MAX)
 
     return (
       <box flexDirection="column">
@@ -199,7 +199,12 @@ export function FileTree(props: FileTreeProps) {
           <text fg={theme.primary} wrapMode="none" flexShrink={0}>
             {fileIcon(node.name, node.isDirectory, isExpanded())}
           </text>
-          <text fg={isSelected() ? theme.primary : theme.text} wrapMode="none" flexShrink={0}>
+          {/* 名字这一段**不**设 flexShrink={0}:上层那三段(缩进 / 箭头 / 图标)是固定开销,
+              剩下的列才轮到名字,剩下的不够时 yoga 收缩这个名字 text(渲染器裁尾部)。
+              三段全是 flexShrink={0} 的话没有可缩对象,超长的名字只能顶到右边框上 ——
+              FILE_TREE_NAME_MAX 是「不触发收缩」的软上限:2×深度 + 6(缩进/箭头/图标/空格/右内边距)
+              + 20 在第 5 层是 36,还放得进文件页那 37 列;再深或名字更长就靠这一段收缩。 */}
+          <text fg={isSelected() ? theme.primary : theme.text} wrapMode="none">
             {" " + truncatedName}
           </text>
         </box>
