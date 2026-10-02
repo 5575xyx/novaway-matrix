@@ -199,6 +199,75 @@ export function AssistantMeta(props: {
 
 type RetryAction = Extract<SessionStatus, { type: "retry" }>["action"]
 
+/**
+ * 用户消息 meta 行的默认值。原型 card-design-v7.html:918 的 meta 是**常显**的,所以默认 show。
+ * 已经在旧版本里存过 `timestamps: "hide"` 的用户仍然拿到 hide —— 那是他自己拨过的开关,
+ * 不该被一次默认值变更悄悄推翻。
+ */
+export const USER_META_DEFAULT_KV: "hide" | "show" = "show"
+
+/**
+ * 用户消息的 meta 行显不显示。
+ *
+ * `timestamps` 这个 KV 的语义在 C2 之后**变了一格**:原来它管的是「气泡卡内那行小字时间戳」,
+ * 默认 hide;时间戳搬成 meta 行(卡外、常显)之后,再让它只管时间戳就会出现「meta 行在、
+ * 时间不在」的半截状态。所以它现在管的是**整条 meta 行**,默认 show(见 USER_META_DEFAULT_KV)。
+ *
+ * 旗标本身留着而不是删掉:它外面挂着 `session.toggle.timestamps` 命令、
+ * `/timestamps` 斜杠命令(config/keybind.ts 的 session_toggle_timestamps 键位 + keymap.tsx 的
+ * 斜杠名与优先级表都登记着它),删旗标要连带删这三处,还要处理用户 keybind.json 里已经写进去的
+ * `session_toggle_timestamps` 变成悬空绑定。而「我想要更紧凑的会话流」是个真实需求 ——
+ * 留一个开关比删掉更划算。
+ */
+export function userMetaVisible(timestamps: "hide" | "show") {
+  return timestamps === "show"
+}
+
+/**
+ * 用户消息的 meta 行:`14:32 你`(原型 card-design-v7.html:918)。
+ *
+ * 与助手那条 `◆ 智能体 · 时间 · 模型` 只差一个「你」:它标的是**发消息的人**,不是智能体,
+ * 所以没有 ◆ 也没有模型名,整行都是 theme.textMuted —— meta 是标注,user 语义色由整张气泡卡的
+ * 渐变描边承担(见 UserMessage 的 neonStops),不必在标注里再点一次色。
+ * (原型里「你」是粉色 .msg.user .msg-meta .who;这里刻意用 muted:两条 meta 行在会话流里
+ * 是同一类东西,一个彩色一个灰会让人以为用户消息和助手消息来自不同的信息层级。)
+ *
+ * 位置与助手卡对称:meta 在**卡外**的上一行,卡内第一行留给正文。
+ * 时间格式与助手 meta 共用 Locale.todayTimeOrDateTime(今天只显示时分,更早显示「时间 · 日期」)。
+ */
+export function UserMeta(props: { created: number }) {
+  const { theme } = useTheme()
+  return (
+    <box flexDirection="row" gap={1} paddingLeft={1} flexShrink={0}>
+      <text wrapMode="none">
+        <span style={{ fg: theme.textMuted }}>{Locale.todayTimeOrDateTime(props.created)} 你</span>
+      </text>
+    </box>
+  )
+}
+
+/**
+ * 思考块的 meta 行:`◆ 智能体 正在工作`(原型 card-design-v7.html:946)。
+ *
+ * **为什么不能照抄助手那行的形状**:助手 meta 回答的是「这条消息是谁发的、用什么模型、什么时候」;
+ * 这一行回答的是「**这一块**正在干什么」。原型里 thinking 是一条**独立消息**,所以它的 meta 里
+ * 只剩状态;而本实现里思考块是助手气泡卡内的 part(A1 把所有 part 包进同一张卡),于是这句状态
+ * 被放在思考卡**上方、仍在助手卡内** —— 与助手 meta 平级会让人以为是第二条助手消息。
+ * 「正在工作」也不能省成又一个智能体名:那是把上面那行的名字原样抄一遍。
+ */
+export function ThinkingMeta(props: { agentColor: RGBA; agent: string }) {
+  const { theme } = useTheme()
+  return (
+    <box flexDirection="row" gap={1} paddingLeft={1} flexShrink={0}>
+      <text wrapMode="none">
+        <span style={{ fg: props.agentColor }}>◆</span>
+        <span style={{ fg: theme.text }}> {agentDisplayName(props.agent)}</span>
+        <span style={{ fg: theme.textMuted }}> 正在工作</span>
+      </text>
+    </box>
+  )
+}
+
 function goUpsellKeys(action: RetryAction) {
   if (!action) return
   if (!GO_UPSELL_PROVIDERS.has(action.provider)) return
@@ -263,7 +332,8 @@ const context = createContext<{
   conceal: () => boolean
   thinkingMode: () => ThinkingMode
   showThinking: () => boolean
-  showTimestamps: () => boolean
+  /** 用户消息的 meta 行(时间 + 「你」)显不显示;由 `timestamps` 旗标驱动,默认常显。 */
+  showUserMeta: () => boolean
   showDetails: () => boolean
   showGenericToolOutput: () => boolean
   diffWrapMode: () => "word" | "none"
@@ -382,7 +452,7 @@ export function Session() {
   const thinking = useThinkingMode()
   const thinkingMode = thinking.mode
   const showThinking = createMemo(() => true)
-  const [timestamps, setTimestamps] = kv.signal<"hide" | "show">("timestamps", "hide")
+  const [timestamps, setTimestamps] = kv.signal<"hide" | "show">("timestamps", USER_META_DEFAULT_KV)
   const [showDetails, setShowDetails] = kv.signal("tool_details_visibility", true)
   const [showAssistantMetadata, _setShowAssistantMetadata] = kv.signal("assistant_metadata_visibility", true)
   const [showScrollbar, setShowScrollbar] = kv.signal("scrollbar_visible", false)
@@ -413,7 +483,8 @@ export function Session() {
     if (sidebar() === "auto" && wide()) return true
     return false
   })
-  const showTimestamps = createMemo(() => timestamps() === "show")
+  // 用户消息的 meta 行显不显示。旗标语义见 userMetaVisible 的注释(管整条 meta 行,默认常显)。
+  const showUserMeta = createMemo(() => userMetaVisible(timestamps()))
   // 切面板前先确保侧栏是开着的,否则"切换到文件"这类命令会静默什么都不做。
   const showSidebar = () => {
     if (sidebarVisible()) return
@@ -1117,7 +1188,9 @@ export function Session() {
       },
     },
     {
-      title: showTimestamps() ? "隐藏时间戳" : "显示时间戳",
+      // 旗标语义已经收敛成「用户消息的整条 meta 行」(见 userMetaVisible),所以标题跟着改成
+      // meta 行的说法 —— 命令名/斜杠名保持 timestamps 不变,别让老用户的肌肉记忆与 keybind 配置失效。
+      title: showUserMeta() ? "隐藏用户消息 meta 行" : "显示用户消息 meta 行",
       value: "session.toggle.timestamps",
       category: "会话",
       slash: {
@@ -1677,7 +1750,7 @@ export function Session() {
           conceal,
           thinkingMode,
           showThinking,
-          showTimestamps,
+          showUserMeta,
           showDetails,
           showGenericToolOutput,
           diffWrapMode,
@@ -2047,6 +2120,17 @@ function UserMessage(props: { message: UserMessage; parts: Part[]; onMouseUp: ()
           onMouseOver={hover.onMouseOver}
           onMouseOut={hover.onMouseOut}
         >
+          {/* meta 行(时间 + 「你」):贴在气泡卡**外面**的上一行,与助手卡的三明治结构对称。
+              alignSelf="stretch" 是必需的 —— 外层盒子是 alignItems="flex-end"(气泡靠右),
+              不撑开的话 meta 会跟着气泡贴到右缘;而它标的是「这条用户消息在这」,该从整列左缘起,
+              和助手那条 meta 落在同一列上(见 UserMeta 的注释)。
+              放在带 id 的这个盒子里而不是它外面:消息跳转(跳到消息 / 上一条下一条)是按 scrollbox
+              **直接子节点**的 id 查的,多一个兄弟节点就多一份要一起算的间距。 */}
+          <Show when={ctx.showUserMeta()}>
+            <box alignSelf="stretch" flexShrink={0}>
+              <UserMeta created={props.message.time.created} />
+            </box>
+          </Show>
           <neonbox
             onMouseUp={props.onMouseUp}
             gradientStops={neonStops(theme)}
@@ -2065,17 +2149,11 @@ function UserMessage(props: { message: UserMessage; parts: Part[]; onMouseUp: ()
             alignItems="flex-end"
           >
             {/* 气泡靠右:外层 alignItems="flex-end" 把气泡推到内容列右缘(靠 neonbox 自身 maxWidth 收窄,不再有 agent 色条),
-                内层同样右对齐让附件/时间戳跟着靠右。这里的 text 不能再写 width="100%" ——
+                内层同样右对齐让附件跟着靠右。这里的 text 不能再写 width="100%" ——
                 那会把气泡撑满整列,右对齐就失效;去掉后气泡按文字自然宽度收缩,长文本到 70% 才折行。 */}
             <text fg={theme.text}>{text()}</text>
             <Show when={files().length}>
-              <box
-                flexDirection="row"
-                paddingBottom={ctx.showTimestamps() ? 1 : 0}
-                paddingTop={1}
-                gap={1}
-                flexWrap="wrap"
-              >
+              <box flexDirection="row" paddingTop={1} gap={1} flexWrap="wrap">
                 <For each={files()}>
                   {(file) => {
                     const directory = file.mime === "application/x-directory"
@@ -2090,11 +2168,6 @@ function UserMessage(props: { message: UserMessage; parts: Part[]; onMouseUp: ()
                   }}
                 </For>
               </box>
-            </Show>
-            <Show when={ctx.showTimestamps()}>
-              <text fg={theme.textMuted}>
-                <span style={{ fg: theme.textMuted }}>{Locale.todayTimeOrDateTime(props.message.time.created)}</span>
-              </text>
             </Show>
           </neonbox>
         </box>
@@ -2286,6 +2359,8 @@ const INLINE_TOOL_ICON_WIDTH = 2
 function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: AssistantMessage }) {
   const { theme } = useTheme()
   const ctx = use()
+  // meta 里的智能体名/颜色来自 local(与助手 meta 同一处),所以这一层要挂 LocalProvider 的栈。
+  const local = useLocal()
   // Collapsed by default in hide mode: a single line throughout, so the
   // layout never shifts. Click to open the full markdown block, click to close.
   const [expanded, setExpanded] = createSignal(false)
@@ -2314,6 +2389,13 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
   return (
     <Show when={content() || opaque()}>
       <box ref={partSiblingRef} flexShrink={0}>
+        {/* 思考块的 meta 行(原型 card-design-v7.html:946 的 `.msg.assistant.thinking .msg-meta`):
+            贴在思考卡**外面**的上一行、仍在助手气泡卡**内**。
+            层级这样定的理由见 ThinkingMeta 的注释 —— 原型里 thinking 是独立消息,所以它的
+            meta 与助手 meta 平级;而 A1 把所有 part 包进了同一张助手卡,平级的话这里会看起来像
+            「第二条助手消息」。meta 在 part 盒子**内部**,所以它与思考卡一起被 partSiblingRef
+            当成一个整体参与卡内「有前兄弟就给 1 行」的间距计算,不会多顶一行。 */}
+        <ThinkingMeta agentColor={local.agent.color(props.message.agent)} agent={props.message.agent} />
         {/* crush 式思考块:紫青渐变描边卡片 + 第 2 级灰底,和工具输出同一套弱对比语言。
             不加 enterDelay:思考块是在流式输出**过程中**随 reasoning 到达而挂上的,
             一轮里可能来好几块,淡入会让「正在想」这件事变成「边框在闪」。
