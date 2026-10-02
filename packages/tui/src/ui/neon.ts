@@ -75,7 +75,7 @@ export const HOVER_BOOST = 0.12
 
 export type BorderCell = { x: number; y: number; ch: string; t: number }
 
-export type NeonRole = "user" | "assistant" | "thinking" | "tool" | "error" | "tip" | "input"
+export type NeonRole = "user" | "assistant" | "thinking" | "tool" | "error" | "tip" | "input" | "success"
 
 // 逐通道精确相等 —— RGBA 走 8bit 量化,两个不同的 hex 解析出来要么四个通道全等,
 // 要么至少差一档。「肉眼分辨不出的两档差异」对渐变没有意义:与其画一条几乎不存在的坡,
@@ -115,11 +115,17 @@ function ramp(theme: Theme, first: RGBA, second: RGBA): readonly RGBA[] {
  * 单段(故意如此):`error` 红 / `tip` 琥珀。这两种语义靠「整圈都是那个红 / 那个琥珀」
  * 传达,加渐变会被读成装饰(报的错也可能只是一半红一半粉,读不出严重性),
  * 原型也是纯红框 / 纯琥珀框。单段 role 不参与平色兜底 —— 那里本来就只有一个色。
+ *
+ * `success` 绿→青两段:流程图节点的「回复」与「本轮结束」用它(原型 card-design-v7.html 的
+ * `.fcard[data-kind="reply"]` 是 `#4ade80 → #4fd1e0`)。它不像 `error`/`tip` 那样走单段 ——
+ * 回复是这张画布里出现频率最高的语义,整圈一个绿会和「本轮结束」这个事件混成一回事;
+ * 保留一段可辨的坡(绿=语义 → 青=主题自带的 info,两个色相都离得开)才分得清谁是谁。
  */
 export function semanticStops(theme: Theme, role: NeonRole): readonly RGBA[] {
   if (role === "assistant") return ramp(theme, theme.primary, theme.secondary)
   if (role === "user") return ramp(theme, theme.accent, theme.neonMid)
   if (role === "thinking") return ramp(theme, theme.neonMid, theme.neonEnd)
+  if (role === "success") return ramp(theme, theme.success, theme.info)
   if (role === "error") return [theme.error]
   if (role === "tip") return [theme.warning]
   return neonStops(theme)
