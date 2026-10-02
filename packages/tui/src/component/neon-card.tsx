@@ -43,6 +43,17 @@ export function NeonCard(props: {
   gradientStops?: readonly RGBA[]
   /** 点击回调(协议同 neonbox 的 onMouseUp:鼠标抬起才算点中,拖动滚动不该误触)。 */
   onSelect?: () => void
+  /**
+   * 卡壳的宽度。省略 = `"100%"`,即撑满父容器(气泡卡与流程图节点卡那一套)。
+   *
+   * `"auto"` 给「抱内容」的那一张(空会话 hero 卡):原型的 `.hero` 是 `align-self: center` +
+   * `padding: 36px 56px`,即宽度由内容决定而不是撑满 —— 在终端里撑满的话,一张只有 Logo 那么点
+   * 内容的卡会横跨整个消息区,和原型差得最远的就是这条边。
+   *
+   * maxWidth 恒为 `"100%"`:内容比容器宽时(yoga 的 auto 是 max-content)宁可让右边框贴到容器边上,
+   * 也不要让描边画到消息区外面去。
+   */
+  width?: number | "auto" | `${number}%`
 }) {
   const { theme } = useTheme()
   const hover = useCardHover()
@@ -60,7 +71,8 @@ export function NeonCard(props: {
       paddingBottom={1}
       paddingLeft={2}
       paddingRight={1}
-      width="100%"
+      width={props.width ?? "100%"}
+      maxWidth="100%"
       flexShrink={0}
     >
       {props.children}
