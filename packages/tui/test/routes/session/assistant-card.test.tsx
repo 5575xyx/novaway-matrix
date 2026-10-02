@@ -14,7 +14,7 @@ import { createTuiResolvedConfig } from "../../fixture/tui-runtime"
 import { TuiPathsProvider, TuiStartupProvider, TuiTerminalEnvironmentProvider } from "../../../src/context/runtime"
 import {
   alwaysSeparate,
-  AssistantCard,
+  NeonCard,
   AssistantMeta,
   BlockTool,
   InlineToolRow,
@@ -27,10 +27,10 @@ import { resolveTheme, type ThemeJson } from "../../../src/theme"
 
 // AssistantMessage 挂在会话内部 context(模块私有)+ LocalProvider(SDK/Route/Event/Permission)上,
 // 测试里脱不开这套栈,所以这里用与 AssistantMessage 同构的 harness 复现结构。
-// 卡壳与 meta 行都用导出的生产件(AssistantCard / AssistantMeta)本体,不手抄 ——
+// 卡壳与 meta 行都用导出的生产件(NeonCard / AssistantMeta)本体,不手抄 ——
 // 手抄的话改生产 padding 或 meta 顺序都不会有任何测试变红,`ctx.width - 9` 那类
 // 宽度常量就会悄悄失准。
-// 跑的都是生产件:AssistantCard / AssistantMeta / partSiblingRef / alwaysSeparate /
+// 跑的都是生产件:NeonCard / AssistantMeta / partSiblingRef / alwaysSeparate /
 // InlineToolRow / BlockTool。
 const theme = resolveTheme(novaway as ThemeJson, "dark")
 
@@ -104,7 +104,7 @@ async function renderFrame(
   }
 }
 
-// 生产 AssistantMessage 的外层三明治:wrapper(带 id,供会话跳转查)→ meta 行 → AssistantCard。
+// 生产 AssistantMessage 的外层三明治:wrapper(带 id,供会话跳转查)→ meta 行 → NeonCard。
 // bubbleBody 额外在气泡后面挂一个真实的 InlineToolRow,用来测 wrapper 之后的兄弟间距。
 function bubbleBody(texts: readonly string[], probe = 0) {
   return () => (
@@ -125,7 +125,7 @@ function bubbleBody(texts: readonly string[], probe = 0) {
           model="claude-sonnet-4"
           width={WIDTH}
         />
-        <AssistantCard>
+        <NeonCard>
           <For each={texts}>
             {(value) => (
               <box ref={partSiblingRef} flexShrink={0}>
@@ -138,7 +138,7 @@ function bubbleBody(texts: readonly string[], probe = 0) {
               <text wrapMode="none">{"X".repeat(probe)}</text>
             </box>
           </Show>
-        </AssistantCard>
+        </NeonCard>
       </box>
       <InlineToolRow complete={true} pending="">
         Read src/index.ts
@@ -188,7 +188,7 @@ test("助手气泡卡:相邻 part 之间仍有 1 行空行", async () => {
 function afterPreviousBody(kind: "tool" | "refless") {
   return () => (
     <box width={WIDTH}>
-      <AssistantCard>
+      <NeonCard>
         <Show
           when={kind === "tool"}
           fallback={
@@ -205,7 +205,7 @@ function afterPreviousBody(kind: "tool" | "refless") {
         <box ref={partSiblingRef} flexShrink={0}>
           <text>AFTERMARK</text>
         </box>
-      </AssistantCard>
+      </NeonCard>
     </box>
   )
 }
@@ -228,9 +228,9 @@ test("助手气泡卡:无 ref 的 1 行框(Read 的「↳ Loaded」)后面仍有
   expect(inner(lines[sub + 1]!)).toBe("")
 })
 
-// 卡内可用列数 = 渲染宽 − AssistantCard 的 padding(2+1)。这条断言量的是**生产卡壳**:
-// 改 AssistantCard 的 paddingLeft/paddingRight 它就会红(变异测试已自证)。
-test("助手气泡卡:卡内可用宽度 = 卡宽 − AssistantCard 的 padding 3(边框画在 padding 列上)", async () => {
+// 卡内可用列数 = 渲染宽 − NeonCard 的 padding(2+1)。这条断言量的是**生产卡壳**:
+// 改 NeonCard 的 paddingLeft/paddingRight 它就会红(变异测试已自证)。
+test("助手气泡卡:卡内可用宽度 = 卡宽 − NeonCard 的 padding 3(边框画在 padding 列上)", async () => {
   const lines = await bubbleLines(["FIRST-PART"], 200)
   const row = lines.find((line) => line.includes("XXXX"))!
   const left = row.indexOf("│")
@@ -263,11 +263,11 @@ function metaBody(model: string, width = WIDTH) {
   return () => (
     <box width={width}>
       <AssistantMeta agentColor={RGBA.fromHex("#5fd7ff")} agent="build" created={CREATED} model={model} width={width} />
-      <AssistantCard>
+      <NeonCard>
         <box ref={partSiblingRef} flexShrink={0}>
           <text>BODYMARK</text>
         </box>
-      </AssistantCard>
+      </NeonCard>
     </box>
   )
 }
@@ -318,18 +318,18 @@ test("助手气泡卡:模型名里的换行被压平,不会把 meta 顶成两行
 })
 
 // TextPart 删掉 paddingLeft={3} 之后,嵌套列表的缩进只能来自 markdown 自己的
-// internalBlockMode="top-level"。这里用真实 <markdown> + 真实 AssistantCard 渲染一遍。
+// internalBlockMode="top-level"。这里用真实 <markdown> + 真实 NeonCard 渲染一遍。
 test("助手气泡卡:markdown 嵌套列表缩进保留,且正文不压右边框", async () => {
   const lines = await renderFrame(
     () => (
       <box width={WIDTH}>
-        <AssistantCard>
+        <NeonCard>
           <markdown
             syntaxStyle={generateSubtleSyntax(theme)}
             internalBlockMode="top-level"
             content={"- 一级项\n  - 二级项\n- 另一个一级项"}
           />
-        </AssistantCard>
+        </NeonCard>
       </box>
     ),
     { width: WIDTH, height: 12 },
@@ -338,7 +338,7 @@ test("助手气泡卡:markdown 嵌套列表缩进保留,且正文不压右边框
   const top = lines.find((line) => inner(line).includes("一级项"))!
   const nested = lines.find((line) => inner(line).includes("二级项"))!
   // 实测(48 宽渲染下):左边框在第 0 列,markdown 列表标记落在第 2 列 —— 正好是
-  // AssistantCard 的 paddingLeft=2 那一列,证明缩进由卡片提供,而不是靠 part 的 paddingLeft={3}。
+  // NeonCard 的 paddingLeft=2 那一列,证明缩进由卡片提供,而不是靠 part 的 paddingLeft={3}。
   expect(top.indexOf("-")).toBe(2)
   // 二级项必须仍在一级项右侧(markdown 自己的 internalBlockMode="top-level" 层级缩进)
   expect(nested.indexOf("二")).toBeGreaterThan(top.indexOf("一"))
@@ -349,7 +349,7 @@ test("助手气泡卡:markdown 嵌套列表缩进保留,且正文不压右边框
   }
 })
 
-// 真实 BlockTool 的可用列数:顶层 = 宽 − BlockTool 自己的 padding 3,进 AssistantCard 后再扣卡片的 3 列。
+// 真实 BlockTool 的可用列数:顶层 = 宽 − BlockTool 自己的 padding 3,进 NeonCard 后再扣卡片的 3 列。
 // 工具输出折叠常量的 `ctx.width - 9` 里,这两项(3 + 3)是这里实测锁住的,剩下 3 列是保守余量。
 test("真实 BlockTool 在助手卡内可用 42 列,顶层 45 列", async () => {
   const measure = async (inCard: boolean) => {
@@ -357,11 +357,11 @@ test("真实 BlockTool 在助手卡内可用 42 列,顶层 45 列", async () => 
       () =>
         inCard ? (
           <box width="100%">
-            <AssistantCard>
+            <NeonCard>
               <BlockTool title="T">
                 <text wrapMode="none">{"X".repeat(300)}</text>
               </BlockTool>
-            </AssistantCard>
+            </NeonCard>
           </box>
         ) : (
           <BlockTool title="T">

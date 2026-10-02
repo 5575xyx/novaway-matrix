@@ -3,14 +3,14 @@
 // 这里刻意不碰渲染:画布最麻烦的三件事(哪些节点、节点摆哪、连线怎么走且不压到卡片)
 // 都能脱离终端算清楚,它们一旦错了,画出来就是「线穿过卡片」或者「两节点叠在一起」。
 // canvas.tsx 只负责把这些结果摆到屏幕上。
+//
+// fixture 与几何谓词来自 test/fixture/flow.ts(与 flow-canvas.test.tsx 共用同一份数据)。
 import { expect, test } from "bun:test"
-import type { AssistantMessage, Message, Part, UserMessage } from "@novaway/sdk-v2-latest/v2"
+import type { Message, Part } from "@novaway/sdk-v2-latest/v2"
 import {
   buildFlowModel,
   edgeRoute,
   layoutNodes,
-  pointInRect,
-  rectsOverlap,
   COLUMN_PITCH,
   GAP_X,
   GAP_Y,
@@ -23,145 +23,30 @@ import {
   type FlowRect,
 } from "../../src/component/flow/layout"
 import { Locale } from "../../src/util/locale"
+import {
+  assistantMessage,
+  reasoningPart,
+  checkFlow,
+  CREATED,
+  FIXTURE_MODEL,
+  FIXTURE_MESSAGES,
+  FIXTURE_PARTS,
+  flowInvariants,
+  manyRoundsFixture,
+  parallelFixture,
+  pointInRect,
+  rectsOverlap,
+  runningToolPart,
+  textPart,
+  toolPart,
+  touchesRect,
+  userMessage,
+} from "../fixture/flow"
 
-// ---------- 最小构造数据 ----------
-// 只填类型要求的必填字段。这个会话刻意复刻原型 card-design-v7.html 的形状:
-// 第 1 轮 = 用户输入 → 任务拆解 → (工具调用 ‖ 子代理 并行) → 编辑文件 → 工具调用 → NovaWay → 本轮结束;
-// 第 2 轮 = 用户输入 → 编辑文件 → NovaWay → 本轮结束。
-const CREATED = new Date(2026, 0, 2, 14, 32).getTime()
-
-function user(id: string, offsetMs = 0, text = `用户文本 ${id}`): UserMessage {
-  return {
-    id,
-    sessionID: "ses_1",
-    role: "user",
-    time: { created: CREATED + offsetMs },
-    agent: "build",
-    model: { providerID: "novaway", modelID: "claude-sonnet-4" },
-  }
-}
-
-function assistant(id: string, offsetMs = 0): AssistantMessage {
-  return {
-    id,
-    sessionID: "ses_1",
-    role: "assistant",
-    time: { created: CREATED + offsetMs, completed: CREATED + offsetMs + 9_000 },
-    parentID: "msg_root",
-    modelID: "claude-sonnet-4",
-    providerID: "novaway",
-    mode: "build",
-    agent: "build",
-    path: { cwd: "/repo", root: "/repo" },
-    cost: 0,
-    tokens: { input: 10, output: 20, reasoning: 5, cache: { read: 0, write: 0 } },
-  }
-}
-
-function textPart(messageID: string, id: string, text: string): Part {
-  return {
-    id,
-    sessionID: "ses_1",
-    messageID,
-    type: "text",
-    text,
-    time: { start: CREATED, end: CREATED + 1_000 },
-  }
-}
-
-function reasoningPart(messageID: string, id: string, text: string, ms = 2_400): Part {
-  return {
-    id,
-    sessionID: "ses_1",
-    messageID,
-    type: "reasoning",
-    text,
-    time: { start: CREATED, end: CREATED + ms },
-  }
-}
-
-function toolPart(
-  messageID: string,
-  id: string,
-  tool: string,
-  options: { title?: string; output?: string; error?: string; ms?: number; start?: number; description?: string } = {},
-): Part {
-  const ms = options.ms ?? 3_200
-  const start = options.start ?? CREATED
-  const base = {
-    id,
-    sessionID: "ses_1",
-    messageID,
-    type: "tool" as const,
-    callID: `call_${id}`,
-    tool,
-  }
-  if (options.error !== undefined) {
-    return { ...base, state: { status: "error", input: {}, error: options.error, time: { start, end: start + ms } } }
-  }
-  return {
-    ...base,
-    state: {
-      status: "completed",
-      input: options.description === undefined ? {} : { description: options.description },
-      output: options.output ?? "输出",
-      title: options.title ?? tool,
-      metadata: {},
-      time: { start, end: start + ms },
-    },
-  }
-}
-
-function runningToolPart(messageID: string, id: string, tool: string): Part {
-  return {
-    id,
-    sessionID: "ses_1",
-    messageID,
-    type: "tool",
-    callID: `call_${id}`,
-    tool,
-    state: { status: "running", input: {}, time: { start: CREATED } },
-  }
-}
-
-// 原型的形状,按时间顺序铺开。
-const MESSAGES: Message[] = [
-  user("msg_1", 0, "你好,帮我修复失败的测试"),
-  assistant("msg_2", 1_000),
-  user("msg_3", 10_000, "再把侧栏动画也优化一下"),
-  assistant("msg_4", 11_000),
-]
-
-const PARTS: Record<string, Part[]> = {
-  msg_1: [textPart("msg_1", "pr_1", "你好,帮我修复失败的测试")],
-  msg_2: [
-    reasoningPart("msg_2", "pr_2", "测试 → 定位 → 修复 → 复测", 2_400),
-    // 同一毫秒发起的那一批才是并行(见 layout.ts 的 parallelGroups):
-    // pr_3/pr_4 是一批并发,pr_5、pr_6 是等前一批回来之后才发起的。
-    toolPart("msg_2", "pr_3", "bash", { title: "bun test --timeout 30000", ms: 3_200, start: CREATED + 1_500 }),
-    toolPart("msg_2", "pr_4", "task", {
-      title: "Explorer · 分析失败原因",
-      description: "分析失败原因",
-      ms: 8_400,
-      start: CREATED + 1_500,
-    }),
-    toolPart("msg_2", "pr_5", "edit", { title: "修 transition.test.ts L42", ms: 400, start: CREATED + 9_000 }),
-    toolPart("msg_2", "pr_6", "bash", {
-      title: "复测 bun test",
-      output: "✓ 18 passed",
-      ms: 3_100,
-      start: CREATED + 10_000,
-    }),
-    textPart("msg_2", "pr_7", "已修复:改用 pollWithTimeout"),
-  ],
-  msg_3: [textPart("msg_3", "pr_8", "再把侧栏动画也优化一下")],
-  msg_4: [
-    toolPart("msg_4", "pr_9", "edit", { title: "edit · sidebar.tsx", ms: 800, start: CREATED + 11_500 }),
-    textPart("msg_4", "pr_10", "侧栏动画已统一为 expo-out"),
-  ],
-}
-
-const MODEL = buildFlowModel({ messages: MESSAGES, parts: PARTS })
+const MODEL = FIXTURE_MODEL
+const MESSAGES: Message[] = FIXTURE_MESSAGES
+const PARTS: Record<string, Part[]> = FIXTURE_PARTS
+// 76 = 两列一行带:74 是 80 列终端扣掉内边距与滚动条之后的视口宽,76 留一点余量。
 const LAYOUT = layoutNodes(MODEL.nodes, 76)
 
 function rectOf(id: string): FlowRect {
@@ -169,6 +54,71 @@ function rectOf(id: string): FlowRect {
   if (!found) throw new Error(`布局里没有节点 ${id}`)
   return found.rect
 }
+
+// ---------- 几何不变量 ----------
+// 六条不变量(无格压卡 / 步长为 1 / 无重复格 / 端点贴边界 / 标签位不压卡 / 矩形不重叠)
+// 收在 fixture 的 flowInvariants 里,下面这些用例只负责**在哪些组合上**跑它。
+
+test("流程图布局:任意两个节点矩形都不重叠(含展开详情的节点)", () => {
+  const expanded = layoutNodes(MODEL.nodes, 76, { expandedId: "n:pr_3", detailRows: 5 })
+  for (const list of [LAYOUT, expanded]) {
+    for (const [index, a] of list.nodes.entries()) {
+      for (const b of list.nodes.slice(index + 1)) {
+        expect(rectsOverlap(a.rect, b.rect), `${a.id} 与 ${b.id}`).toBe(false)
+        if (a.detailRect && b.detailRect)
+          expect(rectsOverlap(a.detailRect, b.detailRect), `${a.id} 与 ${b.id} 的详情框`).toBe(false)
+        if (a.detailRect) expect(rectsOverlap(a.detailRect, b.rect), `${a.id} 的详情框压到 ${b.id}`).toBe(false)
+        if (b.detailRect) expect(rectsOverlap(a.rect, b.detailRect), `${b.id} 的详情框压到 ${a.id}`).toBe(false)
+      }
+    }
+  }
+})
+
+/**
+ * 全部六条不变量在**一整片组合**上都成立。
+ *
+ * 这一条是 LEFT_MARGIN 与 GAP_Y 那几段注释的兑现处。并行分支在布局里是同列上下叠放的,
+ * 所以「叠放能不能成立」完全取决于列与行带的尺寸组合 —— 而组合数是列数(perRow)× 成员数 ×
+ * 行带内最大叠放深度 的乘积,手写断言只可能覆盖其中两三种。这里把宽度从 28 列一路扫到
+ * 140 列、并行成员从 1 到 5、逐轮 1 到 4,加上**逐个节点展开**的那一遍,全都跑一遍。
+ */
+test("流程图布局:六条几何不变量在所有宽度 × 并行规模 × 逐节点展开下都成立", () => {
+  const widths = [NODE_WIDTH, NODE_WIDTH + GAP_X + 1, 74, 76, 80, 96, 114, 140]
+  const problems: string[] = []
+  let checks = 0
+  for (const width of widths) {
+    for (const members of [1, 2, 3, 4, 5]) {
+      for (const rounds of [1, 2, 4]) {
+        const models = [FIXTURE_MODEL, parallelFixture(members)]
+        if (rounds !== 1) models.push(manyRoundsFixture(rounds))
+        for (const model of models) {
+          const label = `${width} 列 / 并行 ${members} / ${rounds} 轮`
+          problems.push(...checkFlow(model, width).problems.map((problem) => `${label}:${problem}`))
+          checks += 1
+          // 逐个节点展开:展开态改的是走线方案与行带高度(见 I5),所以每个节点都要当一次主角。
+          for (const node of model.nodes) {
+            problems.push(...checkFlow(model, width, node.id).problems.map((p) => `${label}/展开 ${node.id}:${p}`))
+            checks += 1
+          }
+        }
+      }
+    }
+  }
+  // 先钉住「真的跑了这么多组合」:否则将来有人把循环改坏,这条会静悄悄变成空跑。
+  expect(checks).toBeGreaterThan(2000)
+  expect(problems.slice(0, 12)).toEqual([])
+  expect(problems.length).toBe(0)
+})
+
+test("流程图布局:所有节点都在画布宽度内,画布高度够装下最后一轮", () => {
+  expect(LAYOUT.nodes.length).toBeGreaterThan(0)
+  for (const node of LAYOUT.nodes) {
+    expect(node.rect.x, `${node.id} 的左边界`).toBeGreaterThanOrEqual(0)
+    expect(node.rect.x + node.rect.width, `${node.id} 的右边界`).toBeLessThanOrEqual(LAYOUT.width)
+  }
+  const lowest = Math.max(...LAYOUT.nodes.map((node) => node.rect.y + node.rect.height))
+  expect(LAYOUT.height).toBeGreaterThanOrEqual(lowest)
+})
 
 // ---------- 几何不变量 ----------
 
@@ -238,7 +188,7 @@ test("流程图模型:消息与 part 映射成原型那七类节点", () => {
 test("流程图模型:task 工具算子代理,write/edit/apply_patch 算编辑文件,其余算工具调用", () => {
   const kindOf = (tool: string) =>
     buildFlowModel({
-      messages: [user("m1"), assistant("m2")],
+      messages: [userMessage("m1"), assistantMessage("m2")],
       parts: { m1: [textPart("m1", "t1", "x")], m2: [toolPart("m2", tool, tool)] },
     }).nodes.map((node) => node.kind)
   expect(kindOf("task")).toEqual(["user", "subagent", "fend"])
@@ -262,7 +212,7 @@ test("流程图模型:以用户消息为界分轮,第 2 轮起才画分隔线", 
 })
 
 test("流程图模型:没有用户消息的会话也算第 1 轮,空会话是空模型", () => {
-  const orphan = buildFlowModel({ messages: [assistant("m2")], parts: { m2: [textPart("m2", "t", "hi")] } })
+  const orphan = buildFlowModel({ messages: [assistantMessage("m2")], parts: { m2: [textPart("m2", "t", "hi")] } })
   expect(orphan.rounds).toBe(1)
   expect(orphan.nodes.map((node) => node.round)).toEqual([1, 1])
   const empty = buildFlowModel({ messages: [], parts: {} })
@@ -293,7 +243,7 @@ test("流程图模型:meta 是时长或时间,详情能拿到原始正文", () =
 
 test("流程图模型:标题压成一行,超长标题按卡内可用宽度截断", () => {
   const long = buildFlowModel({
-    messages: [user("m1"), assistant("m2")],
+    messages: [userMessage("m1"), assistantMessage("m2")],
     parts: {
       m1: [textPart("m1", "t1", "第一行\n第二行")],
       m2: [textPart("m2", "t2", "标".repeat(200))],
@@ -309,7 +259,7 @@ test("流程图模型:标题压成一行,超长标题按卡内可用宽度截断
 
 test("流程图模型:多条回复/多段推理各自并成一个节点,否则画布会炸成几十个格子", () => {
   const merged = buildFlowModel({
-    messages: [user("m1"), assistant("m2")],
+    messages: [userMessage("m1"), assistantMessage("m2")],
     parts: {
       m1: [textPart("m1", "t1", "走起")],
       m2: [
@@ -355,7 +305,7 @@ test("流程图边:非并行边的标签说的是「上一节点发生了什么�
 
 test("流程图边:工具失败与运行中的标签如实反映状态", () => {
   const model = buildFlowModel({
-    messages: [user("m1"), assistant("m2"), assistant("m3")],
+    messages: [userMessage("m1"), assistantMessage("m2"), assistantMessage("m3")],
     parts: {
       m1: [textPart("m1", "t1", "走起")],
       m2: [toolPart("m2", "bad", "bash", { error: "AssertionError" })],
