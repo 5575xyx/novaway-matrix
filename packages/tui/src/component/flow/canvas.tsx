@@ -269,9 +269,7 @@ export function FlowCanvas(props: {
           <box width={contentWidth()} height={layout().height} flexShrink={0}>
             {/* 连线层 zIndex 0:卡片永远压在它上面。布局已经保证连线不落在卡内,
                 这一层只是兜底 —— 万一某一格算到了卡内,也是卡片盖住线,不是线糊在正文上。 */}
-            <For each={grid().rows}>
-              {(y) => <EdgeRow y={y} canvas={grid().canvas} width={contentWidth()} />}
-            </For>
+            <For each={grid().rows}>{(y) => <EdgeRow y={y} canvas={grid().canvas} width={contentWidth()} />}</For>
             {/* 标签浮层:在连线之上、卡片与详情面板之上(见 FlowLabel 的 zIndex 注释)。 */}
             <For each={grid().labels}>{(label) => <FlowLabel x={label.x} y={label.y} text={label.text} />}</For>
             <For each={layout().nodes}>

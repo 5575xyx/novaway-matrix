@@ -85,7 +85,7 @@ export interface SessionFooterBarProps {
  * 会话页底栏(原型 card-design-v7.html:1134-1144 的 `.footer`):一行低调的小字,左组是
  * 「目录 / LSP / MCP / 权限」,右组是「分支 / 编码 / 品牌 + 版本」,中间弹性留白。
  *
- * 与助手气泡卡(AssistantCard)、输入卡(PromptCard)、侧栏分区卡(SidebarCard)同一条规矩:
+ * 与霓虹卡壳(NeonCard)、输入卡(PromptCard)、侧栏分区卡(SidebarCard)同一条规矩:
  * 只依赖 useTheme(),不碰 session / sync / project context,所有数据由 props 进来。这样测试能
  * 直接挂载真壳量真实几列 —— 这里的每一列预算都是实测出来的,手抄一份 markup 到测试里的话,
  * 改这里的 gap / 优先级顺序都不会有任何测试变红。

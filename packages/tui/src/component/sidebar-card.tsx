@@ -46,7 +46,7 @@ export interface SidebarCardProps {
  * 修改的文件 / 分支 / 变更)各自一张霓虹卡,首行是 header(图标 + 标题 + 可选动作 +
  * 右对齐徽标),其余是正文。
  *
- * 与助手气泡卡(AssistantCard)、输入卡(PromptCard)同一条规矩:只依赖 useTheme() 与
+ * 与霓虹卡壳(NeonCard)、输入卡(PromptCard)同一条规矩:只依赖 useTheme() 与
  * useKV(),不碰 session/local context,所以测试能直接挂载真壳量真实几列。手抄一个 neonbox 到
  * 测试里的话,改这里的 padding 不会让任何测试变红,sidebar-metrics 里的列数推导也会悄悄失准。
  *

@@ -107,7 +107,7 @@ function colorOf(app: { captureSpans(): CapturedFrame }, row: number, glyph: str
   return cells[index]!.cell
 }
 
-// 期望色从生产用的那套主题真值里取(与 AssistantCard 测试同一条路径),写死十六进制会在换主题
+// 期望色从生产用的那套主题真值里取(与霓虹卡壳的测试同一条路径),写死十六进制会在换主题
 // 之后变成假通过。
 const THEME = resolveTheme(novaway as ThemeJson, "dark")
 
