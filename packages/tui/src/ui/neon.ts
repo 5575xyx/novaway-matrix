@@ -57,7 +57,7 @@ export function brighten(color: RGBA, amount: number, towards: RGBA): RGBA {
 
 // 悬停「光晕加深」的等效实现:终端里没有 box-shadow 也没有半透明,描边色只能朝某个方向混一点。
 //
-// 目标色由调用点给(四张卡都传 theme.text),所以这一档的效果是分两种的:
+// 目标色由调用点给(每张卡都传 theme.text),所以这一档的效果是分两种的:
 //   深色主题:theme.text 是近白 → 描边**变亮**;
 //   浅色主题:theme.text 是近黑 → 描边**变暗**。
 // 两种都在做同一件事:拉开描边与面板底色的对比度 —— 这才是悬停该给的反馈,
@@ -106,7 +106,12 @@ function ramp(theme: Theme, first: RGBA, second: RGBA): readonly RGBA[] {
  * - `assistant` 助手气泡卡:青蓝两段 —— `primary` 青 → `secondary` 蓝,
  *   novaway 深色是 #00e5ff → #4d7cff。UI 里最显眼的一圈描边,曾经写成
  *   `[info, primary]`,而默认深色主题里这两个 token 同为 #00e5ff,直接退化成平色。
- * - `user` 用户气泡卡:粉紫两段 —— `accent` 粉 → `neonMid` 紫(#ff2d7b → #4d7cff)。
+ * - `user` 「用户」语义:粉紫两段 —— `accent` 粉 → `neonMid` 紫(#ff2d7b → #4d7cff)。
+ *   **唯一的消费者是流程图的「用户输入」节点卡**(component/flow/canvas.tsx 的 roleOf)。
+ *   聊天气泡卡不走这一套 —— 它用 neonStops(theme) 的三端霓虹(见 routes/session 的
+ *   UserMessage),那圈描边的首端是 theme.primary 青、粉色在末端。所以「把气泡卡切成 user
+ *   粉紫」不是给下面这张表换个 role 就了事的事:气泡卡连同它的 padding/底色/悬停是一整套
+ *   已经定过的视觉,改它要先改那份视觉计划。
  * - `thinking` 思考卡:`neonMid` → `neonEnd` 两段(#4d7cff 蓝 → #ff2d7b 品红)。
  *   原型文案写的是「紫青」,实配这两端在默认主题里是蓝→品红:方向对(都离开主色),
  *   文案与实际不完全一致,见 1b 的汇报,这里只保证它**不**平。

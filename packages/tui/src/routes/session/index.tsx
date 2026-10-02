@@ -252,9 +252,14 @@ export function userMetaVisible(timestamps: "hide" | "show") {
  * .msg.user .msg-meta .who { color: var(--pink); }      ← 用户那条的「你」是 user 语义色
  * ```
  * 所以**时间戳 muted、「你」user 语义色**:这里取 semanticStops(theme, "user")[0],它就是
- * theme.accent(novaway 深色 #ff2d7b),与用户气泡卡那圈粉紫描边的首端同色 —— 「user 是粉的」
- * 在本实现里只有这一处定义,标注与卡片不会各挑一个粉。
- * 终端没有 font-weight,所以原型那个加粗只能靠颜色本身顶着(整行 muted 时它就是那一行唯一的彩色)。
+ * theme.accent(novaway 深色 #ff2d7b),即原型那条 `--pink`。终端没有 font-weight,所以原型
+ * 那个加粗只能靠颜色本身顶着(整行 muted 时它就是那一行唯一的彩色)。
+ *
+ * **别把这一处的粉当成「用户气泡描边的首端色」**:气泡卡那一圈走的是 neonStops(theme)
+ * (三端霓虹,#00e5ff → #4d7cff → #ff2d7b),粉在**末端**,不在首端 —— 那套色板是更早的
+ * 视觉计划(2026-10-01-tui-neon-card-visual)给气泡卡定的,今天不动。`semanticStops(theme,
+ * "user")` 那一套粉紫两段唯一的消费者是流程图的「用户输入」节点卡(见 component/flow/canvas
+ * 的 roleOf),所以想改气泡卡的配色,改的也不是这里这一行。
  *
  * 形状与助手那条对称:没有 ◆(标的是人不是智能体)、没有模型名,meta 在**卡外**的上一行,
  * 卡内第一行留给正文。时间格式与助手 meta 共用 Locale.todayTimeOrDateTime
@@ -1862,13 +1867,13 @@ export function Session() {
                     + opacity 的终端等价(px→行的换算见 view-entrance 的注释)。
                     视图的取舍留给这里的两个 Show:它们在条件翻转时**当场**销毁旧视图、建出新视图,
                     正是原型 off.remove('show') + on.add('show') 的语义,所以两个视图从不共存。
-                    标签切换(开会话文件)也会重挂这一层,但入场只由 view 的变化触发,不会跟着重播。 */}
+                    **重挂的这一层不只由视图切换触发**:标签切换(开文件标签页)也整层重建。
+                    两者的入场动画都要作废重播 —— 卡片入场与视图入场在这一层是同一件事的两半,
+                    原因见上面 enterBaseline 那段的注释。 */}
                 <ViewEntrance view={chatView()} animate={animationsEnabled()}>
                   <Show when={chatView() === "flow"}>
-                    {/* 流程图视图。D2 备下的 ChatViewFlowPlaceholder 已被真正的画布整块替换,
-                        那份「画布尚未实现」的占位连同它的测试一起删掉了 ——
-                        空白不是可接受的降级,而现在这一版画的就是节点链。
-                        数据直接取会话自己的同步数据(消息 + part),不另存一份中间态。 */}
+                    {/* 流程图视图:节点链画布。数据直接取会话自己的同步数据(消息 + part),
+                        不另存一份中间态。 */}
                     <FlowCanvas
                       messages={messages()}
                       parts={sync.data.part}

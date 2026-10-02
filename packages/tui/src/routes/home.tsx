@@ -245,9 +245,12 @@ function HomeBody() {
             activeTabId={activeTabId()}
             onTabClick={switchTab}
             onTabClose={closeTab}
-            // 首页没有右侧胶囊,但标签栏的可用宽度仍要显式给(会话页那边是 contentWidth + 2):
-            // 侧栏挤掉的那一列在这里同样要去掉。
-            width={dimensions().width - (sidebarVisible() ? sidebarWidth(dimensions().width) : 0)}
+            // 首页没有右侧胶囊,但标签栏的可用宽度仍要显式给,而且要与会话页同一套算法:
+            // 那边是 contentWidth + 2 = 终端宽 − 侧栏宽 − 2(contentWidth 已经扣掉消息区自己的
+            // 左右内边距各 2,而标签栏自己只扣各 1),所以这里同样是「减侧栏、再减 2」。
+            // 早先这里只减了侧栏宽,比会话页宽 2 列 —— 首页不传胶囊时看不出来,一旦那边也挂上
+            // 胶囊,两条消息列表之间就会有一个 2 列的系统性偏差。
+            width={dimensions().width - (sidebarVisible() ? sidebarWidth(dimensions().width) : 0) - 2}
           />
           <box flexGrow={1} minHeight={0} paddingBottom={1} paddingLeft={2} paddingRight={2} gap={1}>
             {/* 消息区(首屏为空):滚动容器的参数和会话页一致,内容是共用的空会话首屏 */}
