@@ -1,6 +1,8 @@
 import type { TuiPlugin, TuiPluginApi } from "@opencode/plugin/tui"
 import type { BuiltinTuiPlugin } from "../builtins"
 import { createMemo, For, Show, createSignal } from "solid-js"
+import { SidebarCard } from "../../component/sidebar-card"
+import { icon } from "../../util/panel-icons"
 
 const id = "internal:sidebar-lsp"
 
@@ -11,15 +13,14 @@ function View(props: { api: TuiPluginApi }) {
   const off = createMemo(() => !props.api.state.config.lsp)
 
   return (
-    <box>
-      <box flexDirection="row" gap={1} onMouseDown={() => list().length > 2 && setOpen((x) => !x)}>
-        <Show when={list().length > 2}>
-          <text fg={theme().text}>{open() ? "▼" : "▶"}</text>
-        </Show>
-        <text fg={theme().text}>
-          <b>LSP</b>
-        </text>
-      </box>
+    <SidebarCard
+      title="LSP"
+      icon={icon("doc")}
+      badge={off() ? "已禁用" : `${list().length} 个服务`}
+      collapsible={list().length > 2}
+      collapsed={!open()}
+      onToggle={() => list().length > 2 && setOpen((x) => !x)}
+    >
       <Show when={list().length <= 2 || open()}>
         <Show when={list().length === 0}>
           <text fg={theme().textMuted}>{off() ? "LSP 已禁用" : "LSP 将在读取文件时激活"}</text>
@@ -42,7 +43,7 @@ function View(props: { api: TuiPluginApi }) {
           )}
         </For>
       </Show>
-    </box>
+    </SidebarCard>
   )
 }
 

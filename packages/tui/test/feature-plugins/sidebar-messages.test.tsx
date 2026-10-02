@@ -1,11 +1,15 @@
 /** @jsxImportSource @opentui/solid */
 import { expect, test } from "bun:test"
 import { testRender } from "@opentui/solid"
-import messagesPlugin, {
-  MESSAGE_COLLAPSE_AT,
-  visibleMessages,
-} from "../../src/feature-plugins/sidebar/messages"
+import type { JSX } from "solid-js"
+import messagesPlugin, { MESSAGE_COLLAPSE_AT, visibleMessages } from "../../src/feature-plugins/sidebar/messages"
+import { ArgsProvider } from "../../src/context/args"
+import { KVProvider } from "../../src/context/kv"
+import { ThemeProvider } from "../../src/context/theme"
+import { TuiConfigProvider } from "../../src/config"
 import { createTuiPluginApi } from "../fixture/tui-plugin"
+import { createTuiResolvedConfig } from "../fixture/tui-runtime"
+import { TestTuiContexts } from "../fixture/tui-environment"
 
 test("未超阈值时全部消息可见", () => {
   const messages = Array.from({ length: MESSAGE_COLLAPSE_AT }, (_, index) => ({ id: `m${index}` }))
@@ -23,7 +27,6 @@ test("超过阈值时默认只保留最近几条,展开后恢复全部", () => {
 // fixture 里只有 session 和 theme,这里补上取摘要用的 part,并把 slots.register 换成
 // 捕获器:拿到插件真正注册进来的 sidebar_content 工厂,再在渲染作用域里调用它
 // (opentui 的 reconciler 在 createElement 时就要求 renderer 存在,组件外构造 JSX 会直接抛)。
-// 返回 () => any 是因为 slot 工厂返回的 JSX 类型在这里没有意义,测试只断言帧内容。
 async function renderMessageList(count: number) {
   const messages = Array.from({ length: count }, (_, index) => ({
     id: `m${index}`,
@@ -43,7 +46,7 @@ async function renderMessageList(count: number) {
   state.part = (messageID: string) => [
     { id: messageID, type: "text", synthetic: false, ignored: false, text: messageID },
   ]
-  let slot: ((ctx: unknown, props: { session_id: string }) => unknown) | undefined
+  let slot: ((ctx: unknown, props: { session_id: string }) => JSX.Element) | undefined
   const host = api as unknown as { slots: unknown }
   host.slots = {
     register(plugin: { slots: { sidebar_content: typeof slot } }) {
@@ -55,14 +58,37 @@ async function renderMessageList(count: number) {
   return () => slot!({}, { session_id: "s1" })
 }
 
-async function captureFrame(render: () => unknown, height = 16) {
-  const app = await testRender(() => <>{render()}</>, { width: 46, height })
+// 消息块现在是一张 SidebarCard,卡壳要读 useTheme();生产里 Slot 是在侧栏的
+// ThemeProvider 树里渲染的,所以这里挂同一串 provider —— 少挂一层就会因为
+// "主题 context 必须有 provider" 而根本渲染不出框,测不到别的东西。
+//
+// READY 那个字是就绪闸门:ThemeProvider 在主题读盘完成前只渲染空白(见 context/helper
+// 的 provider),而"没有消息"那条测的正是空白,所以不能拿"帧里有内容"当就绪信号。
+async function captureFrame(render: () => JSX.Element, height = 16) {
+  const app = await testRender(
+    () => (
+      <TestTuiContexts>
+        <TuiConfigProvider config={createTuiResolvedConfig()}>
+          <ArgsProvider>
+            <KVProvider>
+              <ThemeProvider mode="dark">
+                <text>READY</text>
+                {render()}
+              </ThemeProvider>
+            </KVProvider>
+          </ArgsProvider>
+        </TuiConfigProvider>
+      </TestTuiContexts>
+    ),
+    { width: 46, height },
+  )
   try {
     let frame = ""
-    for (let attempt = 0; attempt < 10; attempt++) {
+    for (let attempt = 0; attempt < 200; attempt++) {
       await app.renderOnce()
       frame = app.captureCharFrame()
-      if (frame.includes("消息")) break
+      if (frame.includes("READY")) break
+      await new Promise((resolve) => setTimeout(resolve, 25))
     }
     return frame
   } finally {

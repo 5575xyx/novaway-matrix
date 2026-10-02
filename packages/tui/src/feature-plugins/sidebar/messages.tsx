@@ -7,12 +7,16 @@
 import type { TuiPlugin, TuiPluginApi } from "@opencode/plugin/tui"
 import type { BuiltinTuiPlugin } from "../builtins"
 import { createEffect, createMemo, createSignal, For, on, Show } from "solid-js"
+import { SidebarCard } from "../../component/sidebar-card"
+import { icon } from "../../util/panel-icons"
 import { setMessageJump } from "../../util/message-jump"
 import { Locale } from "../../util/locale"
 
 const id = "internal:sidebar-messages"
 
-// 消息摘要一行放得下:侧栏 42 列,减去缩进还有余量,超长截尾。
+// 消息摘要一行放得下:这条摘要落在「消息」分区卡的内容区里,最窄侧栏(44 列)下是 35 列
+// (侧栏根卡内边距 4 + 滚动条预留 1 + 分区卡边框与内边距 4,见 util/sidebar-metrics),
+// 26 留 9 列余量。
 const MESSAGE_MAX = 26
 
 // 超过这个条数才折叠:默认只留最近的几条,点箭头展开。
@@ -51,11 +55,16 @@ function MessageRow(props: { api: TuiPluginApi; sessionID: string; messageID: st
 }
 
 function View(props: { api: TuiPluginApi; session_id: string }) {
-  const theme = () => props.api.theme.current
   // 默认折叠:超阈值时新消息照样出现在列表末尾,旧消息藏在箭头后面。
   const [open, setOpen] = createSignal(false)
   // 切会话回到默认折叠态,否则上个会话手动展开过的状态会被带过来。
-  createEffect(on(() => props.session_id, () => setOpen(false), { defer: true }))
+  createEffect(
+    on(
+      () => props.session_id,
+      () => setOpen(false),
+      { defer: true },
+    ),
+  )
   const all = createMemo(() =>
     props.api.state.session.messages(props.session_id).filter((message) => message.role === "user"),
   )
@@ -67,22 +76,20 @@ function View(props: { api: TuiPluginApi; session_id: string }) {
 
   return (
     <Show when={all().length > 0}>
-      <box>
-        <box flexDirection="row" gap={1} onMouseDown={() => collapsible() && setOpen((value) => !value)}>
-          <Show when={collapsible()}>
-            <text fg={theme().text}>{open() ? "▼" : "▶"}</text>
-          </Show>
-          <text fg={theme().text}>
-            <b>消息</b>
-          </text>
-          <text fg={theme().textMuted}>
-            {hidden() > 0 ? `${all().length} 条 · 仅显示 ${visible().length} 条` : `${all().length} 条`}
-          </text>
-        </box>
+      <SidebarCard
+        title="消息"
+        icon={icon("chat")}
+        // 隐藏条数 > 0 就说明当前处于折叠态,顺手把「总数 / 当前显示数」都标进徽标,
+        // 免得用户以为消息丢了。
+        badge={hidden() > 0 ? `${all().length} 条 · 仅显示 ${visible().length} 条` : `${all().length} 条`}
+        collapsible={collapsible()}
+        collapsed={!open()}
+        onToggle={() => collapsible() && setOpen((value) => !value)}
+      >
         <For each={visible()}>
           {(message) => <MessageRow api={props.api} sessionID={props.session_id} messageID={message.id} />}
         </For>
-      </box>
+      </SidebarCard>
     </Show>
   )
 }

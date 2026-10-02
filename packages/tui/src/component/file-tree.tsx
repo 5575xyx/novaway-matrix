@@ -1,6 +1,7 @@
 import { createSignal, createMemo, createEffect, For, Show, on } from "solid-js"
 import { useTheme } from "../context/theme"
 import { Locale } from "../util/locale"
+import { FILE_TREE_NAME_MAX } from "../util/sidebar-metrics"
 import { fileIcon, treeArrow } from "../util/panel-icons"
 import { readdir } from "node:fs/promises"
 import path from "node:path"
@@ -178,7 +179,7 @@ export function FileTree(props: FileTreeProps) {
   const renderNode = (node: FileSystemNode, depth: number = 0) => {
     const isExpanded = createMemo(() => expandedDirs().has(node.path))
     const isSelected = createMemo(() => selectedFile() === node.path)
-    const truncatedName = Locale.truncate(node.name, 20)
+    const truncatedName = Locale.truncate(node.name, FILE_TREE_NAME_MAX)
 
     return (
       <box flexDirection="column">
@@ -211,7 +212,7 @@ export function FileTree(props: FileTreeProps) {
 
   return (
     <box flexDirection="column" flexGrow={1}>
-      {/* 标题由侧边栏的“文件”标签页提供,这里不再重复一个抬头 */}
+      {/* 抬头由侧栏那边的「资源管理器」分区卡提供(SidebarCard),这里不再重复一个标题行 */}
       <box flexDirection="column" flexGrow={1} overflow="hidden">
         <NodeChildren dirPath={props.rootPath} depth={0} />
       </box>

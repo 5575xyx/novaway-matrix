@@ -2,6 +2,8 @@ import type { AssistantMessage } from "@novaway/sdk-v2-latest/v2"
 import type { TuiPlugin, TuiPluginApi } from "@opencode/plugin/tui"
 import type { BuiltinTuiPlugin } from "../builtins"
 import { createMemo, Show } from "solid-js"
+import { SidebarCard } from "../../component/sidebar-card"
+import { icon } from "../../util/panel-icons"
 
 const id = "internal:sidebar-context"
 
@@ -64,10 +66,7 @@ function View(props: { api: TuiPluginApi; session_id: string }) {
   })
 
   return (
-    <box>
-      <text fg={theme().text}>
-        <b>上下文</b>
-      </text>
+    <SidebarCard title="上下文" icon={icon("info")} badge={`${state().percent ?? 0}%`}>
       <text fg={theme().textMuted}>{state().tokens.toLocaleString()} tokens</text>
       <text fg={theme().textMuted}>{state().percent ?? 0}% 已使用</text>
       <Show when={hitRateText()}>
@@ -78,7 +77,7 @@ function View(props: { api: TuiPluginApi; session_id: string }) {
         )}
       </Show>
       <text fg={theme().textMuted}>{money.format(cost())} 已花费</text>
-    </box>
+    </SidebarCard>
   )
 }
 
