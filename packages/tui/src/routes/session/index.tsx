@@ -133,7 +133,16 @@ const GO_UPSELL_ACCOUNT_RATE_LIMIT_DONT_SHOW = "go_upsell_account_rate_limit_don
 const GO_UPSELL_WINDOW = 86_400_000 // 24 hrs
 const GO_UPSELL_PROVIDERS = new Set(["NovaWay", "NovaWay-go"])
 
-export const alwaysSeparate = new WeakSet<BoxRenderable>()
+/**
+ * 消息锚点壳(每条消息最外层那个带 message id 的盒子)与 alwaysSeparate 都住在同目录的
+ * message-anchor:锚点壳必须能脱离会话区挂载测试,依赖这一页就成环。
+ *
+ * 这里 re-export alwaysSeparate,既有 import 路径不变 ——
+ * test/cli/tui/inline-tool-wrap-snapshot.test.tsx 与 test/routes/session/assistant-card.test.tsx
+ * 都是从这儿拿的。
+ */
+import { alwaysSeparate, MessageAnchor } from "./message-anchor"
+export { alwaysSeparate }
 
 // 会话页的占位符。会话页之前**一个都没传**,聚焦时输入框里只有光标 —— 原型的
 // 输入卡靠「问我任何事... "示例"」占位,空着的话整张卡左半边是白的。
@@ -1703,7 +1712,7 @@ export function Session() {
     resetOn: () => [chatView(), activeTabId()],
   })
   // animations_enabled 关掉时不传 enterDelay —— NeonBox 的约定是「不传即终态」,
-  // 不留淡入残影。基线照样要问:否则用户中途把动画打开时,这条消息会拿到一个
+  // 不留淡入残影。但基线照样要问:否则用户中途把动画打开时,这条消息会拿到一个
   // 「迟到」的入场延迟,凭空淡入一次。
   // 读的是本组件里那个**信号**版(animationsEnabled)而不是 kv.get:同一个 key 已经有信号了,
   // 两个访问器读同一个键必然漂 —— 响应式的那一份才能让「中途关掉动画」立刻掐掉淡入。
@@ -2147,10 +2156,11 @@ function UserMessage(props: { message: UserMessage; parts: Part[]; onMouseUp: ()
   return (
     <>
       <Show when={text()}>
-        {/* crush 式用户气泡:霓虹渐变描边卡片,靠右对齐;悬停提亮底色 + 描边流动与提亮。 */}
-        <box
-          id={props.message.id}
-          ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
+        {/* crush 式用户气泡:霓虹渐变描边卡片,靠右对齐;悬停提亮底色 + 描边流动与提亮。
+            外层是消息锚点:那个 id 是消息跳转(跳到消息 / 上一条下一条)唯一的抓手,
+            而那些查找要的是 scrollbox 的**直接子节点** —— 所以锚点必须是这一层,不能往里挪。 */}
+        <MessageAnchor
+          messageID={props.message.id}
           marginTop={props.index === 0 ? 0 : 1}
           alignItems="flex-end"
           width="100%"
@@ -2207,7 +2217,7 @@ function UserMessage(props: { message: UserMessage; parts: Part[]; onMouseUp: ()
               </box>
             </Show>
           </neonbox>
-        </box>
+        </MessageAnchor>
       </Show>
       <Show when={compaction()}>
         <box marginTop={1} border={["top"]} title=" 压缩 " titleAlignment="center" borderColor={theme.borderActive} />
@@ -2257,10 +2267,12 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
   return (
     <>
       {/* 助手气泡:meta 行(智能体 · 时间 · 模型)+ 霓虹描边正文卡。meta 的顺序与截断见 AssistantMeta。
-          wrapper 必须带 id —— 会话跳转(跳到消息/上一条下一条)是按 scrollbox **直接子节点**的 id 查的。
-          wrapper 自己承担 marginTop=1:卡内每个 part 的 margin 由 setPreLayoutSiblingMargin 按兄弟链算,
+          外层是消息锚点 —— 会话跳转(跳到消息/上一条下一条)是按 scrollbox **直接子节点**的 id
+          查的,那个 id 与这层盒子的形状都由 MessageAnchor 保证(见 message-anchor.tsx 的注释:
+          四条寻址路径全靠它,删掉会静默失效)。
+          锚点自己承担 marginTop=1:卡内每个 part 的 margin 由 setPreLayoutSiblingMargin 按兄弟链算,
           首 part 的 previous 是 undefined → 0,不会再多顶一行。 */}
-      <box id={props.message.id} ref={(el: BoxRenderable) => alwaysSeparate.add(el)} marginTop={1} flexShrink={0}>
+      <MessageAnchor messageID={props.message.id} marginTop={1} flexShrink={0}>
         <AssistantMeta
           agentColor={local.agent.color(props.message.agent)}
           agent={props.message.agent}
@@ -2287,7 +2299,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
             </For>
           </NeonCard>
         </Show>
-      </box>
+      </MessageAnchor>
       <Show when={props.parts.some((x) => x.type === "tool" && x.tool === "task")}>
         <box paddingTop={1} paddingLeft={2}>
           <text fg={theme.text}>
