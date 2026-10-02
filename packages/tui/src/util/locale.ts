@@ -124,6 +124,42 @@ export function truncateLeftToWidth(value: string, columns: number): string {
   )
 }
 
+/** 取开头不超过 columns 列的前缀,**不带**省略号(要省略号的场合由调用方统一加)。 */
+function prefixColumns(value: string, columns: number) {
+  let width = 0
+  let text = ""
+  if (columns <= 0) return { text, width }
+  for (const part of graphemes.segment(value)) {
+    const next = width + Bun.stringWidth(part.segment)
+    if (next > columns) break
+    width = next
+    text += part.segment
+  }
+  return { text, width }
+}
+
+/**
+ * 按显示列从中间截,头尾各留一段。路径类文本用它 —— 头部(盘符 / 家目录)说明"在哪台机器上",
+ * 尾部(项目目录名)说明"是哪个项目",两头都比中间那几层路径重要;truncateToWidth 会把尾部
+ * 整段丢掉,truncateLeftToWidth 则把头部丢掉,两个都不适合路径。
+ *
+ * 预算里先扣掉 1 列给**唯一那一个**省略号,剩下的按「头多尾少」分:头拿 ceil,尾拿剩下的。
+ * 头部不能用 truncateToWidth 取 —— 它自带一个尾部的「…」,拼起来就成了「头……尾」。
+ */
+export function truncateMiddleToWidth(value: string, columns: number): string {
+  if (displayWidth(value) <= columns) return value
+  if (columns <= 0) return ""
+  if (columns === 1) return "…"
+  const head = prefixColumns(value, Math.ceil((columns - 1) / 2))
+  // head 是按字素边界切出来的前缀,所以按它的 UTF-16 长度切 rest 一定落在字素边界上。
+  const rest = value.slice(head.text.length)
+  // 预算给「columns - head.width」而不是再减 1:truncateLeftToWidth 会在尾部前面补的那个「…」
+  // 就是这里统一加的那一个,它的列已经算在 head.width + 1 里了,再扣一次就白白少一列。
+  const tail = truncateLeftToWidth(rest, columns - head.width)
+  if (tail === rest) return head.text + rest
+  return head.text + "…" + tail.slice(1)
+}
+
 /**
  * 把任意文本压成"保证只占一行"的形式:换行/制表/连续空白全部折成单个空格,
  * 顺便去掉 C0 控制字符,最后按 len 截断。
