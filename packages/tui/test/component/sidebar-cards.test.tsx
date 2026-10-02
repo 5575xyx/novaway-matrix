@@ -8,7 +8,8 @@ import type { JSX } from "solid-js"
 import { CollapsibleSidebarCard, SidebarCard } from "../../src/component/sidebar-card"
 import { FileTree, clearFileTreeCache } from "../../src/component/file-tree"
 import { Locale } from "../../src/util/locale"
-import { SIDEBAR_CARD_MIN_CONTENT, SIDEBAR_FILES_CARD_MIN_CONTENT } from "../../src/util/sidebar-metrics"
+import { SIDEBAR_CARD_MIN_CONTENT, sidebarCardContentWidth } from "../../src/util/sidebar-metrics"
+import { SIDEBAR_MIN_WIDTH } from "../../src/util/sidebar-width"
 import { ThemeReady, ThemeTestProviders } from "../fixture/providers"
 
 // 这一份只测**卡壳自己**的行为(卡头怎么排、徽标怎么封顶、折叠箭头怎么显隐)。
@@ -292,5 +293,5 @@ test("文件树装进分区卡:44 与 60 列下每一行的最后非空字符仍
 
 test("侧栏宽度档位:info/git 页 36 列、文件页 37 列", () => {
   expect(SIDEBAR_CARD_MIN_CONTENT).toBe(36)
-  expect(SIDEBAR_FILES_CARD_MIN_CONTENT).toBe(37)
+  expect(sidebarCardContentWidth(SIDEBAR_MIN_WIDTH, "files")).toBe(37)
 })

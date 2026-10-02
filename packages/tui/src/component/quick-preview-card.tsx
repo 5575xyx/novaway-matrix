@@ -1,5 +1,6 @@
 import { createEffect, createMemo, createSignal, on, Show } from "solid-js"
 import { readFile, stat } from "node:fs/promises"
+import { useTerminalDimensions } from "@opentui/solid"
 import { useTheme } from "../context/theme"
 import { SidebarCard } from "./sidebar-card"
 import { selectedPath } from "./file-tree"
@@ -9,6 +10,7 @@ import {
   isCodeModel,
   PREVIEW_MAX_BYTES,
   previewBadge,
+  previewMaxLines,
   previewModel,
   type PreviewModel,
 } from "../util/file-preview-head"
@@ -33,14 +35,21 @@ import {
  * 降级规则全在 util/file-preview-head 的 previewModel 里(可单测):读不到 / 过大 /
  * 二进制 / 空文件各自一句明确文案,绝不留白。空态(没选中文件)整张卡不出现 ——
  * 原型里这张卡就是在选中文件时才出现的。
+ *
+ * **正文行数由终端高度封顶**(previewMaxLines):这张卡与「资源管理器」卡同列,固定开销
+ * 6 行 + 预览 16 行在 24 行终端上就把文件树挤没了,所以行数是减法算出来的而不是写死的。
  */
 export function QuickPreviewCard() {
   const { theme, syntax } = useTheme()
+  const dimensions = useTerminalDimensions()
   // undefined = 「还没选中」或「正在读」;两者都不画正文,免得把上一个文件的正文留在那儿
   // 看起来像当前文件的。
   const [model, setModel] = createSignal<PreviewModel | undefined>()
 
   const filePath = selectedPath
+  // 终端高度只在 resize 时变,但它是个 memo 就跟着一起变 —— 拉高窗口后多看几行,
+  // 缩回去时立刻把行数还给文件树。
+  const maxLines = createMemo(() => previewMaxLines(dimensions().height))
 
   createEffect(
     on(
@@ -48,13 +57,29 @@ export function QuickPreviewCard() {
       async (current) => {
         setModel(undefined)
         if (!current) return
-        const loaded = await readPreview(current)
+        const loaded = await readPreview(current, maxLines())
         // 快速连点时后一次的结果才是要的:只在路径仍是当前选中项时才落地。
         if (filePath() !== current) return
         setModel(loaded)
       },
       // 不 defer:挂载时也要读一次当前选中项。切路由回侧栏(组件重挂载)时那个选中项还在,
       // defer 会让这张卡空白,用户得再点一次文件才看得到。
+    ),
+  )
+
+  // 高度变了要重算一次正文 —— 同一个文件在不同高度下该给不同的行数。
+  createEffect(
+    on(
+      maxLines,
+      (rows) => {
+        const current = filePath()
+        if (!current) return
+        void readPreview(current, rows).then((loaded) => {
+          if (filePath() !== current || maxLines() !== rows) return
+          setModel(loaded)
+        })
+      },
+      { defer: true },
     ),
   )
 
@@ -111,12 +136,14 @@ export function QuickPreviewCard() {
 /**
  * 读一个文件的前若干行。**先 stat 再读**:体积超上限时直接给降级文案,正文一个字节都不读。
  * 两次 IO 都失败都归到「无法读取该文件」—— 侧栏预览不值得为「不存在」与「没权限」写两句话。
+ *
+ * `maxLines` 是调用方按终端高度算出来的(见 util/file-preview-head 的 previewMaxLines)。
  */
-async function readPreview(filePath: string): Promise<PreviewModel> {
+async function readPreview(filePath: string, maxLines: number): Promise<PreviewModel> {
   const bytes = await stat(filePath)
     .then((value) => value.size)
     .catch(() => undefined)
   if (bytes !== undefined && bytes > PREVIEW_MAX_BYTES) return previewModel({ path: filePath, bytes })
   const text = await readFile(filePath, "utf8").catch(() => undefined)
-  return previewModel({ path: filePath, text, bytes })
+  return previewModel({ path: filePath, text, bytes, maxLines })
 }
