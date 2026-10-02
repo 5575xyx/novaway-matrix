@@ -31,8 +31,8 @@ import {
   FIXTURE_MODEL,
   FIXTURE_MESSAGES,
   FIXTURE_PARTS,
-  flowInvariants,
   manyRoundsFixture,
+  occupiedRects,
   parallelFixture,
   pointInRect,
   rectsOverlap,
@@ -54,6 +54,30 @@ function rectOf(id: string): FlowRect {
   if (!found) throw new Error(`布局里没有节点 ${id}`)
   return found.rect
 }
+
+// ---------- 用例自身的卫生 ----------
+
+/**
+ * 本文件没有重复声明的用例。
+ *
+ * 为什么值得单独一条:重复声明**不会报错**。bun 照样把两遍都跑一遍,只是总数悄悄变大 ——
+ * fd733a8 就这样让 23 条用例被算成 25 条、整个 flow 套件被算成 50。凡是「总数」这种数字,
+ * 只有被人盯着看才发现得了偏差,而盯着看的前提是数字本身可查。
+ *
+ * 做法是读自己的源码数一遍字面 `test("…")` 声明:声明数必须等于去重后的名字数。
+ * 这条测试自己也算一条,所以下面那个 `toBeGreaterThan(0)` 不是废话 —— 万一将来改成
+ * `test.each` 之类不再字面声明的写法,扫不到名字,这条会从「守住了」变成「空跑」,
+ * 而空跑的守卫比没有守卫更坏(它让人以为这件事有人管)。
+ */
+test("流程图布局:本文件没有重复声明的用例", async () => {
+  const source = await Bun.file(import.meta.path).text()
+  const names = [...source.matchAll(/\btest\(\s*"([^"]+)"/g)].map((match) => match[1]!)
+  expect(names.length, "一条用例都没扫到,这条守卫就是空跑").toBeGreaterThan(0)
+  expect(
+    names.filter((name, index) => names.indexOf(name) !== index),
+    "这些用例名被声明了不止一次",
+  ).toEqual([])
+})
 
 // ---------- 几何不变量 ----------
 // 六条不变量(无格压卡 / 步长为 1 / 无重复格 / 端点贴边界 / 标签位不压卡 / 矩形不重叠)
@@ -108,33 +132,6 @@ test("流程图布局:六条几何不变量在所有宽度 × 并行规模 × �
   expect(checks).toBeGreaterThan(2000)
   expect(problems.slice(0, 12)).toEqual([])
   expect(problems.length).toBe(0)
-})
-
-test("流程图布局:所有节点都在画布宽度内,画布高度够装下最后一轮", () => {
-  expect(LAYOUT.nodes.length).toBeGreaterThan(0)
-  for (const node of LAYOUT.nodes) {
-    expect(node.rect.x, `${node.id} 的左边界`).toBeGreaterThanOrEqual(0)
-    expect(node.rect.x + node.rect.width, `${node.id} 的右边界`).toBeLessThanOrEqual(LAYOUT.width)
-  }
-  const lowest = Math.max(...LAYOUT.nodes.map((node) => node.rect.y + node.rect.height))
-  expect(LAYOUT.height).toBeGreaterThanOrEqual(lowest)
-})
-
-// ---------- 几何不变量 ----------
-
-test("流程图布局:任意两个节点矩形都不重叠(含展开详情的节点)", () => {
-  const expanded = layoutNodes(MODEL.nodes, 76, { expandedId: "n:pr_3", detailRows: 5 })
-  for (const list of [LAYOUT, expanded]) {
-    for (const [index, a] of list.nodes.entries()) {
-      for (const b of list.nodes.slice(index + 1)) {
-        expect(rectsOverlap(a.rect, b.rect), `${a.id} 与 ${b.id}`).toBe(false)
-        if (a.detailRect && b.detailRect)
-          expect(rectsOverlap(a.detailRect, b.detailRect), `${a.id} 与 ${b.id} 的详情框`).toBe(false)
-        if (a.detailRect) expect(rectsOverlap(a.detailRect, b.rect), `${a.id} 的详情框压到 ${b.id}`).toBe(false)
-        if (b.detailRect) expect(rectsOverlap(a.rect, b.detailRect), `${b.id} 的详情框压到 ${a.id}`).toBe(false)
-      }
-    }
-  }
 })
 
 test("流程图布局:所有节点都在画布宽度内,画布高度够装下最后一轮", () => {
@@ -325,18 +322,9 @@ function routeFor(id: string) {
   return edgeRoute(rectOf(MODEL.edges[index]!.from), rectOf(MODEL.edges[index]!.to), index)
 }
 
-const OCCUPIED: FlowRect[] = LAYOUT.nodes.flatMap((node) =>
-  node.detailRect ? [node.rect, node.detailRect] : [node.rect],
-)
-
-function touches(cell: { x: number; y: number }, rect: FlowRect) {
-  if (pointInRect(cell, rect)) return false
-  const left = rect.x - 1
-  const right = rect.x + rect.width
-  const top = rect.y - 1
-  const bottom = rect.y + rect.height
-  return cell.x >= left && cell.x <= right && cell.y >= top && cell.y <= bottom
-}
+// 被占住的矩形与「端点贴着边界」的判据都取 fixture —— 它们本来就是 flowInvariants 内部用的那两份,
+// 在这里再抄一遍的话,改了 fixture 那份而忘了这份,两套判据就会悄悄给出不同结论。
+const OCCUPIED = occupiedRects(LAYOUT)
 
 test("流程图连线:每条边都从源节点边界出发、落在目标节点边界上,而不是插进卡片里", () => {
   for (const edge of MODEL.edges) {
@@ -345,8 +333,8 @@ test("流程图连线:每条边都从源节点边界出发、落在目标节点�
     const to = rectOf(edge.to)
     const head = route.cells[0]!
     const tail = route.cells[route.cells.length - 1]!
-    expect(touches(head, from), `${edge.id} 的起点不贴着源节点`).toBe(true)
-    expect(touches(tail, to), `${edge.id} 的终点不贴着目标节点`).toBe(true)
+    expect(touchesRect(head, from), `${edge.id} 的起点不贴着源节点`).toBe(true)
+    expect(touchesRect(tail, to), `${edge.id} 的终点不贴着目标节点`).toBe(true)
     // 端点绝不能落在任何一张卡的矩形内(连线压到卡片是最刺眼的错)。
     for (const cell of route.cells) {
       expect(

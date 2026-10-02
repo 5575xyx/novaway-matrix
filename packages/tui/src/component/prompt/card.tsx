@@ -8,13 +8,13 @@ import { semanticStops } from "../../ui/neon"
 import { Locale } from "../../util/locale"
 import "../../ui/card"
 
-// 输入区霓虹输入卡的壳。与 routes/session 的 AssistantCard 同一条规矩:
+// 输入区霓虹输入卡的壳。与助手气泡卡 / 流程图节点卡共用的那张壳(NeonCard)同一条规矩:
 // 这里只依赖 useTheme() 与 useKV(),不碰 session/local context,测试能直接挂载真壳量几何 ——
 // 手抄一份 neonbox 到测试里的话,改这里的 padding 不会让任何测试变红。
 // padding 四边各 1 格:NeonBox 的边框画在最外行/列上,内容从第 1 行/列开始,
 // 所以内容压不到边框字符,卡内可用宽度 = 卡宽 − 2。
 // 注意 padding=1 的那一格**就是**边框所在的那一格(上下同理)—— 卡片上下没有额外留白,
-// 与助手气泡卡(AssistantCard)一致。想加留白要把 padding 提到 2,别只改一半。
+// 与 NeonCard 一致。想加留白要把 padding 提到 2,别只改一半。
 //
 // animated 是响应式算出来的,三个条件缺一不可:
 //   focused  —— 流动与扫光是「正在输入」的信号,失焦就该安静下来;
