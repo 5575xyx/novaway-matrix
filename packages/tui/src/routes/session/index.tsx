@@ -66,7 +66,12 @@ import type {
 import { useLocal } from "../../context/local"
 import { Locale } from "../../util/locale"
 import { icon } from "../../util/panel-icons"
-import { webSearchProviderLabel } from "../../util/tool-display"
+import {
+  webSearchProviderLabel,
+  toolHeadLayout,
+  toolStatusSummary,
+  type ToolStatusSummary,
+} from "../../util/tool-display"
 import { useRenderer, useTerminalDimensions, type JSX } from "@opentui/solid"
 import { useSDK } from "../../context/sdk"
 import { useEditorContext } from "../../context/editor"
@@ -2614,6 +2619,18 @@ type ToolProps = {
   output?: string
   part: ToolPart
 }
+
+// 工具卡 head 行可用列数相对 ctx.width 要扣掉的 9 列,拆开是:助手气泡卡 padding 3
+// (component/neon-card 的 paddingLeft 2 + paddingRight 1)+ BlockTool 自己的 padding 3
+// (同款算法)+ head 行自己的 paddingLeft 3。
+//
+// **为什么这里不给余量**:下面 maxChars 那个 `ctx.width - 9` 里有 2~3 列是保守余量
+// (理由见那段注释),因为工具输出是多行文本,少算一列的代价是多折一行。
+// head 行不同 —— 它是钉死的一行,而右边就是 neonbox 自绘的边框:少算列会让状态摘要
+// 被边框切掉一截,而 `<text>` 默认 wrapMode="none",切掉的部分既不折行也不留省略号,
+// 看上去就是「摘要少了一截」。所以按精确值算,宁可早一点省略标题。
+const TOOL_HEAD_COLUMNS = 9
+
 // 工具输出的折叠宽度,相对 ctx.width 扣 9。能算准的两项:助手卡 padding 3
 // (paddingLeft 2 + paddingRight 1)+ BlockTool 自己的 padding 3,合计 6。
 // 余下 3 列是保守余量,不是从宿主内边距推出来的 —— 宿主那 4 列
@@ -2651,6 +2668,9 @@ function GenericTool(props: ToolProps) {
       <BlockTool
         title={`# ${name()} ${input(props.input)}`}
         part={props.part}
+        // MCP 工具同样可能是某个测试运行器(`mcp__ci__run_suite`),所以这一层也摘状态摘要。
+        status={toolStatusSummary(output())}
+        headWidth={Math.max(0, ctx.width - TOOL_HEAD_COLUMNS)}
         onClick={collapsed().overflow ? () => setExpanded((prev) => !prev) : undefined}
       >
         <box gap={1}>
@@ -2880,11 +2900,24 @@ export function BlockTool(props: {
   onClick?: () => void
   part?: ToolPart
   spinner?: boolean
+  /**
+   * head 行右端的状态摘要(解析规则见 util/tool-display 的 toolStatusSummary)。
+   * 解析在数据侧做好再传进来:这张卡只管排版,不该知道工具输出长什么样。
+   */
+  status?: ToolStatusSummary
+  /**
+   * head 行的可用显示列数,用来给标题让出摘要的位置。省略 = 不按宽度截断 ——
+   * 单测直挂 BlockTool 时没有会话宽度可依(那一层的口径见 TOOL_HEAD_COLUMNS)。
+   */
+  headWidth?: number
 }) {
   const { theme } = useTheme()
   const renderer = useRenderer()
   const hover = useCardHover()
   const error = createMemo(() => (props.part?.state.status === "error" ? props.part.state.error : undefined))
+  const head = createMemo(() =>
+    toolHeadLayout({ title: props.title, summary: props.status, width: props.headWidth ?? Number.MAX_SAFE_INTEGER }),
+  )
   return (
     // paddingRight=1:NeonBox 不占边框格、边框画在最外列上,右留 1 格才能让文本宽度与旧 border=["left"] 版一致
     // 悬停:渐变流动 + 描边提亮。**不加 enterDelay(阶梯入场)** —— 工具卡是流式输出期间
@@ -2910,19 +2943,27 @@ export function BlockTool(props: {
         props.onClick?.()
       }}
     >
-      <Show when={props.title}>
-        {(title) => (
-          <Show
-            when={props.spinner}
-            fallback={
-              <text paddingLeft={3} fg={theme.textMuted}>
-                {title()}
-              </text>
-            }
-          >
-            <Spinner color={theme.textMuted}>{title().replace(/^# /, "")}</Spinner>
+      {/* head 行 = 原型 card-design-v7.html:928-933 的 `.tool-head`(标题 + 状态摘要)。
+          原型那一行还带 caret 与 ⚙ 两个图标,本仓库这一层没有:命令原文在下一行的
+          `$ …` 里,再抄一个齿轮只是多一列重复信息。
+          两样都没有时**整行不画** —— 这层盒子是 neonbox 的第一个子节点,空盒子仍占一行,
+          会把工具卡的正文顶下一行。 */}
+      <Show when={props.title ?? props.status}>
+        <box flexDirection="row" gap={1} paddingLeft={3} flexShrink={0}>
+          <Show when={head().title}>
+            {(title) => (
+              <Show when={props.spinner} fallback={<text fg={theme.textMuted}>{title()}</text>}>
+                <Spinner color={theme.textMuted}>{title().replace(/^# /, "")}</Spinner>
+              </Show>
+            )}
           </Show>
-        )}
+          <Show when={head().passed}>
+            <text fg={theme.success}>
+              {head().passed}
+              <Show when={head().failed}>{(failed) => <span style={{ fg: theme.error }}>{failed()}</span>}</Show>
+            </text>
+          </Show>
+        </box>
       </Show>
       {props.children}
       <Show when={error()}>
@@ -2967,6 +3008,10 @@ function Shell(props: ToolProps) {
         <BlockTool
           title={title()}
           part={props.part}
+          // 这正是原型那张卡的场景:`bun test --timeout 30000 … ✓ 12 passed · 0 failed`。
+          // output() 已经 stripAnsi 过(解析要的是纯文本,色码会插在数字与单词之间)。
+          status={toolStatusSummary(output())}
+          headWidth={Math.max(0, ctx.width - TOOL_HEAD_COLUMNS)}
           onClick={collapsed().overflow ? () => setExpanded((prev) => !prev) : undefined}
         >
           <box gap={1}>
