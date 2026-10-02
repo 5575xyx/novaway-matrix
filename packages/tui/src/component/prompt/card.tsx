@@ -14,15 +14,20 @@ import "../../ui/card"
 // 所以内容压不到边框字符,卡内可用宽度 = 卡宽 − 2。
 // 注意 padding=1 的那一格**就是**边框所在的那一格(上下同理)—— 卡片上下没有额外留白,
 // 与助手气泡卡(AssistantCard)一致。想加留白要把 padding 提到 2,别只改一半。
-// animated 只在聚焦时开:聚焦流动与扫光是「正在输入」的信号,失焦就该安静下来。
-export function PromptCard(props: { focused: boolean; children: JSX.Element }) {
+//
+// animated 是响应式算出来的,三个条件缺一不可:
+//   focused  —— 流动与扫光是「正在输入」的信号,失焦就该安静下来;
+//   visible —— 隐藏时宿主盒子还挂在那儿(visible={false} 只是不画),不掐掉定时器的话
+//              会 12.5 次/秒地空 requestRender 一棵没人看的树;
+//   animations_enabled —— 用户显式关掉动画。此时不是「空转但跳过相位」,而是
+//              animated 直接变 false、setter 把表停掉;KV 再打开时 setter 又把表起回来。
+export function PromptCard(props: { focused: boolean; visible?: boolean; children: JSX.Element }) {
   const { theme } = useTheme()
   const kv = useKV()
   return (
     <neonbox
       gradientStops={semanticStops(theme, "input")}
-      animated={props.focused}
-      animationsEnabled={() => kv.get("animations_enabled", true)}
+      animated={props.focused && props.visible !== false && kv.get("animations_enabled", true)}
       paddingTop={1}
       paddingBottom={1}
       paddingLeft={1}
@@ -36,15 +41,19 @@ export function PromptCard(props: { focused: boolean; children: JSX.Element }) {
 }
 
 // 模型芯片里模型名的长度上限。
-// 推导(全部按 1 列 = 1 个终端格算,CJK 按 2 列):
+// 推导(1 列 = 1 个终端格):
 //   卡内可用宽 = 终端宽 − 卡 padding(1+1)
-//   定长开销 = ">" 盒 2 + 行内 gap 1 + 行内 gap 1 + 芯片 padding(1+1) + "◆ " 2
-//            + 芯片与按钮的 gap 1 + 按钮 "发送"(2 汉字 = 4 列)+ padding(1+1) = 15
-//   剩下给「模型名 + 输入框」;输入框至少留 12 列,所以
-//   模型名上限 = 终端宽 − 2 − 15 − 12 = 终端宽 − 29。
-// 60 列终端:min(28, 31) = 28 → 输入框还剩 58 − 15 − 28 = 15 列。
-// 40 列终端:max(8, 11) = 11 → 输入框剩 38 − 15 − 11 = 12 列(不吃掉 12 的下限)。
-const MODEL_CHIP_MARGIN = 29
+//   定长开销 = ">" 盒 2 + 行内 gap 1 + 行内 gap 1 + 芯片(padding 1+1 + "◆ " 2)= 4
+//            + 芯片与按钮的 gap 1 + 按钮(padding 1+1 + "发送 Enter" 10)= 12
+//            = 21
+//   剩下分给「模型名 + 输入框」;输入框留 12 列,所以
+//   模型名上限 = 终端宽 − 2 − 21 − 12 = 终端宽 − 35。
+// 60 列:min(28, 25) = 25 → 输入框 58 − 21 − 25 = 12 列(正好是留的下限)。
+// 40 列:算出来是 5,先被 MODEL_CHIP_MIN 抬到 8;但真正卡住的是芯片自己的 minWidth=10,
+//      输入框只剩 38 − 21 − 10 = 7 列(够显示光标和几个字,不够放长占位符 —— 那是预期行为)。
+// 截断按**字符数**算(Locale.oneLine 内部是 str.length),这里成立的前提是模型 id 是
+// ASCII slug(gpt-5-codex / claude-sonnet-4 之类),字符数 == 列数;模型名里出现 CJK 就偏窄。
+const MODEL_CHIP_MARGIN = 35
 const MODEL_CHIP_MAX = 28
 const MODEL_CHIP_MIN = 8
 
@@ -54,7 +63,14 @@ const MODEL_CHIP_MIN = 8
 // 时不高亮、点了也不发)。
 // 按钮底色/hover 照 routes/session/queue-dock 的行内按钮(hover 换 backgroundElement,
 // 左右各留 1 格),onMouseUp 里先 stopPropagation —— 不拦住的话点击会冒到输入框上。
-export function PromptSend(props: { model: string; canSend: boolean; onSend(): void }) {
+//
+// 按钮文案 `发送 Enter`:原型写的是 `发送 ⏎`。换掉的理由不是宽度 ——
+// U+23CE 的 East Asian Width 是 N(Neutral),CJK 终端同样按 1 列渲染,
+// 真正的理由是**一致性**:提示行里的键位(shift+return / ctrl+p / tab)全是 ASCII,
+// 按钮上留一个 ⏎ 会是画面里唯一的符号键名。
+// `Enter` 是字面键名而不是查出来的:提交键在 keybind.ts 里是 input_submit 默认 "none"
+// (回车由 textarea 原生 onSubmit 处理,没有可配置的绑定),所以这里没有键位可查。
+export function PromptSend(props: { model: string; canSend: boolean; dimmed?: boolean; onSend(): void }) {
   const { theme } = useTheme()
   const dimensions = useTerminalDimensions()
   const [hover, setHover] = createSignal(false)
@@ -76,7 +92,9 @@ export function PromptSend(props: { model: string; canSend: boolean; onSend(): v
           minWidth={10}
           overflow="hidden"
         >
-          <text fg={theme.textMuted} wrapMode="none">
+          {/* dimmed 复刻旧 meta 行:leader 键序在等下一个键时,模型名压暗一档
+              (旧实现是 fadeColor(leader() ? theme.textMuted : theme.text, modelMetaAlpha()))。 */}
+          <text fg={props.dimmed ? theme.textMuted : theme.text} wrapMode="none">
             {"◆ "}
             {model()}
           </text>
@@ -94,19 +112,20 @@ export function PromptSend(props: { model: string; canSend: boolean; onSend(): v
         paddingLeft={1}
         paddingRight={1}
       >
-        <text fg={props.canSend ? theme.text : theme.textMuted}>发送</text>
+        <text fg={props.canSend ? theme.text : theme.textMuted}>发送 Enter</text>
       </box>
     </box>
   )
 }
 
 // 终端窄到放不下完整键位提示组时,整条丢掉「换行」而不是让它被裁成半个词。
-// 推导(1 列 = 1 终端格,CJK 按 2 列):提示组的定长部分是
+// 推导(1 列 = 1 个终端格,CJK 按 2 列):提示组的定长部分是
 // 「<键> agents」7 + 「<键> commands」9 + 「<键> 换行」5 + 组内两个 gap 4 = 25 列,
 // 键名按常见的 tab(3)/ ctrl+p(6)/ shift+return(11) 算 20 列 → 45 列,
 // 再加卡片左右 padding 各 1 → 需要 47 列,取整到 48。
 // 40~47 列这一档只剩前两条:25 − 5(整条换行) − 2(少一个 gap) = 18 列,
 // 加 tab(3) + ctrl+p(6) = 27 列,再加 padding 2 = 29 列 ≤ 40,放得下。
+// 提交键不在这一行 —— 它跟着「发送 Enter」按钮走(见 PromptSend 里的理由)。
 const HINT_ROW_MIN_WIDTH = 48
 
 // 卡内第二行(提示行)。左段是插件槽 + agent/权限/提供商/变体 meta —— 可截断,

@@ -73,9 +73,11 @@ export type PromptProps = {
   hint?: JSX.Element
   right?: JSX.Element
   showPlaceholder?: boolean
+  // readonly:调用方常写成 `as const` 的模块级常量(见 routes/session 的 SESSION_PLACEHOLDERS),
+  // 这里只读不写,不该逼调用方去掉 as const。
   placeholders?: {
-    normal?: string[]
-    shell?: string[]
+    normal?: readonly string[]
+    shell?: readonly string[]
   }
   /** 返回 true 时，正常提示模式下的提交会被暂存到队列而非直接发送 */
   shouldQueue?: () => boolean
@@ -248,9 +250,15 @@ export function Prompt(props: PromptProps) {
   const move = usePromptMove({ projectID: project.project, sessionID: () => props.sessionID })
   const [cursorVersion, setCursorVersion] = createSignal(0)
   const currentProviderLabel = createMemo(() => local.model.parsed().provider)
+  // 提交在飞的重入锁。做成 signal 而不是普通变量,是为了让 canSend() 能读它 ——
+  // 见下面 canSend 的说明。
+  const [submitting, setSubmitting] = createSignal(false)
+
   // 发送按钮能不能点:与 submitInner 的前置守卫(见下面 disabled / creating / 弹层可见 /
-  // 空输入 / 无 agent 那五条)同一组条件,只是提前把结果画在按钮上 —— 真判定仍在
-  // submit() 里,这里不给它开旁路。
+  // 空输入 / 无 agent 那五条)以及 submit() 的重入锁同一组条件,只是提前把结果画在按钮上 ——
+  // 真判定仍在 submit() 里,这里不给它开旁路。
+  // submitting 必须算进来:提交在飞的那一两帧里 store.prompt.input 还没清空,
+  // 不看这个信号的话按钮会一直亮着,点下去被重入锁静默吞掉。
   const canSend = createMemo(
     () =>
       !props.disabled &&
@@ -258,7 +266,8 @@ export function Prompt(props: PromptProps) {
       !move.creating() &&
       !auto()?.visible &&
       Boolean(store.prompt.input) &&
-      Boolean(local.agent.current()),
+      Boolean(local.agent.current()) &&
+      !submitting(),
   )
 
   function promptModelWarning() {
@@ -982,7 +991,6 @@ export function Prompt(props: PromptProps) {
     }
   })
 
-  let submitting = false
   async function submit() {
     // Prevent overlapping invocations (e.g. a double-pressed Enter, or the
     // input's native onSubmit racing another dispatch). Without this guard,
@@ -990,12 +998,12 @@ export function Prompt(props: PromptProps) {
     // clears `store.prompt.input`, then awaits its own `session.create` and
     // ultimately reads the now-empty store 鈥?sending a phantom empty prompt
     // to a freshly created session.
-    if (submitting) return false
-    submitting = true
+    if (submitting()) return false
+    setSubmitting(true)
     try {
       return await submitInner()
     } finally {
-      submitting = false
+      setSubmitting(false)
     }
   }
 
@@ -1419,7 +1427,6 @@ export function Prompt(props: PromptProps) {
     }
   })
   const maxHeight = createMemo(() => tuiConfig.prompt?.max_height ?? Math.max(6, Math.floor(dimensions().height / 3)))
-  const moveLabelWidth = createMemo(() => Math.max(12, Math.min(44, dimensions().width - 48)))
 
   return (
     <>
@@ -1431,11 +1438,30 @@ export function Prompt(props: PromptProps) {
       >
         {/* 输入区霓虹输入卡:两行(输入行 / 提示行),聚焦时描边流动 + 扫光。
             卡壳与提示行在 ./card 里 —— 只依赖 useTheme/useKV/键位表,测试能直接挂载真壳。
-            anchor 仍是这个最外层盒子:autocomplete 弹层按它的 x/y/width 定位到卡片上方。 */}
-        <PromptCard focused={promptFocused()}>
+            anchor 仍是这个最外层盒子:autocomplete 弹层按 anchor.x/y/width 定位到卡片上方
+            (component/prompt/autocomplete.tsx 的 top = position().y − height())。
+
+            visible 也传进卡片参与 animated:visible={false} 时这个盒子仍挂在树上,
+            不掐掉定时器就会 12.5 次/秒地空 requestRender 一棵没人看的子树。
+
+            autocomplete 弹层与卡片上边框的间距(改卡片化时实测的结论):
+            弹层是 position="absolute" + top = anchor.y − 高度 + zIndex=100,anchor 就是
+            这个最外层盒子,所以弹层下沿正好压在**卡片上边框那一行**上,永远不与卡片内容重叠。
+            代价是原来 crush 式布局里 NeonRail 上方那 1 行视觉间隔没有了 ——
+            弹层会贴上霓虹边框。要留间隔只能给 anchor 加 marginTop(整块输入区下移一行),
+            代价是消息区少一行,没这么做。
+
+            与 plan 的两处偏离(有意):
+            1) 卡片里只把**模型名**做成输入行右端的芯片,agent / auto / provider / variant
+               留在提示行左段 —— 提示行左段本来就是可截断的一段,模型名是不截断的芯片,
+               分开放比「五样挤在一行」清楚;
+            2) 按钮文案用 `发送 Enter` 而不是原型的 `发送 ⏎`,理由见 card.tsx 的 PromptSend。 */}
+        <PromptCard focused={promptFocused()} visible={props.visible !== false}>
           <box width="100%" flexDirection="row" gap={1} flexShrink={0}>
             <box flexShrink={0} width={2} height={1}>
-              {/* ASCII ">" 而不是 ❯:U+276F 属于 East-Asian Ambiguous 宽度,CJK 终端会渲染成宽字符/乱码 */}
+              {/* ASCII ">" 而不是 ❯:U+276F 的 East Asian Width 是 N(Neutral,不是 Ambiguous),
+              所以这不是宽度问题 —— 是 Dingbats 装饰区字符,字形各家终端差异大,
+              而 ASCII ">" 在哪儿都长一个样。 */}
               <text fg={props.disabled ? theme.textMuted : borderHighlight()}>{">"}</text>
             </box>
             <box flexGrow={1} flexShrink={1} minWidth={4}>
@@ -1519,6 +1545,7 @@ export function Prompt(props: PromptProps) {
             <PromptSend
               model={store.mode === "normal" ? local.model.parsed().model : ""}
               canSend={canSend()}
+              dimmed={leader()}
               onSend={() => void submit()}
             />
           </box>

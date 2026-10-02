@@ -70,12 +70,8 @@ function expectedShortcut(command: string) {
   return formatKeySequence(bindings?.[0]?.sequence, value.config)
 }
 
-async function renderCard(
-  body: () => JSX.Element,
-  options: { width: number; height: number },
-  ready: (frame: string) => boolean,
-) {
-  const app = await testRender(
+async function renderCard(body: () => JSX.Element, options: { width: number; height: number }) {
+  return testRender(
     () => (
       <TestTuiContexts>
         <TuiConfigProvider config={createTuiResolvedConfig({ keybinds: OVERRIDES })}>
@@ -91,7 +87,6 @@ async function renderCard(
     ),
     options,
   )
-  return app
 }
 
 function lines(app: { captureCharFrame(): string }) {
@@ -112,7 +107,7 @@ async function renderReady(
   options: { width: number; height: number },
   ready: (text: string) => boolean,
 ) {
-  const app = await renderCard(body, options, ready)
+  const app = await renderCard(body, options)
   let text = ""
   for (let attempt = 0; attempt < 200; attempt++) {
     await app.renderOnce()
@@ -145,35 +140,48 @@ function topBorder(value: CapturedFrame) {
 
 const WIDTH = 60
 
-function card(focused: boolean, model = "big-pickle", canSend = true) {
+// 输入卡的生产结构:「>」盒(w2)+ gap + textarea 容器(flexGrow/flexShrink/minWidth)+ gap
+// + PromptSend,第二行是 PromptHints。用**真 textarea** 而不是 <text>ASK</text> ——
+// 只有真 textarea 才会按 maxHeight 长高,「卡片有没有跟着长、提示行有没有被顶掉」才有兜底。
+function card(props: { focused: boolean; model?: string; canSend?: boolean; lines?: number; maxHeight?: number }) {
   return () => (
-    <PromptCard focused={focused}>
-      <box width="100%">
-        <text>ASK</text>
+    <PromptCard focused={props.focused}>
+      <box width="100%" flexDirection="row" gap={1} flexShrink={0}>
+        <box flexShrink={0} width={2} height={1}>
+          <text>&gt;</text>
+        </box>
+        <box flexGrow={1} flexShrink={1} minWidth={4}>
+          <textarea
+            width="100%"
+            minHeight={1}
+            maxHeight={props.maxHeight ?? 6}
+            initialValue={Array.from({ length: props.lines ?? 1 }, (_, index) => `L${index}`).join("\n")}
+          />
+        </box>
+        <PromptSend model={props.model ?? "big-pickle"} canSend={props.canSend ?? true} onSend={() => {}} />
       </box>
       <PromptHints />
-      <PromptSend model={model} canSend={canSend} onSend={() => {}} />
     </PromptCard>
   )
 }
 
 test("输入卡:霓虹描边画出圆角边框,内容在边框内侧", async () => {
-  const app = await renderReady(card(false), { width: WIDTH, height: 10 }, (text) => text.includes("ASK"))
+  const app = await renderReady(card({ focused: false }), { width: WIDTH, height: 10 }, (text) => text.includes("L0"))
   try {
     const text = lines(app)
     expect(text[0]).toContain("╭")
     expect(text.some((line) => line.includes("╯"))).toBe(true)
-    expect(text.some((line) => line.includes("ASK"))).toBe(true)
+    expect(text.some((line) => line.includes("L0"))).toBe(true)
   } finally {
     app.renderer.destroy()
   }
 })
 
 test("输入卡:发送按钮与模型芯片在卡片内", async () => {
-  const app = await renderReady(card(false), { width: WIDTH, height: 10 }, (text) => text.includes("发送"))
+  const app = await renderReady(card({ focused: false }), { width: WIDTH, height: 10 }, (text) => text.includes("发送"))
   try {
     const text = frame(app)
-    expect(text).toContain("发送")
+    expect(text).toContain("发送 Enter")
     expect(text).toContain("◆ big-pickle")
   } finally {
     app.renderer.destroy()
@@ -181,7 +189,7 @@ test("输入卡:发送按钮与模型芯片在卡片内", async () => {
 })
 
 test("输入卡:focused 时描边流动 —— 两次渲染之间边框颜色变化", async () => {
-  const app = await renderReady(card(true), { width: WIDTH, height: 10 }, (text) => text.includes("ASK"))
+  const app = await renderReady(card({ focused: true }), { width: WIDTH, height: 10 }, (text) => text.includes("L0"))
   try {
     const before = topBorder(app.captureSpans())
     await new Promise((resolve) => setTimeout(resolve, 200))
@@ -195,7 +203,7 @@ test("输入卡:focused 时描边流动 —— 两次渲染之间边框颜色变
 })
 
 test("输入卡:失焦时描边静止 —— 两次渲染之间边框颜色不变", async () => {
-  const app = await renderReady(card(false), { width: WIDTH, height: 10 }, (text) => text.includes("ASK"))
+  const app = await renderReady(card({ focused: false }), { width: WIDTH, height: 10 }, (text) => text.includes("L0"))
   try {
     const before = topBorder(app.captureSpans())
     await new Promise((resolve) => setTimeout(resolve, 200))
@@ -255,15 +263,78 @@ test("输入卡:shell 模式的提示行把 agents/commands 换成 esc exit shel
 })
 
 test("输入卡:模型芯片按终端宽截断,不给它挤掉输入框的宽度", async () => {
-  const app = await renderReady(card(false, "m".repeat(200)), { width: WIDTH, height: 10 }, (text) =>
-    text.includes("发送"),
+  const app = await renderReady(
+    card({ focused: false, model: "m".repeat(200) }),
+    { width: WIDTH, height: 10 },
+    (text) => text.includes("发送"),
   )
   try {
     const text = frame(app)
-    // 上限 = 60 − 29 = 31,再被 MODEL_CHIP_MAX(28) 截一道。Locale.truncate 拿最后一格
-    // 放省略号,所以 200 个 m 变成 27 个 m + 一个「…」。
-    expect(text).toContain("m".repeat(27))
-    expect(text).not.toContain("m".repeat(28))
+    // 上限 = 60 − 35 = 25。Locale.truncate 拿最后一格放省略号,25 → 24 个 m + 一个「…」。
+    expect(text).toContain("m".repeat(24))
+    expect(text).not.toContain("m".repeat(25))
+    // 芯片吃掉的宽度是有上限的:输入框那一行仍然是「提示符 + 输入框 + 芯片 + 发送」四段,
+    // 没被顶到折行(折行会把「发送」甩到第二行)。
+    const input = lines(app).find((line) => line.includes("L0"))!
+    expect(input).toContain("发送 Enter")
+    expect(input).toContain(">")
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+// 多行输入:textarea 长到 maxHeight 时卡片要跟着长,提示行不能被挤没、
+// 也不能被顶到卡片外面去。这是「卡片壳 + 真 textarea」组合才测得到的东西 ——
+// 之前用 <text>ASK</text> 代替输入框时,这块几何完全没有兜底。
+test("输入卡:多行输入把卡片撑高,提示行仍紧贴下边框", async () => {
+  const app = await renderReady(
+    card({ focused: false, lines: 4, maxHeight: 4 }),
+    { width: WIDTH, height: 12 },
+    (text) => text.includes("agents"),
+  )
+  try {
+    const text = lines(app)
+    const top = text.findIndex((line) => line.includes("╭"))
+    const first = text.findIndex((line) => line.includes("L0"))
+    const last = text.findIndex((line) => line.includes("L3"))
+    const hints = text.findIndex((line) => line.includes("agents"))
+    const bottom = text.findIndex((line) => line.includes("╯"))
+    expect(top).toBeGreaterThanOrEqual(0)
+    // 上边框那一行就是 paddingTop,正文紧贴下一行
+    expect(first).toBe(top + 1)
+    // 4 行输入都在卡片内、连续
+    expect(last).toBe(first + 3)
+    // 提示行紧跟最后一行输入,没有被顶到别处
+    expect(hints).toBe(last + 1)
+    // 下边框紧跟提示行(paddingBottom 就是边框那一行)
+    expect(bottom).toBe(hints + 1)
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+// visible 参与 animated:宿主在 visible={false} 时只是不画,盒子仍挂在树上,
+// 不掐掉定时器就会 12.5 次/秒地空 requestRender 一棵没人看的子树。
+// 故意不从 KV 那一侧拨 animations_enabled 来测:kv.set 会写进共享的 state/kv.json
+// (context/kv.tsx 的 write 是异步链),一旦中途失败就把后续所有测试的动画关掉 ——
+// 实测踩过。animations_enabled 的折算是 PromptCard 里的一行响应式表达式,靠 visible
+// 这条同一条路径间接覆盖。
+test("输入卡:visible=false 时不启动描边动画(隐藏的卡片不该空转)", async () => {
+  const app = await renderReady(
+    () => (
+      <PromptCard focused={true} visible={false}>
+        <PromptHints />
+      </PromptCard>
+    ),
+    { width: WIDTH, height: 10 },
+    (text) => text.includes("agents"),
+  )
+  try {
+    const border = () => topBorder(app.captureSpans()).map((item) => item.cell)
+    const before = border()
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    await app.renderOnce()
+    expect(border()).toEqual(before)
   } finally {
     app.renderer.destroy()
   }
