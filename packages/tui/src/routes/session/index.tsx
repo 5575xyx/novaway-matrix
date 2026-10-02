@@ -1857,6 +1857,21 @@ export function Session() {
                     />
                   </Show>
                   <Show when={chatView() !== "flow"}>
+                    {/* **原型 card-design-v7.html:1221 的滚动落点已经由下面这两个 prop 天然满足**:
+                        `chat.scrollTop = v === "flow" ? 0 : chat.scrollHeight` ——
+                        切到流程图看顶部、切回气泡看底部(最新消息)。所以这里**刻意不加**任何
+                        「切视图时手动 scrollTo」的逻辑,加了就是第二套真相:
+                          · 气泡视图:opentui 在 scrollbox 的 viewport 尺寸落定那一次
+                            recalculateBarProps() 里会 applyStickyStart("bottom"),把位置压到
+                            scrollHeight − viewport.height。视图切换是这两个 `<Show>` 当场销毁旧
+                            建新,拿到的正是一个**全新**的 scrollbox 实例(_hasManualScroll = false),
+                            所以「切回来必然贴着最新一条」是 stickyScroll 的固有行为。
+                          · 流程图视图:画布那个 scrollbox(component/flow/canvas.tsx)**不带**
+                            stickyScroll,天生停在 scrollTop = 0。
+                        回归见 test/routes/session/chat-view-scroll.test.tsx —— 它同时覆盖
+                        「播入场」与「不播入场」两种情况:入场期间整棵子树被 opacity 压暗,
+                        前几帧画面是空的,但**布局高度不变**(ViewEntrance 动的是相对位移与
+                        opacity,不是尺寸),所以贴底的时机不需要等动画走完。 */}
                     <scrollbox
                       ref={(r) => (scroll = r)}
                       viewportOptions={{
