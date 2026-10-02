@@ -349,20 +349,26 @@ describe("NeonBox 流动描边", () => {
   test("destroy 之后定时器不再走(销毁泄漏会把测试进程吊住)", async () => {
     const harness = toggleHarness()
     const app = await testRender(harness.Harness, { width: 20, height: 6 })
-    await app.renderOnce()
-    harness.attachCounter()
-    // 来回切若干次:每次 true 都重新起表,每次 false 都停表。
-    for (const value of [true, false, true, false, true]) {
-      harness.toggle(value)
-      await new Promise((resolve) => setTimeout(resolve, 10))
+    // 整段包 try/finally:下面任何一条断言抛了,renderer 都不会被 destroy,
+    // 而这正是本条要守的那个 12.5Hz 定时器 —— 测试自己漏表就会把进程吊住。
+    try {
+      await app.renderOnce()
+      harness.attachCounter()
+      // 来回切若干次:每次 true 都重新起表,每次 false 都停表。
+      for (const value of [true, false, true, false, true]) {
+        harness.toggle(value)
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+      await new Promise((resolve) => setTimeout(resolve, PHASE_WAIT))
+      const beforeDestroy = harness.ticks()
+      expect(beforeDestroy).toBeGreaterThan(0)
+      app.renderer.destroy()
+      const afterDestroy = harness.ticks()
+      await new Promise((resolve) => setTimeout(resolve, PHASE_INTERVAL_MS * 5))
+      expect(harness.ticks()).toBe(afterDestroy)
+    } finally {
+      app.renderer.destroy()
     }
-    await new Promise((resolve) => setTimeout(resolve, PHASE_WAIT))
-    const beforeDestroy = harness.ticks()
-    expect(beforeDestroy).toBeGreaterThan(0)
-    app.renderer.destroy()
-    const afterDestroy = harness.ticks()
-    await new Promise((resolve) => setTimeout(resolve, PHASE_INTERVAL_MS * 5))
-    expect(harness.ticks()).toBe(afterDestroy)
   })
 
   test("重复把 animated 置真不会叠出多个表", async () => {

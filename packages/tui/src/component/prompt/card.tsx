@@ -1,5 +1,6 @@
 import { createMemo, createSignal, Show, type JSX } from "solid-js"
 import { useTerminalDimensions } from "@opentui/solid"
+import type { RGBA } from "@opentui/core"
 import { useKV } from "../../context/kv"
 import { useTheme } from "../../context/theme"
 import { useCommandShortcut } from "../../keymap"
@@ -41,13 +42,19 @@ export function PromptCard(props: { focused: boolean; visible?: boolean; childre
 }
 
 // 模型芯片里模型名的长度上限。
-// 推导(1 列 = 1 个终端格):
+// 本文所有列数按「1 列 = 1 个终端格」算,并采用同一套字宽约定:
+//   ASCII 1 列;CJK 全角字 2 列(「发送」= 2 字 × 2);East-Asian Ambiguous 字形按目标终端的
+//   常规行为记 1 列(「◆」U+25C6 就是 Ambiguous,在 CJK 终端里可能被渲成 2 列 —— 那种终端上
+//   本卡的可用宽度整体少 1,不是这里要解决的问题)。
 //   卡内可用宽 = 终端宽 − 卡 padding(1+1)
 //   定长开销 = ">" 盒 2 + 行内 gap 1 + 行内 gap 1 + 芯片(padding 1+1 + "◆ " 2)= 4
-//            + 芯片与按钮的 gap 1 + 按钮(padding 1+1 + "发送 Enter" 10)= 12
+//            + 芯片与按钮的 gap 1 + 按钮(padding 1+1 + "发送 " 6 + 键名)= 12
 //            = 21
 //   剩下分给「模型名 + 输入框」;输入框留 12 列,所以
 //   模型名上限 = 终端宽 − 2 − 21 − 12 = 终端宽 − 35。
+// 按钮那 12 列是按**默认键位** input_submit = return 算的(formatKeySequence 渲染成 5 格的
+// "enter");用户把提交键改成长序列(如 shift+return = 11)时按钮会相应变宽、吃掉输入框,
+// 输入框那一侧还有 minWidth=4 兜底。
 // 60 列:min(28, 25) = 25 → 输入框 58 − 21 − 25 = 12 列(正好是留的下限)。
 // 40 列:算出来是 5,先被 MODEL_CHIP_MIN 抬到 8;但真正卡住的是芯片自己的 minWidth=10,
 //      输入框只剩 38 − 21 − 10 = 7 列(够显示光标和几个字,不够放长占位符 —— 那是预期行为)。
@@ -64,15 +71,17 @@ const MODEL_CHIP_MIN = 8
 // 按钮底色/hover 照 routes/session/queue-dock 的行内按钮(hover 换 backgroundElement,
 // 左右各留 1 格),onMouseUp 里先 stopPropagation —— 不拦住的话点击会冒到输入框上。
 //
-// 按钮文案 `发送 Enter`:原型写的是 `发送 ⏎`。换掉的理由不是宽度 ——
-// U+23CE 的 East Asian Width 是 N(Neutral),CJK 终端同样按 1 列渲染,
-// 真正的理由是**一致性**:提示行里的键位(shift+return / ctrl+p / tab)全是 ASCII,
-// 按钮上留一个 ⏎ 会是画面里唯一的符号键名。
-// `Enter` 是字面键名而不是查出来的:提交键在 keybind.ts 里是 input_submit 默认 "none"
-// (回车由 textarea 原生 onSubmit 处理,没有可配置的绑定),所以这里没有键位可查。
-export function PromptSend(props: { model: string; canSend: boolean; dimmed?: boolean; onSend(): void }) {
+// 按钮上的键名走 useCommandShortcut("input.submit") 现取,和提示行里的
+// agent.cycle / command.palette.show / input.newline 是同一套取法 ——
+// input_submit 在 keybind.ts 里是 `keybind("return", …)`(不是 prompt_submit 那个 "none",
+// 那是另一条命令),并且由 keymap.tsx 的托管输入层 gather("input", inputCommands) 注册,
+// 所以它是可配置、可查的。用户改键之后这一行会跟着变;写死 "Enter" 会在改键后变成假提示。
+// 渲染出来是小写的 "enter"(formatKeySequence 不做大写化),和提示行里
+// tab / ctrl+p / shift+enter 的全小写风格一致。
+export function PromptSend(props: { model: string; canSend: boolean; modelColor?: RGBA; onSend(): void }) {
   const { theme } = useTheme()
   const dimensions = useTerminalDimensions()
+  const submitShortcut = useCommandShortcut("input.submit")
   const [hover, setHover] = createSignal(false)
   const model = createMemo(() => {
     const limit = Math.max(MODEL_CHIP_MIN, Math.min(MODEL_CHIP_MAX, dimensions().width - MODEL_CHIP_MARGIN))
@@ -83,7 +92,10 @@ export function PromptSend(props: { model: string; canSend: boolean; dimmed?: bo
       <Show when={props.model}>
         {/* 芯片可压缩(flexShrink + overflow hidden):窄终端上宁可把模型名裁掉,
             也不能把整行撑到折行 —— 折行会把「发送」甩到下一行,输入框高度失控。
-            minWidth=10 保底 10 列,再窄就轮到输入框了。 */}
+            minWidth=10 保底 10 列,再窄就轮到输入框了。
+            modelColor 由调用方给:模型名要跟提示行里的 provider / variant 用同一个
+            fadeColor(…, modelMetaAlpha()) —— 挂载淡入 + leader 压暗都在那个表达式里,
+            在这里重算一遍只会漂。 */}
         <box
           backgroundColor={theme.backgroundPanel}
           paddingLeft={1}
@@ -92,9 +104,7 @@ export function PromptSend(props: { model: string; canSend: boolean; dimmed?: bo
           minWidth={10}
           overflow="hidden"
         >
-          {/* dimmed 复刻旧 meta 行:leader 键序在等下一个键时,模型名压暗一档
-              (旧实现是 fadeColor(leader() ? theme.textMuted : theme.text, modelMetaAlpha()))。 */}
-          <text fg={props.dimmed ? theme.textMuted : theme.text} wrapMode="none">
+          <text fg={props.modelColor ?? theme.text} wrapMode="none">
             {"◆ "}
             {model()}
           </text>
@@ -112,7 +122,7 @@ export function PromptSend(props: { model: string; canSend: boolean; dimmed?: bo
         paddingLeft={1}
         paddingRight={1}
       >
-        <text fg={props.canSend ? theme.text : theme.textMuted}>发送 Enter</text>
+        <text fg={props.canSend ? theme.text : theme.textMuted}>发送 {submitShortcut()}</text>
       </box>
     </box>
   )

@@ -1545,7 +1545,10 @@ export function Prompt(props: PromptProps) {
             <PromptSend
               model={store.mode === "normal" ? local.model.parsed().model : ""}
               canSend={canSend()}
-              dimmed={leader()}
+              // 模型名颜色与提示行里的 provider / variant 共用同一个表达式:
+              // modelMetaAlpha 是挂载淡入,leader() 是键序在等下一个键时压暗一档 ——
+              // 芯片化之后这两档不能丢,否则模型名会在挂载瞬间「啪」地出现。
+              modelColor={fadeColor(leader() ? theme.textMuted : theme.text, modelMetaAlpha())}
               onSend={() => void submit()}
             />
           </box>
