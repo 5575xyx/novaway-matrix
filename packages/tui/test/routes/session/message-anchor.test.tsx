@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
-// 消息锚点的守卫。会话区有四条寻址路径全靠「消息列表 scrollbox 的直接子节点里 id === message.id」
-// 那一层盒子(findNextVisibleMessage / scrollToMessage / jumpToMessage / 信息页消息列表),
-// 而整份 Session 组件挂不起来 —— 没有任何现成的测试会因为那个 id 被删掉而变红。
+// 消息锚点的守卫。会话区有六处寻址全靠「消息列表 scrollbox 的直接子节点里 id === message.id」
+// 那一层盒子(findNextVisibleMessage / scrollToMessage / timeline / fork / 首条上翻 /
+// jumpToMessage),而整份 Session 组件挂不起来 —— 没有任何现成的测试会因为那个 id 被删掉而变红。
 //
 // 所以把那层盒子切成了 MessageAnchor(见 src/routes/session/message-anchor.tsx),这里直接
 // 挂载它来断言两件事:它确实是 scrollbox 的直接子节点且带着那个 id;调用点没有绕开它。
@@ -52,7 +52,7 @@ test("消息锚点挂在 scrollbox 的直接子节点上,并带着那条消息�
 
 // **结构断言(不是渲染断言)**:整份 Session 挂不起来,所以「用户/助手两条消息的外层盒子用的
 // 都是 MessageAnchor」只能从源码上钉。理由与它守的东西写在 message-anchor.tsx 的注释里 ——
-// 删掉那个 id,四条跳转路径会同时静默失效而画面完全正常。
+// 删掉那个 id,六处跳转路径会同时静默失效而画面完全正常。
 // 它只保证「两处都走锚点、且没有裸的 id= 盒子」,不保证渲染结果;渲染那半在上面的用例里。
 test("会话区的两条消息都走 MessageAnchor(结构断言,见上面的说明)", () => {
   const source = readFileSync(path.join(import.meta.dir, "../../../src/routes/session/index.tsx"), "utf8")

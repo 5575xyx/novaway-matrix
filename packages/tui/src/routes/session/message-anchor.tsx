@@ -5,16 +5,18 @@ import type { BoxRenderable } from "@opentui/core"
 /**
  * 消息锚点:消息列表里**每一条消息最外层那个盒子**,也是消息跳转唯一认的东西。
  *
- * 会话区有四条寻址路径全都按它工作(见 routes/session 的注释与实现):
- *   - `findNextVisibleMessage` / `scrollToMessage`:上一条 / 下一条;
- *   - `jumpToMessage`(信息页「消息」列表点一条、命令面板的跳转);
- *   - 时间线 / 子代理那条链上的同款查找。
- * 它们查的都是消息滚动容器的**直接子节点**里 `id === message.id` 的那一个。所以那个 id
- * 写在哪个盒子上、那个盒子是不是直接子节点,都不是外观问题:
- * 删掉它,四条路径会同时静默失效,而整屏看起来完全正常 —— 没有一条现成的测试能发现
- * (整份 Session 组件都挂不起来)。
+ * 会话区有六处寻址全都按它工作,查的都是消息滚动容器的**直接子节点**里
+ * `id === message.id` 的那一个(括号里是 routes/session 的行号):
+ *   - findNextVisibleMessage / scrollToMessage:上一条 / 下一条(821、857);
+ *   - `session.timeline`「跳转到消息」(1028)与 `session.fork`「分叉会话」(1051);
+ *   - 首条用户消息上翻(1357);
+ *   - jumpToMessage:信息页「消息」列表点一条、以及 subscribeMessageJump 的订阅者(1741)。
  *
- * 所以这一层是**从 index.tsx 里切出来的缝**,为的是让「id 写在锚点上」这件事有一个能直接
+ * 所以那个 id 写在哪个盒子上、那个盒子是不是直接子节点,都不是外观问题:删掉它,上面六处
+ * 会同时静默失效,而整屏看起来完全正常 —— 没有一条现成的测试能发现(整份 Session 组件都
+ * 挂不起来)。
+ *
+ * 因此这一层是**从 index.tsx 里切出来的缝**,为的是让「id 写在锚点上」这件事有一个能直接
  * 挂载、能直接断言的地方(test/routes/session/message-anchor.test.tsx)。切缝只搬了两件
  * 东西:那个 id,和注册进 alwaysSeparate 的那个 ref。盒子的其余形状(用户气泡靠右、
  * 助手恒 flexShrink=0、首条用户消息不顶行……)由调用点原样传进来,这里不猜。
