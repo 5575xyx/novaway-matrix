@@ -1,4 +1,4 @@
-import {
+﻿import {
   BoxRenderable,
   RGBA,
   type BoxOptions,
@@ -334,20 +334,39 @@ export class NeonBoxRenderable extends BoxRenderable {
     const from = this.enterColor ?? this.backgroundColor
     const fading = entered < 1 && from
     const boost = this.boostColor
+    // 祖先压下来的 opacity(视图入场那一档,见 routes/session/view-entrance)。
+    // **必须自己折算**:描边走的是 `buffer.setCell`,而那条路径不吃渲染器的 opacity 栈
+    // (只有 setCellWithAlphaBlending 才吃,那是文字那条路)。不折算的话视图淡入时正文在变暗、
+    // 卡片却满亮 —— 一眼假。getCurrentOpacity() 在没有祖先压 opacity 时恒为 1,
+    // 于是静止卡的逐格色一字不变(下面这层乘法在 k = 1 时是恒等)。
+    //
+    // 乘的是「朝黑色收敛」,而不是 alpha 混合的 `src·k + dst·(1−k)`:这一层拿不到背后是什么颜色
+    // (透明卡片背后可能是面板底色,也可能是纯黑),凭空挑一个只会闪出一圈脏边 —— 与 enterFrom
+    // 的注释同一条纪律。深色主题下背景近黑,两种算法看不出差别;浅色主题下描边会略暗于
+    // 「朝背景收敛」应有的样子,这是已知的近似,记在这里免得以后当成 bug 查。
+    const ambient = buffer.getCurrentOpacity()
     for (const cell of cells) {
       const x = originX + cell.x
       const y = originY + cell.y
       if (x < clip.x || x >= clip.right || y < clip.y || y >= clip.bottom) continue
       const gradient = gradientAt(stops, this.phase === 0 ? cell.t : (cell.t + phase) % 1)
-      // 顺序是「渐变 → 悬停抬对比 → 入场淡入 → 扫光」:
+      // 顺序是「渐变 → 悬停抬对比 → 入场淡入 → 扫光 → 祖先 opacity」:
       //   抬对比要在入场之前,这样淡入的终点就是「悬停时的高对比描边」(k = 1 时两者等价,顺序不打架);
-      //   扫光放最后,它提亮的是**当前这一帧画出来的颜色**,入场与悬停叠加时高光跟着一起淡入。
+      //   扫光放最后,它提亮的是**当前这一帧画出来的颜色**,入场与悬停叠加时高光跟着一起淡入;
+      //   祖先 opacity 在最外层 —— 它是整棵子树的透明度,得作用在这一帧**最终**的颜色上,
+      //   放在它前面会让提亮/扫光绕过祖先那层压暗。
       const lifted = boost ? brighten(gradient, HOVER_BOOST, boost) : gradient
       const faded = fading ? fadeIn(from, lifted, entered) : lifted
       const mix = this.animating ? sweepMix(phase, cell.t) : 0
-      buffer.setCell(x, y, cell.ch, mix > 0 ? sweepColor(faded, mix) : faded, background)
+      const painted = mix > 0 ? sweepColor(faded, mix) : faded
+      buffer.setCell(x, y, cell.ch, ambient === 1 ? painted : dim(painted, ambient), background)
     }
   }
+}
+
+// 祖先 opacity 的折算:逐通道乘 k,alpha 原样保留(透明度是「压暗多少」,不是「这张卡有没有底色」)。
+function dim(color: RGBA, k: number) {
+  return RGBA.fromValues(color.r * k, color.g * k, color.b * k, color.a)
 }
 
 declare module "@opentui/solid" {
