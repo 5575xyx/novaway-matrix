@@ -43,6 +43,7 @@ import {
   resolveChatViewCommand,
   type ChatView,
 } from "./chat-view"
+import { ChatViewStage } from "./view-slide"
 import { EmptySessionHero } from "../../component/empty-session-hero"
 import { FlowCanvas } from "../../component/flow/canvas"
 import { createSyntaxStyleMemo, generateSubtleSyntax, useTheme } from "../../context/theme"
@@ -386,7 +387,9 @@ export function Session() {
   const [showAssistantMetadata, _setShowAssistantMetadata] = kv.signal("assistant_metadata_visibility", true)
   const [showScrollbar, setShowScrollbar] = kv.signal("scrollbar_visible", false)
   const [diffWrapMode] = kv.signal<"word" | "none">("diff_wrap_mode", "word")
-  const [_animationsEnabled, _setAnimationsEnabled] = kv.signal("animations_enabled", true)
+  // 动效总闸。调用方把它折进各处的「要不要动」,这一层自己不读全局设置(ui/card 的约定):
+  // 卡片阶梯入场(enterDelayFor)、视图侧滑(ChatViewStage 的 animate)都拿它当终态乘子。
+  const [animationsEnabled] = kv.signal("animations_enabled", true)
   const [showGenericToolOutput, setShowGenericToolOutput] = kv.signal("generic_tool_output_visibility", false)
   // 聊天视图(气泡 / 流程图)。存 KV 而不是组件内 signal:它是用户挑的显示偏好,
   // 换终端、换会话都该还在(与 timestamps / animations_enabled 同一类)。
@@ -764,7 +767,14 @@ export function Session() {
   // 两个视图各有一个滚动容器:气泡视图那个 scrollbox(气泡态挂载)、流程图画布自己那个
   // (画布通过 onScrollBox 交出来)。翻页 / 跳消息命令要作用在**当前活着的那个**上。
   let flowScroll: ScrollBoxRenderable | undefined
-  const activeScroll = () => (scroll && !scroll.isDestroyed ? scroll : flowScroll)
+  const alive = (box: ScrollBoxRenderable | undefined) => (box && !box.isDestroyed ? box : undefined)
+  // 侧滑过渡期间**两个容器同时活着**(旧视图还没被卸载),所以「谁还活着」已经定不下来 ——
+  // 该按**目标视图**挑:往流程图切的那 200ms 里用户看到的是流程图,翻页就该翻流程图,而不是
+  // 作用在正在滑走的气泡流上。兜底仍是另一个还活着的:目标那一侧的容器还没挂上时,静默落空
+  // 不如作用在唯一存在的那个上;再由 scrollIfAlive 兜一层 isDestroyed(ref 在销毁时不会被
+  // 再回调置空,所以这两个变量都可能指着已销毁的盒子)。
+  const activeScroll = () =>
+    chatView() === "flow" ? (alive(flowScroll) ?? alive(scroll)) : (alive(scroll) ?? alive(flowScroll))
 
   // `scroll` 只在气泡视图挂载,而 ref 在元素销毁时不会被再调用一次置空 —— 所以它会一直指着
   // 一个**已销毁**的 renderable。统一走 scrollIfAlive:没有容器就静默收手(翻页类还要把弹窗
@@ -1740,19 +1750,28 @@ export function Session() {
             />
             <box flexGrow={1} minHeight={0} paddingBottom={1} paddingLeft={2} paddingRight={2} gap={1}>
               <Show when={activeTabId() === "chat"}>
-                <Switch>
-                  {/* 流程图视图。D2 备下的 ChatViewFlowPlaceholder 已被真正的画布整块替换,
-                      那份「画布尚未实现」的占位连同它的测试一起删掉了 ——
-                      空白不是可接受的降级,而现在这一版画的就是节点链。
-                      数据直接取会话自己的同步数据(消息 + part),不另存一份中间态。 */}
-                  <Match when={chatView() === "flow"}>
+                {/* 气泡 / 流程图两个视图交给 ChatViewStage 摆(任务 D4):静止时只渲染目标视图,
+                    切视图时两个视图同帧共存做侧滑,走完再卸载旧视图。
+                    传的是**返回 JSX 的函数**而不是 JSX 本身 —— 惰性,没轮到的那个分支不会被求值,
+                    不会先把另一个视图的 renderable 建出来。
+                    width 传 contentWidth():舞台就在这一层自己的 paddingLeft/Right 各 2 列里面,
+                    两边是同一份净值。 */}
+                <ChatViewStage
+                  view={chatView()}
+                  width={contentWidth()}
+                  animate={animationsEnabled()}
+                  flow={() => (
+                    // 流程图视图。D2 备下的 ChatViewFlowPlaceholder 已被真正的画布整块替换,
+                    // 那份「画布尚未实现」的占位连同它的测试一起删掉了 ——
+                    // 空白不是可接受的降级,而现在这一版画的就是节点链。
+                    // 数据直接取会话自己的同步数据(消息 + part),不另存一份中间态。
                     <FlowCanvas
                       messages={messages()}
                       parts={sync.data.part}
                       onScrollBox={(box) => (flowScroll = box)}
                     />
-                  </Match>
-                  <Match when={chatView() !== "flow"}>
+                  )}
+                  bubble={() => (
                     <scrollbox
                       ref={(r) => (scroll = r)}
                       viewportOptions={{
@@ -1883,8 +1902,8 @@ export function Session() {
                         <WorkingLine sessionID={route.sessionID} thinking={thinkingActive()} />
                       </Show>
                     </scrollbox>
-                  </Match>
-                </Switch>
+                  )}
+                />
               </Show>
               <Show when={activeTabId() !== "chat" && selectedFile()}>
                 {/* 按标签类型分发:preview = 整文件编辑,git-diff = 该文件相对 HEAD 的改动差异 */}
