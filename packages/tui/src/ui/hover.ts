@@ -27,7 +27,7 @@ export function useCardHover() {
     hover: hovered,
     /** 传给 `animated=`:相位推进、描边流动 + 扫光。 */
     animated: on,
-    /** 传给 `boost=`:把描边朝 towards 提亮(见 ui/neon 的 HOVER_BOOST)。 */
+    /** 传给 `boost=`:把描边朝 towards 混一档,抬它与面板底色的对比(见 ui/neon 的 HOVER_BOOST)。 */
     boost: (towards: RGBA) => (on() ? towards : undefined),
     onMouseOver: () => {
       setHovered(true)

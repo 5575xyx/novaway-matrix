@@ -34,8 +34,8 @@ export type NeonBoxOptions = BoxOptions<NeonBoxRenderable> & {
    */
   enterFrom?: RGBA
   /**
-   * 悬停提亮:把描边朝这个色混 HOVER_BOOST(见 ui/neon)。传入即开、undefined 即关,
-   * 与 animated 独立 —— 提亮不需要流动,也不需要扫光。
+   * 悬停时抬对比度:把描边朝这个色混 HOVER_BOOST(见 ui/neon)。传入即开、undefined 即关,
+   * 与 animated 独立 —— 抬对比度不需要流动,也不需要扫光。
    */
   boost?: RGBA
 }
@@ -339,8 +339,8 @@ export class NeonBoxRenderable extends BoxRenderable {
       const y = originY + cell.y
       if (x < clip.x || x >= clip.right || y < clip.y || y >= clip.bottom) continue
       const gradient = gradientAt(stops, this.phase === 0 ? cell.t : (cell.t + phase) % 1)
-      // 顺序是「渐变 → 悬停提亮 → 入场淡入 → 扫光」:
-      //   提亮要在入场之前,这样淡入的终点就是「悬停时的亮边」(k = 1 时两者等价,顺序不打架);
+      // 顺序是「渐变 → 悬停抬对比 → 入场淡入 → 扫光」:
+      //   抬对比要在入场之前,这样淡入的终点就是「悬停时的高对比描边」(k = 1 时两者等价,顺序不打架);
       //   扫光放最后,它提亮的是**当前这一帧画出来的颜色**,入场与悬停叠加时高光跟着一起淡入。
       const lifted = boost ? brighten(gradient, HOVER_BOOST, boost) : gradient
       const faded = fading ? fadeIn(from, lifted, entered) : lifted

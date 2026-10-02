@@ -3,7 +3,9 @@ import { describe, expect, test } from "bun:test"
 import { createSignal } from "solid-js"
 import { testRender } from "@opentui/solid"
 import { RGBA, type CapturedFrame } from "@opentui/core"
-import { gradientAt, perimeterCells } from "../../src/ui/neon"
+import { gradientAt, perimeterCells, semanticStops } from "../../src/ui/neon"
+import { resolveTheme, type ThemeJson } from "../../src/theme"
+import novaway from "../../src/theme/assets/novaway.json" with { type: "json" }
 // 裸导入跑 extend({ neonbox }) 的副作用;类型单独用 import type 拿 ——
 // 只写一条 `import { NeonBoxRenderable }` 时,转译器会把它当纯类型用途整条抹掉,
 // 副作用跟着没跑,渲染时报 Unknown component type: neonbox。
@@ -390,6 +392,123 @@ describe("NeonBox 流动描边", () => {
       const elapsed = Date.now() - startedAt
       expect(harness.ticks()).toBeGreaterThan(0)
       expect(harness.ticks()).toBeLessThanOrEqual(Math.ceil(elapsed / PHASE_INTERVAL_MS) + 2)
+    } finally {
+      app.renderer.destroy()
+    }
+  })
+})
+
+// HSL 色相(0..360°)。要证明「色带在走」而不是「有东西在变亮」,只能看色相:
+// 亮度的变化既能来自相位平移、也能来自扫光,色相的变化只可能来自换了颜色。
+function hue(cell: { r: number; g: number; b: number }) {
+  const max = Math.max(cell.r, cell.g, cell.b)
+  const min = Math.min(cell.r, cell.g, cell.b)
+  if (max === min) return 0
+  const delta = max - min
+  if (max === cell.r) return 60 * (((cell.g - cell.b) / delta + 6) % 6)
+  if (max === cell.g) return 60 * ((cell.b - cell.r) / delta + 2)
+  return 60 * ((cell.r - cell.g) / delta + 4)
+}
+
+function brightness(cell: { r: number; g: number; b: number }) {
+  return cell.r + cell.g + cell.b
+}
+
+// 助手气泡卡的青蓝渐变描边。
+//
+// 上面的「相位推进」那条只证明「颜色变了」,而颜色变完全可以由扫光解释 —— 助手卡的色板
+// 曾经真的退化成平色(novaway 深色主题里 info 与 primary 同为 #00e5ff),那时它一样绿。
+// 所以这里把扫光摘出去再看一遍:同一格在两个相位上的**色相**必须是不同的。
+//
+// 「摘掉扫光」怎么摘:色板自身的亮度跨度只有 [#4d7cff 的 1.788, #00e5ff 的 1.898],
+// 相位平移永远走不出这个区间;扫光是把颜色往白里插,亮度只往上顶(峰值 +0.6)。
+// 于是「亮过色板上沿 0.2」的格子必定是扫过的,整批排除。剩下的格子里即便还残留扫光尾巴,
+// 那点尾巴也最多把色相挪不到 1°(往白混几乎不改色相),不碍事。
+// 色板若是平的,这些格子在每一帧里都等于色板色 → 与基线的色相差恒为 0 —— 这正是修好之前的状态。
+describe("助手气泡卡的青蓝渐变描边", () => {
+  const theme = resolveTheme(novaway as ThemeJson, "dark")
+  // 卡开宽一点:周长越长,一轮里能取到的「没被扫到」的格子越多。
+  const assistant = {
+    width: 40,
+    height: 10,
+    backgroundColor: RGBA.fromHex("#101010"),
+    gradientStops: [...semanticStops(theme, "assistant")],
+  }
+  const keys = perimeterCells(assistant.width, assistant.height).map((cell) => `${cell.y}:${cell.x}`)
+  const rampCeiling = Math.max(...assistant.gradientStops.map(brightness))
+
+  const mount = (animated: boolean) =>
+    testRender(
+      () => (
+        <neonbox {...assistant} animated={animated}>
+          <text>hi</text>
+        </neonbox>
+      ),
+      { width: 46, height: 14 },
+    )
+
+  test("animated 时同一格的色相在两个相位上不同(排除扫光格子之后)", async () => {
+    const base = await mount(false)
+    let staticGrid: Map<string, { r: number; g: number; b: number }>
+    try {
+      await base.renderOnce()
+      staticGrid = cellGrid(base.captureSpans())
+    } finally {
+      base.renderer.destroy()
+    }
+
+    const app = await mount(true)
+    try {
+      const frames: Array<Map<string, { r: number; g: number; b: number }>> = []
+      for (let frame = 0; frame < 8; frame++) {
+        await new Promise((resolve) => setTimeout(resolve, PHASE_WAIT))
+        await app.renderOnce()
+        frames.push(cellGrid(app.captureSpans()))
+      }
+      const swept = new Set(
+        frames.flatMap((grid) =>
+          keys.filter((key) => {
+            const value = grid.get(key)
+            const base = staticGrid.get(key)
+            return value && base ? brightness(value) > brightness(base) + 0.2 : false
+          }),
+        ),
+      )
+      expect(swept.size).toBeLessThan(keys.length)
+      const delta = frames.flatMap((grid) =>
+        keys
+          .filter((key) => !swept.has(key))
+          .map((key) => {
+            const value = grid.get(key)!
+            const base = staticGrid.get(key)!
+            return hue(value) - hue(base)
+          }),
+      )
+      // 色板是平的时,每帧每格都等于色板色,色相差恒为 0 → max 是 0,这条会红。
+      // 修好之后 1.6s 走 20 格(周长的 20%),青→蓝的色相跨度约 38°;绕回接缝的格子一次
+      // 能看到近乎整段(实测 33°),门槛取 3° —— 8bit 量化在最暗的一端(青的 r≈0)
+      // 带来的色相噪声不到 0.5°。
+      expect(Math.max(...delta.map(Math.abs))).toBeGreaterThan(3)
+    } finally {
+      app.renderer.destroy()
+    }
+  })
+
+  test("扫光仍然会把格子顶出色板上沿(与相位取值无关)", async () => {
+    const app = await mount(true)
+    try {
+      let peak = -1
+      for (let frame = 0; frame < 6; frame++) {
+        await new Promise((resolve) => setTimeout(resolve, PHASE_WAIT))
+        await app.renderOnce()
+        const grid = cellGrid(app.captureSpans())
+        for (const key of keys) {
+          const value = grid.get(key)
+          if (value) peak = Math.max(peak, brightness(value))
+        }
+      }
+      // 扫光峰值向白插 55%,而色板上沿只有 1.898 —— 顶出去 0.2 是稳的。
+      expect(peak).toBeGreaterThan(rampCeiling + 0.2)
     } finally {
       app.renderer.destroy()
     }
