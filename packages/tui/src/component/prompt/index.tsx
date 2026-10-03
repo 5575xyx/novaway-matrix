@@ -59,8 +59,8 @@ import { useTuiConfig } from "../../config"
 import { usePromptWorkspace } from "./workspace"
 import { usePromptMove } from "./move"
 import { readLocalAttachment } from "./local-attachment"
-import { sessionUsage } from "../../util/usage"
-import { PromptCard, PromptBottomRow, PromptHints, PromptSend } from "./card"
+import { sessionUsage, usageLabel } from "../../util/usage"
+import { PromptCard, PromptBottomRow, PromptHints, PromptSend, usageRowColumns } from "./card"
 
 registerNovaWaySpinner()
 
@@ -311,6 +311,28 @@ export function Prompt(props: PromptProps) {
 
   // 上下文占用。口径在 util/usage:输入卡状态行与标签行的 `8.2K ctx` 胶囊问的是同一个数。
   const usage = createMemo(() => (props.sessionID ? sessionUsage(sync, props.sessionID) : undefined))
+
+  // 这一行到底要不要渲染。**判据是「除 usage 外还有没有东西要说」** —— usage 已经折进卡内
+  // 底部行(见 PromptBottomRow 的 usage 段),空闲时若还留着这条状态行,输入卡底下就只剩
+  // 一条几乎全空的行(80 列里只有右端 5 列有字),用户报的就是这个「输入卡下面空了一行」。
+  //
+  // 逐条对应下面那个 Switch 的分支,加新分支时**必须同步加进这里**,否则那一档会静默地
+  // 渲染在一张零高度的宿主盒子里(什么都不出现)。左边四档各自独占一行内容:
+  //   · status ≠ idle —— 转圈 + retry 文案 + `esc 中断`(retry 时右半边整块不画);
+  //   · workspace.notice / workspace.label —— 「Warped to X」/「Workspace <名>」与建工作区进度;
+  //   · move.progress / move.pendingNew —— 移动会话进度与「(new working copy)」。
+  // 右半边只剩编辑器文件标签(usage 搬走之后),它在时也要留这一行,否则标签会没地方显示。
+  // props.hint 是首页自己给的提示(目标是目录,与会话页底栏那份不同语义),给了就画。
+  const statusRowVisible = createMemo(
+    () =>
+      Boolean(props.hint) ||
+      status().type !== "idle" ||
+      Boolean(workspace.notice()) ||
+      Boolean(workspace.label()) ||
+      Boolean(move.progress()) ||
+      Boolean(move.pendingNew()) ||
+      (editorContextLabelState() !== "none" && Boolean(editorFileLabelDisplay())),
+  )
 
   const [store, setStore] = createStore<{
     prompt: PromptInfo
@@ -1428,6 +1450,17 @@ export function Prompt(props: PromptProps) {
   })
   const maxHeight = createMemo(() => tuiConfig.prompt?.max_height ?? Math.max(6, Math.floor(dimensions().height / 3)))
 
+  // 卡外状态行里那个「上下文占用 · 花费」要搬进**卡内底部行**(PromptBottomRow 的 usage 段)。
+  // 折进来之后空闲时输入卡底下什么都不剩,底边直接压到屏幕底 —— 用户报的就是那条几乎全空的行。
+  // shell 模式不显示:那时没有「这一轮」的 token,拿上一次会话的数字接着报是假信息。
+  // 列数不够时不是让渲染器裁,而是 usageLabel 自己按档降级、末档整段不画(宁可没有,
+  // 也不能显示一个被裁成「7」的假数字)。
+  const usageFigure = createMemo(() => {
+    const item = usage()
+    if (!item || store.mode !== "normal") return undefined
+    return usageLabel(item, usageRowColumns(dimensions().width)) || undefined
+  })
+
   return (
     <>
       <box
@@ -1560,6 +1593,13 @@ export function Prompt(props: PromptProps) {
               minWidth=0 + overflow hidden 的盒子从右边裁掉。 */}
           <PromptBottomRow
             right={props.right}
+            usage={
+              usageFigure() ? (
+                <text fg={theme.textMuted} wrapMode="none">
+                  {usageFigure()}
+                </text>
+              ) : undefined
+            }
             trailing={
               <PromptSend
                 model={store.mode === "normal" ? local.model.parsed().model : ""}
@@ -1613,144 +1653,152 @@ export function Prompt(props: PromptProps) {
           {/* 卡内第四行:键位提示(左对齐)。提交键不在这里 —— 它跟着底部行的发送按钮走。 */}
           <PromptHints shell={store.mode === "shell"} />
         </PromptCard>
-        {/* 状态行留在卡外:工作指示 / retry / 工作区提示 / token 花费都属于「这次会话」,
+        {/* 状态行留在卡外:工作指示 / retry / 工作区提示 / 编辑器文件标签都属于「这次会话」,
             不属于输入卡。**目录不在这一行** —— 它由会话页底栏(routes/session/footer.tsx)
-            独家显示,理由见下面 Match when={true} 那条。flexShrink={0} 是补的 ——
-            原来这里没钉,长 retry 文案(「retrying in … attempt #3」)会把上面的输入卡挤扁。 */}
-        <box width="100%" flexDirection="row" justifyContent="space-between" flexShrink={0}>
-          <Switch>
-            <Match when={status().type !== "idle"}>
-              <box
-                flexDirection="row"
-                gap={1}
-                flexGrow={1}
-                justifyContent={status().type === "retry" ? "space-between" : "flex-start"}
-              >
-                <box flexShrink={0} flexDirection="row" gap={1}>
-                  <box marginLeft={1}>
-                    <Show when={kv.get("animations_enabled", true)} fallback={<text fg={theme.textMuted}>[--]</text>}>
-                      <spinner color={spinnerDef().color} frames={spinnerDef().frames} interval={40} />
-                    </Show>
-                  </box>
-                  <box flexDirection="row" gap={1} flexShrink={0}>
-                    {(() => {
-                      const retry = createMemo(() => {
-                        const s = status()
-                        if (s.type !== "retry") return
-                        return s
-                      })
-                      const message = createMemo(() => {
-                        const r = retry()
-                        if (!r) return
-                        if (r.message.includes("exceeded your current quota") && r.message.includes("gemini"))
-                          return "gemini is way too hot right now"
-                        if (r.message.length > 80) return r.message.slice(0, 80) + "..."
-                        return r.message
-                      })
-                      const isTruncated = createMemo(() => {
-                        const r = retry()
-                        if (!r) return false
-                        return r.message.length > 120
-                      })
-                      const [seconds, setSeconds] = createSignal(0)
-                      onMount(() => {
-                        const timer = setInterval(() => {
-                          const next = retry()?.next
-                          if (next) setSeconds(Math.round((next - Date.now()) / 1000))
-                        }, 1000)
+            独家显示,理由见下面 Match when={true} 那条。
 
-                        onCleanup(() => {
-                          clearInterval(timer)
+            **token 花费也已经搬走了**(折进卡内底部行的 usage 段,见上面 usageFigure):
+            空闲时这一行别的什么都不剩,留着它就是一条几乎全空的行 —— 80 列里只有右端 5 列
+            有字,用户读到的「输入卡下面空了一行」就是它。整行的显隐由 statusRowVisible 判,
+            逐条对应下面这个 Switch 的分支。
+
+            flexShrink={0} 是补的 —— 原来这里没钉,长 retry 文案(「retrying in … attempt #3」)
+            会把上面的输入卡挤扁。 */}
+        <Show when={statusRowVisible()}>
+          <box width="100%" flexDirection="row" justifyContent="space-between" flexShrink={0}>
+            <Switch>
+              <Match when={status().type !== "idle"}>
+                <box
+                  flexDirection="row"
+                  gap={1}
+                  flexGrow={1}
+                  justifyContent={status().type === "retry" ? "space-between" : "flex-start"}
+                >
+                  <box flexShrink={0} flexDirection="row" gap={1}>
+                    <box marginLeft={1}>
+                      <Show when={kv.get("animations_enabled", true)} fallback={<text fg={theme.textMuted}>[--]</text>}>
+                        <spinner color={spinnerDef().color} frames={spinnerDef().frames} interval={40} />
+                      </Show>
+                    </box>
+                    <box flexDirection="row" gap={1} flexShrink={0}>
+                      {(() => {
+                        const retry = createMemo(() => {
+                          const s = status()
+                          if (s.type !== "retry") return
+                          return s
                         })
-                      })
-                      const handleMessageClick = () => {
-                        const r = retry()
-                        if (!r) return
-                        if (isTruncated()) {
-                          void DialogAlert.show(dialog, "Retry Error", r.message)
+                        const message = createMemo(() => {
+                          const r = retry()
+                          if (!r) return
+                          if (r.message.includes("exceeded your current quota") && r.message.includes("gemini"))
+                            return "gemini is way too hot right now"
+                          if (r.message.length > 80) return r.message.slice(0, 80) + "..."
+                          return r.message
+                        })
+                        const isTruncated = createMemo(() => {
+                          const r = retry()
+                          if (!r) return false
+                          return r.message.length > 120
+                        })
+                        const [seconds, setSeconds] = createSignal(0)
+                        onMount(() => {
+                          const timer = setInterval(() => {
+                            const next = retry()?.next
+                            if (next) setSeconds(Math.round((next - Date.now()) / 1000))
+                          }, 1000)
+
+                          onCleanup(() => {
+                            clearInterval(timer)
+                          })
+                        })
+                        const handleMessageClick = () => {
+                          const r = retry()
+                          if (!r) return
+                          if (isTruncated()) {
+                            void DialogAlert.show(dialog, "Retry Error", r.message)
+                          }
                         }
-                      }
 
-                      const retryText = () => {
-                        const r = retry()
-                        if (!r) return ""
-                        const baseMessage = message()
-                        const truncatedHint = isTruncated() ? " (click to expand)" : ""
-                        const duration = formatDuration(seconds())
-                        const retryInfo = ` [retrying ${duration ? `in ${duration} ` : ""}attempt #${r.attempt}]`
-                        return baseMessage + truncatedHint + retryInfo
-                      }
+                        const retryText = () => {
+                          const r = retry()
+                          if (!r) return ""
+                          const baseMessage = message()
+                          const truncatedHint = isTruncated() ? " (click to expand)" : ""
+                          const duration = formatDuration(seconds())
+                          const retryInfo = ` [retrying ${duration ? `in ${duration} ` : ""}attempt #${r.attempt}]`
+                          return baseMessage + truncatedHint + retryInfo
+                        }
 
-                      return (
-                        <Show when={retry()}>
-                          <box onMouseUp={handleMessageClick}>
-                            <text fg={theme.error}>{retryText()}</text>
-                          </box>
-                        </Show>
-                      )
-                    })()}
-                  </box>
-                </box>
-                <text fg={store.interrupt > 0 ? theme.primary : theme.text}>
-                  esc{" "}
-                  <span style={{ fg: store.interrupt > 0 ? theme.primary : theme.textMuted }}>
-                    {store.interrupt > 0 ? "再次中断" : "中断"}
-                  </span>
-                </text>
-              </box>
-            </Match>
-            <Match when={workspace.notice()}>
-              {(notice) => (
-                <box paddingLeft={3}>
-                  <text fg={theme.accent}>{notice()}</text>
-                </box>
-              )}
-            </Match>
-            <Match when={workspace.label()}>
-              {(label) => (
-                <box paddingLeft={3} flexDirection="row" gap={1}>
-                  <Show when={workspace.creating()}>
-                    <Spinner color={theme.accent} />
-                  </Show>
-                  <text fg={workspace.creating() ? theme.accent : theme.text}>
-                    {(() => {
-                      const item = label()
-                      if (item.type === "new") {
-                        if (workspace.creating())
-                          return `Creating ${item.workspaceType}${".".repeat(workspace.creatingDots())}`
                         return (
-                          <>
-                            Workspace <span style={{ fg: theme.textMuted }}>(new {item.workspaceType})</span>
-                          </>
+                          <Show when={retry()}>
+                            <box onMouseUp={handleMessageClick}>
+                              <text fg={theme.error}>{retryText()}</text>
+                            </box>
+                          </Show>
                         )
-                      }
-                      return (
-                        <>
-                          Workspace <span style={{ fg: theme.textMuted }}>{item.workspaceName}</span>
-                        </>
-                      )
-                    })()}
+                      })()}
+                    </box>
+                  </box>
+                  <text fg={store.interrupt > 0 ? theme.primary : theme.text}>
+                    esc{" "}
+                    <span style={{ fg: store.interrupt > 0 ? theme.primary : theme.textMuted }}>
+                      {store.interrupt > 0 ? "再次中断" : "中断"}
+                    </span>
                   </text>
                 </box>
-              )}
-            </Match>
-            <Match when={move.progress()}>
-              {(progress) => (
+              </Match>
+              <Match when={workspace.notice()}>
+                {(notice) => (
+                  <box paddingLeft={3}>
+                    <text fg={theme.accent}>{notice()}</text>
+                  </box>
+                )}
+              </Match>
+              <Match when={workspace.label()}>
+                {(label) => (
+                  <box paddingLeft={3} flexDirection="row" gap={1}>
+                    <Show when={workspace.creating()}>
+                      <Spinner color={theme.accent} />
+                    </Show>
+                    <text fg={workspace.creating() ? theme.accent : theme.text}>
+                      {(() => {
+                        const item = label()
+                        if (item.type === "new") {
+                          if (workspace.creating())
+                            return `Creating ${item.workspaceType}${".".repeat(workspace.creatingDots())}`
+                          return (
+                            <>
+                              Workspace <span style={{ fg: theme.textMuted }}>(new {item.workspaceType})</span>
+                            </>
+                          )
+                        }
+                        return (
+                          <>
+                            Workspace <span style={{ fg: theme.textMuted }}>{item.workspaceName}</span>
+                          </>
+                        )
+                      })()}
+                    </text>
+                  </box>
+                )}
+              </Match>
+              <Match when={move.progress()}>
+                {(progress) => (
+                  <box paddingLeft={3}>
+                    <Spinner color={theme.accent}>
+                      {progress()}
+                      <span style={{ fg: theme.textMuted }}>{".".repeat(move.creatingDots())}</span>
+                    </Spinner>
+                  </box>
+                )}
+              </Match>
+              <Match when={move.pendingNew()}>
                 <box paddingLeft={3}>
-                  <Spinner color={theme.accent}>
-                    {progress()}
-                    <span style={{ fg: theme.textMuted }}>{".".repeat(move.creatingDots())}</span>
-                  </Spinner>
+                  <text fg={theme.accent}>(new working copy)</text>
                 </box>
-              )}
-            </Match>
-            <Match when={move.pendingNew()}>
-              <box paddingLeft={3}>
-                <text fg={theme.accent}>(new working copy)</text>
-              </box>
-            </Match>
-            <Match when={true}>
-              {/* 空闲时的左半边。**这里原来印的是 `location()?.directory ?? paths.cwd`,
+              </Match>
+              <Match when={true}>
+                {/* 空闲时的左半边。**这里原来印的是 `location()?.directory ?? paths.cwd`,
                   现在不印了** —— 那一行与会话页底栏(path.get().directory)显示的是同一个
                   目录,屏幕底部于是上下叠着两条一模一样的路径(用户报的就是这个重复)。
 
@@ -1764,31 +1812,28 @@ export function Prompt(props: PromptProps) {
                   底栏那一份还多做了 `abbreviateHome`,所以它才是该留的那一份。
 
                   留一个弹性空盒而不是干脆什么都不渲染:外层是 justifyContent="space-between",
-                  左半边一旦消失,右端的 token/花费会跳到屏幕左边 —— 那不是这次要改的东西。
+                  左半边一旦消失,右端的编辑器文件标签会跳到屏幕左边。
                   首页那条 `props.hint` 是调用方自己给的(routes/home 传的是**目标**目录,
                   与底栏那一份不是同一个语义),不动。 */}
-              {props.hint ?? <box flexGrow={1} minWidth={0} />}
-            </Match>
-          </Switch>
-          <Show when={status().type !== "retry"}>
-            <box gap={2} flexDirection="row" flexShrink={0}>
-              <Show when={editorContextLabelState() !== "none" ? editorFileLabelDisplay() : undefined}>
-                {(file) => (
-                  <text fg={editorContextLabelState() === "pending" ? theme.secondary : theme.textMuted}>{file()}</text>
-                )}
-              </Show>
-              {/* 键位提示(tab agents / ctrl+p commands / esc exit shell mode)搬进了输入卡的提示行,
-                  这里只留「不是键位」的状态:编辑器文件标签 + token/花费。 */}
-              <Show when={store.mode === "normal" && usage()}>
-                {(item) => (
-                  <text fg={theme.textMuted} wrapMode="none">
-                    {[item().context, item().cost].filter(Boolean).join(" · ")}
-                  </text>
-                )}
-              </Show>
-            </box>
-          </Show>
-        </box>
+                {props.hint ?? <box flexGrow={1} minWidth={0} />}
+              </Match>
+            </Switch>
+            <Show when={status().type !== "retry"}>
+              {/* 右半边现在只剩编辑器文件标签 —— token/花费折进了卡内底部行(见 usageFigure)。
+                键位提示也在那边:tab agents / ctrl+p commands / esc exit shell mode 搬进了
+                输入卡的提示行,所以这里只留「不是键位」的状态。 */}
+              <box gap={2} flexDirection="row" flexShrink={0}>
+                <Show when={editorContextLabelState() !== "none" ? editorFileLabelDisplay() : undefined}>
+                  {(file) => (
+                    <text fg={editorContextLabelState() === "pending" ? theme.secondary : theme.textMuted}>
+                      {file()}
+                    </text>
+                  )}
+                </Show>
+              </box>
+            </Show>
+          </box>
+        </Show>
       </box>
       <Autocomplete
         sessionID={props.sessionID}

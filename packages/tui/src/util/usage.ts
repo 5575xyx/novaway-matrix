@@ -12,11 +12,31 @@ export type SessionUsage = {
   /** 最后一条有输出的助手消息这一轮的 token 合计(含缓存读写)。 */
   tokens: number
   /**
-   * 输入卡状态行的写法:`8.2K`,模型有 context 上限时是 `8.2K (12%)`。
+   * 输入卡底部行的写法:`8.2K`,模型有 context 上限时是 `8.2K (12%)`。
    * 带上百分比是因为那一行的读者是要判断「还能不能继续聊」的人。
    */
   context: string
   cost?: string
+}
+
+/**
+ * 上下文占用在给定**显示列**预算下的写法,降级阶梯:
+ *   「8.2K (12%) · $0.42」→「8.2K (12%)」→「8.2K」→「」
+ * 末档是空串 = 整段不画。
+ *
+ * **为什么要有阶梯、末档为什么是「不画」**:这一段是右端一小截数字,渲染器是从右边裁的 ——
+ * 不给阶梯的话,窄终端上它会被裁成「7」「$0.」这种半截,读起来是一个**假数字**
+ * (「上下文只剩 7」?)。宁可整段没有,也不能显示一个错的数。列数按 Locale.displayWidth 量,
+ * 不是 str.length:百分号与货币符号都是 ASCII,但 CJK 万/亿单位不是(见 util/locale)。
+ *
+ * 降级顺序是「先丢花费,再丢百分比」:`8.2K` 本身已经是取过整的粗档,百分比与花费都精确 ——
+ * 先舍掉精确的那一档,是把损失留在信息密度最低的地方。
+ */
+export function usageLabel(usage: SessionUsage, columns: number): string {
+  const fit = (value: string) => (Locale.displayWidth(value) <= columns ? value : "")
+  // context 的括号段是「(12%)」;剥掉之后剩下的必然是 Locale.number(tokens) 那一档。
+  const bare = usage.context.replace(/\s*\([^)]*\)\s*$/, "")
+  return fit([usage.context, usage.cost].filter(Boolean).join(" · ")) || fit(usage.context) || fit(bare)
 }
 
 /**
