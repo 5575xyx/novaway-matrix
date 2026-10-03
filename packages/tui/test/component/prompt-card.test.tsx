@@ -578,3 +578,60 @@ test("输入卡:40 列下放不下完整键位组,整条丢掉「换行」而不
     app.renderer.destroy()
   }
 })
+
+// usage 段(上下文占用/花费)折进底部行之后,卡内**仍然是四行**。
+//
+// 用户报的是「输入卡下面空了一行」—— 那一行原本是卡外的一条状态行,只带一个右对齐的
+// `77.1K`。折进底部行之后输入卡底下什么都不剩,所以这张壳的行数必须与折进去之前**完全一样**:
+// 底部行仍然只占一行(usage 是同一行里的一段,不是新起的一行)、提示行紧跟它、下边框仍是
+// hints + 2(提示行 + 一行 paddingBottom 留白 + 边框行)。多出一行就等于把那条空行搬进卡里,
+// 那还是同一个问题。
+const USAGE = () => <text wrapMode="none">77.1K</text>
+
+for (const width of [40, 60, 80, 120]) {
+  test(`输入卡:${width} 列下 usage 段在底部行内,卡内仍是四行、下边框位置不变`, async () => {
+    const app = await renderReady(
+      () => (
+        <PromptCard focused={false}>
+          <box width="100%" flexDirection="row" gap={1} flexShrink={0}>
+            <box flexShrink={0} width={2} height={1}>
+              <text>&gt;</text>
+            </box>
+            <box flexGrow={1} flexShrink={1} minWidth={4}>
+              <textarea width="100%" minHeight={1} maxHeight={6} initialValue="L0" />
+            </box>
+          </box>
+          <box height={1} flexShrink={0} />
+          <PromptBottomRow
+            meta={META()}
+            usage={USAGE()}
+            trailing={<PromptSend model="big-pickle" canSend onSend={() => {}} />}
+          />
+          <PromptHints />
+        </PromptCard>
+      ),
+      { width, height: 12 },
+      (text) => text.includes("发送"),
+    )
+    try {
+      const all = lines(app)
+      const bottom = all.findIndex((line) => line.includes("发送"))
+      const hints = all.findIndex((line) => line.includes("agents"))
+      const border = all.findIndex((line) => line.includes("╯"))
+      expect(bottom, `帧:\n${all.join("\n")}`).toBeGreaterThanOrEqual(0)
+      // usage 与 meta、发送按钮同在底部行:它在**卡片内**(下边框之上),且与发送同一行。
+      const figure = all.findIndex((line) => line.includes("77.1K"))
+      if (figure >= 0) {
+        expect(figure).toBe(bottom)
+        expect(figure).toBeLessThan(border)
+      }
+      // 四行结构没变:底部行 → 提示行 →(paddingBottom 留白)→ 下边框。
+      expect(hints).toBe(bottom + 1)
+      expect(border).toBe(hints + 2)
+      // 发送按钮贴行尾、没被折到下一行。
+      expect(bare(all[bottom]!).endsWith(`发送 ${expectedShortcut("input.submit")}`)).toBe(true)
+    } finally {
+      app.renderer.destroy()
+    }
+  })
+}

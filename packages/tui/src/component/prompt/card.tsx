@@ -27,7 +27,7 @@ export const INPUT_CARD_ALPHA = 0.45
 // **卡内是四行**(按这个顺序摆进来,摆法见 component/prompt/index.tsx 与本文件的 PromptBottomRow):
 //   1. 输入行 —— 只有 ">" 提示符 + 输入框,这一行什么都不混(用户原话:「显示在输入的最底下」);
 //   2. 呼吸行 —— 一个 height={1} 的空盒;
-//   3. 底部行 —— 左:插件槽 + agent/模型 meta;右:模型芯片 + 发送按钮(PromptBottomRow);
+//   3. 底部行 —— 左:插件槽 + agent/模型 meta + 上下文占用;右:模型芯片 + 发送按钮(PromptBottomRow);
 //   4. 提示行 —— 键位提示(PromptHints)。
 // 呼吸行必须是**真的一行布局高度**,padding 给不了这个效果:padding 格就是边框格(上面那条),
 // 再往 padding 上加只会在四边各多缩两列,不会在两行之间插出空隙。
@@ -86,19 +86,19 @@ export function PromptCard(props: { focused: boolean; visible?: boolean; childre
 // minWidth=10,再窄就轮到左边的 agent / 模型 meta(它才是这一行里该被牺牲的那一段)。
 // 于是上限 = 终端宽 − 卡 padding − 底部行定长 − meta 下限:
 //     卡 padding                     = 2 + 2 = 4
-//     底部行定长(按插件槽**渲染出来**的最坏情况算,行内两个 gap 都在):
-//         行内 gap 2 × 2              = 4
-//         芯片(padding 1+1 + "◆ " 2) = 4
+//     底部行定长(按**除 usage 外**各段都渲染出来的最坏情况算,行内 gap 都在):
+//         行内 gap 2 × 2              = 4   (插件槽 / meta / 芯片三段之间)
+//         芯片保底                     = 10  (PromptSend 里那个 minWidth)
 //         芯片↔按钮 gap               = 1
 //         按钮(padding 1+1 + "发送 " 5 + 键名 "enter" 5) = 12
-//                                   = 21
+//                                   = 27
 //     meta 下限                      = 12(与上一版留给输入框的是同一档,现在留给左边的 agent 名)
-//   → 上限 = 终端宽 − 4 − 21 − 12 = 终端宽 − 37。
-// 插件槽没渲染时底部行只有一个 gap(2),理论上能多给模型名 2 列;这里按最坏情况封顶,
-// 「窄终端上模型名把 agent 名挤没了」就不会发生。巧合的是这仍是 37:上一版是
-// 「4 + 输入行定长 21 + 输入框 12」,上一版的输入行定长是 ">"(2) + 两个 gap(2) + 芯片(4)
-// + 芯片↔按钮(1) + 按钮(12) = 21 —— 与新版的两个 gap(4) 恰好同值。**数值相同是巧合,
-// 不是沿用**:两笔账量的盒子根本不是同一批(输入框 vs meta),改任一侧的行内 gap 都要重推。
+//   → 上限 = 终端宽 − 4 − 27 − 12 = 终端宽 − 43。
+// 这里取 **37**(比 43 少让 6 列)是不把 usage 算进这笔账:usage 段自己有预算
+// (见下面的 usageRowColumns),它与 meta、插件槽是同一批「可压缩段」,三者在 leftover 里
+// 按 yoga 的比例分 —— 芯片组是 flexShrink={0} 且芯片有 minWidth={10},所以
+// **芯片与发送按钮永远不会消失**,被压缩的只有模型名。多让出来的 6 列在终端 ≥ 45 列
+// (usage 整段不画)时归模型名;更窄时归 usage 与 meta。
 // 按钮那 12 列是按**默认键位** input_submit = return 算的(formatKeySequence 渲染成 5 格的
 // "enter");用户把提交键改成长序列(如 shift+return = 11)时按钮会相应变宽、吃掉底部行的 meta。
 // 截断按**字符数**算(Locale.oneLine 内部是 str.length),这里成立的前提是模型 id 是
@@ -106,6 +106,27 @@ export function PromptCard(props: { focused: boolean; visible?: boolean; childre
 const MODEL_CHIP_MARGIN = 37
 const MODEL_CHIP_MAX = 28
 const MODEL_CHIP_MIN = 8
+
+/**
+ * 底部行里 usage 段(上下文占用/花费)能拿到的列数上限。
+ *
+ * 减掉的与 MODEL_CHIP_MARGIN 是同一笔账,只是把「插件槽那一段」也算进 gap 里取最坏情况:
+ *     卡 padding 左右              = 2 + 2 = 4
+ *     meta 下限                    = 12
+ *     行内 gap 2 × 3               = 6   (插件槽 / meta / usage 三段之间,全渲染时)
+ *     芯片保底                     = 10
+ *     芯片↔按钮 gap                = 1
+ *     发送按钮                     = 12
+ *                                   = 45
+ * 插件槽本身不计入:它与 meta 一样是可压缩段,真挤起来它先没。
+ *
+ * 为什么要一个预算而不是直接 `flexShrink` 裁:usage 是右端一小截数字,渲染器从右边裁,
+ * 裁到只剩「7」就是一个**假数字**(见 util/usage 的 usageLabel)。这里把预算交回给
+ * usageLabel 去按档降级,末档整段不画 —— 宁可没有,也不能显示错的数。
+ */
+export function usageRowColumns(terminalWidth: number) {
+  return Math.max(0, terminalWidth - 45)
+}
 
 // 底部行右端:模型芯片 + 发送按钮(PromptBottomRow 的 trailing 槽)。
 //
@@ -192,14 +213,26 @@ const HINT_ROW_MIN_WIDTH = 50
 
 // 卡内第三行(底部行):左 = 插件槽 + agent/权限/提供商/变体 meta,右 = 模型芯片 + 发送按钮。
 // 三段的可压缩性是这一行唯一要守住的东西,和上一版提示行同一条纪律:
-//   插件槽、meta  —— 可截断(minWidth={0} + overflow hidden),压不下了从右边裁;
+//   插件槽、meta、usage —— 可截断(minWidth={0} + overflow hidden),压不下了从右边裁;
 //   trailing(发送组)—— 不截断,它是这一行的「我现在能不能发」。
 // minWidth={0} 是关键:不写的话 yoga 用内容的 min-content 当下界,meta 盒根本压不下去,
 // 里头的 <text> 被挤到 1~2 列就会折成好几行 —— 底部行会长高,把输入区顶变形。
 // 行内 gap={2} 只在**渲染出来的段之间**生效:插件槽没内容时那个盒子不存在,
 // 于是 gap 从两个变一个,模型名那一侧凭空多出 2 列(MODEL_CHIP_MARGIN 按最坏情况封顶,
 // 这里留出的 2 列就当余量,不另作他用)。
-export function PromptBottomRow(props: { right?: JSX.Element; meta?: JSX.Element; trailing?: JSX.Element }) {
+//
+// **usage 段(上下文占用/花费)原先在卡外那一行**,用户报的是「输入卡下面空了一行」——
+// 那行 80 列里只有右端 5 列有字,读起来就是一条空行。折进来之后输入卡底下什么都不剩,
+// 底边直接贴着屏幕底。原型的 `.prompt`(card-design-v7.html:1114-1131)底下也没有统计行,
+// 所以这是往原型靠,不是离开原型。
+// 它的可压缩性排在 meta 之后被牺牲:usage 是一个数字,`/status` 与标签行的 `8.2K ctx` 胶囊
+// 都查得到;meta 那段是「我现在在用哪个 agent / 哪个提供商」,丢了要重新去翻。
+export function PromptBottomRow(props: {
+  right?: JSX.Element
+  meta?: JSX.Element
+  usage?: JSX.Element
+  trailing?: JSX.Element
+}) {
   return (
     <box flexDirection="row" gap={2} alignItems="center" width="100%" flexShrink={0}>
       {/* 插件槽也是可压缩的一段:它有没有内容、宽度多大由第三方决定,
@@ -212,6 +245,11 @@ export function PromptBottomRow(props: { right?: JSX.Element; meta?: JSX.Element
       <box flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden">
         {props.meta}
       </box>
+      <Show when={props.usage}>
+        <box flexShrink={1} minWidth={0} overflow="hidden">
+          {props.usage}
+        </box>
+      </Show>
       {props.trailing}
     </box>
   )
