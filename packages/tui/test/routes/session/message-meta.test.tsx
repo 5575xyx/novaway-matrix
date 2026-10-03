@@ -79,8 +79,11 @@ const AGENT_COLOR = RGBA.fromHex("#5fd7ff")
 
 /**
  * 生产 UserMessage 的外层三明治:带 id 的消息盒(alignItems="flex-end",气泡靠右)→
- * meta 行 → 霓虹气泡卡。meta 行要 alignSelf="stretch" 才能从右对齐的气泡列里伸到整列左缘
- * ——它标的是「这条用户消息在这」,不是气泡的一部分。
+ * meta 行 → 霓虹气泡卡。
+ *
+ * meta 行的盒子是 `alignSelf="stretch"`(撑满整列)而**文字右对齐** —— 原型的 `.msg.user` 是
+ * `align-self: flex-end; align-items: flex-end`(card-design-v7.html:395),meta 与气泡共享同一条
+ * 右缘。之前文字从左缘起,于是 `21:55 你` 贴在最左、气泡贴在最右,两者看着毫无关系。
  */
 function userBubbleBody() {
   return () => (
@@ -107,6 +110,35 @@ function userBubbleBody() {
   )
 }
 
+/** 帧里一行的**显示列**数组(CJK 与 emoji 占两列,所以要摊开)。 */
+function columns(line: string) {
+  const out: string[] = []
+  for (const part of new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(line)) {
+    out.push(part.segment)
+    for (let i = 1; i < Bun.stringWidth(part.segment); i++) out.push("")
+  }
+  return out
+}
+
+/** 一格算不算「有字」:宽字符的第二列是 `""`(延续格),行内/行尾的空白是 `" "` —— 两者都不算。 */
+function ink(cell: string | undefined) {
+  return cell !== undefined && cell !== "" && cell !== " "
+}
+
+/** 这一行最后一个有字的那一列。 */
+function lastInkColumn(line: string) {
+  const cells = columns(line)
+  for (let index = cells.length - 1; index >= 0; index--) if (ink(cells[index])) return index
+  return -1
+}
+
+/** 这一行第一个有字的那一列。 */
+function firstInkColumn(line: string) {
+  const cells = columns(line)
+  for (let index = 0; index < cells.length; index++) if (ink(cells[index])) return index
+  return -1
+}
+
 test("用户消息:meta 行渲染「时间 你」,且就在气泡卡上方一行的位置", async () => {
   const lines = await renderFrame(userBubbleBody(), has("USER-BODY"))
   const meta = lines.findIndex((line) => line.includes("你"))
@@ -124,26 +156,50 @@ test("用户消息:meta 行渲染「时间 你」,且就在气泡卡上方一行
   expect(inner(lines[top + 1]!)).not.toContain(STAMP)
 })
 
-// 两条 meta 行摆在一起量:用户那条与助手那条必须从**同一列**起(同一个 paddingLeft),
-// 否则会话流里用户消息的标注会比助手的缩进深一列,一眼就看出不对称。
+// 这一条是「时间和气泡分到了两边」那一处的判据:**右缘齐平**,而不是「两者都在」。
+// 只断言「meta 在、卡也在」的话,把对齐方向改回去也不会有任何一条测试变红。
+test("用户消息:meta 行的右缘与气泡卡的右缘齐平(原型 .msg.user 两块都 align-self: flex-end)", async () => {
+  const lines = await renderFrame(userBubbleBody(), has("USER-BODY", "╯"))
+  const meta = lines.find((line) => line.includes("你"))
+  expect(meta, "帧里没有 meta 行").toBeDefined()
+  // 气泡卡的右边框在那一列(卡内右侧只空一列 padding,边框画在最外列上,见 neon-card 的注释)。
+  const borders = lines.filter((line) => line.includes("╭") || line.includes("│") || line.includes("╯"))
+  expect(borders.length, "帧里没有气泡卡的边框").toBeGreaterThan(0)
+  const cardRight = Math.max(...borders.map((line) => lastInkColumn(line)))
+  const metaRight = lastInkColumn(meta!)
+  // 差的这两列是算得出来的,不是「差不多」:
+  //   · 1 列 = `paddingRight={1}`(原型 `.msg-meta { padding: 0 4px }` 的右半边,card-design-v7.html:397);
+  //   · 1 列 = 「你」是宽字符,占两列而末列是延续格,`lastInkColumn` 只认字形的第一列。
+  // 关键是**它不再是几十列** —— 改回左对齐时这个差是 40 多。
+  expect(cardRight - metaRight, "meta 行的右缘").toBe(2)
+  expect(metaRight, "meta 行该贴着右缘而不是整列左缘").toBeGreaterThan(WIDTH - 6)
+  // 反过来钉一次:改回左对齐的话 meta 会从整列左缘起,右边空出一大片 —— 所以左缘也必须靠右。
+  expect(firstInkColumn(meta!), "meta 行的左缘").toBeGreaterThan(WIDTH / 2)
+})
+
+// 两条 meta 行摆在一起量:用户那条**右**对齐,助手那条**左**对齐 —— 两个方向都来自原型
+// (card-design-v7.html:395-396),所以这一条钉的是「方向相反」而不是「从同一列起」。
 function bothMetasBody() {
   return () => (
     <box width={WIDTH}>
       <AssistantMeta agentColor={AGENT_COLOR} agent="build" created={CREATED} model="claude-sonnet-4" width={WIDTH} />
-      <UserMeta created={CREATED} />
+      <box alignSelf="stretch" flexShrink={0}>
+        <UserMeta created={CREATED} />
+      </box>
     </box>
   )
 }
 
-test("用户消息:meta 行与助手 meta 行从同一列起(两条标注视觉对称、各占一行)", async () => {
+test("用户消息:助手 meta 左对齐、用户 meta 右对齐(原型的 flex-start / flex-end)", async () => {
   const lines = await renderFrame(bothMetasBody(), (rows) => rows.some((row) => inner(row).includes("你")), 12)
   const assistant = lines.findIndex((line) => line.includes("◆"))
   const user = lines.findIndex((line) => line.includes("你"))
   expect(assistant).toBeGreaterThanOrEqual(0)
   // 两条 meta 相邻 —— 各自只占一行,不是两行
   expect(user).toBe(assistant + 1)
-  expect(lines[assistant]!.indexOf("◆")).toBe(lines[user]!.indexOf(STAMP))
-  expect(lines[user]!.indexOf(STAMP)).toBeGreaterThanOrEqual(0)
+  expect(lines[assistant]!.indexOf("◆"), "助手那条从左缘起(paddingLeft 一列)").toBe(1)
+  expect(lines[user]!.indexOf(STAMP), "用户那条不是从左缘起").toBeGreaterThan(1)
+  expect(lastInkColumn(lines[user]!), "用户那条的右缘").toBe(WIDTH - 3)
   // 用户那条不带 ◆ 与模型名:它标的是「你」,不是智能体
   expect(lines[user]).not.toContain("◆")
   expect(lines[user]).not.toContain("claude-sonnet-4")

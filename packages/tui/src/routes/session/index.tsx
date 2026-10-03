@@ -264,11 +264,28 @@ export function userMetaVisible(timestamps: "hide" | "show") {
  * 形状与助手那条对称:没有 ◆(标的是人不是智能体)、没有模型名,meta 在**卡外**的上一行,
  * 卡内第一行留给正文。时间格式与助手 meta 共用 Locale.todayTimeOrDateTime
  * (今天只显示时分,更早显示「时间 · 日期」)。
+ *
+ * **对齐方向与助手那条相反,而且这是对的**:原型 `.msg.user` 是
+ * `align-self: flex-end; align-items: flex-end`(card-design-v7.html:395),用户那条的 meta 与气泡
+ * 共享同一条右缘;`.msg.assistant` 是 `align-self: flex-start`(:396),助手那条的 meta 从左缘起。
+ * 右对齐由下面那两个属性给,理由与**为什么必须带 `paddingRight`** 见那句 `justifyContent` 的注释。
+ * 调用点那一处的注释与断言见 UserMessage 与 test/routes/session/message-meta.test.tsx。
  */
 export function UserMeta(props: { created: number }) {
   const { theme } = useTheme()
   return (
-    <box flexDirection="row" gap={1} paddingLeft={1} flexShrink={0}>
+    // **右对齐**,靠 `justifyContent="flex-end"`。
+    //
+    // **为什么不写成 `alignSelf="flex-end"` 让这一行按内容收窄**:那样这一行的宽度就变成
+    // 「按内容算」,而 opentui/yoga 在这一档下给不出高度 —— 这一行直接变成 0 高,文字盖到下一张卡
+    // 的顶边框上(实测:meta 与卡顶边框叠在同一行)。所以**外层那个盒子仍然撑满整列**,
+    // 右对齐在这一行内部做。
+    //
+    // **为什么必须带 `paddingRight={1}`**:同样实测出来的 —— 去掉它,`justifyContent: flex-end`
+    // 与 `height: 1` 都会让这一行塌成 0 高;加上就稳定。那一列也正好是原型
+    // `.msg-meta { padding: 0 4px }`(:397)那对内边距在终端里的落点,所以断言里它是算得出的
+    // 那一列,不是凑出来的偏移。
+    <box flexDirection="row" gap={1} paddingLeft={1} paddingRight={1} flexShrink={0} justifyContent="flex-end">
       <text wrapMode="none">
         <span style={{ fg: theme.textMuted }}>{Locale.todayTimeOrDateTime(props.created)} </span>
         <span style={{ fg: semanticStops(theme, "user")[0] }}>你</span>
@@ -2193,9 +2210,16 @@ function UserMessage(props: { message: UserMessage; parts: Part[]; onMouseUp: ()
           onMouseOut={hover.onMouseOut}
         >
           {/* meta 行(时间 + 「你」):贴在气泡卡**外面**的上一行,与助手卡的三明治结构对称。
-              alignSelf="stretch" 是必需的 —— 外层盒子是 alignItems="flex-end"(气泡靠右),
-              不撑开的话 meta 会跟着气泡贴到右缘;而它标的是「这条用户消息在这」,该从整列左缘起,
-              和助手那条 meta 落在同一列上(见 UserMeta 的注释)。
+              **右对齐**,与气泡卡同一条右缘 —— 原型的 `.msg.user` 是
+              `align-self: flex-end; align-items: flex-end`(card-design-v7.html:395),
+              所以 meta 与气泡是同一个 flex 列里同样靠右的两块,右缘严格对齐(:917-920)。
+              之前这一行是**左**对齐的(盒子撑满整列、文字从左缘起),于是 `21:55 你` 贴在最左、
+              气泡贴在最右,两者看着毫无关系 —— 用户原话:「时间和气泡分到了两边」。
+              右对齐由 UserMeta 内部的 `justifyContent="flex-end"` 给(为什么不是把这里改成
+              `alignSelf="flex-end"`,见 UserMeta 那段注释);**这个盒子仍然撑满整列**,因为
+              按内容收窄会让这一行没有高度。
+              助手那条保持左对齐(原型的 `.msg.assistant` 是 `align-self: flex-start`,:396),
+              所以两条 meta 的对齐方向本来就是相反的。
               放在带 id 的这个盒子里而不是它外面:消息跳转(跳到消息 / 上一条下一条)是按 scrollbox
               **直接子节点**的 id 查的,多一个兄弟节点就多一份要一起算的间距。 */}
           <Show when={ctx.showUserMeta()}>
