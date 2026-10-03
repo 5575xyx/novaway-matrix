@@ -117,3 +117,24 @@ export function toolHeadLayout(input: { title?: string; summary?: ToolStatusSumm
     failed,
   }
 }
+
+/**
+ * head 行里「命令首词 / 余下」的切分(原型的 `.tool-head .cmd b { color: var(--cyan) }`)。
+ *
+ * **为什么首词值得单独一种颜色**:原型里 `<b>bun</b> test --timeout 30000` 那个加粗的 `bun`
+ * 就是「这条 head 说的是哪个可执行文件」。命令行的其余部分全是参数,扫一眼就能猜个大概,
+ * 而可执行文件决定了这条输出的性质(测试 / 编译 / 版本控制),所以它是这一行里唯一需要被认出来的那段。
+ *
+ * **为什么先剥开头的路标符号**:`#` / `←` / `◂` 是本仓库给标题加的标记(routes/session 里
+ * BlockTool 各个调用点的 `# 写入 …` / `← Edit …`),不是命令的一部分。不剥的话首词永远是那个符号,
+ * 于是「首词染色」退化成「给 `#` 上色」,真正的命令全落在余下部分里 —— 染色白做。
+ *
+ * `rest` 保留首词后面那个空格:渲染时 `first + rest` 拼回去必须与原文一字不差,少一个空格
+ * 就是命令变了(而 head 行往往要与工具输出里的命令原文对照着看)。
+ */
+export function toolCommandParts(head: string) {
+  const text = head.replace(/^(?:#|←|◂)+\s*/, "")
+  const space = text.search(/\s/)
+  if (space < 0) return { first: text, rest: "" }
+  return { first: text.slice(0, space), rest: text.slice(space) }
+}

@@ -17,7 +17,6 @@ import {
   NeonCard,
   AssistantMeta,
   BlockTool,
-  InlineToolRow,
   metaModelLimit,
   partSiblingRef,
 } from "../../../src/routes/session"
@@ -105,7 +104,9 @@ async function renderFrame(
 }
 
 // 生产 AssistantMessage 的外层三明治:wrapper(带 id,供会话跳转查)→ meta 行 → NeonCard。
-// bubbleBody 额外在气泡后面挂一个真实的 InlineToolRow,用来测 wrapper 之后的兄弟间距。
+// bubbleBody 额外在气泡后面挂一个真实的工具卡,用来测 wrapper 之后的兄弟间距。
+// 挂的是 BlockTool 本体而不是 InlineToolRow:紧凑形态的工具现在也是一张带边框的卡
+// (原型 card-design-v7.html:427-458),间距登记也在卡壳上,InlineToolRow 只是 head 行的内容。
 function bubbleBody(texts: readonly string[], probe = 0) {
   return () => (
     <scrollbox
@@ -140,9 +141,9 @@ function bubbleBody(texts: readonly string[], probe = 0) {
           </Show>
         </NeonCard>
       </box>
-      <InlineToolRow complete={true} pending="">
-        Read src/index.ts
-      </InlineToolRow>
+      <BlockTool title="Read src/index.ts">
+        <text>TOOLBODY</text>
+      </BlockTool>
     </scrollbox>
   )
 }
@@ -178,12 +179,11 @@ test("助手气泡卡:相邻 part 之间仍有 1 行空行", async () => {
   expect(inner(lines[first + 1]!)).toBe("")
 })
 
-// 卡内前兄弟有两种「不是多行 box」的形态,改造前 TextPart/ReasoningPart 是静态 marginTop={1},
+// 卡内前兄弟有三种「不是多行 box」的形态,改造前 TextPart/ReasoningPart 是静态 marginTop={1},
 // 恒有 1 行空行;如果卡内规则改成看「前兄弟是不是多行 / 在不在 alwaysSeparate 里」,
 // 这两种形态后面的正文就会紧贴上来,整张卡变成一坨:
-//   1. 不带 separate 的行内工具(Read/Glob/Grep/WebFetch/WebSearch/Write…):1 行,
-//      且 InlineToolRow 只在 separate 为真时才 alwaysSeparate.add(只有 Task 传了)。
-//   2. Read 在行内工具下面再吐的「↳ Loaded」框:1 行,而且完全没有 ref。
+//   1. 没有 ref 的 1 行框(Read 在行内工具下面再吐的「↳ Loaded」框):1 行,完全没有 ref。
+//   2. 工具卡自己(紧凑形态)后面:卡是多行的,走 alwaysSeparate 那条。
 // 所以规则必须是「卡内只要有前一个兄弟就给 1」,与前兄弟的行数无关。
 function afterPreviousBody(kind: "tool" | "refless") {
   return () => (
@@ -197,10 +197,9 @@ function afterPreviousBody(kind: "tool" | "refless") {
             </box>
           }
         >
-          {/* 不传 separate —— 与生产里 Read/Glob/Grep 的调用一致 */}
-          <InlineToolRow complete={true} pending="">
-            {"Read TOOLMARK"}
-          </InlineToolRow>
+          <BlockTool title="Read TOOLMARK">
+            <text>TOOLBODY</text>
+          </BlockTool>
         </Show>
         <box ref={partSiblingRef} flexShrink={0}>
           <text>AFTERMARK</text>
@@ -210,13 +209,14 @@ function afterPreviousBody(kind: "tool" | "refless") {
   )
 }
 
-test("助手气泡卡:行内工具(1 行、不在 alwaysSeparate)后面仍有 1 行空行", async () => {
+test("助手气泡卡:工具卡(多行、已登记 alwaysSeparate)后面仍有 1 行空行", async () => {
   const lines = await renderFrame(afterPreviousBody("tool"), { width: WIDTH, height: 12 }, has("AFTERMARK"))
   const tool = lines.findIndex((line) => inner(line).includes("TOOLMARK"))
   const after = lines.findIndex((line) => inner(line).includes("AFTERMARK"))
   expect(tool).toBeGreaterThanOrEqual(0)
-  expect(after - tool).toBe(2)
-  expect(inner(lines[tool + 1]!)).toBe("")
+  // 工具卡 = head / 分隔线 / body / 下边框四行(head 上面还有上边框),后面再空一行才是下一个 part
+  expect(after - tool).toBe(5)
+  expect(inner(lines[tool + 4]!)).toBe("")
 })
 
 test("助手气泡卡:无 ref 的 1 行框(Read 的「↳ Loaded」)后面仍有 1 行空行", async () => {
@@ -245,12 +245,15 @@ test("助手气泡卡:卡内可用宽度 = 卡宽 − NeonCard 的 padding 3(边
   expect([...row].filter((char) => char === "X").length).toBe(WIDTH - 3)
 })
 
-test("助手气泡卡:wrapper 之后的兄弟(InlineToolRow)仍按 alwaysSeparate 拿到 1 行间距", async () => {
+test("助手气泡卡:wrapper 之后的兄弟(工具卡)仍按 alwaysSeparate 拿到 1 行间距", async () => {
   const lines = await bubbleLines(["FIRST-PART"])
   const bottom = lines.findIndex((line) => line.includes("╯"))
-  const row = lines.findIndex((line) => inner(line).includes("src/index.ts"))
-  expect(row).toBeGreaterThan(bottom)
-  expect(inner(lines[row - 1]!)).toBe("")
+  // 工具卡的 head 在哪一行
+  const head = lines.findIndex((line) => inner(line).includes("src/index.ts"))
+  expect(head).toBeGreaterThan(bottom)
+  // 空行在卡的上边框**之前** —— 所以 head 往上数两行才是那一行空行
+  expect(inner(lines[head - 2]!)).toBe("")
+  expect(lines[head - 1]).toContain("╭")
 })
 
 // meta 行用生产导出的 AssistantMeta 本体(真实 agentDisplayName / Locale / metaModelLimit / 顺序),

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import {
+  toolCommandParts,
   toolDisplayMetadata,
   toolHeadLayout,
   toolStatusFailedText,
@@ -154,5 +155,36 @@ describe("toolHeadLayout", () => {
   test("宽度 0 与负宽度都不会越界(负数来自极窄终端下的 Math.max 兜底)", () => {
     expect(toolHeadLayout({ title: "abc", summary, width: 0 })).toEqual({ title: "", passed: "", failed: "" })
     expect(toolHeadLayout({ title: "abc", summary, width: -5 })).toEqual({ title: "", passed: "", failed: "" })
+  })
+})
+
+// ── head 行里命令首词的切分(原型的 `.tool-head .cmd b { color: var(--cyan) }`)──
+//
+// 判据是「first + rest === 原文」:首词单独染色,余下部分原样,渲染层只管把两段拼回去。
+// 不满足这一条时,染色要么吃掉一个空格、要么把命令改短 —— 两者都会让 head 行与工具输出对不上。
+describe("toolCommandParts", () => {
+  test("切出首词,余下部分保留分隔空格", () => {
+    expect(toolCommandParts("bun test --timeout 30000")).toEqual({ first: "bun", rest: " test --timeout 30000" })
+    // 拼回去必须一字不差
+    const parts = toolCommandParts("bun test --timeout 30000")
+    expect(parts.first + parts.rest).toBe("bun test --timeout 30000")
+  })
+
+  test("剥掉开头的路标符号,首词才是命令本身", () => {
+    // 本仓库给标题加的 `#` / `←` / `◂` 不是命令的一部分;不剥的话首词永远是那个符号
+    expect(toolCommandParts("# Running in app")).toEqual({ first: "Running", rest: " in app" })
+    expect(toolCommandParts("← Edit src/index.ts")).toEqual({ first: "Edit", rest: " src/index.ts" })
+    expect(toolCommandParts("◂ 补丁 src/a.ts")).toEqual({ first: "补丁", rest: " src/a.ts" })
+  })
+
+  test("只有一个词时余下部分为空串(而不是 undefined)", () => {
+    expect(toolCommandParts("bun")).toEqual({ first: "bun", rest: "" })
+  })
+
+  test("空串与纯空白都不给出首词", () => {
+    expect(toolCommandParts("").first).toBe("")
+    // 纯空白没有首词可染,但仍要满足「拼回去是原文」——余下部分原样留着
+    expect(toolCommandParts("   ").first).toBe("")
+    expect(toolCommandParts("   ").first + toolCommandParts("   ").rest).toBe("   ")
   })
 })

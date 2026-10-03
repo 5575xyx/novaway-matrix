@@ -113,12 +113,18 @@ test("没有状态摘要时 head 上不出现任何通过/失败字样(不写假
   expect(frame).not.toContain("failed")
 })
 
-test("既没有标题也没有摘要时 head 整行不画,正文不被顶下一行", async () => {
+test("既没有标题也没有摘要时 head 仍然画(caret + 图标),正文紧跟在分隔线下面", async () => {
   const frame = await renderTool(() => mountTool({}), 60)
-  const content = rows(frame).find((row) => row.includes("输出正文占位"))
+  const rows_ = rows(frame)
+  // 卡内第一行是上边框,第二行是 head —— head 永远在,工具不会因为没有标题/摘要就整张卡都不画。
+  // (改造前这里是「head 整行不画」:那正是「工具输出读起来是一片没有层次的纯文本」的成因之一。)
+  expect(rows_[1]).toMatch(/▸/)
+  expect(rows_[1]).toContain("⚙")
+  // 第三行是 body 与 head 之间那条分隔线,第四行才是正文
+  expect(rows_[2]!.replace(/[│\s]/g, "")).toMatch(/^[─━╍]+$/)
+  const content = rows_.find((row) => row.includes("输出正文占位"))
   expect(content).toBeDefined()
-  // 卡内第一行是上边框,第二行就该是正文(没有多出一个空的 head 行)
-  expect(rows(frame).indexOf(content!)).toBe(1)
+  expect(rows_.indexOf(content!)).toBe(3)
 })
 
 test("窄终端下摘要整段留着,标题按显示列截断并留省略号", async () => {
