@@ -259,22 +259,6 @@ export function Prompt(props: PromptProps) {
   // 见下面 canSend 的说明。
   const [submitting, setSubmitting] = createSignal(false)
 
-  // 发送按钮能不能点:与 submitInner 的前置守卫(见下面 disabled / creating / 弹层可见 /
-  // 空输入 / 无 agent 那五条)以及 submit() 的重入锁同一组条件,只是提前把结果画在按钮上 ——
-  // 真判定仍在 submit() 里,这里不给它开旁路。
-  // submitting 必须算进来:提交在飞的那一两帧里 store.prompt.input 还没清空,
-  // 不看这个信号的话按钮会一直亮着,点下去被重入锁静默吞掉。
-  const canSend = createMemo(
-    () =>
-      !props.disabled &&
-      !workspace.creating() &&
-      !move.creating() &&
-      !auto()?.visible &&
-      Boolean(store.prompt.input) &&
-      Boolean(local.agent.current()) &&
-      !submitting(),
-  )
-
   function promptModelWarning() {
     toast.show({
       variant: "warning",
@@ -346,6 +330,26 @@ export function Prompt(props: PromptProps) {
     extmarkToPartIndex: new Map(),
     interrupt: 0,
   })
+
+  // 发送按钮能不能点:与 submitInner 的前置守卫(见下面 disabled / creating / 弹层可见 /
+  // 空输入 / 无 agent 那五条)以及 submit() 的重入锁同一组条件,只是提前把结果画在按钮上 ——
+  // 真判定仍在 submit() 里,这里不给它开旁路。
+  // submitting 必须算进来:提交在飞的那一两帧里 store.prompt.input 还没清空,
+  // 不看这个信号的话按钮会一直亮着,点下去被重入锁静默吞掉。
+  //
+  // 这个 memo 必须声明在 store 之后:createMemo 会立即跑一次求值,而这里读的
+  // store.prompt.input 在声明之前会撞 TDZ(Cannot access 'store' before initialization),
+  // 整个 Prompt 渲染直接崩。新增依赖 store 的 memo 时留意这条。
+  const canSend = createMemo(
+    () =>
+      !props.disabled &&
+      !workspace.creating() &&
+      !move.creating() &&
+      !auto()?.visible &&
+      Boolean(store.prompt.input) &&
+      Boolean(local.agent.current()) &&
+      !submitting(),
+  )
 
   createEffect(
     on(
