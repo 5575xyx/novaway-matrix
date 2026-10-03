@@ -14,6 +14,9 @@ import { createTuiResolvedConfig } from "../../fixture/tui-runtime"
 import { TuiPathsProvider, TuiStartupProvider, TuiTerminalEnvironmentProvider } from "../../../src/context/runtime"
 import {
   alwaysSeparate,
+  messageColumns,
+  MESSAGE_MAX_WIDTH,
+  MessageAnchor,
   NeonCard,
   AssistantMeta,
   BlockTool,
@@ -379,4 +382,111 @@ test("真实 BlockTool 在助手卡内可用 42 列,顶层 45 列", async () => 
   }
   expect(await measure(false)).toBe(45)
   expect(await measure(true)).toBe(42)
+})
+
+// ── 消息列的宽度上限(原型的 `.msg { max-width: 78% }`,card-design-v7.html:394)──
+//
+// 判据是「右缘落在哪一列」,不是「有没有 maxWidth 这个属性」:手抄一个 maxWidth 也能通过后者。
+// 同一条 `.msg` 在原型里同时管 user 与 assistant,所以两个方向量的是**同一个** messageColumns(…)。
+test("助手气泡卡:宽度上限 78%,右缘落在消息列上而不是撑满整列", async () => {
+  const lines = await renderFrame(
+    () => (
+      <box width={WIDTH}>
+        <MessageAnchor messageID="capped" flexShrink={0}>
+          <NeonCard>
+            <box ref={partSiblingRef} flexShrink={0}>
+              <text>CAPPEDBODY</text>
+            </box>
+          </NeonCard>
+        </MessageAnchor>
+      </box>
+    ),
+    { width: WIDTH, height: 12 },
+    has("CAPPEDBODY"),
+  )
+  const bottom = lines.find((line) => line.includes("╯"))!
+  // 48 × 78% = 37.44 → 37 列(0..36),右边框落在第 36 列而不是第 47 列
+  expect(messageColumns(WIDTH)).toBe(37)
+  expect(bottom.lastIndexOf("╯")).toBe(messageColumns(WIDTH) - 1)
+  // 反向钉一次:没有上限的话右缘就是整列的右缘
+  expect(bottom.lastIndexOf("╯")).not.toBe(WIDTH - 1)
+})
+
+test("messageColumns 把百分比解析成整列,宽屏窄屏都是同一个比例", () => {
+  expect(MESSAGE_MAX_WIDTH).toBe("78%")
+  // 四舍五入到整列:yoga 的百分比落点
+  expect(messageColumns(48)).toBe(37)
+  expect(messageColumns(100)).toBe(78)
+  expect(messageColumns(120)).toBe(94)
+  expect(messageColumns(200)).toBe(156)
+  // 比整列窄,而不是更宽
+  for (const width of [20, 48, 80, 120, 200]) {
+    expect(messageColumns(width)).toBeLessThan(width)
+  }
+})
+
+test("助手 meta 行按消息列截模型名,不是按整列", async () => {
+  const lines = await renderFrame(
+    () => (
+      <box width={WIDTH}>
+        <MessageAnchor messageID="capped-meta" flexShrink={0}>
+          <AssistantMeta
+            agentColor={RGBA.fromHex("#5fd7ff")}
+            agent="build"
+            created={new Date(2026, 0, 2, 14, 32).getTime()}
+            model={"m".repeat(200)}
+            width={messageColumns(WIDTH)}
+          />
+          <NeonCard>
+            <box ref={partSiblingRef} flexShrink={0}>
+              <text>METABODY</text>
+            </box>
+          </NeonCard>
+        </MessageAnchor>
+      </box>
+    ),
+    { width: WIDTH, height: 12 },
+    has("METABODY"),
+  )
+  const meta = lines.find((line) => inner(line).includes("◆"))!
+  // 模型名的预算跟着消息列收窄。48 列终端上消息列是 37,37 − 26 = 11 已经跌破 12 的下限,
+  // 所以那条拿到的就是下限;宽一点的屏上差距才是真的:120 → 消息列 94 → 68,而按整列算是 94。
+  expect(metaModelLimit(messageColumns(WIDTH))).toBe(12)
+  expect(metaModelLimit(messageColumns(120))).toBe(68)
+  expect(metaModelLimit(messageColumns(120))).toBeLessThan(metaModelLimit(120))
+  // 12 列的预算在 37 列的消息列里放不下(前面还有 ◆ / 智能体名 / 时间戳),所以模型名被右缘切到
+  // 只剩几个字符 —— 这正是「被裁的永远是模型名」那一条设计(见 AssistantMeta 的顺序注释)。
+  expect(meta).not.toContain("m".repeat(12))
+  // 时间戳排在模型名之前,所以它完好
+  expect(meta).toContain(Locale.todayTimeOrDateTime(new Date(2026, 0, 2, 14, 32).getTime()))
+})
+
+test("工具卡在收窄后的消息列里仍留得住 head:摘要整段留着,标题让位", async () => {
+  // 48 列终端 → 消息列 37 → 工具卡内宽 37 − 6 = 31 → head 文案预算 31 − 5 = 26
+  const lines = await renderFrame(
+    () => (
+      <box width={WIDTH}>
+        <MessageAnchor messageID="capped-tool" flexShrink={0}>
+          <NeonCard>
+            <BlockTool
+              title="bun test --timeout 30000"
+              status={{ passed: 12, failed: 0 }}
+              headWidth={Math.max(0, messageColumns(WIDTH) - 6)}
+            >
+              <text>TOOLBODY</text>
+            </BlockTool>
+          </NeonCard>
+        </MessageAnchor>
+      </box>
+    ),
+    { width: WIDTH, height: 14 },
+    has("TOOLBODY"),
+  )
+  const head = lines.find((line) => line.includes("passed"))!
+  expect(head).toContain("✓ 12 passed")
+  // 26 列里放不下整条命令,但也不能把摘要挤掉:标题带省略号
+  expect(head).toContain("…")
+  expect(head).not.toContain("--timeout 30000")
+  // 摘要在右缘之内,没被霓虹边框切掉
+  expect(head.lastIndexOf("passed") + "passed".length).toBeLessThanOrEqual(head.lastIndexOf("│"))
 })

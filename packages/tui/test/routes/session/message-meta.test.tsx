@@ -12,6 +12,8 @@ import { RGBA } from "@opentui/core"
 import "../../../src/ui/card"
 import {
   AssistantMeta,
+  messageColumns,
+  MessageAnchor,
   NeonCard,
   ThinkingMeta,
   USER_META_DEFAULT_KV,
@@ -78,17 +80,21 @@ const STAMP = Locale.todayTimeOrDateTime(CREATED)
 const AGENT_COLOR = RGBA.fromHex("#5fd7ff")
 
 /**
- * 生产 UserMessage 的外层三明治:带 id 的消息盒(alignItems="flex-end",气泡靠右)→
+ * 生产 UserMessage 的外层三明治:消息列(带 id 的 MessageAnchor,`alignItems="flex-end"` 让气泡靠右)→
  * meta 行 → 霓虹气泡卡。
  *
  * meta 行的盒子是 `alignSelf="stretch"`(撑满整列)而**文字右对齐** —— 原型的 `.msg.user` 是
  * `align-self: flex-end; align-items: flex-end`(card-design-v7.html:395),meta 与气泡共享同一条
  * 右缘。之前文字从左缘起,于是 `21:55 你` 贴在最左、气泡贴在最右,两者看着毫无关系。
+ *
+ * 宽度上限挂在 MessageAnchor 上而不是气泡自己:原型那一条 `.msg { max-width: 78% }`
+ * 管的是**整条消息列**(meta + 气泡),挂在气泡上的话 meta 会被甩在整列的右缘上,
+ * 与气泡差出一大截(见下面那条「右缘齐平」)。
  */
 function userBubbleBody() {
   return () => (
     <box width={WIDTH}>
-      <box width="100%" alignItems="flex-end">
+      <MessageAnchor messageID="user-1" width="100%" alignItems="flex-end">
         <box alignSelf="stretch" flexShrink={0}>
           <UserMeta created={CREATED} />
         </box>
@@ -100,12 +106,11 @@ function userBubbleBody() {
           paddingLeft={2}
           paddingRight={2}
           flexShrink={0}
-          maxWidth="70%"
           alignItems="flex-end"
         >
           <text>USER-BODY</text>
         </neonbox>
-      </box>
+      </MessageAnchor>
     </box>
   )
 }
@@ -172,9 +177,21 @@ test("用户消息:meta 行的右缘与气泡卡的右缘齐平(原型 .msg.user
   //   · 1 列 = 「你」是宽字符,占两列而末列是延续格,`lastInkColumn` 只认字形的第一列。
   // 关键是**它不再是几十列** —— 改回左对齐时这个差是 40 多。
   expect(cardRight - metaRight, "meta 行的右缘").toBe(2)
-  expect(metaRight, "meta 行该贴着右缘而不是整列左缘").toBeGreaterThan(WIDTH - 6)
+  // 右缘是**消息列**的右缘,不是整列的右缘 —— 原型那条 `.msg { max-width: 78% }` 管的是整条消息列。
+  expect(metaRight, "meta 行该贴着消息列的右缘而不是整列右缘").toBe(messageColumns(WIDTH) - 3)
+  expect(metaRight).toBeLessThan(WIDTH - 3)
   // 反过来钉一次:改回左对齐的话 meta 会从整列左缘起,右边空出一大片 —— 所以左缘也必须靠右。
-  expect(firstInkColumn(meta!), "meta 行的左缘").toBeGreaterThan(WIDTH / 2)
+  expect(firstInkColumn(meta!), "meta 行的左缘").toBeGreaterThan(messageColumns(WIDTH) / 3)
+})
+
+// 用户气泡与助手卡共用同一个上限(原型的 `.msg` 同时管 user 与 assistant):
+// 两个方向量的是同一个 messageColumns(…),所以这条断言把「一个常数、两条消息」钉住。
+test("用户消息:气泡右缘与助手气泡卡右缘落在同一条列上", async () => {
+  const lines = await renderFrame(userBubbleBody(), has("USER-BODY", "╯"))
+  const borders = lines.filter((line) => line.includes("╭") || line.includes("│") || line.includes("╯"))
+  const cardRight = Math.max(...borders.map((line) => lastInkColumn(line)))
+  expect(cardRight).toBe(messageColumns(WIDTH) - 1)
+  expect(cardRight).toBeLessThan(WIDTH - 1)
 })
 
 // 两条 meta 行摆在一起量:用户那条**右**对齐,助手那条**左**对齐 —— 两个方向都来自原型
