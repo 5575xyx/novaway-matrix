@@ -67,6 +67,9 @@ import { useLocal } from "../../context/local"
 import { Locale } from "../../util/locale"
 import { icon } from "../../util/panel-icons"
 import {
+  toolCommandParts,
+  toolStatusFailedText,
+  toolStatusPassedText,
   webSearchProviderLabel,
   toolHeadLayout,
   toolStatusSummary,
@@ -112,7 +115,7 @@ import { useTuiConfig } from "../../config"
 import { useClipboard } from "../../context/clipboard"
 import { nextThinkingMode, reasoningSummary, useThinkingMode, type ThinkingMode } from "../../context/thinking"
 import { getScrollAcceleration, scrollIfAlive } from "../../util/scroll"
-import { collapseHint, collapseToolOutput } from "../../util/collapse-tool-output"
+import { collapseToolOutput } from "../../util/collapse-tool-output"
 import { subscribeMessageJump } from "../../util/message-jump"
 import { sidebarWidth } from "../../util/sidebar-width"
 import { sessionUsage } from "../../util/usage"
@@ -2706,36 +2709,62 @@ type ToolProps = {
   part: ToolPart
 }
 
-// 工具卡 head 行可用列数相对 ctx.width 要扣掉的 9 列,拆开是:助手气泡卡 padding 3
-// (component/neon-card 的 paddingLeft 2 + paddingRight 1)+ BlockTool 自己的 padding 3
-// (同款算法)+ head 行自己的 paddingLeft 3。
+// 工具卡所在盒子的可用列数相对消息列要扣掉的列数,拆开是:助手气泡卡 padding 3
+// (component/neon-card 的 paddingLeft 2 + paddingRight 1)+ 工具卡自己的 padding 3
+// (BlockTool 里的 paddingLeft 2 + paddingRight 1,与助手卡同款算法),合计 6。
 //
-// **为什么这里不给余量**:下面 maxChars 那个 `ctx.width - 9` 里有 2~3 列是保守余量
-// (理由见那段注释),因为工具输出是多行文本,少算一列的代价是多折一行。
-// head 行不同 —— 它是钉死的一行,而右边就是 neonbox 自绘的边框:少算列会让状态摘要
-// 被边框切掉一截,而 `<text>` 默认 wrapMode="none",切掉的部分既不折行也不留省略号,
-// 看上去就是「摘要少了一截」。所以按精确值算,宁可早一点省略标题。
-const TOOL_HEAD_COLUMNS = 9
+// **为什么这里不给余量**:这一层量的是 **head 行**,而 head 是钉死的一行,右边就是 neonbox
+// 自绘的边框 —— 少算列会让状态摘要被边框切掉一截,而 `<text>` 默认 wrapMode="none",
+// 切掉的部分既不折行也不留省略号,看上去就是「摘要少了一截」。所以按精确值算,
+// 宁可早一点省略标题。
+//
+// 工具**输出**那一层反过来给了余量:输出是多行文本,少算一列的代价是多折一行,
+// 而多折的那一行用户看得见(见 GenericTool / Shell 里剩下的那个 `Math.max(20, …)`)。
+export const TOOL_CARD_COLUMNS = 6
 
-// 工具输出的折叠宽度,相对 ctx.width 扣 9。能算准的两项:助手卡 padding 3
-// (paddingLeft 2 + paddingRight 1)+ BlockTool 自己的 padding 3,合计 6。
-// 余下 3 列是保守余量,不是从宿主内边距推出来的 —— 宿主那 4 列
-// (paddingLeft/Right={2} 与滚动条 viewportOptions.paddingRight)早在 contentWidth()
-// 的 `- 4` 里就扣掉了,ctx.width 已经是净值,再算一遍是重复扣。
-// 也就是说真实余量只有 1~2 列。这 3 列没有测试锁定(测试只量到「顶层 45 / 卡内 42」),
-// 所以卡 padding 或宿主 padding 任一变化,都必须重新实测这个数,不能沿用。
+/**
+ * 工具卡 head 行里,标题与状态摘要之外还要摆下的固定列:
+ * head 盒子的 paddingLeft 1 + caret 1 + gap 1 + 图标 1 + gap 1 = 5。
+ *
+ * 为什么要单列成一个常量:caret 与图标是这一轮给 head 补的两段(原型的 `.caret` 与 `.tw`,
+ * card-design-v7.html:438-451),它们各自吃掉 1 列,而 head 右边的状态摘要同样只有 1 行的位置。
+ * 三段挤在同一行时,任何一段少算一列都表现为「右边被切掉一截」,而 wrapMode="none" 不会告诉你。
+ */
+const TOOL_HEAD_CHROME_COLUMNS = 5
+
+/**
+ * 紧凑形态 head 上,工具文案之外要摆下的固定列:head 盒子的 paddingLeft 1 + caret 1 + gap 1
+ * + 状态图标列 2(INLINE_TOOL_ICON_WIDTH)+ 摘要前面的 gap 1 = 6。
+ *
+ * 与 TOOL_HEAD_CHROME_COLUMNS 是两笔账:展开形态的 head 由本组件自己排(caret + 齿轮 + 文案),
+ * 紧凑形态的 head 是 InlineToolRow(自带图标列),所以少一个图标、多一个图标列。
+ */
+const COMPACT_HEAD_CHROME_COLUMNS = 6
+
+/**
+ * 工具卡 body 的行数上限(原型的 `.tool.open .tool-body { max-height: 160px }`,
+ * card-design-v7.html:455-458)。
+ *
+ * **160px 是怎么折成行的**:原型正文 12px 字号 × 1.7 行高 ≈ 20px 一行,160 / 20 = 8 行。
+ * 终端一行就是一格,所以按行折算;这里取 **9**,比折算值多一行 —— 8 行会把最后一行切成两半,
+ * 而工具输出最常被看的就是最后几行(测试结果、报错栈)。
+ *
+ * **上限之外的内容一行都没丢**:body 是一个被 maxHeight 卡住的 scrollbox,内容高度仍然是全部输出,
+ * `scrollHeight > viewport.height`,滚轮停在 body 上就能往下读。这条 scrollbox 取代了原来
+ * 「JS 侧截断 + 点击展开」那套:那套把没显示的行**藏起来**了,所以才需要一个展开动作;
+ * 这里它们始终在内容里,只是要滚 —— 于是 head 上那句「点击展开（还有 N 行）」也就没有存在的理由了。
+ */
+export const TOOL_BODY_MAX_ROWS = 9
+
+/** body 的源行数。空输出算 1 行(卡里那条空行也是一行,不然 body 会被压成 0 高)。 */
+function outputRows(output: string) {
+  return Math.max(1, output.split("\n").length)
+}
+
 function GenericTool(props: ToolProps) {
   const { theme } = useTheme()
   const ctx = use()
   const output = createMemo(() => props.output?.trim() ?? "")
-  const [expanded, setExpanded] = createSignal(false)
-  const maxLines = 3
-  const maxChars = createMemo(() => maxLines * Math.max(20, ctx.width - 9))
-  const collapsed = createMemo(() => collapseToolOutput(output(), maxLines, maxChars()))
-  const limited = createMemo(() => {
-    if (expanded() || !collapsed().overflow) return output()
-    return collapsed().output
-  })
   // 工具名来自 MCP 服务端的声明,长度和内容都不受我们控制
   const name = createMemo(() => Locale.oneLine(props.tool, 80))
 
@@ -2748,23 +2777,21 @@ function GenericTool(props: ToolProps) {
           complete={true}
           part={props.part}
           label={{ name: name(), params: toolParams(props.input) }}
+          // 紧凑形态也带状态摘要:MCP 工具同样可能是某个测试运行器(`mcp__ci__run_suite`),
+          // 而「这条命令跑完怎么样」是 head 上唯一带结论的一段 —— 输出被关掉时它就不见了。
+          status={toolStatusSummary(output())}
         />
       }
     >
       <BlockTool
-        title={`# ${name()} ${input(props.input)}`}
+        title={`${name()} ${input(props.input)}`.trim()}
+        collapsible={true}
         part={props.part}
-        // MCP 工具同样可能是某个测试运行器(`mcp__ci__run_suite`),所以这一层也摘状态摘要。
         status={toolStatusSummary(output())}
-        headWidth={Math.max(0, ctx.width - TOOL_HEAD_COLUMNS)}
-        onClick={collapsed().overflow ? () => setExpanded((prev) => !prev) : undefined}
+        headWidth={Math.max(0, ctx.width - TOOL_CARD_COLUMNS)}
+        bodyRows={outputRows(output())}
       >
-        <box gap={1}>
-          <text fg={theme.text}>{limited()}</text>
-          <Show when={collapsed().overflow}>
-            <text fg={theme.textMuted}>{collapseHint(expanded(), collapsed().hidden)}</text>
-          </Show>
-        </box>
+        <text fg={theme.text}>{output()}</text>
       </BlockTool>
     </Show>
   )
@@ -2776,17 +2803,21 @@ function InlineTool(props: {
   pending: string
   failure?: string
   spinner?: boolean
-  separate?: boolean
   /** crush 式结构化标签:工具名 + 截断过的参数;给了 label 就不再用 children 当正文 */
   label?: { name: string; params?: string }
   children?: JSX.Element
   part: ToolPart
   onClick?: () => void
+  /**
+   * head 行右端的状态摘要(解析规则见 util/tool-display 的 toolStatusSummary)。
+   * 紧凑形态也要有:输出被关掉、或者命令还没产出输出时,head 上那一句「跑完怎么样」
+   * 是唯一还留着结论的地方。
+   */
+  status?: ToolStatusSummary
 }) {
   const { theme } = useTheme()
   const ctx = use()
   const sync = useSync()
-  const renderer = useRenderer()
   const [hover, setHover] = createSignal(false)
   const [errorExpanded, setErrorExpanded] = createSignal(false)
 
@@ -2821,39 +2852,76 @@ function InlineTool(props: {
     if (props.complete) return theme.textMuted
     return theme.text
   })
+  // head 上要摆下的固定列:head 盒子 paddingLeft 1 + caret 1 + gap 1 + 状态图标列 2
+  // (INLINE_TOOL_ICON_WIDTH)+ 摘要前面的 gap 1 = 6。摘要本身多宽由它自己算。
+  const headWidth = createMemo(() => Math.max(0, ctx.width - TOOL_CARD_COLUMNS))
+  const statusColumns = createMemo(() => {
+    const status = props.status
+    if (!status) return 0
+    return Locale.displayWidth(toolStatusPassedText(status)) + Locale.displayWidth(toolStatusFailedText(status))
+  })
+  // 有摘要时 head 压成一行(原型的 `.tool-head .cmd { white-space: nowrap; overflow: hidden }`):
+  // 摘要是这一行里唯一带结论的一段,让工具名折行去挤它,等于把结论挤到第二行去。
+  const labelColumns = createMemo(() =>
+    props.status ? Math.max(0, headWidth() - COMPACT_HEAD_CHROME_COLUMNS - statusColumns()) : undefined,
+  )
 
   return (
-    <InlineToolRow
-      color={fg()}
-      errorColor={theme.error}
-      successColor={theme.success}
-      failed={failed()}
-      denied={Boolean(denied())}
-      error={error()}
-      errorExpanded={errorExpanded()}
-      complete={props.complete}
-      pending={props.pending}
-      failure={props.failure}
-      spinner={props.spinner}
-      separate={props.separate}
-      pendingSpinner={pendingSpinner()}
-      onMouseOver={() => clickable() && setHover(true)}
-      onMouseOut={() => setHover(false)}
-      onMouseUp={() => {
-        if (renderer.getSelection()?.getSelectedText()) return
-        if (failed()) {
-          setErrorExpanded((value) => !value)
-          return
-        }
-        props.onClick?.()
-      }}
+    <BlockTool
+      // 紧凑形态的工具也是一张带边框的卡(原型的 `.tool`,card-design-v7.html:427-458):
+      // head 行是下面那个 InlineToolRow,body 是失败详情。工具没有输出时 body 为空,
+      // 卡片就只剩 head —— head 永远在,工具不会因为「没东西可显示」就从会话流里消失。
+      head={
+        <InlineToolRow
+          color={fg()}
+          errorColor={theme.error}
+          successColor={theme.success}
+          failed={failed()}
+          denied={Boolean(denied())}
+          complete={props.complete}
+          pending={props.pending}
+          failure={props.failure}
+          spinner={props.spinner}
+          pendingSpinner={pendingSpinner()}
+          oneLine={props.status !== undefined}
+          onMouseOver={() => clickable() && setHover(true)}
+          onMouseOut={() => setHover(false)}
+        >
+          {props.label ? (
+            <ToolLabel
+              name={props.label.name}
+              params={props.label.params}
+              max={labelColumns()}
+              failed={failed()}
+              errorColor={theme.error}
+            />
+          ) : (
+            props.children
+          )}
+        </InlineToolRow>
+      }
+      status={props.status}
+      part={props.part}
+      // 失败时点 head 展开的是错误详情,所以那张卡 collapsible;其余紧凑工具没有 body,
+      // caret 是禁用色(见 BlockTool 里 caret 那个 Show)。
+      collapsible={failed()}
+      bodyRows={error() ? outputRows(error()!) : undefined}
+      onClick={
+        clickable()
+          ? () => {
+              if (failed()) {
+                setErrorExpanded((value) => !value)
+                return
+              }
+              props.onClick?.()
+            }
+          : undefined
+      }
     >
-      {props.label ? (
-        <ToolLabel name={props.label.name} params={props.label.params} failed={failed()} errorColor={theme.error} />
-      ) : (
-        props.children
-      )}
-    </InlineToolRow>
+      <Show when={failed() && errorExpanded()}>
+        <text fg={theme.error}>{error()}</text>
+      </Show>
+    </BlockTool>
   )
 }
 
@@ -2863,13 +2931,20 @@ export function InlineToolRow(props: {
   successColor?: RGBA
   failed?: boolean
   denied?: boolean
-  error?: string
-  errorExpanded?: boolean
   complete: unknown
   pending: string
   failure?: string
   spinner?: boolean
-  separate?: boolean
+  /**
+   * head 压成一行(原型的 `.tool-head .cmd { white-space: nowrap; overflow: hidden }`)。
+   *
+   * **什么时候才开**:head 右边有状态摘要的时候。摘要带的是结论,而工具名与参数折行之后
+   * 会把结论挤到第二行 —— 那一行就既不是身份也不是结论。没有摘要时保持折行:多行 head
+   * 在没有右侧对手时是划算的(长路径、长 pattern 宁可多占一行也别被切)。
+   *
+   * 截断由调用方做(这一层不知道自己的字符串有多宽),所以这里只负责「不许折行 + 不许溢出」。
+   */
+  oneLine?: boolean
   /** 执行中动画的帧与配色,由有主题的调用方注入(本组件不碰 context) */
   pendingSpinner?: {
     frames: string[]
@@ -2878,27 +2953,21 @@ export function InlineToolRow(props: {
   children?: JSX.Element
   onMouseOver?: () => void
   onMouseOut?: () => void
-  onMouseUp?: () => void
 }) {
   // crush 式状态图标:图标列只表达状态(✓ 成功 / × 失败),不再按工具各用各的符号;
   // 工具身份由后面的文字(工具名 + 参数)承担。
   // 颜色一律由外面注入(和 errorColor 同一规矩),这一层不碰主题 context ——
   // 渲染测试就是脱开 Provider 直接挂它的。
+  //
+  // **这一层现在只是工具卡 head 行的内容**:外缩、边框、body 与间距登记都在 BlockTool 上。
+  // 它仍然脱开 Provider 就能挂载,所以「工具行的单行守卫」那组测试可以继续只测这一层。
   return (
     <box
-      paddingLeft={3}
+      flexShrink={1}
+      minWidth={0}
+      overflow={props.oneLine ? "hidden" : undefined}
       onMouseOver={props.onMouseOver}
       onMouseOut={props.onMouseOut}
-      onMouseUp={props.onMouseUp}
-      ref={(el: BoxRenderable) => {
-        if (props.separate) alwaysSeparate.add(el)
-        setPreLayoutSiblingMargin(el, (previous) => {
-          return props.separate ||
-            (previous instanceof BoxRenderable && (previous.height > 1 || alwaysSeparate.has(previous)))
-            ? 1
-            : 0
-        })
-      }}
     >
       <Switch>
         <Match when={props.spinner}>
@@ -2939,6 +3008,9 @@ export function InlineToolRow(props: {
               </text>
               <text
                 flexGrow={1}
+                flexShrink={1}
+                minWidth={0}
+                wrapMode={props.oneLine ? "none" : undefined}
                 fg={props.failed ? props.errorColor : props.color}
                 attributes={props.denied ? TextAttributes.STRIKETHROUGH : undefined}
               >
@@ -2948,24 +3020,34 @@ export function InlineToolRow(props: {
           </Show>
         </Match>
       </Switch>
-      <Show when={props.failed && props.errorExpanded}>
-        <box paddingLeft={INLINE_TOOL_ICON_WIDTH}>
-          <text fg={props.errorColor}>{props.error}</text>
-        </box>
-      </Show>
     </box>
   )
 }
 
 // crush 式工具行文案:工具名用 info 色、参数写成截断过的 (k=v),名字是身份、参数是细节。
 // 失败时整体退到 errorColor,不和状态色打架。只允许出现在 InlineToolRow 的 text 里。
-function ToolLabel(props: { name: string; params?: string; failed?: boolean; errorColor?: RGBA }) {
+//
+// **名字就是原型那个被加粗的首词**:`.tool-head .cmd b { color: var(--cyan) }` 里的 `bun`。
+// 这里用 info 色而不是 primary/secondary:info 是「这条信息本身」那一档,primary/secondary 已经被
+// 卡片描边与图标占着;info 在 novaway 的深浅两套里都有独立的浅/深取值(见 theme/assets 的
+// `{ dark, light }` 双档),所以浅色主题下它不会糊进白底。
+//
+// `max` 是这一整条文案(名字 + 参数)的显示列上限:head 上有状态摘要时由调用方算好传进来,
+// 名字先占、剩下的给参数 —— 名字被截意味着连工具身份都认不出来了,那比参数被截更糟。
+export function ToolLabel(props: { name: string; params?: string; max?: number; failed?: boolean; errorColor?: RGBA }) {
   const { theme } = useTheme()
   const fg = () => (props.failed ? props.errorColor : theme.info)
+  const name = createMemo(() => (props.max === undefined ? props.name : Locale.truncateToWidth(props.name, props.max)))
+  const params = createMemo(() => {
+    if (!props.params || props.max === undefined) return props.params
+    const left = props.max - Locale.displayWidth(name()) - 1
+    if (left <= 0) return undefined
+    return Locale.truncateToWidth(props.params, left)
+  })
   return (
     <>
-      <span style={{ fg: fg() }}>{props.name}</span>
-      <Show when={props.params}>{(params) => <span style={{ fg: fg() }}> {params()}</span>}</Show>
+      <span style={{ fg: fg() }}>{name()}</span>
+      <Show when={params()}>{(value) => <span style={{ fg: fg() }}> {value()}</span>}</Show>
     </>
   )
 }
@@ -2980,10 +3062,55 @@ function toolParams(params: Record<string, unknown>, omit?: string[]): string {
   return `(${Locale.oneLine(summary.slice(1, -1), TOOL_PARAMS_MAX)})`
 }
 
+/**
+ * 工具子卡:一张带边框的卡,里面是 **head 行 + body**(原型的 `.tool`,
+ * card-design-v7.html:427-458)。
+ *
+ * **为什么两种形态共用这一张卡**:改造前工具只有两种形态 —— 一行没有壳的纯文本
+ * (`InlineToolRow`)与展开的 `BlockTool`。中间那档(有壳、只有 head、没有 body)整个缺着,
+ * 于是工具输出读起来是一片没有层次的纯文本。现在紧凑形态(Read/Glob/Grep/Task 那一类)
+ * 与展开形态(Shell / GenericTool / diff / 待办那一类)都是这张卡,区别只在于有没有 body:
+ *   - 有 body:caret 可点,点一下收起/展开(原型 `.tool` ↔ `.tool.open` 的那一下)。
+ *   - 没有 body:caret 仍然画,但用边框色 —— 它是「这里没有可展开的东西」的禁用凭据,
+ *     而 head 本身永远在,工具不会因为没有输出就从会话流里消失。
+ *
+ * **间距登记为什么在这一层**:`setPreLayoutSiblingMargin` 读的是 `el.parent` 的兄弟链
+ * (见 util/layout),埋深一层就找错人。而这一层是助手气泡卡的**直接子节点**,与
+ * TextPart / ReasoningPart 的 `partSiblingRef` 平级 —— 间距是「按兄弟链算」的,不是
+ * 「这一层自己写死 marginTop」。所以固定 marginTop={1} 那套已经换掉:卡内第一个 part
+ * 贴顶(与 TextPart 一致),其余一律隔一行。
+ */
 export function BlockTool(props: {
+  /**
+   * head 行的文案(展开形态那一路)。首词按命令色单独染(原型的 `.tool-head .cmd b`)。
+   * 给了 `head` 就以 `head` 为准。
+   */
   title?: string
-  children: JSX.Element
+  /** head 行的完整内容(紧凑形态那一路:调用方自己排 head,例如 InlineToolRow)。 */
+  head?: JSX.Element
+  /** head 行左侧的图标字形;省略 = ⚙(原型的 `.tool-head .tw`)。 */
+  icon?: string
+  /** body。省略 = 这张卡只有 head(工具没有输出)。 */
+  children?: JSX.Element
+  /**
+   * body 的源行数(调用方数自己的输出行数给过来)。
+   *
+   * 给了 = 输出型 body:被 `min(bodyRows, TOOL_BODY_MAX_ROWS)` 那个 scrollbox 装下,超出的部分
+   * 留着、能滚。省略 = 结构型 body(diff / 代码 / 待办列表):整块展示,不设上限 —— 那些内容的
+   * 行数本来就由内容决定(一个补丁本来就可能几百行),而用户要看的就是整块。
+   *
+   * **为什么不写两行就把高度算出来**:body 是任意 JSX,渲染前拿不到它会占多少行。真去量的话
+   * 只能在布局之后反过来改 scrollbox 的高度,那是「先渲染再撑大」,一撑大又会触发一次重排 ——
+   * 与其在那儿绕,不如让最清楚行数的那一层(拿着输出字符串的那个)报个数上来。
+   * 少报的行会被裁掉但仍然可滚(内容一行没丢),多报的行会留空白,所以报少比报多好。
+   */
+  bodyRows?: number
+  /** body 能不能点 head 收起/展开。 */
+  collapsible?: boolean
+  /** 点 head 的额外动作(紧凑形态的「跳到子代理」走这一条)。 */
   onClick?: () => void
+  /** body 初始展开?默认 true —— 工具输出是这张卡的主体,默认藏着等于把结果藏起来。 */
+  open?: boolean
   part?: ToolPart
   spinner?: boolean
   /**
@@ -2992,18 +3119,29 @@ export function BlockTool(props: {
    */
   status?: ToolStatusSummary
   /**
-   * head 行的可用显示列数,用来给标题让出摘要的位置。省略 = 不按宽度截断 ——
-   * 单测直挂 BlockTool 时没有会话宽度可依(那一层的口径见 TOOL_HEAD_COLUMNS)。
+   * head 行所在盒子的可用显示列数(= 工具卡内宽,见 TOOL_CARD_COLUMNS),用来给标题
+   * 让出 caret、图标与摘要的位置(内部再扣 TOOL_HEAD_CHROME_COLUMNS)。
+   * 省略 = 不按宽度截断 —— 单测直挂 BlockTool 时没有会话宽度可依。
    */
   headWidth?: number
 }) {
   const { theme } = useTheme()
   const renderer = useRenderer()
+  const tuiConfig = useTuiConfig()
   const hover = useCardHover()
+  const [open, setOpen] = createSignal(props.open ?? true)
   const error = createMemo(() => (props.part?.state.status === "error" ? props.part.state.error : undefined))
+  const expandable = createMemo(() => Boolean(props.collapsible) && Boolean(props.children))
   const head = createMemo(() =>
-    toolHeadLayout({ title: props.title, summary: props.status, width: props.headWidth ?? Number.MAX_SAFE_INTEGER }),
+    toolHeadLayout({
+      title: props.title,
+      summary: props.status,
+      width: (props.headWidth ?? Number.MAX_SAFE_INTEGER) - TOOL_HEAD_CHROME_COLUMNS,
+    }),
   )
+  const command = createMemo(() => toolCommandParts(head().title))
+  // body 那个 scrollbox:onMouseScroll 要读它的几何,才能判断「这次滚轮该不该被 body 吃掉」。
+  let bodyBox: ScrollBoxRenderable | undefined
   return (
     // paddingRight=1:NeonBox 不占边框格、边框画在最外列上,右留 1 格才能让文本宽度与旧 border=["left"] 版一致
     // 悬停:渐变流动 + 描边提亮。**不加 enterDelay(阶梯入场)** —— 工具卡是流式输出期间
@@ -3011,7 +3149,10 @@ export function BlockTool(props: {
     // 而卡本身还在长高,半亮的边框配着变动的正文比不动更乱。悬停是用户驱动的,流式输出时
     // 鼠标不在上面,两者不会打架。
     <neonbox
-      ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
+      ref={(el: BoxRenderable) => {
+        alwaysSeparate.add(el)
+        setPreLayoutSiblingMargin(el, (previous) => (previous ? 1 : 0))
+      }}
       gradientStops={semanticStops(theme, "tool")}
       animated={hover.animated()}
       boost={hover.boost(theme.text)}
@@ -3019,39 +3160,97 @@ export function BlockTool(props: {
       paddingBottom={1}
       paddingLeft={2}
       paddingRight={1}
-      marginTop={1}
-      gap={1}
+      gap={0}
+      // **必须 flexShrink={0}**:Renderable 的 flexShrink 默认是 1,而这张卡现在有多行正文 ——
+      // 在会话流那个 scrollbox 里,内容比视口高时 yoga 会去压这些子项,一压卡就比内容矮,
+      // 正文于是画到了下边框那一行(实测:紧凑卡的第二行 head 直接盖在 ╰ 上)。
+      // 压一张卡来「装进视口」本来就是错的方向:会话流本来就该滚。
+      flexShrink={0}
       backgroundColor={hover.hover() ? theme.backgroundMenu : theme.backgroundElement}
-      onMouseOver={() => props.onClick && hover.onMouseOver()}
+      onMouseOver={() => (expandable() || props.onClick) && hover.onMouseOver()}
       onMouseOut={hover.onMouseOut}
-      onMouseUp={() => {
-        if (renderer.getSelection()?.getSelectedText()) return
-        props.onClick?.()
-      }}
     >
-      {/* head 行 = 原型 card-design-v7.html:928-933 的 `.tool-head`(标题 + 状态摘要)。
-          原型那一行还带 caret 与 ⚙ 两个图标,本仓库这一层没有:命令原文在下一行的
-          `$ …` 里,再抄一个齿轮只是多一列重复信息。
-          两样都没有时**整行不画** —— 这层盒子是 neonbox 的第一个子节点,空盒子仍占一行,
-          会把工具卡的正文顶下一行。 */}
-      <Show when={props.title ?? props.status}>
-        <box flexDirection="row" gap={1} paddingLeft={3} flexShrink={0}>
-          <Show when={head().title}>
-            {(title) => (
-              <Show when={props.spinner} fallback={<text fg={theme.textMuted}>{title()}</text>}>
-                <Spinner color={theme.textMuted}>{title().replace(/^# /, "")}</Spinner>
+      {/* head 行 = 原型 card-design-v7.html:928-933 的 `.tool-head`:
+          caret(▸/▾)+ 齿轮 + 命令(首词染色)+ 状态摘要。整行都是点击区。
+          **为什么点击挂在 head 而不是整张卡**:body 里是要滚动/要选中复制的输出,
+          在那一大片区域里判「这一下是在点卡还是在选文本」比在一行摘要上难得多
+          (所以下面仍然留着 renderer.getSelection() 那道守卫)。 */}
+      <box
+        flexDirection="row"
+        gap={1}
+        paddingLeft={1}
+        flexShrink={0}
+        onMouseOver={() => (expandable() || props.onClick) && hover.onMouseOver()}
+        onMouseOut={hover.onMouseOut}
+        onMouseUp={() => {
+          // 选中文本时这一下是划选,不是点击 —— 与用户消息气泡、思考块用的是同一道守卫。
+          if (renderer.getSelection()?.getSelectedText()) return
+          if (expandable()) setOpen((value) => !value)
+          props.onClick?.()
+        }}
+      >
+        {/* 禁用态的 caret 用边框色而不是 muted:muted 是「可点但没按」,边框色才是「按了也没用」。
+            两者只差一档灰,但那一档正是原型 `.tool` 与 `.tool:hover` 的对比度。 */}
+        <text fg={expandable() ? theme.textMuted : theme.border} flexShrink={0}>
+          {expandable() && open() ? "▾" : "▸"}
+        </text>
+        <Show
+          when={props.head}
+          fallback={
+            <box flexDirection="row" gap={1} flexShrink={1} minWidth={0}>
+              <text fg={theme.secondary} flexShrink={0}>
+                {props.icon ?? "⚙"}
+              </text>
+              <Show when={head().title}>
+                {(title) => (
+                  <Show
+                    when={props.spinner}
+                    fallback={
+                      <text fg={theme.textMuted}>
+                        <span style={{ fg: theme.info }}>{command().first}</span>
+                        {command().rest}
+                      </text>
+                    }
+                  >
+                    <Spinner color={theme.textMuted}>{title().replace(/^# /, "")}</Spinner>
+                  </Show>
+                )}
               </Show>
-            )}
-          </Show>
-          <Show when={head().passed}>
-            <text fg={theme.success}>
-              {head().passed}
-              <Show when={head().failed}>{(failed) => <span style={{ fg: theme.error }}>{failed()}</span>}</Show>
-            </text>
+            </box>
+          }
+        >
+          {props.head}
+        </Show>
+        <Show when={head().passed}>
+          <text fg={theme.success} flexShrink={0}>
+            {head().passed}
+            <Show when={head().failed}>{(failed) => <span style={{ fg: theme.error }}>{failed()}</span>}</Show>
+          </text>
+        </Show>
+      </box>
+      {/* body = 原型的 `.tool-body`(:455-458):一条上边框与 head 分开。
+          输出型 body 被行数上限卡进一个 scrollbox —— 上限之外的内容一行没丢,它始终在内容里,
+          滚轮停在上面就能往下读;结构型 body(diff / 代码 / 列表)整块展示。 */}
+      <Show when={props.children && open()}>
+        <box border={["top"]} borderColor={theme.border} flexShrink={0}>
+          <Show when={props.bodyRows !== undefined} fallback={props.children}>
+            <scrollbox
+              ref={(el: ScrollBoxRenderable) => (bodyBox = el)}
+              height={Math.max(1, Math.min(props.bodyRows!, TOOL_BODY_MAX_ROWS))}
+              scrollAcceleration={getScrollAcceleration(tuiConfig)}
+              onMouseScroll={(event) => {
+                // opentui 的鼠标事件是**冒泡**的:body 在会话流那个 scrollbox 里面,不拦住的话
+                // 一次滚轮会把 body 与整个会话一起滚走。只在 body 自己还剩内容时吃掉它 ——
+                // 停在一条装得下的短输出上时,滚轮就该归会话流。
+                if (!bodyBox) return
+                if (bodyBox.scrollHeight > bodyBox.viewport.height) event.stopPropagation()
+              }}
+            >
+              {props.children}
+            </scrollbox>
           </Show>
         </box>
       </Show>
-      {props.children}
       <Show when={error()}>
         <text fg={theme.error}>{error()}</text>
       </Show>
@@ -3065,14 +3264,6 @@ function Shell(props: ToolProps) {
   const ctx = use()
   const isRunning = createMemo(() => props.part.state.status === "running")
   const output = createMemo(() => stripAnsi(stringValue(props.metadata.output)?.trim() ?? ""))
-  const [expanded, setExpanded] = createSignal(false)
-  const maxLines = 10
-  const maxChars = createMemo(() => maxLines * Math.max(20, ctx.width - 9))
-  const collapsed = createMemo(() => collapseToolOutput(output(), maxLines, maxChars()))
-  const limited = createMemo(() => {
-    if (expanded() || !collapsed().overflow) return output()
-    return collapsed().output
-  })
 
   const workdirDisplay = createMemo(() => {
     const workdir = stringValue(props.input.workdir)
@@ -3082,41 +3273,38 @@ function Shell(props: ToolProps) {
     return formatted
   })
 
-  const title = createMemo(() => {
-    const wd = workdirDisplay()
-    if (!wd) return
-    return `# Running in ${wd}`
-  })
-
   return (
     <Switch>
       <Match when={stringValue(props.metadata.output) !== undefined}>
+        {/* head 就是命令本身(原型的 `.tool-head .cmd`:`<b>bun</b> test --timeout 30000`)。
+            工作目录搬进 body 的第一行:它是「这条输出是在哪跑的」,属于输出的一部分,
+            而不是一个命令的身份 —— 放在 head 里的话,首词染色染到的会是 "Running"。 */}
         <BlockTool
-          title={title()}
+          title={toolLine(props.input.command)}
+          spinner={isRunning()}
+          collapsible={true}
           part={props.part}
-          // 这正是原型那张卡的场景:`bun test --timeout 30000 … ✓ 12 passed · 0 failed`。
+          // 这正是原型那张卡的场景:`bun test --timeout 30000 … ✓ 12 passed`。
           // output() 已经 stripAnsi 过(解析要的是纯文本,色码会插在数字与单词之间)。
           status={toolStatusSummary(output())}
-          headWidth={Math.max(0, ctx.width - TOOL_HEAD_COLUMNS)}
-          onClick={collapsed().overflow ? () => setExpanded((prev) => !prev) : undefined}
+          headWidth={Math.max(0, ctx.width - TOOL_CARD_COLUMNS)}
+          bodyRows={outputRows(output())}
         >
           <box gap={1}>
-            {/* fallback 是 BlockTool 里的整块展示,命令原样多行是这里想要的;
-                但 Spinner 是"转圈图标 + 一行文字"的横排,多行会把图标列错开,所以要压平。 */}
-            <Show when={isRunning()} fallback={<text fg={theme.text}>$ {stringValue(props.input.command)}</text>}>
-              <Spinner color={theme.text}>{toolLine(props.input.command)}</Spinner>
-            </Show>
+            <Show when={workdirDisplay()}>{(wd) => <text fg={theme.textMuted}># Running in {wd()}</text>}</Show>
             <Show when={output()}>
-              <text fg={theme.text}>{limited()}</text>
-            </Show>
-            <Show when={collapsed().overflow}>
-              <text fg={theme.textMuted}>{collapseHint(expanded(), collapsed().hidden)}</text>
+              <text fg={theme.text}>{output()}</text>
             </Show>
           </box>
         </BlockTool>
       </Match>
       <Match when={true}>
-        <InlineTool pending="正在执行命令..." complete={stringValue(props.input.command)} part={props.part}>
+        <InlineTool
+          pending="正在执行命令..."
+          complete={stringValue(props.input.command)}
+          part={props.part}
+          status={toolStatusSummary(output())}
+        >
           {/* heredoc、多行管道、带反斜杠续行的命令都很常见,这一行放不下多行 */}
           {toolLine(props.input.command)}
         </InlineTool>
@@ -3352,7 +3540,6 @@ function Task(props: ToolProps) {
 
   return (
     <InlineTool
-      separate={true}
       color={retry() ? theme.error : undefined}
       spinner={isRunning()}
       complete={stringValue(props.input.description)}
