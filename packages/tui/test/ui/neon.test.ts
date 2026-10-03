@@ -4,6 +4,7 @@ import {
   alphaOver,
   brighten,
   BORDER_ALPHA_DEFAULT,
+  calmStops,
   fadeIn,
   gradientAt,
   HOVER_BOOST,
@@ -12,6 +13,7 @@ import {
   semanticStops,
   softenOver,
 } from "../../src/ui/neon"
+
 import { resolveTheme, type ThemeJson } from "../../src/theme"
 import novaway from "../../src/theme/assets/novaway.json" with { type: "json" }
 import lucentOrng from "../../src/theme/assets/lucent-orng.json" with { type: "json" }
@@ -372,5 +374,43 @@ describe("semanticStops", () => {
       return new Set(stops.map(hex)).size !== stops.length
     })
     expect(flat).toEqual([])
+  })
+})
+
+// ---------- calmStops:常驻流动的那一族专用 ----------
+//
+// 原型那边常驻流的只有两条 1px 导轨,而它们都很克制:
+//   · `.titlebar::after` 是 2px 高、`opacity:.85` 的彩虹(卡原型自己的样子);
+//   · `.sidebar::after` 是 **1px** 宽、`rgba(79,209,224,.55) → rgba(255,92,158,.45)` 的一小段,
+//     两端还带 transparent —— 也就是说终端里对应的那一档本来就该是**窄的两段**。
+// 1px 的一行在终端里没有「2px + 85% 不透明度」可退,于是那一档必须靠**收窄色相跨度**来还原,
+// 而不是照抄五停彩虹。calmStops 就是那一档的取色口。
+describe("calmStops", () => {
+  test("两段同色系,默认深色主题下跨度 38°(青→蓝)", () => {
+    const theme = resolveTheme(novaway as ThemeJson, "dark")
+    expect(calmStops(theme)).toEqual([theme.primary, theme.secondary])
+    // #00e5ff ≈ 186°,#4d7cff ≈ 224°。
+    expect(Math.abs(hue(calmStops(theme)[0]!) - hue(calmStops(theme)[1]!))).toBeLessThan(45)
+  })
+
+  // 这一条是整件事的守卫:**常驻流动的那一族不许再拿到三段全霓虹**。
+  // 全段霓虹在默认主题下是 #00e5ff → #4d7cff → #ff2d7b,色相 186° → 338°,跨度 152° ——
+  // 那正是用户说的「粉→紫→青,一整条彩虹在跑」。
+  test("比全段霓虹窄得多(默认深色主题:152° → 38°)", () => {
+    const theme = resolveTheme(novaway as ThemeJson, "dark")
+    const span = (stops: readonly RGBA[]) => Math.abs(hue(stops[0]!) - hue(stops.at(-1)!))
+    expect(span(neonStops(theme))).toBeGreaterThan(120)
+    expect(span(calmStops(theme))).toBeLessThan(60)
+  })
+
+  // 浅色主题与另一个真实主题都过一遍 —— 只在默认深色上调好是不够的。
+  test("浅色主题与 lucent-orng 上同样是两段、跨度 < 60°", () => {
+    for (const json of [novaway, lucentOrng]) {
+      for (const mode of ["dark", "light"] as const) {
+        const stops = calmStops(resolveTheme(json as ThemeJson, mode))
+        expect(stops).toHaveLength(2)
+        expect(Math.abs(hue(stops[0]!) - hue(stops[1]!)), `${mode}`).toBeLessThan(60)
+      }
+    }
   })
 })

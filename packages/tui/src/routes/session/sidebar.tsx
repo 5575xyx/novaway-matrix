@@ -20,7 +20,7 @@ import { PANEL_CARD_ALPHA, SidebarCard } from "../../component/sidebar-card"
 import { Locale } from "../../util/locale"
 import { sidebarWidth } from "../../util/sidebar-width"
 import "../../ui/card"
-import { neonStops } from "../../ui/neon"
+import { calmStops } from "../../ui/neon"
 
 // 会话标题是模型生成的,没有长度和换行保证;侧栏这一格放不下多行。
 const SESSION_TITLE_MAX = 60
@@ -99,7 +99,11 @@ export function Sidebar(props: SidebarProps) {
   return (
     <neonbox
       backgroundColor={theme.backgroundPanel}
-      gradientStops={neonStops(theme)}
+      /* 常驻流动的那一族走 `calmStops`(两段青蓝)而不是 `neonStops`(三段全霓虹):
+         这张卡是整列最高的表面,三段彩虹沿着它一圈一圈地跑,色相跨度 152° ——
+         原型对应的那根 `.sidebar::after` 只有 1px 宽、色相从青到粉而且两端透明,
+         靠的就是「窄」而不是「全」。收窄之后 38°,理由与取值见 ui/neon 的 calmStops。 */
+      gradientStops={calmStops(theme)}
       /* 叠色档与分区卡同一档(见 component/sidebar-card 的 PANEL_CARD_ALPHA):这张根卡
          是整列的容器,比任何一张分区卡都大,若比它们更实就会变成屏幕上最重的一条边。
          叠色底不用给 —— 它自己有 backgroundColor,那就是边框格背后的实色;那一档若是
