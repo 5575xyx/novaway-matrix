@@ -81,12 +81,15 @@ export type NeonBoxOptions = BoxOptions<NeonBoxRenderable> & {
    */
   borderAlpha?: number
   /**
-   * 描边背后的实色,叠色的底(见 ui/neon 的 alphaOver)。省略时取这张卡自己的
-   * `backgroundColor` —— 边框格画在最外行/列上,那一格不画描边时露出来的正是卡自己的底色,
-   * 所以对**有底色**的卡(用户气泡 / 工具卡 / 思考卡 / 错误卡)这是正确的参考。
+   * 描边背后的实色:它既是 alphaOver 折算的参考色,**也是逐格写进边框格的 bg**
+   * (边框画在最外行/列上,那一格除了描边之外露出来的正是这一层,见 borderCellBackdrop)。
+   * 省略时依次退回这张卡自己的 `backgroundColor` → 最近的祖先底色 → 旧行为。
+   *
+   * 省略 = `backgroundColor` 对**有底色**的卡(用户气泡 / 工具卡 / 思考卡 / 错误卡 /
+   * 侧栏根卡)就是正确的参考:那一格不画描边时露出来的正是卡自己的底色。
    *
    * 透明卡自己给不出答案:它背后的可能是面板底色,也可能是纯黑,终端里读不到。
-   * 那种卡必须显式传(见 component/neon-card、sidebar-card、prompt/card),否则叠色会朝
+   * 那种卡必须显式传(见 component/neon-card、sidebar-card、prompt/card),否则那一档会朝
    * 默认黑收敛 —— 深色主题下碰巧像那么回事,浅色主题下整圈描边会沉进白底里。
    *
    * **显式传的也可能仍是全透明**:主题自己声明 `"transparent"` 的那一档
@@ -211,6 +214,57 @@ export function sweepMix(phase: number, t: number) {
 // mix 的调用点已经保证 > 0,这里不再兜一遍。
 function sweepColor(base: RGBA, mix: number) {
   return brighten(base, mix, NEON_WHITE)
+}
+
+/** 「这一格背后确实有一个实色」:终端只有 RGB,alpha = 0 的颜色叠不出任何东西(见 softenOver)。 */
+function opaque(color: RGBA | undefined): color is RGBA {
+  return color !== undefined && color.a > 0
+}
+
+/**
+ * 边框格背后那一层实色的最后一档兜底:沿父链找最近一个不透明底色。
+ *
+ * 为什么需要它:透明卡的 borderBackdrop 得由调用点显式声明(见 borderBackdrop 的注释),
+ * 而"忘了声明"是迟早会发生的事 —— 那一刻的后果不是"描边淡了一点",是**每张这样的卡外面
+ * 套一圈黑框**(见 borderCellBackdrop)。往上一找通常就有答案:分区卡坐在有底色的侧栏根卡里
+ * (routes/session/sidebar.tsx),别的位置则一路走到没有 backgroundColor 的根盒子。
+ *
+ * **找不到就是找不到**:根盒子(RootRenderable)压根没有 backgroundColor 这个属性,
+ * 整屏底色是渲染器自己填的,渲染树里读不到。这一档返回 undefined,
+ * 由调用方退回旧行为 —— 与 softenOver「背后不知道就不猜」同一条纪律。
+ */
+function ancestorBackdrop(start: Renderable): RGBA | undefined {
+  // 非 Box 的渲染物(TextRenderable / RootRenderable)没有 backgroundColor,
+  // 所以判一下类型而不是读一个不存在的属性。
+  for (let node = start.parent; node; node = node.parent) {
+    if (node instanceof BoxRenderable && opaque(node.backgroundColor)) return node.backgroundColor
+  }
+  return undefined
+}
+
+/**
+ * 边框格背后那一层实色 —— **叠色折算的参考色,也是 setCell 写进格子里的 bg**,同一个值。
+ *
+ * 解析顺序(每一档都是"这一格底下真正画着的是什么颜色"):
+ *   1. 自己的 backgroundColor —— 不透明时盒子的 fill 就画在这一格上(见 BoxRenderable.renderSelf
+ *      的 hasVisibleFill),背后确实是它。有底色的卡(用户气泡 / 工具卡 / 思考卡 / 错误卡 /
+ *      侧栏根卡)今天就是这样,这一档不许变。
+ *   2. borderBackdrop —— 透明卡自己给不出答案,由调用点声明(见 borderBackdrop 的注释)。
+ *      给出来的仍可能是全透明(主题自己声明 transparent,见 softenOver),那一档跳过。
+ *   3. 最近的祖先底色 —— 忘了声明时的兜底,见 ancestorBackdrop。
+ *   4. 什么都没有 → 退回自己的 backgroundColor(通常就是全透明)。**这是旧行为**:
+ *      setCell 不做 alpha 合成也不「沿用原有底色」,RGBA(0,0,0,0) 落进格子就是 RGB(0,0,0),
+ *      深色主题下读起来「就是边框」,浅色主题下是一圈黑框。找不到依据时宁可维持旧样,
+ *      也不凭空替终端猜一个底色 —— 猜的那一档换个终端就是错的。
+ *
+ * **两层必须是同一个色**:叠色公式 `color·k + back·(1−k)` 里的 back 与写进格子的 bg 一致,
+ * 描边才读得出"半透明地盖在那层底上"。两者分家时,前景是按 A 叠出来的、格子底却是 B,
+ * 于是那一圈描边带着一圈对不上的暗边 —— 比单纯的"叠错色"更难看出问题。
+ */
+function borderCellBackdrop(own: RGBA, declared: RGBA | undefined, start: Renderable): RGBA {
+  if (opaque(own)) return own
+  if (opaque(declared)) return declared
+  return ancestorBackdrop(start) ?? own
 }
 
 // 原生 buffer.setCell 会把超出当前 scissor 的坐标夹到裁剪边缘(不是丢弃),卡片滚出
@@ -490,13 +544,15 @@ export class NeonBoxRenderable extends BoxRenderable {
     this.painted = true
     const originX = this.screenX
     const originY = this.screenY
-    const background = this.backgroundColor
-    // 叠色的底:描边格画在最外行/列上,那一格不画描边时露出来的就是这张卡自己的底色 ——
-    // 所以有底色的卡(用户气泡 / 工具卡 / 思考卡 / 错误卡)拿 backgroundColor 就是正确参考。
+    // 边框格背后那一层实色。有底色的卡拿自己的 backgroundColor 就是正确参考;
     // 透明卡给不出答案(它背后是面板底色还是纯黑,终端里读不到),调用点必须显式给
-    // borderBackdrop;给出来的仍可能是全透明(主题自己声明 transparent,见 softenOver)——
-    // 那按「背后是终端自己的底色、不猜」处理,叠色自动退成不折算。
-    const backdrop = this.backdrop ?? background
+    // borderBackdrop,忘了才往父链上找(解析顺序与最后一档的旧行为见 borderCellBackdrop)。
+    //
+    // **这一个值同时是两样东西**:alphaOver 折算里的 back,以及 setCell 写进格子的 bg。
+    // setCell 不做 alpha 合成、也没有「沿用原有底色」这种语义(见 test/ui/card-border-bg),
+    // 所以直接把卡片自己的 backgroundColor 递进去,透明卡那一档就是把 RGB(0,0,0) 写进了
+    // 每个边框格 —— 浅色主题下读出来就是每张卡外面一圈黑框。两者必须同色,理由见那个函数。
+    const backdrop = borderCellBackdrop(this.backgroundColor, this.backdrop, this)
     // 光晕方向也是从这一档读的(浅底朝黑推,深底朝白推),逐格不变,提到循环外算一次。
     const glow = topEdgeTarget(backdrop)
     const clip = visibleClip(buffer, this)
@@ -554,7 +610,7 @@ export class NeonBoxRenderable extends BoxRenderable {
       const faded = fading ? fadeIn(fromTone, lifted, entered) : lifted
       const mix = this.animating ? sweepMix(phase, cell.t) : 0
       const painted = mix > 0 ? sweepColor(faded, mix) : faded
-      buffer.setCell(x, y, cell.ch, ambient === 1 ? painted : dim(painted, ambient), background)
+      buffer.setCell(x, y, cell.ch, ambient === 1 ? painted : dim(painted, ambient), backdrop)
     }
   }
 }

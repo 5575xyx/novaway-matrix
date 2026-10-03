@@ -264,10 +264,14 @@ describe("NeonBox 顶部光晕", () => {
   test("浅色叠色底:光晕朝黑推,顶边比边中段更暗而不是更亮", async () => {
     const LIGHT = RGBA.fromHex("#f5f7fa")
     // 色板两端同色,于是同一条边上除了光晕之外没有别的差异(同上面那两条的理由)。
+    //
+    // **不写 backgroundColor**:这一条要试的是「透明卡坐在浅色底上」,而边框格背后那一层
+    // 实色按「自己的底色 → borderBackdrop → 祖先底色」解析(见 ui/card 的 borderCellBackdrop)。
+    // 给了自己的底色又给一个不同的 borderBackdrop 是自相矛盾的声明 —— 解析会取自己的底色,
+    // 于是这一条就变成在深色底上测光晕,测不到它想测的那件事。
     const frame = await shot({
       width: WIDTH,
       height: HEIGHT,
-      backgroundColor: PANEL,
       borderBackdrop: LIGHT,
       gradientStops: flat,
     })
