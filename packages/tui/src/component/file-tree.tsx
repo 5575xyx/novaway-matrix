@@ -3,6 +3,7 @@ import { useTheme } from "../context/theme"
 import { Locale } from "../util/locale"
 import { FILE_TREE_NAME_MAX } from "../util/sidebar-metrics"
 import { fileIcon, treeArrow } from "../util/panel-icons"
+import { fileTag, fileTagColor } from "../util/filetype"
 import { readdir } from "node:fs/promises"
 import path from "node:path"
 
@@ -219,6 +220,8 @@ export function FileTree(props: FileTreeProps) {
     const isExpanded = createMemo(() => expandedDirs().has(node.path))
     const isSelected = createMemo(() => selectedFile() === node.path)
     const truncatedName = Locale.truncateToWidth(node.name, FILE_TREE_NAME_MAX)
+    // 目录不配语言标签(它没有语言);认不出的扩展名返回 undefined,于是那一行落回文件图标。
+    const tag = createMemo(() => (node.isDirectory ? undefined : fileTag(node.name)))
 
     return (
       <box flexDirection="column">
@@ -235,14 +238,48 @@ export function FileTree(props: FileTreeProps) {
           <text fg={theme.textMuted} wrapMode="none" flexShrink={0}>
             {node.isDirectory ? treeArrow(isExpanded()) + " " : "  "}
           </text>
-          <text fg={theme.primary} wrapMode="none" flexShrink={0}>
-            {fileIcon(node.name, node.isDirectory, isExpanded())}
-          </text>
-          {/* 名字这一段**不**设 flexShrink={0}:上层那三段(缩进 / 箭头 / 图标)是固定开销,
+          {/* 语言标签占的是原型那个 `.ic` 槽(`.tree .row .ic { width: 14px }`,
+              card-design-v7.html:209),也就是终端里原来放文件图标的那 2 列 —— 所以这一段的
+              固定开销**一点没变**(见下面名字那段注释里的算式)。
+
+              显式 width={2} 而不是让内容自己撑:TS/JS/{}/PY/RS 各 2 列,而 `Ⓜ`(U+24C2,
+              East-Asian Ambiguous)按标准口径只记 1 列(见 util/panel-icons 的文件头)。
+              不钉死宽度的话,同一屏里 TS 行与 Ⓜ 行的文件名起点会差 1 列,扫一列名字时
+              右边沿像锯齿。少出来的那一列由这个盒子补成空白。 */}
+          <Show
+            when={tag()}
+            fallback={
+              <text fg={theme.primary} wrapMode="none" flexShrink={0}>
+                {fileIcon(node.name, node.isDirectory, isExpanded())}
+              </text>
+            }
+          >
+            {(item) => (
+              <box width={2} flexShrink={0}>
+                <text fg={fileTagColor(item().kind, theme)} wrapMode="none">
+                  {item().text}
+                </text>
+              </box>
+            )}
+          </Show>
+          {/* 名字这一段**不**设 flexShrink={0}:上层那三段(缩进 / 箭头 / 标签)都是固定开销,
               剩下的列才轮到名字,剩下的不够时 yoga 收缩这个名字 text(渲染器裁尾部)。
               三段全是 flexShrink={0} 的话没有可缩对象,超长的名字只能顶到右边框上 ——
-              FILE_TREE_NAME_MAX 是「不触发收缩」的软上限:2×深度 + 6(缩进/箭头/图标/空格/右内边距)
-              + 20 在第 5 层是 36,还放得进文件页那 37 列;再深或名字更长就靠这一段收缩。 */}
+              FILE_TREE_NAME_MAX 是「不触发收缩」的软上限,而**超出的部分按显示列截尾成 `…`**
+              (truncateToWidth,扩展名一起吃掉也不留半截),两者都在这一段里发生。
+
+              一行的列预算(与 util/sidebar-metrics 的口径一致):
+                2×深度        缩进
+              + 2            箭头段(展开/收起字形 + 一个空格,文件行是两个空格)
+              + 2            语言标签槽;认不出的扩展名落回文件图标,图标最宽也是 2 列
+              + 1            名字前那个空格
+              + 1            行右内边距
+              = 2×深度 + 6
+              + 20(FILE_TREE_NAME_MAX)
+              第 5 层是 2×5+6+20 = 36,文件页最窄那一档有 37 列(侧栏 44 − 根卡内边距 4 −
+              滚动条 1 − 卡边框 2,见 sidebar-metrics),还剩 1 列;再深一层或名字更长就落到
+              上面那条收缩/截尾上。**标签没有吃掉名字的预算**,因为它替换的是图标那 2 列,
+              不是新增一列。 */}
           <text fg={isSelected() ? theme.primary : theme.text} wrapMode="none">
             {" " + truncatedName}
           </text>
