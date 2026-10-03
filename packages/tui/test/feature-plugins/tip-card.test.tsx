@@ -89,9 +89,9 @@ test("没有动作的提示只有一行,正文拿卡内除标签外的全部列"
   expect(layout.textColumns).toBe(30 - TIP_LABEL_COLUMNS)
 })
 
-test("卡内宽度 = 外层容器宽减去 NeonCard 的内边距三列", () => {
-  expect(TIP_CARD_CHROME).toBe(3)
-  expect(tipCardContentWidth(75)).toBe(72)
+test("卡内宽度 = 外层容器宽减去 NeonCard 那一档的内边距四列", () => {
+  expect(TIP_CARD_CHROME).toBe(4)
+  expect(tipCardContentWidth(75)).toBe(71)
   // 容器比内边距还窄时不许出负数。
   expect(tipCardContentWidth(1)).toBe(0)
 })
@@ -208,6 +208,44 @@ test("提示卡:窄终端下按钮仍可见(换到第二行),不与正文挤成�
     const buttonRow = rows.findIndex((row) => row.includes("升级"))
     expect(labelRow).toBeGreaterThanOrEqual(0)
     expect(buttonRow).toBeGreaterThan(labelRow)
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+// inset 那一档(见 component/neon-card 的 inset):padding 格就是边框格,2 才空得出留白。
+// 提示卡只有一到两行内容,上下各空一行是最省的一档留白 —— 而 TIP_CARD_CHROME 已经跟着
+// 那一档从 3 改成 4,所以正文与按钮组仍然整段落在两列边框之内。
+test("提示卡:上下各空着一整行留白,正文与按钮都在卡内", async () => {
+  const app = await renderTipCard(
+    () => (
+      <ThemeTestProviders>
+        <ThemeReady />
+        <TipCard
+          parts={[{ text: "BODYMARK", highlight: false }]}
+          actions={[UPGRADE]}
+          width={40}
+          onAction={() => {}}
+          onDismiss={() => {}}
+        />
+      </ThemeTestProviders>
+    ),
+    { width: 44, height: 10 },
+    (text) => text.includes("升级"),
+  )
+  try {
+    const rows = app
+      .captureCharFrame()
+      .split("\n")
+      .map((row) => row.replace(/\s+$/, ""))
+    const top = rows.findIndex((row) => row.includes("╭"))
+    const bottom = rows.findIndex((row) => row.includes("╯"))
+    const label = rows.findIndex((row) => row.includes("提示"))
+    expect(top).toBeGreaterThanOrEqual(0)
+    // 上边框那一行之内是留白,「● 提示」从第 2 行开始。
+    expect(label).toBe(top + 2)
+    // 下边框之前同样空着一行。
+    expect(bottom - label).toBe(2)
   } finally {
     app.renderer.destroy()
   }

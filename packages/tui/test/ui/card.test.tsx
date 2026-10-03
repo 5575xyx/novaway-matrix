@@ -95,6 +95,44 @@ describe("NeonBox 渐变卡片", () => {
     }
   })
 
+  test("JSX 直写 padding=2 不被夹回 1:卡内真的空出一整行/一列", async () => {
+    // 上面两条钉的是**下限**(0 被夹到 1);这条钉的是「2 能过」——
+    // minPadding 只夹下界,把 padding 提到 2 才空得出卡内留白(见 component/prompt/card),
+    // 那一步能不能生效不能靠假设。夹紧实现写的是 Math.max(1, value),2 原样通过。
+    const app = await testRender(
+      () => (
+        <neonbox
+          width={12}
+          height={5}
+          backgroundColor={RGBA.fromHex("#101010")}
+          gradientStops={[RGBA.fromHex("#ff0000"), RGBA.fromHex("#0000ff")]}
+          paddingTop={2}
+          paddingBottom={2}
+          paddingLeft={2}
+          paddingRight={2}
+        >
+          <text>ab</text>
+        </neonbox>
+      ),
+      { width: 20, height: 8 },
+    )
+    try {
+      await app.renderOnce()
+      const lines = app
+        .captureCharFrame()
+        .split("\n")
+        .map((line) => line.replace(/\s+$/, ""))
+      expect(lines[0]).toContain("╭──────────╮")
+      // 第 1 行整行都是留白(paddingTop = 2 的第二格),正文落在第 2 行
+      expect(lines[1]).not.toContain("ab")
+      // 左边框画在第 0 列,正文从第 2 列开始 —— 第 1 列是那一列留白。
+      // 列号就是 padding 值本身:边框那格被 padding 吃掉,留白是 padding − 1 格。
+      expect(lines[2]).toContain("│ ab")
+    } finally {
+      app.renderer.destroy()
+    }
+  })
+
   test("不给 gradientStops 时不画边框(退回普通 box 行为)", async () => {
     const app = await testRender(
       () => (
