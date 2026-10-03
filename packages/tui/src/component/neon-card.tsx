@@ -64,9 +64,10 @@ export function NeonCard(props: {
    */
   borderAlpha?: number
   /**
-   * 常驻流动(见 ui/card 的 flow)。这张壳默认**不开** —— 原型的 `.bubble`(助手/用户气泡)
-   * 底态并不流,只有 `:hover` 才加 gbFlow;流的是 `.card` 那一族面板卡。
-   * 于是提示卡(原型的首页面板卡那一档)与侧栏根卡各自在调用点显式打开。
+   * 常驻流动(见 ui/card 的 flow)。这张壳默认**不开** —— 原型 `.bubble`(助手/用户气泡,
+   * card-design-v7.html:402-414)与 `.card`(面板/分区卡,:147-157)底态都不流,
+   * `gbFlow` 只挂在 `:hover` 上;常驻流的是标题栏/侧栏那两条 1px 导轨(railFlow / railV)。
+   * 于是首页提示卡(feature-plugins/home/tip-card)在自己的调用点显式打开。
    */
   flow?: boolean
 }) {

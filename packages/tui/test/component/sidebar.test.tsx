@@ -1,6 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 import { expect, test } from "bun:test"
 import { testRender, useRenderer } from "@opentui/solid"
+import type { CapturedFrame } from "@opentui/core"
 import { mkdtemp, writeFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
@@ -110,7 +111,7 @@ test("侧栏在无会话时渲染标签行,跳过会话专属内容", async () =
 // 边框行/列),所以「内容区 = 卡宽 − 2」。期望值 37 / 36 是实测数,不是从公式推出来的:
 //   侧栏 44 = 根卡内边距 4 + 滚动条列 1 + 卡边框 2                    → 文件页 37
 //   侧栏 44 = 上面那 7 列 + info/git 页那层 <box paddingRight={1}> 的 1 列 → 36
-type Node = { width: number; screenX: number; getChildren(): unknown[] }
+type Node = { width: number; height: number; screenX: number; screenY: number; getChildren(): unknown[] }
 
 /** 深度优先找出第一个满足条件的 NeonBox(分区卡;根侧栏卡 screenX 是 0)。 */
 function findNeonBox(node: Node, match: (node: Node) => boolean): Node | undefined {
@@ -365,3 +366,96 @@ test("侧栏文件页(24 行):预览卡按可用高度封顶,文件树与品牌�
     await rm(root, { recursive: true, force: true })
   }
 })
+
+// 「谁在什么时候动」这一对必须**在同一帧里一起量**,单独量任何一边都钉不住:
+//   · 侧栏根卡右边框 = 原型 `.sidebar::after { animation: railV 9s linear infinite }`
+//     那根永不间歇的 1px 导轨(card-design-v7.html:109-115)。原型侧栏自己不带描边 ——
+//     那一列的轮廓就是这根轨,所以终端里根卡的右缘是同一块表面,这一档保留 flow。
+//   · 同屏那张分区卡底态冻结:原型 `.card` 底态不流,`gbFlow` 挂在 `:hover` 上(:159-163)。
+//
+// 判据逐格逐通道比而不用亮度:叠色(alpha)把亮度坡压平了,r 升 g 降互相抵消,亮度差
+// 会掉进 8bit 量化噪声里(理由见 test/component/card-hover.test.tsx 的 borderRow)。
+// 根卡侧只要求「动了」,门槛就是 8bit 的一档(1/255 = 0.004);分区卡侧要求**恰好 0**。
+test("侧栏根卡常驻流动(原型那根 railV 导轨),同屏的分区卡底态冻结", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "nw-sidebar-flow-"))
+  // 文件给少一点:树短,分区卡的顶边框整排都落在滚动视口内,采样点不会落到被裁掉的行上。
+  for (let index = 0; index < 6; index++) await writeFile(path.join(root, `file-${index}.ts`), "")
+  try {
+    const files = await renderSidebar({ tab: "files", directory: root, terminalWidth: 120, terminalHeight: 16 })
+    try {
+      const rootCard = findNeonBox(files.app.renderer.root as Node, (node) => node.screenX === 0)!
+      const section = findNeonBox(files.app.renderer.root as Node, (node) => node.screenX > 0)!
+      // 导轨 = 根卡右边框那一列(去掉上下两个圆角),也就是原型那根轨贴的那条边。
+      const rail = Array.from({ length: rootCard.height - 4 }, (_, offset) => {
+        return `${rootCard.screenY + 2 + offset}:${rootCard.screenX + rootCard.width - 1}`
+      })
+      // 分区卡的顶边框(同样避开圆角)。
+      const head = [2, 3, 4, 5, 6].map((offset) => `${section.screenY}:${section.screenX + offset}`)
+      // 采样点必须真的画在描边上。边框格被祖先的 visibleClip 跳过时那一格留的是背景,
+      // 采到的颜色自然一动不动 —— 「恰好 0」会变成一句空话,所以先把「整圈都在可视区里」
+      // 钉住:根卡贴满终端高度(右边框那一列必然可见),分区卡整张落在滚动视口之内
+      // (顶边框没被裁)。
+      expect(rootCard.screenY + rootCard.height, "根卡应当贴满终端高度").toBe(16)
+      expect(section.screenY + section.height, "分区卡整张都该在滚动视口内,顶边框没被裁").toBeLessThanOrEqual(
+        rootCard.height,
+      )
+
+      const moving = await sample(files.app, rail, 4)
+      expect(
+        Math.max(...moving.slice(1).map((shot) => maxChannel(moving[0], shot))),
+        "侧栏根卡应当在无人悬停时也流动",
+      ).toBeGreaterThan(0.004)
+
+      const still = await sample(files.app, head, 4)
+      for (const shot of still) {
+        expect(maxChannel(still[0], shot), "分区卡底态应当逐格冻结").toBe(0)
+      }
+    } finally {
+      files.app.renderer.destroy()
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+/** captureSpans 给的是「一段同色字符」,边框是逐格渐变的带子 —— 先按字符摊平,再按格取值。 */
+function cellGrid(app: { captureSpans(): CapturedFrame }) {
+  const map = new Map<string, { r: number; g: number; b: number }>()
+  app.captureSpans().lines.forEach((line, row) => {
+    let col = 0
+    for (const span of line.spans) {
+      for (const _ of span.text) {
+        map.set(`${row}:${col}`, { r: span.fg.r, g: span.fg.g, b: span.fg.b })
+        col += 1
+      }
+    }
+  })
+  return map
+}
+
+/** 相位每 80ms 走一格,200ms 至少跨两格;这里只等定时器,不依赖渲染循环。 */
+const PHASE_WAIT = 200
+
+async function sample(
+  app: { renderOnce(): Promise<void>; captureSpans(): CapturedFrame },
+  points: string[],
+  count: number,
+) {
+  const shots: { r: number; g: number; b: number }[][] = []
+  for (let index = 0; index < count; index++) {
+    if (index > 0) await new Promise((resolve) => setTimeout(resolve, PHASE_WAIT))
+    await app.renderOnce()
+    const cells = cellGrid(app)
+    shots.push(points.map((key) => cells.get(key)!))
+  }
+  return shots
+}
+
+function maxChannel(a: { r: number; g: number; b: number }[], b: { r: number; g: number; b: number }[]) {
+  return Math.max(
+    ...a.flatMap((left, index) => {
+      const right = b[index]
+      return [Math.abs(left.r - right.r), Math.abs(left.g - right.g), Math.abs(left.b - right.b)]
+    }),
+  )
+}

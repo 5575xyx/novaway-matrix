@@ -19,10 +19,11 @@ import "../../src/ui/card"
 //   流动 —— 盯**单格随时间**变化(相位一动就变,提亮是常量,不影响「变了没有」这个判断),
 //     并且要求其中至少有一格是**变暗**的:扫光/光晕/悬停抬对比这三层都是朝亮处推,
 //     任何一格都只升不降,所以「有一格变暗」只能是色带真的走了(判据见 maxDrop);
-//   提亮 —— 盯「同一相位下 hover 前后的色距」。移开鼠标相位**不会**冻结(这一轮起
-//     分区卡与侧栏根卡都带 flow,见 ui/card 的 flow),所以两次采样之间相位差可能有好几格,
-//     唯一的办法是让这一次采样紧贴住:鼠标没碰过 → 立刻采 plain → 立刻采 hovered,
-//     两次 renderOnce 之间只有几毫秒,相位最多差半格(周长的 1/200),而提亮是 20%,量级差 40 倍。
+//   提亮 —— 盯「同一相位下 hover 前后的色距」。这一族不带 `flow`,鼠标一移开相位就
+//     冻结(见 ui/card 的 flow 与 component/sidebar-card),而重新悬停后相位从冻结的那一格
+//     接着走 —— 两次采样之间隔多久,这个差值里就混进多少相位。所以这一次必须紧贴住:
+//     鼠标没碰过 → 立刻采 plain → 立刻采 hovered,两次 renderOnce 之间只有几毫秒,
+//     相位最多差半格(周长的 1/200),而提亮是 20%,量级差 40 倍。
 
 // captureSpans 给的是「一段同色字符」,边框是逐格渐变的带子 —— 先按字符摊平,再按格取值。
 function cellGrid(app: { captureSpans(): CapturedFrame }) {
@@ -165,15 +166,14 @@ async function sidebarCard(title: string, badge: string, body: string) {
 /**
  * 「悬停时在动、移开后那层只属于悬停的东西没了」这一对断言。
  *
- * **移开之后判的是「扫光没了」而不是「描边静止了」**:分区卡自这一轮起带 `flow`
- * (常驻流动,见 ui/card 的 flow 与 ui/hover 的 flow),鼠标移开之后色带仍在慢慢走 ——
- * 那正是设计。悬停独有的只有两样:扫光,以及抬对比与更快的流速。所以:
- *   · 「扫光在不在」用**亮度**判,并拿悬停**之前**的几帧当基线(那时既没有扫光也没有
+ * **移开之后钉的是「整圈逐格冻结」**:这一族都不带 `flow`(原型 `.card` 底态不流,
+ * `gbFlow` 挂在 `:hover` 上,见 ui/card 的 flow 与 component/sidebar-card),
+ * 所以移开鼠标就等于相位停表、扫光消失、抬对比撤掉 —— 描边逐格冻结。判据分两个量:
+ *   · 「色带真的在流」用**逐格逐通道最大下降量**判(理由见 maxDrop):扫光/光晕/抬对比
+ *     三层只会让颜色变亮,能测出「变暗」的那一层只可能是色带平移。
+ *   · 「扫光在不在」用**亮度**判,并拿悬停**之前**的那一帧当基线(那时既没有扫光也没有
  *     抬对比,亮度就是这张卡色带自身的区间上沿)。这个基线不依赖任何主题 token,
  *     所以换主题也不会让门槛失准。
- *   · 「色带在不在流」用**逐格逐通道最大下降量**判(理由见 maxDrop):扫光/光晕/抬对比
- *     三层只会让颜色变亮,能测出「变暗」的那一层只可能是色带平移。
- * 不带 flow 的卡(工具卡)额外再钉一条:移开之后逐格完全冻结。
  */
 const SWEEP_MARGIN = 0.3
 
@@ -191,12 +191,7 @@ async function sample(app: Harness, count: number) {
   return shots
 }
 
-async function flowPair(
-  name: string,
-  mount: () => Promise<Harness>,
-  ready: (text: string) => boolean,
-  freezesAfterLeave = false,
-) {
+async function flowPair(name: string, mount: () => Promise<Harness>, ready: (text: string) => boolean) {
   const app = await settle(await mount(), ready)
   try {
     const idle = await sample(app, 4)
@@ -219,16 +214,15 @@ async function flowPair(
     expect(Math.max(...left.map(peakBrightness)), `${name}:移开后扫光应停止`).toBeLessThanOrEqual(
       baseline + SWEEP_MARGIN,
     )
-    if (freezesAfterLeave) {
-      expect(maxDeviation(left[left.length - 1]!, left[0]!), `${name}:不带 flow 的卡移开后应完全静止`).toBe(0)
-    }
+    // 底态不动了 —— 逐格逐通道完全相同,不是「小于某门槛」。
+    for (const shot of left) expect(maxDeviation(shot, left[0]), `${name}:移开后描边应逐格冻结`).toBe(0)
   } finally {
     app.renderer.destroy()
   }
 }
 
-// 悬停流动:分区卡的悬停是这次新加的 —— 它原先只有 header 上的 onMouseDown,整卡没有 hover 状态。
-test("分区卡:悬停期间描边逐帧流动 + 有扫光,移开后扫光停止(色带仍常驻流)", async () => {
+// 悬停流动:分区卡的悬停是那次新加的 —— 它原先只有 header 上的 onMouseDown,整卡没有 hover 状态。
+test("分区卡:悬停期间描边逐帧流动 + 有扫光,移开后两者都停(底态本就不流)", async () => {
   await flowPair(
     "SidebarCard",
     () =>
@@ -265,7 +259,6 @@ test("工具卡:悬停期间描边逐帧流动 + 有扫光,移开后两者都停
         { width: 48, height: 8 },
       ),
     (text) => text.includes("TOOLMARK"),
-    true,
   )
 })
 
@@ -320,8 +313,7 @@ test("助手气泡卡:悬停期间有扫光扫过这一格,移开后不再有", 
 
 // 悬停提亮:「移开 → 立刻采样 → 再移上去 → 立刻采样」。两次采样紧挨着,
 // 相位最多差半格(周长的 1/200),提亮是 20%,量级差 40 倍,压得住。
-// **这条不能等**:分区卡现在带 flow,相位不再在鼠标移开时冻结(见文件头的说明),
-// 任何一次「等一会儿再采」都会把相位差灌进这个差值里。
+// 之所以还能这么采样,是因为这一族底态不流(见文件头):鼠标一移开相位就冻结。
 // 门槛取 7%:8bit 量化会把 0.106 记成 0.102,再叠上半格的相位噪声。
 test("分区卡:悬停时描边整体朝 theme.text 提亮", async () => {
   const app = await sidebarCard("分支", "main", "分支正文")

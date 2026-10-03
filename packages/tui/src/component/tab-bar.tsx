@@ -136,7 +136,9 @@ export function TabBar(props: TabBarProps) {
       {/* 原 border={["bottom"]} 换成主题驱动的霓虹导轨。
           **animated 必须在这里传**:NeonRail 有这个 prop,漏传它不会让 typecheck 皱眉,
           只是这条导轨永远是一条静止的渐变 —— 而原型那边是
-          `.titlebar::after { animation: railFlow 7s linear infinite }`,一直流着。 */}
+          `.titlebar::after { animation: railFlow 7s linear infinite }`(card-design-v7.html:85-91),
+          一直流着。这是两条常驻轨里的一条(另一条是侧栏右缘 `railV 9s`,见 routes/session/sidebar
+          那个 `flow=`);面板卡与分区卡不在这一档,它们只在悬停时流。 */}
       <NeonRail stops={neonStops(theme)} animated={kv.get("animations_enabled", true)} />
     </box>
   )
