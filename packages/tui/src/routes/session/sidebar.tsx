@@ -102,12 +102,14 @@ export function Sidebar(props: SidebarProps) {
       gradientStops={neonStops(theme)}
       /* 叠色档与分区卡同一档(见 component/sidebar-card 的 PANEL_CARD_ALPHA):这张根卡
          是整列的容器,比任何一张分区卡都大,若比它们更实就会变成屏幕上最重的一条边。
-         叠色底不用给 —— 它自己有 backgroundColor,那就是边框格背后的实色。 */
+         叠色底不用给 —— 它自己有 backgroundColor,那就是边框格背后的实色;那一档若是
+         全透明(主题声明 transparent,见 ui/neon 的 softenOver),折算自动退成不折算。 */
       borderAlpha={PANEL_CARD_ALPHA}
-      /* 常驻流动。侧栏是常驻布局,而且这张根卡的描边是屏幕上最大的一圈 ——
-         原型那边侧栏右缘那根流光(`railV 9s linear infinite`)与面板卡的
-         `background-size: 200% 200%` 都是从不间歇的。等鼠标才动的话,
-         用户没碰侧栏的这段时间里它是全 App 最明显的一圈静止描边。 */
+      /* 常驻流动。原型那边侧栏右缘那根流光是 `railV 9s linear infinite`(:113),
+         从不间歇;这张根卡的描边又是屏幕上最大的一圈 —— 等鼠标才动的话,
+         用户没碰侧栏的这段时间里它是全 App 最明显的一圈静止描边。
+         这一档的代价(CPU、终端输出、唯一的开关)写在 component/sidebar-card 那个
+         `flow=` 上 —— 侧栏这一列是同一个决定,别只在一处记。 */
       flow={kv.get("animations_enabled", true)}
       /* 侧栏根卡既不悬停也不入场:它是整列的容器,鼠标几乎永远在它范围内 ——
          「悬停才提亮」在这里等于「一直亮着」,这条视觉信号就废了;入场同理,

@@ -10,9 +10,11 @@ import {
   neonStops,
   perimeterCells,
   semanticStops,
+  softenOver,
 } from "../../src/ui/neon"
 import { resolveTheme, type ThemeJson } from "../../src/theme"
 import novaway from "../../src/theme/assets/novaway.json" with { type: "json" }
+import lucentOrng from "../../src/theme/assets/lucent-orng.json" with { type: "json" }
 
 describe("fadeIn", () => {
   const red = RGBA.fromHex("#ff0000")
@@ -132,6 +134,51 @@ describe("alphaOver", () => {
     expect(BORDER_ALPHA_DEFAULT).toBe(0.62)
     expect(BORDER_ALPHA_DEFAULT).toBeGreaterThan(0.55)
     expect(BORDER_ALPHA_DEFAULT).toBeLessThan(0.9)
+  })
+})
+
+/**
+ * 描边真正用的那一层折算:背后**没有实色**时不折算(见 softenOver)。
+ *
+ * 要防的是「transparent 被当成 RGB(0,0,0)」:折算式里的 (1−k) 那一项乘的就是背后
+ * 那个实色,背后没有实色时那一项没有依据,凭空落成纯黑就会在浅色终端上把描边算重。
+ */
+describe("softenOver", () => {
+  const color = RGBA.fromHex("#5a3a8a")
+  const opaque = RGBA.fromHex("#0a0e14")
+
+  test("背后是实色:与 alphaOver 一模一样", () => {
+    for (const k of [0, 0.45, 0.62, 0.75, 1]) {
+      expect(softenOver(color, opaque, k)).toEqual(alphaOver(color, opaque, k))
+    }
+  })
+
+  test("背后全透明:原样返回,不凭空加一层黑底", () => {
+    const nothing = RGBA.fromValues(0, 0, 0, 0)
+    for (const k of [0, 0.45, 0.62, 0.75, 1]) {
+      expect(softenOver(color, nothing, k)).toEqual(color)
+    }
+  })
+
+  test("半透明面板色仍按实色算:它带着自己的 RGB,是有依据的近似", () => {
+    // 判据只认全透明(a === 0)。半透明那一档的 RGB 是面板自己的颜色,拿它当参考站得住;
+    // 真要连它一起修,得先知道终端底色 —— 那是终端读不到的信息(见 softenOver 的注释)。
+    const panel = RGBA.fromHex("#2a1a1599")
+    expect(softenOver(color, panel, 0.62)).toEqual(alphaOver(color, panel, 0.62))
+  })
+
+  // 触发这个兜底的真实主题:它的 background / backgroundPanel / backgroundElement 三档
+  // 都写着 "transparent"(assets/lucent-orng.json:68-78),resolveColor 解析成 RGBA(0,0,0,0)。
+  // 不兜底的话,这个主题的每一圈 borderBackdrop 都会叠在纯黑上 —— 浅色终端上描边偏重。
+  test("lucent-orng 的背景三档确实是全透明,而兜底让描边回到原色", () => {
+    const theme = resolveTheme(lucentOrng as ThemeJson, "light")
+    for (const token of [theme.background, theme.backgroundPanel, theme.backgroundElement]) {
+      expect(token.a).toBe(0)
+    }
+    // 兜底之后:边框色 = 纯渐变(不折算),而不是「62% 的琥珀 + 38% 的黑」。
+    expect(softenOver(theme.warning, theme.backgroundPanel, 0.62)).toEqual(theme.warning)
+    // 对照:同一档若按纯黑折算,r 通道会掉到 0.62 —— 这就是浅色终端上偏重的那一档。
+    expect(alphaOver(theme.warning, RGBA.fromValues(0, 0, 0, 0), 0.62).r).toBeLessThan(theme.warning.r)
   })
 })
 

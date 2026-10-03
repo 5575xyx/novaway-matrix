@@ -10,8 +10,11 @@ import { useKV } from "../context/kv"
 // 漏掉 animations_enabled 的那一处,在用户关掉动画之后仍会以 12.5Hz 空转描边。所以折在这里。
 // 数「有几家在用」时别拿这份注释当依据:调用点是增删的,`useCardHover` 的定义只有这一处。
 //
-// 它同时也是 animations_enabled 折算的**唯一**出口:`flow` 与 hover 无关,但读的是同一条
-// 设置,于是也走这里(见下面 flow 的注释)。
+// **它是什么**:调用点共享的那一份「hover 与 animations_enabled 折在一起」的接线。
+// 「唯一出口」这种说法**不成立**,别再往这上面加:侧栏根卡(routes/session/sidebar.tsx)
+// 与标签栏导轨(component/tab-bar.tsx)都没有 hover 状态,它们直接读同一个 KV。
+// 换句话说这条纪律是「卡片调用点都走 useCardHover」,不是「全 App 只有这一处读 KV」。
+// 两边读的是同一条设置,所以不会出现「有的壳关了有的壳没关」。
 
 /**
  * 返回一组悬停动效的接线。

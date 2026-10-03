@@ -8,7 +8,6 @@
 } from "@opentui/core"
 import { extend } from "@opentui/solid"
 import {
-  alphaOver,
   BORDER_ALPHA_DEFAULT,
   brighten,
   fadeIn,
@@ -16,6 +15,7 @@ import {
   HOVER_BOOST,
   NEON_WHITE,
   perimeterCells,
+  softenOver,
 } from "./neon"
 
 export type NeonBoxOptions = BoxOptions<NeonBoxRenderable> & {
@@ -33,14 +33,18 @@ export type NeonBoxOptions = BoxOptions<NeonBoxRenderable> & {
    * 常驻流动:相位自己走,**不带扫光**。
    *
    * 与 animated 的分工是「谁在什么时候动」:
-   *   · `flow` = 这张卡自己在呼吸(面板卡 / 侧栏分区卡 / 侧栏根卡)。对应原型的
-   *     `.card` 底态 `background-size: 200% 200%` 与侧栏右缘 `railV 9s linear infinite`
-   *     —— 那两条都是**一直流**的,不是等鼠标。
+   *   · `flow` = 这张卡不用等鼠标就在呼吸(面板卡 / 侧栏分区卡 / 侧栏根卡 / 提示卡)。
+   *     原型里**永不间歇**的那两条导轨 —— 侧栏右缘 `railV 9s linear infinite`(:113)
+   *     与标题栏导轨 `railFlow 7s linear infinite`(:89)—— 就是这一档。
    *   · `animated` = 此刻有人在看它/在用它(悬停、聚焦),于是色带走快一倍并多一道扫光。
    *   两者独立且可以叠加:面板卡默认常驻流,悬停时既更快又带扫光。
    *
    * **扫光只归 animated**:扫光是「注意力」的信号,常驻的话整圈描边永远有一道白亮在爬,
    * 面板卡一多就成噪声(侧栏同屏七八张)。色带流动才是「活着」的信号,那个可以常驻。
+   *
+   * 面板卡这一族的常驻流是**有意偏离原型**,不是照抄:原型 `.card` 的 `gbFlow 2.6s`
+   * 挂在 `:hover` 上(card-design-v7.html:159-163),底态并不流。理由与代价写在
+   * component/sidebar-card 里那个 `flow=` 上 —— 那里是第一个真正设它的地方。
    *
    * animations_enabled 这类用户设置同样由调用方折进来(见 ui/hover 的 flow)。
    */
@@ -78,6 +82,11 @@ export type NeonBoxOptions = BoxOptions<NeonBoxRenderable> & {
    * 透明卡自己给不出答案:它背后的可能是面板底色,也可能是纯黑,终端里读不到。
    * 那种卡必须显式传(见 component/neon-card、sidebar-card、prompt/card),否则叠色会朝
    * 默认黑收敛 —— 深色主题下碰巧像那么回事,浅色主题下整圈描边会沉进白底里。
+   *
+   * **显式传的也可能仍是全透明**:主题自己声明 `"transparent"` 的那一档
+   * (lucent-orng 的 background / backgroundPanel / backgroundElement)解析出来就是
+   * RGBA(0,0,0,0)。那一档按 softenOver 走「不折算」,所以这里的全透明读作
+   * 「背后是终端自己的底色,不猜」,不是「背后是黑」。
    */
   borderBackdrop?: RGBA
 }
@@ -119,7 +128,7 @@ const SWEEP_WIDTH = 0.12
 const SWEEP_STRENGTH = 0.55
 
 /**
- * 顶部光晕:上边框那一行额外向白提亮 6%。
+ * 顶部光晕:上边框那一行额外朝一个方向推 TOP_EDGE_GLOW。
  *
  * 对应原型两处:
  *   · `.card` 的 `inset 0 1px 0 rgba(255,255,255,.05)` —— 卡片顶部那条内高光,
@@ -131,10 +140,37 @@ const SWEEP_STRENGTH = 0.55
  * 同样的百分比叠在更暗的底上视觉增益更大。6% 折成 8bit 仍是 15 档以上,肉眼可辨;
  * 再高一档就会读成「第二圈亮边」而不是「边被点亮了」。
  *
+ * **方向由叠色底的明暗极性决定**(见 topEdgeTarget),这是这一层唯一一处必须看主题的判断:
+ * 那一档若无条件朝白推,在浅色底上描边本来就比底色暗,朝白推等于把它往底色上靠 ——
+ * 顶边那一圈的对比度反而**降**一档(实测 #87b6e5 → #8ebae6,每通道 +7/255)。
+ * 深色底上朝白推是「上边被环境光照到」,浅色底上同一个动作读起来是「描边被洗淡了」;
+ * 浅色底上该给的是反方向的推 —— 与 HOVER_BOOST 那条「浅色主题下变成压暗」的判断同源,
+ * 那条是因为目标色 theme.text 在浅色下是近黑,这里是因为底色在浅色下已经接近白。
+ *
  * 只作用于 y = 0 那一行 —— 角格 `╭ ╮` 在那一行上,于是跟着亮;`╰ ╯` 在最后一行,不亮。
  * 侧边中段一律不带光晕(见 test/ui/card-border-alpha 的「左右边框中段不跟着亮」)。
  */
 export const TOP_EDGE_GLOW = 0.06
+
+/** 光晕的另一个目标色:叠色底是浅的那一档朝它推(见 topEdgeTarget)。 */
+export const TOP_EDGE_INK = RGBA.fromValues(0, 0, 0, 1)
+
+/**
+ * 顶部光晕这一档往哪个方向推 —— 由叠色底的明暗极性决定,不看主题本身。
+ *
+ * 卡片类拿不到主题 context,但**叠色底就是那张卡背后真正的实色**,它已经能回答
+ * 「这个界面是浅底还是深底」:渲染器里不需要再引一次 theme。判据用 0.299/0.587/0.114
+ * 的相对亮度与 0.5 分界 —— 与 theme/index.ts 里 terminalMode / selectedForeground
+ * 判定终端明暗是同一条线,同一个颜色在两处得到的答案一致。
+ *
+ * 叠色底全透明(见 softenOver:主题声明 transparent,或调用点忘了给 borderBackdrop)
+ * 时无从判断极性,这一档维持朝白 —— 也就是这一层引入之前的行为,记在这里免得以后
+ * 把它当成「浅色底也朝白推」的证据。那种底上现在画的是不折算的纯渐变(见 softenOver),
+ * 光晕的 6% 落在满强度色上,量级已经小到读不出来。
+ */
+export function topEdgeTarget(backdrop: RGBA) {
+  return 0.299 * backdrop.r + 0.587 * backdrop.g + 0.114 * backdrop.b > 0.5 ? TOP_EDGE_INK : NEON_WHITE
+}
 
 // padding 允许百分比,构造期无法换算成格数只能原样透传;数字统一夹到 ≥1 格。
 const minPadding = (value: number | `${number}%` | null | undefined): number | `${number}%` =>
@@ -452,8 +488,11 @@ export class NeonBoxRenderable extends BoxRenderable {
     // 叠色的底:描边格画在最外行/列上,那一格不画描边时露出来的就是这张卡自己的底色 ——
     // 所以有底色的卡(用户气泡 / 工具卡 / 思考卡 / 错误卡)拿 backgroundColor 就是正确参考。
     // 透明卡给不出答案(它背后是面板底色还是纯黑,终端里读不到),调用点必须显式给
-    // borderBackdrop;没给就落到 backgroundColor 的透明黑,那是下面注释里那条已知近似。
+    // borderBackdrop;给出来的仍可能是全透明(主题自己声明 transparent,见 softenOver)——
+    // 那按「背后是终端自己的底色、不猜」处理,叠色自动退成不折算。
     const backdrop = this.backdrop ?? background
+    // 光晕方向也是从这一档读的(浅底朝黑推,深底朝白推),逐格不变,提到循环外算一次。
+    const glow = topEdgeTarget(backdrop)
     const clip = visibleClip(buffer, this)
     // phase = 0(从未动画过)时**不做环绕**:周长末格 cell.t = 1,`(1 + 0) % 1` 会把它送回
     // t = 0,那一格就渲染成起点色而不是终点色 —— 所有静止的卡(助手气泡卡 / 侧栏卡 /
@@ -461,16 +500,21 @@ export class NeonBoxRenderable extends BoxRenderable {
     // phase 只增不减:动画过后失焦会停在最后一格(而不是跳回起点),所以「逐格等于
     // gradientAt(stops, t)」这条只对从未动画过的卡片成立。
     const phase = this.phase / PHASE_STEPS
-    // 入场淡入的两级门控:enterDelay 没传 → k = 1(终态,下方短路,静止卡的逐格色不受影响);
-    // 传了但起点色拿不到(enterFrom 与 backgroundColor 都没有)→ 也走终态,
-    // 见 enterFrom 的注释:不知道背后是什么颜色时不该凭空挑一个起点。
+    // 入场淡入的门控只有一级:enterDelay 没传 → k = 1(终态,下方短路,静止卡的逐格色不受影响)。
+    // **没有第二道「起点色拿不到」的判据** —— from 在这里永远是个 RGBA,拿不到的情况不存在:
+    // opentui 的 Renderable 默认 backgroundColor 就是 "transparent"
+    // (node_modules/@opentui/core 的 chunk 里 `_defaultOptions.backgroundColor`),
+    // 解析出来是 RGBA(0,0,0,0) 而不是 undefined。于是 `enterColor ?? backgroundColor`
+    // 恒有值,fromTone 无条件算得出。下面那句注释记的是「早先这里还有一道 && from 的门控,
+    // 8a25a5f 删掉了」,免得以后照着旧注释去找一个不存在的分支。
     const entered = this.enterMs === undefined ? 1 : this.enterProgress()
     // 入场起点与终态走**同一套**折算:起点色是 theme.border 那样的普通边框色,不给它叠一遍的话,
     // 淡入的第 0 帧会比终态亮一整档 —— k = 0 那一帧闪一下。叠完之后起点仍然明显暗于
     // 渐变终色(theme.border 是灰的,渐变是彩的),阶梯感不受影响。
+    // 叠色底全透明时 softenOver 不折算(见它的注释),起点与终态于是都取原色,仍然对齐。
     const from = this.enterColor ?? this.backgroundColor
     // 与终态同一套折算(见循环里那一段的注释)。逐格不变,所以提到循环外算一次。
-    const fromTone = alphaOver(from, backdrop, this.alpha)
+    const fromTone = softenOver(from, backdrop, this.alpha)
     const fading = entered < 1
     const boost = this.boostColor
     // 祖先压下来的 opacity(视图入场那一档,见 routes/session/view-entrance)。
@@ -493,12 +537,13 @@ export class NeonBoxRenderable extends BoxRenderable {
       //   叠色紧跟渐变,因为它改的是**描边本身**:原型那一圈描边本来就是半透明的,
       //     后面几层(悬停光晕、扫光、入场)都加在「已经折算过的那一圈」上,不是加在纯渐变上;
       //   顶部光晕跟着叠色走 —— 原型那条内高光也在半透明描边之上,顺序反了它会浮成第二圈亮边;
+      //     方向由 glow 给(浅底朝黑、深底朝白,见 topEdgeTarget),叠色底全透明时维持朝白;
       //   抬对比要在入场之前,这样淡入的终点就是「悬停时的高对比描边」(k = 1 时两者等价,顺序不打架);
       //   扫光放最后,它提亮的是**当前这一帧画出来的颜色**,入场与悬停叠加时高光跟着一起淡入;
       //   祖先 opacity 在最外层 —— 它是整棵子树的透明度,得作用在这一帧**最终**的颜色上,
       //     放在它前面会让提亮/扫光绕过祖先那层压暗。
-      const softened = alphaOver(gradient, backdrop, this.alpha)
-      const lit = cell.y === 0 ? brighten(softened, TOP_EDGE_GLOW, NEON_WHITE) : softened
+      const softened = softenOver(gradient, backdrop, this.alpha)
+      const lit = cell.y === 0 ? brighten(softened, TOP_EDGE_GLOW, glow) : softened
       const lifted = boost ? brighten(lit, HOVER_BOOST, boost) : lit
       const faded = fading ? fadeIn(fromTone, lifted, entered) : lifted
       const mix = this.animating ? sweepMix(phase, cell.t) : 0

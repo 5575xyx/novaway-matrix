@@ -66,6 +66,8 @@ export function brighten(color: RGBA, amount: number, towards: RGBA): RGBA {
  * 与 brighten 的区别只在语义与参数位置:brighten 是「朝 towards 混 amount」,
  * 这里 k 是**图层自己的 alpha**,towards 是**背景** —— 读代码时这两件事很容易看反,
  * 所以不合并成一个函数。
+ *
+ * **这一层不做「背后不知道」的判断**,那件事归 softenOver。
  */
 export function alphaOver(color: RGBA, back: RGBA, alpha: number): RGBA {
   const k = Math.min(1, Math.max(0, alpha))
@@ -75,6 +77,43 @@ export function alphaOver(color: RGBA, back: RGBA, alpha: number): RGBA {
     color.b * k + back.b * (1 - k),
     color.a,
   )
+}
+
+/**
+ * 描边真正用的那一层折算:`back` 是实色就按 alpha 叠,`back` 全透明就**不叠**。
+ *
+ * 全透明意味着「这一格背后没有实色」,而不是「背后是纯黑」。终端里这件事是真的:
+ * 主题可以直接声明 `"transparent"`(lucent-orng 的 background / backgroundPanel /
+ * backgroundElement 三档都是,见 theme/assets/lucent-orng.json:68-78),那时渲染器
+ * 画的就是终端自己的底色 —— 浅色终端上是白,深色终端上是黑,读不到具体是哪一个。
+ * 而 alphaOver 只看 back 的 RGB、不看它的 alpha(见上面那句 per_channel),于是
+ * 「transparent」会被当成 RGB(0,0,0):叠出来的描边永远偏黑。**浅色终端下那一圈描边
+ * 于是比原型重**,正是 borderBackdrop 这个属性要防的那件事,只是从另一头撞上来。
+ *
+ * 折算里的 (1−k) 那一项乘的就是「背后那个实色」。背后没有实色时,那一项没有依据 ——
+ * 与其凭空捏一层黑底(在浅色终端上必然算错),不如**不折算**:描边就是原型给的那圈渐变
+ * 本身。这也让这类主题的描边与它自己的 border token 同一口径(lucent-orng 的
+ * `border` 是 #EC5B2B,本来就不折算)。
+ *
+ * 判据只认「全透明」(a === 0),不认「半透明」:半透明面板色仍带着自己的 RGB,
+ * 拿它当参考是有依据的近似(叠色公式本来就不吃 back.a);真要连它一起修,得先知道
+ * 终端底色,那是终端读不到的信息。
+ *
+ * 不折算的代价也说明白:这一档画出来的是**满强度**描边 —— 正是下面那段注释里说
+ * 「压不住」的 1.0。深色终端上它读起来正常(饱和亮线压在近黑底上);近白底上会明显
+ * 变淡:实测 lucent-orng 的琥珀 #ffb800 落在近白底(#f5f7fa)上只有 1.62:1,而落在
+ * 纯黑上是 4.03:1。1.62:1 那一档恰恰是原型自己在浅色页面上的观感(`.card` 的
+ * `--gb-main` 同样是一条不透明的浅色描边),4.03:1 那一档才是凭空加的黑底。
+ * **想要更实的描边就把主题那一档背景写成实色**(一行 theme JSON),别在渲染层替它猜
+ * 终端底色 —— 猜的那一档换个终端就是错的。
+ *
+ * 调用点只有一处:NeonBoxRenderable.renderSelf 里每一格描边(以及入场起点色)。
+ * 纯函数是为了让「背后全透明就不折算」这条在单测里能钉住,而不必去挂一张真卡
+ * 再从字符帧里反推颜色。
+ */
+export function softenOver(color: RGBA, back: RGBA, alpha: number): RGBA {
+  if (back.a === 0) return color
+  return alphaOver(color, back, alpha)
 }
 
 /**
@@ -94,13 +133,22 @@ export const NEON_WHITE = RGBA.fromValues(1, 1, 1, 1)
  *   `.thinking .bubble`       rgba(167,139,250,.8) → rgba(79,209,224,.55) 均值 .675
  *   `.msg.user .bubble`       rgba(255,92,158,.9) → rgba(167,139,250,.7)  均值 .80
  *   `.prompt`                 rgba(79,209,224,.5) → rgba(74,158,255,.4)  均值 .45
- *   `.hero` / `.seg`          两端都是 .55                              均值 .55
- * 助手 / 用户气泡 / 思考卡 / 工具卡 / 错误卡 / 提示卡这一族共用 **0.62**:
+ *   `.tip`                    rgba(245,184,61,.85) → rgba(245,140,61,.65) 均值 .75
+ *   `.seg`                    两端都是 .55                              均值 .55
+ * 助手 / 用户气泡 / 思考卡 / 工具卡 / 错误卡这一族共用 **0.62**:
  * 落在 .55~.90 这个区间里,略低于助手与思考两档的均值 —— 终端的 1 格描边比
  * 浏览器的 1.5px 粗得多,同一个 alpha 画出来更重,取偏低端才压得住。
+ * `.prompt` / `.tip` 各有各的档,不在这条族里(理由与取值见 component/prompt/card 的
+ * INPUT_CARD_ALPHA 与 feature-plugins/home/tip-card 的 TIP_CARD_ALPHA)。
  *
- * 原型里**不透明**的两类(面板卡 `.card` 的 `--gb-main`、流程图节点 `.fcard` 的 `--fc`)
- * 没法照抄 1.0 —— 那正是「描边太重」的来源;它们各自压到 0.70 / 0.72,在调用点显式传。
+ * 原型里**不透明**的三处 —— 面板卡 `.card`(:151-153)、与它同一个元素同一个 token 的
+ * hero 卡 `.hero`(:342-344,HTML :895 是 `class="card hero"`,描边同样是不透明的
+ * `--gb-main`,不是半透明)、流程图节点 `.fcard` 的 `--fc`(:701)—— 没法照抄 1.0,
+ * 那正是「描边太重」的来源。`.card` 与 `.fcard` 各自压到 0.70 / 0.72 在调用点显式传
+ * (见 component/sidebar-card 的 PANEL_CARD_ALPHA 与 component/flow/canvas 的
+ * FLOW_NODE_ALPHA)。`.hero` 不另开一档:那张卡在本实现里是抱内容的 NeonCard
+ * (component/empty-session-hero),吃的就是 0.62 —— 比 0.70 还淡一档,因为整张卡
+ * 只有一枚 Logo,描边更淡才读得出「这是内容,不是容器」。
  */
 export const BORDER_ALPHA_DEFAULT = 0.62
 

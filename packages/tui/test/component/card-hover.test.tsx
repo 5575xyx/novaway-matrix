@@ -11,15 +11,18 @@ import { ThemeReady, ThemeTestProviders } from "../fixture/providers"
 import "../../src/ui/card"
 
 // C1:悬停时渐变流动 + 描边提亮。
-// 提亮的**量**(12%)由下面最后一条用两张只差一个 boost 的同色卡逐格钉死;这里测的是接线:
+// 提亮的**量**(20%)由下面最后一条用两张只差一个 boost 的同色卡逐格钉死;这里测的是接线:
 // 真的把鼠标挪上去,描边真的开始流动、真的整体变亮,挪走后真的停。
 //
-// 相位是这里最麻烦的干扰项:animated 一开,相位每 80ms 走一格,一格的位移就足以让
+// 相位是这里最麻烦的干扰项:animated 一开,相位每 80ms 走两格,一格的位移就足以让
 // 「同一格的颜色」和「同一格的提亮量」混在一起分不开。所以两条断言各挑一个干净的量:
-//   流动 —— 盯**单格随时间**变化(相位一动就变,提亮是常量,不影响「变了没有」这个判断);
-//   提亮 —— 盯「同一相位下 hover 前后的色距」。移开鼠标相位会**冻结**(见 ui/card.ts:
-//          phase 只增不减),所以「移开 → 采样 → 再移上去 → 采样」两次采样之间的相位差
-//          最多一格(周长的 1/100),而提亮是 12%,量级差 10 倍,压得住。
+//   流动 —— 盯**单格随时间**变化(相位一动就变,提亮是常量,不影响「变了没有」这个判断),
+//     并且要求其中至少有一格是**变暗**的:扫光/光晕/悬停抬对比这三层都是朝亮处推,
+//     任何一格都只升不降,所以「有一格变暗」只能是色带真的走了(判据见 maxDrop);
+//   提亮 —— 盯「同一相位下 hover 前后的色距」。移开鼠标相位**不会**冻结(这一轮起
+//     分区卡与侧栏根卡都带 flow,见 ui/card 的 flow),所以两次采样之间相位差可能有好几格,
+//     唯一的办法是让这一次采样紧贴住:鼠标没碰过 → 立刻采 plain → 立刻采 hovered,
+//     两次 renderOnce 之间只有几毫秒,相位最多差半格(周长的 1/200),而提亮是 20%,量级差 40 倍。
 
 // captureSpans 给的是「一段同色字符」,边框是逐格渐变的带子 —— 先按字符摊平,再按格取值。
 function cellGrid(app: { captureSpans(): CapturedFrame }) {
@@ -55,12 +58,13 @@ function borderCell(app: { captureSpans(): CapturedFrame; captureCharFrame(): st
 /**
  * 整条上边框的前景色。
  *
- * **为什么量「逐格最大偏差」而不是亮度**:描边按 alpha 折算之后(见 ui/neon 的
+ * **为什么量「逐格最大偏差/下降量」而不是亮度**:描边按 alpha 折算之后(见 ui/neon 的
  * BORDER_ALPHA_DEFAULT),色带在亮度上的坡被压扁了 —— 三段霓虹色板近青的一端 r 升 g 降,
  * 200ms 内两者此消彼长、r + g + b 几乎抵消。工具卡那一格上,叠色前 200ms 的亮度差是
  * −0.016,叠色后只剩 −0.003:还在,却掉进了 8bit 量化与 `toBeCloseTo(_, 3)` 的噪声里,
  * 于是「有没有在动」这条判据失效了(改之前它测的是真东西,现在它测的是量化误差)。
- * 逐格逐通道比就不受抵消影响:任一通道走过一档(1/255)就说明相位真的动了。
+ * 逐格逐通道比就不受抵消影响:任一通道走过一档(1/255)就说明那一格的颜色真的变了。
+ * 注意「变了」不等于「色带走了」—— 扫光也改通道,那一条由 maxDrop 分流。
  */
 function borderRow(app: { captureSpans(): CapturedFrame; captureCharFrame(): string }) {
   const { top } = cardRows(app)
@@ -76,6 +80,33 @@ function maxDeviation(a: { r: number; g: number; b: number }[], b: { r: number; 
     ...a.flatMap((left, index) => {
       const right = b[index]!
       return [Math.abs(left.r - right.r), Math.abs(left.g - right.g), Math.abs(left.b - right.b)]
+    }),
+  )
+}
+
+/**
+ * 逐格逐通道的**最大下降量** —— 「有没有哪一格变暗了」。
+ *
+ * 为什么单靠 maxDeviation 不够:悬停时同一格里叠着四层东西,其中三层只会把颜色往亮处推:
+ *   · 顶部光晕(TOP_EDGE_GLOW 朝白,见 ui/card 的 topEdgeTarget)
+ *   · 悬停抬对比(HOVER_BOOST 朝 theme.text,深色主题下是近白)
+ *   · 扫光(SWEEP_STRENGTH 朝白)
+ * 三层都是「朝一个更亮的终点插值」,所以对任何一格都只可能让通道**上升**。
+ * 色带流动是唯一会让某格变暗的那一层(渐变上一格的色相比这一格暗,色带走过来它就变暗)。
+ * 于是「至少有一格变暗」这条判据把「色带真的走了」与「只有扫光爬过去了」分开了 ——
+ * 单看 maxDeviation 的话,扫光自己就足以满足它:扫光窗口占一圈 12%,而上面那 6 帧
+ * (PHASE_WAIT 200ms × 5 ≈ 1 秒)里悬停档每拍走两格,相位已经推进约四分之一圈,
+ * 那一道上白亮扫过的几十格足够把整条上边框逐格都比出偏差来。
+ *
+ * 下降量取最大而不是「有没有下降」:8bit 量化下 1/255 就是 0.004,门槛与上面那条
+ * maxDeviation 用同一个数。
+ */
+function maxDrop(a: { r: number; g: number; b: number }[], b: { r: number; g: number; b: number }[]) {
+  if (a.length !== b.length || a.length === 0) throw new Error("两次采样的格子数对不上")
+  return Math.max(
+    ...a.flatMap((left, index) => {
+      const right = b[index]!
+      return [left.r - right.r, left.g - right.g, left.b - right.b]
     }),
   )
 }
@@ -140,7 +171,8 @@ async function sidebarCard(title: string, badge: string, body: string) {
  *   · 「扫光在不在」用**亮度**判,并拿悬停**之前**的几帧当基线(那时既没有扫光也没有
  *     抬对比,亮度就是这张卡色带自身的区间上沿)。这个基线不依赖任何主题 token,
  *     所以换主题也不会让门槛失准。
- *   · 「色带在不在流」用**逐格逐通道最大偏差**判(理由见 borderRow 的注释)。
+ *   · 「色带在不在流」用**逐格逐通道最大下降量**判(理由见 maxDrop):扫光/光晕/抬对比
+ *     三层只会让颜色变亮,能测出「变暗」的那一层只可能是色带平移。
  * 不带 flow 的卡(工具卡)额外再钉一条:移开之后逐格完全冻结。
  */
 const SWEEP_MARGIN = 0.3
@@ -172,7 +204,12 @@ async function flowPair(
 
     await overCard(app)
     const hovered = await sample(app, 6)
-    expect(maxDeviation(hovered[hovered.length - 1]!, hovered[0]!), `${name}:悬停期间描边应流动`).toBeGreaterThan(0.004)
+    // 判据是「有格子变暗」而不是「颜色变了」:扫光自己就足以让 maxDeviation 过关,
+    // 变暗只可能来自色带平移(理由见 maxDrop)。
+    expect(
+      maxDrop(hovered[hovered.length - 1]!, hovered[0]!),
+      `${name}:悬停期间应有格子变暗(色带走过了)`,
+    ).toBeGreaterThan(0.004)
     expect(Math.max(...hovered.map(peakBrightness)), `${name}:悬停期间应有扫光扫过`).toBeGreaterThan(
       baseline + SWEEP_MARGIN,
     )
@@ -281,9 +318,11 @@ test("助手气泡卡:悬停期间有扫光扫过这一格,移开后不再有", 
   }
 })
 
-// 悬停提亮:「移开(相位冻结)→ 采样 → 再移上去 → 采样」。两次采样之间相位最多差一格
-// (周长的 1/100),提亮是 12%,量级差 10 倍,压得住。
-// 门槛取 7%:8bit 量化会把 0.106 记成 0.102,再叠上一格的相位噪声。
+// 悬停提亮:「移开 → 立刻采样 → 再移上去 → 立刻采样」。两次采样紧挨着,
+// 相位最多差半格(周长的 1/200),提亮是 20%,量级差 40 倍,压得住。
+// **这条不能等**:分区卡现在带 flow,相位不再在鼠标移开时冻结(见文件头的说明),
+// 任何一次「等一会儿再采」都会把相位差灌进这个差值里。
+// 门槛取 7%:8bit 量化会把 0.106 记成 0.102,再叠上半格的相位噪声。
 test("分区卡:悬停时描边整体朝 theme.text 提亮", async () => {
   const app = await sidebarCard("分支", "main", "分支正文")
   try {
@@ -303,7 +342,7 @@ test("分区卡:悬停时描边整体朝 theme.text 提亮", async () => {
 })
 
 // 提亮量本身:同一张卡、同一条边框格,传 boost 与不传 boost 的两帧之差,
-// 必须恰好等于 brighten(base, HOVER_BOOST, towards)。这条把「12%」钉在集成层,
+// 必须恰好等于 brighten(base, HOVER_BOOST, towards)。这条把「20%」钉在集成层,
 // 免得只靠 neon.test.ts 的纯函数单测 —— 那边改错了接线也一样绿。
 test("提亮量就是 brighten(base, HOVER_BOOST, towards):同色两卡只差一个 boost", async () => {
   // 三段相近的霓虹端色:两端亮度接近,「提亮」不会被「换色段」这种差异冒充。

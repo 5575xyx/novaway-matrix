@@ -98,9 +98,26 @@ export function SidebarCard(props: SidebarCardProps) {
       // 因为「整卡提亮」正是这条视觉语言要表达的(这一片区域现在被关注着)。
       // 动画只改前景色、不动任何几何(yoga 布局不受影响),所以不会带得整栏抖一下。
       animated={hover.animated()}
-      // 常驻流动:原型 `.card` 的底态就是 `background-size: 200% 200%` 一路流着的
-      // (只有 :hover 才额外加 gbFlow),侧栏右缘那根 `railV 9s` 更是从不间歇。
-      // 分区卡是常驻布局,等鼠标才动等于「整个界面是死的」—— 这一档就是它平时在呼吸的来源。
+      // 常驻流动(原型那一侧是两条永不间歇的导轨:侧栏右缘 `railV 9s linear infinite`
+      // card-design-v7.html:113、标题栏导轨 `railFlow 7s linear infinite` :89 ——
+      // 这一档就是它们在终端里的对应物)。分区卡是常驻布局,等鼠标才动等于「整个界面
+      // 是死的」:侧栏是屏幕上唯一永远在的那一面,用户第一眼看到的就是它。
+      //
+      // **面板卡这一族的「一直流」是明知代价而选的,代价写在这里,别当成 bug 顺手加门控**:
+      //   · 原型 `.card` 的 `gbFlow 2.6s` 挂在 `:hover` 上(:159-163),底态并不流。
+      //     终端里没有「鼠标恰好不在那儿」这个缓冲:一张 44 列的描边带,用户没碰它时
+      //     就是全屏最大的一圈静止描边,所以这一档是有意偏离原型,不是照抄。
+      //   · 每张在流的卡各挂**自己**的 80ms 表(见 ui/card 的 syncPhaseTimer),每拍只做
+      //     两件事:相位走一格 + requestRender()。没有布局计算,没有几何改动。
+      //   · 帧率封顶 12.5/s:相位只有 100 格,每拍一格,再密也只是在同一批格子里换颜色。
+      //   · **代价是真的**:这一版 opentui 没有消费 Renderable 的 `_dirty` 标志
+      //     (node_modules/@opentui/core 里 isDirty/markClean 无人读),所以一次
+      //     requestRender 会把整棵渲染列表重画一遍 —— 于是「只看侧栏、什么都不干」时
+      //     CPU 一直在转、终端也一直在收输出。侧栏同屏七八张卡,乘起来就是这个量级。
+      //   · 唯一的开关是 `animations_enabled = false`(折在 ui/hover 的 flow 里):
+      //     关掉是 setter 停表,打开是 setter 起表,两边对称。要省电只能用它,
+      //     或者把 flow 摘掉 —— 别在渲染层加一个「不可见的卡就别走」的拉式门控:
+      //     那是只能停不能恢复的坑(见 ui/card 的 flow 注释)。
       flow={hover.flow()}
       boost={hover.boost(theme.text)}
       // 面板卡那一档(0.70)。原型 `.card` 的描边是**不透明**的 --gb-main,照抄 1.0 就是
