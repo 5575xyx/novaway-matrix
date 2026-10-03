@@ -59,7 +59,6 @@ import { useTuiConfig } from "../../config"
 import { usePromptWorkspace } from "./workspace"
 import { usePromptMove } from "./move"
 import { readLocalAttachment } from "./local-attachment"
-import { useLocation } from "../../context/location"
 import { sessionUsage } from "../../util/usage"
 import { PromptCard, PromptBottomRow, PromptHints, PromptSend } from "./card"
 
@@ -192,7 +191,6 @@ export function Prompt(props: PromptProps) {
   const local = useLocal()
   const args = useArgs()
   const paths = useTuiPaths()
-  const location = useLocation()
   const terminalEnvironment = useTuiTerminalEnvironment()
   const clipboard = useClipboard()
   const sdk = useSDK()
@@ -1615,9 +1613,10 @@ export function Prompt(props: PromptProps) {
           {/* 卡内第四行:键位提示(左对齐)。提交键不在这里 —— 它跟着底部行的发送按钮走。 */}
           <PromptHints shell={store.mode === "shell"} />
         </PromptCard>
-        {/* 状态行留在卡外:目录 / 工作指示 / retry / token 花费都属于「这次会话」,
-            不属于输入卡。flexShrink={0} 是补的 —— 原来这里没钉,长 retry 文案
-            (「retrying in … attempt #3」)会把上面的输入卡挤扁。 */}
+        {/* 状态行留在卡外:工作指示 / retry / 工作区提示 / token 花费都属于「这次会话」,
+            不属于输入卡。**目录不在这一行** —— 它由会话页底栏(routes/session/footer.tsx)
+            独家显示,理由见下面 Match when={true} 那条。flexShrink={0} 是补的 ——
+            原来这里没钉,长 retry 文案(「retrying in … attempt #3」)会把上面的输入卡挤扁。 */}
         <box width="100%" flexDirection="row" justifyContent="space-between" flexShrink={0}>
           <Switch>
             <Match when={status().type !== "idle"}>
@@ -1751,13 +1750,24 @@ export function Prompt(props: PromptProps) {
               </box>
             </Match>
             <Match when={true}>
-              {props.hint ?? (
-                <Show when={props.sessionID}>
-                  <box marginLeft={1}>
-                    <text fg={theme.textMuted}>{location()?.directory ?? paths.cwd}</text>
-                  </box>
-                </Show>
-              )}
+              {/* 空闲时的左半边。**这里原来印的是 `location()?.directory ?? paths.cwd`,
+                  现在不印了** —— 那一行与会话页底栏(path.get().directory)显示的是同一个
+                  目录,屏幕底部于是上下叠着两条一模一样的路径(用户报的就是这个重复)。
+
+                  为什么两个值必然相同(不是「多半相同」):
+                  服务端 `Session.createNext` 只接受调用方传的 directory,而它的两个调用方
+                  (`Session.create` / `Session.fork`)都传 `InstanceState.context.directory`;
+                  `path.get` 返回的 `directory` 也正是 `InstanceState.context.directory`
+                  (packages/novaway/src/server/routes/instance/httpapi/handlers/instance.ts:36)。
+                  也就是说会话的 directory 按构造就等于实例目录 —— API schema 里那个
+                  `CreateInput.directory` 被 `Session.create` 忽略,任何会话都建不出第二个目录。
+                  底栏那一份还多做了 `abbreviateHome`,所以它才是该留的那一份。
+
+                  留一个弹性空盒而不是干脆什么都不渲染:外层是 justifyContent="space-between",
+                  左半边一旦消失,右端的 token/花费会跳到屏幕左边 —— 那不是这次要改的东西。
+                  首页那条 `props.hint` 是调用方自己给的(routes/home 传的是**目标**目录,
+                  与底栏那一份不是同一个语义),不动。 */}
+              {props.hint ?? <box flexGrow={1} minWidth={0} />}
             </Match>
           </Switch>
           <Show when={status().type !== "retry"}>

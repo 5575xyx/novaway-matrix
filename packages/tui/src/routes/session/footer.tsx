@@ -107,8 +107,10 @@ export interface SessionFooterBarProps {
  *
  *   固定项都定下来之后,剩下的列分给两块弹性项:**先路径、后分支名**。两者都先按列从中间截断,
  *   低于各自下限才整段丢。右组整体优先于左组 —— 它回答的是"当前在哪个分支、用哪个构建跑";
- *   左组的目录在输入卡的状态行里还有一份完整路径(那一行给的是 prompt 自己的 location,
- *   可能是会话子目录,与这里的实例目录不一定相同,所以两边都保留)。
+ *   左组的目录是底部区域里**唯一**一份路径:输入卡外面的状态行原来也印一份
+ *   (`location()?.directory`),但服务端的 Session.createNext 只接受调用方传的 directory,
+ *   而它的两个调用方都传 `InstanceState.context.directory`,与 path.get().directory 同一个值
+ *   (那一行还少了 abbreviateHome),所以那是纯重复,已经删掉。
  *
  *   由此可证「整行一定放得下」:阶梯停下来的条件是
  *   SPACER + 左组(路径按 PATH_MIN 算) + 右组(分支名按自然宽算) ≤ width。弹性列 =

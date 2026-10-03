@@ -175,6 +175,37 @@ test("Prompt:真组件挂载不抛,输入卡的霓虹描边与发送按钮都在
   }
 })
 
+// 目录在整个底部区域**只出现一次**,在会话页底栏(routes/session/footer.tsx)里。
+// 这一行原来印的是 `location()?.directory ?? paths.cwd`,和底栏的 path.get().directory
+// 是同一个目录(服务端 Session.createNext 的两个调用方都传 InstanceState.context.directory),
+// 屏幕上于是上下叠着两条一模一样的路径。
+//
+// 这条特意用「sync 里没有这个会话」的 sessionID:那时 location() 是 undefined,旧实现会退到
+// paths.cwd(测试 fixture 里就是 fixture 的 directory),所以断言对「打了任何一条路径」都成立,
+// 不依赖会话数据。
+test("Prompt:带 sessionID 挂载时,输入卡下的状态行不再打印目录路径", async () => {
+  const app = await renderMount(
+    () => <Prompt sessionID="ses_test" />,
+    { width: 80, height: 20 },
+    (text) => text.includes("发送"),
+  )
+  try {
+    const rows = app
+      .captureCharFrame()
+      .split("\n")
+      .map((line) => line.replace(/\s+$/, ""))
+    const border = rows.findIndex((line) => line.includes("╯"))
+    expect(border).toBeGreaterThanOrEqual(0)
+    // 状态行在卡片下边框之下(见 prompt/index.tsx 的状态行布局)。那一段里不该有任何路径形态
+    // 的文本:既没有实例目录,也没有「/」开头的相对路径。
+    const status = rows.slice(border + 1)
+    expect(status.join("\n")).not.toContain(directory)
+    expect(status.some((line) => line.includes("/"))).toBe(false)
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
 // 同一串 provider 下面再挂一次首页路由本身:`bun dev` 起手画的就是这棵树,而崩就崩在它
 // 渲染 <Prompt> 的那一帧上(home_prompt 那个 slot 的默认内容就是 Prompt)。
 // slot 不接 setupSlots 的话它渲染 null,这条会假通过 —— PromptMount 里那一步是这条成立的前提。
