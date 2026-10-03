@@ -99,6 +99,11 @@ export type FlowLayout = {
   separators: { round: number; y: number }[]
   /** 行带(每一条就是一行卡片)。 */
   rows: FlowRow[]
+  /**
+   * 拖拽的停靠点(见 gridAnchors)。**由自动布局算,与 overrides 无关** ——
+   * 否则一张卡被拖走后它原来的锚点就消失了,再也拖不回去。
+   */
+  anchors: FlowAnchor[]
 }
 
 // ---------- 尺寸 ----------
@@ -507,6 +512,7 @@ export function buildFlowModel(input: {
 // 矩形相交的两个谓词(pointInRect / rectsOverlap)住在 test/fixture/flow.ts:
 // 它们只被不变量断言用,生产代码一处也不查 —— 自动布局的不重叠靠的是「坐标由固定步距算出来」
 // 这条构造,不是靠事后比较。把它们放在这里会让「这个模块会检查自己的输出」看起来像是真的。
+// (唯一的例外是 snapDrag:它要挡的是**外部来的**指针位置,不是自己的输出,所以自己查一次。)
 
 /**
  * 网格布局:一轮一行带(放不下就换行带),轮与轮之间插一条分隔线。
@@ -521,11 +527,16 @@ export function buildFlowModel(input: {
  * 连同列里在它下方的节点一起让位。详情框**不进 rect**:连线只认卡片本身,
  * 展开与否不该改变**卡与卡之间**的走线;它只影响从这张卡出发的那一竖能不能往下走
  * (见 routeOptionsOf —— 那一竖会穿过不透明的详情面板,所以必须改从左边进走廊)。
+ *
+ * `overrides` 是拖拽留下的落点。落点**只接受 snapDrag 算出来的锚点**,别处塞进来的坐标一律
+ * 忽略(锚点表是自动布局给的,拖拽改不到它),于是「一张被拖过的卡」与「一张自动摆的卡」
+ * 在几何上完全同构:列 x 仍然是列锚、行 y 仍然是某一行的行首、卡仍然整个待在它那条行带里。
+ * 这三条正是连线不压卡片与走廊仍然够宽的全部前提(见 CORRIDOR_LANE 的注释)。
  */
 export function layoutNodes(
   nodes: readonly FlowNode[],
   canvasWidth: number,
-  options: { expandedId?: string; detailRows?: number } = {},
+  options: { expandedId?: string; detailRows?: number; overrides?: Readonly<Record<string, FlowOffset>> } = {},
 ): FlowLayout {
   const detailRows = options.detailRows ?? DETAIL_ROWS
   // 一行带能放几列。步距是卡宽 + 走廊,再扣掉左侧那条留出来的走廊 —— 整张表见 bandColumns。
@@ -534,6 +545,7 @@ export function layoutNodes(
   const seeded: SeededNode[] = []
   const rows: FlowRow[] = []
   const separators: { round: number; y: number }[] = []
+  const rowOf = new Map<number, FlowRowAnchor>()
 
   // 按轮次把列切段。节点数组本身已经按轮次顺序排好,这里只需要在轮次变化处断开。
   const columns: FlowNode[][] = []
@@ -582,11 +594,41 @@ export function layoutNodes(
             height: NODE_HEIGHT,
           }
           seeded.push({ ...node, rect, slot, bandTop: y, bandBottom })
+          // 停靠点用的行:每一行卡片的顶边,连同它属于哪条行带。
+          // 只记**行**(不记列),因为锚点是「列锚 × 行锚」的叉积 —— 见下面 anchors 那段。
+          rowOf.set(rect.y, { y: rect.y, bandTop: y, bandBottom })
         })
       })
       y += bandHeight + GAP_Y
     }
   }
+  // 锚点 = **列锚 × 行锚**的叉积,不是「哪张卡占过哪一格」。
+  //
+  // 为什么是叉积:一张排满的图上,「卡占过的格子」全都有人,拿它当停靠点等于**哪儿都拖不去**。
+  // 叉积给出的格子里有一半以上是空的(每条行带里那些还没放卡的格子、并行分支下方那些空格),
+  // 拖过去之后卡片仍然是「某一列锚 × 某一行首」,于是与自动摆出来的卡完全对齐 ——
+  // 用户要的就是这个:拖完仍然是一张整齐的网格,只是顺序换了。
+  //
+  // 行带信息跟着**行**走,所以一张卡被拖到别的行带时,它的走线方案(通道基准、出让方向)
+  // 会自动跟着那条行带走,不需要 canvas 去猜「这张卡现在属于哪一带」。
+  const columnAnchors = [...new Set(seeded.map((node) => node.rect.x))].toSorted((a, b) => a - b)
+  const rowAnchors = [...rowOf.values()].toSorted((a, b) => a.y - b.y)
+  const anchors: FlowAnchor[] = []
+  for (const row of rowAnchors) {
+    for (const x of columnAnchors) anchors.push({ x, y: row.y, bandTop: row.bandTop, bandBottom: row.bandBottom })
+  }
+
+  // 落点生效:只认锚点表里的坐标,认不出就当这次拖拽没发生。
+  for (const node of seeded) {
+    const offset = options.overrides?.[node.id]
+    if (!offset) continue
+    const anchor = rowOf.get(offset.y)
+    if (!anchor || !columnAnchors.includes(offset.x)) continue
+    node.rect = { ...node.rect, x: offset.x, y: anchor.y }
+    node.bandTop = anchor.bandTop
+    node.bandBottom = anchor.bandBottom
+  }
+
   // 详情框与走线方案都在**最终**矩形上算 —— 展开的详情框、被拖走的那张卡,两者都会改答案。
   const detailOf = (node: SeededNode) =>
     node.id === options.expandedId ? { ...node.rect, y: node.rect.y + NODE_HEIGHT, height: detailRows } : undefined
@@ -605,7 +647,7 @@ export function layoutNodes(
   // 由画布自己横向滚(见 MIN_BAND_COLUMNS),所以这一行**不能**再拿视口宽去夹。
   const width =
     Math.max(LEFT_MARGIN + NODE_WIDTH, ...placed.map((node) => node.rect.x + node.rect.width)) + RIGHT_MARGIN
-  return { nodes: placed, width, height: Math.max(1, y - GAP_Y), separators, rows }
+  return { nodes: placed, width, height: Math.max(1, y - GAP_Y), separators, rows, anchors }
 }
 
 /** 走线方案还没算出来之前的中间形态:`route` 依赖全部卡片的最终矩形,只能最后统一补。 */
@@ -911,4 +953,94 @@ export function edgeRoute(from: FlowRect, to: FlowRect, index: number, options: 
         [{ x: 0, y: channelY, columns: exitX + 1 }]
       : [{ x: Math.min(exitX, enterX), y: channelY, columns: Math.abs(exitX - enterX) + 1 }],
   }
+}
+
+// ---------- 拖拽 ----------
+
+/** 一张卡被拖到的新位置(卡片左上角那一格)。 */
+export type FlowOffset = { x: number; y: number }
+
+/**
+ * 一个停靠点,以及它属于哪条行带。
+ *
+ * 停靠点 = **列锚 × 行首**的笛卡尔积(见 layoutNodes 里 anchors 那段),于是
+ * 「一张被拖过的卡」与「一张自动摆的卡」在几何上完全同构(同列锚、同行首、整个卡待在
+ * 它那条行带里),连线的不变量因此对拖过的卡一样成立。
+ */
+export type FlowAnchor = { x: number; y: number; bandTop: number; bandBottom: number }
+
+/** 行锚:只有行号与行带信息,x 由叉积那一步补上。 */
+type FlowRowAnchor = Omit<FlowAnchor, "x">
+
+/**
+ * 落点往指针方向看几格之内找空位。
+ *
+ * 为什么不是「全扫一遍取最近」:锚点是列锚 × 行首,一张 50 轮的画布有几百行 × 几列,
+ * 一次拖动事件扫全表要几百次矩形相交,而 drag 每 60ms 至少来一次。
+ * 3(自己 + 左右各一格)已经够:最近的锚点被占时,人眼要的也是「旁边那个空位」。
+ */
+const DRAG_REACH = 1
+
+/**
+ * 把一次拖拽的落点吸附到网格上。返回 `undefined` = 这一帧没有合法落点(调用方保持原位)。
+ *
+ * 三步,顺序就是它与原型那条 `Math.max(0, Math.min(canvas - card, ox + dx))` 的差别:
+ *   1. **夹进画布内容范围**(原型那两句 min/max)—— 卡不许被拖出画布;
+ *   2. **吸附**:落到最近的空锚点上;
+ *   3. **不许压住别人**:与任何别的卡片/详情框相交的锚点一律不算 —— 压住别人的卡不只是难看,
+ *      还会让那条边从卡片里穿过去(见 CORRIDOR_LANE 的注释里那三条前提)。
+ *
+ * x 只认**列锚**、y 只认**行首**:走廊宽度与标签宽度都算在这两个数上,
+ * 自由落点会让「两卡之间的走廊」窄到放不下竖段与 13 列的并行标签(见 edgeRoute)。
+ */
+export function snapDrag(
+  raw: FlowOffset,
+  context: {
+    anchors: readonly FlowAnchor[]
+    /** 别人占着的地方(不含正在拖的这张卡自己)。 */
+    blocked: readonly FlowRect[]
+    /** 画布内容尺寸。 */
+    bounds: { width: number; height: number }
+    /** 卡自己的尺寸。 */
+    size: { width: number; height: number }
+  },
+): FlowOffset | undefined {
+  const columns = [...new Set(context.anchors.map((anchor) => anchor.x))].toSorted((a, b) => a - b)
+  const rows = [...new Set(context.anchors.map((anchor) => anchor.y))].toSorted((a, b) => a - b)
+  if (columns.length === 0 || rows.length === 0) return undefined
+  const wanted = {
+    x: Math.min(Math.max(raw.x, 0), Math.max(0, context.bounds.width - context.size.width)),
+    y: Math.min(Math.max(raw.y, 0), Math.max(0, context.bounds.height - context.size.height)),
+  }
+  let best: FlowOffset | undefined
+  let bestDistance = Number.POSITIVE_INFINITY
+  for (const x of near(columns, wanted.x)) {
+    for (const y of near(rows, wanted.y)) {
+      if (x + context.size.width > context.bounds.width) continue
+      const candidate = { x, y, width: context.size.width, height: context.size.height }
+      if (context.blocked.some((rect) => overlaps(candidate, rect))) continue
+      const distance = Math.abs(x - wanted.x) + Math.abs(y - wanted.y)
+      if (distance >= bestDistance) continue
+      bestDistance = distance
+      best = { x, y }
+    }
+  }
+  return best
+}
+
+/** 离 `value` 最近的那几个值(自己加左右各 DRAG_REACH 个)。 */
+function near(list: readonly number[], value: number) {
+  const index = Math.max(
+    0,
+    list.findIndex((item) => item >= value),
+  )
+  const out: number[] = []
+  for (let i = Math.max(0, index - DRAG_REACH); i <= Math.min(list.length - 1, index + DRAG_REACH); i++) {
+    out.push(list[i]!)
+  }
+  return out
+}
+
+function overlaps(a: FlowRect, b: FlowRect) {
+  return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
 }

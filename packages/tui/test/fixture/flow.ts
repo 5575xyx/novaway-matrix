@@ -20,6 +20,7 @@ import {
   routeTurns,
   type FlowLayout,
   type FlowModel,
+  type FlowOffset,
   type FlowRect,
 } from "../../src/component/flow/layout"
 
@@ -200,9 +201,18 @@ export function flowInvariants({ model, layout, width }: FlowInvariantOptions) {
 }
 
 /**
- * 一次跑完「建模 → 布局 → 不变量」,返回问题清单。 */
-export function checkFlow(model: FlowModel, canvasWidth: number, expandedId?: string) {
-  const layout = layoutNodes(model.nodes, canvasWidth, { expandedId })
+ * 一次跑完「建模 → 布局 → 不变量」,返回问题清单。
+ *
+ * `overrides` 是拖拽留下的落点(见 layout 的 snapDrag):不变量对**被拖过的卡**一样要成立,
+ * 所以拖拽那条用例把落点喂进来跑的是同一个检查。
+ */
+export function checkFlow(
+  model: FlowModel,
+  canvasWidth: number,
+  expandedId?: string,
+  overrides?: Record<string, FlowOffset>,
+) {
+  const layout = layoutNodes(model.nodes, canvasWidth, { expandedId, overrides })
   return { layout, problems: flowInvariants({ model, layout, width: canvasWidth }) }
 }
 

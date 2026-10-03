@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js"
-import type { BoxRenderable, RGBA, ScrollBoxRenderable } from "@opentui/core"
-import { useTerminalDimensions } from "@opentui/solid"
+import type { BoxRenderable, MouseEvent, RGBA, ScrollBoxRenderable } from "@opentui/core"
+import { useRenderer, useTerminalDimensions } from "@opentui/solid"
 import type { Message, Part } from "@novaway/sdk-v2-latest/v2"
 import { NeonCard } from "../neon-card"
 import { useTheme } from "../../context/theme"
@@ -20,8 +20,12 @@ import {
   LABEL_COLUMNS,
   NODE_CONTENT_COLUMNS,
   NODE_WIDTH,
+  NODE_HEIGHT,
+  snapDrag,
   type EdgeRoute,
   type FlowNodeKind,
+  type FlowOffset,
+  type PlacedNode,
 } from "./layout"
 import {
   centered,
@@ -82,6 +86,44 @@ const ARROW_BOOST = 0.35
  * 撑不起那张卡。导出给测试直接引用。
  */
 export const FLOW_NODE_ALPHA = 0.72
+
+/**
+ * 正在拖的那张卡的描边叠色档:**0.95**,比静态那一档(0.72)明显一截。
+ *
+ * 原型在拖动时把那张卡 `zIndex` 提到 45(压住详情面板与边标签)并且光标变成 `grab`。
+ * 终端里没有光标形状,能表达的就两样:**抬高层级**与**描边提亮**。两样都做,是因为
+ * 「我现在拎着的是哪一张」必须一眼看出来 —— 拎错了卡,放手时它就落在错的地方了。
+ */
+export const FLOW_DRAG_ALPHA = 0.95
+
+/**
+ * 拖动时卡头右侧那个字:未拖 `▸` / 展开 `▾`,**正在拖** 换成 `⠿`。
+ *
+ * 盲文点阵是终端里最像「抓手」的一个字形(原型 CSS 的 `cursor: grab`),宽度与 `▸` 一样是 1 列,
+ * 于是换字不会让卡头那一行错位。
+ */
+const GRAB = "⠿"
+
+/**
+ * 拖拽状态:哪张卡、指针按在哪、那张卡原来的左上角。
+ *
+ * **只记相对量**是有意的:屏幕坐标到画布坐标要减去滚动位置与侧栏偏移,而位移在两边是一一对应的,
+ * 省掉那套换算就少一处会算错的地方(见 moveDrag 的注释)。
+ */
+type DragState = { id: string; pointerX: number; pointerY: number; origin: FlowOffset }
+
+/**
+ * 位移多少(格,曼哈顿)才算「拖」而不是「点」。
+ *
+ * 原型是 4 像素,而一个终端格宽约 8 像素 —— 换成 1 格就是同一个量级的手感。
+ * 更大(比如半个行距)会让「点一下展开详情」变得不稳,因为点的时候指针常有半格的抖动。
+ */
+const DRAG_THRESHOLD = 1
+
+/** 除了 `id` 这张卡之外,画布上被占住的全部矩形(别人的卡 + 展开的详情框)。 */
+function occupiedExcept(nodes: readonly PlacedNode[], id: string) {
+  return nodes.flatMap((node) => (node.id === id ? [] : node.detailRect ? [node.rect, node.detailRect] : [node.rect]))
+}
 
 /** 每格归哪条边:标签要避开**别人的**格子(见 grid 的 makeLabelPlacer)。 */
 function cellOwners(planned: readonly { index: number; route: EdgeRoute }[]) {
@@ -181,14 +223,33 @@ export function FlowCanvas(props: {
    * 而气泡视图那个 scrollbox 在流程图视图里根本没挂载(见 routes/session 的 activeScroll)。
    */
   onScrollBox?: (box: ScrollBoxRenderable) => void
+  /**
+   * 把「拖拽落点」这张表的变化交出去。**只给测试用**(与上面那个 `reveal` 同一个理由:
+   * 组件内部的 state 没有别的观察口),生产调用点不传。
+   *
+   * 它是为了钉一条从外面看不见的规矩:切会话之后,已经不存在的那些落点必须从这张表里
+   * 消失(否则一场长会话能攒下几百个死条目)。测试拿它断言「那张表真的被清小了」。
+   */
+  onOverrides?: (overrides: Record<string, FlowOffset>) => void
 }) {
   const { theme } = useTheme()
   const kv = useKV()
   const tuiConfig = useTuiConfig()
   const dimensions = useTerminalDimensions()
+  const renderer = useRenderer()
 
   const [selected, setSelected] = createSignal<string | null>(null)
   const [frame, setFrame] = createSignal(0)
+  /** 拖拽留下的落点,按节点 id 存(见下面那段 createEffect 的注释)。 */
+  const [moved, setMoved] = createSignal<Record<string, FlowOffset>>({})
+  /** 正在拖的那张卡:哪张、按在哪、它的原位。见 beginDrag 的注释。 */
+  const [drag, setDrag] = createSignal<DragState | null>(null)
+  /**
+   * 刚刚被**真的拖过**的那张卡。与 `drag` 分开是因为时序:opentui 在鼠标抬起时先把
+   * `onMouseDragEnd` 派发掉、再派发 `onMouseUp`(见 renderer 的 processSingleMouseEvent),
+   * 于是「这一下算不算拖」必须在 drag 结束**之后**仍然读得到 —— 点击判定正好在 onMouseUp 里。
+   */
+  const [dragged, setDragged] = createSignal<string | null>(null)
   // 画布**盒子**自己的列数(0 = 还没量到)。量的是这个盒子,不是终端:
   // 会话页那一层是 `<box paddingLeft={2} paddingRight={2}>`(routes/session/index.tsx),
   // 再外面还有侧栏,所以 80 列终端 + 侧栏展开时画布只有 46 列 —— 拿终端宽去排布,
@@ -206,10 +267,28 @@ export function FlowCanvas(props: {
     const source = measured > 0 ? measured : dimensions().width - 6
     return Math.max(1, source - SCROLLBAR_COLUMNS)
   })
-  const layout = createMemo(() => layoutNodes(model().nodes, viewportWidth(), { expandedId: selected() ?? undefined }))
+  const layout = createMemo(() =>
+    layoutNodes(model().nodes, viewportWidth(), { expandedId: selected() ?? undefined, overrides: moved() }),
+  )
   // **内容宽度 = 图自己的宽度**(layout.width),只有图比视口窄时才退回视口宽 ——
   // 宽的那一截是横向滚动范围(见 layout 的 MIN_BAND_COLUMNS),不是「多画一点出来」。
   const contentWidth = createMemo(() => Math.max(viewportWidth(), layout().width))
+
+  /**
+   * 节点位置被拖动过的那些卡,按节点 id 存落点。
+   *
+   * **数据换了之后怎么处理**:还活着��节点保留落点(用户刚摆好的图不该因为来了条新消息就被弹回去),
+   * 已经不在模型里的那些**丢掉** —— 否则这份 state 只增不减,一场长会话里能攒下几百个死条目。
+   * 这条清理写成 effect 而不是「重建整张表」:重建会让每一张卡的落点在数据变化时全部闪一下。
+   */
+  createEffect(() => {
+    const current = moved()
+    props.onOverrides?.(current)
+    const alive = new Set(model().nodes.map((node) => node.id))
+    const kept = Object.fromEntries(Object.entries(current).filter(([id]) => alive.has(id)))
+    if (Object.keys(kept).length === Object.keys(current).length) return
+    setMoved(kept)
+  })
 
   /**
    * 选中态的**有效值**:数据换掉(切会话)之后,上一次选中的节点可能已经不在模型里了。
@@ -298,6 +377,94 @@ export function FlowCanvas(props: {
     return { canvas, rows: gridRows(canvas), labels }
   })
 
+  // ---------- 拖拽 ----------
+
+  /**
+   * 按下:记住是哪张卡、按在哪、它原来的位置。
+   *
+   * `preventDefault` 与 `renderer.clearSelection()` 这一对是**必须**的,不是洁癖:
+   * 卡里的 `<text>` 是 selectable 的,而 opentui 在 `down` 落到 selectable 元素上时会先
+   * `startSelection(...)` 再把事件派发给我们。那次选择一旦留着,后续 `drag` 事件走的是
+   * 「选择中」那条分支 —— 派发给**指针当前底下**的那个元素而不是按下的那个,并且顺手把选区
+   * 拉大。于是指针一移出卡片,拖拽就断了,屏幕上还多了一块选区高亮。
+   * `preventDefault` 会让渲染器**跳过**自己的清理(`if (!event.defaultPrevented) clearSelection()`),
+   * 所以清理由我们自己做。
+   */
+  const beginDrag = (event: MouseEvent, node: PlacedNode) => {
+    event.preventDefault()
+    event.stopPropagation()
+    renderer.clearSelection()
+    setDragged(null)
+    setDrag({ id: node.id, pointerX: event.x, pointerY: event.y, origin: { x: node.rect.x, y: node.rect.y } })
+  }
+
+  /**
+   * 拖动中:按位移算落点,吸附到网格,写进 overrides。
+   *
+   * 位移直接取「这一次的指针 − 按下时的指针」,不需要知道画布在屏幕上的位置 ——
+   * 屏幕格与画布格是一一对应的(都是终端的一格),所以滚动、侧栏展开都不影响这个差值。
+   *
+   * 落点每帧都过一次 `snapDrag`,所以**拖动过程中连线就已经是新的走线**(原型的 drawEdges
+   * 是在 mousemove 里重画的,见 card-design-v7.html:1278),而且卡与卡之间始终留得下走廊:
+   * 吸附只落在空锚点上,于是不会出现「线从卡片里穿过去」的那种中间帧。
+   */
+  const moveDrag = (event: MouseEvent) => {
+    const state = drag()
+    if (!state) return
+    event.stopPropagation()
+    const dx = event.x - state.pointerX
+    const dy = event.y - state.pointerY
+    // 原型的判据是 `Math.abs(dx) + Math.abs(dy) > 4`(像素,card-design-v7.html:1275)。
+    // 这里换成**格**:终端一格就是一个字符那么宽,不足一格不算拖 —— 否则一次手抖就会
+    // 把卡判成「拖过了」,而点击展开详情就被吞掉。
+    if (Math.abs(dx) + Math.abs(dy) < DRAG_THRESHOLD) return
+    setDragged(state.id)
+    const current = layout()
+    const next = snapDrag(
+      { x: state.origin.x + dx, y: state.origin.y + dy },
+      {
+        anchors: current.anchors,
+        blocked: occupiedExcept(current.nodes, state.id),
+        bounds: { width: current.width, height: current.height },
+        size: { width: NODE_WIDTH, height: NODE_HEIGHT },
+      },
+    )
+    if (!next) return
+    setMoved((before) =>
+      before[state.id]?.x === next.x && before[state.id]?.y === next.y ? before : { ...before, [state.id]: next },
+    )
+  }
+
+  /**
+   * 抬起:收掉拖拽状态。**不动 overrides** —— 落点已经写进去了,这一收只是把状态清干净。
+   *
+   * 收尾挂在两处:卡片自己的 `onMouseUp`(见 clickNode)与画布内容盒子的 `onMouseUp`。
+   * 两处都留着是因为 opentui 的捕获规则:第一次左键拖动时它把「指针当时底下的那个元素」
+   * 设为 *captured renderable*,之后的 `drag-end` / `up` 只发给它 —— 指针停在画布外就收不到,
+   * 抓手会一直亮着。画布内松手(含在空白处松手)两条路都盖得住;真拖出画布才松手的话,
+   * 下一次在任意一张卡上按下时 `beginDrag` 会把状态重置,不会串到别的卡上。
+   */
+  const endDrag = () => {
+    setDrag(null)
+  }
+
+  /**
+   * 点击(没有真的拖动):展开/收起详情。
+   *
+   * 「拖过就不算点」这一条是原型的 `click` 里那两行(card-design-v7.html:1284-1288):
+   * 拖动结束时浏览器还会补一次 click,不挡住的话每拖一次就会顺手把详情也开了。
+   *
+   * **这里也要收掉拖拽状态**:opentui 的 `onMouseDragEnd` 只在**真的发生过拖动**时才会派发
+   * (它挂在「captured renderable」那一档上,而按住不动就没有 capture),所以一次纯点击之后
+   * `drag` 还挂着,那张卡会一直显示成抓手。画布那一层也挂了同一个收尾(见内容盒子的 onMouseUp),
+   * 兜住「在卡片上按下、在别处松手」那种抬起位置。
+   */
+  const clickNode = (node: PlacedNode) => {
+    endDrag()
+    if (dragged() === node.id) return
+    setSelected((value) => (value === node.id ? null : node.id))
+  }
+
   return (
     <box
       flexGrow={1}
@@ -348,60 +515,92 @@ export function FlowCanvas(props: {
             </box>
           }
         >
-          <box width={contentWidth()} height={layout().height} flexShrink={0}>
+          <box
+            width={contentWidth()}
+            height={layout().height}
+            flexShrink={0}
+            // 拖动的三个事件挂在**画布这一层**,不是挂在某张卡上。
+            //
+            // 为什么:opentui 在第一次左键拖动时,把「指针当时底下的那个元素」设为
+            // *captured renderable*,之后所有鼠标事件只发给它
+            // (见 renderer 的 processSingleMouseEvent)。指针一离开那张卡,捕获到的就是
+            // 画布的空白盒子 —— 而空白盒子是所有卡的**父级**,事件从它往上冒泡,卡根本收不到。
+            // 挂在画布这一层就两种情况都盖住:捕获到卡里的文字时事件冒泡上来,捕获到空白时
+            // 直接命中这里。谁在被拖由 `drag()` 记着(按下时记的),不需要事件目标就是那张卡。
+            onMouseDrag={moveDrag}
+            onMouseDragEnd={endDrag}
+            // 兜底:在画布里任何地方松开鼠标都收掉拖拽状态。卡片自己的 onMouseUp 已经收过
+            // 一次(见 clickNode),这一层是为了「在卡片上按下、在空白处松手」那种抬起位置 ——
+            // 那种情况下事件根本不会送回卡片,抓手会一直亮着。
+            onMouseUp={endDrag}
+          >
             {/* 连线层 zIndex 0:卡片永远压在它上面。布局已经保证连线不落在卡内,
                 这一层只是兜底 —— 万一某一格算到了卡内,也是卡片盖住线,不是线糊在正文上。 */}
             <For each={grid().rows}>{(y) => <EdgeRow y={y} canvas={grid().canvas} width={contentWidth()} />}</For>
             {/* 标签浮层:在连线之上、卡片与详情面板之上(见 FlowLabel 的 zIndex 注释)。 */}
             <For each={grid().labels}>{(label) => <FlowLabel x={label.x} y={label.y} text={label.text} />}</For>
             <For each={layout().nodes}>
-              {(node) => (
-                <box position="absolute" left={node.rect.x} top={node.rect.y} width={NODE_WIDTH} zIndex={10}>
-                  <NeonCard
-                    gradientStops={semanticStops(theme, roleOf(node.kind))}
-                    borderAlpha={FLOW_NODE_ALPHA}
-                    onSelect={() => setSelected((value) => (value === node.id ? null : node.id))}
+              {(node) => {
+                const lifting = () => drag()?.id === node.id
+                return (
+                  <box
+                    position="absolute"
+                    left={node.rect.x}
+                    top={node.rect.y}
+                    width={NODE_WIDTH}
+                    // 原型拖动时 `zIndex = 45`(压住详情面板与边标签);这里的 20 就是那个意思。
+                    zIndex={lifting() ? 20 : 10}
+                    // 只有「按下」挂在卡上(要知道按的是哪一张);拖动与抬起挂在画布那一层,
+                    // 理由见内容盒子那三条事件的注释。
+                    onMouseDown={(event: MouseEvent) => beginDrag(event, node)}
+                    onMouseUp={() => clickNode(node)}
                   >
-                    <box flexDirection="row" gap={1} flexShrink={0}>
-                      <text fg={accentOf(theme, node.kind)}>●</text>
-                      <text fg={accentOf(theme, node.kind)}>{node.kindLabel}</text>
-                      <box flexGrow={1} />
-                      <text fg={theme.textMuted}>{node.meta}</text>
-                      {/* 原型 .fc-caret:未展开 ▸,展开后转 90°(这里用 ▾ 表示同一件事)。 */}
-                      <text fg={theme.textMuted}>{expandedId() === node.id ? "▾" : "▸"}</text>
-                    </box>
-                    {/* 模型侧已按 NODE_CONTENT_COLUMNS 截好(见 buildFlowModel 的 title 字段),
-                        这里再截一次只是给未来的调用点兜底 —— 列数与模型侧一致,不再额外少一列。 */}
-                    <text fg={theme.text} wrapMode="none">
-                      {Locale.oneLineToWidth(node.title, NODE_CONTENT_COLUMNS)}
-                    </text>
-                  </NeonCard>
-                  <Show when={node.detailRect}>
-                    {(rect) => (
-                      <box
-                        position="absolute"
-                        left={rect().x - node.rect.x}
-                        top={rect().y - node.rect.y}
-                        width={rect().width}
-                        height={rect().height}
-                        zIndex={11}
-                        paddingLeft={2}
-                        paddingRight={1}
-                        backgroundColor={theme.backgroundPanel}
-                      >
-                        {/* **必须换行**:框内只有 NODE_CONTENT_COLUMNS = 25 列,一行放不下多少字。
-                            压成一行(wrapMode="none")的话 DETAIL_ROWS 行里只有第一行有内容,
-                            剩下 5 行是一片空底色,而布局还在为那 5 行把行带撑开。
-                            正文先按「框里一共放得下多少列」截断,再由这里折成 DETAIL_ROWS 行 ——
-                            于是算式 DETAIL_ROWS × NODE_CONTENT_COLUMNS 与看到的东西一致。 */}
-                        <text fg={theme.textMuted} wrapMode="word" width="100%">
-                          {Locale.oneLineToWidth(node.detail, DETAIL_COLUMNS)}
-                        </text>
+                    <NeonCard
+                      gradientStops={semanticStops(theme, roleOf(node.kind))}
+                      borderAlpha={lifting() ? FLOW_DRAG_ALPHA : FLOW_NODE_ALPHA}
+                    >
+                      <box flexDirection="row" gap={1} flexShrink={0}>
+                        <text fg={accentOf(theme, node.kind)}>●</text>
+                        <text fg={accentOf(theme, node.kind)}>{node.kindLabel}</text>
+                        <box flexGrow={1} />
+                        <text fg={theme.textMuted}>{node.meta}</text>
+                        {/* 原型 .fc-caret:未展开 ▸,展开后转 90°(这里用 ▾ 表示同一件事);
+                            正在拖时换成抓手(见 GRAB 的注释)。 */}
+                        <text fg={theme.textMuted}>{lifting() ? GRAB : expandedId() === node.id ? "▾" : "▸"}</text>
                       </box>
-                    )}
-                  </Show>
-                </box>
-              )}
+                      {/* 模型侧已按 NODE_CONTENT_COLUMNS 截好(见 buildFlowModel 的 title 字段),
+                          这里再截一次只是给未来的调用点兜底 —— 列数与模型侧一致,不再额外少一列。 */}
+                      <text fg={theme.text} wrapMode="none">
+                        {Locale.oneLineToWidth(node.title, NODE_CONTENT_COLUMNS)}
+                      </text>
+                    </NeonCard>
+                    <Show when={node.detailRect}>
+                      {(rect) => (
+                        <box
+                          position="absolute"
+                          left={rect().x - node.rect.x}
+                          top={rect().y - node.rect.y}
+                          width={rect().width}
+                          height={rect().height}
+                          zIndex={11}
+                          paddingLeft={2}
+                          paddingRight={1}
+                          backgroundColor={theme.backgroundPanel}
+                        >
+                          {/* **必须换行**:框内只有 NODE_CONTENT_COLUMNS = 25 列,一行放不下多少字。
+                              压成一行(wrapMode="none")的话 DETAIL_ROWS 行里只有第一行有内容,
+                              剩下 5 行是一片空底色,而布局还在为那 5 行把行带撑开。
+                              正文先按「框里一共放得下多少列」截断,再由这里折成 DETAIL_ROWS 行 ——
+                              于是算式 DETAIL_ROWS × NODE_CONTENT_COLUMNS 与看到的东西一致。 */}
+                          <text fg={theme.textMuted} wrapMode="word" width="100%">
+                            {Locale.oneLineToWidth(node.detail, DETAIL_COLUMNS)}
+                          </text>
+                        </box>
+                      )}
+                    </Show>
+                  </box>
+                )
+              }}
             </For>
           </box>
         </Show>
@@ -418,7 +617,7 @@ export function FlowCanvas(props: {
       </box>
       <box flexShrink={0} paddingLeft={1}>
         <text fg={theme.textMuted} wrapMode="none">
-          点击节点卡展开详情 · 完整正文见气泡视图
+          点击节点卡展开详情 · 按住拖动可挪到别的格子 · 完整正文见气泡视图
         </text>
       </box>
     </box>
