@@ -47,8 +47,15 @@ export const SIDEBAR_SECTION_MIN_CONTENT = SIDEBAR_CARD_MIN_CONTENT + 2
 // 合计 18;再留 2 列余量。
 export const GIT_FILE_LABEL_MAX = SIDEBAR_CARD_MIN_CONTENT - 18 - 2
 
-// 文件树一行的固定开销:缩进 2×深度 + 箭头段 2 + 文件图标 2 + 名字前空格 1 + 右内边距 1
-// = 2×深度 + 6(图标按 2 列算 —— ASCII 风格是 1 列,emoji/nerdfont 是 2 列,取宽的那边)。
-// 20 是**软上限**:名字那个 text 允许收缩(yoga 会裁尾部),所以超过上限的行是被自己的行裁掉,
+// 文件树一行的固定开销:缩进 2×深度 + 箭头段 2 + 标签段 2 + 名字前空格 1 + 右内边距 1
+// = 2×深度 + 6。
+//
+// 标签段那一格现在装的是**语言标签**(原型 `.tree .row .ic`,见 component/file-tree):
+// 认得出的扩展名印 TS / JS / {} / Ⓜ / PY / RS,认不出的落回文件图标。两种都按 2 列算 ——
+// 标签槽显式 width={2}(`Ⓜ` 是 East-Asian Ambiguous,按标准口径只记 1 列,不钉死宽度的话
+// 同屏里 TS 行与 Ⓜ 行的名字起点会差 1 列),而图标最宽也是 2 列(emoji 风格)。
+// **所以这一格没有多出一列**,名字的预算与加标签之前完全一样。
+//
+// 20 是**软上限**:名字那个 text 允许收缩(yoga 会裁尾部),超过上限的行是被自己的行裁掉的,
 // 不是顶着边框画出去。20 在第 5 层刚好 2×5+6+20 = 36,还剩 1 列余量。
 export const FILE_TREE_NAME_MAX = 20
