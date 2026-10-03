@@ -12,9 +12,13 @@ import { useKV } from "../context/kv"
 //
 // **它是什么**:调用点共享的那一份「hover 与 animations_enabled 折在一起」的接线。
 // 「唯一出口」这种说法**不成立**,别再往这上面加:侧栏根卡(routes/session/sidebar.tsx)
-// 与标签栏导轨(component/tab-bar.tsx)都没有 hover 状态,它们直接读同一个 KV。
-// 换句话说这条纪律是「卡片调用点都走 useCardHover」,不是「全 App 只有这一处读 KV」。
-// 两边读的是同一条设置,所以不会出现「有的壳关了有的壳没关」。
+// 与标签栏导轨(component/tab-bar.tsx)都没有 hover 状态,前者自己读同一个 KV 去折 `flow`,
+// 后者没有卡片也没有相位。两边读的是同一条设置,所以不会出现「有的壳关了有的壳没关」。
+//
+// 这里只管 `animated`(悬停/聚焦:流动 + 扫光)与 `boost`(悬停抬对比),**不管常驻流动** ——
+// 原型里常驻流的是标题栏/侧栏那两条导轨(railFlow / railV,见 ui/card 的 flow),
+// 面板卡与分区卡底态不流。要 `flow` 的调用点自己读 KV:多折一份 hover 在这里是错的,
+// 常驻流的那几处按定义就没有 hover 状态。
 
 /**
  * 返回一组悬停动效的接线。
@@ -35,14 +39,6 @@ export function useCardHover() {
     hover: hovered,
     /** 传给 `animated=`:相位推进 + 扫光 + 悬停档的更快流速。 */
     animated: on,
-    /**
-     * 传给 `flow=`:常驻流动(面板卡 / 侧栏分区卡那一套,见 ui/card 的 flow)。
-     *
-     * **这里没有 hover 参与,但仍然读 KV**:折算还是只有这一处。漏掉 animations_enabled
-     * 的调用点会在用户关掉动画之后仍以 12.5Hz 空转描边 —— 而面板卡是常驻布局,
-     * 同屏七八张,那个代价是平时(用户没在悬停)的,不是只在漏掉的那一刻。
-     */
-    flow: () => kv.get("animations_enabled", true),
     /** 传给 `boost=`:把描边朝 towards 混一档,抬它与面板底色的对比(见 ui/neon 的 HOVER_BOOST)。 */
     boost: (towards: RGBA) => (on() ? towards : undefined),
     onMouseOver: () => {

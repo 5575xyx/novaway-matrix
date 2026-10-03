@@ -105,11 +105,28 @@ export function Sidebar(props: SidebarProps) {
          叠色底不用给 —— 它自己有 backgroundColor,那就是边框格背后的实色;那一档若是
          全透明(主题声明 transparent,见 ui/neon 的 softenOver),折算自动退成不折算。 */
       borderAlpha={PANEL_CARD_ALPHA}
-      /* 常驻流动。原型那边侧栏右缘那根流光是 `railV 9s linear infinite`(:113),
-         从不间歇;这张根卡的描边又是屏幕上最大的一圈 —— 等鼠标才动的话,
-         用户没碰侧栏的这段时间里它是全 App 最明显的一圈静止描边。
-         这一档的代价(CPU、终端输出、唯一的开关)写在 component/sidebar-card 那个
-         `flow=` 上 —— 侧栏这一列是同一个决定,别只在一处记。 */
+      /* 常驻流动 —— 保留,理由与代价都在这里。
+         原型那边侧栏右缘那根 1px 流光轨是 `.sidebar::after { animation: railV 9s linear
+         infinite }`(card-design-v7.html:109-115),**从不间歇**;它是 `top/right/bottom: 0`
+         贴在侧栏右边的那一条,而原型侧栏自己并不带描边 —— 那一列的轮廓就是这根轨。
+         终端里侧栏根卡有描边,所以它的右边框正是这块表面,这一档就是那根轨的对应物。
+         (另一条常驻轨 `railFlow 7s` 在标题栏,终端里是标签栏底下那条 NeonRail,
+          见 component/tab-bar.tsx。面板卡/分区卡**不**在这一档:原型 `.card` 底态不流,
+          gbFlow 挂在 :hover 上,所以它们只给 animated —— 见 component/sidebar-card.tsx。)
+
+         **这一档的代价写在这里,别当成 bug 顺手加门控**:
+           · 每张在流的卡各挂**自己**的 80ms 表(见 ui/card 的 syncPhaseTimer),每拍只做
+             两件事:相位走一格 + requestRender()。没有布局计算,没有几何改动。
+           · 帧率封顶 12.5/s:相位只有 100 格,每拍一格,再密也只是在同一批格子里换颜色,
+             整圈是 8 秒(原型那根是 9 秒,差的那 1 秒共用同一张相位表,肉眼读不出来)。
+           · **代价是真的**:这一版 opentui 没有消费 Renderable 的 `_dirty` 标志
+             (node_modules/@opentui/core 里 isDirty/markClean 无人读),所以一次
+             requestRender 会把整棵渲染列表重画一遍 —— 于是「只看侧栏、什么都不干」时
+             CPU 一直在转、终端也一直在收输出。侧栏这一列现在只有这一张卡在流
+             (分区卡同屏七八张那一档已经交回给悬停),量级就是一张。
+           · 唯一的开关是 `animations_enabled = false`(就折在这一行):关掉是 setter 停表,
+             打开是 setter 起表,两边对称。要省电只能用它,或者把 flow 摘掉 —— 别在渲染层
+             加一个「不可见的卡就别走」的拉式门控:那是只能停不能恢复的坑(见 ui/card 的 flow)。 */
       flow={kv.get("animations_enabled", true)}
       /* 侧栏根卡既不悬停也不入场:它是整列的容器,鼠标几乎永远在它范围内 ——
          「悬停才提亮」在这里等于「一直亮着」,这条视觉信号就废了;入场同理,

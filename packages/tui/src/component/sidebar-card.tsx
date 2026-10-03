@@ -92,33 +92,24 @@ export function SidebarCard(props: SidebarCardProps) {
   return (
     <neonbox
       gradientStops={semanticStops(theme, "tool")}
-      // 悬停:整卡描边缓慢流动 + 朝 theme.text 提亮(原型 `.card:hover { animation: gbFlow }`)。
+      // 悬停:整卡描边缓慢流动 + 朝 theme.text 提亮(原型 `.card:hover { animation: gbFlow 2.6s }`)。
+      // **这是这张卡唯一的动**:原型 `.card` 底态既没有 `animation`,也没有
+      // `background-size: 200% 200%`(那是 `.bubble` 才有的,card-design-v7.html:410),
+      // `gbFlow` 只挂在 `:hover` 上(:159-163)。所以这里**不传 `flow`** —— 底态冻结、
+      // 悬停才流,与原型同一形状。原型 `.bubble` 一族也是这个形状,连「声明了 200% 200%
+      // 却只在 :hover 才动」这一点都一样(:410 vs :426/:428)。
+      //
+      // 常驻流动那一档留给侧栏根卡 —— 那一处对应的是原型 `.sidebar::after` 那根
+      // `railV 9s linear infinite` 的导轨(:109-115);它与本卡的代价都写在
+      // routes/session/sidebar.tsx 那个 `flow=` 上,别把它读成「面板卡也常驻流」。
+      //
       // **只有描边动**:标题、徽标、折叠箭头都不动 —— 分区卡是常驻布局,一旦箭头也跟着
       // 呼吸,用户会以为箭头可点之外整张卡都变了语义。事件挂在整卡上而不是 header 上,
       // 因为「整卡提亮」正是这条视觉语言要表达的(这一片区域现在被关注着)。
       // 动画只改前景色、不动任何几何(yoga 布局不受影响),所以不会带得整栏抖一下。
+      // animations_enabled 已经折进 hover.animated()(见 ui/hover):用户关掉动画时,
+      // 悬停既不流也不亮 —— 留一圈不会动的亮边比什么都没有更糟。
       animated={hover.animated()}
-      // 常驻流动(原型那一侧是两条永不间歇的导轨:侧栏右缘 `railV 9s linear infinite`
-      // card-design-v7.html:113、标题栏导轨 `railFlow 7s linear infinite` :89 ——
-      // 这一档就是它们在终端里的对应物)。分区卡是常驻布局,等鼠标才动等于「整个界面
-      // 是死的」:侧栏是屏幕上唯一永远在的那一面,用户第一眼看到的就是它。
-      //
-      // **面板卡这一族的「一直流」是明知代价而选的,代价写在这里,别当成 bug 顺手加门控**:
-      //   · 原型 `.card` 的 `gbFlow 2.6s` 挂在 `:hover` 上(:159-163),底态并不流。
-      //     终端里没有「鼠标恰好不在那儿」这个缓冲:一张 44 列的描边带,用户没碰它时
-      //     就是全屏最大的一圈静止描边,所以这一档是有意偏离原型,不是照抄。
-      //   · 每张在流的卡各挂**自己**的 80ms 表(见 ui/card 的 syncPhaseTimer),每拍只做
-      //     两件事:相位走一格 + requestRender()。没有布局计算,没有几何改动。
-      //   · 帧率封顶 12.5/s:相位只有 100 格,每拍一格,再密也只是在同一批格子里换颜色。
-      //   · **代价是真的**:这一版 opentui 没有消费 Renderable 的 `_dirty` 标志
-      //     (node_modules/@opentui/core 里 isDirty/markClean 无人读),所以一次
-      //     requestRender 会把整棵渲染列表重画一遍 —— 于是「只看侧栏、什么都不干」时
-      //     CPU 一直在转、终端也一直在收输出。侧栏同屏七八张卡,乘起来就是这个量级。
-      //   · 唯一的开关是 `animations_enabled = false`(折在 ui/hover 的 flow 里):
-      //     关掉是 setter 停表,打开是 setter 起表,两边对称。要省电只能用它,
-      //     或者把 flow 摘掉 —— 别在渲染层加一个「不可见的卡就别走」的拉式门控:
-      //     那是只能停不能恢复的坑(见 ui/card 的 flow 注释)。
-      flow={hover.flow()}
       boost={hover.boost(theme.text)}
       // 面板卡那一档(0.70)。原型 `.card` 的描边是**不透明**的 --gb-main,照抄 1.0 就是
       // 用户说的「描边太重」—— 浏览器里 1.5px 的发丝线在终端里占满一整格,只能是 alpha 说了算。

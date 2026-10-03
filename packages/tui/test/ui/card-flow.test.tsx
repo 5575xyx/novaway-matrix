@@ -15,14 +15,20 @@ import "../../src/ui/card"
 // 「动效看得见」这一层的断言。
 //
 // 用户反馈是「动画似乎没出现」。查下来不是没实现,而是三件事叠在一起:
-//   1. 面板卡/侧栏卡的相位只在悬停时推进 —— 鼠标不在上面时整屏静止(原型 `.card` 的
-//      底态本来就有 `background-size: 200% 200%`,侧栏导轨更是 `railV 9s linear infinite`
-//      一直流着)。这一层加 `flow`:常驻流动,不带扫光。
-//   2. 悬停时相位不加速 —— 常驻 8 秒一圈对「刚被点了一下」的反馈来说太慢。
+//   1. 导轨那一档的相位从来没接上 —— 原型那边永不间歇的是两条 1px 导轨:标题栏
+//      `railFlow 7s linear infinite`(:89)与侧栏右缘 `railV 9s linear infinite`(:113)。
+//      终端里前者就是标签栏那条 NeonRail,后者是侧栏根卡的描边。这一层加 `flow`:常驻流动,
+//      不带扫光,侧栏根卡开着它。
+//   2. 悬停时相位不加速 —— 一圈 8 秒对「刚被点了一下」的反馈来说太慢。
 //      原型悬停是 `.card:hover { transition: all .3s }` + `gbFlow 2.6s`,
 //      所以悬停那一档每拍走两格(整圈 4 秒)。
 //   3. 标签栏那条霓虹导轨根本没接 `animated` —— 组件有那个 prop,TabBar 没传,
 //      于是它永远是一条静止的渐变(见最后一条用例)。这是「实现了却不可能触发」的 bug。
+//
+// **面板卡/分区卡不在常驻那一档**:原型 `.card` 底态既没有 `animation` 也没有
+// `background-size: 200% 200%`,`gbFlow 2.6s` 挂在 `:hover` 上(:159-163)。所以
+// component/sidebar-card 那个 `flow=` 已经摘掉,那一族底态冻结、悬停才流 ——
+// 下面「侧栏分区卡:悬停才流」那两条钉的就是这个契约。
 
 const PANEL = RGBA.fromHex("#101010")
 const STOPS = [RGBA.fromHex("#00e5ff"), RGBA.fromHex("#4d7cff")]
@@ -31,8 +37,13 @@ const HEIGHT = 4
 // 相位每 80ms 走一格;200ms 至少跨两格,足够分辨「动了没有」。
 const PHASE_WAIT = 200
 
+type Cell = { r: number; g: number; b: number }
+
+// testRender 的返回类型从测试渲染器的返回值推(TestRendererSetup 只在 @opentui/core/testing 里导出)。
+type Harness = Awaited<ReturnType<typeof testRender>>
+
 function grid(app: { captureSpans(): CapturedFrame }) {
-  const map = new Map<string, { r: number; g: number; b: number }>()
+  const map = new Map<string, Cell>()
   app.captureSpans().lines.forEach((line, row) => {
     let col = 0
     for (const span of line.spans) {
@@ -45,7 +56,7 @@ function grid(app: { captureSpans(): CapturedFrame }) {
   return map
 }
 
-function lum(cell: { r: number; g: number; b: number }) {
+function lum(cell: Cell) {
   return cell.r + cell.g + cell.b
 }
 
@@ -63,6 +74,36 @@ function maxDeviation(a: ReturnType<typeof grid>, b: ReturnType<typeof grid>) {
       const right = b.get(key)
       if (!left || !right) return [0]
       return [Math.abs(left.r - right.r), Math.abs(left.g - right.g), Math.abs(left.b - right.b)]
+    }),
+  )
+}
+
+/**
+ * 两帧之间、同一排采样格上的**逐格逐通道最大偏差**(`shift`)与**最大下降量**(`drop`)。
+ *
+ * 两个量判的不是同一件事,缺一不可:
+ *   · shift —— 「颜色变了没有」。底态冻结那条要求它**恰好为 0**:那一圈格子上没有任何一项
+ *     随时间变化的东西(没有相位、没有抬对比、没有扫光、没有入场淡入),每帧算出来的值必须
+ *     逐通道相同 —— 所以那里不能用「小于某门槛」,门槛会把 bug 放过去。
+ *   · drop —— 「有没有哪一格变暗了」。悬停时同一格里叠着三层只会把颜色往亮处推的东西
+ *     (顶部光晕、悬停抬对比、扫光),色带平移是唯一会让某格变暗的那一层。所以单看 shift
+ *     的话,扫光自己就足以让它过关 —— 判「色带真的在走」必须看 drop。
+ *     同一段推理见 test/component/card-hover.test.tsx 的 maxDrop。
+ */
+function shift(a: Cell[], b: Cell[]) {
+  return Math.max(
+    ...a.flatMap((left, index) => {
+      const right = b[index]
+      return [Math.abs(left.r - right.r), Math.abs(left.g - right.g), Math.abs(left.b - right.b)]
+    }),
+  )
+}
+
+function drop(a: Cell[], b: Cell[]) {
+  return Math.max(
+    ...a.flatMap((left, index) => {
+      const right = b[index]
+      return [left.r - right.r, left.g - right.g, left.b - right.b]
     }),
   )
 }
@@ -311,9 +352,16 @@ describe("标签栏霓虹导轨", () => {
   })
 })
 
-// 侧栏分区卡把 flow 折进 animations_enabled:面板卡是常驻布局,关掉动画就该彻底静止。
-describe("侧栏分区卡的常驻流动", () => {
-  test("没有鼠标经过时描边也在流动", async () => {
+// 侧栏分区卡:底态冻结、悬停才流。原型 `.card` 的 `gbFlow 2.6s` 挂在 `:hover` 上
+// (card-design-v7.html:159-163),底态既没有 `animation` 也没有 `background-size: 200% 200%`
+// —— 所以 component/sidebar-card 上那个 `flow=` 被摘掉了。这一族是屏幕上最多的一批卡
+// (侧栏同屏七八张),「谁在什么时候动」在这里必须钉死,否则有人会顺手把它接回去。
+describe("侧栏分区卡:悬停才流", () => {
+  // 上边框上一排采样点,避开两个圆角。逐格逐通道比而不用亮度:叠色把亮度坡压平了
+  // (见文件头 maxDeviation 的注释),r 升 g 降正好抵消。
+  const COLUMNS = [2, 6, 10, 14, 18]
+
+  async function mountCard() {
     const app = await testRender(
       () => (
         <ThemeTestProviders>
@@ -325,31 +373,64 @@ describe("侧栏分区卡的常驻流动", () => {
       ),
       { width: 44, height: 8 },
     )
-    try {
-      for (let attempt = 0; attempt < 60; attempt++) {
-        await app.renderOnce()
-        if (app.captureCharFrame().includes("BODYMARK")) break
-        await new Promise((resolve) => setTimeout(resolve, 25))
-      }
-      const rail = () => {
-        const rows = app.captureCharFrame().split("\n")
-        const top = rows.findIndex((line) => line.includes("╭"))
-        return grid(app).get(`${top}:6`)!
-      }
-      const before = rail()
-      await new Promise((resolve) => setTimeout(resolve, PHASE_WAIT))
+    for (let attempt = 0; attempt < 60; attempt++) {
       await app.renderOnce()
-      const after = rail()
-      expect(maxChannels(after, before), "侧栏卡应当在无人悬停时也流动").toBeGreaterThan(0.004)
+      if (app.captureCharFrame().includes("BODYMARK")) break
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    // 边框行号不能写死:ThemeReady 哨兵排在卡片**前面**,卡片从它下一行开始。
+    const top = app
+      .captureCharFrame()
+      .split("\n")
+      .findIndex((line) => line.includes("╭"))
+    if (top < 0) throw new Error("帧里找不到分区卡的边框")
+    return { app, top }
+  }
+
+  async function sample(app: Harness, top: number, count: number) {
+    const shots: Cell[][] = []
+    for (let index = 0; index < count; index++) {
+      if (index > 0) await new Promise((resolve) => setTimeout(resolve, PHASE_WAIT))
+      await app.renderOnce()
+      const cells = grid(app)
+      shots.push(COLUMNS.map((column) => cells.get(`${top}:${column}`)!))
+    }
+    return shots
+  }
+
+  test("底态:描边逐格冻结(不传 flow 就没有相位表)", async () => {
+    const { app, top } = await mountCard()
+    try {
+      // 先把指针挪到卡片外面:测试渲染器的初始指针位置不是「没有悬停」,
+      // 停在卡上时下面那条断言量的就是悬停档而不是底态。
+      await app.mockMouse.moveTo(43, 7)
+      await app.renderOnce()
+      const [first, ...rest] = await sample(app, top, 4)
+      // 恰好 0,不是「小于某门槛」:这一圈格子没有任何一项随时间变化的东西 ——
+      // 没有相位、没有抬对比、没有扫光、没有入场淡入 —— 于是每帧算出来的值逐通道相同。
+      for (const shot of rest) expect(shift(first, shot), "底态描边应逐格冻结").toBe(0)
+    } finally {
+      app.renderer.destroy()
+    }
+  })
+
+  test("鼠标移上去:描边逐帧流动,且色带真的在平移(有格子变暗)", async () => {
+    const { app, top } = await mountCard()
+    try {
+      await app.mockMouse.moveTo(6, top + 1)
+      await app.renderOnce()
+      const [first, ...rest] = await sample(app, top, 4)
+      expect(Math.max(...rest.map((shot) => shift(first, shot))), "悬停期间描边应逐帧变化").toBeGreaterThan(0.004)
+      // 单看 shift 不够:扫光自己就足以满足它(见 shift/drop 的注释)。
+      expect(
+        Math.max(...rest.map((shot) => drop(first, shot))),
+        "悬停期间应有格子变暗(色带真的平移了,不只是扫光爬过)",
+      ).toBeGreaterThan(0.004)
     } finally {
       app.renderer.destroy()
     }
   })
 })
-
-function maxChannels(a: { r: number; g: number; b: number }, b: { r: number; g: number; b: number }) {
-  return Math.max(Math.abs(a.r - b.r), Math.abs(a.g - b.g), Math.abs(a.b - b.b))
-}
 
 // 悬停抬亮那一档的量级自检:钉的是「确实抬了 HOVER_BOOST 那一档的亮度」。
 describe("悬停抬对比度的量", () => {

@@ -30,23 +30,29 @@ export type NeonBoxOptions = BoxOptions<NeonBoxRenderable> & {
    */
   animated?: boolean
   /**
-   * 常驻流动:相位自己走,**不带扫光**。
+   * 常驻流动:相位自己走,**不带扫光**。对应原型里**永不间歇**的那两条 1px 导轨 ——
+   * 标题栏 `.titlebar::after { animation: railFlow 7s linear infinite }`
+   * (card-design-v7.html:85-91)与侧栏右缘 `.sidebar::after { animation: railV 9s linear infinite }`
+   * (:109-115)。终端里前者就是标签栏底下那条 NeonRail,后者是侧栏根卡的右边框
+   * (原型侧栏自己不带描边,那一列的轮廓就是这根轨)。
    *
-   * 与 animated 的分工是「谁在什么时候动」:
-   *   · `flow` = 这张卡不用等鼠标就在呼吸(面板卡 / 侧栏分区卡 / 侧栏根卡 / 提示卡)。
-   *     原型里**永不间歇**的那两条导轨 —— 侧栏右缘 `railV 9s linear infinite`(:113)
-   *     与标题栏导轨 `railFlow 7s linear infinite`(:89)—— 就是这一档。
-   *   · `animated` = 此刻有人在看它/在用它(悬停、聚焦),于是色带走快一倍并多一道扫光。
-   *   两者独立且可以叠加:面板卡默认常驻流,悬停时既更快又带扫光。
+   * **面板卡 / 分区卡不在这一档**:原型 `.card` 底态既没有 `animation`,也没有
+   * `background-size: 200% 200%`(那个只有 `.bubble` 才有,:410);`gbFlow 2.6s` 挂在
+   * `.card:hover` 上(:159-163)。所以这一族走 `animated`(悬停/聚焦:流动 + 扫光 +
+   * 更快一档),底态冻结 —— 与原型一致,分界线就写在 component/sidebar-card 那张卡的
+   * animated= 上(底态与悬停之间只隔这一个开关)。
+   *
+   * 两个档的分工仍是「谁在什么时候动」:
+   *   · `flow`     = 不用等鼠标就在呼吸(导轨那一族;另有首页提示卡那一处自选的常驻流,
+   *     理由写在 feature-plugins/home/tip-card 的 TIP_CARD_ALPHA 注释里)。
+   *   · `animated` = 此刻有人在看它/在用它。
+   * 两者独立且可以叠加:同一张卡两者皆真时相位照走、扫光照画。
    *
    * **扫光只归 animated**:扫光是「注意力」的信号,常驻的话整圈描边永远有一道白亮在爬,
    * 面板卡一多就成噪声(侧栏同屏七八张)。色带流动才是「活着」的信号,那个可以常驻。
    *
-   * 面板卡这一族的常驻流是**有意偏离原型**,不是照抄:原型 `.card` 的 `gbFlow 2.6s`
-   * 挂在 `:hover` 上(card-design-v7.html:159-163),底态并不流。理由与代价写在
-   * component/sidebar-card 里那个 `flow=` 上 —— 那里是第一个真正设它的地方。
-   *
-   * animations_enabled 这类用户设置同样由调用方折进来(见 ui/hover 的 flow)。
+   * 「要不要动」完全由调用方决定:animations_enabled 这类用户设置同样由调用方折进来
+   * (侧栏根卡与标签栏导轨直接读 KV,见 ui/hover 开头那段)。
    */
   flow?: boolean
   /**
@@ -98,7 +104,7 @@ const PHASE_INTERVAL = 80
 
 // 悬停/聚焦时每拍多走一格:整圈从 8 秒缩到 4 秒。
 //
-// 原型那边是三条不同的量:常驻的面板卡导轨 `railV 9s linear infinite`、
+// 原型那边是三条不同的量:常驻的侧栏右缘导轨 `railV 9s linear infinite`、
 // 标签选中态 `.tab.active { animation: gbFlow 3s }`、悬停 `.bubble:hover { gbFlow 2.6s }`。
 // 4 秒落在后两者之间,而 9s 与 8 秒在本实现里差的那 1 秒肉眼读不出来(共用同一张
 // 相位表的 100 格 × 80ms 是 NeonRail 也在用的节奏,动它会牵动全 App)。
