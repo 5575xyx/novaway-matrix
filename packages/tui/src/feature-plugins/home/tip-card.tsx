@@ -215,7 +215,7 @@ export function TipCard(props: {
   )
 
   return (
-    <NeonCard gradientStops={semanticStops(theme, "tip")}>
+    <NeonCard gradientStops={semanticStops(theme, "tip")} flow>
       <box flexDirection="column">
         <box flexDirection="row" flexShrink={0}>
           <text flexShrink={0} fg={theme.warning} wrapMode="none">

@@ -62,6 +62,12 @@ export function NeonCard(props: {
    * 「这是一张卡」了。
    */
   borderAlpha?: number
+  /**
+   * 常驻流动(见 ui/card 的 flow)。这张壳默认**不开** —— 原型的 `.bubble`(助手/用户气泡)
+   * 底态并不流,只有 `:hover` 才加 gbFlow;流的是 `.card` 那一族面板卡。
+   * 于是提示卡(原型的首页面板卡那一档)与侧栏根卡各自在调用点显式打开。
+   */
+  flow?: boolean
 }) {
   const { theme } = useTheme()
   const hover = useCardHover()
@@ -71,6 +77,7 @@ export function NeonCard(props: {
       enterFrom={theme.border}
       enterDelay={props.enterDelay}
       animated={hover.animated()}
+      flow={props.flow}
       boost={hover.boost(theme.text)}
       borderAlpha={props.borderAlpha}
       // 这张壳是**透明卡**(没有自己的 backgroundColor),叠色底必须显式给。

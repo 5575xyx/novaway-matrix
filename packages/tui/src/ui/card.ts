@@ -30,6 +30,22 @@ export type NeonBoxOptions = BoxOptions<NeonBoxRenderable> & {
    */
   animated?: boolean
   /**
+   * 常驻流动:相位自己走,**不带扫光**。
+   *
+   * 与 animated 的分工是「谁在什么时候动」:
+   *   · `flow` = 这张卡自己在呼吸(面板卡 / 侧栏分区卡 / 侧栏根卡)。对应原型的
+   *     `.card` 底态 `background-size: 200% 200%` 与侧栏右缘 `railV 9s linear infinite`
+   *     —— 那两条都是**一直流**的,不是等鼠标。
+   *   · `animated` = 此刻有人在看它/在用它(悬停、聚焦),于是色带走快一倍并多一道扫光。
+   *   两者独立且可以叠加:面板卡默认常驻流,悬停时既更快又带扫光。
+   *
+   * **扫光只归 animated**:扫光是「注意力」的信号,常驻的话整圈描边永远有一道白亮在爬,
+   * 面板卡一多就成噪声(侧栏同屏七八张)。色带流动才是「活着」的信号,那个可以常驻。
+   *
+   * animations_enabled 这类用户设置同样由调用方折进来(见 ui/hover 的 flow)。
+   */
+  flow?: boolean
+  /**
    * 描边淡入的起点色。省略时退回这张卡自己的 backgroundColor(有底色的卡 ——
    * 用户气泡 / 错误卡 / 思考卡 / 工具卡 —— 淡入就是从底色长出描边)。
    * 透明卡片(助手气泡卡 / 分区卡 / 输入卡)必须显式给:终端里没有半透明,
@@ -70,6 +86,28 @@ export type NeonBoxOptions = BoxOptions<NeonBoxRenderable> & {
 // 与 NeonRail 的流动节奏一致。整圈 = 8 秒。
 const PHASE_STEPS = 100
 const PHASE_INTERVAL = 80
+
+// 悬停/聚焦时每拍多走一格:整圈从 8 秒缩到 4 秒。
+//
+// 原型那边是三条不同的量:常驻的面板卡导轨 `railV 9s linear infinite`、
+// 标签选中态 `.tab.active { animation: gbFlow 3s }`、悬停 `.bubble:hover { gbFlow 2.6s }`。
+// 4 秒落在后两者之间,而 9s 与 8 秒在本实现里差的那 1 秒肉眼读不出来(共用同一张
+// 相位表的 100 格 × 80ms 是 NeonRail 也在用的节奏,动它会牵动全 App)。
+//
+// **为什么是「每拍多走一格」而不是「换一张更快的表」**:表的拍长是全 App 共用的,
+// 缩短它会让**正被悬停的那张卡**(同一时刻通常只有一张)的 requestRender 频率翻倍,
+// 观感收益是 4 秒 vs 8 秒,代价是一份常驻的额外唤醒。每拍多走一格拿到同一个观感。
+const HOVER_PHASE_STEP = 2
+
+/**
+ * 每拍相位走几格。1 = 常驻流动那一档,2 = 悬停/聚焦那一档。
+ *
+ * 抽成纯函数是为了让「悬停更快」这条在单测里能钉住整圈时长 —— 渲染层量它得看两帧
+ * 之间的色带位移,而那会同时被扫光与 8bit 量化搅浑。
+ */
+export function phaseStep(animated: boolean) {
+  return animated ? HOVER_PHASE_STEP : 1
+}
 
 // 扫光窗口(周长归一化进度为单位):相位头后方这一小段边框被向白色提亮,
 // 峰值在头部、线性衰减到窗口尾。窗口占一圈的 12%。
@@ -164,6 +202,7 @@ export class NeonBoxRenderable extends BoxRenderable {
   private stops: readonly RGBA[] | undefined
   private phase = 0
   private animating = false
+  private flowing = false
   private phaseTimer: ReturnType<typeof setInterval> | undefined
   private enterMs: number | undefined
   private enterColor: RGBA | undefined
@@ -175,7 +214,8 @@ export class NeonBoxRenderable extends BoxRenderable {
   private backdrop: RGBA | undefined
 
   constructor(ctx: RenderContext, options: NeonBoxOptions = {}) {
-    const { gradientStops, animated, enterDelay, enterFrom, boost, borderAlpha, borderBackdrop, ...rest } = options
+    const { gradientStops, animated, flow, enterDelay, enterFrom, boost, borderAlpha, borderBackdrop, ...rest } =
+      options
     // rest 带 renderBefore 等 this: NeonBoxRenderable 回调,基类要求 this: BoxRenderable,
     // 二者仅 this 参数不同,向下收敛为 BoxOptions 交给 super。
     super(ctx, {
@@ -187,6 +227,7 @@ export class NeonBoxRenderable extends BoxRenderable {
     })
     this.stops = gradientStops
     if (animated) this.animated = true
+    if (flow) this.flow = true
     // 顺序要紧:enterFrom 必须先于 enterDelay 落定 —— 后者会在渲染时向前者要起点色。
     if (enterFrom) this.enterFrom = enterFrom
     if (boost) this.boost = boost
@@ -211,11 +252,18 @@ export class NeonBoxRenderable extends BoxRenderable {
   set animated(value: boolean) {
     if (value === this.animating) return
     this.animating = value
-    if (value) {
-      this.startPhaseTimer()
-    } else {
-      this.stopPhaseTimer()
-    }
+    this.syncPhaseTimer()
+    this.requestRender()
+  }
+
+  get flow(): boolean {
+    return this.flowing
+  }
+
+  set flow(value: boolean) {
+    if (value === this.flowing) return
+    this.flowing = value
+    this.syncPhaseTimer()
     this.requestRender()
   }
 
@@ -288,9 +336,21 @@ export class NeonBoxRenderable extends BoxRenderable {
   // 表一定停。定时器本身也再判一次 isDestroyed 兜底:万一某条销毁路径没走到 destroySelf,
   // 表会在下一拍自停,不会把进程吊住。
   //
-  // 「要不要动」只有一个入口:animated。调用方(而不是这里)响应式地决定它 ——
-  // animations_enabled 这类用户设置折进 animated 之后,关掉是 setter 停表、
+  // 「要不要动」只有两个入口:animated(悬停/聚焦:流动 + 扫光 + 更快)与
+  // flow(常驻:只流动)。调用方(而不是这里)响应式地决定它们 ——
+  // animations_enabled 这类用户设置折进来之后,关掉是 setter 停表、
   // 打开是 setter 再起表,两边对称,不存在「只能停不能恢复」的拉式门控。
+  //
+  // 表只有一个,起停条件是「两者任一为真」:分开起两张表会让同一张卡同时被两张表推进相位,
+  // 而 animated 与 flow 可以任意组合(含同时为真),一张表 + 一个合并判据是唯一自洽的形状。
+  private syncPhaseTimer() {
+    if (this.animating || this.flowing) {
+      this.startPhaseTimer()
+    } else {
+      this.stopPhaseTimer()
+    }
+  }
+
   private startPhaseTimer() {
     // 开头这一句就是「不叠表」这条不变量真正的保证:即使有人绕过相等守卫直接重复起表,
     // 旧表也会先被清掉。
@@ -300,7 +360,7 @@ export class NeonBoxRenderable extends BoxRenderable {
         this.stopPhaseTimer()
         return
       }
-      this.phase = (this.phase + 1) % PHASE_STEPS
+      this.phase = (this.phase + phaseStep(this.animating)) % PHASE_STEPS
       this.requestRender()
     }, PHASE_INTERVAL)
   }

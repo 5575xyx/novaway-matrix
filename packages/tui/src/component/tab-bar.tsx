@@ -1,6 +1,7 @@
 import { For, Show, type JSX } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import { useTheme } from "../context/theme"
+import { useKV } from "../context/kv"
 import { icon } from "../util/panel-icons"
 import { Locale } from "../util/locale"
 import { neonStops } from "../ui/neon"
@@ -67,6 +68,7 @@ export interface TabBarProps {
 
 export function TabBar(props: TabBarProps) {
   const { theme } = useTheme()
+  const kv = useKV()
   // 胶囊能用的列数 = 标签栏内宽(扣掉自己的 paddingLeft/Right 各 1 列)− 标签占的列数。
   // 同一个 tabColumns 既用来给标签设显式宽度,也用来出这条预算,所以两者不可能对不上。
   const pillWidth = () => Math.max(0, props.width - 2 - props.tabs.reduce((sum, tab) => sum + tabColumns(tab), 0))
@@ -131,8 +133,11 @@ export function TabBar(props: TabBarProps) {
           {props.pills?.(pillWidth())}
         </Show>
       </box>
-      {/* 原 border={["bottom"]} 换成主题驱动的霓虹导轨 */}
-      <NeonRail stops={neonStops(theme)} />
+      {/* 原 border={["bottom"]} 换成主题驱动的霓虹导轨。
+          **animated 必须在这里传**:NeonRail 有这个 prop,漏传它不会让 typecheck 皱眉,
+          只是这条导轨永远是一条静止的渐变 —— 而原型那边是
+          `.titlebar::after { animation: railFlow 7s linear infinite }`,一直流着。 */}
+      <NeonRail stops={neonStops(theme)} animated={kv.get("animations_enabled", true)} />
     </box>
   )
 }

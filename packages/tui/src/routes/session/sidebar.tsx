@@ -4,6 +4,7 @@ import { createEffect, createMemo, createSignal, For, on, Show } from "solid-js"
 import { useTerminalDimensions } from "@opentui/solid"
 import path from "node:path"
 import { useTheme } from "../../context/theme"
+import { useKV } from "../../context/kv"
 import { useTuiConfig } from "../../config"
 import { InstallationChannel, InstallationVersion } from "@novaway/core/installation/version"
 import { usePluginRuntime } from "../../plugin/runtime"
@@ -62,6 +63,7 @@ export function Sidebar(props: SidebarProps) {
   const project = useProject()
   const sync = useSync()
   const { theme } = useTheme()
+  const kv = useKV()
   const tuiConfig = useTuiConfig()
   const dimensions = useTerminalDimensions()
   const session = createMemo(() => (props.sessionID ? sync.session.get(props.sessionID) : undefined))
@@ -102,6 +104,11 @@ export function Sidebar(props: SidebarProps) {
          是整列的容器,比任何一张分区卡都大,若比它们更实就会变成屏幕上最重的一条边。
          叠色底不用给 —— 它自己有 backgroundColor,那就是边框格背后的实色。 */
       borderAlpha={PANEL_CARD_ALPHA}
+      /* 常驻流动。侧栏是常驻布局,而且这张根卡的描边是屏幕上最大的一圈 ——
+         原型那边侧栏右缘那根流光(`railV 9s linear infinite`)与面板卡的
+         `background-size: 200% 200%` 都是从不间歇的。等鼠标才动的话,
+         用户没碰侧栏的这段时间里它是全 App 最明显的一圈静止描边。 */
+      flow={kv.get("animations_enabled", true)}
       /* 侧栏根卡既不悬停也不入场:它是整列的容器,鼠标几乎永远在它范围内 ——
          「悬停才提亮」在这里等于「一直亮着」,这条视觉信号就废了;入场同理,
          它比里面任何一张分区卡都活得久。分区卡自己那层才有悬停动效(见 sidebar-card.tsx)。 */

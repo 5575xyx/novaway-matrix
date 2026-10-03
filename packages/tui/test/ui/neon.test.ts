@@ -74,9 +74,11 @@ describe("brighten", () => {
     expect(brighten(translucent, HOVER_BOOST, white).a).toBeCloseTo(0.5, 1)
   })
 
-  test("HOVER_BOOST 是可感又不抢戏的一档(8%~15%)", () => {
-    expect(HOVER_BOOST).toBeGreaterThan(0.08)
-    expect(HOVER_BOOST).toBeLessThan(0.15)
+  test("HOVER_BOOST 是可感又不抢戏的一档(16%~26%)", () => {
+    // 12% 那档是对着满饱和描边调的;描边按 0.62 的 alpha 折算之后同样的百分比只剩六成
+    // 视觉增益,所以上调到 20%。理由与算式见 neon.ts 的 HOVER_BOOST 注释。
+    expect(HOVER_BOOST).toBeGreaterThan(0.16)
+    expect(HOVER_BOOST).toBeLessThan(0.26)
   })
 })
 
