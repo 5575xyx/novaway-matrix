@@ -24,6 +24,14 @@ export const INPUT_CARD_ALPHA = 0.45
 // 连带后果:卡内可用宽从「卡宽 − 2」变成「卡宽 − 4」,整行多两行 ——
 // 列宽账见下面的 MODEL_CHIP_MARGIN,提示行的门槛见 HINT_ROW_MIN_WIDTH。
 //
+// **卡内是四行**(按这个顺序摆进来,摆法见 component/prompt/index.tsx 与本文件的 PromptBottomRow):
+//   1. 输入行 —— 只有 ">" 提示符 + 输入框,这一行什么都不混(用户原话:「显示在输入的最底下」);
+//   2. 呼吸行 —— 一个 height={1} 的空盒;
+//   3. 底部行 —— 左:插件槽 + agent/模型 meta;右:模型芯片 + 发送按钮(PromptBottomRow);
+//   4. 提示行 —— 键位提示(PromptHints)。
+// 呼吸行必须是**真的一行布局高度**,padding 给不了这个效果:padding 格就是边框格(上面那条),
+// 再往 padding 上加只会在四边各多缩两列,不会在两行之间插出空隙。
+//
 // animated 是响应式算出来的,三个条件缺一不可:
 //   focused  —— 流动与扫光是「正在输入」的信号,失焦就该安静下来;
 //   visible —— 隐藏时宿主盒子还挂在那儿(visible={false} 只是不画),不掐掉定时器的话
@@ -62,39 +70,50 @@ export function PromptCard(props: { focused: boolean; visible?: boolean; childre
   )
 }
 
-// 模型芯片里模型名的长度上限。
+// 模型芯片里模型名的长度上限。芯片在卡内**底部行的右端**(见 PromptBottomRow),不再与输入框
+// 同行 —— 这一版量的是另一笔账,与上一版分开记:
+//
 // 本文所有列数按「1 列 = 1 个终端格」算,并采用同一套字宽约定:
 //   ASCII 1 列;CJK 全角字 2 列(「发送」= 2 字 × 2);East-Asian Ambiguous 字形按目标终端的
 //   常规行为记 1 列(「◆」U+25C6 就是 Ambiguous,在 CJK 终端里可能被渲成 2 列 —— 那种终端上
 //   本卡的可用宽度整体少 1,不是这里要解决的问题)。
-//   卡内可用宽 = 终端宽 − 卡 padding(2+2)                 ← 卡内留白那一档的四边 padding
-//   定长开销 = ">" 盒 2 + 行内 gap 1 + 行内 gap 1 + 芯片(padding 1+1 + "◆ " 2)= 4
-//            + 芯片与按钮的 gap 1 + 按钮(padding 1+1 + "发送 " 6 + 键名)= 12
-//            = 21
-//   剩下分给「模型名 + 输入框」;输入框留 12 列,所以
-//   模型名上限 = 终端宽 − 4 − 21 − 12 = 终端宽 − 37。
-// (padding 从 1+1 提到 2+2 时这个数从 35 变成 37:扣减里只有卡 padding 那一项在变,
-// 定长开销 21 与输入框下限 12 都与卡 padding 无关 —— 它们量的是卡**里面**那几个盒子的宽窄。)
+//
+// **输入行不再为芯片让宽度**:输入行只有 ">" 盒(2)+ gap 1 + textarea,而 textarea 那一格是
+// flexGrow=1 / minWidth=4,没有上限盒 —— 模型名再长也吃不到输入框。「芯片把输入框挤窄」
+// 这个上一版要防的问题,随输入行清空一起消失了。
+//
+// 要护住的是**底部行**:PromptSend 整组是 flexShrink={0},芯片自己虽然能压但只压到
+// minWidth=10,再窄就轮到左边的 agent / 模型 meta(它才是这一行里该被牺牲的那一段)。
+// 于是上限 = 终端宽 − 卡 padding − 底部行定长 − meta 下限:
+//     卡 padding                     = 2 + 2 = 4
+//     底部行定长(按插件槽**渲染出来**的最坏情况算,行内两个 gap 都在):
+//         行内 gap 2 × 2              = 4
+//         芯片(padding 1+1 + "◆ " 2) = 4
+//         芯片↔按钮 gap               = 1
+//         按钮(padding 1+1 + "发送 " 5 + 键名 "enter" 5) = 12
+//                                   = 21
+//     meta 下限                      = 12(与上一版留给输入框的是同一档,现在留给左边的 agent 名)
+//   → 上限 = 终端宽 − 4 − 21 − 12 = 终端宽 − 37。
+// 插件槽没渲染时底部行只有一个 gap(2),理论上能多给模型名 2 列;这里按最坏情况封顶,
+// 「窄终端上模型名把 agent 名挤没了」就不会发生。巧合的是这仍是 37:上一版是
+// 「4 + 输入行定长 21 + 输入框 12」,上一版的输入行定长是 ">"(2) + 两个 gap(2) + 芯片(4)
+// + 芯片↔按钮(1) + 按钮(12) = 21 —— 与新版的两个 gap(4) 恰好同值。**数值相同是巧合,
+// 不是沿用**:两笔账量的盒子根本不是同一批(输入框 vs meta),改任一侧的行内 gap 都要重推。
 // 按钮那 12 列是按**默认键位** input_submit = return 算的(formatKeySequence 渲染成 5 格的
-// "enter");用户把提交键改成长序列(如 shift+return = 11)时按钮会相应变宽、吃掉输入框,
-// 输入框那一侧还有 minWidth=4 兜底。
-// 顺带把输入框那一侧的余量也记下来,公式是同一套:输入框 = 卡内可用宽 − 21 − 模型名上限。
-//   40 列:模型名上限 = max(8, min(28, 3)) = 8(MODEL_CHIP_MIN 抬上来的)→ 输入框 36 − 21 − 8 = 7 列。
-//      芯片自己的 minWidth=10 这一档在这里不是约束:芯片内容已经有 4 + 8 = 12 列。
-//      7 列够显示光标和几个字,不够放长占位符 —— 那是预期行为(留白那一档之前是 9 列)。
-//   60 列:模型名上限 = min(28, 23) = 23 → 输入框 56 − 21 − 23 = 12 列,正好是留的下限。
-//      巧的是这一档与留白之前一样是 12:padding 多吃的 2 列正好由模型名上限从 25 掉到 23 补上。
-//   80 列:封顶在 28 → 输入框 76 − 21 − 28 = 27 列(留白之前 29)。
-//  120 列:同样封顶在 28 → 输入框 116 − 21 − 28 = 67 列(留白之前 69)。
-// 上面四档的数字都有渲染级断言兜着(见 test/component/prompt-card 的 CHIP_CASES),改 padding
-// 而忘了重推这里,那组会红。
+// "enter");用户把提交键改成长序列(如 shift+return = 11)时按钮会相应变宽、吃掉底部行的 meta。
 // 截断按**字符数**算(Locale.oneLine 内部是 str.length),这里成立的前提是模型 id 是
 // ASCII slug(gpt-5-codex / claude-sonnet-4 之类),字符数 == 列数;模型名里出现 CJK 就偏窄。
 const MODEL_CHIP_MARGIN = 37
 const MODEL_CHIP_MAX = 28
 const MODEL_CHIP_MIN = 8
 
-// 输入行右端:模型芯片 + 发送按钮。
+// 底部行右端:模型芯片 + 发送按钮(PromptBottomRow 的 trailing 槽)。
+//
+// **与原型的有意偏离**:原型(card-design-v7.html:1114-1131)把模型芯片与发送按钮都放在
+// **输入行**的右端。用户明确要求「agent、模型、发送等这几个都显示在输入的最底下排列」,
+// 所以这里跟着用户走 —— 输入行只留提示符 + 输入框,芯片与按钮搬到卡内底部行。
+// 别按原型「修」回去:那正是用户报的「挤成一团」。
+//
 // 点击按钮只是 submit() 的又一个入口 —— 能不能发仍由 submit() 自己判定,
 // canSend 只是同一组条件的视觉预告(空输入/disabled/正在建会话/自动补全弹着/没有 agent
 // 时不高亮、点了也不发)。
@@ -121,9 +140,10 @@ export function PromptSend(props: { model: string; canSend: boolean; modelColor?
     <box flexDirection="row" gap={1} alignItems="center" alignSelf="flex-start" flexShrink={0}>
       <Show when={props.model}>
         {/* 芯片可压缩(flexShrink + overflow hidden):窄终端上宁可把模型名裁掉,
-            也不能把整行撑到折行 —— 折行会把「发送」甩到下一行,输入框高度失控。
-            minWidth=10 保底 10 列,再窄就轮到输入框了。
-            modelColor 由调用方给:模型名要跟提示行里的 provider / variant 用同一个
+            也不能把整行撑到折行 —— 折行会把「发送」甩到下一行,底部行高度失控。
+            minWidth=10 保底 10 列,再窄就轮到左边的 agent/模型 meta 了
+            (那一段才是这一行里该被牺牲的:meta 盒 minWidth=0,可以一路压到 0)。
+            modelColor 由调用方给:模型名要跟 meta 里的 provider / variant 用同一个
             fadeColor(…, modelMetaAlpha()) —— 挂载淡入 + leader 压暗都在那个表达式里,
             在这里重算一遍只会漂。 */}
         <box
@@ -165,14 +185,46 @@ export function PromptSend(props: { model: string; canSend: boolean; modelColor?
 // 算 20 列 → 45 列,再加卡片左右 padding 各 2 → 需要 49 列,取整到 50(留 1 列余量)。
 // 40~49 列这一档只剩前两条:25 − 5(整条换行) − 2(少一个 gap) = 18 列,
 // 加 tab(3) + ctrl+p(6) = 27 列,再加 padding 4 = 31 列 ≤ 40,放得下。
-// 提交键不在这一行 —— 它跟着「发送 Enter」按钮走(见 PromptSend 里的理由)。
+// 提交键不在这一行 —— 它跟着底部行的「发送 <键>」按钮走(见 PromptSend 里的理由)。
+// 这一行现在**只装键位**(meta 与按钮都上去了),所以预算里没有给左半边留位置;
+// 真要再往上加东西,得重新量这一行的账而不是接着用 50。
 const HINT_ROW_MIN_WIDTH = 50
 
-// 卡内第二行(提示行)。左段是插件槽 + agent/权限/提供商/变体 meta —— 可截断,
-// 压不下了先丢 meta;右段是键位提示 —— 不截断,因为它就是这行的可发现性本身。
+// 卡内第三行(底部行):左 = 插件槽 + agent/权限/提供商/变体 meta,右 = 模型芯片 + 发送按钮。
+// 三段的可压缩性是这一行唯一要守住的东西,和上一版提示行同一条纪律:
+//   插件槽、meta  —— 可截断(minWidth={0} + overflow hidden),压不下了从右边裁;
+//   trailing(发送组)—— 不截断,它是这一行的「我现在能不能发」。
+// minWidth={0} 是关键:不写的话 yoga 用内容的 min-content 当下界,meta 盒根本压不下去,
+// 里头的 <text> 被挤到 1~2 列就会折成好几行 —— 底部行会长高,把输入区顶变形。
+// 行内 gap={2} 只在**渲染出来的段之间**生效:插件槽没内容时那个盒子不存在,
+// 于是 gap 从两个变一个,模型名那一侧凭空多出 2 列(MODEL_CHIP_MARGIN 按最坏情况封顶,
+// 这里留出的 2 列就当余量,不另作他用)。
+export function PromptBottomRow(props: { right?: JSX.Element; meta?: JSX.Element; trailing?: JSX.Element }) {
+  return (
+    <box flexDirection="row" gap={2} alignItems="center" width="100%" flexShrink={0}>
+      {/* 插件槽也是可压缩的一段:它有没有内容、宽度多大由第三方决定,
+          不钉 flexShrink 的话,一旦被塞进一个宽 chip,底部行会被撑到折行。 */}
+      <Show when={props.right}>
+        <box flexDirection="row" gap={1} alignItems="center" flexShrink={1} minWidth={0} overflow="hidden">
+          {props.right}
+        </box>
+      </Show>
+      <box flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden">
+        {props.meta}
+      </box>
+      {props.trailing}
+    </box>
+  )
+}
+
+// 卡内第四行(提示行):只剩键位提示,**左对齐**。
+// 用户给的排版草图里这一行是从左边起的(底部行右端已经有「发送」了,再右对齐一次
+// 等于把两段操作提示顶到同一列,视线要在屏幕上来回横跳)。这一行没有可压缩段,
+// 所以三个 <text> 都是 wrapMode="none" + flexShrink={0}:折行会多占至少一行,
+// 把输入区顶高一格。
 // 键位一律 useCommandShortcut 现取,禁止硬编码:键位能在配置里改,
 // 硬编码的 "tab" / "ctrl+p" 会在用户改键后变成假提示。
-export function PromptHints(props: { right?: JSX.Element; meta?: JSX.Element; shell?: boolean }) {
+export function PromptHints(props: { shell?: boolean }) {
   const { theme } = useTheme()
   const dimensions = useTerminalDimensions()
   const agentShortcut = useCommandShortcut("agent.cycle")
@@ -180,40 +232,26 @@ export function PromptHints(props: { right?: JSX.Element; meta?: JSX.Element; sh
   const newlineShortcut = useCommandShortcut("input.newline")
   return (
     <box flexDirection="row" gap={2} alignItems="center" width="100%" flexShrink={0}>
-      {/* 插件槽也是可压缩的一段:它有没有内容、宽度多大由第三方决定,
-          不钉 flexShrink 的话,一旦被塞进一个宽 chip,提示行会被撑到折行。 */}
-      <Show when={props.right}>
-        <box flexDirection="row" gap={1} alignItems="center" flexShrink={1} minWidth={0} overflow="hidden">
-          {props.right}
-        </box>
+      <Show
+        when={!props.shell}
+        fallback={
+          <text fg={theme.text}>
+            esc <span style={{ fg: theme.textMuted }}>exit shell mode</span>
+          </text>
+        }
+      >
+        <text fg={theme.text} wrapMode="none">
+          {agentShortcut()} <span style={{ fg: theme.textMuted }}>agents</span>
+        </text>
+        <text fg={theme.text} wrapMode="none">
+          {paletteShortcut()} <span style={{ fg: theme.textMuted }}>commands</span>
+        </text>
       </Show>
-      {/* minWidth={0} 是关键:不写的话 yoga 用内容的 min-content 当下界,meta 盒根本压不下去,
-          里头的 <text> 被挤到 1~2 列就会折成好几行 —— 提示行会长高,把输入区顶变形。 */}
-      <box flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden">
-        {props.meta}
-      </box>
-      <box flexDirection="row" gap={2} flexShrink={0}>
-        <Show
-          when={!props.shell}
-          fallback={
-            <text fg={theme.text}>
-              esc <span style={{ fg: theme.textMuted }}>exit shell mode</span>
-            </text>
-          }
-        >
-          <text fg={theme.text}>
-            {agentShortcut()} <span style={{ fg: theme.textMuted }}>agents</span>
-          </text>
-          <text fg={theme.text}>
-            {paletteShortcut()} <span style={{ fg: theme.textMuted }}>commands</span>
-          </text>
-        </Show>
-        <Show when={dimensions().width >= HINT_ROW_MIN_WIDTH}>
-          <text fg={theme.text}>
-            {newlineShortcut()} <span style={{ fg: theme.textMuted }}>换行</span>
-          </text>
-        </Show>
-      </box>
+      <Show when={dimensions().width >= HINT_ROW_MIN_WIDTH}>
+        <text fg={theme.text} wrapMode="none">
+          {newlineShortcut()} <span style={{ fg: theme.textMuted }}>换行</span>
+        </text>
+      </Show>
     </box>
   )
 }
