@@ -157,10 +157,18 @@ test("文件树:标签各用各的主题色,与文件名不同色", async () => 
   const tree = await renderTree(44)
   try {
     const theme = resolveTheme(DEFAULT_THEMES.novaway, "dark")
-    // captureSpans 给的是「一段同色字符」,按字符摊平成「每列一个前景色」。
+    // captureSpans 给的是「一段同色字符」,按**显示列**摊平成「每列一个前景色」。
+    // 不能 `for (const _ of span.text)`:那是按码位迭代,emoji 只算一格而它占两列,
+    // 摊出来的网格会从第一个宽字符起整体错位 —— 而下面正是拿列号去索引它。
     const grid = tree.app.captureSpans().lines.map((line) => {
       const cells: { r: number; g: number; b: number }[] = []
-      for (const span of line.spans) for (const _ of span.text) cells.push({ r: span.fg.r, g: span.fg.g, b: span.fg.b })
+      for (const span of line.spans) {
+        for (const part of new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(span.text)) {
+          for (let rest = 0; rest < Locale.displayWidth(part.segment); rest++) {
+            cells.push({ r: span.fg.r, g: span.fg.g, b: span.fg.b })
+          }
+        }
+      }
       return cells
     })
     const rows = tree.app.captureSpans().lines.map((line) => line.spans.map((span) => span.text).join(""))
