@@ -56,6 +56,16 @@ export function NeonCard(props: {
    */
   width?: number | "auto" | `${number}%`
   /**
+   * 卡壳的高度(行)。省略 = 让内容自己撑开。
+   *
+   * 存在的唯一理由是**流程图节点卡**:它的尺寸被布局按节点类型算死了,而卡高在 4~7 行之间
+   * 变化(见 component/flow/layout 的 nodeSize)。不显式给高度的话,卡壳照内容渲染 ——
+   * 内容只有两行时就是两行,而连线的中线取的是 `y + ⌊布局算出来的高 / 2⌋`(见 edgeRoute),
+   * 于是每条线都会贴着错的那一行横穿过去。所以**卡壳的实际高度必须与布局那个数一致**,
+   * 这一项就是给它的入口。
+   */
+  height?: number
+  /**
    * 描边的叠色档(见 ui/neon 的 BORDER_ALPHA_DEFAULT 与 ui/card 的 borderAlpha)。
    * 省略 = 默认那一档 0.62 —— 助手/用户气泡、思考卡、工具卡、错误卡都吃它。
    * 不吃这一档的两个:流程图节点卡要自己传 0.72(原型 `.fcard` 用的是不透明的 `--fc`,
@@ -79,8 +89,8 @@ export function NeonCard(props: {
    * 原型那边 hero 是 `padding: 36px 56px`、tip 走 `.card` 的 padding,折到终端就是这个量级。
    *
    * **为什么是开关而不是直接改默认值**:这张壳是四族卡共用的,而它们的尺寸是被算死的 ——
-   * 流程图节点卡的高就是 `NODE_HEIGHT = 4`(见 component/flow/layout.ts 的注释:
-   * 「NeonCard 的 paddingTop/paddingBottom 决定 1 也就是上下边框」),列宽是 `NODE_WIDTH − 3`
+   * 流程图节点卡的高就是 `nodeSize(kind).height`(见 component/flow/layout.ts 的注释:
+   * 「NeonCard 的 paddingTop/paddingBottom 决定 1 也就是上下边框」),列宽是它的卡宽 − 3
    * (= 左 2 + 右 1);提示卡的宽度账是 `TIP_CARD_CHROME`(见 feature-plugins/home/tip-card)。
    * 直接改默认值会把这些常数全部带偏,而且每一处都得重新推导。所以留白是**逐调用点**的选择:
    * 抱内容、宽度由内容决定的 hero 卡与两行内容的提示卡开,尺寸被预算钉死的节点卡不开。
@@ -114,6 +124,7 @@ export function NeonCard(props: {
       paddingLeft={2}
       paddingRight={props.inset ? 2 : 1}
       width={props.width ?? "100%"}
+      height={props.height}
       maxWidth="100%"
       flexShrink={0}
     >

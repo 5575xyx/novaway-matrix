@@ -17,12 +17,15 @@ import { FlowCanvas } from "../../src/component/flow/canvas"
 import {
   COLUMN_PITCH,
   DETAIL_ROWS,
+  FLOW_NODE_KINDS,
+  GAP_X,
   GAP_Y,
   kindNoun,
   layoutNodes,
   LEFT_MARGIN,
-  NODE_HEIGHT,
-  NODE_WIDTH,
+  MAX_NODE_WIDTH,
+  nodeContentColumns,
+  nodeSize,
   RIGHT_MARGIN,
 } from "../../src/component/flow/layout"
 import { Locale } from "../../src/util/locale"
@@ -30,7 +33,6 @@ import { ThemeReady, ThemeTestProviders } from "../fixture/providers"
 import {
   arrowCells,
   CANVAS_OFFSET_Y,
-  cardBorderColumns,
   cardColumns,
   distinctCardColumns,
   FIXTURE_MESSAGES,
@@ -42,7 +44,18 @@ import {
 
 const MESSAGES: Message[] = FIXTURE_MESSAGES
 const PARTS: Record<string, Part[]> = FIXTURE_PARTS
-const KINDS = ["user", "plan", "subagent", "tool", "edit", "reply", "fend"] as const
+const KINDS = FLOW_NODE_KINDS
+/** 升序去重(列锚 / 行锚都用它)。 */
+function gridLines(values: readonly number[]) {
+  return [...new Set(values)].toSorted((a, b) => a - b)
+}
+
+/** 第 index 列的列锚(与 layout 的 layoutNodes 里那段累加同一套算式)。 */
+function columnX(layout: { columnWidths: readonly number[] }, index: number) {
+  let x = LEFT_MARGIN
+  for (let i = 0; i < index; i++) x += layout.columnWidths[i]! + GAP_X
+  return x
+}
 
 async function mount(
   width: number,
@@ -112,10 +125,16 @@ async function settled(app: Awaited<ReturnType<typeof mount>>, want: string) {
   throw new Error(`画布未在 400 轮内稳定,实际帧:\n${frame}`)
 }
 
-async function render(width: number, height = 64, options?: Parameters<typeof mount>[2]) {
+/**
+ * 取一帧,等到「画布真的稳定且出现了某个标记」为止。
+ *
+ * `want` 默认是 `第 2 轮`(轮次分隔线)。**40 列那一档要换标记**:单列排布下整张图有 100 行上下,
+ * 而视口只有 130 行,`第 2 轮` 那条分隔线仍然在画面外 —— 那时候判据换成第 1 轮的卡头。
+ */
+async function render(width: number, height = 64, options?: Parameters<typeof mount>[2], want = "第 2 轮") {
   const app = await mount(width, height, options)
   try {
-    return await settled(app, "第 2 轮")
+    return await settled(app, want)
   } finally {
     app.renderer.destroy()
   }
@@ -133,15 +152,77 @@ test("流程图画布:节点卡用生产卡壳画出渐变描边圆角,七类语
   for (const kind of KINDS) expect(frame, `图例:${kindNoun(kind)}`).toContain(kindNoun(kind))
 })
 
-// 这条把 layout 的 NODE_HEIGHT 与真实渲染钉在一起:NeonBox 的内边距行**就是**边框行,
-// padding 不额外占行。写错的话连线的中线会落到卡片底边框那一行,每条线都贴着卡片下沿横穿。
-test("流程图画布:卡片的真实高度就是 NODE_HEIGHT(边框行 = 内边距行,不额外占行)", async () => {
+// 这条把 layout 的 nodeSize 与真实渲染钉在一起:NeonBox 的内边距行**就是**边框行,
+// padding 不额外占行;而卡高按节点类型在 4~7 行之间变,所以每一种都要量一遍。
+// 写错的话连线的中线会落到卡片底边框那一行,每条线都贴着卡片下沿横穿。
+test("流程图画布:卡片的真实高度就是 nodeSize(kind) 那一档(边框行 = 内边距行)", async () => {
   const lines = await render(96, 64, { reveal: false })
-  const top = lines.findIndex((line) => line.includes("╭"))
-  const column = lines[top]!.indexOf("╭")
-  const bottom = lines.findIndex((line, index) => index > top && line[column] === "╰")
-  expect(top).toBeGreaterThanOrEqual(0)
-  expect(bottom - top + 1).toBe(NODE_HEIGHT)
+  const layout = layoutNodes(FIXTURE_MODEL.nodes, VIEWPORT)
+  let measured = 0
+  for (const node of layout.nodes) {
+    const top = node.rect.y + CANVAS_OFFSET_Y
+    const size = nodeSize(node.kind)
+    // 卡顶边框就在 `rect.y` 那一行,卡底边框在 `rect.y + 高 − 1` —— 逐格取,不去「找第一个
+    // `╰`」,否则同一列下方还有别的卡时会量到那一张的底边框(这一列下方常常就是下一轮)。
+    if (lineColumns(lines[top] ?? "")[node.rect.x] !== "╭") continue
+    measured += 1
+    // 高卡在 40~64 行的视口里看得不全,这一档只断言「看得见的那几张」。
+    if (top + size.height > lines.length) continue
+    expect(lineColumns(lines[top + size.height - 1]!)[node.rect.x], `${node.kind} 的卡底边框`).toBe("╰")
+    expect(lineColumns(lines[top] ?? "")[node.rect.x + size.width - 1], `${node.kind} 的卡宽`).toBe("╮")
+  }
+  expect(measured, "一张卡都没量到,这条等于空跑").toBeGreaterThan(3)
+  // 高度确实分档:最高的 7 行、最矮的 4 行,差 3 行。
+  expect(nodeSize("edit").height - nodeSize("fend").height).toBe(3)
+})
+
+test("流程图画布:「本轮结束」那颗药丸居中、没有折叠箭头,点它什么也不发生", async () => {
+  const app = await mount(96, 64, { reveal: false })
+  try {
+    const lines = await settled(app, "第 2 轮")
+    const row = lines.findIndex((line) => line.includes("⏹ 本轮结束"))
+    expect(row, "药丸没有画出来").toBeGreaterThan(0)
+    const cell = lineColumns(lines[row]!)
+    const left = cell.indexOf("⏹")
+    const text = Locale.displayWidth("⏹ 本轮结束")
+    // 卡内 padding 左 2 右 1(边框不占格),所以内容区是 `[rect.x + 2, rect.x + width − 2)`,
+    // 宽 `卡宽 − 3` 列。第一行居中 ⇒ 左右留白差不超过 1 列。
+    const layout = layoutNodes(FIXTURE_MODEL.nodes, VIEWPORT)
+    const pill = layout.nodes.find((node) => node.kind === "fend")!
+    const inner = pill.rect.width - 3
+    const offset = left - pill.rect.x - 2
+    expect(offset, "药丸那一行应该落在内容区里").toBeGreaterThanOrEqual(0)
+    expect(offset + text).toBeLessThanOrEqual(inner)
+    expect(Math.abs(offset - (inner - offset - text)), "药丸那一行居中").toBeLessThanOrEqual(1)
+    // **药丸那一行没有 `▸`**:原型的 `.fcard.fend` 干脆就没有 `.fc-caret`。
+    expect(lines[row]).not.toContain("▸")
+    // 第二行是「第 N 轮 · 等待新指令…」,按卡内可用列数截断(见 RoundEndPill)。
+    expect(lines[row + 1]).toContain("第 1 轮")
+    // 点它不展开:整张画布上不会出现 `▾`,详情也不会出现。
+    await app.mockMouse.click(left + 1, row)
+    for (let attempt = 0; attempt < 20; attempt++) {
+      await app.renderOnce()
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    expect(app.captureCharFrame()).not.toContain("▾")
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+test("流程图画布:最后一条回复卡挂着「最新」徽标", async () => {
+  const lines = await render(96, 64, { reveal: false })
+  const last = [...FIXTURE_MODEL.nodes].reverse().find((node) => node.kind === "reply")!
+  expect(last.badge, "最后一条回复卡该有徽标").toBe("最新")
+  expect(FIXTURE_MODEL.nodes.filter((node) => node.badge).length, "只有一张卡挂徽标").toBe(1)
+  const rows = lines.flatMap((line, index) => (line.includes("最新") ? [index] : []))
+  expect(rows.length, "帧里没有「最新」").toBe(1)
+  // 徽标与标题**同一行**,而那一行的上一行是卡头行(原型把 `.fc-new` 放在 `.fc-row` 里,
+  // 我们那一行要塞 `● 类型 + meta + ▸`,塞不下第三个彩色块,见 NodeCardBody 的注释)。
+  const row = rows[0]!
+  expect(lines[row], "徽标与标题同一行").toContain(last.title.slice(0, 4))
+  expect(lines[row - 1], "徽标行的上一行是卡头行").toContain("● NovaWay")
+  expect(lines[row - 1], "卡头行不该有徽标").not.toContain("最新")
 })
 
 test("流程图画布:连线用带折点的正交折线画出来,终点是箭头", async () => {
@@ -198,6 +279,10 @@ test("流程图画布:每条边的标签都摆上了,每个箭头格子都被画
   const heads = lines.filter((line) => line.includes("│ ●"))
   expect(heads.length).toBeGreaterThan(0)
   for (const head of heads) expect(head, "卡头缺折叠箭头").toContain("▸")
+  // 「本轮结束」那颗药丸**没有**折叠箭头(原型干脆没给它 `.fc-caret`)——所以上面那一条
+  // 只对六类带卡头的卡成立,药丸不在其中。
+  expect(lines.filter((line) => line.includes("│ ● 本轮结束"))).toEqual([])
+  expect(lines.filter((line) => line.includes("⏹ 本轮结束")).length).toBe(2)
 })
 
 // ---------- C1:关掉动画 = 终态,不是「不揭示」 ----------
@@ -248,7 +333,10 @@ test("流程图画布:展开的详情框真的折成多行,不是 1 行字配 5 
     const joined = detailRows.map(inner).join("")
     expect(joined).toContain("读了")
     expect(joined).toContain("定位到")
-    expect(joined).toContain("轮询")
+    expect(joined).toContain("transition")
+    // 正文按「框里一共放得下多少列」截断,而框宽是**那张卡**的卡内可用列数(见 detailColumns),
+    // 所以断言只看预算之内的那一段 —— 超出预算的正文在模型侧就已经被截掉了,帧上当然找不到。
+    expect(joined.length, "详情正文没有超出预算").toBeLessThanOrEqual(DETAIL_ROWS * nodeContentColumns("subagent"))
   } finally {
     app.renderer.destroy()
   }
@@ -264,7 +352,9 @@ test("流程图画布:展开的详情框真的折成多行,不是 1 行字配 5 
 // 它落在目标卡边界上那一格;只要有一格不见了,就是那条边被切断了 —— 不管它是被面板吞掉、
 // 还是被后面的边盖掉、还是算错了坐标。
 test("流程图画布:展开某个节点之后,每条边的箭头格子仍然可见", async () => {
-  const app = await mount(96, 64, { reveal: false })
+  // 高度给 80:展开会把**整条行带**撑高 DETAIL_ROWS 行,后面每一行带跟着下移 ——
+  // 64 行的视口里最后一轮的卡片已经被裁到画面外,「每一格箭头都看得见」这句话就没法验了。
+  const app = await mount(96, 80, { reveal: false })
   try {
     const lines = await settled(app, "第 2 轮")
     const head = lines.findIndex((line) => line.includes("用户输入"))
@@ -279,8 +369,8 @@ test("流程图画布:展开某个节点之后,每条边的箭头格子仍然可
     }
     expect(opened).toContain("▾")
     const after = opened.split("\n").map((line) => line.replace(/\s+$/, ""))
-    // 视口 96 − 6 = 90 列,与渲染时算布局用的宽度一致。
-    const layout = layoutNodes(FIXTURE_MODEL.nodes, 90, { expandedId: "n:msg_1" })
+    // 视口 94 列,与渲染时算布局用的宽度一致(VIEWPORT)。
+    const layout = layoutNodes(FIXTURE_MODEL.nodes, VIEWPORT, { expandedId: "n:msg_1" })
     const missing = [...arrowCells(FIXTURE_MODEL, layout)].filter((key) => {
       const [x, y] = key.split(":").map(Number)
       const char = frameCell(after, y + CANVAS_OFFSET_Y, x)
@@ -374,10 +464,12 @@ test("流程图画布:空会话说清为什么空,不画一片空白", async () 
 
 // ---------- M9:常见宽度必须排得下两列 ----------
 //
-// 视口 = 盒子宽 − 2(竖滚动条那一块:`paddingLeft: 1` + 轨道)。两列行带要
-// LEFT_MARGIN + COLUMN_PITCH + NODE_WIDTH = 74 列,所以 80 列终端(视口 78)放得下两列还余 4 列;
-// 120 列(视口 118)放得下三列(2 + 44×2 + 28 = 118,刚好)。
-// 三列在 80 列上是放不下的(75 > 78 之前那版按终端宽 − 6 算也只有 74,刚好塞两列)。
+// 视口 = 盒子宽 − 2(竖滚动条那一块:`paddingLeft: 1` + 轨道)。新步距是
+// COLUMN_PITCH = 最宽的卡(24) + 走廊(16) = 40,所以两列要
+// LEFT_MARGIN + COLUMN_PITCH + MAX_NODE_WIDTH = 66 列 —— 80 列终端(视口 78)排两列余 12 列。
+// 三列要视口 ≥ 106:120 列终端(视口 114)刚好排下三列,而三列的内容宽
+// 2 + 2×40 + 24 + 1 = 107 ≤ 114,不必横向滚。**诚实的上限是三列**:四列要 147 列内容宽,
+// 只有 ≥ 150 列的终端才装得下(见 layout 的 bandColumns 注释)。
 test("流程图画布:80 列排下两列,120 列排下三列,卡片都在画面内", async () => {
   const narrow = await render(80, 60, { reveal: false })
   const wide = await render(120, 60, { reveal: false })
@@ -385,21 +477,27 @@ test("流程图画布:80 列排下两列,120 列排下三列,卡片都在画面�
     [80, narrow],
     [120, wide],
   ] as const) {
-    const cards = lines.filter((line) => line.includes("╭") && line.includes("╮"))
-    expect(cards.length, `${width} 列应有节点卡`).toBeGreaterThan(0)
-    for (const row of cards) {
-      expect(Locale.displayWidth(row), `${width} 列的卡片行`).toBeLessThanOrEqual(width)
-    }
-    // 每一列卡片的顶边框都完整:`╭` + 26 个 `─` + `╮`。
-    // 逐列量而不是逐行找 `indexOf` —— 连线折角也用 `╭ ╮`,`indexOf` 会点到折角上去。
-    const columns = cardBorderColumns(lines)
-    expect(columns.length, `${width} 列的卡片列`).toBeGreaterThan(0)
-    for (const column of columns) {
-      const row = lines.find((line) => lineColumns(line)[column] === "╭")
-      if (!row) throw new Error(`${width} 列第 ${column} 列没有卡顶边框`)
+    const viewport = width - 2
+    const layout = layoutNodes(FIXTURE_MODEL.nodes, viewport)
+    let checked = 0
+    for (const node of layout.nodes) {
+      const row = lines[node.rect.y + CANVAS_OFFSET_Y]
+      if (!row) continue
+      // 右边被横向裁掉的卡只量左沿那一段(见下面那句「卡片都在画面内」)。
+      expect(lineColumns(row)[node.rect.x], `${node.id} 的卡顶边框`).toBe("╭")
+      if (node.rect.x + node.rect.width - 1 >= viewport) continue
+      checked += 1
       const cells = lineColumns(row)
-      expect(cells[column + NODE_WIDTH - 1], `${width} 列第 ${column} 列的卡右边界`).toBe("╮")
-      expect(cells.slice(column + 1, column + NODE_WIDTH - 1).every((cell) => cell === "─")).toBe(true)
+      expect(cells[node.rect.x + node.rect.width - 1], `${node.id} 的卡右边界`).toBe("╮")
+      expect(
+        cells.slice(node.rect.x + 1, node.rect.x + node.rect.width - 1).every((cell) => cell === "─"),
+        `${node.id} 的顶边框`,
+      ).toBe(true)
+    }
+    expect(checked, `${width} 列一张完整卡片都没量到`).toBeGreaterThan(4)
+    // 卡片行整体不超宽。
+    for (const row of lines.filter((line) => line.includes("╭") && line.includes("╮"))) {
+      expect(Locale.displayWidth(row), `${width} 列的卡片行`).toBeLessThanOrEqual(width)
     }
   }
   // 列数按**卡头行**数:右侧被横向裁掉的卡(60 列那一档)卡头仍看得见,所以仍然算一列。
@@ -415,42 +513,55 @@ test("流程图画布:80 列排下两列,120 列排下三列,卡片都在画面�
 // 30 列侧栏只剩 46 列 —— 画布却按 74 列排布,右边那一整列卡片直接被裁掉,而且 scrollbox
 // 没开横向滚动,那一列**根本够不着**。这就是「右侧节点被截断」。
 //
-// 这里把盒子宽度显式压到 50 列(视口 48 ≥ 44 = 一张卡 + 一条走廊,所以仍是两列)复现那一幕,
-// 再钉住两件事:内容宽度是**图自己的宽度**(两列行带 = 75 列);横向滚过去右边那列真的出现。
+// 这里把盒子宽度显式压到 50 列(视口 48 ≥ 40 = 一张最宽的卡 + 一条走廊,所以仍是两列)
+// 复现那一幕,再钉住两件事:内容宽度是**图自己的宽度**;横向滚过去右边那列真的出现。
 const SIDEBAR_BOX = 50
 const SIDEBAR_VIEWPORT = SIDEBAR_BOX - 2
 
 async function mountNarrowBox() {
   let handed: ScrollBoxRenderable | undefined
-  const app = await mount(120, 40, { reveal: false, box: SIDEBAR_BOX, onScrollBox: (box) => (handed = box) })
+  // 高度给 80:节点卡高按类型在 4~7 行之间变之后,两列排布下整张图有 70 行上下,
+  // 40 行视口里 `第 2 轮` 那条分隔线已经在画面外了。
+  const app = await mount(120, 80, { reveal: false, box: SIDEBAR_BOX, onScrollBox: (box) => (handed = box) })
   // 等画面稳定:画布的取宽是**量自己盒子**得到的,首帧 yoga 还没落定,那之前走的是
   // 「终端宽 − 6」那一档兜底(见 canvas 的 viewportWidth)。不等到稳定就会量到兜底值。
   const lines = await settled(app, "第 2 轮")
   return { app, handed: handed!, lines }
 }
 
-/** 右边那一列卡片的**右边框**那一列(两列行带的第二列:46 + 28 − 1 = 73 列)。 */
-const RIGHT_BORDER = LEFT_MARGIN + COLUMN_PITCH + NODE_WIDTH - 1
+/**
+ * 右边那一列卡片的**右边框**那一列。
+ *
+ * 列 x 是从 `columnWidths`(每一列在整幅图上最宽的那张卡)推出来的,所以右边框那一列要**算**,
+ * 不能写死 —— 第二列的列锚是 `LEFT_MARGIN + columnWidths[0] + GAP_X`。
+ */
+function rightBorderColumn(layout: ReturnType<typeof layoutNodes>, kind: "plan" | "edit") {
+  const column = columnX(layout, 1)
+  const node = layout.nodes.find((item) => item.rect.x === column && item.kind === kind)!
+  return { column, border: column + nodeSize(kind).width - 1, top: node.rect.y }
+}
 
 test("流程图画布:盒子比终端窄很多时按**内容**宽度排布(而不是被视口裁掉)", async () => {
   const { app, handed, lines } = await mountNarrowBox()
   try {
     const layout = layoutNodes(FIXTURE_MODEL.nodes, SIDEBAR_VIEWPORT)
-    expect(new Set(layout.nodes.map((node) => node.rect.x)).size, "50 列盒子仍应排两列").toBe(2)
-    expect(layout.width).toBe(LEFT_MARGIN + COLUMN_PITCH + NODE_WIDTH + RIGHT_MARGIN)
+    const columns = gridLines(layout.nodes.map((node) => node.rect.x))
+    expect(columns.length, "50 列盒子仍应排两列").toBe(2)
+    expect(layout.width).toBeLessThanOrEqual(LEFT_MARGIN + COLUMN_PITCH + MAX_NODE_WIDTH + RIGHT_MARGIN)
+    expect(layout.width).toBeGreaterThan(SIDEBAR_VIEWPORT)
     // scrollbox 的内容比视口宽 —— 差出来的那一截就是横向滚动范围。
     expect(handed.scrollWidth, "内容宽度应是图自己的宽度").toBe(layout.width)
     expect(handed.scrollWidth).toBeGreaterThan(handed.viewport.width)
     // 右边那一列卡片的右边框初始落在画面之外(这正是被截断的那一幕),滚到最右才看得见。
     // 注意横向滚动是把内容往左搬,所以取帧时列号要减掉 scrollLeft。
-    const top = layout.nodes.find((node) => node.rect.x === LEFT_MARGIN + COLUMN_PITCH)!.rect.y
-    expect(frameCell(lines, top + 1 + CANVAS_OFFSET_Y, RIGHT_BORDER), "未滚动时右边框被裁掉").not.toBe("│")
+    const { border, top } = rightBorderColumn(layout, "plan")
+    expect(frameCell(lines, top + 1 + CANVAS_OFFSET_Y, border), "未滚动时右边框被裁掉").not.toBe("│")
     handed.scrollTo({ x: handed.scrollWidth, y: handed.scrollTop })
     expect(handed.scrollLeft).toBe(handed.scrollWidth - handed.viewport.width)
     await app.renderOnce()
-    expect(
-      frameCell(app.captureCharFrame().split("\n"), top + 1 + CANVAS_OFFSET_Y, RIGHT_BORDER - handed.scrollLeft),
-    ).toBe("│")
+    expect(frameCell(app.captureCharFrame().split("\n"), top + 1 + CANVAS_OFFSET_Y, border - handed.scrollLeft)).toBe(
+      "│",
+    )
   } finally {
     app.renderer.destroy()
   }
@@ -487,33 +598,34 @@ test("流程图画布:滚动容器两轴都真的能滚(翻页/换行命令走�
 })
 
 // 40 / 60 / 80 列各自的降级形态。判据是**帧里真的有几列卡片**,不是布局函数返回什么。
+// 40 列那一档单列排布,图有 100 行上下,所以标记换成第 1 轮的卡头而不是 `第 2 轮`。
 test("流程图画布:40 列退化成单列,60 与 80 列都是两列", async () => {
-  for (const [width, columns] of [
-    [40, 1],
-    [60, 2],
-    [80, 2],
+  for (const [width, height, columns, want] of [
+    [40, 130, 1, "用户输入"],
+    [60, 64, 2, "第 2 轮"],
+    [80, 64, 2, "第 2 轮"],
   ] as const) {
-    const lines = await render(width, 60, { reveal: false })
+    const lines = await render(width, height, { reveal: false }, want)
     expect(distinctCardColumns(lines), `${width} 列应有 ${columns} 列卡片`).toBe(columns)
   }
 })
 
-// 60 列:两列行带 75 列 > 视口,右边那一列被切掉一截,但差出来的那一截能横向滚过去。
+// 60 列:两列行带 66 列 > 视口 58,右边那一列被切掉一截,但差出来的那一截能横向滚过去。
 test("流程图画布:60 列下第二列被切掉右边框,横向滚过去就完整了", async () => {
   let handed: ScrollBoxRenderable | undefined
-  const app = await mount(60, 40, { reveal: false, onScrollBox: (box) => (handed = box) })
+  const app = await mount(60, 80, { reveal: false, onScrollBox: (box) => (handed = box) })
   try {
     const lines = await settled(app, "第 2 轮")
     const layout = layoutNodes(FIXTURE_MODEL.nodes, 58)
-    expect(handed!.scrollWidth).toBe(LEFT_MARGIN + COLUMN_PITCH + NODE_WIDTH + RIGHT_MARGIN)
+    expect(handed!.scrollWidth).toBe(layout.width)
     expect(handed!.scrollWidth).toBeGreaterThan(handed!.viewport.width)
-    const top = layout.nodes.find((node) => node.rect.x === LEFT_MARGIN + COLUMN_PITCH)!.rect.y
-    expect(frameCell(lines, top + 1 + CANVAS_OFFSET_Y, RIGHT_BORDER), "未滚动时右边框被裁掉").not.toBe("│")
+    const { border, top } = rightBorderColumn(layout, "plan")
+    expect(frameCell(lines, top + 1 + CANVAS_OFFSET_Y, border), "未滚动时右边框被裁掉").not.toBe("│")
     handed!.scrollTo({ x: handed!.scrollWidth, y: 0 })
     await app.renderOnce()
-    expect(
-      frameCell(app.captureCharFrame().split("\n"), top + 1 + CANVAS_OFFSET_Y, RIGHT_BORDER - handed!.scrollLeft),
-    ).toBe("│")
+    expect(frameCell(app.captureCharFrame().split("\n"), top + 1 + CANVAS_OFFSET_Y, border - handed!.scrollLeft)).toBe(
+      "│",
+    )
   } finally {
     app.renderer.destroy()
   }
@@ -525,9 +637,14 @@ test("流程图画布:60 列下第二列被切掉右边框,横向滚过去就完
 // (见 canvas.tsx 的注释)。测试这一侧对应 `createMockMouse` 的 `pressDown` / `moveTo` /
 // `release` —— 按住时 `moveTo` 发的是 drag 事件,和真终端一模一样。
 //
-// 屏幕坐标与画布坐标的换算:96 列下画布内容 75 列 < 视口 90 列,所以**没有滚动**,
+// 屏幕坐标与画布坐标的换算:96 列下画布内容 67 列 < 视口 94 列,所以**没有滚动**,
 // 画布第 x 列就是帧第 x 列、第 y 行就是帧第 y + CANVAS_OFFSET_Y 行(READY 哨兵占掉第 0 行)。
-const VIEWPORT = 96 - 2 - 2
+//
+// **视口 = 终端宽 − 2**:那 2 列是竖滚动条那一块(`paddingLeft: 1` + 轨道,见 canvas 的
+// SCROLLBAR_COLUMNS)。测试里凡是拿布局结果去对帧的地方,都必须用同一个数 —— 上一版这里
+// 写的是 `96 − 2 − 2`,于是「卡片的真实高度」那条拿 92 列的布局去对 94 列的帧,列数都不同,
+// 对出来的是另一张图的坐标。
+const VIEWPORT = 96 - 2
 
 /** 一张卡在帧里的那一格(用画布坐标)。 */
 function cellAt(app: { captureCharFrame: () => string }, canvasY: number, canvasX: number) {
@@ -542,19 +659,54 @@ function headRow(app: { captureCharFrame: () => string }, kind: string, from = 0
     .findIndex((line, index) => index >= from && line.includes(`│ ● ${kind}`))
 }
 
+/**
+ * 把一张卡拖到「它右边那一列上、离它最近的一个**合法**落点」—— 与 flow-layout.test 里那份
+ * `nearestEmptyAnchor` 同一套判据(snapDrag 会给哪一种落点,见 layout 的 snapDrag)。
+ * 列 x 从 `columnWidths` 推出来,所以「右边那一列」只能算,不能写死。
+ */
+function dropTarget(layout: ReturnType<typeof layoutNodes>, id: string) {
+  const card = layout.nodes.find((item) => item.id === id)!
+  const occupied = layout.nodes.flatMap((node) => (node.detailRect ? [node.rect, node.detailRect] : [node.rect]))
+  const others = occupied.filter((rect) => !(rect.x === card.rect.x && rect.y === card.rect.y))
+  // 列 x 从 columnWidths 累加出来,所以「右边那一列」是算出来的(见 layout 的 layoutNodes)。
+  const slot = layout.columnWidths.findIndex((_, index) => columnX(layout, index) === card.rect.x)
+  const column = columnX(layout, slot + 1)
+  const found = layout.anchors
+    .filter(
+      (anchor) =>
+        anchor.x === column &&
+        anchor.y !== card.rect.y &&
+        anchor.y + card.rect.height <= anchor.bandBottom &&
+        !others.some(
+          (rect) =>
+            rect.x < anchor.x + card.rect.width &&
+            anchor.x < rect.x + rect.width &&
+            rect.y < anchor.y + card.rect.height &&
+            anchor.y < rect.y + rect.height,
+        ),
+    )
+    .toSorted((a, b) => Math.abs(a.y - card.rect.y) - Math.abs(b.y - card.rect.y))
+    .at(0)
+  if (!found) throw new Error(`${id} 右边那一列上没有合法落点`)
+  return { x: found.x, y: found.y }
+}
+
 test("流程图画布:按住拖动把节点卡挪到网格锚点上,连线跟着重画", async () => {
   const seen: Record<string, { x: number; y: number }>[] = []
   const app = await mount(96, 64, { reveal: false, onOverrides: (value) => seen.push(value) })
   try {
     await settled(app, "第 2 轮")
-    // 拿「工具调用」那张卡(fixture 里的第一个工具节点):它自动摆在 (2, 7),右边第二列的
-    // (46, 14) 是同一轮里一个空着的格子 —— 拖过去正好落在网格上。
+    // 拿「工具调用」那张卡(fixture 里的第一个工具节点):它自动摆在第 0 列,右边那一列上
+    // 有一个空着的行锚 —— 拖过去正好落在网格上。
     const node = FIXTURE_MODEL.nodes.find((item) => item.id === "n:pr_3")!
-    const from = layoutNodes(FIXTURE_MODEL.nodes, VIEWPORT).nodes.find((item) => item.id === node.id)!
-    const target = { x: from.rect.x + COLUMN_PITCH, y: from.rect.y + NODE_HEIGHT + 3 }
-    expect(from.rect).toEqual({ x: LEFT_MARGIN, y: 7, width: NODE_WIDTH, height: NODE_HEIGHT })
+    const layout = layoutNodes(FIXTURE_MODEL.nodes, VIEWPORT)
+    const from = layout.nodes.find((item) => item.id === node.id)!
+    const target = dropTarget(layout, "n:pr_3")
+    // 卡宽按类型在变,所以位置与尺寸都从布局里读,不写死。
+    expect(from.rect).toEqual({ x: LEFT_MARGIN, y: 9, width: nodeSize("tool").width, height: nodeSize("tool").height })
+    expect(target.x).toBe(LEFT_MARGIN + layout.columnWidths[0]! + GAP_X)
     // 按下之前:卡在原来的位置,箭头也在原来的格子上。
-    const before = arrowCells(FIXTURE_MODEL, layoutNodes(FIXTURE_MODEL.nodes, VIEWPORT))
+    const before = arrowCells(FIXTURE_MODEL, layout)
     expect(cellAt(app, from.rect.y + 1, from.rect.x + 2), "拖之前卡头在原位").toBe("●")
 
     const pressRow = from.rect.y + 1 + CANVAS_OFFSET_Y
@@ -611,7 +763,8 @@ test("流程图画布:位移不足一格不算拖(原地按下松开仍然展开
   const app = await mount(96, 64, { reveal: false })
   try {
     await settled(app, "第 2 轮")
-    const node = layoutNodes(FIXTURE_MODEL.nodes, VIEWPORT).nodes.find((item) => item.id === "n:pr_3")!
+    const layout = layoutNodes(FIXTURE_MODEL.nodes, VIEWPORT)
+    const node = layout.nodes.find((item) => item.id === "n:pr_3")!
     const pressRow = node.rect.y + 1 + CANVAS_OFFSET_Y
 
     // 按下 → 拖动半格 → 松手:既没有展开详情,卡也没有挪(吸附回原来的锚点)。
@@ -631,9 +784,10 @@ test("流程图画布:位移不足一格不算拖(原地按下松开仍然展开
     expect(frame.includes("▾"), "半格位移不该顺手展开详情").toBe(false)
 
     // 真的拖一整步(一个列步距)过去:挪了,但**不展开**详情。
+    const shift = layout.columnWidths[0]! + GAP_X
     await app.mockMouse.pressDown(node.rect.x + 8, pressRow)
-    await app.mockMouse.moveTo(node.rect.x + 8 + COLUMN_PITCH, pressRow)
-    await app.mockMouse.release(node.rect.x + 8 + COLUMN_PITCH, pressRow)
+    await app.mockMouse.moveTo(node.rect.x + 8 + shift, pressRow)
+    await app.mockMouse.release(node.rect.x + 8 + shift, pressRow)
     for (let attempt = 0; attempt < 40; attempt++) {
       await app.renderOnce()
       frame = app.captureCharFrame()
@@ -666,9 +820,10 @@ test("流程图画布:拖落点按网格吸附,只挪那一张卡", async () => 
     const layout = layoutNodes(FIXTURE_MODEL.nodes, VIEWPORT)
     const node = layout.nodes.find((item) => item.id === "n:pr_3")!
     const pressRow = node.rect.y + 1 + CANVAS_OFFSET_Y
+    const shift = layout.columnWidths[0]! + GAP_X
     const headBefore = cardColumns(app.captureCharFrame().split("\n"))
 
-    // 位移不到半个列步距(44 / 2 = 22 列):最近的锚点仍然是**自己**这一格,于是哪也不去。
+    // 位移不到半个列步距(40 / 2 = 20 列):最近的锚点仍然是**自己**这一格,于是哪也不去。
     // 这一档钉的是「吸附到最近的网格线」而不是「一动手就换列」。
     await app.mockMouse.pressDown(node.rect.x + 8, pressRow)
     await app.mockMouse.moveTo(node.rect.x + 8 + 10, pressRow + 2)
@@ -676,22 +831,22 @@ test("流程图画布:拖落点按网格吸附,只挪那一张卡", async () => 
     await app.renderOnce()
     expect(frameCell(app.captureCharFrame().split("\n"), node.rect.y + 1 + CANVAS_OFFSET_Y, node.rect.x + 2)).toBe("●")
 
-    // 位移够一整步:落到隔壁列锚那一行的**最近空锚点**。(46, 7) 被「编辑文件」占着,
-    // 于是最近的是同列下一行的 (46, 14) —— 落点仍然是网格,不是随手放的位置。
+    // 位移够一整步:落到隔壁列锚那一行的**最近合法锚点**。落点仍然是网格,不是随手放的位置 ——
+    // 具体落哪一格由 snapDrag 判(见上面那份 dropTarget),所以这里把它算出来再对账。
+    const target = dropTarget(layout, "n:pr_3")
     await app.mockMouse.pressDown(node.rect.x + 8, pressRow)
-    await app.mockMouse.moveTo(node.rect.x + 8 + COLUMN_PITCH, pressRow + 1)
-    await app.mockMouse.release(node.rect.x + 8 + COLUMN_PITCH, pressRow + 1)
-    const landedY = node.rect.y + NODE_HEIGHT + GAP_Y
+    await app.mockMouse.moveTo(node.rect.x + 8 + shift, pressRow + 1)
+    await app.mockMouse.release(node.rect.x + 8 + shift, pressRow + 1)
     let frame = ""
     for (let attempt = 0; attempt < 40; attempt++) {
       await app.renderOnce()
       frame = app.captureCharFrame()
-      if (frameCell(frame.split("\n"), landedY + CANVAS_OFFSET_Y, node.rect.x + COLUMN_PITCH) === "╭") break
+      if (frameCell(frame.split("\n"), target.y + CANVAS_OFFSET_Y, target.x) === "╭") break
       await new Promise((resolve) => setTimeout(resolve, 25))
     }
-    const cells = lineColumns(frame.split("\n")[landedY + CANVAS_OFFSET_Y] ?? "")
-    expect(cells[node.rect.x + COLUMN_PITCH], "落在了隔壁列锚的空锚点上").toBe("╭")
-    expect(cells[node.rect.x + COLUMN_PITCH + NODE_WIDTH - 1], "卡右边界也在那一格").toBe("╮")
+    const cells = lineColumns(frame.split("\n")[target.y + CANVAS_OFFSET_Y] ?? "")
+    expect(cells[target.x], "落在了隔壁列锚的合法锚点上").toBe("╭")
+    expect(cells[target.x + nodeSize("tool").width - 1], "卡右边界也在那一格").toBe("╮")
     // 别的列一列没少(挪的是这张卡,不是整张图重排)。
     expect(cardColumns(frame.split("\n"))).toEqual(headBefore)
   } finally {
@@ -711,11 +866,13 @@ test("流程图画布:切会话之后,已经不存在的那些落点从表里消
   })
   try {
     await settled(app, "第 2 轮")
-    const node = layoutNodes(FIXTURE_MODEL.nodes, VIEWPORT).nodes.find((item) => item.id === "n:pr_3")!
+    const layout = layoutNodes(FIXTURE_MODEL.nodes, VIEWPORT)
+    const node = layout.nodes.find((item) => item.id === "n:pr_3")!
     const pressRow = node.rect.y + 1 + CANVAS_OFFSET_Y
+    const shift = layout.columnWidths[0]! + GAP_X
     await app.mockMouse.pressDown(node.rect.x + 8, pressRow)
-    await app.mockMouse.moveTo(node.rect.x + 8 + COLUMN_PITCH, pressRow + 1)
-    await app.mockMouse.release(node.rect.x + 8 + COLUMN_PITCH, pressRow + 1)
+    await app.mockMouse.moveTo(node.rect.x + 8 + shift, pressRow + 1)
+    await app.mockMouse.release(node.rect.x + 8 + shift, pressRow + 1)
     await app.renderOnce()
     expect(Object.keys(seen.at(-1)!)).toEqual(["n:pr_3"])
 

@@ -10,27 +10,38 @@ import type { Message, Part } from "@novaway/sdk-v2-latest/v2"
 import {
   bandColumns,
   buildFlowModel,
+  CARD_CELL_PX_HEIGHT,
+  CARD_CELL_PX_WIDTH,
   corridorColumn,
   CORNER_CHARS,
   CORRIDOR_LANE,
   edgeRoute,
+  FLOW_NODE_KINDS,
   isRightward,
   layoutNodes,
   COLUMN_PITCH,
   GAP_X,
   GAP_Y,
+  LATEST_BADGE,
   LEFT_MARGIN,
   LABEL_COLUMNS,
+  MAX_NODE_HEIGHT,
+  MAX_NODE_WIDTH,
   MAX_ROUTE_TURNS,
   MIN_BAND_COLUMNS,
   MIN_BAND_VIEWPORT,
-  NODE_CONTENT_COLUMNS,
-  NODE_HEIGHT,
-  NODE_WIDTH,
+  NODE_SIZE_PX,
+  nodeContentColumns,
+  nodeSize,
+  nodeTitleColumns,
+  nodeTitleRows,
   RIGHT_MARGIN,
+  routeSpanX,
   routeTurns,
   SEPARATOR_ROWS,
   snapDrag,
+  type FlowAnchor,
+  type FlowLayout,
   type FlowNode,
   type FlowRect,
 } from "../../src/component/flow/layout"
@@ -62,7 +73,7 @@ import {
 const MODEL = FIXTURE_MODEL
 const MESSAGES: Message[] = FIXTURE_MESSAGES
 const PARTS: Record<string, Part[]> = FIXTURE_PARTS
-// 76 = 两列一行带:74 是 80 列终端扣掉内边距与滚动条之后的视口宽,76 留一点余量。
+// 76 = 两列一行带:66 是 80 列终端扣掉内边距与滚动条之后的视口宽(74),76 留一点余量。
 const LAYOUT = layoutNodes(MODEL.nodes, 76)
 
 function rectOf(id: string): FlowRect {
@@ -97,8 +108,68 @@ test("流程图布局:本文件没有重复声明的用例", async () => {
 
 // ---------- 几何不变量 ----------
 // 几何不变量(无格压卡 / 步长为 1 / 无重复格 / 端点贴边界 / 标签位不压卡 / 矩形不重叠
-// / 形状至多拐两次 / 走廊形状 / 标签不压别的边 —— 共九条,清单见 fixture 的 flowInvariants)
+// / 形状至多拐两次 / 走廊形状 / 标签不压别的边 / 尺寸按类型 / 走廊够宽 —— 共十条,
+// 清单见 fixture 的 flowInvariants)
 // 收在 fixture 的 flowInvariants 里,下面这些用例只负责**在哪些组合上**跑它。
+
+/**
+ * 尺寸表:逐类对照原型 card-design-v7.html 里那些行内 width/height。
+ *
+ * 这一条是整个「节点按类型区分尺寸」的地基 —— 表里的数字一旦被人顺手改成一个「整齐一点」
+ * 的值(比如七类都 23 列),这条会立刻指出它与原型的哪一行对不上。
+ */
+test("流程图尺寸:每一类节点的 px 都抄自原型那一行,换算成格与行", () => {
+  expect(NODE_SIZE_PX).toEqual({
+    user: { width: 168, height: 74 },
+    plan: { width: 176, height: 96 },
+    tool: { width: 170, height: 84 },
+    subagent: { width: 170, height: 92 },
+    edit: { width: 168, height: 110 },
+    reply: { width: 176, height: 92 },
+    fend: { width: 150, height: 68 },
+  })
+  // 换算本身:宽 = ⌈px / 7.5⌉(7.5 = 0.6 em × 12.5px,JetBrains Mono 在 .fc-head 字号下的字宽),
+  // 高 = 2 + round((px − 25) / 18.75)(18.75 = 1.5 × 12.5 = line-height,25 = 外框的
+  // padding 11×2 + border 1.5×2,在终端里就是那两行边框)。
+  expect(CARD_CELL_PX_WIDTH).toBe(7.5)
+  expect(CARD_CELL_PX_HEIGHT).toBe(18.75)
+  expect(FLOW_NODE_KINDS.map((kind) => [kind, nodeSize(kind).width, nodeSize(kind).height])).toEqual([
+    ["user", 23, 5],
+    ["plan", 24, 6],
+    ["tool", 23, 5],
+    ["subagent", 23, 6],
+    ["edit", 23, 7],
+    ["reply", 24, 6],
+    ["fend", 20, 4],
+  ])
+  expect(MAX_NODE_WIDTH).toBe(24)
+  expect(MAX_NODE_HEIGHT).toBe(7)
+})
+
+test("流程图尺寸:最高的确实比最矮的高,「本轮结束」确实更窄更短", () => {
+  const heights = FLOW_NODE_KINDS.map((kind) => nodeSize(kind).height)
+  expect(Math.max(...heights), "最高的那一类").toBeGreaterThan(Math.min(...heights))
+  // 原型那 96 px 与 68 px 的差(28 px = 1.5 行)落成了 6 行与 4 行,差 2 行 —— 肉眼可见。
+  expect(nodeSize("plan").height - nodeSize("fend").height).toBe(2)
+  expect(nodeSize("plan").height).toBeGreaterThan(nodeSize("fend").height)
+  // 最高的是「编辑文件」(原型 n5 是 110 px 那一张),最矮的是「本轮结束」(68 px)。
+  expect(nodeSize("edit").height).toBe(MAX_NODE_HEIGHT)
+  expect(nodeSize("fend").height).toBe(Math.min(...heights))
+  // 「本轮结束」比每一类都窄、比除它以外每一类都矮。
+  for (const kind of FLOW_NODE_KINDS.filter((item) => item !== "fend")) {
+    expect(nodeSize("fend").width, `本轮结束(20)该比 ${kind} 窄`).toBeLessThan(nodeSize(kind).width)
+    expect(nodeSize("fend").height, `本轮结束(4)该比 ${kind} 矮`).toBeLessThan(nodeSize(kind).height)
+  }
+  // 卡头那一行装得下:`● 类型 + 4 个 gap + meta + ▸`,最宽的一行是 19 列。
+  for (const kind of FLOW_NODE_KINDS.filter((item) => item !== "fend")) {
+    expect(nodeContentColumns(kind), `${kind} 的卡内列数装不下卡头`).toBeGreaterThanOrEqual(19)
+  }
+  expect(nodeContentColumns("fend")).toBe(17)
+  // 标题行数 = 卡高 − 两行边框 − 一行卡头。
+  expect(nodeTitleRows("edit")).toBe(4)
+  expect(nodeTitleRows("tool")).toBe(2)
+  expect(nodeTitleColumns("reply")).toBe(nodeContentColumns("reply") * 3)
+})
 
 test("流程图布局:任意两个节点矩形都不重叠(含展开详情的节点)", () => {
   const expanded = layoutNodes(MODEL.nodes, 76, { expandedId: "n:pr_3", detailRows: 5 })
@@ -116,15 +187,17 @@ test("流程图布局:任意两个节点矩形都不重叠(含展开详情的节
 })
 
 /**
- * 全部九条不变量在**一整片组合**上都成立。
+ * 全部十条不变量在**一整片组合**上都成立。
  *
  * 这一条是 LEFT_MARGIN 与 GAP_Y 那几段注释的兑现处。并行分支在布局里是同列上下叠放的,
  * 所以「叠放能不能成立」完全取决于列与行带的尺寸组合 —— 而组合数是列数(perRow)× 成员数 ×
- * 行带内最大叠放深度 的乘积,手写断言只可能覆盖其中两三种。这里把宽度从 28 列一路扫到
- * 140 列、并行成员从 1 到 5、逐轮 1 到 4,加上**逐个节点展开**的那一遍,全都跑一遍。
+ * 行带内最大叠放深度 的乘积,手写断言只可能覆盖其中两三种。这里把宽度从最窄的一档一路扫到
+ * 四列那一档(≥ 146 列)、并行成员从 1 到 5、逐轮 1 到 4,加上**逐个节点展开**的那一遍,
+ * 全都跑一遍 —— 节点尺寸按类型变化之后,列 x 与行带高度都是从节点集合里现算的,
+ * 所以这一片组合比固定尺寸那版更容易藏住「高卡与药丸混排」的问题。
  */
-test("流程图布局:九条几何不变量在所有宽度 × 并行规模 × 逐节点展开下都成立", () => {
-  const widths = [NODE_WIDTH, NODE_WIDTH + GAP_X + 1, 74, 76, 80, 96, 114, 140]
+test("流程图布局:十条几何不变量在所有宽度 × 并行规模 × 逐节点展开下都成立", () => {
+  const widths = [MAX_NODE_WIDTH, MIN_BAND_VIEWPORT, MIN_BAND_VIEWPORT + 1, 66, 74, 76, 80, 96, 114, 146, 160]
   const problems: string[] = []
   let checks = 0
   for (const width of widths) {
@@ -163,8 +236,8 @@ test("流程图布局:所有节点都在画布宽度内,画布高度够装下最
 
 // 窄到放不下两列时只能排成一列,但仍然不许重叠。
 test("流程图布局:画布窄于一列 + 一条走廊时退化成单列,仍不重叠", () => {
-  const twoColumns = LEFT_MARGIN + COLUMN_PITCH + NODE_WIDTH
-  for (const width of [NODE_WIDTH, NODE_WIDTH + GAP_X + 1, twoColumns]) {
+  const twoColumns = LEFT_MARGIN + COLUMN_PITCH + MAX_NODE_WIDTH
+  for (const width of [MAX_NODE_WIDTH, MIN_BAND_VIEWPORT + 1, twoColumns]) {
     const layout = layoutNodes(MODEL.nodes, width)
     for (const [index, a] of layout.nodes.entries()) {
       for (const b of layout.nodes.slice(index + 1)) {
@@ -173,12 +246,29 @@ test("流程图布局:画布窄于一列 + 一条走廊时退化成单列,仍不
       }
     }
   }
-  // 走廊的账不能算错:视口宽到放得下两列时是**两列**,而再窄一列(放不下一张卡 + 一条走廊)
-  // 就掉到单列 —— 中间那一档(44~73 列)仍然是两列,多出来的那截由画布的横向滚动承担。
-  const columns = (width: number) => new Set(layoutNodes(MODEL.nodes, width).nodes.map((node) => node.rect.x)).size
-  expect(columns(twoColumns)).toBe(2)
-  expect(columns(MIN_BAND_VIEWPORT)).toBe(2)
-  expect(columns(MIN_BAND_VIEWPORT - 1)).toBe(1)
+  // 走廊的账不能算错:视口宽到放得下两列时是**两列**,而再窄一列(放不下一张最宽的卡 + 一条走廊)
+  // 就掉到单列 —— 中间那一档(40~65 列)仍然是两列,多出来的那截由画布的横向滚动承担。
+  //
+  // **数列数要按行带数,不能按不同的 rect.x 数**:列 x 是从全局列宽表推出来的,而不同行带的
+  // 列数可以不同(这一档末轮只有两列),但同一序号在所有行带里落在**同一个 x** 上。
+  const columns = (width: number) => layoutNodes(MODEL.nodes, width).rows[0]!.top
+  const firstBandColumns = (width: number) => {
+    const layout = layoutNodes(MODEL.nodes, width)
+    const top = columns(width)
+    return new Set(layout.nodes.filter((node) => node.bandTop === top).map((node) => node.rect.x)).size
+  }
+  expect(firstBandColumns(twoColumns)).toBe(2)
+  expect(firstBandColumns(MIN_BAND_VIEWPORT)).toBe(2)
+  expect(firstBandColumns(MIN_BAND_VIEWPORT - 1)).toBe(1)
+  // 所有行带共用同一套列锚 —— 这条是锚点叉积安全的全部前提(见 layoutNodes 里那段注释)。
+  for (const width of [MIN_BAND_VIEWPORT, 66, 76, 118, 146]) {
+    const layout = layoutNodes(MODEL.nodes, width)
+    const xs = gridLines(layout.nodes.map((node) => node.rect.x))
+    for (const row of layout.rows) {
+      const inRow = layout.nodes.filter((node) => node.bandTop === row.top)
+      for (const x of new Set(inRow.map((node) => node.rect.x))) expect(xs, `${width} 列`).toContain(x)
+    }
+  }
 })
 
 // ---------- 行带容量:内容尺寸的算式 ----------
@@ -186,40 +276,78 @@ test("流程图布局:画布窄于一列 + 一条走廊时退化成单列,仍不
 // 这一组把「画布按内容尺寸排布」的算式钉死。用户的原话是「布局宽度是从视口推出来的,
 // 而不是从内容推出来的」,而视口在真实会话里**不是终端宽**:侧栏展开时画布盒子只有
 // `终端宽 − 侧栏宽 − 4`,80 列终端 + 侧栏只剩 46 列。
-test("流程图布局:行带容量至少两列,只有窄到放不下一张卡 + 一条走廊才退化成单列", () => {
-  // 门槛就是「一张卡 + 一条走廊」:NODE_WIDTH + GAP_X = 28 + 16 = 44。
-  expect(MIN_BAND_VIEWPORT).toBe(NODE_WIDTH + GAP_X)
+test("流程图布局:行带容量至少两列,窄到放不下一张最宽的卡 + 一条走廊才退化成单列", () => {
+  // 门槛就是「一张最宽的卡 + 一条走廊」:MAX_NODE_WIDTH + GAP_X = 24 + 16 = 40。
+  expect(MIN_BAND_VIEWPORT).toBe(MAX_NODE_WIDTH + GAP_X)
   expect(MIN_BAND_COLUMNS).toBe(2)
-  // 60 列视口:按「装得下」算只有 1 列(LEFT_MARGIN + COLUMN_PITCH + NODE_WIDTH = 74 > 60),
-  // 但一张卡加一条走廊放得下,所以仍然给两列 —— 多出来那一截靠横向滚动去够,而不是把
+  // 60 列视口:按「装得下」算只有 1 列(⌊(60 + 14) / 40⌋ = 1,而
+  // LEFT_MARGIN + COLUMN_PITCH + MAX_NODE_WIDTH = 2 + 40 + 24 = 66 > 60),
+  // 但一张最宽的卡加一条走廊放得下,所以仍然给两列 —— 多出来那一截靠横向滚动去够,而不是把
   // 并行分支的分叉/收束拉成一条几十行的长蛇。
   expect(bandColumns(60)).toBe(MIN_BAND_COLUMNS)
   expect(bandColumns(MIN_BAND_VIEWPORT)).toBe(MIN_BAND_COLUMNS)
   expect(bandColumns(MIN_BAND_VIEWPORT - 1)).toBe(1)
   expect(bandColumns(20)).toBe(1)
   // 视口够宽时仍然「能放几列放几列」,不被那个下限钉死。
-  expect(bandColumns(74)).toBe(2)
-  expect(bandColumns(LEFT_MARGIN + 2 * COLUMN_PITCH + NODE_WIDTH)).toBe(3)
-  expect(bandColumns(LEFT_MARGIN + 3 * COLUMN_PITCH + NODE_WIDTH)).toBe(4)
+  expect(bandColumns(66)).toBe(2)
+  // 三列:⌊(视口 + 14) / 40⌋ ≥ 3 ⇒ 视口 ≥ 106(110 列终端)。内容宽
+  // 2 + 2×40 + 24 + 1 = 107,所以 110 列终端能整幅放下,不必横向滚。
+  expect(bandColumns(105)).toBe(2)
+  expect(bandColumns(106)).toBe(3)
+  expect(bandColumns(LEFT_MARGIN + 2 * COLUMN_PITCH + MAX_NODE_WIDTH)).toBe(3)
+  // 四列要视口 ≥ 146(150 列终端),内容宽 2 + 3×40 + 24 + 1 = 147 —— 这是诚实的上限。
+  expect(bandColumns(145)).toBe(3)
+  expect(bandColumns(LEFT_MARGIN + 3 * COLUMN_PITCH + MAX_NODE_WIDTH)).toBe(4)
   // 装得下几列的下限永远至少 1(视口 1 列都放不下时也不许算出 0 列)。
   expect(bandColumns(1)).toBe(1)
 })
 
-test("流程图布局:两列行带的画布宽度 = 左侧留白 + 步距 + 卡宽 + 右侧留白,60 列视口下会超出 14 列", () => {
-  const twoColumnWidth = LEFT_MARGIN + COLUMN_PITCH + NODE_WIDTH + RIGHT_MARGIN
-  expect(twoColumnWidth).toBe(2 + 44 + 28 + 1)
+test("流程图布局:两列行带的画布宽度 = 左侧留白 + 步距 + 最宽卡 + 右侧留白,60 列视口下会超出视口", () => {
+  const twoColumnWidth = LEFT_MARGIN + COLUMN_PITCH + MAX_NODE_WIDTH + RIGHT_MARGIN
+  expect(twoColumnWidth).toBe(2 + 40 + 24 + 1)
   const narrow = layoutNodes(MODEL.nodes, 60)
-  expect(new Set(narrow.nodes.map((node) => node.rect.x)).size).toBe(2)
-  expect(narrow.width).toBe(twoColumnWidth)
-  // 内容比视口宽 —— 这一截就是画布横向滚动的那一段(超出的量 = 75 − 60 = 15 列)。
-  expect(narrow.width - 60).toBe(15)
-  // 单列行带:宽度只够一张卡加两侧留白。
+  // **按行带数列**,不按不同的 rect.x 数(列 x 全局共用,见上面那条用例的注释)。
+  const firstBand = narrow.rows[0]!.top
+  expect(new Set(narrow.nodes.filter((node) => node.bandTop === firstBand).map((node) => node.rect.x)).size).toBe(2)
+  // 实际列 x 是从**每一列的数据宽度**推出来的,所以两列行带通常比「列数 × 步距」窄一截。
+  expect(narrow.width).toBeLessThanOrEqual(twoColumnWidth)
+  expect(narrow.width).toBeGreaterThanOrEqual(LEFT_MARGIN + COLUMN_PITCH + MIN_BAND_COLUMNS)
+  // 内容比视口宽 —— 这一截就是画布横向滚动的那一段。
+  expect(narrow.width).toBeGreaterThan(60)
+  // 单列行带:宽度只够一张最宽的卡加两侧留白。
   const single = layoutNodes(MODEL.nodes, MIN_BAND_VIEWPORT - 1)
   expect(new Set(single.nodes.map((node) => node.rect.x)).size).toBe(1)
-  expect(single.width).toBe(LEFT_MARGIN + NODE_WIDTH + RIGHT_MARGIN)
-  // 空画布没有行带,宽度退到「一张卡 + 两侧留白」(canvas 那层还会再取 max(视口, 这个数))。
+  expect(single.width).toBe(LEFT_MARGIN + MAX_NODE_WIDTH + RIGHT_MARGIN)
+  // 空画布没有行带,宽度退到「一张最宽的卡 + 两侧留白」(canvas 那层还会再取 max(视口, 这个数))。
   const blank = layoutNodes([], 60)
-  expect(blank.width).toBe(LEFT_MARGIN + NODE_WIDTH + RIGHT_MARGIN)
+  expect(blank.width).toBe(LEFT_MARGIN + MAX_NODE_WIDTH + RIGHT_MARGIN)
+})
+
+test("流程图布局:列 x 从「每一列在整幅图上最宽的那张卡」推出来,走廊至少 GAP_X", () => {
+  const layout = layoutNodes(MODEL.nodes, 76)
+  // columnWidths[c] = 所有行带的第 c 列里最宽的那张卡。这一档两列都摊到了 24 列
+  // (第 0 列是「NovaWay」,第 1 列是「任务拆解」),所以列距是 24 + 16 = 40。
+  expect(layout.columnWidths).toEqual([nodeSize("reply").width, nodeSize("reply").width])
+  const firstBand = layout.rows[0]!.top
+  const columns = [...new Set(layout.nodes.filter((node) => node.bandTop === firstBand).map((node) => node.rect.x))]
+  expect(columns).toEqual([LEFT_MARGIN, LEFT_MARGIN + layout.columnWidths[0]! + GAP_X])
+  // 走廊宽度由**列宽**决定而不是卡宽,所以「用户输入」(23 列)右边那一列比走廊多空出 1 列 ——
+  // 走廊只会更宽,不会更窄。
+  for (const row of layout.rows) {
+    const inRow = layout.nodes.filter((node) => node.bandTop === row.top)
+    const xs = [...new Set(inRow.map((node) => node.rect.x))].toSorted((a, b) => a - b)
+    for (const [index, x] of xs.entries()) {
+      if (index === 0) continue
+      const widestBefore = Math.max(
+        ...inRow.filter((node) => node.rect.x === xs[index - 1]).map((node) => node.rect.width),
+      )
+      expect(x - (xs[index - 1]! + widestBefore), `第 ${row.round} 轮第 ${index} 列的走廊`).toBeGreaterThanOrEqual(
+        GAP_X,
+      )
+    }
+  }
+  // 第一列左边必须有 LEFT_MARGIN 留出来的那条走廊(绕行边要从那里竖着落进目标卡的顶边)。
+  expect(Math.min(...layout.nodes.map((node) => node.rect.x))).toBe(LEFT_MARGIN)
 })
 
 // ---------- 节点模型 ----------
@@ -280,7 +408,7 @@ test("流程图模型:没有用户消息的会话也算第 1 轮,空会话是空
   const blank = layoutNodes(empty.nodes, 76)
   expect(blank.nodes).toEqual([])
   expect(blank.height).toBeGreaterThan(0)
-  expect(blank.width).toBeGreaterThanOrEqual(NODE_WIDTH)
+  expect(blank.width).toBeGreaterThanOrEqual(MAX_NODE_WIDTH)
 })
 
 test("流程图模型:meta 是时长或时间,详情能拿到原始正文", () => {
@@ -298,7 +426,7 @@ test("流程图模型:meta 是时长或时间,详情能拿到原始正文", () =
   expect(byId("n:msg_3").title).toBe("再把侧栏动画也优化一下")
 })
 
-test("流程图模型:标题压成一行,超长标题按卡内可用宽度截断", () => {
+test("流程图模型:标题压平,超长标题按**这张卡一共放得下多少列**截断,徽标一起算进去", () => {
   const long = buildFlowModel({
     messages: [userMessage("m1"), assistantMessage("m2")],
     parts: {
@@ -308,10 +436,31 @@ test("流程图模型:标题压成一行,超长标题按卡内可用宽度截断
   })
   const asked = long.nodes.find((node) => node.kind === "user")!
   expect(asked.title).not.toContain("\n")
-  expect(Locale.displayWidth(asked.title)).toBeLessThanOrEqual(NODE_CONTENT_COLUMNS)
+  expect(Locale.displayWidth(asked.title)).toBeLessThanOrEqual(nodeTitleColumns("user"))
   const answered = long.nodes.find((node) => node.kind === "reply")!
-  expect(Locale.displayWidth(answered.title)).toBe(NODE_CONTENT_COLUMNS)
+  // 标题的预算 = 行数 × 每行列数,所以高卡的标题比窄卡的长得多(20×2 = 40 对 21×3 = 63)。
+  expect(Locale.displayWidth(answered.title)).toBeLessThanOrEqual(
+    nodeTitleColumns("reply") - Locale.displayWidth(LATEST_BADGE) - 1,
+  )
   expect(answered.title.endsWith("…")).toBe(true)
+  // 「最新」徽标只挂在**最后一条**回复卡上(原型 .fc-new,card-design-v7.html:1054),而且
+  // 连徽标带标题一起也放得进卡内 —— 不重截的话标题会顶到右边框上。
+  expect(answered.badge).toBe(LATEST_BADGE)
+  expect(long.nodes.filter((node) => node.badge !== undefined)).toHaveLength(1)
+  expect(Locale.displayWidth(answered.badge!) + 1 + Locale.displayWidth(answered.title)).toBeLessThanOrEqual(
+    nodeTitleColumns("reply"),
+  )
+  // 更早的回复卡没有徽标。
+  const twoReplies = buildFlowModel({
+    messages: [userMessage("m1"), assistantMessage("m2"), assistantMessage("m3")],
+    parts: {
+      m1: [textPart("m1", "t1", "走起")],
+      m2: [textPart("m2", "t2", "先答一次")],
+      m3: [textPart("m3", "t3", "再答一次")],
+    },
+  })
+  const replies = twoReplies.nodes.filter((node) => node.kind === "reply")
+  expect(replies.map((node) => node.badge)).toEqual([undefined, LATEST_BADGE])
 })
 
 test("流程图模型:多条回复/多段推理各自并成一个节点,否则画布会炸成几十个格子", () => {
@@ -459,28 +608,39 @@ function rowsOf(cells: readonly { y: number }[]) {
  * (card-design-v7.html:966-977),读起来是**一排平行的弧**,正交的等价物就是同一个形状平移。
  *
  * 三件事分开钉:
- *   1. **中线同高**(最常见的一类)就是一条直线,一个折角都没有 —— 原型 n1→n2 也是直的
+ *   1. **中线同高**就是一条直线,一个折角都没有 —— 原型 n1→n2 也是直的
  *      (`M198,73 C232,73 262,74 292,74`,card-design-v7.html:966);
  *   2. **中线不同高**(收束/分叉)才有一个竖段,而且竖段整条都在固定的走廊列上;
  *   3. 竖段的**方向只由几何决定**(目标更低就往下),与这条边是第几条无关 ——
  *      「按边序轮换」正是被删掉的那件事。
+ *
+ * **第 1 条用两个手工矩形验,不用 fixture**:节点卡高按类型在 4~7 行之间变之后,同一行带里
+ * 任意两张卡的中线**几乎不再相等**(奇数高的卡中线偏下、偶数高的偏上),fixture 里已经凑不出
+ * 一对中线同高的相邻卡了 —— 而「中线同高就是一条直线」这条形状契约仍然要有人钉着。
  */
-test("流程图连线:同带右向的边是一条走廊走线,竖段固定在走廊列上、方向只由几何决定", () => {
-  const straight = routeFor("e:n:msg_1→n:pr_2")
-  const source = rectOf("n:msg_1")
-  const midY = source.y + Math.floor(source.height / 2)
-  // 中线同高:一条直线。折点数为 0,拐弯次数也是 0。
-  expect(rowsOf(straight.cells)).toEqual([midY])
-  expect(straight.cells.filter((cell) => CORNER_CHARS.has(cell.ch))).toEqual([])
-  expect(routeTurns(straight.cells)).toBe(0)
-  expect(straight.cells[straight.cells.length - 1]!.ch).toBe("▸")
+test("流程图连线:中线同高的同带右向边就是一条直线,一个折角都没有", () => {
+  // 两张卡同样高(5 行)⇒ 中线同在第 6 行;卡宽取全表最宽那一档,于是走廊正好 GAP_X。
+  const width = MAX_NODE_WIDTH
+  const from: FlowRect = { x: 2, y: 4, width, height: 5 }
+  const to: FlowRect = { x: 2 + width + GAP_X, y: 4, width, height: 5 }
+  const midY = from.y + Math.floor(from.height / 2)
+  const route = edgeRoute(from, to, 0)
+  expect(rowsOf(route.cells)).toEqual([midY])
+  expect(route.cells.filter((cell) => CORNER_CHARS.has(cell.ch))).toEqual([])
+  expect(routeTurns(route.cells)).toBe(0)
+  expect(route.cells[route.cells.length - 1]!.ch).toBe("▸")
+  // 整条铺满两卡之间那一条走廊。
+  expect(routeSpanX(route.cells)).toBe(GAP_X)
+})
 
-  // 中线不同高:一个竖段、两个折角、拐两次;竖段整条都在走廊列上。
+test("流程图连线:同带右向的边是一条走廊走线,竖段固定在走廊列上、方向只由几何决定", () => {
+  // 中线不同高(卡高按类型在变,主力 fixture 里每一对相邻卡的中线都差着至少一行):
+  // 一个竖段、两个折角、拐两次;竖段整条都在走廊列上。
   const merging = routeFor("e:n:pr_4→n:pr_5")
   const from = LAYOUT.nodes.find((node) => node.id === "n:pr_4")!.rect
   const column = corridorColumn(from)
   const fromMidY = from.y + Math.floor(from.height / 2)
-  const toMidY = rectOf("n:pr_5").y + Math.floor(NODE_HEIGHT / 2)
+  const toMidY = rectOf("n:pr_5").y + Math.floor(nodeSize("edit").height / 2)
   const mergeVertical = merging.cells.filter((cell) => cell.ch === "│")
   expect(
     mergeVertical.map((cell) => cell.x),
@@ -538,7 +698,7 @@ test("流程图连线:同带右向的边是一条走廊走线,竖段固定在走
  * 将来谁想「让线再弯一点」,撞红的是这条而不是某条只覆盖主力 fixture 的用例。
  */
 test("流程图连线:每条边至多拐两次(没有回头路),每一档尺寸下都成立", () => {
-  for (const width of [NODE_WIDTH, MIN_BAND_VIEWPORT - 1, 45, 74, 76, 118, 140]) {
+  for (const width of [MAX_NODE_WIDTH, MIN_BAND_VIEWPORT - 1, 45, 66, 76, 118, 146]) {
     const layout = layoutNodes(MODEL.nodes, width)
     for (const { edge, route } of routedEdges(MODEL, layout)) {
       expect(routeTurns(route.cells), `${width} 列:${edge.id}`).toBeLessThanOrEqual(MAX_ROUTE_TURNS)
@@ -583,11 +743,15 @@ test("流程图连线:同带右向走走廊,绕行走出竖-横-竖", () => {
   })
   if (!sameRow) throw new Error("这一版布局里没有同一行的相邻节点")
   const route = routeFor(sameRow.id)
-  // 同带右向:整条都在两卡之间的走廊里,横向正好铺开一条走廊(GAP_X 列)。
-  expect(Math.max(...route.cells.map((cell) => cell.x)) - Math.min(...route.cells.map((cell) => cell.x))).toBe(
-    GAP_X - 1,
-  )
-  expect(routeTurns(route.cells)).toBe(0)
+  // 同带右向:整条都在两卡之间的走廊里,横向正好铺满那一段走廊
+  // (宽度 = `to.x − from.x − from.width`,走廊由**列宽**定,卡比列窄时反而更宽)。
+  const sameFrom = rectOf(sameRow.from)
+  const sameTo = rectOf(sameRow.to)
+  expect(routeSpanX(route.cells)).toBe(sameTo.x - sameFrom.x - sameFrom.width)
+  expect(routeSpanX(route.cells)).toBeGreaterThanOrEqual(GAP_X)
+  // 至多两次拐弯 —— 卡高按类型在变之后同一行带的相邻卡中线不再相等,于是这一档通常是
+  // 「横-竖-横」那个 S 形而不是一条直线(直线那一档由上面那条用例单独钉着)。
+  expect(routeTurns(route.cells)).toBeLessThanOrEqual(MAX_ROUTE_TURNS)
 
   // 绕行边(第 1 轮结束 → 第 2 轮的用户输入)必须走出「横 + 竖」的折线,而且横段整条都在同一条通道行上。
   // 拐弯次数是「至多两次」而不是「正好两次」:出口那一竖有时长度是 0(卡片下沿就贴着通道行),
@@ -662,11 +826,13 @@ test("流程图布局:详情框挂在选中卡正下方,行带同步长高,后�
   const target = expanded.nodes.find((node) => node.id === "n:pr_3")!
   if (!target.detailRect) throw new Error("选中的节点没有详情框")
   expect(target.detailRect.x).toBe(target.rect.x)
-  expect(target.detailRect.y).toBe(target.rect.y + NODE_HEIGHT)
-  expect(target.rect.height).toBe(NODE_HEIGHT)
+  // 详情框挂在**这张卡自己的下沿**之下 —— 卡高按类型在 4~7 行之间变,写死成某个常数
+  // 的话高卡上详情会盖住正文那一行。
+  expect(target.detailRect.y).toBe(target.rect.y + target.rect.height)
+  expect(target.rect.height).toBe(nodeSize("tool").height)
   // 长高的是**它所在的那条行带**(pr_3 在第 1 轮的第二条行带里)。
   const bandOf = (layout: typeof before, node: (typeof before)["nodes"][number]) =>
-    layout.rows.find((row) => row.top === node.rect.y)!
+    layout.rows.find((row) => row.top === node.bandTop)!
   const grown = bandOf(expanded, target).height - bandOf(before, before.nodes.find((n) => n.id === "n:pr_3")!).height
   expect(grown).toBe(5)
   // 别的行带一点没动 —— 展开一张卡不该牵动整张画布的列位。
@@ -684,6 +850,44 @@ function gridLines(values: number[]) {
   return [...new Set(values)].toSorted((a, b) => a - b)
 }
 
+/**
+ * 某个节点所在行带里、它右边那一列的列锚。
+ *
+ * **为什么不能写死**:节点尺寸按类型在变之后,列 x 是**逐列累加**的
+ * (`x[c+1] = x[c] + 本列最宽卡 + GAP_X`,见 layoutNodes),而「本列最宽卡」每条行带都可能不同 ——
+ * 76 列这一档里同一张图就有 41(23 宽的卡起头)与 42(24 宽的卡起头)两个第二列。
+ * 原型那边也是这么画的(n1→n2 差 266 px、n2→n3 差 260 px、n3→n5 差 240 px)。
+ */
+function nextColumnX(layout: FlowLayout, id: string) {
+  const node = layout.nodes.find((item) => item.id === id)!
+  const columns = gridLines(layout.nodes.filter((item) => item.bandTop === node.bandTop).map((item) => item.rect.x))
+  const next = columns.find((x) => x > node.rect.x)
+  if (next === undefined) throw new Error(`${id} 所在行带里没有右边那一列`)
+  return next
+}
+
+/**
+ * 某个节点右侧那一列上、离它最近的**合法**落点。
+ *
+ * 「合法」= snapDrag 会给的那一种(见 layout 的 snapDrag 那五条):不压别人、卡整个关在行带里、
+ * 那一列装得下这张卡。节点尺寸按类型在变之后这三条都要按**那张卡自己的宽高**判 ——
+ * 20 列的药丸与 24 列的卡在旁边,空不空、装不装得下是两回事。
+ */
+function nearestEmptyAnchor(layout: FlowLayout, id: string) {
+  const card = layout.nodes.find((item) => item.id === id)!
+  const others = occupiedRects(layout).filter((rect) => !(rect.x === card.rect.x && rect.y === card.rect.y))
+  const x = nextColumnX(layout, id)
+  const fits = (anchor: FlowAnchor) =>
+    anchor.y + card.rect.height <= anchor.bandBottom &&
+    !others.some((rect) => rectsOverlap({ ...anchor, width: card.rect.width, height: card.rect.height }, rect))
+  const found = layout.anchors
+    .filter((anchor) => anchor.x === x && anchor.y !== card.rect.y && fits(anchor))
+    .toSorted((a, b) => Math.abs(a.y - card.rect.y) - Math.abs(b.y - card.rect.y))
+    .at(0)
+  if (!found) throw new Error(`${id} 右边那一列上没有合法落点`)
+  return { x: found.x, y: found.y }
+}
+
 test("流程图拖拽:锚点是「列锚 × 行首」的叉积,所以拖过去必然与其它卡对齐", () => {
   const layout = layoutNodes(MODEL.nodes, 76)
   const columns = gridLines(layout.nodes.map((node) => node.rect.x))
@@ -692,20 +896,23 @@ test("流程图拖拽:锚点是「列锚 × 行首」的叉积,所以拖过去�
   for (const anchor of layout.anchors) {
     expect(columns, `锚点 x=${anchor.x} 不在列锚上`).toContain(anchor.x)
     expect(rows, `锚点 y=${anchor.y} 不是任何一张卡的顶边`).toContain(anchor.y)
-    expect((anchor.x - LEFT_MARGIN) % COLUMN_PITCH).toBe(0)
+    // 列锚全部落在 LEFT_MARGIN 右边(左边得留出走廊,见 LEFT_MARGIN 的注释)。
+    expect(anchor.x).toBeGreaterThanOrEqual(LEFT_MARGIN)
   }
   // 叉积:列锚 × 行锚,一个不多一个不少。
   expect(layout.anchors.length).toBe(columns.length * rows.length)
-  // 行带信息跟着行走:每个锚点都说得出自己属于哪条行带,而且卡整个待在那条行带里。
+  // 行带信息跟着行走:每个锚点都说得出自己属于哪条行带,而且卡整个待在那条行带里 ——
+  // 判据用**最矮**的那种卡(4 行),任何一种节点都装得下,于是这条对全部七类都成立。
   for (const anchor of layout.anchors) {
     expect(anchor.y).toBeGreaterThanOrEqual(anchor.bandTop)
-    expect(anchor.y + NODE_HEIGHT).toBeLessThanOrEqual(anchor.bandBottom)
+    expect(anchor.y + nodeSize("fend").height).toBeLessThanOrEqual(anchor.bandBottom)
     expect(layout.rows.some((row) => row.top === anchor.bandTop && row.top + row.height === anchor.bandBottom)).toBe(
       true,
     )
   }
   // 拖动不改变锚点表 —— 一张卡被拖走之后,它原来的格子仍然是可停靠的(否则再也拖不回去)。
-  const dragged = layoutNodes(MODEL.nodes, 76, { overrides: { "n:pr_3": { x: 46, y: 14 } } })
+  const target = nearestEmptyAnchor(layout, "n:pr_3")
+  const dragged = layoutNodes(MODEL.nodes, 76, { overrides: { "n:pr_3": target } })
   expect(dragged.anchors).toEqual(layout.anchors)
 })
 
@@ -713,39 +920,92 @@ test("流程图拖拽:落点吸附到最近的空锚点,并夹在画布内容范
   const layout = layoutNodes(MODEL.nodes, 76)
   const card = layout.nodes.find((node) => node.id === "n:pr_3")!
   const others = occupiedRects(layout).filter((rect) => !(rect.x === card.rect.x && rect.y === card.rect.y))
+  // **size 用这张卡自己的尺寸**(23 × 5,「工具调用」),不是全表最宽那一档。
   const context = {
     anchors: layout.anchors,
     blocked: others,
+    columnWidths: layout.columnWidths,
     bounds: { width: layout.width, height: layout.height },
-    size: { width: NODE_WIDTH, height: NODE_HEIGHT },
+    size: { width: card.rect.width, height: card.rect.height },
   }
-  // 落到 (46, 14):x 是列锚(2 → 46,步距 44),y 是行锚,那一格空着。
-  expect(snapDrag({ x: 46, y: 14 }, context)).toEqual({ x: 46, y: 14 })
+  const target = nearestEmptyAnchor(layout, "n:pr_3")
+  expect(snapDrag(target, context)).toEqual(target)
   // 位移不足一步时不动:往右挪一格仍然落在原来的列锚上。
-  expect(snapDrag({ x: card.rect.x + 1, y: card.rect.y }, context)).toEqual({ x: 2, y: 7 })
+  expect(snapDrag({ x: card.rect.x + 1, y: card.rect.y }, context)).toEqual({ x: card.rect.x, y: card.rect.y })
   // 原型那两句 `Math.max(0, Math.min(canvas - card, ox + dx))`:不许拖出画布。
   // 这一档把 blocked 清空,于是判的纯粹是「夹进范围 + 吸到最近锚点」。
   const loose = { ...context, blocked: [] }
   expect(snapDrag({ x: -30, y: -30 }, loose)).toEqual({ x: LEFT_MARGIN, y: 0 })
   const far = snapDrag({ x: 9999, y: 9999 }, loose)!
-  expect(far.x).toBeLessThanOrEqual(layout.width - NODE_WIDTH)
-  expect(far.y).toBeLessThanOrEqual(layout.height - NODE_HEIGHT)
-  // 落点压到别人的卡就退到旁边那个空锚点,而不是叠上去。
-  const onTop = snapDrag({ x: 46, y: 7 }, context)
-  expect(onTop, "(46,7) 那一格被「编辑文件」占着").not.toEqual({ x: 46, y: 7 })
-  expect(layout.anchors.some((anchor) => anchor.x === onTop!.x && anchor.y === onTop!.y)).toBe(true)
+  expect(far.x).toBeLessThanOrEqual(layout.width - card.rect.width)
+  expect(far.y).toBeLessThanOrEqual(layout.height - card.rect.height)
+  // 落点压到别人的卡就退到旁边那个空锚点,而不是叠上去。这一档只要 snapDrag **不给**非法的
+  // 落点就算过(四周全占满时正确答案是 undefined = 原地不动,见下面那一档)。
+  /** 一个落点对这张卡合不合法:卡整个关在行带里,且不压任何别人。 */
+  const legal = (anchor: { x: number; y: number; bandBottom: number }) =>
+    anchor.y + card.rect.height <= anchor.bandBottom &&
+    !others.some((rect) => rectsOverlap({ ...anchor, width: card.rect.width, height: card.rect.height }, rect))
+  const illegalAnchors = layout.anchors.filter((anchor) => !legal(anchor))
+  expect(illegalAnchors.length, "这一版布局里一个非法落点都没有,这一段等于空跑").toBeGreaterThan(0)
+  for (const anchor of illegalAnchors) {
+    const moved = snapDrag({ x: anchor.x, y: anchor.y }, context)
+    if (!moved) continue
+    expect([moved.x, moved.y], `(${anchor.x},${anchor.y}) 非法,却落了回去`).not.toEqual([anchor.x, anchor.y])
+    const landed = layout.anchors.find((item) => item.x === moved.x && item.y === moved.y)
+    expect(landed, "落点不在锚点表里").toBeDefined()
+    expect(legal(landed!), `(${moved.x},${moved.y}) 也不合法`).toBe(true)
+  }
+  // **那一列装不下这张卡时,落点一律不算** —— 列 x 是从 columnWidths 推出来的,一张比那一列
+  // 还宽的卡放进去就会顶进右边那条走廊,把 GAP_X 挤掉几列(见 layout 的 snapDrag)。
+  // 这一档手工造一张表:两列分别是 20 与 24,而手上这张卡 24 列宽。
+  const narrow = snapDrag(
+    { x: 0, y: 0 },
+    {
+      anchors: [
+        { x: 0, y: 0, bandTop: 0, bandBottom: 10 },
+        { x: 36, y: 0, bandTop: 0, bandBottom: 10 },
+      ],
+      blocked: [],
+      columnWidths: [20, 24],
+      bounds: { width: 80, height: 20 },
+      size: { width: 24, height: 4 },
+    },
+  )
+  expect(narrow, "20 列的那一列放不下 24 列的卡").not.toEqual({ x: 0, y: 0 })
+  expect(narrow).toEqual({ x: 36, y: 0 })
+  // **卡探出那条行带时同样不算** —— 行带下沿是绕行边的通道基准,探出去出边那一竖就落在卡自己身上。
+  // 每一行锚只属于一条行带(构造如此),所以这里给两行锚各配一条行带,再拿那条只有 4 行高的。
+  const sticking = snapDrag(
+    { x: 0, y: 20 },
+    {
+      anchors: [
+        { x: 0, y: 0, bandTop: 0, bandBottom: 10 },
+        { x: 44, y: 0, bandTop: 0, bandBottom: 10 },
+        { x: 0, y: 20, bandTop: 20, bandBottom: 24 },
+        { x: 44, y: 20, bandTop: 20, bandBottom: 24 },
+      ],
+      blocked: [],
+      columnWidths: [24, 24],
+      bounds: { width: 120, height: 40 },
+      size: { width: 24, height: 5 },
+    },
+  )
+  expect(sticking?.y, "4 行高的行带放不下 5 行高的卡").not.toBe(20)
+  expect(sticking).toEqual({ x: 0, y: 0 })
   // 四周都被占满时退回**自己原来的位置**(它自己不在 blocked 里):宁可原地不动,也不叠上去。
+  const ring = [-1, 0, 1].flatMap((dy) =>
+    [-1, 0, 1].map((dx) => ({
+      x: card.rect.x + dx * COLUMN_PITCH,
+      y: card.rect.y + dy * (card.rect.height + GAP_Y),
+      width: MAX_NODE_WIDTH,
+      height: MAX_NODE_HEIGHT,
+    })),
+  )
   const surrounded = snapDrag(
-    { x: 46, y: 14 },
+    { x: card.rect.x + COLUMN_PITCH, y: card.rect.y + card.rect.height + GAP_Y },
     {
       ...context,
-      blocked: others.concat([
-        { x: 46, y: 7, width: NODE_WIDTH, height: NODE_HEIGHT },
-        { x: 46, y: 14, width: NODE_WIDTH, height: NODE_HEIGHT },
-        { x: 46, y: 21, width: NODE_WIDTH, height: NODE_HEIGHT },
-        { x: 46, y: 28, width: NODE_WIDTH, height: NODE_HEIGHT },
-        { x: 46, y: 33, width: NODE_WIDTH, height: NODE_HEIGHT },
-      ]),
+      blocked: others.concat(ring.filter((rect) => rect.x !== card.rect.x || rect.y !== card.rect.y)),
     },
   )
   expect([surrounded?.x, surrounded?.y], "旁边没空格时退回自己原来的位置").toEqual([card.rect.x, card.rect.y])
@@ -757,10 +1017,10 @@ test("流程图拖拽:落点吸附到最近的空锚点,并夹在画布内容范
 })
 
 test("流程图拖拽:一张卡被拖走后,连线跟着重画,而且不变量一条都不破", () => {
-  // 把「工具调用」挪到 (46, 14):同一轮、同一行带的第二列,那一格空着。
-  const target = { x: 46, y: 14 }
   const before = layoutNodes(MODEL.nodes, 76)
   const moved = "n:pr_3"
+  // 把「工具调用」挪到它右边那一列上离它最近的一个空锚点(列 x 逐列累加,所以从布局里读)。
+  const target = nearestEmptyAnchor(before, moved)
   expect(before.anchors.some((anchor) => anchor.x === target.x && anchor.y === target.y)).toBe(true)
   const overrides = { [moved]: target }
   const after = layoutNodes(MODEL.nodes, 76, { overrides })
@@ -774,7 +1034,7 @@ test("流程图拖拽:一张卡被拖走后,连线跟着重画,而且不变量�
     expect(node.rect, `${node.id} 不该动`).toEqual(was.rect)
   }
   // 行带信息跟着锚点走:被拖到那一行之后,它的绕行边从**那条行带的下沿**出去。
-  const band = after.rows.find((row) => dragged.rect.y >= row.top && dragged.rect.y < row.top + row.height)!
+  const band = after.rows.find((row) => row.top === dragged.bandTop)!
   expect(dragged.bandTop).toBe(band.top)
   expect(dragged.bandBottom).toBe(band.top + band.height)
   // 走线真的变了:那条卡出发与到达的两条边都换了格子。
@@ -784,7 +1044,7 @@ test("流程图拖拽:一张卡被拖走后,连线跟着重画,而且不变量�
       .route.cells.map((cell) => `${cell.x}:${cell.y}`)
   expect(cellsOf(after, `e:${moved}→n:pr_5`)).not.toEqual(cellsOf(before, `e:${moved}→n:pr_5`))
   expect(cellsOf(after, `e:n:pr_2→${moved}`)).not.toEqual(cellsOf(before, `e:n:pr_2→${moved}`))
-  // 九条不变量对被拖过的图一样成立(不压卡、步长为 1、形状至多拐两次、走廊、标签不压别的边…)。
+  // 十条不变量对被拖过的图一样成立(不压卡、步长为 1、形状至多拐两次、走廊、标签不压别的边…)。
   expect(flowInvariants({ model: MODEL, layout: after, width: 76 })).toEqual([])
   // 画布尺寸不受影响:列锚与行首都没变,所以既不用重排也不改滚动范围。
   expect(after.width).toBe(before.width)
@@ -799,23 +1059,28 @@ test("流程图拖拽:一张卡被拖走后,连线跟着重画,而且不变量�
 test("流程图拖拽:任意一张卡拖到任意一个**空**锚点上,不变量都不破", () => {
   // 这一条是上面那条的推广版:拖拽能造出的边形态(目标在左边、在上边、在下一行带、
   // 甚至同一条行带里往回走)全靠它兜住 —— 那些形态自动布局永远造不出来。
-  // 只试**空**锚点:叠在别人身上的落点 snapDrag 根本不会给(见 layout 的 snapDrag)。
-  // 扫两档宽度:76 列是主力 fixture 的两列布局,140 列是三列(叉积里的格子更多,组合更密)。
+  // 只试**合法**落点:snapDrag 会给的就那一种(见 layout 的 snapDrag 那五条守卫)——
+  // 叠在别人身上的、卡探出行带的、以及「那一列装不下这张卡」的,复现同三个条件,
+  // 否则这一条测的是几条生产代码永远走不到的路径。
+  // 扫三档宽度:66/76 列是主力 fixture 的两列布局,146 列是四列(叉积里的格子最多,组合最密)。
   const problems: string[] = []
   let checks = 0
-  for (const width of [76, 140]) {
+  for (const width of [66, 76, 146]) {
     const layout = layoutNodes(MODEL.nodes, width)
     const occupied = occupiedRects(layout)
+    const columns = [...new Set(layout.anchors.map((anchor) => anchor.x))].toSorted((a, b) => a - b)
     for (const node of layout.nodes) {
       const others = occupied.filter((rect) => !(rect.x === node.rect.x && rect.y === node.rect.y))
       for (const anchor of layout.anchors) {
         if (anchor.x === node.rect.x && anchor.y === node.rect.y) continue
-        const shape = { x: anchor.x, y: anchor.y, width: NODE_WIDTH, height: NODE_HEIGHT }
+        if (node.rect.width > layout.columnWidths[columns.indexOf(anchor.x)]) continue
+        if (anchor.y + node.rect.height > anchor.bandBottom) continue
+        const shape = { x: anchor.x, y: anchor.y, width: node.rect.width, height: node.rect.height }
         if (others.some((rect) => rectsOverlap(shape, rect))) continue
         const overrides = { [node.id]: { x: anchor.x, y: anchor.y } }
         problems.push(
           ...checkFlow(MODEL, width, undefined, overrides).problems.map(
-            (p) => `${width} 列 ${node.id}→${anchor.x},${anchor.y}:${p}`,
+            (p) => `${width} 列 ${node.id}(${node.rect.width}×${node.rect.height})→${anchor.x},${anchor.y}:${p}`,
           ),
         )
         const landed = layoutNodes(MODEL.nodes, width, { overrides }).nodes.find((item) => item.id === node.id)!
@@ -833,10 +1098,12 @@ test("流程图连线:屏幕上真正摆出来的标签都摆在两卡之间的�
   // 这条钉的是用户点名的那一处:上一版把「本轮完成」印在另一条线上。
   // 判据是**屏幕上会出现的那些标签**(fixture 重演一遍 canvas 的摆标签过程),不是候选段。
   for (const [width, expandedId] of [
+    [66, undefined],
     [76, undefined],
     [76, "n:msg_1"],
     [90, undefined],
-    [140, "n:pr_3"],
+    [118, "n:pr_3"],
+    [146, undefined],
   ] as const) {
     const layout = layoutNodes(MODEL.nodes, width, { expandedId })
     const labels = placedLabels(MODEL, layout)

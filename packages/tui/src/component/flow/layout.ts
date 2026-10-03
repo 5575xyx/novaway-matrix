@@ -26,8 +26,16 @@ export type FlowNode = {
   kindLabel: string
   /** 卡内首行右侧的 meta:时长 / 步数 / 时间。 */
   meta: string
-  /** 卡内次行的标题。已压成一行并按卡内可用列数截断。 */
+  /**
+   * 卡内次行的标题。已压平,再按「这张卡一共放得下多少列」截断(见 nodeTitleColumns)。
+   * 截的是**几行加起来**的列数,所以模型侧不需要知道最终折成几行。
+   */
   title: string
+  /**
+   * 标题行开头那个徽标(原型的 `.fc-new`,card-design-v7.html:721 / :1054 的「最新」)。
+   * 只有**最后一条**回复卡有(见 buildFlowModel 末尾那遍反查),其余节点是 undefined。
+   */
+  badge?: string
   /** 展开后的详情正文(原型的 `.fc-pop`)。 */
   detail: string
   /** 第几轮,从 1 起。 */
@@ -59,6 +67,9 @@ export type FlowModel = {
 }
 
 export type FlowRect = { x: number; y: number; width: number; height: number }
+
+/** 画布上出现的七种节点语义,按原型的顺序(底部图例与尺寸表都用它,免得两处各写一份)。 */
+export const FLOW_NODE_KINDS = ["user", "plan", "tool", "subagent", "edit", "reply", "fend"] as const
 
 export type PlacedNode = FlowNode & {
   rect: FlowRect
@@ -104,32 +115,149 @@ export type FlowLayout = {
    * 否则一张卡被拖走后它原来的锚点就消失了,再也拖不回去。
    */
   anchors: FlowAnchor[]
+  /**
+   * 每一列的**数据宽度**:所有行带的第 c 列里最宽的那张卡(见 layoutNodes 里 columnWidths)。
+   *
+   * 存在的理由是拖拽:列 x 是从这张表推出来的,所以落点只要满足「这张卡装得进那一列」,
+   * 它与相邻列之间的走廊就仍然是 GAP_X(见 snapDrag 里那条守卫)。不把这一列的宽度交出去,
+   * snapDrag 就只能按全表最宽那一档判,于是「药丸那一列放不下一张 24 列的卡」这种明显的
+   * 压走廊落点会被放过去。
+   */
+  columnWidths: number[]
 }
 
 // ---------- 尺寸 ----------
 
 /**
- * 节点卡宽度(列)。28 的来历:卡内可用列数 = 卡宽 − NeonCard 的 padding(左 2 + 右 1)= 25,
- * 够放下「● 工具调用」+ 时长 + `▸`。
+ * 原型节点的 px → 终端格的换算。**一个来源**:卡头 `.fc-head` 的 `font-size: 12.5px`
+ * (card-design-v7.html:716)与正文 `.fc-title` 的 `line-height: 1.5`(:722)。
+ *
+ *   横向:JetBrains Mono 的字宽是 **0.6 em**(600/1000),于是**一列 = 0.6 × 12.5 = 7.5 px**。
+ *   纵向:一行正文 = 1.5 × 12.5 = **18.75 px**;卡的外框(`padding: 11px 13px` + `border: 1.5px`)
+ *         一共 11×2 + 1.5×2 = **25 px**,在终端里正好落成那两行边框
+ *         (padding 行 = 边框行,见 neon-card.tsx 的注释),于是
+ *         **高(行) = 2 + round((px − 25) / 18.75)**。
+ *
+ * **横向为什么向上取整而不是四舍五入**:最宽的一行卡头是
+ * `● 任务拆解` + 4 个 `gap={1}` + `14:32` + `▸` = 1 + 8 + 4 + 5 + 1 = **19 列**,
+ * 而卡内可用列数 = 卡宽 − 3,于是卡宽至少 22 才装得下。`round(168 / 7.5) = 22`
+ * 恰好压在 19 = 19 的边界上 —— meta 一长(跨天的时间戳是 `14:32 · 2026/1/2`)就把 `▸`
+ * 顶到右边框上。ceil 把这个边界推回安全侧,代价只是卡宽多一列。
+ *
+ * **为什么横向不取 8 px 那一档**(用户给的量级参考):8 px 会把「用户输入」折成 21 列
+ * = 卡内 18 列,而卡头要 19 —— 直接溢出。与其让卡头和右边框打架,不如按真实字宽换算。
  */
-export const NODE_WIDTH = 28
+export const CARD_CELL_PX_WIDTH = 7.5
+export const CARD_CELL_PX_HEIGHT = 18.75
 /**
- * 节点卡高度(行)。**4**,不是 6。
- *
- * NeonBox 把边框画在自己第 0 行与最后一行,而 NeonCard 的 paddingTop/paddingBottom 各是 1 ——
- * 也就是说**内边距行就是边框行**,padding 不额外占行(见 ui/card 的类注释与
- * test/routes/session/assistant-card.test.tsx 的宽度那条断言,列方向同理)。所以一张
- * 「类型行 + 标题行」的卡是 边框 + 2 行正文 + 边框 = 4 行。
- *
- * 这个数一旦写大,连线的中线(fromMidY = y + ⌊h/2⌋)就会落到卡片的底边框那一行 ——
- * 画出来是每条线都贴着卡片下沿横穿过去。所以它不是估的,flow-canvas.test.tsx 里量了
- * 真实帧里的卡片高度并与它对齐。
+ * 一张卡的外框在原型里占多少 px:`padding: 11px 13px` 上下各 11、`border: 1.5px` 两侧各 1.5,
+ * 合计 11×2 + 1.5×2 = 25。它在终端里就是那两行边框(见 CARD_CELL_PX_HEIGHT 的推导)。
  */
-export const NODE_HEIGHT = 4
+export const CARD_CHROME_PX = 25
+/** 外框折成几行(上下两行边框 —— padding 行就是边框行,见 neon-card.tsx)。 */
+export const CARD_CHROME_ROWS = 2
+/** 外框折成几列(NeonCard 的 padding 左 2 + 右 1)。 */
+export const CARD_CHROME_COLUMNS = 3
+
+/**
+ * 每一类节点在原型里的**行内尺寸**(px)。
+ *
+ * 上一版把七类节点全部拍平成 `28 × 4`,于是画布上每张卡一模一样 —— 读起来是一张
+ * 电子表格而不是流程图(用户原话:「节点大小/形状全都一样,一行只有 2 个 —— 太死板」)。
+ * 原型恰恰是**逐张卡写了不同的 width/height**:
+ *
+ *   user     168 ×  74   n1     :995
+ *   plan     176 ×  96   n2     :1004
+ *   tool     170 ×  84   n3     :1013(另一张 n6 :1043 同尺寸)
+ *   subagent 170 ×  92   n4     :1024
+ *   edit     168 × 110   n5     :1033
+ *   reply    176 ×  92   n10    :1087(展开的那张 n7 是 180 × 96,:1052)
+ *   fend     150 ×  68   nEnd   :1061 / nEnd2 :1096
+ *
+ * **这张表就是原型形状的全部差别,而它的宽高比很不均匀**:横向 150~180 px(17% 的差),
+ * 纵向 68~110 px(**62% 的差**),外加 `.fcard.fend` 那个药丸形(:713)。所以按上面的常数
+ * 换算之后,**高度差得开、宽度差得小** —— 那不是抄漏了,是原型本来就这样;
+ * 真要把宽度也拉开,只能编一个原型里根本没有的尺寸表。
+ */
+export const NODE_SIZE_PX: Record<FlowNodeKind, { width: number; height: number }> = {
+  user: { width: 168, height: 74 },
+  plan: { width: 176, height: 96 },
+  tool: { width: 170, height: 84 },
+  subagent: { width: 170, height: 92 },
+  edit: { width: 168, height: 110 },
+  reply: { width: 176, height: 92 },
+  fend: { width: 150, height: 68 },
+}
+
+/**
+ * 某一类节点在终端里的卡宽(列)与卡高(行)。推导见 CARD_CELL_PX_WIDTH 那段。
+ *
+ * 换算出来的那张表(全部是 `ceil(px / 7.5)` 与 `2 + round((px − 25) / 18.75)`):
+ *
+ *   kind       卡宽 × 卡高    卡内可用列数   标题行数
+ *   user        23 ×  5          20            2
+ *   plan        24 ×  6          21            3
+ *   tool        23 ×  5          20            2
+ *   subagent    23 ×  6          20            3
+ *   edit        23 ×  7          20            4
+ *   reply       24 ×  6          21            3
+ *   fend        20 ×  4          17          (1,见下)
+ *
+ * 两条必须成立的要求,这张表都成立:
+ *   · **最高的那一类确实比最矮的高**:7 行(编辑文件,110 px)对 4 行(本轮结束,68 px) ——
+ *     原型那 96 px 与 68 px 的差落成了 6 行与 4 行,肉眼可见。
+ *   · **「本轮结束」确实更窄更短**:20 × 4 对最宽的 24 × 7,窄 4 列、短 3 行。
+ */
+export function nodeSize(kind: FlowNodeKind) {
+  const px = NODE_SIZE_PX[kind]
+  return {
+    width: Math.ceil(px.width / CARD_CELL_PX_WIDTH),
+    height: CARD_CHROME_ROWS + Math.round((px.height - CARD_CHROME_PX) / CARD_CELL_PX_HEIGHT),
+  }
+}
+
+/** 全表最宽的一类节点(24 列 = 176 px 的任务拆解与回复)。列步距与行带容量都由它起算。 */
+export const MAX_NODE_WIDTH = Math.max(...FLOW_NODE_KINDS.map((kind) => nodeSize(kind).width))
+/** 全表最高的一类节点(7 行 = 110 px 的编辑文件)。 */
+export const MAX_NODE_HEIGHT = Math.max(...FLOW_NODE_KINDS.map((kind) => nodeSize(kind).height))
+/** 某一类节点的卡内可用列数 = 卡宽 − 外框那几列。 */
+export function nodeContentColumns(kind: FlowNodeKind) {
+  return nodeSize(kind).width - CARD_CHROME_COLUMNS
+}
+/**
+ * 某一类节点的标题能占几行:卡高减去两行边框与那一行卡头。
+ *
+ * 高卡多出来的那几行不是留白 —— 原型 `.fcard` 是 `justify-content: center`,多出来的高度
+ * 就是纯留白,而留白在一张 23 × 7 的琥珀色卡上读起来比 23 × 5 还死板。所以这里把标题
+ * 按卡内可用列数折下去,把那几行真的填上。
+ *
+ * 「本轮结束」是例外:它的两行内容不是「卡头 + 标题」而是药丸的两行
+ * (`⏹ 本轮结束` + `第 N 轮 · 等待新指令…`),见 canvas 的 RoundEndPill。
+ */
+export function nodeTitleRows(kind: FlowNodeKind) {
+  return nodeSize(kind).height - CARD_CHROME_ROWS - 1
+}
+/**
+ * 标题一共放得下多少列(行数 × 每行列数)。
+ *
+ * 模型侧按它截断、渲染侧按它折行,于是**卡内那几行一定装得下** —— 高卡多出来的行是真的
+ * 有内容,窄卡的标题也不会顶到右边框上(这一条与详情框用的是同一个约定:先按框里一共放得下
+ * 多少列截断,再由渲染折行,见 canvas 的 detailColumns)。
+ */
+export function nodeTitleColumns(kind: FlowNodeKind) {
+  return nodeContentColumns(kind) * nodeTitleRows(kind)
+}
+
 /**
  * 相邻列之间的走廊宽度(列)。16 是照着标签反推的:两卡之间真正空着的是 GAP_X − 1 = 15 格,
  * 其中最后一格放箭头,标签最多占 14 格,而原型里最长的并行标签「并行 · 子代理」是 13 列
  * (并行 4 + 空格·空格 3 + 子代理 6)。
+ *
+ * **节点尺寸改成按类型变化之后这个数仍然是 16**:走廊要装下的是「竖段 + 最宽的边标签」,
+ * 与卡宽无关 —— 竖段固定占 1 列,标签上限 `LABEL_COLUMNS = GAP_X − 2 = 14` 由边标签本身决定
+ * (「并行 · 子代理」13 列,见 kindNoun)。重算一遍这两条约束:`⌈13 / 1⌉ + 1 ≤ GAP_X − 2`
+ * 给出 GAP_X ≥ 15,而竖段又不能贴着卡片右沿(否则读起来像卡的描边),于是仍取 16,
+ * 竖段落在 `CORRIDOR_LANE = GAP_X − 3 = 13` 那一列(见 CORRIDOR_LANE)。
  */
 export const GAP_X = 16
 /**
@@ -146,10 +274,8 @@ export const GAP_Y = 3
  *
  * **2 列,不是 3**:换行边在这一侧只用到**一列**(`enterX = to.x − 1`),「三条车道」那个说法
  * 是从纵向的通道车道串过来的,并不成立 —— 纵向车道由 `GAP_Y` 给(见上)。而这一列的宽度直接
- * 决定最窄终端上能不能排下两列:`LEFT_MARGIN + COLUMN_PITCH + NODE_WIDTH = 2 + 44 + 28 = 74`,
- * 正好等于 80 列终端扣掉内边距与滚动条之后的视口宽。三列的话是 75,80 列终端就退化成单列,
- * 而 80 是最常见的宽度。少掉的那一列换不来任何东西:横向的竖段固定落在**列间走廊**里
- * (见 CORRIDOR_LANE),那条走廊在两张卡之间,与左侧留白无关。
+ * 决定最窄终端上能不能排下两列:`LEFT_MARGIN + COLUMN_PITCH + MAX_NODE_WIDTH
+ * = 2 + 40 + 24 = 66`,80 列终端(视口 74)排得下两列还余 8 列。
  */
 export const LEFT_MARGIN = 2
 /**
@@ -158,15 +284,15 @@ export const LEFT_MARGIN = 2
  * 它只起一个作用:别让最后一列卡片的后边框紧贴画布右沿。右边紧贴着的是竖滚动条
  * (opentui 的 scrollbox 把滚动条画在自己那一列上,见 canvas 的 verticalScrollbarOptions),
  * 两者叠在一起时那一格同时有描边和滚动条的块字符,读起来像卡片破了个口。
- * 算式上它也正好补上 LEFT_MARGIN 的另一半 —— 画布宽 = 左留白 + 步距 × (列数 − 1) + 卡宽 + 右留白,
+ * 算式上它也正好补上 LEFT_MARGIN 的另一半 —— 画布宽 = 左留白 + Σ(每列最宽卡 + 走廊) + 右留白,
  * 两边对称,推出来的数不用凑。
  */
 export const RIGHT_MARGIN = 1
 /**
  * 一行带里**至少**放几列。
  *
- * 2 是原型那几屏流程图的形状,也是本实现自己在 80 / 120 列上一直给出的答案
- * (`2 + 44 + 28 = 74`)。把它设成下限而不是「视口能放几列就放几列」,是因为:
+ * 2 是原型那几屏流程图的形状,也是本实现在 60 / 80 列上一直给出的答案
+ * (`2 + 40 + 24 = 66 ≤ 74`)。把它设成下限而不是「视口能放几列就放几列」,是因为:
  *
  *   · 原型的 `.fcanvas` 是 `width:1040px; flex-shrink:0`(card-design-v7.html:669)——
  *     **画布有自己的固有宽度,页面横向滚动去够它**,而不是把画布压到视口那么宽。
@@ -180,25 +306,39 @@ export const RIGHT_MARGIN = 1
  */
 export const MIN_BAND_COLUMNS = 2
 /**
- * 行带保持 `MIN_BAND_COLUMNS` 列所需的最小视口列数 = 一张卡 + 一条走廊 = 28 + 16 = **44**。
+ * 行带保持 `MIN_BAND_COLUMNS` 列所需的最小视口列数 = 一张最宽的卡 + 一条走廊
+ * = 24 + 16 = **40**。
  *
- * 「放得下两列」要 74 列(LEFT_MARGIN + COLUMN_PITCH + NODE_WIDTH),但**看得懂**只要 44 列:
- * 44 ~ 73 这一档给两列,多出来的那截横向滚;43 列往下给一列。
+ * 「放得下两列」要 66 列(LEFT_MARGIN + COLUMN_PITCH + MAX_NODE_WIDTH),但**看得懂**只要 40 列:
+ * 40 ~ 65 这一档给两列,多出来的那截横向滚;39 列往下给一列。
  */
-export const MIN_BAND_VIEWPORT = NODE_WIDTH + GAP_X
-/** 列的步距:卡宽 + 走廊。 */
-export const COLUMN_PITCH = NODE_WIDTH + GAP_X
-
+export const MIN_BAND_VIEWPORT = MAX_NODE_WIDTH + GAP_X
+/**
+ * 列的步距:**全表最宽的一类卡** + 走廊 = 24 + 16 = **40**。
+ *
+ * 为什么用「最宽的那一类」而不是逐列各自的最宽卡:这一项只用来算「一行带放得下几列」
+ * (bandColumns),而那时候还不知道这一行带里将来会落哪几类节点,只能取上界。
+ * 实际摆卡的列 x 用的是**逐列**累加(见 layoutNodes 那段),所以真正的画布宽往往比
+ * 「列数 × 步距」小一截 —— bandColumns 是**保守**的:宁可少放一列,也不放出一行带
+ * 比视口宽出几十列的图。
+ */
+export const COLUMN_PITCH = MAX_NODE_WIDTH + GAP_X
 /**
  * 一行带能放几列(纯函数,导出给测试钉住那张算式表)。
  *
  * 三档,谁大听谁的:
- *   · `fits` —— 视口**装得下**几列:`⌊(视口 + 走廊 − 左侧留白) / 步距⌋`。
- *     最后一列右边没有走廊、每列左边都有 LEFT_MARGIN,所以是「+ 走廊 − 留白」这一项。
- *   · `floor` —— 视口放得下一张卡 + 一条走廊(≥ MIN_BAND_VIEWPORT)时的下限 MIN_BAND_COLUMNS,
- *     否则 1。**这一档是「画布按内容尺寸排布」的落点**:它让图可以比视口宽,
+ *   · `fits` —— 视口**装得下**几列:`⌊(视口 + 走廊 − 左侧留白) / 步距⌋`
+ *     = `⌊(视口 + 14) / 40⌋`。最后一列右边没有走廊、每列左边都有 LEFT_MARGIN,
+ *     所以是「+ 走廊 − 留白」这一项。3 列要视口 ≥ 3×40 − 14 = **106**(110 列终端),
+ *     4 列要视口 ≥ 146(**150 列**终端)。
+ *   · `floor` —— 视口放得下一张最宽的卡 + 一条走廊(≥ MIN_BAND_VIEWPORT)时的下限
+ *     MIN_BAND_COLUMNS,否则 1。**这一档是「画布按内容尺寸排布」的落点**:它让图可以比视口宽,
  *     宽出来的那一截由 canvas 的横向滚动承担(见 MIN_BAND_COLUMNS 的注释)。
  *   · 1 —— 视口连一列都放不下时的兜底,`max(1, …)` 保证列数永远 ≥ 1。
+ *
+ * **诚实的上限是 3 列**:4 列的内容宽 = 2 + 3×40 + 24 + 1 = **147 列**,只有 ≥ 150 列的终端
+ * 才装得下 —— 那是罕见宽度,而 120 / 140 / 160 列这些常见宽度都停在 3 列。代码里不写死这个
+ * 上限:视口真的够宽就按公式给 4 列,窄了也不会硬塞。
  */
 export function bandColumns(viewportWidth: number) {
   const fits = Math.floor((viewportWidth + GAP_X - LEFT_MARGIN) / COLUMN_PITCH)
@@ -209,11 +349,16 @@ export function bandColumns(viewportWidth: number) {
 export const SEPARATOR_ROWS = 2
 /** 展开的详情框默认占几行。 */
 export const DETAIL_ROWS = 6
-/** 卡内可用列数(类型行与标题行共用)。推导见 NODE_WIDTH。 */
-export const NODE_CONTENT_COLUMNS = NODE_WIDTH - 3
 
 /** 详情正文的上限。再长对画布没有意义,只会让详情框出现「…」还是「…」的差别。 */
 const DETAIL_MAX = 600
+
+/**
+ * 最后一条回复卡标题行开头那个徽标的文字(原型 `.fc-new` 的内容,card-design-v7.html:1054)。
+ * 原型把它挂在卡头行(`.fc-row`)里,而我们的卡头行要放 `● 类型 + meta + ▸` —— 一行塞不下,
+ * 所以挪到标题行开头(见 buildFlowModel 末尾那遍反查)。
+ */
+export const LATEST_BADGE = "最新"
 
 /** 写文件一类的工具。它们在画布上是琥珀色的「编辑文件」节点,不是青色的「工具调用」。 */
 const EDIT_TOOLS = new Set(["write", "edit", "multiedit", "apply_patch", "patch"])
@@ -238,8 +383,9 @@ export function kindLabel(kind: FlowNodeKind) {
 /**
  * 节点语义在**短**语境下的名字。图例与并行标签用它。
  *
- * 为什么要另有一个短名:节点首行写全称(`工具调用`、`本轮结束`)是因为那里有 25 列可用;
- * 而底部图例一行要并排放七个,全称加起来 82 列 —— 80 列的终端上最后一项直接被挤出屏幕。
+ * 为什么要另有一个短名:节点首行写全称(`工具调用`、`本轮结束`)是因为最窄的那种卡
+ * 也有 20 列可用(见 nodeContentColumns);而底部图例一行要并排放七个,全称加起来 82 列 ——
+ * 80 列的终端上最后一项直接被挤出屏幕。
  * 短名加起来 60 列,窄终端也放得下,而图例本来只需要说清「哪个颜色是哪一类」。
  * 并行标签「并行 · 子代理」也是它 —— 拼全称(`并行 · 工具调用`)就有 15 列,走廊放不下。
  */
@@ -396,7 +542,7 @@ export function buildFlowModel(input: {
           kind: "user",
           kindLabel: kindLabel("user"),
           meta: Locale.time(message.time.created),
-          title: Locale.oneLineToWidth(text, NODE_CONTENT_COLUMNS),
+          title: Locale.oneLineToWidth(text, nodeTitleColumns("user")),
           detail: text || "（这条消息没有正文）",
           round,
           group: group++,
@@ -421,7 +567,7 @@ export function buildFlowModel(input: {
           kind: "plan",
           kindLabel: kindLabel("plan"),
           meta: Locale.duration(Math.max(0, span)),
-          title: Locale.oneLineToWidth(body, NODE_CONTENT_COLUMNS),
+          title: Locale.oneLineToWidth(body, nodeTitleColumns("plan")),
           detail: body,
           round,
           group: group++,
@@ -443,7 +589,7 @@ export function buildFlowModel(input: {
             kind,
             kindLabel: kindLabel(kind),
             meta: duration === undefined ? "…" : Locale.duration(duration),
-            title: Locale.oneLineToWidth(toolTitle(part), NODE_CONTENT_COLUMNS),
+            title: Locale.oneLineToWidth(toolTitle(part), nodeTitleColumns(kind)),
             detail: toolDetail(part),
             round,
             group: batchGroup,
@@ -466,7 +612,7 @@ export function buildFlowModel(input: {
           kind: "reply",
           kindLabel: kindLabel("reply"),
           meta: Locale.time(message.time.created),
-          title: Locale.oneLineToWidth(text, NODE_CONTENT_COLUMNS),
+          title: Locale.oneLineToWidth(text, nodeTitleColumns("reply")),
           detail: text,
           round,
           group: group++,
@@ -477,6 +623,20 @@ export function buildFlowModel(input: {
     }
   }
   flushRound()
+
+  // 「最新」徽标(原型 `.fc-new`,card-design-v7.html:721 / :1054):挂在**最后一条**回复卡上。
+  //
+  // 为什么在这里反查而不在 push 的时候写:「最后一条」只有节点全建完之后才知道。顺带把那条
+  // 的标题**重截一次** —— 徽标与标题共用第一行,不重截的话标题会顶到右边框上(这条约束由
+  // flow-layout.test.ts 的「标题连徽标一起放得进卡内」那条断言钉住)。
+  const latest = nodes.findLast((node) => node.kind === "reply")
+  if (latest) {
+    latest.badge = LATEST_BADGE
+    latest.title = Locale.oneLineToWidth(
+      latest.title,
+      nodeTitleColumns("reply") - Locale.displayWidth(LATEST_BADGE) - 1,
+    )
+  }
 
   const edges: FlowEdge[] = []
   for (const [index, column] of groups.entries()) {
@@ -517,10 +677,21 @@ export function buildFlowModel(input: {
 /**
  * 网格布局:一轮一行带(放不下就换行带),轮与轮之间插一条分隔线。
  *
- * 不重叠不是靠「算完再检查」,而是靠构造:列的 x 是列号乘以固定步距,列内节点按 slot
- * 乘以固定步距,行带的高度取本带里最高的列。所以任何两组坐标都不会撞上 ——
- * `rectsOverlap` 那条断言(flow-layout.test.ts)只是把这条不变量钉住,防的是有人后来
- * 把步距改成随内容变化。
+ * **节点尺寸按类型变化之后,不重叠仍然是构造保证的,不是「算完再检查」**:
+ *   · 列的 x 从一张**全局列宽表**推出来:`x[c+1] = x[c] + columnWidths[c] + GAP_X`,
+ *     其中 `columnWidths[c]` 是**所有行带的第 c 列里最宽的那张卡**(见下面那一圈预扫)。
+ *     于是任何一张卡的右沿都 ≤ `x[c] + columnWidths[c]`,下一列的左沿恒比它远出 GAP_X ——
+ *     走廊宽度与卡宽无关,`rectsOverlap` 那条断言(flow-layout.test.ts)只是把这条不变量钉住,
+ *     防的是有人后来把走廊改成随内容变化。拖拽也仍然落在同一张列宽表上(见 snapDrag 的守卫)。
+ *   · 列内节点按各自的高依次往下叠,行带的高度取本带里**最高的**那一列。所以带内互不重叠,
+ *     带与带之间还隔着 GAP_Y 行 —— 行带之上/之下的空行按构造必然没有卡片(见 RouteOptions)。
+ *
+ * **为什么列宽表是全局的而不是逐条行带各算一份**:锚点是「列锚 × 行锚」的叉积,而行锚是
+ * **所有**卡片的顶边(见下面 anchors 那段)。若每条行带各按自己的最宽卡算列 x,就会出现
+ * 「A 行带的第二列在 41、B 行带的第二列在 42」,于是叉积里多出 41 与 42 两个只差一列的列锚 ——
+ * 把一张 23 列的卡拖到 41,到右边 42 那张卡的走廊就只剩 15 列,连线与边标签立刻挤爆。
+ * 先扫一遍取全局最大值,列锚就恢复成一套,叉积重新安全。代价是某一列里全是窄卡时右边多空出几列
+ * (原型的列距本来也不齐:n1→n2 差 266 px、n3→n5 差 240 px)。
  *
  * `expandedId` 让那一张卡的行带长高 DETAIL_ROWS,详情框正好落在长出来的那一块里 ——
  * 于是详情既贴着卡片,又不会压到下一行带(而整行带下移,后面的节点跟着让位),
@@ -539,7 +710,7 @@ export function layoutNodes(
   options: { expandedId?: string; detailRows?: number; overrides?: Readonly<Record<string, FlowOffset>> } = {},
 ): FlowLayout {
   const detailRows = options.detailRows ?? DETAIL_ROWS
-  // 一行带能放几列。步距是卡宽 + 走廊,再扣掉左侧那条留出来的走廊 —— 整张表见 bandColumns。
+  // 一行带能放几列。步距是**全表最宽的卡** + 走廊,再扣掉左侧那条留出来的走廊 —— 整张表见 bandColumns。
   const perRow = bandColumns(canvasWidth)
   // 先只摆矩形:走线方案依赖**全部**卡片的最终矩形,只能最后统一补(见文件末尾那一段)。
   const seeded: SeededNode[] = []
@@ -555,8 +726,31 @@ export function layoutNodes(
     if (!current || current[0]!.group !== node.group) columns.push([node])
   }
 
+  // 预扫:每一列(按**它在自己那一轮的行带里是第几列**)在整幅图上最宽的那张卡。
+  // 列 x 从这张表推出来,于是所有行带共用同一套列锚(理由见这段注释开头)。
+  //
+  // 下标取 `index % perRow`:一轮的列组是按 `perRow` 切成一条条行带的(见下面那圈 forEach),
+  // 所以第 k 条行带的第 j 列就是这一轮的第 `k × perRow + j` 个列组。
+  const columnWidths: number[] = []
+  const rounds = [...new Set(nodes.map((node) => node.round))]
+  for (const round of rounds) {
+    columns
+      .filter((column) => column[0]!.round === round)
+      .forEach((column, index) => {
+        const widest = Math.max(...column.map((node) => nodeSize(node.kind).width))
+        const slot = index % perRow
+        columnWidths[slot] = Math.max(columnWidths[slot] ?? 0, widest)
+      })
+  }
+  // 列 x = 左侧留白 + Σ(前面每一列的宽度 + 一条走廊)。于是「下一列左沿 − 本列最宽卡右沿」
+  // 恒等于 GAP_X,与卡实际有多宽无关。
+  const columnX: number[] = [LEFT_MARGIN]
+  for (let index = 1; index < columnWidths.length; index++) {
+    columnX[index] = columnX[index - 1]! + columnWidths[index - 1]! + GAP_X
+  }
+
   let y = 0
-  for (const round of [...new Set(nodes.map((node) => node.round))]) {
+  for (const round of rounds) {
     if (round > 1) {
       separators.push({ round, y })
       y += SEPARATOR_ROWS
@@ -567,17 +761,18 @@ export function layoutNodes(
       // 展开的节点把自己的行带撑高,并把**同列下方**的节点一起顶下去 —— 详情框就长在
       // 节点与下一个节点之间那段多出来的空当里,谁也不压谁。
       const grown = (node: FlowNode) => node.id === options.expandedId
+      // **每个节点各有各的高**(见 nodeSize),所以叠放高度与行带高度都逐节点累加/取最大,
+      // 而不是乘一个固定步距 —— 上一版那套 `NODE_HEIGHT + GAP_Y` 的固定节奏在高卡与药丸
+      // 混排时会算出比实际矮一截的行带,带底的空行就不空,绕行边的通道会被压到卡片上。
+      const stepOf = (node: FlowNode) => nodeSize(node.kind).height + (grown(node) ? detailRows : 0)
       const heightOf = (column: FlowNode[]) =>
-        column.reduce(
-          (total, node, index) => total + (index > 0 ? GAP_Y : 0) + NODE_HEIGHT + (grown(node) ? detailRows : 0),
-          0,
-        )
+        column.reduce((total, node, index) => total + (index > 0 ? GAP_Y : 0) + stepOf(node), 0)
       const offsetsOf = (column: FlowNode[]) => {
         const offsets: number[] = []
         let offset = 0
         for (const node of column) {
           offsets.push(offset)
-          offset += NODE_HEIGHT + GAP_Y + (grown(node) ? detailRows : 0)
+          offset += stepOf(node) + GAP_Y
         }
         return offsets
       }
@@ -587,12 +782,8 @@ export function layoutNodes(
       band.forEach((column, columnIndex) => {
         offsetsOf(column).forEach((offset, slot) => {
           const node = column[slot]!
-          const rect: FlowRect = {
-            x: LEFT_MARGIN + columnIndex * COLUMN_PITCH,
-            y: y + offset,
-            width: NODE_WIDTH,
-            height: NODE_HEIGHT,
-          }
+          const size = nodeSize(node.kind)
+          const rect: FlowRect = { x: columnX[columnIndex]!, y: y + offset, width: size.width, height: size.height }
           seeded.push({ ...node, rect, slot, bandTop: y, bandBottom })
           // 停靠点用的行:每一行卡片的顶边,连同它属于哪条行带。
           // 只记**行**(不记列),因为锚点是「列锚 × 行锚」的叉积 —— 见下面 anchors 那段。
@@ -611,7 +802,7 @@ export function layoutNodes(
   //
   // 行带信息跟着**行**走,所以一张卡被拖到别的行带时,它的走线方案(通道基准、出让方向)
   // 会自动跟着那条行带走,不需要 canvas 去猜「这张卡现在属于哪一带」。
-  const columnAnchors = [...new Set(seeded.map((node) => node.rect.x))].toSorted((a, b) => a - b)
+  const columnAnchors = columnX.slice(0, columnWidths.length)
   const rowAnchors = [...rowOf.values()].toSorted((a, b) => a.y - b.y)
   const anchors: FlowAnchor[] = []
   for (const row of rowAnchors) {
@@ -631,7 +822,7 @@ export function layoutNodes(
 
   // 详情框与走线方案都在**最终**矩形上算 —— 展开的详情框、被拖走的那张卡,两者都会改答案。
   const detailOf = (node: SeededNode) =>
-    node.id === options.expandedId ? { ...node.rect, y: node.rect.y + NODE_HEIGHT, height: detailRows } : undefined
+    node.id === options.expandedId ? { ...node.rect, y: node.rect.y + node.rect.height, height: detailRows } : undefined
   const details = new Map(seeded.map((node) => [node.id, detailOf(node)]))
   const occupied = seeded.flatMap((node) => (details.get(node.id) ? [node.rect, details.get(node.id)!] : [node.rect]))
   const placed: PlacedNode[] = seeded.map((node) => ({
@@ -640,14 +831,15 @@ export function layoutNodes(
     route: routeOptionsOf(node, details.get(node.id), occupied),
   }))
 
-  // 画布用掉的宽度 = **最宽那条行带** + 左右留白,而不是视口宽。
-  // 算式:LEFT_MARGIN + (列数 − 1) × COLUMN_PITCH + NODE_WIDTH + RIGHT_MARGIN,
-  // 其中「列数 − 1」是因为第一列的左边已经有 LEFT_MARGIN 了。
+  // 画布用掉的宽度 = **最右边那张卡的右沿** + 右侧留白,而不是视口宽。
+  // 算式:`LEFT_MARGIN + Σ(每列最宽卡 + 走廊) + 右侧留白`,其中最后一项之所以成立是因为
+  // 「x[c+1] = x[c] + 本列最宽卡 + GAP_X」(见上面那圈 forEach),所以「最右列右沿 + 1」
+  // 恰好抵消掉最后一列右边那条走廊。空画布则退到「一张最宽的卡 + 左右留白」。
   // 这就是 canvas 交给 scrollbox 的 contentWidth —— 内容比视口宽时差出来的那一截
   // 由画布自己横向滚(见 MIN_BAND_COLUMNS),所以这一行**不能**再拿视口宽去夹。
   const width =
-    Math.max(LEFT_MARGIN + NODE_WIDTH, ...placed.map((node) => node.rect.x + node.rect.width)) + RIGHT_MARGIN
-  return { nodes: placed, width, height: Math.max(1, y - GAP_Y), separators, rows, anchors }
+    Math.max(LEFT_MARGIN + MAX_NODE_WIDTH, ...placed.map((node) => node.rect.x + node.rect.width)) + RIGHT_MARGIN
+  return { nodes: placed, width, height: Math.max(1, y - GAP_Y), separators, rows, anchors, columnWidths }
 }
 
 /** 走线方案还没算出来之前的中间形态:`route` 依赖全部卡片的最终矩形,只能最后统一补。 */
@@ -662,8 +854,10 @@ type SeededNode = FlowNode & { rect: FlowRect; slot: number; bandTop: number; ba
  *   · 往上:同一列,从行带之上到卡片上沿。默认的自动布局里它恒空(同列上方不是同列下一格就是
  *     上一条行带的通道),拖拽把卡拖到别的行带之后就不一定,于是要真查一遍。
  * 两列都没空的时候 `left` 兜底:`rect.x − 1` 那一列不可能被任何卡片占着 ——
- * 卡片的左沿都在列锚上,而列锚之间恒等于 COLUMN_PITCH = 44 > NODE_WIDTH = 28,
+ * 卡片的左沿都在列锚上,而相邻两列的列锚之间恒 ≥ GAP_X = 16(见 layoutNodes 里那圈 forEach:
+ * `x[c+1] = x[c] + 本列最宽卡 + GAP_X`,而本列任何一张卡的宽 ≤ 本列最宽卡),
  * 所以 `rect.x − 1` 落在两条列锚之间的走廊里(详情框与卡片同锚,同理)。
+ * 第一列的 `rect.x − 1` = 1,那是 LEFT_MARGIN 自己留出来的那一列。
  */
 function routeOptionsOf(node: SeededNode, detail: FlowRect | undefined, occupied: readonly FlowRect[]): RouteOptions {
   const column = node.rect.x + node.rect.width - 2
@@ -675,6 +869,7 @@ function routeOptionsOf(node: SeededNode, detail: FlowRect | undefined, occupied
     downFree:
       detail === undefined && columnFree(occupied, node, column, node.rect.y + node.rect.height, node.bandBottom),
     upFree: columnFree(occupied, node, column, node.bandTop - GAP_Y, node.rect.y - 1),
+    occupied,
   }
 }
 
@@ -704,7 +899,8 @@ export type EdgeRoute = { cells: RouteCell[]; labels: RouteLabelSpan[] }
  * 绕行边(目标不在源右边那一侧)的走线方案,由布局按最终矩形算好(见 routeOptionsOf)。
  *
  * 两行通道都是构造上必然空的:行带之下那 GAP_Y 行、上一条行带之下那 GAP_Y 行 ——
- * 自动布局与拖拽都把卡片整个关在行带里面(锚点的行 y 满足 `bandTop ≤ y ≤ bandBottom − NODE_HEIGHT`),
+ * 自动布局与拖拽都把卡片整个关在行带里面(锚点的行 y 满足
+ * `bandTop ≤ y ≤ bandBottom − 这张卡自己的高`,见 layoutNodes 里 stepOf 那圈),
  * 所以这两条行带之间/之下的空行永远没有卡片。
  */
 export type RouteOptions = {
@@ -716,6 +912,12 @@ export type RouteOptions = {
   downFree: boolean
   /** 源卡片正上方那一竖空不空。空才敢往上出,否则改从左边进走廊。 */
   upFree: boolean
+  /**
+   * 画布上被占住的全部矩形(卡片 + 展开的详情框)。**逐条边**用:走廊走线能不能走,取决于
+   * 源与目标之间那一段有没有别人(见 corridorFree)—— 同一张卡的出边可能一条紧邻、一条隔着
+   * 两列,所以这件事挂在节点上是不对的,只能由 edgeRoute 在拿到这条边的两端之后现算。
+   */
+  occupied: readonly FlowRect[]
 }
 
 /** 右向进入目标卡的箭头。`▸`(U+25B8)与 `▼`(U+25BC) 都是 East-Asian Ambiguous,Bun.stringWidth 记 1 列。 */
@@ -777,6 +979,43 @@ export const MAX_ROUTE_TURNS = 2
 /** 目标整张卡在源右边 —— 也就是「同带右向」那一类,走走廊。 */
 export function isRightward(from: FlowRect, to: FlowRect) {
   return to.x > from.x + from.width
+}
+
+/**
+ * 这一条边是不是走「同带右向」那一档 —— **走廊走线能不能走**的判据,edgeRoute 与
+ * flowInvariants 那条走廊断言用的是同一个函数(测试断言必须与实现同口径,否则会出现
+ * 「实现已经退回绕行、断言还在按走廊查」这种假红)。
+ */
+export function takesCorridor(from: FlowRect, to: FlowRect, occupied: readonly FlowRect[]) {
+  return isRightward(from, to) && corridorFree(from, to, occupied)
+}
+
+/**
+ * 源与目标之间那一段走廊整段空不空(横段与竖段都在里面)。
+ *
+ * **为什么要有这一条**:`isRightward` 只看「目标在源右边」,可走廊走线(横-竖-横)的两段横段
+ * 要一路铺到目标卡的左沿 —— 中间若隔着**别的列**,横段就从那些卡身上穿过去了。
+ * 三列那一档(上一版唯一扫到的宽度)里,同带右向的边恰好总是紧邻的,所以这条从来没被触发;
+ * 节点尺寸按类型变化之后,一行带可以排到四列,拖拽也能把一张卡放到离目标两列远的位置 ——
+ * 于是「隔着列的右向边」真的出现了。
+ *
+ * 判据取**两条中线之间那一段 y**:横段只落在这两行上,竖段在 `corridorColumn` 那一列,
+ * 都在这个范围之内,所以这一条既必要也够用。
+ */
+export function corridorFree(from: FlowRect, to: FlowRect, occupied: readonly FlowRect[]) {
+  const fromMidY = from.y + Math.floor(from.height / 2)
+  const toMidY = to.y + Math.floor(to.height / 2)
+  const low = Math.min(fromMidY, toMidY)
+  const high = Math.max(fromMidY, toMidY)
+  return !occupied.some(
+    (rect) =>
+      rect !== from &&
+      rect !== to &&
+      rect.x >= from.x + from.width &&
+      rect.x < to.x &&
+      low < rect.y + rect.height &&
+      rect.y <= high,
+  )
 }
 
 /** 走廊里那条竖段所在的列(见 CORRIDOR_LANE)。 */
@@ -880,7 +1119,15 @@ export function edgeRoute(from: FlowRect, to: FlowRect, index: number, options: 
   const fromMidY = from.y + Math.floor(from.height / 2)
   const toMidY = to.y + Math.floor(to.height / 2)
 
-  if (isRightward(from, to)) {
+  // 「同带右向」这一档**只在两卡紧邻时成立**。走廊走线(横-竖-横)的两段横段要一路铺到
+  // 目标卡的左沿,中间若是**隔着别的列**(把一张卡拖到第 0 列、而它的目标在第 3 列,或一行带
+  // 里有四列),横段就从那些卡身上穿过去了。所以判据不只是「目标在源右边」,还要加一条
+  // 「两者之间那段走廊整段空着」(见 corridorFree)。不成立就退回绕行那一档。
+  // `occupied` 缺席时按「走廊里只有源与目标」算 —— 那正好退化成 `isRightward`,
+  // 所以纯函数调用方(单测里手搓两个矩形的那种)不必先造一张占位表。
+  const rightward = takesCorridor(from, to, options.occupied ?? [from, to])
+
+  if (rightward) {
     const corridorX = corridorColumn(from)
     const dropping = toMidY > fromMidY
     const cells = join(
@@ -913,11 +1160,17 @@ export function edgeRoute(from: FlowRect, to: FlowRect, index: number, options: 
   // 通道取在**目标之外**的那一侧:目标整体在源之上(只有拖拽能把边走成这样)就取行带之上那几行,
   // 其余(下一条行带、同一行带里往回走)取行带之下那几行。车道数是 GAP_Y − 1 ——
   // 通道最后几行要留给「扎进目标卡边」那一竖段。
+  //
+  // **「行带之上」也要先确认真的存在**:第 1 轮第一条行带的 bandTop 是 0,`bandTop − GAP_Y`
+  // 是 −3,夹到 0 之后那一行**在行带之内**(画布第 0 行就是卡片)。拖拽把一张卡放进第一条行带、
+  // 而它的目标在更上面时就会走到这一档,于是横段从同带别的卡身上穿过去。
+  // 那一侧不存在就改走行带之下 —— 下面那 GAP_Y 行按构造必然没有卡片。
   const bandTop = options.bandTop ?? from.y
-  const above = to.y + to.height <= from.y
+  const aboveLane = bandTop - GAP_Y
+  const above = to.y + to.height <= from.y && aboveLane >= 0
   const channelY = Math.max(
     0,
-    (above ? bandTop - GAP_Y : (options.bandBottom ?? from.y + from.height)) + (index % (GAP_Y - 1)),
+    (above ? aboveLane : (options.bandBottom ?? from.y + from.height)) + (index % (GAP_Y - 1)),
   )
   const enterX = to.x - 1
   // 出口:能直上直下就走自己那一列(横段长、标签有地方摆),那一竖被别的东西压住时
@@ -984,11 +1237,19 @@ const DRAG_REACH = 1
 /**
  * 把一次拖拽的落点吸附到网格上。返回 `undefined` = 这一帧没有合法落点(调用方保持原位)。
  *
- * 三步,顺序就是它与原型那条 `Math.max(0, Math.min(canvas - card, ox + dx))` 的差别:
+ * 四步,顺序就是它与原型那条 `Math.max(0, Math.min(canvas - card, ox + dx))` 的差别:
  *   1. **夹进画布内容范围**(原型那两句 min/max)—— 卡不许被拖出画布;
  *   2. **吸附**:落到最近的空锚点上;
- *   3. **不许压住别人**:与任何别的卡片/详情框相交的锚点一律不算 —— 压住别人的卡不只是难看,
- *      还会让那条边从卡片里穿过去(见 CORRIDOR_LANE 的注释里那三条前提)。
+ *   3. **卡整个待在那条行带里**:行带的下沿是绕行边的通道基准(见 RouteOptions),
+ *      卡探出下沿时,出边那一竖(`rect.x + width − 2` 那一列,从卡片下沿起步)第一步就落在
+ *      卡自己身上 —— 线直接糊在正文上。节点尺寸按类型在变之前这条恒成立(所有卡一样高,
+ *      而每条行带至少有那么高);现在必须真查。
+ *   4. **不许压住别人**:与任何别的卡片/详情框相交的锚点一律不算 —— 压住别人的卡不只是难看,
+ *      还会让那条边从卡片里穿过去(见 CORRIDOR_LANE 的注释里那三条前提);
+ *   5. **那一列装得下这张卡**:列 x 是从 `columnWidths`(每一列在整幅图上最宽的那张卡)推出来的,
+ *      所以一张比那一列还宽的卡放进去就会顶进右边那条走廊,把 GAP_X 挤掉几列 ——
+ *      走廊一窄,竖段与 13 列的并行标签就摆不下了(见 edgeRoute)。
+ *      「不许压住别人」只查**当下**那些矩形,查不出「将来那条走廊会变窄」,所以这一档单列。
  *
  * x 只认**列锚**、y 只认**行首**:走廊宽度与标签宽度都算在这两个数上,
  * 自由落点会让「两卡之间的走廊」窄到放不下竖段与 13 列的并行标签(见 edgeRoute)。
@@ -999,6 +1260,8 @@ export function snapDrag(
     anchors: readonly FlowAnchor[]
     /** 别人占着的地方(不含正在拖的这张卡自己)。 */
     blocked: readonly FlowRect[]
+    /** 每一列的宽度,下标与锚点里那些列锚(升序)一一对应(见 layout 的 FlowLayout.columnWidths)。 */
+    columnWidths: readonly number[]
     /** 画布内容尺寸。 */
     bounds: { width: number; height: number }
     /** 卡自己的尺寸。 */
@@ -1008,6 +1271,8 @@ export function snapDrag(
   const columns = [...new Set(context.anchors.map((anchor) => anchor.x))].toSorted((a, b) => a - b)
   const rows = [...new Set(context.anchors.map((anchor) => anchor.y))].toSorted((a, b) => a - b)
   if (columns.length === 0 || rows.length === 0) return undefined
+  // 每一行锚属于哪条行带(锚点是叉积,同一个 y 在所有列锚上说的都是同一条行带)。
+  const bandOfRow = new Map(context.anchors.map((anchor) => [anchor.y, anchor.bandBottom]))
   const wanted = {
     x: Math.min(Math.max(raw.x, 0), Math.max(0, context.bounds.width - context.size.width)),
     y: Math.min(Math.max(raw.y, 0), Math.max(0, context.bounds.height - context.size.height)),
@@ -1015,8 +1280,13 @@ export function snapDrag(
   let best: FlowOffset | undefined
   let bestDistance = Number.POSITIVE_INFINITY
   for (const x of near(columns, wanted.x)) {
+    // 这一列在整幅图上最宽的那张卡有多宽(见 FlowLayout.columnWidths 的注释)。
+    if (context.size.width > (context.columnWidths[columns.indexOf(x)] ?? 0)) continue
     for (const y of near(rows, wanted.y)) {
       if (x + context.size.width > context.bounds.width) continue
+      // 卡必须整个关在那条行带里(见上面第 3 条)。
+      const bandBottom = bandOfRow.get(y)
+      if (bandBottom === undefined || y + context.size.height > bandBottom) continue
       const candidate = { x, y, width: context.size.width, height: context.size.height }
       if (context.blocked.some((rect) => overlaps(candidate, rect))) continue
       const distance = Math.abs(x - wanted.x) + Math.abs(y - wanted.y)

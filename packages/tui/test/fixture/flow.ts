@@ -2,9 +2,10 @@
 //
 // 为什么要抽出来:flow-layout.test.ts 与 flow-canvas.test.tsx 原本各抄了一份消息/part 构造器
 // 与那份「原型形状」的数据,已经出现了漂移(两边节点数都不一样)。不变量断言更需要集中 ——
-// 那五条(无格压卡 / 步长为 1 / 无重复格 / 端点贴边界 / 标签位不压卡 / 矩形不重叠)是**布局的
-// 全部安全性证明**,而它们与「画布多宽」「并行分支有几个成员」无关:每多一种组合就手抄一遍,
-// 迟早会漏掉一种。这里写成 `flowInvariants`,新组合只需要多一行调用。
+// 那十条(无格压卡 / 步长为 1 / 无重复格 / 端点贴边界 / 标签位不压卡 / 矩形不重叠 / 走廊够宽
+// / 尺寸按类型 / 卡片整个待在行带里)是**布局的全部安全性证明**,而它们与「画布多宽」
+// 「并行分支有几个成员」无关:每多一种组合就手抄一遍,迟早会漏掉一种。这里写成 `flowInvariants`,
+// 新组合只需要多一行调用。
 import type { AssistantMessage, Message, Part, UserMessage } from "@novaway/sdk-v2-latest/v2"
 import { Locale } from "../../src/util/locale"
 import { makeLabelPlacer } from "../../src/component/flow/grid"
@@ -12,12 +13,13 @@ import {
   buildFlowModel,
   corridorColumn,
   edgeRoute,
-  isRightward,
+  GAP_X,
   layoutNodes,
   LABEL_COLUMNS,
   MAX_ROUTE_TURNS,
-  NODE_WIDTH,
+  nodeSize,
   routeTurns,
+  takesCorridor,
   type FlowLayout,
   type FlowModel,
   type FlowOffset,
@@ -108,7 +110,7 @@ export type FlowInvariantOptions = {
  * 返回清单而不是直接 `expect`:这样一条测试可以同时覆盖多组宽度/多组并行规模,
  * 失败时又能一次看到全部问题,而不是只报撞上第一条就停。
  *
- * 覆盖的九条:
+ * 覆盖的十条:
  *   1. 任意两张卡片(或两个详情框、或详情框与卡片)矩形不重叠;
  *   2. 每条边的**每一格**都不落在任何矩形内(连线不压卡片);
  *   3. 相邻两格恰好差一格(没有斜线、没有跳格);
@@ -118,13 +120,23 @@ export type FlowInvariantOptions = {
  *   7. **形状**:每条边至多拐 MAX_ROUTE_TURNS 次 —— 一类边一种形状,不许再出现回头路
  *      (上一版的狗腿是横-竖-横-竖-横,拐 4 次,画出来是一排压扁的弹簧);
  *   8. **走廊**:同带右向的边整条都在两卡之间的走廊里,竖段只落在固定的走廊列上;
- *   9. **标签**:真正摆出来的标签不压在**别的边**的格子上(上一版会,把「本轮完成」印在另一条线上)。
+ *   9. **标签**:真正摆出来的标签不压在**别的边**的格子上(上一版会,把「本轮完成」印在另一条线上);
+ *  10. **尺寸**:每张卡的矩形恰好是它那一类节点该有的宽高(见 layout 的 nodeSize),
+ *      且同一条行带里相邻两列之间至少留得出 GAP_X 的走廊 —— 这是「卡片尺寸按类型变化之后
+ *      仍然不重叠」的那条构造保证,不复核的话有人把列 x 改成按卡自己的宽算就会静悄悄地压上。
  */
 export function flowInvariants({ model, layout, width }: FlowInvariantOptions) {
   const problems: string[] = []
   const occupied = occupiedRects(layout)
 
   for (const [index, a] of layout.nodes.entries()) {
+    const size = nodeSize(a.kind)
+    if (a.rect.width !== size.width || a.rect.height !== size.height) {
+      problems.push(`尺寸不对:${a.id}(${a.kind})是 ${a.rect.width}×${a.rect.height},该是 ${size.width}×${size.height}`)
+    }
+    if (a.detailRect && (a.detailRect.x !== a.rect.x || a.detailRect.y !== a.rect.y + a.rect.height)) {
+      problems.push(`详情框没贴在卡片正下方:${a.id}`)
+    }
     for (const b of layout.nodes.slice(index + 1)) {
       if (rectsOverlap(a.rect, b.rect)) problems.push(`卡片重叠:${a.id} 与 ${b.id}`)
       if (a.detailRect && b.detailRect && rectsOverlap(a.detailRect, b.detailRect)) {
@@ -132,6 +144,12 @@ export function flowInvariants({ model, layout, width }: FlowInvariantOptions) {
       }
       if (a.detailRect && rectsOverlap(a.detailRect, b.rect)) problems.push(`${a.id} 的详情框压到 ${b.id}`)
       if (b.detailRect && rectsOverlap(a.rect, b.detailRect)) problems.push(`${b.id} 的详情框压到 ${a.id}`)
+      // 走廊:同一行带里两张卡左右相邻时,中间至少空得出 GAP_X —— 这是 layout 里
+      // 「x[c+1] = x[c] + 本列最宽卡 + GAP_X」那条构造在矩形上的直接推论。
+      if (a.bandTop !== b.bandTop || a.rect.x === b.rect.x) continue
+      const [left, right] = a.rect.x < b.rect.x ? [a, b] : [b, a]
+      const gap = right.rect.x - (left.rect.x + left.rect.width)
+      if (gap >= 0 && gap < GAP_X) problems.push(`走廊太窄:${left.id} 与 ${right.id} 之间只有 ${gap} 列(要 ${GAP_X})`)
     }
     if (width !== undefined && a.rect.x + a.rect.width > layout.width) {
       problems.push(`${a.id} 超出画布宽度(${a.rect.x + a.rect.width} > ${layout.width},画布视口 ${width})`)
@@ -164,7 +182,9 @@ export function flowInvariants({ model, layout, width }: FlowInvariantOptions) {
     const turns = routeTurns(route.cells)
     if (turns > MAX_ROUTE_TURNS) problems.push(`形状太绕:${edge.id} 拐了 ${turns} 次(至多 ${MAX_ROUTE_TURNS} 次)`)
     // 走廊:同带右向的边整条都在两卡之间,竖段只落在固定那一列。
-    if (isRightward(from.rect, to.rect)) {
+    // 判据是 `takesCorridor` 而不是 `isRightward`:两卡**隔着别的列**时(一行带排到四列、
+    // 或者拖拽把一张卡放到离目标两列远的地方)实现会退回绕行那一档,断言必须跟着实现走。
+    if (takesCorridor(from.rect, to.rect, occupied)) {
       const column = corridorColumn(from.rect)
       const low = from.rect.x + from.rect.width
       const high = to.rect.x - 1
@@ -252,24 +272,6 @@ export function cardColumns(lines: readonly string[]): number[] {
 /** 一帧里数得出来的卡片列数。一行里可能并排两张卡,所以每一行都要看。 */
 export function distinctCardColumns(lines: readonly string[]) {
   return cardColumns(lines).length
-}
-
-/**
- * 帧里**完整可见**的卡片顶边框那一列 —— `╭` + NODE_WIDTH − 2 个 `─` + `╮`。
- *
- * 与 cardColumns 的区别:它要求整条顶边框都在画面内,所以右侧被裁掉的卡不算。用来断言
- * 「卡片本身有没有被裁掉」,数列数请用 cardColumns。
- */
-export function cardBorderColumns(lines: readonly string[], width = NODE_WIDTH): number[] {
-  const columns = new Set<number>()
-  for (const line of lines) {
-    const cells = lineColumns(line)
-    for (let x = 0; x + width - 1 < cells.length; x++) {
-      if (cells[x] !== "╭" || cells[x + width - 1] !== "╮") continue
-      if (cells.slice(x + 1, x + width - 1).every((cell) => cell === "─")) columns.add(x)
-    }
-  }
-  return [...columns].toSorted((a, b) => a - b)
 }
 
 /**
