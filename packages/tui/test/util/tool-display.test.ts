@@ -185,10 +185,7 @@ describe("toolHeadLayout", () => {
     // 列宽账:失败段左端那一列就是两段之间的分隔,不再额外扣一次 HEAD_GAP。
     // 标题 1 + 分隔 1 + 通过 `✓ 12 passed` 11 + 失败 ` · 3 failed` 11 = 24 ≤ 40。
     const columns =
-      Locale.displayWidth(layout.title) +
-      1 +
-      Locale.displayWidth(layout.passed) +
-      Locale.displayWidth(layout.failed)
+      Locale.displayWidth(layout.title) + 1 + Locale.displayWidth(layout.passed) + Locale.displayWidth(layout.failed)
     expect(Locale.displayWidth(layout.passed)).toBe(11)
     expect(Locale.displayWidth(layout.failed)).toBe(11)
     expect(columns).toBe(24)
