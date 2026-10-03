@@ -54,6 +54,14 @@ export function NeonCard(props: {
    * 也不要让描边画到消息区外面去。
    */
   width?: number | "auto" | `${number}%`
+  /**
+   * 描边的叠色档(见 ui/neon 的 BORDER_ALPHA_DEFAULT 与 ui/card 的 borderAlpha)。
+   * 省略 = 默认那一档 0.62 —— 助手/用户气泡、思考卡、工具卡、错误卡、提示卡都吃它。
+   * 流程图节点卡要自己传 0.72:原型 `.fcard` 用的是不透明的 `--fc`(最接近本实现今天的
+   * 0.70 面板卡那一档),而 28×4 的小卡上边框占整张卡的比重远大于面板卡,压得更淡就读不出
+   * 「这是一张卡」了。
+   */
+  borderAlpha?: number
 }) {
   const { theme } = useTheme()
   const hover = useCardHover()
@@ -64,6 +72,11 @@ export function NeonCard(props: {
       enterDelay={props.enterDelay}
       animated={hover.animated()}
       boost={hover.boost(theme.text)}
+      borderAlpha={props.borderAlpha}
+      // 这张壳是**透明卡**(没有自己的 backgroundColor),叠色底必须显式给。
+      // 它坐在消息区里,消息区自己也没有底色 —— 一路往上就是 app 根盒子的 theme.background。
+      // 不给就落到「透明黑」:深色主题下碰巧像那么回事,浅色主题下整圈描边会沉进白底里。
+      borderBackdrop={theme.background}
       onMouseOver={hover.onMouseOver}
       onMouseOut={hover.onMouseOut}
       onMouseUp={props.onSelect}

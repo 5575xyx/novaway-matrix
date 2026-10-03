@@ -55,6 +55,55 @@ export function brighten(color: RGBA, amount: number, towards: RGBA): RGBA {
   )
 }
 
+/**
+ * 叠色:alpha = k 的 color 盖在 back 上,眼睛看到的那个实色。
+ *
+ * 终端只有 RGB(见 fadeIn 的注释),原型的半透明描边只能这样折算 —— 而且这**就是** alpha
+ * 混合在该背景上的定义式,不是近似:per_channel = color·k + back·(1−k)。
+ * 于是「给描边配一个 alpha」与「给它配一个背景」是一件事的两面:back 取错,
+ * 叠出来的颜色就等于叠在了别的背景上算的那一档。
+ *
+ * 与 brighten 的区别只在语义与参数位置:brighten 是「朝 towards 混 amount」,
+ * 这里 k 是**图层自己的 alpha**,towards 是**背景** —— 读代码时这两件事很容易看反,
+ * 所以不合并成一个函数。
+ */
+export function alphaOver(color: RGBA, back: RGBA, alpha: number): RGBA {
+  const k = Math.min(1, Math.max(0, alpha))
+  return RGBA.fromValues(
+    color.r * k + back.r * (1 - k),
+    color.g * k + back.g * (1 - k),
+    color.b * k + back.b * (1 - k),
+    color.a,
+  )
+}
+
+/**
+ * 描边「提亮」的固定目标色 = 纯白。
+ *
+ * 终端里没有 box-shadow、没有外发光,「亮一点」只能落在描边色本身。纯白是唯一不带
+ * 语义的选择:带主题色的目标会把它读成「换了个颜色」而不是「被点亮了」。
+ * 浅色主题下这一档会把描边往白底里推(见 HOVER_BOOST 的注释),但纯白至少不会替它编一个色相。
+ */
+export const NEON_WHITE = RGBA.fromValues(1, 1, 1, 1)
+
+/**
+ * 描边的默认「叠色档」(NeonBoxRenderable 的 borderAlpha 默认值)。
+ *
+ * 原型 card-design-v7.html 的描边是一律的半透明渐变,逐个抄回来的 alpha:
+ *   `.msg.assistant .bubble`  rgba(79,209,224,.8) → rgba(74,158,255,.55)   均值 .675
+ *   `.thinking .bubble`       rgba(167,139,250,.8) → rgba(79,209,224,.55) 均值 .675
+ *   `.msg.user .bubble`       rgba(255,92,158,.9) → rgba(167,139,250,.7)  均值 .80
+ *   `.prompt`                 rgba(79,209,224,.5) → rgba(74,158,255,.4)  均值 .45
+ *   `.hero` / `.seg`          两端都是 .55                              均值 .55
+ * 助手 / 用户气泡 / 思考卡 / 工具卡 / 错误卡 / 提示卡这一族共用 **0.62**:
+ * 落在 .55~.90 这个区间里,略低于助手与思考两档的均值 —— 终端的 1 格描边比
+ * 浏览器的 1.5px 粗得多,同一个 alpha 画出来更重,取偏低端才压得住。
+ *
+ * 原型里**不透明**的两类(面板卡 `.card` 的 `--gb-main`、流程图节点 `.fcard` 的 `--fc`)
+ * 没法照抄 1.0 —— 那正是「描边太重」的来源;它们各自压到 0.70 / 0.72,在调用点显式传。
+ */
+export const BORDER_ALPHA_DEFAULT = 0.62
+
 // 悬停「光晕加深」的等效实现:终端里没有 box-shadow 也没有半透明,描边色只能朝某个方向混一点。
 //
 // 目标色由调用点给(每张卡都传 theme.text),所以这一档的效果是分两种的:

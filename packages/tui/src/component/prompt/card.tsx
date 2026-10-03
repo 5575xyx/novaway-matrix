@@ -8,6 +8,9 @@ import { semanticStops } from "../../ui/neon"
 import { Locale } from "../../util/locale"
 import "../../ui/card"
 
+// 输入卡的叠色档。导出给测试直接引用,免得测试里再抄一个 0.45。
+export const INPUT_CARD_ALPHA = 0.45
+
 // 输入区霓虹输入卡的壳。与助手气泡卡 / 流程图节点卡共用的那张壳(NeonCard)同一条规矩:
 // 这里只依赖 useTheme() 与 useKV(),不碰 session/local context,测试能直接挂载真壳量几何 ——
 // 手抄一份 neonbox 到测试里的话,改这里的 padding 不会让任何测试变红。
@@ -35,6 +38,13 @@ export function PromptCard(props: { focused: boolean; visible?: boolean; childre
     <neonbox
       gradientStops={semanticStops(theme, "input")}
       animated={props.focused && props.visible !== false && kv.get("animations_enabled", true)}
+      // 输入卡照抄原型 `.prompt` 的那一档:`linear-gradient(135deg, rgba(79,209,224,.5),
+      // rgba(74,158,255,.4))` —— 两端均值 0.45,是原型所有描边里最淡的一档(见 ui/neon 的
+      // BORDER_ALPHA_DEFAULT 注释表)。输入卡是唯一一张「先要读正文、再看边框」的卡:
+      // 边框抢戏就等于正文被框住,所以它比气泡卡(0.62)还淡一档。
+      borderAlpha={INPUT_CARD_ALPHA}
+      // 透明卡:叠色底一路往上到 app 根盒子的 theme.background。
+      borderBackdrop={theme.background}
       paddingTop={1}
       paddingBottom={1}
       paddingLeft={1}

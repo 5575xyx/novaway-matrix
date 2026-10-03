@@ -27,10 +27,20 @@ import {
   ViewEntrance,
 } from "../../../src/routes/session/view-entrance"
 import "../../../src/ui/card"
+import { alphaOver, brighten, NEON_WHITE } from "../../../src/ui/neon"
+import { TOP_EDGE_GLOW } from "../../../src/ui/card"
 
 const WIDTH = 40
 const HEIGHT = 8
 const BORDER = RGBA.fromHex("#5fd7ff")
+const FLOW_BORDER = RGBA.fromHex("#ff2d7b")
+
+/**
+ * 这两张卡都没有自己的 backgroundColor,所以叠色底是「透明黑」(见 ui/card 的 borderBackdrop)。
+ * 终态描边色因此是「纯渐变按 0.62 叠在透明黑上、再叠一道顶边光晕」——
+ * `╭` 在顶边上,光晕对它生效。契约从 ui/neon 与 ui/card 拿,不在这里写死数。
+ */
+const FLOW_BORDER_TONE = brighten(alphaOver(FLOW_BORDER, RGBA.fromValues(0, 0, 0, 0), 0.62), TOP_EDGE_GLOW, NEON_WHITE)
 
 /**
  * 挂一个受控的舞台。进场视图是一张真霓虹卡(与生产同壳),标记写在卡内第一行 ——
@@ -245,7 +255,11 @@ test("入场:淡入真的落到颜色上 —— 入场期间正文与卡片描�
     const finalText = cellOf(final, "FLOW-VIEW")
     const finalBorder = cellOf(final, "╭")
     expect(finalText, "终态正文应是纯白").toEqual([255, 255, 255])
-    expect(finalBorder, "终态描边应是这张卡自己的粉").toEqual([255, 45, 123])
+    expect(finalBorder, "终态描边应是这张卡自己的粉(叠色 + 顶边光晕之后)").toEqual([
+      Math.round(FLOW_BORDER_TONE.r * 255),
+      Math.round(FLOW_BORDER_TONE.g * 255),
+      Math.round(FLOW_BORDER_TONE.b * 255),
+    ])
 
     const dimmed = (marker: string) =>
       frames.filter((frame) => {

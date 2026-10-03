@@ -3,7 +3,8 @@ import { describe, expect, test } from "bun:test"
 import { createSignal } from "solid-js"
 import { testRender } from "@opentui/solid"
 import { RGBA, type CapturedFrame } from "@opentui/core"
-import { gradientAt, perimeterCells, semanticStops } from "../../src/ui/neon"
+import { alphaOver, brighten, gradientAt, NEON_WHITE, perimeterCells, semanticStops } from "../../src/ui/neon"
+import { TOP_EDGE_GLOW } from "../../src/ui/card"
 import { resolveTheme, type ThemeJson } from "../../src/theme"
 import novaway from "../../src/theme/assets/novaway.json" with { type: "json" }
 // 裸导入跑 extend({ neonbox }) 的副作用;类型单独用 import type 拿 ——
@@ -176,11 +177,11 @@ function animatedCard() {
 }
 
 describe("NeonBox 流动描边", () => {
-  // 全 App 视觉回归守卫:静止卡的描边逐格色必须严格等于 gradientAt(stops, cell.t)。
+  // 全 App 视觉回归守卫:静止卡的描边逐格色必须严格等于「叠色后的 gradientAt(stops, t)」。
   // 之前的实现写成 gradientAt(stops, (cell.t + phase) % 1),静止时 phase = 0,
   // `(1 + 0) % 1` 把周长末格(t = 1)送回 t = 0 —— 那一格渲染成起点色而不是终点色,
   // 所有不动的卡(助手气泡卡 / 侧栏卡 / 输入卡的失焦态)都跟着偏了一格。
-  test("静止态逐格等于 gradientAt(stops, t),周长末格取终点色而不是绕回起点色", async () => {
+  test("静止态逐格等于叠色后的 gradientAt(stops, t),周长末格取终点色而不是绕回起点色", async () => {
     const app = await testRender(
       () => (
         <neonbox {...cardProps}>
@@ -194,25 +195,27 @@ describe("NeonBox 流动描边", () => {
       const grid = cellGrid(app.captureSpans())
       const mismatches: string[] = []
       for (const cell of perimeterCells(cardProps.width, cardProps.height)) {
-        const expected = gradientAt(cardProps.gradientStops, cell.t)
+        const expected = alphaOver(gradientAt(cardProps.gradientStops, cell.t), cardProps.backgroundColor, 0.62)
+        const lit = cell.y === 0 ? brighten(expected, TOP_EDGE_GLOW, NEON_WHITE) : expected
         const actual = grid.get(`${cell.y}:${cell.x}`)
         // buffer 存 fg 走 8bit 量化,单格误差容 1/255。
         if (
           !actual ||
-          Math.abs(actual.r - expected.r) > 0.004 ||
-          Math.abs(actual.g - expected.g) > 0.004 ||
-          Math.abs(actual.b - expected.b) > 0.004
+          Math.abs(actual.r - lit.r) > 0.004 ||
+          Math.abs(actual.g - lit.g) > 0.004 ||
+          Math.abs(actual.b - lit.b) > 0.004
         ) {
-          mismatches.push(`(${cell.x},${cell.y}) t=${cell.t} 期望 ${rgb(expected)} 实得 ${rgb(actual)}`)
+          mismatches.push(`(${cell.x},${cell.y}) t=${cell.t} 期望 ${rgb(lit)} 实得 ${rgb(actual)}`)
         }
       }
       expect(mismatches).toEqual([])
       // 再把「末格」单拎出来:12×4 的周长 28 格,末格 t = 27/27 = 1,是左边框第 1 行。
-      // 红→蓝两色 stops 下它必须是纯蓝;绕回起点色会渲染成纯红。
+      // 红→蓝两色 stops 下它必须是终点蓝(叠过 0.62 之后是 #0624a4 那一档);
+      // 绕回起点色会叠成 #062400 —— 蓝通道差着 0.62。
       const last = grid.get("1:0")
       expect(last).toBeDefined()
-      expect(last!.b).toBeGreaterThan(0.99)
-      expect(last!.r).toBeLessThan(0.01)
+      expect(last!.b).toBeGreaterThan(0.6)
+      expect(last!.r).toBeLessThan(0.06)
     } finally {
       app.renderer.destroy()
     }

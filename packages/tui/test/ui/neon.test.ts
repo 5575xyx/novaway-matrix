@@ -1,6 +1,16 @@
 import { describe, expect, test } from "bun:test"
 import { RGBA } from "@opentui/core"
-import { brighten, fadeIn, gradientAt, HOVER_BOOST, neonStops, perimeterCells, semanticStops } from "../../src/ui/neon"
+import {
+  alphaOver,
+  brighten,
+  BORDER_ALPHA_DEFAULT,
+  fadeIn,
+  gradientAt,
+  HOVER_BOOST,
+  neonStops,
+  perimeterCells,
+  semanticStops,
+} from "../../src/ui/neon"
 import { resolveTheme, type ThemeJson } from "../../src/theme"
 import novaway from "../../src/theme/assets/novaway.json" with { type: "json" }
 
@@ -67,6 +77,59 @@ describe("brighten", () => {
   test("HOVER_BOOST 是可感又不抢戏的一档(8%~15%)", () => {
     expect(HOVER_BOOST).toBeGreaterThan(0.08)
     expect(HOVER_BOOST).toBeLessThan(0.15)
+  })
+})
+
+// 终端没有 alpha(见 fadeIn 的注释),原型的半透明描边只能靠「叠色」折算成实色:
+// alpha = k 的描边盖在 back 上,眼睛看到的就是 color·k + back·(1−k)。
+describe("alphaOver", () => {
+  const panel = RGBA.fromValues(0.1, 0.15, 0.2, 1)
+  const cyan = RGBA.fromValues(0, 0.9, 1, 1)
+
+  test("k = 1 原色、k = 0 全是背景色", () => {
+    expect(alphaOver(cyan, panel, 1)).toEqual(cyan)
+    expect(alphaOver(cyan, panel, 0)).toEqual(panel)
+  })
+
+  test("k 越界夹紧到 [0,1]", () => {
+    expect(alphaOver(cyan, panel, -2)).toEqual(panel)
+    expect(alphaOver(cyan, panel, 5)).toEqual(cyan)
+  })
+
+  test("逐通道就是 color·k + back·(1−k)", () => {
+    const mid = alphaOver(cyan, panel, 0.62)
+    expect(mid.g).toBeCloseTo(0.9 * 0.62 + 0.15 * 0.38, 2)
+    expect(mid.b).toBeCloseTo(1 * 0.62 + 0.2 * 0.38, 2)
+    // r 通道:color.r = 0,只剩背景那一层
+    expect(mid.r).toBeCloseTo(0.1 * 0.38, 2)
+  })
+
+  test("逐通道都落在 color 与 back 之间(不会跑出两端)", () => {
+    for (let k = 0; k <= 1.0001; k += 0.1) {
+      const value = alphaOver(cyan, panel, k)
+      const pairs = [
+        [value.r, cyan.r, panel.r],
+        [value.g, cyan.g, panel.g],
+        [value.b, cyan.b, panel.b],
+      ] as const
+      for (const [actual, from, to] of pairs) {
+        expect(actual).toBeGreaterThanOrEqual(Math.min(from, to) - 1e-9)
+        expect(actual).toBeLessThanOrEqual(Math.max(from, to) + 1e-9)
+      }
+    }
+  })
+
+  test("同一条纪律:alpha 原样保留(叠色改的是「亮不亮」,不是「透不透明」)", () => {
+    const translucent = RGBA.fromValues(0.2, 0.4, 0.6, 0.5)
+    expect(alphaOver(translucent, panel, 0.62).a).toBeCloseTo(0.5, 1)
+  })
+
+  // 默认档钉在原型 `.bubble` 的 alpha 区间(0.55~0.90,助手/思考两档的均值 0.675)之内,
+  // 偏低端取 0.62 —— 见 neon.ts 里 BORDER_ALPHA_DEFAULT 的注释。
+  test("默认档 0.62 落在原型 .bubble 的 alpha 区间里", () => {
+    expect(BORDER_ALPHA_DEFAULT).toBe(0.62)
+    expect(BORDER_ALPHA_DEFAULT).toBeGreaterThan(0.55)
+    expect(BORDER_ALPHA_DEFAULT).toBeLessThan(0.9)
   })
 })
 
