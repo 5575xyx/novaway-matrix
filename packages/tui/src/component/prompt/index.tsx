@@ -61,7 +61,7 @@ import { usePromptMove } from "./move"
 import { readLocalAttachment } from "./local-attachment"
 import { useLocation } from "../../context/location"
 import { sessionUsage } from "../../util/usage"
-import { PromptCard, PromptHints, PromptSend } from "./card"
+import { PromptCard, PromptBottomRow, PromptHints, PromptSend } from "./card"
 
 registerNovaWaySpinner()
 
@@ -1438,8 +1438,8 @@ export function Prompt(props: PromptProps) {
         width="100%"
         flexDirection="column"
       >
-        {/* 输入区霓虹输入卡:两行(输入行 / 提示行),聚焦时描边流动 + 扫光。
-            卡壳与提示行在 ./card 里 —— 只依赖 useTheme/useKV/键位表,测试能直接挂载真壳。
+        {/* 输入区霓虹输入卡:四行(输入行 / 呼吸行 / 底部行 / 提示行),聚焦时描边流动 + 扫光。
+            卡壳、底部行与提示行在 ./card 里 —— 只依赖 useTheme/useKV/键位表,测试能直接挂载真壳。
             anchor 仍是这个最外层盒子:autocomplete 弹层按 anchor.x/y/width 定位到卡片上方
             (component/prompt/autocomplete.tsx 的 top = position().y − height())。
 
@@ -1453,12 +1453,15 @@ export function Prompt(props: PromptProps) {
             弹层会贴上霓虹边框。要留间隔只能给 anchor 加 marginTop(整块输入区下移一行),
             代价是消息区少一行,没这么做。
 
-            与 plan 的两处偏离(有意):
-            1) 卡片里只把**模型名**做成输入行右端的芯片,agent / auto / provider / variant
-               留在提示行左段 —— 提示行左段本来就是可截断的一段,模型名是不截断的芯片,
-               分开放比「五样挤在一行」清楚;
-            2) 按钮文案用 `发送 Enter` 而不是原型的 `发送 ⏎`,理由见 card.tsx 的 PromptSend。 */}
+            与原型 card-design-v7.html:1114-1131 的偏离(有意,用户明确要求):
+            原型把模型芯片与发送按钮放在**输入行**右端,这里按用户的话「agent、模型、发送等
+            这几个都显示在输入的最底下排列」改成输入行只留提示符 + 输入框,芯片与按钮搬到
+            底部行右端、agent/meta 搬到底部行左端。原样画回原型那版就会被再次报成
+            「字挤在一起」,所以别「修」回去。
+            按钮文案用 `发送 <键>` 而不是原型的 `发送 ⏎`,理由见 card.tsx 的 PromptSend。 */}
         <PromptCard focused={promptFocused()} visible={props.visible !== false}>
+          {/* 卡内第一行:只有 ">" 与输入框。这一行不混任何 meta —— 混进来就是上一版的
+              「挤成一团」(用户原话:「字不要挤到一起」)。 */}
           <box width="100%" flexDirection="row" gap={1} flexShrink={0}>
             <box flexShrink={0} width={2} height={1}>
               {/* ASCII ">" 而不是 ❯:U+276F 的 East Asian Width 是 N(Neutral,不是 Ambiguous),
@@ -1544,24 +1547,32 @@ export function Prompt(props: PromptProps) {
                 syntaxStyle={syntax()}
               />
             </box>
-            <PromptSend
-              model={store.mode === "normal" ? local.model.parsed().model : ""}
-              canSend={canSend()}
-              // 模型名颜色与提示行里的 provider / variant 共用同一个表达式:
-              // modelMetaAlpha 是挂载淡入,leader() 是键序在等下一个键时压暗一档 ——
-              // 芯片化之后这两档不能丢,否则模型名会在挂载瞬间「啪」地出现。
-              modelColor={fadeColor(leader() ? theme.textMuted : theme.text, modelMetaAlpha())}
-              onSend={() => void submit()}
-            />
           </box>
-          {/* 卡内第二行:插件槽 + agent/权限/提供商/变体 meta(左,可截断)+ 键位提示(右,不截断)。
-              模型名不在这里 —— 它是输入行右端的芯片;这行只留「和模型相关的其余信息」。
-              meta 里的每一段都 wrapMode="none" + flexShrink={0}:少了前者会被软折行顶高一倍,
-              少了后者会被 yoga 按内容宽度压、同一段文字折成好几行。两个都固定住之后,
-              整段保持自然宽,由 PromptHints 里 minWidth=0 + overflow hidden 的盒子从右边裁掉。 */}
-          <PromptHints
-            shell={store.mode === "shell"}
+          {/* 卡内第二行:呼吸行。
+              用一个 height={1} 的空盒,而不是给底部行加 marginTop / 给两行加 gap ——
+              padding 格已经被边框吃掉(见 card.tsx 的 PromptCard),padding 给不出行间空隙;
+              gap 则要为了它把卡片的所有子节点再套一层列盒(多一个盒子、多一道宽度约束),
+              而一个显式的 height={1} 就是**一行真实布局高度**:行数可数、可测,调用方想
+              去掉呼吸只要不渲染它。flexShrink={0} 是为了终端压扁时这一行不被收掉。 */}
+          <box height={1} flexShrink={0} />
+          {/* 卡内第三行:底部行。左 = 插件槽 + agent/权限/提供商/变体 meta(可截断),
+              右 = 模型芯片 + 发送按钮(不截断)。meta 里每一段都 wrapMode="none" +
+              flexShrink={0}:少了前者会被软折行顶高一倍,少了后者会被 yoga 按内容宽度压、
+              同一段文字折成好几行。两个都固定住之后,整段保持自然宽,由 PromptBottomRow 里
+              minWidth=0 + overflow hidden 的盒子从右边裁掉。 */}
+          <PromptBottomRow
             right={props.right}
+            trailing={
+              <PromptSend
+                model={store.mode === "normal" ? local.model.parsed().model : ""}
+                canSend={canSend()}
+                // 模型名颜色与 meta 里的 provider / variant 共用同一个表达式:
+                // modelMetaAlpha 是挂载淡入,leader() 是键序在等下一个键时压暗一档 ——
+                // 芯片化之后这两档不能丢,否则模型名会在挂载瞬间「啪」地出现。
+                modelColor={fadeColor(leader() ? theme.textMuted : theme.text, modelMetaAlpha())}
+                onSend={() => void submit()}
+              />
+            }
             meta={
               <box flexDirection="row" gap={1}>
                 <Show when={local.agent.current()} fallback={<box height={1} />}>
@@ -1601,6 +1612,8 @@ export function Prompt(props: PromptProps) {
               </box>
             }
           />
+          {/* 卡内第四行:键位提示(左对齐)。提交键不在这里 —— 它跟着底部行的发送按钮走。 */}
+          <PromptHints shell={store.mode === "shell"} />
         </PromptCard>
         {/* 状态行留在卡外:目录 / 工作指示 / retry / token 花费都属于「这次会话」,
             不属于输入卡。flexShrink={0} 是补的 —— 原来这里没钉,长 retry 文案
