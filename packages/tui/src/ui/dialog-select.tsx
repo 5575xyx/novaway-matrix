@@ -147,11 +147,6 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
       .filter((item) => item.label),
     ...(props.footerHints ?? []),
   ])
-  const actionItems = createMemo(() =>
-    visibleActions()
-      .filter(isActionItem)
-      .filter((item) => !isActionDisabled(item)),
-  )
 
   createEffect(() => {
     const index = focusedAction()
@@ -220,6 +215,16 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
   const height = createMemo(() => Math.min(rows(), Math.floor(dimensions().height / 2) - 6))
 
   const selected = createMemo(() => flat()[store.selected])
+
+  // 必须声明在 selected 之后:createMemo 会立即求值一次,这里经 isActionDisabled 读
+  // selected()(仅当某个 action 的 disabled 是函数时才会读到,见 dialog-move-session 的「删除」)。
+  // 放在 selected 之前会撞 TDZ(Cannot access 'selected' before initialization),
+  // 弹层一挂载就崩。
+  const actionItems = createMemo(() =>
+    visibleActions()
+      .filter(isActionItem)
+      .filter((item) => !isActionDisabled(item)),
+  )
 
   createEffect(
     on(
