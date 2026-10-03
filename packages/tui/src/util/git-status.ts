@@ -126,17 +126,50 @@ export function parseGitCommit(line: string): { hash: string; subject: string } 
   return { hash: match[1]!, subject: match[2]! }
 }
 
-// git branch 的输出:当前分支带 "* " 前缀,其余缩进两格;detached 状态原样透传。
+// git branch 的输出。**查询用的是 `git branch --format=...`**(见 component/git-panel):
+// 裸 `git branch` 只有名字与一个星号,拿不到每个分支各自领先/落后几个提交 —— 而分支行上
+// 那两个计数正是要显示的东西(`%(upstream:track)` 才有)。
 export interface GitBranch {
   name: string
   current: boolean
+  /** 领先上游的提交数;没有上游或没领先时是 0(0 表示**不画**,不是画一个「⇡ 0」)。 */
+  ahead: number
+  /** 落后上游的提交数,同上。 */
+  behind: number
 }
 
+/**
+ * 一行 `--format` 输出:`<HEAD 标记>|<分支名>|<跟踪摘要>`。
+ *
+ * 三段都这么切是有原因的:
+ *   · HEAD 标记取 `%(HEAD)`:当前分支是 `*`,其余是**一个空格**(所以按第 0 位取,
+ *     不能按分隔符切 —— 空格本身也是摘要里的分隔符)。
+ *   · 摘要取 `%(upstream:track)`:形如 `[ahead 2]` / `[behind 1]` / `[ahead 2, behind 1]`,
+ *     没有差异或没有上游时是**空串**。里面既有空格也有逗号,所以行分隔符不能是空格。
+ *   · 分支名用 `(.*)` 贪婪匹配到**最后一个** `|` 为止:git 并不禁止分支名里出现 `|`,
+ *     贪婪匹配之后名字里带 `|` 也不会被切错(摘要那段始终在最后)。
+ */
+const BRANCH_LINE = /^([ *])\|(.*)\|(?:\[(.*)\])?$/
+
+export const BRANCH_FORMAT = "--format=%(HEAD)|%(refname:short)|%(upstream:track)"
+
 export function parseGitBranches(output: string): GitBranch[] {
-  return output
-    .split("\n")
-    .filter((line) => line.trim().length > 0)
-    .map((line) => ({ name: line.replace(/^\*?\s+/, "").trim(), current: line.startsWith("* ") }))
+  return output.split("\n").flatMap((line) => {
+    const match = BRANCH_LINE.exec(line)
+    if (!match) return []
+    const track = match[3] ?? ""
+    return [
+      {
+        // detached 时 `%(refname:short)` 给的是 HEAD;沿用裸 `git branch` 那版显示的
+        // 「detached」字样,免得那一行看着像个能切的分支(它也确实不该能点:见
+        // component/git-panel 的 branchName(),detached 时没有可切换的分支名)。
+        name: match[2] === "HEAD" ? "(HEAD detached)" : match[2],
+        current: match[1] === "*",
+        ahead: Number(/ahead (\d+)/.exec(track)?.[1] ?? 0),
+        behind: Number(/behind (\d+)/.exec(track)?.[1] ?? 0),
+      },
+    ]
+  })
 }
 
 // git stash list 的输出:"stash@{0}: WIP on main: abc1234 说明"。
