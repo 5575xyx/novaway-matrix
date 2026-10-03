@@ -2,6 +2,8 @@ import { expect, test } from "bun:test"
 import {
   branchHeadline,
   BRANCH_LABEL_MAX,
+  branchRowColumns,
+  branchRowName,
   commitSubjectText,
   COMMIT_SUBJECT_MAX,
   remoteNameText,
@@ -55,10 +57,51 @@ test("远程行:名字 + 地址不超分区外内容宽(ASCII 与中文都不超
 })
 
 test("分支列表行:名字不超卡片内容宽", () => {
-  // 行 = 左内边距 1 + 名字 + 悬停「 删」3,卡里放得下 36 − 4。
+  // 行 = 左内边距 1 + 标记段 2 + 名字 + 悬停「 删」3 = 6 + 名字(算式见 BRANCH_LABEL_MAX)。
   expect(Locale.displayWidth(remoteNameText("m".repeat(200)))).toBeLessThanOrEqual(BRANCH_LABEL_MAX)
-  expect(BRANCH_LABEL_MAX + 4).toBeLessThanOrEqual(SIDEBAR_CARD_MIN_CONTENT)
+  expect(BRANCH_LABEL_MAX + 6).toBeLessThanOrEqual(SIDEBAR_CARD_MIN_CONTENT)
   expect(Locale.displayWidth(remoteNameText("分支名字".repeat(20)))).toBeLessThanOrEqual(BRANCH_LABEL_MAX)
+})
+
+// 分支行上多了 ⇡/⇣ 两个计数之后,名字的预算必须按**这一行实际的**计数算 ——
+// 计数逐仓库不同(最坏 12 列,常见 4 列,0 的那一枚不占列),拍一个固定上限要么让长名字
+// 在有计数的行上顶到右边框,要么在没有计数的行上白丢余量。
+test("分支列表行:带 ⇡/⇣ 计数时名字按实际剩余列截断,整行不超卡片内容宽", () => {
+  const columns = SIDEBAR_CARD_MIN_CONTENT
+  const width = (input: { name: string; ahead: number; behind: number; current: boolean }) => {
+    const shown = branchRowName({ ...input, columns })
+    const counters =
+      (input.ahead > 0 ? 2 + Locale.displayWidth(String(input.ahead)) : 0) +
+      (input.behind > 0 ? 2 + Locale.displayWidth(String(input.behind)) : 0) +
+      (input.ahead > 0 && input.behind > 0 ? 1 : 0) +
+      (input.ahead > 0 || input.behind > 0 ? 1 : 0)
+    return 1 + 2 + Locale.displayWidth(shown) + counters + (input.current ? 0 : 3)
+  }
+  expect(width({ name: "main", ahead: 2, behind: 0, current: true })).toBeLessThanOrEqual(columns)
+  // 最坏情况:两枚计数都三位数。
+  expect(width({ name: "m".repeat(80), ahead: 999, behind: 999, current: false })).toBeLessThanOrEqual(columns)
+  expect(width({ name: "很长的中文分支名称".repeat(4), ahead: 12, behind: 3, current: false })).toBeLessThanOrEqual(
+    columns,
+  )
+  // 固定段本身也要对得上画出来的那几段。
+  expect(branchRowColumns({ ahead: 0, behind: 0, current: false })).toBe(6)
+  expect(branchRowColumns({ ahead: 2, behind: 0, current: false })).toBe(10)
+  expect(branchRowColumns({ ahead: 2, behind: 1, current: false })).toBe(14)
+  expect(branchRowColumns({ ahead: 999, behind: 999, current: false })).toBe(18)
+  // 当前分支没有「删」那一格(它删不掉自己)。
+  expect(branchRowColumns({ ahead: 2, behind: 1, current: true })).toBe(11)
+  // 名字至少留 4 列:卡窄到固定段都放不下时,名字也不会被压成 0(否则这一行只剩两个计数)。
+  const tight = branchRowName({ name: "m".repeat(80), ahead: 999, behind: 999, current: false, columns: 10 })
+  expect(Locale.displayWidth(tight)).toBe(4)
+  expect(tight.endsWith("…")).toBe(true)
+  // 正常宽度下名字拿到的是 36 − 18 = 18 列。
+  expect(
+    Locale.displayWidth(branchRowName({ name: "m".repeat(80), ahead: 999, behind: 999, current: false, columns })),
+  ).toBe(18)
+  // 没有计数时,名字拿到的列与 BRANCH_LABEL_MAX 那一档一致(不因加了计数而缩水)。
+  expect(
+    Locale.displayWidth(branchRowName({ name: "m".repeat(80), ahead: 0, behind: 0, current: false, columns })),
+  ).toBe(columns - 6)
 })
 
 // 当前分支行以前**完全没有截断**:46 个字符的分支名会画 55 列,被视口静默裁掉,

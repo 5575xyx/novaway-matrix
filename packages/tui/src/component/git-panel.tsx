@@ -12,6 +12,7 @@ import { useBindings } from "../keymap"
 import { useTuiConfig } from "../config"
 import { SidebarCard } from "./sidebar-card"
 import {
+  BRANCH_FORMAT,
   parseGitBranches,
   parseGitCommit,
   parseGitNumstat,
@@ -55,9 +56,57 @@ const COMMIT_MESSAGE_MAX = 200
 const COMMIT_DETAIL_MAX = 40
 // 分支列表最多显示几行,再多走"还有 N 个"。
 const BRANCH_MAX = 10
-// 分支行落在「分支」卡里:行内左内边距 1 + 名字 + 悬停「 删」3 = 4,卡里放得下 32 列,
-// 这里留 10 列余量 —— 分支名超长时截尾比把「删」挤掉好。
-export const BRANCH_LABEL_MAX = SIDEBAR_CARD_MIN_CONTENT - 14
+/**
+ * 分支行在没有计数时,名字能拿到的列数。
+ *
+ * 算式(与上面那些上限同一套口径,按显示列):
+ *   1  行左内边距
+ * + 2  标记段(「● 」/「○ 」;这两个字形是 East-Asian Ambiguous,按标准口径记 1 列 ——
+ *       与本面板早就在用的 ● 同一档口径,见 util/panel-icons 的文件头)
+ * + 名字
+ * + 3  悬停才显形的「 删」(恒定占位,当前分支没有它 —— 删不掉正在用的分支)
+ * = 6 + 名字
+ * 卡里放得下 36 − 6 = 30,这里留 8 列余量:分支名超长时截尾比把「删」挤掉好。
+ * **带计数时另算**:那一段的列数逐仓库不同,见 branchRowColumns。
+ */
+export const BRANCH_LABEL_MAX = SIDEBAR_CARD_MIN_CONTENT - 6 - 8
+
+/**
+ * 分支行里计数那一段的列数:「 ⇡ 2」/「 ⇣ 1」,**为 0 的那一枚不画**(不占列)。
+ *
+ *   ⇡ / ⇣ 与箭头一样是 East-Asian Ambiguous,按 1 列记;于是每一枚是
+ *   1(字形)+ 1(字形后的空格)+ 位数 = 2 + 位数,前面再加 1 列与名字之间的空格,
+ *   两枚都在时中间再加 1 列分隔:「 ⇡ 999 ⇣ 999」= 1 + 5 + 1 + 5 = 12 列。
+ * 0 的那一枚整个不画 —— 画成「⇡ 0」等于给每一行都加一条恒定噪声(而绝大多数分支
+ * 恰恰是 0/0),而且它会把名字的预算白白吃掉 4 列。
+ */
+export function branchCounterColumns(ahead: number, behind: number) {
+  const one = (count: number) => (count > 0 ? 2 + Locale.displayWidth(String(count)) : 0)
+  const both = ahead > 0 && behind > 0 ? 1 : 0
+  return (ahead > 0 || behind > 0 ? 1 : 0) + one(ahead) + one(behind) + both
+}
+
+/** 分支行除名字以外的全部固定列(左内边距 + 标记 + 计数 + 悬停「 删」)。 */
+export function branchRowColumns(input: { ahead: number; behind: number; current: boolean }) {
+  return 1 + 2 + branchCounterColumns(input.ahead, input.behind) + (input.current ? 0 : 3)
+}
+
+/**
+ * 分支行上那个名字的显示文本 —— 按**这一行实际的**计数算预算。
+ *
+ * 不能拍一个固定上限:计数逐仓库不同(最坏 12 列,常见 4 列),拍死的上限要么让长名字
+ * 在有计数的行上顶到右边框,要么在没有计数的行上白丢 8 列余量。名字至少留 4 列,
+ * 再短也是一个可辨认的残段 + 省略号。
+ */
+export function branchRowName(input: {
+  name: string
+  ahead: number
+  behind: number
+  current: boolean
+  columns: number
+}) {
+  return Locale.truncateToWidth(input.name, Math.max(4, input.columns - branchRowColumns(input)))
+}
 // 「分支」卡头的徽标就是当前分支名,**不在这里给上限**:卡壳按显示列封顶本来就是这行的
 // 职责(固定段 = 图标 2 + 标题「分支 N」≤ 8 + 动作「+ 新建分支」10 + 两个 gap = 22,
 // 36 − 22 − 2 余量,徽标实际最多拿到 12 列),再在这里写一个永远不生效的常量只会误导。
@@ -168,7 +217,7 @@ export function GitPanel(props: GitPanelProps) {
         git(["status", "--porcelain=v1", "-b"]),
         // 单独兜底:空仓库(一个提交都没有)时 log 会失败,但 status 是好的,别让 log 把整页拖成报错。
         git(["log", "--oneline", "-n", String(COMMIT_LIMIT)]).catch(() => ({ stdout: "" })),
-        git(["branch"]).catch(() => ({ stdout: "" })),
+        git(["branch", BRANCH_FORMAT]).catch(() => ({ stdout: "" })),
         git(["stash", "list"]).catch(() => ({ stdout: "" })),
         git(["remote", "-v"]).catch(() => ({ stdout: "" })),
         // numstat 只算行号,比完整 diff 便宜很多,但大仓库仍要 100ms 上下;
@@ -527,8 +576,15 @@ export function GitPanel(props: GitPanelProps) {
     )
   }
 
-  // 分支行:点名字切换;悬停显形"删"(同样占位恒定)。
-  const BranchRow = (rowProps: { name: string }) => {
+  // 分支行:● 标当前分支(名字同色,原型 `.branch-row .cur { color: var(--green) }`,
+  // card-design-v7.html:259),后面跟 ⇡/⇣ 两个计数(为 0 的那一枚不画);
+  // 点名字切换;悬停显形"删"(同样占位恒定)。
+  //
+  // 颜色:当前分支走 success —— 它是「我现在在这一行」这条语义,原型也是绿。
+  // 计数:领先用 warning(琥珀,正是原型 `.ahead` 那一档 :260),落后用 error ——
+  // 原型没给 behind 配色(它只画了 ahead),而终端里的惯例是「落后 = 红色警示」;
+  // 两枚都不与当前分支的绿撞。
+  const BranchRow = (rowProps: { name: string; current: boolean; ahead: number; behind: number }) => {
     const [rowHover, setRowHover] = createSignal(false)
     return (
       <box
@@ -537,16 +593,42 @@ export function GitPanel(props: GitPanelProps) {
         onMouseOver={() => setRowHover(true)}
         onMouseOut={() => setRowHover(false)}
       >
-        <text flexGrow={1} fg={theme.textMuted} wrapMode="none" onMouseUp={() => void switchBranch(rowProps.name)}>
-          {Locale.truncateToWidth(rowProps.name, BRANCH_LABEL_MAX)}
+        <text flexShrink={0} wrapMode="none">
+          {/* 非当前分支用 ○ 占位,而不是留空 —— 两个标记都恒定 2 列,名字的起点不因
+              「这一行是不是当前分支」而挪一列(预算见 branchRowColumns)。 */}
+          <span style={{ fg: rowProps.current ? theme.success : theme.textMuted }}>
+            {rowProps.current ? "● " : "○ "}
+          </span>
         </text>
         <text
-          flexShrink={0}
-          fg={rowHover() ? theme.error : theme.backgroundPanel}
-          onMouseUp={() => void deleteBranch(rowProps.name)}
+          flexGrow={1}
+          fg={rowProps.current ? theme.success : theme.text}
+          wrapMode="none"
+          onMouseUp={() => void switchBranch(rowProps.name)}
         >
-          {" 删"}
+          {branchRowName({ ...rowProps, columns: SIDEBAR_CARD_MIN_CONTENT })}
         </text>
+        <Show when={rowProps.ahead > 0 || rowProps.behind > 0}>
+          <text flexShrink={0} wrapMode="none">
+            <Show when={rowProps.ahead > 0}>
+              <span style={{ fg: theme.warning }}>{` ⇡ ${rowProps.ahead}`}</span>
+            </Show>
+            <Show when={rowProps.behind > 0}>
+              <span style={{ fg: theme.error }}>{` ⇣ ${rowProps.behind}`}</span>
+            </Show>
+          </text>
+        </Show>
+        {/* 当前分支没有「删」那一格:git 本身也拒绝删正在用的分支,给一个点不动的按钮
+            只会让人以为面板坏了。 */}
+        <Show when={!rowProps.current}>
+          <text
+            flexShrink={0}
+            fg={rowHover() ? theme.error : theme.backgroundPanel}
+            onMouseUp={() => void deleteBranch(rowProps.name)}
+          >
+            {" 删"}
+          </text>
+        </Show>
       </box>
     )
   }
@@ -614,22 +696,12 @@ export function GitPanel(props: GitPanelProps) {
                 </Show>
               </Show>
             </text>
-            {/* 分支列表:点名字切换;当前分支标 ●;悬停行显形"删"。
+            {/* 分支列表:点名字切换;当前分支标 ● 且名字同色;每行右侧跟 ⇡/⇣ 计数。
                 「分支 N」那个节标题去掉了 —— 它和卡头是同一句话;动作已移到卡头。 */}
             <Show when={branches().length > 0}>
               <For each={branches().slice(0, BRANCH_MAX)}>
                 {(item) => (
-                  <Show
-                    when={!item.current}
-                    fallback={
-                      <text wrapMode="none" paddingLeft={1}>
-                        <span style={{ fg: theme.success }}>● </span>
-                        <span style={{ fg: theme.text }}>{item.name}</span>
-                      </text>
-                    }
-                  >
-                    <BranchRow name={item.name} />
-                  </Show>
+                  <BranchRow name={item.name} current={item.current} ahead={item.ahead} behind={item.behind} />
                 )}
               </For>
               <Show when={branches().length > BRANCH_MAX}>

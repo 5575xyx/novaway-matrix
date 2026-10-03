@@ -92,19 +92,38 @@ describe("git numstat 解析", () => {
   })
 })
 
+// 查询用的是 `git branch --format=%(HEAD)|%(refname:short)|%(upstream:track)`
+// (BRANCH_FORMAT):裸 `git branch` 只有名字和一个星号,拿不到每个分支各自的领先/落后 ——
+// 而分支行上要显示的正是这两个数。所以这一组喂的都是 --format 的输出。
 describe("git branch 解析", () => {
-  test("当前分支带星号,其余是普通行", () => {
-    const result = parseGitBranches("* main\n  dev\n  feat/git-panel\n")
+  test("HEAD 标记 + 分支名 + 各自的领先/落后", () => {
+    // 每行 = `%(HEAD)`(当前分支 `*`,其余**一个空格`)+ `|` + 名字 + `|` + 摘要(没有就是空串)。
+    const result = parseGitBranches(
+      " |dev|\n*|main|[ahead 2, behind 1]\n |feat/git-panel|[ahead 3]\n |old|[behind 4]\n",
+    )
     expect(result).toEqual([
-      { name: "main", current: true },
-      { name: "dev", current: false },
-      { name: "feat/git-panel", current: false },
+      { name: "dev", current: false, ahead: 0, behind: 0 },
+      { name: "main", current: true, ahead: 2, behind: 1 },
+      { name: "feat/git-panel", current: false, ahead: 3, behind: 0 },
+      { name: "old", current: false, ahead: 0, behind: 4 },
     ])
   })
 
-  test("空输出和 detached 状态不炸", () => {
+  test("空输出返回空数组,detached 那一行不炸也不是一个能切的分支名", () => {
     expect(parseGitBranches("")).toEqual([])
-    expect(parseGitBranches("* (HEAD detached at abc1234)\n")[0]!.current).toBe(true)
+    const detached = parseGitBranches("*|HEAD|\n")
+    expect(detached[0]!.current).toBe(true)
+    expect(detached[0]!.name).toBe("(HEAD detached)")
+    expect(detached[0]!.ahead).toBe(0)
+  })
+
+  // git 不禁止分支名里出现 `|`,所以名字必须贪婪到**最后一个** `|` 为止。
+  test("分支名里带 | 也不会被切错", () => {
+    expect(parseGitBranches(" |a|b|[ahead 1]\n")[0]).toEqual({ name: "a|b", current: false, ahead: 1, behind: 0 })
+  })
+
+  test("脏行(不是 --format 的输出)被跳过,不炸", () => {
+    expect(parseGitBranches("* main\n")).toEqual([])
   })
 })
 
