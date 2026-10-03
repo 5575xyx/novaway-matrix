@@ -9,6 +9,9 @@ import { useKV } from "../context/kv"
 // 再各算一次「悬停 && animations_enabled」。这条折算在每处各抄一遍必然会漂 ——
 // 漏掉 animations_enabled 的那一处,在用户关掉动画之后仍会以 12.5Hz 空转描边。所以折在这里。
 // 数「有几家在用」时别拿这份注释当依据:调用点是增删的,`useCardHover` 的定义只有这一处。
+//
+// 它同时也是 animations_enabled 折算的**唯一**出口:`flow` 与 hover 无关,但读的是同一条
+// 设置,于是也走这里(见下面 flow 的注释)。
 
 /**
  * 返回一组悬停动效的接线。
@@ -27,8 +30,16 @@ export function useCardHover() {
   return {
     /** 原始 hover 状态,给那些自己要用它换底色的调用点(工具卡、用户气泡)。 */
     hover: hovered,
-    /** 传给 `animated=`:相位推进、描边流动 + 扫光。 */
+    /** 传给 `animated=`:相位推进 + 扫光 + 悬停档的更快流速。 */
     animated: on,
+    /**
+     * 传给 `flow=`:常驻流动(面板卡 / 侧栏分区卡那一套,见 ui/card 的 flow)。
+     *
+     * **这里没有 hover 参与,但仍然读 KV**:折算还是只有这一处。漏掉 animations_enabled
+     * 的调用点会在用户关掉动画之后仍以 12.5Hz 空转描边 —— 而面板卡是常驻布局,
+     * 同屏七八张,那个代价是平时(用户没在悬停)的,不是只在漏掉的那一刻。
+     */
+    flow: () => kv.get("animations_enabled", true),
     /** 传给 `boost=`:把描边朝 towards 混一档,抬它与面板底色的对比(见 ui/neon 的 HOVER_BOOST)。 */
     boost: (towards: RGBA) => (on() ? towards : undefined),
     onMouseOver: () => {

@@ -98,6 +98,10 @@ export function SidebarCard(props: SidebarCardProps) {
       // 因为「整卡提亮」正是这条视觉语言要表达的(这一片区域现在被关注着)。
       // 动画只改前景色、不动任何几何(yoga 布局不受影响),所以不会带得整栏抖一下。
       animated={hover.animated()}
+      // 常驻流动:原型 `.card` 的底态就是 `background-size: 200% 200%` 一路流着的
+      // (只有 :hover 才额外加 gbFlow),侧栏右缘那根 `railV 9s` 更是从不间歇。
+      // 分区卡是常驻布局,等鼠标才动等于「整个界面是死的」—— 这一档就是它平时在呼吸的来源。
+      flow={hover.flow()}
       boost={hover.boost(theme.text)}
       // 面板卡那一档(0.70)。原型 `.card` 的描边是**不透明**的 --gb-main,照抄 1.0 就是
       // 用户说的「描边太重」—— 浏览器里 1.5px 的发丝线在终端里占满一整格,只能是 alpha 说了算。

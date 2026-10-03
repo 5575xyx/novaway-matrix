@@ -131,32 +131,67 @@ async function sidebarCard(title: string, badge: string, body: string) {
   )
 }
 
-// 「悬停期间在动,移开后不动」这一对断言。工具卡与分区卡走的是三段霓虹色板,相位一动
-// 色就动,所以逐格最大偏差足以分辨。
-async function flowPair(name: string, mount: () => Promise<Harness>, ready: (text: string) => boolean) {
+/**
+ * 「悬停时在动、移开后那层只属于悬停的东西没了」这一对断言。
+ *
+ * **移开之后判的是「扫光没了」而不是「描边静止了」**:分区卡自这一轮起带 `flow`
+ * (常驻流动,见 ui/card 的 flow 与 ui/hover 的 flow),鼠标移开之后色带仍在慢慢走 ——
+ * 那正是设计。悬停独有的只有两样:扫光,以及抬对比与更快的流速。所以:
+ *   · 「扫光在不在」用**亮度**判,并拿悬停**之前**的几帧当基线(那时既没有扫光也没有
+ *     抬对比,亮度就是这张卡色带自身的区间上沿)。这个基线不依赖任何主题 token,
+ *     所以换主题也不会让门槛失准。
+ *   · 「色带在不在流」用**逐格逐通道最大偏差**判(理由见 borderRow 的注释)。
+ * 不带 flow 的卡(工具卡)额外再钉一条:移开之后逐格完全冻结。
+ */
+const SWEEP_MARGIN = 0.3
+
+function peakBrightness(row: { r: number; g: number; b: number }[]) {
+  return Math.max(...row.map(brightness))
+}
+
+async function sample(app: Harness, count: number) {
+  const shots: { r: number; g: number; b: number }[][] = []
+  for (let index = 0; index < count; index++) {
+    if (index > 0) await new Promise((resolve) => setTimeout(resolve, PHASE_WAIT))
+    await app.renderOnce()
+    shots.push(borderRow(app))
+  }
+  return shots
+}
+
+async function flowPair(
+  name: string,
+  mount: () => Promise<Harness>,
+  ready: (text: string) => boolean,
+  freezesAfterLeave = false,
+) {
   const app = await settle(await mount(), ready)
   try {
-    await app.renderOnce()
+    const idle = await sample(app, 4)
+    const baseline = Math.max(...idle.map(peakBrightness))
+
     await overCard(app)
-    await app.renderOnce()
-    const first = borderRow(app)
-    await new Promise((resolve) => setTimeout(resolve, PHASE_WAIT))
-    await app.renderOnce()
-    expect(maxDeviation(borderRow(app), first), `${name}:悬停期间描边应流动`).toBeGreaterThan(0.004)
+    const hovered = await sample(app, 6)
+    expect(maxDeviation(hovered[hovered.length - 1]!, hovered[0]!), `${name}:悬停期间描边应流动`).toBeGreaterThan(0.004)
+    expect(Math.max(...hovered.map(peakBrightness)), `${name}:悬停期间应有扫光扫过`).toBeGreaterThan(
+      baseline + SWEEP_MARGIN,
+    )
 
     await offCard(app)
-    await app.renderOnce()
-    const stopped = borderRow(app)
-    await new Promise((resolve) => setTimeout(resolve, PHASE_WAIT))
-    await app.renderOnce()
-    expect(maxDeviation(borderRow(app), stopped), `${name}:移开后描边应静止`).toBeLessThan(0.004)
+    const left = await sample(app, 6)
+    expect(Math.max(...left.map(peakBrightness)), `${name}:移开后扫光应停止`).toBeLessThanOrEqual(
+      baseline + SWEEP_MARGIN,
+    )
+    if (freezesAfterLeave) {
+      expect(maxDeviation(left[left.length - 1]!, left[0]!), `${name}:不带 flow 的卡移开后应完全静止`).toBe(0)
+    }
   } finally {
     app.renderer.destroy()
   }
 }
 
 // 悬停流动:分区卡的悬停是这次新加的 —— 它原先只有 header 上的 onMouseDown,整卡没有 hover 状态。
-test("分区卡:悬停期间描边逐帧流动,移开后静止", async () => {
+test("分区卡:悬停期间描边逐帧流动 + 有扫光,移开后扫光停止(色带仍常驻流)", async () => {
   await flowPair(
     "SidebarCard",
     () =>
@@ -177,7 +212,7 @@ test("分区卡:悬停期间描边逐帧流动,移开后静止", async () => {
 
 // 工具卡:hover() 是它原本就有的状态,C1 只是把它接到 animated/boost 上。
 // 它带 onClick 才响应悬停(见 routes/session 的 BlockTool),这里传一个可点的。
-test("工具卡:悬停期间描边逐帧流动,移开后静止", async () => {
+test("工具卡:悬停期间描边逐帧流动 + 有扫光,移开后两者都停", async () => {
   await flowPair(
     "BlockTool",
     () =>
@@ -193,6 +228,7 @@ test("工具卡:悬停期间描边逐帧流动,移开后静止", async () => {
         { width: 48, height: 8 },
       ),
     (text) => text.includes("TOOLMARK"),
+    true,
   )
 })
 
