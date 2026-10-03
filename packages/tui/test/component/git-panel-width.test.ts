@@ -98,10 +98,10 @@ test("分支列表行:带 ⇡/⇣ 计数时名字按实际剩余列截断,整行
   expect(
     Locale.displayWidth(branchRowName({ name: "m".repeat(80), ahead: 999, behind: 999, current: false, columns })),
   ).toBe(18)
-  // 没有计数时,名字拿到的列与 BRANCH_LABEL_MAX 那一档一致(不因加了计数而缩水)。
+  // 没有计数时,名字拿到的就是 BRANCH_LABEL_MAX 那一档(22 列),不因加了计数而缩水。
   expect(
     Locale.displayWidth(branchRowName({ name: "m".repeat(80), ahead: 0, behind: 0, current: false, columns })),
-  ).toBe(columns - 6)
+  ).toBe(BRANCH_LABEL_MAX)
 })
 
 // 当前分支行以前**完全没有截断**:46 个字符的分支名会画 55 列,被视口静默裁掉,

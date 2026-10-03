@@ -92,10 +92,12 @@ export function branchRowColumns(input: { ahead: number; behind: number; current
 }
 
 /**
- * 分支行上那个名字的显示文本 —— 按**这一行实际的**计数算预算。
+ * 分支行上那个名字的显示文本 —— 预算 = min(没有计数时的上限, 这一行剩下的列)。
  *
- * 不能拍一个固定上限:计数逐仓库不同(最坏 12 列,常见 4 列),拍死的上限要么让长名字
- * 在有计数的行上顶到右边框,要么在没有计数的行上白丢 8 列余量。名字至少留 4 列,
+ * 两个上限都必要:BRANCH_LABEL_MAX 保住「分支名超长时截尾比把「删」挤掉好」那 8 列余量
+ * (没有计数时卡里明明放得下 30 列,但那 8 列是留给悬停态与将来那几段的);
+ * 减掉固定段那一条则保证**有计数的行**不会把名字顶到右边框 —— 计数逐仓库不同
+ * (最坏 12 列,常见 4 列),拍死的上限做不到这一点。名字至少留 4 列,
  * 再短也是一个可辨认的残段 + 省略号。
  */
 export function branchRowName(input: {
@@ -105,7 +107,10 @@ export function branchRowName(input: {
   current: boolean
   columns: number
 }) {
-  return Locale.truncateToWidth(input.name, Math.max(4, input.columns - branchRowColumns(input)))
+  return Locale.truncateToWidth(
+    input.name,
+    Math.min(BRANCH_LABEL_MAX, Math.max(4, input.columns - branchRowColumns(input))),
+  )
 }
 // 「分支」卡头的徽标就是当前分支名,**不在这里给上限**:卡壳按显示列封顶本来就是这行的
 // 职责(固定段 = 图标 2 + 标题「分支 N」≤ 8 + 动作「+ 新建分支」10 + 两个 gap = 22,
