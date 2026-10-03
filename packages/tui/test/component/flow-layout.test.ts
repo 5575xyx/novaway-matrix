@@ -30,6 +30,7 @@ import {
   RIGHT_MARGIN,
   routeTurns,
   SEPARATOR_ROWS,
+  snapDrag,
   type FlowNode,
   type FlowRect,
 } from "../../src/component/flow/layout"
@@ -40,6 +41,7 @@ import {
   checkFlow,
   CREATED,
   edgeCellOwners,
+  flowInvariants,
   FIXTURE_MODEL,
   FIXTURE_MESSAGES,
   FIXTURE_PARTS,
@@ -94,7 +96,8 @@ test("流程图布局:本文件没有重复声明的用例", async () => {
 })
 
 // ---------- 几何不变量 ----------
-// 六条不变量(无格压卡 / 步长为 1 / 无重复格 / 端点贴边界 / 标签位不压卡 / 矩形不重叠)
+// 几何不变量(无格压卡 / 步长为 1 / 无重复格 / 端点贴边界 / 标签位不压卡 / 矩形不重叠
+// / 形状至多拐两次 / 走廊形状 / 标签不压别的边 —— 共九条,清单见 fixture 的 flowInvariants)
 // 收在 fixture 的 flowInvariants 里,下面这些用例只负责**在哪些组合上**跑它。
 
 test("流程图布局:任意两个节点矩形都不重叠(含展开详情的节点)", () => {
@@ -113,14 +116,14 @@ test("流程图布局:任意两个节点矩形都不重叠(含展开详情的节
 })
 
 /**
- * 全部六条不变量在**一整片组合**上都成立。
+ * 全部九条不变量在**一整片组合**上都成立。
  *
  * 这一条是 LEFT_MARGIN 与 GAP_Y 那几段注释的兑现处。并行分支在布局里是同列上下叠放的,
  * 所以「叠放能不能成立」完全取决于列与行带的尺寸组合 —— 而组合数是列数(perRow)× 成员数 ×
  * 行带内最大叠放深度 的乘积,手写断言只可能覆盖其中两三种。这里把宽度从 28 列一路扫到
  * 140 列、并行成员从 1 到 5、逐轮 1 到 4,加上**逐个节点展开**的那一遍,全都跑一遍。
  */
-test("流程图布局:六条几何不变量在所有宽度 × 并行规模 × 逐节点展开下都成立", () => {
+test("流程图布局:九条几何不变量在所有宽度 × 并行规模 × 逐节点展开下都成立", () => {
   const widths = [NODE_WIDTH, NODE_WIDTH + GAP_X + 1, 74, 76, 80, 96, 114, 140]
   const problems: string[] = []
   let checks = 0
@@ -672,4 +675,180 @@ test("流程图布局:详情框挂在选中卡正下方,行带同步长高,后�
   const lastBefore = before.nodes.at(-1)!
   const lastAfter = expanded.nodes.at(-1)!
   expect(lastAfter.rect.y - lastBefore.rect.y).toBe(5)
+})
+
+// ---------- 拖拽:网格对齐 ----------
+
+/** 锚点表里那些列/行(升序去重)。 */
+function gridLines(values: number[]) {
+  return [...new Set(values)].toSorted((a, b) => a - b)
+}
+
+test("流程图拖拽:锚点是「列锚 × 行首」的叉积,所以拖过去必然与其它卡对齐", () => {
+  const layout = layoutNodes(MODEL.nodes, 76)
+  const columns = gridLines(layout.nodes.map((node) => node.rect.x))
+  const rows = gridLines(layout.nodes.map((node) => node.rect.y))
+  // 每个锚点的 x 都是某一列的列锚,y 都是某张卡的顶边 —— 这两条就是「对齐」的全部含义。
+  for (const anchor of layout.anchors) {
+    expect(columns, `锚点 x=${anchor.x} 不在列锚上`).toContain(anchor.x)
+    expect(rows, `锚点 y=${anchor.y} 不是任何一张卡的顶边`).toContain(anchor.y)
+    expect((anchor.x - LEFT_MARGIN) % COLUMN_PITCH).toBe(0)
+  }
+  // 叉积:列锚 × 行锚,一个不多一个不少。
+  expect(layout.anchors.length).toBe(columns.length * rows.length)
+  // 行带信息跟着行走:每个锚点都说得出自己属于哪条行带,而且卡整个待在那条行带里。
+  for (const anchor of layout.anchors) {
+    expect(anchor.y).toBeGreaterThanOrEqual(anchor.bandTop)
+    expect(anchor.y + NODE_HEIGHT).toBeLessThanOrEqual(anchor.bandBottom)
+    expect(layout.rows.some((row) => row.top === anchor.bandTop && row.top + row.height === anchor.bandBottom)).toBe(
+      true,
+    )
+  }
+  // 拖动不改变锚点表 —— 一张卡被拖走之后,它原来的格子仍然是可停靠的(否则再也拖不回去)。
+  const dragged = layoutNodes(MODEL.nodes, 76, { overrides: { "n:pr_3": { x: 46, y: 14 } } })
+  expect(dragged.anchors).toEqual(layout.anchors)
+})
+
+test("流程图拖拽:落点吸附到最近的空锚点,并夹在画布内容范围内", () => {
+  const layout = layoutNodes(MODEL.nodes, 76)
+  const card = layout.nodes.find((node) => node.id === "n:pr_3")!
+  const others = occupiedRects(layout).filter((rect) => !(rect.x === card.rect.x && rect.y === card.rect.y))
+  const context = {
+    anchors: layout.anchors,
+    blocked: others,
+    bounds: { width: layout.width, height: layout.height },
+    size: { width: NODE_WIDTH, height: NODE_HEIGHT },
+  }
+  // 落到 (46, 14):x 是列锚(2 → 46,步距 44),y 是行锚,那一格空着。
+  expect(snapDrag({ x: 46, y: 14 }, context)).toEqual({ x: 46, y: 14 })
+  // 位移不足一步时不动:往右挪一格仍然落在原来的列锚上。
+  expect(snapDrag({ x: card.rect.x + 1, y: card.rect.y }, context)).toEqual({ x: 2, y: 7 })
+  // 原型那两句 `Math.max(0, Math.min(canvas - card, ox + dx))`:不许拖出画布。
+  // 这一档把 blocked 清空,于是判的纯粹是「夹进范围 + 吸到最近锚点」。
+  const loose = { ...context, blocked: [] }
+  expect(snapDrag({ x: -30, y: -30 }, loose)).toEqual({ x: LEFT_MARGIN, y: 0 })
+  const far = snapDrag({ x: 9999, y: 9999 }, loose)!
+  expect(far.x).toBeLessThanOrEqual(layout.width - NODE_WIDTH)
+  expect(far.y).toBeLessThanOrEqual(layout.height - NODE_HEIGHT)
+  // 落点压到别人的卡就退到旁边那个空锚点,而不是叠上去。
+  const onTop = snapDrag({ x: 46, y: 7 }, context)
+  expect(onTop, "(46,7) 那一格被「编辑文件」占着").not.toEqual({ x: 46, y: 7 })
+  expect(layout.anchors.some((anchor) => anchor.x === onTop!.x && anchor.y === onTop!.y)).toBe(true)
+  // 四周都被占满时退回**自己原来的位置**(它自己不在 blocked 里):宁可原地不动,也不叠上去。
+  const surrounded = snapDrag(
+    { x: 46, y: 14 },
+    {
+      ...context,
+      blocked: others.concat([
+        { x: 46, y: 7, width: NODE_WIDTH, height: NODE_HEIGHT },
+        { x: 46, y: 14, width: NODE_WIDTH, height: NODE_HEIGHT },
+        { x: 46, y: 21, width: NODE_WIDTH, height: NODE_HEIGHT },
+        { x: 46, y: 28, width: NODE_WIDTH, height: NODE_HEIGHT },
+        { x: 46, y: 33, width: NODE_WIDTH, height: NODE_HEIGHT },
+      ]),
+    },
+  )
+  expect([surrounded?.x, surrounded?.y], "旁边没空格时退回自己原来的位置").toEqual([card.rect.x, card.rect.y])
+  // 一个空锚点都没有时返回 undefined,调用方保持原位(宁可不动,也不要放到画布外面去)。
+  expect(
+    snapDrag({ x: 0, y: 0 }, { ...context, bounds: { width: 4, height: 4 } }),
+    "画布装不下一张卡时没有合法落点",
+  ).toBeUndefined()
+})
+
+test("流程图拖拽:一张卡被拖走后,连线跟着重画,而且不变量一条都不破", () => {
+  // 把「工具调用」挪到 (46, 14):同一轮、同一行带的第二列,那一格空着。
+  const target = { x: 46, y: 14 }
+  const before = layoutNodes(MODEL.nodes, 76)
+  const moved = "n:pr_3"
+  expect(before.anchors.some((anchor) => anchor.x === target.x && anchor.y === target.y)).toBe(true)
+  const overrides = { [moved]: target }
+  const after = layoutNodes(MODEL.nodes, 76, { overrides })
+  const dragged = after.nodes.find((node) => node.id === moved)!
+  expect(dragged.rect.x).toBe(target.x)
+  expect(dragged.rect.y).toBe(target.y)
+  // 别的卡一步没动(拖动只搬那一张)。
+  for (const node of after.nodes) {
+    if (node.id === moved) continue
+    const was = before.nodes.find((item) => item.id === node.id)!
+    expect(node.rect, `${node.id} 不该动`).toEqual(was.rect)
+  }
+  // 行带信息跟着锚点走:被拖到那一行之后,它的绕行边从**那条行带的下沿**出去。
+  const band = after.rows.find((row) => dragged.rect.y >= row.top && dragged.rect.y < row.top + row.height)!
+  expect(dragged.bandTop).toBe(band.top)
+  expect(dragged.bandBottom).toBe(band.top + band.height)
+  // 走线真的变了:那条卡出发与到达的两条边都换了格子。
+  const cellsOf = (layout: typeof after, id: string) =>
+    routedEdges(FIXTURE_MODEL, layout)
+      .find((item) => item.edge.id === id)!
+      .route.cells.map((cell) => `${cell.x}:${cell.y}`)
+  expect(cellsOf(after, `e:${moved}→n:pr_5`)).not.toEqual(cellsOf(before, `e:${moved}→n:pr_5`))
+  expect(cellsOf(after, `e:n:pr_2→${moved}`)).not.toEqual(cellsOf(before, `e:n:pr_2→${moved}`))
+  // 九条不变量对被拖过的图一样成立(不压卡、步长为 1、形状至多拐两次、走廊、标签不压别的边…)。
+  expect(flowInvariants({ model: MODEL, layout: after, width: 76 })).toEqual([])
+  // 画布尺寸不受影响:列锚与行首都没变,所以既不用重排也不改滚动范围。
+  expect(after.width).toBe(before.width)
+  expect(after.height).toBe(before.height)
+  // 认不出的落点(不在锚点表里)当这次拖拽没发生 —— 别的调用点塞进来的坐标不许生效。
+  const bogus = layoutNodes(MODEL.nodes, 76, { overrides: { [moved]: { x: 5, y: 6 } } })
+  expect(bogus.nodes.find((node) => node.id === moved)!.rect).toEqual(
+    before.nodes.find((node) => node.id === moved)!.rect,
+  )
+})
+
+test("流程图拖拽:任意一张卡拖到任意一个**空**锚点上,不变量都不破", () => {
+  // 这一条是上面那条的推广版:拖拽能造出的边形态(目标在左边、在上边、在下一行带、
+  // 甚至同一条行带里往回走)全靠它兜住 —— 那些形态自动布局永远造不出来。
+  // 只试**空**锚点:叠在别人身上的落点 snapDrag 根本不会给(见 layout 的 snapDrag)。
+  // 扫两档宽度:76 列是主力 fixture 的两列布局,140 列是三列(叉积里的格子更多,组合更密)。
+  const problems: string[] = []
+  let checks = 0
+  for (const width of [76, 140]) {
+    const layout = layoutNodes(MODEL.nodes, width)
+    const occupied = occupiedRects(layout)
+    for (const node of layout.nodes) {
+      const others = occupied.filter((rect) => !(rect.x === node.rect.x && rect.y === node.rect.y))
+      for (const anchor of layout.anchors) {
+        if (anchor.x === node.rect.x && anchor.y === node.rect.y) continue
+        const shape = { x: anchor.x, y: anchor.y, width: NODE_WIDTH, height: NODE_HEIGHT }
+        if (others.some((rect) => rectsOverlap(shape, rect))) continue
+        const overrides = { [node.id]: { x: anchor.x, y: anchor.y } }
+        problems.push(
+          ...checkFlow(MODEL, width, undefined, overrides).problems.map(
+            (p) => `${width} 列 ${node.id}→${anchor.x},${anchor.y}:${p}`,
+          ),
+        )
+        const landed = layoutNodes(MODEL.nodes, width, { overrides }).nodes.find((item) => item.id === node.id)!
+        expect([landed.rect.x, landed.rect.y], `${node.id} 落在了锚点上`).toEqual([anchor.x, anchor.y])
+        checks += 1
+      }
+    }
+  }
+  expect(checks, "这条用例没跑到几个组合,等于空跑").toBeGreaterThan(40)
+  expect(problems.slice(0, 12)).toEqual([])
+  expect(problems.length).toBe(0)
+})
+
+test("流程图连线:屏幕上真正摆出来的标签都摆在两卡之间的走廊里,没有压在别的边上", () => {
+  // 这条钉的是用户点名的那一处:上一版把「本轮完成」印在另一条线上。
+  // 判据是**屏幕上会出现的那些标签**(fixture 重演一遍 canvas 的摆标签过程),不是候选段。
+  for (const [width, expandedId] of [
+    [76, undefined],
+    [76, "n:msg_1"],
+    [90, undefined],
+    [140, "n:pr_3"],
+  ] as const) {
+    const layout = layoutNodes(MODEL.nodes, width, { expandedId })
+    const labels = placedLabels(MODEL, layout)
+    expect(labels.length, `${width} 列一张标签都没摆上`).toBeGreaterThan(4)
+    const owners = edgeCellOwners(MODEL, layout)
+    for (const label of labels) {
+      for (let x = label.x; x < label.x + Locale.displayWidth(label.text); x++) {
+        const owner = owners.get(`${x}:${label.y}`)
+        // owner 为 undefined = 那一格本来就没有线(纯空白),随便摆。
+        if (owner === undefined) continue
+        expect(owner, `${label.edge} 的标签 (${x},${label.y}) 压到了第 ${owner} 条边`).toBe(label.owner)
+      }
+    }
+  }
 })

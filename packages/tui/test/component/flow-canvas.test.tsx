@@ -4,10 +4,11 @@
 // 纯函数那一半(节点/边/布局/走线)在 flow-layout.test.ts 里,连线字符层在 flow-grid.test.ts 里;
 // 这里钉的是「屏幕上真的出现了什么」:节点卡是不是真的用了生产卡壳(渐变描边圆角 `╭`)、连线是不是
 // 真的落在走廊里(`│` `─` `┐`)、箭头有没有、轮次分隔线与它的 `第 N 轮` 标签在不在、
-// 点击能不能展开详情、**关掉动画之后画布还在不在**。
+// 点击能不能展开详情、**能不能按住拖动**、**关掉动画之后画布还在不在**。
 //
 // 画布组件只依赖 useTheme()/useKV()/终端尺寸,所以直接用 ThemeTestProviders 挂真壳,
 // 不必为了测试去 mock 一整个 session —— 数据喂 fixture(与 flow-layout.test.ts 同一份)。
+import { createSignal } from "solid-js"
 import { expect, test } from "bun:test"
 import type { Message, Part } from "@novaway/sdk-v2-latest/v2"
 import { testRender } from "@opentui/solid"
@@ -16,6 +17,7 @@ import { FlowCanvas } from "../../src/component/flow/canvas"
 import {
   COLUMN_PITCH,
   DETAIL_ROWS,
+  GAP_Y,
   kindNoun,
   layoutNodes,
   LEFT_MARGIN,
@@ -46,20 +48,22 @@ async function mount(
   width: number,
   height: number,
   options: {
-    messages?: readonly Message[]
-    parts?: Record<string, Part[]>
+    messages?: () => readonly Message[]
+    parts?: () => Record<string, Part[]>
     reveal?: boolean
     /** 画布盒子本身多宽(列)。缺省 = 整个终端宽。真实会话里侧栏展开时它比终端窄得多。 */
     box?: number
     onScrollBox?: (box: ScrollBoxRenderable) => void
+    onOverrides?: (overrides: Record<string, { x: number; y: number }>) => void
   } = {},
 ) {
   const canvas = () => (
     <FlowCanvas
-      messages={options.messages ?? MESSAGES}
-      parts={options.parts ?? PARTS}
+      messages={options.messages?.() ?? MESSAGES}
+      parts={options.parts?.() ?? PARTS}
       reveal={options.reveal}
       onScrollBox={options.onScrollBox}
+      onOverrides={options.onOverrides}
     />
   )
   return testRender(
@@ -352,7 +356,7 @@ test("流程图画布:把自己的滚动容器交给调用方(会话页的翻页
 
 test("流程图画布:空会话说清为什么空,不画一片空白", async () => {
   // 真的要**没有消息**:只把 parts 清空的话,三条消息还在,画布上会有节点。
-  const app = await mount(72, 12, { messages: [], parts: {} })
+  const app = await mount(72, 12, { messages: () => [], parts: () => ({}) })
   try {
     let frame = ""
     for (let attempt = 0; attempt < 200; attempt++) {
@@ -510,6 +514,222 @@ test("流程图画布:60 列下第二列被切掉右边框,横向滚过去就完
     expect(
       frameCell(app.captureCharFrame().split("\n"), top + 1 + CANVAS_OFFSET_Y, RIGHT_BORDER - handed!.scrollLeft),
     ).toBe("│")
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+// ---------- 拖拽 ----------
+//
+// 走的是 opentui 的那套事件:`onMouseDown` / `onMouseDrag` / `onMouseDragEnd` / `onMouseUp`
+// (见 canvas.tsx 的注释)。测试这一侧对应 `createMockMouse` 的 `pressDown` / `moveTo` /
+// `release` —— 按住时 `moveTo` 发的是 drag 事件,和真终端一模一样。
+//
+// 屏幕坐标与画布坐标的换算:96 列下画布内容 75 列 < 视口 90 列,所以**没有滚动**,
+// 画布第 x 列就是帧第 x 列、第 y 行就是帧第 y + CANVAS_OFFSET_Y 行(READY 哨兵占掉第 0 行)。
+const VIEWPORT = 96 - 2 - 2
+
+/** 一张卡在帧里的那一格(用画布坐标)。 */
+function cellAt(app: { captureCharFrame: () => string }, canvasY: number, canvasX: number) {
+  return frameCell(app.captureCharFrame().split("\n"), canvasY + CANVAS_OFFSET_Y, canvasX)
+}
+
+/** 卡头行(帧行号)。判据是 `│ ● <类型文字>`,每张卡只有一行长这样(底部图例那一行前面没有 `│`)。 */
+function headRow(app: { captureCharFrame: () => string }, kind: string, from = 0) {
+  return app
+    .captureCharFrame()
+    .split("\n")
+    .findIndex((line, index) => index >= from && line.includes(`│ ● ${kind}`))
+}
+
+test("流程图画布:按住拖动把节点卡挪到网格锚点上,连线跟着重画", async () => {
+  const seen: Record<string, { x: number; y: number }>[] = []
+  const app = await mount(96, 64, { reveal: false, onOverrides: (value) => seen.push(value) })
+  try {
+    await settled(app, "第 2 轮")
+    // 拿「工具调用」那张卡(fixture 里的第一个工具节点):它自动摆在 (2, 7),右边第二列的
+    // (46, 14) 是同一轮里一个空着的格子 —— 拖过去正好落在网格上。
+    const node = FIXTURE_MODEL.nodes.find((item) => item.id === "n:pr_3")!
+    const from = layoutNodes(FIXTURE_MODEL.nodes, VIEWPORT).nodes.find((item) => item.id === node.id)!
+    const target = { x: from.rect.x + COLUMN_PITCH, y: from.rect.y + NODE_HEIGHT + 3 }
+    expect(from.rect).toEqual({ x: LEFT_MARGIN, y: 7, width: NODE_WIDTH, height: NODE_HEIGHT })
+    // 按下之前:卡在原来的位置,箭头也在原来的格子上。
+    const before = arrowCells(FIXTURE_MODEL, layoutNodes(FIXTURE_MODEL.nodes, VIEWPORT))
+    expect(cellAt(app, from.rect.y + 1, from.rect.x + 2), "拖之前卡头在原位").toBe("●")
+
+    const pressRow = from.rect.y + 1 + CANVAS_OFFSET_Y
+    await app.mockMouse.pressDown(from.rect.x + 8, pressRow)
+    await app.mockMouse.moveTo(target.x + 8, target.y + 1 + CANVAS_OFFSET_Y)
+    await app.renderOnce()
+
+    // 拖动中的两样「抓手」信号:抓手字 + 层级抬高(后者不在这条断言里,见 FLOW_DRAG_ALPHA)。
+    const dragging = app.captureCharFrame()
+    expect(dragging, "拖动中卡头右侧换成抓手").toContain("⠿")
+    // 卡已经落到目标格子(顶上那一行是卡边框)。
+    expect(frameCell(dragging.split("\n"), target.y + CANVAS_OFFSET_Y, target.x), "落点没有对齐到网格").toBe("╭")
+
+    await app.mockMouse.release(target.x + 8, target.y + 1 + CANVAS_OFFSET_Y)
+    let after = ""
+    for (let attempt = 0; attempt < 40; attempt++) {
+      await app.renderOnce()
+      after = app.captureCharFrame()
+      if (!after.includes("⠿")) break
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    expect(after.includes("⠿"), "松手后抓手收掉").toBe(false)
+
+    // 组件里的落点与纯函数算出来的一致 —— 即拖动真的写进了 overrides(而不是只挪了个渲染位置)。
+    expect(seen.at(-1)).toEqual({ "n:pr_3": target })
+    const moved = layoutNodes(FIXTURE_MODEL.nodes, VIEWPORT, { overrides: { "n:pr_3": target } })
+    const landed = moved.nodes.find((item) => item.id === node.id)!
+    expect(landed.rect.x).toBe(target.x)
+    expect(landed.rect.y).toBe(target.y)
+    expect(frameCell(after.split("\n"), target.y + 1 + CANVAS_OFFSET_Y, target.x + 2), "卡头落在落点上").toBe("●")
+    // 别的卡一步没动:子代理那张仍在原来的行上。
+    const sibling = moved.nodes.find((item) => item.id === "n:pr_4")!
+    expect(frameCell(after.split("\n"), sibling.rect.y + 1 + CANVAS_OFFSET_Y, sibling.rect.x + 2)).toBe("●")
+
+    // 连线跟着重画:挪过之后的箭头集合与挪之前不同,而且**每一格都真的画在屏幕上**
+    // (这就是「拖动中连线实时重算」的可观测证据)。
+    const now = arrowCells(FIXTURE_MODEL, moved)
+    expect(
+      [...now].some((key) => !before.has(key)),
+      "箭头格子应该变了",
+    ).toBe(true)
+    const missing = [...now].filter((key) => {
+      const [x, y] = key.split(":").map(Number)
+      const char = frameCell(after.split("\n"), y + CANVAS_OFFSET_Y, x)
+      return char !== "▸" && char !== "▼" && char !== "▲"
+    })
+    expect(missing, "拖过之后这些箭头的位置上没有箭头").toEqual([])
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+test("流程图画布:位移不足一格不算拖(原地按下松开仍然展开详情),真拖过则不展开", async () => {
+  const app = await mount(96, 64, { reveal: false })
+  try {
+    await settled(app, "第 2 轮")
+    const node = layoutNodes(FIXTURE_MODEL.nodes, VIEWPORT).nodes.find((item) => item.id === "n:pr_3")!
+    const pressRow = node.rect.y + 1 + CANVAS_OFFSET_Y
+
+    // 按下 → 拖动半格 → 松手:既没有展开详情,卡也没有挪(吸附回原来的锚点)。
+    await app.mockMouse.pressDown(node.rect.x + 8, pressRow)
+    await app.mockMouse.moveTo(node.rect.x + 8 + 4, pressRow)
+    await app.mockMouse.release(node.rect.x + 8 + 4, pressRow)
+    let frame = ""
+    for (let attempt = 0; attempt < 40; attempt++) {
+      await app.renderOnce()
+      frame = app.captureCharFrame()
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    expect(frame.includes("⠿"), "半格位移不该进拖动态").toBe(false)
+    expect(frameCell(frame.split("\n"), node.rect.y + 1 + CANVAS_OFFSET_Y, node.rect.x + 2), "卡还在原位").toBe("●")
+    // 没展开:卡头右侧仍然是折叠的 `▸`。整个画布上只有展开的那张卡会写 `▾`,
+    // 所以这是一个不会误判的判据(详情正文会折行,拿正文里的某一段来判反而不可靠)。
+    expect(frame.includes("▾"), "半格位移不该顺手展开详情").toBe(false)
+
+    // 真的拖一整步(一个列步距)过去:挪了,但**不展开**详情。
+    await app.mockMouse.pressDown(node.rect.x + 8, pressRow)
+    await app.mockMouse.moveTo(node.rect.x + 8 + COLUMN_PITCH, pressRow)
+    await app.mockMouse.release(node.rect.x + 8 + COLUMN_PITCH, pressRow)
+    for (let attempt = 0; attempt < 40; attempt++) {
+      await app.renderOnce()
+      frame = app.captureCharFrame()
+      if (frameCell(frame.split("\n"), node.rect.y + 1 + CANVAS_OFFSET_Y, node.rect.x + 2) !== "●") break
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    expect(frameCell(frame.split("\n"), node.rect.y + 1 + CANVAS_OFFSET_Y, node.rect.x + 2), "卡还在原位").not.toBe("●")
+    expect(frame.includes("▾"), "拖过不该顺手把详情也开了").toBe(false)
+
+    // 接着原地点一下:这一次才展开(点与拖的分界就在这一格位移上)。
+    const again = headRow(app, "工具调用")
+    expect(again).toBeGreaterThan(0)
+    await app.mockMouse.click(8, again)
+    for (let attempt = 0; attempt < 40; attempt++) {
+      await app.renderOnce()
+      frame = app.captureCharFrame()
+      if (frame.includes("▾")) break
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    expect(frame, "原地点击仍然展开详情").toContain("▾")
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+test("流程图画布:拖落点按网格吸附,只挪那一张卡", async () => {
+  const app = await mount(96, 64, { reveal: false })
+  try {
+    await settled(app, "第 2 轮")
+    const layout = layoutNodes(FIXTURE_MODEL.nodes, VIEWPORT)
+    const node = layout.nodes.find((item) => item.id === "n:pr_3")!
+    const pressRow = node.rect.y + 1 + CANVAS_OFFSET_Y
+    const headBefore = cardColumns(app.captureCharFrame().split("\n"))
+
+    // 位移不到半个列步距(44 / 2 = 22 列):最近的锚点仍然是**自己**这一格,于是哪也不去。
+    // 这一档钉的是「吸附到最近的网格线」而不是「一动手就换列」。
+    await app.mockMouse.pressDown(node.rect.x + 8, pressRow)
+    await app.mockMouse.moveTo(node.rect.x + 8 + 10, pressRow + 2)
+    await app.mockMouse.release(node.rect.x + 8 + 10, pressRow + 2)
+    await app.renderOnce()
+    expect(frameCell(app.captureCharFrame().split("\n"), node.rect.y + 1 + CANVAS_OFFSET_Y, node.rect.x + 2)).toBe("●")
+
+    // 位移够一整步:落到隔壁列锚那一行的**最近空锚点**。(46, 7) 被「编辑文件」占着,
+    // 于是最近的是同列下一行的 (46, 14) —— 落点仍然是网格,不是随手放的位置。
+    await app.mockMouse.pressDown(node.rect.x + 8, pressRow)
+    await app.mockMouse.moveTo(node.rect.x + 8 + COLUMN_PITCH, pressRow + 1)
+    await app.mockMouse.release(node.rect.x + 8 + COLUMN_PITCH, pressRow + 1)
+    const landedY = node.rect.y + NODE_HEIGHT + GAP_Y
+    let frame = ""
+    for (let attempt = 0; attempt < 40; attempt++) {
+      await app.renderOnce()
+      frame = app.captureCharFrame()
+      if (frameCell(frame.split("\n"), landedY + CANVAS_OFFSET_Y, node.rect.x + COLUMN_PITCH) === "╭") break
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    const cells = lineColumns(frame.split("\n")[landedY + CANVAS_OFFSET_Y] ?? "")
+    expect(cells[node.rect.x + COLUMN_PITCH], "落在了隔壁列锚的空锚点上").toBe("╭")
+    expect(cells[node.rect.x + COLUMN_PITCH + NODE_WIDTH - 1], "卡右边界也在那一格").toBe("╮")
+    // 别的列一列没少(挪的是这张卡,不是整张图重排)。
+    expect(cardColumns(frame.split("\n"))).toEqual(headBefore)
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+test("流程图画布:切会话之后,已经不存在的那些落点从表里消失", async () => {
+  const [messages, setMessages] = createSignal(MESSAGES)
+  const [parts, setParts] = createSignal(PARTS)
+  const seen: Record<string, { x: number; y: number }>[] = []
+  const app = await mount(96, 64, {
+    reveal: false,
+    messages: () => messages(),
+    parts: () => parts(),
+    onOverrides: (value) => seen.push(value),
+  })
+  try {
+    await settled(app, "第 2 轮")
+    const node = layoutNodes(FIXTURE_MODEL.nodes, VIEWPORT).nodes.find((item) => item.id === "n:pr_3")!
+    const pressRow = node.rect.y + 1 + CANVAS_OFFSET_Y
+    await app.mockMouse.pressDown(node.rect.x + 8, pressRow)
+    await app.mockMouse.moveTo(node.rect.x + 8 + COLUMN_PITCH, pressRow + 1)
+    await app.mockMouse.release(node.rect.x + 8 + COLUMN_PITCH, pressRow + 1)
+    await app.renderOnce()
+    expect(Object.keys(seen.at(-1)!)).toEqual(["n:pr_3"])
+
+    // 换成只剩第 1 轮前半段的会话:「工具调用」那张卡不在了,落点也必须跟着走。
+    setMessages([MESSAGES[0], MESSAGES[1]])
+    setParts({ msg_1: PARTS.msg_1, msg_2: [PARTS.msg_2[0]] })
+    let last = seen.at(-1)!
+    for (let attempt = 0; attempt < 40; attempt++) {
+      await app.renderOnce()
+      last = seen.at(-1)!
+      if (Object.keys(last).length === 0) break
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    expect(last, "节点没了,落点也该被清掉(否则这份 state 只增不减)").toEqual({})
   } finally {
     app.renderer.destroy()
   }
