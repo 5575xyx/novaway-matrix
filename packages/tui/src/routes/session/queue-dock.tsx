@@ -22,15 +22,25 @@ type QueueDockProps = {
  *
  * 折叠态显示条数 + 首条预览；展开态按顺序列出每条，支持「发送」「编辑」「删除」。
  * 键盘 `<leader>q` 切换折叠，鼠标点击操作按钮执行对应动作。
+ *
+ * 首部那一段照的是原型 card-design-v7.html:1104 的 `⇧ 2 条消息排队中 · 回车追加`：
+ * `⇧` 字形 + `· <键>追加`。**键名不写死**——走 `useCommandShortcut("input.submit")` 现取，
+ * 与输入卡发送按钮上那个键名（`PromptSend`）是同一套取法：`input_submit` 在 keybind.ts 里
+ * 是 `keybind("return", …)`（可配置），由 keymap.tsx 的托管输入层 `gather("input", …)` 注册，
+ * 所以用户改键之后这一行会跟着变；写死 "enter" 会在改键后变成一句假提示。
  */
 export function QueueDock(props: QueueDockProps) {
   const { theme } = useTheme()
   const toggleShortcut = useCommandShortcut("session.queued_prompts")
+  const submitShortcut = useCommandShortcut("input.submit")
   const [hover, setHover] = createSignal<string | null>(null)
 
   const count = createMemo(() => props.items.length)
   const preview = createMemo(() => (props.items[0] ? draftPreview(props.items[0], 48) : ""))
   const label = createMemo(() => (count() === 1 ? "1 条排队消息" : `${count()} 条排队消息`))
+  // 取不到绑定时退回 "enter"：`formatKeySequence` 对未注册的序列给的是空串，而 keybind.ts 里
+  // `input_submit` 的默认绑定就是 return —— 退回的是那条默认值，不是另编的一个键。
+  const submitKey = createMemo(() => submitShortcut() || "enter")
 
   return (
     <box
@@ -42,7 +52,7 @@ export function QueueDock(props: QueueDockProps) {
       flexShrink={0}
     >
       <box paddingTop={1} paddingBottom={1} paddingLeft={2} paddingRight={1} gap={1} flexShrink={0}>
-        {/* 标题行：图标 + 条数 + 预览/提示 + 折叠按钮 */}
+        {/* 标题行：⇧ + 条数 + 「· <键>追加」+ 预览/说明 + 右端的折叠按钮 */}
         <box
           flexDirection="row"
           gap={1}
@@ -55,10 +65,16 @@ export function QueueDock(props: QueueDockProps) {
           paddingRight={1}
         >
           <text fg={theme.secondary}>
-            <span style={{ attributes: TextAttributes.BOLD }}>●</span>
+            <span style={{ attributes: TextAttributes.BOLD }}>⇧</span>
           </text>
           <text fg={theme.text} wrapMode="none">
             <b>{label()}</b>
+          </text>
+          {/* 原型那一行是 `⇧ 2 条消息排队中 · 回车追加`：`· <键>追加` 紧跟在条数后面。
+              `{"· "}` 用表达式而不是裸文本 —— JSX 会吃掉独占一行的首尾空白。 */}
+          <text fg={theme.textMuted} wrapMode="none">
+            {"· "}
+            {submitKey()} 追加
           </text>
           <Show when={props.collapsed}>
             <Show when={preview()}>
