@@ -1,14 +1,24 @@
 import type { TuiPlugin, TuiPluginApi } from "@opencode/plugin/tui"
 import type { BuiltinTuiPlugin } from "../builtins"
 import { createMemo, Show } from "solid-js"
-import { abbreviateHome } from "../../runtime"
-import { useTuiPaths } from "../../context/runtime"
 import { TUI_BRAND } from "../../brand"
 
 const id = "internal:sidebar-footer"
 
-function View(props: { api: TuiPluginApi; sessionID: string }) {
-  const paths = useTuiPaths()
+/**
+ * 侧栏页脚。**这里不再打印目录**。
+ *
+ * 原来这个组件在品牌落款上面印了一行 `目录[:分支]`(会话目录,没有会话时落回实例目录,
+ * 末尾还缀一个分支名)。同一屏的会话页底栏(routes/session/footer.tsx)已经独家显示同一份
+ * 路径,而且路径做过 abbreviateHome、右组还带着 `⑂ 分支` —— 于是屏幕上上下叠着两条同样的路径,
+ * 分支也跟着印了两遍。删掉的是这一份,底栏那一份留着。
+ *
+ * 换句话说:**目录在整个底部区域只由会话页底栏独家拥有**(同一条纪律见
+ * component/prompt/index.tsx 里被删掉的那次重复)。侧栏根卡的 sidebar_footer 槽在没有插件
+ * 注册时会落到 routes/session/sidebar.tsx 的兜底内容,而那份兜底本来也只有品牌落款 ——
+ * 两边一致,不存在「插件打了一份、兜底打了一份」的第二真相。
+ */
+function View(props: { api: TuiPluginApi }) {
   const theme = () => props.api.theme.current
   const has = createMemo(() =>
     props.api.state.provider.some(
@@ -17,22 +27,6 @@ function View(props: { api: TuiPluginApi; sessionID: string }) {
   )
   const done = createMemo(() => props.api.kv.get("dismissed_getting_started", false))
   const show = createMemo(() => !has() && !done())
-  const path = createMemo(() => {
-    const session = props.api.state.session.get(props.sessionID)
-    const dir = session?.directory || props.api.state.path.directory || paths.cwd
-    const out = abbreviateHome(dir, paths.home)
-    // 首屏没有会话(sessionID 为空),此时目录就是实例目录,分支照样要显示
-    const branch =
-      (session?.directory ?? props.api.state.path.directory) === props.api.state.path.directory
-        ? props.api.state.vcs?.branch
-        : undefined
-    const text = branch ? out + ":" + branch : out
-    const list = text.split("/")
-    return {
-      parent: list.slice(0, -1).join("/"),
-      name: list.at(-1) ?? "",
-    }
-  })
 
   return (
     <box gap={1}>
@@ -67,10 +61,6 @@ function View(props: { api: TuiPluginApi; sessionID: string }) {
           </box>
         </box>
       </Show>
-      <text>
-        <span style={{ fg: theme().textMuted }}>{path().parent}/</span>
-        <span style={{ fg: theme().text }}>{path().name}</span>
-      </text>
       <text fg={theme().textMuted}>
         <span style={{ fg: theme().success }}>•</span> <b>{TUI_BRAND.left}</b>
         <span style={{ fg: theme().text }}>
@@ -86,8 +76,8 @@ const tui: TuiPlugin = async (api) => {
   api.slots.register({
     order: 100,
     slots: {
-      sidebar_footer(_ctx, props) {
-        return <View api={api} sessionID={props.session_id} />
+      sidebar_footer() {
+        return <View api={api} />
       },
     },
   })

@@ -18,6 +18,7 @@ import { SyncProvider } from "../../src/context/sync"
 import { ArgsProvider } from "../../src/context/args"
 import { PluginRuntimeProvider, createPluginRuntime } from "../../src/plugin/runtime"
 import { Sidebar, setSidebarTab } from "../../src/routes/session/sidebar"
+import builtinSidebarFooter from "../../src/feature-plugins/sidebar/footer"
 import { SidebarCard } from "../../src/component/sidebar-card"
 import { clearFileTreeCache, setSelectedPath } from "../../src/component/file-tree"
 import { sidebarCardContentWidth, SIDEBAR_CARD_MIN_CONTENT } from "../../src/util/sidebar-metrics"
@@ -25,6 +26,7 @@ import { SIDEBAR_MIN_WIDTH } from "../../src/util/sidebar-width"
 import { workbenchOptions } from "../../src/component/dialog-workbench"
 import { TestTuiContexts } from "../fixture/tui-environment"
 import { createFetch, eventSource, json } from "../fixture/tui-sdk"
+import { createTuiPluginApi } from "../fixture/tui-plugin"
 
 test("工具工作台按数据与智能中枢分组选项", async () => {
   let options: ReturnType<typeof workbenchOptions> = []
@@ -145,6 +147,8 @@ async function renderSidebar(input: {
   registerProbeCard?: boolean
   /** 在 sidebar_footer 槽里插一张有内容的探针 —— 默认那张槽在测试里没人注册,渲染成空。 */
   registerProbeFooter?: boolean
+  /** 把**真的**内置页脚插件(feature-plugins/sidebar/footer.tsx)注册进那张槽。 */
+  registerBuiltinFooter?: boolean
   /** 等这一段出现在帧里;省略就是各页自己的老条件。 */
   waitFor?: string
 }) {
@@ -154,18 +158,48 @@ async function renderSidebar(input: {
     const renderer = useRenderer()
     // 生产里这层卡是内置插件(slot)插进来的;测试里注册一张同名探针卡,
     // 量的是完全相同的嵌套:根卡 → scrollbox → <box paddingRight={1}> → SidebarCard。
-    if (input.registerProbeCard || input.registerProbeFooter) {
-      runtime.setupSlots({ renderer, theme: { current: {} } } as unknown as TuiPluginApi).register({
-        id: "test:probe-card",
-        slots: {
-          sidebar_content: () => (
-            <SidebarCard title="探针卡" badge="BADGE">
-              <text>内容</text>
-            </SidebarCard>
-          ),
-          ...(input.registerProbeFooter ? { sidebar_footer: () => <text>FOOTER-PROBE</text> } : {}),
-        },
-      })
+    if (input.registerProbeCard || input.registerProbeFooter || input.registerBuiltinFooter) {
+      // setupSlots 只调一次:它内部会重建 registry 并替换掉槽的渲染函数,调第二次会把
+      // 第一次注册进去的东西(探针卡)一起丢掉。
+      const host = runtime.setupSlots({ renderer, theme: { current: {} } } as unknown as TuiPluginApi)
+      if (input.registerProbeCard || input.registerProbeFooter) {
+        host.register({
+          id: "test:probe-card",
+          slots: {
+            sidebar_content: () => (
+              <SidebarCard title="探针卡" badge="BADGE">
+                <text>内容</text>
+              </SidebarCard>
+            ),
+            ...(input.registerProbeFooter ? { sidebar_footer: () => <text>FOOTER-PROBE</text> } : {}),
+          },
+        })
+      }
+      if (input.registerBuiltinFooter) {
+        // 内置页脚插件要走生产那条注册路径:宿主把插件交来的 slots 收进 registry 并补上 id
+        // (见 packages/novaway/src/plugin/tui/runtime.ts 的 slots.register)。
+        // provider 给一个非 NovaWay 的条目 → 插件判定「已经连上别的提供商」,快速开始引导块不画,
+        // 于是这一帧里页脚只剩品牌落款,「有没有印目录」这条断言不会被引导块的文案干扰。
+        const api = {
+          ...createTuiPluginApi({
+            state: {
+              // mock 数据只带了 id,Provider/Session 的其余必填字段用 never 强转掉
+              // (同一手法见 test/feature-plugins/sidebar-messages.test.tsx)。
+              provider: [{ id: "test-provider" }] as never,
+              // 实例目录必须与侧栏那份一致:生产里插件印的就是 state.path.directory,
+              // 送一个别的目录进来,「页脚没有目录」这条就会假通过。
+              path: { state: "", config: "", worktree: input.directory, directory: input.directory },
+            },
+          }),
+          renderer,
+          slots: {
+            register(plugin: { slots: Record<string, unknown> }) {
+              return host.register({ ...plugin, id: "test:builtin-sidebar-footer" } as never)
+            },
+          },
+        } as unknown as TuiPluginApi
+        void builtinSidebarFooter.tui(api, undefined, {} as never)
+      }
     }
     return <Sidebar />
   }
@@ -219,6 +253,36 @@ async function renderSidebar(input: {
   }
   return { app, frame }
 }
+
+// 侧栏页脚**不印目录**:目录在整个底部区域由会话页底栏(routes/session/footer.tsx)独家显示,
+// 那一行还带着 abbreviateHome 过的路径与 `⑂ 分支`(会话页底栏那条另有断言,见
+// test/component/prompt-mount.test.tsx)。侧栏这两处(内置插件与下面这段兜底)曾经都印过,
+// 于是屏幕底部上下叠着两条一模一样的路径、分支跟着印了两遍。
+//
+// 这一条量的是**兜底**那一层:sidebar_footer 槽在没有插件注册时就落到它身上,所以兜底里
+// 加回目录是一次真实的回归。生产里占住那张槽的是内置插件(feature-plugins/sidebar/footer.tsx),
+// 它的对应断言在 test/feature-plugins/sidebar-footer.test.tsx。
+//
+// 目录给一个**短**路径是有意的:侧栏最宽 60 列(SIDEBAR_MAX_WIDTH),长的临时目录路径会被
+// 渲染器裁掉,那样「帧里没有这个目录」就成了一句裁切之后的空话。停在信息页也是有意的 ——
+// 文件页的分区卡徽标本来就印着 basename(rootDirName),那一页量不到「目录没被印第二遍」。
+test("侧栏页脚(插件缺席时的兜底)不打印目录", async () => {
+  const files = await renderSidebar({
+    tab: "info",
+    directory: "/w/nwsf",
+    terminalWidth: 120,
+    registerProbeCard: true,
+  })
+  try {
+    // 闸门:兜底确实渲染了(品牌落款 + 版本),否则「没有目录」只是一句空话。
+    expect(files.frame).toContain("NovaWay")
+    expect(files.frame).toContain("探针卡")
+    // 契约:实例目录不在侧栏这一列里。
+    expect(files.frame).not.toContain("/w/nwsf")
+  } finally {
+    files.app.renderer.destroy()
+  }
+})
 
 test("分区卡的可用列数:侧栏 44 时文件页 37、待办页 36(照真实嵌套量)", async () => {
   // 文件页:文件树要真的溢出,滚动条才会占掉那一列。

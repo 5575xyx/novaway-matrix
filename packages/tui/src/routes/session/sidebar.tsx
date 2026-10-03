@@ -276,6 +276,13 @@ export function Sidebar(props: SidebarProps) {
         </scrollbox>
       </Show>
 
+      {/* 页脚。**只有品牌落款,没有目录** —— 目录由会话页底栏(routes/session/footer.tsx)
+          独家显示,那一行还带着 abbreviateHome 过的路径与 `⑂ 分支`。侧栏这一份曾经也印一遍,
+          于是屏幕底部上下叠着两条一样的路径(与输入卡状态行那次重复是同一件事,见
+          component/prompt/index.tsx 里对应的注释)。
+          生产里这个槽永远由内置插件占住(mode="single_winner",注册方是
+          feature-plugins/sidebar/footer.tsx),下面这段只是插件缺席时的兜底;两边同规格 ——
+          兜底里若加回目录,就会出现「插件打了一份、兜底打了一份」的第二真相。 */}
       <box flexShrink={0} gap={1} paddingTop={1}>
         <pluginRuntime.Slot name="sidebar_footer" mode="single_winner" session_id={sessionID()}>
           <text fg={theme.textMuted}>
