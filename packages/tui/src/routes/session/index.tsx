@@ -146,6 +146,7 @@ const GO_UPSELL_PROVIDERS = new Set(["NovaWay", "NovaWay-go"])
  */
 import { alwaysSeparate, messageColumns, MessageAnchor, MESSAGE_MAX_WIDTH } from "./message-anchor"
 export { alwaysSeparate, messageColumns, MessageAnchor, MESSAGE_MAX_WIDTH }
+import { WORKING_LINE_INDENT, workingStepTitle, workingTitleColumns, type WorkingPart } from "./thinking-step"
 
 // 会话页的占位符。会话页之前**一个都没传**,聚焦时输入框里只有光标 —— 原型的
 // 输入卡靠「问我任何事... "示例"」占位,空着的话整张卡左半边是白的。
@@ -2060,10 +2061,16 @@ export function Session() {
                           )
                         }}
                       </For>
-                      {/* crush 式回答中指示:消息流末尾挂一条主题双色扰动动画;
-                        思考阶段给"思考中"标签,其余只显示已用时长。随会话状态自动出现/消失。 */}
+                      {/* crush 式「正在干活」指示:消息流末尾挂一条标题行 + 一条主题双色扰动动画。
+                        标题行的目标与动词由**最后一条助手消息的 part** 判定(判定规则见 thinking-step.ts),
+                        已用时长右对齐;噪声流那一行仍按思考/回答给阶段标签。随会话状态自动出现/消失。 */}
                       <Show when={sessionWorking()}>
-                        <WorkingLine sessionID={route.sessionID} thinking={thinkingActive()} />
+                        <WorkingLine
+                          sessionID={route.sessionID}
+                          thinking={thinkingActive()}
+                          parts={sync.data.part[lastAssistant()?.id ?? ""] ?? []}
+                          ctxWidth={contentWidth()}
+                        />
                       </Show>
                     </scrollbox>
                   </Show>
@@ -2579,21 +2586,74 @@ function ReasoningHeader(props: {
   )
 }
 
-// crush 式回答中指示:主题双色扰动动画挂在消息流末尾,muted 文本 + 跳动的已用时长。
-// 组件随会话状态挂载/卸载,计时器从挂载起算,正好是这一轮工作的时长。
-function WorkingLine(props: { sessionID: string; thinking: boolean }) {
+/**
+ * crush 式「正在干活」指示:挂在消息流末尾。原型 card-design-v7.html:948-949 把它排成两行 ——
+ * 上面是标题行 `✦ 分析 <目标> <动词>` + 右对齐的已用时长,下面是那条 ~60 字符的 crush 噪声流。
+ *
+ * 噪声流是既有的(WorkingSpinner,24 列),计时器也一直是既有实现:组件随会话状态挂载/卸载,
+ * 从挂载起算正好是这一轮工作的时长。**这次只补上面那条标题行**,噪声流一行没动 ——
+ * 已用时长从噪声流那一行搬到了标题行右端(原型 `.th-time` 就摆在那儿),两个地方同时显示
+ * 同一个计时是重复;噪声流那一行留下的是阶段标签(思考中 / 正在回答),它说的是「哪一段」,
+ * 与标题行里那个动词不是同一句话。
+ *
+ * **标题行不加动画**:原型 CSS 里 `.th-row` 只有 `display/flex/gap/align-items` 与两条颜色,
+ * 整个文件里没有一条 `animation` 落在它身上(会动的是它下面那条由 JS 驱动的 `.crush`,
+ * 以及 `.queue .arr` 的 nudge)。所以动效总闸在这一行上无事可关 —— 它下面那条噪声流仍然
+ * 由 WorkingSpinner 自己读 `animations_enabled`,关掉时走 `⋯` 兜底,那一档没动过。
+ *
+ * 目标与动词的来源、以及没有目标时怎么降级,都在 thinking-step.ts 的注释里。
+ */
+export function WorkingLine(props: {
+  sessionID: string
+  thinking: boolean
+  /** 最后一条助手消息的 part —— 标题行的目标与动词都从它上面判定。
+   *  取结构类型(thinking-step 的 WorkingPart)而不是 SDK 的 `Part`:SDK 的联合类型
+   *  在测试里没法随手造,而这一行真正读到的只有 type / text / state.input 那几个字段。 */
+  parts: readonly WorkingPart[]
+  /** 会话主区宽度(`ctx.width` 的口径):列预算的基数。 */
+  ctxWidth: number
+}) {
   const { theme } = useTheme()
   const [seconds, setSeconds] = createSignal(0)
   onMount(() => {
     const timer = setInterval(() => setSeconds((value) => value + 1), 1000)
     onCleanup(() => clearInterval(timer))
   })
+  const columns = createMemo(() => workingTitleColumns(props.ctxWidth))
+  const title = createMemo(() => workingStepTitle(props.parts, columns()))
+  // 目标与计时都用思考卡的语义色首端(与思考卡那一圈描边同源);不用 ANSI 加粗,
+  // 强调交给 TextAttributes.BOLD + 这个语义色,与 meta 行里 `◆` 的做法一致。
+  const accent = () => semanticStops(theme, "thinking")[0]
   return (
-    <box ref={(el: BoxRenderable) => alwaysSeparate.add(el)} paddingLeft={2} paddingTop={1} flexShrink={0}>
-      <WorkingSpinner width={24}>
-        {props.thinking ? "思考中" : "正在回答"}
-        <span style={{ fg: theme.textMuted }}> · {Locale.duration(seconds() * 1000)}</span>
-      </WorkingSpinner>
+    <box
+      ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
+      paddingLeft={WORKING_LINE_INDENT}
+      paddingTop={1}
+      flexShrink={0}
+    >
+      {/* maxWidth 而不是 width:预算是「行内最多能占几列」,容器比它还窄时(极小终端)
+          让 Yoga 收窄这一行,而不是把右端的计时顶出可视区。行宽落到 min(容器, 行预算),
+          再加上左边的 2 列缩进,计时那一格的列号正好是 messageColumns(ctxWidth)——
+          与助手气泡卡的右边框同一列。 */}
+      <box flexDirection="row" gap={1} maxWidth={columns()} flexShrink={0}>
+        {/* `{" 分析"}` 用表达式而不是裸文本:JSX 会把独占一行的文本的首尾空白(含换行)吃掉,
+            写成裸文本的话画面上是 `✦分析foo` —— 一个字都没有空格。 */}
+        <text fg={theme.textMuted} wrapMode="none">
+          <span style={{ fg: accent() }}>✦</span>
+          {" 分析"}
+          <Show when={title().target}>
+            {(target) => <span style={{ fg: accent(), attributes: TextAttributes.BOLD }}> {target()}</span>}
+          </Show>
+          <Show when={title().verb}>{(verb) => <span style={{ fg: theme.textMuted }}> {verb()}</span>}</Show>
+        </text>
+        {/* 原型 `.th-row { justify-content: space-between }` 的终端等价:弹性空隙把计时顶到右缘。
+            左段自己已经按 columns 截过,所以这里顶到的是右缘而不是「把左段挤扁」。 */}
+        <box flexGrow={1} />
+        <text fg={accent()} wrapMode="none">
+          {Locale.duration(seconds() * 1000)}
+        </text>
+      </box>
+      <WorkingSpinner width={24}>{props.thinking ? "思考中" : "正在回答"}</WorkingSpinner>
     </box>
   )
 }
