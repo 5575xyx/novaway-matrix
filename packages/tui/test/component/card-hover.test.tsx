@@ -52,6 +52,34 @@ function borderCell(app: { captureSpans(): CapturedFrame; captureCharFrame(): st
   return value
 }
 
+/**
+ * 整条上边框的前景色。
+ *
+ * **为什么量「逐格最大偏差」而不是亮度**:描边按 alpha 折算之后(见 ui/neon 的
+ * BORDER_ALPHA_DEFAULT),色带在亮度上的坡被压扁了 —— 三段霓虹色板近青的一端 r 升 g 降,
+ * 200ms 内两者此消彼长、r + g + b 几乎抵消。工具卡那一格上,叠色前 200ms 的亮度差是
+ * −0.016,叠色后只剩 −0.003:还在,却掉进了 8bit 量化与 `toBeCloseTo(_, 3)` 的噪声里,
+ * 于是「有没有在动」这条判据失效了(改之前它测的是真东西,现在它测的是量化误差)。
+ * 逐格逐通道比就不受抵消影响:任一通道走过一档(1/255)就说明相位真的动了。
+ */
+function borderRow(app: { captureSpans(): CapturedFrame; captureCharFrame(): string }) {
+  const { top } = cardRows(app)
+  const grid = cellGrid(app)
+  return [...Array.from({ length: 40 }, (_, index) => index)]
+    .map((x) => grid.get(`${top}:${x}`))
+    .filter((value): value is { r: number; g: number; b: number } => Boolean(value))
+}
+
+function maxDeviation(a: { r: number; g: number; b: number }[], b: { r: number; g: number; b: number }[]) {
+  if (a.length !== b.length || a.length === 0) throw new Error("两次采样的格子数对不上")
+  return Math.max(
+    ...a.flatMap((left, index) => {
+      const right = b[index]!
+      return [Math.abs(left.r - right.r), Math.abs(left.g - right.g), Math.abs(left.b - right.b)]
+    }),
+  )
+}
+
 function brightness(cell: { r: number; g: number; b: number }) {
   return cell.r + cell.g + cell.b
 }
@@ -104,24 +132,24 @@ async function sidebarCard(title: string, badge: string, body: string) {
 }
 
 // 「悬停期间在动,移开后不动」这一对断言。工具卡与分区卡走的是三段霓虹色板,相位一动
-// 色就动,所以两次 200ms 之间的采样足够分辨。
+// 色就动,所以逐格最大偏差足以分辨。
 async function flowPair(name: string, mount: () => Promise<Harness>, ready: (text: string) => boolean) {
   const app = await settle(await mount(), ready)
   try {
     await app.renderOnce()
     await overCard(app)
     await app.renderOnce()
-    const first = brightness(borderCell(app))
+    const first = borderRow(app)
     await new Promise((resolve) => setTimeout(resolve, PHASE_WAIT))
     await app.renderOnce()
-    expect(brightness(borderCell(app)), `${name}:悬停期间描边应流动`).not.toBeCloseTo(first, 3)
+    expect(maxDeviation(borderRow(app), first), `${name}:悬停期间描边应流动`).toBeGreaterThan(0.004)
 
     await offCard(app)
     await app.renderOnce()
-    const stopped = brightness(borderCell(app))
+    const stopped = borderRow(app)
     await new Promise((resolve) => setTimeout(resolve, PHASE_WAIT))
     await app.renderOnce()
-    expect(brightness(borderCell(app)), `${name}:移开后描边应静止`).toBeCloseTo(stopped, 3)
+    expect(maxDeviation(borderRow(app), stopped), `${name}:移开后描边应静止`).toBeLessThan(0.004)
   } finally {
     app.renderer.destroy()
   }

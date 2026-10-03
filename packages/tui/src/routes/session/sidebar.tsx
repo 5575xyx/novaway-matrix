@@ -15,7 +15,7 @@ import { TUI_BRAND } from "../../brand"
 import { FileTree } from "../../component/file-tree"
 import { QuickPreviewCard } from "../../component/quick-preview-card"
 import { GitPanel } from "../../component/git-panel"
-import { SidebarCard } from "../../component/sidebar-card"
+import { PANEL_CARD_ALPHA, SidebarCard } from "../../component/sidebar-card"
 import { Locale } from "../../util/locale"
 import { sidebarWidth } from "../../util/sidebar-width"
 import "../../ui/card"
@@ -98,6 +98,10 @@ export function Sidebar(props: SidebarProps) {
     <neonbox
       backgroundColor={theme.backgroundPanel}
       gradientStops={neonStops(theme)}
+      /* 叠色档与分区卡同一档(见 component/sidebar-card 的 PANEL_CARD_ALPHA):这张根卡
+         是整列的容器,比任何一张分区卡都大,若比它们更实就会变成屏幕上最重的一条边。
+         叠色底不用给 —— 它自己有 backgroundColor,那就是边框格背后的实色。 */
+      borderAlpha={PANEL_CARD_ALPHA}
       /* 侧栏根卡既不悬停也不入场:它是整列的容器,鼠标几乎永远在它范围内 ——
          「悬停才提亮」在这里等于「一直亮着」,这条视觉信号就废了;入场同理,
          它比里面任何一张分区卡都活得久。分区卡自己那层才有悬停动效(见 sidebar-card.tsx)。 */

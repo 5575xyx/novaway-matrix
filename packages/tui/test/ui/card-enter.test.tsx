@@ -6,7 +6,8 @@ import { RGBA, type CapturedFrame } from "@opentui/core"
 // 裸导入跑 extend({ neonbox }) 的副作用;类型单独用 import type 拿(见 card.test.tsx 的理由)。
 import type { NeonBoxRenderable } from "../../src/ui/card"
 import "../../src/ui/card"
-import { perimeterCells } from "../../src/ui/neon"
+import { perimeterCells, alphaOver, brighten, BORDER_ALPHA_DEFAULT, NEON_WHITE } from "../../src/ui/neon"
+import { TOP_EDGE_GLOW } from "../../src/ui/card"
 import { createEnterBaselineStore, ENTER_STAGGER_MAX_INDEX, ENTER_STAGGER_STEP } from "../../src/ui/enter"
 
 // 入场淡入的集成层断言。纯函数层(fadeIn 的夹紧、enter-baseline 的判定)在
@@ -47,14 +48,34 @@ function borderColor(app: { captureSpans(): CapturedFrame }, x: number, y: numbe
   return value
 }
 
-function expectBorder(app: { captureSpans(): CapturedFrame }, expected: RGBA, label: string, origin = { x: 0, y: 0 }) {
+// 这几张卡没有自己的 backgroundColor,所以叠色底就是「透明黑」—— 见 ui/card 的
+// borderBackdrop 注释:透明卡自己给不出背后是什么,这里恰好是同一条已知近似。
+const BACKDROP = RGBA.fromValues(0, 0, 0, 0)
+
+/**
+ * 一格描边的终态色。测试不写死叠色算出来的数(那是把实现抄一遍),只把**契约**写出来:
+ * 描边 = 起点/终色按 borderAlpha 叠在背后那层实色上,上边框那一行再叠一道顶部光晕。
+ *
+ * `lit = false` 用在淡入的第 0 帧上 —— 光晕在入场淡入**之前**入管线(见 ui/card 的
+ * renderSelf),所以 k = 0 那一帧整圈都是起点色,顶边也不例外。这不是漏洞:入场未完成的
+ * 描边本来就是「还没通电」的一圈灰,不该带环境光。
+ */
+function settledTone(color: RGBA, cell: { y: number }, lit = true) {
+  const base = alphaOver(color, BACKDROP, BORDER_ALPHA_DEFAULT)
+  return lit && cell.y === 0 ? brighten(base, TOP_EDGE_GLOW, NEON_WHITE) : base
+}
+
+function expectBorder(
+  app: { captureSpans(): CapturedFrame },
+  expected: RGBA,
+  label: string,
+  origin = { x: 0, y: 0 },
+  lit = true,
+) {
   for (const cell of perimeterCells(WIDTH, HEIGHT)) {
     const actual = borderColor(app, origin.x + cell.x, origin.y + cell.y)
-    const diff = Math.max(
-      Math.abs(actual.r - expected.r),
-      Math.abs(actual.g - expected.g),
-      Math.abs(actual.b - expected.b),
-    )
+    const tone = settledTone(expected, cell, lit)
+    const diff = Math.max(Math.abs(actual.r - tone.r), Math.abs(actual.g - tone.g), Math.abs(actual.b - tone.b))
     expect(diff, `${label} @ (${origin.x + cell.x},${origin.y + cell.y})`).toBeLessThan(0.01)
   }
 }
@@ -74,7 +95,7 @@ describe("NeonBox 入场淡入", () => {
     )
     try {
       await app.renderOnce()
-      expectBorder(app, START, "延迟窗口内")
+      expectBorder(app, START, "延迟窗口内", { x: 0, y: 0 }, false)
     } finally {
       app.renderer.destroy()
     }
@@ -129,7 +150,9 @@ describe("NeonBox 入场淡入", () => {
     )
     try {
       await app.renderOnce()
-      const cell = perimeterCells(WIDTH, HEIGHT)[5]!
+      // 盯右边框中段那一格:它既不在顶边(没有光晕)也不在角上,红通道的起落就是淡入本身。
+      // 起点纯红按 0.62 叠在透明黑上是 r = 0.62,终点纯蓝叠出来 r = 0 —— 红通道必须一路降到底。
+      const cell = perimeterCells(WIDTH, HEIGHT).find((item) => item.y === 2 && item.x === WIDTH - 1)!
       const reds: number[] = []
       for (let frame = 0; frame < 8; frame++) {
         await new Promise((resolve) => setTimeout(resolve, 40))
@@ -138,9 +161,11 @@ describe("NeonBox 入场淡入", () => {
       }
       // 起点是纯红、终点是纯蓝:红通道必须一路降到底,不能中途回弹。
       // 首帧不做「必须还是纯红」的断言 —— testRender + renderOnce 的耗时不可控,
-      // 第一帧可能已经走到 k ≈ 0.3。「k = 0 时是纯红」由上面那条延迟 1 秒的用例钉死。
+      // 第一帧可能已经走到 k ≈ 0.3。「k = 0 时是起点色」由上面那条延迟 1 秒的用例钉死。
       for (let i = 1; i < reds.length; i++) expect(reds[i]!).toBeLessThanOrEqual(reds[i - 1]! + 1e-6)
+      // 起点的叠色值是 0.62 —— 门槛取 0.3 是为了容忍第一帧已经淡了一半。
       expect(reds[0]!).toBeGreaterThan(0.3)
+      expect(reds[0]!).toBeLessThanOrEqual(0.63)
       expect(reds[reds.length - 1]!).toBeLessThan(0.01)
     } finally {
       app.renderer.destroy()
@@ -314,7 +339,8 @@ describe("视图切换后的消息卡不重播入场", () => {
       const first = mounted.cards.get("target")
       if (!first) throw new Error("卡片还没建出来")
       expect(first.enterDelay).toBe(ENTER_STAGGER_MAX_INDEX * ENTER_STAGGER_STEP)
-      expectBorder(mounted.app, START, "首挂载的延迟窗口内", { x: first.screenX, y: first.screenY })
+      // 首挂载落在延迟窗口内(k = 0):整圈都是起点色,顶边也不带光晕(见 settledTone)。
+      expectBorder(mounted.app, START, "首挂载的延迟窗口内", { x: first.screenX, y: first.screenY }, false)
 
       mounted.setView("flow")
       for (let index = 0; index < 10; index++) {

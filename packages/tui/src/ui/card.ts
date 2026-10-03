@@ -7,7 +7,16 @@
   type RenderContext,
 } from "@opentui/core"
 import { extend } from "@opentui/solid"
-import { brighten, fadeIn, gradientAt, HOVER_BOOST, perimeterCells } from "./neon"
+import {
+  alphaOver,
+  BORDER_ALPHA_DEFAULT,
+  brighten,
+  fadeIn,
+  gradientAt,
+  HOVER_BOOST,
+  NEON_WHITE,
+  perimeterCells,
+} from "./neon"
 
 export type NeonBoxOptions = BoxOptions<NeonBoxRenderable> & {
   gradientStops?: readonly RGBA[]
@@ -21,12 +30,6 @@ export type NeonBoxOptions = BoxOptions<NeonBoxRenderable> & {
    */
   animated?: boolean
   /**
-   * 入场淡入的延迟(毫秒)。**不传就是直接终态** —— 调用方据此表达
-   * 「不要入场」,animations_enabled 关闭时也正是走这条路(见 ui/enter.ts)。
-   * 0 表示立刻开始淡入,undefined 表示跳过淡入。
-   */
-  enterDelay?: number
-  /**
    * 描边淡入的起点色。省略时退回这张卡自己的 backgroundColor(有底色的卡 ——
    * 用户气泡 / 错误卡 / 思考卡 / 工具卡 —— 淡入就是从底色长出描边)。
    * 透明卡片(助手气泡卡 / 分区卡 / 输入卡)必须显式给:终端里没有半透明,
@@ -34,10 +37,33 @@ export type NeonBoxOptions = BoxOptions<NeonBoxRenderable> & {
    */
   enterFrom?: RGBA
   /**
+   * 描边淡入的延迟(毫秒)。**不传就是直接终态** —— 调用方据此表达
+   * 「不要入场」,animations_enabled 关闭时也正是走这条路(见 ui/enter.ts)。
+   * 0 表示立刻开始淡入,undefined 表示跳过淡入。
+   */
+  enterDelay?: number
+  /**
    * 悬停时抬对比度:把描边朝这个色混 HOVER_BOOST(见 ui/neon)。传入即开、undefined 即关,
    * 与 animated 独立 —— 抬对比度不需要流动,也不需要扫光。
    */
   boost?: RGBA
+  /**
+   * 描边折算出来的「叠色档」:把渐变描边当成这个 alpha 盖在背后那层实色上,画出叠出来的那个色。
+   *
+   * 省略 = `BORDER_ALPHA_DEFAULT`(0.62,原型 `.bubble` 一族的 alpha)。
+   * 1 = 不折算,描边就是纯渐变色(它本来就有的样子)。
+   */
+  borderAlpha?: number
+  /**
+   * 描边背后的实色,叠色的底(见 ui/neon 的 alphaOver)。省略时取这张卡自己的
+   * `backgroundColor` —— 边框格画在最外行/列上,那一格不画描边时露出来的正是卡自己的底色,
+   * 所以对**有底色**的卡(用户气泡 / 工具卡 / 思考卡 / 错误卡)这是正确的参考。
+   *
+   * 透明卡自己给不出答案:它背后的可能是面板底色,也可能是纯黑,终端里读不到。
+   * 那种卡必须显式传(见 component/neon-card、sidebar-card、prompt/card),否则叠色会朝
+   * 默认黑收敛 —— 深色主题下碰巧像那么回事,浅色主题下整圈描边会沉进白底里。
+   */
+  borderBackdrop?: RGBA
 }
 
 // 相位用 0..99 的整数计数表示(0.01 的分辨率对一圈渐变足够),每 80ms 走一格 ——
@@ -53,6 +79,24 @@ const PHASE_INTERVAL = 80
 const SWEEP_WIDTH = 0.12
 // 头部最大提亮量:向白插值 55%。
 const SWEEP_STRENGTH = 0.55
+
+/**
+ * 顶部光晕:上边框那一行额外向白提亮 6%。
+ *
+ * 对应原型两处:
+ *   · `.card` 的 `inset 0 1px 0 rgba(255,255,255,.05)` —— 卡片顶部那条内高光,
+ *     让玻璃面读起来「上边被环境光照到」而不是一圈均匀的轮廓线;
+ *   · 侧栏右缘流光 `linear-gradient(180deg, transparent, rgba(79,209,224,.55) 30%,
+ *     rgba(255,92,158,.45) 70%, transparent)`(原型 :111)—— 那一段最亮的带子就在靠上 30%。
+ *
+ * 取 6% 而不是照抄 5%:描边已经先按 alpha 折算过一轮(亮度掉到纯渐变的 ~65%),
+ * 同样的百分比叠在更暗的底上视觉增益更大。6% 折成 8bit 仍是 15 档以上,肉眼可辨;
+ * 再高一档就会读成「第二圈亮边」而不是「边被点亮了」。
+ *
+ * 只作用于 y = 0 那一行 —— 角格 `╭ ╮` 在那一行上,于是跟着亮;`╰ ╯` 在最后一行,不亮。
+ * 侧边中段一律不带光晕(见 test/ui/card-border-alpha 的「左右边框中段不跟着亮」)。
+ */
+export const TOP_EDGE_GLOW = 0.06
 
 // padding 允许百分比,构造期无法换算成格数只能原样透传;数字统一夹到 ≥1 格。
 const minPadding = (value: number | `${number}%` | null | undefined): number | `${number}%` =>
@@ -86,7 +130,7 @@ export function sweepMix(phase: number, t: number) {
 
 // mix 的调用点已经保证 > 0,这里不再兜一遍。
 function sweepColor(base: RGBA, mix: number) {
-  return RGBA.fromValues(base.r + (1 - base.r) * mix, base.g + (1 - base.g) * mix, base.b + (1 - base.b) * mix, base.a)
+  return brighten(base, mix, NEON_WHITE)
 }
 
 // 原生 buffer.setCell 会把超出当前 scissor 的坐标夹到裁剪边缘(不是丢弃),卡片滚出
@@ -127,9 +171,11 @@ export class NeonBoxRenderable extends BoxRenderable {
   private enterTimer: ReturnType<typeof setInterval> | undefined
   private painted = false
   private boostColor: RGBA | undefined
+  private alpha: number = BORDER_ALPHA_DEFAULT
+  private backdrop: RGBA | undefined
 
   constructor(ctx: RenderContext, options: NeonBoxOptions = {}) {
-    const { gradientStops, animated, enterDelay, enterFrom, boost, ...rest } = options
+    const { gradientStops, animated, enterDelay, enterFrom, boost, borderAlpha, borderBackdrop, ...rest } = options
     // rest 带 renderBefore 等 this: NeonBoxRenderable 回调,基类要求 this: BoxRenderable,
     // 二者仅 this 参数不同,向下收敛为 BoxOptions 交给 super。
     super(ctx, {
@@ -144,6 +190,8 @@ export class NeonBoxRenderable extends BoxRenderable {
     // 顺序要紧:enterFrom 必须先于 enterDelay 落定 —— 后者会在渲染时向前者要起点色。
     if (enterFrom) this.enterFrom = enterFrom
     if (boost) this.boost = boost
+    if (borderAlpha !== undefined) this.borderAlpha = borderAlpha
+    if (borderBackdrop) this.borderBackdrop = borderBackdrop
     if (enterDelay !== undefined) this.enterDelay = enterDelay
   }
 
@@ -209,6 +257,27 @@ export class NeonBoxRenderable extends BoxRenderable {
   set boost(value: RGBA | undefined) {
     if (value === this.boostColor) return
     this.boostColor = value
+    this.requestRender()
+  }
+
+  get borderAlpha(): number {
+    return this.alpha
+  }
+
+  set borderAlpha(value: number) {
+    const clamped = Math.min(1, Math.max(0, value))
+    if (clamped === this.alpha) return
+    this.alpha = clamped
+    this.requestRender()
+  }
+
+  get borderBackdrop(): RGBA | undefined {
+    return this.backdrop
+  }
+
+  set borderBackdrop(value: RGBA | undefined) {
+    if (value === this.backdrop) return
+    this.backdrop = value
     this.requestRender()
   }
 
@@ -320,6 +389,11 @@ export class NeonBoxRenderable extends BoxRenderable {
     const originX = this.screenX
     const originY = this.screenY
     const background = this.backgroundColor
+    // 叠色的底:描边格画在最外行/列上,那一格不画描边时露出来的就是这张卡自己的底色 ——
+    // 所以有底色的卡(用户气泡 / 工具卡 / 思考卡 / 错误卡)拿 backgroundColor 就是正确参考。
+    // 透明卡给不出答案(它背后是面板底色还是纯黑,终端里读不到),调用点必须显式给
+    // borderBackdrop;没给就落到 backgroundColor 的透明黑,那是下面注释里那条已知近似。
+    const backdrop = this.backdrop ?? background
     const clip = visibleClip(buffer, this)
     // phase = 0(从未动画过)时**不做环绕**:周长末格 cell.t = 1,`(1 + 0) % 1` 会把它送回
     // t = 0,那一格就渲染成起点色而不是终点色 —— 所有静止的卡(助手气泡卡 / 侧栏卡 /
@@ -331,8 +405,13 @@ export class NeonBoxRenderable extends BoxRenderable {
     // 传了但起点色拿不到(enterFrom 与 backgroundColor 都没有)→ 也走终态,
     // 见 enterFrom 的注释:不知道背后是什么颜色时不该凭空挑一个起点。
     const entered = this.enterMs === undefined ? 1 : this.enterProgress()
+    // 入场起点与终态走**同一套**折算:起点色是 theme.border 那样的普通边框色,不给它叠一遍的话,
+    // 淡入的第 0 帧会比终态亮一整档 —— k = 0 那一帧闪一下。叠完之后起点仍然明显暗于
+    // 渐变终色(theme.border 是灰的,渐变是彩的),阶梯感不受影响。
     const from = this.enterColor ?? this.backgroundColor
-    const fading = entered < 1 && from
+    // 与终态同一套折算(见循环里那一段的注释)。逐格不变,所以提到循环外算一次。
+    const fromTone = alphaOver(from, backdrop, this.alpha)
+    const fading = entered < 1
     const boost = this.boostColor
     // 祖先压下来的 opacity(视图入场那一档,见 routes/session/view-entrance)。
     // **必须自己折算**:描边走的是 `buffer.setCell`,而那条路径不吃渲染器的 opacity 栈
@@ -350,13 +429,18 @@ export class NeonBoxRenderable extends BoxRenderable {
       const y = originY + cell.y
       if (x < clip.x || x >= clip.right || y < clip.y || y >= clip.bottom) continue
       const gradient = gradientAt(stops, this.phase === 0 ? cell.t : (cell.t + phase) % 1)
-      // 顺序是「渐变 → 悬停抬对比 → 入场淡入 → 扫光 → 祖先 opacity」:
+      // 顺序是「渐变 → 叠色柔边 → 顶部光晕 → 悬停抬对比 → 入场淡入 → 扫光 → 祖先 opacity」:
+      //   叠色紧跟渐变,因为它改的是**描边本身**:原型那一圈描边本来就是半透明的,
+      //     后面几层(悬停光晕、扫光、入场)都加在「已经折算过的那一圈」上,不是加在纯渐变上;
+      //   顶部光晕跟着叠色走 —— 原型那条内高光也在半透明描边之上,顺序反了它会浮成第二圈亮边;
       //   抬对比要在入场之前,这样淡入的终点就是「悬停时的高对比描边」(k = 1 时两者等价,顺序不打架);
       //   扫光放最后,它提亮的是**当前这一帧画出来的颜色**,入场与悬停叠加时高光跟着一起淡入;
       //   祖先 opacity 在最外层 —— 它是整棵子树的透明度,得作用在这一帧**最终**的颜色上,
-      //   放在它前面会让提亮/扫光绕过祖先那层压暗。
-      const lifted = boost ? brighten(gradient, HOVER_BOOST, boost) : gradient
-      const faded = fading ? fadeIn(from, lifted, entered) : lifted
+      //     放在它前面会让提亮/扫光绕过祖先那层压暗。
+      const softened = alphaOver(gradient, backdrop, this.alpha)
+      const lit = cell.y === 0 ? brighten(softened, TOP_EDGE_GLOW, NEON_WHITE) : softened
+      const lifted = boost ? brighten(lit, HOVER_BOOST, boost) : lit
+      const faded = fading ? fadeIn(fromTone, lifted, entered) : lifted
       const mix = this.animating ? sweepMix(phase, cell.t) : 0
       const painted = mix > 0 ? sweepColor(faded, mix) : faded
       buffer.setCell(x, y, cell.ch, ambient === 1 ? painted : dim(painted, ambient), background)

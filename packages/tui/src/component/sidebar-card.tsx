@@ -20,6 +20,10 @@ const HEAD_MARGIN = 2
 // 标题的保底宽度:再挤也至少留这么多列,否则「资源管理器」这类标题会被徽标整段吃掉。
 const TITLE_MIN = 8
 
+// 面板卡的叠色档(见 ui/neon 的 BORDER_ALPHA_DEFAULT 注释表)。导出给测试与侧栏根卡
+// (routes/session/sidebar.tsx)共用同一个数 —— 两处各写一个 0.7 迟早会漂。
+export const PANEL_CARD_ALPHA = 0.7
+
 export interface SidebarCardProps {
   title: string
   /** 标题左侧的图标字形。调用方给(panel-icons 的 icon(...) 之类),这里不猜风格。 */
@@ -95,6 +99,12 @@ export function SidebarCard(props: SidebarCardProps) {
       // 动画只改前景色、不动任何几何(yoga 布局不受影响),所以不会带得整栏抖一下。
       animated={hover.animated()}
       boost={hover.boost(theme.text)}
+      // 面板卡那一档(0.70)。原型 `.card` 的描边是**不透明**的 --gb-main,照抄 1.0 就是
+      // 用户说的「描边太重」—— 浏览器里 1.5px 的发丝线在终端里占满一整格,只能是 alpha 说了算。
+      // 0.70 是全 App 里最实的一档描边(相对原型的不透明程度),其余各壳都比它淡。
+      borderAlpha={PANEL_CARD_ALPHA}
+      // 透明卡:叠色底是它坐着的那块面板(侧栏根卡自己就是 backgroundPanel)。
+      borderBackdrop={theme.backgroundPanel}
       onMouseOver={hover.onMouseOver}
       onMouseOut={hover.onMouseOut}
       paddingTop={1}

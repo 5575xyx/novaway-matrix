@@ -73,6 +73,16 @@ function accentOf(theme: Theme, kind: FlowNodeKind) {
 const ARROW_BOOST = 0.35
 
 /**
+ * 节点卡的叠色档(见 ui/neon 的 BORDER_ALPHA_DEFAULT 注释表)。
+ *
+ * 原型 `.fcard` 用的是**不透明**的 `--fc`,抄不了 1.0(终端里 1 格满饱和描边正是
+ * 「太重」的来源),于是取 0.72 —— 比面板卡的 0.70 还实一档:节点卡只有 28×4,
+ * 边框占整张卡的比重远大于面板卡,再淡就读不出「这是一张节点卡」,圆角与类型文字也就
+ * 撑不起那张卡。导出给测试直接引用。
+ */
+export const FLOW_NODE_ALPHA = 0.72
+
+/**
  * 边标签的列数上限。走廊是 GAP_X − 1 列,标签占掉最后一列(箭头)之后还剩 GAP_X − 2;
  * 再兜一个底,免得哪条边的候选段特别宽时标签横跨到卡片上去。
  */
@@ -277,6 +287,7 @@ export function FlowCanvas(props: {
                 <box position="absolute" left={node.rect.x} top={node.rect.y} width={NODE_WIDTH} zIndex={10}>
                   <NeonCard
                     gradientStops={semanticStops(theme, roleOf(node.kind))}
+                    borderAlpha={FLOW_NODE_ALPHA}
                     onSelect={() => setSelected((value) => (value === node.id ? null : node.id))}
                   >
                     <box flexDirection="row" gap={1} flexShrink={0}>
