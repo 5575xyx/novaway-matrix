@@ -1,4 +1,4 @@
-﻿import {
+import {
   batch,
   createContext,
   createEffect,
@@ -144,8 +144,8 @@ const GO_UPSELL_PROVIDERS = new Set(["NovaWay", "NovaWay-go"])
  * test/cli/tui/inline-tool-wrap-snapshot.test.tsx 与 test/routes/session/assistant-card.test.tsx
  * 都是从这儿拿的。
  */
-import { alwaysSeparate, MessageAnchor } from "./message-anchor"
-export { alwaysSeparate }
+import { alwaysSeparate, messageColumns, MessageAnchor, MESSAGE_MAX_WIDTH } from "./message-anchor"
+export { alwaysSeparate, messageColumns, MessageAnchor, MESSAGE_MAX_WIDTH }
 
 // 会话页的占位符。会话页之前**一个都没传**,聚焦时输入框里只有光标 —— 原型的
 // 输入卡靠「问我任何事... "示例"」占位,空着的话整张卡左半边是白的。
@@ -2219,7 +2219,7 @@ function UserMessage(props: { message: UserMessage; parts: Part[]; onMouseUp: ()
               之前这一行是**左**对齐的(盒子撑满整列、文字从左缘起),于是 `21:55 你` 贴在最左、
               气泡贴在最右,两者看着毫无关系 —— 用户原话:「时间和气泡分到了两边」。
               右对齐由 UserMeta 内部的 `justifyContent="flex-end"` 给(为什么不是把这里改成
-              `alignSelf="flex-end"`,见 UserMeta 那段注释);**这个盒子仍然撑满整列**,因为
+              `alignSelf="flex-end"`,见 UserMeta 那段注释);**这个盒子仍然撑满消息列**,因为
               按内容收窄会让这一行没有高度。
               助手那条保持左对齐(原型的 `.msg.assistant` 是 `align-self: flex-start`,:396),
               所以两条 meta 的对齐方向本来就是相反的。
@@ -2244,12 +2244,15 @@ function UserMessage(props: { message: UserMessage; parts: Part[]; onMouseUp: ()
             paddingLeft={2}
             paddingRight={2}
             flexShrink={0}
-            maxWidth="70%"
             alignItems="flex-end"
           >
-            {/* 气泡靠右:外层 alignItems="flex-end" 把气泡推到内容列右缘(靠 neonbox 自身 maxWidth 收窄,不再有 agent 色条),
-                内层同样右对齐让附件跟着靠右。这里的 text 不能再写 width="100%" ——
-                那会把气泡撑满整列,右对齐就失效;去掉后气泡按文字自然宽度收缩,长文本到 70% 才折行。 */}
+            {/* 气泡靠右:外层 alignItems="flex-end" 把气泡推到**消息列**的右缘,内层同样右对齐
+                让附件跟着靠右。宽度上限在消息锚点上(MessageAnchor 的 MESSAGE_MAX_WIDTH,原型的
+                `.msg { max-width: 78% }`),**不再**是这一层自己的 70% —— 两个方向共用一个上限,
+                用户那条与助手那条才会是同一套尺寸;而挂在气泡上的话,卡外的 meta 行仍然按整列
+                排,「时间和气泡分到了两边」又回来了。
+                这里的 text 不能再写 width="100%" —— 那会把气泡撑满消息列,右对齐就失效;
+                去掉后气泡按文字自然宽度收缩,长文本到消息列右缘才折行。 */}
             <text fg={theme.text}>{text()}</text>
             <Show when={files().length}>
               <box flexDirection="row" paddingTop={1} gap={1} flexWrap="wrap">
@@ -2330,7 +2333,9 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
           agent={props.message.agent}
           created={props.message.time.created}
           model={model()}
-          width={ctx.width}
+          // meta 的宽度上限跟着消息列走(锚点上那道 78%):按整列算的话模型名会一直排到
+          // 气泡卡的右缘之外 —— 而 meta 与卡在同一条右缘上,那截模型名是白排的。
+          width={messageColumns(ctx.width)}
         />
         <Show when={renderableParts().length}>
           <NeonCard enterDelay={ctx.enterDelayFor(props.message.id)}>
@@ -2709,17 +2714,17 @@ type ToolProps = {
   part: ToolPart
 }
 
-// 工具卡所在盒子的可用列数相对消息列要扣掉的列数,拆开是:助手气泡卡 padding 3
+// 工具卡所在盒子的可用列数相对**消息列**要扣掉的列数,拆开是:助手气泡卡 padding 3
 // (component/neon-card 的 paddingLeft 2 + paddingRight 1)+ 工具卡自己的 padding 3
 // (BlockTool 里的 paddingLeft 2 + paddingRight 1,与助手卡同款算法),合计 6。
 //
-// **为什么这里不给余量**:这一层量的是 **head 行**,而 head 是钉死的一行,右边就是 neonbox
-// 自绘的边框 —— 少算列会让状态摘要被边框切掉一截,而 `<text>` 默认 wrapMode="none",
-// 切掉的部分既不折行也不留省略号,看上去就是「摘要少了一截」。所以按精确值算,
-// 宁可早一点省略标题。
+// **基准是消息列,不是 ctx.width**:消息列有 78% 的宽度上限(见 message-anchor 的 MESSAGE_MAX_WIDTH),
+// 所以 ctx.width 是「整列」而这里是「消息列」。这一层量的是 **head 行**,而 head 是钉死的一行,
+// 右边就是 neonbox 自绘的边框 —— 少算列会让状态摘要被边框切掉一截,而 head 上的标题是自己按列
+// 截断的(见 toolHeadLayout),切掉的部分既不折行也不留省略号。所以按精确值算,宁可早一点省略标题。
 //
 // 工具**输出**那一层反过来给了余量:输出是多行文本,少算一列的代价是多折一行,
-// 而多折的那一行用户看得见(见 GenericTool / Shell 里剩下的那个 `Math.max(20, …)`)。
+// 而多折的那一行用户看得见(见 Execute 里剩下的那个 `Math.max(20, …)`)。
 export const TOOL_CARD_COLUMNS = 6
 
 /**
@@ -2788,7 +2793,7 @@ function GenericTool(props: ToolProps) {
         collapsible={true}
         part={props.part}
         status={toolStatusSummary(output())}
-        headWidth={Math.max(0, ctx.width - TOOL_CARD_COLUMNS)}
+        headWidth={Math.max(0, messageColumns(ctx.width) - TOOL_CARD_COLUMNS)}
         bodyRows={outputRows(output())}
       >
         <text fg={theme.text}>{output()}</text>
@@ -2854,7 +2859,7 @@ function InlineTool(props: {
   })
   // head 上要摆下的固定列:head 盒子 paddingLeft 1 + caret 1 + gap 1 + 状态图标列 2
   // (INLINE_TOOL_ICON_WIDTH)+ 摘要前面的 gap 1 = 6。摘要本身多宽由它自己算。
-  const headWidth = createMemo(() => Math.max(0, ctx.width - TOOL_CARD_COLUMNS))
+  const headWidth = createMemo(() => Math.max(0, messageColumns(ctx.width) - TOOL_CARD_COLUMNS))
   const statusColumns = createMemo(() => {
     const status = props.status
     if (!status) return 0
@@ -3287,7 +3292,7 @@ function Shell(props: ToolProps) {
           // 这正是原型那张卡的场景:`bun test --timeout 30000 … ✓ 12 passed`。
           // output() 已经 stripAnsi 过(解析要的是纯文本,色码会插在数字与单词之间)。
           status={toolStatusSummary(output())}
-          headWidth={Math.max(0, ctx.width - TOOL_CARD_COLUMNS)}
+          headWidth={Math.max(0, messageColumns(ctx.width) - TOOL_CARD_COLUMNS)}
           bodyRows={outputRows(output())}
         >
           <box gap={1}>
@@ -3596,7 +3601,11 @@ function Execute(props: ToolProps) {
   const calls = createMemo(() => executeCalls(props.metadata.toolCalls))
   const output = createMemo(() => stripAnsi(props.output?.trim() ?? ""))
   const hasRuntimeError = createMemo(() => props.metadata.error === true)
-  const outputPreview = createMemo(() => collapseToolOutput(output(), 4, 4 * Math.max(20, ctx.width - 9)).output)
+  // 这段预览的可用列数是**算得准的**:助手卡 padding 3 + 这个盒子自己的 paddingLeft 3 +
+  // 里面那个 text 的 paddingLeft 3 = 9(下面那个 <box paddingLeft={3}> 与 <text paddingLeft={3}>),
+  // 基准是消息列而不是整列(锚点上那道 78%,见 message-anchor 的 MESSAGE_MAX_WIDTH)。
+  const outputColumns = createMemo(() => Math.max(20, messageColumns(ctx.width) - 9))
+  const outputPreview = createMemo(() => collapseToolOutput(output(), 4, 4 * outputColumns()).output)
   const showOutput = createMemo(() => output() && hasRuntimeError())
   const content = createMemo(() => {
     const lines = ["execute"]
@@ -3634,18 +3643,35 @@ function Execute(props: ToolProps) {
   )
 }
 
+// 并排 diff 的正文列数下限。改造前那一层的口径是 `ctx.width > 123`,而卡内 diff 正文是
+// ctx.width − 7(助手卡 padding 3 + 工具卡 padding 3 + 下面那个 <box paddingLeft={1}> 1),
+// 所以旧阈值等价于「正文 ≥ 117 列」。写成一个正数列数而不是终端宽度,是因为消息列有了 78% 的
+// 上限之后,同一个终端宽度对应的正文列数不再是常数。
+const DIFF_SPLIT_MIN_COLUMNS = 117
+
+/**
+ * 工具卡里那个 diff 用并排还是堆叠。
+ *
+ * 正文列数 = 消息列 − 助手卡 padding 3 − 工具卡 padding 3 − diff 自己的 paddingLeft 1
+ *          = messageColumns(ctxWidth) − TOOL_CARD_COLUMNS − 1。
+ * 折到整列上:124 列的整列 → 消息列 round(124 × 0.78) = 97 → 正文 90 < 117,所以堆叠;
+ * 159 列的整列 → 消息列 124 → 正文 117 ≥ 117,并排。也就是说并排的门槛从「整列 124」挪到了
+ * 「整列 159」—— 消息列收窄 22% 的代价就落在这里。
+ */
+function toolDiffView(ctxWidth: number, stacked: boolean) {
+  if (stacked) return "unified" as const
+  return messageColumns(ctxWidth) - TOOL_CARD_COLUMNS - 1 >= DIFF_SPLIT_MIN_COLUMNS
+    ? ("split" as const)
+    : ("unified" as const)
+}
+
 function Edit(props: ToolProps) {
   const ctx = use()
   const { theme, syntax } = useTheme()
   const pathFormatter = usePathFormatter()
 
-  const view = createMemo(() => {
-    const diffStyle = ctx.tui.diff_style
-    if (diffStyle === "stacked") return "unified"
-    // Default to "auto" behavior
-    // 并排 diff 阈值跟着助手卡一起上调 3 列:卡内正文比原来窄 3 列,阈值不动的效果是提前 3 列切并排。
-    return ctx.width > 123 ? "split" : "unified"
-  })
+  // Default to "auto" behavior
+  const view = createMemo(() => toolDiffView(ctx.width, ctx.tui.diff_style === "stacked"))
 
   const ft = createMemo(() => filetype(stringValue(props.input.filePath)))
 
@@ -3706,12 +3732,8 @@ function ApplyPatch(props: ToolProps) {
 
   const files = createMemo(() => parseApplyPatchFiles(props.metadata.files))
 
-  const view = createMemo(() => {
-    const diffStyle = ctx.tui.diff_style
-    if (diffStyle === "stacked") return "unified"
-    // 并排 diff 阈值跟着助手卡一起上调 3 列:卡内正文比原来窄 3 列,阈值不动的效果是提前 3 列切并排。
-    return ctx.width > 123 ? "split" : "unified"
-  })
+  // 与 Edit 同一把尺子(见 toolDiffView):阈值跟着消息列算,不写死终端宽度。
+  const view = createMemo(() => toolDiffView(ctx.width, ctx.tui.diff_style === "stacked"))
 
   function Diff(p: { diff: string; filePath: string }) {
     return (
