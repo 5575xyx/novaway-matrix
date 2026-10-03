@@ -641,10 +641,47 @@ export type RouteOptions = {
 const ARROW_RIGHT = "▸"
 const ARROW_DOWN = "▼"
 
-/** 拐角按「有哪两条腿」取:上+右=└,上+左=┘,下+右=┌,下+左=┐。 */
+/**
+ * 拐角字符。**圆角那一套** `╭ ╮ ╰ ╯`,与 NeonBox 画卡片边框用的是同一组
+ * (见 ui/neon 的 perimeterCells):`╭` 上左(向右 + 向下两条腿)、`╮` 上右、
+ * `╯` 下右、`╰` 下左。于是「线的折角」与「卡的圆角」读起来是同一种语言 ——
+ * 直角的 `┌ ┐ └ ┘` 在这个界面里只有 tab-bar 那个 <box> 边框在用。
+ *
+ * 直角那一套留在字符白名单里(test/component/flow-layout.test.ts 也留着),
+ * 是为了有人换回去时能看见白名单变了,而不是悄悄换掉。
+ */
+export const CORNER_CHARS = new Set(["╭", "╮", "╰", "╯"])
+
+/** 拐角按「有哪两条腿」取:上+右=╰,上+左=╯,下+右=╭,下+左=╮。 */
 function corner(up: boolean, right: boolean) {
-  if (up) return right ? "└" : "┘"
-  return right ? "┌" : "┐"
+  if (up) return right ? "╰" : "╯"
+  return right ? "╭" : "╮"
+}
+
+/** 「长边」的门槛:横向至少铺开一条走廊(GAP_X = 16 列)。 */
+export const LONG_EDGE_COLUMNS = GAP_X
+/** 长边至少要有的折点数。跨行带的边是 横-竖-横(2 个),换行边是 竖-横-竖(2 个),所以下限取 2。 */
+export const MIN_LONG_EDGE_BENDS = 2
+/**
+ * 同一行带里相邻两列那条边的折点下限 —— 也就是**曾经是一条死直线**的那一类。
+ *
+ * 原型那边每条边都是一条弯的贝塞尔(card-design-v7.html:966-977:`M470,56 C502,54 522,50 552,50`、
+ * `M470,98 C512,114 520,170 552,188`、以及最后那条一路甩回行首的 `M405,374 C259,374 259,456 114,456`)。
+ * 终端没有曲线,正交的等价物是**狗腿**:横-竖-横-竖-横,四个折点 ——
+ * 两处折返各自绕过一条空通道,读起来就是原型那条 S 形的直角版。
+ * 这条数一旦被调小,「横着直穿过去」就会回来,而且不会有人注意到。
+ */
+export const MIN_DOGLEG_BENDS = 4
+
+/** 这一条边横向铺开几列。长边与否只看这个,与是不是换行边无关。 */
+export function routeSpanX(cells: readonly RouteCell[]) {
+  if (cells.length === 0) return 0
+  return Math.max(...cells.map((cell) => cell.x)) - Math.min(...cells.map((cell) => cell.x)) + 1
+}
+
+/** 折点数(带拐角字符的格数)。导出给 fixture 的 flowInvariants 当契约钉。 */
+export function routeBends(cells: readonly RouteCell[]) {
+  return cells.filter((cell) => CORNER_CHARS.has(cell.ch)).length
 }
 
 /** 两点之间铺一段直线。调用方保证同排或同列。 */
@@ -683,8 +720,9 @@ function paint(cells: RouteCell[], at: { x: number; y: number }, ch: string) {
 /**
  * 一条边的直角折线路由。
  *
- * 两种形状,按目标相对源的位置选:
- *   目标在源右边(同一行带或下一行带都算)→ **横-竖-横**。竖段走在两列之间的走廊里,
+ * 三种形状,按目标相对源的位置选:
+ *   目标在源右边、**中线同高**(同一行带里紧挨着的两列)→ **狗腿** 横-竖-横-竖-横(4 个折点)。
+ *   目标在源右边、中线不同高 → **横-竖-横**。竖段走在两列之间的走廊里,
  *     走廊整列都是空的(节点只占列起点起的 NODE_WIDTH 列),所以竖段永远不会穿过卡片。
  *   目标不在源右边(含换行回下一行带的行首、以及叠在并行分支第二位的那张卡)→ **竖-横-竖**。
  *     横段走在两行带之间的通道里(见 RouteOptions),末段竖着落进目标卡**自己那一列的左边**——
@@ -692,13 +730,14 @@ function paint(cells: RouteCell[], at: { x: number; y: number }, ch: string) {
  *     否则并行分支的第二张卡会被上面那张卡挡住,竖段直接穿卡而过。
  *
  * 首尾两格都落在**节点边界之外、紧贴边界**的那一格上:连线从卡里长出来会被边框字符
- * 糊掉,而插进卡里就是「线压到卡片」。`index` 只用来在走廊/通道里选车道,让并行的几条边
- * 不共用同一条竖线(真撞上了也只是视觉重叠,不影响任何一条边的走向)。
+ * 糊掉,而插进卡里就是「线压到卡片」。`index` 只用来在走廊/通道里选车道、选折返方向,
+ * 让并行的几条边不共用同一条竖线(真撞上了也只是视觉重叠,不影响任何一条边的走向)。
  *
- * `labels` 按「优先程度」列出可以摆标签的线段,通常两段(靠源的那段、靠目标的那段)。
- * 为什么不直接钉死一段:并行分支会**分叉**、工具做完之后会**收束**,同一个画面上可能有两条边
- * 把标签摊在同一行上。给两段候选、让 canvas 去挑不撞车的那段(见 grid 的 makeLabelPlacer),
- * 比在这里猜哪一段更可能有空位可靠。
+ * `labels` 按「优先程度」列出可以摆标签的线段,通常两到三段。为什么要给多段而不是钉死一段:
+ * 并行分支会**分叉**、工具做完之后会**收束**,同一个画面上可能有两条边把标签摊在同一行上。
+ * 给几段候选、让 canvas 去挑不撞车的那段(见 grid 的 makeLabelPlacer),比在这里猜哪一段更可能
+ * 有空位可靠。**候选里总有一段是「整条走廊」宽**(靠源那一段),所以原型最长的并行标签
+ * (「并行 · 子代理」13 列)永远放得下 —— 见下面 labels 的注释。
  */
 export function edgeRoute(from: FlowRect, to: FlowRect, index: number, options: RouteOptions = {}): EdgeRoute {
   const fromMidY = from.y + Math.floor(from.height / 2)
@@ -706,10 +745,80 @@ export function edgeRoute(from: FlowRect, to: FlowRect, index: number, options: 
   const rightward = to.x > from.x + from.width
 
   if (rightward && fromMidY === toMidY) {
-    // 同一行带里紧挨着的两列:一条直线。
-    const cells = run({ x: from.x + from.width, y: fromMidY }, { x: to.x - 1, y: fromMidY }, "─")
+    // 同一行带里紧挨着的两列:折进通道里再折回来,而不是一条直线横穿过去。
+    //
+    // **折返方向按边序轮换**(`index % 2`):偶数往上、奇数往下。同一行带里相邻的两条边于是
+    // 一上一下,画出来是阶梯而不是所有边挤在同一条通道上 —— 后者看着像一排被压扁的弹簧。
+    //
+    // 可折返的那一行只有两个候选,而且**都是构造上必然空的**:
+    //   · `upY = from.y − 1` —— 卡片上面那一行。同一行带里相邻两格的空当是 3 行
+    //     (GAP_Y),所以 slot ≥ 1 的节点上面那一行是上一格卡片与它之间的空当;
+    //     slot = 0 的节点上面那一行是行带之上的通道(或分隔线与行带之间那唯一一行)。
+    //     画布顶端那一条(y = 0)没有这一行,那一档留给 downY。
+    //   · `downY = channelBase` —— 紧贴卡片下沿那一行;行带被展开的详情框撑高时改走行带
+    //     下沿(channelBase 就是 bandBottom,理由见 RouteOptions)。同一档还覆盖 slot ≥ 1:
+    //     那一格的下沿就是行带下沿。
+    // 两边都没有(调用方没给 channelBase、而 from.y = 0 也不可能同时缺 down)时才退回直线 ——
+    // 保住几何比保住折点更要紧。见下面那条「没有可折返的行就画直线」的分支。
+    const upY = from.y - 1
+    const downY = options.channelBase ?? from.y + from.height
+    const preferUp = index % 2 === 0
+    const upUsable = upY >= 0
+    const downUsable = downY !== fromMidY && downY >= 0
+    const jogY = preferUp ? (upUsable ? upY : downY) : downUsable ? downY : upY
+    if (!upUsable && !downUsable) {
+      const straight = run({ x: from.x + from.width, y: fromMidY }, { x: to.x - 1, y: fromMidY }, "─")
+      straight[straight.length - 1]!.ch = ARROW_RIGHT
+      return { cells: straight, labels: [{ x: from.x + from.width, y: fromMidY, columns: straight.length - 1 }] }
+    }
+    const up = jogY === upY
+    // 走廊里取两条竖段:近源的一条与近目标的一条。`spread` 按边序错开,让相邻的几条边
+    // 不共用同一条竖线。
+    //
+    // **`spread` 从 2 起,不是从 1 起** —— 算式:`farX = from.x + width + (GAP_X − spread)`,
+    // 而箭头落在 `to.x − 1 = from.x + width + GAP_X − 1` 那一格。近目标的折角就在 farX 那一格,
+    // 所以必须有 `GAP_X − spread ≤ GAP_X − 2`,也就是 `spread ≥ 2`,折角才不会**被箭头覆盖**
+    // (那正是折点数从 4 掉到 3、最后一段折角消失的原因)。`spread ≤ 6` 保证
+    // `farX − nearX = GAP_X − 2 × spread ≥ 4`,狗腿的肚子不会是空段。
+    const spread = 2 + (index % 5)
+    const nearX = from.x + from.width + spread
+    const farX = from.x + from.width + (GAP_X - spread)
+    const cells = join(
+      run({ x: from.x + from.width, y: fromMidY }, { x: nearX, y: fromMidY }, "─"),
+      run({ x: nearX, y: fromMidY }, { x: nearX, y: jogY }, "│"),
+      run({ x: nearX, y: jogY }, { x: farX, y: jogY }, "─"),
+      run({ x: farX, y: jogY }, { x: farX, y: fromMidY }, "│"),
+      run({ x: farX, y: fromMidY }, { x: to.x - 1, y: fromMidY }, "─"),
+    )
+    // 四个折点各按「有哪两条腿」取圆角。对照 NeonBox 的四个卡角(见 ui/neon 的 perimeterCells):
+    //   往下折(up = false):╮ ╰ ╮ ╰ —— 顶上出去的那一格是「左 + 下」= ╮,折返行上是「上 + 右」= ╰,
+    //     折返行另一头是「左 + 上」= ╯ 那一侧… 逐格说是:`╮` `╰` `╯`… 别绕,直接看两条腿:
+    //       近源(nearX, 中线):左 + 折返方向
+    //       近源(nearX, 折返行):朝中线 + 右
+    //       近目标(farX, 折返行):左 + 朝中线
+    //       近目标(farX, 中线):朝折返行 + 右
+    //   所以下面两行分别是「(nearX, 中线) 与 (farX, 折返行) 用同一对腿」和
+    //   「(nearX, 折返行) 与 (farX, 中线) 用同一对腿」—— 这不是巧合:狗腿的两竖段互为镜像。
+    paint(cells, { x: nearX, y: fromMidY }, corner(up, false))
+    paint(cells, { x: nearX, y: jogY }, corner(!up, true))
+    paint(cells, { x: farX, y: jogY }, corner(up, false))
+    paint(cells, { x: farX, y: fromMidY }, corner(!up, true))
     cells[cells.length - 1]!.ch = ARROW_RIGHT
-    return { cells, labels: [{ x: from.x + from.width, y: fromMidY, columns: cells.length - 1 }] }
+    return {
+      cells,
+      labels: [
+        // 靠源的那段:**按整条走廊给**(GAP_X = 16 列),而不是「线本身走到 nearX 为止」那几列 ——
+        // 标签自带底色,压住底下的线是原型 .flabel 的做法,而走廊里除了线本来什么都没有。
+        // 这一段与折返无关,所以狗腿再怎么拆都放得下 13 列的并行标签;而它**在中线上**,
+        // 与换行边走的通道行不是同一行,不会互相挤掉(狗腿的肚子那一行正好在通道行上,
+        // 把它排在第一个会把「并行 · 子代理」从换行边上挤下来)。
+        { x: from.x + from.width, y: fromMidY, columns: GAP_X },
+        // 狗腿的肚子那一行(折返横段):次选。
+        { x: nearX, y: jogY, columns: farX - nearX + 1 },
+        // 靠目标的那段:末选,通常只剩两三列,放不下就整段不摆。
+        { x: farX, y: fromMidY, columns: to.x - 1 - farX },
+      ],
+    }
   }
 
   if (rightward) {
