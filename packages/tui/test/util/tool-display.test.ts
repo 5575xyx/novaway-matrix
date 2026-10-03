@@ -69,7 +69,7 @@ describe("toolStatusSummary", () => {
   test("零通过全失败也要给摘要 —— 「全挂了」正是最该看见的一条", () => {
     expect(toolStatusSummary(" 0 pass\n 3 fail")).toEqual({ passed: 0, failed: 3 })
     expect(toolStatusPassedText({ passed: 0, failed: 3 })).toBe("✓ 0 passed")
-    expect(toolStatusFailedText({ passed: 0, failed: 3 })).toBe("· 3 failed")
+    expect(toolStatusFailedText({ passed: 0, failed: 3 })).toBe(" · 3 failed")
   })
 
   test("只报一半也算数:只有失败数时通过数补 0", () => {
@@ -98,6 +98,44 @@ describe("toolStatusSummary", () => {
   })
 })
 
+// ── 两段摘要之间的那 1 列分隔 ────────────────────────────────────────────
+//
+// 原型 card-design-v7.html:932 是 `✓ 12 passed · 0 failed`:`·` **两侧各有一格空白**。
+// 之前失败段的前缀是 `· `(点在前、空格在后),于是渲染出来是 `✓ 0 passed· 3 failed` ——
+// 那 1 列分隔被 `·` 顶掉了。修法是把分隔挪到失败段的**左端**(` · 3 failed`),
+// 于是「失败段自带它左边那一列」这条性质回到从前,列宽账也就仍然只由这两个串的显示列决定。
+describe("状态摘要的分隔列", () => {
+  // 渲染层就是 `passed` 紧接 `failed`(同一个 <text> 里两个 span,中间没有盒子的 gap),
+  // 所以这一行拼起来必须与原型一字不差。
+  const row = (summary: { passed: number; failed: number }) =>
+    toolStatusPassedText(summary) + toolStatusFailedText(summary)
+
+  test("三种组合拼起来都是 `N passed · M failed`(`·` 两侧各一格)", () => {
+    expect(row({ passed: 12, failed: 0 })).toBe("✓ 12 passed")
+    expect(row({ passed: 0, failed: 3 })).toBe("✓ 0 passed · 3 failed")
+    expect(row({ passed: 12, failed: 3 })).toBe("✓ 12 passed · 3 failed")
+  })
+
+  test("零失败不留下一个悬空分隔符(也不在通过段尾部留空格)", () => {
+    expect(toolStatusFailedText({ passed: 12, failed: 0 })).toBe("")
+    expect(toolStatusPassedText({ passed: 12, failed: 0 })).toBe("✓ 12 passed")
+    // 整行里不允许出现「通过段 + 一格空白 + 行尾」这种半个分隔符
+    expect(row({ passed: 12, failed: 0 })).not.toMatch(/passed\s/)
+  })
+
+  test("失败段截断时左端那一列分隔仍在,整段仍然不超预算", () => {
+    // 预算 9 列:` · 3 failed` 共 10 列,截到 9 → ` · 3 fai…`,左端空格保住。
+    const failed = Locale.truncateToWidth(toolStatusFailedText({ passed: 12, failed: 3 }), 9)
+    expect(failed).toBe(" · 3 fai…")
+    expect(Locale.displayWidth(failed)).toBe(9)
+    expect(failed.startsWith(" ·")).toBe(true)
+  })
+
+  test("失败段连左端那一列都放不下时整段省略,不留半截分隔符", () => {
+    expect(Locale.truncateToWidth(toolStatusFailedText({ passed: 12, failed: 3 }), 0)).toBe("")
+  })
+})
+
 describe("toolHeadLayout", () => {
   const summary = { passed: 12, failed: 0 }
 
@@ -113,6 +151,13 @@ describe("toolHeadLayout", () => {
   test("零失败不画失败段 —— 原型的 `· 0 failed` 是假信息", () => {
     expect(toolStatusFailedText(summary)).toBe("")
     expect(toolHeadLayout({ title: "T", summary, width: 60 }).failed).toBe("")
+  })
+
+  test("通过段被截没时失败段整段不画(不留一个悬空的分隔符)", () => {
+    // 预算 4 列:`✓ 12 passed` 截成 `✓ 12…`,剩下的 1 列留给失败段也只是 `…`。
+    // 通过段整段为空时失败段必须整段省略 —— 否则渲染出来是行首一个孤零零的分隔。
+    const layout = toolHeadLayout({ title: "", summary: { passed: 12, failed: 3 }, width: 0 })
+    expect(layout).toEqual({ title: "", passed: "", failed: "" })
   })
 
   test("宽度不够时先牺牲标题(摘要带结论,标题在正文里还会再出现一次)", () => {
@@ -134,8 +179,32 @@ describe("toolHeadLayout", () => {
   test("有失败时两段摘要都在,总宽仍不超预算", () => {
     const layout = toolHeadLayout({ title: "T", summary: { passed: 12, failed: 3 }, width: 40 })
     expect(layout.passed).toBe("✓ 12 passed")
-    expect(layout.failed).toBe("· 3 failed")
+    // 失败段自带左端那一列分隔,所以它是 ` · 3 failed` 而不是 `· 3 failed`
+    expect(layout.failed).toBe(" · 3 failed")
     expect(layout.title).toBe("T")
+    // 列宽账:失败段左端那一列就是两段之间的分隔,不再额外扣一次 HEAD_GAP。
+    // 标题 1 + 分隔 1 + 通过 `✓ 12 passed` 11 + 失败 ` · 3 failed` 11 = 24 ≤ 40。
+    const columns =
+      Locale.displayWidth(layout.title) +
+      1 +
+      Locale.displayWidth(layout.passed) +
+      Locale.displayWidth(layout.failed)
+    expect(Locale.displayWidth(layout.passed)).toBe(11)
+    expect(Locale.displayWidth(layout.failed)).toBe(11)
+    expect(columns).toBe(24)
+    expect(columns).toBeLessThanOrEqual(40)
+  })
+
+  test("两段摘要之间不再额外扣一列:预算正好卡在整行宽度上时标题仍然放得下", () => {
+    // 整行 = 标题 1 + 分隔 1 + 通过 11 + 失败 11 = 24 列。给 24 列必须全放下,
+    // 给 23 列时标题整段让光(摘要带结论,标题在正文里还会再出现一次)。
+    const exact = toolHeadLayout({ title: "T", summary: { passed: 12, failed: 3 }, width: 24 })
+    expect(exact.title).toBe("T")
+    expect(exact.failed).toBe(" · 3 failed")
+    const narrow = toolHeadLayout({ title: "T", summary: { passed: 12, failed: 3 }, width: 23 })
+    expect(narrow.title).toBe("")
+    expect(narrow.passed).toBe("✓ 12 passed")
+    expect(narrow.failed).toBe(" · 3 failed")
   })
 
   test("窄到摘要自己都放不下时按列截断并留省略号,不留半截", () => {
