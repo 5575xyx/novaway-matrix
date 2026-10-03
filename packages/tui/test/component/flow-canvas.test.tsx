@@ -13,7 +13,16 @@ import type { Message, Part } from "@novaway/sdk-v2-latest/v2"
 import { testRender } from "@opentui/solid"
 import type { ScrollBoxRenderable } from "@opentui/core"
 import { FlowCanvas } from "../../src/component/flow/canvas"
-import { DETAIL_ROWS, kindNoun, layoutNodes, NODE_HEIGHT, NODE_WIDTH } from "../../src/component/flow/layout"
+import {
+  COLUMN_PITCH,
+  DETAIL_ROWS,
+  kindNoun,
+  layoutNodes,
+  LEFT_MARGIN,
+  NODE_HEIGHT,
+  NODE_WIDTH,
+  RIGHT_MARGIN,
+} from "../../src/component/flow/layout"
 import { Locale } from "../../src/util/locale"
 import { ThemeReady, ThemeTestProviders } from "../fixture/providers"
 import {
@@ -33,13 +42,28 @@ const KINDS = ["user", "plan", "subagent", "tool", "edit", "reply", "fend"] as c
 async function mount(
   width: number,
   height: number,
-  options: { messages?: readonly Message[]; parts?: Record<string, Part[]>; reveal?: boolean } = {},
+  options: {
+    messages?: readonly Message[]
+    parts?: Record<string, Part[]>
+    reveal?: boolean
+    /** 画布盒子本身多宽(列)。缺省 = 整个终端宽。真实会话里侧栏展开时它比终端窄得多。 */
+    box?: number
+    onScrollBox?: (box: ScrollBoxRenderable) => void
+  } = {},
 ) {
+  const canvas = () => (
+    <FlowCanvas
+      messages={options.messages ?? MESSAGES}
+      parts={options.parts ?? PARTS}
+      reveal={options.reveal}
+      onScrollBox={options.onScrollBox}
+    />
+  )
   return testRender(
     () => (
       <ThemeTestProviders>
         <ThemeReady />
-        <FlowCanvas messages={options.messages ?? MESSAGES} parts={options.parts ?? PARTS} reveal={options.reveal} />
+        {options.box === undefined ? canvas() : <box width={options.box}>{canvas()}</box>}
       </ThemeTestProviders>
     ),
     { width, height },
@@ -340,11 +364,13 @@ test("流程图画布:空会话说清为什么空,不画一片空白", async () 
   }
 })
 
-// ---------- M9:80 列(最常见宽度)必须能排下两列 ----------
+// ---------- M9:常见宽度必须排得下两列 ----------
 //
-// LEFT_MARGIN 从 3 降到 2 就是为这个:`2 + 44 + 28 = 74` 正好等于 80 列终端扣掉内边距与
-// 滚动条之后的视口宽。三列的话是 75,80 列终端就退化成单列。
-test("流程图画布:80 列能排下两列,120 列也是两列,卡片都在画面内", async () => {
+// 视口 = 盒子宽 − 2(竖滚动条那一块:`paddingLeft: 1` + 轨道)。两列行带要
+// LEFT_MARGIN + COLUMN_PITCH + NODE_WIDTH = 74 列,所以 80 列终端(视口 78)放得下两列还余 4 列;
+// 120 列(视口 118)放得下三列(2 + 44×2 + 28 = 118,刚好)。
+// 三列在 80 列上是放不下的(75 > 78 之前那版按终端宽 − 6 算也只有 74,刚好塞两列)。
+test("流程图画布:80 列排下两列,120 列排下三列,卡片都在画面内", async () => {
   const narrow = await render(80, 60, { reveal: false })
   const wide = await render(120, 60, { reveal: false })
   for (const [width, lines] of [
@@ -361,5 +387,116 @@ test("流程图画布:80 列能排下两列,120 列也是两列,卡片都在画�
     }
   }
   expect(distinctCardColumns(narrow), "80 列应有两列").toBe(2)
-  expect(distinctCardColumns(wide), "120 列应有两列").toBe(2)
+  expect(distinctCardColumns(wide), "120 列应有三列").toBe(3)
+})
+
+// ---------- 画布按**内容**尺寸排布,两轴都能滚 ----------
+//
+// 原来的取宽是 `dimensions().width − 6`,也就是**终端**宽减 6。而真实会话里画布盒子是
+// `终端宽 − 侧栏宽 − 4`(routes/session/index.tsx 的 paddingLeft/Right 各 2),80 列终端 +
+// 30 列侧栏只剩 46 列 —— 画布却按 74 列排布,右边那一整列卡片直接被裁掉,而且 scrollbox
+// 没开横向滚动,那一列**根本够不着**。这就是「右侧节点被截断」。
+//
+// 这里把盒子宽度显式压到 50 列(视口 48 ≥ 44 = 一张卡 + 一条走廊,所以仍是两列)复现那一幕,
+// 再钉住两件事:内容宽度是**图自己的宽度**(两列行带 = 75 列);横向滚过去右边那列真的出现。
+const SIDEBAR_BOX = 50
+const SIDEBAR_VIEWPORT = SIDEBAR_BOX - 2
+
+async function mountNarrowBox() {
+  let handed: ScrollBoxRenderable | undefined
+  const app = await mount(120, 40, { reveal: false, box: SIDEBAR_BOX, onScrollBox: (box) => (handed = box) })
+  // 等画面稳定:画布的取宽是**量自己盒子**得到的,首帧 yoga 还没落定,那之前走的是
+  // 「终端宽 − 6」那一档兜底(见 canvas 的 viewportWidth)。不等到稳定就会量到兜底值。
+  const lines = await settled(app, "第 2 轮")
+  return { app, handed: handed!, lines }
+}
+
+/** 右边那一列卡片的**右边框**那一列(两列行带的第二列:46 + 28 − 1 = 73 列)。 */
+const RIGHT_BORDER = LEFT_MARGIN + COLUMN_PITCH + NODE_WIDTH - 1
+
+test("流程图画布:盒子比终端窄很多时按**内容**宽度排布(而不是被视口裁掉)", async () => {
+  const { app, handed, lines } = await mountNarrowBox()
+  try {
+    const layout = layoutNodes(FIXTURE_MODEL.nodes, SIDEBAR_VIEWPORT)
+    expect(new Set(layout.nodes.map((node) => node.rect.x)).size, "50 列盒子仍应排两列").toBe(2)
+    expect(layout.width).toBe(LEFT_MARGIN + COLUMN_PITCH + NODE_WIDTH + RIGHT_MARGIN)
+    // scrollbox 的内容比视口宽 —— 差出来的那一截就是横向滚动范围。
+    expect(handed.scrollWidth, "内容宽度应是图自己的宽度").toBe(layout.width)
+    expect(handed.scrollWidth).toBeGreaterThan(handed.viewport.width)
+    // 右边那一列卡片的右边框初始落在画面之外(这正是被截断的那一幕),滚到最右才看得见。
+    // 注意横向滚动是把内容往左搬,所以取帧时列号要减掉 scrollLeft。
+    const top = layout.nodes.find((node) => node.rect.x === LEFT_MARGIN + COLUMN_PITCH)!.rect.y
+    expect(frameCell(lines, top + 1 + CANVAS_OFFSET_Y, RIGHT_BORDER), "未滚动时右边框被裁掉").not.toBe("│")
+    handed.scrollTo({ x: handed.scrollWidth, y: handed.scrollTop })
+    expect(handed.scrollLeft).toBe(handed.scrollWidth - handed.viewport.width)
+    await app.renderOnce()
+    expect(
+      frameCell(app.captureCharFrame().split("\n"), top + 1 + CANVAS_OFFSET_Y, RIGHT_BORDER - handed.scrollLeft),
+    ).toBe("│")
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+test("流程图画布:滚动容器两轴都真的能滚(翻页/换行命令走的就是它)", async () => {
+  const { app, handed } = await mountNarrowBox()
+  try {
+    expect(handed.scrollHeight).toBeGreaterThan(handed.viewport.height)
+    // 纵向:换行/翻页命令那一族用的是 `scrollBy(数)`。
+    const top = handed.scrollTop
+    handed.scrollBy(1)
+    expect(handed.scrollTop, "纵向 scrollBy(1)").toBe(top + 1)
+    handed.scrollBy(-1)
+    expect(handed.scrollTop).toBe(top)
+    // 纵向翻页(会话页 `session.page.down` 用的那一档)。
+    handed.scrollBy(handed.viewport.height / 2)
+    expect(handed.scrollTop).toBeGreaterThan(top)
+    // 横向:`scrollBy({x, y})` 的两轴必须分别作用在两根滚动条上。
+    expect(handed.scrollLeft).toBe(0)
+    handed.scrollBy({ x: 5, y: 0 })
+    expect(handed.scrollLeft, "横向 scrollBy({x})").toBe(5)
+    handed.scrollBy({ x: 0, y: 0 })
+    expect(handed.scrollLeft, "y 为 0 时横向不动").toBe(5)
+    handed.scrollBy({ x: -5, y: 0 })
+    expect(handed.scrollLeft, "横向往回滚").toBe(0)
+    handed.scrollTo({ x: 12, y: top })
+    expect(handed.scrollLeft).toBe(12)
+    expect(handed.scrollTop).toBe(top)
+    await app.renderOnce()
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+// 40 / 60 / 80 列各自的降级形态。判据是**帧里真的有几列卡片**,不是布局函数返回什么。
+test("流程图画布:40 列退化成单列,60 与 80 列都是两列", async () => {
+  for (const [width, columns] of [
+    [40, 1],
+    [60, 2],
+    [80, 2],
+  ] as const) {
+    const lines = await render(width, 60, { reveal: false })
+    expect(distinctCardColumns(lines), `${width} 列应有 ${columns} 列卡片`).toBe(columns)
+  }
+})
+
+// 60 列:两列行带 75 列 > 视口,右边那一列被切掉一截,但差出来的那一截能横向滚过去。
+test("流程图画布:60 列下第二列被切掉右边框,横向滚过去就完整了", async () => {
+  let handed: ScrollBoxRenderable | undefined
+  const app = await mount(60, 40, { reveal: false, onScrollBox: (box) => (handed = box) })
+  try {
+    const lines = await settled(app, "第 2 轮")
+    const layout = layoutNodes(FIXTURE_MODEL.nodes, 58)
+    expect(handed!.scrollWidth).toBe(LEFT_MARGIN + COLUMN_PITCH + NODE_WIDTH + RIGHT_MARGIN)
+    expect(handed!.scrollWidth).toBeGreaterThan(handed!.viewport.width)
+    const top = layout.nodes.find((node) => node.rect.x === LEFT_MARGIN + COLUMN_PITCH)!.rect.y
+    expect(frameCell(lines, top + 1 + CANVAS_OFFSET_Y, RIGHT_BORDER), "未滚动时右边框被裁掉").not.toBe("│")
+    handed!.scrollTo({ x: handed!.scrollWidth, y: 0 })
+    await app.renderOnce()
+    expect(
+      frameCell(app.captureCharFrame().split("\n"), top + 1 + CANVAS_OFFSET_Y, RIGHT_BORDER - handed!.scrollLeft),
+    ).toBe("│")
+  } finally {
+    app.renderer.destroy()
+  }
 })
