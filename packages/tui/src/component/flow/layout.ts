@@ -71,14 +71,18 @@ export type PlacedNode = FlowNode & {
   /** 本节点是所在列里的第几格(并行分支从上往下数)。 */
   slot: number
   /**
+   * 这一行带的顶边 y。行带之上那几行(上一条行带自己的通道)在整幅宽度上都是空的,
+   * 所以「目标在源上方」的绕行边可以放心走那里(见 RouteOptions.channelAbove)。
+   */
+  bandTop: number
+  /**
    * 这一行带的底边 y。行带内所有卡片的底边都不超过它,所以「紧贴行带下沿的那一行」在整幅宽度上
-   * 都是空的 —— 换行边的横段要走很远时,只有这一行能保证横贯过去不压到任何卡片。
-   * 展开的节点出发的换行边用它当通道基准(见 RouteOptions.channelBase)。
+   * 都是空的 —— 往下绕的边把横段落在那里,不必绕开任何卡片。
    */
   bandBottom: number
   /**
-   * 这一张卡出发的换行边该怎么走。展开与否会改变答案,所以由布局算好交给 canvas,
-   * 而不是让 canvas 去猜「这个节点下面有没有东西」。
+   * 这一张卡出发的绕行边该怎么走。展开与否、以及**卡被拖到了哪一行**都会改变答案,
+   * 所以由布局按最终矩形算好交给 canvas,而不是让 canvas 去猜「这个节点下面有没有东西」。
    */
   route: RouteOptions
 }
@@ -135,12 +139,12 @@ export const GAP_Y = 3
  * 而那一竖必须走在**目标卡自己那一列的左边**。少了它,并行分支的第二张卡(叠在第一张下面)
  * 就会被上面那张卡挡住 —— 竖段直接穿卡而过。
  *
- * **2 列,不是 3**:换行边在这一侧只用到**一列**(`enterX = to.x - 1`),「三条车道」那个说法
+ * **2 列,不是 3**:换行边在这一侧只用到**一列**(`enterX = to.x − 1`),「三条车道」那个说法
  * 是从纵向的通道车道串过来的,并不成立 —— 纵向车道由 `GAP_Y` 给(见上)。而这一列的宽度直接
  * 决定最窄终端上能不能排下两列:`LEFT_MARGIN + COLUMN_PITCH + NODE_WIDTH = 2 + 44 + 28 = 74`,
  * 正好等于 80 列终端扣掉内边距与滚动条之后的视口宽。三列的话是 75,80 列终端就退化成单列,
- * 而 80 是最常见的宽度。少掉的那一列换不来任何东西:横向车道是 `index % (GAP_X − 2)`
- * 在**列间走廊**里取的,与左侧留白无关。
+ * 而 80 是最常见的宽度。少掉的那一列换不来任何东西:横向的竖段固定落在**列间走廊**里
+ * (见 CORRIDOR_LANE),那条走廊在两张卡之间,与左侧留白无关。
  */
 export const LEFT_MARGIN = 2
 /**
@@ -501,8 +505,8 @@ export function buildFlowModel(input: {
 // ---------- 布局 ----------
 
 // 矩形相交的两个谓词(pointInRect / rectsOverlap)住在 test/fixture/flow.ts:
-// 它们只被不变量断言用,生产代码一处也不查 —— 不重叠靠的是「坐标由固定步距算出来」这条构造,
-// 不是靠事后比较。把它们放在这里会让「这个模块会检查自己的输出」看起来像是真的。
+// 它们只被不变量断言用,生产代码一处也不查 —— 自动布局的不重叠靠的是「坐标由固定步距算出来」
+// 这条构造,不是靠事后比较。把它们放在这里会让「这个模块会检查自己的输出」看起来像是真的。
 
 /**
  * 网格布局:一轮一行带(放不下就换行带),轮与轮之间插一条分隔线。
@@ -514,8 +518,9 @@ export function buildFlowModel(input: {
  *
  * `expandedId` 让那一张卡的行带长高 DETAIL_ROWS,详情框正好落在长出来的那一块里 ——
  * 于是详情既贴着卡片,又不会压到下一行带(而整行带下移,后面的节点跟着让位),
- * 连同列里在它下方的节点一起让位。详情框**不参与走线**(`route` 另行给了绕行方案),
- * 见 PlacedNode.route 的注释。
+ * 连同列里在它下方的节点一起让位。详情框**不进 rect**:连线只认卡片本身,
+ * 展开与否不该改变**卡与卡之间**的走线;它只影响从这张卡出发的那一竖能不能往下走
+ * (见 routeOptionsOf —— 那一竖会穿过不透明的详情面板,所以必须改从左边进走廊)。
  */
 export function layoutNodes(
   nodes: readonly FlowNode[],
@@ -525,7 +530,8 @@ export function layoutNodes(
   const detailRows = options.detailRows ?? DETAIL_ROWS
   // 一行带能放几列。步距是卡宽 + 走廊,再扣掉左侧那条留出来的走廊 —— 整张表见 bandColumns。
   const perRow = bandColumns(canvasWidth)
-  const placed: PlacedNode[] = []
+  // 先只摆矩形:走线方案依赖**全部**卡片的最终矩形,只能最后统一补(见文件末尾那一段)。
+  const seeded: SeededNode[] = []
   const rows: FlowRow[] = []
   const separators: { round: number; y: number }[] = []
 
@@ -565,15 +571,6 @@ export function layoutNodes(
       }
       const bandHeight = Math.max(...band.map(heightOf))
       const bandBottom = y + bandHeight
-      // 这一行带里**只要有一张卡是展开的**,整条行带的换行边都改走下面那条路。
-      //
-      // 为什么是「整条行带」而不是「展开的那一张自己的出边」:详情框是不透明的,它占的是
-      // **行带内部**那几行,而换行边的横段要从行带左边一直铺到右边 —— 于是**同一行带里别的卡**
-      // 出发的换行边也会从这块面板上横穿过去(不变量扫描实测到:e:n:pr_2→n:pr_3 在
-      // 展开 n:msg_1 时有一整段落在详情框里)。把基准改成行带下沿,那一行在整幅宽度上都是空的,
-      // 面板与卡片都在它上面;出走方向同时改成从左边进走廊,因为往下走的那一竖要穿过行带内部,
-      // 那儿可能有同列下一张卡、也可能有自己的详情框。
-      const bandGrew = band.some((column) => column.some((node) => node.id === options.expandedId))
       rows.push({ round, top: y, height: bandHeight })
       band.forEach((column, columnIndex) => {
         offsetsOf(column).forEach((offset, slot) => {
@@ -584,22 +581,22 @@ export function layoutNodes(
             width: NODE_WIDTH,
             height: NODE_HEIGHT,
           }
-          placed.push({
-            ...node,
-            rect,
-            slot,
-            bandBottom,
-            // 详情框不进 rect:连线只认卡片本身,展开与否不该改变**卡与卡之间**的走线。
-            detailRect: grown(node) ? { ...rect, y: rect.y + NODE_HEIGHT, height: detailRows } : undefined,
-            route: bandGrew
-              ? { channelBase: bandBottom, exit: "left" }
-              : { channelBase: rect.y + NODE_HEIGHT, exit: "down" },
-          })
+          seeded.push({ ...node, rect, slot, bandTop: y, bandBottom })
         })
       })
       y += bandHeight + GAP_Y
     }
   }
+  // 详情框与走线方案都在**最终**矩形上算 —— 展开的详情框、被拖走的那张卡,两者都会改答案。
+  const detailOf = (node: SeededNode) =>
+    node.id === options.expandedId ? { ...node.rect, y: node.rect.y + NODE_HEIGHT, height: detailRows } : undefined
+  const details = new Map(seeded.map((node) => [node.id, detailOf(node)]))
+  const occupied = seeded.flatMap((node) => (details.get(node.id) ? [node.rect, details.get(node.id)!] : [node.rect]))
+  const placed: PlacedNode[] = seeded.map((node) => ({
+    ...node,
+    detailRect: details.get(node.id),
+    route: routeOptionsOf(node, details.get(node.id), occupied),
+  }))
 
   // 画布用掉的宽度 = **最宽那条行带** + 左右留白,而不是视口宽。
   // 算式:LEFT_MARGIN + (列数 − 1) × COLUMN_PITCH + NODE_WIDTH + RIGHT_MARGIN,
@@ -611,6 +608,49 @@ export function layoutNodes(
   return { nodes: placed, width, height: Math.max(1, y - GAP_Y), separators, rows }
 }
 
+/** 走线方案还没算出来之前的中间形态:`route` 依赖全部卡片的最终矩形,只能最后统一补。 */
+type SeededNode = FlowNode & { rect: FlowRect; slot: number; bandTop: number; bandBottom: number }
+
+/**
+ * 这一张卡出发/到达的绕行边该怎么走 —— 按**最终**矩形算,所以展开的详情框与拖拽都算进去了。
+ *
+ * 通道那两行是构造上必然空的,所以只需要回答「那一竖空不空」:
+ *   · 往下:`rect.x + width − 2` 那一列,从卡片下沿到行带下沿。展开的详情框就压在这里,
+ *     所以展开的那张卡只能改从左边进走廊(那一列任何行都是空的,见 LEFT_MARGIN)。
+ *   · 往上:同一列,从行带之上到卡片上沿。默认的自动布局里它恒空(同列上方不是同列下一格就是
+ *     上一条行带的通道),拖拽把卡拖到别的行带之后就不一定,于是要真查一遍。
+ * 两列都没空的时候 `left` 兜底:`rect.x − 1` 那一列不可能被任何卡片占着 ——
+ * 卡片的左沿都在列锚上,而列锚之间恒等于 COLUMN_PITCH = 44 > NODE_WIDTH = 28,
+ * 所以 `rect.x − 1` 落在两条列锚之间的走廊里(详情框与卡片同锚,同理)。
+ */
+function routeOptionsOf(node: SeededNode, detail: FlowRect | undefined, occupied: readonly FlowRect[]): RouteOptions {
+  const column = node.rect.x + node.rect.width - 2
+  return {
+    bandTop: node.bandTop,
+    bandBottom: node.bandBottom,
+    // 展开的那张卡**不能**往下出:它自己的详情面板就贴在正下方(见 detailRect),
+    // 那一竖从卡片下沿起步,第一步就落在面板里。所以这一档不看「有没有别人」,直接否掉。
+    downFree:
+      detail === undefined && columnFree(occupied, node, column, node.rect.y + node.rect.height, node.bandBottom),
+    upFree: columnFree(occupied, node, column, node.bandTop - GAP_Y, node.rect.y - 1),
+  }
+}
+
+/** `[from, to]` 那几行里,`column` 那一列有没有压到别人的卡片或详情框。 */
+function columnFree(occupied: readonly FlowRect[], self: SeededNode, column: number, from: number, to: number) {
+  const low = Math.min(from, to)
+  const high = Math.max(from, to)
+  if (high < 0) return false
+  return !occupied.some(
+    (rect) =>
+      rect !== self.rect &&
+      column >= rect.x &&
+      column < rect.x + rect.width &&
+      high >= rect.y &&
+      low < rect.y + rect.height,
+  )
+}
+
 // ---------- 连线路由 ----------
 
 export type RouteCell = { x: number; y: number; ch: string }
@@ -618,28 +658,29 @@ export type RouteCell = { x: number; y: number; ch: string }
 export type RouteLabelSpan = { x: number; y: number; columns: number }
 export type EdgeRoute = { cells: RouteCell[]; labels: RouteLabelSpan[] }
 
-/** 换行边(目标不在源右边)从源卡片哪一侧出去,以及横段落在哪一行。 */
+/**
+ * 绕行边(目标不在源右边那一侧)的走线方案,由布局按最终矩形算好(见 routeOptionsOf)。
+ *
+ * 两行通道都是构造上必然空的:行带之下那 GAP_Y 行、上一条行带之下那 GAP_Y 行 ——
+ * 自动布局与拖拽都把卡片整个关在行带里面(锚点的行 y 满足 `bandTop ≤ y ≤ bandBottom − NODE_HEIGHT`),
+ * 所以这两条行带之间/之下的空行永远没有卡片。
+ */
 export type RouteOptions = {
-  /**
-   * 横段所在那一行的基准。实际行号 = `channelBase + (index % 车道数)`。
-   * 省略时紧贴源卡片下沿(`from.y + height`)—— 那样横段落在卡片下方第 1~2 行,
-   * 而每一列的下一格都从第 4 行才开始,所以那一行在整幅宽度上都是空的。
-   * 展开的节点要把它推到**行带下沿**:它的正下方是不透明的详情框。
-   */
-  channelBase?: number
-  /**
-   * 从哪一侧出去:
-   *   `down` —— 走源卡片自己那一列。横段有 27 列宽,**单列布局(窄终端)下只有这一种走法
-   *     才有地方摆边标签**,所以是默认。
-   *   `left` —— 走进源卡片左边那条走廊。那一列**任何行都是空的**(节点只占列起点起的
-   *     NODE_WIDTH 列),所以竖段绝不必穿卡;代价是横段短一截。
-   */
-  exit?: "down" | "left"
+  /** 源所在行带的顶边。目标在源上方时通道取 `bandTop − GAP_Y`(上一条行带自己的空行)。 */
+  bandTop: number
+  /** 源所在行带的下沿。目标在源下方(或同一条行带里往回走)时通道取它。 */
+  bandBottom: number
+  /** 源卡片正下方那一竖空不空。空才敢往下出,否则改从左边进走廊。 */
+  downFree: boolean
+  /** 源卡片正上方那一竖空不空。空才敢往上出,否则改从左边进走廊。 */
+  upFree: boolean
 }
 
 /** 右向进入目标卡的箭头。`▸`(U+25B8)与 `▼`(U+25BC) 都是 East-Asian Ambiguous,Bun.stringWidth 记 1 列。 */
 const ARROW_RIGHT = "▸"
 const ARROW_DOWN = "▼"
+/** 从目标卡**下边框**往上扎进去的箭头。只有拖拽把一张卡拖到它目标上方时才会用到(见 edgeRoute)。 */
+const ARROW_UP = "▲"
 
 /**
  * 拐角字符。**圆角那一套** `╭ ╮ ╰ ╯`,与 NeonBox 画卡片边框用的是同一组
@@ -658,30 +699,78 @@ function corner(up: boolean, right: boolean) {
   return right ? "╭" : "╮"
 }
 
-/** 「长边」的门槛:横向至少铺开一条走廊(GAP_X = 16 列)。 */
-export const LONG_EDGE_COLUMNS = GAP_X
-/** 长边至少要有的折点数。跨行带的边是 横-竖-横(2 个),换行边是 竖-横-竖(2 个),所以下限取 2。 */
-export const MIN_LONG_EDGE_BENDS = 2
 /**
- * 同一行带里相邻两列那条边的折点下限 —— 也就是**曾经是一条死直线**的那一类。
+ * 走廊里那条竖段固定在第几列 —— **相对源卡片右边那一列往右数**。
  *
- * 原型那边每条边都是一条弯的贝塞尔(card-design-v7.html:966-977:`M470,56 C502,54 522,50 552,50`、
- * `M470,98 C512,114 520,170 552,188`、以及最后那条一路甩回行首的 `M405,374 C259,374 259,456 114,456`)。
- * 终端没有曲线,正交的等价物是**狗腿**:横-竖-横-竖-横,四个折点 ——
- * 两处折返各自绕过一条空通道,读起来就是原型那条 S 形的直角版。
- * 这条数一旦被调小,「横着直穿过去」就会回来,而且不会有人注意到。
+ * 走廊的列是 `from.x + width … from.x + width + GAP_X − 1`(GAP_X = 16),最后一列
+ * (`to.x − 1`)放箭头,所以竖段只能落在 0 … 14 之间。
+ *
+ * **取 GAP_X − 3 = 13,而不是取中间那一列**,因为标签要住在这条走廊里:
+ * 靠源那一段的宽度是 `CORRIDOR_LANE + 1 = 14` 列,而原型最长的并行标签「并行 · 子代理」
+ * 是 13 列(见 kindNoun)。竖段若落在中间(7),靠源那段只有 8 列,那个标签永远放不下;
+ * 落在 13 时它正好嵌进 0 … 13,收束边最后那 3 列(`13 … 15`,含箭头)留给同一条走廊里
+ * **另一条**边的收尾横段 —— 两条边并排进同一张卡时,先摆下的那个标签正好压住自己那条线
+ * (标签自带底色,原型 .flabel 就是这么做的),不会碰到对方那一段。
+ *
+ * 也是**为什么竖段必须固定**:原型那边每条边都是一条贝塞尔(card-design-v7.html:966-977),
+ * 读起来「一排线是平行的弧」而不是「一堆折返」。上一版按 `index % 2` 让相邻的边一上一下地折返,
+ * 满足「必须有折点」这条字面要求,画出来是一排压扁的弹簧 —— 那是用户抱怨「连线有点混乱」的由来。
+ * 固定一列之后,一排同向的边是**同一条形状**平移,读起来就是平行的弧。
  */
-export const MIN_DOGLEG_BENDS = 4
+export const CORRIDOR_LANE = GAP_X - 3
 
-/** 这一条边横向铺开几列。长边与否只看这个,与是不是换行边无关。 */
+/**
+ * 边标签的列数上限。
+ *
+ * 走廊是 GAP_X 列,最后一列放箭头,所以标签最多占 GAP_X − 2 列。这里同时是 canvas 截断标签时的
+ * 上限 —— 与候选段里最宽的那一段取小者(见 canvas 里 `Math.min(room, LABEL_COLUMNS)`),
+ * 免得哪条边的候选段特别宽时标签横跨到卡片上去。放在这里而不是 canvas:它算的是走廊的宽度,
+ * 而走廊是这一层的事;不变量断言(标签不许压到别的边)也要用同一个数重演一遍 canvas 的截断。
+ */
+export const LABEL_COLUMNS = GAP_X - 2
+
+/** 一条边最多拐几次(方向变化次数)。3 段直线 = 最多拐 2 次,也就是 S/Z 形,没有回头路。 */
+export const MAX_ROUTE_TURNS = 2
+
+/** 目标整张卡在源右边 —— 也就是「同带右向」那一类,走走廊。 */
+export function isRightward(from: FlowRect, to: FlowRect) {
+  return to.x > from.x + from.width
+}
+
+/** 走廊里那条竖段所在的列(见 CORRIDOR_LANE)。 */
+export function corridorColumn(from: FlowRect) {
+  return from.x + from.width + CORRIDOR_LANE
+}
+
+/** 这一条边横向铺开几列。 */
 export function routeSpanX(cells: readonly RouteCell[]) {
   if (cells.length === 0) return 0
   return Math.max(...cells.map((cell) => cell.x)) - Math.min(...cells.map((cell) => cell.x)) + 1
 }
 
-/** 折点数(带拐角字符的格数)。导出给 fixture 的 flowInvariants 当契约钉。 */
+/** 折点数(带拐角字符的格数)。 */
 export function routeBends(cells: readonly RouteCell[]) {
   return cells.filter((cell) => CORNER_CHARS.has(cell.ch)).length
+}
+
+/**
+ * 拐弯次数(方向变化的次数),导出给 fixture 的 flowInvariants 当契约钉。
+ *
+ * 这是**形状**的度量,不是折角字符的个数:一条狗腿(横-竖-横-竖-横)量出来是 4,
+ * 而新契约要求每条边至多 2 —— 三段直线、最多一个 S 形。零长度的线段不计入
+ * (两列中线同高时竖段长度是 0,那条边量出来是 0 次拐弯,正是原型 n1→n2 那条直线的形状,
+ * card-design-v7.html:966 的 `M198,73 C232,73 262,74 292,74`)。
+ */
+export function routeTurns(cells: readonly RouteCell[]) {
+  const directions: string[] = []
+  for (let index = 1; index < cells.length; index++) {
+    const from = cells[index - 1]!
+    const cell = cells[index]!
+    const direction = cell.x === from.x ? (cell.y === from.y ? "" : "v") : cell.y === from.y ? "h" : "d"
+    if (direction === "" || directions.at(-1) === direction) continue
+    directions.push(direction)
+  }
+  return Math.max(0, directions.length - 1)
 }
 
 /** 两点之间铺一段直线。调用方保证同排或同列。 */
@@ -718,151 +807,108 @@ function paint(cells: RouteCell[], at: { x: number; y: number }, ch: string) {
 }
 
 /**
- * 一条边的直角折线路由。
+ * 一条边的直角折线走线。**一类边一种形状**,没有第三种。
  *
- * 三种形状,按目标相对源的位置选:
- *   目标在源右边、**中线同高**(同一行带里紧挨着的两列)→ **狗腿** 横-竖-横-竖-横(4 个折点)。
- *   目标在源右边、中线不同高 → **横-竖-横**。竖段走在两列之间的走廊里,
- *     走廊整列都是空的(节点只占列起点起的 NODE_WIDTH 列),所以竖段永远不会穿过卡片。
- *   目标不在源右边(含换行回下一行带的行首、以及叠在并行分支第二位的那张卡)→ **竖-横-竖**。
- *     横段走在两行带之间的通道里(见 RouteOptions),末段竖着落进目标卡**自己那一列的左边**——
+ *   **同带右向**(目标整张卡在源右边)→ **横-竖-横**,竖段固定落在走廊里那一列
+ *     (CORRIDOR_LANE = 13,靠目标那 3 列留给收尾与箭头)。一排同向的边于是是同一个形状平移,
+ *     读起来就是原型那排平行的弧。两列中线同高时竖段长度是 0,整条边就是一条直线 ——
+ *     原型那条 n1→n2 也是这么画的(card-design-v7.html:966 `M198,73 C232,73 262,74 292,74`),
+ *     这时候连折角都不画:两个折角会叠在同一格上,画出来是一条直线上多一个接头。
+ *
+ *   **绕行**(其余全部:目标不在源右边 —— 下一条行带的行首、同一列的下一格、
+ *     以及拖拽把某张卡拖到了它目标左边/上方)→ **竖-横-竖**。竖段走在走廊列上,横段落在
+ *     行带之外的空行上(行带之下,或上一条行带之下 —— 那几行按构造必然没有卡片,见 RouteOptions),
+ *     末段落在目标卡**自己那一列的左边**(`enterX = to.x − 1`)再扎进它的上边框或下边框。
  *     layout 之所以在画布左侧留 LEFT_MARGIN 列,就是为了让这一竖永远有地方走:
  *     否则并行分支的第二张卡会被上面那张卡挡住,竖段直接穿卡而过。
  *
  * 首尾两格都落在**节点边界之外、紧贴边界**的那一格上:连线从卡里长出来会被边框字符
- * 糊掉,而插进卡里就是「线压到卡片」。`index` 只用来在走廊/通道里选车道、选折返方向,
- * 让并行的几条边不共用同一条竖线(真撞上了也只是视觉重叠,不影响任何一条边的走向)。
+ * 糊掉,而插进卡里就是「线压到卡片」。
  *
- * `labels` 按「优先程度」列出可以摆标签的线段,通常两到三段。为什么要给多段而不是钉死一段:
+ * `index` 只用来在**行带通道**里选车道(`index % (GAP_Y − 1)`,两条车道留给不同行带层级的横段)——
+ * 那是同一条形状里的「走第几道车道」,不是另一种形状。走廊里那一列是固定的:上一版按边序
+ * 一上一下地折返,满足「必须有折点」却画出一排压扁的弹簧,那才是「连线有点混乱」的来源。
+ *
+ * `labels` 按「优先程度」列出可以摆标签的线段。为什么要给多段而不是钉死一段:
  * 并行分支会**分叉**、工具做完之后会**收束**,同一个画面上可能有两条边把标签摊在同一行上。
- * 给几段候选、让 canvas 去挑不撞车的那段(见 grid 的 makeLabelPlacer),比在这里猜哪一段更可能
- * 有空位可靠。**候选里总有一段是「整条走廊」宽**(靠源那一段),所以原型最长的并行标签
- * (「并行 · 子代理」13 列)永远放得下 —— 见下面 labels 的注释。
+ * 给几段候选、让 canvas 去挑一段既不撞车、也不压着**别的边**的那段
+ * (见 grid 的 makeLabelPlacer),比在这里猜哪一段更可能有空位可靠。
  */
-export function edgeRoute(from: FlowRect, to: FlowRect, index: number, options: RouteOptions = {}): EdgeRoute {
+export function edgeRoute(from: FlowRect, to: FlowRect, index: number, options: Partial<RouteOptions> = {}): EdgeRoute {
   const fromMidY = from.y + Math.floor(from.height / 2)
   const toMidY = to.y + Math.floor(to.height / 2)
-  const rightward = to.x > from.x + from.width
 
-  if (rightward && fromMidY === toMidY) {
-    // 同一行带里紧挨着的两列:折进通道里再折回来,而不是一条直线横穿过去。
-    //
-    // **折返方向按边序轮换**(`index % 2`):偶数往上、奇数往下。同一行带里相邻的两条边于是
-    // 一上一下,画出来是阶梯而不是所有边挤在同一条通道上 —— 后者看着像一排被压扁的弹簧。
-    //
-    // 可折返的那一行只有两个候选,而且**都是构造上必然空的**:
-    //   · `upY = from.y − 1` —— 卡片上面那一行。同一行带里相邻两格的空当是 3 行
-    //     (GAP_Y),所以 slot ≥ 1 的节点上面那一行是上一格卡片与它之间的空当;
-    //     slot = 0 的节点上面那一行是行带之上的通道(或分隔线与行带之间那唯一一行)。
-    //     画布顶端那一条(y = 0)没有这一行,那一档留给 downY。
-    //   · `downY = channelBase` —— 紧贴卡片下沿那一行;行带被展开的详情框撑高时改走行带
-    //     下沿(channelBase 就是 bandBottom,理由见 RouteOptions)。同一档还覆盖 slot ≥ 1:
-    //     那一格的下沿就是行带下沿。
-    // 两边都没有(调用方没给 channelBase、而 from.y = 0 也不可能同时缺 down)时才退回直线 ——
-    // 保住几何比保住折点更要紧。见下面那条「没有可折返的行就画直线」的分支。
-    const upY = from.y - 1
-    const downY = options.channelBase ?? from.y + from.height
-    const preferUp = index % 2 === 0
-    const upUsable = upY >= 0
-    const downUsable = downY !== fromMidY && downY >= 0
-    const jogY = preferUp ? (upUsable ? upY : downY) : downUsable ? downY : upY
-    if (!upUsable && !downUsable) {
-      const straight = run({ x: from.x + from.width, y: fromMidY }, { x: to.x - 1, y: fromMidY }, "─")
-      straight[straight.length - 1]!.ch = ARROW_RIGHT
-      return { cells: straight, labels: [{ x: from.x + from.width, y: fromMidY, columns: straight.length - 1 }] }
-    }
-    const up = jogY === upY
-    // 走廊里取两条竖段:近源的一条与近目标的一条。`spread` 按边序错开,让相邻的几条边
-    // 不共用同一条竖线。
-    //
-    // **`spread` 从 2 起,不是从 1 起** —— 算式:`farX = from.x + width + (GAP_X − spread)`,
-    // 而箭头落在 `to.x − 1 = from.x + width + GAP_X − 1` 那一格。近目标的折角就在 farX 那一格,
-    // 所以必须有 `GAP_X − spread ≤ GAP_X − 2`,也就是 `spread ≥ 2`,折角才不会**被箭头覆盖**
-    // (那正是折点数从 4 掉到 3、最后一段折角消失的原因)。`spread ≤ 6` 保证
-    // `farX − nearX = GAP_X − 2 × spread ≥ 4`,狗腿的肚子不会是空段。
-    const spread = 2 + (index % 5)
-    const nearX = from.x + from.width + spread
-    const farX = from.x + from.width + (GAP_X - spread)
-    const cells = join(
-      run({ x: from.x + from.width, y: fromMidY }, { x: nearX, y: fromMidY }, "─"),
-      run({ x: nearX, y: fromMidY }, { x: nearX, y: jogY }, "│"),
-      run({ x: nearX, y: jogY }, { x: farX, y: jogY }, "─"),
-      run({ x: farX, y: jogY }, { x: farX, y: fromMidY }, "│"),
-      run({ x: farX, y: fromMidY }, { x: to.x - 1, y: fromMidY }, "─"),
-    )
-    // 四个折点各按「有哪两条腿」取圆角。对照 NeonBox 的四个卡角(见 ui/neon 的 perimeterCells):
-    //   往下折(up = false):╮ ╰ ╮ ╰ —— 顶上出去的那一格是「左 + 下」= ╮,折返行上是「上 + 右」= ╰,
-    //     折返行另一头是「左 + 上」= ╯ 那一侧… 逐格说是:`╮` `╰` `╯`… 别绕,直接看两条腿:
-    //       近源(nearX, 中线):左 + 折返方向
-    //       近源(nearX, 折返行):朝中线 + 右
-    //       近目标(farX, 折返行):左 + 朝中线
-    //       近目标(farX, 中线):朝折返行 + 右
-    //   所以下面两行分别是「(nearX, 中线) 与 (farX, 折返行) 用同一对腿」和
-    //   「(nearX, 折返行) 与 (farX, 中线) 用同一对腿」—— 这不是巧合:狗腿的两竖段互为镜像。
-    paint(cells, { x: nearX, y: fromMidY }, corner(up, false))
-    paint(cells, { x: nearX, y: jogY }, corner(!up, true))
-    paint(cells, { x: farX, y: jogY }, corner(up, false))
-    paint(cells, { x: farX, y: fromMidY }, corner(!up, true))
-    cells[cells.length - 1]!.ch = ARROW_RIGHT
-    return {
-      cells,
-      labels: [
-        // 靠源的那段:**按整条走廊给**(GAP_X = 16 列),而不是「线本身走到 nearX 为止」那几列 ——
-        // 标签自带底色,压住底下的线是原型 .flabel 的做法,而走廊里除了线本来什么都没有。
-        // 这一段与折返无关,所以狗腿再怎么拆都放得下 13 列的并行标签;而它**在中线上**,
-        // 与换行边走的通道行不是同一行,不会互相挤掉(狗腿的肚子那一行正好在通道行上,
-        // 把它排在第一个会把「并行 · 子代理」从换行边上挤下来)。
-        { x: from.x + from.width, y: fromMidY, columns: GAP_X },
-        // 狗腿的肚子那一行(折返横段):次选。
-        { x: nearX, y: jogY, columns: farX - nearX + 1 },
-        // 靠目标的那段:末选,通常只剩两三列,放不下就整段不摆。
-        { x: farX, y: fromMidY, columns: to.x - 1 - farX },
-      ],
-    }
-  }
-
-  if (rightward) {
-    const lane = 1 + (index % (GAP_X - 2))
-    const corridorX = from.x + from.width + lane
+  if (isRightward(from, to)) {
+    const corridorX = corridorColumn(from)
+    const dropping = toMidY > fromMidY
     const cells = join(
       run({ x: from.x + from.width, y: fromMidY }, { x: corridorX, y: fromMidY }, "─"),
       run({ x: corridorX, y: fromMidY }, { x: corridorX, y: toMidY }, "│"),
       run({ x: corridorX, y: toMidY }, { x: to.x - 1, y: toMidY }, "─"),
     )
-    paint(cells, { x: corridorX, y: fromMidY }, corner(toMidY > fromMidY, false))
-    paint(cells, { x: corridorX, y: toMidY }, corner(toMidY > fromMidY, true))
+    // 竖段长度是 0 时**不画折角**:那一格上只有一条直线,画个接头只会让人以为那里拐了个弯。
+    if (fromMidY !== toMidY) {
+      // 两条腿各是什么:出竖段那一格是「朝源的那条横线 + 竖的方向」,落进目标那一格是
+      // 「朝目标的那条横线 + 来时的竖方向」。`corner(up, right)` 按腿取圆角:
+      // 上+右=╰、上+左=╯、下+右=╭、下+左=╮(与 NeonBox 的四个卡角同一套,见 CORNER_CHARS)。
+      paint(cells, { x: corridorX, y: fromMidY }, corner(!dropping, false))
+      paint(cells, { x: corridorX, y: toMidY }, corner(dropping, true))
+    }
     cells[cells.length - 1]!.ch = ARROW_RIGHT
     return {
       cells,
-      // 两段候选:靠目标的那段(从走廊一路伸到目标卡)与靠源的那段。
-      // 靠源那段的可用宽度按**整条走廊**给,而不是「线本身走到 corridorX 为止」那几列 ——
-      // 标签自带底色,压住底下的线是原型 .flabel 的做法,而走廊里除了线本来什么都没有。
-      // 收束的两条边会同时盯上靠目标那段,canvas 那时才会退到靠源这段。
+      // 两段候选:靠源那一段(CORRIDOR_LANE + 1 = 14 列,放得下 13 列的并行标签),靠目标那一段
+      // (GAP_X − CORRIDOR_LANE = 3 列,收束的另一条边正好占着它,于是两条并行标签各落一处)。
       labels: [
-        { x: corridorX, y: toMidY, columns: to.x - 1 - corridorX },
-        { x: from.x + from.width, y: fromMidY, columns: GAP_X },
+        { x: from.x + from.width, y: fromMidY, columns: CORRIDOR_LANE + 1 },
+        { x: corridorX, y: toMidY, columns: to.x - 1 - corridorX + 1 },
       ],
     }
   }
 
-  // 绕回左边(或换行到下一行带的行首):竖-横-竖。
-  // 车道数是 GAP_Y − 1 —— 通道最后几行要留给「落进目标卡顶边」那一竖段。
-  const channelY = (options.channelBase ?? from.y + from.height) + (index % (GAP_Y - 1))
-  const enterX = to.x - 1
-  const fromLeft = options.exit === "left"
-  const exitX = fromLeft ? from.x - 1 : from.x + from.width - 2
-  const head = fromLeft ? { x: exitX, y: fromMidY } : { x: exitX, y: from.y + from.height }
-  const cells = join(
-    run(head, { x: exitX, y: channelY }, "│"),
-    run({ x: exitX, y: channelY }, { x: enterX, y: channelY }, "─"),
-    run({ x: enterX, y: channelY }, { x: enterX, y: to.y - 1 }, "│"),
+  // 绕行:竖-横-竖。
+  //
+  // 通道取在**目标之外**的那一侧:目标整体在源之上(只有拖拽能把边走成这样)就取行带之上那几行,
+  // 其余(下一条行带、同一行带里往回走)取行带之下那几行。车道数是 GAP_Y − 1 ——
+  // 通道最后几行要留给「扎进目标卡边」那一竖段。
+  const bandTop = options.bandTop ?? from.y
+  const above = to.y + to.height <= from.y
+  const channelY = Math.max(
+    0,
+    (above ? bandTop - GAP_Y : (options.bandBottom ?? from.y + from.height)) + (index % (GAP_Y - 1)),
   )
-  // 两段竖线同在 exitX 上时(单列布局的换行边)没有拐角,那个格子就该留 `│`,
-  // 硬画一个拐角会把一条直线画成两个不相干的接头。
-  if (exitX !== enterX) {
-    paint(cells, { x: exitX, y: channelY }, corner(true, enterX > exitX))
-    paint(cells, { x: enterX, y: channelY }, corner(false, enterX < exitX))
+  const enterX = to.x - 1
+  // 出口:能直上直下就走自己那一列(横段长、标签有地方摆),那一竖被别的东西压住时
+  // 改从左边那条走廊进 —— 那一列不可能被卡片占着(见 routeOptionsOf 的注释)。
+  const exit = above ? (options.upFree ?? true) : (options.downFree ?? true)
+  const exitX = exit ? from.x + from.width - 2 : from.x - 1
+  const head = exit ? { x: exitX, y: above ? from.y - 1 : from.y + from.height } : { x: exitX, y: fromMidY }
+  // 落点:目标在通道之下就从上边框扎进去(▼),在通道之上就从下边框往上扎(▲)。
+  // 出口与入口同列时没有横段可走(见下面那一档),落点改成按「目标在出口的哪一侧」判。
+  const sameColumn = exitX === enterX
+  const enterTop = sameColumn ? to.y > head.y : to.y - 1 > channelY
+  const enterY = enterTop ? to.y - 1 : to.y + to.height
+  const cells = sameColumn
+    ? run(head, { x: exitX, y: enterY }, "│")
+    : join(
+        run(head, { x: exitX, y: channelY }, "│"),
+        run({ x: exitX, y: channelY }, { x: enterX, y: channelY }, "─"),
+        run({ x: enterX, y: channelY }, { x: enterX, y: enterY }, "│"),
+      )
+  // 两段竖线同在 exitX 上时(单列布局的绕行边,或者一张卡被拖到它目标同一列)没有拐角,
+  // 那个格子就该留 `│`,硬画一个拐角会把一条直线画成两个不相干的接头。
+  // 末段竖线长度是 0 时同理:那一格是箭头,不是接头。
+  if (!sameColumn) {
+    paint(cells, { x: exitX, y: channelY }, corner(!above, enterX > exitX))
+    if (enterY !== channelY) paint(cells, { x: enterX, y: channelY }, corner(enterY < channelY, enterX < exitX))
   }
-  cells[cells.length - 1]!.ch = ARROW_DOWN
-  return { cells, labels: [{ x: Math.min(exitX, enterX), y: channelY, columns: Math.abs(exitX - enterX) + 1 }] }
+  cells[cells.length - 1]!.ch = enterTop ? ARROW_DOWN : ARROW_UP
+  return {
+    cells,
+    labels: sameColumn
+      ? // 同列时这条边**没有横段**,于是标签改挂在源那条行带的通道行上(整幅宽度上都没卡片),
+        // 从画布左沿一直给到那一竖 —— 摆不摆得下由 placer 判(压着别的边就整段不摆)。
+        [{ x: 0, y: channelY, columns: exitX + 1 }]
+      : [{ x: Math.min(exitX, enterX), y: channelY, columns: Math.abs(exitX - enterX) + 1 }],
+  }
 }
