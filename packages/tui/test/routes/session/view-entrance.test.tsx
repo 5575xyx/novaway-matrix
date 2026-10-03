@@ -27,8 +27,8 @@ import {
   ViewEntrance,
 } from "../../../src/routes/session/view-entrance"
 import "../../../src/ui/card"
-import { alphaOver, brighten, NEON_WHITE } from "../../../src/ui/neon"
-import { TOP_EDGE_GLOW } from "../../../src/ui/card"
+import { brighten, softenOver } from "../../../src/ui/neon"
+import { TOP_EDGE_GLOW, topEdgeTarget } from "../../../src/ui/card"
 
 const WIDTH = 40
 const HEIGHT = 8
@@ -37,10 +37,16 @@ const FLOW_BORDER = RGBA.fromHex("#ff2d7b")
 
 /**
  * 这两张卡都没有自己的 backgroundColor,所以叠色底是「透明黑」(见 ui/card 的 borderBackdrop)。
- * 终态描边色因此是「纯渐变按 0.62 叠在透明黑上、再叠一道顶边光晕」——
- * `╭` 在顶边上,光晕对它生效。契约从 ui/neon 与 ui/card 拿,不在这里写死数。
+ * 那一档不折算(见 ui/neon 的 softenOver),所以终态描边色就是纯渐变本身;`╭` 在顶边上,
+ * 光晕对它生效(方向同样由叠色底定,见 ui/card 的 topEdgeTarget)。
+ * 契约从 ui/neon 与 ui/card 拿,不在这里写死数。
  */
-const FLOW_BORDER_TONE = brighten(alphaOver(FLOW_BORDER, RGBA.fromValues(0, 0, 0, 0), 0.62), TOP_EDGE_GLOW, NEON_WHITE)
+const FLOW_BACKDROP = RGBA.fromValues(0, 0, 0, 0)
+const FLOW_BORDER_TONE = brighten(
+  softenOver(FLOW_BORDER, FLOW_BACKDROP, 0.62),
+  TOP_EDGE_GLOW,
+  topEdgeTarget(FLOW_BACKDROP),
+)
 
 /**
  * 挂一个受控的舞台。进场视图是一张真霓虹卡(与生产同壳),标记写在卡内第一行 ——

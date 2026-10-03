@@ -48,6 +48,22 @@ export const TIP_CARD_CHROME = 3
  */
 export const TIP_TEXT_MIN = 16
 
+/**
+ * 提示卡的描边叠色档。导出给测试直接引用,免得测试里再抄一个 0.75。
+ *
+ * 照抄原型 `.tip` 的那一档(card-design-v7.html:369-371):
+ * `linear-gradient(135deg, rgba(245,184,61,.85), rgba(245,140,61,.65))` —— 两端均值
+ * (.85 + .65) / 2 = 0.75,见 ui/neon 的 BORDER_ALPHA_DEFAULT 注释表。
+ *
+ * 为什么不给气泡卡那 0.62:这张卡是 `.card.tip`(HTML :906),原型给它的描边本来就比
+ * `.bubble` 一族**更实**(.75 vs .675/.80),而它自己又是 `.card` 那一族里唯一带
+ * 常驻 `flow` 的小卡 —— 用户盯着提示条读提示时,那一圈琥珀边正一格一格地走,
+ * 「描边在动」这件事会被读成「这一圈的色偏得更重了」。折算成实色之后,0.62 叠在
+ * novaway 深色的面板底(#0a0e14)上是 #a27708,与面板底的对比度 4.8:1;0.75 是 #c28d05,
+ * 6.5:1 —— 抬到后者的那一档才配得上「一直在动的边」。
+ */
+export const TIP_CARD_ALPHA = 0.75
+
 /** 相邻两颗按钮之间的空隙(原型 .tip-act 的 gap:6px)。 */
 const TIP_ACTION_GAP = 1
 /** 正文与按钮组之间的空隙。 */
@@ -197,7 +213,7 @@ export function TipCard(props: {
   onDismiss?: () => void
 }) {
   const { theme } = useTheme()
-  // 动作按钮由调用方给,「稍后」这一颗在这里补上 —— 它的语义(消解当前提示)只有卡片知道。
+  // 动作按钮由调用点给,「稍后」这一颗在这里补上 —— 它的语义(消解当前提示)只有卡片知道。
   const buttons = createMemo(() => [
     ...(props.actions ?? []).map((action) => ({ label: action.label, run: () => props.onAction?.(action.command) })),
     ...(props.onDismiss ? [{ label: TIP_DISMISS_LABEL, run: () => props.onDismiss?.() }] : []),
@@ -215,7 +231,7 @@ export function TipCard(props: {
   )
 
   return (
-    <NeonCard gradientStops={semanticStops(theme, "tip")} flow>
+    <NeonCard gradientStops={semanticStops(theme, "tip")} borderAlpha={TIP_CARD_ALPHA} flow>
       <box flexDirection="column">
         <box flexDirection="row" flexShrink={0}>
           <text flexShrink={0} fg={theme.warning} wrapMode="none">

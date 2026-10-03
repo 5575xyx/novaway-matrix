@@ -6,8 +6,8 @@ import { RGBA, type CapturedFrame } from "@opentui/core"
 // 裸导入跑 extend({ neonbox }) 的副作用;类型单独用 import type 拿(见 card.test.tsx 的理由)。
 import type { NeonBoxRenderable } from "../../src/ui/card"
 import "../../src/ui/card"
-import { perimeterCells, alphaOver, brighten, BORDER_ALPHA_DEFAULT, NEON_WHITE } from "../../src/ui/neon"
-import { TOP_EDGE_GLOW } from "../../src/ui/card"
+import { perimeterCells, brighten, BORDER_ALPHA_DEFAULT, softenOver } from "../../src/ui/neon"
+import { TOP_EDGE_GLOW, topEdgeTarget } from "../../src/ui/card"
 import { createEnterBaselineStore, ENTER_STAGGER_MAX_INDEX, ENTER_STAGGER_STEP } from "../../src/ui/enter"
 
 // 入场淡入的集成层断言。纯函数层(fadeIn 的夹紧、enter-baseline 的判定)在
@@ -48,21 +48,23 @@ function borderColor(app: { captureSpans(): CapturedFrame }, x: number, y: numbe
   return value
 }
 
-// 这几张卡没有自己的 backgroundColor,所以叠色底就是「透明黑」—— 见 ui/card 的
-// borderBackdrop 注释:透明卡自己给不出背后是什么,这里恰好是同一条已知近似。
+// 这几张卡没有自己的 backgroundColor,所以叠色底就是「透明黑」。这一档**不折算**
+// (见 ui/neon 的 softenOver):背后没有实色时,(1−k) 那一项没有依据,与其凭空捏一层
+// 黑底不如画原型给的原色 —— 于是这里的终态就是纯渐变本身。
 const BACKDROP = RGBA.fromValues(0, 0, 0, 0)
 
 /**
  * 一格描边的终态色。测试不写死叠色算出来的数(那是把实现抄一遍),只把**契约**写出来:
- * 描边 = 起点/终色按 borderAlpha 叠在背后那层实色上,上边框那一行再叠一道顶部光晕。
+ * 描边 = 起点/终色按 borderAlpha 叠在背后那层实色上(背后全透明则不叠,见 softenOver),
+ * 上边框那一行再叠一道顶部光晕(方向也由背后那层实色定,见 topEdgeTarget)。
  *
  * `lit = false` 用在淡入的第 0 帧上 —— 光晕在入场淡入**之前**入管线(见 ui/card 的
  * renderSelf),所以 k = 0 那一帧整圈都是起点色,顶边也不例外。这不是漏洞:入场未完成的
  * 描边本来就是「还没通电」的一圈灰,不该带环境光。
  */
 function settledTone(color: RGBA, cell: { y: number }, lit = true) {
-  const base = alphaOver(color, BACKDROP, BORDER_ALPHA_DEFAULT)
-  return lit && cell.y === 0 ? brighten(base, TOP_EDGE_GLOW, NEON_WHITE) : base
+  const base = softenOver(color, BACKDROP, BORDER_ALPHA_DEFAULT)
+  return lit && cell.y === 0 ? brighten(base, TOP_EDGE_GLOW, topEdgeTarget(BACKDROP)) : base
 }
 
 function expectBorder(
@@ -163,9 +165,11 @@ describe("NeonBox 入场淡入", () => {
       // 首帧不做「必须还是纯红」的断言 —— testRender + renderOnce 的耗时不可控,
       // 第一帧可能已经走到 k ≈ 0.3。「k = 0 时是起点色」由上面那条延迟 1 秒的用例钉死。
       for (let i = 1; i < reds.length; i++) expect(reds[i]!).toBeLessThanOrEqual(reds[i - 1]! + 1e-6)
-      // 起点的叠色值是 0.62 —— 门槛取 0.3 是为了容忍第一帧已经淡了一半。
+      // 起点色是纯红,叠色底全透明所以**不折算**(见 ui/neon 的 softenOver):第 0 帧的红通道
+      // 就是 1.0,不是以前的 0.62。上限因此只钉「不超过起点色」,下限 0.3 是为了容忍
+      // 第一帧已经淡了一半(testRender + renderOnce 的耗时不可控)。
       expect(reds[0]!).toBeGreaterThan(0.3)
-      expect(reds[0]!).toBeLessThanOrEqual(0.63)
+      expect(reds[0]!).toBeLessThanOrEqual(1)
       expect(reds[reds.length - 1]!).toBeLessThan(0.01)
     } finally {
       app.renderer.destroy()

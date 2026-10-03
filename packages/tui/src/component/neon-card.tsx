@@ -56,10 +56,11 @@ export function NeonCard(props: {
   width?: number | "auto" | `${number}%`
   /**
    * 描边的叠色档(见 ui/neon 的 BORDER_ALPHA_DEFAULT 与 ui/card 的 borderAlpha)。
-   * 省略 = 默认那一档 0.62 —— 助手/用户气泡、思考卡、工具卡、错误卡、提示卡都吃它。
-   * 流程图节点卡要自己传 0.72:原型 `.fcard` 用的是不透明的 `--fc`(最接近本实现今天的
-   * 0.70 面板卡那一档),而 28×4 的小卡上边框占整张卡的比重远大于面板卡,压得更淡就读不出
-   * 「这是一张卡」了。
+   * 省略 = 默认那一档 0.62 —— 助手/用户气泡、思考卡、工具卡、错误卡都吃它。
+   * 不吃这一档的两个:流程图节点卡要自己传 0.72(原型 `.fcard` 用的是不透明的 `--fc`,
+   * 最接近本实现的面板卡那一档,而 28×4 的小卡上边框占整张卡的比重远大于面板卡,
+   * 压得更淡就读不出「这是一张卡」了);提示卡传 0.75(原型 `.tip` 自己那一档,
+   * 见 feature-plugins/home/tip-card 的 TIP_CARD_ALPHA)。
    */
   borderAlpha?: number
   /**
@@ -83,6 +84,8 @@ export function NeonCard(props: {
       // 这张壳是**透明卡**(没有自己的 backgroundColor),叠色底必须显式给。
       // 它坐在消息区里,消息区自己也没有底色 —— 一路往上就是 app 根盒子的 theme.background。
       // 不给就落到「透明黑」:深色主题下碰巧像那么回事,浅色主题下整圈描边会沉进白底里。
+      // theme.background 自己就是 transparent 的主题(lucent-orng)也没关系 ——
+      // 那一档按 softenOver 走「不折算」,不再被当成纯黑(见 ui/neon 的 softenOver)。
       borderBackdrop={theme.background}
       onMouseOver={hover.onMouseOver}
       onMouseOut={hover.onMouseOut}

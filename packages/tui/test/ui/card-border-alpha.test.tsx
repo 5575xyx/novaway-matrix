@@ -10,9 +10,11 @@ import {
   NEON_WHITE,
   perimeterCells,
   semanticStops,
+  softenOver,
 } from "../../src/ui/neon"
-import { TOP_EDGE_GLOW } from "../../src/ui/card"
+import { TOP_EDGE_GLOW, TOP_EDGE_INK, topEdgeTarget } from "../../src/ui/card"
 import { NeonCard } from "../../src/component/neon-card"
+import { TIP_CARD_ALPHA, TipCard } from "../../src/feature-plugins/home/tip-card"
 import { FLOW_NODE_ALPHA, FlowCanvas } from "../../src/component/flow/canvas"
 import { PANEL_CARD_ALPHA, SidebarCard } from "../../src/component/sidebar-card"
 import { INPUT_CARD_ALPHA, PromptCard } from "../../src/component/prompt/card"
@@ -178,6 +180,36 @@ describe("NeonBox 描边按 alpha 折算(柔边)", () => {
     expect(Math.abs(actual.g - expected.g)).toBeLessThan(0.01)
     expect(Math.abs(actual.b - expected.b)).toBeLessThan(0.01)
   })
+
+  // 全透明的叠色底 = 「背后没有实色」,不是「背后是黑」。主题自己声明
+  // "transparent" 时(assets/lucent-orng.json:68-78)每个 borderBackdrop 都是这一档,
+  // 折算式里那 38% 的底色就落到了纯黑上 —— 浅色终端上整圈描边因此比原型重。
+  // 这一条钉的是渲染结果:全透明叠色底画出来的描边与 borderAlpha = 1 逐格相同,
+  // 也就是原型给的那圈渐变本身(纯函数那一层在 neon.test.ts 的 softenOver 里)。
+  test("叠色底全透明时不折算:逐格等于纯渐变(与 borderAlpha = 1 同档)", async () => {
+    const stops = [RGBA.fromHex("#00e5ff"), RGBA.fromHex("#4d7cff")]
+    const nothing = RGBA.fromValues(0, 0, 0, 0)
+    const unknown = await shot({ width: WIDTH, height: HEIGHT, gradientStops: stops, borderBackdrop: nothing })
+    const flat = await shot({
+      width: WIDTH,
+      height: HEIGHT,
+      gradientStops: stops,
+      borderBackdrop: nothing,
+      borderAlpha: 1,
+    })
+    for (const cell of perimeterCells(WIDTH, HEIGHT)) {
+      // 顶边那一行还叠了光晕,两帧同样叠,所以逐格比仍然成立。
+      const a = at(unknown, cell.x, cell.y, "未知底上的边框")
+      const b = at(flat, cell.x, cell.y, "borderAlpha=1 的边框")
+      expect(Math.abs(a.r - b.r), `r @ (${cell.x},${cell.y})`).toBeLessThan(0.01)
+      expect(Math.abs(a.g - b.g), `g @ (${cell.x},${cell.y})`).toBeLessThan(0.01)
+      expect(Math.abs(a.b - b.b), `b @ (${cell.x},${cell.y})`).toBeLessThan(0.01)
+    }
+    // 对照:同一个「未知底」若按纯黑折算,左边框中段会明显暗于纯渐变 —— 光晕抬不回来这个差。
+    const cell = perimeterCells(WIDTH, HEIGHT).find((item) => item.x === 0 && item.y === 1)!
+    const folded = alphaOver(gradientAt(stops, cell.t), RGBA.fromValues(0, 0, 0, 0), BORDER_ALPHA_DEFAULT)
+    expect(lum(at(unknown, 0, 1, "未知底上的左边框"))).toBeGreaterThan(lum(folded))
+  })
 })
 
 describe("NeonBox 顶部光晕", () => {
@@ -224,6 +256,34 @@ describe("NeonBox 顶部光晕", () => {
     expect(topLeft).toBeGreaterThan(bottomLeft)
     // 角格与同一条边的直段同档 —— 角不会因为「拐了个弯」就变成更重的一档
     expect(topLeft).toBeCloseTo(lum(at(frame, 6, 0, "上边框")), 2)
+  })
+
+  // 光晕的方向跟着叠色底的明暗极性走(见 ui/card 的 topEdgeTarget)。浅底上那一档是
+  // **朝黑推**:描边本来就比近白的底色暗,朝白推等于把它往底色上靠,顶边的对比度反而
+  // 降一档(实测 #87b6e5 → #8ebae6)。所以浅底上顶边要比同一条边的中段**更暗**。
+  test("浅色叠色底:光晕朝黑推,顶边比边中段更暗而不是更亮", async () => {
+    const LIGHT = RGBA.fromHex("#f5f7fa")
+    // 色板两端同色,于是同一条边上除了光晕之外没有别的差异(同上面那两条的理由)。
+    const frame = await shot({
+      width: WIDTH,
+      height: HEIGHT,
+      backgroundColor: PANEL,
+      borderBackdrop: LIGHT,
+      gradientStops: flat,
+    })
+    const top = lum(at(frame, 6, 0, "浅底上的上边框"))
+    const side = lum(at(frame, 0, 1, "浅底上的左边框中段"))
+    expect(top).toBeLessThan(side)
+    // 幅度仍在同一档:6% 朝黑 ≈ 0.06 × 通道值,净差不超过 0.2(与深底那条同量级)。
+    expect(side - top).toBeGreaterThan(0.04)
+    expect(side - top).toBeLessThan(0.2)
+  })
+
+  // 判据本身:同一个叠色底,方向由它决定 —— 深底朝白、浅底朝黑、全透明维持朝白。
+  test("光晕目标色:深底朝白、浅底朝黑、底未知时维持朝白", () => {
+    expect(topEdgeTarget(PANEL)).toBe(NEON_WHITE)
+    expect(topEdgeTarget(RGBA.fromHex("#f5f7fa"))).toBe(TOP_EDGE_INK)
+    expect(topEdgeTarget(RGBA.fromValues(0, 0, 0, 0))).toBe(NEON_WHITE)
   })
 })
 
@@ -314,9 +374,11 @@ function corner(frame: string) {
  * 取**角格**而不是边中段是有意的:perimeterCells 给角格的 t = 0,于是渐变取到 stops[0]
  * 本身 —— 期望值与这张卡实际渲染多宽、多高完全无关,不用在测试里去复算周长与列号
  * (复算过一次,数错一格就变成「测渲染布局」而不是「测叠色档」了)。
+ * 光晕的目标色同样从叠色底取(见 ui/card 的 topEdgeTarget)—— 这一节用的全是深色底,
+ * 所以那个目标就是纯白,但写成从叠色底推出来的,换主题时这条不会骗人。
  */
 const cornerTone = (stops: readonly RGBA[], backdrop: RGBA, alpha: number) =>
-  brighten(alphaOver(stops[0]!, backdrop, alpha), TOP_EDGE_GLOW, NEON_WHITE)
+  brighten(softenOver(stops[0]!, backdrop, alpha), TOP_EDGE_GLOW, topEdgeTarget(backdrop))
 
 function expectCorner(actual: { r: number; g: number; b: number }, expected: RGBA, label: string) {
   expect(Math.abs(actual.r - expected.r), `${label} r`).toBeLessThan(0.012)
@@ -379,6 +441,22 @@ describe("各壳的 borderAlpha 透传", () => {
       "节点档",
     )
   })
+
+  // 提示卡不吃气泡卡那 0.62:原型 `.tip` 自己给的是 .85 → .65(均值 0.75),
+  // 而这张卡又是带常驻 flow 的那一族里唯一的小卡 —— 折算档写错的话,那一圈琥珀边
+  // 会一边走一边偏重。导出 TIP_CARD_ALPHA 就是免得测试里再抄一个数。
+  test("提示卡:原型 .tip 那一档(0.75),叠在 background 上", async () => {
+    expect(TIP_CARD_ALPHA).toBe(0.75)
+    const { grid: frame, frame: chars } = await shellGrid(() => (
+      <TipCard parts={[{ text: "BODYMARK", highlight: false }]} width={40} />
+    ))
+    const at0 = corner(chars)
+    expectCorner(
+      at(frame, at0.x, at0.y, "提示卡左上角"),
+      cornerTone(semanticStops(theme, "tip"), theme.background, TIP_CARD_ALPHA),
+      "提示卡",
+    )
+  })
 })
 
 // 流程图节点卡走的是 NeonCard 这层壳,所以「canvas.tsx 到底传没传 FLOW_NODE_ALPHA」
@@ -405,9 +483,9 @@ describe("流程图节点卡的叠色档", () => {
       }
       // fixture 的第一个节点是「用户输入」→ role `user` → 粉紫双段
       const expected = brighten(
-        alphaOver(semanticStops(theme, "user")[0]!, theme.background, FLOW_NODE_ALPHA),
+        softenOver(semanticStops(theme, "user")[0]!, theme.background, FLOW_NODE_ALPHA),
         TOP_EDGE_GLOW,
-        NEON_WHITE,
+        topEdgeTarget(theme.background),
       )
       const at0 = corner(frame)
       expectCorner(at(grid(app), at0.x, at0.y, "节点卡左上角"), expected, "节点卡")
