@@ -15,12 +15,14 @@ import {
   buildFlowModel,
   DETAIL_ROWS,
   edgeRoute,
+  FLOW_NODE_KINDS,
   kindNoun,
   layoutNodes,
   LABEL_COLUMNS,
-  NODE_CONTENT_COLUMNS,
-  NODE_WIDTH,
-  NODE_HEIGHT,
+  MAX_NODE_WIDTH,
+  nodeContentColumns,
+  nodeSize,
+  nodeTitleRows,
   snapDrag,
   type EdgeRoute,
   type FlowNodeKind,
@@ -81,7 +83,7 @@ const ARROW_BOOST = 0.35
  * 节点卡的叠色档(见 ui/neon 的 BORDER_ALPHA_DEFAULT 注释表)。
  *
  * 原型 `.fcard` 用的是**不透明**的 `--fc`,抄不了 1.0(终端里 1 格满饱和描边正是
- * 「太重」的来源),于是取 0.72 —— 比面板卡的 0.70 还实一档:节点卡只有 28×4,
+ * 「太重」的来源),于是取 0.72 —— 比面板卡的 0.70 还实一档:节点卡只有 20~24 列 × 4~7 行,
  * 边框占整张卡的比重远大于面板卡,再淡就读不出「这是一张节点卡」,圆角与类型文字也就
  * 撑不起那张卡。导出给测试直接引用。
  */
@@ -137,8 +139,10 @@ function cellOwners(planned: readonly { index: number; route: EdgeRoute }[]) {
   return owners
 }
 
-/** 详情框能显示多少列正文:DETAIL_ROWS 行 × 卡内可用列数。 */
-const DETAIL_COLUMNS = DETAIL_ROWS * NODE_CONTENT_COLUMNS
+/** 详情框能显示多少列正文:DETAIL_ROWS 行 × **这张卡**的卡内可用列数。 */
+function detailColumns(kind: FlowNodeKind) {
+  return DETAIL_ROWS * nodeContentColumns(kind)
+}
 
 /**
  * 竖滚动条那一块占掉的列数。**2,不是 1**:opentui 的 scrollbox 是
@@ -205,6 +209,83 @@ function EdgeRow(props: { y: number; canvas: EdgeGrid; width: number }) {
   )
 }
 
+// ---------- 节点卡的两种形状 ----------
+
+/**
+ * 六类节点卡的卡内内容:一行卡头(`● 类型 · meta · ▸`) + 若干行标题。
+ *
+ * **标题要折行**:卡高按类型在 5~7 行之间变,多出来那几行不是留白(见 nodeTitleRows)。
+ * 折行安全靠的是模型侧已经按 `nodeTitleColumns(kind)` 截断过 —— 那是「行数 × 每行列数」
+ * 的总数,所以再怎么折也超不出那几行。`wrapMode="word"` 是必须的:压成一行的话高卡下面
+ * 几行是一片空底色,而布局还在为它们把行带撑开(与详情框那行注释是同一条道理)。
+ *
+ * 卡头那一行仍然是单行:它装的是 `● 类型 + meta + ▸`,模型侧没有为它留折行预算,
+ * 而宽度是按「最宽的一行卡头 = 19 列」反推出来的(见 CARD_CELL_PX_WIDTH 那段推导),
+ * 所以 `wrapMode="none"` + 外层 `flexShrink={0}` 就是正解 —— 挤不下时宁可裁,不许换行。
+ */
+function NodeCardBody(props: { node: PlacedNode; accent: RGBA; caret: string }) {
+  const { theme } = useTheme()
+  const node = props.node
+  return (
+    <box flexDirection="column" width="100%">
+      <box flexDirection="row" gap={1} flexShrink={0}>
+        <text fg={props.accent}>●</text>
+        <text fg={props.accent}>{node.kindLabel}</text>
+        <box flexGrow={1} />
+        <text fg={theme.textMuted}>{node.meta}</text>
+        {/* 原型 .fc-caret:未展开 ▸,展开后转 90°(这里用 ▾ 表示同一件事);
+            正在拖时换成抓手(见 GRAB 的注释)。 */}
+        <text fg={theme.textMuted}>{props.caret}</text>
+      </box>
+      {/* 标题行:`最新` 徽标(原型 .fc-new,card-design-v7.html:1054)+ 标题。
+          **徽标在标题行而不是卡头行** —— 卡头行要塞 `● 类型 + meta + ▸`,一行放不下第三个
+          彩色块;挪到标题行之后它读起来仍然是「这条是最新的回复」。模型侧已经把标题按
+          「扣掉徽标那几列」的预算截好了(见 buildFlowModel 末尾那遍反查),所以不会顶到边框。 */}
+      <box flexDirection="row" gap={1} width="100%">
+        <Show when={node.badge}>
+          <text fg={semanticStops(theme, "success")[0]} wrapMode="none">
+            {node.badge}
+          </text>
+        </Show>
+        <text fg={theme.text} wrapMode="word" width="100%">
+          {node.title}
+        </text>
+      </box>
+    </box>
+  )
+}
+
+/**
+ * 「本轮结束」那颗药丸(原型 `.fcard.fend`,card-design-v7.html:713-715 与 :1061)。
+ *
+ * 终端里画不出 `border-radius: 99px`,于是靠三件事把它读成药丸而不是一张卡:
+ * **没有 `▸` 折角**(原型的药丸干脆就没有 `.fc-caret`)、两行内容**居中**、以及它本身
+ * 更窄更短(20 × 4,而最宽最高的是 24 × 7 —— 见 nodeSize)。点它什么也不发生,
+ * 与原型那句 `if (card.classList.contains('fend')) return`(:1286)一致(见 clickNode)。
+ *
+ * 两行的分配和原型的 `.fcard.fend .fc-head` 一样是**先标题再 meta**,只是原型的 meta 是
+ * `等待新指令…`,本实现沿用 meta 那一格自己的 `第 N 轮`(见 buildFlowModel 的 flushRound) ——
+ * 两者拼在一起是 `第 N 轮 · 等待新指令…`,按卡内可用列数截断。
+ */
+function RoundEndPill(props: { node: PlacedNode; accent: RGBA }) {
+  const { theme } = useTheme()
+  const node = props.node
+  const columns = nodeContentColumns("fend")
+  return (
+    <box flexDirection="column" alignItems="center" width="100%">
+      {/* 药丸那一行要**居中**,不是靠一个满宽的盒子去 justify —— 一个绝对定位盒子的实测宽度
+          不总等于写上去的那个数(与 FlowLabel 同一档顾虑),而这张卡是定宽的,所以盒子居中
+          自己那份内容是稳的。 */}
+      <text fg={props.accent} wrapMode="none">
+        {`⏹ ${node.kindLabel}`}
+      </text>
+      <text fg={theme.textMuted} wrapMode="none">
+        {Locale.oneLineToWidth(`${node.meta} · ${node.title}`, columns)}
+      </text>
+    </box>
+  )
+}
+
 // ---------- 组件 ----------
 
 export function FlowCanvas(props: {
@@ -259,7 +340,7 @@ export function FlowCanvas(props: {
   const model = createMemo(() => buildFlowModel({ messages: props.messages, parts: props.parts }))
   // 画布视口的可用列数 = 盒子宽 − 竖滚动条那 2 列。会话页外层的左右内边距已经由盒子宽
   // 本身扣掉了,内容盒子的左右留白在 layout 的 LEFT_MARGIN / RIGHT_MARGIN 里,这里都不再扣。
-  // **这里不垫 NODE_WIDTH 的下限**:垫在下面的 contentWidth 上。垫在这里的话,26 列的终端会
+  // **这里不垫最宽卡的下限**:垫在下面的 contentWidth 上。垫在这里的话,26 列的终端会
   // 让画布声明 31 列宽却只有 26 列可用,右侧直接被裁掉。
   const viewportWidth = createMemo(() => {
     const measured = boxed()
@@ -277,7 +358,7 @@ export function FlowCanvas(props: {
   /**
    * 节点位置被拖动过的那些卡,按节点 id 存落点。
    *
-   * **数据换了之后怎么处理**:还活着��节点保留落点(用户刚摆好的图不该因为来了条新消息就被弹回去),
+   * **数据换了之后怎么处理**:还活着的节点保留落点(用户刚摆好的图不该因为来了条新消息就被弹回去),
    * 已经不在模型里的那些**丢掉** —— 否则这份 state 只增不减,一场长会话里能攒下几百个死条目。
    * 这条清理写成 effect 而不是「重建整张表」:重建会让每一张卡的落点在数据变化时全部闪一下。
    */
@@ -425,8 +506,13 @@ export function FlowCanvas(props: {
       {
         anchors: current.anchors,
         blocked: occupiedExcept(current.nodes, state.id),
+        // 每一列的数据宽度:落点那一列装不下这张卡时 snapDrag 会跳过它(走廊一窄就摆不下
+        // 竖段与并行标签了,见 layout 的 snapDrag)。
+        columnWidths: current.columnWidths,
         bounds: { width: current.width, height: current.height },
-        size: { width: NODE_WIDTH, height: NODE_HEIGHT },
+        // **这张卡自己的尺寸**,不是全表最宽的那一档 —— 卡宽按类型在变(见 nodeSize),
+        // 拿错尺寸去挡重叠,要么放走一个真正会压上的落点,要么把合法的落点全挡掉。
+        size: nodeSize(current.nodes.find((item) => item.id === state.id)?.kind ?? "plan"),
       },
     )
     if (!next) return
@@ -454,6 +540,11 @@ export function FlowCanvas(props: {
    * 「拖过就不算点」这一条是原型的 `click` 里那两行(card-design-v7.html:1284-1288):
    * 拖动结束时浏览器还会补一次 click,不挡住的话每拖一次就会顺手把详情也开了。
    *
+   * 「本轮结束」那颗药丸**点它什么也不发生** —— 原型同一段里就有一句
+   * `if (card.classList.contains('fend')) return`(:1286),它连 `.fc-pop` 都没有。
+   * 拖动仍然允许(原型的 mousedown/mousemove 是绑在所有 `.fcard` 上的,只有 cursor 是
+   * `default`),所以这里只挡「点」这一档。
+   *
    * **这里也要收掉拖拽状态**:opentui 的 `onMouseDragEnd` 只在**真的发生过拖动**时才会派发
    * (它挂在「captured renderable」那一档上,而按住不动就没有 capture),所以一次纯点击之后
    * `drag` 还挂着,那张卡会一直显示成抓手。画布那一层也挂了同一个收尾(见内容盒子的 onMouseUp),
@@ -462,6 +553,7 @@ export function FlowCanvas(props: {
   const clickNode = (node: PlacedNode) => {
     endDrag()
     if (dragged() === node.id) return
+    if (node.kind === "fend") return
     setSelected((value) => (value === node.id ? null : node.id))
   }
 
@@ -542,12 +634,21 @@ export function FlowCanvas(props: {
             <For each={layout().nodes}>
               {(node) => {
                 const lifting = () => drag()?.id === node.id
+                const pill = () => node.kind === "fend"
+                // 卡头右侧那一个字:未展开 ▸ / 展开 ▾ / 正在拖 ⠿(见 GRAB 的注释)。
+                // 「本轮结束」那颗药丸没有这一格(见 RoundEndPill)。
+                const caret = () => (lifting() ? GRAB : expandedId() === node.id ? "▾" : "▸")
                 return (
                   <box
                     position="absolute"
                     left={node.rect.x}
                     top={node.rect.y}
-                    width={NODE_WIDTH}
+                    // **尺寸逐卡给**,不是全表一个数 —— 见 layout 的 NODE_SIZE_PX/nodeSize。
+                    // 高度写死成 rect.height 是必须的:卡高按类型在 4~7 行之间变,而连线的中线
+                    // 取 `y + ⌊h/2⌋`(见 edgeRoute),卡壳的实际高度必须与布局算的那个数一致,
+                    // 否则每条线都会贴着错的那一行横穿过去。
+                    width={node.rect.width}
+                    height={node.rect.height}
                     // 原型拖动时 `zIndex = 45`(压住详情面板与边标签);这里的 20 就是那个意思。
                     zIndex={lifting() ? 20 : 10}
                     // 只有「按下」挂在卡上(要知道按的是哪一张);拖动与抬起挂在画布那一层,
@@ -558,21 +659,14 @@ export function FlowCanvas(props: {
                     <NeonCard
                       gradientStops={semanticStops(theme, roleOf(node.kind))}
                       borderAlpha={lifting() ? FLOW_DRAG_ALPHA : FLOW_NODE_ALPHA}
+                      height={node.rect.height}
                     >
-                      <box flexDirection="row" gap={1} flexShrink={0}>
-                        <text fg={accentOf(theme, node.kind)}>●</text>
-                        <text fg={accentOf(theme, node.kind)}>{node.kindLabel}</text>
-                        <box flexGrow={1} />
-                        <text fg={theme.textMuted}>{node.meta}</text>
-                        {/* 原型 .fc-caret:未展开 ▸,展开后转 90°(这里用 ▾ 表示同一件事);
-                            正在拖时换成抓手(见 GRAB 的注释)。 */}
-                        <text fg={theme.textMuted}>{lifting() ? GRAB : expandedId() === node.id ? "▾" : "▸"}</text>
-                      </box>
-                      {/* 模型侧已按 NODE_CONTENT_COLUMNS 截好(见 buildFlowModel 的 title 字段),
-                          这里再截一次只是给未来的调用点兜底 —— 列数与模型侧一致,不再额外少一列。 */}
-                      <text fg={theme.text} wrapMode="none">
-                        {Locale.oneLineToWidth(node.title, NODE_CONTENT_COLUMNS)}
-                      </text>
+                      <Show
+                        when={pill()}
+                        fallback={<NodeCardBody node={node} accent={accentOf(theme, node.kind)} caret={caret()} />}
+                      >
+                        <RoundEndPill node={node} accent={accentOf(theme, node.kind)} />
+                      </Show>
                     </NeonCard>
                     <Show when={node.detailRect}>
                       {(rect) => (
@@ -587,13 +681,13 @@ export function FlowCanvas(props: {
                           paddingRight={1}
                           backgroundColor={theme.backgroundPanel}
                         >
-                          {/* **必须换行**:框内只有 NODE_CONTENT_COLUMNS = 25 列,一行放不下多少字。
+                          {/* **必须换行**:框内只有这张卡的卡内可用列数(20~21 列),一行放不下多少字。
                               压成一行(wrapMode="none")的话 DETAIL_ROWS 行里只有第一行有内容,
                               剩下 5 行是一片空底色,而布局还在为那 5 行把行带撑开。
                               正文先按「框里一共放得下多少列」截断,再由这里折成 DETAIL_ROWS 行 ——
-                              于是算式 DETAIL_ROWS × NODE_CONTENT_COLUMNS 与看到的东西一致。 */}
+                              于是算式 DETAIL_ROWS × 卡内可用列数与看到的东西一致。 */}
                           <text fg={theme.textMuted} wrapMode="word" width="100%">
-                            {Locale.oneLineToWidth(node.detail, DETAIL_COLUMNS)}
+                            {Locale.oneLineToWidth(node.detail, detailColumns(node.kind))}
                           </text>
                         </box>
                       )}
@@ -606,7 +700,7 @@ export function FlowCanvas(props: {
         </Show>
       </scrollbox>
       <box flexDirection="row" gap={2} flexShrink={0} paddingLeft={1}>
-        <For each={["user", "plan", "subagent", "tool", "edit", "reply", "fend"] as FlowNodeKind[]}>
+        <For each={FLOW_NODE_KINDS}>
           {(kind) => (
             <text fg={accentOf(theme, kind)} wrapMode="none">
               <span style={{ fg: accentOf(theme, kind) }}>● </span>
