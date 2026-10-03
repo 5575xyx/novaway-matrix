@@ -28,11 +28,14 @@ import { ThemeReady, ThemeTestProviders } from "../fixture/providers"
 import {
   arrowCells,
   CANVAS_OFFSET_Y,
+  cardBorderColumns,
+  cardColumns,
   distinctCardColumns,
   FIXTURE_MESSAGES,
   FIXTURE_MODEL,
   FIXTURE_PARTS,
   frameCell,
+  lineColumns,
 } from "../fixture/flow"
 
 const MESSAGES: Message[] = FIXTURE_MESSAGES
@@ -137,11 +140,12 @@ test("流程图画布:卡片的真实高度就是 NODE_HEIGHT(边框行 = 内边
   expect(bottom - top + 1).toBe(NODE_HEIGHT)
 })
 
-test("流程图画布:连线用直角折线的字符画出来,终点是箭头", async () => {
+test("流程图画布:连线用带折点的正交折线画出来,终点是箭头", async () => {
   const frame = (await render(96, 64, { reveal: false })).join("\n")
   expect(frame).toContain("│")
   expect(frame).toContain("─")
-  expect(/[┌┐└┘]/.test(frame), "换行边/并行分支应有拐角").toBe(true)
+  // 圆角拐角 —— 与卡片边框同一套字符(见 layout 的 CORNER_CHARS)。
+  expect(/[╭╮╰╯]/.test(frame), "连线折点应有圆角拐角").toBe(true)
   expect(frame).toContain("▸")
   expect(frame).toContain("▼")
 })
@@ -381,11 +385,21 @@ test("流程图画布:80 列排下两列,120 列排下三列,卡片都在画面�
     expect(cards.length, `${width} 列应有节点卡`).toBeGreaterThan(0)
     for (const row of cards) {
       expect(Locale.displayWidth(row), `${width} 列的卡片行`).toBeLessThanOrEqual(width)
-      const from = row.indexOf("╭")
-      const to = row.indexOf("╮", from)
-      expect(to - from + 1, `${width} 列的卡宽`).toBe(NODE_WIDTH)
+    }
+    // 每一列卡片的顶边框都完整:`╭` + 26 个 `─` + `╮`。
+    // 逐列量而不是逐行找 `indexOf` —— 连线折角也用 `╭ ╮`,`indexOf` 会点到折角上去。
+    const columns = cardBorderColumns(lines)
+    expect(columns.length, `${width} 列的卡片列`).toBeGreaterThan(0)
+    for (const column of columns) {
+      const row = lines.find((line) => lineColumns(line)[column] === "╭")
+      if (!row) throw new Error(`${width} 列第 ${column} 列没有卡顶边框`)
+      const cells = lineColumns(row)
+      expect(cells[column + NODE_WIDTH - 1], `${width} 列第 ${column} 列的卡右边界`).toBe("╮")
+      expect(cells.slice(column + 1, column + NODE_WIDTH - 1).every((cell) => cell === "─")).toBe(true)
     }
   }
+  // 列数按**卡头行**数:右侧被横向裁掉的卡(60 列那一档)卡头仍看得见,所以仍然算一列。
+  expect(cardColumns(narrow), "80 列的卡片列").toEqual([LEFT_MARGIN, LEFT_MARGIN + COLUMN_PITCH])
   expect(distinctCardColumns(narrow), "80 列应有两列").toBe(2)
   expect(distinctCardColumns(wide), "120 列应有三列").toBe(3)
 })

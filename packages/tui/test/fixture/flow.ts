@@ -10,6 +10,12 @@ import {
   buildFlowModel,
   edgeRoute,
   layoutNodes,
+  LONG_EDGE_COLUMNS,
+  MIN_DOGLEG_BENDS,
+  MIN_LONG_EDGE_BENDS,
+  NODE_WIDTH,
+  routeBends,
+  routeSpanX,
   type FlowLayout,
   type FlowModel,
   type FlowRect,
@@ -53,13 +59,15 @@ export type FlowInvariantOptions = {
  * 返回清单而不是直接 `expect`:这样一条测试可以同时覆盖多组宽度/多组并行规模,
  * 失败时又能一次看到全部问题,而不是只报撞上第一条就停。
  *
- * 覆盖的六条:
+ * 覆盖的八条:
  *   1. 任意两张卡片(或两个详情框、或详情框与卡片)矩形不重叠;
  *   2. 每条边的**每一格**都不落在任何矩形内(连线不压卡片);
  *   3. 相邻两格恰好差一格(没有斜线、没有跳格);
  *   4. 一条边里没有重复格(接缝去重失效的信号);
  *   5. 首格贴着源节点、末格贴着目标节点(端点在边界上,不在卡片内部);
- *   6. 每段标签候选占位都不落在任何矩形内。
+ *   6. 每段标签候选占位都不落在任何矩形内;
+ *   7. **长边**(横向跨过至少一条走廊)至少 MIN_LONG_EDGE_BENDS 个折点 —— 直线化不许回来;
+ *   8. 同一行带的相邻节点那条边(曾经是一条死直线)至少 MIN_DOGLEG_BENDS 个折点。
  */
 export function flowInvariants({ model, layout, width }: FlowInvariantOptions) {
   const problems: string[] = []
@@ -109,6 +117,19 @@ export function flowInvariants({ model, layout, width }: FlowInvariantOptions) {
         }
       }
     }
+    // 折点断言。**长边**按「横向铺开几列」判,与是不是换行边无关 ——
+    // 换行边(竖-横-竖)横向铺得开,而并排两列那条边同样铺开一条走廊。
+    if (routeSpanX(route.cells) < LONG_EDGE_COLUMNS) continue
+    const bends = routeBends(route.cells)
+    if (bends < MIN_LONG_EDGE_BENDS) {
+      problems.push(`长边折点太少:${edge.id} 只有 ${bends} 个(至少 ${MIN_LONG_EDGE_BENDS} 个)`)
+    }
+    // 曾经是死直线的那一类:同一行带、相邻两列、中线同高。原型那边每条边都是一条弯的
+    // 贝塞尔(card-design-v7.html:966-977),一条直线读不出「这是流程」。
+    const sameRow = from.rect.y === to.rect.y && to.rect.x > from.rect.x + from.rect.width
+    if (sameRow && bends < MIN_DOGLEG_BENDS) {
+      problems.push(`同行长边没有狗腿:${edge.id} 只有 ${bends} 个折点(至少 ${MIN_DOGLEG_BENDS} 个)`)
+    }
   }
   return problems
 }
@@ -134,13 +155,51 @@ export function arrowCells(model: FlowModel, layout: FlowLayout) {
   return cells
 }
 
-/** 一帧里数得出来的列数(不同 `╭` 所在列的个数)。一行里可能并排两张卡,所以要数每一行的所有 `╭`。 */
-export function distinctCardColumns(lines: readonly string[]) {
+/**
+ * 帧里**卡片**所在的列(按显示列索引,升序去重)。
+ *
+ * 判据不能只是「这一格是 `╭`」:连线折角用的是**同一套**圆角(见 layout 的 CORNER_CHARS),
+ * 而 `╭` 在一条往上的狗腿里正好落在中线上(见 edgeRoute 里的折点注释)。所以这里数的是
+ * **卡头行**:`│ ● <类型文字>` —— 每张卡只有一行长这样,底部图例那一行前面没有 `│`。
+ * 卡头在 `rect.x + 2`(卡内 paddingLeft = 2)。
+ */
+export function cardColumns(lines: readonly string[]): number[] {
   const columns = new Set<number>()
   for (const line of lines) {
-    for (let x = 0; x < line.length; x++) if (line[x] === "╭") columns.add(x)
+    const cells = lineColumns(line)
+    for (let x = 0; x < cells.length; x++) {
+      if (cells[x] !== "●") continue
+      // 往左跳过空白,落在卡内 padding 与圆角边框之间;找到的 `│` 就是这张卡的左边界。
+      let border = x - 1
+      while (border >= 0 && cells[border] === " ") border -= 1
+      if (border < 0 || cells[border] !== "│") continue
+      columns.add(border)
+    }
   }
-  return columns.size
+  return [...columns].toSorted((a, b) => a - b)
+}
+
+/** 一帧里数得出来的卡片列数。一行里可能并排两张卡,所以每一行都要看。 */
+export function distinctCardColumns(lines: readonly string[]) {
+  return cardColumns(lines).length
+}
+
+/**
+ * 帧里**完整可见**的卡片顶边框那一列 —— `╭` + NODE_WIDTH − 2 个 `─` + `╮`。
+ *
+ * 与 cardColumns 的区别:它要求整条顶边框都在画面内,所以右侧被裁掉的卡不算。用来断言
+ * 「卡片本身有没有被裁掉」,数列数请用 cardColumns。
+ */
+export function cardBorderColumns(lines: readonly string[], width = NODE_WIDTH): number[] {
+  const columns = new Set<number>()
+  for (const line of lines) {
+    const cells = lineColumns(line)
+    for (let x = 0; x + width - 1 < cells.length; x++) {
+      if (cells[x] !== "╭" || cells[x + width - 1] !== "╮") continue
+      if (cells.slice(x + 1, x + width - 1).every((cell) => cell === "─")) columns.add(x)
+    }
+  }
+  return [...columns].toSorted((a, b) => a - b)
 }
 
 /**

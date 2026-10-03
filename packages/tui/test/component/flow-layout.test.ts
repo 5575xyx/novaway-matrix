@@ -10,18 +10,24 @@ import type { Message, Part } from "@novaway/sdk-v2-latest/v2"
 import {
   bandColumns,
   buildFlowModel,
+  CORNER_CHARS,
   edgeRoute,
   layoutNodes,
   COLUMN_PITCH,
   GAP_X,
   GAP_Y,
   LEFT_MARGIN,
+  LONG_EDGE_COLUMNS,
   MIN_BAND_COLUMNS,
   MIN_BAND_VIEWPORT,
+  MIN_DOGLEG_BENDS,
+  MIN_LONG_EDGE_BENDS,
   NODE_CONTENT_COLUMNS,
   NODE_HEIGHT,
   NODE_WIDTH,
   RIGHT_MARGIN,
+  routeBends,
+  routeSpanX,
   SEPARATOR_ROWS,
   type FlowNode,
   type FlowRect,
@@ -366,7 +372,11 @@ test("流程图边:工具失败与运行中的标签如实反映状态", () => {
 function routeFor(id: string) {
   const index = MODEL.edges.findIndex((edge) => edge.id === id)
   if (index < 0) throw new Error(`没有边 ${id}`)
-  return edgeRoute(rectOf(MODEL.edges[index]!.from), rectOf(MODEL.edges[index]!.to), index)
+  const from = LAYOUT.nodes.find((node) => node.id === MODEL.edges[index]!.from)!
+  // **必须把 from.route 传进来**,与 flowInvariants 同一口径:走线方案(通道基准、从哪一侧出去)
+  // 是布局算好交给 canvas 的,不给它就等于拿一套「没有方案的裸矩形」去算,量出来的折点数
+  // 跟真实画出来的不是一回事(展开的节点尤其如此)。
+  return edgeRoute(from.rect, rectOf(MODEL.edges[index]!.to), index, from.route)
 }
 
 // 被占住的矩形与「端点贴着边界」的判据都取 fixture —— 它们本来就是 flowInvariants 内部用的那两份,
@@ -406,12 +416,96 @@ test("流程图连线:相邻两格必有一格之差(没有斜线、没有跳格
   }
 })
 
-test("流程图连线:终点是箭头字符,拐角用制表符而不是直角", () => {
+test("流程图连线:终点是箭头字符,拐角用圆角制表符而不是直角", () => {
   const route = routeFor("e:n:msg_1→n:pr_2")
   expect(route.cells[route.cells.length - 1]!.ch).toBe("▸")
-  // 拐角要么没有(直线),要么是这八个制表符之一 —— 不能拿 ─/│ 冒充拐角。
+  // 拐角用 `╭ ╮ ╰ ╯` —— 与 NeonBox 自己画卡片边框用的是同一套(见 ui/neon 的
+  // perimeterCells),于是「线的折角」与「卡的圆角」读起来是同一种语言。
+  // 直角那一套(┌ ┐ └ ┘)也留着以防有人换回去,但新画的折角必须是圆角的。
+  const corners = route.cells.filter((cell) => CORNER_CHARS.has(cell.ch)).map((cell) => cell.ch)
+  expect(corners.length).toBeGreaterThan(0)
   for (const ch of route.cells.map((cell) => cell.ch)) {
-    expect("─│┌┐└┘├┤┬┴┼▸▼".includes(ch), `未知连线字符 ${ch}`).toBe(true)
+    expect("─│╭╮╰╯┌┐└┘├┤┬┴┼▸▼".includes(ch), `未知连线字符 ${ch}`).toBe(true)
+  }
+})
+
+/**
+ * 狗腿折返到的那一行(不是中线的那一行)。
+ *
+ * 不能拿「第一个不等于中线的行」:竖段会经过中间那些行,那取到的是竖段中间某一格。
+ * 折返行一定是**最远**的那一行 —— 往下折是最下一行,往上折是最上一行。
+ */
+function jogRowOf(cells: readonly { y: number }[], midY: number) {
+  const rows = [...new Set(cells.map((cell) => cell.y))].toSorted((a, b) => a - b)
+  return rows[0] === midY ? rows.at(-1)! : rows[0]!
+}
+
+// 原型那边每条边都是一条**弯的**贝塞尔(card-design-v7.html:966-977,例如
+// `M470,56 C502,54 522,50 552,50` 与 `M470,98 C512,114 520,170 552,188`)。
+// 终端没有曲线,正交的等价物是**狗腿**:横-竖-横-竖-横,四个折点。
+// 这一条钉的就是「不许再退回死直线」。
+test("流程图连线:同一行带里相邻两列之间是一条带四个折点的狗腿,不是死直线", () => {
+  const route = routeFor("e:n:msg_1→n:pr_2")
+  const rows = [...new Set(route.cells.map((cell) => cell.y))].toSorted((a, b) => a - b)
+  // 走过三行(源中线、折返那一行、又回到中线),一条直线只会有一行。
+  expect(rows.length).toBe(3)
+  expect(routeBends(route.cells)).toBe(MIN_DOGLEG_BENDS)
+  expect(MIN_DOGLEG_BENDS).toBe(4)
+  // 折点全是圆角。
+  for (const cell of route.cells) {
+    if (!CORNER_CHARS.has(cell.ch)) continue
+    expect(["╭", "╮", "╰", "╯"]).toContain(cell.ch)
+  }
+  // 折返那一行紧贴卡片下沿(没有展开详情时):那正是行带之下第一行通道。
+  const source = rectOf("n:msg_1")
+  const midY = source.y + Math.floor(source.height / 2)
+  expect(jogRowOf(route.cells, midY)).toBe(source.y + NODE_HEIGHT)
+  // 展开的卡把通道基准推到行带下沿,折返那一行跟着走 —— 否则横段会从详情面板上横穿过去。
+  const expanded = layoutNodes(MODEL.nodes, 76, { expandedId: "n:msg_1" })
+  const grownFrom = expanded.nodes.find((node) => node.id === "n:msg_1")!
+  const grownTo = expanded.nodes.find((node) => node.id === "n:pr_2")!
+  const grown = edgeRoute(grownFrom.rect, grownTo.rect, 0, grownFrom.route)
+  const grownMid = grownFrom.rect.y + Math.floor(grownFrom.rect.height / 2)
+  expect(jogRowOf(grown.cells, grownMid)).toBe(grownFrom.bandBottom)
+  expect(routeBends(grown.cells)).toBe(MIN_DOGLEG_BENDS)
+})
+
+// 折返方向按**边序**轮换:偶数往上、奇数往下。首行(y = 0)没有上面那一行,那一档自动换到往下。
+// 边序是 buildFlowModel 按列组笛卡尔积生成的,顺序固定,所以这三条断言是确定的。
+test("流程图连线:折返方向按边序轮换,优先方向不可用时换到另一边", () => {
+  const dirOf = (id: string) => {
+    const route = routeFor(id)
+    const edge = MODEL.edges.find((item) => item.id === id)!
+    const source = LAYOUT.nodes.find((node) => node.id === edge.from)!
+    const midY = source.rect.y + Math.floor(source.rect.height / 2)
+    return { index: MODEL.edges.indexOf(edge), dir: jogRowOf(route.cells, midY) < midY ? "up" : "down" }
+  }
+  // index 0(msg_1→pr_2)在第 1 行,上面没有行可折 → 优先往上也只能往下。
+  expect(dirOf("e:n:msg_1→n:pr_2")).toEqual({ index: 0, dir: "down" })
+  // index 4(pr_4→pr_5)是偶数,源在第 2 槽(y = 7),上面那一行(y = 6)空着 → 往上。
+  expect(dirOf("e:n:pr_4→n:pr_5")).toEqual({ index: 4, dir: "up" })
+  // index 3(pr_3→pr_5)是奇数 → 往下。两者的源不在同一槽,这一对同时证明方向确实按边序轮换。
+  expect(dirOf("e:n:pr_3→n:pr_5")).toEqual({ index: 3, dir: "down" })
+  // 全图上两档都出现过(而不是所有边都挤在同一行通道里)。
+  const all = MODEL.edges.map((edge) => dirOf(edge.id).dir)
+  expect(all.filter((dir) => dir === "up").length).toBeGreaterThan(0)
+  expect(all.filter((dir) => dir === "down").length).toBeGreaterThan(0)
+})
+
+// 「没有可折返的行就退回直线」这一档在当前尺寸下**构造上不可能触发**:向下那一行恒等于
+// `channelBase ?? from.y + height`,它恒大于中线(⌊height/2⌋ < height)且 ≥ 0。
+// 这一条把「狗腿从不缺席」钉住:退化回直线就等于折点归零,上面两条用例会红。
+test("流程图连线:每一档尺寸下折返行都存在(狗腿不会退化成直线)", () => {
+  for (const width of [NODE_WIDTH, MIN_BAND_VIEWPORT - 1, 45, 74, 76, 118, 140]) {
+    const layout = layoutNodes(MODEL.nodes, width)
+    for (const [index, edge] of MODEL.edges.entries()) {
+      const from = layout.nodes.find((node) => node.id === edge.from)!
+      const to = layout.nodes.find((node) => node.id === edge.to)!
+      const route = edgeRoute(from.rect, to.rect, index, from.route)
+      if (routeSpanX(route.cells) < LONG_EDGE_COLUMNS) continue
+      if (from.rect.y !== to.rect.y || to.rect.x <= from.rect.x + from.rect.width) continue
+      expect(routeBends(route.cells), `${width} 列:${edge.id}`).toBeGreaterThanOrEqual(MIN_DOGLEG_BENDS)
+    }
   }
 })
 
@@ -435,9 +529,13 @@ test("流程图连线:标签可以摆在候选线段上,给出的每一段宽度
       `${edge.id} 没有放得下标签的线段`,
     ).toBeGreaterThanOrEqual(4)
   }
+  // 狗腿把一条横线拆成了三段,最宽的那一段不能因此短到放不下原型最长的并行标签
+  // (「并行 · 子代理」13 列)—— 靠源那一段的候选是**整条走廊**(GAP_X = 16 列),与折返无关。
+  const widest = Math.max(...MODEL.edges.map((edge) => Math.max(...routeFor(edge.id).labels.map((s) => s.columns))))
+  expect(Locale.displayWidth("并行 · 子代理")).toBeLessThanOrEqual(widest)
 })
 
-test("流程图连线:同一轮的相邻节点走直线,换行的边走出直角折线", () => {
+test("流程图连线:同一轮的相邻节点走狗腿,换行的边走出直角折线", () => {
   const sameRow = MODEL.edges.find((edge) => {
     const a = rectOf(edge.from)
     const b = rectOf(edge.to)
@@ -445,8 +543,9 @@ test("流程图连线:同一轮的相邻节点走直线,换行的边走出直角
   })
   if (!sameRow) throw new Error("这一版布局里没有同一行的相邻节点")
   const route = routeFor(sameRow.id)
-  expect(route.cells.every((cell) => cell.y === route.cells[0]!.y)).toBe(true)
-  expect(route.cells.every((cell) => cell.ch === "─" || cell.ch === "▸")).toBe(true)
+  // 同一行的相邻节点:不再是死直线,而是折到通道里再折回来(见上面那条用例)。
+  expect(routeSpanX(route.cells)).toBeGreaterThanOrEqual(LONG_EDGE_COLUMNS)
+  expect(routeBends(route.cells)).toBeGreaterThanOrEqual(MIN_DOGLEG_BENDS)
 
   // 换行边(第 1 轮结束 → 第 2 轮的用户输入)必须拐两次弯。
   const wrap = routeFor("e:n:fend:1→n:msg_3")
