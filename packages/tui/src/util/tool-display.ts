@@ -69,12 +69,21 @@ export function toolStatusPassedText(summary: ToolStatusSummary) {
 }
 
 /**
- * 失败色那一段:`· 2 failed`;没有失败时是空串。
+ * 失败色那一段:` · 2 failed`;没有失败时是空串。
+ *
+ * **前导那一格空白就是两段之间的分隔**,所以失败段必须是 `空格 + · + 空格 + 计数`,
+ * 而不是 `· + 空格 + 计数`(原型 card-design-v7.html:932 是 `12 passed · 0 failed`,
+ * `·` 两侧各一格)。写反的时候渲染出来是 `✓ 0 passed· 3 failed` —— 分隔被 `·` 顶掉了,
+ * 而这一行右边就是卡片的霓虹描边,少掉的那一列直接读成「两段粘在一起」。
+ *
+ * 分隔由失败段自己带着(而不是靠 `toolHeadLayout` 额外扣一列),带来两个好处:
+ * 渲染层只是把两个串拼起来就一定对;列宽账也只有一条 —— 两段各自的显示列之和。
+ *
  * 原型把 `· 0 failed` 也画出来,但「零失败」不是信息 —— `✓ 12 passed` 已经把话说完了,
- * 再挂一个红色的 `0 failed` 只会让人多扫一眼。
+ * 再挂一个红色的 `0 failed` 只会让人多扫一眼。所以没有失败时是空串:整行也就没有分隔符。
  */
 export function toolStatusFailedText(summary: ToolStatusSummary) {
-  return summary.failed > 0 ? `· ${summary.failed} failed` : ""
+  return summary.failed > 0 ? ` · ${summary.failed} failed` : ""
 }
 
 /** head 行里相邻两段之间的 1 列分隔(原型 `.tool-head { gap: 9px }` 的终端等价)。 */
@@ -85,7 +94,7 @@ export interface ToolHeadLayout {
   title: string
   /** 已按显示列截断的通过段(success 色);空串 = 这一行不画摘要。 */
   passed: string
-  /** 已按显示列截断的失败段(error 色);空串 = 没有失败,或宽度不够只剩通过段。 */
+  /** 已按显示列截断的失败段(error 色);**左端自带那一列分隔**;空串 = 没有失败,或宽度不够只剩通过段。 */
   failed: string
 }
 
@@ -100,15 +109,17 @@ export interface ToolHeadLayout {
  * 而是被渲染器从右边直接切掉 —— 切掉多少看不见,于是「摘要不见了」和「摘要在那儿」长得一样。
  * 显式按列截断至少让它留一个 `…`,让人知道右边还有东西。
  *
- * 三段之间的 1 列分隔不额外扣两次:失败段自带前导 `· `,那 1 列就是它与通过段之间的分隔。
+ * 三段之间要扣的列只有两处:标题与通过段之间的 1 列,以及通过段与失败段之间的 1 列。
+ * 后者**已经含在失败段里**(见 toolStatusFailedText:它以一个空格开头),所以这里
+ * 只算两个串的显示列之和,不再额外加一次 HEAD_GAP —— 那样会把标题多让掉一列。
  */
 export function toolHeadLayout(input: { title?: string; summary?: ToolStatusSummary; width: number }): ToolHeadLayout {
   const summary = input.summary
   const passed = summary ? truncateToWidth(toolStatusPassedText(summary), input.width) : ""
   const failed =
     summary && passed ? truncateToWidth(toolStatusFailedText(summary), input.width - displayWidth(passed)) : ""
-  // 让给摘要的列:两段摘要各自的宽度,加上通过段与失败段之间的 1 列分隔。
-  const summaryColumns = displayWidth(passed) + displayWidth(failed) + (passed && failed ? HEAD_GAP : 0)
+  // 让给摘要的列:两段摘要各自的宽度(通过段与失败段之间的 1 列分隔在失败段里)。
+  const summaryColumns = displayWidth(passed) + displayWidth(failed)
   // 标题与通过段之间的 1 列分隔 —— 只在标题真的存在时才扣,否则那列会白留在行尾。
   const titleGap = passed && input.title ? HEAD_GAP : 0
   return {

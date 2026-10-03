@@ -2923,6 +2923,8 @@ function InlineTool(props: {
   const statusColumns = createMemo(() => {
     const status = props.status
     if (!status) return 0
+    // 两段摘要的显示列之和就是它们占的总列数 —— 通过段与失败段之间那一列分隔由失败段
+    // 自己带着(见 util/tool-display 的 toolStatusFailedText),所以这里不必再加 1。
     return Locale.displayWidth(toolStatusPassedText(status)) + Locale.displayWidth(toolStatusFailedText(status))
   })
   // 有摘要时 head 压成一行(原型的 `.tool-head .cmd { white-space: nowrap; overflow: hidden }`):

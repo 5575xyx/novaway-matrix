@@ -99,11 +99,13 @@ test("状态摘要与标题并排在 head 那一行,且不受输出折叠与否�
   expect(head, `帧里没有摘要行:\n${frame}`).toBeDefined()
   expect(head).toContain("Running in app")
   expect(head).toContain("✓ 12 passed")
-  // 失败段在 head 右侧
+  // 失败段在 head 右侧。原型 card-design-v7.html:932 是 `✓ 12 passed · 3 failed`:
+  // `·` 两侧各一格空白,所以这里断言的是**两段拼起来**的整句,而不是各自一段 ——
+  // 只断言 `· 3 failed` 的话,少掉 `passed` 与 `·` 之间那一列分隔也照样绿。
   const failed = await renderTool(() => mountTool({ title: "# t", status: { passed: 1, failed: 3 } }), 60)
   const failedRow = rows(failed).find((row) => row.includes("failed"))
-  expect(failedRow).toContain("✓ 1 passed")
-  expect(failedRow).toContain("· 3 failed")
+  expect(failedRow).toContain("✓ 1 passed · 3 failed")
+  expect(failedRow).not.toContain("passed·")
 })
 
 test("没有状态摘要时 head 上不出现任何通过/失败字样(不写假信息)", async () => {
