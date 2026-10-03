@@ -125,10 +125,19 @@ export function centered(x: number, columns: number, text: string) {
  * 工具做完**收束**时两条边的候选段又完全重合。所以按边的顺序依次摆,谁先摆谁占位,
  * 后来的那条在自己的候选段里找一段没被占的;两段都撞上了就**不摆这个标签** ——
  * 少一个标签只是信息少一点,两个标签叠在一起则是画布看起来坏掉了。
+ *
+ * `owners` 是**所有边**落过笔的格子(键 `x:y`,值是那条边的序号,canvas 建的那张表)。
+ * 它挡的是另一件事,而且是用户点名的那件:标签自带底色、压住底下的线是原型 .flabel 的做法,
+ * 但压住**别人的**线就会把那条线从中间截断(上一版就出现过「本轮完成」印在另一条线上的情形)。
+ * 压住**自己**那条线是设计意图,所以 owner 等于自己时那一格不算撞车。
+ *
+ * 注意候选段必须由调用方**先全部算完**再逐条摆:第 k 条边摆标签时,序号比 k 大的边还没进表,
+ * 于是「压住后面的边」这一条就漏了。所以 canvas 里的顺序是「先算全部走线 → 建 owner 表
+ * → 再逐条摆标签」,而不是边画边摆。
  */
-export function makeLabelPlacer() {
+export function makeLabelPlacer(owners: ReadonlyMap<string, number> = new Map()) {
   const taken: { y: number; from: number; to: number }[] = []
-  return (spans: RouteLabelSpan[], text: string) => {
+  return (spans: RouteLabelSpan[], text: string, owner = 0) => {
     const width = Locale.displayWidth(text)
     for (const span of spans) {
       // 比文字还窄的段一律不摆:标签盒子会盖住底下的线,摆出去就盖到卡片边框上了。
@@ -137,11 +146,21 @@ export function makeLabelPlacer() {
       const to = from + width
       const clash = taken.some((item) => item.y === span.y && from < item.to && item.from < to)
       if (clash) continue
+      if (hurtsEdge(owners, span, from, to, owner)) continue
       taken.push({ y: span.y, from, to })
       return { x: from, y: span.y, text }
     }
     return undefined
   }
+}
+
+/** 这一段占位有没有压到**别的边**的格子上。 */
+function hurtsEdge(owners: ReadonlyMap<string, number>, span: RouteLabelSpan, from: number, to: number, owner: number) {
+  for (let x = from; x < to; x++) {
+    const other = owners.get(`${x}:${span.y}`)
+    if (other !== undefined && other !== owner) return true
+  }
+  return false
 }
 
 // ---------- 入场揭示 ----------

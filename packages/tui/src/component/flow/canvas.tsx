@@ -15,11 +15,12 @@ import {
   buildFlowModel,
   DETAIL_ROWS,
   edgeRoute,
-  GAP_X,
   kindNoun,
   layoutNodes,
+  LABEL_COLUMNS,
   NODE_CONTENT_COLUMNS,
   NODE_WIDTH,
+  type EdgeRoute,
   type FlowNodeKind,
 } from "./layout"
 import {
@@ -82,11 +83,17 @@ const ARROW_BOOST = 0.35
  */
 export const FLOW_NODE_ALPHA = 0.72
 
-/**
- * 边标签的列数上限。走廊是 GAP_X − 1 列,标签占掉最后一列(箭头)之后还剩 GAP_X − 2;
- * 再兜一个底,免得哪条边的候选段特别宽时标签横跨到卡片上去。
- */
-const LABEL_COLUMNS = GAP_X - 2
+/** 每格归哪条边:标签要避开**别人的**格子(见 grid 的 makeLabelPlacer)。 */
+function cellOwners(planned: readonly { index: number; route: EdgeRoute }[]) {
+  const owners = new Map<string, number>()
+  for (const item of planned) {
+    for (const cell of item.route.cells) {
+      const key = `${cell.x}:${cell.y}`
+      if (!owners.has(key)) owners.set(key, item.index)
+    }
+  }
+  return owners
+}
 
 /** 详情框能显示多少列正文:DETAIL_ROWS 行 × 卡内可用列数。 */
 const DETAIL_COLUMNS = DETAIL_ROWS * NODE_CONTENT_COLUMNS
@@ -229,45 +236,52 @@ export function FlowCanvas(props: {
     const bounds = { width: contentWidth(), height: layout().height }
     const canvas: EdgeGrid = createGrid()
     const nodes = layout().nodes
-    // 一次 Map 建好「id → 矩形 / 类型色 / 走线方案」。原来这里是两个 `nodes.find(...)` 的闭包,
+    // 一次 Map 建好「id → 矩形 / 类型色」。原来这里是两个 `nodes.find(...)` 的闭包,
     // 每帧被调 3 × 边数次 —— 449 条边 × 400 个节点就是 50 万次线性扫描,白烧。
     const rects = new Map(nodes.map((node) => [node.id, node.rect]))
     const accents = new Map(nodes.map((node) => [node.id, accentOf(theme, node.kind)]))
     const routes = new Map(nodes.map((node) => [node.id, node.route]))
     const tick = revealTick(animated(), frame())
+    const edges = model().edges
 
-    // 先画**所有线**,再统一画箭头,最后收标签。顺序有讲究:
+    // **先算全部走线,再落笔、最后摆标签**。三段顺序各有讲究:
+    //   · 全部走线先算完 —— 标签要避开**别的边**的格子,而那些边可能还没画(见 makeLabelPlacer);
     //   · 线 vs 标签 —— 后画的线会从先摆的标签上穿过去,把标签切成 `并─行─·─工─具`;
     //   · 线 vs 箭头 —— 并行分支的两条边落进同一张卡,共用同一列入口竖段,后画的 `│`
     //     会把先画的 `▼` 盖掉,于是箭头时有时无。箭头最后画就稳定了。
-    const arrows: { x: number; y: number; ch: string; fg: RGBA }[] = []
-    const labels: { x: number; y: number; text: string }[] = []
-    const placeLabel = makeLabelPlacer()
-    const edges = model().edges
-
-    edges.forEach((edge, index) => {
+    const planned = edges.flatMap((edge, index) => {
       const from = rects.get(edge.from)
       const to = rects.get(edge.to)
-      if (!from || !to) return
+      if (!from || !to) return []
+      const route = edgeRoute(from, to, index, routes.get(edge.from))
       // 分叉边取**目标**的颜色(「并行 · 工具」那条线是青的,因为它通向工具);其余取源节点的
       // 颜色(工具做完之后那条线仍是青的,直到进了编辑节点才转琥珀)。
       const fg = accents.get(edge.parallel ? edge.to : edge.from)!
-      const delay = edgeRevealDelay(index, edges.length)
-      const route = edgeRoute(from, to, index, routes.get(edge.from))
-      const revealed = Math.ceil(route.cells.length * edgeReveal(tick, delay))
-      route.cells.slice(0, Math.max(0, revealed)).forEach((cell, cellIndex) => {
-        if (cellIndex === route.cells.length - 1) {
-          arrows.push({ x: cell.x, y: cell.y, ch: cell.ch, fg: brighten(fg, ARROW_BOOST, theme.text) })
+      return [{ index, edge, route, fg, delay: edgeRevealDelay(index, edges.length) }]
+    })
+
+    const arrows: { x: number; y: number; ch: string; fg: RGBA }[] = []
+    const labels: { x: number; y: number; text: string }[] = []
+    const placeLabel = makeLabelPlacer(cellOwners(planned))
+    for (const item of planned) {
+      const revealed = Math.ceil(item.route.cells.length * edgeReveal(tick, item.delay))
+      item.route.cells.slice(0, Math.max(0, revealed)).forEach((cell, cellIndex) => {
+        if (cellIndex === item.route.cells.length - 1) {
+          arrows.push({ x: cell.x, y: cell.y, ch: cell.ch, fg: brighten(item.fg, ARROW_BOOST, theme.text) })
           return
         }
-        paintCell(canvas, bounds, cell.x, cell.y, cell.ch, fg)
+        paintCell(canvas, bounds, cell.x, cell.y, cell.ch, item.fg)
       })
-      if (tick <= delay) return
+      if (tick <= item.delay) continue
       // 文字先按**最宽的那段候选**截断:窄段放不下就整段不摆(见 makeLabelPlacer)。
-      const room = Math.max(...route.labels.map((span) => span.columns))
-      const label = placeLabel(route.labels, Locale.oneLineToWidth(edge.label, Math.min(room, LABEL_COLUMNS)))
+      const room = Math.max(...item.route.labels.map((span) => span.columns))
+      const label = placeLabel(
+        item.route.labels,
+        Locale.oneLineToWidth(item.edge.label, Math.min(room, LABEL_COLUMNS)),
+        item.index,
+      )
       if (label) labels.push(label)
-    })
+    }
 
     for (const arrow of arrows) paintCell(canvas, bounds, arrow.x, arrow.y, arrow.ch, arrow.fg)
 
