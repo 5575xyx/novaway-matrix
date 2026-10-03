@@ -143,8 +143,59 @@ export const GAP_Y = 3
  * 在**列间走廊**里取的,与左侧留白无关。
  */
 export const LEFT_MARGIN = 2
+/**
+ * 画布右侧留出的空列(列)。**1 列,不是 0**。
+ *
+ * 它只起一个作用:别让最后一列卡片的后边框紧贴画布右沿。右边紧贴着的是竖滚动条
+ * (opentui 的 scrollbox 把滚动条画在自己那一列上,见 canvas 的 verticalScrollbarOptions),
+ * 两者叠在一起时那一格同时有描边和滚动条的块字符,读起来像卡片破了个口。
+ * 算式上它也正好补上 LEFT_MARGIN 的另一半 —— 画布宽 = 左留白 + 步距 × (列数 − 1) + 卡宽 + 右留白,
+ * 两边对称,推出来的数不用凑。
+ */
+export const RIGHT_MARGIN = 1
+/**
+ * 一行带里**至少**放几列。
+ *
+ * 2 是原型那几屏流程图的形状,也是本实现自己在 80 / 120 列上一直给出的答案
+ * (`2 + 44 + 28 = 74`)。把它设成下限而不是「视口能放几列就放几列」,是因为:
+ *
+ *   · 原型的 `.fcanvas` 是 `width:1040px; flex-shrink:0`(card-design-v7.html:669)——
+ *     **画布有自己的固有宽度,页面横向滚动去够它**,而不是把画布压到视口那么宽。
+ *     横向滚动一旦通了(见 MIN_BAND_VIEWPORT),「一列一行带」就成了画不出来的选择:
+ *     并行分支的分叉与收束被拉成一条几十行的长蛇,画布读不出「这是并行」。
+ *   · 反过来,视口窄到**一张卡加一条走廊都放不下**时,两列就变成了两张互相看不见的半张卡 ——
+ *     那时宁可退化成单列(见 bandColumns 的 floor),纵向滚动去够。
+ *
+ * 所以这两条是一对:下限 2 列 + 上面的 RIGHT_MARGIN/LEFT_MARGIN,合起来就是
+ * 「内容比视口宽的那一截由画布自己横向滚」。
+ */
+export const MIN_BAND_COLUMNS = 2
+/**
+ * 行带保持 `MIN_BAND_COLUMNS` 列所需的最小视口列数 = 一张卡 + 一条走廊 = 28 + 16 = **44**。
+ *
+ * 「放得下两列」要 74 列(LEFT_MARGIN + COLUMN_PITCH + NODE_WIDTH),但**看得懂**只要 44 列:
+ * 44 ~ 73 这一档给两列,多出来的那截横向滚;43 列往下给一列。
+ */
+export const MIN_BAND_VIEWPORT = NODE_WIDTH + GAP_X
 /** 列的步距:卡宽 + 走廊。 */
 export const COLUMN_PITCH = NODE_WIDTH + GAP_X
+
+/**
+ * 一行带能放几列(纯函数,导出给测试钉住那张算式表)。
+ *
+ * 三档,谁大听谁的:
+ *   · `fits` —— 视口**装得下**几列:`⌊(视口 + 走廊 − 左侧留白) / 步距⌋`。
+ *     最后一列右边没有走廊、每列左边都有 LEFT_MARGIN,所以是「+ 走廊 − 留白」这一项。
+ *   · `floor` —— 视口放得下一张卡 + 一条走廊(≥ MIN_BAND_VIEWPORT)时的下限 MIN_BAND_COLUMNS,
+ *     否则 1。**这一档是「画布按内容尺寸排布」的落点**:它让图可以比视口宽,
+ *     宽出来的那一截由 canvas 的横向滚动承担(见 MIN_BAND_COLUMNS 的注释)。
+ *   · 1 —— 视口连一列都放不下时的兜底,`max(1, …)` 保证列数永远 ≥ 1。
+ */
+export function bandColumns(viewportWidth: number) {
+  const fits = Math.floor((viewportWidth + GAP_X - LEFT_MARGIN) / COLUMN_PITCH)
+  const floor = viewportWidth >= MIN_BAND_VIEWPORT ? MIN_BAND_COLUMNS : 1
+  return Math.max(1, fits, floor)
+}
 /** 轮次分隔线占的行数:`─` 一行 + 标签同在这行。 */
 export const SEPARATOR_ROWS = 2
 /** 展开的详情框默认占几行。 */
@@ -472,9 +523,8 @@ export function layoutNodes(
   options: { expandedId?: string; detailRows?: number } = {},
 ): FlowLayout {
   const detailRows = options.detailRows ?? DETAIL_ROWS
-  // 一行带能放几列。步距是卡宽 + 走廊,再扣掉左侧那条留出来的走廊:
-  // 每多一列要多 COLUMN_PITCH 列,而最后一列右边没有走廊,左边有 LEFT_MARGIN 列。
-  const perRow = Math.max(1, Math.floor((canvasWidth + GAP_X - LEFT_MARGIN) / COLUMN_PITCH))
+  // 一行带能放几列。步距是卡宽 + 走廊,再扣掉左侧那条留出来的走廊 —— 整张表见 bandColumns。
+  const perRow = bandColumns(canvasWidth)
   const placed: PlacedNode[] = []
   const rows: FlowRow[] = []
   const separators: { round: number; y: number }[] = []
@@ -551,7 +601,13 @@ export function layoutNodes(
     }
   }
 
-  const width = Math.max(NODE_WIDTH, ...placed.map((node) => node.rect.x + node.rect.width))
+  // 画布用掉的宽度 = **最宽那条行带** + 左右留白,而不是视口宽。
+  // 算式:LEFT_MARGIN + (列数 − 1) × COLUMN_PITCH + NODE_WIDTH + RIGHT_MARGIN,
+  // 其中「列数 − 1」是因为第一列的左边已经有 LEFT_MARGIN 了。
+  // 这就是 canvas 交给 scrollbox 的 contentWidth —— 内容比视口宽时差出来的那一截
+  // 由画布自己横向滚(见 MIN_BAND_COLUMNS),所以这一行**不能**再拿视口宽去夹。
+  const width =
+    Math.max(LEFT_MARGIN + NODE_WIDTH, ...placed.map((node) => node.rect.x + node.rect.width)) + RIGHT_MARGIN
   return { nodes: placed, width, height: Math.max(1, y - GAP_Y), separators, rows }
 }
 

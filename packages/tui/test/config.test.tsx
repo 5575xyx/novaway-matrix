@@ -68,6 +68,20 @@ test("resolves host-neutral defaults", () => {
   expect(config.cursor).toBeUndefined()
 })
 
+// 流程图画布按**内容**宽度排布之后,横向可能超出视口(两列行带 75 列,而 44~73 列的视口装不下),
+// 于是「横向往哪边滚」必须有一条命令。默认键取 `ctrl+alt+left/right`:与
+// `messages_line_up = ctrl+alt+y` 同一族,而 `shift+left/right` 已经被输入框的选区占用。
+test("流程图横向滚动命令有默认键位,且落在 messages 这一族里", () => {
+  const config = resolve({}, { terminalSuspend: true })
+  expect(config.keybinds.has("session.scroll.left")).toBe(true)
+  expect(config.keybinds.has("session.scroll.right")).toBe(true)
+  expect(config.keybinds.get("session.scroll.left")).toMatchObject([{ key: "ctrl+alt+left" }])
+  expect(config.keybinds.get("session.scroll.right")).toMatchObject([{ key: "ctrl+alt+right" }])
+  // 用户改键后仍能改到那两条命令上。
+  const custom = resolve({ keybinds: { messages_scroll_left: "ctrl+alt+h" } }, { terminalSuspend: true })
+  expect(custom.keybinds.get("session.scroll.left")).toMatchObject([{ key: "ctrl+alt+h" }])
+})
+
 test("resolves overrides without mutating input", () => {
   const input: TuiConfigInfo = {
     theme: "custom",

@@ -1317,19 +1317,39 @@ export function Session() {
       hidden: true,
       run: withScroll((target) => target.scrollBy(target.height / 4)),
     },
+    // 横向滚动这一族:流程图画布按**内容**宽度排布之后,横向可以比视口宽
+    // (两列行带 75 列,而视口落在 44~73 列那一档时装不下,见 component/flow/layout 的
+    // MIN_BAND_COLUMNS)。竖滚动条只管纵向,所以右边那一截得有一条命令够得着。
+    // 气泡视图没有横向溢出(内容宽度 ≤ 视口),`scrollBy({x, y: 0})` 在那里自然不动。
+    {
+      title: "向左翻半页",
+      value: "session.scroll.left",
+      category: "会话",
+      hidden: true,
+      run: withScroll((target) => target.scrollBy({ x: -target.viewport.width / 2, y: 0 })),
+    },
+    {
+      title: "向右翻半页",
+      value: "session.scroll.right",
+      category: "会话",
+      hidden: true,
+      run: withScroll((target) => target.scrollBy({ x: target.viewport.width / 2, y: 0 })),
+    },
     {
       title: "第一条消息",
       value: "session.first",
       category: "会话",
       hidden: true,
-      run: withScroll((target) => target.scrollTo(0)),
+      // `{x: 0, y: 0}` 而不是 `scrollTo(0)`:「回到开头」在流程图上也意味着回到左沿 ——
+      // 横向滚到右边之后只把纵向归零,右边那一截仍然看不见。
+      run: withScroll((target) => target.scrollTo({ x: 0, y: 0 })),
     },
     {
       title: "最后一条消息",
       value: "session.last",
       category: "会话",
       hidden: true,
-      run: withScroll((target) => target.scrollTo(target.scrollHeight)),
+      run: withScroll((target) => target.scrollTo({ x: 0, y: target.scrollHeight })),
     },
     {
       title: "跳转到最近的用户消息",

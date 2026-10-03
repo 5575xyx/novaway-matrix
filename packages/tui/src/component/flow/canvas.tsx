@@ -1,6 +1,6 @@
 /** @jsxImportSource @opentui/solid */
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js"
-import type { RGBA, ScrollBoxRenderable } from "@opentui/core"
+import type { BoxRenderable, RGBA, ScrollBoxRenderable } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/solid"
 import type { Message, Part } from "@novaway/sdk-v2-latest/v2"
 import { NeonCard } from "../neon-card"
@@ -92,6 +92,20 @@ const LABEL_COLUMNS = GAP_X - 2
 const DETAIL_COLUMNS = DETAIL_ROWS * NODE_CONTENT_COLUMNS
 
 /**
+ * 竖滚动条那一块占掉的列数。**2,不是 1**:opentui 的 scrollbox 是
+ * `flexDirection:row`(wrapper + 竖滚动条),而 `verticalScrollbarOptions` 里传了
+ * `paddingLeft: 1` —— 那 1 列内边距把轨道从右边推开了 1 列,于是滚动条**盒子**占 2 列
+ * (1 列内边距 + 1 列轨道),内容真正能摆的宽度是「盒子宽 − 2」。
+ *
+ * 这 2 列不是白占的:留出来的那一列就是竖滚动条与内容之间的缝,而内容自己的右边留白
+ * (layout 的 RIGHT_MARGIN)也在里面,两侧读起来一样宽。
+ *
+ * **只扣这两列**:会话页外层自己的 paddingLeft/Right 已经体现在盒子宽里了,内容盒子的左沿
+ * 还有 LEFT_MARGIN = 2 列留白,不必再扣。
+ */
+const SCROLLBAR_COLUMNS = 2
+
+/**
  * 浮层文字(边标签 / 轮次标签):压在线上,靠自己的底色把线遮掉(原型 `.flabel` 就是这么做的 ——
  * 不遮的话「并行 · 工具」会被竖线切成两半)。
  *
@@ -168,13 +182,26 @@ export function FlowCanvas(props: {
 
   const [selected, setSelected] = createSignal<string | null>(null)
   const [frame, setFrame] = createSignal(0)
+  // 画布**盒子**自己的列数(0 = 还没量到)。量的是这个盒子,不是终端:
+  // 会话页那一层是 `<box paddingLeft={2} paddingRight={2}>`(routes/session/index.tsx),
+  // 再外面还有侧栏,所以 80 列终端 + 侧栏展开时画布只有 46 列 —— 拿终端宽去排布,
+  // 右边那一整列卡片会被裁掉而且够不着(见 viewportColumns 的注释)。
+  const [boxed, setBoxed] = createSignal(0)
 
   const model = createMemo(() => buildFlowModel({ messages: props.messages, parts: props.parts }))
-  // 画布视口的可用列数。会话页外层已经留了左右各 2 列内边距,这里再留 2 列给滚动条与呼吸。
+  // 画布视口的可用列数 = 盒子宽 − 竖滚动条那 2 列。会话页外层的左右内边距已经由盒子宽
+  // 本身扣掉了,内容盒子的左右留白在 layout 的 LEFT_MARGIN / RIGHT_MARGIN 里,这里都不再扣。
   // **这里不垫 NODE_WIDTH 的下限**:垫在下面的 contentWidth 上。垫在这里的话,26 列的终端会
   // 让画布声明 31 列宽却只有 26 列可用,右侧直接被裁掉。
-  const viewportWidth = createMemo(() => Math.max(1, dimensions().width - 6))
+  const viewportWidth = createMemo(() => {
+    const measured = boxed()
+    // 还没量到时退回「终端宽 − 6」:第一帧只有这一次会用到,量到之后立刻作废。
+    const source = measured > 0 ? measured : dimensions().width - 6
+    return Math.max(1, source - SCROLLBAR_COLUMNS)
+  })
   const layout = createMemo(() => layoutNodes(model().nodes, viewportWidth(), { expandedId: selected() ?? undefined }))
+  // **内容宽度 = 图自己的宽度**(layout.width),只有图比视口窄时才退回视口宽 ——
+  // 宽的那一截是横向滚动范围(见 layout 的 MIN_BAND_COLUMNS),不是「多画一点出来」。
   const contentWidth = createMemo(() => Math.max(viewportWidth(), layout().width))
 
   /**
@@ -258,13 +285,44 @@ export function FlowCanvas(props: {
   })
 
   return (
-    <box flexGrow={1} minHeight={0} flexDirection="column">
+    <box
+      flexGrow={1}
+      minHeight={0}
+      flexDirection="column"
+      ref={(element: BoxRenderable) => {
+        // 量自己,不量终端:侧栏展开时这两者差着侧栏那么多列(见 viewportWidth 的注释)。
+        // 首帧 yoga 还没算完,onSizeChange 会在第一次落定尺寸时补一次 —— 所以这里
+        // 立即读一次宽度,把「量到的第一帧」提前到不晚于第一次渲染。
+        element.onSizeChange = () => setBoxed(element.width)
+        setBoxed(element.width)
+      }}
+    >
       <scrollbox
-        ref={(box: ScrollBoxRenderable) => props.onScrollBox?.(box)}
+        ref={(box: ScrollBoxRenderable) => {
+          // **横向滚动这一档只能在这里接上**,不能写成 JSX 属性:opentui 的 solid 渲染器
+          // 建元素时只传 `{ id }`,其余 props 全走 `setProperty`(node[name] = value),
+          // 而 `scrollX` 在 ScrollBoxRenderable 上**只有构造参数、没有 setter** ——
+          // 写 `scrollX={true}` 会被当成一个没人读的普通字段,静默失效。
+          // 它真正控制的是 content 的宽度约束:默认 `maxWidth:"100%"` 会把宽内容挤回视口宽
+          // 直接裁掉(这正是「右边被截断」),摘掉这一条,内容就能比视口宽,
+          // `recalculateBarProps()` 随即把 `scrollWidth` 顶上去,横向滚动条也随之自动出现
+          // (它只在「内容比视口宽」时才 visible,见 ScrollBarRenderable.recalculateVisibility)。
+          box.content.maxWidth = undefined
+          props.onScrollBox?.(box)
+        }}
         flexGrow={1}
         scrollAcceleration={getScrollAcceleration(tuiConfig)}
         viewportOptions={{ paddingRight: 0 }}
         verticalScrollbarOptions={{ paddingLeft: 1, visible: true }}
+        // 横向滚动条不传 `visible`:传了就变成「永远可见」(_manualVisibility),图装得下时
+        // 屏幕上会白多一行。留空由 opentui 自己按内容/视口之比决定。
+        horizontalScrollbarOptions={{
+          paddingTop: 0,
+          trackOptions: {
+            backgroundColor: theme.backgroundElement,
+            foregroundColor: theme.border,
+          },
+        }}
       >
         <Show
           when={model().nodes.length > 0}

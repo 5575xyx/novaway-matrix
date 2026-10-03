@@ -8,6 +8,7 @@
 import { expect, test } from "bun:test"
 import type { Message, Part } from "@novaway/sdk-v2-latest/v2"
 import {
+  bandColumns,
   buildFlowModel,
   edgeRoute,
   layoutNodes,
@@ -15,9 +16,12 @@ import {
   GAP_X,
   GAP_Y,
   LEFT_MARGIN,
+  MIN_BAND_COLUMNS,
+  MIN_BAND_VIEWPORT,
   NODE_CONTENT_COLUMNS,
   NODE_HEIGHT,
   NODE_WIDTH,
+  RIGHT_MARGIN,
   SEPARATOR_ROWS,
   type FlowNode,
   type FlowRect,
@@ -156,10 +160,53 @@ test("流程图布局:画布窄于一列 + 一条走廊时退化成单列,仍不
       }
     }
   }
-  // 走廊的账不能算错:差一列就该从并排两列掉到单列,而不是白白浪费一列。
+  // 走廊的账不能算错:视口宽到放得下两列时是**两列**,而再窄一列(放不下一张卡 + 一条走廊)
+  // 就掉到单列 —— 中间那一档(44~73 列)仍然是两列,多出来的那截由画布的横向滚动承担。
   const columns = (width: number) => new Set(layoutNodes(MODEL.nodes, width).nodes.map((node) => node.rect.x)).size
   expect(columns(twoColumns)).toBe(2)
-  expect(columns(twoColumns - 1)).toBe(1)
+  expect(columns(MIN_BAND_VIEWPORT)).toBe(2)
+  expect(columns(MIN_BAND_VIEWPORT - 1)).toBe(1)
+})
+
+// ---------- 行带容量:内容尺寸的算式 ----------
+//
+// 这一组把「画布按内容尺寸排布」的算式钉死。用户的原话是「布局宽度是从视口推出来的,
+// 而不是从内容推出来的」,而视口在真实会话里**不是终端宽**:侧栏展开时画布盒子只有
+// `终端宽 − 侧栏宽 − 4`,80 列终端 + 侧栏只剩 46 列。
+test("流程图布局:行带容量至少两列,只有窄到放不下一张卡 + 一条走廊才退化成单列", () => {
+  // 门槛就是「一张卡 + 一条走廊」:NODE_WIDTH + GAP_X = 28 + 16 = 44。
+  expect(MIN_BAND_VIEWPORT).toBe(NODE_WIDTH + GAP_X)
+  expect(MIN_BAND_COLUMNS).toBe(2)
+  // 60 列视口:按「装得下」算只有 1 列(LEFT_MARGIN + COLUMN_PITCH + NODE_WIDTH = 74 > 60),
+  // 但一张卡加一条走廊放得下,所以仍然给两列 —— 多出来那一截靠横向滚动去够,而不是把
+  // 并行分支的分叉/收束拉成一条几十行的长蛇。
+  expect(bandColumns(60)).toBe(MIN_BAND_COLUMNS)
+  expect(bandColumns(MIN_BAND_VIEWPORT)).toBe(MIN_BAND_COLUMNS)
+  expect(bandColumns(MIN_BAND_VIEWPORT - 1)).toBe(1)
+  expect(bandColumns(20)).toBe(1)
+  // 视口够宽时仍然「能放几列放几列」,不被那个下限钉死。
+  expect(bandColumns(74)).toBe(2)
+  expect(bandColumns(LEFT_MARGIN + 2 * COLUMN_PITCH + NODE_WIDTH)).toBe(3)
+  expect(bandColumns(LEFT_MARGIN + 3 * COLUMN_PITCH + NODE_WIDTH)).toBe(4)
+  // 装得下几列的下限永远至少 1(视口 1 列都放不下时也不许算出 0 列)。
+  expect(bandColumns(1)).toBe(1)
+})
+
+test("流程图布局:两列行带的画布宽度 = 左侧留白 + 步距 + 卡宽 + 右侧留白,60 列视口下会超出 14 列", () => {
+  const twoColumnWidth = LEFT_MARGIN + COLUMN_PITCH + NODE_WIDTH + RIGHT_MARGIN
+  expect(twoColumnWidth).toBe(2 + 44 + 28 + 1)
+  const narrow = layoutNodes(MODEL.nodes, 60)
+  expect(new Set(narrow.nodes.map((node) => node.rect.x)).size).toBe(2)
+  expect(narrow.width).toBe(twoColumnWidth)
+  // 内容比视口宽 —— 这一截就是画布横向滚动的那一段(超出的量 = 75 − 60 = 15 列)。
+  expect(narrow.width - 60).toBe(15)
+  // 单列行带:宽度只够一张卡加两侧留白。
+  const single = layoutNodes(MODEL.nodes, MIN_BAND_VIEWPORT - 1)
+  expect(new Set(single.nodes.map((node) => node.rect.x)).size).toBe(1)
+  expect(single.width).toBe(LEFT_MARGIN + NODE_WIDTH + RIGHT_MARGIN)
+  // 空画布没有行带,宽度退到「一张卡 + 两侧留白」(canvas 那层还会再取 max(视口, 这个数))。
+  const blank = layoutNodes([], 60)
+  expect(blank.width).toBe(LEFT_MARGIN + NODE_WIDTH + RIGHT_MARGIN)
 })
 
 // ---------- 节点模型 ----------
@@ -452,12 +499,7 @@ test("流程图布局:详情框挂在选中卡正下方,行带同步长高,后�
   // 长高的是**它所在的那条行带**(pr_3 在第 1 轮的第二条行带里)。
   const bandOf = (layout: typeof before, node: (typeof before)["nodes"][number]) =>
     layout.rows.find((row) => row.top === node.rect.y)!
-  const grown =
-    bandOf(expanded, target).height -
-    bandOf(
-      before,
-      before.nodes.find((n) => n.id === "n:pr_3")!,
-    ).height
+  const grown = bandOf(expanded, target).height - bandOf(before, before.nodes.find((n) => n.id === "n:pr_3")!).height
   expect(grown).toBe(5)
   // 别的行带一点没动 —— 展开一张卡不该牵动整张画布的列位。
   expect(expanded.width).toBe(before.width)
