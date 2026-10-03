@@ -15,11 +15,12 @@ import { useCardHover } from "../ui/hover"
 // 所以测试能直接挂载它来量真实几何 —— 与导出的 BlockTool / InlineToolRow 同理。手抄一份
 // neonbox 到测试里的话,改这里的 padding 不会让任何测试变红,`ctx.width - 9` 那类宽度常量就会悄悄失准。
 // paddingRight=1:NeonBox 不占边框格、边框画在最外列上,右留 1 格才能让正文不压到右边框。
-// 四边 padding 合计 3 列 = 卡内可用宽度相对 ctx.width 的扣减。
+// 四边 padding 合计 3 列 = 卡内可用宽度相对 ctx.width 的扣减(开 inset 时是 4 列,见 inset 的注释)。
 //
 // **padding 行/列就是边框行/列**:NeonBox 把边框画在自己第 0 行/列与最后一行/列,而 padding
-// 各为 1,所以 padding 不额外占行。「类型行 + 标题行」的卡因此是 4 行而不是 6 行 —— 流程图的
-// NODE_HEIGHT 与它对齐,写大了连线的中线会落到卡片底边框那一行(见 layout.ts 的注释)。
+// 上下各为 1,所以 padding 不额外占行。「类型行 + 标题行」的卡因此是 4 行而不是 6 行 ——
+// 流程图的 NODE_HEIGHT 与它对齐,写大了连线的中线会落到卡片底边框那一行(见 layout.ts 的注释)。
+// 同一个道理反过来读:上下各 1 也就意味着**内容紧贴上下边框**,卡内没有留白。想留白得开 inset。
 //
 // enterFrom 用 theme.border:这张卡是透明卡(没有自己的 backgroundColor),而终端里没有半透明,
 // 淡入必须从一个**实色**长出来。未通电时那条描边就该是主题里最普通的那个边框色,
@@ -70,6 +71,23 @@ export function NeonCard(props: {
    * 于是首页提示卡(feature-plugins/home/tip-card)在自己的调用点显式打开。
    */
   flow?: boolean
+  /**
+   * 卡内留白那一档:上下 padding 提到 2、右边距也提到 2,于是边框与内容之间空着一整行/列。
+   *
+   * 为什么默认不开:**padding 格就是边框格**(NeonBox 把圆角边框画在自己第 0 行/列与最后一行/列),
+   * 所以上下各 1 意味着内容紧贴着上下边框,卡内一行留白都没有。提到 2 才会空出呼吸区 ——
+   * 原型那边 hero 是 `padding: 36px 56px`、tip 走 `.card` 的 padding,折到终端就是这个量级。
+   *
+   * **为什么是开关而不是直接改默认值**:这张壳是四族卡共用的,而它们的尺寸是被算死的 ——
+   * 流程图节点卡的高就是 `NODE_HEIGHT = 4`(见 component/flow/layout.ts 的注释:
+   * 「NeonCard 的 paddingTop/paddingBottom 决定 1 也就是上下边框」),列宽是 `NODE_WIDTH − 3`
+   * (= 左 2 + 右 1);提示卡的宽度账是 `TIP_CARD_CHROME`(见 feature-plugins/home/tip-card)。
+   * 直接改默认值会把这些常数全部带偏,而且每一处都得重新推导。所以留白是**逐调用点**的选择:
+   * 抱内容、宽度由内容决定的 hero 卡与两行内容的提示卡开,尺寸被预算钉死的节点卡不开。
+   *
+   * 左边距**不随开关变**:它本来就是 2,已经空出一列留白,开关只补上下与右边。
+   */
+  inset?: boolean
 }) {
   const { theme } = useTheme()
   const hover = useCardHover()
@@ -91,10 +109,10 @@ export function NeonCard(props: {
       onMouseOver={hover.onMouseOver}
       onMouseOut={hover.onMouseOut}
       onMouseUp={props.onSelect}
-      paddingTop={1}
-      paddingBottom={1}
+      paddingTop={props.inset ? 2 : 1}
+      paddingBottom={props.inset ? 2 : 1}
       paddingLeft={2}
-      paddingRight={1}
+      paddingRight={props.inset ? 2 : 1}
       width={props.width ?? "100%"}
       maxWidth="100%"
       flexShrink={0}

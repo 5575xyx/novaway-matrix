@@ -103,8 +103,12 @@ export function EmptySessionHero(props: { paddingTop?: number }) {
   return (
     <box alignItems="center" width="100%" paddingTop={props.paddingTop ?? 3} flexShrink={0}>
       {/* 不传 enterDelay:hero 是静态内容,不随消息流一张张长出来,阶梯入场在这里没有对象可跟。
-          宽度 "auto":原型的 `.hero` 是 `align-self: center`,宽度由内容决定(见 NeonCard 的 width)。 */}
-      <NeonCard width="auto">
+          宽度 "auto":原型的 `.hero` 是 `align-self: center`,宽度由内容决定(见 NeonCard 的 width)。
+          inset:整屏首屏上唯一一张「只有内容、没有第二行」的大卡,原型给的是
+          `padding: 36px 56px`(card-design-v7.html:895-903)—— 折到终端正是上下各留一行。
+          而这张卡开 inset **在布局上一定安全**:宽度是 hug-content,多出来的那一行/一列
+          只会把卡撑大,里面每一行的宽度账一行都没变(slogan 42 列、chips 各自自然宽)。 */}
+      <NeonCard width="auto" inset>
         <box alignItems="center">
           <Logo />
           <box height={1} flexShrink={0} />

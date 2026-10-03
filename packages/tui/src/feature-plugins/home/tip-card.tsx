@@ -36,11 +36,15 @@ export const TIP_LABEL_COLUMNS = Locale.displayWidth(TIP_LABEL)
 export const TIP_DISMISS_LABEL = "稍后"
 
 /**
- * NeonCard 的固定内边距:左 2 + 右 1(见 component/neon-card 的 padding 注释)。
+ * NeonCard 的固定内边距:开 inset 那一档是左 2 + 右 2(见 component/neon-card 的 inset)。
  * 与 sidebar-metrics 里的 SIDEBAR_CARD_BORDER 同源 —— **padding 列就是边框列**,所以边框
- * 不额外扣。三列是卡壳吃掉的内边距,不是卡内容宽度。
+ * 不额外扣。四列是卡壳吃掉的内边距,不是卡内容宽度。
+ *
+ * 数字跟着 NeonCard 的 inset 一起改:那一档之前是左 2 + 右 1 = 3 列。改的时候两处必须同时改,
+ * 否则这里会按旧的扣减量算预算,正文与按钮组一起右移一列顶到右边框上 ——
+ * 而那在字符帧里仍然「看起来有内容」,只有宽度账的断言会红。
  */
-export const TIP_CARD_CHROME = 3
+export const TIP_CARD_CHROME = 4
 
 /**
  * 正文同行时至少留这么多列。低于它「● 提示」后面就只剩半句话了,读起来比换行更费解。
@@ -205,6 +209,10 @@ export function truncateParts(parts: readonly TipPart[], columns: number) {
  * 那一套(与队列 dock、Tab 栏胶囊同一语言),这里再抄一份只会让两处慢慢分叉。
  * 「稍后」不是动作而是**消解**,所以它由 onDismiss 决定出不出场,不和动作混在同一串里。
  */
+// inset:原型 `.card.tip` 走的是 `.card` 那一档 padding(card-design-v7.html:906),不是
+// `.prompt` 的 12/16 —— 但终端里 12px 那点纵向差折不满一行,而这张卡只有「标签 + 正文 + 按钮」
+// 一到两行内容,上下各空一行既不会挤掉任何一行(宽度账在 TIP_CARD_CHROME 里已经跟着改成 4 列),
+// 也让这张常驻流动的小卡不再紧贴描边。
 export function TipCard(props: {
   parts: readonly TipPart[]
   actions?: readonly TipAction[]
@@ -231,7 +239,7 @@ export function TipCard(props: {
   )
 
   return (
-    <NeonCard gradientStops={semanticStops(theme, "tip")} borderAlpha={TIP_CARD_ALPHA} flow>
+    <NeonCard gradientStops={semanticStops(theme, "tip")} borderAlpha={TIP_CARD_ALPHA} flow inset>
       <box flexDirection="column">
         <box flexDirection="row" flexShrink={0}>
           <text flexShrink={0} fg={theme.warning} wrapMode="none">

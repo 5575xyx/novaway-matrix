@@ -43,7 +43,10 @@ async function renderHero() {
       <ThemeTestProviders>
         <ThemeReady />
         <box alignItems="center" width="100%">
-          <NeonCard width="auto">
+          {/* 与 EmptySessionHero 里那张卡同一个壳、同一个 width 与 inset(那里多包一层
+              paddingTop 的外盒对卡内几何没有影响,见组件的注释)。inset 必须跟着改 ——
+              这一节测的是生产件本体,抄漏一个属性就会去量一张生产上并不存在的卡。 */}
+          <NeonCard width="auto" inset>
             <box alignItems="center">
               <HeroHints />
             </box>
@@ -94,4 +97,30 @@ test("hero 卡抱内容而不是撑满:描边宽度正好等于最宽那一行(s
   // 卡抱内容:上下边框之间的宽度 = slogan 那一行两列边框之间的宽度,而两者都远小于终端宽度
   expect(innerColumns(top, "╭", "╮")).toBe(innerColumns(slogan, "│", "│"))
   expect(innerColumns(top, "╭", "╮")).toBeLessThan(WIDTH)
+})
+
+// inset 那一档(见 component/neon-card 的 inset):padding 格就是边框格,2 才空得出留白。
+// 这一条钉的是「上下各空着一整行」,否则 hero 卡会退回紧贴描边的观感。
+test("hero 卡:描边与内容之间空着一整行/一列(inset 生效)", async () => {
+  // 剥掉自绘边框字符之后,「留白行」就该什么都不剩(两端那两列边框不算内容)。
+  const bare = (row: string) => row.replace(/[│╭╮╰╯─]/g, "").trim()
+  const frame = await renderHero()
+  const all = rows(frame)
+  const at = (index: number) => {
+    const row = all[index]
+    if (row === undefined) throw new Error(`帧里没有第 ${index} 行:\n${all.join("\n")}`)
+    return row
+  }
+  const top = all.findIndex((row) => row.includes("╭"))
+  const bottom = all.findIndex((row) => row.includes("╯"))
+  const slogan = all.findIndex((row) => row.includes("任务拆解"))
+  // 第 0 行是上边框、第 1 行整行留白,内容从第 2 行开始。
+  expect(bare(at(top + 1))).toBe("")
+  expect(slogan).toBe(top + 2)
+  // 底部同理:最后一行内容与下边框之间还空着一行。
+  expect(bare(at(bottom - 1))).toBe("")
+  // 左边距本来就是 2(这一档不变),所以左边框列 0 与正文之间至少隔两列。
+  const row = at(slogan)
+  expect(row.indexOf("/", row.indexOf("│"))).toBeGreaterThanOrEqual(2)
+  expect(row.indexOf("任务拆解")).toBeGreaterThan(row.indexOf("│") + 1)
 })

@@ -14,10 +14,15 @@ export const INPUT_CARD_ALPHA = 0.45
 // 输入区霓虹输入卡的壳。与助手气泡卡 / 流程图节点卡共用的那张壳(NeonCard)同一条规矩:
 // 这里只依赖 useTheme() 与 useKV(),不碰 session/local context,测试能直接挂载真壳量几何 ——
 // 手抄一份 neonbox 到测试里的话,改这里的 padding 不会让任何测试变红。
-// padding 四边各 1 格:NeonBox 的边框画在最外行/列上,内容从第 1 行/列开始,
-// 所以内容压不到边框字符,卡内可用宽度 = 卡宽 − 2。
-// 注意 padding=1 的那一格**就是**边框所在的那一格(上下同理)—— 卡片上下没有额外留白,
-// 与 NeonCard 一致。想加留白要把 padding 提到 2,别只改一半。
+//
+// **padding 四边 2 —— 关键在于「padding 格就是边框格」**:NeonBox 把圆角边框画在自己第 0 行/列
+// 与最后一行/列上,所以 padding = 1 时内容紧贴着上下边框,卡内一行留白都没有(用户报的就是
+// 「挤成一团」)。padding ≥ 2 才会真的空出**一整行/列**的呼吸区:内容从第 1 行/列开始,
+// 上边框(第 0 行)与内容之间有第 1 行空着。原型那边是 `padding: 12px 16px`
+// (card-design-v7.html 的 `.prompt`),折到终端正是这个量级。
+// 四边必须一起改(与 NeonCard 的同一条纪律):只改一边会得到「上疏下紧」这种更难看的偏心。
+// 连带后果:卡内可用宽从「卡宽 − 2」变成「卡宽 − 4」,整行多两行 ——
+// 列宽账见下面的 MODEL_CHIP_MARGIN,提示行的门槛见 HINT_ROW_MIN_WIDTH。
 //
 // animated 是响应式算出来的,三个条件缺一不可:
 //   focused  —— 流动与扫光是「正在输入」的信号,失焦就该安静下来;
@@ -45,10 +50,10 @@ export function PromptCard(props: { focused: boolean; visible?: boolean; childre
       borderAlpha={INPUT_CARD_ALPHA}
       // 透明卡:叠色底一路往上到 app 根盒子的 theme.background。
       borderBackdrop={theme.background}
-      paddingTop={1}
-      paddingBottom={1}
-      paddingLeft={1}
-      paddingRight={1}
+      paddingTop={2}
+      paddingBottom={2}
+      paddingLeft={2}
+      paddingRight={2}
       width="100%"
       flexShrink={0}
     >
@@ -62,21 +67,30 @@ export function PromptCard(props: { focused: boolean; visible?: boolean; childre
 //   ASCII 1 列;CJK 全角字 2 列(「发送」= 2 字 × 2);East-Asian Ambiguous 字形按目标终端的
 //   常规行为记 1 列(「◆」U+25C6 就是 Ambiguous,在 CJK 终端里可能被渲成 2 列 —— 那种终端上
 //   本卡的可用宽度整体少 1,不是这里要解决的问题)。
-//   卡内可用宽 = 终端宽 − 卡 padding(1+1)
+//   卡内可用宽 = 终端宽 − 卡 padding(2+2)                 ← 卡内留白那一档的四边 padding
 //   定长开销 = ">" 盒 2 + 行内 gap 1 + 行内 gap 1 + 芯片(padding 1+1 + "◆ " 2)= 4
 //            + 芯片与按钮的 gap 1 + 按钮(padding 1+1 + "发送 " 6 + 键名)= 12
 //            = 21
 //   剩下分给「模型名 + 输入框」;输入框留 12 列,所以
-//   模型名上限 = 终端宽 − 2 − 21 − 12 = 终端宽 − 35。
+//   模型名上限 = 终端宽 − 4 − 21 − 12 = 终端宽 − 37。
+// (padding 从 1+1 提到 2+2 时这个数从 35 变成 37:扣减里只有卡 padding 那一项在变,
+// 定长开销 21 与输入框下限 12 都与卡 padding 无关 —— 它们量的是卡**里面**那几个盒子的宽窄。)
 // 按钮那 12 列是按**默认键位** input_submit = return 算的(formatKeySequence 渲染成 5 格的
 // "enter");用户把提交键改成长序列(如 shift+return = 11)时按钮会相应变宽、吃掉输入框,
 // 输入框那一侧还有 minWidth=4 兜底。
-// 60 列:min(28, 25) = 25 → 输入框 58 − 21 − 25 = 12 列(正好是留的下限)。
-// 40 列:算出来是 5,先被 MODEL_CHIP_MIN 抬到 8;但真正卡住的是芯片自己的 minWidth=10,
-//      输入框只剩 38 − 21 − 10 = 7 列(够显示光标和几个字,不够放长占位符 —— 那是预期行为)。
+// 顺带把输入框那一侧的余量也记下来,公式是同一套:输入框 = 卡内可用宽 − 21 − 模型名上限。
+//   40 列:模型名上限 = max(8, min(28, 3)) = 8(MODEL_CHIP_MIN 抬上来的)→ 输入框 36 − 21 − 8 = 7 列。
+//      芯片自己的 minWidth=10 这一档在这里不是约束:芯片内容已经有 4 + 8 = 12 列。
+//      7 列够显示光标和几个字,不够放长占位符 —— 那是预期行为(留白那一档之前是 9 列)。
+//   60 列:模型名上限 = min(28, 23) = 23 → 输入框 56 − 21 − 23 = 12 列,正好是留的下限。
+//      巧的是这一档与留白之前一样是 12:padding 多吃的 2 列正好由模型名上限从 25 掉到 23 补上。
+//   80 列:封顶在 28 → 输入框 76 − 21 − 28 = 27 列(留白之前 29)。
+//  120 列:同样封顶在 28 → 输入框 116 − 21 − 28 = 67 列(留白之前 69)。
+// 上面四档的数字都有渲染级断言兜着(见 test/component/prompt-card 的 CHIP_CASES),改 padding
+// 而忘了重推这里,那组会红。
 // 截断按**字符数**算(Locale.oneLine 内部是 str.length),这里成立的前提是模型 id 是
 // ASCII slug(gpt-5-codex / claude-sonnet-4 之类),字符数 == 列数;模型名里出现 CJK 就偏窄。
-const MODEL_CHIP_MARGIN = 35
+const MODEL_CHIP_MARGIN = 37
 const MODEL_CHIP_MAX = 28
 const MODEL_CHIP_MIN = 8
 
@@ -146,13 +160,13 @@ export function PromptSend(props: { model: string; canSend: boolean; modelColor?
 
 // 终端窄到放不下完整键位提示组时,整条丢掉「换行」而不是让它被裁成半个词。
 // 推导(1 列 = 1 个终端格,CJK 按 2 列):提示组的定长部分是
-// 「<键> agents」7 + 「<键> commands」9 + 「<键> 换行」5 + 组内两个 gap 4 = 25 列,
-// 键名按常见的 tab(3)/ ctrl+p(6)/ shift+return(11) 算 20 列 → 45 列,
-// 再加卡片左右 padding 各 1 → 需要 47 列,取整到 48。
-// 40~47 列这一档只剩前两条:25 − 5(整条换行) − 2(少一个 gap) = 18 列,
-// 加 tab(3) + ctrl+p(6) = 27 列,再加 padding 2 = 29 列 ≤ 40,放得下。
+// 「<键> agents」7 + 「<键> commands」9 + 「<键> 换行」5 + 组内两个 gap 4 = 25 列
+// (这里只量标签与间隙,键名本身另算),键名按常见的 tab(3)/ ctrl+p(6)/ shift+return(11)
+// 算 20 列 → 45 列,再加卡片左右 padding 各 2 → 需要 49 列,取整到 50(留 1 列余量)。
+// 40~49 列这一档只剩前两条:25 − 5(整条换行) − 2(少一个 gap) = 18 列,
+// 加 tab(3) + ctrl+p(6) = 27 列,再加 padding 4 = 31 列 ≤ 40,放得下。
 // 提交键不在这一行 —— 它跟着「发送 Enter」按钮走(见 PromptSend 里的理由)。
-const HINT_ROW_MIN_WIDTH = 48
+const HINT_ROW_MIN_WIDTH = 50
 
 // 卡内第二行(提示行)。左段是插件槽 + agent/权限/提供商/变体 meta —— 可截断,
 // 压不下了先丢 meta;右段是键位提示 —— 不截断,因为它就是这行的可发现性本身。

@@ -271,9 +271,10 @@ test("输入卡:模型芯片按终端宽截断,不给它挤掉输入框的宽度
   )
   try {
     const text = frame(app)
-    // 上限 = 60 − 35 = 25。Locale.truncate 拿最后一格放省略号,25 → 24 个 m + 一个「…」。
-    expect(text).toContain("m".repeat(24))
-    expect(text).not.toContain("m".repeat(25))
+    // 上限 = 60 − 37 = 23(卡 padding 2+2 + 定长开销 21 + 输入框下限 12)。
+    // Locale.truncate 拿最后一格放省略号,23 → 22 个 m + 一个「…」。
+    expect(text).toContain("m".repeat(22))
+    expect(text).not.toContain("m".repeat(23))
     // 芯片吃掉的宽度是有上限的:输入框那一行仍然是「提示符 + 输入框 + 芯片 + 发送」四段,
     // 没被顶到折行(折行会把「发送」甩到第二行)。
     const input = lines(app).find((line) => line.includes("L0"))!
@@ -301,14 +302,15 @@ test("输入卡:多行输入把卡片撑高,提示行仍紧贴下边框", async 
     const hints = text.findIndex((line) => line.includes("agents"))
     const bottom = text.findIndex((line) => line.includes("╯"))
     expect(top).toBeGreaterThanOrEqual(0)
-    // 上边框那一行就是 paddingTop,正文紧贴下一行
-    expect(first).toBe(top + 1)
+    // paddingTop = 2,第 0 行是上边框、第 1 行是留白,正文从第 2 行开始 —— 正是
+    // 「padding 格就是边框格,≥2 才空得出呼吸区」那一条(见 component/prompt/card 的注释)。
+    expect(first).toBe(top + 2)
     // 4 行输入都在卡片内、连续
     expect(last).toBe(first + 3)
     // 提示行紧跟最后一行输入,没有被顶到别处
     expect(hints).toBe(last + 1)
-    // 下边框紧跟提示行(paddingBottom 就是边框那一行)
-    expect(bottom).toBe(hints + 1)
+    // 下边框前还空着 paddingBottom 那一行
+    expect(bottom).toBe(hints + 2)
   } finally {
     app.renderer.destroy()
   }
@@ -391,16 +393,67 @@ async function hintRowBounds(width: number) {
 test("输入卡:80 列下 meta 被裁掉右半,提示行仍只有一行", async () => {
   const { hints, bottom } = await hintRowBounds(80)
   expect(hints).toBeGreaterThanOrEqual(0)
-  // NeonBox 把下边框画在自己最后一行,PromptCard 的 paddingBottom=1 就是那一行 ——
-  // 所以键位提示行紧挨着下边框,中间不会再多出空行(多了就说明提示行被折行了)。
-  expect(bottom).toBe(hints + 1)
+  // NeonBox 把下边框画在自己最后一行,PromptCard 的 paddingBottom=2 意味着
+  // 提示行与下边框之间还空着一行 —— 键位提示没有被折行(折行会多出至少一行)。
+  expect(bottom).toBe(hints + 2)
 })
 
 test("输入卡:60 列下提示行仍只有一行", async () => {
   const { hints, bottom } = await hintRowBounds(60)
   expect(hints).toBeGreaterThanOrEqual(0)
-  expect(bottom).toBe(hints + 1)
+  expect(bottom).toBe(hints + 2)
 })
+
+// 卡内留白那一档把输入行的宽度预算整体收窄了两列(卡 padding 1+1 → 2+2)。这一组量的就是
+// 收窄之后各档宽度下三段东西还在不在:发送按钮、模型芯片、提示行,外加输入框自己还剩几列。
+//
+// 期望值按 component/prompt/card 里 MODEL_CHIP_MARGIN 的算式**独立写一遍字面量**,
+// 不 import 那个常量 —— 常量改了这里跟着改就等于没测。
+//   模型名上限 = 终端宽 − 4(卡 padding 2+2)− 21(定长开销)− 12(输入框下限),再夹到 [8, 28]
+//   40 → max(8, min(28, 3)) = 8;60 → 23;80 → 28;120 → 28(封顶)
+// Locale.oneLine 拿最后一格放省略号,所以「上限 N」渲染出来是 N−1 个 m 加一个「…」。
+const CHIP_CASES = [
+  { width: 40, modelColumns: 8 },
+  { width: 60, modelColumns: 23 },
+  { width: 80, modelColumns: 28 },
+  { width: 120, modelColumns: 28 },
+]
+
+for (const { width, modelColumns } of CHIP_CASES) {
+  test(`输入卡:${width} 列下发送按钮/模型芯片/提示行都还在卡内一行`, async () => {
+    const app = await renderReady(card({ focused: false, model: "m".repeat(200) }), { width, height: 12 }, (text) =>
+      text.includes("发送"),
+    )
+    try {
+      const all = lines(app)
+      // 三段都在同一条输入行上:折行会把「发送」甩到下一行,输入区高度就失控了。
+      const input = all.find((line) => line.includes("L0"))!
+      expect(input, `输入行:\n${all.join("\n")}`).toContain(`发送 ${expectedShortcut("input.submit")}`)
+      expect(input).toContain(">")
+      // 模型芯片封顶:上限 N 列 → N−1 个 m 加一个省略号,再多一格就是没封顶。
+      expect(input).toContain("m".repeat(modelColumns - 1))
+      expect(input).not.toContain("m".repeat(modelColumns))
+      // 输入框保底 minWidth=4 没被挤没:「>」之后至少还有 4 列才轮到芯片。
+      const chip = input.indexOf("◆")
+      expect(input.indexOf(">")).toBeGreaterThanOrEqual(0)
+      expect(chip - input.indexOf(">")).toBeGreaterThanOrEqual(4 + 2 + 2)
+      // 提示行整行都在卡内,且只有一行。
+      const hints = all.filter((line) => line.includes("agents"))
+      expect(hints).toHaveLength(1)
+      expect(all.filter((line) => line.includes("commands"))).toHaveLength(1)
+      // 「换行」那一档的门槛是 50 列(见 component/prompt/card 的 HINT_ROW_MIN_WIDTH)。
+      expect(all.some((line) => line.includes("换行"))).toBe(width >= 50)
+      // 四边留白:正文行不挨着上下边框。
+      const top = all.findIndex((line) => line.includes("╭"))
+      const first = all.findIndex((line) => line.includes("L0"))
+      const bottom = all.findIndex((line) => line.includes("╯"))
+      expect(first).toBe(top + 2)
+      expect(bottom).toBe(first + 3)
+    } finally {
+      app.renderer.destroy()
+    }
+  })
+}
 
 test("输入卡:40 列下放不下完整键位组,整条丢掉「换行」而不是把它裁成半个词", async () => {
   const app = await renderReady(
