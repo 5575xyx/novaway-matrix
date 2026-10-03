@@ -1,6 +1,6 @@
 import { useProject } from "../../context/project"
 import { useSync } from "../../context/sync"
-import { createEffect, createMemo, createSignal, For, on, Show } from "solid-js"
+import { createEffect, createMemo, createSignal, on, Show } from "solid-js"
 import { useTerminalDimensions } from "@opentui/solid"
 import path from "node:path"
 import { useTheme } from "../../context/theme"
@@ -16,6 +16,7 @@ import { TUI_BRAND } from "../../brand"
 import { FileTree } from "../../component/file-tree"
 import { QuickPreviewCard } from "../../component/quick-preview-card"
 import { GitPanel } from "../../component/git-panel"
+import { SegmentTabs, type SegmentTab } from "../../component/segment-tabs"
 import { PANEL_CARD_ALPHA, SidebarCard } from "../../component/sidebar-card"
 import { Locale } from "../../util/locale"
 import { sidebarWidth } from "../../util/sidebar-width"
@@ -78,6 +79,13 @@ export function Sidebar(props: SidebarProps) {
 
   const activeTab = sidebarTab
   const setActiveTab = setSidebarTab
+
+  // 标签的字形跟着 icons 风格走(见 util/panel-icons):/icon 切过风格之后这一行要立刻重排,
+  // 所以 glyph 在**渲染期**由 icon() 现取,不是模块加载时抄一份。字形的列数一变,
+  // 后面每一段的起点跟着变,指示条也就跟着变(见 component/segment-tabs 的 slots)。
+  const tabs = createMemo<SegmentTab<SidebarTab>[]>(() =>
+    SIDEBAR_TABS.map((tab) => ({ id: tab.id, text: tab.text, glyph: icon(tab.id) })),
+  )
 
   // 文件树与 Git 页共用同一个根目录:会话目录优先,没有会话才落回实例目录。
   const rootDir = createMemo(() => session()?.directory ?? project.instance.directory())
@@ -149,16 +157,16 @@ export function Sidebar(props: SidebarProps) {
       position={props.overlay ? "absolute" : "relative"}
       flexDirection="column"
     >
-      {/* 标签页栏。常驻只保留文件、待办与统计、Git。 */}
-      <box flexDirection="row" gap={dimensions().width > 160 ? 2 : 1} paddingBottom={1} flexShrink={0}>
-        <For each={SIDEBAR_TABS}>
-          {(tab) => (
-            <text fg={activeTab() === tab.id ? theme.primary : theme.textMuted} onMouseUp={() => setActiveTab(tab.id)}>
-              {icon(tab.id)} {tab.text}
-            </text>
-          )}
-        </For>
-      </box>
+      {/* 标签页栏。常驻只保留文件、待办与统计、Git。
+          指示条会从当前段**滑**到新点的那一段(原型 `.seg .seg-ind` 的
+          `transition: transform .42s`,card-design-v7.html:127-135),几何与
+          animations_enabled 的处理都在 component/segment-tabs 里。 */}
+      <SegmentTabs
+        tabs={tabs()}
+        active={activeTab()}
+        onSelect={setActiveTab}
+        animate={kv.get("animations_enabled", true)}
+      />
       {/* 文件树标签页 = 「快速预览」卡 + 可滚动的文件树卡。
           预览卡读的是文件树写进模块级 selectedPath 的那一个文件(见 component/file-tree 与
           component/quick-preview-card);没选中文件时它整张不出现(空态)。
