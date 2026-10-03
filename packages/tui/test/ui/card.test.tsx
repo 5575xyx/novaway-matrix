@@ -3,7 +3,15 @@ import { describe, expect, test } from "bun:test"
 import { createSignal } from "solid-js"
 import { testRender } from "@opentui/solid"
 import { RGBA, type CapturedFrame } from "@opentui/core"
-import { alphaOver, brighten, gradientAt, NEON_WHITE, perimeterCells, semanticStops } from "../../src/ui/neon"
+import {
+  alphaOver,
+  brighten,
+  BORDER_ALPHA_DEFAULT,
+  gradientAt,
+  NEON_WHITE,
+  perimeterCells,
+  semanticStops,
+} from "../../src/ui/neon"
 import { TOP_EDGE_GLOW } from "../../src/ui/card"
 import { resolveTheme, type ThemeJson } from "../../src/theme"
 import novaway from "../../src/theme/assets/novaway.json" with { type: "json" }
@@ -535,7 +543,7 @@ describe("助手气泡卡的青蓝渐变描边", () => {
     }
   })
 
-  test("扫光仍然会把格子顶出色板上沿(与相位取值无关)", async () => {
+  test("扫光是一道微光:把格子抬出**柔边之后**的色板区间,但不再顶出纯色板上沿", async () => {
     const app = await mount(true)
     try {
       let peak = -1
@@ -548,8 +556,18 @@ describe("助手气泡卡的青蓝渐变描边", () => {
           if (value) peak = Math.max(peak, brightness(value))
         }
       }
-      // 扫光峰值向白插 55%,而色板上沿只有 1.898 —— 顶出去 0.2 是稳的。
-      expect(peak).toBeGreaterThan(rampCeiling + 0.2)
+      // 上界是「柔边之后」那一档,不是纯色板:相位平移只能在这一族色板折算出来的亮度区间里
+      // 取值(+ 顶边光晕),扫光向白插一定越得过它。两件事互不冒名。
+      const softenedCeiling = Math.max(
+        ...assistant.gradientStops.map((stop) =>
+          brightness(alphaOver(stop, assistant.backgroundColor!, BORDER_ALPHA_DEFAULT)),
+        ),
+      )
+      expect(peak, "扫光仍要明显抬亮").toBeGreaterThan(softenedCeiling + 0.3)
+      // **而这一条才是这次改动要的**:扫光收到 30% 之后,峰值不再越过**纯**色板的上沿。
+      // 越过意味着那一道读起来像「比这条边本身更亮的别的东西」,而不是「这条边被照了一下」。
+      // 收窄之前是 2.21 > 1.898 + 0.2,收窄之后实测 1.79 < 1.898。
+      expect(peak, "扫光不该再顶出纯色板上沿").toBeLessThan(rampCeiling)
     } finally {
       app.renderer.destroy()
     }

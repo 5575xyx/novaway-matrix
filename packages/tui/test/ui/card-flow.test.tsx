@@ -3,8 +3,10 @@ import { describe, expect, test } from "bun:test"
 import { createSignal } from "solid-js"
 import { testRender } from "@opentui/solid"
 import { RGBA, type CapturedFrame } from "@opentui/core"
-import { alphaOver, BORDER_ALPHA_DEFAULT, HOVER_BOOST, perimeterCells } from "../../src/ui/neon"
-import { phaseStep, TOP_EDGE_GLOW } from "../../src/ui/card"
+import { alphaOver, BORDER_ALPHA_DEFAULT, gradientAt, HOVER_BOOST, neonStops, perimeterCells } from "../../src/ui/neon"
+import { FLOW_TRAVEL, phaseStep, TOP_EDGE_GLOW, travelAt } from "../../src/ui/card"
+import { resolveTheme, type ThemeJson } from "../../src/theme"
+import novaway from "../../src/theme/assets/novaway.json" with { type: "json" }
 import { SidebarCard } from "../../src/component/sidebar-card"
 import { TabBar } from "../../src/component/tab-bar"
 import { ThemeReady, ThemeTestProviders } from "../fixture/providers"
@@ -345,7 +347,144 @@ describe("标签栏霓虹导轨", () => {
       await app.renderOnce()
       const after = rail()
       const moved = Math.abs(after.r - before.r) + Math.abs(after.g - before.g) + Math.abs(after.b - before.b)
-      expect(moved, "导轨应当自己在流").toBeGreaterThan(0.02)
+      // 门槛 0.008:导轨的色板收窄成两段青蓝之后(见 ui/neon 的 calmStops),**同样的相位步长
+      // 换来的逐通道位移本来就小了一档** —— 相位节奏没动(仍是一圈 8 秒),动的是色相跨度。
+      // 判据仍然是「它在动」,不是「它动得多凶」。
+      expect(moved, "导轨应当自己在流").toBeGreaterThan(0.008)
+    } finally {
+      app.renderer.destroy()
+    }
+  })
+
+  // 用户反馈「标签栏底下是一整条彩虹在跑(粉→紫→青),太花哨」。
+  // 这一条从**真实帧**量色相跨度:整条导轨上的每一格取前景色,算出最大最小色相之差。
+  // 全段霓虹在默认深色主题下是 186° → 338°(跨度 152°),收窄之后应当 < 60°。
+  test("导轨的色相跨度收窄到 60° 以内(真实帧测量,不是读色板)", async () => {
+    const app = await testRender(
+      () => (
+        <ThemeTestProviders>
+          <ThemeReady />
+          <TabBar
+            tabs={[{ id: "chat", title: "会话", type: "chat", closable: false }]}
+            activeTabId="chat"
+            onTabClick={() => {}}
+            onTabClose={() => {}}
+            width={40}
+          />
+        </ThemeTestProviders>
+      ),
+      { width: 44, height: 6 },
+    )
+    try {
+      let frame = ""
+      for (let attempt = 0; attempt < 60; attempt++) {
+        await app.renderOnce()
+        frame = app.captureCharFrame()
+        if (frame.includes("━")) break
+        await new Promise((resolve) => setTimeout(resolve, 25))
+      }
+      const row = frame.split("\n").findIndex((line) => line.includes("━"))
+      const cells = grid(app)
+      const hues: number[] = []
+      for (let column = 0; column < 44; column++) {
+        const cell = cells.get(`${row}:${column}`)
+        // 跳过滚动条/背景那一类:rail 只占前 41 列(标签栏内宽),而且要跳过与背景同色的格。
+        if (!cell || lum(cell) < 0.2) continue
+        hues.push(hueOf(cell))
+      }
+      expect(hues.length, "导轨上没量到颜色").toBeGreaterThan(10)
+      const span = Math.max(...hues) - Math.min(...hues)
+      expect(span, `导轨色相跨度 ${span.toFixed(1)}°`).toBeLessThan(60)
+    } finally {
+      app.renderer.destroy()
+    }
+  })
+})
+
+// HSL 色相(0..360°)。与 ui/neon.test.ts 里那份同式 —— 两处各写一份是因为一个测色板、
+// 一个测渲染出来的格子,而后者拿不到 Theme。
+function hueOf(cell: Cell) {
+  const max = Math.max(cell.r, cell.g, cell.b)
+  const min = Math.min(cell.r, cell.g, cell.b)
+  if (max === min) return 0
+  const delta = max - min
+  if (max === cell.r) return 60 * (((cell.g - cell.b) / delta + 6) % 6)
+  if (max === cell.g) return 60 * ((cell.b - cell.r) / delta + 2)
+  return 60 * ((cell.r - cell.g) / delta + 4)
+}
+
+// 流动时的色相跨度。这一条是「卡片/流程图节点边框不再大范围跑色」的守卫:
+// 本仓库最宽的一条色板是 `tool` / `input` 用的全段霓虹 —— 默认深色主题下
+// #00e5ff → #4d7cff → #ff2d7b,色相 186° → 338°(跨度 152°)。流动时只露出 FLOW_TRAVEL 那一段。
+//
+// **上界不能写成「色板跨度 × FLOW_TRAVEL」**:色相不是 RGB 插值的线性函数,
+// 三段霓虹在 t ∈ [0.2, 0.8] 这一段上的实际色相跨度是 106°,而不是 152° × 0.6 = 91°
+// (青→蓝那一小段本身色相涨得慢、蓝→品红那一段涨得快)。所以上界直接从 travelAt + gradientAt
+// 算出来 —— 那正是渲染层用的那个函数。
+describe("流动时的色相跨度", () => {
+  /** 纯函数算出的「窗口色相跨度」:在色板参数上按 travelAt 压缩后取色相极差。 */
+  const windowSpan = (stops: readonly RGBA[], travel: number) => {
+    const hues = Array.from({ length: 401 }, (_, index) => hueOf(gradientAt(stops, travelAt(index / 400, travel))))
+    return { max: Math.max(...hues), min: Math.min(...hues), span: Math.max(...hues) - Math.min(...hues) }
+  }
+
+  test("常驻流动的卡片:描边色相跨度 = travelAt 窗口那一段的跨度(真实帧测量)", async () => {
+    const theme = resolveTheme(novaway as ThemeJson, "dark")
+    const stops = neonStops(theme)
+    const ramp = windowSpan(stops, 1)
+    const windowed = windowSpan(stops, FLOW_TRAVEL)
+    // 上界是纯函数算出来的窗口跨度,不是「色板跨度 × FLOW_TRAVEL」—— 见上面那条注释。
+    expect(windowed.span).toBeLessThan(ramp.span * 0.8)
+    const keys = perimeterCells(WIDTH, HEIGHT).map((cell) => `${cell.y}:${cell.x}`)
+    const app = await testRender(
+      () => (
+        <neonbox width={WIDTH} height={HEIGHT} backgroundColor={PANEL} gradientStops={stops} flow={true}>
+          <text>hi</text>
+        </neonbox>
+      ),
+      { width: 20, height: 8 },
+    )
+    try {
+      await new Promise((resolve) => setTimeout(resolve, PHASE_WAIT))
+      await app.renderOnce()
+      const cells = grid(app)
+      const hues = keys.flatMap((key) => {
+        const cell = cells.get(key)
+        return cell ? [hueOf(cell)] : []
+      })
+      expect(hues.length).toBeGreaterThan(0)
+      const span = Math.max(...hues) - Math.min(...hues)
+      // 叠色(alphaOver 到 PANEL)会把色相挪一两度,给 6° 余量;真正的守卫是这条上界。
+      expect(span, `流动时的色相跨度 ${span.toFixed(1)}°`).toBeLessThanOrEqual(windowed.span + 6)
+      expect(span).toBeGreaterThan(windowed.span - 20)
+    } finally {
+      app.renderer.destroy()
+    }
+  })
+
+  // 静止卡(从未动画过)仍然逐格铺满整条色板 —— 收窄只发生在**相位推进期间**。
+  // 这条同时兜住「FLOW_TRAVEL 顺手把静止卡的渐变也压扁了」这种改法。
+  test("静止卡不受 FLOW_TRAVEL 影响:色相跨度等于整条色板", async () => {
+    const theme = resolveTheme(novaway as ThemeJson, "dark")
+    const stops = neonStops(theme)
+    const ramp = windowSpan(stops, 1)
+    const keys = perimeterCells(WIDTH, HEIGHT).map((cell) => `${cell.y}:${cell.x}`)
+    const app = await testRender(
+      () => (
+        <neonbox width={WIDTH} height={HEIGHT} backgroundColor={PANEL} gradientStops={stops}>
+          <text>hi</text>
+        </neonbox>
+      ),
+      { width: 20, height: 8 },
+    )
+    try {
+      await app.renderOnce()
+      const cells = grid(app)
+      const hues = keys.flatMap((key) => {
+        const cell = cells.get(key)
+        return cell ? [hueOf(cell)] : []
+      })
+      expect(Math.abs(Math.max(...hues) - Math.min(...hues) - ramp.span)).toBeLessThan(12)
     } finally {
       app.renderer.destroy()
     }

@@ -238,6 +238,28 @@ export function semanticStops(theme: Theme, role: NeonRole): readonly RGBA[] {
   return neonStops(theme)
 }
 
+/**
+ * **常驻流动**那一族专用的取色口:两段同色系(默认主题下 #00e5ff → #4d7cff,色相跨度 38°)。
+ *
+ * 为什么不是全段霓虹(152°):用户反馈「标签栏底下是一整条彩虹在跑,太花哨」。原型那边
+ * 常驻流的只有两条 1px 导轨,而且都很克制 —— `.titlebar::after` 虽是彩虹,可它是 2px 高、
+ * `opacity:.85` 的一行;`.sidebar::after` 更是只有 `rgba(79,209,224,.55) → rgba(255,92,158,.45)`
+ * 这一小段、两端还带 transparent。**终端里一行就是一行、一格就是一格,没有「2px + 85% 不透明度」
+ * 可退**,于是那一档要还原原型的克制,只能靠收窄色相跨度,而不是照抄五停彩虹。
+ *
+ * 取哪两段:走 `assistant` 那一族(`primary` → `secondary`,青 → 蓝)。理由有两条:
+ *   · 它是**语义色**,不是随手挑的渐变 —— 侧栏根卡与标签栏导轨本来就不承载语义,
+ *     借一族语义色板比再造第三套常量更省事;
+ *   · 青 → 蓝是本仓库出现频率最高的一对(助手气泡卡的描边就是它,见 semanticStops 的注释),
+ *     收窄之后屏幕上仍然是那条认得出的青蓝坡,而不是一条陌生的新渐变。
+ *
+ * **节点卡的七种语义色一个都没动**:输入=粉、拆解=紫、工具=青、编辑=琥珀、回复/结束=绿
+ * 仍然各走各的 `semanticStops`,见 roleOf。本函数只管「一直在动的那几块」。
+ */
+export function calmStops(theme: Theme): readonly RGBA[] {
+  return semanticStops(theme, "assistant")
+}
+
 // 矩形周长格子,按「上(左→右) → 右(上→下) → 下(右→左) → 左(下→上)」顺序连续一圈,
 // t 是该格在整圈上的归一化进度 —— NeonBox 用它把渐变色沿边框绕一圈。
 export function perimeterCells(width: number, height: number): BorderCell[] {

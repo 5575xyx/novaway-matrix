@@ -128,13 +128,48 @@ export function phaseStep(animated: boolean) {
 }
 
 // 扫光窗口(周长归一化进度为单位):相位头后方这一小段边框被向白色提亮,
-// 峰值在头部、线性衰减到窗口尾。窗口占一圈的 12%。
+// 峰值在头部、线性衰减到窗口尾。窗口占一圈的 **5%**。
+//
 // 折成格数:周长 = 2×宽 + 2×(高−2)(perimeterCells 的四段循环各画一遍),
-// 120 列 × 4 行的输入卡 = 2×120 + 2×2 = 244 格,12% ≈ 29 格 ——
-// 视觉上是一道窄高光,不是半张脸的白。
-const SWEEP_WIDTH = 0.12
-// 头部最大提亮量:向白插值 55%。
-const SWEEP_STRENGTH = 0.55
+// 120 列 × 4 行的输入卡 = 2×120 + 2×2 = 244 格,5% ≈ 12 格 ——
+// 一道窄高光,不是半张脸的白。**5% 不是 12%**:用户反馈「聚焦时那道白带像探照灯」,
+// 12% 在输入卡上是约 29 格、在会话页那张 120 列的气泡卡上是几十格,横着扫过去时
+// 整条边会亮一整段。与峰值那一档一起收窄(见 SWEEP_STRENGTH),效果是「亮一下」。
+// 亮一下,不是一道白光扫过整圈。这两条断言把量级钉住。
+export const SWEEP_WIDTH = 0.05
+
+// 头部最大提亮量:向白插值 **30%**。
+//
+// 原型那边最接近的是 `.card:hover` 的外发光 `0 0 26px rgba(255,92,158,.14)` —— 14%。
+// 终端没有 box-shadow、没有外发光,「亮一点」只能落在描边色自己身上(见 ui/neon 的 NEON_WHITE),
+// 所以取 30%:比原型那一档强一档还多,肉眼明确看得出「这里被点亮了」,又不再是一道白光。
+// 收窄之前的 55% 是照着「亮得很清楚」调的,叠色之后(0.62 的 alpha)基准亮度只有约 1.24,
+// 55% 一插把三通道之和从 1.24 顶到 2.21 —— **越过了色板自身的亮度上沿**,于是那一道
+// 读起来像「比这条边本身更亮的别的东西」,而不是「这条边被照了一下」。
+export const SWEEP_STRENGTH = 0.3
+
+/**
+ * 相位推进期间的「色带漂移窗口」。色板只在这中间一段(1 − FLOW_TRAVEL 那一档之外)来回走,
+ * 不再把整条色板扫一遍。
+ *
+ * 为什么需要它:色相跨度是「这条边上一共出现了多少种颜色」的直接度量,而本仓库最宽的一条
+ * 色板是 `tool` / `input` 用的全段霓虹 —— 默认深色主题下 #00e5ff → #4d7cff → #ff2d7b,
+ * 色相 186° → 338°(跨度 152°)。悬停时整圈描边把这一整条走一遍,于是**七种节点语义之外
+ * 又多了一层「它现在是第几种颜色」的噪声**,而这层噪声不携带任何信息。
+ *
+ * 收窄成 0.6 之后,最宽的那条色板在流动时只露出约 **91°**(152° × 0.6),最窄的
+ * (用户粉紫 114°)露出约 68° —— 都落在「同色系里漂移」的量级。
+ *
+ * **只在相位推进期间生效**(`animated` 或 `flow` 为真)。`phase === 0` 的静止卡走的仍是
+ * `gradientAt(stops, cell.t)`,逐格铺满整条色板 —— test/ui/card.test.ts 的静止态回归与
+ * card-flow 的亮度区间断言都靠这一条。
+ */
+export const FLOW_TRAVEL = 0.6
+
+/** 把色板进度压进「中间那一段」:`0.5 + (t − 0.5) × travel`。`travel = 1` 是恒等。 */
+export function travelAt(t: number, travel = FLOW_TRAVEL) {
+  return 0.5 + (t - 0.5) * travel
+}
 
 /**
  * 顶部光晕:上边框那一行额外朝一个方向推 TOP_EDGE_GLOW。
@@ -562,6 +597,9 @@ export class NeonBoxRenderable extends BoxRenderable {
     // phase 只增不减:动画过后失焦会停在最后一格(而不是跳回起点),所以「逐格等于
     // gradientAt(stops, t)」这条只对从未动画过的卡片成立。
     const phase = this.phase / PHASE_STEPS
+    // 相位推进期间的色带漂移窗口。静止卡(phase 从未离开过 0)走的是上面那个 `cell.t` 分支,
+    // 完全不受这一档影响 —— 见 FLOW_TRAVEL 的注释。
+    const travel = this.animating || this.flowing ? FLOW_TRAVEL : 1
     // 入场淡入的门控只有一级:enterDelay 没传 → k = 1(终态,下方短路,静止卡的逐格色不受影响)。
     // **没有第二道「起点色拿不到」的判据** —— from 在这里永远是个 RGBA,拿不到的情况不存在:
     // opentui 的 Renderable 默认 backgroundColor 就是 "transparent"
@@ -594,7 +632,7 @@ export class NeonBoxRenderable extends BoxRenderable {
       const x = originX + cell.x
       const y = originY + cell.y
       if (x < clip.x || x >= clip.right || y < clip.y || y >= clip.bottom) continue
-      const gradient = gradientAt(stops, this.phase === 0 ? cell.t : (cell.t + phase) % 1)
+      const gradient = gradientAt(stops, this.phase === 0 ? cell.t : travelAt((cell.t + phase) % 1, travel))
       // 顺序是「渐变 → 叠色柔边 → 顶部光晕 → 悬停抬对比 → 入场淡入 → 扫光 → 祖先 opacity」:
       //   叠色紧跟渐变,因为它改的是**描边本身**:原型那一圈描边本来就是半透明的,
       //     后面几层(悬停光晕、扫光、入场)都加在「已经折算过的那一圈」上,不是加在纯渐变上;

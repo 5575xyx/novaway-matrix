@@ -4,7 +4,7 @@ import { testRender } from "@opentui/solid"
 import { RGBA, type CapturedFrame } from "@opentui/core"
 import { SidebarCard } from "../../src/component/sidebar-card"
 import { NeonCard, BlockTool } from "../../src/routes/session"
-import { brighten, HOVER_BOOST, semanticStops } from "../../src/ui/neon"
+import { alphaOver, BORDER_ALPHA_DEFAULT, brighten, HOVER_BOOST, semanticStops } from "../../src/ui/neon"
 import { resolveTheme, type ThemeJson } from "../../src/theme"
 import novaway from "../../src/theme/assets/novaway.json" with { type: "json" }
 import { ThemeReady, ThemeTestProviders } from "../fixture/providers"
@@ -117,8 +117,20 @@ function brightness(cell: { r: number; g: number; b: number }) {
 }
 
 // ThemeTestProviders 固定 mode="dark" 且默认主题就是 novaway,所以助手卡的色板可以直接
-// 解析出来取它的亮度上沿(见下面助手卡那条测试的用法)。
-const RAMP_CEILING = Math.max(...semanticStops(resolveTheme(novaway as ThemeJson, "dark"), "assistant").map(brightness))
+// 解析出来取它的**柔边之后**的亮度上沿(见下面助手卡那条测试的用法)。
+//
+// 为什么是柔边之后的值而不是纯色板:上沿原来取的是纯色板(#00e5ff 三通道和 1.898),
+// 扫光要越过它得插 55% —— 那正是「探照灯」那一档。扫光收到 30% 之后峰值落在 1.79,
+// 已经**不再越过纯色板**,于是「越过色板上沿」这个判据失效了。改用柔边之后的上沿:
+//   · 相位平移只能在这一族色板折算出来的亮度区间里取值(+ 顶边光晕 6%),越不过它;
+//   · 扫光向白插 30% 一定越得过它。
+// 两件事仍然互不冒名,而门槛从「纯色板上沿 + 0.2」换成「柔边上沿 + 0.3」后余量更稳。
+const ASSISTANT_THEME = resolveTheme(novaway as ThemeJson, "dark")
+const RAMP_CEILING = Math.max(
+  ...semanticStops(ASSISTANT_THEME, "assistant").map((stop) =>
+    brightness(alphaOver(stop, ASSISTANT_THEME.background, BORDER_ALPHA_DEFAULT)),
+  ),
+)
 
 // TestRendererSetup 只在 @opentui/core/testing 里导出,这里从 testRender 的返回值推。
 type Harness = Awaited<ReturnType<typeof testRender>>
@@ -295,8 +307,9 @@ test("助手气泡卡:悬停期间有扫光扫过这一格,移开后不再有", 
       await app.renderOnce()
       samples.push(brightness(borderCell(app)))
     }
-    // 扫光峰值提亮 55%,8bit 量化下这一格至少 +0.3 亮度 —— 用 0.2 的门槛足够稳。
-    expect(Math.max(...samples)).toBeGreaterThan(RAMP_CEILING + 0.2)
+    // 扫光向白插 30%(见 ui/card 的 SWEEP_STRENGTH):峰值越不过**纯**色板的上沿,但一定越过
+    // 柔边之后那一档 —— 相位平移永远走不出后者的区间。余量 0.3,实测高 0.5 上下。
+    expect(Math.max(...samples)).toBeGreaterThan(RAMP_CEILING + 0.3)
 
     await offCard(app)
     await app.renderOnce()
@@ -304,8 +317,10 @@ test("助手气泡卡:悬停期间有扫光扫过这一格,移开后不再有", 
     await app.renderOnce()
     await new Promise((resolve) => setTimeout(resolve, PHASE_WAIT))
     await app.renderOnce()
-    // 移开后没有扫光,这一格落在色板自身的亮度区间里(相位冻结在哪一格就取哪一格的值)。
-    expect(brightness(borderCell(app))).toBeLessThan(RAMP_CEILING + 0.05)
+    // 移开后没有扫光,这一格落回色板折算后的亮度区间里(相位冻结在哪一格就取哪一格的值)。
+    // 门槛比原来还紧一档:原来是「纯色板上沿 + 0.05」,现在是「柔边上沿 + 0.2」——
+    // 后者才是真的「扫光不在了」。
+    expect(brightness(borderCell(app))).toBeLessThan(RAMP_CEILING + 0.2)
   } finally {
     app.renderer.destroy()
   }

@@ -4,7 +4,7 @@ import { useTheme } from "../context/theme"
 import { useKV } from "../context/kv"
 import { icon } from "../util/panel-icons"
 import { Locale } from "../util/locale"
-import { neonStops } from "../ui/neon"
+import { calmStops } from "../ui/neon"
 import { NeonRail } from "./neon-rail"
 
 export type TabItem = {
@@ -138,8 +138,13 @@ export function TabBar(props: TabBarProps) {
           只是这条导轨永远是一条静止的渐变 —— 而原型那边是
           `.titlebar::after { animation: railFlow 7s linear infinite }`(card-design-v7.html:85-91),
           一直流着。这是两条常驻轨里的一条(另一条是侧栏右缘 `railV 9s`,见 routes/session/sidebar
-          那个 `flow=`);面板卡与分区卡不在这一档,它们只在悬停时流。 */}
-      <NeonRail stops={neonStops(theme)} animated={kv.get("animations_enabled", true)} />
+          那个 `flow=`);面板卡与分区卡不在这一档,它们只在悬停时流。
+
+          stops 走 `calmStops`(两段青蓝)而不是 `neonStops`(三段全霓虹):用户反馈这条导轨
+          「粉→紫→青一整条彩虹在跑」。原型的 `.titlebar::after` 是 2px 高 + `opacity:.85` 的一行,
+          终端的一行没有「2px + 85% 不透明度」可退,只能靠收窄色相跨度还原那份克制 ——
+          152° 收到 38°,理由与取值见 ui/neon 的 calmStops。相位节奏不动(仍是一圈 8 秒)。 */}
+      <NeonRail stops={calmStops(theme)} animated={kv.get("animations_enabled", true)} />
     </box>
   )
 }
