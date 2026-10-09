@@ -556,10 +556,16 @@ cd packages/tui && git add src/component/git-workspace/confirm.ts test/component
 创建 `packages/tui/test/component/git-workspace-state.test.ts`。这里只测**纯逻辑**（派生函数），不起真实 git 进程 —— 起进程慢且依赖环境。
 
 ```ts
-import { expect, test } from "bun:test"
+import { afterAll, expect, test } from "bun:test"
+import { execFile } from "node:child_process"
+import { promisify } from "node:util"
+import fs from "fs"
+import os from "os"
+import path from "path"
 import {
   deriveFileRows,
   deriveStatusRows,
+  loadWorkspace,
   pickDefaultRemote,
 } from "../../src/component/git-workspace/state"
 import type { GitNumstatEntry, GitRemote, GitStatusSummary } from "../../src/util/git-status"
@@ -639,7 +645,7 @@ test("deriveStatusRows 没有远端时显示未配置远端", () => {
 })
 
 test("deriveStatusRows 提示行区分干净/有改动/不在仓库", () => {
-  expect(deriveStatusRows(status, [], []).find((r) => r.kind === "hint")?.detail).toBe("有未提交改动")
+  expect(deriveStatusRows(status, [], []).find((r) => r.kind === "hint")?.detail).toBe("有未提交的改动")
   expect(deriveStatusRows({ ...status, entries: [] }, [], []).find((r) => r.kind === "hint")?.detail).toBe(
     "工作区干净",
   )
@@ -651,6 +657,49 @@ test("deriveStatusRows 提示行区分干净/有改动/不在仓库", () => {
 test("deriveStatusRows git 报错时提示行透出真实原因,不猜成不是仓库", () => {
   const rows = deriveStatusRows(status, [], [], undefined, "git 执行超时")
   expect(rows.find((r) => r.kind === "hint")?.detail).toBe("git 执行超时")
+})
+
+test("已暂存但工作区干净的文件也算有改动", () => {
+  // 只看 unstaged 位会漏掉 `git add` 之后的文件 —— 那时「变更」行说「1 个文件」,
+  // 「提示」行却说「工作区干净」,同一个面板自相矛盾。
+  const stagedOnly: GitStatusSummary = {
+    branch: "main",
+    ahead: 0,
+    behind: 0,
+    entries: [{ file: "a.ts", code: "A ", status: "added", staged: true, unstaged: false }],
+  }
+  expect(deriveStatusRows(stagedOnly, [], []).find((r) => r.kind === "hint")?.detail).toBe("有未提交的改动")
+})
+
+test("分支与远程分叉时提示 diverged,且排在有改动之前", () => {
+  // push 会被拒、pull 会冲突 —— 这是阻塞态,比「有未提交改动」更该先被看见。
+  const rows = deriveStatusRows({ ...status, entries: [], ahead: 2, behind: 5 }, [], [])
+  expect(rows.find((r) => r.kind === "hint")?.detail).toBe("分支与远程 diverged")
+})
+
+test("空仓库与 detached 都算不在分支上,不把 git 原文串进中文界面", () => {
+  const empty: GitStatusSummary = { branch: "No commits yet on main", ahead: 0, behind: 0, entries: [] }
+  expect(deriveStatusRows(empty, [], []).find((r) => r.kind === "branch")?.detail).toBe("(不在分支上)")
+  expect(deriveStatusRows(empty, [], []).find((r) => r.kind === "hint")?.detail).toBe("不是 git 仓库")
+
+  const detached: GitStatusSummary = { branch: "(HEAD detached at 9a191fb)", ahead: 0, behind: 0, entries: [] }
+  expect(deriveStatusRows(detached, [], []).find((r) => r.kind === "branch")?.detail).toBe("(不在分支上)")
+})
+
+test("deriveFileRows 同文件两份 numstat 取工作区侧", () => {
+  // 「工作区改了 + 暂存区也改了」的文件在 numstat 里有两份。工作区一文件一行,
+  // 只能取一份 —— concat 顺序是暂存区在前、工作区在后,Map 后者覆盖前者,所以取到工作区侧。
+  const both: GitStatusSummary = {
+    branch: "main",
+    ahead: 0,
+    behind: 0,
+    entries: [{ file: "m.ts", code: "MM", status: "modified", staged: true, unstaged: true }],
+  }
+  const twoNumstat: GitNumstatEntry[] = [
+    { file: "m.ts", added: 10, removed: 2, binary: false },
+    { file: "m.ts", added: 5, removed: 3, binary: false },
+  ]
+  expect(deriveFileRows(both, twoNumstat)[0]?.count).toBe("+5 -3")
 })
 
 test("deriveFileRows 每个文件一行,带中文状态词与加删行数", () => {
@@ -678,7 +727,66 @@ test("deriveFileRows 新增/删除/重命名也用中文", () => {
   }
   expect(deriveFileRows(s, []).map((r) => r.label)).toEqual(["新增", "删除", "重命名"])
 })
+
+// 下面两个起真 git 子进程,所以造真目录 —— 口径照抄 test/component/git-branch-row.test.tsx:
+// 「面板自己起真 git 子进程,所以测试直接造一个真仓库 —— 造不出来的那一档就该红」。
+// loadWorkspace 是本任务唯一的非纯函数,不钉住它,「status 硬依赖、其余各自降级」
+// 这条核心设计声明就只是写在注释里的一句话。
+
+const tmpDirs: string[] = []
+function tmpGitDir(prefix: string): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix))
+  tmpDirs.push(dir)
+  return dir
+}
+
+afterAll(() => {
+  for (const dir of tmpDirs) fs.rmSync(dir, { recursive: true, force: true })
+  tmpDirs.length = 0
+})
+
+const exec = promisify(execFile)
+const git = (root: string, args: string[]) =>
+  exec("git", ["-c", "user.email=tui@example.com", "-c", "user.name=tui", ...args], { cwd: root })
+
+test("loadWorkspace 非仓库目录:error 透出中文,不露 git 英文原文", async () => {
+  const data = await loadWorkspace(tmpGitDir("nw-ws-norepo-"))
+  expect(data.error).toBe("不是 git 仓库")
+  expect(data.branches).toEqual([])
+  expect(data.commits).toEqual([])
+  expect(data.remotes).toEqual([])
+  // 提示行直接吃这个 error,不该再猜一遍成别的文案。
+  const hint = deriveStatusRows(data.status, data.numstat, data.remotes, undefined, data.error).find(
+    (r) => r.kind === "hint",
+  )
+  expect(hint?.detail).toBe("不是 git 仓库")
+})
+
+test("loadWorkspace 空仓库:无提交、不报错、分支不当成真分支名", async () => {
+  // 新仓库里 `git log` 必失败(还没有任何提交)—— 这正是「status 硬依赖、其余各自降级」
+  // 要覆盖的路径:log 挂了不该让整个工作区白屏。
+  const dir = tmpGitDir("nw-ws-empty-")
+  await git(dir, ["init", "-b", "main"])
+  const data = await loadWorkspace(dir)
+  expect(data.error).toBeUndefined()
+  expect(data.commits).toEqual([])
+  expect(data.stash).toEqual([])
+  // git 不用 `git branch` 列未出生的分支 —— 空仓库里分支面板就是空的,这是真实行为,
+  // 不是解析漏了。状态行的「分支」才是此刻唯一能看到 main 的地方。
+  expect(data.branches).toEqual([])
+  // git 在空仓库里把分支行报成 `No commits yet on main`,不是 `main`。
+  // 原文进中文界面是噪音,派生后应落到「(不在分支上)」。
+  expect(data.status.branch).toBe("No commits yet on main")
+  const branch = deriveStatusRows(data.status, data.numstat, data.remotes, undefined, data.error).find(
+    (r) => r.kind === "branch",
+  )
+  expect(branch?.detail).toBe("(不在分支上)")
+})
 ```
+
+> **两个实测发现**(写这段计划时没料到,落地时才暴露):①空仓库里 `git status -b` 报的分支是
+> `No commits yet on main` 而不是 `main` —— 这正是 `inRepo` 要挡的那类串;②空仓库里
+> `git branch` 返回**空列表**,分支面板此时看不到 `main`。两条都是真实 git 行为,测试按实测断言。
 
 - [ ] **Step 2: 跑测试确认失败**
 
@@ -764,7 +872,22 @@ export function loadWorkspace(rootPath: string): Promise<WorkspaceData> {
         remotes: parseGitRemotes(remoteOut.stdout),
       })),
     )
-    .catch((e: unknown) => emptyWorkspace(e instanceof Error ? e.message : String(e)))
+    .catch((e: unknown) => emptyWorkspace(hintFromError(e)))
+}
+
+/**
+ * git 报错 → 状态面板「提示」行的文案。
+ *
+ * 不能把 git 的原始英文串直接怼进中文界面 —— 用户在一个非仓库目录打开工作区时,
+ * 看到 `fatal: not a git repository (or any of the parent directories): .git` 是纯噪音。
+ * 但也不能一律猜成「不是 git 仓库」:超时、权限不足都可能让 status 失败,那两种情况下
+ * 猜错比透出原文更坏。所以只认已知串给中文,其余统一说「git 执行失败」——
+ * 不把原始英文串怼进中文界面,也免得一条超长的 fatal 串撑破状态行的布局。
+ * 规则照抄自 git-panel.tsx:253 的既有形态。
+ */
+function hintFromError(e: unknown): string {
+  const message = e instanceof Error ? e.message : String(e)
+  return message.includes("not a git repository") ? "不是 git 仓库" : "git 执行失败"
 }
 
 export function emptyWorkspace(error?: string): WorkspaceData {
@@ -816,16 +939,25 @@ export function deriveStatusRows(
   const files = status.entries.length
   const added = numstat.reduce((sum, item) => sum + item.added, 0)
   const removed = numstat.reduce((sum, item) => sum + item.removed, 0)
-  const dirty = status.entries.some((entry) => entry.unstaged)
+  // 「有改动」看的是**有没有条目**,不是工作区位。只看 unstaged 会让「已 git add 但工作区
+  // 干净」的文件不计数 —— 那时「变更」行说「1 个文件」,下面「提示」行却说「工作区干净」,
+  // 同一个面板自相矛盾。已暂存未提交当然算未提交。
+  const dirty = files > 0
   const remote = selectedRemote ?? pickDefaultRemote(remotes)
   // branch 为空意味着 `git status` 没给出分支行 —— 要么不在仓库里,要么是 detached。
-  const inRepo = status.branch !== undefined && status.branch !== ""
+  // 空仓库的 `No commits yet on main` 和 detached 的 `(HEAD detached at ...)` 不是分支名,
+  // 原样进中文界面也是噪音(判定口径照抄 git-panel.tsx:281-283 的 branchName())。
+  const branch = status.branch ?? ""
+  const inRepo = branch !== "" && !branch.startsWith("No commits yet") && !branch.startsWith("(HEAD detached")
+  // 分叉:两边都有新提交。push 会被拒、pull 会冲突,是必须让用户看见的阻塞态,
+  // 所以排在「有未提交改动」前面 —— 后者只是待办,前者是卡住。
+  const diverged = status.ahead > 0 && status.behind > 0
 
   return [
     {
       kind: "branch",
       label: "分支",
-      detail: inRepo ? status.branch : "(不在分支上)",
+      detail: inRepo ? branch : "(不在分支上)",
       count: trackCount(status.ahead, status.behind),
     },
     { kind: "remote", label: "远程", detail: remote?.name ?? "未配置远端" },
@@ -835,7 +967,7 @@ export function deriveStatusRows(
       label: "提示",
       // error 优先:loadWorkspace 只在 status 命令失败时才带 error,这时「不是 git 仓库」
       // 未必是真因(可能是超时、权限)。把真实原因透出来比猜一个原因好。
-      detail: error ?? (!inRepo ? "不是 git 仓库" : dirty ? "有未提交改动" : "工作区干净"),
+      detail: error ?? (!inRepo ? "不是 git 仓库" : diverged ? "分支与远程 diverged" : dirty ? "有未提交的改动" : "工作区干净"),
     },
   ]
 }
@@ -859,6 +991,9 @@ export interface FileRow {
 }
 
 export function deriveFileRows(status: GitStatusSummary, numstat: GitNumstatEntry[]): FileRow[] {
+  // 同一个文件可能在 numstat 里出现两次(工作区改了、暂存区也改了)。Map 后者覆盖前者,
+  // 而 concat 的顺序是「暂存区在前、工作区在后」—— 所以取到的是**工作区侧**的行数。
+  // 这是取舍:工作区一文件一行,没法同时显示两组数字。要显式说明,免得后来者以为是巧合。
   const byFile = new Map(numstat.map((item) => [item.file, item]))
   return status.entries.map((entry) => {
     const stat = byFile.get(entry.file)
