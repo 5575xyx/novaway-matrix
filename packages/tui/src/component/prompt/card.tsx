@@ -15,14 +15,21 @@ export const INPUT_CARD_ALPHA = 0.45
 // 这里只依赖 useTheme() 与 useKV(),不碰 session/local context,测试能直接挂载真壳量几何 ——
 // 手抄一份 neonbox 到测试里的话,改这里的 padding 不会让任何测试变红。
 //
-// **padding 四边 2 —— 关键在于「padding 格就是边框格」**:NeonBox 把圆角边框画在自己第 0 行/列
-// 与最后一行/列上,所以 padding = 1 时内容紧贴着上下边框,卡内一行留白都没有(用户报的就是
-// 「挤成一团」)。padding ≥ 2 才会真的空出**一整行/列**的呼吸区:内容从第 1 行/列开始,
-// 上边框(第 0 行)与内容之间有第 1 行空着。原型那边是 `padding: 12px 16px`
-// (card-design-v7.html 的 `.prompt`),折到终端正是这个量级。
-// 四边必须一起改(与 NeonCard 的同一条纪律):只改一边会得到「上疏下紧」这种更难看的偏心。
-// 连带后果:卡内可用宽从「卡宽 − 2」变成「卡宽 − 4」,整行多两行 ——
-// 列宽账见下面的 MODEL_CHIP_MARGIN,提示行的门槛见 HINT_ROW_MIN_WIDTH。
+// **上下不对称,是有意的**:顶部 padding=2 留一行呼吸区,底部 padding=1 让最后一行紧贴下边框。
+//
+// 「padding 格就是边框格」这条没变:NeonBox 把圆角边框画在自己第 0 行/列与最后一行/列上,
+// 所以 padding = 1 时内容与边框之间一行留白都没有,padding = 2 才空得出一整行。
+// 顶部必须是 2 —— 内容从边框下一行开始,紧贴着读起来就是「挤成一团」(用户报过)。
+// 底部反过来:这张卡贴在屏幕最底下,最后一行之下再空一行,那行空白在卡里、在屏幕上都
+// 没有任何内容对齐它,读起来就是「卡里多了一行没用的东西」(用户报的「底部还有空行」)。
+// 于是底部收到 1,最后一行直接压在下边框上。
+//
+// 原型那边是 `padding: 12px 16px`(card-design-v7.html 的 `.prompt`),四边对称 —— 但浏览器里
+// 12px 折不满一个终端行,而终端里「一行」是最小单位,对称就只能在「上疏下紧」与「上紧下疏」
+// 二选一。选上疏下紧。
+//
+// 连带后果只在**左右**:卡内可用宽仍是「卡宽 − 4」,列宽账见下面的 MODEL_CHIP_MARGIN,
+// 提示行的门槛见 HINT_ROW_MIN_WIDTH。纵向不影响任何宽度预算。
 //
 // **卡内是四行**(按这个顺序摆进来,摆法见 component/prompt/index.tsx 与本文件的 PromptBottomRow):
 //   1. 输入行 —— 只有 ">" 提示符 + 输入框,这一行什么都不混(用户原话:「显示在输入的最底下」);
@@ -59,7 +66,9 @@ export function PromptCard(props: { focused: boolean; visible?: boolean; childre
       // 透明卡:叠色底一路往上到 app 根盒子的 theme.background。
       borderBackdrop={theme.background}
       paddingTop={2}
-      paddingBottom={2}
+      // 1:最后一行紧贴下边框 —— 底部那行空白没有任何内容对齐它,读起来像卡里多了一行。
+      // 与顶部的 2 不对称,理由见文件头那段注释。
+      paddingBottom={1}
       paddingLeft={2}
       paddingRight={2}
       width="100%"

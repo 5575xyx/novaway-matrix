@@ -372,8 +372,8 @@ test("输入卡:多行输入把卡片撑高,呼吸行/底部行/提示行依次�
     expect(bottom).toBe(last + 2)
     // 提示行紧跟底部行,没有被顶到别处
     expect(hints).toBe(bottom + 1)
-    // 下边框前还空着 paddingBottom 那一行
-    expect(border).toBe(hints + 2)
+    // 底部 padding=1:提示行之下直接就是下边框,不留空白行(用户报过「底部还有空行」)。
+    expect(border).toBe(hints + 1)
   } finally {
     app.renderer.destroy()
   }
@@ -476,10 +476,10 @@ test("输入卡:80 列下 meta 被裁掉右半,底部行仍只有一行且发送
   expect(row.indexOf("build-agent-with-a-long-name")).toBe(0)
   expect(row).toContain("◆ big-pickle")
   expect(row.endsWith(`发送 ${submit}`), `底部行:${raw}`).toBe(true)
-  // 底部行没有被折行:提示行紧跟它下面一行,再空一行才是下边框
-  // (NeonBox 把下边框画在自己最后一行,PromptCard 的 paddingBottom=2)。
+  // 底部行没有被折行:提示行紧跟它下面一行,下边框再紧跟提示行
+  // (NeonBox 把下边框画在自己最后一行,PromptCard 的 paddingBottom=1 —— 底部不留空白行)。
   expect(hints).toBe(bottom + 1)
-  expect(border).toBe(hints + 2)
+  expect(border).toBe(hints + 1)
 })
 
 test("输入卡:60 列下底部行仍只有一行", async () => {
@@ -490,7 +490,7 @@ test("输入卡:60 列下底部行仍只有一行", async () => {
   expect(row).toContain("◆ big-pickle")
   expect(row.endsWith(`发送 ${submit}`), `底部行:${raw}`).toBe(true)
   expect(hints).toBe(bottom + 1)
-  expect(border).toBe(hints + 2)
+  expect(border).toBe(hints + 1)
 })
 
 // 底部行那一档把「模型名」与「输入框」的宽度预算彻底分开了:输入行只剩 ">" + 输入框,
@@ -545,11 +545,12 @@ for (const { width, modelColumns, inputColumns } of CHIP_CASES) {
       expect(all.findIndex((line) => line.includes("agents"))).toBe(bottomIndex + 1)
       // 「换行」那一档的门槛是 50 列(见 component/prompt/card 的 HINT_ROW_MIN_WIDTH)。
       expect(all.some((line) => line.includes("换行"))).toBe(width >= 50)
-      // 四边留白:正文行不挨着上下边框。
+      // 顶部留白:正文行不挨着上边框。底部反过来 —— 提示行之后直接就是下边框
+      // (paddingBottom=1,底部不留空白行,理由见 component/prompt/card 的文件头注释)。
       const top = all.findIndex((line) => line.includes("╭"))
       const border = all.findIndex((line) => line.includes("╯"))
       expect(inputIndex).toBe(top + 2)
-      expect(border).toBe(bottomIndex + 3)
+      expect(border).toBe(bottomIndex + 2)
     } finally {
       app.renderer.destroy()
     }
@@ -584,7 +585,7 @@ test("输入卡:40 列下放不下完整键位组,整条丢掉「换行」而不
 // 用户报的是「输入卡下面空了一行」—— 那一行原本是卡外的一条状态行,只带一个右对齐的
 // `77.1K`。折进底部行之后输入卡底下什么都不剩,所以这张壳的行数必须与折进去之前**完全一样**:
 // 底部行仍然只占一行(usage 是同一行里的一段,不是新起的一行)、提示行紧跟它、下边框仍是
-// hints + 2(提示行 + 一行 paddingBottom 留白 + 边框行)。多出一行就等于把那条空行搬进卡里,
+// hints + 1(提示行 + 下边框行 —— 底部 padding=1,不留空白行)。多出一行就等于把那条空行搬进卡里,
 // 那还是同一个问题。
 const USAGE = () => <text wrapMode="none">77.1K</text>
 
@@ -625,9 +626,9 @@ for (const width of [40, 60, 80, 120]) {
         expect(figure).toBe(bottom)
         expect(figure).toBeLessThan(border)
       }
-      // 四行结构没变:底部行 → 提示行 →(paddingBottom 留白)→ 下边框。
+      // 四行结构没变:底部行 → 提示行 → 下边框(底部 padding=1,不留空白行)。
       expect(hints).toBe(bottom + 1)
-      expect(border).toBe(hints + 2)
+      expect(border).toBe(hints + 1)
       // 发送按钮贴行尾、没被折到下一行。
       expect(bare(all[bottom]!).endsWith(`发送 ${expectedShortcut("input.submit")}`)).toBe(true)
     } finally {
