@@ -5,7 +5,7 @@
 //
 // 内容 = git show 的元信息(hash / 作者 / 日期 / 主题)+ --stat 文件清单。不带补丁正文:
 // 那一档交给 GitDiffView(点提交里那个文件名走的是它,见 git-panel 的 FileRow)。
-import { createSignal, For, onMount, Show } from "solid-js"
+import { createEffect, createSignal, For, Show } from "solid-js"
 import { useTheme } from "../context/theme"
 import { gitExec } from "../util/git-exec"
 import { Locale } from "../util/locale"
@@ -54,7 +54,10 @@ export function GitCommitView(props: GitCommitViewProps) {
     }
   }
 
-  onMount(() => void load())
+  // createEffect 而不是 onMount:rootPath 来自 session()?.directory,标签页刚开出来时
+  // 会话可能还没就绪。onMount 只跑一次、那次拿到 undefined 就永久空白;跟着响应才会在
+  // 目录到位后再去 show。(load 在任何 await 之前就读 props.rootPath,所以它是被追踪的。)
+  createEffect(() => void load())
 
   // 元信息第 1 行是「hash  作者  日期」、第 2 行是主题 —— 这两行单独着色,其余按原文。
   const head = () => meta()[0] ?? ""
@@ -70,7 +73,17 @@ export function GitCommitView(props: GitCommitViewProps) {
           [X] 关闭
         </text>
       </box>
-      <Show when={error()} fallback={<text fg={theme.error}>{error()}</text>}>
+      {/* `when` 是「什么时候画**正文**」,不是「什么时候画错误」。
+          写成 `when={error()}` 会正好反着来:error 为空串(正常)时 when 为假 →
+          画 fallback(也就是那句错误文案,空串)→ 整块一片空白。上一版就是这么错的。 */}
+      <Show
+        when={!error()}
+        fallback={
+          <text fg={theme.error} wrapMode="none">
+            {Locale.oneLine(error(), 200)}
+          </text>
+        }
+      >
         <text fg={theme.textMuted} wrapMode="none">
           {Locale.oneLine(head(), 120)}
         </text>
