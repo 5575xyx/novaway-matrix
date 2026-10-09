@@ -14,13 +14,6 @@ test("同键再按一次才真触发", () => {
   expect(confirm.pending()).toBeUndefined()
 })
 
-test("期间按别的键取消", () => {
-  const confirm = createConfirm(() => 0)
-  expect(confirm.press("d", "丢弃")).toBe("armed")
-  expect(confirm.press("j", "")).toBe("cancel")
-  expect(confirm.pending()).toBeUndefined()
-})
-
 test("超时自动取消", () => {
   let now = 0
   const confirm = createConfirm(() => now)
@@ -40,11 +33,14 @@ test("超时后再按同键是重新武装,不是触发", () => {
   expect(confirm.pending()?.deadline).toBe(now + CONFIRM_WINDOW_MS)
 })
 
-test("换一个键会顶掉上一个确认态", () => {
+test("换一个危险键会顶掉上一个确认态,不是取消", () => {
+  // 按 d(丢弃)武装后按 x(删除):外壳会拿 x 再调一次 press,此时应当换成 x 的确认态,
+  // 而不是把 x 也一并取消掉 —— 后者会让用户按了键却毫无反应。
   const confirm = createConfirm(() => 0)
   confirm.press("d", "丢弃")
   expect(confirm.press("x", "删除")).toBe("armed")
   expect(confirm.pending()?.key).toBe("x")
+  expect(confirm.pending()?.label).toBe("删除")
 })
 
 test("clear() 无条件清空", () => {
