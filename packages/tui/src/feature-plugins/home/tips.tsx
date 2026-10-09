@@ -26,7 +26,11 @@ function View(props: { api: TuiPluginApi; hidden: boolean; show: boolean; connec
   return (
     // 提示区现在紧贴输入框上方(输入框贴底),不再需要原来那 3 行下推留白。
     // maxWidth=75 就是提示卡的容器宽(tips-view 里 TIP_BAR_MAX 与它同一个数)。
-    <box width="100%" maxWidth={75} alignItems="center" paddingTop={1} flexShrink={1}>
+    //
+    // alignSelf="center":这一层要自己在父盒子(消息区那一列)里居中。只写 alignItems="center"
+    // 居中的是**它自己的子元素**(卡在 75 列的带子里居中),带子本身仍贴在最左边 ——
+    // 于是卡看起来偏左。两层居中叠起来,卡才真正落在屏幕中间。
+    <box width="100%" maxWidth={75} alignItems="center" alignSelf="center" paddingTop={1} flexShrink={1}>
       <Show when={props.show}>
         <Tips
           api={props.api}
