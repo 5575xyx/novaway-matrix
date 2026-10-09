@@ -4,7 +4,7 @@ import { promisify } from "node:util"
 import fs from "fs"
 import os from "os"
 import path from "path"
-import { loadFilePatch, untrackedPatch } from "../../src/util/git-diff"
+import { loadCommitPatch, loadFilePatch, untrackedPatch } from "../../src/util/git-diff"
 
 test("untrackedPatch 对不存在的文件返回空串", () => {
   expect(untrackedPatch("nonexistent-file-for-test.ts", process.cwd())).toBe("")
@@ -56,4 +56,29 @@ test("loadFilePatch 已跟踪文件走真 git diff", async () => {
   expect(patch).toContain("-原样")
   expect(patch).toContain("+改过")
   expect(patch).not.toContain("new file mode")
+})
+
+test("loadFilePatch 非 HEAD 错误照样上抛,不静默降级成合成补丁", async () => {
+  // loadFilePatch 只该吞「仓库还没有 HEAD」这一种失败。别的错误(不在仓库里、超时、
+  // 权限)必须往上抛,否则组件永远显示不出错误,用户看到的是一份凭空合成的补丁。
+  // 这条钉住的是两回调写法里的 `throw e` —— 改成 `.catch(() => untrackedPatch(...))` 就会红。
+  //
+  // 注意非仓库目录里 git 报的是 `Could not access 'HEAD'`(不是 `not a git repository`),
+  // 正因为它不含 isMissingHead 认的那两个串,错误才会被正确上抛。
+  const dir = tmpGitDir("nw-diff-norepo-")
+  await expect(loadFilePatch(dir, "any.txt")).rejects.toThrow(/Could not access 'HEAD'/)
+})
+
+test("loadCommitPatch 只输出 diff 正文,不带提交说明", async () => {
+  // git show 默认会把提交信息也打出来。`--format=` 是为了让差异面板只拿到补丁。
+  const dir = tmpGitDir("nw-diff-commit-")
+  await git(dir, ["init", "-b", "main"])
+  fs.writeFileSync(path.join(dir, "a.txt"), "第一版\n")
+  await git(dir, ["add", "."])
+  await git(dir, ["commit", "-m", "这是提交说明,不该出现在补丁里"])
+  const log = await exec("git", ["log", "-1", "--format=%H"], { cwd: dir })
+  const patch = await loadCommitPatch(dir, log.stdout.trim())
+  expect(patch).toContain("+第一版")
+  expect(patch).not.toContain("这是提交说明")
+  expect(patch).not.toContain("commit ")
 })
