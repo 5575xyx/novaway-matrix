@@ -32,10 +32,13 @@ function View(props: { api: TuiPluginApi; hidden: boolean; show: boolean; connec
           api={props.api}
           connected={props.connected}
           dismissed={props.dismissed}
-          onDismiss={() => {
-            // 「稍后」= 这一条我不想再听。存在 kv 里,所以切路由回来不会立刻又冒出来;
-            // 与 tips_hidden(隐藏全部)是两件事,那个旗标原样留着。
-            props.api.kv.set("tips_dismissed", props.dismissed)
+          // 「稍后」= 这一条我不想再听。存在 kv 里,所以切路由回来不会立刻又冒出来;
+          // 与 tips_hidden(隐藏全部)是另一件事,那个旗标原样留着。
+          //
+          // 存的是**刚点掉的那条**的纯文本,由 Tips 从 tip() 现取后回调过来 —— 这里原先
+          // 存的是 props.dismissed(上一次存的值),首次点击拿到空串,存回去等于没消解。
+          onDismiss={(key) => {
+            props.api.kv.set("tips_dismissed", key)
           }}
         />
       </Show>

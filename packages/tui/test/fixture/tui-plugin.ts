@@ -1,5 +1,6 @@
 import type { TuiPluginApi } from "@opencode/plugin/tui"
 import { RGBA } from "@opentui/core"
+import { formatKeyBindings, formatKeySequence } from "../../src/keymap"
 import { createTuiResolvedConfig } from "./tui-runtime"
 
 type Opts = {
@@ -23,12 +24,21 @@ export function createTuiPluginApi(opts: Opts = {}) {
   const values = new Map<string, unknown>()
   const color = RGBA.fromInts(200, 200, 200)
   const dialog = { clear() {}, replace() {}, setSize() {}, size: "medium" as const, depth: 0, open: false }
+  const tuiConfig = createTuiResolvedConfig()
   return {
     app: { version: opts.version ?? VERSION },
     attention: { notify: async () => ({ ok: false, notification: false, sound: false }), ...opts.attention },
     client: opts.client,
     event: opts.event,
-    keymap: opts.keymap,
+    // keys 形状照 plugin/adapters.tsx 的同名字段。tips-view 的 configShortcut 要经它把键位序列
+    // 折成可读文本,少了它那一整支提示在测试里直接抛,而不是安静地退化成空串。
+    keys: {
+      formatSequence: (parts: never) => formatKeySequence(parts, tuiConfig),
+      formatBindings: (bindings: never) => formatKeyBindings(bindings, tuiConfig),
+    },
+    // parseKeySequence 同样只有 configShortcut 用到。默认给一个返回空序列的桩:调用方拿到空串,
+    // 那几条「按 <键> …」的提示会被筛掉,不影响别的提示进候选池。
+    keymap: opts.keymap ?? ({ parseKeySequence: () => [] } as unknown as TuiPluginApi["keymap"]),
     kv: {
       get(name: string, fallback?: unknown) {
         return values.has(name) ? values.get(name) : fallback
@@ -49,7 +59,7 @@ export function createTuiPluginApi(opts: Opts = {}) {
       ...(opts.state?.path ? { path: opts.state.path } : {}),
     },
     theme: { current: new Proxy({}, { get: () => color }) },
-    tuiConfig: createTuiResolvedConfig(),
+    tuiConfig,
     ui: { dialog },
   } as unknown as TuiPluginApi
 }

@@ -126,7 +126,12 @@ export function Tips(props: {
    * 状态本身由 tips.tsx 存在 api.kv 里(与 tips_hidden 同一个存储),这里不碰。
    */
   dismissed?: string
-  onDismiss?: () => void
+  /**
+   * 「消解掉**这一条**」。参数是当前正在显示的那条提示的纯文本 —— **必须由这里给**,不能由
+   * tips.tsx 那边拿 `props.dismissed` 去存:那个值是**上一次**存下来的,首次点击拿到的是空串,
+   * 存回去等于什么都没消解,卡原地不动(用户报的「点了没有反应」)。
+   */
+  onDismiss?: (key: string) => void
 }) {
   const dimensions = useTerminalDimensions()
   const tipOffset = Math.random()
@@ -209,7 +214,7 @@ export function Tips(props: {
             actions={item().actions}
             width={width()}
             onAction={dispatch}
-            onDismiss={props.onDismiss}
+            onDismiss={() => props.onDismiss?.(tipPlainText(item().text))}
           />
         )}
       </Show>
