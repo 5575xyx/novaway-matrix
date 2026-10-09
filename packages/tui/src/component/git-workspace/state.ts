@@ -78,7 +78,8 @@ export function loadWorkspace(rootPath: string): Promise<WorkspaceData> {
  * 不能把 git 的原始英文串直接怼进中文界面 —— 用户在一个非仓库目录打开工作区时,
  * 看到 `fatal: not a git repository (or any of the parent directories): .git` 是纯噪音。
  * 但也不能一律猜成「不是 git 仓库」:超时、权限不足都可能让 status 失败,那两种情况下
- * 猜错比透出原文更坏。所以只认已知串给中文,其余透出原文。
+ * 猜错比透出原文更坏。所以只认已知串给中文,其余统一说「git 执行失败」——
+ * 不把原始英文串怼进中文界面,也免得一条超长的 fatal 串撑破状态行的布局。
  * 规则照抄自 git-panel.tsx:253 的既有形态。
  */
 function hintFromError(e: unknown): string {
