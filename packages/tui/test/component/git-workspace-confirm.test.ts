@@ -49,3 +49,24 @@ test("clear() 无条件清空", () => {
   confirm.clear()
   expect(confirm.pending()).toBeUndefined()
 })
+
+test("label 是纯展示,不参与状态判定", () => {
+  // 危险性由外壳的 DANGEROUS_COMMANDS 判定,本方法不看 label。有人要是重新加回
+  // 「label 为空就取消」的门控,这条会红 —— 那等于把语义藏进了一句展示文案。
+  const confirm = createConfirm(() => 0)
+  expect(confirm.press("d", "")).toBe("armed")
+  expect(confirm.pending()?.key).toBe("d")
+  // 空 label 的键再按一次同样算同键确认。
+  expect(confirm.press("d", "")).toBe("fire")
+})
+
+test("press 在窗口边界那一刻算过期", () => {
+  // pending() 的 >= 由「超时自动取消」钉住,这里钉 press 里的那一处 —— 两处口径必须一致,
+  // 否则会出现「提示条还在、一按却重新武装」的错位。
+  let now = 0
+  const confirm = createConfirm(() => now)
+  confirm.press("d", "丢弃")
+  now = CONFIRM_WINDOW_MS
+  expect(confirm.press("d", "丢弃")).toBe("armed")
+  expect(confirm.pending()?.deadline).toBe(now + CONFIRM_WINDOW_MS)
+})

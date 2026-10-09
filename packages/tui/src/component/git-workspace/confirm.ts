@@ -31,9 +31,11 @@ export function createConfirm(now: () => number) {
 
   return {
     press(key: string, label: string): ConfirmPressResult {
+      // 时刻只采一次:过期判断和设 deadline 用同一个 t,免得两次采样跨过边界抖出不一致。
+      const t = now()
       // 超时的确认态等同于没有:先把过期的清掉,再判断是不是「同键第二次」。
       // 不先清的话,用户在 4 秒后按同一个 d 会误判成 fire,而那个确认态早就该失效了。
-      if (armed && now() >= armed.deadline) armed = undefined
+      if (armed && t >= armed.deadline) armed = undefined
 
       // 同键第二次 = 确认,执行。到这里 armed 一定还在窗口内。
       if (armed && armed.key === key) {
@@ -43,11 +45,11 @@ export function createConfirm(now: () => number) {
 
       // 没武装,或者换了一条危险命令 —— 都是武装新的那条。换成新的而不是取消掉,
       // 是因为按了 x 却毫无反应比「d 的确认被 x 顶掉」更让人困惑。
-      armed = { key, label, deadline: now() + CONFIRM_WINDOW_MS }
+      armed = { key, label, deadline: t + CONFIRM_WINDOW_MS }
       return "armed"
     },
 
-    /** 当前的确认态;`undefined` 表示没在等确认。渲染层靠它画那行黄色提示。 */
+    /** 当前的确认态;`undefined` 表示没在等确认。渲染层靠它画那行黄色提示。过期即顺手清掉。 */
     pending(): ArmedConfirm | undefined {
       if (armed && now() >= armed.deadline) {
         armed = undefined
