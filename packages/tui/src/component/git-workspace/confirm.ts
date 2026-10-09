@@ -17,11 +17,14 @@ export interface ArmedConfirm {
 
 /**
  * press 的返回值就是状态机的迁移结果:
- *   armed  —— 进入(或重新进入)确认态,什么都没执行
- *   fire   —— 用户在窗口内按了同一个键,调用方**现在**该执行那条危险命令
- *   cancel —— 用户按了别的键,确认态被顶掉了
+ *   armed  —— 进入确认态,或换到另一条危险命令的确认态。什么都没执行。
+ *   fire   —— 用户在窗口内按了**同一个**键,调用方现在该执行那条危险命令。
+ *
+ * 只有两个值,没有「cancel」:外壳只在 `DANGEROUS_COMMANDS.has(command)` 为真时才调本方法,
+ * 非危险键压根走不到这里 —— 它们由外壳直接调 `clear()`。把「这个键危不危险」的判断
+ * 塞进本方法(比如去看 label 是不是空串)是把语义藏进展示文案,迟早出事。
  */
-export type ConfirmPressResult = "armed" | "fire" | "cancel"
+export type ConfirmPressResult = "armed" | "fire"
 
 export function createConfirm(now: () => number) {
   let armed: ArmedConfirm | undefined
@@ -32,19 +35,14 @@ export function createConfirm(now: () => number) {
       // 不先清的话,用户在 4 秒后按同一个 d 会误判成 fire,而那个确认态早就该失效了。
       if (armed && now() >= armed.deadline) armed = undefined
 
-      // label 为空 = 这个键不带危险动作(比如导航键 j)。它没有资格武装确认态,只会把已有的顶掉。
-      // 反过来,label 非空的危险键即使撞上已有确认态也是接管(见「换一个键会顶掉上一个确认态」)。
-      if (label === "") {
-        armed = undefined
-        return "cancel"
-      }
-
-      // 同键第二次:确认态被消费掉,调用方现在就该执行那条危险命令。
-      if (armed?.key === key) {
+      // 同键第二次 = 确认,执行。到这里 armed 一定还在窗口内。
+      if (armed && armed.key === key) {
         armed = undefined
         return "fire"
       }
 
+      // 没武装,或者换了一条危险命令 —— 都是武装新的那条。换成新的而不是取消掉,
+      // 是因为按了 x 却毫无反应比「d 的确认被 x 顶掉」更让人困惑。
       armed = { key, label, deadline: now() + CONFIRM_WINDOW_MS }
       return "armed"
     },
