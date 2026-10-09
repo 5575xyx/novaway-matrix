@@ -90,11 +90,15 @@ const AGENT_COLOR = RGBA.fromHex("#5fd7ff")
  * 宽度上限挂在 MessageAnchor 上而不是气泡自己:原型那一条 `.msg { max-width: 78% }`
  * 管的是**整条消息列**(meta + 气泡),挂在气泡上的话 meta 会被甩在整列的右缘上,
  * 与气泡差出一大截(见下面那条「右缘齐平」)。
+ *
+ * `alignSelf="flex-end"` 与生产一致,而且是**右缘贴面板**的必要条件:没有它,78% 的带子停在左边,
+ * 里面 alignItems="flex-end" 只能把气泡推到带子右缘,屏幕右侧就空出 22% 的死带。
+ * 这两行都是手抄生产的结构,所以 message-anchor.test.tsx 另有一条源码断言钉住它不许漂。
  */
 function userBubbleBody() {
   return () => (
     <box width={WIDTH}>
-      <MessageAnchor messageID="user-1" width="100%" alignItems="flex-end">
+      <MessageAnchor messageID="user-1" alignSelf="flex-end" width="100%" alignItems="flex-end">
         <box alignSelf="stretch" flexShrink={0}>
           <UserMeta created={CREATED} />
         </box>
@@ -177,21 +181,33 @@ test("用户消息:meta 行的右缘与气泡卡的右缘齐平(原型 .msg.user
   //   · 1 列 = 「你」是宽字符,占两列而末列是延续格,`lastInkColumn` 只认字形的第一列。
   // 关键是**它不再是几十列** —— 改回左对齐时这个差是 40 多。
   expect(cardRight - metaRight, "meta 行的右缘").toBe(2)
-  // 右缘是**消息列**的右缘,不是整列的右缘 —— 原型那条 `.msg { max-width: 78% }` 管的是整条消息列。
-  expect(metaRight, "meta 行该贴着消息列的右缘而不是整列右缘").toBe(messageColumns(WIDTH) - 3)
-  expect(metaRight).toBeLessThan(WIDTH - 3)
-  // 反过来钉一次:改回左对齐的话 meta 会从整列左缘起,右边空出一大片 —— 所以左缘也必须靠右。
+  // 右缘是**整列**的右缘 —— 用户那条是右对齐消息,原型 `.msg.user` 的 `align-self: flex-end`
+  // 把整条消息列摆到面板右缘(card-design-v7.html:395),所以两块都贴面板右边框。
+  // 改造前锚点没有 alignSelf,78% 的带子停在左边,于是这里量到的是 messageColumns(WIDTH) − 3,
+  // 而 metaRight < WIDTH − 3 —— 屏幕右侧空出 22% 的死带(用户原话:「右边就右边框对齐」)。
+  expect(metaRight, "meta 行该贴着整列的右缘").toBe(WIDTH - 3)
+  // 上限并没有被取消:带子仍然只有 messageColumns 那么宽,只是被摆到了右边。
+  expect(cardRight - Math.min(...borders.map((line) => firstInkColumn(line))), "气泡卡的宽度").toBeLessThanOrEqual(
+    messageColumns(WIDTH),
+  )
+  // 反过来钉一次:改回左对齐(去掉 alignSelf)的话带子会落回左边,右缘退回 78% 那一列。
+  expect(cardRight, "气泡卡右缘").toBe(WIDTH - 1)
+  // 左缘也必须靠右 —— 否则 meta 会从整列左缘起,右边空出一大片。
   expect(firstInkColumn(meta!), "meta 行的左缘").toBeGreaterThan(messageColumns(WIDTH) / 3)
 })
 
-// 用户气泡与助手卡共用同一个上限(原型的 `.msg` 同时管 user 与 assistant):
-// 两个方向量的是同一个 messageColumns(…),所以这条断言把「一个常数、两条消息」钉住。
-test("用户消息:气泡右缘与助手气泡卡右缘落在同一条列上", async () => {
+// 用户那条的右缘与助手那条的右缘**本来就不在同一条列上**(原型也是如此):
+// `.msg.user` 是 flex-end → 贴面板右缘;`.msg.assistant` 是 flex-start → 受 78% 上限约束。
+// 两者共用的是那个**上限常数**,不是右缘位置 —— 所以这里量的是「上限还在」而不是「齐平」。
+test("用户消息:气泡宽度仍受消息列上限约束(共用的常数,不是共用的右缘)", async () => {
   const lines = await renderFrame(userBubbleBody(), has("USER-BODY", "╯"))
   const borders = lines.filter((line) => line.includes("╭") || line.includes("│") || line.includes("╯"))
   const cardRight = Math.max(...borders.map((line) => lastInkColumn(line)))
-  expect(cardRight).toBe(messageColumns(WIDTH) - 1)
-  expect(cardRight).toBeLessThan(WIDTH - 1)
+  const cardLeft = Math.min(...borders.map((line) => firstInkColumn(line)))
+  // 右缘贴面板
+  expect(cardRight).toBe(WIDTH - 1)
+  // 上限仍在:这条短消息远没到上限,长消息到上限就会停在 messageColumns
+  expect(cardRight - cardLeft + 1).toBeLessThanOrEqual(messageColumns(WIDTH))
 })
 
 // 两条 meta 行摆在一起量:用户那条**右**对齐,助手那条**左**对齐 —— 两个方向都来自原型
