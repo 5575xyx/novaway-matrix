@@ -1,35 +1,12 @@
 // Git 页点文件名打开的"改动差异"标签页:git diff HEAD 的统一补丁直接喂给
 // @opentui/core 的 <diff> 渲染器(和主差异查看器同一套配色/语法高亮)。
-// 未跟踪文件没有 diff 输出,这里合成一份"全新文件"补丁,照样能看到内容。
+// 加载逻辑(含未跟踪文件的合成补丁)在 util/git-diff,与 GitWorkspace 的差异面板共用。
 import { createSignal, onMount, Show } from "solid-js"
 import type { DiffRenderable } from "@opentui/core"
 import { useTheme } from "../context/theme"
 import { useAutoRefresh } from "../util/auto-refresh"
-import { gitExec } from "../util/git-exec"
+import { loadFilePatch } from "../util/git-diff"
 import { Locale } from "../util/locale"
-import { readFileSync, statSync } from "node:fs"
-
-// 合成补丁最多带多少行正文:未跟踪的大文件(构建产物)不把标签页撑爆。
-const SYNTH_DIFF_MAX_LINES = 400
-
-function untrackedPatch(filePath: string, rootPath: string): string {
-  try {
-    if (statSync(filePath).size > 1024 * 1024) return ""
-    const lines = readFileSync(filePath, "utf-8").split("\n")
-    if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop()
-    const shown = lines.slice(0, SYNTH_DIFF_MAX_LINES)
-    return [
-      `diff --git a/${filePath} b/${filePath}`,
-      "new file mode 100644",
-      "--- /dev/null",
-      `+++ b/${filePath}`,
-      `@@ -0,0 +1,${shown.length} @@`,
-      ...shown.map((line) => `+${line}`),
-    ].join("\n")
-  } catch {
-    return ""
-  }
-}
 
 export interface GitDiffViewProps {
   filePath: string
@@ -46,15 +23,7 @@ export function GitDiffView(props: GitDiffViewProps) {
     const cwd = props.rootPath
     if (!cwd) return
     try {
-      // HEAD 对比:已暂存 + 未暂存的改动一起看,和"这次提交会带上什么"一致。
-      const out = await gitExec(cwd, ["diff", "HEAD", "--no-color", "--", props.filePath])
-      const body = out.stdout.trimEnd()
-      if (body) {
-        setPatch(body)
-      } else {
-        // 空 diff 只有两种可能:未跟踪的新文件,或改动已全部提交(内容 == HEAD)。
-        setPatch(untrackedPatch(props.filePath, cwd))
-      }
+      setPatch(await loadFilePatch(cwd, props.filePath))
       setError("")
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
