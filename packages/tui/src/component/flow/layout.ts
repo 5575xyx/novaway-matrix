@@ -508,8 +508,14 @@ export function buildFlowModel(input: {
 
   // 「本轮结束」是**每轮一个**,不是每条助手消息一个:一轮里模型可能来回好几轮工具调用,
   // 中间没有用户输入就不算又一轮。它自己独占一列(它是终点,不会再分叉出并行分支)。
-  const flushRound = () => {
+  //
+  // `force`:这一轮是不是**已经翻篇**了。新开一轮时上一轮必然算翻篇(不管它答完没有,
+  // 用户已经问下一句了);而建模走到末尾时,最后一轮还在跑 —— 那时不能画「本轮结束」,
+  // 否则刚敲下问题、模型还没吐第一个字,流程图上就已经挂着「第 N 轮 · 等待新指令…」
+  // (用户报的就是这个:「还没回答完就显示了,应该是回答完再显示」)。
+  const flushRound = (force: boolean) => {
     if (round === 0) return
+    if (!force && !roundCompleted) return
     const last = groups[groups.length - 1]?.[0]
     if (last?.kind === "fend") return
     pushColumn([
@@ -528,10 +534,17 @@ export function buildFlowModel(input: {
     ])
   }
 
+  // 当前这一轮里**最后一条消息**答完没有。用户消息落地时记 false(这一轮刚开始,
+  // 一个字都还没回),每处理一条助手消息按它自己的 time.completed 覆盖 ——
+  // 工具调用中途的助手消息也是消息,答完才算这一轮收尾。
+  let roundCompleted = false
+
   for (const message of input.messages) {
     if (message.role === "user") {
-      flushRound()
+      flushRound(true)
       round += 1
+      // 新一轮刚开始,一个字都还没回 —— 这一轮的「本轮结束」要等答完才画(见 flushRound)。
+      roundCompleted = false
       const text = (input.parts[message.id] ?? [])
         .filter((part): part is Extract<Part, { type: "text" }> => part.type === "text")
         .map((part) => part.text)
@@ -555,6 +568,9 @@ export function buildFlowModel(input: {
     // 历史上没有用户消息就开头的会话(导入的、被裁剪过的):也算第 1 轮,
     // 否则节点会带着 round = 0,分隔线与轮次带全都不对。
     if (round === 0) round = 1
+
+    // 这一条消息答完没有,决定这一轮能不能画「本轮结束」(见 flushRound)。
+    roundCompleted = Boolean(message.time.completed)
 
     const parts = input.parts[message.id] ?? []
     const reasoning = parts.filter((part): part is Extract<Part, { type: "reasoning" }> => part.type === "reasoning")
@@ -622,7 +638,8 @@ export function buildFlowModel(input: {
       ])
     }
   }
-  flushRound()
+  // 末尾这一下不 force:最后一轮还在跑时不画「本轮结束」(用户报的「还没回答完就显示了」)。
+  flushRound(false)
 
   // 「最新」徽标(原型 `.fc-new`,card-design-v7.html:721 / :1054):挂在**最后一条**回复卡上。
   //
