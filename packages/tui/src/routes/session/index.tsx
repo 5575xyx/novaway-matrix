@@ -2223,6 +2223,13 @@ function UserMessage(props: { message: UserMessage; parts: Part[]; onMouseUp: ()
              而 78% 那道上限仍然生效(长文本在带内折行,不会撑满整列)。
              助手那条不加 —— 它是 flex-start,左边本来就是面板左缘(原型 :396 两个方向相反)。 */
           alignSelf="flex-end"
+          /* alignItems="flex-end" 管的是**锚点的子元素**要不要被拉伸,与上面那个 alignSelf
+             (管锚点自己摆在哪)是两回事,少一个就出一种毛病:
+             · 少 alignSelf → 锚点停在左边,气泡只贴到 78% 带的右缘,右侧空出 22% 死带;
+             · 少 alignItems → 锚点默认 stretch,气泡被拉满整条带,只有里面文字右对齐,
+               看着就是一个装着一小截文字的宽盒子(用户原话:「应该根据文字内容自适应气泡大小和宽度」)。
+             两个都要有:带子贴右 + 气泡按内容收缩、右缘落在带子右缘上。 */
+          alignItems="flex-end"
           width="100%"
           onMouseOver={hover.onMouseOver}
           onMouseOut={hover.onMouseOut}
