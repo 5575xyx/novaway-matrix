@@ -676,6 +676,11 @@ export function FlowCanvas(props: {
                       gradientStops={semanticStops(theme, roleOf(node.kind))}
                       borderAlpha={lifting() ? FLOW_DRAG_ALPHA : FLOW_NODE_ALPHA}
                       height={node.rect.height}
+                      // 「回答中」的卡整圈描边常驻流动(原型 `.card:hover` 的 gbFlow,这里挪到
+                      // 底态上)。卡头那格 spinner 只有 1 列,离远一点就看不清;而一张边框在
+                      // 缓缓流的卡,隔着半屏也一眼认得出「就它还在跑」。答完 flow 关掉,描边
+                      // 冻回静态 —— 与悬停那套是同一个开关(animations_enabled 折在 animated 里)。
+                      flow={node.status === "running" && animated()}
                     >
                       <Show
                         when={pill()}
