@@ -2,7 +2,6 @@ import { expect, test } from "bun:test"
 import {
   DANGEROUS_COMMANDS,
   GLOBAL_KEYS,
-  PANEL_KEYS,
   PANEL_ORDER,
   PANEL_TITLE,
   panelAt,
