@@ -32,7 +32,6 @@ import { Locale } from "../util/locale"
 import { useDialog } from "../ui/dialog"
 import { DialogPrompt } from "../ui/dialog-prompt"
 import { DialogConfirm } from "../ui/dialog-confirm"
-import { DialogAlert } from "../ui/dialog-alert"
 import { useToast } from "../ui/toast"
 import { GIT_FILE_LABEL_MAX, SIDEBAR_CARD_MIN_CONTENT, SIDEBAR_SECTION_MIN_CONTENT } from "../util/sidebar-metrics"
 
@@ -52,8 +51,6 @@ export const STASH_MESSAGE_MAX = SIDEBAR_CARD_MIN_CONTENT - 14
 // (旧值 30 是按码元定的:1+2+30+1+7 = 41 > 38,纯 ASCII 就已经超 3 列。)
 export const COMMIT_SUBJECT_MAX = SIDEBAR_SECTION_MIN_CONTENT - 13
 const COMMIT_MESSAGE_MAX = 200
-// 提交详情弹窗最多展示的行数,大提交的 --stat 清单截断。
-const COMMIT_DETAIL_MAX = 40
 // 分支列表最多显示几行,再多走"还有 N 个"。
 const BRANCH_MAX = 10
 /**
@@ -168,6 +165,12 @@ export interface GitPanelProps {
   rootPath?: string
   /** 点变更文件名:打开该文件的"改动差异"标签页 */
   onOpenDiff?: (filePath: string) => void
+  /**
+   * 点提交行:在主区打开该提交的"提交详情"标签页。
+   * 不在侧栏里弹窗 —— --stat 清单动辄几十行,弹窗宽度只有侧栏那几列,读起来憋屈;
+   * 而且这个视图是只读的,标签页自带 ✕,不需要弹窗那套确认语义。
+   */
+  onOpenCommit?: (hash: string) => void
 }
 
 // 状态字母 -> 颜色语义:新增是好事用绿,删除是破坏用红,修改用警告黄,未跟踪最弱。
@@ -499,20 +502,9 @@ export function GitPanel(props: GitPanelProps) {
     await run(["remote", "remove", name], `已移除远程 ${name}`)
   }
 
-  // 提交详情:git show 的元信息 + --stat 文件清单,行数封顶防止大提交把弹窗撑爆。
-  const showCommit = async (hash: string) => {
-    try {
-      const out = await git(["show", hash, "--stat", "--no-color", "--format=%h  %an  %ad%n%s%n"])
-      const lines = out.stdout.trimEnd().split("\n")
-      const body =
-        lines.length > COMMIT_DETAIL_MAX
-          ? [...lines.slice(0, COMMIT_DETAIL_MAX), `… 还有 ${lines.length - COMMIT_DETAIL_MAX} 行`].join("\n")
-          : lines.join("\n")
-      DialogAlert.show(dialog, "提交详情", body)
-    } catch (e) {
-      toast.show({ variant: "error", message: e instanceof Error ? e.message : String(e) })
-    }
-  }
+  // 点提交行:交给调用方在主区开一个标签页(见 GitCommitView)。这里不跑 git ——
+  // 标签页自己去 show,省掉「点了先等一次 IO、再等标签页又去 show 一次」。
+  const showCommit = (hash: string) => props.onOpenCommit?.(hash)
 
   // crush 式节标题:标题 + 可选动作 + "─"填满剩余宽,给面板分区让层次一眼可辨。
   const SectionHeader = (p: { text: string; action?: string; onAction?: () => void }) => (
