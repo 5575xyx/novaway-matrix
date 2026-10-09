@@ -378,11 +378,14 @@ test("同键再按一次才真触发", () => {
   expect(confirm.pending()).toBeUndefined()
 })
 
-test("期间按别的键取消", () => {
+test("换一个危险键会顶掉上一个确认态,不是取消", () => {
+  // 按 d(丢弃)武装后按 x(删除):外壳会拿 x 再调一次 press,此时应当换成 x 的确认态,
+  // 而不是把 x 也一并取消掉 —— 后者会让用户按了键却毫无反应。
   const confirm = createConfirm(() => 0)
-  expect(confirm.press("d", "丢弃")).toBe("armed")
-  expect(confirm.press("j", "")).toBe("cancel")
-  expect(confirm.pending()).toBeUndefined()
+  confirm.press("d", "丢弃")
+  expect(confirm.press("x", "删除")).toBe("armed")
+  expect(confirm.pending()?.key).toBe("x")
+  expect(confirm.pending()?.label).toBe("删除")
 })
 
 test("超时自动取消", () => {
@@ -417,7 +420,30 @@ test("clear() 无条件清空", () => {
   confirm.clear()
   expect(confirm.pending()).toBeUndefined()
 })
+
+test("label 是纯展示,不参与状态判定", () => {
+  // 危险性由外壳的 DANGEROUS_COMMANDS 判定,本方法不看 label。有人要是重新加回
+  // 「label 为空就取消」的门控,这条会红 —— 那等于把语义藏进了一句展示文案。
+  const confirm = createConfirm(() => 0)
+  expect(confirm.press("d", "")).toBe("armed")
+  expect(confirm.pending()?.key).toBe("d")
+  // 空 label 的键再按一次同样算同键确认。
+  expect(confirm.press("d", "")).toBe("fire")
+})
+
+test("press 在窗口边界那一刻算过期", () => {
+  // pending() 的 >= 由「超时自动取消」钉住,这里钉 press 里的那一处 —— 两处口径必须一致,
+  // 否则会出现「提示条还在、一按却重新武装」的错位。
+  let now = 0
+  const confirm = createConfirm(() => now)
+  confirm.press("d", "丢弃")
+  now = CONFIRM_WINDOW_MS
+  expect(confirm.press("d", "丢弃")).toBe("armed")
+  expect(confirm.pending()?.deadline).toBe(now + CONFIRM_WINDOW_MS)
+})
 ```
+
+> **`press` 只会被危险命令调用。** Task 8 的外壳在 `DANGEROUS_COMMANDS.has(command)` 为真时才调它,其余命令走 `clear()`。所以这里**没有**「按了非危险键就 cancel」的分支 —— 那条路径根本不存在,而用 `label` 是否为空去猜「这个键危不危险」更是把语义藏进了一句展示文案里,迟早出事。
 
 - [ ] **Step 2: 跑测试确认失败**
 
@@ -451,35 +477,39 @@ export interface ArmedConfirm {
 
 /**
  * press 的返回值就是状态机的迁移结果:
- *   armed  —— 进入(或重新进入)确认态,什么都没执行
- *   fire   —— 用户在窗口内按了同一个键,调用方**现在**该执行那条危险命令
- *   cancel —— 用户按了别的键,确认态被顶掉了
+ *   armed  —— 进入确认态,或换到另一条危险命令的确认态。什么都没执行。
+ *   fire   —— 用户在窗口内按了**同一个**键,调用方现在该执行那条危险命令。
+ *
+ * 只有两个值,没有「cancel」:外壳只在 `DANGEROUS_COMMANDS.has(command)` 为真时才调本方法,
+ * 非危险键压根走不到这里 —— 它们由外壳直接调 `clear()`。把「这个键危不危险」的判断
+ * 塞进本方法(比如去看 label 是不是空串)是把语义藏进展示文案,迟早出事。
  */
-export type ConfirmPressResult = "armed" | "fire" | "cancel"
+export type ConfirmPressResult = "armed" | "fire"
 
 export function createConfirm(now: () => number) {
   let armed: ArmedConfirm | undefined
 
   return {
     press(key: string, label: string): ConfirmPressResult {
+      // 时刻只采一次:过期判断和设 deadline 用同一个 t,免得两次采样跨过边界抖出不一致。
+      const t = now()
       // 超时的确认态等同于没有:先把过期的清掉,再判断是不是「同键第二次」。
       // 不先清的话,用户在 4 秒后按同一个 d 会误判成 fire,而那个确认态早就该失效了。
-      if (armed && now() >= armed.deadline) armed = undefined
+      if (armed && t >= armed.deadline) armed = undefined
 
-      if (armed) {
-        if (armed.key !== key) {
-          armed = undefined
-          return "cancel"
-        }
+      // 同键第二次 = 确认,执行。到这里 armed 一定还在窗口内。
+      if (armed && armed.key === key) {
         armed = undefined
         return "fire"
       }
 
-      armed = { key, label, deadline: now() + CONFIRM_WINDOW_MS }
+      // 没武装,或者换了一条危险命令 —— 都是武装新的那条。换成新的而不是取消掉,
+      // 是因为按了 x 却毫无反应比「d 的确认被 x 顶掉」更让人困惑。
+      armed = { key, label, deadline: t + CONFIRM_WINDOW_MS }
       return "armed"
     },
 
-    /** 当前的确认态;`undefined` 表示没在等确认。渲染层靠它画那行黄色提示。 */
+    /** 当前的确认态;`undefined` 表示没在等确认。渲染层靠它画那行黄色提示。过期即顺手清掉。 */
     pending(): ArmedConfirm | undefined {
       if (armed && now() >= armed.deadline) {
         armed = undefined
@@ -1879,6 +1909,14 @@ export function GitWorkspace(props: GitWorkspaceProps) {
   const run = (command: WorkspaceCommand) => {
     const cwd = props.rootPath
 
+    // 非危险命令一律清掉待确认态:用户按了别的键就说明他改主意了。
+    // 不清的话,d 武装后按 j 移动一下光标,那行「再按一次 d 确认」会一直挂到超时。
+    // (press 只在下面的 DANGEROUS_COMMANDS 分支里被调用,非危险键走不到那里。)
+    if (!DANGEROUS_COMMANDS.has(command) && armed()) {
+      confirm.clear()
+      setArmed(undefined)
+    }
+
     if (command === "panel.next") return setPanel((p) => panelAt(PANEL_ORDER.indexOf(p) + 1))
     if (command === "panel.prev") return setPanel((p) => panelAt(PANEL_ORDER.indexOf(p) - 1))
     if (command.startsWith("panel.jump:")) return setPanel(panelAt(Number(command.slice("panel.jump:".length))))
@@ -1953,7 +1991,9 @@ export function GitWorkspace(props: GitWorkspaceProps) {
   }
 
   // 键位拦截:先问工作区,答得上来就吃掉;答不上来就放行(聊天输入框还能打字)。
-  // 确认态下任何没命中的键都取消确认(规格「期间按别的键取消」)。
+  // 没解析出命令的键(要漏给聊天输入框的那些)一律取消确认态。和 run() 里的那次清理
+  // 合起来才构成完整契约:**除危险命令的 press 之外,任何按键路径都清武装态**。
+  // 漏了这条会出事:d 武装后按 q(漏过)、3 秒内再按 d —— 直接就 discard 了。
   useKeyboard((event) => {
     const command = resolveWorkspaceCommand(panel(), keyOfParsed(event))
     if (command) {
