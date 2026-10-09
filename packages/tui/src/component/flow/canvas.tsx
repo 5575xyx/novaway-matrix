@@ -11,12 +11,12 @@ import type { Theme } from "../../theme"
 import { Locale } from "../../util/locale"
 import { getScrollAcceleration } from "../../util/scroll"
 import { useTuiConfig } from "../../config"
+import { animColors, animFrames } from "../../util/anim-spinner"
+import { registerNovaWaySpinner } from "../register-spinner"
 import {
   buildFlowModel,
   DETAIL_ROWS,
   edgeRoute,
-  FLOW_NODE_KINDS,
-  kindNoun,
   layoutNodes,
   LABEL_COLUMNS,
   MAX_NODE_WIDTH,
@@ -45,6 +45,13 @@ import {
   type EdgeGrid,
 } from "./grid"
 import "../../ui/card"
+
+registerNovaWaySpinner()
+
+// 「回答中」的节点工作指示:与 Spinner 共用同一套 crush 帧(见 util/anim-spinner)。
+// 1 列宽 —— 它占的是卡头里 `●` 那一格的位置,不额外吃列,所以卡宽账一条都不用动。
+const RUNNING_FRAMES = animFrames(1, 120)
+const RUNNING_INTERVAL = 60
 
 // ---------- 语义色 ----------
 
@@ -223,13 +230,22 @@ function EdgeRow(props: { y: number; canvas: EdgeGrid; width: number }) {
  * 而宽度是按「最宽的一行卡头 = 19 列」反推出来的(见 CARD_CELL_PX_WIDTH 那段推导),
  * 所以 `wrapMode="none"` + 外层 `flexShrink={0}` 就是正解 —— 挤不下时宁可裁,不许换行。
  */
-function NodeCardBody(props: { node: PlacedNode; accent: RGBA; caret: string }) {
+function NodeCardBody(props: { node: PlacedNode; accent: RGBA; caret: string; animated: boolean }) {
   const { theme } = useTheme()
   const node = props.node
   return (
     <box flexDirection="column" width="100%">
       <box flexDirection="row" gap={1} flexShrink={0}>
-        <text fg={props.accent}>●</text>
+        {/* 「回答中」的动画就落在这一格:正在跑的节点把静止的 `●` 换成转动的工作指示,
+            完成之后又变回 `●`。占的是同一格 1 列,卡宽账不用动。
+            animated 走的是与连线揭示同一个开关(FlowCanvas 的 reveal / KV 的 animations_enabled):
+            挂在 KV 上的话测试没法拨它(共享 state/kv.json,见 FlowCanvas.reveal 的注释),
+            而一个永远在转的指示会让测试里的「帧稳定」判定永远等不到。 */}
+        <Show when={node.status === "running" && props.animated} fallback={<text fg={props.accent}>●</text>}>
+          <box width={1} flexShrink={0}>
+            <spinner frames={RUNNING_FRAMES} interval={RUNNING_INTERVAL} color={animColors(props.accent)} />
+          </box>
+        </Show>
         <text fg={props.accent}>{node.kindLabel}</text>
         <box flexGrow={1} />
         <text fg={theme.textMuted}>{node.meta}</text>
@@ -663,7 +679,14 @@ export function FlowCanvas(props: {
                     >
                       <Show
                         when={pill()}
-                        fallback={<NodeCardBody node={node} accent={accentOf(theme, node.kind)} caret={caret()} />}
+                        fallback={
+                          <NodeCardBody
+                            node={node}
+                            accent={accentOf(theme, node.kind)}
+                            caret={caret()}
+                            animated={animated()}
+                          />
+                        }
                       >
                         <RoundEndPill node={node} accent={accentOf(theme, node.kind)} />
                       </Show>
@@ -699,21 +722,6 @@ export function FlowCanvas(props: {
           </box>
         </Show>
       </scrollbox>
-      <box flexDirection="row" gap={2} flexShrink={0} paddingLeft={1}>
-        <For each={FLOW_NODE_KINDS}>
-          {(kind) => (
-            <text fg={accentOf(theme, kind)} wrapMode="none">
-              <span style={{ fg: accentOf(theme, kind) }}>● </span>
-              {kindNoun(kind)}
-            </text>
-          )}
-        </For>
-      </box>
-      <box flexShrink={0} paddingLeft={1}>
-        <text fg={theme.textMuted} wrapMode="none">
-          点击节点卡展开详情 · 按住拖动可挪到别的格子 · 完整正文见气泡视图
-        </text>
-      </box>
     </box>
   )
 }

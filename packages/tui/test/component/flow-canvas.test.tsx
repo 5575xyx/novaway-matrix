@@ -17,10 +17,8 @@ import { FlowCanvas } from "../../src/component/flow/canvas"
 import {
   COLUMN_PITCH,
   DETAIL_ROWS,
-  FLOW_NODE_KINDS,
   GAP_X,
   GAP_Y,
-  kindNoun,
   layoutNodes,
   LEFT_MARGIN,
   MAX_NODE_WIDTH,
@@ -44,7 +42,6 @@ import {
 
 const MESSAGES: Message[] = FIXTURE_MESSAGES
 const PARTS: Record<string, Part[]> = FIXTURE_PARTS
-const KINDS = FLOW_NODE_KINDS
 /** 升序去重(列锚 / 行锚都用它)。 */
 function gridLines(values: readonly number[]) {
   return [...new Set(values)].toSorted((a, b) => a - b)
@@ -148,8 +145,6 @@ test("流程图画布:节点卡用生产卡壳画出渐变描边圆角,七类语
   for (const label of ["用户输入", "任务拆解", "工具调用", "子代理", "编辑文件", "NovaWay", "本轮结束"]) {
     expect(frame, label).toContain(label)
   }
-  // 底部图例把七种语义一次列全(短名,窄终端也放得下)。
-  for (const kind of KINDS) expect(frame, `图例:${kindNoun(kind)}`).toContain(kindNoun(kind))
 })
 
 // 这条把 layout 的 nodeSize 与真实渲染钉在一起:NeonBox 的内边距行**就是**边框行,
