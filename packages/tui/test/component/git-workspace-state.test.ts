@@ -1,5 +1,15 @@
-import { expect, test } from "bun:test"
-import { deriveFileRows, deriveStatusRows, pickDefaultRemote } from "../../src/component/git-workspace/state"
+import { afterAll, expect, test } from "bun:test"
+import { execFile } from "node:child_process"
+import { promisify } from "node:util"
+import fs from "fs"
+import os from "os"
+import path from "path"
+import {
+  deriveFileRows,
+  deriveStatusRows,
+  loadWorkspace,
+  pickDefaultRemote,
+} from "../../src/component/git-workspace/state"
 import type { GitNumstatEntry, GitRemote, GitStatusSummary } from "../../src/util/git-status"
 
 const status: GitStatusSummary = {
@@ -156,4 +166,59 @@ test("deriveFileRows 新增/删除/重命名也用中文", () => {
     ],
   }
   expect(deriveFileRows(s, []).map((r) => r.label)).toEqual(["新增", "删除", "重命名"])
+})
+
+// 下面两个起真 git 子进程,所以造真目录 —— 口径照抄 test/component/git-branch-row.test.tsx:
+// 「面板自己起真 git 子进程,所以测试直接造一个真仓库 —— 造不出来的那一档就该红」。
+// loadWorkspace 是本任务唯一的非纯函数,不钉住它,「status 硬依赖、其余各自降级」
+// 这条核心设计声明就只是写在注释里的一句话。
+
+const tmpDirs: string[] = []
+function tmpGitDir(prefix: string): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix))
+  tmpDirs.push(dir)
+  return dir
+}
+
+afterAll(() => {
+  for (const dir of tmpDirs) fs.rmSync(dir, { recursive: true, force: true })
+  tmpDirs.length = 0
+})
+
+const exec = promisify(execFile)
+const git = (root: string, args: string[]) =>
+  exec("git", ["-c", "user.email=tui@example.com", "-c", "user.name=tui", ...args], { cwd: root })
+
+test("loadWorkspace 非仓库目录:error 透出中文,不露 git 英文原文", async () => {
+  const data = await loadWorkspace(tmpGitDir("nw-ws-norepo-"))
+  expect(data.error).toBe("不是 git 仓库")
+  expect(data.branches).toEqual([])
+  expect(data.commits).toEqual([])
+  expect(data.remotes).toEqual([])
+  // 提示行直接吃这个 error,不该再猜一遍成别的文案。
+  const hint = deriveStatusRows(data.status, data.numstat, data.remotes, undefined, data.error).find(
+    (r) => r.kind === "hint",
+  )
+  expect(hint?.detail).toBe("不是 git 仓库")
+})
+
+test("loadWorkspace 空仓库:无提交、不报错、分支不当成真分支名", async () => {
+  // 新仓库里 `git log` 必失败(还没有任何提交)—— 这正是「status 硬依赖、其余各自降级」
+  // 要覆盖的路径:log 挂了不该让整个工作区白屏。
+  const dir = tmpGitDir("nw-ws-empty-")
+  await git(dir, ["init", "-b", "main"])
+  const data = await loadWorkspace(dir)
+  expect(data.error).toBeUndefined()
+  expect(data.commits).toEqual([])
+  expect(data.stash).toEqual([])
+  // git 不用 `git branch` 列未出生的分支 —— 空仓库里分支面板就是空的,这是真实行为,
+  // 不是解析漏了。状态行的「分支」才是此刻唯一能看到 `main` 的地方(且按上一条落成「不在分支上」)。
+  expect(data.branches).toEqual([])
+  // git 在空仓库里把分支行报成 `No commits yet on main`,不是 `main`。
+  // 原文进中文界面是噪音,派生后应落到「(不在分支上)」。
+  expect(data.status.branch).toBe("No commits yet on main")
+  const branch = deriveStatusRows(data.status, data.numstat, data.remotes, undefined, data.error).find(
+    (r) => r.kind === "branch",
+  )
+  expect(branch?.detail).toBe("(不在分支上)")
 })
