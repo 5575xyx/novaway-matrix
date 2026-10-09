@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test"
 import {
+  DANGEROUS_COMMANDS,
   GLOBAL_KEYS,
   PANEL_KEYS,
   PANEL_ORDER,
@@ -67,7 +68,24 @@ test("ctrl+c 和 ctrl+l 不在拦截表里(必须放行给上层)", () => {
   expect(GLOBAL_KEYS["ctrl+c"]).toBeUndefined()
 })
 
-test("文件面板的危险键都登记在确认机制里", () => {
-  expect(PANEL_KEYS.files["d"]).toBe("files.discard")
-  expect(PANEL_KEYS.files["x"]).toBe("files.delete")
+test("危险命令集恰好四条 —— 少一条就不弹确认直接执行,多一条就把无害操作变成按两次", () => {
+  for (const cmd of ["files.discard", "files.delete", "branches.delete", "stash.discard"] as const) {
+    expect(DANGEROUS_COMMANDS.has(cmd)).toBe(true)
+  }
+  expect(DANGEROUS_COMMANDS.size).toBe(4)
+  // 这几条必须不在集里:暂存、切分支、拉推都是无害的,要按两次会很烦。
+  expect(DANGEROUS_COMMANDS.has("files.stage")).toBe(false)
+  expect(DANGEROUS_COMMANDS.has("branches.checkout")).toBe(false)
+  expect(DANGEROUS_COMMANDS.has("global.push")).toBe(false)
+})
+
+test("局部键真的覆盖同名全局键", () => {
+  // 现有两表的键名没有交集,光靠真实表测不出优先级 —— 把局部查找和全局查找对调,真实表的
+  // 断言会照样全绿。所以造一对**故意冲突**的表钉住语义:同一个键在局部和全局都有定义时,
+  // 局部胜出。
+  const local = { r: "files.focusDiff" as const }
+  const global = { ...GLOBAL_KEYS, r: "global.refresh" as const }
+  expect(resolveWorkspaceCommand("files", "r", local, global)).toBe("files.focusDiff")
+  // 局部没配到的键才落回全局 —— 只测冲突不够,还得确认没有把全局整层屏蔽掉。
+  expect(resolveWorkspaceCommand("files", "p", local, global)).toBe("global.pull")
 })
