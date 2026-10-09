@@ -56,7 +56,9 @@ test("消息锚点挂在 scrollbox 的直接子节点上,并带着那条消息�
 // 它只保证「两处都走锚点、且没有裸的 id= 盒子」,不保证渲染结果;渲染那半在上面的用例里。
 test("会话区的两条消息都走 MessageAnchor(结构断言,见上面的说明)", () => {
   const source = readFileSync(path.join(import.meta.dir, "../../../src/routes/session/index.tsx"), "utf8")
-  expect(source).toContain("<MessageAnchor messageID={props.message.id}")
+  // 两个调用点的开场标签都写成多行(中间夹着解释各 prop 的注释),所以这里匹配「<MessageAnchor
+  // 之后紧跟 messageID」的空白形态,而不是逐字那一行。
+  expect(source).toMatch(/<MessageAnchor\s+messageID=\{props\.message\.id\}/)
   // 用户气泡那条还要带上靠右/顶行那几个 prop,单独数一次:两处锚点,不多不少。
   expect(source.match(/<MessageAnchor/g)).toHaveLength(2)
   // 锚点是唯一写 message id 的地方:裸的 <box id={props.message.id} 必须已经不存在。
@@ -82,4 +84,25 @@ test("用户那条锚点带 alignSelf/alignItems=flex-end,助手那条都不带(
   expect(anchors[0]!).toContain('width="100%"')
   // 助手那条走默认 stretch(左缘本来就是面板左缘),由调用点显式写明,免得再靠隐式默认。
   expect(anchors[1]!).not.toContain("alignSelf")
+})
+
+// 助手那条的另一半契约:**子元素按内容收缩**(alignItems="flex-start"),而**不带** alignSelf ——
+// 它的左缘本来就是面板左缘,加 flex-end 会把左对齐的消息推到右边(右缘贴面板是用户那条的事)。
+// 收缩还缺一环在卡壳上:NeonCard 默认 width="100%" 会按锚点宽度解析成整条 78% 的带,
+// 所以生产那个 <NeonCard> 必须带 width="auto" —— 少了它短回复照样横跨 messageColumns。
+//
+// 同样**先剥注释**:生产那段注释里逐字写着 `alignItems="flex-start"` 与 `width="100%"`,
+// 不剥的话把 prop 删掉断言照样绿(上面那条测试就是为这个坑补的剥除步骤,别再踩第二次)。
+test("助手那条锚点带 alignItems=flex-start、不带 alignSelf,卡壳带 width=auto(结构断言)", () => {
+  const raw = readFileSync(path.join(import.meta.dir, "../../../src/routes/session/index.tsx"), "utf8")
+  const source = raw.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")
+  const anchors = [...source.matchAll(/<MessageAnchor[\s\S]*?>/g)].map((match) => match[0])
+  expect(anchors).toHaveLength(2)
+  const assistant = anchors[1]
+  expect(assistant).toContain('alignItems="flex-start"')
+  expect(assistant).not.toContain("alignSelf")
+  // 卡壳只有一处(助手气泡那张),且带 width="auto"
+  const cards = [...source.matchAll(/<NeonCard[\s\S]*?>/g)].map((match) => match[0])
+  expect(cards).toHaveLength(1)
+  expect(cards[0]).toContain('width="auto"')
 })

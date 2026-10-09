@@ -2351,7 +2351,19 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
           六处寻址全靠它,删掉会静默失效)。
           锚点自己承担 marginTop=1:卡内每个 part 的 margin 由 setPreLayoutSiblingMargin 按兄弟链算,
           首 part 的 previous 是 undefined → 0,不会再多顶一行。 */}
-      <MessageAnchor messageID={props.message.id} marginTop={1} flexShrink={0}>
+      <MessageAnchor
+        messageID={props.message.id}
+        marginTop={1}
+        flexShrink={0}
+        /* alignItems="flex-start" 管的是**锚点的子元素**要不要被拉伸:scrollbox 的 alignItems 是
+           默认的 stretch,不写的话子元素(卡与 meta)会被拉满整条 78% 的带子,一条「好的」短回复
+           也拿到一个横跨 messageColumns 的空盒子(用户原话:「应该根据文字内容自适应气泡大小和宽度」)。
+           写上之后子元素按内容收缩、左缘贴带子左缘,封顶仍在带子宽度(原型 `.msg.assistant`
+           是 `align-self: flex-start`,card-design-v7.html:396)。
+           **不加 alignSelf**:助手那条本来就在左边(78% 的带子由 stretch 停在面板左缘),
+           加 flex-end 会把左对齐的消息推到右边 —— 右缘贴面板是用户那条的事(见 UserMessage)。 */
+        alignItems="flex-start"
+      >
         <AssistantMeta
           agentColor={local.agent.color(props.message.agent)}
           agent={props.message.agent}
@@ -2362,7 +2374,13 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
           width={messageColumns(ctx.width)}
         />
         <Show when={renderableParts().length}>
-          <NeonCard enterDelay={ctx.enterDelayFor(props.message.id)}>
+          {/* width="auto" 是**按内容收缩**的另一半,与锚点上那个 alignItems="flex-start" 缺一不可:
+              卡壳默认 width="100%"(撑满父容器,流程图节点卡与提示卡都吃这一档),百分比会按
+              **锚点的宽度**解析成整条 78% 的带子 —— 锚点那边已经允许子元素按内容收缩了,卡自己
+              却还是写死 100%,短回复照样横跨 messageColumns 那么宽。
+              改成 auto 之后卡宽 = 正文 + padding,长正文由卡壳的 maxWidth="100%" 封顶在带子上
+              (封顶值就是 messageColumns,见 message-anchor 的 MESSAGE_MAX_WIDTH)。 */}
+          <NeonCard enterDelay={ctx.enterDelayFor(props.message.id)} width="auto">
             <For each={props.parts}>
               {(part, index) => {
                 const component = createMemo(() => PART_MAPPING[part.type as keyof typeof PART_MAPPING])

@@ -121,7 +121,16 @@ function bubbleBody(texts: readonly string[], probe = 0) {
       <box height={1} flexShrink={0}>
         <text>PREV-ROW</text>
       </box>
-      <box id="assistant-1" ref={(el: BoxRenderable) => alwaysSeparate.add(el)} marginTop={1} flexShrink={0}>
+      {/* 与生产 AssistantMessage 的锚点同款两个 prop(源码断言钉在 message-anchor.test.tsx):
+          alignItems="flex-start" 让 meta 与卡按内容收缩(scrollbox 默认 stretch 会把它们拉满),
+          卡壳 width="auto" 是收缩的另一半 —— 卡壳默认 100% 会按锚点宽度解析,少了它短回复照样撑满。 */}
+      <box
+        id="assistant-1"
+        ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
+        marginTop={1}
+        flexShrink={0}
+        alignItems="flex-start"
+      >
         <AssistantMeta
           agentColor={RGBA.fromHex("#5fd7ff")}
           agent="build"
@@ -129,7 +138,7 @@ function bubbleBody(texts: readonly string[], probe = 0) {
           model="claude-sonnet-4"
           width={WIDTH}
         />
-        <NeonCard>
+        <NeonCard width="auto">
           <For each={texts}>
             {(value) => (
               <box ref={partSiblingRef} flexShrink={0}>
@@ -190,8 +199,9 @@ test("助手气泡卡:相邻 part 之间仍有 1 行空行", async () => {
 // 所以规则必须是「卡内只要有前一个兄弟就给 1」,与前兄弟的行数无关。
 function afterPreviousBody(kind: "tool" | "refless") {
   return () => (
-    <box width={WIDTH}>
-      <NeonCard>
+    // alignItems="flex-start" + width="auto":生产锚点与卡壳的那对 prop(见 bubbleBody 的注释)
+    <box width={WIDTH} alignItems="flex-start">
+      <NeonCard width="auto">
         <Show
           when={kind === "tool"}
           fallback={
@@ -267,9 +277,9 @@ const STAMP = Locale.todayTimeOrDateTime(CREATED)
 
 function metaBody(model: string, width = WIDTH) {
   return () => (
-    <box width={width}>
+    <box width={width} alignItems="flex-start">
       <AssistantMeta agentColor={RGBA.fromHex("#5fd7ff")} agent="build" created={CREATED} model={model} width={width} />
-      <NeonCard>
+      <NeonCard width="auto">
         <box ref={partSiblingRef} flexShrink={0}>
           <text>BODYMARK</text>
         </box>
@@ -328,8 +338,8 @@ test("助手气泡卡:模型名里的换行被压平,不会把 meta 顶成两行
 test("助手气泡卡:markdown 嵌套列表缩进保留,且正文不压右边框", async () => {
   const lines = await renderFrame(
     () => (
-      <box width={WIDTH}>
-        <NeonCard>
+      <box width={WIDTH} alignItems="flex-start">
+        <NeonCard width="auto">
           <markdown
             syntaxStyle={generateSubtleSyntax(theme)}
             internalBlockMode="top-level"
@@ -362,8 +372,8 @@ test("真实 BlockTool 在助手卡内可用 42 列,顶层 45 列", async () => 
     const lines = await renderFrame(
       () =>
         inCard ? (
-          <box width="100%">
-            <NeonCard>
+          <box width="100%" alignItems="flex-start">
+            <NeonCard width="auto">
               <BlockTool title="T">
                 <text wrapMode="none">{"X".repeat(300)}</text>
               </BlockTool>
@@ -388,21 +398,47 @@ test("真实 BlockTool 在助手卡内可用 42 列,顶层 45 列", async () => 
 //
 // 判据是「右缘落在哪一列」,不是「有没有 maxWidth 这个属性」:手抄一个 maxWidth 也能通过后者。
 // 同一条 `.msg` 在原型里同时管 user 与 assistant,所以两个方向量的是**同一个** messageColumns(…)。
-test("助手气泡卡:宽度上限 78%,右缘落在消息列上而不是撑满整列", async () => {
+//
+// 锚点与卡壳的两个 prop 与生产同款(源码断言在 message-anchor.test.tsx):
+// `alignItems="flex-start"`(子元素按内容收缩)+ `<NeonCard width="auto">`(卡壳不写死 100%)。
+function capBody(messageID: string, text: string) {
+  return () => (
+    <box width={WIDTH}>
+      <MessageAnchor messageID={messageID} flexShrink={0} alignItems="flex-start">
+        <NeonCard width="auto">
+          <box ref={partSiblingRef} flexShrink={0}>
+            <text>{text}</text>
+          </box>
+        </NeonCard>
+      </MessageAnchor>
+    </box>
+  )
+}
+
+// 自适应契约的前一半:**短回复按内容收缩**。用户那条量的是 9 + 2 + 2 = 13
+// (message-meta.test.tsx),这里同样把数推出来而不是写「比上限窄」:
+//   · 正文 CAPPEDBODY = 10 列;
+//   · NeonCard 的 paddingLeft=2、paddingRight=1 —— 霓虹边框画在盒子**最外两列**上
+//     (perimeterCells 按 this.width 取边界),不额外占列;
+//   · 卡宽 = 10 + 2 + 1 = 13,右边框落在第 12 列(0 起)。
+// 少一个 prop 都会退回旧行为:拉满时右缘是 messageColumns − 1 = 36,差 24 列 ——
+// 肉眼就是「一个宽盒子里塞了一小截字」。
+test("助手气泡卡:短回复的卡宽等于内容(10 列正文 + padding 3 = 13),不撑满消息列", async () => {
+  const lines = await renderFrame(capBody("capped", "CAPPEDBODY"), { width: WIDTH, height: 12 }, has("CAPPEDBODY"))
+  const bottom = lines.find((line) => line.includes("╯"))!
+  expect(messageColumns(WIDTH)).toBe(37)
+  expect(bottom.lastIndexOf("╯"), "短回复的右缘 = 内容右缘").toBe(10 + 2 + 1 - 1)
+  expect(bottom.lastIndexOf("╯"), "不是封顶那一列").not.toBe(messageColumns(WIDTH) - 1)
+  // 反向钉一次:连上限都没了的话右缘就是整列的右缘
+  expect(bottom.lastIndexOf("╯")).not.toBe(WIDTH - 1)
+})
+
+// 自适应契约的后一半:长回复必须**封顶**在消息列,证明「按内容收缩」没有顺手取消 78% 那道上限。
+test("助手气泡卡:长回复封顶在消息列,右缘仍落在 messageColumns − 1", async () => {
   const lines = await renderFrame(
-    () => (
-      <box width={WIDTH}>
-        <MessageAnchor messageID="capped" flexShrink={0}>
-          <NeonCard>
-            <box ref={partSiblingRef} flexShrink={0}>
-              <text>CAPPEDBODY</text>
-            </box>
-          </NeonCard>
-        </MessageAnchor>
-      </box>
-    ),
+    capBody("capped-long", "x".repeat(WIDTH * 3)),
     { width: WIDTH, height: 12 },
-    has("CAPPEDBODY"),
+    has("xxx"),
   )
   const bottom = lines.find((line) => line.includes("╯"))!
   // 48 × 78% = 37.44 → 37 列(0..36),右边框落在第 36 列而不是第 47 列
@@ -429,7 +465,7 @@ test("助手 meta 行按消息列截模型名,不是按整列", async () => {
   const lines = await renderFrame(
     () => (
       <box width={WIDTH}>
-        <MessageAnchor messageID="capped-meta" flexShrink={0}>
+        <MessageAnchor messageID="capped-meta" flexShrink={0} alignItems="flex-start">
           <AssistantMeta
             agentColor={RGBA.fromHex("#5fd7ff")}
             agent="build"
@@ -437,7 +473,7 @@ test("助手 meta 行按消息列截模型名,不是按整列", async () => {
             model={"m".repeat(200)}
             width={messageColumns(WIDTH)}
           />
-          <NeonCard>
+          <NeonCard width="auto">
             <box ref={partSiblingRef} flexShrink={0}>
               <text>METABODY</text>
             </box>
@@ -466,8 +502,8 @@ test("工具卡在收窄后的消息列里仍留得住 head:摘要整段留着,�
   const lines = await renderFrame(
     () => (
       <box width={WIDTH}>
-        <MessageAnchor messageID="capped-tool" flexShrink={0}>
-          <NeonCard>
+        <MessageAnchor messageID="capped-tool" flexShrink={0} alignItems="flex-start">
+          <NeonCard width="auto">
             <BlockTool
               title="bun test --timeout 30000"
               status={{ passed: 12, failed: 0 }}
@@ -489,4 +525,9 @@ test("工具卡在收窄后的消息列里仍留得住 head:摘要整段留着,�
   expect(head).not.toContain("--timeout 30000")
   // 摘要在右缘之内,没被霓虹边框切掉
   expect(head.lastIndexOf("passed") + "passed".length).toBeLessThanOrEqual(head.lastIndexOf("│"))
+  // 卡壳现在按内容收缩(headWidth 那笔账是**上界**,不是实际宽):助手卡的右缘必须落在
+  // 消息列之内 —— head 截在预算里、卡长到刚好装下它,于是卡不会比 messageColumns 更宽,
+  // 也就不会有任何一列被挤到霓虹边框外面。取最后一行 ╯(工具卡自己那张在里面,先出现)。
+  const bottom = lines.filter((line) => line.includes("╯")).at(-1)!
+  expect(bottom.lastIndexOf("╯")).toBeLessThanOrEqual(messageColumns(WIDTH) - 1)
 })
