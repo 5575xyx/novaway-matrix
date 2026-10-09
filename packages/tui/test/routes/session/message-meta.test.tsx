@@ -199,15 +199,61 @@ test("用户消息:meta 行的右缘与气泡卡的右缘齐平(原型 .msg.user
 // 用户那条的右缘与助手那条的右缘**本来就不在同一条列上**(原型也是如此):
 // `.msg.user` 是 flex-end → 贴面板右缘;`.msg.assistant` 是 flex-start → 受 78% 上限约束。
 // 两者共用的是那个**上限常数**,不是右缘位置 —— 所以这里量的是「上限还在」而不是「齐平」。
-test("用户消息:气泡宽度仍受消息列上限约束(共用的常数,不是共用的右缘)", async () => {
+//
+// 比「≤ 上限」更强的那条是**内容自适应**:气泡宽度必须等于「文字 + padding + 边框」,
+// 不是「拉满到上限」。少写锚点的 alignItems="flex-end" 时锚点默认 stretch,气泡就被拉成
+// 一个装着一小截文字的宽盒子(右缘照样贴面板、上限照样不超,所以只量右缘/上限是抓不到的)。
+test("用户消息:气泡按文字内容收缩,右缘贴面板,上限仍在", async () => {
   const lines = await renderFrame(userBubbleBody(), has("USER-BODY", "╯"))
   const borders = lines.filter((line) => line.includes("╭") || line.includes("│") || line.includes("╯"))
   const cardRight = Math.max(...borders.map((line) => lastInkColumn(line)))
   const cardLeft = Math.min(...borders.map((line) => firstInkColumn(line)))
   // 右缘贴面板
   expect(cardRight).toBe(WIDTH - 1)
-  // 上限仍在:这条短消息远没到上限,长消息到上限就会停在 messageColumns
+  // 气泡宽度 = 文字 9 列(USER-BODY)+ 左右 padding 各 2 = 13,一分不多。
+  // 霓虹边框画在盒子**最外两列**上(perimeterCells 按 this.width 取边界),不额外占列,
+  // 所以是 9+4 而不是 9+4+2。
+  // 拉满时是 messageColumns(37) —— 差了 24 列,肉眼就是「一个宽盒子里塞了一小截字」。
+  expect(cardRight - cardLeft + 1, "气泡卡该按内容收缩").toBe(13)
   expect(cardRight - cardLeft + 1).toBeLessThanOrEqual(messageColumns(WIDTH))
+})
+
+// 反面:长文字到上限就得停在 messageColumns,不能一路撑满整列 —— 证明 78% 那道上限没被
+// 「按内容收缩」顺手取消。两个方向(收缩 / 封顶)各钉一条,才是完整的自适应契约。
+function longBubbleBody() {
+  return () => (
+    <box width={WIDTH}>
+      <MessageAnchor messageID="user-long" alignSelf="flex-end" width="100%" alignItems="flex-end">
+        <box alignSelf="stretch" flexShrink={0}>
+          <UserMeta created={CREATED} />
+        </box>
+        <neonbox
+          gradientStops={[AGENT_COLOR]}
+          backgroundColor={RGBA.fromValues(0, 0, 0, 0)}
+          paddingTop={1}
+          paddingBottom={1}
+          paddingLeft={2}
+          paddingRight={2}
+          flexShrink={0}
+          alignItems="flex-end"
+        >
+          <text>{"x".repeat(WIDTH * 3)}</text>
+        </neonbox>
+      </MessageAnchor>
+    </box>
+  )
+}
+
+test("用户消息:长文字封顶在消息列,不再继续变宽", async () => {
+  const lines = await renderFrame(longBubbleBody(), has("xxx", "╯"))
+  const borders = lines.filter((line) => line.includes("╭") || line.includes("│") || line.includes("╯"))
+  const cardRight = Math.max(...borders.map((line) => lastInkColumn(line)))
+  const cardLeft = Math.min(...borders.map((line) => firstInkColumn(line)))
+  expect(cardRight, "长消息右缘仍贴面板").toBe(WIDTH - 1)
+  expect(cardRight - cardLeft + 1, "封顶在消息列").toBeLessThanOrEqual(messageColumns(WIDTH))
+  expect(cardRight - cardLeft + 1, "确实被撑到上限附近(不是仍按内容收缩)").toBeGreaterThanOrEqual(
+    messageColumns(WIDTH) - 4,
+  )
 })
 
 // 两条 meta 行摆在一起量:用户那条**右**对齐,助手那条**左**对齐 —— 两个方向都来自原型

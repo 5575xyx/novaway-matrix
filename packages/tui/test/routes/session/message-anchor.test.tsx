@@ -63,19 +63,23 @@ test("会话区的两条消息都走 MessageAnchor(结构断言,见上面的说�
   expect(source).not.toContain("<box id={props.message.id}")
 })
 
-// 上面那条只管「两个方向都走锚点」,管不了**锚点自己摆在哪** —— 而右缘贴不贴面板就住在那一个
-// prop 上,且 message-meta 的 harness 是手抄的生产结构,漂了不会有任何渲染测试变红。
-// 用户原话:「不应该是左边就左边框对齐,右边就右边框对齐吗?」
-test("用户那条锚点带 alignSelf=flex-end,助手那条不带(结构断言)", () => {
-  const source = readFileSync(path.join(import.meta.dir, "../../../src/routes/session/index.tsx"), "utf8")
+// 上面那条只管「两个方向都走锚点」,管不了**锚点自己摆在哪 / 子元素要不要被拉伸** —— 而
+// 气泡右缘贴不贴面板、气泡会不会被拉成一个宽盒子,就住在那两个 prop 上;message-meta 的 harness
+// 又是手抄的生产结构,漂了不会有任何渲染测试变红。
+//
+// 断言前**先剥注释**:源码里有一段注释逐字写着这两个 prop 名(解释它们各管什么),不剥的话
+// 断言会匹配到注释本身 —— 我第一次就是这么拿到一个假绿的:prop 被删了,测试照样过。
+test("用户那条锚点带 alignSelf/alignItems=flex-end,助手那条都不带(结构断言)", () => {
+  const raw = readFileSync(path.join(import.meta.dir, "../../../src/routes/session/index.tsx"), "utf8")
+  const source = raw.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")
   const anchors = [...source.matchAll(/<MessageAnchor[\s\S]*?>/g)].map((match) => match[0])
   expect(anchors).toHaveLength(2)
-  // 用户那条在源码里先出现(UserMessage 定义在 AssistantMessage 之前):宽 100% 被 78% 截断,
-  // 再由 alignSelf="flex-end" 把带子摆到交叉轴末端 —— 少任何一个,右缘都退回 78% 那一列。
+  // 用户那条在源码里先出现(UserMessage 定义在 AssistantMessage 之前)。
+  // alignSelf:带子(78%)被摆到交叉轴末端 → 右缘贴面板;
+  // alignItems:子元素按内容收缩 → 气泡不被拉满;缺任一个都有一种可见的毛病(见生产注释)。
   expect(anchors[0]!).toContain('alignSelf="flex-end"')
   expect(anchors[0]!).toContain('alignItems="flex-end"')
   expect(anchors[0]!).toContain('width="100%"')
-  // 助手那条是 flex-start(由 scrollbox 的默认 stretch 给,左缘本来就是面板左缘):
-  // 多写一个 alignSelf 会把左对齐消息推到右边。
+  // 助手那条走默认 stretch(左缘本来就是面板左缘),由调用点显式写明,免得再靠隐式默认。
   expect(anchors[1]!).not.toContain("alignSelf")
 })
