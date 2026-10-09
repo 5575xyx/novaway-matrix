@@ -251,6 +251,57 @@ test("提示卡:上下各空着一整行留白,正文与按钮都在卡内", asy
   }
 })
 
+/**
+ * 「稍后」是**按钮**而不是句子的尾巴(原型 card-design-v7.html:366-383 的 `.mini-btn`,配上
+ * `.tip .tip-act { margin-left: auto }`)。它必须贴在卡内右缘。
+ *
+ * 这条钉的是用户真实踩到的误读:按钮组没被推到右边时,「…引用环境变量 稍后」读起来像一句话
+ * 没写完 —— 因为「稍后」与正文之间只隔一个空格,看不出那是一颗独立控件。
+ *
+ * 断言写成「末颗到右边框不超过 4 列」而不是一个精确列数:卡壳内边距与胶囊内边距各差一列都会
+ * 让精确值漂,而那个漂移不是这里要守的东西;要守的是「贴着右缘」这个事实。
+ *
+ * 位置一律用 Locale.displayWidth 折算:帧里一个汉字占两个显示列却只有一个码元,直接拿
+ * indexOf 的下标当列号会把「贴着右缘」量成「离右边框还差两列」。
+ */
+test("提示卡:按钮组贴着卡内右缘,不紧跟正文尾巴", async () => {
+  const app = await renderTipCard(
+    () => (
+      <ThemeTestProviders>
+        <ThemeReady />
+        <TipCard
+          parts={[{ text: "SHORTBODY", highlight: false }]}
+          actions={[UPGRADE]}
+          width={60}
+          onAction={() => {}}
+          onDismiss={() => {}}
+        />
+      </ThemeTestProviders>
+    ),
+    { width: 66, height: 8 },
+    (text) => text.includes(UPGRADE.label) && text.includes(TIP_DISMISS_LABEL),
+  )
+  try {
+    const rows = app
+      .captureCharFrame()
+      .split("\n")
+      .map((row) => row.replace(/\s+$/, ""))
+    const border = rows.find((row) => row.includes("╭"))!
+    const tip = rows.find((row) => row.includes(TIP_DISMISS_LABEL))!
+    const colOf = (needle: string) => Locale.displayWidth(tip.slice(0, tip.indexOf(needle)))
+    // 最后一列的列号:边框行全是等宽字符,显示宽就是「列数」。
+    const lastCol = Locale.displayWidth(border) - 1
+    const pillRight = colOf(TIP_DISMISS_LABEL) + Locale.displayWidth(TIP_DISMISS_LABEL)
+    // 末颗贴着右缘(卡壳内边距 2 + 胶囊内边距 1,再留 1 列余量)。
+    expect(lastCol - pillRight).toBeLessThanOrEqual(4)
+    // 正文与按钮组之间空开了:spacer 吃到了富余列,按钮不是贴着正文尾巴。
+    const bodyRight = colOf("SHORTBODY") + "SHORTBODY".length
+    expect(colOf(UPGRADE.label) - bodyRight).toBeGreaterThan(10)
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
 type Node = {
   getChildren(): unknown[]
   processMouseEvent: (event: MouseEvent) => void

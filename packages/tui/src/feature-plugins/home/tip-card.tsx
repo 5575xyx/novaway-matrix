@@ -231,17 +231,24 @@ export function TipCard(props: {
   const body = createMemo(() => truncateParts(props.parts, layout().textColumns))
 
   const ButtonRow = () => (
-    <box flexDirection="row" flexShrink={0}>
-      {/* 弹性空隙把按钮组推到卡内右侧(与 SidebarCard 的徽标同一个手法)。 */}
-      <box flexGrow={1} />
+    // flexGrow + justifyContent="flex-end" 就是原型 `.tip .tip-act { margin-left: auto }` 的终端版:
+    // 这一组自己吃掉正文之后的全部富余列,把按钮推到卡内右缘。
+    //
+    // 不用「一个空隙盒 + 内容盒」那种写法:空隙盒要能吃到富余,前提是**它所在的盒子已经是定宽**。
+    // 而这里的行盒子在 NeonCard 里是按内容排的(见下方 width="100%" 那两处),空隙盒自己长不开,
+    // 按钮于是贴着正文尾巴 —— 那正是「稍后」被读成「这句话没写完」的原因。
+    <box flexDirection="row" flexGrow={1} flexShrink={0} justifyContent="flex-end" gap={TIP_ACTION_GAP}>
       <For each={layout().actions}>{(action) => <Pill label={action.label} onClick={() => action.run()} />}</For>
     </box>
   )
 
   return (
     <NeonCard gradientStops={semanticStops(theme, "tip")} borderAlpha={TIP_CARD_ALPHA} flow inset>
-      <box flexDirection="column">
-        <box flexDirection="row" flexShrink={0}>
+      {/* width="100%":NeonCard 的内容层不把盒子撑开到卡宽(与 AssistantCard 缺 width 时
+          正文把 78% 撑满是同一条规律,见 component/neon-card 的 width 默认值)。
+          不显式给宽,下面那两层行盒子就都是内容宽,ButtonRow 的 flexGrow 无处可吃。 */}
+      <box flexDirection="column" width="100%">
+        <box flexDirection="row" flexShrink={0} width="100%">
           <text flexShrink={0} fg={theme.warning} wrapMode="none">
             {TIP_LABEL}{" "}
           </text>
