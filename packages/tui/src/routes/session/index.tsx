@@ -300,21 +300,23 @@ export function UserMeta(props: { created: number }) {
 }
 
 /**
- * 思考块的 meta 行:`◆ 智能体 正在工作`(原型 card-design-v7.html:946)。
+ * 思考块的 meta 行:`◆ 正在工作`(原型 card-design-v7.html:946)。
  *
  * **为什么不能照抄助手那行的形状**:助手 meta 回答的是「这条消息是谁发的、用什么模型、什么时候」;
  * 这一行回答的是「**这一块**正在干什么」。原型里 thinking 是一条**独立消息**,所以它的 meta 里
  * 只剩状态;而本实现里思考块是助手气泡卡内的 part(A1 把所有 part 包进同一张卡),于是这句状态
  * 被放在思考卡**上方、仍在助手卡内** —— 与助手 meta 平级会让人以为是第二条助手消息。
- * 「正在工作」也不能省成又一个智能体名:那是把上面那行的名字原样抄一遍。
+ *
+ * **不印智能体名**:那正是把上面 AssistantMeta 那行的名字原样抄一遍(用户报的「显示这么多个
+ * agents-orchestrator」)。这一格只回答「在干嘛」,不回答「是谁」—— 是谁由上面那行说了算。
+ * agentColor 因此也只用在 `◆` 上:颜色仍然编码「谁在说话」,文字不再重复一遍。
  */
-export function ThinkingMeta(props: { agentColor: RGBA; agent: string }) {
+export function ThinkingMeta(props: { agentColor: RGBA }) {
   const { theme } = useTheme()
   return (
     <box flexDirection="row" gap={1} paddingLeft={1} flexShrink={0}>
       <text wrapMode="none">
         <span style={{ fg: props.agentColor }}>◆</span>
-        <span style={{ fg: theme.text }}> {agentDisplayName(props.agent)}</span>
         <span style={{ fg: theme.textMuted }}> 正在工作</span>
       </text>
     </box>
@@ -2491,8 +2493,15 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
               >
                 ◇{" "}
               </span>{" "}
-              <span style={{ fg: theme.text }}>{Locale.titlecase(props.message.mode)}</span>
-              <span style={{ fg: theme.textMuted }}> · {model()}</span>
+              {/* mode 与 agent 同名时不印这一格 —— 那正是把上面 AssistantMeta 那行的名字
+                  再抄一遍(用户报的「显示这么多个 agents-orchestrator」:meta 一行、思考卡
+                  上方一行、这里又一行,连着三遍)。两者不同才印,比如 mode=plan 而
+                  agent=某子代理时,这一格才真的补了信息。 */}
+              <Show when={props.message.mode.toLowerCase() !== props.message.agent.toLowerCase()}>
+                <span style={{ fg: theme.text }}>{Locale.titlecase(props.message.mode)}</span>
+                <span style={{ fg: theme.textMuted }}> · </span>
+              </Show>
+              <span style={{ fg: theme.textMuted }}>{model()}</span>
               <Show when={duration()}>
                 <span style={{ fg: theme.textMuted }}> · {Locale.duration(duration())}</span>
               </Show>
@@ -2571,7 +2580,7 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
             meta 与助手 meta 平级;而 A1 把所有 part 包进了同一张助手卡,平级的话这里会看起来像
             「第二条助手消息」。meta 在 part 盒子**内部**,所以它与思考卡一起被 partSiblingRef
             当成一个整体参与卡内「有前兄弟就给 1 行」的间距计算,不会多顶一行。 */}
-        <ThinkingMeta agentColor={local.agent.color(props.message.agent)} agent={props.message.agent} />
+        <ThinkingMeta agentColor={local.agent.color(props.message.agent)} />
         {/* crush 式思考块:紫青渐变描边卡片 + 第 2 级灰底,和工具输出同一套弱对比语言。
             不加 enterDelay:思考块是在流式输出**过程中**随 reasoning 到达而挂上的,
             一轮里可能来好几块,淡入会让「正在想」这件事变成「边框在闪」。

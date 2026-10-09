@@ -361,7 +361,7 @@ function thinkingBody() {
     <box width={WIDTH}>
       <AssistantMeta agentColor={AGENT_COLOR} agent="build" created={CREATED} model="claude-sonnet-4" width={WIDTH} />
       <NeonCard>
-        <ThinkingMeta agentColor={AGENT_COLOR} agent="build" />
+        <ThinkingMeta agentColor={AGENT_COLOR} />
         <neonbox
           gradientStops={[AGENT_COLOR]}
           paddingTop={1}
@@ -377,14 +377,17 @@ function thinkingBody() {
   )
 }
 
-test("思考块:meta 行是「◆ 智能体 正在工作」,在思考卡上方、仍在助手卡内", async () => {
+test("思考块:meta 行只有「◆ 正在工作」,不把智能体名再抄一遍,且仍在助手卡内", async () => {
   const lines = await renderFrame(thinkingBody(), has("THINK-BODY"))
   const thinking = lines.findIndex((line) => line.includes("正在工作"))
   const top = lines.findIndex((line) => line.includes("╭"))
   const bottom = lines.findIndex((line) => line.includes("╯"))
   expect(thinking).toBeGreaterThanOrEqual(0)
-  expect(lines[thinking]).toContain(agentDisplayName("build"))
   expect(lines[thinking]).toContain("正在工作")
+  // **不印智能体名**:那是把上面 AssistantMeta 那行的名字原样抄一遍 —— 用户报的
+  // 「显示这么多个 agents-orchestrator」。是谁说话由助手 meta 说了算,这一行只回答
+  // 「在干嘛」。谁在说话仍然由 `◆` 的颜色编码(agentColor),文字不再重复。
+  expect(lines[thinking]).not.toContain(agentDisplayName("build"))
   // 层级判断:思考块是**嵌套在助手气泡卡内**的一个 part,所以它的 meta 也在卡内
   // (原型里 `.msg.assistant .msg-meta` 同理),不是与助手 meta 平级。
   expect(top).toBeLessThan(thinking)
