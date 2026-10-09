@@ -1,8 +1,10 @@
 // 工作区的面板枚举与键位映射。**纯数据 + 纯函数**,不碰终端、不碰 Solid —— 键位表是这套
 // 交互里最容易错的东西(同一个键在不同面板含义不同),只有脱离渲染才能单测得住。
 //
-// 键名沿用 @opentui/keymap 的写法:小写、组合键用 `ctrl+` 前缀、`shift-tab` 是一个键。
-// `space` 而不是 ` ` —— 空格键在 keymap 里叫 space。
+// 键名的词汇表由本仓库的 `keyOfParsed`(本文件末尾,后续任务加)定义 —— **不是** @opentui/keymap
+// 的写法。两者不一样:keymap 把 `return` 规范成 `enter`、把 shift+tab 拼成 `shift+tab`,
+// 而 opentui 的**事件名**是 `escape` / `return`(见 src/util/selection.ts:66)。
+// 表里的拼写以 keyOfParsed 的输出为准,改一边就要同步改另一边。
 export type PanelID = "status" | "files" | "branches" | "commits" | "stash"
 
 export const PANEL_ORDER: readonly PanelID[] = ["status", "files", "branches", "commits", "stash"]
@@ -23,7 +25,7 @@ export function panelIndex(id: PanelID): number {
 export function panelAt(index: number): PanelID {
   // 负数要能绕回末尾(shift-tab 从第一个面板往回按),所以先归一化到 [0, len)。
   const length = PANEL_ORDER.length
-  return PANEL_ORDER[((index % length) + length) % length]!
+  return PANEL_ORDER[((index % length) + length) % length]
 }
 
 /**
@@ -128,11 +130,20 @@ export const DANGEROUS_COMMANDS: ReadonlySet<WorkspaceCommand> = new Set<Workspa
  * 没有命令返回 `undefined`,调用方据此决定「不拦截,放行给上层」——
  * 这是聊天输入框还能正常打字的关键:用户在工作区里按 `q`、按 `v`、按输入法的字母,
  * 都得漏过去。
+ *
+ * 后两个参数默认取模块导出的真实表,**只为测试注入一对故意冲突的表**而存在:
+ * 真实表的局部键与全局键没有同名交集,光跑真实表的话把这两层顺序对调照样全绿 ——
+ * 覆盖优先级这条语义就没有任何测试保护。不额外抽 helper,它仍然是同一个函数。
  */
-export function resolveWorkspaceCommand(panel: PanelID, key: string): WorkspaceCommand | undefined {
-  const local = PANEL_KEYS[panel][key]
+export function resolveWorkspaceCommand(
+  panel: PanelID,
+  key: string,
+  localTable: Readonly<Record<string, WorkspaceCommand>> = PANEL_KEYS[panel],
+  globalTable: Readonly<Record<string, WorkspaceCommand>> = GLOBAL_KEYS,
+): WorkspaceCommand | undefined {
+  const local = localTable[key]
   if (local) return local
-  const global = GLOBAL_KEYS[key]
+  const global = globalTable[key]
   if (global) return global
   // 数字键 1-5 直接跳到对应面板(1 是状态,5 是贮藏)。
   if (key.length === 1 && key >= "1" && key <= "5") return `panel.jump:${Number(key) - 1}`
