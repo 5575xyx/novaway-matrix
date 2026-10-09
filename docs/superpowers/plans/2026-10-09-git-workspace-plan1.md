@@ -1,0 +1,2173 @@
+# Git 工作区 · 计划 1（骨架 + 状态/文件面板 + 差异面板）实现计划
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** 在主区做出 Lazygit 式 Git 工作区的骨架 —— 能开 `Git` 标签页、左列显示「状态/文件」两个可用面板、右侧常驻差异视图、键盘走完「看 diff → 暂存」。
+
+**Architecture:** 一个 `GitWorkspace` 外壳负责布局/焦点/键位拦截，左列每个面板是独立组件，数据加载集中在 `state.ts`。焦点与键位映射抽成**纯数据**（`focus.ts`），键位表能脱离终端单测。危险操作的二次确认抽成 `confirm.ts`，时钟可注入，测试不靠真实 sleep。
+
+**Tech Stack:** SolidJS + `@opentui/solid`、`bun test`、`@opentui/keymap`。
+
+**规格来源:** `docs/superpowers/specs/2026-10-09-git-workspace-design.md`（提交 `bde0909`）。
+
+---
+
+## 开工前必读
+
+**工作目录一律是 `packages/tui`**，不是仓库根目录。仓库根跑测试会被 `bunfig.toml` 的 `do-not-run-tests-from-root` 拦住。
+
+**门禁基线**：`bun test --timeout 30000` 现在是 **812 通过 / 1 跳过 / 4 失败**。那 4 个失败全部来自 `test/cli/cmd/tui/provider-options.test.ts`，是既有问题。每个任务跑完只需确认**失败数仍是 4**。
+
+**`bun run typecheck` 必须 exit 0。**
+
+**根目录 lint 会 OOM**（约 1.9GB 的 `XYMT-AUTO/` 目录），定向 lint 又不接受根 `.oxlintrc.json`。改动文件**未经 lint 验证**是已知现状，不要为它折腾。
+
+**禁止 `bunx`**（曾损坏 Bun store）。用 `bun run <script>`。
+
+**提交信息里有中文**。控制台是 gb2312，`git log` 显示中文必然乱码/出 `�` —— **那是显示假象，不是损坏**，别被它骗去 amend。要确认就导原始字节：
+
+```
+cmd /c "git cat-file commit HEAD > %TEMP%\obj.bin"
+```
+
+然后搜 UTF-8 字节序列（例如「工作区」= `E5 B7 A5 E4 BD 9C E5 8C BA`）。
+
+**代码风格**：中文注释；不用 `any`；不用 `else`（提前返回）；能 `const` 不 `let`；`node:fs` 同步读写之外避免 `try`/`catch`（用 promise 的 `.catch()`）；prettier `semi: false`、`printWidth: 120`。
+
+**测试挂载组件需要完整的 Context 栈**。照 `test/component/prompt-card.test.tsx` 第 74 行的 `renderCard`：`TestTuiContexts → TuiConfigProvider → ArgsProvider → KVProvider → ThemeProvider → KeymapContexts`。漏 `KeymapContexts` 会让 `useNovaWayKeymap()` 炸。
+
+---
+
+## 文件结构（本计划）
+
+| 文件 | 动作 | 职责 |
+| --- | --- | --- |
+| `src/component/git-workspace/focus.ts` | 新建 | 面板枚举、标题、键位映射表（纯数据） |
+| `src/component/git-workspace/confirm.ts` | 新建 | 危险操作二次确认，时钟可注入 |
+| `src/component/git-workspace/state.ts` | 新建 | 一次性拉齐 git 数据 + 面板行派生 |
+| `src/util/git-diff.ts` | 新建 | diff 加载（从 `git-diff-view.tsx` 抽出） |
+| `src/component/git-workspace/diff-panel.tsx` | 新建 | 右侧差异视图 |
+| `src/component/git-workspace/files-panel.tsx` | 新建 | 文件面板 |
+| `src/component/git-workspace/status-panel.tsx` | 新建 | 状态面板（四行可操作） |
+| `src/component/git-workspace.tsx` | 新建 | 外壳：布局/焦点/键位条 |
+| `src/component/tab-bar.tsx` | 修改 | `TabItem.type` 加 `"git-workspace"` |
+| `src/routes/session/index.tsx` | 修改 | 开标签、渲染分发 |
+| `src/routes/session/sidebar.tsx` | 修改 | Git 页加「打开工作区」入口 |
+
+计划 2 再加 `branches-panel.tsx` / `commits-panel.tsx` / `stash-panel.tsx`；计划 3 再瘦身 `git-panel.tsx`。
+
+---
+
+### Task 1: 焦点与键位映射（纯数据）
+
+键位表决定「焦点在文件面板时空格干什么」，是这套交互最容易错的东西。先做它，且做成**纯数据 + 纯函数**。
+
+**Files:**
+- Create: `src/component/git-workspace/focus.ts`
+- Test: `test/component/git-workspace-focus.test.ts`
+
+- [ ] **Step 1: 写失败的测试**
+
+创建 `packages/tui/test/component/git-workspace-focus.test.ts`：
+
+```ts
+import { expect, test } from "bun:test"
+import {
+  GLOBAL_KEYS,
+  PANEL_KEYS,
+  PANEL_ORDER,
+  PANEL_TITLE,
+  panelAt,
+  panelIndex,
+  resolveWorkspaceCommand,
+} from "../../src/component/git-workspace/focus"
+
+test("五个面板,顺序照 Lazygit", () => {
+  expect(PANEL_ORDER).toEqual(["status", "files", "branches", "commits", "stash"])
+})
+
+test("面板标题全中文", () => {
+  for (const id of PANEL_ORDER) expect(PANEL_TITLE[id]).toMatch(/[一-龥]/)
+  expect(PANEL_TITLE.status).toBe("状态")
+  expect(PANEL_TITLE.files).toBe("文件")
+  expect(PANEL_TITLE.stash).toBe("贮藏")
+})
+
+test("panelIndex / panelAt 往返", () => {
+  expect(panelIndex("files")).toBe(1)
+  expect(panelAt(1)).toBe("files")
+})
+
+test("panelAt 对越界下标取模绕回(shift-tab 从第一个往回按)", () => {
+  expect(panelAt(-1)).toBe("stash")
+  expect(panelAt(5)).toBe("status")
+  expect(panelAt(6)).toBe("files")
+})
+
+test("tab 循环切面板", () => {
+  expect(resolveWorkspaceCommand("status", "tab")).toBe("panel.next")
+  expect(resolveWorkspaceCommand("stash", "tab")).toBe("panel.next")
+  expect(resolveWorkspaceCommand("files", "shift-tab")).toBe("panel.prev")
+})
+
+test("数字键直接跳面板", () => {
+  expect(resolveWorkspaceCommand("status", "1")).toBe("panel.jump:0")
+  expect(resolveWorkspaceCommand("files", "5")).toBe("panel.jump:4")
+  expect(resolveWorkspaceCommand("status", "6")).toBeUndefined()
+})
+
+test("同一个键在不同面板含义不同 —— 空格", () => {
+  expect(resolveWorkspaceCommand("status", "space")).toBe("status.space")
+  expect(resolveWorkspaceCommand("files", "space")).toBe("files.stage")
+  expect(resolveWorkspaceCommand("branches", "space")).toBe("branches.checkout")
+})
+
+test("enter 在文件面板切到差异视图,在提交面板是看提交", () => {
+  expect(resolveWorkspaceCommand("files", "enter")).toBe("files.focusDiff")
+  expect(resolveWorkspaceCommand("commits", "enter")).toBe("commits.focusDiff")
+})
+
+test("面板局部键优先于全局键", () => {
+  // c 在文件面板没有局部含义,落回全局的提交
+  expect(resolveWorkspaceCommand("files", "c")).toBe("global.commit")
+  // 但 1-5 是全局的,文件面板里也该跳面板
+  expect(resolveWorkspaceCommand("files", "1")).toBe("panel.jump:0")
+})
+
+test("ctrl+c 和 ctrl+l 不在拦截表里(必须放行给上层)", () => {
+  expect(resolveWorkspaceCommand("files", "ctrl+c")).toBeUndefined()
+  expect(resolveWorkspaceCommand("files", "ctrl+l")).toBeUndefined()
+  expect(GLOBAL_KEYS["ctrl+c"]).toBeUndefined()
+})
+
+test("文件面板的危险键都登记在确认机制里", () => {
+  expect(PANEL_KEYS.files["d"]).toBe("files.discard")
+  expect(PANEL_KEYS.files["x"]).toBe("files.delete")
+})
+```
+
+- [ ] **Step 2: 跑测试确认失败**
+
+```
+cd packages/tui && bun test --timeout 30000 test/component/git-workspace-focus.test.ts
+```
+
+预期：FAIL，报 `Cannot find module '../../src/component/git-workspace/focus'`。
+
+- [ ] **Step 3: 实现 focus.ts**
+
+创建 `packages/tui/src/component/git-workspace/focus.ts`：
+
+```ts
+// 工作区的面板枚举与键位映射。**纯数据 + 纯函数**,不碰终端、不碰 Solid —— 键位表是这套
+// 交互里最容易错的东西(同一个键在不同面板含义不同),只有脱离渲染才能单测得住。
+//
+// 键名沿用 @opentui/keymap 的写法:小写、组合键用 `ctrl+` 前缀、`shift-tab` 是一个键。
+// `space` 而不是 ` ` —— 空格键在 keymap 里叫 space。
+export type PanelID = "status" | "files" | "branches" | "commits" | "stash"
+
+export const PANEL_ORDER: readonly PanelID[] = ["status", "files", "branches", "commits", "stash"]
+
+/** 面板标题,全中文(规格:面向国内用户,git 术语也中文化)。 */
+export const PANEL_TITLE: Record<PanelID, string> = {
+  status: "状态",
+  files: "文件",
+  branches: "分支",
+  commits: "提交",
+  stash: "贮藏",
+}
+
+export function panelIndex(id: PanelID): number {
+  return PANEL_ORDER.indexOf(id)
+}
+
+export function panelAt(index: number): PanelID {
+  // 负数要能绕回末尾(shift-tab 从第一个面板往回按),所以先归一化到 [0, len)。
+  const length = PANEL_ORDER.length
+  return PANEL_ORDER[((index % length) + length) % length]!
+}
+
+/**
+ * 解析出来的工作区命令。`panel.jump:N` 带目标面板下标 —— 数字键 1-5 直接跳面板,
+ * 拼成一个命令而不是五条,是因为调用方拿到之后的动作是同一个(把焦点设到第 N 个面板)。
+ */
+export type WorkspaceCommand =
+  | "panel.next"
+  | "panel.prev"
+  | `panel.jump:${number}`
+  | "row.up"
+  | "row.down"
+  | "status.space"
+  | "status.m"
+  | "files.stage"
+  | "files.stageAll"
+  | "files.focusDiff"
+  | "files.discard"
+  | "files.delete"
+  | "branches.checkout"
+  | "branches.new"
+  | "branches.delete"
+  | "commits.focusDiff"
+  | "commits.undo"
+  | "stash.pop"
+  | "stash.discard"
+  | "global.commit"
+  | "global.pull"
+  | "global.push"
+  | "global.refresh"
+  | "global.help"
+  | "global.close"
+
+/**
+ * 全局键:**任何时候**都有效,与焦点面板无关。
+ *
+ * **刻意不在表里的**:ctrl+c(中断)、ctrl+l(清屏)。工作区的拦截器必须放行这两个 ——
+ * 它们是整个 TUI 的逃生口,吞掉它们等于让用户在工作区里没法中断卡住的命令。
+ */
+export const GLOBAL_KEYS: Readonly<Record<string, WorkspaceCommand>> = {
+  tab: "panel.next",
+  "shift-tab": "panel.prev",
+  c: "global.commit",
+  p: "global.pull",
+  f: "global.push",
+  r: "global.refresh",
+  "?": "global.help",
+  esc: "global.close",
+  j: "row.down",
+  k: "row.up",
+}
+
+/**
+ * 每个面板的**局部键**,覆盖同名全局键。
+ *
+ * 为什么需要覆盖层而不是一张大表:键位要跟着焦点面板变(规格「底部键位提示条跟着焦点面板变」),
+ * 而同一个键在不同面板确实是不同动作 —— `空格` 在状态面板是「作用于当前行」,在文件面板是
+ * 「暂存这个文件」,在分支面板是「切换分支」。合成一张大表就得给每个面板都写全所有键,
+ * 既啰嗦又容易漏。
+ */
+export const PANEL_KEYS: Readonly<Record<PanelID, Readonly<Record<string, WorkspaceCommand>>>> = {
+  status: {
+    space: "status.space",
+    m: "status.m",
+  },
+  files: {
+    space: "files.stage",
+    a: "files.stageAll",
+    enter: "files.focusDiff",
+    d: "files.discard",
+    x: "files.delete",
+  },
+  branches: {
+    space: "branches.checkout",
+    n: "branches.new",
+    d: "branches.delete",
+  },
+  commits: {
+    enter: "commits.focusDiff",
+    z: "commits.undo",
+  },
+  stash: {
+    space: "stash.pop",
+    d: "stash.discard",
+  },
+}
+
+/**
+ * 要二次确认的命令(规格「危险操作不用弹窗,用再按一次确认」)。
+ * 调用方按下这类键时不立刻执行,而是进入确认态;**同键**再按一次才真执行。
+ */
+export const DANGEROUS_COMMANDS: ReadonlySet<WorkspaceCommand> = new Set<WorkspaceCommand>([
+  "files.discard",
+  "files.delete",
+  "branches.delete",
+  "stash.discard",
+])
+
+/**
+ * 一个键 → 一条工作区命令。焦点面板的局部键优先,没配到再落回全局键。
+ *
+ * 没有命令返回 `undefined`,调用方据此决定「不拦截,放行给上层」——
+ * 这是聊天输入框还能正常打字的关键:用户在工作区里按 `q`、按 `v`、按输入法的字母,
+ * 都得漏过去。
+ */
+export function resolveWorkspaceCommand(panel: PanelID, key: string): WorkspaceCommand | undefined {
+  const local = PANEL_KEYS[panel][key]
+  if (local) return local
+  const global = GLOBAL_KEYS[key]
+  if (global) return global
+  // 数字键 1-5 直接跳到对应面板(1 是状态,5 是贮藏)。
+  if (key.length === 1 && key >= "1" && key <= "5") return `panel.jump:${Number(key) - 1}`
+  return undefined
+}
+```
+
+- [ ] **Step 4: 跑测试确认通过**
+
+```
+cd packages/tui && bun test --timeout 30000 test/component/git-workspace-focus.test.ts
+```
+
+预期：全部 PASS。
+
+- [ ] **Step 5: 提交**
+
+```
+cd packages/tui && git add src/component/git-workspace/focus.ts test/component/git-workspace-focus.test.ts && git commit -m "feat(tui): 工作区面板焦点与键位映射表"
+```
+
+---
+
+### Task 2: 危险操作二次确认（时钟可注入）
+
+按 `d` 不立刻丢弃，而是进入确认态；同键再按才执行；期间按别的键取消；超时自动取消。超时**必须走注入的时钟** —— 否则测试只能真实 sleep。
+
+**Files:**
+- Create: `src/component/git-workspace/confirm.ts`
+- Test: `test/component/git-workspace-confirm.test.ts`
+
+- [ ] **Step 1: 写失败的测试**
+
+创建 `packages/tui/test/component/git-workspace-confirm.test.ts`：
+
+```ts
+import { expect, test } from "bun:test"
+import { CONFIRM_WINDOW_MS, createConfirm } from "../../src/component/git-workspace/confirm"
+
+test("第一次按键进入确认态,不立即触发", () => {
+  const confirm = createConfirm(() => 0)
+  expect(confirm.press("d", "丢弃这个文件的改动")).toBe("armed")
+  expect(confirm.pending()).toEqual({ key: "d", label: "丢弃这个文件的改动", deadline: CONFIRM_WINDOW_MS })
+})
+
+test("同键再按一次才真触发", () => {
+  const confirm = createConfirm(() => 0)
+  expect(confirm.press("d", "丢弃")).toBe("armed")
+  expect(confirm.press("d", "丢弃")).toBe("fire")
+  expect(confirm.pending()).toBeUndefined()
+})
+
+test("期间按别的键取消", () => {
+  const confirm = createConfirm(() => 0)
+  expect(confirm.press("d", "丢弃")).toBe("armed")
+  expect(confirm.press("j", "")).toBe("cancel")
+  expect(confirm.pending()).toBeUndefined()
+})
+
+test("超时自动取消", () => {
+  let now = 0
+  const confirm = createConfirm(() => now)
+  confirm.press("d", "丢弃")
+  now = CONFIRM_WINDOW_MS - 1
+  expect(confirm.pending()).toBeDefined()
+  now = CONFIRM_WINDOW_MS
+  expect(confirm.pending()).toBeUndefined()
+})
+
+test("超时后再按同键是重新武装,不是触发", () => {
+  let now = 0
+  const confirm = createConfirm(() => now)
+  confirm.press("d", "丢弃")
+  now = CONFIRM_WINDOW_MS + 100
+  expect(confirm.press("d", "丢弃")).toBe("armed")
+  expect(confirm.pending()?.deadline).toBe(now + CONFIRM_WINDOW_MS)
+})
+
+test("换一个键会顶掉上一个确认态", () => {
+  const confirm = createConfirm(() => 0)
+  confirm.press("d", "丢弃")
+  expect(confirm.press("x", "删除")).toBe("armed")
+  expect(confirm.pending()?.key).toBe("x")
+})
+
+test("clear() 无条件清空", () => {
+  const confirm = createConfirm(() => 0)
+  confirm.press("d", "丢弃")
+  confirm.clear()
+  expect(confirm.pending()).toBeUndefined()
+})
+```
+
+- [ ] **Step 2: 跑测试确认失败**
+
+```
+cd packages/tui && bun test --timeout 30000 test/component/git-workspace-confirm.test.ts
+```
+
+预期：FAIL，`Cannot find module .../confirm`。
+
+- [ ] **Step 3: 实现 confirm.ts**
+
+创建 `packages/tui/src/component/git-workspace/confirm.ts`：
+
+```ts
+// 危险操作的「再按一次确认」。规格要求**不用弹窗** —— 弹窗会打断键盘流,而这套交互的核心
+// 就是一只手在键盘上走完全程。
+//
+// 时钟是注入的(参数 `now`),不直接读 Date.now / setTimeout。理由:超时逻辑如果绑死真实时间,
+// 测试就只能 sleep 3 秒才敢断言,既慢又容易在慢机器上偶发失败。
+// 调用方(工作区外壳)用真实时钟,测试用自己的假时钟 —— 同一份代码,两种时间。
+export const CONFIRM_WINDOW_MS = 3000
+
+export interface ArmedConfirm {
+  /** 触发这条确认的键。同键再按一次才算确认 —— 所以必须记住是哪个键。 */
+  key: string
+  /** 确认态那一行显示的文案,例如「再按一次 d 确认丢弃」。 */
+  label: string
+  /** 过了这个时间点还没确认就自动取消(毫秒,单调递增的时钟口径)。 */
+  deadline: number
+}
+
+/**
+ * press 的返回值就是状态机的迁移结果:
+ *   armed  —— 进入(或重新进入)确认态,什么都没执行
+ *   fire   —— 用户在窗口内按了同一个键,调用方**现在**该执行那条危险命令
+ *   cancel —— 用户按了别的键,确认态被顶掉了
+ */
+export type ConfirmPressResult = "armed" | "fire" | "cancel"
+
+export function createConfirm(now: () => number) {
+  let armed: ArmedConfirm | undefined
+
+  return {
+    press(key: string, label: string): ConfirmPressResult {
+      // 超时的确认态等同于没有:先把过期的清掉,再判断是不是「同键第二次」。
+      // 不先清的话,用户在 4 秒后按同一个 d 会误判成 fire,而那个确认态早就该失效了。
+      if (armed && now() >= armed.deadline) armed = undefined
+
+      if (armed) {
+        if (armed.key !== key) {
+          armed = undefined
+          return "cancel"
+        }
+        armed = undefined
+        return "fire"
+      }
+
+      armed = { key, label, deadline: now() + CONFIRM_WINDOW_MS }
+      return "armed"
+    },
+
+    /** 当前的确认态;`undefined` 表示没在等确认。渲染层靠它画那行黄色提示。 */
+    pending(): ArmedConfirm | undefined {
+      if (armed && now() >= armed.deadline) {
+        armed = undefined
+        return undefined
+      }
+      return armed
+    },
+
+    clear() {
+      armed = undefined
+    },
+  }
+}
+
+export type Confirm = ReturnType<typeof createConfirm>
+```
+
+- [ ] **Step 4: 跑测试确认通过**
+
+```
+cd packages/tui && bun test --timeout 30000 test/component/git-workspace-confirm.test.ts
+```
+
+预期：全部 PASS。
+
+- [ ] **Step 5: 提交**
+
+```
+cd packages/tui && git add src/component/git-workspace/confirm.ts test/component/git-workspace-confirm.test.ts && git commit -m "feat(tui): 工作区危险操作的行内二次确认"
+```
+
+---
+
+### Task 3: git 数据一次性拉齐
+
+工作区打开和每次操作后都要刷新。把「并行跑 7 个 git 命令 + 解析 + 派生成面板行」收在一处，组件只管渲染。
+
+**Files:**
+- Create: `src/component/git-workspace/state.ts`
+- Test: `test/component/git-workspace-state.test.ts`
+
+- [ ] **Step 1: 写失败的测试**
+
+创建 `packages/tui/test/component/git-workspace-state.test.ts`。这里只测**纯逻辑**（派生函数），不起真实 git 进程 —— 起进程慢且依赖环境。
+
+```ts
+import { expect, test } from "bun:test"
+import {
+  deriveFileRows,
+  deriveStatusRows,
+  pickDefaultRemote,
+} from "../../src/component/git-workspace/state"
+import type { GitNumstatEntry, GitRemote, GitStatusSummary } from "../../src/util/git-status"
+
+const status: GitStatusSummary = {
+  branch: "main",
+  upstream: "origin/main",
+  ahead: 91,
+  behind: 0,
+  entries: [
+    { file: "a.ts", code: "M ", status: "modified", staged: true, unstaged: false },
+    { file: "b.ts", code: " M", status: "modified", staged: false, unstaged: true },
+    { file: "c.ts", code: "??", status: "untracked", staged: false, unstaged: true },
+  ],
+}
+
+const numstat: GitNumstatEntry[] = [
+  { file: "a.ts", added: 10, removed: 2, binary: false },
+  { file: "b.ts", added: 5, removed: 3, binary: false },
+]
+
+test("pickDefaultRemote 优先 origin", () => {
+  const remotes: GitRemote[] = [
+    { name: "github", url: "https://github.com/x/y.git" },
+    { name: "origin", url: "https://gitee.com/x/y.git" },
+  ]
+  expect(pickDefaultRemote(remotes)?.name).toBe("origin")
+})
+
+test("pickDefaultRemote 没有 origin 时取第一个", () => {
+  const remotes: GitRemote[] = [
+    { name: "github", url: "https://github.com/x/y.git" },
+    { name: "gitee", url: "https://gitee.com/x/y.git" },
+  ]
+  expect(pickDefaultRemote(remotes)?.name).toBe("github")
+})
+
+test("pickDefaultRemote 空列表返回 undefined", () => {
+  expect(pickDefaultRemote([])).toBeUndefined()
+})
+
+test("deriveStatusRows 领先计数拼进分支行", () => {
+  const row = deriveStatusRows(status, numstat, []).find((r) => r.kind === "branch")
+  expect(row?.count).toBe("↑91")
+})
+
+test("deriveStatusRows 落后时显示 ↓", () => {
+  const rows = deriveStatusRows({ ...status, ahead: 0, behind: 3 }, [], [])
+  expect(rows.find((r) => r.kind === "branch")?.count).toBe("↓3")
+})
+
+test("deriveStatusRows 领先和落后都有时两个都显示", () => {
+  const rows = deriveStatusRows({ ...status, ahead: 2, behind: 5 }, [], [])
+  expect(rows.find((r) => r.kind === "branch")?.count).toBe("↑2 ↓5")
+})
+
+test("deriveStatusRows 没有领先/落后时不显示计数", () => {
+  const rows = deriveStatusRows({ ...status, ahead: 0, behind: 0 }, [], [])
+  expect(rows.find((r) => r.kind === "branch")?.count).toBeUndefined()
+})
+
+test("deriveStatusRows 变更行合并 numstat 的加删行数", () => {
+  const row = deriveStatusRows(status, numstat, []).find((r) => r.kind === "changes")
+  expect(row?.detail).toBe("3 个文件")
+  expect(row?.count).toBe("+15 -5")
+})
+
+test("deriveStatusRows 远程行用选中的那个远端名", () => {
+  const remotes: GitRemote[] = [{ name: "github", url: "https://gitee.com/x/y.git" }]
+  const rows = deriveStatusRows(status, numstat, remotes, remotes[0])
+  expect(rows.find((r) => r.kind === "remote")?.detail).toBe("github")
+})
+
+test("deriveStatusRows 没有远端时显示未配置远端", () => {
+  const rows = deriveStatusRows(status, numstat, [])
+  expect(rows.find((r) => r.kind === "remote")?.detail).toBe("未配置远端")
+})
+
+test("deriveStatusRows 提示行区分干净/有改动/不在仓库", () => {
+  expect(deriveStatusRows(status, [], []).find((r) => r.kind === "hint")?.detail).toBe("有未提交改动")
+  expect(deriveStatusRows({ ...status, entries: [] }, [], []).find((r) => r.kind === "hint")?.detail).toBe(
+    "工作区干净",
+  )
+  expect(deriveStatusRows({ ahead: 0, behind: 0, entries: [] }, [], []).find((r) => r.kind === "hint")?.detail).toBe(
+    "不是 git 仓库",
+  )
+})
+
+test("deriveStatusRows git 报错时提示行透出真实原因,不猜成不是仓库", () => {
+  const rows = deriveStatusRows(status, [], [], undefined, "git 执行超时")
+  expect(rows.find((r) => r.kind === "hint")?.detail).toBe("git 执行超时")
+})
+
+test("deriveFileRows 每个文件一行,带中文状态词与加删行数", () => {
+  const a = deriveFileRows(status, numstat).find((r) => r.file === "a.ts")
+  expect(a?.label).toBe("已改")
+  expect(a?.count).toBe("+10 -2")
+})
+
+test("deriveFileRows 未跟踪文件没有 numstat 就不显示行数", () => {
+  const c = deriveFileRows(status, numstat).find((r) => r.file === "c.ts")
+  expect(c?.label).toBe("未跟踪")
+  expect(c?.count).toBeUndefined()
+})
+
+test("deriveFileRows 新增/删除/重命名也用中文", () => {
+  const s: GitStatusSummary = {
+    branch: "main",
+    ahead: 0,
+    behind: 0,
+    entries: [
+      { file: "n.ts", code: "A ", status: "added", staged: true, unstaged: false },
+      { file: "o.ts", code: " D", status: "deleted", staged: false, unstaged: true },
+      { file: "r.ts", code: "R ", status: "renamed", staged: true, unstaged: false },
+    ],
+  }
+  expect(deriveFileRows(s, []).map((r) => r.label)).toEqual(["新增", "删除", "重命名"])
+})
+```
+
+- [ ] **Step 2: 跑测试确认失败**
+
+```
+cd packages/tui && bun test --timeout 30000 test/component/git-workspace-state.test.ts
+```
+
+预期：FAIL，`Cannot find module .../state`。
+
+- [ ] **Step 3: 实现 state.ts**
+
+创建 `packages/tui/src/component/git-workspace/state.ts`：
+
+```ts
+// 工作区的数据层:一次性把 git 拉齐,并把原始解析结果**派生**成面板直接能渲染的行。
+//
+// 派生逻辑单独成纯函数(deriveStatusRows / deriveFileRows / pickDefaultRemote)是有意的:
+// 组件里写派生就等于把「↑91 怎么拼」「中文状态词是哪个」埋进 JSX,测不到。
+import { gitExec } from "../../util/git-exec"
+import {
+  BRANCH_FORMAT,
+  type GitBranch,
+  type GitNumstatEntry,
+  type GitRemote,
+  type GitStashEntry,
+  type GitStatusSummary,
+  parseGitBranches,
+  parseGitCommit,
+  parseGitNumstat,
+  parseGitRemotes,
+  parseGitStashList,
+  parseGitStatus,
+} from "../../util/git-status"
+
+export interface GitCommitRow {
+  hash: string
+  subject: string
+}
+
+export interface WorkspaceData {
+  status: GitStatusSummary
+  numstat: GitNumstatEntry[]
+  branches: GitBranch[]
+  commits: GitCommitRow[]
+  stash: GitStashEntry[]
+  remotes: GitRemote[]
+  /** git 命令失败时的原因;成功时 undefined。渲染层把它画进状态面板的「提示」行。 */
+  error?: string
+}
+
+const COMMIT_LIMIT = 40
+
+/**
+ * 并行拉齐工作区需要的全部数据。
+ *
+ * 每个分支都 `.catch` 而不是整体 try/catch:工作区要**部分可用** —— 一个仓库没有 stash、
+ * 没有 remote、甚至还没有任何 commit 都是常态,任何一个命令失败都不该让整个面板白屏。
+ * 只有 `status` 是硬依赖(它同时提供 branch 与文件列表),它失败才返回 error。
+ */
+export function loadWorkspace(rootPath: string): Promise<WorkspaceData> {
+  return gitExec(rootPath, ["status", "--porcelain=v1", "-b"])
+    .then((statusOut) =>
+      Promise.all([
+        gitExec(rootPath, ["diff", "--numstat", "--", "."]).catch(() => ({ stdout: "" })),
+        gitExec(rootPath, ["diff", "--cached", "--numstat", "--", "."]).catch(() => ({ stdout: "" })),
+        gitExec(rootPath, ["branch", BRANCH_FORMAT]).catch(() => ({ stdout: "" })),
+        gitExec(rootPath, ["log", "--oneline", "-n", String(COMMIT_LIMIT)]).catch(() => ({ stdout: "" })),
+        gitExec(rootPath, ["stash", "list"]).catch(() => ({ stdout: "" })),
+        gitExec(rootPath, ["remote", "-v"]).catch(() => ({ stdout: "" })),
+      ]).then(([worktreeOut, indexOut, branchOut, logOut, stashOut, remoteOut]) => ({
+        status: parseGitStatus(statusOut.stdout),
+        // numstat 要跑两条:工作区的和暂存区的。只跑一条会漏掉「已暂存但工作区又改了」的文件。
+        numstat: [...parseGitNumstat(indexOut.stdout), ...parseGitNumstat(worktreeOut.stdout)],
+        branches: parseGitBranches(branchOut.stdout),
+        commits: logOut.stdout
+          .split("\n")
+          .filter((line) => line.trim().length > 0)
+          .flatMap((line) => {
+            const parsed = parseGitCommit(line)
+            return parsed ? [parsed] : []
+          }),
+        stash: parseGitStashList(stashOut.stdout),
+        remotes: parseGitRemotes(remoteOut.stdout),
+      })),
+    )
+    .catch((e: unknown) => emptyWorkspace(e instanceof Error ? e.message : String(e)))
+}
+
+export function emptyWorkspace(error?: string): WorkspaceData {
+  return {
+    status: { ahead: 0, behind: 0, entries: [] },
+    numstat: [],
+    branches: [],
+    commits: [],
+    stash: [],
+    remotes: [],
+    error,
+  }
+}
+
+/**
+ * 多远程的默认选中。优先 `origin` —— 它是绝大多数仓库的约定默认,选错的代价又很高
+ * (推送是不可逆动作),所以宁可按约定走,也不按字母序取第一个。
+ */
+export function pickDefaultRemote(remotes: GitRemote[]): GitRemote | undefined {
+  return remotes.find((r) => r.name === "origin") ?? remotes[0]
+}
+
+/** 领先/落后的显示文本。**0 不画** —— 画一个「↑ 0」是纯噪音。 */
+function trackCount(ahead: number, behind: number): string | undefined {
+  const parts: string[] = []
+  if (ahead > 0) parts.push(`↑${ahead}`)
+  if (behind > 0) parts.push(`↓${behind}`)
+  return parts.length > 0 ? parts.join(" ") : undefined
+}
+
+export interface StatusRow {
+  kind: "branch" | "remote" | "changes" | "hint"
+  label: string
+  detail?: string
+  count?: string
+}
+
+/**
+ * 状态面板的四行。顺序固定:分支 / 远程 / 变更 / 提示(规格「状态面板的四行」)。
+ * `selectedRemote` 由调用方传入 —— 选中哪个远端是工作区状态,不是 git 的输出。
+ */
+export function deriveStatusRows(
+  status: GitStatusSummary,
+  numstat: GitNumstatEntry[],
+  remotes: GitRemote[],
+  selectedRemote?: GitRemote,
+  error?: string,
+): StatusRow[] {
+  const files = status.entries.length
+  const added = numstat.reduce((sum, item) => sum + item.added, 0)
+  const removed = numstat.reduce((sum, item) => sum + item.removed, 0)
+  const dirty = status.entries.some((entry) => entry.unstaged)
+  const remote = selectedRemote ?? pickDefaultRemote(remotes)
+  // branch 为空意味着 `git status` 没给出分支行 —— 要么不在仓库里,要么是 detached。
+  const inRepo = status.branch !== undefined && status.branch !== ""
+
+  return [
+    {
+      kind: "branch",
+      label: "分支",
+      detail: inRepo ? status.branch : "(不在分支上)",
+      count: trackCount(status.ahead, status.behind),
+    },
+    { kind: "remote", label: "远程", detail: remote?.name ?? "未配置远端" },
+    { kind: "changes", label: "变更", detail: `${files} 个文件`, count: `+${added} -${removed}` },
+    {
+      kind: "hint",
+      label: "提示",
+      // error 优先:loadWorkspace 只在 status 命令失败时才带 error,这时「不是 git 仓库」
+      // 未必是真因(可能是超时、权限)。把真实原因透出来比猜一个原因好。
+      detail: error ?? (!inRepo ? "不是 git 仓库" : dirty ? "有未提交改动" : "工作区干净"),
+    },
+  ]
+}
+
+/** 文件面板一行的中文状态词。规格要求用中文而不是 git 的 XY 字母。 */
+const STATUS_LABEL: Record<string, string> = {
+  modified: "已改",
+  added: "新增",
+  deleted: "删除",
+  renamed: "重命名",
+  untracked: "未跟踪",
+}
+
+export interface FileRow {
+  file: string
+  label: string
+  /** `+N -M`;没有 numstat(例如未跟踪文件)时 undefined。 */
+  count?: string
+  staged: boolean
+  unstaged: boolean
+}
+
+export function deriveFileRows(status: GitStatusSummary, numstat: GitNumstatEntry[]): FileRow[] {
+  const byFile = new Map(numstat.map((item) => [item.file, item]))
+  return status.entries.map((entry) => {
+    const stat = byFile.get(entry.file)
+    return {
+      file: entry.file,
+      label: STATUS_LABEL[entry.status] ?? "已改",
+      count: stat ? `+${stat.added} -${stat.removed}` : undefined,
+      staged: entry.staged,
+      unstaged: entry.unstaged,
+    }
+  })
+}
+```
+
+- [ ] **Step 4: 跑测试确认通过**
+
+```
+cd packages/tui && bun test --timeout 30000 test/component/git-workspace-state.test.ts
+```
+
+预期：全部 PASS。
+
+- [ ] **Step 5: 跑全量测试确认没打破别的**
+
+```
+cd packages/tui && bun test --timeout 30000
+```
+
+预期：失败数仍是 4（既有 provider-options）。
+
+- [ ] **Step 6: 提交**
+
+```
+cd packages/tui && git add src/component/git-workspace/state.ts test/component/git-workspace-state.test.ts && git commit -m "feat(tui): 工作区 git 数据拉齐与面板行派生"
+```
+
+---
+
+### Task 4: 从 git-diff-view 抽出 diff 加载
+
+右侧差异面板要复用现有的 diff 加载逻辑（含未跟踪文件的合成补丁）。抽成 util，两个地方共用。
+
+**Files:**
+- Create: `src/util/git-diff.ts`
+- Modify: `src/component/git-diff-view.tsx`
+- Test: `test/util/git-diff.test.ts`
+
+- [ ] **Step 1: 写失败的测试**
+
+创建 `packages/tui/test/util/git-diff.test.ts`：
+
+```ts
+import { expect, test } from "bun:test"
+import { untrackedPatch } from "../../src/util/git-diff"
+
+test("untrackedPatch 对不存在的文件返回空串", () => {
+  expect(untrackedPatch("nonexistent-file-for-test.ts", process.cwd())).toBe("")
+})
+
+test("untrackedPatch 对空路径返回空串", () => {
+  expect(untrackedPatch("", "")).toBe("")
+})
+```
+
+- [ ] **Step 2: 跑测试确认失败**
+
+```
+cd packages/tui && bun test --timeout 30000 test/util/git-diff.test.ts
+```
+
+预期：FAIL，`Cannot find module '../../src/util/git-diff'`。
+
+- [ ] **Step 3: 实现 git-diff.ts**
+
+创建 `packages/tui/src/util/git-diff.ts`：
+
+```ts
+// diff 加载。原来长在 component/git-diff-view.tsx 里,抽出来是因为 GitWorkspace 的右侧
+// 差异面板要用同一套逻辑(含未跟踪文件的合成补丁)——两个地方各写一份,迟早漂。
+import { readFileSync, statSync } from "node:fs"
+import { gitExec } from "./git-exec"
+
+// 合成补丁最多带多少行正文:未跟踪的大文件(构建产物)不把界面撑爆。
+export const SYNTH_DIFF_MAX_LINES = 400
+
+/**
+ * 未跟踪的新文件没有 diff 输出(git diff 只看索引里已有的内容),这里合成一份
+ * 「全新文件」补丁,照样能看到内容。
+ *
+ * 用 try/catch 而不是先 statSync 再 readFileSync:两次系统调用之间文件可能被删,
+ * 而这两个操作的失败都只是「看不到内容」,不值得向上抛。
+ */
+export function untrackedPatch(filePath: string, rootPath: string): string {
+  try {
+    if (statSync(filePath).size > 1024 * 1024) return ""
+    const lines = readFileSync(filePath, "utf-8").split("\n")
+    if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop()
+    const shown = lines.slice(0, SYNTH_DIFF_MAX_LINES)
+    return [
+      `diff --git a/${filePath} b/${filePath}`,
+      "new file mode 100644",
+      "--- /dev/null",
+      `+++ b/${filePath}`,
+      `@@ -0,0 +1,${shown.length} @@`,
+      ...shown.map((line) => `+${line}`),
+    ].join("\n")
+  } catch {
+    return ""
+  }
+}
+
+/** 单个文件相对 HEAD 的补丁(已暂存 + 未暂存一起看,和「这次提交会带上什么」一致)。 */
+export function loadFilePatch(rootPath: string, filePath: string): Promise<string> {
+  return gitExec(rootPath, ["diff", "HEAD", "--no-color", "--", filePath]).then((out) => {
+    const body = out.stdout.trimEnd()
+    // 空 diff 只有两种可能:未跟踪的新文件,或改动已全部提交(内容 == HEAD)。
+    return body || untrackedPatch(filePath, rootPath)
+  })
+}
+
+/** 一个提交的补丁。`--format=` 让 git 只输出 diff 正文,不带提交说明。 */
+export function loadCommitPatch(rootPath: string, hash: string): Promise<string> {
+  return gitExec(rootPath, ["show", "--no-color", "--format=", hash]).then((out) => out.stdout.trimEnd())
+}
+```
+
+- [ ] **Step 4: 改造 git-diff-view.tsx 复用**
+
+修改 `packages/tui/src/component/git-diff-view.tsx`：删掉本地的 `SYNTH_DIFF_MAX_LINES` 常量与 `untrackedPatch` 函数（第 13-32 行），改为从 util 导入。
+
+修改后的文件头（第 1-10 行）：
+
+```ts
+// Git 页点文件名打开的"改动差异"标签页:git diff HEAD 的统一补丁直接喂给
+// @opentui/core 的 <diff> 渲染器(和主差异查看器同一套配色/语法高亮)。
+// 未跟踪文件没有 diff 输出,这里合成一份"全新文件"补丁,照样能看到内容。
+import { createSignal, onMount, Show } from "solid-js"
+import type { DiffRenderable } from "@opentui/core"
+import { useTheme } from "../context/theme"
+import { useAutoRefresh } from "../util/auto-refresh"
+import { gitExec } from "../util/git-exec"
+import { untrackedPatch } from "../util/git-diff"
+import { Locale } from "../util/locale"
+```
+
+`load` 函数体里那句 `setPatch(untrackedPatch(props.filePath, cwd))` 保持不动 —— 它现在指向 util 导入的版本。
+
+- [ ] **Step 5: 跑测试 + typecheck**
+
+```
+cd packages/tui && bun test --timeout 30000 test/util/git-diff.test.ts
+cd packages/tui && bun run typecheck
+```
+
+预期：测试 PASS；typecheck exit 0。
+
+- [ ] **Step 6: 提交**
+
+```
+cd packages/tui && git add src/util/git-diff.ts src/component/git-diff-view.tsx test/util/git-diff.test.ts && git commit -m "refactor(tui): diff 加载逻辑抽成 util 供工作区复用"
+```
+
+---
+
+### Task 5: 右侧差异面板
+
+左列焦点行变了，右侧就显示对应 diff。空状态要有话说，不能白屏。
+
+**Files:**
+- Create: `src/component/git-workspace/diff-panel.tsx`
+- Test: `test/component/git-workspace-diff-panel.test.tsx`
+
+- [ ] **Step 1: 写失败的测试**
+
+创建 `packages/tui/test/component/git-workspace-diff-panel.test.tsx`：
+
+```tsx
+/** @jsxImportSource @opentui/solid */
+import { expect, test } from "bun:test"
+import { testRender } from "@opentui/solid"
+import { TestTuiContexts } from "../fixture/tui-environment"
+import { TuiConfigProvider } from "../../src/config"
+import { ArgsProvider } from "../../src/context/args"
+import { KVProvider } from "../../src/context/kv"
+import { ThemeProvider } from "../../src/context/theme"
+import { GitDiffPanel, type DiffTarget } from "../../src/component/git-workspace/diff-panel"
+
+function renderPanel(target: DiffTarget) {
+  return testRender(
+    () => (
+      <TestTuiContexts>
+        <TuiConfigProvider config={{ keybinds: {} } as never}>
+          <ArgsProvider>
+            <KVProvider>
+              <ThemeProvider mode="dark">
+                <GitDiffPanel target={target} rootPath={process.cwd()} />
+              </ThemeProvider>
+            </KVProvider>
+          </ArgsProvider>
+        </TuiConfigProvider>
+      </TestTuiContexts>
+    ),
+    { width: 80, height: 24 },
+  )
+}
+
+test("没有目标时显示引导文案,不空白", () => {
+  const app = renderPanel({ kind: "none" })
+  expect(app.captureCharFrame()).toContain("选中文件或提交")
+  app.destroy()
+})
+
+test("目标是文件时标题带上文件名", () => {
+  const app = renderPanel({ kind: "file", path: "src/component/git-workspace.tsx" })
+  expect(app.captureCharFrame()).toContain("git-workspace.tsx")
+  app.destroy()
+})
+
+test("目标是提交时标题带提交前缀", () => {
+  const app = renderPanel({ kind: "commit", hash: "40f2c3c" })
+  expect(app.captureCharFrame()).toContain("提交")
+  app.destroy()
+})
+```
+
+- [ ] **Step 2: 跑测试确认失败**
+
+```
+cd packages/tui && bun test --timeout 30000 test/component/git-workspace-diff-panel.test.tsx
+```
+
+预期：FAIL，`Cannot find module .../diff-panel`。
+
+- [ ] **Step 3: 实现 diff-panel.tsx**
+
+创建 `packages/tui/src/component/git-workspace/diff-panel.tsx`：
+
+```ts
+// 工作区右侧的差异视图。内容跟着左列焦点行变:文件 → 文件 diff,提交 → 提交 diff。
+//
+// 与 component/git-diff-view.tsx 的分工:那个是**独立标签页**(带关闭按钮、自己轮询),
+// 这个是工作区里的一个**面板**(占右半边、由工作区统一刷新),所以这里不轮询。
+import { createEffect, createSignal, Show } from "solid-js"
+import type { DiffRenderable } from "@opentui/core"
+import { useTheme } from "../../context/theme"
+import { loadCommitPatch, loadFilePatch } from "../../util/git-diff"
+import { Locale } from "../../util/locale"
+
+export type DiffTarget = { kind: "none" } | { kind: "file"; path: string } | { kind: "commit"; hash: string }
+
+export interface GitDiffPanelProps {
+  target: DiffTarget
+  rootPath?: string
+}
+
+export function GitDiffPanel(props: GitDiffPanelProps) {
+  const { theme, syntax } = useTheme()
+  const [patch, setPatch] = createSignal("")
+  const [error, setError] = createSignal("")
+
+  // createEffect 而不是 onMount:rootPath 来自 session()?.directory,mount 那一刻可能还没就绪。
+  // 这正是提交详情标签页踩过的坑(见 component/git-commit-view.tsx),别再踩一次。
+  createEffect(() => {
+    const cwd = props.rootPath
+    const target = props.target
+    if (!cwd || target.kind === "none") {
+      setPatch("")
+      setError("")
+      return
+    }
+    const load = target.kind === "file" ? loadFilePatch(cwd, target.path) : loadCommitPatch(cwd, target.hash)
+    load
+      .then((body) => {
+        setPatch(body)
+        setError("")
+      })
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : String(e))
+      })
+  })
+
+  let diffRef: DiffRenderable | undefined
+  void diffRef
+
+  const title = () => {
+    const target = props.target
+    if (target.kind === "file") {
+      const base = target.path.split(/[\\/]/).pop() ?? target.path
+      return `${Locale.oneLine(base, 40)} 的改动`
+    }
+    if (target.kind === "commit") return `提交 ${target.hash}`
+    return "差异"
+  }
+
+  return (
+    <box flexDirection="column" flexGrow={1} minHeight={0}>
+      <box flexDirection="row" flexShrink={0} paddingLeft={1} paddingRight={1} paddingTop={1}>
+        <text fg={theme.primary} wrapMode="none">
+          {title()}
+        </text>
+      </box>
+      <Show
+        when={error() === ""}
+        fallback={
+          <text fg={theme.error} paddingLeft={1}>
+            {error()}
+          </text>
+        }
+      >
+        <Show
+          when={patch() !== ""}
+          fallback={
+            <text fg={theme.textMuted} paddingLeft={1}>
+              {props.target.kind === "none" ? "选中文件或提交后在这里看改动" : "没有改动"}
+            </text>
+          }
+        >
+          <box flexGrow={1} minHeight={0} backgroundColor={theme.backgroundPanel}>
+            <diff
+              ref={(el: DiffRenderable) => (diffRef = el)}
+              diff={patch()}
+              view="unified"
+              filetype="none"
+              syntaxStyle={syntax()}
+              showLineNumbers={true}
+            />
+          </box>
+        </Show>
+      </Show>
+    </box>
+  )
+}
+```
+
+- [ ] **Step 4: 跑测试确认通过**
+
+```
+cd packages/tui && bun test --timeout 30000 test/component/git-workspace-diff-panel.test.tsx
+```
+
+预期：全部 PASS。
+
+- [ ] **Step 5: 提交**
+
+```
+cd packages/tui && git add src/component/git-workspace/diff-panel.tsx test/component/git-workspace-diff-panel.test.tsx && git commit -m "feat(tui): 工作区右侧差异面板"
+```
+
+---
+
+### Task 6: 文件面板
+
+显示文件列表、中文状态词、加删行数，焦点行有 `❯` 标记，确认态顶掉那一行内容。
+
+**Files:**
+- Create: `src/component/git-workspace/files-panel.tsx`
+- Test: `test/component/git-workspace-files-panel.test.tsx`
+
+- [ ] **Step 1: 写失败的测试**
+
+创建 `packages/tui/test/component/git-workspace-files-panel.test.tsx`：
+
+```tsx
+/** @jsxImportSource @opentui/solid */
+import { expect, test } from "bun:test"
+import { testRender } from "@opentui/solid"
+import { TestTuiContexts } from "../fixture/tui-environment"
+import { TuiConfigProvider } from "../../src/config"
+import { ArgsProvider } from "../../src/context/args"
+import { KVProvider } from "../../src/context/kv"
+import { ThemeProvider } from "../../src/context/theme"
+import { FilesPanel } from "../../src/component/git-workspace/files-panel"
+import type { FileRow } from "../../src/component/git-workspace/state"
+
+const ROWS: FileRow[] = [
+  { file: "a.ts", label: "已改", count: "+10 -2", staged: true, unstaged: false },
+  { file: "b.ts", label: "未跟踪", staged: false, unstaged: true },
+]
+
+function renderPanel(selected: number, rows: FileRow[] = ROWS) {
+  return testRender(
+    () => (
+      <TestTuiContexts>
+        <TuiConfigProvider config={{ keybinds: {} } as never}>
+          <ArgsProvider>
+            <KVProvider>
+              <ThemeProvider mode="dark">
+                <FilesPanel rows={rows} selected={() => selected} armed={undefined} width={36} />
+              </ThemeProvider>
+            </KVProvider>
+          </ArgsProvider>
+        </TuiConfigProvider>
+      </TestTuiContexts>
+    ),
+    { width: 60, height: 20 },
+  )
+}
+
+test("文件行显示中文状态词", () => {
+  const app = renderPanel(0)
+  const frame = app.captureCharFrame()
+  expect(frame).toContain("已改")
+  expect(frame).toContain("未跟踪")
+  app.destroy()
+})
+
+test("有 numstat 的行显示加删行数", () => {
+  const app = renderPanel(0)
+  expect(app.captureCharFrame()).toContain("+10 -2")
+  app.destroy()
+})
+
+test("焦点行有 ❯ 标记", () => {
+  const app = renderPanel(1)
+  const lines = app.captureCharFrame().split("\n")
+  const focused = lines.find((line) => line.includes("未跟踪"))
+  expect(focused).toContain("❯")
+  app.destroy()
+})
+
+test("非焦点行没有 ❯ 标记", () => {
+  const app = renderPanel(1)
+  const lines = app.captureCharFrame().split("\n")
+  const other = lines.find((line) => line.includes("已改"))
+  expect(other).not.toContain("❯")
+  app.destroy()
+})
+
+test("空列表显示暂无", () => {
+  const app = renderPanel(0, [])
+  expect(app.captureCharFrame()).toContain("暂无")
+  app.destroy()
+})
+
+test("确认态时焦点行显示确认文案而不是文件名", () => {
+  return testRender(
+    () => (
+      <TestTuiContexts>
+        <TuiConfigProvider config={{ keybinds: {} } as never}>
+          <ArgsProvider>
+            <KVProvider>
+              <ThemeProvider mode="dark">
+                <FilesPanel
+                  rows={ROWS}
+                  selected={() => 0}
+                  armed={{ key: "d", label: "再按一次 d 丢弃这个文件", deadline: 3000 }}
+                  width={36}
+                />
+              </ThemeProvider>
+            </KVProvider>
+          </ArgsProvider>
+        </TuiConfigProvider>
+      </TestTuiContexts>
+    ),
+    { width: 60, height: 20 },
+  ).then((app) => {
+    const frame = app.captureCharFrame()
+    expect(frame).toContain("再按一次 d")
+    app.destroy()
+  })
+})
+```
+
+- [ ] **Step 2: 跑测试确认失败**
+
+```
+cd packages/tui && bun test --timeout 30000 test/component/git-workspace-files-panel.test.tsx
+```
+
+预期：FAIL，`Cannot find module .../files-panel`。
+
+- [ ] **Step 3: 实现 files-panel.tsx**
+
+创建 `packages/tui/src/component/git-workspace/files-panel.tsx`：
+
+```ts
+// 文件面板:文件列表 + 中文状态词 + 加删行数。焦点行有 ❯ 标记。
+//
+// 行高是**固定一行**:文件路径按列宽截断(见 Locale.truncateToWidth),不折行 ——
+// 折行会让「j/k 选下一行」的视觉反馈变成跳一大段。
+import { For, Show } from "solid-js"
+import { useTheme } from "../../context/theme"
+import { Locale } from "../../util/locale"
+import type { ArmedConfirm } from "./confirm"
+import type { FileRow } from "./state"
+
+export interface FilesPanelProps {
+  rows: FileRow[]
+  /** 当前焦点行下标;面板没获得焦点时由调用方传 -1(没有行是焦点)。 */
+  selected: () => number
+  /** 确认态;非 undefined 时焦点行显示确认文案而不是正常内容。 */
+  armed?: ArmedConfirm
+  /** 面板可用列数,用于截断路径。 */
+  width: number
+}
+
+export function FilesPanel(props: FilesPanelProps) {
+  const { theme } = useTheme()
+  // 扣掉左边的选中标记与空格(2 列),再扣掉右边的计数(约 10 列)。
+  const pathWidth = () => Math.max(8, props.width - 2 - 10)
+
+  return (
+    <box flexDirection="column" flexGrow={1} minHeight={0}>
+      <Show
+        when={props.rows.length > 0}
+        fallback={
+          <text fg={theme.textMuted} paddingLeft={2}>
+            暂无改动
+          </text>
+        }
+      >
+        <For each={props.rows}>
+          {(row, index) => {
+            const isFocused = () => index() === props.selected()
+            const showingConfirm = () => isFocused() && props.armed !== undefined
+            return (
+              <box flexDirection="row" paddingLeft={1}>
+                <text fg={isFocused() ? theme.primary : theme.textMuted} wrapMode="none">
+                  {isFocused() ? "❯ " : "  "}
+                </text>
+                <Show
+                  when={showingConfirm()}
+                  fallback={
+                    <>
+                      <text fg={theme.text} wrapMode="none">
+                        {Locale.truncateToWidth(row.label, 6)} {Locale.truncateToWidth(row.file, pathWidth())}
+                      </text>
+                      <Show when={row.count}>
+                        <text fg={theme.textMuted} wrapMode="none" paddingLeft={1}>
+                          {row.count}
+                        </text>
+                      </Show>
+                    </>
+                  }
+                >
+                  <text fg={theme.warning} wrapMode="none">
+                    {props.armed?.label ?? ""}
+                  </text>
+                </Show>
+              </box>
+            )
+          }}
+        </For>
+      </Show>
+    </box>
+  )
+}
+```
+
+- [ ] **Step 4: 跑测试确认通过**
+
+```
+cd packages/tui && bun test --timeout 30000 test/component/git-workspace-files-panel.test.tsx
+```
+
+预期：全部 PASS。
+
+- [ ] **Step 5: 提交**
+
+```
+cd packages/tui && git add src/component/git-workspace/files-panel.tsx test/component/git-workspace-files-panel.test.tsx && git commit -m "feat(tui): 工作区文件面板"
+```
+
+---
+
+### Task 7: 状态面板
+
+四行可操作条目：分支 / 远程 / 变更 / 提示。选中远程行时把完整地址摊开。
+
+**Files:**
+- Create: `src/component/git-workspace/status-panel.tsx`
+- Test: `test/component/git-workspace-status-panel.test.tsx`
+
+- [ ] **Step 1: 写失败的测试**
+
+创建 `packages/tui/test/component/git-workspace-status-panel.test.tsx`：
+
+```tsx
+/** @jsxImportSource @opentui/solid */
+import { expect, test } from "bun:test"
+import { testRender } from "@opentui/solid"
+import { TestTuiContexts } from "../fixture/tui-environment"
+import { TuiConfigProvider } from "../../src/config"
+import { ArgsProvider } from "../../src/context/args"
+import { KVProvider } from "../../src/context/kv"
+import { ThemeProvider } from "../../src/context/theme"
+import { StatusPanel } from "../../src/component/git-workspace/status-panel"
+import type { StatusRow } from "../../src/component/git-workspace/state"
+
+const ROWS: StatusRow[] = [
+  { kind: "branch", label: "分支", detail: "主分支", count: "↑91" },
+  { kind: "remote", label: "远程", detail: "origin" },
+  { kind: "changes", label: "变更", detail: "2 个文件", count: "+15 -5" },
+  { kind: "hint", label: "提示", detail: "有未提交改动" },
+]
+
+function renderPanel(selected: number, rows: StatusRow[] = ROWS, remoteUrl?: string) {
+  return testRender(
+    () => (
+      <TestTuiContexts>
+        <TuiConfigProvider config={{ keybinds: {} } as never}>
+          <ArgsProvider>
+            <KVProvider>
+              <ThemeProvider mode="dark">
+                <StatusPanel rows={rows} selected={() => selected} remoteUrl={remoteUrl} width={36} />
+              </ThemeProvider>
+            </KVProvider>
+          </ArgsProvider>
+        </TuiConfigProvider>
+      </TestTuiContexts>
+    ),
+    { width: 60, height: 20 },
+  )
+}
+
+test("四行都在,且是中文", () => {
+  const app = renderPanel(0)
+  const frame = app.captureCharFrame()
+  for (const label of ["分支", "远程", "变更", "提示"]) expect(frame).toContain(label)
+  app.destroy()
+})
+
+test("焦点行有 ❯ 标记", () => {
+  const app = renderPanel(1)
+  const remoteLine = app.captureCharFrame().split("\n").find((line) => line.includes("远程"))
+  expect(remoteLine).toContain("❯")
+  app.destroy()
+})
+
+test("选中远程行时把完整地址摊开", () => {
+  const app = renderPanel(1, ROWS, "https://gitee.com/x/y.git")
+  expect(app.captureCharFrame()).toContain("gitee.com")
+  app.destroy()
+})
+
+test("没选中远程行时不显示地址", () => {
+  const app = renderPanel(0, ROWS, "https://gitee.com/x/y.git")
+  expect(app.captureCharFrame()).not.toContain("gitee.com")
+  app.destroy()
+})
+
+test("没有远端时显示未配置远端", () => {
+  const app = renderPanel(0, [{ kind: "remote", label: "远程", detail: "未配置远端" }])
+  expect(app.captureCharFrame()).toContain("未配置远端")
+  app.destroy()
+})
+
+test("领先计数显示在分支行", () => {
+  const app = renderPanel(0)
+  expect(app.captureCharFrame()).toContain("↑91")
+  app.destroy()
+})
+```
+
+- [ ] **Step 2: 跑测试确认失败**
+
+```
+cd packages/tui && bun test --timeout 30000 test/component/git-workspace-status-panel.test.tsx
+```
+
+预期：FAIL，`Cannot find module .../status-panel`。
+
+- [ ] **Step 3: 实现 status-panel.tsx**
+
+创建 `packages/tui/src/component/git-workspace/status-panel.tsx`：
+
+```ts
+// 状态面板:四行可操作条目(分支 / 远程 / 变更 / 提示)。
+//
+// 为什么是「可操作的四行」而不是一块静态摘要:「选哪个远端」必须有地方放,而独立成第六个面板
+// 又太重(Lazygit 也没有)。塞进状态面板当一行,正好。
+//
+// 选中远程行时把完整 URL 摊开:f 推送是不可逆动作,推错地方很痛,多占一行显示地址是值的。
+import { For, Show } from "solid-js"
+import { useTheme } from "../../context/theme"
+import { Locale } from "../../util/locale"
+import type { StatusRow } from "./state"
+
+export interface StatusPanelProps {
+  rows: StatusRow[]
+  selected: () => number
+  /** 选中远端的完整地址;没有远端时 undefined。 */
+  remoteUrl?: string
+  width: number
+}
+
+export function StatusPanel(props: StatusPanelProps) {
+  const { theme } = useTheme()
+  // 预算 = 总宽 − 选中标记(2) − 标签(约 4) − 计数(约 10)。
+  const detailWidth = () => Math.max(6, props.width - 2 - 4 - 10)
+
+  return (
+    <box flexDirection="column" flexGrow={1} minHeight={0}>
+      <For each={props.rows}>
+        {(row, index) => {
+          const isFocused = () => index() === props.selected()
+          const showUrl = () => isFocused() && row.kind === "remote" && props.remoteUrl !== undefined
+          return (
+            <>
+              <box flexDirection="row" paddingLeft={1}>
+                <text fg={isFocused() ? theme.primary : theme.textMuted} wrapMode="none">
+                  {isFocused() ? "❯ " : "  "}
+                </text>
+                <text fg={theme.textMuted} wrapMode="none">
+                  {Locale.truncateToWidth(row.label, 4)}{" "}
+                </text>
+                <text fg={theme.text} wrapMode="none">
+                  {Locale.truncateToWidth(row.detail ?? "", detailWidth())}
+                </text>
+                <Show when={row.count}>
+                  <text fg={theme.warning} wrapMode="none" paddingLeft={1}>
+                    {row.count}
+                  </text>
+                </Show>
+              </box>
+              {/* 地址单独一行,不挤在远程那行后面 —— URL 很长,挤进去会把远端名截断掉。 */}
+              <Show when={showUrl()}>
+                <text fg={theme.textMuted} paddingLeft={3} wrapMode="none">
+                  {Locale.truncateToWidth(props.remoteUrl ?? "", props.width - 3)}
+                </text>
+              </Show>
+            </>
+          )
+        }}
+      </For>
+    </box>
+  )
+}
+```
+
+- [ ] **Step 4: 跑测试确认通过**
+
+```
+cd packages/tui && bun test --timeout 30000 test/component/git-workspace-status-panel.test.tsx
+```
+
+预期：全部 PASS。
+
+- [ ] **Step 5: 提交**
+
+```
+cd packages/tui && git add src/component/git-workspace/status-panel.tsx test/component/git-workspace-status-panel.test.tsx && git commit -m "feat(tui): 工作区状态面板(四行可操作)"
+```
+
+---
+
+### Task 8: 工作区外壳（布局 / 焦点 / 键位条 / 键位拦截）
+
+把面板拼起来：左列 36 列、右侧差异、底部键位条。焦点在面板间切换，按键先过工作区，答不上来才放行。
+
+**Files:**
+- Create: `src/component/git-workspace.tsx`
+- Modify: `src/component/git-workspace/focus.ts`（追加 `keyOfParsed`）
+- Test: `test/component/git-workspace-key.test.ts`、`test/component/git-workspace.test.tsx`
+
+- [ ] **Step 1: 写 `keyOfParsed` 的失败测试**
+
+键事件到键名的映射是**纯函数**，独立测，不碰渲染。
+
+创建 `packages/tui/test/component/git-workspace-key.test.ts`：
+
+```ts
+import { expect, test } from "bun:test"
+import { keyOfParsed } from "../../src/component/git-workspace/focus"
+
+test("普通字母取 name", () => {
+  expect(keyOfParsed({ name: "d", ctrl: false, shift: false, sequence: "d" })).toBe("d")
+  expect(keyOfParsed({ name: "c", ctrl: false, shift: false, sequence: "c" })).toBe("c")
+})
+
+test("数字键取 name", () => {
+  expect(keyOfParsed({ name: "1", ctrl: false, shift: false, sequence: "1" })).toBe("1")
+})
+
+test("ctrl 组合键加前缀", () => {
+  expect(keyOfParsed({ name: "c", ctrl: true, shift: false, sequence: "\u0003" })).toBe("ctrl+c")
+})
+
+test("shift+tab 合成一个键名", () => {
+  expect(keyOfParsed({ name: "tab", ctrl: false, shift: true, sequence: "\u001b[Z" })).toBe("shift-tab")
+})
+
+test("普通 tab 不加前缀", () => {
+  expect(keyOfParsed({ name: "tab", ctrl: false, shift: false, sequence: "\t" })).toBe("tab")
+})
+
+test("空格:sequence 口径", () => {
+  expect(keyOfParsed({ name: " ", ctrl: false, shift: false, sequence: " " })).toBe("space")
+})
+
+test("空格:name 已经叫 space 的口径", () => {
+  expect(keyOfParsed({ name: "space", ctrl: false, shift: false, sequence: " " })).toBe("space")
+})
+
+test("esc 与 return 用 name", () => {
+  expect(keyOfParsed({ name: "escape", ctrl: false, shift: false, sequence: "\u001b" })).toBe("escape")
+  expect(keyOfParsed({ name: "return", ctrl: false, shift: false, sequence: "\r" })).toBe("return")
+})
+```
+
+- [ ] **Step 2: 跑测试确认失败**
+
+```
+cd packages/tui && bun test --timeout 30000 test/component/git-workspace-key.test.ts
+```
+
+预期：FAIL，`keyOfParsed` 不在 `focus.ts` 导出里。
+
+- [ ] **Step 3: 在 focus.ts 追加 keyOfParsed**
+
+在 `packages/tui/src/component/git-workspace/focus.ts` 文件末尾追加：
+
+```ts
+/**
+ * @opentui/core 的键事件 → 本模块的键名。
+ *
+ * 为什么要这层归一化:ParsedKey 对同一个键有两套口径 —— 空格在 `sequence` 里是 `" "`,
+ * 而 `name` 有时是 `" "`、有时已经是 `"space"`;ctrl 组合又只体现在 `ctrl` 布尔上而不是 name 里。
+ * 不归一化的话,键位表里写的 `space` 和 `ctrl+c` 永远匹配不上实际事件。
+ *
+ * 入参故意用结构化最小类型而不是 `ParsedKey`:这样测试能直接传对象字面量,
+ * 不必去构造一个完整的核心类型。
+ */
+export function keyOfParsed(event: { name: string; ctrl: boolean; shift: boolean; sequence: string }): string {
+  if (event.ctrl && event.name.length === 1) return `ctrl+${event.name}`
+  if (event.shift && event.name === "tab") return "shift-tab"
+  if (event.sequence === " " || event.name === " " || event.name === "space") return "space"
+  return event.name
+}
+```
+
+- [ ] **Step 4: 跑测试确认通过**
+
+```
+cd packages/tui && bun test --timeout 30000 test/component/git-workspace-key.test.ts
+```
+
+预期：全部 PASS。
+
+- [ ] **Step 5: 写外壳的失败测试**
+
+创建 `packages/tui/test/component/git-workspace.test.tsx`：
+
+```tsx
+/** @jsxImportSource @opentui/solid */
+import { expect, test } from "bun:test"
+import { testRender } from "@opentui/solid"
+import { TestTuiContexts } from "../fixture/tui-environment"
+import { TuiConfigProvider } from "../../src/config"
+import { ArgsProvider } from "../../src/context/args"
+import { KVProvider } from "../../src/context/kv"
+import { ThemeProvider } from "../../src/context/theme"
+import { GitWorkspace } from "../../src/component/git-workspace"
+
+function renderWorkspace(width: number) {
+  return testRender(
+    () => (
+      <TestTuiContexts>
+        <TuiConfigProvider config={{ keybinds: {} } as never}>
+          <ArgsProvider>
+            <KVProvider>
+              <ThemeProvider mode="dark">
+                <GitWorkspace rootPath={process.cwd()} onClose={() => {}} width={width} />
+              </ThemeProvider>
+            </KVProvider>
+          </ArgsProvider>
+        </TuiConfigProvider>
+      </TestTuiContexts>
+    ),
+    { width, height: 30 },
+  )
+}
+
+test("五个面板标题都在", () => {
+  const app = renderWorkspace(100)
+  const frame = app.captureCharFrame()
+  for (const title of ["状态", "文件", "分支", "提交", "贮藏"]) expect(frame).toContain(title)
+  app.destroy()
+})
+
+test("底部键位提示条有中文说明", () => {
+  const app = renderWorkspace(100)
+  const frame = app.captureCharFrame()
+  expect(frame).toContain("切面板")
+  expect(frame).toContain("暂存")
+  app.destroy()
+})
+
+test("默认焦点在状态面板", () => {
+  const app = renderWorkspace(100)
+  const lines = app.captureCharFrame().split("\n")
+  expect(lines.find((line) => line.includes("分支") && line.includes("❯"))).toBeDefined()
+  app.destroy()
+})
+
+test("窄于 70 列时提示太窄而不是硬挤", () => {
+  const app = renderWorkspace(60)
+  expect(app.captureCharFrame()).toContain("太窄")
+  app.destroy()
+})
+
+test("70 列时不提示太窄,面板仍渲染", () => {
+  const app = renderWorkspace(70)
+  const frame = app.captureCharFrame()
+  expect(frame).not.toContain("太窄")
+  expect(frame).toContain("状态")
+  app.destroy()
+})
+
+test("80 列及以上时左列是 36 列(面板标题不被挤到换行)", () => {
+  const app = renderWorkspace(100)
+  expect(app.captureCharFrame()).toContain("状态")
+  app.destroy()
+})
+```
+
+- [ ] **Step 6: 跑测试确认失败**
+
+```
+cd packages/tui && bun test --timeout 30000 test/component/git-workspace.test.tsx
+```
+
+预期：FAIL，`Cannot find module '../../src/component/git-workspace'`。
+
+- [ ] **Step 7: 实现 git-workspace.tsx**
+
+创建 `packages/tui/src/component/git-workspace.tsx`：
+
+```ts
+// Git 工作区外壳:左列五面板 + 右侧差异 + 底部键位条。
+//
+// 布局与焦点在这里,每个面板的渲染在 git-workspace/*.tsx,数据在 git-workspace/state.ts,
+// 键位表在 git-workspace/focus.ts(纯数据,已单独单测)。
+//
+// 宽度规则(规格「布局」):左列固定 36,70-79 列收到 30,低于 70 直接提示太窄 ——
+// 差异视图窄于 30 列就没法读,硬挤只会得到一个谁也看不懂的界面。
+import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js"
+import { useKeyboard } from "@opentui/solid"
+import { useTheme } from "../context/theme"
+import { gitExec } from "../util/git-exec"
+import type { GitStatusSummary } from "../util/git-status"
+import { Locale } from "../util/locale"
+import {
+  DANGEROUS_COMMANDS,
+  PANEL_ORDER,
+  PANEL_TITLE,
+  panelAt,
+  keyOfParsed,
+  resolveWorkspaceCommand,
+  type PanelID,
+  type WorkspaceCommand,
+} from "./git-workspace/focus"
+import { createConfirm, type ArmedConfirm } from "./git-workspace/confirm"
+import {
+  deriveFileRows,
+  deriveStatusRows,
+  loadWorkspace,
+  pickDefaultRemote,
+  type WorkspaceData,
+} from "./git-workspace/state"
+import { GitDiffPanel, type DiffTarget } from "./git-workspace/diff-panel"
+import { FilesPanel } from "./git-workspace/files-panel"
+import { StatusPanel } from "./git-workspace/status-panel"
+
+const LEFT_WIDE = 36
+const LEFT_NARROW = 30
+const TOO_NARROW = 70
+
+export interface GitWorkspaceProps {
+  rootPath?: string
+  onClose: () => void
+  /** 工作区可用总列数。由调用方按侧栏挤占后的实际宽度给,别自己去猜 —— 组件看不见侧栏。 */
+  width: number
+}
+
+export function GitWorkspace(props: GitWorkspaceProps) {
+  const { theme } = useTheme()
+
+  const [data, setData] = createSignal<WorkspaceData | undefined>(undefined)
+  const [panel, setPanel] = createSignal<PanelID>("status")
+  const [statusRow, setStatusRow] = createSignal(0)
+  const [fileRow, setFileRow] = createSignal(0)
+  const [diffTarget, setDiffTarget] = createSignal<DiffTarget>({ kind: "none" })
+  const [armed, setArmed] = createSignal<ArmedConfirm | undefined>(undefined)
+  const [remote, setRemote] = createSignal<string | undefined>(undefined)
+
+  // 真实时钟注入给确认态。测试里换假时钟就能推时间(见 git-workspace-confirm.test.ts)。
+  const confirm = createConfirm(() => Date.now())
+
+  const refresh = () => {
+    const cwd = props.rootPath
+    if (!cwd) return
+    loadWorkspace(cwd).then((next) => {
+      setData(next)
+      // 选中远端跟着数据走,但用户手动切过就以用户的选择为准。
+      setRemote((prev) => prev ?? pickDefaultRemote(next.remotes)?.name)
+    })
+  }
+
+  createEffect(() => refresh())
+  onCleanup(() => setArmed(undefined))
+
+  const selectedRemote = createMemo(() => {
+    const list = data()?.remotes ?? []
+    return list.find((item) => item.name === remote()) ?? pickDefaultRemote(list)
+  })
+
+  const statusRows = createMemo(() =>
+    deriveStatusRows(
+      data()?.status ?? EMPTY_STATUS,
+      data()?.numstat ?? [],
+      data()?.remotes ?? [],
+      selectedRemote(),
+      data()?.error,
+    ),
+  )
+  const fileRows = createMemo(() => deriveFileRows(data()?.status ?? EMPTY_STATUS, data()?.numstat ?? []))
+
+  const tooNarrow = () => props.width < TOO_NARROW
+  const leftWidth = () => (props.width < 80 ? LEFT_NARROW : LEFT_WIDE)
+
+  const moveRow = (delta: number) => {
+    if (panel() === "status") {
+      setStatusRow((n) => clamp(n + delta, 0, statusRows().length - 1))
+      return
+    }
+    if (panel() === "files") setFileRow((n) => clamp(n + delta, 0, fileRows().length - 1))
+  }
+
+  /** 执行一条工作区命令。所有键位处理最终都汇到这里。 */
+  const run = (command: WorkspaceCommand) => {
+    const cwd = props.rootPath
+
+    if (command === "panel.next") return setPanel((p) => panelAt(PANEL_ORDER.indexOf(p) + 1))
+    if (command === "panel.prev") return setPanel((p) => panelAt(PANEL_ORDER.indexOf(p) - 1))
+    if (command.startsWith("panel.jump:")) return setPanel(panelAt(Number(command.slice("panel.jump:".length))))
+    if (command === "row.up") return moveRow(-1)
+    if (command === "row.down") return moveRow(1)
+    if (command === "global.close") return props.onClose()
+    if (command === "global.refresh") return refresh()
+
+    // 危险命令先进确认态;fire 才真往下走,armed/cancel 都只是状态变化。
+    if (DANGEROUS_COMMANDS.has(command)) {
+      const result = confirm.press(command, dangerLabel(command))
+      setArmed(confirm.pending())
+      if (result !== "fire") return
+    }
+
+    if (!cwd) return
+
+    if (command === "files.stage") {
+      const row = fileRows()[fileRow()]
+      if (!row) return
+      // 已暂存的再按空格是取消暂存(restore 撤回索引),没暂存的才是 add。
+      const args = row.staged ? ["restore", "--staged", "--", row.file] : ["add", "--", row.file]
+      gitExec(cwd, args).then(() => refresh())
+      return
+    }
+    if (command === "files.stageAll") {
+      gitExec(cwd, ["add", "-A"]).then(() => refresh())
+      return
+    }
+    if (command === "files.focusDiff") {
+      const row = fileRows()[fileRow()]
+      if (row) setDiffTarget({ kind: "file", path: row.file })
+      return
+    }
+    if (command === "commits.focusDiff") {
+      const row = data()?.commits[fileRow()]
+      if (row) setDiffTarget({ kind: "commit", hash: row.hash })
+      return
+    }
+    if (command === "files.discard" || command === "files.delete") {
+      const row = fileRows()[fileRow()]
+      if (!row) return
+      const args =
+        command === "files.delete"
+          ? ["clean", "-f", "--", row.file]
+          : ["restore", "--worktree", "--staged", "--", row.file]
+      gitExec(cwd, args).then(() => refresh())
+      return
+    }
+    if (command === "status.space" || command === "status.m") {
+      // 远程行:循环切远端。切换本身不执行任何 git 命令,只改选中状态(规格「多远程」)。
+      const list = data()?.remotes ?? []
+      if (list.length === 0) return
+      const index = list.findIndex((item) => item.name === remote())
+      setRemote(list[(index + 1) % list.length]?.name)
+      return
+    }
+    if (command === "global.pull" || command === "global.push") {
+      const name = selectedRemote()?.name
+      const branch = data()?.status.branch
+      if (!name || !branch) return
+      const args = command === "global.pull" ? ["pull", name, branch] : ["push", name, branch]
+      gitExec(cwd, args).then(() => refresh())
+      return
+    }
+    if (command === "global.commit") {
+      // 计划 1 里提交是「还不可用」的占位:没有暂存内容时给一句提示,计划 2 接上行内输入。
+      const staged = (data()?.status.entries ?? []).filter((entry) => entry.staged)
+      if (staged.length === 0) setArmed({ key: "c", label: "没有可提交的暂存内容", deadline: Date.now() + 3000 })
+      return
+    }
+  }
+
+  // 键位拦截:先问工作区,答得上来就吃掉;答不上来就放行(聊天输入框还能打字)。
+  // 确认态下任何没命中的键都取消确认(规格「期间按别的键取消」)。
+  useKeyboard((event) => {
+    const command = resolveWorkspaceCommand(panel(), keyOfParsed(event))
+    if (command) {
+      event.preventDefault()
+      event.stopPropagation()
+      run(command)
+      return
+    }
+    if (armed() !== undefined) {
+      confirm.clear()
+      setArmed(undefined)
+    }
+  })
+
+  if (tooNarrow()) {
+    return (
+      <box flexGrow={1} minHeight={0} alignItems="center" justifyContent="center">
+        <text fg={theme.warning}>终端太窄,请加宽到 70 列以上</text>
+      </box>
+    )
+  }
+
+  return (
+    <box flexDirection="column" flexGrow={1} minHeight={0}>
+      <box flexDirection="row" flexGrow={1} minHeight={0}>
+        <box flexDirection="column" width={leftWidth()} flexShrink={0} minHeight={0}>
+          <For each={PANEL_ORDER}>
+            {(id) => (
+              <PanelFrame title={PANEL_TITLE[id]} focused={panel() === id}>
+                <Show when={id === "status"}>
+                  <StatusPanel
+                    rows={statusRows()}
+                    selected={() => (panel() === "status" ? statusRow() : -1)}
+                    remoteUrl={selectedRemote()?.url}
+                    width={leftWidth()}
+                  />
+                </Show>
+                <Show when={id === "files"}>
+                  <FilesPanel
+                    rows={fileRows()}
+                    selected={() => (panel() === "files" ? fileRow() : -1)}
+                    armed={armed()}
+                    width={leftWidth()}
+                  />
+                </Show>
+              </PanelFrame>
+            )}
+          </For>
+        </box>
+        <box flexGrow={1} minHeight={0}>
+          <GitDiffPanel target={diffTarget()} rootPath={props.rootPath} />
+        </box>
+      </box>
+      {/* 底部键位条:内容跟着焦点面板变(规格「底部键位提示条跟着焦点面板变」)。 */}
+      <box flexDirection="row" flexShrink={0} paddingLeft={1} paddingTop={1}>
+        <text fg={theme.textMuted} wrapMode="none">
+          {keybarText(panel(), armed())}
+        </text>
+      </box>
+    </box>
+  )
+}
+
+function PanelFrame(props: { title: string; focused: boolean; children?: unknown }) {
+  const { theme } = useTheme()
+  return (
+    <box flexDirection="column" flexGrow={1} minHeight={0}>
+      <text fg={props.focused ? theme.primary : theme.textMuted} wrapMode="none" paddingLeft={1}>
+        {props.focused ? `┌ ${props.title} ─` : `┌ ${props.title}`}
+      </text>
+      <box flexDirection="column" flexGrow={1} minHeight={0}>
+        {props.children}
+      </box>
+    </box>
+  )
+}
+
+function clamp(value: number, min: number, max: number): number {
+  if (max < min) return min
+  return Math.min(Math.max(value, min), max)
+}
+
+function dangerLabel(command: WorkspaceCommand): string {
+  if (command === "files.discard") return "再按一次 d 丢弃这个文件的改动"
+  if (command === "files.delete") return "再按一次 x 删除这个未跟踪文件"
+  if (command === "branches.delete") return "再按一次 d 删除这个分支"
+  return "再按一次 d 丢弃这个贮藏"
+}
+
+/** 键位条文字。确认态时整条换成确认文案 —— 这是「不弹窗」方案里唯一的强提示位。 */
+function keybarText(panel: PanelID, armed?: ArmedConfirm): string {
+  if (armed) return armed.label
+  if (panel === "files") return "j/k 选 空格 暂存 a 全部暂存 enter 看差异 d 丢弃 ? 帮助"
+  if (panel === "status") return "j/k 选行 空格 作用于当前行 p 拉取 f 推送 ? 帮助"
+  if (panel === "branches") return "j/k 选 空格 切换 n 新建 d 删除 ? 帮助"
+  if (panel === "commits") return "j/k 选 enter 看差异 z 撤销上次提交 ? 帮助"
+  return "j/k 选 空格 弹出 d 丢弃 ? 帮助"
+}
+
+/** 数据还没回来(或不是 git 仓库)时的空状态。显式标类型,免得 `??` 右边的字面量把联合类型撑开。 */
+const EMPTY_STATUS: GitStatusSummary = { ahead: 0, behind: 0, entries: [] }
+```
+
+- [ ] **Step 8: 跑测试确认通过**
+
+```
+cd packages/tui && bun test --timeout 30000 test/component/git-workspace.test.tsx
+cd packages/tui && bun run typecheck
+```
+
+预期：测试 PASS；typecheck exit 0。
+
+**计划 1 里有意是 no-op 的命令**：`global.help`（`?` 帮助浮层在计划 3）、`branches.*` / `commits.undo` / `stash.*`（这三个面板的渲染与操作在计划 2）。键位表会把它们解析出来、`run` 里没有对应分支，于是什么也不发生 —— 这是可接受的中间状态，不是 bug。计划 1 的人工验收清单里**没有**这几条。
+
+- [ ] **Step 9: 跑全量测试**
+
+```
+cd packages/tui && bun test --timeout 30000
+```
+
+预期：失败数仍是 4。
+
+- [ ] **Step 10: 提交**
+
+```
+cd packages/tui && git add src/component/git-workspace.tsx src/component/git-workspace/focus.ts test/component/git-workspace-key.test.ts test/component/git-workspace.test.tsx && git commit -m "feat(tui): Git 工作区外壳(布局/焦点/键位条/拦截)"
+```
+
+---
+
+### Task 9: 接进标签页体系
+
+让 `Git` 出现在主区标签条上，能开、能关、能渲染。
+
+**Files:**
+- Modify: `src/component/tab-bar.tsx`（`TabItem.type`）
+- Modify: `src/routes/session/index.tsx`（开标签 + 分发渲染）
+- Modify: `src/routes/session/sidebar.tsx`（Git 页加入口）
+
+- [ ] **Step 1: 扩展 TabItem.type**
+
+修改 `packages/tui/src/component/tab-bar.tsx` 第 17 行的 `type` 联合类型：
+
+```ts
+  type: "chat" | "preview" | "git-diff" | "commit-detail" | "git-workspace"
+```
+
+同时更新第 14-16 行的注释，补一句 `git-workspace` 是整屏工作区，没有 `filePath` 也没有 `commitHash`。
+
+`tabColumns` 里 `tab.type === "chat" ? icon("chat") : icon("doc")` 不用改 —— 工作区走 `icon("doc")` 分支即可。
+
+- [ ] **Step 2: 加 openGitWorkspaceTab**
+
+修改 `packages/tui/src/routes/session/index.tsx`，在 `openCommitTab`（约第 663 行）之后追加：
+
+```ts
+// Git 工作区:整屏双栏,一个会话同时只开一个(id 固定,重复打开只是切过去)。
+const openGitWorkspaceTab = () => {
+  const tabId = "git-workspace"
+  const existing = tabs().find((t) => t.id === tabId)
+  if (existing) {
+    setActiveTabId(tabId)
+    return
+  }
+  setTabs((prev) => [...prev, { id: tabId, title: "Git", type: "git-workspace", closable: true }])
+  setActiveTabId(tabId)
+  setSelectedFile(null)
+}
+```
+
+- [ ] **Step 3: 主区渲染分发加一路**
+
+在 `packages/tui/src/routes/session/index.tsx` 主区渲染处（`activeTab()?.type === "commit-detail"` 那个 `Show` 之后、约第 2111 行 `GitDiffView` 附近），追加：
+
+```tsx
+<Show when={activeTab()?.type === "git-workspace"}>
+  <GitWorkspace rootPath={session()?.directory} onClose={() => closeTab("git-workspace")} width={contentWidth()} />
+</Show>
+```
+
+两个值都不是新造的，照抄旁边已有的：
+
+- **`rootPath={session()?.directory}`** —— 紧挨着的 `GitDiffView`（第 2113 行）和提交详情（第 2106 行）用的就是它。别用 `project.instance.path().worktree` 那套回退（第 1551-1552 行是别处的菜单项，语义不同）。
+- **`width={contentWidth()}`** —— `contentWidth` 是第 552 行的 `createMemo`，聊天区 `ctxWidth`（第 2092 行）和 `Footer`（第 2174 行）都用 `contentWidth()`。**不要**用 `contentWidth() + 2`：那个 `+2` 是标签栏算自己 `paddingLeft/Right` 的口径（第 557-561 行的 `tabBarWidth`），工作区不带那两列 padding。
+
+文件头补 import：
+
+```ts
+import { GitWorkspace } from "../../component/git-workspace"
+```
+
+- [ ] **Step 4: 侧栏 Git 页加入口**
+
+修改 `packages/tui/src/routes/session/sidebar.tsx` 的 Git 页分支，在现有 `GitPanel` 之上加一行入口。找到 `<GitPanel` 那处（约第 277 行），在其**之前**插入：
+
+```tsx
+<box flexDirection="row" paddingLeft={1} paddingBottom={1}>
+  <text fg={theme.primary} onMouseUp={props.onOpenGitWorkspace} wrapMode="none">
+    ↳ 打开工作区
+  </text>
+</box>
+```
+
+`SidebarProps` 加字段：
+
+```ts
+  onOpenGitWorkspace: () => void
+```
+
+并在 `routes/session/index.tsx` 里**两处** `<Sidebar>` 调用都补上 `onOpenGitWorkspace={openGitWorkspaceTab}`（一处 wide、一处 overlay）。
+
+- [ ] **Step 5: 跑测试 + typecheck**
+
+```
+cd packages/tui && bun test --timeout 30000
+cd packages/tui && bun run typecheck
+```
+
+预期：失败数仍是 4；typecheck exit 0。
+
+- [ ] **Step 6: prettier**
+
+```
+cd packages/tui && bun run prettier -- --check src/component/git-workspace.tsx src/component/tab-bar.tsx src/routes/session/index.tsx src/routes/session/sidebar.tsx src/component/git-workspace/
+```
+
+预期：全部通过；若不通过，去掉 `--check` 跑一次格式化。
+
+- [ ] **Step 7: 提交**
+
+```
+cd packages/tui && git add src/component/tab-bar.tsx src/routes/session/index.tsx src/routes/session/sidebar.tsx && git commit -m "feat(tui): 主区接入 Git 工作区标签页"
+```
+
+---
+
+## 人工验收（本计划完成后）
+
+在真实终端跑一次，确认视觉与交互：
+
+```
+cd packages/tui && bun dev
+```
+
+进会话后点侧栏 `Git` 页的 `↳ 打开工作区`，核对：
+
+1. 主区标签条出现 `Git`，且能点 `✕` 关掉
+2. 左列五个面板标题都在，状态面板四行是中文
+3. `tab` 能在面板间切，`❯` 标记跟着走
+4. 焦点在 `文件` 面板时 `j/k` 能上下选，`空格` 暂存后文件状态会变
+5. 焦点在 `文件` 面板按 `enter`，右侧差异视图显示该文件 diff
+6. 按 `d` 那一行变黄显示「再按一次 d…」，按别的键取消
+7. 在工作区里按 `q`、`v`、中文拼音字母 —— **不会**漏进聊天输入框；`ctrl+c` 仍能中断
+8. 终端缩到 60 列 → 显示「终端太窄」；70 列 → 左列变窄但仍可用
+
+---
+
+## 计划 1 完成后的边界
+
+**已交付**：Git 标签页骨架、状态面板（含多远程显示）、文件面板（暂存/全部暂存/丢弃/删除）、右侧差异视图（文件与提交两路）、二次确认、键位拦截、窄屏降级。
+
+**留给计划 2**：分支面板、提交面板、贮藏面板的实际渲染与操作、多远程的循环切换接线、行内提交输入（`c` 现在只提示「没有可提交的暂存内容」）、`z` 撤销上次提交。
+
+**留给计划 3**：侧栏 `git-panel.tsx` 瘦成入口 + 三行摘要（移除「同步/远程/历史/贮藏」区块）、命令面板注册「打开 Git 工作区」、`?` 帮助浮层、把 `git-diff` 标签页与工作区的关系再收敛。
+
+**前置风险（计划 2 动手前必须先验证）**：`y` 复制键依赖系统剪贴板（终端里通常要 OSC 52）。先确认 `packages/tui` 有没有可用通道，**没有就砍掉所有 `y` 键**，别为次要功能引入依赖。规格里已写明这条。
