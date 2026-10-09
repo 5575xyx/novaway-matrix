@@ -73,6 +73,7 @@ cmd /c "git cat-file commit HEAD > %TEMP%\obj.bin"
 ```ts
 import { expect, test } from "bun:test"
 import {
+  DANGEROUS_COMMANDS,
   GLOBAL_KEYS,
   PANEL_KEYS,
   PANEL_ORDER,
@@ -140,9 +141,29 @@ test("ctrl+c 和 ctrl+l 不在拦截表里(必须放行给上层)", () => {
   expect(GLOBAL_KEYS["ctrl+c"]).toBeUndefined()
 })
 
-test("文件面板的危险键都登记在确认机制里", () => {
-  expect(PANEL_KEYS.files["d"]).toBe("files.discard")
-  expect(PANEL_KEYS.files["x"]).toBe("files.delete")
+test("危险命令集恰好四条 —— 少一条就不弹确认直接执行,多一条就把无害操作变成按两次", () => {
+  for (const cmd of ["files.discard", "files.delete", "branches.delete", "stash.discard"] as const) {
+    expect(DANGEROUS_COMMANDS.has(cmd)).toBe(true)
+  }
+  expect(DANGEROUS_COMMANDS.size).toBe(4)
+  // 这几条必须不在集里:暂存、切分支、拉推都是无害的,要按两次会很烦。
+  expect(DANGEROUS_COMMANDS.has("files.stage")).toBe(false)
+  expect(DANGEROUS_COMMANDS.has("branches.checkout")).toBe(false)
+  expect(DANGEROUS_COMMANDS.has("global.push")).toBe(false)
+})
+
+test("局部键真的覆盖同名全局键", () => {
+  // 现有两表的键名没有交集,光靠真实表测不出优先级 —— 把局部查找和全局查找对调,真实表的
+  // 断言会照样全绿。所以造一对**故意冲突**的表钉住语义:同一个键在局部和全局都有定义时,
+  // 局部胜出。
+  // localTable 是平铺查找(默认参就是 PANEL_KEYS[panel],不是 PANEL_KEYS 本身),
+  // 所以这里注入的也是平铺表。第二个断言要能找到 `p`,故把真实全局表展开进来 ——
+  // 展开不掩盖冲突:真实全局表里本来就有 `r`,冲突是真实的。
+  const local = { r: "files.focusDiff" as const }
+  const global = { ...GLOBAL_KEYS, r: "global.refresh" as const }
+  expect(resolveWorkspaceCommand("files", "r", local, global)).toBe("files.focusDiff")
+  // 局部没配到的键才落回全局 —— 只测冲突不够,还得确认没有把全局整层屏蔽掉。
+  expect(resolveWorkspaceCommand("files", "p", local, global)).toBe("global.pull")
 })
 ```
 
@@ -162,8 +183,10 @@ cd packages/tui && bun test --timeout 30000 test/component/git-workspace-focus.t
 // 工作区的面板枚举与键位映射。**纯数据 + 纯函数**,不碰终端、不碰 Solid —— 键位表是这套
 // 交互里最容易错的东西(同一个键在不同面板含义不同),只有脱离渲染才能单测得住。
 //
-// 键名沿用 @opentui/keymap 的写法:小写、组合键用 `ctrl+` 前缀、`shift-tab` 是一个键。
-// `space` 而不是 ` ` —— 空格键在 keymap 里叫 space。
+// 键名的词汇表由本仓库的 `keyOfParsed`(本文件末尾,Task 5 加)定义 —— **不是** @opentui/keymap
+// 的写法。两者不一样:keymap 把 `return` 规范成 `enter`、把 shift+tab 拼成 `shift+tab`,
+// 而 opentui 的**事件名**是 `escape` / `return`(见 src/util/selection.ts:66)。
+// 表里的拼写以 keyOfParsed 的输出为准,改一边就要同步改另一边。
 export type PanelID = "status" | "files" | "branches" | "commits" | "stash"
 
 export const PANEL_ORDER: readonly PanelID[] = ["status", "files", "branches", "commits", "stash"]
@@ -289,11 +312,20 @@ export const DANGEROUS_COMMANDS: ReadonlySet<WorkspaceCommand> = new Set<Workspa
  * 没有命令返回 `undefined`,调用方据此决定「不拦截,放行给上层」——
  * 这是聊天输入框还能正常打字的关键:用户在工作区里按 `q`、按 `v`、按输入法的字母,
  * 都得漏过去。
+ *
+ * 后两个参数默认取模块导出的真实表,**只为测试注入一对故意冲突的表**而存在:
+ * 真实表的局部键与全局键没有同名交集,光跑真实表的话把这两层顺序对调照样全绿 ——
+ * 覆盖优先级这条语义就没有任何测试保护。不额外抽 helper,它仍然是同一个函数。
  */
-export function resolveWorkspaceCommand(panel: PanelID, key: string): WorkspaceCommand | undefined {
-  const local = PANEL_KEYS[panel][key]
+export function resolveWorkspaceCommand(
+  panel: PanelID,
+  key: string,
+  localTable: Readonly<Record<string, WorkspaceCommand>> = PANEL_KEYS[panel],
+  globalTable: Readonly<Record<string, WorkspaceCommand>> = GLOBAL_KEYS,
+): WorkspaceCommand | undefined {
+  const local = localTable[key]
   if (local) return local
-  const global = GLOBAL_KEYS[key]
+  const global = globalTable[key]
   if (global) return global
   // 数字键 1-5 直接跳到对应面板(1 是状态,5 是贮藏)。
   if (key.length === 1 && key >= "1" && key <= "5") return `panel.jump:${Number(key) - 1}`
@@ -1560,7 +1592,7 @@ cd packages/tui && git add src/component/git-workspace/status-panel.tsx test/com
 
 ```ts
 import { expect, test } from "bun:test"
-import { keyOfParsed } from "../../src/component/git-workspace/focus"
+import { keyOfParsed, resolveWorkspaceCommand } from "../../src/component/git-workspace/focus"
 
 test("普通字母取 name", () => {
   expect(keyOfParsed({ name: "d", ctrl: false, shift: false, sequence: "d" })).toBe("d")
@@ -1591,9 +1623,19 @@ test("空格:name 已经叫 space 的口径", () => {
   expect(keyOfParsed({ name: "space", ctrl: false, shift: false, sequence: " " })).toBe("space")
 })
 
-test("esc 与 return 用 name", () => {
-  expect(keyOfParsed({ name: "escape", ctrl: false, shift: false, sequence: "\u001b" })).toBe("escape")
-  expect(keyOfParsed({ name: "return", ctrl: false, shift: false, sequence: "\r" })).toBe("return")
+test("escape / return 归一化成键位表的词汇", () => {
+  // opentui 事件的 name 是 escape / return(见 src/util/selection.ts:66、
+  // src/component/error-component.tsx:63),而键位表里写的是 esc / enter。
+  // 不做这两条映射,按 esc 关工作区、按 enter 看差异都会解析成 undefined 而静默失效。
+  expect(keyOfParsed({ name: "escape", ctrl: false, shift: false, sequence: "\u001b" })).toBe("esc")
+  expect(keyOfParsed({ name: "return", ctrl: false, shift: false, sequence: "\r" })).toBe("enter")
+})
+
+test("归一化后的键能被键位表接住(往返)", () => {
+  // 键位表(focus.ts)与 opentui 的事件名是两套词汇,这层归一化是两者的契约。
+  // 任一侧改了拼写,这条都会红 —— 只单测 focus.ts 或只单测 keyOfParsed 都测不出。
+  expect(resolveWorkspaceCommand("files", keyOfParsed({ name: "return", ctrl: false, shift: false, sequence: "\r" }))).toBe("files.focusDiff")
+  expect(resolveWorkspaceCommand("commits", keyOfParsed({ name: "return", ctrl: false, shift: false, sequence: "\r" }))).toBe("commits.focusDiff")
 })
 ```
 
@@ -1617,6 +1659,11 @@ cd packages/tui && bun test --timeout 30000 test/component/git-workspace-key.tes
  * 而 `name` 有时是 `" "`、有时已经是 `"space"`;ctrl 组合又只体现在 `ctrl` 布尔上而不是 name 里。
  * 不归一化的话,键位表里写的 `space` 和 `ctrl+c` 永远匹配不上实际事件。
  *
+ * 还有一层是**词汇差异**:opentui 事件的 `name` 是 `escape` / `return`(仓库里
+ * `src/util/selection.ts:66`、`src/component/error-component.tsx:63` 都是这么比的),
+ * 而 `focus.ts` 的键位表写的是 `esc` / `enter`。这套映射是两者的契约 —— 少了它,
+ * 按 `esc` 关工作区、按 `enter` 看差异都会解析成 `undefined` 而静默失效。
+ *
  * 入参故意用结构化最小类型而不是 `ParsedKey`:这样测试能直接传对象字面量,
  * 不必去构造一个完整的核心类型。
  */
@@ -1624,6 +1671,8 @@ export function keyOfParsed(event: { name: string; ctrl: boolean; shift: boolean
   if (event.ctrl && event.name.length === 1) return `ctrl+${event.name}`
   if (event.shift && event.name === "tab") return "shift-tab"
   if (event.sequence === " " || event.name === " " || event.name === "space") return "space"
+  if (event.name === "escape") return "esc"
+  if (event.name === "return") return "enter"
   return event.name
 }
 ```
