@@ -1046,8 +1046,13 @@ cd packages/tui && git add src/component/git-workspace/state.ts test/component/g
 创建 `packages/tui/test/util/git-diff.test.ts`：
 
 ```ts
-import { expect, test } from "bun:test"
-import { untrackedPatch } from "../../src/util/git-diff"
+import { afterAll, expect, test } from "bun:test"
+import { execFile } from "node:child_process"
+import { promisify } from "node:util"
+import fs from "fs"
+import os from "os"
+import path from "path"
+import { loadCommitPatch, loadFilePatch, untrackedPatch } from "../../src/util/git-diff"
 
 test("untrackedPatch 对不存在的文件返回空串", () => {
   expect(untrackedPatch("nonexistent-file-for-test.ts", process.cwd())).toBe("")
@@ -1056,7 +1061,83 @@ test("untrackedPatch 对不存在的文件返回空串", () => {
 test("untrackedPatch 对空路径返回空串", () => {
   expect(untrackedPatch("", "")).toBe("")
 })
+
+// 下面起真 git 子进程 —— 口径照抄 test/component/git-workspace-state.test.ts:
+// loadFilePatch 的「空 diff 就合成补丁」是本任务的核心行为,不钉住它,抽不抽出来没人看得出区别。
+
+const tmpDirs: string[] = []
+function tmpGitDir(prefix: string): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix))
+  tmpDirs.push(dir)
+  return dir
+}
+
+afterAll(() => {
+  for (const dir of tmpDirs) fs.rmSync(dir, { recursive: true, force: true })
+  tmpDirs.length = 0
+})
+
+const exec = promisify(execFile)
+const git = (root: string, args: string[]) =>
+  exec("git", ["-c", "user.email=tui@example.com", "-c", "user.name=tui", ...args], { cwd: root })
+
+test("loadFilePatch 未跟踪的新文件合成「全新文件」补丁", async () => {
+  const dir = tmpGitDir("nw-diff-untracked-")
+  await git(dir, ["init", "-b", "main"])
+  fs.writeFileSync(path.join(dir, "new.txt"), "第一行\n第二行\n")
+  const patch = await loadFilePatch(dir, "new.txt")
+  expect(patch).toContain("new file mode 100644")
+  expect(patch).toContain("--- /dev/null")
+  expect(patch).toContain("@@ -0,0 +1,2 @@")
+  expect(patch).toContain("+第一行")
+  expect(patch).toContain("+第二行")
+})
+
+test("loadFilePatch 已跟踪文件走真 git diff", async () => {
+  const dir = tmpGitDir("nw-diff-tracked-")
+  await git(dir, ["init", "-b", "main"])
+  fs.writeFileSync(path.join(dir, "a.txt"), "原样\n")
+  await git(dir, ["add", "."])
+  await git(dir, ["commit", "-m", "init"])
+  fs.writeFileSync(path.join(dir, "a.txt"), "改过\n")
+  const patch = await loadFilePatch(dir, "a.txt")
+  expect(patch).toContain("-原样")
+  expect(patch).toContain("+改过")
+  expect(patch).not.toContain("new file mode")
+})
+
+test("loadFilePatch 非 HEAD 错误照样上抛,不静默降级成合成补丁", async () => {
+  // loadFilePatch 只该吞「仓库还没有 HEAD」这一种失败。别的错误(不在仓库里、超时、
+  // 权限)必须往上抛,否则组件永远显示不出错误,用户看到的是一份凭空合成的补丁。
+  // 这条钉住的是两回调写法里的 `throw e` —— 改成 `.catch(() => untrackedPatch(...))` 就会红。
+  //
+  // 注意非仓库目录里 git 报的是 `Could not access 'HEAD'`(不是 `not a git repository`),
+  // 正因为它不含 isMissingHead 认的那两个串,错误才会被正确上抛。
+  const dir = tmpGitDir("nw-diff-norepo-")
+  await expect(loadFilePatch(dir, "any.txt")).rejects.toThrow(/Could not access 'HEAD'/)
+})
+
+test("loadCommitPatch 只输出 diff 正文,不带提交说明", async () => {
+  // git show 默认会把提交信息也打出来。`--format=` 是为了让差异面板只拿到补丁。
+  const dir = tmpGitDir("nw-diff-commit-")
+  await git(dir, ["init", "-b", "main"])
+  fs.writeFileSync(path.join(dir, "a.txt"), "第一版\n")
+  await git(dir, ["add", "."])
+  await git(dir, ["commit", "-m", "这是提交说明,不该出现在补丁里"])
+  const log = await exec("git", ["log", "-1", "--format=%H"], { cwd: dir })
+  const patch = await loadCommitPatch(dir, log.stdout.trim())
+  expect(patch).toContain("+第一版")
+  expect(patch).not.toContain("这是提交说明")
+  expect(patch).not.toContain("commit ")
+})
 ```
+
+> **两条实测修正**(写这段计划时没料到,落地时才暴露):
+> ① `untrackedPatch` 的 `rootPath` 原本是死参数 —— `statSync(filePath)` 按**进程 cwd** 解析。
+> 旧组件能工作只因为调用方传的恰好是绝对路径;现在 util 有两个调用方,必须 `resolve(rootPath, filePath)`。
+> ② 仓库还没任何提交时 `git diff HEAD` 直接 fatal(`bad revision 'HEAD'`),不是空输出 ——
+> 所以 `loadFilePatch` 要在拒绝分支里区分「没有 HEAD」与「真的出错」。
+> 实测两种报错的原文:空仓库 `fatal: bad revision 'HEAD'`(吞掉),非仓库目录 `error: Could not access 'HEAD'`(上抛)。
 
 - [ ] **Step 2: 跑测试确认失败**
 
@@ -1074,6 +1155,7 @@ cd packages/tui && bun test --timeout 30000 test/util/git-diff.test.ts
 // diff 加载。原来长在 component/git-diff-view.tsx 里,抽出来是因为 GitWorkspace 的右侧
 // 差异面板要用同一套逻辑(含未跟踪文件的合成补丁)——两个地方各写一份,迟早漂。
 import { readFileSync, statSync } from "node:fs"
+import { resolve } from "node:path"
 import { gitExec } from "./git-exec"
 
 // 合成补丁最多带多少行正文:未跟踪的大文件(构建产物)不把界面撑爆。
@@ -1088,8 +1170,11 @@ export const SYNTH_DIFF_MAX_LINES = 400
  */
 export function untrackedPatch(filePath: string, rootPath: string): string {
   try {
-    if (statSync(filePath).size > 1024 * 1024) return ""
-    const lines = readFileSync(filePath, "utf-8").split("\n")
+    // 调用方给的是相对仓库根的路径,statSync/readFileSync 却按进程 cwd 解析,这里先落成绝对路径。
+    // (原来那份实现里 `rootPath` 是个形同虚设的死参数;现在 util 有两个调用方,不能再靠巧合。)
+    const abs = resolve(rootPath, filePath)
+    if (statSync(abs).size > 1024 * 1024) return ""
+    const lines = readFileSync(abs, "utf-8").split("\n")
     if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop()
     const shown = lines.slice(0, SYNTH_DIFF_MAX_LINES)
     return [
@@ -1107,11 +1192,27 @@ export function untrackedPatch(filePath: string, rootPath: string): string {
 
 /** 单个文件相对 HEAD 的补丁(已暂存 + 未暂存一起看,和「这次提交会带上什么」一致)。 */
 export function loadFilePatch(rootPath: string, filePath: string): Promise<string> {
-  return gitExec(rootPath, ["diff", "HEAD", "--no-color", "--", filePath]).then((out) => {
-    const body = out.stdout.trimEnd()
-    // 空 diff 只有两种可能:未跟踪的新文件,或改动已全部提交(内容 == HEAD)。
-    return body || untrackedPatch(filePath, rootPath)
-  })
+  return gitExec(rootPath, ["diff", "HEAD", "--no-color", "--", filePath]).then(
+    (out) => {
+      const body = out.stdout.trimEnd()
+      // 空 diff 只有两种可能:未跟踪的新文件,或改动已全部提交(内容 == HEAD)。
+      return body || untrackedPatch(filePath, rootPath)
+    },
+    (e: unknown) => {
+      // 仓库还没任何提交时不存在 HEAD,git 直接 fatal(`bad revision 'HEAD'`);此刻文件只可能是
+      // 未跟踪,照旧合成补丁。**只吞这一种失败** —— 其余错误(不在仓库里是 `Could not access
+      // 'HEAD'`、超时、权限)必须上抛,否则组件永远显示不出错误,用户看到一份凭空合成的补丁。
+      if (!isMissingHead(e)) throw e
+      return untrackedPatch(filePath, rootPath)
+    },
+  )
+}
+
+/** execFile 的失败对象带 stderr,git 对「没有 HEAD」的报错就落在那里面。 */
+function isMissingHead(e: unknown): boolean {
+  if (!(e instanceof Error)) return false
+  const stderr = "stderr" in e ? String(e.stderr) : ""
+  return stderr.includes("bad revision 'HEAD'") || stderr.includes("unknown revision")
 }
 
 /** 一个提交的补丁。`--format=` 让 git 只输出 diff 正文,不带提交说明。 */
@@ -1120,26 +1221,48 @@ export function loadCommitPatch(rootPath: string, hash: string): Promise<string>
 }
 ```
 
-- [ ] **Step 4: 改造 git-diff-view.tsx 复用**
+- [ ] **Step 4: 改造 git-diff-view.tsx 复用 util**
 
-修改 `packages/tui/src/component/git-diff-view.tsx`：删掉本地的 `SYNTH_DIFF_MAX_LINES` 常量与 `untrackedPatch` 函数（第 13-32 行），改为从 util 导入。
+`packages/tui/src/component/git-diff-view.tsx` 三处改动,缺一不可 —— **只换 import 不改 `load` 等于白抽**:两个地方各写一份「gitExec + 空则合成补丁」,迟早漂。
 
-修改后的文件头（第 1-10 行）：
+**4a. 删掉本地实现。** 整段删掉第 10 行的 `import { readFileSync, statSync } from "node:fs"`、第 12-13 行的 `SYNTH_DIFF_MAX_LINES` 注释与常量、第 15-32 行的 `untrackedPatch` 函数。
+
+**4b. 换 import。** 第 8 行的 `import { gitExec } from "../util/git-exec"` 删掉(改完 `load` 后它再无用处),第 9 行 `Locale` 之后加一行:
+
+```ts
+import { loadFilePatch } from "../util/git-diff"
+```
+
+改完的文件头是:
 
 ```ts
 // Git 页点文件名打开的"改动差异"标签页:git diff HEAD 的统一补丁直接喂给
 // @opentui/core 的 <diff> 渲染器(和主差异查看器同一套配色/语法高亮)。
-// 未跟踪文件没有 diff 输出,这里合成一份"全新文件"补丁,照样能看到内容。
+// 加载逻辑(含未跟踪文件的合成补丁)在 util/git-diff,与 GitWorkspace 的差异面板共用。
 import { createSignal, onMount, Show } from "solid-js"
 import type { DiffRenderable } from "@opentui/core"
 import { useTheme } from "../context/theme"
 import { useAutoRefresh } from "../util/auto-refresh"
-import { gitExec } from "../util/git-exec"
-import { untrackedPatch } from "../util/git-diff"
+import { loadFilePatch } from "../util/git-diff"
 import { Locale } from "../util/locale"
 ```
 
-`load` 函数体里那句 `setPatch(untrackedPatch(props.filePath, cwd))` 保持不动 —— 它现在指向 util 导入的版本。
+**4c. 改 `load` 函数体。** 把整个 `try` 块换成一行调用 —— 这才是复用本身:
+
+```ts
+  const load = async () => {
+    const cwd = props.rootPath
+    if (!cwd) return
+    try {
+      setPatch(await loadFilePatch(cwd, props.filePath))
+      setError("")
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+```
+
+原来那段「`gitExec` 拿 diff → 空了就 `untrackedPatch`」的逻辑整体上移到了 `loadFilePatch`,组件不再自己拼。
 
 - [ ] **Step 5: 跑测试 + typecheck**
 
