@@ -10,9 +10,15 @@ import { NeonRail } from "./neon-rail"
 export type TabItem = {
   id: string
   title: string
-  type: "chat" | "preview" | "git-diff"
+  /**
+   * 标签页内容怎么渲染。`commit-detail` 那一档与 `preview`/`git-diff` 的区别只在于
+   * 它**没有 filePath** —— 它看的是一个 commit hash(见 routes/session 的 openCommitTab)。
+   */
+  type: "chat" | "preview" | "git-diff" | "commit-detail"
   closable: boolean
   filePath?: string
+  /** `type === "commit-detail"` 时的提交短 hash。 */
+  commitHash?: string
 }
 
 // 标签条的高度是钉死的:1 行标签 + 1 行霓虹渐变导轨。

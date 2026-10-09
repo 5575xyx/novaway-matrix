@@ -29,6 +29,7 @@ import { Spinner, SPINNER_FRAMES, WorkingSpinner } from "../../component/spinner
 import { animGradient } from "../../util/anim-spinner"
 import { FilePreview } from "../../component/file-preview"
 import { GitDiffView } from "../../component/git-diff-view"
+import { GitCommitView } from "../../component/git-commit-view"
 import { TabBar, type TabItem } from "../../component/tab-bar"
 import { PillRow, type PillSpec } from "../../component/pill"
 import {
@@ -653,6 +654,21 @@ export function Session() {
     setTabs((prev) => [...prev, { id: tabId, title: `± ${fileName}`, type: "git-diff", closable: true, filePath }])
     setActiveTabId(tabId)
     setSelectedFile(filePath)
+  }
+
+  // Git 页点提交行打开"提交详情"。与 preview/git-diff 那两档不同,它**没有 filePath** ——
+  // 看的是一个 commit hash,所以走的是 activeTab().commitHash 而不是 selectedFile。
+  const openCommitTab = (hash: string) => {
+    const tabId = `commit-${hash}`
+    if (tabs().find((t) => t.id === tabId)) {
+      setActiveTabId(tabId)
+      return
+    }
+    setTabs((prev) => [
+      ...prev,
+      { id: tabId, title: `⌂ ${hash}`, type: "commit-detail", closable: true, commitHash: hash },
+    ])
+    setActiveTabId(tabId)
   }
 
   const closeTab = (tabId: string) => {
@@ -1849,6 +1865,7 @@ export function Session() {
                   sessionID={route.sessionID}
                   onFileSelect={(filePath) => openPreviewTab(filePath)}
                   onOpenDiff={(filePath) => openDiffTab(filePath)}
+                  onOpenCommit={(hash) => openCommitTab(hash)}
                   onFileDoubleClick={(filePath) => {
                     if (session()) {
                       const relativePath = path.relative(session()!.directory, filePath)
@@ -1875,6 +1892,7 @@ export function Session() {
                     sessionID={route.sessionID}
                     onFileSelect={(filePath) => openPreviewTab(filePath)}
                     onOpenDiff={(filePath) => openDiffTab(filePath)}
+                    onOpenCommit={(hash) => openCommitTab(hash)}
                     onFileDoubleClick={(filePath) => {
                       if (session()) {
                         const relativePath = path.relative(session()!.directory, filePath)
@@ -2076,18 +2094,28 @@ export function Session() {
                   </Show>
                 </ViewEntrance>
               </Show>
-              <Show when={activeTabId() !== "chat" && selectedFile()}>
-                {/* 按标签类型分发:preview = 整文件编辑,git-diff = 该文件相对 HEAD 的改动差异 */}
-                <Show
-                  when={activeTab()?.type === "git-diff"}
-                  fallback={<FilePreview filePath={selectedFile()} onClose={() => closeTab(activeTabId())} />}
-                >
-                  <GitDiffView
-                    filePath={selectedFile()!}
-                    rootPath={session()?.directory}
-                    onClose={() => closeTab(activeTabId())}
-                  />
-                </Show>
+              <Show when={activeTabId() !== "chat" && (selectedFile() || activeTab()?.commitHash)}>
+                {/* 按标签类型分发:preview = 整文件编辑,git-diff = 该文件相对 HEAD 的改动差异,
+                    commit-detail = 该提交的元信息 + --stat 清单(它没有 filePath,看的是 hash)。 */}
+                <Switch>
+                  <Match when={activeTab()?.type === "commit-detail"}>
+                    <GitCommitView
+                      commitHash={activeTab()!.commitHash!}
+                      rootPath={session()?.directory}
+                      onClose={() => closeTab(activeTabId())}
+                    />
+                  </Match>
+                  <Match when={activeTab()?.type === "git-diff"}>
+                    <GitDiffView
+                      filePath={selectedFile()!}
+                      rootPath={session()?.directory}
+                      onClose={() => closeTab(activeTabId())}
+                    />
+                  </Match>
+                  <Match when>
+                    <FilePreview filePath={selectedFile()!} onClose={() => closeTab(activeTabId())} />
+                  </Match>
+                </Switch>
               </Show>
               <Show when={activeTabId() === "chat"}>
                 <box flexShrink={0}>
