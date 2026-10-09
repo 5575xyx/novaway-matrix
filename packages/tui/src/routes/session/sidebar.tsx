@@ -35,6 +35,8 @@ export interface SidebarProps {
   onFileSelect?: (filePath: string) => void
   /** Git 页点变更文件名:打开"改动差异"标签页(和文件树的整文件预览分开走) */
   onOpenDiff?: (filePath: string) => void
+  /** Git 页点提交行:在主区打开"提交详情"标签页(不再弹窗) */
+  onOpenCommit?: (hash: string) => void
   onFileDoubleClick?: (filePath: string) => void
 }
 
@@ -167,18 +169,17 @@ export function Sidebar(props: SidebarProps) {
         onSelect={setActiveTab}
         animate={kv.get("animations_enabled", true)}
       />
-      {/* 文件树标签页 = 「快速预览」卡 + 可滚动的文件树卡。
+      {/* 文件树标签页 = 可滚动的文件树卡 + 「快速预览」卡。
           预览卡读的是文件树写进模块级 selectedPath 的那一个文件(见 component/file-tree 与
           component/quick-preview-card);没选中文件时它整张不出现(空态)。
 
-          **它是树上面那张,不是原型 :795-817 里下面那张** —— 这是被 scrollbox 逼出来的:
-          侧栏文件页整列只有一个 scrollbox,列里的内容高度是自适应的,于是 flexShrink 永不生效,
-          行数不封顶的文件树会把同列后面任何一张卡挤出可视区(实测 40 个文件时树正好占满,
-          预览卡连边框都看不到)。把预览卡放在 scrollbox **外面**、让 scrollbox 自己
-          flexGrow={1} 拿剩下的高度,两张卡才同时在屏内 —— 而树该让位的是可见行数,不是
-          「点一下看得到的那段代码」。 */}
+          **它是树下面那张**(原型 :795-817 也是这个顺序)。两张卡都待在 scrollbox **外面** ——
+          这才是它们能同时在屏内的真正原因:侧栏文件页整列只有一个 scrollbox,列里的内容高度
+          是自适应的,于是 flexShrink 永不生效,行数不封顶的文件树会把同列后面任何一张卡挤出
+          可视区(实测 40 个文件时树正好占满)。树待在 scrollbox 里自己滚、预览卡在它下面按
+          内容高站住,预览该让位的是**行数**(previewMaxLines 已经按这个顺序把「树至少要留的行数」
+          当硬预算先扣掉),不是位置。 */}
       <Show when={activeTab() === "files"}>
-        <QuickPreviewCard />
         <scrollbox
           flexGrow={1}
           scrollAcceleration={scrollAcceleration()}
@@ -201,6 +202,7 @@ export function Sidebar(props: SidebarProps) {
             />
           </SidebarCard>
         </scrollbox>
+        <QuickPreviewCard />
       </Show>
 
       {/* 待办与统计内容:上下文统计、消息列表和待办事项 */}
@@ -278,6 +280,9 @@ export function Sidebar(props: SidebarProps) {
               rootPath={rootDir()}
               onOpenDiff={(filePath) => {
                 props.onOpenDiff?.(filePath)
+              }}
+              onOpenCommit={(hash) => {
+                props.onOpenCommit?.(hash)
               }}
             />
           </box>

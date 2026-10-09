@@ -9,7 +9,7 @@ import { SIDEBAR_CARD_MIN_CONTENT } from "./sidebar-metrics"
  */
 
 /**
- * 预览显示的行数**上限**。侧栏文件页下面还有文件树,预览卡不该把整屏吃掉;
+ * 预览显示的行数**上限**。侧栏文件页上半截是文件树,预览卡不该把整屏吃掉;
  * 12 行够看出一个文件在干什么,再多就该双击进主区标签页看全文了。
  *
  * 实际给几行由 previewMaxLines 按终端高度再压一道 —— 这个数只是天花板。
@@ -20,8 +20,9 @@ export const PREVIEW_MAX_LINES = 12
 //
 //   SIDEBAR_FILES_CHROME_ROWS = 侧栏固定开销:根卡 paddingTop 1 + 标签行(1 行标签 +
 //     1 行 paddingBottom)= 2 + 品牌页脚(paddingTop 1 + 1 行)= 2 + 根卡 paddingBottom 1。
-//   SIDEBAR_FILES_TREE_MIN_ROWS = 「资源管理器」卡至少要留这么多行。少了它,文件树会被
-//     预览卡挤成只剩一条标题 —— 那正是这张卡当初被挪到 scrollbox 外面时要避免的事。
+//   SIDEBAR_FILES_TREE_MIN_ROWS = 「资源管理器」卡至少要留这么多行。少了它,预览卡会长到
+//     把整列吃完,树连一条标题都露不出来(预览卡在树**下面**、待在 scrollbox 外面,
+//     见 routes/session/sidebar 的那段注释)。
 //   PREVIEW_CARD_ROWS = 预览卡自己的固定行:上下两行边框(内边距行就是边框行)+ 1 行卡头。
 //   PREVIEW_NOTICE_ROWS = 「… 还有 N 行」那一行。只在真截断时出现,但先扣掉 —— 反过来算的
 //     话,一个 3 行的文件会把文件树少分 3 行,为了一个用不上的提示去挤压另一张卡不划算。
