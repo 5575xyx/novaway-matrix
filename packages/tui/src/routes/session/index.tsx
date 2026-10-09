@@ -2214,7 +2214,15 @@ function UserMessage(props: { message: UserMessage; parts: Part[]; onMouseUp: ()
         <MessageAnchor
           messageID={props.message.id}
           marginTop={props.index === 0 ? 0 : 1}
-          alignItems="flex-end"
+          /* alignSelf="flex-end" 是**右缘贴面板**的那一步,不是装饰。
+             锚点有 width="100%" + maxWidth=78%,而 scrollbox 的 alignItems 是默认的 stretch ——
+             没有 alignSelf 时,那个 78% 的盒子停在**左**边:锚点占 0..78%,里面的
+             alignItems="flex-end" 只能把气泡推到「78% 带的右缘」,于是整屏右侧空出 22% 的死带,
+             而用户那条是**右对齐**消息,按原型本该贴面板右缘(用户原话:「右边就右边框对齐」)。
+             加上它之后,锚点自己被摆到交叉轴末端:带子整体右移,气泡与 meta 的右缘 = 整列右缘,
+             而 78% 那道上限仍然生效(长文本在带内折行,不会撑满整列)。
+             助手那条不加 —— 它是 flex-start,左边本来就是面板左缘(原型 :396 两个方向相反)。 */
+          alignSelf="flex-end"
           width="100%"
           onMouseOver={hover.onMouseOver}
           onMouseOut={hover.onMouseOut}
@@ -2253,13 +2261,15 @@ function UserMessage(props: { message: UserMessage; parts: Part[]; onMouseUp: ()
             flexShrink={0}
             alignItems="flex-end"
           >
-            {/* 气泡靠右:外层 alignItems="flex-end" 把气泡推到**消息列**的右缘,内层同样右对齐
-                让附件跟着靠右。宽度上限在消息锚点上(MessageAnchor 的 MESSAGE_MAX_WIDTH,原型的
+            {/* 气泡靠右:外层 alignItems="flex-end" 把气泡推到**锚点**的右缘,内层同样右对齐
+                让附件跟着靠右;而锚点自己由上一步的 alignSelf="flex-end" 贴在面板右缘 ——
+                两者叠起来才是「右对齐消息贴面板右边框」,而不是「贴 78% 带的右缘」。
+                宽度上限在消息锚点上(MessageAnchor 的 MESSAGE_MAX_WIDTH,原型的
                 `.msg { max-width: 78% }`),**不再**是这一层自己的 70% —— 两个方向共用一个上限,
                 用户那条与助手那条才会是同一套尺寸;而挂在气泡上的话,卡外的 meta 行仍然按整列
                 排,「时间和气泡分到了两边」又回来了。
-                这里的 text 不能再写 width="100%" —— 那会把气泡撑满消息列,右对齐就失效;
-                去掉后气泡按文字自然宽度收缩,长文本到消息列右缘才折行。 */}
+                这里的 text 不能再写 width="100%" —— 那会把气泡撑满锚点,右对齐就失效;
+                去掉后气泡按文字自然宽度收缩,长文本到带子右缘(= 面板右缘)才折行。 */}
             <text fg={theme.text}>{text()}</text>
             <Show when={files().length}>
               <box flexDirection="row" paddingTop={1} gap={1} flexWrap="wrap">

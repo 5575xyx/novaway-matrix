@@ -62,3 +62,20 @@ test("会话区的两条消息都走 MessageAnchor(结构断言,见上面的说�
   // 锚点是唯一写 message id 的地方:裸的 <box id={props.message.id} 必须已经不存在。
   expect(source).not.toContain("<box id={props.message.id}")
 })
+
+// 上面那条只管「两个方向都走锚点」,管不了**锚点自己摆在哪** —— 而右缘贴不贴面板就住在那一个
+// prop 上,且 message-meta 的 harness 是手抄的生产结构,漂了不会有任何渲染测试变红。
+// 用户原话:「不应该是左边就左边框对齐,右边就右边框对齐吗?」
+test("用户那条锚点带 alignSelf=flex-end,助手那条不带(结构断言)", () => {
+  const source = readFileSync(path.join(import.meta.dir, "../../../src/routes/session/index.tsx"), "utf8")
+  const anchors = [...source.matchAll(/<MessageAnchor[\s\S]*?>/g)].map((match) => match[0])
+  expect(anchors).toHaveLength(2)
+  // 用户那条在源码里先出现(UserMessage 定义在 AssistantMessage 之前):宽 100% 被 78% 截断,
+  // 再由 alignSelf="flex-end" 把带子摆到交叉轴末端 —— 少任何一个,右缘都退回 78% 那一列。
+  expect(anchors[0]!).toContain('alignSelf="flex-end"')
+  expect(anchors[0]!).toContain('alignItems="flex-end"')
+  expect(anchors[0]!).toContain('width="100%"')
+  // 助手那条是 flex-start(由 scrollbox 的默认 stretch 给,左缘本来就是面板左缘):
+  // 多写一个 alignSelf 会把左对齐消息推到右边。
+  expect(anchors[1]!).not.toContain("alignSelf")
+})
