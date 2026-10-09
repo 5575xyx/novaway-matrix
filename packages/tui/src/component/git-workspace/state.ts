@@ -1,0 +1,178 @@
+// 工作区的数据层:一次性把 git 拉齐,并把原始解析结果**派生**成面板直接能渲染的行。
+//
+// 派生逻辑单独成纯函数(deriveStatusRows / deriveFileRows / pickDefaultRemote)是有意的:
+// 组件里写派生就等于把「↑91 怎么拼」「中文状态词是哪个」埋进 JSX,测不到。
+import { gitExec } from "../../util/git-exec"
+import {
+  BRANCH_FORMAT,
+  type GitBranch,
+  type GitNumstatEntry,
+  type GitRemote,
+  type GitStashEntry,
+  type GitStatusSummary,
+  parseGitBranches,
+  parseGitCommit,
+  parseGitNumstat,
+  parseGitRemotes,
+  parseGitStashList,
+  parseGitStatus,
+} from "../../util/git-status"
+
+export interface GitCommitRow {
+  hash: string
+  subject: string
+}
+
+export interface WorkspaceData {
+  status: GitStatusSummary
+  numstat: GitNumstatEntry[]
+  branches: GitBranch[]
+  commits: GitCommitRow[]
+  stash: GitStashEntry[]
+  remotes: GitRemote[]
+  /** git 命令失败时的原因;成功时 undefined。渲染层把它画进状态面板的「提示」行。 */
+  error?: string
+}
+
+const COMMIT_LIMIT = 40
+
+/**
+ * 并行拉齐工作区需要的全部数据。
+ *
+ * 每个分支都 `.catch` 而不是整体 try/catch:工作区要**部分可用** —— 一个仓库没有 stash、
+ * 没有 remote、甚至还没有任何 commit 都是常态,任何一个命令失败都不该让整个面板白屏。
+ * 只有 `status` 是硬依赖(它同时提供 branch 与文件列表),它失败才返回 error。
+ */
+export function loadWorkspace(rootPath: string): Promise<WorkspaceData> {
+  return gitExec(rootPath, ["status", "--porcelain=v1", "-b"])
+    .then((statusOut) =>
+      Promise.all([
+        gitExec(rootPath, ["diff", "--numstat", "--", "."]).catch(() => ({ stdout: "" })),
+        gitExec(rootPath, ["diff", "--cached", "--numstat", "--", "."]).catch(() => ({ stdout: "" })),
+        gitExec(rootPath, ["branch", BRANCH_FORMAT]).catch(() => ({ stdout: "" })),
+        gitExec(rootPath, ["log", "--oneline", "-n", String(COMMIT_LIMIT)]).catch(() => ({ stdout: "" })),
+        gitExec(rootPath, ["stash", "list"]).catch(() => ({ stdout: "" })),
+        gitExec(rootPath, ["remote", "-v"]).catch(() => ({ stdout: "" })),
+      ]).then(([worktreeOut, indexOut, branchOut, logOut, stashOut, remoteOut]) => ({
+        status: parseGitStatus(statusOut.stdout),
+        // numstat 要跑两条:工作区的和暂存区的。只跑一条会漏掉「已暂存但工作区又改了」的文件。
+        numstat: [...parseGitNumstat(indexOut.stdout), ...parseGitNumstat(worktreeOut.stdout)],
+        branches: parseGitBranches(branchOut.stdout),
+        commits: logOut.stdout
+          .split("\n")
+          .filter((line) => line.trim().length > 0)
+          .flatMap((line) => {
+            const parsed = parseGitCommit(line)
+            return parsed ? [parsed] : []
+          }),
+        stash: parseGitStashList(stashOut.stdout),
+        remotes: parseGitRemotes(remoteOut.stdout),
+      })),
+    )
+    .catch((e: unknown) => emptyWorkspace(e instanceof Error ? e.message : String(e)))
+}
+
+export function emptyWorkspace(error?: string): WorkspaceData {
+  return {
+    status: { ahead: 0, behind: 0, entries: [] },
+    numstat: [],
+    branches: [],
+    commits: [],
+    stash: [],
+    remotes: [],
+    error,
+  }
+}
+
+/**
+ * 多远程的默认选中。优先 `origin` —— 它是绝大多数仓库的约定默认,选错的代价又很高
+ * (推送是不可逆动作),所以宁可按约定走,也不按字母序取第一个。
+ */
+export function pickDefaultRemote(remotes: GitRemote[]): GitRemote | undefined {
+  return remotes.find((r) => r.name === "origin") ?? remotes[0]
+}
+
+/** 领先/落后的显示文本。**0 不画** —— 画一个「↑ 0」是纯噪音。 */
+function trackCount(ahead: number, behind: number): string | undefined {
+  const parts: string[] = []
+  if (ahead > 0) parts.push(`↑${ahead}`)
+  if (behind > 0) parts.push(`↓${behind}`)
+  return parts.length > 0 ? parts.join(" ") : undefined
+}
+
+export interface StatusRow {
+  kind: "branch" | "remote" | "changes" | "hint"
+  label: string
+  detail?: string
+  count?: string
+}
+
+/**
+ * 状态面板的四行。顺序固定:分支 / 远程 / 变更 / 提示(规格「状态面板的四行」)。
+ * `selectedRemote` 由调用方传入 —— 选中哪个远端是工作区状态,不是 git 的输出。
+ */
+export function deriveStatusRows(
+  status: GitStatusSummary,
+  numstat: GitNumstatEntry[],
+  remotes: GitRemote[],
+  selectedRemote?: GitRemote,
+  error?: string,
+): StatusRow[] {
+  const files = status.entries.length
+  const added = numstat.reduce((sum, item) => sum + item.added, 0)
+  const removed = numstat.reduce((sum, item) => sum + item.removed, 0)
+  const dirty = status.entries.some((entry) => entry.unstaged)
+  const remote = selectedRemote ?? pickDefaultRemote(remotes)
+  // branch 为空意味着 `git status` 没给出分支行 —— 要么不在仓库里,要么是 detached。
+  const inRepo = status.branch !== undefined && status.branch !== ""
+
+  return [
+    {
+      kind: "branch",
+      label: "分支",
+      detail: inRepo ? status.branch : "(不在分支上)",
+      count: trackCount(status.ahead, status.behind),
+    },
+    { kind: "remote", label: "远程", detail: remote?.name ?? "未配置远端" },
+    { kind: "changes", label: "变更", detail: `${files} 个文件`, count: `+${added} -${removed}` },
+    {
+      kind: "hint",
+      label: "提示",
+      // error 优先:loadWorkspace 只在 status 命令失败时才带 error,这时「不是 git 仓库」
+      // 未必是真因(可能是超时、权限)。把真实原因透出来比猜一个原因好。
+      detail: error ?? (!inRepo ? "不是 git 仓库" : dirty ? "有未提交改动" : "工作区干净"),
+    },
+  ]
+}
+
+/** 文件面板一行的中文状态词。规格要求用中文而不是 git 的 XY 字母。 */
+const STATUS_LABEL: Record<string, string> = {
+  modified: "已改",
+  added: "新增",
+  deleted: "删除",
+  renamed: "重命名",
+  untracked: "未跟踪",
+}
+
+export interface FileRow {
+  file: string
+  label: string
+  /** `+N -M`;没有 numstat(例如未跟踪文件)时 undefined。 */
+  count?: string
+  staged: boolean
+  unstaged: boolean
+}
+
+export function deriveFileRows(status: GitStatusSummary, numstat: GitNumstatEntry[]): FileRow[] {
+  const byFile = new Map(numstat.map((item) => [item.file, item]))
+  return status.entries.map((entry) => {
+    const stat = byFile.get(entry.file)
+    return {
+      file: entry.file,
+      label: STATUS_LABEL[entry.status] ?? "已改",
+      count: stat ? `+${stat.added} -${stat.removed}` : undefined,
+      staged: entry.staged,
+      unstaged: entry.unstaged,
+    }
+  })
+}
