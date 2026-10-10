@@ -29,6 +29,17 @@ export const roots = (store: SessionStore) =>
 
 export const sortedRootSessions = (store: SessionStore, now: number) => roots(store).sort(sortSessions(now))
 
+export const sortedRootSessionsFrom = (stores: SessionStore[], now: number) => {
+  const seen = new Set<string>()
+  const merged: Session[] = []
+  for (const session of stores.flatMap(roots)) {
+    if (seen.has(session.id)) continue
+    seen.add(session.id)
+    merged.push(session)
+  }
+  return merged.sort(sortSessions(now))
+}
+
 export const latestRootSession = (stores: SessionStore[], now: number) =>
   stores.flatMap(roots).sort(sortSessions(now))[0]
 

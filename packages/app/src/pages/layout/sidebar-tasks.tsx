@@ -1,21 +1,22 @@
 import { type Session } from "@novaway/sdk/v2/client"
 import { Icon } from "@novaway/ui/icon"
 import { getFilename } from "@novaway/core/util/path"
+import { base64Encode } from "@novaway/core/util/encode"
 import { createMemo, createSignal, For, Show, type Accessor } from "solid-js"
 import { useGlobalSync } from "@/context/global-sync"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useLanguage } from "@/context/language"
 import { type LocalProject } from "@/context/layout"
 import { usePermission } from "@/context/permission"
+import { pathKey } from "@/utils/path-key"
 import { sessionPermissionRequest } from "../session/composer/session-request-tree"
-import { sortedRootSessions } from "./helpers"
+import { sortedRootSessionsFrom } from "./helpers"
 import { SessionItem } from "./sidebar-items"
 
 export type TaskFilter = "all" | "running" | "waiting" | "archived"
 
 export function ProjectTaskList(props: {
   project: LocalProject
-  slug: string
   sidebarExpanded: () => boolean
   prefetchSession: (session: Session, priority?: "high" | "low") => void
   archiveSession: (session: Session) => Promise<void>
@@ -25,9 +26,22 @@ export function ProjectTaskList(props: {
 }) {
   const globalSync = useGlobalSync()
   const permission = usePermission()
-  const [sessionStore] = globalSync.child(props.project.worktree)
+
+  const dirs = createMemo(() => {
+    const seen = new Set<string>()
+    const result: string[] = []
+    for (const dir of [props.project.worktree, ...(props.project.sandboxes ?? [])]) {
+      const key = pathKey(dir)
+      if (seen.has(key)) continue
+      seen.add(key)
+      result.push(dir)
+    }
+    return result
+  })
+  const stores = createMemo(() => dirs().map((dir) => globalSync.child(dir)[0]))
 
   const statusOf = (session: Session): "running" | "waiting" | "idle" => {
+    const [sessionStore] = globalSync.child(session.directory)
     const waiting = !!sessionPermissionRequest(
       sessionStore.session,
       sessionStore.permission,
@@ -42,7 +56,7 @@ export function ProjectTaskList(props: {
   const sessions = createMemo(() => {
     const filter = props.filter()
     if (filter === "archived") return (props.archived() ?? []).filter((s) => !!s.time?.archived)
-    const roots = sortedRootSessions(sessionStore, props.sortNow())
+    const roots = sortedRootSessionsFrom(stores(), props.sortNow())
     if (filter === "all") return roots
     return roots.filter((session) => statusOf(session) === filter)
   })
@@ -60,7 +74,7 @@ export function ProjectTaskList(props: {
             <SessionItem
               session={session}
               list={sessions()}
-              slug={props.slug}
+              slug={base64Encode(session.directory)}
               sidebarExpanded={props.sidebarExpanded}
               clearHoverProjectSoon={() => {}}
               prefetchSession={props.prefetchSession}
@@ -106,17 +120,25 @@ export function TaskFilterBar(props: { filter: TaskFilter; onChange: (filter: Ta
 export function useArchivedSessions(projects: () => LocalProject[]) {
   const globalSDK = useGlobalSDK()
   const [archived, setArchived] = createSignal<Record<string, Session[]>>({})
+  let version = 0
 
   const load = () => {
+    version += 1
+    const current = version
     void Promise.all(
-      projects().map(async (project) => {
-        const sessions = await globalSDK.client.experimental.session
-          .list({ directory: project.worktree, archived: true, roots: true })
-          .then((result) => result.data ?? [])
-          .catch(() => [] as Session[])
-        return [project.worktree, sessions] as const
-      }),
-    ).then((entries) => setArchived(Object.fromEntries(entries)))
+      projects().flatMap((project) =>
+        [project.worktree, ...(project.sandboxes ?? [])].map(async (directory) => {
+          const sessions = await globalSDK.client.experimental.session
+            .list({ directory, archived: true, roots: true, limit: 500 })
+            .then((result) => result.data ?? [])
+            .catch(() => [] as Session[])
+          return [directory, sessions] as const
+        }),
+      ),
+    ).then((entries) => {
+      if (current !== version) return
+      setArchived(Object.fromEntries(entries))
+    })
   }
 
   return { archived, load }
