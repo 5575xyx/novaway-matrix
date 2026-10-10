@@ -16,7 +16,7 @@
 
 **工作目录一律是 `packages/tui`**，不是仓库根目录。仓库根跑测试会被 `bunfig.toml` 的 `do-not-run-tests-from-root` 拦住。
 
-**门禁基线**：`bun test --timeout 30000` 现在是 **812 通过 / 1 跳过 / 4 失败**。那 4 个失败全部来自 `test/cli/cmd/tui/provider-options.test.ts`，是既有问题。每个任务跑完只需确认**失败数仍是 4**。
+**门禁基线**：`bun test --timeout 30000` 现在是 **880 通过 / 1 跳过 / 4 失败**。那 4 个失败全部来自 `test/cli/cmd/tui/provider-options.test.ts`，是既有问题。每个任务跑完只需确认**失败数仍是 4**。
 
 **`bun run typecheck` 必须 exit 0。**
 
@@ -34,7 +34,30 @@ cmd /c "git cat-file commit HEAD > %TEMP%\obj.bin"
 
 **代码风格**：中文注释；不用 `any`；不用 `else`（提前返回）；能 `const` 不 `let`；`node:fs` 同步读写之外避免 `try`/`catch`（用 promise 的 `.catch()`）；prettier `semi: false`、`printWidth: 120`。
 
-**测试挂载组件需要完整的 Context 栈**。照 `test/component/prompt-card.test.tsx` 第 74 行的 `renderCard`：`TestTuiContexts → TuiConfigProvider → ArgsProvider → KVProvider → ThemeProvider → KeymapContexts`。漏 `KeymapContexts` 会让 `useNovaWayKeymap()` 炸。
+**测试挂载组件需要完整的 Context 栈**。照 Task 5/6/7 已落地的组件测试：`await testRender(...)`、
+`TuiConfigProvider config={createTuiResolvedConfig()}`（`../fixture/tui-runtime`）、`KVProvider`、
+`ThemeProvider`、外层 `TestTuiContexts`；拆掉用 `app.renderer.destroy()`（`TestRendererSetup` 上没有 `destroy()`）。
+这些坑都实测踩过，别再走回头路。
+
+### ⚠️ 缩进必须用 `<box paddingLeft={n}>` 包住 `<text>`，写在 `<text>` 上等于没写
+
+opentui 0.4.5 里叶子 `<text>` 的 yoga padding **只收缩内容宽度、不平移绘制起点**。
+`<text paddingLeft={3}>AAA</text>` 渲染出来照样从第 0 列开始；`<box paddingLeft={3}><text>BBB</text></box>` 才在第 3 列。
+
+```tsx
+// ✗ 错:看着像缩进了,实际顶到最左缘
+<text fg={theme.textMuted} paddingLeft={3}>{url}</text>
+// ✓ 对
+<box paddingLeft={3}><text fg={theme.textMuted}>{url}</text></box>
+```
+
+实测确认过（探针渲染对比），Task 5/6/7 的三个面板都踩过并已修。**Task 8 组装外壳时新写任何缩进,照这条来。**
+同一个坑在仓库别处也存在（`component/git-panel.tsx` 的 stash 行），那是另一轮的事。
+
+### 组件的渲染行数可能 ≠ `props.rows.length`
+
+`StatusPanel` 在**远端行被聚焦**时会多渲染一行完整 URL（`status-panel.tsx` 里有注释）。
+Task 8 做光标/滚动条/固定行高时不能假设「第 i 个 row 就是第 i 屏行」。
 
 ---
 
@@ -1453,17 +1476,20 @@ export function GitDiffPanel(props: GitDiffPanelProps) {
       <Show
         when={!error()}
         fallback={
-          <text fg={theme.error} paddingLeft={1}>
-            {error()}
-          </text>
+          // ⚠️ paddingLeft 必须写在 <box> 上 —— 写在 <text> 上在 opentui 里无效(见本计划开头的通用约定)。
+          <box paddingLeft={1}>
+            <text fg={theme.error}>{error()}</text>
+          </box>
         }
       >
         <Show
           when={patch()}
           fallback={
-            <text fg={theme.textMuted} paddingLeft={1}>
-              {props.target.kind === "none" ? "选中文件或提交后在这里看改动" : "没有改动"}
-            </text>
+            <box paddingLeft={1}>
+              <text fg={theme.textMuted}>
+                {props.target.kind === "none" ? "选中文件或提交后在这里看改动" : "没有改动"}
+              </text>
+            </box>
           }
         >
           <box flexGrow={1} minHeight={0} backgroundColor={theme.backgroundPanel}>
@@ -1654,6 +1680,7 @@ import type { FileRow } from "./state"
 const LABEL_WIDTH = 6
 /** 计数区:1 列左内边距 + 最多 8 列(如 `+100 -20`)。 */
 const COUNT_WIDTH = 9
+const COUNT_PAD = 1
 
 export interface FilesPanelProps {
   rows: FileRow[]
@@ -1677,9 +1704,11 @@ export function FilesPanel(props: FilesPanelProps) {
       <Show
         when={props.rows.length > 0}
         fallback={
-          <text fg={theme.textMuted} paddingLeft={2}>
-            暂无改动
-          </text>
+          // 3 = 左内边距 1 + 标记 2,和行内容的标签起始列对齐。
+          // ⚠️ 必须用 box 包着 —— paddingLeft 写在 <text> 上在 opentui 里无效(见本计划开头的通用约定)。
+          <box paddingLeft={3}>
+            <text fg={theme.textMuted}>暂无改动</text>
+          </box>
         }
       >
         <For each={props.rows}>
@@ -1699,9 +1728,11 @@ export function FilesPanel(props: FilesPanelProps) {
                         {Locale.truncateToWidth(row.label, 6)} {Locale.truncateToWidth(row.file, pathWidth())}
                       </text>
                       <Show when={row.count}>
-                        <text fg={theme.textMuted} wrapMode="none" paddingLeft={1}>
-                          {row.count}
-                        </text>
+                        <box paddingLeft={COUNT_PAD}>
+                          <text fg={theme.textMuted} wrapMode="none">
+                            {row.count}
+                          </text>
+                        </box>
                       </Show>
                     </>
                   }
@@ -1746,82 +1777,108 @@ cd packages/tui && git add src/component/git-workspace/files-panel.tsx test/comp
 
 - [ ] **Step 1: 写失败的测试**
 
-创建 `packages/tui/test/component/git-workspace-status-panel.test.tsx`：
+创建 `packages/tui/test/component/git-workspace-status-panel.test.tsx`。
+
+**渲染骨架照抄 Task 5/6 的组件测试**（`await testRender`、`createTuiResolvedConfig()`、
+`app.renderer.destroy()`、不要 `ArgsProvider`）。下面是**初稿，渲染骨架是错的**，照改。
+宽度约束测试的理由同 Task 6：不把面板包进恰好 `width` 列的盒子，截断就等于没测。
 
 ```tsx
 /** @jsxImportSource @opentui/solid */
 import { expect, test } from "bun:test"
 import { testRender } from "@opentui/solid"
-import { TestTuiContexts } from "../fixture/tui-environment"
-import { TuiConfigProvider } from "../../src/config"
-import { ArgsProvider } from "../../src/context/args"
+import { StatusPanel } from "../../src/component/git-workspace/status-panel"
+import { createTuiResolvedConfig } from "../fixture/tui-runtime"
 import { KVProvider } from "../../src/context/kv"
 import { ThemeProvider } from "../../src/context/theme"
-import { StatusPanel } from "../../src/component/git-workspace/status-panel"
+import { TuiConfigProvider } from "../../src/config"
+import { TestTuiContexts } from "../fixture/tui-environment"
 import type { StatusRow } from "../../src/component/git-workspace/state"
 
 const ROWS: StatusRow[] = [
-  { kind: "branch", label: "分支", detail: "主分支", count: "↑91" },
+  { kind: "branch", label: "分支", detail: "main", count: "↑91" },
   { kind: "remote", label: "远程", detail: "origin" },
   { kind: "changes", label: "变更", detail: "2 个文件", count: "+15 -5" },
-  { kind: "hint", label: "提示", detail: "有未提交改动" },
+  { kind: "hint", label: "提示", detail: "有未提交的改动" },
 ]
 
-function renderPanel(selected: number, rows: StatusRow[] = ROWS, remoteUrl?: string) {
-  return testRender(
+// boxWidth 传 0 表示不加约束(只验文案);传具体值时把面板包进恰好那么宽的盒子,
+// flex 收缩才会真的裁切 —— 宽度算错必须在这里露馅,不能靠「布局不受约束」蒙混过去。
+async function renderFrame(selected: number, rows: StatusRow[] = ROWS, remoteUrl?: string, boxWidth = 0) {
+  const panel = <StatusPanel rows={rows} selected={() => selected} remoteUrl={remoteUrl} width={boxWidth || 36} />
+  const app = await testRender(
     () => (
       <TestTuiContexts>
-        <TuiConfigProvider config={{ keybinds: {} } as never}>
-          <ArgsProvider>
-            <KVProvider>
-              <ThemeProvider mode="dark">
-                <StatusPanel rows={rows} selected={() => selected} remoteUrl={remoteUrl} width={36} />
-              </ThemeProvider>
-            </KVProvider>
-          </ArgsProvider>
+        <TuiConfigProvider config={createTuiResolvedConfig()}>
+          <KVProvider>
+            <ThemeProvider mode="dark">
+              {boxWidth > 0 ? (
+                <box width={boxWidth} flexDirection="column">
+                  {panel}
+                </box>
+              ) : (
+                panel
+              )}
+            </ThemeProvider>
+          </KVProvider>
         </TuiConfigProvider>
       </TestTuiContexts>
     ),
     { width: 60, height: 20 },
   )
+  try {
+    await app.renderOnce()
+    await new Promise((resolve) => setTimeout(resolve, 25))
+    await app.renderOnce()
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const frame = app.captureCharFrame()
+      if (frame.trim().length > 0) return frame
+      await new Promise((resolve) => setTimeout(resolve, 25))
+      await app.renderOnce()
+    }
+    return app.captureCharFrame()
+  } finally {
+    app.renderer.destroy()
+  }
 }
 
-test("四行都在,且是中文", () => {
-  const app = renderPanel(0)
-  const frame = app.captureCharFrame()
+test("四行都在,且是中文", async () => {
+  const frame = await renderFrame(0)
   for (const label of ["分支", "远程", "变更", "提示"]) expect(frame).toContain(label)
-  app.destroy()
 })
 
-test("焦点行有 ❯ 标记", () => {
-  const app = renderPanel(1)
-  const remoteLine = app.captureCharFrame().split("\n").find((line) => line.includes("远程"))
+test("焦点行有 ❯ 标记", async () => {
+  const remoteLine = (await renderFrame(1)).split("\n").find((line) => line.includes("远程"))
   expect(remoteLine).toContain("❯")
-  app.destroy()
 })
 
-test("选中远程行时把完整地址摊开", () => {
-  const app = renderPanel(1, ROWS, "https://gitee.com/x/y.git")
-  expect(app.captureCharFrame()).toContain("gitee.com")
-  app.destroy()
+test("选中远程行时把完整地址摊开", async () => {
+  expect(await renderFrame(1, ROWS, "https://gitee.com/x/y.git")).toContain("gitee.com")
 })
 
-test("没选中远程行时不显示地址", () => {
-  const app = renderPanel(0, ROWS, "https://gitee.com/x/y.git")
-  expect(app.captureCharFrame()).not.toContain("gitee.com")
-  app.destroy()
+test("没选中远程行时不显示地址", async () => {
+  expect(await renderFrame(0, ROWS, "https://gitee.com/x/y.git")).not.toContain("gitee.com")
 })
 
-test("没有远端时显示未配置远端", () => {
-  const app = renderPanel(0, [{ kind: "remote", label: "远程", detail: "未配置远端" }])
-  expect(app.captureCharFrame()).toContain("未配置远端")
-  app.destroy()
+test("没有远端时显示未配置远端", async () => {
+  expect(await renderFrame(0, [{ kind: "remote", label: "远程", detail: "未配置远端" }])).toContain("未配置远端")
 })
 
-test("领先计数显示在分支行", () => {
-  const app = renderPanel(0)
-  expect(app.captureCharFrame()).toContain("↑91")
-  app.destroy()
+test("领先计数显示在分支行", async () => {
+  expect(await renderFrame(0)).toContain("↑91")
+})
+
+test("长 detail 在 36 列内截断,计数不被挤掉", async () => {
+  const frame = await renderFrame(
+    0,
+    [{ kind: "changes", label: "变更", detail: "工作区里有一大堆被改动的文件等着处理", count: "+100 -20" }],
+    undefined,
+    36,
+  )
+  const row = frame.split("\n").find((line) => line.includes("变更")) ?? ""
+  expect(row).toContain("+100 -20")
+  expect(row).toContain("…")
+  expect(Bun.stringWidth(row.replace(/\s+$/, ""))).toBeLessThanOrEqual(36)
 })
 ```
 
@@ -1849,6 +1906,13 @@ import { useTheme } from "../../context/theme"
 import { Locale } from "../../util/locale"
 import type { StatusRow } from "./state"
 
+/** 标签固定 4 列(「分支」「远程」「变更」「提示」都是两字中文)。 */
+const LABEL_WIDTH = 4
+/** 计数区总宽 = 1 列左内边距 + 计数正文。 */
+const COUNT_PAD = 1
+/** 计数正文最多 8 列(如 `+100 -20`)。超出截断 —— 全仓求和的数字可以很长,不截会挤掉 detail。 */
+const COUNT_TEXT_WIDTH = 8
+
 export interface StatusPanelProps {
   rows: StatusRow[]
   selected: () => number
@@ -1859,8 +1923,10 @@ export interface StatusPanelProps {
 
 export function StatusPanel(props: StatusPanelProps) {
   const { theme } = useTheme()
-  // 预算 = 总宽 − 选中标记(2) − 标签(约 4) − 计数(约 10)。
-  const detailWidth = () => Math.max(6, props.width - 2 - 4 - 10)
+  // 一行的固定开销:左内边距 1 + 标记 2 + 标签 LABEL_WIDTH + 分隔空格 1 + 计数区(COUNT_PAD + COUNT_TEXT_WIDTH)。
+  // 账目必须和 files-panel 的 pathWidth 用同一套口径,漏算就会被 flex 收缩硬切。
+  const detailWidth = () => Math.max(4, props.width - 1 - 2 - LABEL_WIDTH - 1 - COUNT_PAD - COUNT_TEXT_WIDTH)
+  const urlWidth = () => Math.max(4, props.width - 3)
 
   return (
     <box flexDirection="column" flexGrow={1} minHeight={0}>
@@ -1875,22 +1941,29 @@ export function StatusPanel(props: StatusPanelProps) {
                   {isFocused() ? "❯ " : "  "}
                 </text>
                 <text fg={theme.textMuted} wrapMode="none">
-                  {Locale.truncateToWidth(row.label, 4)}{" "}
+                  {Locale.truncateToWidth(row.label, LABEL_WIDTH)}{" "}
                 </text>
                 <text fg={theme.text} wrapMode="none">
                   {Locale.truncateToWidth(row.detail ?? "", detailWidth())}
                 </text>
                 <Show when={row.count}>
-                  <text fg={theme.warning} wrapMode="none" paddingLeft={1}>
-                    {row.count}
-                  </text>
+                  <box paddingLeft={COUNT_PAD}>
+                    <text fg={theme.warning} wrapMode="none">
+                      {Locale.truncateToWidth(row.count ?? "", COUNT_TEXT_WIDTH)}
+                    </text>
+                  </box>
                 </Show>
               </box>
-              {/* 地址单独一行,不挤在远程那行后面 —— URL 很长,挤进去会把远端名截断掉。 */}
+              {/* 地址单独一行,不挤在远程那行后面 —— URL 很长,挤进去会把远端名截断掉。
+                  ⚠️ 给外壳的契约:**远端行聚焦时,本面板渲染 rows.length + 1 行**。
+                  任何按 selected 1:1 映射屏幕行的逻辑(光标、滚动条、固定行高)都要按这个算,
+                  否则 URL 一出现就全错位。 */}
               <Show when={showUrl()}>
-                <text fg={theme.textMuted} paddingLeft={3} wrapMode="none">
-                  {Locale.truncateToWidth(props.remoteUrl ?? "", props.width - 3)}
-                </text>
+                <box paddingLeft={3}>
+                  <text fg={theme.textMuted} wrapMode="none">
+                    {Locale.truncateToWidth(props.remoteUrl ?? "", urlWidth())}
+                  </text>
+                </box>
               </Show>
             </>
           )
