@@ -16,7 +16,8 @@
 
 **工作目录一律是 `packages/tui`**，不是仓库根目录。仓库根跑测试会被 `bunfig.toml` 的 `do-not-run-tests-from-root` 拦住。
 
-**门禁基线**：`bun test --timeout 30000` 现在是 **880 通过 / 1 跳过 / 4 失败**。那 4 个失败全部来自 `test/cli/cmd/tui/provider-options.test.ts`，是既有问题。每个任务跑完只需确认**失败数仍是 4**。
+**门禁基线**：`bun test --timeout 30000` 现在是 **908 通过 / 1 跳过 / 4 失败**（计划实施前是 880/1/4）。
+那 4 个失败全部来自 `test/cli/cmd/tui/provider-options.test.ts`，是既有问题。每个任务跑完只需确认**失败数仍是 4**。
 
 **`bun run typecheck` 必须 exit 0。**
 
@@ -38,6 +39,31 @@ cmd /c "git cat-file commit HEAD > %TEMP%\obj.bin"
 `TuiConfigProvider config={createTuiResolvedConfig()}`（`../fixture/tui-runtime`）、`KVProvider`、
 `ThemeProvider`、外层 `TestTuiContexts`；拆掉用 `app.renderer.destroy()`（`TestRendererSetup` 上没有 `destroy()`）。
 这些坑都实测踩过，别再走回头路。
+
+### ⚠️ 给某个组件加新属性时，**全仓 grep 渲染点**，别信计划里写的「N 处」
+
+Task 9 的计划写着「在 `routes/session/index.tsx` 的**两处** `<Sidebar>` 调用都补上」。
+实施者照做、审查也确认了 —— 但 `git grep '<Sidebar'` 全仓有**三处**：
+`routes/session/index.tsx` 两处 + **`routes/home.tsx` 两处**（首页是独立路由，自带一套
+`tabs`/`activeTabId`/`openPreviewTab`/`closeTab`，是 `index.tsx` 的平行拷贝）。
+
+后果：用户在**首页**（截图里就是首页，聊天区还是「问我任何事」占位符）点「↳ 打开工作区」，
+`props.onOpenGitWorkspace?.()` 是 `undefined` → **静默空操作，点了完全没反应**。
+计划里「两处」这个数字是对的，但**范围错了** —— 我核对时只在 `index.tsx` 文件内 grep。
+
+**怎么防住这类错**：把属性做成**必选**，而不是照抄邻居的 `onOpenDiff?`。
+两者的区别在于：可选属性降级是**体面的**（那项功能本来就不提供），而这个入口是**无条件渲染**的 ——
+渲染了却没接线，永远是个 bug，没有「优雅降级」这回事。
+
+改必选之后 `bun run typecheck` 立刻报出全部漏接点（本次就是这么定位的）：
+
+```
+src/routes/home.tsx(225,16): error TS2741: Property 'onOpenGitWorkspace' is missing ...
+src/routes/home.tsx(237,18): error TS2741: Property 'onOpenGitWorkspace' is missing ...
+```
+
+**规则**：给共享组件加回调属性时 —— ① 先全仓 grep 该组件的渲染点，② 属性设为必选让 typecheck 兜底，
+③ 别让可选 `?.()` 把漏接变成静默失败。
 
 ### ⚠️ 缩进必须用 `<box paddingLeft={n}>` 包住 `<text>`，写在 `<text>` 上等于没写
 
