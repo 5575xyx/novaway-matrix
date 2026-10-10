@@ -493,6 +493,19 @@ export function GitWorkspace(props: GitWorkspaceProps) {
     ],
   }))
 
+  // pgup/pgdn 与 tab 同款问题(session.global 层把这两个键绑成了「翻聊天记录」,而且**没有 enabled 闸门**):
+  // 差异模式下按 pgup 用户明明在看差异,滚的却是聊天记录 —— 而工作区自己的 useKeyboard 拦截器
+  // 因为被 prependListener 抢在 keymap 后面,收不到这个事件,连 run() 都到不了。
+  // 唯一出路仍是同键冲突里赢下那一层:注册顺序在 session 之后、enabled 只在差异激活模式,
+  // 非差异模式 enabled 为 false 自动失活,全局翻页随之恢复。
+  useBindings(() => ({
+    enabled: () => diffFocus(),
+    bindings: [
+      { key: "pageup", desc: "差异上翻页", group: "Git 工作区", cmd: () => run("diff.pageUp") },
+      { key: "pagedown", desc: "差异下翻页", group: "Git 工作区", cmd: () => run("diff.pageDown") },
+    ],
+  }))
+
   // 键位拦截:先问工作区,答得上来就吃掉;答不上来就放行(聊天输入框还能打字)。
   // 没解析出命令的键(要漏给聊天输入框的那些)一律取消确认态。和 run() 里的那次清理
   // 合起来才构成完整契约:**除危险命令的 press 之外,任何按键路径都清武装态**。
