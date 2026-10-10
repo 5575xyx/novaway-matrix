@@ -116,13 +116,15 @@ test("tab/shift+tab 切工作区面板,不被 agent.cycle 抢走", async () => {
     { width: 100, height: 30 },
   )
   try {
-    expect(await captureFrame(app)).toContain("┌ 状态 ─")
+    // 边框化之后聚焦色在字符帧里看不见,焦点改从**键位条焦点段**辨认:
+    // status 段有「作用于当前行」,files 段有「全部暂存」,段落跟着 panel() 走。
+    expect(await captureFrame(app)).toContain("作用于当前行")
 
     pressKey(app.renderer, "tab")
-    expect(await captureFrame(app)).toContain("┌ 文件 ─")
+    expect(await captureFrame(app)).toContain("全部暂存")
 
     pressKey(app.renderer, "tab", true)
-    expect(await captureFrame(app)).toContain("┌ 状态 ─")
+    expect(await captureFrame(app)).toContain("作用于当前行")
 
     // 整个过程中 tab 不许落到切代理上。
     expect(agentRuns.count).toBe(0)
