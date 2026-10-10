@@ -26,6 +26,7 @@ import { createConfirm, type ArmedConfirm } from "./git-workspace/confirm"
 import {
   deriveFileRows,
   deriveStatusRows,
+  hintFromError,
   loadWorkspace,
   pickDefaultRemote,
   type WorkspaceData,
@@ -55,6 +56,10 @@ export function GitWorkspace(props: GitWorkspaceProps) {
   const [diffTarget, setDiffTarget] = createSignal<DiffTarget>({ kind: "none" })
   const [armed, setArmed] = createSignal<ArmedConfirm | undefined>(undefined)
   const [remote, setRemote] = createSignal<string | undefined>(undefined)
+  // 最后一次 git 命令失败的原因(中文,经 hintFromError 映射)。写进状态面板的「提示」行 ——
+  // 失败必须有反馈:早先版本 gitExec 失败时既不刷新也无提示,用户按了 p 拉取毫无动静,
+  // 只剩控制台里一条没人看的 unhandled rejection。
+  const [actionHint, setActionHint] = createSignal<string | undefined>(undefined)
 
   // 真实时钟注入给确认态。测试里换假时钟就能推时间(见 git-workspace-confirm.test.ts)。
   const confirm = createConfirm<{ file: string }>(() => Date.now())
@@ -78,6 +83,23 @@ export function GitWorkspace(props: GitWorkspaceProps) {
   createEffect(() => refresh())
   onCleanup(() => setArmed(undefined))
 
+  /** 跑一条会改动仓库的 git 命令。成功清掉上一次的动作提示;失败把原因写进提示行。
+   *  两条路径都要 refresh() —— 失败后视图同样可能已过期(比如 pull 冲突时索引变了),
+   *  不刷新会让下一次危险操作落在过期的文件列表上。 */
+  const runGit = (args: string[]) => {
+    const cwd = props.rootPath
+    if (!cwd) return
+    gitExec(cwd, args)
+      .then(() => {
+        setActionHint(undefined)
+        refresh()
+      })
+      .catch((e: unknown) => {
+        setActionHint(hintFromError(e))
+        refresh()
+      })
+  }
+
   const selectedRemote = createMemo(() => {
     const list = data()?.remotes ?? []
     return list.find((item) => item.name === remote()) ?? pickDefaultRemote(list)
@@ -89,7 +111,9 @@ export function GitWorkspace(props: GitWorkspaceProps) {
       data()?.numstat ?? [],
       data()?.remotes ?? [],
       selectedRemote(),
-      data()?.error,
+      // 动作失败的原因优先于数据加载的 error:前者是用户刚按下的键的直接反馈,
+      // 过一会被后台刷新的旧 error 盖掉会让人以为按键没生效。
+      actionHint() ?? data()?.error,
     ),
   )
   const fileRows = createMemo(() => deriveFileRows(data()?.status ?? EMPTY_STATUS, data()?.numstat ?? []))
@@ -132,7 +156,11 @@ export function GitWorkspace(props: GitWorkspaceProps) {
     if (command === "row.up") return moveRow(-1)
     if (command === "row.down") return moveRow(1)
     if (command === "global.close") return props.onClose()
-    if (command === "global.refresh") return refresh()
+    // 手动刷新是用户主动「重新对一遍账」:上一次失败的原因到此为止,别继续挂在提示行上。
+    if (command === "global.refresh") {
+      setActionHint(undefined)
+      return refresh()
+    }
 
     // 危险命令先进确认态;fire 才真往下走,armed/cancel 都只是状态变化。
     if (DANGEROUS_COMMANDS.has(command)) {
@@ -155,11 +183,11 @@ export function GitWorkspace(props: GitWorkspaceProps) {
       if (!row) return
       // 已暂存的再按空格是取消暂存(restore 撤回索引),没暂存的才是 add。
       const args = row.staged ? ["restore", "--staged", "--", row.file] : ["add", "--", row.file]
-      gitExec(cwd, args).then(() => refresh())
+      runGit(args)
       return
     }
     if (command === "files.stageAll") {
-      gitExec(cwd, ["add", "-A"]).then(() => refresh())
+      runGit(["add", "-A"])
       return
     }
     if (command === "files.focusDiff") {
@@ -181,7 +209,7 @@ export function GitWorkspace(props: GitWorkspaceProps) {
         command === "files.delete"
           ? ["clean", "-f", "--", target.file]
           : ["restore", "--worktree", "--staged", "--", target.file]
-      gitExec(cwd, args).then(() => refresh())
+      runGit(args)
       return
     }
     if (command === "status.space" || command === "status.m") {
@@ -197,7 +225,7 @@ export function GitWorkspace(props: GitWorkspaceProps) {
       const branch = data()?.status.branch
       if (!name || !branch) return
       const args = command === "global.pull" ? ["pull", name, branch] : ["push", name, branch]
-      gitExec(cwd, args).then(() => refresh())
+      runGit(args)
       return
     }
     if (command === "global.commit") {

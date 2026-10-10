@@ -81,8 +81,11 @@ export function loadWorkspace(rootPath: string): Promise<WorkspaceData> {
  * 猜错比透出原文更坏。所以只认已知串给中文,其余统一说「git 执行失败」——
  * 不把原始英文串怼进中文界面,也免得一条超长的 fatal 串撑破状态行的布局。
  * 规则照抄自 git-panel.tsx:253 的既有形态。
+ *
+ * 外壳执行 stage/discard/pull/push 失败时也走同一套映射(见 git-workspace.tsx 的 runGit)——
+ * 两处各写一份中文映射表,改一处漏一处就会在提示行出现两套口径。
  */
-function hintFromError(e: unknown): string {
+export function hintFromError(e: unknown): string {
   const message = e instanceof Error ? e.message : String(e)
   return message.includes("not a git repository") ? "不是 git 仓库" : "git 执行失败"
 }
