@@ -109,6 +109,15 @@ export function GitWorkspace(props: GitWorkspaceProps) {
   const run = (command: WorkspaceCommand) => {
     const cwd = props.rootPath
 
+    // 窄宽度下整个工作区只剩一句「请加宽」——面板、确认行都不在,键位自然也该整体静默。
+    // 只放行 global.close:用户得能退出去。其余键(尤其危险键)在这里按了也看不见任何效果,
+    // 危险键更是「无提示的破坏」—— 宽屏下 d d 连按有「再按一次」黄条兜底,窄屏下什么都没有。
+    if (tooNarrow() && command !== "global.close") {
+      confirm.clear()
+      setArmed(undefined)
+      return
+    }
+
     // 非危险命令一律清掉待确认态:用户按了别的键就说明他改主意了。
     // 不清的话,d 武装后按 j 移动一下光标,那行「再按一次 d 确认」会一直挂到超时。
     // (press 只在下面的 DANGEROUS_COMMANDS 分支里被调用,非危险键走不到那里。)
@@ -237,16 +246,19 @@ export function GitWorkspace(props: GitWorkspaceProps) {
     }
   })
 
-  if (tooNarrow()) {
-    return (
-      <box flexGrow={1} minHeight={0} alignItems="center" justifyContent="center">
-        <text fg={theme.warning}>终端太窄,请加宽到 70 列以上</text>
-      </box>
-    )
-  }
-
+  // 太窄提示必须是响应式的(Show),不能用裸 early-return —— 组件体只在挂载时执行一次,
+  // 裸 if 在终端拉窄后不会重新求值,提示永远停在挂载时的那一帧。
+  // 键位静默的闸门在 run() 顶部(只放行 global.close),和这里的显示闸门是同一条件的两半。
   return (
-    <box flexDirection="column" flexGrow={1} minHeight={0}>
+    <Show
+      when={!tooNarrow()}
+      fallback={
+        <box flexGrow={1} minHeight={0} alignItems="center" justifyContent="center">
+          <text fg={theme.warning}>终端太窄,请加宽到 70 列以上</text>
+        </box>
+      }
+    >
+      <box flexDirection="column" flexGrow={1} minHeight={0}>
       <box flexDirection="row" flexGrow={1} minHeight={0}>
         <box flexDirection="column" width={leftWidth()} flexShrink={0} minHeight={0}>
           <For each={PANEL_ORDER}>
@@ -289,7 +301,8 @@ export function GitWorkspace(props: GitWorkspaceProps) {
           {keybarText(panel(), armed())}
         </text>
       </box>
-    </box>
+      </box>
+    </Show>
   )
 }
 
