@@ -13,8 +13,10 @@ export type TabItem = {
   /**
    * 标签页内容怎么渲染。`commit-detail` 那一档与 `preview`/`git-diff` 的区别只在于
    * 它**没有 filePath** —— 它看的是一个 commit hash(见 routes/session 的 openCommitTab)。
+   * `git-workspace` 是整屏双栏工作区:既没有 filePath 也没有 commitHash,id 固定一个
+   * (见 routes/session 的 openGitWorkspaceTab)。
    */
-  type: "chat" | "preview" | "git-diff" | "commit-detail"
+  type: "chat" | "preview" | "git-diff" | "commit-detail" | "git-workspace"
   closable: boolean
   filePath?: string
   /** `type === "commit-detail"` 时的提交短 hash。 */

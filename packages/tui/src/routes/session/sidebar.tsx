@@ -37,6 +37,8 @@ export interface SidebarProps {
   onOpenDiff?: (filePath: string) => void
   /** Git 页点提交行:在主区打开"提交详情"标签页(不再弹窗) */
   onOpenCommit?: (hash: string) => void
+  /** Git 页入口:在主区打开整屏 Git 工作区标签页(首页侧栏没有会话,可以缺席) */
+  onOpenGitWorkspace?: () => void
   onFileDoubleClick?: (filePath: string) => void
 }
 
@@ -276,6 +278,11 @@ export function Sidebar(props: SidebarProps) {
           }}
         >
           <box flexShrink={0} gap={1} paddingRight={1}>
+            <box flexDirection="row" paddingLeft={1} paddingBottom={1}>
+              <text fg={theme.primary} onMouseUp={() => props.onOpenGitWorkspace?.()} wrapMode="none">
+                ↳ 打开工作区
+              </text>
+            </box>
             <GitPanel
               rootPath={rootDir()}
               onOpenDiff={(filePath) => {

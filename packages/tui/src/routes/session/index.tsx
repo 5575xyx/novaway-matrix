@@ -30,6 +30,7 @@ import { animGradient } from "../../util/anim-spinner"
 import { FilePreview } from "../../component/file-preview"
 import { GitDiffView } from "../../component/git-diff-view"
 import { GitCommitView } from "../../component/git-commit-view"
+import { GitWorkspace } from "../../component/git-workspace"
 import { TabBar, type TabItem } from "../../component/tab-bar"
 import { PillRow, type PillSpec } from "../../component/pill"
 import {
@@ -671,6 +672,19 @@ export function Session() {
       { id: tabId, title: `⌂ ${hash}`, type: "commit-detail", closable: true, commitHash: hash },
     ])
     setActiveTabId(tabId)
+  }
+
+  // Git 工作区:整屏双栏,一个会话同时只开一个(id 固定,重复打开只是切过去)。
+  const openGitWorkspaceTab = () => {
+    const tabId = "git-workspace"
+    const existing = tabs().find((t) => t.id === tabId)
+    if (existing) {
+      setActiveTabId(tabId)
+      return
+    }
+    setTabs((prev) => [...prev, { id: tabId, title: "Git", type: "git-workspace", closable: true }])
+    setActiveTabId(tabId)
+    setSelectedFile(null)
   }
 
   const closeTab = (tabId: string) => {
@@ -1868,6 +1882,7 @@ export function Session() {
                   onFileSelect={(filePath) => openPreviewTab(filePath)}
                   onOpenDiff={(filePath) => openDiffTab(filePath)}
                   onOpenCommit={(hash) => openCommitTab(hash)}
+                  onOpenGitWorkspace={openGitWorkspaceTab}
                   onFileDoubleClick={(filePath) => {
                     if (session()) {
                       const relativePath = path.relative(session()!.directory, filePath)
@@ -1895,6 +1910,7 @@ export function Session() {
                     onFileSelect={(filePath) => openPreviewTab(filePath)}
                     onOpenDiff={(filePath) => openDiffTab(filePath)}
                     onOpenCommit={(hash) => openCommitTab(hash)}
+                    onOpenGitWorkspace={openGitWorkspaceTab}
                     onFileDoubleClick={(filePath) => {
                       if (session()) {
                         const relativePath = path.relative(session()!.directory, filePath)
@@ -2096,7 +2112,16 @@ export function Session() {
                   </Show>
                 </ViewEntrance>
               </Show>
-              <Show when={activeTabId() !== "chat" && (selectedFile() || activeTab()?.commitHash)}>
+              {/* git-workspace 没有 filePath 也没有 commitHash,由下面单独一路渲染;selectedFile
+                  可能残留着上一个文件标签的路径(switchTab 对没有 filePath 的标签不改
+                  selectedFile),不挡掉就会把 FilePreview 和工作区叠着渲。 */}
+              <Show
+                when={
+                  activeTabId() !== "chat" &&
+                  activeTab()?.type !== "git-workspace" &&
+                  (selectedFile() || activeTab()?.commitHash)
+                }
+              >
                 {/* 按标签类型分发:preview = 整文件编辑,git-diff = 该文件相对 HEAD 的改动差异,
                     commit-detail = 该提交的元信息 + --stat 清单(它没有 filePath,看的是 hash)。 */}
                 <Switch>
@@ -2118,6 +2143,14 @@ export function Session() {
                     <FilePreview filePath={selectedFile()!} onClose={() => closeTab(activeTabId())} />
                   </Match>
                 </Switch>
+              </Show>
+              {/* 工作区标签自己单开一路:整屏双栏,id 固定,见 openGitWorkspaceTab。 */}
+              <Show when={activeTab()?.type === "git-workspace"}>
+                <GitWorkspace
+                  rootPath={session()?.directory}
+                  onClose={() => closeTab("git-workspace")}
+                  width={contentWidth()}
+                />
               </Show>
               <Show when={activeTabId() === "chat"}>
                 <box flexShrink={0}>
