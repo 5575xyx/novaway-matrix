@@ -21,6 +21,10 @@ export interface GitDiffPanelProps {
   currentBranch?: string
   /** 滚动容器。外壳在差异激活模式下按 j/k/pgup/pgdn 调它,面板自己不动键位。 */
   scrollRef?: (element: ScrollBoxRenderable | null) => void
+  /** 鼠标滚轮:按方向滚动差异内容。 */
+  onMouseScroll?: (event: { scroll?: { direction: "up" | "down" | "left" | "right"; delta: number } }) => void
+  /** 鼠标点击:定位光标到点击位置。 */
+  onMouseDown?: (event: { y: number }) => void
 }
 
 export function GitDiffPanel(props: GitDiffPanelProps) {
@@ -109,6 +113,8 @@ export function GitDiffPanel(props: GitDiffPanelProps) {
             flexGrow={1}
             minHeight={0}
             backgroundColor={theme.backgroundPanel}
+            onMouseScroll={props.onMouseScroll}
+            onMouseDown={props.onMouseDown}
           >
             {/* 配色属性必须照抄 component/git-diff-view.tsx 那份 —— 少传任何一个,那一项就退回
                 @opentui 默认色,和同一个主题下的其它 diff 视图对不上。

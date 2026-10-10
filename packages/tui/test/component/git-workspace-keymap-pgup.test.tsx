@@ -27,6 +27,7 @@ import fs from "node:fs"
 import path from "node:path"
 import { createBindingLookup } from "@opentui/keymap/extras"
 import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui"
+import { createMockMouse } from "@opentui/core/testing"
 import { testRender, useRenderer } from "@opentui/solid"
 import { onCleanup, type JSX } from "solid-js"
 import { GitWorkspace } from "../../src/component/git-workspace"
@@ -137,6 +138,8 @@ async function mountProbeWorkspace(root: string, width = 100): Promise<Workspace
         await Bun.sleep(25)
       }
     },
+    mouse: createMockMouse(app.renderer),
+    cellOf: (_frame, _needle, _nth = 0) => ({ x: 0, y: 0 }),
     cleanup: () => {
       app.renderer.destroy()
     },

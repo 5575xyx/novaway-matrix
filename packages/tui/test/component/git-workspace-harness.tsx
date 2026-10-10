@@ -18,6 +18,7 @@
 import { afterAll } from "bun:test"
 import { createBindingLookup } from "@opentui/keymap/extras"
 import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui"
+import { createMockMouse } from "@opentui/core/testing"
 import { testRender, useRenderer } from "@opentui/solid"
 import { onCleanup, type JSX } from "solid-js"
 import { execFile, execFileSync } from "node:child_process"
@@ -64,6 +65,10 @@ export interface WorkspaceHarness {
   waitForFrame(predicate: (frame: string) => boolean, what: string): Promise<void>
   /** 轮询**真 git 输出**用的等待器:git 子进程是异步的,固定 sleep 既慢又抖。 */
   wait(fn: () => boolean | Promise<boolean>, what: string, timeoutMs?: number): Promise<void>
+  /** 鼠标模拟:直接派发 onMouseDown / onMouseScroll 等事件到渲染树。 */
+  mouse: ReturnType<typeof createMockMouse>
+  /** 从字符帧反查 needle 的 (x, y) cell 坐标,中文/全角按显示宽度算列。 */
+  cellOf(frame: string, needle: string, nth?: number): { x: number; y: number }
   cleanup(): void
   [Symbol.dispose](): void
 }
@@ -129,6 +134,31 @@ export function linesOf(frame: string, needle: string): string[] {
 }
 
 const sleep = (ms: number) => Bun.sleep(ms)
+
+/** 全角字符占 2 列,半角占 1 列。用于从字符帧反查 cell 坐标。 */
+function displayWidth(text: string): number {
+  let width = 0
+  const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" })
+  for (const { segment } of segmenter.segment(text)) {
+    width += isWideChar(segment) ? 2 : 1
+  }
+  return width
+}
+
+function isWideChar(ch: string): boolean {
+  if (ch.length === 0) return false
+  const code = Array.from(ch)[0].codePointAt(0)!
+  return (
+    (code >= 0x1100 && code <= 0x115f) ||
+    (code >= 0x2e80 && code <= 0x9fff) ||
+    (code >= 0xa000 && code <= 0xa4cf) ||
+    (code >= 0xac00 && code <= 0xd7a3) ||
+    (code >= 0xf900 && code <= 0xfaff) ||
+    (code >= 0xfe30 && code <= 0xfe6f) ||
+    (code >= 0xff00 && code <= 0xff60) ||
+    (code >= 0xffe0 && code <= 0xffe6)
+  )
+}
 
 /** 等一帧画完再取字符帧。主题异步就绪,就绪前整屏空白,所以要重试到非空。 */
 async function captureFrame(app: TestApp): Promise<string> {
@@ -212,6 +242,25 @@ export async function mountWorkspace(options: WorkspaceOptions): Promise<Workspa
         if (Date.now() - start > timeout) throw new Error(`始终没等到:${what}`)
         await sleep(25)
       }
+    },
+    mouse: createMockMouse(app.renderer),
+    cellOf: (frame, needle, nth = 0) => {
+      const lines = frame.split("\n")
+      let found = 0
+      for (let y = 0; y < lines.length; y++) {
+        const line = lines[y]
+        let searchFrom = 0
+        while (true) {
+          const idx = line.indexOf(needle, searchFrom)
+          if (idx === -1) break
+          found++
+          if (found > nth) {
+            return { x: displayWidth(line.slice(0, idx)), y }
+          }
+          searchFrom = idx + needle.length
+        }
+      }
+      throw new Error(`帧里找不到: ${needle}`)
     },
     cleanup: () => {
       app.renderer.destroy()
