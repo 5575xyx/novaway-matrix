@@ -41,7 +41,7 @@ export function ProjectTaskList(props: {
 
   const sessions = createMemo(() => {
     const filter = props.filter()
-    if (filter === "archived") return props.archived() ?? []
+    if (filter === "archived") return (props.archived() ?? []).filter((s) => !!s.time?.archived)
     const roots = sortedRootSessions(sessionStore, props.sortNow())
     if (filter === "all") return roots
     return roots.filter((session) => statusOf(session) === filter)
