@@ -1,7 +1,7 @@
 // 工作区的面板枚举与键位映射。**纯数据 + 纯函数**,不碰终端、不碰 Solid —— 键位表是这套
 // 交互里最容易错的东西(同一个键在不同面板含义不同),只有脱离渲染才能单测得住。
 //
-// 键名的词汇表由本仓库的 `keyOfParsed`(本文件末尾,后续任务加)定义 —— **不是** @opentui/keymap
+// 键名的词汇表由本仓库的 `keyOfParsed`(本文件末尾)定义 —— **不是** @opentui/keymap
 // 的写法。两者不一样:keymap 把 `return` 规范成 `enter`、把 shift+tab 拼成 `shift+tab`,
 // 而 opentui 的**事件名**是 `escape` / `return`(见 src/util/selection.ts:66)。
 // 表里的拼写以 keyOfParsed 的输出为准,改一边就要同步改另一边。
@@ -148,4 +148,28 @@ export function resolveWorkspaceCommand(
   // 数字键 1-5 直接跳到对应面板(1 是状态,5 是贮藏)。
   if (key.length === 1 && key >= "1" && key <= "5") return `panel.jump:${Number(key) - 1}`
   return undefined
+}
+
+/**
+ * @opentui/core 的键事件 → 本模块的键名。
+ *
+ * 为什么要这层归一化:ParsedKey 对同一个键有两套口径 —— 空格在 `sequence` 里是 `" "`,
+ * 而 `name` 有时是 `" "`、有时已经是 `"space"`;ctrl 组合又只体现在 `ctrl` 布尔上而不是 name 里。
+ * 不归一化的话,键位表里写的 `space` 和 `ctrl+c` 永远匹配不上实际事件。
+ *
+ * 还有一层是**词汇差异**:opentui 事件的 `name` 是 `escape` / `return`(仓库里
+ * `src/util/selection.ts:66`、`src/component/error-component.tsx:63` 都是这么比的),
+ * 而 `focus.ts` 的键位表写的是 `esc` / `enter`。这套映射是两者的契约 —— 少了它,
+ * 按 `esc` 关工作区、按 `enter` 看差异都会解析成 `undefined` 而静默失效。
+ *
+ * 入参故意用结构化最小类型而不是 `ParsedKey`:这样测试能直接传对象字面量,
+ * 不必去构造一个完整的核心类型。
+ */
+export function keyOfParsed(event: { name: string; ctrl: boolean; shift: boolean; sequence: string }): string {
+  if (event.ctrl && event.name.length === 1) return `ctrl+${event.name}`
+  if (event.shift && event.name === "tab") return "shift-tab"
+  if (event.sequence === " " || event.name === " " || event.name === "space") return "space"
+  if (event.name === "escape") return "esc"
+  if (event.name === "return") return "enter"
+  return event.name
 }
