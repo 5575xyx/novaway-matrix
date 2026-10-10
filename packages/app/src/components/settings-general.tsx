@@ -634,6 +634,26 @@ export const SettingsGeneral: Component = () => {
             triggerStyle={{ "min-width": "220px" }}
           />
         </SettingsRow>
+
+        <SettingsRow
+          title={language.t("settings.general.appearance.fontSize.title")}
+          description={language.t("settings.general.appearance.fontSize.description")}
+        >
+          <div class="flex items-center gap-3" data-action="settings-font-size">
+            <input
+              type="range"
+              min="12"
+              max="16"
+              step="1"
+              class="w-44 accent-[var(--button-primary-base)]"
+              value={settings.appearance.fontSize()}
+              onInput={(e) => settings.appearance.setFontSize(Number(e.currentTarget.value))}
+            />
+            <span class="text-13-medium text-text-weak tabular-nums w-9 text-right">
+              {settings.appearance.fontSize()}
+            </span>
+          </div>
+        </SettingsRow>
       </SettingsList>
     </div>
   )

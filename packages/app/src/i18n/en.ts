@@ -869,6 +869,10 @@ export const dict = {
   "settings.general.section.feed": "Feed",
   "settings.general.section.display": "Display",
 
+  "settings.general.appearance.fontSize.title": "Interface size",
+  "settings.general.appearance.fontSize.description":
+    "Adjust text size for menus, sidebar and controls; code and terminal fonts are independent",
+
   "settings.general.row.language.title": "Language",
   "settings.general.row.language.description": "Change the display language for NovaWay",
   "settings.general.row.shell.title": "Terminal Shell",

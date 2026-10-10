@@ -802,6 +802,8 @@ export const dict = {
   "settings.general.section.sounds": "音效",
   "settings.general.section.feed": "动态",
   "settings.general.section.display": "显示",
+  "settings.general.appearance.fontSize.title": "界面字号",
+  "settings.general.appearance.fontSize.description": "调整菜单、侧栏与控件的文字大小；代码与终端字号独立设置",
   "settings.general.row.language.title": "语言",
   "settings.general.row.language.description": "更改显示语言",
   "settings.general.row.shell.title": "终端 Shell",
