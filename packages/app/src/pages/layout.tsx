@@ -2436,7 +2436,7 @@ export default function Layout(props: ParentProps) {
 
   return (
     <div
-      class="relative tech-radial-light dark:tech-radial-dark flex-1 min-h-0 min-w-0 flex flex-col select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text aurora-overlay"
+      class="relative bg-background-base flex-1 min-h-0 min-w-0 flex flex-col select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text"
       style={modeStyle()}
       data-app-mode={layout.mode.current() ?? "none"}
     >
@@ -2540,7 +2540,7 @@ export default function Layout(props: ParentProps) {
               </Show>
               <main
                 classList={{
-                  "size-full overflow-x-hidden flex flex-col items-start border-t border-border-weak-base glass dark:glass-dark page-transition": true,
+                  "size-full overflow-x-hidden flex flex-col items-start border-t border-border-weak-base bg-background-base page-transition": true,
                   "xl:border-l xl:rounded-tl-[16px]": showSidebar() && store.workspaceSidebarExpanded,
                 }}
               >
