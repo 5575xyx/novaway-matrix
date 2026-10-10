@@ -83,6 +83,19 @@ export function GitWorkspace(props: GitWorkspaceProps) {
   createEffect(() => refresh())
   onCleanup(() => setArmed(undefined))
 
+  // armed 的 3 秒超时要有人在视觉上接住:confirm.pending() 只在被读取时判过期,没有定时器
+  // 驱动重渲染的话,「再按一次 d」的黄条会一直挂到下一次按键才消失。tick 到点对表,
+  // pending 空了就清 armed —— effect 依赖 armed(),清掉后 interval 随本次 effect 的
+  // onCleanup 自动拆除;下一次武装再重新拉起。粒度 100ms:比确认窗口小一个量级即可,
+  // 不值得为更准的到点时刻引入独立定时器调度。
+  createEffect(() => {
+    if (armed() === undefined) return
+    const timer = setInterval(() => {
+      if (confirm.pending() === undefined) setArmed(undefined)
+    }, 100)
+    onCleanup(() => clearInterval(timer))
+  })
+
   /** 跑一条会改动仓库的 git 命令。成功清掉上一次的动作提示;失败把原因写进提示行。
    *  两条路径都要 refresh() —— 失败后视图同样可能已过期(比如 pull 冲突时索引变了),
    *  不刷新会让下一次危险操作落在过期的文件列表上。 */

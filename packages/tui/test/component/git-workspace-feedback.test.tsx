@@ -8,6 +8,10 @@
 // `git restore --worktree --staged -- b.txt` 对未跟踪文件必然失败(pathspec 不匹配),
 // 而仓库本身仍然健康,后续刷新、暂存都能成功 —— 正好把「失败路径」和「成功清提示」
 // 两条线都钉住。
+//
+// 另一半是确认态的超时反馈:confirm.ts 的纯逻辑测试用假时钟,天然全绿 —— 但组件里
+// 没有定时器去驱动重渲染的话,「再按一次 d」的黄条在真机上会挂到下一次按键才消失。
+// 这里用真时钟按一次 d 后不碰键盘,等 3 秒窗口过去,黄条必须自己消失。
 import { expect, test, afterAll } from "bun:test"
 import { KeyEvent } from "@opentui/core"
 import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui"
@@ -165,6 +169,27 @@ test("git 命令失败时提示行给出原因,成功后清掉", async () => {
     // 再按空格暂存它 —— add 对未跟踪文件成功,提示应当被清掉(成功路径也接了反馈)。
     pressKey(app.renderer, "space")
     await waitFrame(app, (frame) => !frame.includes("git 执行失败"), "成功后失败提示消失")
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+test("确认态到期自己消失,不用再按一次键", async () => {
+  const dir = await repoWithUntracked()
+  const app = await renderWorkspace(dir)
+  try {
+    await waitFrame(app, (frame) => frame.includes("b.txt"), "数据加载完(b.txt 进列表)")
+    pressKey(app.renderer, "tab")
+    pressKey(app.renderer, "d")
+    // 武装成功:键位条(和焦点行)换成确认文案。
+    await waitFrame(app, (frame) => frame.includes("再按一次"), "武装后的确认文案")
+    // 不再碰键盘。3 秒窗口过去后,黄条必须自己消失 —— 靠的是组件里到点清 armed 的定时器,
+    // 不是 confirm.ts 里那条只有被读到才生效的过期判断。
+    await waitFrame(app, (frame) => !frame.includes("再按一次"), "超时后确认文案自动消失", 80)
+    // 超时后再按一次 d 只会**重新武装**而不是 fire:b.txt 必须还在。
+    pressKey(app.renderer, "d")
+    await waitFrame(app, (frame) => frame.includes("再按一次"), "超时后按 d 重新武装")
+    expect(fs.readFileSync(path.join(dir, "b.txt"), "utf8")).toBe("untracked\n")
   } finally {
     app.renderer.destroy()
   }
