@@ -21,6 +21,15 @@
   --font-size-5x-large: 36px;
   --font-size-6x-large: 48px;
 
+  /* NovaWay UI 字阶基准 — 由设置 → 通用 → 外观 → 界面字号驱动（12–16px） */
+  --ui-font-size: 14px;
+  --font-size-ui-xl: calc(var(--ui-font-size) + 4px);
+  --font-size-ui-lg: calc(var(--ui-font-size) + 2px);
+  --font-size-ui-base: var(--ui-font-size);
+  --font-size-ui-caption: calc(var(--ui-font-size) - 1px);
+  --font-size-ui-sm: calc(var(--ui-font-size) - 2px);
+  --font-size-ui-xs: calc(var(--ui-font-size) - 4px);
+
   /* NovaWay 字重层级 */
   --font-weight-thin: 100;
   --font-weight-extralight: 200;
