@@ -90,14 +90,14 @@ test("空仓库的提交面板:不印 j/k,但保留 enter / y / z", async () => 
   expect(frame).toContain(COMMIT_KEYBAR)
 })
 
-test("键位条确认态:整条换成确认文案,面板键位让位", async () => {
+test("键位条确认态:面板键位保留,武装项高亮", async () => {
   const dir = await dirtyRepo("nw-ws-keybar-armed-")
   using ws = await mountWorkspace({ root: dir })
   await intoFiles(ws, "note.txt")
   await ws.waitForFrame((frame) => frame.includes(FILES_KEYBAR), "普通态显示文件面板键位")
   await ws.pressKey("d")
   await ws.waitForFrame((frame) => frame.includes("再按一次 d 丢弃这个文件的改动"), "确认态文案出现")
-  expect(await ws.frame()).not.toContain(FILES_KEYBAR)
+  expect(await ws.frame()).toContain(FILES_KEYBAR)
 })
 
 test("键位条输入态:显示 enter 提交 esc 取消", async () => {

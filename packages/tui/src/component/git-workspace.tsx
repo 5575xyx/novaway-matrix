@@ -26,6 +26,7 @@ import {
   type WorkspaceCommand,
 } from "./git-workspace/focus"
 import { createConfirm, type ArmedConfirm } from "./git-workspace/confirm"
+import { createClickDetector } from "./git-workspace/detector"
 import {
   deriveBranchRows,
   deriveFileRows,
@@ -52,6 +53,13 @@ type InlineInputRequest = { kind: "commit" } | { kind: "branch-new" } | { kind: 
 
 /** 危险操作拍板的目标。三种形状合成一个联合,联合成员的判别键就是面板归属。 */
 type ArmedTarget = { file: string } | { branch: string } | { ref: string }
+
+interface KeybarItem {
+  text: string
+  command?: WorkspaceCommand
+  /** 此命令武装时高亮此项 */
+  armedCommand?: WorkspaceCommand
+}
 
 export interface GitWorkspaceProps {
   rootPath?: string
@@ -242,6 +250,38 @@ export function GitWorkspace(props: GitWorkspaceProps) {
     if (panelId === "branches") return branchRows().length > 0
     if (panelId === "commits") return commitRows().length > 0
     return stashRows().length > 0
+  }
+
+  const keybarItems = createMemo(() => {
+    const input = inlineInput()
+    if (input) return INPUT_KEYBAR_ITEMS
+    if (diffFocus()) return DIFF_KEYBAR_ITEMS
+    return panelKeybarItems({ panel: panel(), hasRows: hasRows() })
+  })
+
+  const detector = createClickDetector(() => Date.now())
+
+  const selectRow = (panelId: PanelID, rowIndex: number) => {
+    if (panelId === "status") return setStatusRow(rowIndex)
+    if (panelId === "files" || panelId === "commits") return setFileRow(rowIndex)
+    if (panelId === "branches") return setBranchRow(rowIndex)
+    return setStashRow(rowIndex)
+  }
+
+  const handleRowClick = (panelId: PanelID) => (rowIndex: number) => {
+    const id = `${panelId}:${rowIndex}`
+    detector.detect(
+      id,
+      () => {
+        focusPanel(panelId)
+        selectRow(panelId, rowIndex)
+      },
+      () => {
+        if (panelId === "files") run("files.focusDiff")
+        else if (panelId === "commits") run("commits.focusDiff")
+        else if (panelId === "branches") run("branches.checkout")
+      },
+    )
   }
 
   const moveRow = (delta: number) => {
@@ -592,15 +632,14 @@ export function GitWorkspace(props: GitWorkspaceProps) {
           <box flexDirection="column" width={leftWidth()} flexShrink={0} minHeight={0}>
             <For each={PANEL_ORDER}>
               {(id) => (
-                <PanelFrame title={PANEL_TITLE[id]} focused={panel() === id}>
+                <PanelFrame title={PANEL_TITLE[id]} focused={panel() === id} onFrameClick={() => focusPanel(id)}>
                   <Show when={id === "status"}>
                     <StatusPanel
                       rows={statusRows()}
                       selected={() => (panel() === "status" ? statusRow() : -1)}
                       remoteUrl={selectedRemote()?.url}
-                      // 边框吃掉左右各 1 列:面板内部的截断算式量的是**内容宽**,不是框外宽。
-                      // 少这 2 列修正,状态行的计数就会顶破右边框(与 Task 6/7 的宽度账目同类)。
                       width={leftWidth() - 2}
+                      onRowClick={handleRowClick(id)}
                     />
                   </Show>
                   <Show when={id === "files"}>
@@ -609,16 +648,16 @@ export function GitWorkspace(props: GitWorkspaceProps) {
                       selected={() => (panel() === "files" ? fileRow() : -1)}
                       armed={armedFor("file")}
                       width={leftWidth() - 2}
+                      onRowClick={handleRowClick(id)}
                     />
                   </Show>
-                  {/* 三块新面板的宽度账目与状态/文件面板同源:边框吃掉左右各 1 列,面板内截断算式量的是内容宽。
-                    selected 非当前面板一律传 -1(没有任何行带焦点标记),否则切走焦点后旧面板还亮着一行。 */}
                   <Show when={id === "branches"}>
                     <BranchesPanel
                       rows={branchRows()}
                       selected={() => (panel() === "branches" ? branchRow() : -1)}
                       armed={armedFor("branch")}
                       width={leftWidth() - 2}
+                      onRowClick={handleRowClick(id)}
                     />
                   </Show>
                   <Show when={id === "commits"}>
@@ -626,6 +665,7 @@ export function GitWorkspace(props: GitWorkspaceProps) {
                       rows={commitRows()}
                       selected={() => (panel() === "commits" ? fileRow() : -1)}
                       width={leftWidth() - 2}
+                      onRowClick={handleRowClick(id)}
                     />
                   </Show>
                   <Show when={id === "stash"}>
@@ -634,6 +674,7 @@ export function GitWorkspace(props: GitWorkspaceProps) {
                       selected={() => (panel() === "stash" ? stashRow() : -1)}
                       armed={armedFor("ref")}
                       width={leftWidth() - 2}
+                      onRowClick={handleRowClick(id)}
                     />
                   </Show>
                 </PanelFrame>
@@ -668,6 +709,20 @@ export function GitWorkspace(props: GitWorkspaceProps) {
               rootPath={props.rootPath}
               currentBranch={data()?.status.branch}
               scrollRef={(element) => (scroll = element)}
+              onMouseScroll={(event) => {
+                if (!scroll || scroll.isDestroyed) return
+                if (scroll.scrollHeight <= scroll.viewport.height) return
+                if (!event.scroll) return
+                const delta =
+                  event.scroll.direction === "down" ? Math.abs(event.scroll.delta) : -Math.abs(event.scroll.delta)
+                scrollDiffBy(delta)
+              }}
+              onMouseDown={(event) => {
+                if (!scroll || scroll.isDestroyed) return
+                if (scroll.scrollHeight <= scroll.viewport.height) return
+                const target = clamp(event.y + scroll.scrollTop, 0, scroll.scrollHeight - scroll.viewport.height)
+                scroll.scrollTop = target
+              }}
             />
           </box>
         </box>
@@ -677,30 +732,44 @@ export function GitWorkspace(props: GitWorkspaceProps) {
           焦点段收到四个参数:确认态 / 行内输入 / 差异模式 / 当前面板,按这个顺序定优先级。 */}
         <box flexDirection="column" flexShrink={0} paddingLeft={1} paddingTop={1}>
           <Show when={armed() === undefined}>
-            <text fg={theme.textMuted} wrapMode="none">
-              {GLOBAL_KEYBAR}
-            </text>
+            <box flexDirection="row">
+              <For each={GLOBAL_KEYBAR_ITEMS}>
+                {(item) => (
+                  <box onMouseDown={item.command ? () => run(item.command!) : undefined}>
+                    <text fg={theme.textMuted} wrapMode="none">
+                      {item.text}
+                    </text>
+                  </box>
+                )}
+              </For>
+            </box>
           </Show>
-          <text fg={armed() === undefined ? theme.textMuted : theme.warning} wrapMode="none">
-            {keybarText({
-              armed: armed(),
-              input: inlineInput(),
-              diffFocus: diffFocus(),
-              panel: panel(),
-              hasRows: hasRows(),
-            })}
-          </text>
+          <box flexDirection="row">
+            <For each={keybarItems()}>
+              {(item) => (
+                <box onMouseDown={item.command ? () => run(item.command!) : undefined}>
+                  <text fg={armed()?.key === item.armedCommand ? theme.warning : theme.textMuted} wrapMode="none">
+                    {item.text}
+                  </text>
+                </box>
+              )}
+            </For>
+          </box>
         </box>
       </box>
     </Show>
   )
 }
 
-function PanelFrame(props: { title: string; focused: boolean; children?: JSX.Element }) {
+function PanelFrame(props: { title: string; focused: boolean; children?: JSX.Element; onFrameClick?: () => void }) {
   const { theme } = useTheme()
   // Lazygit 式整圈边框:聚焦面板边框走 primary 高亮,其余走普通 border 色。
   // 标题嵌在**上边框那行**(opentui 原生 title,写法先例 error-component.tsx:121-124),
   // 不再像旧版那样自画一行 `┌ 状态 ─` 前缀。
+  // onMouseDown 挂在整框上是为了接住标题行的点击:标题是 opentui 原生 title,不是独立
+  // renderable,挂不到单独的元素上。代价是框内任何鼠标事件都会冒泡到这里 —— 而这个 handler
+  // 走 focusPanel、会顺手退出差异激活模式,所以每一行的 onMouseDown 都必须 stopPropagation:
+  // 否则双击刚把差异模式打开,紧接着就被框这一手关掉,用户只会以为双击没用。
   return (
     <box
       border
@@ -710,6 +779,7 @@ function PanelFrame(props: { title: string; focused: boolean; children?: JSX.Ele
       titleColor={props.focused ? theme.primary : theme.textMuted}
       flexGrow={1}
       minHeight={0}
+      onMouseDown={props.onFrameClick}
     >
       {props.children}
     </box>
@@ -730,42 +800,73 @@ function dangerLabel(command: WorkspaceCommand): string {
 
 /**
  * 键位条的全局段:跨面板都成立的键,常驻显示(不随焦点变)。
- * 只写**真能按出结果**的键:`tab/1-5 切面板`、`p 拉取`、`f 推送`、`c 提交`、`r 刷新` 都完整可用。
- *
- * `c 提交` 不印「(需先暂存)」这种前置条件:满足时按键就有输入框,不满足时按下去会在提示行
- * 回一句「没有可提交的暂存内容」—— 在常驻键位条上重复这个条件只是噪音,而且会让人以为
- * 不暂存也能提交。反馈放在按下之后,离动作更近。
- *
- * `? 帮助` 本版不做,已从各段删除(计划 2 Task 10.2)—— 印一个按了没反应的键比不印更糟,
- * 用户会一直试,越试越觉得工作区坏了。
+ * 每个 item 一个 <text>,command 非空时可点击触发对应命令。
+ * 空格分隔符写在每个 item 的开头,保证拼起来逐字一致。
  */
-const GLOBAL_KEYBAR = "tab 1-5 切面板 p 拉取 f 推送 c 提交 r 刷新"
+const GLOBAL_KEYBAR_ITEMS: KeybarItem[] = [
+  { text: "tab 1-5 切面板" },
+  { text: " p 拉取", command: "global.pull" },
+  { text: " f 推送", command: "global.push" },
+  { text: " c 提交", command: "global.commit" },
+  { text: " r 刷新", command: "global.refresh" },
+]
+
+/** 行内输入态的键位条。enter/esc 由输入框自己处理,此处只作提示,不可点击。 */
+const INPUT_KEYBAR_ITEMS: KeybarItem[] = [{ text: "enter 提交" }, { text: " esc 取消" }]
+
+/** 差异激活模式的键位条。翻页和退回可点击,j/k 滚动是提示。 */
+const DIFF_KEYBAR_ITEMS: KeybarItem[] = [
+  { text: "j/k 滚动" },
+  { text: " pgup/pgdn 翻页", command: "diff.pageDown" },
+  { text: " esc 退回", command: "diff.exit" },
+]
 
 /**
- * 键位条的焦点段。四种互斥状态按优先级从上到下 —— 越靠上的越是「正在等一个具体动作」的
- * 状态,越该占掉整条提示位。顺序反了会打架:确认态开着却显示面板键位,用户按下去会发现
- * 不是他想的那个动作。
- *
- * 参数用对象而不是位置参数是刻意的:三种「等待态」叠在一起时(确认态 + 输入框 + 差异模式)
- * 需要一个确定性的优先级,散在调用点的三元写起来像,但读不出优先级。
+ * 焦点面板的键位条。返回 item 数组,每个 item 可独立点击。
+ * 空格分隔符写在每个 item 的开头,保证拼起来逐字一致。
  */
-function keybarText(args: {
-  armed?: ArmedConfirm
-  input?: InlineInputRequest
-  diffFocus: boolean
-  panel: PanelID
-  hasRows: boolean
-}): string {
-  if (args.armed) return args.armed.label
-  if (args.input) return "enter 提交 esc 取消"
-  if (args.diffFocus) return "j/k 滚动 pgup/pgdn 翻页 esc 退回"
-  // 列表为空时不印 j/k:空面板按 j 是空转,印一个按键提示只会让人觉得界面卡了。
-  const move = args.hasRows ? "j/k 选 " : ""
-  if (args.panel === "status") return `${move}空格 作用于当前行 m 切换远端`
-  if (args.panel === "files") return `${move}空格 暂存 a 全部暂存 enter 看差异 y 复制路径 d 丢弃 x 删除`
-  if (args.panel === "branches") return `${move}空格 切换 n 新建 enter 看差异 d 删除`
-  if (args.panel === "commits") return `${move}enter 看差异 y 复制哈希 z 撤销上次提交`
-  return `${move}空格 弹出 d 丢弃`
+function panelKeybarItems(args: { panel: PanelID; hasRows: boolean }): KeybarItem[] {
+  const move: KeybarItem[] = args.hasRows ? [{ text: "j/k 选" }] : []
+  if (args.panel === "status") {
+    return [
+      ...move,
+      { text: " 空格 作用于当前行", command: "status.space" },
+      { text: " m 切换远端", command: "status.m" },
+    ]
+  }
+  if (args.panel === "files") {
+    return [
+      ...move,
+      { text: " 空格 暂存", command: "files.stage" },
+      { text: " a 全部暂存", command: "files.stageAll" },
+      { text: " enter 看差异", command: "files.focusDiff" },
+      { text: " y 复制路径", command: "files.copyPath" },
+      { text: " d 丢弃", command: "files.discard", armedCommand: "files.discard" },
+      { text: " x 删除", command: "files.delete", armedCommand: "files.delete" },
+    ]
+  }
+  if (args.panel === "branches") {
+    return [
+      ...move,
+      { text: " 空格 切换", command: "branches.checkout" },
+      { text: " n 新建", command: "branches.new" },
+      { text: " enter 看差异", command: "branches.focusDiff" },
+      { text: " d 删除", command: "branches.delete", armedCommand: "branches.delete" },
+    ]
+  }
+  if (args.panel === "commits") {
+    return [
+      ...move,
+      { text: " enter 看差异", command: "commits.focusDiff" },
+      { text: " y 复制哈希", command: "commits.copyHash" },
+      { text: " z 撤销上次提交", command: "commits.undo" },
+    ]
+  }
+  return [
+    ...move,
+    { text: " 空格 弹出", command: "stash.pop" },
+    { text: " d 丢弃", command: "stash.discard", armedCommand: "stash.discard" },
+  ]
 }
 
 /** 数据还没回来(或不是 git 仓库)时的空状态。显式标类型,免得 `??` 右边的字面量把联合类型撑开。 */

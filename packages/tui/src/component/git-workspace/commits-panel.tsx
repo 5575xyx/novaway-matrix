@@ -17,6 +17,8 @@ export interface CommitsPanelProps {
   selected: () => number
   /** 面板可用列数(已扣左右各 1 列边框)。 */
   width: number
+  /** 单击行:面板不关心命令,只报告点了第几行;外壳负责选中 + 双击判定。 */
+  onRowClick?: (rowIndex: number) => void
 }
 
 export function CommitsPanel(props: CommitsPanelProps) {
@@ -39,7 +41,14 @@ export function CommitsPanel(props: CommitsPanelProps) {
           {(row, index) => {
             const isFocused = () => index() === props.selected()
             return (
-              <box flexDirection="row" paddingLeft={1}>
+              <box
+                flexDirection="row"
+                paddingLeft={1}
+                onMouseDown={(event) => {
+                  event.stopPropagation()
+                  props.onRowClick?.(index())
+                }}
+              >
                 <text fg={isFocused() ? theme.primary : theme.textMuted} wrapMode="none">
                   {isFocused() ? "❯ " : "  "}
                 </text>
