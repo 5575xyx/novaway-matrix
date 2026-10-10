@@ -81,6 +81,7 @@ import {
   type WorkspaceSidebarContext,
 } from "./layout/sidebar-workspace"
 import { ProjectDragOverlay, SortableProject, type ProjectSidebarContext } from "./layout/sidebar-project"
+import { ProjectTaskList, TaskFilterBar, useArchivedSessions, type TaskFilter } from "./layout/sidebar-tasks"
 import { SidebarContent } from "./layout/sidebar-shell"
 
 function feishuQuestionText(questions: QuestionRequest["questions"]) {
@@ -2168,6 +2169,8 @@ export default function Layout(props: ParentProps) {
     const merged = createMemo(() => panelProps.mobile || (panelProps.merged ?? layout.sidebar.opened()))
     const empty = createMemo(() => !params.dir && layout.projects.list().length === 0)
     const projectList = () => layout.projects.list()
+    const [taskFilter, setTaskFilter] = createSignal<TaskFilter>("all")
+    const { archived, load: loadArchived } = useArchivedSessions(() => projectList())
 
     const expandedDir = createMemo(() => {
       const dir = params.dir
@@ -2267,6 +2270,40 @@ export default function Layout(props: ParentProps) {
           </div>
         </div>
 
+        <div class="flex items-center gap-1 px-2 pb-1">
+          <div class="flex rounded-md border border-border-weak-base overflow-hidden">
+            <button
+              classList={{
+                "px-2.5 py-1 text-ui-caption transition-colors": true,
+                "bg-surface-raised-base text-text-strong": layout.sidebarView.current() === "tasks",
+                "text-text-weak hover:text-text-base": layout.sidebarView.current() !== "tasks",
+              }}
+              onClick={() => layout.sidebarView.set("tasks")}
+            >
+              {language.t("sidebar.view.tasks")}
+            </button>
+            <button
+              classList={{
+                "px-2.5 py-1 text-ui-caption transition-colors": true,
+                "bg-surface-raised-base text-text-strong": layout.sidebarView.current() === "tree",
+                "text-text-weak hover:text-text-base": layout.sidebarView.current() !== "tree",
+              }}
+              onClick={() => layout.sidebarView.set("tree")}
+            >
+              {language.t("sidebar.view.files")}
+            </button>
+          </div>
+        </div>
+        <Show when={layout.sidebarView.current() === "tasks"}>
+          <TaskFilterBar
+            filter={taskFilter()}
+            onChange={(f) => {
+              setTaskFilter(f)
+              if (f === "archived") loadArchived()
+            }}
+          />
+        </Show>
+
         <Show when={store.workspacePanelExpanded}>
           <Show
             when={projectList().length > 0}
@@ -2314,65 +2351,81 @@ export default function Layout(props: ParentProps) {
                             <Show when={isExpanded()}>
                               <div class="pl-5 pt-1 pb-2 ml-3 border-l-2 border-border-weak-base">
                                 <Show
-                                  when={workspacesEnabled()}
+                                  when={layout.sidebarView.current() === "tasks"}
                                   fallback={
-                                    <div class="flex-1 min-h-0">
-                                      <LocalWorkspace
-                                        ctx={workspaceSidebarCtx}
-                                        project={proj}
-                                        sortNow={sortNow}
-                                        mobile={panelProps.mobile}
-                                      />
-                                    </div>
+                                    <Show
+                                      when={workspacesEnabled()}
+                                      fallback={
+                                        <div class="flex-1 min-h-0">
+                                          <LocalWorkspace
+                                            ctx={workspaceSidebarCtx}
+                                            project={proj}
+                                            sortNow={sortNow}
+                                            mobile={panelProps.mobile}
+                                          />
+                                        </div>
+                                      }
+                                    >
+                                      <>
+                                        <div class="shrink-0 py-2">
+                                          <Button
+                                            size="large"
+                                            icon="plus-small"
+                                            class="w-full"
+                                            onClick={() => {
+                                              void createWorkspace(proj)
+                                            }}
+                                          >
+                                            {language.t("workspace.new")}
+                                          </Button>
+                                        </div>
+                                        <div class="relative flex-1 min-h-0">
+                                          <DragDropProvider
+                                            onDragStart={handleWorkspaceDragStart}
+                                            onDragEnd={handleWorkspaceDragEnd}
+                                            onDragOver={handleWorkspaceDragOver}
+                                            collisionDetector={closestCenter}
+                                          >
+                                            <DragDropSensors />
+                                            <ConstrainDragXAxis />
+                                            <div class="size-full flex flex-col py-2 gap-4 overflow-y-auto no-scrollbar [overflow-anchor:none]">
+                                              <SortableProvider ids={expandedWorkspaces()}>
+                                                <For each={expandedWorkspaces()}>
+                                                  {(directory) => (
+                                                    <SortableWorkspace
+                                                      ctx={workspaceSidebarCtx}
+                                                      directory={directory}
+                                                      project={proj}
+                                                      sortNow={sortNow}
+                                                      mobile={panelProps.mobile}
+                                                    />
+                                                  )}
+                                                </For>
+                                              </SortableProvider>
+                                            </div>
+                                            <DragOverlay>
+                                              <WorkspaceDragOverlay
+                                                sidebarProject={sidebarProject}
+                                                activeWorkspace={() => store.activeWorkspace}
+                                                workspaceLabel={workspaceLabel}
+                                              />
+                                            </DragOverlay>
+                                          </DragDropProvider>
+                                        </div>
+                                      </>
+                                    </Show>
                                   }
                                 >
-                                  <>
-                                    <div class="shrink-0 py-2">
-                                      <Button
-                                        size="large"
-                                        icon="plus-small"
-                                        class="w-full"
-                                        onClick={() => {
-                                          void createWorkspace(proj)
-                                        }}
-                                      >
-                                        {language.t("workspace.new")}
-                                      </Button>
-                                    </div>
-                                    <div class="relative flex-1 min-h-0">
-                                      <DragDropProvider
-                                        onDragStart={handleWorkspaceDragStart}
-                                        onDragEnd={handleWorkspaceDragEnd}
-                                        onDragOver={handleWorkspaceDragOver}
-                                        collisionDetector={closestCenter}
-                                      >
-                                        <DragDropSensors />
-                                        <ConstrainDragXAxis />
-                                        <div class="size-full flex flex-col py-2 gap-4 overflow-y-auto no-scrollbar [overflow-anchor:none]">
-                                          <SortableProvider ids={expandedWorkspaces()}>
-                                            <For each={expandedWorkspaces()}>
-                                              {(directory) => (
-                                                <SortableWorkspace
-                                                  ctx={workspaceSidebarCtx}
-                                                  directory={directory}
-                                                  project={proj}
-                                                  sortNow={sortNow}
-                                                  mobile={panelProps.mobile}
-                                                />
-                                              )}
-                                            </For>
-                                          </SortableProvider>
-                                        </div>
-                                        <DragOverlay>
-                                          <WorkspaceDragOverlay
-                                            sidebarProject={sidebarProject}
-                                            activeWorkspace={() => store.activeWorkspace}
-                                            workspaceLabel={workspaceLabel}
-                                          />
-                                        </DragOverlay>
-                                      </DragDropProvider>
-                                    </div>
-                                  </>
+                                  <ProjectTaskList
+                                    project={proj}
+                                    slug={params.dir ?? ""}
+                                    sidebarExpanded={() => store.workspaceSidebarExpanded}
+                                    prefetchSession={prefetchSession}
+                                    archiveSession={archiveSession}
+                                    filter={taskFilter}
+                                    archived={() => archived()[proj.worktree]}
+                                    sortNow={sortNow}
+                                  />
                                 </Show>
                               </div>
                             </Show>
