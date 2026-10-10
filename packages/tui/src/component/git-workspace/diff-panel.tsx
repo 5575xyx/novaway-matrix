@@ -21,7 +21,13 @@ export function GitDiffPanel(props: GitDiffPanelProps) {
 
   // createEffect 而不是 onMount:rootPath 来自 session()?.directory,mount 那一刻可能还没就绪。
   // 这正是提交详情标签页踩过的坑(见 component/git-commit-view.tsx),别再踩一次。
+  //
+  // loadSeq 是世代计数器:target 变快时(比如连按 enter 换文件)会有多个 git 子进程在飞,
+  // 先发的可能后回来。没有它,旧文件的 diff 会盖掉新文件的 —— 最糟的一种是 target 已经
+  // 回到 none、引导文案都出来了,却被早先那个大 diff 顶掉。取 ui/dialog-select.tsx 的同款写法。
+  let loadSeq = 0
   createEffect(() => {
+    const seq = ++loadSeq
     const cwd = props.rootPath
     const target = props.target
     if (!cwd || target.kind === "none") {
@@ -29,13 +35,17 @@ export function GitDiffPanel(props: GitDiffPanelProps) {
       setError("")
       return
     }
+    // 旧的错误不能挂在新标题下面;patch 保留当占位,新结果到了再换(lazygit 同款行为)。
+    setError("")
     const load = target.kind === "file" ? loadFilePatch(cwd, target.path) : loadCommitPatch(cwd, target.hash)
     load
       .then((body) => {
+        if (seq !== loadSeq) return
         setPatch(body)
         setError("")
       })
       .catch((e: unknown) => {
+        if (seq !== loadSeq) return
         setError(e instanceof Error ? e.message : String(e))
       })
   })
@@ -58,7 +68,7 @@ export function GitDiffPanel(props: GitDiffPanelProps) {
         </text>
       </box>
       <Show
-        when={error() === ""}
+        when={!error()}
         fallback={
           <text fg={theme.error} paddingLeft={1}>
             {error()}
@@ -66,7 +76,7 @@ export function GitDiffPanel(props: GitDiffPanelProps) {
         }
       >
         <Show
-          when={patch() !== ""}
+          when={patch()}
           fallback={
             <text fg={theme.textMuted} paddingLeft={1}>
               {props.target.kind === "none" ? "选中文件或提交后在这里看改动" : "没有改动"}

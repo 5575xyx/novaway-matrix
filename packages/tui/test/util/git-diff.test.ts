@@ -25,7 +25,13 @@ function tmpGitDir(prefix: string): string {
 }
 
 afterAll(() => {
-  for (const dir of tmpDirs) fs.rmSync(dir, { recursive: true, force: true })
+  for (const dir of tmpDirs) {
+    // Windows 上 git 子进程刚退出时目录句柄可能还没释放完,rm 会 EBUSY。
+    // 临时目录,清不掉也无妨,别让它把测试结果带红。
+    try {
+      fs.rmSync(dir, { recursive: true, force: true })
+    } catch {}
+  }
   tmpDirs.length = 0
 })
 
