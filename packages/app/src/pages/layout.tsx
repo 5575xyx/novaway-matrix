@@ -2418,7 +2418,7 @@ export default function Layout(props: ParentProps) {
                                 >
                                   <ProjectTaskList
                                     project={proj}
-                                    slug={params.dir ?? ""}
+                                    slug={base64Encode(proj.worktree)}
                                     sidebarExpanded={() => store.workspaceSidebarExpanded}
                                     prefetchSession={prefetchSession}
                                     archiveSession={archiveSession}
