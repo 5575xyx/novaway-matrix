@@ -139,11 +139,16 @@ export function resolveDiffCommand(key: string): WorkspaceCommand | undefined {
 ### ⚠️ 动手前先做的一步验证
 
 `keyOfParsed` 对方向键 / 翻页键是**直接透传 `event.name`**（`focus.ts:190`），上面假设箭头键
-`name` 是 `up` / `down`、翻页是 `pageup` / `pagedown`。先在仓库里找已有先例对齐口径：
-`src/util/selection.ts:66`、`src/feature-plugins/system/diff-viewer.tsx`、`src/ui/dialog-select.tsx`
-里都有方向键判断。**若实际 name 不同，以仓库先例为准**，改 `DIFF_KEYS` 的键名，
-测试断言用 `keyOfParsed({ name, ctrl: false, shift: false, sequence })` 构造输入，
-**不要**在测试里硬编码字面量键名。
+`name` 是 `up` / `down`、翻页是 `pageup` / `pagedown`。
+
+**这条已经验证过，结论成立**（Task 1 实施时确认）：直接读 `ParsedKey.name` 判方向 / 翻页
+的唯一先例是 `src/component/error-component.tsx:84-87`（`evt.name === "up" / "down" / "pageup" / "pagedown"`），
+`src/keymap.tsx:116-117` 的别名表把 `pgup`/`pgdown` 归一到 `pageup`/`pagedown`。
+所以 `DIFF_KEYS` 的键名就是 `up` / `down` / `pageup` / `pagedown`。
+**注意**：`src/util/selection.ts`、`diff-viewer.tsx`、`dialog-select.tsx` **不是**先例 ——
+前者的 `:66` 是 esc 判断，后两个走的是 `@opentui/keymap` 层（`key: "j,down"` 这种），
+不直接读 `ParsedKey.name`，口径不一样。测试断言仍建议用
+`keyOfParsed({ name, ctrl: false, shift: false, sequence })` 构造输入，不要硬编码字面量。
 
 验收：`bun test test/component/git-workspace-focus.test.ts --timeout 30000` 全绿。
 
@@ -162,19 +167,30 @@ const COMMIT_FORMAT = "--format=%H|%h|%s"
 
 /**
  * 一条 `--format=%H|%h|%s` 的输出。拆三段:复制用完整哈希(`%H`),显示用短哈希(`%h`),
- * 主题用 `%s`。`split` 的第三参限死三段,提交主题里出现 `|` 才不会断成四段。
+ * 主题用 `%s`。
+ *
+ * 主题里可以出现 `|`,所以余下的段落必须全部并进 subject。**JS 的 `split("|", 3)` 是截断语义**
+ * (`"a|b|c|d".split("|", 3)` → `["a","b","c"]`,`d` 直接丢掉),不是 Go `SplitN` 那种
+ * 「余下留到最后一段」—— 所以必须 `split("|")` 再 `slice(2).join("|")` 自己拼回来。
  */
 export function parseCommitRows(output: string): GitCommitRow[] {
   return output
     .split("\n")
     .filter((line) => line.trim().length > 0)
     .flatMap((line) => {
-      const parts = line.split("|", 3)
+      const parts = line.split("|")
       if (parts.length < 3) return []
-      return [{ full: parts[0]!, hash: parts[1]!, subject: parts[2] ?? "" }]
+      return [{ full: parts[0]!, hash: parts[1]!, subject: parts.slice(2).join("|") }]
     })
 }
 ```
+
+**Task 2 实施时的两处更正（已验证，以此为准）**：
+
+1. 上面的 `split` 写法就是更正结果。任务书初稿写的 `split("|", 3)` 会把主题里 `|` 之后的内容
+   整段丢掉（TDD 红用例抓到），已改成 `split("|")` + `slice(2).join("|")`。
+2. `trackCount` **不在 `locale.ts`**，它是 `state.ts` 里未导出的私有函数；`deriveBranchRows`
+   同在 `state.ts`，直接用本地那个，不要 import。
 
 `GitCommitRow` 加 `full: string`。`loadWorkspace` 里把
 `gitExec(rootPath, ["log", "--oneline", "-n", String(COMMIT_LIMIT)])`
@@ -187,8 +203,14 @@ export function parseCommitRows(output: string): GitCommitRow[] {
 `-a` 把 `remotes/origin/main` 也列进来，`%(refname:short)` 自动剥掉 `refs/remotes/` 前缀，
 正好得到规格要的 `origin/main` 形式；`%(upstream:track)` 对远程分支是空串，ahead/behind 自然是 0。
 
-**不要改 `BRANCH_FORMAT` 的格式串** —— 它是解析契约（`BRANCH_LINE`，`git-status.ts:152`），
+**不要改 `BRANCH_FORMAT` 的格式串** —— 它是解析契约（`BRANCH_LINE`），
 改格式就是改解析器。
+
+**Task 2 实施时已实测确认（以此为准）**：`git branch -a --format=<BRANCH_FORMAT>` 的真实输出是
+` |feature|` / `*|main|[ahead 1]` / ` |origin/feature|` / ` |origin/main|` —— 远程分支行与
+本地行格式完全一致，`parseGitBranches` **不改正则**就正确解析成
+`{ name: "origin/main", current: false, ahead: 0, behind: 0 }`。detached 哨兵名的真实字面是
+`"(HEAD detached)"`（`startsWith("(HEAD detached")` 能命中）。
 
 ### 2.3 分支行派生
 
@@ -489,7 +511,10 @@ export function InlineInput(props: InlineInputProps) {
   // target + enabled + priority:1 的组合照 dialog-prompt.tsx:33-47 —— priority 1 保证
   // 这一层赢过全局托管输入层,否则 enter 会被当成换行吃下去。
   useBindings(() => ({
-    target: target(),
+    // ⚠️ 必须传 signal 本身,不是 target() —— UseBindingsTarget 的类型是
+    // () => Renderable | null | undefined,传值直接 typecheck 失败。
+    // 已落地代码把信号命名为 textareaTarget,避免 `target: target` 这种自指写法。
+    target: target,
     enabled: target() !== undefined,
     priority: 1,
     bindings: [
@@ -567,14 +592,27 @@ export function InlineInput(props: InlineInputProps) {
 3. **空内容不提交**：直接 `pressEnter()` → `onConfirm` 没被调用（`submit` 里的 trim 判空）。
 4. **首帧渲染**：字符帧里有标题标签和冒号（用 `captureCharFrame` 断言）。
 
-### 4.5 ⚠️ 已知的两个不确定性，动手时先花 5 分钟验证
+### 4.5 已验证的两个不确定点（Task 4 实施时已落实，以此为准）
 
-1. **`esc` 绑定名**：`useBindings` 的 keymap 词汇集里 esc 可能叫 `esc`，也可能沿用 opentui 的
-   `escape`。构造方式见「通用约定 4」，不确定就用两个键名各绑一份指向同一个 `onCancel` ——
-   重复绑定的代价是一行代码，绑错的名字代价是 esc 永远退不出去。
-2. **`useBindings` 的 `target` 语义**：`dialog-prompt.tsx:34` 传的是 signal（`textareaTarget`），
-   上面照抄成了 `target()`。如果 typecheck 或运行时要求传 signal，改回 signal。
-   验证方法就是用例 1：如果 `pressEnter` 之后 `onConfirm` 没被调用，问题几乎一定在这里。
+1. **esc 的键名：写 `esc` 即可**。`src/keymap.tsx:113-118` 的 `KEY_ALIASES` 把 `esc` → `escape`、
+   `enter` → `return`、`pgup` → `pageup`、`pgdown` → `pagedown`，由 `registerKeyAliases` 在
+   `registerNovaWayKeymap`（约 218 行）注册成 `appendBindingExpander`，**在注册阶段**就展开。
+   所以 `esc` 与 `escape` 命中同一个键位，**不需要绑两份**。同理 enter 写 `enter`。
+   旁证：`focus.ts` 的 `keyOfParsed` 注释与 `test/component/git-workspace-key.test.ts`。
+2. **`useBindings` 的 `target` 必须传 signal（函数），不是值**。依据
+   `@opentui/keymap/src/solid/index.d.ts:10-14`：`Layer.target` 被 `Omit` 掉后按函数类型重新加回。
+   计划初稿写的 `target: target()` 是 bug。已落地代码与 `dialog-prompt.tsx:34` 逐字一致。
+
+另外三个实施时才查清的事实：
+
+- `TextareaRenderable` 的 `plainText` / `traits` / `gotoLineEnd(options?)` / `focus()` / `isDestroyed`
+  全部真实存在（分别在 `EditBufferRenderable.d.ts` 与 `Renderable.d.ts`），无需变通。
+  计划 4.1 第 3 条对 `SubmitEvent` 是空接口的判断准确（`Textarea.d.ts:12-13`）。
+- **按键后不需要 `await app.flush()`**。`mockInput` 派发 + keymap 派发 + 命令回调在这一层是同步的，
+  断言的是 `plainText` 和 JS 数组而不是渲染帧，多余的 `await` 只是拖慢测试。
+- `test/fixture/providers.tsx` 的 `ThemeTestProviders` **不含 `NovaWayKeymapProvider`**，
+  任何要用 `useBindings` 的组件都测不了它 —— 文本输入类测试必须自建 provider 链，别复用那个便捷封装。
+- fixture 扩展名是 **`tui-environment.tsx`**，不是 `.ts`。
 
 验收：新增测试全绿，且用例 1 不是靠 `onSubmit` 兜底通过的（确认绑定真的命中）。
 
@@ -675,23 +713,38 @@ createEffect(() => {
 
 验收：新用例 + 既有 `git-workspace.test.tsx` 全绿；`bun typecheck` exit 0。
 
+### 5.5 Task 5 实施时补记的三件事（以此为准）
+
+1. **5.2 漏了 stash 分支**（已补）：贮藏面板同样要能选行，`moveRow` 必须有
+   `panel() === "stash"` 分支。计划初稿只给了 `branches` 和 `commits` 两个 —— 少了贮藏，
+   贮藏面板就只能在第一行空转。属移动光标，不是操作逻辑，所以归本任务。
+2. **`fileRow` 复用的已知冲突（留给计划 3）**：既有的 clamp effect 用 `fileRows().length - 1`
+   夹 `fileRow`，而提交面板也复用 `fileRow`。文件表只有 1 行、提交表有 40 行时，用户在提交面板
+   选到第 5 行，一次后台 refresh 就会把它夹回 0 —— **提交选中行被文件表长度误夹**。
+   `moveRow` 已按各自的表算上限，clamp 的分流留给计划 3（换独立 `commitRow`）一起收拾。
+   这条要记着，否则用户会看到「我刚选的那行怎么跳回去了」。
+3. **`armed` 还没传给分支 / 贮藏面板**：`run()` 里 `branches.delete` / `stash.discard`
+   已经是 `DANGEROUS_COMMANDS`，按了会 `setArmed`，但 Task 5 不传 `armed`，所以确认文案
+   目前**只显示在底部键位条**，面板内不显示。Task 7 必须顺手补 `armed={armed()}`，
+   否则用户看不出「再按一次确认的是哪一行」。
+
 ---
 
 ## Task 6 —— 外壳接线：状态行分派 + 基础操作 + 测试脚手架
 
 ### 6.1 先建共享测试脚手架（Task 7-10 都会用）
 
-**前置探针（必做，5 分钟）**：Task 6-10 的行为测试都要往挂载的 `GitWorkspace` 里注入按键，
-本仓库目前没有任何「挂载工作区 + 按键 + 读字符帧」的先例（`dialog-prompt.test.tsx` 是往
-对话框里按键，走的是 keymap 绑定，不是 `useKeyboard`）。**先写一个最小的探针测试**：
+**✅ 前置探针不需要了**（Task 5 实施时推翻了本节的假设）：
+`test/component/git-workspace-clamp.test.tsx` **就是**「挂载 GitWorkspace + 注入按键 + 读字符帧」
+的完整先例，写法是 `renderer.keyInput.emit("keypress", new KeyEvent(...))` + 轮询帧；
+实测数字键 `3` / `4` 能穿透 keymap 层进到 `useKeyboard`（TuiKeybind 没有数字键绑定）。
+所以可以直接照抄它沉淀成 `test/component/git-workspace-harness.ts`，不必再写探针验证可行性。
 
-1. 用 `dialog-prompt.test.tsx` 的整套 harness（provider 栈、`kittyKeyboard: true`、`wait`、
-   `renderer.destroy()`）挂载一个 `GitWorkspace`；
-2. `app.mockInput.pressKey("4")` 后 `captureCharFrame()`，断言焦点标记移到了提交面板；
-3. **如果这一步打不通**（按键没进到 `useKeyboard`），**停下来问用户**，不要自己把 Task 6-10
-   的测试改写成纯表驱动 —— 那样 Task 9 的差异激活模式（唯一的非纯逻辑）就没有任何自动化保护。
+> 原计划这里写「本仓库目前没有任何先例，先写探针，打不通就停下来问用户」。那个前提不成立，
+> 保留这段说明是为了记录为什么不再需要探针 —— 别再去重复验证一遍。
 
-打通了就把脚手架沉淀成 `test/component/git-workspace-harness.ts`：
+把脚手架沉淀成 `test/component/git-workspace-harness.ts`（直接照抄 `git-workspace-clamp.test.tsx`
+的挂载与按键写法）：
 
 ```ts
 /**
@@ -1319,7 +1372,7 @@ keybarText({
 
 | # | 点 | 在哪个任务 | 打不通怎么办 |
 | --- | --- | --- | --- |
-| 1 | `keyOfParsed` 对方向键 / 翻页键的 `name` | Task 1 | 以仓库已有先例的口径为准改 `DIFF_KEYS` |
+| 1 | `keyOfParsed` 对方向键 / 翻页键的 `name` | Task 1 | ✅ **已验证（Task 1 完成时）**：就是 `up`/`down`/`pageup`/`pagedown`，依据 `error-component.tsx:84-87` |
 | 2 | `mockInput.pressKey` 能不能驱动 `useKeyboard` | Task 6 | **停下来问用户**，不要偷偷降级成纯表驱动测试 |
 | 3 | `writeOsc52` 的实际签名 | Task 10 | 以源码为准；优先用 context 的高层 API |
 | 4 | `ScrollBox` 的滚动 API | Task 9 | 读类型定义按实际 API 改写 |
