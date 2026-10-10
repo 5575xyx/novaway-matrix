@@ -9,6 +9,7 @@ import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "so
 import type { JSX } from "solid-js"
 import { type ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
+import { useClipboard } from "../context/clipboard"
 import { useTheme } from "../context/theme"
 import { useBindings } from "../keymap"
 import { gitExec } from "../util/git-exec"
@@ -61,6 +62,8 @@ export interface GitWorkspaceProps {
 
 export function GitWorkspace(props: GitWorkspaceProps) {
   const { theme } = useTheme()
+  // 复制走 context 而不是裸 util:provider 可替换,测试才好注入可控的 write。
+  const clipboard = useClipboard()
 
   const [data, setData] = createSignal<WorkspaceData | undefined>(undefined)
   const [panel, setPanel] = createSignal<PanelID>("status")
@@ -230,6 +233,16 @@ export function GitWorkspace(props: GitWorkspaceProps) {
 
   const tooNarrow = () => props.width < TOO_NARROW
   const leftWidth = () => (props.width < 80 ? LEFT_NARROW : LEFT_WIDE)
+
+  /** 当前焦点面板有没有行。空面板的键位条不印 j/k(见 keybarText)。 */
+  const hasRows = () => {
+    const panelId = panel()
+    if (panelId === "status") return statusRows().length > 0
+    if (panelId === "files") return fileRows().length > 0
+    if (panelId === "branches") return branchRows().length > 0
+    if (panelId === "commits") return commitRows().length > 0
+    return stashRows().length > 0
+  }
 
   const moveRow = (delta: number) => {
     if (panel() === "status") {
@@ -408,6 +421,25 @@ export function GitWorkspace(props: GitWorkspaceProps) {
         setDiffFocus(true)
       }
       return
+    }
+    // 复制走 context 的 write:provider 是可选注入的(ClipboardService.write 是 optional),
+    // 所以这里同时判「provider 没实现 write」这一路 —— 剪贴板不可见,得让用户知道没写成,
+    // 否则会去核对是不是路径/哈希抄错。context 的 write 本身从不 reject(失败被
+    // clipboardy/native 那层 .catch(() => undefined) 吞掉),能分辨的失败只有这一种。
+    if (command === "files.copyPath") {
+      const row = fileRows()[fileRow()]
+      if (!row) return
+      if (!clipboard.write) return setActionHint("剪贴板不可用")
+      void clipboard.write(row.file)
+      return setActionHint("已复制路径")
+    }
+    if (command === "commits.copyHash") {
+      // 提交面板复用 fileRow 当游标(见 files.focusDiff 同款注释),取 commitRows 而不是文件表。
+      const row = commitRows()[fileRow()]
+      if (!row) return
+      if (!clipboard.write) return setActionHint("剪贴板不可用")
+      void clipboard.write(row.full)
+      return setActionHint("已复制提交哈希")
     }
     if (command === "files.discard" || command === "files.delete") {
       // 按武装时拍下的目标执行,不重读选中行 —— 武装到 fire 之间列表可能已被后台刷新换掉,
@@ -641,7 +673,8 @@ export function GitWorkspace(props: GitWorkspaceProps) {
         </box>
         {/* 底部键位条:全局段常驻,焦点段跟着焦点面板变(规格「底部键位提示条跟着焦点面板变」)。
           拆两行而不是拼一行:拼起来超过 70 列,规格要求 70 列终端可用,单行在窄档会把尾部裁掉。
-          确认态时全局段让位、整条换成确认文案 —— 这是「不弹窗」方案里唯一的强提示位。 */}
+          确认态时全局段让位、整条换成确认文案 —— 这是「不弹窗」方案里唯一的强提示位。
+          焦点段收到四个参数:确认态 / 行内输入 / 差异模式 / 当前面板,按这个顺序定优先级。 */}
         <box flexDirection="column" flexShrink={0} paddingLeft={1} paddingTop={1}>
           <Show when={armed() === undefined}>
             <text fg={theme.textMuted} wrapMode="none">
@@ -649,7 +682,13 @@ export function GitWorkspace(props: GitWorkspaceProps) {
             </text>
           </Show>
           <text fg={armed() === undefined ? theme.textMuted : theme.warning} wrapMode="none">
-            {keybarText(panel(), armed())}
+            {keybarText({
+              armed: armed(),
+              input: inlineInput(),
+              diffFocus: diffFocus(),
+              panel: panel(),
+              hasRows: hasRows(),
+            })}
           </text>
         </box>
       </box>
@@ -691,25 +730,42 @@ function dangerLabel(command: WorkspaceCommand): string {
 
 /**
  * 键位条的全局段:跨面板都成立的键,常驻显示(不随焦点变)。
- * 只写**真能按出结果**的键:`tab 切面板`、`c 提交`、`r 刷新` 都完整可用。
+ * 只写**真能按出结果**的键:`tab/1-5 切面板`、`p 拉取`、`f 推送`、`c 提交`、`r 刷新` 都完整可用。
  *
  * `c 提交` 不印「(需先暂存)」这种前置条件:满足时按键就有输入框,不满足时按下去会在提示行
  * 回一句「没有可提交的暂存内容」—— 在常驻键位条上重复这个条件只是噪音,而且会让人以为
  * 不暂存也能提交。反馈放在按下之后,离动作更近。
+ *
+ * `? 帮助` 本版不做,已从各段删除(计划 2 Task 10.2)—— 印一个按了没反应的键比不印更糟,
+ * 用户会一直试,越试越觉得工作区坏了。
  */
-const GLOBAL_KEYBAR = "tab 切面板 c 提交 r 刷新"
+const GLOBAL_KEYBAR = "tab 1-5 切面板 p 拉取 f 推送 c 提交 r 刷新"
 
 /**
- * 键位条的焦点段文字,内容跟着焦点面板变(规格「底部键位提示条跟着焦点面板变」)。
- * 确认态时整条换成确认文案 —— 这是「不弹窗」方案里唯一的强提示位。
+ * 键位条的焦点段。四种互斥状态按优先级从上到下 —— 越靠上的越是「正在等一个具体动作」的
+ * 状态,越该占掉整条提示位。顺序反了会打架:确认态开着却显示面板键位,用户按下去会发现
+ * 不是他想的那个动作。
+ *
+ * 参数用对象而不是位置参数是刻意的:三种「等待态」叠在一起时(确认态 + 输入框 + 差异模式)
+ * 需要一个确定性的优先级,散在调用点的三元写起来像,但读不出优先级。
  */
-function keybarText(panel: PanelID, armed?: ArmedConfirm): string {
-  if (armed) return armed.label
-  if (panel === "files") return "j/k 选 空格 暂存 a 全部暂存 enter 看差异 d 丢弃 ? 帮助"
-  if (panel === "status") return "j/k 选行 空格 作用于当前行 p 拉取 f 推送 ? 帮助"
-  if (panel === "branches") return "j/k 选 空格 切换 n 新建 d 删除 ? 帮助"
-  if (panel === "commits") return "j/k 选 enter 看差异 z 撤销上次提交 ? 帮助"
-  return "j/k 选 空格 弹出 d 丢弃 ? 帮助"
+function keybarText(args: {
+  armed?: ArmedConfirm
+  input?: InlineInputRequest
+  diffFocus: boolean
+  panel: PanelID
+  hasRows: boolean
+}): string {
+  if (args.armed) return args.armed.label
+  if (args.input) return "enter 提交 esc 取消"
+  if (args.diffFocus) return "j/k 滚动 pgup/pgdn 翻页 esc 退回"
+  // 列表为空时不印 j/k:空面板按 j 是空转,印一个按键提示只会让人觉得界面卡了。
+  const move = args.hasRows ? "j/k 选 " : ""
+  if (args.panel === "status") return `${move}空格 作用于当前行 m 切换远端`
+  if (args.panel === "files") return `${move}空格 暂存 a 全部暂存 enter 看差异 y 复制路径 d 丢弃 x 删除`
+  if (args.panel === "branches") return `${move}空格 切换 n 新建 enter 看差异 d 删除`
+  if (args.panel === "commits") return `${move}enter 看差异 y 复制哈希 z 撤销上次提交`
+  return `${move}空格 弹出 d 丢弃`
 }
 
 /** 数据还没回来(或不是 git 仓库)时的空状态。显式标类型,免得 `??` 右边的字面量把联合类型撑开。 */

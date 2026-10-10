@@ -25,6 +25,8 @@ const PAGEUP = `${ESC}[5~`
 const FILES_KEYBAR = "全部暂存"
 const STATUS_KEYBAR = "作用于当前行"
 const BRANCHES_KEYBAR = "n 新建"
+/** 差异态整条替换成这一句 —— 数字键不响应时它必须原样留着。 */
+const DIFF_KEYBAR = "pgup/pgdn 翻页"
 
 /** enter / esc / tab 走 mockInput 的原生入口,发完等一帧画完(它们本身不等帧)。 */
 async function pressEnter(ws: WorkspaceHarness) {
@@ -146,7 +148,9 @@ test("差异模式下数字键不响应:焦点不切走,键位条也不变", asy
   await ws.waitForFrame((frame) => frame.includes("aaa.txt 的改动"), "差异视图渲染出来")
   await ws.pressKey("1")
   const frame = await ws.frame()
-  expect(frame).toContain(FILES_KEYBAR)
+  // 差异态的键位条是差异段(不是文件段):按 1 没把焦点切走,它必须原样留着。
+  expect(frame).toContain(DIFF_KEYBAR)
+  expect(frame).not.toContain(FILES_KEYBAR)
   expect(frame).not.toContain(STATUS_KEYBAR)
   expect(linesOf(frame, "aaa.txt").some((line) => line.includes("❯"))).toBe(true)
 })

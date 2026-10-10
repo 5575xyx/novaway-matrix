@@ -28,6 +28,7 @@ import { promisify } from "node:util"
 import { GitWorkspace } from "../../src/component/git-workspace"
 import { TuiConfigProvider } from "../../src/config"
 import { TuiKeybind } from "../../src/config/keybind"
+import { ClipboardProvider, type ClipboardService } from "../../src/context/clipboard"
 import { KVProvider } from "../../src/context/kv"
 import { ThemeProvider } from "../../src/context/theme"
 import { NovaWayKeymapProvider, registerNovaWayKeymap } from "../../src/keymap"
@@ -45,6 +46,11 @@ export interface WorkspaceOptions {
   height?: number
   /** 按 esc 关工作区时的回调,默认空实现。 */
   onClose?: () => void
+  /**
+   * 注入剪贴板 provider。默认不给 → 走 context 的真实现(OSC 52 + 系统剪贴板)。
+   * 只给 read 不给 write 就能测出「剪贴板不可用」那条提示路径。
+   */
+  clipboard?: ClipboardService
 }
 
 export interface WorkspaceHarness {
@@ -154,6 +160,17 @@ function KeymapContexts(props: { children: JSX.Element }) {
   return <NovaWayKeymapProvider keymap={keymap}>{props.children}</NovaWayKeymapProvider>
 }
 
+/**
+ * 可选的剪贴板 provider 闸门。不给 value 时直接透传 children —— context 有默认值(真实现),
+ * 加了空 provider 反而盖掉它。做成组件而不是渲染函数里的三元:theme provider 的 Show 会延后
+ * 揭示子树,函数体里现造的元素描述符在二次挂载时不对路。
+ */
+function ClipboardGate(props: { value?: ClipboardService; children: JSX.Element }) {
+  const value = props.value
+  if (value === undefined) return props.children
+  return <ClipboardProvider value={value}>{props.children}</ClipboardProvider>
+}
+
 export async function mountWorkspace(options: WorkspaceOptions): Promise<WorkspaceHarness> {
   const width = options.width ?? 100
   const app = await testRender(
@@ -163,7 +180,9 @@ export async function mountWorkspace(options: WorkspaceOptions): Promise<Workspa
           <KVProvider>
             <ThemeProvider mode="dark">
               <KeymapContexts>
-                <GitWorkspace rootPath={options.root} onClose={options.onClose ?? (() => {})} width={width} />
+                <ClipboardGate value={options.clipboard}>
+                  <GitWorkspace rootPath={options.root} onClose={options.onClose ?? (() => {})} width={width} />
+                </ClipboardGate>
               </KeymapContexts>
             </ThemeProvider>
           </KVProvider>
