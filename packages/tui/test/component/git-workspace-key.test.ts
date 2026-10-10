@@ -22,6 +22,27 @@ test("普通 tab 不加前缀", () => {
   expect(keyOfParsed({ name: "tab", ctrl: false, shift: false, sequence: "\t" })).toBe("tab")
 })
 
+test("alt 组合不落成普通字母", () => {
+  // 反面教材:早先版本把 meta 丢掉,于是 alt+f 被当成 f 直接执行了 git push、
+  // alt+d 连按两次就丢弃了改动。带前缀保证查表不中,按键被放行给聊天输入框。
+  const altF = keyOfParsed({ name: "f", ctrl: false, shift: false, sequence: "alt-f", meta: true })
+  expect(altF).toBe("alt+f")
+  expect(resolveWorkspaceCommand("status", altF)).toBeUndefined()
+
+  const altD = keyOfParsed({ name: "d", ctrl: false, shift: false, sequence: "alt-d", option: true })
+  expect(altD).toBe("alt+d")
+  expect(resolveWorkspaceCommand("files", altD)).toBeUndefined()
+})
+
+test("ctrl 组合多字符键也不落成裸键", () => {
+  // ctrl+space 的裸字节会被解析成 name:"space",ctrl:true —— 不带前缀就会落成普通 space 命令。
+  // enter/tab 同理(启用 kitty 协议时会出现)。
+  expect(keyOfParsed({ name: "space", ctrl: true, shift: false, sequence: "" })).toBe("ctrl+space")
+  expect(resolveWorkspaceCommand("files", "ctrl+space")).toBeUndefined()
+  expect(keyOfParsed({ name: "return", ctrl: true, shift: false, sequence: "" })).toBe("ctrl+return")
+  expect(resolveWorkspaceCommand("files", "ctrl+return")).toBeUndefined()
+})
+
 test("空格:sequence 口径", () => {
   expect(keyOfParsed({ name: " ", ctrl: false, shift: false, sequence: " " })).toBe("space")
 })

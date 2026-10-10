@@ -44,10 +44,12 @@ test("五个面板标题都在", async () => {
   for (const title of ["状态", "文件", "分支", "提交", "贮藏"]) expect(frame).toContain(title)
 })
 
-test("底部键位提示条有中文说明", async () => {
+test("底部键位提示条有中文说明(两行:全局段 + 焦点段)", async () => {
   const frame = await renderWorkspace(100)
+  // 全局段(不随焦点变)。
   expect(frame).toContain("切面板")
-  expect(frame).toContain("暂存")
+  // 焦点段(默认焦点在状态面板,这句来自 keybarText("status"))。
+  expect(frame).toContain("作用于当前行")
 })
 
 test("默认焦点在状态面板", async () => {
