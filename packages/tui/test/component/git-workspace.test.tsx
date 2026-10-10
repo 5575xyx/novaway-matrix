@@ -222,6 +222,12 @@ const lineOf = (frame: string, needle: string) => frame.split("\n").find((line) 
 
 const hasFocus = (frame: string, needle: string) => lineOf(frame, needle).includes("❯")
 
+/** 贮藏面板里带焦点标记的那一行 —— 不看贮藏的排列顺序,只看焦点有没有换到另一行。 */
+const stashFocused = (frame: string) =>
+  frame.split("\n").find((line) => line.includes("stash@") && line.includes("❯")) ?? ""
+
+const stashRefOf = (line: string) => line.match(/stash@\{\d+\}/)?.[0] ?? ""
+
 /** 一行的第 column 列(0 起)的字形;全角字符占两列,第二列记 null。 */
 function cellAt(line: string, column: number): string | null {
   const cells: (string | null)[] = []
@@ -313,6 +319,39 @@ test("切走焦点后,分支面板的旧焦点标记不残留", async () => {
     await waitFrame(app, (frame) => hasFocus(frame, hash), "❯ 挪到提交行")
     // 提交面板拿到焦点后,分支行的 ❯ 必须消失(否则两行同时亮着)。
     expect(hasFocus(app.captureCharFrame(), "feature-long-branch-name")).toBe(false)
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+test("贮藏面板:按 5 后连按 j 往下选行,到最后一行被夹住不越界", async () => {
+  const dir = await repoWithBranchesAndStash()
+  // 再造一个贮藏:贮藏面板只有一行时,moveRow 的 stash 分支和 clamp 都看不出有没有用。
+  fs.writeFileSync(path.join(dir, "gamma.txt"), "gamma\n")
+  await git(dir, ["add", "gamma.txt"])
+  await git(dir, ["stash", "push", "-m", "second wip"])
+  const app = await renderWorkspaceAt(dir, 100)
+  try {
+    await waitFrame(app, (frame) => frame.includes("stash@{0}") && frame.includes("stash@{1}"), "两个贮藏")
+    pressKey(app.renderer, "5")
+    await waitFrame(app, (frame) => stashFocused(frame) !== "", "❯ 挪到贮藏行")
+
+    const first = stashFocused(app.captureCharFrame())
+    expect(first).toContain("stash@{")
+
+    pressKey(app.renderer, "j")
+    await waitFrame(app, (frame) => stashFocused(frame) !== "" && stashFocused(frame) !== first, "❯ 挪到下一行")
+    const moved = app.captureCharFrame()
+    // 换过行:原来亮着的那行必须不再亮(否则两行同时亮着)。
+    expect(hasFocus(moved, stashRefOf(first))).toBe(false)
+
+    // 已到最后一行,再多按两次 j:夹住不越界,贮藏面板仍只亮一行,也没撑破左列的右边框。
+    pressKey(app.renderer, "j")
+    pressKey(app.renderer, "j")
+    await app.renderOnce()
+    const settled = app.captureCharFrame()
+    expect(stashFocused(settled)).toBe(stashFocused(moved))
+    expect(cellAt(stashFocused(settled), LEFT_COLUMN_BORDER)).toBe("│")
   } finally {
     app.renderer.destroy()
   }

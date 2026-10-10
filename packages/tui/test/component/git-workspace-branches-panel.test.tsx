@@ -18,6 +18,9 @@ const ROWS: BranchRow[] = [
 
 const ARMED: ArmedConfirm = { key: "d", label: "再按一次 d 删除这个分支", deadline: Number.MAX_SAFE_INTEGER }
 
+/** 从数据里取当前分支名,避免断言写死字面量后,改数据就假红。 */
+const CURRENT_NAME = ROWS.find((row) => row.current)?.name ?? ""
+
 // boxWidth 传 0 表示不加约束(只验文案);传具体值时把面板包进恰好那么宽的盒子,
 // flex 收缩才会真的裁切 —— 宽度算错必须在这里露馅,不能靠「布局不受约束」蒙混过去。
 async function renderFrame(selected: number, rows: BranchRow[] = ROWS, armed?: ArmedConfirm, boxWidth = 0) {
@@ -72,7 +75,9 @@ test("当前分支标 ●,而且这一行不会再画焦点标记", async () => 
 })
 
 test("当前分支既是焦点时也只显示 ●,两个标记不抢一格", async () => {
-  const line = (await renderFrame(0)).split("\n").find((l) => l.includes("●")) ?? ""
+  // find 落空时 line 是 undefined,expect(undefined) 会直接抛错,断言才咬得住(不带 ?? "")。
+  const line = (await renderFrame(0)).split("\n").find((l) => l.includes("●"))
+  expect(line, "当前分支那一行应当画着 ●").toContain(CURRENT_NAME)
   expect(line).not.toContain("❯")
 })
 
