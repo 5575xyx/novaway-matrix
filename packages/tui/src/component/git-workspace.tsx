@@ -7,6 +7,7 @@
 // 差异视图窄于 30 列就没法读,硬挤只会得到一个谁也看不懂的界面。
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js"
 import type { JSX } from "solid-js"
+import { type ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { useTheme } from "../context/theme"
 import { useBindings } from "../keymap"
@@ -18,6 +19,7 @@ import {
   PANEL_TITLE,
   panelAt,
   keyOfParsed,
+  resolveDiffCommand,
   resolveWorkspaceCommand,
   type PanelID,
   type WorkspaceCommand,
@@ -73,8 +75,8 @@ export function GitWorkspace(props: GitWorkspaceProps) {
   // 行内输入的触发来源。三种来源(提交信息 / 新分支 / 远端地址)共用同一个 <InlineInput>,
   // 差别只在标题和 confirmInput 里拼的 git 命令;信号本身不带文案,文案由 inputSpec 派生。
   const [inlineInput, setInlineInput] = createSignal<InlineInputRequest | undefined>(undefined)
-  // 差异视图获得焦点(差异激活模式)。Task 9 才接上键位拦截,这里先声明:
-  // focusPanel 已经要调 setDiffFocus,声明晚了 run 的闭包就找不到这个绑定。
+  // 差异视图获得焦点(差异激活模式)。与 panel() 互斥:两个面板不能同时「有焦点」,
+  // 所以 focusPanel 每次都要把这里清掉,进差异模式只能靠 focusDiff 类命令显式打开。
   const [diffFocus, setDiffFocus] = createSignal(false)
   const [remote, setRemote] = createSignal<string | undefined>(undefined)
   // 最后一次 git 命令失败的原因(中文,经 hintFromError 映射)。写进状态面板的「提示」行 ——
@@ -291,6 +293,26 @@ export function GitWorkspace(props: GitWorkspaceProps) {
     setRemote(list[(index + 1) % list.length]?.name)
   }
 
+  // 差异激活模式下的滚动目标,由 GitDiffPanel 的 scrollbox ref 回填。
+  // 两种情况下它是 null:差异还没选中任何目标(diffTarget 是 none),或差异为空
+  // (比如选中当前分支)—— 这两种情况都没有 scrollbox 挂载。所有滚动命令都得对它
+  // 静默,否则差异模式下按一下 j 就抛错。
+  let scroll: ScrollBoxRenderable | null = null
+
+  /**
+   * 滚动 n 行。clamp 自己算,不依赖上游:上游的 clamp 在「内容比视口短」时会算出负值
+   * (`min(max(0, v), scrollSize - viewportSize)` 里上界是负数,直接盖掉下界),
+   * 于是一次下滚就把内容整体往下顶、屏幕出现大片空白。内容不超出时就原地不动。
+   */
+  const scrollDiffBy = (lines: number) => {
+    if (!scroll || scroll.isDestroyed) return
+    if (scroll.scrollHeight <= scroll.viewport.height) return
+    scroll.scrollTop = clamp(scroll.scrollTop + lines, 0, scroll.scrollHeight - scroll.viewport.height)
+  }
+
+  /** 一屏 = 视口高度(行数),不写死:终端拉高/拉低,翻页量跟着变。 */
+  const scrollDiffPage = () => (scroll && !scroll.isDestroyed ? scroll.viewport.height : 0)
+
   /** 执行一条工作区命令。所有键位处理最终都汇到这里。 */
   const run = (command: WorkspaceCommand) => {
     const cwd = props.rootPath
@@ -312,8 +334,10 @@ export function GitWorkspace(props: GitWorkspaceProps) {
       setArmed(undefined)
     }
 
-    if (command === "panel.next") return setPanel((p) => panelAt(PANEL_ORDER.indexOf(p) + 1))
-    if (command === "panel.prev") return setPanel((p) => panelAt(PANEL_ORDER.indexOf(p) - 1))
+    // 切面板一律走 focusPanel:它同时退出差异激活模式。tab 只 setPanel 会留下
+    // 「焦点已切走、j 还在滚差异」的矛盾态。
+    if (command === "panel.next") return focusPanel(panelAt(PANEL_ORDER.indexOf(panel()) + 1))
+    if (command === "panel.prev") return focusPanel(panelAt(PANEL_ORDER.indexOf(panel()) - 1))
     if (command.startsWith("panel.jump:")) return focusPanel(panelAt(Number(command.slice("panel.jump:".length))))
     if (command === "row.up") return moveRow(-1)
     if (command === "row.down") return moveRow(1)
@@ -323,6 +347,13 @@ export function GitWorkspace(props: GitWorkspaceProps) {
       setActionHint(undefined)
       return refresh()
     }
+    // 差异激活模式的键:只动滚动位置,不动任何选中行,也不需要 cwd。
+    if (command === "diff.scrollUp") return scrollDiffBy(-1)
+    if (command === "diff.scrollDown") return scrollDiffBy(1)
+    if (command === "diff.pageUp") return scrollDiffBy(-scrollDiffPage())
+    if (command === "diff.pageDown") return scrollDiffBy(scrollDiffPage())
+    // esc 只退回左列焦点,不清 diffTarget:再按 enter 时标题接着上次,不会重跑 git。
+    if (command === "diff.exit") return setDiffFocus(false)
 
     // 危险命令先进确认态;fire 才真往下走,armed/cancel 都只是状态变化。
     if (DANGEROUS_COMMANDS.has(command)) {
@@ -348,14 +379,34 @@ export function GitWorkspace(props: GitWorkspaceProps) {
       runGit(["add", "-A"])
       return
     }
+    // 三个 focusDiff 都是「设目标 + 进激活模式」:只看目标不动焦点,enter 之后按 j 会去
+    // 移文件行而不是滚差异,用户会以为按键失灵。
     if (command === "files.focusDiff") {
       const row = fileRows()[fileRow()]
-      if (row) setDiffTarget({ kind: "file", path: row.file })
+      if (row) {
+        setDiffTarget({ kind: "file", path: row.file })
+        setDiffFocus(true)
+      }
       return
     }
     if (command === "commits.focusDiff") {
-      const row = data()?.commits[fileRow()]
-      if (row) setDiffTarget({ kind: "commit", hash: row.hash })
+      // 提交面板复用 fileRow 当游标(见文件顶部注释),所以这里取 commitRows 而不是文件表 ——
+      // 两份表长度完全不同,取错会让提交 diff 落在不相干的文件上。
+      const row = commitRows()[fileRow()]
+      if (row) {
+        setDiffTarget({ kind: "commit", hash: row.hash })
+        setDiffFocus(true)
+      }
+      return
+    }
+    if (command === "branches.focusDiff") {
+      // 选中当前分支时 loadBranchPatch 返回空串,面板显示「没有改动」—— 不拦它,
+      // 让用户按 enter 总有回音,而不是「点了没反应」。
+      const row = branchRows()[branchRow()]
+      if (row) {
+        setDiffTarget({ kind: "branch", name: row.name })
+        setDiffFocus(true)
+      }
       return
     }
     if (command === "files.discard" || command === "files.delete") {
@@ -452,6 +503,20 @@ export function GitWorkspace(props: GitWorkspaceProps) {
     // 全局监听器先跑,propagationStopped 后 renderable 处理器整段跳过),
     // 「打 jkd 当分支名」会退化成「移动光标三次」。enter / esc 由 InlineInput 自己那层 keymap 吃掉。
     if (inlineInput() !== undefined) return
+
+    // 差异激活模式:走差异自己的键位表。esc 是退回左列焦点(不是关工作区),
+    // 数字键 1-5 一律不响应(规格 L115)。答不上来的键直接放行、不拦:进差异模式前 run()
+    // 已经清过武装态,这里不会有残留,所以也没必要再清一遍。
+    if (diffFocus()) {
+      const command = resolveDiffCommand(keyOfParsed(event))
+      if (command) {
+        event.preventDefault()
+        event.stopPropagation()
+        run(command)
+      }
+      return
+    }
+
     const command = resolveWorkspaceCommand(panel(), keyOfParsed(event))
     if (command) {
       event.preventDefault()
@@ -553,7 +618,12 @@ export function GitWorkspace(props: GitWorkspaceProps) {
             flexGrow={1}
             minHeight={0}
           >
-            <GitDiffPanel target={diffTarget()} rootPath={props.rootPath} />
+            <GitDiffPanel
+              target={diffTarget()}
+              rootPath={props.rootPath}
+              currentBranch={data()?.status.branch}
+              scrollRef={(element) => (scroll = element)}
+            />
           </box>
         </box>
         {/* 底部键位条:全局段常驻,焦点段跟着焦点面板变(规格「底部键位提示条跟着焦点面板变」)。
