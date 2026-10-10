@@ -62,9 +62,12 @@ async function renderWorkspace(width: number, rootPath = process.cwd()) {
   }
 }
 
-test("五个面板标题都在", async () => {
+test("五个面板标题都在,且是整圈边框", async () => {
   const frame = await renderWorkspace(100)
   for (const title of ["状态", "文件", "分支", "提交", "贮藏"]) expect(frame).toContain(title)
+  // Lazygit 式边框:圆角框角。标题嵌在上边框行里(opentui 原生 title)。
+  expect(frame).toContain("╭")
+  expect(frame).toContain("╰")
 })
 
 test("底部键位提示条有中文说明(两行:全局段 + 焦点段)", async () => {
@@ -76,8 +79,9 @@ test("底部键位提示条有中文说明(两行:全局段 + 焦点段)", async
 })
 
 test("默认焦点在状态面板", async () => {
-  // 焦点面板的标题会被 `┌ xxx ─` 标出来,状态行自己也带 ❯。
-  expect(await renderWorkspace(100)).toContain("┌ 状态 ─")
+  // 换成边框后聚焦色在字符帧里看不见,焦点标记落在内容上:状态面板选中行带 ❯。
+  // ❯ 只画在聚焦面板的当前行,所以「❯ 分支」同时钉住了「焦点在状态」与「选中的是分支行」。
+  expect(await renderWorkspace(100)).toContain("❯ 分支")
 })
 
 test("窄于 70 列时提示太窄而不是硬挤", async () => {

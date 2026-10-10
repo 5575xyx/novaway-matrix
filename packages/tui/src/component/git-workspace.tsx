@@ -193,10 +193,7 @@ export function GitWorkspace(props: GitWorkspaceProps) {
       // 目标在武装瞬间拍板:武装后列表可能被后台刷新换掉,fire 时重读选中行会丢错文件。
       // 只有 files.* 的 fire 真会落地(丢弃/删除文件),branches/stash 的执行在计划 2,
       // 它们此刻不消费目标 —— 不给它们拍,免得留下语义对不上的快照。
-      const fileTarget =
-        command === "files.discard" || command === "files.delete"
-          ? fileRows()[fileRow()]
-          : undefined
+      const fileTarget = command === "files.discard" || command === "files.delete" ? fileRows()[fileRow()] : undefined
       const result = confirm.press(command, dangerLabel(command), fileTarget ? { file: fileTarget.file } : undefined)
       setArmed(confirm.pending())
       if (result !== "fire") return
@@ -313,48 +310,60 @@ export function GitWorkspace(props: GitWorkspaceProps) {
       }
     >
       <box flexDirection="column" flexGrow={1} minHeight={0}>
-      <box flexDirection="row" flexGrow={1} minHeight={0}>
-        <box flexDirection="column" width={leftWidth()} flexShrink={0} minHeight={0}>
-          <For each={PANEL_ORDER}>
-            {(id) => (
-              <PanelFrame title={PANEL_TITLE[id]} focused={panel() === id}>
-                <Show when={id === "status"}>
-                  <StatusPanel
-                    rows={statusRows()}
-                    selected={() => (panel() === "status" ? statusRow() : -1)}
-                    remoteUrl={selectedRemote()?.url}
-                    width={leftWidth()}
-                  />
-                </Show>
-                <Show when={id === "files"}>
-                  <FilesPanel
-                    rows={fileRows()}
-                    selected={() => (panel() === "files" ? fileRow() : -1)}
-                    armed={armed()}
-                    width={leftWidth()}
-                  />
-                </Show>
-              </PanelFrame>
-            )}
-          </For>
+        <box flexDirection="row" flexGrow={1} minHeight={0}>
+          <box flexDirection="column" width={leftWidth()} flexShrink={0} minHeight={0}>
+            <For each={PANEL_ORDER}>
+              {(id) => (
+                <PanelFrame title={PANEL_TITLE[id]} focused={panel() === id}>
+                  <Show when={id === "status"}>
+                    <StatusPanel
+                      rows={statusRows()}
+                      selected={() => (panel() === "status" ? statusRow() : -1)}
+                      remoteUrl={selectedRemote()?.url}
+                      // 边框吃掉左右各 1 列:面板内部的截断算式量的是**内容宽**,不是框外宽。
+                      // 少这 2 列修正,状态行的计数就会顶破右边框(与 Task 6/7 的宽度账目同类)。
+                      width={leftWidth() - 2}
+                    />
+                  </Show>
+                  <Show when={id === "files"}>
+                    <FilesPanel
+                      rows={fileRows()}
+                      selected={() => (panel() === "files" ? fileRow() : -1)}
+                      armed={armed()}
+                      width={leftWidth() - 2}
+                    />
+                  </Show>
+                </PanelFrame>
+              )}
+            </For>
+          </box>
+          {/* 差异区同样上整圈边框(Lazygit 主视图也是带框的),标题固定「差异」——
+            看的是哪个文件/提交由面板内的标题行交代,两层各说各的。 */}
+          <box
+            border
+            borderStyle="rounded"
+            borderColor={theme.border}
+            title=" 差异 "
+            titleColor={theme.textMuted}
+            flexGrow={1}
+            minHeight={0}
+          >
+            <GitDiffPanel target={diffTarget()} rootPath={props.rootPath} />
+          </box>
         </box>
-        <box flexGrow={1} minHeight={0}>
-          <GitDiffPanel target={diffTarget()} rootPath={props.rootPath} />
-        </box>
-      </box>
-      {/* 底部键位条:全局段常驻,焦点段跟着焦点面板变(规格「底部键位提示条跟着焦点面板变」)。
+        {/* 底部键位条:全局段常驻,焦点段跟着焦点面板变(规格「底部键位提示条跟着焦点面板变」)。
           拆两行而不是拼一行:拼起来超过 70 列,规格要求 70 列终端可用,单行在窄档会把尾部裁掉。
           确认态时全局段让位、整条换成确认文案 —— 这是「不弹窗」方案里唯一的强提示位。 */}
-      <box flexDirection="column" flexShrink={0} paddingLeft={1} paddingTop={1}>
-        <Show when={armed() === undefined}>
-          <text fg={theme.textMuted} wrapMode="none">
-            {GLOBAL_KEYBAR}
+        <box flexDirection="column" flexShrink={0} paddingLeft={1} paddingTop={1}>
+          <Show when={armed() === undefined}>
+            <text fg={theme.textMuted} wrapMode="none">
+              {GLOBAL_KEYBAR}
+            </text>
+          </Show>
+          <text fg={armed() === undefined ? theme.textMuted : theme.warning} wrapMode="none">
+            {keybarText(panel(), armed())}
           </text>
-        </Show>
-        <text fg={armed() === undefined ? theme.textMuted : theme.warning} wrapMode="none">
-          {keybarText(panel(), armed())}
-        </text>
-      </box>
+        </box>
       </box>
     </Show>
   )
@@ -362,17 +371,20 @@ export function GitWorkspace(props: GitWorkspaceProps) {
 
 function PanelFrame(props: { title: string; focused: boolean; children?: JSX.Element }) {
   const { theme } = useTheme()
+  // Lazygit 式整圈边框:聚焦面板边框走 primary 高亮,其余走普通 border 色。
+  // 标题嵌在**上边框那行**(opentui 原生 title,写法先例 error-component.tsx:121-124),
+  // 不再像旧版那样自画一行 `┌ 状态 ─` 前缀。
   return (
-    <box flexDirection="column" flexGrow={1} minHeight={0}>
-      {/* ⚠️ paddingLeft 必须包 <box> —— 写在 <text> 上在 opentui 里无效(见本计划开头的通用约定)。 */}
-      <box paddingLeft={1}>
-        <text fg={props.focused ? theme.primary : theme.textMuted} wrapMode="none">
-          {props.focused ? `┌ ${props.title} ─` : `┌ ${props.title}`}
-        </text>
-      </box>
-      <box flexDirection="column" flexGrow={1} minHeight={0}>
-        {props.children}
-      </box>
+    <box
+      border
+      borderStyle="rounded"
+      borderColor={props.focused ? theme.primary : theme.border}
+      title={` ${props.title} `}
+      titleColor={props.focused ? theme.primary : theme.textMuted}
+      flexGrow={1}
+      minHeight={0}
+    >
+      {props.children}
     </box>
   )
 }
