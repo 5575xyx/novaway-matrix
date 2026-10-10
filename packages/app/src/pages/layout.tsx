@@ -2418,12 +2418,15 @@ export default function Layout(props: ParentProps) {
                                 >
                                   <ProjectTaskList
                                     project={proj}
-                                    slug={base64Encode(proj.worktree)}
                                     sidebarExpanded={() => store.workspaceSidebarExpanded}
                                     prefetchSession={prefetchSession}
                                     archiveSession={archiveSession}
                                     filter={taskFilter}
-                                    archived={() => archived()[proj.worktree]}
+                                    archived={() =>
+                                      [proj.worktree, ...(proj.sandboxes ?? [])].flatMap(
+                                        (directory) => archived()[directory] ?? [],
+                                      )
+                                    }
                                     sortNow={sortNow}
                                   />
                                 </Show>
