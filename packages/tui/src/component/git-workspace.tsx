@@ -36,6 +36,7 @@ import { GitDiffPanel, type DiffTarget } from "./git-workspace/diff-panel"
 import { BranchesPanel } from "./git-workspace/branches-panel"
 import { CommitsPanel } from "./git-workspace/commits-panel"
 import { FilesPanel } from "./git-workspace/files-panel"
+import { InlineInput } from "./git-workspace/inline-input"
 import { StashPanel } from "./git-workspace/stash-panel"
 import { StatusPanel } from "./git-workspace/status-panel"
 
@@ -69,8 +70,8 @@ export function GitWorkspace(props: GitWorkspaceProps) {
   const [stashRow, setStashRow] = createSignal(0)
   const [diffTarget, setDiffTarget] = createSignal<DiffTarget>({ kind: "none" })
   const [armed, setArmed] = createSignal<ArmedConfirm<ArmedTarget> | undefined>(undefined)
-  // 行内输入的触发来源。三种来源共用同一个组件(规格「提交」),差别只在标题和回调。
-  // Task 8 才接上 <InlineInput>;此刻只声明状态 —— 它是 openInput 的唯一写入方,没人读也不会出错。
+  // 行内输入的触发来源。三种来源(提交信息 / 新分支 / 远端地址)共用同一个 <InlineInput>,
+  // 差别只在标题和 confirmInput 里拼的 git 命令;信号本身不带文案,文案由 inputSpec 派生。
   const [inlineInput, setInlineInput] = createSignal<InlineInputRequest | undefined>(undefined)
   // 差异视图获得焦点(差异激活模式)。Task 9 才接上键位拦截,这里先声明:
   // focusPanel 已经要调 setDiffFocus,声明晚了 run 的闭包就找不到这个绑定。
@@ -178,6 +179,22 @@ export function GitWorkspace(props: GitWorkspaceProps) {
       })
   }
 
+  /**
+   * 行内输入的确认回调。三种来源共用一个入口,差别只在拼哪条 git 命令(规格「提交」)。
+   *
+   * 先关输入框再跑命令:命令失败时输入框若还开着、文案还在,用户会以为「还没提交」而重按 enter;
+   * 那时输入框已经关了,行为前后不一致。关框本身没有副作用,所以先做。
+   */
+  const confirmInput = (value: string) => {
+    const kind = inlineInput()?.kind
+    setInlineInput(undefined)
+    if (kind === "commit") return runGit(["commit", "-m", value])
+    // switch -c 而不是 branch:只建不切会让用户以为还在原分支,下一条提交就落错地方了。
+    if (kind === "branch-new") return runGit(["switch", "-c", value])
+    // 只有「没有任何远端」才会走到这里(见 switchRemote),此时 origin 一定空闲,不用查重名。
+    return runGit(["remote", "add", "origin", value])
+  }
+
   const selectedRemote = createMemo(() => {
     const list = data()?.remotes ?? []
     return list.find((item) => item.name === remote()) ?? pickDefaultRemote(list)
@@ -199,6 +216,15 @@ export function GitWorkspace(props: GitWorkspaceProps) {
   const branchRows = createMemo(() => deriveBranchRows(data()?.branches ?? []))
   const commitRows = createMemo(() => data()?.commits ?? [])
   const stashRows = createMemo(() => data()?.stash ?? [])
+
+  // 三处行内输入的文案表:title/placeholder 只由触发来源决定,收在一份 memo 里共用,
+  // 避免散在 JSX 里写三个三元之后出现「提交输入框的占位符写成了分支名」这种错配。
+  const inputSpec = createMemo(() => {
+    const kind = inlineInput()?.kind
+    if (kind === "commit") return { title: "提交信息", placeholder: undefined }
+    if (kind === "branch-new") return { title: "新建分支", placeholder: undefined }
+    return { title: "远端地址", placeholder: "git@host:org/repo.git" }
+  })
 
   const tooNarrow = () => props.width < TOO_NARROW
   const leftWidth = () => (props.width < 80 ? LEFT_NARROW : LEFT_WIDE)
@@ -393,16 +419,12 @@ export function GitWorkspace(props: GitWorkspaceProps) {
       return
     }
     if (command === "global.commit") {
-      // 计划 1 里提交是「还不可用」的占位,计划 2 才接上行内输入。
-      // 但**两种情况都得给反馈**:早先版本只在没有暂存内容时提示,已暂存时按 c 什么也不发生 ——
-      // 用户照着提示暂存完,按下去却毫无反应,比不放这个键还糟。
-      const staged = (data()?.status.entries ?? []).filter((entry) => entry.staged)
-      setArmed({
-        key: "c",
-        label: staged.length === 0 ? "先暂存改动(空格)再提交" : "提交输入框还没接上,本版暂不能提交",
-        deadline: Date.now() + 3000,
-      })
-      return
+      // 两种情况都要有回音:早先版本只在没有暂存内容时提示,已暂存时按 c 毫无反应 ——
+      // 用户照着提示暂存完,按下去却什么都没有,比不放这个键还糟。
+      if (!(data()?.status.entries ?? []).some((entry) => entry.staged)) {
+        return setActionHint("没有可提交的暂存内容")
+      }
+      return openInput({ kind: "commit" })
     }
   }
 
@@ -425,6 +447,11 @@ export function GitWorkspace(props: GitWorkspaceProps) {
   // 合起来才构成完整契约:**除危险命令的 press 之外,任何按键路径都清武装态**。
   // 漏了这条会出事:d 武装后按 q(漏过)、3 秒内再按 d —— 直接就 discard 了。
   useKeyboard((event) => {
+    // 行内输入开着时,所有键都归输入框,这里必须完全放行。
+    // 拦截器一旦 stopPropagation,textarea 就收不到字符(见 @opentui/core 的 InternalKeyHandler:
+    // 全局监听器先跑,propagationStopped 后 renderable 处理器整段跳过),
+    // 「打 jkd 当分支名」会退化成「移动光标三次」。enter / esc 由 InlineInput 自己那层 keymap 吃掉。
+    if (inlineInput() !== undefined) return
     const command = resolveWorkspaceCommand(panel(), keyOfParsed(event))
     if (command) {
       event.preventDefault()
@@ -502,6 +529,18 @@ export function GitWorkspace(props: GitWorkspaceProps) {
                 </PanelFrame>
               )}
             </For>
+            {/* 行内输入挂在左列底部,与五个面板同列:它是「提交信息」「新分支」「远端地址」三处的
+              唯一渲染位,占两行(一行留白 + 一行输入),flexShrink=0 保证不被上面的面板挤没。
+              不放右边差异区 —— 用户提交时眼睛就在左列的文件列表上,输入框得跟着手走。 */}
+            <Show when={inlineInput() !== undefined}>
+              <InlineInput
+                title={inputSpec().title}
+                placeholder={inputSpec().placeholder}
+                width={leftWidth() - 2}
+                onConfirm={confirmInput}
+                onCancel={() => setInlineInput(undefined)}
+              />
+            </Show>
           </box>
           {/* 差异区同样上整圈边框(Lazygit 主视图也是带框的),标题固定「差异」——
             看的是哪个文件/提交由面板内的标题行交代,两层各说各的。 */}
@@ -569,10 +608,11 @@ function dangerLabel(command: WorkspaceCommand): string {
 
 /**
  * 键位条的全局段:跨面板都成立的键,常驻显示(不随焦点变)。
- * 只写**真能按出结果**的键:`tab 切面板` 和 `r 刷新` 都完整可用。
- * `c 提交` 保留但不再写「(需先暂存)」—— 计划 1 里提交还是占位,按 c 会弹一句
- * 「输入框还没接上」。把前置条件印在键位条上会让人以为照做就能提交,
- * 比诚实地说它还不可用更糟(见 run() 里两种情况都给反馈的原因)。
+ * 只写**真能按出结果**的键:`tab 切面板`、`c 提交`、`r 刷新` 都完整可用。
+ *
+ * `c 提交` 不印「(需先暂存)」这种前置条件:满足时按键就有输入框,不满足时按下去会在提示行
+ * 回一句「没有可提交的暂存内容」—— 在常驻键位条上重复这个条件只是噪音,而且会让人以为
+ * 不暂存也能提交。反馈放在按下之后,离动作更近。
  */
 const GLOBAL_KEYBAR = "tab 切面板 c 提交 r 刷新"
 

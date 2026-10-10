@@ -114,18 +114,136 @@ test("分支面板空格:切换到选中的分支", async () => {
   await ws.waitForFrame((frame) => linesOf(frame, "beta").some((line) => line.includes("●")), "beta 行变成当前分支")
 })
 
-test("分支面板 n:打开新建分支入口(信号已声明,渲染留到 Task 8)", async () => {
-  const dir = await baseRepo("nw-ws-act-new-")
-  using ws = await mountWorkspace({ root: dir })
+/**
+ * 行内输入的标题。三处共用一个组件,标题是区分来源的唯一可见投影:
+ * 断言标题就等于断言「打开的是这一处,不是另外两处」。
+ */
+const COMMIT_TITLE = "提交信息"
+const BRANCH_TITLE = "新建分支"
+const REMOTE_TITLE = "远端地址"
+
+/**
+ * 等数据加载完再跳分支面板。不能在挂载后立即按键:renderer 就绪前派发的事件会被丢掉,
+ * 于是「按 3」毫无反应,断言只能一直等到超时。
+ */
+async function intoBranchesPanel(ws: {
+  pressKey: (name: string) => Promise<void>
+  waitForFrame: (pred: (frame: string) => boolean, what: string) => Promise<void>
+}) {
   await ws.waitForFrame((frame) => linesOf(frame, "分支").length > 0, "状态面板渲染出来")
   await ws.pressKey("3")
+  await ws.waitForFrame((frame) => frame.includes(BRANCHES_KEYBAR), "焦点落到分支面板")
+}
+
+test("分支面板 n:行内输入建分支并切过去", async () => {
+  const dir = await baseRepo("nw-ws-act-new-")
+  using ws = await mountWorkspace({ root: dir })
+  await intoBranchesPanel(ws)
   await ws.pressKey("n")
-  // Task 8 接上 <InlineInput> 之后,这里会升级成断言「新建分支」标题出现;
-  // 现在只断言按键没把面板弄坏 —— 万一哪天回归成整屏白屏,这个断言会红。
+  await ws.waitForFrame((frame) => frame.includes(BRANCH_TITLE), "出现「新建分支」输入框")
+  for (const key of ["f", "e", "a", "t", "/", "u", "i"]) await ws.pressKey(key)
+  ws.app.mockInput.pressEnter()
+  await ws.wait(() => gitOut(dir, ["branch", "--show-current"]).trim() === "feat/ui", "git switch -c 切到 feat/ui")
+})
+
+test("分支面板 n:打字的字母不触发工作区命令(jkd 就是分支名)", async () => {
+  const dir = await baseRepo("nw-ws-act-new-letters-")
+  await git(dir, ["branch", "other"])
+  using ws = await mountWorkspace({ root: dir })
+  await intoBranchesPanel(ws)
+  // main 是当前分支画 ● 不画 ❯(两个标记抢一格),所以先 j 下移到 other,
+  // 才有可见的 ❯ 能当「焦点行没被动过」的锚点。
+  await ws.pressKey("j")
+  await ws.waitForFrame((frame) => linesOf(frame, "other").some((line) => line.includes("❯")), "焦点下移到 other")
+  await ws.pressKey("n")
+  await ws.waitForFrame((frame) => frame.includes(BRANCH_TITLE), "出现「新建分支」输入框")
+  for (const key of ["j", "k", "d"]) await ws.pressKey(key)
   await ws.waitForFrame(
-    (frame) => frame.includes(BRANCHES_KEYBAR) && linesOf(frame, "main").length > 0,
-    "n 之后分支面板仍在",
+    (frame) => linesOf(frame, "other").some((line) => line.includes("❯")),
+    "打完字之后焦点行仍是 other,三个字母没有一个变成移动光标",
   )
-  const commits = gitOut(dir, ["log", "--oneline"]).trim().split("\n").length
-  expect(commits).toBe(1)
+  ws.app.mockInput.pressEnter()
+  await ws.wait(() => gitOut(dir, ["branch", "--show-current"]).trim() === "jkd", "jkd 真的进了分支名")
+})
+
+test("分支面板 n:esc 取消后输入框消失、没建分支,能重新打开", async () => {
+  const dir = await baseRepo("nw-ws-act-new-esc-")
+  using ws = await mountWorkspace({ root: dir })
+  await intoBranchesPanel(ws)
+  await ws.pressKey("n")
+  await ws.waitForFrame((frame) => frame.includes(BRANCH_TITLE), "出现「新建分支」输入框")
+  ws.app.mockInput.pressEscape()
+  expect(await ws.frame()).not.toContain(BRANCH_TITLE)
+  expect(gitOut(dir, ["branch", "--format=%(refname:short)"]).trim().split("\n").length).toBe(1)
+  await ws.pressKey("n")
+  await ws.waitForFrame((frame) => frame.includes(BRANCH_TITLE), "esc 之后能重新打开")
+})
+
+test("分支面板 n:非法分支名提交后回中文提示", async () => {
+  const dir = await baseRepo("nw-ws-act-new-bad-")
+  using ws = await mountWorkspace({ root: dir })
+  await intoBranchesPanel(ws)
+  await ws.pressKey("n")
+  await ws.waitForFrame((frame) => frame.includes(BRANCH_TITLE), "出现「新建分支」输入框")
+  for (const key of ["b", "a", "d", "!", "?"]) await ws.pressKey(key)
+  ws.app.mockInput.pressEnter()
+  // 失败路径不能静默:输入框关掉之后,原因必须出现在提示行(与 pull/push 失败同一口径)。
+  await ws.waitForFrame((frame) => frame.includes("git 执行失败"), "提示行给出失败原因")
+  await ws.wait(() => gitOut(dir, ["branch", "--show-current"]).trim() === "main", "仓库分支没变")
+})
+
+test("暂存后按 c:行内输入提交,真的产生一条提交", async () => {
+  const dir = await baseRepo("nw-ws-act-commit-")
+  fs.writeFileSync(path.join(dir, "a.txt"), "a\n")
+  await git(dir, ["add", "a.txt"])
+  using ws = await mountWorkspace({ root: dir })
+  await ws.waitForFrame((frame) => frame.includes("a.txt"), "文件面板加载出待提交文件")
+  await ws.pressKey("c")
+  await ws.waitForFrame((frame) => frame.includes(COMMIT_TITLE), "出现「提交信息」输入框")
+  for (const key of ["m", "y", "c"]) await ws.pressKey(key)
+  ws.app.mockInput.pressEnter()
+  await ws.wait(() => gitOut(dir, ["log", "-1", "--format=%s"]).trim() === "myc", "git log 出现该提交信息")
+  await ws.wait(() => porcelain(dir) === "", "工作区干净,提交真的落地了")
+})
+
+test("没有暂存内容按 c:中文提示,不打开输入框", async () => {
+  const dir = await baseRepo("nw-ws-act-commit-empty-")
+  using ws = await mountWorkspace({ root: dir })
+  await ws.waitForFrame((frame) => linesOf(frame, "分支").length > 0, "状态面板渲染出来")
+  await ws.pressKey("c")
+  // 提示行 detail 只留 17 列,「没有可提交的暂存内容」按列宽截断成前 8 个字 ——
+  // 断言取截断后确实可见的前缀,顺带把这条宽度约束钉在测试里。
+  await ws.waitForFrame(
+    (frame) => frame.includes("没有可提交的暂存") && !frame.includes(COMMIT_TITLE),
+    "提示行给出「没有可提交的暂存」,且没有输入框",
+  )
+})
+
+test("状态面板空格:无远端时行内输入添加远程", async () => {
+  const dir = await baseRepo("nw-ws-act-remote-")
+  using ws = await mountWorkspace({ root: dir })
+  await ws.waitForFrame((frame) => frame.includes("未配置远端"), "远程行显示未配置远端")
+  await ws.pressKey("j")
+  await ws.waitForFrame((frame) => linesOf(frame, "未配置远端").some((line) => line.includes("❯")), "焦点落在远程行")
+  await ws.pressKey(" ")
+  await ws.waitForFrame((frame) => frame.includes(REMOTE_TITLE), "出现「远端地址」输入框")
+  for (const key of ["g", "i", "t"]) await ws.pressKey(key)
+  ws.app.mockInput.pressEnter()
+  // git remote -v 用 **tab** 分隔名字和地址,不是空格。
+  await ws.wait(() => gitOut(dir, ["remote", "-v"]).includes("origin\tgit"), "git remote -v 出现 origin")
+})
+
+test("输入框空着按 enter:不提交也不关闭,等用户真正打完字", async () => {
+  const dir = await baseRepo("nw-ws-act-empty-input-")
+  fs.writeFileSync(path.join(dir, "a.txt"), "a\n")
+  await git(dir, ["add", "a.txt"])
+  using ws = await mountWorkspace({ root: dir })
+  await ws.waitForFrame((frame) => frame.includes("a.txt"), "文件面板加载出待提交文件")
+  await ws.pressKey("c")
+  await ws.waitForFrame((frame) => frame.includes(COMMIT_TITLE), "出现「提交信息」输入框")
+  ws.app.mockInput.pressEnter()
+  await ws.frame()
+  // 空内容被当成「还没打完」而不是「提交空标题」:输入框原样留着,仓库也不动。
+  expect(await ws.frame()).toContain(COMMIT_TITLE)
+  expect(gitOut(dir, ["log", "-1", "--format=%s"]).trim()).toBe("init")
 })
