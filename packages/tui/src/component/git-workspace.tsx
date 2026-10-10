@@ -43,6 +43,9 @@ const LEFT_WIDE = 36
 const LEFT_NARROW = 30
 const TOO_NARROW = 70
 
+/** 行内输入的三种触发来源(规格「提交」:三处共用同一个行内输入组件)。 */
+type InlineInputRequest = { kind: "commit" } | { kind: "branch-new" } | { kind: "remote-add" }
+
 export interface GitWorkspaceProps {
   rootPath?: string
   onClose: () => void
@@ -63,6 +66,12 @@ export function GitWorkspace(props: GitWorkspaceProps) {
   const [stashRow, setStashRow] = createSignal(0)
   const [diffTarget, setDiffTarget] = createSignal<DiffTarget>({ kind: "none" })
   const [armed, setArmed] = createSignal<ArmedConfirm | undefined>(undefined)
+  // 行内输入的触发来源。三种来源共用同一个组件(规格「提交」),差别只在标题和回调。
+  // Task 8 才接上 <InlineInput>;此刻只声明状态 —— 它是 openInput 的唯一写入方,没人读也不会出错。
+  const [inlineInput, setInlineInput] = createSignal<InlineInputRequest | undefined>(undefined)
+  // 差异视图获得焦点(差异激活模式)。Task 9 才接上键位拦截,这里先声明:
+  // focusPanel 已经要调 setDiffFocus,声明晚了 run 的闭包就找不到这个绑定。
+  const [diffFocus, setDiffFocus] = createSignal(false)
   const [remote, setRemote] = createSignal<string | undefined>(undefined)
   // 最后一次 git 命令失败的原因(中文,经 hintFromError 映射)。写进状态面板的「提示」行 ——
   // 失败必须有反馈:早先版本 gitExec 失败时既不刷新也无提示,用户按了 p 拉取毫无动静,
@@ -71,6 +80,13 @@ export function GitWorkspace(props: GitWorkspaceProps) {
 
   // 真实时钟注入给确认态。测试里换假时钟就能推时间(见 git-workspace-confirm.test.ts)。
   const confirm = createConfirm<{ file: string }>(() => Date.now())
+
+  /** 打开左列底部的行内输入。开输入框是明确的「改主意」:任何待确认态到此作废。 */
+  const openInput = (request: InlineInputRequest) => {
+    confirm.clear()
+    setArmed(undefined)
+    setInlineInput(request)
+  }
 
   // 世代计数器:连按 r、或 stage 后连续 gitExec().then(refresh) 时,先发的可能后回来。
   // 没有它,旧快照会盖掉新快照 —— 而这份数据是整仓状态,显示过期状态会误导接下来的危险操作。
@@ -190,6 +206,24 @@ export function GitWorkspace(props: GitWorkspaceProps) {
     if (stashRow() > max) setStashRow(max)
   })
 
+  /** 把焦点切到某个面板,同时退出差异激活模式。 */
+  const focusPanel = (id: PanelID) => {
+    // 切面板必须退出差异激活模式(Task 9):两个面板不能同时「有焦点」,否则差异模式下 tab 之后
+    // j/k 还在滚动差异而不是移动行。Task 9 接上拦截器之前 setDiffFocus 只有写入没有读取。
+    setDiffFocus(false)
+    setPanel(id)
+  }
+
+  /** 循环切到下一个远端(规格「多远程」)。 */
+  const switchRemote = () => {
+    const list = data()?.remotes ?? []
+    // 没有远端时不提示、直接开输入框:「未配置远端」那一行本身就是给一个可按键的入口。
+    if (list.length === 0) return openInput({ kind: "remote-add" })
+    // 切换本身不执行任何 git 命令,只改选中状态:推送/拉取时才拿这个值。
+    const index = list.findIndex((item) => item.name === remote())
+    setRemote(list[(index + 1) % list.length]?.name)
+  }
+
   /** 执行一条工作区命令。所有键位处理最终都汇到这里。 */
   const run = (command: WorkspaceCommand) => {
     const cwd = props.rootPath
@@ -213,7 +247,7 @@ export function GitWorkspace(props: GitWorkspaceProps) {
 
     if (command === "panel.next") return setPanel((p) => panelAt(PANEL_ORDER.indexOf(p) + 1))
     if (command === "panel.prev") return setPanel((p) => panelAt(PANEL_ORDER.indexOf(p) - 1))
-    if (command.startsWith("panel.jump:")) return setPanel(panelAt(Number(command.slice("panel.jump:".length))))
+    if (command.startsWith("panel.jump:")) return focusPanel(panelAt(Number(command.slice("panel.jump:".length))))
     if (command === "row.up") return moveRow(-1)
     if (command === "row.down") return moveRow(1)
     if (command === "global.close") return props.onClose()
@@ -270,13 +304,38 @@ export function GitWorkspace(props: GitWorkspaceProps) {
       runGit(args)
       return
     }
-    if (command === "status.space" || command === "status.m") {
-      // 远程行:循环切远端。切换本身不执行任何 git 命令,只改选中状态(规格「多远程」)。
-      const list = data()?.remotes ?? []
-      if (list.length === 0) return
-      const index = list.findIndex((item) => item.name === remote())
-      setRemote(list[(index + 1) % list.length]?.name)
-      return
+    if (command === "status.m") return switchRemote()
+    if (command === "status.space") {
+      // 空格按当前行分派(规格「状态」):分支行跳面板、远程行切远端、变更行全暂存/全取消。
+      // 「提示」行不做任何事 —— 空格落在这一行时静默,而不是报一条没用的提示。
+      const row = statusRows()[statusRow()]
+      if (!row) return
+      if (row.kind === "branch") return focusPanel("branches")
+      if (row.kind === "remote") return switchRemote()
+      if (row.kind === "changes") {
+        // 有未暂存改动就全暂存,一个都没有就全取消 —— 同一个键在两种状态下互为逆操作。
+        const unstaged = (data()?.status.entries ?? []).some((entry) => entry.unstaged)
+        return unstaged ? runGit(["add", "-A"]) : runGit(["restore", "--staged", "--", "."])
+      }
+    }
+    if (command === "branches.checkout") {
+      const row = branchRows()[branchRow()]
+      // detached 的哨兵行不是引用,切过去必然报错。
+      if (!row || row.name.startsWith("(HEAD")) return
+      // 远程分支(带 /)也直接 switch:git 会给它建一个本地跟踪分支。失败时 runGit 写提示行,
+      // 不比我们自己判一遍本地是否已存在更糟 —— 而自己判就有两套真相源。
+      return runGit(["switch", row.name])
+    }
+    if (command === "branches.new") return openInput({ kind: "branch-new" })
+    if (command === "commits.undo") {
+      if ((data()?.commits.length ?? 0) === 0) return
+      // 规格「提交」:只回退最近一次提交到暂存区,不做操作级撤销栈。
+      return runGit(["reset", "--soft", "HEAD~1"])
+    }
+    if (command === "stash.pop") {
+      const row = stashRows()[stashRow()]
+      if (!row) return
+      return runGit(["stash", "pop", row.ref])
     }
     if (command === "global.pull" || command === "global.push") {
       const name = selectedRemote()?.name
