@@ -4,7 +4,8 @@ import { promisify } from "node:util"
 import fs from "fs"
 import os from "os"
 import path from "path"
-import { loadCommitPatch, loadFilePatch, untrackedPatch } from "../../src/util/git-diff"
+import { loadBranchPatch, loadCommitPatch, loadFilePatch, untrackedPatch } from "../../src/util/git-diff"
+import { tmpdir } from "../fixture/fixture"
 
 test("untrackedPatch 对不存在的文件返回空串", () => {
   expect(untrackedPatch("nonexistent-file-for-test.ts", process.cwd())).toBe("")
@@ -87,4 +88,46 @@ test("loadCommitPatch 只输出 diff 正文,不带提交说明", async () => {
   expect(patch).toContain("+第一版")
   expect(patch).not.toContain("这是提交说明")
   expect(patch).not.toContain("commit ")
+})
+
+// loadBranchPatch 起真 git 子进程,所以这里换成 fixture 的异步临时目录(和上面同步的一族分开,
+// 免得两个清理口径混在一个 afterAll 里)。
+test("loadBranchPatch 只显示目标分支独有的改动,当前分支独有的不进差异", async () => {
+  await using tmp = await tmpdir()
+  const dir = tmp.path
+  await git(dir, ["init", "-b", "main"])
+  fs.writeFileSync(path.join(dir, "shared.txt"), "共同的\n")
+  await git(dir, ["add", "."])
+  await git(dir, ["commit", "-m", "base"])
+  // 两个分支都从 base 分叉,各走一步:谁的独有改动都必须看得见,谁的噪音都不许混进来。
+  await git(dir, ["checkout", "-b", "feature"])
+  fs.writeFileSync(path.join(dir, "feature-only.txt"), "feature 独有\n")
+  await git(dir, ["add", "."])
+  await git(dir, ["commit", "-m", "feature 独有"])
+  await git(dir, ["checkout", "main"])
+  fs.writeFileSync(path.join(dir, "main-only.txt"), "main 独有\n")
+  await git(dir, ["add", "."])
+  await git(dir, ["commit", "-m", "main 独有"])
+
+  const patch = await loadBranchPatch(dir, "feature", "main")
+  expect(patch).toContain("feature-only.txt")
+  expect(patch).toContain("+feature 独有")
+  // 三点 `main...feature` 取的是 feature 独有的改动。写成两点/直接 `git diff main feature`
+  // 会把 main-only.txt 当成「被删」画进来,这一条断言就是为钉住三点而写的。
+  expect(patch).not.toContain("main-only.txt")
+  expect(patch).not.toContain("main 独有")
+})
+
+test("loadBranchPatch 同一分支、detached 或没有当前分支时返回空串", async () => {
+  await using tmp = await tmpdir()
+  const dir = tmp.path
+  await git(dir, ["init", "-b", "main"])
+  fs.writeFileSync(path.join(dir, "a.txt"), "内容\n")
+  await git(dir, ["add", "."])
+  await git(dir, ["commit", "-m", "init"])
+  expect(await loadBranchPatch(dir, "main", "main")).toBe("")
+  // (HEAD detached) 是 parseGitBranches 的哨兵名,不是引用 —— 喂给 git diff 必然报错,
+  // 所以在起子进程之前就短路。
+  expect(await loadBranchPatch(dir, "main", "(HEAD detached)")).toBe("")
+  expect(await loadBranchPatch(dir, "main")).toBe("")
 })
