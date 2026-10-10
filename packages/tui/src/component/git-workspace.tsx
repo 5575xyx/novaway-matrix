@@ -24,6 +24,7 @@ import {
 } from "./git-workspace/focus"
 import { createConfirm, type ArmedConfirm } from "./git-workspace/confirm"
 import {
+  deriveBranchRows,
   deriveFileRows,
   deriveStatusRows,
   hintFromError,
@@ -32,7 +33,10 @@ import {
   type WorkspaceData,
 } from "./git-workspace/state"
 import { GitDiffPanel, type DiffTarget } from "./git-workspace/diff-panel"
+import { BranchesPanel } from "./git-workspace/branches-panel"
+import { CommitsPanel } from "./git-workspace/commits-panel"
 import { FilesPanel } from "./git-workspace/files-panel"
+import { StashPanel } from "./git-workspace/stash-panel"
 import { StatusPanel } from "./git-workspace/status-panel"
 
 const LEFT_WIDE = 36
@@ -53,6 +57,10 @@ export function GitWorkspace(props: GitWorkspaceProps) {
   const [panel, setPanel] = createSignal<PanelID>("status")
   const [statusRow, setStatusRow] = createSignal(0)
   const [fileRow, setFileRow] = createSignal(0)
+  // 提交面板继续复用 fileRow(计划 1 已如此):提交与文件两个面板不同时显示,复用不会互相影响。
+  // 换成独立 commitRow 要多写一个信号 + 一个 clamp effect,收益只有整齐,留给计划 3 一起收拾。
+  const [branchRow, setBranchRow] = createSignal(0)
+  const [stashRow, setStashRow] = createSignal(0)
   const [diffTarget, setDiffTarget] = createSignal<DiffTarget>({ kind: "none" })
   const [armed, setArmed] = createSignal<ArmedConfirm | undefined>(undefined)
   const [remote, setRemote] = createSignal<string | undefined>(undefined)
@@ -130,6 +138,10 @@ export function GitWorkspace(props: GitWorkspaceProps) {
     ),
   )
   const fileRows = createMemo(() => deriveFileRows(data()?.status ?? EMPTY_STATUS, data()?.numstat ?? []))
+  // 分支行要从原始 GitBranch 派生(领先/落后要拼成 ↑N ↓M);commits 与 stash 拉回来就已经是行形状。
+  const branchRows = createMemo(() => deriveBranchRows(data()?.branches ?? []))
+  const commitRows = createMemo(() => data()?.commits ?? [])
+  const stashRows = createMemo(() => data()?.stash ?? [])
 
   const tooNarrow = () => props.width < TOO_NARROW
   const leftWidth = () => (props.width < 80 ? LEFT_NARROW : LEFT_WIDE)
@@ -139,13 +151,26 @@ export function GitWorkspace(props: GitWorkspaceProps) {
       setStatusRow((n) => clamp(n + delta, 0, statusRows().length - 1))
       return
     }
-    if (panel() === "files") setFileRow((n) => clamp(n + delta, 0, fileRows().length - 1))
+    if (panel() === "files") {
+      setFileRow((n) => clamp(n + delta, 0, fileRows().length - 1))
+      return
+    }
+    if (panel() === "branches") {
+      setBranchRow((n) => clamp(n + delta, 0, branchRows().length - 1))
+      return
+    }
+    // 提交面板复用 fileRow,但 clamp 的上限得用提交自己的行数:两份表的长度完全不同。
+    if (panel() === "commits") {
+      setFileRow((n) => clamp(n + delta, 0, commitRows().length - 1))
+      return
+    }
+    if (panel() === "stash") setStashRow((n) => clamp(n + delta, 0, stashRows().length - 1))
   }
 
   // 列表收缩时把选中行夹回范围内:moveRow 每一步都 clamp,但 refresh() 换掉整个列表时
   // 没人管 —— discard/delete 后列表变少,fileRow 会越界:文件面板不再高亮任何行,
-  // 差异面板、键位条却还按旧行说事。commits 面板复用 fileRow,越界那边有 `if (!row)`
-  // 兜底不会误执行,这里只夹真会收缩的两张表。
+  // 差异面板、键位条却还按旧行说事。四个面板各夹各的:commits 复用 fileRow,但它的行数
+  // 由 moveRow 里用 commitRows 单独算,这里夹的仍是文件表(两份表不同时显示,不会串)。
   createEffect(() => {
     const max = Math.max(0, statusRows().length - 1)
     if (statusRow() > max) setStatusRow(max)
@@ -153,6 +178,14 @@ export function GitWorkspace(props: GitWorkspaceProps) {
   createEffect(() => {
     const max = Math.max(0, fileRows().length - 1)
     if (fileRow() > max) setFileRow(max)
+  })
+  createEffect(() => {
+    const max = Math.max(0, branchRows().length - 1)
+    if (branchRow() > max) setBranchRow(max)
+  })
+  createEffect(() => {
+    const max = Math.max(0, stashRows().length - 1)
+    if (stashRow() > max) setStashRow(max)
   })
 
   /** 执行一条工作区命令。所有键位处理最终都汇到这里。 */
@@ -330,6 +363,29 @@ export function GitWorkspace(props: GitWorkspaceProps) {
                       rows={fileRows()}
                       selected={() => (panel() === "files" ? fileRow() : -1)}
                       armed={armed()}
+                      width={leftWidth() - 2}
+                    />
+                  </Show>
+                  {/* 三块新面板的宽度账目与状态/文件面板同源:边框吃掉左右各 1 列,面板内截断算式量的是内容宽。
+                    selected 非当前面板一律传 -1(没有任何行带焦点标记),否则切走焦点后旧面板还亮着一行。 */}
+                  <Show when={id === "branches"}>
+                    <BranchesPanel
+                      rows={branchRows()}
+                      selected={() => (panel() === "branches" ? branchRow() : -1)}
+                      width={leftWidth() - 2}
+                    />
+                  </Show>
+                  <Show when={id === "commits"}>
+                    <CommitsPanel
+                      rows={commitRows()}
+                      selected={() => (panel() === "commits" ? fileRow() : -1)}
+                      width={leftWidth() - 2}
+                    />
+                  </Show>
+                  <Show when={id === "stash"}>
+                    <StashPanel
+                      rows={stashRows()}
+                      selected={() => (panel() === "stash" ? stashRow() : -1)}
                       width={leftWidth() - 2}
                     />
                   </Show>
