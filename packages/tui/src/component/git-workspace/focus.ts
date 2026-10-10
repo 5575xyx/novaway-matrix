@@ -45,11 +45,19 @@ export type WorkspaceCommand =
   | "files.focusDiff"
   | "files.discard"
   | "files.delete"
+  | "files.copyPath"
   | "branches.checkout"
   | "branches.new"
   | "branches.delete"
+  | "branches.focusDiff"
   | "commits.focusDiff"
   | "commits.undo"
+  | "commits.copyHash"
+  | "diff.scrollUp"
+  | "diff.scrollDown"
+  | "diff.pageUp"
+  | "diff.pageDown"
+  | "diff.exit"
   | "stash.pop"
   | "stash.discard"
   | "global.commit"
@@ -97,15 +105,18 @@ export const PANEL_KEYS: Readonly<Record<PanelID, Readonly<Record<string, Worksp
     enter: "files.focusDiff",
     d: "files.discard",
     x: "files.delete",
+    y: "files.copyPath",
   },
   branches: {
     space: "branches.checkout",
     n: "branches.new",
     d: "branches.delete",
+    enter: "branches.focusDiff",
   },
   commits: {
     enter: "commits.focusDiff",
     z: "commits.undo",
+    y: "commits.copyHash",
   },
   stash: {
     space: "stash.pop",
@@ -148,6 +159,36 @@ export function resolveWorkspaceCommand(
   // 数字键 1-5 直接跳到对应面板(1 是状态,5 是贮藏)。
   if (key.length === 1 && key >= "1" && key <= "5") return `panel.jump:${Number(key) - 1}`
   return undefined
+}
+
+/**
+ * 差异视图获得焦点时的键位(规格 L113-115):滚动 / 翻页 / 退回。
+ *
+ * 单独一张表而不是复用 GLOBAL_KEYS:差异模式里 `esc` 是「退回左列」不是「关工作区」,
+ * `j`/`k` 是滚动不是移动行,数字键一律不响应。混在一张表里就得到处加分支判断。
+ *
+ * 方向键和翻页键的键名与仓库其他处对齐:opentui 事件 name 是 `up` / `down` /
+ * `pageup` / `pagedown`(见 src/component/error-component.tsx:84-87),keyOfParsed 对
+ * 这几类不做转换,原样透传。别名 `pgup` / `pgdn` 只在 @opentui/keymap 里出现,
+ * 不在这条链路上 —— 这里再收一份反而让表变宽。
+ */
+export const DIFF_KEYS: Readonly<Record<string, WorkspaceCommand>> = {
+  j: "diff.scrollDown",
+  k: "diff.scrollUp",
+  down: "diff.scrollDown",
+  up: "diff.scrollUp",
+  pageup: "diff.pageUp",
+  pagedown: "diff.pageDown",
+  esc: "diff.exit",
+}
+
+/**
+ * 差异模式下的按键解析。数字键**显式返回 undefined**(规格 L115:此时不响应) ——
+ * `resolveWorkspaceCommand` 对数字键会给出 `panel.jump`,直接复用会违反规格,所以走这张表。
+ */
+export function resolveDiffCommand(key: string): WorkspaceCommand | undefined {
+  if (key.length === 1 && key >= "1" && key <= "5") return undefined
+  return DIFF_KEYS[key]
 }
 
 /**

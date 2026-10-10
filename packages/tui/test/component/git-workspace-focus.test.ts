@@ -6,6 +6,7 @@ import {
   PANEL_TITLE,
   panelAt,
   panelIndex,
+  resolveDiffCommand,
   resolveWorkspaceCommand,
 } from "../../src/component/git-workspace/focus"
 
@@ -87,4 +88,45 @@ test("局部键真的覆盖同名全局键", () => {
   expect(resolveWorkspaceCommand("files", "r", local, global)).toBe("files.focusDiff")
   // 局部没配到的键才落回全局 —— 只测冲突不够,还得确认没有把全局整层屏蔽掉。
   expect(resolveWorkspaceCommand("files", "p", local, global)).toBe("global.pull")
+})
+
+test("面板局部键补齐:文件复制路径 / 分支看差异 / 提交复制哈希", () => {
+  // `y` 是 Lazygit 里「复制」的惯用键,复用同一字母在不同面板落不同动作 —— 局部键覆盖。
+  expect(resolveWorkspaceCommand("files", "y")).toBe("files.copyPath")
+  expect(resolveWorkspaceCommand("commits", "y")).toBe("commits.copyHash")
+  // 分支面板的 `enter` 是「切到差异视图」不是「检出」,检出仍然走空格。
+  expect(resolveWorkspaceCommand("branches", "enter")).toBe("branches.focusDiff")
+})
+
+test("差异模式的键位表:滚动 / 翻页 / 退回", () => {
+  // 单字母
+  expect(resolveDiffCommand("j")).toBe("diff.scrollDown")
+  expect(resolveDiffCommand("k")).toBe("diff.scrollUp")
+  // 方向键:与 error-component.tsx:84-85 保持一致,ParsedKey.name 直接是 `up` / `down`。
+  expect(resolveDiffCommand("up")).toBe("diff.scrollUp")
+  expect(resolveDiffCommand("down")).toBe("diff.scrollDown")
+  // 翻页键:error-component.tsx:86-87 是 `pageup` / `pagedown`(不是 `pgup` / `pgdn`)。
+  expect(resolveDiffCommand("pageup")).toBe("diff.pageUp")
+  expect(resolveDiffCommand("pagedown")).toBe("diff.pageDown")
+  expect(resolveDiffCommand("esc")).toBe("diff.exit")
+})
+
+test("差异模式对数字键 1-5 显式返回 undefined(规格:此时不响应)", () => {
+  // 走 resolveWorkspaceCommand 会命中 panel.jump,所以这里必须走独立的差异解析,不能复用。
+  for (const key of ["1", "2", "3", "4", "5"]) expect(resolveDiffCommand(key)).toBeUndefined()
+})
+
+test("差异模式不放行全局命令键", () => {
+  // 差异视图里 `c` 是提交、`p` 是拉取、`f` 是推送、`r` 是刷新,一个都不该生效。
+  for (const key of ["c", "p", "f", "r"]) expect(resolveDiffCommand(key)).toBeUndefined()
+})
+
+test("既有断言保持:面板模式下数字 1-5 跳面板,0 和 6 不响应", () => {
+  expect(resolveWorkspaceCommand("files", "1")).toBe("panel.jump:0")
+  expect(resolveWorkspaceCommand("files", "2")).toBe("panel.jump:1")
+  expect(resolveWorkspaceCommand("files", "3")).toBe("panel.jump:2")
+  expect(resolveWorkspaceCommand("files", "4")).toBe("panel.jump:3")
+  expect(resolveWorkspaceCommand("files", "5")).toBe("panel.jump:4")
+  expect(resolveWorkspaceCommand("files", "6")).toBeUndefined()
+  expect(resolveWorkspaceCommand("files", "0")).toBeUndefined()
 })
