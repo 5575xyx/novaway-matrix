@@ -820,6 +820,12 @@ export const dict = {
   "sidebar.project.recentSessions": "Recent sessions",
   "sidebar.project.viewAllSessions": "View all sessions",
   "sidebar.project.clearNotifications": "Clear notifications",
+  "sidebar.view.tasks": "Tasks",
+  "sidebar.view.files": "Files",
+  "sidebar.filter.all": "All",
+  "sidebar.filter.running": "Running",
+  "sidebar.filter.waiting": "Needs approval",
+  "sidebar.filter.archived": "Archived",
   "sidebar.empty.title": "No projects open",
   "sidebar.empty.description": "Open a project to get started",
 

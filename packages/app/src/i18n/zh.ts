@@ -739,6 +739,12 @@ export const dict = {
   "sidebar.project.recentSessions": "最近任务",
   "sidebar.project.viewAllSessions": "查看全部任务",
   "sidebar.project.clearNotifications": "清除通知",
+  "sidebar.view.tasks": "任务",
+  "sidebar.view.files": "文件",
+  "sidebar.filter.all": "全部",
+  "sidebar.filter.running": "运行中",
+  "sidebar.filter.waiting": "待确认",
+  "sidebar.filter.archived": "已归档",
   "sidebar.empty.title": "没有项目打开",
   "sidebar.empty.description": "打开一个项目开始使用",
 
