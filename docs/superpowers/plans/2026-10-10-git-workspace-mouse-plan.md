@@ -121,3 +121,36 @@ harness（`test/component/git-workspace-harness.tsx`）加：
   以及 `git-workspace-branches-panel.test.tsx` 曾被并发会话改过 —— 全部不要碰；
   发现不符先 `git diff`，然后**适配，不要覆盖**。
 - 控制台 gb2312，`git log` 中文乱码是显示问题。
+
+## 落地记录（2026-10-10，`b7618cc`）
+
+13 条用例全过：`git-workspace-mouse.test.tsx` 13 pass / 0 fail；全套 1002 pass / 4 fail
+（仍是既有的 `provider-options.test.ts`）；typecheck 只剩他人未提交的
+`packages/plugin/src/tool.ts` 缺 `zod` 依赖那一条，与本计划无关。
+
+**与计划判断不同的两处，都是踩出来的，记给后来人：**
+
+1. **点标题切面板要靠 `stopPropagation` 撑着。** 计划「已核实的结构事实」第 2 条判断
+   「行 handler 与框 handler 都会触发 `focusPanel(id)`，语义一致，不打架」—— 这只在单次
+   单击下成立。真正的冲突在**双击开差异**那条路径：`PanelFrame` 的 `onMouseDown` 挂在整框上，
+   而 opentui 的鼠标事件是冒泡的，于是每次行点击都会冒到框上再走一次 `focusPanel`，而
+   `focusPanel` 会顺手 `setDiffFocus(false)`。结果「双击第二次刚把差异模式打开」这件事，
+   紧接着就被框这一手关掉了，用户只会以为双击没用。修法：五个面板的行 `onMouseDown`
+   一律 `event.stopPropagation()`，原因注释写在 `PanelFrame` 的 `onMouseDown` 上。
+2. **滚轮锚点必须在 `<scrollbox>` 内部，差异标题那两行滚不动。** `<GitDiffPanel>` 的标题是
+   `paddingTop=1` 的静态标签（`diff-panel.tsx:84`），挂在滚动容器**之外**；只有 diff 正文
+   才是滚动区域。所以第 10 条用例的坐标锚点取 diff 正文第一行
+   （`cellOf(frame, "line 0")`），不取标题 —— 取标题就是一次「滚了没反应」的假失败。
+   顺带核实：`@opentui/core` 的 `ScrollBoxRenderable` **没有原生滚轮处理**
+   （`onMouseScroll` 只是个 setter，`chunk-bun-*.js:1322`），所以外壳那个 handler 是
+   唯一滚东西的地方，不存在「原生 + handler」双滚。
+
+**其它坑（测试侧）：**
+
+- `createMockMouse` 的 `click` / `doubleClick` / `scroll` **全是 async**，内部 `delayMs`
+  默认 10ms 后才把 SGR 序列真正写进 `renderer.stdin`。不 `await` 就读帧，读到的是派发前的
+  帧 —— 表现为「点了没反应」。
+- **等数据就绪要等具体数据，不能等静态骨架。** 「tab 1-5」「j/k 选」这类键位条在 git 数据
+  回来之前就画出来了；拿它们当就绪信号，后续按键会命中还没有行的空面板。改用等具体文件名、
+  分支名、`stash@{0}`。
+- `pressKey("esc")` 不等于 `pressEscape()`，harness 里后者才真正送出 ESC 序列。
