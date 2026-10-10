@@ -1,9 +1,14 @@
-// 状态面板:四行可操作条目(分支 / 远程 / 变更 / 提示)。
+﻿// 状态面板:四行可操作条目(分支 / 远程 / 变更 / 提示)。
 //
 // 为什么是「可操作的四行」而不是一块静态摘要:「选哪个远端」必须有地方放,而独立成第六个面板
 // 又太重(Lazygit 也没有)。塞进状态面板当一行,正好。
 //
 // 选中远程行时把完整 URL 摊开:f 推送是不可逆动作,推错地方很痛,多占一行显示地址是值的。
+//
+// ⚠️ 缩进必须用 <box paddingLeft={...}> 包住 <text>,**不能把 paddingLeft 写在 <text> 上**。
+// 实测 opentui 0.4.5 里叶子 <text> 的 yoga padding 只收缩内容宽度、不平移绘制起点,
+// 写了等于没写(文本照样从第 0 列开始)。同一个坑在 component/git-workspace/files-panel.tsx
+// 的空态、component/git-workspace/diff-panel.tsx 的提示行上也有。
 //
 // **宽度账目必须和下面 detailWidth 的算式同步改**,否则行会被 flex 收缩裁切。
 import { For, Show } from "solid-js"
@@ -13,8 +18,10 @@ import type { StatusRow } from "./state"
 
 /** 标签固定 4 列(「分支」「远程」「变更」「提示」都是两字中文)。 */
 const LABEL_WIDTH = 4
-/** 计数区:1 列左内边距 + 最多 8 列(如 `+100 -20`、`↑91`)。 */
-const COUNT_WIDTH = 9
+/** 计数区总宽 = 1 列左内边距 + 计数正文。 */
+const COUNT_PAD = 1
+/** 计数正文最多 8 列(如 `+100 -20`)。超出截断 —— 全仓求和的数字可以很长,不截会挤掉 detail。 */
+const COUNT_TEXT_WIDTH = 8
 
 export interface StatusPanelProps {
   rows: StatusRow[]
@@ -26,9 +33,10 @@ export interface StatusPanelProps {
 
 export function StatusPanel(props: StatusPanelProps) {
   const { theme } = useTheme()
-  // 一行的固定开销:左内边距 1 + 标记 2 + 标签 LABEL_WIDTH + 分隔空格 1 + 计数区 COUNT_WIDTH。
+  // 一行的固定开销:左内边距 1 + 标记 2 + 标签 LABEL_WIDTH + 分隔空格 1 + 计数区(COUNT_PAD + COUNT_TEXT_WIDTH)。
   // 账目必须和 files-panel 的 pathWidth 用同一套口径,漏算就会被 flex 收缩硬切。
-  const detailWidth = () => Math.max(4, props.width - 1 - 2 - LABEL_WIDTH - 1 - COUNT_WIDTH)
+  const detailWidth = () => Math.max(4, props.width - 1 - 2 - LABEL_WIDTH - 1 - COUNT_PAD - COUNT_TEXT_WIDTH)
+  const urlWidth = () => Math.max(4, props.width - 3)
 
   return (
     <box flexDirection="column" flexGrow={1} minHeight={0}>
@@ -36,8 +44,11 @@ export function StatusPanel(props: StatusPanelProps) {
         {(row, index) => {
           const isFocused = () => index() === props.selected()
           const showUrl = () => isFocused() && row.kind === "remote" && props.remoteUrl !== undefined
+          // 每一行(含它下面可能多出来的地址行)包成一个 column box:
+          // ① 地址行是这一行的**一部分**,不是兄弟 —— 以后要给整行上高亮才做得到;
+          // ② 也让「渲染行数 ≠ rows.length」这件事在结构上看得见(见下方注释)。
           return (
-            <>
+            <box flexDirection="column">
               <box flexDirection="row" paddingLeft={1}>
                 <text fg={isFocused() ? theme.primary : theme.textMuted} wrapMode="none">
                   {isFocused() ? "❯ " : "  "}
@@ -49,18 +60,25 @@ export function StatusPanel(props: StatusPanelProps) {
                   {Locale.truncateToWidth(row.detail ?? "", detailWidth())}
                 </text>
                 <Show when={row.count}>
-                  <text fg={theme.warning} wrapMode="none" paddingLeft={1}>
-                    {row.count}
-                  </text>
+                  <box paddingLeft={COUNT_PAD}>
+                    <text fg={theme.warning} wrapMode="none">
+                      {Locale.truncateToWidth(row.count ?? "", COUNT_TEXT_WIDTH)}
+                    </text>
+                  </box>
                 </Show>
               </box>
-              {/* 地址单独一行,不挤在远程那行后面 —— URL 很长,挤进去会把远端名截断掉。 */}
+              {/* 地址单独一行,不挤在远程那行后面 —— URL 很长,挤进去会把远端名截断掉。
+                  ⚠️ 给外壳的契约:**远端行聚焦时,本面板渲染 rows.length + 1 行**。
+                  任何按 selected 1:1 映射屏幕行的逻辑(光标、滚动条、固定行高)都要按这个算,
+                  否则 URL 一出现就全错位。 */}
               <Show when={showUrl()}>
-                <text fg={theme.textMuted} paddingLeft={3} wrapMode="none">
-                  {Locale.truncateToWidth(props.remoteUrl ?? "", props.width - 3)}
-                </text>
+                <box paddingLeft={3}>
+                  <text fg={theme.textMuted} wrapMode="none">
+                    {Locale.truncateToWidth(props.remoteUrl ?? "", urlWidth())}
+                  </text>
+                </box>
               </Show>
-            </>
+            </box>
           )
         }}
       </For>

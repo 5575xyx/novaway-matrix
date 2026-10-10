@@ -42,9 +42,10 @@ export function FilesPanel(props: FilesPanelProps) {
         when={props.rows.length > 0}
         fallback={
           // 3 = 左内边距 1 + 标记 2,和上面行内容的标签起始列对齐。
-          <text fg={theme.textMuted} paddingLeft={3}>
-            暂无改动
-          </text>
+          // ⚠️ 必须用 box 包着 —— paddingLeft 写在 <text> 上在 opentui 里无效(见 status-panel.tsx 头注释)。
+          <box paddingLeft={3}>
+            <text fg={theme.textMuted}>暂无改动</text>
+          </box>
         }
       >
         <For each={props.rows}>

@@ -70,17 +70,20 @@ export function GitDiffPanel(props: GitDiffPanelProps) {
       <Show
         when={!error()}
         fallback={
-          <text fg={theme.error} paddingLeft={1}>
-            {error()}
-          </text>
+          // ⚠️ paddingLeft 必须写在 <box> 上 —— 写在 <text> 上在 opentui 里无效(见 status-panel.tsx 头注释)。
+          <box paddingLeft={1}>
+            <text fg={theme.error}>{error()}</text>
+          </box>
         }
       >
         <Show
           when={patch()}
           fallback={
-            <text fg={theme.textMuted} paddingLeft={1}>
-              {props.target.kind === "none" ? "选中文件或提交后在这里看改动" : "没有改动"}
-            </text>
+            <box paddingLeft={1}>
+              <text fg={theme.textMuted}>
+                {props.target.kind === "none" ? "选中文件或提交后在这里看改动" : "没有改动"}
+              </text>
+            </box>
           }
         >
           <box flexGrow={1} minHeight={0} backgroundColor={theme.backgroundPanel}>
