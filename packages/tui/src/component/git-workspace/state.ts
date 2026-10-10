@@ -11,7 +11,6 @@ import {
   type GitStashEntry,
   type GitStatusSummary,
   parseGitBranches,
-  parseGitCommit,
   parseGitNumstat,
   parseGitRemotes,
   parseGitStashList,
@@ -19,6 +18,8 @@ import {
 } from "../../util/git-status"
 
 export interface GitCommitRow {
+  /** 完整哈希:复制用。短哈希只是展示前缀,拿到别的仓库里定位不了。 */
+  full: string
   hash: string
   subject: string
 }
@@ -35,6 +36,26 @@ export interface WorkspaceData {
 }
 
 const COMMIT_LIMIT = 40
+const COMMIT_FORMAT = "--format=%H|%h|%s"
+
+/**
+ * 一条 `--format=%H|%h|%s` 的输出。拆三段:复制用完整哈希(`%H`),显示用短哈希(`%h`),
+ * 主题用 `%s`。哈希是十六进制不含 `|`,所以固定取前两段;主题可能带 `|`(比如「改 A | 再改 B」),
+ * 第 2 段之后的全部原样用 `|` 拼回来。
+ *
+ * 不能用 `split("|", 3)` 限段数 —— JS 的第三参是**截断**语义(第 3 段起的内容直接丢掉),
+ * 和 Python/Go 的「余下留到最后一段」正好相反,会把主题切半。
+ */
+export function parseCommitRows(output: string): GitCommitRow[] {
+  return output
+    .split("\n")
+    .filter((line) => line.trim().length > 0)
+    .flatMap((line) => {
+      const parts = line.split("|")
+      if (parts.length < 3) return []
+      return [{ full: parts[0]!, hash: parts[1]!, subject: parts.slice(2).join("|") }]
+    })
+}
 
 /**
  * 并行拉齐工作区需要的全部数据。
@@ -49,8 +70,11 @@ export function loadWorkspace(rootPath: string): Promise<WorkspaceData> {
       Promise.all([
         gitExec(rootPath, ["diff", "--numstat", "--", "."]).catch(() => ({ stdout: "" })),
         gitExec(rootPath, ["diff", "--cached", "--numstat", "--", "."]).catch(() => ({ stdout: "" })),
-        gitExec(rootPath, ["branch", BRANCH_FORMAT]).catch(() => ({ stdout: "" })),
-        gitExec(rootPath, ["log", "--oneline", "-n", String(COMMIT_LIMIT)]).catch(() => ({ stdout: "" })),
+        // -a 把远程分支也列进来:规格要「本地与远程同列显示」。%(refname:short) 会剥掉
+        // refs/remotes/ 前缀,正好得到 origin/main 这种形式;%(upstream:track) 对远程分支
+        // 是空串,领先/落后自然是 0,不会画出两枚没意义的计数。
+        gitExec(rootPath, ["branch", "-a", BRANCH_FORMAT]).catch(() => ({ stdout: "" })),
+        gitExec(rootPath, ["log", COMMIT_FORMAT, "-n", String(COMMIT_LIMIT)]).catch(() => ({ stdout: "" })),
         gitExec(rootPath, ["stash", "list"]).catch(() => ({ stdout: "" })),
         gitExec(rootPath, ["remote", "-v"]).catch(() => ({ stdout: "" })),
       ]).then(([worktreeOut, indexOut, branchOut, logOut, stashOut, remoteOut]) => ({
@@ -58,13 +82,7 @@ export function loadWorkspace(rootPath: string): Promise<WorkspaceData> {
         // numstat 要跑两条:工作区的和暂存区的。只跑一条会漏掉「已暂存但工作区又改了」的文件。
         numstat: [...parseGitNumstat(indexOut.stdout), ...parseGitNumstat(worktreeOut.stdout)],
         branches: parseGitBranches(branchOut.stdout),
-        commits: logOut.stdout
-          .split("\n")
-          .filter((line) => line.trim().length > 0)
-          .flatMap((line) => {
-            const parsed = parseGitCommit(line)
-            return parsed ? [parsed] : []
-          }),
+        commits: parseCommitRows(logOut.stdout),
         stash: parseGitStashList(stashOut.stdout),
         remotes: parseGitRemotes(remoteOut.stdout),
       })),
@@ -172,6 +190,23 @@ export function deriveStatusRows(
         (!inRepo ? "不是 git 仓库" : diverged ? "分支与远程 diverged" : dirty ? "有未提交的改动" : "工作区干净"),
     },
   ]
+}
+
+/** 分支面板一行:分支名 + 是否当前 + 领先/落后计数。 */
+export interface BranchRow {
+  name: string
+  current: boolean
+  count?: string
+}
+
+export function deriveBranchRows(branches: GitBranch[]): BranchRow[] {
+  return branches.map((branch) => ({
+    name: branch.name,
+    current: branch.current,
+    // 领先/落后每个分支都画:`%(upstream:track)` 是按行取的,远程分支没有上游,自然是 0 不画。
+    // 当前分支的 ↑N 和状态面板分支行重复是故意的 —— 两处回答的是不同问题(全局 vs 这一行)。
+    count: trackCount(branch.ahead, branch.behind),
+  }))
 }
 
 /** 文件面板一行的中文状态词。规格要求用中文而不是 git 的 XY 字母。 */
