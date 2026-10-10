@@ -2681,6 +2681,84 @@ cd packages/tui && bun run prettier -- --check src/component/git-workspace.tsx s
 cd packages/tui && git add src/component/tab-bar.tsx src/routes/session/index.tsx src/routes/session/sidebar.tsx && git commit -m "feat(tui): 主区接入 Git 工作区标签页"
 ```
 
+**状态：完成**（`4f5a564`）。**897 通过 / 1 跳过 / 4 失败**（4 个仍是 `test/cli/cmd/tui/provider-options.test.ts`
+的既有失败），typecheck exit 0，prettier 干净。本任务是纯接线，不新增测试。
+
+#### 一处计划缺陷被实施者发现并修复（已核实成立）
+
+**本节漏了一个互斥守卫，照写会让 `FilePreview` 和工作区同时渲染。**
+
+原计划只让在已有 `<Show>` 旁边加一路 `<Show when={activeTab()?.type === "git-workspace"}>`，但已有那路的条件是
+`activeTabId() !== "chat" && (selectedFile() || activeTab()?.commitHash)` —— 而 `switchTab`（`index.tsx:702-713`）
+**只在 `tabId === "chat"` 时清 `selectedFile`**，其余分支看标签有没有 `filePath`：
+
+```ts
+const switchTab = (tabId: string) => {
+  setActiveTabId(tabId)
+  if (tabId === "chat") {
+    setSelectedFile(null)
+  } else {
+    const tab = tabs().find((t) => t.id === tabId)
+    if (tab?.filePath) setSelectedFile(tab.filePath)
+  }
+}
+```
+
+在 `git-workspace` 之前，所有非 chat 标签要么带 `filePath`（会被切走/切回时重设）要么带 `commitHash`，
+所以「残留 selectedFile」这个状态**根本不可能出现**。工作区标签是**第一个两者都没有的标签** ——
+打开文件标签 → 切到工作区 → 残留的 `selectedFile` 让旧 `FilePreview` 继续渲染，和工作区叠在一起。
+
+`openGitWorkspaceTab` 里那次 `setSelectedFile(null)` 只覆盖「新建标签」路径，**早退的「切到已存在标签」路径不清**。
+
+**修复**（比在早退路径里补 `setSelectedFile(null)` 更稳 —— 防的是任何别处漏状态）：给已有那路的条件加一项。
+
+```tsx
+<Show
+  when={
+    activeTabId() !== "chat" &&
+    activeTab()?.type !== "git-workspace" &&
+    (selectedFile() || activeTab()?.commitHash)
+  }
+>
+```
+
+#### 其余按计划执行、已逐条核实的点
+
+- `TabItem.type` 加 `"git-workspace"`；`tabColumns` 未动（工作区走 `icon("doc")` 分支）。
+- 两处 `<Sidebar>`（原 `:1866` wide、`:1893` overlay）都补 `onOpenGitWorkspace={openGitWorkspaceTab}`。
+- `onOpenGitWorkspace` 在 `SidebarProps` 里是**可选**、调用写 `?.()` —— 照 `onOpenDiff?` 的惯例。
+  这一点是计划没写明但必要的:加必选 prop 会打断所有没找到的 `<Sidebar>` 调用点。
+- `rootPath={session()?.directory}`、`width={contentWidth()}`（**不带 `+2`**）、关闭走 `closeTab("git-workspace")`、
+  固定 tab id `git-workspace`（重复打开只切过去）。
+
+---
+
+## 人工验收（本计划完成后）
+
+在真实终端跑一次，确认视觉与交互：
+
+```
+cd packages/tui && bun dev
+```
+
+**这一步只有人能做**（需要真实 TTY 渲染 + 真实键盘输入），自动测试覆盖不到。进会话后点侧栏 `Git` 页的
+`↳ 打开工作区`，核对：
+
+1. 主区标签条出现 `Git`，且能点 `✕` 关掉
+2. 左列五个面板标题都在，状态面板四行是中文
+3. `tab` 能在面板间切，`❯` 标记跟着走
+4. 焦点在 `文件` 面板时 `j/k` 能上下选，`空格` 暂存后文件状态会变
+5. 焦点在 `文件` 面板按 `enter`，右侧差异视图显示该文件 diff
+6. 按 `d` 那一行变黄显示「再按一次 d…」，按别的键取消
+7. 在工作区里按 `q`、`v`、中文拼音字母 —— **不会**漏进聊天输入框；`ctrl+c` 仍能中断
+8. 终端缩到 60 列 → 显示「终端太窄」；70 列 → 左列变窄但仍可用
+
+第 8 条之后**额外加两条**（Task 8 审查发现的）：
+
+9. **按 `alt+f` 不应触发 push、按 `alt+d` 两次不应丢弃改动**（alt 组合现在被挡成 `alt+X` 放行给聊天输入框）
+10. **从文件标签切回工作区标签时，不应看到旧的文件预览叠加在工作区上**（互斥守卫）
+
+
 ---
 
 ## 人工验收（本计划完成后）
