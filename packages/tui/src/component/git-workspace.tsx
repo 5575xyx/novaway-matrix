@@ -46,6 +46,9 @@ const TOO_NARROW = 70
 /** 行内输入的三种触发来源(规格「提交」:三处共用同一个行内输入组件)。 */
 type InlineInputRequest = { kind: "commit" } | { kind: "branch-new" } | { kind: "remote-add" }
 
+/** 危险操作拍板的目标。三种形状合成一个联合,联合成员的判别键就是面板归属。 */
+type ArmedTarget = { file: string } | { branch: string } | { ref: string }
+
 export interface GitWorkspaceProps {
   rootPath?: string
   onClose: () => void
@@ -65,7 +68,7 @@ export function GitWorkspace(props: GitWorkspaceProps) {
   const [branchRow, setBranchRow] = createSignal(0)
   const [stashRow, setStashRow] = createSignal(0)
   const [diffTarget, setDiffTarget] = createSignal<DiffTarget>({ kind: "none" })
-  const [armed, setArmed] = createSignal<ArmedConfirm | undefined>(undefined)
+  const [armed, setArmed] = createSignal<ArmedConfirm<ArmedTarget> | undefined>(undefined)
   // 行内输入的触发来源。三种来源共用同一个组件(规格「提交」),差别只在标题和回调。
   // Task 8 才接上 <InlineInput>;此刻只声明状态 —— 它是 openInput 的唯一写入方,没人读也不会出错。
   const [inlineInput, setInlineInput] = createSignal<InlineInputRequest | undefined>(undefined)
@@ -79,7 +82,45 @@ export function GitWorkspace(props: GitWorkspaceProps) {
   const [actionHint, setActionHint] = createSignal<string | undefined>(undefined)
 
   // 真实时钟注入给确认态。测试里换假时钟就能推时间(见 git-workspace-confirm.test.ts)。
-  const confirm = createConfirm<{ file: string }>(() => Date.now())
+  const confirm = createConfirm<ArmedTarget>(() => Date.now())
+
+  /**
+   * 危险操作的「不许做」前置检查。返回非空文案就写进提示行 —— 静默拒绝会让人以为按了
+   * 没生效然后去按别的键,比提示更糟。
+   *
+   * 当前分支的删除在这里挡,而不是让 git 报错:git 会拒绝,但 hintFromError 只会翻译成
+   * 一句「git 执行失败」,用户看不出到底为什么不能删。
+   */
+  const blockedDanger = (command: WorkspaceCommand): string | undefined => {
+    if (command !== "branches.delete") return undefined
+    const row = branchRows()[branchRow()]
+    if (!row) return undefined
+    if (row.current || row.name.startsWith("(HEAD")) return "当前分支不能删除"
+  }
+
+  /** 目标在武装瞬间拍板(计划 1 已有这条理由:武装到 fire 之间列表可能被后台刷新换掉)。 */
+  const dangerTarget = (command: WorkspaceCommand): ArmedTarget | undefined => {
+    if (command === "files.discard" || command === "files.delete") {
+      const row = fileRows()[fileRow()]
+      return row ? { file: row.file } : undefined
+    }
+    if (command === "branches.delete") {
+      const row = branchRows()[branchRow()]
+      return row && !row.current ? { branch: row.name } : undefined
+    }
+    if (command === "stash.discard") {
+      const row = stashRows()[stashRow()]
+      return row ? { ref: row.ref } : undefined
+    }
+    return undefined
+  }
+
+  /** 只把「属于这个面板」的确认态交给对应面板渲染;联合的判别键就是面板归属。 */
+  const armedFor = (kind: "file" | "branch" | "ref") => {
+    const current = armed()
+    const target = current?.target
+    return target && kind in target ? current : undefined
+  }
 
   /** 打开左列底部的行内输入。开输入框是明确的「改主意」:任何待确认态到此作废。 */
   const openInput = (request: InlineInputRequest) => {
@@ -259,11 +300,10 @@ export function GitWorkspace(props: GitWorkspaceProps) {
 
     // 危险命令先进确认态;fire 才真往下走,armed/cancel 都只是状态变化。
     if (DANGEROUS_COMMANDS.has(command)) {
-      // 目标在武装瞬间拍板:武装后列表可能被后台刷新换掉,fire 时重读选中行会丢错文件。
-      // 只有 files.* 的 fire 真会落地(丢弃/删除文件),branches/stash 的执行在计划 2,
-      // 它们此刻不消费目标 —— 不给它们拍,免得留下语义对不上的快照。
-      const fileTarget = command === "files.discard" || command === "files.delete" ? fileRows()[fileRow()] : undefined
-      const result = confirm.press(command, dangerLabel(command), fileTarget ? { file: fileTarget.file } : undefined)
+      const blocked = blockedDanger(command)
+      if (blocked) return setActionHint(blocked)
+      const target = dangerTarget(command)
+      const result = confirm.press(command, dangerLabel(command), target)
       setArmed(confirm.pending())
       if (result !== "fire") return
     }
@@ -296,13 +336,20 @@ export function GitWorkspace(props: GitWorkspaceProps) {
       // 按武装时拍下的目标执行,不重读选中行 —— 武装到 fire 之间列表可能已被后台刷新换掉,
       // 重读会把丢弃/删除落到另一个文件头上。
       const target = confirm.takeFiredTarget()
-      if (!target) return
+      if (!target || !("file" in target)) return
       const args =
         command === "files.delete"
           ? ["clean", "-f", "--", target.file]
           : ["restore", "--worktree", "--staged", "--", target.file]
       runGit(args)
       return
+    }
+    if (command === "branches.delete" || command === "stash.discard") {
+      // 和 files.* 同理:按武装时拍下的目标执行,不重读选中行。
+      const target = confirm.takeFiredTarget()
+      if (!target) return
+      if ("branch" in target) return runGit(["branch", "-D", target.branch])
+      if ("ref" in target) return runGit(["stash", "drop", target.ref])
     }
     if (command === "status.m") return switchRemote()
     if (command === "status.space") {
@@ -423,7 +470,7 @@ export function GitWorkspace(props: GitWorkspaceProps) {
                     <FilesPanel
                       rows={fileRows()}
                       selected={() => (panel() === "files" ? fileRow() : -1)}
-                      armed={armed()}
+                      armed={armedFor("file")}
                       width={leftWidth() - 2}
                     />
                   </Show>
@@ -433,6 +480,7 @@ export function GitWorkspace(props: GitWorkspaceProps) {
                     <BranchesPanel
                       rows={branchRows()}
                       selected={() => (panel() === "branches" ? branchRow() : -1)}
+                      armed={armedFor("branch")}
                       width={leftWidth() - 2}
                     />
                   </Show>
@@ -447,6 +495,7 @@ export function GitWorkspace(props: GitWorkspaceProps) {
                     <StashPanel
                       rows={stashRows()}
                       selected={() => (panel() === "stash" ? stashRow() : -1)}
+                      armed={armedFor("ref")}
                       width={leftWidth() - 2}
                     />
                   </Show>
