@@ -142,6 +142,19 @@ export function GitWorkspace(props: GitWorkspaceProps) {
     if (panel() === "files") setFileRow((n) => clamp(n + delta, 0, fileRows().length - 1))
   }
 
+  // 列表收缩时把选中行夹回范围内:moveRow 每一步都 clamp,但 refresh() 换掉整个列表时
+  // 没人管 —— discard/delete 后列表变少,fileRow 会越界:文件面板不再高亮任何行,
+  // 差异面板、键位条却还按旧行说事。commits 面板复用 fileRow,越界那边有 `if (!row)`
+  // 兜底不会误执行,这里只夹真会收缩的两张表。
+  createEffect(() => {
+    const max = Math.max(0, statusRows().length - 1)
+    if (statusRow() > max) setStatusRow(max)
+  })
+  createEffect(() => {
+    const max = Math.max(0, fileRows().length - 1)
+    if (fileRow() > max) setFileRow(max)
+  })
+
   /** 执行一条工作区命令。所有键位处理最终都汇到这里。 */
   const run = (command: WorkspaceCommand) => {
     const cwd = props.rootPath
