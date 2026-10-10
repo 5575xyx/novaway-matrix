@@ -112,12 +112,10 @@ test("enter 提交:走 keymap 绑定,不是 textarea 的 onSubmit", async () => 
     const textarea = await focusTextarea(inline.app)
     inline.app.mockInput.pressKey("a")
     inline.app.mockInput.pressKey("b")
-    await inline.app.flush()
 
     expect(textarea.plainText).toBe("ab")
 
     inline.app.mockInput.pressEnter()
-    await inline.app.flush()
 
     expect(confirmed).toEqual(["ab"])
     expect(textarea.plainText).toBe("ab")
@@ -141,11 +139,9 @@ test("esc 取消:onConfirm 不被调用", async () => {
     const textarea = await focusTextarea(inline.app)
     inline.app.mockInput.pressKey("m")
     inline.app.mockInput.pressKey("a")
-    await inline.app.flush()
     expect(textarea.plainText).toBe("ma")
 
     inline.app.mockInput.pressEscape()
-    await inline.app.flush()
 
     expect(cancelled).toEqual(["cancelled"])
     expect(confirmed).toEqual([])
@@ -167,15 +163,12 @@ test("空内容不提交:trim 后为空就静默返回", async () => {
   try {
     await focusTextarea(inline.app)
     inline.app.mockInput.pressEnter()
-    await inline.app.flush()
     expect(confirmed).toEqual([])
 
     // 纯空格同样不算内容:git 会把空标题当成合法参数,行为难解释。
     inline.app.mockInput.pressKey(" ")
     inline.app.mockInput.pressKey(" ")
-    await inline.app.flush()
     inline.app.mockInput.pressEnter()
-    await inline.app.flush()
     expect(confirmed).toEqual([])
   } finally {
     await inline.cleanup()
