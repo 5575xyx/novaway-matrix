@@ -169,8 +169,10 @@ export function GitWorkspace(props: GitWorkspaceProps) {
 
   // 列表收缩时把选中行夹回范围内:moveRow 每一步都 clamp,但 refresh() 换掉整个列表时
   // 没人管 —— discard/delete 后列表变少,fileRow 会越界:文件面板不再高亮任何行,
-  // 差异面板、键位条却还按旧行说事。四个面板各夹各的:commits 复用 fileRow,但它的行数
-  // 由 moveRow 里用 commitRows 单独算,这里夹的仍是文件表(两份表不同时显示,不会串)。
+  // 差异面板、键位条却还按旧行说事。四个面板各夹各的。commits 复用 fileRow,它的行数由
+  // moveRow 里用 commitRows 单独算,这里夹的仍是文件表 —— 已知瑕疵:文件表比提交表短时,
+  // refresh 会把提交面板的选中行夹回文件表长度(症状是「我刚选的那行跳回去了」),
+  // 换独立 commitRow 时一并修。
   createEffect(() => {
     const max = Math.max(0, statusRows().length - 1)
     if (statusRow() > max) setStatusRow(max)
