@@ -135,6 +135,9 @@ test("长路径按宽度截断,计数不被挤出屏幕", async () => {
   expect(row).toContain("+10 -2")
   // 路径必须带省略号截断,而不是硬切 —— 硬切说明截断没生效、是 flex 裁的。
   expect(row).toContain("…")
+  // 计数和截断后的路径之间必须留一列间隔。paddingLeft 写在 <text> 上在 opentui 里无效,
+  // 一旦漏掉 <box> 包裹,这里就会变成 `…+10 -2` 粘成一坨。
+  expect(row).toMatch(/…\s\+10 -2/)
   // 整行不能超过 36 列。用显示宽度量(中文按 2 列算),别用字符数。
   expect(stringWidth(row)).toBeLessThanOrEqual(36)
 })

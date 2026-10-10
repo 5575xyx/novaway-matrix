@@ -19,6 +19,7 @@ import type { FileRow } from "./state"
 const LABEL_WIDTH = 6
 /** 计数区:1 列左内边距 + 最多 8 列(如 `+100 -20`)。 */
 const COUNT_WIDTH = 9
+const COUNT_PAD = 1
 
 export interface FilesPanelProps {
   rows: FileRow[]
@@ -65,9 +66,11 @@ export function FilesPanel(props: FilesPanelProps) {
                         {Locale.truncateToWidth(row.label, LABEL_WIDTH)} {Locale.truncateToWidth(row.file, pathWidth())}
                       </text>
                       <Show when={row.count}>
-                        <text fg={theme.textMuted} wrapMode="none" paddingLeft={1}>
-                          {row.count}
-                        </text>
+                        <box paddingLeft={COUNT_PAD}>
+                          <text fg={theme.textMuted} wrapMode="none">
+                            {row.count}
+                          </text>
+                        </box>
                       </Show>
                     </>
                   }
