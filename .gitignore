@@ -53,3 +53,5 @@ harness-tasks.json.corrupt-*
 
 # Claude Code 本地临时目录(下载/解包产物,勿提交)
 .claude-tmp/
+
+.superpowers/
