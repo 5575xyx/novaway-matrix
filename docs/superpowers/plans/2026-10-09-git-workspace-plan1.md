@@ -1291,56 +1291,81 @@ cd packages/tui && git add src/util/git-diff.ts src/component/git-diff-view.tsx 
 
 - [ ] **Step 1: 写失败的测试**
 
-创建 `packages/tui/test/component/git-workspace-diff-panel.test.tsx`：
+创建 `packages/tui/test/component/git-workspace-diff-panel.test.tsx`。
+
+**以已提交的 `test/component/git-workspace-diff-panel.test.tsx` 为准**（本段下面这份是初稿，落地时改过）。
+Task 6/7/8 的面板测试都照抄它，先读一遍。
+
+#### 组件渲染测试的坑清单（Task 6/7/8 一律适用）
+
+这五条都是实测踩出来的，别再踩：
+
+1. **`testRender` 必须 `await`** —— 它返回 Promise。
+2. **配置用 `createTuiResolvedConfig()`**（`../fixture/tui-runtime`），不要 `config={{...} as never`。
+3. **拆掉用 `app.renderer.destroy()`**，不是 `app.destroy()` —— `TestRendererSetup` 上没有 `destroy` 方法。
+4. **不能用 `app.waitForFrame()` 等异步结果** —— 它只反复 capture、**不驱动渲染**，而测试渲染器
+   不会因为信号变了就自动重绘（实测 `cellsUpdated` 恒为 0，20 轮全空转，直接超时）。
+   异步断言必须自己写循环：`renderOnce()` → `sleep(25)` → `captureCharFrame()` → 命中就返回。
+   真 TUI 有常驻渲染循环，测试里没人替你推。
+5. **`<diff>` 渲染出来的行是「`1 + 改过`」** —— 行号、符号、内容之间都带空格。
+   谓词写 `f.includes("+ 改过")`，写 `"+改过"` 永远匹配不到。
+
+另外两条来自本任务：
+
+6. **别断言初始帧来验异步分支** —— 标题是同步渲染的，帧一挂载就非空。
+   「没有改动」既是初始状态又是空 diff 状态，断言它等于什么都没验。
+   要验就验**只有 settle 之后才可能出现**的东西（真 diff 正文、git 错误文本）。
+7. **`afterAll` 清理临时目录要吞 `EBUSY`** —— Windows 上 git 子进程刚退出时句柄可能还没释放，
+   `rmSync` 会抛。临时目录清不掉无妨，别让它把测试带红。写法：
+   `try { fs.rmSync(dir, { recursive: true, force: true }) } catch {}`。
+
+测试分两组。**同步组**只验标题/引导文案（挂载即有）；**settle 组**用真 git 仓库 + 自写轮询，
+验补丁正文和错误分支：
 
 ```tsx
-/** @jsxImportSource @opentui/solid */
-import { expect, test } from "bun:test"
-import { testRender } from "@opentui/solid"
-import { TestTuiContexts } from "../fixture/tui-environment"
-import { TuiConfigProvider } from "../../src/config"
-import { ArgsProvider } from "../../src/context/args"
-import { KVProvider } from "../../src/context/kv"
-import { ThemeProvider } from "../../src/context/theme"
-import { GitDiffPanel, type DiffTarget } from "../../src/component/git-workspace/diff-panel"
-
-function renderPanel(target: DiffTarget) {
-  return testRender(
-    () => (
-      <TestTuiContexts>
-        <TuiConfigProvider config={{ keybinds: {} } as never}>
-          <ArgsProvider>
-            <KVProvider>
-              <ThemeProvider mode="dark">
-                <GitDiffPanel target={target} rootPath={process.cwd()} />
-              </ThemeProvider>
-            </KVProvider>
-          </ArgsProvider>
-        </TuiConfigProvider>
-      </TestTuiContexts>
-    ),
-    { width: 80, height: 24 },
-  )
-}
-
-test("没有目标时显示引导文案,不空白", () => {
-  const app = renderPanel({ kind: "none" })
-  expect(app.captureCharFrame()).toContain("选中文件或提交")
-  app.destroy()
+// 同步组
+test("没有目标时显示引导文案,不空白", async () => {
+  expect(await syncFrame({ kind: "none" })).toContain("选中文件或提交后在这里看改动")
+})
+test("目标是文件时标题带上文件名", async () => {
+  expect(await syncFrame({ kind: "file", path: "src/component/git-workspace.tsx" })).toContain("的改动")
+})
+test("目标是提交时标题带提交前缀", async () => {
+  expect(await syncFrame({ kind: "commit", hash: "40f2c3c" })).toContain("提交 40f2c3c")
 })
 
-test("目标是文件时标题带上文件名", () => {
-  const app = renderPanel({ kind: "file", path: "src/component/git-workspace.tsx" })
-  expect(app.captureCharFrame()).toContain("git-workspace.tsx")
-  app.destroy()
+// settle 组 —— 用 tmpdir 真仓库(mock 掉 git 等于在测自己写的假数据)
+test("改动内容真的画出来(等 git 回来,不是断言初始帧)", async () => {
+  const dir = tmpDir("nw-dpanel-diff-")
+  await git(dir, ["init", "-b", "main"])
+  fs.writeFileSync(path.join(dir, "a.txt"), "原样\n")
+  await git(dir, ["add", "."])
+  await git(dir, ["commit", "-m", "init"])
+  fs.writeFileSync(path.join(dir, "a.txt"), "改过\n")
+  const app = await withPanel({ kind: "file", path: "a.txt" }, dir)
+  try {
+    const frame = await settleFrame(app, (f) => f.includes("+ 改过"))
+    expect(frame).toContain("- 原样")
+  } finally {
+    app.renderer.destroy()
+  }
 })
 
-test("目标是提交时标题带提交前缀", () => {
-  const app = renderPanel({ kind: "commit", hash: "40f2c3c" })
-  expect(app.captureCharFrame()).toContain("提交")
-  app.destroy()
+test("git 报错时显示错误,而不是空白或假补丁", async () => {
+  // 非仓库目录里 git diff HEAD 直接 fatal(`Could not access 'HEAD'`),且它不含 isMissingHead
+  // 认的串,所以必须上抛 → 面板显示错误。
+  const dir = tmpDir("nw-dpanel-norepo-")
+  const app = await withPanel({ kind: "file", path: "any.txt" }, dir)
+  try {
+    const frame = await settleFrame(app, (f) => f.includes("Could not access"))
+    expect(frame).not.toContain("没有改动")
+  } finally {
+    app.renderer.destroy()
+  }
 })
 ```
+
+> 本仓库**没有** `git-diff-view` 的组件测试（`test/component/` 下不存在），别指望别人覆盖了 `<diff>` 渲染。
 
 - [ ] **Step 2: 跑测试确认失败**
 
@@ -1360,7 +1385,6 @@ cd packages/tui && bun test --timeout 30000 test/component/git-workspace-diff-pa
 // 与 component/git-diff-view.tsx 的分工:那个是**独立标签页**(带关闭按钮、自己轮询),
 // 这个是工作区里的一个**面板**(占右半边、由工作区统一刷新),所以这里不轮询。
 import { createEffect, createSignal, Show } from "solid-js"
-import type { DiffRenderable } from "@opentui/core"
 import { useTheme } from "../../context/theme"
 import { loadCommitPatch, loadFilePatch } from "../../util/git-diff"
 import { Locale } from "../../util/locale"
@@ -1379,7 +1403,14 @@ export function GitDiffPanel(props: GitDiffPanelProps) {
 
   // createEffect 而不是 onMount:rootPath 来自 session()?.directory,mount 那一刻可能还没就绪。
   // 这正是提交详情标签页踩过的坑(见 component/git-commit-view.tsx),别再踩一次。
+  //
+  // loadSeq 是世代计数器:target 变快时(比如连按 enter 换文件)会有多个 git 子进程在飞,
+  // 先发的可能后回来。没有它,旧文件的 diff 会盖掉新文件的 —— 最糟的一种是 target 已经
+  // 回到 none、引导文案都出来了,却被早先那个大 diff 顶掉。取 ui/dialog-select.tsx 的同款写法。
+  // (component/git-commit-view.tsx:60 有同一处裸竞态,是预存量 bug,本任务不顺手改。)
+  let loadSeq = 0
   createEffect(() => {
+    const seq = ++loadSeq
     const cwd = props.rootPath
     const target = props.target
     if (!cwd || target.kind === "none") {
@@ -1387,19 +1418,20 @@ export function GitDiffPanel(props: GitDiffPanelProps) {
       setError("")
       return
     }
+    // 旧的错误不能挂在新标题下面;patch 保留当占位,新结果到了再换(lazygit 同款行为)。
+    setError("")
     const load = target.kind === "file" ? loadFilePatch(cwd, target.path) : loadCommitPatch(cwd, target.hash)
     load
       .then((body) => {
+        if (seq !== loadSeq) return
         setPatch(body)
         setError("")
       })
       .catch((e: unknown) => {
+        if (seq !== loadSeq) return
         setError(e instanceof Error ? e.message : String(e))
       })
   })
-
-  let diffRef: DiffRenderable | undefined
-  void diffRef
 
   const title = () => {
     const target = props.target
@@ -1419,7 +1451,7 @@ export function GitDiffPanel(props: GitDiffPanelProps) {
         </text>
       </box>
       <Show
-        when={error() === ""}
+        when={!error()}
         fallback={
           <text fg={theme.error} paddingLeft={1}>
             {error()}
@@ -1427,7 +1459,7 @@ export function GitDiffPanel(props: GitDiffPanelProps) {
         }
       >
         <Show
-          when={patch() !== ""}
+          when={patch()}
           fallback={
             <text fg={theme.textMuted} paddingLeft={1}>
               {props.target.kind === "none" ? "选中文件或提交后在这里看改动" : "没有改动"}
@@ -1435,13 +1467,25 @@ export function GitDiffPanel(props: GitDiffPanelProps) {
           }
         >
           <box flexGrow={1} minHeight={0} backgroundColor={theme.backgroundPanel}>
+            {/* 配色属性必须照抄 component/git-diff-view.tsx 那份 —— 少传任何一个,那一项就退回
+                @opentui 默认色,和同一个主题下的其它 diff 视图对不上。 */}
             <diff
-              ref={(el: DiffRenderable) => (diffRef = el)}
               diff={patch()}
               view="unified"
               filetype="none"
               syntaxStyle={syntax()}
               showLineNumbers={true}
+              width="100%"
+              height="100%"
+              wrapMode="none"
+              fg={theme.text}
+              addedBg={theme.diffAddedBg}
+              removedBg={theme.diffRemovedBg}
+              addedSignColor={theme.diffHighlightAdded}
+              removedSignColor={theme.diffHighlightRemoved}
+              lineNumberFg={theme.diffLineNumber}
+              addedLineNumberBg={theme.diffAddedLineNumberBg}
+              removedLineNumberBg={theme.diffRemovedLineNumberBg}
             />
           </box>
         </Show>
