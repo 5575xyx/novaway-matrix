@@ -1,4 +1,4 @@
-import { useProject } from "../../context/project"
+﻿import { useProject } from "../../context/project"
 import { useSync } from "../../context/sync"
 import { createEffect, createMemo, createSignal, on, Show } from "solid-js"
 import { useTerminalDimensions } from "@opentui/solid"
@@ -38,7 +38,7 @@ export interface SidebarProps {
   /** Git 页点提交行:在主区打开"提交详情"标签页(不再弹窗) */
   onOpenCommit?: (hash: string) => void
   /** Git 页入口:在主区打开整屏 Git 工作区标签页(首页侧栏没有会话,可以缺席) */
-  onOpenGitWorkspace?: () => void
+  onOpenGitWorkspace: () => void
   onFileDoubleClick?: (filePath: string) => void
 }
 

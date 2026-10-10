@@ -1,4 +1,4 @@
-/** @jsxImportSource @opentui/solid */
+﻿/** @jsxImportSource @opentui/solid */
 import { expect, test } from "bun:test"
 import { testRender, useRenderer } from "@opentui/solid"
 import type { CapturedFrame } from "@opentui/core"
@@ -70,7 +70,7 @@ test("侧栏在无会话时渲染标签行,跳过会话专属内容", async () =
                       <SyncProvider>
                         <ThemeProvider mode="dark">
                           <PluginRuntimeProvider value={runtime}>
-                            <Sidebar />
+                            <Sidebar onOpenGitWorkspace={() => {}} />
                           </PluginRuntimeProvider>
                         </ThemeProvider>
                       </SyncProvider>
@@ -201,7 +201,7 @@ async function renderSidebar(input: {
         void builtinSidebarFooter.tui(api, undefined, {} as never)
       }
     }
-    return <Sidebar />
+    return <Sidebar onOpenGitWorkspace={() => {}} />
   }
 
   const app = await testRender(

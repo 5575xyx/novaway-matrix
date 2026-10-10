@@ -5,6 +5,7 @@ import path from "node:path"
 import { EmptySessionHero } from "../component/empty-session-hero"
 import { TabBar, type TabItem } from "../component/tab-bar"
 import { FilePreview } from "../component/file-preview"
+import { GitWorkspace } from "../component/git-workspace"
 import { useSync } from "../context/sync"
 import { Toast } from "../ui/toast"
 import { useArgs } from "../context/args"
@@ -94,6 +95,20 @@ function HomeBody() {
   const switchTab = (tabId: string) => {
     setActiveTabId(tabId)
     setSelectedFile(tabId === "chat" ? null : (tabs().find((tab) => tab.id === tabId)?.filePath ?? null))
+  }
+
+  // Git 工作区:整屏双栏,首页同时只开一个(id 固定,重复打开只是切过去)。
+  // 与会话页 routes/session/index.tsx 的同名函数是两套独立的 tab 状态,必须各写一份 ——
+  // 首页这侧漏掉的话,侧栏入口会渲染成一个按不动的死链(见下面 <Sidebar> 上的属性)。
+  const openGitWorkspaceTab = () => {
+    const tabId = "git-workspace"
+    if (tabs().some((tab) => tab.id === tabId)) {
+      setActiveTabId(tabId)
+      return
+    }
+    setTabs((prev) => [...prev, { id: tabId, title: "Git", type: "git-workspace", closable: true }])
+    setActiveTabId(tabId)
+    setSelectedFile(null)
   }
 
   const wide = createMemo(() => dimensions().width > 120)
@@ -222,7 +237,11 @@ function HomeBody() {
         <Show when={sidebarVisible()}>
           <Switch>
             <Match when={wide()}>
-              <Sidebar onFileSelect={openPreviewTab} onFileDoubleClick={insertFileReference} />
+              <Sidebar
+                onFileSelect={openPreviewTab}
+                onFileDoubleClick={insertFileReference}
+                onOpenGitWorkspace={openGitWorkspaceTab}
+              />
             </Match>
             <Match when={!wide()}>
               <box
@@ -234,7 +253,11 @@ function HomeBody() {
                 alignItems="flex-start"
                 backgroundColor={RGBA.fromInts(0, 0, 0, 70)}
               >
-                <Sidebar onFileSelect={openPreviewTab} onFileDoubleClick={insertFileReference} />
+                <Sidebar
+                  onFileSelect={openPreviewTab}
+                  onFileDoubleClick={insertFileReference}
+                  onOpenGitWorkspace={openGitWorkspaceTab}
+                />
               </box>
             </Match>
           </Switch>
@@ -278,6 +301,20 @@ function HomeBody() {
             </Show>
             <Show when={activeTabId() !== "chat" && selectedFile()}>
               <FilePreview filePath={selectedFile()} onClose={() => closeTab(activeTabId())} />
+            </Show>
+            {/* 工作区标签自己单开一路,整屏双栏。
+                这里**不需要**会话页那个「type !== git-workspace」互斥守卫:首页的 switchTab
+                对没有 filePath 的标签会把 selectedFile 置 null(`tab.filePath ?? null`),
+                而会话页的 switchTab 只在 tabId === "chat" 时才清。两边 tab 系统是独立的两份。 */}
+            <Show when={activeTabId() === "git-workspace"}>
+              <GitWorkspace
+                rootPath={directory()}
+                onClose={() => closeTab("git-workspace")}
+                // 宽度照会话页 contentWidth 的口径(W ? 侧栏 ? 4):内容盒自己 paddingLeft/Right 各 2。
+                // **别抄上面 TabBar 的 -2** —— 那是 tabBarWidth 的口径(标签条只补回自己的 1 列 padding),
+                // 差这 2 列会把工作区右边框顶出屏外(与 Task 6/7 修过的宽度账目是同一类错)。
+                width={dimensions().width - (sidebarVisible() ? sidebarWidth(dimensions().width) : 0) - 4}
+              />
             </Show>
             <Show when={activeTabId() === "chat"}>
               <box flexShrink={0}>
