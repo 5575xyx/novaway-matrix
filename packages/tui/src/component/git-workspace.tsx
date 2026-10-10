@@ -9,6 +9,7 @@ import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "so
 import type { JSX } from "solid-js"
 import { useKeyboard } from "@opentui/solid"
 import { useTheme } from "../context/theme"
+import { useBindings } from "../keymap"
 import { gitExec } from "../util/git-exec"
 import type { GitStatusSummary } from "../util/git-status"
 import {
@@ -194,6 +195,20 @@ export function GitWorkspace(props: GitWorkspaceProps) {
       return
     }
   }
+
+  // tab/shift+tab 不能只靠上面的 useKeyboard:keymap host 用 prependListener 抢在所有
+  // useKeyboard 前面收事件,而 app.tsx 的 agent.cycle(切代理)正绑着这俩键 —— keymap 命中
+  // binding 就 stopPropagation,工作区的拦截器根本看不见它们(实测:按 tab 只会静默切代理)。
+  // 对策与 diff-viewer 绑 tab 同款:组件挂载期间注册一个自己的层,同键冲突时**后注册的层
+  // 优先**(层按 priority 降序、注册序降序排),tab 由 keymap 直接派发到 run()。
+  // 组件卸载(切回聊天 tab)即自动注销,agent.cycle 随之恢复 —— 不 push mode,是因为 push 会把
+  // 整个 mode: base 层一起弄失活(含 ctrl+c 退出),爆炸半径远大于这两个键。
+  useBindings(() => ({
+    bindings: [
+      { key: "tab", desc: "下一个面板", group: "Git 工作区", cmd: () => run("panel.next") },
+      { key: "shift+tab", desc: "上一个面板", group: "Git 工作区", cmd: () => run("panel.prev") },
+    ],
+  }))
 
   // 键位拦截:先问工作区,答得上来就吃掉;答不上来就放行(聊天输入框还能打字)。
   // 没解析出命令的键(要漏给聊天输入框的那些)一律取消确认态。和 run() 里的那次清理

@@ -1,12 +1,33 @@
 /** @jsxImportSource @opentui/solid */
 import { expect, test } from "bun:test"
-import { testRender } from "@opentui/solid"
+import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui"
+import { createBindingLookup } from "@opentui/keymap/extras"
+import { testRender, useRenderer } from "@opentui/solid"
+import { onCleanup, type JSX } from "solid-js"
 import { GitWorkspace } from "../../src/component/git-workspace"
 import { createTuiResolvedConfig } from "../fixture/tui-runtime"
 import { KVProvider } from "../../src/context/kv"
 import { ThemeProvider } from "../../src/context/theme"
 import { TuiConfigProvider } from "../../src/config"
+import { TuiKeybind } from "../../src/config/keybind"
+import { NovaWayKeymapProvider, registerNovaWayKeymap } from "../../src/keymap"
 import { TestTuiContexts } from "../fixture/tui-environment"
+
+/** 工作区里有 useBindings(keymap 层),没 provider 会直接炸 —— 和 git-branch-row.test 同一套。 */
+function KeymapContexts(props: { children: JSX.Element }) {
+  const renderer = useRenderer()
+  const keymap = createDefaultOpenTuiKeymap(renderer)
+  const config = {
+    keybinds: createBindingLookup(TuiKeybind.toBindingConfig(TuiKeybind.parse({})), {
+      commandMap: TuiKeybind.CommandMap,
+      bindingDefaults: TuiKeybind.bindingDefaults(),
+    }),
+    leader_timeout: 2000,
+  }
+  const off = registerNovaWayKeymap(keymap, renderer, config)
+  onCleanup(off)
+  return <NovaWayKeymapProvider keymap={keymap}>{props.children}</NovaWayKeymapProvider>
+}
 
 async function renderWorkspace(width: number, rootPath = process.cwd()) {
   const app = await testRender(
@@ -15,7 +36,9 @@ async function renderWorkspace(width: number, rootPath = process.cwd()) {
         <TuiConfigProvider config={createTuiResolvedConfig()}>
           <KVProvider>
             <ThemeProvider mode="dark">
-              <GitWorkspace rootPath={rootPath} onClose={() => {}} width={width} />
+              <KeymapContexts>
+                <GitWorkspace rootPath={rootPath} onClose={() => {}} width={width} />
+              </KeymapContexts>
             </ThemeProvider>
           </KVProvider>
         </TuiConfigProvider>
