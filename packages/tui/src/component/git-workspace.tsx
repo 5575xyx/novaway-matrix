@@ -57,7 +57,7 @@ export function GitWorkspace(props: GitWorkspaceProps) {
   const [remote, setRemote] = createSignal<string | undefined>(undefined)
 
   // 真实时钟注入给确认态。测试里换假时钟就能推时间(见 git-workspace-confirm.test.ts)。
-  const confirm = createConfirm(() => Date.now())
+  const confirm = createConfirm<{ file: string }>(() => Date.now())
 
   // 世代计数器:连按 r、或 stage 后连续 gitExec().then(refresh) 时,先发的可能后回来。
   // 没有它,旧快照会盖掉新快照 —— 而这份数据是整仓状态,显示过期状态会误导接下来的危险操作。
@@ -127,7 +127,14 @@ export function GitWorkspace(props: GitWorkspaceProps) {
 
     // 危险命令先进确认态;fire 才真往下走,armed/cancel 都只是状态变化。
     if (DANGEROUS_COMMANDS.has(command)) {
-      const result = confirm.press(command, dangerLabel(command))
+      // 目标在武装瞬间拍板:武装后列表可能被后台刷新换掉,fire 时重读选中行会丢错文件。
+      // 只有 files.* 的 fire 真会落地(丢弃/删除文件),branches/stash 的执行在计划 2,
+      // 它们此刻不消费目标 —— 不给它们拍,免得留下语义对不上的快照。
+      const fileTarget =
+        command === "files.discard" || command === "files.delete"
+          ? fileRows()[fileRow()]
+          : undefined
+      const result = confirm.press(command, dangerLabel(command), fileTarget ? { file: fileTarget.file } : undefined)
       setArmed(confirm.pending())
       if (result !== "fire") return
     }
@@ -157,12 +164,14 @@ export function GitWorkspace(props: GitWorkspaceProps) {
       return
     }
     if (command === "files.discard" || command === "files.delete") {
-      const row = fileRows()[fileRow()]
-      if (!row) return
+      // 按武装时拍下的目标执行,不重读选中行 —— 武装到 fire 之间列表可能已被后台刷新换掉,
+      // 重读会把丢弃/删除落到另一个文件头上。
+      const target = confirm.takeFiredTarget()
+      if (!target) return
       const args =
         command === "files.delete"
-          ? ["clean", "-f", "--", row.file]
-          : ["restore", "--worktree", "--staged", "--", row.file]
+          ? ["clean", "-f", "--", target.file]
+          : ["restore", "--worktree", "--staged", "--", target.file]
       gitExec(cwd, args).then(() => refresh())
       return
     }
