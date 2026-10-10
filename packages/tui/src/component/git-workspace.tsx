@@ -58,10 +58,16 @@ export function GitWorkspace(props: GitWorkspaceProps) {
   // 真实时钟注入给确认态。测试里换假时钟就能推时间(见 git-workspace-confirm.test.ts)。
   const confirm = createConfirm(() => Date.now())
 
+  // 世代计数器:连按 r、或 stage 后连续 gitExec().then(refresh) 时,先发的可能后回来。
+  // 没有它,旧快照会盖掉新快照 —— 而这份数据是整仓状态,显示过期状态会误导接下来的危险操作。
+  // 和 component/git-workspace/diff-panel.tsx 的 loadSeq 同款写法。
+  let refreshSeq = 0
   const refresh = () => {
     const cwd = props.rootPath
     if (!cwd) return
+    const seq = ++refreshSeq
     loadWorkspace(cwd).then((next) => {
+      if (seq !== refreshSeq) return
       setData(next)
       // 选中远端跟着数据走,但用户手动切过就以用户的选择为准。
       setRemote((prev) => prev ?? pickDefaultRemote(next.remotes)?.name)
@@ -176,9 +182,15 @@ export function GitWorkspace(props: GitWorkspaceProps) {
       return
     }
     if (command === "global.commit") {
-      // 计划 1 里提交是「还不可用」的占位:没有暂存内容时给一句提示,计划 2 接上行内输入。
+      // 计划 1 里提交是「还不可用」的占位,计划 2 才接上行内输入。
+      // 但**两种情况都得给反馈**:早先版本只在没有暂存内容时提示,已暂存时按 c 什么也不发生 ——
+      // 用户照着提示暂存完,按下去却毫无反应,比不放这个键还糟。
       const staged = (data()?.status.entries ?? []).filter((entry) => entry.staged)
-      if (staged.length === 0) setArmed({ key: "c", label: "没有可提交的暂存内容", deadline: Date.now() + 3000 })
+      setArmed({
+        key: "c",
+        label: staged.length === 0 ? "先暂存改动(空格)再提交" : "提交输入框还没接上,本版暂不能提交",
+        deadline: Date.now() + 3000,
+      })
       return
     }
   }
@@ -288,11 +300,12 @@ function dangerLabel(command: WorkspaceCommand): string {
 
 /**
  * 键位条的全局段:跨面板都成立的键,常驻显示(不随焦点变)。
- * `c 提交` 写明前置条件 —— 计划 1 里提交是占位,暂存区为空时按 c 只会得到
- * 「没有可提交的暂存内容」,先把前置条件摆在键位条上比让用户撞一次好。
- * `tab 切面板` 同理:五个面板靠它来回走,原先只活在键位表里、提示条上一个字都没有。
+ * 只写**真能按出结果**的键:`tab 切面板` 和 `r 刷新` 都完整可用。
+ * `c 提交` 保留但不再写「(需先暂存)」—— 计划 1 里提交还是占位,按 c 会弹一句
+ * 「输入框还没接上」。把前置条件印在键位条上会让人以为照做就能提交,
+ * 比诚实地说它还不可用更糟(见 run() 里两种情况都给反馈的原因)。
  */
-const GLOBAL_KEYBAR = "tab 切面板 c 提交(需先暂存)"
+const GLOBAL_KEYBAR = "tab 切面板 c 提交 r 刷新"
 
 /**
  * 键位条的焦点段文字,内容跟着焦点面板变(规格「底部键位提示条跟着焦点面板变」)。

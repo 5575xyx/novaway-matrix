@@ -162,11 +162,27 @@ export function resolveWorkspaceCommand(
  * 而 `focus.ts` 的键位表写的是 `esc` / `enter`。这套映射是两者的契约 —— 少了它,
  * 按 `esc` 关工作区、按 `enter` 看差异都会解析成 `undefined` 而静默失效。
  *
+ * ⚠️ **所有本表里不存在的组合都必须返回一个查表命不中的名字**,让它自然落到
+ * 键位拦截的「答不上来 → 放行」分支。反面教材:早先版本把 meta 丢掉,于是
+ * `alt+f` 被当成 `f` 直接执行了 `git push`,`alt+d` 连按两次就丢弃了改动。
+ *
  * 入参故意用结构化最小类型而不是 `ParsedKey`:这样测试能直接传对象字面量,
- * 不必去构造一个完整的核心类型。
+ * 不必去构造一个完整的核心类型。`meta`/`option` 是可选的 —— ParsedKey 上有,
+ * 但老代码不传也能跑。
  */
-export function keyOfParsed(event: { name: string; ctrl: boolean; shift: boolean; sequence: string }): string {
-  if (event.ctrl && event.name.length === 1) return `ctrl+${event.name}`
+export function keyOfParsed(event: {
+  name: string
+  ctrl: boolean
+  shift: boolean
+  sequence: string
+  meta?: boolean
+  option?: boolean
+}): string {
+  // alt/option 一律带前缀:表里没有任何 alt+X,带前缀保证查表不中、按键被放行。
+  if (event.meta || event.option) return `alt+${event.name}`
+  // ctrl 同理一律带前缀。单字符得 `ctrl+c` 这种将来可能入表的名字;
+  // 多字符(enter/tab/space)的 ctrl 组合也必须挡住,否则 `ctrl+space` 会落成普通 space。
+  if (event.ctrl) return `ctrl+${event.name}`
   if (event.shift && event.name === "tab") return "shift-tab"
   if (event.sequence === " " || event.name === " " || event.name === "space") return "space"
   if (event.name === "escape") return "esc"
