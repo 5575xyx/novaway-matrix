@@ -1521,18 +1521,22 @@ cd packages/tui && git add src/component/git-workspace/diff-panel.tsx test/compo
 
 - [ ] **Step 1: 写失败的测试**
 
-创建 `packages/tui/test/component/git-workspace-files-panel.test.tsx`：
+创建 `packages/tui/test/component/git-workspace-files-panel.test.tsx`。
+
+**渲染骨架照抄 Task 5 的 `test/component/git-workspace-diff-panel.test.tsx`** —— 那份已经踩完坑、
+修好了。下面这份是**初稿，渲染骨架是错的**，照 Task 5 坑清单改：
+`await testRender`、`createTuiResolvedConfig()`、`app.renderer.destroy()`、不要 `ArgsProvider`。
 
 ```tsx
 /** @jsxImportSource @opentui/solid */
 import { expect, test } from "bun:test"
 import { testRender } from "@opentui/solid"
-import { TestTuiContexts } from "../fixture/tui-environment"
-import { TuiConfigProvider } from "../../src/config"
-import { ArgsProvider } from "../../src/context/args"
+import { FilesPanel } from "../../src/component/git-workspace/files-panel"
+import { createTuiResolvedConfig } from "../fixture/tui-runtime"
 import { KVProvider } from "../../src/context/kv"
 import { ThemeProvider } from "../../src/context/theme"
-import { FilesPanel } from "../../src/component/git-workspace/files-panel"
+import { TuiConfigProvider } from "../../src/config"
+import { TestTuiContexts } from "../fixture/tui-environment"
 import type { FileRow } from "../../src/component/git-workspace/state"
 
 const ROWS: FileRow[] = [
@@ -1540,89 +1544,88 @@ const ROWS: FileRow[] = [
   { file: "b.ts", label: "未跟踪", staged: false, unstaged: true },
 ]
 
-function renderPanel(selected: number, rows: FileRow[] = ROWS) {
-  return testRender(
+// 纯展示组件、props 全同步 —— 没有异步加载,渲染完就能断言,不需要 settleFrame 那套轮询。
+async function renderFrame(
+  selected: number,
+  rows: FileRow[] = ROWS,
+  armed?: { key: string; label: string; deadline: number },
+) {
+  const app = await testRender(
     () => (
       <TestTuiContexts>
-        <TuiConfigProvider config={{ keybinds: {} } as never}>
-          <ArgsProvider>
-            <KVProvider>
-              <ThemeProvider mode="dark">
-                <FilesPanel rows={rows} selected={() => selected} armed={undefined} width={36} />
-              </ThemeProvider>
-            </KVProvider>
-          </ArgsProvider>
+        <TuiConfigProvider config={createTuiResolvedConfig()}>
+          <KVProvider>
+            <ThemeProvider mode="dark">
+              <FilesPanel rows={rows} selected={() => selected} armed={armed} width={36} />
+            </ThemeProvider>
+          </KVProvider>
         </TuiConfigProvider>
       </TestTuiContexts>
     ),
     { width: 60, height: 20 },
   )
+  try {
+    await app.renderOnce()
+    await new Promise((resolve) => setTimeout(resolve, 25))
+    await app.renderOnce()
+    return app.captureCharFrame()
+  } finally {
+    app.renderer.destroy()
+  }
 }
 
-test("文件行显示中文状态词", () => {
-  const app = renderPanel(0)
-  const frame = app.captureCharFrame()
+test("文件行显示中文状态词", async () => {
+  const frame = await renderFrame(0)
   expect(frame).toContain("已改")
   expect(frame).toContain("未跟踪")
-  app.destroy()
 })
 
-test("有 numstat 的行显示加删行数", () => {
-  const app = renderPanel(0)
-  expect(app.captureCharFrame()).toContain("+10 -2")
-  app.destroy()
+test("有 numstat 的行显示加删行数", async () => {
+  expect(await renderFrame(0)).toContain("+10 -2")
 })
 
-test("焦点行有 ❯ 标记", () => {
-  const app = renderPanel(1)
-  const lines = app.captureCharFrame().split("\n")
-  const focused = lines.find((line) => line.includes("未跟踪"))
+test("焦点行有 ❯ 标记", async () => {
+  const focused = (await renderFrame(1)).split("\n").find((line) => line.includes("未跟踪"))
   expect(focused).toContain("❯")
-  app.destroy()
 })
 
-test("非焦点行没有 ❯ 标记", () => {
-  const app = renderPanel(1)
-  const lines = app.captureCharFrame().split("\n")
-  const other = lines.find((line) => line.includes("已改"))
+test("非焦点行没有 ❯ 标记", async () => {
+  const other = (await renderFrame(1)).split("\n").find((line) => line.includes("已改"))
   expect(other).not.toContain("❯")
-  app.destroy()
 })
 
-test("空列表显示暂无", () => {
-  const app = renderPanel(0, [])
-  expect(app.captureCharFrame()).toContain("暂无")
-  app.destroy()
+test("空列表显示暂无", async () => {
+  expect(await renderFrame(0, [])).toContain("暂无")
 })
 
-test("确认态时焦点行显示确认文案而不是文件名", () => {
-  return testRender(
-    () => (
-      <TestTuiContexts>
-        <TuiConfigProvider config={{ keybinds: {} } as never}>
-          <ArgsProvider>
-            <KVProvider>
-              <ThemeProvider mode="dark">
-                <FilesPanel
-                  rows={ROWS}
-                  selected={() => 0}
-                  armed={{ key: "d", label: "再按一次 d 丢弃这个文件", deadline: 3000 }}
-                  width={36}
-                />
-              </ThemeProvider>
-            </KVProvider>
-          </ArgsProvider>
-        </TuiConfigProvider>
-      </TestTuiContexts>
-    ),
-    { width: 60, height: 20 },
-  ).then((app) => {
-    const frame = app.captureCharFrame()
-    expect(frame).toContain("再按一次 d")
-    app.destroy()
-  })
+test("确认态时焦点行显示确认文案而不是文件名", async () => {
+  const frame = await renderFrame(0, ROWS, { key: "d", label: "再按一次 d 丢弃这个文件", deadline: 3000 })
+  expect(frame).toContain("再按一次 d")
+  // 焦点行被确认文案顶掉,不该再露文件名。(未跟踪那行的 b.ts 还在,所以只查 a.ts。)
+  expect(frame).not.toContain("a.ts")
 })
 ```
+
+> `ArmedConfirm` 的字段以 `src/component/git-workspace/confirm.ts` 为准：`{ key, label, deadline }`。
+> 面板只读 `label` 渲染，`key`/`deadline` 是外壳驱动状态机用的 —— 测试夹具仍要给全，否则过不了类型检查。
+
+**还要再加一条宽度契约测试** —— 上面那些用例把面板放在 60 列根盒里、却传 `width={36}`，
+只有计算用到 36、布局并不受约束，截断压根没被真正考验（初稿的 `pathWidth` 算错就是这样溜过去的）。
+必须把面板包进**恰好 36 列**的盒子，flex 收缩才会真的裁切：
+
+```tsx
+test("长路径按宽度截断,计数不被挤出屏幕", async () => {
+  const frame = await renderConstrainedFrame([
+    { file: "packages/tui/src/component/git-workspace/files-panel.tsx", label: "已改", count: "+10 -2", staged: true, unstaged: false },
+  ])
+  const row = frame.split("\n").find((line) => line.includes("已改")) ?? ""
+  expect(row).toContain("+10 -2") // 预算算错时计数会被路径顶出 36 列之外
+  expect(row).toContain("…") // 必须是省略号截断,不是 flex 硬切
+  expect(Bun.stringWidth(row.replace(/\s+$/, ""))).toBeLessThanOrEqual(36)
+})
+```
+
+> 这条测试我验证过：把 `pathWidth` 改回初稿算式，它立刻变红。
 
 - [ ] **Step 2: 跑测试确认失败**
 
@@ -1647,6 +1650,11 @@ import { Locale } from "../../util/locale"
 import type { ArmedConfirm } from "./confirm"
 import type { FileRow } from "./state"
 
+/** 状态词最多占 6 列,和下行 truncateToWidth(row.label, 6) 是同一个数。 */
+const LABEL_WIDTH = 6
+/** 计数区:1 列左内边距 + 最多 8 列(如 `+100 -20`)。 */
+const COUNT_WIDTH = 9
+
 export interface FilesPanelProps {
   rows: FileRow[]
   /** 当前焦点行下标;面板没获得焦点时由调用方传 -1(没有行是焦点)。 */
@@ -1659,8 +1667,10 @@ export interface FilesPanelProps {
 
 export function FilesPanel(props: FilesPanelProps) {
   const { theme } = useTheme()
-  // 扣掉左边的选中标记与空格(2 列),再扣掉右边的计数(约 10 列)。
-  const pathWidth = () => Math.max(8, props.width - 2 - 10)
+  // 一行的固定开销:左内边距 1 + 标记 2 + 状态词 LABEL_WIDTH + 分隔空格 1 + 计数区 COUNT_WIDTH。
+  // 漏算任何一项,路径就会被 flex 收缩硬切(而且省略号也画不出来),计数和路径粘成一团。
+  // 初稿写的 `Math.max(8, width - 2 - 10)` 漏了 padding/状态词/分隔空格,width=36 时实测行宽 41 列。
+  const pathWidth = () => Math.max(4, props.width - 1 - 2 - LABEL_WIDTH - 1 - COUNT_WIDTH)
 
   return (
     <box flexDirection="column" flexGrow={1} minHeight={0}>
