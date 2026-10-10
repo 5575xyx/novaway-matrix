@@ -2757,28 +2757,79 @@ cd packages/tui && bun dev
 
 9. **按 `alt+f` 不应触发 push、按 `alt+d` 两次不应丢弃改动**（alt 组合现在被挡成 `alt+X` 放行给聊天输入框）
 10. **从文件标签切回工作区标签时，不应看到旧的文件预览叠加在工作区上**（互斥守卫）
-
+11. **按 `tab` 应该在五个面板间切，而不是切换 agent**（见下方最终审查 Critical 1）
+12. **在工作区里按 `d` 武装后等 3 秒不按，「再按一次 d」提示应当自己消失**（不是一直挂着）
 
 ---
 
-## 人工验收（本计划完成后）
+## 最终整体审查（九任务全做完后）
 
-在真实终端跑一次，确认视觉与交互：
+逐任务审查只能看到单个任务的内部正确性，**跨任务的集成缺陷只有整体审查看得到**。下面是最终审查的结论。
 
-```
-cd packages/tui && bun dev
-```
+**审查范围**：`git diff 923bca1^..HEAD -- packages/tui`，对照规格与本计划。
 
-进会话后点侧栏 `Git` 页的 `↳ 打开工作区`，核对：
+**结论：不通过 —— 修完 4 条 Critical 才进人工验收。**
 
-1. 主区标签条出现 `Git`，且能点 `✕` 关掉
-2. 左列五个面板标题都在，状态面板四行是中文
-3. `tab` 能在面板间切，`❯` 标记跟着走
-4. 焦点在 `文件` 面板时 `j/k` 能上下选，`空格` 暂存后文件状态会变
-5. 焦点在 `文件` 面板按 `enter`，右侧差异视图显示该文件 diff
-6. 按 `d` 那一行变黄显示「再按一次 d…」，按别的键取消
-7. 在工作区里按 `q`、`v`、中文拼音字母 —— **不会**漏进聊天输入框；`ctrl+c` 仍能中断
-8. 终端缩到 60 列 → 显示「终端太窄」；70 列 → 左列变窄但仍可用
+### Critical（全部已修）
+
+| # | 问题 | 修法 | 提交 |
+|---|---|---|---|
+| 1 | **`tab`/`shift+tab` 被 keymap 层窃取，切面板是死键** | `useBindings` 注册专用层 | `fc8c558` |
+| 2 | **confirm 不捕获武装目标，可 discard 错文件** | 武装瞬间拍板快照 | `4484bdc` |
+| 3 | **窄屏下危险键照常执行（盲丢改动）** | `run()` 顶部闸门 | `d2fbe80` |
+| 4 | diff 不跟随光标 / 无激活模式 | **划归计划 2**（见下） | — |
+
+#### Critical 1：为什么单任务审查发现不了
+
+`src/config/keybind.ts:137-138` 默认绑了 `agent_cycle: keybind("tab")`、`agent_cycle_reverse: keybind("shift+tab")`，**没有 `enabled` 守卫**。keymap host 用 `prependListener` 挂在 `renderer.keyInput` 上，**抢在所有 `useKeyboard` 之前收事件**，命中 binding 就 `stopPropagation` —— 这就是工作区自己 `preventDefault` 拦不住 tab 的原因。
+
+Task 8 的组件测试全绿，因为**测试只挂工作区、没挂 app 的 keymap 层**。活探针实测：`j` 能到工作区监听器，`tab`/`shift+tab`/`ctrl+c` 只到 keymap。按 `tab` 实际在**静默切换 agent**。
+
+**keymap 优先级模型**（调查结论，记下来供以后用）：
+- 同键冲突按 **层 priority 降序、注册序降序** 裁决，后注册的层赢。
+- 两种既有禁用机制：**mode 栈**（`createNovaWayModeStack` push mode → `setData("NovaWay.mode")` → `mode: base` 的层失活）和 **`enabled` 谓词**（`registerManagedTextareaLayer({ enabled: ... })`，聊天输入框就是这么让位的）。
+- **没有**现成的「工作区/差异面板聚焦」状态供 keymap 查询。
+
+**选的方案**：工作区挂载期间用 `useBindings` 注册 `tab`/`shift+tab` 一层直达 `run("panel.next"/"panel.prev")`，卸载自动注销、`agent.cycle` 随之恢复。
+**为什么不用 mode push**：push 会把整个 `mode: base` 层（含 `ctrl+c` 退出）一起弄失活 —— 爆炸半径远大于两个键。这个取舍写在代码注释里了。
+
+#### Critical 2
+
+`ArmedConfirm` 原本只有 `{ key, label, deadline }`，fire 时**重读** `fileRows()[fileRow()]`。武装窗口内一次 `refresh()`（pull 完成 / 外部改动让文件列表变序）就能让光标指向**另一个文件**，确认就把错的那个丢掉。
+修法：`ArmedConfirm<T>` 加 `target`，武装瞬间拍板，fire 走 `takeFiredTarget()` 不重读。`confirm.ts` 的「label 不参与危险判定」属性保留。
+
+#### Critical 3
+
+`tooNarrow()` 早返回只管渲染，`useKeyboard` 早就注册了 —— 宽度 <70 时键位条不画，`d`→`d` 照常丢弃改动，全程只见「终端太窄」一行。**之前 Task 8 的遗留条目只记了 p/f 会 pull/push，低估了 `d`。** 修法：`run()` 顶部闸门，只放行 `global.close`。
+
+### Critical 4 —— 划归计划 2
+
+规格第 62 行与 L115-135 要求 `enter` 进入「差异已激活」状态后 **`j/k` 滚动差异内容**、`esc` 返回焦点。当前实现 `enter` 只设 diff target，`j/k` 仍在动文件光标 —— 出现「高亮 B、diff 显示 A」，和 `d` 组合可能基于看错的 diff 丢文件。
+
+这是**模式系统**的一部分（和计划 2 的行内输入、`z` 撤销、`?` 帮助同属一类），不是补丁能了事的。**明确划归计划 2**，本计划不碰。
+
+### Important（全部已修）
+
+| # | 问题 | 修法 | 提交 |
+|---|---|---|---|
+| 5 | `gitExec().then(refresh)` 无 `.catch`，失败时 UI 零反馈 + unhandled rejection | 新增 `runGit()` 统一收口，失败写提示行、两路都 `refresh()` | `50047e2` |
+| 6 | armed 3 秒超时**视觉上没接线**，提示永挂到下次按键 | 100ms interval，到期清 armed 触发重渲染，`onCleanup` 自拆 | `6d7d6aa` |
+| 7 | `fileRow` 不随列表收缩 clamp，删文件后三处显示不一致 | `statusRows`/`fileRows` 各挂 clamp effect | `1a61eca` |
+
+第 6 条值得单独记一笔：**`confirm.ts` 的纯逻辑测试用假时钟全绿，但功能根本没接上** —— 测的是状态机，不是 UI。以后凡是「带时限的状态」都要问一句：*谁负责到点触发重渲染？*
+
+### 记录在案、不修的
+
+- 空面板仍印「j/k 选」、五面板都印「? 帮助」但按了没反应 —— 与 Task 8 审查确立的「**键位条上印的键必须能按出结果**」是同类问题，但改文案属于产品口径，留给计划 2/3 收敛时一起处理。
+- `focus.ts` 注释说 `ctrl+c` 是中断，实际走 `app.exit`（行为可接受，注释误导）。
+- 三个面板各自复制了一份测试 helper（`settleFrame`/`renderConstrainedFrame`）和宽度算式 —— 计划已明说接受。
+- `status.space` 任何一行都切远端（`run` 不看 `statusRow`）—— 计划已记遗留，但和 `f` 推送的组合风险值得计划 2 升级确认。
+
+### 修复后的门禁
+
+**908 通过 / 1 跳过 / 4 失败**（4 个仍是 `test/cli/cmd/tui/provider-options.test.ts` 的既有失败），typecheck exit 0。
+新增测试文件：`git-workspace-{keymap,narrow,feedback,clamp}.test.tsx`。
+
 
 ---
 
@@ -2786,8 +2837,15 @@ cd packages/tui && bun dev
 
 **已交付**：Git 标签页骨架、状态面板（含多远程显示）、文件面板（暂存/全部暂存/丢弃/删除）、右侧差异视图（文件与提交两路）、二次确认、键位拦截、窄屏降级。
 
-**留给计划 2**：分支面板、提交面板、贮藏面板的实际渲染与操作、多远程的循环切换接线、行内提交输入（`c` 现在只提示「没有可提交的暂存内容」）、`z` 撤销上次提交。
+**留给计划 2**：分支面板、提交面板、贮藏面板的实际渲染与操作、多远程的循环切换接线、行内提交输入
+（`c` 现在按了只弹一句「提交输入框还没接上,本版暂不能提交」，两种情况都给反馈，不是静默 no-op）、`z` 撤销上次提交、
+**差异视图的激活模式**（`enter` 后 `j/k` 滚 diff、`esc` 返回焦点 —— 规格第 62 行 / L115-135，最终审查划归本计划）、
+键位条文案收敛（空面板不该印「j/k 选」、五个面板都印「? 帮助」但 plan 1 按了没反应）。
 
 **留给计划 3**：侧栏 `git-panel.tsx` 瘦成入口 + 三行摘要（移除「同步/远程/历史/贮藏」区块）、命令面板注册「打开 Git 工作区」、`?` 帮助浮层、把 `git-diff` 标签页与工作区的关系再收敛。
 
 **前置风险（计划 2 动手前必须先验证）**：`y` 复制键依赖系统剪贴板（终端里通常要 OSC 52）。先确认 `packages/tui` 有没有可用通道，**没有就砍掉所有 `y` 键**，别为次要功能引入依赖。规格里已写明这条。
+
+**计划 2 动手前先读**：本计划末尾的「最终整体审查」一节 —— 里面记了 keymap 优先级模型（mode 栈 vs `enabled` 谓词、
+后注册的层赢）、`prependListener` 导致 `useKeyboard` 的 `preventDefault` 拦不住 keymap、以及
+「带时限的状态谁负责触发重渲染」这个反复踩的坑。计划 2 的行内输入和 `?` 帮助浮层都会撞上同一套机制。
