@@ -2541,7 +2541,7 @@ export default function Layout(props: ParentProps) {
               <main
                 classList={{
                   "size-full overflow-x-hidden flex flex-col items-start border-t border-border-weak-base bg-background-base page-transition": true,
-                  "xl:border-l xl:rounded-tl-[16px]": showSidebar() && store.workspaceSidebarExpanded,
+                  "xl:border-l xl:rounded-tl-lg": showSidebar() && store.workspaceSidebarExpanded,
                 }}
               >
                 <Show when={!autoselecting.loading} fallback={<div class="size-full" />}>
