@@ -1,4 +1,5 @@
 import { usePlatform } from "@/context/platform"
+import { useLanguage } from "@/context/language"
 import { Button } from "@novaway/ui/button"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { Dialog } from "@novaway/ui/dialog"
@@ -15,6 +16,7 @@ export type DialogGoUpsellProps = {
 export function DialogUsageExceeded(props: DialogGoUpsellProps) {
   const dialog = useDialog()
   const platform = usePlatform()
+  const language = useLanguage()
 
   const dismiss = () => {
     props.onClose?.(true)
@@ -26,7 +28,7 @@ export function DialogUsageExceeded(props: DialogGoUpsellProps) {
       <div class="flex flex-col gap-4 pl-6 pr-2.5 pb-3">
         <div class="flex justify-end gap-2">
           <Button variant="ghost" size="large" onClick={dismiss}>
-            不再显示
+            {language.t("dialog.usageExceeded.doNotShow")}
           </Button>
         </div>
       </div>

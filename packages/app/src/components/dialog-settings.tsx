@@ -111,11 +111,11 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
                 </Tabs.Trigger>
                 <Tabs.Trigger value="desktop">
                   <Icon name="eye" />
-                  桌面宠物
+                  {language.t("settings.tabs.pet")}
                 </Tabs.Trigger>
                 <Tabs.Trigger value="notifications">
                   <Icon name="speech-bubble" />
-                  消息通知
+                  {language.t("settings.tabs.notifications")}
                 </Tabs.Trigger>
                 <Tabs.Trigger value="memory">
                   <Icon name="review" />

@@ -865,14 +865,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           setStore("git", "width", width)
         },
       },
-      // 右侧独立面板总宽（review 面板不参与，它由 session 宽度反推），
-      // 供 session 内容宽度反推用，两处在同一处计算避免宽度算法分叉。
-      sidePanelWidth: createMemo(() => {
-        const parts: string[] = []
-        if (store.git?.opened) parts.push(`${store.git.width ?? DEFAULT_GIT_PANEL_WIDTH}px`)
-        if (store.fileTree?.opened) parts.push(`${store.fileTree.width ?? DEFAULT_FILE_TREE_WIDTH}px`)
-        return parts.join(" + ")
-      }),
       sidePane: {
         opened: createMemo(() => store.sidePane?.opened ?? true),
         tab: createMemo<SidePaneTab>(() => store.sidePane?.tab ?? "files"),

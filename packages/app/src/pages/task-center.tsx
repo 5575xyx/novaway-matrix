@@ -115,7 +115,7 @@ export default function TaskCenterPage() {
             {language.t("taskCenter.openProject")}
           </Button>
         </div>
-        <TaskFilterBar filter={activeTab()} variant="underline" tabs={[...tabs]} onSelect={handleTabChange} />
+        <TaskFilterBar filter={activeTab()} variant="underline" tabs={[...tabs]} onChange={handleTabChange} />
         <Show when={activeTab() === "projects"}>
           <div class="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3">
             <For each={projectCards()}>
