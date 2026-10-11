@@ -23,12 +23,13 @@ export function WorkspaceHeader() {
   const local = useLocal()
   const sessionLayout = useSessionLayout()
   const directory = createMemo(() => decode64(params.dir) ?? "")
-  const [sessionStore] = globalSync.child(directory())
-  const session = createMemo(() => sessionStore.session.find((s) => s.id === params.id))
+  const sessionStore = createMemo(() => (directory() ? globalSync.child(directory())[0] : undefined))
+  const session = createMemo(() => sessionStore()?.session.find((s) => s.id === params.id))
   const variants = createMemo(() => ["default", ...local.model.variant.list()])
   const working = createMemo(() => {
     const id = session()?.id
-    return id ? sessionStore.session_working(id) : false
+    const store = sessionStore()
+    return id && store ? store.session_working(id) : false
   })
   const dirName = createMemo(() => directory().split(/[\\/]/).filter(Boolean).pop() ?? directory())
 
