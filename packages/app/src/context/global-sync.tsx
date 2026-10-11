@@ -464,6 +464,7 @@ function createGlobalSync() {
     child: children.child,
     peek: children.peek,
     queryOptions: queryOptionsApi,
+    sdkForDirectory: sdkFor,
     // bootstrap,
     updateConfig: updateConfigMutation.mutateAsync,
     project: projectApi,

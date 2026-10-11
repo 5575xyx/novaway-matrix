@@ -745,6 +745,11 @@ export const dict = {
   "sidebar.filter.running": "运行中",
   "sidebar.filter.waiting": "待确认",
   "sidebar.filter.archived": "已归档",
+  "sidebar.tree.back": "返回任务",
+  "sidebar.tree.title": "文件",
+  "sidebar.tree.onlyChanged": "仅变更",
+  "sidebar.tree.changes": "{{count}} 个变更",
+  "sidebar.tree.empty": "当前没有可浏览的项目目录",
   "sidebar.empty.title": "没有项目打开",
   "sidebar.empty.description": "打开一个项目开始使用",
 
