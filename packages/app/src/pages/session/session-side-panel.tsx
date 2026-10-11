@@ -222,22 +222,32 @@ export function SessionSidePanel(props: {
         max={typeof window === "undefined" ? 1000 : window.innerWidth * 0.6}
         onResize={(next) => layout.sidePane.resize(next)}
       />
-      <div class="flex items-center gap-0.5 h-9 px-1.5 border-b border-border-weak-base shrink-0">
+      <div class="flex items-center gap-0.5 h-9 px-1.5 border-b border-border-weak-base shrink-0 overflow-x-auto no-scrollbar">
         <For each={tabsList}>
           {(item) => (
             <button
               classList={{
-                "flex items-center gap-1 px-2 h-7 rounded-md text-ui-xs transition-colors": true,
+                "flex items-center gap-1 px-2 h-7 rounded-md text-ui-xs transition-colors shrink-0 whitespace-nowrap": true,
                 "bg-surface-raised-base text-text-strong": tab() === item.id,
                 "text-text-weak hover:text-text-base": tab() !== item.id,
               }}
               onClick={() => layout.sidePane.setTab(item.id)}
             >
-              <Icon name={item.icon} size="small" />
+              <Icon name={item.icon} size="small" class="shrink-0" />
               {language.t(item.labelKey)}
             </button>
           )}
         </For>
+        <IconButton
+          icon="layout-right"
+          variant="ghost"
+          size="small"
+          aria-label={language.t("sidePane.collapse")}
+          aria-expanded={layout.sidePane.opened()}
+          title={language.t("sidePane.collapse")}
+          class="ml-auto shrink-0"
+          onClick={() => layout.sidePane.toggle()}
+        />
       </div>
       <div class="flex-1 min-h-0 overflow-hidden">
         <Show when={tab() === "preview"}>

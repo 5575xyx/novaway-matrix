@@ -55,6 +55,8 @@ export const dict = {
   "command.terminal.toggle": "切換終端機",
   "command.fileTree.toggle": "切換檔案樹",
   "command.review.toggle": "切換審查",
+  "sidePane.collapse": "摺疊側欄",
+  "sidePane.expand": "展開側欄",
   "command.terminal.new": "新增終端機",
   "command.terminal.new.description": "建立新的終端機標籤頁",
   "command.steps.toggle": "切換步驟",
