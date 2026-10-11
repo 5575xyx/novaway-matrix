@@ -106,6 +106,13 @@ export const dict = {
   "preview.pick.addedHint": "可在对话框里补充要改什么，然后发送",
   "preview.pick.appendedHint": "元素说明已追加到输入框，补充要改什么后发送",
 
+  "sidePane.tab.preview": "预览",
+  "sidePane.tab.terminal": "终端",
+  "sidePane.tab.files": "文件",
+  "sidePane.tab.git": "Git",
+  "sidePane.tab.review": "审查",
+  "sidePane.tab.context": "上下文",
+
   "command.fileTree.toggle": "切换文件树",
   "command.git.toggle": "切换源代码管理",
 
