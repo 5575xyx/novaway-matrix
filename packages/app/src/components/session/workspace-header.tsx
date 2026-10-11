@@ -11,6 +11,7 @@ import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { useLocal } from "@/context/local"
 import { useModels } from "@/context/models"
+import { useSettings } from "@/context/settings"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { decode64 } from "@/utils/base64"
 
@@ -22,6 +23,7 @@ export function WorkspaceHeader() {
   const modelsCtx = useModels()
   const local = useLocal()
   const sessionLayout = useSessionLayout()
+  const settings = useSettings()
   const directory = createMemo(() => decode64(params.dir) ?? "")
   const sessionStore = createMemo(() => (directory() ? globalSync.child(directory())[0] : undefined))
   const session = createMemo(() => sessionStore()?.session.find((s) => s.id === params.id))
@@ -82,17 +84,21 @@ export function WorkspaceHeader() {
       <IconButton
         icon="layout-right"
         title={language.t("workspace.header.sidePane")}
+        variant="ghost"
         aria-expanded={layout.sidePane.opened()}
         onClick={() => layout.sidePane.toggle()}
         class={layout.sidePane.opened() ? "text-text-interactive-base" : ""}
       />
-      <IconButton
-        icon="terminal"
-        title={language.t("workspace.header.terminal")}
-        aria-expanded={sessionLayout.view().terminal.opened()}
-        onClick={() => sessionLayout.view().terminal.toggle()}
-        class={sessionLayout.view().terminal.opened() ? "text-text-interactive-base" : ""}
-      />
+      <Show when={settings.general.showTerminal()}>
+        <IconButton
+          icon="terminal"
+          title={language.t("workspace.header.terminal")}
+          variant="ghost"
+          aria-expanded={sessionLayout.view().terminal.opened()}
+          onClick={() => sessionLayout.view().terminal.toggle()}
+          class={sessionLayout.view().terminal.opened() ? "text-text-interactive-base" : ""}
+        />
+      </Show>
       <DropdownMenu>
         <DropdownMenu.Trigger
           as={IconButton}
@@ -102,9 +108,11 @@ export function WorkspaceHeader() {
         />
         <DropdownMenu.Portal>
           <DropdownMenu.Content>
-            <DropdownMenu.Item onSelect={() => layout.sidePane.toggle("files")}>
-              <DropdownMenu.ItemLabel>{language.t("command.fileTree.toggle")}</DropdownMenu.ItemLabel>
-            </DropdownMenu.Item>
+            <Show when={settings.general.showFileTree()}>
+              <DropdownMenu.Item onSelect={() => layout.sidePane.toggle("files")}>
+                <DropdownMenu.ItemLabel>{language.t("command.fileTree.toggle")}</DropdownMenu.ItemLabel>
+              </DropdownMenu.Item>
+            </Show>
             <DropdownMenu.Item onSelect={() => layout.sidePane.toggle("git")}>
               <DropdownMenu.ItemLabel>{language.t("command.git.toggle")}</DropdownMenu.ItemLabel>
             </DropdownMenu.Item>
