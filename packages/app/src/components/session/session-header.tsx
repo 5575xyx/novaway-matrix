@@ -364,7 +364,7 @@ export function SessionHeader() {
                   <Button
                     variant="ghost"
                     class="titlebar-icon w-8 h-8 p-0 box-border rounded-xl text-icon-base hover:bg-surface-base-hover transition-all duration-150 hover:scale-105"
-                    onClick={() => layout.sidePane.setTab("files")}
+                    onClick={() => layout.sidePane.toggle("files")}
                     aria-label={language.t("command.fileTree.toggle")}
                     aria-expanded={layout.sidePane.opened() && layout.sidePane.tab() === "files"}
                     aria-controls="side-pane"
@@ -390,7 +390,7 @@ export function SessionHeader() {
                 <Button
                   variant="ghost"
                   class="titlebar-icon w-8 h-8 p-0 box-border rounded-xl text-icon-base hover:bg-surface-base-hover transition-all duration-150 hover:scale-105"
-                  onClick={() => layout.sidePane.setTab("git")}
+                  onClick={() => layout.sidePane.toggle("git")}
                   aria-label={language.t("command.git.toggle")}
                   aria-expanded={layout.sidePane.opened() && layout.sidePane.tab() === "git"}
                   aria-controls="side-pane"
