@@ -45,8 +45,23 @@
   --text-lg: var(--font-size-large);
   --text-xl: var(--font-size-x-large);
 
+  --text-ui-xl: var(--font-size-ui-xl);
+  --text-ui-xl--line-height: var(--line-height-large);
+  --text-ui-lg: var(--font-size-ui-lg);
+  --text-ui-lg--line-height: var(--line-height-large);
+  --text-ui-base: var(--font-size-ui-base);
+  --text-ui-base--line-height: var(--line-height-large);
+  --text-ui-caption: var(--font-size-ui-caption);
+  --text-ui-caption--line-height: var(--line-height-large);
+  --text-ui-sm: var(--font-size-ui-sm);
+  --text-ui-sm--line-height: var(--line-height-normal);
+  --text-ui-xs: var(--font-size-ui-xs);
+  --text-ui-xs--line-height: var(--line-height-large);
+
   --font-weight-regular: var(--font-weight-regular);
   --font-weight-medium: var(--font-weight-medium);
+  --font-weight-semibold: var(--font-weight-semibold);
+  --font-weight-bold: var(--font-weight-bold);
 
   --leading-lg: var(--line-height-large);
   --leading-xl: var(--line-height-x-large);

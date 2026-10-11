@@ -176,7 +176,7 @@ export function Titlebar(props: { settingsOpen?: boolean; databaseOpen?: boolean
 
   return (
     <header
-      class="h-[50px] shrink-0 bg-background-base/90 backdrop-blur-md relative overflow-hidden titlebar-gradient-border"
+      class="h-[50px] shrink-0 bg-background-base/90 backdrop-blur-md relative overflow-hidden"
       style={{
         "min-height": minHeight(),
         "background-color": pageOpen() ? "var(--background-base)" : undefined,

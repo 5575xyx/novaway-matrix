@@ -5,12 +5,14 @@ import fs from "fs"
 import os from "os"
 import path from "path"
 import {
+  deriveBranchRows,
   deriveFileRows,
   deriveStatusRows,
   loadWorkspace,
+  parseCommitRows,
   pickDefaultRemote,
 } from "../../src/component/git-workspace/state"
-import type { GitNumstatEntry, GitRemote, GitStatusSummary } from "../../src/util/git-status"
+import type { GitBranch, GitNumstatEntry, GitRemote, GitStatusSummary } from "../../src/util/git-status"
 
 const status: GitStatusSummary = {
   branch: "main",
@@ -166,6 +168,47 @@ test("deriveFileRows 新增/删除/重命名也用中文", () => {
     ],
   }
   expect(deriveFileRows(s, []).map((r) => r.label)).toEqual(["新增", "删除", "重命名"])
+})
+
+test("parseCommitRows 拆完整哈希、短哈希与主题三段", () => {
+  const rows = parseCommitRows("abc1234def567890|abc1234|提交主题\n9998887766554433|9998887|另一个提交")
+  expect(rows).toEqual([
+    { full: "abc1234def567890", hash: "abc1234", subject: "提交主题" },
+    { full: "9998887766554433", hash: "9998887", subject: "另一个提交" },
+  ])
+})
+
+test("parseCommitRows 主题里带 | 时不会被切散", () => {
+  // 主题里带分隔符是最容易踩的一档:复制用的完整哈希不能因为主题长得不规矩而少一段。
+  const rows = parseCommitRows("deadbeefcafe|deadbee|改 A 与 B | 再改 C")
+  expect(rows[0]?.subject).toBe("改 A 与 B | 再改 C")
+})
+
+test("parseCommitRows 丢弃空行与不足三段的行", () => {
+  expect(parseCommitRows("\n   \nabc\nabc|def\n")).toEqual([])
+  expect(parseCommitRows("")).toEqual([])
+})
+
+test("deriveBranchRows 每行都带领先/落后,为 0 的那一枚不画", () => {
+  const branches: GitBranch[] = [
+    { name: "main", current: true, ahead: 2, behind: 5 },
+    { name: "topic", current: false, ahead: 3, behind: 0 },
+    { name: "origin/main", current: false, ahead: 0, behind: 0 },
+  ]
+  const rows = deriveBranchRows(branches)
+  expect(rows[0]).toEqual({ name: "main", current: true, count: "↑2 ↓5" })
+  expect(rows[1]?.count).toBe("↑3")
+  // 远程分支没有上游,%(upstream:track) 是空串,两个计数都是 0 —— 画出来就是噪音。
+  expect(rows[2]?.count).toBeUndefined()
+})
+
+test("deriveBranchRows 名字与 current 原样传递", () => {
+  const rows = deriveBranchRows([
+    { name: "origin/feature", current: false, ahead: 0, behind: 0 },
+    { name: "main", current: true, ahead: 0, behind: 0 },
+  ])
+  expect(rows.map((r) => r.name)).toEqual(["origin/feature", "main"])
+  expect(rows.map((r) => r.current)).toEqual([false, true])
 })
 
 // 下面两个起真 git 子进程,所以造真目录 —— 口径照抄 test/component/git-branch-row.test.tsx:

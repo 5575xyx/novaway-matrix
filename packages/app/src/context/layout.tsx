@@ -15,12 +15,13 @@ import { createPathHelpers } from "./file/path"
 import { pathKey } from "@/utils/path-key"
 
 const AVATAR_COLOR_KEYS = ["pink", "mint", "orange", "purple", "cyan", "lime"] as const
-const DEFAULT_SIDEBAR_WIDTH = 344
+const DEFAULT_SIDEBAR_WIDTH = 280
 const DEFAULT_FILE_TREE_WIDTH = 200
 const DEFAULT_GIT_PANEL_WIDTH = 260
 const DEFAULT_SESSION_WIDTH = 600
 const DEFAULT_TERMINAL_HEIGHT = 280
 const DEFAULT_PREVIEW_WIDTH = 640
+const DEFAULT_SIDE_PANE_WIDTH = 360
 export type AvatarColorKey = (typeof AVATAR_COLOR_KEYS)[number]
 export type AppMode = "forge" | "zen" | "spark" | "pulse" | "future"
 
@@ -123,6 +124,9 @@ export type LocalProject = Partial<Project> & { worktree: string; expanded: bool
 
 export type ReviewDiffStyle = "unified" | "split"
 
+export type SidePaneTab = "preview" | "terminal" | "files" | "git" | "review" | "context"
+export type SidebarView = "tasks" | "tree"
+
 export function ensureSessionKey(key: string, touch: (key: string) => void, seed: (key: string) => void) {
   touch(key)
   seed(key)
@@ -200,6 +204,134 @@ const normalizeStoredSessionTabs = (key: string, tabs: SessionTabs) => {
   }
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+
+export function migrateLayoutStore(value: unknown) {
+  if (!isRecord(value)) return value
+
+  const sidebar = value.sidebar
+  const migratedSidebar = (() => {
+    if (!isRecord(sidebar)) return sidebar
+    const base =
+      typeof sidebar.workspaces === "boolean"
+        ? {
+            ...sidebar,
+            workspaces: {},
+            workspacesDefault: sidebar.workspaces,
+          }
+        : sidebar
+    if (base.defaultCollapsedV1 === true) return base
+    return {
+      ...base,
+      opened: false,
+      defaultCollapsedV1: true,
+    }
+  })()
+
+  const review = value.review
+  const fileTree = value.fileTree
+  const gitPanel = value.git
+  const migratedFileTree = (() => {
+    if (!isRecord(fileTree)) return fileTree
+    if (fileTree.tab === "changes" || fileTree.tab === "all" || fileTree.tab === "review") return fileTree
+
+    const width = typeof fileTree.width === "number" ? fileTree.width : DEFAULT_FILE_TREE_WIDTH
+    return {
+      ...fileTree,
+      opened: true,
+      width: width === 260 ? DEFAULT_FILE_TREE_WIDTH : width,
+      tab: "changes",
+    }
+  })()
+
+  const migratedGit = (() => {
+    if (!isRecord(gitPanel)) return { opened: false, width: DEFAULT_GIT_PANEL_WIDTH }
+    if (typeof gitPanel.opened === "boolean") return gitPanel
+
+    const width = typeof gitPanel.width === "number" ? gitPanel.width : DEFAULT_GIT_PANEL_WIDTH
+    return { opened: false, width }
+  })()
+
+  const migratedReview = (() => {
+    if (!isRecord(review)) return review
+    if (typeof review.panelOpened === "boolean") return review
+
+    const opened = isRecord(fileTree) && typeof fileTree.opened === "boolean" ? fileTree.opened : false
+    return {
+      ...review,
+      panelOpened: opened,
+    }
+  })()
+
+  const sessionTabs = value.sessionTabs
+  const migratedSessionTabs = (() => {
+    if (!isRecord(sessionTabs)) return sessionTabs
+
+    let changed = false
+    const next = Object.fromEntries(
+      Object.entries(sessionTabs).map(([key, tabs]) => {
+        if (!isRecord(tabs) || !Array.isArray(tabs.all)) return [key, tabs]
+
+        const current = {
+          all: tabs.all.filter((tab): tab is string => typeof tab === "string"),
+          active: typeof tabs.active === "string" ? tabs.active : undefined,
+        }
+        const normalized = normalizeStoredSessionTabs(key, current)
+        if (current.all.length !== tabs.all.length) changed = true
+        if (!same(current.all, normalized.all) || current.active !== normalized.active) changed = true
+        if (tabs.active !== undefined && typeof tabs.active !== "string") changed = true
+        return [key, normalized]
+      }),
+    )
+
+    if (!changed) return sessionTabs
+    return next
+  })()
+
+  const sessionView = value.sessionView
+  const migratedSessionView = (() => {
+    if (!isRecord(sessionView)) return sessionView
+
+    let changed = false
+    const next = Object.fromEntries(
+      Object.entries(sessionView).map(([key, entry]) => {
+        if (!isRecord(entry) || (!("viewMode" in entry) && !("previewWidth" in entry))) return [key, entry]
+
+        const cleaned = { ...entry }
+        delete cleaned.viewMode
+        delete cleaned.previewWidth
+        changed = true
+        return [key, cleaned]
+      }),
+    )
+
+    if (!changed) return sessionView
+    return next
+  })()
+
+  if (
+    migratedSidebar === sidebar &&
+    migratedReview === review &&
+    migratedFileTree === fileTree &&
+    migratedGit === gitPanel &&
+    migratedSessionTabs === sessionTabs &&
+    migratedSessionView === sessionView
+  ) {
+    return value
+  }
+
+  return {
+    ...value,
+    sidebar: migratedSidebar,
+    review: migratedReview,
+    fileTree: migratedFileTree,
+    git: migratedGit,
+    sessionTabs: migratedSessionTabs,
+    sessionView: migratedSessionView,
+  }
+}
+
 export const { use: useLayout, provider: LayoutProvider } = createSimpleContext({
   name: "Layout",
   init: () => {
@@ -208,115 +340,9 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
     const server = useServer()
     const platform = usePlatform()
 
-    const isRecord = (value: unknown): value is Record<string, unknown> =>
-      typeof value === "object" && value !== null && !Array.isArray(value)
-
-    const migrate = (value: unknown) => {
-      if (!isRecord(value)) return value
-
-      const sidebar = value.sidebar
-      const migratedSidebar = (() => {
-        if (!isRecord(sidebar)) return sidebar
-        const base =
-          typeof sidebar.workspaces === "boolean"
-            ? {
-                ...sidebar,
-                workspaces: {},
-                workspacesDefault: sidebar.workspaces,
-              }
-            : sidebar
-        if (base.defaultCollapsedV1 === true) return base
-        return {
-          ...base,
-          opened: false,
-          defaultCollapsedV1: true,
-        }
-      })()
-
-      const review = value.review
-      const fileTree = value.fileTree
-      const gitPanel = value.git
-      const migratedFileTree = (() => {
-        if (!isRecord(fileTree)) return fileTree
-        if (fileTree.tab === "changes" || fileTree.tab === "all" || fileTree.tab === "review")
-          return fileTree
-
-        const width = typeof fileTree.width === "number" ? fileTree.width : DEFAULT_FILE_TREE_WIDTH
-        return {
-          ...fileTree,
-          opened: true,
-          width: width === 260 ? DEFAULT_FILE_TREE_WIDTH : width,
-          tab: "changes",
-        }
-      })()
-
-      const migratedGit = (() => {
-        if (!isRecord(gitPanel)) return { opened: false, width: DEFAULT_GIT_PANEL_WIDTH }
-        if (typeof gitPanel.opened === "boolean") return gitPanel
-
-        const width = typeof gitPanel.width === "number" ? gitPanel.width : DEFAULT_GIT_PANEL_WIDTH
-        return { opened: false, width }
-      })()
-
-      const migratedReview = (() => {
-        if (!isRecord(review)) return review
-        if (typeof review.panelOpened === "boolean") return review
-
-        const opened = isRecord(fileTree) && typeof fileTree.opened === "boolean" ? fileTree.opened : false
-        return {
-          ...review,
-          panelOpened: opened,
-        }
-      })()
-
-      const sessionTabs = value.sessionTabs
-      const migratedSessionTabs = (() => {
-        if (!isRecord(sessionTabs)) return sessionTabs
-
-        let changed = false
-        const next = Object.fromEntries(
-          Object.entries(sessionTabs).map(([key, tabs]) => {
-            if (!isRecord(tabs) || !Array.isArray(tabs.all)) return [key, tabs]
-
-            const current = {
-              all: tabs.all.filter((tab): tab is string => typeof tab === "string"),
-              active: typeof tabs.active === "string" ? tabs.active : undefined,
-            }
-            const normalized = normalizeStoredSessionTabs(key, current)
-            if (current.all.length !== tabs.all.length) changed = true
-            if (!same(current.all, normalized.all) || current.active !== normalized.active) changed = true
-            if (tabs.active !== undefined && typeof tabs.active !== "string") changed = true
-            return [key, normalized]
-          }),
-        )
-
-        if (!changed) return sessionTabs
-        return next
-      })()
-
-      if (
-        migratedSidebar === sidebar &&
-        migratedReview === review &&
-        migratedFileTree === fileTree &&
-        migratedGit === gitPanel &&
-        migratedSessionTabs === sessionTabs
-      ) {
-        return value
-      }
-
-      return {
-        ...value,
-        sidebar: migratedSidebar,
-        review: migratedReview,
-        fileTree: migratedFileTree,
-        git: migratedGit,
-        sessionTabs: migratedSessionTabs,
-      }
-    }
-
-    const target = Persist.global("layout", ["layout.v6"])
+    const target = Persist.global("layout", ["layout.v7"])
     const [store, setStore, _, ready] = persisted(
-      { ...target, migrate },
+      { ...target, migrate: migrateLayoutStore },
       createStore({
         sidebar: {
           opened: false,
@@ -348,6 +374,12 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         mobileSidebar: {
           opened: false,
         },
+        sidePane: {
+          opened: true,
+          tab: "files" as SidePaneTab,
+          width: DEFAULT_SIDE_PANE_WIDTH,
+        },
+        sidebarView: "tasks" as SidebarView,
         sessionTabs: {} as Record<string, SessionTabs>,
         sessionView: {} as Record<string, SessionView>,
         handoff: {
@@ -844,6 +876,45 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         if (store.fileTree?.opened) parts.push(`${store.fileTree.width ?? DEFAULT_FILE_TREE_WIDTH}px`)
         return parts.join(" + ")
       }),
+      sidePane: {
+        opened: createMemo(() => store.sidePane?.opened ?? true),
+        tab: createMemo<SidePaneTab>(() => store.sidePane?.tab ?? "files"),
+        width: createMemo(() => store.sidePane?.width ?? DEFAULT_SIDE_PANE_WIDTH),
+        open(tab?: SidePaneTab) {
+          batch(() => {
+            if (tab) setStore("sidePane", "tab", tab)
+            setStore("sidePane", "opened", true)
+          })
+        },
+        close() {
+          setStore("sidePane", "opened", false)
+        },
+        toggle(tab?: SidePaneTab) {
+          if (store.sidePane?.opened && (!tab || store.sidePane.tab === tab)) {
+            setStore("sidePane", "opened", false)
+            return
+          }
+          batch(() => {
+            if (tab) setStore("sidePane", "tab", tab)
+            setStore("sidePane", "opened", true)
+          })
+        },
+        setTab(tab: SidePaneTab) {
+          batch(() => {
+            setStore("sidePane", "tab", tab)
+            setStore("sidePane", "opened", true)
+          })
+        },
+        resize(width: number) {
+          setStore("sidePane", "width", width)
+        },
+      },
+      sidebarView: {
+        current: createMemo<SidebarView>(() => store.sidebarView ?? "tasks"),
+        set(view: SidebarView) {
+          setStore("sidebarView", view)
+        },
+      },
       session: {
         width: createMemo(() => store.session?.width ?? DEFAULT_SESSION_WIDTH),
         resize(width: number) {

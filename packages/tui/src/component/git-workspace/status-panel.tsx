@@ -29,6 +29,8 @@ export interface StatusPanelProps {
   /** 选中远端的完整地址;没有远端时 undefined。 */
   remoteUrl?: string
   width: number
+  /** 单击行:面板不关心命令,只报告点了第几行;外壳负责选中 + 双击判定。 */
+  onRowClick?: (rowIndex: number) => void
 }
 
 export function StatusPanel(props: StatusPanelProps) {
@@ -49,7 +51,14 @@ export function StatusPanel(props: StatusPanelProps) {
           // ② 也让「渲染行数 ≠ rows.length」这件事在结构上看得见(见下方注释)。
           return (
             <box flexDirection="column">
-              <box flexDirection="row" paddingLeft={1}>
+              <box
+                flexDirection="row"
+                paddingLeft={1}
+                onMouseDown={(event) => {
+                  event.stopPropagation()
+                  props.onRowClick?.(index())
+                }}
+              >
                 <text fg={isFocused() ? theme.primary : theme.textMuted} wrapMode="none">
                   {isFocused() ? "❯ " : "  "}
                 </text>

@@ -820,6 +820,12 @@ export const dict = {
   "sidebar.project.recentSessions": "Recent sessions",
   "sidebar.project.viewAllSessions": "View all sessions",
   "sidebar.project.clearNotifications": "Clear notifications",
+  "sidebar.view.tasks": "Tasks",
+  "sidebar.view.files": "Files",
+  "sidebar.filter.all": "All",
+  "sidebar.filter.running": "Running",
+  "sidebar.filter.waiting": "Needs approval",
+  "sidebar.filter.archived": "Archived",
   "sidebar.empty.title": "No projects open",
   "sidebar.empty.description": "Open a project to get started",
 
@@ -868,6 +874,10 @@ export const dict = {
   "settings.general.section.sounds": "Sound effects",
   "settings.general.section.feed": "Feed",
   "settings.general.section.display": "Display",
+
+  "settings.general.appearance.fontSize.title": "Interface size",
+  "settings.general.appearance.fontSize.description":
+    "Adjust text size for menus, sidebar and controls; code and terminal fonts are independent",
 
   "settings.general.row.language.title": "Language",
   "settings.general.row.language.description": "Change the display language for NovaWay",

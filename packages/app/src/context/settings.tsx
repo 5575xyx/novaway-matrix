@@ -185,6 +185,12 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
       setStore("general", "followup", "steer")
     })
 
+    const fontSize = withFallback(() => store.appearance?.fontSize, defaultSettings.appearance.fontSize)
+    createEffect(() => {
+      if (typeof document === "undefined") return
+      document.documentElement.style.setProperty("--ui-font-size", `${fontSize()}px`)
+    })
+
     return {
       ready,
       get current() {
