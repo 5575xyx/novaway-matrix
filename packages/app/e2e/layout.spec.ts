@@ -60,6 +60,13 @@ test("侧栏分组结构与项目菜单可达", async ({ page }) => {
   // 切换视图不报错（segment 激活态切换）
   await filesSegment.click()
   await expect(filesSegment).toHaveClass(/bg-text-interactive-base|bg-bg-panel-active/)
+
+  // 文件视图的返回按钮可见（原型 #sb-treefilters 中的 ← 返回任务），点击返回任务视图
+  const backToTasks = page.getByRole("button", { name: /Back to tasks|返回任务/ }).first()
+  await expect(backToTasks).toBeVisible()
+  await backToTasks.click()
+  await expect(tasksSegment).toHaveClass(/bg-text-interactive-base/)
+
   await tasksSegment.click()
   await expect(tasksSegment).toHaveClass(/bg-text-interactive-base|bg-bg-panel-active/)
 })
@@ -137,7 +144,7 @@ test("四 frame 4px 间隙与 8px 圆角", async ({ page }) => {
   const closedBorder = await page.evaluate(() => {
     const els = document.querySelectorAll('[data-component="terminal-frame"]')
     if (els.length !== 1) return null
-    const cs = getComputedStyle(els[0]!)
+    const cs = getComputedStyle(els[0])
     return { top: cs.borderTopWidth, bottom: cs.borderBottomWidth }
   })
   expect(closedBorder.top).toBe("0px")

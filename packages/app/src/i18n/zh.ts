@@ -741,6 +741,8 @@ export const dict = {
   "sidebar.newTask": "新建任务",
   "sidebar.projectMenu": "项目菜单",
   "sidebar.project.expand": "展开",
+  "sidebar.project.collapse": "折叠",
+  "sidebar.backToTasks": "返回任务",
   "sidebar.project.count": "{{count}} 个任务",
   "sidebar.project.moveToMode": "移动到模式",
   "sidebar.project.currentMode": "当前",

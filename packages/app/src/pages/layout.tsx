@@ -2092,7 +2092,6 @@ export default function Layout(props: ParentProps) {
 
   const SidebarPanel = (panelProps: { mobile?: boolean; merged?: boolean }) => {
     const merged = createMemo(() => panelProps.mobile || (panelProps.merged ?? layout.sidebar.opened()))
-    const empty = createMemo(() => layout.projects.list().length === 0)
     const projectList = () => layout.projects.list()
     const [taskFilter, setTaskFilter] = createSignal<TaskFilter>("all")
     const { archived, load: loadArchived } = useArchivedSessions(() => projectList())
@@ -2168,7 +2167,7 @@ export default function Layout(props: ParentProps) {
         <Show when={layout.sidebarView.current() === "tasks"}>
           <TaskFilterBar
             filter={taskFilter()}
-            variant="underline"
+            variant="text"
             onChange={(f) => {
               setTaskFilter(f)
               if (f === "archived") loadArchived()
@@ -2176,22 +2175,32 @@ export default function Layout(props: ParentProps) {
           />
         </Show>
 
+        <Show when={layout.sidebarView.current() === "tree"}>
+          <div class="flex items-center px-2 pb-1">
+            <button
+              class="flex items-center gap-1 text-ui-caption text-text-weak hover:text-text-base transition-colors"
+              onClick={() => layout.sidebarView.set("tasks")}
+            >
+              <Icon name="arrow-left" size="small" />
+              {language.t("sidebar.backToTasks")}
+            </button>
+          </div>
+        </Show>
+
         <Show
           when={projectList().length > 0}
           fallback={
-            <Show when={empty()}>
-              <div class="flex-1 min-h-0 -mt-4 flex items-center justify-center px-6 pb-64 text-center">
-                <div class="mt-8 flex max-w-60 flex-col items-center gap-4 text-center">
-                  <div class="text-14-medium text-text-strong">{language.t("sidebar.empty.title")}</div>
-                  <div class="text-14-regular text-text-base">
-                    {language.t("sidebar.empty.description")}
-                  </div>
-                  <Button size="large" icon="folder-add-left" onClick={chooseProject}>
-                    {language.t("command.project.open")}
-                  </Button>
+            <div class="flex-1 min-h-0 flex items-center justify-center px-6 pb-64 text-center">
+              <div class="mt-8 flex max-w-60 flex-col items-center gap-4 text-center">
+                <div class="text-14-medium text-text-strong">{language.t("sidebar.empty.title")}</div>
+                <div class="text-14-regular text-text-base">
+                  {language.t("sidebar.empty.description")}
                 </div>
+                <Button size="large" icon="folder-add-left" onClick={chooseProject}>
+                  {language.t("command.project.open")}
+                </Button>
               </div>
-            </Show>
+            </div>
           }
         >
           <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar px-2 pb-3 [overflow-anchor:none]">
@@ -2208,7 +2217,12 @@ export default function Layout(props: ParentProps) {
                 return (
                   <div class="mt-1">
                     <div class="group flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-surface-base-hover">
-                      <button aria-label={language.t("sidebar.project.expand")} onClick={toggleExpand}>
+                      <button
+                        aria-label={
+                          isExpanded() ? language.t("sidebar.project.collapse") : language.t("sidebar.project.expand")
+                        }
+                        onClick={toggleExpand}
+                      >
                         <Icon name={isExpanded() ? "chevron-down" : "chevron-right"} size="small" />
                       </button>
                       <Icon name="folder" size="small" class="shrink-0 text-icon-base" />
