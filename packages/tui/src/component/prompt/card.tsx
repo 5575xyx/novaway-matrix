@@ -11,6 +11,12 @@ import "../../ui/card"
 // 输入卡的叠色档。导出给测试直接引用,免得测试里再抄一个 0.45。
 export const INPUT_CARD_ALPHA = 0.45
 
+// 自动批准开着时的叠色档。抬到全仓标准档(= BORDER_ALPHA_DEFAULT 0.62),理由与
+// INPUT_CARD_ALPHA 那条相反:0.45 是「先读正文、再看边框」—— 那是卡的**默认**状态。
+// 自动批准开着时这一圈边框的全部意义就是让人一眼看见(用户原话「不太能看出来是不是开启了」),
+// 淡着就没意义了,黄会被底色洗掉。0.62 是气泡卡那一档,警告黄在它下面仍然压得住正文。
+export const AUTO_APPROVE_ALPHA = 0.62
+
 // 输入区霓虹输入卡的壳。与助手气泡卡 / 流程图节点卡共用的那张壳(NeonCard)同一条规矩:
 // 这里只依赖 useTheme() 与 useKV(),不碰 session/local context,测试能直接挂载真壳量几何 ——
 // 手抄一份 neonbox 到测试里的话,改这里的 padding 不会让任何测试变红。
@@ -40,30 +46,57 @@ export const INPUT_CARD_ALPHA = 0.45
 // 呼吸行必须是**真的一行布局高度**,padding 给不了这个效果:padding 格就是边框格(上面那条),
 // 再往 padding 上加只会在四边各多缩两列,不会在两行之间插出空隙。
 //
-// animated 是响应式算出来的,三个条件缺一不可:
-//   focused  —— 流动与扫光是「正在输入」的信号,失焦就该安静下来;
-//   visible —— 隐藏时宿主盒子还挂在那儿(visible={false} 只是不画),不掐掉定时器的话
-//              会 12.5 次/秒地空 requestRender 一棵没人看的树;
-//   animations_enabled —— 用户显式关掉动画。此时不是「空转但跳过相位」,而是
-//              animated 直接变 false、setter 把表停掉;KV 再打开时 setter 又把表起回来。
+// animated / flow 是响应式算出来的。
 //
-// **不叠悬停流动**。聚焦已经是这张卡唯一的「我在工作」信号,鼠标恰好停在这张卡上是常态
+//   animated(流动 + 扫光)= 聚焦中,三个条件缺一不可:
+//     focused  —— 流动与扫光是「正在输入」的信号,失焦就该安静下来;
+//     visible  —— 隐藏时宿主盒子还挂在那儿(visible={false} 只是不画),不掐掉定时器的话
+//                 会 12.5 次/秒地空 requestRender 一棵没人看的树;
+//     animations_enabled —— 用户显式关掉动画。此时不是「空转但跳过相位」,而是
+//                 animated 直接变 false、setter 把表停掉;KV 再打开时 setter 又把表起回来。
+//   flow(常驻流动、无扫光)= 自动批准开着。与焦点无关,visible/animations_enabled 两个条件同上。
+//
+// 两个信号**叠加**而不是二选一:警告色常驻在动,聚焦在它之上多一道扫光。
+// 若只留一个,要么「开着自动批准却看不出它还开着」(把警告绑到聚焦),要么「分不清有没有在
+// 等我输入」(把流动也绑到自动批准)。用户两句都要:「应该亮着」+「聚焦仍然要有区分」。
+//
+// **不叠悬停流动**。聚焦已经是这张卡「我在工作」的信号,鼠标恰好停在这张卡上是常态
 // (输入区就贴在光标下面),叠上去的结果是这圈描边永远在动,聚焦反而看不出差别了。
 // 同理不加悬停提亮:聚焦时已经有扫光这一层高光,再混 20%(HOVER_BOOST 那一档)提亮只会把扫光洗平。
 // 原型那边也是同一套判断 —— `.prompt.hot`(聚焦)是常态,`.card:hover` 才带 gbFlow。
 // 另外也不加 enterDelay:输入卡是常驻的,不存在「入场」这回事。
-export function PromptCard(props: { focused: boolean; visible?: boolean; children: JSX.Element }) {
+export function PromptCard(props: {
+  focused: boolean
+  visible?: boolean
+  /**
+   * 自动批准开着。此时整圈描边换成警告色(danger:黄→红两段)并**常驻流动**,与焦点无关。
+   *
+   * 为什么不是「聚焦时才警告」:这一圈边框的全部意义是让人一眼看见自动批准还开着
+   * (用户原话:「不太能看出来是不是开启了」「应该亮着」)。而「边框在动」本来是这张卡
+   * 「我正在工作」的信号(见上面那段),两个信号必须**叠加**而不是二选一 ——
+   * 警告色用 `flow`(常驻流动、不带扫光),聚焦继续独占 `animated` 那道扫光。
+   * 关着时这一条整个不生效,表现与从前逐像素一致。
+   */
+  autoApprove?: boolean
+  children: JSX.Element
+}) {
   const { theme } = useTheme()
   const kv = useKV()
+  // animations_enabled 由调用方折进来(而不是在 NeonBox 内部读 KV),关掉→打开能自动恢复。
+  const running = () => props.visible !== false && kv.get("animations_enabled", true)
   return (
     <neonbox
-      gradientStops={semanticStops(theme, "input")}
-      animated={props.focused && props.visible !== false && kv.get("animations_enabled", true)}
+      gradientStops={semanticStops(theme, props.autoApprove ? "danger" : "input")}
+      animated={props.focused && running()}
+      // 常驻流动:相位照走、**不带扫光** —— 扫光是「此刻有人在看它」的信号,归 animated。
+      // 这一档只在自动批准开着时开,用户关掉动画设置时一并停(见 running)。
+      flow={props.autoApprove && running()}
       // 输入卡照抄原型 `.prompt` 的那一档:`linear-gradient(135deg, rgba(79,209,224,.5),
       // rgba(74,158,255,.4))` —— 两端均值 0.45,是原型所有描边里最淡的一档(见 ui/neon 的
       // BORDER_ALPHA_DEFAULT 注释表)。输入卡是唯一一张「先要读正文、再看边框」的卡:
       // 边框抢戏就等于正文被框住,所以它比气泡卡(0.62)还淡一档。
-      borderAlpha={INPUT_CARD_ALPHA}
+      // 自动批准开着时反过来:见 AUTO_APPROVE_ALPHA。
+      borderAlpha={props.autoApprove ? AUTO_APPROVE_ALPHA : INPUT_CARD_ALPHA}
       // 透明卡:叠色底一路往上到 app 根盒子的 theme.background。
       borderBackdrop={theme.background}
       paddingTop={2}

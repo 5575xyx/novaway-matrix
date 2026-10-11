@@ -131,6 +131,11 @@ function topBorder(value: CapturedFrame) {
 
 const WIDTH = 60
 
+/** 把一格描边的 cell("r,g,b",各 0..1)拆成三个数字 —— 断言色相时用。 */
+function channels(cell: string) {
+  return cell.split(",").map((value) => Number(value))
+}
+
 // 卡内三行里第三行的左半段(agent / 模型 meta)。生产里这段是 prompt/index.tsx 传进来的,
 // 这里抄一个等宽短的:布局只关心「有一段可压缩的 meta 在左边」,文案不重要。
 const META = () => (
@@ -157,9 +162,16 @@ const META = () => (
 // 这个 helper **故意不放自动批准开关**:那颗开关会让输入行多出约 12 列,下面 CHIP_CASES
 // 一整组「输入框还剩几列」的算术(卡内宽 − 2 − 1)就全要跟着改,而它们量的是模型芯片那笔账,
 // 与开关无关。开关有自己的用例(见文件末尾)。
-function card(props: { focused: boolean; model?: string; canSend?: boolean; lines?: number; maxHeight?: number }) {
+function card(props: {
+  focused: boolean
+  model?: string
+  canSend?: boolean
+  lines?: number
+  maxHeight?: number
+  autoApprove?: boolean
+}) {
   return () => (
-    <PromptCard focused={props.focused}>
+    <PromptCard focused={props.focused} autoApprove={props.autoApprove}>
       <box width="100%" flexDirection="row" gap={1} flexShrink={0}>
         <box flexShrink={0} width={2} height={1}>
           <text>&gt;</text>
@@ -264,6 +276,60 @@ test("输入卡:失焦时描边静止 —— 两次渲染之间边框颜色不�
     await new Promise((resolve) => setTimeout(resolve, 200))
     await app.renderOnce()
     expect(topBorder(app.captureSpans())).toEqual(before)
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+// 自动批准开着时,整圈描边换成警告色并**常驻流动**,不跟焦点绑 —— 用户原话:「应该亮着」。
+// 这条是三行纪律里的第一行:不聚焦也得在动,否则关掉聚焦之后就看不出它还开着。
+test("输入卡:自动批准开着且失焦时描边仍在流动", async () => {
+  const app = await renderReady(card({ focused: false, autoApprove: true }), { width: WIDTH, height: 10 }, (text) =>
+    text.includes("L0"),
+  )
+  try {
+    const before = topBorder(app.captureSpans())
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    await app.renderOnce()
+    const after = topBorder(app.captureSpans())
+    expect(after.map((item) => item.ch)).toEqual(before.map((item) => item.ch))
+    expect(after.map((item) => item.cell)).not.toEqual(before.map((item) => item.cell))
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+// 颜色那一行:警告色是黄→红(theme.warning → theme.error),两端的蓝通道都最低;
+// 而关态的霓虹三端是青→蓝(#00e5ff → #4d7cff → #ff2d7b),蓝通道都最高。
+// 用「蓝是否低于红」这条手算出来的判据,而不是去比对 theme.warning 的具体值 ——
+// 比具体值等于把主题 token 抄一份进测试,换主题就得跟着改。
+test("输入卡:自动批准开着时描边是警告色,蓝通道低于红(关态是青蓝,蓝最高)", async () => {
+  const app = await renderReady(card({ focused: false, autoApprove: true }), { width: WIDTH, height: 10 }, (text) =>
+    text.includes("L0"),
+  )
+  try {
+    const on = topBorder(app.captureSpans())
+    expect(on.length, `帧里没有上边框`).toBeGreaterThan(0)
+    for (const item of on) {
+      const [r, , b] = channels(item.cell)
+      expect(b!, `${item.ch} 格是 ${item.cell}`).toBeLessThan(r!)
+    }
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+// 反面:关掉之后必须回到原来的青蓝(蓝通道最高),不能留下警告色。
+// 少了这条,「开→关」时颜色忘了切回去不会被任何一条打红。
+test("输入卡:自动批准关着时描边是原来的青蓝,蓝通道高于红", async () => {
+  const app = await renderReady(card({ focused: false }), { width: WIDTH, height: 10 }, (text) => text.includes("L0"))
+  try {
+    const off = topBorder(app.captureSpans())
+    expect(off.length).toBeGreaterThan(0)
+    for (const item of off) {
+      const [r, , b] = channels(item.cell)
+      expect(b!, `${item.ch} 格是 ${item.cell}`).toBeGreaterThan(r!)
+    }
   } finally {
     app.renderer.destroy()
   }

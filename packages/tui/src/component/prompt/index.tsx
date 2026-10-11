@@ -1504,7 +1504,13 @@ export function Prompt(props: PromptProps) {
             底部行右端、agent/meta 搬到底部行左端。原样画回原型那版就会被再次报成
             「字挤在一起」,所以别「修」回去。
             按钮文案用 `发送 <键>` 而不是原型的 `发送 ⏎`,理由见 card.tsx 的 PromptSend。 */}
-        <PromptCard focused={promptFocused()} visible={props.visible !== false}>
+        <PromptCard
+          focused={promptFocused()}
+          visible={props.visible !== false}
+          // 自动批准开着时整圈描边换警告色 + 常驻流动(见 card.tsx 的 PromptCard.autoApprove)。
+          // 与上面那颗开关读的是同一个 local.permission.mode,两者不会不同步。
+          autoApprove={local.permission.mode === "auto"}
+        >
           {/* 卡内第一行:">" + 输入框 + 右端的自动批准开关。**meta 不上这一行** ——
               混进来就是上一版的「挤成一团」(用户原话:「字不要挤到一起」);开关是用户
               指名要放这儿的固定 12 列,不是当年那个能吃到 40+ 列的模型芯片。 */}
