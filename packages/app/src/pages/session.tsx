@@ -336,6 +336,15 @@ export default function Page() {
     () => isDesktop() && view().reviewPanel.opened() && (activeFileTab() !== undefined || activeTab() === "context"),
   )
   const desktopFileTreeOpen = createMemo(() => isDesktop() && layout.fileTree.opened())
+  const sidePaneShowsFiles = createMemo(
+    () => isDesktop() && layout.sidePane.opened() && layout.sidePane.tab() === "files",
+  )
+  const sidePaneShowsReview = createMemo(
+    () => isDesktop() && layout.sidePane.opened() && layout.sidePane.tab() === "review",
+  )
+  const paneShowsTerminal = createMemo(
+    () => isDesktop() && layout.sidePane.opened() && layout.sidePane.tab() === "terminal",
+  )
   const officeReservedWidth = createMemo(() => 0)
   const centered = createMemo(() => isDesktop() && !desktopReviewOpen())
   const revertMessageID = createMemo(() => info()?.revert?.messageID)
@@ -506,7 +515,10 @@ export default function Page() {
   const mobileChanges = createMemo(() => !isDesktop() && store.mobileTab === "changes")
   const wantsReview = createMemo(() =>
     isDesktop()
-      ? desktopFileTreeOpen() || (desktopReviewOpen() && activeTab() === "review")
+      ? sidePaneShowsFiles() ||
+        sidePaneShowsReview() ||
+        desktopFileTreeOpen() ||
+        (desktopReviewOpen() && activeTab() === "review")
       : store.mobileTab === "changes",
   )
   const vcsMode = createMemo<VcsMode | undefined>(() => {
@@ -885,7 +897,7 @@ export default function Page() {
     }
 
     // Prefer the open terminal over the composer when it can take focus
-    if (view().terminal.opened() || (layout.sidePane.opened() && layout.sidePane.tab() === "terminal")) {
+    if (view().terminal.opened() || paneShowsTerminal()) {
       const id = terminal.active()
       if (id && shouldFocusTerminalOnKeyDown(event) && focusTerminalById(id)) return
     }
@@ -964,7 +976,10 @@ export default function Page() {
   const openReviewFile = createOpenReviewFile({
     showAllFiles,
     tabForPath: file.tab,
-    openTab: tabs().open,
+    openTab: (tab) => {
+      void tabs().open(tab)
+      layout.sidePane.setTab("preview")
+    },
     setActive: tabs().setActive,
     loadFile: file.load,
   })
@@ -1220,7 +1235,7 @@ export default function Page() {
   createEffect(() => {
     const dir = sdk.directory
     if (!isDesktop()) return
-    if (!layout.fileTree.opened()) return
+    if (!layout.fileTree.opened() && !sidePaneShowsFiles()) return
     if (sync.status === "loading") return
 
     fileTreeTab()
@@ -1970,7 +1985,7 @@ export default function Page() {
             </Show>
           </div>
 
-          <Show when={layout.sidePane.tab() !== "terminal"}>
+          <Show when={!paneShowsTerminal()}>
             <TerminalPanel />
           </Show>
           <Show when={platform.platform !== "desktop"}>
@@ -2012,7 +2027,7 @@ export default function Page() {
           </Show>
         </div>
 
-        <Show when={layout.sidePane.tab() !== "terminal"}>
+        <Show when={!paneShowsTerminal()}>
           <TerminalPanel />
         </Show>
         <Show when={platform.platform !== "desktop"}>

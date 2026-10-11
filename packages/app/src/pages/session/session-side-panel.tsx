@@ -207,7 +207,12 @@ export function SessionSidePanel(props: {
   ]
 
   return (
-    <>
+    <aside
+      id="side-pane"
+      aria-label={language.t("session.panel.reviewAndFiles")}
+      class="relative shrink-0 h-full flex flex-col bg-background-base border-l border-border-weak-base"
+      style={{ width: `${width()}px` }}
+    >
       <ResizeHandle
         direction="horizontal"
         edge="start"
@@ -216,171 +221,162 @@ export function SessionSidePanel(props: {
         max={typeof window === "undefined" ? 1000 : window.innerWidth * 0.6}
         onResize={(next) => layout.sidePane.resize(next)}
       />
-      <aside
-        id="side-pane"
-        aria-label={language.t("session.panel.reviewAndFiles")}
-        class="shrink-0 h-full flex flex-col bg-background-base border-l border-border-weak-base"
-        style={{ width: `${width()}px` }}
-      >
-        <div class="flex items-center gap-0.5 h-9 px-1.5 border-b border-border-weak-base shrink-0">
-          <For each={tabsList}>
-            {(item) => (
-              <button
-                classList={{
-                  "flex items-center gap-1 px-2 h-7 rounded-md text-ui-xs transition-colors": true,
-                  "bg-surface-raised-base text-text-strong": tab() === item.id,
-                  "text-text-weak hover:text-text-base": tab() !== item.id,
-                }}
-                onClick={() => layout.sidePane.setTab(item.id)}
-              >
-                <Icon name={item.icon} size="small" />
-                {language.t(item.labelKey)}
-              </button>
-            )}
-          </For>
-        </div>
-        <div class="flex-1 min-h-0 overflow-hidden">
-          <Show when={tab() === "preview"}>
-            <Show when={activeFileTab()} keyed fallback={<PreviewPanel />}>
-              {(t) => (
-                <div class="flex flex-col size-full min-h-0">
-                  <DragDropProvider
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
-                    onDragOver={handleDragOver}
-                    collisionDetector={closestCenter}
-                  >
-                    <DragDropSensors />
-                    <ConstrainDragYAxis />
-                    <div class="flex items-center gap-0.5 px-1.5 h-8 border-b border-border-weak-base shrink-0 overflow-x-auto no-scrollbar">
-                      <SortableProvider ids={openedTabs()}>
-                        <For each={openedTabs()}>
-                          {(fileTab) => <SortableTab tab={fileTab} onTabClose={tabs().close} />}
-                        </For>
-                      </SortableProvider>
-                      <div class="bg-background-strong h-full shrink-0 sticky right-0 z-10 flex items-center justify-center pr-3">
-                        <TooltipKeybind
-                          title={language.t("command.file.open")}
-                          keybind={command.keybind("file.open")}
-                          class="flex items-center"
-                        >
-                          <IconButton
-                            icon="plus-small"
-                            variant="ghost"
-                            iconSize="large"
-                            class="!rounded-md"
-                            onClick={() => {
-                              void import("@/components/dialog-select-file").then((x) => {
-                                dialog.show(() => <x.DialogSelectFile mode="files" onOpenFile={showAllFiles} />)
-                              })
-                            }}
-                            aria-label={language.t("command.file.open")}
-                          />
-                        </TooltipKeybind>
-                      </div>
-                    </div>
-                    <div class="flex-1 min-h-0 overflow-hidden">
-                      <FileTabContent tab={t} />
-                    </div>
-                    <DragOverlay>
-                      <Show when={store.activeDraggable} keyed>
-                        {(tabId) => {
-                          const path = file.pathFromTab(tabId)
-                          return (
-                            <div data-component="tabs-drag-preview">
-                              <Show when={path}>{(p) => <FileVisual active path={p()} />}</Show>
-                            </div>
-                          )
-                        }}
-                      </Show>
-                    </DragOverlay>
-                  </DragDropProvider>
-                </div>
-              )}
-            </Show>
-          </Show>
-          <Show when={tab() === "terminal"}>
-            <TerminalPanel variant="pane" />
-          </Show>
-          <Show when={tab() === "files"}>
-            <div class="h-full flex flex-col overflow-hidden group/filetree">
-              <Tabs
-                variant="pill"
-                value={fileTreeTab()}
-                onChange={setFileTreeTabValue}
-                class="h-full"
-                data-scope="filetree"
-              >
-                <Tabs.List>
-                  <Tabs.Trigger value="all" class="flex-1" classes={{ button: "w-full" }}>
-                    {language.t("session.files.all")}
-                  </Tabs.Trigger>
-                  <Tabs.Trigger value="review" class="flex-1" classes={{ button: "w-full" }}>
-                    {language.t("session.tab.review")}
-                  </Tabs.Trigger>
-                  <Tabs.Trigger value="changes" class="flex-1" classes={{ button: "w-full" }}>
-                    {props.reviewCount()}{" "}
-                    {language.t(
-                      props.reviewCount() === 1 ? "session.review.change.one" : "session.review.change.other",
-                    )}
-                  </Tabs.Trigger>
-                </Tabs.List>
-                <Tabs.Content value="changes" class="bg-background-stronger px-3 py-0">
-                  <Switch>
-                    <Match when={props.hasReview() || !props.diffsReady()}>
-                      <Show
-                        when={props.diffsReady()}
-                        fallback={
-                          <div class="px-2 py-2 text-12-regular text-text-weak">
-                            {language.t("common.loading")}
-                            {language.t("common.loading.ellipsis")}
-                          </div>
-                        }
+      <div class="flex items-center gap-0.5 h-9 px-1.5 border-b border-border-weak-base shrink-0">
+        <For each={tabsList}>
+          {(item) => (
+            <button
+              classList={{
+                "flex items-center gap-1 px-2 h-7 rounded-md text-ui-xs transition-colors": true,
+                "bg-surface-raised-base text-text-strong": tab() === item.id,
+                "text-text-weak hover:text-text-base": tab() !== item.id,
+              }}
+              onClick={() => layout.sidePane.setTab(item.id)}
+            >
+              <Icon name={item.icon} size="small" />
+              {language.t(item.labelKey)}
+            </button>
+          )}
+        </For>
+      </div>
+      <div class="flex-1 min-h-0 overflow-hidden">
+        <Show when={tab() === "preview"}>
+          <Show when={activeFileTab()} keyed fallback={<PreviewPanel />}>
+            {(t) => (
+              <div class="flex flex-col size-full min-h-0">
+                <DragDropProvider
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={handleDragOver}
+                  collisionDetector={closestCenter}
+                >
+                  <DragDropSensors />
+                  <ConstrainDragYAxis />
+                  <div class="flex items-center gap-0.5 px-1.5 h-8 border-b border-border-weak-base shrink-0 overflow-x-auto no-scrollbar">
+                    <SortableProvider ids={openedTabs()}>
+                      <For each={openedTabs()}>
+                        {(fileTab) => <SortableTab tab={fileTab} onTabClose={tabs().close} />}
+                      </For>
+                    </SortableProvider>
+                    <div class="bg-background-strong h-full shrink-0 sticky right-0 z-10 flex items-center justify-center pr-3">
+                      <TooltipKeybind
+                        title={language.t("command.file.open")}
+                        keybind={command.keybind("file.open")}
+                        class="flex items-center"
                       >
-                        <FileTree
-                          path=""
-                          class="pt-3"
-                          allowed={diffFiles()}
-                          kinds={kinds()}
-                          draggable={false}
-                          active={props.activeDiff}
-                          onFileClick={(node) => props.focusReviewDiff(node.path)}
+                        <IconButton
+                          icon="plus-small"
+                          variant="ghost"
+                          iconSize="large"
+                          class="!rounded-md"
+                          onClick={() => {
+                            void import("@/components/dialog-select-file").then((x) => {
+                              dialog.show(() => <x.DialogSelectFile mode="files" onOpenFile={showAllFiles} />)
+                            })
+                          }}
+                          aria-label={language.t("command.file.open")}
                         />
-                      </Show>
-                    </Match>
-                  </Switch>
-                </Tabs.Content>
-                <Tabs.Content value="all" class="bg-background-stronger px-3 py-0">
-                  <Switch>
-                    <Match when={nofiles()}>{empty(language.t("session.files.empty"))}</Match>
-                    <Match when={true}>
+                      </TooltipKeybind>
+                    </div>
+                  </div>
+                  <div class="flex-1 min-h-0 overflow-hidden">
+                    <FileTabContent tab={t} />
+                  </div>
+                  <DragOverlay>
+                    <Show when={store.activeDraggable} keyed>
+                      {(tabId) => {
+                        const path = file.pathFromTab(tabId)
+                        return (
+                          <div data-component="tabs-drag-preview">
+                            <Show when={path}>{(p) => <FileVisual active path={p()} />}</Show>
+                          </div>
+                        )
+                      }}
+                    </Show>
+                  </DragOverlay>
+                </DragDropProvider>
+              </div>
+            )}
+          </Show>
+        </Show>
+        <Show when={tab() === "terminal"}>
+          <TerminalPanel variant="pane" />
+        </Show>
+        <Show when={tab() === "files"}>
+          <div class="h-full flex flex-col overflow-hidden group/filetree">
+            <Tabs
+              variant="pill"
+              value={fileTreeTab()}
+              onChange={setFileTreeTabValue}
+              class="h-full"
+              data-scope="filetree"
+            >
+              <Tabs.List>
+                <Tabs.Trigger value="all" class="flex-1" classes={{ button: "w-full" }}>
+                  {language.t("session.files.all")}
+                </Tabs.Trigger>
+                <Tabs.Trigger value="review" class="flex-1" classes={{ button: "w-full" }}>
+                  {language.t("session.tab.review")}
+                </Tabs.Trigger>
+                <Tabs.Trigger value="changes" class="flex-1" classes={{ button: "w-full" }}>
+                  {props.reviewCount()}{" "}
+                  {language.t(props.reviewCount() === 1 ? "session.review.change.one" : "session.review.change.other")}
+                </Tabs.Trigger>
+              </Tabs.List>
+              <Tabs.Content value="changes" class="bg-background-stronger px-3 py-0">
+                <Switch>
+                  <Match when={props.hasReview() || !props.diffsReady()}>
+                    <Show
+                      when={props.diffsReady()}
+                      fallback={
+                        <div class="px-2 py-2 text-12-regular text-text-weak">
+                          {language.t("common.loading")}
+                          {language.t("common.loading.ellipsis")}
+                        </div>
+                      }
+                    >
                       <FileTree
                         path=""
                         class="pt-3"
-                        modified={diffFiles()}
+                        allowed={diffFiles()}
                         kinds={kinds()}
-                        onFileClick={(node) => openTab(file.tab(node.path))}
+                        draggable={false}
+                        active={props.activeDiff}
+                        onFileClick={(node) => props.focusReviewDiff(node.path)}
                       />
-                    </Match>
-                  </Switch>
-                </Tabs.Content>
-                <Tabs.Content value="review" class="bg-background-stronger p-0">
-                  <Show when={props.canReview()} fallback={empty(language.t("session.review.noChanges"))}>
-                    {props.reviewPanel()}
-                  </Show>
-                </Tabs.Content>
-              </Tabs>
-            </div>
-          </Show>
-          <Show when={tab() === "git"}>
-            <GitPanel />
-          </Show>
-          <Show when={tab() === "review"}>{props.reviewPanel()}</Show>
-          <Show when={tab() === "context"}>
-            <SessionContextTab />
-          </Show>
-        </div>
-      </aside>
-    </>
+                    </Show>
+                  </Match>
+                </Switch>
+              </Tabs.Content>
+              <Tabs.Content value="all" class="bg-background-stronger px-3 py-0">
+                <Switch>
+                  <Match when={nofiles()}>{empty(language.t("session.files.empty"))}</Match>
+                  <Match when={true}>
+                    <FileTree
+                      path=""
+                      class="pt-3"
+                      modified={diffFiles()}
+                      kinds={kinds()}
+                      onFileClick={(node) => openTab(file.tab(node.path))}
+                    />
+                  </Match>
+                </Switch>
+              </Tabs.Content>
+              <Tabs.Content value="review" class="bg-background-stronger p-0">
+                <Show when={props.canReview()} fallback={empty(language.t("session.review.noChanges"))}>
+                  {props.reviewPanel()}
+                </Show>
+              </Tabs.Content>
+            </Tabs>
+          </div>
+        </Show>
+        <Show when={tab() === "git"}>
+          <GitPanel />
+        </Show>
+        <Show when={tab() === "review"}>{props.reviewPanel()}</Show>
+        <Show when={tab() === "context"}>
+          <SessionContextTab />
+        </Show>
+      </div>
+    </aside>
   )
 }

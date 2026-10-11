@@ -252,12 +252,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   }
 
   const toggleReview = () => {
-    if (layout.fileTree.opened() && layout.fileTree.tab() === "review") {
-      layout.fileTree.close()
-      return
-    }
-    layout.fileTree.open()
-    layout.fileTree.setTab("review")
+    layout.sidePane.toggle("review")
   }
 
   const chooseModel = () => {
@@ -482,7 +477,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
             id: "fileTree.toggle",
             title: language.t("command.fileTree.toggle"),
             keybind: "mod+\\",
-            onSelect: () => layout.fileTree.toggle(),
+            onSelect: () => layout.sidePane.toggle("files"),
           }),
         ]
       : []),
@@ -490,7 +485,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       id: "git.toggle",
       title: language.t("command.git.toggle"),
       keybind: "mod+shift+g",
-      onSelect: () => layout.git.toggle(),
+      onSelect: () => layout.sidePane.toggle("git"),
     }),
     viewCommand({
       id: "taskList.toggle",
