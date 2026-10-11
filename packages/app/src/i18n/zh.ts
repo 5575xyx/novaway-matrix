@@ -28,6 +28,9 @@ export const dict = {
 
   "command.sidebar.toggle": "切换侧边栏",
 
+  "mode.switch.ariaLabel": "切换工作模式",
+  "mode.select.placeholder": "选择模式",
+
   "command.project.open": "打开项目",
   "command.project.create": "新建项目",
   "command.project.create.dialog.title": "新建项目",

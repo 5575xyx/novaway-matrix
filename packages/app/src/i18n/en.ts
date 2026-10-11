@@ -23,6 +23,9 @@ export const dict = {
   "theme.scheme.dark": "Dark",
 
   "command.sidebar.toggle": "Toggle sidebar",
+
+  "mode.switch.ariaLabel": "Switch work mode",
+  "mode.select.placeholder": "Select mode",
   "command.project.open": "Open project",
   "command.project.create": "New project",
   "command.project.create.dialog.title": "New project",

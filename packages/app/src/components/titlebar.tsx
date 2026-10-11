@@ -3,6 +3,7 @@ import { createStore } from "solid-js/store"
 import { useLocation, useNavigate } from "@solidjs/router"
 import { IconButton } from "@novaway/ui/icon-button"
 import { Icon } from "@novaway/ui/icon"
+import { Mark } from "@novaway/ui/logo"
 import { Button } from "@novaway/ui/button"
 import { Tooltip, TooltipKeybind } from "@novaway/ui/tooltip"
 import { useTheme } from "@novaway/ui/theme/context"
@@ -101,7 +102,6 @@ export function Titlebar(props: { settingsOpen?: boolean; databaseOpen?: boolean
   }
 
   const goModeHome = () => {
-    layout.mode.reset()
     navigate("/")
   }
 
@@ -250,6 +250,7 @@ export function Titlebar(props: { settingsOpen?: boolean; databaseOpen?: boolean
                 </Tooltip>
               </div>
             </Show>
+            <Mark class="size-6 shrink-0" />
             <Tooltip placement="bottom" value="模式首页">
               <Button
                 variant="ghost"
@@ -296,16 +297,9 @@ export function Titlebar(props: { settingsOpen?: boolean; databaseOpen?: boolean
         </div>
 
         <div class="min-w-0 flex items-center justify-center pointer-events-none">
-          <Show when={layout.mode.hasSelected()}>
-            <div class="pointer-events-auto min-w-0 flex justify-center w-fit max-w-full">
-              <ModeSwitchButton
-                current={layout.mode.current()}
-                modes={layout.mode.all}
-                expanded
-                onSelect={(mode) => layout.mode.select(mode)}
-              />
-            </div>
-          </Show>
+          <div class="pointer-events-auto min-w-0 flex justify-center w-fit max-w-full">
+            <ModeSwitchButton onSelect={(mode) => layout.mode.select(mode.id)} />
+          </div>
         </div>
 
         <div
