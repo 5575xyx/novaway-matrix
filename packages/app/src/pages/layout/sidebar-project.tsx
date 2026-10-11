@@ -25,6 +25,12 @@ export type ProjectSidebarContext = {
   workspaceLabel: (directory: string, branch?: string, projectId?: string) => string
   workspaceExpanded: (directory: string, local: boolean) => boolean
   setWorkspaceExpanded: (directory: string, value: boolean) => void
+  isBusy: (directory: string) => boolean
+  createWorkspace: (project: LocalProject) => void
+  openWorkspace: (directory: string) => void
+  showRenameWorkspaceDialog: (directory: string, projectId?: string) => void
+  showResetWorkspaceDialog: (root: string, directory: string) => void
+  showDeleteWorkspaceDialog: (root: string, directory: string) => void
 }
 
 export const ProjectDragOverlay = (props: {
@@ -225,6 +231,56 @@ export const SortableProject = (props: {
                   : language.t("sidebar.workspaces.enable")}
               </ContextMenu.ItemLabel>
             </ContextMenu.Item>
+            <Show when={props.ctx.workspacesEnabled(props.project)}>
+              <ContextMenu.Item onSelect={() => props.ctx.createWorkspace(props.project)}>
+                <ContextMenu.ItemLabel>{language.t("workspace.new")}</ContextMenu.ItemLabel>
+              </ContextMenu.Item>
+              <For each={props.ctx.workspaceIds(props.project)}>
+                {(directory) => {
+                  const [child] = globalSync.child(directory, { bootstrap: false })
+                  const local = () => directory === props.project.worktree
+                  const busy = () => props.ctx.isBusy(directory)
+                  return (
+                    <ContextMenu.Sub>
+                      <ContextMenu.SubTrigger>
+                        <span>
+                          {local() ? language.t("workspace.type.local") : language.t("workspace.type.sandbox")} :{" "}
+                          {props.ctx.workspaceLabel(directory, child.vcs?.branch, props.project.id)}
+                        </span>
+                      </ContextMenu.SubTrigger>
+                      <ContextMenu.Portal>
+                        <ContextMenu.SubContent>
+                          <ContextMenu.Item onSelect={() => props.ctx.openWorkspace(directory)}>
+                            <ContextMenu.ItemLabel>{language.t("common.open")}</ContextMenu.ItemLabel>
+                          </ContextMenu.Item>
+                          <ContextMenu.Item onSelect={() => props.ctx.navigateToNewSession(directory)}>
+                            <ContextMenu.ItemLabel>{language.t("command.session.new")}</ContextMenu.ItemLabel>
+                          </ContextMenu.Item>
+                          <ContextMenu.Item
+                            disabled={local()}
+                            onSelect={() => props.ctx.showRenameWorkspaceDialog(directory, props.project.id)}
+                          >
+                            <ContextMenu.ItemLabel>{language.t("common.rename")}</ContextMenu.ItemLabel>
+                          </ContextMenu.Item>
+                          <ContextMenu.Item
+                            disabled={local() || busy()}
+                            onSelect={() => props.ctx.showResetWorkspaceDialog(props.project.worktree, directory)}
+                          >
+                            <ContextMenu.ItemLabel>{language.t("common.reset")}</ContextMenu.ItemLabel>
+                          </ContextMenu.Item>
+                          <ContextMenu.Item
+                            disabled={local() || busy()}
+                            onSelect={() => props.ctx.showDeleteWorkspaceDialog(props.project.worktree, directory)}
+                          >
+                            <ContextMenu.ItemLabel>{language.t("common.delete")}</ContextMenu.ItemLabel>
+                          </ContextMenu.Item>
+                        </ContextMenu.SubContent>
+                      </ContextMenu.Portal>
+                    </ContextMenu.Sub>
+                  )
+                }}
+              </For>
+            </Show>
             <ContextMenu.Item
               data-action="project-clear-notifications"
               data-project={base64Encode(props.project.worktree)}
