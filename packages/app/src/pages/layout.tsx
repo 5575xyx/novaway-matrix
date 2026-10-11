@@ -260,7 +260,7 @@ export default function Layout(props: ParentProps) {
       }),
     )
   }
-  const isBusy = (directory: string) => !!state.busyWorkspaces[pathKey(directory)]
+  const isBusy = (directory: string) => state.busyWorkspaces[pathKey(directory)]
   const sortNow = () => state.sortNow
   let sizet: number | undefined
   let sortNowInterval: ReturnType<typeof setInterval> | undefined
@@ -1321,7 +1321,7 @@ export default function Layout(props: ParentProps) {
     const run = ++dialogRun
     void import("@/components/dialog-select-provider").then((x) => {
       if (dialogDead || dialogRun !== run) return
-      dialog.show(() => <x.DialogSelectProvider />)
+      void dialog.show(() => <x.DialogSelectProvider />)
     })
   }
 
@@ -1329,7 +1329,7 @@ export default function Layout(props: ParentProps) {
     const run = ++dialogRun
     void import("@/components/dialog-select-server").then((x) => {
       if (dialogDead || dialogRun !== run) return
-      dialog.show(() => <x.DialogSelectServer />)
+      void dialog.show(() => <x.DialogSelectServer />)
     })
   }
 
@@ -1583,7 +1583,7 @@ export default function Layout(props: ParentProps) {
     const run = ++dialogRun
     void import("@/components/dialog-edit-project").then((x) => {
       if (dialogDead || dialogRun !== run) return
-      dialog.show(() => <x.DialogEditProject project={project} />)
+      void dialog.show(() => <x.DialogEditProject project={project} />)
     })
   }
 
@@ -1609,7 +1609,7 @@ export default function Layout(props: ParentProps) {
       const run = ++dialogRun
       void import("@/components/dialog-select-directory").then((x) => {
         if (dialogDead || dialogRun !== run) return
-        dialog.show(
+        void dialog.show(
           () => <x.DialogSelectDirectory multiple={true} onSelect={resolve} />,
           () => resolve(null),
         )
@@ -1621,11 +1621,11 @@ export default function Layout(props: ParentProps) {
     const run = ++dialogRun
     void import("@/components/dialog-create-project").then((x) => {
       if (dialogDead || dialogRun !== run) return
-      dialog.show(
+      void dialog.show(
         () => (
           <x.DialogCreateProject
             onCreate={(path) => {
-              openProject(path)
+              void openProject(path)
             }}
           />
         ),
@@ -2373,9 +2373,8 @@ export default function Layout(props: ParentProps) {
   }
 
   const projects = () => layout.projects.list()
-  const modeSelected = createMemo(() => layout.mode.hasSelected())
   const isPulseMode = createMemo(() => layout.mode.current() === "pulse")
-  const showSidebar = createMemo(() => modeSelected() && !isPulseMode())
+  const showSidebar = createMemo(() => !isPulseMode())
   const sidebarContent = (mobile?: boolean) => (
     <SidebarContent
       mobile={mobile}
