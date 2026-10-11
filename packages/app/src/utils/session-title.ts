@@ -5,3 +5,5 @@ export function sessionTitle(title?: string) {
   const match = title.match(pattern)
   return match?.[1] ?? title
 }
+
+export const isDefaultSessionTitle = (title?: string) => !!title && pattern.test(title)

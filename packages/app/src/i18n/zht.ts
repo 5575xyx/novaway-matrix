@@ -607,6 +607,7 @@ export const dict = {
   "sidebar.project.recentSessions": "最近工作階段",
   "sidebar.project.viewAllSessions": "查看全部工作階段",
   "sidebar.project.clearNotifications": "清除通知",
+  "taskCenter.waiting": "待確認",
 
   "app.name.desktop": "NovaWay Desktop",
   "settings.section.desktop": "桌面",
@@ -843,6 +844,11 @@ export const dict = {
   "common.time.minutesAgo.short": "{{count}}分鐘前",
   "common.time.hoursAgo.short": "{{count}}小時前",
   "common.time.daysAgo.short": "{{count}}天前",
+  "time.now": "剛剛",
+  "time.minute": "{{count}} 分鐘前",
+  "time.hour": "{{count}} 小時前",
+  "time.day": "{{count}} 天前",
+  "time.week": "{{count}} 週前",
   "settings.providers.connected.environmentDescription": "已從環境變數連線",
   "settings.providers.custom.description": "透過基本 URL 新增與 OpenAI 相容的提供者。",
 
