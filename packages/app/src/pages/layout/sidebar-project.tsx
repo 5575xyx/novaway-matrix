@@ -1,9 +1,7 @@
 import { createMemo, For, Show, type Accessor, type JSX } from "solid-js"
 import { base64Encode } from "@novaway/core/util/encode"
-import { getFilename } from "@novaway/core/util/path"
-import { ContextMenu } from "@novaway/ui/context-menu"
-import { Icon } from "@novaway/ui/icon"
-import { createSortable } from "@thisbeyond/solid-dnd"
+import { DropdownMenu } from "@novaway/ui/dropdown-menu"
+import { IconButton } from "@novaway/ui/icon-button"
 import { useLayout, type AppMode, type LocalProject } from "@/context/layout"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
@@ -49,112 +47,15 @@ export const ProjectDragOverlay = (props: {
   )
 }
 
-const ProjectCard = (props: {
-  project: LocalProject
-  mobile?: boolean
-  selected: Accessor<boolean>
-  isWorking: Accessor<boolean>
-  expanded: Accessor<boolean>
-  onToggleExpand: () => void
-  onCreateTask: () => void
-  navigateToProject: (directory: string) => void
-  showEditProjectDialog: (project: LocalProject) => void
-  closeProject: (directory: string) => void
-  moveProjectToMode: (directory: string, mode: AppMode) => void
-  workspacesEnabled: (project: LocalProject) => boolean
-  toggleProjectWorkspaces: (project: LocalProject) => void
-  language: ReturnType<typeof useLanguage>
-  index?: number
-  sessionCount?: number
-  anyWorking?: boolean
-}): JSX.Element => {
-  const name = createMemo(() => props.project.name || getFilename(props.project.worktree))
-  const path = createMemo(() => props.project.worktree)
-
-  return (
-    <div
-      classList={{
-        "flex flex-col p-2 rounded-lg border-solid cursor-pointer transition-colors bg-transparent hover:bg-surface-raised-base-hover": true,
-        "border-2 border-border-interactive-base": props.selected(),
-        "border border-border-weak-base": !props.selected(),
-      }}
-      onClick={() => props.navigateToProject(props.project.worktree)}
-    >
-      <div class="flex items-center gap-2">
-        <Show when={props.index !== undefined}>
-          <span class="shrink-0 text-12-regular text-text-weak w-4 text-right">{(props.index ?? 0) + 1}.</span>
-        </Show>
-        <div class="shrink-0 size-6 flex items-center justify-center relative">
-          <Icon name="folder" size="small" class="text-icon-base" />
-          <Show when={props.anyWorking}>
-            <div class="absolute -top-0.5 -right-0.5 size-2 flex items-center justify-center">
-              <div class="absolute inset-0 rounded-full border-[1px] border-text-interactive-base animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite] opacity-75" />
-              <div class="size-1 rounded-full bg-text-interactive-base" />
-            </div>
-          </Show>
-        </div>
-        <span class="text-14-medium text-text-strong min-w-0 flex-1 truncate">{name()}</span>
-        <button
-          type="button"
-          class="shrink-0 size-6 flex items-center justify-center rounded-md hover:bg-surface-base-active transition-colors"
-          onClick={(e) => {
-            e.stopPropagation()
-            props.onCreateTask()
-          }}
-          aria-label="新建任务"
-        >
-          <Icon name="plus" size="small" class="text-icon-base" />
-        </button>
-        <button
-          type="button"
-          class="shrink-0 size-6 flex items-center justify-center rounded-md hover:bg-surface-base-active transition-colors"
-          onClick={(e) => {
-            e.stopPropagation()
-            props.onToggleExpand()
-          }}
-          aria-label={props.expanded() ? "折叠" : "展开"}
-        >
-          <Icon name={props.expanded() ? "chevron-down" : "chevron-right"} size="small" class="text-icon-base" />
-        </button>
-      </div>
-      <span class="text-12-regular text-text-weak pl-8 truncate">{path()}</span>
-      <Show when={props.sessionCount !== undefined && (props.sessionCount ?? 0) > 0}>
-        <span class="text-11-regular text-text-weak pl-8">任务数：{props.sessionCount}</span>
-      </Show>
-    </div>
-  )
-}
-
-export const SortableProject = (props: {
-  project: LocalProject
-  mobile?: boolean
-  ctx: ProjectSidebarContext
-  sortNow: Accessor<number>
-  index?: number
-  expanded: Accessor<boolean>
-  onToggleExpand: () => void
-}): JSX.Element => {
+export function ProjectMenu(props: { project: LocalProject; ctx: ProjectSidebarContext }): JSX.Element {
   const globalSync = useGlobalSync()
-  const language = useLanguage()
   const layout = useLayout()
+  const language = useLanguage()
   const notification = useNotification()
-  const sortable = createSortable(props.project.worktree)
-  const selected = createMemo(() => props.ctx.currentProject()?.worktree === props.project.worktree)
-  const dirs = createMemo(() => props.ctx.workspaceIds(props.project))
+  const project = props.project
+  const ctx = props.ctx
 
-  const sessionCount = createMemo(() =>
-    dirs().reduce((total, directory) => {
-      const [store] = globalSync.child(directory, { bootstrap: false })
-      return total + (store.session?.length ?? 0)
-    }, 0),
-  )
-
-  const isWorking = createMemo(() =>
-    dirs().some((directory) => {
-      const [store] = globalSync.child(directory, { bootstrap: false })
-      return Object.keys(store.session_status).some((id) => store.session_working(id))
-    }),
-  )
+  const dirs = () => ctx.workspaceIds(project)
 
   const unseenCount = createMemo(() =>
     dirs().reduce((total, directory) => total + notification.project.unseenCount(directory), 0),
@@ -165,141 +66,124 @@ export const SortableProject = (props: {
       .filter((directory) => notification.project.unseenCount(directory) > 0)
       .forEach((directory) => notification.project.markViewed(directory))
 
+  const isLocalWorkspace = (directory: string) => directory === project.worktree
+
   return (
-    // @ts-ignore
-    <div use:sortable classList={{ "opacity-30": sortable.isActiveDraggable }}>
-      <ContextMenu modal={false}>
-        <ContextMenu.Trigger
-          as="div"
-          aria-label={props.project.name || getFilename(props.project.worktree)}
-          data-action="project-switch"
-          data-project={base64Encode(props.project.worktree)}
-        >
-          <ProjectCard
-            project={props.project}
-            mobile={props.mobile}
-            selected={selected}
-            isWorking={isWorking}
-            expanded={props.expanded}
-            onToggleExpand={props.onToggleExpand}
-            onCreateTask={() => props.ctx.navigateToNewSession(props.project.worktree)}
-            navigateToProject={props.ctx.navigateToProject}
-            showEditProjectDialog={props.ctx.showEditProjectDialog}
-            closeProject={props.ctx.closeProject}
-            moveProjectToMode={props.ctx.moveProjectToMode}
-            workspacesEnabled={props.ctx.workspacesEnabled}
-            toggleProjectWorkspaces={props.ctx.toggleProjectWorkspaces}
-            language={language}
-            index={props.index}
-            sessionCount={sessionCount()}
-            anyWorking={isWorking()}
-          />
-        </ContextMenu.Trigger>
-        <ContextMenu.Portal>
-          <ContextMenu.Content>
-            <ContextMenu.Item onSelect={() => props.ctx.showEditProjectDialog(props.project)}>
-              <ContextMenu.ItemLabel>{language.t("common.edit")}</ContextMenu.ItemLabel>
-            </ContextMenu.Item>
-            <ContextMenu.Sub>
-              <ContextMenu.SubTrigger>
-                <span>移动到模式</span>
-              </ContextMenu.SubTrigger>
-              <ContextMenu.Portal>
-                <ContextMenu.SubContent>
-                  <For each={layout.mode.all}>
-                    {(mode) => (
-                      <ContextMenu.Item onSelect={() => props.ctx.moveProjectToMode(props.project.worktree, mode.id)}>
-                        <ContextMenu.ItemLabel>
-                          {mode.name}
-                          <Show when={layout.mode.projectMode(props.project.worktree) === mode.id}> · 当前</Show>
-                        </ContextMenu.ItemLabel>
-                      </ContextMenu.Item>
-                    )}
-                  </For>
-                </ContextMenu.SubContent>
-              </ContextMenu.Portal>
-            </ContextMenu.Sub>
-            <ContextMenu.Item
-              data-action="project-workspaces-toggle"
-              data-project={base64Encode(props.project.worktree)}
-              disabled={props.project.vcs !== "git" && !props.ctx.workspacesEnabled(props.project)}
-              onSelect={() => props.ctx.toggleProjectWorkspaces(props.project)}
-            >
-              <ContextMenu.ItemLabel>
-                {props.ctx.workspacesEnabled(props.project)
-                  ? language.t("sidebar.workspaces.disable")
-                  : language.t("sidebar.workspaces.enable")}
-              </ContextMenu.ItemLabel>
-            </ContextMenu.Item>
-            <Show when={props.ctx.workspacesEnabled(props.project)}>
-              <ContextMenu.Item onSelect={() => props.ctx.createWorkspace(props.project)}>
-                <ContextMenu.ItemLabel>{language.t("workspace.new")}</ContextMenu.ItemLabel>
-              </ContextMenu.Item>
-              <For each={props.ctx.workspaceIds(props.project)}>
-                {(directory) => {
-                  const [child] = globalSync.child(directory, { bootstrap: false })
-                  const local = () => directory === props.project.worktree
-                  const busy = () => props.ctx.isBusy(directory)
-                  return (
-                    <ContextMenu.Sub>
-                      <ContextMenu.SubTrigger>
-                        <span>
-                          {local() ? language.t("workspace.type.local") : language.t("workspace.type.sandbox")} :{" "}
-                          {props.ctx.workspaceLabel(directory, child.vcs?.branch, props.project.id)}
-                        </span>
-                      </ContextMenu.SubTrigger>
-                      <ContextMenu.Portal>
-                        <ContextMenu.SubContent>
-                          <ContextMenu.Item onSelect={() => props.ctx.openWorkspace(directory)}>
-                            <ContextMenu.ItemLabel>{language.t("common.open")}</ContextMenu.ItemLabel>
-                          </ContextMenu.Item>
-                          <ContextMenu.Item onSelect={() => props.ctx.navigateToNewSession(directory)}>
-                            <ContextMenu.ItemLabel>{language.t("command.session.new")}</ContextMenu.ItemLabel>
-                          </ContextMenu.Item>
-                          <ContextMenu.Item
-                            disabled={local()}
-                            onSelect={() => props.ctx.showRenameWorkspaceDialog(directory, props.project.id)}
-                          >
-                            <ContextMenu.ItemLabel>{language.t("common.rename")}</ContextMenu.ItemLabel>
-                          </ContextMenu.Item>
-                          <ContextMenu.Item
-                            disabled={local() || busy()}
-                            onSelect={() => props.ctx.showResetWorkspaceDialog(props.project.worktree, directory)}
-                          >
-                            <ContextMenu.ItemLabel>{language.t("common.reset")}</ContextMenu.ItemLabel>
-                          </ContextMenu.Item>
-                          <ContextMenu.Item
-                            disabled={local() || busy()}
-                            onSelect={() => props.ctx.showDeleteWorkspaceDialog(props.project.worktree, directory)}
-                          >
-                            <ContextMenu.ItemLabel>{language.t("common.delete")}</ContextMenu.ItemLabel>
-                          </ContextMenu.Item>
-                        </ContextMenu.SubContent>
-                      </ContextMenu.Portal>
-                    </ContextMenu.Sub>
-                  )
-                }}
-              </For>
-            </Show>
-            <ContextMenu.Item
-              data-action="project-clear-notifications"
-              data-project={base64Encode(props.project.worktree)}
-              disabled={unseenCount() === 0}
-              onSelect={clear}
-            >
-              <ContextMenu.ItemLabel>{language.t("sidebar.project.clearNotifications")}</ContextMenu.ItemLabel>
-            </ContextMenu.Item>
-            <ContextMenu.Separator />
-            <ContextMenu.Item
-              data-action="project-close-menu"
-              data-project={base64Encode(props.project.worktree)}
-              onSelect={() => props.ctx.closeProject(props.project.worktree)}
-            >
-              <ContextMenu.ItemLabel>{language.t("common.close")}</ContextMenu.ItemLabel>
-            </ContextMenu.Item>
-          </ContextMenu.Content>
-        </ContextMenu.Portal>
-      </ContextMenu>
-    </div>
+    <DropdownMenu>
+      <DropdownMenu.Trigger
+        as={IconButton}
+        icon="dot-grid"
+        variant="ghost"
+        size="small"
+        aria-label={language.t("sidebar.projectMenu")}
+        class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+      />
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content>
+          <DropdownMenu.Item onSelect={() => ctx.showEditProjectDialog(project)}>
+            <DropdownMenu.ItemLabel>{language.t("common.edit")}</DropdownMenu.ItemLabel>
+          </DropdownMenu.Item>
+          <DropdownMenu.Sub>
+            <DropdownMenu.SubTrigger>
+              <span>{language.t("sidebar.project.moveToMode")}</span>
+            </DropdownMenu.SubTrigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.SubContent>
+                <For each={layout.mode.all}>
+                  {(mode) => (
+                    <DropdownMenu.Item onSelect={() => ctx.moveProjectToMode(project.worktree, mode.id)}>
+                      <DropdownMenu.ItemLabel>
+                        {mode.name}
+                        <Show when={layout.mode.projectMode(project.worktree) === mode.id}>
+                          · {language.t("sidebar.project.currentMode")}
+                        </Show>
+                      </DropdownMenu.ItemLabel>
+                    </DropdownMenu.Item>
+                  )}
+                </For>
+              </DropdownMenu.SubContent>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Sub>
+          <DropdownMenu.Item
+            data-action="project-workspaces-toggle"
+            data-project={base64Encode(project.worktree)}
+            disabled={project.vcs !== "git" && !ctx.workspacesEnabled(project)}
+            onSelect={() => ctx.toggleProjectWorkspaces(project)}
+          >
+            <DropdownMenu.ItemLabel>
+              {ctx.workspacesEnabled(project)
+                ? language.t("sidebar.workspaces.disable")
+                : language.t("sidebar.workspaces.enable")}
+            </DropdownMenu.ItemLabel>
+          </DropdownMenu.Item>
+          <Show when={ctx.workspacesEnabled(project)}>
+            <DropdownMenu.Item onSelect={() => ctx.createWorkspace(project)}>
+              <DropdownMenu.ItemLabel>{language.t("workspace.new")}</DropdownMenu.ItemLabel>
+            </DropdownMenu.Item>
+            <For each={ctx.workspaceIds(project)}>
+              {(directory) => {
+                const [child] = globalSync.child(directory, { bootstrap: false })
+                const local = () => isLocalWorkspace(directory)
+                const busy = () => ctx.isBusy(directory)
+                return (
+                  <DropdownMenu.Sub>
+                    <DropdownMenu.SubTrigger>
+                      <span>
+                        {local() ? language.t("workspace.type.local") : language.t("workspace.type.sandbox")} :
+                        {ctx.workspaceLabel(directory, child.vcs?.branch, project.id)}
+                      </span>
+                    </DropdownMenu.SubTrigger>
+                    <DropdownMenu.Portal>
+                      <DropdownMenu.SubContent>
+                        <DropdownMenu.Item onSelect={() => ctx.openWorkspace(directory)}>
+                          <DropdownMenu.ItemLabel>{language.t("common.open")}</DropdownMenu.ItemLabel>
+                        </DropdownMenu.Item>
+                        <DropdownMenu.Item onSelect={() => ctx.navigateToNewSession(directory)}>
+                          <DropdownMenu.ItemLabel>{language.t("command.session.new")}</DropdownMenu.ItemLabel>
+                        </DropdownMenu.Item>
+                        <DropdownMenu.Item
+                          disabled={local()}
+                          onSelect={() => ctx.showRenameWorkspaceDialog(directory, project.id)}
+                        >
+                          <DropdownMenu.ItemLabel>{language.t("common.rename")}</DropdownMenu.ItemLabel>
+                        </DropdownMenu.Item>
+                        <DropdownMenu.Item
+                          disabled={local() || busy()}
+                          onSelect={() => ctx.showResetWorkspaceDialog(project.worktree, directory)}
+                        >
+                          <DropdownMenu.ItemLabel>{language.t("common.reset")}</DropdownMenu.ItemLabel>
+                        </DropdownMenu.Item>
+                        <DropdownMenu.Item
+                          disabled={local() || busy()}
+                          onSelect={() => ctx.showDeleteWorkspaceDialog(project.worktree, directory)}
+                        >
+                          <DropdownMenu.ItemLabel>{language.t("common.delete")}</DropdownMenu.ItemLabel>
+                        </DropdownMenu.Item>
+                      </DropdownMenu.SubContent>
+                    </DropdownMenu.Portal>
+                  </DropdownMenu.Sub>
+                )
+              }}
+            </For>
+          </Show>
+          <DropdownMenu.Item
+            data-action="project-clear-notifications"
+            data-project={base64Encode(project.worktree)}
+            disabled={unseenCount() === 0}
+            onSelect={clear}
+          >
+            <DropdownMenu.ItemLabel>{language.t("sidebar.project.clearNotifications")}</DropdownMenu.ItemLabel>
+          </DropdownMenu.Item>
+          <DropdownMenu.Separator />
+          <DropdownMenu.Item
+            data-action="project-close-menu"
+            data-project={base64Encode(project.worktree)}
+            onSelect={() => ctx.closeProject(project.worktree)}
+          >
+            <DropdownMenu.ItemLabel>{language.t("common.close")}</DropdownMenu.ItemLabel>
+          </DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu>
   )
 }
