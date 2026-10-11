@@ -52,3 +52,50 @@ test("WorkspaceHeader 与 Side Pane 开关", async ({ page }) => {
   const expandedAfter = await sidePaneToggle.getAttribute("aria-expanded")
   expect(expandedBefore).not.toBe(expandedAfter)
 })
+
+test("四 frame 4px 间隙与 8px 圆角", async ({ page }) => {
+  await page.goto("/")
+  const slug = workspaceRootSlug()
+  await page.goto(`/${slug}/session`)
+  // 等待侧栏 nav 出现
+  await expect(page.locator('[data-component="sidebar-nav-desktop"]')).toBeVisible({ timeout: 15_000 })
+  // 默认处于侧栏展开 + Side Pane 展开，直接测量四个 frame 之间的几何
+  const gap = async (a: string, b: string) =>
+    page.evaluate(
+      ([x, y]) => {
+        const el = (s: string) => document.querySelector(s)
+        if (!el(x) || !el(y)) return null
+        const r = el(x)!.getBoundingClientRect()
+        const s = el(y)!.getBoundingClientRect()
+        return Math.round(s.x - r.right)
+      },
+      [a, b] as const,
+    )
+  // 侧栏 frame 与 会话 frame 横向间隙 = 4
+  expect(await gap('[data-component="sidebar-nav-desktop"]', '[data-component="conv-frame"]')).toBe(4)
+  // 会话 frame 与 侧栏 pane 横向间隙 = 4
+  expect(await gap('[data-component="conv-frame"]', '[data-component="side-pane-frame"]')).toBe(4)
+  // 终端 frame 上边距 = 4（先打开终端：Ctrl+`）
+  await page.keyboard.press("Control+`")
+  await page.waitForTimeout(600)
+  const vertical = await page.evaluate(() => {
+    const c = document.querySelector('[data-component="conv-frame"]')!.getBoundingClientRect()
+    const t = document.querySelector('[data-component="terminal-frame"]')!.getBoundingClientRect()
+    return Math.round(t.top - c.bottom)
+  })
+  expect(vertical).toBe(4)
+  for (const sel of [
+    '[data-component="sidebar-nav-desktop"]',
+    '[data-component="conv-frame"]',
+    '[data-component="side-pane-frame"]',
+    '[data-component="terminal-frame"]',
+  ]) {
+    const r = await page.evaluate((s) => {
+      const el = document.querySelector(s)!
+      const cs = getComputedStyle(el)
+      return { radius: cs.borderRadius, border: cs.borderStyle }
+    }, sel)
+    expect(r.radius).toBe("8px")
+    expect(r.border).toBe("solid")
+  }
+})
