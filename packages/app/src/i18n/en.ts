@@ -831,6 +831,7 @@ export const dict = {
   "sidebar.tree.onlyChanged": "Changed only",
   "sidebar.tree.changes": "{{count}} changed",
   "sidebar.tree.empty": "No project directory to browse",
+  "sidebar.tree.noChanges": "No changed files",
   "sidebar.empty.title": "No projects open",
   "sidebar.empty.description": "Open a project to get started",
 

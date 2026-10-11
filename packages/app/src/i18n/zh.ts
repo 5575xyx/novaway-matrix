@@ -750,6 +750,7 @@ export const dict = {
   "sidebar.tree.onlyChanged": "仅变更",
   "sidebar.tree.changes": "{{count}} 个变更",
   "sidebar.tree.empty": "当前没有可浏览的项目目录",
+  "sidebar.tree.noChanges": "暂无变更文件",
   "sidebar.empty.title": "没有项目打开",
   "sidebar.empty.description": "打开一个项目开始使用",
 
