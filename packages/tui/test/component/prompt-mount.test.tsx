@@ -140,27 +140,34 @@ function PromptMount(props: { children: JSX.Element }) {
   )
 }
 
-async function renderMount(
-  body: () => JSX.Element,
-  options: { width: number; height: number },
-  ready: (text: string) => boolean,
-) {
-  const app = await testRender(() => <PromptMount>{body()}</PromptMount>, options)
+type Harness = Awaited<ReturnType<typeof testRender>>
+
+async function renderUntil(app: Harness, ready: (text: string) => boolean) {
   let text = ""
   for (let attempt = 0; attempt < 200; attempt++) {
     await app.renderOnce()
     text = app.captureCharFrame()
-    if (ready(text)) return app
+    if (ready(text)) return text
     await new Promise((resolve) => setTimeout(resolve, 25))
   }
   app.renderer.destroy()
   throw new Error("渲染未在 200 轮内就绪,实际帧:\n" + text)
 }
 
+async function renderMount(
+  body: () => JSX.Element,
+  options: { width: number; height: number },
+  ready: (text: string) => boolean,
+) {
+  const app = await testRender(() => <PromptMount>{body()}</PromptMount>, options)
+  await renderUntil(app, ready)
+  return app
+}
+
 // 真挂载 Prompt(不是抽出来的 PromptCard 壳)。这条存在的理由就是它能兜住「组件一挂载就崩」:
 // canSend 这个 memo 曾经在 createStore 之前读 store.prompt.input,createMemo 首帧求值撞 TDZ,
 // `bun dev` 起手即崩(Cannot access 'store' before initialization)——而当时全套 612 个测试
-// 因为只挂 PromptCard/PromptHints/PromptSend 这几个壳,没有一个真的把 Prompt 挂起来过。
+// 因为只挂 PromptCard/PromptSend 这几个壳,没有一个真的把 Prompt 挂起来过。
 test("Prompt:真组件挂载不抛,输入卡的霓虹描边与发送按钮都在画面上", async () => {
   const app = await renderMount(
     () => <Prompt />,
@@ -355,6 +362,100 @@ test("输入卡下方:会话忙时状态行仍在,紧贴下边框之下", async 
     expect(rows[border + 1]).toContain("中断")
     // 转圈那一格左边缩进 1 列,所以 `esc` 不在行首 —— 这一行左半边是转圈。
     expect(rows[border + 2]!.trim()).toBe("")
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+// 「自动批准权限」开关的确认闸门。
+//
+// 开了之后所有工具调用的权限请求都会被自动批掉,不再逐条询问 —— 包括删文件、执行命令这类
+// 危险动作。所以点开关**只是把问题问出来**:关→开必须先弹一次对话框,用户按下「确定」之前
+// permission.mode 一个字都不许动;反过来开→关是安全动作,直接生效。
+//
+// 只能在真 <Prompt> 上量:开关本体与闸门逻辑分别在 component/prompt/index.tsx 的
+// toggleAutoApprove 与 ui/auto-approve.ts,<PromptCard> 壳里只有 <PromptAutoApprove>
+// 自己的字形与点击回调(那两件由 prompt-card.test.tsx 钉住)。
+const APPROVE_TITLE = "开启自动批准权限"
+
+/** 开关上那颗实心/空心圆的位置 —— 点它就等于点开关。 */
+function autoApproveCell(app: Harness, glyph: "○" | "●") {
+  const rows = app
+    .captureCharFrame()
+    .split("\n")
+    .map((line) => line.replace(/\s+$/, ""))
+  const y = rows.findIndex((line) => line.includes(glyph))
+  if (y < 0) throw new Error(`帧里找不到 ${glyph} 自动批准开关,实际帧:\n${rows.join("\n")}`)
+  // 圆与它左边的东西都是单列(边框、空格、">"),所以字符下标就是列号 —— CJK 在圆的右边,
+  // 影响不到它的位置。
+  return { x: rows[y]!.indexOf(glyph), y }
+}
+
+/**
+ * 点一下开关并等确认框出现在帧上。
+ *
+ * 谓词认的是**确认框的标题**而不是开关的字形 —— 这一步本身就是「点开关必须先弹确认」的那条
+ * 断言:要是有人把闸门去掉、让点击直接 set("auto"),这里会在 200 轮后带着当前帧报错。
+ */
+async function clickToggle(app: Harness, glyph: "○" | "●") {
+  const cell = autoApproveCell(app, glyph)
+  await app.mockMouse.click(cell.x, cell.y)
+  await renderUntil(app, (text) => text.includes(APPROVE_TITLE))
+}
+
+test("自动批准开关:关→开弹确认,取消后开关仍然是关的", async () => {
+  const app = await renderMount(
+    () => <Prompt sessionID="ses_toggle_cancel" />,
+    { width: 80, height: 24 },
+    (text) => text.includes("自动批准"),
+  )
+  try {
+    await clickToggle(app, "○")
+    // 走「取消」那一支:左移到取消再回车(DialogConfirm 默认选中的是确定)。
+    app.mockInput.pressArrow("left")
+    app.mockInput.pressEnter()
+    await renderUntil(app, (text) => !text.includes(APPROVE_TITLE))
+    const text = app.captureCharFrame()
+    expect(text).toContain("○ 自动批准")
+    expect(text).not.toContain("● 自动批准")
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+test("自动批准开关:确认框里按下确定才真的打开", async () => {
+  const app = await renderMount(
+    () => <Prompt sessionID="ses_toggle_confirm" />,
+    { width: 80, height: 24 },
+    (text) => text.includes("自动批准"),
+  )
+  try {
+    await clickToggle(app, "○")
+    app.mockInput.pressEnter()
+    const text = await renderUntil(app, (value) => value.includes("● 自动批准"))
+    // 对话框自己关掉了 —— DialogConfirm 的「确定」回调之后跟的就是 dialog.clear()。
+    expect(text).not.toContain(APPROVE_TITLE)
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+test("自动批准开关:开→关直接生效,不再弹确认", async () => {
+  const app = await renderMount(
+    () => <Prompt sessionID="ses_toggle_off" />,
+    { width: 80, height: 24 },
+    (text) => text.includes("自动批准"),
+  )
+  try {
+    // 先按上一条那条路把它开起来。
+    await clickToggle(app, "○")
+    app.mockInput.pressEnter()
+    await renderUntil(app, (text) => text.includes("● 自动批准"))
+    // 再点一次:关掉是安全动作。谓词认的是「开关回到 ○」,它若去等确认框就会 200 轮超时。
+    const cell = autoApproveCell(app, "●")
+    await app.mockMouse.click(cell.x, cell.y)
+    const text = await renderUntil(app, (value) => value.includes("○ 自动批准"))
+    expect(text).not.toContain(APPROVE_TITLE)
   } finally {
     app.renderer.destroy()
   }
