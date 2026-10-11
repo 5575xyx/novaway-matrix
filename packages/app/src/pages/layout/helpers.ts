@@ -1,10 +1,34 @@
 import { getFilename } from "@novaway/core/util/path"
 import { type Session } from "@novaway/sdk/v2/client"
+import type { TaskStatus } from "@/components/session/task-row"
+import { sessionPermissionRequest } from "../session/composer/session-request-tree"
 import { pathKey } from "@/utils/path-key"
+import type { useGlobalSync } from "@/context/global-sync"
+import type { usePermission } from "@/context/permission"
+import type { useNotification } from "@/context/notification"
 
 type SessionStore = {
   session?: Session[]
   path: { directory: string }
+}
+
+export const sessionStatusOf = (
+  globalSync: ReturnType<typeof useGlobalSync>,
+  permission: ReturnType<typeof usePermission>,
+  notification: ReturnType<typeof useNotification>,
+  session: Session,
+): TaskStatus => {
+  if (notification.session.unseenHasError(session.id)) return "failed"
+  const [sessionStore] = globalSync.child(session.directory)
+  const waiting = !!sessionPermissionRequest(
+    sessionStore.session,
+    sessionStore.permission,
+    session.id,
+    (item) => !permission.autoResponds(item, session.directory),
+  )
+  if (waiting) return "waiting"
+  if (sessionStore.session_working(session.id)) return "running"
+  return "idle"
 }
 
 function sortSessions(now: number) {
