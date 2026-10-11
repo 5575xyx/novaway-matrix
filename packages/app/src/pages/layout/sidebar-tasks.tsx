@@ -15,6 +15,8 @@ import { TaskRow } from "@/components/session/task-row"
 
 export type TaskFilter = "all" | "running" | "waiting" | "archived"
 
+export type TaskFilterBarId = TaskFilter | "projects"
+
 export function useProjectSessions(project: LocalProject) {
   const globalSync = useGlobalSync()
 
@@ -91,19 +93,22 @@ export function ProjectTaskList(props: {
 }
 
 export function TaskFilterBar(props: {
-  filter: TaskFilter
-  onChange: (filter: TaskFilter) => void
+  filter: TaskFilterBarId
+  onChange?: (filter: TaskFilter) => void
+  /** When provided (task-center 场景，含 projects 标签),取代 onChange 处理所有点击。 */
+  onSelect?: (id: TaskFilterBarId) => void
   variant?: "text" | "underline"
+  tabs?: Array<{ id: TaskFilterBarId; labelKey: string }>
 }) {
   const language = useLanguage()
   const variant = props.variant ?? "text"
-  const labels: Record<TaskFilter, string> = {
-    all: "sidebar.filter.all",
-    running: "sidebar.filter.running",
-    waiting: "sidebar.filter.waiting",
-    archived: "sidebar.filter.archived",
-  }
-  const order: TaskFilter[] = ["all", "running", "waiting", "archived"]
+  const defaults: Array<{ id: TaskFilter; labelKey: string }> = [
+    { id: "all", labelKey: "sidebar.filter.all" },
+    { id: "running", labelKey: "sidebar.filter.running" },
+    { id: "waiting", labelKey: "sidebar.filter.waiting" },
+    { id: "archived", labelKey: "sidebar.filter.archived" },
+  ]
+  const tabs = props.tabs ?? defaults
 
   return (
     <div
@@ -112,20 +117,28 @@ export function TaskFilterBar(props: {
         "flex items-center px-3 gap-4 border-b border-border-weak-base text-ui-caption": variant === "underline",
       }}
     >
-      <For each={order}>
-        {(id) => (
+      <For each={tabs}>
+        {(tab) => (
           <button
+            role="tab"
+            aria-selected={props.filter === tab.id}
             classList={{
               "transition-colors": true,
               "border-b-2 -mb-px pb-1.5": variant === "underline",
-              "border-text-interactive-base text-text-strong font-medium": variant === "underline" && props.filter === id,
-              "border-transparent text-text-weak hover:text-text-base": variant === "underline" && props.filter !== id,
-              "text-text-strong font-medium": variant === "text" && props.filter === id,
-              "text-text-weak hover:text-text-base": variant === "text" && props.filter !== id,
+              "border-text-interactive-base text-text-strong font-medium": variant === "underline" && props.filter === tab.id,
+              "border-transparent text-text-weak hover:text-text-base": variant === "underline" && props.filter !== tab.id,
+              "text-text-strong font-medium": variant === "text" && props.filter === tab.id,
+              "text-text-weak hover:text-text-base": variant === "text" && props.filter !== tab.id,
             }}
-            onClick={() => props.onChange(id)}
+            onClick={() => {
+              if (props.onSelect) {
+                props.onSelect(tab.id)
+                return
+              }
+              if (tab.id !== "projects") props.onChange?.(tab.id)
+            }}
           >
-            {language.t(labels[id])}
+            {language.t(tab.labelKey)}
           </button>
         )}
       </For>

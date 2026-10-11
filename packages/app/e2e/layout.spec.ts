@@ -222,6 +222,23 @@ test("Side Pane tab 标签不折行 + 折叠按钮", async ({ page }) => {
   await expect(tabRow).not.toBeVisible()
 })
 
+test("首页任务中心信息密度", async ({ page }) => {
+  await page.goto("/")
+  // 搜索框（可点击入口，role=button 由 <button type="button"> 隐式提供，aria-label 走 taskCenter.search）
+  const searchBox = page.getByRole("button", { name: /搜索任务|Search tasks/ }).first()
+  await expect(searchBox).toBeVisible()
+
+  // 五标签，均为 underline 变体的 role=tab
+  const tabMatchers = [/最近|Recent/, /运行中|Running/, /待确认|Waiting/, /已归档|Archived/, /项目|Projects/]
+  for (const matcher of tabMatchers) {
+    await expect(page.getByRole("tab", { name: matcher }).first()).toBeVisible()
+  }
+
+  // 虚线起始行
+  const starterRow = page.getByText(/从项目或本地目录|Start from a project/).first()
+  await expect(starterRow).toBeVisible()
+})
+
 test("WorkspaceHeader 单行且不溢出", async ({ page }) => {
   const slug = workspaceRootSlug()
   await page.goto(`/${slug}/session`)
