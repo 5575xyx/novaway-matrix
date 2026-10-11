@@ -250,18 +250,37 @@ export function Titlebar(props: { settingsOpen?: boolean; databaseOpen?: boolean
                 </Tooltip>
               </div>
             </Show>
-            <Mark class="size-6 shrink-0" />
-            <Tooltip placement="bottom" value="模式首页">
-              <Button
-                variant="ghost"
-                class="titlebar-icon ml-2 w-8 h-8 p-0 box-border rounded-xl text-icon-base hover:bg-surface-base-hover transition-all duration-150 hover:scale-105"
-                onClick={goModeHome}
-                aria-label="模式首页"
-                aria-current={!layout.mode.hasSelected() ? "page" : undefined}
-              >
-                <Icon size="small" name="home" />
-              </Button>
-            </Tooltip>
+            <button
+              type="button"
+              class="titlebar-icon ml-1 w-8 h-8 p-0 box-border rounded-xl text-icon-base hover:bg-surface-base-hover transition-all duration-150 hover:scale-105 flex items-center justify-center"
+              onClick={goModeHome}
+              aria-label={language.t("command.home.open")}
+              title={language.t("command.home.open")}
+              aria-current={!layout.mode.hasSelected() ? "page" : undefined}
+            >
+              <Mark class="size-6 shrink-0" />
+            </button>
+            <ModeSwitchButton onSelect={(mode) => layout.mode.select(mode.id)} />
+            <div id="NovaWay-titlebar-search" class="ml-2 hidden min-w-0 shrink md:flex" />
+          </div>
+        </div>
+
+        <div class="min-w-0 flex items-center justify-center pointer-events-none">
+          <div class="pointer-events-auto min-w-0 flex justify-center w-fit max-w-full" />
+        </div>
+
+        <div
+          classList={{
+            "flex items-center min-w-0 justify-end": true,
+            "pr-2": !windows(),
+          }}
+          data-tauri-drag-region
+          onMouseDown={drag}
+        >
+          <div class="flex items-center gap-1 shrink-0 justify-end">
+            <CacheUsagePanel />
+            <MemoryEvolutionPanel />
+            <ThemeSchemeToggle />
             <TooltipKeybind
               placement="bottom"
               title={language.t("command.settings.open")}
@@ -292,29 +311,7 @@ export function Titlebar(props: { settingsOpen?: boolean; databaseOpen?: boolean
                 </Button>
               </TooltipKeybind>
             </Show>
-            <div id="NovaWay-titlebar-search" class="ml-2 hidden min-w-0 shrink md:flex" />
-          </div>
-        </div>
-
-        <div class="min-w-0 flex items-center justify-center pointer-events-none">
-          <div class="pointer-events-auto min-w-0 flex justify-center w-fit max-w-full">
-            <ModeSwitchButton onSelect={(mode) => layout.mode.select(mode.id)} />
-          </div>
-        </div>
-
-        <div
-          classList={{
-            "flex items-center min-w-0 justify-end": true,
-            "pr-2": !windows(),
-          }}
-          data-tauri-drag-region
-          onMouseDown={drag}
-        >
-          <div class="flex items-center gap-1 shrink-0 justify-end">
             <div id="NovaWay-titlebar-right" class="flex items-center gap-1 shrink-0 justify-end" />
-            <CacheUsagePanel />
-            <MemoryEvolutionPanel />
-            <ThemeSchemeToggle />
           </div>
           <Show when={windows()}>
             {!tauriApi() && <div class="shrink-0" style={{ width: windowsControlsWidth() }} />}

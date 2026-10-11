@@ -209,15 +209,13 @@ export function MemoryEvolutionPanel() {
       triggerProps={{
         variant: "ghost",
         class:
-          "h-9 min-w-[96px] shrink-0 rounded-md border border-border-active/70 bg-[linear-gradient(135deg,rgba(20,184,166,0.16),rgba(56,189,248,0.10))] px-2 text-text-strong shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08),0_0_18px_rgba(20,184,166,0.16)] transition-all duration-150 hover:scale-[1.03] hover:border-border-active hover:bg-surface-base-hover",
-        "aria-label": "记忆与进化",
-        style: { scale: 1 },
+          "titlebar-icon w-8 h-8 p-0 box-border rounded-xl text-icon-base hover:bg-surface-base-hover transition-all duration-150 hover:scale-105",
+        "aria-label": language.t("memory.evolution.title"),
       }}
       trigger={
-        <Tooltip value="记忆与进化" placement="bottom">
-          <div class="relative flex h-full items-center justify-center gap-1.5 whitespace-nowrap">
-            <Icon size="small" name={shown() ? "brain" : "review"} class="text-icon-strong" />
-            <span class="text-12-medium leading-none tracking-normal">记忆与进化</span>
+        <Tooltip value={language.t("memory.evolution.title")} placement="bottom">
+          <div class="relative flex h-full items-center justify-center">
+            <Icon size="small" name="review" class="text-icon-strong" />
             <Show when={pending() > 0}>
               <span class="absolute -top-2 -right-3 min-w-3.5 h-3.5 px-0.5 rounded-full bg-red-solid-base text-10-medium text-invert-base flex items-center justify-center leading-none">
                 {pendingBadgeLabel(pending())}

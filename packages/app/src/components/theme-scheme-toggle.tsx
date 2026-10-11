@@ -1,11 +1,13 @@
 import { Tooltip } from "@novaway/ui/tooltip"
 import { useTheme, type ColorScheme } from "@novaway/ui/theme/context"
+import { useLanguage } from "@/context/language"
 
 export function ThemeSchemeToggle() {
   const theme = useTheme()
+  const language = useLanguage()
   const isDark = () => theme.mode() === "dark"
   const nextScheme = (): ColorScheme => (isDark() ? "light" : "dark")
-  const title = () => (isDark() ? "切换为浅色模式" : "切换为深色模式")
+  const title = () => language.t(isDark() ? "theme.toggle.light" : "theme.toggle.dark")
   const toggle = (event: MouseEvent) => {
     const next = nextScheme()
     const target = event.currentTarget as HTMLElement
