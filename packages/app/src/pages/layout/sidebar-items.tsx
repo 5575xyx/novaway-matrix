@@ -1,27 +1,23 @@
 import type { Session } from "@novaway/sdk/v2/client"
-import { Avatar } from "@novaway/ui/avatar"
 import { Button } from "@novaway/ui/button"
 import { Dialog } from "@novaway/ui/dialog"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { DropdownMenu } from "@novaway/ui/dropdown-menu"
-import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
-import { Tooltip } from "@novaway/ui/tooltip"
-import { getFilename } from "@novaway/core/util/path"
 import { A, useNavigate, useParams } from "@solidjs/router"
 import { base64Encode } from "@novaway/core/util/encode"
-import { type Accessor, createMemo, createSignal, For, type JSX, Match, Show, Switch } from "solid-js"
+import { type Accessor, createMemo, createSignal, type JSX, Match, Show, Switch } from "solid-js"
 import { produce } from "solid-js/store"
 import { useGlobalSync } from "@/context/global-sync"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useLanguage } from "@/context/language"
-import { getAvatarColors, type LocalProject, useLayout } from "@/context/layout"
+import { useLayout } from "@/context/layout"
 import { useNotification } from "@/context/notification"
 import { usePermission } from "@/context/permission"
 import { messageAgentColor } from "@/utils/agent"
 import { displaySessionTitle } from "@/utils/session-title"
 import { sessionPermissionRequest } from "../session/composer/session-request-tree"
-import { childSessionOnPath, hasProjectPermissions } from "./helpers"
+import { childSessionOnPath } from "./helpers"
 
 const NovaWay_PROJECT_ID = "4b0ea68d7af9a6031a7ffda7ad66e0cb83315750"
 
@@ -30,82 +26,6 @@ export function getProjectAvatarSource(id?: string, icon?: { color?: string; url
   if (icon?.override) return icon?.override
   if (icon?.color) return undefined
   return icon?.url
-}
-
-export const ProjectIcon = (props: {
-  project: LocalProject
-  class?: string
-  notify?: boolean
-  working?: boolean
-}): JSX.Element => {
-  const globalSync = useGlobalSync()
-  const notification = useNotification()
-  const permission = usePermission()
-  const dirs = createMemo(() => [props.project.worktree, ...(props.project.sandboxes ?? [])])
-  const unseenCount = createMemo(() =>
-    dirs().reduce((total, directory) => total + notification.project.unseenCount(directory), 0),
-  )
-  const hasError = createMemo(() => dirs().some((directory) => notification.session.unseenHasError(directory)))
-  const hasPermissions = createMemo(() =>
-    dirs().some((directory) => {
-      const [store] = globalSync.child(directory, { bootstrap: false })
-      return hasProjectPermissions(store.permission, (item) => !permission.autoResponds(item, directory))
-    }),
-  )
-  const notify = createMemo(() => props.notify && (hasPermissions() || unseenCount() > 0))
-  const name = createMemo(() => props.project.name || getFilename(props.project.worktree))
-  const avatarSource = createMemo(() => getProjectAvatarSource(props.project.id, props.project.icon))
-  const avatarColors = createMemo(() => getAvatarColors(props.project.icon?.color))
-
-  return (
-    <div class={`relative size-8 shrink-0 rounded ${props.class ?? ""}`}>
-      <div class="size-full rounded overflow-clip">
-        <Show
-          when={avatarSource()}
-          fallback={
-            <div
-              class="project-icon-default size-full rounded grid place-items-center border border-white/30 text-[15px]"
-              classList={{ "badge-mask": notify() }}
-              style={{
-                background: avatarColors().background,
-                color: avatarColors().foreground,
-              }}
-            >
-              <Icon name="folder" size="small" />
-            </div>
-          }
-        >
-          {(src) => (
-            <Avatar
-              fallback={name()}
-              src={src()}
-              {...avatarColors()}
-              class="size-full rounded"
-              classList={{ "badge-mask": notify() }}
-            />
-          )}
-        </Show>
-      </div>
-      <Show when={notify()}>
-        <div
-          classList={{
-            "absolute top-px right-px size-1.5 rounded-full z-10": true,
-            "bg-surface-warning-strong": hasPermissions(),
-            "bg-icon-critical-base": !hasPermissions() && hasError(),
-            "bg-text-interactive-base": !hasPermissions() && !hasError(),
-          }}
-        />
-      </Show>
-      <Show when={props.working}>
-        <div class="absolute bottom-px right-px size-3 rounded-full bg-background-base z-10 flex items-center justify-center">
-          <div class="relative size-[9px] flex items-center justify-center">
-            <div class="absolute inset-0 rounded-full border-[1px] border-text-interactive-base animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite] opacity-75" />
-            <div class="size-[3px] rounded-full bg-text-interactive-base" />
-          </div>
-        </div>
-      </Show>
-    </div>
-  )
 }
 
 export type SessionItemProps = {
@@ -473,57 +393,3 @@ function DialogDeleteSession(props: { sessionID: string; title: string; director
   )
 }
 
-export const NewSessionItem = (props: {
-  slug: string
-  mobile?: boolean
-  dense?: boolean
-  sidebarExpanded: Accessor<boolean>
-  clearHoverProjectSoon: () => void
-}): JSX.Element => {
-  const layout = useLayout()
-  const language = useLanguage()
-  const label = language.t("command.session.new")
-  const tooltip = () => props.mobile || !props.sidebarExpanded()
-  const item = (
-    <A
-      href={`/${props.slug}/session`}
-      end
-      class={`flex items-center gap-2 min-w-0 w-full text-left focus:outline-none ${props.dense ? "py-0.5" : "py-1"}`}
-      onClick={() => {
-        if (layout.sidebar.opened()) return
-        props.clearHoverProjectSoon()
-      }}
-    >
-      <div class="shrink-0 size-6 flex items-center justify-center">
-        <Icon name="new-session" size="small" class="text-icon-weak" />
-      </div>
-      <span class="text-14-regular text-text-strong min-w-0 flex-1 truncate">{label}</span>
-    </A>
-  )
-
-  return (
-    <div class="group/session relative w-full min-w-0 rounded-md cursor-default transition-colors pl-2 pr-3 hover:bg-surface-raised-base-hover [&:has(:focus-visible)]:bg-surface-raised-base-hover has-[.active]:border has-[.active]:border-solid has-[.active]:border-text-interactive-base">
-      <Show
-        when={!tooltip()}
-        fallback={
-          <Tooltip placement={props.mobile ? "bottom" : "right"} value={label} gutter={10} class="min-w-0 w-full">
-            {item}
-          </Tooltip>
-        }
-      >
-        {item}
-      </Show>
-    </div>
-  )
-}
-
-export const SessionSkeleton = (props: { count?: number }): JSX.Element => {
-  const items = Array.from({ length: props.count ?? 4 }, (_, index) => index)
-  return (
-    <div class="flex flex-col gap-1">
-      <For each={items}>
-        {() => <div class="h-8 w-full rounded-md bg-surface-raised-base opacity-60 animate-pulse" />}
-      </For>
-    </div>
-  )
-}

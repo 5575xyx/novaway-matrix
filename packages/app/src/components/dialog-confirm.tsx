@@ -2,6 +2,7 @@ import { JSX } from "solid-js"
 import { Dialog as Kobalte } from "@kobalte/core/dialog"
 import { Button } from "@novaway/ui/button"
 import { Dialog } from "@novaway/ui/dialog"
+import { useLanguage } from "@/context/language"
 
 export type ConfirmVariant = "danger" | "normal"
 
@@ -17,6 +18,7 @@ export type ConfirmDialogProps = {
 }
 
 export function ConfirmDialog(props: ConfirmDialogProps) {
+  const language = useLanguage()
   return (
     <Kobalte
       modal
@@ -42,7 +44,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
           </div>
           <div class="flex justify-end gap-2 p-4 pt-0">
             <Button variant="ghost" size="large" onClick={props.onClose}>
-              {props.cancelText || "取消"}
+              {props.cancelText || language.t("common.cancel")}
             </Button>
             <Button
               variant="primary"
@@ -56,7 +58,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
                 props.onClose()
               }}
             >
-              {props.confirmText || "确认"}
+              {props.confirmText || language.t("common.confirm")}
             </Button>
           </div>
         </Dialog>

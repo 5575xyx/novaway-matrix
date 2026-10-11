@@ -101,7 +101,6 @@ export default function Layout(props: ParentProps) {
     Persist.global("layout.page", ["layout.page.v2"]),
     createStore({
       lastProjectSession: {} as { [directory: string]: { directory: string; id: string; at: number } },
-      activeProject: undefined as string | undefined,
       activeWorkspace: undefined as string | undefined,
       workspaceOrder: {} as Record<string, string[]>,
       workspaceName: {} as Record<string, string>,
@@ -2168,9 +2167,11 @@ export default function Layout(props: ParentProps) {
           <TaskFilterBar
             filter={taskFilter()}
             variant="text"
-            onChange={(f) => {
-              setTaskFilter(f)
-              if (f === "archived") loadArchived()
+            onChange={(id) => {
+              if (id !== "projects") {
+                setTaskFilter(id)
+                if (id === "archived") loadArchived()
+              }
             }}
           />
         </Show>

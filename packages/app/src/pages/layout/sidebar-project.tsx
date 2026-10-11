@@ -6,7 +6,6 @@ import { useLayout, type AppMode, type LocalProject } from "@/context/layout"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
 import { useNotification } from "@/context/notification"
-import { ProjectIcon } from "./sidebar-items"
 
 export type ProjectSidebarContext = {
   currentDir: Accessor<string>
@@ -29,22 +28,6 @@ export type ProjectSidebarContext = {
   showRenameWorkspaceDialog: (directory: string, projectId?: string) => void
   showResetWorkspaceDialog: (root: string, directory: string) => void
   showDeleteWorkspaceDialog: (root: string, directory: string) => void
-}
-
-export const ProjectDragOverlay = (props: {
-  projects: Accessor<LocalProject[]>
-  activeProject: Accessor<string | undefined>
-}): JSX.Element => {
-  const project = createMemo(() => props.projects().find((p) => p.worktree === props.activeProject()))
-  return (
-    <Show when={project()}>
-      {(p) => (
-        <div class="bg-background-base rounded-xl p-1">
-          <ProjectIcon project={p()} />
-        </div>
-      )}
-    </Show>
-  )
 }
 
 export function ProjectMenu(props: { project: LocalProject; ctx: ProjectSidebarContext }): JSX.Element {

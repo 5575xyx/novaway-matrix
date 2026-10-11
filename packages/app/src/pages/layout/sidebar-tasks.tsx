@@ -92,9 +92,7 @@ export function ProjectTaskList(props: {
 
 export function TaskFilterBar(props: {
   filter: TaskFilterBarId
-  onChange?: (filter: TaskFilter) => void
-  /** When provided (task-center 场景，含 projects 标签),取代 onChange 处理所有点击。 */
-  onSelect?: (id: TaskFilterBarId) => void
+  onChange: (id: TaskFilterBarId) => void
   variant?: "text" | "underline"
   tabs?: Array<{ id: TaskFilterBarId; labelKey: string }>
 }) {
@@ -110,6 +108,7 @@ export function TaskFilterBar(props: {
 
   return (
     <div
+      role="tablist"
       classList={{
         "flex items-center px-3 gap-3 pb-1 text-ui-sm": variant === "text",
         "flex items-center px-3 gap-4 border-b border-border-weak-base text-ui-caption": variant === "underline",
@@ -128,13 +127,7 @@ export function TaskFilterBar(props: {
               "text-text-strong font-medium": variant === "text" && props.filter === tab.id,
               "text-text-weak hover:text-text-base": variant === "text" && props.filter !== tab.id,
             }}
-            onClick={() => {
-              if (props.onSelect) {
-                props.onSelect(tab.id)
-                return
-              }
-              if (tab.id !== "projects") props.onChange?.(tab.id)
-            }}
+            onClick={() => props.onChange(tab.id)}
           >
             {language.t(tab.labelKey)}
           </button>
