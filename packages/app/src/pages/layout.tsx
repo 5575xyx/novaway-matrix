@@ -25,6 +25,7 @@ import { IconButton } from "@novaway/ui/icon-button"
 import { DropdownMenu } from "@novaway/ui/dropdown-menu"
 import { Tooltip } from "@novaway/ui/tooltip"
 import { Dialog } from "@novaway/ui/dialog"
+import { TextField } from "@novaway/ui/text-field"
 import { getFilename } from "@novaway/core/util/path"
 import { Session, type Message, type QuestionRequest } from "@novaway/sdk/v2/client"
 import { usePlatform } from "@/context/platform"
@@ -73,13 +74,7 @@ import {
   deepLinkEvent,
   drainPendingDeepLinks,
 } from "./layout/deep-links"
-import { createInlineEditorController } from "./layout/inline-editor"
-import {
-  LocalWorkspace,
-  SortableWorkspace,
-  WorkspaceDragOverlay,
-  type WorkspaceSidebarContext,
-} from "./layout/sidebar-workspace"
+import { SidebarFiles } from "./layout/sidebar-files"
 import { ProjectDragOverlay, SortableProject, type ProjectSidebarContext } from "./layout/sidebar-project"
 import { ProjectTaskList, TaskFilterBar, useArchivedSessions, type TaskFilter } from "./layout/sidebar-tasks"
 import { SidebarContent } from "./layout/sidebar-shell"
@@ -252,7 +247,6 @@ export default function Layout(props: ParentProps) {
     sizing: false,
   })
 
-  const editor = createInlineEditorController()
   const setBusy = (directory: string, value: boolean) => {
     const key = pathKey(directory)
     if (value) {
@@ -293,12 +287,9 @@ export default function Layout(props: ParentProps) {
     makeEventListener(window, "blur", stop)
   })
 
-  const sidebarHovering = createMemo(() => !layout.sidebar.opened() && state.hoverProject !== undefined)
-  const sidebarExpanded = createMemo(() => layout.sidebar.opened() || sidebarHovering())
   createEffect(() => {
     if (layout.sidebar.opened()) layout.sidebar.close()
   })
-  const clearHoverProjectSoon = () => {}
 
   createEffect(() => {
     if (!state.autoselect) return
@@ -308,12 +299,6 @@ export default function Layout(props: ParentProps) {
     if (!directory) return
     setState("autoselect", false)
   })
-
-  const editorOpen = editor.editorOpen
-  const openEditor = editor.openEditor
-  const closeEditor = editor.closeEditor
-  const setEditor = editor.setEditor
-  const InlineEditor = editor.InlineEditor
 
   const clearSidebarHoverState = () => {}
 
@@ -1501,6 +1486,13 @@ export default function Layout(props: ParentProps) {
     navigateWithSidebarReset(`/${base64Encode(session.directory)}/session/${session.id}`)
   }
 
+  function openWorkspace(directory: string) {
+    const [child] = globalSync.child(directory, { bootstrap: false })
+    const latest = latestRootSession([child], Date.now())
+    if (latest) return navigateToSession(latest)
+    navigateWithSidebarReset(`/${base64Encode(directory)}/session`)
+  }
+
   function openProject(directory: string, navigate = true) {
     layout.projects.assign(directory)
     layout.projects.open(directory)
@@ -1915,6 +1907,36 @@ export default function Layout(props: ParentProps) {
     )
   }
 
+  function DialogRenameWorkspace(props: { directory: string; projectId?: string }) {
+    const [child] = globalSync.child(props.directory, { bootstrap: false })
+    const branch = () => child.vcs?.branch
+    const [value, setValue] = createSignal(workspaceLabel(props.directory, branch(), props.projectId))
+
+    const submit = (event: SubmitEvent) => {
+      event.preventDefault()
+      const next = value().trim()
+      if (!next) return
+      renameWorkspace(props.directory, next, props.projectId, branch())
+      dialog.close()
+    }
+
+    return (
+      <Dialog title={language.t("common.rename")} fit>
+        <form onSubmit={submit} class="flex flex-col gap-4 pl-6 pr-2.5 pb-3">
+          <TextField autofocus label={language.t("common.rename")} value={value()} onChange={setValue} />
+          <div class="flex justify-end gap-2">
+            <Button variant="ghost" size="large" onClick={() => dialog.close()}>
+              {language.t("common.cancel")}
+            </Button>
+            <Button type="submit" variant="primary" size="large">
+              {language.t("common.save")}
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+    )
+  }
+
   const activeRoute = {
     session: "",
     sessionProject: "",
@@ -2045,42 +2067,6 @@ export default function Layout(props: ParentProps) {
     return [...ordered, extra]
   }
 
-  const sidebarProject = createMemo(() => currentProject())
-
-  function handleWorkspaceDragStart(event: unknown) {
-    const id = getDraggableId(event)
-    if (!id) return
-    setStore("activeWorkspace", id)
-  }
-
-  function handleWorkspaceDragOver(event: DragEvent) {
-    const { draggable, droppable } = event
-    if (!draggable || !droppable) return
-
-    const project = sidebarProject()
-    if (!project) return
-
-    const ids = workspaceIds(project)
-    const fromIndex = ids.findIndex((dir) => dir === draggable.id.toString())
-    const toIndex = ids.findIndex((dir) => dir === droppable.id.toString())
-    if (fromIndex === -1 || toIndex === -1) return
-    if (fromIndex === toIndex) return
-
-    const result = ids.slice()
-    const [item] = result.splice(fromIndex, 1)
-    if (!item) return
-    result.splice(toIndex, 0, item)
-    setStore(
-      "workspaceOrder",
-      project.worktree,
-      result.filter((directory) => pathKey(directory) !== pathKey(project.worktree)),
-    )
-  }
-
-  function handleWorkspaceDragEnd() {
-    setStore("activeWorkspace", undefined)
-  }
-
   const createWorkspace = async (project: LocalProject) => {
     clearSidebarHoverState()
     const created = await globalSDK.client.worktree
@@ -2121,33 +2107,6 @@ export default function Layout(props: ParentProps) {
     navigateWithSidebarReset(`/${base64Encode(created.directory)}/session`)
   }
 
-  const workspaceSidebarCtx: WorkspaceSidebarContext = {
-    currentDir,
-    navList: currentSessions,
-    sidebarExpanded,
-    sidebarHovering,
-    clearHoverProjectSoon,
-    prefetchSession,
-    archiveSession,
-    workspaceName,
-    renameWorkspace,
-    editorOpen,
-    openEditor,
-    closeEditor,
-    setEditor,
-    InlineEditor,
-    isBusy,
-    workspaceExpanded: (directory, local) => store.workspaceExpanded[directory] ?? local,
-    setWorkspaceExpanded: (directory, value) => setStore("workspaceExpanded", directory, value),
-    showResetWorkspaceDialog: (root, directory) =>
-      dialog.show(() => <DialogResetWorkspace root={root} directory={directory} />),
-    showDeleteWorkspaceDialog: (root, directory) =>
-      dialog.show(() => <DialogDeleteWorkspace root={root} directory={directory} />),
-    setScrollContainerRef: (el, mobile) => {
-      if (!mobile) scrollContainerRef = el
-    },
-  }
-
   const projectSidebarCtx: ProjectSidebarContext = {
     currentDir,
     currentProject,
@@ -2163,6 +2122,15 @@ export default function Layout(props: ParentProps) {
     workspaceLabel,
     workspaceExpanded: (directory, local) => store.workspaceExpanded[directory] ?? local,
     setWorkspaceExpanded: (directory, value) => setStore("workspaceExpanded", directory, value),
+    isBusy,
+    createWorkspace,
+    openWorkspace,
+    showRenameWorkspaceDialog: (directory, projectId) =>
+      dialog.show(() => <DialogRenameWorkspace directory={directory} projectId={projectId} />),
+    showResetWorkspaceDialog: (root, directory) =>
+      dialog.show(() => <DialogResetWorkspace root={root} directory={directory} />),
+    showDeleteWorkspaceDialog: (root, directory) =>
+      dialog.show(() => <DialogDeleteWorkspace root={root} directory={directory} />),
   }
 
   const SidebarPanel = (panelProps: { mobile?: boolean; merged?: boolean }) => {
@@ -2172,29 +2140,10 @@ export default function Layout(props: ParentProps) {
     const [taskFilter, setTaskFilter] = createSignal<TaskFilter>("all")
     const { archived, load: loadArchived } = useArchivedSessions(() => projectList())
 
-    const expandedDir = createMemo(() => {
-      const dir = params.dir
-      if (!dir) return ""
-      return decode64(dir)
-    })
-
-    const expandedProject = createMemo(() => {
-      const dir = expandedDir()
-      if (!dir) return undefined
-      return layout.projects.list().find((p) => p.worktree === dir)
-    })
-
-    const expandedWorkspaces = createMemo(() => {
-      const p = expandedProject()
-      if (!p) return [] as string[]
-      return workspaceIds(p)
-    })
-
-    const workspacesEnabled = createMemo(() => {
-      const p = expandedProject()
-      if (!p) return false
-      if (p.vcs !== "git") return false
-      return layout.sidebar.workspaces(p.worktree)()
+    const treeIndex = createMemo(() => {
+      const key = pathKey(currentProject()?.worktree ?? currentDir())
+      const index = projectList().findIndex((project) => pathKey(project.worktree) === key)
+      return index === -1 ? 0 : index
     })
 
     return (
@@ -2348,72 +2297,17 @@ export default function Layout(props: ParentProps) {
                                 setStore("workspaceExpanded", proj.worktree, next)
                               }}
                             />
-                            <Show when={isExpanded()}>
+                            <Show
+                              when={layout.sidebarView.current() === "tasks" ? isExpanded() : index() === treeIndex()}
+                            >
                               <div class="pl-5 pt-1 pb-2 ml-3 border-l-2 border-border-weak-base">
                                 <Show
                                   when={layout.sidebarView.current() === "tasks"}
                                   fallback={
-                                    <Show
-                                      when={workspacesEnabled()}
-                                      fallback={
-                                        <div class="flex-1 min-h-0">
-                                          <LocalWorkspace
-                                            ctx={workspaceSidebarCtx}
-                                            project={proj}
-                                            sortNow={sortNow}
-                                            mobile={panelProps.mobile}
-                                          />
-                                        </div>
-                                      }
-                                    >
-                                      <>
-                                        <div class="shrink-0 py-2">
-                                          <Button
-                                            size="large"
-                                            icon="plus-small"
-                                            class="w-full"
-                                            onClick={() => {
-                                              void createWorkspace(proj)
-                                            }}
-                                          >
-                                            {language.t("workspace.new")}
-                                          </Button>
-                                        </div>
-                                        <div class="relative flex-1 min-h-0">
-                                          <DragDropProvider
-                                            onDragStart={handleWorkspaceDragStart}
-                                            onDragEnd={handleWorkspaceDragEnd}
-                                            onDragOver={handleWorkspaceDragOver}
-                                            collisionDetector={closestCenter}
-                                          >
-                                            <DragDropSensors />
-                                            <ConstrainDragXAxis />
-                                            <div class="size-full flex flex-col py-2 gap-4 overflow-y-auto no-scrollbar [overflow-anchor:none]">
-                                              <SortableProvider ids={expandedWorkspaces()}>
-                                                <For each={expandedWorkspaces()}>
-                                                  {(directory) => (
-                                                    <SortableWorkspace
-                                                      ctx={workspaceSidebarCtx}
-                                                      directory={directory}
-                                                      project={proj}
-                                                      sortNow={sortNow}
-                                                      mobile={panelProps.mobile}
-                                                    />
-                                                  )}
-                                                </For>
-                                              </SortableProvider>
-                                            </div>
-                                            <DragOverlay>
-                                              <WorkspaceDragOverlay
-                                                sidebarProject={sidebarProject}
-                                                activeWorkspace={() => store.activeWorkspace}
-                                                workspaceLabel={workspaceLabel}
-                                              />
-                                            </DragOverlay>
-                                          </DragDropProvider>
-                                        </div>
-                                      </>
-                                    </Show>
+                                    <SidebarFiles
+                                      directory={currentProject()?.worktree ?? currentDir()}
+                                      sessionKey={() => `${params.dir}${params.id ? "/" + params.id : ""}`}
+                                    />
                                   }
                                 >
                                   <ProjectTaskList
