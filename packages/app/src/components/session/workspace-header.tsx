@@ -14,7 +14,7 @@ import { useModels } from "@/context/models"
 import { useSettings } from "@/context/settings"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { decode64 } from "@/utils/base64"
-import { isDefaultSessionTitle } from "@/utils/session-title"
+import { displaySessionTitle } from "@/utils/session-title"
 
 export function WorkspaceHeader() {
   const params = useParams()
@@ -46,7 +46,7 @@ export function WorkspaceHeader() {
         <span class="size-2 rounded-full bg-[var(--border-success-selected)] animate-pulse shrink-0" />
       </Show>
       <span class="text-ui-base font-semibold text-text-strong truncate max-w-[240px]">
-        {session()?.title && !isDefaultSessionTitle(session()?.title) ? session()?.title : language.t("workspace.header.untitled")}
+        {displaySessionTitle(session()?.title, language.t("workspace.header.untitled"))}
       </span>
       <span class="text-ui-xs text-text-weak truncate max-w-[180px] hidden md:block border border-border-weak-base rounded-md px-1.5 py-0.5">
         {branch() ? language.t("workspace.header.projectBranch", { project: dirName(), branch: branch() }) : dirName()}

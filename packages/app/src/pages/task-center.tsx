@@ -12,7 +12,7 @@ import { sortedRootSessionsFrom, sessionStatusOf, displayName } from "./layout/h
 import { TaskFilterBar, useArchivedSessions, type TaskFilterBarId } from "./layout/sidebar-tasks"
 import { TaskRow } from "@/components/session/task-row"
 import { formatRelativeTime } from "@/utils/relative-time"
-import { isDefaultSessionTitle } from "@/utils/session-title"
+import { displaySessionTitle } from "@/utils/session-title"
 import { base64Encode } from "@novaway/core/util/encode"
 import type { Session } from "@novaway/sdk/v2/client"
 
@@ -166,11 +166,7 @@ export default function TaskCenterPage() {
                   return (
                     <div class="rounded-lg border border-border-weak-base bg-background-stronger p-2">
                       <TaskRow
-                        title={() =>
-                          row.session.title && !isDefaultSessionTitle(row.session.title)
-                            ? row.session.title
-                            : language.t("workspace.header.untitled")
-                        }
+                        title={() => displaySessionTitle(row.session.title, language.t("workspace.header.untitled"))}
                         status={status}
                         branch={() => child.vcs?.branch}
                         updated={() => row.session.time?.updated}
