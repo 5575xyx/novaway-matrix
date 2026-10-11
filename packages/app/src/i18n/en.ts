@@ -826,6 +826,11 @@ export const dict = {
   "sidebar.filter.running": "Running",
   "sidebar.filter.waiting": "Needs approval",
   "sidebar.filter.archived": "Archived",
+  "sidebar.tree.back": "Back to tasks",
+  "sidebar.tree.title": "Files",
+  "sidebar.tree.onlyChanged": "Changed only",
+  "sidebar.tree.changes": "{{count}} changed",
+  "sidebar.tree.empty": "No project directory to browse",
   "sidebar.empty.title": "No projects open",
   "sidebar.empty.description": "Open a project to get started",
 
