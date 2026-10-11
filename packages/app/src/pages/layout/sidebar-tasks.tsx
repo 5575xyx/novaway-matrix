@@ -8,7 +8,7 @@ import { useLayout, type LocalProject, appModeConfig } from "@/context/layout"
 import { usePermission } from "@/context/permission"
 import { useNotification } from "@/context/notification"
 import { base64Encode } from "@novaway/core/util/encode"
-import { isDefaultSessionTitle } from "@/utils/session-title"
+import { displaySessionTitle } from "@/utils/session-title"
 import { pathKey } from "@/utils/path-key"
 import { sessionStatusOf, sortedRootSessionsFrom } from "./helpers"
 import { TaskRow } from "@/components/session/task-row"
@@ -72,9 +72,7 @@ export function ProjectTaskList(props: {
           const [child] = globalSync.child(session.directory, { bootstrap: false })
           return (
             <TaskRow
-              title={() =>
-                session.title && !isDefaultSessionTitle(session.title) ? session.title : language.t("workspace.header.untitled")
-              }
+              title={() => displaySessionTitle(session.title, language.t("workspace.header.untitled"))}
               status={status}
               branch={() => child.vcs?.branch}
               updated={() => session.time?.updated}

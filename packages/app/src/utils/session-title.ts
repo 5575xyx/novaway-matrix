@@ -7,3 +7,6 @@ export function sessionTitle(title?: string) {
 }
 
 export const isDefaultSessionTitle = (title?: string) => !!title && pattern.test(title)
+
+export const displaySessionTitle = (title: string | undefined, fallback: string): string =>
+  title && !isDefaultSessionTitle(title) ? title : fallback

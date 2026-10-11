@@ -19,7 +19,7 @@ import { getAvatarColors, type LocalProject, useLayout } from "@/context/layout"
 import { useNotification } from "@/context/notification"
 import { usePermission } from "@/context/permission"
 import { messageAgentColor } from "@/utils/agent"
-import { sessionTitle } from "@/utils/session-title"
+import { displaySessionTitle } from "@/utils/session-title"
 import { sessionPermissionRequest } from "../session/composer/session-request-tree"
 import { childSessionOnPath, hasProjectPermissions } from "./helpers"
 
@@ -161,7 +161,7 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
   const [saving, setSaving] = createSignal(false)
   let inputRef: HTMLInputElement | undefined
 
-  const titleText = () => sessionTitle(props.session.title)
+  const titleText = () => displaySessionTitle(props.session.title, language.t("workspace.header.untitled"))
 
   const completionTime = createMemo(() => {
     const updated = props.session.time?.updated
