@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { createRoot, createSignal } from "solid-js"
-import { createSessionKeyReader, ensureSessionKey, pruneSessionKeys } from "./layout"
+import { createSessionKeyReader, ensureSessionKey, migrateLayoutStore, pruneSessionKeys } from "./layout"
 
 describe("layout session-key helpers", () => {
   test("couples touch and scroll seed in order", () => {
@@ -66,4 +66,23 @@ describe("pruneSessionKeys", () => {
 
     expect(drop).toEqual([])
   })
+})
+
+test("migrateLayoutStore v7 删除 per-session viewMode 与 previewWidth", () => {
+  const out = migrateLayoutStore({
+    sessionView: {
+      "dir1/s1": { scroll: {}, viewMode: "split", previewWidth: 500, todoCollapsed: true },
+      "dir1/s2": { scroll: {} },
+    },
+    sidebar: { opened: true, width: 344, defaultCollapsedV1: true },
+  }) as Record<string, any>
+
+  expect(out.sessionView["dir1/s1"]).toEqual({ scroll: {}, todoCollapsed: true })
+  expect(out.sessionView["dir1/s2"]).toEqual({ scroll: {} })
+  expect(out.sidebar).toEqual({ opened: true, width: 344, defaultCollapsedV1: true })
+})
+
+test("migrateLayoutStore v7 无 sessionView 时不抛错", () => {
+  const out = migrateLayoutStore({ sidebar: { opened: false } }) as Record<string, any>
+  expect(out.sidebar.opened).toBe(false)
 })

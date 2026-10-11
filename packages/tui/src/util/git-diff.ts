@@ -62,3 +62,19 @@ function isMissingHead(e: unknown): boolean {
 export function loadCommitPatch(rootPath: string, hash: string): Promise<string> {
   return gitExec(rootPath, ["show", "--no-color", "--format=", hash]).then((out) => out.stdout.trimEnd())
 }
+
+/**
+ * 分支相对当前分支的差异。
+ *
+ * 用三点 `cur...name`:它取的是「name 独有的改动」,正是「这个分支比当前多做了什么」。
+ * 两点写法(或省略范围)是直接比两个分支的尖端 —— 当前分支独有的文件会被当成「那边删了」
+ * 混进来,分叉越久噪音越大,补丁就撑得没法定位。
+ * 返回空串而不是 undefined,和 loadCommitPatch 的口径一致(loadFilePatch 对空 diff 是
+ * fallback 到合成补丁,不是空串,别照抄它),调用方(diff-panel)按「空串 = 无内容」统一处理。
+ */
+export function loadBranchPatch(rootPath: string, name: string, current?: string): Promise<string> {
+  // (HEAD detached) 是 parseGitBranches 为 detached 状态造的哨兵名,它不是引用,
+  // 喂给 git diff 必然报错 —— 在起子进程之前就短路,别把 fatal 当无差异。
+  if (!current || current === name || current.startsWith("(HEAD detached")) return Promise.resolve("")
+  return gitExec(rootPath, ["diff", "--no-color", `${current}...${name}`]).then((out) => out.stdout.trimEnd())
+}

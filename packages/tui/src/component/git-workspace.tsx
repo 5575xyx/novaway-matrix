@@ -7,7 +7,9 @@
 // 差异视图窄于 30 列就没法读,硬挤只会得到一个谁也看不懂的界面。
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js"
 import type { JSX } from "solid-js"
+import { type ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
+import { useClipboard } from "../context/clipboard"
 import { useTheme } from "../context/theme"
 import { useBindings } from "../keymap"
 import { gitExec } from "../util/git-exec"
@@ -18,12 +20,15 @@ import {
   PANEL_TITLE,
   panelAt,
   keyOfParsed,
+  resolveDiffCommand,
   resolveWorkspaceCommand,
   type PanelID,
   type WorkspaceCommand,
 } from "./git-workspace/focus"
 import { createConfirm, type ArmedConfirm } from "./git-workspace/confirm"
+import { createClickDetector } from "./git-workspace/detector"
 import {
+  deriveBranchRows,
   deriveFileRows,
   deriveStatusRows,
   hintFromError,
@@ -32,12 +37,29 @@ import {
   type WorkspaceData,
 } from "./git-workspace/state"
 import { GitDiffPanel, type DiffTarget } from "./git-workspace/diff-panel"
+import { BranchesPanel } from "./git-workspace/branches-panel"
+import { CommitsPanel } from "./git-workspace/commits-panel"
 import { FilesPanel } from "./git-workspace/files-panel"
+import { InlineInput } from "./git-workspace/inline-input"
+import { StashPanel } from "./git-workspace/stash-panel"
 import { StatusPanel } from "./git-workspace/status-panel"
 
 const LEFT_WIDE = 36
 const LEFT_NARROW = 30
 const TOO_NARROW = 70
+
+/** 行内输入的三种触发来源(规格「提交」:三处共用同一个行内输入组件)。 */
+type InlineInputRequest = { kind: "commit" } | { kind: "branch-new" } | { kind: "remote-add" }
+
+/** 危险操作拍板的目标。三种形状合成一个联合,联合成员的判别键就是面板归属。 */
+type ArmedTarget = { file: string } | { branch: string } | { ref: string }
+
+interface KeybarItem {
+  text: string
+  command?: WorkspaceCommand
+  /** 此命令武装时高亮此项 */
+  armedCommand?: WorkspaceCommand
+}
 
 export interface GitWorkspaceProps {
   rootPath?: string
@@ -48,13 +70,25 @@ export interface GitWorkspaceProps {
 
 export function GitWorkspace(props: GitWorkspaceProps) {
   const { theme } = useTheme()
+  // 复制走 context 而不是裸 util:provider 可替换,测试才好注入可控的 write。
+  const clipboard = useClipboard()
 
   const [data, setData] = createSignal<WorkspaceData | undefined>(undefined)
   const [panel, setPanel] = createSignal<PanelID>("status")
   const [statusRow, setStatusRow] = createSignal(0)
   const [fileRow, setFileRow] = createSignal(0)
+  // 提交面板继续复用 fileRow(计划 1 已如此):提交与文件两个面板不同时显示,复用不会互相影响。
+  // 换成独立 commitRow 要多写一个信号 + 一个 clamp effect,收益只有整齐,留给计划 3 一起收拾。
+  const [branchRow, setBranchRow] = createSignal(0)
+  const [stashRow, setStashRow] = createSignal(0)
   const [diffTarget, setDiffTarget] = createSignal<DiffTarget>({ kind: "none" })
-  const [armed, setArmed] = createSignal<ArmedConfirm | undefined>(undefined)
+  const [armed, setArmed] = createSignal<ArmedConfirm<ArmedTarget> | undefined>(undefined)
+  // 行内输入的触发来源。三种来源(提交信息 / 新分支 / 远端地址)共用同一个 <InlineInput>,
+  // 差别只在标题和 confirmInput 里拼的 git 命令;信号本身不带文案,文案由 inputSpec 派生。
+  const [inlineInput, setInlineInput] = createSignal<InlineInputRequest | undefined>(undefined)
+  // 差异视图获得焦点(差异激活模式)。与 panel() 互斥:两个面板不能同时「有焦点」,
+  // 所以 focusPanel 每次都要把这里清掉,进差异模式只能靠 focusDiff 类命令显式打开。
+  const [diffFocus, setDiffFocus] = createSignal(false)
   const [remote, setRemote] = createSignal<string | undefined>(undefined)
   // 最后一次 git 命令失败的原因(中文,经 hintFromError 映射)。写进状态面板的「提示」行 ——
   // 失败必须有反馈:早先版本 gitExec 失败时既不刷新也无提示,用户按了 p 拉取毫无动静,
@@ -62,7 +96,52 @@ export function GitWorkspace(props: GitWorkspaceProps) {
   const [actionHint, setActionHint] = createSignal<string | undefined>(undefined)
 
   // 真实时钟注入给确认态。测试里换假时钟就能推时间(见 git-workspace-confirm.test.ts)。
-  const confirm = createConfirm<{ file: string }>(() => Date.now())
+  const confirm = createConfirm<ArmedTarget>(() => Date.now())
+
+  /**
+   * 危险操作的「不许做」前置检查。返回非空文案就写进提示行 —— 静默拒绝会让人以为按了
+   * 没生效然后去按别的键,比提示更糟。
+   *
+   * 当前分支的删除在这里挡,而不是让 git 报错:git 会拒绝,但 hintFromError 只会翻译成
+   * 一句「git 执行失败」,用户看不出到底为什么不能删。
+   */
+  const blockedDanger = (command: WorkspaceCommand): string | undefined => {
+    if (command !== "branches.delete") return undefined
+    const row = branchRows()[branchRow()]
+    if (!row) return undefined
+    if (row.current || row.name.startsWith("(HEAD")) return "当前分支不能删除"
+  }
+
+  /** 目标在武装瞬间拍板(计划 1 已有这条理由:武装到 fire 之间列表可能被后台刷新换掉)。 */
+  const dangerTarget = (command: WorkspaceCommand): ArmedTarget | undefined => {
+    if (command === "files.discard" || command === "files.delete") {
+      const row = fileRows()[fileRow()]
+      return row ? { file: row.file } : undefined
+    }
+    if (command === "branches.delete") {
+      const row = branchRows()[branchRow()]
+      return row && !row.current ? { branch: row.name } : undefined
+    }
+    if (command === "stash.discard") {
+      const row = stashRows()[stashRow()]
+      return row ? { ref: row.ref } : undefined
+    }
+    return undefined
+  }
+
+  /** 只把「属于这个面板」的确认态交给对应面板渲染;联合的判别键就是面板归属。 */
+  const armedFor = (kind: "file" | "branch" | "ref") => {
+    const current = armed()
+    const target = current?.target
+    return target && kind in target ? current : undefined
+  }
+
+  /** 打开左列底部的行内输入。开输入框是明确的「改主意」:任何待确认态到此作废。 */
+  const openInput = (request: InlineInputRequest) => {
+    confirm.clear()
+    setArmed(undefined)
+    setInlineInput(request)
+  }
 
   // 世代计数器:连按 r、或 stage 后连续 gitExec().then(refresh) 时,先发的可能后回来。
   // 没有它,旧快照会盖掉新快照 —— 而这份数据是整仓状态,显示过期状态会误导接下来的危险操作。
@@ -113,6 +192,22 @@ export function GitWorkspace(props: GitWorkspaceProps) {
       })
   }
 
+  /**
+   * 行内输入的确认回调。三种来源共用一个入口,差别只在拼哪条 git 命令(规格「提交」)。
+   *
+   * 先关输入框再跑命令:命令失败时输入框若还开着、文案还在,用户会以为「还没提交」而重按 enter;
+   * 那时输入框已经关了,行为前后不一致。关框本身没有副作用,所以先做。
+   */
+  const confirmInput = (value: string) => {
+    const kind = inlineInput()?.kind
+    setInlineInput(undefined)
+    if (kind === "commit") return runGit(["commit", "-m", value])
+    // switch -c 而不是 branch:只建不切会让用户以为还在原分支,下一条提交就落错地方了。
+    if (kind === "branch-new") return runGit(["switch", "-c", value])
+    // 只有「没有任何远端」才会走到这里(见 switchRemote),此时 origin 一定空闲,不用查重名。
+    return runGit(["remote", "add", "origin", value])
+  }
+
   const selectedRemote = createMemo(() => {
     const list = data()?.remotes ?? []
     return list.find((item) => item.name === remote()) ?? pickDefaultRemote(list)
@@ -130,22 +225,92 @@ export function GitWorkspace(props: GitWorkspaceProps) {
     ),
   )
   const fileRows = createMemo(() => deriveFileRows(data()?.status ?? EMPTY_STATUS, data()?.numstat ?? []))
+  // 分支行要从原始 GitBranch 派生(领先/落后要拼成 ↑N ↓M);commits 与 stash 拉回来就已经是行形状。
+  const branchRows = createMemo(() => deriveBranchRows(data()?.branches ?? []))
+  const commitRows = createMemo(() => data()?.commits ?? [])
+  const stashRows = createMemo(() => data()?.stash ?? [])
+
+  // 三处行内输入的文案表:title/placeholder 只由触发来源决定,收在一份 memo 里共用,
+  // 避免散在 JSX 里写三个三元之后出现「提交输入框的占位符写成了分支名」这种错配。
+  const inputSpec = createMemo(() => {
+    const kind = inlineInput()?.kind
+    if (kind === "commit") return { title: "提交信息", placeholder: undefined }
+    if (kind === "branch-new") return { title: "新建分支", placeholder: undefined }
+    return { title: "远端地址", placeholder: "git@host:org/repo.git" }
+  })
 
   const tooNarrow = () => props.width < TOO_NARROW
   const leftWidth = () => (props.width < 80 ? LEFT_NARROW : LEFT_WIDE)
+
+  /** 当前焦点面板有没有行。空面板的键位条不印 j/k(见 keybarText)。 */
+  const hasRows = () => {
+    const panelId = panel()
+    if (panelId === "status") return statusRows().length > 0
+    if (panelId === "files") return fileRows().length > 0
+    if (panelId === "branches") return branchRows().length > 0
+    if (panelId === "commits") return commitRows().length > 0
+    return stashRows().length > 0
+  }
+
+  const keybarItems = createMemo(() => {
+    const input = inlineInput()
+    if (input) return INPUT_KEYBAR_ITEMS
+    if (diffFocus()) return DIFF_KEYBAR_ITEMS
+    return panelKeybarItems({ panel: panel(), hasRows: hasRows() })
+  })
+
+  const detector = createClickDetector(() => Date.now())
+
+  const selectRow = (panelId: PanelID, rowIndex: number) => {
+    if (panelId === "status") return setStatusRow(rowIndex)
+    if (panelId === "files" || panelId === "commits") return setFileRow(rowIndex)
+    if (panelId === "branches") return setBranchRow(rowIndex)
+    return setStashRow(rowIndex)
+  }
+
+  const handleRowClick = (panelId: PanelID) => (rowIndex: number) => {
+    const id = `${panelId}:${rowIndex}`
+    detector.detect(
+      id,
+      () => {
+        focusPanel(panelId)
+        selectRow(panelId, rowIndex)
+      },
+      () => {
+        if (panelId === "files") run("files.focusDiff")
+        else if (panelId === "commits") run("commits.focusDiff")
+        else if (panelId === "branches") run("branches.checkout")
+      },
+    )
+  }
 
   const moveRow = (delta: number) => {
     if (panel() === "status") {
       setStatusRow((n) => clamp(n + delta, 0, statusRows().length - 1))
       return
     }
-    if (panel() === "files") setFileRow((n) => clamp(n + delta, 0, fileRows().length - 1))
+    if (panel() === "files") {
+      setFileRow((n) => clamp(n + delta, 0, fileRows().length - 1))
+      return
+    }
+    if (panel() === "branches") {
+      setBranchRow((n) => clamp(n + delta, 0, branchRows().length - 1))
+      return
+    }
+    // 提交面板复用 fileRow,但 clamp 的上限得用提交自己的行数:两份表的长度完全不同。
+    if (panel() === "commits") {
+      setFileRow((n) => clamp(n + delta, 0, commitRows().length - 1))
+      return
+    }
+    if (panel() === "stash") setStashRow((n) => clamp(n + delta, 0, stashRows().length - 1))
   }
 
   // 列表收缩时把选中行夹回范围内:moveRow 每一步都 clamp,但 refresh() 换掉整个列表时
   // 没人管 —— discard/delete 后列表变少,fileRow 会越界:文件面板不再高亮任何行,
-  // 差异面板、键位条却还按旧行说事。commits 面板复用 fileRow,越界那边有 `if (!row)`
-  // 兜底不会误执行,这里只夹真会收缩的两张表。
+  // 差异面板、键位条却还按旧行说事。四个面板各夹各的。commits 复用 fileRow,它的行数由
+  // moveRow 里用 commitRows 单独算,这里夹的仍是文件表 —— 已知瑕疵:文件表比提交表短时,
+  // refresh 会把提交面板的选中行夹回文件表长度(症状是「我刚选的那行跳回去了」),
+  // 换独立 commitRow 时一并修。
   createEffect(() => {
     const max = Math.max(0, statusRows().length - 1)
     if (statusRow() > max) setStatusRow(max)
@@ -154,6 +319,52 @@ export function GitWorkspace(props: GitWorkspaceProps) {
     const max = Math.max(0, fileRows().length - 1)
     if (fileRow() > max) setFileRow(max)
   })
+  createEffect(() => {
+    const max = Math.max(0, branchRows().length - 1)
+    if (branchRow() > max) setBranchRow(max)
+  })
+  createEffect(() => {
+    const max = Math.max(0, stashRows().length - 1)
+    if (stashRow() > max) setStashRow(max)
+  })
+
+  /** 把焦点切到某个面板,同时退出差异激活模式。 */
+  const focusPanel = (id: PanelID) => {
+    // 切面板必须退出差异激活模式(Task 9):两个面板不能同时「有焦点」,否则差异模式下 tab 之后
+    // j/k 还在滚动差异而不是移动行。Task 9 接上拦截器之前 setDiffFocus 只有写入没有读取。
+    setDiffFocus(false)
+    setPanel(id)
+  }
+
+  /** 循环切到下一个远端(规格「多远程」)。 */
+  const switchRemote = () => {
+    const list = data()?.remotes ?? []
+    // 没有远端时不提示、直接开输入框:「未配置远端」那一行本身就是给一个可按键的入口。
+    if (list.length === 0) return openInput({ kind: "remote-add" })
+    // 切换本身不执行任何 git 命令,只改选中状态:推送/拉取时才拿这个值。
+    const index = list.findIndex((item) => item.name === remote())
+    setRemote(list[(index + 1) % list.length]?.name)
+  }
+
+  // 差异激活模式下的滚动目标,由 GitDiffPanel 的 scrollbox ref 回填。
+  // 两种情况下它是 null:差异还没选中任何目标(diffTarget 是 none),或差异为空
+  // (比如选中当前分支)—— 这两种情况都没有 scrollbox 挂载。所有滚动命令都得对它
+  // 静默,否则差异模式下按一下 j 就抛错。
+  let scroll: ScrollBoxRenderable | null = null
+
+  /**
+   * 滚动 n 行。clamp 自己算,不依赖上游:上游的 clamp 在「内容比视口短」时会算出负值
+   * (`min(max(0, v), scrollSize - viewportSize)` 里上界是负数,直接盖掉下界),
+   * 于是一次下滚就把内容整体往下顶、屏幕出现大片空白。内容不超出时就原地不动。
+   */
+  const scrollDiffBy = (lines: number) => {
+    if (!scroll || scroll.isDestroyed) return
+    if (scroll.scrollHeight <= scroll.viewport.height) return
+    scroll.scrollTop = clamp(scroll.scrollTop + lines, 0, scroll.scrollHeight - scroll.viewport.height)
+  }
+
+  /** 一屏 = 视口高度(行数),不写死:终端拉高/拉低,翻页量跟着变。 */
+  const scrollDiffPage = () => (scroll && !scroll.isDestroyed ? scroll.viewport.height : 0)
 
   /** 执行一条工作区命令。所有键位处理最终都汇到这里。 */
   const run = (command: WorkspaceCommand) => {
@@ -176,9 +387,11 @@ export function GitWorkspace(props: GitWorkspaceProps) {
       setArmed(undefined)
     }
 
-    if (command === "panel.next") return setPanel((p) => panelAt(PANEL_ORDER.indexOf(p) + 1))
-    if (command === "panel.prev") return setPanel((p) => panelAt(PANEL_ORDER.indexOf(p) - 1))
-    if (command.startsWith("panel.jump:")) return setPanel(panelAt(Number(command.slice("panel.jump:".length))))
+    // 切面板一律走 focusPanel:它同时退出差异激活模式。tab 只 setPanel 会留下
+    // 「焦点已切走、j 还在滚差异」的矛盾态。
+    if (command === "panel.next") return focusPanel(panelAt(PANEL_ORDER.indexOf(panel()) + 1))
+    if (command === "panel.prev") return focusPanel(panelAt(PANEL_ORDER.indexOf(panel()) - 1))
+    if (command.startsWith("panel.jump:")) return focusPanel(panelAt(Number(command.slice("panel.jump:".length))))
     if (command === "row.up") return moveRow(-1)
     if (command === "row.down") return moveRow(1)
     if (command === "global.close") return props.onClose()
@@ -187,14 +400,20 @@ export function GitWorkspace(props: GitWorkspaceProps) {
       setActionHint(undefined)
       return refresh()
     }
+    // 差异激活模式的键:只动滚动位置,不动任何选中行,也不需要 cwd。
+    if (command === "diff.scrollUp") return scrollDiffBy(-1)
+    if (command === "diff.scrollDown") return scrollDiffBy(1)
+    if (command === "diff.pageUp") return scrollDiffBy(-scrollDiffPage())
+    if (command === "diff.pageDown") return scrollDiffBy(scrollDiffPage())
+    // esc 只退回左列焦点,不清 diffTarget:再按 enter 时标题接着上次,不会重跑 git。
+    if (command === "diff.exit") return setDiffFocus(false)
 
     // 危险命令先进确认态;fire 才真往下走,armed/cancel 都只是状态变化。
     if (DANGEROUS_COMMANDS.has(command)) {
-      // 目标在武装瞬间拍板:武装后列表可能被后台刷新换掉,fire 时重读选中行会丢错文件。
-      // 只有 files.* 的 fire 真会落地(丢弃/删除文件),branches/stash 的执行在计划 2,
-      // 它们此刻不消费目标 —— 不给它们拍,免得留下语义对不上的快照。
-      const fileTarget = command === "files.discard" || command === "files.delete" ? fileRows()[fileRow()] : undefined
-      const result = confirm.press(command, dangerLabel(command), fileTarget ? { file: fileTarget.file } : undefined)
+      const blocked = blockedDanger(command)
+      if (blocked) return setActionHint(blocked)
+      const target = dangerTarget(command)
+      const result = confirm.press(command, dangerLabel(command), target)
       setArmed(confirm.pending())
       if (result !== "fire") return
     }
@@ -213,21 +432,60 @@ export function GitWorkspace(props: GitWorkspaceProps) {
       runGit(["add", "-A"])
       return
     }
+    // 三个 focusDiff 都是「设目标 + 进激活模式」:只看目标不动焦点,enter 之后按 j 会去
+    // 移文件行而不是滚差异,用户会以为按键失灵。
     if (command === "files.focusDiff") {
       const row = fileRows()[fileRow()]
-      if (row) setDiffTarget({ kind: "file", path: row.file })
+      if (row) {
+        setDiffTarget({ kind: "file", path: row.file })
+        setDiffFocus(true)
+      }
       return
     }
     if (command === "commits.focusDiff") {
-      const row = data()?.commits[fileRow()]
-      if (row) setDiffTarget({ kind: "commit", hash: row.hash })
+      // 提交面板复用 fileRow 当游标(见文件顶部注释),所以这里取 commitRows 而不是文件表 ——
+      // 两份表长度完全不同,取错会让提交 diff 落在不相干的文件上。
+      const row = commitRows()[fileRow()]
+      if (row) {
+        setDiffTarget({ kind: "commit", hash: row.hash })
+        setDiffFocus(true)
+      }
       return
+    }
+    if (command === "branches.focusDiff") {
+      // 选中当前分支时 loadBranchPatch 返回空串,面板显示「没有改动」—— 不拦它,
+      // 让用户按 enter 总有回音,而不是「点了没反应」。
+      const row = branchRows()[branchRow()]
+      if (row) {
+        setDiffTarget({ kind: "branch", name: row.name })
+        setDiffFocus(true)
+      }
+      return
+    }
+    // 复制走 context 的 write:provider 是可选注入的(ClipboardService.write 是 optional),
+    // 所以这里同时判「provider 没实现 write」这一路 —— 剪贴板不可见,得让用户知道没写成,
+    // 否则会去核对是不是路径/哈希抄错。context 的 write 本身从不 reject(失败被
+    // clipboardy/native 那层 .catch(() => undefined) 吞掉),能分辨的失败只有这一种。
+    if (command === "files.copyPath") {
+      const row = fileRows()[fileRow()]
+      if (!row) return
+      if (!clipboard.write) return setActionHint("剪贴板不可用")
+      void clipboard.write(row.file)
+      return setActionHint("已复制路径")
+    }
+    if (command === "commits.copyHash") {
+      // 提交面板复用 fileRow 当游标(见 files.focusDiff 同款注释),取 commitRows 而不是文件表。
+      const row = commitRows()[fileRow()]
+      if (!row) return
+      if (!clipboard.write) return setActionHint("剪贴板不可用")
+      void clipboard.write(row.full)
+      return setActionHint("已复制提交哈希")
     }
     if (command === "files.discard" || command === "files.delete") {
       // 按武装时拍下的目标执行,不重读选中行 —— 武装到 fire 之间列表可能已被后台刷新换掉,
       // 重读会把丢弃/删除落到另一个文件头上。
       const target = confirm.takeFiredTarget()
-      if (!target) return
+      if (!target || !("file" in target)) return
       const args =
         command === "files.delete"
           ? ["clean", "-f", "--", target.file]
@@ -235,13 +493,45 @@ export function GitWorkspace(props: GitWorkspaceProps) {
       runGit(args)
       return
     }
-    if (command === "status.space" || command === "status.m") {
-      // 远程行:循环切远端。切换本身不执行任何 git 命令,只改选中状态(规格「多远程」)。
-      const list = data()?.remotes ?? []
-      if (list.length === 0) return
-      const index = list.findIndex((item) => item.name === remote())
-      setRemote(list[(index + 1) % list.length]?.name)
-      return
+    if (command === "branches.delete" || command === "stash.discard") {
+      // 和 files.* 同理:按武装时拍下的目标执行,不重读选中行。
+      const target = confirm.takeFiredTarget()
+      if (!target) return
+      if ("branch" in target) return runGit(["branch", "-D", target.branch])
+      if ("ref" in target) return runGit(["stash", "drop", target.ref])
+    }
+    if (command === "status.m") return switchRemote()
+    if (command === "status.space") {
+      // 空格按当前行分派(规格「状态」):分支行跳面板、远程行切远端、变更行全暂存/全取消。
+      // 「提示」行不做任何事 —— 空格落在这一行时静默,而不是报一条没用的提示。
+      const row = statusRows()[statusRow()]
+      if (!row) return
+      if (row.kind === "branch") return focusPanel("branches")
+      if (row.kind === "remote") return switchRemote()
+      if (row.kind === "changes") {
+        // 有未暂存改动就全暂存,一个都没有就全取消 —— 同一个键在两种状态下互为逆操作。
+        const unstaged = (data()?.status.entries ?? []).some((entry) => entry.unstaged)
+        return unstaged ? runGit(["add", "-A"]) : runGit(["restore", "--staged", "--", "."])
+      }
+    }
+    if (command === "branches.checkout") {
+      const row = branchRows()[branchRow()]
+      // detached 的哨兵行不是引用,切过去必然报错。
+      if (!row || row.name.startsWith("(HEAD")) return
+      // 远程分支(带 /)也直接 switch:git 会给它建一个本地跟踪分支。失败时 runGit 写提示行,
+      // 不比我们自己判一遍本地是否已存在更糟 —— 而自己判就有两套真相源。
+      return runGit(["switch", row.name])
+    }
+    if (command === "branches.new") return openInput({ kind: "branch-new" })
+    if (command === "commits.undo") {
+      if ((data()?.commits.length ?? 0) === 0) return
+      // 规格「提交」:只回退最近一次提交到暂存区,不做操作级撤销栈。
+      return runGit(["reset", "--soft", "HEAD~1"])
+    }
+    if (command === "stash.pop") {
+      const row = stashRows()[stashRow()]
+      if (!row) return
+      return runGit(["stash", "pop", row.ref])
     }
     if (command === "global.pull" || command === "global.push") {
       const name = selectedRemote()?.name
@@ -252,16 +542,12 @@ export function GitWorkspace(props: GitWorkspaceProps) {
       return
     }
     if (command === "global.commit") {
-      // 计划 1 里提交是「还不可用」的占位,计划 2 才接上行内输入。
-      // 但**两种情况都得给反馈**:早先版本只在没有暂存内容时提示,已暂存时按 c 什么也不发生 ——
-      // 用户照着提示暂存完,按下去却毫无反应,比不放这个键还糟。
-      const staged = (data()?.status.entries ?? []).filter((entry) => entry.staged)
-      setArmed({
-        key: "c",
-        label: staged.length === 0 ? "先暂存改动(空格)再提交" : "提交输入框还没接上,本版暂不能提交",
-        deadline: Date.now() + 3000,
-      })
-      return
+      // 两种情况都要有回音:早先版本只在没有暂存内容时提示,已暂存时按 c 毫无反应 ——
+      // 用户照着提示暂存完,按下去却什么都没有,比不放这个键还糟。
+      if (!(data()?.status.entries ?? []).some((entry) => entry.staged)) {
+        return setActionHint("没有可提交的暂存内容")
+      }
+      return openInput({ kind: "commit" })
     }
   }
 
@@ -279,11 +565,43 @@ export function GitWorkspace(props: GitWorkspaceProps) {
     ],
   }))
 
+  // pgup/pgdn 与 tab 同款问题(session.global 层把这两个键绑成了「翻聊天记录」,而且**没有 enabled 闸门**):
+  // 差异模式下按 pgup 用户明明在看差异,滚的却是聊天记录 —— 而工作区自己的 useKeyboard 拦截器
+  // 因为被 prependListener 抢在 keymap 后面,收不到这个事件,连 run() 都到不了。
+  // 唯一出路仍是同键冲突里赢下那一层:注册顺序在 session 之后、enabled 只在差异激活模式,
+  // 非差异模式 enabled 为 false 自动失活,全局翻页随之恢复。
+  useBindings(() => ({
+    enabled: () => diffFocus(),
+    bindings: [
+      { key: "pageup", desc: "差异上翻页", group: "Git 工作区", cmd: () => run("diff.pageUp") },
+      { key: "pagedown", desc: "差异下翻页", group: "Git 工作区", cmd: () => run("diff.pageDown") },
+    ],
+  }))
+
   // 键位拦截:先问工作区,答得上来就吃掉;答不上来就放行(聊天输入框还能打字)。
   // 没解析出命令的键(要漏给聊天输入框的那些)一律取消确认态。和 run() 里的那次清理
   // 合起来才构成完整契约:**除危险命令的 press 之外,任何按键路径都清武装态**。
   // 漏了这条会出事:d 武装后按 q(漏过)、3 秒内再按 d —— 直接就 discard 了。
   useKeyboard((event) => {
+    // 行内输入开着时,所有键都归输入框,这里必须完全放行。
+    // 拦截器一旦 stopPropagation,textarea 就收不到字符(见 @opentui/core 的 InternalKeyHandler:
+    // 全局监听器先跑,propagationStopped 后 renderable 处理器整段跳过),
+    // 「打 jkd 当分支名」会退化成「移动光标三次」。enter / esc 由 InlineInput 自己那层 keymap 吃掉。
+    if (inlineInput() !== undefined) return
+
+    // 差异激活模式:走差异自己的键位表。esc 是退回左列焦点(不是关工作区),
+    // 数字键 1-5 一律不响应(规格 L115)。答不上来的键直接放行、不拦:进差异模式前 run()
+    // 已经清过武装态,这里不会有残留,所以也没必要再清一遍。
+    if (diffFocus()) {
+      const command = resolveDiffCommand(keyOfParsed(event))
+      if (command) {
+        event.preventDefault()
+        event.stopPropagation()
+        run(command)
+      }
+      return
+    }
+
     const command = resolveWorkspaceCommand(panel(), keyOfParsed(event))
     if (command) {
       event.preventDefault()
@@ -314,28 +632,66 @@ export function GitWorkspace(props: GitWorkspaceProps) {
           <box flexDirection="column" width={leftWidth()} flexShrink={0} minHeight={0}>
             <For each={PANEL_ORDER}>
               {(id) => (
-                <PanelFrame title={PANEL_TITLE[id]} focused={panel() === id}>
+                <PanelFrame title={PANEL_TITLE[id]} focused={panel() === id} onFrameClick={() => focusPanel(id)}>
                   <Show when={id === "status"}>
                     <StatusPanel
                       rows={statusRows()}
                       selected={() => (panel() === "status" ? statusRow() : -1)}
                       remoteUrl={selectedRemote()?.url}
-                      // 边框吃掉左右各 1 列:面板内部的截断算式量的是**内容宽**,不是框外宽。
-                      // 少这 2 列修正,状态行的计数就会顶破右边框(与 Task 6/7 的宽度账目同类)。
                       width={leftWidth() - 2}
+                      onRowClick={handleRowClick(id)}
                     />
                   </Show>
                   <Show when={id === "files"}>
                     <FilesPanel
                       rows={fileRows()}
                       selected={() => (panel() === "files" ? fileRow() : -1)}
-                      armed={armed()}
+                      armed={armedFor("file")}
                       width={leftWidth() - 2}
+                      onRowClick={handleRowClick(id)}
+                    />
+                  </Show>
+                  <Show when={id === "branches"}>
+                    <BranchesPanel
+                      rows={branchRows()}
+                      selected={() => (panel() === "branches" ? branchRow() : -1)}
+                      armed={armedFor("branch")}
+                      width={leftWidth() - 2}
+                      onRowClick={handleRowClick(id)}
+                    />
+                  </Show>
+                  <Show when={id === "commits"}>
+                    <CommitsPanel
+                      rows={commitRows()}
+                      selected={() => (panel() === "commits" ? fileRow() : -1)}
+                      width={leftWidth() - 2}
+                      onRowClick={handleRowClick(id)}
+                    />
+                  </Show>
+                  <Show when={id === "stash"}>
+                    <StashPanel
+                      rows={stashRows()}
+                      selected={() => (panel() === "stash" ? stashRow() : -1)}
+                      armed={armedFor("ref")}
+                      width={leftWidth() - 2}
+                      onRowClick={handleRowClick(id)}
                     />
                   </Show>
                 </PanelFrame>
               )}
             </For>
+            {/* 行内输入挂在左列底部,与五个面板同列:它是「提交信息」「新分支」「远端地址」三处的
+              唯一渲染位,占两行(一行留白 + 一行输入),flexShrink=0 保证不被上面的面板挤没。
+              不放右边差异区 —— 用户提交时眼睛就在左列的文件列表上,输入框得跟着手走。 */}
+            <Show when={inlineInput() !== undefined}>
+              <InlineInput
+                title={inputSpec().title}
+                placeholder={inputSpec().placeholder}
+                width={leftWidth() - 2}
+                onConfirm={confirmInput}
+                onCancel={() => setInlineInput(undefined)}
+              />
+            </Show>
           </box>
           {/* 差异区同样上整圈边框(Lazygit 主视图也是带框的),标题固定「差异」——
             看的是哪个文件/提交由面板内的标题行交代,两层各说各的。 */}
@@ -348,32 +704,72 @@ export function GitWorkspace(props: GitWorkspaceProps) {
             flexGrow={1}
             minHeight={0}
           >
-            <GitDiffPanel target={diffTarget()} rootPath={props.rootPath} />
+            <GitDiffPanel
+              target={diffTarget()}
+              rootPath={props.rootPath}
+              currentBranch={data()?.status.branch}
+              scrollRef={(element) => (scroll = element)}
+              onMouseScroll={(event) => {
+                if (!scroll || scroll.isDestroyed) return
+                if (scroll.scrollHeight <= scroll.viewport.height) return
+                if (!event.scroll) return
+                const delta =
+                  event.scroll.direction === "down" ? Math.abs(event.scroll.delta) : -Math.abs(event.scroll.delta)
+                scrollDiffBy(delta)
+              }}
+              onMouseDown={(event) => {
+                if (!scroll || scroll.isDestroyed) return
+                if (scroll.scrollHeight <= scroll.viewport.height) return
+                const target = clamp(event.y + scroll.scrollTop, 0, scroll.scrollHeight - scroll.viewport.height)
+                scroll.scrollTop = target
+              }}
+            />
           </box>
         </box>
         {/* 底部键位条:全局段常驻,焦点段跟着焦点面板变(规格「底部键位提示条跟着焦点面板变」)。
           拆两行而不是拼一行:拼起来超过 70 列,规格要求 70 列终端可用,单行在窄档会把尾部裁掉。
-          确认态时全局段让位、整条换成确认文案 —— 这是「不弹窗」方案里唯一的强提示位。 */}
+          确认态时全局段让位、整条换成确认文案 —— 这是「不弹窗」方案里唯一的强提示位。
+          焦点段收到四个参数:确认态 / 行内输入 / 差异模式 / 当前面板,按这个顺序定优先级。 */}
         <box flexDirection="column" flexShrink={0} paddingLeft={1} paddingTop={1}>
           <Show when={armed() === undefined}>
-            <text fg={theme.textMuted} wrapMode="none">
-              {GLOBAL_KEYBAR}
-            </text>
+            <box flexDirection="row">
+              <For each={GLOBAL_KEYBAR_ITEMS}>
+                {(item) => (
+                  <box onMouseDown={item.command ? () => run(item.command!) : undefined}>
+                    <text fg={theme.textMuted} wrapMode="none">
+                      {item.text}
+                    </text>
+                  </box>
+                )}
+              </For>
+            </box>
           </Show>
-          <text fg={armed() === undefined ? theme.textMuted : theme.warning} wrapMode="none">
-            {keybarText(panel(), armed())}
-          </text>
+          <box flexDirection="row">
+            <For each={keybarItems()}>
+              {(item) => (
+                <box onMouseDown={item.command ? () => run(item.command!) : undefined}>
+                  <text fg={armed()?.key === item.armedCommand ? theme.warning : theme.textMuted} wrapMode="none">
+                    {item.text}
+                  </text>
+                </box>
+              )}
+            </For>
+          </box>
         </box>
       </box>
     </Show>
   )
 }
 
-function PanelFrame(props: { title: string; focused: boolean; children?: JSX.Element }) {
+function PanelFrame(props: { title: string; focused: boolean; children?: JSX.Element; onFrameClick?: () => void }) {
   const { theme } = useTheme()
   // Lazygit 式整圈边框:聚焦面板边框走 primary 高亮,其余走普通 border 色。
   // 标题嵌在**上边框那行**(opentui 原生 title,写法先例 error-component.tsx:121-124),
   // 不再像旧版那样自画一行 `┌ 状态 ─` 前缀。
+  // onMouseDown 挂在整框上是为了接住标题行的点击:标题是 opentui 原生 title,不是独立
+  // renderable,挂不到单独的元素上。代价是框内任何鼠标事件都会冒泡到这里 —— 而这个 handler
+  // 走 focusPanel、会顺手退出差异激活模式,所以每一行的 onMouseDown 都必须 stopPropagation:
+  // 否则双击刚把差异模式打开,紧接着就被框这一手关掉,用户只会以为双击没用。
   return (
     <box
       border
@@ -383,6 +779,7 @@ function PanelFrame(props: { title: string; focused: boolean; children?: JSX.Ele
       titleColor={props.focused ? theme.primary : theme.textMuted}
       flexGrow={1}
       minHeight={0}
+      onMouseDown={props.onFrameClick}
     >
       {props.children}
     </box>
@@ -403,24 +800,73 @@ function dangerLabel(command: WorkspaceCommand): string {
 
 /**
  * 键位条的全局段:跨面板都成立的键,常驻显示(不随焦点变)。
- * 只写**真能按出结果**的键:`tab 切面板` 和 `r 刷新` 都完整可用。
- * `c 提交` 保留但不再写「(需先暂存)」—— 计划 1 里提交还是占位,按 c 会弹一句
- * 「输入框还没接上」。把前置条件印在键位条上会让人以为照做就能提交,
- * 比诚实地说它还不可用更糟(见 run() 里两种情况都给反馈的原因)。
+ * 每个 item 一个 <text>,command 非空时可点击触发对应命令。
+ * 空格分隔符写在每个 item 的开头,保证拼起来逐字一致。
  */
-const GLOBAL_KEYBAR = "tab 切面板 c 提交 r 刷新"
+const GLOBAL_KEYBAR_ITEMS: KeybarItem[] = [
+  { text: "tab 1-5 切面板" },
+  { text: " p 拉取", command: "global.pull" },
+  { text: " f 推送", command: "global.push" },
+  { text: " c 提交", command: "global.commit" },
+  { text: " r 刷新", command: "global.refresh" },
+]
+
+/** 行内输入态的键位条。enter/esc 由输入框自己处理,此处只作提示,不可点击。 */
+const INPUT_KEYBAR_ITEMS: KeybarItem[] = [{ text: "enter 提交" }, { text: " esc 取消" }]
+
+/** 差异激活模式的键位条。翻页和退回可点击,j/k 滚动是提示。 */
+const DIFF_KEYBAR_ITEMS: KeybarItem[] = [
+  { text: "j/k 滚动" },
+  { text: " pgup/pgdn 翻页", command: "diff.pageDown" },
+  { text: " esc 退回", command: "diff.exit" },
+]
 
 /**
- * 键位条的焦点段文字,内容跟着焦点面板变(规格「底部键位提示条跟着焦点面板变」)。
- * 确认态时整条换成确认文案 —— 这是「不弹窗」方案里唯一的强提示位。
+ * 焦点面板的键位条。返回 item 数组,每个 item 可独立点击。
+ * 空格分隔符写在每个 item 的开头,保证拼起来逐字一致。
  */
-function keybarText(panel: PanelID, armed?: ArmedConfirm): string {
-  if (armed) return armed.label
-  if (panel === "files") return "j/k 选 空格 暂存 a 全部暂存 enter 看差异 d 丢弃 ? 帮助"
-  if (panel === "status") return "j/k 选行 空格 作用于当前行 p 拉取 f 推送 ? 帮助"
-  if (panel === "branches") return "j/k 选 空格 切换 n 新建 d 删除 ? 帮助"
-  if (panel === "commits") return "j/k 选 enter 看差异 z 撤销上次提交 ? 帮助"
-  return "j/k 选 空格 弹出 d 丢弃 ? 帮助"
+function panelKeybarItems(args: { panel: PanelID; hasRows: boolean }): KeybarItem[] {
+  const move: KeybarItem[] = args.hasRows ? [{ text: "j/k 选" }] : []
+  if (args.panel === "status") {
+    return [
+      ...move,
+      { text: " 空格 作用于当前行", command: "status.space" },
+      { text: " m 切换远端", command: "status.m" },
+    ]
+  }
+  if (args.panel === "files") {
+    return [
+      ...move,
+      { text: " 空格 暂存", command: "files.stage" },
+      { text: " a 全部暂存", command: "files.stageAll" },
+      { text: " enter 看差异", command: "files.focusDiff" },
+      { text: " y 复制路径", command: "files.copyPath" },
+      { text: " d 丢弃", command: "files.discard", armedCommand: "files.discard" },
+      { text: " x 删除", command: "files.delete", armedCommand: "files.delete" },
+    ]
+  }
+  if (args.panel === "branches") {
+    return [
+      ...move,
+      { text: " 空格 切换", command: "branches.checkout" },
+      { text: " n 新建", command: "branches.new" },
+      { text: " enter 看差异", command: "branches.focusDiff" },
+      { text: " d 删除", command: "branches.delete", armedCommand: "branches.delete" },
+    ]
+  }
+  if (args.panel === "commits") {
+    return [
+      ...move,
+      { text: " enter 看差异", command: "commits.focusDiff" },
+      { text: " y 复制哈希", command: "commits.copyHash" },
+      { text: " z 撤销上次提交", command: "commits.undo" },
+    ]
+  }
+  return [
+    ...move,
+    { text: " 空格 弹出", command: "stash.pop" },
+    { text: " d 丢弃", command: "stash.discard", armedCommand: "stash.discard" },
+  ]
 }
 
 /** 数据还没回来(或不是 git 仓库)时的空状态。显式标类型,免得 `??` 右边的字面量把联合类型撑开。 */

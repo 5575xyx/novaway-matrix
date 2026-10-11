@@ -29,6 +29,12 @@ export interface FilesPanelProps {
   armed?: ArmedConfirm
   /** 面板可用列数,用于截断路径。 */
   width: number
+  /** 单击行:面板不关心命令,只报告点了第几行;外壳负责选中 + 双击判定。 */
+  onRowClick?: (rowIndex: number) => void
+  /** 双击行:外壳已判定,这里只把行号报告上去。 */
+  onRowDoubleClick?: (rowIndex: number) => void
+  /** 点面板框(含标题):外壳用 focusPanel(id),与键盘数字键等价。 */
+  onFrameClick?: () => void
 }
 
 export function FilesPanel(props: FilesPanelProps) {
@@ -54,7 +60,14 @@ export function FilesPanel(props: FilesPanelProps) {
             const isFocused = () => index() === props.selected()
             const showingConfirm = () => isFocused() && props.armed !== undefined
             return (
-              <box flexDirection="row" paddingLeft={1}>
+              <box
+                flexDirection="row"
+                paddingLeft={1}
+                onMouseDown={(event) => {
+                  event.stopPropagation()
+                  props.onRowClick?.(index())
+                }}
+              >
                 <text fg={isFocused() ? theme.primary : theme.textMuted} wrapMode="none">
                   {isFocused() ? "❯ " : "  "}
                 </text>

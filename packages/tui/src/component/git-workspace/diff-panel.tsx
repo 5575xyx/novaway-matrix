@@ -2,16 +2,29 @@
 //
 // 与 component/git-diff-view.tsx 的分工:那个是**独立标签页**(带关闭按钮、自己轮询),
 // 这个是工作区里的一个**面板**(占右半边、由工作区统一刷新),所以这里不轮询。
+import { type ScrollBoxRenderable } from "@opentui/core"
 import { createEffect, createSignal, Show } from "solid-js"
 import { useTheme } from "../../context/theme"
-import { loadCommitPatch, loadFilePatch } from "../../util/git-diff"
+import { loadBranchPatch, loadCommitPatch, loadFilePatch } from "../../util/git-diff"
 import { Locale } from "../../util/locale"
 
-export type DiffTarget = { kind: "none" } | { kind: "file"; path: string } | { kind: "commit"; hash: string }
+export type DiffTarget =
+  | { kind: "none" }
+  | { kind: "file"; path: string }
+  | { kind: "commit"; hash: string }
+  | { kind: "branch"; name: string }
 
 export interface GitDiffPanelProps {
   target: DiffTarget
   rootPath?: string
+  /** 当前分支名。分支差异用它做基准(`cur...name` 三点差异,见 loadBranchPatch)。 */
+  currentBranch?: string
+  /** 滚动容器。外壳在差异激活模式下按 j/k/pgup/pgdn 调它,面板自己不动键位。 */
+  scrollRef?: (element: ScrollBoxRenderable | null) => void
+  /** 鼠标滚轮:按方向滚动差异内容。 */
+  onMouseScroll?: (event: { scroll?: { direction: "up" | "down" | "left" | "right"; delta: number } }) => void
+  /** 鼠标点击:定位光标到点击位置。 */
+  onMouseDown?: (event: { y: number }) => void
 }
 
 export function GitDiffPanel(props: GitDiffPanelProps) {
@@ -37,7 +50,12 @@ export function GitDiffPanel(props: GitDiffPanelProps) {
     }
     // 旧的错误不能挂在新标题下面;patch 保留当占位,新结果到了再换(lazygit 同款行为)。
     setError("")
-    const load = target.kind === "file" ? loadFilePatch(cwd, target.path) : loadCommitPatch(cwd, target.hash)
+    const load =
+      target.kind === "file"
+        ? loadFilePatch(cwd, target.path)
+        : target.kind === "commit"
+          ? loadCommitPatch(cwd, target.hash)
+          : loadBranchPatch(cwd, target.name, props.currentBranch)
     load
       .then((body) => {
         if (seq !== loadSeq) return
@@ -57,6 +75,7 @@ export function GitDiffPanel(props: GitDiffPanelProps) {
       return `${Locale.oneLine(base, 40)} 的改动`
     }
     if (target.kind === "commit") return `提交 ${target.hash}`
+    if (target.kind === "branch") return `分支 ${Locale.truncateToWidth(target.name, 32)}`
     return "差异"
   }
 
@@ -86,9 +105,21 @@ export function GitDiffPanel(props: GitDiffPanelProps) {
             </box>
           }
         >
-          <box flexGrow={1} minHeight={0} backgroundColor={theme.backgroundPanel}>
+          {/* 包一层滚动容器:差异一大就装不下,没它只能看到第一屏。
+              容器本身不画滚动条(默认只在「内容超出」时自动显示),也不接焦点 ——
+              键位由外壳在差异激活模式下统一处理(见 git-workspace.tsx 的 scrollDiffBy)。 */}
+          <scrollbox
+            ref={(element: ScrollBoxRenderable | null) => props.scrollRef?.(element)}
+            flexGrow={1}
+            minHeight={0}
+            backgroundColor={theme.backgroundPanel}
+            onMouseScroll={props.onMouseScroll}
+            onMouseDown={props.onMouseDown}
+          >
             {/* 配色属性必须照抄 component/git-diff-view.tsx 那份 —— 少传任何一个,那一项就退回
-                @opentui 默认色,和同一个主题下的其它 diff 视图对不上。 */}
+                @opentui 默认色,和同一个主题下的其它 diff 视图对不上。
+                刻意**没有** height="100%":在滚动容器里那是「等于视口高度」,内容永远撑不满,
+                大 diff 只能看到第一屏且滚不动。 */}
             <diff
               diff={patch()}
               view="unified"
@@ -96,7 +127,6 @@ export function GitDiffPanel(props: GitDiffPanelProps) {
               syntaxStyle={syntax()}
               showLineNumbers={true}
               width="100%"
-              height="100%"
               wrapMode="none"
               fg={theme.text}
               addedBg={theme.diffAddedBg}
@@ -107,7 +137,7 @@ export function GitDiffPanel(props: GitDiffPanelProps) {
               addedLineNumberBg={theme.diffAddedLineNumberBg}
               removedLineNumberBg={theme.diffRemovedLineNumberBg}
             />
-          </box>
+          </scrollbox>
         </Show>
       </Show>
     </box>

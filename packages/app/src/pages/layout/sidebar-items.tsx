@@ -147,6 +147,7 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
     if (hasPermissions()) return false
     return sessionStore.session_working(props.session.id)
   })
+  const selected = createMemo(() => params.id === props.session.id)
 
   const tint = createMemo(() => messageAgentColor(sessionStore.message[props.session.id], sessionStore.agent))
   const tooltip = createMemo(() => props.showTooltip ?? (props.mobile || !props.sidebarExpanded()))
@@ -252,8 +253,10 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
         data-session-id={props.session.id}
         classList={{
           "group/session relative w-full flex flex-col rounded-lg border-solid transition-colors hover:bg-surface-raised-base-hover py-2": true,
-          "border-2 border-border-interactive-base": params.id === props.session.id,
-          "border border-border-weak-base": params.id !== props.session.id,
+          "border-2 border-border-interactive-base": selected(),
+          "border border-border-weak-base": !selected(),
+          "before:absolute before:left-0 before:top-1 before:bottom-1 before:w-0.5 before:rounded-full before:bg-[var(--novaway-mode-color,var(--border-strong-base))]":
+            selected(),
         }}
       >
         <A
@@ -326,6 +329,17 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
           </div>
           <Show when={completionTime()}>
             <span class="text-11-regular text-text-weak pl-6">任务完成 · {completionTime()}</span>
+          </Show>
+          <Show when={sessionStore.vcs?.branch}>
+            <span class="text-ui-xs text-text-weak shrink-0 max-w-[120px] truncate">⎇ {sessionStore.vcs?.branch}</span>
+          </Show>
+          <Show
+            when={props.session.summary && (props.session.summary.additions > 0 || props.session.summary.deletions > 0)}
+          >
+            <span class="text-ui-xs tabular-nums shrink-0">
+              <span class="text-[var(--icon-diff-add-base)]">+{props.session.summary?.additions ?? 0}</span>
+              <span class="text-[var(--icon-diff-delete-base)]">-{props.session.summary?.deletions ?? 0}</span>
+            </span>
           </Show>
         </A>
         <Show when={!props.level}>
