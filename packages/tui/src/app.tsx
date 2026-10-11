@@ -61,6 +61,7 @@ import { FrecencyProvider } from "./component/prompt/frecency"
 import { PromptStashProvider } from "./component/prompt/stash"
 import { DialogAlert } from "./ui/dialog-alert"
 import { DialogConfirm } from "./ui/dialog-confirm"
+import { requestAutoApprove } from "./ui/auto-approve"
 import { ToastProvider, useToast } from "./ui/toast"
 import { isDefaultTitle } from "./util/session"
 import { KVProvider, useKV } from "./context/kv"
@@ -1123,9 +1124,17 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
         name: "permission.mode",
         title: local.permission.mode === "auto" ? "禁用自动批准权限" : "启用自动批准权限",
         category: "系统",
-        run: () => {
-          local.permission.toggle()
-          dialog.clear()
+        run: async () => {
+          // 关掉是安全动作,直接生效。
+          if (local.permission.mode === "auto") {
+            local.permission.set("normal")
+            dialog.clear()
+            return
+          }
+          // 开启要过确认,且走的是**输入卡右上角那颗开关同一个闸门**(ui/auto-approve.ts):
+          // 各写一份警告文案一定会漂,分开确认则让命令面板变成绕过口,开关那边白确认一次。
+          // 这里不再 dialog.clear() —— requestAutoApprove 弹的确认框自己会关掉整层对话框。
+          if (await requestAutoApprove(dialog)) local.permission.set("auto")
         },
       },
     ].map((command) => ({

@@ -48,6 +48,7 @@ import { SPINNER_FRAMES, SPINNER_INTERVAL } from "../spinner"
 import { useDialog } from "../../ui/dialog"
 import { DialogProvider as DialogProviderConnect } from "../dialog-provider"
 import { DialogAlert } from "../../ui/dialog-alert"
+import { requestAutoApprove } from "../../ui/auto-approve"
 import { useToast } from "../../ui/toast"
 import { useKV } from "../../context/kv"
 import { createFadeIn } from "../../util/signal"
@@ -60,7 +61,7 @@ import { usePromptWorkspace } from "./workspace"
 import { usePromptMove } from "./move"
 import { readLocalAttachment } from "./local-attachment"
 import { sessionUsage, usageLabel } from "../../util/usage"
-import { PromptCard, PromptBottomRow, PromptHints, PromptSend, usageRowColumns } from "./card"
+import { PromptCard, PromptBottomRow, PromptAutoApprove, PromptSend, PromptShellHint, usageRowColumns } from "./card"
 
 registerNovaWaySpinner()
 
@@ -1461,6 +1462,18 @@ export function Prompt(props: PromptProps) {
     return usageLabel(item, usageRowColumns(dimensions().width)) || undefined
   })
 
+  // 自动批准开关(输入行右端那颗)。**只有关→开这一向过确认**,且确认走 ui/auto-approve.ts
+  // 那个共用闸门 —— 命令面板的「启用自动批准权限」(app.tsx 的 permission.mode)走同一条,
+  // 不然命令面板就成了绕过确认的后门,输入卡这边白确认。
+  // 开→关是安全动作,点了直接生效不弹框:误触关掉的代价只是多几次询问。
+  const toggleAutoApprove = async () => {
+    if (local.permission.mode === "auto") {
+      local.permission.set("normal")
+      return
+    }
+    if (await requestAutoApprove(dialog)) local.permission.set("auto")
+  }
+
   return (
     <>
       <box
@@ -1469,8 +1482,9 @@ export function Prompt(props: PromptProps) {
         width="100%"
         flexDirection="column"
       >
-        {/* 输入区霓虹输入卡:四行(输入行 / 呼吸行 / 底部行 / 提示行),聚焦时描边流动 + 扫光。
-            卡壳、底部行与提示行在 ./card 里 —— 只依赖 useTheme/useKV/键位表,测试能直接挂载真壳。
+        {/* 输入区霓虹输入卡:三行(输入行 / 呼吸行 / 底部行),聚焦时描边流动 + 扫光;
+            shell 模式多一行 esc 提示。卡壳、底部行与开关在 ./card 里 —— 只依赖 useTheme/useKV/
+            键位表,测试能直接挂载真壳。
             anchor 仍是这个最外层盒子:autocomplete 弹层按 anchor.x/y/width 定位到卡片上方
             (component/prompt/autocomplete.tsx 的 top = position().y − height())。
 
@@ -1491,8 +1505,9 @@ export function Prompt(props: PromptProps) {
             「字挤在一起」,所以别「修」回去。
             按钮文案用 `发送 <键>` 而不是原型的 `发送 ⏎`,理由见 card.tsx 的 PromptSend。 */}
         <PromptCard focused={promptFocused()} visible={props.visible !== false}>
-          {/* 卡内第一行:只有 ">" 与输入框。这一行不混任何 meta —— 混进来就是上一版的
-              「挤成一团」(用户原话:「字不要挤到一起」)。 */}
+          {/* 卡内第一行:">" + 输入框 + 右端的自动批准开关。**meta 不上这一行** ——
+              混进来就是上一版的「挤成一团」(用户原话:「字不要挤到一起」);开关是用户
+              指名要放这儿的固定 12 列,不是当年那个能吃到 40+ 列的模型芯片。 */}
           <box width="100%" flexDirection="row" gap={1} flexShrink={0}>
             <box flexShrink={0} width={2} height={1}>
               {/* ASCII ">" 而不是 ❯:U+276F 的 East Asian Width 是 N(Neutral,不是 Ambiguous),
@@ -1578,6 +1593,8 @@ export function Prompt(props: PromptProps) {
                 syntaxStyle={syntax()}
               />
             </box>
+            {/* 开关钉 flexShrink={0},宽度代价全由左边的 textarea 吸收(flexGrow + minWidth=4)。 */}
+            <PromptAutoApprove enabled={local.permission.mode === "auto"} onToggle={() => void toggleAutoApprove()} />
           </box>
           {/* 卡内第二行:呼吸行。
               用一个 height={1} 的空盒,而不是给底部行加 marginTop / 给两行加 gap ——
@@ -1650,8 +1667,11 @@ export function Prompt(props: PromptProps) {
               </box>
             }
           />
-          {/* 卡内第四行:键位提示(左对齐)。提交键不在这里 —— 它跟着底部行的发送按钮走。 */}
-          <PromptHints shell={store.mode === "shell"} />
+          {/* 卡内第四行:只在 shell 模式出现的一句退出提示(提交键在底部行的发送按钮上)。
+              原先常驻的键位提示行(tab agents / ctrl+p commands / 换行)已按用户要求撤掉。 */}
+          <Show when={store.mode === "shell"}>
+            <PromptShellHint />
+          </Show>
         </PromptCard>
         {/* 状态行留在卡外:工作指示 / retry / 工作区提示 / 编辑器文件标签都属于「这次会话」,
             不属于输入卡。**目录不在这一行** —— 它由会话页底栏(routes/session/footer.tsx)

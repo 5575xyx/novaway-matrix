@@ -28,14 +28,15 @@ export const INPUT_CARD_ALPHA = 0.45
 // 12px 折不满一个终端行,而终端里「一行」是最小单位,对称就只能在「上疏下紧」与「上紧下疏」
 // 二选一。选上疏下紧。
 //
-// 连带后果只在**左右**:卡内可用宽仍是「卡宽 − 4」,列宽账见下面的 MODEL_CHIP_MARGIN,
-// 提示行的门槛见 HINT_ROW_MIN_WIDTH。纵向不影响任何宽度预算。
+// 连带后果只在**左右**:卡内可用宽仍是「卡宽 − 4」,列宽账见下面的 MODEL_CHIP_MARGIN。
+// 纵向不影响任何宽度预算。
 //
-// **卡内是四行**(按这个顺序摆进来,摆法见 component/prompt/index.tsx 与本文件的 PromptBottomRow):
-//   1. 输入行 —— 只有 ">" 提示符 + 输入框,这一行什么都不混(用户原话:「显示在输入的最底下」);
+// **卡内是三行**(按这个顺序摆进来,摆法见 component/prompt/index.tsx 与本文件的 PromptBottomRow):
+//   1. 输入行 —— ">" 提示符 + 输入框 + 右端的自动批准开关(PromptAutoApprove);
 //   2. 呼吸行 —— 一个 height={1} 的空盒;
-//   3. 底部行 —— 左:插件槽 + agent/模型 meta + 上下文占用;右:模型芯片 + 发送按钮(PromptBottomRow);
-//   4. 提示行 —— 键位提示(PromptHints)。
+//   3. 底部行 —— 左:插件槽 + agent/模型 meta + 上下文占用;右:模型芯片 + 发送按钮(PromptBottomRow)。
+// shell 模式额外多一行 PromptShellHint(`esc exit shell mode`),normal 模式没有那一行 ——
+// 原来常驻的键位提示行(tab agents / ctrl+p commands / 换行)已按用户要求撤掉,理由见 PromptShellHint。
 // 呼吸行必须是**真的一行布局高度**,padding 给不了这个效果:padding 格就是边框格(上面那条),
 // 再往 padding 上加只会在四边各多缩两列,不会在两行之间插出空隙。
 //
@@ -155,8 +156,8 @@ export function usageRowColumns(terminalWidth: number) {
 // input_submit 在 keybind.ts 里是 `keybind("return", …)`(不是 prompt_submit 那个 "none",
 // 那是另一条命令),并且由 keymap.tsx 的托管输入层 gather("input", inputCommands) 注册,
 // 所以它是可配置、可查的。用户改键之后这一行会跟着变;写死 "Enter" 会在改键后变成假提示。
-// 渲染出来是小写的 "enter"(formatKeySequence 不做大写化),和提示行里
-// tab / ctrl+p / shift+enter 的全小写风格一致。
+// 渲染出来是小写的 "enter"(formatKeySequence 不做大写化),与输入行右端那颗开关的
+// 全小写风格一致。
 export function PromptSend(props: { model: string; canSend: boolean; modelColor?: RGBA; onSend(): void }) {
   const { theme } = useTheme()
   const dimensions = useTerminalDimensions()
@@ -208,17 +209,48 @@ export function PromptSend(props: { model: string; canSend: boolean; modelColor?
   )
 }
 
-// 终端窄到放不下完整键位提示组时,整条丢掉「换行」而不是让它被裁成半个词。
-// 推导(1 列 = 1 个终端格,CJK 按 2 列):提示组的定长部分是
-// 「<键> agents」7 + 「<键> commands」9 + 「<键> 换行」5 + 组内两个 gap 4 = 25 列
-// (这里只量标签与间隙,键名本身另算),键名按常见的 tab(3)/ ctrl+p(6)/ shift+return(11)
-// 算 20 列 → 45 列,再加卡片左右 padding 各 2 → 需要 49 列,取整到 50(留 1 列余量)。
-// 40~49 列这一档只剩前两条:25 − 5(整条换行) − 2(少一个 gap) = 18 列,
-// 加 tab(3) + ctrl+p(6) = 27 列,再加 padding 4 = 31 列 ≤ 40,放得下。
-// 提交键不在这一行 —— 它跟着底部行的「发送 <键>」按钮走(见 PromptSend 里的理由)。
-// 这一行现在**只装键位**(meta 与按钮都上去了),所以预算里没有给左半边留位置;
-// 真要再往上加东西,得重新量这一行的账而不是接着用 50。
-const HINT_ROW_MIN_WIDTH = 50
+// 输入卡**第一行右端**的「自动批准权限」开关。
+//
+// 用户要的是「开关在输入框右上角」:当前这一行只有提示符 + 输入框(模型芯片与发送按钮已经按
+// 用户要求搬到卡内底部行,见 PromptBottomRow),右端是空的,正好摆它。
+// 写法照抄 PromptSend 那个按钮(同一文件、同一视觉语言),而**不是**复用 component/pill.tsx
+// 的 Pill:Pill 的 tone 只映射到 theme.primary,而这一颗开态要的是 theme.warning ——
+// 它是个危险开关,安静地亮成 primary 会让人误以为只是「换个模型」这种无害切换。
+// 为这一个场景给共享组件加一个 warning 档,波及的是标签栏等所有用 Pill 的地方,不划算。
+//
+// 只有**关→开**这一向要过 DialogConfirm(ui/auto-approve.ts 的 requestAutoApprove):
+// 误触一下就把所有权限请求自动批掉,代价太大。开→关是安全动作,点了直接生效。
+// flexShrink={0} 是这一行唯一的宽度代价:textarea 是 flexGrow + minWidth=4,自己会缩 ——
+// 这与 card.tsx 顶部那条「不再为芯片让宽度」不冲突,当年挤成一团的是模型芯片那一档
+// (28 列起,能吃到 40+),这颗是固定 12 列上下。
+export function PromptAutoApprove(props: { enabled: boolean; onToggle(): void }) {
+  const { theme } = useTheme()
+  const [hover, setHover] = createSignal(false)
+  const foreground = createMemo(() => {
+    if (props.enabled) return theme.warning
+    return hover() ? theme.text : theme.textMuted
+  })
+  // ● / ○ 是 East Asian Ambiguous 字形,在 CJK 终端里可能被渲成 2 列 —— 与 PromptSend 里那个
+  // 「◆」同一笔账(见本文件顶部的字宽约定),不是这里要解决的问题。
+  return (
+    <box
+      onMouseUp={(e) => {
+        e.stopPropagation()
+        props.onToggle()
+      }}
+      onMouseOver={() => setHover(true)}
+      onMouseOut={() => setHover(false)}
+      backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
+      paddingLeft={1}
+      paddingRight={1}
+      flexShrink={0}
+    >
+      <text fg={foreground()} wrapMode="none">
+        {props.enabled ? "●" : "○"} 自动批准
+      </text>
+    </box>
+  )
+}
 
 // 卡内第三行(底部行):左 = 插件槽 + agent/权限/提供商/变体 meta,右 = 模型芯片 + 发送按钮。
 // 三段的可压缩性是这一行唯一要守住的东西,和上一版提示行同一条纪律:
@@ -264,41 +296,25 @@ export function PromptBottomRow(props: {
   )
 }
 
-// 卡内第四行(提示行):只剩键位提示,**左对齐**。
-// 用户给的排版草图里这一行是从左边起的(底部行右端已经有「发送」了,再右对齐一次
-// 等于把两段操作提示顶到同一列,视线要在屏幕上来回横跳)。这一行没有可压缩段,
-// 所以三个 <text> 都是 wrapMode="none" + flexShrink={0}:折行会多占至少一行,
-// 把输入区顶高一格。
-// 键位一律 useCommandShortcut 现取,禁止硬编码:键位能在配置里改,
-// 硬编码的 "tab" / "ctrl+p" 会在用户改键后变成假提示。
-export function PromptHints(props: { shell?: boolean }) {
+// shell 模式才有的那一行(提示行):**只有 `esc exit shell mode`**,normal 模式整行不画。
+//
+// 原先这一行还有 `tab agents` / `ctrl+p commands` / `<键> 换行` 三条常规键位提示,已按用户要求
+// 整条撤掉:它们在卡里长期是噪音,而且其中「换行」那条还骗过人 —— 显示的永远是 shift+enter,
+// 那是因为 input_newline 在 keybind.ts 里绑的是**一串**
+// (`shift+return,ctrl+return,alt+return,ctrl+j`),formatKeySequence 取第一个,而很多终端
+// (Windows 终端尤其)根本分不出 shift+enter,用户实际用的是 ctrl+enter。
+// 提示行没了就不会再假。**没有去改那串键位的顺序**:四个键都还在,顺序只影响显示,没有收益。
+//
+// shell 那一条留着,因为它是**唯一**写明怎么退出 shell 模式的入口 —— 底部行的 meta 只写了
+// 「Shell」标出当前模式,没写退出键,整行删掉就只剩猜 esc。
+// normal 模式调用方不渲染它(prompt/index.tsx 包了一层 Show),卡内于是只有三行。
+export function PromptShellHint() {
   const { theme } = useTheme()
-  const dimensions = useTerminalDimensions()
-  const agentShortcut = useCommandShortcut("agent.cycle")
-  const paletteShortcut = useCommandShortcut("command.palette.show")
-  const newlineShortcut = useCommandShortcut("input.newline")
   return (
-    <box flexDirection="row" gap={2} alignItems="center" width="100%" flexShrink={0}>
-      <Show
-        when={!props.shell}
-        fallback={
-          <text fg={theme.text}>
-            esc <span style={{ fg: theme.textMuted }}>exit shell mode</span>
-          </text>
-        }
-      >
-        <text fg={theme.text} wrapMode="none">
-          {agentShortcut()} <span style={{ fg: theme.textMuted }}>agents</span>
-        </text>
-        <text fg={theme.text} wrapMode="none">
-          {paletteShortcut()} <span style={{ fg: theme.textMuted }}>commands</span>
-        </text>
-      </Show>
-      <Show when={dimensions().width >= HINT_ROW_MIN_WIDTH}>
-        <text fg={theme.text} wrapMode="none">
-          {newlineShortcut()} <span style={{ fg: theme.textMuted }}>换行</span>
-        </text>
-      </Show>
+    <box width="100%" flexShrink={0}>
+      <text fg={theme.text} wrapMode="none">
+        esc <span style={{ fg: theme.textMuted }}>exit shell mode</span>
+      </text>
     </box>
   )
 }
