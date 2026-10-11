@@ -26,19 +26,27 @@ export function SidebarFiles(props: { directory: string; sessionKey: () => strin
   const [snapshot, setSnapshot] = createSignal<Snapshot>()
   const sdk = () => globalSync.sdkForDirectory(props.directory)
 
+  let requestGen = 0
+
   const refresh = () => {
     if (!props.directory) return
+    const gen = requestGen
     void sdk()
       .git.snapshot()
-      .then((r) => setSnapshot(r.data))
+      .then((r) => {
+        if (gen !== requestGen) return
+        setSnapshot(r.data)
+      })
       .catch(() => {})
   }
 
   const loadDir = (dir: string) => {
     if (!props.directory) return
+    const gen = requestGen
     void sdk()
       .file.list({ path: dir })
       .then((r) => {
+        if (gen !== requestGen) return
         const entries = (r.data ?? []).map((x) => ({
           path: x.path.replaceAll("\\", "/"),
           name: x.name,
@@ -58,6 +66,7 @@ export function SidebarFiles(props: { directory: string; sessionKey: () => strin
     on(
       () => props.directory,
       () => {
+        requestGen++
         setOpenDirs({})
         setSnapshot(undefined)
         refresh()
@@ -67,12 +76,13 @@ export function SidebarFiles(props: { directory: string; sessionKey: () => strin
     ),
   )
 
-  const changedFiles = createMemo(() => snapshot()?.changes.map((change) => change.file) ?? [])
+  const changedFiles = createMemo(() => [...new Set(snapshot()?.changes.map((change) => change.file) ?? [])])
 
   const kinds = createMemo(() => {
     const map = new Map<string, Kind>()
     for (const change of snapshot()?.changes ?? []) {
-      const kind: Kind = change.status === "added" ? "add" : change.status === "deleted" ? "del" : "mix"
+      const kind: Kind =
+        change.status === "added" || change.status === "untracked" ? "add" : change.status === "deleted" ? "del" : "mix"
       const file = change.file.replaceAll("\\", "/")
       map.set(file, mergeKind(map.get(file), kind))
       const segments = file.split("/")
@@ -175,8 +185,12 @@ export function SidebarFiles(props: { directory: string; sessionKey: () => strin
       </div>
       <div class="min-h-0 flex-1 overflow-y-auto no-scrollbar py-1">
         <Show
-          when={rootEntries().length > 0}
-          fallback={<div class="px-3 py-4 text-ui-xs text-text-weak">{language.t("sidebar.tree.empty")}</div>}
+          when={visibleRoot().length > 0}
+          fallback={
+            <div class="px-3 py-4 text-ui-xs text-text-weak">
+              {rootEntries().length > 0 ? language.t("sidebar.tree.noChanges") : language.t("sidebar.tree.empty")}
+            </div>
+          }
         >
           <For each={visibleRoot()}>{(entry) => <EntryRow entry={entry} depth={0} />}</For>
         </Show>

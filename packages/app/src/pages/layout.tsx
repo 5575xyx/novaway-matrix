@@ -2140,11 +2140,7 @@ export default function Layout(props: ParentProps) {
     const [taskFilter, setTaskFilter] = createSignal<TaskFilter>("all")
     const { archived, load: loadArchived } = useArchivedSessions(() => projectList())
 
-    const treeIndex = createMemo(() => {
-      const key = pathKey(currentProject()?.worktree ?? currentDir())
-      const index = projectList().findIndex((project) => pathKey(project.worktree) === key)
-      return index === -1 ? 0 : index
-    })
+    const treeKey = createMemo(() => pathKey(currentProject()?.worktree ?? currentDir()))
 
     return (
       <div
@@ -2298,14 +2294,18 @@ export default function Layout(props: ParentProps) {
                               }}
                             />
                             <Show
-                              when={layout.sidebarView.current() === "tasks" ? isExpanded() : index() === treeIndex()}
+                              when={
+                                layout.sidebarView.current() === "tasks"
+                                  ? isExpanded()
+                                  : pathKey(proj.worktree) === treeKey()
+                              }
                             >
                               <div class="pl-5 pt-1 pb-2 ml-3 border-l-2 border-border-weak-base">
                                 <Show
                                   when={layout.sidebarView.current() === "tasks"}
                                   fallback={
                                     <SidebarFiles
-                                      directory={currentProject()?.worktree ?? currentDir()}
+                                      directory={proj.worktree}
                                       sessionKey={() => `${params.dir}${params.id ? "/" + params.id : ""}`}
                                     />
                                   }
