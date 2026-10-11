@@ -603,6 +603,8 @@ export const dict = {
   "sidebar.newTask": "新建任務",
   "sidebar.projectMenu": "專案選單",
   "sidebar.project.expand": "展開",
+  "sidebar.project.collapse": "摺疊",
+  "sidebar.backToTasks": "返回任務",
   "sidebar.project.count": "{{count}} 個任務",
   "sidebar.project.moveToMode": "移動到模式",
   "sidebar.project.currentMode": "目前",

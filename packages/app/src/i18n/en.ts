@@ -829,6 +829,8 @@ export const dict = {
   "sidebar.project.moveToMode": "Move to mode",
   "sidebar.project.currentMode": "Current",
   "sidebar.project.expand": "Expand",
+  "sidebar.project.collapse": "Collapse",
+  "sidebar.backToTasks": "Back to tasks",
   "sidebar.workspaces.enable": "Enable workspaces",
   "sidebar.workspaces.disable": "Disable workspaces",
   "sidebar.workspacePanel.collapse": "Collapse workspace panel",
