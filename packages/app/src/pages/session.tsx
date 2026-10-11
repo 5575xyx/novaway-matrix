@@ -21,7 +21,6 @@ import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { useLocal } from "@/context/local"
 import { selectionFromLines, useFile, type FileSelection, type SelectedLineRange } from "@/context/file"
 import { createStore } from "solid-js/store"
-import { ResizeHandle } from "@novaway/ui/resize-handle"
 import { Select } from "@novaway/ui/select"
 import { Tabs } from "@novaway/ui/tabs"
 import { createAutoScroll } from "@novaway/ui/hooks"
@@ -61,7 +60,6 @@ import { syncSessionModel } from "@/pages/session/session-model-helpers"
 import { SessionSidePanel } from "@/pages/session/session-side-panel"
 import { FloatingTodoButton } from "@/components/floating-todo-button"
 import { OfficeSessionComposer, OfficeSessionWorkspace } from "@/components/office-session-workspace"
-import { PreviewPanel } from "@/pages/session/preview-panel"
 import { TerminalPanel } from "@/pages/session/terminal-panel"
 import { useSessionCommands } from "@/pages/session/use-session-commands"
 import { useSessionHashScroll } from "@/pages/session/use-session-hash-scroll"
@@ -293,7 +291,6 @@ export default function Page() {
 
   const isDesktop = createMediaQuery("(min-width: 768px)")
   const size = createSizing()
-  const previewSize = createSizing()
 
   function normalizeTab(tab: string) {
     if (!tab.startsWith("file://")) return tab
@@ -339,18 +336,7 @@ export default function Page() {
     () => isDesktop() && view().reviewPanel.opened() && (activeFileTab() !== undefined || activeTab() === "context"),
   )
   const desktopFileTreeOpen = createMemo(() => isDesktop() && layout.fileTree.opened())
-  const desktopGitOpen = createMemo(() => isDesktop() && layout.git.opened())
   const officeReservedWidth = createMemo(() => 0)
-  const desktopSidePanelOpen = createMemo(
-    () => desktopReviewOpen() || desktopGitOpen() || desktopFileTreeOpen(),
-  )
-  const sessionPanelWidth = createMemo(() => {
-    const reserved = officeReservedWidth()
-    if (!desktopSidePanelOpen()) return reserved ? `calc(100% - ${reserved}px)` : "100%"
-    if (desktopReviewOpen()) return `${layout.session.width()}px`
-    const side = layout.sidePanelWidth() || "0px"
-    return `calc(100% - (${side}) - ${reserved}px)`
-  })
   const centered = createMemo(() => isDesktop() && !desktopReviewOpen())
   const revertMessageID = createMemo(() => info()?.revert?.messageID)
   const messages = createMemo(() => (params.id ? (sync.data.message[params.id] ?? []) : []))
@@ -424,12 +410,7 @@ export default function Page() {
     changes: "git" as ChangeMode,
     newSessionWorktree: "main",
     deferRender: false,
-    view: typeof window === "undefined" ? 1000 : (window.visualViewport?.width ?? window.innerWidth),
   })
-
-  // 依赖 store.view，必须在 store 之后声明（createMemo 会立即执行，前向引用会触发 TDZ）
-  const previewMaxWidth = () => Math.max(320, Math.round(store.view * 0.6))
-  const previewPaneWidth = createMemo(() => Math.min(view().previewWidth.get(), previewMaxWidth()))
 
   const [followup, setFollowup] = persisted(
     Persist.workspace(sdk.directory, "followup", ["followup.v1"]),
@@ -498,7 +479,7 @@ export default function Page() {
           autoOpenedHtml.add(url)
           if (url === current || !preview.setUrl(url)) continue
 
-          view().viewMode.set("split")
+          layout.sidePane.open("preview")
           showToast({
             title: language.t("preview.autoOpenedFile"),
             description: file.split(/[\\/]/).pop() ?? file,
@@ -904,7 +885,7 @@ export default function Page() {
     }
 
     // Prefer the open terminal over the composer when it can take focus
-    if (view().terminal.opened()) {
+    if (view().terminal.opened() || (layout.sidePane.opened() && layout.sidePane.tab() === "terminal")) {
       const id = terminal.active()
       if (id && shouldFocusTerminalOnKeyDown(event) && focusTerminalById(id)) return
     }
@@ -1758,13 +1739,6 @@ export default function Page() {
 
   onMount(() => {
     makeEventListener(document, "keydown", handleKeyDown)
-
-    const syncPreviewWidth = () => setStore("view", window.visualViewport?.width ?? window.innerWidth)
-    const viewport = window.visualViewport
-
-    syncPreviewWidth()
-    makeEventListener(window, "resize", syncPreviewWidth)
-    if (viewport) makeEventListener(viewport, "resize", syncPreviewWidth)
   })
 
   onCleanup(() => {
@@ -1871,24 +1845,9 @@ export default function Page() {
             </Show>
 
             {/* Session panel */}
-            <div
-              classList={{
-                "@container relative shrink-0 flex flex-col min-h-0 h-full bg-background-panel flex-1 md:flex-none": true,
-                "transition-[width] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width] motion-reduce:transition-none":
-                  !size.active() && !ui.reviewSnap,
-              }}
-              style={{
-                width: sessionPanelWidth(),
-              }}
-            >
+            <div class="@container relative flex-1 min-h-0 flex flex-col bg-background-panel">
               <div class="relative flex-1 min-h-0 overflow-hidden flex flex-col md:flex-row">
-                <div
-                  class="min-h-0 flex flex-col"
-                  classList={{
-                    "flex-1 min-w-0": view().viewMode.get() !== "preview",
-                    hidden: view().viewMode.get() === "preview",
-                  }}
-                >
+                <div class="flex-1 min-w-0 min-h-0 flex flex-col">
                   <div class="flex-1 min-h-0 overflow-hidden">
                     {/* Mobile changes view */}
                     <Show when={params.id && mobileChanges()}>
@@ -1964,8 +1923,7 @@ export default function Page() {
                     </Show>
                   </div>
 
-                  {/* 对话框随左栏一起收窄，不能横跨到预览下面 */}
-                  <Show when={params.id && view().viewMode.get() !== "preview"}>
+                  <Show when={params.id}>
                     <div>
                       <Show
                         when={showOfficeSessionComposer(layout.mode.current(), params.id)}
@@ -1991,44 +1949,52 @@ export default function Page() {
                     </div>
                   </Show>
                 </div>
-
-                <Show when={view().viewMode.get() === "split" && isDesktop()}>
-                  {/* 手柄是 absolute 定位，靠自身的 relative 才能贴在分隔线上 */}
-                  <div class="relative w-px shrink-0" onPointerDown={() => previewSize.start()}>
-                    <ResizeHandle
-                      direction="horizontal"
-                      edge="start"
-                      size={previewPaneWidth()}
-                      min={320}
-                      max={previewMaxWidth()}
-                      onResize={(width) => {
-                        previewSize.touch()
-                        view().previewWidth.set(width)
-                      }}
-                    />
-                  </div>
-                </Show>
-
-                <div
-                  class="min-h-0 overflow-hidden"
-                  classList={{
-                    hidden: view().viewMode.get() === "chat",
-                    "flex-1 min-w-0":
-                      view().viewMode.get() === "preview" || (!isDesktop() && view().viewMode.get() === "split"),
-                    "shrink-0": isDesktop() && view().viewMode.get() === "split",
-                  }}
-                  style={{
-                    width:
-                      isDesktop() && view().viewMode.get() === "split"
-                        ? `min(${previewPaneWidth()}px, 60%)`
-                        : undefined,
-                  }}
-                >
-                  <PreviewPanel />
-                </div>
               </div>
             </div>
 
+            <Show when={layout.sidePane.opened() && isDesktop()}>
+              <SessionSidePanel
+                canReview={canReview}
+                diffs={reviewDiffs}
+                diffsReady={reviewReady}
+                empty={reviewEmptyText}
+                hasReview={hasReview}
+                reviewCount={reviewCount}
+                reviewPanel={reviewPanel}
+                activeDiff={tree.activeDiff}
+                focusReviewDiff={focusReviewDiff}
+                reviewSnap={ui.reviewSnap}
+                size={size}
+                reservedWidth={officeReservedWidth}
+              />
+            </Show>
+          </div>
+
+          <Show when={layout.sidePane.tab() !== "terminal"}>
+            <TerminalPanel />
+          </Show>
+          <Show when={platform.platform !== "desktop"}>
+            <FloatingTodoButton />
+          </Show>
+        </div>
+      }
+    >
+      <div class="relative bg-background-base size-full overflow-hidden flex flex-col">
+        {sessionSync() ?? ""}
+        <div class="flex-1 min-h-0 flex flex-col md:flex-row">
+          <div class="relative flex-1 min-h-0">
+            <OfficeSessionWorkspace
+              composer={composerRegion({
+                centered: false,
+                embedded: true,
+                setPromptDockRef: (el) => {
+                  promptDock = el
+                },
+              })}
+            />
+          </div>
+
+          <Show when={layout.sidePane.opened() && isDesktop()}>
             <SessionSidePanel
               canReview={canReview}
               diffs={reviewDiffs}
@@ -2043,52 +2009,12 @@ export default function Page() {
               size={size}
               reservedWidth={officeReservedWidth}
             />
-          </div>
-
-          <TerminalPanel />
-          <Show when={platform.platform !== "desktop"}>
-            <FloatingTodoButton />
           </Show>
         </div>
-      }
-    >
-      <div class="relative bg-background-base size-full overflow-hidden flex flex-col">
-        {sessionSync() ?? ""}
-        <div class="flex-1 min-h-0 flex flex-col md:flex-row">
-          <div
-            class="relative min-h-0 h-full flex-1 md:flex-none"
-            style={{
-              width: sessionPanelWidth(),
-            }}
-          >
-            <OfficeSessionWorkspace
-              composer={composerRegion({
-                centered: false,
-                embedded: true,
-                setPromptDockRef: (el) => {
-                  promptDock = el
-                },
-              })}
-            />
-          </div>
 
-          <SessionSidePanel
-            canReview={canReview}
-            diffs={reviewDiffs}
-            diffsReady={reviewReady}
-            empty={reviewEmptyText}
-            hasReview={hasReview}
-            reviewCount={reviewCount}
-            reviewPanel={reviewPanel}
-            activeDiff={tree.activeDiff}
-            focusReviewDiff={focusReviewDiff}
-            reviewSnap={ui.reviewSnap}
-            size={size}
-            reservedWidth={officeReservedWidth}
-          />
-        </div>
-
-        <TerminalPanel />
+        <Show when={layout.sidePane.tab() !== "terminal"}>
+          <TerminalPanel />
+        </Show>
         <Show when={platform.platform !== "desktop"}>
           <FloatingTodoButton />
         </Show>

@@ -140,14 +140,6 @@ export function SessionHeader() {
   const terminal = useTerminal()
   const { params, view } = useSessionLayout()
 
-  // 三态用图标直接表达当前状态：未开、分屏、全屏
-  const previewIcon = () =>
-    view().viewMode.get() === "chat"
-      ? "layout-right"
-      : view().viewMode.get() === "split"
-        ? "layout-right-partial"
-        : "layout-right-full"
-
   const projectDirectory = createMemo(() => decode64(params.dir) ?? "")
   const project = createMemo(() => {
     const directory = projectDirectory()
@@ -324,23 +316,23 @@ export function SessionHeader() {
             <div class="flex flex-row items-center gap-1 shrink-0">
               <TooltipKeybind
                 class="inline-flex shrink-0"
-                title={language.t("command.preview.toggle")}
+                title={language.t("sidePane.tab.preview")}
                 keybind={command.keybind("preview.toggle")}
               >
                 <Button
                   variant="ghost"
                   class="group/preview-toggle titlebar-icon w-8 h-8 p-0 box-border rounded-xl text-icon-base hover:bg-surface-base-hover transition-all duration-150 hover:scale-105"
-                  onClick={() => view().viewMode.toggle()}
-                  aria-label={language.t("command.preview.toggle")}
-                  aria-pressed={view().viewMode.get() !== "chat"}
-                  aria-controls="preview-panel"
+                  onClick={() => layout.sidePane.toggle("preview")}
+                  aria-label={language.t("sidePane.tab.preview")}
+                  aria-expanded={layout.sidePane.opened()}
+                  aria-controls="side-pane"
                 >
                   <Icon
                     size="small"
-                    name={previewIcon()}
+                    name="layout-right"
                     classList={{
-                      "text-icon-strong": view().viewMode.get() !== "chat",
-                      "text-icon-weak": view().viewMode.get() === "chat",
+                      "text-icon-strong": layout.sidePane.opened(),
+                      "text-icon-weak": !layout.sidePane.opened(),
                     }}
                   />
                 </Button>
@@ -372,17 +364,19 @@ export function SessionHeader() {
                   <Button
                     variant="ghost"
                     class="titlebar-icon w-8 h-8 p-0 box-border rounded-xl text-icon-base hover:bg-surface-base-hover transition-all duration-150 hover:scale-105"
-                    onClick={() => layout.fileTree.toggle()}
+                    onClick={() => layout.sidePane.setTab("files")}
                     aria-label={language.t("command.fileTree.toggle")}
-                    aria-expanded={layout.fileTree.opened()}
-                    aria-controls="file-tree-panel"
+                    aria-expanded={layout.sidePane.opened() && layout.sidePane.tab() === "files"}
+                    aria-controls="side-pane"
                   >
                     <Icon
                       size="small"
-                      name={layout.fileTree.opened() ? "file-tree-active" : "file-tree"}
+                      name={
+                        layout.sidePane.opened() && layout.sidePane.tab() === "files" ? "file-tree-active" : "file-tree"
+                      }
                       classList={{
-                        "text-icon-strong": layout.fileTree.opened(),
-                        "text-icon-weak": !layout.fileTree.opened(),
+                        "text-icon-strong": layout.sidePane.opened() && layout.sidePane.tab() === "files",
+                        "text-icon-weak": !(layout.sidePane.opened() && layout.sidePane.tab() === "files"),
                       }}
                     />
                   </Button>
@@ -396,17 +390,17 @@ export function SessionHeader() {
                 <Button
                   variant="ghost"
                   class="titlebar-icon w-8 h-8 p-0 box-border rounded-xl text-icon-base hover:bg-surface-base-hover transition-all duration-150 hover:scale-105"
-                  onClick={() => layout.git.toggle()}
+                  onClick={() => layout.sidePane.setTab("git")}
                   aria-label={language.t("command.git.toggle")}
-                  aria-expanded={layout.git.opened()}
-                  aria-controls="git-panel"
+                  aria-expanded={layout.sidePane.opened() && layout.sidePane.tab() === "git"}
+                  aria-controls="side-pane"
                 >
                   <Icon
                     size="small"
                     name="branch"
                     classList={{
-                      "text-icon-strong": layout.git.opened(),
-                      "text-icon-weak": !layout.git.opened(),
+                      "text-icon-strong": layout.sidePane.opened() && layout.sidePane.tab() === "git",
+                      "text-icon-weak": !(layout.sidePane.opened() && layout.sidePane.tab() === "git"),
                     }}
                   />
                 </Button>

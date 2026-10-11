@@ -20,7 +20,7 @@ import { createSizing, focusTerminalById } from "@/pages/session/helpers"
 import { getTerminalHandoff, setTerminalHandoff } from "@/pages/session/handoff"
 import { useSessionLayout } from "@/pages/session/session-layout"
 
-export function TerminalPanel() {
+export function TerminalPanel(props: { variant?: "frame" | "pane" }) {
   const delays = [120, 240]
   const layout = useLayout()
   const terminal = useTerminal()
@@ -28,7 +28,8 @@ export function TerminalPanel() {
   const command = useCommand()
   const { params, view } = useSessionLayout()
 
-  const opened = createMemo(() => view().terminal.opened())
+  const paneMode = () => props.variant === "pane"
+  const opened = createMemo(() => paneMode() || view().terminal.opened())
   const size = createSizing()
   const height = createMemo(() => layout.terminal.height())
   const close = () => view().terminal.close()
@@ -204,29 +205,31 @@ export function TerminalPanel() {
         "transition-[height] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[height] motion-reduce:transition-none":
           !size.active(),
       }}
-      style={{ height: opened() ? `${pane()}px` : "0px" }}
+      style={{ height: paneMode() ? "100%" : opened() ? `${pane()}px` : "0px" }}
     >
       <div
         class="absolute inset-x-0 top-0 flex flex-col"
         classList={{
           "pointer-events-none": !opened(),
         }}
-        style={{ height: `${pane()}px` }}
+        style={{ height: paneMode() ? "100%" : `${pane()}px` }}
       >
-        <div class="hidden md:block" onPointerDown={() => size.start()}>
-          <ResizeHandle
-            direction="vertical"
-            size={pane()}
-            min={100}
-            max={max()}
-            collapseThreshold={50}
-            onResize={(next) => {
-              size.touch()
-              layout.terminal.resize(next)
-            }}
-            onCollapse={close}
-          />
-        </div>
+        <Show when={!paneMode()}>
+          <div class="hidden md:block" onPointerDown={() => size.start()}>
+            <ResizeHandle
+              direction="vertical"
+              size={pane()}
+              min={100}
+              max={max()}
+              collapseThreshold={50}
+              onResize={(next) => {
+                size.touch()
+                layout.terminal.resize(next)
+              }}
+              onCollapse={close}
+            />
+          </div>
+        </Show>
         <Show
           when={terminal.ready()}
           fallback={
