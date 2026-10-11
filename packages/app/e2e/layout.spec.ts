@@ -156,7 +156,12 @@ test("Side Pane tab 标签不折行 + 折叠按钮", async ({ page }) => {
   await page.goto(`/${slug}/session`)
   // 侧栏 nav 出现即视为页面就绪；side pane 默认展开（store.sidePane?.opened ?? true）
   await expect(page.locator('[data-component="sidebar-nav-desktop"]')).toBeVisible({ timeout: 15_000 })
-  const tabRow = page.locator('[data-component="side-pane-frame"] div:has(> button:has-text("Preview"))').first()
+  // tabRow = 外层 tab 条（含 border-b），其内层滚动 div 包裹 6 个 tab 按钮；
+  // 折叠按钮位于外层 tabRow 的最右端，不随内层滚动隐藏。
+  const tabRow = page
+    .locator('[data-component="side-pane-frame"]')
+    .locator("> div.border-b")
+    .first()
   await expect(tabRow).toBeVisible()
 
   // 六个 tab 标签必须都存在（Preview / Terminal / Files / Git / Review / Context）
@@ -180,25 +185,39 @@ test("Side Pane tab 标签不折行 + 折叠按钮", async ({ page }) => {
   const rowBoxBefore = await tabRow.boundingBox()
   expect(rowBoxBefore!.height).toBeLessThanOrEqual(37)
 
-  // 缩小视口至 900（pane width 仍 clamp 到默认 360）——tab 行仍不折行
-  const originalViewport = page.viewportSize() ?? { width: 1280, height: 800 }
-  await page.setViewportSize({ width: 900, height: 900 })
-  await expect(tabRow).toBeVisible()
-  const rowBoxAfter = await tabRow.boundingBox()
-  expect(rowBoxAfter!.height).toBeLessThanOrEqual(37)
-  for (const label of labels) {
-    const tab = tabRow.locator("button").filter({ hasText: label }).first()
-    const box = await tab.boundingBox()
-    expect(box!.height).toBeLessThanOrEqual(30)
-  }
-  await page.setViewportSize(originalViewport)
-  await expect(tabRow).toBeVisible()
-
   // 折叠按钮：位于 tab 行最右，aria-label 匹配英文文案，点击后 tab 行消失
-  const collapse = tabRow.locator('button[aria-label*="Collapse side pane"], button[aria-label*="折叠侧栏"]').first()
+  const collapse = tabRow
+    .locator('button[aria-label*="Collapse side pane"], button[aria-label*="折叠侧栏"]')
+    .first()
   expect(await collapse.count(), "collapse button missing").toBeGreaterThan(0)
   const collapseLabel = (await collapse.getAttribute("aria-label")) ?? ""
   expect(collapseLabel).toMatch(/Collapse side pane|折叠侧栏/)
+  // 折叠按钮在点击前必须可见，且其右缘必须位于外层 tab 行右缘之内（防止被内层滚动条隐藏）
+  await expect(collapse).toBeVisible()
+  const collapseBox = await collapse.boundingBox()
+  const rowBox = await tabRow.boundingBox()
+  expect(collapseBox, "collapse button no bbox").not.toBeNull()
+  expect(rowBox, "tabRow no bbox").not.toBeNull()
+  expect(collapseBox!.x + collapseBox!.width).toBeLessThanOrEqual(rowBox!.x + rowBox!.width + 1)
+
+  // 缩小视口至 900（pane width 仍 clamp 到默认 360）——tab 行仍不折行，折叠按钮仍可见
+  const originalViewport = page.viewportSize() ?? { width: 1280, height: 800 }
+  try {
+    await page.setViewportSize({ width: 900, height: 900 })
+    await expect(tabRow).toBeVisible()
+    const rowBoxAfter = await tabRow.boundingBox()
+    expect(rowBoxAfter!.height).toBeLessThanOrEqual(37)
+    for (const label of labels) {
+      const tab = tabRow.locator("button").filter({ hasText: label }).first()
+      const box = await tab.boundingBox()
+      expect(box!.height).toBeLessThanOrEqual(30)
+    }
+    await expect(collapse).toBeVisible()
+  } finally {
+    await page.setViewportSize(originalViewport)
+  }
+  await expect(tabRow).toBeVisible()
+
   await collapse.click()
   await expect(tabRow).not.toBeVisible()
 })
