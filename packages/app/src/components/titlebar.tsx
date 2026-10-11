@@ -291,7 +291,6 @@ export function Titlebar(props: { settingsOpen?: boolean; databaseOpen?: boolean
                 </Button>
               </TooltipKeybind>
             </Show>
-            <div id="NovaWay-titlebar-session-actions" class="flex flex-row items-center gap-1 shrink-0" />
             <div id="NovaWay-titlebar-search" class="ml-2 hidden min-w-0 shrink md:flex" />
           </div>
         </div>
