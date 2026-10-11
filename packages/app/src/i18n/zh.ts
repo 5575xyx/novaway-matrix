@@ -115,6 +115,8 @@ export const dict = {
   "sidePane.tab.git": "Git",
   "sidePane.tab.review": "审查",
   "sidePane.tab.context": "上下文",
+  "sidePane.collapse": "折叠侧栏",
+  "sidePane.expand": "展开侧栏",
 
   "command.fileTree.toggle": "切换文件树",
   "command.git.toggle": "切换源代码管理",

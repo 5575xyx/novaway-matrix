@@ -150,3 +150,55 @@ test("四 frame 4px 间隙与 8px 圆角", async ({ page }) => {
   expect(closedBorder.top).toBe("0px")
   expect(closedBorder.bottom).toBe("0px")
 })
+
+test("Side Pane tab 标签不折行 + 折叠按钮", async ({ page }) => {
+  const slug = workspaceRootSlug()
+  await page.goto(`/${slug}/session`)
+  // 侧栏 nav 出现即视为页面就绪；side pane 默认展开（store.sidePane?.opened ?? true）
+  await expect(page.locator('[data-component="sidebar-nav-desktop"]')).toBeVisible({ timeout: 15_000 })
+  const tabRow = page.locator('[data-component="side-pane-frame"] div:has(> button:has-text("Preview"))').first()
+  await expect(tabRow).toBeVisible()
+
+  // 六个 tab 标签必须都存在（Preview / Terminal / Files / Git / Review / Context）
+  const labels = ["Preview", "Terminal", "Files", "Git", "Review", "Context"]
+  for (const label of labels) {
+    const tab = tabRow.locator("button").filter({ hasText: label }).first()
+    expect(await tab.count(), `tab "${label}" missing`).toBeGreaterThan(0)
+    // 每个 tab 按钮的 white-space 应为 nowrap，禁止标签被强制折行
+    const whiteSpace = await tab.evaluate((el) => getComputedStyle(el).whiteSpace)
+    expect(whiteSpace, `tab "${label}" wraps`).toBe("nowrap")
+    // 按钮高 h-7 = 28px；label 若折行会顶高按钮 >30
+    const box = await tab.boundingBox()
+    expect(box, `tab "${label}" no bbox`).not.toBeNull()
+    expect(box!.height, `tab "${label}" height ${box!.height}`).toBeLessThanOrEqual(30)
+    // 图标 shrink-0，不能挤压
+    const iconShrink = await tab.locator("svg").first().evaluate((el) => getComputedStyle(el).flexShrink)
+    expect(iconShrink, `tab "${label}" icon shrinks`).toBe("0")
+  }
+
+  // tab 行整体不超过 37px（h-9 = 36 + border）
+  const rowBoxBefore = await tabRow.boundingBox()
+  expect(rowBoxBefore!.height).toBeLessThanOrEqual(37)
+
+  // 缩小视口至 900（pane width 仍 clamp 到默认 360）——tab 行仍不折行
+  const originalViewport = page.viewportSize() ?? { width: 1280, height: 800 }
+  await page.setViewportSize({ width: 900, height: 900 })
+  await expect(tabRow).toBeVisible()
+  const rowBoxAfter = await tabRow.boundingBox()
+  expect(rowBoxAfter!.height).toBeLessThanOrEqual(37)
+  for (const label of labels) {
+    const tab = tabRow.locator("button").filter({ hasText: label }).first()
+    const box = await tab.boundingBox()
+    expect(box!.height).toBeLessThanOrEqual(30)
+  }
+  await page.setViewportSize(originalViewport)
+  await expect(tabRow).toBeVisible()
+
+  // 折叠按钮：位于 tab 行最右，aria-label 匹配英文文案，点击后 tab 行消失
+  const collapse = tabRow.locator('button[aria-label*="Collapse side pane"], button[aria-label*="折叠侧栏"]').first()
+  expect(await collapse.count(), "collapse button missing").toBeGreaterThan(0)
+  const collapseLabel = (await collapse.getAttribute("aria-label")) ?? ""
+  expect(collapseLabel).toMatch(/Collapse side pane|折叠侧栏/)
+  await collapse.click()
+  await expect(tabRow).not.toBeVisible()
+})
