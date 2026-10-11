@@ -59,31 +59,33 @@ test("四 frame 4px 间隙与 8px 圆角", async ({ page }) => {
   await page.goto(`/${slug}/session`)
   // 等待侧栏 nav 出现
   await expect(page.locator('[data-component="sidebar-nav-desktop"]')).toBeVisible({ timeout: 15_000 })
-  // 默认处于侧栏展开 + Side Pane 展开，直接测量四个 frame 之间的几何
-  const gap = async (a: string, b: string) =>
+  // 测量两个元素之间的横向间隙（返回原始浮点值，不做四舍五入）
+  const gapX = async (a: string, b: string) =>
     page.evaluate(
       ([x, y]) => {
-        const el = (s: string) => document.querySelector(s)
-        if (!el(x) || !el(y)) return null
-        const r = el(x)!.getBoundingClientRect()
-        const s = el(y)!.getBoundingClientRect()
-        return Math.round(s.x - r.right)
+        const els = (s: string) => document.querySelectorAll(s)
+        if (els(x).length !== 1 || els(y).length !== 1) return null
+        const r = els(x)[0]!.getBoundingClientRect()
+        const s = els(y)[0]!.getBoundingClientRect()
+        return s.x - r.right
       },
       [a, b] as const,
     )
   // 侧栏 frame 与 会话 frame 横向间隙 = 4
-  expect(await gap('[data-component="sidebar-nav-desktop"]', '[data-component="conv-frame"]')).toBe(4)
+  expect(await gapX('[data-component="sidebar-nav-desktop"]', '[data-component="conv-frame"]')).toBeCloseTo(4, 1)
   // 会话 frame 与 侧栏 pane 横向间隙 = 4
-  expect(await gap('[data-component="conv-frame"]', '[data-component="side-pane-frame"]')).toBe(4)
+  expect(await gapX('[data-component="conv-frame"]', '[data-component="side-pane-frame"]')).toBeCloseTo(4, 1)
   // 终端 frame 上边距 = 4（先打开终端：Ctrl+`）
   await page.keyboard.press("Control+`")
-  await page.waitForTimeout(600)
+  await expect(page.locator('[data-component="terminal-frame"]')).toBeVisible()
   const vertical = await page.evaluate(() => {
-    const c = document.querySelector('[data-component="conv-frame"]')!.getBoundingClientRect()
-    const t = document.querySelector('[data-component="terminal-frame"]')!.getBoundingClientRect()
-    return Math.round(t.top - c.bottom)
+    const c = document.querySelectorAll('[data-component="conv-frame"]')
+    const t = document.querySelectorAll('[data-component="terminal-frame"]')
+    if (c.length !== 1 || t.length !== 1) return null
+    return t[0]!.getBoundingClientRect().top - c[0]!.getBoundingClientRect().bottom
   })
-  expect(vertical).toBe(4)
+  expect(vertical).toBeCloseTo(4, 1)
+  // 四个 frame 的圆角与边框
   for (const sel of [
     '[data-component="sidebar-nav-desktop"]',
     '[data-component="conv-frame"]',
@@ -91,11 +93,23 @@ test("四 frame 4px 间隙与 8px 圆角", async ({ page }) => {
     '[data-component="terminal-frame"]',
   ]) {
     const r = await page.evaluate((s) => {
-      const el = document.querySelector(s)!
-      const cs = getComputedStyle(el)
+      const els = document.querySelectorAll(s)
+      if (els.length !== 1) return null
+      const cs = getComputedStyle(els[0]!)
       return { radius: cs.borderRadius, border: cs.borderStyle }
     }, sel)
     expect(r.radius).toBe("8px")
     expect(r.border).toBe("solid")
   }
+  // 关闭终端后，border-top-width 和 border-bottom-width 应为 0px
+  await page.keyboard.press("Control+`")
+  await expect(page.locator('[data-component="terminal-frame"]')).not.toBeVisible()
+  const closedBorder = await page.evaluate(() => {
+    const els = document.querySelectorAll('[data-component="terminal-frame"]')
+    if (els.length !== 1) return null
+    const cs = getComputedStyle(els[0]!)
+    return { top: cs.borderTopWidth, bottom: cs.borderBottomWidth }
+  })
+  expect(closedBorder.top).toBe("0px")
+  expect(closedBorder.bottom).toBe("0px")
 })

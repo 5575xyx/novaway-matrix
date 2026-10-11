@@ -2464,7 +2464,7 @@ export default function Layout(props: ParentProps) {
                   !state.sizing,
               }}
               style={{
-                "--main-left": showSidebar() ? `${side() + 4}px` : "4px",
+                "--main-left": showSidebar() ? `${side() + 4}px` : "0px",
               }}
             >
               <Show when={showSidebar() && !store.workspaceSidebarExpanded}>
