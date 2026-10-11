@@ -20,18 +20,48 @@ test("侧栏任务/文件视图切换", async ({ page }) => {
   const tasksSegment = sidebar.getByRole("button", { name: /Tasks|任务/ }).first()
   const filesSegment = sidebar.getByRole("button", { name: /Files|文件/ }).first()
 
-  // 默认处于任务视图，任务段为激活态（segment 激活样式 text-text-strong / bg-bg-panel-active）
-  await expect(tasksSegment).toHaveClass(/text-text-strong|bg-bg-panel-active/)
+  // 默认处于任务视图，任务段为激活态（segment 激活样式 bg-text-interactive-base / bg-bg-panel-active）
+  await expect(tasksSegment).toHaveClass(/bg-text-interactive-base|bg-bg-panel-active/)
 
   // 切到文件视图：文件段激活、任务段失活
   await filesSegment.click()
-  await expect(filesSegment).toHaveClass(/text-text-strong|bg-bg-panel-active/)
-  await expect(tasksSegment).not.toHaveClass(/text-text-strong|bg-bg-panel-active/)
+  await expect(filesSegment).toHaveClass(/bg-text-interactive-base|bg-bg-panel-active/)
+  await expect(tasksSegment).not.toHaveClass(/bg-text-interactive-base|bg-bg-panel-active/)
 
   // 切回任务视图
   await tasksSegment.click()
-  await expect(tasksSegment).toHaveClass(/text-text-strong|bg-bg-panel-active/)
-  await expect(filesSegment).not.toHaveClass(/text-text-strong|bg-bg-panel-active/)
+  await expect(tasksSegment).toHaveClass(/bg-text-interactive-base|bg-bg-panel-active/)
+  await expect(filesSegment).not.toHaveClass(/bg-text-interactive-base|bg-bg-panel-active/)
+})
+
+test("侧栏分组结构与项目菜单可达", async ({ page }) => {
+  const slug = workspaceRootSlug()
+  await page.goto(`/${slug}/session`)
+  await expect(page.locator('[data-component="sidebar-nav-desktop"]')).toBeVisible({ timeout: 15_000 })
+  const sidebar = page.getByRole("navigation").first()
+
+  // 旧的 workspace 头部折叠按钮应消失（en 文案 "Collapse workspace panel"，由 sidebar.workspacePanel.collapse 提供；
+  // 该 aria-label 只出现在被删除的旧头部里，是稳定且不可复现于新结构的标记）
+  expect(await sidebar.locator('[aria-label="Collapse workspace panel"]').count()).toBe(0)
+
+  // 顶部 segmented：新结构的两个 segment 按钮
+  const tasksSegment = sidebar.getByRole("button", { name: /Tasks|任务/ }).first()
+  const filesSegment = sidebar.getByRole("button", { name: /Files|文件/ }).first()
+  expect(await tasksSegment.count()).toBeGreaterThan(0)
+  expect(await filesSegment.count()).toBeGreaterThan(0)
+  expect(await sidebar.locator('[aria-label="Search"]').count()).toBeGreaterThan(0)
+  expect(await sidebar.locator('[aria-label="New task"]').count()).toBeGreaterThan(0)
+
+  // 空态：无项目时显示 title / description / 打开项目 按钮
+  await expect(sidebar.getByText("No projects open")).toBeVisible()
+  await expect(sidebar.getByText("Open a project to get started")).toBeVisible()
+  await expect(sidebar.getByRole("button", { name: /Open project|打开项目/ }).first()).toBeVisible()
+
+  // 切换视图不报错（segment 激活态切换）
+  await filesSegment.click()
+  await expect(filesSegment).toHaveClass(/bg-text-interactive-base|bg-bg-panel-active/)
+  await tasksSegment.click()
+  await expect(tasksSegment).toHaveClass(/bg-text-interactive-base|bg-bg-panel-active/)
 })
 
 test("WorkspaceHeader 与 Side Pane 开关", async ({ page }) => {
