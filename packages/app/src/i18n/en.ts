@@ -21,11 +21,16 @@ export const dict = {
   "theme.scheme.system": "System",
   "theme.scheme.light": "Light",
   "theme.scheme.dark": "Dark",
+  "theme.toggle.dark": "Switch to dark mode",
+  "theme.toggle.light": "Switch to light mode",
 
   "command.sidebar.toggle": "Toggle sidebar",
+  "command.home.open": "Open home",
 
   "mode.switch.ariaLabel": "Switch work mode",
   "mode.select.placeholder": "Select mode",
+  "cache.hit.rate": "Cache hit rate",
+  "memory.evolution.title": "Memory & Evolution",
   "command.project.open": "Open project",
   "command.project.create": "New project",
   "command.project.create.dialog.title": "New project",

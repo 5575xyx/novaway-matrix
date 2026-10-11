@@ -253,3 +253,40 @@ test("WorkspaceHeader 单行且不溢出", async ({ page }) => {
   expect(modelBox, "model no bbox").not.toBeNull()
   expect(modelBox!.x + modelBox!.width).toBeLessThanOrEqual(headerBox!.x + headerBox!.width)
 })
+
+test("Titlebar 结构", async ({ page }) => {
+  await page.goto("/")
+  const header = page.locator("header").first()
+  await expect(header).toBeVisible({ timeout: 15_000 })
+
+  // 模式首页硬编码中文已删除（pre-fix fingerprint）
+  expect(await page.getByLabel("模式首页").count()).toBe(0)
+
+  // Logo 按钮（command.home.open = "Open home" / "打开首页"）
+  const logoButton = header.getByLabel(/Open home|打开首页/).first()
+  await expect(logoButton).toBeVisible()
+  const logoBox = await logoButton.boundingBox()
+  expect(logoBox, "logo no bbox").not.toBeNull()
+
+  // Mode switch 按钮（mode.switch.ariaLabel = "Switch work mode"）
+  const modeSwitch = header.getByLabel(/Switch work mode/).first()
+  await expect(modeSwitch).toBeVisible()
+  const modeBox = await modeSwitch.boundingBox()
+  expect(modeBox, "mode switch no bbox").not.toBeNull()
+
+  // Mode switch 应在 Logo 右侧 400px 以内（左簇）
+  expect(modeBox!.x - logoBox!.x).toBeLessThan(400)
+
+  // 右簇 icon-only 按钮：Cache / Memory / Theme / Settings / Database
+  const cacheBtn = header.getByLabel(/Cache hit rate|缓存命中率/).first()
+  await expect(cacheBtn).toBeVisible()
+
+  const memoryBtn = header.getByLabel(/Memory & Evolution|记忆与进化/).first()
+  await expect(memoryBtn).toBeVisible()
+
+  const settingsBtn = header.getByLabel(/Open settings|开启设置|開啟設定/).first()
+  await expect(settingsBtn).toBeVisible()
+
+  const themeBtn = header.getByLabel(/Switch to dark mode|Switch to light mode|切换为深色模式|切换为浅色模式/).first()
+  await expect(themeBtn).toBeVisible()
+})

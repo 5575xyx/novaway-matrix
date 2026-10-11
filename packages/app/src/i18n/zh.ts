@@ -25,11 +25,16 @@ export const dict = {
   "theme.scheme.system": "系统",
   "theme.scheme.light": "浅色",
   "theme.scheme.dark": "深色",
+  "theme.toggle.dark": "切换为深色模式",
+  "theme.toggle.light": "切换为浅色模式",
 
   "command.sidebar.toggle": "切换侧边栏",
+  "command.home.open": "打开首页",
 
   "mode.switch.ariaLabel": "切换工作模式",
   "mode.select.placeholder": "选择模式",
+  "cache.hit.rate": "缓存命中率",
+  "memory.evolution.title": "记忆与进化",
 
   "command.project.open": "打开项目",
   "command.project.create": "新建项目",
