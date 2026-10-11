@@ -1862,7 +1862,7 @@ export default function Page() {
 
             {/* Session panel */}
             <div
-              class="@container relative flex-1 min-h-0 flex flex-col rounded-lg border border-border-weak-base bg-background-panel overflow-hidden"
+              class="@container relative flex-1 min-h-0 flex flex-col rounded-lg border border-border-weak-base bg-background-stronger overflow-hidden"
               data-component="conv-frame"
             >
               <WorkspaceHeader />
