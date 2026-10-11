@@ -1,13 +1,18 @@
 import { For, Show, createMemo, createSignal } from "solid-js"
 import { useNavigate } from "@solidjs/router"
 import { Button } from "@novaway/ui/button"
+import { Icon } from "@novaway/ui/icon"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
-import { useLayout, type LocalProject } from "@/context/layout"
+import { useLayout, appModeConfig, type LocalProject } from "@/context/layout"
+import { useNotification } from "@/context/notification"
 import { usePermission } from "@/context/permission"
-import { sortedRootSessionsFrom } from "./layout/helpers"
-import { sessionPermissionRequest } from "./session/composer/session-request-tree"
-import { TaskFilterBar, useArchivedSessions, type TaskFilter } from "./layout/sidebar-tasks"
+import { useCommand } from "@/context/command"
+import { sortedRootSessionsFrom, sessionStatusOf, displayName } from "./layout/helpers"
+import { TaskFilterBar, useArchivedSessions, type TaskFilterBarId } from "./layout/sidebar-tasks"
+import { TaskRow } from "@/components/session/task-row"
+import { formatRelativeTime } from "@/utils/relative-time"
+import { isDefaultSessionTitle } from "@/utils/session-title"
 import { base64Encode } from "@novaway/core/util/encode"
 import type { Session } from "@novaway/sdk/v2/client"
 
@@ -17,23 +22,22 @@ export default function TaskCenterPage() {
   const layout = useLayout()
   const globalSync = useGlobalSync()
   const permission = usePermission()
-  const [filter, setFilter] = createSignal<TaskFilter>("all")
+  const notification = useNotification()
+  const command = useCommand()
+  const [activeTab, setActiveTab] = createSignal<TaskFilterBarId>("all")
   const { archived, load: loadArchived } = useArchivedSessions(() => layout.projects.list())
 
-  const statusOf = (session: Session): "running" | "waiting" | "idle" => {
-    const [sessionStore] = globalSync.child(session.directory)
-    const waiting = !!sessionPermissionRequest(
-      sessionStore.session,
-      sessionStore.permission,
-      session.id,
-      (item) => !permission.autoResponds(item, session.directory),
-    )
-    if (waiting) return "waiting"
-    if (sessionStore.session_working(session.id)) return "running"
-    return "idle"
-  }
+  const tabs = [
+    { id: "all", labelKey: "taskCenter.recent" },
+    { id: "running", labelKey: "taskCenter.running" },
+    { id: "waiting", labelKey: "taskCenter.waiting" },
+    { id: "archived", labelKey: "taskCenter.archived" },
+    { id: "projects", labelKey: "taskCenter.projects" },
+  ] as const
 
   const rows = createMemo(() => {
+    const tab = activeTab()
+    if (tab === "projects") return [] as Array<{ project: LocalProject; session: Session }>
     const list: Array<{ project: LocalProject; session: Session }> = []
     const now = Date.now()
     for (const project of layout.projects.list()) {
@@ -46,17 +50,31 @@ export default function TaskCenterPage() {
       }
       const projectStores = projectDirs.map((dir) => globalSync.child(dir)[0])
       const sessions =
-        filter() === "archived"
+        tab === "archived"
           ? (archived()[project.worktree] ?? []).filter((s) => !!s.time?.archived)
           : (() => {
               const roots = sortedRootSessionsFrom(projectStores, now)
-              const f = filter()
-              if (f === "all") return roots
-              return roots.filter((s) => statusOf(s) === f)
+              if (tab === "all") return roots
+              return roots.filter((s) => sessionStatusOf(globalSync, permission, notification, s) === tab)
             })()
       for (const session of sessions) list.push({ project, session })
     }
     return list.sort((a, b) => (b.session.time?.updated ?? 0) - (a.session.time?.updated ?? 0)).slice(0, 40)
+  })
+
+  const projectCards = createMemo(() => {
+    return layout.projects.list().map((project) => {
+      const [store] = globalSync.child(project.worktree, { bootstrap: false })
+      const sessions = store.session ?? []
+      const rootSessions = sessions.filter((s) => s.directory === project.worktree && !s.parentID && !s.time?.archived)
+      const sorted = rootSessions.slice().sort((a, b) => (b.time?.updated ?? 0) - (a.time?.updated ?? 0))
+      return {
+        project,
+        count: rootSessions.length,
+        branch: store.vcs?.branch,
+        latestAt: sorted[0]?.time?.updated,
+      }
+    })
   })
 
   const firstProject = createMemo(() => layout.projects.list()[0]?.worktree)
@@ -65,68 +83,120 @@ export default function TaskCenterPage() {
     navigate(`/${base64Encode(session.directory)}/session/${session.id}`)
   }
 
+  const openNewTask = () => {
+    if (firstProject()) navigate(`/${base64Encode(firstProject())}/session`)
+    else layout.projectPicker.show()
+  }
+
+  const handleTabChange = (id: TaskFilterBarId) => {
+    setActiveTab(id)
+    if (id === "archived") loadArchived()
+  }
+
   return (
     <div class="size-full overflow-y-auto no-scrollbar">
-      <div class="mx-auto max-w-3xl px-6 py-10 flex flex-col gap-6">
-        <div class="flex flex-col gap-1">
+      <div class="max-w-[860px] px-10 py-7 flex flex-col gap-4">
+        <div class="flex items-center gap-3">
           <h1 class="text-ui-xl font-semibold text-text-strong">{language.t("taskCenter.title")}</h1>
-          <p class="text-ui-caption text-text-weak">{language.t("taskCenter.subtitle")}</p>
-        </div>
-        <div class="flex items-center gap-2">
-          <Button
-            variant="primary"
-            size="normal"
-            onClick={() => {
-              if (firstProject()) navigate(`/${base64Encode(firstProject())}/session`)
-              else layout.projectPicker.show()
-            }}
+          <button
+            type="button"
+            aria-label={language.t("taskCenter.search")}
+            class="flex items-center gap-1.5 rounded-md border border-border-weak-base bg-surface-raised-base px-3 py-1.5 min-w-[220px] text-left text-ui-caption text-text-weak hover:text-text-base hover:border-border-interactive-base transition-colors"
+            onClick={() => command.trigger("file.open")}
           >
+            <Icon name="magnifying-glass" size="small" class="shrink-0" />
+            <span class="truncate">{language.t("taskCenter.search")}</span>
+          </button>
+          <div class="flex-1" />
+          <Button variant="primary" size="normal" onClick={openNewTask}>
             {language.t("taskCenter.newTask")}
           </Button>
           <Button variant="secondary" size="normal" onClick={() => layout.projectPicker.show()}>
             {language.t("taskCenter.openProject")}
           </Button>
         </div>
-        <TaskFilterBar filter={filter()} onChange={(f) => {
-          setFilter(f)
-          if (f === "archived") loadArchived()
-        }} />
-        <Show
-          when={rows().length > 0}
-          fallback={<div class="py-12 text-center text-ui-caption text-text-weak">{language.t("taskCenter.empty")}</div>}
-        >
-          <div class="flex flex-col rounded-lg border border-border-weak-base overflow-hidden">
-            <For each={rows()}>
-              {(row, i) => (
+        <TaskFilterBar filter={activeTab()} variant="underline" tabs={[...tabs]} onSelect={handleTabChange} />
+        <Show when={activeTab() === "projects"}>
+          <div class="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3">
+            <For each={projectCards()}>
+              {(card) => (
                 <button
-                  classList={{
-                    "flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-surface-base-hover": true,
-                    "border-t border-border-weak-base": i() > 0,
-                  }}
-                  onClick={() => openSession(row.session)}
+                  type="button"
+                  class="rounded-lg border border-border-weak-base bg-background-panel p-3 text-left hover:border-border-interactive-base transition-colors flex flex-col gap-1"
+                  onClick={() => navigate(`/${base64Encode(card.project.worktree)}/session`)}
                 >
-                  <span
-                    classList={{
-                      "size-2 rounded-full shrink-0": true,
-                      "bg-text-interactive-base": statusOf(row.session) === "running",
-                      "bg-surface-warning-strong": statusOf(row.session) === "waiting",
-                      "bg-border-strong-base": statusOf(row.session) === "idle",
-                    }}
-                  />
-                  <span class="text-ui-caption text-text-strong truncate flex-1">{row.session.title}</span>
-                  <span class="text-ui-xs text-text-weak truncate max-w-[160px] hidden md:block">
-                    {row.project.worktree.split(/[\\/]/).filter(Boolean).pop()}
-                  </span>
-                  <Show when={row.session.summary && (row.session.summary.additions > 0 || row.session.summary.deletions > 0)}>
-                    <span class="text-ui-xs tabular-nums shrink-0">
-                      <span class="text-[var(--icon-diff-add-base)]">+{row.session.summary?.additions ?? 0}</span>
-                      <span class="text-[var(--icon-diff-delete-base)]">-{row.session.summary?.deletions ?? 0}</span>
-                    </span>
+                  <div class="flex items-center gap-1.5 min-w-0">
+                    <Icon name="folder" size="small" class="shrink-0 text-icon-weak-base" />
+                    <span class="text-ui-caption text-text-strong truncate">{displayName(card.project)}</span>
+                  </div>
+                  <div class="flex items-center gap-2 text-ui-xs text-text-weak">
+                    <span>{language.t("sidebar.project.count", { count: card.count })}</span>
+                    <Show when={card.branch}>
+                      <span class="flex items-center gap-1 truncate max-w-[120px]">
+                        <Icon name="branch" size="small" />
+                        <span class="truncate">{card.branch}</span>
+                      </span>
+                    </Show>
+                  </div>
+                  <Show when={card.latestAt}>
+                    <div class="text-ui-xs text-text-weak">
+                      {formatRelativeTime(card.latestAt, Date.now(), language.t)}
+                    </div>
                   </Show>
                 </button>
               )}
             </For>
+            <button
+              type="button"
+              class="rounded-lg border border-dashed border-border-strong-base px-4 py-3 text-ui-caption text-text-weak hover:text-text-base hover:border-border-interactive-base cursor-pointer flex items-center gap-2 justify-center transition-colors"
+              onClick={() => command.trigger("project.open")}
+            >
+              <Icon name="folder" size="small" class="shrink-0" />
+              <span>{language.t("taskCenter.fromProject")}</span>
+            </button>
           </div>
+        </Show>
+        <Show when={activeTab() !== "projects"}>
+          <Show when={rows().length > 0}>
+            <div class="flex flex-col gap-2.5">
+              <For each={rows()}>
+                {(row) => {
+                  const child = globalSync.child(row.session.directory, { bootstrap: false })[0]
+                  const status = () => sessionStatusOf(globalSync, permission, notification, row.session)
+                  return (
+                    <div class="rounded-lg border border-border-weak-base bg-background-panel p-2">
+                      <TaskRow
+                        title={() =>
+                          row.session.title && !isDefaultSessionTitle(row.session.title)
+                            ? row.session.title
+                            : language.t("workspace.header.untitled")
+                        }
+                        status={status}
+                        branch={() => child.vcs?.branch}
+                        updated={() => row.session.time?.updated}
+                        additions={() => row.session.summary?.additions ?? 0}
+                        deletions={() => row.session.summary?.deletions ?? 0}
+                        waitingBadge={() => status() === "waiting"}
+                        modeColor={() => appModeConfig(layout.mode.projectMode(row.session.directory))?.color}
+                        onClick={() => openSession(row.session)}
+                      />
+                    </div>
+                  )
+                }}
+              </For>
+            </div>
+          </Show>
+          <Show when={rows().length === 0}>
+            <div class="py-12 text-center text-ui-caption text-text-weak">{language.t("taskCenter.empty")}</div>
+          </Show>
+          <button
+            type="button"
+            class="rounded-lg border border-dashed border-border-strong-base px-4 py-3 text-ui-caption text-text-weak hover:text-text-base hover:border-border-interactive-base cursor-pointer flex items-center gap-2 transition-colors"
+            onClick={() => layout.projectPicker.show()}
+          >
+            <Icon name="plus" size="small" class="shrink-0" />
+            <span>{language.t("taskCenter.fromProject")}</span>
+          </button>
         </Show>
       </div>
     </div>

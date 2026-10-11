@@ -1,7 +1,6 @@
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js"
 import { FileIcon } from "@novaway/ui/file-icon"
 import { Icon } from "@novaway/ui/icon"
-import { IconButton } from "@novaway/ui/icon-button"
 import { Switch } from "@novaway/ui/switch"
 import type { GitSnapshotResponses } from "@novaway/sdk/v2"
 import { encodeFilePath } from "@/context/file/path"
@@ -169,14 +168,6 @@ export function SidebarFiles(props: { directory: string; sessionKey: () => strin
   return (
     <div class="flex size-full min-h-0 flex-col">
       <div class="flex h-9 shrink-0 items-center gap-2 border-b border-border-weak-base px-2">
-        <IconButton
-          icon="chevron-left"
-          variant="ghost"
-          size="small"
-          title={language.t("sidebar.tree.back")}
-          aria-label={language.t("sidebar.tree.back")}
-          onClick={() => layout.sidebarView.set("tasks")}
-        />
         <span class="flex-1 text-ui-caption text-text-strong">{language.t("sidebar.tree.title")}</span>
         <label class="flex cursor-pointer items-center gap-1.5 text-ui-xs text-text-weak">
           {language.t("sidebar.tree.onlyChanged")}

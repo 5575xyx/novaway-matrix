@@ -619,6 +619,12 @@ export const dict = {
   "sidebar.project.viewAllSessions": "查看全部工作階段",
   "sidebar.project.clearNotifications": "清除通知",
   "taskCenter.waiting": "待確認",
+  "taskCenter.search": "搜尋任務、專案或對話",
+  "taskCenter.recent": "最近",
+  "taskCenter.running": "執行中",
+  "taskCenter.archived": "已歸檔",
+  "taskCenter.projects": "專案",
+  "taskCenter.fromProject": "從專案或本機資料夾開始",
 
   "app.name.desktop": "NovaWay Desktop",
   "settings.section.desktop": "桌面",
