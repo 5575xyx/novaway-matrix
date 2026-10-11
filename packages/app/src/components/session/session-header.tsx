@@ -5,7 +5,6 @@ import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { Keybind } from "@novaway/ui/keybind"
 import { showToast } from "@novaway/ui/toast"
-import { Tooltip, TooltipKeybind } from "@novaway/ui/tooltip"
 import { getFilename } from "@novaway/core/util/path"
 import { createEffect, createMemo, createSignal, For, onMount, Show } from "solid-js"
 import { createStore } from "solid-js/store"
@@ -17,10 +16,8 @@ import { usePlatform } from "@/context/platform"
 import { useServer } from "@/context/server"
 import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
-import { useTerminal } from "@/context/terminal"
 import { StatusPopover } from "@/components/status-popover"
 import { ThemeSchemeToggle } from "@/components/theme-scheme-toggle"
-import { focusTerminalById } from "@/pages/session/helpers"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { messageAgentColor } from "@/utils/agent"
 import { decode64 } from "@/utils/base64"
@@ -137,8 +134,7 @@ export function SessionHeader() {
   const language = useLanguage()
   const settings = useSettings()
   const sync = useSync()
-  const terminal = useTerminal()
-  const { params, view } = useSessionLayout()
+  const { params } = useSessionLayout()
 
   const projectDirectory = createMemo(() => decode64(params.dir) ?? "")
   const project = createMemo(() => {
@@ -154,8 +150,6 @@ export function SessionHeader() {
   const hotkey = createMemo(() => command.keybind("file.open"))
   const os = createMemo(() => detectOS(platform))
   const search = createMemo(() => settings.general.showSearch())
-  const tree = createMemo(() => settings.general.showFileTree())
-  const term = createMemo(() => settings.general.showTerminal())
   const status = createMemo(() => settings.general.showStatus())
   const nav = createMemo(() => settings.general.showNavigation())
 
@@ -203,16 +197,6 @@ export function SessionHeader() {
         .map((app) => ({ ...app, label: language.t(app.label) })),
     ] as const
   })
-
-  const toggleTerminal = () => {
-    const next = !view().terminal.opened()
-    view().terminal.toggle()
-    if (!next) return
-
-    const id = terminal.active()
-    if (!id) return
-    focusTerminalById(id)
-  }
 
   const [prefs, setPrefs] = persisted(Persist.global("open.app"), createStore({ app: "finder" as OpenApp }))
   const [menu, setMenu] = createStore({ open: false })
@@ -270,11 +254,9 @@ export function SessionHeader() {
   }
 
   const [searchMount, setSearchMount] = createSignal<HTMLElement | null>(null)
-  const [sessionActionsMount, setSessionActionsMount] = createSignal<HTMLElement | null>(null)
   const [rightMount, setRightMount] = createSignal<HTMLElement | null>(null)
   onMount(() => {
     setSearchMount(document.getElementById("NovaWay-titlebar-search"))
-    setSessionActionsMount(document.getElementById("NovaWay-titlebar-session-actions"))
     setRightMount(document.getElementById("NovaWay-titlebar-right"))
   })
 
@@ -307,105 +289,6 @@ export function SessionHeader() {
                 )}
               </Show>
             </Button>
-          </Portal>
-        )}
-      </Show>
-      <Show when={sessionActionsMount()}>
-        {(mount) => (
-          <Portal mount={mount()}>
-            <div class="flex flex-row items-center gap-1 shrink-0">
-              <TooltipKeybind
-                class="inline-flex shrink-0"
-                title={language.t("sidePane.tab.preview")}
-                keybind={command.keybind("preview.toggle")}
-              >
-                <Button
-                  variant="ghost"
-                  class="group/preview-toggle titlebar-icon w-8 h-8 p-0 box-border rounded-xl text-icon-base hover:bg-surface-base-hover transition-all duration-150 hover:scale-105"
-                  onClick={() => layout.sidePane.toggle("preview")}
-                  aria-label={language.t("sidePane.tab.preview")}
-                  aria-expanded={layout.sidePane.opened()}
-                  aria-controls="side-pane"
-                >
-                  <Icon
-                    size="small"
-                    name="layout-right"
-                    classList={{
-                      "text-icon-strong": layout.sidePane.opened(),
-                      "text-icon-weak": !layout.sidePane.opened(),
-                    }}
-                  />
-                </Button>
-              </TooltipKeybind>
-              <Show when={term()}>
-                <TooltipKeybind
-                  class="inline-flex shrink-0"
-                  title={language.t("command.terminal.toggle")}
-                  keybind={command.keybind("terminal.toggle")}
-                >
-                  <Button
-                    variant="ghost"
-                    class="group/terminal-toggle titlebar-icon w-8 h-8 p-0 box-border rounded-xl text-icon-base hover:bg-surface-base-hover transition-all duration-150 hover:scale-105"
-                    onClick={toggleTerminal}
-                    aria-label={language.t("command.terminal.toggle")}
-                    aria-expanded={view().terminal.opened()}
-                    aria-controls="terminal-panel"
-                  >
-                    <Icon size="small" name={view().terminal.opened() ? "terminal-active" : "terminal"} />
-                  </Button>
-                </TooltipKeybind>
-              </Show>
-              <Show when={tree()}>
-                <TooltipKeybind
-                  class="inline-flex shrink-0"
-                  title={language.t("command.fileTree.toggle")}
-                  keybind={command.keybind("fileTree.toggle")}
-                >
-                  <Button
-                    variant="ghost"
-                    class="titlebar-icon w-8 h-8 p-0 box-border rounded-xl text-icon-base hover:bg-surface-base-hover transition-all duration-150 hover:scale-105"
-                    onClick={() => layout.sidePane.toggle("files")}
-                    aria-label={language.t("command.fileTree.toggle")}
-                    aria-expanded={layout.sidePane.opened() && layout.sidePane.tab() === "files"}
-                    aria-controls="side-pane"
-                  >
-                    <Icon
-                      size="small"
-                      name={
-                        layout.sidePane.opened() && layout.sidePane.tab() === "files" ? "file-tree-active" : "file-tree"
-                      }
-                      classList={{
-                        "text-icon-strong": layout.sidePane.opened() && layout.sidePane.tab() === "files",
-                        "text-icon-weak": !(layout.sidePane.opened() && layout.sidePane.tab() === "files"),
-                      }}
-                    />
-                  </Button>
-                </TooltipKeybind>
-              </Show>
-              <TooltipKeybind
-                class="inline-flex shrink-0"
-                title={language.t("command.git.toggle")}
-                keybind={command.keybind("git.toggle")}
-              >
-                <Button
-                  variant="ghost"
-                  class="titlebar-icon w-8 h-8 p-0 box-border rounded-xl text-icon-base hover:bg-surface-base-hover transition-all duration-150 hover:scale-105"
-                  onClick={() => layout.sidePane.toggle("git")}
-                  aria-label={language.t("command.git.toggle")}
-                  aria-expanded={layout.sidePane.opened() && layout.sidePane.tab() === "git"}
-                  aria-controls="side-pane"
-                >
-                  <Icon
-                    size="small"
-                    name="branch"
-                    classList={{
-                      "text-icon-strong": layout.sidePane.opened() && layout.sidePane.tab() === "git",
-                      "text-icon-weak": !(layout.sidePane.opened() && layout.sidePane.tab() === "git"),
-                    }}
-                  />
-                </Button>
-              </TooltipKeybind>
-            </div>
           </Portal>
         )}
       </Show>

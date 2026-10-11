@@ -1419,6 +1419,12 @@ export const dict = {
   "workspace.reset.archived.one": "1 session will be archived.",
   "workspace.reset.archived.many": "{{count}} sessions will be archived.",
   "workspace.reset.note": "This will reset the workspace to match the default branch.",
+  "workspace.header.untitled": "Untitled task",
+  "workspace.header.sidePane": "Toggle side pane",
+  "workspace.header.terminal": "Toggle terminal",
+  "workspace.header.more": "More",
+  "workspace.header.copyPath": "Copy directory path",
+  "workspace.header.copyTitle": "Copy task title",
 
   "assistant.title": "Assistant",
   "assistant.tab.agent": "Agent",

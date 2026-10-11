@@ -31,6 +31,7 @@ import { showToast } from "@novaway/ui/toast"
 import { checksum } from "@novaway/core/util/encode"
 import { useLocation, useSearchParams } from "@solidjs/router"
 import { NewSessionView, SessionHeader } from "@/components/session"
+import { WorkspaceHeader } from "@/components/session/workspace-header"
 import { useComments } from "@/context/comments"
 import { getSessionPrefetch, SESSION_PREFETCH_TTL } from "@/context/global-sync/session-prefetch"
 import { useGlobalSync } from "@/context/global-sync"
@@ -1833,6 +1834,7 @@ export default function Page() {
         <div class="relative bg-background-base size-full overflow-hidden flex flex-col">
           {sessionSync() ?? ""}
           <SessionHeader />
+          <WorkspaceHeader />
           <div class="flex-1 min-h-0 flex flex-col md:flex-row">
             <Show when={!isDesktop() && !!params.id}>
               <Tabs value={store.mobileTab} class="h-auto">
