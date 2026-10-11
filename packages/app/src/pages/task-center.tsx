@@ -122,7 +122,7 @@ export default function TaskCenterPage() {
               {(card) => (
                 <button
                   type="button"
-                  class="rounded-lg border border-border-weak-base bg-background-panel p-3 text-left hover:border-border-interactive-base transition-colors flex flex-col gap-1"
+                  class="rounded-lg border border-border-weak-base bg-background-stronger p-3 text-left hover:border-border-interactive-base transition-colors flex flex-col gap-1"
                   onClick={() => navigate(`/${base64Encode(card.project.worktree)}/session`)}
                 >
                   <div class="flex items-center gap-1.5 min-w-0">
@@ -164,7 +164,7 @@ export default function TaskCenterPage() {
                   const child = globalSync.child(row.session.directory, { bootstrap: false })[0]
                   const status = () => sessionStatusOf(globalSync, permission, notification, row.session)
                   return (
-                    <div class="rounded-lg border border-border-weak-base bg-background-panel p-2">
+                    <div class="rounded-lg border border-border-weak-base bg-background-stronger p-2">
                       <TaskRow
                         title={() =>
                           row.session.title && !isDefaultSessionTitle(row.session.title)
