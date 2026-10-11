@@ -1450,6 +1450,12 @@ export const dict = {
   "workspace.header.more": "More",
   "workspace.header.copyPath": "Copy directory path",
   "workspace.header.copyTitle": "Copy task title",
+  "workspace.header.projectBranch": "{{project}} / {{branch}}",
+  "workspace.header.variant.default": "Default",
+  "workspace.header.variant.low": "Low",
+  "workspace.header.variant.medium": "Medium",
+  "workspace.header.variant.high": "High",
+  "workspace.header.variant.max": "Max",
 
   "assistant.title": "Assistant",
   "assistant.tab.agent": "Agent",

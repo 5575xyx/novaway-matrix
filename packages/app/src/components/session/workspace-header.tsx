@@ -14,6 +14,7 @@ import { useModels } from "@/context/models"
 import { useSettings } from "@/context/settings"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { decode64 } from "@/utils/base64"
+import { isDefaultSessionTitle } from "@/utils/session-title"
 
 export function WorkspaceHeader() {
   const params = useParams()
@@ -34,61 +35,52 @@ export function WorkspaceHeader() {
     return id && store ? store.session_working(id) : false
   })
   const dirName = createMemo(() => directory().split(/[\\/]/).filter(Boolean).pop() ?? directory())
+  const branch = createMemo(() => sessionStore()?.vcs?.branch ?? "")
 
   return (
-    <div class="flex items-center gap-2 h-10 px-3 border-b border-border-weak-base shrink-0 select-none">
+    <div
+      data-component="workspace-header"
+      class="flex items-center gap-2 h-10 px-3 border-b border-border-weak-base shrink-0 select-none"
+    >
       <Show when={working()}>
         <span class="size-2 rounded-full bg-[var(--border-success-selected)] animate-pulse shrink-0" />
       </Show>
-      <span class="text-ui-base font-semibold text-text-strong truncate max-w-[280px]">
-        {session()?.title ?? language.t("workspace.header.untitled")}
+      <span class="text-ui-base font-semibold text-text-strong truncate max-w-[240px]">
+        {session()?.title && !isDefaultSessionTitle(session()?.title) ? session()?.title : language.t("workspace.header.untitled")}
       </span>
       <span class="text-ui-xs text-text-weak truncate max-w-[180px] hidden md:block border border-border-weak-base rounded-md px-1.5 py-0.5">
-        {dirName()}
+        {branch() ? language.t("workspace.header.projectBranch", { project: dirName(), branch: branch() }) : dirName()}
       </span>
-      <div class="flex-1" />
       <Show when={modelsCtx.autoMode() || local.model.current()}>
-        <ModelSelectorPopover
-          model={local.model}
-          triggerAs={Button}
-          triggerProps={{
-            variant: "ghost",
-            size: "normal",
-            class: "text-ui-caption text-text-strong max-w-[200px] min-w-0",
-          }}
-        >
-          <span class="truncate">
-            {modelsCtx.autoMode() ? "Auto" : (local.model.current()?.name ?? language.t("dialog.model.select.title"))}
-          </span>
-          <Icon name="chevron-down" size="small" class="shrink-0" />
-        </ModelSelectorPopover>
+        <div data-component="workspace-model" class="min-w-0">
+          <ModelSelectorPopover
+            model={local.model}
+            triggerAs={Button}
+            triggerProps={{
+              variant: "ghost",
+              size: "normal",
+              class: "text-ui-caption text-text-strong max-w-[150px] min-w-0 truncate",
+            }}
+          >
+            <span class="truncate">
+              {modelsCtx.autoMode() ? "Auto" : (local.model.current()?.name ?? language.t("dialog.model.select.title"))}
+            </span>
+            <Icon name="chevron-down" size="small" class="shrink-0" />
+          </ModelSelectorPopover>
+        </div>
       </Show>
       <Show when={!modelsCtx.autoMode() && variants().length > 2}>
         <Select
           size="small"
           options={variants()}
           current={local.model.variant.current() ?? "default"}
-          label={(x) => {
-            if (x === "default") return "默认"
-            if (x === "low") return "低"
-            if (x === "medium") return "中"
-            if (x === "high") return "高"
-            if (x === "max") return "高+"
-            return x
-          }}
+          label={(x) => language.t("workspace.header.variant." + x)}
           onSelect={(value) => local.model.variant.set(value === "default" ? undefined : value)}
           variant="ghost"
-          class="text-ui-caption"
+          class="text-ui-caption max-w-[120px]"
         />
       </Show>
-      <IconButton
-        icon="layout-right"
-        title={language.t("workspace.header.sidePane")}
-        variant="ghost"
-        aria-expanded={layout.sidePane.opened()}
-        onClick={() => layout.sidePane.toggle()}
-        class={layout.sidePane.opened() ? "text-text-interactive-base" : ""}
-      />
+      <div class="flex-1" />
       <Show when={settings.general.showTerminal()}>
         <IconButton
           icon="terminal"
@@ -99,6 +91,14 @@ export function WorkspaceHeader() {
           class={sessionLayout.view().terminal.opened() ? "text-text-interactive-base" : ""}
         />
       </Show>
+      <IconButton
+        icon="layout-right"
+        title={language.t("workspace.header.sidePane")}
+        variant="ghost"
+        aria-expanded={layout.sidePane.opened()}
+        onClick={() => layout.sidePane.toggle()}
+        class={layout.sidePane.opened() ? "text-text-interactive-base" : ""}
+      />
       <DropdownMenu>
         <DropdownMenu.Trigger
           as={IconButton}

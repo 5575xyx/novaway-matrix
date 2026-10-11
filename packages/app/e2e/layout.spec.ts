@@ -221,3 +221,18 @@ test("Side Pane tab 标签不折行 + 折叠按钮", async ({ page }) => {
   await collapse.click()
   await expect(tabRow).not.toBeVisible()
 })
+
+test("WorkspaceHeader 单行且不溢出", async ({ page }) => {
+  const slug = workspaceRootSlug()
+  await page.goto(`/${slug}/session`)
+  const header = page.locator('[data-component="workspace-header"]').first()
+  await expect(header).toBeVisible({ timeout: 15_000 })
+  const headerBox = await header.boundingBox()
+  expect(headerBox, "header no bbox").not.toBeNull()
+  expect(headerBox!.height, `header height ${headerBox!.height}`).toBeLessThanOrEqual(40)
+  const model = page.locator('[data-component="workspace-model"]').first()
+  await expect(model).toBeVisible()
+  const modelBox = await model.boundingBox()
+  expect(modelBox, "model no bbox").not.toBeNull()
+  expect(modelBox!.x + modelBox!.width).toBeLessThanOrEqual(headerBox!.x + headerBox!.width)
+})
