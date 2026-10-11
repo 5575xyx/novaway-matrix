@@ -460,3 +460,34 @@ test("自动批准开关:开→关直接生效,不再弹确认", async () => {
     app.renderer.destroy()
   }
 })
+
+// 接线兜底:PromptCard 自己认 autoApprove 这个 prop,但生产里得有人把它接上 ——
+// 少了 index.tsx 那一句 <PromptCard autoApprove={...}>,组件层那三条视觉用例全绿,
+// 而真跑起来边框纹丝不动。判据与 prompt-card.test.tsx 同一条(黄→红的蓝通道最低,
+// 青蓝的蓝通道最高),推导也写在那边。
+test("输入卡:开了自动批准之后,真 Prompt 的边框变成警告色", async () => {
+  const app = await renderMount(
+    () => <Prompt sessionID="ses_wiring" />,
+    { width: 80, height: 24 },
+    (text) => text.includes("自动批准"),
+  )
+  try {
+    await clickToggle(app, "○")
+    app.mockInput.pressEnter()
+    await renderUntil(app, (text) => text.includes("● 自动批准"))
+    const rows = app
+      .captureCharFrame()
+      .split("\n")
+      .map((line) => line.replace(/\s+$/, ""))
+    const border = rows.findIndex((line) => line.includes("╭"))
+    expect(border, `帧:\n${rows.join("\n")}`).toBeGreaterThanOrEqual(0)
+    // 上边框那一行上所有非空白格都得是警告色 —— 只挑一格的话,渐变首端碰巧没换色也能过。
+    const cells = (app.captureSpans().lines[border]?.spans ?? []).filter((span) => span.text.trim() !== "")
+    expect(cells.length, `第 ${border} 行没有描边`).toBeGreaterThan(0)
+    for (const span of cells) {
+      expect(span.fg.b!, `描边是 ${span.fg.r},${span.fg.g},${span.fg.b}`).toBeLessThan(span.fg.r!)
+    }
+  } finally {
+    app.renderer.destroy()
+  }
+})

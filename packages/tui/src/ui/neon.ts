@@ -177,7 +177,7 @@ export const HOVER_BOOST = 0.2
 
 export type BorderCell = { x: number; y: number; ch: string; t: number }
 
-export type NeonRole = "user" | "assistant" | "thinking" | "tool" | "error" | "tip" | "input" | "success"
+export type NeonRole = "user" | "assistant" | "thinking" | "tool" | "error" | "tip" | "input" | "success" | "danger"
 
 // 逐通道精确相等 —— RGBA 走 8bit 量化,两个不同的 hex 解析出来要么四个通道全等,
 // 要么至少差一档。「肉眼分辨不出的两档差异」对渐变没有意义:与其画一条几乎不存在的坡,
@@ -223,6 +223,12 @@ function ramp(theme: Theme, first: RGBA, second: RGBA): readonly RGBA[] {
  * 传达,加渐变会被读成装饰(报的错也可能只是一半红一半粉,读不出严重性),
  * 原型也是纯红框 / 纯琥珀框。单段 role 不参与平色兜底 —— 那里本来就只有一个色。
  *
+ * `danger` 黄→红两段(`warning` → `error`):自动批准开着时的输入卡描边。
+ * 它**故意不是单段** —— 单段时 gradientAt 对每个格子返回同一个值,色带平移根本画不出来,
+ * 整圈就是个静止的黄框(见 ui/card 的 flow)。要「常驻在动的警告框」就得有坡,
+ * 而 warning 与 error 是这套语义里唯一两个都属危险色的 token,黄→红读起来仍是「警告」,
+ * 不会飘向无关色系。两端同色时 ramp 自己会兜底换掉一端。
+ *
  * `success` 绿→青两段:流程图节点的「回复」与「本轮结束」用它(原型 card-design-v7.html 的
  * `.fcard[data-kind="reply"]` 是 `#4ade80 → #4fd1e0`)。它不像 `error`/`tip` 那样走单段 ——
  * 回复是这张画布里出现频率最高的语义,整圈一个绿会和「本轮结束」这个事件混成一回事;
@@ -233,6 +239,9 @@ export function semanticStops(theme: Theme, role: NeonRole): readonly RGBA[] {
   if (role === "user") return ramp(theme, theme.accent, theme.neonMid)
   if (role === "thinking") return ramp(theme, theme.neonMid, theme.neonEnd)
   if (role === "success") return ramp(theme, theme.success, theme.info)
+  // 黄→红两段(不是单段)。单段时 gradientAt 对每个格子返回同一个值,色带平移画不出来,
+  // 整圈就是个静止的黄框 —— 而这一族要的正是「常驻在动的警告框」,所以必须有坡。
+  if (role === "danger") return ramp(theme, theme.warning, theme.error)
   if (role === "error") return [theme.error]
   if (role === "tip") return [theme.warning]
   return neonStops(theme)
