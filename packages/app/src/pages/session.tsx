@@ -1831,11 +1831,10 @@ export default function Page() {
     <Show
       when={showOfficeNewSessionWorkspace(layout.mode.current(), params.id)}
       fallback={
-        <div class="relative bg-background-base size-full overflow-hidden flex flex-col">
+        <div class="relative bg-background-base size-full overflow-hidden flex flex-col p-1 gap-1">
           {sessionSync() ?? ""}
           <SessionHeader />
-          <WorkspaceHeader />
-          <div class="flex-1 min-h-0 flex flex-col md:flex-row">
+          <div class="flex-1 min-h-0 flex flex-col md:flex-row gap-1">
             <Show when={!isDesktop() && !!params.id}>
               <Tabs value={store.mobileTab} class="h-auto">
                 <Tabs.List>
@@ -1862,7 +1861,11 @@ export default function Page() {
             </Show>
 
             {/* Session panel */}
-            <div class="@container relative flex-1 min-h-0 flex flex-col bg-background-panel">
+            <div
+              class="@container relative flex-1 min-h-0 flex flex-col rounded-lg border border-border-weak-base bg-background-panel overflow-hidden"
+              data-component="conv-frame"
+            >
+              <WorkspaceHeader />
               <div class="relative flex-1 min-h-0 overflow-hidden flex flex-col md:flex-row">
                 <div class="flex-1 min-w-0 min-h-0 flex flex-col">
                   <div class="flex-1 min-h-0 overflow-hidden">

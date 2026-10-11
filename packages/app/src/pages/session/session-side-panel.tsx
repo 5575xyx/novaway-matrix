@@ -210,7 +210,8 @@ export function SessionSidePanel(props: {
     <aside
       id="side-pane"
       aria-label={language.t("session.panel.reviewAndFiles")}
-      class="relative shrink-0 h-full flex flex-col bg-background-base border-l border-border-weak-base"
+      class="relative shrink-0 h-full flex flex-col rounded-lg border border-border-weak-base bg-background-base overflow-hidden"
+      data-component="side-pane-frame"
       style={{ width: `${width()}px` }}
     >
       <ResizeHandle

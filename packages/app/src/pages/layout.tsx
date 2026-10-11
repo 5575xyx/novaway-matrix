@@ -1989,14 +1989,14 @@ export default function Layout(props: ParentProps) {
     ),
   )
 
-  createEffect(() => {
-    const sidebarWidth = layout.sidebar.width()
-    document.documentElement.style.setProperty("--dialog-left-margin", `${sidebarWidth}px`)
-  })
-
   const side = createMemo(() => {
     if (!store.workspaceSidebarExpanded) return 0
-    return Math.max(layout.sidebar.width(), 244)
+    return Math.max(layout.sidebar.width(), 240)
+  })
+
+  createEffect(() => {
+    const dialogLeft = side() + 4
+    document.documentElement.style.setProperty("--dialog-left-margin", `${dialogLeft}px`)
   })
   const panel = createMemo(() => side())
 
@@ -2145,12 +2145,9 @@ export default function Layout(props: ParentProps) {
     return (
       <div
         classList={{
-          "flex flex-col min-h-0 min-w-0 box-border rounded-tl-[12px] px-3": true,
-          "border border-b-0 border-border-weak-base": !merged(),
-          "border-l border-t border-border-weaker-base": merged(),
-          "bg-background-stronger": true,
-          "flex-1 min-w-0": panelProps.mobile,
-          "max-w-full overflow-hidden": panelProps.mobile,
+          "flex flex-col min-h-0 min-w-0 box-border rounded-lg border border-border-weak-base bg-background-stronger overflow-hidden":
+            true,
+          "flex-1 min-w-0 max-w-full": panelProps.mobile,
         }}
         style={{
           width: panelProps.mobile ? undefined : `${panel()}px`,
@@ -2400,8 +2397,9 @@ export default function Layout(props: ParentProps) {
                 data-component="sidebar-nav-desktop"
                 classList={{
                   "hidden xl:block": true,
-                  "absolute inset-y-0 left-0": true,
+                  "absolute inset-y-1 left-1": true,
                   "z-10": true,
+                  "rounded-lg border border-border-weak-base overflow-hidden": true,
                 }}
                 style={{ width: `${side()}px` }}
               >
@@ -2411,14 +2409,14 @@ export default function Layout(props: ParentProps) {
 
             <Show when={showSidebar() && store.workspaceSidebarExpanded}>
               <div
-                class="hidden xl:block absolute inset-y-0 z-30 w-0 overflow-visible"
-                style={{ left: `${side()}px` }}
+                class="hidden xl:block absolute inset-y-1 z-30 w-0 overflow-visible"
+                style={{ left: `${side() + 4}px` }}
                 onPointerDown={() => setState("sizing", true)}
               >
                 <ResizeHandle
                   direction="horizontal"
                   size={layout.sidebar.width()}
-                  min={244}
+                  min={240}
                   max={typeof window === "undefined" ? 1000 : window.innerWidth * 0.3}
                   onResize={(w) => {
                     setState("sizing", true)
@@ -2429,12 +2427,6 @@ export default function Layout(props: ParentProps) {
                 />
               </div>
             </Show>
-
-            <div
-              class="hidden xl:block pointer-events-none absolute top-0 right-0 z-0 border-t border-border-weaker-base"
-              classList={{ hidden: !showSidebar() || !store.workspaceSidebarExpanded }}
-              style={{ left: "12px" }}
-            />
 
             <Show when={showSidebar()}>
               <div class="xl:hidden">
@@ -2466,13 +2458,13 @@ export default function Layout(props: ParentProps) {
             <div
               classList={{
                 "absolute inset-0": true,
-                "xl:inset-y-0 xl:right-0 xl:left-[var(--main-left)]": true,
+                "xl:inset-y-1 xl:right-1 xl:left-[var(--main-left)]": true,
                 "z-20": true,
                 "transition-[left] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[left] motion-reduce:transition-none":
                   !state.sizing,
               }}
               style={{
-                "--main-left": showSidebar() ? `${side()}px` : "0px",
+                "--main-left": showSidebar() ? `${side() + 4}px` : "4px",
               }}
             >
               <Show when={showSidebar() && !store.workspaceSidebarExpanded}>
@@ -2487,12 +2479,7 @@ export default function Layout(props: ParentProps) {
                   />
                 </Tooltip>
               </Show>
-              <main
-                classList={{
-                  "size-full overflow-x-hidden flex flex-col items-start border-t border-border-weak-base bg-background-base page-transition": true,
-                  "xl:border-l xl:rounded-tl-lg": showSidebar() && store.workspaceSidebarExpanded,
-                }}
-              >
+              <main class="size-full overflow-x-hidden flex flex-col items-start bg-background-base page-transition">
                 <Show when={!autoselecting.loading} fallback={<div class="size-full" />}>
                   {props.children}
                 </Show>

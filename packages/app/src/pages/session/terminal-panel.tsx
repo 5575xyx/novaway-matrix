@@ -199,9 +199,9 @@ export function TerminalPanel(props: { variant?: "frame" | "pane" }) {
       aria-label={language.t("terminal.title")}
       aria-hidden={!opened()}
       inert={!opened()}
-      class="relative w-full shrink-0 overflow-hidden bg-background-stronger"
+      class="relative w-full shrink-0 overflow-hidden bg-background-stronger rounded-lg border border-border-weak-base"
+      data-component="terminal-frame"
       classList={{
-        "border-t border-border-weak-base": opened(),
         "transition-[height] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[height] motion-reduce:transition-none":
           !size.active(),
       }}
