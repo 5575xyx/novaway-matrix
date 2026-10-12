@@ -69,7 +69,7 @@ export function SessionSidePanel(props: {
   const fileTreeTab = () => layout.fileTree.tab()
 
   const showAllFiles = () => {
-    if (fileTreeTab() !== "changes" && fileTreeTab() !== "review") return
+    if (fileTreeTab() !== "changes") return
     layout.fileTree.setTab("all")
   }
 

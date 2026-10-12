@@ -231,7 +231,7 @@ export function migrateLayoutStore(value: unknown) {
   const gitPanel = value.git
   const migratedFileTree = (() => {
     if (!isRecord(fileTree)) return fileTree
-    if (fileTree.tab === "changes" || fileTree.tab === "all" || fileTree.tab === "review") return fileTree
+    if (fileTree.tab === "changes" || fileTree.tab === "all") return fileTree
 
     const width = typeof fileTree.width === "number" ? fileTree.width : DEFAULT_FILE_TREE_WIDTH
     return {
@@ -359,7 +359,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         fileTree: {
           opened: false,
           width: DEFAULT_FILE_TREE_WIDTH,
-          tab: "changes" as "changes" | "all" | "review",
+          tab: "changes" as "changes" | "all",
         },
         git: {
           opened: false,
@@ -797,7 +797,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         opened: createMemo(() => store.fileTree?.opened ?? false),
         width: createMemo(() => store.fileTree?.width ?? DEFAULT_FILE_TREE_WIDTH),
         tab: createMemo(() => store.fileTree?.tab ?? "changes"),
-        setTab(tab: "changes" | "all" | "review") {
+        setTab(tab: "changes" | "all") {
           if (!store.fileTree) {
             setStore("fileTree", { opened: true, width: DEFAULT_FILE_TREE_WIDTH, tab })
             return

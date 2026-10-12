@@ -82,7 +82,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   }
 
   const showAllFiles = () => {
-    if (layout.fileTree.tab() !== "changes" && layout.fileTree.tab() !== "review") return
+    if (layout.fileTree.tab() !== "changes") return
     layout.fileTree.setTab("all")
   }
 
