@@ -121,7 +121,7 @@ export type LocalProject = Partial<Project> & { worktree: string; expanded: bool
 
 export type ReviewDiffStyle = "unified" | "split"
 
-export type SidePaneTab = "preview" | "terminal" | "files" | "git" | "review" | "context"
+export type SidePaneTab = "preview" | "review" | "terminal"
 export type SidebarView = "tasks" | "tree"
 
 export function ensureSessionKey(key: string, touch: (key: string) => void, seed: (key: string) => void) {

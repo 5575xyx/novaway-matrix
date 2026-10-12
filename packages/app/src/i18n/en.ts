@@ -104,8 +104,6 @@ export const dict = {
   "preview.pick.appendedHint": "The element details were added to the prompt. Say what to change, then send",
   "sidePane.tab.preview": "Preview",
   "sidePane.tab.terminal": "Terminal",
-  "sidePane.tab.files": "Files",
-  "sidePane.tab.git": "Git",
   "sidePane.tab.review": "Review",
   "sidePane.tab.context": "Context",
   "sidePane.collapse": "Collapse side pane",
