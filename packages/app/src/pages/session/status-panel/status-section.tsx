@@ -7,6 +7,7 @@ export function StatusSection(props: {
   summary?: JSX.Element
   open: boolean
   onToggle: () => void
+  bodyHeight?: string
   children: JSX.Element
 }): JSX.Element {
   return (
@@ -30,7 +31,7 @@ export function StatusSection(props: {
         />
       </button>
       <Show when={props.open}>
-        <div class="max-h-48 overflow-y-auto no-scrollbar">{props.children}</div>
+        <div class={`${props.bodyHeight ?? "max-h-48"} overflow-y-auto no-scrollbar`}>{props.children}</div>
       </Show>
     </section>
   )

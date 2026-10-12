@@ -1,8 +1,9 @@
 import { For, createMemo, type JSX } from "solid-js"
-import { createStore } from "solid-js/store"
 import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { useLanguage } from "@/context/language"
+import { useLayout } from "@/context/layout"
+import { useSDK } from "@/context/sdk"
 import { StatusSection } from "./status-section"
 
 export type StatusPanelSection = {
@@ -10,6 +11,7 @@ export type StatusPanelSection = {
   title: string
   summary?: JSX.Element
   defaultOpen?: boolean
+  bodyHeight?: string
   children: JSX.Element
 }
 
@@ -28,20 +30,18 @@ export function SessionStatusPanel(props: { sections: StatusPanelSection[] }): J
 // 所以窄态可见的那个元素不带任何「可展开」声明。展开按钮只存在于宽容器，此时 data-collapsed 点击确实生效。
 function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.Element {
   const language = useLanguage()
-  const [store, setStore] = createStore({
-    collapsed: false,
-    open: {} as Record<string, boolean>,
-  })
+  const layout = useLayout()
+  const sdk = useSDK()
+  const directory = createMemo(() => sdk.directory)
 
-  const openOf = (id: string, defaultOpen?: boolean) => store.open[id] ?? defaultOpen ?? true
-  const toggleOf = (id: string, defaultOpen?: boolean) => setStore("open", id, !openOf(id, defaultOpen))
+  const collapsed = layout.statusPanel.collapsed(directory())
   const summaries = createMemo(() => props.sections.filter((section) => section.summary !== undefined))
 
   return (
     <aside
       data-component="status-panel"
       class="group absolute top-4 right-4 z-10"
-      data-collapsed={store.collapsed ? "true" : "false"}
+      data-collapsed={collapsed() ? "true" : "false"}
     >
       <div
         data-component="status-panel-expanded"
@@ -57,24 +57,28 @@ function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.
             class="h-6 w-6 shrink-0"
             title={language.t("statusPanel.collapse")}
             aria-label={language.t("statusPanel.collapse")}
-            onClick={() => setStore("collapsed", true)}
+            onClick={() => layout.statusPanel.toggleCollapsed(directory())}
           />
         </div>
         <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar">
           <For each={props.sections}>
-            {(section, index) => (
-              <div classList={{ "border-t border-border-weak-base": index() > 0 }}>
-                <StatusSection
-                  id={section.id}
-                  title={section.title}
-                  summary={section.summary}
-                  open={openOf(section.id, section.defaultOpen)}
-                  onToggle={() => toggleOf(section.id, section.defaultOpen)}
-                >
-                  {section.children}
-                </StatusSection>
-              </div>
-            )}
+            {(section, index) => {
+              const open = layout.statusPanel.open(directory(), section.id, section.defaultOpen)
+              return (
+                <div classList={{ "border-t border-border-weak-base": index() > 0 }}>
+                  <StatusSection
+                    id={section.id}
+                    title={section.title}
+                    summary={section.summary}
+                    open={open()}
+                    onToggle={() => layout.statusPanel.toggleOpen(directory(), section.id, section.defaultOpen)}
+                    bodyHeight={section.bodyHeight}
+                  >
+                    {section.children}
+                  </StatusSection>
+                </div>
+              )
+            }}
           </For>
         </div>
       </div>
@@ -96,7 +100,7 @@ function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.
           class="hidden h-8 items-center gap-1 rounded-lg border border-border-weak-base bg-background-stronger px-2 shadow-sm group-data-[collapsed=true]:flex"
           title={language.t("statusPanel.expand")}
           aria-label={language.t("statusPanel.expand")}
-          onClick={() => setStore("collapsed", false)}
+          onClick={() => layout.statusPanel.toggleCollapsed(directory())}
         >
           <CapsuleBody sections={summaries()} />
         </button>
