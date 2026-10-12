@@ -86,3 +86,10 @@ test("migrateLayoutStore v7 无 sessionView 时不抛错", () => {
   const out = migrateLayoutStore({ sidebar: { opened: false } }) as Record<string, any>
   expect(out.sidebar.opened).toBe(false)
 })
+
+describe("migrateLayoutStore fileTree tab", () => {
+  test("maps legacy fileTree review tab to changes", () => {
+    const out = migrateLayoutStore({ fileTree: { opened: true, width: 260, tab: "review" } })
+    expect(out).toMatchObject({ fileTree: { tab: "changes" } })
+  })
+})
