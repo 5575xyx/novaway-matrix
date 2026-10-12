@@ -125,6 +125,7 @@ export const dict = {
   "statusPanel.title": "状态",
   "statusPanel.collapse": "折叠状态面板",
   "statusPanel.expand": "展开状态面板",
+  "statusPanel.summary": "状态摘要",
 
   "command.fileTree.toggle": "切换文件树",
   "command.git.toggle": "切换源代码管理",

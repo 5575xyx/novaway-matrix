@@ -112,6 +112,7 @@ export const dict = {
   "statusPanel.title": "Status",
   "statusPanel.collapse": "Collapse status panel",
   "statusPanel.expand": "Expand status panel",
+  "statusPanel.summary": "Status summary",
   "command.fileTree.toggle": "Toggle file tree",
   "command.git.toggle": "Toggle source control",
   "command.review.toggle": "Toggle review",
