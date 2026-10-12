@@ -151,44 +151,68 @@ test("四 frame 4px 间隙与 8px 圆角", async ({ page }) => {
   expect(closedBorder.bottom).toBe("0px")
 })
 
-test("Side Pane tab 标签不折行 + 折叠按钮", async ({ page }) => {
+test("Side Pane 空态按需创建 + tab 标签不折行 + 折叠按钮", async ({ page }) => {
   const slug = workspaceRootSlug()
   await page.goto(`/${slug}/session`)
-  // 侧栏 nav 出现即视为页面就绪；side pane 默认展开（store.sidePane?.opened ?? true）
+  // 侧栏 nav 出现即视为页面就绪；side pane 默认展开（DEFAULT_SIDE_PANE_STATE.opened = true），
+  // 默认零 tab → 右栏显示空态，不隐式创建任何 tab。
   await expect(page.locator('[data-component="sidebar-nav-desktop"]')).toBeVisible({ timeout: 15_000 })
-  // tabRow = 外层 tab 条（含 border-b），其内层滚动 div 包裹 6 个 tab 按钮；
-  // 折叠按钮位于外层 tabRow 的最右端，不随内层滚动隐藏。
-  const tabRow = page
-    .locator('[data-component="side-pane-frame"]')
-    .locator("> div.border-b")
-    .first()
+  const frame = page.locator('[data-component="side-pane-frame"]')
+  await expect(frame).toBeVisible()
+  // tabRow = 外层 tab 条（含 border-b）；折叠按钮是它的直接子节点，位于最右端，
+  // 不随内层滚动隐藏。空态与内容区是 tabRow 的兄弟节点，不占 tab 条高度。
+  const tabRow = frame.locator("> div.border-b").first()
   await expect(tabRow).toBeVisible()
 
-  // 六个 tab 标签必须都存在（Preview / Terminal / Files / Git / Review / Context）
-  const labels = ["Preview", "Terminal", "Files", "Git", "Review", "Context"]
-  for (const label of labels) {
-    const tab = tabRow.locator("button").filter({ hasText: label }).first()
-    expect(await tab.count(), `tab "${label}" missing`).toBeGreaterThan(0)
-    // 每个 tab 按钮的 white-space 应为 nowrap，禁止标签被强制折行
-    const whiteSpace = await tab.evaluate((el) => getComputedStyle(el).whiteSpace)
-    expect(whiteSpace, `tab "${label}" wraps`).toBe("nowrap")
-    // 按钮高 h-7 = 28px；label 若折行会顶高按钮 >30
-    const box = await tab.boundingBox()
-    expect(box, `tab "${label}" no bbox`).not.toBeNull()
-    expect(box!.height, `tab "${label}" height ${box!.height}`).toBeLessThanOrEqual(30)
-    // 图标 shrink-0，不能挤压
-    const iconShrink = await tab.locator("svg").first().evaluate((el) => getComputedStyle(el).flexShrink)
-    expect(iconShrink, `tab "${label}" icon shrinks`).toBe("0")
+  // 空态：标题 + 恰好三个按需入口（Preview / Terminal / Review）。
+  // Round 3 已废除六个常驻 tab，Files / Git / Context 不再作为入口出现。
+  const empty = frame.locator('[data-component="side-pane-empty"]')
+  await expect(empty).toBeVisible()
+  await expect(empty).toContainText(/Open tab|打开标签页/)
+  const options = empty.locator("button")
+  expect(await options.count(), "expected exactly 3 on-demand options").toBe(3)
+  for (const label of ["Preview", "Terminal", "Review"]) {
+    await expect(options.filter({ hasText: label }).first(), `on-demand option "${label}" missing`).toBeVisible()
   }
+  for (const legacy of ["Files", "Git", "Context"]) {
+    expect(await options.filter({ hasText: legacy }).count(), `legacy tab "${legacy}" present`).toBe(0)
+  }
+  // 空态下 tab 条内没有任何 tab 标签按钮
+  expect(
+    await tabRow
+      .locator("button")
+      .filter({ hasText: /Preview|Terminal|Review|预览|终端|审查/ })
+      .count(),
+    "tabs created implicitly",
+  ).toBe(0)
+
+  // 点击按需入口创建 tab：空态消失，tab 标签出现在 tab 条内
+  await options.filter({ hasText: "Preview" }).first().click()
+  await expect(empty).not.toBeVisible()
+  const tab = tabRow.locator("button").filter({ hasText: "Preview" }).first()
+  await expect(tab).toBeVisible()
+
+  // tab 按钮的 white-space 应为 nowrap，禁止标签被强制折行
+  const whiteSpace = await tab.evaluate((el) => getComputedStyle(el).whiteSpace)
+  expect(whiteSpace, 'tab "Preview" wraps').toBe("nowrap")
+  // 按钮高 h-7 = 28px；label 若折行会顶高按钮 >30
+  const box = await tab.boundingBox()
+  expect(box, 'tab "Preview" no bbox').not.toBeNull()
+  expect(box!.height, `tab "Preview" height ${box!.height}`).toBeLessThanOrEqual(30)
+  // 图标 shrink-0，不能挤压
+  const iconShrink = await tab
+    .locator("svg")
+    .first()
+    .evaluate((el) => getComputedStyle(el).flexShrink)
+  expect(iconShrink, 'tab "Preview" icon shrinks').toBe("0")
 
   // tab 行整体不超过 37px（h-9 = 36 + border）
   const rowBoxBefore = await tabRow.boundingBox()
+  expect(rowBoxBefore, "tabRow no bbox").not.toBeNull()
   expect(rowBoxBefore!.height).toBeLessThanOrEqual(37)
 
   // 折叠按钮：位于 tab 行最右，aria-label 匹配英文文案，点击后 tab 行消失
-  const collapse = tabRow
-    .locator('button[aria-label*="Collapse side pane"], button[aria-label*="折叠侧栏"]')
-    .first()
+  const collapse = tabRow.locator('button[aria-label*="Collapse side pane"], button[aria-label*="折叠侧栏"]').first()
   expect(await collapse.count(), "collapse button missing").toBeGreaterThan(0)
   const collapseLabel = (await collapse.getAttribute("aria-label")) ?? ""
   expect(collapseLabel).toMatch(/Collapse side pane|折叠侧栏/)
@@ -206,12 +230,11 @@ test("Side Pane tab 标签不折行 + 折叠按钮", async ({ page }) => {
     await page.setViewportSize({ width: 900, height: 900 })
     await expect(tabRow).toBeVisible()
     const rowBoxAfter = await tabRow.boundingBox()
+    expect(rowBoxAfter, "tabRow no bbox").not.toBeNull()
     expect(rowBoxAfter!.height).toBeLessThanOrEqual(37)
-    for (const label of labels) {
-      const tab = tabRow.locator("button").filter({ hasText: label }).first()
-      const box = await tab.boundingBox()
-      expect(box!.height).toBeLessThanOrEqual(30)
-    }
+    const tabBox = await tab.boundingBox()
+    expect(tabBox, 'tab "Preview" no bbox').not.toBeNull()
+    expect(tabBox!.height).toBeLessThanOrEqual(30)
     await expect(collapse).toBeVisible()
   } finally {
     await page.setViewportSize(originalViewport)
