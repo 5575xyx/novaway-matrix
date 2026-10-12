@@ -59,7 +59,8 @@ import { sessionAutoSubmitKey } from "@/pages/session/auto-submit"
 import { showOfficeNewSessionWorkspace, showOfficeSessionComposer } from "@/pages/session/office-workspace-route"
 import { syncSessionModel } from "@/pages/session/session-model-helpers"
 import { SessionSidePanel } from "@/pages/session/session-side-panel"
-import { SessionStatusPanel } from "@/pages/session/status-panel/status-panel"
+import { SessionStatusPanel, type StatusPanelSection } from "@/pages/session/status-panel/status-panel"
+import { useContextSection } from "@/pages/session/status-panel/context-section"
 import { useGitSection } from "@/pages/session/status-panel/git-section"
 import { useTodoSection } from "@/pages/session/status-panel/todo-section"
 import { FloatingTodoButton } from "@/components/floating-todo-button"
@@ -421,17 +422,16 @@ export default function Page() {
     deferRender: false,
   })
 
-  // Git 区块与进度区块都接入面板；model 为 null 时该区块整体不进 sections，两侧全空则面板不挂载。
+  // 三个区块都接入面板；model 为 null 时该区块整体不进 sections，全部为空则面板不挂载。
   const gitSection = useGitSection()
   const todoSection = useTodoSection()
-  const statusSections = createMemo(() => {
-    const sections = []
-    const git = gitSection()
-    if (git) sections.push(git)
-    const todo = todoSection()
-    if (todo) sections.push(todo)
-    return sections
-  })
+  const contextSection = useContextSection()
+  const statusSections = createMemo(
+    () =>
+      [gitSection(), todoSection(), contextSection()].filter(
+        (section): section is StatusPanelSection => section !== null,
+      ),
+  )
 
   const [followup, setFollowup] = persisted(
     Persist.workspace(sdk.directory, "followup", ["followup.v1"]),

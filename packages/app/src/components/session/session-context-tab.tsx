@@ -2,29 +2,18 @@ import { createMemo, createEffect, on, onCleanup, For, Show } from "solid-js"
 import type { JSX } from "solid-js"
 import { useSync } from "@/context/sync"
 import { checksum } from "@novaway/core/util/encode"
-import { findLast } from "@novaway/core/util/array"
-import { same } from "@/utils/same"
 import { Icon } from "@novaway/ui/icon"
 import { Accordion } from "@novaway/ui/accordion"
 import { StickyAccordionHeader } from "@novaway/ui/sticky-accordion-header"
 import { File } from "@novaway/ui/file"
 import { Markdown } from "@novaway/ui/markdown"
 import { ScrollView } from "@novaway/ui/scroll-view"
-import type { Message, Part, UserMessage } from "@novaway/sdk/v2/client"
+import type { Message, Part } from "@novaway/sdk/v2/client"
 import { useLanguage } from "@/context/language"
-import { useProviders } from "@/hooks/use-providers"
 import { useSessionLayout } from "@/pages/session/session-layout"
-import { getSessionContextMetrics } from "./session-context-metrics"
-import { estimateSessionContextBreakdown, type SessionContextBreakdownKey } from "./session-context-breakdown"
 import { createSessionContextFormatter } from "./session-context-format"
-
-const BREAKDOWN_COLOR: Record<SessionContextBreakdownKey, string> = {
-  system: "var(--syntax-info)",
-  user: "var(--syntax-success)",
-  assistant: "var(--syntax-property)",
-  tool: "var(--syntax-warning)",
-  other: "var(--syntax-comment)",
-}
+import { SessionContextBreakdownView } from "./session-context-breakdown-view"
+import { useSessionContextData } from "./use-session-context"
 
 function Stat(props: { label: string; value: JSX.Element }) {
   return (
@@ -87,42 +76,11 @@ function RawMessage(props: {
   )
 }
 
-const emptyMessages: Message[] = []
-const emptyUserMessages: UserMessage[] = []
-
 export function SessionContextTab() {
   const sync = useSync()
   const language = useLanguage()
-  const providers = useProviders()
   const { params, view } = useSessionLayout()
-
-  const info = createMemo(() => (params.id ? sync.session.get(params.id) : undefined))
-
-  const messages = createMemo(
-    () => {
-      const id = params.id
-      if (!id) return emptyMessages
-      return (sync.data.message[id] ?? []) as Message[]
-    },
-    emptyMessages,
-    { equals: same },
-  )
-
-  const userMessages = createMemo(
-    () => messages().filter((m) => m.role === "user") as UserMessage[],
-    emptyUserMessages,
-    { equals: same },
-  )
-
-  const visibleUserMessages = createMemo(
-    () => {
-      const revert = info()?.revert?.messageID
-      if (!revert) return userMessages()
-      return userMessages().filter((m) => m.id < revert)
-    },
-    emptyUserMessages,
-    { equals: same },
-  )
+  const { info, messages, systemPrompt, metrics, ctx, breakdown } = useSessionContextData()
 
   const usd = createMemo(
     () =>
@@ -132,8 +90,6 @@ export function SessionContextTab() {
       }),
   )
 
-  const metrics = createMemo(() => getSessionContextMetrics(messages(), providers.all()))
-  const ctx = createMemo(() => metrics().context)
   const formatter = createMemo(() => createSessionContextFormatter(language.intl()))
 
   const cost = createMemo(() => {
@@ -151,15 +107,6 @@ export function SessionContextTab() {
     }
   })
 
-  const systemPrompt = createMemo(() => {
-    const msg = findLast(visibleUserMessages(), (m) => !!m.system)
-    const system = msg?.system
-    if (!system) return
-    const trimmed = system.trim()
-    if (!trimmed) return
-    return trimmed
-  })
-
   const providerLabel = createMemo(() => {
     const c = ctx()
     if (!c) return "—"
@@ -171,30 +118,6 @@ export function SessionContextTab() {
     if (!c) return "—"
     return c.modelLabel
   })
-
-  const breakdown = createMemo(
-    on(
-      () => [ctx()?.message.id, ctx()?.input, messages().length, systemPrompt()],
-      () => {
-        const c = ctx()
-        if (!c?.input) return []
-        return estimateSessionContextBreakdown({
-          messages: messages(),
-          parts: sync.data.part as Record<string, Part[] | undefined>,
-          input: c.input,
-          systemPrompt: systemPrompt(),
-        })
-      },
-    ),
-  )
-
-  const breakdownLabel = (key: SessionContextBreakdownKey) => {
-    if (key === "system") return language.t("context.breakdown.system")
-    if (key === "user") return language.t("context.breakdown.user")
-    if (key === "assistant") return language.t("context.breakdown.assistant")
-    if (key === "tool") return language.t("context.breakdown.tool")
-    return language.t("context.breakdown.other")
-  }
 
   const stats = [
     { label: "context.stats.session", value: () => info()?.title ?? params.id ?? "—" },
@@ -283,36 +206,7 @@ export function SessionContextTab() {
           </For>
         </div>
 
-        <Show when={breakdown().length > 0}>
-          <div class="flex flex-col gap-2">
-            <div class="text-12-regular text-text-weak">{language.t("context.breakdown.title")}</div>
-            <div class="h-2 w-full rounded-full bg-surface-base overflow-hidden flex">
-              <For each={breakdown()}>
-                {(segment) => (
-                  <div
-                    class="h-full"
-                    style={{
-                      width: `${segment.width}%`,
-                      "background-color": BREAKDOWN_COLOR[segment.key],
-                    }}
-                  />
-                )}
-              </For>
-            </div>
-            <div class="flex flex-wrap gap-x-3 gap-y-1">
-              <For each={breakdown()}>
-                {(segment) => (
-                  <div class="flex items-center gap-1 text-11-regular text-text-weak">
-                    <div class="size-2 rounded-sm" style={{ "background-color": BREAKDOWN_COLOR[segment.key] }} />
-                    <div>{breakdownLabel(segment.key)}</div>
-                    <div class="text-text-weaker">{segment.percent.toLocaleString(language.intl())}%</div>
-                  </div>
-                )}
-              </For>
-            </div>
-            <div class="hidden text-11-regular text-text-weaker">{language.t("context.breakdown.note")}</div>
-          </div>
-        </Show>
+        <SessionContextBreakdownView segments={breakdown()} />
 
         <Show when={systemPrompt()}>
           {(prompt) => (
