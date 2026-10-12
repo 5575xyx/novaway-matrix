@@ -339,7 +339,6 @@ export default function Page() {
   const desktopReviewOpen = createMemo(
     () => isDesktop() && view().reviewPanel.opened() && (activeFileTab() !== undefined || activeTab() === "context"),
   )
-  const desktopFileTreeOpen = createMemo(() => isDesktop() && layout.fileTree.opened())
   const sidePaneShowsReview = createMemo(
     () => isDesktop() && layout.sidePane.opened() && layout.sidePane.activeTab() === "review",
   )
@@ -527,9 +526,7 @@ export default function Page() {
   const mobileChanges = createMemo(() => !isDesktop() && store.mobileTab === "changes")
   const wantsReview = createMemo(() =>
     isDesktop()
-      ? sidePaneShowsReview() ||
-        desktopFileTreeOpen() ||
-        (desktopReviewOpen() && activeTab() === "review")
+      ? sidePaneShowsReview() || (desktopReviewOpen() && activeTab() === "review")
       : store.mobileTab === "changes",
   )
   const vcsMode = createMemo<VcsMode | undefined>(() => {
@@ -944,9 +941,6 @@ export default function Page() {
     ),
   )
 
-  const fileTreeTab = () => layout.fileTree.tab()
-  const setFileTreeTab = (value: "changes" | "all") => layout.fileTree.setTab(value)
-
   const [tree, setTree] = createStore({
     reviewScroll: undefined as HTMLDivElement | undefined,
     pendingDiff: undefined as string | undefined,
@@ -967,11 +961,6 @@ export default function Page() {
     ),
   )
 
-  const showAllFiles = () => {
-    if (fileTreeTab() !== "changes") return
-    setFileTreeTab("all")
-  }
-
   const focusInput = () => {
     if (isChildSession()) return
     inputRef?.focus()
@@ -985,7 +974,6 @@ export default function Page() {
   })
 
   const openReviewFile = createOpenReviewFile({
-    showAllFiles,
     tabForPath: file.tab,
     openTab: (tab) => {
       void tabs().open(tab)
@@ -1111,18 +1099,6 @@ export default function Page() {
     </div>
   )
 
-  createEffect(
-    on(
-      activeFileTab,
-      (active) => {
-        if (!active) return
-        if (fileTreeTab() !== "changes") return
-        showAllFiles()
-      },
-      { defer: true },
-    ),
-  )
-
   const reviewDiffId = (path: string) => {
     const sum = checksum(path)
     if (!sum) return
@@ -1241,19 +1217,6 @@ export default function Page() {
       { defer: true },
     ),
   )
-
-  let treeDir: string | undefined
-  createEffect(() => {
-    const dir = sdk.directory
-    if (!isDesktop()) return
-    if (!layout.fileTree.opened()) return
-    if (sync.status === "loading") return
-
-    fileTreeTab()
-    const refresh = treeDir !== dir
-    treeDir = dir
-    void (refresh ? file.tree.refresh("") : file.tree.list(""))
-  })
 
   createEffect(
     on(

@@ -880,8 +880,6 @@ export const dict = {
   "settings.general.row.followup.description": "选择跟进提示是立即引导还是在队列中等待",
   "settings.general.row.followup.option.queue": "排队",
   "settings.general.row.followup.option.steer": "引导",
-  "settings.general.row.showFileTree.title": "文件树",
-  "settings.general.row.showFileTree.description": "在桌面会话中显示文件树切换按钮和面板",
   "settings.general.row.showNavigation.title": "导航控件",
   "settings.general.row.showNavigation.description": "在桌面标题栏中显示前进和后退按钮",
   "settings.general.row.showSearch.title": "命令面板",

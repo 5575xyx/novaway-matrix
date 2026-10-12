@@ -108,7 +108,6 @@ export function WorkspaceHeader() {
         />
         <DropdownMenu.Portal>
           <DropdownMenu.Content>
-            <DropdownMenu.Separator />
             <DropdownMenu.Item
               onSelect={() => {
                 void navigator.clipboard.writeText(directory())

@@ -16,7 +16,6 @@ import { pathKey } from "@/utils/path-key"
 
 const AVATAR_COLOR_KEYS = ["pink", "mint", "orange", "purple", "cyan", "lime"] as const
 const DEFAULT_SIDEBAR_WIDTH = 280
-const DEFAULT_FILE_TREE_WIDTH = 200
 const DEFAULT_SESSION_WIDTH = 600
 const DEFAULT_TERMINAL_HEIGHT = 280
 const DEFAULT_SIDE_PANE_WIDTH = 360
@@ -253,19 +252,9 @@ export function migrateLayoutStore(value: unknown) {
   })()
 
   const review = value.review
+  // 历史 fileTree 状态已移除：这里只保留对旧持久化数据的只读读取，
+  // 用于把旧的 fileTree.opened 迁移进 review.panelOpened，读取后被整体丢弃。
   const fileTree = value.fileTree
-  const migratedFileTree = (() => {
-    if (!isRecord(fileTree)) return fileTree
-    if (fileTree.tab === "changes" || fileTree.tab === "all") return fileTree
-
-    const width = typeof fileTree.width === "number" ? fileTree.width : DEFAULT_FILE_TREE_WIDTH
-    return {
-      ...fileTree,
-      opened: true,
-      width: width === 260 ? DEFAULT_FILE_TREE_WIDTH : width,
-      tab: "changes",
-    }
-  })()
 
   const migratedReview = (() => {
     if (!isRecord(review)) return review
@@ -363,9 +352,9 @@ export function migrateLayoutStore(value: unknown) {
 
   if (
     !("git" in value) &&
+    !("fileTree" in value) &&
     migratedSidebar === sidebar &&
     migratedReview === review &&
-    migratedFileTree === fileTree &&
     migratedSessionTabs === sessionTabs &&
     migratedSessionView === sessionView &&
     migratedSidePane === sidePane
@@ -373,12 +362,11 @@ export function migrateLayoutStore(value: unknown) {
     return value
   }
 
-  const { git: _legacyGit, ...rest } = value
+  const { git: _legacyGit, fileTree: _legacyFileTree, ...rest } = value
   return {
     ...rest,
     sidebar: migratedSidebar,
     review: migratedReview,
-    fileTree: migratedFileTree,
     sessionTabs: migratedSessionTabs,
     sessionView: migratedSessionView,
     sidePane: migratedSidePane,
@@ -439,11 +427,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         review: {
           diffStyle: "split" as ReviewDiffStyle,
           panelOpened: true,
-        },
-        fileTree: {
-          opened: false,
-          width: DEFAULT_FILE_TREE_WIDTH,
-          tab: "changes" as "changes" | "all",
         },
         session: {
           width: DEFAULT_SESSION_WIDTH,
@@ -888,46 +871,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
             return
           }
           setStore("review", "diffStyle", diffStyle)
-        },
-      },
-      fileTree: {
-        opened: createMemo(() => store.fileTree?.opened ?? false),
-        width: createMemo(() => store.fileTree?.width ?? DEFAULT_FILE_TREE_WIDTH),
-        tab: createMemo(() => store.fileTree?.tab ?? "changes"),
-        setTab(tab: "changes" | "all") {
-          if (!store.fileTree) {
-            setStore("fileTree", { opened: true, width: DEFAULT_FILE_TREE_WIDTH, tab })
-            return
-          }
-          setStore("fileTree", "tab", tab)
-        },
-        open() {
-          if (!store.fileTree) {
-            setStore("fileTree", { opened: true, width: DEFAULT_FILE_TREE_WIDTH, tab: "changes" })
-            return
-          }
-          setStore("fileTree", "opened", true)
-        },
-        close() {
-          if (!store.fileTree) {
-            setStore("fileTree", { opened: false, width: DEFAULT_FILE_TREE_WIDTH, tab: "changes" })
-            return
-          }
-          setStore("fileTree", "opened", false)
-        },
-        toggle() {
-          if (!store.fileTree) {
-            setStore("fileTree", { opened: true, width: DEFAULT_FILE_TREE_WIDTH, tab: "changes" })
-            return
-          }
-          setStore("fileTree", "opened", (x) => !x)
-        },
-        resize(width: number) {
-          if (!store.fileTree) {
-            setStore("fileTree", { opened: true, width, tab: "changes" })
-            return
-          }
-          setStore("fileTree", "width", width)
         },
       },
       sidePane: {
