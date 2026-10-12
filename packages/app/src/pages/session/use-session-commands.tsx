@@ -474,7 +474,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       keybind: "mod+shift+t",
       onSelect: () => {
         layout.statusPanel.setCollapsed(sdk.directory, false)
-        layout.statusPanel.toggleOpen(sdk.directory, "todo", true)
+        layout.statusPanel.setOpen(sdk.directory, "todo", true)
       },
     }),
     viewCommand({

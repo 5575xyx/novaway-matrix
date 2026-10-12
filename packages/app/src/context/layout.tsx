@@ -980,6 +980,12 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           const current = store.statusPanel.workspaces[directory]?.collapsed ?? store.statusPanel.workspacesDefault.collapsed ?? false
           this.setCollapsed(directory, !current)
         },
+        setOpen(directory: string, sectionId: string, value: boolean) {
+          setStore("statusPanel", "workspaces", directory, (current) => {
+            const base = current ?? { collapsed: store.statusPanel.workspacesDefault.collapsed ?? false, open: {} }
+            return { ...base, open: { ...base.open, [sectionId]: value } }
+          })
+        },
         toggleOpen(directory: string, sectionId: string, defaultOpen?: boolean) {
           setStore("statusPanel", "workspaces", directory, (current) => {
             const base = current ?? { collapsed: store.statusPanel.workspacesDefault.collapsed ?? false, open: {} }
