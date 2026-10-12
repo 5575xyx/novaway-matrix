@@ -61,6 +61,7 @@ import { syncSessionModel } from "@/pages/session/session-model-helpers"
 import { SessionSidePanel } from "@/pages/session/session-side-panel"
 import { SessionStatusPanel } from "@/pages/session/status-panel/status-panel"
 import { useGitSection } from "@/pages/session/status-panel/git-section"
+import { useTodoSection } from "@/pages/session/status-panel/todo-section"
 import { FloatingTodoButton } from "@/components/floating-todo-button"
 import { OfficeSessionComposer, OfficeSessionWorkspace } from "@/components/office-session-workspace"
 import { TerminalPanel } from "@/pages/session/terminal-panel"
@@ -420,11 +421,16 @@ export default function Page() {
     deferRender: false,
   })
 
-  // Git 区块是唯一接入的面板内容；model 为 null（干净工作区/非 git 仓库）时 sections 为空，面板整体不挂载。
+  // Git 区块与进度区块都接入面板；model 为 null 时该区块整体不进 sections，两侧全空则面板不挂载。
   const gitSection = useGitSection()
+  const todoSection = useTodoSection()
   const statusSections = createMemo(() => {
-    const section = gitSection()
-    return section ? [section] : []
+    const sections = []
+    const git = gitSection()
+    if (git) sections.push(git)
+    const todo = todoSection()
+    if (todo) sections.push(todo)
+    return sections
   })
 
   const [followup, setFollowup] = persisted(

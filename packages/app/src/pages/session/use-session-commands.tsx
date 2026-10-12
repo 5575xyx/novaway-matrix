@@ -473,7 +473,8 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       title: language.t("command.taskList.toggle"),
       keybind: "mod+shift+t",
       onSelect: () => {
-        // TODO(status-panel): 原任务面板折叠快捷键已随任务面板移除，待 Status Panel 接入后重接
+        layout.statusPanel.setCollapsed(sdk.directory, false)
+        layout.statusPanel.toggleOpen(sdk.directory, "todo", true)
       },
     }),
     viewCommand({

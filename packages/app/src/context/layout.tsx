@@ -421,7 +421,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
     const server = useServer()
     const platform = usePlatform()
 
-    const target = Persist.global("layout", ["layout.v7"])
+    const target = Persist.global("layout", ["layout.v8"])
     const [store, setStore, _, ready] = persisted(
       { ...target, migrate: migrateLayoutStore },
       createStore({
@@ -467,6 +467,10 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           current: undefined as AppMode | undefined,
           hasSelected: false,
           projects: {} as Record<string, AppMode>,
+        },
+        statusPanel: {
+          workspaces: {} as Record<string, { collapsed: boolean; open: Record<string, boolean> }>,
+          workspacesDefault: { collapsed: false, open: {} as Record<string, boolean> },
         },
       }),
     )
@@ -954,6 +958,34 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         },
         resize(width: number) {
           setStore("sidePane", "width", width)
+        },
+      },
+      statusPanel: {
+        collapsed(directory: string) {
+          return () => store.statusPanel.workspaces[directory]?.collapsed ?? store.statusPanel.workspacesDefault.collapsed ?? false
+        },
+        open(directory: string, sectionId: string, defaultOpen?: boolean) {
+          return () => {
+            const workspace = store.statusPanel.workspaces[directory]
+            return workspace?.open[sectionId] ?? defaultOpen ?? true
+          }
+        },
+        setCollapsed(directory: string, value: boolean) {
+          setStore("statusPanel", "workspaces", directory, (current) => {
+            const base = current ?? { collapsed: store.statusPanel.workspacesDefault.collapsed ?? false, open: {} }
+            return { ...base, collapsed: value }
+          })
+        },
+        toggleCollapsed(directory: string) {
+          const current = store.statusPanel.workspaces[directory]?.collapsed ?? store.statusPanel.workspacesDefault.collapsed ?? false
+          this.setCollapsed(directory, !current)
+        },
+        toggleOpen(directory: string, sectionId: string, defaultOpen?: boolean) {
+          setStore("statusPanel", "workspaces", directory, (current) => {
+            const base = current ?? { collapsed: store.statusPanel.workspacesDefault.collapsed ?? false, open: {} }
+            const open = base.open[sectionId] ?? defaultOpen ?? true
+            return { ...base, open: { ...base.open, [sectionId]: !open } }
+          })
         },
       },
       sidebarView: {
