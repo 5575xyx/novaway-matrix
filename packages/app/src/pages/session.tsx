@@ -59,6 +59,7 @@ import { sessionAutoSubmitKey } from "@/pages/session/auto-submit"
 import { showOfficeNewSessionWorkspace, showOfficeSessionComposer } from "@/pages/session/office-workspace-route"
 import { syncSessionModel } from "@/pages/session/session-model-helpers"
 import { SessionSidePanel } from "@/pages/session/session-side-panel"
+import { SessionStatusPanel } from "@/pages/session/status-panel/status-panel"
 import { FloatingTodoButton } from "@/components/floating-todo-button"
 import { OfficeSessionComposer, OfficeSessionWorkspace } from "@/components/office-session-workspace"
 import { TerminalPanel } from "@/pages/session/terminal-panel"
@@ -1964,6 +1965,9 @@ export default function Page() {
                     </div>
                   </Show>
                 </div>
+
+                {/* Status Panel — conv-frame 已是 @container，形态由容器宽度裁决，本任务先传空数组 */}
+                <SessionStatusPanel sections={[]} />
               </div>
             </div>
 
