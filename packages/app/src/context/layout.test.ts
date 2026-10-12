@@ -78,16 +78,16 @@ describe("pruneSessionKeys", () => {
   })
 })
 
-test("migrateLayoutStore v7 删除 per-session viewMode 与 previewWidth", () => {
+test("migrateLayoutStore v7 删除 per-session viewMode、previewWidth 与 todoCollapsed", () => {
   const out = migrateLayoutStore({
     sessionView: {
       "dir1/s1": { scroll: {}, viewMode: "split", previewWidth: 500, todoCollapsed: true },
       "dir1/s2": { scroll: {} },
     },
     sidebar: { opened: true, width: 344, defaultCollapsedV1: true },
-  }) as Record<string, any>
+  }) as { sessionView: Record<string, unknown>; sidebar: Record<string, unknown> }
 
-  expect(out.sessionView["dir1/s1"]).toEqual({ scroll: {}, todoCollapsed: true })
+  expect(out.sessionView["dir1/s1"]).toEqual({ scroll: {} })
   expect(out.sessionView["dir1/s2"]).toEqual({ scroll: {} })
   expect(out.sidebar).toEqual({ opened: true, width: 344, defaultCollapsedV1: true })
 })
@@ -101,6 +101,13 @@ describe("migrateLayoutStore fileTree tab", () => {
   test("maps legacy fileTree review tab to changes", () => {
     const out = migrateLayoutStore({ fileTree: { opened: true, width: 260, tab: "review" } })
     expect(out).toMatchObject({ fileTree: { tab: "changes" } })
+  })
+})
+
+describe("migrateLayoutStore git", () => {
+  test("drops legacy git panel state", () => {
+    const out = migrateLayoutStore({ git: { opened: true, width: 300 } }) as Record<string, unknown>
+    expect("git" in out).toBe(false)
   })
 })
 

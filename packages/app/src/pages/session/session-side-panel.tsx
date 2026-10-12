@@ -1,6 +1,5 @@
 import { For, Show, createEffect, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
-import { createMediaQuery } from "@solid-primitives/media"
 import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { TooltipKeybind } from "@novaway/ui/tooltip"
@@ -61,14 +60,9 @@ export function SessionSidePanel(props: {
   const language = useLanguage()
   const command = useCommand()
   const dialog = useDialog()
-  const { sessionKey, tabs, view } = useSessionLayout()
+  const { sessionKey, tabs } = useSessionLayout()
 
-  const isDesktop = createMediaQuery("(min-width: 768px)")
-  createEffect(() => {
-    if (!isDesktop()) {
-      view().todoCollapsed.set(true)
-    }
-  })
+  // TODO(status-panel): 原移动端任务列表折叠逻辑已随任务面板一并移除，待 Status Panel 接入后重接
 
   const normalizeTab = (tab: string) => {
     if (!tab.startsWith("file://")) return tab

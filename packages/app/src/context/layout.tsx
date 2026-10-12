@@ -17,7 +17,6 @@ import { pathKey } from "@/utils/path-key"
 const AVATAR_COLOR_KEYS = ["pink", "mint", "orange", "purple", "cyan", "lime"] as const
 const DEFAULT_SIDEBAR_WIDTH = 280
 const DEFAULT_FILE_TREE_WIDTH = 200
-const DEFAULT_GIT_PANEL_WIDTH = 260
 const DEFAULT_SESSION_WIDTH = 600
 const DEFAULT_TERMINAL_HEIGHT = 280
 const DEFAULT_SIDE_PANE_WIDTH = 360
@@ -107,7 +106,6 @@ type SessionView = {
   reviewOpen?: string[]
   pendingMessage?: string
   pendingMessageAt?: number
-  todoCollapsed?: boolean
   todoHeight?: number
 }
 
@@ -256,7 +254,6 @@ export function migrateLayoutStore(value: unknown) {
 
   const review = value.review
   const fileTree = value.fileTree
-  const gitPanel = value.git
   const migratedFileTree = (() => {
     if (!isRecord(fileTree)) return fileTree
     if (fileTree.tab === "changes" || fileTree.tab === "all") return fileTree
@@ -268,14 +265,6 @@ export function migrateLayoutStore(value: unknown) {
       width: width === 260 ? DEFAULT_FILE_TREE_WIDTH : width,
       tab: "changes",
     }
-  })()
-
-  const migratedGit = (() => {
-    if (!isRecord(gitPanel)) return { opened: false, width: DEFAULT_GIT_PANEL_WIDTH }
-    if (typeof gitPanel.opened === "boolean") return gitPanel
-
-    const width = typeof gitPanel.width === "number" ? gitPanel.width : DEFAULT_GIT_PANEL_WIDTH
-    return { opened: false, width }
   })()
 
   const migratedReview = (() => {
@@ -321,11 +310,17 @@ export function migrateLayoutStore(value: unknown) {
     let changed = false
     const next = Object.fromEntries(
       Object.entries(sessionView).map(([key, entry]) => {
-        if (!isRecord(entry) || (!("viewMode" in entry) && !("previewWidth" in entry))) return [key, entry]
+        if (
+          !isRecord(entry) ||
+          (!("viewMode" in entry) && !("previewWidth" in entry) && !("todoCollapsed" in entry))
+        ) {
+          return [key, entry]
+        }
 
         const cleaned = { ...entry }
         delete cleaned.viewMode
         delete cleaned.previewWidth
+        delete cleaned.todoCollapsed
         changed = true
         return [key, cleaned]
       }),
@@ -367,10 +362,10 @@ export function migrateLayoutStore(value: unknown) {
   })()
 
   if (
+    !("git" in value) &&
     migratedSidebar === sidebar &&
     migratedReview === review &&
     migratedFileTree === fileTree &&
-    migratedGit === gitPanel &&
     migratedSessionTabs === sessionTabs &&
     migratedSessionView === sessionView &&
     migratedSidePane === sidePane
@@ -378,12 +373,12 @@ export function migrateLayoutStore(value: unknown) {
     return value
   }
 
+  const { git: _legacyGit, ...rest } = value
   return {
-    ...value,
+    ...rest,
     sidebar: migratedSidebar,
     review: migratedReview,
     fileTree: migratedFileTree,
-    git: migratedGit,
     sessionTabs: migratedSessionTabs,
     sessionView: migratedSessionView,
     sidePane: migratedSidePane,
@@ -449,10 +444,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           opened: false,
           width: DEFAULT_FILE_TREE_WIDTH,
           tab: "changes" as "changes" | "all",
-        },
-        git: {
-          opened: false,
-          width: DEFAULT_GIT_PANEL_WIDTH,
         },
         session: {
           width: DEFAULT_SESSION_WIDTH,
@@ -935,38 +926,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           setStore("fileTree", "width", width)
         },
       },
-      git: {
-        opened: createMemo(() => store.git?.opened ?? false),
-        width: createMemo(() => store.git?.width ?? DEFAULT_GIT_PANEL_WIDTH),
-        open() {
-          if (!store.git) {
-            setStore("git", { opened: true, width: DEFAULT_GIT_PANEL_WIDTH })
-            return
-          }
-          setStore("git", "opened", true)
-        },
-        close() {
-          if (!store.git) {
-            setStore("git", { opened: false, width: DEFAULT_GIT_PANEL_WIDTH })
-            return
-          }
-          setStore("git", "opened", false)
-        },
-        toggle() {
-          if (!store.git) {
-            setStore("git", { opened: true, width: DEFAULT_GIT_PANEL_WIDTH })
-            return
-          }
-          setStore("git", "opened", (x) => !x)
-        },
-        resize(width: number) {
-          if (!store.git) {
-            setStore("git", { opened: true, width })
-            return
-          }
-          setStore("git", "width", width)
-        },
-      },
       sidePane: {
         opened: createMemo(() => store.sidePane?.opened ?? DEFAULT_SIDE_PANE_STATE.opened),
         tabs: createMemo<SidePaneTab[]>(() => store.sidePane?.tabs ?? DEFAULT_SIDE_PANE_STATE.tabs),
@@ -1104,18 +1063,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           },
           setScroll(tab: string, pos: SessionScroll) {
             scroll.setScroll(key(), tab, pos)
-          },
-          todoCollapsed: {
-            get: () => s().todoCollapsed ?? false,
-            set(collapsed: boolean) {
-              const session = key()
-              const current = store.sessionView[session]
-              if (!current) {
-                setStore("sessionView", session, { scroll: {}, todoCollapsed: collapsed })
-              } else {
-                setStore("sessionView", session, "todoCollapsed", collapsed)
-              }
-            },
           },
           todoHeight: {
             get: () => s().todoHeight ?? 200,
