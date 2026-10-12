@@ -24,7 +24,8 @@ export function SessionStatusPanel(props: { sections: StatusPanelSection[] }): J
 }
 
 // 展开/收起形态由父级 conv-frame 的 @container 裁决，纯 CSS 决定，形态切换不依赖任何 JS 尺寸监听。
-// 容器 < 1279px 一律显示胶囊；宽容器下再让用户手动收起。
+// 容器 < 1279px 一律显示信息胶囊：只读摘要，不承载展开动作——窄态下点击无法越过 CSS 强制 mini，
+// 所以窄态可见的那个元素不带任何「可展开」声明。展开按钮只存在于宽容器，此时 data-collapsed 点击确实生效。
 function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.Element {
   const language = useLanguage()
   const [store, setStore] = createStore({
@@ -78,19 +79,37 @@ function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.
         </div>
       </div>
 
-      <button
-        type="button"
-        data-component="status-panel-capsule"
-        class="absolute top-0 right-0 hidden h-8 items-center gap-1 rounded-lg border border-border-weak-base bg-background-stronger px-2 shadow-sm @max-[1279px]:flex group-data-[collapsed=true]:flex"
-        title={language.t("statusPanel.expand")}
-        aria-label={language.t("statusPanel.expand")}
-        onClick={() => setStore("collapsed", false)}
+      {/* 窄容器强制 mini 时显示：纯信息展示，非控件，因此不挂 onClick 也不声明可展开。 */}
+      <div
+        data-component="status-panel-mini"
+        class="absolute top-0 right-0 hidden h-8 items-center gap-1 rounded-lg border border-border-weak-base bg-background-stronger px-2 shadow-sm @max-[1279px]:flex"
+        title={language.t("statusPanel.summary")}
       >
-        <Icon name="status" size="small" class="text-icon-base shrink-0" />
-        <For each={summaries()}>
-          {(section) => <span class="text-ui-sm tabular-nums text-text-weak shrink-0">{section.summary}</span>}
-        </For>
-      </button>
+        <CapsuleBody sections={summaries()} />
+      </div>
+
+      {/* 外层只做「非窄容器」闸门；按钮自己只处理 data-collapsed，两轴各管一条互斥规则。 */}
+      <div class="absolute top-0 right-0 @max-[1279px]:hidden">
+        <button
+          type="button"
+          data-component="status-panel-expand"
+          class="hidden h-8 items-center gap-1 rounded-lg border border-border-weak-base bg-background-stronger px-2 shadow-sm group-data-[collapsed=true]:flex"
+          title={language.t("statusPanel.expand")}
+          aria-label={language.t("statusPanel.expand")}
+          onClick={() => setStore("collapsed", false)}
+        >
+          <CapsuleBody sections={summaries()} />
+        </button>
+      </div>
     </aside>
   )
 }
+
+const CapsuleBody = (props: { sections: StatusPanelSection[] }): JSX.Element => (
+  <>
+    <Icon name="status" size="small" class="text-icon-base shrink-0" />
+    <For each={props.sections}>
+      {(section) => <span class="text-ui-sm tabular-nums text-text-weak shrink-0">{section.summary}</span>}
+    </For>
+  </>
+)
