@@ -10,7 +10,6 @@ import { usePermission } from "@/context/permission"
 import { usePlatform } from "@/context/platform"
 import { usePrompt } from "@/context/prompt"
 import { useSDK } from "@/context/sdk"
-import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
 import { useTerminal } from "@/context/terminal"
 import { showToast } from "@novaway/ui/toast"
@@ -44,7 +43,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   const platform = usePlatform()
   const prompt = usePrompt()
   const sdk = useSDK()
-  const settings = useSettings()
   const sync = useSync()
   const terminal = useTerminal()
   const layout = useLayout()
@@ -70,7 +68,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   })
   const activeFileTab = tabState.activeFileTab
   const closableTab = tabState.closableTab
-  const shown = () => settings.general.showFileTree()
 
   const messages = () => {
     const id = params.id
@@ -470,22 +467,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       title: language.t("command.review.toggle"),
       keybind: "mod+shift+r",
       onSelect: toggleReview,
-    }),
-    ...(shown()
-      ? [
-          viewCommand({
-            id: "fileTree.toggle",
-            title: language.t("command.fileTree.toggle"),
-            keybind: "mod+\\",
-            onSelect: () => layout.sidePane.toggle("files"),
-          }),
-        ]
-      : []),
-    viewCommand({
-      id: "git.toggle",
-      title: language.t("command.git.toggle"),
-      keybind: "mod+shift+g",
-      onSelect: () => layout.sidePane.toggle("git"),
     }),
     viewCommand({
       id: "taskList.toggle",

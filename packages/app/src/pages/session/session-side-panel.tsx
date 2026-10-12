@@ -1,7 +1,6 @@
-import { For, Match, Show, Switch, createEffect, createMemo, type JSX } from "solid-js"
+import { For, Show, createEffect, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { createMediaQuery } from "@solid-primitives/media"
-import { Tabs } from "@novaway/ui/tabs"
 import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { TooltipKeybind } from "@novaway/ui/tooltip"
@@ -12,25 +11,17 @@ import type { SnapshotFileDiff, VcsFileDiff } from "@novaway/sdk/v2"
 import { ConstrainDragYAxis, getDraggableId } from "@/utils/solid-dnd"
 import { useDialog } from "@novaway/ui/context/dialog"
 
-import FileTree from "@/components/file-tree"
-import { SessionContextTab, SortableTab, FileVisual } from "@/components/session"
+import { SortableTab, FileVisual } from "@/components/session"
 import { useCommand } from "@/context/command"
 import { useFile, type SelectedLineRange } from "@/context/file"
 import { useLanguage } from "@/context/language"
 import { useLayout, type SidePaneTab } from "@/context/layout"
-import { createOpenSessionFileTab, createSessionTabs, getTabReorderIndex, type Sizing } from "@/pages/session/helpers"
+import { createSessionTabs, getTabReorderIndex, type Sizing } from "@/pages/session/helpers"
 import { FileTabContent } from "@/pages/session/file-tabs"
 import { PreviewPanel } from "@/pages/session/preview-panel"
 import { TerminalPanel } from "@/pages/session/terminal-panel"
-import { GitPanel } from "./git-panel"
 import { setSessionHandoff } from "@/pages/session/handoff"
 import { useSessionLayout } from "@/pages/session/session-layout"
-
-type RenderDiff = (SnapshotFileDiff & { file: string }) | VcsFileDiff
-
-function renderDiff(value: SnapshotFileDiff | VcsFileDiff): value is RenderDiff {
-  return typeof value.file === "string"
-}
 
 export function SessionSidePanel(props: {
   canReview: () => boolean
@@ -60,67 +51,10 @@ export function SessionSidePanel(props: {
     }
   })
 
-  const diffs = createMemo(() => props.diffs().filter(renderDiff))
-  const diffFiles = createMemo(() => diffs().map((d) => d.file))
-  const kinds = createMemo(() => {
-    const merge = (a: "add" | "del" | "mix" | undefined, b: "add" | "del" | "mix") => {
-      if (!a) return b
-      if (a === b) return a
-      return "mix" as const
-    }
-
-    const normalize = (p: string) => p.replaceAll("\\\\", "/").replace(/\/+$/, "")
-
-    const out = new Map<string, "add" | "del" | "mix">()
-    for (const diff of diffs()) {
-      const file = normalize(diff.file)
-      const kind = diff.status === "added" ? "add" : diff.status === "deleted" ? "del" : "mix"
-
-      out.set(file, kind)
-
-      const parts = file.split("/")
-      for (const [idx] of parts.slice(0, -1).entries()) {
-        const dir = parts.slice(0, idx + 1).join("/")
-        if (!dir) continue
-        out.set(dir, merge(out.get(dir), kind))
-      }
-    }
-    return out
-  })
-
-  const empty = (msg: string) => (
-    <div class="h-full flex flex-col">
-      <div class="h-6 shrink-0" aria-hidden />
-      <div class="flex-1 pb-64 flex items-center justify-center text-center">
-        <div class="text-12-regular text-text-weak">{msg}</div>
-      </div>
-    </div>
-  )
-
-  const nofiles = createMemo(() => {
-    const state = file.tree.state("")
-    if (!state?.loaded) return false
-    return file.tree.children("").length === 0
-  })
-
   const normalizeTab = (tab: string) => {
     if (!tab.startsWith("file://")) return tab
     return file.tab(tab)
   }
-
-  const revealFileTab = () => {
-    layout.sidePane.setTab("preview")
-    if (!view().reviewPanel.opened()) view().reviewPanel.open()
-  }
-
-  const openTab = createOpenSessionFileTab({
-    normalizeTab,
-    openTab: tabs().open,
-    pathFromTab: file.pathFromTab,
-    loadFile: file.load,
-    openReviewPanel: revealFileTab,
-    setActive: tabs().setActive,
-  })
 
   const tabState = createSessionTabs({
     tabs,
@@ -133,11 +67,6 @@ export function SessionSidePanel(props: {
   const activeFileTab = tabState.activeFileTab
 
   const fileTreeTab = () => layout.fileTree.tab()
-
-  const setFileTreeTabValue = (value: string) => {
-    if (value !== "changes" && value !== "all" && value !== "review") return
-    layout.fileTree.setTab(value as "changes" | "all" | "review")
-  }
 
   const showAllFiles = () => {
     if (fileTreeTab() !== "changes" && fileTreeTab() !== "review") return
@@ -195,15 +124,12 @@ export function SessionSidePanel(props: {
 
   const tabsList: Array<{
     id: SidePaneTab
-    icon: "layout-right" | "terminal" | "file-tree" | "branch" | "review" | "database"
+    icon: "layout-right" | "terminal" | "review"
     labelKey: string
   }> = [
     { id: "preview", icon: "layout-right", labelKey: "sidePane.tab.preview" },
     { id: "terminal", icon: "terminal", labelKey: "sidePane.tab.terminal" },
-    { id: "files", icon: "file-tree", labelKey: "sidePane.tab.files" },
-    { id: "git", icon: "branch", labelKey: "sidePane.tab.git" },
     { id: "review", icon: "review", labelKey: "sidePane.tab.review" },
-    { id: "context", icon: "database", labelKey: "sidePane.tab.context" },
   ]
 
   return (
@@ -314,81 +240,7 @@ export function SessionSidePanel(props: {
         <Show when={tab() === "terminal"}>
           <TerminalPanel variant="pane" />
         </Show>
-        <Show when={tab() === "files"}>
-          <div class="h-full flex flex-col overflow-hidden group/filetree">
-            <Tabs
-              variant="pill"
-              value={fileTreeTab()}
-              onChange={setFileTreeTabValue}
-              class="h-full"
-              data-scope="filetree"
-            >
-              <Tabs.List>
-                <Tabs.Trigger value="all" class="flex-1" classes={{ button: "w-full" }}>
-                  {language.t("session.files.all")}
-                </Tabs.Trigger>
-                <Tabs.Trigger value="review" class="flex-1" classes={{ button: "w-full" }}>
-                  {language.t("session.tab.review")}
-                </Tabs.Trigger>
-                <Tabs.Trigger value="changes" class="flex-1" classes={{ button: "w-full" }}>
-                  {props.reviewCount()}{" "}
-                  {language.t(props.reviewCount() === 1 ? "session.review.change.one" : "session.review.change.other")}
-                </Tabs.Trigger>
-              </Tabs.List>
-              <Tabs.Content value="changes" class="bg-background-stronger px-3 py-0">
-                <Switch>
-                  <Match when={props.hasReview() || !props.diffsReady()}>
-                    <Show
-                      when={props.diffsReady()}
-                      fallback={
-                        <div class="px-2 py-2 text-12-regular text-text-weak">
-                          {language.t("common.loading")}
-                          {language.t("common.loading.ellipsis")}
-                        </div>
-                      }
-                    >
-                      <FileTree
-                        path=""
-                        class="pt-3"
-                        allowed={diffFiles()}
-                        kinds={kinds()}
-                        draggable={false}
-                        active={props.activeDiff}
-                        onFileClick={(node) => props.focusReviewDiff(node.path)}
-                      />
-                    </Show>
-                  </Match>
-                </Switch>
-              </Tabs.Content>
-              <Tabs.Content value="all" class="bg-background-stronger px-3 py-0">
-                <Switch>
-                  <Match when={nofiles()}>{empty(language.t("session.files.empty"))}</Match>
-                  <Match when={true}>
-                    <FileTree
-                      path=""
-                      class="pt-3"
-                      modified={diffFiles()}
-                      kinds={kinds()}
-                      onFileClick={(node) => openTab(file.tab(node.path))}
-                    />
-                  </Match>
-                </Switch>
-              </Tabs.Content>
-              <Tabs.Content value="review" class="bg-background-stronger p-0">
-                <Show when={props.canReview()} fallback={empty(language.t("session.review.noChanges"))}>
-                  {props.reviewPanel()}
-                </Show>
-              </Tabs.Content>
-            </Tabs>
-          </div>
-        </Show>
-        <Show when={tab() === "git"}>
-          <GitPanel />
-        </Show>
         <Show when={tab() === "review"}>{props.reviewPanel()}</Show>
-        <Show when={tab() === "context"}>
-          <SessionContextTab />
-        </Show>
       </div>
     </aside>
   )

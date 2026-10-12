@@ -116,8 +116,6 @@ export const dict = {
 
   "sidePane.tab.preview": "预览",
   "sidePane.tab.terminal": "终端",
-  "sidePane.tab.files": "文件",
-  "sidePane.tab.git": "Git",
   "sidePane.tab.review": "审查",
   "sidePane.tab.context": "上下文",
   "sidePane.collapse": "折叠侧栏",

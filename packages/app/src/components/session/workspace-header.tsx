@@ -108,14 +108,6 @@ export function WorkspaceHeader() {
         />
         <DropdownMenu.Portal>
           <DropdownMenu.Content>
-            <Show when={settings.general.showFileTree()}>
-              <DropdownMenu.Item onSelect={() => layout.sidePane.toggle("files")}>
-                <DropdownMenu.ItemLabel>{language.t("command.fileTree.toggle")}</DropdownMenu.ItemLabel>
-              </DropdownMenu.Item>
-            </Show>
-            <DropdownMenu.Item onSelect={() => layout.sidePane.toggle("git")}>
-              <DropdownMenu.ItemLabel>{language.t("command.git.toggle")}</DropdownMenu.ItemLabel>
-            </DropdownMenu.Item>
             <DropdownMenu.Separator />
             <DropdownMenu.Item
               onSelect={() => {
