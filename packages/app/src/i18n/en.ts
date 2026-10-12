@@ -514,6 +514,7 @@ export const dict = {
   "dialog.releaseNotes.media.alt": "Release preview",
   "dialog.usageExceeded.doNotShow": "Do not show again",
 
+  "context.panel.title": "Context",
   "context.breakdown.title": "Context Breakdown",
   "context.breakdown.note": 'Approximate breakdown of input tokens. "Other" includes tool definitions and overhead.',
   "context.breakdown.system": "System",
