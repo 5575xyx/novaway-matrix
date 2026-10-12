@@ -81,11 +81,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     return userMessages().filter((m) => m.id < revert)
   }
 
-  const showAllFiles = () => {
-    if (layout.fileTree.tab() !== "changes") return
-    layout.fileTree.setTab("all")
-  }
-
   const selectionPreview = (path: string, selection: FileSelection) => {
     const content = file.get(path)?.content?.content
     if (!content) return undefined
@@ -214,7 +209,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
 
   const openFile = () => {
     void import("@/components/dialog-select-file").then((x) => {
-      dialog.show(() => <x.DialogSelectFile onOpenFile={showAllFiles} />)
+      dialog.show(() => <x.DialogSelectFile />)
     })
   }
 

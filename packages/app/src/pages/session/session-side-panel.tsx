@@ -79,13 +79,6 @@ export function SessionSidePanel(props: {
   const openedTabs = tabState.openedTabs
   const activeFileTab = tabState.activeFileTab
 
-  const fileTreeTab = () => layout.fileTree.tab()
-
-  const showAllFiles = () => {
-    if (fileTreeTab() !== "changes") return
-    layout.fileTree.setTab("all")
-  }
-
   const [store, setStore] = createStore({
     activeDraggable: undefined as string | undefined,
     activeSidePaneDraggable: undefined as string | undefined,
@@ -243,7 +236,7 @@ export function SessionSidePanel(props: {
                             class="!rounded-md"
                             onClick={() => {
                               void import("@/components/dialog-select-file").then((x) => {
-                                dialog.show(() => <x.DialogSelectFile mode="files" onOpenFile={showAllFiles} />)
+                                dialog.show(() => <x.DialogSelectFile mode="files" />)
                               })
                             }}
                             aria-label={language.t("command.file.open")}

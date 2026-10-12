@@ -1,4 +1,4 @@
-import { For, createMemo, type JSX } from "solid-js"
+import { For, Show, createMemo, type JSX } from "solid-js"
 import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { useLanguage } from "@/context/language"
@@ -20,9 +20,14 @@ export function shouldMountStatusPanel(sections: readonly { id: string }[]): boo
   return sections.length > 0
 }
 
-export function SessionStatusPanel(props: { sections: StatusPanelSection[] }): JSX.Element | null {
-  if (!shouldMountStatusPanel(props.sections)) return null
-  return <SessionStatusPanelView sections={props.sections} />
+// 组件函数体只执行一次，挂载判定必须放在响应式 <Show> 里随 sections 变化重算，
+// 否则首次渲染时 sections 为空（数据仍在异步加载）会永久停留在 null，整个状态面板再也不出现。
+export function SessionStatusPanel(props: { sections: StatusPanelSection[] }): JSX.Element {
+  return (
+    <Show when={shouldMountStatusPanel(props.sections)}>
+      <SessionStatusPanelView sections={props.sections} />
+    </Show>
+  )
 }
 
 // 展开/收起形态由父级 conv-frame 的 @container 裁决，纯 CSS 决定，形态切换不依赖任何 JS 尺寸监听。
