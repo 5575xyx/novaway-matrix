@@ -1,6 +1,16 @@
 import { describe, expect, test } from "bun:test"
 import { createRoot, createSignal } from "solid-js"
-import { createSessionKeyReader, ensureSessionKey, migrateLayoutStore, pruneSessionKeys } from "./layout"
+import {
+  DEFAULT_SIDE_PANE_STATE,
+  createSessionKeyReader,
+  ensureSessionKey,
+  migrateLayoutStore,
+  pruneSessionKeys,
+  reduceSidePane,
+  type SidePaneState,
+} from "./layout"
+
+type MigratedSidePane = SidePaneState & { width: number }
 
 describe("layout session-key helpers", () => {
   test("couples touch and scroll seed in order", () => {
@@ -92,4 +102,118 @@ describe("migrateLayoutStore fileTree tab", () => {
     const out = migrateLayoutStore({ fileTree: { opened: true, width: 260, tab: "review" } })
     expect(out).toMatchObject({ fileTree: { tab: "changes" } })
   })
+})
+
+describe("reduceSidePane", () => {
+  test("toggle never creates or switches tabs", () => {
+    const s: SidePaneState = { opened: true, tabs: ["review"], activeTab: "review" }
+    expect(reduceSidePane(s, { type: "toggle" })).toEqual({ ...s, opened: false })
+  })
+
+  test("removing last tab collapses the pane", () => {
+    const s: SidePaneState = { opened: true, tabs: ["preview"], activeTab: "preview" }
+    expect(reduceSidePane(s, { type: "remove", tab: "preview" })).toEqual({
+      opened: false,
+      tabs: [],
+      activeTab: null,
+    })
+  })
+
+  test("add activates an existing tab instead of duplicating", () => {
+    const s: SidePaneState = { opened: false, tabs: ["review"], activeTab: "review" }
+    const next = reduceSidePane(s, { type: "add", tab: "review" })
+    expect(next.tabs).toEqual(["review"])
+    expect(next.opened).toBe(true)
+  })
+
+  test("add appends a new tab and activates it", () => {
+    const s: SidePaneState = { opened: true, tabs: ["preview"], activeTab: "preview" }
+    expect(reduceSidePane(s, { type: "add", tab: "terminal" })).toEqual({
+      opened: true,
+      tabs: ["preview", "terminal"],
+      activeTab: "terminal",
+    })
+  })
+
+  test("remove falls back to a neighbouring tab", () => {
+    const s: SidePaneState = { opened: true, tabs: ["preview", "terminal", "review"], activeTab: "terminal" }
+    expect(reduceSidePane(s, { type: "remove", tab: "terminal" })).toEqual({
+      opened: true,
+      tabs: ["preview", "review"],
+      activeTab: "review",
+    })
+  })
+
+  test("setActive expands without changing tabs", () => {
+    const s: SidePaneState = { opened: false, tabs: ["preview", "terminal"], activeTab: "preview" }
+    expect(reduceSidePane(s, { type: "setActive", tab: "terminal" })).toEqual({
+      opened: true,
+      tabs: ["preview", "terminal"],
+      activeTab: "terminal",
+    })
+  })
+
+  test("close keeps tabs and only collapses the container", () => {
+    const s: SidePaneState = { opened: true, tabs: ["preview", "terminal"], activeTab: "preview" }
+    expect(reduceSidePane(s, { type: "close" })).toEqual({ ...s, opened: false })
+  })
+
+  test("move reorders tabs without touching the active one", () => {
+    const s: SidePaneState = { opened: true, tabs: ["preview", "terminal", "review"], activeTab: "review" }
+    expect(reduceSidePane(s, { type: "move", from: 0, to: 2 })).toEqual({
+      opened: true,
+      tabs: ["terminal", "review", "preview"],
+      activeTab: "review",
+    })
+  })
+})
+
+describe("migrateLayoutStore sidePane", () => {
+  test("migrates legacy single tab and maps removed tabs", () => {
+    expect(migrateLayoutStore({ sidePane: { opened: true, tab: "files", width: 320 } })).toMatchObject({
+      sidePane: { opened: true, tabs: ["review"], activeTab: "review", width: 320 },
+    })
+    const git = migrateLayoutStore({ sidePane: { opened: true, tab: "git", width: 320 } }) as {
+      sidePane: SidePaneState
+    }
+    expect(git.sidePane.tabs).toEqual(["preview"])
+  })
+
+  test("keeps a legal legacy tab and drops the removed tab field", () => {
+    const out = migrateLayoutStore({ sidePane: { opened: false, tab: "terminal", width: 400 } }) as {
+      sidePane: MigratedSidePane
+    }
+    expect(out.sidePane).toEqual({ opened: false, tabs: ["terminal"], activeTab: "terminal", width: 400 })
+  })
+
+  test("falls back to an empty pane for illegal legacy values", () => {
+    const out = migrateLayoutStore({ sidePane: { tab: "context" } }) as { sidePane: MigratedSidePane }
+    expect(out.sidePane).toEqual({ opened: true, tabs: ["preview"], activeTab: "preview", width: 360 })
+
+    const broken = migrateLayoutStore({ sidePane: { opened: "yes", tab: "nope", width: "wide" } }) as {
+      sidePane: MigratedSidePane
+    }
+    expect(broken.sidePane.opened).toBe(true)
+    expect(broken.sidePane.tabs).toEqual([])
+    expect(broken.sidePane.activeTab).toBeNull()
+  })
+
+  test("repairs a stored tabs list with duplicates and a dangling activeTab", () => {
+    const out = migrateLayoutStore({
+      sidePane: { opened: true, tabs: ["preview", "preview", "review"], activeTab: "git", width: 320 },
+    }) as { sidePane: MigratedSidePane }
+    expect(out.sidePane.tabs).toEqual(["preview", "review"])
+    expect(out.sidePane.activeTab).toBe("preview")
+  })
+
+  test("leaves stores without a sidePane key untouched", () => {
+    const sidebar = { opened: true, width: 344, defaultCollapsedV1: true }
+    const out = migrateLayoutStore({ sidebar }) as Record<string, unknown>
+    expect(out.sidebar).toBe(sidebar)
+    expect(out.sidePane).toBeUndefined()
+  })
+})
+
+test("fresh sidePane default is expanded with empty tabs", () => {
+  expect(DEFAULT_SIDE_PANE_STATE).toEqual({ opened: true, tabs: [], activeTab: null })
 })

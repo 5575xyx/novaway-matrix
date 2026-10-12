@@ -120,6 +120,7 @@ export const dict = {
   "sidePane.tab.context": "上下文",
   "sidePane.collapse": "折叠侧栏",
   "sidePane.expand": "展开侧栏",
+  "sidePane.empty.title": "打开标签页",
 
   "command.fileTree.toggle": "切换文件树",
   "command.git.toggle": "切换源代码管理",

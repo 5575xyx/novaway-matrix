@@ -311,7 +311,7 @@ export default function Page() {
   }
 
   const openReviewPanel = () => {
-    layout.sidePane.open("review")
+    layout.sidePane.add("review")
   }
 
   const info = createMemo(
@@ -337,10 +337,10 @@ export default function Page() {
   )
   const desktopFileTreeOpen = createMemo(() => isDesktop() && layout.fileTree.opened())
   const sidePaneShowsReview = createMemo(
-    () => isDesktop() && layout.sidePane.opened() && layout.sidePane.tab() === "review",
+    () => isDesktop() && layout.sidePane.opened() && layout.sidePane.activeTab() === "review",
   )
   const paneShowsTerminal = createMemo(
-    () => isDesktop() && layout.sidePane.opened() && layout.sidePane.tab() === "terminal",
+    () => isDesktop() && layout.sidePane.opened() && layout.sidePane.activeTab() === "terminal",
   )
   const officeReservedWidth = createMemo(() => 0)
   const centered = createMemo(() => isDesktop() && !desktopReviewOpen())
@@ -485,7 +485,7 @@ export default function Page() {
           autoOpenedHtml.add(url)
           if (url === current || !preview.setUrl(url)) continue
 
-          layout.sidePane.open("preview")
+          layout.sidePane.add("preview")
           showToast({
             title: language.t("preview.autoOpenedFile"),
             description: file.split(/[\\/]/).pop() ?? file,
@@ -974,7 +974,7 @@ export default function Page() {
     tabForPath: file.tab,
     openTab: (tab) => {
       void tabs().open(tab)
-      layout.sidePane.setTab("preview")
+      layout.sidePane.add("preview")
     },
     setActive: tabs().setActive,
     loadFile: file.load,

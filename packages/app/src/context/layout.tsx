@@ -204,6 +204,34 @@ const normalizeStoredSessionTabs = (key: string, tabs: SessionTabs) => {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
+export type SidePaneState = {
+  opened: boolean
+  tabs: SidePaneTab[]
+  activeTab: SidePaneTab | null
+}
+
+export type SidePaneAction =
+  | { type: "open" }
+  | { type: "close" }
+  | { type: "toggle" }
+  | { type: "add"; tab: SidePaneTab }
+  | { type: "remove"; tab: SidePaneTab }
+  | { type: "setActive"; tab: SidePaneTab }
+  | { type: "move"; from: number; to: number }
+
+export const DEFAULT_SIDE_PANE_STATE: SidePaneState = { opened: true, tabs: [], activeTab: null }
+
+const SIDE_PANE_TABS: SidePaneTab[] = ["preview", "review", "terminal"]
+
+const isSidePaneTab = (value: unknown): value is SidePaneTab => SIDE_PANE_TABS.some((tab) => tab === value)
+
+/** 旧单值 tab → 新模型；被移除的 tab 映射到承接它的那个，无法识别的值回落为 undefined（空态）。 */
+const migrateLegacySidePaneTab = (value: unknown): SidePaneTab | undefined => {
+  if (value === "files") return "review"
+  if (value === "git" || value === "context") return "preview"
+  return isSidePaneTab(value) ? value : undefined
+}
+
 export function migrateLayoutStore(value: unknown) {
   if (!isRecord(value)) return value
 
@@ -307,13 +335,45 @@ export function migrateLayoutStore(value: unknown) {
     return next
   })()
 
+  const sidePane = value.sidePane
+  const migratedSidePane = (() => {
+    if (!isRecord(sidePane)) return sidePane
+
+    const legacy = migrateLegacySidePaneTab(sidePane.tab)
+    const storedTabs = Array.isArray(sidePane.tabs)
+      ? sidePane.tabs.filter(isSidePaneTab).filter((tab, index, all) => all.indexOf(tab) === index)
+      : legacy
+        ? [legacy]
+        : []
+    const activeTab =
+      isSidePaneTab(sidePane.activeTab) && storedTabs.includes(sidePane.activeTab)
+        ? sidePane.activeTab
+        : (storedTabs[0] ?? null)
+    const opened = typeof sidePane.opened === "boolean" ? sidePane.opened : DEFAULT_SIDE_PANE_STATE.opened
+    const width = typeof sidePane.width === "number" ? sidePane.width : DEFAULT_SIDE_PANE_WIDTH
+
+    if (
+      !("tab" in sidePane) &&
+      opened === sidePane.opened &&
+      width === sidePane.width &&
+      activeTab === sidePane.activeTab &&
+      same(Array.isArray(sidePane.tabs) ? sidePane.tabs : [], storedTabs)
+    ) {
+      return sidePane
+    }
+
+    const { tab: _legacyTab, ...rest } = sidePane
+    return { ...rest, opened, tabs: storedTabs, activeTab, width }
+  })()
+
   if (
     migratedSidebar === sidebar &&
     migratedReview === review &&
     migratedFileTree === fileTree &&
     migratedGit === gitPanel &&
     migratedSessionTabs === sessionTabs &&
-    migratedSessionView === sessionView
+    migratedSessionView === sessionView &&
+    migratedSidePane === sidePane
   ) {
     return value
   }
@@ -326,7 +386,36 @@ export function migrateLayoutStore(value: unknown) {
     git: migratedGit,
     sessionTabs: migratedSessionTabs,
     sessionView: migratedSessionView,
+    sidePane: migratedSidePane,
   }
+}
+
+/** Side Pane 状态模型的唯一写入口：容器展开/收起与 tab 集合的操作语义都在这里裁决。 */
+export function reduceSidePane(state: SidePaneState, action: SidePaneAction): SidePaneState {
+  if (action.type === "toggle") return { ...state, opened: !state.opened }
+  if (action.type === "open") return state.opened ? state : { ...state, opened: true }
+  if (action.type === "close") return state.opened ? { ...state, opened: false } : state
+  if (action.type === "add") {
+    const tabs = state.tabs.includes(action.tab) ? state.tabs : [...state.tabs, action.tab]
+    return { opened: true, tabs, activeTab: action.tab }
+  }
+  if (action.type === "setActive") return { opened: true, tabs: state.tabs, activeTab: action.tab }
+  if (action.type === "move") {
+    const { from, to } = action
+    if (from === to || from < 0 || to < 0 || from >= state.tabs.length || to >= state.tabs.length) return state
+    const tabs = [...state.tabs]
+    const [moved] = tabs.splice(from, 1)
+    if (!moved) return state
+    tabs.splice(to, 0, moved)
+    return { ...state, tabs }
+  }
+
+  const index = state.tabs.indexOf(action.tab)
+  if (index === -1) return state
+  const tabs = state.tabs.filter((tab) => tab !== action.tab)
+  if (tabs.length === 0) return { opened: false, tabs, activeTab: null }
+  if (state.activeTab !== action.tab) return { ...state, tabs }
+  return { ...state, tabs, activeTab: tabs[Math.min(index, tabs.length - 1)] ?? null }
 }
 
 export const { use: useLayout, provider: LayoutProvider } = createSimpleContext({
@@ -372,8 +461,9 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           opened: false,
         },
         sidePane: {
-          opened: true,
-          tab: "preview" as SidePaneTab,
+          opened: DEFAULT_SIDE_PANE_STATE.opened,
+          tabs: [] as SidePaneTab[],
+          activeTab: DEFAULT_SIDE_PANE_STATE.activeTab,
           width: DEFAULT_SIDE_PANE_WIDTH,
         },
         sidebarView: "tasks" as SidebarView,
@@ -676,6 +766,18 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
 
     const [projectPickerOpen, setProjectPickerOpen] = createSignal(false)
 
+    const readSidePane = (): SidePaneState => ({
+      opened: store.sidePane?.opened ?? DEFAULT_SIDE_PANE_STATE.opened,
+      tabs: store.sidePane?.tabs ?? DEFAULT_SIDE_PANE_STATE.tabs,
+      activeTab: store.sidePane?.activeTab ?? DEFAULT_SIDE_PANE_STATE.activeTab,
+    })
+    const updateSidePane = (action: SidePaneAction) => {
+      setStore("sidePane", {
+        ...reduceSidePane(readSidePane(), action),
+        width: store.sidePane?.width ?? DEFAULT_SIDE_PANE_WIDTH,
+      })
+    }
+
     return {
       ready,
       handoff: {
@@ -866,33 +968,30 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         },
       },
       sidePane: {
-        opened: createMemo(() => store.sidePane?.opened ?? true),
-        tab: createMemo<SidePaneTab>(() => store.sidePane?.tab ?? "preview"),
+        opened: createMemo(() => store.sidePane?.opened ?? DEFAULT_SIDE_PANE_STATE.opened),
+        tabs: createMemo<SidePaneTab[]>(() => store.sidePane?.tabs ?? DEFAULT_SIDE_PANE_STATE.tabs),
+        activeTab: createMemo<SidePaneTab | null>(() => store.sidePane?.activeTab ?? DEFAULT_SIDE_PANE_STATE.activeTab),
         width: createMemo(() => store.sidePane?.width ?? DEFAULT_SIDE_PANE_WIDTH),
-        open(tab?: SidePaneTab) {
-          batch(() => {
-            if (tab) setStore("sidePane", "tab", tab)
-            setStore("sidePane", "opened", true)
-          })
+        open() {
+          setStore("sidePane", "opened", true)
         },
         close() {
           setStore("sidePane", "opened", false)
         },
-        toggle(tab?: SidePaneTab) {
-          if (store.sidePane?.opened && (!tab || store.sidePane.tab === tab)) {
-            setStore("sidePane", "opened", false)
-            return
-          }
-          batch(() => {
-            if (tab) setStore("sidePane", "tab", tab)
-            setStore("sidePane", "opened", true)
-          })
+        toggle() {
+          setStore("sidePane", "opened", (value) => !value)
         },
-        setTab(tab: SidePaneTab) {
-          batch(() => {
-            setStore("sidePane", "tab", tab)
-            setStore("sidePane", "opened", true)
-          })
+        add(tab: SidePaneTab) {
+          updateSidePane({ type: "add", tab })
+        },
+        remove(tab: SidePaneTab) {
+          updateSidePane({ type: "remove", tab })
+        },
+        setActive(tab: SidePaneTab) {
+          updateSidePane({ type: "setActive", tab })
+        },
+        move(from: number, to: number) {
+          updateSidePane({ type: "move", from, to })
         },
         resize(width: number) {
           setStore("sidePane", "width", width)
