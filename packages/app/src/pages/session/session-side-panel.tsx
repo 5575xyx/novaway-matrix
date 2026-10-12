@@ -4,6 +4,7 @@ import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { TooltipKeybind } from "@novaway/ui/tooltip"
 import { ResizeHandle } from "@novaway/ui/resize-handle"
+import { Tabs } from "@novaway/ui/tabs"
 import {
   DragDropProvider,
   DragDropSensors,
@@ -208,7 +209,7 @@ export function SessionSidePanel(props: {
           <Show when={tab() === "preview"}>
             <Show when={activeFileTab()} keyed fallback={<PreviewPanel />}>
               {(t) => (
-                <div class="flex flex-col size-full min-h-0">
+                <Tabs variant="alt" value={t} onChange={(value) => tabs().setActive(value)} class="min-h-0">
                   <DragDropProvider
                     onDragStart={handleDragStart}
                     onDragEnd={handleDragEnd}
@@ -217,7 +218,7 @@ export function SessionSidePanel(props: {
                   >
                     <DragDropSensors />
                     <ConstrainDragYAxis />
-                    <div class="flex items-center gap-0.5 px-1.5 h-8 border-b border-border-weak-base shrink-0 overflow-x-auto no-scrollbar">
+                    <Tabs.List class="h-10 border-b border-border-weaker-base">
                       <SortableProvider ids={openedTabs()}>
                         <For each={openedTabs()}>
                           {(fileTab) => <SortableTab tab={fileTab} onTabClose={tabs().close} />}
@@ -243,7 +244,7 @@ export function SessionSidePanel(props: {
                           />
                         </TooltipKeybind>
                       </div>
-                    </div>
+                    </Tabs.List>
                     <div class="flex-1 min-h-0 overflow-hidden">
                       <FileTabContent tab={t} />
                     </div>
@@ -260,7 +261,7 @@ export function SessionSidePanel(props: {
                       </Show>
                     </DragOverlay>
                   </DragDropProvider>
-                </div>
+                </Tabs>
               )}
             </Show>
           </Show>
