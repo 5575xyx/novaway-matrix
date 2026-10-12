@@ -117,7 +117,7 @@ export function SidebarFiles(props: { directory: string; sessionKey: () => strin
 
   const openFile = (entry: Entry) => {
     void layout.tabs(props.sessionKey()).open(`file://${encodeFilePath(entry.path)}`)
-    layout.sidePane.open("preview")
+    layout.sidePane.add("preview")
   }
 
   const rootEntries = () => openDirs()[""] ?? []

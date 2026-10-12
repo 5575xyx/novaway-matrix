@@ -249,7 +249,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   }
 
   const toggleReview = () => {
-    layout.sidePane.toggle("review")
+    layout.sidePane.add("review")
   }
 
   const chooseModel = () => {
@@ -460,7 +460,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       title: language.t("command.preview.toggle"),
       keybind: "mod+shift+b",
       slash: "preview",
-      onSelect: () => layout.sidePane.toggle("preview"),
+      onSelect: () => layout.sidePane.add("preview"),
     }),
     viewCommand({
       id: "review.toggle",

@@ -43,7 +43,7 @@ export const { use: useDevServers, provider: DevServerProvider } = createSimpleC
         if (!normalized || normalized === current) continue
 
         if (!preview.setUrl(normalized)) continue
-        layout.sidePane.open("preview")
+        layout.sidePane.add("preview")
         showToast({
           title: language.t("preview.autoOpened"),
           description: normalized,

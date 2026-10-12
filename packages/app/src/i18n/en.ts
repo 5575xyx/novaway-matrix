@@ -108,6 +108,7 @@ export const dict = {
   "sidePane.tab.context": "Context",
   "sidePane.collapse": "Collapse side pane",
   "sidePane.expand": "Expand side pane",
+  "sidePane.empty.title": "Open tab",
   "command.fileTree.toggle": "Toggle file tree",
   "command.git.toggle": "Toggle source control",
   "command.review.toggle": "Toggle review",

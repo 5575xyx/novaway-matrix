@@ -5,7 +5,14 @@ import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { TooltipKeybind } from "@novaway/ui/tooltip"
 import { ResizeHandle } from "@novaway/ui/resize-handle"
-import { DragDropProvider, DragDropSensors, DragOverlay, SortableProvider, closestCenter } from "@thisbeyond/solid-dnd"
+import {
+  DragDropProvider,
+  DragDropSensors,
+  DragOverlay,
+  SortableProvider,
+  closestCenter,
+  createSortable,
+} from "@thisbeyond/solid-dnd"
 import type { DragEvent } from "@thisbeyond/solid-dnd"
 import type { SnapshotFileDiff, VcsFileDiff } from "@novaway/sdk/v2"
 import { ConstrainDragYAxis, getDraggableId } from "@/utils/solid-dnd"
@@ -22,6 +29,18 @@ import { PreviewPanel } from "@/pages/session/preview-panel"
 import { TerminalPanel } from "@/pages/session/terminal-panel"
 import { setSessionHandoff } from "@/pages/session/handoff"
 import { useSessionLayout } from "@/pages/session/session-layout"
+
+const sidePaneTabs: Array<{
+  id: SidePaneTab
+  icon: "layout-right" | "terminal" | "review"
+  labelKey: string
+}> = [
+  { id: "preview", icon: "layout-right", labelKey: "sidePane.tab.preview" },
+  { id: "terminal", icon: "terminal", labelKey: "sidePane.tab.terminal" },
+  { id: "review", icon: "review", labelKey: "sidePane.tab.review" },
+]
+
+const sidePaneTabMeta = (tab: string) => sidePaneTabs.find((item) => item.id === tab) ?? sidePaneTabs[0]
 
 export function SessionSidePanel(props: {
   canReview: () => boolean
@@ -75,6 +94,7 @@ export function SessionSidePanel(props: {
 
   const [store, setStore] = createStore({
     activeDraggable: undefined as string | undefined,
+    activeSidePaneDraggable: undefined as string | undefined,
   })
 
   const handleDragStart = (event: unknown) => {
@@ -118,19 +138,31 @@ export function SessionSidePanel(props: {
     })
   })
 
-  const tab = layout.sidePane.tab
+  const tab = layout.sidePane.activeTab
   const width = () =>
     Math.min(layout.sidePane.width(), Math.round((typeof window === "undefined" ? 1000 : window.innerWidth) * 0.6))
 
-  const tabsList: Array<{
-    id: SidePaneTab
-    icon: "layout-right" | "terminal" | "review"
-    labelKey: string
-  }> = [
-    { id: "preview", icon: "layout-right", labelKey: "sidePane.tab.preview" },
-    { id: "terminal", icon: "terminal", labelKey: "sidePane.tab.terminal" },
-    { id: "review", icon: "review", labelKey: "sidePane.tab.review" },
-  ]
+  const sidePaneDragStart = (event: unknown) => {
+    const id = getDraggableId(event)
+    if (!id) return
+    setStore("activeSidePaneDraggable", id)
+  }
+
+  const sidePaneDragOver = (event: DragEvent) => {
+    const { draggable, droppable } = event
+    if (!draggable || !droppable) return
+
+    const current = layout.sidePane.tabs()
+    const from = draggable.id.toString()
+    const fromIndex = current.findIndex((item) => item === from)
+    const toIndex = getTabReorderIndex(current, from, droppable.id.toString())
+    if (fromIndex === -1 || toIndex === undefined) return
+    layout.sidePane.move(fromIndex, toIndex)
+  }
+
+  const sidePaneDragEnd = () => {
+    setStore("activeSidePaneDraggable", undefined)
+  }
 
   return (
     <aside
@@ -149,23 +181,30 @@ export function SessionSidePanel(props: {
         onResize={(next) => layout.sidePane.resize(next)}
       />
       <div class="flex items-center gap-0.5 h-9 px-1.5 border-b border-border-weak-base shrink-0">
-        <div class="flex items-center gap-0.5 flex-1 min-w-0 overflow-x-auto no-scrollbar">
-          <For each={tabsList}>
-            {(item) => (
-              <button
-                classList={{
-                  "flex items-center gap-1 px-2 h-7 rounded-md text-ui-xs transition-colors shrink-0 whitespace-nowrap": true,
-                  "bg-surface-raised-base text-text-strong": tab() === item.id,
-                  "text-text-weak hover:text-text-base": tab() !== item.id,
-                }}
-                onClick={() => layout.sidePane.setTab(item.id)}
-              >
-                <Icon name={item.icon} size="small" class="shrink-0" />
-                {language.t(item.labelKey)}
-              </button>
-            )}
-          </For>
-        </div>
+        <DragDropProvider
+          onDragStart={sidePaneDragStart}
+          onDragOver={sidePaneDragOver}
+          onDragEnd={sidePaneDragEnd}
+          collisionDetector={closestCenter}
+        >
+          <DragDropSensors />
+          <ConstrainDragYAxis />
+          <div class="flex items-center gap-0.5 flex-1 min-w-0 overflow-x-auto no-scrollbar">
+            <SortableProvider ids={layout.sidePane.tabs()}>
+              <For each={layout.sidePane.tabs()}>{(item) => <SidePaneTabTrigger tab={item} />}</For>
+            </SortableProvider>
+          </div>
+          <DragOverlay>
+            <Show when={store.activeSidePaneDraggable} keyed>
+              {(dragged) => (
+                <div class="flex items-center gap-1 px-2 h-7 rounded-md bg-surface-raised-base text-ui-xs text-text-strong">
+                  <Icon name={sidePaneTabMeta(dragged).icon} size="small" class="shrink-0" />
+                  {language.t(sidePaneTabMeta(dragged).labelKey)}
+                </div>
+              )}
+            </Show>
+          </DragOverlay>
+        </DragDropProvider>
         <IconButton
           icon="layout-right"
           variant="ghost"
@@ -177,71 +216,134 @@ export function SessionSidePanel(props: {
           onClick={() => layout.sidePane.toggle()}
         />
       </div>
-      <div class="flex-1 min-h-0 overflow-hidden">
-        <Show when={tab() === "preview"}>
-          <Show when={activeFileTab()} keyed fallback={<PreviewPanel />}>
-            {(t) => (
-              <div class="flex flex-col size-full min-h-0">
-                <DragDropProvider
-                  onDragStart={handleDragStart}
-                  onDragEnd={handleDragEnd}
-                  onDragOver={handleDragOver}
-                  collisionDetector={closestCenter}
-                >
-                  <DragDropSensors />
-                  <ConstrainDragYAxis />
-                  <div class="flex items-center gap-0.5 px-1.5 h-8 border-b border-border-weak-base shrink-0 overflow-x-auto no-scrollbar">
-                    <SortableProvider ids={openedTabs()}>
-                      <For each={openedTabs()}>
-                        {(fileTab) => <SortableTab tab={fileTab} onTabClose={tabs().close} />}
-                      </For>
-                    </SortableProvider>
-                    <div class="bg-background-strong h-full shrink-0 sticky right-0 z-10 flex items-center justify-center pr-3">
-                      <TooltipKeybind
-                        title={language.t("command.file.open")}
-                        keybind={command.keybind("file.open")}
-                        class="flex items-center"
-                      >
-                        <IconButton
-                          icon="plus-small"
-                          variant="ghost"
-                          iconSize="large"
-                          class="!rounded-md"
-                          onClick={() => {
-                            void import("@/components/dialog-select-file").then((x) => {
-                              dialog.show(() => <x.DialogSelectFile mode="files" onOpenFile={showAllFiles} />)
-                            })
-                          }}
-                          aria-label={language.t("command.file.open")}
-                        />
-                      </TooltipKeybind>
+      <Show when={layout.sidePane.tabs().length > 0} fallback={<SidePaneEmptyState />}>
+        <div class="flex-1 min-h-0 overflow-hidden">
+          <Show when={tab() === "preview"}>
+            <Show when={activeFileTab()} keyed fallback={<PreviewPanel />}>
+              {(t) => (
+                <div class="flex flex-col size-full min-h-0">
+                  <DragDropProvider
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={handleDragOver}
+                    collisionDetector={closestCenter}
+                  >
+                    <DragDropSensors />
+                    <ConstrainDragYAxis />
+                    <div class="flex items-center gap-0.5 px-1.5 h-8 border-b border-border-weak-base shrink-0 overflow-x-auto no-scrollbar">
+                      <SortableProvider ids={openedTabs()}>
+                        <For each={openedTabs()}>
+                          {(fileTab) => <SortableTab tab={fileTab} onTabClose={tabs().close} />}
+                        </For>
+                      </SortableProvider>
+                      <div class="bg-background-strong h-full shrink-0 sticky right-0 z-10 flex items-center justify-center pr-3">
+                        <TooltipKeybind
+                          title={language.t("command.file.open")}
+                          keybind={command.keybind("file.open")}
+                          class="flex items-center"
+                        >
+                          <IconButton
+                            icon="plus-small"
+                            variant="ghost"
+                            iconSize="large"
+                            class="!rounded-md"
+                            onClick={() => {
+                              void import("@/components/dialog-select-file").then((x) => {
+                                dialog.show(() => <x.DialogSelectFile mode="files" onOpenFile={showAllFiles} />)
+                              })
+                            }}
+                            aria-label={language.t("command.file.open")}
+                          />
+                        </TooltipKeybind>
+                      </div>
                     </div>
-                  </div>
-                  <div class="flex-1 min-h-0 overflow-hidden">
-                    <FileTabContent tab={t} />
-                  </div>
-                  <DragOverlay>
-                    <Show when={store.activeDraggable} keyed>
-                      {(tabId) => {
-                        const path = file.pathFromTab(tabId)
-                        return (
-                          <div data-component="tabs-drag-preview">
-                            <Show when={path}>{(p) => <FileVisual active path={p()} />}</Show>
-                          </div>
-                        )
-                      }}
-                    </Show>
-                  </DragOverlay>
-                </DragDropProvider>
-              </div>
-            )}
+                    <div class="flex-1 min-h-0 overflow-hidden">
+                      <FileTabContent tab={t} />
+                    </div>
+                    <DragOverlay>
+                      <Show when={store.activeDraggable} keyed>
+                        {(tabId) => {
+                          const path = file.pathFromTab(tabId)
+                          return (
+                            <div data-component="tabs-drag-preview">
+                              <Show when={path}>{(p) => <FileVisual active path={p()} />}</Show>
+                            </div>
+                          )
+                        }}
+                      </Show>
+                    </DragOverlay>
+                  </DragDropProvider>
+                </div>
+              )}
+            </Show>
           </Show>
-        </Show>
-        <Show when={tab() === "terminal"}>
-          <TerminalPanel variant="pane" />
-        </Show>
-        <Show when={tab() === "review"}>{props.reviewPanel()}</Show>
-      </div>
+          <Show when={tab() === "terminal"}>
+            <TerminalPanel variant="pane" />
+          </Show>
+          <Show when={tab() === "review"}>{props.reviewPanel()}</Show>
+        </div>
+      </Show>
     </aside>
+  )
+}
+
+function SidePaneTabTrigger(props: { tab: SidePaneTab }) {
+  const layout = useLayout()
+  const language = useLanguage()
+  const sortable = createSortable(props.tab)
+  const meta = () => sidePaneTabMeta(props.tab)
+  return (
+    <div
+      use:sortable
+      class="shrink-0"
+      classList={{
+        "opacity-0": sortable.isActiveDraggable,
+        "flex items-center gap-0.5 rounded-md": true,
+        "bg-surface-raised-base": layout.sidePane.activeTab() === props.tab,
+      }}
+    >
+      <button
+        class="flex items-center gap-1 px-2 h-7 rounded-md text-ui-xs transition-colors whitespace-nowrap text-text-base"
+        onClick={() => layout.sidePane.setActive(props.tab)}
+      >
+        <Icon name={meta().icon} size="small" class="shrink-0" />
+        {language.t(meta().labelKey)}
+      </button>
+      <IconButton
+        icon="close-small"
+        variant="ghost"
+        size="small"
+        class="h-5 w-5"
+        aria-label={language.t("common.closeTab")}
+        onClick={() => layout.sidePane.remove(props.tab)}
+      />
+    </div>
+  )
+}
+
+function SidePaneEmptyState() {
+  const layout = useLayout()
+  const language = useLanguage()
+  return (
+    <div
+      data-component="side-pane-empty"
+      class="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 p-6 text-center"
+    >
+      <Icon name="layout-right" size="large" class="text-text-weak" />
+      <span class="text-ui-sm text-text-weak">{language.t("sidePane.empty.title")}</span>
+      <div class="flex flex-col items-start gap-1 w-full max-w-48">
+        <For each={sidePaneTabs}>
+          {(item) => (
+            <button
+              class="flex items-center gap-2 w-full px-2 h-7 rounded-md text-ui-xs text-text-base transition-colors hover:bg-surface-raised-base"
+              onClick={() => layout.sidePane.add(item.id)}
+            >
+              <Icon name={item.icon} size="small" class="shrink-0" />
+              {language.t(item.labelKey)}
+            </button>
+          )}
+        </For>
+      </div>
+    </div>
   )
 }
