@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { GitSnapshotResponses } from "@novaway/sdk/v2"
-import { buildGitSectionModel } from "./git-section"
+import { buildGitSectionModel, gitSectionStat } from "./git-section"
 
 type Snapshot = GitSnapshotResponses[200]
 type Change = Snapshot["changes"][number]
@@ -56,6 +56,35 @@ describe("buildGitSectionModel", () => {
         ]),
       ),
     ).toMatchObject({ added: 2, removed: 2, dirty: 1 })
+  })
+
+  test("produces a section for a binary-only tree and reports the file count", () => {
+    const model = buildGitSectionModel(
+      makeSnapshot("main", [
+        change({ file: "assets/logo.png", status: "added", binary: true }),
+        change({ file: "assets/font.woff2", status: "added", binary: true }),
+      ]),
+    )
+    expect(model).toEqual({ added: 0, removed: 0, branch: "main", dirty: 2 })
+    if (!model) return
+    expect(gitSectionStat(model)).toEqual({ kind: "files", files: 2 })
+  })
+
+  test("produces a section for a rename-only tree instead of an empty diff", () => {
+    const model = buildGitSectionModel(
+      makeSnapshot("main", [change({ file: "src/moved.ts", status: "renamed" })]),
+    )
+    expect(model).toEqual({ added: 0, removed: 0, branch: "main", dirty: 1 })
+    if (!model) return
+    expect(gitSectionStat(model)).toEqual({ kind: "files", files: 1 })
+  })
+
+  test("reports the diff when line counts are present", () => {
+    expect(gitSectionStat({ added: 3, removed: 1, dirty: 2 })).toEqual({
+      kind: "diff",
+      added: 3,
+      removed: 1,
+    })
   })
 
   test("branch is null when the snapshot carries no branch name", () => {
