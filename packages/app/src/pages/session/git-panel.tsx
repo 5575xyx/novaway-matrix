@@ -41,15 +41,18 @@ export function useGitSnapshot() {
       .catch((err: unknown) => setStore("error", messageOf(err)))
   }
 
-  // 变更类接口执行后直接返回最新快照，省一次往返。
+  // 变更类接口执行后直接返回最新快照，省一次往返。失败也 resolve，错误文本只落在 error 里，
+  // resolve 值标记成功与否，调用方据此决定是否清空表单。
   const act = (run: () => Promise<{ data?: Snapshot }>) => {
     setStore("busy", true)
     return run()
       .then((result) => {
         setStore({ busy: false, snapshot: result.data ?? store.snapshot, error: "" })
+        return true
       })
       .catch((err: unknown) => {
         setStore({ busy: false, error: messageOf(err) })
+        return false
       })
   }
 
