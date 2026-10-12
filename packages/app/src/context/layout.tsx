@@ -373,7 +373,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         },
         sidePane: {
           opened: true,
-          tab: "files" as SidePaneTab,
+          tab: "preview" as SidePaneTab,
           width: DEFAULT_SIDE_PANE_WIDTH,
         },
         sidebarView: "tasks" as SidebarView,
@@ -867,7 +867,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       },
       sidePane: {
         opened: createMemo(() => store.sidePane?.opened ?? true),
-        tab: createMemo<SidePaneTab>(() => store.sidePane?.tab ?? "files"),
+        tab: createMemo<SidePaneTab>(() => store.sidePane?.tab ?? "preview"),
         width: createMemo(() => store.sidePane?.width ?? DEFAULT_SIDE_PANE_WIDTH),
         open(tab?: SidePaneTab) {
           batch(() => {
