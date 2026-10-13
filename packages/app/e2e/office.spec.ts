@@ -71,8 +71,9 @@ test("办公会话可以通过查询参数锁定真实模板", async ({ page }) 
 
 test("设置页可以打开 Provider 配置界面", async ({ page }) => {
   await enterZenOffice(page)
-  // titlebar 设置按钮：aria-label = command.settings.open（en "Open settings"）
-  await page.getByRole("button", { name: "Open settings" }).click()
+  // 设置入口：全局标题栏移除后落在侧栏 footer，行文案为 sidebar.settings（en "Settings"）。
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.getByRole("button", { name: /^(Open settings|Settings|设置)$/ }).first().click()
   // 设置页 tab：settings.providers.title（en "Providers"）
   await page.getByRole("tab", { name: "Providers" }).click()
   await expect(page.getByText("Connected providers", { exact: true })).toBeVisible()

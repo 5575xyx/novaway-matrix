@@ -2,11 +2,16 @@ import { getFilename } from "@novaway/core/util/path"
 import { base64Encode } from "@novaway/core/util/encode"
 import { Dialog } from "@novaway/ui/dialog"
 import { Icon } from "@novaway/ui/icon"
+import { IconButton } from "@novaway/ui/icon-button"
+import { Mark } from "@novaway/ui/logo"
 import { createEffect, createMemo, createSignal, For, Show, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useNavigate } from "@solidjs/router"
 import { OfficeComposerCard, OfficeWorkspaceFrame, SelectedTemplateChip } from "@/components/office-home-workspace"
 import { DialogSelectDirectory } from "@/components/dialog-select-directory"
+import { useCommand } from "@/context/command"
+import { useLanguage } from "@/context/language"
+import { useLayout } from "@/context/layout"
 import { useSDK } from "@/context/sdk"
 import { useServer } from "@/context/server"
 import { usePlatform } from "@/context/platform"
@@ -29,14 +34,54 @@ export function OfficeSessionWorkspace(props: { composer: JSX.Element }) {
   const workspace = createOfficeSessionWorkspace()
 
   return (
-    <OfficeWorkspaceFrame
-      activeID={workspace.activeID()}
-      draft={workspace.draft()}
-      onSelectScene={workspace.selectScene}
-      onUpdateDraft={workspace.updateDraft}
-      onSelectTemplate={workspace.selectTemplate}
-      body={<OfficeSessionComposerBody composer={props.composer} draft={workspace.draft()} />}
-    />
+    <div class="flex h-full min-h-0 flex-col">
+      <OfficeWindowBand />
+      <div class="min-h-0 flex-1">
+        <OfficeWorkspaceFrame
+          activeID={workspace.activeID()}
+          draft={workspace.draft()}
+          onSelectScene={workspace.selectScene}
+          onUpdateDraft={workspace.updateDraft}
+          onSelectTemplate={workspace.selectTemplate}
+          body={<OfficeSessionComposerBody composer={props.composer} draft={workspace.draft()} />}
+        />
+      </div>
+    </div>
+  )
+}
+
+/**
+ * 办公模式的窗口顶带。
+ *
+ * 全局标题栏移除后，办公模式既没有侧栏（`showSidebar` 在 zen/pulse 下为 false）也没有会话帧 Header，
+ * 于是窗口在该模式下既拖不动，也再没有设置入口 —— 这两样都必须补回来。
+ * 这里只放「拖拽 + 回首页 + 主题 + 设置」，办公主区自身的排版不动。
+ */
+function OfficeWindowBand() {
+  const language = useLanguage()
+  const command = useCommand()
+  const navigate = useNavigate()
+
+  return (
+    <div class="flex h-12 shrink-0 items-center gap-1 px-2" data-window-drag>
+      <button
+        type="button"
+        class="flex size-8 shrink-0 items-center justify-center rounded-md text-icon-base transition-colors hover:bg-surface-base-hover"
+        onClick={() => navigate("/")}
+        aria-label={language.t("command.home.open")}
+        title={language.t("command.home.open")}
+      >
+        <Mark class="size-5 shrink-0" />
+      </button>
+      <div class="flex-1" />
+      <IconButton
+        icon="settings-gear"
+        variant="ghost"
+        title={language.t("command.settings.open")}
+        aria-label={language.t("command.settings.open")}
+        onClick={() => command.trigger("settings.open")}
+      />
+    </div>
   )
 }
 
