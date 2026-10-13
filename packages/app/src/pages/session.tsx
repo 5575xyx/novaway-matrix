@@ -59,10 +59,16 @@ import { sessionAutoSubmitKey } from "@/pages/session/auto-submit"
 import { showOfficeNewSessionWorkspace, showOfficeSessionComposer } from "@/pages/session/office-workspace-route"
 import { syncSessionModel } from "@/pages/session/session-model-helpers"
 import { SessionSidePanel } from "@/pages/session/session-side-panel"
-import { SessionStatusPanel, type StatusPanelSection } from "@/pages/session/status-panel/status-panel"
+import {
+  SessionStatusPanel,
+  visibleStatusSections,
+  type StatusPanelSection,
+} from "@/pages/session/status-panel/status-panel"
 import { useContextSection } from "@/pages/session/status-panel/context-section"
 import { useGitSection } from "@/pages/session/status-panel/git-section"
 import { useTodoSection } from "@/pages/session/status-panel/todo-section"
+import { useCacheSection } from "@/pages/session/status-panel/cache-section"
+import { useMemorySection } from "@/pages/session/status-panel/memory-section"
 import { FloatingTodoButton } from "@/components/floating-todo-button"
 import { OfficeSessionComposer, OfficeSessionWorkspace } from "@/components/office-session-workspace"
 import { TerminalPanel } from "@/pages/session/terminal-panel"
@@ -82,6 +88,19 @@ const emptyUserMessages: UserMessage[] = []
 type FollowupItem = FollowupDraft & { id: string }
 type FollowupEdit = Pick<FollowupItem, "id" | "prompt" | "context">
 const emptyFollowups: FollowupItem[] = []
+
+// 首次进入会话页、消息数据未到时就地占位。宽度取自 message-timeline 的真实内容容器,数据到位时才不会横向跳动。
+const MessageTimelineSkeleton = () => (
+  <div class="h-full w-full min-w-0 overflow-hidden">
+    <div class="min-w-0 w-full md:max-w-200 2xl:max-w-[1000px] md:mx-auto flex flex-col gap-5 px-4 pt-4">
+      <div class="ml-auto h-9 w-1/2 rounded-[6px] bg-background-stronger animate-pulse" />
+      <div class="flex w-3/4 flex-col gap-2">
+        <div class="h-3 w-full rounded-[4px] bg-background-stronger animate-pulse" />
+        <div class="h-3 w-4/5 rounded-[4px] bg-background-stronger animate-pulse" />
+      </div>
+    </div>
+  </div>
+)
 
 type ChangeMode = "git" | "branch" | "turn"
 type VcsMode = "git" | "branch"
@@ -354,6 +373,35 @@ export default function Page() {
     if (!id) return true
     return sync.data.message[id] !== undefined
   })
+  // 骨架屏只在"这个会话的数据从未到过"时出现一次。sync 的 message[id] 会被 dropSessionCaches
+  // 反复删掉再拉回(列表清理、预取淘汰、LRU 淘汰共多个调用方),直接拿 messagesReady() 当开关
+  // 会让骨架屏反复顶掉消息时间线,表现为每隔几秒闪一下。这里用只进不出的记录兜住:到过就永久为真。
+  const [hydrated, setHydrated] = createSignal(new Set<string>())
+  createEffect(() => {
+    const id = params.id
+    if (!id || sync.data.message[id] === undefined) return
+    setHydrated((prev) => (prev.has(id) ? prev : new Set(prev).add(id)))
+  })
+  const timelineReady = createMemo(() => {
+    const id = params.id
+    if (!id) return true
+    return hydrated().has(id)
+  })
+  // 向 sync 登记"用户正在看这个会话",事件驱动的会话列表裁剪(见 event-reducer)就不会清掉它的消息缓存。
+  // 否则每来一次 session.updated 心跳,消息区就整体清空再拉回一次,表现为每隔几秒闪一下。
+  createEffect(
+    on(
+      () => params.id,
+      (id, prev) => {
+        if (prev) globalSync.session.unpin(prev)
+        if (id) globalSync.session.pin(id)
+      },
+    ),
+  )
+  onCleanup(() => {
+    const id = params.id
+    if (id) globalSync.session.unpin(id)
+  })
   const historyMore = createMemo(() => {
     const id = params.id
     if (!id) return false
@@ -421,15 +469,23 @@ export default function Page() {
     deferRender: false,
   })
 
-  // 三个区块都接入面板；model 为 null 时该区块整体不进 sections，全部为空则面板不挂载。
+  // 五个区块都接入面板；model 为 null 时该区块整体不进 sections，全部为空则面板不挂载。
   const gitSection = useGitSection()
   const todoSection = useTodoSection()
   const contextSection = useContextSection()
-  const statusSections = createMemo(
-    () =>
-      [gitSection(), todoSection(), contextSection()].filter(
+  const cacheSection = useCacheSection()
+  const memorySection = useMemorySection()
+  const statusRunning = createMemo(() => {
+    const id = params.id ?? ""
+    return !!id && sync.data.session_working(id)
+  })
+  const statusSections = createMemo(() =>
+    visibleStatusSections(
+      [gitSection(), todoSection(), contextSection(), cacheSection(), memorySection()].filter(
         (section): section is StatusPanelSection => section !== null,
       ),
+      statusRunning(),
+    ),
   )
 
   const [followup, setFollowup] = persisted(
@@ -697,7 +753,7 @@ export default function Page() {
 
   const hasScrollGesture = () => Date.now() - ui.scrollGesture < scrollGestureWindowMs
 
-  const [sessionSync] = createResource(
+  createResource(
     () => [sdk.directory, params.id] as const,
     ([directory, id]) => {
       if (refreshFrame !== undefined) cancelAnimationFrame(refreshFrame)
@@ -1805,7 +1861,6 @@ export default function Page() {
       when={showOfficeNewSessionWorkspace(layout.mode.current(), params.id)}
       fallback={
         <div class="relative bg-background-base size-full overflow-hidden flex flex-col p-1 gap-1">
-          {sessionSync() ?? ""}
           <SessionHeader />
           <div class="flex-1 min-h-0 flex flex-col md:flex-row gap-1">
             <Show when={!isDesktop() && !!params.id}>
@@ -1861,7 +1916,7 @@ export default function Page() {
                     {/* Session view (message timeline) */}
                     <Show when={params.id && !mobileChanges()}>
                       <div class="h-full">
-                        <Show when={messagesReady()}>
+                        <Show when={timelineReady()} fallback={<MessageTimelineSkeleton />}>
                           <MessageTimeline
                             actions={actions}
                             scroll={ui.scroll}
@@ -1976,7 +2031,6 @@ export default function Page() {
       }
     >
       <div class="relative bg-background-base size-full overflow-hidden flex flex-col">
-        {sessionSync() ?? ""}
         <div class="flex-1 min-h-0 flex flex-col md:flex-row">
           <div class="relative flex-1 min-h-0">
             <OfficeSessionWorkspace
