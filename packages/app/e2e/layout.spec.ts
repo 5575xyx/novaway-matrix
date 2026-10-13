@@ -14,65 +14,81 @@ function workspaceRootSlug() {
     .replace(/=+$/, "")
 }
 
-test("侧栏任务/文件视图切换", async ({ page }) => {
+test("侧栏规格：264px + 整宽入口 + 文件树 slide-over", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto("/")
-  const sidebar = page.getByRole("navigation").first()
-  const tasksSegment = sidebar.getByRole("button", { name: /Tasks|任务/ }).first()
-  const filesSegment = sidebar.getByRole("button", { name: /Files|文件/ }).first()
+  const sidebar = page.locator('[data-component="sidebar-nav-desktop"]')
+  await expect(sidebar).toBeVisible({ timeout: 15_000 })
 
-  // 默认处于任务视图，任务段为激活态（segment 激活样式 bg-text-interactive-base / bg-bg-panel-active）
-  await expect(tasksSegment).toHaveClass(/bg-text-interactive-base|bg-bg-panel-active/)
+  // A7：宽度规格 default = min = 264（对齐 ZCode）
+  const box = await sidebar.boundingBox()
+  expect(box, "sidebar no bbox").not.toBeNull()
+  expect(Math.round(box.width)).toBe(264)
 
-  // 切到文件视图：文件段激活、任务段失活
-  await filesSegment.click()
-  await expect(filesSegment).toHaveClass(/bg-text-interactive-base|bg-bg-panel-active/)
-  await expect(tasksSegment).not.toHaveClass(/bg-text-interactive-base|bg-bg-panel-active/)
+  // A8：两个整宽入口存在；旧的「任务/文件」分段控件不存在
+  await expect(sidebar.getByRole("button", { name: /New task|新建任务/ }).first()).toBeVisible()
+  await expect(sidebar.getByRole("button", { name: /Search|搜索/ }).first()).toBeVisible()
+  expect(await sidebar.getByRole("button", { name: /^(Tasks|Files|任务|文件)$/ }).count()).toBe(0)
 
-  // 切回任务视图
-  await tasksSegment.click()
-  await expect(tasksSegment).toHaveClass(/bg-text-interactive-base|bg-bg-panel-active/)
-  await expect(filesSegment).not.toHaveClass(/bg-text-interactive-base|bg-bg-panel-active/)
+  // A9：文件树是侧栏内整层 slide-over（translate-x 切换），不是同一列替换
+  const treeLayer = sidebar.locator("div.absolute.transition-transform").nth(1)
+  await expect(treeLayer).toHaveAttribute("aria-hidden", "true")
+
+  const projectFolder = sidebar.locator('button[aria-label="Files"]').first()
+  if ((await projectFolder.count()) === 0) {
+    // e2e 是干净环境：没有已打开的项目，没有可打开的文件树目标。断言静态部分后跳过交互部分。
+    return
+  }
+  const hiddenX = (await treeLayer.boundingBox()).x
+  await projectFolder.click()
+  await expect(treeLayer).toHaveAttribute("aria-hidden", "false")
+  const shownX = (await treeLayer.boundingBox()).x
+  expect(shownX, "slide-over did not move into view").toBeLessThan(hiddenX)
+
+  // 返回条切回任务列表
+  await sidebar
+    .getByRole("button", { name: /Back to tasks|返回任务/ })
+    .first()
+    .click()
+  await expect(treeLayer).toHaveAttribute("aria-hidden", "true")
 })
 
 test("侧栏分组结构与项目菜单可达", async ({ page }) => {
   const slug = workspaceRootSlug()
+  await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`/${slug}/session`)
   await expect(page.locator('[data-component="sidebar-nav-desktop"]')).toBeVisible({ timeout: 15_000 })
-  const sidebar = page.getByRole("navigation").first()
+  const sidebar = page.locator('[data-component="sidebar-nav-desktop"]')
 
   // 旧的 workspace 头部折叠按钮应消失（en 文案 "Collapse workspace panel"，由 sidebar.workspacePanel.collapse 提供；
   // 该 aria-label 只出现在被删除的旧头部里，是稳定且不可复现于新结构的标记）
   expect(await sidebar.locator('[aria-label="Collapse workspace panel"]').count()).toBe(0)
 
-  // 顶部 segmented：新结构的两个 segment 按钮
-  const tasksSegment = sidebar.getByRole("button", { name: /Tasks|任务/ }).first()
-  const filesSegment = sidebar.getByRole("button", { name: /Files|文件/ }).first()
-  expect(await tasksSegment.count()).toBeGreaterThan(0)
-  expect(await filesSegment.count()).toBeGreaterThan(0)
-  expect(await sidebar.locator('[aria-label="Search"]').count()).toBeGreaterThan(0)
-  expect(await sidebar.locator('[aria-label="New task"]').count()).toBeGreaterThan(0)
+  // 顶带：窗口拖拽区 + 品牌标记（回首页）
+  expect(await sidebar.locator("[data-window-drag]").count()).toBe(1)
+  await expect(sidebar.locator('[aria-label="Open home"], [aria-label="打开首页"]').first()).toBeVisible()
+
+  // 两个整宽入口
+  await expect(sidebar.getByRole("button", { name: /New task|新建任务/ }).first()).toBeVisible()
+  await expect(sidebar.getByRole("button", { name: /Search|搜索/ }).first()).toBeVisible()
 
   // 空态：无项目时显示 title / description / 打开项目 按钮
   await expect(sidebar.getByText("No projects open")).toBeVisible()
   await expect(sidebar.getByText("Open a project to get started")).toBeVisible()
   await expect(sidebar.getByRole("button", { name: /Open project|打开项目/ }).first()).toBeVisible()
 
-  // 切换视图不报错（segment 激活态切换）
-  await filesSegment.click()
-  await expect(filesSegment).toHaveClass(/bg-text-interactive-base|bg-bg-panel-active/)
-
-  // 文件视图的返回按钮可见（原型 #sb-treefilters 中的 ← 返回任务），点击返回任务视图
-  const backToTasks = page.getByRole("button", { name: /Back to tasks|返回任务/ }).first()
-  await expect(backToTasks).toBeVisible()
-  await backToTasks.click()
-  await expect(tasksSegment).toHaveClass(/bg-text-interactive-base/)
-
-  await tasksSegment.click()
-  await expect(tasksSegment).toHaveClass(/bg-text-interactive-base|bg-bg-panel-active/)
+  // footer：模式与主题入口沉底（原来挤在顶部那圈竖排菜单里）
+  await expect(sidebar.getByRole("button", { name: /Switch work mode|切换模式/ }).first()).toBeVisible()
+  await expect(
+    sidebar
+      .getByRole("button", { name: /^(Dark mode|Light mode|深色模式|浅色模式)$/ })
+      .first(),
+  ).toBeVisible()
 })
 
 test("WorkspaceHeader 与 Side Pane 开关", async ({ page }) => {
   const slug = workspaceRootSlug()
+  await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`/${slug}/session`)
   // 会话页打开后，WorkspaceHeader 单行渲染：未命名任务 fallback 为 workspace.header.untitled（en "Untitled task"）
   const workspaceHeaderTitle = page.locator("text=未命名任务").first().or(page.locator("text=Untitled task").first())
@@ -90,8 +106,8 @@ test("WorkspaceHeader 与 Side Pane 开关", async ({ page }) => {
   expect(expandedBefore).not.toBe(expandedAfter)
 })
 
-test("四 frame 4px 间隙与 8px 圆角", async ({ page }) => {
-  await page.goto("/")
+test("四 frame：4px 间隙 + 平台圆角 + 窗口根分层", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
   const slug = workspaceRootSlug()
   await page.goto(`/${slug}/session`)
   // 等待侧栏 nav 出现
@@ -133,11 +149,28 @@ test("四 frame 4px 间隙与 8px 圆角", async ({ page }) => {
       const els = document.querySelectorAll(s)
       if (els.length !== 1) return null
       const cs = getComputedStyle(els[0]!)
-      return { radius: cs.borderRadius, border: cs.borderStyle }
+      return { radius: cs.borderRadius, border: cs.borderStyle, width: cs.borderTopWidth }
     }, sel)
-    expect(r.radius).toBe("8px")
+    // A2/A3：圆角按平台（e2e 跑在 Web → 12px = xl），边框 1px solid
+    expect(r.radius).toBe("12px")
     expect(r.border).toBe("solid")
+    expect(r.width).toBe("1px")
   }
+
+  // A5：窗口根底色与帧底色分层（4px 留白/间隙才看得见）
+  const surfaces = await page.evaluate(() => {
+    const root = document.querySelector("[data-workspace-panel-radius]")
+    const conv = document.querySelector('[data-component="conv-frame"]')
+    if (!root || !conv) return null
+    return {
+      rootBg: getComputedStyle(root).backgroundColor,
+      convBg: getComputedStyle(conv).backgroundColor,
+      radiusVar: root.style.getPropertyValue("--workspace-panel-radius").trim(),
+    }
+  })
+  expect(surfaces).not.toBeNull()
+  expect(surfaces.rootBg).not.toBe(surfaces.convBg)
+  expect(surfaces.radiusVar).toBe("12px")
   // 关闭终端后，border-top-width 和 border-bottom-width 应为 0px
   await page.keyboard.press("Control+`")
   await expect(page.locator('[data-component="terminal-frame"]')).not.toBeVisible()
@@ -153,6 +186,7 @@ test("四 frame 4px 间隙与 8px 圆角", async ({ page }) => {
 
 test("Side Pane 空态按需创建 + tab 标签不折行 + 折叠按钮", async ({ page }) => {
   const slug = workspaceRootSlug()
+  await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`/${slug}/session`)
   // 侧栏 nav 出现即视为页面就绪；side pane 默认展开（DEFAULT_SIDE_PANE_STATE.opened = true），
   // 默认零 tab → 右栏显示空态，不隐式创建任何 tab。
@@ -264,12 +298,16 @@ test("首页任务中心信息密度", async ({ page }) => {
 
 test("WorkspaceHeader 单行且不溢出", async ({ page }) => {
   const slug = workspaceRootSlug()
+  await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`/${slug}/session`)
   const header = page.locator('[data-component="workspace-header"]').first()
   await expect(header).toBeVisible({ timeout: 15_000 })
   const headerBox = await header.boundingBox()
   expect(headerBox, "header no bbox").not.toBeNull()
-  expect(headerBox!.height, `header height ${headerBox!.height}`).toBeLessThanOrEqual(40)
+  // A10：对齐 ZCode 的 h-12（h-12 = 48px 内容盒 + 1px 下边框；设备像素比下会有小数抖动，
+  // 因此用「约等于 48~49」而不是精确相等）
+  expect(headerBox!.height, `header height ${headerBox!.height}`).toBeGreaterThanOrEqual(47.5)
+  expect(headerBox!.height, `header height ${headerBox!.height}`).toBeLessThanOrEqual(49.5)
   const model = page.locator('[data-component="workspace-model"]').first()
   await expect(model).toBeVisible()
   const modelBox = await model.boundingBox()
@@ -277,39 +315,38 @@ test("WorkspaceHeader 单行且不溢出", async ({ page }) => {
   expect(modelBox!.x + modelBox!.width).toBeLessThanOrEqual(headerBox!.x + headerBox!.width)
 })
 
-test("Titlebar 结构", async ({ page }) => {
-  await page.goto("/")
-  const header = page.locator("header").first()
+test("顶栏移除后的入口归属（A1）", async ({ page }) => {
+  const slug = workspaceRootSlug()
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`/${slug}/session`)
+
+  // A1：全局没有独立标题栏；会话帧内 Header 承担顶行
+  expect(await page.locator("body > div > header, #root header").count()).toBe(0)
+  const header = page.locator('[data-component="workspace-header"]')
   await expect(header).toBeVisible({ timeout: 15_000 })
+  expect(
+    await page.evaluate(() => {
+      const conv = document.querySelector('[data-component="conv-frame"]')
+      const head = document.querySelector('[data-component="workspace-header"]')
+      return !!(conv && head && conv.contains(head))
+    }),
+    "workspace header must live inside the conversation frame",
+  ).toBe(true)
 
-  // 模式首页硬编码中文已删除（pre-fix fingerprint）
-  expect(await page.getByLabel("模式首页").count()).toBe(0)
+  // 拖拽属性（Electron 下 app-region 生效；Web 构建里 Chromium 同样解析该属性）
+  const drag = await page.evaluate(() => {
+    const el = document.querySelector("[data-window-drag]")
+    if (!el) return null
+    const cs = getComputedStyle(el)
+    return cs.getPropertyValue("app-region") || cs.getPropertyValue("-webkit-app-region")
+  })
+  expect(drag).toBe("drag")
 
-  // Logo 按钮（command.home.open = "Open home" / "打开首页"）
-  const logoButton = header.getByLabel(/Open home|打开首页/).first()
-  await expect(logoButton).toBeVisible()
-  const logoBox = await logoButton.boundingBox()
-  expect(logoBox, "logo no bbox").not.toBeNull()
-
-  // Mode switch 按钮（mode.switch.ariaLabel = "Switch work mode"）
-  const modeSwitch = header.getByLabel(/Switch work mode/).first()
-  await expect(modeSwitch).toBeVisible()
-  const modeBox = await modeSwitch.boundingBox()
-  expect(modeBox, "mode switch no bbox").not.toBeNull()
-
-  // Mode switch 应在 Logo 右侧 400px 以内（左簇）
-  expect(modeBox!.x - logoBox!.x).toBeLessThan(400)
-
-  // 右簇 icon-only 按钮：Cache / Memory / Theme / Settings / Database
-  const cacheBtn = header.getByLabel(/Cache hit rate|缓存命中率/).first()
-  await expect(cacheBtn).toBeVisible()
-
-  const memoryBtn = header.getByLabel(/Memory & Evolution|记忆与进化/).first()
-  await expect(memoryBtn).toBeVisible()
-
-  const settingsBtn = header.getByLabel(/Open settings|开启设置|開啟設定/).first()
-  await expect(settingsBtn).toBeVisible()
-
-  const themeBtn = header.getByLabel(/Switch to dark mode|Switch to light mode|切换为深色模式|切换为浅色模式/).first()
-  await expect(themeBtn).toBeVisible()
+  // 原标题栏承载的入口现在各自可达：首页 / 模式 / 主题 / 设置 / Side Pane 开关 / 移动端菜单
+  await expect(page.getByLabel(/Open home|打开首页/).first()).toBeVisible()
+  await expect(page.getByLabel(/Switch work mode|切换模式/).first()).toBeVisible()
+  await expect(
+    page.getByLabel(/^(Dark mode|Light mode|深色模式|浅色模式)$/).first(),
+  ).toBeVisible()
+  await expect(header.getByRole("button", { name: /Toggle side pane|切换 Side Pane/ }).first()).toBeVisible()
 })
