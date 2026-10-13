@@ -1,0 +1,41 @@
+import { describe, expect, test } from "bun:test"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+
+const layoutSource = readFileSync(join(import.meta.dir, "..", "layout.tsx"), "utf8")
+const tasksSource = readFileSync(join(import.meta.dir, "sidebar-tasks.tsx"), "utf8")
+
+describe("task filter drives the project badge", () => {
+  test("exposes a single filtered list to the rows", () => {
+    expect(tasksSource).toContain("export function useProjectTaskList")
+    expect(tasksSource).toContain("const sessions = useProjectTaskList(props)")
+  })
+
+  test("sidebar badge counts the filtered list instead of every root session", () => {
+    expect(layoutSource).toContain("const tasks = useProjectTaskList(")
+    expect(layoutSource).toContain('language.t("sidebar.project.count", { count: tasks().length })')
+    expect(layoutSource).not.toContain("{ count: sessions().length }")
+  })
+
+  test("asks for help when a non-default filter matches nothing", () => {
+    expect(tasksSource).toContain('props.filter() !== "all" && sessions().length === 0')
+    expect(tasksSource).toContain('language.t("sidebar.filter.empty")')
+  })
+})
+
+describe("sidebar project entry points", () => {
+  // 侧栏顶部改成两个整宽入口后，第一个是「新建任务」，不再有把图标挤在一起的 plus 工具条。
+  // 「打开项目」入口保留在：项目列表为空时的空态按钮、以及 command（mod+o）。
+  test("the header new-task entry creates a task, the project entry lives in the empty state", () => {
+    const header = layoutSource.slice(layoutSource.indexOf('aria-label={language.t("sidebar.newTask")}'))
+    expect(header.slice(0, 260)).toContain("navigateWithSidebarReset")
+    const emptyState = layoutSource.slice(layoutSource.indexOf('language.t("sidebar.empty.title")'))
+    expect(emptyState.slice(0, 400)).toContain("onClick={chooseProject}")
+  })
+
+  test("every project row keeps its own new task action", () => {
+    expect(layoutSource).toContain('aria-label={language.t("sidebar.newTask")}')
+    expect(layoutSource).toContain("opacity-0 group-hover:opacity-100 focus-visible:opacity-100")
+    expect(layoutSource).toContain("navigateWithSidebarReset(`/${base64Encode(proj.worktree)}/session`)")
+  })
+})

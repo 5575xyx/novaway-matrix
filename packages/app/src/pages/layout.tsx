@@ -13,7 +13,7 @@ import {
   untrack,
 } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
-import { useNavigate, useParams } from "@solidjs/router"
+import { useLocation, useNavigate, useParams } from "@solidjs/router"
 import { useLayout, LocalProject } from "@/context/layout"
 import { useGlobalSync } from "@/context/global-sync"
 import { Persist, persisted } from "@/utils/persist"
@@ -23,6 +23,8 @@ import { ResizeHandle } from "@novaway/ui/resize-handle"
 import { Button } from "@novaway/ui/button"
 import { IconButton } from "@novaway/ui/icon-button"
 import { Icon } from "@novaway/ui/icon"
+import { Keybind } from "@novaway/ui/keybind"
+import { Mark } from "@novaway/ui/logo"
 import { Tooltip, TooltipKeybind } from "@novaway/ui/tooltip"
 import { Dialog } from "@novaway/ui/dialog"
 import { TextField } from "@novaway/ui/text-field"
@@ -58,8 +60,8 @@ import { setSessionHandoff } from "@/pages/session/handoff"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { useTheme, type ColorScheme } from "@novaway/ui/theme/context"
 import { useCommand, type CommandOption } from "@/context/command"
-import { Titlebar } from "@/components/titlebar"
 import { DialogSettings, type SettingsTab } from "@/components/dialog-settings"
+import { applyPath, backPath, forwardPath, type TitlebarHistory } from "@/components/titlebar-history"
 import { DatabasePage } from "@/pages/database"
 import { useServer } from "@/context/server"
 import { workspacePanelRadiusPx } from "@/utils/workspace-chrome"
@@ -138,6 +140,7 @@ export default function Layout(props: ParentProps) {
   const notification = useNotification()
   const permission = usePermission()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const sendFeishuNotification = (
     title: string,
@@ -1098,6 +1101,22 @@ export default function Layout(props: ParentProps) {
 
   command.register("layout", () => {
     const commands: CommandOption[] = [
+      // 前进/后退原先注册在全局标题栏里，标题栏移除后挪到外壳这一层（它常驻，任何路由都能用）。
+      // 侧栏与会话帧 Header 都不再画这两个按钮，入口只剩命令面板与 mod+[ / mod+]。
+      {
+        id: "common.goBack",
+        title: language.t("common.goBack"),
+        category: language.t("command.category.view"),
+        keybind: "mod+[",
+        onSelect: () => goBack(),
+      },
+      {
+        id: "common.goForward",
+        title: language.t("common.goForward"),
+        category: language.t("command.category.view"),
+        keybind: "mod+]",
+        onSelect: () => goForward(),
+      },
       {
         id: "project.open",
         title: language.t("command.project.open"),
@@ -2107,6 +2126,12 @@ export default function Layout(props: ParentProps) {
     const { archived, load: loadArchived } = useArchivedSessions(() => projectList())
 
     const treeKey = createMemo(() => pathKey(currentProject()?.worktree ?? currentDir()))
+    // 文件树是侧栏内整层 slide-over 的目标目录：跟随当前项目（对齐 ZCode 的
+    // WorkspaceFileTree —— 它挂在当前工作区上，不是每个项目各一份）。
+    const treeDirectory = createMemo(() => currentProject()?.worktree ?? currentDir() ?? "")
+    const treeOpen = createMemo(() => layout.sidebarView.current() === "tree")
+    // 桌面端 macOS 的红绿灯压在这一带左上角，需要让出安全区。
+    const isMacDesktop = createMemo(() => platform.platform === "desktop" && platform.os === "macos")
 
     return (
       <div
@@ -2118,11 +2143,225 @@ export default function Layout(props: ParentProps) {
           width: panelProps.mobile ? undefined : `${panel()}px`,
         }}
       >
-        <div class="shrink-0 px-2 pt-2.5 pb-2 flex flex-col gap-2">
-          {/* 竖排菜单:一行一项,图标 + 文字标签。原来四个 icon-only 按钮挤在一行,靠 tooltip 才认得出。
-              只给一圈边框做分组,不上整组底色 —— 高亮交给每行自己的 hover 背景。 */}
-          <div class="rounded-lg border border-border-weak-base p-1">
-            <div class="flex flex-col gap-0.5">
+        {/* 顶带：窗口拖拽区。桌面端没有全局标题栏之后，这里是窗口左上角的拖动把手；
+            品牌标记兼作回首页入口（对齐 ZCode 左上角的品牌标识）。 */}
+        <div
+          class="flex h-12 shrink-0 items-center gap-1 px-2"
+          classList={{ "pl-[78px]": isMacDesktop() && !panelProps.mobile }}
+          data-window-drag
+        >
+          <button
+            type="button"
+            class="flex size-8 shrink-0 items-center justify-center rounded-md text-icon-base transition-colors hover:bg-surface-base-hover"
+            onClick={() => navigate("/")}
+            aria-label={language.t("command.home.open")}
+            title={language.t("command.home.open")}
+            aria-current={!layout.mode.hasSelected() ? "page" : undefined}
+          >
+            <Mark class="size-5 shrink-0" />
+          </button>
+          <div class="flex-1" />
+          <Show
+            when={panelProps.mobile}
+            fallback={
+              <Tooltip value={language.t("sidebar.workspaceSidebar.collapse")} placement="bottom">
+                <IconButton
+                  icon="chevron-left"
+                  variant="ghost"
+                  size="small"
+                  aria-label={language.t("sidebar.workspaceSidebar.collapse")}
+                  onClick={() => setStore("workspaceSidebarExpanded", false)}
+                />
+              </Tooltip>
+            }
+          >
+            <IconButton
+              icon="close"
+              variant="ghost"
+              aria-label={language.t("sidebar.menu.toggle")}
+              onClick={() => layout.mobileSidebar.hide()}
+            />
+          </Show>
+        </div>
+
+        {/* 动作区：整宽「新建任务」+ 整宽「命令中心」。对齐 ZCode 侧栏顶部的两个整宽入口，
+            取代原来那行把图标挤在一起的 icon-only 工具条。 */}
+        <div class="flex shrink-0 flex-col gap-1 px-2 pb-2">
+          <Button
+            variant="primary"
+            size="large"
+            class="w-full justify-start gap-2"
+            icon="plus-small"
+            aria-label={language.t("sidebar.newTask")}
+            onClick={() => {
+              const first = projectList()[0]
+              if (first) navigateWithSidebarReset(`/${base64Encode(first.worktree)}/session`)
+              else chooseProject()
+            }}
+          >
+            {language.t("sidebar.newTask")}
+          </Button>
+          <Button
+            variant="ghost"
+            size="large"
+            class="w-full justify-start gap-2 text-text-base"
+            aria-label={language.t("sidebar.search")}
+            onClick={() => command.trigger("file.open")}
+          >
+            <Icon name="magnifying-glass" size="small" class="shrink-0 text-icon-weak" />
+            <span class="min-w-0 flex-1 truncate text-left">{language.t("sidebar.search")}</span>
+            <Keybind class="shrink-0 text-ui-xs text-text-weaker">{command.keybind("file.open")}</Keybind>
+          </Button>
+        </div>
+        {/* 列表层与文件树层叠放：文件树是整层 slide-over（对齐 ZCode 的 WorkspaceFileTree），
+            不再用「任务/文件」分段控件把同一列替换掉。 */}
+        <div class="relative flex-1 min-h-0">
+          <div
+            class="absolute inset-0 flex min-h-0 flex-col transition-transform duration-200 ease-out"
+            classList={{ "-translate-x-full pointer-events-none": treeOpen() }}
+            aria-hidden={treeOpen()}
+          >
+            <TaskFilterBar
+              filter={taskFilter()}
+              variant="text"
+              onChange={(id) => {
+                if (id !== "projects") {
+                  setTaskFilter(id)
+                  if (id === "archived") loadArchived()
+                }
+              }}
+            />
+
+            <Show
+              when={projectList().length > 0}
+              fallback={
+                <div class="flex-1 min-h-0 flex items-center justify-center px-6 pb-64 text-center">
+                  <div class="mt-8 flex max-w-60 flex-col items-center gap-4 text-center">
+                    <div class="text-14-medium text-text-strong">{language.t("sidebar.empty.title")}</div>
+                    <div class="text-14-regular text-text-base">{language.t("sidebar.empty.description")}</div>
+                    <Button size="large" icon="folder-add-left" onClick={chooseProject}>
+                      {language.t("command.project.open")}
+                    </Button>
+                  </div>
+                </div>
+              }
+            >
+              <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar px-2 pb-3 [overflow-anchor:none]">
+                <For each={projectList()}>
+                  {(proj) => {
+                    const [isExpanded, setIsExpanded] = createSignal(store.workspaceExpanded[proj.worktree] ?? true)
+                    const projectArchived = () =>
+                      [proj.worktree, ...(proj.sandboxes ?? [])].flatMap((directory) => archived()[directory] ?? [])
+                    const tasks = useProjectTaskList({
+                      project: proj,
+                      filter: taskFilter,
+                      archived: projectArchived,
+                      sortNow,
+                    })
+                    const projectName = () => proj.name || getFilename(proj.worktree)
+                    const toggleExpand = () => {
+                      const next = !isExpanded()
+                      setIsExpanded(next)
+                      setStore("workspaceExpanded", proj.worktree, next)
+                    }
+                    // 项目名/文件夹图标入口打开该项目的文件树 slide-over（对齐 ZCode：文件树从侧栏滑入）。
+                    const openTree = () => {
+                      navigateToProject(proj.worktree)
+                      layout.sidebarView.set("tree")
+                    }
+                    return (
+                      <div class="mt-1">
+                        <div
+                          classList={{
+                            "group flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-colors hover:bg-surface-base-hover": true,
+                            "bg-surface-base-active": pathKey(proj.worktree) === treeKey(),
+                          }}
+                        >
+                          <button
+                            aria-label={
+                              isExpanded()
+                                ? language.t("sidebar.project.collapse")
+                                : language.t("sidebar.project.expand")
+                            }
+                            onClick={toggleExpand}
+                          >
+                            <Icon name={isExpanded() ? "chevron-down" : "chevron-right"} size="small" />
+                          </button>
+                          <button
+                            type="button"
+                            class="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                            aria-label={language.t("sidebar.view.files")}
+                            onClick={openTree}
+                          >
+                            <Icon name="folder" size="small" class="shrink-0 text-icon-base" />
+                            <span class="text-ui-caption text-text-strong font-medium truncate flex-1 min-w-0">
+                              {projectName()}
+                            </span>
+                          </button>
+                          <span class="text-ui-xs text-text-weak shrink-0">
+                            {language.t("sidebar.project.count", { count: tasks().length })}
+                          </span>
+                          <IconButton
+                            icon="plus-small"
+                            variant="ghost"
+                            size="small"
+                            aria-label={language.t("sidebar.newTask")}
+                            class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                            onClick={() => navigateWithSidebarReset(`/${base64Encode(proj.worktree)}/session`)}
+                          />
+                          <ProjectMenu project={proj} ctx={projectSidebarCtx} />
+                        </div>
+                        <Show when={isExpanded()}>
+                          <div class="flex flex-col gap-0.5">
+                            <ProjectTaskList
+                              project={proj}
+                              sidebarExpanded={() => store.workspaceSidebarExpanded}
+                              prefetchSession={prefetchSession}
+                              archiveSession={archiveSession}
+                              filter={taskFilter}
+                              archived={projectArchived}
+                              sortNow={sortNow}
+                            />
+                          </div>
+                        </Show>
+                      </div>
+                    )
+                  }}
+                </For>
+              </div>
+            </Show>
+
+            <div
+              class="shrink-0 px-3 py-3"
+              classList={{
+                hidden: store.gettingStartedDismissed || !(providers.all().length > 0 && providers.paid().length === 0),
+              }}
+            >
+              <div class="rounded-xl bg-background-base shadow-xs-border-base" data-component="getting-started">
+                <div class="p-3 flex flex-col gap-6">
+                  <div class="flex flex-col gap-2">
+                    <div class="text-14-medium text-text-strong">{language.t("sidebar.gettingStarted.title")}</div>
+                    <div class="text-14-regular text-text-base" style={{ "line-height": "var(--line-height-normal)" }}>
+                      {language.t("sidebar.gettingStarted.line1")}
+                    </div>
+                    <div class="text-14-regular text-text-base" style={{ "line-height": "var(--line-height-normal)" }}>
+                      {language.t("sidebar.gettingStarted.line2")}
+                    </div>
+                  </div>
+                  <div data-component="getting-started-actions">
+                    <Button size="large" icon="plus-small" onClick={connectProvider}>
+                      {language.t("command.provider.connect")}
+                    </Button>
+                    <Button size="large" variant="ghost" onClick={() => setStore("gettingStartedDismissed", true)}>
+                      {language.t("toast.update.action.notYet")}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 侧栏 footer：原来挤在顶部那圈竖排菜单里的入口，按 ZCode 的组织方式沉到底部。 */}
+            <div class="shrink-0 border-t border-border-weaker-base p-2 flex flex-col gap-0.5">
               <ModeSwitchButton fullWidth onSelect={(mode) => layout.mode.select(mode.id)} />
               <ThemeSchemeToggle />
               <Show when={settings.general.showDatabase()}>
@@ -2139,208 +2378,28 @@ export default function Layout(props: ParentProps) {
               />
             </div>
           </div>
-          <div class="flex items-center gap-1">
-            <div class="flex items-center gap-0.5 rounded-md bg-surface-raised-base border border-border-weak-base p-0.5">
+
+          {/* 文件树层：整层 slide-over，顶部一条返回条。 */}
+          <div
+            class="absolute inset-0 flex min-h-0 flex-col transition-transform duration-200 ease-out"
+            classList={{ "translate-x-full pointer-events-none": !treeOpen() }}
+            aria-hidden={!treeOpen()}
+          >
+            <div class="flex h-9 shrink-0 items-center gap-1 border-b border-border-weaker-base px-2">
               <button
-                classList={{
-                  "px-2.5 py-1 rounded-[5px] text-ui-caption transition-colors": true,
-                  "bg-text-interactive-base text-background-base": layout.sidebarView.current() === "tasks",
-                  "text-text-weak hover:text-text-base": layout.sidebarView.current() !== "tasks",
-                }}
+                type="button"
+                class="flex items-center gap-1 text-ui-caption text-text-weak transition-colors hover:text-text-base"
                 onClick={() => layout.sidebarView.set("tasks")}
               >
-                {language.t("sidebar.view.tasks")}
-              </button>
-              <button
-                classList={{
-                  "px-2.5 py-1 rounded-[5px] text-ui-caption transition-colors": true,
-                  "bg-text-interactive-base text-background-base": layout.sidebarView.current() === "tree",
-                  "text-text-weak hover:text-text-base": layout.sidebarView.current() !== "tree",
-                }}
-                onClick={() => layout.sidebarView.set("tree")}
-              >
-                {language.t("sidebar.view.files")}
+                <Icon name="arrow-left" size="small" />
+                {language.t("sidebar.backToTasks")}
               </button>
             </div>
-            <div class="ml-auto flex items-center gap-0.5">
-              <IconButton
-                icon="magnifying-glass"
-                variant="ghost"
-                size="small"
-                aria-label={language.t("sidebar.search")}
-                onClick={() => command.trigger("file.open")}
+            <div class="min-h-0 flex-1">
+              <SidebarFiles
+                directory={treeDirectory()}
+                sessionKey={() => `${params.dir}${params.id ? "/" + params.id : ""}`}
               />
-              <IconButton
-                icon="plus"
-                variant="ghost"
-                size="small"
-                aria-label={language.t("command.project.open")}
-                onClick={() => chooseProject()}
-              />
-              <Tooltip value={language.t("sidebar.workspaceSidebar.collapse")} placement="bottom">
-                <IconButton
-                  icon="chevron-left"
-                  variant="ghost"
-                  size="small"
-                  aria-label={language.t("sidebar.workspaceSidebar.collapse")}
-                  onClick={() => setStore("workspaceSidebarExpanded", false)}
-                />
-              </Tooltip>
-            </div>
-          </div>
-        </div>
-        <Show when={layout.sidebarView.current() === "tasks"}>
-          <TaskFilterBar
-            filter={taskFilter()}
-            variant="text"
-            onChange={(id) => {
-              if (id !== "projects") {
-                setTaskFilter(id)
-                if (id === "archived") loadArchived()
-              }
-            }}
-          />
-        </Show>
-
-        <Show when={layout.sidebarView.current() === "tree"}>
-          <div class="flex items-center px-2 pb-1">
-            <button
-              class="flex items-center gap-1 text-ui-caption text-text-weak hover:text-text-base transition-colors"
-              onClick={() => layout.sidebarView.set("tasks")}
-            >
-              <Icon name="arrow-left" size="small" />
-              {language.t("sidebar.backToTasks")}
-            </button>
-          </div>
-        </Show>
-
-        <Show
-          when={projectList().length > 0}
-          fallback={
-            <div class="flex-1 min-h-0 flex items-center justify-center px-6 pb-64 text-center">
-              <div class="mt-8 flex max-w-60 flex-col items-center gap-4 text-center">
-                <div class="text-14-medium text-text-strong">{language.t("sidebar.empty.title")}</div>
-                <div class="text-14-regular text-text-base">{language.t("sidebar.empty.description")}</div>
-                <Button size="large" icon="folder-add-left" onClick={chooseProject}>
-                  {language.t("command.project.open")}
-                </Button>
-              </div>
-            </div>
-          }
-        >
-          <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar px-2 pb-3 [overflow-anchor:none]">
-            <For each={projectList()}>
-              {(proj) => {
-                const [isExpanded, setIsExpanded] = createSignal(store.workspaceExpanded[proj.worktree] ?? true)
-                const projectArchived = () =>
-                  [proj.worktree, ...(proj.sandboxes ?? [])].flatMap((directory) => archived()[directory] ?? [])
-                const tasks = useProjectTaskList({
-                  project: proj,
-                  filter: taskFilter,
-                  archived: projectArchived,
-                  sortNow,
-                })
-                const projectName = () => proj.name || getFilename(proj.worktree)
-                const toggleExpand = () => {
-                  const next = !isExpanded()
-                  setIsExpanded(next)
-                  setStore("workspaceExpanded", proj.worktree, next)
-                }
-                return (
-                  <div class="mt-1">
-                    <div
-                      classList={{
-                        "group flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-colors hover:bg-surface-base-hover": true,
-                        "bg-surface-base-active": pathKey(proj.worktree) === treeKey(),
-                      }}
-                    >
-                      <button
-                        aria-label={
-                          isExpanded() ? language.t("sidebar.project.collapse") : language.t("sidebar.project.expand")
-                        }
-                        onClick={toggleExpand}
-                      >
-                        <Icon name={isExpanded() ? "chevron-down" : "chevron-right"} size="small" />
-                      </button>
-                      <Icon name="folder" size="small" class="shrink-0 text-icon-base" />
-                      <span
-                        class="text-ui-caption text-text-strong font-medium truncate flex-1 min-w-0"
-                        onClick={() => navigateToProject(proj.worktree)}
-                      >
-                        {projectName()}
-                      </span>
-                      <span class="text-ui-xs text-text-weak shrink-0">
-                        {language.t("sidebar.project.count", { count: tasks().length })}
-                      </span>
-                      <IconButton
-                        icon="plus-small"
-                        variant="ghost"
-                        size="small"
-                        aria-label={language.t("sidebar.newTask")}
-                        class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                        onClick={() => navigateWithSidebarReset(`/${base64Encode(proj.worktree)}/session`)}
-                      />
-                      <ProjectMenu project={proj} ctx={projectSidebarCtx} />
-                    </div>
-                    <Show
-                      when={
-                        layout.sidebarView.current() === "tasks" ? isExpanded() : pathKey(proj.worktree) === treeKey()
-                      }
-                    >
-                      <div class="flex flex-col gap-0.5">
-                        <Show
-                          when={layout.sidebarView.current() === "tasks"}
-                          fallback={
-                            <SidebarFiles
-                              directory={proj.worktree}
-                              sessionKey={() => `${params.dir}${params.id ? "/" + params.id : ""}`}
-                            />
-                          }
-                        >
-                          <ProjectTaskList
-                            project={proj}
-                            sidebarExpanded={() => store.workspaceSidebarExpanded}
-                            prefetchSession={prefetchSession}
-                            archiveSession={archiveSession}
-                            filter={taskFilter}
-                            archived={projectArchived}
-                            sortNow={sortNow}
-                          />
-                        </Show>
-                      </div>
-                    </Show>
-                  </div>
-                )
-              }}
-            </For>
-          </div>
-        </Show>
-
-        <div
-          class="shrink-0 px-3 py-3"
-          classList={{
-            hidden: store.gettingStartedDismissed || !(providers.all().length > 0 && providers.paid().length === 0),
-          }}
-        >
-          <div class="rounded-xl bg-background-base shadow-xs-border-base" data-component="getting-started">
-            <div class="p-3 flex flex-col gap-6">
-              <div class="flex flex-col gap-2">
-                <div class="text-14-medium text-text-strong">{language.t("sidebar.gettingStarted.title")}</div>
-                <div class="text-14-regular text-text-base" style={{ "line-height": "var(--line-height-normal)" }}>
-                  {language.t("sidebar.gettingStarted.line1")}
-                </div>
-                <div class="text-14-regular text-text-base" style={{ "line-height": "var(--line-height-normal)" }}>
-                  {language.t("sidebar.gettingStarted.line2")}
-                </div>
-              </div>
-              <div data-component="getting-started-actions">
-                <Button size="large" icon="plus-small" onClick={connectProvider}>
-                  {language.t("command.provider.connect")}
-                </Button>
-                <Button size="large" variant="ghost" onClick={() => setStore("gettingStartedDismissed", true)}>
-                  {language.t("toast.update.action.notYet")}
-                </Button>
-              </div>
             </div>
           </div>
         </div>
@@ -2351,6 +2410,31 @@ export default function Layout(props: ParentProps) {
   const projects = () => layout.projects.list()
   const isPulseMode = createMemo(() => layout.mode.current() === "pulse")
   const showSidebar = createMemo(() => !isPulseMode())
+
+  // 应用内前进/后退历史。原来由全局标题栏承载的两个导航按钮随标题栏移除，逻辑挪到外壳层，
+  // 只保留命令入口（command.register 里的 common.goBack / common.goForward）。
+  const [navHistory, setNavHistory] = createStore<TitlebarHistory>({ stack: [], index: -1, action: undefined })
+  createEffect(() => {
+    const current = `${location.pathname}${location.search}${location.hash}`
+    untrack(() => {
+      const next = applyPath(navHistory, current)
+      if (next === navHistory) return
+      setNavHistory(next)
+    })
+  })
+  const goBack = () => {
+    const next = backPath(navHistory)
+    if (!next) return
+    setNavHistory(next.state)
+    navigate(next.to)
+  }
+  const goForward = () => {
+    const next = forwardPath(navHistory)
+    if (!next) return
+    setNavHistory(next.state)
+    navigate(next.to)
+  }
+
   const sidebarContent = (mobile?: boolean) => (
     <SidebarContent
       mobile={mobile}
@@ -2374,7 +2458,8 @@ export default function Layout(props: ParentProps) {
       data-workspace-panel-radius={workspacePanelRadiusPx(platform.os)}
     >
       {autoselecting() ?? ""}
-      <Titlebar settingsOpen={state.settings.open} databaseOpen={state.databasePage.open} />
+      {/* 全局标题栏已移除：窗口顶部不再有独立 chrome，身份/导航/操作分别落在
+          侧栏顶带（品牌 + 收起）与会话帧内的 WorkspaceHeader（标题 + 操作）。 */}
       <div class="flex-1 min-h-0 min-w-0 flex">
         <div class="flex-1 min-h-0 relative">
           <div class="size-full relative overflow-x-hidden">
