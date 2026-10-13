@@ -1,5 +1,38 @@
 @import "@novaway/ui/styles/tailwind";
 
+/* 窗口拖拽区。
+ *
+ * 桌面端没有全局标题栏之后，窗口靠各面板自己的顶带拖动（侧栏顶带、会话帧 Header）。
+ * 用 Chromium 的 app-region 而不是 Electron IPC：`-webkit-app-region: drag` 是 frameless
+ * 窗口的原生拖拽路径，不经过 JS，拖动跟手且不会因为渲染进程卡顿而丢帧。
+ *
+ * 拖拽区内的可交互元素必须显式退出拖拽，否则点击会被当成拖窗口（按钮点不动）。
+ * 这里用选择器自动排除，与 Titlebar 里 interactive() 的判断口径保持一致。
+ */
+[data-window-drag] {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+[data-window-drag]
+  :is(
+    button,
+    a,
+    input,
+    textarea,
+    select,
+    option,
+    label,
+    [role="button"],
+    [role="menuitem"],
+    [role="tab"],
+    [contenteditable="true"],
+    [contenteditable=""]
+  ) {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
 @font-face {
   font-family: "JetBrainsMono Nerd Font Mono";
   src: url("/assets/JetBrainsMonoNerdFontMono-Regular.woff2") format("woff2");
