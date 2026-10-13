@@ -16,6 +16,16 @@ const REFRESH_INTERVAL = 5000
 
 const mergeKind = (a: Kind | undefined, b: Kind): Kind => (!a || a === b ? b : "mix")
 
+// 「仅变更」必须对每一层都成立。只看根层的话，展开子目录后未变更的文件会整片露出来，
+// 过滤开关看起来就像没生效。条目自身在变更清单里、或有变更文件挂在它下面（前缀命中）才算可见。
+export function isVisibleEntry(path: string, changed: ReadonlySet<string>): boolean {
+  const normalized = path.replaceAll("\\", "/")
+  if (changed.has(normalized)) return true
+  const prefix = `${normalized}/`
+  for (const file of changed) if (file.startsWith(prefix)) return true
+  return false
+}
+
 export function SidebarFiles(props: { directory: string; sessionKey: () => string }) {
   const language = useLanguage()
   const layout = useLayout()
@@ -122,11 +132,15 @@ export function SidebarFiles(props: { directory: string; sessionKey: () => strin
 
   const rootEntries = () => openDirs()[""] ?? []
 
-  const visibleRoot = () => {
-    if (!onlyChanged()) return rootEntries()
-    const changed = new Set(changedFiles().map((file) => file.replaceAll("\\", "/").split("/")[0]))
-    return rootEntries().filter((entry) => changed.has(entry.path.split("/")[0]))
+  const changedPaths = createMemo(() => new Set(changedFiles().map((file) => file.replaceAll("\\", "/"))))
+
+  const visible = (entries: Entry[]) => {
+    if (!onlyChanged()) return entries
+    const changed = changedPaths()
+    return entries.filter((entry) => isVisibleEntry(entry.path, changed))
   }
+
+  const visibleRoot = () => visible(rootEntries())
 
   const EntryRow = (p: { entry: Entry; depth: number }) => {
     const kind = () => kinds().get(p.entry.path)
@@ -159,7 +173,9 @@ export function SidebarFiles(props: { directory: string; sessionKey: () => strin
           </Show>
         </button>
         <Show when={isOpen()}>
-          <For each={openDirs()[p.entry.path] ?? []}>{(child) => <EntryRow entry={child} depth={p.depth + 1} />}</For>
+          <For each={visible(openDirs()[p.entry.path] ?? [])}>
+            {(child) => <EntryRow entry={child} depth={p.depth + 1} />}
+          </For>
         </Show>
       </div>
     )
@@ -169,10 +185,18 @@ export function SidebarFiles(props: { directory: string; sessionKey: () => strin
     <div class="flex size-full min-h-0 flex-col">
       <div class="flex h-9 shrink-0 items-center gap-2 border-b border-border-weak-base px-2">
         <span class="flex-1 text-ui-caption text-text-strong">{language.t("sidebar.tree.title")}</span>
-        <label class="flex cursor-pointer items-center gap-1.5 text-ui-xs text-text-weak">
-          {language.t("sidebar.tree.onlyChanged")}
-          <Switch checked={onlyChanged()} onChange={setOnlyChanged} />
-        </label>
+        {/* 不要再用手写 <label> 包 Switch：label 没写 for 时会绑定到 Kobalte 藏起来的
+            <input type="checkbox">，点开关的 Control（一个 div，见 Kobalte 的 switch-control.tsx）
+            会先 toggle 一次，冒泡到 label 后再补发一次合成点击把它翻回来，两次抵消 = 开关永远点不动。
+            文案改由 Switch 自己的 Label 承载（hideLabel 只给读屏用），可见文字单独放 span。 */}
+        <div class="flex items-center gap-1.5 text-ui-xs text-text-weak">
+          <span class="cursor-pointer select-none" onClick={() => setOnlyChanged(!onlyChanged())}>
+            {language.t("sidebar.tree.onlyChanged")}
+          </span>
+          <Switch checked={onlyChanged()} onChange={setOnlyChanged} hideLabel>
+            {language.t("sidebar.tree.onlyChanged")}
+          </Switch>
+        </div>
       </div>
       <div class="min-h-0 flex-1 overflow-y-auto no-scrollbar py-1">
         <Show

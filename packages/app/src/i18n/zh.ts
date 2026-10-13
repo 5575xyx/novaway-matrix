@@ -25,8 +25,8 @@ export const dict = {
   "theme.scheme.system": "系统",
   "theme.scheme.light": "浅色",
   "theme.scheme.dark": "深色",
-  "theme.toggle.dark": "切换为深色模式",
-  "theme.toggle.light": "切换为浅色模式",
+  "theme.toggle.dark": "深色模式",
+  "theme.toggle.light": "浅色模式",
 
   "command.sidebar.toggle": "切换侧边栏",
   "command.home.open": "打开首页",
@@ -731,6 +731,9 @@ export const dict = {
   "terminal.close": "关闭终端",
   "terminal.connectionLost.title": "连接已丢失",
   "terminal.connectionLost.description": "终端连接已中断。这可能发生在服务器重启时。",
+  "terminal.connectError.title": "连接失败",
+  "terminal.connectError.description": "终端无法连接。",
+  "terminal.connectError.retry": "重新连接",
 
   "common.closeTab": "关闭标签页",
   "common.dismiss": "忽略",
@@ -748,6 +751,7 @@ export const dict = {
 
   "sidebar.menu.toggle": "切换菜单",
   "sidebar.nav.projectsAndSessions": "项目和任务",
+  "sidebar.database": "数据库",
   "sidebar.settings": "设置",
   "sidebar.help": "帮助",
   "sidebar.search": "搜索",
@@ -787,6 +791,7 @@ export const dict = {
   "sidebar.filter.running": "运行中",
   "sidebar.filter.waiting": "待确认",
   "sidebar.filter.archived": "已归档",
+  "sidebar.filter.empty": "没有匹配的任务",
   "sidebar.tree.title": "文件",
   "sidebar.tree.onlyChanged": "仅变更",
   "sidebar.tree.changes": "{{count}} 个变更",

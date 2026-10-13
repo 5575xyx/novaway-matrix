@@ -414,7 +414,13 @@ const main = Effect.gen(function* () {
         userDataPath: app.getPath("userData"),
         onSqliteProgress: (progress) => initEmitter.emit("sqlite", progress),
         onStdout: (message) => logger.log("sidecar stdout", { message }),
-        onStderr: (message) => logger.warn("sidecar stderr", { message }),
+        onStderr: (message) => {
+          // Windows ConPTY 的 console-list agent 在 AttachConsole 失败时会把整个栈打到
+          // stderr;node-pty 对它有 5 秒超时兜底(回退成 shell pid),不影响终端功能,
+          // 每次关终端刷一条纯属噪音,这里过滤掉。
+          if (/conpty_console_list_agent|AttachConsole failed/u.test(message)) return
+          logger.warn("sidecar stderr", { message })
+        },
         onExit: (code) => logger.warn("sidecar exited", { code }),
       }),
     )

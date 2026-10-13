@@ -412,7 +412,7 @@ export const SettingsKeybinds: Component = () => {
                 <SettingsList>
                   <For each={filtered().get(group) ?? []}>
                     {(id) => (
-                      <div class="flex items-center justify-between gap-4 py-3 border-b border-border-weak-base last:border-none">
+                      <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
                         <span class="text-14-regular text-text-strong">{title(id)}</span>
                         <button
                           type="button"

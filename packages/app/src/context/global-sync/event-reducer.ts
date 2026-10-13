@@ -66,8 +66,10 @@ export function cleanupDroppedSessionCaches(
   setStore: SetStoreFunction<State>,
   next: Session[],
   setSessionTodo?: (sessionID: string, todos: Todo[] | undefined) => void,
+  preserve?: Iterable<string>,
 ) {
-  const keep = new Set(next.map((item) => item.id))
+  // preserve:用户正在查看的会话。列表只是显示窗口(store.limit 初始仅 5),不该拿它决定缓存生死。
+  const keep = new Set([...next.map((item) => item.id), ...(preserve ?? [])])
   const stale = [
     ...Object.keys(store.message),
     ...Object.keys(store.session_diff),
@@ -100,6 +102,7 @@ export function applyDirectoryEvent(input: {
   loadProviders?: () => void
   vcsCache?: VcsCache
   setSessionTodo?: (sessionID: string, todos: Todo[] | undefined) => void
+  pinnedSessions?: Iterable<string>
 }) {
   const event = input.event
   switch (event.type) {
@@ -123,7 +126,7 @@ export function applyDirectoryEvent(input: {
       next.splice(result.index, 0, info)
       const trimmed = trimSessions(next, { limit: input.store.limit, permission: input.store.permission })
       input.setStore("session", reconcile(trimmed, { key: "id" }))
-      cleanupDroppedSessionCaches(input.store, input.setStore, trimmed, input.setSessionTodo)
+      cleanupDroppedSessionCaches(input.store, input.setStore, trimmed, input.setSessionTodo, input.pinnedSessions)
       if (!info.parentID) input.setStore("sessionTotal", (value) => value + 1)
       break
     }
@@ -153,7 +156,7 @@ export function applyDirectoryEvent(input: {
       next.splice(result.index, 0, info)
       const trimmed = trimSessions(next, { limit: input.store.limit, permission: input.store.permission })
       input.setStore("session", reconcile(trimmed, { key: "id" }))
-      cleanupDroppedSessionCaches(input.store, input.setStore, trimmed, input.setSessionTodo)
+      cleanupDroppedSessionCaches(input.store, input.setStore, trimmed, input.setSessionTodo, input.pinnedSessions)
       break
     }
     case "session.deleted": {

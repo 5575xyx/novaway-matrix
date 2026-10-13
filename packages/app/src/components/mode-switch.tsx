@@ -4,7 +4,7 @@ import { Icon } from "@novaway/ui/icon"
 import { useLanguage } from "@/context/language"
 import { useLayout, type AppModeConfig } from "@/context/layout"
 
-export function ModeSwitchButton(props: { onSelect: (mode: AppModeConfig) => void }) {
+export function ModeSwitchButton(props: { onSelect: (mode: AppModeConfig) => void; fullWidth?: boolean }) {
   const layout = useLayout()
   const language = useLanguage()
   const current = () => layout.mode.all.find((m) => m.id === layout.mode.current())
@@ -12,7 +12,12 @@ export function ModeSwitchButton(props: { onSelect: (mode: AppModeConfig) => voi
   return (
     <DropdownMenu placement="bottom" gutter={8}>
       <DropdownMenu.Trigger
-        class="flex h-8 items-center gap-2 rounded-md border border-border-weak-base bg-surface-base px-2 text-ui-caption text-text-strong transition-colors hover:bg-surface-base-hover data-[expanded]:border-border-active"
+        classList={{
+          "flex items-center gap-2 rounded-md px-2 text-ui-base font-medium text-text-strong transition-colors": true,
+          "h-8 border border-border-weak-base bg-surface-base hover:bg-surface-base-hover data-[expanded]:border-border-active":
+            !props.fullWidth,
+          "w-full py-1.5 hover:bg-surface-raised-base-hover data-[expanded]:bg-surface-raised-base": !!props.fullWidth,
+        }}
         aria-label={language.t("mode.switch.ariaLabel")}
       >
         <Show

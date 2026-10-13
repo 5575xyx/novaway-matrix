@@ -319,6 +319,9 @@ export type TuiThemeCurrent = {
   readonly border: RGBA
   readonly borderActive: RGBA
   readonly borderSubtle: RGBA
+  readonly neonStart: RGBA
+  readonly neonMid: RGBA
+  readonly neonEnd: RGBA
   readonly diffAdded: RGBA
   readonly diffRemoved: RGBA
   readonly diffContext: RGBA

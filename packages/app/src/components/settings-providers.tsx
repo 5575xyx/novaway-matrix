@@ -195,7 +195,7 @@ export const SettingsProviders: Component = () => {
                 {(item) => {
                   const entries = authEntries[item.id]
                   return (
-                    <div class="group py-3 border-b border-border-weak-base last:border-none">
+                    <div class="group rounded-lg border border-border-weak-base bg-surface-base p-3">
                       <div class="flex flex-wrap items-center justify-between gap-4 min-h-8">
                         <div class="flex items-center gap-3 min-w-0">
                           <ProviderIcon id={item.id} class="size-5 shrink-0 icon-strong-base" />

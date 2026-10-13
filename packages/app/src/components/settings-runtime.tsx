@@ -3236,7 +3236,7 @@ const RuntimeRow: Component<{
   footer?: JSX.Element
   actions?: JSX.Element
 }> = (props) => (
-  <div class="flex items-center justify-between gap-4 min-h-16 py-3 border-b border-border-weak-base last:border-none">
+  <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
     <div class="flex items-start gap-3 min-w-0 flex-1">
       <Icon name={props.icon} class="size-5 shrink-0 icon-strong-base mt-0.5" />
       <div class="flex flex-col min-w-0">
@@ -3371,7 +3371,7 @@ const McpRow: Component<{
   const configurable = () => !!props.onEdit || !!props.onDelete
 
   return (
-    <div class="flex flex-wrap items-center justify-between gap-4 min-h-16 py-3 border-b border-border-weak-base last:border-none">
+    <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
       <div class="flex items-start gap-3 min-w-0">
         <Icon name="mcp" class="size-5 shrink-0 icon-strong-base mt-0.5" />
         <div class="flex flex-col min-w-0">

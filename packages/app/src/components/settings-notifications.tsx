@@ -16,7 +16,7 @@ function SettingsRow(props: {
   disabled?: boolean
 }) {
   return (
-    <div class="flex items-center justify-between gap-4 border-b border-border-weak-base px-4 py-3 last:border-b-0">
+    <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
       <div class="min-w-0">
         <div class="text-12-medium text-text-strong">{props.title}</div>
         <div class="mt-1 text-11-regular leading-relaxed text-text-weak">{props.description}</div>

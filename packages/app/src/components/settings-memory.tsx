@@ -650,7 +650,7 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
         <div>
           <SectionTitle title={language.t("settings.memory.section.config" as never)} />
           <SettingsList>
-            <div class="flex items-center justify-between gap-4 py-3 border-b border-border-weak-base">
+            <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
               <div class="flex flex-col gap-1">
                 <span class="text-14-medium text-text-strong">
                   {language.t("settings.memory.config.enabled.title" as never)}
@@ -668,7 +668,7 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
                 {language.t("settings.memory.config.enabled.title" as never)}
               </Switch>
             </div>
-            <div class="flex items-center justify-between gap-4 py-3 border-b border-border-weak-base">
+            <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
               <div class="flex flex-col gap-1">
                 <span class="text-14-medium text-text-strong">
                   {language.t("settings.memory.config.review.title" as never)}
@@ -686,7 +686,7 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
                 {language.t("settings.memory.config.review.title" as never)}
               </Switch>
             </div>
-            <div class="flex items-center justify-between gap-4 py-3 border-b border-border-weak-base">
+            <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
               <div class="flex flex-col gap-1">
                 <span class="text-14-medium text-text-strong">
                   {language.t("settings.memory.config.llm.title" as never)}
@@ -740,7 +740,7 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
             description={language.t("settings.memory.retrieval.guide.body" as never)}
           />
           <SettingsList>
-            <div class="flex flex-col gap-3 py-3 border-b border-border-weak-base">
+            <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
               <div class="flex flex-col gap-1">
                 <span class="text-14-medium text-text-strong">
                   {language.t("settings.memory.retrieval.guide.title" as never)}
@@ -942,7 +942,7 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
               <Show when={(relations.data?.length ?? 0) > 0} fallback={<EmptyState message="暂无关系记录" />}>
                 <For each={relations.data}>
                   {(relation) => (
-                    <div class="flex flex-wrap items-center gap-2 py-3 border-b border-border-weak-base last:border-none">
+                    <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
                       <Tag>{relation.source}</Tag>
                       <span class="text-12-medium text-text-weak">{relation.relation}</span>
                       <Tag>{relation.target}</Tag>
@@ -973,7 +973,7 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
               <Show when={filteredEntries().length > 0} fallback={<EmptyState message="暂无已写入记忆" />}>
                 <For each={filteredEntries()}>
                   {(item) => (
-                    <div class="flex items-start justify-between gap-4 py-3 border-b border-border-weak-base last:border-none">
+                    <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
                       <div class="min-w-0 flex flex-col gap-1">
                         <div class="flex flex-wrap items-center gap-2">
                           <span class="text-14-medium text-text-strong break-words">
