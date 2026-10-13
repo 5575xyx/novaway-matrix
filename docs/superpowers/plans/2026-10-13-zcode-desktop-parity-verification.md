@@ -58,6 +58,21 @@
    依赖 `window.__TAURI__`（Electron preload 不提供），恒为空操作；且办公模式（zen/pulse）既无侧栏
    也无会话帧 Header。现改为 `app-region` 原生拖拽，并给办公模式补 `OfficeWindowBand`。
 
+## 闪烁修复在真实 Electron 上的复核（关键）
+
+修复前（旧构建，CDP 挂 Electron @9222，35s）：
+
+- `L2c lazy-session suspended` 41 次，启动后稳定 5.0–5.5s 一拍
+- 会话页根节点 `<div class="…flex flex-col p-1 gap-1">` 25s 内被摘 9 次
+
+修复后（本次构建，CDP 挂 Electron @9222，**45s**）：
+
+- 根节点被摘次数 **0**（`{"rips":[]}`）
+- Solid 内核探针输出 **0**
+- 附：修复后同一观察窗内 Web 构建的 `SUSPEND`/`LOAD` 也均为 0
+
+结论：用户报告的「桌面端每隔几秒闪一下」在真实桌面端已消除。
+
 ## 遗留（Round 2 候选）
 
 | 项                                  | 说明                                                                                                 |
