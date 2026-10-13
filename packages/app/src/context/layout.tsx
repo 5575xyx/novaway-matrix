@@ -15,7 +15,8 @@ import { createPathHelpers } from "./file/path"
 import { pathKey } from "@/utils/path-key"
 
 const AVATAR_COLOR_KEYS = ["pink", "mint", "orange", "purple", "cyan", "lime"] as const
-const DEFAULT_SIDEBAR_WIDTH = 280
+// 对齐 ZCode 侧栏宽度规格：default = min = 264px，max 为容器 50%，键盘步进 16px。
+const DEFAULT_SIDEBAR_WIDTH = 264
 const DEFAULT_SESSION_WIDTH = 600
 const DEFAULT_TERMINAL_HEIGHT = 280
 const DEFAULT_SIDE_PANE_WIDTH = 360

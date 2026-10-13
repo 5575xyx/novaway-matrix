@@ -1,76 +1,65 @@
+/* 工作区拖拽热区。
+ *
+ * 规格来源：ZCode `docs/design/workspace-independent-panels.md` —— 面板之间保留 4px 透明间距，
+ * 间距承载 resize handle；热区透明、指示线 2px、颜色用第三层文字色再降到 50% 不透明度；
+ * 默认隐藏，hover / 键盘聚焦 / 拖动时显示；指示线沿面板边缘延伸，两端按面板圆角内缩且端点圆润。
+ *
+ * 圆角用 `--workspace-panel-radius`（由工作区外壳按平台写入，缺省 12px 对应 Web/Linux）。
+ */
 [data-component="resize-handle"] {
   position: absolute;
   z-index: 10;
 
-  &::after {
-    content: "";
-    position: absolute;
-    opacity: 0;
-    transition: opacity 0.15s ease-in-out;
-  }
-
-  &:hover::after,
-  &:active::after {
-    opacity: 1;
-  }
-
+  /* 4px 透明热区，正好落在帧间距里，不占面板宽度 */
   &[data-direction="horizontal"] {
     inset-block: 0;
     inset-inline-end: 0;
-    width: 8px;
-    transform: translateX(50%);
+    width: 4px;
     cursor: col-resize;
 
     &[data-edge="start"] {
       inset-inline-start: 0;
       inset-inline-end: auto;
-      transform: translateX(-50%);
-    }
-
-    &::after {
-      width: 1px;
-      inset-block: 0;
-      inset-inline-start: 50%;
-      transform: translateX(-50%);
-      background: #b8c8dc;
-      opacity: 0.6;
-    }
-
-    &:hover::after,
-    &:active::after {
-      width: 3px;
-      background: #2563eb;
-      opacity: 1;
     }
   }
 
   &[data-direction="vertical"] {
     inset-inline: 0;
     inset-block-start: 0;
-    height: 8px;
-    transform: translateY(-50%);
+    height: 4px;
     cursor: row-resize;
 
     &[data-edge="end"] {
       inset-block-start: auto;
       inset-block-end: 0;
-      transform: translateY(50%);
     }
+  }
 
-    &::after {
-      height: 1px;
-      inset-inline: 0;
-      inset-block-start: 50%;
-      transform: translateY(-50%);
-      background: #b8c8dc;
-      opacity: 0.6;
-    }
+  /* 指示线：默认透明，不参与布局；两端按面板圆角内缩，端点圆润 */
+  &::after {
+    content: "";
+    position: absolute;
+    opacity: 0;
+    border-radius: 9999px;
+    background: color-mix(in oklab, var(--text-weaker) 50%, transparent);
+    transition: opacity 0.15s ease-in-out;
+  }
 
-    &:hover::after,
-    &:active::after {
-      height: 3px;
-      background: #2563eb;
-      opacity: 1;
-    }
+  &[data-direction="horizontal"]::after {
+    inset-block: var(--workspace-panel-radius, 12px);
+    inset-inline-start: 1px;
+    width: 2px;
+  }
+
+  &[data-direction="vertical"]::after {
+    inset-inline: var(--workspace-panel-radius, 12px);
+    inset-block-start: 1px;
+    height: 2px;
+  }
+
+  &:hover::after,
+  &:focus-visible::after,
+  &[data-dragging]::after {
+    opacity: 1;
   }
 }

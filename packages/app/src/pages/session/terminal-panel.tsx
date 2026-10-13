@@ -4,6 +4,7 @@ import { makeEventListener } from "@solid-primitives/event-listener"
 import { Tabs } from "@novaway/ui/tabs"
 import { ResizeHandle } from "@novaway/ui/resize-handle"
 import { IconButton } from "@novaway/ui/icon-button"
+import { Button } from "@novaway/ui/button"
 import { TooltipKeybind } from "@novaway/ui/tooltip"
 import { DragDropProvider, DragDropSensors, DragOverlay, SortableProvider, closestCenter } from "@thisbeyond/solid-dnd"
 import type { DragEvent } from "@thisbeyond/solid-dnd"
@@ -199,7 +200,7 @@ export function TerminalPanel(props: { variant?: "frame" | "pane" }) {
       aria-label={language.t("terminal.title")}
       aria-hidden={!opened()}
       inert={!opened()}
-      class="relative w-full shrink-0 overflow-hidden bg-background-stronger rounded-lg"
+      class="relative w-full shrink-0 overflow-hidden bg-background-base rounded-[var(--workspace-panel-radius)]"
       data-component="terminal-frame"
       classList={{
         "border border-border-weak-base": opened(),
@@ -290,6 +291,18 @@ export function TerminalPanel(props: { variant?: "frame" | "pane" }) {
                 </Tabs.List>
               </Tabs>
               <div class="flex-1 min-h-0 relative">
+                <Show when={all().length === 0 && terminal.createError()}>
+                  <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center">
+                    <div class="text-ui-base text-text-strong">{language.t("terminal.connectError.title")}</div>
+                    <div class="text-ui-caption text-text-weak">{language.t("terminal.connectError.description")}</div>
+                    <div class="max-w-full break-all font-mono text-ui-caption text-text-weak">
+                      {terminal.createError()}
+                    </div>
+                    <Button variant="secondary" size="small" onClick={() => terminal.new()}>
+                      {language.t("terminal.connectError.retry")}
+                    </Button>
+                  </div>
+                </Show>
                 <Show when={terminal.active()} keyed>
                   {(id) => {
                     const ops = terminal.bind()

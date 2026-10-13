@@ -32,8 +32,20 @@ export function ResizeHandle(props: ResizeHandleProps) {
     const startSize = local.size
     let current = startSize
 
+    // 拖动期间才显示指示线（规格：默认隐藏，hover / 键盘聚焦 / 拖动时显示）。
+    const el = e.currentTarget instanceof HTMLElement ? e.currentTarget : undefined
+    el?.setAttribute("data-dragging", "")
+
     document.body.style.userSelect = "none"
     document.body.style.overflow = "hidden"
+
+    const finish = () => {
+      el?.removeAttribute("data-dragging")
+      document.body.style.userSelect = ""
+      document.body.style.overflow = ""
+      document.removeEventListener("mousemove", onMouseMove)
+      document.removeEventListener("mouseup", onMouseUp)
+    }
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       const pos = local.direction === "horizontal" ? moveEvent.clientX : moveEvent.clientY
@@ -51,10 +63,7 @@ export function ResizeHandle(props: ResizeHandleProps) {
     }
 
     const onMouseUp = () => {
-      document.body.style.userSelect = ""
-      document.body.style.overflow = ""
-      document.removeEventListener("mousemove", onMouseMove)
-      document.removeEventListener("mouseup", onMouseUp)
+      finish()
 
       const threshold = local.collapseThreshold ?? 0
       if (local.onCollapse && threshold > 0 && current < threshold) {

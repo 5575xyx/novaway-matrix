@@ -14,6 +14,7 @@ import {
   createResource,
   createSignal,
   For,
+  Suspense,
 } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { createMediaQuery } from "@solid-primitives/media"
@@ -1890,7 +1891,7 @@ export default function Page() {
 
             {/* Session panel */}
             <div
-              class="@container relative flex-1 min-h-0 flex flex-col rounded-lg border border-border-weak-base bg-background-stronger overflow-hidden"
+              class="@container relative flex-1 min-h-0 flex flex-col rounded-[var(--workspace-panel-radius)] border border-border-weak-base bg-background-base overflow-hidden"
               data-component="conv-frame"
             >
               <WorkspaceHeader />
@@ -1998,8 +1999,13 @@ export default function Page() {
                   </Show>
                 </div>
 
-                {/* Status Panel — conv-frame 已是 @container，形态由容器宽度裁决 */}
-                <SessionStatusPanel sections={statusSections()} />
+                {/* Status Panel — conv-frame 已是 @container，形态由容器宽度裁决。
+                    面板里挂着 TanStack 查询，区块一旦重建就会新建查询资源并挂起；
+                    没有这层边界时，挂起会被会话页外层的 Suspense 接住，整页闪成空白。
+                    这里就地兜住：面板自己的异步只影响面板，不影响消息区。 */}
+                <Suspense fallback={null}>
+                  <SessionStatusPanel sections={statusSections()} />
+                </Suspense>
               </div>
             </div>
 
