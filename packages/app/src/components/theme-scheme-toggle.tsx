@@ -1,4 +1,3 @@
-import { Tooltip } from "@novaway/ui/tooltip"
 import { useTheme, type ColorScheme } from "@novaway/ui/theme/context"
 import { useLanguage } from "@/context/language"
 
@@ -49,17 +48,19 @@ export function ThemeSchemeToggle() {
     })
   }
 
+  // 侧栏顶部菜单是一行一项的竖排形态:标签直接写在行内,不再靠 tooltip 认功能。
   return (
-    <Tooltip value={title()} placement="bottom">
-      <button
-        type="button"
-        class="group grid size-9 place-items-center rounded-[8px] border border-border-weak-base bg-background-base/80 text-text-base shadow-[0_8px_24px_rgba(15,23,42,0.08)] outline-none transition-all hover:-translate-y-px hover:border-cyan-300/50 hover:bg-cyan-300/10 hover:text-cyan-600 focus-visible:border-cyan-300/70 focus-visible:ring-2 focus-visible:ring-cyan-300/25 active:translate-y-0 active:scale-[0.98] dark:shadow-[0_8px_24px_rgba(0,0,0,0.24)] dark:hover:text-cyan-100"
-        aria-label={title()}
-        onClick={toggle}
-      >
+    <button
+      type="button"
+      class="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-ui-base font-medium text-text-strong transition-colors hover:bg-surface-raised-base-hover"
+      aria-label={title()}
+      onClick={toggle}
+    >
+      <span class="flex size-4 shrink-0 items-center justify-center text-icon-base">
         {isDark() ? <MoonIcon /> : <SunIcon />}
-      </button>
-    </Tooltip>
+      </span>
+      <span class="flex-1 truncate text-left">{title()}</span>
+    </button>
   )
 }
 
@@ -99,7 +100,7 @@ function setRevealMask(element: HTMLElement, x: number, y: number, radius: numbe
 function SunIcon() {
   return (
     <svg
-      class="size-5 transition-transform duration-200 group-hover:rotate-45 group-hover:scale-110"
+      class="size-4 transition-transform duration-200 group-hover:rotate-45 group-hover:scale-110"
       viewBox="0 0 20 20"
       fill="none"
       aria-hidden="true"
@@ -116,7 +117,7 @@ function SunIcon() {
 function MoonIcon() {
   return (
     <svg
-      class="size-5 transition-transform duration-200 group-hover:-rotate-12 group-hover:scale-110"
+      class="size-4 transition-transform duration-200 group-hover:-rotate-12 group-hover:scale-110"
       viewBox="0 0 20 20"
       fill="none"
       aria-hidden="true"

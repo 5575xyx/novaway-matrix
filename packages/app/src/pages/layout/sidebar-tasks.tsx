@@ -10,6 +10,7 @@ import { useNotification } from "@/context/notification"
 import { base64Encode } from "@novaway/core/util/encode"
 import { displaySessionTitle } from "@/utils/session-title"
 import { pathKey } from "@/utils/path-key"
+import { decode64 } from "@/utils/base64"
 import { sessionStatusOf, sortedRootSessionsFrom } from "./helpers"
 import { TaskRow } from "@/components/session/task-row"
 
@@ -37,6 +38,26 @@ export function useProjectSessions(project: LocalProject) {
   return { dirs, stores, sessions }
 }
 
+export function useProjectTaskList(props: {
+  project: LocalProject
+  filter: () => TaskFilter
+  archived: () => Session[] | undefined
+  sortNow: Accessor<number>
+}) {
+  const globalSync = useGlobalSync()
+  const permission = usePermission()
+  const notification = useNotification()
+  const { stores } = useProjectSessions(props.project)
+
+  return createMemo(() => {
+    const filter = props.filter()
+    if (filter === "archived") return (props.archived() ?? []).filter((s) => !!s.time?.archived)
+    const roots = sortedRootSessionsFrom(stores(), props.sortNow())
+    if (filter === "all") return roots
+    return roots.filter((session) => sessionStatusOf(globalSync, permission, notification, session) === filter)
+  })
+}
+
 export function ProjectTaskList(props: {
   project: LocalProject
   sidebarExpanded: () => boolean
@@ -54,39 +75,41 @@ export function ProjectTaskList(props: {
   const params = useParams()
   const navigate = useNavigate()
 
-  const { stores } = useProjectSessions(props.project)
-
-  const sessions = createMemo(() => {
-    const filter = props.filter()
-    if (filter === "archived") return (props.archived() ?? []).filter((s) => !!s.time?.archived)
-    const roots = sortedRootSessionsFrom(stores(), props.sortNow())
-    if (filter === "all") return roots
-    return roots.filter((session) => sessionStatusOf(globalSync, permission, notification, session) === filter)
-  })
+  const sessions = useProjectTaskList(props)
 
   return (
-    <Show when={sessions().length > 0}>
-      <For each={sessions()}>
-        {(session) => {
-          const status = () => sessionStatusOf(globalSync, permission, notification, session)
-          const [child] = globalSync.child(session.directory, { bootstrap: false })
-          return (
-            <TaskRow
-              title={() => displaySessionTitle(session.title, language.t("workspace.header.untitled"))}
-              status={status}
-              branch={() => child.vcs?.branch}
-              updated={() => session.time?.updated}
-              additions={() => session.summary?.additions ?? 0}
-              deletions={() => session.summary?.deletions ?? 0}
-              waitingBadge={() => status() === "waiting"}
-              selected={() => !!params.id && params.id === session.id && pathKey(params.dir ?? "") === pathKey(session.directory)}
-              modeColor={() => appModeConfig(layout.mode.projectMode(session.directory))?.color}
-              onClick={() => navigate(`/${base64Encode(session.directory)}/session/${session.id}`)}
-            />
-          )
-        }}
-      </For>
-    </Show>
+    <>
+      <Show when={props.filter() !== "all" && sessions().length === 0}>
+        <div class="px-2 py-1.5 text-ui-caption text-text-weak">{language.t("sidebar.filter.empty")}</div>
+      </Show>
+      <Show when={sessions().length > 0}>
+        <For each={sessions()}>
+          {(session) => {
+            const status = () => sessionStatusOf(globalSync, permission, notification, session)
+            const [child] = globalSync.child(session.directory, { bootstrap: false })
+            return (
+              <TaskRow
+                title={() => displaySessionTitle(session.title, language.t("workspace.header.untitled"))}
+                status={status}
+                branch={() => child.vcs?.branch}
+                updated={() => session.time?.updated}
+                additions={() => session.summary?.additions ?? 0}
+                deletions={() => session.summary?.deletions ?? 0}
+                waitingBadge={() => status() === "waiting"}
+                selected={() => {
+                  if (!params.id || params.id !== session.id) return false
+                  const directory = decode64(params.dir)
+                  if (!directory) return false
+                  return pathKey(directory) === pathKey(session.directory)
+                }}
+                modeColor={() => appModeConfig(layout.mode.projectMode(session.directory))?.color}
+                onClick={() => navigate(`/${base64Encode(session.directory)}/session/${session.id}`)}
+              />
+            )
+          }}
+        </For>
+      </Show>
+    </>
   )
 }
 
@@ -122,8 +145,10 @@ export function TaskFilterBar(props: {
             classList={{
               "transition-colors": true,
               "border-b-2 -mb-px pb-1.5": variant === "underline",
-              "border-text-interactive-base text-text-strong font-medium": variant === "underline" && props.filter === tab.id,
-              "border-transparent text-text-weak hover:text-text-base": variant === "underline" && props.filter !== tab.id,
+              "border-text-interactive-base text-text-strong font-medium":
+                variant === "underline" && props.filter === tab.id,
+              "border-transparent text-text-weak hover:text-text-base":
+                variant === "underline" && props.filter !== tab.id,
               "text-text-strong font-medium": variant === "text" && props.filter === tab.id,
               "text-text-weak hover:text-text-base": variant === "text" && props.filter !== tab.id,
             }}

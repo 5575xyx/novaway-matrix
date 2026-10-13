@@ -72,9 +72,12 @@ type Variant = {
 type ColorValue = HexColor | RefName | Variant | RGBA | number
 type ThemeJson = {
   defs?: Record<string, HexColor | RefName>
-  theme: Omit<Record<ThemeColor, ColorValue>, "selectedListItemText" | "backgroundMenu"> & {
+  theme: Omit<Record<ThemeColor, ColorValue>, "selectedListItemText" | "backgroundMenu" | "neonStart" | "neonMid" | "neonEnd"> & {
     selectedListItemText?: ColorValue
     backgroundMenu?: ColorValue
+    neonStart?: ColorValue
+    neonMid?: ColorValue
+    neonEnd?: ColorValue
     thinkingOpacity?: number
   }
 }
@@ -269,7 +272,15 @@ export function resolveTheme(theme: ThemeJson, pick: "dark" | "light"): TuiTheme
 
   const resolved = Object.fromEntries(
     Object.entries(theme.theme)
-      .filter(([key]) => key !== "selectedListItemText" && key !== "backgroundMenu" && key !== "thinkingOpacity")
+      .filter(
+        ([key]) =>
+          key !== "selectedListItemText" &&
+          key !== "backgroundMenu" &&
+          key !== "thinkingOpacity" &&
+          key !== "neonStart" &&
+          key !== "neonMid" &&
+          key !== "neonEnd",
+      )
       .map(([key, value]) => [key, resolveColor(value as ColorValue)]),
   ) as Partial<Record<ThemeColor, RGBA>>
 
@@ -281,6 +292,11 @@ export function resolveTheme(theme: ThemeJson, pick: "dark" | "light"): TuiTheme
         : resolveColor(theme.theme.selectedListItemText),
     backgroundMenu:
       theme.theme.backgroundMenu === undefined ? resolved.backgroundElement! : resolveColor(theme.theme.backgroundMenu),
+    // 霓虹渐变三端色:可选 token,未定义时(含 generateSystem 生成的主题)回落到
+    // primary/secondary/accent,内置 JSON 主题一个都不用改。
+    neonStart: theme.theme.neonStart === undefined ? resolved.primary! : resolveColor(theme.theme.neonStart),
+    neonMid: theme.theme.neonMid === undefined ? resolved.secondary! : resolveColor(theme.theme.neonMid),
+    neonEnd: theme.theme.neonEnd === undefined ? resolved.accent! : resolveColor(theme.theme.neonEnd),
     thinkingOpacity: theme.theme.thinkingOpacity ?? 0.6,
   }
 }

@@ -21,8 +21,8 @@ export const dict = {
   "theme.scheme.system": "System",
   "theme.scheme.light": "Light",
   "theme.scheme.dark": "Dark",
-  "theme.toggle.dark": "Switch to dark mode",
-  "theme.toggle.light": "Switch to light mode",
+  "theme.toggle.dark": "Dark mode",
+  "theme.toggle.light": "Light mode",
 
   "command.sidebar.toggle": "Toggle sidebar",
   "command.home.open": "Open home",
@@ -791,6 +791,9 @@ export const dict = {
   "terminal.connectionLost.abnormalClose": "WebSocket closed abnormally: {{code}}",
   "terminal.connectionLost.description":
     "The terminal connection was interrupted. This can happen when the server restarts.",
+  "terminal.connectError.title": "Connection failed",
+  "terminal.connectError.description": "The terminal could not connect.",
+  "terminal.connectError.retry": "Reconnect",
 
   "common.closeTab": "Close tab",
   "common.dismiss": "Dismiss",
@@ -834,6 +837,7 @@ export const dict = {
 
   "sidebar.menu.toggle": "Toggle menu",
   "sidebar.nav.projectsAndSessions": "Projects and sessions",
+  "sidebar.database": "Database",
   "sidebar.settings": "Settings",
   "sidebar.help": "Help",
   "sidebar.search": "Search",
@@ -873,6 +877,7 @@ export const dict = {
   "sidebar.filter.running": "Running",
   "sidebar.filter.waiting": "Needs approval",
   "sidebar.filter.archived": "Archived",
+  "sidebar.filter.empty": "No matching tasks",
   "sidebar.tree.title": "Files",
   "sidebar.tree.onlyChanged": "Changed only",
   "sidebar.tree.changes": "{{count}} changed",

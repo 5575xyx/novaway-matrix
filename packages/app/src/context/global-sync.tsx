@@ -392,6 +392,7 @@ function createGlobalSync() {
       setStore,
       push: queue.push,
       setSessionTodo,
+      pinnedSessions,
       vcsCache: children.vcsCache.get(key),
       loadLsp: () => {
         void queryClient.fetchQuery(queryOptionsApi.lsp(key))
@@ -428,6 +429,11 @@ function createGlobalSync() {
       }, 0)
     }
   })
+
+  // 用户正在查看的会话。服务端 session.updated 心跳到达时,event-reducer 会按 store.limit(初始仅 5)
+  // 裁剪会话列表,再把不在裁剪结果里的会话缓存整个删掉(session-cache.ts 的 delete store.message[id]);
+  // 若被删的正是正在看的那个,消息区会清空再拉回,表现为每隔几秒闪一下。这里登记"正在看"以豁免清理。
+  const pinnedSessions = new Set<string>()
 
   const projectApi = {
     loadSessions,
@@ -468,6 +474,14 @@ function createGlobalSync() {
     // bootstrap,
     updateConfig: updateConfigMutation.mutateAsync,
     project: projectApi,
+    session: {
+      pin(id: string) {
+        if (id) pinnedSessions.add(id)
+      },
+      unpin(id: string) {
+        pinnedSessions.delete(id)
+      },
+    },
     todo: {
       set: setSessionTodo,
     },

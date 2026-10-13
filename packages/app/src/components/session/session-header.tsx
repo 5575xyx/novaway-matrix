@@ -3,12 +3,9 @@ import { Button } from "@novaway/ui/button"
 import { DropdownMenu } from "@novaway/ui/dropdown-menu"
 import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
-import { Keybind } from "@novaway/ui/keybind"
 import { showToast } from "@novaway/ui/toast"
-import { getFilename } from "@novaway/core/util/path"
-import { createEffect, createMemo, createSignal, For, onMount, Show } from "solid-js"
+import { type JSX, createEffect, createMemo, For, Show } from "solid-js"
 import { createStore } from "solid-js/store"
-import { Portal } from "solid-js/web"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
@@ -17,7 +14,6 @@ import { useServer } from "@/context/server"
 import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
 import { StatusPopover } from "@/components/status-popover"
-import { ThemeSchemeToggle } from "@/components/theme-scheme-toggle"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { messageAgentColor } from "@/utils/agent"
 import { decode64 } from "@/utils/base64"
@@ -126,7 +122,7 @@ const showRequestError = (language: ReturnType<typeof useLanguage>, err: unknown
   })
 }
 
-export function SessionHeader() {
+export function SessionHeader(): JSX.Element {
   const layout = useLayout()
   const command = useCommand()
   const server = useServer()
@@ -142,12 +138,6 @@ export function SessionHeader() {
     if (!directory) return
     return layout.projects.list().find((p) => p.worktree === directory || p.sandboxes?.includes(directory))
   })
-  const name = createMemo(() => {
-    const current = project()
-    if (current) return current.name || getFilename(current.worktree)
-    return getFilename(projectDirectory())
-  })
-  const hotkey = createMemo(() => command.keybind("file.open"))
   const os = createMemo(() => detectOS(platform))
   const search = createMemo(() => settings.general.showSearch())
   const status = createMemo(() => settings.general.showStatus())
@@ -253,172 +243,144 @@ export function SessionHeader() {
       .catch((err: unknown) => showRequestError(language, err))
   }
 
-  const [searchMount, setSearchMount] = createSignal<HTMLElement | null>(null)
-  const [rightMount, setRightMount] = createSignal<HTMLElement | null>(null)
-  onMount(() => {
-    setSearchMount(document.getElementById("NovaWay-titlebar-search"))
-    setRightMount(document.getElementById("NovaWay-titlebar-right"))
-  })
-
+  // 会话页头部不再往全局标题栏里塞 Portal：桌面端已经没有全局标题栏，
+  // 这些入口直接由会话帧内的 WorkspaceHeader 就地渲染（对齐 ZCode：Header 属于会话面板）。
   return (
     <>
-      <Show when={search() && searchMount()}>
-        {(mount) => (
-          <Portal mount={mount()}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="small"
-              class="hidden h-8 w-[220px] max-w-full min-w-0 items-center gap-2 justify-between rounded-md border border-border-weak-base bg-surface-panel shadow-none cursor-default md:flex"
-              onClick={() => command.trigger("file.open")}
-              aria-label={language.t("session.header.searchFiles")}
-            >
-              <div class="flex min-w-0 flex-1 items-center overflow-visible">
-                <span class="flex-1 min-w-0 text-12-regular text-text-weak truncate text-left">
-                  {language.t("session.header.search.placeholder", {
-                    project: name(),
-                  })}
-                </span>
-              </div>
-
-              <Show when={hotkey()}>
-                {(keybind) => (
-                  <Keybind class="shrink-0 !border-0 !bg-transparent !shadow-none px-0 text-text-weaker">
-                    {keybind()}
-                  </Keybind>
-                )}
-              </Show>
-            </Button>
-          </Portal>
-        )}
+      <Show when={search()}>
+        <IconButton
+          icon="magnifying-glass"
+          variant="ghost"
+          title={language.t("session.header.searchFiles")}
+          aria-label={language.t("session.header.searchFiles")}
+          onClick={() => command.trigger("file.open")}
+        />
       </Show>
-      <Show when={rightMount()}>
-        {(mount) => (
-          <Portal mount={mount()}>
-            <div class="flex items-center gap-2">
-              <Show when={status()}>
-                <StatusPopover />
-              </Show>
-              <Show when={projectDirectory()}>
-                <div class="hidden">
-                  <Show
-                    when={canOpen()}
-                    fallback={
-                      <div class="flex h-[24px] box-border items-center rounded-md border border-border-weak-base bg-surface-panel overflow-hidden">
-                        <Button
-                          variant="ghost"
-                          class="rounded-none h-full py-0 pr-3 pl-0.5 gap-1.5 border-none shadow-none"
-                          onClick={copyPath}
-                          aria-label={language.t("session.header.open.copyPath")}
-                        >
-                          <Icon name="copy" size="small" class="text-icon-base" />
-                          <span class="text-12-regular text-text-strong">
-                            {language.t("session.header.open.copyPath")}
-                          </span>
-                        </Button>
+      <Show when={status()}>
+        <StatusPopover />
+      </Show>
+      <Show when={projectDirectory()}>
+        {/* 「在编辑器中打开」保留原行为（含 hidden 门控），只把它从 Portal 改成就地渲染。 */}
+        <div class="hidden">
+          <Show
+            when={canOpen()}
+            fallback={
+              <div class="flex h-[24px] box-border items-center rounded-md border border-border-weak-base bg-surface-panel overflow-hidden">
+                <Button
+                  variant="ghost"
+                  class="rounded-none h-full py-0 pr-3 pl-0.5 gap-1.5 border-none shadow-none"
+                  onClick={copyPath}
+                  aria-label={language.t("session.header.open.copyPath")}
+                >
+                  <Icon name="copy" size="small" class="text-icon-base" />
+                  <span class="text-12-regular text-text-strong">{language.t("session.header.open.copyPath")}</span>
+                </Button>
+              </div>
+            }
+          >
+            <div class="flex items-center">
+              <div class="flex h-[24px] box-border items-center rounded-md border border-border-weak-base bg-surface-panel overflow-hidden">
+                <Button
+                  variant="ghost"
+                  class="rounded-none h-full px-0.5 border-none shadow-none disabled:!cursor-default"
+                  classList={{
+                    "bg-surface-raised-base-active": opening(),
+                  }}
+                  onClick={() => openDir(current().id)}
+                  disabled={opening()}
+                  aria-label={language.t("session.header.open.ariaLabel", { app: current().label })}
+                >
+                  <div class="flex size-5 shrink-0 items-center justify-center [&_[data-component=app-icon]]:size-5">
+                    <Show when={opening()} fallback={<AppIcon id={current().icon} />}>
+                      <div class="relative size-3.5 flex items-center justify-center">
+                        <div class="absolute inset-0 rounded-full border-[1.5px] border-text-interactive-base animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite] opacity-75" />
+                        <div class="size-1 rounded-full bg-text-interactive-base" />
                       </div>
-                    }
-                  >
-                    <div class="flex items-center">
-                      <div class="flex h-[24px] box-border items-center rounded-md border border-border-weak-base bg-surface-panel overflow-hidden">
-                        <Button
-                          variant="ghost"
-                          class="rounded-none h-full px-0.5 border-none shadow-none disabled:!cursor-default"
-                          classList={{
-                            "bg-surface-raised-base-active": opening(),
+                    </Show>
+                  </div>
+                </Button>
+                <DropdownMenu
+                  gutter={4}
+                  placement="bottom-end"
+                  open={menu.open}
+                  onOpenChange={(open) => setMenu("open", open)}
+                >
+                  <DropdownMenu.Trigger
+                    as={IconButton}
+                    icon="chevron-down"
+                    variant="ghost"
+                    disabled={opening()}
+                    class="rounded-none h-full w-[20px] p-0 border-none shadow-none data-[expanded]:bg-surface-raised-base-active disabled:!cursor-default"
+                    classList={{
+                      "bg-surface-raised-base-active": opening(),
+                    }}
+                    aria-label={language.t("session.header.open.menu")}
+                  />
+                  <DropdownMenu.Portal>
+                    <DropdownMenu.Content class="[&_[data-slot=dropdown-menu-item]]:pl-1 [&_[data-slot=dropdown-menu-radio-item]]:pl-1 [&_[data-slot=dropdown-menu-radio-item]+[data-slot=dropdown-menu-radio-item]]:mt-1">
+                      <DropdownMenu.Group>
+                        <DropdownMenu.GroupLabel class="!px-1 !py-1">
+                          {language.t("session.header.openIn")}
+                        </DropdownMenu.GroupLabel>
+                        <DropdownMenu.RadioGroup
+                          class="mt-1"
+                          value={current().id}
+                          onChange={(value) => {
+                            if (!OPEN_APPS.includes(value as OpenApp)) return
+                            selectApp(value as OpenApp)
                           }}
-                          onClick={() => openDir(current().id)}
-                          disabled={opening()}
-                          aria-label={language.t("session.header.open.ariaLabel", { app: current().label })}
                         >
-                          <div class="flex size-5 shrink-0 items-center justify-center [&_[data-component=app-icon]]:size-5">
-                            <Show when={opening()} fallback={<AppIcon id={current().icon} />}>
-                              <div class="relative size-3.5 flex items-center justify-center">
-                                <div class="absolute inset-0 rounded-full border-[1.5px] border-text-interactive-base animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite] opacity-75" />
-                                <div class="size-1 rounded-full bg-text-interactive-base" />
-                              </div>
-                            </Show>
-                          </div>
-                        </Button>
-                        <DropdownMenu
-                          gutter={4}
-                          placement="bottom-end"
-                          open={menu.open}
-                          onOpenChange={(open) => setMenu("open", open)}
-                        >
-                          <DropdownMenu.Trigger
-                            as={IconButton}
-                            icon="chevron-down"
-                            variant="ghost"
-                            disabled={opening()}
-                            class="rounded-none h-full w-[20px] p-0 border-none shadow-none data-[expanded]:bg-surface-raised-base-active disabled:!cursor-default"
-                            classList={{
-                              "bg-surface-raised-base-active": opening(),
-                            }}
-                            aria-label={language.t("session.header.open.menu")}
-                          />
-                          <DropdownMenu.Portal>
-                            <DropdownMenu.Content class="[&_[data-slot=dropdown-menu-item]]:pl-1 [&_[data-slot=dropdown-menu-radio-item]]:pl-1 [&_[data-slot=dropdown-menu-radio-item]+[data-slot=dropdown-menu-radio-item]]:mt-1">
-                              <DropdownMenu.Group>
-                                <DropdownMenu.GroupLabel class="!px-1 !py-1">
-                                  {language.t("session.header.openIn")}
-                                </DropdownMenu.GroupLabel>
-                                <DropdownMenu.RadioGroup
-                                  class="mt-1"
-                                  value={current().id}
-                                  onChange={(value) => {
-                                    if (!OPEN_APPS.includes(value as OpenApp)) return
-                                    selectApp(value as OpenApp)
-                                  }}
-                                >
-                                  <For each={options()}>
-                                    {(o) => (
-                                      <DropdownMenu.RadioItem
-                                        value={o.id}
-                                        disabled={opening()}
-                                        onSelect={() => {
-                                          setMenu("open", false)
-                                          openDir(o.id)
-                                        }}
-                                      >
-                                        <div class="flex size-5 shrink-0 items-center justify-center [&_[data-component=app-icon]]:size-5">
-                                          <AppIcon id={o.icon} />
-                                        </div>
-                                        <DropdownMenu.ItemLabel>{o.label}</DropdownMenu.ItemLabel>
-                                        <DropdownMenu.ItemIndicator>
-                                          <Icon name="check-small" size="small" class="text-icon-weak" />
-                                        </DropdownMenu.ItemIndicator>
-                                      </DropdownMenu.RadioItem>
-                                    )}
-                                  </For>
-                                </DropdownMenu.RadioGroup>
-                              </DropdownMenu.Group>
-                              <DropdownMenu.Separator />
-                              <DropdownMenu.Item
+                          <For each={options()}>
+                            {(o) => (
+                              <DropdownMenu.RadioItem
+                                value={o.id}
+                                disabled={opening()}
                                 onSelect={() => {
                                   setMenu("open", false)
-                                  copyPath()
+                                  openDir(o.id)
                                 }}
                               >
-                                <div class="flex size-5 shrink-0 items-center justify-center">
-                                  <Icon name="copy" size="small" class="text-icon-weak" />
+                                <div class="flex size-5 shrink-0 items-center justify-center [&_[data-component=app-icon]]:size-5">
+                                  <AppIcon id={o.icon} />
                                 </div>
-                                <DropdownMenu.ItemLabel>
-                                  {language.t("session.header.open.copyPath")}
-                                </DropdownMenu.ItemLabel>
-                              </DropdownMenu.Item>
-                            </DropdownMenu.Content>
-                          </DropdownMenu.Portal>
-                        </DropdownMenu>
-                      </div>
-                    </div>
-                  </Show>
-                </div>
-              </Show>
+                                <DropdownMenu.ItemLabel>{o.label}</DropdownMenu.ItemLabel>
+                                <DropdownMenu.ItemIndicator>
+                                  <Icon name="check-small" size="small" class="text-icon-weak" />
+                                </DropdownMenu.ItemIndicator>
+                              </DropdownMenu.RadioItem>
+                            )}
+                          </For>
+                        </DropdownMenu.RadioGroup>
+                      </DropdownMenu.Group>
+                      <DropdownMenu.Separator />
+                      <DropdownMenu.Item
+                        onSelect={() => {
+                          setMenu("open", false)
+                          copyPath()
+                        }}
+                      >
+                        <div class="flex size-5 shrink-0 items-center justify-center">
+                          <Icon name="copy" size="small" class="text-icon-weak" />
+                        </div>
+                        <DropdownMenu.ItemLabel>{language.t("session.header.open.copyPath")}</DropdownMenu.ItemLabel>
+                      </DropdownMenu.Item>
+                    </DropdownMenu.Content>
+                  </DropdownMenu.Portal>
+                </DropdownMenu>
+              </div>
             </div>
-          </Portal>
-        )}
+          </Show>
+        </div>
       </Show>
+      <IconButton
+        icon="layout-right"
+        size="small"
+        variant="ghost"
+        title={language.t("workspace.header.sidePane")}
+        aria-expanded={layout.sidePane.opened()}
+        onClick={() => layout.sidePane.toggle()}
+        class={layout.sidePane.opened() ? "text-text-interactive-base" : ""}
+      />
     </>
   )
 }

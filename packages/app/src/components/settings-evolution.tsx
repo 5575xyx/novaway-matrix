@@ -513,7 +513,7 @@ export const SettingsEvolution: Component<{ embedded?: boolean }> = (props) => {
       <div>
         <SectionTitle title={language.t("settings.evolution.section.config" as never)} />
         <div class="flex flex-col gap-2">
-          <div class="flex items-center justify-between gap-4 py-3 border-b border-border-weak-base">
+          <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
             <div class="flex flex-col gap-1">
               <span class="text-14-medium text-text-strong">
                 {language.t("settings.evolution.config.enabled.title" as never)}
@@ -531,7 +531,7 @@ export const SettingsEvolution: Component<{ embedded?: boolean }> = (props) => {
               {language.t("settings.evolution.config.enabled.title" as never)}
             </Switch>
           </div>
-          <div class="flex items-center justify-between gap-4 py-3 border-b border-border-weak-base">
+          <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
             <div class="flex flex-col gap-1">
               <span class="text-14-medium text-text-strong">
                 {language.t("settings.evolution.config.llm.title" as never)}
@@ -549,7 +549,7 @@ export const SettingsEvolution: Component<{ embedded?: boolean }> = (props) => {
               {language.t("settings.evolution.config.llm.title" as never)}
             </Switch>
           </div>
-          <div class="flex items-center justify-between gap-4 py-3 border-b border-border-weak-base">
+          <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
             <div class="flex flex-col gap-1">
               <span class="text-14-medium text-text-strong">
                 {language.t("settings.evolution.config.interval.title" as never)}

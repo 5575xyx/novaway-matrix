@@ -261,7 +261,7 @@ export const SettingsModels: Component = () => {
                           const key = { providerID: item.provider.id, modelID: item.id }
                           return (
                             <div
-                              class="flex flex-wrap items-center justify-between gap-4 py-3 border-b border-border-weak-base last:border-none cursor-default"
+                              class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3 cursor-default"
                               onContextMenu={(e) =>
                                 handleContextMenu(e, {
                                   providerID: item.provider.id,

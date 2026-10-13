@@ -479,7 +479,9 @@ export function MessageTimeline(props: {
     if (value) return value
     return language.t("command.session.new")
   })
-  const showHeader = createMemo(() => !!(titleValue() || parentID()))
+  // 桌面端不渲染 sticky 标题栏(标题改名、父会话跳转、存为工作流都在这行),聊天内容顶到最上;
+  // 网页端/移动端照旧。--session-title-height/--sticky-accordion-top 已随 showHeader() 一并归零。
+  const showHeader = createMemo(() => platform.platform !== "desktop" && !!(titleValue() || parentID()))
 
   const messageRowMemos = createMemo(
     mapArray(

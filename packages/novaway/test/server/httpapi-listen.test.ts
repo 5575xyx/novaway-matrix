@@ -70,7 +70,7 @@ async function requestTicket(
     headers: {
       authorization: authorization(),
       "x-opencode-directory": dir,
-      ...(options?.ticketHeader === false ? {} : { "x-opencode-ticket": "1" }),
+      ...(options?.ticketHeader === false ? {} : { "x-novaway-ticket": "1" }),
       ...(options?.origin ? { origin: options.origin } : {}),
     },
   })

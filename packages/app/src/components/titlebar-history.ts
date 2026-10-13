@@ -1,3 +1,8 @@
+// 应用内前进/后退的历史栈。
+//
+// 名字里的 "titlebar" 是历史遗留：这套逻辑原先只服务全局标题栏上的两个导航按钮。
+// 全局标题栏已移除，现在由外壳层（pages/layout.tsx）在 command 注册里使用，
+// 入口只剩命令面板与 mod+[ / mod+]。
 export const MAX_TITLEBAR_HISTORY = 100
 
 export type TitlebarAction = "back" | "forward" | undefined

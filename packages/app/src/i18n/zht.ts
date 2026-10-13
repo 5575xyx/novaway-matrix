@@ -24,8 +24,8 @@ export const dict = {
   "theme.scheme.system": "系統",
   "theme.scheme.light": "淺色",
   "theme.scheme.dark": "深色",
-  "theme.toggle.dark": "切換為深色模式",
-  "theme.toggle.light": "切換為淺色模式",
+  "theme.toggle.dark": "深色模式",
+  "theme.toggle.light": "淺色模式",
 
   "command.sidebar.toggle": "切換側邊欄",
   "command.home.open": "開啟首頁",

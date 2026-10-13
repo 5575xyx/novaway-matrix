@@ -305,6 +305,26 @@ describe("applyDirectoryEvent", () => {
     expect(store.part.msg_1).toBeUndefined()
   })
 
+  // 服务端 session.updated 心跳到达时,event-reducer 会按 store.limit(初始仅 5)裁剪会话列表,
+  // 再把不在裁剪结果里的会话缓存整个删掉(session-cache.ts 的 delete store.message[id])。
+  // 用户正在看的会话若不在那几个显示位里,消息就会被清空再拉回,表现为每隔几秒闪一下。
+  test("cleanupDroppedSessionCaches keeps preserved sessions missing from the list", () => {
+    const [store, setStore] = createStore(
+      baseState({
+        session: [rootSession({ id: "ses_listed" })],
+        message: {
+          ses_listed: [userMessage("msg_listed", "ses_listed")],
+          ses_open: [userMessage("msg_open", "ses_open")],
+        },
+      }),
+    )
+
+    cleanupDroppedSessionCaches(store, setStore, store.session, undefined, ["ses_open"])
+
+    expect(store.message.ses_open).toBeDefined()
+    expect(store.message.ses_listed).toBeDefined()
+  })
+
   test("upserts and removes messages while clearing orphaned parts", () => {
     const sessionID = "ses_1"
     const [store, setStore] = createStore(

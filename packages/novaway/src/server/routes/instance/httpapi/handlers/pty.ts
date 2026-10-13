@@ -5,11 +5,7 @@ import { handlePtyInput } from "@/pty/input"
 import { Shell } from "@/shell/shell"
 import { EffectBridge } from "@/effect/bridge"
 import { CorsConfig, isAllowedRequestOrigin, type CorsOptions } from "@/server/cors"
-import {
-  PTY_CONNECT_TICKET_QUERY,
-  PTY_CONNECT_TOKEN_HEADER,
-  PTY_CONNECT_TOKEN_HEADER_VALUE,
-} from "@/server/shared/pty-ticket"
+import { PTY_CONNECT_TICKET_QUERY, hasPtyConnectToken } from "@/server/shared/pty-ticket"
 import { Effect } from "effect"
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
 import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
@@ -70,7 +66,7 @@ export const ptyHandlers = HttpApiBuilder.group(InstanceHttpApi, "pty", (handler
 
     const connectToken = Effect.fn("PtyHttpApi.connectToken")(function* (ctx: { params: { ptyID: PtyID } }) {
       const request = yield* HttpServerRequest.HttpServerRequest
-      if (request.headers[PTY_CONNECT_TOKEN_HEADER] !== PTY_CONNECT_TOKEN_HEADER_VALUE || !validOrigin(request, cors))
+      if (!hasPtyConnectToken(request.headers) || !validOrigin(request, cors))
         return yield* new HttpApiError.Forbidden({})
       if (!(yield* pty.get(ctx.params.ptyID))) return yield* ApiError.notFound("Session not found")
       return yield* tickets.issue({ ptyID: ctx.params.ptyID, ...(yield* PtyTicket.scope) })

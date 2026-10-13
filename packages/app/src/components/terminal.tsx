@@ -3,8 +3,18 @@ import { useTheme } from "@novaway/ui/theme/context"
 import { resolveThemeVariant } from "@novaway/ui/theme/resolve"
 import type { HexColor } from "@novaway/ui/theme/types"
 import { showToast } from "@novaway/ui/toast"
+import { Button } from "@novaway/ui/button"
 import type { FitAddon, Ghostty, Terminal as Term } from "ghostty-web"
-import { type ComponentProps, createEffect, createMemo, onCleanup, onMount, splitProps } from "solid-js"
+import {
+  type ComponentProps,
+  Show,
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  onMount,
+  splitProps,
+} from "solid-js"
 import { SerializeAddon } from "@/addons/serialize"
 import { matchKeybind, parseKeybind } from "@/context/command"
 import { useDevServers } from "@/context/dev-server"
@@ -205,6 +215,9 @@ export const Terminal = (props: TerminalProps) => {
   let drop: VoidFunction | undefined
   let reconn: ReturnType<typeof setTimeout> | undefined
   let tries = 0
+  const giveUp = { value: false }
+  let reconnect: (() => void) | undefined
+  const [connectError, setConnectError] = createSignal<string | undefined>()
 
   const cleanup = () => {
     if (!cleanups.length) return
@@ -342,6 +355,18 @@ export const Terminal = (props: TerminalProps) => {
     platform.openLink(text)
   }
 
+  const retryConnection = () => {
+    if (disposed) return
+    if (reconn !== undefined) {
+      clearTimeout(reconn)
+      reconn = undefined
+    }
+    tries = 0
+    giveUp.value = false
+    setConnectError(undefined)
+    reconnect?.()
+  }
+
   onMount(() => {
     const run = async () => {
       const loaded = await loadGhostty()
@@ -462,13 +487,14 @@ export const Terminal = (props: TerminalProps) => {
         startResize()
       }
 
-      const once = { value: false }
+      const once = giveUp
       const decoder = new TextDecoder()
 
       const fail = (err: unknown) => {
         if (disposed) return
         if (once.value) return
         once.value = true
+        setConnectError(err instanceof Error ? err.message : language.t("terminal.connectError.description"))
         local.onConnectError?.(err)
       }
 
@@ -487,7 +513,7 @@ export const Terminal = (props: TerminalProps) => {
             { ptyID: id, directory },
             {
               throwOnError: false,
-              headers: { "x-NovaWay-ticket": "1" },
+              headers: { "x-novaway-ticket": "1" },
             },
           )
           .catch((err: unknown) => {
@@ -617,6 +643,7 @@ export const Terminal = (props: TerminalProps) => {
       }
 
       open()
+      reconnect = () => void open()
     }
 
     void run().catch((err) => {
@@ -665,6 +692,18 @@ export const Terminal = (props: TerminalProps) => {
         [local.class ?? ""]: !!local.class,
       }}
       {...others}
-    />
+    >
+      <Show when={connectError()}>
+        {(message) => (
+          <div class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background-stronger px-6 text-center">
+            <div class="text-ui-base text-text-strong">{language.t("terminal.connectError.title")}</div>
+            <div class="text-ui-caption text-text-weak break-words max-w-md">{message()}</div>
+            <Button variant="secondary" size="small" onClick={retryConnection}>
+              {language.t("terminal.connectError.retry")}
+            </Button>
+          </div>
+        )}
+      </Show>
+    </div>
   )
 }

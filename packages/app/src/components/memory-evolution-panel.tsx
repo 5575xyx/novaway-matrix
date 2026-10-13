@@ -1,19 +1,16 @@
 import type { Config, EvolutionCandidate, MemoryReviewCandidate } from "@novaway/sdk/v2/client"
 import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
-import { Popover } from "@novaway/ui/popover"
 import { Switch } from "@novaway/ui/switch"
 import { Tag } from "@novaway/ui/tag"
 import { TextField } from "@novaway/ui/text-field"
 import { showToast } from "@novaway/ui/toast"
-import { Tooltip } from "@novaway/ui/tooltip"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query"
 import { createMemo, createSignal, For, Show } from "solid-js"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
 import { ReviewActionButton } from "./review-action-button"
-import { pendingBadgeLabel } from "./review-ui-helpers"
 import { memoryConfidenceLabel, memoryDomainLabel, memoryOperationLabel } from "./settings-memory.helpers"
 import { evolutionDomainLabel, evolutionValidationLabel } from "./settings-evolution.helpers"
 
@@ -22,12 +19,28 @@ const queryOptions = {
   refetchOnWindowFocus: false,
 }
 
+// 卡片头只需要待审条数，没必要为了一个数字渲染整块 body。两个 status 查询与组件内用同一组
+// queryKey，React Query 按 key 共享缓存，这里多一次调用不会多打一次请求。
+export function useMemoryEvolutionPending() {
+  const globalSDK = useGlobalSDK()
+  const memoryStatus = useQuery(() => ({
+    queryKey: ["settings", "memory", "review-status"],
+    queryFn: () => globalSDK.client.memory.reviewStatus().then((x) => x.data),
+    ...queryOptions,
+  }))
+  const evolutionStatus = useQuery(() => ({
+    queryKey: ["settings", "evolution", "status"],
+    queryFn: () => globalSDK.client.evolution.status().then((x) => x.data),
+    ...queryOptions,
+  }))
+  return createMemo(() => number(memoryStatus.data?.pending) + number(evolutionStatus.data?.pending))
+}
+
 export function MemoryEvolutionPanel() {
   const language = useLanguage()
   const globalSDK = useGlobalSDK()
   const globalSync = useGlobalSync()
   const queryClient = useQueryClient()
-  const [shown, setShown] = createSignal(false)
   const [preview, setPreview] = createSignal<{ id: string; text: string }>()
 
   const memoryStatus = useQuery(() => ({
@@ -78,7 +91,6 @@ export function MemoryEvolutionPanel() {
       auto_apply_file: raw.auto_apply_file ?? false,
     }
   })
-  const pending = createMemo(() => number(memoryStatus.data?.pending) + number(evolutionStatus.data?.pending))
   const refresh = async () => {
     await Promise.all([
       queryClient.refetchQueries({ queryKey: ["settings", "memory"] }),
@@ -201,123 +213,94 @@ export function MemoryEvolutionPanel() {
       },
     } as Config)
 
+  // 顶栏那个点开的 popover 已经改成右侧状态卡片的常驻 body：卡片头给待审条数，展开就是这一整块。
   return (
-    <Popover
-      open={shown()}
-      onOpenChange={setShown}
-      triggerAs={Button}
-      triggerProps={{
-        variant: "ghost",
-        class:
-          "titlebar-icon w-8 h-8 p-0 box-border rounded-xl text-icon-base hover:bg-surface-base-hover transition-all duration-150 hover:scale-105",
-        "aria-label": language.t("memory.evolution.title"),
-      }}
-      trigger={
-        <Tooltip value={language.t("memory.evolution.title")} placement="bottom">
-          <div class="relative flex h-full items-center justify-center">
-            <Icon size="small" name="review" class="text-icon-strong" />
-            <Show when={pending() > 0}>
-              <span class="absolute -top-2 -right-3 min-w-3.5 h-3.5 px-0.5 rounded-full bg-red-solid-base text-10-medium text-invert-base flex items-center justify-center leading-none">
-                {pendingBadgeLabel(pending())}
-              </span>
-            </Show>
-          </div>
-        </Tooltip>
-      }
-      class="[&_[data-slot=popover-body]]:p-0 w-[420px] max-w-[calc(100vw-32px)] bg-background-strong shadow-[var(--shadow-lg-border-base)] rounded-lg border border-border-weak-base"
-      gutter={4}
-      placement="bottom-end"
-      shift={-160}
-    >
-      <Show when={shown()}>
-        <div class="flex max-h-[min(720px,calc(100vh-76px))] flex-col overflow-hidden">
-          <div class="flex items-center justify-between border-b border-border-weak-base px-3 py-2">
-            <div class="flex items-center gap-2">
-              <Icon name="review" size="small" />
-              <span class="text-13-medium text-text-strong">记忆与自我进化</span>
-            </div>
-            <Button
-              variant="ghost"
-              size="small"
-              icon="reset"
-              disabled={memoryStatus.isFetching || evolutionStatus.isFetching}
-              onClick={() => void refresh()}
-            >
-              刷新
-            </Button>
-          </div>
-
-          <div class="flex-1 overflow-auto p-3">
-            <Section
-              icon="brain"
-              title="持久记忆"
-              count={number(memoryStatus.data?.pending)}
-              enabled={memoryConfig().enabled !== false}
-              reviewEnabled={memoryConfig().review_enabled !== false}
-              llmEnabled={memoryConfig().review_llm !== false}
-              intervalLabel="审查间隔"
-              intervalValue={memoryConfig().review_interval}
-              intervalDefault={1}
-              disabled={updateConfig.isPending}
-              onEnabled={(value) => setMemory("enabled", value)}
-              onReview={(value) => setMemory("review_enabled", value)}
-              onLLM={(value) => setMemory("review_llm", value)}
-              onInterval={setMemoryInterval}
-            />
-            <CandidateList
-              empty="暂无待审记忆"
-              items={memoryCandidates.data ?? []}
-              render={(item) => (
-                <MemoryRow
-                  candidate={item}
-                  disabled={applyMemory.isPending || dismissMemory.isPending}
-                  onApply={(scope) => applyMemory.mutate({ candidateID: item.id, scope })}
-                  onDismiss={() => dismissMemory.mutate(item.id)}
-                />
-              )}
-            />
-
-            <div class="my-3 h-px bg-border-weak-base" />
-
-            <Section
-              icon="branch"
-              title="自我进化"
-              count={number(evolutionStatus.data?.pending)}
-              enabled={evolutionConfig().enabled !== false}
-              reviewEnabled={evolutionConfig().enabled !== false}
-              llmEnabled={evolutionConfig().review_llm !== false}
-              intervalLabel="发现间隔"
-              intervalValue={evolutionConfig().review_interval}
-              intervalDefault={3}
-              disabled={updateConfig.isPending}
-              onEnabled={(value) => setEvolution("enabled", value)}
-              onReview={(value) => setEvolution("enabled", value)}
-              onLLM={(value) => setEvolution("review_llm", value)}
-              onInterval={setEvolutionInterval}
-            />
-            <Show when={evolutionConfig().auto_apply_file === true}>
-              <div class="mb-2 rounded-md border border-rose-200/40 bg-rose-500/10 px-2.5 py-1.5 text-11-regular text-rose-600 dark:text-rose-400">
-                自动写入已开启：新产生的进化候选会直接写入 .novaway 文件，无需在此确认。
-              </div>
-            </Show>
-            <CandidateList
-              empty="暂无待审进化"
-              items={evolutionCandidates.data ?? []}
-              render={(item) => (
-                <EvolutionRow
-                  candidate={item}
-                  preview={preview()?.id === item.id ? preview()?.text : undefined}
-                  disabled={dryRunEvolution.isPending || applyEvolution.isPending || dismissEvolution.isPending}
-                  onDryRun={() => dryRunEvolution.mutate(item.id)}
-                  onApply={() => applyEvolution.mutate(item.id)}
-                  onDismiss={() => dismissEvolution.mutate(item.id)}
-                />
-              )}
-            />
-          </div>
+    <div class="flex flex-col">
+      <div class="flex items-center justify-between border-b border-border-weak-base px-3 py-2">
+        <div class="flex items-center gap-2">
+          <Icon name="review" size="small" />
+          <span class="text-13-medium text-text-strong">记忆与自我进化</span>
         </div>
-      </Show>
-    </Popover>
+        <Button
+          variant="ghost"
+          size="small"
+          icon="reset"
+          disabled={memoryStatus.isFetching || evolutionStatus.isFetching}
+          onClick={() => void refresh()}
+        >
+          刷新
+        </Button>
+      </div>
+
+      <div class="flex-1 overflow-auto p-3">
+        <Section
+          icon="brain"
+          title="持久记忆"
+          count={number(memoryStatus.data?.pending)}
+          enabled={memoryConfig().enabled !== false}
+          reviewEnabled={memoryConfig().review_enabled !== false}
+          llmEnabled={memoryConfig().review_llm !== false}
+          intervalLabel="审查间隔"
+          intervalValue={memoryConfig().review_interval}
+          intervalDefault={1}
+          disabled={updateConfig.isPending}
+          onEnabled={(value) => setMemory("enabled", value)}
+          onReview={(value) => setMemory("review_enabled", value)}
+          onLLM={(value) => setMemory("review_llm", value)}
+          onInterval={setMemoryInterval}
+        />
+        <CandidateList
+          empty="暂无待审记忆"
+          items={memoryCandidates.data ?? []}
+          render={(item) => (
+            <MemoryRow
+              candidate={item}
+              disabled={applyMemory.isPending || dismissMemory.isPending}
+              onApply={(scope) => applyMemory.mutate({ candidateID: item.id, scope })}
+              onDismiss={() => dismissMemory.mutate(item.id)}
+            />
+          )}
+        />
+
+        <div class="my-3 h-px bg-border-weak-base" />
+
+        <Section
+          icon="branch"
+          title="自我进化"
+          count={number(evolutionStatus.data?.pending)}
+          enabled={evolutionConfig().enabled !== false}
+          reviewEnabled={evolutionConfig().enabled !== false}
+          llmEnabled={evolutionConfig().review_llm !== false}
+          intervalLabel="发现间隔"
+          intervalValue={evolutionConfig().review_interval}
+          intervalDefault={3}
+          disabled={updateConfig.isPending}
+          onEnabled={(value) => setEvolution("enabled", value)}
+          onReview={(value) => setEvolution("enabled", value)}
+          onLLM={(value) => setEvolution("review_llm", value)}
+          onInterval={setEvolutionInterval}
+        />
+        <Show when={evolutionConfig().auto_apply_file === true}>
+          <div class="mb-2 rounded-md border border-rose-200/40 bg-rose-500/10 px-2.5 py-1.5 text-11-regular text-rose-600 dark:text-rose-400">
+            自动写入已开启：新产生的进化候选会直接写入 .novaway 文件，无需在此确认。
+          </div>
+        </Show>
+        <CandidateList
+          empty="暂无待审进化"
+          items={evolutionCandidates.data ?? []}
+          render={(item) => (
+            <EvolutionRow
+              candidate={item}
+              preview={preview()?.id === item.id ? preview()?.text : undefined}
+              disabled={dryRunEvolution.isPending || applyEvolution.isPending || dismissEvolution.isPending}
+              onDryRun={() => dryRunEvolution.mutate(item.id)}
+              onApply={() => applyEvolution.mutate(item.id)}
+              onDismiss={() => dismissEvolution.mutate(item.id)}
+            />
+          )}
+        />
+      </div>
+    </div>
   )
 }
 
@@ -377,12 +360,19 @@ function Section(props: {
 
 function Toggle(props: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
   return (
-    <label class="flex h-8 items-center justify-between gap-2 rounded-md border border-border-weak-base bg-surface-base px-2">
-      <span class="text-12-regular text-text-base">{props.label}</span>
+    // 不要用 <label> 包 Switch：没写 for 的 label 会绑定到 Kobalte 藏起来的 checkbox，
+    // 点开关时 Control 的 onClick 先 toggle 一次、label 再补发一次合成点击翻回来，开关点不动。
+    <div class="flex h-8 items-center justify-between gap-2 rounded-md border border-border-weak-base bg-surface-base px-2">
+      <span
+        class="text-12-regular text-text-base cursor-pointer select-none"
+        onClick={() => props.onChange(!props.checked)}
+      >
+        {props.label}
+      </span>
       <Switch checked={props.checked} onChange={props.onChange} hideLabel>
         {props.label}
       </Switch>
-    </label>
+    </div>
   )
 }
 

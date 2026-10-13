@@ -1,6 +1,6 @@
 import { createStore, produce } from "solid-js/store"
 import { createSimpleContext } from "@novaway/ui/context"
-import { batch, createEffect, createMemo, createRoot, on, onCleanup } from "solid-js"
+import { batch, createEffect, createMemo, createRoot, createSignal, on, onCleanup } from "solid-js"
 import { useParams } from "@solidjs/router"
 import { useSDK } from "./sdk"
 import type { Platform } from "./platform"
@@ -192,6 +192,8 @@ function createWorkspaceTerminalSession(
     )
   }
 
+  const [createError, setCreateError] = createSignal<string | undefined>()
+
   const removeExited = (id: string) => {
     const all = store.all
     const index = all.findIndex((x) => x.id === id)
@@ -271,6 +273,7 @@ function createWorkspaceTerminalSession(
     ready,
     all: createMemo(() => store.all),
     active: createMemo(() => store.active),
+    createError,
     clear() {
       batch(() => {
         setStore("active", undefined)
@@ -284,7 +287,11 @@ function createWorkspaceTerminalSession(
         .create({ title: defaultTitle(nextNumber) })
         .then((pty: { data?: { id?: string; title?: string } }) => {
           const id = pty.data?.id
-          if (!id) return
+          if (!id) {
+            setCreateError("terminal create returned no id")
+            return
+          }
+          setCreateError(undefined)
           const newTerminal = {
             id,
             title: pty.data?.title ?? defaultTitle(nextNumber),
@@ -295,6 +302,7 @@ function createWorkspaceTerminalSession(
         })
         .catch((error: unknown) => {
           console.error("Failed to create terminal", error)
+          setCreateError(error instanceof Error ? error.message : String(error))
         })
     },
     update(pty: Partial<LocalPTY> & { id: string }) {
@@ -453,6 +461,7 @@ export const { use: useTerminal, provider: TerminalProvider } = createSimpleCont
       ready: () => workspace().ready(),
       all: () => workspace().all(),
       active: () => workspace().active(),
+      createError: () => workspace().createError(),
       new: () => workspace().new(),
       update: (pty: Partial<LocalPTY> & { id: string }) => workspace().update(pty),
       trim: (id: string) => workspace().trim(id),
