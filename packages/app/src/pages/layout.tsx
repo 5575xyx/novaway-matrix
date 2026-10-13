@@ -23,7 +23,7 @@ import { ResizeHandle } from "@novaway/ui/resize-handle"
 import { Button } from "@novaway/ui/button"
 import { IconButton } from "@novaway/ui/icon-button"
 import { Icon } from "@novaway/ui/icon"
-import { Tooltip } from "@novaway/ui/tooltip"
+import { Tooltip, TooltipKeybind } from "@novaway/ui/tooltip"
 import { Dialog } from "@novaway/ui/dialog"
 import { TextField } from "@novaway/ui/text-field"
 import { getFilename } from "@novaway/core/util/path"
@@ -73,7 +73,16 @@ import {
 } from "./layout/deep-links"
 import { SidebarFiles } from "./layout/sidebar-files"
 import { ProjectMenu, type ProjectSidebarContext } from "./layout/sidebar-project"
-import { ProjectTaskList, TaskFilterBar, useArchivedSessions, useProjectSessions, type TaskFilter } from "./layout/sidebar-tasks"
+import { ModeSwitchButton } from "@/components/mode-switch"
+import { SidebarMenuRow } from "@/components/sidebar-menu-row"
+import { ThemeSchemeToggle } from "@/components/theme-scheme-toggle"
+import {
+  ProjectTaskList,
+  TaskFilterBar,
+  useArchivedSessions,
+  useProjectTaskList,
+  type TaskFilter,
+} from "./layout/sidebar-tasks"
 import { SidebarContent } from "./layout/sidebar-shell"
 
 function feishuQuestionText(questions: QuestionRequest["questions"]) {
@@ -2100,8 +2109,7 @@ export default function Layout(props: ParentProps) {
     return (
       <div
         classList={{
-          "flex flex-col min-h-0 min-w-0 box-border rounded-lg border border-border-weak-base bg-background-stronger overflow-hidden":
-            true,
+          "flex flex-col min-h-0 min-w-0 box-border rounded-lg border border-border-weak-base bg-background-stronger overflow-hidden": true,
           "flex-1 min-w-0 max-w-full": panelProps.mobile,
         }}
         style={{
@@ -2109,6 +2117,26 @@ export default function Layout(props: ParentProps) {
         }}
       >
         <div class="shrink-0 px-2 pt-2.5 pb-2 flex flex-col gap-2">
+          {/* 竖排菜单:一行一项,图标 + 文字标签。原来四个 icon-only 按钮挤在一行,靠 tooltip 才认得出。
+              只给一圈边框做分组,不上整组底色 —— 高亮交给每行自己的 hover 背景。 */}
+          <div class="rounded-lg border border-border-weak-base p-1">
+            <div class="flex flex-col gap-0.5">
+              <ModeSwitchButton fullWidth onSelect={(mode) => layout.mode.select(mode.id)} />
+              <ThemeSchemeToggle />
+              <Show when={settings.general.showDatabase()}>
+                <SidebarMenuRow
+                  icon={<Icon name="database" size="small" />}
+                  label={language.t("sidebar.database")}
+                  onClick={() => command.trigger("database.open")}
+                />
+              </Show>
+              <SidebarMenuRow
+                icon={<Icon name="settings-gear" size="small" />}
+                label={language.t("sidebar.settings")}
+                onClick={() => command.trigger("settings.open")}
+              />
+            </div>
+          </div>
           <div class="flex items-center gap-1">
             <div class="flex items-center gap-0.5 rounded-md bg-surface-raised-base border border-border-weak-base p-0.5">
               <button
@@ -2144,12 +2172,8 @@ export default function Layout(props: ParentProps) {
                 icon="plus"
                 variant="ghost"
                 size="small"
-                aria-label={language.t("sidebar.newTask")}
-                onClick={() => {
-                  const first = projectList()[0]
-                  if (first) navigateWithSidebarReset(`/${base64Encode(first.worktree)}/session`)
-                  else chooseProject()
-                }}
+                aria-label={language.t("command.project.open")}
+                onClick={() => chooseProject()}
               />
               <Tooltip value={language.t("sidebar.workspaceSidebar.collapse")} placement="bottom">
                 <IconButton
@@ -2194,9 +2218,7 @@ export default function Layout(props: ParentProps) {
             <div class="flex-1 min-h-0 flex items-center justify-center px-6 pb-64 text-center">
               <div class="mt-8 flex max-w-60 flex-col items-center gap-4 text-center">
                 <div class="text-14-medium text-text-strong">{language.t("sidebar.empty.title")}</div>
-                <div class="text-14-regular text-text-base">
-                  {language.t("sidebar.empty.description")}
-                </div>
+                <div class="text-14-regular text-text-base">{language.t("sidebar.empty.description")}</div>
                 <Button size="large" icon="folder-add-left" onClick={chooseProject}>
                   {language.t("command.project.open")}
                 </Button>
@@ -2208,7 +2230,14 @@ export default function Layout(props: ParentProps) {
             <For each={projectList()}>
               {(proj) => {
                 const [isExpanded, setIsExpanded] = createSignal(store.workspaceExpanded[proj.worktree] ?? true)
-                const { sessions } = useProjectSessions(proj)
+                const projectArchived = () =>
+                  [proj.worktree, ...(proj.sandboxes ?? [])].flatMap((directory) => archived()[directory] ?? [])
+                const tasks = useProjectTaskList({
+                  project: proj,
+                  filter: taskFilter,
+                  archived: projectArchived,
+                  sortNow,
+                })
                 const projectName = () => proj.name || getFilename(proj.worktree)
                 const toggleExpand = () => {
                   const next = !isExpanded()
@@ -2217,7 +2246,12 @@ export default function Layout(props: ParentProps) {
                 }
                 return (
                   <div class="mt-1">
-                    <div class="group flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-surface-base-hover">
+                    <div
+                      classList={{
+                        "group flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-colors hover:bg-surface-base-hover": true,
+                        "bg-surface-base-active": pathKey(proj.worktree) === treeKey(),
+                      }}
+                    >
                       <button
                         aria-label={
                           isExpanded() ? language.t("sidebar.project.collapse") : language.t("sidebar.project.expand")
@@ -2234,15 +2268,21 @@ export default function Layout(props: ParentProps) {
                         {projectName()}
                       </span>
                       <span class="text-ui-xs text-text-weak shrink-0">
-                        {language.t("sidebar.project.count", { count: sessions().length })}
+                        {language.t("sidebar.project.count", { count: tasks().length })}
                       </span>
+                      <IconButton
+                        icon="plus-small"
+                        variant="ghost"
+                        size="small"
+                        aria-label={language.t("sidebar.newTask")}
+                        class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                        onClick={() => navigateWithSidebarReset(`/${base64Encode(proj.worktree)}/session`)}
+                      />
                       <ProjectMenu project={proj} ctx={projectSidebarCtx} />
                     </div>
                     <Show
                       when={
-                        layout.sidebarView.current() === "tasks"
-                          ? isExpanded()
-                          : pathKey(proj.worktree) === treeKey()
+                        layout.sidebarView.current() === "tasks" ? isExpanded() : pathKey(proj.worktree) === treeKey()
                       }
                     >
                       <div class="flex flex-col gap-0.5">
@@ -2261,11 +2301,7 @@ export default function Layout(props: ParentProps) {
                             prefetchSession={prefetchSession}
                             archiveSession={archiveSession}
                             filter={taskFilter}
-                            archived={() =>
-                              [proj.worktree, ...(proj.sandboxes ?? [])].flatMap(
-                                (directory) => archived()[directory] ?? [],
-                              )
-                            }
+                            archived={projectArchived}
                             sortNow={sortNow}
                           />
                         </Show>
