@@ -33,11 +33,20 @@ export function useGitSnapshot() {
   const busy = () => store.busy
   const error = () => store.error
 
+  // 轮询每 5 秒回一份「内容相同、引用全新」的快照。照单全收会让消费方（Status Panel 的
+  // sections memo）每 5 秒重算一次，进而按引用重建整块面板；面板里挂着 TanStack 查询，
+  // 重建 = 查询资源重新挂起 → 外层 Suspense 每 5 秒把整个会话页闪成空白。
+  // 内容没变就不写 store，让快照引用保持稳定。
+  const signature = (value: Snapshot | undefined) => (value === undefined ? "" : JSON.stringify(value))
+
   const refresh = () => {
     if (store.busy) return
     void sdk.client.git
       .snapshot()
-      .then((result) => setStore({ snapshot: result.data, error: "" }))
+      .then((result) => {
+        if (store.error === "" && signature(result.data) === signature(store.snapshot)) return
+        setStore({ snapshot: result.data, error: "" })
+      })
       .catch((err: unknown) => setStore("error", messageOf(err)))
   }
 

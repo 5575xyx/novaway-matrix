@@ -122,7 +122,9 @@ render(() => {
     createEffect(() => {
       theme.themeId()
       theme.mode()
-      const bg = getComputedStyle(document.documentElement).getPropertyValue("--background-base").trim()
+      // 与工作区窗口根底色一致：根节点用的是 background-weak（比面板暗/亮一档），
+      // 窗口原生底色若仍取 background-base，四帧之外那圈 4px 留白会露出错误的颜色。
+      const bg = getComputedStyle(document.documentElement).getPropertyValue("--background-weak").trim()
       if (bg) {
         void window.api.setBackgroundColor(bg)
       }

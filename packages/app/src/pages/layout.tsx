@@ -62,6 +62,7 @@ import { Titlebar } from "@/components/titlebar"
 import { DialogSettings, type SettingsTab } from "@/components/dialog-settings"
 import { DatabasePage } from "@/pages/database"
 import { useServer } from "@/context/server"
+import { workspacePanelRadiusPx } from "@/utils/workspace-chrome"
 import { useLanguage, type Locale } from "@/context/language"
 import { pathKey } from "@/utils/path-key"
 import { effectiveWorkspaceOrder, errorMessage, latestRootSession, sortedRootSessions } from "./layout/helpers"
@@ -1978,7 +1979,8 @@ export default function Layout(props: ParentProps) {
 
   const side = createMemo(() => {
     if (!store.workspaceSidebarExpanded) return 0
-    return Math.max(layout.sidebar.width(), 240)
+    // 下限对齐 ZCode 侧栏宽度规格（default = min = 264px）。
+    return Math.max(layout.sidebar.width(), 264)
   })
 
   createEffect(() => {
@@ -2109,7 +2111,7 @@ export default function Layout(props: ParentProps) {
     return (
       <div
         classList={{
-          "flex flex-col min-h-0 min-w-0 box-border rounded-lg border border-border-weak-base bg-background-stronger overflow-hidden": true,
+          "flex flex-col min-h-0 min-w-0 box-border rounded-[var(--workspace-panel-radius)] border border-border-weak-base bg-background-base overflow-hidden": true,
           "flex-1 min-w-0 max-w-full": panelProps.mobile,
         }}
         style={{
@@ -2359,9 +2361,17 @@ export default function Layout(props: ParentProps) {
 
   return (
     <div
-      class="relative bg-background-base flex-1 min-h-0 min-w-0 flex flex-col select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text"
-      style={modeStyle()}
+      // 窗口根底色比面板暗（深色主题下比面板亮）一档，让四帧之间那 4px 外留白/间隙成为可视线，
+      // 而不是和面板同色糊成一片。对应 ZCode 的 `bg-background-win-alt`。
+      class="relative bg-background-weak flex-1 min-h-0 min-w-0 flex flex-col select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text"
+      style={{
+        ...modeStyle(),
+        // 四帧同心圆：值由运行平台决定，桌面端由 Windows 5px / macOS 6px 收窄，
+        // Web 与 Linux 保持 12px（= 现有 rounded-lg，因此 Web 观感不变）。
+        "--workspace-panel-radius": `${workspacePanelRadiusPx(platform.os)}px`,
+      }}
       data-app-mode={layout.mode.current() ?? "none"}
+      data-workspace-panel-radius={workspacePanelRadiusPx(platform.os)}
     >
       {autoselecting() ?? ""}
       <Titlebar settingsOpen={state.settings.open} databaseOpen={state.databasePage.open} />
@@ -2376,7 +2386,7 @@ export default function Layout(props: ParentProps) {
                   "hidden xl:block": true,
                   "absolute inset-y-1 left-1": true,
                   "z-10": true,
-                  "rounded-lg border border-border-weak-base overflow-hidden": true,
+                  "rounded-[var(--workspace-panel-radius)] border border-border-weak-base overflow-hidden": true,
                 }}
                 style={{ width: `${side()}px` }}
               >
@@ -2393,8 +2403,8 @@ export default function Layout(props: ParentProps) {
                 <ResizeHandle
                   direction="horizontal"
                   size={layout.sidebar.width()}
-                  min={240}
-                  max={typeof window === "undefined" ? 1000 : window.innerWidth * 0.3}
+                  min={264}
+                  max={typeof window === "undefined" ? 1000 : window.innerWidth * 0.5}
                   onResize={(w) => {
                     setState("sizing", true)
                     if (sizet !== undefined) clearTimeout(sizet)
