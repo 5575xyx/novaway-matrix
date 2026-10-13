@@ -323,3 +323,22 @@ chunk 上，桌面端实际加载的是 `packages/desktop/node_modules/.vite/dep
 真改动时 `MemoryEvolutionPanel` 会重挂（丢本地 UI 态、多打一次请求），并被上面的局部边界兜住。
 彻底解法是把 `StatusPanelSection` 的 `summary` / `children` 改成访问器、面板按固定 id 顺序渲染，
 使 DOM 身份只由 id 决定。列入 Round 2 的 Status Panel 专项。
+
+---
+
+## 完成状态（2026-10-13）
+
+全部任务完成。验收逐条记录见
+`docs/superpowers/plans/2026-10-13-zcode-desktop-parity-verification.md`。
+
+| 提交      | 内容                                     |
+| --------- | ---------------------------------------- |
+| `19d1e15` | T0 基线（拆诊断脚手架）                  |
+| `0b91d80` | T1.5 闪烁根因修复 + T1 平台 chrome       |
+| `6dfacd2` | 上一轮已落地未提交的改造归档             |
+| `aecf065` | T2 Header / T3 移除标题栏 / T4 侧栏 IA   |
+| `b36bf43` | T5 e2e 与单测契约 + 办公模式顶带回归修复 |
+
+结果：e2e layout 8/8、office 6/6；单测 685 pass / 6 fail（既有失败）；
+`packages/app` 与 `packages/ui` typecheck 通过；oxlint 0 error；
+Electron 实机 CDP 复核 A1/A2/A5/A10/A11 通过，A12（真实拖窗）人工确认，A14 暗色截图待人工补。
