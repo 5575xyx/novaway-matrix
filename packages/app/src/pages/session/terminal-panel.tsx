@@ -200,10 +200,10 @@ export function TerminalPanel(props: { variant?: "frame" | "pane" }) {
       aria-label={language.t("terminal.title")}
       aria-hidden={!opened()}
       inert={!opened()}
-      class="relative w-full shrink-0 overflow-hidden bg-background-base rounded-[var(--workspace-panel-radius)]"
+      class="relative w-full shrink-0 overflow-hidden bg-background rounded-[var(--workspace-panel-radius)]"
       data-component="terminal-frame"
       classList={{
-        "border border-border-weak-base": opened(),
+        "border border-border": opened(),
         "transition-[height] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[height] motion-reduce:transition-none":
           !size.active(),
       }}
@@ -236,21 +236,21 @@ export function TerminalPanel(props: { variant?: "frame" | "pane" }) {
           when={terminal.ready()}
           fallback={
             <div class="flex flex-col h-full pointer-events-none">
-              <div class="h-10 flex items-center gap-2 px-2 border-b border-border-weaker-base bg-background-stronger overflow-hidden">
+              <div class="h-10 flex items-center gap-2 px-2 border-b border-border bg-panel overflow-hidden">
                 <For each={handoff()}>
                   {(title) => (
-                    <div class="px-2 py-1 rounded-md bg-surface-base text-14-regular text-text-weak truncate max-w-40">
+                    <div class="px-2 py-1 rounded-md bg-surface text-14-regular text-foreground-subtle truncate max-w-40">
                       {title}
                     </div>
                   )}
                 </For>
                 <div class="flex-1" />
-                <div class="text-text-weak pr-2">
+                <div class="text-foreground-subtle pr-2">
                   {language.t("common.loading")}
                   {language.t("common.loading.ellipsis")}
                 </div>
               </div>
-              <div class="flex-1 flex items-center justify-center text-text-weak">{language.t("terminal.loading")}</div>
+              <div class="flex-1 flex items-center justify-center text-foreground-subtle">{language.t("terminal.loading")}</div>
             </div>
           }
         >
@@ -269,7 +269,7 @@ export function TerminalPanel(props: { variant?: "frame" | "pane" }) {
                 onChange={(id) => terminal.open(id)}
                 class="!h-auto !flex-none"
               >
-                <Tabs.List class="h-10 border-b border-border-weaker-base">
+                <Tabs.List class="h-10 border-b border-border">
                   <SortableProvider ids={ids()}>
                     <For each={all()}>{(pty) => <SortableTerminalTab terminal={pty} onClose={close} />}</For>
                   </SortableProvider>
@@ -293,9 +293,9 @@ export function TerminalPanel(props: { variant?: "frame" | "pane" }) {
               <div class="flex-1 min-h-0 relative">
                 <Show when={all().length === 0 && terminal.createError()}>
                   <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center">
-                    <div class="text-ui-base text-text-strong">{language.t("terminal.connectError.title")}</div>
-                    <div class="text-ui-caption text-text-weak">{language.t("terminal.connectError.description")}</div>
-                    <div class="max-w-full break-all font-mono text-ui-caption text-text-weak">
+                    <div class="text-ui-base text-foreground">{language.t("terminal.connectError.title")}</div>
+                    <div class="text-ui-caption text-foreground-subtle">{language.t("terminal.connectError.description")}</div>
+                    <div class="max-w-full break-all font-mono text-ui-caption text-foreground-subtle">
                       {terminal.createError()}
                     </div>
                     <Button variant="secondary" size="small" onClick={() => terminal.new()}>
@@ -330,7 +330,7 @@ export function TerminalPanel(props: { variant?: "frame" | "pane" }) {
                 {(id) => (
                   <Show when={all().find((pty) => pty.id === id)}>
                     {(t) => (
-                      <div class="relative p-1 h-10 flex items-center bg-background-stronger text-14-regular">
+                      <div class="relative p-1 h-10 flex items-center bg-panel text-14-regular">
                         {terminalTabLabel({
                           title: t().title,
                           titleNumber: t().titleNumber,

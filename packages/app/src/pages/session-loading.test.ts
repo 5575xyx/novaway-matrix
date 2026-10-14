@@ -34,7 +34,7 @@ describe("skeleton matches the real timeline so nothing shifts on load", () => {
   })
 
   test("uses the project's existing bubble surface and pulse", () => {
-    expect(sessionSource).toContain("bg-background-stronger")
+    expect(sessionSource).toContain("bg-panel")
     expect(sessionSource).toContain("animate-pulse")
   })
 })

@@ -16,10 +16,10 @@ function SettingsRow(props: {
   disabled?: boolean
 }) {
   return (
-    <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+    <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
       <div class="min-w-0">
-        <div class="text-12-medium text-text-strong">{props.title}</div>
-        <div class="mt-1 text-11-regular leading-relaxed text-text-weak">{props.description}</div>
+        <div class="text-12-medium text-foreground">{props.title}</div>
+        <div class="mt-1 text-11-regular leading-relaxed text-foreground-subtle">{props.description}</div>
       </div>
       <div class="shrink-0" classList={{ "opacity-50": props.disabled }}>
         {props.children}
@@ -63,7 +63,7 @@ function FeishuAppHelpTip() {
         tabIndex={0}
         role="button"
         aria-label="配置帮助"
-        class="shrink-0 cursor-help text-text-muted outline-none transition-colors hover:text-emerald-200 focus-visible:text-emerald-200"
+        class="shrink-0 cursor-help text-foreground-subtle outline-none transition-colors hover:text-emerald-200 focus-visible:text-emerald-200"
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
       >
@@ -71,14 +71,14 @@ function FeishuAppHelpTip() {
       </span>
       <Show when={open()}>
         <span aria-hidden="true" class="absolute left-0 top-full h-2 w-72" />
-        <span class="absolute left-0 top-[calc(100%+8px)] z-50 w-72 rounded-[8px] border border-border-strong-base bg-surface-raised-stronger-non-alpha p-3 text-left shadow-[0_18px_44px_rgba(0,0,0,0.20)]">
-          <span class="block text-11-regular leading-relaxed text-text-weak">
+        <span class="absolute left-0 top-[calc(100%+8px)] z-50 w-72 rounded-[8px] border border-border-hover bg-popover p-3 text-left shadow-[0_18px_44px_rgba(0,0,0,0.20)]">
+          <span class="block text-11-regular leading-relaxed text-foreground-subtle">
             打开飞书开放平台，创建「企业自建应用」。进入「凭证与基础信息」复制 App ID 和 App
             Secret，然后在「添加应用能力」中添加机器人，申请 im:message.p2p_msg:readonly、im:message:send_as_bot
             权限，并订阅 im.message.receive_v1，事件订阅方式选择长连接。
           </span>
-          <span class="mt-2 flex items-center gap-2 rounded-[7px] border border-border-weak-base bg-background-base p-2">
-            <code class="min-w-0 flex-1 truncate text-11-regular text-text-strong">{link}</code>
+          <span class="mt-2 flex items-center gap-2 rounded-[7px] border border-border bg-background p-2">
+            <code class="min-w-0 flex-1 truncate text-11-regular text-foreground">{link}</code>
             <button
               type="button"
               class="h-7 shrink-0 rounded-[6px] border border-emerald-300/40 bg-emerald-300/10 px-2 text-10-medium text-emerald-100 transition-all duration-150 hover:-translate-y-px hover:bg-emerald-300/20 hover:shadow-[0_6px_14px_rgba(16,185,129,0.16)] active:translate-y-0 active:scale-95"
@@ -223,14 +223,14 @@ export const SettingsNotifications: Component = () => {
   return (
     <div class="flex h-full flex-col gap-4 overflow-y-auto p-5">
       <div>
-        <h2 class="text-16-medium text-text-strong">消息通知</h2>
-        <p class="mt-1 text-12-regular leading-relaxed text-text-weak">
+        <h2 class="text-16-medium text-foreground">消息通知</h2>
+        <p class="mt-1 text-12-regular leading-relaxed text-foreground-subtle">
           将 NovaWay 的通知转发到飞书群，后续可在这里继续扩展其他通知渠道。
         </p>
       </div>
 
       <div class="flex flex-col gap-1">
-        <h3 class="pb-2 text-14-medium text-text-strong">飞书连接配置</h3>
+        <h3 class="pb-2 text-14-medium text-foreground">飞书连接配置</h3>
         <FeishuAppSetupGuide />
         <SettingsList>
           <SettingsRow title="Webhook 地址" description="填写飞书自定义机器人 Webhook，保存后会同步到办公平台连接器。">
@@ -238,7 +238,7 @@ export const SettingsNotifications: Component = () => {
               value={feishuWebhookDraft()}
               onInput={(event) => setFeishuWebhookDraft(event.currentTarget.value)}
               placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/..."
-              class="h-9 w-full min-w-0 rounded-[7px] border border-border-weak-base bg-background-base px-3 text-12-regular text-text-strong outline-none sm:w-[300px]"
+              class="h-9 w-full min-w-0 rounded-[7px] border border-border bg-background px-3 text-12-regular text-foreground outline-none sm:w-[300px]"
             />
           </SettingsRow>
           <SettingsRow
@@ -249,7 +249,7 @@ export const SettingsNotifications: Component = () => {
               value={feishuKeywordDraft()}
               onInput={(event) => setFeishuKeywordDraft(event.currentTarget.value)}
               placeholder="默认 NovaWay"
-              class="h-9 w-full min-w-0 rounded-[7px] border border-border-weak-base bg-background-base px-3 text-12-regular text-text-strong outline-none sm:w-[160px]"
+              class="h-9 w-full min-w-0 rounded-[7px] border border-border bg-background px-3 text-12-regular text-foreground outline-none sm:w-[160px]"
             />
           </SettingsRow>
           <SettingsRow
@@ -265,7 +265,7 @@ export const SettingsNotifications: Component = () => {
               value={feishuAppIdDraft()}
               onInput={(event) => setFeishuAppIdDraft(event.currentTarget.value)}
               placeholder="cli_..."
-              class="h-9 w-full min-w-0 rounded-[7px] border border-border-weak-base bg-background-base px-3 text-12-regular text-text-strong outline-none sm:w-[300px]"
+              class="h-9 w-full min-w-0 rounded-[7px] border border-border bg-background px-3 text-12-regular text-foreground outline-none sm:w-[300px]"
             />
           </SettingsRow>
           <SettingsRow
@@ -282,7 +282,7 @@ export const SettingsNotifications: Component = () => {
               value={feishuAppSecretDraft()}
               onInput={(event) => setFeishuAppSecretDraft(event.currentTarget.value)}
               placeholder="请输入 App Secret"
-              class="h-9 w-full min-w-0 rounded-[7px] border border-border-weak-base bg-background-base px-3 text-12-regular text-text-strong outline-none sm:w-[300px]"
+              class="h-9 w-full min-w-0 rounded-[7px] border border-border bg-background px-3 text-12-regular text-foreground outline-none sm:w-[300px]"
             />
           </SettingsRow>
           <SettingsRow
@@ -290,12 +290,12 @@ export const SettingsNotifications: Component = () => {
             description="先保存 App ID 和 App Secret，再前往飞书给机器人发一条任意消息，NovaWay 会自动绑定你的用户 ID。"
           >
             <div class="flex items-center gap-2">
-              <span class="text-12-regular text-text-weak">
+              <span class="text-12-regular text-foreground-subtle">
                 {connectorConfig()?.feishuUserId ? "已绑定" : pollingBinding() ? "等待消息..." : "未绑定"}
               </span>
               <button
                 type="button"
-                class="h-9 rounded-[7px] border border-border-weak-base px-3 text-11-medium text-text-weak transition-all duration-150 hover:-translate-y-px hover:border-emerald-300/50 hover:text-emerald-100"
+                class="h-9 rounded-[7px] border border-border px-3 text-11-medium text-foreground-subtle transition-all duration-150 hover:-translate-y-px hover:border-emerald-300/50 hover:text-emerald-100"
                 disabled={pollingBinding()}
                 classList={{ "opacity-50": pollingBinding() }}
                 onClick={() => void refreshFeishuBinding()}
@@ -317,7 +317,7 @@ export const SettingsNotifications: Component = () => {
       </div>
 
       <div class="flex flex-col gap-1">
-        <h3 class="pb-2 text-14-medium text-text-strong">飞书通知</h3>
+        <h3 class="pb-2 text-14-medium text-foreground">飞书通知</h3>
         <SettingsList>
           <SettingsRow
             title="启用飞书消息通知"
@@ -384,7 +384,7 @@ export const SettingsNotifications: Component = () => {
       </div>
 
       <div class="flex flex-col gap-1">
-        <h3 class="pb-2 text-14-medium text-text-strong">连通测试</h3>
+        <h3 class="pb-2 text-14-medium text-foreground">连通测试</h3>
         <SettingsList>
           <SettingsRow
             title="发送测试消息"

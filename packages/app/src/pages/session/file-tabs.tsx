@@ -594,13 +594,13 @@ export function FileTabContent(props: { tab: string }) {
       >
         <div class="flex h-full flex-col">
           <div class="flex items-center justify-between gap-3 px-4 pt-3 pb-2">
-            <span class="min-w-0 truncate text-12-regular text-text-weak">{path()}</span>
+            <span class="min-w-0 truncate text-12-regular text-foreground-subtle">{path()}</span>
             <span
               class="shrink-0 text-12-regular"
               classList={{
-                "text-text-weak": saveStatus() === "saved" || saveStatus() === "dirty",
-                "text-text-interactive-base": saveStatus() === "saving",
-                "text-text-on-critical-base": saveStatus() === "error",
+                "text-foreground-subtle": saveStatus() === "saved" || saveStatus() === "dirty",
+                "text-icon-blue": saveStatus() === "saving",
+                "text-destructive-foreground": saveStatus() === "error",
               }}
             >
               {saveStatus() === "saving"
@@ -621,7 +621,7 @@ export function FileTabContent(props: { tab: string }) {
                       ref={(el) => {
                         gutterRef = el
                       }}
-                      class="w-12 shrink-0 overflow-hidden bg-background-base py-4 pr-2 text-right font-mono text-13 leading-6 text-text-weak select-none"
+                      class="w-12 shrink-0 overflow-hidden bg-background py-4 pr-2 text-right font-mono text-13 leading-6 text-foreground-subtle select-none"
                       style={{ "line-height": "24px" }}
                     >
                       <For each={lineNumbers()}>
@@ -643,7 +643,7 @@ export function FileTabContent(props: { tab: string }) {
                       ref={(el) => {
                         editorRef = el
                       }}
-                      class="h-full min-w-0 flex-1 resize-none overflow-x-auto bg-background-base py-4 pr-4 font-mono text-13 leading-6 outline-none"
+                      class="h-full min-w-0 flex-1 resize-none overflow-x-auto bg-background py-4 pr-4 font-mono text-13 leading-6 outline-none"
                       style={{ "line-height": "24px" }}
                       value={draft()}
                       wrap="off"
@@ -669,14 +669,14 @@ export function FileTabContent(props: { tab: string }) {
                   </div>
                 </Match>
                 <Match when={state()?.loaded}>
-                  <div class="flex h-full items-center justify-center px-6 text-12-regular text-text-weak">
+                  <div class="flex h-full items-center justify-center px-6 text-12-regular text-foreground-subtle">
                     二进制文件无法直接编辑
                   </div>
                 </Match>
                 <Match when={state()?.loading}>
-                  <div class="px-6 py-4 text-text-weak">{language.t("common.loading")}...</div>
+                  <div class="px-6 py-4 text-foreground-subtle">{language.t("common.loading")}...</div>
                 </Match>
-                <Match when={state()?.error}>{(err) => <div class="px-6 py-4 text-text-weak">{err()}</div>}</Match>
+                <Match when={state()?.error}>{(err) => <div class="px-6 py-4 text-foreground-subtle">{err()}</div>}</Match>
               </Switch>
             </div>
           </div>
@@ -685,7 +685,7 @@ export function FileTabContent(props: { tab: string }) {
           {(menu) => (
             <div
               data-file-context-menu
-              class="absolute z-50 min-w-[220px] rounded-lg border border-border-weak-base bg-surface-float-base p-1 shadow-[var(--shadow-md)]"
+              class="absolute z-50 min-w-[220px] rounded-lg border border-border bg-popover p-1 shadow-[var(--shadow-md)]"
               style={{ left: `${menu().x}px`, top: `${menu().y}px` }}
             >
               <Show
@@ -698,7 +698,7 @@ export function FileTabContent(props: { tab: string }) {
                 }
               >
                 <div class="flex flex-col gap-2 p-1">
-                  <span class="text-11-regular text-text-weak">
+                  <span class="text-11-regular text-foreground-subtle">
                     评论 L{menu().selection.start}
                     {menu().selection.end !== menu().selection.start ? `-L${menu().selection.end}` : ""}
                   </span>
@@ -706,7 +706,7 @@ export function FileTabContent(props: { tab: string }) {
                     ref={(el) => {
                       contextCommentInputRef = el
                     }}
-                    class="h-24 w-full resize-none rounded-md border border-border-weak-base bg-background-base p-2 text-13-regular leading-5 outline-none focus:border-border-strong-base"
+                    class="h-24 w-full resize-none rounded-md border border-border bg-background p-2 text-13-regular leading-5 outline-none focus:border-border-hover"
                     value={contextComment()}
                     placeholder="输入评论..."
                     onInput={(event) => setContextComment(event.currentTarget.value)}

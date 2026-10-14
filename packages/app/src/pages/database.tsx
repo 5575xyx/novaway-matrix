@@ -153,7 +153,7 @@ function DatabaseList(props: {
     >
       <Show
         when={props.databases().length > 0}
-        fallback={<div class="text-12-medium text-text-weak p-1">{language.t("database.databases.empty")}</div>}
+        fallback={<div class="text-12-medium text-foreground-subtle p-1">{language.t("database.databases.empty")}</div>}
       >
         <For each={props.databases()}>
           {(database) => {
@@ -163,11 +163,11 @@ function DatabaseList(props: {
               <div class="flex flex-col">
                 <button
                   type="button"
-                  class="text-left w-full rounded-md px-2 py-1 text-12-medium text-text-base hover:bg-surface-base-hover transition-colors flex items-center gap-1.5"
+                  class="text-left w-full rounded-md px-2 py-1 text-12-medium text-foreground hover:bg-hover transition-colors flex items-center gap-1.5"
                   onClick={() => props.onToggleDatabase(props.connection.name, database)}
                 >
                   <Icon size="small" name={expanded() ? "chevron-down" : "chevron-right"} />
-                  <Icon size="small" name="database" class="text-text-weak" />
+                  <Icon size="small" name="database" class="text-foreground-subtle" />
                   <span>{database}</span>
                 </button>
                 <Show when={expanded()}>
@@ -215,7 +215,7 @@ function TableList(props: {
     >
       <Show
         when={props.tables().length > 0}
-        fallback={<div class="text-12-medium text-text-weak p-1">{language.t("database.tables.empty")}</div>}
+        fallback={<div class="text-12-medium text-foreground-subtle p-1">{language.t("database.tables.empty")}</div>}
       >
         <For each={props.tables()}>
           {(table) => {
@@ -223,17 +223,17 @@ function TableList(props: {
             const columnLoading = () => props.loadingNodes[columnKey] ?? false
             return (
               <div
-                class="group text-left w-full rounded-md px-2 py-1 text-12-regular text-text-base hover:bg-surface-base-hover transition-colors flex items-center gap-1.5 cursor-pointer"
+                class="group text-left w-full rounded-md px-2 py-1 text-12-regular text-foreground hover:bg-hover transition-colors flex items-center gap-1.5 cursor-pointer"
                 onClick={() => props.onSelectTable(props.connection, props.database, table)}
               >
-                <Icon size="small" name="table" class="text-text-weak" />
+                <Icon size="small" name="table" class="text-foreground-subtle" />
                 <span class="flex-1 truncate">{table}</span>
                 <Show when={columnLoading()}>
                   <Spinner class="size-3" />
                 </Show>
                 <button
                   type="button"
-                  class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-surface-base-active"
+                  class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-selected"
                   onClick={(e) => {
                     e.stopPropagation()
                     props.onInsertTable(table)
@@ -255,15 +255,15 @@ function QueryResultTable(props: { text: string }) {
   const language = useLanguage()
   const { headers, rows } = parseMarkdownTable(props.text)
   if (headers.length === 0) {
-    return <pre class="whitespace-pre-wrap font-mono text-12-regular text-text-base">{props.text}</pre>
+    return <pre class="whitespace-pre-wrap font-mono text-12-regular text-foreground">{props.text}</pre>
   }
   return (
-    <table class="w-full text-12-regular border-collapse border border-border-weak-base rounded-md overflow-hidden">
-      <thead class="bg-surface-base text-text-strong text-12-semibold sticky top-0">
+    <table class="w-full text-12-regular border-collapse border border-border rounded-md overflow-hidden">
+      <thead class="bg-surface text-foreground text-12-semibold sticky top-0">
         <tr>
           <For each={headers}>
             {(header) => (
-              <th class="px-3 py-2 text-left border-b border-border-weak-base whitespace-nowrap">{header}</th>
+              <th class="px-3 py-2 text-left border-b border-border whitespace-nowrap">{header}</th>
             )}
           </For>
         </tr>
@@ -273,7 +273,7 @@ function QueryResultTable(props: { text: string }) {
           when={rows.length > 0}
           fallback={
             <tr>
-              <td colSpan={headers.length} class="px-3 py-8 text-center text-13-medium text-text-weak">
+              <td colSpan={headers.length} class="px-3 py-8 text-center text-13-medium text-foreground-subtle">
                 {language.t("database.result.empty")}
               </td>
             </tr>
@@ -281,8 +281,8 @@ function QueryResultTable(props: { text: string }) {
         >
           <For each={rows}>
             {(row) => (
-              <tr class="border-b border-border-weak-base last:border-b-0 hover:bg-surface-base-hover">
-                <For each={row}>{(cell) => <td class="px-3 py-1.5 text-text-base whitespace-nowrap">{cell}</td>}</For>
+              <tr class="border-b border-border last:border-b-0 hover:bg-hover">
+                <For each={row}>{(cell) => <td class="px-3 py-1.5 text-foreground whitespace-nowrap">{cell}</td>}</For>
               </tr>
             )}
           </For>
@@ -303,7 +303,7 @@ function TableStructure(props: {
   return (
     <div class="flex flex-col gap-3 h-full">
       <div class="flex items-center justify-between">
-        <h2 class="text-14-semibold text-text-strong">
+        <h2 class="text-14-semibold text-foreground">
           {language.t("database.structure.title")}: {props.table}
         </h2>
         <Button variant="secondary" size="small" onClick={props.onRun}>
@@ -313,27 +313,27 @@ function TableStructure(props: {
       <Show
         when={props.columns().length > 0}
         fallback={
-          <div class="text-13-medium text-text-weak flex items-center justify-center flex-1">
+          <div class="text-13-medium text-foreground-subtle flex items-center justify-center flex-1">
             {language.t("database.columns.empty")}
           </div>
         }
       >
-        <table class="w-full text-12-regular border-collapse border border-border-weak-base rounded-md overflow-hidden">
-          <thead class="bg-surface-base text-text-strong text-12-semibold">
+        <table class="w-full text-12-regular border-collapse border border-border rounded-md overflow-hidden">
+          <thead class="bg-surface text-foreground text-12-semibold">
             <tr>
-              <th class="px-3 py-2 text-left border-b border-border-weak-base">
+              <th class="px-3 py-2 text-left border-b border-border">
                 {language.t("database.columns.name")}
               </th>
-              <th class="px-3 py-2 text-left border-b border-border-weak-base">
+              <th class="px-3 py-2 text-left border-b border-border">
                 {language.t("database.columns.type")}
               </th>
-              <th class="px-3 py-2 text-left border-b border-border-weak-base">
+              <th class="px-3 py-2 text-left border-b border-border">
                 {language.t("database.columns.nullable")}
               </th>
-              <th class="px-3 py-2 text-left border-b border-border-weak-base">
+              <th class="px-3 py-2 text-left border-b border-border">
                 {language.t("database.columns.default")}
               </th>
-              <th class="px-3 py-2 text-left border-b border-border-weak-base">
+              <th class="px-3 py-2 text-left border-b border-border">
                 {language.t("database.columns.comment")}
               </th>
             </tr>
@@ -341,12 +341,12 @@ function TableStructure(props: {
           <tbody>
             <For each={props.columns()}>
               {(column) => (
-                <tr class="border-b border-border-weak-base last:border-b-0 hover:bg-surface-base-hover">
-                  <td class="px-3 py-1.5 font-mono text-text-base">{column.name}</td>
-                  <td class="px-3 py-1.5 text-text-weak">{column.type}</td>
-                  <td class="px-3 py-1.5 text-text-weak">{column.nullable}</td>
-                  <td class="px-3 py-1.5 text-text-weak font-mono">{column.default}</td>
-                  <td class="px-3 py-1.5 text-text-weak">{column.comment}</td>
+                <tr class="border-b border-border last:border-b-0 hover:bg-hover">
+                  <td class="px-3 py-1.5 font-mono text-foreground">{column.name}</td>
+                  <td class="px-3 py-1.5 text-foreground-subtle">{column.type}</td>
+                  <td class="px-3 py-1.5 text-foreground-subtle">{column.nullable}</td>
+                  <td class="px-3 py-1.5 text-foreground-subtle font-mono">{column.default}</td>
+                  <td class="px-3 py-1.5 text-foreground-subtle">{column.comment}</td>
                 </tr>
               )}
             </For>
@@ -660,13 +660,13 @@ export function DatabasePage(props: { onBack: () => void }) {
   })
 
   return (
-    <div class="flex flex-col h-full bg-background-base">
-      <div class="flex items-center justify-between px-4 py-3 border-b border-border-weak-base">
+    <div class="flex flex-col h-full bg-background">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-border">
         <div class="flex items-center gap-3">
           <Button variant="ghost" size="small" icon="arrow-left" onClick={props.onBack}>
             {language.t("common.goBack")}
           </Button>
-          <h1 class="text-16-semibold text-text-strong">{language.t("database.title")}</h1>
+          <h1 class="text-16-semibold text-foreground">{language.t("database.title")}</h1>
         </div>
         <Button variant="ghost" size="small" icon="refresh" onClick={refreshAll}>
           {language.t("common.refresh")}
@@ -674,8 +674,8 @@ export function DatabasePage(props: { onBack: () => void }) {
       </div>
 
       <div class="flex-1 min-h-0 flex">
-        <div class="w-72 flex flex-col border-r border-border-weak-base">
-          <div class="px-3 py-2 text-12-semibold text-text-weak uppercase tracking-wide border-b border-border-weak-base">
+        <div class="w-72 flex flex-col border-r border-border">
+          <div class="px-3 py-2 text-12-semibold text-foreground-subtle uppercase tracking-wide border-b border-border">
             {language.t("database.connections.title")}
           </div>
           <div class="flex-1 overflow-y-auto p-2">
@@ -690,7 +690,7 @@ export function DatabasePage(props: { onBack: () => void }) {
               <Show
                 when={connections().length > 0}
                 fallback={
-                  <div class="text-13-medium text-text-weak p-2">{language.t("database.connections.empty")}</div>
+                  <div class="text-13-medium text-foreground-subtle p-2">{language.t("database.connections.empty")}</div>
                 }
               >
                 <For each={connections()}>
@@ -715,18 +715,18 @@ export function DatabasePage(props: { onBack: () => void }) {
                         >
                           <button
                             type="button"
-                            class="text-left flex-1 rounded-md px-2 py-1.5 text-13-medium text-text-base hover:bg-surface-base-hover transition-colors flex items-center gap-2"
+                            class="text-left flex-1 rounded-md px-2 py-1.5 text-13-medium text-foreground hover:bg-hover transition-colors flex items-center gap-2"
                             onClick={() => toggleConnection(connection.name)}
                           >
                             <Icon size="small" name={expanded() ? "chevron-down" : "chevron-right"} />
-                            <Icon size="small" name="server" class="text-text-weak" />
+                            <Icon size="small" name="server" class="text-foreground-subtle" />
                             <span class="flex-1 truncate">{connection.name}</span>
                             <Show when={dbLoading()}>
                               <Spinner class="size-3.5" />
                             </Show>
                           </button>
                           <Show when={totalCount() > 0}>
-                            <span class="text-12-medium text-text-weak px-1">
+                            <span class="text-12-medium text-foreground-subtle px-1">
                               {selectedCount()}/{totalCount()}
                             </span>
                           </Show>
@@ -745,7 +745,7 @@ export function DatabasePage(props: { onBack: () => void }) {
                             }}
                           >
                             <div class="p-2 min-w-[180px] max-h-[280px] overflow-y-auto">
-                              <div class="text-12-semibold text-text-weak px-1 pb-1.5 mb-1 border-b border-border-weak-base">
+                              <div class="text-12-semibold text-foreground-subtle px-1 pb-1.5 mb-1 border-b border-border">
                                 {language.t("database.connections.filterDatabases")}
                               </div>
                               <For each={databases[connection.name] ?? []}>
@@ -799,7 +799,7 @@ export function DatabasePage(props: { onBack: () => void }) {
           <Show
             when={selectedTable()}
             fallback={
-              <div class="flex-1 flex items-center justify-center text-13-medium text-text-weak">
+              <div class="flex-1 flex items-center justify-center text-13-medium text-foreground-subtle">
                 {language.t("database.connection.select")}
               </div>
             }
@@ -811,8 +811,8 @@ export function DatabasePage(props: { onBack: () => void }) {
                     type="button"
                     class={`px-3 py-1.5 text-13-medium rounded-md transition-colors ${
                       activeTab() === "data"
-                        ? "bg-surface-base text-text-strong"
-                        : "text-text-weak hover:bg-surface-base-hover hover:text-text-base"
+                        ? "bg-surface text-foreground"
+                        : "text-foreground-subtle hover:bg-hover hover:text-foreground"
                     }`}
                     onClick={() => setActiveTab("data")}
                   >
@@ -822,8 +822,8 @@ export function DatabasePage(props: { onBack: () => void }) {
                     type="button"
                     class={`px-3 py-1.5 text-13-medium rounded-md transition-colors ${
                       activeTab() === "structure"
-                        ? "bg-surface-base text-text-strong"
-                        : "text-text-weak hover:bg-surface-base-hover hover:text-text-base"
+                        ? "bg-surface text-foreground"
+                        : "text-foreground-subtle hover:bg-hover hover:text-foreground"
                     }`}
                     onClick={() => setActiveTab("structure")}
                   >
@@ -835,7 +835,7 @@ export function DatabasePage(props: { onBack: () => void }) {
                     <Show
                       when={result()}
                       fallback={
-                        <div class="flex h-full items-center justify-center text-13-medium text-text-weak">
+                        <div class="flex h-full items-center justify-center text-13-medium text-foreground-subtle">
                           {running() ? language.t("common.loading") : language.t("database.result.empty")}
                         </div>
                       }
@@ -860,14 +860,14 @@ export function DatabasePage(props: { onBack: () => void }) {
             )}
           </Show>
 
-          <div class="h-48 flex flex-col border-t border-border-weak-base">
-            <div class="px-3 py-2 text-12-semibold text-text-weak uppercase tracking-wide border-b border-border-weak-base">
+          <div class="h-48 flex flex-col border-t border-border">
+            <div class="px-3 py-2 text-12-semibold text-foreground-subtle uppercase tracking-wide border-b border-border">
               {language.t("database.query.label")}
             </div>
             <div class="flex-1 min-h-0 p-3 flex gap-3">
               <TextField
                 class="flex-1 min-h-0"
-                inputClass="size-full resize-none font-mono text-13-regular bg-surface-base rounded-md border border-border-weak-base px-3 py-2 focus:outline-none focus:ring-1 focus:ring-border-strong-base"
+                inputClass="size-full resize-none font-mono text-13-regular bg-surface rounded-md border border-border px-3 py-2 focus:outline-none focus:ring-1 focus:ring-border-hover"
                 multiline
                 value={query()}
                 onChange={setQuery}
@@ -885,11 +885,11 @@ export function DatabasePage(props: { onBack: () => void }) {
                 </Button>
               </div>
             </div>
-            <div class="h-1/2 min-h-0 border-t border-border-weak-base p-3 overflow-auto">
+            <div class="h-1/2 min-h-0 border-t border-border p-3 overflow-auto">
               <Show
                 when={result()}
                 fallback={
-                  <div class="text-13-medium text-text-weak flex items-center justify-center h-full">
+                  <div class="text-13-medium text-foreground-subtle flex items-center justify-center h-full">
                     {language.t("database.result.empty")}
                   </div>
                 }
@@ -911,12 +911,12 @@ export function DatabasePage(props: { onBack: () => void }) {
             }}
           >
             <div
-              class="absolute min-w-[140px] p-1 bg-surface-raised-base border border-border-base rounded-lg shadow-lg"
+              class="absolute min-w-[140px] p-1 bg-surface border border-border rounded-lg shadow-lg"
               style={{ left: `${menu().x}px`, top: `${menu().y}px` }}
             >
               <button
                 type="button"
-                class="w-full text-left flex items-center gap-2 px-2 py-1.5 text-12-medium text-text-base rounded-md hover:bg-surface-raised-base-hover cursor-pointer outline-none"
+                class="w-full text-left flex items-center gap-2 px-2 py-1.5 text-12-medium text-foreground rounded-md hover:bg-hover cursor-pointer outline-none"
                 onClick={() => {
                   void removeConnection(menu().name)
                   closeConnectionContextMenu()

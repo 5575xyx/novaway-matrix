@@ -85,11 +85,11 @@ export const DialogSelectMcp: Component = () => {
                 <div class="flex items-center gap-2">
                   <span class="truncate">{i.name}</span>
                   <Show when={statusLabel()}>
-                    <span class="text-11-regular text-text-weaker">{statusLabel()}</span>
+                    <span class="text-11-regular text-foreground-subtlest">{statusLabel()}</span>
                   </Show>
                 </div>
                 <Show when={error()}>
-                  <span class="text-11-regular text-text-weaker truncate">{error()}</span>
+                  <span class="text-11-regular text-foreground-subtlest truncate">{error()}</span>
                 </Show>
               </div>
               <div onClick={(e) => e.stopPropagation()}>

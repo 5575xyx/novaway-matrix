@@ -94,10 +94,10 @@ const emptyFollowups: FollowupItem[] = []
 const MessageTimelineSkeleton = () => (
   <div class="h-full w-full min-w-0 overflow-hidden">
     <div class="min-w-0 w-full md:max-w-200 2xl:max-w-[1000px] md:mx-auto flex flex-col gap-5 px-4 pt-4">
-      <div class="ml-auto h-9 w-1/2 rounded-[6px] bg-background-stronger animate-pulse" />
+      <div class="ml-auto h-9 w-1/2 rounded-[6px] bg-panel animate-pulse" />
       <div class="flex w-3/4 flex-col gap-2">
-        <div class="h-3 w-full rounded-[4px] bg-background-stronger animate-pulse" />
-        <div class="h-3 w-4/5 rounded-[4px] bg-background-stronger animate-pulse" />
+        <div class="h-3 w-full rounded-[4px] bg-panel animate-pulse" />
+        <div class="h-3 w-4/5 rounded-[4px] bg-panel animate-pulse" />
       </div>
     </div>
   </div>
@@ -1074,15 +1074,15 @@ export default function Page() {
 
   const empty = (text: string) => (
     <div class="h-full pb-64 -mt-4 flex flex-col items-center justify-center text-center gap-6">
-      <div class="text-14-regular text-text-weak max-w-56">{text}</div>
+      <div class="text-14-regular text-foreground-subtle max-w-56">{text}</div>
     </div>
   )
 
   const createGit = (input: { emptyClass: string }) => (
     <div class={input.emptyClass}>
       <div class="flex flex-col gap-3">
-        <div class="text-14-medium text-text-strong">{language.t("session.review.noVcs.createGit.title")}</div>
-        <div class="text-14-regular text-text-base max-w-md" style={{ "line-height": "var(--line-height-normal)" }}>
+        <div class="text-14-medium text-foreground">{language.t("session.review.noVcs.createGit.title")}</div>
+        <div class="text-14-regular text-foreground max-w-md" style={{ "line-height": "var(--line-height-normal)" }}>
           {language.t("session.review.noVcs.createGit.description")}
         </div>
       </div>
@@ -1113,7 +1113,7 @@ export default function Page() {
 
     return (
       <div class={input.emptyClass}>
-        <div class="text-14-regular text-text-weak max-w-56">{reviewEmptyText()}</div>
+        <div class="text-14-regular text-foreground-subtle max-w-56">{reviewEmptyText()}</div>
       </div>
     )
   }
@@ -1152,12 +1152,12 @@ export default function Page() {
   )
 
   const reviewPanel = () => (
-    <div class="flex flex-col h-full overflow-hidden bg-background-stronger contain-strict">
+    <div class="flex flex-col h-full overflow-hidden bg-panel contain-strict">
       <div class="relative pt-2 flex-1 min-h-0 overflow-hidden">
         {reviewContent({
           diffStyle: layout.review.diffStyle(),
           onDiffStyleChange: layout.review.setDiffStyle,
-          loadingClass: "px-6 py-4 text-text-weak",
+          loadingClass: "px-6 py-4 text-foreground-subtle",
           emptyClass: "h-full pb-64 -mt-4 flex flex-col items-center justify-center text-center gap-6",
         })}
       </div>
@@ -1678,11 +1678,11 @@ export default function Page() {
     void dialog.show(() => (
       <Dialog title={language.t("dialog.revert.title")}>
         <div class="p-4 min-w-[400px] max-w-[600px]">
-          <p class="mb-4 text-text-secondary">{language.t("dialog.revert.description")}</p>
+          <p class="mb-4 text-foreground-subtle">{language.t("dialog.revert.description")}</p>
           <div class="max-h-[300px] overflow-y-auto border rounded p-2 mb-4">
             <Show
               when={files.length > 0}
-              fallback={<p class="text-text-weak">{language.t("dialog.revert.noFiles")}</p>}
+              fallback={<p class="text-foreground-subtle">{language.t("dialog.revert.noFiles")}</p>}
             >
               <ul class="list-disc pl-5 space-y-1">
                 <For each={files}>{(file) => <li class="text-sm font-mono">{file.file}</li>}</For>
@@ -1869,7 +1869,7 @@ export default function Page() {
     <Show
       when={showOfficeNewSessionWorkspace(layout.mode.current(), params.id)}
       fallback={
-        <div class="relative bg-background-base size-full overflow-hidden flex flex-col p-1 gap-1">
+        <div class="relative size-full overflow-hidden flex flex-col p-1 gap-1">
           <div class="flex-1 min-h-0 flex flex-col md:flex-row gap-1">
             <Show when={!isDesktop() && !!params.id}>
               <Tabs value={store.mobileTab} class="h-auto">
@@ -1898,7 +1898,7 @@ export default function Page() {
 
             {/* Session panel */}
             <div
-              class="@container relative flex-1 min-h-0 flex flex-col rounded-[var(--workspace-panel-radius)] border border-border-weak-base bg-background-base overflow-hidden"
+              class="@container relative flex-1 min-h-0 flex flex-col rounded-[var(--workspace-panel-radius)] border border-border bg-background overflow-hidden"
               data-component="conv-frame"
             >
               <WorkspaceHeader />
@@ -1918,7 +1918,7 @@ export default function Page() {
                             header: "px-4",
                             container: "px-4",
                           },
-                          loadingClass: "px-4 py-4 text-text-weak",
+                          loadingClass: "px-4 py-4 text-foreground-subtle",
                           emptyClass: "h-full pb-64 -mt-4 flex flex-col items-center justify-center text-center gap-6",
                         })}
                       </div>
@@ -2046,7 +2046,7 @@ export default function Page() {
         </div>
       }
     >
-      <div class="relative bg-background-base size-full overflow-hidden flex flex-col">
+      <div class="relative size-full overflow-hidden flex flex-col">
         <div class="flex-1 min-h-0 flex flex-col md:flex-row">
           <div class="relative flex-1 min-h-0">
             <OfficeSessionWorkspace

@@ -19,10 +19,10 @@ export type TaskRowProps = {
 }
 
 const STATUS_DOT_CLASS: Record<TaskStatus, string> = {
-  running: "bg-text-interactive-base animate-pulse",
-  waiting: "bg-surface-warning-strong",
-  failed: "bg-text-diff-delete-base",
-  idle: "bg-border-strong-base",
+  running: "bg-icon-blue animate-pulse",
+  waiting: "bg-warning",
+  failed: "bg-diff-removed",
+  idle: "bg-border-hover",
 }
 
 export const TaskRow = (props: TaskRowProps): JSX.Element => {
@@ -33,7 +33,7 @@ export const TaskRow = (props: TaskRowProps): JSX.Element => {
   return (
     <div
       classList={{
-        "group/task row relative flex h-9 items-center gap-2 px-2 rounded-md cursor-default transition-colors hover:bg-surface-base-hover": true,
+        "group/task row relative flex h-9 items-center gap-2 px-2 rounded-md cursor-default transition-colors hover:bg-hover": true,
         "before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-0.5 before:rounded-full before:bg-[var(--task-row-color,var(--border-hover))]":
           selected(),
       }}
@@ -41,20 +41,20 @@ export const TaskRow = (props: TaskRowProps): JSX.Element => {
       onClick={props.onClick}
     >
       <span class={`size-1.5 rounded-full shrink-0 ${STATUS_DOT_CLASS[props.status()]}`} />
-      <span class="text-ui-caption text-text-strong truncate flex-1 min-w-0">{props.title()}</span>
+      <span class="text-ui-caption text-foreground truncate flex-1 min-w-0">{props.title()}</span>
       <Show when={props.waitingBadge?.()}>
-        <span class="text-ui-xs px-1 rounded border border-surface-warning-strong text-surface-warning-strong shrink-0">
+        <span class="text-ui-xs px-1 rounded border border-warning text-warning shrink-0">
           {t("taskCenter.waiting")}
         </span>
       </Show>
       <Show when={props.branch?.()}>
-        <span class="text-ui-xs text-text-weak shrink-0 max-w-[120px] truncate flex items-center gap-1">
+        <span class="text-ui-xs text-foreground-subtle shrink-0 max-w-[120px] truncate flex items-center gap-1">
           <Icon name="branch" size="small" />
           <span class="truncate">{props.branch?.()}</span>
         </span>
       </Show>
       <Show when={props.updated?.()}>
-        <span class="text-ui-xs text-text-weak shrink-0">{formatRelativeTime(props.updated?.(), now(), t)}</span>
+        <span class="text-ui-xs text-foreground-subtle shrink-0">{formatRelativeTime(props.updated?.(), now(), t)}</span>
       </Show>
       <Show when={(props.additions?.() ?? 0) + (props.deletions?.() ?? 0) > 0}>
         <span class="text-ui-xs tabular-nums shrink-0">

@@ -1,4 +1,8 @@
 export const dict = {
+  "window.minimize": "Minimize",
+  "window.maximize": "Maximize",
+  "window.restore": "Restore",
+  "window.close": "Close",
   "command.category.suggested": "Suggested",
   "command.category.view": "View",
   "command.category.project": "Project",

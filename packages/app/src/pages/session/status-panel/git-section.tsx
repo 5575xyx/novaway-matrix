@@ -7,8 +7,8 @@ import { num, useGitSnapshot, type Snapshot } from "../git-panel"
 import type { StatusPanelSection } from "./status-panel"
 
 const messageInputClass =
-  "h-7 flex-1 min-w-0 rounded-md border border-border-weak-base bg-input-base px-2 text-ui-sm " +
-  "text-text-strong placeholder:text-text-weak outline-none focus:border-border-interactive-base"
+  "h-7 flex-1 min-w-0 rounded-md border border-border bg-input px-2 text-ui-sm " +
+  "text-foreground placeholder:text-foreground-subtle outline-none focus:border-primary"
 
 type GitSectionModel = {
   added: number
@@ -92,20 +92,20 @@ export function useGitSection(): () => StatusPanelSection | null {
           <button
             type="button"
             data-action="status-panel-git-review"
-            class="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-surface-raised-base-hover"
+            class="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-hover"
             onClick={() => layout.sidePane.add("review")}
           >
-            <span class="text-ui-sm text-text-weak shrink-0">{language.t("git.unstaged")}</span>
+            <span class="text-ui-sm text-foreground-subtle shrink-0">{language.t("git.unstaged")}</span>
             <span class="ml-auto text-ui-sm tabular-nums">{diffStat(current)}</span>
           </button>
 
           <div class="flex items-center gap-1.5 px-1.5 py-1">
-            <Icon name="branch" size="small" class="text-icon-base shrink-0" />
-            <span class="text-ui-sm text-text-strong min-w-0 truncate">
+            <Icon name="branch" size="small" class="text-foreground-subtle shrink-0" />
+            <span class="text-ui-sm text-foreground min-w-0 truncate">
               {current.branch ?? language.t("git.noBranch")}
             </span>
             <Show when={ahead() > 0 || behind() > 0}>
-              <span class="text-ui-sm tabular-nums text-text-weak shrink-0">
+              <span class="text-ui-sm tabular-nums text-foreground-subtle shrink-0">
                 <Show when={ahead() > 0}>
                   <span class="text-success-base">↑{ahead()}</span>
                 </Show>

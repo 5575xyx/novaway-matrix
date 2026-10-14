@@ -37,13 +37,13 @@ export function OfficePptTemplatePreview(props: { template: OfficePptTemplateID 
     <Dialog title={`${officePptTemplateName(props.template)} 预览`} class="mx-auto w-full max-w-[1080px]">
       <div class="max-h-[76vh] overflow-auto px-6 pb-6">
         <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div class="max-w-3xl text-13-regular leading-relaxed text-text-weak">
+          <div class="max-w-3xl text-13-regular leading-relaxed text-foreground-subtle">
             {officePptTemplateDescription(props.template)}
           </div>
           <div class="flex shrink-0 items-center gap-2">
             <Show
               when={realPreviews().length > 0}
-              fallback={<span class="text-11-medium text-text-muted">版式示意</span>}
+              fallback={<span class="text-11-medium text-foreground-subtle">版式示意</span>}
             >
               <span class="rounded-[6px] border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 text-11-medium text-emerald-600">
                 {metadata()?.source === "Pptx"
@@ -54,7 +54,7 @@ export function OfficePptTemplatePreview(props: { template: OfficePptTemplateID 
               </span>
             </Show>
             <Show when={metadata()?.layoutCount}>
-              <span class="text-11-regular text-text-muted">{metadata()?.layoutCount} 个布局</span>
+              <span class="text-11-regular text-foreground-subtle">{metadata()?.layoutCount} 个布局</span>
             </Show>
           </div>
         </div>
@@ -63,7 +63,7 @@ export function OfficePptTemplatePreview(props: { template: OfficePptTemplateID 
           <div class="grid gap-4 md:grid-cols-3">
             <For each={realPreviews()}>
               {(preview) => (
-                <div class="relative aspect-[16/9] overflow-hidden rounded-[8px] border border-border-weaker-base bg-white shadow-[0_18px_48px_rgba(0,0,0,0.18)]">
+                <div class="relative aspect-[16/9] overflow-hidden rounded-[8px] border border-border bg-white shadow-[0_18px_48px_rgba(0,0,0,0.18)]">
                   <img
                     src={preview.src}
                     alt={`${officePptTemplateName(props.template)} ${preview.label}`}
@@ -89,7 +89,7 @@ function GeneratedLayoutPreview(props: { template: OfficePptTemplateID }) {
     <div class="grid gap-4 md:grid-cols-3">
       <For each={["封面", "概览", "内容", "卡片", "数据", "收尾"]}>
         {(label, index) => (
-          <div class="relative aspect-[16/9] overflow-hidden rounded-[8px] border border-border-weaker-base bg-white shadow-[0_18px_48px_rgba(0,0,0,0.18)]">
+          <div class="relative aspect-[16/9] overflow-hidden rounded-[8px] border border-border bg-white shadow-[0_18px_48px_rgba(0,0,0,0.18)]">
             <div class="relative h-full w-full p-3" style={{ "background-color": `#${visual.pageBg}` }}>
               <span class="absolute left-0 top-0 h-full w-1.5" style={{ "background-color": `#${visual.accent}` }} />
               <div class="flex h-full flex-col justify-center pl-3">

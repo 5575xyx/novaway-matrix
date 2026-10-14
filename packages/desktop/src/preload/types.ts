@@ -321,6 +321,11 @@ export type ElectronAPI = {
   getZoomFactor: () => Promise<number>
   setZoomFactor: (factor: number) => Promise<void>
   setTitlebar: (theme: TitlebarTheme) => Promise<void>
+  minimizeWindow: () => Promise<void>
+  toggleMaximizeWindow: () => Promise<void>
+  closeWindow: () => Promise<void>
+  isWindowMaximized: () => Promise<boolean>
+  onWindowMaximizedChange: (cb: (maximized: boolean) => void) => () => void
   loadingWindowComplete: () => void
   runUpdater: (alertOnFail: boolean) => Promise<void>
   checkUpdate: () => Promise<{ updateAvailable: boolean; version?: string }>

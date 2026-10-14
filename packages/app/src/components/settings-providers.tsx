@@ -175,18 +175,18 @@ export const SettingsProviders: Component = () => {
     <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
       <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--popover)_calc(100%_-_24px),transparent)]">
         <div class="flex flex-col gap-1 pt-6 pb-8 w-full">
-          <h2 class="text-16-medium text-text-strong">{language.t("settings.providers.title")}</h2>
+          <h2 class="text-16-medium text-foreground">{language.t("settings.providers.title")}</h2>
         </div>
       </div>
 
       <div class="flex flex-col gap-8 w-full">
         <div class="flex flex-col gap-1" data-component="connected-providers-section">
-          <h3 class="text-14-medium text-text-strong pb-2">{language.t("settings.providers.section.connected")}</h3>
+          <h3 class="text-14-medium text-foreground pb-2">{language.t("settings.providers.section.connected")}</h3>
           <SettingsList>
             <Show
               when={connected().length > 0}
               fallback={
-                <div class="py-4 text-14-regular text-text-weak">
+                <div class="py-4 text-14-regular text-foreground-subtle">
                   {language.t("settings.providers.connected.empty")}
                 </div>
               }
@@ -195,11 +195,11 @@ export const SettingsProviders: Component = () => {
                 {(item) => {
                   const entries = authEntries[item.id]
                   return (
-                    <div class="group rounded-lg border border-border-weak-base bg-surface-base p-3">
+                    <div class="group rounded-lg border border-border bg-surface p-3">
                       <div class="flex flex-wrap items-center justify-between gap-4 min-h-8">
                         <div class="flex items-center gap-3 min-w-0">
                           <ProviderIcon id={item.id} class="size-5 shrink-0 icon-strong-base" />
-                          <span class="text-14-medium text-text-strong truncate">{item.name}</span>
+                          <span class="text-14-medium text-foreground truncate">{item.name}</span>
                           <Tag>{type(item)}</Tag>
                         </div>
                         <div class="flex items-center gap-2">
@@ -229,7 +229,7 @@ export const SettingsProviders: Component = () => {
                           <Show
                             when={canDisconnect(item)}
                             fallback={
-                              <span class="text-14-regular text-text-base opacity-0 group-hover:opacity-100 transition-opacity duration-200 pr-3 cursor-default">
+                              <span class="text-14-regular text-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-200 pr-3 cursor-default">
                                 {language.t("settings.providers.connected.environmentDescription")}
                               </span>
                             }
@@ -244,7 +244,7 @@ export const SettingsProviders: Component = () => {
                         <div class="pl-8 pt-2 flex flex-col gap-1">
                           <For each={entries}>
                             {(entry, index) => (
-                              <div class="flex items-center justify-between gap-2 text-13-regular text-text-base">
+                              <div class="flex items-center justify-between gap-2 text-13-regular text-foreground">
                                 <span class="truncate font-mono">
                                   {entry.type === "api"
                                     ? maskKey(entry.key ?? "")
@@ -253,7 +253,7 @@ export const SettingsProviders: Component = () => {
                                       : "WellKnown"}
                                 </span>
                                 <button
-                                  class="text-12-regular text-text-weak hover:text-text-critical-base shrink-0"
+                                  class="text-12-regular text-foreground-subtle hover:text-destructive shrink-0"
                                   onClick={() => void removeEntry(item.id, index(), item.name)}
                                 >
                                   {language.t("common.remove")}
@@ -283,7 +283,7 @@ export const SettingsProviders: Component = () => {
           >
             {language.t("settings.providers.add.provider")}
           </Button>
-          <p class="text-12-regular text-text-weak text-center">
+          <p class="text-12-regular text-foreground-subtle text-center">
             {language.t("settings.providers.add.provider.description")}
           </p>
         </div>

@@ -82,7 +82,7 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
   onCleanup(clearTimers)
 
   return (
-    <div class="relative size-full min-h-0 min-w-0 bg-background-base">
+    <div class="relative size-full min-h-0 min-w-0 bg-background">
       <Tabs
         orientation="vertical"
         variant="settings"
@@ -103,7 +103,7 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
               >
                 {language.t("common.goBack")}
               </Button>
-              <div class="h-px w-full bg-border-weak-base" />
+              <div class="h-px w-full bg-border" />
               <div class="flex flex-col gap-1.5 w-full">
                 <Tabs.Trigger value="general">
                   <Icon name="sliders" />
@@ -188,8 +188,8 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
         </Tabs.Content>
       </Tabs>
       <Show when={switching()}>
-        <div class="absolute inset-0 z-30 flex items-start justify-center bg-background-base/70 pt-6">
-          <div class="flex items-center gap-2 rounded-md border border-border-weak-base bg-surface-raised-stronger-non-alpha px-3 py-2 text-12-medium text-text-base shadow-sm">
+        <div class="absolute inset-0 z-30 flex items-start justify-center bg-background/70 pt-6">
+          <div class="flex items-center gap-2 rounded-md border border-border bg-popover px-3 py-2 text-12-medium text-foreground shadow-sm">
             <Spinner class="size-3.5" />
             <span>{language.t("common.loading")}</span>
           </div>

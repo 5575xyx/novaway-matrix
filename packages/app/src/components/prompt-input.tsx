@@ -325,7 +325,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       return (
         <div class="flex items-center gap-2">
           <span>{language.t("prompt.action.stop")}</span>
-          <span class="text-icon-base text-12-medium text-[10px]!">{language.t("common.key.esc")}</span>
+          <span class="text-foreground-subtle text-12-medium text-[10px]!">{language.t("common.key.esc")}</span>
         </div>
       )
     }
@@ -341,7 +341,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     return (
       <div class="flex items-center gap-2">
         <span>{language.t("prompt.action.send")}</span>
-        <Icon name="enter" size="small" class="text-icon-base" />
+        <Icon name="enter" size="small" class="text-foreground-subtle" />
       </div>
     )
   }
@@ -1632,7 +1632,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
           "rounded-2xl border border-input-border bg-input p-3 transition-colors": true,
           "hover:border-input-border-hover": !working() && !store.optimizing,
           "focus-within:border-input-border-focused focus-within:bg-input-focused": true,
-          "border-icon-info-active border-dashed": store.draggingType !== null,
+          "border-icon-blue border-dashed": store.draggingType !== null,
           [props.class ?? ""]: !!props.class,
         }}
       >
@@ -1662,16 +1662,16 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
           removeLabel={language.t("prompt.attachment.remove")}
         />
         <Show when={store.mode === "normal" || store.mode === "shell"}>
-          <div class="px-2 pb-1 pt-2 flex items-center gap-2 min-w-0 border-b border-border-weak-base">
+          <div class="px-2 pb-1 pt-2 flex items-center gap-2 min-w-0 border-b border-border">
             <ProjectSwitcherChip />
             <Show when={store.mode === "shell"}>
               <div class="flex items-center gap-1.5 min-w-0">
                 <Icon name="console" />
-                <span class="truncate text-13-medium text-text-base">{language.t("prompt.mode.shell")}</span>
+                <span class="truncate text-13-medium text-foreground">{language.t("prompt.mode.shell")}</span>
                 <div class="flex-1" />
                 <Button
                   variant="ghost"
-                  class="text-text-base"
+                  class="text-foreground"
                   onClick={() => {
                     setStore("mode", "normal")
                   }}
@@ -1705,8 +1705,8 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                           local.agent.set(value)
                           restoreFocus()
                         }}
-                        class="capitalize max-w-[160px] text-text-strong"
-                        valueClass="truncate text-13-medium text-text-strong"
+                        class="capitalize max-w-[160px] text-foreground"
+                        valueClass="truncate text-13-medium text-foreground"
                         triggerStyle={{ ...control(), "border-radius": "8px" }}
                         triggerProps={{ "data-action": "prompt-agent" }}
                         variant="ghost"
@@ -1719,7 +1719,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
               <Show when={zenOfficeMode()}>
                 <div
                   data-component="prompt-office-agent-control"
-                  class="flex h-7 min-w-0 max-w-[190px] items-center gap-1.5 rounded-[8px] px-2 text-13-regular text-text-base"
+                  class="flex h-7 min-w-0 max-w-[190px] items-center gap-1.5 rounded-[8px] px-2 text-13-regular text-foreground"
                   style={control()}
                 >
                   <Icon name={office.activeAction().icon} size="small" class="shrink-0 text-emerald-200" />
@@ -1747,7 +1747,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                           as="div"
                           variant="ghost"
                           size="normal"
-                          class="min-w-0 max-w-[320px] text-13-medium text-text-strong group"
+                          class="min-w-0 max-w-[320px] text-13-medium text-foreground group"
                           style={{ ...control(), "border-radius": "8px" }}
                           onClick={() => {
                             void import("@/components/dialog-select-model-unpaid").then((x) => {
@@ -1792,7 +1792,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                           variant: "ghost",
                           size: "normal",
                           style: { ...control(), "border-radius": "8px" },
-                          class: "min-w-0 max-w-[320px] text-13-medium text-text-strong group",
+                          class: "min-w-0 max-w-[320px] text-13-medium text-foreground group",
                           "data-action": "prompt-model",
                         }}
                         onClose={restoreFocus}
@@ -1800,13 +1800,13 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                         <Show when={modelsCtx.autoMode()}>
                           <Icon
                             name="autopilot"
-                            class="size-4 shrink-0 text-text-interactive-base transition-opacity duration-150"
+                            class="size-4 shrink-0 text-icon-blue transition-opacity duration-150"
                           />
                         </Show>
                         <Show when={!modelsCtx.autoMode() && local.model.current()?.provider?.id}>
                           <ProviderIcon
                             id={local.model.current()?.provider?.id ?? ""}
-                            class="size-4 shrink-0 text-text-interactive-base transition-opacity duration-150"
+                            class="size-4 shrink-0 text-icon-blue transition-opacity duration-150"
                           />
                         </Show>
                         <span
@@ -1854,7 +1854,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                           local.model.variant.set(value === "default" ? undefined : value)
                           restoreFocus()
                         }}
-                        class="capitalize max-w-[160px] text-text-strong"
+                        class="capitalize max-w-[160px] text-foreground"
                         valueClass="truncate text-13-medium"
                         valueStyle={{
                           background: "linear-gradient(135deg, #8b5cf6, var(--icon-blue))",
@@ -1874,7 +1874,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
             <div class="flex-1" />
             <div class="flex items-center gap-3 whitespace-nowrap">
               <div
-                class="px-1.5 py-0.5 text-12-medium rounded-md text-text-interactive-base cursor-default select-none"
+                class="px-1.5 py-0.5 text-12-medium rounded-md text-icon-blue cursor-default select-none"
                 style={{ "font-weight": "var(--font-weight-semibold)" }}
               >
                 自动联网
@@ -1883,7 +1883,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                 <Tooltip placement="top" gutter={4} value={autoAcceptTooltip()}>
                   <div
                     data-action="prompt-auto-accept"
-                    class="flex items-center gap-1.5 text-12-medium text-text-interactive-base cursor-pointer select-none"
+                    class="flex items-center gap-1.5 text-12-medium text-icon-blue cursor-pointer select-none"
                   >
                     <span style={{ "font-weight": "var(--font-weight-semibold)" }}>
                       {language.t("permissions.prompt.currentProject")}
@@ -1900,7 +1900,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                       }}
                     />
                     <Show when={globalAutoApprove()}>
-                      <span class="px-1.5 py-0.5 rounded-md bg-surface-hover text-11-medium text-text-weak">
+                      <span class="px-1.5 py-0.5 rounded-md bg-hover text-11-medium text-foreground-subtle">
                         {language.t("permissions.prompt.globalEnabled")}
                       </span>
                     </Show>
@@ -1959,7 +1959,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
               onKeyDown={handleKeyDown}
               classList={{
                 "select-text": true,
-                "w-full pl-3 pr-2 pt-2 text-14-regular text-text-strong focus:outline-none whitespace-pre-wrap text-left!": true,
+                "w-full pl-3 pr-2 pt-2 text-14-regular text-foreground focus:outline-none whitespace-pre-wrap text-left!": true,
                 "[&_[data-type=file]]:text-syntax-property": true,
                 "[&_[data-type=agent]]:text-syntax-type": true,
                 "font-mono!": store.mode === "shell",
@@ -1967,7 +1967,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
               style={{ "padding-bottom": space }}
             />
             <div
-              class="absolute top-0 inset-x-0 pl-3 pr-2 pt-2 text-14-regular text-text-weak pointer-events-none whitespace-nowrap truncate"
+              class="absolute top-0 inset-x-0 pl-3 pr-2 pt-2 text-14-regular text-foreground-subtle pointer-events-none whitespace-nowrap truncate"
               classList={{ "font-mono!": store.mode === "shell" }}
               style={{ "padding-bottom": space, display: prompt.dirty() ? "none" : undefined }}
             >
@@ -2025,7 +2025,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                       stroke-width="1.5"
                       stroke-linecap="round"
                       stroke-linejoin="round"
-                      class="size-4 text-text-interactive-base"
+                      class="size-4 text-icon-blue"
                     >
                       <path d="M3 7v6h6" />
                       <path d="M3 13a9 9 0 1 0 3-7.7L3 7" />
@@ -2073,7 +2073,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                         stroke-width="1.5"
                         stroke-linecap="round"
                         stroke-linejoin="round"
-                        class="size-4 text-text-interactive-base"
+                        class="size-4 text-icon-blue"
                       >
                         <path d="M15 4V2M15 16V14M8 9H10M3 9H5M6 12L4 14M11 6L13.5 3.5M13.5 14.5L11 17" />
                         <path d="M9.5 5.5L15 11L13 13L7.5 7.5L9.5 5.5Z" fill="currentColor" opacity="0.3" />
@@ -2088,7 +2088,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                       stroke-width="1.5"
                       stroke-linecap="round"
                       stroke-linejoin="round"
-                      class="size-4 text-text-interactive-base animate-optimize-spin"
+                      class="size-4 text-icon-blue animate-optimize-spin"
                     >
                       <path d="M15 4V2M15 16V14M8 9H10M3 9H5M6 12L4 14M11 6L13.5 3.5M13.5 14.5L11 17" opacity="0.4" />
                       <path d="M9.5 5.5L15 11L13 13L7.5 7.5L9.5 5.5Z" fill="currentColor" opacity="0.4" />
@@ -2147,7 +2147,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                   tabIndex={store.mode === "normal" ? undefined : -1}
                   aria-label={language.t("prompt.action.attachFile")}
                 >
-                  <Icon name="link" class="size-4.5 text-text-interactive-base" />
+                  <Icon name="link" class="size-4.5 text-icon-blue" />
                 </Button>
               </TooltipKeybind>
               <Tooltip placement="top" value="提及 @" inactive={store.mode !== "normal"}>
@@ -2168,7 +2168,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                   tabIndex={store.mode === "normal" ? undefined : -1}
                   aria-label="提及 @"
                 >
-                  <span class="text-sm font-semibold text-text-interactive-base">@</span>
+                  <span class="text-sm font-semibold text-icon-blue">@</span>
                 </Button>
               </Tooltip>
               <Tooltip placement="top" value="斜杠命令 /" inactive={store.mode !== "normal"}>
@@ -2188,7 +2188,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                   tabIndex={store.mode === "normal" ? undefined : -1}
                   aria-label="斜杠命令 /"
                 >
-                  <span class="text-sm font-semibold text-text-interactive-base">/</span>
+                  <span class="text-sm font-semibold text-icon-blue">/</span>
                 </Button>
               </Tooltip>
             </div>

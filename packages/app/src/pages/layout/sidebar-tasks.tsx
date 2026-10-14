@@ -80,7 +80,7 @@ export function ProjectTaskList(props: {
   return (
     <>
       <Show when={props.filter() !== "all" && sessions().length === 0}>
-        <div class="px-2 py-1.5 text-ui-caption text-text-weak">{language.t("sidebar.filter.empty")}</div>
+        <div class="px-2 py-1.5 text-ui-caption text-foreground-subtle">{language.t("sidebar.filter.empty")}</div>
       </Show>
       <Show when={sessions().length > 0}>
         <For each={sessions()}>
@@ -134,7 +134,7 @@ export function TaskFilterBar(props: {
       role="tablist"
       classList={{
         "flex items-center px-3 gap-3 pb-1 text-ui-sm": variant === "text",
-        "flex items-center px-3 gap-4 border-b border-border-weak-base text-ui-caption": variant === "underline",
+        "flex items-center px-3 gap-4 border-b border-border text-ui-caption": variant === "underline",
       }}
     >
       <For each={tabs}>
@@ -145,12 +145,12 @@ export function TaskFilterBar(props: {
             classList={{
               "transition-colors": true,
               "border-b-2 -mb-px pb-1.5": variant === "underline",
-              "border-text-interactive-base text-text-strong font-medium":
+              "border-icon-blue text-foreground font-medium":
                 variant === "underline" && props.filter === tab.id,
-              "border-transparent text-text-weak hover:text-text-base":
+              "border-transparent text-foreground-subtle hover:text-foreground":
                 variant === "underline" && props.filter !== tab.id,
-              "text-text-strong font-medium": variant === "text" && props.filter === tab.id,
-              "text-text-weak hover:text-text-base": variant === "text" && props.filter !== tab.id,
+              "text-foreground font-medium": variant === "text" && props.filter === tab.id,
+              "text-foreground-subtle hover:text-foreground": variant === "text" && props.filter !== tab.id,
             }}
             onClick={() => props.onChange(tab.id)}
           >

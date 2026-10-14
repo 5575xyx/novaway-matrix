@@ -376,14 +376,14 @@ export const SettingsKeybinds: Component = () => {
       <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--popover)_calc(100%_-_24px),transparent)]">
         <div class="flex flex-col gap-4 pt-6 pb-6 w-full">
           <div class="flex items-center justify-between gap-4">
-            <h2 class="text-16-medium text-text-strong">{language.t("settings.shortcuts.title")}</h2>
+            <h2 class="text-16-medium text-foreground">{language.t("settings.shortcuts.title")}</h2>
             <Button size="small" variant="secondary" onClick={resetAll} disabled={!hasOverrides()}>
               {language.t("settings.shortcuts.reset.button")}
             </Button>
           </div>
 
-          <div class="flex items-center gap-2 px-3 h-9 rounded-lg bg-surface-base">
-            <Icon name="magnifying-glass" class="text-icon-weak-base flex-shrink-0" />
+          <div class="flex items-center gap-2 px-3 h-9 rounded-lg bg-surface">
+            <Icon name="magnifying-glass" class="text-foreground-subtlest flex-shrink-0" />
             <TextField
               variant="ghost"
               type="text"
@@ -408,20 +408,20 @@ export const SettingsKeybinds: Component = () => {
           {(group) => (
             <Show when={(filtered().get(group) ?? []).length > 0}>
               <div class="flex flex-col gap-1">
-                <h3 class="text-14-medium text-text-strong pb-2">{language.t(groupKey[group])}</h3>
+                <h3 class="text-14-medium text-foreground pb-2">{language.t(groupKey[group])}</h3>
                 <SettingsList>
                   <For each={filtered().get(group) ?? []}>
                     {(id) => (
-                      <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
-                        <span class="text-14-regular text-text-strong">{title(id)}</span>
+                      <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
+                        <span class="text-14-regular text-foreground">{title(id)}</span>
                         <button
                           type="button"
                           data-keybind-id={id}
                           classList={{
                             "h-8 px-3 rounded-md text-12-regular": true,
-                            "bg-surface-base text-text-subtle hover:bg-surface-raised-base-hover active:bg-surface-raised-base-active":
+                            "bg-surface text-foreground-subtle hover:bg-hover active:bg-selected":
                               store.active !== id,
-                            "border border-border-weak-base bg-surface-inset-base text-text-weak": store.active === id,
+                            "border border-border bg-surface text-foreground-subtle": store.active === id,
                           }}
                           onClick={() => start(id)}
                         >
@@ -443,9 +443,9 @@ export const SettingsKeybinds: Component = () => {
 
         <Show when={store.filter && !hasResults()}>
           <div class="flex flex-col items-center justify-center py-12 text-center">
-            <span class="text-14-regular text-text-weak">{language.t("settings.shortcuts.search.empty")}</span>
+            <span class="text-14-regular text-foreground-subtle">{language.t("settings.shortcuts.search.empty")}</span>
             <Show when={store.filter}>
-              <span class="text-14-regular text-text-strong mt-1">"{store.filter}"</span>
+              <span class="text-14-regular text-foreground mt-1">"{store.filter}"</span>
             </Show>
           </div>
         </Show>

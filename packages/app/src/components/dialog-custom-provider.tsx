@@ -291,11 +291,11 @@ export function DialogCustomProvider(props: Props) {
       <div class="flex flex-col gap-6 px-2.5 pb-3 overflow-y-auto max-h-[60vh]">
         <div class="px-2.5 flex gap-4 items-center">
           <ProviderIcon id="synthetic" class="size-5 shrink-0 icon-strong-base" />
-          <div class="text-16-medium text-text-strong">{language.t("provider.custom.title")}</div>
+          <div class="text-16-medium text-foreground">{language.t("provider.custom.title")}</div>
         </div>
 
         <form onSubmit={save} class="px-2.5 pb-6 flex flex-col gap-6">
-          <p class="text-14-regular text-text-base">
+          <p class="text-14-regular text-foreground">
             {language.t("provider.custom.description.prefix")}
             <Link href="https://NovaWay.ai/docs/providers/#custom-provider" tabIndex={-1}>
               {language.t("provider.custom.description.link")}
@@ -309,7 +309,7 @@ export function DialogCustomProvider(props: Props) {
               current={form.providerID ? { id: form.providerID, name: form.name, baseURL: form.baseURL } : undefined}
               onSelect={handleProviderSelect}
             />
-            <p class="text-11-regular text-text-weak">{language.t("provider.custom.field.provider.description")}</p>
+            <p class="text-11-regular text-foreground-subtle">{language.t("provider.custom.field.provider.description")}</p>
             <TextField
               label={language.t("provider.custom.field.providerID.label")}
               placeholder={language.t("provider.custom.field.providerID.placeholder")}
@@ -346,7 +346,7 @@ export function DialogCustomProvider(props: Props) {
 
           <div class="flex flex-col gap-3">
             <div class="flex flex-wrap items-center justify-between gap-2">
-              <label class="text-12-medium text-text-weak">{language.t("provider.custom.models.label")}</label>
+              <label class="text-12-medium text-foreground-subtle">{language.t("provider.custom.models.label")}</label>
               <div class="flex min-w-0 flex-wrap items-center gap-2">
                 <Button
                   type="button"
@@ -376,9 +376,9 @@ export function DialogCustomProvider(props: Props) {
                   >
                     {(model) => (
                       <div class="flex min-w-0 flex-col">
-                        <span class="truncate text-13-medium text-text-strong">{model?.name}</span>
+                        <span class="truncate text-13-medium text-foreground">{model?.name}</span>
                         <Show when={model && model.name !== model.id}>
-                          <span class="truncate text-11-regular text-text-weak">{model?.id}</span>
+                          <span class="truncate text-11-regular text-foreground-subtle">{model?.id}</span>
                         </Show>
                       </div>
                     )}
@@ -440,7 +440,7 @@ export function DialogCustomProvider(props: Props) {
           </div>
 
           <div class="flex flex-col gap-3">
-            <label class="text-12-medium text-text-weak">{language.t("provider.custom.headers.label")}</label>
+            <label class="text-12-medium text-foreground-subtle">{language.t("provider.custom.headers.label")}</label>
             <For each={form.headers}>
               {(h, i) => (
                 <div class="flex gap-2 items-start" data-row={h.row}>

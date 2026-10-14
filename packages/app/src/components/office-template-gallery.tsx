@@ -27,7 +27,7 @@ export function OfficeTemplateGallery(props: {
   return (
     <div class="flex w-full flex-col gap-4">
       <Show when={props.showSceneSwitcher !== false}>
-        <div class="rounded-[8px] border border-border-weak-base bg-background-panel/68 p-1.5 backdrop-blur-xl">
+        <div class="rounded-[8px] border border-border bg-panel/68 p-1.5 backdrop-blur-xl">
           <OfficeSceneSwitcher active={props.activeID} onSelect={props.onSelect} />
         </div>
       </Show>
@@ -38,11 +38,11 @@ export function OfficeTemplateGallery(props: {
             <Icon name={action().icon} size="medium" />
           </div>
           <div class="min-w-0 text-left">
-            <div class="text-15-medium text-text-strong">{action().title}</div>
-            <div class="mt-1 max-w-2xl text-13-regular leading-relaxed text-text-weak">{action().description}</div>
+            <div class="text-15-medium text-foreground">{action().title}</div>
+            <div class="mt-1 max-w-2xl text-13-regular leading-relaxed text-foreground-subtle">{action().description}</div>
           </div>
         </div>
-        <div class="hidden shrink-0 text-12-regular text-text-muted sm:block">
+        <div class="hidden shrink-0 text-12-regular text-foreground-subtle sm:block">
           {props.activeID === "ppt" ? "选择模板后继续描述汇报主题" : "选择模板后可继续补充内容"}
         </div>
       </div>
@@ -55,7 +55,7 @@ export function OfficeTemplateGallery(props: {
               fallback={
                 <button
                   type="button"
-                  class="group min-h-40 rounded-[8px] border border-border-weak-base bg-background-panel/72 p-4 text-left backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:border-emerald-300/40 hover:bg-surface-raised-base hover:shadow-[0_16px_44px_rgba(0,0,0,0.14)]"
+                  class="group min-h-40 rounded-[8px] border border-border bg-panel/72 p-4 text-left backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:border-emerald-300/40 hover:bg-surface hover:shadow-[0_16px_44px_rgba(0,0,0,0.14)]"
                   classList={{
                     "border-emerald-400/70 bg-emerald-400/[0.08] shadow-[0_12px_32px_rgba(16,185,129,0.12)]":
                       props.selectedID === card.id,
@@ -69,7 +69,7 @@ export function OfficeTemplateGallery(props: {
                     <div class="flex shrink-0 flex-wrap justify-end gap-1">
                       <For each={card.tags}>
                         {(tag) => (
-                          <span class="rounded-full border border-border-weaker-base bg-background-base px-2 py-0.5 text-10-medium text-text-weak">
+                          <span class="rounded-full border border-border bg-background px-2 py-0.5 text-10-medium text-foreground-subtle">
                             {tag}
                           </span>
                         )}
@@ -77,8 +77,8 @@ export function OfficeTemplateGallery(props: {
                     </div>
                   </div>
                   <div class="mt-4">
-                    <div class="text-14-medium text-text-strong">{card.title}</div>
-                    <div class="mt-1 text-12-regular leading-relaxed text-text-weak">{card.description}</div>
+                    <div class="text-14-medium text-foreground">{card.title}</div>
+                    <div class="mt-1 text-12-regular leading-relaxed text-foreground-subtle">{card.description}</div>
                   </div>
                   <div class="mt-4 flex items-center gap-1.5 text-12-medium text-emerald-200/90 opacity-0 transition-opacity group-hover:opacity-100">
                     <span>使用模板</span>
@@ -88,7 +88,7 @@ export function OfficeTemplateGallery(props: {
               }
             >
               <div
-                class="group relative cursor-pointer overflow-hidden rounded-[8px] border border-border-weak-base bg-background-panel/72 text-left backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:border-emerald-300/40 hover:shadow-[0_18px_48px_rgba(0,0,0,0.16)]"
+                class="group relative cursor-pointer overflow-hidden rounded-[8px] border border-border bg-panel/72 text-left backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:border-emerald-300/40 hover:shadow-[0_18px_48px_rgba(0,0,0,0.16)]"
                 onClick={() => props.onUseTemplate(card)}
                 classList={{
                   "border-emerald-400/80 bg-emerald-400/[0.08] shadow-[0_0_0_3px_rgba(16,185,129,0.16),0_18px_48px_rgba(16,185,129,0.22)]":
@@ -161,8 +161,8 @@ export function OfficeTemplateGallery(props: {
                   </div>
                 </div>
                 <div class="p-3">
-                  <div class="truncate text-13-medium text-text-strong">{card.title}</div>
-                  <div class="mt-1 line-clamp-2 text-11-regular leading-relaxed text-text-weak">{card.description}</div>
+                  <div class="truncate text-13-medium text-foreground">{card.title}</div>
+                  <div class="mt-1 line-clamp-2 text-11-regular leading-relaxed text-foreground-subtle">{card.description}</div>
                 </div>
               </div>
             </Show>

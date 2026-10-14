@@ -97,7 +97,7 @@ export const ProjectSwitcherChip: Component = () => {
       onOpenChange={(open) => (open ? layout.projectPicker.show() : layout.projectPicker.hide())}
       placement="bottom-start"
       gutter={8}
-      class="w-[340px] rounded-[14px] border border-border-weak-base bg-surface-raised-stronger-non-alpha p-0 shadow-[var(--shadow-md)] backdrop-blur-xl"
+      class="w-[340px] rounded-[14px] border border-border bg-popover p-0 shadow-[var(--shadow-md)] backdrop-blur-xl"
     >
       <TooltipKeybind
         placement="top"
@@ -114,20 +114,20 @@ export const ProjectSwitcherChip: Component = () => {
           aria-label={language.t("project.switch.tooltip")}
           aria-expanded={layout.projectPicker.open()}
           onClick={() => layout.projectPicker.toggle()}
-          class="group flex h-7 min-w-0 max-w-[200px] items-center gap-1.5 rounded-[8px] px-2 text-13-regular text-text-base transition-colors hover:bg-surface-base-hover data-[state=open]:bg-surface-base-hover"
+          class="group flex h-7 min-w-0 max-w-[200px] items-center gap-1.5 rounded-[8px] px-2 text-13-regular text-foreground transition-colors hover:bg-hover data-[state=open]:bg-hover"
           style={{
             background: "var(--surface)",
             border: "1px solid var(--border)",
           }}
         >
-          <Icon name={currentProject() ? "folder" : "folder-add-left"} size="small" class="shrink-0 text-icon-base" />
-          <span class="truncate text-13-medium text-text-strong">{chipLabel()}</span>
-          <Icon name="chevron-down" size="small" class="shrink-0 text-icon-weak-base" />
+          <Icon name={currentProject() ? "folder" : "folder-add-left"} size="small" class="shrink-0 text-foreground-subtle" />
+          <span class="truncate text-13-medium text-foreground">{chipLabel()}</span>
+          <Icon name="chevron-down" size="small" class="shrink-0 text-foreground-subtlest" />
         </button>
       </TooltipKeybind>
       <div data-slot="popover-body" class="flex flex-col gap-1 p-2">
-        <div class="flex items-center gap-2 rounded-[10px] bg-surface-base px-2 py-1.5">
-          <Icon name="magnifying-glass" size="small" class="shrink-0 text-icon-weak-base" />
+        <div class="flex items-center gap-2 rounded-[10px] bg-surface px-2 py-1.5">
+          <Icon name="magnifying-glass" size="small" class="shrink-0 text-foreground-subtlest" />
           <input
             ref={(el) => {
               searchInputRef = el
@@ -136,7 +136,7 @@ export const ProjectSwitcherChip: Component = () => {
             value={search()}
             onInput={(event) => setSearch(event.currentTarget.value)}
             placeholder={language.t("project.switch.search")}
-            class="flex-1 bg-transparent text-13-regular text-text-strong placeholder:text-text-weak outline-none"
+            class="flex-1 bg-transparent text-13-regular text-foreground placeholder:text-foreground-subtle outline-none"
             aria-label={language.t("project.switch.search")}
             data-action="project-switcher-search"
             onKeyDown={(event) => {
@@ -164,7 +164,7 @@ export const ProjectSwitcherChip: Component = () => {
           <For
             each={filtered()}
             fallback={
-              <div class="px-3 py-6 text-center text-12-regular text-text-weak">
+              <div class="px-3 py-6 text-center text-12-regular text-foreground-subtle">
                 {projects().length === 0 ? language.t("project.switch.empty") : language.t("project.switch.noMatch")}
               </div>
             }
@@ -175,41 +175,41 @@ export const ProjectSwitcherChip: Component = () => {
                 data-action="project-switcher-item"
                 data-project={base64Encode(project.worktree)}
                 onClick={() => selectProject(project)}
-                class="flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left transition-colors hover:bg-surface-base-hover"
+                class="flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left transition-colors hover:bg-hover"
               >
-                <Icon name={isCurrent(project) ? "folder" : "folder"} size="small" class="shrink-0 text-icon-base" />
+                <Icon name={isCurrent(project) ? "folder" : "folder"} size="small" class="shrink-0 text-foreground-subtle" />
                 <div class="min-w-0 flex-1">
-                  <div class="truncate text-13-medium text-text-strong">{projectLabel(project)}</div>
-                  <div class="truncate text-11-regular text-text-weak">{project.worktree}</div>
+                  <div class="truncate text-13-medium text-foreground">{projectLabel(project)}</div>
+                  <div class="truncate text-11-regular text-foreground-subtle">{project.worktree}</div>
                 </div>
                 <Show when={isCurrent(project)}>
-                  <Icon name="check" size="small" class="shrink-0 text-icon-interactive-base" />
+                  <Icon name="check" size="small" class="shrink-0 text-icon-blue" />
                 </Show>
               </button>
             )}
           </For>
         </div>
 
-        <div class="my-1 h-px bg-border-weaker-base" />
+        <div class="my-1 h-px bg-border" />
 
         <button
           type="button"
           data-action="project-switcher-create"
           onClick={openCreateDialog}
-          class="flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left transition-colors hover:bg-surface-base-hover"
+          class="flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left transition-colors hover:bg-hover"
         >
-          <Icon name="plus" size="small" class="shrink-0 text-icon-base" />
-          <span class="text-13-medium text-text-strong">{language.t("project.switch.create")}</span>
+          <Icon name="plus" size="small" class="shrink-0 text-foreground-subtle" />
+          <span class="text-13-medium text-foreground">{language.t("project.switch.create")}</span>
         </button>
 
         <button
           type="button"
           data-action="project-switcher-leave"
           onClick={leaveProject}
-          class="flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left transition-colors hover:bg-surface-base-hover"
+          class="flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left transition-colors hover:bg-hover"
         >
-          <Icon name="close" size="small" class="shrink-0 text-icon-base" />
-          <span class="text-13-medium text-text-strong">{language.t("project.switch.leave")}</span>
+          <Icon name="close" size="small" class="shrink-0 text-foreground-subtle" />
+          <span class="text-13-medium text-foreground">{language.t("project.switch.leave")}</span>
         </button>
       </div>
     </Popover>

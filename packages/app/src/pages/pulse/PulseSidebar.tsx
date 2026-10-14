@@ -50,46 +50,46 @@ function AccountItem(props: {
     <div
       class="relative flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-all duration-150"
       classList={{
-        "bg-surface-raised-base-hover": props.isSelected,
-        "hover:bg-surface-raised-base-hover": !props.isSelected,
+        "bg-hover": props.isSelected,
+        "hover:bg-hover": !props.isSelected,
       }}
       style={props.isSelected ? { "box-shadow": "inset 3px 0 0 var(--novaway-mode-color, #FF6B6B)" } : undefined}
       onClick={props.onSelect}
       onContextMenu={handleContextMenu}
     >
-      <div class="relative size-8 shrink-0 rounded-full bg-background-weak flex items-center justify-center overflow-hidden">
+      <div class="relative size-8 shrink-0 rounded-full bg-background-alt flex items-center justify-center overflow-hidden">
         {props.account.avatar ? (
           <img src={props.account.avatar} alt="" class="size-full object-cover" />
         ) : (
-          <span class="text-12-regular text-text-weak">{props.account.nickname?.charAt(0)}</span>
+          <span class="text-12-regular text-foreground-subtle">{props.account.nickname?.charAt(0)}</span>
         )}
         <span
-          class={`absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full ${statusColor()} ring-2 ring-background-base`}
+          class={`absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full ${statusColor()} ring-2 ring-background`}
         />
       </div>
       <div class="flex-1 min-w-0">
-        <div class="text-13-medium text-text-strong truncate leading-tight">{props.account.nickname}</div>
+        <div class="text-13-medium text-foreground truncate leading-tight">{props.account.nickname}</div>
         <div class="flex items-center gap-1 mt-0.5">
           <img src={info()?.icon} alt="" class="size-3" />
-          <span class="text-11-regular text-text-weaker">{info()?.name}</span>
+          <span class="text-11-regular text-foreground-subtlest">{info()?.name}</span>
         </div>
       </div>
 
       <Show when={showMenu()}>
         <div
-          class="fixed z-50 bg-background-raised-base border border-border-weak-base rounded-lg shadow-lg py-1 min-w-[120px]"
+          class="fixed z-50 bg-surface border border-border rounded-lg shadow-lg py-1 min-w-[120px]"
           style={{ left: `${menuPos().x}px`, top: `${menuPos().y}px` }}
           onClick={() => setShowMenu(false)}
         >
           <button
-            class="w-full px-3 py-1.5 text-left text-12-regular text-text-strong hover:bg-surface-raised-base-hover flex items-center gap-2"
+            class="w-full px-3 py-1.5 text-left text-12-regular text-foreground hover:bg-hover flex items-center gap-2"
             onClick={() => handleMenuAction("check")}
           >
-            <Icon name="circle-check" size="small" class="text-text-weak" />
+            <Icon name="circle-check" size="small" class="text-foreground-subtle" />
             检测登录状态
           </button>
           <button
-            class="w-full px-3 py-1.5 text-left text-12-regular text-rose-600 dark:text-rose-400 hover:bg-surface-raised-base-hover flex items-center gap-2"
+            class="w-full px-3 py-1.5 text-left text-12-regular text-rose-600 dark:text-rose-400 hover:bg-hover flex items-center gap-2"
             onClick={() => handleMenuAction("remove")}
           >
             <Icon name="trash" size="small" />
@@ -129,7 +129,7 @@ export function PulseSidebar() {
 
   return (
     <div class="flex flex-col h-full">
-      <div class="shrink-0 p-3 border-b border-border-weak-base">
+      <div class="shrink-0 p-3 border-b border-border">
         <div
           class="rounded-[10px] p-3"
           style={{
@@ -137,13 +137,13 @@ export function PulseSidebar() {
               "linear-gradient(135deg, color-mix(in srgb, var(--novaway-mode-color, #FF6B6B) 10%, transparent), transparent)",
           }}
         >
-          <div class="text-14-medium text-text-strong mb-1">账号矩阵</div>
-          <div class="text-11-regular text-text-weak mb-2">一站式账号接入与状态巡检</div>
+          <div class="text-14-medium text-foreground mb-1">账号矩阵</div>
+          <div class="text-11-regular text-foreground-subtle mb-2">一站式账号接入与状态巡检</div>
           <div class="flex gap-2 mb-2">
-            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-weak-base text-11-regular text-text-weak">
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-border text-11-regular text-foreground-subtle">
               总账号 {platform.store.accounts.length}
             </span>
-            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-weak-base text-11-regular text-emerald-600 dark:text-emerald-400">
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-border text-11-regular text-emerald-600 dark:text-emerald-400">
               在线 {platform.onlineCount()}
             </span>
           </div>
@@ -151,7 +151,7 @@ export function PulseSidebar() {
             <div class="flex flex-wrap gap-1">
               <For each={platform.platformTags()}>
                 {(tag) => (
-                  <span class="px-1.5 py-0.5 rounded text-10-medium bg-background-base/60 text-text-weak border border-border-weaker-base">
+                  <span class="px-1.5 py-0.5 rounded text-10-medium bg-background/60 text-foreground-subtle border border-border">
                     {tag}
                   </span>
                 )}
@@ -161,17 +161,17 @@ export function PulseSidebar() {
         </div>
       </div>
 
-      <div class="shrink-0 p-2 border-b border-border-weak-base">
+      <div class="shrink-0 p-2 border-b border-border">
         <div class="flex gap-1.5">
           <button
-            class="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-[8px] border border-border-weak-base text-13-medium text-text-strong transition-all duration-150 hover:bg-surface-raised-base-hover hover:border-border-interactive-base"
+            class="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-[8px] border border-border text-13-medium text-foreground transition-all duration-150 hover:bg-hover hover:border-primary"
             onClick={openAccountManager}
           >
-            <Icon name="sidebar" size="small" class="text-icon-base" />
+            <Icon name="sidebar" size="small" class="text-foreground-subtle" />
             账号管理器
           </button>
           <button
-            class="shrink-0 size-9 rounded-[8px] border border-border-weak-base bg-background-base flex items-center justify-center text-text-strong transition-all duration-150 hover:bg-surface-raised-base-hover hover:border-border-interactive-base"
+            class="shrink-0 size-9 rounded-[8px] border border-border bg-background flex items-center justify-center text-foreground transition-all duration-150 hover:bg-hover hover:border-primary"
             onClick={openAddAccount}
           >
             <Icon name="plus" size="small" />
@@ -189,16 +189,16 @@ export function PulseSidebar() {
             return (
               <div class="mx-1.5 mb-1">
                 <button
-                  class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-12-regular text-text-weak hover:bg-surface-raised-base-hover transition-colors"
+                  class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-12-regular text-foreground-subtle hover:bg-hover transition-colors"
                   onClick={() => toggleGroup(group.id)}
                 >
                   <Icon
                     name={isExpanded() ? "chevron-down" : "chevron-right"}
                     size="small"
-                    class="text-text-weaker shrink-0"
+                    class="text-foreground-subtlest shrink-0"
                   />
                   <span class="flex-1 text-left truncate">{group.name}</span>
-                  <span class="text-11-regular text-text-weaker">
+                  <span class="text-11-regular text-foreground-subtlest">
                     {accounts().length}个 / 在线{onlineInGroup()}个
                   </span>
                 </button>
@@ -220,7 +220,7 @@ export function PulseSidebar() {
                       )}
                     </For>
                     <Show when={accounts().length === 0}>
-                      <div class="px-3 py-2 text-11-regular text-text-weaker text-center">暂无账号</div>
+                      <div class="px-3 py-2 text-11-regular text-foreground-subtlest text-center">暂无账号</div>
                     </Show>
                   </div>
                 </Show>
@@ -230,9 +230,9 @@ export function PulseSidebar() {
         </For>
       </div>
 
-      <div class="shrink-0 border-t border-border-weak-base p-2">
+      <div class="shrink-0 border-t border-border p-2">
         <button
-          class="flex w-full items-center justify-center gap-1.5 rounded-[8px] px-3 py-2 text-12-medium text-text-weak transition-all duration-150 hover:bg-surface-raised-base-hover hover:text-text-base border border-border-weak-base disabled:opacity-50 disabled:cursor-not-allowed"
+          class="flex w-full items-center justify-center gap-1.5 rounded-[8px] px-3 py-2 text-12-medium text-foreground-subtle transition-all duration-150 hover:bg-hover hover:text-foreground border border-border disabled:opacity-50 disabled:cursor-not-allowed"
           disabled={platform.store.loading}
           onClick={async () => {
             const results = await platform.checkAllLogins()

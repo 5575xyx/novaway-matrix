@@ -97,11 +97,11 @@ export default function TaskCenterPage() {
     <div class="size-full overflow-y-auto no-scrollbar">
       <div class="max-w-[860px] px-10 py-7 flex flex-col gap-4">
         <div class="flex items-center gap-3">
-          <h1 class="text-ui-xl font-semibold text-text-strong">{language.t("taskCenter.title")}</h1>
+          <h1 class="text-ui-xl font-semibold text-foreground">{language.t("taskCenter.title")}</h1>
           <button
             type="button"
             aria-label={language.t("taskCenter.search")}
-            class="flex items-center gap-1.5 rounded-md border border-border-weak-base bg-surface-raised-base px-3 py-1.5 min-w-[220px] text-left text-ui-caption text-text-weak hover:text-text-base hover:border-border-interactive-base transition-colors"
+            class="flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 min-w-[220px] text-left text-ui-caption text-foreground-subtle hover:text-foreground hover:border-primary transition-colors"
             onClick={() => command.trigger("file.open")}
           >
             <Icon name="magnifying-glass" size="small" class="shrink-0" />
@@ -122,14 +122,14 @@ export default function TaskCenterPage() {
               {(card) => (
                 <button
                   type="button"
-                  class="rounded-lg border border-border-weak-base bg-background-stronger p-3 text-left hover:border-border-interactive-base transition-colors flex flex-col gap-1"
+                  class="rounded-lg border border-border bg-panel p-3 text-left hover:border-primary transition-colors flex flex-col gap-1"
                   onClick={() => navigate(`/${base64Encode(card.project.worktree)}/session`)}
                 >
                   <div class="flex items-center gap-1.5 min-w-0">
-                    <Icon name="folder" size="small" class="shrink-0 text-icon-weak-base" />
-                    <span class="text-ui-caption text-text-strong truncate">{displayName(card.project)}</span>
+                    <Icon name="folder" size="small" class="shrink-0 text-foreground-subtlest" />
+                    <span class="text-ui-caption text-foreground truncate">{displayName(card.project)}</span>
                   </div>
-                  <div class="flex items-center gap-2 text-ui-xs text-text-weak">
+                  <div class="flex items-center gap-2 text-ui-xs text-foreground-subtle">
                     <span>{language.t("sidebar.project.count", { count: card.count })}</span>
                     <Show when={card.branch}>
                       <span class="flex items-center gap-1 truncate max-w-[120px]">
@@ -139,7 +139,7 @@ export default function TaskCenterPage() {
                     </Show>
                   </div>
                   <Show when={card.latestAt}>
-                    <div class="text-ui-xs text-text-weak">
+                    <div class="text-ui-xs text-foreground-subtle">
                       {formatRelativeTime(card.latestAt, Date.now(), language.t)}
                     </div>
                   </Show>
@@ -148,7 +148,7 @@ export default function TaskCenterPage() {
             </For>
             <button
               type="button"
-              class="rounded-lg border border-dashed border-border-strong-base px-4 py-3 text-ui-caption text-text-weak hover:text-text-base hover:border-border-interactive-base cursor-pointer flex items-center gap-2 justify-center transition-colors"
+              class="rounded-lg border border-dashed border-border-hover px-4 py-3 text-ui-caption text-foreground-subtle hover:text-foreground hover:border-primary cursor-pointer flex items-center gap-2 justify-center transition-colors"
               onClick={() => command.trigger("project.open")}
             >
               <Icon name="folder" size="small" class="shrink-0" />
@@ -164,7 +164,7 @@ export default function TaskCenterPage() {
                   const child = globalSync.child(row.session.directory, { bootstrap: false })[0]
                   const status = () => sessionStatusOf(globalSync, permission, notification, row.session)
                   return (
-                    <div class="rounded-lg border border-border-weak-base bg-background-stronger p-2">
+                    <div class="rounded-lg border border-border bg-panel p-2">
                       <TaskRow
                         title={() => displaySessionTitle(row.session.title, language.t("workspace.header.untitled"))}
                         status={status}
@@ -183,11 +183,11 @@ export default function TaskCenterPage() {
             </div>
           </Show>
           <Show when={rows().length === 0}>
-            <div class="py-12 text-center text-ui-caption text-text-weak">{language.t("taskCenter.empty")}</div>
+            <div class="py-12 text-center text-ui-caption text-foreground-subtle">{language.t("taskCenter.empty")}</div>
           </Show>
           <button
             type="button"
-            class="rounded-lg border border-dashed border-border-strong-base px-4 py-3 text-ui-caption text-text-weak hover:text-text-base hover:border-border-interactive-base cursor-pointer flex items-center gap-2 transition-colors"
+            class="rounded-lg border border-dashed border-border-hover px-4 py-3 text-ui-caption text-foreground-subtle hover:text-foreground hover:border-primary cursor-pointer flex items-center gap-2 transition-colors"
             onClick={() => layout.projectPicker.show()}
           >
             <Icon name="plus" size="small" class="shrink-0" />

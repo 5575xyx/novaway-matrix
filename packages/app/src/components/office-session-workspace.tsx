@@ -66,7 +66,7 @@ function OfficeWindowBand() {
     <div class="flex h-12 shrink-0 items-center gap-1 px-2" data-window-drag>
       <button
         type="button"
-        class="flex size-8 shrink-0 items-center justify-center rounded-md text-icon-base transition-colors hover:bg-surface-base-hover"
+        class="flex size-8 shrink-0 items-center justify-center rounded-md text-foreground-subtle transition-colors hover:bg-hover"
         onClick={() => navigate("/")}
         aria-label={language.t("command.home.open")}
         title={language.t("command.home.open")}
@@ -96,7 +96,7 @@ export function OfficeSessionComposer(props: {
     <div
       ref={props.setPromptDockRef}
       data-component="session-prompt-dock"
-      class="shrink-0 w-full bg-background-stronger/80 pb-4 backdrop-blur-sm"
+      class="shrink-0 w-full bg-panel/80 pb-4 backdrop-blur-sm"
     >
       <div
         classList={{
@@ -255,14 +255,14 @@ function OfficeSessionComposerBody(props: { composer: JSX.Element; draft: Office
   return (
     <>
       <div class="px-3 pb-2 pt-3">{props.composer}</div>
-      <div class="flex min-h-12 flex-wrap items-center gap-2 border-t border-border-weaker-base px-3 py-2">
+      <div class="flex min-h-12 flex-wrap items-center gap-2 border-t border-border px-3 py-2">
         <SelectedTemplateChip template={props.draft.template} />
         <Show
           when={directory()}
           fallback={
             <button
               type="button"
-              class="flex h-8 cursor-pointer items-center gap-1.5 rounded-[7px] border border-dashed border-text-weak-base bg-surface-weak px-3 text-13-medium text-text-weak transition-all hover:border-text-weak-base hover:bg-surface-weaker hover:text-text-base"
+              class="flex h-8 cursor-pointer items-center gap-1.5 rounded-[7px] border border-dashed border-border bg-surface px-3 text-13-medium text-foreground-subtle transition-all hover:border-border hover:bg-surface hover:text-foreground"
               onClick={handleChangeProject}
             >
               <Icon name="folder-add-left" size="small" />
@@ -270,7 +270,7 @@ function OfficeSessionComposerBody(props: { composer: JSX.Element; draft: Office
             </button>
           }
         >
-          <div class="flex h-11 min-w-0 max-w-full items-center gap-2 rounded-[8px] border border-border-weak-base bg-background-base px-2 shadow-[0_6px_18px_rgba(15,23,42,0.06)] sm:max-w-[460px]">
+          <div class="flex h-11 min-w-0 max-w-full items-center gap-2 rounded-[8px] border border-border bg-background px-2 shadow-[0_6px_18px_rgba(15,23,42,0.06)] sm:max-w-[460px]">
             <span class="grid size-7 shrink-0 place-items-center rounded-[6px] bg-emerald-400/10 text-emerald-500">
               <Icon name="folder" size="small" />
             </span>
@@ -280,14 +280,14 @@ function OfficeSessionComposerBody(props: { composer: JSX.Element; draft: Office
               title={directory()}
               onClick={handleChangeProject}
             >
-              <span class="text-10-medium leading-4 text-text-muted">当前项目目录</span>
-              <span class="max-w-full truncate text-13-medium leading-5 text-text-strong">
+              <span class="text-10-medium leading-4 text-foreground-subtle">当前项目目录</span>
+              <span class="max-w-full truncate text-13-medium leading-5 text-foreground">
                 {getFilename(directory())}
               </span>
             </button>
             <button
               type="button"
-              class="grid size-7 shrink-0 place-items-center rounded-[6px] text-text-muted transition-colors hover:bg-surface-raised-base hover:text-text-strong"
+              class="grid size-7 shrink-0 place-items-center rounded-[6px] text-foreground-subtle transition-colors hover:bg-surface hover:text-foreground"
               title="切换项目目录"
               onClick={handleChangeProject}
             >
@@ -295,7 +295,7 @@ function OfficeSessionComposerBody(props: { composer: JSX.Element; draft: Office
             </button>
             <button
               type="button"
-              class="group/clear grid size-7 shrink-0 place-items-center rounded-[6px] text-text-muted transition-colors hover:bg-red-500/10 hover:text-red-500"
+              class="group/clear grid size-7 shrink-0 place-items-center rounded-[6px] text-foreground-subtle transition-colors hover:bg-red-500/10 hover:text-red-500"
               title="退出当前项目"
               onClick={handleClearProject}
             >
@@ -309,7 +309,7 @@ function OfficeSessionComposerBody(props: { composer: JSX.Element; draft: Office
         </Show>
         <button
           type="button"
-          class="flex h-9 items-center gap-1.5 rounded-[7px] border border-border-weak-base bg-background-base px-2.5 text-12-medium text-text-weak transition-colors hover:bg-surface-raised-base hover:text-text-strong"
+          class="flex h-9 items-center gap-1.5 rounded-[7px] border border-border bg-background px-2.5 text-12-medium text-foreground-subtle transition-colors hover:bg-surface hover:text-foreground"
           title="打开项目素材库"
           onClick={() => {
             setAssetState("open", true)
@@ -329,10 +329,10 @@ function OfficeSessionComposerBody(props: { composer: JSX.Element; draft: Office
         <Dialog title="项目素材库" class="w-full max-w-[760px] mx-auto">
           <div class="flex flex-col gap-3 px-5 pb-5">
             <div class="flex items-center justify-between gap-3">
-              <span class="truncate text-12-regular text-text-muted">{directory()}</span>
+              <span class="truncate text-12-regular text-foreground-subtle">{directory()}</span>
               <button
                 type="button"
-                class="inline-flex items-center gap-1.5 rounded-[7px] border border-border-weak-base bg-background-base px-2.5 py-1.5 text-12-medium text-text-weak transition-colors hover:bg-surface-raised-base hover:text-text-strong"
+                class="inline-flex items-center gap-1.5 rounded-[7px] border border-border bg-background px-2.5 py-1.5 text-12-medium text-foreground-subtle transition-colors hover:bg-surface hover:text-foreground"
                 onClick={() => void loadAssets()}
               >
                 <Icon name="refresh" size="small" />
@@ -340,7 +340,7 @@ function OfficeSessionComposerBody(props: { composer: JSX.Element; draft: Office
               </button>
             </div>
             <Show when={assetState.loading}>
-              <div class="rounded-[8px] border border-border-weak-base bg-surface-raised-base/60 p-3 text-12-regular text-text-muted">
+              <div class="rounded-[8px] border border-border bg-surface/60 p-3 text-12-regular text-foreground-subtle">
                 正在扫描素材...
               </div>
             </Show>
@@ -358,7 +358,7 @@ function OfficeSessionComposerBody(props: { composer: JSX.Element; draft: Office
                   return (
                     <button
                       type="button"
-                      class="flex items-center gap-2 rounded-[8px] border border-border-weak-base bg-surface-raised-base/60 px-3 py-2 text-left transition-colors hover:bg-surface-raised-base"
+                      class="flex items-center gap-2 rounded-[8px] border border-border bg-surface/60 px-3 py-2 text-left transition-colors hover:bg-surface"
                       classList={{
                         "border-emerald-300/45 bg-emerald-300/8": selected,
                       }}
@@ -367,13 +367,13 @@ function OfficeSessionComposerBody(props: { composer: JSX.Element; draft: Office
                       <Icon
                         name={node.type === "directory" ? "folder" : "copy"}
                         size="small"
-                        class="shrink-0 text-icon-weak"
+                        class="shrink-0 text-foreground-subtlest"
                       />
-                      <span class="min-w-0 flex-1 truncate text-12-medium text-text-weak">
+                      <span class="min-w-0 flex-1 truncate text-12-medium text-foreground-subtle">
                         {getFilename(node.path)}
                       </span>
                       <span
-                        class="shrink-0 rounded-[5px] border border-border-weak-base px-1.5 py-0.5 text-10-medium text-text-muted"
+                        class="shrink-0 rounded-[5px] border border-border px-1.5 py-0.5 text-10-medium text-foreground-subtle"
                         classList={{
                           "border-emerald-300/30 bg-emerald-300/10 text-emerald-200": kind === "data",
                           "border-cyan-300/25 bg-cyan-300/10 text-cyan-200": kind === "image",
@@ -389,19 +389,19 @@ function OfficeSessionComposerBody(props: { composer: JSX.Element; draft: Office
                 }}
               </For>
               <Show when={!assetState.loading && assetState.nodes.length === 0 && !assetState.error}>
-                <div class="col-span-full rounded-[8px] border border-border-weak-base bg-surface-raised-base/50 p-3 text-12-regular text-text-muted">
+                <div class="col-span-full rounded-[8px] border border-border bg-surface/50 p-3 text-12-regular text-foreground-subtle">
                   当前目录没有可识别的办公素材。
                 </div>
               </Show>
             </div>
             <Show when={selectedAssets().length}>
-              <div class="border-t border-border-weaker-base pt-3">
-                <div class="mb-2 text-12-medium text-text-weak">已选素材</div>
+              <div class="border-t border-border pt-3">
+                <div class="mb-2 text-12-medium text-foreground-subtle">已选素材</div>
                 <div class="flex flex-col gap-1">
                   <For each={selectedAssets()}>
                     {(asset, index) => (
                       <div
-                        class="flex cursor-grab items-center gap-2 rounded-[7px] border border-border-weak-base bg-surface-raised-base/50 px-2 py-1.5 active:cursor-grabbing"
+                        class="flex cursor-grab items-center gap-2 rounded-[7px] border border-border bg-surface/50 px-2 py-1.5 active:cursor-grabbing"
                         draggable
                         onDragStart={() => setDragAssetIndex(index())}
                         onDragOver={(event) => event.preventDefault()}
@@ -411,15 +411,15 @@ function OfficeSessionComposerBody(props: { composer: JSX.Element; draft: Office
                           setDragAssetIndex(undefined)
                         }}
                       >
-                        <span class="grid size-5 place-items-center text-11-medium text-text-muted">{index() + 1}</span>
-                        <Icon name="bullet-list" size="small" class="shrink-0 text-icon-weak" />
-                        <span class="min-w-0 flex-1 truncate text-12-regular text-text-weak">{asset}</span>
-                        <span class="shrink-0 rounded-[5px] border border-border-weak-base px-1.5 py-0.5 text-10-medium text-text-muted">
+                        <span class="grid size-5 place-items-center text-11-medium text-foreground-subtle">{index() + 1}</span>
+                        <Icon name="bullet-list" size="small" class="shrink-0 text-foreground-subtlest" />
+                        <span class="min-w-0 flex-1 truncate text-12-regular text-foreground-subtle">{asset}</span>
+                        <span class="shrink-0 rounded-[5px] border border-border px-1.5 py-0.5 text-10-medium text-foreground-subtle">
                           {officeAssetTarget(asset)}
                         </span>
                         <button
                           type="button"
-                          class="grid size-6 place-items-center rounded-[5px] text-text-muted transition-colors hover:bg-background-base hover:text-text-strong disabled:opacity-30"
+                          class="grid size-6 place-items-center rounded-[5px] text-foreground-subtle transition-colors hover:bg-background hover:text-foreground disabled:opacity-30"
                           title="上移"
                           disabled={index() === 0}
                           onClick={() => moveAsset(index(), -1)}
@@ -428,7 +428,7 @@ function OfficeSessionComposerBody(props: { composer: JSX.Element; draft: Office
                         </button>
                         <button
                           type="button"
-                          class="grid size-6 place-items-center rounded-[5px] text-text-muted transition-colors hover:bg-background-base hover:text-text-strong disabled:opacity-30"
+                          class="grid size-6 place-items-center rounded-[5px] text-foreground-subtle transition-colors hover:bg-background hover:text-foreground disabled:opacity-30"
                           title="下移"
                           disabled={index() === selectedAssets().length - 1}
                           onClick={() => moveAsset(index(), 1)}

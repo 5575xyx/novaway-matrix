@@ -4,6 +4,7 @@ import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { TooltipKeybind } from "@novaway/ui/tooltip"
 import { ResizeHandle } from "@novaway/ui/resize-handle"
+import { WindowControls } from "@/components/window-controls"
 import { Tabs } from "@novaway/ui/tabs"
 import {
   DragDropProvider,
@@ -156,7 +157,7 @@ export function SessionSidePanel(props: {
     <aside
       id="side-pane"
       aria-label={language.t("session.panel.reviewAndFiles")}
-      class="relative shrink-0 h-full flex flex-col rounded-[var(--workspace-panel-radius)] border border-border-weak-base bg-background-base overflow-hidden"
+      class="relative shrink-0 h-full flex flex-col rounded-[var(--workspace-panel-radius)] border border-border bg-background overflow-hidden"
       data-component="side-pane-frame"
       style={{ width: `${width()}px` }}
     >
@@ -168,7 +169,7 @@ export function SessionSidePanel(props: {
         max={typeof window === "undefined" ? 1000 : window.innerWidth * 0.6}
         onResize={(next) => layout.sidePane.resize(next)}
       />
-      <div class="flex items-center gap-0.5 h-9 px-1.5 border-b border-border-weak-base shrink-0">
+      <div class="flex items-center gap-0.5 h-9 px-1.5 border-b border-border shrink-0">
         <DragDropProvider
           onDragStart={sidePaneDragStart}
           onDragOver={sidePaneDragOver}
@@ -185,7 +186,7 @@ export function SessionSidePanel(props: {
           <DragOverlay>
             <Show when={store.activeSidePaneDraggable} keyed>
               {(dragged) => (
-                <div class="flex items-center gap-1 px-2 h-7 rounded-md bg-surface-raised-base text-ui-xs text-text-strong">
+                <div class="flex items-center gap-1 px-2 h-7 rounded-md bg-surface text-ui-xs text-foreground">
                   <Icon name={sidePaneTabMeta(dragged).icon} size="small" class="shrink-0" />
                   {language.t(sidePaneTabMeta(dragged).labelKey)}
                 </div>
@@ -193,6 +194,7 @@ export function SessionSidePanel(props: {
             </Show>
           </DragOverlay>
         </DragDropProvider>
+        <WindowControls />
         <IconButton
           icon="layout-right"
           variant="ghost"
@@ -218,13 +220,13 @@ export function SessionSidePanel(props: {
                   >
                     <DragDropSensors />
                     <ConstrainDragYAxis />
-                    <Tabs.List class="h-10 border-b border-border-weaker-base">
+                    <Tabs.List class="h-10 border-b border-border">
                       <SortableProvider ids={openedTabs()}>
                         <For each={openedTabs()}>
                           {(fileTab) => <SortableTab tab={fileTab} onTabClose={tabs().close} />}
                         </For>
                       </SortableProvider>
-                      <div class="bg-background-strong h-full shrink-0 sticky right-0 z-10 flex items-center justify-center pr-3">
+                      <div class="bg-panel h-full shrink-0 sticky right-0 z-10 flex items-center justify-center pr-3">
                         <TooltipKeybind
                           title={language.t("command.file.open")}
                           keybind={command.keybind("file.open")}
@@ -287,11 +289,11 @@ function SidePaneTabTrigger(props: { tab: SidePaneTab }) {
       classList={{
         "opacity-0": sortable.isActiveDraggable,
         "flex items-center gap-0.5 rounded-md": true,
-        "bg-surface-raised-base": layout.sidePane.activeTab() === props.tab,
+        "bg-surface": layout.sidePane.activeTab() === props.tab,
       }}
     >
       <button
-        class="flex items-center gap-1 px-2 h-7 rounded-md text-ui-xs transition-colors whitespace-nowrap text-text-base"
+        class="flex items-center gap-1 px-2 h-7 rounded-md text-ui-xs transition-colors whitespace-nowrap text-foreground"
         onClick={() => layout.sidePane.setActive(props.tab)}
       >
         <Icon name={meta().icon} size="small" class="shrink-0" />
@@ -326,18 +328,18 @@ function SidePaneEmptyState() {
     >
       <div class="side-pane-launcher-content flex w-full max-w-[20rem] flex-col gap-5">
         <div class="flex flex-col gap-2 text-center">
-          <h2 class="text-ui-xl font-semibold text-text-strong">{language.t("sidePane.empty.title")}</h2>
-          <p class="text-ui-base leading-5 text-text-weak">{language.t("sidePane.empty.description")}</p>
+          <h2 class="text-ui-xl font-semibold text-foreground">{language.t("sidePane.empty.title")}</h2>
+          <p class="text-ui-base leading-5 text-foreground-subtle">{language.t("sidePane.empty.description")}</p>
         </div>
         <div class="side-pane-launcher-list flex w-full flex-col gap-2">
           <For each={sidePaneTabs}>
             {(item) => (
               <button
                 type="button"
-                class="side-pane-launcher-button flex h-12 min-w-0 items-center gap-3 rounded-xl bg-surface-raised-base px-3 text-ui-base font-medium text-text-strong transition-colors hover:bg-surface-raised-base-hover"
+                class="side-pane-launcher-button flex h-12 min-w-0 items-center gap-3 rounded-xl bg-surface px-3 text-ui-base font-medium text-foreground transition-colors hover:bg-hover"
                 onClick={() => layout.sidePane.add(item.id)}
               >
-                <Icon name={item.icon} size="small" class="shrink-0 text-icon-weak" />
+                <Icon name={item.icon} size="small" class="shrink-0 text-foreground-subtlest" />
                 <span class="side-pane-launcher-label min-w-0 flex-1 truncate text-left">
                   {language.t(item.labelKey)}
                 </span>

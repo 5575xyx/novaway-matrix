@@ -89,17 +89,17 @@ export function OfficeHomeWorkspace(props: {
               event.currentTarget.form?.requestSubmit()
             }}
             placeholder={officeAction(state.activeID).placeholder}
-            class="min-h-[132px] w-full resize-none bg-transparent px-5 py-4 text-15-regular leading-7 text-text-strong outline-none placeholder:text-text-muted"
+            class="min-h-[132px] w-full resize-none bg-transparent px-5 py-4 text-15-regular leading-7 text-foreground outline-none placeholder:text-foreground-subtle"
           />
 
-          <div class="flex min-h-14 flex-wrap items-center gap-2 border-t border-border-weaker-base px-3 py-2.5">
+          <div class="flex min-h-14 flex-wrap items-center gap-2 border-t border-border px-3 py-2.5">
             <SelectedTemplateChip
               template={state.draft.template}
               onClear={() => setState("draft", "template", undefined)}
             />
             <button
               type="button"
-              class="flex h-8 min-w-0 max-w-[360px] items-center gap-1.5 rounded-[7px] border border-border-weak-base px-2.5 text-12-medium text-text-weak transition-colors hover:bg-surface-raised-base hover:text-text-strong"
+              class="flex h-8 min-w-0 max-w-[360px] items-center gap-1.5 rounded-[7px] border border-border px-2.5 text-12-medium text-foreground-subtle transition-colors hover:bg-surface hover:text-foreground"
               title="选择项目目录"
               onClick={() => void enterProject(false)}
             >
@@ -112,7 +112,7 @@ export function OfficeHomeWorkspace(props: {
               <Icon name="warning" size="small" />
               选择项目后将继续停留在当前工作台
             </span>
-            <span class="hidden text-11-regular text-text-muted sm:block">Enter 发送，Shift + Enter 换行</span>
+            <span class="hidden text-11-regular text-foreground-subtle sm:block">Enter 发送，Shift + Enter 换行</span>
             <button
               type="submit"
               class="grid size-9 place-items-center rounded-[9px] border border-emerald-300/50 bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-[0_8px_22px_rgba(16,185,129,0.30)] transition-all hover:-translate-y-px hover:brightness-105 active:translate-y-0"
@@ -139,20 +139,20 @@ export function OfficeWorkspaceFrame(props: {
   const action = createMemo(() => officeAction(props.activeID))
 
   return (
-    <div class="relative h-full w-full overflow-y-auto bg-background-base">
+    <div class="relative h-full w-full overflow-y-auto bg-background">
       <main class="relative mx-auto flex min-h-full w-full max-w-6xl flex-col px-5 pb-14 pt-8 md:px-8 md:pt-10">
         <OfficePlatformPanel />
 
         <section class="grid min-h-[210px] grid-cols-1 items-center gap-5 md:grid-cols-[minmax(0,1fr)_220px]">
           <div class="flex min-w-0 flex-col items-center text-center md:items-start md:text-left">
-            <div class="mb-3 flex items-center gap-2 text-12-medium text-text-weak">
+            <div class="mb-3 flex items-center gap-2 text-12-medium text-foreground-subtle">
               <span class="grid size-7 place-items-center rounded-[8px] border border-emerald-300/30 bg-emerald-300/12 text-emerald-300 shadow-[0_0_16px_rgba(16,185,129,0.18)]">
                 <Icon name={action().icon} size="small" />
               </span>
               <span>NovaWay 办公助手</span>
             </div>
-            <h1 class="text-30-medium font-semibold text-text-strong md:text-[36px]">{action().title}</h1>
-            <p class="mt-3 max-w-2xl text-15-regular leading-7 text-text-weak">{action().description}</p>
+            <h1 class="text-30-medium font-semibold text-foreground md:text-[36px]">{action().title}</h1>
+            <p class="mt-3 max-w-2xl text-15-regular leading-7 text-foreground-subtle">{action().description}</p>
           </div>
         </section>
 
@@ -190,13 +190,13 @@ export function OfficeComposerCard(props: {
   const action = createMemo(() => officeAction(props.activeID))
 
   return (
-    <section class="relative z-10 overflow-hidden rounded-[8px] border border-border-strong-base bg-background-panel/92 shadow-[0_20px_60px_rgba(0,0,0,0.12)] backdrop-blur-xl">
-      <div class="border-b border-border-weaker-base bg-background-base/40 px-3 py-2.5">
+    <section class="relative z-10 overflow-hidden rounded-[8px] border border-border-hover bg-panel/92 shadow-[0_20px_60px_rgba(0,0,0,0.12)] backdrop-blur-xl">
+      <div class="border-b border-border bg-background/40 px-3 py-2.5">
         <OfficeSceneSwitcher active={props.activeID} onSelect={props.onSelectScene} />
       </div>
 
       <Show when={props.activeID === "ppt"}>
-        <div class="flex flex-wrap items-center gap-x-1 gap-y-2 border-b border-border-weaker-base px-4 py-3">
+        <div class="flex flex-wrap items-center gap-x-1 gap-y-2 border-b border-border px-4 py-3">
           <OfficeOption
             label="角色"
             value={props.draft.role}
@@ -227,14 +227,14 @@ export function OfficeComposerCard(props: {
             options={officeMaterialOptions}
             onChange={(value) => props.onUpdateDraft("material", value)}
           />
-          <label class="flex h-8 items-center gap-1.5 rounded-[8px] border border-border-weak-base bg-surface-weak px-2 transition-colors hover:border-emerald-300/60 hover:bg-surface-raised-base">
+          <label class="flex h-8 items-center gap-1.5 rounded-[8px] border border-border bg-surface px-2 transition-colors hover:border-emerald-300/60 hover:bg-surface">
             <input
               type="checkbox"
               checked={props.draft.taskTracking}
               onChange={() => props.onToggleTaskTracking?.()}
               class="size-3.5 accent-emerald-400"
             />
-            <span class="text-12-medium text-text-weak">任务追踪</span>
+            <span class="text-12-medium text-foreground-subtle">任务追踪</span>
           </label>
         </div>
       </Show>
@@ -276,19 +276,19 @@ function OfficeOption(props: {
   onChange: (value: string) => void
 }) {
   return (
-    <label class="group flex h-8 items-center gap-1.5 rounded-[8px] border border-border-weak-base bg-surface-weak px-2 transition-all duration-150 hover:border-emerald-300/60 hover:bg-surface-raised-base focus-within:border-emerald-400/70 focus-within:ring-2 focus-within:ring-emerald-400/20">
-      <span class="shrink-0 text-12-regular text-text-muted">{props.label}</span>
+    <label class="group flex h-8 items-center gap-1.5 rounded-[8px] border border-border bg-surface px-2 transition-all duration-150 hover:border-emerald-300/60 hover:bg-surface focus-within:border-emerald-400/70 focus-within:ring-2 focus-within:ring-emerald-400/20">
+      <span class="shrink-0 text-12-regular text-foreground-subtle">{props.label}</span>
       <span class="relative flex items-center">
         <select
           aria-label={props.label}
           value={props.value}
           onChange={(event) => props.onChange(event.currentTarget.value)}
-          class="max-w-[120px] cursor-pointer appearance-none bg-transparent py-1 pl-1 pr-5 text-12-medium text-text-strong outline-none transition-colors hover:text-emerald-300"
+          class="max-w-[120px] cursor-pointer appearance-none bg-transparent py-1 pl-1 pr-5 text-12-medium text-foreground outline-none transition-colors hover:text-emerald-300"
           style={{ appearance: "none", "-webkit-appearance": "none" }}
         >
           <For each={props.options}>{(option) => <option value={option}>{option}</option>}</For>
         </select>
-        <span class="pointer-events-none absolute right-0 grid size-4 place-items-center text-text-muted transition-colors group-hover:text-emerald-400">
+        <span class="pointer-events-none absolute right-0 grid size-4 place-items-center text-foreground-subtle transition-colors group-hover:text-emerald-400">
           <Icon name="chevron-down" size="small" class="size-3.5" />
         </span>
       </span>

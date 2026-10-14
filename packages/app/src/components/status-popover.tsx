@@ -42,11 +42,11 @@ export function StatusPopover() {
           <div
             classList={{
               "absolute -top-px -right-px size-1.5 rounded-full": true,
-              "bg-icon-success-base": ready() && healthy(),
-              "bg-icon-warning-base": ready() && server.healthy() === true && mcpIssue() === "warning",
-              "bg-icon-critical-base":
+              "bg-success": ready() && healthy(),
+              "bg-warning": ready() && server.healthy() === true && mcpIssue() === "warning",
+              "bg-destructive":
                 server.healthy() === false || (ready() && server.healthy() === true && mcpIssue() === "critical"),
-              "bg-border-weak-base": server.healthy() === undefined || !ready(),
+              "bg-border": server.healthy() === undefined || !ready(),
             }}
           />
         </div>
@@ -59,7 +59,7 @@ export function StatusPopover() {
       <Show when={shown()}>
         <Suspense
           fallback={
-            <div class="w-[360px] h-14 rounded-xl bg-background-strong shadow-[var(--shadow-md)]" />
+            <div class="w-[360px] h-14 rounded-xl bg-panel shadow-[var(--shadow-md)]" />
           }
         >
           <Body shown={shown} />

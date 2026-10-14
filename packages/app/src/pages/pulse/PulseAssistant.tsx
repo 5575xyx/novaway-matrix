@@ -194,7 +194,7 @@ export function PulseAssistant() {
 
   return (
     <div class="flex flex-col h-full">
-      <div class="shrink-0 px-4 py-3 border-b border-border-weak-base">
+      <div class="shrink-0 px-4 py-3 border-b border-border">
         <div class="flex items-center gap-2.5">
           <div
             class="size-8 rounded-[10px] flex items-center justify-center"
@@ -205,8 +205,8 @@ export function PulseAssistant() {
             </span>
           </div>
           <div class="flex-1">
-            <h3 class="text-14-medium text-text-strong leading-tight">AI 运营助手</h3>
-            <p class="text-11-regular text-text-weak mt-0.5">内容生成 · 智能回复</p>
+            <h3 class="text-14-medium text-foreground leading-tight">AI 运营助手</h3>
+            <p class="text-11-regular text-foreground-subtle mt-0.5">内容生成 · 智能回复</p>
           </div>
           <button
             class="px-3 py-1.5 rounded-[8px] text-12-medium text-white transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0"
@@ -221,10 +221,10 @@ export function PulseAssistant() {
         </div>
       </div>
 
-      <div class="shrink-0 px-4 py-2.5 border-b border-border-weak-base bg-background-weak/40">
-        <div class="flex items-center gap-3 text-11-regular text-text-weak">
+      <div class="shrink-0 px-4 py-2.5 border-b border-border bg-background-alt/40">
+        <div class="flex items-center gap-3 text-11-regular text-foreground-subtle">
           <span>总账号 {accountSummary().total}</span>
-          <span class="text-text-weaker">|</span>
+          <span class="text-foreground-subtlest">|</span>
           <span class="text-emerald-600 dark:text-emerald-400">在线 {accountSummary().online}</span>
           <Show when={!sessionReady() && !error()}>
             <span class="text-amber-500">连接中...</span>
@@ -253,20 +253,20 @@ export function PulseAssistant() {
                     ✨
                   </span>
                 </div>
-                <h4 class="text-14-medium text-text-strong mb-1">我可以帮你：</h4>
-                <p class="text-12-regular text-text-weaker mb-4">选择一个快捷指令开始</p>
+                <h4 class="text-14-medium text-foreground mb-1">我可以帮你：</h4>
+                <p class="text-12-regular text-foreground-subtlest mb-4">选择一个快捷指令开始</p>
                 <div class="space-y-2 w-full">
                   <For each={SUGGESTIONS}>
                     {(item) => (
                       <button
-                        class="w-full text-left rounded-[8px] border border-border-weak-base bg-background-base px-3.5 py-2.5 transition-all duration-150 hover:-translate-y-0.5 hover:border-border-interactive-base hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)]"
+                        class="w-full text-left rounded-[8px] border border-border bg-background px-3.5 py-2.5 transition-all duration-150 hover:-translate-y-0.5 hover:border-primary hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)]"
                         onClick={() => handleSuggestion(item.text)}
                       >
                         <div class="flex items-center gap-2.5">
                           <span class="text-base">{item.icon}</span>
                           <div>
-                            <div class="text-13-medium text-text-strong">{item.text}</div>
-                            <div class="text-11-regular text-text-weak mt-0.5">{item.desc}</div>
+                            <div class="text-13-medium text-foreground">{item.text}</div>
+                            <div class="text-11-regular text-foreground-subtle mt-0.5">{item.desc}</div>
                           </div>
                         </div>
                       </button>
@@ -286,7 +286,7 @@ export function PulseAssistant() {
         </DataProvider>
       </div>
 
-      <div class="shrink-0 px-3 py-3 border-t border-border-weak-base">
+      <div class="shrink-0 px-3 py-3 border-t border-border">
         <PulseChatInput
           agents={agents() ?? []}
           commands={commands() ?? []}

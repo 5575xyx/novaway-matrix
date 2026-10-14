@@ -48,26 +48,26 @@ function GroupSidebar(props: {
 
   return (
     <>
-      <div class="w-48 shrink-0 border-r border-border-weak-base bg-background-weak/40 flex flex-col h-full">
-        <div class="p-3 border-b border-border-weak-base">
+      <div class="w-48 shrink-0 border-r border-border bg-background-alt/40 flex flex-col h-full">
+        <div class="p-3 border-b border-border">
           <button
             class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] text-13-medium transition-colors"
             classList={{
-              "bg-surface-raised-base-hover text-text-strong": props.selectedGroupId === "all",
-              "text-text-weak hover:bg-surface-raised-base-hover": props.selectedGroupId !== "all",
+              "bg-hover text-foreground": props.selectedGroupId === "all",
+              "text-foreground-subtle hover:bg-hover": props.selectedGroupId !== "all",
             }}
             onClick={() => props.onSelect("all")}
           >
             <span>全部账号</span>
-            <span class="ml-auto text-12-regular text-text-weaker">{allCount()}</span>
+            <span class="ml-auto text-12-regular text-foreground-subtlest">{allCount()}</span>
           </button>
         </div>
 
         <div class="p-2">
           <div class="flex items-center justify-between px-2 py-1.5">
-            <span class="text-11-regular text-text-weaker uppercase tracking-wider">列表</span>
+            <span class="text-11-regular text-foreground-subtlest uppercase tracking-wider">列表</span>
             <button
-              class="size-5 rounded flex items-center justify-center text-text-weak hover:text-text-strong hover:bg-surface-raised-base-hover transition-colors"
+              class="size-5 rounded flex items-center justify-center text-foreground-subtle hover:text-foreground hover:bg-hover transition-colors"
               onClick={() => setShowNewInput(true)}
             >
               <Icon name="plus-small" size="small" />
@@ -77,7 +77,7 @@ function GroupSidebar(props: {
           <Show when={showNewInput()}>
             <div class="flex items-center gap-1 px-1 py-0.5">
               <input
-                class="flex-1 h-7 px-2 rounded border border-border-interactive-base bg-background-base text-12-regular text-text-strong outline-none"
+                class="flex-1 h-7 px-2 rounded border border-primary bg-background text-12-regular text-foreground outline-none"
                 value={newGroupName()}
                 onInput={(e) => setNewGroupName(e.currentTarget.value)}
                 onKeyDown={(e) => {
@@ -95,29 +95,29 @@ function GroupSidebar(props: {
               <div
                 class="group flex items-center gap-1 px-1 py-0.5 rounded cursor-pointer"
                 classList={{
-                  "bg-surface-raised-base-hover": props.selectedGroupId === group.id,
+                  "bg-hover": props.selectedGroupId === group.id,
                 }}
               >
                 <Show
                   when={editingId() === group.id}
                   fallback={
                     <button
-                      class="flex-1 flex items-center gap-2 px-2 py-1.5 rounded text-12-regular text-left transition-colors hover:bg-surface-raised-base-hover"
+                      class="flex-1 flex items-center gap-2 px-2 py-1.5 rounded text-12-regular text-left transition-colors hover:bg-hover"
                       classList={{
-                        "text-text-strong font-medium": props.selectedGroupId === group.id,
-                        "text-text-weak": props.selectedGroupId !== group.id,
+                        "text-foreground font-medium": props.selectedGroupId === group.id,
+                        "text-foreground-subtle": props.selectedGroupId !== group.id,
                       }}
                       onClick={() => props.onSelect(group.id)}
                       onContextMenu={(e) => handleContextMenu(e, group)}
                     >
-                      <Icon name="bullet-list" size="small" class="text-text-weaker shrink-0" />
+                      <Icon name="bullet-list" size="small" class="text-foreground-subtlest shrink-0" />
                       <span class="flex-1 truncate">{group.name}</span>
-                      <span class="text-11-regular text-text-weaker">{groupCount(group.id)}</span>
+                      <span class="text-11-regular text-foreground-subtlest">{groupCount(group.id)}</span>
                     </button>
                   }
                 >
                   <input
-                    class="flex-1 h-7 px-2 rounded border border-border-interactive-base bg-background-base text-12-regular text-text-strong outline-none"
+                    class="flex-1 h-7 px-2 rounded border border-primary bg-background text-12-regular text-foreground outline-none"
                     value={editName()}
                     onInput={(e) => setEditName(e.currentTarget.value)}
                     onKeyDown={(e) => {
@@ -129,7 +129,7 @@ function GroupSidebar(props: {
                 </Show>
                 <Show when={group.id !== 1 && editingId() !== group.id}>
                   <button
-                    class="size-5 shrink-0 rounded flex items-center justify-center text-text-weaker hover:text-rose-500 hover:bg-surface-raised-base-hover transition-colors opacity-0 group-hover:opacity-100"
+                    class="size-5 shrink-0 rounded flex items-center justify-center text-foreground-subtlest hover:text-rose-500 hover:bg-hover transition-colors opacity-0 group-hover:opacity-100"
                     onClick={(e) => {
                       e.stopPropagation()
                       setDeleteConfirmGroupId(group.id)
@@ -143,7 +143,7 @@ function GroupSidebar(props: {
           </For>
         </div>
 
-        <div class="mt-auto p-2 border-t border-border-weak-base">
+        <div class="mt-auto p-2 border-t border-border">
           <Button variant="secondary" class="w-full" onClick={() => setShowNewInput(true)}>
             <Icon name="plus-small" size="small" />
             新建列表
@@ -204,15 +204,15 @@ function AccountTable(props: {
     <div class="flex-1 overflow-auto">
       <Show
         when={props.accounts.length > 0}
-        fallback={<div class="flex items-center justify-center h-full text-text-weaker text-14-regular">暂无数据</div>}
+        fallback={<div class="flex items-center justify-center h-full text-foreground-subtlest text-14-regular">暂无数据</div>}
       >
         <table class="w-full">
           <thead>
-            <tr class="border-b border-border-weak-base">
-              <th class="text-left px-4 py-3 text-12-regular text-text-weak font-normal">账号</th>
-              <th class="text-left px-4 py-3 text-12-regular text-text-weak font-normal">平台</th>
-              <th class="text-left px-4 py-3 text-12-regular text-text-weak font-normal">账号状态</th>
-              <th class="text-left px-4 py-3 text-12-regular text-text-weak font-normal">所属列表</th>
+            <tr class="border-b border-border">
+              <th class="text-left px-4 py-3 text-12-regular text-foreground-subtle font-normal">账号</th>
+              <th class="text-left px-4 py-3 text-12-regular text-foreground-subtle font-normal">平台</th>
+              <th class="text-left px-4 py-3 text-12-regular text-foreground-subtle font-normal">账号状态</th>
+              <th class="text-left px-4 py-3 text-12-regular text-foreground-subtle font-normal">所属列表</th>
             </tr>
           </thead>
           <tbody>
@@ -220,23 +220,23 @@ function AccountTable(props: {
               {(account) => {
                 const info = () => platformInfo(account.platform)
                 return (
-                  <tr class="border-b border-border-weaker-base hover:bg-surface-raised-base-hover transition-colors">
+                  <tr class="border-b border-border hover:bg-hover transition-colors">
                     <td class="px-4 py-3">
                       <div class="flex items-center gap-2.5">
-                        <div class="size-8 rounded-full bg-background-weak flex items-center justify-center text-12-regular text-text-weak overflow-hidden">
+                        <div class="size-8 rounded-full bg-background-alt flex items-center justify-center text-12-regular text-foreground-subtle overflow-hidden">
                           {account.avatar ? (
                             <img src={account.avatar} alt="" class="size-full object-cover" />
                           ) : (
                             <span>{account.nickname?.charAt(0)}</span>
                           )}
                         </div>
-                        <span class="text-13-medium text-text-strong truncate">{account.nickname}</span>
+                        <span class="text-13-medium text-foreground truncate">{account.nickname}</span>
                       </div>
                     </td>
                     <td class="px-4 py-3">
                       <div class="flex items-center gap-1.5">
                         <img src={info()?.icon} alt="" class="size-4" />
-                        <span class="text-12-regular text-text-weak">{info()?.name}</span>
+                        <span class="text-12-regular text-foreground-subtle">{info()?.name}</span>
                       </div>
                     </td>
                     <td class="px-4 py-3">
@@ -261,7 +261,7 @@ function AccountTable(props: {
                     </td>
                     <td class="px-4 py-3">
                       <select
-                        class="h-7 px-2 rounded border border-border-weak-base bg-background-base text-12-regular text-text-strong outline-none hover:border-border-interactive-base transition-colors cursor-pointer"
+                        class="h-7 px-2 rounded border border-border bg-background text-12-regular text-foreground outline-none hover:border-primary transition-colors cursor-pointer"
                         value={account.groupId}
                         onChange={(e) => {
                           const newGroupId = Number(e.currentTarget.value)

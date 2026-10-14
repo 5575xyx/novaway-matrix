@@ -72,9 +72,9 @@ export function DialogReleaseNotes(props: { highlights: Highlight[] }) {
           {/* Top section - feature content (fixed position from top) */}
           <div class="flex flex-col gap-2 pt-22">
             <div class="flex items-center gap-2">
-              <h1 class="text-16-medium text-text-strong">{feature()?.title ?? ""}</h1>
+              <h1 class="text-16-medium text-foreground">{feature()?.title ?? ""}</h1>
             </div>
-            <p class="text-14-regular text-text-base">{feature()?.description ?? ""}</p>
+            <p class="text-14-regular text-foreground">{feature()?.description ?? ""}</p>
           </div>
 
           {/* Spacer to push buttons to bottom */}
@@ -113,8 +113,8 @@ export function DialogReleaseNotes(props: { highlights: Highlight[] }) {
                     <div
                       class="w-full h-0.5 rounded-[1px] transition-colors duration-200"
                       classList={{
-                        "bg-icon-strong-base": i === index(),
-                        "bg-icon-weak-base": i !== index(),
+                        "bg-foreground": i === index(),
+                        "bg-foreground-subtlest": i !== index(),
                       }}
                     />
                   </button>
@@ -126,7 +126,7 @@ export function DialogReleaseNotes(props: { highlights: Highlight[] }) {
 
         {/* Right side - Media content (edge to edge) */}
         {feature()?.media && (
-          <div class="flex-1 min-w-0 bg-surface-base overflow-hidden rounded-r-xl">
+          <div class="flex-1 min-w-0 bg-surface overflow-hidden rounded-r-xl">
             {feature()!.media!.type === "image" ? (
               <img
                 src={feature()!.media!.src}

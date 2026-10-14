@@ -67,11 +67,11 @@ export function PreviewPanel() {
       id="preview-panel"
       role="region"
       aria-label={language.t("preview.title")}
-      class="flex h-full min-h-0 flex-col overflow-hidden bg-background-stronger"
+      class="flex h-full min-h-0 flex-col overflow-hidden bg-panel"
     >
-      <div class="flex h-10 shrink-0 items-center gap-1.5 border-b border-border-weak-base bg-background-stronger px-2">
-        <div class="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md border border-border-weak-base bg-surface-panel px-2 focus-within:border-border-strong-base">
-          <Icon name="link" size="small" class="shrink-0 text-icon-weak" />
+      <div class="flex h-10 shrink-0 items-center gap-1.5 border-b border-border bg-panel px-2">
+        <div class="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md border border-border bg-panel px-2 focus-within:border-border-hover">
+          <Icon name="link" size="small" class="shrink-0 text-foreground-subtlest" />
           <input
             value={store.draft}
             onInput={(event) => {
@@ -83,7 +83,7 @@ export function PreviewPanel() {
               event.preventDefault()
               go()
             }}
-            class="min-w-0 flex-1 bg-transparent text-12-regular text-text-strong outline-none placeholder:text-text-weaker"
+            class="min-w-0 flex-1 bg-transparent text-12-regular text-foreground outline-none placeholder:text-foreground-subtlest"
             placeholder={language.t("preview.url.placeholder")}
             aria-label={language.t("preview.url.placeholder")}
             spellcheck={false}
@@ -105,7 +105,7 @@ export function PreviewPanel() {
             onClick={inspection.toggle}
             disabled={!inspection.ready()}
             classList={{
-              "bg-surface-interactive-hover text-text-strong": inspection.armed(),
+              "bg-hover text-foreground": inspection.armed(),
             }}
             aria-label={language.t("preview.pick.toggle")}
             aria-pressed={inspection.armed()}
@@ -151,14 +151,14 @@ export function PreviewPanel() {
         </Show>
         <Show when={!url()}>
           <div class="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
-            <div class="flex size-10 items-center justify-center rounded-xl border border-border-weak-base bg-surface-panel">
-              <Icon name="browser" size="large" class="text-icon-weak" />
+            <div class="flex size-10 items-center justify-center rounded-xl border border-border bg-panel">
+              <Icon name="browser" size="large" class="text-foreground-subtlest" />
             </div>
-            <div class="text-14-medium text-text-strong">{language.t("preview.title")}</div>
-            <div class="max-w-80 text-12-regular leading-relaxed text-text-weak">
+            <div class="text-14-medium text-foreground">{language.t("preview.title")}</div>
+            <div class="max-w-80 text-12-regular leading-relaxed text-foreground-subtle">
               {language.t("preview.empty.description")}
             </div>
-            <div class="max-w-80 text-11-regular leading-relaxed text-text-weaker">
+            <div class="max-w-80 text-11-regular leading-relaxed text-foreground-subtlest">
               {language.t("preview.empty.hint")}
             </div>
           </div>

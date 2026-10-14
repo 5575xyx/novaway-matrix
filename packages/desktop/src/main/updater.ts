@@ -95,11 +95,7 @@ export async function installUpdate(killSidecar: () => Promise<void>) {
  */
 export type UpdateNotifier = (info: { version?: string }) => boolean
 
-export async function checkForUpdates(
-  alertOnFail: boolean,
-  killSidecar: () => Promise<void>,
-  notify?: UpdateNotifier,
-) {
+export async function checkForUpdates(alertOnFail: boolean, killSidecar: () => Promise<void>, notify?: UpdateNotifier) {
   if (!UPDATER_ENABLED) return
   logger.log("checkForUpdates invoked", { alertOnFail })
   const result = await checkUpdate()

@@ -1819,10 +1819,10 @@ export default function Layout(props: ParentProps) {
       <Dialog title={language.t("workspace.delete.title")} fit>
         <div class="flex flex-col gap-4 pl-6 pr-2.5 pb-3">
           <div class="flex flex-col gap-1">
-            <span class="text-14-regular text-text-strong">
+            <span class="text-14-regular text-foreground">
               {language.t("workspace.delete.confirm", { name: name() })}
             </span>
-            <span class="text-12-regular text-text-weak">{description()}</span>
+            <span class="text-12-regular text-foreground-subtle">{description()}</span>
           </div>
           <div class="flex justify-end gap-2">
             <Button variant="ghost" size="large" onClick={() => dialog.close()}>
@@ -1893,10 +1893,10 @@ export default function Layout(props: ParentProps) {
       <Dialog title={language.t("workspace.reset.title")} fit>
         <div class="flex flex-col gap-4 pl-6 pr-2.5 pb-3">
           <div class="flex flex-col gap-1">
-            <span class="text-14-regular text-text-strong">
+            <span class="text-14-regular text-foreground">
               {language.t("workspace.reset.confirm", { name: name() })}
             </span>
-            <span class="text-12-regular text-text-weak">
+            <span class="text-12-regular text-foreground-subtle">
               {description()} {archivedLabel()} {language.t("workspace.reset.note")}
             </span>
           </div>
@@ -2135,7 +2135,7 @@ export default function Layout(props: ParentProps) {
     return (
       <div
         classList={{
-          "flex flex-col min-h-0 min-w-0 box-border rounded-[var(--workspace-panel-radius)] border border-border-weak-base bg-background-base overflow-hidden": true,
+          "flex flex-col min-h-0 min-w-0 box-border overflow-hidden": true,
           "flex-1 min-w-0 max-w-full": panelProps.mobile,
         }}
         style={{
@@ -2151,7 +2151,7 @@ export default function Layout(props: ParentProps) {
         >
           <button
             type="button"
-            class="flex size-8 shrink-0 items-center justify-center rounded-md text-icon-base transition-colors hover:bg-surface-base-hover"
+            class="flex size-8 shrink-0 items-center justify-center rounded-md text-foreground-subtle transition-colors hover:bg-hover"
             onClick={() => navigate("/")}
             aria-label={language.t("command.home.open")}
             title={language.t("command.home.open")}
@@ -2203,13 +2203,13 @@ export default function Layout(props: ParentProps) {
           <Button
             variant="ghost"
             size="large"
-            class="w-full justify-start gap-2 text-text-base"
+            class="w-full justify-start gap-2 text-foreground"
             aria-label={language.t("sidebar.search")}
             onClick={() => command.trigger("file.open")}
           >
-            <Icon name="magnifying-glass" size="small" class="shrink-0 text-icon-weak" />
+            <Icon name="magnifying-glass" size="small" class="shrink-0 text-foreground-subtlest" />
             <span class="min-w-0 flex-1 truncate text-left">{language.t("sidebar.search")}</span>
-            <Keybind class="shrink-0 text-ui-xs text-text-weaker">{command.keybind("file.open")}</Keybind>
+            <Keybind class="shrink-0 text-ui-xs text-foreground-subtlest">{command.keybind("file.open")}</Keybind>
           </Button>
         </div>
         {/* 列表层与文件树层叠放：文件树是整层 slide-over（对齐 ZCode 的 WorkspaceFileTree），
@@ -2236,8 +2236,8 @@ export default function Layout(props: ParentProps) {
               fallback={
                 <div class="flex-1 min-h-0 flex items-center justify-center px-6 pb-64 text-center">
                   <div class="mt-8 flex max-w-60 flex-col items-center gap-4 text-center">
-                    <div class="text-14-medium text-text-strong">{language.t("sidebar.empty.title")}</div>
-                    <div class="text-14-regular text-text-base">{language.t("sidebar.empty.description")}</div>
+                    <div class="text-14-medium text-foreground">{language.t("sidebar.empty.title")}</div>
+                    <div class="text-14-regular text-foreground">{language.t("sidebar.empty.description")}</div>
                     <Button size="large" icon="folder-add-left" onClick={chooseProject}>
                       {language.t("command.project.open")}
                     </Button>
@@ -2272,8 +2272,8 @@ export default function Layout(props: ParentProps) {
                       <div class="mt-1">
                         <div
                           classList={{
-                            "group flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-colors hover:bg-surface-base-hover": true,
-                            "bg-surface-base-active": pathKey(proj.worktree) === treeKey(),
+                            "group flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-colors hover:bg-hover": true,
+                            "bg-selected": pathKey(proj.worktree) === treeKey(),
                           }}
                         >
                           <button
@@ -2292,12 +2292,12 @@ export default function Layout(props: ParentProps) {
                             aria-label={language.t("sidebar.view.files")}
                             onClick={openTree}
                           >
-                            <Icon name="folder" size="small" class="shrink-0 text-icon-base" />
-                            <span class="text-ui-caption text-text-strong font-medium truncate flex-1 min-w-0">
+                            <Icon name="folder" size="small" class="shrink-0 text-foreground-subtle" />
+                            <span class="text-ui-caption text-foreground font-medium truncate flex-1 min-w-0">
                               {projectName()}
                             </span>
                           </button>
-                          <span class="text-ui-xs text-text-weak shrink-0">
+                          <span class="text-ui-xs text-foreground-subtle shrink-0">
                             {language.t("sidebar.project.count", { count: tasks().length })}
                           </span>
                           <IconButton
@@ -2336,14 +2336,14 @@ export default function Layout(props: ParentProps) {
                 hidden: store.gettingStartedDismissed || !(providers.all().length > 0 && providers.paid().length === 0),
               }}
             >
-              <div class="rounded-xl bg-background-base shadow-xs-border-base" data-component="getting-started">
+              <div class="rounded-xl bg-background shadow-xs-border-base" data-component="getting-started">
                 <div class="p-3 flex flex-col gap-6">
                   <div class="flex flex-col gap-2">
-                    <div class="text-14-medium text-text-strong">{language.t("sidebar.gettingStarted.title")}</div>
-                    <div class="text-14-regular text-text-base" style={{ "line-height": "var(--line-height-normal)" }}>
+                    <div class="text-14-medium text-foreground">{language.t("sidebar.gettingStarted.title")}</div>
+                    <div class="text-14-regular text-foreground" style={{ "line-height": "var(--line-height-normal)" }}>
                       {language.t("sidebar.gettingStarted.line1")}
                     </div>
-                    <div class="text-14-regular text-text-base" style={{ "line-height": "var(--line-height-normal)" }}>
+                    <div class="text-14-regular text-foreground" style={{ "line-height": "var(--line-height-normal)" }}>
                       {language.t("sidebar.gettingStarted.line2")}
                     </div>
                   </div>
@@ -2360,7 +2360,7 @@ export default function Layout(props: ParentProps) {
             </div>
 
             {/* 侧栏 footer：原来挤在顶部那圈竖排菜单里的入口，按 ZCode 的组织方式沉到底部。 */}
-            <div class="shrink-0 border-t border-border-weaker-base p-2 flex flex-col gap-0.5">
+            <div class="shrink-0 border-t border-border p-2 flex flex-col gap-0.5">
               <ModeSwitchButton fullWidth onSelect={(mode) => layout.mode.select(mode.id)} />
               <ThemeSchemeToggle />
               <Show when={settings.general.showDatabase()}>
@@ -2384,10 +2384,10 @@ export default function Layout(props: ParentProps) {
             classList={{ "translate-x-full pointer-events-none": !treeOpen() }}
             aria-hidden={!treeOpen()}
           >
-            <div class="flex h-9 shrink-0 items-center gap-1 border-b border-border-weaker-base px-2">
+            <div class="flex h-9 shrink-0 items-center gap-1 border-b border-border px-2">
               <button
                 type="button"
-                class="flex items-center gap-1 text-ui-caption text-text-weak transition-colors hover:text-text-base"
+                class="flex items-center gap-1 text-ui-caption text-foreground-subtle transition-colors hover:text-foreground"
                 onClick={() => layout.sidebarView.set("tasks")}
               >
                 <Icon name="arrow-left" size="small" />
@@ -2446,7 +2446,7 @@ export default function Layout(props: ParentProps) {
     <div
       // 窗口根底色比面板暗（深色主题下比面板亮）一档，让四帧之间那 4px 外留白/间隙成为可视线，
       // 而不是和面板同色糊成一片。对应 ZCode 的 `bg-background-win-alt`。
-      class="relative bg-background-weak flex-1 min-h-0 min-w-0 flex flex-col select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text"
+      class="relative bg-background-win-alt flex-1 min-h-0 min-w-0 flex flex-col select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text"
       style={{
         ...modeStyle(),
         // 四帧同心圆：值由运行平台决定，桌面端由 Windows 5px / macOS 6px 收窄，
@@ -2468,9 +2468,11 @@ export default function Layout(props: ParentProps) {
                 data-component="sidebar-nav-desktop"
                 classList={{
                   "hidden xl:block": true,
-                  "absolute inset-y-1 left-1": true,
+                  // 侧栏是 flush 的：不设边框与圆角，直接铺在窗口根色上（对齐 ZCode —— 侧栏
+                  // 不作为一个「帧」，4px 外留白只给右侧主工作区）。
+                  "absolute inset-y-0 left-0": true,
                   "z-10": true,
-                  "rounded-[var(--workspace-panel-radius)] border border-border-weak-base overflow-hidden": true,
+                  "bg-sidebar overflow-hidden": true,
                 }}
                 style={{ width: `${side()}px` }}
               >
@@ -2515,7 +2517,7 @@ export default function Layout(props: ParentProps) {
                   aria-label={language.t("sidebar.nav.projectsAndSessions")}
                   data-component="sidebar-nav-mobile"
                   classList={{
-                    "@container fixed top-0 bottom-0 left-0 z-50 w-full max-w-[400px] overflow-hidden border-r border-border-weaker-base bg-background-base transition-transform duration-200 ease-out": true,
+                    "@container fixed top-0 bottom-0 left-0 z-50 w-full max-w-[400px] overflow-hidden border-r border-border bg-background transition-transform duration-200 ease-out": true,
                     "translate-x-0": layout.mobileSidebar.opened(),
                     "-translate-x-full": !layout.mobileSidebar.opened(),
                   }}
@@ -2535,13 +2537,15 @@ export default function Layout(props: ParentProps) {
                   !state.sizing,
               }}
               style={{
-                "--main-left": showSidebar() ? `${side() + 4}px` : "0px",
+                // 侧栏现在是 flush 的（左/上/下贴边，见上面 nav 的注释），4px 间隙由会话侧自己的
+                // `p-1` 提供，所以这里不能再加一次 4，否则间隙变成 8px。
+                "--main-left": showSidebar() ? `${side()}px` : "0px",
               }}
             >
               {/* 展开入口已移进会话帧 Header（对齐 ZCode：侧栏收起时展开按钮归 Header，
                   展开时收起入口归侧栏顶带）。原先浮在这里的那个 chevron 只有 24px，
                   还正好压在 Header 标题上，既难点中又遮住标题。 */}
-              <main class="size-full overflow-x-hidden flex flex-col items-start bg-background-base page-transition">
+              <main class="size-full overflow-x-hidden flex flex-col items-start min-w-0 page-transition">
                 <Show when={!autoselecting.loading} fallback={<div class="size-full" />}>
                   {props.children}
                 </Show>
@@ -2550,7 +2554,7 @@ export default function Layout(props: ParentProps) {
           </div>
           <Show when={state.settings.open}>
             <section
-              class="absolute inset-0 z-[60] min-h-0 min-w-0 overflow-hidden bg-background-base"
+              class="absolute inset-0 z-[60] min-h-0 min-w-0 overflow-hidden bg-background"
               aria-label={language.t("command.settings.open")}
             >
               <DialogSettings
@@ -2562,7 +2566,7 @@ export default function Layout(props: ParentProps) {
           </Show>
           <Show when={state.databasePage.open}>
             <section
-              class="absolute inset-0 z-[60] min-h-0 min-w-0 overflow-hidden bg-background-base"
+              class="absolute inset-0 z-[60] min-h-0 min-w-0 overflow-hidden bg-background"
               aria-label={language.t("command.database.open")}
             >
               <DatabasePage onBack={closeDatabasePage} />

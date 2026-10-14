@@ -10,23 +10,23 @@ function AccountCheckbox(props: { account: PlatformAccount; checked: boolean; on
 
   return (
     <label
-      class="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors hover:bg-surface-raised-base-hover"
+      class="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors hover:bg-hover"
       classList={{ "opacity-50 pointer-events-none": props.account.status !== "valid" }}
     >
       <input
         type="checkbox"
         checked={props.checked}
         onChange={props.onToggle}
-        class="size-4 rounded border-border-weak-base accent-[var(--novaway-mode-color,#FF6B6B)]"
+        class="size-4 rounded border-border accent-[var(--novaway-mode-color,#FF6B6B)]"
       />
-      <div class="size-7 rounded-full bg-background-weak flex items-center justify-center overflow-hidden shrink-0">
+      <div class="size-7 rounded-full bg-background-alt flex items-center justify-center overflow-hidden shrink-0">
         {props.account.avatar ? (
           <img src={props.account.avatar} alt="" class="size-full object-cover" />
         ) : (
-          <span class="text-11-regular text-text-weak">{props.account.nickname?.charAt(0)}</span>
+          <span class="text-11-regular text-foreground-subtle">{props.account.nickname?.charAt(0)}</span>
         )}
       </div>
-      <span class="text-13-medium text-text-strong truncate">{props.account.nickname}</span>
+      <span class="text-13-medium text-foreground truncate">{props.account.nickname}</span>
       <span class="text-xs ml-auto">{info()?.icon}</span>
     </label>
   )
@@ -83,15 +83,15 @@ export function PublishModal() {
           when={results().length === 0}
           fallback={
             <div class="space-y-4">
-              <div class="rounded-[10px] border border-border-weak-base bg-background-weak/40 p-5 text-center">
+              <div class="rounded-[10px] border border-border bg-background-alt/40 p-5 text-center">
                 <div class="text-3xl mb-3">{successCount() > 0 ? "✅" : "❌"}</div>
-                <div class="text-14-medium text-text-strong mb-1">
+                <div class="text-14-medium text-foreground mb-1">
                   发布完成：成功 {successCount()}，失败 {failCount()}
                 </div>
-                <div class="text-12-regular text-text-weak">共 {results().length} 个账号</div>
+                <div class="text-12-regular text-foreground-subtle">共 {results().length} 个账号</div>
               </div>
               <button
-                class="w-full rounded-[8px] border border-border-weak-base bg-background-base px-4 py-2.5 text-13-medium text-text-strong transition-colors hover:bg-surface-raised-base-hover"
+                class="w-full rounded-[8px] border border-border bg-background px-4 py-2.5 text-13-medium text-foreground transition-colors hover:bg-hover"
                 onClick={() => dialog.close()}
               >
                 关闭
@@ -101,8 +101,8 @@ export function PublishModal() {
         >
           <div class="space-y-5">
             <div>
-              <label class="block text-13-medium text-text-strong mb-2">选择发布账号</label>
-              <div class="rounded-[10px] border border-border-weak-base bg-background-weak/40 p-2 space-y-0.5 max-h-48 overflow-y-auto">
+              <label class="block text-13-medium text-foreground mb-2">选择发布账号</label>
+              <div class="rounded-[10px] border border-border bg-background-alt/40 p-2 space-y-0.5 max-h-48 overflow-y-auto">
                 <For each={platform.store.accounts}>
                   {(account) => (
                     <AccountCheckbox
@@ -113,38 +113,38 @@ export function PublishModal() {
                   )}
                 </For>
                 <Show when={platform.store.accounts.length === 0}>
-                  <div class="py-6 text-center text-12-regular text-text-weaker">暂无账号，请先添加</div>
+                  <div class="py-6 text-center text-12-regular text-foreground-subtlest">暂无账号，请先添加</div>
                 </Show>
               </div>
               <Show when={selectedAccounts().length > 0}>
-                <div class="mt-1.5 text-11-regular text-text-weak">已选择 {selectedAccounts().length} 个账号</div>
+                <div class="mt-1.5 text-11-regular text-foreground-subtle">已选择 {selectedAccounts().length} 个账号</div>
               </Show>
             </div>
 
             <div>
-              <label class="block text-13-medium text-text-strong mb-2">标题（可选）</label>
+              <label class="block text-13-medium text-foreground mb-2">标题（可选）</label>
               <input
                 value={title()}
                 onInput={(e) => setTitle(e.currentTarget.value)}
                 placeholder="输入标题..."
-                class="w-full rounded-[8px] border border-border-weak-base bg-background-base px-3.5 py-2.5 text-13-regular text-text-strong placeholder:text-text-muted outline-none transition-all duration-150 focus:border-[var(--novaway-mode-color,#FF6B6B)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--novaway-mode-color,#FF6B6B)_15%,transparent)]"
+                class="w-full rounded-[8px] border border-border bg-background px-3.5 py-2.5 text-13-regular text-foreground placeholder:text-foreground-subtle outline-none transition-all duration-150 focus:border-[var(--novaway-mode-color,#FF6B6B)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--novaway-mode-color,#FF6B6B)_15%,transparent)]"
               />
             </div>
 
             <div>
-              <label class="block text-13-medium text-text-strong mb-2">正文内容</label>
+              <label class="block text-13-medium text-foreground mb-2">正文内容</label>
               <textarea
                 value={content()}
                 onInput={(e) => setContent(e.currentTarget.value)}
                 placeholder="输入发布内容..."
                 rows={6}
-                class="w-full rounded-[8px] border border-border-weak-base bg-background-base px-3.5 py-2.5 text-13-regular text-text-strong placeholder:text-text-muted outline-none resize-none transition-all duration-150 focus:border-[var(--novaway-mode-color,#FF6B6B)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--novaway-mode-color,#FF6B6B)_15%,transparent)]"
+                class="w-full rounded-[8px] border border-border bg-background px-3.5 py-2.5 text-13-regular text-foreground placeholder:text-foreground-subtle outline-none resize-none transition-all duration-150 focus:border-[var(--novaway-mode-color,#FF6B6B)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--novaway-mode-color,#FF6B6B)_15%,transparent)]"
               />
             </div>
 
             <div class="flex gap-2">
               <button
-                class="flex-1 rounded-[8px] border border-border-weak-base bg-background-base px-4 py-2.5 text-13-medium text-text-strong transition-colors hover:bg-surface-raised-base-hover"
+                class="flex-1 rounded-[8px] border border-border bg-background px-4 py-2.5 text-13-medium text-foreground transition-colors hover:bg-hover"
                 onClick={() => dialog.close()}
               >
                 取消

@@ -265,26 +265,26 @@ export function SessionHeader(): JSX.Element {
           <Show
             when={canOpen()}
             fallback={
-              <div class="flex h-[24px] box-border items-center rounded-md border border-border-weak-base bg-surface-panel overflow-hidden">
+              <div class="flex h-[24px] box-border items-center rounded-md border border-border bg-panel overflow-hidden">
                 <Button
                   variant="ghost"
                   class="rounded-none h-full py-0 pr-3 pl-0.5 gap-1.5 border-none shadow-none"
                   onClick={copyPath}
                   aria-label={language.t("session.header.open.copyPath")}
                 >
-                  <Icon name="copy" size="small" class="text-icon-base" />
-                  <span class="text-12-regular text-text-strong">{language.t("session.header.open.copyPath")}</span>
+                  <Icon name="copy" size="small" class="text-foreground-subtle" />
+                  <span class="text-12-regular text-foreground">{language.t("session.header.open.copyPath")}</span>
                 </Button>
               </div>
             }
           >
             <div class="flex items-center">
-              <div class="flex h-[24px] box-border items-center rounded-md border border-border-weak-base bg-surface-panel overflow-hidden">
+              <div class="flex h-[24px] box-border items-center rounded-md border border-border bg-panel overflow-hidden">
                 <Button
                   variant="ghost"
                   class="rounded-none h-full px-0.5 border-none shadow-none disabled:!cursor-default"
                   classList={{
-                    "bg-surface-raised-base-active": opening(),
+                    "bg-selected": opening(),
                   }}
                   onClick={() => openDir(current().id)}
                   disabled={opening()}
@@ -293,8 +293,8 @@ export function SessionHeader(): JSX.Element {
                   <div class="flex size-5 shrink-0 items-center justify-center [&_[data-component=app-icon]]:size-5">
                     <Show when={opening()} fallback={<AppIcon id={current().icon} />}>
                       <div class="relative size-3.5 flex items-center justify-center">
-                        <div class="absolute inset-0 rounded-full border-[1.5px] border-text-interactive-base animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite] opacity-75" />
-                        <div class="size-1 rounded-full bg-text-interactive-base" />
+                        <div class="absolute inset-0 rounded-full border-[1.5px] border-icon-blue animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite] opacity-75" />
+                        <div class="size-1 rounded-full bg-icon-blue" />
                       </div>
                     </Show>
                   </div>
@@ -310,9 +310,9 @@ export function SessionHeader(): JSX.Element {
                     icon="chevron-down"
                     variant="ghost"
                     disabled={opening()}
-                    class="rounded-none h-full w-[20px] p-0 border-none shadow-none data-[expanded]:bg-surface-raised-base-active disabled:!cursor-default"
+                    class="rounded-none h-full w-[20px] p-0 border-none shadow-none data-[expanded]:bg-selected disabled:!cursor-default"
                     classList={{
-                      "bg-surface-raised-base-active": opening(),
+                      "bg-selected": opening(),
                     }}
                     aria-label={language.t("session.header.open.menu")}
                   />
@@ -345,7 +345,7 @@ export function SessionHeader(): JSX.Element {
                                 </div>
                                 <DropdownMenu.ItemLabel>{o.label}</DropdownMenu.ItemLabel>
                                 <DropdownMenu.ItemIndicator>
-                                  <Icon name="check-small" size="small" class="text-icon-weak" />
+                                  <Icon name="check-small" size="small" class="text-foreground-subtlest" />
                                 </DropdownMenu.ItemIndicator>
                               </DropdownMenu.RadioItem>
                             )}
@@ -360,7 +360,7 @@ export function SessionHeader(): JSX.Element {
                         }}
                       >
                         <div class="flex size-5 shrink-0 items-center justify-center">
-                          <Icon name="copy" size="small" class="text-icon-weak" />
+                          <Icon name="copy" size="small" class="text-foreground-subtlest" />
                         </div>
                         <DropdownMenu.ItemLabel>{language.t("session.header.open.copyPath")}</DropdownMenu.ItemLabel>
                       </DropdownMenu.Item>
@@ -379,7 +379,7 @@ export function SessionHeader(): JSX.Element {
         title={language.t("workspace.header.sidePane")}
         aria-expanded={layout.sidePane.opened()}
         onClick={() => layout.sidePane.toggle()}
-        class={layout.sidePane.opened() ? "text-text-interactive-base" : ""}
+        class={layout.sidePane.opened() ? "text-icon-blue" : ""}
       />
     </>
   )

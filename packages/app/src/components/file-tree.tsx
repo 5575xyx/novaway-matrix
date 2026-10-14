@@ -95,7 +95,7 @@ const buildDragImage = (target: HTMLElement) => {
 
   const image = document.createElement("div")
   image.className =
-    "flex items-center gap-x-2 px-2 py-1 bg-surface-raised-base rounded-md border border-border-base text-12-regular text-text-strong"
+    "flex items-center gap-x-2 px-2 py-1 bg-surface rounded-md border border-border text-12-regular text-foreground"
   image.style.position = "absolute"
   image.style.top = "-1000px"
   image.innerHTML = (icon as SVGElement).outerHTML + (text as HTMLSpanElement).outerHTML
@@ -159,8 +159,8 @@ const FileTreeNode = (
         <Dynamic
           component={local.as ?? "div"}
           classList={{
-            "w-full min-w-0 h-6 flex items-center justify-start gap-x-1.5 rounded-md px-1.5 py-0 text-left hover:bg-surface-raised-base-hover active:bg-surface-base-active transition-colors cursor-pointer": true,
-            "bg-surface-base-active": local.node.path === local.active,
+            "w-full min-w-0 h-6 flex items-center justify-start gap-x-1.5 rounded-md px-1.5 py-0 text-left hover:bg-hover active:bg-selected transition-colors cursor-pointer": true,
+            "bg-selected": local.node.path === local.active,
             ...local.classList,
             [local.class ?? ""]: !!local.class,
             [local.nodeClass ?? ""]: !!local.nodeClass,
@@ -180,8 +180,8 @@ const FileTreeNode = (
           <span
             classList={{
               "flex-1 min-w-0 text-12-medium whitespace-nowrap truncate": true,
-              "text-text-weaker": local.node.ignored,
-              "text-text-weak": !local.node.ignored && !active(),
+              "text-foreground-subtlest": local.node.ignored,
+              "text-foreground-subtle": !local.node.ignored && !active(),
             }}
             style={active() ? color() : undefined}
           >
@@ -202,31 +202,31 @@ const FileTreeNode = (
         </Dynamic>
       </ContextMenu.Trigger>
       <ContextMenu.Portal>
-        <ContextMenu.Content class="min-w-[180px] p-1 bg-surface-raised-base border border-border-base rounded-lg shadow-lg z-50">
+        <ContextMenu.Content class="min-w-[180px] p-1 bg-surface border border-border rounded-lg shadow-lg z-50">
           <ContextMenu.Item
-            class="flex items-center gap-2 px-2 py-1.5 text-12-medium text-text-base rounded-md hover:bg-surface-raised-base-hover cursor-pointer outline-none"
+            class="flex items-center gap-2 px-2 py-1.5 text-12-medium text-foreground rounded-md hover:bg-hover cursor-pointer outline-none"
             onSelect={() => local.onRevealInOS?.(local.node.absolute)}
           >
             <Icon name="open-file" size="small" />
             在文件资源管理器中显示
           </ContextMenu.Item>
           <ContextMenu.Item
-            class="flex items-center gap-2 px-2 py-1.5 text-12-medium text-text-base rounded-md hover:bg-surface-raised-base-hover cursor-pointer outline-none"
+            class="flex items-center gap-2 px-2 py-1.5 text-12-medium text-foreground rounded-md hover:bg-hover cursor-pointer outline-none"
             onSelect={() => local.onOpenInTerminal?.(local.node.absolute)}
           >
             <Icon name="terminal" size="small" />
             在集成终端中打开
           </ContextMenu.Item>
-          <ContextMenu.Separator class="h-px bg-border-weak-base my-1" />
+          <ContextMenu.Separator class="h-px bg-border my-1" />
           <ContextMenu.Item
-            class="flex items-center gap-2 px-2 py-1.5 text-12-medium text-text-base rounded-md hover:bg-surface-raised-base-hover cursor-pointer outline-none"
+            class="flex items-center gap-2 px-2 py-1.5 text-12-medium text-foreground rounded-md hover:bg-hover cursor-pointer outline-none"
             onSelect={() => local.onCopyPath?.(local.node.absolute)}
           >
             <Icon name="copy" size="small" />
             复制路径
           </ContextMenu.Item>
           <ContextMenu.Item
-            class="flex items-center gap-2 px-2 py-1.5 text-12-medium text-text-base rounded-md hover:bg-surface-raised-base-hover cursor-pointer outline-none"
+            class="flex items-center gap-2 px-2 py-1.5 text-12-medium text-foreground rounded-md hover:bg-hover cursor-pointer outline-none"
             onSelect={() => local.onCopyRelativePath?.(local.node.path)}
           >
             <Icon name="copy" size="small" />
@@ -501,7 +501,7 @@ export default function FileTree(props: {
                       onRevealInOS={handleRevealInOS}
                       onOpenInTerminal={handleOpenInTerminal}
                     >
-                      <div class="size-4 flex items-center justify-center text-icon-weak">
+                      <div class="size-4 flex items-center justify-center text-foreground-subtlest">
                         <Icon name={expanded() ? "chevron-down" : "chevron-right"} size="small" />
                       </div>
                     </FileTreeNode>
@@ -509,7 +509,7 @@ export default function FileTree(props: {
                   <Collapsible.Content class="relative pt-0.5">
                     <div
                       classList={{
-                        "absolute top-0 bottom-0 w-px pointer-events-none bg-border-weak-base opacity-0 transition-opacity duration-150 ease-out motion-reduce:transition-none": true,
+                        "absolute top-0 bottom-0 w-px pointer-events-none bg-border opacity-0 transition-opacity duration-150 ease-out motion-reduce:transition-none": true,
                         "group-hover/filetree:opacity-100": expanded() && deep() === level,
                         "group-hover/filetree:opacity-50": !(expanded() && deep() === level),
                       }}
@@ -517,7 +517,7 @@ export default function FileTree(props: {
                     />
                     <Show
                       when={level < MAX_DEPTH && !chain.includes(key(node.path))}
-                      fallback={<div class="px-2 py-1 text-12-regular text-text-weak">...</div>}
+                      fallback={<div class="px-2 py-1 text-12-regular text-foreground-subtle">...</div>}
                     >
                       <FileTree
                         path={node.path}

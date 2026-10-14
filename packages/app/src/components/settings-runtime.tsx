@@ -268,8 +268,8 @@ const SettingsPage: Component<{ title: string; description: string; children: JS
   <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
     <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--popover)_calc(100%_-_24px),transparent)]">
       <div class="flex flex-col gap-1 pt-6 pb-8 w-full">
-        <h2 class="text-16-medium text-text-strong">{props.title}</h2>
-        <p class="text-13-regular text-text-weak">{props.description}</p>
+        <h2 class="text-16-medium text-foreground">{props.title}</h2>
+        <p class="text-13-regular text-foreground-subtle">{props.description}</p>
       </div>
     </div>
     <div class="flex flex-col gap-8 w-full">{props.children}</div>
@@ -278,20 +278,20 @@ const SettingsPage: Component<{ title: string; description: string; children: JS
 
 const SectionTitle: Component<{ title: string; description?: string }> = (props) => (
   <div class="flex flex-col gap-1 pb-2">
-    <h3 class="text-14-medium text-text-strong">{props.title}</h3>
+    <h3 class="text-14-medium text-foreground">{props.title}</h3>
     <Show when={props.description}>
-      <p class="text-12-regular text-text-weak">{props.description}</p>
+      <p class="text-12-regular text-foreground-subtle">{props.description}</p>
     </Show>
   </div>
 )
 
 const EmptyState: Component<{ message: string }> = (props) => (
-  <div class="py-4 text-14-regular text-text-weak">{props.message}</div>
+  <div class="py-4 text-14-regular text-foreground-subtle">{props.message}</div>
 )
 
 const LoadingState: Component = () => (
-  <div class="flex items-center gap-2 py-4 text-14-regular text-text-weak">
-    <span class="size-4 rounded-full border border-border-strong-base border-t-transparent animate-spin" />
+  <div class="flex items-center gap-2 py-4 text-14-regular text-foreground-subtle">
+    <span class="size-4 rounded-full border border-border-hover border-t-transparent animate-spin" />
     <span>加载中...</span>
   </div>
 )
@@ -313,8 +313,8 @@ const PageTabs: Component<{
           type="button"
           class="h-8 px-3 rounded-md text-13-medium border transition-colors"
           classList={{
-            "bg-surface-base-active text-text-strong border-border-weak-base": props.value === item.value,
-            "bg-transparent text-text-weak border-transparent hover:bg-surface-base-hover hover:text-text-strong":
+            "bg-selected text-foreground border-border": props.value === item.value,
+            "bg-transparent text-foreground-subtle border-transparent hover:bg-hover hover:text-foreground":
               props.value !== item.value,
           }}
           onClick={() => props.onChange(item.value)}
@@ -459,7 +459,7 @@ const SkillSelectDialog: Component<{
                   <button
                     type="button"
                     class="w-full text-left rounded-lg transition-colors"
-                    classList={{ "bg-surface-base-active": active() }}
+                    classList={{ "bg-selected": active() }}
                     disabled={select.isPending}
                     onClick={() => toggle(skill.name)}
                   >
@@ -472,8 +472,8 @@ const SkillSelectDialog: Component<{
                         <span
                           class="flex size-6 items-center justify-center rounded-md border text-13-medium"
                           classList={{
-                            "border-border-strong-base bg-surface-base text-text-weak": !active(),
-                            "border-border-active bg-surface-base-active text-text-strong": active(),
+                            "border-border-hover bg-surface text-foreground-subtle": !active(),
+                            "border-border-hover bg-selected text-foreground": active(),
                           }}
                         >
                           {active() ? "✓" : "+"}
@@ -487,7 +487,7 @@ const SkillSelectDialog: Component<{
           </Show>
         </SettingsList>
         <div class="flex items-center justify-between gap-3 pt-1">
-          <span class="text-12-regular text-text-weak">已选择 {selected().length} 个技能</span>
+          <span class="text-12-regular text-foreground-subtle">已选择 {selected().length} 个技能</span>
           <div class="flex items-center gap-2">
             <Button type="button" variant="secondary" onClick={() => dialog.close()}>
               {language.t("common.cancel")}
@@ -750,7 +750,7 @@ const ConfirmActionDialog: Component<{
     <Dialog title={props.title} fit>
       <div class="flex flex-col gap-4 pl-6 pr-2.5 pb-3">
         <div class="flex flex-col gap-1">
-          <span class="text-14-regular text-text-strong">{props.description}</span>
+          <span class="text-14-regular text-foreground">{props.description}</span>
           <Show when={error()}>
             <span class="text-12-regular text-danger-base">{error()}</span>
           </Show>
@@ -1306,7 +1306,7 @@ const RuleFileDialog: Component<{
           autocapitalize="off"
         />
         <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium text-text">{language.t("settings.rules.field.trigger")}</label>
+          <label class="text-sm font-medium text-foreground">{language.t("settings.rules.field.trigger")}</label>
           <Select
             options={options()}
             current={options().find((option) => option.value === trigger())}
@@ -1316,7 +1316,7 @@ const RuleFileDialog: Component<{
             variant="secondary"
             triggerVariant="settings"
           />
-          <p class="text-xs text-text-muted">
+          <p class="text-xs text-foreground-subtle">
             {options().find((option) => option.value === trigger())?.descriptionText}
           </p>
         </div>
@@ -1524,7 +1524,7 @@ const ProjectInstructionGenerateDialog: Component<{
             error={error()}
           />
           <div class="flex flex-col gap-1.5">
-            <label class="text-sm font-medium text-text">{language.t("settings.projectInstruction.field.model")}</label>
+            <label class="text-sm font-medium text-foreground">{language.t("settings.projectInstruction.field.model")}</label>
             <Select
               options={options()}
               current={current()}
@@ -1536,14 +1536,14 @@ const ProjectInstructionGenerateDialog: Component<{
             />
           </div>
           <Show when={generate.isPending}>
-            <div class="flex items-start gap-3 rounded-md border border-border-base bg-surface-base px-3 py-3">
-              <span class="mt-0.5 size-5 shrink-0 rounded-full border-2 border-border-strong-base border-t-transparent animate-spin" />
+            <div class="flex items-start gap-3 rounded-md border border-border bg-surface px-3 py-3">
+              <span class="mt-0.5 size-5 shrink-0 rounded-full border-2 border-border-hover border-t-transparent animate-spin" />
               <div class="min-w-0 flex-1 space-y-1">
-                <div class="text-13-medium text-text">{language.t("settings.projectInstruction.generating.title")}</div>
-                <div class="text-12-regular text-text-weak">
+                <div class="text-13-medium text-foreground">{language.t("settings.projectInstruction.generating.title")}</div>
+                <div class="text-12-regular text-foreground-subtle">
                   {language.t("settings.projectInstruction.generating.description")}
                 </div>
-                <div class="text-12-regular text-text-muted" aria-live="polite">
+                <div class="text-12-regular text-foreground-subtle" aria-live="polite">
                   {language.t("settings.projectInstruction.generating.elapsed", { seconds: elapsed() })}
                 </div>
               </div>
@@ -1561,12 +1561,12 @@ const ProjectInstructionGenerateDialog: Component<{
             </Button>
           </div>
         </div>
-        <div class="min-w-0 rounded-md border border-border-base bg-surface-base/70 p-3">
+        <div class="min-w-0 rounded-md border border-border bg-surface/70 p-3">
           <div class="mb-3 flex items-center justify-between gap-2">
-            <div class="text-13-medium text-text">
+            <div class="text-13-medium text-foreground">
               {language.t("settings.projectInstruction.generating.panel.title")}
             </div>
-            <div class="text-11-regular text-text-muted">
+            <div class="text-11-regular text-foreground-subtle">
               {language.t("settings.projectInstruction.generating.panel.status")}
             </div>
           </div>
@@ -1574,7 +1574,7 @@ const ProjectInstructionGenerateDialog: Component<{
             <Show
               when={progress().length > 0}
               fallback={
-                <div class="text-12-regular text-text-muted">
+                <div class="text-12-regular text-foreground-subtle">
                   {language.t("settings.projectInstruction.generating.panel.idle")}
                 </div>
               }
@@ -1586,13 +1586,13 @@ const ProjectInstructionGenerateDialog: Component<{
                       classList={{
                         "mt-1 size-1.5 shrink-0 rounded-full": true,
                         "bg-success-base": item.step === "written",
-                        "bg-icon-strong-base animate-pulse": item.step !== "written",
+                        "bg-foreground animate-pulse": item.step !== "written",
                       }}
                     />
                     <div class="min-w-0">
-                      <div class="text-text">{item.title}</div>
+                      <div class="text-foreground">{item.title}</div>
                       <Show when={item.detail}>
-                        <div class="truncate text-text-muted">{item.detail}</div>
+                        <div class="truncate text-foreground-subtle">{item.detail}</div>
                       </Show>
                     </div>
                   </div>
@@ -1600,11 +1600,11 @@ const ProjectInstructionGenerateDialog: Component<{
               </For>
             </Show>
           </div>
-          <div class="rounded-md border border-border-weak-base bg-background-base/70">
-            <div class="border-b border-border-weak-base px-3 py-2 text-12-medium text-text-weak">
+          <div class="rounded-md border border-border bg-background/70">
+            <div class="border-b border-border px-3 py-2 text-12-medium text-foreground-subtle">
               {language.t("settings.projectInstruction.generating.panel.preview")}
             </div>
-            <pre class="max-h-64 min-h-40 overflow-auto whitespace-pre-wrap break-words p-3 text-11-regular leading-5 text-text-muted">
+            <pre class="max-h-64 min-h-40 overflow-auto whitespace-pre-wrap break-words p-3 text-11-regular leading-5 text-foreground-subtle">
               {preview()}
             </pre>
           </div>
@@ -2186,7 +2186,7 @@ export const SettingsAgents: Component = () => {
             }))}
           />
         </div>
-        <div class="pb-3 text-12-regular text-text-weak">{language.t("settings.agents.skills.note")}</div>
+        <div class="pb-3 text-12-regular text-foreground-subtle">{language.t("settings.agents.skills.note")}</div>
         <SettingsList>
           <Show when={!loading()} fallback={<LoadingState />}>
             <Show
@@ -3236,16 +3236,16 @@ const RuntimeRow: Component<{
   footer?: JSX.Element
   actions?: JSX.Element
 }> = (props) => (
-  <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+  <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
     <div class="flex items-start gap-3 min-w-0 flex-1">
       <Icon name={props.icon} class="size-5 shrink-0 icon-strong-base mt-0.5" />
       <div class="flex flex-col min-w-0">
         <div class="flex flex-wrap items-center gap-2">
-          <span class="text-14-medium text-text-strong truncate">{props.title}</span>
+          <span class="text-14-medium text-foreground truncate">{props.title}</span>
           <For each={props.tags ?? []}>{(tag) => <Tag>{tag}</Tag>}</For>
         </div>
         <Show when={props.description}>
-          <span class="text-12-regular text-text-weak truncate">{props.description}</span>
+          <span class="text-12-regular text-foreground-subtle truncate">{props.description}</span>
         </Show>
         <Show when={props.footer}>{props.footer}</Show>
       </div>
@@ -3264,22 +3264,22 @@ const AgentSkillList: Component<{
   const language = useLanguage()
   return (
     <div class="mt-2 flex flex-wrap items-center gap-1.5">
-      <span class="text-12-regular text-text-weak">{language.t("settings.agents.skills.title")}</span>
+      <span class="text-12-regular text-foreground-subtle">{language.t("settings.agents.skills.title")}</span>
       <Show
         when={safeArray(props.skills).length > 0}
         fallback={<Tag>{language.t("settings.agents.skills.empty")}</Tag>}
       >
         <For each={safeArray(props.skills)}>
           {(skill) => (
-            <span class="inline-flex h-6 max-w-44 items-center gap-1 rounded-md border border-border-weak-base bg-surface-weak px-2 text-12-regular text-text-base">
+            <span class="inline-flex h-6 max-w-44 items-center gap-1 rounded-md border border-border bg-surface px-2 text-12-regular text-foreground">
               <span class="truncate">{skillDisplayName(skill.name, skill.data)}</span>
               <Show when={skill.builtIn}>
-                <span class="text-text-weak">{language.t("settings.management.tag.builtIn")}</span>
+                <span class="text-foreground-subtle">{language.t("settings.management.tag.builtIn")}</span>
               </Show>
               <Show when={!skill.builtIn}>
                 <button
                   type="button"
-                  class="text-text-weak hover:text-text-strong"
+                  class="text-foreground-subtle hover:text-foreground"
                   onClick={() => props.onRemove(skill.name)}
                   aria-label={language.t("settings.agents.skills.action.remove")}
                 >
@@ -3292,7 +3292,7 @@ const AgentSkillList: Component<{
       </Show>
       <button
         type="button"
-        class="inline-flex h-6 items-center rounded-md border border-border-weak-base px-2 text-12-regular text-text-base hover:bg-surface-weak"
+        class="inline-flex h-6 items-center rounded-md border border-border px-2 text-12-regular text-foreground hover:bg-surface"
         onClick={props.onAdd}
       >
         {language.t("settings.agents.skills.action.add")}
@@ -3371,16 +3371,16 @@ const McpRow: Component<{
   const configurable = () => !!props.onEdit || !!props.onDelete
 
   return (
-    <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+    <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
       <div class="flex items-start gap-3 min-w-0">
         <Icon name="mcp" class="size-5 shrink-0 icon-strong-base mt-0.5" />
         <div class="flex flex-col min-w-0">
           <div class="flex flex-wrap items-center gap-2">
-            <span class="text-14-medium text-text-strong truncate">{props.name}</span>
+            <span class="text-14-medium text-foreground truncate">{props.name}</span>
             <Tag>{label()}</Tag>
           </div>
           <Show when={error()}>
-            <span class="text-12-regular text-text-weak truncate">{error()}</span>
+            <span class="text-12-regular text-foreground-subtle truncate">{error()}</span>
           </Show>
         </div>
       </div>

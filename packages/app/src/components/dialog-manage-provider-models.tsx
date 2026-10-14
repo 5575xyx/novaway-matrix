@@ -84,7 +84,7 @@ const ConfirmActionDialog: Component<{
     <Dialog title={props.title} fit>
       <div class="flex flex-col gap-4 pl-6 pr-2.5 pb-3">
         <div class="flex flex-col gap-1">
-          <span class="text-14-regular text-text-strong">{props.description}</span>
+          <span class="text-14-regular text-foreground">{props.description}</span>
           <Show when={error()}>
             <span class="text-12-regular text-danger-base">{error()}</span>
           </Show>
@@ -353,30 +353,30 @@ export const DialogManageProviderModels: Component<{
               const fetched = createMemo(() => remoteModels[keyIndex()] ?? [])
               return (
                 <div class="flex flex-col">
-                  <div class="flex items-center justify-between gap-2 px-2 py-1.5 mt-1 bg-surface-raised-base rounded-md border border-border-weak-base">
+                  <div class="flex items-center justify-between gap-2 px-2 py-1.5 mt-1 bg-surface rounded-md border border-border">
                     <Show when={isMultiKey()}>
                       <button
                         type="button"
-                        class="flex items-center gap-2 flex-1 min-w-0 text-left text-13-medium text-text-strong"
+                        class="flex items-center gap-2 flex-1 min-w-0 text-left text-13-medium text-foreground"
                         onClick={() => toggleKeyExpanded(keyIndex())}
                         aria-expanded={isOpen()}
                       >
                         <Show
                           when={isOpen()}
-                          fallback={<Icon name="chevron-right" size="small" class="text-icon-weak-base" />}
+                          fallback={<Icon name="chevron-right" size="small" class="text-foreground-subtlest" />}
                         >
-                          <Icon name="chevron-down" size="small" class="text-icon-weak-base" />
+                          <Icon name="chevron-down" size="small" class="text-foreground-subtlest" />
                         </Show>
                         <span class="flex items-center gap-1.5 min-w-0">
                           <span class="truncate">
                             {language.t("model.key.label")} {keyIndex() + 1}
                           </span>
-                          <span class="text-12-regular text-text-weak font-mono truncate">{maskKey(entry.key)}</span>
+                          <span class="text-12-regular text-foreground-subtle font-mono truncate">{maskKey(entry.key)}</span>
                         </span>
                       </button>
                     </Show>
                     <Show when={!isMultiKey()}>
-                      <span class="text-13-medium text-text-strong flex-1">
+                      <span class="text-13-medium text-foreground flex-1">
                         {countForKey()}/{totalForKey()} {language.t("common.selected")}
                       </span>
                     </Show>
@@ -388,7 +388,7 @@ export const DialogManageProviderModels: Component<{
                           onClick={() => removeKey(keyIndex())}
                           title={language.t("common.delete")}
                         >
-                          <Icon name="trash" size="small" class="text-icon-weak-base" />
+                          <Icon name="trash" size="small" class="text-foreground-subtlest" />
                         </Button>
                       </Show>
                       <Show when={fetched().length === 0}>
@@ -421,9 +421,9 @@ export const DialogManageProviderModels: Component<{
                         >
                           {(model) => (
                             <div class="flex min-w-0 flex-col">
-                              <span class="truncate text-13-medium text-text-strong">{model?.name}</span>
+                              <span class="truncate text-13-medium text-foreground">{model?.name}</span>
                               <Show when={model && model.name !== model.id}>
-                                <span class="truncate text-11-regular text-text-weak">{model?.id}</span>
+                                <span class="truncate text-11-regular text-foreground-subtle">{model?.id}</span>
                               </Show>
                             </div>
                           )}
@@ -444,17 +444,17 @@ export const DialogManageProviderModels: Component<{
                     <div class="flex flex-col">
                       <For each={allModels()}>
                         {(model) => (
-                          <div class="flex items-center justify-between py-1.5 px-1 hover:bg-surface-hover-base rounded-md gap-2">
+                          <div class="flex items-center justify-between py-1.5 px-1 hover:bg-hover rounded-md gap-2">
                             <div class="min-w-0 flex-1">
                               <div class="text-14-medium truncate flex items-center gap-1.5">
                                 {model.name}
                                 <Show when={extraModels[model.id]}>
-                                  <span class="text-10-medium px-1.5 py-0.5 rounded bg-surface-base text-text-weak">
+                                  <span class="text-10-medium px-1.5 py-0.5 rounded bg-surface text-foreground-subtle">
                                     {language.t("dialog.model.manage.new")}
                                   </span>
                                 </Show>
                               </div>
-                              <div class="text-12-regular text-text-weak truncate">{model.id}</div>
+                              <div class="text-12-regular text-foreground-subtle truncate">{model.id}</div>
                             </div>
                             <div class="w-24 shrink-0">
                               <Select
@@ -485,7 +485,7 @@ export const DialogManageProviderModels: Component<{
           </For>
         </div>
 
-        <div class="flex justify-end gap-2 pt-3 border-t border-border-weak-base">
+        <div class="flex justify-end gap-2 pt-3 border-t border-border">
           <Button variant="secondary" onClick={() => dialog.close()}>
             {language.t("common.cancel")}
           </Button>

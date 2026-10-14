@@ -67,7 +67,7 @@ export function NewSessionView(props: NewSessionViewProps) {
               {isOffice() ? office.activeAction().title : language.t("session.new.title")}
             </div>
             <Show when={isOffice()}>
-              <div class="max-w-md text-13-regular leading-relaxed text-text-weak">
+              <div class="max-w-md text-13-regular leading-relaxed text-foreground-subtle">
                 {office.activeAction().description}
               </div>
             </Show>
@@ -76,9 +76,9 @@ export function NewSessionView(props: NewSessionViewProps) {
             <Show when={sync.project}>
               {(project) => (
                 <div class="flex items-start justify-center gap-3 min-h-5">
-                  <div class="text-11-medium text-text-weak leading-5 min-w-0 max-w-120 break-words text-center">
+                  <div class="text-11-medium text-foreground-subtle leading-5 min-w-0 max-w-120 break-words text-center">
                     {language.t("session.new.lastModified")}&nbsp;
-                    <span class="text-text-strong">
+                    <span class="text-foreground">
                       {DateTime.fromMillis(project().time.updated ?? project().time.created)
                         .setLocale(language.intl())
                         .toRelative()}
@@ -105,7 +105,7 @@ export function NewSessionView(props: NewSessionViewProps) {
                       type="button"
                       class="flex-1 flex items-start gap-4 px-5 py-4 rounded-xl border text-left transition-all"
                       classList={{
-                        "border-border-weak-base bg-background-base/50 hover:border-border-strong-base hover:bg-surface-hover":
+                        "border-border bg-background/50 hover:border-border-hover hover:bg-hover":
                           !active(),
                         "border-[var(--icon-agent-plan-base)]/40 bg-[var(--icon-agent-plan-base)]/10":
                           active() && agent.name === "plan",
@@ -116,10 +116,10 @@ export function NewSessionView(props: NewSessionViewProps) {
                     >
                       <div class="mt-1 size-3 rounded-full shrink-0" style={{ "background-color": agent.color }} />
                       <div class="flex flex-col gap-1 min-w-0 text-left">
-                        <div class="text-14-semibold text-text-strong">
+                        <div class="text-14-semibold text-foreground">
                           {language.t(`session.new.agentSelector.${agent.name}.title`)}
                         </div>
-                        <div class="text-12-regular text-text-weak leading-5">
+                        <div class="text-12-regular text-foreground-subtle leading-5">
                           {language.t(`session.new.agentSelector.${agent.name}.description`)}
                         </div>
                       </div>
@@ -138,7 +138,7 @@ export function NewSessionView(props: NewSessionViewProps) {
               />
             </Show>
             <Show when={!ready()}>
-              <div class="w-full min-h-32 md:min-h-40 rounded-md border border-border-weak-base bg-background-base/50 px-4 py-3 text-text-weak whitespace-pre-wrap pointer-events-none">
+              <div class="w-full min-h-32 md:min-h-40 rounded-md border border-border bg-background/50 px-4 py-3 text-foreground-subtle whitespace-pre-wrap pointer-events-none">
                 {language.t("prompt.loading")}
               </div>
             </Show>
