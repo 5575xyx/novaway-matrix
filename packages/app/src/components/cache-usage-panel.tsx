@@ -8,9 +8,9 @@ import { getSessionCacheMetrics } from "./session/session-context-metrics"
 
 function Stat(props: { label: string; value: string }) {
   return (
-    <div class="rounded-md border border-border-weak-base bg-surface-raised-base px-2.5 py-2">
-      <div class="text-11-regular text-text-weak">{props.label}</div>
-      <div class="mt-0.5 text-13-medium text-text-strong break-all">{props.value}</div>
+    <div class="rounded-md border border-border bg-surface px-2.5 py-2">
+      <div class="text-11-regular text-foreground-subtle">{props.label}</div>
+      <div class="mt-0.5 text-13-medium text-foreground break-all">{props.value}</div>
     </div>
   )
 }
@@ -49,21 +49,21 @@ export function CacheUsageBody() {
         when={usage.metrics().calls > 0}
         fallback={
           <div class="flex flex-col items-center gap-2 py-8 text-center">
-            <Icon name="server" size="normal" class="text-text-weak" />
-            <span class="text-12-regular text-text-weak">当前会话暂无 token 统计</span>
+            <Icon name="server" size="normal" class="text-foreground-subtle" />
+            <span class="text-12-regular text-foreground-subtle">当前会话暂无 token 统计</span>
           </div>
         }
       >
         <div class="flex items-end justify-between gap-4">
           <div class="flex flex-col gap-1">
-            <span class="text-12-regular text-text-weak">缓存命中率</span>
-            <span class="text-24-semibold text-text-strong">{usage.hitRate()}%</span>
+            <span class="text-12-regular text-foreground-subtle">缓存命中率</span>
+            <span class="text-24-semibold text-foreground">{usage.hitRate()}%</span>
           </div>
-          <span class="text-11-regular text-text-weak">
+          <span class="text-11-regular text-foreground-subtle">
             已调用 {usage.formatter().format(usage.metrics().calls)} 次
           </span>
         </div>
-        <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-hover">
+        <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-hover">
           <div
             class="h-full rounded-full bg-[var(--icon-blue)] transition-all duration-300"
             style={{ width: `${usage.hitRate()}%` }}

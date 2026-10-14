@@ -84,15 +84,15 @@ export function PlatformWebView(props: PlatformWebViewProps) {
   return (
     <div class="flex flex-col h-full w-full">
       <Show when={!error()}>
-        <div class="flex items-center gap-3 px-4 py-2 bg-background-weak border-b border-border-weak-base shrink-0">
+        <div class="flex items-center gap-3 px-4 py-2 bg-background-alt border-b border-border shrink-0">
           <div class="size-5 rounded overflow-hidden bg-white">
             <img src={info()?.icon} alt="" class="size-full object-contain" />
           </div>
-          <span class="text-13-medium text-text-strong">{info()?.name}</span>
-          <span class="text-12-regular text-text-weaker">{info()?.viewUrl}</span>
+          <span class="text-13-medium text-foreground">{info()?.name}</span>
+          <span class="text-12-regular text-foreground-subtlest">{info()?.viewUrl}</span>
           <div class="flex-1" />
           <button
-            class="rounded-[6px] px-2.5 py-1 text-12-medium text-text-weak hover:bg-surface-raised-base-hover hover:text-text-strong transition-colors"
+            class="rounded-[6px] px-2.5 py-1 text-12-medium text-foreground-subtle hover:bg-hover hover:text-foreground transition-colors"
             onClick={() => {
               if (webviewRef?.reload) webviewRef.reload()
             }}
@@ -103,8 +103,8 @@ export function PlatformWebView(props: PlatformWebViewProps) {
         <Show when={loading()}>
           <div class="flex items-center justify-center flex-1 bg-white">
             <div class="flex flex-col items-center gap-3">
-              <div class="size-6 border-2 border-border-weak-base border-t-border-interactive-base rounded-full animate-spin" />
-              <span class="text-13-regular text-text-weak">正在加载平台页面...</span>
+              <div class="size-6 border-2 border-border border-t-border-interactive-base rounded-full animate-spin" />
+              <span class="text-13-regular text-foreground-subtle">正在加载平台页面...</span>
             </div>
           </div>
         </Show>
@@ -124,8 +124,8 @@ export function PlatformWebView(props: PlatformWebViewProps) {
       <Show when={error()}>
         <div class="flex items-center justify-center flex-1">
           <div class="text-center max-w-sm p-8">
-            <h3 class="text-16-medium text-text-strong mb-2">加载失败</h3>
-            <p class="text-13-regular text-text-weak">{error()}</p>
+            <h3 class="text-16-medium text-foreground mb-2">加载失败</h3>
+            <p class="text-13-regular text-foreground-subtle">{error()}</p>
           </div>
         </div>
       </Show>

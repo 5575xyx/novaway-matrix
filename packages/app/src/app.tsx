@@ -55,7 +55,7 @@ import { useCheckServerHealth } from "./utils/server-health"
 const HomeRoute = lazy(() => import("@/pages/home"))
 const loadSession = () => import("@/pages/session")
 const Session = lazy(loadSession)
-const Loading = () => <div class="size-full bg-background-base" />
+const Loading = () => <div class="size-full bg-background" />
 const PulseLayout = lazy(() => import("@/pages/pulse/PulseLayout"))
 
 if (typeof location === "object" && /\/session(?:\/|$)/.test(location.pathname)) {
@@ -90,6 +90,11 @@ declare global {
     }
     api?: {
       setTitlebar?: (theme: { mode: "light" | "dark" }) => Promise<void>
+      minimizeWindow?: () => Promise<void>
+      toggleMaximizeWindow?: () => Promise<void>
+      closeWindow?: () => Promise<void>
+      isWindowMaximized?: () => Promise<boolean>
+      onWindowMaximizedChange?: (cb: (maximized: boolean) => void) => () => void
       toPreviewUrl?: (url: string) => string
       setPreviewInspectorOrigin?: (origin: string) => Promise<void>
       updateFloatingAgentState?: (state: {
@@ -266,7 +271,7 @@ function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean }>) {
   return (
     <Suspense
       fallback={
-        <div class="h-dvh w-screen flex flex-col items-center justify-center bg-background-base">
+        <div class="h-dvh w-screen flex flex-col items-center justify-center bg-background">
           <Splash class="w-16 h-20 opacity-50 animate-pulse" />
         </div>
       }
@@ -274,7 +279,7 @@ function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean }>) {
       {/*<Show
         when={checkMode() === "blocking" ? !startupHealthCheck.loading : startupHealthCheck.state !== "pending"}
         fallback={
-          <div class="h-dvh w-screen flex flex-col items-center justify-center bg-background-base">
+          <div class="h-dvh w-screen flex flex-col items-center justify-center bg-background">
             <Splash class="w-16 h-20 opacity-50 animate-pulse" />
           </div>
         }
@@ -314,30 +319,30 @@ function ConnectionError(props: { onRetry?: () => void; onServerSelected?: (key:
   onCleanup(() => clearInterval(timer))
 
   return (
-    <div class="h-dvh w-screen flex flex-col items-center justify-center bg-background-base gap-6 p-6">
+    <div class="h-dvh w-screen flex flex-col items-center justify-center bg-background gap-6 p-6">
       <div class="flex flex-col items-center max-w-md text-center">
         <Splash class="w-12 h-15 mb-4" />
-        <p class="text-14-regular text-text-base">
+        <p class="text-14-regular text-foreground">
           {unreachable()[0]}
-          <span class="text-text-strong font-medium">{name()}</span>
+          <span class="text-foreground font-medium">{name()}</span>
           {unreachable()[1]}
         </p>
-        <p class="mt-1 text-12-regular text-text-weak">{language.t("app.server.retrying")}</p>
+        <p class="mt-1 text-12-regular text-foreground-subtle">{language.t("app.server.retrying")}</p>
       </div>
       <Show when={others().length > 0}>
         <div class="flex flex-col gap-2 w-full max-w-sm">
-          <span class="text-12-regular text-text-base text-center">{language.t("app.server.otherServers")}</span>
-          <div class="flex flex-col gap-1 bg-surface-base rounded-lg p-2">
+          <span class="text-12-regular text-foreground text-center">{language.t("app.server.otherServers")}</span>
+          <div class="flex flex-col gap-1 bg-surface rounded-lg p-2">
             <For each={others()}>
               {(conn) => {
                 const key = ServerConnection.key(conn)
                 return (
                   <button
                     type="button"
-                    class="flex items-center gap-3 w-full px-3 py-2 rounded-md hover:bg-surface-raised-base-hover transition-colors text-left"
+                    class="flex items-center gap-3 w-full px-3 py-2 rounded-md hover:bg-hover transition-colors text-left"
                     onClick={() => props.onServerSelected?.(key)}
                   >
-                    <span class="text-14-regular text-text-strong truncate">{serverName(conn)}</span>
+                    <span class="text-14-regular text-foreground truncate">{serverName(conn)}</span>
                   </button>
                 )
               }}

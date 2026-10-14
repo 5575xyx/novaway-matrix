@@ -149,12 +149,12 @@ export function SidebarFiles(props: { directory: string; sessionKey: () => strin
       <div>
         <button
           type="button"
-          class="flex w-full items-center gap-1.5 rounded-md py-0.5 pr-2 text-ui-caption text-text-base hover:bg-surface-base-hover"
+          class="flex w-full items-center gap-1.5 rounded-md py-0.5 pr-2 text-ui-caption text-foreground hover:bg-hover"
           style={{ "padding-left": `${8 + p.depth * 14}px` }}
           onClick={() => (p.entry.type === "dir" ? toggleDir(p.entry.path) : openFile(p.entry))}
         >
           <Show when={p.entry.type === "dir"}>
-            <Icon name={isOpen() ? "chevron-down" : "chevron-right"} size="small" class="shrink-0 text-icon-weak" />
+            <Icon name={isOpen() ? "chevron-down" : "chevron-right"} size="small" class="shrink-0 text-foreground-subtlest" />
           </Show>
           <Show when={p.entry.type === "file"}>
             <span class="size-4 shrink-0" />
@@ -163,7 +163,7 @@ export function SidebarFiles(props: { directory: string; sessionKey: () => strin
             node={{ path: p.entry.path, type: p.entry.type === "dir" ? "directory" : "file" }}
             expanded={isOpen()}
             mono
-            class="size-4 shrink-0 text-icon-weak"
+            class="size-4 shrink-0 text-foreground-subtlest"
           />
           <span class="flex-1 truncate text-left">{p.entry.name}</span>
           <Show when={kind()}>
@@ -183,13 +183,13 @@ export function SidebarFiles(props: { directory: string; sessionKey: () => strin
 
   return (
     <div class="flex size-full min-h-0 flex-col">
-      <div class="flex h-9 shrink-0 items-center gap-2 border-b border-border-weak-base px-2">
-        <span class="flex-1 text-ui-caption text-text-strong">{language.t("sidebar.tree.title")}</span>
+      <div class="flex h-9 shrink-0 items-center gap-2 border-b border-border px-2">
+        <span class="flex-1 text-ui-caption text-foreground">{language.t("sidebar.tree.title")}</span>
         {/* 不要再用手写 <label> 包 Switch：label 没写 for 时会绑定到 Kobalte 藏起来的
             <input type="checkbox">，点开关的 Control（一个 div，见 Kobalte 的 switch-control.tsx）
             会先 toggle 一次，冒泡到 label 后再补发一次合成点击把它翻回来，两次抵消 = 开关永远点不动。
             文案改由 Switch 自己的 Label 承载（hideLabel 只给读屏用），可见文字单独放 span。 */}
-        <div class="flex items-center gap-1.5 text-ui-xs text-text-weak">
+        <div class="flex items-center gap-1.5 text-ui-xs text-foreground-subtle">
           <span class="cursor-pointer select-none" onClick={() => setOnlyChanged(!onlyChanged())}>
             {language.t("sidebar.tree.onlyChanged")}
           </span>
@@ -202,7 +202,7 @@ export function SidebarFiles(props: { directory: string; sessionKey: () => strin
         <Show
           when={visibleRoot().length > 0}
           fallback={
-            <div class="px-3 py-4 text-ui-xs text-text-weak">
+            <div class="px-3 py-4 text-ui-xs text-foreground-subtle">
               {rootEntries().length > 0 ? language.t("sidebar.tree.noChanges") : language.t("sidebar.tree.empty")}
             </div>
           }
@@ -210,7 +210,7 @@ export function SidebarFiles(props: { directory: string; sessionKey: () => strin
           <For each={visibleRoot()}>{(entry) => <EntryRow entry={entry} depth={0} />}</For>
         </Show>
       </div>
-      <div class="shrink-0 border-t border-border-weak-base px-3 py-1.5 text-ui-xs text-text-weak">
+      <div class="shrink-0 border-t border-border px-3 py-1.5 text-ui-xs text-foreground-subtle">
         {language.t("sidebar.tree.changes", { count: changedFiles().length })}
       </div>
     </div>

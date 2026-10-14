@@ -733,18 +733,18 @@ function AgentSwitch(props: {
       <button
         type="button"
         data-no-drag
-        class="flex items-center justify-between gap-2 w-full px-2 py-1.5 rounded-md hover:bg-surface-raised-base-hover transition-colors"
+        class="flex items-center justify-between gap-2 w-full px-2 py-1.5 rounded-md hover:bg-hover transition-colors"
         onClick={() => props.onToggle()}
       >
         <div class="flex items-center gap-2 min-w-0">
           <Show
             when={props.currentAgent}
-            fallback={<span class="text-12-regular text-text-weak">{language.t("settings.agents.empty")}</span>}
+            fallback={<span class="text-12-regular text-foreground-subtle">{language.t("settings.agents.empty")}</span>}
           >
             {(agent) => (
               <>
                 <AgentDot name={agent().name} />
-                <span class="text-12-medium text-text-strong truncate">
+                <span class="text-12-medium text-foreground truncate">
                   {agentDisplayName(agent().name, agent().options)}
                 </span>
               </>
@@ -756,7 +756,7 @@ function AgentSwitch(props: {
         </span>
       </button>
       <Show when={props.open}>
-        <div class="mt-1 flex flex-col gap-0.5 px-1 py-1.5 rounded-md bg-surface-raised-base border border-border-weaker-base">
+        <div class="mt-1 flex flex-col gap-0.5 px-1 py-1.5 rounded-md bg-surface border border-border">
           <For each={props.agents}>
             {(agent) => (
               <button
@@ -764,13 +764,13 @@ function AgentSwitch(props: {
                 data-no-drag
                 class={`flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors ${
                   props.currentAgent?.name === agent.name
-                    ? "bg-surface-raised-base-hover"
-                    : "hover:bg-surface-raised-base-hover"
+                    ? "bg-hover"
+                    : "hover:bg-hover"
                 }`}
                 onClick={() => props.onAgentChange(agent.name)}
               >
                 <AgentDot name={agent.name} />
-                <span class="text-12-regular text-text-base">{agentDisplayName(agent.name, agent.options)}</span>
+                <span class="text-12-regular text-foreground">{agentDisplayName(agent.name, agent.options)}</span>
               </button>
             )}
           </For>
@@ -819,12 +819,12 @@ function NotificationTab(props: {
   }
   const surface = (notification: PetNotification) => {
     if (kind(notification) === "question")
-      return notification.read ? "border-border-weaker-base" : "border-amber-400/30 bg-amber-400/[.06]"
+      return notification.read ? "border-border" : "border-amber-400/30 bg-amber-400/[.06]"
     if (kind(notification) === "permission")
-      return notification.read ? "border-border-weaker-base" : "border-cyan-400/30 bg-cyan-400/[.06]"
+      return notification.read ? "border-border" : "border-cyan-400/30 bg-cyan-400/[.06]"
     if (kind(notification) === "error")
-      return notification.read ? "border-border-weaker-base" : "border-red-400/30 bg-red-400/[.06]"
-    return notification.read ? "border-border-weaker-base" : "border-blue-400/30 bg-blue-400/[.06]"
+      return notification.read ? "border-border" : "border-red-400/30 bg-red-400/[.06]"
+    return notification.read ? "border-border" : "border-blue-400/30 bg-blue-400/[.06]"
   }
   const resolution = (notification: PetNotification) => {
     if (notification.status === "replied") return language.t("assistant.notifications.replied")
@@ -838,8 +838,8 @@ function NotificationTab(props: {
         when={props.notifications.length > 0}
         fallback={
           <div class="px-3 py-6 text-center">
-            <div class="text-12-medium text-text-base">{language.t("assistant.monitor.notificationsEmpty")}</div>
-            <div class="mt-1 text-11-regular text-text-weak">
+            <div class="text-12-medium text-foreground">{language.t("assistant.monitor.notificationsEmpty")}</div>
+            <div class="mt-1 text-11-regular text-foreground-subtle">
               {language.t("assistant.monitor.notificationsEmptyDescription")}
             </div>
           </div>
@@ -850,23 +850,23 @@ function NotificationTab(props: {
             <article
               data-no-drag
               class={`group mb-2 flex items-start gap-2 rounded-md border p-2 last:mb-0 ${surface(notification)} ${
-                notification.href ? "cursor-pointer transition-colors hover:bg-surface-raised-base-hover" : ""
+                notification.href ? "cursor-pointer transition-colors hover:bg-hover" : ""
               }`}
               onClick={() => notification.href && props.onOpen?.(notification)}
             >
               <div
-                class={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md bg-surface-raised-base ${color(notification)}`}
+                class={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md bg-surface ${color(notification)}`}
               >
                 <Icon name={icon(notification)} size="small" />
               </div>
               <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-2">
-                  <div class="min-w-0 flex-1 text-12-medium text-text-strong">{title(notification)}</div>
+                  <div class="min-w-0 flex-1 text-12-medium text-foreground">{title(notification)}</div>
                   <Show
                     when={resolution(notification)}
                     fallback={
                       <Show when={!notification.read}>
-                        <span class="shrink-0 rounded-sm bg-surface-raised-base px-1 py-0.5 text-10-medium text-text-weak">
+                        <span class="shrink-0 rounded-sm bg-surface px-1 py-0.5 text-10-medium text-foreground-subtle">
                           {language.t("assistant.notifications.unread")}
                         </span>
                       </Show>
@@ -880,17 +880,17 @@ function NotificationTab(props: {
                   </Show>
                 </div>
                 <Show when={notification.body}>
-                  <div class="mt-1 whitespace-pre-wrap break-words text-11-regular leading-4 text-text-base">
+                  <div class="mt-1 whitespace-pre-wrap break-words text-11-regular leading-4 text-foreground">
                     {notification.body}
                   </div>
                 </Show>
-                <div class="mt-1 text-10-regular text-text-weak">{time.format(new Date(notification.at))}</div>
+                <div class="mt-1 text-10-regular text-foreground-subtle">{time.format(new Date(notification.at))}</div>
               </div>
               <Show when={!notification.read}>
                 <button
                   type="button"
                   data-no-drag
-                  class="mt-0.5 p-1 text-icon-weak-base hover:text-cyan-400 transition-colors"
+                  class="mt-0.5 p-1 text-foreground-subtlest hover:text-cyan-400 transition-colors"
                   title={language.t("assistant.monitor.markAllRead")}
                   aria-label={language.t("assistant.monitor.markAllRead")}
                   onClick={(event) => {
@@ -972,22 +972,22 @@ function TodoTab(props: {
       return undefined
     }
     return (
-      <div class="flex items-start gap-2 px-2 py-1.5 rounded-md hover:bg-surface-raised-base-hover">
+      <div class="flex items-start gap-2 px-2 py-1.5 rounded-md hover:bg-hover">
         <StatusIcon status={row.task.status} />
         <div class="min-w-0 flex-1">
           <span
             class={`block text-12-regular ${
               row.task.status === "completed"
-                ? "line-through text-text-weak"
+                ? "line-through text-foreground-subtle"
                 : row.task.status === "in_progress"
-                  ? "font-medium text-text-strong"
-                  : "text-text-base"
+                  ? "font-medium text-foreground"
+                  : "text-foreground"
             }`}
           >
             {row.task.content}
           </span>
           <Show when={timing()}>
-            {(value) => <span class="block mt-0.5 text-10-regular text-text-weak">{value()}</span>}
+            {(value) => <span class="block mt-0.5 text-10-regular text-foreground-subtle">{value()}</span>}
           </Show>
         </div>
       </div>
@@ -1003,13 +1003,13 @@ function TodoTab(props: {
 
   return (
     <div class="flex flex-col h-full">
-      <div class="flex items-center justify-between px-3 py-2 border-b border-border-weaker-base bg-surface-panel">
+      <div class="flex items-center justify-between px-3 py-2 border-b border-border bg-panel">
         <div class="flex items-center gap-1">
           <button
             type="button"
             data-no-drag
             class={`px-2 py-1 text-12-medium transition-colors ${
-              tab() === "monitor" ? "text-text-strong bg-surface-raised-base" : "text-text-weak hover:text-text-base"
+              tab() === "monitor" ? "text-foreground bg-surface" : "text-foreground-subtle hover:text-foreground"
             }`}
             onClick={() => setTab("monitor")}
           >
@@ -1020,8 +1020,8 @@ function TodoTab(props: {
             data-no-drag
             class={`relative px-2 py-1 text-12-medium transition-colors ${
               tab() === "notifications"
-                ? "text-text-strong bg-surface-raised-base"
-                : "text-text-weak hover:text-text-base"
+                ? "text-foreground bg-surface"
+                : "text-foreground-subtle hover:text-foreground"
             }`}
             onClick={() => setTab("notifications")}
           >
@@ -1040,7 +1040,7 @@ function TodoTab(props: {
           when={tab() === "notifications"}
           fallback={
             <Show when={taskCount() > 0}>
-              <span class="text-11-regular text-text-weak">
+              <span class="text-11-regular text-foreground-subtle">
                 {completedCount()}/{taskCount()}
               </span>
             </Show>
@@ -1051,7 +1051,7 @@ function TodoTab(props: {
               <button
                 type="button"
                 data-no-drag
-                class="p-1 text-icon-weak-base hover:text-cyan-400 transition-colors"
+                class="p-1 text-foreground-subtlest hover:text-cyan-400 transition-colors"
                 title={language.t("assistant.monitor.markAllRead")}
                 aria-label={language.t("assistant.monitor.markAllRead")}
                 onClick={() => props.onNotificationsRead?.()}
@@ -1063,7 +1063,7 @@ function TodoTab(props: {
               <button
                 type="button"
                 data-no-drag
-                class="p-1 text-icon-weak-base hover:text-red-400 transition-colors"
+                class="p-1 text-foreground-subtlest hover:text-red-400 transition-colors"
                 title={language.t("assistant.notifications.clearRead")}
                 aria-label={language.t("assistant.notifications.clearRead")}
                 onClick={() => props.onNotificationsClearRead?.()}
@@ -1085,25 +1085,25 @@ function TodoTab(props: {
         }
       >
         <Show when={taskCount() > 0}>
-          <div class="grid grid-cols-3 border-b border-border-weaker-base text-center">
-            <div class="py-2 border-r border-border-weaker-base">
-              <div class="text-12-medium text-text-strong">{activeCount()}</div>
-              <div class="text-10-regular text-text-weak">{language.t("assistant.monitor.running")}</div>
+          <div class="grid grid-cols-3 border-b border-border text-center">
+            <div class="py-2 border-r border-border">
+              <div class="text-12-medium text-foreground">{activeCount()}</div>
+              <div class="text-10-regular text-foreground-subtle">{language.t("assistant.monitor.running")}</div>
             </div>
-            <div class="py-2 border-r border-border-weaker-base">
-              <div class="text-12-medium text-text-strong">{pendingCount()}</div>
-              <div class="text-10-regular text-text-weak">{language.t("assistant.monitor.pending")}</div>
+            <div class="py-2 border-r border-border">
+              <div class="text-12-medium text-foreground">{pendingCount()}</div>
+              <div class="text-10-regular text-foreground-subtle">{language.t("assistant.monitor.pending")}</div>
             </div>
             <div class="py-2">
-              <div class={`text-12-medium ${highPriorityCount() > 0 ? "text-orange-500" : "text-text-strong"}`}>
+              <div class={`text-12-medium ${highPriorityCount() > 0 ? "text-orange-500" : "text-foreground"}`}>
                 {highPriorityCount()}
               </div>
-              <div class="text-10-regular text-text-weak">{language.t("assistant.monitor.highPriority")}</div>
+              <div class="text-10-regular text-foreground-subtle">{language.t("assistant.monitor.highPriority")}</div>
             </div>
           </div>
           <Show when={longestRunning()}>
             {(task) => (
-              <div class="px-3 py-1.5 border-b border-border-weaker-base text-10-regular text-text-weak truncate">
+              <div class="px-3 py-1.5 border-b border-border text-10-regular text-foreground-subtle truncate">
                 {language.t("assistant.monitor.longestRunning", {
                   task: task().content,
                   duration: taskDuration(task()) ?? "0s",
@@ -1117,8 +1117,8 @@ function TodoTab(props: {
             when={props.tasks.length > 0}
             fallback={
               <div class="px-3 py-6 text-center">
-                <div class="text-12-medium text-text-base">{language.t("assistant.monitor.ready")}</div>
-                <div class="mt-1 text-11-regular text-text-weak">{language.t("assistant.monitor.idleDescription")}</div>
+                <div class="text-12-medium text-foreground">{language.t("assistant.monitor.ready")}</div>
+                <div class="mt-1 text-11-regular text-foreground-subtle">{language.t("assistant.monitor.idleDescription")}</div>
               </div>
             }
           >
@@ -1131,22 +1131,22 @@ function TodoTab(props: {
                   const done = () => group.tasks.filter((task) => task.status === "completed").length
                   const percent = () => Math.round((done() / group.tasks.length) * 100)
                   return (
-                    <section class="mb-2 overflow-hidden rounded-md border border-border-weaker-base last:mb-0">
+                    <section class="mb-2 overflow-hidden rounded-md border border-border last:mb-0">
                       <button
                         type="button"
                         data-no-drag
-                        class="flex w-full items-center gap-2 px-2 py-2 text-left hover:bg-surface-raised-base-hover transition-colors"
+                        class="flex w-full items-center gap-2 px-2 py-2 text-left hover:bg-hover transition-colors"
                         aria-expanded={isGroupExpanded(group)}
                         onClick={() => toggleGroup(group)}
                       >
                         <Icon name={isGroupExpanded(group) ? "chevron-down" : "chevron-right"} size="small" />
-                        <span class="min-w-0 flex-1 truncate text-11-medium text-text-base">{group.label}</span>
-                        <span class="shrink-0 text-11-medium text-text-weak">
+                        <span class="min-w-0 flex-1 truncate text-11-medium text-foreground">{group.label}</span>
+                        <span class="shrink-0 text-11-medium text-foreground-subtle">
                           {done()}/{group.tasks.length} {percent()}%
                         </span>
                       </button>
                       <Show when={isGroupExpanded(group)}>
-                        <div class="h-1 mx-2 mb-1 overflow-hidden bg-surface-raised-base rounded-full">
+                        <div class="h-1 mx-2 mb-1 overflow-hidden bg-surface rounded-full">
                           <div
                             class="h-full bg-cyan-500 transition-[width] duration-300"
                             style={{ width: `${percent()}%` }}
@@ -1163,11 +1163,11 @@ function TodoTab(props: {
             </Show>
           </Show>
           <Show when={props.taskEvents && props.taskEvents.length > 0}>
-            <section class="mt-3 pt-2 border-t border-border-weaker-base">
-              <div class="px-2 pb-1 text-11-medium text-text-weak">{language.t("assistant.monitor.recentEvents")}</div>
+            <section class="mt-3 pt-2 border-t border-border">
+              <div class="px-2 pb-1 text-11-medium text-foreground-subtle">{language.t("assistant.monitor.recentEvents")}</div>
               <For each={props.taskEvents?.slice(0, 4) ?? []}>
                 {(event) => (
-                  <div class="flex items-center gap-2 px-2 py-1 text-10-regular text-text-weak">
+                  <div class="flex items-center gap-2 px-2 py-1 text-10-regular text-foreground-subtle">
                     <StatusIcon status={event.status} class="mt-0" />
                     <span class="min-w-0 flex-1 truncate">{event.taskContent}</span>
                     <span class="shrink-0">{eventLabel(event)}</span>
@@ -1373,7 +1373,7 @@ export function AssistantPanel(props: AssistantPanelProps) {
           "box-shadow": "none",
           cursor: "grab",
         }}
-        class={`absolute inset-0 flex h-[152px] w-[152px] cursor-grab items-center justify-center overflow-visible text-icon-base transition-transform active:cursor-grabbing ${
+        class={`absolute inset-0 flex h-[152px] w-[152px] cursor-grab items-center justify-center overflow-visible text-foreground-subtle transition-transform active:cursor-grabbing ${
           props.hasInProgressTask ? "animate-pulse" : ""
         }`}
         onPointerEnter={() => setMascot("hover", true)}

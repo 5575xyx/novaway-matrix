@@ -19,14 +19,14 @@ export function StatusSection(props: {
         class="flex w-full items-center gap-2 px-3 py-2 text-left"
         onClick={props.onToggle}
       >
-        <span class="text-ui-base font-medium text-text-strong truncate">{props.title}</span>
+        <span class="text-ui-base font-medium text-foreground truncate">{props.title}</span>
         <Show when={props.summary}>
-          {(summary) => <span class="text-ui-sm tabular-nums text-text-weak shrink-0">{summary()}</span>}
+          {(summary) => <span class="text-ui-sm tabular-nums text-foreground-subtle shrink-0">{summary()}</span>}
         </Show>
         <Icon
           name="chevron-down"
           size="small"
-          class="text-icon-base transition-transform shrink-0"
+          class="text-foreground-subtle transition-transform shrink-0"
           classList={{ "rotate-180": props.open }}
         />
       </button>

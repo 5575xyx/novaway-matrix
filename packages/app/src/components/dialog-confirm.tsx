@@ -35,7 +35,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
             <div
               class="text-14-regular"
               classList={{
-                "text-text-weak": props.variant !== "danger",
+                "text-foreground-subtle": props.variant !== "danger",
                 "text-rose-600 dark:text-rose-400": props.variant === "danger",
               }}
             >

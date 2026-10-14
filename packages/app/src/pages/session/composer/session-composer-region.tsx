@@ -176,7 +176,7 @@ export function SessionComposerRegion(props: {
       data-component="session-prompt-dock"
       classList={{
         "shrink-0 w-full flex flex-col justify-center items-center pointer-events-none": true,
-        "pb-4 bg-background-stronger/80 backdrop-blur-sm": !props.embedded,
+        "pb-4 bg-panel/80 backdrop-blur-sm": !props.embedded,
       }}
     >
       <div
@@ -231,7 +231,7 @@ export function SessionComposerRegion(props: {
                     </div>
                   )}
                 </Show>
-                <div class="w-full min-h-32 md:min-h-40 rounded-md border border-border-weak-base bg-background-base/50 px-4 py-3 text-text-weak whitespace-pre-wrap pointer-events-none">
+                <div class="w-full min-h-32 md:min-h-40 rounded-md border border-border bg-background/50 px-4 py-3 text-foreground-subtle whitespace-pre-wrap pointer-events-none">
                   {handoffPrompt() || language.t("prompt.loading")}
                 </div>
               </>
@@ -290,13 +290,13 @@ export function SessionComposerRegion(props: {
               >
                 <div
                   ref={props.inputRef}
-                  class="w-full rounded-[16px] border border-border-weak-base bg-background-base p-3 text-16-regular text-text-weak shadow-lg"
+                  class="w-full rounded-[16px] border border-border bg-background p-3 text-16-regular text-foreground-subtle shadow-lg"
                 >
                   <span>{language.t("session.child.promptDisabled")} </span>
                   <Show when={parentID()}>
                     <button
                       type="button"
-                      class="text-text-base transition-colors hover:text-text-strong"
+                      class="text-foreground transition-colors hover:text-foreground"
                       onClick={openParent}
                     >
                       {language.t("session.child.backToParent")}

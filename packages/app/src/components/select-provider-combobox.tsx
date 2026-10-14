@@ -100,19 +100,19 @@ export function SelectProviderCombobox(props: Props) {
     <div class={`relative ${local.class ?? ""}`}>
       <button
         type="button"
-        class="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg bg-input-base border border-border-weak-base text-text-strong focus-within:border-border-strong-base focus-within:ring-1 focus-within:ring-border-strong-base text-left"
+        class="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg bg-input border border-border text-foreground focus-within:border-border-hover focus-within:ring-1 focus-within:ring-border-hover text-left"
         onClick={() => setOpen((v) => !v)}
       >
-        <Icon name="magnifying-glass" class="text-text-weak shrink-0" size="small" />
+        <Icon name="magnifying-glass" class="text-foreground-subtle shrink-0" size="small" />
         <span class="flex-1">{currentDisplay().name}</span>
-        <Icon name="chevron-down" class="text-text-weak shrink-0" size="small" />
+        <Icon name="chevron-down" class="text-foreground-subtle shrink-0" size="small" />
       </button>
 
       <Show when={open()}>
-        <div class="absolute z-[150] top-full left-0 right-0 mt-1 rounded-lg border border-border-weak-base bg-surface-base shadow-lg overflow-hidden">
-          <div class="p-2 border-b border-border-weak-base">
-            <div class="flex items-center gap-2 px-2 py-1.5 rounded-md bg-input-base">
-              <Icon name="magnifying-glass" class="text-text-weak shrink-0" size="small" />
+        <div class="absolute z-[150] top-full left-0 right-0 mt-1 rounded-lg border border-border bg-surface shadow-lg overflow-hidden">
+          <div class="p-2 border-b border-border">
+            <div class="flex items-center gap-2 px-2 py-1.5 rounded-md bg-input">
+              <Icon name="magnifying-glass" class="text-foreground-subtle shrink-0" size="small" />
               <input
                 type="text"
                 class="flex-1 bg-transparent outline-none min-w-0 text-14-regular"
@@ -126,45 +126,45 @@ export function SelectProviderCombobox(props: Props) {
           <div class="max-h-72 overflow-y-auto p-1">
             <button
               type="button"
-              class="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-surface-hover text-left"
+              class="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-hover text-left"
               onClick={() => void handleSelect(customOption())}
             >
-              <Icon name="plus-small" size="small" class="text-text-weak" />
-              <span class="flex-1 text-14-regular text-text-strong">
+              <Icon name="plus-small" size="small" class="text-foreground-subtle" />
+              <span class="flex-1 text-14-regular text-foreground">
                 {language.t("provider.custom.field.provider.customOption")}
               </span>
               {currentDisplay().id === CUSTOM_PROVIDER_ID && (
-                <Icon name="check-small" size="small" class="text-text-weak" />
+                <Icon name="check-small" size="small" class="text-foreground-subtle" />
               )}
             </button>
-            <div class="my-1 border-t border-border-weak-base" />
+            <div class="my-1 border-t border-border" />
             {grouped().length === 0 && (
-              <div class="px-3 py-4 text-14-regular text-text-weak text-center">
+              <div class="px-3 py-4 text-14-regular text-foreground-subtle text-center">
                 {language.t("dialog.provider.search.empty")}
               </div>
             )}
             {grouped().map((group) => (
               <div>
-                <div class="px-3 py-1.5 text-12-medium text-text-weak uppercase tracking-wider">{group.category}</div>
+                <div class="px-3 py-1.5 text-12-medium text-foreground-subtle uppercase tracking-wider">{group.category}</div>
                 {group.options.map((option) => (
                   <button
                     type="button"
-                    class="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-surface-hover text-left"
+                    class="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-hover text-left"
                     onClick={() => void handleSelect(option)}
                   >
                     <ProviderIcon id={option.id} />
-                    <span class="flex-1 text-14-regular text-text-strong">{option.name}</span>
+                    <span class="flex-1 text-14-regular text-foreground">{option.name}</span>
                     {option.id === "opencode" && (
                       <>
-                        <div class="text-14-regular text-text-weak">
+                        <div class="text-14-regular text-foreground-subtle">
                           {language.t("dialog.provider.NovaWay.tagline")}
                         </div>
                         <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
                       </>
                     )}
-                    {note(option.id) && <div class="text-14-regular text-text-weak">{note(option.id)}</div>}
+                    {note(option.id) && <div class="text-14-regular text-foreground-subtle">{note(option.id)}</div>}
                     {option.id === "NovaWay-go" && <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>}
-                    {local.current?.id === option.id && <Icon name="check-small" size="small" class="text-text-weak" />}
+                    {local.current?.id === option.id && <Icon name="check-small" size="small" class="text-foreground-subtle" />}
                   </button>
                 ))}
               </div>

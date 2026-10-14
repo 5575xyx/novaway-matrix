@@ -56,8 +56,8 @@ const SettingsPage: Component<{ title: string; description: string; children: JS
   <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
     <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--popover)_calc(100%_-_24px),transparent)]">
       <div class="flex flex-col gap-1 pt-6 pb-8 w-full">
-        <h2 class="text-16-medium text-text-strong">{props.title}</h2>
-        <p class="text-13-regular text-text-weak">{props.description}</p>
+        <h2 class="text-16-medium text-foreground">{props.title}</h2>
+        <p class="text-13-regular text-foreground-subtle">{props.description}</p>
       </div>
     </div>
     <div class="flex flex-col gap-8 w-full">{props.children}</div>
@@ -66,22 +66,22 @@ const SettingsPage: Component<{ title: string; description: string; children: JS
 
 const SectionTitle: Component<{ title: string; description?: string }> = (props) => (
   <div class="flex flex-col gap-1 pb-2">
-    <h3 class="text-14-medium text-text-strong">{props.title}</h3>
+    <h3 class="text-14-medium text-foreground">{props.title}</h3>
     <Show when={props.description}>
-      <p class="text-12-regular text-text-weak">{props.description}</p>
+      <p class="text-12-regular text-foreground-subtle">{props.description}</p>
     </Show>
   </div>
 )
 
 const LoadingState: Component = () => (
-  <div class="flex items-center gap-2 py-4 text-14-regular text-text-weak">
-    <span class="size-4 rounded-full border border-border-strong-base border-t-transparent animate-spin" />
+  <div class="flex items-center gap-2 py-4 text-14-regular text-foreground-subtle">
+    <span class="size-4 rounded-full border border-border-hover border-t-transparent animate-spin" />
     <span>加载中...</span>
   </div>
 )
 
 const EmptyState: Component<{ message: string }> = (props) => (
-  <div class="py-4 text-14-regular text-text-weak">{props.message}</div>
+  <div class="py-4 text-14-regular text-foreground-subtle">{props.message}</div>
 )
 
 function candidateTags(candidate: EvolutionCandidate) {
@@ -106,8 +106,8 @@ const SegmentTabs: Component<{
             type="button"
             class="h-8 px-3 rounded-md text-13-medium border transition-colors"
             classList={{
-              "bg-surface-base-active text-text-strong border-border-weak-base": props.value === value,
-              "bg-transparent text-text-weak border-transparent hover:bg-surface-base-hover hover:text-text-strong":
+              "bg-selected text-foreground border-border": props.value === value,
+              "bg-transparent text-foreground-subtle border-transparent hover:bg-hover hover:text-foreground":
                 props.value !== value,
             }}
             onClick={() => props.onChange(value)}
@@ -128,7 +128,7 @@ const ContentFormatControl: Component<{
   const language = useLanguage()
   return (
     <div class="flex flex-col gap-1">
-      <span class="text-12-medium text-text-strong">
+      <span class="text-12-medium text-foreground">
         {language.t("settings.evolution.field.contentFormat" as never)}
       </span>
       <div class="flex flex-wrap gap-1">
@@ -139,8 +139,8 @@ const ContentFormatControl: Component<{
               disabled={props.disabled}
               class="h-8 px-3 rounded-md text-12-medium border transition-colors disabled:opacity-50"
               classList={{
-                "bg-surface-base-active text-text-strong border-border-weak-base": props.value === value,
-                "bg-transparent text-text-weak border-transparent hover:bg-surface-base-hover hover:text-text-strong":
+                "bg-selected text-foreground border-border": props.value === value,
+                "bg-transparent text-foreground-subtle border-transparent hover:bg-hover hover:text-foreground":
                   props.value !== value,
               }}
               onClick={() => props.onChange(value)}
@@ -227,7 +227,7 @@ const CandidateRow: Component<{
   }))
 
   return (
-    <div class="flex items-start justify-between gap-4 rounded-lg border border-border-weak-base bg-surface-base px-4 py-3">
+    <div class="flex items-start justify-between gap-4 rounded-lg border border-border bg-surface px-4 py-3">
       <div class="flex min-w-0 flex-1 items-start gap-3">
         <Icon name="branch" class="size-5 shrink-0 icon-strong-base mt-0.5" />
         <div class="flex min-w-0 flex-col gap-1">
@@ -236,7 +236,7 @@ const CandidateRow: Component<{
             fallback={
               <>
                 <div class="flex flex-wrap items-center gap-2">
-                  <span class="text-14-medium text-text-strong break-words">{props.candidate.title}</span>
+                  <span class="text-14-medium text-foreground break-words">{props.candidate.title}</span>
                   <Tag>{language.t(statusLabels[status()] as never)}</Tag>
                   <Tag>
                     {language.t(sourceLabels[evolutionCandidateSource(candidateTags(props.candidate))] as never)}
@@ -247,13 +247,13 @@ const CandidateRow: Component<{
                   <Tag>{props.candidate.target}</Tag>
                   <Tag>{props.candidate.contentFormat}</Tag>
                 </div>
-                <span class="text-12-regular text-text-base break-words">{props.candidate.content}</span>
-                <div class="flex flex-wrap items-center gap-2 text-12-regular text-text-weak">
+                <span class="text-12-regular text-foreground break-words">{props.candidate.content}</span>
+                <div class="flex flex-wrap items-center gap-2 text-12-regular text-foreground-subtle">
                   <span>{props.candidate.reason}</span>
                   <span>{created()}</span>
                 </div>
                 <Show when={props.candidate.validationNote}>
-                  <div class="text-12-regular text-text-weak break-words">
+                  <div class="text-12-regular text-foreground-subtle break-words">
                     验证说明：{props.candidate.validationNote}
                   </div>
                 </Show>
@@ -269,8 +269,8 @@ const CandidateRow: Component<{
                 </Show>
                 <Show when={dryRun()}>
                   {(item) => (
-                    <div class="mt-2 flex flex-col gap-2 rounded-md border border-border-weak-base bg-surface-base px-3 py-2">
-                      <span class="text-12-medium text-text-strong">{item().note}</span>
+                    <div class="mt-2 flex flex-col gap-2 rounded-md border border-border bg-surface px-3 py-2">
+                      <span class="text-12-medium text-foreground">{item().note}</span>
                       <For each={dryRunFiles(item())}>
                         {(file) => (
                           <div class="flex flex-col gap-1">
@@ -280,9 +280,9 @@ const CandidateRow: Component<{
                                   ? language.t("settings.evolution.preview.exists" as never)
                                   : language.t("settings.evolution.preview.new" as never)}
                               </Tag>
-                              <span class="text-12-medium text-text-strong break-all">{file.path}</span>
+                              <span class="text-12-medium text-foreground break-all">{file.path}</span>
                             </div>
-                            <pre class="max-h-56 overflow-auto whitespace-pre-wrap text-12-regular text-text-base">
+                            <pre class="max-h-56 overflow-auto whitespace-pre-wrap text-12-regular text-foreground">
                               {file.diff}
                             </pre>
                           </div>
@@ -513,12 +513,12 @@ export const SettingsEvolution: Component<{ embedded?: boolean }> = (props) => {
       <div>
         <SectionTitle title={language.t("settings.evolution.section.config" as never)} />
         <div class="flex flex-col gap-2">
-          <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+          <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
             <div class="flex flex-col gap-1">
-              <span class="text-14-medium text-text-strong">
+              <span class="text-14-medium text-foreground">
                 {language.t("settings.evolution.config.enabled.title" as never)}
               </span>
-              <span class="text-12-regular text-text-weak">
+              <span class="text-12-regular text-foreground-subtle">
                 {language.t("settings.evolution.config.enabled.description" as never)}
               </span>
             </div>
@@ -531,12 +531,12 @@ export const SettingsEvolution: Component<{ embedded?: boolean }> = (props) => {
               {language.t("settings.evolution.config.enabled.title" as never)}
             </Switch>
           </div>
-          <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+          <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
             <div class="flex flex-col gap-1">
-              <span class="text-14-medium text-text-strong">
+              <span class="text-14-medium text-foreground">
                 {language.t("settings.evolution.config.llm.title" as never)}
               </span>
-              <span class="text-12-regular text-text-weak">
+              <span class="text-12-regular text-foreground-subtle">
                 {language.t("settings.evolution.config.llm.description" as never)}
               </span>
             </div>
@@ -549,12 +549,12 @@ export const SettingsEvolution: Component<{ embedded?: boolean }> = (props) => {
               {language.t("settings.evolution.config.llm.title" as never)}
             </Switch>
           </div>
-          <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+          <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
             <div class="flex flex-col gap-1">
-              <span class="text-14-medium text-text-strong">
+              <span class="text-14-medium text-foreground">
                 {language.t("settings.evolution.config.interval.title" as never)}
               </span>
-              <span class="text-12-regular text-text-weak">
+              <span class="text-12-regular text-foreground-subtle">
                 {language.t("settings.evolution.config.interval.description" as never)}
               </span>
             </div>
@@ -578,10 +578,10 @@ export const SettingsEvolution: Component<{ embedded?: boolean }> = (props) => {
           </div>
           <div class="flex items-center justify-between gap-4 py-3">
             <div class="flex flex-col gap-1">
-              <span class="text-14-medium text-text-strong">
+              <span class="text-14-medium text-foreground">
                 {language.t("settings.evolution.config.autoApplyFile.title" as never)}
               </span>
-              <span class="text-12-regular text-text-weak">
+              <span class="text-12-regular text-foreground-subtle">
                 {language.t("settings.evolution.config.autoApplyFile.description" as never)}
               </span>
             </div>

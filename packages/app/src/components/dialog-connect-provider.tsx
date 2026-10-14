@@ -314,7 +314,7 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
           </Match>
           <Match when={item()?.prompt.type === "select"}>
             <div class="w-full flex flex-col gap-1.5">
-              <div class="text-14-regular text-text-base">{select()?.message}</div>
+              <div class="text-14-regular text-foreground">{select()?.message}</div>
               <div>
                 <List
                   items={select()?.options ?? []}
@@ -334,11 +334,11 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
                 >
                   {(option) => (
                     <div class="w-full flex items-center gap-x-2">
-                      <div class="w-4 h-2 rounded-[1px] bg-input-base shadow-xs-border-base flex items-center justify-center">
-                        <div class="w-2.5 h-0.5 ml-0 bg-icon-strong-base hidden" data-slot="list-item-extra-icon" />
+                      <div class="w-4 h-2 rounded-[1px] bg-input shadow-xs-border-base flex items-center justify-center">
+                        <div class="w-2.5 h-0.5 ml-0 bg-foreground hidden" data-slot="list-item-extra-icon" />
                       </div>
                       <span>{option.label}</span>
-                      <span class="text-14-regular text-text-weak">{option.hint}</span>
+                      <span class="text-14-regular text-foreground-subtle">{option.hint}</span>
                     </div>
                   )}
                 </List>
@@ -407,7 +407,7 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
   function MethodSelection() {
     return (
       <>
-        <div class="text-14-regular text-text-base">
+        <div class="text-14-regular text-foreground">
           {language.t("provider.connect.selectMethod", { provider: provider().name })}
         </div>
         <div>
@@ -424,8 +424,8 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
           >
             {(i) => (
               <div class="w-full flex items-center gap-x-2">
-                <div class="w-4 h-2 rounded-[1px] bg-input-base shadow-xs-border-base flex items-center justify-center">
-                  <div class="w-2.5 h-0.5 ml-0 bg-icon-strong-base hidden" data-slot="list-item-extra-icon" />
+                <div class="w-4 h-2 rounded-[1px] bg-input shadow-xs-border-base flex items-center justify-center">
+                  <div class="w-2.5 h-0.5 ml-0 bg-foreground hidden" data-slot="list-item-extra-icon" />
                 </div>
                 <span>{methodLabel(i)}</span>
               </div>
@@ -563,9 +563,9 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
           <Switch>
             <Match when={provider().id === "opencode"}>
               <div class="flex flex-col gap-4">
-                <div class="text-14-regular text-text-base">{language.t("provider.connect.NovaWayZen.line1")}</div>
-                <div class="text-14-regular text-text-base">{language.t("provider.connect.NovaWayZen.line2")}</div>
-                <div class="text-14-regular text-text-base">
+                <div class="text-14-regular text-foreground">{language.t("provider.connect.NovaWayZen.line1")}</div>
+                <div class="text-14-regular text-foreground">{language.t("provider.connect.NovaWayZen.line2")}</div>
+                <div class="text-14-regular text-foreground">
                   {language.t("provider.connect.NovaWayZen.visit.prefix")}
                   <Link href="https://NovaWay.ai/zen" tabIndex={-1}>
                     {language.t("provider.connect.NovaWayZen.visit.link")}
@@ -575,10 +575,10 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
               </div>
             </Match>
             <Match when={provider().id === "ollama"}>
-              <div class="text-14-regular text-text-base">{language.t("dialog.provider.ollama.note")}</div>
+              <div class="text-14-regular text-foreground">{language.t("dialog.provider.ollama.note")}</div>
             </Match>
             <Match when={true}>
-              <div class="text-14-regular text-text-base">
+              <div class="text-14-regular text-foreground">
                 {language.t("provider.connect.apiKey.description", { provider: provider().name })}
               </div>
             </Match>
@@ -599,7 +599,7 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
               <Button class="w-auto" type="submit" size="large" variant="primary">
                 {language.t("common.continue")}
               </Button>
-              <div class="text-12-regular text-text-weak mt-1">{language.t("provider.connect.fetchModelsHint")}</div>
+              <div class="text-12-regular text-foreground-subtle mt-1">{language.t("provider.connect.fetchModelsHint")}</div>
             </form>
           </Show>
           <Show when={provider().id === "ollama"}>
@@ -635,7 +635,7 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
         </Show>
         <Show when={step() === "models"}>
           <div class="flex flex-col gap-4">
-            <div class="text-14-regular text-text-base">
+            <div class="text-14-regular text-foreground">
               {language.t("provider.connect.models.description", { provider: provider().name })}
             </div>
             <Show when={fetching()}>
@@ -648,10 +648,10 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
               <div class="flex flex-col max-h-80 overflow-y-auto gap-2">
                 <For each={remoteModels()}>
                   {(model) => (
-                    <div class="flex items-center justify-between gap-2 py-1.5 px-2 rounded-md hover:bg-surface-hover-base">
+                    <div class="flex items-center justify-between gap-2 py-1.5 px-2 rounded-md hover:bg-hover">
                       <div class="min-w-0">
                         <div class="text-14-medium truncate">{model.name}</div>
-                        <div class="text-12-regular text-text-weak truncate">{model.id}</div>
+                        <div class="text-12-regular text-foreground-subtle truncate">{model.id}</div>
                       </div>
                       <div class="flex items-center gap-2 shrink-0">
                         <Select
@@ -685,8 +685,8 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
                   )}
                 </For>
               </div>
-              <div class="flex justify-between items-center pt-2 border-t border-border-weak-base">
-                <span class="text-12-medium text-text-weak">
+              <div class="flex justify-between items-center pt-2 border-t border-border">
+                <span class="text-12-medium text-foreground-subtle">
                   {Object.values(selectedModels).filter(Boolean).length}/{remoteModels().length}{" "}
                   {language.t("common.selected")}
                 </span>
@@ -742,7 +742,7 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
 
     return (
       <div class="flex flex-col gap-6">
-        <div class="text-14-regular text-text-base">
+        <div class="text-14-regular text-foreground">
           {language.t("provider.connect.oauth.code.visit.prefix")}
           <Link href={store.authorization!.url}>{language.t("provider.connect.oauth.code.visit.link")}</Link>
           {language.t("provider.connect.oauth.code.visit.suffix", { provider: provider().name })}
@@ -800,7 +800,7 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
 
     return (
       <div class="flex flex-col gap-6">
-        <div class="text-14-regular text-text-base">
+        <div class="text-14-regular text-foreground">
           {language.t("provider.connect.oauth.auto.visit.prefix")}
           <Link href={store.authorization!.url}>{language.t("provider.connect.oauth.auto.visit.link")}</Link>
           {language.t("provider.connect.oauth.auto.visit.suffix", { provider: provider().name })}
@@ -812,7 +812,7 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
           readOnly
           copyable
         />
-        <div class="text-14-regular text-text-base flex items-center gap-4">
+        <div class="text-14-regular text-foreground flex items-center gap-4">
           <Spinner />
           <span>{language.t("provider.connect.status.waiting")}</span>
         </div>
@@ -835,7 +835,7 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
       <div class="flex flex-col gap-6 px-2.5 pb-3">
         <div class="px-2.5 flex gap-4 items-center">
           <ProviderIcon id={props.provider} class="size-5 shrink-0 icon-strong-base" />
-          <div class="text-16-medium text-text-strong">
+          <div class="text-16-medium text-foreground">
             <Switch>
               <Match when={isAddKey}>{`添加密钥 - ${provider().name}`}</Match>
               <Match when={props.provider === "anthropic" && method()?.label?.toLowerCase().includes("max")}>
@@ -849,7 +849,7 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
           <div onKeyDown={handleKey} tabIndex={0} autofocus={store.methodIndex === undefined ? true : undefined}>
             <Switch>
               <Match when={loading()}>
-                <div class="text-14-regular text-text-base">
+                <div class="text-14-regular text-foreground">
                   <div class="flex items-center gap-x-2">
                     <Spinner />
                     <span>{language.t("provider.connect.status.inProgress")}</span>
@@ -860,7 +860,7 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
                 <MethodSelection />
               </Match>
               <Match when={store.state === "pending"}>
-                <div class="text-14-regular text-text-base">
+                <div class="text-14-regular text-foreground">
                   <div class="flex items-center gap-x-2">
                     <Spinner />
                     <span>{language.t("provider.connect.status.inProgress")}</span>
@@ -871,9 +871,9 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
                 <OAuthPromptsView />
               </Match>
               <Match when={store.state === "error"}>
-                <div class="text-14-regular text-text-base">
+                <div class="text-14-regular text-foreground">
                   <div class="flex items-center gap-x-2">
-                    <Icon name="circle-ban-sign" class="text-icon-critical-base" />
+                    <Icon name="circle-ban-sign" class="text-destructive" />
                     <span>{language.t("provider.connect.status.failed", { error: store.error ?? "" })}</span>
                   </div>
                 </div>

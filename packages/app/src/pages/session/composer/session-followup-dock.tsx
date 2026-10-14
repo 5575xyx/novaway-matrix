@@ -46,15 +46,15 @@ export function SessionFollowupDock(props: {
           toggle()
         }}
       >
-        <span class="flex size-5 shrink-0 items-center justify-center rounded-md bg-surface-interactive-base text-text-interactive-base">
+        <span class="flex size-5 shrink-0 items-center justify-center rounded-md bg-surface text-icon-blue">
           <Icon name="autopilot" size="small" />
         </span>
-        <span class="shrink-0 text-13-medium text-text-strong cursor-default">{label()}</span>
+        <span class="shrink-0 text-13-medium text-foreground cursor-default">{label()}</span>
         <Show when={store.collapsed && preview()}>
-          <span class="min-w-0 flex-1 truncate text-13-regular text-text-base cursor-default">{preview()}</span>
+          <span class="min-w-0 flex-1 truncate text-13-regular text-foreground cursor-default">{preview()}</span>
         </Show>
         <Show when={!store.collapsed}>
-          <span class="shrink-0 text-11-regular text-text-weak cursor-default">将按顺序自动发送</span>
+          <span class="shrink-0 text-11-regular text-foreground-subtle cursor-default">将按顺序自动发送</span>
         </Show>
         <div class="ml-auto shrink-0">
           <IconButton
@@ -89,22 +89,22 @@ export function SessionFollowupDock(props: {
               <div
                 class="group flex items-center gap-2 rounded-md border px-2 py-1.5 transition-colors"
                 classList={{
-                  "border-border-weak-base bg-surface-base hover:bg-surface-base-hover": item.id !== props.sending,
-                  "border-border-interactive-base bg-surface-interactive-base": item.id === props.sending,
+                  "border-border bg-surface hover:bg-hover": item.id !== props.sending,
+                  "border-primary bg-surface": item.id === props.sending,
                 }}
               >
                 <span
                   class="flex size-5 shrink-0 items-center justify-center rounded-full text-11-medium tabular-nums"
                   classList={{
-                    "bg-surface-interactive-base text-text-interactive-base": index() === 0,
-                    "bg-surface-base-active text-text-weak": index() !== 0,
+                    "bg-surface text-icon-blue": index() === 0,
+                    "bg-selected text-foreground-subtle": index() !== 0,
                   }}
                 >
                   {index() + 1}
                 </span>
-                <span class="min-w-0 flex-1 truncate text-13-regular text-text-strong">{item.text}</span>
+                <span class="min-w-0 flex-1 truncate text-13-regular text-foreground">{item.text}</span>
                 <Show when={item.id === props.sending}>
-                  <span class="shrink-0 text-11-regular text-text-interactive-base">发送中…</span>
+                  <span class="shrink-0 text-11-regular text-icon-blue">发送中…</span>
                 </Show>
                 <Button
                   size="small"

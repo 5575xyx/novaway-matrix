@@ -65,10 +65,10 @@ function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.
     >
       <div
         data-component="status-panel-expanded"
-        class="absolute top-0 right-0 flex w-80 min-h-0 max-h-[min(64dvh,32rem)] flex-col overflow-hidden rounded-lg border border-border-weak-base bg-background-stronger shadow-lg @max-[768px]:hidden group-data-[collapsed=true]:hidden"
+        class="absolute top-0 right-0 flex w-80 min-h-0 max-h-[min(64dvh,32rem)] flex-col overflow-hidden rounded-lg border border-border bg-panel shadow-lg @max-[768px]:hidden group-data-[collapsed=true]:hidden"
       >
-        <div class="flex h-9 shrink-0 items-center gap-2 border-b border-border-weak-base px-3">
-          <span class="text-ui-sm font-medium text-text-strong truncate">{language.t("statusPanel.title")}</span>
+        <div class="flex h-9 shrink-0 items-center gap-2 border-b border-border px-3">
+          <span class="text-ui-sm font-medium text-foreground truncate">{language.t("statusPanel.title")}</span>
           <div class="flex-1" />
           <IconButton
             icon="collapse"
@@ -85,7 +85,7 @@ function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.
             {(section) => {
               const open = layout.statusPanel.open(directory(), section.id, section.defaultOpen)
               return (
-                <div class="overflow-hidden rounded-lg border border-border-weak-base bg-background-base">
+                <div class="overflow-hidden rounded-lg border border-border bg-background">
                   <StatusSection
                     id={section.id}
                     title={section.title}
@@ -106,7 +106,7 @@ function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.
       {/* 窄容器强制 mini 时显示：纯信息展示，非控件，因此不挂 onClick 也不声明可展开。 */}
       <div
         data-component="status-panel-mini"
-        class="absolute top-0 right-0 hidden h-8 items-center gap-1 rounded-lg border border-border-weak-base bg-background-stronger px-2 shadow-sm @max-[768px]:flex"
+        class="absolute top-0 right-0 hidden h-8 items-center gap-1 rounded-lg border border-border bg-panel px-2 shadow-sm @max-[768px]:flex"
         title={language.t("statusPanel.summary")}
       >
         <CapsuleBody sections={summaries()} />
@@ -117,7 +117,7 @@ function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.
         <button
           type="button"
           data-component="status-panel-expand"
-          class="hidden h-8 items-center gap-1 rounded-lg border border-border-weak-base bg-background-stronger px-2 shadow-sm group-data-[collapsed=true]:flex"
+          class="hidden h-8 items-center gap-1 rounded-lg border border-border bg-panel px-2 shadow-sm group-data-[collapsed=true]:flex"
           title={language.t("statusPanel.expand")}
           aria-label={language.t("statusPanel.expand")}
           onClick={() => layout.statusPanel.toggleCollapsed(directory())}
@@ -131,9 +131,9 @@ function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.
 
 const CapsuleBody = (props: { sections: StatusPanelSection[] }): JSX.Element => (
   <>
-    <Icon name="status" size="small" class="text-icon-base shrink-0" />
+    <Icon name="status" size="small" class="text-foreground-subtle shrink-0" />
     <For each={props.sections}>
-      {(section) => <span class="text-ui-sm tabular-nums text-text-weak shrink-0">{section.summary}</span>}
+      {(section) => <span class="text-ui-sm tabular-nums text-foreground-subtle shrink-0">{section.summary}</span>}
     </For>
   </>
 )

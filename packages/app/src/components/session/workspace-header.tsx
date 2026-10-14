@@ -6,6 +6,7 @@ import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { Select } from "@novaway/ui/select"
 import { ModelSelectorPopover } from "@/components/dialog-select-model"
+import { WindowControls } from "@/components/window-controls"
 import { SessionHeader } from "@/components/session/session-header"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
@@ -30,7 +31,6 @@ export function WorkspaceHeader() {
   // 运行平台（"desktop" = Electron 壳），不是视口宽度。会话页里那个 `isDesktop()` 是
   // createMediaQuery("(min-width: 768px)")，两者含义完全不同，别混用。
   const platform = usePlatform()
-  const isWindowsDesktop = createMemo(() => platform.platform === "desktop" && platform.os === "windows")
   const isMacDesktop = createMemo(() => platform.platform === "desktop" && platform.os === "macos")
   // 侧栏收起时，macOS 的红绿灯 / Windows 的原生窗控会压到会话帧这一行上，需要让出安全区。
   const reserveWindowControls = createMemo(() => !layout.sidebar.expanded())
@@ -53,9 +53,8 @@ export function WorkspaceHeader() {
       // 整条 header 自己就是窗口拖拽区（子元素靠 data-window-drag 的 CSS 规则自动排除拖拽）。
       // 桌面端不再有全局标题栏，这个 header 就是窗口顶部的唯一可拖动区域。
       classList={{
-        "flex h-12 shrink-0 items-center gap-2 border-b border-border-weaker-base px-2 select-none": true,
-        // Windows 原生 titleBarOverlay 占右上角 138px（3 × 46px），不预留会盖住操作区。
-        "pr-[138px]": isWindowsDesktop() && reserveWindowControls(),
+        "flex h-12 shrink-0 items-center gap-2 border-b border-border px-2 select-none": true,
+        // Windows 原生 titleBarOverlay 已关闭（改由 WindowControls 自绘），不再需要预留 138px。
         // macOS 红绿灯在左上角，侧栏收起时它压在会话帧这一行上。
         "pl-[78px]": isMacDesktop() && reserveWindowControls(),
       }}
@@ -87,10 +86,10 @@ export function WorkspaceHeader() {
       <Show when={working()}>
         <span class="size-2 rounded-full bg-[var(--success)] animate-pulse shrink-0" />
       </Show>
-      <span class="text-ui-base font-medium text-text-strong truncate max-w-[240px]">
+      <span class="text-ui-base font-medium text-foreground truncate max-w-[240px]">
         {displaySessionTitle(session()?.title, language.t("workspace.header.untitled"))}
       </span>
-      <span class="text-ui-xs text-text-weak truncate max-w-[180px] hidden md:block border border-border-weak-base rounded-md px-1.5 py-0.5">
+      <span class="text-ui-xs text-foreground-subtle truncate max-w-[180px] hidden md:block border border-border rounded-md px-1.5 py-0.5">
         {branch() ? language.t("workspace.header.projectBranch", { project: dirName(), branch: branch() }) : dirName()}
       </span>
       <Show when={modelsCtx.autoMode() || local.model.current()}>
@@ -101,7 +100,7 @@ export function WorkspaceHeader() {
             triggerProps={{
               variant: "ghost",
               size: "normal",
-              class: "text-ui-caption text-text-strong max-w-[150px] min-w-0 truncate",
+              class: "text-ui-caption text-foreground max-w-[150px] min-w-0 truncate",
             }}
           >
             <span class="truncate">
@@ -130,12 +129,17 @@ export function WorkspaceHeader() {
           variant="ghost"
           aria-expanded={sessionLayout.view().terminal.opened()}
           onClick={() => sessionLayout.view().terminal.toggle()}
-          class={sessionLayout.view().terminal.opened() ? "text-text-interactive-base" : ""}
+          class={sessionLayout.view().terminal.opened() ? "text-icon-blue" : ""}
         />
       </Show>
       {/* 搜索、连接状态、在编辑器中打开、Side Pane 开关原先被 Portal 塞进全局标题栏，
           现在就地渲染在这里（同样对齐 ZCode：操作都在会话帧的 Header 里）。 */}
       <SessionHeader />
+      {/* 窗控归「最右侧面板」的 header —— Side Pane 展开时它自己承载（见 session-side-panel），
+          否则三个按钮会落在被挤窄的会话帧右上角，看起来跑到窗口中间去了。 */}
+      <Show when={!layout.sidePane.opened()}>
+        <WindowControls />
+      </Show>
       <DropdownMenu>
         <DropdownMenu.Trigger
           as={IconButton}

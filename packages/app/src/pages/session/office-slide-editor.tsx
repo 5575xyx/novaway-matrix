@@ -358,17 +358,17 @@ export function OfficeSlideEditor(props: {
   }
 
   const inputClass =
-    "w-full rounded-[8px] border border-border-weak-base bg-background-base px-3 py-2 text-13-regular leading-relaxed text-text-strong outline-none transition-colors placeholder:text-text-muted focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/25"
+    "w-full rounded-[8px] border border-border bg-background px-3 py-2 text-13-regular leading-relaxed text-foreground outline-none transition-colors placeholder:text-foreground-subtle focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/25"
 
   return (
     <Dialog title={`逐页编辑：${props.artifact.title}`} class="w-full max-w-[1400px] mx-auto">
       <div class="flex min-h-[78vh] max-h-[86vh] flex-col overflow-hidden md:flex-row">
-        <aside class="w-full shrink-0 space-y-1 overflow-y-auto border-b border-border-weaker-base bg-surface-raised-base/40 p-2 md:w-64 md:border-b-0 md:border-r">
+        <aside class="w-full shrink-0 space-y-1 overflow-y-auto border-b border-border bg-surface/40 p-2 md:w-64 md:border-b-0 md:border-r">
           <div class="flex items-center justify-between gap-2 px-1 py-1">
-            <span class="text-11-medium text-text-muted">页面</span>
+            <span class="text-11-medium text-foreground-subtle">页面</span>
             <button
               type="button"
-              class="grid size-6 place-items-center rounded-[6px] border border-border-weak-base bg-background-base text-text-muted transition-colors hover:border-emerald-300/50 hover:text-emerald-200"
+              class="grid size-6 place-items-center rounded-[6px] border border-border bg-background text-foreground-subtle transition-colors hover:border-emerald-300/50 hover:text-emerald-200"
               title="新增页面"
               onClick={addSlide}
             >
@@ -381,7 +381,7 @@ export function OfficeSlideEditor(props: {
                 class="flex items-center gap-1 rounded-[8px] p-1 transition-colors"
                 classList={{
                   "bg-emerald-300/12": index() === activeIndex(),
-                  "hover:bg-surface-raised-base": index() !== activeIndex(),
+                  "hover:bg-surface": index() !== activeIndex(),
                 }}
               >
                 <button
@@ -389,11 +389,11 @@ export function OfficeSlideEditor(props: {
                   class="flex min-w-0 flex-1 items-center gap-2 rounded-[7px] px-2 py-2 text-left"
                   onClick={() => setActiveIndex(index())}
                 >
-                  <span class="grid h-9 w-14 shrink-0 place-items-center overflow-hidden rounded-[5px] border border-border-weak-base bg-background-base">
+                  <span class="grid h-9 w-14 shrink-0 place-items-center overflow-hidden rounded-[5px] border border-border bg-background">
                     <Show
                       when={slideThumbnail(props.template, slide, slides.length)}
                       fallback={
-                        <span class="grid size-6 place-items-center text-11-medium text-text-muted">{slide.index}</span>
+                        <span class="grid size-6 place-items-center text-11-medium text-foreground-subtle">{slide.index}</span>
                       }
                     >
                       {(src) => (
@@ -408,14 +408,14 @@ export function OfficeSlideEditor(props: {
                       )}
                     </Show>
                   </span>
-                  <span class="min-w-0 flex-1 truncate text-12-medium text-text-weak">
+                  <span class="min-w-0 flex-1 truncate text-12-medium text-foreground-subtle">
                     {slide.title || `第 ${slide.index} 页`}
                   </span>
                 </button>
                 <div class="flex shrink-0 flex-col items-center">
                   <button
                     type="button"
-                    class="grid size-5 place-items-center rounded-[5px] text-text-muted transition-colors hover:bg-background-base hover:text-text-strong disabled:opacity-30"
+                    class="grid size-5 place-items-center rounded-[5px] text-foreground-subtle transition-colors hover:bg-background hover:text-foreground disabled:opacity-30"
                     title="上移"
                     disabled={index() === 0}
                     onClick={() => moveSlide(index(), -1)}
@@ -424,7 +424,7 @@ export function OfficeSlideEditor(props: {
                   </button>
                   <button
                     type="button"
-                    class="grid size-5 place-items-center rounded-[5px] text-text-muted transition-colors hover:bg-background-base hover:text-text-strong disabled:opacity-30"
+                    class="grid size-5 place-items-center rounded-[5px] text-foreground-subtle transition-colors hover:bg-background hover:text-foreground disabled:opacity-30"
                     title="下移"
                     disabled={index() === slides.length - 1}
                     onClick={() => moveSlide(index(), 1)}
@@ -434,7 +434,7 @@ export function OfficeSlideEditor(props: {
                 </div>
                 <button
                   type="button"
-                  class="grid size-6 shrink-0 place-items-center rounded-[6px] text-text-muted transition-colors hover:bg-red-500/10 hover:text-red-400"
+                  class="grid size-6 shrink-0 place-items-center rounded-[6px] text-foreground-subtle transition-colors hover:bg-red-500/10 hover:text-red-400"
                   title="删除页面"
                   onClick={() => removeSlide(index())}
                 >
@@ -448,7 +448,7 @@ export function OfficeSlideEditor(props: {
         <div class="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.72fr)]">
           <section class="min-w-0 space-y-3 p-4 order-last">
             <label class="block">
-              <span class="mb-1.5 block text-12-medium text-text-muted">页面标题</span>
+              <span class="mb-1.5 block text-12-medium text-foreground-subtle">页面标题</span>
               <input
                 value={active()?.title ?? ""}
                 onInput={(event) => update("title", event.currentTarget.value)}
@@ -458,11 +458,11 @@ export function OfficeSlideEditor(props: {
 
             <div class="grid gap-3 sm:grid-cols-2">
               <label class="block">
-                <span class="mb-1.5 block text-12-medium text-text-muted">版式</span>
+                <span class="mb-1.5 block text-12-medium text-foreground-subtle">版式</span>
                 <select
                   value={active()?.layout ?? ""}
                   onChange={(event) => update("layout", event.currentTarget.value)}
-                  class="w-full rounded-[8px] border border-border-weak-base bg-background-base px-3 py-2 text-13-regular text-text-strong outline-none focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/25"
+                  class="w-full rounded-[8px] border border-border bg-background px-3 py-2 text-13-regular text-foreground outline-none focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/25"
                 >
                   <option value="">自动</option>
                   <For each={slideLayoutOptions}>{(layout) => <option value={layout}>{layout}</option>}</For>
@@ -480,7 +480,7 @@ export function OfficeSlideEditor(props: {
             </div>
 
             <label class="block">
-              <span class="mb-1.5 flex items-center justify-between text-12-medium text-text-muted">
+              <span class="mb-1.5 flex items-center justify-between text-12-medium text-foreground-subtle">
                 <span>图表类型</span>
                 <Show
                   when={active()?.chartType && active()?.assets?.some((asset) => officeAssetKind(asset) === "data")}
@@ -493,7 +493,7 @@ export function OfficeSlideEditor(props: {
               <select
                 value={active()?.chartType ?? ""}
                 onChange={(event) => updateChartType(event.currentTarget.value)}
-                class="w-full rounded-[8px] border border-border-weak-base bg-background-base px-3 py-2 text-13-regular text-text-strong outline-none focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/25"
+                class="w-full rounded-[8px] border border-border bg-background px-3 py-2 text-13-regular text-foreground outline-none focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/25"
               >
                 <option value="">自动</option>
                 <option value="bar">柱状</option>
@@ -509,7 +509,7 @@ export function OfficeSlideEditor(props: {
             </label>
 
             <label class="block">
-              <span class="mb-1.5 block text-12-medium text-text-muted">图表标题</span>
+              <span class="mb-1.5 block text-12-medium text-foreground-subtle">图表标题</span>
               <input
                 value={active()?.chartOptions?.title ?? ""}
                 onInput={(event) => updateChartTitle(event.currentTarget.value)}
@@ -518,10 +518,10 @@ export function OfficeSlideEditor(props: {
             </label>
 
             <label class="block">
-              <span class="mb-1.5 flex items-center justify-between text-12-medium text-text-muted">
+              <span class="mb-1.5 flex items-center justify-between text-12-medium text-foreground-subtle">
                 <span>XLSX 工作表</span>
                 <Show when={sheetLoading()}>
-                  <span class="text-10-medium text-text-muted">读取中</span>
+                  <span class="text-10-medium text-foreground-subtle">读取中</span>
                 </Show>
               </span>
               <Show
@@ -538,7 +538,7 @@ export function OfficeSlideEditor(props: {
                 <select
                   value={active()?.chartOptions?.xlsxSheet ?? ""}
                   onChange={(event) => updateChartSheet(event.currentTarget.value)}
-                  class="w-full rounded-[8px] border border-border-weak-base bg-background-base px-3 py-2 text-13-regular text-text-strong outline-none focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/25"
+                  class="w-full rounded-[8px] border border-border bg-background px-3 py-2 text-13-regular text-foreground outline-none focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/25"
                 >
                   <option value="">自动</option>
                   <For each={sheetNames()}>{(name) => <option value={name}>{name}</option>}</For>
@@ -548,7 +548,7 @@ export function OfficeSlideEditor(props: {
 
             <div class="grid grid-cols-2 gap-3">
               <label class="block">
-                <span class="mb-1.5 block text-12-medium text-text-muted">横轴标题</span>
+                <span class="mb-1.5 block text-12-medium text-foreground-subtle">横轴标题</span>
                 <input
                   value={active()?.chartOptions?.xAxisTitle ?? ""}
                   onInput={(event) => updateChartAxisTitle("xAxisTitle", event.currentTarget.value)}
@@ -556,7 +556,7 @@ export function OfficeSlideEditor(props: {
                 />
               </label>
               <label class="block">
-                <span class="mb-1.5 block text-12-medium text-text-muted">纵轴标题</span>
+                <span class="mb-1.5 block text-12-medium text-foreground-subtle">纵轴标题</span>
                 <input
                   value={active()?.chartOptions?.yAxisTitle ?? ""}
                   onInput={(event) => updateChartAxisTitle("yAxisTitle", event.currentTarget.value)}
@@ -566,32 +566,32 @@ export function OfficeSlideEditor(props: {
             </div>
 
             <div class="grid grid-cols-2 gap-3">
-              <label class="flex h-9 items-center gap-2 rounded-[8px] border border-border-weak-base bg-background-panel px-3">
+              <label class="flex h-9 items-center gap-2 rounded-[8px] border border-border bg-panel px-3">
                 <input
                   type="checkbox"
                   checked={active()?.chartOptions?.showDataLabels ?? false}
                   onChange={(event) => updateChartOption("showDataLabels", event.currentTarget.checked)}
                   class="size-3.5 accent-emerald-400"
                 />
-                <span class="text-12-medium text-text-weak">数据标签</span>
+                <span class="text-12-medium text-foreground-subtle">数据标签</span>
               </label>
-              <label class="flex h-9 items-center gap-2 rounded-[8px] border border-border-weak-base bg-background-panel px-3">
+              <label class="flex h-9 items-center gap-2 rounded-[8px] border border-border bg-panel px-3">
                 <input
                   type="checkbox"
                   checked={active()?.chartOptions?.showLegend ?? false}
                   onChange={(event) => updateChartOption("showLegend", event.currentTarget.checked)}
                   class="size-3.5 accent-emerald-400"
                 />
-                <span class="text-12-medium text-text-weak">图例</span>
+                <span class="text-12-medium text-foreground-subtle">图例</span>
               </label>
             </div>
 
             <label class="block">
-              <span class="mb-1.5 block text-12-medium text-text-muted">图例位置</span>
+              <span class="mb-1.5 block text-12-medium text-foreground-subtle">图例位置</span>
               <select
                 value={active()?.chartOptions?.legendPosition ?? "bottom"}
                 onChange={(event) => updateChartLegendPosition(event.currentTarget.value)}
-                class="w-full rounded-[8px] border border-border-weak-base bg-background-base px-3 py-2 text-13-regular text-text-strong outline-none focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/25"
+                class="w-full rounded-[8px] border border-border bg-background px-3 py-2 text-13-regular text-foreground outline-none focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/25"
               >
                 <option value="bottom">底部</option>
                 <option value="right">右侧</option>
@@ -601,11 +601,11 @@ export function OfficeSlideEditor(props: {
             </label>
 
             <label class="block">
-              <span class="mb-1.5 block text-12-medium text-text-muted">数据排序</span>
+              <span class="mb-1.5 block text-12-medium text-foreground-subtle">数据排序</span>
               <select
                 value={active()?.chartOptions?.sortData ?? "none"}
                 onChange={(event) => updateChartSort(event.currentTarget.value)}
-                class="w-full rounded-[8px] border border-border-weak-base bg-background-base px-3 py-2 text-13-regular text-text-strong outline-none focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/25"
+                class="w-full rounded-[8px] border border-border bg-background px-3 py-2 text-13-regular text-foreground outline-none focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/25"
               >
                 <option value="none">不排序</option>
                 <option value="asc">升序</option>
@@ -613,49 +613,49 @@ export function OfficeSlideEditor(props: {
               </select>
             </label>
 
-            <label class="flex h-9 items-center gap-2 rounded-[8px] border border-border-weak-base bg-background-panel px-3">
+            <label class="flex h-9 items-center gap-2 rounded-[8px] border border-border bg-panel px-3">
               <input
                 type="checkbox"
                 checked={active()?.chartOptions?.showPercent ?? false}
                 onChange={(event) => updateChartOption("showPercent", event.currentTarget.checked)}
                 class="size-3.5 accent-emerald-400"
               />
-              <span class="text-12-medium text-text-weak">百分比标签</span>
+              <span class="text-12-medium text-foreground-subtle">百分比标签</span>
             </label>
 
-            <label class="flex h-9 items-center gap-2 rounded-[8px] border border-border-weak-base bg-background-panel px-3">
+            <label class="flex h-9 items-center gap-2 rounded-[8px] border border-border bg-panel px-3">
               <input
                 type="checkbox"
                 checked={active()?.chartOptions?.showGridlines ?? true}
                 onChange={(event) => updateChartOption("showGridlines", event.currentTarget.checked)}
                 class="size-3.5 accent-emerald-400"
               />
-              <span class="text-12-medium text-text-weak">网格线</span>
+              <span class="text-12-medium text-foreground-subtle">网格线</span>
             </label>
 
             <div class="grid grid-cols-2 gap-3">
-              <label class="flex h-9 items-center gap-2 rounded-[8px] border border-border-weak-base bg-background-panel px-3">
+              <label class="flex h-9 items-center gap-2 rounded-[8px] border border-border bg-panel px-3">
                 <input
                   type="color"
                   value={`#${active()?.chartOptions?.colors?.[0] ?? "2FBF8F"}`}
                   onInput={(event) => updateChartColor(0, event.currentTarget.value)}
                   class="size-5 shrink-0 cursor-pointer rounded-[5px] border-0 bg-transparent p-0"
                 />
-                <span class="text-12-medium text-text-weak">主色</span>
+                <span class="text-12-medium text-foreground-subtle">主色</span>
               </label>
-              <label class="flex h-9 items-center gap-2 rounded-[8px] border border-border-weak-base bg-background-panel px-3">
+              <label class="flex h-9 items-center gap-2 rounded-[8px] border border-border bg-panel px-3">
                 <input
                   type="color"
                   value={`#${active()?.chartOptions?.colors?.[1] ?? "1954A6"}`}
                   onInput={(event) => updateChartColor(1, event.currentTarget.value)}
                   class="size-5 shrink-0 cursor-pointer rounded-[5px] border-0 bg-transparent p-0"
                 />
-                <span class="text-12-medium text-text-weak">辅色</span>
+                <span class="text-12-medium text-foreground-subtle">辅色</span>
               </label>
             </div>
 
             <label class="block">
-              <span class="mb-1.5 block text-12-medium text-text-muted">主文案</span>
+              <span class="mb-1.5 block text-12-medium text-foreground-subtle">主文案</span>
               <textarea
                 value={active()?.content ?? ""}
                 onInput={(event) => update("content", event.currentTarget.value)}
@@ -665,7 +665,7 @@ export function OfficeSlideEditor(props: {
             </label>
 
             <label class="block">
-              <span class="mb-1.5 block text-12-medium text-text-muted">视觉建议</span>
+              <span class="mb-1.5 block text-12-medium text-foreground-subtle">视觉建议</span>
               <textarea
                 value={active()?.visual ?? ""}
                 onInput={(event) => update("visual", event.currentTarget.value)}
@@ -675,7 +675,7 @@ export function OfficeSlideEditor(props: {
             </label>
 
             <label class="block">
-              <span class="mb-1.5 block text-12-medium text-text-muted">演讲备注</span>
+              <span class="mb-1.5 block text-12-medium text-foreground-subtle">演讲备注</span>
               <textarea
                 value={active()?.notes ?? ""}
                 onInput={(event) => update("notes", event.currentTarget.value)}
@@ -684,15 +684,15 @@ export function OfficeSlideEditor(props: {
               />
             </label>
 
-            <fieldset class="rounded-[8px] border border-border-weak-base bg-background-panel p-3">
-              <legend class="px-1 text-11-medium text-text-muted">逐页动画</legend>
+            <fieldset class="rounded-[8px] border border-border bg-panel p-3">
+              <legend class="px-1 text-11-medium text-foreground-subtle">逐页动画</legend>
               <div class="grid gap-3 sm:grid-cols-2">
                 <label class="block">
-                  <span class="mb-1.5 block text-12-medium text-text-muted">转场</span>
+                  <span class="mb-1.5 block text-12-medium text-foreground-subtle">转场</span>
                   <select
                     value={active()?.motion?.transition?.effect ?? ""}
                     onChange={(event) => updateMotion("transition", "effect", event.currentTarget.value)}
-                    class="w-full rounded-[8px] border border-border-weak-base bg-background-base px-3 py-2 text-13-regular text-text-strong outline-none focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/25"
+                    class="w-full rounded-[8px] border border-border bg-background px-3 py-2 text-13-regular text-foreground outline-none focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/25"
                   >
                     <option value="">自动</option>
                     <option value="fade">淡入</option>
@@ -701,7 +701,7 @@ export function OfficeSlideEditor(props: {
                   </select>
                 </label>
                 <label class="block">
-                  <span class="mb-1.5 block text-12-medium text-text-muted">转场时长</span>
+                  <span class="mb-1.5 block text-12-medium text-foreground-subtle">转场时长</span>
                   <input
                     type="number"
                     min="0"
@@ -712,11 +712,11 @@ export function OfficeSlideEditor(props: {
                   />
                 </label>
                 <label class="block">
-                  <span class="mb-1.5 block text-12-medium text-text-muted">动画效果</span>
+                  <span class="mb-1.5 block text-12-medium text-foreground-subtle">动画效果</span>
                   <select
                     value={active()?.motion?.animation?.effect ?? ""}
                     onChange={(event) => updateMotion("animation", "effect", event.currentTarget.value)}
-                    class="w-full rounded-[8px] border border-border-weak-base bg-background-base px-3 py-2 text-13-regular text-text-strong outline-none focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/25"
+                    class="w-full rounded-[8px] border border-border bg-background px-3 py-2 text-13-regular text-foreground outline-none focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/25"
                   >
                     <option value="">自动</option>
                     <option value="fade">淡入</option>
@@ -727,7 +727,7 @@ export function OfficeSlideEditor(props: {
                 </label>
                 <div class="grid grid-cols-2 gap-3">
                   <label class="block">
-                    <span class="mb-1.5 block text-12-medium text-text-muted">时长</span>
+                    <span class="mb-1.5 block text-12-medium text-foreground-subtle">时长</span>
                     <input
                       type="number"
                       min="0.1"
@@ -738,7 +738,7 @@ export function OfficeSlideEditor(props: {
                     />
                   </label>
                   <label class="block">
-                    <span class="mb-1.5 block text-12-medium text-text-muted">间隔</span>
+                    <span class="mb-1.5 block text-12-medium text-foreground-subtle">间隔</span>
                     <input
                       type="number"
                       min="0"
@@ -751,9 +751,9 @@ export function OfficeSlideEditor(props: {
                 </div>
               </div>
               <Show when={active()?.audio}>
-                <div class="mt-3 grid grid-cols-2 gap-3 border-t border-border-weaker-base pt-3">
+                <div class="mt-3 grid grid-cols-2 gap-3 border-t border-border pt-3">
                   <label class="block">
-                    <span class="mb-1.5 block text-12-medium text-text-muted">旁白起步</span>
+                    <span class="mb-1.5 block text-12-medium text-foreground-subtle">旁白起步</span>
                     <input
                       type="number"
                       min="0"
@@ -764,7 +764,7 @@ export function OfficeSlideEditor(props: {
                     />
                   </label>
                   <label class="block">
-                    <span class="mb-1.5 block text-12-medium text-text-muted">页尾停留</span>
+                    <span class="mb-1.5 block text-12-medium text-foreground-subtle">页尾停留</span>
                     <input
                       type="number"
                       min="0"
@@ -778,22 +778,22 @@ export function OfficeSlideEditor(props: {
               </Show>
             </fieldset>
 
-            <fieldset class="rounded-[8px] border border-border-weak-base bg-background-panel p-3">
-              <legend class="px-1 text-11-medium text-text-muted">本页素材</legend>
+            <fieldset class="rounded-[8px] border border-border bg-panel p-3">
+              <legend class="px-1 text-11-medium text-foreground-subtle">本页素材</legend>
               <div class="flex max-h-40 flex-col gap-1 overflow-y-auto">
                 <For each={props.assets}>
                   {(asset) => {
                     const selected = active()?.assets?.includes(asset)
                     return (
-                      <label class="flex items-center gap-2 rounded-[7px] px-2 py-1.5 transition-colors hover:bg-surface-raised-base">
+                      <label class="flex items-center gap-2 rounded-[7px] px-2 py-1.5 transition-colors hover:bg-surface">
                         <input
                           type="checkbox"
                           checked={selected}
                           onChange={() => toggleSlideAsset(asset)}
                           class="size-3.5 shrink-0 accent-emerald-400"
                         />
-                        <span class="min-w-0 flex-1 truncate text-12-regular text-text-weak">{asset}</span>
-                        <span class="shrink-0 rounded-[5px] border border-border-weak-base px-1.5 py-0.5 text-10-medium text-text-muted">
+                        <span class="min-w-0 flex-1 truncate text-12-regular text-foreground-subtle">{asset}</span>
+                        <span class="shrink-0 rounded-[5px] border border-border px-1.5 py-0.5 text-10-medium text-foreground-subtle">
                           {officeAssetTarget(asset)}
                         </span>
                       </label>
@@ -801,25 +801,25 @@ export function OfficeSlideEditor(props: {
                   }}
                 </For>
                 <Show when={props.assets.length === 0}>
-                  <div class="px-2 py-1.5 text-12-regular text-text-muted">请先通过项目素材库选择素材。</div>
+                  <div class="px-2 py-1.5 text-12-regular text-foreground-subtle">请先通过项目素材库选择素材。</div>
                 </Show>
               </div>
             </fieldset>
           </section>
 
-          <section class="min-w-0 border-t border-border-weaker-base bg-surface-raised-base/45 p-4 order-first lg:border-r lg:border-t-0">
-            <div class="rounded-[8px] border border-border-weak-base bg-background-panel p-4 shadow-[0_14px_40px_rgba(0,0,0,0.10)]">
-              <div class="flex items-start justify-between gap-3 border-b border-border-weaker-base pb-3">
+          <section class="min-w-0 border-t border-border bg-surface/45 p-4 order-first lg:border-r lg:border-t-0">
+            <div class="rounded-[8px] border border-border bg-panel p-4 shadow-[0_14px_40px_rgba(0,0,0,0.10)]">
+              <div class="flex items-start justify-between gap-3 border-b border-border pb-3">
                 <div class="min-w-0">
                   <div class="text-11-medium text-emerald-200">第 {active()?.index ?? 0} 页</div>
-                  <div class="mt-1 truncate text-16-medium text-text-strong">{active()?.title || "未命名页面"}</div>
+                  <div class="mt-1 truncate text-16-medium text-foreground">{active()?.title || "未命名页面"}</div>
                 </div>
-                <Icon name="layout-bottom" size="small" class="shrink-0 text-icon-weak" />
+                <Icon name="layout-bottom" size="small" class="shrink-0 text-foreground-subtlest" />
               </div>
               <div class="flex justify-end pb-2">
                 <button
                   type="button"
-                  class="rounded-[6px] border border-border-weak-base px-2 py-1 text-10-medium text-text-muted transition-colors hover:bg-surface-raised-base hover:text-text-strong"
+                  class="rounded-[6px] border border-border px-2 py-1 text-10-medium text-foreground-subtle transition-colors hover:bg-surface hover:text-foreground"
                   onClick={resetShapeLayout}
                 >
                   重置布局
@@ -827,45 +827,45 @@ export function OfficeSlideEditor(props: {
               </div>
               <Show when={selectedShape()}>
                 {(shape) => (
-                  <div class="mb-3 grid grid-cols-4 gap-2 rounded-[8px] border border-border-weak-base bg-background-base p-2">
+                  <div class="mb-3 grid grid-cols-4 gap-2 rounded-[8px] border border-border bg-background p-2">
                     <label class="block">
-                      <span class="mb-1 block text-10-medium text-text-muted">X</span>
+                      <span class="mb-1 block text-10-medium text-foreground-subtle">X</span>
                       <input
                         type="number"
                         min="0"
                         value={shapeGeometry(shape()).x}
                         onInput={(event) => updateSelectedGeometry("x", event.currentTarget.value)}
-                        class="w-full rounded-[6px] border border-border-weak-base bg-background-panel px-2 py-1 text-11-regular text-text-strong outline-none"
+                        class="w-full rounded-[6px] border border-border bg-panel px-2 py-1 text-11-regular text-foreground outline-none"
                       />
                     </label>
                     <label class="block">
-                      <span class="mb-1 block text-10-medium text-text-muted">Y</span>
+                      <span class="mb-1 block text-10-medium text-foreground-subtle">Y</span>
                       <input
                         type="number"
                         min="0"
                         value={shapeGeometry(shape()).y}
                         onInput={(event) => updateSelectedGeometry("y", event.currentTarget.value)}
-                        class="w-full rounded-[6px] border border-border-weak-base bg-background-panel px-2 py-1 text-11-regular text-text-strong outline-none"
+                        class="w-full rounded-[6px] border border-border bg-panel px-2 py-1 text-11-regular text-foreground outline-none"
                       />
                     </label>
                     <label class="block">
-                      <span class="mb-1 block text-10-medium text-text-muted">宽</span>
+                      <span class="mb-1 block text-10-medium text-foreground-subtle">宽</span>
                       <input
                         type="number"
                         min="10000"
                         value={shapeGeometry(shape()).cx}
                         onInput={(event) => updateSelectedGeometry("cx", event.currentTarget.value)}
-                        class="w-full rounded-[6px] border border-border-weak-base bg-background-panel px-2 py-1 text-11-regular text-text-strong outline-none"
+                        class="w-full rounded-[6px] border border-border bg-panel px-2 py-1 text-11-regular text-foreground outline-none"
                       />
                     </label>
                     <label class="block">
-                      <span class="mb-1 block text-10-medium text-text-muted">高</span>
+                      <span class="mb-1 block text-10-medium text-foreground-subtle">高</span>
                       <input
                         type="number"
                         min="10000"
                         value={shapeGeometry(shape()).cy}
                         onInput={(event) => updateSelectedGeometry("cy", event.currentTarget.value)}
-                        class="w-full rounded-[6px] border border-border-weak-base bg-background-panel px-2 py-1 text-11-regular text-text-strong outline-none"
+                        class="w-full rounded-[6px] border border-border bg-panel px-2 py-1 text-11-regular text-foreground outline-none"
                       />
                     </label>
                   </div>
@@ -874,7 +874,7 @@ export function OfficeSlideEditor(props: {
               <Show when={activePreview() && !previewFailed()}>
                 <div
                   data-office-canvas
-                  class="relative mt-3 overflow-hidden rounded-[8px] border border-border-weaker-base bg-background-base"
+                  class="relative mt-3 overflow-hidden rounded-[8px] border border-border bg-background"
                 >
                   <img
                     src={activePreview()}
@@ -928,7 +928,7 @@ export function OfficeSlideEditor(props: {
                       <div
                         classList={{
                           "text-13-medium text-emerald-100": index() === 0,
-                          "text-12-regular leading-relaxed text-text-weak": index() !== 0,
+                          "text-12-regular leading-relaxed text-foreground-subtle": index() !== 0,
                         }}
                       >
                         {line}
@@ -936,7 +936,7 @@ export function OfficeSlideEditor(props: {
                     )}
                   </For>
                   <Show when={!active()?.content?.trim()}>
-                    <div class="text-12-regular text-text-muted">暂无页面正文，请补充主文案后导出。</div>
+                    <div class="text-12-regular text-foreground-subtle">暂无页面正文，请补充主文案后导出。</div>
                   </Show>
                 </div>
               </Show>
@@ -945,7 +945,7 @@ export function OfficeSlideEditor(props: {
         </div>
       </div>
 
-      <div class="flex flex-wrap items-center justify-end gap-2 border-t border-border-weaker-base px-5 py-3">
+      <div class="flex flex-wrap items-center justify-end gap-2 border-t border-border px-5 py-3">
         <button
           type="button"
           class="inline-flex items-center gap-1.5 rounded-[8px] border border-cyan-300/35 bg-cyan-300/[0.08] px-3 py-2 text-12-medium text-cyan-100 transition-colors hover:bg-cyan-300/15"
@@ -964,7 +964,7 @@ export function OfficeSlideEditor(props: {
         </button>
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 rounded-[8px] border border-border-weak-base bg-background-base px-3 py-2 text-12-medium text-text-weak transition-colors hover:bg-surface-raised-base hover:text-text-strong"
+          class="inline-flex items-center gap-1.5 rounded-[8px] border border-border bg-background px-3 py-2 text-12-medium text-foreground-subtle transition-colors hover:bg-surface hover:text-foreground"
           onClick={() => props.onCopy(current())}
         >
           <Icon name="copy" size="small" />
@@ -972,7 +972,7 @@ export function OfficeSlideEditor(props: {
         </button>
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 rounded-[8px] border border-border-weak-base bg-background-base px-3 py-2 text-12-medium text-text-weak transition-colors hover:bg-surface-raised-base hover:text-text-strong"
+          class="inline-flex items-center gap-1.5 rounded-[8px] border border-border bg-background px-3 py-2 text-12-medium text-foreground-subtle transition-colors hover:bg-surface hover:text-foreground"
           onClick={() => props.onSave(current())}
         >
           <Icon name="folder-add-left" size="small" />

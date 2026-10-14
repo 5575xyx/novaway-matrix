@@ -142,7 +142,7 @@ export function ModelSelectorPopover(props: {
       </Kobalte.Trigger>
       <Kobalte.Portal>
         <Kobalte.Content
-          class={`w-72 flex flex-col p-2 rounded-md border border-border-base bg-surface-raised-stronger-non-alpha shadow-md z-50 outline-none overflow-hidden transition-all duration-200 ${modelsCtx.autoMode() ? "h-28" : "h-80"}`}
+          class={`w-72 flex flex-col p-2 rounded-md border border-border bg-popover shadow-md z-50 outline-none overflow-hidden transition-all duration-200 ${modelsCtx.autoMode() ? "h-28" : "h-80"}`}
           onEscapeKeyDown={(event) => {
             close("escape")
             event.preventDefault()
@@ -161,9 +161,9 @@ export function ModelSelectorPopover(props: {
           }}
         >
           <Kobalte.Title class="sr-only">{language.t("dialog.model.select.title")}</Kobalte.Title>
-          <div class="px-1 pb-1 border-b border-border-weak-base mb-1">
+          <div class="px-1 pb-1 border-b border-border mb-1">
             <div class="flex items-center justify-between">
-              <div class="flex items-center gap-1.5 text-13-regular text-text-base">
+              <div class="flex items-center gap-1.5 text-13-regular text-foreground">
                 <Icon name="autopilot" class="size-4" />
                 <span>Auto Mode</span>
               </div>
@@ -186,7 +186,7 @@ export function ModelSelectorPopover(props: {
           <Show when={modelsCtx.autoMode()}>
             <div class="flex flex-col items-center justify-center py-2 px-2 text-center">
               <Icon name="autopilot" class="size-4 mb-1 opacity-60" />
-              <p class="text-11-regular text-text-secondary leading-snug">Auto 使用内置模型，由网关按任务选择</p>
+              <p class="text-11-regular text-foreground-subtle leading-snug">Auto 使用内置模型，由网关按任务选择</p>
             </div>
           </Show>
         </Kobalte.Content>
@@ -208,9 +208,9 @@ export const DialogSelectModel: Component<{ provider?: string; model?: ModelStat
 
   return (
     <Dialog title={language.t("dialog.model.select.title")}>
-      <div class="px-3 py-2 border-b border-border-weak-base mb-2">
+      <div class="px-3 py-2 border-b border-border mb-2">
         <div class="flex items-center justify-between">
-          <div class="flex items-center gap-1.5 text-13-regular text-text-base">
+          <div class="flex items-center gap-1.5 text-13-regular text-foreground">
             <Icon name="autopilot" class="size-4" />
             <span>Auto Mode</span>
           </div>
@@ -221,7 +221,7 @@ export const DialogSelectModel: Component<{ provider?: string; model?: ModelStat
         <ModelList provider={props.provider} model={props.model} onSelect={() => dialog.close()} />
         <Button
           variant="ghost"
-          class="ml-3 mt-3 mb-4 text-text-base self-start gap-1.5"
+          class="ml-3 mt-3 mb-4 text-foreground self-start gap-1.5"
           icon="plus-small"
           onClick={provider}
         >
@@ -231,7 +231,7 @@ export const DialogSelectModel: Component<{ provider?: string; model?: ModelStat
       <Show when={modelsCtx.autoMode()}>
         <div class="flex flex-col items-center justify-center py-6 px-4 text-center">
           <Icon name="autopilot" class="size-6 mb-3 opacity-60" />
-          <p class="text-13-regular text-text-secondary leading-snug">Auto 使用内置模型，由网关按任务选择</p>
+          <p class="text-13-regular text-foreground-subtle leading-snug">Auto 使用内置模型，由网关按任务选择</p>
         </div>
       </Show>
     </Dialog>

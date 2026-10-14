@@ -172,9 +172,9 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
       <div
         data-session-id={props.session.id}
         classList={{
-          "group/session relative w-full flex flex-col rounded-lg border-solid transition-colors hover:bg-surface-raised-base-hover py-2": true,
-          "border-2 border-border-interactive-base": selected(),
-          "border border-border-weak-base": !selected(),
+          "group/session relative w-full flex flex-col rounded-lg border-solid transition-colors hover:bg-hover py-2": true,
+          "border-2 border-primary": selected(),
+          "border border-border": !selected(),
           "before:absolute before:left-0 before:top-1 before:bottom-1 before:w-0.5 before:rounded-full before:bg-[var(--novaway-mode-color,var(--border-hover))]":
             selected(),
         }}
@@ -191,7 +191,7 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
         >
           <div class="flex items-center gap-2">
             <Show when={props.index !== undefined}>
-              <span class="shrink-0 text-11-regular text-text-weak w-4 text-right">{(props.index ?? 0) + 1}.</span>
+              <span class="shrink-0 text-11-regular text-foreground-subtle w-4 text-right">{(props.index ?? 0) + 1}.</span>
             </Show>
             <Show when={isWorking() || hasPermissions() || hasError() || unseenCount() > 0}>
               <div
@@ -201,25 +201,25 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
                 <Switch>
                   <Match when={isWorking()}>
                     <div class="relative size-[15px] flex items-center justify-center">
-                      <div class="absolute inset-0 rounded-full border-[1.5px] border-text-interactive-base animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite] opacity-75" />
-                      <div class="size-1.5 rounded-full bg-text-interactive-base" />
+                      <div class="absolute inset-0 rounded-full border-[1.5px] border-icon-blue animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite] opacity-75" />
+                      <div class="size-1.5 rounded-full bg-icon-blue" />
                     </div>
                   </Match>
                   <Match when={hasPermissions()}>
-                    <div class="size-1.5 rounded-full bg-surface-warning-strong" />
+                    <div class="size-1.5 rounded-full bg-warning" />
                   </Match>
                   <Match when={hasError()}>
-                    <div class="size-1.5 rounded-full bg-text-diff-delete-base" />
+                    <div class="size-1.5 rounded-full bg-diff-removed" />
                   </Match>
                   <Match when={unseenCount() > 0}>
-                    <div class="size-1.5 rounded-full bg-text-interactive-base" />
+                    <div class="size-1.5 rounded-full bg-icon-blue" />
                   </Match>
                 </Switch>
               </div>
             </Show>
             <Show
               when={editing()}
-              fallback={<span class="text-13-medium text-text-strong min-w-0 flex-1 truncate">{titleText()}</span>}
+              fallback={<span class="text-13-medium text-foreground min-w-0 flex-1 truncate">{titleText()}</span>}
             >
               <input
                 ref={(el) => {
@@ -229,7 +229,7 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
                 value={draft()}
                 disabled={saving()}
                 placeholder="Enter 保存"
-                class="text-14-medium text-text-strong min-w-0 flex-1 rounded-[6px] px-1 -ml-1 border border-text-interactive-base outline-none bg-background-base placeholder:text-text-weak"
+                class="text-14-medium text-foreground min-w-0 flex-1 rounded-[6px] px-1 -ml-1 border border-icon-blue outline-none bg-background placeholder:text-foreground-subtle"
                 onInput={(event) => setDraft(event.currentTarget.value)}
                 onKeyDown={(event) => {
                   event.stopPropagation()
@@ -248,10 +248,10 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
             </Show>
           </div>
           <Show when={completionTime()}>
-            <span class="text-11-regular text-text-weak pl-6">任务完成 · {completionTime()}</span>
+            <span class="text-11-regular text-foreground-subtle pl-6">任务完成 · {completionTime()}</span>
           </Show>
           <Show when={sessionStore.vcs?.branch}>
-            <span class="text-ui-xs text-text-weak shrink-0 max-w-[120px] truncate">⎇ {sessionStore.vcs?.branch}</span>
+            <span class="text-ui-xs text-foreground-subtle shrink-0 max-w-[120px] truncate">⎇ {sessionStore.vcs?.branch}</span>
           </Show>
           <Show
             when={props.session.summary && (props.session.summary.additions > 0 || props.session.summary.deletions > 0)}
@@ -376,7 +376,7 @@ function DialogDeleteSession(props: { sessionID: string; title: string; director
     <Dialog title={language.t("session.delete.title")} fit>
       <div class="flex flex-col gap-4 pl-6 pr-2.5 pb-3">
         <div class="flex flex-col gap-1">
-          <span class="text-14-regular text-text-strong">
+          <span class="text-14-regular text-foreground">
             {language.t("session.delete.confirm", { name: props.title })}
           </span>
         </div>

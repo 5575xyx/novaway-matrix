@@ -122,7 +122,7 @@ function ServerForm(props: ServerFormProps) {
 
   return (
     <div class="px-5">
-      <div class="bg-surface-base rounded-md p-5 flex flex-col gap-3">
+      <div class="bg-surface rounded-md p-5 flex flex-col gap-3">
         <div class="flex-1 min-w-0 [&_[data-slot=input-wrapper]]:relative">
           <TextField
             type="text"
@@ -539,7 +539,7 @@ export function DialogSelectServer() {
               if (x) void select(x)
             }}
             divider={true}
-            class="flex-1 min-h-0 px-5 [&_[data-slot=list-search-wrapper]]:w-full [&_[data-slot=list-scroll]]:flex-1 [&_[data-slot=list-scroll]]:overflow-y-auto [&_[data-slot=list-items]]:bg-surface-base [&_[data-slot=list-items]]:rounded-md [&_[data-slot=list-item]]:min-h-14 [&_[data-slot=list-item]]:p-3 [&_[data-slot=list-item]]:!bg-transparent"
+            class="flex-1 min-h-0 px-5 [&_[data-slot=list-search-wrapper]]:w-full [&_[data-slot=list-scroll]]:flex-1 [&_[data-slot=list-scroll]]:overflow-y-auto [&_[data-slot=list-items]]:bg-surface [&_[data-slot=list-items]]:rounded-md [&_[data-slot=list-item]]:min-h-14 [&_[data-slot=list-item]]:p-3 [&_[data-slot=list-item]]:!bg-transparent"
           >
             {(i) => {
               const key = ServerConnection.key(i)
@@ -555,7 +555,7 @@ export function DialogSelectServer() {
                     class="flex items-center gap-3 min-w-0 flex-1"
                     badge={
                       <Show when={defaultKey() === ServerConnection.key(i)}>
-                        <span class="text-text-base bg-surface-base text-14-regular px-1.5 rounded-xs">
+                        <span class="text-foreground bg-surface text-14-regular px-1.5 rounded-xs">
                           {language.t("dialog.server.status.default")}
                         </span>
                       </Show>
@@ -573,7 +573,7 @@ export function DialogSelectServer() {
                           as={IconButton}
                           icon="dot-grid"
                           variant="ghost"
-                          class="shrink-0 size-8 hover:bg-surface-base-hover data-[expanded]:bg-surface-base-active"
+                          class="shrink-0 size-8 hover:bg-hover data-[expanded]:bg-selected"
                           onClick={(e: MouseEvent) => e.stopPropagation()}
                           onPointerDown={(e: PointerEvent) => e.stopPropagation()}
                         />
@@ -604,7 +604,7 @@ export function DialogSelectServer() {
                             <DropdownMenu.Separator />
                             <DropdownMenu.Item
                               onSelect={() => handleRemove(ServerConnection.key(i))}
-                              class="text-text-on-critical-base hover:bg-surface-critical-weak"
+                              class="text-destructive-foreground hover:bg-destructive"
                             >
                               <DropdownMenu.ItemLabel>{language.t("dialog.server.menu.delete")}</DropdownMenu.ItemLabel>
                             </DropdownMenu.Item>

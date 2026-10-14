@@ -216,10 +216,10 @@ export function MemoryEvolutionPanel() {
   // 顶栏那个点开的 popover 已经改成右侧状态卡片的常驻 body：卡片头给待审条数，展开就是这一整块。
   return (
     <div class="flex flex-col">
-      <div class="flex items-center justify-between border-b border-border-weak-base px-3 py-2">
+      <div class="flex items-center justify-between border-b border-border px-3 py-2">
         <div class="flex items-center gap-2">
           <Icon name="review" size="small" />
-          <span class="text-13-medium text-text-strong">记忆与自我进化</span>
+          <span class="text-13-medium text-foreground">记忆与自我进化</span>
         </div>
         <Button
           variant="ghost"
@@ -262,7 +262,7 @@ export function MemoryEvolutionPanel() {
           )}
         />
 
-        <div class="my-3 h-px bg-border-weak-base" />
+        <div class="my-3 h-px bg-border" />
 
         <Section
           icon="branch"
@@ -325,7 +325,7 @@ function Section(props: {
       <div class="flex items-center justify-between gap-3">
         <div class="flex items-center gap-2">
           <Icon name={props.icon as never} size="small" />
-          <span class="text-13-medium text-text-strong">{props.title}</span>
+          <span class="text-13-medium text-foreground">{props.title}</span>
           <Tag>{props.count} 待审</Tag>
         </div>
       </div>
@@ -334,8 +334,8 @@ function Section(props: {
         <Toggle label="审查" checked={props.reviewEnabled} onChange={props.onReview} />
         <Toggle label="智能" checked={props.llmEnabled} onChange={props.onLLM} />
       </div>
-      <div class="flex h-9 items-center justify-between gap-3 rounded-md border border-border-weak-base bg-surface-base px-2">
-        <span class="min-w-0 text-12-regular text-text-base">{props.intervalLabel}</span>
+      <div class="flex h-9 items-center justify-between gap-3 rounded-md border border-border bg-surface px-2">
+        <span class="min-w-0 text-12-regular text-foreground">{props.intervalLabel}</span>
         <div class="w-20 shrink-0">
           <TextField
             type="number"
@@ -362,9 +362,9 @@ function Toggle(props: { label: string; checked: boolean; onChange: (value: bool
   return (
     // 不要用 <label> 包 Switch：没写 for 的 label 会绑定到 Kobalte 藏起来的 checkbox，
     // 点开关时 Control 的 onClick 先 toggle 一次、label 再补发一次合成点击翻回来，开关点不动。
-    <div class="flex h-8 items-center justify-between gap-2 rounded-md border border-border-weak-base bg-surface-base px-2">
+    <div class="flex h-8 items-center justify-between gap-2 rounded-md border border-border bg-surface px-2">
       <span
-        class="text-12-regular text-text-base cursor-pointer select-none"
+        class="text-12-regular text-foreground cursor-pointer select-none"
         onClick={() => props.onChange(!props.checked)}
       >
         {props.label}
@@ -378,10 +378,10 @@ function Toggle(props: { label: string; checked: boolean; onChange: (value: bool
 
 function CandidateList<T>(props: { empty: string; items: readonly T[]; render: (item: T) => unknown }) {
   return (
-    <div class="mt-2 flex flex-col rounded-md border border-border-weak-base">
+    <div class="mt-2 flex flex-col rounded-md border border-border">
       <Show
         when={props.items.length > 0}
-        fallback={<div class="px-3 py-4 text-center text-12-regular text-text-weak">{props.empty}</div>}
+        fallback={<div class="px-3 py-4 text-center text-12-regular text-foreground-subtle">{props.empty}</div>}
       >
         <For each={props.items}>{(item) => props.render(item) as never}</For>
       </Show>
@@ -399,10 +399,10 @@ function MemoryRow(props: {
     props.candidate.scope === "global" ? "global" : "project",
   )
   return (
-    <div class="flex items-start justify-between gap-3 border-b border-border-weak-base px-3 py-2 last:border-none">
+    <div class="flex items-start justify-between gap-3 border-b border-border px-3 py-2 last:border-none">
       <div class="min-w-0 flex-1">
-        <div class="truncate text-12-medium text-text-strong">{props.candidate.summary || props.candidate.content}</div>
-        <div class="mt-1 line-clamp-2 text-12-regular text-text-weak">{props.candidate.reason}</div>
+        <div class="truncate text-12-medium text-foreground">{props.candidate.summary || props.candidate.content}</div>
+        <div class="mt-1 line-clamp-2 text-12-regular text-foreground-subtle">{props.candidate.reason}</div>
         <div class="mt-1 flex flex-wrap gap-1">
           <Tag>{memoryDomainLabel(props.candidate.domain)}</Tag>
           <Tag>{memoryOperationLabel(props.candidate.operation)}</Tag>
@@ -413,8 +413,8 @@ function MemoryRow(props: {
             type="button"
             class="h-6 rounded px-1.5 text-11-medium border transition-colors"
             classList={{
-              "border-border-strong-base bg-surface-base-active text-text-strong": scope() === "global",
-              "border-transparent text-text-weak hover:bg-surface-base-hover": scope() !== "global",
+              "border-border-hover bg-selected text-foreground": scope() === "global",
+              "border-transparent text-foreground-subtle hover:bg-hover": scope() !== "global",
             }}
             disabled={props.disabled}
             onClick={() => setScope("global")}
@@ -425,8 +425,8 @@ function MemoryRow(props: {
             type="button"
             class="h-6 rounded px-1.5 text-11-medium border transition-colors"
             classList={{
-              "border-border-strong-base bg-surface-base-active text-text-strong": scope() === "project",
-              "border-transparent text-text-weak hover:bg-surface-base-hover": scope() !== "project",
+              "border-border-hover bg-selected text-foreground": scope() === "project",
+              "border-transparent text-foreground-subtle hover:bg-hover": scope() !== "project",
             }}
             disabled={props.disabled}
             onClick={() => setScope("project")}
@@ -459,10 +459,10 @@ function EvolutionRow(props: {
   const language = useLanguage()
   const scope = evolutionCandidateScope(props.candidate)
   return (
-    <div class="flex flex-col gap-2 border-b border-border-weak-base px-3 py-2 last:border-none">
+    <div class="flex flex-col gap-2 border-b border-border px-3 py-2 last:border-none">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0 flex-1">
-          <div class="truncate text-12-medium text-text-strong">{props.candidate.title}</div>
+          <div class="truncate text-12-medium text-foreground">{props.candidate.title}</div>
           <div class="mt-1 flex flex-wrap gap-1">
             <Tag>{props.candidate.kind}</Tag>
             <Tag>{evolutionDomainLabel(props.candidate.domain)}</Tag>
@@ -491,7 +491,7 @@ function EvolutionRow(props: {
       </div>
       <Show when={props.preview}>
         {(text) => (
-          <pre class="max-h-44 overflow-auto whitespace-pre-wrap rounded-md bg-surface-base px-2 py-2 text-11-regular text-text-base">
+          <pre class="max-h-44 overflow-auto whitespace-pre-wrap rounded-md bg-surface px-2 py-2 text-11-regular text-foreground">
             {text()}
           </pre>
         )}

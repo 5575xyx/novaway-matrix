@@ -33,7 +33,7 @@ const maskKey = (key: string | undefined) => {
 const ListLoadingState: Component<{ label: string }> = (props) => {
   return (
     <div class="flex flex-col items-center justify-center py-12 text-center">
-      <span class="text-14-regular text-text-weak">{props.label}</span>
+      <span class="text-14-regular text-foreground-subtle">{props.label}</span>
     </div>
   )
 }
@@ -41,9 +41,9 @@ const ListLoadingState: Component<{ label: string }> = (props) => {
 const ListEmptyState: Component<{ message: string; filter: string }> = (props) => {
   return (
     <div class="flex flex-col items-center justify-center py-12 text-center">
-      <span class="text-14-regular text-text-weak">{props.message}</span>
+      <span class="text-14-regular text-foreground-subtle">{props.message}</span>
       <Show when={props.filter}>
-        <span class="text-14-regular text-text-strong mt-1">&quot;{props.filter}&quot;</span>
+        <span class="text-14-regular text-foreground mt-1">&quot;{props.filter}&quot;</span>
       </Show>
     </div>
   )
@@ -204,9 +204,9 @@ export const SettingsModels: Component = () => {
     <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
       <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--popover)_calc(100%_-_24px),transparent)]">
         <div class="flex flex-col gap-4 pt-6 pb-6 w-full">
-          <h2 class="text-16-medium text-text-strong">{language.t("settings.models.title")}</h2>
-          <div class="flex items-center gap-2 px-3 h-9 rounded-lg bg-surface-base">
-            <Icon name="magnifying-glass" class="text-icon-weak-base flex-shrink-0" />
+          <h2 class="text-16-medium text-foreground">{language.t("settings.models.title")}</h2>
+          <div class="flex items-center gap-2 px-3 h-9 rounded-lg bg-surface">
+            <Icon name="magnifying-glass" class="text-foreground-subtlest flex-shrink-0" />
             <TextField
               variant="ghost"
               type="text"
@@ -248,9 +248,9 @@ export const SettingsModels: Component = () => {
                   <div class="flex flex-col gap-1">
                     <div class="flex items-center gap-2 pb-2">
                       <ProviderIcon id={providerID} class="size-5 shrink-0 icon-strong-base" />
-                      <span class="text-14-medium text-text-strong">{group.items[0].provider.name}</span>
+                      <span class="text-14-medium text-foreground">{group.items[0].provider.name}</span>
                       <Show when={isMultiKey}>
-                        <span class="text-12-regular text-text-weak font-mono">
+                        <span class="text-12-regular text-foreground-subtle font-mono">
                           {language.t("model.key.label")} {keyIndex + 1} · {maskKey(entry?.key)}
                         </span>
                       </Show>
@@ -261,7 +261,7 @@ export const SettingsModels: Component = () => {
                           const key = { providerID: item.provider.id, modelID: item.id }
                           return (
                             <div
-                              class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3 cursor-default"
+                              class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3 cursor-default"
                               onContextMenu={(e) =>
                                 handleContextMenu(e, {
                                   providerID: item.provider.id,
@@ -271,7 +271,7 @@ export const SettingsModels: Component = () => {
                               }
                             >
                               <div class="min-w-0">
-                                <span class="min-w-0 truncate text-14-regular text-text-strong">{item.name}</span>
+                                <span class="min-w-0 truncate text-14-regular text-foreground">{item.name}</span>
                                 <ModelCapabilitySummary model={item} compact />
                               </div>
                               <div class="flex-shrink-0">
@@ -310,12 +310,12 @@ export const SettingsModels: Component = () => {
             }}
           />
           <div
-            class="absolute min-w-[180px] p-1 bg-surface-raised-base border border-border-base rounded-lg shadow-lg"
+            class="absolute min-w-[180px] p-1 bg-surface border border-border rounded-lg shadow-lg"
             style={{ left: `${contextMenu().x}px`, top: `${contextMenu().y}px` }}
           >
             <button
               type="button"
-              class="flex w-full items-center gap-2 px-2 py-1.5 text-13-regular text-text-strong rounded cursor-pointer hover:bg-surface-base"
+              class="flex w-full items-center gap-2 px-2 py-1.5 text-13-regular text-foreground rounded cursor-pointer hover:bg-surface"
               onClick={() => {
                 if (contextMenu().model) {
                   markModelModality({
@@ -328,12 +328,12 @@ export const SettingsModels: Component = () => {
                 closeContextMenu()
               }}
             >
-              <Icon name="photo" size="small" class="text-icon-weak-base" />
+              <Icon name="photo" size="small" class="text-foreground-subtlest" />
               标记为图片生成
             </button>
             <button
               type="button"
-              class="flex w-full items-center gap-2 px-2 py-1.5 text-13-regular text-text-strong rounded cursor-pointer hover:bg-surface-base"
+              class="flex w-full items-center gap-2 px-2 py-1.5 text-13-regular text-foreground rounded cursor-pointer hover:bg-surface"
               onClick={() => {
                 if (contextMenu().model) {
                   markModelModality({
@@ -346,7 +346,7 @@ export const SettingsModels: Component = () => {
                 closeContextMenu()
               }}
             >
-              <Icon name="photo" size="small" class="text-icon-weak-base" />
+              <Icon name="photo" size="small" class="text-foreground-subtlest" />
               标记为视频生成
             </button>
           </div>

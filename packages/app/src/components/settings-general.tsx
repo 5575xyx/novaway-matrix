@@ -159,11 +159,11 @@ function PetManagementCard() {
   const profile = () => state()?.profile
 
   return (
-    <div class="bg-surface-base rounded-lg p-4 flex flex-col gap-4">
-      <div class="flex flex-wrap items-center gap-4 py-3 border-b border-border-weak-base">
+    <div class="bg-surface rounded-lg p-4 flex flex-col gap-4">
+      <div class="flex flex-wrap items-center gap-4 py-3 border-b border-border">
         <div class="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span class="text-14-medium text-text-strong">{language.t("settings.desktop.pet.title" as never)}</span>
-          <span class="text-12-regular text-text-weak">{language.t("settings.desktop.pet.description" as never)}</span>
+          <span class="text-14-medium text-foreground">{language.t("settings.desktop.pet.title" as never)}</span>
+          <span class="text-12-regular text-foreground-subtle">{language.t("settings.desktop.pet.description" as never)}</span>
         </div>
         <div data-action="settings-pet-visible">
           <Switch
@@ -181,9 +181,9 @@ function PetManagementCard() {
         {(value) => (
           <>
             <div class="flex flex-wrap items-center gap-3">
-              <span class="w-24 text-12-medium text-text-strong">昵称</span>
+              <span class="w-24 text-12-medium text-foreground">昵称</span>
               <input
-                class="min-w-40 flex-1 rounded-md border border-border-weak-base bg-transparent px-2 py-1.5 text-13-regular text-text-base"
+                class="min-w-40 flex-1 rounded-md border border-border bg-transparent px-2 py-1.5 text-13-regular text-foreground"
                 value={nameDraft()}
                 maxLength={24}
                 onChange={(event) => setNameDraft(event.currentTarget.value)}
@@ -196,7 +196,7 @@ function PetManagementCard() {
             </div>
 
             <div class="flex flex-wrap items-center gap-3">
-              <span class="w-24 text-12-medium text-text-strong">预置宠物</span>
+              <span class="w-24 text-12-medium text-foreground">预置宠物</span>
               <div class="flex flex-wrap gap-2">
                 {petPresets.map((preset) => (
                   <button
@@ -207,7 +207,7 @@ function PetManagementCard() {
                         ? value().preset === "custom"
                         : value().preset === preset.id
                           ? "border-cyan-400 bg-cyan-400/10"
-                          : "border-border-weak-base hover:bg-surface-raised-base-hover"
+                          : "border-border hover:bg-hover"
                     }`}
                     onClick={() =>
                       preset.id === "custom"
@@ -223,10 +223,10 @@ function PetManagementCard() {
             </div>
 
             <div class="flex flex-wrap items-center gap-3">
-              <span class="w-24 text-12-medium text-text-strong">自定义颜色</span>
+              <span class="w-24 text-12-medium text-foreground">自定义颜色</span>
               <input
                 type="color"
-                class="size-8 cursor-pointer rounded border border-border-weak-base bg-transparent p-0"
+                class="size-8 cursor-pointer rounded border border-border bg-transparent p-0"
                 value={value().skin.startsWith("#") ? value().skin : customColor()}
                 onChange={(event) => setCustomColor(event.currentTarget.value)}
                 onBlur={() => void updateProfile({ preset: "custom", skin: customColor() })}
@@ -234,25 +234,25 @@ function PetManagementCard() {
             </div>
 
             <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div class="rounded-lg bg-surface-raised-base p-3">
-                <div class="text-11-regular text-text-weak">饱食</div>
-                <div class="mt-1 text-14-medium text-text-strong">{pet()?.satiety ?? 0}</div>
+              <div class="rounded-lg bg-surface p-3">
+                <div class="text-11-regular text-foreground-subtle">饱食</div>
+                <div class="mt-1 text-14-medium text-foreground">{pet()?.satiety ?? 0}</div>
               </div>
-              <div class="rounded-lg bg-surface-raised-base p-3">
-                <div class="text-11-regular text-text-weak">水分</div>
-                <div class="mt-1 text-14-medium text-text-strong">{pet()?.hydration ?? 0}</div>
+              <div class="rounded-lg bg-surface p-3">
+                <div class="text-11-regular text-foreground-subtle">水分</div>
+                <div class="mt-1 text-14-medium text-foreground">{pet()?.hydration ?? 0}</div>
               </div>
-              <div class="rounded-lg bg-surface-raised-base p-3">
-                <div class="text-11-regular text-text-weak">心情</div>
-                <div class="mt-1 text-14-medium text-text-strong">{pet()?.mood ?? 0}</div>
+              <div class="rounded-lg bg-surface p-3">
+                <div class="text-11-regular text-foreground-subtle">心情</div>
+                <div class="mt-1 text-14-medium text-foreground">{pet()?.mood ?? 0}</div>
               </div>
-              <div class="rounded-lg bg-surface-raised-base p-3">
-                <div class="text-11-regular text-text-weak">精力</div>
-                <div class="mt-1 text-14-medium text-text-strong">{pet()?.energy ?? 0}</div>
+              <div class="rounded-lg bg-surface p-3">
+                <div class="text-11-regular text-foreground-subtle">精力</div>
+                <div class="mt-1 text-14-medium text-foreground">{pet()?.energy ?? 0}</div>
               </div>
             </div>
 
-            <div class="flex flex-wrap items-center gap-3 text-12-regular text-text-weak">
+            <div class="flex flex-wrap items-center gap-3 text-12-regular text-foreground-subtle">
               <span>⭐ {pet()?.coins ?? 0} 星星币</span>
               <span>· {value().gamesPlayed} 局游戏</span>
               <span>· 五子棋最高分 {value().highScores.gomoku}</span>
@@ -271,7 +271,7 @@ function PetManagementCard() {
         )}
       </Show>
       <Show when={loading()}>
-        <span class="text-12-regular text-text-weak">加载宠物设置中…</span>
+        <span class="text-12-regular text-foreground-subtle">加载宠物设置中…</span>
       </Show>
     </div>
   )
@@ -284,7 +284,7 @@ export const SettingsPet: Component = () => {
     <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
       <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--popover)_calc(100%_-_24px),transparent)]">
         <div class="flex flex-col gap-1 pt-6 pb-8">
-          <h2 class="text-16-medium text-text-strong">{language.t("settings.desktop.pet.title" as never)}</h2>
+          <h2 class="text-16-medium text-foreground">{language.t("settings.desktop.pet.title" as never)}</h2>
         </div>
       </div>
       <PetManagementCard />
@@ -517,7 +517,7 @@ export const SettingsGeneral: Component = () => {
   )
   const AdvancedSection = () => (
     <div class="flex flex-col gap-1">
-      <h3 class="text-14-medium text-text-strong pb-2">{language.t("settings.general.section.advanced")}</h3>
+      <h3 class="text-14-medium text-foreground pb-2">{language.t("settings.general.section.advanced")}</h3>
 
       <SettingsList>
         <SettingsRow
@@ -597,7 +597,7 @@ export const SettingsGeneral: Component = () => {
 
   const AppearanceSection = () => (
     <div class="flex flex-col gap-1">
-      <h3 class="text-14-medium text-text-strong pb-2">{language.t("settings.general.section.appearance")}</h3>
+      <h3 class="text-14-medium text-foreground pb-2">{language.t("settings.general.section.appearance")}</h3>
 
       <SettingsList>
         <SettingsRow
@@ -637,7 +637,7 @@ export const SettingsGeneral: Component = () => {
               value={settings.appearance.fontSize()}
               onInput={(e) => settings.appearance.setFontSize(Number(e.currentTarget.value))}
             />
-            <span class="text-13-medium text-text-weak tabular-nums w-9 text-right">
+            <span class="text-13-medium text-foreground-subtle tabular-nums w-9 text-right">
               {settings.appearance.fontSize()}
             </span>
           </div>
@@ -648,7 +648,7 @@ export const SettingsGeneral: Component = () => {
 
   const NotificationsSection = () => (
     <div class="flex flex-col gap-1">
-      <h3 class="text-14-medium text-text-strong pb-2">{language.t("settings.general.section.notifications")}</h3>
+      <h3 class="text-14-medium text-foreground pb-2">{language.t("settings.general.section.notifications")}</h3>
 
       <SettingsList>
         <SettingsRow
@@ -692,7 +692,7 @@ export const SettingsGeneral: Component = () => {
 
   const SoundsSection = () => (
     <div class="flex flex-col gap-1">
-      <h3 class="text-14-medium text-text-strong pb-2">{language.t("settings.general.section.sounds")}</h3>
+      <h3 class="text-14-medium text-foreground pb-2">{language.t("settings.general.section.sounds")}</h3>
 
       <SettingsList>
         <SettingsRow
@@ -745,7 +745,7 @@ export const SettingsGeneral: Component = () => {
 
   const UpdatesSection = () => (
     <div class="flex flex-col gap-1">
-      <h3 class="text-14-medium text-text-strong pb-2">{language.t("settings.general.section.updates")}</h3>
+      <h3 class="text-14-medium text-foreground pb-2">{language.t("settings.general.section.updates")}</h3>
 
       <SettingsList>
         <SettingsRow
@@ -791,7 +791,7 @@ export const SettingsGeneral: Component = () => {
     <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
       <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--popover)_calc(100%_-_24px),transparent)]">
         <div class="flex flex-col gap-1 pt-6 pb-8">
-          <h2 class="text-16-medium text-text-strong">{language.t("settings.tab.general")}</h2>
+          <h2 class="text-16-medium text-foreground">{language.t("settings.tab.general")}</h2>
         </div>
       </div>
 
@@ -820,10 +820,10 @@ interface SettingsRowProps {
 
 const SettingsRow: Component<SettingsRowProps> = (props) => {
   return (
-    <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+    <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
       <div class="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span class="text-14-medium text-text-strong">{props.title}</span>
-        <span class="text-12-regular text-text-weak">{props.description}</span>
+        <span class="text-14-medium text-foreground">{props.title}</span>
+        <span class="text-12-regular text-foreground-subtle">{props.description}</span>
       </div>
       <div class="flex w-full">{props.children}</div>
     </div>

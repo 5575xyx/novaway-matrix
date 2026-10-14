@@ -969,7 +969,7 @@ export function MessageTimeline(props: {
       <Dialog title={language.t("session.delete.title")} fit>
         <div class="flex flex-col gap-4 pl-6 pr-2.5 pb-3">
           <div class="flex flex-col gap-1">
-            <span class="text-14-regular text-text-strong">
+            <span class="text-14-regular text-foreground">
               {language.t("session.delete.confirm", { name: name() })}
             </span>
           </div>
@@ -1100,7 +1100,7 @@ export function MessageTimeline(props: {
     const fillSummary = createMemo(() => officePptxFillPlanSummary(fillPlan()))
     const [savedPath, setSavedPath] = createSignal("")
     const actionButton =
-      "group inline-flex items-center gap-1.5 rounded-[8px] border border-border-weak-base bg-background-base px-2.5 py-1.5 text-12-medium text-text-weak shadow-[0_0_0_0_rgba(16,185,129,0)] outline-none transition-all duration-150 hover:-translate-y-px hover:border-emerald-300/55 hover:bg-emerald-300/[0.08] hover:text-emerald-100 hover:shadow-[0_8px_22px_rgba(16,185,129,0.12)] active:translate-y-0 active:scale-[0.98] active:border-emerald-300/70 active:bg-emerald-300/[0.14] focus-visible:border-emerald-300/70 focus-visible:ring-2 focus-visible:ring-emerald-300/25"
+      "group inline-flex items-center gap-1.5 rounded-[8px] border border-border bg-background px-2.5 py-1.5 text-12-medium text-foreground-subtle shadow-[0_0_0_0_rgba(16,185,129,0)] outline-none transition-all duration-150 hover:-translate-y-px hover:border-emerald-300/55 hover:bg-emerald-300/[0.08] hover:text-emerald-100 hover:shadow-[0_8px_22px_rgba(16,185,129,0.12)] active:translate-y-0 active:scale-[0.98] active:border-emerald-300/70 active:bg-emerald-300/[0.14] focus-visible:border-emerald-300/70 focus-visible:ring-2 focus-visible:ring-emerald-300/25"
     const primaryActionButton =
       "group inline-flex items-center gap-1.5 rounded-[8px] border border-emerald-300/40 bg-emerald-300/10 px-2.5 py-1.5 text-12-medium text-emerald-100 shadow-[0_0_0_0_rgba(16,185,129,0)] outline-none transition-all duration-150 hover:-translate-y-px hover:border-emerald-300/70 hover:bg-emerald-300/18 hover:shadow-[0_8px_24px_rgba(16,185,129,0.16)] active:translate-y-0 active:scale-[0.98] active:bg-emerald-300/22 focus-visible:border-emerald-300/80 focus-visible:ring-2 focus-visible:ring-emerald-300/30 disabled:cursor-not-allowed disabled:translate-y-0 disabled:scale-100 disabled:opacity-60 disabled:shadow-none"
     const save = useMutation(() => ({
@@ -1212,21 +1212,21 @@ export function MessageTimeline(props: {
         <Dialog title="自定义 PPT 模板" class="w-full max-w-[680px] mx-auto">
           <div class="flex flex-col gap-4 px-6 pb-5">
             <div class="rounded-[8px] border border-cyan-300/20 bg-cyan-300/[0.06] p-3">
-              <div class="text-13-medium text-text-strong">模板设计提示词</div>
-              <div class="mt-1 text-12-regular leading-relaxed text-text-weak">
+              <div class="text-13-medium text-foreground">模板设计提示词</div>
+              <div class="mt-1 text-12-regular leading-relaxed text-foreground-subtle">
                 请描述你想要的 PPT 风格、主题、配色、行业气质和页面感觉，例如“科技蓝、赛博霓虹、适合 AI 产品发布”。
               </div>
             </div>
             <textarea
               value={draft()}
               onInput={(event) => setDraft(event.currentTarget.value)}
-              class="min-h-[128px] w-full resize-y rounded-[8px] border border-border-weak-base bg-background-base p-3 text-13-regular leading-relaxed text-text-strong outline-none transition-colors focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/25"
+              class="min-h-[128px] w-full resize-y rounded-[8px] border border-border bg-background p-3 text-13-regular leading-relaxed text-foreground outline-none transition-colors focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/25"
             />
-            <div class="grid gap-3 rounded-[8px] border border-border-weak-base bg-surface-raised-base/70 p-3">
+            <div class="grid gap-3 rounded-[8px] border border-border bg-surface/70 p-3">
               <div class="flex items-center justify-between gap-3">
                 <div class="min-w-0">
-                  <div class="truncate text-13-medium text-text-strong">{preview().name}</div>
-                  <div class="mt-1 line-clamp-2 text-12-regular text-text-weak">{preview().description}</div>
+                  <div class="truncate text-13-medium text-foreground">{preview().name}</div>
+                  <div class="mt-1 line-clamp-2 text-12-regular text-foreground-subtle">{preview().description}</div>
                 </div>
                 <div class="flex shrink-0 items-center gap-1.5">
                   <For
@@ -1239,7 +1239,7 @@ export function MessageTimeline(props: {
                   >
                     {(color) => (
                       <span
-                        class="size-5 rounded-[6px] border border-border-weak-base"
+                        class="size-5 rounded-[6px] border border-border"
                         style={{ "background-color": `#${color}` }}
                       />
                     )}
@@ -1315,18 +1315,18 @@ export function MessageTimeline(props: {
               <div class="flex flex-col gap-2 px-6 pb-5">
                 <Show
                   when={versions.length > 0}
-                  fallback={<div class="text-12-regular text-text-weak">当前文件还没有可恢复的历史版本。</div>}
+                  fallback={<div class="text-12-regular text-foreground-subtle">当前文件还没有可恢复的历史版本。</div>}
                 >
                   <For each={versions}>
                     {(artifact) => (
-                      <div class="flex items-center justify-between gap-3 rounded-[8px] border border-border-weak-base bg-background-base p-3">
+                      <div class="flex items-center justify-between gap-3 rounded-[8px] border border-border bg-background p-3">
                         <div class="min-w-0">
-                          <div class="text-12-medium text-text-strong">v{artifact.version}</div>
-                          <div class="mt-0.5 truncate text-11-regular text-text-weak">{artifact.path}</div>
+                          <div class="text-12-medium text-foreground">v{artifact.version}</div>
+                          <div class="mt-0.5 truncate text-11-regular text-foreground-subtle">{artifact.path}</div>
                         </div>
                         <button
                           type="button"
-                          class="h-8 shrink-0 rounded-[7px] border border-border-weak-base px-2.5 text-11-medium text-text-weak hover:text-emerald-200"
+                          class="h-8 shrink-0 rounded-[7px] border border-border px-2.5 text-11-medium text-foreground-subtle hover:text-emerald-200"
                           onClick={() => void restoreArtifactVersion(artifact.id)}
                         >
                           恢复
@@ -1356,8 +1356,8 @@ export function MessageTimeline(props: {
             <Icon name="pencil-line" size="small" />
           </div>
           <div class="min-w-0">
-            <div class="truncate text-12-medium text-text-strong">{input.artifact.title}</div>
-            <div class="text-11-regular text-text-weak">
+            <div class="truncate text-12-medium text-foreground">{input.artifact.title}</div>
+            <div class="text-11-regular text-foreground-subtle">
               {input.artifact.slides.length > 0
                 ? `已识别 ${input.artifact.slides.length} 页 PPT 大纲，可预览、复制或导出 PPTX`
                 : "已识别为办公产物，可单独复制或导出 DOCX"}
@@ -1372,7 +1372,7 @@ export function MessageTimeline(props: {
               >
                 质量：{quality().label}
               </span>
-              <span class="truncate text-10-regular text-text-weak" title={quality().summary}>
+              <span class="truncate text-10-regular text-foreground-subtle" title={quality().summary}>
                 {quality().summary}
               </span>
             </div>
@@ -1384,15 +1384,15 @@ export function MessageTimeline(props: {
               <DropdownMenu.Trigger
                 as="button"
                 type="button"
-                class="group inline-flex min-w-[164px] items-center justify-between gap-2 rounded-[8px] border border-border-weak-base bg-background-base px-2.5 py-1.5 text-12-medium text-text-strong outline-none transition-colors hover:border-emerald-300/55 hover:bg-emerald-300/[0.08] focus-visible:border-emerald-300/70 focus-visible:ring-2 focus-visible:ring-emerald-300/25"
+                class="group inline-flex min-w-[164px] items-center justify-between gap-2 rounded-[8px] border border-border bg-background px-2.5 py-1.5 text-12-medium text-foreground outline-none transition-colors hover:border-emerald-300/55 hover:bg-emerald-300/[0.08] focus-visible:border-emerald-300/70 focus-visible:ring-2 focus-visible:ring-emerald-300/25"
                 title={officePptTemplateDescription(pptTemplate())}
               >
-                <span class="text-11-regular text-text-muted">模板</span>
+                <span class="text-11-regular text-foreground-subtle">模板</span>
                 <span class="min-w-0 flex-1 truncate text-left">{officePptTemplateName(pptTemplate())}</span>
                 <Icon
                   name="chevron-down"
                   size="small"
-                  class="shrink-0 text-icon-weak transition-transform group-data-[expanded]:rotate-180"
+                  class="shrink-0 text-foreground-subtlest transition-transform group-data-[expanded]:rotate-180"
                 />
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
@@ -1615,20 +1615,20 @@ export function MessageTimeline(props: {
           <div class="grid gap-3 md:grid-cols-2">
             <For each={artifact.slides}>
               {(slide) => (
-                <div class="rounded-[8px] border border-border-weak-base bg-surface-raised-base/70 p-4">
-                  <div class="flex items-start justify-between gap-3 border-b border-border-weaker-base pb-3">
+                <div class="rounded-[8px] border border-border bg-surface/70 p-4">
+                  <div class="flex items-start justify-between gap-3 border-b border-border pb-3">
                     <div class="min-w-0">
                       <div class="text-11-medium text-emerald-200">第 {slide.index} 页</div>
-                      <div class="mt-1 truncate text-15-medium text-text-strong">{slide.title}</div>
+                      <div class="mt-1 truncate text-15-medium text-foreground">{slide.title}</div>
                     </div>
-                    <Icon name="layout-bottom" size="small" class="shrink-0 text-icon-weak" />
+                    <Icon name="layout-bottom" size="small" class="shrink-0 text-foreground-subtlest" />
                   </div>
                   <div class="mt-3 flex flex-col gap-1.5">
                     <For each={slidePreviewLines(slide)}>
-                      {(line) => <div class="text-12-regular leading-relaxed text-text-weak">{line}</div>}
+                      {(line) => <div class="text-12-regular leading-relaxed text-foreground-subtle">{line}</div>}
                     </For>
                     <Show when={slidePreviewLines(slide).length === 0}>
-                      <div class="text-12-regular text-text-muted">暂无页面正文，建议继续让 AI 补充页面文案。</div>
+                      <div class="text-12-regular text-foreground-subtle">暂无页面正文，建议继续让 AI 补充页面文案。</div>
                     </Show>
                   </div>
                 </div>
@@ -1767,13 +1767,13 @@ export function MessageTimeline(props: {
                 <div class="flex w-max min-w-full justify-end gap-2">
                   <Index each={comments()}>
                     {(comment) => (
-                      <div class="shrink-0 max-w-[260px] rounded-[6px] border border-border-weak-base bg-background-stronger px-2.5 py-2">
-                        <div class="flex items-center gap-1.5 min-w-0 text-11-medium text-text-strong">
+                      <div class="shrink-0 max-w-[260px] rounded-[6px] border border-border bg-panel px-2.5 py-2">
+                        <div class="flex items-center gap-1.5 min-w-0 text-11-medium text-foreground">
                           <FileIcon node={{ path: comment().path, type: "file" }} class="size-3.5 shrink-0" />
                           <span class="truncate">{getFilename(comment().path)}</span>
                           <Show when={comment().selection}>
                             {(selection) => (
-                              <span class="shrink-0 text-text-weak">
+                              <span class="shrink-0 text-foreground-subtle">
                                 {selection().startLine === selection().endLine
                                   ? `:${selection().startLine}`
                                   : `:${selection().startLine}-${selection().endLine}`}
@@ -1781,7 +1781,7 @@ export function MessageTimeline(props: {
                             )}
                           </Show>
                         </div>
-                        <div class="pt-1 text-12-regular text-text-strong whitespace-pre-wrap break-words">
+                        <div class="pt-1 text-12-regular text-foreground whitespace-pre-wrap break-words">
                           {comment().comment}
                         </div>
                       </div>
@@ -1916,7 +1916,7 @@ export function MessageTimeline(props: {
           onClick={props.onResumeScroll}
         >
           <div
-            class="flex items-center justify-center w-8 h-6 rounded-[6px] border border-border-weaker-base bg-[color-mix(in_srgb,var(--popover)_80%,transparent)] backdrop-blur-[0.75px] transition-colors group-hover:border-[var(--border)] group-hover:[--icon-base:var(--foreground)]"
+            class="flex items-center justify-center w-8 h-6 rounded-[6px] border border-border bg-[color-mix(in_srgb,var(--popover)_80%,transparent)] backdrop-blur-[0.75px] transition-colors group-hover:border-[var(--border)] group-hover:[--icon-base:var(--foreground)]"
             style={{
               "box-shadow":
                 "0 51px 60px 0 rgba(0,0,0,0.10), 0 15px 18px 0 rgba(0,0,0,0.12), 0 6.386px 7.513px 0 rgba(0,0,0,0.12), 0 2.31px 2.717px 0 rgba(0,0,0,0.20)",
@@ -1963,14 +1963,14 @@ export function MessageTimeline(props: {
                     <button
                       type="button"
                       data-slot="session-title-parent"
-                      class="min-w-0 max-w-[40%] truncate text-14-medium text-text-weak transition-colors hover:text-text-base"
+                      class="min-w-0 max-w-[40%] truncate text-14-medium text-foreground-subtle transition-colors hover:text-foreground"
                       onClick={navigateParent}
                     >
                       {parentTitle()}
                     </button>
                     <span
                       data-slot="session-title-separator"
-                      class="px-2 text-14-medium text-text-weak"
+                      class="px-2 text-14-medium text-foreground-subtle"
                       aria-hidden="true"
                     >
                       /
@@ -1990,8 +1990,8 @@ export function MessageTimeline(props: {
                         classList={{ "opacity-0": workingStatus() === "hiding" }}
                       >
                         <div class="relative size-4 flex items-center justify-center">
-                          <div class="absolute inset-0 rounded-full border-[1.5px] border-text-interactive-base animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite] opacity-75" />
-                          <div class="size-1.5 rounded-full bg-text-interactive-base" />
+                          <div class="absolute inset-0 rounded-full border-[1.5px] border-icon-blue animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite] opacity-75" />
+                          <div class="size-1.5 rounded-full bg-icon-blue" />
                         </div>
                       </div>
                     </Show>
@@ -2002,7 +2002,7 @@ export function MessageTimeline(props: {
                       fallback={
                         <h1
                           data-slot="session-title-child"
-                          class="text-14-medium text-text-strong truncate grow-1 min-w-0"
+                          class="text-14-medium text-foreground truncate grow-1 min-w-0"
                           onDblClick={openTitleEditor}
                         >
                           {childTitle()}
@@ -2016,7 +2016,7 @@ export function MessageTimeline(props: {
                         data-slot="session-title-child"
                         value={title.draft}
                         disabled={titleMutation.isPending}
-                        class="text-14-medium text-text-strong grow-1 min-w-0 rounded-[6px] pl-1 -ml-1"
+                        class="text-14-medium text-foreground grow-1 min-w-0 rounded-[6px] pl-1 -ml-1"
                         style={{ "--inline-input-shadow": "var(--shadow-xs-border-select)" }}
                         onInput={(event) => setTitle("draft", event.currentTarget.value)}
                         onKeyDown={(event) => {
@@ -2042,7 +2042,7 @@ export function MessageTimeline(props: {
                   <div class="shrink-0 flex items-center gap-3">
                     <button
                       type="button"
-                      class="hidden h-8 items-center gap-1.5 rounded-[7px] border border-border-weak-base bg-background-base px-2.5 text-11-medium text-text-weak outline-none transition-colors hover:border-emerald-300/50 hover:text-emerald-100 md:inline-flex"
+                      class="hidden h-8 items-center gap-1.5 rounded-[7px] border border-border bg-background px-2.5 text-11-medium text-foreground-subtle outline-none transition-colors hover:border-emerald-300/50 hover:text-emerald-100 md:inline-flex"
                       title="把当前对话需求保存为可复用工作流"
                       disabled={saveConversationWorkflow.isPending || !latestUserPrompt()}
                       onClick={() => saveConversationWorkflow.mutate()}

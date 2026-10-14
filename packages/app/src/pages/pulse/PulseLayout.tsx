@@ -46,7 +46,7 @@ function PulseLayoutInner() {
 
   return (
     <div
-      class="flex h-full w-full bg-background-base transition-opacity duration-300"
+      class="flex h-full w-full bg-background transition-opacity duration-300"
       style={
         {
           opacity: mounted() ? "1" : "0",
@@ -54,7 +54,7 @@ function PulseLayoutInner() {
         } as any
       }
     >
-      <div class="w-64 shrink-0 border-r border-border-weak-base bg-background-weak/60">
+      <div class="w-64 shrink-0 border-r border-border bg-background-alt/60">
         <PulseSidebar />
       </div>
       <div class="flex-1 min-w-0 overflow-auto">
@@ -62,7 +62,7 @@ function PulseLayoutInner() {
       </div>
       <Show when={!assistantCollapsed()}>
         <div
-          class="shrink-0 border-l border-border-weak-base bg-background-weak/60 relative"
+          class="shrink-0 border-l border-border bg-background-alt/60 relative"
           style={{ width: `${assistantWidth()}px` }}
         >
           <PulseAssistant />
@@ -75,17 +75,17 @@ function PulseLayoutInner() {
             collapseThreshold={480}
             onResize={handleResize}
             onCollapse={handleCollapse}
-            class="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-border-interactive-base transition-colors"
+            class="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary transition-colors"
           />
         </div>
       </Show>
       <Show when={assistantCollapsed()}>
         <div
-          class="shrink-0 border-l border-border-weak-base bg-background-weak/60 flex items-center justify-center cursor-pointer hover:bg-background-weak/80 transition-colors"
+          class="shrink-0 border-l border-border bg-background-alt/60 flex items-center justify-center cursor-pointer hover:bg-background-alt/80 transition-colors"
           style={{ width: "24px" }}
           onClick={handleExpand}
         >
-          <svg class="w-4 h-4 text-text-weak" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg class="w-4 h-4 text-foreground-subtle" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
           </svg>
         </div>

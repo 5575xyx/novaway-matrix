@@ -95,26 +95,26 @@ render(() => {
 
   return (
     <MetaProvider>
-      <div class="w-screen h-screen bg-background-base flex items-center justify-center">
+      <div class="w-screen h-screen bg-background flex items-center justify-center">
         <Font />
         <div class="flex flex-col items-center gap-11">
           <Splash class="w-20 h-25 opacity-15" />
           <div class="w-72 flex flex-col items-center gap-4" aria-live="polite">
-            <span class="w-full overflow-hidden text-center text-ellipsis whitespace-nowrap text-text-strong text-14-normal">
+            <span class="w-full overflow-hidden text-center text-ellipsis whitespace-nowrap text-foreground text-14-normal">
               {status()}
             </span>
             {showMayTakeTime() && (
-              <span class="w-full overflow-hidden text-center text-ellipsis whitespace-nowrap text-text-weak text-12-normal">
+              <span class="w-full overflow-hidden text-center text-ellipsis whitespace-nowrap text-foreground-subtle text-12-normal">
                 {t("desktop.loading.mayTakeTime")}
               </span>
             )}
             <Progress
               value={value()}
-              class="w-40 [&_[data-slot='progress-track']]:h-1.5 [&_[data-slot='progress-track']]:border-0 [&_[data-slot='progress-track']]:rounded-full [&_[data-slot='progress-track']]:bg-surface-weak [&_[data-slot='progress-fill']]:rounded-full [&_[data-slot='progress-fill']]:bg-icon-interactive-base"
+              class="w-40 [&_[data-slot='progress-track']]:h-1.5 [&_[data-slot='progress-track']]:border-0 [&_[data-slot='progress-track']]:rounded-full [&_[data-slot='progress-track']]:bg-surface [&_[data-slot='progress-fill']]:rounded-full [&_[data-slot='progress-fill']]:bg-icon-interactive-base"
               aria-label="初始化进度"
               getValueLabel={({ value }) => `${Math.round(value)}%`}
             />
-            <span class="text-text-weak text-11-normal">{Math.round(value())}%</span>
+            <span class="text-foreground-subtle text-11-normal">{Math.round(value())}%</span>
           </div>
         </div>
       </div>

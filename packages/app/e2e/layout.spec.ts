@@ -80,9 +80,7 @@ test("侧栏分组结构与项目菜单可达", async ({ page }) => {
   // footer：模式与主题入口沉底（原来挤在顶部那圈竖排菜单里）
   await expect(sidebar.getByRole("button", { name: /Switch work mode|切换模式/ }).first()).toBeVisible()
   await expect(
-    sidebar
-      .getByRole("button", { name: /^(Dark mode|Light mode|深色模式|浅色模式)$/ })
-      .first(),
+    sidebar.getByRole("button", { name: /^(Dark mode|Light mode|深色模式|浅色模式)$/ }).first(),
   ).toBeVisible()
 })
 
@@ -138,9 +136,10 @@ test("四 frame：4px 间隙 + 平台圆角 + 窗口根分层", async ({ page })
     return t[0]!.getBoundingClientRect().top - c[0]!.getBoundingClientRect().bottom
   })
   expect(vertical).toBeCloseTo(4, 1)
-  // 四个 frame 的圆角与边框
+  // A2/A3：三个「帧」按平台圆角（e2e 跑在 Web → 12px = xl）+ 1px solid 边框。
+  // 侧栏不在其中：它对齐 ZCode 是 flush 的（左侧/上下贴窗口边，无边框无圆角），
+  // 只有右侧主工作区的那三块才是独立帧。
   for (const sel of [
-    '[data-component="sidebar-nav-desktop"]',
     '[data-component="conv-frame"]',
     '[data-component="side-pane-frame"]',
     '[data-component="terminal-frame"]',
@@ -151,11 +150,22 @@ test("四 frame：4px 间隙 + 平台圆角 + 窗口根分层", async ({ page })
       const cs = getComputedStyle(els[0]!)
       return { radius: cs.borderRadius, border: cs.borderStyle, width: cs.borderTopWidth }
     }, sel)
-    // A2/A3：圆角按平台（e2e 跑在 Web → 12px = xl），边框 1px solid
     expect(r.radius).toBe("12px")
     expect(r.border).toBe("solid")
     expect(r.width).toBe("1px")
   }
+
+  // 侧栏：flush —— 圆角 0、无边框，底色用 --sidebar
+  const sidebar = await page.evaluate(() => {
+    const el = document.querySelector('[data-component="sidebar-nav-desktop"]')
+    if (!el) return null
+    const cs = getComputedStyle(el)
+    return { radius: cs.borderRadius, width: cs.borderTopWidth, bg: cs.backgroundColor }
+  })
+  expect(sidebar).not.toBeNull()
+  expect(sidebar.radius).toBe("0px")
+  expect(sidebar.width).toBe("0px")
+  expect(sidebar.bg).not.toBe("rgba(0, 0, 0, 0)")
 
   // A5：窗口根底色与帧底色分层（4px 留白/间隙才看得见）
   const surfaces = await page.evaluate(() => {
@@ -345,8 +355,6 @@ test("顶栏移除后的入口归属（A1）", async ({ page }) => {
   // 原标题栏承载的入口现在各自可达：首页 / 模式 / 主题 / 设置 / Side Pane 开关 / 移动端菜单
   await expect(page.getByLabel(/Open home|打开首页/).first()).toBeVisible()
   await expect(page.getByLabel(/Switch work mode|切换模式/).first()).toBeVisible()
-  await expect(
-    page.getByLabel(/^(Dark mode|Light mode|深色模式|浅色模式)$/).first(),
-  ).toBeVisible()
+  await expect(page.getByLabel(/^(Dark mode|Light mode|深色模式|浅色模式)$/).first()).toBeVisible()
   await expect(header.getByRole("button", { name: /Toggle side pane|切换 Side Pane/ }).first()).toBeVisible()
 })

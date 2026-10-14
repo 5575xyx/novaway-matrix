@@ -141,7 +141,8 @@ export function createMainWindow() {
       ? {
           frame: false,
           titleBarStyle: "hidden" as const,
-          titleBarOverlay: overlay({ mode }),
+          // 对齐 ZCode：最小化/最大化/关闭由 Header 内联自绘，**不用** 原生 titleBarOverlay。
+          // 两者并存会让原生按钮盖在自绘按钮上（点击被原生按钮吃掉、视觉也重叠）。
         }
       : {}),
     webPreferences: {
@@ -152,7 +153,15 @@ export function createMainWindow() {
     },
   })
 
-  if (process.platform === "win32") titlebarOverlayWindows.add(win)
+  // 最大化/还原要通知渲染层换图标。
+  // 这里直接 send 而不复用 ipc.ts 的 helper —— ipc.ts 已经 import 了本文件，
+  // 反向 import 会形成循环依赖。
+  const notifyMaximized = () => {
+    if (win.isDestroyed() || win.webContents.isDestroyed()) return
+    win.webContents.send("window-maximized-change", win.isMaximized())
+  }
+  win.on("maximize", notifyMaximized)
+  win.on("unmaximize", notifyMaximized)
 
   allowRendererPermissions(win)
 

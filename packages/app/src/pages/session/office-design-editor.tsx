@@ -85,8 +85,8 @@ export function OfficeDesignEditor(props: { artifact: OfficeArtifact; onClose: (
     <div class="flex max-h-[84vh] w-full max-w-4xl flex-col gap-4 p-5">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <div class="text-16-medium text-text-strong">视觉设计画布</div>
-          <div class="mt-1 text-12-regular text-text-weak">调整文案与配色后导出 PNG</div>
+          <div class="text-16-medium text-foreground">视觉设计画布</div>
+          <div class="mt-1 text-12-regular text-foreground-subtle">调整文案与配色后导出 PNG</div>
         </div>
         <div class="flex items-center gap-2">
           <button
@@ -98,7 +98,7 @@ export function OfficeDesignEditor(props: { artifact: OfficeArtifact; onClose: (
           </button>
           <button
             type="button"
-            class="grid size-8 place-items-center rounded-[7px] border border-border-weak-base text-text-weak"
+            class="grid size-8 place-items-center rounded-[7px] border border-border text-foreground-subtle"
             onClick={props.onClose}
           >
             <Icon name="close" size="small" />
@@ -108,53 +108,53 @@ export function OfficeDesignEditor(props: { artifact: OfficeArtifact; onClose: (
 
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-[260px_1fr]">
         <div class="flex flex-col gap-3">
-          <label class="flex flex-col gap-1 text-12-medium text-text-weak">
+          <label class="flex flex-col gap-1 text-12-medium text-foreground-subtle">
             主标题
             <input
               value={title()}
               onInput={(event) => setTitle(event.currentTarget.value)}
-              class="h-9 rounded-[7px] border border-border-weak-base bg-background-base px-3 text-12-regular text-text-strong outline-none"
+              class="h-9 rounded-[7px] border border-border bg-background px-3 text-12-regular text-foreground outline-none"
             />
           </label>
-          <label class="flex flex-col gap-1 text-12-medium text-text-weak">
+          <label class="flex flex-col gap-1 text-12-medium text-foreground-subtle">
             副标题
             <input
               value={subtitle()}
               onInput={(event) => setSubtitle(event.currentTarget.value)}
-              class="h-9 rounded-[7px] border border-border-weak-base bg-background-base px-3 text-12-regular text-text-strong outline-none"
+              class="h-9 rounded-[7px] border border-border bg-background px-3 text-12-regular text-foreground outline-none"
             />
           </label>
-          <label class="flex flex-col gap-1 text-12-medium text-text-weak">
+          <label class="flex flex-col gap-1 text-12-medium text-foreground-subtle">
             强调色
             <input
               type="color"
               value={accent()}
               onInput={(event) => setAccent(event.currentTarget.value)}
-              class="h-9 rounded-[7px] border border-border-weak-base bg-background-base"
+              class="h-9 rounded-[7px] border border-border bg-background"
             />
           </label>
-          <label class="flex flex-col gap-1 text-12-medium text-text-weak">
+          <label class="flex flex-col gap-1 text-12-medium text-foreground-subtle">
             背景色
             <input
               type="color"
               value={background()}
               onInput={(event) => setBackground(event.currentTarget.value)}
-              class="h-9 rounded-[7px] border border-border-weak-base bg-background-base"
+              class="h-9 rounded-[7px] border border-border bg-background"
             />
           </label>
-          <label class="flex flex-col gap-1 text-12-medium text-text-weak">
+          <label class="flex flex-col gap-1 text-12-medium text-foreground-subtle">
             文字色
             <input
               type="color"
               value={textColor()}
               onInput={(event) => setTextColor(event.currentTarget.value)}
-              class="h-9 rounded-[7px] border border-border-weak-base bg-background-base"
+              class="h-9 rounded-[7px] border border-border bg-background"
             />
           </label>
           <div class="grid grid-cols-2 gap-2">
             <button
               type="button"
-              class="h-9 rounded-[7px] border border-border-weak-base text-12-medium text-text-weak"
+              class="h-9 rounded-[7px] border border-border text-12-medium text-foreground-subtle"
               classList={{ "border-emerald-300/50 bg-emerald-300/10 text-emerald-100": layout() === "landscape" }}
               onClick={() => setLayout("landscape")}
             >
@@ -162,7 +162,7 @@ export function OfficeDesignEditor(props: { artifact: OfficeArtifact; onClose: (
             </button>
             <button
               type="button"
-              class="h-9 rounded-[7px] border border-border-weak-base text-12-medium text-text-weak"
+              class="h-9 rounded-[7px] border border-border text-12-medium text-foreground-subtle"
               classList={{ "border-emerald-300/50 bg-emerald-300/10 text-emerald-100": layout() === "portrait" }}
               onClick={() => setLayout("portrait")}
             >
@@ -174,7 +174,7 @@ export function OfficeDesignEditor(props: { artifact: OfficeArtifact; onClose: (
           </Show>
         </div>
 
-        <div class="overflow-auto rounded-[8px] border border-border-weak-base bg-black/20 p-4">
+        <div class="overflow-auto rounded-[8px] border border-border bg-black/20 p-4">
           <canvas ref={canvasRef} class="mx-auto max-w-full rounded-[8px] shadow-[0_20px_60px_rgba(0,0,0,0.35)]" />
         </div>
       </div>

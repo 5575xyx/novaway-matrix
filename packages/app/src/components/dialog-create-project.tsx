@@ -76,9 +76,9 @@ export function DialogCreateProject(props: DialogCreateProjectProps) {
     <Dialog title={language.t("command.project.create.dialog.title")}>
       <div class="flex flex-col gap-5 p-5">
         <div class="flex flex-col gap-2">
-          <label class="text-14-medium text-text-strong">{language.t("command.project.create.dialog.name")}</label>
+          <label class="text-14-medium text-foreground">{language.t("command.project.create.dialog.name")}</label>
           <input
-            class="flex h-10 w-full rounded-[8px] border border-border-weak-base bg-surface-raised-base px-3 text-14-regular text-text-strong placeholder:text-text-weak outline-none focus:border-border-interactive-base"
+            class="flex h-10 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground placeholder:text-foreground-subtle outline-none focus:border-primary"
             type="text"
             value={folderName()}
             onInput={(e) => {
@@ -92,15 +92,15 @@ export function DialogCreateProject(props: DialogCreateProjectProps) {
             }}
           />
           <Show when={nameError()}>
-            <span class="text-12-regular text-text-danger">{nameError()}</span>
+            <span class="text-12-regular text-destructive">{nameError()}</span>
           </Show>
         </div>
 
         <div class="flex flex-col gap-2">
-          <label class="text-14-medium text-text-strong">{language.t("command.project.create.dialog.location")}</label>
+          <label class="text-14-medium text-foreground">{language.t("command.project.create.dialog.location")}</label>
           <div class="flex items-center gap-2">
             <input
-              class="flex h-10 flex-1 rounded-[8px] border border-border-weak-base bg-surface-raised-base px-3 text-14-regular text-text-weak outline-none"
+              class="flex h-10 flex-1 rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground-subtle outline-none"
               type="text"
               value={parentPath()}
               placeholder={language.t("command.project.create.dialog.browse")}
@@ -112,7 +112,7 @@ export function DialogCreateProject(props: DialogCreateProjectProps) {
             </Button>
           </div>
           <Show when={pathError()}>
-            <span class="text-12-regular text-text-danger">{pathError()}</span>
+            <span class="text-12-regular text-destructive">{pathError()}</span>
           </Show>
         </div>
 

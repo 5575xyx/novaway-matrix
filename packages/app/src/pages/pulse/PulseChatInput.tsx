@@ -211,36 +211,36 @@ export function PulseChatInput(props: PulseChatInputProps) {
           "box-shadow": "0 0 0 1px var(--border), 0 4px 24px rgba(0, 0, 0, 0.08)",
         }}
       >
-        <div class="px-2 pb-1 pt-2 flex items-center gap-2 min-w-0 border-b border-border-weak-base">
+        <div class="px-2 pb-1 pt-2 flex items-center gap-2 min-w-0 border-b border-border">
           <div class="relative">
             <Button
               ref={modelBtnRef}
               variant="ghost"
               size="normal"
               style={control()}
-              class="min-w-0 max-w-[180px] text-13-medium text-text-strong gap-1.5"
+              class="min-w-0 max-w-[180px] text-13-medium text-foreground gap-1.5"
               onClick={() => {
                 updateModelPopoverPosition()
                 setShowModelPopover(!showModelPopover())
               }}
             >
               <Show when={props.autoMode}>
-                <Icon name="autopilot" class="size-4 shrink-0 text-text-interactive-base" />
+                <Icon name="autopilot" class="size-4 shrink-0 text-icon-blue" />
               </Show>
               <Show when={!props.autoMode && props.currentModel?.provider?.id}>
-                <Icon name="providers" class="size-4 shrink-0 text-text-interactive-base" />
+                <Icon name="providers" class="size-4 shrink-0 text-icon-blue" />
               </Show>
               <span class="truncate">{props.autoMode ? "Auto" : (props.currentModel?.name ?? "选择模型")}</span>
               <Icon name="chevron-down" size="small" class="shrink-0" />
             </Button>
           </div>
           <div class="flex-1" />
-          <div class="flex items-center gap-1.5 text-12-regular text-text-weak">
+          <div class="flex items-center gap-1.5 text-12-regular text-foreground-subtle">
             <span>自动联网</span>
             <button
               type="button"
               class={`size-3.5 rounded-sm border flex items-center justify-center transition-colors ${
-                autoWeb() ? "border-emerald-500 bg-emerald-500" : "border-border-weak-base bg-background-base"
+                autoWeb() ? "border-emerald-500 bg-emerald-500" : "border-border bg-background"
               }`}
               onClick={() => setAutoWeb(!autoWeb())}
             >
@@ -249,12 +249,12 @@ export function PulseChatInput(props: PulseChatInputProps) {
               </Show>
             </button>
           </div>
-          <div class="flex items-center gap-1.5 text-12-regular text-text-weak">
+          <div class="flex items-center gap-1.5 text-12-regular text-foreground-subtle">
             <span>权限</span>
             <button
               type="button"
               class={`size-3.5 rounded-sm border flex items-center justify-center transition-colors ${
-                permissions() ? "border-emerald-500 bg-emerald-500" : "border-border-weak-base bg-background-base"
+                permissions() ? "border-emerald-500 bg-emerald-500" : "border-border bg-background"
               }`}
               onClick={() => setPermissions(!permissions())}
             >
@@ -272,7 +272,7 @@ export function PulseChatInput(props: PulseChatInputProps) {
             onInput={handleInput}
             onKeyDown={handleKeyDown}
             placeholder="给运营助手发送消息..."
-            class="w-full resize-none bg-transparent px-4 py-3 text-14-regular text-text-strong placeholder:text-text-muted outline-none"
+            class="w-full resize-none bg-transparent px-4 py-3 text-14-regular text-foreground placeholder:text-foreground-subtle outline-none"
             style={{ "min-height": "44px", "max-height": "120px" }}
             disabled={props.disabled}
           />
@@ -318,7 +318,7 @@ export function PulseChatInput(props: PulseChatInputProps) {
                   disabled={props.disabled}
                   aria-label="提及 @"
                 >
-                  <span class="text-sm font-semibold text-text-interactive-base">@</span>
+                  <span class="text-sm font-semibold text-icon-blue">@</span>
                 </Button>
               </Tooltip>
               <Tooltip placement="top" value="斜杠命令 /">
@@ -335,7 +335,7 @@ export function PulseChatInput(props: PulseChatInputProps) {
                   disabled={props.disabled}
                   aria-label="斜杠命令 /"
                 >
-                  <span class="text-sm font-semibold text-text-interactive-base">/</span>
+                  <span class="text-sm font-semibold text-icon-blue">/</span>
                 </Button>
               </Tooltip>
             </div>
@@ -346,7 +346,7 @@ export function PulseChatInput(props: PulseChatInputProps) {
       <Show when={showModelPopover()}>
         <div
           data-model-popover
-          class="fixed z-[9999] flex flex-col rounded-md border border-border-base overflow-hidden transition-all duration-200"
+          class="fixed z-[9999] flex flex-col rounded-md border border-border overflow-hidden transition-all duration-200"
           style={{
             top: `${popoverPosition().top - 4}px`,
             left: `${popoverPosition().left}px`,
@@ -357,9 +357,9 @@ export function PulseChatInput(props: PulseChatInputProps) {
             "max-height": props.autoMode ? "112px" : "320px",
           }}
         >
-          <div class="px-3 py-2 border-b border-border-weak-base">
+          <div class="px-3 py-2 border-b border-border">
             <div class="flex items-center justify-between">
-              <div class="flex items-center gap-1.5 text-13-regular text-text-base">
+              <div class="flex items-center gap-1.5 text-13-regular text-foreground">
                 <Icon name="autopilot" class="size-4" />
                 <span>Auto Mode</span>
               </div>
@@ -390,7 +390,7 @@ export function PulseChatInput(props: PulseChatInputProps) {
                 value={modelSearch()}
                 onInput={(e) => setModelSearch(e.currentTarget.value)}
                 placeholder="搜索模型..."
-                class="w-full px-2.5 py-1.5 text-13-regular text-text-strong bg-background-base border border-border-weak-base rounded-md outline-none focus:border-border-interactive-base"
+                class="w-full px-2.5 py-1.5 text-13-regular text-foreground bg-background border border-border rounded-md outline-none focus:border-primary"
                 autofocus
               />
             </div>
@@ -398,13 +398,13 @@ export function PulseChatInput(props: PulseChatInputProps) {
               <For each={groupedModels()}>
                 {([providerName, models]) => (
                   <div class="mb-1">
-                    <div class="px-2 py-1 text-11-medium text-text-weaker uppercase tracking-wider">{providerName}</div>
+                    <div class="px-2 py-1 text-11-medium text-foreground-subtlest uppercase tracking-wider">{providerName}</div>
                     <For each={models}>
                       {(m) => (
                         <button
                           type="button"
-                          class={`w-full px-2.5 py-2 text-left text-13-regular rounded-md flex items-center gap-2 hover:bg-surface-raised-base-hover ${
-                            props.currentModel?.id === m.id ? "text-text-interactive-base" : "text-text-strong"
+                          class={`w-full px-2.5 py-2 text-left text-13-regular rounded-md flex items-center gap-2 hover:bg-hover ${
+                            props.currentModel?.id === m.id ? "text-icon-blue" : "text-foreground"
                           }`}
                           onClick={() => {
                             props.onModelSelect(m)
@@ -413,7 +413,7 @@ export function PulseChatInput(props: PulseChatInputProps) {
                         >
                           <span class="truncate flex-1">{m.name}</span>
                           <Show when={props.currentModel?.id === m.id}>
-                            <Icon name="check" size="small" class="shrink-0 text-text-interactive-base" />
+                            <Icon name="check" size="small" class="shrink-0 text-icon-blue" />
                           </Show>
                         </button>
                       )}
@@ -426,7 +426,7 @@ export function PulseChatInput(props: PulseChatInputProps) {
           <Show when={props.autoMode}>
             <div class="flex flex-col items-center justify-center py-3 px-3 text-center">
               <Icon name="autopilot" class="size-4 mb-1 opacity-60" />
-              <p class="text-11-regular text-text-secondary leading-snug">Auto 使用内置模型，由网关按任务选择</p>
+              <p class="text-11-regular text-foreground-subtle leading-snug">Auto 使用内置模型，由网关按任务选择</p>
             </div>
           </Show>
         </div>
@@ -434,7 +434,7 @@ export function PulseChatInput(props: PulseChatInputProps) {
 
       <Show when={showAtPopover() && filteredAgents().length > 0}>
         <div
-          class="fixed z-[9999] border border-border-weak-base rounded-lg shadow-lg py-1 max-h-[240px] overflow-y-auto"
+          class="fixed z-[9999] border border-border rounded-lg shadow-lg py-1 max-h-[240px] overflow-y-auto"
           style={{
             top: `${popoverPosition().top - 4}px`,
             left: `${popoverPosition().left}px`,
@@ -448,11 +448,11 @@ export function PulseChatInput(props: PulseChatInputProps) {
             {(agent) => (
               <button
                 type="button"
-                class="w-full px-3 py-2.5 text-left text-13-regular text-text-strong flex items-center gap-2 hover:bg-surface-raised-base-hover"
+                class="w-full px-3 py-2.5 text-left text-13-regular text-foreground flex items-center gap-2 hover:bg-hover"
                 style={{ "border-left": "2px solid transparent" }}
                 onClick={() => insertAtMention(agent.name)}
               >
-                <span class="text-text-interactive-base font-semibold">@</span>
+                <span class="text-icon-blue font-semibold">@</span>
                 <span>{agentDisplayName(agent.name, agent.options)}</span>
               </button>
             )}
@@ -462,7 +462,7 @@ export function PulseChatInput(props: PulseChatInputProps) {
 
       <Show when={showSlashPopover() && filteredCommands().length > 0}>
         <div
-          class="fixed z-[9999] border border-border-weak-base rounded-lg shadow-lg py-1 max-h-[240px] overflow-y-auto"
+          class="fixed z-[9999] border border-border rounded-lg shadow-lg py-1 max-h-[240px] overflow-y-auto"
           style={{
             top: `${popoverPosition().top - 4}px`,
             left: `${popoverPosition().left}px`,
@@ -476,7 +476,7 @@ export function PulseChatInput(props: PulseChatInputProps) {
             {(cmd) => (
               <button
                 type="button"
-                class="w-full px-3 py-2.5 text-left text-13-regular text-text-strong flex items-center gap-2 hover:bg-surface-raised-base-hover"
+                class="w-full px-3 py-2.5 text-left text-13-regular text-foreground flex items-center gap-2 hover:bg-hover"
                 style={{ "border-left": "2px solid transparent" }}
                 onClick={() => insertSlashCommand(cmd.name)}
               >
@@ -484,7 +484,7 @@ export function PulseChatInput(props: PulseChatInputProps) {
                 <div class="min-w-0 flex-1">
                   <div class="truncate">{cmd.name}</div>
                   <Show when={cmd.description}>
-                    <div class="text-11-regular text-text-weaker truncate">{cmd.description}</div>
+                    <div class="text-11-regular text-foreground-subtlest truncate">{cmd.description}</div>
                   </Show>
                 </div>
               </button>

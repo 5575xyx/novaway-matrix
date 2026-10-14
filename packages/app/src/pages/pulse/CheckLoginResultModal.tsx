@@ -34,40 +34,40 @@ export function CheckLoginResultModal(props: { results: CheckResult[]; onRemove:
             <Icon name="circle-x" size="small" />
             离线 {offlineCount()}
           </div>
-          <div class="text-12-regular text-text-weak ml-auto">共 {props.results.length} 个账号</div>
+          <div class="text-12-regular text-foreground-subtle ml-auto">共 {props.results.length} 个账号</div>
         </div>
 
         <Show
           when={props.results.length > 0}
-          fallback={<div class="text-center py-8 text-14-regular text-text-weaker">暂无账号数据</div>}
+          fallback={<div class="text-center py-8 text-14-regular text-foreground-subtlest">暂无账号数据</div>}
         >
           <div class="space-y-1 max-h-[360px] overflow-y-auto">
             <For each={props.results}>
               {(result) => {
                 const info = () => platformInfo(result.platform)
                 return (
-                  <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-surface-raised-base-hover transition-colors">
+                  <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-hover transition-colors">
                     <Show
                       when={result.valid}
                       fallback={<Icon name="circle-x" size="small" class="text-rose-500 shrink-0" />}
                     >
                       <Icon name="circle-check" size="small" class="text-emerald-500 shrink-0" />
                     </Show>
-                    <div class="size-8 rounded-full bg-background-weak flex items-center justify-center overflow-hidden shrink-0">
+                    <div class="size-8 rounded-full bg-background-alt flex items-center justify-center overflow-hidden shrink-0">
                       <Show
                         when={result.avatar}
-                        fallback={<span class="text-12-regular text-text-weak">{result.nickname?.charAt(0)}</span>}
+                        fallback={<span class="text-12-regular text-foreground-subtle">{result.nickname?.charAt(0)}</span>}
                       >
                         <img src={result.avatar} alt="" class="size-full object-cover" />
                       </Show>
                     </div>
                     <div class="flex-1 min-w-0">
-                      <div class="text-13-medium text-text-strong truncate">{result.nickname}</div>
+                      <div class="text-13-medium text-foreground truncate">{result.nickname}</div>
                       <div class="flex items-center gap-1 mt-0.5">
                         <Show when={info()?.icon}>
                           <img src={info()?.icon} alt="" class="size-3" />
                         </Show>
-                        <span class="text-11-regular text-text-weaker">{info()?.name}</span>
+                        <span class="text-11-regular text-foreground-subtlest">{info()?.name}</span>
                       </div>
                     </div>
                     <Show when={!result.valid}>

@@ -150,10 +150,10 @@ function GuideLinkRow(props: { link: GuideLink }) {
   }
 
   return (
-    <div class="flex items-center gap-2 rounded-[7px] border border-border-weak-base bg-background-base p-2">
+    <div class="flex items-center gap-2 rounded-[7px] border border-border bg-background p-2">
       <div class="min-w-0 flex-1">
-        <div class="truncate text-11-medium text-text-strong">{props.link.label}</div>
-        <div class="mt-0.5 truncate text-10-regular text-text-muted">{props.link.url}</div>
+        <div class="truncate text-11-medium text-foreground">{props.link.label}</div>
+        <div class="mt-0.5 truncate text-10-regular text-foreground-subtle">{props.link.url}</div>
       </div>
       <button
         type="button"
@@ -171,7 +171,7 @@ export function FeishuAppSetupGuide(props: { compact?: boolean }): JSX.Element {
   const [open, setOpen] = createSignal(false)
 
   return (
-    <div class="rounded-[8px] border border-border-weak-base bg-background-base">
+    <div class="rounded-[8px] border border-border bg-background">
       <button
         type="button"
         aria-expanded={open()}
@@ -180,15 +180,15 @@ export function FeishuAppSetupGuide(props: { compact?: boolean }): JSX.Element {
       >
         <span class="flex min-w-0 items-center gap-2">
           <Icon name="help" size="small" />
-          <span class="truncate text-12-medium text-text-strong">飞书配置引导</span>
-          <span class="shrink-0 rounded-full border border-border-weak-base px-1.5 py-0.5 text-10-medium text-text-muted">
+          <span class="truncate text-12-medium text-foreground">飞书配置引导</span>
+          <span class="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-10-medium text-foreground-subtle">
             {guideSteps.length} 步
           </span>
         </span>
         <Icon name={open() ? "arrow-up" : "arrow-down-to-line"} size="small" />
       </button>
       <Show when={open()}>
-        <div class="border-t border-border-weak-base p-3">
+        <div class="border-t border-border p-3">
           <div class="mb-3 grid gap-2">
             <For each={guideLinks}>{(link) => <GuideLinkRow link={link} />}</For>
           </div>
@@ -200,14 +200,14 @@ export function FeishuAppSetupGuide(props: { compact?: boolean }): JSX.Element {
                     {index() + 1}
                   </span>
                   <div class="min-w-0">
-                    <div class="text-12-medium text-text-strong">{step.title}</div>
-                    <div class="mt-0.5 text-11-regular leading-relaxed text-text-weak">{step.description}</div>
+                    <div class="text-12-medium text-foreground">{step.title}</div>
+                    <div class="mt-0.5 text-11-regular leading-relaxed text-foreground-subtle">{step.description}</div>
                     <Show when={step.points?.length}>
-                      <ul class="mt-1.5 space-y-1 border-l border-border-weak-base pl-2.5">
+                      <ul class="mt-1.5 space-y-1 border-l border-border pl-2.5">
                         <For each={step.points}>
                           {(point) => (
-                            <li class="flex gap-1.5 text-11-regular leading-relaxed text-text-weak">
-                              <span class="mt-[7px] size-1 shrink-0 rounded-full bg-text-muted" />
+                            <li class="flex gap-1.5 text-11-regular leading-relaxed text-foreground-subtle">
+                              <span class="mt-[7px] size-1 shrink-0 rounded-full bg-foreground-subtle" />
                               <span>{point}</span>
                             </li>
                           )}

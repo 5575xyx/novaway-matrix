@@ -53,8 +53,8 @@ export function useContextSection(): () => StatusPanelSection | null {
             <For each={rows(current)}>
               {(row) => (
                 <div class="flex flex-col gap-0.5">
-                  <span class="text-ui-sm text-text-weak truncate">{language.t(row.label)}</span>
-                  <span class="text-ui-base tabular-nums text-text-strong truncate">{row.value}</span>
+                  <span class="text-ui-sm text-foreground-subtle truncate">{language.t(row.label)}</span>
+                  <span class="text-ui-base tabular-nums text-foreground truncate">{row.value}</span>
                 </div>
               )}
             </For>

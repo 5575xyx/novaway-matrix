@@ -37,7 +37,7 @@ export function useTodoSection(): () => StatusPanelSection | null {
       children: (
         <div class="space-y-1 px-3 pb-2">
           <Show when={current.preceding > 0}>
-            <div class="px-1.5 py-0.5 text-ui-sm text-text-weak">
+            <div class="px-1.5 py-0.5 text-ui-sm text-foreground-subtle">
               {language.t("session.todo.more", { count: current.preceding })}
             </div>
           </Show>
@@ -53,8 +53,8 @@ export function useTodoSection(): () => StatusPanelSection | null {
                 <span
                   class="min-w-0 flex-1 text-ui-base"
                   classList={{
-                    "text-text-strong": !isTodoDone(todo),
-                    "text-text-weak line-through": isTodoDone(todo),
+                    "text-foreground": !isTodoDone(todo),
+                    "text-foreground-subtle line-through": isTodoDone(todo),
                   }}
                 >
                   {todo.content}
@@ -63,7 +63,7 @@ export function useTodoSection(): () => StatusPanelSection | null {
             )}
           </For>
           <Show when={current.following > 0}>
-            <div class="px-1.5 py-0.5 text-ui-sm text-text-weak">
+            <div class="px-1.5 py-0.5 text-ui-sm text-foreground-subtle">
               {language.t("session.todo.more", { count: current.following })}
             </div>
           </Show>

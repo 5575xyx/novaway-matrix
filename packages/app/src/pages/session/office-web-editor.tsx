@@ -29,8 +29,8 @@ export function OfficeWebEditor(props: { artifact: OfficeArtifact; onClose: () =
     <div class="flex max-h-[80vh] w-full max-w-5xl flex-col gap-4 p-5">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <div class="text-16-medium text-text-strong">网页看板预览</div>
-          <div class="mt-1 text-12-regular text-text-weak">修改 HTML 后实时预览，可保存到办公产物库</div>
+          <div class="text-16-medium text-foreground">网页看板预览</div>
+          <div class="mt-1 text-12-regular text-foreground-subtle">修改 HTML 后实时预览，可保存到办公产物库</div>
         </div>
         <div class="flex items-center gap-2">
           <button
@@ -42,7 +42,7 @@ export function OfficeWebEditor(props: { artifact: OfficeArtifact; onClose: () =
           </button>
           <button
             type="button"
-            class="grid size-8 place-items-center rounded-[7px] border border-border-weak-base text-text-weak"
+            class="grid size-8 place-items-center rounded-[7px] border border-border text-foreground-subtle"
             onClick={props.onClose}
           >
             <Icon name="close" size="small" />
@@ -52,16 +52,16 @@ export function OfficeWebEditor(props: { artifact: OfficeArtifact; onClose: () =
 
       <div class="grid min-h-[520px] grid-cols-1 gap-4 lg:grid-cols-2">
         <div class="flex flex-col gap-2">
-          <div class="text-12-medium text-text-strong">HTML</div>
+          <div class="text-12-medium text-foreground">HTML</div>
           <textarea
             value={html()}
             onInput={(event) => setHtml(event.currentTarget.value)}
-            class="min-h-[480px] w-full flex-1 resize-y rounded-[8px] border border-border-weak-base bg-background-base p-3 font-mono text-12-regular leading-relaxed text-text-strong outline-none"
+            class="min-h-[480px] w-full flex-1 resize-y rounded-[8px] border border-border bg-background p-3 font-mono text-12-regular leading-relaxed text-foreground outline-none"
           />
         </div>
         <div class="flex flex-col gap-2">
           <div class="flex items-center justify-between gap-2">
-            <span class="text-12-medium text-text-strong">实时预览</span>
+            <span class="text-12-medium text-foreground">实时预览</span>
             <Show when={message()}>
               <span class="text-11-regular text-emerald-200">{message()}</span>
             </Show>
@@ -69,7 +69,7 @@ export function OfficeWebEditor(props: { artifact: OfficeArtifact; onClose: () =
           <iframe
             title="网页看板预览"
             sandbox="allow-scripts"
-            class="min-h-[480px] w-full flex-1 rounded-[8px] border border-border-weak-base bg-white"
+            class="min-h-[480px] w-full flex-1 rounded-[8px] border border-border bg-white"
             srcdoc={preview()}
           />
         </div>

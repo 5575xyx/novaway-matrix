@@ -45,7 +45,7 @@ export const ModelCapabilitySummary: Component<{ model: ModelCapabilityInfo; com
 
   return (
     <div
-      class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-text-weak"
+      class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-foreground-subtle"
       classList={{
         "text-11-regular": props.compact,
         "text-12-regular": !props.compact,
@@ -57,7 +57,7 @@ export const ModelCapabilitySummary: Component<{ model: ModelCapabilityInfo; com
       <Show when={outputLabels().length > 0}>
         <span class="inline-flex min-w-0 items-center gap-1">
           <Show when={inputLabels().length > 0}>
-            <span class="text-text-muted">·</span>
+            <span class="text-foreground-subtle">·</span>
           </Show>
           <span class="truncate text-violet-600 dark:text-violet-200">可生成：{outputLabels().join("、")}</span>
         </span>
@@ -65,7 +65,7 @@ export const ModelCapabilitySummary: Component<{ model: ModelCapabilityInfo; com
       <Show when={props.model.capabilities.reasoning}>
         <span class="inline-flex items-center gap-1">
           <Show when={inputLabels().length > 0 || outputLabels().length > 0}>
-            <span class="text-text-muted">·</span>
+            <span class="text-foreground-subtle">·</span>
           </Show>
           <span class="text-emerald-600 dark:text-emerald-200">支持推理</span>
         </span>
@@ -73,7 +73,7 @@ export const ModelCapabilitySummary: Component<{ model: ModelCapabilityInfo; com
       <Show when={Number.isFinite(props.model.limit.context)}>
         <span class="inline-flex items-center gap-1">
           <Show when={hasPrevious()}>
-            <span class="text-text-muted">·</span>
+            <span class="text-foreground-subtle">·</span>
           </Show>
           <span class="text-amber-700 dark:text-amber-200">
             上下文上限 {props.model.limit.context.toLocaleString()}

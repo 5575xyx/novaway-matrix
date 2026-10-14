@@ -37,8 +37,8 @@ export function SessionContextBreakdownView(props: {
   return (
     <Show when={props.segments.length > 0}>
       <div class="flex flex-col gap-2">
-        <div class={`${titleClass} text-text-weak`}>{language.t("context.breakdown.title")}</div>
-        <div class="h-2 w-full rounded-full bg-surface-base overflow-hidden flex">
+        <div class={`${titleClass} text-foreground-subtle`}>{language.t("context.breakdown.title")}</div>
+        <div class="h-2 w-full rounded-full bg-surface overflow-hidden flex">
           <For each={props.segments}>
             {(segment) => (
               <div
@@ -54,15 +54,15 @@ export function SessionContextBreakdownView(props: {
         <div class="flex flex-wrap gap-x-3 gap-y-1">
           <For each={props.segments}>
             {(segment) => (
-              <div class={`flex items-center gap-1 ${legendClass} text-text-weak`}>
+              <div class={`flex items-center gap-1 ${legendClass} text-foreground-subtle`}>
                 <div class="size-2 rounded-sm" style={{ "background-color": BREAKDOWN_COLOR[segment.key] }} />
                 <div>{breakdownLabel(language, segment.key)}</div>
-                <div class="text-text-weaker">{segment.percent.toLocaleString(language.intl())}%</div>
+                <div class="text-foreground-subtlest">{segment.percent.toLocaleString(language.intl())}%</div>
               </div>
             )}
           </For>
         </div>
-        <div class={`hidden ${legendClass} text-text-weaker`}>{language.t("context.breakdown.note")}</div>
+        <div class={`hidden ${legendClass} text-foreground-subtlest`}>{language.t("context.breakdown.note")}</div>
       </div>
     </Show>
   )

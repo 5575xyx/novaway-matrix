@@ -320,6 +320,15 @@ const main = Effect.gen(function* () {
     checkUpdate: async () => checkUpdate(),
     installUpdate: async () => installUpdate(killSidecar),
     setBackgroundColor: (color) => setBackgroundColor(color),
+    // 窗口控制交给渲染层（Header 内联自绘，对齐 ZCode）；win32 不再使用原生 titleBarOverlay。
+    minimizeWindow: () => mainWindow?.minimize(),
+    toggleMaximizeWindow: () => {
+      if (!mainWindow) return
+      if (mainWindow.isMaximized()) mainWindow.unmaximize()
+      else mainWindow.maximize()
+    },
+    closeWindow: () => mainWindow?.close(),
+    isWindowMaximized: () => mainWindow?.isMaximized() ?? false,
   })
 
   yield* Effect.promise(() => app.whenReady())

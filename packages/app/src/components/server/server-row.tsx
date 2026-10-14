@@ -55,7 +55,7 @@ export function ServerRow(props: ServerRowProps) {
     <span class="flex items-center gap-2">
       <span>{serverName(props.conn, true)}</span>
       <Show when={props.status?.version}>
-        <span class="text-text-invert-weak">v{props.status?.version}</span>
+        <span class="text-foreground-inverse">v{props.status?.version}</span>
       </Show>
     </span>
   )
@@ -82,7 +82,7 @@ export function ServerRow(props: ServerRowProps) {
                 <Show when={props.status?.version}>
                   <span
                     ref={versionRef}
-                    class={`${props.versionClass ?? "text-text-weak text-14-regular truncate"} min-w-0`}
+                    class={`${props.versionClass ?? "text-foreground-subtle text-14-regular truncate"} min-w-0`}
                   >
                     v{props.status?.version}
                   </span>
@@ -97,12 +97,12 @@ export function ServerRow(props: ServerRowProps) {
               <div class="flex flex-row gap-3">
                 <span>
                   {conn().http.username ? (
-                    <span class="text-text-weak">{conn().http.username}</span>
+                    <span class="text-foreground-subtle">{conn().http.username}</span>
                   ) : (
-                    <span class="text-text-weaker">{language.t("server.row.noUsername")}</span>
+                    <span class="text-foreground-subtlest">{language.t("server.row.noUsername")}</span>
                   )}
                 </span>
-                {conn().http.password && <span class="text-text-weak">••••••••</span>}
+                {conn().http.password && <span class="text-foreground-subtle">••••••••</span>}
               </div>
             )}
           </Show>
@@ -118,9 +118,9 @@ export function ServerHealthIndicator(props: { health?: ServerHealth }) {
     <div
       classList={{
         "size-1.5 rounded-full shrink-0": true,
-        "bg-icon-success-base": props.health?.healthy === true,
-        "bg-icon-critical-base": props.health?.healthy === false,
-        "bg-border-weak-base": props.health === undefined,
+        "bg-success": props.health?.healthy === true,
+        "bg-destructive": props.health?.healthy === false,
+        "bg-border": props.health === undefined,
       }}
     />
   )

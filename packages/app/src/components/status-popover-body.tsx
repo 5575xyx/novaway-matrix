@@ -26,7 +26,7 @@ const pluginEmptyMessage = (value: string, file: string): JSXElement => {
   return (
     <>
       {parts[0]}
-      <code class="bg-surface-raised-base px-1.5 py-0.5 rounded-sm text-text-base">{file}</code>
+      <code class="bg-surface px-1.5 py-0.5 rounded-sm text-foreground">{file}</code>
       {parts.slice(1).join(file)}
     </>
   )
@@ -218,7 +218,7 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
     <div class="flex items-center gap-1 w-[360px] rounded-xl shadow-[var(--shadow-md)]">
       <Tabs
         aria-label={language.t("status.popover.ariaLabel")}
-        class="tabs bg-background-strong rounded-xl overflow-hidden"
+        class="tabs bg-panel rounded-xl overflow-hidden"
         data-component="tabs"
         data-active="servers"
         defaultValue="servers"
@@ -245,7 +245,7 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
 
         <Tabs.Content value="servers">
           <div class="flex flex-col px-2 pb-2">
-            <div class="flex flex-col p-3 bg-background-base rounded-sm min-h-14">
+            <div class="flex flex-col p-3 bg-background rounded-sm min-h-14">
               <For each={sortedServers()}>
                 {(s) => {
                   const key = ServerConnection.key(s)
@@ -255,7 +255,7 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
                       type="button"
                       class="flex items-center gap-2 w-full h-8 pl-3 pr-1.5 py-1.5 rounded-md transition-colors text-left"
                       classList={{
-                        "hover:bg-surface-raised-base-hover": !blocked(),
+                        "hover:bg-hover": !blocked(),
                         "cursor-not-allowed": blocked(),
                       }}
                       aria-disabled={blocked()}
@@ -271,11 +271,11 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
                         dimmed={blocked()}
                         status={health[key]}
                         class="flex items-center gap-2 w-full min-w-0"
-                        nameClass="text-14-regular text-text-base truncate"
-                        versionClass="text-12-regular text-text-weak truncate"
+                        nameClass="text-14-regular text-foreground truncate"
+                        versionClass="text-12-regular text-foreground-subtle truncate"
                         badge={
                           <Show when={key === defaultServer.key()}>
-                            <span class="text-11-regular text-text-base bg-surface-base px-1.5 py-0.5 rounded-md">
+                            <span class="text-11-regular text-foreground bg-surface px-1.5 py-0.5 rounded-md">
                               {language.t("common.default")}
                             </span>
                           </Show>
@@ -283,7 +283,7 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
                       >
                         <div class="flex-1" />
                         <Show when={server.current && key === ServerConnection.key(server.current)}>
-                          <Icon name="check" size="small" class="text-icon-weak shrink-0" />
+                          <Icon name="check" size="small" class="text-foreground-subtlest shrink-0" />
                         </Show>
                       </ServerRow>
                     </button>
@@ -310,11 +310,11 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
 
         <Tabs.Content value="mcp">
           <div class="flex flex-col px-2 pb-2">
-            <div class="flex flex-col p-3 bg-background-base rounded-sm min-h-14">
+            <div class="flex flex-col p-3 bg-background rounded-sm min-h-14">
               <Show
                 when={mcpNames().length > 0}
                 fallback={
-                  <div class="text-14-regular text-text-base text-center my-auto">{language.t("dialog.mcp.empty")}</div>
+                  <div class="text-14-regular text-foreground text-center my-auto">{language.t("dialog.mcp.empty")}</div>
                 }
               >
                 <For each={mcpNames()}>
@@ -324,7 +324,7 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
                     return (
                       <button
                         type="button"
-                        class="flex items-center gap-2 w-full min-h-8 pl-3 pr-2 py-1 rounded-md hover:bg-surface-raised-base-hover transition-colors text-left"
+                        class="flex items-center gap-2 w-full min-h-8 pl-3 pr-2 py-1 rounded-md hover:bg-hover transition-colors text-left"
                         onClick={() => {
                           if (toggleMcp.isPending) return
                           toggleMcp.mutate(name)
@@ -334,19 +334,19 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
                         <div
                           classList={{
                             "size-1.5 rounded-full shrink-0": true,
-                            "bg-icon-success-base": status() === "connected",
-                            "bg-icon-critical-base": status() === "failed",
-                            "bg-border-weak-base": status() === "disabled",
-                            "bg-icon-warning-base":
+                            "bg-success": status() === "connected",
+                            "bg-destructive": status() === "failed",
+                            "bg-border": status() === "disabled",
+                            "bg-warning":
                               status() === "needs_auth" || status() === "needs_client_registration",
                           }}
                         />
                         <span class="flex flex-col min-w-0 flex-1">
                           <span class="flex items-center gap-2 min-w-0">
-                            <span class="text-14-regular text-text-base truncate">{name}</span>
+                            <span class="text-14-regular text-foreground truncate">{name}</span>
                           </span>
                           <Show when={status() === "needs_auth"}>
-                            <span class="text-11-regular text-text-weaker truncate">
+                            <span class="text-11-regular text-foreground-subtlest truncate">
                               {language.t("mcp.auth.clickToAuthenticate")}
                             </span>
                           </Show>
@@ -372,11 +372,11 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
 
         <Tabs.Content value="lsp">
           <div class="flex flex-col px-2 pb-2">
-            <div class="flex flex-col p-3 bg-background-base rounded-sm min-h-14">
+            <div class="flex flex-col p-3 bg-background rounded-sm min-h-14">
               <Show
                 when={lspItems().length > 0}
                 fallback={
-                  <div class="text-14-regular text-text-base text-center my-auto">{language.t("dialog.lsp.empty")}</div>
+                  <div class="text-14-regular text-foreground text-center my-auto">{language.t("dialog.lsp.empty")}</div>
                 }
               >
                 <For each={lspItems()}>
@@ -385,11 +385,11 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
                       <div
                         classList={{
                           "size-1.5 rounded-full shrink-0": true,
-                          "bg-icon-success-base": item.status === "connected",
-                          "bg-icon-critical-base": item.status === "error",
+                          "bg-success": item.status === "connected",
+                          "bg-destructive": item.status === "error",
                         }}
                       />
-                      <span class="text-14-regular text-text-base truncate">{item.name || item.id}</span>
+                      <span class="text-14-regular text-foreground truncate">{item.name || item.id}</span>
                     </div>
                   )}
                 </For>
@@ -400,16 +400,16 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
 
         <Tabs.Content value="plugins">
           <div class="flex flex-col px-2 pb-2">
-            <div class="flex flex-col p-3 bg-background-base rounded-sm min-h-14">
+            <div class="flex flex-col p-3 bg-background rounded-sm min-h-14">
               <Show
                 when={plugins().length > 0}
-                fallback={<div class="text-14-regular text-text-base text-center my-auto">{pluginEmpty()}</div>}
+                fallback={<div class="text-14-regular text-foreground text-center my-auto">{pluginEmpty()}</div>}
               >
                 <For each={plugins()}>
                   {(plugin) => (
                     <div class="flex items-center gap-2 w-full px-2 py-1">
-                      <div class="size-1.5 rounded-full shrink-0 bg-icon-success-base" />
-                      <span class="text-14-regular text-text-base truncate">{plugin}</span>
+                      <div class="size-1.5 rounded-full shrink-0 bg-success" />
+                      <span class="text-14-regular text-foreground truncate">{plugin}</span>
                     </div>
                   )}
                 </For>

@@ -34,8 +34,8 @@ describe("radius scale matches ZCode (Tailwind defaults)", () => {
 // 右栏五段原本靠 border-t hairline 连成一片,现在各自是独立圆角卡片。
 describe("right panel sections become separate cards", () => {
   test("the hairline separator is replaced by per-card borders and gaps", () => {
-    expect(statusPanelSource).not.toContain("border-t border-border-weak-base")
-    expect(statusPanelSource).toContain("rounded-lg border border-border-weak-base bg-background-base")
+    expect(statusPanelSource).not.toContain("border-t border-border")
+    expect(statusPanelSource).toContain("rounded-lg border border-border bg-background")
     expect(statusPanelSource).toContain("flex flex-col gap-2 p-2")
   })
 })
@@ -55,9 +55,9 @@ describe("sidebar header becomes a labelled vertical menu", () => {
 
   // 字号/字重/颜色一起提:原来 caption + text-base 在浅色底上太轻,三行菜单读起来是灰的。
   test("rows use a bigger bolder darker label", () => {
-    expect(sidebarMenuRowSource).toContain("text-ui-base font-medium text-text-strong")
-    expect(read("components/theme-scheme-toggle.tsx")).toContain("text-ui-base font-medium text-text-strong")
-    expect(read("components/mode-switch.tsx")).toContain("text-ui-base font-medium text-text-strong")
+    expect(sidebarMenuRowSource).toContain("text-ui-base font-medium text-foreground")
+    expect(read("components/theme-scheme-toggle.tsx")).toContain("text-ui-base font-medium text-foreground")
+    expect(read("components/mode-switch.tsx")).toContain("text-ui-base font-medium text-foreground")
   })
 
   // 菜单标签直接叫目标名词,不带"打开"前缀;主题切换显示要切过去的那个模式名(浅色时是深色模式)。
@@ -77,8 +77,8 @@ describe("sidebar header becomes a labelled vertical menu", () => {
 
   // 这几行现在沉在侧栏 footer：用一条上边框把动作区与列表分开，仍然不上整组底色。
   test("the footer groups the rows with a hairline instead of a flat group background", () => {
-    expect(layoutSource).toContain('class="shrink-0 border-t border-border-weaker-base p-2 flex flex-col gap-0.5"')
-    expect(layoutSource).not.toContain("border-border-weak-base bg-surface-base p-1")
+    expect(layoutSource).toContain('class="shrink-0 border-t border-border p-2 flex flex-col gap-0.5"')
+    expect(layoutSource).not.toContain("border-border bg-surface p-1")
   })
 })
 
@@ -86,12 +86,12 @@ describe("sidebar header becomes a labelled vertical menu", () => {
 describe("settings pages lay out as card grids", () => {
   test("the list container is a responsive grid rather than a stacked block", () => {
     expect(settingsListSource).toContain("grid grid-cols-1 gap-2 md:grid-cols-2 2xl:grid-cols-3")
-    expect(settingsListSource).not.toContain("bg-surface-base px-4 rounded-lg")
+    expect(settingsListSource).not.toContain("bg-surface px-4 rounded-lg")
   })
 
   test("each row is its own bordered card instead of a list item", () => {
-    expect(settingsGeneralSource).toContain("rounded-lg border border-border-weak-base bg-surface-base p-3")
-    expect(settingsGeneralSource).not.toContain("border-b border-border-weak-base last:border-none")
+    expect(settingsGeneralSource).toContain("rounded-lg border border-border bg-surface p-3")
+    expect(settingsGeneralSource).not.toContain("border-b border-border last:border-none")
   })
 
   // 其余标签页各有自己的局部 Row 组件、互不导出。原先各写各的布局:有的 items-center 横排、
@@ -108,7 +108,7 @@ describe("settings pages lay out as card grids", () => {
       "settings-evolution",
       "settings-keybinds",
     ]
-    const template = "flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3"
+    const template = "flex flex-col gap-2 rounded-lg border border-border bg-surface p-3"
     for (const tab of tabs) {
       expect(read(`components/${tab}.tsx`)).toContain(template)
     }

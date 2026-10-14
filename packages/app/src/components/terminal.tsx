@@ -695,9 +695,9 @@ export const Terminal = (props: TerminalProps) => {
     >
       <Show when={connectError()}>
         {(message) => (
-          <div class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background-stronger px-6 text-center">
-            <div class="text-ui-base text-text-strong">{language.t("terminal.connectError.title")}</div>
-            <div class="text-ui-caption text-text-weak break-words max-w-md">{message()}</div>
+          <div class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-panel px-6 text-center">
+            <div class="text-ui-base text-foreground">{language.t("terminal.connectError.title")}</div>
+            <div class="text-ui-caption text-foreground-subtle break-words max-w-md">{message()}</div>
             <Button variant="secondary" size="small" onClick={retryConnection}>
               {language.t("terminal.connectError.retry")}
             </Button>

@@ -50,8 +50,8 @@ const SettingsPage: Component<{ title: string; description: string; children: JS
   <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
     <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--popover)_calc(100%_-_24px),transparent)]">
       <div class="flex flex-col gap-1 pt-6 pb-8 w-full">
-        <h2 class="text-16-medium text-text-strong">{props.title}</h2>
-        <p class="text-13-regular text-text-weak">{props.description}</p>
+        <h2 class="text-16-medium text-foreground">{props.title}</h2>
+        <p class="text-13-regular text-foreground-subtle">{props.description}</p>
       </div>
     </div>
     <div class="flex flex-col gap-8 w-full">{props.children}</div>
@@ -60,15 +60,15 @@ const SettingsPage: Component<{ title: string; description: string; children: JS
 
 const SectionTitle: Component<{ title: string; description?: string }> = (props) => (
   <div class="flex flex-col gap-1 pb-2">
-    <h3 class="text-14-medium text-text-strong">{props.title}</h3>
+    <h3 class="text-14-medium text-foreground">{props.title}</h3>
     <Show when={props.description}>
-      <p class="text-12-regular text-text-weak">{props.description}</p>
+      <p class="text-12-regular text-foreground-subtle">{props.description}</p>
     </Show>
   </div>
 )
 
 const EmptyState: Component<{ message: string }> = (props) => (
-  <div class="py-4 text-14-regular text-text-weak">{props.message}</div>
+  <div class="py-4 text-14-regular text-foreground-subtle">{props.message}</div>
 )
 
 function candidateTags(candidate: MemoryReviewCandidate) {
@@ -76,8 +76,8 @@ function candidateTags(candidate: MemoryReviewCandidate) {
 }
 
 const LoadingState: Component = () => (
-  <div class="flex items-center gap-2 py-4 text-14-regular text-text-weak">
-    <span class="size-4 rounded-full border border-border-strong-base border-t-transparent novaway-spinner" />
+  <div class="flex items-center gap-2 py-4 text-14-regular text-foreground-subtle">
+    <span class="size-4 rounded-full border border-border-hover border-t-transparent novaway-spinner" />
     <span>加载中...</span>
   </div>
 )
@@ -96,8 +96,8 @@ const SegmentTabs: Component<{
             type="button"
             class="h-8 px-3 rounded-md text-13-medium border transition-colors"
             classList={{
-              "bg-surface-base-active text-text-strong border-border-weak-base": props.value === value,
-              "bg-transparent text-text-weak border-transparent hover:bg-surface-base-hover hover:text-text-strong":
+              "bg-selected text-foreground border-border": props.value === value,
+              "bg-transparent text-foreground-subtle border-transparent hover:bg-hover hover:text-foreground":
                 props.value !== value,
             }}
             onClick={() => props.onChange(value)}
@@ -127,12 +127,12 @@ const CandidateRow: Component<{
   const status = () => props.candidate.status as ReviewStatus
 
   return (
-    <div class="flex items-start justify-between gap-4 rounded-lg border border-border-weak-base bg-surface-base px-4 py-3">
+    <div class="flex items-start justify-between gap-4 rounded-lg border border-border bg-surface px-4 py-3">
       <div class="flex min-w-0 flex-1 items-start gap-3">
         <Icon name="brain" class="size-5 shrink-0 icon-strong-base mt-0.5" />
         <div class="flex min-w-0 flex-col gap-1">
           <div class="flex flex-wrap items-center gap-2">
-            <span class="text-14-medium text-text-strong break-words">
+            <span class="text-14-medium text-foreground break-words">
               {props.candidate.summary || props.candidate.content}
             </span>
             <Tag>{language.t(statusLabels[status()] as never)}</Tag>
@@ -146,8 +146,8 @@ const CandidateRow: Component<{
                 type="button"
                 class="h-5 rounded px-1.5 text-11-medium border"
                 classList={{
-                  "border-border-strong-base bg-surface-base-active": scope() === "global",
-                  "border-transparent text-text-weak": scope() !== "global",
+                  "border-border-hover bg-selected": scope() === "global",
+                  "border-transparent text-foreground-subtle": scope() !== "global",
                 }}
                 onClick={() => setScope("global")}
               >
@@ -157,8 +157,8 @@ const CandidateRow: Component<{
                 type="button"
                 class="h-5 rounded px-1.5 text-11-medium border"
                 classList={{
-                  "border-border-strong-base bg-surface-base-active": scope() === "project",
-                  "border-transparent text-text-weak": scope() !== "project",
+                  "border-border-hover bg-selected": scope() === "project",
+                  "border-transparent text-foreground-subtle": scope() !== "project",
                 }}
                 onClick={() => setScope("project")}
               >
@@ -167,9 +167,9 @@ const CandidateRow: Component<{
             </div>
           </div>
           <Show when={props.candidate.summary}>
-            <span class="text-12-regular text-text-base break-words">{props.candidate.content}</span>
+            <span class="text-12-regular text-foreground break-words">{props.candidate.content}</span>
           </Show>
-          <div class="flex flex-wrap items-center gap-2 text-12-regular text-text-weak">
+          <div class="flex flex-wrap items-center gap-2 text-12-regular text-foreground-subtle">
             <span>{props.candidate.reason}</span>
             <span>{memoryVersionLabel(props.candidate)}</span>
             <span>{created()}</span>
@@ -225,8 +225,8 @@ const MemoryViewTabs: Component<{ value: MemoryView; onChange: (value: MemoryVie
           type="button"
           class="h-9 px-4 rounded-md text-13-medium border transition-colors"
           classList={{
-            "bg-surface-base-active text-text-strong border-border-weak-base": props.value === view.id,
-            "bg-transparent text-text-weak border-transparent hover:bg-surface-base-hover hover:text-text-strong":
+            "bg-selected text-foreground border-border": props.value === view.id,
+            "bg-transparent text-foreground-subtle border-transparent hover:bg-hover hover:text-foreground":
               props.value !== view.id,
           }}
           onClick={() => props.onChange(view.id)}
@@ -303,7 +303,7 @@ const RelationGraph: Component<{
   })
 
   return (
-    <div class="rounded-lg border border-border-weak-base bg-surface-base px-3 py-3">
+    <div class="rounded-lg border border-border bg-surface px-3 py-3">
       <Show
         when={props.loading}
         fallback={
@@ -321,7 +321,7 @@ const RelationGraph: Component<{
                       stroke-opacity="0.45"
                       stroke-width="1.5"
                     />
-                    <text x={edge.mid.x} y={edge.mid.y} text-anchor="middle" class="fill-text-weak text-10-medium">
+                    <text x={edge.mid.x} y={edge.mid.y} text-anchor="middle" class="fill-foreground-subtle text-10-medium">
                       {edge.label}
                     </text>
                   </>
@@ -339,7 +339,7 @@ const RelationGraph: Component<{
                       stroke={relationNodeColor(node.type)}
                       stroke-width="1.5"
                     />
-                    <text x={node.x} y={node.y + 4} text-anchor="middle" class="fill-text-strong text-11-medium">
+                    <text x={node.x} y={node.y + 4} text-anchor="middle" class="fill-foreground text-11-medium">
                       {node.name}
                     </text>
                   </g>
@@ -650,12 +650,12 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
         <div>
           <SectionTitle title={language.t("settings.memory.section.config" as never)} />
           <SettingsList>
-            <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+            <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
               <div class="flex flex-col gap-1">
-                <span class="text-14-medium text-text-strong">
+                <span class="text-14-medium text-foreground">
                   {language.t("settings.memory.config.enabled.title" as never)}
                 </span>
-                <span class="text-12-regular text-text-weak">
+                <span class="text-12-regular text-foreground-subtle">
                   {language.t("settings.memory.config.enabled.description" as never)}
                 </span>
               </div>
@@ -668,12 +668,12 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
                 {language.t("settings.memory.config.enabled.title" as never)}
               </Switch>
             </div>
-            <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+            <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
               <div class="flex flex-col gap-1">
-                <span class="text-14-medium text-text-strong">
+                <span class="text-14-medium text-foreground">
                   {language.t("settings.memory.config.review.title" as never)}
                 </span>
-                <span class="text-12-regular text-text-weak">
+                <span class="text-12-regular text-foreground-subtle">
                   {language.t("settings.memory.config.review.description" as never)}
                 </span>
               </div>
@@ -686,12 +686,12 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
                 {language.t("settings.memory.config.review.title" as never)}
               </Switch>
             </div>
-            <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+            <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
               <div class="flex flex-col gap-1">
-                <span class="text-14-medium text-text-strong">
+                <span class="text-14-medium text-foreground">
                   {language.t("settings.memory.config.llm.title" as never)}
                 </span>
-                <span class="text-12-regular text-text-weak">
+                <span class="text-12-regular text-foreground-subtle">
                   {language.t("settings.memory.config.llm.description" as never)}
                 </span>
               </div>
@@ -706,10 +706,10 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
             </div>
             <div class="flex items-center justify-between gap-4 py-3">
               <div class="flex flex-col gap-1">
-                <span class="text-14-medium text-text-strong">
+                <span class="text-14-medium text-foreground">
                   {language.t("settings.memory.config.interval.title" as never)}
                 </span>
-                <span class="text-12-regular text-text-weak">
+                <span class="text-12-regular text-foreground-subtle">
                   {language.t("settings.memory.config.interval.description" as never)}
                 </span>
               </div>
@@ -740,25 +740,25 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
             description={language.t("settings.memory.retrieval.guide.body" as never)}
           />
           <SettingsList>
-            <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+            <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
               <div class="flex flex-col gap-1">
-                <span class="text-14-medium text-text-strong">
+                <span class="text-14-medium text-foreground">
                   {language.t("settings.memory.retrieval.guide.title" as never)}
                 </span>
-                <pre class="whitespace-pre-wrap text-12-regular text-text-weak font-sans m-0">
+                <pre class="whitespace-pre-wrap text-12-regular text-foreground-subtle font-sans m-0">
                   {language.t("settings.memory.retrieval.guide.steps" as never)}
                 </pre>
-                <span class="text-12-regular text-text-weak">
+                <span class="text-12-regular text-foreground-subtle">
                   {language.t("settings.memory.retrieval.docs" as never)}
                 </span>
               </div>
             </div>
             <div class="flex flex-col gap-3 py-3">
               <div class="flex flex-col gap-1">
-                <span class="text-14-medium text-text-strong">
+                <span class="text-14-medium text-foreground">
                   {language.t("settings.memory.retrieval.mode.title" as never)}
                 </span>
-                <span class="text-12-regular text-text-weak">
+                <span class="text-12-regular text-foreground-subtle">
                   {language.t("settings.memory.retrieval.mode.description" as never)}
                 </span>
               </div>
@@ -769,8 +769,8 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
                       type="button"
                       class="h-8 px-3 rounded-md text-13-medium border transition-colors"
                       classList={{
-                        "bg-surface-base-active text-text-strong border-border-weak-base": embeddingMode() === value,
-                        "bg-transparent text-text-weak border-transparent hover:bg-surface-base-hover":
+                        "bg-selected text-foreground border-border": embeddingMode() === value,
+                        "bg-transparent text-foreground-subtle border-transparent hover:bg-hover":
                           embeddingMode() !== value,
                       }}
                       disabled={updateConfig.isPending}
@@ -781,18 +781,18 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
                   )}
                 </For>
               </div>
-              <span class="text-12-regular text-text-weak">{language.t(embeddingModeHintKey() as never)}</span>
+              <span class="text-12-regular text-foreground-subtle">{language.t(embeddingModeHintKey() as never)}</span>
             </div>
-            <div class="flex flex-col gap-3 py-3 border-t border-border-weak-base">
+            <div class="flex flex-col gap-3 py-3 border-t border-border">
               <div class="flex flex-col gap-1">
-                <span class="text-14-medium text-text-strong">
+                <span class="text-14-medium text-foreground">
                   {language.t("settings.memory.retrieval.setup.title" as never)}
                 </span>
-                <span class="text-12-regular text-text-weak">
+                <span class="text-12-regular text-foreground-subtle">
                   {language.t("settings.memory.retrieval.setup.description" as never)}
                 </span>
               </div>
-              <div class="rounded-md border border-border-weak-base bg-surface-base px-3 py-2 text-12-regular text-text-weak">
+              <div class="rounded-md border border-border bg-surface px-3 py-2 text-12-regular text-foreground-subtle">
                 <div>
                   {language.t("settings.memory.retrieval.status.title" as never)}?{formatEmbeddingStatus()}
                 </div>
@@ -809,7 +809,7 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
                   <div class="mt-1">当前模型目录：{embeddingStatus.data?.modelsDir}</div>
                 </Show>
               </div>
-              <div class="flex flex-col gap-3 rounded-md border border-border-weak-base bg-surface-base px-3 py-3">
+              <div class="flex flex-col gap-3 rounded-md border border-border bg-surface px-3 py-3">
                 <TextField
                   label="Ollama 程序安装目录"
                   value={installDir()}
@@ -840,7 +840,7 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
                     选择模型目录
                   </Button>
                 </div>
-                <div class="text-12-regular text-text-weak">
+                <div class="text-12-regular text-foreground-subtle">
                   模型目录会用于 `OLLAMA_MODELS`。修改后需要重新启动 Ollama 服务才会完全生效。
                 </div>
                 <div class="flex justify-end">
@@ -851,19 +851,19 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
               </div>
               <Show when={memorySetupState.running}>
                 <Show when={memorySetupState.phase}>
-                  <div class="flex flex-col gap-1 rounded-md border border-border-weak-base bg-surface-base px-3 py-2">
-                    <div class="flex items-center gap-2 text-13-medium text-text-strong">
-                      <span class="inline-block size-3 novaway-spinner rounded-full border-2 border-text-weak border-t-transparent" />
+                  <div class="flex flex-col gap-1 rounded-md border border-border bg-surface px-3 py-2">
+                    <div class="flex items-center gap-2 text-13-medium text-foreground">
+                      <span class="inline-block size-3 novaway-spinner rounded-full border-2 border-border border-t-transparent" />
                       <span>{setupPhaseLabel()}</span>
                     </div>
-                    <div class="text-12-regular text-text-weak">
+                    <div class="text-12-regular text-foreground-subtle">
                       {language.t("settings.memory.retrieval.status.title" as never)}?{formatEmbeddingStatus()}
                     </div>
                   </div>
                 </Show>
                 <Show when={!memorySetupState.phase}>
-                  <div class="flex items-center gap-2 text-13-medium text-text-strong">
-                    <span class="inline-block size-3 novaway-spinner rounded-full border-2 border-text-weak border-t-transparent" />
+                  <div class="flex items-center gap-2 text-13-medium text-foreground">
+                    <span class="inline-block size-3 novaway-spinner rounded-full border-2 border-border border-t-transparent" />
                     <span>{language.t("settings.memory.retrieval.setup.running" as never)}</span>
                   </div>
                 </Show>
@@ -874,7 +874,7 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
                 </Button>
               </Show>
               <Show when={memorySetupState.log}>
-                <pre class="whitespace-pre-wrap text-12-regular text-text-weak font-sans m-0 max-h-40 overflow-auto">
+                <pre class="whitespace-pre-wrap text-12-regular text-foreground-subtle font-sans m-0 max-h-40 overflow-auto">
                   {memorySetupState.log}
                 </pre>
               </Show>
@@ -937,16 +937,16 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
         <div>
           <SectionTitle title="关系图谱" description="自动汇总当前记忆中的实体关系。" />
           <RelationGraph relations={relations.data ?? []} loading={relations.isLoading} />
-          <div class="mt-3 rounded-lg border border-border-weak-base bg-surface-base px-4 py-2">
+          <div class="mt-3 rounded-lg border border-border bg-surface px-4 py-2">
             <Show when={!relations.isLoading} fallback={<LoadingState />}>
               <Show when={(relations.data?.length ?? 0) > 0} fallback={<EmptyState message="暂无关系记录" />}>
                 <For each={relations.data}>
                   {(relation) => (
-                    <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+                    <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
                       <Tag>{relation.source}</Tag>
-                      <span class="text-12-medium text-text-weak">{relation.relation}</span>
+                      <span class="text-12-medium text-foreground-subtle">{relation.relation}</span>
                       <Tag>{relation.target}</Tag>
-                      <span class="text-11-regular text-text-weak">{relation.memoryID}</span>
+                      <span class="text-11-regular text-foreground-subtle">{relation.memoryID}</span>
                       <ReviewActionButton
                         icon="close"
                         disabled={removeRelation.isPending}
@@ -973,10 +973,10 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
               <Show when={filteredEntries().length > 0} fallback={<EmptyState message="暂无已写入记忆" />}>
                 <For each={filteredEntries()}>
                   {(item) => (
-                    <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+                    <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
                       <div class="min-w-0 flex flex-col gap-1">
                         <div class="flex flex-wrap items-center gap-2">
-                          <span class="text-14-medium text-text-strong break-words">
+                          <span class="text-14-medium text-foreground break-words">
                             {item.summary || item.content}
                           </span>
                           <Tag>{item.scope === "global" ? "全局" : item.scope === "session" ? "本会话" : "本项目"}</Tag>
@@ -984,7 +984,7 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
                           <Tag>{memoryKindLabel(item.kind)}</Tag>
                         </div>
                         <Show when={item.summary}>
-                          <span class="text-12-regular text-text-base break-words">{item.content}</span>
+                          <span class="text-12-regular text-foreground break-words">{item.content}</span>
                         </Show>
                         <Show when={(item.entities?.length ?? 0) > 0}>
                           <div class="flex flex-wrap gap-1 pt-1">

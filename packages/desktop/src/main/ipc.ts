@@ -487,6 +487,11 @@ export function setMainWindow(win: BrowserWindow | null) {
   mainWindowRef = win
 }
 
+/** 最大化/还原状态变化时通知渲染层切换图标。 */
+export function notifyWindowMaximized(win: BrowserWindow) {
+  sendWindowEvent(win, "window-maximized-change", win.isMaximized())
+}
+
 export function setFloatingWindow(win: BrowserWindow | null) {
   floatingWindowRef = win
   floatingWidgetReady = false
@@ -718,6 +723,10 @@ type Deps = {
   checkUpdate: () => Promise<{ updateAvailable: boolean; version?: string }>
   installUpdate: () => Promise<void> | void
   setBackgroundColor: (color: string) => void
+  minimizeWindow: () => void
+  toggleMaximizeWindow: () => void
+  closeWindow: () => void
+  isWindowMaximized: () => boolean
 }
 
 export function registerIpcHandlers(deps: Deps) {
@@ -749,6 +758,12 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle("check-update", () => deps.checkUpdate())
   ipcMain.handle("install-update", () => deps.installUpdate())
   ipcMain.handle("set-background-color", (_event: IpcMainInvokeEvent, color: string) => deps.setBackgroundColor(color))
+  // 窗口控制：ZCode 在 Header 里内联自绘最小化/最大化/关闭，不用 Windows 原生 titleBarOverlay。
+  // 最大化状态要让渲染层知道，才能切换图标（最大化↔还原）。
+  ipcMain.handle("window:minimize", () => deps.minimizeWindow())
+  ipcMain.handle("window:toggle-maximize", () => deps.toggleMaximizeWindow())
+  ipcMain.handle("window:close", () => deps.closeWindow())
+  ipcMain.handle("window:is-maximized", () => deps.isWindowMaximized())
   ipcMain.handle("store-get", (_event: IpcMainInvokeEvent, name: string, key: string) => {
     try {
       const store = getStore(name)

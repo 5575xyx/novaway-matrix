@@ -56,8 +56,8 @@ export function OfficeDataEditor(props: { artifact: OfficeArtifact; onClose: () 
     <div class="flex max-h-[80vh] w-full max-w-4xl flex-col gap-4 p-5">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <div class="text-16-medium text-text-strong">表格编辑</div>
-          <div class="mt-1 text-12-regular text-text-weak">编辑表格后导出 CSV 或 XLSX</div>
+          <div class="text-16-medium text-foreground">表格编辑</div>
+          <div class="mt-1 text-12-regular text-foreground-subtle">编辑表格后导出 CSV 或 XLSX</div>
         </div>
         <div class="flex items-center gap-2">
           <button
@@ -76,7 +76,7 @@ export function OfficeDataEditor(props: { artifact: OfficeArtifact; onClose: () 
           </button>
           <button
             type="button"
-            class="grid size-8 place-items-center rounded-[7px] border border-border-weak-base text-text-weak"
+            class="grid size-8 place-items-center rounded-[7px] border border-border text-foreground-subtle"
             onClick={props.onClose}
           >
             <Icon name="close" size="small" />
@@ -84,18 +84,18 @@ export function OfficeDataEditor(props: { artifact: OfficeArtifact; onClose: () 
         </div>
       </div>
 
-      <div class="overflow-auto rounded-[8px] border border-border-weak-base bg-background-base">
+      <div class="overflow-auto rounded-[8px] border border-border bg-background">
         <table class="w-full min-w-[640px] border-collapse text-12-regular">
           <thead>
-            <tr class="bg-surface-raised-base">
+            <tr class="bg-surface">
               <For each={Array.from({ length: columnCount() })}>
                 {(_, index) => (
-                  <th class="border-b border-border-weaker-base px-2 py-2 text-left font-medium text-text-strong">
+                  <th class="border-b border-border px-2 py-2 text-left font-medium text-foreground">
                     {String.fromCharCode(65 + index())}
                   </th>
                 )}
               </For>
-              <th class="w-10 border-b border-border-weaker-base" />
+              <th class="w-10 border-b border-border" />
             </tr>
           </thead>
           <tbody>
@@ -104,19 +104,19 @@ export function OfficeDataEditor(props: { artifact: OfficeArtifact; onClose: () 
                 <tr>
                   <For each={Array.from({ length: columnCount() })}>
                     {(_, columnIndex) => (
-                      <td class="border-b border-border-weaker-base px-1 py-1">
+                      <td class="border-b border-border px-1 py-1">
                         <input
                           value={String(row[columnIndex()] ?? "")}
                           onInput={(event) => updateCell(rowIndex(), columnIndex(), event.currentTarget.value)}
-                          class="h-8 w-full min-w-20 rounded-[5px] bg-transparent px-2 text-12-regular text-text-strong outline-none focus:bg-surface-raised-base"
+                          class="h-8 w-full min-w-20 rounded-[5px] bg-transparent px-2 text-12-regular text-foreground outline-none focus:bg-surface"
                         />
                       </td>
                     )}
                   </For>
-                  <td class="border-b border-border-weaker-base px-1 text-center">
+                  <td class="border-b border-border px-1 text-center">
                     <button
                       type="button"
-                      class="grid size-7 place-items-center rounded-[6px] text-text-muted hover:text-rose-300"
+                      class="grid size-7 place-items-center rounded-[6px] text-foreground-subtle hover:text-rose-300"
                       title="删除行"
                       onClick={() => removeRow(rowIndex())}
                     >
@@ -133,7 +133,7 @@ export function OfficeDataEditor(props: { artifact: OfficeArtifact; onClose: () 
       <div class="flex items-center gap-2">
         <button
           type="button"
-          class="h-8 rounded-[7px] border border-border-weak-base px-3 text-12-medium text-text-weak"
+          class="h-8 rounded-[7px] border border-border px-3 text-12-medium text-foreground-subtle"
           onClick={addRow}
         >
           添加行
@@ -143,12 +143,12 @@ export function OfficeDataEditor(props: { artifact: OfficeArtifact; onClose: () 
         </Show>
       </div>
 
-      <div class="rounded-[8px] border border-border-weak-base bg-background-panel/60 p-3">
-        <div class="text-12-medium text-text-strong">粘贴 CSV 导入</div>
+      <div class="rounded-[8px] border border-border bg-panel/60 p-3">
+        <div class="text-12-medium text-foreground">粘贴 CSV 导入</div>
         <textarea
           value={csvInput()}
           onInput={(event) => setCsvInput(event.currentTarget.value)}
-          class="mt-2 min-h-24 w-full resize-y rounded-[7px] border border-border-weaker-base bg-background-base p-3 text-12-regular leading-relaxed text-text-strong outline-none"
+          class="mt-2 min-h-24 w-full resize-y rounded-[7px] border border-border bg-background p-3 text-12-regular leading-relaxed text-foreground outline-none"
           placeholder="列1,列2,列3&#10;值1,值2,值3"
         />
         <button

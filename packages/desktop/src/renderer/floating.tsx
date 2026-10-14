@@ -59,8 +59,8 @@ const SkinMenu = (props: { skin: PetSkin; onChange: (skin: PetSkin) => void }) =
     }}
   >
     <div class="pb-2.5 mb-2 border-b" style={{ "border-color": "light-dark(rgba(8,145,178,.18),#263249)" }}>
-      <div class="text-12-medium text-text-strong">外观配色</div>
-      <div class="mt-0.5 text-10-regular text-text-weak">科技挂饰与核心光效</div>
+      <div class="text-12-medium text-foreground">外观配色</div>
+      <div class="mt-0.5 text-10-regular text-foreground-subtle">科技挂饰与核心光效</div>
     </div>
     <div class="grid grid-cols-3 gap-2">
       <For each={skinOptions}>
@@ -68,19 +68,19 @@ const SkinMenu = (props: { skin: PetSkin; onChange: (skin: PetSkin) => void }) =
           <button
             type="button"
             title={skin.label}
-            class={`flex h-15 flex-col items-center justify-center gap-1 border text-10-medium transition-all ${props.skin === skin.id ? "border-cyan-400 bg-cyan-400/10 shadow-[0_0_10px_rgba(34,211,238,.16)]" : "border-border-weaker-base hover:border-cyan-400/60 hover:bg-surface-raised-base-hover"}`}
+            class={`flex h-15 flex-col items-center justify-center gap-1 border text-10-medium transition-all ${props.skin === skin.id ? "border-cyan-400 bg-cyan-400/10 shadow-[0_0_10px_rgba(34,211,238,.16)]" : "border-border hover:border-cyan-400/60 hover:bg-hover"}`}
             onClick={() => props.onChange(skin.id)}
           >
             <span
               class="size-6 shrink-0 rounded-full border border-white/60"
               style={{ "background-color": skin.color, "box-shadow": `0 0 9px ${skin.color}` }}
             />
-            <span class="max-w-full truncate px-1 text-text-base">{skin.label}</span>
+            <span class="max-w-full truncate px-1 text-foreground">{skin.label}</span>
           </button>
         )}
       </For>
       <label
-        class="col-span-3 mt-1 flex h-10 items-center gap-3 border-t pt-2 text-11-medium text-text-strong cursor-pointer"
+        class="col-span-3 mt-1 flex h-10 items-center gap-3 border-t pt-2 text-11-medium text-foreground cursor-pointer"
         style={{ "border-color": "light-dark(rgba(8,145,178,.18),#263249)" }}
       >
         <span class="flex-1">自定义颜色</span>
@@ -204,11 +204,11 @@ function GameModal(props: { title: string; icon: string; onClose: () => void; ch
             <span class="text-lg" aria-hidden="true">
               {props.icon}
             </span>
-            <span class="text-13-medium text-text-strong">{props.title}</span>
+            <span class="text-13-medium text-foreground">{props.title}</span>
           </div>
           <button
             type="button"
-            class="nova-pet-close rounded-md px-2 py-1 text-11-medium text-text-weak hover:bg-surface-raised-base-hover"
+            class="nova-pet-close rounded-md px-2 py-1 text-11-medium text-foreground-subtle hover:bg-hover"
             onClick={() => props.onClose()}
           >
             关闭
@@ -241,9 +241,9 @@ function RpsGame(props: {
           >
             {props.lastResult ? RPS_ANIMOJI[props.lastResult.player] : "❔"}
           </span>
-          <span class="text-10-regular text-text-weak">你</span>
+          <span class="text-10-regular text-foreground-subtle">你</span>
         </div>
-        <span class="text-12-medium text-text-weak">VS</span>
+        <span class="text-12-medium text-foreground-subtle">VS</span>
         <div class="flex flex-col items-center gap-1">
           <span
             class={`nova-pet-rps-hand text-3xl ${revealing() ? "nova-pet-rps-shake" : ""}`}
@@ -251,7 +251,7 @@ function RpsGame(props: {
           >
             {props.lastResult ? RPS_ANIMOJI[props.lastResult.petChoice] : "🐾"}
           </span>
-          <span class="text-10-regular text-text-weak">宠物</span>
+          <span class="text-10-regular text-foreground-subtle">宠物</span>
         </div>
       </div>
       <Show when={props.lastResult}>
@@ -269,11 +269,11 @@ function RpsGame(props: {
             <button
               type="button"
               disabled={props.playing}
-              class="nova-pet-press rounded-lg bg-surface-raised-base px-2 py-3 text-13-medium hover:bg-cyan-400/10 active:bg-cyan-400/20 disabled:opacity-50"
+              class="nova-pet-press rounded-lg bg-surface px-2 py-3 text-13-medium hover:bg-cyan-400/10 active:bg-cyan-400/20 disabled:opacity-50"
               onClick={() => choose(choice)}
             >
               <span class="block text-xl">{RPS_ANIMOJI[choice]}</span>
-              <span class="text-10-regular text-text-weak">
+              <span class="text-10-regular text-foreground-subtle">
                 {choice === "rock" ? "石头" : choice === "paper" ? "布" : "剪刀"}
               </span>
             </button>
@@ -481,7 +481,7 @@ function GomokuGame(props: {
 
   return (
     <div class="flex flex-col items-center gap-2 py-2">
-      <div class="text-11-regular text-text-weak">{status()}</div>
+      <div class="text-11-regular text-foreground-subtle">{status()}</div>
       <div
         class="nova-gomoku-board relative rounded-xl border bg-amber-100/70 p-4 dark:bg-amber-950/30"
         style={{ "border-color": "light-dark(#d6a85e,#6e4b22)" }}
@@ -529,7 +529,7 @@ function GomokuGame(props: {
       </div>
       <button
         type="button"
-        class="nova-pet-press rounded-lg bg-surface-raised-base px-4 py-1.5 text-12-medium hover:bg-cyan-400/10"
+        class="nova-pet-press rounded-lg bg-surface px-4 py-1.5 text-12-medium hover:bg-cyan-400/10"
         onClick={reset}
       >
         重开一局
@@ -683,7 +683,7 @@ function MinesweeperGame(props: { onReward: (score: number) => void; difficulty?
   return (
     <div class="flex flex-col items-center gap-3 py-2">
       <div class="flex w-full items-center gap-2">
-        <div class="flex flex-1 items-center gap-1 rounded-lg bg-surface-raised-base p-1">
+        <div class="flex flex-1 items-center gap-1 rounded-lg bg-surface p-1">
           <For each={["easy", "normal", "hard"] as const}>
             {(option) => (
               <button
@@ -691,7 +691,7 @@ function MinesweeperGame(props: { onReward: (score: number) => void; difficulty?
                 class={`flex-1 rounded-md px-1 py-0.5 text-11-medium transition-colors ${
                   difficulty() === option
                     ? "bg-cyan-400/15 text-cyan-600 dark:text-cyan-300"
-                    : "text-text-weak hover:text-text-base"
+                    : "text-foreground-subtle hover:text-foreground"
                 }`}
                 onClick={() => {
                   if (difficulty() === option) return
@@ -750,10 +750,10 @@ function MinesweeperGame(props: { onReward: (score: number) => void; difficulty?
           }}
         </For>
       </div>
-      <div class="text-center text-11-regular text-text-weak">{mineMessage()}</div>
+      <div class="text-center text-11-regular text-foreground-subtle">{mineMessage()}</div>
       <button
         type="button"
-        class="nova-pet-press rounded-lg bg-surface-raised-base px-4 py-1.5 text-12-medium hover:bg-cyan-400/10"
+        class="nova-pet-press rounded-lg bg-surface px-4 py-1.5 text-12-medium hover:bg-cyan-400/10"
         onClick={resetMinesweeper}
       >
         {mineStatus() === "playing" ? "重新开始" : "开始新游戏"}
@@ -818,7 +818,7 @@ function SudokuGame(props: { onReward: (score: number) => void }) {
           {(value) => (
             <button
               type="button"
-              class="nova-pet-press size-8 rounded-md bg-surface-raised-base text-12-medium hover:bg-cyan-400/10"
+              class="nova-pet-press size-8 rounded-md bg-surface text-12-medium hover:bg-cyan-400/10"
               onClick={() => fill(value)}
             >
               {value}
@@ -826,10 +826,10 @@ function SudokuGame(props: { onReward: (score: number) => void }) {
           )}
         </For>
       </div>
-      <div class="text-center text-11-regular text-text-weak">{message()}</div>
+      <div class="text-center text-11-regular text-foreground-subtle">{message()}</div>
       <button
         type="button"
-        class="nova-pet-press rounded-lg bg-surface-raised-base px-4 py-1.5 text-12-medium hover:bg-cyan-400/10"
+        class="nova-pet-press rounded-lg bg-surface px-4 py-1.5 text-12-medium hover:bg-cyan-400/10"
         onClick={reset}
       >
         重开一局
@@ -993,7 +993,7 @@ function TetrisGame(props: { onReward: (score: number) => void }) {
   })
   return (
     <div ref={gameRoot} tabIndex={0} class="flex flex-col items-center gap-2 py-2 outline-none">
-      <div class="flex w-full justify-between text-11-regular text-text-weak">
+      <div class="flex w-full justify-between text-11-regular text-foreground-subtle">
         <span>分数 {score()}</span>
         <span>消行 {lines()}</span>
         <span>{status() === "playing" ? "← ↓ → 移动 · ↑ 旋转" : "游戏结束"}</span>
@@ -1009,28 +1009,28 @@ function TetrisGame(props: { onReward: (score: number) => void }) {
       <div class="flex gap-2">
         <button
           type="button"
-          class="nova-pet-press rounded bg-surface-raised-base px-3 py-1 text-12-medium"
+          class="nova-pet-press rounded bg-surface px-3 py-1 text-12-medium"
           onClick={() => move(-1)}
         >
           ←
         </button>
         <button
           type="button"
-          class="nova-pet-press rounded bg-surface-raised-base px-3 py-1 text-12-medium"
+          class="nova-pet-press rounded bg-surface px-3 py-1 text-12-medium"
           onClick={rotate}
         >
           ↻
         </button>
         <button
           type="button"
-          class="nova-pet-press rounded bg-surface-raised-base px-3 py-1 text-12-medium"
+          class="nova-pet-press rounded bg-surface px-3 py-1 text-12-medium"
           onClick={() => move(1)}
         >
           →
         </button>
         <button
           type="button"
-          class="nova-pet-press rounded bg-surface-raised-base px-3 py-1 text-12-medium"
+          class="nova-pet-press rounded bg-surface px-3 py-1 text-12-medium"
           onClick={drop}
         >
           ↓
@@ -1038,7 +1038,7 @@ function TetrisGame(props: { onReward: (score: number) => void }) {
       </div>
       <button
         type="button"
-        class="nova-pet-press rounded-lg bg-surface-raised-base px-4 py-1.5 text-12-medium hover:bg-cyan-400/10"
+        class="nova-pet-press rounded-lg bg-surface px-4 py-1.5 text-12-medium hover:bg-cyan-400/10"
         onClick={reset}
       >
         重开一局
@@ -1148,7 +1148,7 @@ function Game2048(props: { onReward: (score: number) => void }) {
             : "#22d3ee"
   return (
     <div class="flex flex-col items-center gap-3 py-2">
-      <div class="flex w-full items-center justify-between text-12-medium text-text-strong">
+      <div class="flex w-full items-center justify-between text-12-medium text-foreground">
         <span>分数 {score()}</span>
         <span>{status() === "won" ? "达成 2048！🎉" : status() === "over" ? "没有可移动的格子" : "方向键移动"}</span>
       </div>
@@ -1164,7 +1164,7 @@ function Game2048(props: { onReward: (score: number) => void }) {
       </div>
       <button
         type="button"
-        class="nova-pet-press rounded-lg bg-surface-raised-base px-4 py-1.5 text-12-medium hover:bg-cyan-400/10"
+        class="nova-pet-press rounded-lg bg-surface px-4 py-1.5 text-12-medium hover:bg-cyan-400/10"
         onClick={reset}
       >
         重开一局
@@ -1205,16 +1205,16 @@ function PetPanel(props: {
       <div class="rounded-xl border p-3" style={{ "border-color": "light-dark(rgba(8,145,178,.2),#263249)" }}>
         <div class="flex items-center justify-between gap-2">
           <div>
-            <div class="text-14-medium text-text-strong">Nova 宠物屋</div>
-            <div class="mt-0.5 text-11-regular text-text-weak">陪你完成工作，也陪你放松一会儿</div>
+            <div class="text-14-medium text-foreground">Nova 宠物屋</div>
+            <div class="mt-0.5 text-11-regular text-foreground-subtle">陪你完成工作，也陪你放松一会儿</div>
           </div>
           <div class="rounded-lg bg-amber-400/15 px-2 py-1 text-12-medium text-amber-500">⭐ {props.pet.coins}</div>
         </div>
         <div class="mt-3 grid grid-cols-2 gap-2">
           <For each={gauges}>
             {(gauge) => (
-              <div class="rounded-lg bg-surface-raised-base p-2">
-                <div class="flex items-center justify-between text-10-regular text-text-weak">
+              <div class="rounded-lg bg-surface p-2">
+                <div class="flex items-center justify-between text-10-regular text-foreground-subtle">
                   <span>
                     {gauge.icon} {gauge.label}
                   </span>
@@ -1264,48 +1264,48 @@ function PetPanel(props: {
 
       <div class="rounded-xl border p-3" style={{ "border-color": "light-dark(rgba(8,145,178,.2),#263249)" }}>
         <div class="flex items-center justify-between">
-          <span class="text-13-medium text-text-strong">和小 Nova 玩</span>
-          <span class="text-10-regular text-text-weak">胜利可得星星币</span>
+          <span class="text-13-medium text-foreground">和小 Nova 玩</span>
+          <span class="text-10-regular text-foreground-subtle">胜利可得星星币</span>
         </div>
         <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
           <button
             type="button"
-            class="nova-pet-press rounded-lg bg-surface-raised-base px-2 py-3 text-12-medium hover:bg-cyan-400/10"
+            class="nova-pet-press rounded-lg bg-surface px-2 py-3 text-12-medium hover:bg-cyan-400/10"
             onClick={() => openGame("rps")}
           >
             ✊ 猜拳
           </button>
           <button
             type="button"
-            class="nova-pet-press rounded-lg bg-surface-raised-base px-2 py-3 text-12-medium hover:bg-cyan-400/10"
+            class="nova-pet-press rounded-lg bg-surface px-2 py-3 text-12-medium hover:bg-cyan-400/10"
             onClick={() => openGame("gomoku")}
           >
             ⚫ 五子棋
           </button>
           <button
             type="button"
-            class="nova-pet-press rounded-lg bg-surface-raised-base px-2 py-3 text-12-medium hover:bg-cyan-400/10"
+            class="nova-pet-press rounded-lg bg-surface px-2 py-3 text-12-medium hover:bg-cyan-400/10"
             onClick={() => openGame("minesweeper")}
           >
             💣 扫雷
           </button>
           <button
             type="button"
-            class="nova-pet-press rounded-lg bg-surface-raised-base px-2 py-3 text-12-medium hover:bg-cyan-400/10"
+            class="nova-pet-press rounded-lg bg-surface px-2 py-3 text-12-medium hover:bg-cyan-400/10"
             onClick={() => openGame("sudoku")}
           >
             🔢 数独
           </button>
           <button
             type="button"
-            class="nova-pet-press rounded-lg bg-surface-raised-base px-2 py-3 text-12-medium hover:bg-cyan-400/10"
+            class="nova-pet-press rounded-lg bg-surface px-2 py-3 text-12-medium hover:bg-cyan-400/10"
             onClick={() => openGame("tetris")}
           >
             🧱 方块
           </button>
           <button
             type="button"
-            class="nova-pet-press rounded-lg bg-surface-raised-base px-2 py-3 text-12-medium hover:bg-cyan-400/10"
+            class="nova-pet-press rounded-lg bg-surface px-2 py-3 text-12-medium hover:bg-cyan-400/10"
             onClick={() => openGame("2048")}
           >
             🔢 2048
@@ -1669,7 +1669,7 @@ render(() => {
               >
                 <button
                   type="button"
-                  class="nova-pet-house pointer-events-auto absolute z-[100] rounded-full border bg-background-base/95 px-3 py-1.5 text-11-medium text-text-strong shadow-lg hover:bg-cyan-400/10 transition-all duration-200"
+                  class="nova-pet-house pointer-events-auto absolute z-[100] rounded-full border bg-background/95 px-3 py-1.5 text-11-medium text-foreground shadow-lg hover:bg-cyan-400/10 transition-all duration-200"
                   style={{ left: "calc(50% + 5.5rem)", bottom: "1.5rem" }}
                   title="打开宠物屋"
                   data-no-drag

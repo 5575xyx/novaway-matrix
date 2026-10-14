@@ -228,8 +228,8 @@ export const DialogManageModels: Component = () => {
         }
       >
         <div class="flex flex-col gap-3 p-3 max-h-[60vh] overflow-y-auto">
-          <div class="flex items-center gap-2 px-3 h-9 rounded-lg bg-surface-base">
-            <Icon name="magnifying-glass" class="text-icon-weak-base flex-shrink-0" />
+          <div class="flex items-center gap-2 px-3 h-9 rounded-lg bg-surface">
+            <Icon name="magnifying-glass" class="text-foreground-subtlest flex-shrink-0" />
             <TextField
               variant="ghost"
               type="text"
@@ -257,7 +257,7 @@ export const DialogManageModels: Component = () => {
           <Show
             when={visibleProviders().length > 0}
             fallback={
-              <div class="text-14-regular text-text-weak py-8 text-center">{language.t("dialog.model.empty")}</div>
+              <div class="text-14-regular text-foreground-subtle py-8 text-center">{language.t("dialog.model.empty")}</div>
             }
           >
             <For each={visibleProviders()}>
@@ -267,7 +267,7 @@ export const DialogManageModels: Component = () => {
                 return (
                   <div class="flex flex-col gap-2">
                     <div class="flex items-center justify-between gap-2 pt-2 pb-1">
-                      <span class="text-14-medium text-text-strong">
+                      <span class="text-14-medium text-foreground">
                         <Show when={keys().length > 1} fallback={getProviderName(providerID)}>
                           {language.t("model.provider.keyCount", {
                             provider: getProviderName(providerID),
@@ -296,24 +296,24 @@ export const DialogManageModels: Component = () => {
                       {(entry, keyIndex) => {
                         const isOpen = createMemo(() => isKeyExpanded(providerID, keyIndex()))
                         return (
-                          <div class="rounded-md border border-border-weak-base overflow-hidden">
+                          <div class="rounded-md border border-border overflow-hidden">
                             <Show when={keys().length > 1}>
                               <button
                                 type="button"
-                                class="flex w-full items-center gap-2 px-3 py-2 text-left text-13-medium text-text-strong bg-surface-raised-base hover:bg-surface-base transition-colors"
+                                class="flex w-full items-center gap-2 px-3 py-2 text-left text-13-medium text-foreground bg-surface hover:bg-surface transition-colors"
                                 onClick={() => toggleKeyExpanded(providerID, keyIndex())}
                                 aria-expanded={isOpen()}
                               >
                                 <Icon
                                   name={isOpen() ? "chevron-down" : "chevron-right"}
                                   size="small"
-                                  class="text-icon-weak-base"
+                                  class="text-foreground-subtlest"
                                 />
                                 <span class="flex items-center gap-1.5">
                                   <span>
                                     {language.t("model.key.label")} {keyIndex() + 1}
                                   </span>
-                                  <span class="text-12-regular text-text-weak font-mono">{maskKey(entry.key)}</span>
+                                  <span class="text-12-regular text-foreground-subtle font-mono">{maskKey(entry.key)}</span>
                                 </span>
                               </button>
                             </Show>
@@ -322,7 +322,7 @@ export const DialogManageModels: Component = () => {
                                 <Show
                                   when={models().length > 0}
                                   fallback={
-                                    <div class="px-3 py-2 text-12-regular text-text-weak text-center">
+                                    <div class="px-3 py-2 text-12-regular text-foreground-subtle text-center">
                                       {language.t("dialog.model.empty")}
                                     </div>
                                   }
@@ -332,7 +332,7 @@ export const DialogManageModels: Component = () => {
                                       const key = { modelID: model.id, providerID: model.provider.id }
                                       return (
                                         <div
-                                          class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-surface-base transition-colors border-t border-border-weaker-base first:border-t-0 cursor-default"
+                                          class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-surface transition-colors border-t border-border first:border-t-0 cursor-default"
                                           onContextMenu={(e) =>
                                             handleContextMenu(e, {
                                               providerID: model.provider.id,
@@ -345,7 +345,7 @@ export const DialogManageModels: Component = () => {
                                             class="min-w-0 flex-1 cursor-pointer"
                                             onClick={() => local.model.setVisibility(key, !local.model.visible(key))}
                                           >
-                                            <div class="truncate text-14-regular text-text-strong">{model.name}</div>
+                                            <div class="truncate text-14-regular text-foreground">{model.name}</div>
                                             <ModelCapabilitySummary model={model} compact />
                                           </div>
                                           <div onClick={(e) => e.stopPropagation()}>
@@ -388,12 +388,12 @@ export const DialogManageModels: Component = () => {
             }}
           />
           <div
-            class="absolute min-w-[180px] p-1 bg-surface-raised-base border border-border-base rounded-lg shadow-lg"
+            class="absolute min-w-[180px] p-1 bg-surface border border-border rounded-lg shadow-lg"
             style={{ left: `${contextMenu().x}px`, top: `${contextMenu().y}px` }}
           >
             <button
               type="button"
-              class="flex w-full items-center gap-2 px-2 py-1.5 text-13-regular text-text-strong rounded cursor-pointer hover:bg-surface-base"
+              class="flex w-full items-center gap-2 px-2 py-1.5 text-13-regular text-foreground rounded cursor-pointer hover:bg-surface"
               onClick={() => {
                 if (contextMenu().model) {
                   markModelModality({
@@ -406,12 +406,12 @@ export const DialogManageModels: Component = () => {
                 closeContextMenu()
               }}
             >
-              <Icon name="photo" size="small" class="text-icon-weak-base" />
+              <Icon name="photo" size="small" class="text-foreground-subtlest" />
               标记为图片生成
             </button>
             <button
               type="button"
-              class="flex w-full items-center gap-2 px-2 py-1.5 text-13-regular text-text-strong rounded cursor-pointer hover:bg-surface-base"
+              class="flex w-full items-center gap-2 px-2 py-1.5 text-13-regular text-foreground rounded cursor-pointer hover:bg-surface"
               onClick={() => {
                 if (contextMenu().model) {
                   markModelModality({
@@ -424,7 +424,7 @@ export const DialogManageModels: Component = () => {
                 closeContextMenu()
               }}
             >
-              <Icon name="photo" size="small" class="text-icon-weak-base" />
+              <Icon name="photo" size="small" class="text-foreground-subtlest" />
               标记为视频生成
             </button>
           </div>
