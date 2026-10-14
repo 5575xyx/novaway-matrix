@@ -58,8 +58,8 @@ const frame = createJSXDecorator((Story, context) => {
               style={{
                 "min-height": "100vh",
                 padding: "24px",
-                "background-color": "var(--background-base)",
-                color: "var(--text-base)",
+                "background-color": "var(--background)",
+                color: "var(--foreground)",
               }}
             >
               <Story />
