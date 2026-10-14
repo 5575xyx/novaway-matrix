@@ -3,6 +3,9 @@ import { dict as en } from "./en"
 type Keys = keyof typeof en
 
 export const dict = {
+  "git.branch.switch": "切换分支",
+  "git.branch.newPlaceholder": "新分支名称",
+  "git.branch.create": "新建",
   "window.minimize": "最小化",
   "window.maximize": "最大化",
   "window.restore": "向下还原",

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { GitSnapshotResponses } from "@novaway/sdk/v2"
-import { buildGitSectionModel, gitSectionStat } from "./git-section"
+import { buildGitSectionModel, gitSectionStat } from "./git-section-model"
 
 type Snapshot = GitSnapshotResponses[200]
 type Change = Snapshot["changes"][number]
@@ -44,7 +44,7 @@ describe("buildGitSectionModel", () => {
           change({ file: "src/b.ts", additions: 34 }),
         ]),
       ),
-    ).toEqual({ added: 734, removed: 7, branch: "feat/x", dirty: 2 })
+    ).toMatchObject({ added: 734, removed: 7, branch: "feat/x", dirty: 2 })
   })
 
   test("counts a file present in both index and worktree once", () => {
@@ -65,22 +65,22 @@ describe("buildGitSectionModel", () => {
         change({ file: "assets/font.woff2", status: "added", binary: true }),
       ]),
     )
-    expect(model).toEqual({ added: 0, removed: 0, branch: "main", dirty: 2 })
+    expect(model).toMatchObject({ added: 0, removed: 0, branch: "main", dirty: 2 })
     if (!model) return
-    expect(gitSectionStat(model)).toEqual({ kind: "files", files: 2 })
+    expect(gitSectionStat(model)).toMatchObject({ kind: "files", files: 2 })
   })
 
   test("produces a section for a rename-only tree instead of an empty diff", () => {
-    const model = buildGitSectionModel(
-      makeSnapshot("main", [change({ file: "src/moved.ts", status: "renamed" })]),
-    )
-    expect(model).toEqual({ added: 0, removed: 0, branch: "main", dirty: 1 })
+    const model = buildGitSectionModel(makeSnapshot("main", [change({ file: "src/moved.ts", status: "renamed" })]))
+    expect(model).toMatchObject({ added: 0, removed: 0, branch: "main", dirty: 1 })
     if (!model) return
-    expect(gitSectionStat(model)).toEqual({ kind: "files", files: 1 })
+    expect(gitSectionStat(model!)).toMatchObject({ kind: "files", files: 1 })
   })
 
   test("reports the diff when line counts are present", () => {
-    expect(gitSectionStat({ added: 3, removed: 1, dirty: 2 })).toEqual({
+    // 模型在 B5–B7 增加了 staged/unstaged/ahead/behind/branches，用 matchObject 断言相关字段，
+    // 避免每加一个字段就要改一次测试。
+    expect(gitSectionStat({ added: 3, removed: 1, dirty: 2 })).toMatchObject({
       kind: "diff",
       added: 3,
       removed: 1,
@@ -94,9 +94,7 @@ describe("buildGitSectionModel", () => {
   })
 
   test("normalizes non-finite diff counts to zero", () => {
-    const model = buildGitSectionModel(
-      makeSnapshot("main", [change({ additions: "NaN", deletions: 3 })]),
-    )
+    const model = buildGitSectionModel(makeSnapshot("main", [change({ additions: "NaN", deletions: 3 })]))
     expect(model).toMatchObject({ added: 0, removed: 3 })
   })
 })

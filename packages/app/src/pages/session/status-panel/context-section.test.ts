@@ -4,7 +4,10 @@ import type { SessionContextBreakdownSegment } from "@/components/session/sessio
 import { getSessionContextMetrics } from "@/components/session/session-context-metrics"
 import { contextSectionModel, contextUsageSummary } from "./context-section-model"
 
-const assistant = (id: string, tokens: { input: number; output: number; reasoning: number; read: number; write: number }) =>
+const assistant = (
+  id: string,
+  tokens: { input: number; output: number; reasoning: number; read: number; write: number },
+) =>
   ({
     id,
     role: "assistant",

@@ -27,7 +27,18 @@ describe("todoSectionModel", () => {
   })
 
   test("uses a 3-todo focus window with a stable invariant when there are more than 6 todos", () => {
-    const todos = t2("completed", "completed", "pending", "pending", "pending", "pending", "pending", "pending", "pending", "pending")
+    const todos = t2(
+      "completed",
+      "completed",
+      "pending",
+      "pending",
+      "pending",
+      "pending",
+      "pending",
+      "pending",
+      "pending",
+      "pending",
+    )
     const model = todoSectionModel(todos)
     if (!model) return
     expect(model.focus.length).toBe(3)
@@ -36,7 +47,17 @@ describe("todoSectionModel", () => {
   })
 
   test("anchors the focus window on the in_progress todo", () => {
-    const todos = t2("completed", "completed", "completed", "completed", "in_progress", "pending", "pending", "pending", "pending")
+    const todos = t2(
+      "completed",
+      "completed",
+      "completed",
+      "completed",
+      "in_progress",
+      "pending",
+      "pending",
+      "pending",
+      "pending",
+    )
     const model = todoSectionModel(todos)
     if (!model) return
     expect(model.focus.length).toBe(3)

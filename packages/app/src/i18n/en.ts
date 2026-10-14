@@ -1,4 +1,7 @@
 export const dict = {
+  "git.branch.switch": "Switch branch",
+  "git.branch.newPlaceholder": "New branch name",
+  "git.branch.create": "Create",
   "window.minimize": "Minimize",
   "window.maximize": "Maximize",
   "window.restore": "Restore",
