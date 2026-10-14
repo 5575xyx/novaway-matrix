@@ -93,3 +93,7 @@
 }
 
 @import "./colors.css";
+
+/* NovaWay × ZCode 对齐：补回 ZCode 引用的 Tailwind 默认色板。
+   必须在 colors.css 之后 —— 那里的 `--color-*: initial` 会清空整套色板。 */
+@import "../palette.css";
