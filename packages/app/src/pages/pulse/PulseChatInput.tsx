@@ -191,8 +191,8 @@ export function PulseChatInput(props: PulseChatInputProps) {
   }
 
   const control = () => ({
-    background: "var(--background-base)",
-    border: "1px solid var(--border-weak-base)",
+    background: "var(--background)",
+    border: "1px solid var(--border)",
     "border-radius": "8px",
     height: "28px",
   })
@@ -207,8 +207,8 @@ export function PulseChatInput(props: PulseChatInputProps) {
         class="group/pulse-input"
         style={{
           "border-radius": "16px",
-          background: "var(--surface-raised-stronger-non-alpha)",
-          "box-shadow": "0 0 0 1px var(--border-weak-base), 0 4px 24px rgba(0, 0, 0, 0.08)",
+          background: "var(--popover)",
+          "box-shadow": "0 0 0 1px var(--border), 0 4px 24px rgba(0, 0, 0, 0.08)",
         }}
       >
         <div class="px-2 pb-1 pt-2 flex items-center gap-2 min-w-0 border-b border-border-weak-base">
@@ -352,7 +352,7 @@ export function PulseChatInput(props: PulseChatInputProps) {
             left: `${popoverPosition().left}px`,
             width: "288px",
             transform: "translateY(-100%)",
-            background: "var(--surface-raised-stronger-non-alpha)",
+            background: "var(--popover)",
             "box-shadow": "0 4px 24px rgba(0, 0, 0, 0.08)",
             "max-height": props.autoMode ? "112px" : "320px",
           }}
@@ -440,8 +440,8 @@ export function PulseChatInput(props: PulseChatInputProps) {
             left: `${popoverPosition().left}px`,
             width: `${popoverPosition().width}px`,
             transform: "translateY(-100%)",
-            background: "var(--surface-raised-stronger-non-alpha)",
-            "box-shadow": "0 0 0 1px var(--border-weak-base), 0 4px 24px rgba(0, 0, 0, 0.08)",
+            background: "var(--popover)",
+            "box-shadow": "0 0 0 1px var(--border), 0 4px 24px rgba(0, 0, 0, 0.08)",
           }}
         >
           <For each={filteredAgents()}>
@@ -468,8 +468,8 @@ export function PulseChatInput(props: PulseChatInputProps) {
             left: `${popoverPosition().left}px`,
             width: `${popoverPosition().width}px`,
             transform: "translateY(-100%)",
-            background: "var(--surface-raised-stronger-non-alpha)",
-            "box-shadow": "0 0 0 1px var(--border-weak-base), 0 4px 24px rgba(0, 0, 0, 0.08)",
+            background: "var(--popover)",
+            "box-shadow": "0 0 0 1px var(--border), 0 4px 24px rgba(0, 0, 0, 0.08)",
           }}
         >
           <For each={filteredCommands()}>

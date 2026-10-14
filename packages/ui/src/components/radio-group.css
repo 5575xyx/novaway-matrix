@@ -79,7 +79,7 @@
   }
 
   [data-slot="radio-group-item-label"] {
-    color: var(--text-weak);
+    color: var(--foreground-subtle);
     cursor: default;
     display: flex;
     align-items: center;
@@ -120,7 +120,7 @@
 
   /* Checked state */
   [data-slot="radio-group-item-input"][data-checked] + [data-slot="radio-group-item-label"] {
-    color: var(--text-strong);
+    color: var(--foreground);
   }
 
   /* Hover state: match the inset background (adds subtle density) */

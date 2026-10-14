@@ -20,11 +20,11 @@
   }
 
   [data-slot="progress-label"] {
-    color: var(--text-base);
+    color: var(--foreground);
   }
 
   [data-slot="progress-value-label"] {
-    color: var(--text-weak);
+    color: var(--foreground-subtle);
     font-variant-numeric: tabular-nums;
   }
 
@@ -34,7 +34,7 @@
     height: 8px;
     overflow: hidden;
     border-radius: 999px;
-    border: 1px solid var(--border-weak-base);
+    border: 1px solid var(--border);
     background-color: var(--surface-inset-base);
   }
 

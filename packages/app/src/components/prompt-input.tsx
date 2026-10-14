@@ -1630,11 +1630,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         }}
         style={{
           "border-radius": "16px",
-          background: "var(--surface-raised-stronger-non-alpha)",
+          background: "var(--popover)",
           "box-shadow":
             working() || store.optimizing
               ? undefined
-              : "0 0 0 1px var(--border-weak-base), 0 4px 24px rgba(0, 0, 0, 0.08)",
+              : "0 0 0 1px var(--border), 0 4px 24px rgba(0, 0, 0, 0.08)",
           transition: working() || store.optimizing ? undefined : "box-shadow 0.2s ease",
         }}
       >

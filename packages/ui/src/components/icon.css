@@ -5,7 +5,7 @@
   flex-shrink: 0;
   /* resize: both; */
   aspect-ratio: 1/1;
-  color: var(--icon-base);
+  color: var(--foreground-subtle);
 
   &[data-size="small"] {
     width: 16px;

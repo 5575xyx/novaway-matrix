@@ -10,7 +10,7 @@ const glowFilter = (id: string, deviation: string) => (
   </filter>
 )
 
-const iconFill = "var(--icon-strong-base)"
+const iconFill = "var(--foreground)"
 
 export const Mark = (props: { class?: string }) => {
   return (

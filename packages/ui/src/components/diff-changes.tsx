@@ -79,7 +79,7 @@ export function DiffChanges(props: {
 
   const ADD_COLOR = "var(--icon-diff-add-base)"
   const DELETE_COLOR = "var(--icon-diff-delete-base)"
-  const NEUTRAL_COLOR = "var(--icon-weak-base)"
+  const NEUTRAL_COLOR = "var(--foreground-subtlest)"
 
   const visibleBlocks = createMemo(() => {
     const counts = blockCounts()

@@ -23,7 +23,7 @@
       background-color: color-mix(in oklab, var(--primary) 70%, transparent);
     }
     &:disabled {
-      background-color: var(--icon-strong-disabled);
+      background-color: var(--foreground-subtlest);
 
       [data-slot="icon-svg"] {
         color: var(--icon-invert-base);
@@ -47,7 +47,7 @@
     }
 
     &:disabled {
-      background-color: var(--icon-strong-disabled);
+      background-color: var(--foreground-subtlest);
       color: var(--icon-invert-base);
       cursor: not-allowed;
     }
@@ -55,7 +55,7 @@
 
   &[data-variant="ghost"] {
     background-color: transparent;
-    /* color: var(--icon-base); */
+    /* color: var(--foreground-subtle); */
 
     [data-slot="icon-svg"] {
       color: var(--foreground-subtle);
@@ -147,13 +147,13 @@
 }
 
 [data-component="icon-button"].titlebar-icon[data-variant="ghost"][aria-expanded="true"] {
-  background-color: var(--surface-raised-base-active);
+  background-color: var(--selected);
 }
 
 [data-component="icon-button"].titlebar-icon[data-variant="ghost"][aria-expanded="true"] [data-slot="icon-svg"] {
-  color: var(--icon-strong-base);
+  color: var(--foreground);
 }
 
 [data-component="icon-button"].titlebar-icon[data-variant="ghost"][aria-expanded="true"]:hover:not(:disabled) {
-  background-color: var(--surface-raised-base-active);
+  background-color: var(--selected);
 }

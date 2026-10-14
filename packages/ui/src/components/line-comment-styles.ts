@@ -67,7 +67,7 @@ export const lineCommentStyles = `
   max-width: none;
   box-sizing: border-box;
   border-radius: 8px;
-  background: var(--surface-raised-stronger-non-alpha);
+  background: var(--popover);
   box-shadow: var(--shadow-xxs-border);
   padding: 12px;
 }
@@ -125,7 +125,7 @@ export const lineCommentStyles = `
   font-weight: var(--font-weight-regular);
   line-height: var(--line-height-x-large);
   letter-spacing: var(--letter-spacing-normal);
-  color: var(--text-strong);
+  color: var(--foreground);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -145,7 +145,7 @@ export const lineCommentStyles = `
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-large);
   letter-spacing: var(--letter-spacing-normal);
-  color: var(--text-weak);
+  color: var(--foreground-subtle);
   min-width: 0;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -165,9 +165,9 @@ export const lineCommentStyles = `
   resize: vertical;
   padding: 8px;
   border-radius: var(--radius-md);
-  background: var(--surface-base);
-  border: 1px solid var(--border-base);
-  color: var(--text-strong);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--foreground);
   font-family: var(--font-family-sans);
   font-size: var(--font-size-small);
   line-height: var(--line-height-large);
@@ -185,9 +185,9 @@ export const lineCommentStyles = `
   max-height: 180px;
   overflow: auto;
   padding: 4px;
-  border: 1px solid var(--border-base);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--surface-base);
+  background: var(--surface);
 }
 
 [data-component="line-comment"] [data-slot="line-comment-mention-item"] {
@@ -200,12 +200,12 @@ export const lineCommentStyles = `
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--text-strong);
+  color: var(--foreground);
   text-align: left;
 }
 
 [data-component="line-comment"] [data-slot="line-comment-mention-item"][data-active] {
-  background: var(--surface-raised-base-hover);
+  background: var(--hover);
 }
 
 [data-component="line-comment"] [data-slot="line-comment-mention-path"] {
@@ -219,14 +219,14 @@ export const lineCommentStyles = `
 
 [data-component="line-comment"] [data-slot="line-comment-mention-dir"] {
   min-width: 0;
-  color: var(--text-weak);
+  color: var(--foreground-subtle);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 [data-component="line-comment"] [data-slot="line-comment-mention-file"] {
-  color: var(--text-strong);
+  color: var(--foreground);
   white-space: nowrap;
 }
 
@@ -245,9 +245,9 @@ export const lineCommentStyles = `
 }
 
 [data-component="line-comment"] [data-slot="line-comment-action"] {
-  border: 1px solid var(--border-base);
-  background: var(--surface-base);
-  color: var(--text-strong);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--foreground);
   border-radius: var(--radius-md);
   height: 28px;
   padding: 0 10px;
@@ -261,9 +261,9 @@ export const lineCommentStyles = `
 }
 
 [data-component="line-comment"] [data-slot="line-comment-action"][data-variant="primary"] {
-  background: var(--text-strong);
-  border-color: var(--text-strong);
-  color: var(--background-base);
+  background: var(--foreground);
+  border-color: var(--foreground);
+  color: var(--background);
 }
 
 [data-component="line-comment"] [data-slot="line-comment-action"]:disabled {

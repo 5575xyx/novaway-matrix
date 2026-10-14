@@ -22,7 +22,7 @@
     align-self: stretch;
     cursor: default;
     user-select: none;
-    color: var(--text-base);
+    color: var(--foreground);
 
     [data-slot="collapsible-arrow"] {
       opacity: 0;
@@ -52,11 +52,11 @@
     letter-spacing: var(--letter-spacing-normal);
 
     /* &:hover { */
-    /*   background-color: var(--surface-base); */
+    /*   background-color: var(--surface); */
     /* } */
     &:focus-visible {
       outline: none;
-      background-color: var(--surface-raised-base-hover);
+      background-color: var(--hover);
     }
     &[data-disabled] {
       cursor: not-allowed;
@@ -106,11 +106,11 @@
       padding: 0;
 
       /* &:hover { */
-      /*   color: var(--text-strong); */
+      /*   color: var(--foreground); */
       /* } */
       &:focus-visible {
         outline: none;
-        background-color: var(--surface-raised-base-hover);
+        background-color: var(--hover);
       }
       &[data-disabled] {
         cursor: not-allowed;

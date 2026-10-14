@@ -685,7 +685,7 @@ export function FileTabContent(props: { tab: string }) {
           {(menu) => (
             <div
               data-file-context-menu
-              class="absolute z-50 min-w-[220px] rounded-lg border border-border-weak-base bg-surface-float-base p-1 shadow-[var(--shadow-lg-border-base)]"
+              class="absolute z-50 min-w-[220px] rounded-lg border border-border-weak-base bg-surface-float-base p-1 shadow-[var(--shadow-md)]"
               style={{ left: `${menu().x}px`, top: `${menu().y}px` }}
             >
               <Show

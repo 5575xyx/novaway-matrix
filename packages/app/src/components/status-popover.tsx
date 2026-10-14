@@ -59,7 +59,7 @@ export function StatusPopover() {
       <Show when={shown()}>
         <Suspense
           fallback={
-            <div class="w-[360px] h-14 rounded-xl bg-background-strong shadow-[var(--shadow-lg-border-base)]" />
+            <div class="w-[360px] h-14 rounded-xl bg-background-strong shadow-[var(--shadow-md)]" />
           }
         >
           <Body shown={shown} />

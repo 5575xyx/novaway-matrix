@@ -13,3 +13,7 @@ packages/desktop/out/renderer/site.webmanifest
 packages/docs/openapi.json
 packages/enterprise/public/site.webmanifest
 packages/web/public/site.webmanifest
+
+# 生成物，由 packages/ui/script/tailwind.ts 从 colors.txt 产出（文件头已注明「请勿手改」）。
+# 生成器的输出不是 prettier 格式，纳入检查会每次生成后报错。
+packages/ui/src/styles/tailwind/colors.css

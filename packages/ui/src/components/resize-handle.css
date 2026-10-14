@@ -41,7 +41,7 @@
     position: absolute;
     opacity: 0;
     border-radius: 9999px;
-    background: color-mix(in oklab, var(--text-weaker) 50%, transparent);
+    background: color-mix(in oklab, var(--foreground-subtlest) 50%, transparent);
     transition: opacity 0.15s ease-in-out;
   }
 

@@ -97,7 +97,7 @@ export const ProjectSwitcherChip: Component = () => {
       onOpenChange={(open) => (open ? layout.projectPicker.show() : layout.projectPicker.hide())}
       placement="bottom-start"
       gutter={8}
-      class="w-[340px] rounded-[14px] border border-border-weak-base bg-surface-raised-stronger-non-alpha p-0 shadow-[var(--shadow-lg-border-base)] backdrop-blur-xl"
+      class="w-[340px] rounded-[14px] border border-border-weak-base bg-surface-raised-stronger-non-alpha p-0 shadow-[var(--shadow-md)] backdrop-blur-xl"
     >
       <TooltipKeybind
         placement="top"
@@ -116,8 +116,8 @@ export const ProjectSwitcherChip: Component = () => {
           onClick={() => layout.projectPicker.toggle()}
           class="group flex h-7 min-w-0 max-w-[200px] items-center gap-1.5 rounded-[8px] px-2 text-13-regular text-text-base transition-colors hover:bg-surface-base-hover data-[state=open]:bg-surface-base-hover"
           style={{
-            background: "var(--surface-raised-base)",
-            border: "1px solid var(--border-weak-base)",
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
           }}
         >
           <Icon name={currentProject() ? "folder" : "folder-add-left"} size="small" class="shrink-0 text-icon-base" />
