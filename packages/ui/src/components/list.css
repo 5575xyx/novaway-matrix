@@ -47,7 +47,7 @@
       }
 
       &:hover:not(:disabled) [data-slot="icon-svg"] {
-        color: var(--icon-hover);
+        color: var(--foreground);
       }
 
       &:active:not(:disabled) [data-slot="icon-svg"] {
@@ -98,7 +98,7 @@
       }
 
       &:hover:not(:disabled) [data-slot="icon-svg"] {
-        color: var(--icon-hover);
+        color: var(--foreground);
       }
 
       &:active:not(:disabled) [data-slot="icon-svg"] {
@@ -116,7 +116,7 @@
       }
 
       &:hover:not(:disabled) [data-slot="icon-svg"] {
-        color: var(--icon-hover);
+        color: var(--foreground);
       }
 
       &:active:not(:disabled) [data-slot="icon-svg"] {

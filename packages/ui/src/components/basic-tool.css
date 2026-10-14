@@ -127,22 +127,22 @@
     }
 
     &.subagent-link {
-      color: var(--text-interactive-base);
+      color: var(--icon-blue);
       text-decoration: none;
       text-underline-offset: 2px;
       font-weight: var(--font-weight-regular);
 
       &:hover {
-        color: var(--text-interactive-base);
+        color: var(--icon-blue);
         text-decoration: underline;
       }
 
       &:active {
-        color: var(--text-interactive-base);
+        color: var(--icon-blue);
       }
 
       &:visited {
-        color: var(--text-interactive-base);
+        color: var(--icon-blue);
       }
     }
   }

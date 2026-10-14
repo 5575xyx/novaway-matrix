@@ -30,7 +30,7 @@ export const lineCommentStyles = `
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--icon-interactive-base);
+  background: var(--icon-blue);
   box-shadow: var(--shadow-xs);
   cursor: default;
   border: none;

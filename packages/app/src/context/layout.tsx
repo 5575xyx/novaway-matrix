@@ -91,7 +91,7 @@ export function getAvatarColors(key?: string) {
     }
   }
   return {
-    background: "var(--surface-info-base)",
+    background: "var(--surface)",
     foreground: "var(--foreground)",
   }
 }

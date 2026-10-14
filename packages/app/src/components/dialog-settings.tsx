@@ -89,7 +89,7 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
         value={tab()}
         onChange={changeTab}
         class="h-full settings-drawer"
-        style={{ "--settings-accent": "var(--text-interactive-base)" }}
+        style={{ "--settings-accent": "var(--icon-blue)" }}
       >
         <Tabs.List>
           <div class="flex flex-col justify-between h-full w-full">

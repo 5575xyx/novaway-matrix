@@ -26,7 +26,7 @@
       background-color: var(--foreground-subtlest);
 
       [data-slot="icon-svg"] {
-        color: var(--icon-invert-base);
+        color: var(--foreground-inverse);
       }
     }
   }
@@ -48,7 +48,7 @@
 
     &:disabled {
       background-color: var(--foreground-subtlest);
-      color: var(--icon-invert-base);
+      color: var(--foreground-inverse);
       cursor: not-allowed;
     }
   }
@@ -65,7 +65,7 @@
       background-color: var(--hover);
 
       /* [data-slot="icon-svg"] { */
-      /*   color: var(--icon-hover); */
+      /*   color: var(--foreground); */
       /* } */
     }
     &:focus-visible:not(:disabled) {
@@ -80,11 +80,11 @@
     &[data-selected="true"]:not(:disabled) {
       background-color: var(--selected);
       /* [data-slot="icon-svg"] { */
-      /*   color: var(--icon-selected); */
+      /*   color: var(--foreground); */
       /* } */
     }
     &:disabled {
-      color: var(--icon-invert-base);
+      color: var(--foreground-inverse);
       cursor: not-allowed;
     }
   }

@@ -85,7 +85,7 @@ export function WorkspaceHeader() {
         onClick={layout.mobileSidebar.toggle}
       />
       <Show when={working()}>
-        <span class="size-2 rounded-full bg-[var(--border-success-selected)] animate-pulse shrink-0" />
+        <span class="size-2 rounded-full bg-[var(--success)] animate-pulse shrink-0" />
       </Show>
       <span class="text-ui-base font-medium text-text-strong truncate max-w-[240px]">
         {displaySessionTitle(session()?.title, language.t("workspace.header.untitled"))}

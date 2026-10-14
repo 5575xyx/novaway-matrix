@@ -1812,7 +1812,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                         <span
                           class="truncate"
                           style={{
-                            background: "linear-gradient(135deg, var(--text-interactive-base), #8b5cf6)",
+                            background: "linear-gradient(135deg, var(--icon-blue), #8b5cf6)",
                             "-webkit-background-clip": "text",
                             "-webkit-text-fill-color": "transparent",
                             "background-clip": "text",
@@ -1857,7 +1857,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                         class="capitalize max-w-[160px] text-text-strong"
                         valueClass="truncate text-13-medium"
                         valueStyle={{
-                          background: "linear-gradient(135deg, #8b5cf6, var(--text-interactive-base))",
+                          background: "linear-gradient(135deg, #8b5cf6, var(--icon-blue))",
                           "-webkit-background-clip": "text",
                           "-webkit-text-fill-color": "transparent",
                           "background-clip": "text",

@@ -70,15 +70,15 @@ const kindLabel = (kind: Kind) => {
 }
 
 const kindTextColor = (kind: Kind) => {
-  if (kind === "add") return "color: var(--icon-diff-add-base)"
-  if (kind === "del") return "color: var(--icon-diff-delete-base)"
-  return "color: var(--icon-diff-modified-base)"
+  if (kind === "add") return "color: var(--diff-added)"
+  if (kind === "del") return "color: var(--diff-removed)"
+  return "color: var(--git-modified)"
 }
 
 const kindDotColor = (kind: Kind) => {
-  if (kind === "add") return "background-color: var(--icon-diff-add-base)"
-  if (kind === "del") return "background-color: var(--icon-diff-delete-base)"
-  return "background-color: var(--icon-diff-modified-base)"
+  if (kind === "add") return "background-color: var(--diff-added)"
+  if (kind === "del") return "background-color: var(--diff-removed)"
+  return "background-color: var(--git-modified)"
 }
 
 const visibleKind = (node: FileNode, kinds?: ReadonlyMap<string, Kind>, marks?: Set<string>) => {

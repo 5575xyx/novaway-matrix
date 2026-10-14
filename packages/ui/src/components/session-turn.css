@@ -71,7 +71,7 @@
   }
 
   .error-card {
-    color: var(--text-on-critical-base);
+    color: var(--destructive-foreground);
     max-height: 240px;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
@@ -86,15 +86,11 @@
     flex-direction: column;
     align-self: stretch;
     gap: 12px;
-    border-left: 2px solid color-mix(in srgb, var(--text-interactive-base) 55%, transparent);
+    border-left: 2px solid color-mix(in srgb, var(--icon-blue) 55%, transparent);
     padding-left: 16px;
     margin-left: 6px;
     border-radius: 0 10px 10px 0;
-    background: linear-gradient(
-      to right,
-      color-mix(in srgb, var(--text-interactive-base) 5%, transparent),
-      transparent 42%
-    );
+    background: linear-gradient(to right, color-mix(in srgb, var(--icon-blue) 5%, transparent), transparent 42%);
   }
 
   [data-slot="session-turn-diffs"] {
@@ -125,7 +121,7 @@
   }
 
   [data-slot="session-turn-diffs-toggle"] {
-    color: var(--text-interactive-base);
+    color: var(--icon-blue);
     font-family: var(--font-family-sans);
     font-size: var(--font-size-ui-base);
     font-weight: var(--font-weight-regular);
@@ -223,7 +219,7 @@
   }
 
   [data-slot="session-turn-diff-view"] {
-    background-color: var(--surface-inset-base);
+    background-color: var(--surface);
     width: 100%;
     min-width: 0;
     overflow-y: auto;

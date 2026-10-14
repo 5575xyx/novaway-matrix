@@ -107,10 +107,10 @@ export function SidebarFiles(props: { directory: string; sessionKey: () => strin
   const kindColor = (kind: Kind) => ({
     color:
       kind === "add"
-        ? "var(--icon-diff-add-base)"
+        ? "var(--diff-added)"
         : kind === "del"
-          ? "var(--icon-diff-delete-base)"
-          : "var(--icon-diff-modified-base)",
+          ? "var(--diff-removed)"
+          : "var(--git-modified)",
   })
 
   const toggleDir = (dir: string) => {
