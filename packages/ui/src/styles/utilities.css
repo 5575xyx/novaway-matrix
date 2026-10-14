@@ -48,7 +48,7 @@
 /* XS (11px) 排版 */
 .text-11-regular {
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-ui-xs);
   font-style: normal;
   font-weight: var(--font-weight-regular);
   line-height: var(--line-height-large);
@@ -57,7 +57,7 @@
 
 .text-11-medium {
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-ui-xs);
   font-style: normal;
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-large);
@@ -66,7 +66,7 @@
 
 .text-11-semibold {
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-ui-xs);
   font-style: normal;
   font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-large);
@@ -76,7 +76,7 @@
 .text-11-mono {
   font-family: var(--font-family-mono);
   font-feature-settings: var(--font-feature-settings-mono);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-ui-xs);
   font-style: normal;
   font-weight: var(--font-weight-regular);
   line-height: var(--line-height-large);
@@ -86,7 +86,7 @@
 /* SM (13px) 排版 */
 .text-12-regular {
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-small);
+  font-size: var(--font-size-ui-sm);
   font-style: normal;
   font-weight: var(--font-weight-regular);
   line-height: var(--line-height-large);
@@ -95,7 +95,7 @@
 
 .text-12-medium {
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-small);
+  font-size: var(--font-size-ui-sm);
   font-style: normal;
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-large);
@@ -104,7 +104,7 @@
 
 .text-12-semibold {
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-small);
+  font-size: var(--font-size-ui-sm);
   font-style: normal;
   font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-large);
@@ -114,7 +114,7 @@
 .text-12-mono {
   font-family: var(--font-family-mono);
   font-feature-settings: var(--font-feature-settings-mono);
-  font-size: var(--font-size-small);
+  font-size: var(--font-size-ui-sm);
   font-style: normal;
   font-weight: var(--font-weight-regular);
   line-height: var(--line-height-large);
@@ -124,7 +124,7 @@
 /* 13px 排版 */
 .text-13-regular {
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-small);
+  font-size: var(--font-size-ui-caption);
   font-style: normal;
   font-weight: var(--font-weight-regular);
   line-height: var(--line-height-large);
@@ -133,7 +133,7 @@
 
 .text-13-medium {
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-small);
+  font-size: var(--font-size-ui-caption);
   font-style: normal;
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-large);
@@ -142,7 +142,7 @@
 
 .text-13-semibold {
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-small);
+  font-size: var(--font-size-ui-caption);
   font-style: normal;
   font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-large);
@@ -152,7 +152,7 @@
 .text-13-mono {
   font-family: var(--font-family-mono);
   font-feature-settings: var(--font-feature-settings-mono);
-  font-size: var(--font-size-small);
+  font-size: var(--font-size-ui-caption);
   font-style: normal;
   font-weight: var(--font-weight-regular);
   line-height: var(--line-height-large);
@@ -162,7 +162,7 @@
 /* BASE (14px) 排版 */
 .text-14-regular {
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-ui-base);
   font-style: normal;
   font-weight: var(--font-weight-regular);
   line-height: var(--line-height-x-large);
@@ -171,7 +171,7 @@
 
 .text-14-medium {
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-ui-base);
   font-style: normal;
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-large);
@@ -180,7 +180,7 @@
 
 .text-14-semibold {
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-ui-base);
   font-style: normal;
   font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-large);
@@ -190,7 +190,7 @@
 .text-14-mono {
   font-family: var(--font-family-mono);
   font-feature-settings: var(--font-feature-settings-mono);
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-ui-base);
   font-style: normal;
   font-weight: var(--font-weight-regular);
   line-height: var(--line-height-large);
@@ -200,7 +200,7 @@
 /* LG (16px) 排版 */
 .text-16-regular {
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-large);
+  font-size: var(--font-size-ui-lg);
   font-style: normal;
   font-weight: var(--font-weight-regular);
   line-height: var(--line-height-x-large);
@@ -209,7 +209,7 @@
 
 .text-16-medium {
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-large);
+  font-size: var(--font-size-ui-lg);
   font-style: normal;
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-x-large);
@@ -218,7 +218,7 @@
 
 .text-16-semibold {
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-large);
+  font-size: var(--font-size-ui-lg);
   font-style: normal;
   font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-x-large);
@@ -227,7 +227,7 @@
 
 .text-16-bold {
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-large);
+  font-size: var(--font-size-ui-lg);
   font-style: normal;
   font-weight: var(--font-weight-bold);
   line-height: var(--line-height-x-large);
@@ -237,7 +237,7 @@
 /* XL (18px) 排版 */
 .text-18-regular {
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-x-large);
+  font-size: var(--font-size-ui-xl);
   font-style: normal;
   font-weight: var(--font-weight-regular);
   line-height: var(--line-height-large);
@@ -246,7 +246,7 @@
 
 .text-18-medium {
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-x-large);
+  font-size: var(--font-size-ui-xl);
   font-style: normal;
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-large);
@@ -255,7 +255,7 @@
 
 .text-18-semibold {
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-x-large);
+  font-size: var(--font-size-ui-xl);
   font-style: normal;
   font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-large);
@@ -264,7 +264,7 @@
 
 .text-18-bold {
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-x-large);
+  font-size: var(--font-size-ui-xl);
   font-style: normal;
   font-weight: var(--font-weight-bold);
   line-height: var(--line-height-large);

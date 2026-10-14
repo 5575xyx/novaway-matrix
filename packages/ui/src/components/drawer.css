@@ -75,7 +75,7 @@
           color: var(--foreground);
 
           font-family: var(--font-family-sans);
-          font-size: var(--font-size-large);
+          font-size: var(--font-size-ui-lg);
           font-style: normal;
           font-weight: var(--font-weight-medium);
           line-height: var(--line-height-x-large);
@@ -97,7 +97,7 @@
         color: var(--foreground);
 
         font-family: var(--font-family-sans);
-        font-size: 14px;
+        font-size: var(--font-size-ui-base);
         font-style: normal;
         font-weight: var(--font-weight-regular);
         line-height: var(--line-height-large);

@@ -282,7 +282,7 @@
     width: 100%;
     border-collapse: collapse;
     margin: 24px 0;
-    font-size: var(--font-size-base);
+    font-size: var(--font-size-ui-base);
     display: block;
     overflow-x: auto;
     border-radius: 8px;

@@ -49,12 +49,11 @@
     gap: 12px;
     color: var(--foreground);
 
-    /* text-14-medium */
+    /* 对齐 ZCode `components/ui/tabs.tsx`：`text-ui-base font-medium` */
     font-family: var(--font-family-sans);
-    font-size: 14px;
-    font-style: normal;
+    font-size: var(--font-size-ui-base);
     font-weight: var(--font-weight-medium);
-    line-height: var(--line-height-large); /* 142.857% */
+    line-height: var(--line-height-normal);
     letter-spacing: var(--letter-spacing-normal);
 
     white-space: nowrap;
@@ -68,7 +67,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 14px 24px 14px 12px;
+      padding: 8px 12px;
       outline: none;
       min-width: 0;
       overflow: hidden;
@@ -295,7 +294,7 @@
 
       /* text-14-regular */
       font-family: var(--font-family-sans);
-      font-size: var(--font-size-base);
+      font-size: var(--font-size-ui-base);
       font-style: normal;
       font-weight: var(--font-weight-regular);
       line-height: var(--line-height-x-large); /* 171.429% */
@@ -366,7 +365,7 @@
 
       /* text-13-medium */
       font-family: var(--font-family-sans);
-      font-size: var(--font-size-small);
+      font-size: var(--font-size-ui-sm);
       font-style: normal;
       font-weight: var(--font-weight-medium);
       line-height: var(--line-height-large);
@@ -537,7 +536,7 @@
         width: 100%;
         padding: 0 0 0 4px;
         font-family: var(--font-family-sans);
-        font-size: var(--font-size-small);
+        font-size: var(--font-size-ui-sm);
         font-weight: var(--font-weight-medium);
         color: var(--foreground-subtle);
       }
@@ -549,7 +548,7 @@
         color: var(--settings-nav-text, var(--foreground));
 
         font-family: var(--font-family-sans);
-        font-size: var(--font-size-large);
+        font-size: var(--font-size-ui-lg);
         font-weight: var(--font-weight-semibold);
         line-height: var(--line-height-large);
 

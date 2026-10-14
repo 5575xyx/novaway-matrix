@@ -45,7 +45,7 @@
 
     /* text-12-medium */
     font-family: var(--font-family-sans);
-    font-size: var(--font-size-small);
+    font-size: var(--font-size-ui-sm);
     font-style: normal;
     font-weight: var(--font-weight-medium);
     line-height: var(--line-height-large); /* 166.667% */
