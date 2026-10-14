@@ -1,5 +1,6 @@
 import type { ColorValue, DesktopTheme, HexColor, ResolvedTheme, ThemeVariant } from "./types"
 import { blend, generateNeutralScale, generateScale, hexToOklch, hexToRgb, shift, withAlpha } from "./color"
+import { ZCODE_TOKENS_DARK, ZCODE_TOKENS_LIGHT } from "./zcode-tokens"
 
 export function resolveThemeVariant(variant: ThemeVariant, isDark: boolean): ResolvedTheme {
   const colors = getColors(variant)
@@ -427,6 +428,11 @@ export function resolveThemeVariant(variant: ThemeVariant, isDark: boolean): Res
   tokens["avatar-text-purple"] = isDark ? "#9d5bd2" : "#8445bc"
   tokens["avatar-text-cyan"] = isDark ? "#369eff" : "#0894b3"
   tokens["avatar-text-lime"] = isDark ? "#c4f042" : "#5d770d"
+
+  // NovaWay × ZCode 对齐（P0）：先铺 ZCode 语义 token，再让主题 overrides 覆盖。
+  // 位置在 overrides 之前 —— 主题可以覆盖任意 ZCode token，行为与旧 token 一致。
+  // 与既有 575 个 token 并存，老组件不受影响；见 docs/superpowers/specs/2026-10-14-ui-full-parity-design.md。
+  Object.assign(tokens, isDark ? ZCODE_TOKENS_DARK : ZCODE_TOKENS_LIGHT)
 
   for (const [key, value] of Object.entries(overrides)) {
     tokens[key] = value
