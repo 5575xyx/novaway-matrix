@@ -11,8 +11,8 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: var(--card-pad-y) var(--card-pad-r) var(--card-pad-y) var(--card-pad-l);
-  box-shadow: var(--shadow-sm);
-  transition: all 0.2s ease-in-out;
+  /* DESIGN.md：卡片靠边框与底色分层，不用阴影（Elevation「Base」层）。 */
+  transition: colors 0.15s ease-in-out;
 
   /* text-14-regular */
   font-family: var(--font-family-sans);

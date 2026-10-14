@@ -288,32 +288,32 @@ registerCustomTheme("NovaWay", () => {
         scope: "meta.diff.range",
         settings: {
           fontStyle: "bold",
-          foreground: "var(--syntax-unknown)",
+          foreground: "var(--syntax-comment)",
         },
       },
       {
         scope: "meta.diff.header",
         settings: {
-          foreground: "var(--syntax-unknown)",
+          foreground: "var(--syntax-comment)",
         },
       },
       {
         scope: "meta.separator",
         settings: {
           fontStyle: "bold",
-          foreground: "var(--syntax-unknown)",
+          foreground: "var(--syntax-comment)",
         },
       },
       {
         scope: "meta.output",
         settings: {
-          foreground: "var(--syntax-unknown)",
+          foreground: "var(--syntax-comment)",
         },
       },
       {
         scope: "meta.export.default",
         settings: {
-          foreground: "var(--syntax-unknown)",
+          foreground: "var(--syntax-comment)",
         },
       },
       {
@@ -326,14 +326,14 @@ registerCustomTheme("NovaWay", () => {
           "brackethighlighter.quote",
         ],
         settings: {
-          foreground: "var(--syntax-unknown)",
+          foreground: "var(--syntax-comment)",
         },
       },
       {
         scope: ["constant.other.reference.link", "string.other.link"],
         settings: {
           fontStyle: "underline",
-          foreground: "var(--syntax-unknown)",
+          foreground: "var(--syntax-comment)",
         },
       },
       {
@@ -371,7 +371,7 @@ registerCustomTheme("NovaWay", () => {
       namespace: "var(--syntax-type)",
       enumMember: "var(--syntax-primitive)",
       "variable.constant": "var(--syntax-constant)",
-      "variable.defaultLibrary": "var(--syntax-unknown)",
+      "variable.defaultLibrary": "var(--syntax-comment)",
     },
   } as unknown as ThemeRegistrationResolved)
 })
