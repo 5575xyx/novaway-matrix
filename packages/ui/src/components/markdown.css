@@ -3,10 +3,15 @@
   min-width: 0;
   max-width: 100%;
   overflow-wrap: break-word;
-  color: var(--text-strong);
+  /* 对齐 ZCode `components/ai-elements/message.tsx`：
+     正文 `text-ui-base leading-[1.75] tracking-wide`；标题按 DESIGN.md「Markdown type scale」
+     —— h1=text-ui-xl、h2=text-ui-lg、h3~h6 统一 text-ui-base，靠字重区分层级。
+     旧版标题是 24/20/18/16px 的「文档式」层级，比 ZCode 大一到两档。 */
+  color: var(--foreground);
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-base); /* 14px */
-  line-height: 160%;
+  font-size: var(--font-size-ui-base);
+  line-height: 1.75;
+  letter-spacing: var(--letter-spacing-wide);
 
   /* Spacing for flow */
   > *:first-child {
@@ -16,47 +21,59 @@
     margin-bottom: 0;
   }
 
-  /* Headings: 按层级区分字号和间距 */
+  /* Headings —— 字号层级见 DESIGN.md「Markdown type scale」，间距取 ZCode 的 mt-6 mb-4 */
   h1 {
-    font-size: 24px;
-    font-weight: var(--font-weight-bold);
-    margin-top: 32px;
+    font-size: var(--font-size-ui-xl);
+    font-weight: var(--font-weight-semibold);
+    margin-top: 24px;
     margin-bottom: 16px;
-    color: var(--text-strong);
-    border-bottom: 2px solid var(--border-weak-base);
-    padding-bottom: 8px;
+    color: var(--foreground);
   }
 
   h2 {
-    font-size: 20px;
+    font-size: var(--font-size-ui-lg);
     font-weight: var(--font-weight-semibold);
-    margin-top: 28px;
-    margin-bottom: 14px;
-    color: var(--text-strong);
+    margin-top: 24px;
+    margin-bottom: 16px;
+    color: var(--foreground);
   }
 
   h3 {
-    font-size: 18px;
+    font-size: var(--font-size-ui-base);
+    font-weight: var(--font-weight-semibold);
+    margin-top: 24px;
+    margin-bottom: 16px;
+    color: var(--foreground);
+  }
+
+  h4 {
+    font-size: var(--font-size-ui-base);
+    font-weight: var(--font-weight-semibold);
+    margin-top: 24px;
+    margin-bottom: 16px;
+    color: var(--foreground);
+  }
+
+  h5 {
+    font-size: var(--font-size-ui-base);
     font-weight: var(--font-weight-medium);
     margin-top: 24px;
-    margin-bottom: 12px;
-    color: var(--text-strong);
+    margin-bottom: 16px;
+    color: var(--foreground);
   }
 
-  h4,
-  h5,
   h6 {
-    font-size: 16px;
-    font-weight: var(--font-weight-medium);
-    margin-top: 20px;
-    margin-bottom: 10px;
-    color: var(--text-strong);
+    font-size: var(--font-size-ui-base);
+    font-weight: var(--font-weight-regular);
+    margin-top: 24px;
+    margin-bottom: 16px;
+    color: var(--foreground);
   }
 
-  /* Emphasis & Strong: Neutral strong color */
+  /* Emphasis & Strong */
   strong,
   b {
-    color: var(--text-strong);
+    color: var(--foreground);
     font-weight: var(--font-weight-medium);
   }
 
@@ -67,7 +84,7 @@
 
   /* Links */
   a {
-    color: var(--text-interactive-base);
+    color: var(--icon-blue);
     text-decoration: none;
     font-weight: inherit;
   }
@@ -78,15 +95,15 @@
   }
 
   code[data-file-open] {
-    color: var(--text-interactive-base);
-    border-bottom: 1px dashed color-mix(in srgb, var(--text-interactive-base) 55%, transparent);
+    color: var(--icon-blue);
+    border-bottom: 1px dashed color-mix(in srgb, var(--icon-blue) 55%, transparent);
     cursor: pointer;
   }
 
   code[data-file-open]:hover {
     text-decoration: underline;
     text-underline-offset: 2px;
-    background: color-mix(in srgb, var(--text-interactive-base) 8%, transparent);
+    background: color-mix(in srgb, var(--icon-blue) 8%, transparent);
   }
 
   /* Lists */
@@ -123,7 +140,7 @@
   }
 
   li::marker {
-    color: var(--text-weak);
+    color: var(--foreground-subtle);
   }
 
   /* Nested lists spacing */
@@ -140,10 +157,10 @@
 
   /* Blockquotes */
   blockquote {
-    border-left: 2px solid var(--border-weak-base);
+    border-left: 2px solid var(--border);
     margin: 1.5rem 0;
-    padding-left: 0.5rem;
-    color: var(--text-weak);
+    padding-left: 0.75rem;
+    color: var(--foreground-subtle);
     font-style: normal;
   }
 
@@ -154,12 +171,13 @@
     margin: 40px 0;
   }
 
+  /* DESIGN.md：代码块 body 默认 14px；外壳按容器层级 rounded-lg + border-border */
   .shiki {
-    font-size: 13px;
-    padding: 16px;
-    border-radius: 8px;
-    border: 1px solid var(--border-weak-base);
-    background: var(--surface-base);
+    font-size: var(--font-size-ui-base);
+    padding: 12px 16px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    background: var(--surface);
     overflow-x: auto;
   }
 
@@ -183,22 +201,21 @@
       transform: translateX(-50%);
       z-index: 1000;
 
-      max-width: 320px;
-      border-radius: var(--radius-sm);
-      background: var(--surface-float-base);
-      color: var(--text-invert-strong);
-      padding: 2px 8px;
-      border: 1px solid var(--border-weak-base, rgba(0, 0, 0, 0.07));
+      max-width: 20rem;
+      border-radius: var(--radius-lg);
+      background: var(--tooltip);
+      color: var(--tooltip-foreground);
+      padding: 6px 12px;
+      border: 1px solid var(--border);
       box-shadow: var(--shadow-md);
 
       pointer-events: none;
       white-space: nowrap;
 
       font-family: var(--font-family-sans);
-      font-size: var(--font-size-small);
-      font-style: normal;
-      font-weight: var(--font-weight-medium);
-      line-height: var(--line-height-large);
+      font-size: var(--font-size-ui-sm);
+      font-weight: var(--font-weight-regular);
+      line-height: var(--line-height-normal);
       letter-spacing: var(--letter-spacing-normal);
 
       opacity: 0;
@@ -213,11 +230,11 @@
 
   [data-slot="markdown-copy-button"][data-variant="secondary"] {
     box-shadow: none;
-    border: 1px solid var(--border-weak-base);
+    border: 1px solid var(--border);
   }
 
   [data-slot="markdown-copy-button"][data-variant="secondary"] [data-slot="icon-svg"] {
-    color: var(--icon-base);
+    color: var(--foreground-subtle);
   }
 
   [data-component="markdown-code"]:hover [data-slot="markdown-copy-button"] {
@@ -247,18 +264,17 @@
     }
   }
 
+  /* DESIGN.md：行内代码 `font-mono text-ui-sm`，背景用 markdown-inline-code token（= tag 层级）。 */
   :not(pre) > code {
     font-family: var(--font-family-mono);
     font-feature-settings: var(--font-family-mono--font-feature-settings);
-    color: var(--syntax-string);
+    font-size: var(--font-size-ui-sm);
     font-weight: var(--font-weight-medium);
-    /* font-size: 13px; */
-
-    /* padding: 2px 2px; */
-    /* margin: 0 1.5px; */
-    /* border-radius: 2px; */
-    /* background: var(--surface-base); */
-    /* box-shadow: 0 0 0 0.5px var(--border-weak-base); */
+    color: var(--foreground);
+    margin: 0 1.5px;
+    padding: 2px 6px;
+    border-radius: var(--radius-md);
+    background: color-mix(in oklab, var(--markdown-inline-code) 50%, transparent);
   }
 
   /* Tables */
@@ -270,22 +286,22 @@
     display: block;
     overflow-x: auto;
     border-radius: 8px;
-    border: 1px solid var(--border-weak-base);
+    border: 1px solid var(--border);
   }
 
   th,
   td {
-    padding: 12px 16px;
+    padding: 8px 12px;
     text-align: left;
     vertical-align: top;
-    border-bottom: 1px solid var(--border-weaker-base);
+    border-bottom: 1px solid var(--border);
   }
 
   th {
-    color: var(--text-strong);
+    color: var(--foreground);
     font-weight: var(--font-weight-medium);
-    background: var(--surface-base);
-    border-bottom: 2px solid var(--border-weak-base);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
   }
 
   tr:last-child td {
@@ -300,7 +316,7 @@
   img {
     max-width: 100%;
     height: auto;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     margin: 1.5rem 0;
     display: block;
   }
@@ -312,20 +328,9 @@
 }
 
 @media (max-width: 768px) {
-  h1 {
-    font-size: 20px;
-  }
-
-  h2 {
-    font-size: 18px;
-  }
-
-  h3 {
-    font-size: 16px;
-  }
-
+  /* 标题字号全部走 text-ui-*，随「界面字号」设置缩放，窄屏不再单独降档。 */
   th,
   td {
-    padding: 8px 12px;
+    padding: 6px 10px;
   }
 }
