@@ -38,7 +38,7 @@
   padding: 0;
 
   &[data-active] [data-slot="message-nav-tick-line"] {
-    background-color: var(--icon-strong-base);
+    background-color: var(--foreground);
     width: 100%;
   }
 }
@@ -46,7 +46,7 @@
 [data-slot="message-nav-tick-line"] {
   height: 1px;
   width: 16px;
-  background-color: var(--icon-base);
+  background-color: var(--foreground-subtle);
   transition:
     width 0.2s,
     background-color 0.2s;
@@ -54,7 +54,7 @@
 
 [data-slot="message-nav-tick-button"]:hover [data-slot="message-nav-tick-line"] {
   width: 100%;
-  background-color: var(--icon-strong-base);
+  background-color: var(--foreground);
 }
 
 [data-slot="message-nav-message-button"] {
@@ -71,8 +71,8 @@
 }
 
 [data-slot="message-nav-title-preview"] {
-  font-size: 14px; /* text-14-regular */
-  color: var(--text-base);
+  font-size: var(--font-size-ui-base); /* text-14-regular */
+  color: var(--foreground);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -80,19 +80,19 @@
   text-align: left;
 
   &[data-active] {
-    color: var(--text-strong);
+    color: var(--foreground);
   }
 }
 
 [data-slot="message-nav-item"]:hover [data-slot="message-nav-message-button"] {
-  background-color: var(--surface-base);
+  background-color: var(--surface);
 }
 [data-slot="message-nav-item"]:active [data-slot="message-nav-message-button"] {
-  background-color: var(--surface-base-active);
+  background-color: var(--selected);
 }
 
 [data-slot="message-nav-item"]:active [data-slot="message-nav-title-preview"] {
-  color: var(--text-base);
+  color: var(--foreground);
 }
 
 .message-nav-tooltip {
@@ -105,14 +105,14 @@
   justify-content: center;
   align-items: start;
   border-radius: var(--radius-md);
-  background: var(--surface-raised-stronger-non-alpha);
+  background: var(--popover);
   max-height: calc(100vh - 6rem);
   overflow-y: auto;
   overflow-x: hidden;
 
   /* border/shadow-xs/base */
   box-shadow:
-    0 0 0 1px var(--border-weak-base, rgba(17, 0, 0, 0.12)),
+    0 0 0 1px var(--border),
     0 1px 2px -1px rgba(19, 16, 16, 0.04),
     0 1px 2px 0 rgba(19, 16, 16, 0.06),
     0 1px 3px 0 rgba(19, 16, 16, 0.08);
