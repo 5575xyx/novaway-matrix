@@ -33,16 +33,19 @@
   position: relative;
   display: flex;
   align-items: flex-start;
-  gap: 20px;
-  padding: 16px 20px;
+  gap: 12px;
+  padding: 12px 14px;
   max-height: min(420px, calc(100dvh - 96px));
   overflow: hidden;
   pointer-events: auto;
   transition: all 150ms ease-out;
 
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-weak-base);
-  background: var(--surface-float-base);
+  /* 对齐 ZCode：toast 外壳 `rounded-2xl` + `bg-toast` + `shadow-lg`（DESIGN.md 允许
+     toast 用 Attention 级阴影，是唯一例外）。旧版 rounded-lg + surface-float-base。 */
+  border-radius: var(--radius-2xl);
+  border: 1px solid var(--popover-border);
+  background: var(--toast);
+  color: var(--foreground);
   color: var(--text-invert-base);
   box-shadow: var(--shadow-md);
 
@@ -192,7 +195,7 @@
     right: 0;
     height: 3px;
     background-color: var(--surface-base);
-    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    border-radius: 0 0 var(--radius-xl) var(--radius-xl);
     overflow: hidden;
   }
 

@@ -2,34 +2,45 @@
   display: inline-flex;
 }
 
+/* 对齐 ZCode `components/ui/popover.tsx`：独立浮层起点容器层级 `rounded-xl`，
+   `bg-popover` + `border-popover-border` + `p-2.5` + `gap-4` + `text-ui-base`，
+   动效 fade + zoom 95%（100ms），不带滑入位移。旧版是 rounded-md + 自算色 + 15px 缩放。 */
 [data-component="popover-content"] {
-  z-index: 100;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   min-width: 200px;
-  max-width: 320px;
-  border-radius: var(--radius-md);
-  background-color: var(--surface-raised-stronger-non-alpha);
-
-  border: 1px solid color-mix(in oklch, var(--border-base) 50%, transparent);
+  max-width: min(288px, calc(100vw - 16px));
+  overflow: hidden;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--popover-border);
+  background-color: var(--popover);
   background-clip: padding-box;
+  padding: 10px;
+  color: var(--popover-foreground);
   box-shadow: var(--shadow-md);
 
   transform-origin: var(--kb-popover-content-transform-origin);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-ui-base);
+  line-height: var(--line-height-normal);
 
   &:focus-within {
     outline: none;
   }
 
   &[data-closed] {
-    animation: popover-close 0.15s ease-out;
+    animation: popover-close 0.1s ease-out;
   }
 
   &[data-expanded] {
-    animation: popover-open 0.15s ease-out;
+    animation: popover-open 0.1s ease-out;
   }
 
   [data-slot="popover-header"] {
     display: flex;
-    padding: 12px;
+    padding: 0;
     padding-bottom: 0;
     justify-content: space-between;
     align-items: center;
@@ -37,15 +48,10 @@
 
     [data-slot="popover-title"] {
       flex: 1;
-      color: var(--text-strong);
-      margin: 0;
-
-      font-family: var(--font-family-sans);
-      font-size: var(--font-size-base);
-      font-style: normal;
+      font-size: var(--font-size-ui-base);
       font-weight: var(--font-weight-medium);
-      line-height: var(--line-height-large);
-      letter-spacing: var(--letter-spacing-normal);
+      color: var(--foreground);
+      margin: 0;
     }
 
     [data-slot="popover-close-button"] {
@@ -54,31 +60,24 @@
   }
 
   [data-slot="popover-description"] {
-    padding: 0 12px;
     margin: 0;
-    color: var(--text-base);
-
-    font-family: var(--font-family-sans);
-    font-size: var(--font-size-small);
-    font-style: normal;
-    font-weight: var(--font-weight-regular);
-    line-height: var(--line-height-large);
-    letter-spacing: var(--letter-spacing-normal);
+    font-size: var(--font-size-ui-base);
+    color: var(--foreground-subtle);
   }
 
   [data-slot="popover-body"] {
-    padding: 12px;
+    padding: 0;
   }
 
   [data-slot="popover-arrow"] {
-    fill: var(--surface-raised-stronger-non-alpha);
+    fill: var(--popover);
   }
 }
 
 @keyframes popover-open {
   from {
     opacity: 0;
-    transform: scale(0.96);
+    transform: scale(0.95);
   }
   to {
     opacity: 1;
@@ -93,6 +92,6 @@
   }
   to {
     opacity: 0;
-    transform: scale(0.96);
+    transform: scale(0.95);
   }
 }

@@ -1,10 +1,14 @@
 /* [data-component="dialog-trigger"] { } */
 
+/* 对齐 ZCode `components/ui/dialog.tsx`：外壳 `rounded-2xl` + `border-popover-border` +
+   `bg-popover` + `p-4` + `gap-4` + `text-ui-base` + `shadow-md`，动效 fade + zoom 95%（100ms）。
+   旧版是 rounded-lg + 自算背景 + 自定义大阴影。 */
 [data-component="dialog-overlay"] {
   position: fixed;
   inset: 0;
   z-index: 100;
-  background-color: hsl(from var(--background-base) h s l / 0.2);
+  background-color: color-mix(in oklab, var(--background) 60%, transparent);
+  backdrop-filter: blur(2px);
 }
 
 [data-component="dialog"] {
@@ -47,10 +51,12 @@
 
       /* padding: 8px; */
       /* padding: 8px 8px 0 8px; */
-      border-radius: var(--radius-lg);
-      background: var(--surface-raised-stronger-non-alpha);
+      border-radius: var(--radius-2xl);
+      border: 1px solid var(--popover-border);
+      background: var(--popover);
       background-clip: padding-box;
-      box-shadow: var(--shadow-lg-border-base);
+      box-shadow: var(--shadow-md);
+      font-size: var(--font-size-ui-base);
 
       [data-slot="dialog-header"] {
         display: flex;

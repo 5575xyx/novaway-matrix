@@ -1,32 +1,61 @@
+/* 对齐 ZCode `components/ui/dropdown-menu.tsx`（DESIGN.md「Menus, Popovers, Dialogs」一节）：
+ * - 外壳 `rounded-lg` + `border-popover-border` + `bg-menu` + `p-1`，选项之间固定 `gap-0.5`（2px）
+ * - 选项 `rounded-md` + `min-h-7` + `px-2` + `gap-2` + `text-ui-base`
+ * - hover 只有 `bg-menu-hover`，不用强填充；选中用尾部指示器而不是整行重色
+ * - 阴影 `shadow-md`，且从首帧到 item hover 保持一致（全局 focus reset 不得清掉它）
+ * - 动效只有 fade + zoom 95%，`duration-100`，不做滑入位移
+ * 旧版是 rounded-md 外壳 + 8px 内边距 + font-size-small + 无菜单 hover 语义色。
+ */
 [data-component="dropdown-menu-content"],
 [data-component="dropdown-menu-sub-content"] {
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   min-width: 8rem;
-  overflow: hidden;
-  border-radius: var(--radius-md);
-  border: 1px solid color-mix(in oklch, var(--border-base) 50%, transparent);
+  /* Kobalte 不暴露 Radix 那套 available-width/height 变量，溢出交给外层定位约束，
+     这里只做「不撑破视口」的兜底上限。 */
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--popover-border);
+  background-color: var(--menu);
   background-clip: padding-box;
-  background-color: var(--surface-raised-stronger-non-alpha);
   padding: 4px;
+  color: var(--foreground);
   box-shadow: var(--shadow-md);
-  z-index: 50;
   transform-origin: var(--kb-menu-content-transform-origin);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-ui-base);
+  line-height: var(--line-height-normal);
+  letter-spacing: var(--letter-spacing-normal);
 
+  /* 全局 focus reset 会清掉阴影，这里强制保留，保证首帧与 hover 一致 */
   &:focus,
   &:focus-visible {
     outline: none;
+    box-shadow: var(--shadow-md) !important;
   }
 
   &[data-closed] {
-    animation: dropdown-menu-close 0.15s ease-out;
+    animation: dropdown-menu-close 0.1s ease-out;
   }
 
   &[data-expanded] {
-    animation: dropdown-menu-open 0.15s ease-out;
+    animation: dropdown-menu-open 0.1s ease-out;
   }
 }
 
 [data-component="dropdown-menu-content"],
 [data-component="dropdown-menu-sub-content"] {
+  [data-slot="dropdown-menu-group"] {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
   [data-slot="dropdown-menu-item"],
   [data-slot="dropdown-menu-checkbox-item"],
   [data-slot="dropdown-menu-radio-item"],
@@ -35,26 +64,38 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    min-height: 28px;
     padding: 4px 8px;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-md);
     cursor: default;
     user-select: none;
     outline: none;
+    color: var(--foreground);
 
-    font-family: var(--font-family-sans);
-    font-size: var(--font-size-small);
-    font-weight: var(--font-weight-medium);
-    line-height: var(--line-height-large);
-    letter-spacing: var(--letter-spacing-normal);
-    color: var(--text-strong);
+    & svg {
+      pointer-events: none;
+      flex-shrink: 0;
+      color: var(--foreground-subtle);
+    }
 
     &[data-highlighted] {
-      background: var(--surface-raised-base-hover);
+      background: var(--menu-hover);
+      color: var(--foreground);
     }
 
     &[data-disabled] {
-      color: var(--text-weak);
+      color: var(--foreground-subtlest);
       pointer-events: none;
+      opacity: 1;
+    }
+
+    &[data-variant="destructive"] {
+      color: var(--destructive);
+
+      &[data-highlighted] {
+        background: var(--destructive);
+        color: var(--destructive-foreground);
+      }
     }
   }
 
@@ -65,7 +106,7 @@
 
   [data-slot="dropdown-menu-sub-trigger"] {
     &[data-expanded] {
-      background: var(--surface-raised-base-hover);
+      background: var(--menu-hover);
     }
   }
 
@@ -79,6 +120,11 @@
     right: 8px;
     top: 50%;
     transform: translateY(-50%);
+    color: var(--foreground-subtle);
+
+    &[data-variant="destructive"] {
+      color: currentColor;
+    }
   }
 
   [data-slot="dropdown-menu-item-label"] {
@@ -86,36 +132,33 @@
   }
 
   [data-slot="dropdown-menu-item-description"] {
-    font-size: var(--font-size-x-small);
-    color: var(--text-weak);
+    font-size: var(--font-size-ui-sm);
+    color: var(--foreground-subtle);
   }
 
   [data-slot="dropdown-menu-separator"] {
     height: 1px;
     margin: 4px -4px;
-    border-top-color: var(--border-weak-base);
+    border-top-color: var(--border);
   }
 
   [data-slot="dropdown-menu-group-label"] {
     display: block;
-    padding: 4px 8px;
-    font-family: var(--font-family-sans);
-    font-size: var(--font-size-x-small);
+    padding: 8px;
+    font-size: var(--font-size-ui-sm);
     font-weight: var(--font-weight-medium);
-    line-height: var(--line-height-large);
-    letter-spacing: var(--letter-spacing-normal);
-    color: var(--text-weak);
+    color: var(--foreground-subtle);
   }
 
   [data-slot="dropdown-menu-arrow"] {
-    fill: var(--surface-raised-stronger-non-alpha);
+    fill: var(--menu);
   }
 }
 
 @keyframes dropdown-menu-open {
   from {
     opacity: 0;
-    transform: scale(0.96);
+    transform: scale(0.95);
   }
   to {
     opacity: 1;
@@ -130,6 +173,6 @@
   }
   to {
     opacity: 0;
-    transform: scale(0.96);
+    transform: scale(0.95);
   }
 }
