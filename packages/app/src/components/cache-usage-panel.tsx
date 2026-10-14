@@ -65,7 +65,7 @@ export function CacheUsageBody() {
         </div>
         <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-hover">
           <div
-            class="h-full rounded-full bg-[var(--text-interactive-base)] transition-all duration-300"
+            class="h-full rounded-full bg-[var(--icon-blue)] transition-all duration-300"
             style={{ width: `${usage.hitRate()}%` }}
           />
         </div>

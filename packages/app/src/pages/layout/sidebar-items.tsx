@@ -175,7 +175,7 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
           "group/session relative w-full flex flex-col rounded-lg border-solid transition-colors hover:bg-surface-raised-base-hover py-2": true,
           "border-2 border-border-interactive-base": selected(),
           "border border-border-weak-base": !selected(),
-          "before:absolute before:left-0 before:top-1 before:bottom-1 before:w-0.5 before:rounded-full before:bg-[var(--novaway-mode-color,var(--border-strong-base))]":
+          "before:absolute before:left-0 before:top-1 before:bottom-1 before:w-0.5 before:rounded-full before:bg-[var(--novaway-mode-color,var(--border-hover))]":
             selected(),
         }}
       >
@@ -196,7 +196,7 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
             <Show when={isWorking() || hasPermissions() || hasError() || unseenCount() > 0}>
               <div
                 class="shrink-0 size-6 flex items-center justify-center"
-                style={{ color: tint() ?? "var(--icon-interactive-base)" }}
+                style={{ color: tint() ?? "var(--icon-blue)" }}
               >
                 <Switch>
                   <Match when={isWorking()}>
@@ -257,8 +257,8 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
             when={props.session.summary && (props.session.summary.additions > 0 || props.session.summary.deletions > 0)}
           >
             <span class="text-ui-xs tabular-nums shrink-0">
-              <span class="text-[var(--icon-diff-add-base)]">+{props.session.summary?.additions ?? 0}</span>
-              <span class="text-[var(--icon-diff-delete-base)]">-{props.session.summary?.deletions ?? 0}</span>
+              <span class="text-[var(--diff-added)]">+{props.session.summary?.additions ?? 0}</span>
+              <span class="text-[var(--diff-removed)]">-{props.session.summary?.deletions ?? 0}</span>
             </span>
           </Show>
         </A>

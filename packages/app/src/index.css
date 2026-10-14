@@ -121,13 +121,13 @@
     0%,
     100% {
       box-shadow:
-        0 0 0 1px color-mix(in srgb, var(--icon-interactive-base) 28%, transparent),
+        0 0 0 1px color-mix(in srgb, var(--icon-blue) 28%, transparent),
         0 4px 24px rgba(0, 0, 0, 0.08);
     }
     50% {
       box-shadow:
-        0 0 0 2px color-mix(in srgb, var(--icon-interactive-base) 92%, transparent),
-        0 0 16px color-mix(in srgb, var(--icon-interactive-base) 42%, transparent),
+        0 0 0 2px color-mix(in srgb, var(--icon-blue) 92%, transparent),
+        0 0 16px color-mix(in srgb, var(--icon-blue) 42%, transparent),
         0 4px 24px rgba(0, 0, 0, 0.08);
     }
   }
@@ -157,7 +157,7 @@
   /* 外壳仅轻微提示，主效果在内容区 */
   [data-dock-surface="shell"][data-optimizing="true"] {
     box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--icon-interactive-base) 45%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--icon-blue) 45%, transparent),
       0 4px 24px rgba(0, 0, 0, 0.08) !important;
   }
 
@@ -175,9 +175,9 @@
       105deg,
       transparent 0%,
       transparent 38%,
-      color-mix(in srgb, var(--icon-interactive-base) 10%, transparent) 46%,
-      color-mix(in srgb, var(--icon-interactive-base) 28%, transparent) 50%,
-      color-mix(in srgb, var(--icon-interactive-base) 10%, transparent) 54%,
+      color-mix(in srgb, var(--icon-blue) 10%, transparent) 46%,
+      color-mix(in srgb, var(--icon-blue) 28%, transparent) 50%,
+      color-mix(in srgb, var(--icon-blue) 10%, transparent) 54%,
       transparent 62%,
       transparent 100%
     );
@@ -190,7 +190,7 @@
       90deg,
       var(--foreground) 0%,
       var(--foreground) 38%,
-      color-mix(in srgb, var(--icon-interactive-base) 88%, white) 50%,
+      color-mix(in srgb, var(--icon-blue) 88%, white) 50%,
       var(--foreground) 62%,
       var(--foreground) 100%
     );

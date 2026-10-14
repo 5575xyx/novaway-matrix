@@ -34,10 +34,10 @@ export const TaskRow = (props: TaskRowProps): JSX.Element => {
     <div
       classList={{
         "group/task row relative flex h-9 items-center gap-2 px-2 rounded-md cursor-default transition-colors hover:bg-surface-base-hover": true,
-        "before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-0.5 before:rounded-full before:bg-[var(--task-row-color,var(--border-strong-base))]":
+        "before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-0.5 before:rounded-full before:bg-[var(--task-row-color,var(--border-hover))]":
           selected(),
       }}
-      style={selected() ? { "--task-row-color": props.modeColor?.() ?? "var(--border-strong-base)" } : undefined}
+      style={selected() ? { "--task-row-color": props.modeColor?.() ?? "var(--border-hover)" } : undefined}
       onClick={props.onClick}
     >
       <span class={`size-1.5 rounded-full shrink-0 ${STATUS_DOT_CLASS[props.status()]}`} />
@@ -58,8 +58,8 @@ export const TaskRow = (props: TaskRowProps): JSX.Element => {
       </Show>
       <Show when={(props.additions?.() ?? 0) + (props.deletions?.() ?? 0) > 0}>
         <span class="text-ui-xs tabular-nums shrink-0">
-          <span class="text-[var(--icon-diff-add-base)]">+{props.additions?.() ?? 0}</span>
-          <span class="text-[var(--icon-diff-delete-base)]">-{props.deletions?.() ?? 0}</span>
+          <span class="text-[var(--diff-added)]">+{props.additions?.() ?? 0}</span>
+          <span class="text-[var(--diff-removed)]">-{props.deletions?.() ?? 0}</span>
         </span>
       </Show>
     </div>

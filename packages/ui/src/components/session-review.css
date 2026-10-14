@@ -189,15 +189,15 @@
   }
 
   [data-slot="session-review-change"][data-type="added"] {
-    color: var(--icon-diff-add-base);
+    color: var(--diff-added);
   }
 
   [data-slot="session-review-change"][data-type="removed"] {
-    color: var(--icon-diff-delete-base);
+    color: var(--diff-removed);
   }
 
   [data-slot="session-review-change"][data-type="modified"] {
-    color: var(--icon-diff-modified-base);
+    color: var(--git-modified);
   }
 
   [data-slot="session-review-diff-wrapper"] {

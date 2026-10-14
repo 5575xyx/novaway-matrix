@@ -96,7 +96,7 @@
 
     [data-component="icon"] {
       color: var(--foreground-inverse);
-      /* color: var(--icon-invert-base); */
+      /* color: var(--foreground-inverse); */
     }
   }
 
@@ -168,7 +168,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 
-    color: var(--text-invert-weak);
+    color: var(--foreground-inverse);
     font-family: var(--font-family-sans);
     font-size: var(--font-size-ui-base);
     font-weight: var(--font-weight-medium);
@@ -202,7 +202,7 @@
   [data-slot="toast-progress-fill"] {
     height: 100%;
     width: var(--kb-toast-progress-fill-width);
-    background-color: var(--interactive-base);
+    background-color: var(--primary);
     transition: width 250ms linear;
   }
 }

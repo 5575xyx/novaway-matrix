@@ -35,14 +35,14 @@
     overflow: hidden;
     border-radius: 999px;
     border: 1px solid var(--border);
-    background-color: var(--surface-inset-base);
+    background-color: var(--surface);
   }
 
   [data-slot="progress-fill"] {
     height: 100%;
     width: var(--kb-progress-fill-width);
     border-radius: inherit;
-    background: linear-gradient(90deg, var(--surface-interactive-base), var(--surface-interactive-hover));
+    background: linear-gradient(90deg, var(--surface), var(--surface-hover));
     transition: width 200ms ease;
   }
 

@@ -7,7 +7,7 @@
 
   [data-slot="radio-group-wrapper"] {
     all: unset;
-    background-color: var(--surface-inset-base);
+    background-color: var(--surface);
     border-radius: var(--radius-sm);
     box-shadow: var(--shadow-xxs-border);
     display: inline-flex;
@@ -127,7 +127,7 @@
   [data-slot="radio-group-item-input"]:not([data-checked], [data-disabled])
     + [data-slot="radio-group-item-label"]:hover
     [data-slot="radio-group-item-control"] {
-    background-color: var(--surface-inset-base);
+    background-color: var(--surface);
   }
 
   /* Do not overlay hover on the active segment */
