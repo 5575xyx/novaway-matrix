@@ -109,6 +109,7 @@ export const dict = {
   "sidePane.collapse": "Collapse side pane",
   "sidePane.expand": "Expand side pane",
   "sidePane.empty.title": "Open tab",
+  "sidePane.empty.description": "Pick a tool to open in this pane.",
   "statusPanel.title": "Status",
   "statusPanel.collapse": "Collapse status panel",
   "statusPanel.expand": "Expand status panel",

@@ -121,6 +121,7 @@ export const dict = {
   "sidePane.collapse": "折叠侧栏",
   "sidePane.expand": "展开侧栏",
   "sidePane.empty.title": "打开标签页",
+  "sidePane.empty.description": "选择一个工具，在右侧面板中打开。",
 
   "statusPanel.title": "状态",
   "statusPanel.collapse": "折叠状态面板",

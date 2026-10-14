@@ -300,10 +300,7 @@ export function migrateLayoutStore(value: unknown) {
     let changed = false
     const next = Object.fromEntries(
       Object.entries(sessionView).map(([key, entry]) => {
-        if (
-          !isRecord(entry) ||
-          (!("viewMode" in entry) && !("previewWidth" in entry) && !("todoCollapsed" in entry))
-        ) {
+        if (!isRecord(entry) || (!("viewMode" in entry) && !("previewWidth" in entry) && !("todoCollapsed" in entry))) {
           return [key, entry]
         }
 
@@ -416,6 +413,10 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       createStore({
         sidebar: {
           opened: false,
+          // 桌面端侧栏是否展开。此前散落两处状态：`layout.page` 里的 workspaceSidebarExpanded（真正生效的那个）
+          // 与上面这个恒为 false 的 `opened`（遗留）。合并到 `expanded` 一处，
+          // 会话帧 Header 才能读到同一个值来渲染「展开侧栏」入口。
+          expanded: true,
           width: DEFAULT_SIDEBAR_WIDTH,
           workspaces: {} as Record<string, boolean>,
           workspacesDefault: false,
@@ -843,6 +844,14 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         toggle() {
           setStore("sidebar", "opened", (x) => !x)
         },
+        // 桌面侧栏展开/收起（单一口径，见 store 里的注释）。
+        expanded: createMemo(() => store.sidebar.expanded ?? true),
+        setExpanded(value: boolean) {
+          setStore("sidebar", "expanded", value)
+        },
+        toggleExpanded() {
+          setStore("sidebar", "expanded", (x) => !(x ?? true))
+        },
         width: createMemo(() => store.sidebar.width),
         resize(width: number) {
           setStore("sidebar", "width", width)
@@ -906,7 +915,8 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       },
       statusPanel: {
         collapsed(directory: string) {
-          return () => store.statusPanel.workspaces[directory]?.collapsed ?? store.statusPanel.workspacesDefault.collapsed ?? false
+          return () =>
+            store.statusPanel.workspaces[directory]?.collapsed ?? store.statusPanel.workspacesDefault.collapsed ?? false
         },
         open(directory: string, sectionId: string, defaultOpen?: boolean) {
           return () => {
@@ -921,7 +931,8 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           })
         },
         toggleCollapsed(directory: string) {
-          const current = store.statusPanel.workspaces[directory]?.collapsed ?? store.statusPanel.workspacesDefault.collapsed ?? false
+          const current =
+            store.statusPanel.workspaces[directory]?.collapsed ?? store.statusPanel.workspacesDefault.collapsed ?? false
           this.setCollapsed(directory, !current)
         },
         setOpen(directory: string, sectionId: string, value: boolean) {

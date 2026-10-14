@@ -489,6 +489,14 @@ export default function Page() {
     ),
   )
 
+  // 状态面板是绝对定位在会话帧右上角的浮层。ZCode 的做法（docs/ui/chat-summary-panel.md）是
+  // 面板展开时让消息列与输入区整体左移，而不是让面板压住消息。这里沿用同一口径：
+  // 面板挂载（有区块）且未被手动收起时，给消息列留出面板所占的横向空间；
+  // 窄容器下面板退化成 mini 胶囊（@max-[768px]），不占位，所以留白也只在 @min-[768px] 生效。
+  const statusPanelReserved = createMemo(
+    () => statusSections().length > 0 && !layout.statusPanel.collapsed(sdk.directory)(),
+  )
+
   const [followup, setFollowup] = persisted(
     Persist.workspace(sdk.directory, "followup", ["followup.v1"]),
     createStore<{
@@ -1895,7 +1903,10 @@ export default function Page() {
             >
               <WorkspaceHeader />
               <div class="relative flex-1 min-h-0 overflow-hidden flex flex-col md:flex-row">
-                <div class="flex-1 min-w-0 min-h-0 flex flex-col">
+                <div
+                  class="flex-1 min-w-0 min-h-0 flex flex-col"
+                  classList={{ "@min-[768px]:pr-[344px]": statusPanelReserved() }}
+                >
                   <div class="flex-1 min-h-0 overflow-hidden">
                     {/* Mobile changes view */}
                     <Show when={params.id && mobileChanges()}>
