@@ -118,7 +118,6 @@ export default function Layout(props: ParentProps) {
       workspaceName: {} as Record<string, string>,
       workspaceBranchName: {} as Record<string, Record<string, string>>,
       workspaceExpanded: {} as Record<string, boolean>,
-      workspaceSidebarExpanded: true,
       gettingStartedDismissed: false,
     }),
   )
@@ -1997,7 +1996,7 @@ export default function Layout(props: ParentProps) {
   )
 
   const side = createMemo(() => {
-    if (!store.workspaceSidebarExpanded) return 0
+    if (!layout.sidebar.expanded()) return 0
     // 下限对齐 ZCode 侧栏宽度规格（default = min = 264px）。
     return Math.max(layout.sidebar.width(), 264)
   })
@@ -2168,9 +2167,9 @@ export default function Layout(props: ParentProps) {
                 <IconButton
                   icon="chevron-left"
                   variant="ghost"
-                  size="small"
+                  size="normal"
                   aria-label={language.t("sidebar.workspaceSidebar.collapse")}
-                  onClick={() => setStore("workspaceSidebarExpanded", false)}
+                  onClick={() => layout.sidebar.setExpanded(false)}
                 />
               </Tooltip>
             }
@@ -2315,7 +2314,7 @@ export default function Layout(props: ParentProps) {
                           <div class="flex flex-col gap-0.5">
                             <ProjectTaskList
                               project={proj}
-                              sidebarExpanded={() => store.workspaceSidebarExpanded}
+                              sidebarExpanded={() => layout.sidebar.expanded()}
                               prefetchSession={prefetchSession}
                               archiveSession={archiveSession}
                               filter={taskFilter}
@@ -2463,7 +2462,7 @@ export default function Layout(props: ParentProps) {
       <div class="flex-1 min-h-0 min-w-0 flex">
         <div class="flex-1 min-h-0 relative">
           <div class="size-full relative overflow-x-hidden">
-            <Show when={showSidebar() && store.workspaceSidebarExpanded}>
+            <Show when={showSidebar() && layout.sidebar.expanded()}>
               <nav
                 aria-label={language.t("sidebar.nav.projectsAndSessions")}
                 data-component="sidebar-nav-desktop"
@@ -2479,7 +2478,7 @@ export default function Layout(props: ParentProps) {
               </nav>
             </Show>
 
-            <Show when={showSidebar() && store.workspaceSidebarExpanded}>
+            <Show when={showSidebar() && layout.sidebar.expanded()}>
               <div
                 class="hidden xl:block absolute inset-y-1 z-30 w-0 overflow-visible"
                 style={{ left: `${side() + 4}px` }}
@@ -2504,7 +2503,7 @@ export default function Layout(props: ParentProps) {
               <div class="xl:hidden">
                 <div
                   classList={{
-                    "fixed inset-x-0 top-[50px] bottom-0 z-40 transition-opacity duration-200": true,
+                    "fixed inset-x-0 top-0 bottom-0 z-40 transition-opacity duration-200": true,
                     "opacity-100 pointer-events-auto": layout.mobileSidebar.opened(),
                     "opacity-0 pointer-events-none": !layout.mobileSidebar.opened(),
                   }}
@@ -2516,7 +2515,7 @@ export default function Layout(props: ParentProps) {
                   aria-label={language.t("sidebar.nav.projectsAndSessions")}
                   data-component="sidebar-nav-mobile"
                   classList={{
-                    "@container fixed top-[50px] bottom-0 left-0 z-50 w-full max-w-[400px] overflow-hidden border-r border-border-weaker-base bg-background-base transition-transform duration-200 ease-out": true,
+                    "@container fixed top-0 bottom-0 left-0 z-50 w-full max-w-[400px] overflow-hidden border-r border-border-weaker-base bg-background-base transition-transform duration-200 ease-out": true,
                     "translate-x-0": layout.mobileSidebar.opened(),
                     "-translate-x-full": !layout.mobileSidebar.opened(),
                   }}
@@ -2539,18 +2538,9 @@ export default function Layout(props: ParentProps) {
                 "--main-left": showSidebar() ? `${side() + 4}px` : "0px",
               }}
             >
-              <Show when={showSidebar() && !store.workspaceSidebarExpanded}>
-                <Tooltip value={language.t("sidebar.workspaceSidebar.expand")} placement="right">
-                  <IconButton
-                    icon="chevron-right"
-                    variant="secondary"
-                    size="normal"
-                    class="hidden xl:flex absolute top-3 left-3 z-30 shadow-sm"
-                    aria-label={language.t("sidebar.workspaceSidebar.expand")}
-                    onClick={() => setStore("workspaceSidebarExpanded", true)}
-                  />
-                </Tooltip>
-              </Show>
+              {/* 展开入口已移进会话帧 Header（对齐 ZCode：侧栏收起时展开按钮归 Header，
+                  展开时收起入口归侧栏顶带）。原先浮在这里的那个 chevron 只有 24px，
+                  还正好压在 Header 标题上，既难点中又遮住标题。 */}
               <main class="size-full overflow-x-hidden flex flex-col items-start bg-background-base page-transition">
                 <Show when={!autoselecting.loading} fallback={<div class="size-full" />}>
                   {props.children}

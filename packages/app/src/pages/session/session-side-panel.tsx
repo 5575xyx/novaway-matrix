@@ -309,28 +309,42 @@ function SidePaneTabTrigger(props: { tab: SidePaneTab }) {
   )
 }
 
+// 空态入口。规格对齐 ZCode `AnimatedSidePanePanel.tsx` 的 openTabLauncher 与其
+// `styles.css` 里的 `.side-pane-open-tab-*`：空间够时排成卡片网格（图标在上、标签居中、5.5rem 高），
+// 空间不够时回落成 h-12 的横排行。
+//
+// 阈值放在 index.css 里（容器查询），取 340px 而不是 ZCode 的 480px：
+// 那边右侧面板默认占窗口 45%（通常 > 480），而我们的 side pane 默认固定 360px ——
+// 沿用 480 会让默认宽度永远看不到卡片网格，也就是这次要修的问题本身。
 function SidePaneEmptyState() {
   const layout = useLayout()
   const language = useLanguage()
   return (
     <div
       data-component="side-pane-empty"
-      class="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 p-6 text-center"
+      class="side-pane-launcher flex-1 min-h-0 overflow-y-auto px-5 py-10 flex items-center justify-center"
     >
-      <Icon name="layout-right" size="large" class="text-text-weak" />
-      <span class="text-ui-sm text-text-weak">{language.t("sidePane.empty.title")}</span>
-      <div class="flex flex-col items-start gap-1 w-full max-w-48">
-        <For each={sidePaneTabs}>
-          {(item) => (
-            <button
-              class="flex items-center gap-2 w-full px-2 h-7 rounded-md text-ui-xs text-text-base transition-colors hover:bg-surface-raised-base"
-              onClick={() => layout.sidePane.add(item.id)}
-            >
-              <Icon name={item.icon} size="small" class="shrink-0" />
-              {language.t(item.labelKey)}
-            </button>
-          )}
-        </For>
+      <div class="side-pane-launcher-content flex w-full max-w-[20rem] flex-col gap-5">
+        <div class="flex flex-col gap-2 text-center">
+          <h2 class="text-ui-xl font-semibold text-text-strong">{language.t("sidePane.empty.title")}</h2>
+          <p class="text-ui-base leading-5 text-text-weak">{language.t("sidePane.empty.description")}</p>
+        </div>
+        <div class="side-pane-launcher-list flex w-full flex-col gap-2">
+          <For each={sidePaneTabs}>
+            {(item) => (
+              <button
+                type="button"
+                class="side-pane-launcher-button flex h-12 min-w-0 items-center gap-3 rounded-xl bg-surface-raised-base px-3 text-ui-base font-medium text-text-strong transition-colors hover:bg-surface-raised-base-hover"
+                onClick={() => layout.sidePane.add(item.id)}
+              >
+                <Icon name={item.icon} size="small" class="shrink-0 text-icon-weak" />
+                <span class="side-pane-launcher-label min-w-0 flex-1 truncate text-left">
+                  {language.t(item.labelKey)}
+                </span>
+              </button>
+            )}
+          </For>
+        </div>
       </div>
     </div>
   )

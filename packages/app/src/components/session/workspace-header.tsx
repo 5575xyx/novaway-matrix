@@ -33,7 +33,7 @@ export function WorkspaceHeader() {
   const isWindowsDesktop = createMemo(() => platform.platform === "desktop" && platform.os === "windows")
   const isMacDesktop = createMemo(() => platform.platform === "desktop" && platform.os === "macos")
   // 侧栏收起时，macOS 的红绿灯 / Windows 的原生窗控会压到会话帧这一行上，需要让出安全区。
-  const reserveWindowControls = createMemo(() => !layout.sidebar.opened())
+  const reserveWindowControls = createMemo(() => !layout.sidebar.expanded())
   const directory = createMemo(() => decode64(params.dir) ?? "")
   const sessionStore = createMemo(() => (directory() ? globalSync.child(directory())[0] : undefined))
   const session = createMemo(() => sessionStore()?.session.find((s) => s.id === params.id))
@@ -61,6 +61,20 @@ export function WorkspaceHeader() {
       }}
       data-window-drag
     >
+      {/* 侧栏收起时，展开入口归 Header（对齐 ZCode：收起态由 Header 承载展开按钮，
+          展开态收起入口在侧栏顶带）。放在 Header 行内而不是浮层，才不会压住标题、
+          也有 32px 的正常点击区。 */}
+      <Show when={!layout.sidebar.expanded()}>
+        <IconButton
+          icon="chevron-right"
+          variant="ghost"
+          size="normal"
+          class="hidden xl:flex shrink-0"
+          title={language.t("sidebar.workspaceSidebar.expand")}
+          aria-label={language.t("sidebar.workspaceSidebar.expand")}
+          onClick={() => layout.sidebar.setExpanded(true)}
+        />
+      </Show>
       {/* 窄视口（<xl）时侧栏整体隐藏，汉堡入口原来在全局标题栏里，随标题栏一起移除后落在这里。 */}
       <IconButton
         icon="menu"

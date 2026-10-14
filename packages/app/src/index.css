@@ -40,6 +40,42 @@
   font-style: normal;
 }
 
+/* Side Pane 空态入口。规格对齐 ZCode `packages/ui/src/styles.css` 的 `.side-pane-open-tab-*`：
+ * 容器够宽时排成卡片网格（图标在上、标签居中、5.5rem 高、max-width 34rem），
+ * 不够宽时回落成 h-12 的横排行。
+ *
+ * 阈值取 340px 而 ZCode 用 480px：那边的右侧面板默认占窗口 45%（通常 > 480），
+ * 我们的 side pane 默认固定 360px，用 480 会让默认宽度永远只看到横排行。
+ * 判据用容器查询而不是 window.innerWidth，跟随面板实际宽度（拖拽/分屏都能正确切换）。
+ */
+.side-pane-launcher {
+  container: side-pane-launcher / inline-size;
+}
+
+@container side-pane-launcher (min-width: 340px) {
+  .side-pane-launcher-content {
+    max-width: 34rem;
+  }
+
+  .side-pane-launcher-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  }
+
+  .side-pane-launcher-button {
+    flex-direction: column;
+    gap: 0.375rem;
+    height: 5.5rem;
+    justify-content: center;
+    padding-inline: 0.5rem;
+  }
+
+  .side-pane-launcher-label {
+    flex: 0 1 auto;
+    text-align: center;
+  }
+}
+
 @layer components {
   @keyframes session-progress-whip {
     0% {
