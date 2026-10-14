@@ -20,9 +20,13 @@ const LIST_MAX_BYTES = 256 * 1024
 // push / pull 走网络,远端慢响应时耗时不可控,单独给一个宽松上限。
 const NETWORK_TIMEOUT_MS = 5 * 60 * 1000
 
-// "## main...origin/main [ahead 2, behind 1]" / "## (no branch)" / "## No commits yet on main"
-function parseBranchHeader(head: string): BranchParts {
+// "main...origin/main [ahead 2, behind 1]" / "(no branch)" / "No commits yet on main"
+//
+// 调用方直接传 `git status --porcelain=v1 --branch` 里那行原始文本（带 "## " 前缀），
+// 所以这里自己剥前缀 —— 之前没剥，导致前端显示成 "## main"。
+function parseBranchHeader(raw: string): BranchParts {
   const info: BranchParts = { ahead: 0, behind: 0 }
+  const head = raw.startsWith("## ") ? raw.slice(3) : raw
   const bracket = head.indexOf("[")
   const body = (bracket === -1 ? head : head.slice(0, bracket)).trim()
   const sep = body.indexOf("...")
