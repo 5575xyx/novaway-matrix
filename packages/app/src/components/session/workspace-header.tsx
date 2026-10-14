@@ -135,11 +135,6 @@ export function WorkspaceHeader() {
       {/* 搜索、连接状态、在编辑器中打开、Side Pane 开关原先被 Portal 塞进全局标题栏，
           现在就地渲染在这里（同样对齐 ZCode：操作都在会话帧的 Header 里）。 */}
       <SessionHeader />
-      {/* 窗控归「最右侧面板」的 header —— Side Pane 展开时它自己承载（见 session-side-panel），
-          否则三个按钮会落在被挤窄的会话帧右上角，看起来跑到窗口中间去了。 */}
-      <Show when={!layout.sidePane.opened()}>
-        <WindowControls />
-      </Show>
       <DropdownMenu>
         <DropdownMenu.Trigger
           as={IconButton}
@@ -166,6 +161,11 @@ export function WorkspaceHeader() {
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
       </DropdownMenu>
+      {/* 窗控归「最右侧面板」的 header，且必须是**最靠右**的一组图标按钮
+          （用户明确要求）。Side Pane 展开时改由它的 header 承载，见 session-side-panel。 */}
+      <Show when={!layout.sidePane.opened()}>
+        <WindowControls />
+      </Show>
     </div>
   )
 }

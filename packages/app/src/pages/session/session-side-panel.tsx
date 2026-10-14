@@ -194,7 +194,6 @@ export function SessionSidePanel(props: {
             </Show>
           </DragOverlay>
         </DragDropProvider>
-        <WindowControls />
         <IconButton
           icon="layout-right"
           variant="ghost"
@@ -205,6 +204,8 @@ export function SessionSidePanel(props: {
           class="shrink-0"
           onClick={() => layout.sidePane.toggle()}
         />
+        {/* Side Pane 展开时它是最右侧面板，窗控归它（且必须是本行最靠右的一组）。 */}
+        <WindowControls />
       </div>
       <Show when={layout.sidePane.tabs().length > 0} fallback={<SidePaneEmptyState />}>
         <div class="flex-1 min-h-0 overflow-hidden">

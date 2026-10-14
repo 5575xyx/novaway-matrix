@@ -2127,7 +2127,15 @@ export default function Layout(props: ParentProps) {
     const treeKey = createMemo(() => pathKey(currentProject()?.worktree ?? currentDir()))
     // 文件树是侧栏内整层 slide-over 的目标目录：跟随当前项目（对齐 ZCode 的
     // WorkspaceFileTree —— 它挂在当前工作区上，不是每个项目各一份）。
-    const treeDirectory = createMemo(() => currentProject()?.worktree ?? currentDir() ?? "")
+    // 文件树的目标目录。
+    // 之前只取「当前项目 → 路由目录」，两者都拿不到时整棵树就空着、且看不出原因
+    // （实测桌面端在部分路由下 route().dir 为空，树直接不可用）。
+    // 现在再退一层到「项目列表里的第一个」，保证只要打开了项目就有树可看。
+    const treeDirectory = createMemo(() => {
+      const direct = currentProject()?.worktree ?? currentDir()
+      if (direct) return direct
+      return projectList()[0]?.worktree ?? ""
+    })
     const treeOpen = createMemo(() => layout.sidebarView.current() === "tree")
     // 桌面端 macOS 的红绿灯压在这一带左上角，需要让出安全区。
     const isMacDesktop = createMemo(() => platform.platform === "desktop" && platform.os === "macos")
