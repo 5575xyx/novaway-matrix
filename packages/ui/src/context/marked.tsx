@@ -11,7 +11,7 @@ registerCustomTheme("NovaWay", () => {
     name: "NovaWay",
     colors: {
       "editor.background": "var(--color-background-stronger)",
-      "editor.foreground": "var(--text-base)",
+      "editor.foreground": "var(--foreground)",
       "gitDecoration.addedResourceForeground": "var(--syntax-diff-add)",
       "gitDecoration.deletedResourceForeground": "var(--syntax-diff-delete)",
       // "gitDecoration.conflictingResourceForeground": "#ffca00",
@@ -266,7 +266,7 @@ registerCustomTheme("NovaWay", () => {
         scope: "markup.bold",
         settings: {
           fontStyle: "bold",
-          foreground: "var(--text-strong)",
+          foreground: "var(--foreground)",
         },
       },
       {
@@ -281,7 +281,7 @@ registerCustomTheme("NovaWay", () => {
           "markup.untracked",
         ],
         settings: {
-          foreground: "var(--text-base)",
+          foreground: "var(--foreground)",
         },
       },
       {

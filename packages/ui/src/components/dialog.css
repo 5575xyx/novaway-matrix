@@ -67,7 +67,7 @@
         align-self: stretch;
 
         [data-slot="dialog-title"] {
-          color: var(--text-strong);
+          color: var(--foreground);
 
           /* text-16-medium */
           font-family: var(--font-family-sans);
@@ -91,7 +91,7 @@
         flex-shrink: 0;
         align-self: stretch;
 
-        color: var(--text-base);
+        color: var(--foreground);
 
         /* text-14-regular */
         font-family: var(--font-family-sans);

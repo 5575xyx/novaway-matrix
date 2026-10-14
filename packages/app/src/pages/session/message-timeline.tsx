@@ -1916,7 +1916,7 @@ export function MessageTimeline(props: {
           onClick={props.onResumeScroll}
         >
           <div
-            class="flex items-center justify-center w-8 h-6 rounded-[6px] border border-border-weaker-base bg-[color-mix(in_srgb,var(--surface-raised-stronger-non-alpha)_80%,transparent)] backdrop-blur-[0.75px] transition-colors group-hover:border-[var(--border-weak-base)] group-hover:[--icon-base:var(--icon-hover)]"
+            class="flex items-center justify-center w-8 h-6 rounded-[6px] border border-border-weaker-base bg-[color-mix(in_srgb,var(--popover)_80%,transparent)] backdrop-blur-[0.75px] transition-colors group-hover:border-[var(--border)] group-hover:[--icon-base:var(--icon-hover)]"
             style={{
               "box-shadow":
                 "0 51px 60px 0 rgba(0,0,0,0.10), 0 15px 18px 0 rgba(0,0,0,0.12), 0 6.386px 7.513px 0 rgba(0,0,0,0.12), 0 2.31px 2.717px 0 rgba(0,0,0,0.20)",
@@ -1950,7 +1950,7 @@ export function MessageTimeline(props: {
             }}
             data-session-title
             classList={{
-              "sticky top-0 z-30 bg-[linear-gradient(to_bottom,var(--background-stronger)_48px,transparent)]": true,
+              "sticky top-0 z-30 bg-[linear-gradient(to_bottom,var(--panel)_48px,transparent)]": true,
               "w-full": true,
               "pb-4": true,
               "pl-2 pr-3 md:pl-4 md:pr-3": true,

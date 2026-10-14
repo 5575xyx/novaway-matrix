@@ -138,7 +138,7 @@ const unsafeCSS = `
     height: 24px;
   }
   [data-column-number] {
-    background-color: var(--background-stronger);
+    background-color: var(--panel);
     cursor: default !important;
   }
 

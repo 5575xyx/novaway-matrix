@@ -561,7 +561,7 @@ export default function FileTree(props: {
                       <FileIcon
                         node={node}
                         class="size-4 filetree-icon filetree-icon--mono"
-                        style="color: var(--icon-weak-base)"
+                        style="color: var(--foreground-subtlest)"
                         mono
                       />
                     </Match>

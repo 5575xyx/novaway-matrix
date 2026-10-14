@@ -1905,7 +1905,7 @@ ToolRegistry.register({
                 <Spinner />
               </span>
             </Show>
-            <span data-component="task-tool-title" style={{ color: tone() ?? "var(--text-strong)" }}>
+            <span data-component="task-tool-title" style={{ color: tone() ?? "var(--foreground)" }}>
               {title()}
             </span>
             <Show when={subtitle()}>

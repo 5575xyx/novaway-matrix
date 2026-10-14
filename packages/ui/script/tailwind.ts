@@ -5,7 +5,12 @@ const colors = await Bun.file(import.meta.dir + "/colors.txt").text()
 const variables = []
 for (const line of colors.split("\n")) {
   if (!line.trim()) continue
-  const [variable] = line.trim().split(":")
+  const trimmed = line.trim()
+  // colors.txt 允许用 `#` 写注释（例如标注某批 token 的来源）。
+  // 注意：只跳过空行会让注释被当成变量名生成出畸形声明 —— prettier 会报
+  // "Unknown word"，所以注释必须显式排除。
+  if (trimmed.startsWith("#")) continue
+  const [variable] = trimmed.split(":")
   const name = variable!.trim().substring(2)
   variables.push(`--color-${name}: var(--${name});`)
 }

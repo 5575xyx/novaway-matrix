@@ -188,11 +188,11 @@
   [data-component="prompt-input"][data-optimizing="true"] {
     background-image: linear-gradient(
       90deg,
-      var(--text-strong) 0%,
-      var(--text-strong) 38%,
+      var(--foreground) 0%,
+      var(--foreground) 38%,
       color-mix(in srgb, var(--icon-interactive-base) 88%, white) 50%,
-      var(--text-strong) 62%,
-      var(--text-strong) 100%
+      var(--foreground) 62%,
+      var(--foreground) 100%
     );
     background-size: 220% 100%;
     background-clip: text;
@@ -390,7 +390,7 @@
   }
 
   .project-icon-default {
-    box-shadow: inset 0 0 0 1px var(--border-weak-base);
+    box-shadow: inset 0 0 0 1px var(--border);
   }
 
   /* Floating composer */
@@ -453,7 +453,7 @@
     border: 1px solid rgba(130, 190, 170, 0.25);
     font-size: 13px;
     font-weight: 500;
-    color: var(--text-base);
+    color: var(--foreground);
   }
 
   .status-badge-dot {
@@ -471,7 +471,7 @@
       color-mix(in srgb, var(--novaway-mode-color, #64a0e6) 14%, transparent) 0%,
       rgba(255, 255, 255, 0.08) 100%
     );
-    color: color-mix(in srgb, var(--novaway-mode-color, #508cd2) 86%, var(--text-strong));
+    color: color-mix(in srgb, var(--novaway-mode-color, #508cd2) 86%, var(--foreground));
     border: 1.5px solid color-mix(in srgb, var(--novaway-mode-color, #64a0e6) 62%, transparent);
     padding: 10px 24px;
     border-radius: 12px;
@@ -486,7 +486,7 @@
     transform: scale(1.03) translateY(-1px);
     border-color: color-mix(in srgb, var(--novaway-mode-color, #64a0e6) 82%, transparent);
     box-shadow: 0 0 20px color-mix(in srgb, var(--novaway-mode-color, #64a0e6) 20%, transparent);
-    color: color-mix(in srgb, var(--novaway-mode-color, #3c78c8) 94%, var(--text-strong));
+    color: color-mix(in srgb, var(--novaway-mode-color, #3c78c8) 94%, var(--foreground));
     background: linear-gradient(
       135deg,
       color-mix(in srgb, var(--novaway-mode-color, #64a0e6) 22%, transparent) 0%,
@@ -497,7 +497,7 @@
   /* Secondary CTA button - Subtle outline, paired with primary CTA */
   .btn-secondary-cta {
     background: rgba(255, 255, 255, 0.04);
-    color: var(--text-weak);
+    color: var(--foreground-subtle);
     border: 1.5px solid color-mix(in srgb, var(--novaway-mode-color, #64a0e6) 28%, transparent);
     padding: 10px 24px;
     border-radius: 12px;
@@ -507,7 +507,7 @@
 
   .btn-secondary-cta:hover {
     background: color-mix(in srgb, var(--novaway-mode-color, #64a0e6) 8%, transparent);
-    color: var(--text-strong);
+    color: var(--foreground);
     border-color: color-mix(in srgb, var(--novaway-mode-color, #64a0e6) 56%, transparent);
     transform: scale(1.03) translateY(-1px);
   }
