@@ -31,7 +31,11 @@ export function useTodoSection(): () => StatusPanelSection | null {
     return {
       id: "todo",
       title: language.t("session.todo.title"),
-      summary: <>{current.done}/{current.total}</>,
+      summary: (
+        <>
+          {current.done}/{current.total}
+        </>
+      ),
       defaultOpen: true,
       bodyHeight: "max-h-80",
       children: (

@@ -36,7 +36,9 @@ export function useContextSection(): () => StatusPanelSection | null {
 
   // 收起摘要：有限制时给百分比，否则回落到已用 token 总数（capsule 只放数字，避免挤压宽度）。
   const summaryText = (current: ContextSectionModel) =>
-    current.summary.kind === "percent" ? formatter().percent(current.summary.value) : formatter().number(current.summary.value)
+    current.summary.kind === "percent"
+      ? formatter().percent(current.summary.value)
+      : formatter().number(current.summary.value)
 
   return () => {
     const current = model()

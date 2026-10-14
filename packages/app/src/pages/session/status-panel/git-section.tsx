@@ -1,46 +1,20 @@
-import { createMemo, Show, type JSX } from "solid-js"
+import { createMemo, For, Show, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
+import { Button } from "@novaway/ui/button"
+import { DropdownMenu } from "@novaway/ui/dropdown-menu"
 import { Icon } from "@novaway/ui/icon"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
-import { num, useGitSnapshot, type Snapshot } from "../git-panel"
+import { useGitSnapshot } from "../git-panel"
+import { buildGitSectionModel, gitSectionStat, type GitSectionModel } from "./git-section-model"
 import type { StatusPanelSection } from "./status-panel"
+
+// 纯逻辑在 git-section-model.ts（见那里的注释）；这里 re-export，保持既有 import 路径可用。
+export { buildGitSectionModel, gitSectionStat, type GitSectionModel, type GitSectionStat } from "./git-section-model"
 
 const messageInputClass =
   "h-7 flex-1 min-w-0 rounded-md border border-border bg-input px-2 text-ui-sm " +
   "text-foreground placeholder:text-foreground-subtle outline-none focus:border-primary"
-
-type GitSectionModel = {
-  added: number
-  removed: number
-  branch: string | null
-  dirty: number
-}
-
-type GitSectionStat =
-  | { kind: "diff"; added: number; removed: number }
-  | { kind: "files"; files: number }
-
-// 用变更条数判定干净与否：二进制文件与纯重命名在快照里 additions/deletions 恒为 0，
-// 按行数判定会让只改了图片或只做了 rename 的工作区整个面板不出现（连提交输入框都没有）。
-export function buildGitSectionModel(snapshot: Snapshot | undefined): GitSectionModel | null {
-  if (!snapshot) return null
-
-  const changes = snapshot.changes
-  if (changes.length === 0) return null
-
-  const added = changes.reduce((sum, change) => sum + num(change.additions), 0)
-  const removed = changes.reduce((sum, change) => sum + num(change.deletions), 0)
-  const dirty = new Set(changes.map((change) => change.file)).size
-  return { added, removed, branch: snapshot.branch.branch ?? null, dirty }
-}
-
-// 行数为 0 时改报文件数，避免摘要和 Changes 行显示成 "+0 -0" 这种空 diff。
-export function gitSectionStat(model: Pick<GitSectionModel, "added" | "removed" | "dirty">): GitSectionStat {
-  return model.added + model.removed > 0
-    ? { kind: "diff", added: model.added, removed: model.removed }
-    : { kind: "files", files: model.dirty }
-}
 
 // 区块描述符由调用方的 memo 驱动：model 为 null 时该区块整体不进 sections，面板随之不挂载。
 // 这里刻意不用 Kobalte 承载的 Button/TextField——它们的模块作用域会触碰客户端 API，
@@ -49,11 +23,9 @@ export function useGitSection(): () => StatusPanelSection | null {
   const language = useLanguage()
   const layout = useLayout()
   const git = useGitSnapshot()
-  const [store, setStore] = createStore({ message: "" })
+  const [store, setStore] = createStore({ message: "", newBranch: "" })
 
   const model = createMemo(() => buildGitSectionModel(git.snapshot()))
-  const ahead = createMemo(() => num(git.snapshot()?.branch.ahead))
-  const behind = createMemo(() => num(git.snapshot()?.branch.behind))
   const canCommit = () => !git.busy() && store.message.trim().length > 0
 
   const commit = () => {
@@ -73,8 +45,7 @@ export function useGitSection(): () => StatusPanelSection | null {
     }
     return (
       <span>
-        <span class="text-success-base">+{stat.added}</span>{" "}
-        <span class="text-error-base">-{stat.removed}</span>
+        <span class="text-success-base">+{stat.added}</span> <span class="text-error-base">-{stat.removed}</span>
       </span>
     )
   }
@@ -89,32 +60,138 @@ export function useGitSection(): () => StatusPanelSection | null {
       summary: diffStat(current),
       children: (
         <div class="flex flex-col gap-0.5 px-3 pb-2">
-          <button
-            type="button"
-            data-action="status-panel-git-review"
-            class="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-hover"
-            onClick={() => layout.sidePane.add("review")}
-          >
-            <span class="text-ui-sm text-foreground-subtle shrink-0">{language.t("git.unstaged")}</span>
-            <span class="ml-auto text-ui-sm tabular-nums">{diffStat(current)}</span>
-          </button>
+          {/* Changes：已暂存 / 未暂存分开列，各自带一整组的暂存/取消暂存入口，
+              点行本身打开审查面板（对齐 ZCode 的 Git Tools Changes 行）。 */}
+          <Show when={current.staged.length > 0}>
+            <div class="flex items-center gap-1">
+              <button
+                type="button"
+                data-action="status-panel-git-staged-review"
+                class="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-hover"
+                onClick={() => layout.sidePane.add("review")}
+              >
+                <span class="text-ui-sm text-foreground-subtle shrink-0">{language.t("git.staged")}</span>
+                <span class="ml-auto shrink-0 text-ui-sm tabular-nums text-foreground-subtle">
+                  {current.staged.length}
+                </span>
+              </button>
+              <button
+                type="button"
+                class="shrink-0 rounded-md px-1.5 py-1 text-ui-xs text-foreground-subtle hover:bg-hover hover:text-foreground"
+                title={language.t("git.unstageAll")}
+                onClick={() => void git.unstage(current.staged)}
+              >
+                {language.t("git.unstageAll")}
+              </button>
+            </div>
+          </Show>
 
-          <div class="flex items-center gap-1.5 px-1.5 py-1">
-            <Icon name="branch" size="small" class="text-foreground-subtle shrink-0" />
-            <span class="text-ui-sm text-foreground min-w-0 truncate">
-              {current.branch ?? language.t("git.noBranch")}
-            </span>
-            <Show when={ahead() > 0 || behind() > 0}>
-              <span class="text-ui-sm tabular-nums text-foreground-subtle shrink-0">
-                <Show when={ahead() > 0}>
-                  <span class="text-success-base">↑{ahead()}</span>
-                </Show>
-                <Show when={behind() > 0}>
-                  <span class="text-warning-base">↓{behind()}</span>
-                </Show>
+          <Show when={current.unstaged.length > 0}>
+            <div class="flex items-center gap-1">
+              <button
+                type="button"
+                data-action="status-panel-git-unstaged-review"
+                class="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-hover"
+                onClick={() => layout.sidePane.add("review")}
+              >
+                <span class="text-ui-sm text-foreground-subtle shrink-0">{language.t("git.unstaged")}</span>
+                <span class="ml-auto shrink-0 text-ui-sm tabular-nums">{diffStat(current)}</span>
+              </button>
+              <button
+                type="button"
+                class="shrink-0 rounded-md px-1.5 py-1 text-ui-xs text-foreground-subtle hover:bg-hover hover:text-foreground"
+                title={language.t("git.stageAll")}
+                onClick={() => void git.stage(current.unstaged)}
+              >
+                {language.t("git.stageAll")}
+              </button>
+            </div>
+          </Show>
+
+          {/* 分支行整行是切换菜单（对齐 ZCode 的 GitBranchSwitcher）：列出全部分支、
+              当前分支打勾、底部可直接新建分支并切过去。旧版这行只是个只读文本。 */}
+          <DropdownMenu>
+            <DropdownMenu.Trigger
+              as="button"
+              type="button"
+              data-action="status-panel-git-branch"
+              class="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left hover:bg-hover"
+            >
+              <Icon name="branch" size="small" class="text-foreground-subtle shrink-0" />
+              <span class="min-w-0 flex-1 truncate text-ui-sm text-foreground">
+                {current.branch ?? language.t("git.noBranch")}
               </span>
-            </Show>
-          </div>
+              <Show when={current.ahead > 0 || current.behind > 0}>
+                <span class="shrink-0 text-ui-sm tabular-nums text-foreground-subtle">
+                  <Show when={current.ahead > 0}>
+                    <span class="text-success">↑{current.ahead}</span>
+                  </Show>
+                  <Show when={current.behind > 0}>
+                    <span class="text-warning">↓{current.behind}</span>
+                  </Show>
+                </span>
+              </Show>
+              <Icon name="chevron-down" size="small" class="text-foreground-subtlest shrink-0" />
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content class="max-h-72 no-scrollbar">
+                <DropdownMenu.Group>
+                  <DropdownMenu.GroupLabel>{language.t("git.branch.switch")}</DropdownMenu.GroupLabel>
+                  <For each={current.branches}>
+                    {(name) => (
+                      <DropdownMenu.Item
+                        disabled={name === current.branch || git.busy()}
+                        onSelect={() => {
+                          if (name === current.branch) return
+                          void git.checkout(name)
+                        }}
+                      >
+                        <DropdownMenu.ItemLabel>{name}</DropdownMenu.ItemLabel>
+                        <Show when={name === current.branch}>
+                          <DropdownMenu.ItemIndicator>
+                            <Icon name="check-small" size="small" class="text-foreground-subtle" />
+                          </DropdownMenu.ItemIndicator>
+                        </Show>
+                      </DropdownMenu.Item>
+                    )}
+                  </For>
+                </DropdownMenu.Group>
+                <DropdownMenu.Separator />
+                <div class="flex items-center gap-1 p-1">
+                  <input
+                    type="text"
+                    value={store.newBranch}
+                    onInput={(event) => setStore("newBranch", event.currentTarget.value)}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") return
+                      event.preventDefault()
+                      const name = store.newBranch.trim()
+                      if (!name) return
+                      void git.createBranch(name).then((ok) => {
+                        if (ok) setStore("newBranch", "")
+                      })
+                    }}
+                    placeholder={language.t("git.branch.newPlaceholder")}
+                    class="h-6 min-w-0 flex-1 rounded-md border border-input-border bg-input px-2 text-ui-xs text-foreground placeholder:text-foreground-subtlest outline-none"
+                  />
+                  <Button
+                    variant="secondary"
+                    size="small"
+                    disabled={!store.newBranch.trim() || git.busy()}
+                    onClick={() => {
+                      const name = store.newBranch.trim()
+                      if (!name) return
+                      void git.createBranch(name).then((ok) => {
+                        if (ok) setStore("newBranch", "")
+                      })
+                    }}
+                  >
+                    {language.t("git.branch.create")}
+                  </Button>
+                </div>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu>
 
           <div class="flex items-center gap-1.5 px-1.5 py-1">
             <input
@@ -131,19 +208,39 @@ export function useGitSection(): () => StatusPanelSection | null {
               data-component="status-panel-git-message"
               class={messageInputClass}
             />
-            <button
-              type="button"
-              data-component="button"
-              data-variant="primary"
-              data-size="small"
-              data-action="status-panel-git-commit"
-              disabled={!canCommit()}
-              class="shrink-0"
-              onClick={commit}
+            {/* 主操作按仓库状态切换，对齐 ZCode 的 GitActionMenu：有未推送就先给推送，
+                否则给提交；提交信息为空时提交按钮保持禁用。 */}
+            <Show
+              when={store.message.trim().length > 0 || current.ahead === 0}
+              fallback={
+                <Button
+                  variant="primary"
+                  size="small"
+                  data-action="status-panel-git-push"
+                  disabled={git.busy()}
+                  class="shrink-0"
+                  onClick={() => void git.push()}
+                >
+                  {language.t("git.push")}
+                </Button>
+              }
             >
-              {language.t("git.commit")}
-            </button>
+              <Button
+                variant="primary"
+                size="small"
+                data-action="status-panel-git-commit"
+                disabled={!canCommit()}
+                class="shrink-0"
+                onClick={commit}
+              >
+                {language.t("git.commit")}
+              </Button>
+            </Show>
           </div>
+
+          <Show when={git.error()}>
+            <div class="px-1.5 py-1 text-ui-xs text-destructive break-words">{git.error()}</div>
+          </Show>
         </div>
       ),
     }

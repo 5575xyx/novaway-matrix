@@ -66,6 +66,15 @@ export function useGitSnapshot() {
   }
 
   const commit = (message: string) => act(() => sdk.client.git.commit({ message }).then((r) => r))
+  // 以下动作全部复用后端已有的 /git/* 端点（snapshot 里已经带回 branches / ahead / stash），
+  // 对齐 ZCode 的 Git Tools：提交、推送、切换/新建分支都要在面板里直接可用。
+  const push = () => act(() => sdk.client.git.push().then((r) => r))
+  const pull = () => act(() => sdk.client.git.pull().then((r) => r))
+  const checkout = (name: string) => act(() => sdk.client.git.branch({ name }).then((r) => r))
+  const createBranch = (name: string) => act(() => sdk.client.git.branch({ name, create: true }).then((r) => r))
+  const stage = (files: string[]) => act(() => sdk.client.git.add({ files }).then((r) => r))
+  const unstage = (files: string[]) => act(() => sdk.client.git.unstage({ files }).then((r) => r))
+  const discard = (files: string[]) => act(() => sdk.client.git.discard({ files }).then((r) => r))
 
   refresh()
   const timer = setInterval(() => {
@@ -73,5 +82,5 @@ export function useGitSnapshot() {
   }, REFRESH_INTERVAL)
   onCleanup(() => clearInterval(timer))
 
-  return { snapshot, busy, error, refresh, commit }
+  return { snapshot, busy, error, refresh, commit, push, pull, checkout, createBranch, stage, unstage, discard }
 }
