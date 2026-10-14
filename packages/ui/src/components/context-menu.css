@@ -86,7 +86,7 @@
   }
 
   [data-slot="context-menu-item-description"] {
-    font-size: var(--font-size-x-small);
+    font-size: var(--font-size-ui-xs);
     color: var(--foreground-subtle);
   }
 
@@ -99,7 +99,7 @@
   [data-slot="context-menu-group-label"] {
     padding: 4px 8px;
     font-family: var(--font-family-sans);
-    font-size: var(--font-size-x-small);
+    font-size: var(--font-size-ui-xs);
     font-weight: var(--font-weight-medium);
     line-height: var(--line-height-large);
     letter-spacing: var(--letter-spacing-normal);

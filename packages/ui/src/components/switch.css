@@ -68,7 +68,7 @@
   }
 
   [data-slot="switch-error"] {
-    color: var(--text-error);
+    color: var(--destructive);
     font-family: var(--font-family-sans);
     font-size: 12px;
     font-weight: var(--font-weight-regular);

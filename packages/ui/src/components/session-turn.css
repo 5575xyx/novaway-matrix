@@ -155,7 +155,7 @@
     transition: color 0.15s ease;
 
     &:hover {
-      color: var(--text-link-base);
+      color: var(--icon-blue);
     }
   }
 
