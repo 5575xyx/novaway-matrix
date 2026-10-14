@@ -11,17 +11,19 @@ export interface DialogProps extends ParentProps {
   class?: ComponentProps<"div">["class"]
   classList?: ComponentProps<"div">["classList"]
   fit?: boolean
+  /** 默认开启开合动效（对齐 ZCode：弹窗始终带 fade + zoom-95）。 */
   transition?: boolean
 }
 
 export function Dialog(props: DialogProps) {
   const i18n = useI18n()
+  const transition = () => props.transition ?? true
   return (
     <div
       data-component="dialog"
       data-fit={props.fit ? true : undefined}
       data-size={props.size || "normal"}
-      data-transition={props.transition ? true : undefined}
+      data-transition={transition() ? true : undefined}
     >
       <div data-slot="dialog-container">
         <Kobalte.Content

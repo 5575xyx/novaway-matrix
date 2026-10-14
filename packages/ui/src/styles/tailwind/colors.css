@@ -76,7 +76,7 @@
   --color-text-weak: var(--text-weak);
   --color-text-weaker: var(--text-weaker);
   --color-text-strong: var(--text-strong);
-  --color-text-interactive-base: var(--text-interactive-base);
+  --color-text-interactive-base: var(--icon-blue);
   --color-text-on-brand-base: var(--text-on-brand-base);
   --color-text-on-interactive-base: var(--text-on-interactive-base);
   --color-text-on-interactive-weak: var(--text-on-interactive-weak);
@@ -120,7 +120,7 @@
   --color-border-weak-disabled: var(--border-weak-disabled);
   --color-border-weak-focus: var(--border-weak-focus);
   --color-border-weaker-base: var(--border-weaker-base);
-  --color-border-interactive-base: var(--border-interactive-base);
+  --color-border-interactive-base: var(--primary);
   --color-border-interactive-hover: var(--border-interactive-hover);
   --color-border-interactive-active: var(--border-interactive-active);
   --color-border-interactive-selected: var(--border-interactive-selected);
@@ -158,7 +158,7 @@
   --color-icon-strong-disabled: var(--icon-strong-disabled);
   --color-icon-strong-focus: var(--icon-strong-focus);
   --color-icon-brand-base: var(--icon-brand-base);
-  --color-icon-interactive-base: var(--icon-interactive-base);
+  --color-icon-interactive-base: var(--icon-blue);
   --color-icon-success-base: var(--icon-success-base);
   --color-icon-success-hover: var(--icon-success-hover);
   --color-icon-success-active: var(--icon-success-active);

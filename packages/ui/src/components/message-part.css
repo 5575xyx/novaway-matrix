@@ -202,7 +202,7 @@
     pointer-events: auto;
   }
 
-  .text-text-strong {
+  .text-foreground {
     color: var(--foreground);
   }
 

@@ -25,10 +25,11 @@ test("侧栏规格：264px + 整宽入口 + 文件树 slide-over", async ({ page
   expect(box, "sidebar no bbox").not.toBeNull()
   expect(Math.round(box.width)).toBe(264)
 
-  // A8：两个整宽入口存在；旧的「任务/文件」分段控件不存在
+  // A8：两个整宽入口 + 视图分段（对齐 ZCode 侧栏那排胶囊分段，用户反馈缺「文件树切换」）
   await expect(sidebar.getByRole("button", { name: /New task|新建任务/ }).first()).toBeVisible()
   await expect(sidebar.getByRole("button", { name: /Search|搜索/ }).first()).toBeVisible()
-  expect(await sidebar.getByRole("button", { name: /^(Tasks|Files|任务|文件)$/ }).count()).toBe(0)
+  await expect(sidebar.getByRole("button", { name: /^(Tasks|任务)$/ }).first()).toBeVisible()
+  await expect(sidebar.getByRole("button", { name: /^(Files|文件)$/ }).first()).toBeVisible()
 
   // A9：文件树是侧栏内整层 slide-over（translate-x 切换），不是同一列替换
   const treeLayer = sidebar.locator("div.absolute.transition-transform").nth(1)

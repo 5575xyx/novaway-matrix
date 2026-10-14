@@ -458,11 +458,11 @@
 
 /* NovaWay - Gradients */
 .gradient-primary {
-  background: linear-gradient(135deg, var(--interactive-base) 0%, var(--accent-base) 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
 }
 
 .gradient-text {
-  background: linear-gradient(135deg, var(--interactive-base) 0%, var(--accent-base) 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;

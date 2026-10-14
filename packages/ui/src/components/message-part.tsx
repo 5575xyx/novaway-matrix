@@ -941,7 +941,7 @@ export function ContextToolGroup(props: { parts: ToolPart[]; busy?: boolean }) {
         >
           <span
             data-slot="context-tool-group-title"
-            class="min-w-0 flex items-center gap-2 text-14-medium text-text-strong"
+            class="min-w-0 flex items-center gap-2 text-14-medium text-foreground"
           >
             <span
               data-slot="tool-badge-icon"
@@ -962,7 +962,7 @@ export function ContextToolGroup(props: { parts: ToolPart[]; busy?: boolean }) {
             </span>
             <span
               data-slot="context-tool-group-summary"
-              class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-text-weak"
+              class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-foreground-subtle"
             >
               <AnimatedCountList
                 items={[
@@ -1153,17 +1153,17 @@ export function UserMessageDisplay(props: { message: UserMessage; parts: PartTyp
             <Show when={metaHead() || metaTail()}>
               <span data-slot="user-message-meta-wrap">
                 <Show when={metaHead()}>
-                  <span data-slot="user-message-meta" class="text-12-regular text-text-weak cursor-default">
+                  <span data-slot="user-message-meta" class="text-12-regular text-foreground-subtle cursor-default">
                     {metaHead()}
                   </span>
                 </Show>
                 <Show when={metaHead() && metaTail()}>
-                  <span data-slot="user-message-meta-sep" class="text-12-regular text-text-weak cursor-default">
+                  <span data-slot="user-message-meta-sep" class="text-12-regular text-foreground-subtle cursor-default">
                     {"\u00A0\u00B7\u00A0"}
                   </span>
                 </Show>
                 <Show when={metaTail()}>
-                  <span data-slot="user-message-meta-tail" class="text-12-regular text-text-weak cursor-default">
+                  <span data-slot="user-message-meta-tail" class="text-12-regular text-foreground-subtle cursor-default">
                     {metaTail()}
                   </span>
                 </Show>
@@ -1385,7 +1385,7 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
               if (part().tool === "question" && cleaned.includes("dismissed this question")) {
                 return (
                   <div style="width: 100%; display: flex; justify-content: flex-end;">
-                    <span class="text-13-regular text-text-weak cursor-default">
+                    <span class="text-13-regular text-foreground-subtle cursor-default">
                       {i18n.t("ui.messagePart.questions.dismissed")}
                     </span>
                   </div>
@@ -1429,7 +1429,7 @@ export function MessageDivider(props: { label: string }) {
     <div data-component="compaction-part">
       <div data-slot="compaction-part-divider">
         <span data-slot="compaction-part-line" />
-        <span data-slot="compaction-part-label" class="text-12-regular text-text-weak">
+        <span data-slot="compaction-part-label" class="text-12-regular text-foreground-subtle">
           {props.label}
         </span>
         <span data-slot="compaction-part-line" />
@@ -1542,7 +1542,7 @@ PART_MAPPING["text"] = function TextPartDisplay(props) {
               />
             </Tooltip>
             <Show when={meta()}>
-              <span data-slot="text-part-meta" class="text-12-regular text-text-weak cursor-default">
+              <span data-slot="text-part-meta" class="text-12-regular text-foreground-subtle cursor-default">
                 {meta()}
               </span>
             </Show>
@@ -1575,7 +1575,7 @@ PART_MAPPING["reasoning"] = function ReasoningPartDisplay(props) {
       <Collapsible open={open()} onOpenChange={setOpen} variant="ghost" class="reasoning-collapsible">
         <Collapsible.Trigger>
           <div data-component="reasoning-part-trigger" data-timeline-part-id={part().id}>
-            <span data-slot="reasoning-part-label" class="text-12-medium text-text-weak">
+            <span data-slot="reasoning-part-label" class="text-12-medium text-foreground-subtle">
               {streaming() ? "思考中..." : "思考过程"}
             </span>
             <Collapsible.Arrow />
@@ -2636,7 +2636,7 @@ ToolRegistry.register({
               <Show when={!pending() && sql()}>
                 <span
                   data-slot="basic-tool-tool-subtitle"
-                  class="text-11-regular text-text-weak font-mono truncate max-w-[200px]"
+                  class="text-11-regular text-foreground-subtle font-mono truncate max-w-[200px]"
                 >
                   {sql()}
                 </span>
@@ -2646,22 +2646,22 @@ ToolRegistry.register({
         }
       >
         <Show when={sql()}>
-          <div class="px-3 py-2 border-b border-border-weaker-base">
-            <pre class="text-12-regular text-text-base font-mono whitespace-pre-wrap">{sql()}</pre>
+          <div class="px-3 py-2 border-b border-border">
+            <pre class="text-12-regular text-foreground font-mono whitespace-pre-wrap">{sql()}</pre>
           </div>
         </Show>
         <Show when={!pending() && result()}>
           <div class="px-3 py-2 overflow-auto max-h-64">
             <Show when={result().error}>
-              <div class="text-12-regular text-text-error">{result().error}</div>
+              <div class="text-12-regular text-destructive">{result().error}</div>
             </Show>
             <Show when={columns().length > 0}>
               <table class="w-full text-12-regular">
                 <thead>
-                  <tr class="border-b border-border-weaker-base">
+                  <tr class="border-b border-border">
                     <For each={columns()}>
                       {(col) => (
-                        <th class="px-2 py-1 text-left text-11-medium text-text-weak whitespace-nowrap">{col}</th>
+                        <th class="px-2 py-1 text-left text-11-medium text-foreground-subtle whitespace-nowrap">{col}</th>
                       )}
                     </For>
                   </tr>
@@ -2669,10 +2669,10 @@ ToolRegistry.register({
                 <tbody>
                   <For each={rows()}>
                     {(row) => (
-                      <tr class="border-b border-border-weaker-base hover:bg-background-stronger">
+                      <tr class="border-b border-border hover:bg-panel">
                         <For each={columns()}>
                           {(col) => (
-                            <td class="px-2 py-1 text-text-base whitespace-nowrap">{String(row[col] ?? "NULL")}</td>
+                            <td class="px-2 py-1 text-foreground whitespace-nowrap">{String(row[col] ?? "NULL")}</td>
                           )}
                         </For>
                       </tr>
@@ -2682,7 +2682,7 @@ ToolRegistry.register({
               </table>
             </Show>
             <Show when={affected() !== undefined}>
-              <div class="text-12-regular text-text-weak mt-1">{affected()} 行受影响</div>
+              <div class="text-12-regular text-foreground-subtle mt-1">{affected()} 行受影响</div>
             </Show>
           </div>
         </Show>
@@ -2724,7 +2724,7 @@ ToolRegistry.register({
         <Show when={!pending() && tables().length > 0}>
           <div class="px-3 py-2">
             <For each={tables()}>
-              {(table) => <div class="px-2 py-0.5 text-12-regular text-text-base">{String(table)}</div>}
+              {(table) => <div class="px-2 py-0.5 text-12-regular text-foreground">{String(table)}</div>}
             </For>
           </div>
         </Show>
@@ -2769,17 +2769,17 @@ ToolRegistry.register({
           <div class="px-3 py-2 overflow-auto max-h-64">
             <table class="w-full text-12-regular">
               <thead>
-                <tr class="border-b border-border-weaker-base">
-                  <th class="px-2 py-1 text-left text-11-medium text-text-weak">字段名</th>
-                  <th class="px-2 py-1 text-left text-11-medium text-text-weak">类型</th>
+                <tr class="border-b border-border">
+                  <th class="px-2 py-1 text-left text-11-medium text-foreground-subtle">字段名</th>
+                  <th class="px-2 py-1 text-left text-11-medium text-foreground-subtle">类型</th>
                 </tr>
               </thead>
               <tbody>
                 <For each={columns()}>
                   {(col: any) => (
-                    <tr class="border-b border-border-weaker-base">
-                      <td class="px-2 py-1 text-text-base font-mono">{col.name ?? col}</td>
-                      <td class="px-2 py-1 text-text-weak">{col.type ?? ""}</td>
+                    <tr class="border-b border-border">
+                      <td class="px-2 py-1 text-foreground font-mono">{col.name ?? col}</td>
+                      <td class="px-2 py-1 text-foreground-subtle">{col.type ?? ""}</td>
                     </tr>
                   )}
                 </For>
