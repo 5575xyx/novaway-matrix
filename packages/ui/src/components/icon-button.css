@@ -2,6 +2,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  /* ZCode：icon-xs → rounded-sm，icon-sm/md/lg → rounded-lg */
   border-radius: var(--radius-sm);
   text-decoration: none;
   user-select: none;
@@ -9,23 +10,17 @@
   flex-shrink: 0;
 
   &[data-variant="primary"] {
-    background-color: var(--text-interactive-base);
+    background-color: var(--primary);
 
     [data-slot="icon-svg"] {
-      color: white;
+      color: var(--primary-foreground);
     }
 
     &:hover:not(:disabled) {
-      background-color: var(--text-interactive-base);
-      opacity: 0.9;
-    }
-    &:focus:not(:disabled) {
-      background-color: var(--text-interactive-base);
-      opacity: 0.9;
+      background-color: color-mix(in oklab, var(--primary) 80%, transparent);
     }
     &:active:not(:disabled) {
-      background-color: var(--text-interactive-base);
-      opacity: 0.8;
+      background-color: color-mix(in oklab, var(--primary) 70%, transparent);
     }
     &:disabled {
       background-color: var(--icon-strong-disabled);
@@ -37,30 +32,18 @@
   }
 
   &[data-variant="secondary"] {
-    border: transparent;
-    background-color: var(--button-secondary-base);
-    color: var(--text-strong);
-    box-shadow: var(--shadow-xs-border-base);
+    border-color: var(--border);
+    color: var(--foreground);
 
     &:hover:not(:disabled) {
-      background-color: var(--button-secondary-hover);
-    }
-    &:focus:not(:disabled) {
-      background-color: var(--button-secondary-base);
-    }
-    &:focus-visible:not(:active) {
-      background-color: var(--button-secondary-base);
-      box-shadow: var(--shadow-xs-border-focus);
-    }
-    &:focus-visible:active {
-      box-shadow: none;
+      background-color: var(--hover);
     }
     &:active:not(:disabled) {
-      background-color: var(--button-secondary-base);
+      background-color: var(--selected);
     }
 
     [data-slot="icon-svg"] {
-      color: var(--icon-strong-base);
+      color: var(--foreground-subtle);
     }
 
     &:disabled {
@@ -75,27 +58,27 @@
     /* color: var(--icon-base); */
 
     [data-slot="icon-svg"] {
-      color: var(--icon-base);
+      color: var(--foreground-subtle);
     }
 
     &:hover:not(:disabled) {
-      background-color: var(--surface-base-hover);
+      background-color: var(--hover);
 
       /* [data-slot="icon-svg"] { */
       /*   color: var(--icon-hover); */
       /* } */
     }
     &:focus-visible:not(:disabled) {
-      background-color: var(--surface-base-hover);
+      background-color: var(--hover);
     }
     &:active:not(:disabled) {
-      background-color: var(--surface-base-active);
+      background-color: var(--selected);
       /* [data-slot="icon-svg"] { */
       /*   color: var(--icon-active); */
       /* } */
     }
-    &:selected:not(:disabled) {
-      background-color: var(--surface-base-active);
+    &[data-selected="true"]:not(:disabled) {
+      background-color: var(--selected);
       /* [data-slot="icon-svg"] { */
       /*   color: var(--icon-selected); */
       /* } */
