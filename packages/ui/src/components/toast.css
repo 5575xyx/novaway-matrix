@@ -124,7 +124,7 @@
 
     /* text-14-medium */
     font-family: var(--font-family-sans);
-    font-size: 14px;
+    font-size: var(--font-size-ui-base);
     font-style: normal;
     font-weight: var(--font-weight-medium);
     line-height: var(--line-height-large); /* 142.857% */
@@ -141,7 +141,7 @@
 
     /* text-14-regular */
     font-family: var(--font-family-sans);
-    font-size: var(--font-size-base);
+    font-size: var(--font-size-ui-base);
     font-style: normal;
     font-weight: var(--font-weight-regular);
     line-height: var(--line-height-x-large); /* 171.429% */
@@ -170,7 +170,7 @@
 
     color: var(--text-invert-weak);
     font-family: var(--font-family-sans);
-    font-size: var(--font-size-base);
+    font-size: var(--font-size-ui-base);
     font-weight: var(--font-weight-medium);
     line-height: var(--line-height-large);
     letter-spacing: var(--letter-spacing-normal);

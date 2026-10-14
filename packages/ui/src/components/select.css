@@ -54,7 +54,7 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        font-size: var(--font-size-base);
+        font-size: var(--font-size-ui-base);
         font-weight: var(--font-weight-regular);
       }
       [data-slot="select-select-trigger-icon"] {
@@ -177,7 +177,7 @@
   [data-slot="select-select-item"] {
     /* text-14-regular */
     font-family: var(--font-family-sans);
-    font-size: var(--font-size-base);
+    font-size: var(--font-size-ui-base);
     font-style: normal;
     font-weight: var(--font-weight-regular);
     line-height: var(--line-height-large);

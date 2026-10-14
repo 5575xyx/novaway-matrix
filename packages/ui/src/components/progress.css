@@ -13,7 +13,7 @@
   [data-slot="progress-label"],
   [data-slot="progress-value-label"] {
     font-family: var(--font-family-sans);
-    font-size: var(--font-size-small);
+    font-size: var(--font-size-ui-sm);
     font-weight: var(--font-weight-regular);
     line-height: var(--line-height-large);
     letter-spacing: var(--letter-spacing-normal);

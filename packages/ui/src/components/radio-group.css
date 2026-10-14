@@ -85,7 +85,7 @@
     align-items: center;
     justify-content: center;
     font-family: var(--font-family-sans);
-    font-size: var(--font-size-small);
+    font-size: var(--font-size-ui-sm);
     font-weight: var(--font-weight-medium);
     flex: 1;
     height: 100%;
@@ -167,7 +167,7 @@
     --radio-group-padding: 2px;
 
     [data-slot="radio-group-item-label"] {
-      font-size: 12px;
+      font-size: var(--font-size-ui-sm);
     }
 
     [data-slot="radio-group-item-control"] {
