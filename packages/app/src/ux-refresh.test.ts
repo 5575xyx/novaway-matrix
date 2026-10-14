@@ -13,14 +13,16 @@ const settingsGeneralSource = read("components/settings-general.tsx")
 const workspaceHeaderSource = read("components/session/workspace-header.tsx")
 const messageTimelineSource = read("pages/session/message-timeline.tsx")
 
-// 圆角此前从未生效:@theme 位于 import 之后,其内硬编码的 Tailwind 默认值把 theme.css 里那套
-// Aurora 设计值整个盖掉,实际跑的是 4/6/8/10px 而非 6/8/12/16px。
-describe("aurora radius tokens actually take effect", () => {
-  test("the tailwind theme block carries the design values instead of the defaults", () => {
-    expect(tailwindThemeSource).toContain("--radius-sm: 6px")
-    expect(tailwindThemeSource).toContain("--radius-md: 8px")
-    expect(tailwindThemeSource).toContain("--radius-lg: 12px")
-    expect(tailwindThemeSource).toContain("--radius-xl: 16px")
+// 圆角刻度对齐 ZCode（= Tailwind 默认 4/6/8/12/16）。
+// 旧版是 Aurora 的 6/8/12/16/20，整体偏大一级；ZCode 的 styles.css 不覆盖 --radius-*，
+// DESIGN.md 的容器层级规则全部基于 Tailwind 默认刻度。
+// 注意 @theme 位于 import 之后会盖掉 theme.css 的 :root 值，两处必须同步。
+describe("radius scale matches ZCode (Tailwind defaults)", () => {
+  test("the tailwind theme block carries the ZCode scale", () => {
+    expect(tailwindThemeSource).toContain("--radius-sm: 0.25rem")
+    expect(tailwindThemeSource).toContain("--radius-md: 0.375rem")
+    expect(tailwindThemeSource).toContain("--radius-lg: 0.5rem")
+    expect(tailwindThemeSource).toContain("--radius-xl: 0.75rem")
   })
 
   // xs 是唯一没有对应设计值的一档,删掉会让 dialog-select-server 里那处 rounded-xs 失效。

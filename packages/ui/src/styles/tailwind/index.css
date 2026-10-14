@@ -72,12 +72,14 @@
   --tracking-tightest: var(--letter-spacing-tightest);
 
   --radius-xs: 0.125rem;
-  /* 圆角取 theme.css 顶部那套 Aurora 设计值。此前这里硬编码了 Tailwind 默认的小圆角,
-     而 @theme 位于 import 之后、会把设计值整个盖掉,导致 6/8/12/16px 从未真正生效过。 */
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  /* 圆角对齐 ZCode（= Tailwind 默认刻度 4/6/8/12/16）。
+     注意 @theme 位于 import 之后、会盖掉 theme.css 的 :root 值，两处必须同步修改，
+     否则工具类（rounded-lg 等）与 CSS 变量（--radius-lg）会取到不同刻度。 */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
 
   --shadow-xs: var(--shadow-xs);
   --shadow-md: var(--shadow-md);

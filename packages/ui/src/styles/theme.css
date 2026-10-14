@@ -56,12 +56,19 @@
   --letter-spacing-wider: 0.025em;
   --paragraph-spacing-base: 0;
 
-  /* NovaWay 圆角系统 - Aurora */
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-  --radius-2xl: 20px;
+  /* 圆角系统：对齐 ZCode（= Tailwind 默认刻度）。
+   *
+   * ZCode 的 styles.css 没有覆盖 --radius-*，用的就是 Tailwind 默认值，
+   * DESIGN.md 的「容器层级 rounded-xl → lg → md → sm，控件默认 rounded-lg」全部基于这套刻度。
+   * 旧版是 Aurora 的 6/8/12/16/20，与 ZCode 的 4/6/8/12/16 整体偏大一级。
+   */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 24px;
   --radius-full: 9999px;
 
   /* NovaWay 阴影系统 - Aurora（浅色主题使用蓝灰色阴影） */

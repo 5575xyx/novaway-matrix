@@ -1,203 +1,145 @@
+/* 对齐 ZCode `packages/ui/src/components/ui/button.tsx`（cva 变体表）。
+ *
+ * 差异要点（相对旧版）：
+ * - 圆角按 ZCode 容器层级：默认 rounded-md(8px)；xs/icon-xs 用 rounded-sm；
+ *   lg/icon-md/icon-lg 用 rounded-lg(12px)。旧版一律 12px。
+ * - 高度收进 ZCode 的 h-5/h-6/h-7/h-8（20/24/28/32），比旧版 28/36/44 更密。
+ * - 字号改 text-ui-base（随「界面字号」设置缩放），旧版是固定 11/14/16。
+ * - 去掉所有投影与 translateY 位移：DESIGN.md 规定层级靠底色与边框，不用重阴影。
+ * - transition 只保留 colors，避免批量非合成动画（ZCode 的注释说明了同一原因）。
+ * - 变体映射：primary→default、secondary→outline、ghost→ghost；新增 destructive。
+ */
 [data-component="button"] {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  border-style: solid;
-  border-width: 1px;
-  border-radius: var(--radius-lg);
+  border: 1px solid transparent;
+  background-clip: padding-box;
+  border-radius: var(--radius-md);
   text-decoration: none;
   user-select: none;
   cursor: pointer;
   outline: none;
   white-space: nowrap;
-  transition: all 0.15s ease-in-out;
+  transition-property: color, background-color, border-color;
+  transition-duration: 0.15s;
+  transition-timing-function: ease-in-out;
+  font-family: var(--font-family-sans);
   font-feature-settings: var(--font-family-sans--font-feature-settings);
+  font-size: var(--font-size-ui-base);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--letter-spacing-normal);
+  color: var(--foreground);
+
+  & svg {
+    pointer-events: none;
+    flex-shrink: 0;
+  }
+
+  &:disabled {
+    pointer-events: none;
+    opacity: 0.5;
+  }
+
+  /* ── 变体 ───────────────────────────────────────────────── */
 
   &[data-variant="primary"] {
-    background-color: var(--button-primary-base);
-    border-color: var(--button-primary-base);
-    color: var(--background-base);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+    background-color: var(--primary);
+    color: var(--primary-foreground);
 
-    [data-slot="icon-svg"] {
-      color: var(--background-base);
+    & svg {
+      color: var(--primary-foreground);
     }
 
     &:hover:not(:disabled) {
-      transform: translateY(-0.5px);
-      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12);
-      filter: brightness(1.05);
+      background-color: color-mix(in oklab, var(--primary) 80%, transparent);
     }
-    &:focus-visible:not(:disabled) {
-      box-shadow:
-        0 0 0 3px rgba(3, 76, 255, 0.15),
-        0 1px 2px rgba(0, 0, 0, 0.08);
-    }
-    &:active:not(:disabled) {
-      transform: translateY(0);
-      filter: brightness(0.95);
-    }
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-      transform: none;
-      box-shadow: none;
+  }
 
-      [data-slot="icon-svg"] {
-        color: var(--background-base);
-      }
+  &[data-variant="secondary"] {
+    border-color: var(--border);
+    color: var(--foreground);
+
+    &:hover:not(:disabled) {
+      border-color: var(--border-hover);
+      background-color: color-mix(in oklab, var(--input) 50%, transparent);
+    }
+    &[aria-expanded="true"] {
+      background-color: color-mix(in oklab, var(--input) 50%, transparent);
     }
   }
 
   &[data-variant="ghost"] {
     border-color: transparent;
-    background-color: transparent;
-    color: var(--text-strong);
+    color: var(--foreground);
 
-    [data-slot="icon-svg"] {
-      color: var(--icon-base);
+    & svg {
+      color: var(--foreground-subtle);
     }
 
     &:hover:not(:disabled) {
-      background-color: var(--surface-base-hover);
+      background-color: var(--hover);
     }
-    &:focus-visible:not(:disabled) {
-      background-color: var(--surface-base-hover);
-      box-shadow: 0 0 0 2px var(--border-selected);
-    }
-    &:active:not(:disabled) {
-      background-color: var(--surface-base-active);
-    }
-    &:disabled {
-      color: var(--text-weak);
-      cursor: not-allowed;
-      opacity: 0.6;
-
-      [data-slot="icon-svg"] {
-        color: var(--icon-disabled);
-      }
+    &[aria-expanded="true"] {
+      background-color: var(--hover);
     }
     &[data-selected="true"]:not(:disabled) {
-      background-color: var(--surface-base-hover);
-    }
-    &[data-active="true"] {
-      background-color: var(--surface-base-active);
+      background-color: var(--selected);
     }
   }
 
-  &[data-variant="secondary"] {
-    border: 1px solid var(--border-weak-base);
-    background-color: var(--button-secondary-base);
-    color: var(--text-strong);
-    box-shadow: var(--shadow-xs-border-base);
+  &[data-variant="destructive"] {
+    background-color: var(--destructive);
+    color: var(--destructive-foreground);
 
     &:hover:not(:disabled) {
-      background-color: var(--button-secondary-hover);
-      border-color: var(--border-base);
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
-    }
-    &:focus:not(:disabled) {
-      background-color: var(--button-secondary-base);
-    }
-    &:focus-visible:not(:active) {
-      background-color: var(--button-secondary-base);
-      box-shadow:
-        0 0 0 3px rgba(3, 76, 255, 0.1),
-        var(--shadow-xs-border-focus);
-    }
-    &:focus-visible:active {
-      box-shadow: 0 0 0 3px rgba(3, 76, 255, 0.1);
-    }
-    &:active:not(:disabled) {
-      background-color: var(--surface-base-active);
-      transform: translateY(0.5px);
-    }
-    &:disabled {
-      border-color: var(--border-disabled);
-      background-color: var(--surface-disabled);
-      color: var(--text-weak);
-      cursor: not-allowed;
-      opacity: 0.6;
-    }
-
-    [data-slot="icon-svg"] {
-      color: var(--icon-base);
+      background-color: color-mix(in oklab, var(--destructive) 90%, transparent);
     }
   }
 
-  &[data-size="small"] {
-    height: 28px;
-    padding: 0 12px;
-    &[data-icon] {
-      padding: 0 12px 0 8px;
-    }
+  /* ── 尺寸（对齐 ZCode：h-5 / h-6 / h-7 / h-8）──────────── */
 
-    gap: 6px;
-    font-family: var(--font-family-sans);
-    font-size: var(--font-size-small);
-    font-style: normal;
-    font-weight: var(--font-weight-medium);
-    line-height: var(--line-height-normal);
-    letter-spacing: var(--letter-spacing-normal);
+  &[data-size="small"] {
+    height: 24px;
+    gap: 4px;
+    padding: 0 8px;
+
+    &[data-icon] {
+      padding-left: 6px;
+      padding-right: 6px;
+    }
   }
 
   &[data-size="normal"] {
-    height: 36px;
-    padding: 0 16px;
-    &[data-icon] {
-      padding: 0 16px 0 10px;
-    }
+    height: 28px;
+    gap: 4px;
+    padding: 0 8px;
 
-    gap: 8px;
-    font-family: var(--font-family-sans);
-    font-size: var(--font-size-base);
-    font-style: normal;
-    font-weight: var(--font-weight-medium);
-    letter-spacing: var(--letter-spacing-normal);
+    &[data-icon] {
+      padding-left: 6px;
+      padding-right: 6px;
+    }
   }
 
   &[data-size="large"] {
-    height: 44px;
-    padding: 0 20px;
+    height: 32px;
+    gap: 4px;
+    border-radius: var(--radius-lg);
+    padding: 0 10px;
 
     &[data-icon] {
-      padding: 0 20px 0 14px;
+      padding-left: 8px;
+      padding-right: 8px;
     }
-
-    gap: 10px;
-    font-family: var(--font-family-sans);
-    font-size: var(--font-size-large);
-    font-style: normal;
-    font-weight: var(--font-weight-medium);
-    line-height: var(--line-height-normal);
-    letter-spacing: var(--letter-spacing-normal);
-  }
-
-  &:focus {
-    outline: none;
   }
 }
 
-[data-component="button"].titlebar-icon[data-variant="ghost"][aria-expanded="true"] {
-  background-color: var(--surface-base-active);
+/* Side Pane / 侧栏顶带里的开关沿用同一套几何，只标出「当前激活」色。 */
+[data-component="button"][aria-expanded="true"][data-variant="ghost"] {
+  background-color: var(--selected);
 }
 
-[data-component="button"].titlebar-icon[data-variant="ghost"][aria-expanded="true"] [data-slot="icon-svg"] {
-  color: var(--icon-strong-base);
-}
-
-[data-component="button"].titlebar-icon[data-variant="ghost"][aria-expanded="true"]:hover:not(:disabled) {
-  background-color: var(--surface-base-active);
-}
-
-[data-component="button"].titlebar-icon[data-variant="ghost"][aria-current="page"] {
-  background-color: var(--surface-base-active);
-}
-
-[data-component="button"].titlebar-icon[data-variant="ghost"][aria-current="page"] [data-slot="icon-svg"] {
-  color: var(--icon-strong-base);
-}
-
-[data-component="button"].titlebar-icon[data-variant="ghost"][aria-current="page"]:hover:not(:disabled) {
-  background-color: var(--surface-base-active);
+[data-component="button"][aria-current="page"][data-variant="ghost"] {
+  background-color: var(--selected);
 }
