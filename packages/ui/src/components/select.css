@@ -15,31 +15,26 @@
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
-      color: var(--text-weak);
+      color: var(--foreground-subtle);
       transition: transform 0.1s ease-in-out;
     }
 
+    /* 对齐 ZCode：Select 触发器沿用输入件语义，展开/聚焦只换底色，不做发光。 */
     &[data-expanded] {
-      &[data-variant="secondary"] {
-        background-color: var(--button-secondary-hover);
-      }
       &[data-variant="ghost"] {
-        background-color: var(--surface-raised-base-active);
+        background-color: var(--hover);
       }
-      &[data-variant="primary"] {
-        background-color: var(--icon-strong-active);
+      &[data-variant="secondary"] {
+        background-color: var(--hover);
       }
     }
 
     &:not([data-expanded]):focus-visible {
-      &[data-variant="secondary"] {
-        background-color: var(--button-secondary-base);
-      }
       &[data-variant="ghost"] {
-        background-color: var(--surface-raised-base-hover);
+        background-color: var(--hover);
       }
-      &[data-variant="primary"] {
-        background-color: var(--icon-strong-base);
+      &[data-variant="secondary"] {
+        background-color: var(--hover);
       }
     }
   }
@@ -69,17 +64,15 @@
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
-        color: var(--text-weak);
-        background-color: var(--surface-raised-base);
-        border-radius: 4px;
+        color: var(--foreground-subtle);
+        border-radius: var(--radius-sm);
         transition: transform 0.1s ease-in-out;
       }
 
       &[data-slot="select-select-trigger"]:hover:not(:disabled),
       &[data-slot="select-select-trigger"][data-expanded],
       &[data-slot="select-select-trigger"][data-expanded]:hover:not(:disabled) {
-        background-color: var(--input-base);
-        box-shadow: var(--shadow-xs-border-base);
+        background-color: var(--hover);
       }
 
       &:not([data-expanded]):not(:focus-visible):focus {
@@ -91,14 +84,17 @@
 }
 
 [data-component="select-content"] {
-  min-width: 104px;
+  /* 对齐 ZCode：Select 展开面板与菜单同一套浮层语言（rounded-lg 壳 + p-1 + shadow-md）。 */
+  min-width: 8rem;
   max-width: 23rem;
   overflow: hidden;
-  border-radius: var(--radius-md);
-  background-color: var(--surface-raised-stronger-non-alpha);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--popover-border);
+  background-color: var(--menu);
   padding: 4px;
-  box-shadow: var(--shadow-xs-border);
-  z-index: 150;
+  box-shadow: var(--shadow-md);
+  color: var(--foreground);
+  z-index: 60;
 
   &[data-expanded] {
     animation: select-open 0.15s ease-out;
@@ -132,13 +128,12 @@
 
     /* text-12-medium */
     font-family: var(--font-family-sans);
-    font-size: var(--font-size-small);
-    font-style: normal;
-    font-weight: var(--font-weight-medium);
-    line-height: var(--line-height-large); /* 166.667% */
+    font-size: var(--font-size-ui-base);
+    font-weight: var(--font-weight-regular);
+    line-height: var(--line-height-normal);
     letter-spacing: var(--letter-spacing-normal);
 
-    color: var(--text-strong);
+    color: var(--foreground);
 
     transition:
       background-color 0.2s ease-in-out,
@@ -147,10 +142,10 @@
     user-select: none;
 
     &[data-highlighted] {
-      background: var(--surface-raised-base-hover);
+      background: var(--menu-hover);
     }
     &[data-disabled] {
-      background-color: var(--surface-raised-base);
+      color: var(--foreground-subtlest);
       pointer-events: none;
     }
     [data-slot="select-select-item-indicator"] {
@@ -165,7 +160,7 @@
       outline: none;
     }
     &:hover {
-      background: var(--surface-raised-base-hover);
+      background: var(--menu-hover);
     }
   }
 }
