@@ -1622,20 +1622,18 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         onSubmit={handleSubmit}
         data-working={working() ? "true" : "false"}
         data-optimizing={store.optimizing ? "true" : "false"}
+        // 对齐 ZCode `prompt-editor/ChatPromptEditor.tsx` 的输入壳：
+        // `rounded-2xl border border-input-border bg-input p-3 transition-colors
+        //  hover:border-input-border-hover focus-within:border-input-border-focused focus-within:bg-input-focused`。
+        // DESIGN.md 把主聊天输入壳列为**唯一允许 rounded-2xl 的例外**，但**不用阴影/光晕**——
+        // 旧版是内联 16px 圆角 + 自算 box-shadow（含 24px 投影），既非语义 token 也过重。
         classList={{
           "group/prompt-input": true,
-          "focus-within:shadow-xs-border": !working() && !store.optimizing,
+          "rounded-2xl border border-input-border bg-input p-3 transition-colors": true,
+          "hover:border-input-border-hover": !working() && !store.optimizing,
+          "focus-within:border-input-border-focused focus-within:bg-input-focused": true,
           "border-icon-info-active border-dashed": store.draggingType !== null,
           [props.class ?? ""]: !!props.class,
-        }}
-        style={{
-          "border-radius": "16px",
-          background: "var(--popover)",
-          "box-shadow":
-            working() || store.optimizing
-              ? undefined
-              : "0 0 0 1px var(--border), 0 4px 24px rgba(0, 0, 0, 0.08)",
-          transition: working() || store.optimizing ? undefined : "box-shadow 0.2s ease",
         }}
       >
         <PromptDragOverlay
