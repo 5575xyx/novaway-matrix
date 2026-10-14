@@ -1,37 +1,35 @@
+/* 对齐 ZCode `components/ui/badge.tsx`：`rounded-full` + `h-5` + `px-2` + `py-0.5` +
+ * `text-ui-xs` + `font-medium`，边框透明，胶囊形。
+ * 旧版是 `rounded-xs`(2px) + 0.5px 边框 + surface 底色 + text-base，方块感很重。
+ */
 [data-component="tag"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
+  overflow: hidden;
+  white-space: nowrap;
   user-select: none;
 
-  border-radius: var(--radius-xs);
-  border: 0.5px solid var(--border-weak-base);
-  background: var(--surface-raised-base);
-  color: var(--text-base);
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background: var(--tag);
+  color: var(--foreground);
+
+  font-family: var(--font-family-sans);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-normal);
+  letter-spacing: var(--letter-spacing-normal);
 
   &[data-size="normal"] {
-    height: 18px;
-    padding: 0 6px;
-
-    /* text-12-medium */
-    font-family: var(--font-family-sans);
-    font-size: var(--font-size-small);
-    font-style: normal;
-    font-weight: var(--font-weight-medium);
-    line-height: var(--line-height-large); /* 166.667% */
-    letter-spacing: var(--letter-spacing-normal);
+    height: 20px;
+    padding: 2px 8px;
+    font-size: var(--font-size-ui-xs);
   }
 
   &[data-size="large"] {
-    height: 22px;
-    padding: 0 8px;
-
-    /* text-14-medium */
-    font-family: var(--font-family-sans);
-    font-size: 14px;
-    font-style: normal;
-    font-weight: var(--font-weight-medium);
-    line-height: var(--line-height-large); /* 142.857% */
-    letter-spacing: var(--letter-spacing-normal);
+    height: 24px;
+    padding: 2px 10px;
+    font-size: var(--font-size-ui-sm);
   }
 }

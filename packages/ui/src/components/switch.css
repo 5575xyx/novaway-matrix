@@ -17,44 +17,39 @@
     border-width: 0;
   }
 
+  /* 对齐 ZCode `components/ui/switch.tsx`：p-px + **rounded-full** 药丸形，
+     默认 32×18、sm 28×16；选中 `bg-primary`、未选中 `bg-primary/30`；拇指圆形纯色。
+     旧版是 28×16 直角(3px)开关 + 带边框的方块拇指。 */
   [data-slot="switch-control"] {
     display: inline-flex;
     align-items: center;
-    width: 28px;
-    height: 16px;
+    width: 32px;
+    height: 18px;
+    padding: 1px;
+    box-sizing: border-box;
     flex-shrink: 0;
-    border-radius: 3px;
-    border: 1px solid var(--border-weak-base);
-    background: var(--surface-base);
-    transition:
-      background-color 150ms,
-      border-color 150ms;
+    border-radius: 9999px;
+    border: none;
+    background: color-mix(in oklab, var(--primary) 30%, transparent);
+    transition: background-color 150ms;
   }
 
   [data-slot="switch-thumb"] {
-    width: 14px;
-    height: 14px;
-    box-sizing: content-box;
+    width: 16px;
+    height: 16px;
+    box-sizing: border-box;
 
-    border-radius: 2px;
-    border: 1px solid var(--border-base);
-    background: var(--icon-invert-base);
+    border-radius: 9999px;
+    border: none;
+    background: var(--primary-foreground);
 
-    /* shadows/shadow-xs */
-    box-shadow:
-      0 1px 2px -1px rgba(19, 16, 16, 0.04),
-      0 1px 2px 0 rgba(19, 16, 16, 0.06),
-      0 1px 3px 0 rgba(19, 16, 16, 0.08);
-
-    transform: translateX(-1px);
-    transition:
-      transform 150ms,
-      background-color 150ms;
+    transform: translateX(0);
+    transition: transform 150ms;
   }
 
   [data-slot="switch-label"] {
     user-select: none;
-    color: var(--text-base);
+    color: var(--foreground);
     font-family: var(--font-family-sans);
     font-size: var(--font-size-small);
     font-style: normal;
@@ -64,7 +59,7 @@
   }
 
   [data-slot="switch-description"] {
-    color: var(--text-base);
+    color: var(--foreground-subtle);
     font-family: var(--font-family-sans);
     font-size: 12px;
     font-weight: var(--font-weight-regular);
@@ -81,49 +76,25 @@
     letter-spacing: var(--letter-spacing-normal);
   }
 
-  &:hover:not([data-disabled], [data-readonly]) [data-slot="switch-control"] {
-    border-color: var(--border-hover);
-    background-color: var(--surface-hover);
-  }
-
   &:not([data-readonly]) [data-slot="switch-input"]:focus-visible ~ [data-slot="switch-control"] {
-    border-color: var(--border-focus);
-    box-shadow: var(--shadow-xs-border-focus);
+    box-shadow: 0 0 0 2px color-mix(in oklab, var(--input-border-focused) 30%, transparent);
   }
 
   &[data-checked] [data-slot="switch-control"] {
-    box-sizing: border-box;
-    border-color: var(--text-interactive-base);
-    background-color: var(--text-interactive-base);
+    background-color: var(--primary);
   }
 
   &[data-checked] [data-slot="switch-thumb"] {
-    border: none;
-    transform: translateX(12px);
-    background-color: white;
-  }
-
-  &[data-checked]:hover:not([data-disabled], [data-readonly]) [data-slot="switch-control"] {
-    border-color: var(--text-interactive-base);
-    background-color: var(--text-interactive-base);
-    opacity: 0.9;
+    transform: translateX(14px);
   }
 
   &[data-disabled] {
     cursor: not-allowed;
-  }
-
-  &[data-disabled] [data-slot="switch-control"] {
-    border-color: var(--border-disabled);
-    background-color: var(--surface-disabled);
-  }
-
-  &[data-disabled] [data-slot="switch-thumb"] {
-    background-color: var(--icon-disabled);
+    opacity: 0.5;
   }
 
   &[data-invalid] [data-slot="switch-control"] {
-    border-color: var(--border-error);
+    box-shadow: 0 0 0 2px color-mix(in oklab, var(--destructive) 20%, transparent);
   }
 
   &[data-readonly] {

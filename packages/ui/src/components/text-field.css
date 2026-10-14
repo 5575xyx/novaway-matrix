@@ -3,14 +3,12 @@
 
   [data-slot="input-input"] {
     width: 100%;
-    color: var(--text-strong);
+    color: var(--foreground);
 
-    /* text-14-regular */
     font-family: var(--font-family-sans);
-    font-size: 14px;
-    font-style: normal;
+    font-size: var(--font-size-ui-base);
     font-weight: var(--font-weight-regular);
-    line-height: var(--line-height-large); /* 142.857% */
+    line-height: var(--line-height-normal);
     letter-spacing: var(--letter-spacing-normal);
 
     &:focus {
@@ -18,7 +16,7 @@
     }
 
     &::placeholder {
-      color: var(--text-weak);
+      color: var(--foreground-subtlest);
     }
   }
 
@@ -29,14 +27,12 @@
     gap: 10px;
 
     [data-slot="input-label"] {
-      color: var(--text-base);
+      color: var(--foreground-subtle);
 
-      /* text-12-medium */
       font-family: var(--font-family-sans);
-      font-size: var(--font-size-small);
-      font-style: normal;
-      font-weight: var(--font-weight-semibold);
-      line-height: 18px; /* 150% */
+      font-size: var(--font-size-ui-base);
+      font-weight: var(--font-weight-medium);
+      line-height: var(--line-height-normal);
       letter-spacing: var(--letter-spacing-normal);
     }
 
@@ -47,28 +43,30 @@
       width: 100%;
       padding-right: 6px;
 
+      /* 对齐 ZCode `components/ui/input.tsx`：`bg-input` + `border-input-border`，
+         hover 换 `input-border-hover`，focus 换 `input-border-focused` + `bg-input-focused`，
+         且 **focus 无 ring**（DESIGN.md：输入框保持安静，不做发光）。旧版是 1.5px 边框 +
+         4px 紫色光晕 + 阴影，明显偏离。
+         rounded：常规输入 ZCode 用 `rounded-md`；此处是复合输入壳，按容器层级取 `rounded-lg`。 */
       border-radius: var(--radius-lg);
-      border: 1.5px solid var(--border-weak-base);
-      background: var(--input-base);
-      transition: all 0.2s ease-in-out;
+      border: 1px solid var(--input-border);
+      background: var(--input);
+      transition:
+        border-color 0.15s ease-in-out,
+        background-color 0.15s ease-in-out;
 
       &:hover:not(:has([data-readonly])) {
-        border-color: var(--border-base);
+        border-color: var(--input-border-hover);
       }
 
       &:focus-within:not(:has([data-readonly])) {
-        border-color: var(--interactive-base);
-        box-shadow:
-          0 0 0 4px rgba(99, 102, 241, 0.1),
-          0 2px 8px rgba(0, 0, 0, 0.08);
+        border-color: var(--input-border-focused);
+        background: var(--input-focused);
       }
 
       &:has([data-invalid]) {
-        background: var(--surface-critical-weak);
-        border-color: var(--border-critical-selected);
-        box-shadow:
-          0 0 0 4px rgba(239, 68, 68, 0.1),
-          0 2px 8px rgba(0, 0, 0, 0.08);
+        border-color: var(--destructive);
+        box-shadow: 0 0 0 2px color-mix(in oklab, var(--destructive) 20%, transparent);
       }
 
       &:not(:has([data-slot="input-copy-button"])) {
@@ -77,11 +75,12 @@
     }
 
     [data-slot="input-input"] {
-      color: var(--text-strong);
+      color: var(--foreground);
 
       display: flex;
-      height: 40px;
-      padding: 6px 14px;
+      /* ZCode 默认输入高 h-9（36px）；此处是带内嵌按钮的复合壳，取默认档 */
+      height: 36px;
+      padding: 2px 8px;
       align-items: center;
       flex: 1;
       min-width: 0;
@@ -89,12 +88,10 @@
       background: transparent;
       border: none;
 
-      /* text-14-regular */
       font-family: var(--font-family-sans);
-      font-size: 14px;
-      font-style: normal;
+      font-size: var(--font-size-ui-base);
       font-weight: var(--font-weight-regular);
-      line-height: var(--line-height-large); /* 142.857% */
+      line-height: var(--line-height-normal);
       letter-spacing: var(--letter-spacing-normal);
 
       &:focus {
@@ -102,37 +99,35 @@
       }
 
       &::placeholder {
-        color: var(--text-weak);
+        color: var(--foreground-subtlest);
       }
     }
 
     textarea[data-slot="input-input"] {
       height: auto;
-      min-height: 40px;
-      padding: 10px 14px;
+      min-height: 36px;
+      padding: 8px;
       resize: none;
     }
 
     [data-slot="input-copy-button"] {
       flex-shrink: 0;
-      margin-top: 4px;
-      color: var(--icon-base);
-      transition: color 0.2s ease-in-out;
+      margin-top: 6px;
+      color: var(--foreground-subtle);
+      transition: color 0.15s ease-in-out;
 
       &:hover {
-        color: var(--interactive-base);
+        color: var(--foreground);
       }
     }
 
     [data-slot="input-error"] {
-      color: var(--text-on-critical-base);
+      color: var(--destructive);
 
-      /* text-12-medium */
       font-family: var(--font-family-sans);
-      font-size: var(--font-size-small);
-      font-style: normal;
+      font-size: var(--font-size-ui-sm);
       font-weight: var(--font-weight-medium);
-      line-height: 18px; /* 150% */
+      line-height: var(--line-height-normal);
       letter-spacing: var(--letter-spacing-normal);
     }
   }
