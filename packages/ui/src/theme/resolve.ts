@@ -238,7 +238,7 @@ export function resolveThemeVariant(variant: ThemeVariant, isDark: boolean): Res
   tokens["button-ghost-hover"] = neutralAlpha[1]
   tokens["button-ghost-hover2"] = neutralAlpha[2]
 
-  tokens["border-base"] = colors.compact ? borderTone(0.22, 0.16) : neutralAlpha[6]
+  tokens["border-border"] = colors.compact ? borderTone(0.22, 0.16) : neutralAlpha[6]
   tokens["border-hover"] = colors.compact ? borderTone(0.28, 0.2) : neutralAlpha[7]
   tokens["border-active"] = colors.compact ? borderTone(0.34, 0.24) : neutralAlpha[8]
   tokens["border-selected"] = withAlpha(interactive[8], isDark ? 0.9 : 0.99) as ColorValue
@@ -258,12 +258,12 @@ export function resolveThemeVariant(variant: ThemeVariant, isDark: boolean): Res
   tokens["border-weak-focus"] = colors.compact ? borderTone(0.22, 0.16) : neutralAlpha[isDark ? 7 : 6]
   tokens["border-weaker-base"] = colors.compact ? borderTone(0.06, 0.04) : neutralAlpha[2]
 
-  tokens["border-interactive-base"] = interactive[6]
-  tokens["border-interactive-hover"] = interactive[7]
-  tokens["border-interactive-active"] = interactive[8]
-  tokens["border-interactive-selected"] = interactive[8]
-  tokens["border-interactive-disabled"] = neutral[7]
-  tokens["border-interactive-focus"] = interactive[8]
+  tokens["border-primary"] = interactive[6]
+  tokens["border-primary"] = interactive[7]
+  tokens["border-primary"] = interactive[8]
+  tokens["border-primary"] = interactive[8]
+  tokens["border-border"] = neutral[7]
+  tokens["border-primary"] = interactive[8]
 
   tokens["border-success-base"] = success[isDark ? 6 : 6]
   tokens["border-success-hover"] = success[isDark ? 7 : 7]
@@ -371,7 +371,7 @@ export function resolveThemeVariant(variant: ThemeVariant, isDark: boolean): Res
     tokens["markdown-block-quote"] = content(colors.warning, warning)
     tokens["markdown-emph"] = content(colors.warning, warning)
     tokens["markdown-strong"] = content(colors.accent, accent)
-    tokens["markdown-horizontal-rule"] = tokens["border-base"]
+    tokens["markdown-horizontal-rule"] = tokens["border-border"]
     tokens["markdown-list-item"] = content(colors.interactive, interactive)
     tokens["markdown-list-enumeration"] = content(colors.info, info)
     tokens["markdown-image"] = content(colors.interactive, interactive)

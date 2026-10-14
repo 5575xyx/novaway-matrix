@@ -24,7 +24,7 @@ export function TypingIndicator(props: { class?: string; label?: string }) {
         </For>
       </div>
       <Show when={props.label}>
-        <span data-slot="typing-label" class="text-13-regular text-text-weak">
+        <span data-slot="typing-label" class="text-13-regular text-foreground-subtle">
           {props.label}
         </span>
       </Show>

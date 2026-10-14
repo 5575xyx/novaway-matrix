@@ -1570,10 +1570,10 @@ function Playground() {
   } as const
   const btnAccent = {
     ...btnStyle,
-    border: "1px solid var(--border-interactive-base)",
+    border: "1px solid var(--primary)",
     background: "var(--surface-interactive-weak)",
     "font-weight": "500",
-    color: "var(--text-interactive-base)",
+    color: "var(--icon-blue)",
   } as const
   const btnDanger = {
     ...btnStyle,
@@ -1822,7 +1822,7 @@ function Playground() {
                                     "font-size": "11px",
                                     color:
                                       css[ctrl.key] !== undefined
-                                        ? "var(--text-interactive-base)"
+                                        ? "var(--icon-blue)"
                                         : "var(--foreground-subtle)",
                                     "font-family": "var(--font-family-mono)",
                                     "min-width": "40px",
@@ -1843,7 +1843,7 @@ function Playground() {
                                 style={{
                                   width: "100%",
                                   height: "4px",
-                                  "accent-color": "var(--text-interactive-base)",
+                                  "accent-color": "var(--icon-blue)",
                                   cursor: "pointer",
                                 }}
                               />

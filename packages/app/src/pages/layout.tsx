@@ -2211,6 +2211,61 @@ export default function Layout(props: ParentProps) {
             <span class="min-w-0 flex-1 truncate text-left">{language.t("sidebar.search")}</span>
             <Keybind class="shrink-0 text-ui-xs text-foreground-subtlest">{command.keybind("file.open")}</Keybind>
           </Button>
+          {/* 视图切换 + 打开项目：对齐 ZCode 侧栏任务行上方那排胶囊分段与右侧操作。
+             分段用滑动指示器（ZCode TabsList 同款），不是两个各自变色的按钮。 */}
+          <div class="flex items-center gap-1 pt-1">
+            <div class="relative flex h-7 shrink-0 items-center rounded-full bg-surface p-0.5">
+              <span
+                aria-hidden="true"
+                class="pointer-events-none absolute inset-y-0.5 left-0.5 w-[calc(50%-2px)] rounded-full bg-background transition-transform duration-200 ease-out"
+                style={{ transform: treeOpen() ? "translateX(100%)" : "translateX(0)" }}
+              />
+              <button
+                type="button"
+                class="relative z-10 h-6 flex-none rounded-full px-2.5 text-ui-sm font-medium transition-colors"
+                classList={{
+                  "text-foreground": !treeOpen(),
+                  "text-foreground-subtle": treeOpen(),
+                }}
+                aria-pressed={!treeOpen()}
+                onClick={() => layout.sidebarView.set("tasks")}
+              >
+                {language.t("sidebar.view.tasks")}
+              </button>
+              <button
+                type="button"
+                class="relative z-10 h-6 flex-none rounded-full px-2.5 text-ui-sm font-medium transition-colors"
+                classList={{
+                  "text-foreground": treeOpen(),
+                  "text-foreground-subtle": !treeOpen(),
+                }}
+                aria-pressed={treeOpen()}
+                onClick={() => layout.sidebarView.set("tree")}
+              >
+                {language.t("sidebar.view.files")}
+              </button>
+            </div>
+            <div class="ml-auto flex shrink-0 items-center gap-0.5">
+              <Tooltip value={language.t("command.project.open")} placement="bottom">
+                <IconButton
+                  icon="folder-add-left"
+                  variant="ghost"
+                  size="small"
+                  aria-label={language.t("command.project.open")}
+                  onClick={() => chooseProject()}
+                />
+              </Tooltip>
+              <Tooltip value={language.t("sidebar.workspaceSidebar.collapse")} placement="bottom">
+                <IconButton
+                  icon="chevron-left"
+                  variant="ghost"
+                  size="small"
+                  aria-label={language.t("sidebar.workspaceSidebar.collapse")}
+                  onClick={() => layout.sidebar.setExpanded(false)}
+                />
+              </Tooltip>
+            </div>
+          </div>
         </div>
         {/* 列表层与文件树层叠放：文件树是整层 slide-over（对齐 ZCode 的 WorkspaceFileTree），
             不再用「任务/文件」分段控件把同一列替换掉。 */}

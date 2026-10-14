@@ -9,13 +9,15 @@ export interface DrawerProps extends ParentProps {
   action?: JSXElement
   class?: ComponentProps<"div">["class"]
   classList?: ComponentProps<"div">["classList"]
+  /** 默认开启开合动效（对齐 ZCode）。 */
   transition?: boolean
 }
 
 export function Drawer(props: DrawerProps) {
   const i18n = useI18n()
+  const transition = () => props.transition ?? true
   return (
-    <div data-component="drawer" data-transition={props.transition ? true : undefined}>
+    <div data-component="drawer" data-transition={transition() ? true : undefined}>
       <div data-slot="drawer-container">
         <Kobalte.Content
           data-slot="drawer-content"

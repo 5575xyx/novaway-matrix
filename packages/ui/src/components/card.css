@@ -51,7 +51,7 @@
     bottom: var(--card-line-pad);
     width: 4px;
     border-radius: 0 4px 4px 0;
-    background: linear-gradient(180deg, var(--primary) 0%, var(--accent-base) 100%);
+    background: linear-gradient(180deg, var(--primary) 0%, var(--accent) 100%);
   }
 
   :where([data-card="title"], [data-slot="card-title"]) {

@@ -238,6 +238,33 @@
   }
 }
 
+/* Side Pane 的进入动效。
+ *
+ * 只做淡入、不做位移：ZCode 的 AnimatedSidePanePanel 过渡的是**面板宽度**，不是 transform，
+ * 宽度是布局量、不会移动元素边界；而 translateX 会让面板的实测位置在动画期间偏移，
+ * 直接破坏「面板之间恒为 4px 间隙」这条几何契约（e2e 立即测量会读到 12px）。
+ * 终端帧本来就有 transition-[height]（同为布局量），保持不动。
+ */
+@keyframes side-pane-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+[data-component="side-pane-frame"] {
+  animation: side-pane-enter 120ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-component="side-pane-frame"],
+  [data-component="terminal-frame"] {
+    animation: none;
+  }
+}
+
 @keyframes novaway-spin {
   from {
     transform: rotate(0deg);
