@@ -105,12 +105,7 @@ export function SidebarFiles(props: { directory: string; sessionKey: () => strin
   })
 
   const kindColor = (kind: Kind) => ({
-    color:
-      kind === "add"
-        ? "var(--diff-added)"
-        : kind === "del"
-          ? "var(--diff-removed)"
-          : "var(--git-modified)",
+    color: kind === "add" ? "var(--diff-added)" : kind === "del" ? "var(--diff-removed)" : "var(--git-modified)",
   })
 
   const toggleDir = (dir: string) => {
@@ -154,7 +149,11 @@ export function SidebarFiles(props: { directory: string; sessionKey: () => strin
           onClick={() => (p.entry.type === "dir" ? toggleDir(p.entry.path) : openFile(p.entry))}
         >
           <Show when={p.entry.type === "dir"}>
-            <Icon name={isOpen() ? "chevron-down" : "chevron-right"} size="small" class="shrink-0 text-foreground-subtlest" />
+            <Icon
+              name={isOpen() ? "chevron-down" : "chevron-right"}
+              size="small"
+              class="shrink-0 text-foreground-subtlest"
+            />
           </Show>
           <Show when={p.entry.type === "file"}>
             <span class="size-4 shrink-0" />
