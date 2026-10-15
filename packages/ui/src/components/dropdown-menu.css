@@ -40,11 +40,11 @@
   }
 
   &[data-closed] {
-    animation: dropdown-menu-close 0.1s ease-out;
+    animation: dropdown-menu-close var(--transition-overlay-ms, 180ms) ease-out;
   }
 
   &[data-expanded] {
-    animation: dropdown-menu-open 0.1s ease-out;
+    animation: dropdown-menu-open var(--transition-overlay-ms, 180ms) ease-out;
   }
 }
 

@@ -363,3 +363,78 @@ test("顶栏移除后的入口归属（A1）", async ({ page }) => {
   await expect(page.getByLabel(/^(Dark mode|Light mode|深色模式|浅色模式)$/).first()).toBeVisible()
   await expect(header.getByRole("button", { name: /Toggle side pane|切换 Side Pane/ }).first()).toBeVisible()
 })
+
+test("设置/数据库面板：主帧内覆盖 + 进出场过渡 + 返回按钮可点", async ({ page }) => {
+  const slug = workspaceRootSlug()
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`/${slug}/session`)
+  await expect(page.locator('[data-component="workspace-header"]')).toBeVisible({ timeout: 15_000 })
+
+  // —— 设置 ——
+  await page.getByRole("button", { name: /^(Settings|设置)$/ }).first().click()
+  const settings = page.locator('section[aria-label]').filter({ hasText: /General|通用/ }).first()
+  const panel = page.locator("section[data-panel-transition]").first()
+  await expect(panel).toHaveAttribute("data-state", "open")
+
+  // 1) 面板不是「接管整窗」：左侧栏仍然可见、仍在主帧起点之后
+  const sidebar = page.locator('[data-component="sidebar-nav-desktop"]')
+  await expect(sidebar).toBeVisible()
+  const panelBox = (await panel.boundingBox())!
+  const sidebarBox = (await sidebar.boundingBox())!
+  expect(panelBox.x, "设置是主帧内的覆盖面板，不能盖住左侧栏").toBeGreaterThanOrEqual(
+    Math.round(sidebarBox.x + sidebarBox.width) - 2,
+  )
+  // 面板要与会话帧对齐：左边贴侧栏留 4px，右边留出与 conv-frame 相同的外留白
+  const convBox = (await page.locator('[data-component="conv-frame"]').boundingBox())!
+  expect(Math.abs(panelBox.x - convBox.x), "面板左边要与会话帧对齐").toBeLessThanOrEqual(2)
+  // 面板覆盖的是整个「工作区帧」区域（含 Side Pane 的位置），右/下仍要留出窗口根色的外留白。
+  const viewport = page.viewportSize()!
+  expect(panelBox.x + panelBox.width, "面板要盖住 Side Pane 所在的工作区").toBeGreaterThanOrEqual(
+    convBox.x + convBox.width,
+  )
+  const rightGutter = viewport.width - (panelBox.x + panelBox.width)
+  expect(rightGutter, "右侧要留窗口根色外留白").toBeGreaterThan(2)
+  expect(rightGutter, "外留白不能比帧间距大太多").toBeLessThan(20)
+  const bottomGutter = viewport.height - (panelBox.y + panelBox.height)
+  expect(bottomGutter, "底部要留窗口根色外留白").toBeGreaterThan(2)
+  expect(bottomGutter, "底部外留白不能比帧间距大太多").toBeLessThan(20)
+  // 面板自身是带圆角的帧
+  const radius = await panel.evaluate((el) => getComputedStyle(el).borderTopLeftRadius)
+  expect(parseFloat(radius)).toBeGreaterThan(0)
+
+  // 2) 进场是动画（不是瞬间出现）
+  const anim = await panel.evaluate((el) => {
+    const cs = getComputedStyle(el)
+    return { name: cs.animationName, dur: cs.animationDuration }
+  })
+  expect(anim.name).toBe("panel-overlay-in")
+  expect(parseFloat(anim.dur)).toBeGreaterThan(0.5)
+
+  // 3) 「返回」按钮在切换 tab 的遮挡层期间依然可点（此前被 z-30 遮挡层吃掉点击）
+  await page.getByRole("tab", { name: /^(Models|模型)$/ }).first().click()
+  const back = page.getByRole("button", { name: /^(Back|Navigate back|返回)$/ }).first()
+  const backBox = (await back.boundingBox())!
+  const topmost = await page.evaluate(
+    ([x, y]) => {
+      const el = document.elementFromPoint(x, y)
+      return el ? `${el.tagName}` : null
+    },
+    [backBox.x + backBox.width / 2, backBox.y + backBox.height / 2],
+  )
+  expect(topmost, "返回按钮不能被遮挡层覆盖").toBe("BUTTON")
+
+  // 4) 关闭是动画：先进入 closed 态跑退场，动画结束才从 DOM 移除
+  await back.click()
+  await expect(panel).toHaveAttribute("data-state", "closed")
+  const out = await panel.evaluate((el) => getComputedStyle(el).animationName)
+  expect(out).toBe("panel-overlay-out")
+  await expect(page.locator("section[data-panel-transition]")).toHaveCount(0, { timeout: 5_000 })
+
+  // —— 数据库 ——
+  await page.getByRole("button", { name: /^(Database|数据库)$/ }).first().click()
+  const dbPanel = page.locator("section[data-panel-transition]").first()
+  await expect(dbPanel).toHaveAttribute("data-state", "open")
+  await expect(sidebar).toBeVisible()
+  await page.getByRole("button", { name: /^(Back|Navigate back|返回)$/ }).first().click()
+  await expect(page.locator("section[data-panel-transition]")).toHaveCount(0, { timeout: 5_000 })
+})

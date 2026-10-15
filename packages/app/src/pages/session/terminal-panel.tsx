@@ -204,10 +204,14 @@ export function TerminalPanel(props: { variant?: "frame" | "pane" }) {
       data-component="terminal-frame"
       classList={{
         "border border-border": opened(),
-        "transition-[height] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[height] motion-reduce:transition-none":
+        "transition-[height] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[height] motion-reduce:transition-none":
           !size.active(),
       }}
-      style={{ height: paneMode() ? "100%" : opened() ? `${pane()}px` : "0px" }}
+      style={{
+        height: paneMode() ? "100%" : opened() ? `${pane()}px` : "0px",
+        // 终端帧的高度过渡与侧栏/Side Pane 用同一时长，收起展开是同一个节奏。
+        "transition-duration": "var(--transition-panel-ms, 1000ms)",
+      }}
     >
       <div
         class="absolute inset-x-0 top-0 flex flex-col"

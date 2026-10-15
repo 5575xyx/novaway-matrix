@@ -26,15 +26,18 @@ export function WindowControls() {
     onCleanup(() => dispose?.())
   })
 
+  // 字形要够大够清楚：之前最小化是一条 `h9` 的横线，包围盒高度为 0，
+  // 在 16px 里几乎看不出是一条线；最大化框只有 7×7、描边 1.1，也太细。
+  // 统一用 16 的 viewBox 画 10px 见方的图形、描边 1.2。
   const glyph = (d: string) => (
     <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" class="size-4">
-      <path d={d} stroke="currentColor" stroke-width="1.1" />
+      <path d={d} stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
     </svg>
   )
 
   return (
     <Show when={enabled()}>
-      <div class="flex shrink-0 items-center gap-0.5 pl-1">
+      <div data-component="window-controls" class="flex shrink-0 items-center gap-0.5 pl-1">
         <button
           type="button"
           class="grid size-7 place-items-center rounded-md text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
@@ -42,7 +45,7 @@ export function WindowControls() {
           title={language.t("window.minimize")}
           onClick={() => void window.api?.minimizeWindow?.()}
         >
-          {glyph("M3.5 8h9")}
+          {glyph("M3 8h10")}
         </button>
         <button
           type="button"
@@ -52,8 +55,8 @@ export function WindowControls() {
           onClick={() => void window.api?.toggleMaximizeWindow?.()}
         >
           {/* 最大化：一个方框；还原：两个错位的方框 */}
-          <Show when={maximized()} fallback={glyph("M4.5 4.5h7v7h-7z")}>
-            {glyph("M6.5 6.5h5v5h-5z M4.5 9.5v-5h5")}
+          <Show when={maximized()} fallback={glyph("M3.5 3.5h9v9h-9z")}>
+            {glyph("M5.5 5.5h7v7h-7z M3.5 10.5v-7h7")}
           </Show>
         </button>
         <button
@@ -63,7 +66,7 @@ export function WindowControls() {
           title={language.t("window.close")}
           onClick={() => void window.api?.closeWindow?.()}
         >
-          {glyph("M4.5 4.5l7 7M11.5 4.5l-7 7")}
+          {glyph("M4 4l8 8M12 4l-8 8")}
         </button>
       </div>
     </Show>
