@@ -196,3 +196,52 @@ ZCode 的做法是把 `[scrollbar-gutter:stable]` 挂在**具体滚动容器**�
 - app / desktop / ui 三个包 `tsgo` 通过；ui 单测 30/30
 - app 单测 696 pass / 6 fail —— 6 条为 HEAD 既有失败（prompt submit、message-timeline.data），
   改动前后一致，与本次无关
+
+---
+
+## 追加批次（2026-10-15 第二轮）：任务行菜单 + 侧栏品牌/模式入口 + 会话过渡
+
+对应提交 `6f3caf7`。
+
+### 1. 会话切换 / 新建任务过渡 + 任务行 3 点菜单
+
+| 动作 | 实现 |
+| --- | --- |
+| 切换会话 | 内容区重放 `session-stage-in`（淡入 + 上移 8px）。元素不重建，所以用 `replayAnimation` 摘类再加回来 |
+| 新建任务 → 提交 | 底部输入框播 `composer-drop-in`：`--composer-drop-from` 是「会话帧中心 − 输入框中心」，每次按布局现算 |
+| 任务行菜单 | 3 点常驻（60% 不透明度）→ 重命名（行内编辑）/ 归档 / 删除（带确认框） |
+
+关键取舍：
+
+- **FLIP 起点不记录提交时的元素坐标**。提交后「导航」与 `onSubmit` 回调的先后顺序拿不准，
+  记下来的坐标可能已经是新页面的。改成现算「帧中心 − 输入框中心」：新任务页的输入框
+  本来就居中在会话帧里，这个差值正好是它该走的距离，而且窗口缩放/状态面板开合都不影响。
+- **行点击用 `closest("[data-row-action]")` 排除菜单区**，不是给 Trigger 加 `onClick` ——
+  Kobalte 的 Trigger 自己要用 click 打开菜单，覆盖处理器会让菜单根本打不开。
+- **3 点常驻而不是 hover 才出现**：用户明确要求每行右边有这三个点。
+- 删除确认框从 `sidebar-items.tsx` 抽到 `pages/layout/dialog-delete-session.tsx` 共用。
+
+### 2. 侧栏左上角
+
+- 品牌字标 `NovaWay`：字距 -0.03em、字重 650，`Way` 用当前模式色
+  （侧栏层挂 `--mode-accent`）。一行文本 = 品牌标识 + 模式指示。
+- 删掉视图分段行右侧那个重复的「折叠工作区」（侧栏顶带已经有了）。
+
+### 3. 模式切换提到顶部
+
+`ModeSwitchButton` 新增 `prominent` 形态（h-11 / `text-ui-xl` / 字重 600 /
+模式色 12% 混色底 + 45% 混色边），从 footer 移到侧栏顶部动作区。
+footer 只剩主题 / 数据库 / 设置 —— 模式是全局能力面，不该和这些同级。
+
+### 4. 顺带修掉的既有问题
+
+`OfficePlatformPanel` 的四个导航按钮原来靠 `mouseenter` 打开面板：鼠标经过就永久展开、
+盖住下方模板卡片，窄视口下把「PPT生成」等 tab 压成点不到（e2e `移动端模板卡片` 因此失败）。
+改成点击开 / 再点关。
+
+### 验证
+
+- e2e **16 passed / 1 skipped**（新增一条覆盖：提交后的两段过渡 + 任务行菜单三项）
+- app / desktop / ui 三个包 `tsgo` 通过；ui 单测 30/30
+- Electron 实测：`data-composer-drop` 置位 → `-302.1px` 起点 → 988ms 后清除（与 1s 一致）
+- app 单测 696 pass / 6 fail（6 条为 HEAD 既有失败，改动前后一致）
