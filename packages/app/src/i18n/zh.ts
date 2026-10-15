@@ -3,6 +3,17 @@ import { dict as en } from "./en"
 type Keys = keyof typeof en
 
 export const dict = {
+  "settings.plugins.store.title": "插件商店",
+  "settings.plugins.store.description": "目录来自市场源：填入返回插件清单的 URL，即可一键安装。",
+  "settings.plugins.store.sourcePlaceholder": "https://example.com/plugins.json",
+  "settings.plugins.store.addSource": "添加源",
+  "settings.plugins.store.removeSource": "移除源",
+  "settings.plugins.store.refresh": "刷新",
+  "settings.plugins.store.noSource": "还没有配置市场源，先在上面添加一个。",
+  "settings.plugins.store.noEntry": "已配置的源里暂时没有可安装的插件。",
+  "settings.plugins.store.install": "安装",
+  "settings.plugins.store.uninstall": "移除",
+  "settings.plugins.store.restartHint": "插件会在下次启动时拉取，NovaWay 可能会提示你重启。",
   "settings.mcp.catalog.title": "市场",
   "settings.mcp.catalog.description": "一键添加常用 MCP 服务器；密钥从环境变量读取，不会写进配置文件。",
   "settings.mcp.catalog.searchPlaceholder": "搜索 MCP 服务器",

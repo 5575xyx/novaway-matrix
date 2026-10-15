@@ -19,8 +19,20 @@ import { Tag } from "@novaway/ui/tag"
 import { TextField } from "@novaway/ui/text-field"
 import { showToast } from "@novaway/ui/toast"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query"
-import { createEffect, createMemo, createSignal, For, onCleanup, Show, type Component, type JSX } from "solid-js"
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  onCleanup,
+  onMount,
+  Show,
+  type Component,
+  type JSX,
+} from "solid-js"
+import { createStore } from "solid-js/store"
 import { MCP_CATALOG, catalogEntryInstalled } from "@/constants/mcp-catalog"
+import { type PluginCatalogEntry, normalizeSourceUrl, parsePluginCatalog } from "@/constants/plugin-store"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
@@ -34,7 +46,7 @@ import { agentSkillPermission, hasSkillPermission, withAgentSkills } from "./set
 
 type ConfigKey = "agent" | "skills" | "permission" | "mcp" | "plugin"
 type ConfigRecordKey = Exclude<ConfigKey, "plugin">
-type RuntimeIcon = "brain" | "checklist" | "server" | "mcp" | "shield"
+type RuntimeIcon = "brain" | "checklist" | "server" | "mcp" | "shield" | "dot-grid"
 type RuleFile = SettingsRuleListResponse[number]
 type ProjectInstructionFile = SettingsProjectInstructionGetResponse
 type RuleTrigger = "always" | "mention" | "auto"
@@ -3239,6 +3251,8 @@ export const SettingsPlugins: Component = () => {
 
   const updatePlugins = (next: unknown[]) => ignoreResult(globalSync.updateConfig({ plugin: next } as Config))
 
+  const installPlugin = (spec: string) => updatePlugins([...configured(), spec])
+
   const addPlugin = () => {
     dialog.show(() => (
       <PluginEntryDialog
@@ -3307,8 +3321,190 @@ export const SettingsPlugins: Component = () => {
           </Show>
         </SettingsList>
       </div>
+      {/* 商店：目录来自可配置的 marketplace 源（对齐 ZCode 的插件商店架构 ——
+          它同样是「源 + 目录」而不是把清单写死在客户端）。 */}
+      <PluginStoreSection installed={plugins()} onInstall={installPlugin} onUninstall={deletePlugin} />
     </SettingsPage>
   )
+}
+
+const PLUGIN_SOURCES_FIELD = "plugin.sources.v1"
+
+const PluginStoreSection: Component<{
+  installed: string[]
+  onInstall: (spec: string) => void
+  onUninstall: (index: number) => void
+}> = (props) => {
+  const language = useLanguage()
+  const platform = usePlatform()
+  const [sources, setSources] = createStore<{ list: string[] }>({ list: [] })
+  const [entries, setEntries] = createSignal<PluginCatalogEntry[]>([])
+  const [loading, setLoading] = createSignal(false)
+  const [error, setError] = createSignal<string | undefined>()
+  const [draft, setDraft] = createSignal("")
+
+  const load = async () => {
+    if (sources.list.length === 0) {
+      setEntries([])
+      return
+    }
+    setLoading(true)
+    setError(undefined)
+    const results = await Promise.all(
+      sources.list.map(async (source) => {
+        try {
+          const response = await fetch(source)
+          if (!response.ok) throw new Error(`${response.status} ${response.statusText}`)
+          return parsePluginCatalog(await response.json())
+        } catch (err) {
+          setError(err instanceof Error ? err.message : String(err))
+          return [] as PluginCatalogEntry[]
+        }
+      }),
+    )
+    setEntries(results.flat())
+    setLoading(false)
+  }
+
+  onMount(async () => {
+    const raw = await platform.storage?.()?.getItem(PLUGIN_SOURCES_FIELD)
+    if (typeof raw === "string") {
+      const parsed = parseStringArray(raw)
+      if (parsed.length > 0) {
+        setSources("list", parsed)
+      }
+    }
+    await load()
+  })
+
+  const persist = (next: string[]) => {
+    setSources("list", next)
+    void platform.storage?.()?.setItem(PLUGIN_SOURCES_FIELD, JSON.stringify(next))
+  }
+
+  const addSource = () => {
+    const url = normalizeSourceUrl(draft())
+    if (!url || sources.list.includes(url)) return
+    persist([...sources.list, url])
+    setDraft("")
+    void load()
+  }
+
+  const removeSource = (url: string) => {
+    persist(sources.list.filter((item) => item !== url))
+    void load()
+  }
+
+  const indexOfSpec = (spec: string) => props.installed.findIndex((item) => item === spec)
+
+  return (
+    <div>
+      <SectionTitle
+        title={language.t("settings.plugins.store.title")}
+        description={language.t("settings.plugins.store.description")}
+      />
+      <Toolbar>
+        <TextField
+          value={draft()}
+          onChange={setDraft}
+          placeholder={language.t("settings.plugins.store.sourcePlaceholder")}
+          class="w-full max-w-md"
+        />
+        <Button variant="secondary" icon="plus-small" disabled={!draft().trim()} onClick={addSource}>
+          {language.t("settings.plugins.store.addSource")}
+        </Button>
+        <Button
+          variant="ghost"
+          icon="refresh"
+          disabled={sources.list.length === 0 || loading()}
+          onClick={() => void load()}
+        >
+          {language.t("settings.plugins.store.refresh")}
+        </Button>
+      </Toolbar>
+
+      <Show when={sources.list.length > 0}>
+        <div class="flex flex-wrap items-center gap-2 pb-3">
+          <For each={sources.list}>
+            {(source) => (
+              <Tag>
+                <span class="max-w-[280px] truncate">{source}</span>
+                <button
+                  type="button"
+                  class="ml-1 cursor-pointer text-foreground-subtle hover:text-foreground"
+                  aria-label={language.t("settings.plugins.store.removeSource")}
+                  onClick={() => removeSource(source)}
+                >
+                  ×
+                </button>
+              </Tag>
+            )}
+          </For>
+        </div>
+      </Show>
+
+      <SettingsList>
+        <Show when={!loading()} fallback={<LoadingState />}>
+          <Show
+            when={entries().length > 0}
+            fallback={
+              <EmptyState
+                message={
+                  sources.list.length === 0
+                    ? language.t("settings.plugins.store.noSource")
+                    : language.t("settings.plugins.store.noEntry")
+                }
+              />
+            }
+          >
+            <For each={entries()}>
+              {(entry) => {
+                const index = () => indexOfSpec(entry.spec)
+                return (
+                  <RuntimeRow
+                    icon="dot-grid"
+                    title={entry.name}
+                    description={entry.description}
+                    tags={[entry.author, ...(entry.tags ?? [])].filter((tag): tag is string => !!tag)}
+                    footer={<span class="font-mono text-12-regular text-foreground-subtle truncate">{entry.spec}</span>}
+                    actions={
+                      <Show
+                        when={index() === -1}
+                        fallback={
+                          <Button variant="ghost" size="small" onClick={() => props.onUninstall(index())}>
+                            {language.t("settings.plugins.store.uninstall")}
+                          </Button>
+                        }
+                      >
+                        <Button variant="secondary" size="small" onClick={() => props.onInstall(entry.spec)}>
+                          {language.t("settings.plugins.store.install")}
+                        </Button>
+                      </Show>
+                    }
+                  />
+                )
+              }}
+            </For>
+          </Show>
+        </Show>
+      </SettingsList>
+
+      <Show when={error()}>
+        {(message) => <div class="pt-2 text-12-regular text-destructive break-words">{message()}</div>}
+      </Show>
+      <p class="pt-2 text-12-regular text-foreground-subtle">{language.t("settings.plugins.store.restartHint")}</p>
+    </div>
+  )
+}
+
+/** 源的持久化值是一个 JSON 字符串数组；解析失败就当作没配置。 */
+function parseStringArray(raw: string): string[] {
+  try {
+    const value: unknown = JSON.parse(raw)
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []
+  } catch {
+    return []
+  }
 }
 
 const RuntimeRow: Component<{

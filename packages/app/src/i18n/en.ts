@@ -1,4 +1,17 @@
 export const dict = {
+  "settings.plugins.store.title": "Marketplace",
+  "settings.plugins.store.description":
+    "The catalog comes from marketplace sources: add a URL that returns a plugin list, then install with one click.",
+  "settings.plugins.store.sourcePlaceholder": "https://example.com/plugins.json",
+  "settings.plugins.store.addSource": "Add source",
+  "settings.plugins.store.removeSource": "Remove source",
+  "settings.plugins.store.refresh": "Refresh",
+  "settings.plugins.store.noSource": "No marketplace source yet. Add one above to browse plugins.",
+  "settings.plugins.store.noEntry": "Nothing to install from the configured sources.",
+  "settings.plugins.store.install": "Install",
+  "settings.plugins.store.uninstall": "Remove",
+  "settings.plugins.store.restartHint":
+    "Installed plugins are fetched on next startup, so NovaWay may ask you to restart.",
   "settings.mcp.catalog.title": "Marketplace",
   "settings.mcp.catalog.description":
     "One-click add a well-known MCP server; keys are read from env vars, never written to config.",
