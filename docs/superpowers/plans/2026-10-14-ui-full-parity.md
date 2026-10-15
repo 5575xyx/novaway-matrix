@@ -131,3 +131,68 @@ ZCode 是 **3 级**（`foreground` / `foreground-subtle` / `foreground-subtlest`
   语法配色属功能面，不属 UI token 层
 - **NovaWay 独有的能力面**（模式切换 / 办公 / Pulse / 助手宠物）样式也一并换到 ZCode token，
   但结构保留（ZCode 没有对应物）
+
+---
+
+## 追加批次（2026-10-15）：过渡全覆盖 + 面板框架 + 右边空带 + 启动图标
+
+对应提交 `73f080d`。用户提的 4 点，逐条处理：
+
+### 1. 过渡动画覆盖到基本全部场景
+
+| 场景                | 位置                        | 时长来源                                     |
+| ------------------- | --------------------------- | -------------------------------------------- |
+| 侧栏展开/收起       | `layout.tsx` nav            | `--transition-panel-ms`（1s）                |
+| 主区 `left` 跟随    | `layout.tsx` 包装层         | 同上                                         |
+| Side Pane 展开/收起 | `session-side-panel.tsx`    | 同上                                         |
+| 终端帧高度          | `terminal-panel.tsx`        | 同上（新接入，原 200ms）                     |
+| 侧栏「任务/文件」层 | `.sidebar-view-layer`       | 同上（新接入，原 200ms）                     |
+| 设置/数据库覆盖     | `[data-panel-transition]`   | 同上（新增，`animation` 而非 `transition`）   |
+| 弹窗/下拉/气泡/选择 | 各 `.css` 的 open/close     | **`--transition-overlay-ms`（180ms，新增）** |
+| 路由切换主内容      | `.page-transition` 重放     | 同上                                         |
+
+浮层刻意不跟 1s：开个菜单等一秒会像卡住。180ms 比原先写死的 100~150ms 明显一点，
+同时仍在跟手范围。
+
+### 2. 设置 / 数据库不再占满整窗，返回按钮恢复可点
+
+- 两个覆盖层从「窗口根」挪进**主帧内**（`left-1 right-2 top-1 bottom-2` + 平台圆角 + 1px 边框），
+  打开时左侧栏与窗口按钮始终可见 —— 这正是用户说的「看不到主页面、返回点不到」的观感来源。
+- 覆盖层盖住了会话帧 Header，而窗口拖拽带与自绘窗控都在那条 Header 上，因此补
+  `FrameWindowControls`（占右上角一小块，仅保留拖拽 + 最小化/最大化/关闭），
+  并用 `data-frame-overlay` 隐藏被盖住的那组，避免淡入淡出期间两组窗控"重影"。
+- 返回按钮点不到的真因：切 tab 时那层 `z-30` 遮挡层铺满面板、压在返回按钮上约 230ms。
+  它是纯装饰，加 `pointer-events-none` 即可。
+- 数据库页顶行右侧留 108px，避开窗控条。
+
+### 3. 右边那条"不受控制的区域"
+
+不是元素，是 `packages/ui/src/styles/base.css` 里 `html { scrollbar-gutter: stable }`。
+桌面壳 body `overflow-hidden`、根节点 `h-dvh`，页面级**永不滚动**；在 `html` 上留槽位
+等于凭空让出 15.2px（实测 `html/body/#root` 都是 1424.8 而视口 1440），
+没有任何元素绘制、只有 html 底色露出来，所以看着像一条"不受控的带子"。
+
+ZCode 的做法是把 `[scrollbar-gutter:stable]` 挂在**具体滚动容器**上
+（ConversationTimeline 的消息列表、SettingsPage 的 main 等），已改为对齐。
+
+### 4. 启动加载动画
+
+- `Splash` 由 80×80 / `opacity-15` 改为 112×112 / `opacity-80`；`viewBox 120` 是正方形，
+  原来的 `w-20 h-25` 还会被压扁。`app.tsx` 里两处 Suspense 兜底、ConnectionError 同样处理。
+- `loading.html` 那段 `<style>` 里的 `.progress-track` / `.progress-fill` / `.status-text`
+  在 Solid 组件里**根本不存在**（上一版独立 HTML 的死规则），改成真实 slot
+  `[data-slot="progress-*"]`；颜色从写死深色（`#e0f2fe` / `rgba(255,255,255,.15)`）
+  改走 `--foreground` / `--icon-interactive-base`。
+
+### 顺带
+
+- 窗控字形放大：最小化那条横线原来包围盒高 0、几乎看不见；描边 1.1 → 1.2。
+- Side Pane 收起后不再残留一组「宽度 0 但仍在 DOM 里」的窗控。
+
+### 验证
+
+- 新增 e2e「设置/数据库面板：主帧内覆盖 + 进出场过渡 + 返回按钮可点」
+- `bun run test:e2e` → **15 passed / 1 skipped**
+- app / desktop / ui 三个包 `tsgo` 通过；ui 单测 30/30
+- app 单测 696 pass / 6 fail —— 6 条为 HEAD 既有失败（prompt submit、message-timeline.data），
+  改动前后一致，与本次无关
