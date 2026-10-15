@@ -69,7 +69,7 @@ import { useServer } from "@/context/server"
 import { workspacePanelRadiusPx } from "@/utils/workspace-chrome"
 import { useLanguage, type Locale } from "@/context/language"
 import { pathKey } from "@/utils/path-key"
-import { effectiveWorkspaceOrder, errorMessage, latestRootSession, sortedRootSessions } from "./layout/helpers"
+import { effectiveWorkspaceOrder, errorMessage, latestRootSession, sessionStatusOf, sortedRootSessions } from "./layout/helpers"
 import {
   collectNewSessionDeepLinks,
   collectOpenProjectDeepLinks,
@@ -81,7 +81,7 @@ import { ProjectMenu, type ProjectSidebarContext } from "./layout/sidebar-projec
 import { ModeSwitchButton } from "@/components/mode-switch"
 import { SidebarMenuRow } from "@/components/sidebar-menu-row"
 import { ThemeSchemeToggle } from "@/components/theme-scheme-toggle"
-import { ProjectTaskList, TaskFilterBar, useArchivedSessions, type TaskFilter } from "./layout/sidebar-tasks"
+import { ProjectTaskList, TaskFilterBar, useArchivedSessions, useTaskCounts, type TaskFilter } from "./layout/sidebar-tasks"
 import { SidebarContent } from "./layout/sidebar-shell"
 
 function feishuQuestionText(questions: QuestionRequest["questions"]) {
@@ -2133,6 +2133,15 @@ export default function Layout(props: ParentProps) {
     const projectList = () => layout.projects.list()
     const [taskFilter, setTaskFilter] = createSignal<TaskFilter>("all")
     const { archived, load: loadArchived } = useArchivedSessions(() => projectList())
+    // 分段上的数量（全部 / 运行中 / 待确认 / 已归档）。归档列表要等它被拉起来才有数字，
+    // 所以这里顺带触发一次加载 —— 否则"已归档"永远显示 0，看着像功能没接上。
+    const taskCounts = useTaskCounts({ projects: () => projectList(), archived, sortNow })
+    let archivedLoaded = false
+    createEffect(() => {
+      if (archivedLoaded || projectList().length === 0) return
+      archivedLoaded = true
+      loadArchived()
+    })
 
     const treeKey = createMemo(() => pathKey(currentProject()?.worktree ?? currentDir()))
     // 文件树是侧栏内整层 slide-over 的目标目录：跟随当前项目（对齐 ZCode 的
@@ -2298,6 +2307,7 @@ export default function Layout(props: ParentProps) {
             <TaskFilterBar
               filter={taskFilter()}
               variant="text"
+              counts={taskCounts}
               onChange={(id) => {
                 if (id !== "projects") {
                   setTaskFilter(id)
@@ -2327,6 +2337,31 @@ export default function Layout(props: ParentProps) {
                     const projectArchived = () =>
                       [proj.worktree, ...(proj.sandboxes ?? [])].flatMap((directory) => archived()[directory] ?? [])
                     const projectName = () => proj.name || getFilename(proj.worktree)
+                    // 项目行右侧的数量。口径与列表一致：按当前分段筛，只数根会话
+                    // （子会话是父行下面的树节点，单独计数会让"项目有几件事"变得含糊）。
+                    const projectTaskCount = (project: LocalProject) => {
+                      const filter = taskFilter()
+                      const dirs = [project.worktree, ...(project.sandboxes ?? [])]
+                      if (filter === "archived") {
+                        return dirs.flatMap((directory) => archived()[directory] ?? []).length
+                      }
+                      let total = 0
+                      for (const directory of dirs) {
+                        const sessions = globalSync.child(directory, { bootstrap: false })[0].session ?? []
+                        for (const session of sessions) {
+                          if (session.parentID || session.time?.archived) continue
+                          if (filter === "all") {
+                            total += 1
+                            continue
+                          }
+                          const status = sessionStatusOf(globalSync, permission, notification, session)
+                          if (filter === "running" ? status === "running" || status === "failed" : status === filter) {
+                            total += 1
+                          }
+                        }
+                      }
+                      return total
+                    }
                     const toggleExpand = () => {
                       const next = !isExpanded()
                       setIsExpanded(next)
@@ -2362,9 +2397,17 @@ export default function Layout(props: ParentProps) {
                             onClick={openTree}
                           >
                             <Icon name="folder" size="small" class="shrink-0 text-foreground-subtle" />
-                            <span class="text-ui-caption text-foreground font-medium truncate flex-1 min-w-0">
+                            <span class="text-ui-caption text-foreground font-medium truncate min-w-0">
                               {projectName()}
                             </span>
+                            {/* 项目有多少任务：对齐 ZCode 分组头右侧那个圆角计数
+                                （只用缩进不写数字的话，收起时完全看不出里面有东西）。 */}
+                            <Show when={(projectTaskCount(proj) ?? 0) > 0}>
+                              <span class="ml-auto shrink-0 rounded-full bg-surface px-1.5 py-0.5 text-ui-xs font-medium leading-none text-foreground-subtle tabular-nums">
+                                {projectTaskCount(proj)}
+                              </span>
+                            </Show>
+                            <span class="flex-1 min-w-0" />
                           </button>
                           <IconButton
                             icon="plus-small"

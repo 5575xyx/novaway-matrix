@@ -27,6 +27,10 @@ export type TaskRowProps = {
   /** 删除确认框要按 id + directory 定位会话。 */
   sessionID?: string
   directory?: string
+  /** 树形层级：0 = 项目下的根会话，1+ = 子会话。只影响缩进。 */
+  level?: number
+  /** 有子会话时显示展开/折叠箭头。 */
+  expander?: { expanded: boolean; toggle: () => void }
 }
 
 const STATUS_DOT_CLASS: Record<TaskStatus, string> = {
@@ -87,12 +91,18 @@ export const TaskRow = (props: TaskRowProps): JSX.Element => {
   return (
     <div
       data-component="task-row"
+      data-level={props.level ?? 0}
       classList={{
         "group/task row relative flex h-9 items-center gap-2 px-2 rounded-md cursor-default transition-colors hover:bg-hover": true,
         "before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-0.5 before:rounded-full before:bg-[var(--task-row-color,var(--border-hover))]":
           selected(),
       }}
-      style={selected() ? { "--task-row-color": props.modeColor?.() ?? "var(--border-hover)" } : undefined}
+      style={{
+        // 子会话缩进一级。用行内的 padding 而不是外层包 div：行本身的 hover 底色
+        // 要跟着缩进后的宽度走，包一层会让 hover 区域退回到项目全宽。
+        "padding-left": `${8 + (props.level ?? 0) * 16}px`,
+        ...(selected() ? { "--task-row-color": props.modeColor?.() ?? "var(--border-hover)" } : {}),
+      }}
       onClick={(event) => {
         if (editing()) return
         // 3 点菜单是行内的另一个交互目标，点它不应该顺带打开会话。
@@ -102,6 +112,23 @@ export const TaskRow = (props: TaskRowProps): JSX.Element => {
         props.onClick()
       }}
     >
+      <Show when={props.expander}>
+        {(expander) => (
+          <button
+            type="button"
+            data-row-action
+            class="grid size-4 shrink-0 place-items-center rounded text-foreground-subtlest transition-colors hover:bg-hover hover:text-foreground"
+            aria-expanded={expander().expanded}
+            aria-label={expander().expanded ? t("sidebar.project.collapse") : t("sidebar.project.expand")}
+            onClick={(event) => {
+              event.stopPropagation()
+              expander().toggle()
+            }}
+          >
+            <Icon name={expander().expanded ? "chevron-down" : "chevron-right"} size="small" />
+          </button>
+        )}
+      </Show>
       <span class={`size-1.5 rounded-full shrink-0 ${STATUS_DOT_CLASS[props.status()]}`} />
       <Show
         when={editing()}
