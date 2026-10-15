@@ -79,13 +79,7 @@ import { ProjectMenu, type ProjectSidebarContext } from "./layout/sidebar-projec
 import { ModeSwitchButton } from "@/components/mode-switch"
 import { SidebarMenuRow } from "@/components/sidebar-menu-row"
 import { ThemeSchemeToggle } from "@/components/theme-scheme-toggle"
-import {
-  ProjectTaskList,
-  TaskFilterBar,
-  useArchivedSessions,
-  useProjectTaskList,
-  type TaskFilter,
-} from "./layout/sidebar-tasks"
+import { ProjectTaskList, TaskFilterBar, useArchivedSessions, type TaskFilter } from "./layout/sidebar-tasks"
 import { SidebarContent } from "./layout/sidebar-shell"
 
 function feishuQuestionText(questions: QuestionRequest["questions"]) {
@@ -2314,12 +2308,6 @@ export default function Layout(props: ParentProps) {
                     const [isExpanded, setIsExpanded] = createSignal(store.workspaceExpanded[proj.worktree] ?? true)
                     const projectArchived = () =>
                       [proj.worktree, ...(proj.sandboxes ?? [])].flatMap((directory) => archived()[directory] ?? [])
-                    const tasks = useProjectTaskList({
-                      project: proj,
-                      filter: taskFilter,
-                      archived: projectArchived,
-                      sortNow,
-                    })
                     const projectName = () => proj.name || getFilename(proj.worktree)
                     const toggleExpand = () => {
                       const next = !isExpanded()
@@ -2360,9 +2348,6 @@ export default function Layout(props: ParentProps) {
                               {projectName()}
                             </span>
                           </button>
-                          <span class="text-ui-xs text-foreground-subtle shrink-0">
-                            {language.t("sidebar.project.count", { count: tasks().length })}
-                          </span>
                           <IconButton
                             icon="plus-small"
                             variant="ghost"
@@ -2525,19 +2510,28 @@ export default function Layout(props: ParentProps) {
       <div class="flex-1 min-h-0 min-w-0 flex">
         <div class="flex-1 min-h-0 relative">
           <div class="size-full relative overflow-x-hidden">
-            <Show when={showSidebar() && layout.sidebar.expanded()}>
+            {/* 常驻 + 宽度过渡：收起时宽度归 0（而不是整块卸载），这样折叠/展开才有动画。
+                宽度是布局量，不会像 transform 那样在动画期间移动元素边界。 */}
+            <Show when={showSidebar()}>
               <nav
                 aria-label={language.t("sidebar.nav.projectsAndSessions")}
                 data-component="sidebar-nav-desktop"
+                aria-hidden={!layout.sidebar.expanded()}
+                inert={!layout.sidebar.expanded()}
                 classList={{
                   "hidden xl:block": true,
+                  "transition-[width] will-change-[width] motion-reduce:transition-none": true,
                   // 侧栏是 flush 的：不设边框与圆角，直接铺在窗口根色上（对齐 ZCode —— 侧栏
                   // 不作为一个「帧」，4px 外留白只给右侧主工作区）。
                   "absolute inset-y-0 left-0": true,
                   "z-10": true,
                   "bg-sidebar overflow-hidden": true,
                 }}
-                style={{ width: `${side()}px` }}
+                style={{
+                  width: `${side()}px`,
+                  "transition-duration": "var(--transition-panel-ms, 1000ms)",
+                  "transition-timing-function": "var(--transition-panel-ease, cubic-bezier(0.22, 1, 0.36, 1))",
+                }}
               >
                 <div class="@container w-full h-full contain-strict">{sidebarContent()}</div>
               </nav>
@@ -2596,13 +2590,15 @@ export default function Layout(props: ParentProps) {
                 "absolute inset-0": true,
                 "xl:inset-y-1 xl:right-1 xl:left-[var(--main-left)]": true,
                 "z-20": true,
-                "transition-[left] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[left] motion-reduce:transition-none":
-                  !state.sizing,
+                // 与侧栏宽度用同一个时长/缓动，两边才会同步（否则侧栏收完了主区还在滑）。
+                "transition-[left] will-change-[left] motion-reduce:transition-none": !state.sizing,
               }}
               style={{
                 // 侧栏现在是 flush 的（左/上/下贴边，见上面 nav 的注释），4px 间隙由会话侧自己的
                 // `p-1` 提供，所以这里不能再加一次 4，否则间隙变成 8px。
                 "--main-left": showSidebar() ? `${side()}px` : "0px",
+                "transition-duration": "var(--transition-panel-ms, 1000ms)",
+                "transition-timing-function": "var(--transition-panel-ease, cubic-bezier(0.22, 1, 0.36, 1))",
               }}
             >
               {/* 展开入口已移进会话帧 Header（对齐 ZCode：侧栏收起时展开按钮归 Header，

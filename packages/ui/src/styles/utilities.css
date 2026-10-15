@@ -491,90 +491,14 @@
   }
 }
 
-@keyframes status-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 0 6px rgba(34, 197, 94, 0);
-  }
-}
-
-/* NovaWay - Card hover lift effect */
-.card-lift {
-  transition:
-    transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 200ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.card-lift:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
-}
-
-/* NovaWay - Active indicator */
-.active-indicator {
-  position: relative;
-}
-
-.active-indicator::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 4px;
-  height: 60%;
-  background: linear-gradient(180deg, rgba(120, 170, 240, 0.85) 0%, rgba(140, 200, 210, 0.75) 100%);
-  border-radius: 0 4px 4px 0;
-  box-shadow: 0 0 10px rgba(120, 170, 240, 0.35);
-}
-
-/* NovaWay - Gradient text - Frost Tech */
-.gradient-text-aurora {
-  background: linear-gradient(
-    135deg,
-    rgba(100, 160, 230, 0.9) 0%,
-    rgba(130, 190, 200, 0.8) 50%,
-    rgba(160, 180, 220, 0.75) 100%
-  );
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* NovaWay - Status badge pulse */
-.status-pulse {
-  animation: status-pulse 2s ease-in-out infinite;
-}
-
-/* NovaWay - Page transition */
+/* 面板/页面切换动效。
+ *
+ * 时长由 `--transition-panel-ms` 统一控制（app/src/index.css 里定义，当前按用户要求设为 1s）。
+ * 注意 ZCode 的对应动效是 200ms 量级、DESIGN.md 也要求「transition 快而低调」；
+ * 1s 是显式选择的偏离，需要更跟手时改那一个变量即可。
+ */
 .page-transition {
-  animation: float-up 300ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: float-up var(--transition-panel-ms, 1000ms) cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-/* NovaWay - Button hover enhancement */
-.btn-aurora {
-  transition: all 150ms cubic-bezier(0.22, 1, 0.36, 1);
-}
 
-.btn-aurora:hover {
-  transform: scale(1.02);
-  box-shadow: 0 4px 20px rgba(3, 76, 255, 0.2);
-}
-
-/* NovaWay - Decorative shapes */
-.deco-circle {
-  position: absolute;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(20, 184, 166, 0.08) 0%, transparent 70%);
-  pointer-events: none;
-}
-
-.deco-ring {
-  position: absolute;
-  border-radius: 50%;
-  border: 1px solid rgba(20, 184, 166, 0.1);
-  pointer-events: none;
-}

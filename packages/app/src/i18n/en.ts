@@ -1,4 +1,11 @@
 export const dict = {
+  "sidebar.section.projects": "Projects",
+  "chat.empty.greeting.morningEarly": "Morning, ready when you are",
+  "chat.empty.greeting.morning": "Morning, how can I help?",
+  "chat.empty.greeting.noon": "Noon break?",
+  "chat.empty.greeting.afternoon": "Good afternoon! Leave the rest to me.",
+  "chat.empty.greeting.evening": "Evening, nice work today",
+  "chat.empty.greeting.lateNight": "It's late—remember to take care of yourself.",
   "git.branch.switch": "Switch branch",
   "git.branch.newPlaceholder": "New branch name",
   "git.branch.create": "Create",

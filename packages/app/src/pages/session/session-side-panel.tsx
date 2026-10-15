@@ -128,8 +128,14 @@ export function SessionSidePanel(props: {
   })
 
   const tab = layout.sidePane.activeTab
+  // 关闭时宽度归 0（而不是卸载面板）：ZCode 的 AnimatedSidePanePanel 就是「常驻 + 过渡宽度」，
+  // 这样展开/收起才有真正的动画，而且宽度是布局量，不会像 transform 那样在动画期间
+  // 移动元素边界、破坏「面板之间恒为 4px」的几何契约。
+  const open = () => layout.sidePane.opened()
   const width = () =>
-    Math.min(layout.sidePane.width(), Math.round((typeof window === "undefined" ? 1000 : window.innerWidth) * 0.6))
+    open()
+      ? Math.min(layout.sidePane.width(), Math.round((typeof window === "undefined" ? 1000 : window.innerWidth) * 0.6))
+      : 0
 
   const sidePaneDragStart = (event: unknown) => {
     const id = getDraggableId(event)
@@ -157,9 +163,22 @@ export function SessionSidePanel(props: {
     <aside
       id="side-pane"
       aria-label={language.t("session.panel.reviewAndFiles")}
+      aria-hidden={!open()}
+      inert={!open()}
       class="relative shrink-0 h-full flex flex-col rounded-[var(--workspace-panel-radius)] border border-border bg-background overflow-hidden"
+      classList={{
+        "transition-[width] will-change-[width] motion-reduce:transition-none": true,
+      }}
+      style={{
+        width: `${width()}px`,
+        // 收起时连边框一起删掉：只把颜色设透明的话 1px 边框还在，
+        // 面板「宽度 0」实测会剩 2px（左右边框），动画收不到底、还会留一条竖线。
+        "border-width": open() ? undefined : "0px",
+        "transition-duration": "var(--transition-panel-ms, 1000ms)",
+        "transition-timing-function": "var(--transition-panel-ease, cubic-bezier(0.22, 1, 0.36, 1))",
+      }}
       data-component="side-pane-frame"
-      style={{ width: `${width()}px` }}
+      data-open={open() ? "true" : "false"}
     >
       <ResizeHandle
         direction="horizontal"

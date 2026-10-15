@@ -2019,7 +2019,9 @@ export default function Page() {
               </div>
             </div>
 
-            <Show when={layout.sidePane.opened() && isDesktop()}>
+            {/* 面板常驻、关闭时宽度归 0（见 SessionSidePanel 的说明）：只有常驻才能在
+                  展开/收起时过渡宽度，ZCode 也是这么做的，只是条件从 opened() 换成 desktop。 */}
+            <Show when={isDesktop()}>
               <SessionSidePanel
                 canReview={canReview}
                 diffs={reviewDiffs}
@@ -2060,7 +2062,9 @@ export default function Page() {
             />
           </div>
 
-          <Show when={layout.sidePane.opened() && isDesktop()}>
+          {/* 面板常驻、关闭时宽度归 0（见 SessionSidePanel 的说明）：只有常驻才能在
+                  展开/收起时过渡宽度，ZCode 也是这么做的，只是条件从 opened() 换成 desktop。 */}
+          <Show when={isDesktop()}>
             <SessionSidePanel
               canReview={canReview}
               diffs={reviewDiffs}

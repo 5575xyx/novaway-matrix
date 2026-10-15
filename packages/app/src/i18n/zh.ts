@@ -3,6 +3,13 @@ import { dict as en } from "./en"
 type Keys = keyof typeof en
 
 export const dict = {
+  "sidebar.section.projects": "项目",
+  "chat.empty.greeting.morningEarly": "早上好，随时可以开始",
+  "chat.empty.greeting.morning": "上午好，需要我做点什么？",
+  "chat.empty.greeting.noon": "中午好，先歇一会儿？",
+  "chat.empty.greeting.afternoon": "下午好，剩下的交给我",
+  "chat.empty.greeting.evening": "晚上好呀，今天辛苦啦",
+  "chat.empty.greeting.lateNight": "夜深了，记得照顾好自己",
   "git.branch.switch": "切换分支",
   "git.branch.newPlaceholder": "新分支名称",
   "git.branch.create": "新建",

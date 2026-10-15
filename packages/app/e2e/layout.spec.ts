@@ -286,8 +286,12 @@ test("Side Pane 空态按需创建 + tab 标签不折行 + 折叠按钮", async 
   }
   await expect(tabRow).toBeVisible()
 
+  // 收起后：面板改为「常驻 + 宽度过渡」（对齐 ZCode 的 AnimatedSidePanePanel），
+  // 所以不能再断言 tab 行「不可见」——它仍在 DOM 里，只是面板宽度归 0 被裁掉。
+  // 这里断言真正改变的东西：data-open 翻转 + 宽度过完后为 0。
   await collapse.click()
-  await expect(tabRow).not.toBeVisible()
+  await expect(frame).toHaveAttribute("data-open", "false")
+  await expect.poll(async () => (await frame.boundingBox())?.width ?? -1, { timeout: 5_000 }).toBe(0)
 })
 
 test("首页任务中心信息密度", async ({ page }) => {
