@@ -20,6 +20,7 @@ import { forgeAgentForPrompt } from "@/context/local-agent"
 import { buildRequestParts } from "./build-request-parts"
 import { setCursorPosition } from "./editor-dom"
 import { formatServerError } from "@/utils/server-errors"
+import { markSessionFresh } from "@/pages/session/fresh-session"
 
 type PendingPrompt = {
   abort: AbortController
@@ -386,6 +387,9 @@ export function createPromptSubmit(input: PromptSubmitInput) {
         })
       if (created) {
         seed(sessionDirectory, created)
+        // 刚建出来的会话必然是空的，登记后时间线跳过骨架屏（否则发送第一条消息时
+        // 会先闪一下骨架屏再显示时间线）。
+        markSessionFresh(created.id)
         session = created
         if (shouldAutoAccept) permission.enableAutoAccept(session.id, sessionDirectory)
         local.session.promote(sessionDirectory, session.id)

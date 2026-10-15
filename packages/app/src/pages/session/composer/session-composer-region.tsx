@@ -5,14 +5,16 @@ import { useSpring } from "@novaway/ui/motion-spring"
 import { useLayout } from "@/context/layout"
 import { useFile } from "@/context/file"
 import { PromptInput } from "@/components/prompt-input"
+import { createPromptVeil, PromptInputLoading } from "@/components/prompt-input/loading"
 import { useLanguage } from "@/context/language"
 import { usePrompt } from "@/context/prompt"
 import { useSync } from "@/context/sync"
 import { useLocal } from "@/context/local"
 import { hasForgeBuildIntent } from "@/context/local-agent"
-import { getSessionHandoff, setSessionHandoff } from "@/pages/session/handoff"
+import { setSessionHandoff } from "@/pages/session/handoff"
 import { useSessionKey, useSessionLayout } from "@/pages/session/session-layout"
 import { createOpenSessionFileTab } from "@/pages/session/helpers"
+import { isSessionFresh } from "@/pages/session/fresh-session"
 import { SessionPermissionDock } from "@/pages/session/composer/session-permission-dock"
 import { SessionQuestionDock } from "@/pages/session/composer/session-question-dock"
 import { SessionFollowupDock } from "@/pages/session/composer/session-followup-dock"
@@ -62,7 +64,6 @@ export function SessionComposerRegion(props: {
   const sessionLayout = useSessionLayout()
   const view = layout.view(route.sessionKey)
 
-  const handoffPrompt = createMemo(() => getSessionHandoff(route.sessionKey())?.prompt)
   const info = createMemo(() => (route.params.id ? sync.session.get(route.params.id) : undefined))
   const parentID = createMemo(() => info()?.parentID)
   const child = createMemo(() => !!parentID())
@@ -90,6 +91,11 @@ export function SessionComposerRegion(props: {
     height: 320,
     body: undefined as HTMLDivElement | undefined,
   })
+
+  // 输入框加载遮罩：就绪后淡出。
+  // 刚由我们创建的会话（send the first message 的那一刻）必然是空草稿，
+  // 不用等持久化存储的 IPC 往返，直接当就绪 —— 否则每发第一条消息都会先盖一下遮罩。
+  const veiling = createPromptVeil(() => prompt.ready()() || isSessionFresh(route.params.id))
   let timer: number | undefined
   let frame: number | undefined
 
@@ -215,28 +221,14 @@ export function SessionComposerRegion(props: {
         </Show>
 
         <Show when={showComposer()}>
-          <Show
-            when={prompt.ready()}
-            fallback={
-              <>
-                <Show when={rolled()} keyed>
-                  {(revert) => (
-                    <div class="pb-2">
-                      <SessionRevertDock
-                        items={revert.items}
-                        restoring={revert.restoring}
-                        disabled={revert.disabled}
-                        onRestore={revert.onRestore}
-                      />
-                    </div>
-                  )}
-                </Show>
-                <div class="w-full min-h-32 md:min-h-40 rounded-md border border-border bg-background/50 px-4 py-3 text-foreground-subtle whitespace-pre-wrap pointer-events-none">
-                  {handoffPrompt() || language.t("prompt.loading")}
-                </div>
-              </>
-            }
-          >
+          {/*
+            这里原来还有一层 `Show when={prompt.ready()}`：未就绪时用一个
+            `min-h-40 rounded-md` 的占位盒顶着，就绪后整块换成输入框。
+            换的是两套几何完全不同的东西（半径 6 ↔ 16px、高度 160 ↔ 182），
+            所以每次冷启动/换会话都能看到一次跳动。现在输入框直接挂载，
+            未就绪时在上面盖一层同几何的遮罩（PromptInputLoading）淡出。
+          */}
+          <div class="relative w-full">
             <Show when={rolled()} keyed>
               {(revert) => (
                 <div
@@ -305,7 +297,10 @@ export function SessionComposerRegion(props: {
                 </div>
               </Show>
             </div>
-          </Show>
+            <Show when={veiling()}>
+              <PromptInputLoading fading={prompt.ready()()} />
+            </Show>
+          </div>
         </Show>
       </div>
     </div>

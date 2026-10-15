@@ -96,12 +96,16 @@
  *
  * 切会话时元素不重建（只是 props 变），所以动画要在依赖变化时用 `replayAnimation`
  * 摘掉再加回来重放（见 pages/session.tsx 的 enterStage）。
- * 时长与面板统一，这样"切会话"和"展开面板"是同一个节奏。
+ *
+ * 时长**刻意短**（240ms）、而且不从全透明起步：这里覆盖的是一整块内容区，
+ * 用面板级的 1s 从 0 淡入会先留出几百毫秒的近空白 —— 实测观感就是"闪一下再说"。
+ * 240ms 的交叉淡入读起来是"切换过去了"，不是"变白了"。
+ * 1s 只留给真正的位移动画（面板展开/收起、输入框落位），那些是用户明确要求的。
  */
 @keyframes session-stage-in {
   from {
-    opacity: 0;
-    transform: translateY(8px);
+    opacity: 0.35;
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -112,7 +116,7 @@
 /* 不用 fill 模式：动画结束后回到自然样式（transform: none），
  * 否则残留的 transform 会给内部绝对定位元素新建一个包含块。 */
 .session-stage-enter {
-  animation: session-stage-in var(--transition-panel-ms, 1000ms) var(--transition-panel-ease);
+  animation: session-stage-in 240ms var(--transition-panel-ease);
 }
 
 /* 新建任务 → 会话：底部输入框从原来"居中"的位置滑下来。

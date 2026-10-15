@@ -84,6 +84,7 @@ import { extractPromptFromParts } from "@/utils/prompt"
 import { same } from "@/utils/same"
 import { formatServerError } from "@/utils/server-errors"
 import { replayAnimation } from "@/utils/mount-transition"
+import { isSessionFresh } from "@/pages/session/fresh-session"
 import { useUsageExceededDialogs } from "./session/usage-exceeded-dialogs"
 
 const emptyUserMessages: UserMessage[] = []
@@ -93,7 +94,7 @@ const emptyFollowups: FollowupItem[] = []
 
 // 首次进入会话页、消息数据未到时就地占位。宽度取自 message-timeline 的真实内容容器,数据到位时才不会横向跳动。
 const MessageTimelineSkeleton = () => (
-  <div class="h-full w-full min-w-0 overflow-hidden">
+  <div data-component="message-timeline-skeleton" class="h-full w-full min-w-0 overflow-hidden">
     <div class="min-w-0 w-full md:max-w-200 2xl:max-w-[1000px] md:mx-auto flex flex-col gap-5 px-4 pt-4">
       <div class="ml-auto h-9 w-1/2 rounded-[6px] bg-panel animate-pulse" />
       <div class="flex w-3/4 flex-col gap-2">
@@ -387,6 +388,8 @@ export default function Page() {
   const timelineReady = createMemo(() => {
     const id = params.id
     if (!id) return true
+    // 刚由我们创建的会话必然是空的，直接渲染时间线，不要先闪一帧骨架屏。
+    if (isSessionFresh(id)) return true
     return hydrated().has(id)
   })
   // 向 sync 登记"用户正在看这个会话",事件驱动的会话列表裁剪(见 event-reducer)就不会清掉它的消息缓存。

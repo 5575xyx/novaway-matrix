@@ -16,7 +16,7 @@ import { makeEventListener } from "@solid-primitives/event-listener"
 import { useLocation, useNavigate, useParams } from "@solidjs/router"
 import { useLayout, LocalProject } from "@/context/layout"
 import { FrameWindowControls } from "@/components/frame-window-controls"
-import { createMountTransition, replayAnimation } from "@/utils/mount-transition"
+import { createMountTransition } from "@/utils/mount-transition"
 import { useGlobalSync } from "@/context/global-sync"
 import { Persist, persisted } from "@/utils/persist"
 import { base64Encode } from "@novaway/core/util/encode"
@@ -255,14 +255,15 @@ export default function Layout(props: ParentProps) {
   const settingsTransition = createMountTransition(() => state.settings.open)
   const databaseTransition = createMountTransition(() => state.databasePage.open)
 
-  // 路由切换时把主内容的入场动画重放一次（容器是常驻的，不会自己重挂载）。
-  let mainRef: HTMLDivElement | undefined
-  createEffect(
-    on(
-      () => location.pathname,
-      () => replayAnimation(mainRef, "page-transition"),
-    ),
-  )
+  // 这里**刻意不做**路由级的入场重放。
+  //
+  // 曾经在 pathname 变化时重放 `page-transition`，结果是每次导航（尤其是"新建任务 →
+  // 发出第一条消息"）整个主区从 opacity 0 淡回来。实测：提交后 0ms 主区 opacity
+  // 掉到 0.00，再过 ~1s 才回到 1.00 —— 视觉上就是"闪一下，然后才是过渡"，
+  // 而且它会连 Header 一起闪。
+  //
+  // 内容区的入场交给会话页自己的 `session-stage-enter`（只作用在内容上，不含 Header
+  // 与输入框，时长也短得多），导航切换不再有整片空白。
 
   const setBusy = (directory: string, value: boolean) => {
     const key = pathKey(directory)
@@ -2625,10 +2626,7 @@ export default function Layout(props: ParentProps) {
               {/* 展开入口已移进会话帧 Header（对齐 ZCode：侧栏收起时展开按钮归 Header，
                   展开时收起入口归侧栏顶带）。原先浮在这里的那个 chevron 只有 24px，
                   还正好压在 Header 标题上，既难点中又遮住标题。 */}
-              <main
-                ref={mainRef}
-                class="size-full overflow-x-hidden flex flex-col items-start min-w-0 page-transition"
-              >
+              <main class="size-full overflow-x-hidden flex flex-col items-start min-w-0">
                 <Show when={!autoselecting.loading} fallback={<div class="size-full" />}>
                   {props.children}
                 </Show>
