@@ -82,6 +82,60 @@
   transition-timing-function: var(--transition-panel-ease, cubic-bezier(0.22, 1, 0.36, 1));
 }
 
+/* 侧栏品牌字标 `NovaWay`。
+ * 用户要求"有它特殊的格式"：收紧字距 + 提高字重，`Way` 用当前模式色（见 layout 的 --mode-accent），
+ * 这样一行文本同时承担品牌标识与模式指示，不需要额外的色块或徽标。 */
+.brand-wordmark {
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  font-feature-settings: "ss01";
+  white-space: nowrap;
+}
+
+/* 会话内容区（时间线 / 新建任务空态）入场。
+ *
+ * 切会话时元素不重建（只是 props 变），所以动画要在依赖变化时用 `replayAnimation`
+ * 摘掉再加回来重放（见 pages/session.tsx 的 enterStage）。
+ * 时长与面板统一，这样"切会话"和"展开面板"是同一个节奏。
+ */
+@keyframes session-stage-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 不用 fill 模式：动画结束后回到自然样式（transform: none），
+ * 否则残留的 transform 会给内部绝对定位元素新建一个包含块。 */
+.session-stage-enter {
+  animation: session-stage-in var(--transition-panel-ms, 1000ms) var(--transition-panel-ease);
+}
+
+/* 新建任务 → 会话：底部输入框从原来"居中"的位置滑下来。
+ *
+ * `--composer-drop-from` 由 session.tsx 现算（会话帧中心与输入框中心的差，负值），
+ * 所以窗口尺寸、状态面板开合都不影响它落在正确的位置。
+ * 用 animation 而不是 transition：这个容器是刚插入的节点，animation 一定会从头播。
+ */
+@keyframes composer-drop-in {
+  from {
+    transform: translateY(var(--composer-drop-from, -240px));
+    opacity: 0.2;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+[data-composer-drop="run"] {
+  animation: composer-drop-in var(--transition-panel-ms, 1000ms) var(--transition-panel-ease);
+}
+
 @font-face {
   font-family: "JetBrainsMono Nerd Font Mono";
   src: url("/assets/JetBrainsMonoNerdFontMono-Regular.woff2") format("woff2");
