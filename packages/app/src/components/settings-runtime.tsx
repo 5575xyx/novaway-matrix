@@ -20,6 +20,7 @@ import { TextField } from "@novaway/ui/text-field"
 import { showToast } from "@novaway/ui/toast"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query"
 import { createEffect, createMemo, createSignal, For, onCleanup, Show, type Component, type JSX } from "solid-js"
+import { MCP_CATALOG, catalogEntryInstalled } from "@/constants/mcp-catalog"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
@@ -1524,7 +1525,9 @@ const ProjectInstructionGenerateDialog: Component<{
             error={error()}
           />
           <div class="flex flex-col gap-1.5">
-            <label class="text-sm font-medium text-foreground">{language.t("settings.projectInstruction.field.model")}</label>
+            <label class="text-sm font-medium text-foreground">
+              {language.t("settings.projectInstruction.field.model")}
+            </label>
             <Select
               options={options()}
               current={current()}
@@ -1539,7 +1542,9 @@ const ProjectInstructionGenerateDialog: Component<{
             <div class="flex items-start gap-3 rounded-md border border-border bg-surface px-3 py-3">
               <span class="mt-0.5 size-5 shrink-0 rounded-full border-2 border-border-hover border-t-transparent animate-spin" />
               <div class="min-w-0 flex-1 space-y-1">
-                <div class="text-13-medium text-foreground">{language.t("settings.projectInstruction.generating.title")}</div>
+                <div class="text-13-medium text-foreground">
+                  {language.t("settings.projectInstruction.generating.title")}
+                </div>
                 <div class="text-12-regular text-foreground-subtle">
                   {language.t("settings.projectInstruction.generating.description")}
                 </div>
@@ -3141,7 +3146,85 @@ export const SettingsMcp: Component = () => {
         onEdit={editMcp}
         onDelete={(name) => void deleteMcp(name)}
       />
+      {/* 市场：对齐 ZCode 的 MCP 安装面板 —— 浏览 + 一键添加，不用手写 command/args。
+          密钥一律走 {env:...} 占位，不写进配置文件。 */}
+      <McpCatalogSection configured={configured()} onAdd={updateMcp} />
     </SettingsPage>
+  )
+}
+
+const McpCatalogSection: Component<{
+  configured: Record<string, unknown>
+  onAdd: (name: string, value: Record<string, unknown>) => void
+}> = (props) => {
+  const language = useLanguage()
+  const [query, setQuery] = createSignal("")
+
+  const matches = createMemo(() => {
+    const q = query().trim().toLowerCase()
+    if (!q) return MCP_CATALOG
+    return MCP_CATALOG.filter(
+      (entry) =>
+        entry.name.toLowerCase().includes(q) ||
+        entry.id.toLowerCase().includes(q) ||
+        language
+          .t(entry.descriptionKey as never)
+          .toLowerCase()
+          .includes(q),
+    )
+  })
+
+  return (
+    <div>
+      <SectionTitle
+        title={language.t("settings.mcp.catalog.title")}
+        description={language.t("settings.mcp.catalog.description")}
+      />
+      <Toolbar>
+        <TextField
+          value={query()}
+          onChange={setQuery}
+          placeholder={language.t("settings.mcp.catalog.searchPlaceholder")}
+          class="w-full max-w-xs"
+        />
+      </Toolbar>
+      <SettingsList>
+        <Show when={matches().length > 0} fallback={<EmptyState message={language.t("settings.mcp.catalog.empty")} />}>
+          <For each={matches()}>
+            {(entry) => {
+              const installed = () => catalogEntryInstalled(entry, props.configured)
+              return (
+                <RuntimeRow
+                  icon="mcp"
+                  title={entry.name}
+                  description={language.t(entry.descriptionKey as never)}
+                  tags={[
+                    language.t(`settings.mcp.catalog.category.${entry.category}` as never),
+                    ...(entry.requires ?? []).map((name) =>
+                      language.t("settings.mcp.catalog.requires", { vars: name }),
+                    ),
+                  ]}
+                  actions={
+                    <Show when={!installed()}>
+                      <Button variant="secondary" size="small" onClick={() => props.onAdd(entry.id, entry.template)}>
+                        {language.t("settings.mcp.catalog.add")}
+                      </Button>
+                    </Show>
+                  }
+                  footer={
+                    <Show when={installed()}>
+                      <span class="text-12-regular text-foreground-subtle">
+                        {language.t("settings.mcp.catalog.installed")}
+                      </span>
+                    </Show>
+                  }
+                />
+              )
+            }}
+          </For>
+        </Show>
+      </SettingsList>
+    </div>
   )
 }
 
