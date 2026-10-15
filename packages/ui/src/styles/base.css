@@ -34,8 +34,17 @@ html,
   font-feature-settings: var(--font-family-sans--font-feature-settings, normal); /* 5 */
   font-variation-settings: var(--font-family-sans--font-variation-settings, normal); /* 6 */
   -webkit-tap-highlight-color: transparent; /* 7 */
-  scrollbar-gutter: stable; /* Prevent layout shift when scrollbar appears/disappears (e.g. modal dialog scroll lock) */
 }
+
+/*
+  注意：这里刻意**不**给 `html` 设置 `scrollbar-gutter: stable`。
+  桌面端外壳 body 是 `overflow-hidden`、根节点 `h-dvh`，页面级永不滚动；
+  在 `html` 上留槽位会在窗口最右侧凭空多出一条 ~15px 的空带（没有任何元素绘制，
+  只有 html 的底色露出来），ZCode 也没有这条带子。
+  ZCode 的做法是把 `[scrollbar-gutter:stable]` 挂在**具体滚动容器**上
+  （如 ConversationTimeline 的消息列表、SettingsPage 的 main），
+  我们照此对齐：需要的地方各自加工具类，而不是全局兜底。
+*/
 
 /*
   1. Add the correct height in Firefox.

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#1a2332" />
     <title>NovaWay</title>
     <link rel="icon" type="image/png" href="./novaway-icon.png" />
@@ -13,18 +13,25 @@
     <meta property="twitter:image" content="./social-share.png" />
     <script id="oc-theme-preload-script" src="./oc-theme-preload.js"></script>
     <style>
-      /* 确保深色模式下加载动画清晰可见 */
+      /* 加载动画的颜色全部走主题 token，不再写死深色一套。
+       *
+       * 原来这里强制 `color-scheme: dark` 并把状态文字写成 #e0f2fe（近白的浅蓝）：
+       * 浅色主题下那块文字几乎看不见，进度条也只有深色下才清楚 —— 用户反馈的
+       * 「不同深浅色下对比不明显」就是这个原因。现在浅色/深色都跟随
+       * `--foreground` / `--icon-interactive-base`。
+       *
+       * 选择器用 Progress 组件的真实 slot（`data-slot="progress-*"`）：
+       * 原来写的 `.progress-track` / `.progress-fill` / `.status-text` 在这套
+       * Solid 组件里根本不存在，是上一版独立 HTML 留下的死规则。
+       */
       :root {
-        color-scheme: dark;
+        color-scheme: light dark;
       }
-      .progress-track {
-        background-color: rgba(255, 255, 255, 0.15) !important;
+      [data-slot="progress-track"] {
+        background-color: color-mix(in oklab, var(--foreground) 18%, transparent) !important;
       }
-      .progress-fill {
-        background-color: #38bdf8 !important;
-      }
-      .status-text {
-        color: #e0f2fe !important;
+      [data-slot="progress-fill"] {
+        background: var(--icon-interactive-base, var(--foreground)) !important;
       }
     </style>
   </head>

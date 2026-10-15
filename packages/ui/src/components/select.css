@@ -97,7 +97,7 @@
   z-index: 60;
 
   &[data-expanded] {
-    animation: select-open 0.15s ease-out;
+    animation: select-open var(--transition-overlay-ms, 180ms) ease-out;
   }
 
   [data-slot="select-select-content-list"] {

@@ -661,7 +661,12 @@ export function DatabasePage(props: { onBack: () => void }) {
 
   return (
     <div class="flex flex-col h-full bg-background">
-      <div class="flex items-center justify-between px-4 py-3 border-b border-border">
+      {/* 顶行同时是窗口拖拽区；右侧留出 108px 给覆盖层右上角的窗控条
+          （那边是一条带底色的预留带，不留白会把「刷新」压到下面点不到）。 */}
+      <div
+        class="flex items-center justify-between border-b border-border px-4 py-3 pr-[108px]"
+        data-window-drag
+      >
         <div class="flex items-center gap-3">
           <Button variant="ghost" size="small" icon="arrow-left" onClick={props.onBack}>
             {language.t("common.goBack")}

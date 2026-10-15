@@ -33,6 +33,55 @@
   app-region: no-drag;
 }
 
+/* 设置 / 数据库整帧覆盖：见 layout.tsx 的 data-frame-overlay。
+ * 被盖住的会话帧 Header 里还有一组窗控，覆盖层（自带一组）淡入淡出的这 1s
+ * 里两组会重叠成"重影"。开覆盖时把下面这组藏掉，只留覆盖层自己的。 */
+[data-frame-overlay] [data-component="workspace-header"] [data-component="window-controls"] {
+  visibility: hidden;
+}
+
+/* 覆盖式面板（设置 / 数据库）的开合动效。
+ *
+ * 用 animation 而不是 transition：这些面板是 `<Show>` 挂载/卸载的，
+ * transition 需要元素先在 DOM 里渲染一帧隐藏态才肯播，时序上很脆
+ * （窗口被遮挡时拿不到那一帧，面板会卡在 opacity:0）。animation 没有这个问题。
+ * 关闭方向靠 `createMountTransition` 延迟卸载来撑住时长。
+ */
+@keyframes panel-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes panel-overlay-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+[data-panel-transition][data-state="open"] {
+  animation: panel-overlay-in var(--transition-panel-ms, 1000ms) var(--transition-panel-ease) both;
+}
+
+[data-panel-transition][data-state="closed"] {
+  animation: panel-overlay-out var(--transition-panel-ms, 1000ms) ease-in both;
+  pointer-events: none;
+}
+
+/* 侧栏「任务 / 文件」整层 slide-over。
+ * 这是整层位移（跟侧栏、Side Pane 同级的面板级动作），所以跟它们用同一时长，
+ * 切视图时三个动作才是一个节奏。分段控件上的小指示器仍保持 200ms（微交互）。 */
+.sidebar-view-layer {
+  transition-duration: var(--transition-panel-ms, 1000ms);
+  transition-timing-function: var(--transition-panel-ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
 @font-face {
   font-family: "JetBrainsMono Nerd Font Mono";
   src: url("/assets/JetBrainsMonoNerdFontMono-Regular.woff2") format("woff2");
@@ -249,6 +298,12 @@
   --transition-panel-ms: 1000ms;
   /* 面板动效缓动：与 ZCode 的 ease-out 同类，先快后慢 */
   --transition-panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* 浮层（弹窗/下拉/气泡/选择器）的开合时长。
+   * 这类"随手点开"的浮层不能也放 1s —— 1s 的开菜单会像卡住。
+   * 给 180ms：比原先写死的 100ms 明显一点（用户要求「过渡覆盖全部场景」），
+   * 又还在跟手范围内。组件里都用 `var(--transition-overlay-ms, 180ms)` 兜底，
+   * 所以单独引用 packages/ui 时也有默认值。 */
+  --transition-overlay-ms: 180ms;
 }
 
 /* Side Pane 的进入动效。

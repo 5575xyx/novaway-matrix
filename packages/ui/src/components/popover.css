@@ -31,11 +31,11 @@
   }
 
   &[data-closed] {
-    animation: popover-close 0.1s ease-out;
+    animation: popover-close var(--transition-overlay-ms, 180ms) ease-out;
   }
 
   &[data-expanded] {
-    animation: popover-open 0.1s ease-out;
+    animation: popover-open var(--transition-overlay-ms, 180ms) ease-out;
   }
 
   [data-slot="popover-header"] {

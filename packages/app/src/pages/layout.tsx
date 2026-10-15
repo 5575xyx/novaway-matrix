@@ -15,6 +15,8 @@ import {
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { useLocation, useNavigate, useParams } from "@solidjs/router"
 import { useLayout, LocalProject } from "@/context/layout"
+import { FrameWindowControls } from "@/components/frame-window-controls"
+import { createMountTransition, replayAnimation } from "@/utils/mount-transition"
 import { useGlobalSync } from "@/context/global-sync"
 import { Persist, persisted } from "@/utils/persist"
 import { base64Encode } from "@novaway/core/util/encode"
@@ -248,13 +250,26 @@ export default function Layout(props: ParentProps) {
     sizing: false,
   })
 
+  // 设置 / 数据库是「整帧覆盖」的面板，用 mount-transition 拿到开**和关**两个方向的过渡
+  // （<Show> 只有存在/不存在两态，关掉时是瞬间消失）。时长与侧栏/面板统一。
+  const settingsTransition = createMountTransition(() => state.settings.open)
+  const databaseTransition = createMountTransition(() => state.databasePage.open)
+
+  // 路由切换时把主内容的入场动画重放一次（容器是常驻的，不会自己重挂载）。
+  let mainRef: HTMLDivElement | undefined
+  createEffect(
+    on(
+      () => location.pathname,
+      () => replayAnimation(mainRef, "page-transition"),
+    ),
+  )
+
   const setBusy = (directory: string, value: boolean) => {
     const key = pathKey(directory)
     if (value) {
       setState("busyWorkspaces", key, true)
       return
-    }
-    setState(
+    }    setState(
       "busyWorkspaces",
       produce((draft) => {
         delete draft[key]
@@ -2273,7 +2288,7 @@ export default function Layout(props: ParentProps) {
             不再用「任务/文件」分段控件把同一列替换掉。 */}
         <div class="relative flex-1 min-h-0">
           <div
-            class="absolute inset-0 flex min-h-0 flex-col transition-transform duration-200 ease-out"
+            class="sidebar-view-layer absolute inset-0 flex min-h-0 flex-col transition-transform ease-out"
             classList={{ "-translate-x-full pointer-events-none": treeOpen() }}
             aria-hidden={treeOpen()}
           >
@@ -2428,7 +2443,7 @@ export default function Layout(props: ParentProps) {
 
           {/* 文件树层：整层 slide-over，顶部一条返回条。 */}
           <div
-            class="absolute inset-0 flex min-h-0 flex-col transition-transform duration-200 ease-out"
+            class="sidebar-view-layer absolute inset-0 flex min-h-0 flex-col transition-transform ease-out"
             classList={{ "translate-x-full pointer-events-none": !treeOpen() }}
             aria-hidden={!treeOpen()}
           >
@@ -2503,6 +2518,10 @@ export default function Layout(props: ParentProps) {
       }}
       data-app-mode={layout.mode.current() ?? "none"}
       data-workspace-panel-radius={workspacePanelRadiusPx(platform.os)}
+      // 设置/数据库盖住主帧时，会话帧 Header 里那组窗控虽然被盖住，
+      // 但淡入淡出的 1s 里会和面板自带的那组叠在一起"重影"。
+      // 用这个标记把被盖住的那组藏掉（见 index.css）。
+      data-frame-overlay={state.settings.open || state.databasePage.open ? "true" : undefined}
     >
       {autoselecting() ?? ""}
       {/* 全局标题栏已移除：窗口顶部不再有独立 chrome，身份/导航/操作分别落在
@@ -2604,33 +2623,54 @@ export default function Layout(props: ParentProps) {
               {/* 展开入口已移进会话帧 Header（对齐 ZCode：侧栏收起时展开按钮归 Header，
                   展开时收起入口归侧栏顶带）。原先浮在这里的那个 chevron 只有 24px，
                   还正好压在 Header 标题上，既难点中又遮住标题。 */}
-              <main class="size-full overflow-x-hidden flex flex-col items-start min-w-0 page-transition">
+              <main
+                ref={mainRef}
+                class="size-full overflow-x-hidden flex flex-col items-start min-w-0 page-transition"
+              >
                 <Show when={!autoselecting.loading} fallback={<div class="size-full" />}>
                   {props.children}
                 </Show>
               </main>
+
+              {/* 设置 / 数据库是**主帧内的面板**，不是盖住整窗的接管层。
+                  之前它们挂在窗口根上（`absolute inset-0` 相对整个 `.flex-1` 行），
+                  一打开连左侧栏和窗口按钮一起盖掉，用户会觉得「进了设置就找不到主页面」，
+                  返回入口也只剩一条小路可走。放进主帧后：
+                  左栏与窗口顶带始终可见，四帧同心圆的 4px 留白/平台圆角也一并继承。 */}
+              <Show when={settingsTransition.mounted()}>
+                <section
+                  data-panel-transition
+                  data-state={settingsTransition.closing() ? "closed" : "open"}
+                  class="absolute left-1 right-2 top-1 bottom-2 z-40 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                  aria-label={language.t("command.settings.open")}
+                  aria-hidden={settingsTransition.closing()}
+                  inert={settingsTransition.closing()}
+                >
+                  {/* 这一层盖住了会话帧 Header（窗口按钮在那），不补一组自绘窗控的话
+                      窗口就不可拖、不可最小化/关闭了。 */}
+                  <FrameWindowControls />
+                  <DialogSettings
+                    initialTab={state.settings.initialTab}
+                    directory={state.settings.directory}
+                    onBack={closeSettings}
+                  />
+                </section>
+              </Show>
+              <Show when={databaseTransition.mounted()}>
+                <section
+                  data-panel-transition
+                  data-state={databaseTransition.closing() ? "closed" : "open"}
+                  class="absolute left-1 right-2 top-1 bottom-2 z-40 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                  aria-label={language.t("command.database.open")}
+                  aria-hidden={databaseTransition.closing()}
+                  inert={databaseTransition.closing()}
+                >
+                  <FrameWindowControls />
+                  <DatabasePage onBack={closeDatabasePage} />
+                </section>
+              </Show>
             </div>
           </div>
-          <Show when={state.settings.open}>
-            <section
-              class="absolute inset-0 z-[60] min-h-0 min-w-0 overflow-hidden bg-background"
-              aria-label={language.t("command.settings.open")}
-            >
-              <DialogSettings
-                initialTab={state.settings.initialTab}
-                directory={state.settings.directory}
-                onBack={closeSettings}
-              />
-            </section>
-          </Show>
-          <Show when={state.databasePage.open}>
-            <section
-              class="absolute inset-0 z-[60] min-h-0 min-w-0 overflow-hidden bg-background"
-              aria-label={language.t("command.database.open")}
-            >
-              <DatabasePage onBack={closeDatabasePage} />
-            </section>
-          </Show>
         </div>
         {/* DebugBar removed */}
       </div>

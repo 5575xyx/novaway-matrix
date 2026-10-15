@@ -188,7 +188,11 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
         </Tabs.Content>
       </Tabs>
       <Show when={switching()}>
-        <div class="absolute inset-0 z-30 flex items-start justify-center bg-background/70 pt-6">
+        {/* 切换遮挡层必须是 `pointer-events-none`。
+            它是纯装饰（告诉用户"正在加载这一页"），但原来铺满整个面板且 z-30，
+            切 tab 的那 ~230ms 里正好压在左上角的「返回」按钮上 ——
+            用户点返回没反应，说的就是这个。 */}
+        <div class="pointer-events-none absolute inset-0 z-30 flex items-start justify-center bg-background/70 pt-6">
           <div class="flex items-center gap-2 rounded-md border border-border bg-popover px-3 py-2 text-12-medium text-foreground shadow-sm">
             <Spinner class="size-3.5" />
             <span>{language.t("common.loading")}</span>

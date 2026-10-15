@@ -142,10 +142,10 @@
 }
 
 [data-component="dialog"][data-transition] [data-slot="dialog-content"] {
-  animation: contentHide 100ms ease-in forwards;
+  animation: contentHide var(--transition-overlay-ms, 180ms) ease-in forwards;
 
   &[data-expanded] {
-    animation: contentShow 100ms ease-out;
+    animation: contentShow var(--transition-overlay-ms, 180ms) ease-out;
   }
 }
 

@@ -223,8 +223,13 @@ export function SessionSidePanel(props: {
           class="shrink-0"
           onClick={() => layout.sidePane.toggle()}
         />
-        {/* Side Pane 展开时它是最右侧面板，窗控归它（且必须是本行最靠右的一组）。 */}
-        <WindowControls />
+        {/* Side Pane 展开时它是最右侧面板，窗控归它（且必须是本行最靠右的一组）。
+            收起时面板宽度归 0（常驻不卸载），此时窗控必须一起撤掉：
+            `aside` 的宽度是 0，子元素却仍然按内容宽度布局并溢出到窗口右侧之外，
+            在 DOM 里留下一组「看不见但存在」的按钮。 */}
+        <Show when={open()}>
+          <WindowControls />
+        </Show>
       </div>
       <Show when={layout.sidePane.tabs().length > 0} fallback={<SidePaneEmptyState />}>
         <div class="flex-1 min-h-0 overflow-hidden">

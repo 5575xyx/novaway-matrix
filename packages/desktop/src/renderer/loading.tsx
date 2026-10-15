@@ -98,7 +98,11 @@ render(() => {
       <div class="w-screen h-screen bg-background flex items-center justify-center">
         <Font />
         <div class="flex flex-col items-center gap-11">
-          <Splash class="w-20 h-25 opacity-15" />
+          {/* 启动图标：原来 80×80 且 opacity-15，等于一块几乎看不见的水印，
+              深浅色下都「看不出来」——用户要求放大并拉开对比。
+              尺寸按 120 的 viewBox 取正方形（原来 w-20 h-25 会被 preserveAspectRatio
+              压成 80×80，正方形才能把图形用满），不透明度提到 0.8。 */}
+          <Splash class="w-28 h-28 opacity-80" />
           <div class="w-72 flex flex-col items-center gap-4" aria-live="polite">
             <span class="w-full overflow-hidden text-center text-ellipsis whitespace-nowrap text-foreground text-14-normal">
               {status()}
