@@ -1,10 +1,12 @@
-import { Show, createMemo, createSignal, onCleanup } from "solid-js"
+import { Show, createMemo } from "solid-js"
 import { DateTime } from "luxon"
 import { useSync } from "@/context/sync"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { useLocal } from "@/context/local"
+import { usePrompt } from "@/context/prompt"
 import { PromptInput } from "@/components/prompt-input"
+import { createPromptVeil, PromptInputLoading } from "@/components/prompt-input/loading"
 import { useOfficeAgent } from "@/pages/session/office-agent-context"
 import { greetingMessageId } from "@/utils/greeting"
 
@@ -26,25 +28,17 @@ export function NewSessionView(props: NewSessionViewProps) {
   const local = useLocal()
   const office = useOfficeAgent()
 
-  const [ready, setReady] = createSignal(false)
-  let timer: number | undefined
+  const prompt = usePrompt()
 
-  const clear = () => {
-    if (timer !== undefined) {
-      window.clearTimeout(timer)
-      timer = undefined
-    }
-  }
-
-  const delay = 140
-  clear()
-  setReady(false)
-  timer = window.setTimeout(() => {
-    setReady(true)
-    timer = undefined
-  }, delay)
-
-  onCleanup(clear)
+  /**
+   * 加载遮罩的显隐。
+   *
+   * 原来这里是「140ms 后把占位盒换成输入框」——那 140ms 是纯粹凭空加出来的延迟，
+   * 而且遮罩盒与真实输入框的几何完全不同（见 PromptInputLoading 的注释），
+   * 换过去就是一次跳动。现在改成：输入框**立刻挂载**、遮罩盖在上面，
+   * 等到 `prompt.ready()` 后再淡出 —— 没有人为延迟，也没有布局跳动。
+   */
+  const veiling = createPromptVeil(() => prompt.ready()())
 
   const isForge = createMemo(() => layout.mode.current() === "forge")
   const isOffice = createMemo(() => layout.mode.current() === "zen")
@@ -127,7 +121,7 @@ export function NewSessionView(props: NewSessionViewProps) {
                 })}
               </div>
             </Show>
-            <Show when={ready()}>
+            <div class="relative w-full">
               <PromptInput
                 ref={props.inputRef}
                 newSessionWorktree={props.worktree}
@@ -135,12 +129,10 @@ export function NewSessionView(props: NewSessionViewProps) {
                 onNewSessionWorktreeReset={props.onNewSessionWorktreeReset}
                 onSubmit={props.onSubmit}
               />
-            </Show>
-            <Show when={!ready()}>
-              <div class="w-full min-h-32 md:min-h-40 rounded-md border border-border bg-background/50 px-4 py-3 text-foreground-subtle whitespace-pre-wrap pointer-events-none">
-                {language.t("prompt.loading")}
-              </div>
-            </Show>
+              <Show when={veiling()}>
+                <PromptInputLoading fading={prompt.ready()()} />
+              </Show>
+            </div>
           </div>
         </div>
       </div>
