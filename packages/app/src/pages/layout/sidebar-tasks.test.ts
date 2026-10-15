@@ -11,10 +11,14 @@ describe("task filter drives the project badge", () => {
     expect(tasksSource).toContain("const sessions = useProjectTaskList(props)")
   })
 
-  test("sidebar badge counts the filtered list instead of every root session", () => {
-    expect(layoutSource).toContain("const tasks = useProjectTaskList(")
-    expect(layoutSource).toContain('language.t("sidebar.project.count", { count: tasks().length })')
+  // 项目行的计数徽章已按 ZCode 去掉（它的项目行只有图标 + 名称，没有「N 个任务」），
+  // 筛选状态改由列表本身与 TaskFilterBar 表达。这里改为断言「徽章确实不再渲染」，
+  // 并保留「不许用未过滤的 sessions().length 凑数」这条原始意图。
+  test("project rows no longer render a task-count badge", () => {
+    expect(layoutSource).not.toContain('language.t("sidebar.project.count"')
     expect(layoutSource).not.toContain("{ count: sessions().length }")
+    // 项目列表本身仍在（改为直接渲染 <ProjectTaskList>，不再在项目行上算徽章）
+    expect(layoutSource).toContain("<ProjectTaskList")
   })
 
   test("asks for help when a non-default filter matches nothing", () => {

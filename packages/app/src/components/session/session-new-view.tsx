@@ -6,7 +6,7 @@ import { useLayout } from "@/context/layout"
 import { useLocal } from "@/context/local"
 import { PromptInput } from "@/components/prompt-input"
 import { useOfficeAgent } from "@/pages/session/office-agent-context"
-import { Mark } from "@novaway/ui/logo"
+import { greetingMessageId } from "@/utils/greeting"
 
 const ROOT_CLASS = "size-full flex flex-col"
 
@@ -58,36 +58,35 @@ export function NewSessionView(props: NewSessionViewProps) {
     <div class={ROOT_CLASS}>
       <div class="flex-1 flex flex-col items-center justify-center text-center">
         <div class="w-full max-w-xl flex flex-col items-center text-center gap-8 px-6">
-          <div class="flex flex-col items-center gap-5">
-            <div class="relative">
-              <Mark class="w-10 animate-[logo-breathe_4s_ease-in-out_infinite]" />
-              <div class="absolute inset-0 blur-xl bg-gradient-to-br from-[rgba(100,160,230,0.2)] to-[rgba(140,200,210,0.2)] rounded-full -z-10" />
-            </div>
-            <div class="text-20-medium gradient-text-aurora">
-              {isOffice() ? office.activeAction().title : language.t("session.new.title")}
-            </div>
+          {/* 问候语：对齐 ZCode 草稿态空位（`ConversationDraftEmptyState`）——
+              按时段换一句问候、居中、大字；不再用品牌 logo + 呼吸动画 + 渐变文字，
+              那套 Aurora 装饰在 B8 已清掉（这条引用一度成了断链，本次一并修正）。 */}
+          <div class="flex flex-col items-center gap-3">
+            <p class="text-ui-xl font-semibold leading-tight text-foreground">
+              {isOffice()
+                ? office.activeAction().title
+                : language.t(greetingMessageId() as Parameters<typeof language.t>[0])}
+            </p>
             <Show when={isOffice()}>
-              <div class="max-w-md text-13-regular leading-relaxed text-foreground-subtle">
+              <p class="max-w-md text-ui-base leading-relaxed text-foreground-subtle">
                 {office.activeAction().description}
-              </div>
+              </p>
             </Show>
           </div>
-          <div class="w-full flex flex-col gap-3 items-center">
-            <Show when={sync.project}>
-              {(project) => (
-                <div class="flex items-start justify-center gap-3 min-h-5">
-                  <div class="text-11-medium text-foreground-subtle leading-5 min-w-0 max-w-120 break-words text-center">
-                    {language.t("session.new.lastModified")}&nbsp;
-                    <span class="text-foreground">
-                      {DateTime.fromMillis(project().time.updated ?? project().time.created)
-                        .setLocale(language.intl())
-                        .toRelative()}
-                    </span>
-                  </div>
+          <Show when={sync.project}>
+            {(project) => (
+              <div class="flex items-start justify-center gap-3 min-h-5">
+                <div class="text-ui-sm text-foreground-subtle leading-5 min-w-0 max-w-120 break-words text-center">
+                  {language.t("session.new.lastModified")}&nbsp;
+                  <span class="text-foreground-subtle">
+                    {DateTime.fromMillis(project().time.updated ?? project().time.created)
+                      .setLocale(language.intl())
+                      .toRelative()}
+                  </span>
                 </div>
-              )}
-            </Show>
-          </div>
+              </div>
+            )}
+          </Show>
 
           {/* Prompt input for new session */}
           <div class="w-full px-4 pointer-events-auto flex flex-col gap-3">

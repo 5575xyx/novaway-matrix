@@ -238,6 +238,19 @@
   }
 }
 
+/* 面板与页面切换的统一时长。
+ *
+ * 用户显式要求把过渡放慢到 1s（便于看清展开/收起）。
+ * 注意这是一次**有意偏离 ZCode**：ZCode 的面板动效在 200ms 量级，
+ * DESIGN.md 也写「Keep transitions fast and low-drama ... Avoid long, springy, or playful
+ * animations in the main workspace」。想恢复跟手感只改这一个值。
+ */
+:root {
+  --transition-panel-ms: 1000ms;
+  /* 面板动效缓动：与 ZCode 的 ease-out 同类，先快后慢 */
+  --transition-panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 /* Side Pane 的进入动效。
  *
  * 只做淡入、不做位移：ZCode 的 AnimatedSidePanePanel 过渡的是**面板宽度**，不是 transform，
