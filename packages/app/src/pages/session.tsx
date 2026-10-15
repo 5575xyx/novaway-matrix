@@ -85,6 +85,7 @@ import { same } from "@/utils/same"
 import { formatServerError } from "@/utils/server-errors"
 import { replayAnimation } from "@/utils/mount-transition"
 import { isSessionFresh } from "@/pages/session/fresh-session"
+import { SessionDiffProvider, type SessionDiffStyle } from "@/context/session-diff"
 import { useUsageExceededDialogs } from "./session/usage-exceeded-dialogs"
 
 const emptyUserMessages: UserMessage[] = []
@@ -757,9 +758,23 @@ export default function Page() {
   // 下面这套把它们接起来：内容区淡入 + 输入框从「原来居中的位置」滑到底部。
   let contentStageRef: HTMLDivElement | undefined
   let composerHostRef: HTMLDivElement | undefined
+  // 落位动画的运行态。只用于挂 `data-*`（调试与 e2e 观察），动画本身由 WAAPI 驱动。
   const [composerDropFrom, setComposerDropFrom] = createSignal<number | null>(null)
-  let composerDropTimer: number | undefined
-  // 过渡时长与面板统一。CSS 侧读的是 `--transition-panel-ms`，这里只用于兜底清理标记。
+  // 文件预览里变更对照的排布方式（上下 / 左右）。跟着会话页走，和"审查"标签里的选择独立。
+  const [fileDiffStyle, setFileDiffStyle] = createSignal<SessionDiffStyle>("split")
+  /**
+   * 已经播过落位动画的会话 id。**每个会话只播一次**。
+   *
+   * 这里是 WAAPI 而不是 CSS animation，是被"移了两次"逼出来的：
+   * CSS 动画会在「元素被重新插入 DOM」「祖先 display 变化」「自定义属性被重写」
+   * 等情况下**从头重启**，而触发这些的往往是框架内部的插入/重排 —— 我们无法在
+   * 容器这一层可靠地阻止它，于是同一段落位动效会跑两遍。
+   * WAAPI 的动画对象寿命由我们自己掌握，上述任何一种都不会让它重来，
+   * 再叠一个「每个会话只播一次」的闸门，就彻底不会重复了。
+   */
+  let composerDroppedFor: string | undefined
+  let composerDropAnimation: Animation | undefined
+  // 过渡时长与面板统一。
   const transitionMs = () =>
     typeof window === "undefined"
       ? 1000
@@ -768,36 +783,57 @@ export default function Page() {
   /** 内容区（时间线 / 新建任务空态）重新入场。切会话时重放。 */
   const enterStage = () => replayAnimation(contentStageRef, "session-stage-enter")
 
+  const clearComposerDrop = () => {
+    composerDropAnimation?.cancel()
+    composerDropAnimation = undefined
+    setComposerDropFrom(null)
+  }
+
   /**
-   * 底部输入框从"容器垂直中点"滑到它的最终位置。
+   * 底部输入框从"会话帧的垂直中点"滑到它的最终位置。
    *
-   * 起点不记录具体元素坐标，而是每次按布局现算：新建任务页的输入框本来就居中在
-   * 会话帧里，所以「帧中心 → 输入框中心」正好是它需要走的距离。
-   * 这样做还有个好处：窗口尺寸、状态面板开合都不影响准确性，也不用去猜提交时机
-   * （提交后导航与 `onSubmit` 回调的先后顺序在这里是拿不准的）。
+   * 起点不记录提交那一刻的元素坐标，而是现算：新建任务页的输入框本来就居中在会话帧里，
+   * 所以「帧中心 − 输入框中心」正好是它需要走的距离。这样窗口尺寸、状态面板开合都不影响
+   * 准确性，也不用去猜提交时机（提交后"导航"与 `onSubmit` 回调的先后顺序在这里拿不准）。
    */
-  const dropComposerFromCenter = (attempt = 0) => {
+  const playComposerDrop = (attempt = 0) => {
     const host = composerHostRef
-    if (!host) return
-    const target = host.getBoundingClientRect()
-    // 刚挂载的那几帧拿不到高度（外层还在布局），退几帧再算；超过 4 帧就放弃，
+    const id = params.id
+    if (!host || !id) return
+    if (composerDroppedFor === id) return
+
+    const box = host.getBoundingClientRect()
+    // 刚挂载的那几帧拿不到高度（外层还在布局），退几帧再算；超过 6 帧就放弃，
     // 宁可不动也不要抖一下。
-    if (target.height <= 0) {
-      if (attempt < 4) requestAnimationFrame(() => dropComposerFromCenter(attempt + 1))
+    if (box.height <= 0) {
+      if (attempt < 6) requestAnimationFrame(() => playComposerDrop(attempt + 1))
       return
     }
+
     const frame = host.closest("[data-component='conv-frame']")
     const frameRect = frame?.getBoundingClientRect()
     const from = frameRect
-      ? frameRect.top + frameRect.height / 2 - (target.top + target.height / 2)
-      : -target.height - 120
+      ? frameRect.top + frameRect.height / 2 - (box.top + box.height / 2)
+      : -box.height - 120
+
+    composerDroppedFor = id
     if (Math.abs(from) < 24) return
-    if (composerDropTimer !== undefined) window.clearTimeout(composerDropTimer)
+
+    composerDropAnimation?.cancel()
+    const animation = host.animate(
+      [
+        { transform: `translateY(${from}px)`, opacity: 0.2 },
+        { transform: "translateY(0)", opacity: 1 },
+      ],
+      { duration: transitionMs(), easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+    )
+    composerDropAnimation = animation
     setComposerDropFrom(from)
-    composerDropTimer = window.setTimeout(() => {
-      composerDropTimer = undefined
-      setComposerDropFrom(null)
-    }, transitionMs())
+    void animation.finished
+      .catch(() => undefined)
+      .then(() => {
+        if (composerDropAnimation === animation) clearComposerDrop()
+      })
   }
 
   // 切会话：重放内容区入场，把"骨架屏 → 时间线"的切换裹进同一段淡入里。
@@ -818,19 +854,19 @@ export default function Page() {
       (id) => {
         if (!id) {
           hadSession = false
+          composerDroppedFor = undefined
+          clearComposerDrop()
           return
         }
         if (hadSession) return
         hadSession = true
-        dropComposerFromCenter()
+        playComposerDrop()
       },
       { defer: true },
     ),
   )
 
-  onCleanup(() => {
-    if (composerDropTimer !== undefined) window.clearTimeout(composerDropTimer)
-  })
+  onCleanup(clearComposerDrop)
 
   const scrollGestureWindowMs = 250
 
@@ -1951,6 +1987,14 @@ export default function Page() {
   )
 
   return (
+    // 文件预览要按"这个文件改了什么"来渲染，把当前会话的改动索引挂到上下文里。
+    <SessionDiffProvider
+      value={{
+        diffFor: (path) => reviewDiffs().find((item) => (item.file ?? "") === path),
+        style: fileDiffStyle,
+        setStyle: setFileDiffStyle,
+      }}
+    >
     <Show
       when={showOfficeNewSessionWorkspace(layout.mode.current(), params.id)}
       fallback={
@@ -2078,13 +2122,12 @@ export default function Page() {
                     <div
                       ref={(el) => {
                         composerHostRef = el
+                        // 元素一进 DOM 就尝试落位（此时才有真实高度）。
+                        // `playComposerDrop` 自带"每个会话只播一次"的闸门，重复调用无副作用。
+                        playComposerDrop()
                       }}
                       data-composer-drop={composerDropFrom() !== null ? "run" : undefined}
-                      style={
-                        composerDropFrom() !== null
-                          ? { "--composer-drop-from": `${composerDropFrom()}px` }
-                          : undefined
-                      }
+                      data-composer-drop-from={composerDropFrom() !== null ? Math.round(composerDropFrom()!) : undefined}
                     >
                       <Show
                         when={showOfficeSessionComposer(layout.mode.current(), params.id)}
@@ -2192,5 +2235,7 @@ export default function Page() {
         </Show>
       </div>
     </Show>
+  )
+    </SessionDiffProvider>
   )
 }

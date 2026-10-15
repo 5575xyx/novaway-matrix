@@ -1,5 +1,6 @@
 import { type Session } from "@novaway/sdk/v2/client"
 import { createMemo, createSignal, For, Show, type Accessor } from "solid-js"
+import { createStore, produce } from "solid-js/store"
 import { useNavigate, useParams } from "@solidjs/router"
 import { useGlobalSync } from "@/context/global-sync"
 import { useGlobalSDK } from "@/context/global-sdk"
@@ -8,7 +9,6 @@ import { useLayout, type LocalProject, appModeConfig } from "@/context/layout"
 import { usePermission } from "@/context/permission"
 import { useNotification } from "@/context/notification"
 import { base64Encode } from "@novaway/core/util/encode"
-import { produce } from "solid-js/store"
 import { displaySessionTitle } from "@/utils/session-title"
 import { pathKey } from "@/utils/path-key"
 import { decode64 } from "@/utils/base64"
@@ -56,6 +56,55 @@ export function useProjectTaskList(props: {
     const roots = sortedRootSessionsFrom(stores(), props.sortNow())
     if (filter === "all") return roots
     return roots.filter((session) => sessionStatusOf(globalSync, permission, notification, session) === filter)
+  })
+}
+
+export type TaskCounts = Record<TaskFilter, number>
+
+/**
+ * 侧栏顶部分段（全部 / 运行中 / 待确认 / 已归档）各自的数量。
+ *
+ * 数字按「侧栏里所有已打开项目」聚合 —— 分段是侧栏级的筛选器，不是某个项目私有的。
+ * 归档数量单算：归档会话不在 `globalSync` 的 store 里（那份列表只装非归档），
+ * 而是 `useArchivedSessions` 单独拉的 `session.list({ archived: true })`。
+ *
+ * 状态口径与任务行一致（都走 `sessionStatusOf`），所以分段上的数字和列表里的
+ * 状态点不会互相矛盾。"运行中"把失败也算进去 —— 两者的区别只是状态点颜色，
+ * 而分段过滤本来就只有 running/waiting 两档（见 useProjectTaskList）。
+ */
+export function useTaskCounts(props: {
+  projects: () => LocalProject[]
+  /** `useArchivedSessions` 的产物：directory → 已归档会话列表。 */
+  archived: () => Record<string, Session[] | undefined>
+  sortNow: Accessor<number>
+}): Accessor<TaskCounts> {
+  const globalSync = useGlobalSync()
+  const permission = usePermission()
+  const notification = useNotification()
+
+  return createMemo<TaskCounts>(() => {
+    const counts: TaskCounts = { all: 0, running: 0, waiting: 0, archived: 0 }
+    for (const project of props.projects()) {
+      const dirs: string[] = []
+      const seen = new Set<string>()
+      for (const dir of [project.worktree, ...(project.sandboxes ?? [])]) {
+        const key = pathKey(dir)
+        if (seen.has(key)) continue
+        seen.add(key)
+        dirs.push(dir)
+      }
+      const stores = dirs.map((dir) => globalSync.child(dir)[0])
+      for (const session of sortedRootSessionsFrom(stores, props.sortNow())) {
+        counts.all += 1
+        const status = sessionStatusOf(globalSync, permission, notification, session)
+        if (status === "waiting") counts.waiting += 1
+        else if (status === "running" || status === "failed") counts.running += 1
+      }
+    }
+    for (const list of Object.values(props.archived())) {
+      counts.archived += (list ?? []).filter((session) => !!session.time?.archived).length
+    }
+    return counts
   })
 }
 
@@ -108,47 +157,97 @@ export function ProjectTaskList(props: {
     )
   }
 
+  // 任务行还要能下钻到子会话（子智能体会话）。
+  // 之前只渲染根会话，子会话永远不出现，用户看到的是一排平铺条目、分不出层级。
+  const childrenByParent = createMemo(() => {
+    const map = new Map<string, Session[]>()
+    for (const session of sessions()) {
+      const [store] = globalSync.child(session.directory, { bootstrap: false })
+      for (const item of store.session ?? []) {
+        if (!item.parentID) continue
+        const list = map.get(item.parentID)
+        if (list) {
+          if (!list.some((x) => x.id === item.id)) list.push(item)
+        } else {
+          map.set(item.parentID, [item])
+        }
+      }
+    }
+    return map
+  })
+
+  const [collapsed, setCollapsed] = createStore<Record<string, boolean | undefined>>({})
+
+  const rowFor = (session: Session, level: number) => {
+    const status = () => sessionStatusOf(globalSync, permission, notification, session)
+    const [child] = globalSync.child(session.directory, { bootstrap: false })
+    const kids = () => childrenByParent().get(session.id) ?? []
+    return (
+      <TaskRow
+        title={() => displaySessionTitle(session.title, language.t("workspace.header.untitled"))}
+        status={status}
+        branch={() => child.vcs?.branch}
+        updated={() => session.time?.updated}
+        additions={() => session.summary?.additions ?? 0}
+        deletions={() => session.summary?.deletions ?? 0}
+        waitingBadge={() => status() === "waiting"}
+        level={level}
+        selected={() => {
+          if (!params.id || params.id !== session.id) return false
+          const directory = decode64(params.dir)
+          if (!directory) return false
+          return pathKey(directory) === pathKey(session.directory)
+        }}
+        modeColor={() => appModeConfig(layout.mode.projectMode(session.directory))?.color}
+        onClick={() => navigate(`/${base64Encode(session.directory)}/session/${session.id}`)}
+        sessionID={session.id}
+        directory={session.directory}
+        expander={
+          kids().length > 0
+            ? {
+                expanded: !collapsed[session.id],
+                toggle: () => setCollapsed(session.id, (value) => !value),
+              }
+            : undefined
+        }
+        onRename={(title) => renameSession(session, title)}
+        onArchive={() => void props.archiveSession(session)}
+        // 删除走带确认的对话框（在 TaskRow 里弹），这里只负责把本地列表摘掉；
+        // 删的是当前会话时还要退回会话空态，否则会停在一个不存在的 id 上。
+        onDelete={() => {
+          if (params.id === session.id) navigate(`/${base64Encode(session.directory)}/session`)
+          removeSessionFromStore(session)
+        }}
+      />
+    )
+  }
+
   return (
     <>
       <Show when={props.filter() !== "all" && sessions().length === 0}>
         <div class="px-2 py-1.5 text-ui-caption text-foreground-subtle">{language.t("sidebar.filter.empty")}</div>
       </Show>
       <Show when={sessions().length > 0}>
-        <For each={sessions()}>
-          {(session) => {
-            const status = () => sessionStatusOf(globalSync, permission, notification, session)
-            const [child] = globalSync.child(session.directory, { bootstrap: false })
-            return (
-              <TaskRow
-                title={() => displaySessionTitle(session.title, language.t("workspace.header.untitled"))}
-                status={status}
-                branch={() => child.vcs?.branch}
-                updated={() => session.time?.updated}
-                additions={() => session.summary?.additions ?? 0}
-                deletions={() => session.summary?.deletions ?? 0}
-                waitingBadge={() => status() === "waiting"}
-                selected={() => {
-                  if (!params.id || params.id !== session.id) return false
-                  const directory = decode64(params.dir)
-                  if (!directory) return false
-                  return pathKey(directory) === pathKey(session.directory)
-                }}
-                modeColor={() => appModeConfig(layout.mode.projectMode(session.directory))?.color}
-                onClick={() => navigate(`/${base64Encode(session.directory)}/session/${session.id}`)}
-                sessionID={session.id}
-                directory={session.directory}
-                onRename={(title) => renameSession(session, title)}
-                onArchive={() => void props.archiveSession(session)}
-                // 删除走带确认的对话框（在 TaskRow 里弹），这里只负责把本地列表摘掉；
-                // 删的是当前会话时还要退回会话空态，否则会停在一个不存在的 id 上。
-                onDelete={() => {
-                  if (params.id === session.id) navigate(`/${base64Encode(session.directory)}/session`)
-                  removeSessionFromStore(session)
-                }}
-              />
-            )
-          }}
-        </For>
+        {/* 树形层级：子会话缩进一级，并用一条竖向导引线把它们和父会话绑在一起
+            （只靠缩进在深色/浅色下都不够清楚）。 */}
+        <div class="flex flex-col gap-0.5" data-component="task-tree">
+          <For each={sessions()}>
+            {(session) => (
+              <>
+                {rowFor(session, 0)}
+                <Show when={!collapsed[session.id] && (childrenByParent().get(session.id) ?? []).length > 0}>
+                  <div class="relative flex flex-col gap-0.5">
+                    <span
+                      aria-hidden="true"
+                      class="pointer-events-none absolute top-0 bottom-1 left-[13px] w-px bg-border"
+                    />
+                    <For each={childrenByParent().get(session.id) ?? []}>{(child) => rowFor(child, 1)}</For>
+                  </div>
+                </Show>
+              </>
+            )}
+          </For>
+        </div>
       </Show>
     </>
   )
@@ -159,6 +258,8 @@ export function TaskFilterBar(props: {
   onChange: (id: TaskFilterBarId) => void
   variant?: "text" | "underline"
   tabs?: Array<{ id: TaskFilterBarId; labelKey: string }>
+  /** 每段后面的数量（对齐 ZCode 的任务计数：分组头与筛选器都显示条数）。 */
+  counts?: Accessor<TaskCounts>
 }) {
   const language = useLanguage()
   const variant = props.variant ?? "text"
@@ -169,6 +270,10 @@ export function TaskFilterBar(props: {
     { id: "archived", labelKey: "sidebar.filter.archived" },
   ]
   const tabs = props.tabs ?? defaults
+  const countOf = (id: TaskFilterBarId) => {
+    if (id === "projects") return 0
+    return props.counts?.()[id] ?? 0
+  }
 
   return (
     <div
@@ -196,6 +301,18 @@ export function TaskFilterBar(props: {
             onClick={() => props.onChange(tab.id)}
           >
             {language.t(tab.labelKey)}
+            {/* 数量：0 不显示，免得一排 "全部 0 运行中 0" 变成噪音。 */}
+            <Show when={countOf(tab.id) > 0}>
+              <span
+                classList={{
+                  "ml-1 tabular-nums": true,
+                  "text-foreground": variant === "text" && props.filter === tab.id,
+                  "text-foreground-subtlest": !(variant === "text" && props.filter === tab.id),
+                }}
+              >
+                {countOf(tab.id)}
+              </span>
+            </Show>
           </button>
         )}
       </For>

@@ -461,13 +461,22 @@ test("新建任务 → 提交：内容区淡入 + 输入框滑到底部 + 任务
 
   const dropping = page.locator('[data-composer-drop="run"]').first()
   await expect(dropping).toHaveCount(1, { timeout: 5_000 })
+  // 落位由 WAAPI 驱动（见 session.tsx 的 playComposerDrop）：
+  // 同一段动效曾经因为 CSS 动画被框架重排重启而跑两遍，所以改成动画对象由自己掌握 +
+  // "每个会话只播一次"的闸门。这里断言：有且仅有 1 个动画，且起点在输入框上方。
   const anim = await dropping.evaluate((el) => {
-    const cs = getComputedStyle(el)
-    return { name: cs.animationName, from: el.style.getPropertyValue("--composer-drop-from") }
+    const list = el.getAnimations()
+    const first = list[0]
+    const frames = first ? (first.effect as KeyframeEffect).getKeyframes() : []
+    return {
+      count: list.length,
+      from: el.getAttribute("data-composer-drop-from"),
+      firstTransform: frames.length > 0 ? String((frames[0] as Keyframe).transform ?? "") : "",
+    }
   })
-  expect(anim.name).toBe("composer-drop-in")
-  // 起点必须在输入框上方（负位移），否则"滑下来"的方向是反的
-  expect(parseFloat(anim.from)).toBeLessThan(0)
+  expect(anim.count, "落位动画只能有一个").toBe(1)
+  expect(parseFloat(anim.from ?? "0"), "起点必须在输入框上方（负位移）").toBeLessThan(0)
+  expect(anim.firstTransform).toContain("translateY(-")
 
   // —— 任务行 3 点菜单 ——
   // e2e 是干净环境，没有登记任何项目（侧栏显示 "No projects open"），

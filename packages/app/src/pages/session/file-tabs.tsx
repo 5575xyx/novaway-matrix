@@ -4,6 +4,8 @@ import { Dynamic } from "solid-js/web"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import type { FileSearchHandle } from "@novaway/ui/file"
 import { useFileComponent } from "@novaway/ui/context/file"
+import { normalize as normalizeDiff } from "@novaway/ui/session-diff"
+import { useSessionDiff } from "@/context/session-diff"
 import { cloneSelectedLineRange, previewSelectedLines } from "@novaway/ui/pierre/selection-bridge"
 import { createLineCommentController } from "@novaway/ui/line-comment-annotations"
 import { sampledChecksum } from "@novaway/core/util/encode"
@@ -194,6 +196,23 @@ export function FileTabContent(props: { tab: string }) {
   }
 
   const path = createMemo(() => file.pathFromTab(props.tab))
+  // 该文件在当前会话里有没有改动。有的话预览直接走「变更前后对照」，
+  // 而不是把改动后的内容当普通文本铺开 —— 用户点的是"变更里的文件"。
+  const sessionDiff = useSessionDiff()
+  const diff = createMemo(() => {
+    const p = path()
+    if (!p) return
+    const raw = sessionDiff.diffFor(p)
+    if (!raw) return
+    try {
+      // normalize 的入参要求 file 一定是字符串（SnapshotFileDiff 的 file 可选），
+      // 这里已经按 path 匹配到它了，补上即可。
+      return normalizeDiff({ ...raw, file: raw.file ?? p })
+    } catch {
+      // 解析补丁失败就退回普通文本预览，不要因为一个坏 patch 把整页打空
+      return undefined
+    }
+  })
   const state = createMemo(() => {
     const p = path()
     if (!p) return
@@ -538,6 +557,39 @@ export function FileTabContent(props: { tab: string }) {
     scrollSync.queueRestore()
   })
 
+  // 变更对照：`before`/`after` 由 normalize 从补丁还原出来，红色 − / 绿色 + 由
+  // Pierre 的 diff 渲染器给出；`diffStyle` 决定上下对照（unified）还是左右对照（split）。
+  const renderDiff = (view: ReturnType<typeof normalizeDiff>) => (
+    <div class="relative overflow-hidden pb-40">
+      <Dynamic
+        component={fileComponent}
+        mode="diff"
+        fileDiff={view.fileDiff}
+        diffStyle={sessionDiff.style()}
+        enableLineSelection
+        enableHoverUtility
+        selectedLines={activeSelection()}
+        commentedLines={commentedLines()}
+        onRendered={() => {
+          scrollSync.queueRestore()
+        }}
+        annotations={commentsUi.annotations()}
+        renderAnnotation={commentsUi.renderAnnotation}
+        renderHoverUtility={commentsUi.renderHoverUtility}
+        onLineSelected={(range: SelectedLineRange | null) => {
+          commentsUi.onLineSelected(range)
+        }}
+        onLineNumberSelectionEnd={commentsUi.onLineNumberSelectionEnd}
+        onLineSelectionEnd={(range: SelectedLineRange | null) => {
+          commentsUi.onLineSelectionEnd(range)
+        }}
+        search={search}
+        class="select-text"
+        media={{ mode: "auto", path: path() }}
+      />
+    </div>
+  )
+
   const renderFile = (source: string) => (
     <div class="relative overflow-hidden pb-40">
       <Dynamic
@@ -595,6 +647,18 @@ export function FileTabContent(props: { tab: string }) {
         <div class="flex h-full flex-col">
           <div class="flex items-center justify-between gap-3 px-4 pt-3 pb-2">
             <span class="min-w-0 truncate text-12-regular text-foreground-subtle">{path()}</span>
+            <Show when={diff()}>
+              <button
+                type="button"
+                class="shrink-0 rounded border border-border px-1.5 py-0.5 text-ui-xs text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+                aria-label={language.t("session.review.diffStyle.toggle")}
+                onClick={() => sessionDiff.setStyle(sessionDiff.style() === "split" ? "unified" : "split")}
+              >
+                {sessionDiff.style() === "split"
+                  ? language.t("session.review.diffStyle.split")
+                  : language.t("session.review.diffStyle.unified")}
+              </button>
+            </Show>
             <span
               class="shrink-0 text-12-regular"
               classList={{
@@ -615,6 +679,9 @@ export function FileTabContent(props: { tab: string }) {
           <div class="flex min-h-0 flex-1">
             <div class="min-w-0 flex-1">
               <Switch>
+                {/* 有改动的文件优先显示变更对照（对齐其他 AI 工具：点改动 = 看"变了什么"）。
+                    头部的小开关可切上下（unified）/左右（split）两种对照方式。 */}
+                <Match when={diff()}>{(view) => renderDiff(view())}</Match>
                 <Match when={state()?.loaded && state()?.content?.type !== "binary"}>
                   <div class="flex h-full min-h-0">
                     <div

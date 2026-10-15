@@ -119,26 +119,15 @@
   animation: session-stage-in 240ms var(--transition-panel-ease);
 }
 
-/* 新建任务 → 会话：底部输入框从原来"居中"的位置滑下来。
+/* 新建任务 → 会话的输入框落位动画不在这里。
  *
- * `--composer-drop-from` 由 session.tsx 现算（会话帧中心与输入框中心的差，负值），
- * 所以窗口尺寸、状态面板开合都不影响它落在正确的位置。
- * 用 animation 而不是 transition：这个容器是刚插入的节点，animation 一定会从头播。
+ * 曾经用 `[data-composer-drop="run"] { animation: composer-drop-in ... }` 实现，
+ * 结果同一段动效会跑两遍（CSS 动画在元素被重新插入 DOM / 祖先 display 变化 /
+ * 自定义属性重写时会从头重启，而这些都由框架内部的插入重排触发，容器层拦不住）。
+ * 现在改由 WAAPI 在 pages/session.tsx 的 `playComposerDrop` 里驱动，
+ * 动画对象寿命由我们自己掌握，并加了"每个会话只播一次"的闸门。
+ * `[data-composer-drop]` 只作为状态标记保留（调试 / e2e 观察用），不再承载样式。
  */
-@keyframes composer-drop-in {
-  from {
-    transform: translateY(var(--composer-drop-from, -240px));
-    opacity: 0.2;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-[data-composer-drop="run"] {
-  animation: composer-drop-in var(--transition-panel-ms, 1000ms) var(--transition-panel-ease);
-}
 
 @font-face {
   font-family: "JetBrainsMono Nerd Font Mono";
