@@ -1,11 +1,8 @@
 import type { Session } from "@novaway/sdk/v2/client"
-import { Button } from "@novaway/ui/button"
-import { Dialog } from "@novaway/ui/dialog"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { DropdownMenu } from "@novaway/ui/dropdown-menu"
 import { IconButton } from "@novaway/ui/icon-button"
 import { A, useNavigate, useParams } from "@solidjs/router"
-import { base64Encode } from "@novaway/core/util/encode"
 import { type Accessor, createMemo, createSignal, type JSX, Match, Show, Switch } from "solid-js"
 import { produce } from "solid-js/store"
 import { useGlobalSync } from "@/context/global-sync"
@@ -18,6 +15,7 @@ import { messageAgentColor } from "@/utils/agent"
 import { displaySessionTitle } from "@/utils/session-title"
 import { sessionPermissionRequest } from "../session/composer/session-request-tree"
 import { childSessionOnPath } from "./helpers"
+import { DialogDeleteSession } from "./dialog-delete-session"
 
 const NovaWay_PROJECT_ID = "4b0ea68d7af9a6031a7ffda7ad66e0cb83315750"
 
@@ -310,86 +308,3 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
     </>
   )
 }
-
-function DialogDeleteSession(props: { sessionID: string; title: string; directory: string }) {
-  const language = useLanguage()
-  const globalSDK = useGlobalSDK()
-  const globalSync = useGlobalSync()
-  const dialog = useDialog()
-  const navigate = useNavigate()
-  const params = useParams()
-  const [sessionStore, setSessionStore] = globalSync.child(props.directory)
-  const removeFromStore = () => {
-    const removed = new Set<string>([props.sessionID])
-    const byParent = new Map<string, string[]>()
-    const sessions = sessionStore.session ?? []
-    for (const item of sessions) {
-      const parentID = item.parentID
-      if (!parentID) continue
-      const existing = byParent.get(parentID)
-      if (existing) {
-        existing.push(item.id)
-        continue
-      }
-      byParent.set(parentID, [item.id])
-    }
-    const stack = [props.sessionID]
-    while (stack.length) {
-      const parentID = stack.pop()
-      if (!parentID) continue
-      const children = byParent.get(parentID)
-      if (!children) continue
-      for (const child of children) {
-        if (removed.has(child)) continue
-        removed.add(child)
-        stack.push(child)
-      }
-    }
-    setSessionStore(
-      "session",
-      produce((draft) => {
-        for (let i = draft.length - 1; i >= 0; i--) {
-          if (removed.has(draft[i].id)) {
-            draft.splice(i, 1)
-          }
-        }
-      }),
-    )
-  }
-
-  const handleDelete = async () => {
-    const isCurrentSession = params.id === props.sessionID
-    try {
-      await globalSDK.client.session.delete({ sessionID: props.sessionID })
-    } catch {
-      // ignore — session may already be deleted server-side
-    }
-    removeFromStore()
-    dialog.close()
-    if (isCurrentSession) {
-      const slug = base64Encode(props.directory)
-      navigate(`/${slug}/session`)
-    }
-  }
-
-  return (
-    <Dialog title={language.t("session.delete.title")} fit>
-      <div class="flex flex-col gap-4 pl-6 pr-2.5 pb-3">
-        <div class="flex flex-col gap-1">
-          <span class="text-14-regular text-foreground">
-            {language.t("session.delete.confirm", { name: props.title })}
-          </span>
-        </div>
-        <div class="flex justify-end gap-2">
-          <Button variant="ghost" size="large" onClick={() => dialog.close()}>
-            {language.t("common.cancel")}
-          </Button>
-          <Button variant="primary" size="large" onClick={() => void handleDelete()}>
-            {language.t("session.delete.button")}
-          </Button>
-        </div>
-      </div>
-    </Dialog>
-  )
-}
-

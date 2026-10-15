@@ -83,6 +83,7 @@ import { Persist, persisted } from "@/utils/persist"
 import { extractPromptFromParts } from "@/utils/prompt"
 import { same } from "@/utils/same"
 import { formatServerError } from "@/utils/server-errors"
+import { replayAnimation } from "@/utils/mount-transition"
 import { useUsageExceededDialogs } from "./session/usage-exceeded-dialogs"
 
 const emptyUserMessages: UserMessage[] = []
@@ -746,6 +747,87 @@ export default function Page() {
   let revealMessage = (_id: string) => {}
   let scrollMark = 0
   let messageMark = 0
+
+  // —— 新建任务 / 切换会话的过渡 ——
+  // 这两处原来都是硬切：切会话时骨架屏顶掉时间线再被换回来（看着"闪两下"），
+  // 新建任务时居中的输入框直接消失、底部输入框下一帧就位。
+  // 下面这套把它们接起来：内容区淡入 + 输入框从「原来居中的位置」滑到底部。
+  let contentStageRef: HTMLDivElement | undefined
+  let composerHostRef: HTMLDivElement | undefined
+  const [composerDropFrom, setComposerDropFrom] = createSignal<number | null>(null)
+  let composerDropTimer: number | undefined
+  // 过渡时长与面板统一。CSS 侧读的是 `--transition-panel-ms`，这里只用于兜底清理标记。
+  const transitionMs = () =>
+    typeof window === "undefined"
+      ? 1000
+      : Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--transition-panel-ms")) || 1000
+
+  /** 内容区（时间线 / 新建任务空态）重新入场。切会话时重放。 */
+  const enterStage = () => replayAnimation(contentStageRef, "session-stage-enter")
+
+  /**
+   * 底部输入框从"容器垂直中点"滑到它的最终位置。
+   *
+   * 起点不记录具体元素坐标，而是每次按布局现算：新建任务页的输入框本来就居中在
+   * 会话帧里，所以「帧中心 → 输入框中心」正好是它需要走的距离。
+   * 这样做还有个好处：窗口尺寸、状态面板开合都不影响准确性，也不用去猜提交时机
+   * （提交后导航与 `onSubmit` 回调的先后顺序在这里是拿不准的）。
+   */
+  const dropComposerFromCenter = (attempt = 0) => {
+    const host = composerHostRef
+    if (!host) return
+    const target = host.getBoundingClientRect()
+    // 刚挂载的那几帧拿不到高度（外层还在布局），退几帧再算；超过 4 帧就放弃，
+    // 宁可不动也不要抖一下。
+    if (target.height <= 0) {
+      if (attempt < 4) requestAnimationFrame(() => dropComposerFromCenter(attempt + 1))
+      return
+    }
+    const frame = host.closest("[data-component='conv-frame']")
+    const frameRect = frame?.getBoundingClientRect()
+    const from = frameRect
+      ? frameRect.top + frameRect.height / 2 - (target.top + target.height / 2)
+      : -target.height - 120
+    if (Math.abs(from) < 24) return
+    if (composerDropTimer !== undefined) window.clearTimeout(composerDropTimer)
+    setComposerDropFrom(from)
+    composerDropTimer = window.setTimeout(() => {
+      composerDropTimer = undefined
+      setComposerDropFrom(null)
+    }, transitionMs())
+  }
+
+  // 切会话：重放内容区入场，把"骨架屏 → 时间线"的切换裹进同一段淡入里。
+  createEffect(
+    on(
+      sessionKey,
+      () => enterStage(),
+      { defer: true },
+    ),
+  )
+
+  // 新建任务：从空态直接进会话时，让底部输入框滑下来。已有的会话之间切换不做这个动作
+  // （那时输入框本来就在底部，再滑一次是噪音）。
+  let hadSession = !!params.id
+  createEffect(
+    on(
+      () => params.id,
+      (id) => {
+        if (!id) {
+          hadSession = false
+          return
+        }
+        if (hadSession) return
+        hadSession = true
+        dropComposerFromCenter()
+      },
+      { defer: true },
+    ),
+  )
+
+  onCleanup(() => {
+    if (composerDropTimer !== undefined) window.clearTimeout(composerDropTimer)
+  })
 
   const scrollGestureWindowMs = 250
 
@@ -1907,7 +1989,13 @@ export default function Page() {
                   class="flex-1 min-w-0 min-h-0 flex flex-col"
                   classList={{ "@min-[768px]:pr-[344px]": statusPanelReserved() }}
                 >
-                  <div class="flex-1 min-h-0 overflow-hidden">
+                  <div
+                    ref={(el) => {
+                      contentStageRef = el
+                    }}
+                    class="flex-1 min-h-0 overflow-hidden"
+                  >
+                    <div class="h-full">
                     {/* Mobile changes view */}
                     <Show when={params.id && mobileChanges()}>
                       <div class="relative h-full overflow-hidden">
@@ -1980,10 +2068,21 @@ export default function Page() {
                         />
                       </div>
                     </Show>
+                    </div>
                   </div>
 
                   <Show when={params.id}>
-                    <div>
+                    <div
+                      ref={(el) => {
+                        composerHostRef = el
+                      }}
+                      data-composer-drop={composerDropFrom() !== null ? "run" : undefined}
+                      style={
+                        composerDropFrom() !== null
+                          ? { "--composer-drop-from": `${composerDropFrom()}px` }
+                          : undefined
+                      }
+                    >
                       <Show
                         when={showOfficeSessionComposer(layout.mode.current(), params.id)}
                         fallback={composerRegion({

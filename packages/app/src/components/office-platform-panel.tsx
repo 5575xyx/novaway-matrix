@@ -1062,8 +1062,9 @@ export function OfficePlatformPanel() {
             "border-emerald-300/45 bg-emerald-300/10 text-emerald-100": activeTab() === "workflows",
             "border-border bg-popover text-foreground-subtle": activeTab() !== "workflows",
           }}
-          onMouseEnter={() => setActiveTab("workflows")}
-          onClick={() => setActiveTab("workflows")}
+          // 点开/再点关。原先靠 mouseenter 打开，鼠标停在导航上就会永久盖住下方内容，
+          // 把模板卡片之类的入口压成点不到（"不受控制的遮挡区"）。
+          onClick={() => setActiveTab((prev) => (prev === "workflows" ? undefined : "workflows"))}
         >
           <Icon name="branch" size="small" />
           工作流
@@ -1075,8 +1076,9 @@ export function OfficePlatformPanel() {
             "border-emerald-300/45 bg-emerald-300/10 text-emerald-100": activeTab() === "schedules",
             "border-border bg-popover text-foreground-subtle": activeTab() !== "schedules",
           }}
-          onMouseEnter={() => setActiveTab("schedules")}
-          onClick={() => setActiveTab("schedules")}
+          // 点开/再点关。原先靠 mouseenter 打开，鼠标停在导航上就会永久盖住下方内容，
+          // 把模板卡片之类的入口压成点不到（"不受控制的遮挡区"）。
+          onClick={() => setActiveTab((prev) => (prev === "schedules" ? undefined : "schedules"))}
         >
           <Icon name="refresh" size="small" />
           定时任务
@@ -1088,8 +1090,9 @@ export function OfficePlatformPanel() {
             "border-emerald-300/45 bg-emerald-300/10 text-emerald-100": activeTab() === "connectors",
             "border-border bg-popover text-foreground-subtle": activeTab() !== "connectors",
           }}
-          onMouseEnter={() => setActiveTab("connectors")}
-          onClick={() => setActiveTab("connectors")}
+          // 点开/再点关。原先靠 mouseenter 打开，鼠标停在导航上就会永久盖住下方内容，
+          // 把模板卡片之类的入口压成点不到（"不受控制的遮挡区"）。
+          onClick={() => setActiveTab((prev) => (prev === "connectors" ? undefined : "connectors"))}
         >
           <Icon name="link" size="small" />
           连接器
@@ -1101,8 +1104,9 @@ export function OfficePlatformPanel() {
             "border-emerald-300/45 bg-emerald-300/10 text-emerald-100": activeTab() === "history",
             "border-border bg-popover text-foreground-subtle": activeTab() !== "history",
           }}
-          onMouseEnter={() => setActiveTab("history")}
-          onClick={() => setActiveTab("history")}
+          // 点开/再点关。原先靠 mouseenter 打开，鼠标停在导航上就会永久盖住下方内容，
+          // 把模板卡片之类的入口压成点不到（"不受控制的遮挡区"）。
+          onClick={() => setActiveTab((prev) => (prev === "history" ? undefined : "history"))}
         >
           <Icon name="task" size="small" />
           运行历史

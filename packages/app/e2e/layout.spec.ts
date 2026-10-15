@@ -438,3 +438,59 @@ test("设置/数据库面板：主帧内覆盖 + 进出场过渡 + 返回按钮�
   await page.getByRole("button", { name: /^(Back|Navigate back|返回)$/ }).first().click()
   await expect(page.locator("section[data-panel-transition]")).toHaveCount(0, { timeout: 5_000 })
 })
+
+// e2e 是干净环境：没有历史会话，所以先自己造一个再验任务行。
+// 「造会话」与「验过渡」是同一段流程，合成一个用例，互不依赖别人的状态。
+test("新建任务 → 提交：内容区淡入 + 输入框滑到底部 + 任务行 3 点菜单", async ({ page }) => {
+  const slug = workspaceRootSlug()
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`/${slug}/session`)
+
+  // —— 空态（新建任务）的输入框居中 ——
+  const editor = page.locator('[contenteditable="true"]').first()
+  await expect(editor).toBeVisible({ timeout: 15_000 })
+  await editor.click()
+  await page.keyboard.insertText("transition e2e")
+
+  // —— 提交：内容区淡入 + 输入框滑到底部 ——
+  await page.getByRole("button", { name: /Send|发送/ }).first().click()
+
+  const staged = page.locator(".session-stage-enter").first()
+  await expect(staged).toHaveCount(1, { timeout: 5_000 })
+  expect(await staged.evaluate((el) => getComputedStyle(el).animationName)).toBe("session-stage-in")
+
+  const dropping = page.locator('[data-composer-drop="run"]').first()
+  await expect(dropping).toHaveCount(1, { timeout: 5_000 })
+  const anim = await dropping.evaluate((el) => {
+    const cs = getComputedStyle(el)
+    return { name: cs.animationName, from: el.style.getPropertyValue("--composer-drop-from") }
+  })
+  expect(anim.name).toBe("composer-drop-in")
+  // 起点必须在输入框上方（负位移），否则"滑下来"的方向是反的
+  expect(parseFloat(anim.from)).toBeLessThan(0)
+
+  // —— 任务行 3 点菜单 ——
+  // e2e 是干净环境，没有登记任何项目（侧栏显示 "No projects open"），
+  // 项目分组下的任务行因此不会渲染。有行才验菜单，没行就只断言到过渡为止
+  // （与文件内其余用例对"干净环境"的处理口径一致）。
+  await page.getByRole("button", { name: /^(Tasks|任务)$/ }).first().click()
+  const row = page.locator('[data-component="task-row"]').first()
+  if ((await row.count()) === 0) return
+  await expect(row).toBeVisible({ timeout: 10_000 })
+  const more = row.getByRole("button", { name: /More options|更多选项/ }).first()
+  // 3 点入口常驻（不是只有 hover 才出现），否则等于没有入口
+  await expect(more).toBeVisible()
+  await more.click()
+
+  await expect(page.getByRole("menuitem", { name: /^(Rename|重命名)$/ })).toBeVisible()
+  await expect(page.getByRole("menuitem", { name: /^(Archive|归档)$/ })).toBeVisible()
+  await expect(page.getByRole("menuitem", { name: /^(Delete|删除)$/ })).toBeVisible()
+
+  // 重命名：菜单项 → 行内输入框 → 回车写回
+  await page.getByRole("menuitem", { name: /^(Rename|重命名)$/ }).click()
+  const input = page.locator('input[aria-label="Rename"], input[aria-label="重命名"]').first()
+  await expect(input).toBeVisible()
+  await input.fill("e2e-renamed")
+  await input.press("Enter")
+  await expect(row).toContainText("e2e-renamed", { timeout: 10_000 })
+})

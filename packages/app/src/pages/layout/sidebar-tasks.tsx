@@ -8,6 +8,7 @@ import { useLayout, type LocalProject, appModeConfig } from "@/context/layout"
 import { usePermission } from "@/context/permission"
 import { useNotification } from "@/context/notification"
 import { base64Encode } from "@novaway/core/util/encode"
+import { produce } from "solid-js/store"
 import { displaySessionTitle } from "@/utils/session-title"
 import { pathKey } from "@/utils/path-key"
 import { decode64 } from "@/utils/base64"
@@ -68,6 +69,7 @@ export function ProjectTaskList(props: {
   sortNow: Accessor<number>
 }) {
   const globalSync = useGlobalSync()
+  const globalSDK = useGlobalSDK()
   const permission = usePermission()
   const notification = useNotification()
   const language = useLanguage()
@@ -76,6 +78,35 @@ export function ProjectTaskList(props: {
   const navigate = useNavigate()
 
   const sessions = useProjectTaskList(props)
+
+  // 任务行的三项操作（重命名 / 归档 / 删除）都写回 globalSync 的会话列表。
+  // 直接用会话自己的 directory：任务行可能来自 worktree 的 sandbox，不是项目根。
+  const renameSession = async (session: Session, title: string) => {
+    await globalSDK.client.session.update({ sessionID: session.id, title, directory: session.directory })
+    const [, setSessionStore] = globalSync.child(session.directory)
+    setSessionStore(
+      "session",
+      produce((draft) => {
+        for (const item of draft) {
+          if (item.id === session.id) {
+            item.title = title
+            break
+          }
+        }
+      }),
+    )
+  }
+
+  const removeSessionFromStore = (session: Session) => {
+    const [, setSessionStore] = globalSync.child(session.directory)
+    setSessionStore(
+      "session",
+      produce((draft) => {
+        const index = draft.findIndex((item) => item.id === session.id)
+        if (index >= 0) draft.splice(index, 1)
+      }),
+    )
+  }
 
   return (
     <>
@@ -104,6 +135,16 @@ export function ProjectTaskList(props: {
                 }}
                 modeColor={() => appModeConfig(layout.mode.projectMode(session.directory))?.color}
                 onClick={() => navigate(`/${base64Encode(session.directory)}/session/${session.id}`)}
+                sessionID={session.id}
+                directory={session.directory}
+                onRename={(title) => renameSession(session, title)}
+                onArchive={() => void props.archiveSession(session)}
+                // 删除走带确认的对话框（在 TaskRow 里弹），这里只负责把本地列表摘掉；
+                // 删的是当前会话时还要退回会话空态，否则会停在一个不存在的 id 上。
+                onDelete={() => {
+                  if (params.id === session.id) navigate(`/${base64Encode(session.directory)}/session`)
+                  removeSessionFromStore(session)
+                }}
               />
             )
           }}

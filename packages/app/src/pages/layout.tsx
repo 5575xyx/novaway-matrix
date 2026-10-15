@@ -2157,6 +2157,9 @@ export default function Layout(props: ParentProps) {
         }}
         style={{
           width: panelProps.mobile ? undefined : `${panel()}px`,
+          // 模式色统一挂在这一层：品牌字标（`Way` 上色）与顶部模式按钮都读它，
+          // 不用各自再找一次当前模式。
+          "--mode-accent": layout.mode.all.find((m) => m.id === layout.mode.current())?.color ?? "var(--border-hover)",
         }}
       >
         {/* 顶带：窗口拖拽区。桌面端没有全局标题栏之后，这里是窗口左上角的拖动把手；
@@ -2168,13 +2171,16 @@ export default function Layout(props: ParentProps) {
         >
           <button
             type="button"
-            class="flex size-8 shrink-0 items-center justify-center rounded-md text-foreground-subtle transition-colors hover:bg-hover"
+            class="flex h-8 min-w-0 shrink items-center gap-2 rounded-md px-1.5 text-foreground-subtle transition-colors hover:bg-hover"
             onClick={() => navigate("/")}
             aria-label={language.t("command.home.open")}
             title={language.t("command.home.open")}
             aria-current={!layout.mode.hasSelected() ? "page" : undefined}
           >
-            <Mark class="size-5 shrink-0" />
+            <Mark class="size-5 shrink-0 text-foreground" />
+            {/* 品牌字标：`Nova` 用前景色、`Way` 用当前模式色。
+                比纯文本多一档识别度（用户要求"特殊格式"），同时顺带当作模式指示。 */}
+            <span class="brand-wordmark text-ui-base truncate">Nova<span class="text-[var(--mode-accent)]">Way</span></span>
           </button>
           <div class="flex-1" />
           <Show
@@ -2203,6 +2209,9 @@ export default function Layout(props: ParentProps) {
         {/* 动作区：整宽「新建任务」+ 整宽「命令中心」。对齐 ZCode 侧栏顶部的两个整宽入口，
             取代原来那行把图标挤在一起的 icon-only 工具条。 */}
         <div class="flex shrink-0 flex-col gap-1 px-2 pb-2">
+          {/* 模式切换从 footer 提到顶部：它是全局作用域最重的选择（决定整个工作台的能力面），
+              沉在底部会被当成和「主题 / 设置」同级的小设置。这里用大字号 + 模式色底板呈现。 */}
+          <ModeSwitchButton prominent onSelect={(mode) => layout.mode.select(mode.id)} />
           <Button
             variant="primary"
             size="large"
@@ -2262,6 +2271,8 @@ export default function Layout(props: ParentProps) {
                 {language.t("sidebar.view.files")}
               </button>
             </div>
+            {/* 「打开项目」保留；收起入口不在这里重复一份 —— 侧栏顶带已经有了，
+                同屏两个「折叠工作区」是重复入口（用户反馈的正是这个）。 */}
             <div class="ml-auto flex shrink-0 items-center gap-0.5">
               <Tooltip value={language.t("command.project.open")} placement="bottom">
                 <IconButton
@@ -2270,15 +2281,6 @@ export default function Layout(props: ParentProps) {
                   size="small"
                   aria-label={language.t("command.project.open")}
                   onClick={() => chooseProject()}
-                />
-              </Tooltip>
-              <Tooltip value={language.t("sidebar.workspaceSidebar.collapse")} placement="bottom">
-                <IconButton
-                  icon="chevron-left"
-                  variant="ghost"
-                  size="small"
-                  aria-label={language.t("sidebar.workspaceSidebar.collapse")}
-                  onClick={() => layout.sidebar.setExpanded(false)}
                 />
               </Tooltip>
             </div>
@@ -2422,9 +2424,9 @@ export default function Layout(props: ParentProps) {
               </div>
             </div>
 
-            {/* 侧栏 footer：原来挤在顶部那圈竖排菜单里的入口，按 ZCode 的组织方式沉到底部。 */}
+            {/* 侧栏 footer：原来挤在顶部那圈竖排菜单里的入口，按 ZCode 的组织方式沉到底部。
+                模式切换已提到顶部（它是全局能力面，不是小设置），这里只剩主题 / 数据库 / 设置。 */}
             <div class="shrink-0 border-t border-border p-2 flex flex-col gap-0.5">
-              <ModeSwitchButton fullWidth onSelect={(mode) => layout.mode.select(mode.id)} />
               <ThemeSchemeToggle />
               <Show when={settings.general.showDatabase()}>
                 <SidebarMenuRow
