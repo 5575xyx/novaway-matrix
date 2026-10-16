@@ -71,7 +71,11 @@
   }
 
   .error-card {
-    color: var(--destructive-foreground);
+    /* 用 `--destructive`（红色本身）而不是 `--destructive-foreground`。
+       后者是 `#ffffff`，语义是「压在红色底上的文字」（红按钮上的白字）；
+       卡片底色是 `--surface` 浅灰，白字上去就是一片看不清的白。
+       ZCode 里错误文字也用 text-destructive 而非 destructive-foreground。 */
+    color: var(--destructive);
     max-height: 240px;
     white-space: pre-wrap;
     overflow-wrap: anywhere;

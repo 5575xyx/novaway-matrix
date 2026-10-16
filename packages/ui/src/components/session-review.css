@@ -1,4 +1,6 @@
 [data-component="session-review"] {
+  /* 容器查询的锚点：审查面板宽度由 Side Pane 决定，跟视口宽度没关系。 */
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: 0px;
@@ -29,6 +31,9 @@
     justify-content: space-between;
     align-items: center;
     align-self: stretch;
+    /* 窄面板下标题先让位，两个控件（对照方式 / 展开收起）不许被挤变形。 */
+    gap: 8px;
+    min-width: 0;
   }
 
   [data-slot="session-review-title"] {
@@ -37,12 +42,20 @@
     font-weight: var(--font-weight-medium);
     line-height: var(--line-height-large);
     color: var(--foreground);
+    /* 标题可截断：审查侧栏在窄视口下只有 300 多像素，
+       不截断的话它会把右边两个控件压成挤在一起的一行。 */
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   [data-slot="session-review-actions"] {
     display: flex;
     align-items: center;
     column-gap: 12px;
+    /* 控件是固定尺寸的，不参与收缩（收缩会压扁图标和文字）。 */
+    flex-shrink: 0;
   }
 
   [data-slot="session-review-actions"] [data-component="radio-group"] {
@@ -233,5 +246,12 @@
     display: flex;
     gap: 8px;
     margin-top: 10px;
+  }
+}
+
+/* 极窄（<380px）时「展开全部 / 收起全部」只留图标，把空间让给"对照方式"那一组。 */
+@container (max-width: 380px) {
+  [data-slot="session-review-actions"] [data-slot="session-review-expand-all-label"] {
+    display: none;
   }
 }

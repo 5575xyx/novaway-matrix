@@ -218,8 +218,23 @@ export function FileTabContent(props: { tab: string }) {
     if (!p) return
     return file.get(p)
   })
+
+  // 切回一个内容已被逐出的标签页时把它重新读进来。
+  // 没有这一步的话，被逐出的标签只会显示空白 —— 只有「打开」那一刻会触发加载，
+  // 「切回来」不会，所以那种空白是永久的。
+  createEffect(
+    on(path, (p) => {
+      if (!p) return
+      const current = file.get(p)
+      if (current?.loaded || current?.loading) return
+      void file.load(p)
+    }),
+  )
   const contents = createMemo(() => state()?.content?.content ?? "")
   const cacheKey = createMemo(() => sampledChecksum(contents()))
+  // 有改动时默认看"改了什么"；仍可切回文件内容（改动的文件也要能编辑）。
+  const [viewMode, setViewMode] = createSignal<"diff" | "file">("diff")
+  const showDiff = () => !!diff() && viewMode() === "diff"
   const [draft, setDraft] = createSignal("")
   const lineNumbers = createMemo(() => Array.from({ length: draft().split("\n").length }, (_, index) => index + 1))
   const [saving, setSaving] = createSignal(false)
@@ -648,16 +663,48 @@ export function FileTabContent(props: { tab: string }) {
           <div class="flex items-center justify-between gap-3 px-4 pt-3 pb-2">
             <span class="min-w-0 truncate text-12-regular text-foreground-subtle">{path()}</span>
             <Show when={diff()}>
-              <button
-                type="button"
-                class="shrink-0 rounded border border-border px-1.5 py-0.5 text-ui-xs text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
-                aria-label={language.t("session.review.diffStyle.toggle")}
-                onClick={() => sessionDiff.setStyle(sessionDiff.style() === "split" ? "unified" : "split")}
-              >
-                {sessionDiff.style() === "split"
-                  ? language.t("session.review.diffStyle.split")
-                  : language.t("session.review.diffStyle.unified")}
-              </button>
+              <div class="flex shrink-0 items-center gap-1">
+                {/* 改动 / 文件：默认看对照，需要改代码时切回文件内容。 */}
+                <div class="flex items-center rounded-md bg-surface p-0.5">
+                  <button
+                    type="button"
+                    class="rounded px-1.5 py-0.5 text-ui-xs transition-colors"
+                    classList={{
+                      "bg-background text-foreground": viewMode() === "diff",
+                      "text-foreground-subtle hover:text-foreground": viewMode() !== "diff",
+                    }}
+                    aria-pressed={viewMode() === "diff"}
+                    onClick={() => setViewMode("diff")}
+                  >
+                    {language.t("session.filePreview.diff")}
+                  </button>
+                  <button
+                    type="button"
+                    class="rounded px-1.5 py-0.5 text-ui-xs transition-colors"
+                    classList={{
+                      "bg-background text-foreground": viewMode() === "file",
+                      "text-foreground-subtle hover:text-foreground": viewMode() !== "file",
+                    }}
+                    aria-pressed={viewMode() === "file"}
+                    onClick={() => setViewMode("file")}
+                  >
+                    {language.t("session.filePreview.file")}
+                  </button>
+                </div>
+                {/* 左右 / 上下对照。只在看对照时才有意义。 */}
+                <Show when={viewMode() === "diff"}>
+                  <button
+                    type="button"
+                    class="rounded border border-border px-1.5 py-0.5 text-ui-xs text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+                    aria-label={language.t("session.review.diffStyle.toggle")}
+                    onClick={() => sessionDiff.setStyle(sessionDiff.style() === "split" ? "unified" : "split")}
+                  >
+                    {sessionDiff.style() === "split"
+                      ? language.t("session.review.diffStyle.split")
+                      : language.t("session.review.diffStyle.unified")}
+                  </button>
+                </Show>
+              </div>
             </Show>
             <span
               class="shrink-0 text-12-regular"
@@ -681,7 +728,7 @@ export function FileTabContent(props: { tab: string }) {
               <Switch>
                 {/* 有改动的文件优先显示变更对照（对齐其他 AI 工具：点改动 = 看"变了什么"）。
                     头部的小开关可切上下（unified）/左右（split）两种对照方式。 */}
-                <Match when={diff()}>{(view) => renderDiff(view())}</Match>
+                <Match when={showDiff() ? diff() : undefined}>{(view) => renderDiff(view())}</Match>
                 <Match when={state()?.loaded && state()?.content?.type !== "binary"}>
                   <div class="flex h-full min-h-0">
                     <div
