@@ -1279,6 +1279,8 @@ export interface ToolProps {
   deferContent?: boolean
   forceOpen?: boolean
   locked?: boolean
+  /** 工具行展开态的持久化键（见 BasicTool 的说明）。 */
+  persistKey?: string
 }
 
 export type ToolComponent = Component<ToolProps>
@@ -1416,6 +1418,7 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
               hideDetails={props.hideDetails}
               defaultOpen={props.defaultOpen}
               deferContent={props.deferToolContent}
+              persistKey={part().id}
             />
           </Match>
         </Switch>

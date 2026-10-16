@@ -38,6 +38,26 @@ export interface BasicToolProps {
   triggerHref?: string
   clickable?: boolean
   badge?: { color: string }
+  /**
+   * 展开态的持久化键（通常是工具调用的 part id）。
+   *
+   * 时间线会随消息更新重算分组，`BasicTool` 实例因此可能被重建；没有这个键的话
+   * 用户展开一个工具、之后随内容更新就被收回去，读长输出时很烦。
+   * ZCode 的 `ToolLayout` 也是模块级 Map 存 open 状态（`toolLayoutOpenState`）。
+   */
+  persistKey?: string
+}
+
+/**
+ * 工具行的展开态。模块级 Map，键是 `persistKey`。
+ *
+ * 只增不减是刻意的：一次会话里工具行数量有限，而无脑清理反而会把
+ * "刚展开、还没读" 的状态丢掉。切换会话时由 `clearToolOpenState` 整体清空。
+ */
+const toolOpenState = new Map<string, boolean>()
+
+export function clearToolOpenState() {
+  toolOpenState.clear()
 }
 
 const SPRING = { type: "spring" as const, visualDuration: 0.35, bounce: 0 }
@@ -80,9 +100,10 @@ function scheduleFrameMount(fn: () => void) {
 }
 
 export function BasicTool(props: BasicToolProps) {
+  const persisted = props.persistKey ? toolOpenState.get(props.persistKey) : undefined
   const [state, setState] = createStore({
-    open: props.defaultOpen ?? false,
-    ready: !props.defer && (props.defaultOpen ?? false),
+    open: persisted ?? props.defaultOpen ?? false,
+    ready: !props.defer && (persisted ?? props.defaultOpen ?? false),
   })
   const open = () => state.open
   const ready = () => state.ready
@@ -113,6 +134,12 @@ export function BasicTool(props: BasicToolProps) {
 
   createEffect(() => {
     if (props.forceOpen) setState("open", true)
+  })
+
+  // 把展开态写回模块级 Map，供重建后的实例恢复。
+  createEffect(() => {
+    if (!props.persistKey) return
+    toolOpenState.set(props.persistKey, state.open)
   })
 
   createEffect(
