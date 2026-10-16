@@ -82,6 +82,65 @@
   transition-timing-function: var(--transition-panel-ease, cubic-bezier(0.22, 1, 0.36, 1));
 }
 
+/* 连续工具调用收成一张卡片（对齐 Qoder / ZCode 的"一段执行块"）。
+ *
+ * 之前每个工具行各自漂浮在消息流里：一段跑二十个工具就是二十截，读起来
+ * 分不出哪些属于同一次执行。现在连续 ≥2 个工具行共用一张外框。
+ *
+ * 用边框 + 底色分层，不用阴影（DESIGN.md 的 Elevation「Base」层；
+ * 这也是 ZCode 卡片的一贯做法）。分段靠 `data-tool-card`：
+ * start 画上/左右边框与上圆角，end 补下圆角，中间只画一条细分隔线。
+ */
+/* 卡片本身**不加左右内边距**：帧内已经有 `px-4 md:px-5`，再缩一级会让工具行
+   比同一条消息里的正文更靠里，读起来像错位。这里只画一个"块"的边界。 */
+[data-tool-card] {
+  background: color-mix(in srgb, var(--surface) 45%, transparent);
+}
+
+[data-tool-card="start"] {
+  border-top: 1px solid var(--border);
+  border-top-left-radius: var(--radius-md);
+  border-top-right-radius: var(--radius-md);
+  padding-top: 6px;
+}
+
+[data-tool-card="between"] {
+  position: relative;
+  padding-top: 2px;
+}
+
+[data-tool-card="end"] {
+  border-bottom: 1px solid var(--border);
+  border-bottom-left-radius: var(--radius-md);
+  border-bottom-right-radius: var(--radius-md);
+  padding-bottom: 6px;
+}
+
+/* 左右边框只画在"卡片覆盖到的那一段"：start..end 之间的每一行都要有。
+   用 `:not()` 排除掉孤立行（slot 全 false 时不会有这个属性，所以不用管）。 */
+[data-tool-card="start"],
+[data-tool-card="between"] {
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+
+[data-tool-card="end"]:not([data-tool-card="start"]) {
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+
+/* 中段行顶部的细分隔线：画在伪元素上，避免给行本身加 margin
+   （虚拟滚动按行高测量，改 margin 会让测量与真实高度不一致）。 */
+[data-tool-card="between"]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: color-mix(in srgb, var(--border) 60%, transparent);
+}
+
 /* 侧栏品牌字标 `NovaWay`。
  * 用户要求"有它特殊的格式"：收紧字距 + 提高字重，`Way` 用当前模式色（见 layout 的 --mode-accent），
  * 这样一行文本同时承担品牌标识与模式指示，不需要额外的色块或徽标。 */

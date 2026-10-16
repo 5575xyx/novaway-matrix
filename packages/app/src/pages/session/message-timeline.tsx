@@ -15,6 +15,7 @@ import {
   type JSX,
 } from "solid-js"
 import { createStore, produce } from "solid-js/store"
+import { toolCardSlots } from "@/pages/session/tool-card"
 import { Dynamic } from "solid-js/web"
 import { useNavigate } from "@solidjs/router"
 import { useMutation, useQueryClient } from "@tanstack/solid-query"
@@ -512,6 +513,29 @@ export function MessageTimeline(props: {
   })
   const timelineRowByKey = createMemo(() => new Map(timelineRows().map((row) => [TimelineRow.key(row), row] as const)))
   const timelineRowKeys = createMemo(() => [...timelineRowByKey().keys()], [] as string[], { equals: sameKeys })
+  /**
+   * 「这一轮连续的工具调用」的卡片边界。
+   *
+   * 工具行现在各自漂浮在消息流里，一段跑二十个工具就散成二十截，
+   * 读起来分不出哪些属于同一次执行。这里按 key 标出每行是卡片的首/尾/中段，
+   * 渲染时据此画一张外框把它们收成一块（对齐 Qoder / ZCode 的连续执行块）。
+   */
+  const toolCardByRowKey = createMemo(() => {
+    const rows = timelineRows()
+    // `part` 组的 ref 自带 messageID，直接按它取 —— 不必遍历整条会话。
+    const isToolPart = (messageID: string, partID: string) =>
+      getMsgParts(messageID).find((part) => part.id === partID)?.type === "tool"
+    const slots = toolCardSlots(
+      rows.map((row) => {
+        if (row._tag !== "AssistantPart") return { tool: false }
+        // `context` 组必然是工具（read/glob/grep/list 被收成一组摘要）；
+        // `part` 组要看底层 part 类型 —— 纯文本段落不该被卷进工具卡片里。
+        const tool = row.group.type === "context" || isToolPart(row.group.ref.messageID, row.group.ref.partID)
+        return { tool, messageID: row.userMessageID }
+      }),
+    )
+    return new Map(rows.map((row, index) => [TimelineRow.key(row), slots[index]!] as const))
+  })
   const virtualCache = createMemo(() => readTimelineCache(sessionKey(), timelineRowKeys()))
   const messageRowIndex = createMemo(() => {
     const result = new Map<string, number>()
@@ -1720,7 +1744,13 @@ export function MessageTimeline(props: {
       .slice(0, 8)
   }
 
-  function TimelineRowFrame(input: { row: Accessor<FramedTimelineRow>; children: JSX.Element }) {
+  function TimelineRowFrame(input: {
+    row: Accessor<FramedTimelineRow>
+    /** 该行在「连续工具调用卡片」里的位置（见 toolCardSlots）。 */
+    card?: Accessor<{ start: boolean; end: boolean; between: boolean } | undefined>
+    children: JSX.Element
+  }) {
+    const card = () => input.card?.()
     const anchor = () => {
       const row = input.row()
       return row._tag === "CommentStrip" || (row._tag === "UserMessage" && row.anchor)
@@ -1739,12 +1769,15 @@ export function MessageTimeline(props: {
         id={anchor() ? props.anchor(input.row().userMessageID) : undefined}
         data-message-id={input.row().userMessageID}
         data-timeline-row={input.row()._tag}
+        data-tool-card={card() ? (card()!.start ? "start" : card()!.end ? "end" : "between") : undefined}
         classList={{
           "min-w-0 w-full max-w-full": true,
           "md:max-w-200 2xl:max-w-[1000px]": props.centered,
           "md:mx-auto": props.centered,
-          "pt-6": previousUserMessage(),
-          "pt-3": previousAssistantPart(),
+          // 卡片内的行不再各自留大间距：外框已经把"这是一段连续执行"表达出来了，
+          // 行与行之间只留一条细分隔线（见 CSS 的 tool-card 规则）。
+          "pt-6": previousUserMessage() && !card()?.between,
+          "pt-3": previousAssistantPart() && !card()?.between,
         }}
       >
         <div data-component="session-turn" class="min-w-0 w-full relative" style={{ height: "auto" }}>
@@ -1837,7 +1870,10 @@ export function MessageTimeline(props: {
       case "AssistantPart": {
         const assistantPartRow = row as Accessor<TimelineRowByTag<"AssistantPart">>
         return (
-          <TimelineRowFrame row={assistantPartRow}>
+          <TimelineRowFrame
+            row={assistantPartRow}
+            card={() => toolCardByRowKey().get(TimelineRow.key(assistantPartRow()))}
+          >
             <div data-slot="session-turn-message-container" class="w-full px-4 md:px-5">
               <div
                 data-slot="session-turn-assistant-content"
