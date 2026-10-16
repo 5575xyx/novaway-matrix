@@ -1282,6 +1282,8 @@ export interface ToolProps {
   locked?: boolean
   /** 工具行展开态的持久化键（见 BasicTool 的说明）。 */
   persistKey?: string
+  /** 运行结束后自动收起一次（见 BasicTool 的说明）。 */
+  autoCollapseOnComplete?: boolean
   /** 失败原因：挂到工具行的状态词上（虚线下划线 + 悬停详情，可复制）。 */
   statusTooltip?: string
 }
@@ -1415,6 +1417,9 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
                   defaultOpen={props.defaultOpen}
                   deferContent={props.deferToolContent}
                   persistKey={part().id}
+                  // 子代理在运行中会摊开一大串子调用；跑完不收回来的话
+                  // 聊天流被永久撑长（对齐 ZCode 的 autoCollapseOnComplete）。
+                  autoCollapseOnComplete={part().tool === "task"}
                 />
               )
             }}
@@ -1949,6 +1954,7 @@ ToolRegistry.register({
         onTriggerClick={navigate}
         statusTooltip={props.statusTooltip}
         persistKey={props.persistKey}
+        autoCollapseOnComplete={props.autoCollapseOnComplete}
       />
     )
   },
