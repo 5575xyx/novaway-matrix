@@ -1,3 +1,4 @@
+import { classifyError, type ErrorKind } from "./session-error"
 import { parseCommentNote, readCommentMetadata } from "@/utils/comment-note"
 import { AssistantMessage, Part, SessionStatus, SnapshotFileDiff, UserMessage } from "@novaway/sdk/v2"
 import { groupParts, PartGroup, renderable } from "@novaway/ui/message-part"
@@ -29,7 +30,14 @@ export type TimelineRowMap = {
   Thinking: { userMessageID: string; reasoningHeading?: string }
   Retry: { userMessageID: string }
   DiffSummary: { userMessageID: string; diffs: SummaryDiff[] }
-  Error: { userMessageID: string; text: string }
+  /**
+   * 会话错误。
+   *
+   * - `kind`：归类后的种类，由文案层翻成人话（"模型服务暂时不可用"…）。
+   * - `detail`：原始报错文本，折叠展示。上游返回的经常是一整段 JSON，
+   *   直接铺在聊天区既是噪音又看不懂。
+   */
+  Error: { userMessageID: string; kind: ErrorKind; detail: string }
   BottomSpacer: {}
 }
 
@@ -63,7 +71,8 @@ export namespace TimelineRow {
   }> {}
   export class Error extends Data.TaggedClass("Error")<{
     userMessageID: string
-    text: string
+    kind: ErrorKind
+    detail: string
   }> {}
   export class Retry extends Data.TaggedClass("Retry")<{
     userMessageID: string
@@ -236,12 +245,12 @@ export namespace Timeline {
 
     if (error) {
       const data = error.data?.message
+      const raw = typeof data === "string" ? data : data === undefined || data === null ? "" : String(data)
       rows.push(
         new TimelineRow.Error({
           userMessageID: userMessage.id,
-          text: unwrapErrorMessage(
-            typeof data === "string" ? data : data === undefined || data === null ? "" : String(data),
-          ),
+          kind: classifyError(raw, error.name),
+          detail: raw,
         }),
       )
     }
@@ -282,53 +291,6 @@ export namespace Timeline {
       .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
       .replace(/[*_~]+/g, "")
       .trim()
-  }
-
-  function unwrapErrorMessage(message: string) {
-    const text = message.replace(/^Error:\s*/, "").trim()
-
-    const parse = (value: string) => {
-      try {
-        return JSON.parse(value) as unknown
-      } catch {
-        return undefined
-      }
-    }
-
-    const read = (value: string) => {
-      const first = parse(value)
-      if (typeof first !== "string") return first
-      return parse(first.trim())
-    }
-
-    let json = read(text)
-
-    if (json === undefined) {
-      const start = text.indexOf("{")
-      const end = text.lastIndexOf("}")
-      if (start !== -1 && end > start) json = read(text.slice(start, end + 1))
-    }
-
-    if (!record(json)) return message
-
-    const err = record(json.error) ? json.error : undefined
-    if (err) {
-      const type = typeof err.type === "string" ? err.type : undefined
-      const msg = typeof err.message === "string" ? err.message : undefined
-      if (type && msg) return `${type}: ${msg}`
-      if (msg) return msg
-      if (type) return type
-      const code = typeof err.code === "string" ? err.code : undefined
-      if (code) return code
-    }
-
-    const msg = typeof json.message === "string" ? json.message : undefined
-    if (msg) return msg
-
-    const reason = typeof json.error === "string" ? json.error : undefined
-    if (reason) return reason
-
-    return message
   }
 
   function record(value: unknown): value is Record<string, unknown> {

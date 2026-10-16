@@ -114,6 +114,11 @@ export default function Layout(props: ParentProps) {
       workspaceName: {} as Record<string, string>,
       workspaceBranchName: {} as Record<string, Record<string, string>>,
       workspaceExpanded: {} as Record<string, boolean>,
+      // 侧栏项目分组的展开态。**不要复用 `workspaceExpanded`**：那个键同时被
+      // "worktree 分组自动收起"的 effect 使用（见 visibleSessionDirs 上方），
+      // 项目根目录的 key 正好在它的处理范围内，展开后会被立刻改回 false ——
+      // 表现就是"项目展不开了"。
+      projectExpanded: {} as Record<string, boolean>,
       gettingStartedDismissed: false,
     }),
   )
@@ -2337,7 +2342,7 @@ export default function Layout(props: ParentProps) {
                     // 桌面端 `persisted` 走异步 IPC，面板先渲染、store 后水合，
                     // 快照会把"还没水合"的 undefined 固化成 true 且再也不更新 ——
                     // 表现就是"每次重启都忘了分组是收起的"。
-                    const isExpanded = () => store.workspaceExpanded[proj.worktree] ?? true
+                    const isExpanded = () => store.projectExpanded[proj.worktree] ?? true
                     const projectArchived = () =>
                       [proj.worktree, ...(proj.sandboxes ?? [])].flatMap((directory) => archived()[directory] ?? [])
                     const projectName = () => proj.name || getFilename(proj.worktree)
@@ -2367,7 +2372,7 @@ export default function Layout(props: ParentProps) {
                       return total
                     }
                     const toggleExpand = () => {
-                      setStore("workspaceExpanded", proj.worktree, !isExpanded())
+                      setStore("projectExpanded", proj.worktree, !isExpanded())
                     }
                     // 项目名/文件夹图标入口打开该项目的文件树 slide-over（对齐 ZCode：文件树从侧栏滑入）。
                     const openTree = () => {

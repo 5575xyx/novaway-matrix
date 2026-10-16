@@ -22,6 +22,7 @@ import { Virtualizer, type VirtualizerHandle } from "virtua/solid"
 import { Accordion } from "@novaway/ui/accordion"
 import { Button } from "@novaway/ui/button"
 import { Card } from "@novaway/ui/card"
+import { SessionErrorCard } from "@/components/session/session-error-card"
 import {
   ContextToolGroup,
   Message,
@@ -1887,7 +1888,7 @@ export function MessageTimeline(props: {
           <TimelineRowFrame row={errorRow}>
             <div data-slot="session-turn-message-container" class="w-full px-4 md:px-5">
               <Card variant="error" class="error-card">
-                {errorRow().text}
+                <SessionErrorCard kind={errorRow().kind} detail={errorRow().detail} />
               </Card>
             </div>
           </TimelineRowFrame>

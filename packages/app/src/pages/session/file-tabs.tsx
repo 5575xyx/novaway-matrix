@@ -516,26 +516,26 @@ export function FileTabContent(props: { tab: string }) {
     makeEventListener(window, "keydown", onKeyDown, { capture: true })
   })
 
+  /**
+   * 把编辑器内容同步到 `contents()`。
+   *
+   * **不能 `defer: true`**。标签是「只渲染当前激活的那个」并且在切换时整块重建
+   * （见 session-side-panel 里 `<Show keyed>` 的用法），所以切回来时组件是全新挂载的：
+   * 如果首次不执行，而内容又已经在缓存里（`contents()` 不会再"变化"），
+   * 编辑器就永远停在空字符串 —— 表现就是"第一次打开有内容，切回来一片空白"。
+   */
   createEffect(
-    on(
-      path,
-      () => {
-        setDraft(contents())
-        setSaveError(false)
-        commentsUi.note.reset()
-      },
-      { defer: true },
-    ),
+    on(path, () => {
+      setDraft(contents())
+      setSaveError(false)
+      commentsUi.note.reset()
+    }),
   )
 
   createEffect(
-    on(
-      contents,
-      () => {
-        setDraft(contents())
-      },
-      { defer: true },
-    ),
+    on(contents, () => {
+      setDraft(contents())
+    }),
   )
 
   onCleanup(() => {
