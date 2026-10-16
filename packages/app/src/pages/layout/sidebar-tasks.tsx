@@ -228,21 +228,25 @@ export function ProjectTaskList(props: {
         <div class="px-2 py-1.5 text-ui-caption text-foreground-subtle">{language.t("sidebar.filter.empty")}</div>
       </Show>
       <Show when={sessions().length > 0}>
-        {/* 树形层级：子会话缩进一级，并用一条竖向导引线把它们和父会话绑在一起
-            （只靠缩进在深色/浅色下都不够清楚）。 */}
-        <div class="flex flex-col gap-0.5" data-component="task-tree">
+        {/*
+          树形层级：项目行是这一组的根，任务缩进一级挂在它下面；任务自己的子会话
+          （子智能体会话）再缩进一级。三者之间用一条竖向导引线绑住 —— 只靠缩进
+          在浅色/深色下都不够清楚，而且任务行与项目行同宽时会读成一排平铺条目。
+
+          `level` 的语义因此是「相对项目根的深度」：`1` = 直接挂在项目下的任务，
+          `2` = 任务的子会话（见 TaskRow 的 padding-left 计算）。
+        */}
+        <div class="relative flex flex-col gap-0.5 pt-0.5" data-component="task-tree">
+          <span
+            aria-hidden="true"
+            class="pointer-events-none absolute top-0 bottom-1 left-[15px] w-px bg-border"
+          />
           <For each={sessions()}>
             {(session) => (
               <>
-                {rowFor(session, 0)}
+                {rowFor(session, 1)}
                 <Show when={!collapsed[session.id] && (childrenByParent().get(session.id) ?? []).length > 0}>
-                  <div class="relative flex flex-col gap-0.5">
-                    <span
-                      aria-hidden="true"
-                      class="pointer-events-none absolute top-0 bottom-1 left-[13px] w-px bg-border"
-                    />
-                    <For each={childrenByParent().get(session.id) ?? []}>{(child) => rowFor(child, 1)}</For>
-                  </div>
+                  <For each={childrenByParent().get(session.id) ?? []}>{(child) => rowFor(child, 2)}</For>
                 </Show>
               </>
             )}

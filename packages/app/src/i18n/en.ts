@@ -759,7 +759,7 @@ export const dict = {
   "session.error.unknown.hint": "The model request failed. Try again; expand the details if it keeps happening.",
   "session.error.details": "Details",
   "session.review.diffStyle.unified": "Unified",
-  "session.review.diffStyle.split": "Side by side",
+  "session.review.diffStyle.split": "Split",
   "session.review.diffStyle.toggle": "Toggle diff layout",
   "session.review.change.one": "Change",
   "session.review.change.other": "Changes",
