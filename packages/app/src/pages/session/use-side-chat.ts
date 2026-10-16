@@ -1,0 +1,82 @@
+import { useLanguage } from "@/context/language"
+import { useLayout, sidePaneSideChatTabId, type SidePaneSessionTab } from "@/context/layout"
+import { useSDK } from "@/context/sdk"
+import { useLocal } from "@/context/local"
+import { showToast } from "@novaway/ui/toast"
+import { formatServerError } from "@/utils/server-errors"
+
+/**
+ * 侧边对话：一条**不打断主线**的并行小对话。
+ *
+ * 对齐 ZCode 的 `selection-side-chat`：
+ *
+ * - 它是一条**真实的服务端会话**（`session.create`），所以有完整的多轮能力、
+ *   自动继承工作区上下文（同目录、同项目、同文件可见）；
+ * - 但它**不写进主对话历史** —— 主线的时间线里不会冒出这些消息，讨论不会串味；
+ * - 生命周期跟着主会话：关掉标签即删除该会话（ZCode 的
+ *   `closeSelectionSideChatRuntime` 也是 `closeSession`）。
+ *
+ * 与子代理钻取的区别就在最后一条：子会话是父任务的产物，关面板不该删；
+ * 侧边对话是用户临时开的，关掉就该清掉，否则会在会话列表里堆一地。
+ */
+export function useSideChat() {
+  const language = useLanguage()
+  const layout = useLayout()
+  const sdk = useSDK()
+  const local = useLocal()
+
+  /** 打开一条新的侧边对话。同一父会话下可以有多个（用序号区分）。 */
+  const open = async (seed?: { text?: string; parentID?: string }) => {
+    const parentID = seed?.parentID ?? ""
+    const existing = Object.values(layout.sidePane.dynamicTabs()).filter(
+      (tab) => tab.kind === "sideChat" && tab.parentID === parentID,
+    )
+    try {
+      const created = await sdk.client.session
+        .create(seed?.text ? { title: seed.text.slice(0, 60) } : undefined)
+        .then((result) => result.data)
+      if (!created?.id) throw new Error("session.create returned no id")
+      const tab: SidePaneSessionTab = {
+        id: sidePaneSideChatTabId(created.id),
+        kind: "sideChat",
+        sessionID: created.id,
+        parentID,
+        // 标题先给占位（会话还没生成标题），用户问第一句后由服务端命名。
+        title: language.t("sidePane.sideChat.title", { index: existing.length + 1 }),
+      }
+      // 用当前选中的 agent/model 发一条种子消息：面板里没有模型选择器，
+      // 沿用主线正在用的那个才符合"继承主对话上下文"的预期。
+      if (seed?.text?.trim()) {
+        const agent = local.agent.current()?.name
+        const model = local.model.current()
+        if (agent && model) {
+          void sdk.client.session
+            .promptAsync({
+              sessionID: created.id,
+              agent,
+              model: { providerID: model.provider.id, modelID: model.id },
+              parts: [{ type: "text", text: seed.text }],
+            })
+            .catch(() => undefined)
+        }
+      }
+      layout.sidePane.openSession(tab)
+      return tab
+    } catch (err) {
+      showToast({
+        variant: "error",
+        title: language.t("sidePane.sideChat.failed"),
+        description: formatServerError(err, language.t, language.t("error.chain.unknown")),
+      })
+      return undefined
+    }
+  }
+
+  /** 关闭：先删服务端会话，再移除标签（顺序反了会留下没有面板可关的孤儿会话）。 */
+  const close = async (tab: SidePaneSessionTab) => {
+    layout.sidePane.closeSession(tab.id)
+    await sdk.client.session.delete({ sessionID: tab.sessionID }).catch(() => undefined)
+  }
+
+  return { open, close }
+}

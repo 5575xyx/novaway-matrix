@@ -23,10 +23,12 @@ import { SortableTab, FileVisual } from "@/components/session"
 import { useCommand } from "@/context/command"
 import { useFile, type SelectedLineRange } from "@/context/file"
 import { useLanguage } from "@/context/language"
-import { useLayout, type SidePaneTab } from "@/context/layout"
+import { useLayout, type SidePaneSessionTab, type SidePaneTab } from "@/context/layout"
 import { createSessionTabs, getTabReorderIndex, type Sizing } from "@/pages/session/helpers"
 import { FileTabContent } from "@/pages/session/file-tabs"
 import { PreviewPanel } from "@/pages/session/preview-panel"
+import { SidePaneSessionPanel } from "@/pages/session/side-pane-session"
+import { useSideChat } from "@/pages/session/use-side-chat"
 import { TerminalPanel } from "@/pages/session/terminal-panel"
 import { setSessionHandoff } from "@/pages/session/handoff"
 import { useSessionLayout } from "@/pages/session/session-layout"
@@ -42,6 +44,23 @@ const sidePaneTabs: Array<{
 ]
 
 const sidePaneTabMeta = (tab: string) => sidePaneTabs.find((item) => item.id === tab) ?? sidePaneTabs[0]
+
+/**
+ * 动态标签（会话）的图标与标题。
+ *
+ * 内置标签读静态表；动态标签的标题来自它自己的元数据（`SidePaneSessionTab.title`），
+ * 子代理显示子代理名、侧边对话显示"侧边对话 N"。图标也按 kind 分：
+ * 子代理用 `task`（与工具行同一个图标，视觉上串得起来），侧边对话用 `speech-bubble`。
+ */
+function sessionTabPresentation(
+  tab: SidePaneSessionTab,
+  t: ReturnType<typeof useLanguage>["t"],
+): { icon: "task" | "speech-bubble"; label: string } {
+  return {
+    icon: tab.kind === "subagent" ? "task" : "speech-bubble",
+    label: tab.title || t(tab.kind === "subagent" ? "sidePane.subagent" : "sidePane.sideChat"),
+  }
+}
 
 export function SessionSidePanel(props: {
   canReview: () => boolean
@@ -296,6 +315,11 @@ export function SessionSidePanel(props: {
             <TerminalPanel variant="pane" />
           </Show>
           <Show when={tab() === "review"}>{props.reviewPanel()}</Show>
+          {/* 会话标签（子代理钻取 / 侧边对话）：面板里看另一个会话。
+              内置的三个标签走上面的分支，这里只处理动态标签。 */}
+          <Show when={layout.sidePane.activeSessionTab()}>
+            {(session) => <SidePaneSessionPanel tab={session()} />}
+          </Show>
         </div>
       </Show>
     </aside>
@@ -305,8 +329,13 @@ export function SessionSidePanel(props: {
 function SidePaneTabTrigger(props: { tab: SidePaneTab }) {
   const layout = useLayout()
   const language = useLanguage()
+  const sideChat = useSideChat()
   const sortable = createSortable(props.tab)
-  const meta = () => sidePaneTabMeta(props.tab)
+  const session = () => layout.sidePane.dynamicTabs()[props.tab]
+  const meta = () =>
+    session() ? { icon: sessionTabPresentation(session()!, language.t).icon } : sidePaneTabMeta(props.tab)
+  const label = () =>
+    session() ? sessionTabPresentation(session()!, language.t).label : language.t(sidePaneTabMeta(props.tab).labelKey)
   return (
     <div
       use:sortable
@@ -322,7 +351,7 @@ function SidePaneTabTrigger(props: { tab: SidePaneTab }) {
         onClick={() => layout.sidePane.setActive(props.tab)}
       >
         <Icon name={meta().icon} size="small" class="shrink-0" />
-        {language.t(meta().labelKey)}
+        <span class="max-w-[9rem] truncate">{label()}</span>
       </button>
       <IconButton
         icon="close-small"
@@ -330,7 +359,16 @@ function SidePaneTabTrigger(props: { tab: SidePaneTab }) {
         size="small"
         class="h-5 w-5"
         aria-label={language.t("common.closeTab")}
-        onClick={() => layout.sidePane.remove(props.tab)}
+        onClick={() => {
+          const tab = session()
+          // 侧边对话是"关掉即删除"（ZCode 的 closeSelectionSideChatRuntime 同款）；
+          // 子代理的会话属于父任务，关面板只收标签、不删会话。
+          if (tab?.kind === "sideChat") {
+            void sideChat.close(tab)
+            return
+          }
+          layout.sidePane.remove(props.tab)
+        }}
       />
     </div>
   )
@@ -346,6 +384,7 @@ function SidePaneTabTrigger(props: { tab: SidePaneTab }) {
 function SidePaneEmptyState() {
   const layout = useLayout()
   const language = useLanguage()
+  const sideChat = useSideChat()
   return (
     <div
       data-component="side-pane-empty"
@@ -371,6 +410,19 @@ function SidePaneEmptyState() {
               </button>
             )}
           </For>
+          {/* 侧边对话：不打断主线的并行小对话（对齐 ZCode 的 selection-side-chat）。
+              放在内置入口之后 —— 它是"额外开一条线"，不是面板的常规用法。 */}
+          <button
+            type="button"
+            data-component="side-pane-launcher-side-chat"
+            class="side-pane-launcher-button flex h-12 min-w-0 items-center gap-3 rounded-xl border border-dashed border-border px-3 text-ui-base font-medium text-foreground transition-colors hover:border-border-hover hover:bg-hover"
+            onClick={() => void sideChat.open()}
+          >
+            <Icon name="speech-bubble" size="small" class="shrink-0 text-foreground-subtlest" />
+            <span class="side-pane-launcher-label min-w-0 flex-1 truncate text-left">
+              {language.t("sidePane.sideChat.open")}
+            </span>
+          </button>
         </div>
       </div>
     </div>

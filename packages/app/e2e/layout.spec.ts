@@ -209,16 +209,23 @@ test("Side Pane 空态按需创建 + tab 标签不折行 + 折叠按钮", async 
   const tabRow = frame.locator("> div.border-b").first()
   await expect(tabRow).toBeVisible()
 
-  // 空态：标题 + 恰好三个按需入口（Preview / Terminal / Review）。
-  // Round 3 已废除六个常驻 tab，Files / Git / Context 不再作为入口出现。
+  // 空态：标题 + 三个面板入口（Preview / Terminal / Review）+ 一个「侧边对话」。
+  // Round 3 已废除六个常驻 tab，Files / Git / Context 不再作为入口出现；
+  // 侧边对话是后来加的第 4 个入口（独立小会话，见 use-side-chat）。
   const empty = frame.locator('[data-component="side-pane-empty"]')
   await expect(empty).toBeVisible()
   await expect(empty).toContainText(/Open tab|打开标签页/)
   const options = empty.locator("button")
-  expect(await options.count(), "expected exactly 3 on-demand options").toBe(3)
+  const panelOptions = empty.locator("button:not([data-component='side-pane-launcher-side-chat'])")
+  expect(await panelOptions.count(), "expected exactly 3 on-demand panel options").toBe(3)
   for (const label of ["Preview", "Terminal", "Review"]) {
-    await expect(options.filter({ hasText: label }).first(), `on-demand option "${label}" missing`).toBeVisible()
+    await expect(panelOptions.filter({ hasText: label }).first(), `on-demand option "${label}" missing`).toBeVisible()
   }
+  await expect(
+    empty.locator("[data-component='side-pane-launcher-side-chat']"),
+    "side chat entry missing",
+  ).toBeVisible()
+  expect(await options.count(), "no unexpected extra entries").toBe(4)
   for (const legacy of ["Files", "Git", "Context"]) {
     expect(await options.filter({ hasText: legacy }).count(), `legacy tab "${legacy}" present`).toBe(0)
   }
@@ -532,4 +539,34 @@ test("侧栏项目分组可以收起再展开（状态可持久化）", async ({
   // effect 会把它改回 false），表现为"点开立刻又收起、永远展不开"。
   await sidebar.getByRole("button", { name: /^(Expand|展开)$/ }).first().click()
   await expect.poll(async () => rows.count(), { message: "展开后任务行应当回来" }).toBe(before)
+})
+
+test("侧边对话：从空态入口创建并落在 Side Pane 标签里", async ({ page }) => {
+  const slug = workspaceRootSlug()
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`/${slug}/session`)
+  await expect(page.locator('[data-component="sidebar-nav-desktop"]')).toBeVisible({ timeout: 15_000 })
+
+  const frame = page.locator('[data-component="side-pane-frame"]')
+  await expect(frame).toBeVisible()
+
+  // 空态入口 → 创建侧边对话。它是一条真实会话，但以标签形式留在面板里，
+  // **不**跳走主页面（对齐 ZCode 的 selection-side-chat）。
+  const entry = frame.locator("[data-component='side-pane-launcher-side-chat']")
+  if ((await entry.count()) === 0) return
+  const before = page.url()
+  await entry.click()
+
+  // 标签出现且处于激活态。
+  const trigger = frame.locator("[data-slot='tabs-trigger'], button").filter({ hasText: /Side chat|侧边对话/ }).first()
+  await expect(trigger).toBeVisible({ timeout: 10_000 })
+  // 面板内出现会话面板本体。
+  await expect(frame.locator("[data-component='side-pane-session']")).toBeVisible({ timeout: 10_000 })
+  // 主页面没被导航走：侧边对话的意义就在于"不打断主线"。
+  expect(page.url()).toBe(before)
+
+  // 关闭标签 → 面板回到空态（会话同时被删除，不再残留）。
+  await frame.getByRole("button", { name: /Close tab|关闭标签页/ }).first().click()
+  await expect(frame.locator("[data-component='side-pane-session']")).toHaveCount(0, { timeout: 10_000 })
+  await expect(frame.locator("[data-component='side-pane-empty']")).toBeVisible()
 })
