@@ -503,3 +503,31 @@ test("新建任务 → 提交：内容区淡入 + 输入框滑到底部 + 任务
   await input.press("Enter")
   await expect(row).toContainText("e2e-renamed", { timeout: 10_000 })
 })
+
+test("侧栏项目分组可以收起再展开（状态可持久化）", async ({ page }) => {
+  const slug = workspaceRootSlug()
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`/${slug}/session`)
+
+  const sidebar = page.locator('[data-component="sidebar-nav-desktop"]')
+  await expect(sidebar).toBeVisible({ timeout: 15_000 })
+  await page.getByRole("button", { name: /^(Tasks|任务)$/ }).first().click()
+
+  // 干净环境没有项目：只验静态部分。
+  const projectToggle = sidebar.getByRole("button", { name: /^(Expand|Collapse|展开|折叠)$/ }).first()
+  if ((await projectToggle.count()) === 0) return
+
+  const rows = page.locator('[data-component="task-row"]')
+  const before = await rows.count()
+
+  await projectToggle.click()
+  await expect
+    .poll(async () => rows.count(), { message: "收起后任务行应当消失" })
+    .toBeLessThan(Math.max(before, 1))
+
+  // 再展开必须能回到原样。
+  // 这里曾经因为分组展开态复用了 worktree 分组的 `workspaceExpanded`（有另一个
+  // effect 会把它改回 false），表现为"点开立刻又收起、永远展不开"。
+  await sidebar.getByRole("button", { name: /^(Expand|展开)$/ }).first().click()
+  await expect.poll(async () => rows.count(), { message: "展开后任务行应当回来" }).toBe(before)
+})
