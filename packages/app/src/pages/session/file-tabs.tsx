@@ -605,52 +605,6 @@ export function FileTabContent(props: { tab: string }) {
     </div>
   )
 
-  const renderFile = (source: string) => (
-    <div class="relative overflow-hidden pb-40">
-      <Dynamic
-        component={fileComponent}
-        mode="text"
-        file={{
-          name: path() ?? "",
-          contents: source,
-          cacheKey: cacheKey(),
-        }}
-        enableLineSelection
-        enableHoverUtility
-        selectedLines={activeSelection()}
-        commentedLines={commentedLines()}
-        onRendered={() => {
-          scrollSync.queueRestore()
-        }}
-        annotations={commentsUi.annotations()}
-        renderAnnotation={commentsUi.renderAnnotation}
-        renderHoverUtility={commentsUi.renderHoverUtility}
-        onLineSelected={(range: SelectedLineRange | null) => {
-          commentsUi.onLineSelected(range)
-        }}
-        onLineNumberSelectionEnd={commentsUi.onLineNumberSelectionEnd}
-        onLineSelectionEnd={(range: SelectedLineRange | null) => {
-          commentsUi.onLineSelectionEnd(range)
-        }}
-        search={search}
-        class="select-text"
-        media={{
-          mode: "auto",
-          path: path(),
-          current: state()?.content,
-          onLoad: scrollSync.queueRestore,
-          onError: (args: { kind: "image" | "audio" | "svg" }) => {
-            if (args.kind !== "svg") return
-            showToast({
-              variant: "error",
-              title: language.t("toast.file.loadFailed.title"),
-            })
-          },
-        }}
-      />
-    </div>
-  )
-
   return (
     <Tabs.Content value={props.tab} class="mt-3 relative h-full">
       <div
@@ -739,10 +693,21 @@ export function FileTabContent(props: { tab: string }) {
           </div>
           <div class="flex min-h-0 flex-1">
             <div class="min-w-0 flex-1">
-              <Switch>
-                {/* 有改动的文件优先显示变更对照（对齐其他 AI 工具：点改动 = 看"变了什么"）。
-                    头部的小开关可切上下（unified）/左右（split）两种对照方式。 */}
-                <Match when={showDiff() ? diff() : undefined}>{(view) => renderDiff(view())}</Match>
+              {/*
+                两种预览模式必须**各自重新挂载**。
+                用 `<Switch>` + 同一个 `Dynamic component` 会踩一个 Solid 的复用陷阱：
+                两个分支渲染的是同一个组件引用、又处在同一个位置，Solid 只会更新 props，
+                于是实例从 `mode="text"` 直接变成 `mode="diff"` —— 用文本模式建出来的
+                渲染器被塞进 diff 的数据，pierre 内部拿到 undefined 就崩
+                （`setLineAnnotations` 读 undefined 的索引）。
+                用 keyed 的 `<Show>`：模式变了就销毁重建，内容变化则原样保留（不丢滚动位置）。
+              */}
+              <Show when={showDiff() && diff() ? "diff" : "file"} keyed>
+                {(mode) =>
+                  mode === "diff" && diff() ? (
+                    renderDiff(diff()!)
+                  ) : (
+                    <Switch>
                 <Match when={state()?.loaded && state()?.content?.type !== "binary"}>
                   <div class="flex h-full min-h-0">
                     <div
@@ -805,7 +770,10 @@ export function FileTabContent(props: { tab: string }) {
                   <div class="px-6 py-4 text-foreground-subtle">{language.t("common.loading")}...</div>
                 </Match>
                 <Match when={state()?.error}>{(err) => <div class="px-6 py-4 text-foreground-subtle">{err()}</div>}</Match>
-              </Switch>
+                    </Switch>
+                  )
+                }
+              </Show>
             </div>
           </div>
         </div>

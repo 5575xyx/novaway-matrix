@@ -25,8 +25,8 @@ export function shouldMountStatusPanel(sections: readonly { id: string }[]): boo
 // 另外三个必须常驻，否则任务一停用户就再也找不到入口了：
 //   git —— 全 app 唯一的提交入口就在这一块的 body 里（status-panel-git-commit）
 //   cache —— 整个会话累积的缓存统计，不是这一轮的临时残留
-//   memory —— 记忆与进化审核，本来就是全局能力，跟这次任务跑没跑无关
-const ALWAYS_VISIBLE_SECTIONS = new Set(["git", "cache", "memory"])
+// 「记忆与进化」已从面板移除（全局能力，不该占会话状态的位置，见 pages/session.tsx）。
+const ALWAYS_VISIBLE_SECTIONS = new Set(["git", "cache"])
 
 export function visibleStatusSections<T extends { id: string }>(sections: readonly T[], running: boolean): T[] {
   if (running) return [...sections]
@@ -80,7 +80,12 @@ function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.
             onClick={() => layout.statusPanel.toggleCollapsed(directory())}
           />
         </div>
-        <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-col gap-2 p-2">
+        {/*
+          这里**不**用 `no-scrollbar`：区块多于两个时面板会超高超限（max-h 64dvh / 32rem），
+          展开的区块被裁掉、又没有滚动条提示，看起来就是"挤在一起显示不全"。
+          留一条细滚动条，用户一眼知道还能往下翻。
+        */}
+        <div class="status-panel-scroll flex-1 min-h-0 overflow-y-auto flex flex-col gap-2 p-2">
           <For each={props.sections}>
             {(section) => {
               const open = layout.statusPanel.open(directory(), section.id, section.defaultOpen)

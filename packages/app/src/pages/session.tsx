@@ -69,7 +69,6 @@ import { useContextSection } from "@/pages/session/status-panel/context-section"
 import { useGitSection } from "@/pages/session/status-panel/git-section"
 import { useTodoSection } from "@/pages/session/status-panel/todo-section"
 import { useCacheSection } from "@/pages/session/status-panel/cache-section"
-import { useMemorySection } from "@/pages/session/status-panel/memory-section"
 import { FloatingTodoButton } from "@/components/floating-todo-button"
 import { OfficeSessionComposer, OfficeSessionWorkspace } from "@/components/office-session-workspace"
 import { TerminalPanel } from "@/pages/session/terminal-panel"
@@ -483,14 +482,16 @@ export default function Page() {
   const todoSection = useTodoSection()
   const contextSection = useContextSection()
   const cacheSection = useCacheSection()
-  const memorySection = useMemorySection()
   const statusRunning = createMemo(() => {
     const id = params.id ?? ""
     return !!id && sync.data.session_working(id)
   })
+  // 「记忆与进化」不再进状态面板：它是**全局**能力，跟当前会话无关，
+  // 常驻在右上角既占位置又和"这次任务的状态"混在一起（用户反馈）。
+  // 完整入口仍在 设置 → 记忆与进化。
   const statusSections = createMemo(() =>
     visibleStatusSections(
-      [gitSection(), todoSection(), contextSection(), cacheSection(), memorySection()].filter(
+      [gitSection(), todoSection(), contextSection(), cacheSection()].filter(
         (section): section is StatusPanelSection => section !== null,
       ),
       statusRunning(),

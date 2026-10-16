@@ -129,6 +129,31 @@
  * `[data-composer-drop]` 只作为状态标记保留（调试 / e2e 观察用），不再承载样式。
  */
 
+/* 状态面板的内滚动条。
+ *
+ * 全局没有自定义滚动条样式（Chromium 默认那条又宽又灰，压在圆角面板里很突兀），
+ * 但**必须有**：区块多于两个时面板会超高超限（max-h 64dvh / 32rem），
+ * 展开的区块被裁掉、又完全没有滚动提示，读起来就是"挤在一起显示不全"。
+ * 所以这里给一条细的、跟随主题的，而不是像别处那样用 `no-scrollbar` 藏掉。
+ */
+.status-panel-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-hover) transparent;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: var(--border-hover);
+    border-radius: 9999px;
+  }
+}
+
 @font-face {
   font-family: "JetBrainsMono Nerd Font Mono";
   src: url("/assets/JetBrainsMonoNerdFontMono-Regular.woff2") format("woff2");

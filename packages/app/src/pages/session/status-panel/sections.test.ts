@@ -10,7 +10,6 @@ const sessionHeaderSource = read("../../../components/session/session-header.tsx
 const layoutSource = read("../../layout.tsx")
 const sessionSource = read("../../session.tsx")
 const cacheSectionSource = read("./cache-section.tsx")
-const memorySectionSource = read("./memory-section.tsx")
 
 // 全局标题栏已移除（Round 1 对齐 ZCode）：入口不能跟着一起消失，必须各自落到新位置。
 describe("top bar removal keeps every entry reachable", () => {
@@ -58,12 +57,17 @@ describe("top bar removal keeps every entry reachable", () => {
   })
 })
 
-describe("right panel absorbs cache and memory", () => {
-  test("session wires both sections into the status panel", () => {
+describe("right panel absorbs cache", () => {
+  test("session wires the cache section into the status panel", () => {
     expect(sessionSource).toContain("const cacheSection = useCacheSection()")
-    expect(sessionSource).toContain("const memorySection = useMemorySection()")
     expect(sessionSource).toContain("cacheSection()")
-    expect(sessionSource).toContain("memorySection()")
+  })
+
+  // 「记忆与进化」是全局能力，不再占会话状态面板的位置（用户反馈）。
+  // 这条断言防的是"顺手又把它加回去"。
+  test("memory & evolution stays out of the session status panel", () => {
+    expect(sessionSource).not.toContain("memorySection")
+    expect(sessionSource).not.toContain("useMemorySection")
   })
 
   test("cache card reads its summary and detail from one metrics source", () => {
@@ -72,9 +76,4 @@ describe("right panel absorbs cache and memory", () => {
     expect(cacheSectionSource).toContain("<CacheUsageBody />")
   })
 
-  test("memory card shows the pending count without mounting the whole body", () => {
-    expect(memorySectionSource).toContain("useMemoryEvolutionPending()")
-    expect(memorySectionSource).toContain("summary: <>{pendingBadgeLabel(pending())}")
-    expect(memorySectionSource).toContain("<MemoryEvolutionPanel />")
-  })
 })
