@@ -168,8 +168,6 @@ export const dict = {
   "ui.tool.task": "任務",
   "ui.tool.skill": "技能",
   "ui.basicTool.called": "呼叫了 `{{tool}}`",
-  "ui.toolErrorCard.failed": "失敗",
-  "ui.toolErrorCard.copyError": "複製錯誤",
   "ui.message.duration.seconds": "{{count}}秒",
   "ui.message.duration.minutesSeconds": "{{minutes}}分 {{seconds}}秒",
 } satisfies Partial<Record<Keys, string>>

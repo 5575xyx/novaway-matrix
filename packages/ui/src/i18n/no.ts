@@ -164,8 +164,6 @@ export const dict: Record<Keys, string> = {
   "ui.tool.task": "Oppgave",
   "ui.tool.skill": "Ferdighet",
   "ui.basicTool.called": "Kalte `{{tool}}`",
-  "ui.toolErrorCard.failed": "Mislyktes",
-  "ui.toolErrorCard.copyError": "Kopier feil",
   "ui.message.duration.seconds": "{{count}}s",
   "ui.message.duration.minutesSeconds": "{{minutes}}m {{seconds}}s",
 }

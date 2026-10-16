@@ -161,8 +161,6 @@ export const dict = {
   "ui.tool.task": "مهمة",
   "ui.tool.skill": "مهارة",
   "ui.basicTool.called": "تم استدعاء `{{tool}}`",
-  "ui.toolErrorCard.failed": "فشل",
-  "ui.toolErrorCard.copyError": "نسخ الخطأ",
   "ui.message.duration.seconds": "{{count}}ث",
   "ui.message.duration.minutesSeconds": "{{minutes}}د {{seconds}}ث",
 }

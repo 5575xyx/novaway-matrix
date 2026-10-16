@@ -162,8 +162,6 @@ export const dict = {
   "ui.tool.task": "งาน",
   "ui.tool.skill": "ทักษะ",
   "ui.basicTool.called": "เรียกใช้ `{{tool}}`",
-  "ui.toolErrorCard.failed": "ล้มเหลว",
-  "ui.toolErrorCard.copyError": "คัดลอกข้อผิดพลาด",
   "ui.message.duration.seconds": "{{count}}วิ",
   "ui.message.duration.minutesSeconds": "{{minutes}}นาที {{seconds}}วิ",
 }

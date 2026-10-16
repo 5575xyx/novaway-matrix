@@ -161,8 +161,6 @@ export const dict = {
   "ui.tool.task": "작업",
   "ui.tool.skill": "스킬",
   "ui.basicTool.called": "`{{tool}}` 호출됨",
-  "ui.toolErrorCard.failed": "실패",
-  "ui.toolErrorCard.copyError": "오류 복사",
   "ui.message.duration.seconds": "{{count}}초",
   "ui.message.duration.minutesSeconds": "{{minutes}}분 {{seconds}}초",
 }

@@ -1,6 +1,9 @@
 import { defineConfig, devices } from "@playwright/test"
 
-const port = Number(process.env.PLAYWRIGHT_PORT ?? 3000)
+// 默认端口避开 3000：本机常有别的项目（Next.js 之类）占着它，而 `reuseExistingServer`
+// 只检查 URL 返回 200、不校验是不是我们的应用 —— 一旦撞上，e2e 会"全红"且症状是
+// 页面停在连接页，排查时极易误判成代码问题（本次就踩过）。
+const port = Number(process.env.PLAYWRIGHT_PORT ?? 3210)
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${port}`
 const serverHost = process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"
 const serverPort = process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"
