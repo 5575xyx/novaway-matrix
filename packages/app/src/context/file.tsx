@@ -83,6 +83,21 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
       },
     })
 
+    /**
+     * 仍然打开的标签页对应的文件路径。
+     *
+     * 这些是「必须留住内容」的集合：用户随时会切回来，内容一旦被逐出，
+     * 预览就是一片空白（而且没有任何东西会再把它拉回来）。
+     */
+    const pinnedPaths = () => {
+      const set = new Set<string>()
+      for (const tab of tabs.all()) {
+        const target = path.pathFromTab(tab)
+        if (target) set.add(target)
+      }
+      return set
+    }
+
     const evictContent = (keep?: Set<string>) => {
       evictContentLru(keep, (target) => {
         if (!store.file[target]) return
@@ -180,7 +195,10 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
 
           if (!content) return
           touchFileContent(file, approxBytes(content))
-          evictContent(new Set([file]))
+          // 逐出时保留**所有仍打开的标签页**，不是只留刚读进来的这一个。
+          // 原来传 `new Set([file])` 等于把并发上限压到 1：开第二个文件就把第一个的内容
+          // 丢了，切回去永远空白（LRU 的 40 条 / 20MB 预算完全没起作用）。
+          evictContent(pinnedPaths())
         })
         .catch((e) => {
           if (scope() !== directory) return
@@ -276,6 +294,7 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
       get,
       load,
       write,
+      pinnedPaths,
       scrollTop,
       scrollLeft,
       setScrollTop,

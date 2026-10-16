@@ -2333,7 +2333,11 @@ export default function Layout(props: ParentProps) {
               <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar px-2 pb-3 [overflow-anchor:none]">
                 <For each={projectList()}>
                   {(proj) => {
-                    const [isExpanded, setIsExpanded] = createSignal(store.workspaceExpanded[proj.worktree] ?? true)
+                    // 展开态直接读持久化的 store，不要用本地 signal 快照：
+                    // 桌面端 `persisted` 走异步 IPC，面板先渲染、store 后水合，
+                    // 快照会把"还没水合"的 undefined 固化成 true 且再也不更新 ——
+                    // 表现就是"每次重启都忘了分组是收起的"。
+                    const isExpanded = () => store.workspaceExpanded[proj.worktree] ?? true
                     const projectArchived = () =>
                       [proj.worktree, ...(proj.sandboxes ?? [])].flatMap((directory) => archived()[directory] ?? [])
                     const projectName = () => proj.name || getFilename(proj.worktree)
@@ -2363,9 +2367,7 @@ export default function Layout(props: ParentProps) {
                       return total
                     }
                     const toggleExpand = () => {
-                      const next = !isExpanded()
-                      setIsExpanded(next)
-                      setStore("workspaceExpanded", proj.worktree, next)
+                      setStore("workspaceExpanded", proj.worktree, !isExpanded())
                     }
                     // 项目名/文件夹图标入口打开该项目的文件树 slide-over（对齐 ZCode：文件树从侧栏滑入）。
                     const openTree = () => {

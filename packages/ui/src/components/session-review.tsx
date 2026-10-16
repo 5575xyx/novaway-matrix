@@ -362,10 +362,13 @@ export const SessionReview = (props: SessionReviewProps) => {
               class="w-[106px] justify-start"
               onClick={handleExpandOrCollapseAll}
             >
-              <Switch>
-                <Match when={open().length > 0}>{i18n.t("ui.sessionReview.collapseAll")}</Match>
-                <Match when={true}>{i18n.t("ui.sessionReview.expandAll")}</Match>
-              </Switch>
+              {/* 文案包一层：极窄容器宽度下由 CSS 只隐藏这段文字，图标保留。 */}
+              <span data-slot="session-review-expand-all-label" class="truncate">
+                <Switch>
+                  <Match when={open().length > 0}>{i18n.t("ui.sessionReview.collapseAll")}</Match>
+                  <Match when={true}>{i18n.t("ui.sessionReview.expandAll")}</Match>
+                </Switch>
+              </span>
             </Button>
           </Show>
           {props.actions}

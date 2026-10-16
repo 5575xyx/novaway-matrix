@@ -739,6 +739,8 @@ export const dict = {
   "session.tab.context": "Context",
   "session.panel.reviewAndFiles": "Review and files",
   "session.review.filesChanged": "{{count}} Files Changed",
+  "session.filePreview.diff": "Changes",
+  "session.filePreview.file": "File",
   "session.review.diffStyle.unified": "Unified",
   "session.review.diffStyle.split": "Side by side",
   "session.review.diffStyle.toggle": "Toggle diff layout",

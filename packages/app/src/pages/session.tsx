@@ -368,6 +368,9 @@ export default function Page() {
   const paneShowsTerminal = createMemo(
     () => isDesktop() && layout.sidePane.opened() && layout.sidePane.activeTab() === "terminal",
   )
+  const sidePaneShowsPreview = createMemo(
+    () => isDesktop() && layout.sidePane.opened() && layout.sidePane.activeTab() === "preview",
+  )
   const officeReservedWidth = createMemo(() => 0)
   const centered = createMemo(() => isDesktop() && !desktopReviewOpen())
   const revertMessageID = createMemo(() => info()?.revert?.messageID)
@@ -599,6 +602,14 @@ export default function Page() {
       ? sidePaneShowsReview() || (desktopReviewOpen() && activeTab() === "review")
       : store.mobileTab === "changes",
   )
+  /**
+   * vcs 改动的取数条件。
+   *
+   * 比 `wantsReview` 宽一档：**预览面板也要**。文件预览要对"有改动的文件"显示前后对照，
+   * 那份改动就来自这个查询；只看 `wantsReview` 的话，用户在预览标签里
+   * （审查标签没打开）永远拿不到 diff，对照功能等于没生效。
+   */
+  const wantsVcsDiff = createMemo(() => wantsReview() || sidePaneShowsPreview())
   const vcsMode = createMemo<VcsMode | undefined>(() => {
     if (store.changes === "git" || store.changes === "branch") return store.changes
   })
@@ -607,7 +618,7 @@ export default function Page() {
   )
   const vcsQuery = createQuery(() => {
     const mode = vcsMode()
-    const enabled = wantsReview() && sync.project?.vcs === "git"
+    const enabled = wantsVcsDiff() && sync.project?.vcs === "git"
 
     return {
       queryKey: [...vcsKey(), mode] as const,
@@ -2235,7 +2246,6 @@ export default function Page() {
         </Show>
       </div>
     </Show>
-  )
     </SessionDiffProvider>
   )
 }

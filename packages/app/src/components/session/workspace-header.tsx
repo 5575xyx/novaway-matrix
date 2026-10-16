@@ -1,5 +1,5 @@
 import { Show, createMemo } from "solid-js"
-import { useParams } from "@solidjs/router"
+import { useNavigate, useParams } from "@solidjs/router"
 import { Button } from "@novaway/ui/button"
 import { DropdownMenu } from "@novaway/ui/dropdown-menu"
 import { Icon } from "@novaway/ui/icon"
@@ -21,6 +21,7 @@ import { displaySessionTitle } from "@/utils/session-title"
 
 export function WorkspaceHeader() {
   const params = useParams()
+  const navigate = useNavigate()
   const language = useLanguage()
   const layout = useLayout()
   const globalSync = useGlobalSync()
@@ -45,6 +46,17 @@ export function WorkspaceHeader() {
   })
   const dirName = createMemo(() => directory().split(/[\\/]/).filter(Boolean).pop() ?? directory())
   const branch = createMemo(() => sessionStore()?.vcs?.branch ?? "")
+  // 子会话的父会话（同一个 directory 的会话列表里找），用于顶部面包屑。
+  const parentSession = createMemo(() => {
+    const parentID = session()?.parentID
+    if (!parentID) return
+    return sessionStore()?.session.find((item) => item.id === parentID)
+  })
+  const openParentSession = () => {
+    const parentID = session()?.parentID
+    if (!parentID) return
+    navigate(`/${params.dir}/session/${parentID}`)
+  }
 
   return (
     <div
@@ -85,6 +97,26 @@ export function WorkspaceHeader() {
       />
       <Show when={working()}>
         <span class="size-2 rounded-full bg-[var(--success)] animate-pulse shrink-0" />
+      </Show>
+      {/* 子智能体会话的面包屑：`父会话标题 › 本会话标题`。
+          子会话从父会话派生而来，只给标题看不出它是谁的子任务
+          （侧栏的树能看出来，但会话页本身此前只有在输入框被禁用时才有一个"回到父会话"）。 */}
+      <Show when={parentSession()}>
+        {(parent) => (
+          <>
+            <button
+              type="button"
+              class="max-w-[160px] shrink truncate text-ui-caption text-foreground-subtle transition-colors hover:text-foreground"
+              title={displaySessionTitle(parent().title, language.t("workspace.header.untitled"))}
+              onClick={openParentSession}
+            >
+              {displaySessionTitle(parent().title, language.t("workspace.header.untitled"))}
+            </button>
+            <span class="shrink-0 text-foreground-subtlest" aria-hidden="true">
+              ›
+            </span>
+          </>
+        )}
       </Show>
       <span class="text-ui-base font-medium text-foreground truncate max-w-[240px]">
         {displaySessionTitle(session()?.title, language.t("workspace.header.untitled"))}
