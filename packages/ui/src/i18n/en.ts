@@ -111,6 +111,14 @@ export const dict: Record<string, string> = {
   "ui.imagePreview.alt": "Image preview",
   "ui.scrollView.ariaLabel": "scrollable content",
 
+  "ui.tool.status.pending": "Pending",
+  "ui.tool.status.running": "Running",
+  "ui.tool.status.completed": "Completed",
+  "ui.tool.status.failed": "Failed",
+  "ui.tool.expandDetails": "Expand tool details",
+  "ui.tool.collapseDetails": "Collapse tool details",
+  "ui.tool.copyError": "Copy error",
+  "ui.tool.copied": "Copied",
   "ui.tool.read": "Read",
   "ui.tool.loaded": "Loaded",
   "ui.tool.list": "List",
@@ -131,8 +139,6 @@ export const dict: Record<string, string> = {
   "ui.tool.generateVideo": "Generate Video",
 
   "ui.basicTool.called": "Called `{{tool}}`",
-  "ui.toolErrorCard.failed": "Failed",
-  "ui.toolErrorCard.copyError": "Copy error",
 
   "ui.common.file.one": "file",
   "ui.common.file.other": "files",

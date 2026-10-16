@@ -168,6 +168,63 @@
     align-items: center;
     flex-shrink: 0;
   }
+
+  /* 状态词（对齐 ZCode ToolLayout 的 statusNode）。
+     跟在摘要内容之后、箭头之前，用父级的 gap 拉开距离 —— 这里**不能**用
+     `margin-left: auto`：父容器 `trigger-content` 是 `flex: 0 1 auto`（内容宽度），
+     没有可分配的剩余空间，auto 会静默失效。 */
+  [data-slot="basic-tool-tool-status"] {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-ui-sm);
+    line-height: var(--line-height-large);
+    white-space: nowrap;
+
+    &[data-tone="active"] {
+      color: var(--foreground-subtle);
+    }
+
+    &[data-tone="idle"] {
+      color: var(--foreground-subtlest);
+    }
+
+    &[data-tone="error"] {
+      color: var(--destructive);
+    }
+  }
+
+  [data-slot="tool-status-word"][data-underline="true"] {
+    /* 失败原因挂在状态词的虚线下划线上；下划线只属于文字，
+       所以指示物在 DOM 上是兄弟而不是父容器。 */
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
+    cursor: help;
+  }
+}
+
+/* 失败详情气泡：原文可能是一整段 JSON，给三行上限并可一键复制。 */
+[data-slot="tool-status-tooltip"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 24rem;
+
+  [data-slot="tool-status-tooltip-text"] {
+    min-width: 0;
+    flex: 1 1 auto;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-ui-xs);
+    line-height: var(--line-height-normal);
+  }
 }
 
 [data-component="task-tool-card"] {

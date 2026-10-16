@@ -160,8 +160,6 @@ export const dict = {
   "ui.tool.task": "Задача",
   "ui.tool.skill": "Навык",
   "ui.basicTool.called": "Вызван `{{tool}}`",
-  "ui.toolErrorCard.failed": "Ошибка",
-  "ui.toolErrorCard.copyError": "Скопировать ошибку",
   "ui.message.duration.seconds": "{{count}}с",
   "ui.message.duration.minutesSeconds": "{{minutes}}м {{seconds}}с",
 }

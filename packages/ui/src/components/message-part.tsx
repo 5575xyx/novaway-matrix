@@ -42,7 +42,6 @@ import { StickyAccordionHeader } from "./sticky-accordion-header"
 import { Collapsible } from "./collapsible"
 import { FileIcon } from "./file-icon"
 import { Icon } from "./icon"
-import { ToolErrorCard } from "./tool-error-card"
 import { Checkbox } from "./checkbox"
 import { DiffChanges } from "./diff-changes"
 import { Markdown } from "./markdown"
@@ -1281,6 +1280,8 @@ export interface ToolProps {
   locked?: boolean
   /** 工具行展开态的持久化键（见 BasicTool 的说明）。 */
   persistKey?: string
+  /** 失败原因：挂到工具行的状态词上（虚线下划线 + 悬停详情，可复制）。 */
+  statusTooltip?: string
 }
 
 export type ToolComponent = Component<ToolProps>
@@ -1393,14 +1394,25 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
                   </div>
                 )
               }
+              // 失败不再换成一张独立错误卡，而是让工具行留在原地、把失败挂到状态词上
+              // （对齐 ZCode 的 fallback / execute 等渲染器：statusLabel=失败 +
+              // statusTooltip=原始报错）。这样时间线在失败时不会突然多出一大块卡片，
+              // 失败原因也仍然可读（悬停状态词展开，并可一键复制）。
               return (
-                <ToolErrorCard
+                <Dynamic
+                  component={render()}
+                  input={input()}
                   tool={part().tool}
-                  error={error()}
-                  title={part().tool === "websearch" ? webSearchProviderLabel(partMetadata().provider) : undefined}
+                  sessionID={part().sessionID}
+                  metadata={partMetadata()}
+                  // @ts-expect-error 错误态没有 output 字段
+                  output={part().state.output}
+                  status="error"
+                  statusTooltip={cleaned}
+                  hideDetails={props.hideDetails}
                   defaultOpen={props.defaultOpen}
-                  subtitle={taskSubtitle()}
-                  href={taskHref()}
+                  deferContent={props.deferToolContent}
+                  persistKey={part().id}
                 />
               )
             }}
@@ -1933,6 +1945,8 @@ ToolRegistry.register({
         triggerHref={href()}
         clickable={clickable()}
         onTriggerClick={navigate}
+        statusTooltip={props.statusTooltip}
+        persistKey={props.persistKey}
       />
     )
   },
@@ -2512,7 +2526,16 @@ ToolRegistry.register({
       </div>
     )
 
-    return <BasicTool icon="brain" status={props.status} trigger={trigger()} hideDetails />
+    return (
+      <BasicTool
+        icon="brain"
+        status={props.status}
+        trigger={trigger()}
+        hideDetails
+        statusTooltip={props.statusTooltip}
+        persistKey={props.persistKey}
+      />
+    )
   },
 })
 

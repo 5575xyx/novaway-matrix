@@ -104,6 +104,14 @@ export const dict = {
   "ui.imagePreview.alt": "图片预览",
   "ui.scrollView.ariaLabel": "可滚动内容",
 
+  "ui.tool.status.pending": "等待中",
+  "ui.tool.status.running": "执行中",
+  "ui.tool.status.completed": "已完成",
+  "ui.tool.status.failed": "执行失败",
+  "ui.tool.expandDetails": "展开工具详情",
+  "ui.tool.collapseDetails": "收起工具详情",
+  "ui.tool.copyError": "复制错误信息",
+  "ui.tool.copied": "已复制",
   "ui.tool.read": "查找",
   "ui.tool.loaded": "已加载",
   "ui.tool.list": "列表",
@@ -174,8 +182,6 @@ export const dict = {
   "ui.tool.generateVideo": "生成视频",
 
   "ui.basicTool.called": "调用了 `{{tool}}`",
-  "ui.toolErrorCard.failed": "失败",
-  "ui.toolErrorCard.copyError": "复制错误",
   "ui.message.duration.seconds": "{{count}}秒",
   "ui.message.duration.minutesSeconds": "{{minutes}}分 {{seconds}}秒",
 } satisfies Partial<Record<Keys, string>>

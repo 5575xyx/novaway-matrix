@@ -167,8 +167,6 @@ export const dict = {
   "ui.tool.task": "Görev",
   "ui.tool.skill": "Yetenek",
   "ui.basicTool.called": "`{{tool}}` çağrıldı",
-  "ui.toolErrorCard.failed": "Başarısız",
-  "ui.toolErrorCard.copyError": "Hatayı kopyala",
   "ui.message.duration.seconds": "{{count}}sn",
   "ui.message.duration.minutesSeconds": "{{minutes}}dk {{seconds}}sn",
 } satisfies Partial<Record<Keys, string>>
