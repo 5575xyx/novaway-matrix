@@ -169,6 +169,52 @@
     flex-shrink: 0;
   }
 
+  /* 「动了哪些文件」的 chip 行（对齐 ZCode 的 file chip）。 */
+  [data-slot="tool-file-chips"] {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex-shrink: 1;
+    color: var(--foreground-subtle);
+    font-size: var(--font-size-ui-base);
+  }
+
+  [data-slot="tool-file-chip"] {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    max-width: 14rem;
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+  }
+
+  button[data-slot="tool-file-chip"] {
+    cursor: pointer;
+
+    &:hover [data-slot="tool-file-chip-label"] {
+      text-decoration: underline;
+    }
+  }
+
+  [data-slot="tool-file-chip-label"] {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  [data-slot="tool-file-chip-overflow"] {
+    flex-shrink: 0;
+    color: var(--foreground-subtlest);
+    font-variant-numeric: tabular-nums;
+  }
+
   /* 状态词（对齐 ZCode ToolLayout 的 statusNode）。
      跟在摘要内容之后、箭头之前，用父级的 gap 拉开距离 —— 这里**不能**用
      `margin-left: auto`：父容器 `trigger-content` 是 `flex: 0 1 auto`（内容宽度），

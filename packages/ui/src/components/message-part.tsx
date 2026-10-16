@@ -54,6 +54,8 @@ import { Spinner } from "./spinner"
 import { TextShimmer } from "./text-shimmer"
 import { AnimatedCountList } from "./tool-count-summary"
 import { ToolStatusTitle } from "./tool-status-title"
+import { toolActionKey } from "./tool-title"
+import { ToolFileChips } from "./tool-file-chips"
 import { patchFiles } from "./apply-patch-file"
 import { animate } from "motion"
 import { useLocation } from "@solidjs/router"
@@ -1986,7 +1988,7 @@ ToolRegistry.register({
             </span>
             <div data-slot="basic-tool-tool-info-main">
               <span data-slot="basic-tool-tool-title" style={{ color: "inherit" }}>
-                <TextShimmer text={i18n.t("ui.tool.shell")} active={pending()} />
+                <TextShimmer text={i18n.t(pending() ? "ui.tool.action.run.running" : "ui.tool.action.run.done")} active={pending()} />
               </span>
               <Show when={!pending() && props.input.description}>
                 <ShellSubmessage text={props.input.description} animate={sawPending} />
@@ -2072,7 +2074,7 @@ ToolRegistry.register({
               <div data-slot="message-part-title-area">
                 <div data-slot="message-part-title">
                   <span data-slot="message-part-title-text">
-                    <TextShimmer text={i18n.t("ui.messagePart.title.edit")} active={pending()} />
+                    <TextShimmer text={i18n.t(pending() ? "ui.tool.action.edit.running" : "ui.tool.action.edit.done")} active={pending()} />
                   </span>
                   <Show when={!pending()}>
                     <span data-slot="message-part-title-filename">{filename()}</span>
@@ -2143,7 +2145,7 @@ ToolRegistry.register({
               <div data-slot="message-part-title-area">
                 <div data-slot="message-part-title">
                   <span data-slot="message-part-title-text">
-                    <TextShimmer text={i18n.t("ui.messagePart.title.write")} active={pending()} />
+                    <TextShimmer text={i18n.t(pending() ? "ui.tool.action.write.running" : "ui.tool.action.write.done")} active={pending()} />
                   </span>
                   <Show when={!pending()}>
                     <span data-slot="message-part-title-filename">{filename()}</span>
@@ -2230,7 +2232,13 @@ ToolRegistry.register({
               defer={props.deferContent !== false}
               trigger={{
                 title: i18n.t("ui.tool.patch"),
-                subtitle: subtitle(),
+                // 文件名逐个列出来（对齐 ZCode：`编辑 [icon] a.ts [icon] b.ts +2`），
+                // 而不是只写"N 个文件"——用户扫一眼就知道动了什么，不用展开。
+                // 右侧再给汇总增删。
+                detail: <ToolFileChips files={files().map((f) => ({ path: f.relativePath, additions: f.additions, deletions: f.deletions }))} />,
+                action: (
+                  <DiffChanges changes={files().map((f) => ({ additions: f.additions, deletions: f.deletions }))} />
+                ),
               }}
             >
               <Show when={files().length > 0}>
@@ -2330,7 +2338,7 @@ ToolRegistry.register({
                 <div data-slot="message-part-title-area">
                   <div data-slot="message-part-title">
                     <span data-slot="message-part-title-text">
-                      <TextShimmer text={i18n.t("ui.tool.patch")} active={pending()} />
+                      <TextShimmer text={i18n.t(pending() ? "ui.tool.action.patch.running" : "ui.tool.action.patch.done")} active={pending()} />
                     </span>
                     <Show when={!pending()}>
                       <span data-slot="message-part-title-filename">{getFilename(single()!.relativePath)}</span>
