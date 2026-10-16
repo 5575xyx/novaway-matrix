@@ -74,4 +74,16 @@ export const Script = {
     return team
   },
 }
-console.log(`opencode script`, JSON.stringify(Script, null, 2))
+// 这是**发布用**的诊断输出（版本 / 通道 / 参与人），每次 `bun dev` 都会跑 predev
+// 把它打到终端。对最终用户来说它既不是 NovaWay 的东西、也没有可操作信息：
+// - 名字写的是上游的 "opencode script"
+// - `team` 是上游仓库的贡献者名单（含上游 CI 机器人），白标产品里不该出现
+// 所以只打本产品的通道与版本；`Script.team` 仍然保留，发布脚本要用的地方不受影响。
+console.log(
+  `novaway script`,
+  JSON.stringify(
+    { channel: Script.channel, version: Script.version, preview: Script.preview, release: Script.release },
+    null,
+    2,
+  ),
+)

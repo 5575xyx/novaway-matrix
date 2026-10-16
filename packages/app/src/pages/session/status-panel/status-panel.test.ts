@@ -12,7 +12,7 @@ describe("shouldMountStatusPanel", () => {
 })
 
 // 任务停下来了就不该继续挂 todo / context 两个区块（上一轮的残留会一直盖住消息区），
-// 但 git / cache / memory 必须留着：提交入口、整个会话累积的缓存统计、全局的记忆审核，
+// 但 git / cache 必须留着：提交入口、整个会话累积的缓存统计，
 // 这三样都跟"这次任务跑没跑"无关，跟着一起消失用户就再也找不到入口了。
 describe("visibleStatusSections", () => {
   const sections = [{ id: "git" }, { id: "todo" }, { id: "context" }]
@@ -29,12 +29,10 @@ describe("visibleStatusSections", () => {
     expect(visibleStatusSections([{ id: "todo" }, { id: "context" }], false)).toEqual([])
   })
 
-  test("缓存与记忆同样常驻，任务停下不能把它们带走", () => {
+  test("缓存同样常驻，任务停下不能把它带走", () => {
     expect(
-      visibleStatusSections([{ id: "memory" }, { id: "todo" }, { id: "cache" }, { id: "git" }], false).map(
-        (section) => section.id,
-      ),
-    ).toEqual(["memory", "cache", "git"])
+      visibleStatusSections([{ id: "todo" }, { id: "cache" }, { id: "git" }], false).map((section) => section.id),
+    ).toEqual(["cache", "git"])
   })
 })
 
