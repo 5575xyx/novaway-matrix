@@ -119,7 +119,15 @@ export type LocalProject = Partial<Project> & { worktree: string; expanded: bool
 
 export type ReviewDiffStyle = "unified" | "split"
 
-export type SidePaneTab = "preview" | "review" | "terminal"
+/**
+ * Side Pane 的标签 id。
+ *
+ * 内置的是 `preview` / `review` / `terminal`；动态的（见 SidePaneSessionTab）
+ * 是 `subagent:<sessionID>` / `sideChat:<sessionID>` 这样的字符串。
+ * 历史实现把三个内置值写成字面量联合，加了动态标签之后会到处需要窄化，
+ * 所以这里收敛成 `string` —— 合法性由 `isSidePaneTab` 裁决（它会查动态表）。
+ */
+export type SidePaneTab = string
 export type SidebarView = "tasks" | "tree"
 
 export function ensureSessionKey(key: string, touch: (key: string) => void, seed: (key: string) => void) {
@@ -206,6 +214,8 @@ export type SidePaneState = {
   opened: boolean
   tabs: SidePaneTab[]
   activeTab: SidePaneTab | null
+  /** 动态标签的元数据，键 = 标签 id（见 SidePaneSessionTab）。 */
+  dynamic: Record<string, SidePaneSessionTab>
 }
 
 export type SidePaneAction =
@@ -216,12 +226,43 @@ export type SidePaneAction =
   | { type: "remove"; tab: SidePaneTab }
   | { type: "setActive"; tab: SidePaneTab }
   | { type: "move"; from: number; to: number }
+  | { type: "addSession"; tab: SidePaneSessionTab }
+  | { type: "removeSession"; id: string }
 
-export const DEFAULT_SIDE_PANE_STATE: SidePaneState = { opened: true, tabs: [], activeTab: null }
+export const DEFAULT_SIDE_PANE_STATE: SidePaneState = { opened: true, tabs: [], activeTab: null, dynamic: {} }
 
-const SIDE_PANE_TABS: SidePaneTab[] = ["preview", "review", "terminal"]
+export const SIDE_PANE_TABS = ["preview", "review", "terminal"] as const
 
-const isSidePaneTab = (value: unknown): value is SidePaneTab => SIDE_PANE_TABS.some((tab) => tab === value)
+/**
+ * Side Pane 的动态标签：一个标签对应一个**会话**。
+ *
+ * 对齐 ZCode 的 `WorkspaceSidePaneTab`（一个可辨识联合，带 `subagent-session` /
+ * `selection-side-chat` 两种会话标签）：
+ *
+ * - `subagent` —— 从工具行的子代理摘要点进来的子会话（ZCode 的 `subagent-session`）
+ * - `sideChat` —— 侧边对话：独立小会话，继承主对话上下文但**不写入主对话历史**
+ *                 （ZCode 的 `selection-side-chat`）
+ *
+ * 生命周期上两者都是「跟着父会话走」：父会话结束或标签关闭时，服务端的会话一起关掉。
+ */
+export type SidePaneSessionTab = {
+  id: string
+  kind: "subagent" | "sideChat"
+  sessionID: string
+  /** 父会话 id：侧边对话/子代理都挂在它下面（清理与"回到主线"要用）。 */
+  parentID: string
+  title: string
+}
+
+export const sidePaneSubagentTabId = (sessionID: string) => `subagent:${sessionID}`
+export const sidePaneSideChatTabId = (sessionID: string) => `sideChat:${sessionID}`
+
+const isSidePaneBuiltinTab = (value: unknown): value is SidePaneTab =>
+  typeof value === "string" && (SIDE_PANE_TABS as readonly string[]).includes(value)
+
+/** 内置标签**或**已知的动态标签都算合法；动态标签要在 `dynamic` 里查得到才算数。 */
+export const isSidePaneTab = (value: unknown, dynamic?: Record<string, SidePaneSessionTab>): value is SidePaneTab =>
+  typeof value === "string" && (isSidePaneBuiltinTab(value) || !!dynamic?.[value])
 
 /** 旧单值 tab → 新模型；被移除的 tab 映射到承接它的那个，无法识别的值回落为 undefined（空态）。 */
 const migrateLegacySidePaneTab = (value: unknown): SidePaneTab | undefined => {
@@ -322,13 +363,30 @@ export function migrateLayoutStore(value: unknown) {
     if (!isRecord(sidePane)) return sidePane
 
     const legacy = migrateLegacySidePaneTab(sidePane.tab)
-    const storedTabs = Array.isArray(sidePane.tabs)
-      ? sidePane.tabs.filter(isSidePaneTab).filter((tab, index, all) => all.indexOf(tab) === index)
+    // 动态标签的元数据先读出来，`isSidePaneTab` 需要它来判断某个 id 是否还算合法
+    // （会话被删掉后残留的 id 必须过滤掉，否则会渲染出一个空白面板）。
+    const dynamic: Record<string, SidePaneSessionTab> = isRecord(sidePane.dynamic)
+      ? Object.fromEntries(
+          Object.entries(sidePane.dynamic).filter(
+            (entry): entry is [string, SidePaneSessionTab] =>
+              isRecord(entry[1]) &&
+              typeof entry[1].id === "string" &&
+              (entry[1].kind === "subagent" || entry[1].kind === "sideChat") &&
+              typeof entry[1].sessionID === "string" &&
+              typeof entry[1].parentID === "string" &&
+              typeof entry[1].title === "string",
+          ),
+        )
+      : {}
+    const storedTabs: SidePaneTab[] = Array.isArray(sidePane.tabs)
+      ? (sidePane.tabs as unknown[])
+          .filter((tab) => isSidePaneTab(tab, dynamic))
+          .filter((tab, index, all) => all.indexOf(tab) === index)
       : legacy
         ? [legacy]
         : []
-    const activeTab =
-      isSidePaneTab(sidePane.activeTab) && storedTabs.includes(sidePane.activeTab)
+    const activeTab: SidePaneTab | null =
+      isSidePaneTab(sidePane.activeTab, dynamic) && storedTabs.includes(sidePane.activeTab)
         ? sidePane.activeTab
         : (storedTabs[0] ?? null)
     const opened = typeof sidePane.opened === "boolean" ? sidePane.opened : DEFAULT_SIDE_PANE_STATE.opened
@@ -339,13 +397,16 @@ export function migrateLayoutStore(value: unknown) {
       opened === sidePane.opened &&
       width === sidePane.width &&
       activeTab === sidePane.activeTab &&
-      same(Array.isArray(sidePane.tabs) ? sidePane.tabs : [], storedTabs)
+      same(Array.isArray(sidePane.tabs) ? sidePane.tabs : [], storedTabs) &&
+      // `same` 只比数组；动态表按「键与值都一致」比（值本身是纯数据，逐字段比没有意义，
+      // 引用相等就够 —— 迁移时要么原样返回、要么新建，不会出现"内容相同但引用不同"）。
+      sameDynamicTabs(sidePane.dynamic, dynamic)
     ) {
       return sidePane
     }
 
-    const { tab: _legacyTab, ...rest } = sidePane
-    return { ...rest, opened, tabs: storedTabs, activeTab, width }
+    const { tab: _legacyTab, dynamic: _legacyDynamic, ...rest } = sidePane
+    return { ...rest, opened, tabs: storedTabs, activeTab, width, dynamic }
   })()
 
   if (
@@ -371,6 +432,17 @@ export function migrateLayoutStore(value: unknown) {
   }
 }
 
+/** 动态标签表是否等价（键集合 + 每个值的引用都一致）。 */
+function sameDynamicTabs(
+  a: unknown,
+  b: Record<string, SidePaneSessionTab>,
+): boolean {
+  if (!isRecord(a)) return Object.keys(b).length === 0
+  const keys = Object.keys(a)
+  if (keys.length !== Object.keys(b).length) return false
+  return keys.every((key) => a[key] === b[key])
+}
+
 /** Side Pane 状态模型的唯一写入口：容器展开/收起与 tab 集合的操作语义都在这里裁决。 */
 export function reduceSidePane(state: SidePaneState, action: SidePaneAction): SidePaneState {
   if (action.type === "toggle") return { ...state, opened: !state.opened }
@@ -378,9 +450,23 @@ export function reduceSidePane(state: SidePaneState, action: SidePaneAction): Si
   if (action.type === "close") return state.opened ? { ...state, opened: false } : state
   if (action.type === "add") {
     const tabs = state.tabs.includes(action.tab) ? state.tabs : [...state.tabs, action.tab]
-    return { opened: true, tabs, activeTab: action.tab }
+    return { ...state, opened: true, tabs, activeTab: action.tab }
   }
-  if (action.type === "setActive") return { opened: true, tabs: state.tabs, activeTab: action.tab }
+  if (action.type === "setActive") return { ...state, opened: true, activeTab: action.tab }
+  if (action.type === "addSession") {
+    const { tab } = action
+    const tabs = state.tabs.includes(tab.id) ? state.tabs : [...state.tabs, tab.id]
+    // 同一会话的标签不重复：id 就是 `kind:sessionID`，重复打开只会聚焦已有的那个。
+    return { opened: true, tabs, activeTab: tab.id, dynamic: { ...state.dynamic, [tab.id]: tab } }
+  }
+  if (action.type === "removeSession") {
+    const tabs = state.tabs.filter((id) => id !== action.id)
+    const dynamic = { ...state.dynamic }
+    delete dynamic[action.id]
+    if (tabs.length === 0) return { ...state, opened: false, tabs, activeTab: null, dynamic }
+    if (state.activeTab !== action.id) return { ...state, tabs, dynamic }
+    return { ...state, tabs, dynamic, activeTab: tabs[tabs.length - 1] ?? null }
+  }
   if (action.type === "move") {
     const { from, to } = action
     if (from === to || from < 0 || to < 0 || from >= state.tabs.length || to >= state.tabs.length) return state
@@ -394,9 +480,12 @@ export function reduceSidePane(state: SidePaneState, action: SidePaneAction): Si
   const index = state.tabs.indexOf(action.tab)
   if (index === -1) return state
   const tabs = state.tabs.filter((tab) => tab !== action.tab)
-  if (tabs.length === 0) return { opened: false, tabs, activeTab: null }
-  if (state.activeTab !== action.tab) return { ...state, tabs }
-  return { ...state, tabs, activeTab: tabs[Math.min(index, tabs.length - 1)] ?? null }
+  // 关掉一个动态标签时，它的元数据也一起清掉，否则会永远留在持久化里。
+  const dynamic = { ...state.dynamic }
+  delete dynamic[action.tab]
+  if (tabs.length === 0) return { opened: false, tabs, activeTab: null, dynamic }
+  if (state.activeTab !== action.tab) return { ...state, tabs, dynamic }
+  return { ...state, tabs, dynamic, activeTab: tabs[Math.min(index, tabs.length - 1)] ?? null }
 }
 
 export const { use: useLayout, provider: LayoutProvider } = createSimpleContext({
@@ -440,6 +529,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           opened: DEFAULT_SIDE_PANE_STATE.opened,
           tabs: [] as SidePaneTab[],
           activeTab: DEFAULT_SIDE_PANE_STATE.activeTab,
+          dynamic: {} as Record<string, SidePaneSessionTab>,
           width: DEFAULT_SIDE_PANE_WIDTH,
         },
         sidebarView: "tasks" as SidebarView,
@@ -750,6 +840,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       opened: store.sidePane?.opened ?? DEFAULT_SIDE_PANE_STATE.opened,
       tabs: store.sidePane?.tabs ?? DEFAULT_SIDE_PANE_STATE.tabs,
       activeTab: store.sidePane?.activeTab ?? DEFAULT_SIDE_PANE_STATE.activeTab,
+      dynamic: store.sidePane?.dynamic ?? DEFAULT_SIDE_PANE_STATE.dynamic,
     })
     const updateSidePane = (action: SidePaneAction) => {
       setStore("sidePane", {
@@ -886,6 +977,16 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       sidePane: {
         opened: createMemo(() => store.sidePane?.opened ?? DEFAULT_SIDE_PANE_STATE.opened),
         tabs: createMemo<SidePaneTab[]>(() => store.sidePane?.tabs ?? DEFAULT_SIDE_PANE_STATE.tabs),
+        /** 动态标签（会话）的元数据表，键 = 标签 id。 */
+        dynamicTabs: createMemo<Record<string, SidePaneSessionTab>>(
+          () => store.sidePane?.dynamic ?? DEFAULT_SIDE_PANE_STATE.dynamic,
+        ),
+        /** 当前激活的动态标签（内置标签返回 undefined）。 */
+        activeSessionTab: createMemo<SidePaneSessionTab | undefined>(() => {
+          const id = store.sidePane?.activeTab
+          if (typeof id !== "string") return
+          return store.sidePane?.dynamic?.[id]
+        }),
         activeTab: createMemo<SidePaneTab | null>(() => store.sidePane?.activeTab ?? DEFAULT_SIDE_PANE_STATE.activeTab),
         width: createMemo(() => store.sidePane?.width ?? DEFAULT_SIDE_PANE_WIDTH),
         open() {
@@ -899,6 +1000,24 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         },
         add(tab: SidePaneTab) {
           updateSidePane({ type: "add", tab })
+        },
+        /**
+         * 打开（或聚焦）一个会话标签。同一 `kind:sessionID` 只会有一个标签。
+         *
+         * 对齐 ZCode 的 `openSubagentSessionPane` / `openSelectionSideChatPane`：
+         * 子代理与侧边对话都是"在右侧面板里看另一个会话"，而不是整页跳走 ——
+         * 整页跳转会把主线上下文从眼前挪走，回来还得再找。
+         */
+        openSession(tab: SidePaneSessionTab) {
+          updateSidePane({ type: "addSession", tab })
+        },
+        /**
+         * 关闭会话标签。**只移除标签**，不删服务端会话 ——
+         * 删除是调用方的事：子代理的会话属于父会话的一部分，不该因为关了面板就消失；
+         * 侧边对话才是"关掉即删除"（见 side-chat 的说明）。
+         */
+        closeSession(id: string) {
+          updateSidePane({ type: "removeSession", id })
         },
         remove(tab: SidePaneTab) {
           updateSidePane({ type: "remove", tab })

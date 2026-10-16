@@ -10,6 +10,8 @@ import { DevServerProvider } from "@/context/dev-server"
 import { PreviewProvider } from "@/context/preview"
 import { SDKProvider } from "@/context/sdk"
 import { SyncProvider, useSync } from "@/context/sync"
+import { useLayout } from "@/context/layout"
+import { sidePaneSubagentTabId } from "@/context/layout"
 import { decode64 } from "@/utils/base64"
 
 function DirectoryDataProvider(props: ParentProps<{ directory: string }>) {
@@ -17,7 +19,29 @@ function DirectoryDataProvider(props: ParentProps<{ directory: string }>) {
   const navigate = useNavigate()
   const params = useParams()
   const sync = useSync()
+  const layout = useLayout()
   const slug = createMemo(() => base64Encode(props.directory))
+
+  /**
+   * 子代理摘要行点击 → 在**右侧面板**打开子会话，而不是整页跳走。
+   *
+   * 对齐 ZCode 的 `openSubagentSessionFromSummary`：整页跳会把主线从眼前挪走，
+   * 用户看完子会话还得再找回来。面板里看则"主线继续跑、支线随时看"。
+   *
+   * 面板顶部留了「在主线打开」，需要完整能力（fork / retry / 编辑）时再跳过去。
+   */
+  const openSubagentSession = (sessionID: string) => {
+    const parentID = params.id ?? ""
+    const title =
+      sync.data.session.find((item) => item.id === sessionID)?.title ?? sessionID
+    layout.sidePane.openSession({
+      id: sidePaneSubagentTabId(sessionID),
+      kind: "subagent",
+      sessionID,
+      parentID,
+      title,
+    })
+  }
 
   createEffect(() => {
     const next = sync.data.path.directory
@@ -35,7 +59,9 @@ function DirectoryDataProvider(props: ParentProps<{ directory: string }>) {
     <DataProvider
       data={sync.data}
       directory={props.directory}
-      onNavigateToSession={(sessionID: string) => navigate(`/${slug()}/session/${sessionID}`)}
+      // 工具行里的子代理摘要走面板；其它"跳到某个会话"的调用点（面包屑、搜索结果）
+      // 仍然是路由跳转 —— 它们本来就是"我要离开当前上下文"的语义。
+      onNavigateToSession={openSubagentSession}
       onSessionHref={(sessionID: string) => `/${slug()}/session/${sessionID}`}
     >
       <LocalProvider>
