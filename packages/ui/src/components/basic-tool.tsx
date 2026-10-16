@@ -76,6 +76,15 @@ export interface BasicToolProps {
   statusTooltip?: string
   /** 完成态也显示状态词。 */
   showStatus?: boolean
+
+  /**
+   * 运行结束的**那一刻**自动收起一次。
+   *
+   * 对齐 ZCode 的 `autoCollapseOnComplete`：只作用于 running → 完成 的边沿，
+   * 不影响用户之后手动再展开。子智能体这类工具在运行中会摊开一大串子调用，
+   * 完成后不收回来的话聊天流会被永久撑长，和"运行中展开、完成回到摘要"不一致。
+   */
+  autoCollapseOnComplete?: boolean
 }
 
 /**
@@ -274,6 +283,21 @@ export function BasicTool(props: BasicToolProps) {
   createEffect(() => {
     if (props.forceOpen) setState("open", true)
   })
+
+  // 只在「运行中 → 完成」的边沿收起一次。
+  // 用 `on(pending, ...)` 拿前后值而不是读 `state.open`：后者会让这个 effect
+  // 依赖自身写入的 open，收起后立刻又被自己触发一遍。
+  createEffect(
+    on(
+      pending,
+      (running, wasRunning) => {
+        if (!props.autoCollapseOnComplete) return
+        if (wasRunning !== true || running) return
+        setState("open", false)
+      },
+      { defer: true },
+    ),
+  )
 
   // 把展开态写回模块级 Map，供重建后的实例恢复。
   createEffect(() => {
