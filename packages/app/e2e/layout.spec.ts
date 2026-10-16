@@ -291,7 +291,9 @@ test("Side Pane 空态按需创建 + tab 标签不折行 + 折叠按钮", async 
   // 这里断言真正改变的东西：data-open 翻转 + 宽度过完后为 0。
   await collapse.click()
   await expect(frame).toHaveAttribute("data-open", "false")
-  await expect.poll(async () => (await frame.boundingBox())?.width ?? -1, { timeout: 5_000 }).toBe(0)
+  // 超时要覆盖 1s 的宽度过渡，并留出并行跑 18 条用例时的调度余量。
+  // 原来 5s：单跑够用，全量并行时偶尔会卡在过渡中途（实测宽 5.875px）而假红。
+  await expect.poll(async () => (await frame.boundingBox())?.width ?? -1, { timeout: 15_000 }).toBe(0)
 })
 
 test("首页任务中心信息密度", async ({ page }) => {

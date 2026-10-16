@@ -16,6 +16,14 @@ export type TriggerTitle = {
   subtitleClass?: string
   args?: string[]
   argsClass?: string
+  /**
+   * 标题右侧的**富内容**（对齐 ZCode ToolSummaryRow 的 `kindDetail`）。
+   *
+   * `subtitle` 只能是字符串（会被截断成一行），但有些摘要需要真实节点：
+   * 例如"动了哪些文件"的 chip 列表（带文件图标）。两者的位置也不同 ——
+   * subtitle 跟着标题、detail 在最外侧。
+   */
+  detail?: JSX.Element
   action?: JSX.Element
 }
 
@@ -350,6 +358,9 @@ export function BasicTool(props: BasicToolProps) {
                     >
                       <TextShimmer text={title().title} active={pending()} />
                     </span>
+                    <Show when={title().detail}>
+                      <span data-slot="basic-tool-tool-detail">{title().detail}</span>
+                    </Show>
                     <Show when={!pending()}>
                       <Show when={title().subtitle}>
                         <span
@@ -384,7 +395,11 @@ export function BasicTool(props: BasicToolProps) {
                       </Show>
                     </Show>
                   </div>
-                  <Show when={!pending() && title().action}>
+                  {/* `action` 不再按 pending 隐藏：它现在承载「改了哪些文件 / 增删多少」
+                      这类**运行中也需要看**的信息（对齐 ZCode 的 diffCount，
+                      编辑过程中 `+N` 会随着改动长大）。各渲染器若只想在结束时显示，
+                      自己在 action 里加 `<Show when={!pending()}>`。 */}
+                  <Show when={title().action}>
                     <span data-slot="basic-tool-tool-action">{title().action}</span>
                   </Show>
                 </div>
