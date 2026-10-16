@@ -98,8 +98,9 @@ export const TaskRow = (props: TaskRowProps): JSX.Element => {
           selected(),
       }}
       style={{
-        // 子会话缩进一级。用行内的 padding 而不是外层包 div：行本身的 hover 底色
-        // 要跟着缩进后的宽度走，包一层会让 hover 区域退回到项目全宽。
+        // 按层级缩进（`level` 是相对项目根的深度，见 sidebar-tasks 的注释）。
+        // 用行内的 padding 而不是外层包 div：行本身的 hover 底色要跟着缩进后的宽度走，
+        // 包一层会让 hover 区域退回到项目全宽。
         "padding-left": `${8 + (props.level ?? 0) * 16}px`,
         ...(selected() ? { "--task-row-color": props.modeColor?.() ?? "var(--border-hover)" } : {}),
       }}

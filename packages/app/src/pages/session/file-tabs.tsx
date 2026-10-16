@@ -691,18 +691,32 @@ export function FileTabContent(props: { tab: string }) {
                     {language.t("session.filePreview.file")}
                   </button>
                 </div>
-                {/* 左右 / 上下对照。只在看对照时才有意义。 */}
+                {/*
+                  左右 / 上下对照。做成两段的分段控件（而不是一个"显示当前模式"的按钮）：
+                  单按钮的文案是当前模式，点一下变文案、看不出是"选中态变了"，
+                  用户会以为没反应。分段控件让两种排布同时可见、选中态有底色。
+                */}
                 <Show when={viewMode() === "diff"}>
-                  <button
-                    type="button"
-                    class="rounded border border-border px-1.5 py-0.5 text-ui-xs text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
-                    aria-label={language.t("session.review.diffStyle.toggle")}
-                    onClick={() => sessionDiff.setStyle(sessionDiff.style() === "split" ? "unified" : "split")}
-                  >
-                    {sessionDiff.style() === "split"
-                      ? language.t("session.review.diffStyle.split")
-                      : language.t("session.review.diffStyle.unified")}
-                  </button>
+                  <div class="flex items-center rounded-md bg-surface p-0.5" role="group" aria-label={language.t("session.review.diffStyle.toggle")}>
+                    <For each={["split", "unified"] as const}>
+                      {(style) => (
+                        <button
+                          type="button"
+                          class="rounded px-1.5 py-0.5 text-ui-xs transition-colors"
+                          classList={{
+                            "bg-background text-foreground": sessionDiff.style() === style,
+                            "text-foreground-subtle hover:text-foreground": sessionDiff.style() !== style,
+                          }}
+                          aria-pressed={sessionDiff.style() === style}
+                          onClick={() => sessionDiff.setStyle(style)}
+                        >
+                          {language.t(
+                            style === "split" ? "session.review.diffStyle.split" : "session.review.diffStyle.unified",
+                          )}
+                        </button>
+                      )}
+                    </For>
+                  </div>
                 </Show>
               </div>
             </Show>
