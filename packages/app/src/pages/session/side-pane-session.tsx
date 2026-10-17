@@ -3,7 +3,6 @@ import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
 import { Spinner } from "@novaway/ui/spinner"
 import { AssistantParts, Message } from "@novaway/ui/message-part"
-import { TextShimmer } from "@novaway/ui/text-shimmer"
 import { useLanguage } from "@/context/language"
 import { useSDK } from "@/context/sdk"
 import { SideChatComposer } from "@/pages/session/side-chat-composer"
@@ -106,27 +105,8 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
   })
 
   const settings = useSettings()
-  const status = createMemo(() => store().session_status[props.tab.sessionID])
-  const working = createMemo(() => {
-    const type = status()?.type ?? "idle"
-    return type !== "idle"
-  })
 
   const partsOf = (messageID: string) => store().part[messageID] ?? []
-
-  /** 最后一轮是否已经有可渲染内容（有就不必再显示"思考中"）。 */
-  const lastTurnHasContent = () => {
-    const turn = turns().at(-1)
-    if (!turn) return false
-    return turn.assistants.some((message) =>
-      partsOf(message.id).some((part) => {
-        if (part.type === "text") return !!part.text?.trim()
-        if (part.type === "reasoning") return !!part.text?.trim()
-        if (part.type === "tool") return true
-        return false
-      }),
-    )
-  }
 
   /** 流式输出时跟着底部走：面板不会自动滚，用户得手动追着看。 */
   let scrollRef: HTMLDivElement | undefined
@@ -142,13 +122,12 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
       streamSignature,
       () => {
         queueMicrotask(() => {
-          canvas()?.scrollTo({ top: canvas()!.scrollHeight })
+          scrollRef?.scrollTo({ top: scrollRef.scrollHeight })
         })
       },
       { defer: true },
     ),
   )
-  const canvas = () => scrollRef
 
   const lastAssistantError = createMemo(() => {
     for (const turn of turns()) {
@@ -160,6 +139,7 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
     }
     return undefined
   })
+
   const errorText = createMemo(() => {
     const error = lastAssistantError()
     if (!error) return ""
@@ -250,23 +230,15 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
         >
           <div class="flex flex-col gap-4">
             <Index each={turns()}>
-              {(turnAccessor, index) => {
+              {(turnAccessor) => {
                 const turn = () => turnAccessor()
-                const last = () => index === turns().length - 1
                 return (
                   <div data-component="side-pane-turn" class="flex flex-col gap-2">
                     <Message message={turn().user} parts={partsOf(turn().user.id)} />
                     <AssistantParts
                       messages={turn().assistants}
                       showReasoningSummaries={settings.general.showReasoningSummaries()}
-                      working={working() && last()}
                     />
-                    <Show when={working() && last() && !lastTurnHasContent()}>
-                      <div class="flex items-center gap-2 pl-1 text-ui-caption text-foreground-subtle">
-                        <Spinner class="size-3" />
-                        <TextShimmer text={language.t("ui.sessionTurn.status.thinking")} />
-                      </div>
-                    </Show>
                   </div>
                 )
               }}
