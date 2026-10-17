@@ -63,8 +63,9 @@ export function SelectionActionMenu(props: { container: () => HTMLElement | unde
 
   createEffect(() => {
     const onPointerUp = () => {
-      // 等一帧：`selectionchange`/`mouseup` 时选区可能还没定型。
-      requestAnimationFrame(readSelection)
+      // 用 setTimeout 而不是 rAF：窗口被遮挡/最小化时 rAF 会被节流甚至完全不跑，
+      // 菜单就永远不出现（实测在后台窗口里复现过）。定时器仍会执行。
+      setTimeout(readSelection, 0)
     }
     const onKeyUp = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
