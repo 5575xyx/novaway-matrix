@@ -1014,6 +1014,8 @@ export const dict = {
 
   "settings.section.desktop": "Desktop",
   "settings.section.server": "Server",
+  "settings.group.basics": "Basics",
+  "settings.group.agent": "Agent capabilities",
   "settings.tab.general": "General",
   "settings.tab.desktop": "Desktop",
   "settings.tabs.pet": "Pet",
@@ -1236,6 +1238,13 @@ export const dict = {
     "This AI employee does not define a dedicated prompt. At runtime it inherits the base system prompt for the currently selected model.",
   "settings.agents.detail.prompt.source":
     "Built-in AI employees such as build, plan, and general do not have separate agent prompts. At runtime the app loads the base system prompt for the selected model, such as Codex, GPT, Claude, Gemini, or Kimi, then layers session context, skill instructions, and permission rules on top. This is inherited runtime content, not a missing prompt.",
+  "settings.memory.entries.count": "{{count}} memories",
+  "settings.memory.entries.search": "Search memories…",
+  "settings.memory.entries.files": "Files",
+  "settings.memory.entries.scope.all": "All scopes",
+  "settings.memory.entries.scope.project": "This project",
+  "settings.memory.entries.scope.session": "This session",
+  "settings.memory.entries.scope.global": "Global",
   "settings.memory.title": "Memory & Evolution",
   "settings.memory.description": "管理持久记忆和需要确认的自我进化候选。",
   "settings.memory.section.config": "记忆配置",
