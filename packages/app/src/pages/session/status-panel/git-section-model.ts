@@ -20,8 +20,15 @@ export type GitSectionModel = {
   branches: string[]
 }
 
-// 用变更条数判定干净与否：二进制文件与纯重命名在快照里 additions/deletions 恒为 0，
-// 按行数判定会让只改了图片或只做了 rename 的工作区整个面板不出现（连提交输入框都没有）。
+/**
+ * 只有在**真的有改动**时才出这张卡（干净的仓库右上角不该挂一个 Git 卡，
+ * 对齐 ZCode 的 `buildGitModel`：它显式排除了 clean repo）。
+ *
+ * 判定用「有没有 changes 条目」而不是「行数 > 0」，这点和 ZCode 不同、是有意为之：
+ * ZCode 还有别的 Git 入口，而我们**唯一的提交入口**就在这张卡里 ——
+ * 只改了图片（二进制，行数恒为 0）或被重命名的文件如果也被隐藏，
+ * 用户就再也提交不了那些改动了。
+ */
 export function buildGitSectionModel(snapshot: Snapshot | undefined): GitSectionModel | null {
   if (!snapshot) return null
 

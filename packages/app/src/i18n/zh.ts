@@ -1549,6 +1549,9 @@ export const dict = {
   "session.new.agentSelector.build.title": "锻造工程",
   "session.new.agentSelector.build.description":
     "根据已有需求直接编写、调试并交付代码。适合目标明确、希望快速落地的场景。",
+  "git.toolsTitle": "Git 工具",
+  "git.changes": "更改",
+  "git.commitOrPush": "提交或推送",
   "git.title": "源代码管理",
   "git.branch": "分支",
   "git.noBranch": "当前无分支",
