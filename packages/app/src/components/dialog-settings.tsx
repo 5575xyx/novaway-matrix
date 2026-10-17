@@ -13,6 +13,9 @@ import { SettingsModels } from "./settings-models"
 import { SettingsAgents, SettingsMcp, SettingsPlugins, SettingsRules, SettingsSkills } from "./settings-runtime"
 import { SettingsNotifications } from "./settings-notifications"
 import { SettingsKeybinds } from "./settings-keybinds"
+import { SettingsBrowser } from "./settings-browser"
+import { SettingsCommands } from "./settings-commands"
+import { SettingsUsage } from "./settings-usage"
 
 const settingsTabs = [
   "general",
@@ -20,11 +23,14 @@ const settingsTabs = [
   "notifications",
   "providers",
   "models",
+  "browser",
   "keybinds",
   "agents",
   "memory",
   "skills",
+  "commands",
   "rules",
+  "usage",
   "mcp",
   "plugins",
 ] as const
@@ -134,6 +140,10 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
                     <Icon name="models" />
                     {language.t("settings.models.title")}
                   </Tabs.Trigger>
+                  <Tabs.Trigger value="browser">
+                    <Icon name="globe" />
+                    {language.t("settings.browser.title")}
+                  </Tabs.Trigger>
                   <Tabs.Trigger value="keybinds">
                     <Icon name="keyboard" />
                     {language.t("settings.shortcuts.title")}
@@ -162,9 +172,21 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
                     <Icon name="checklist" />
                     {language.t("settings.skills.title")}
                   </Tabs.Trigger>
+                  <Tabs.Trigger value="commands">
+                    <Icon name="console" />
+                    {language.t("settings.commands.title")}
+                  </Tabs.Trigger>
                   <Tabs.Trigger value="rules">
                     <Icon name="shield" />
                     {language.t("settings.rules.title")}
+                  </Tabs.Trigger>
+                </div>
+
+                <div class="flex flex-col gap-1.5 w-full">
+                  <Tabs.SectionTitle>{language.t("settings.group.usage")}</Tabs.SectionTitle>
+                  <Tabs.Trigger value="usage">
+                    <Icon name="chart" />
+                    {language.t("settings.usage.title")}
                   </Tabs.Trigger>
                 </div>
               </div>
@@ -186,6 +208,9 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
         <Tabs.Content value="models" class="no-scrollbar">
           <SettingsModels />
         </Tabs.Content>
+        <Tabs.Content value="browser" class="no-scrollbar">
+          <SettingsBrowser />
+        </Tabs.Content>
         <Tabs.Content value="keybinds" class="no-scrollbar">
           <SettingsKeybinds />
         </Tabs.Content>
@@ -198,8 +223,14 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
         <Tabs.Content value="skills" class="no-scrollbar">
           <SettingsSkills />
         </Tabs.Content>
+        <Tabs.Content value="commands" class="no-scrollbar">
+          <SettingsCommands directory={directory()} />
+        </Tabs.Content>
         <Tabs.Content value="rules" class="no-scrollbar">
           <SettingsRules directory={directory()} />
+        </Tabs.Content>
+        <Tabs.Content value="usage" class="no-scrollbar">
+          <SettingsUsage directory={directory()} />
         </Tabs.Content>
         <Tabs.Content value="mcp" class="no-scrollbar">
           <SettingsMcp />
