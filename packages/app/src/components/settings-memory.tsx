@@ -1,5 +1,7 @@
 import type { Config, MemoryRelation, MemoryReviewCandidate } from "@novaway/sdk/v2/client"
 import { Button } from "@novaway/ui/button"
+import { Dialog } from "@novaway/ui/dialog"
+import { useDialog } from "@novaway/ui/context/dialog"
 import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { Switch } from "@novaway/ui/switch"
@@ -364,6 +366,7 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
   const globalSync = useGlobalSync()
   const queryClient = useQueryClient()
   const platform = usePlatform()
+  const dialog = useDialog()
   const [tab, setTab] = createSignal<ReviewStatus>("pending")
   const [view, setView] = createSignal<MemoryView>("config")
   const [candidateSearch, setCandidateSearch] = createSignal("")
@@ -415,6 +418,34 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
     queryFn: () => globalSDK.client.memory.list({ limit: 100 } as never).then((x) => x.data ?? []),
     ...queryOptions,
   }))
+
+  const removeEntry = useMutation(() => ({
+    mutationFn: (memoryID: string) => globalSDK.client.memory.remove({ memoryID }),
+    onSuccess: () => {
+      void entries.refetch()
+      showToast({ variant: "success", icon: "circle-check", title: "已删除记忆" })
+    },
+  }))
+  const confirmRemoveEntry = (item: { id: string; summary?: string; content: string }) => {
+    dialog.show(() => (
+      <Dialog title={language.t("common.delete")} description={item.summary || item.content} fit>
+        <div class="flex justify-end gap-2 px-4 pb-4">
+          <Button variant="ghost" onClick={() => dialog.close()}>
+            {language.t("common.cancel")}
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => {
+              removeEntry.mutate(item.id)
+              dialog.close()
+            }}
+          >
+            {language.t("common.delete")}
+          </Button>
+        </div>
+      </Dialog>
+    ))
+  }
 
   const relations = useQuery(() => ({
     queryKey: ["settings", "memory", "relations"],
@@ -1026,13 +1057,13 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
             />
           </div>
 
-          <div class="flex flex-col rounded-lg bg-surface">
+          <SettingsGroup>
             <Show when={!entries.isLoading} fallback={<LoadingState />}>
               <Show when={filteredEntries().length > 0} fallback={<EmptyState message="暂无已写入记忆" />}>
                 <For each={filteredEntries()}>
                   {(item) => (
-                    <div class="group flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-hover">
-                      <span class="mt-0.5 grid size-7 shrink-0 place-items-center rounded-md bg-background">
+                    <div class="group flex items-start gap-3 border-t border-border px-4 py-3 transition-colors first:border-t-0 hover:bg-hover">
+                      <span class="mt-0.5 grid size-9 shrink-0 place-items-center rounded-xl bg-background">
                         <Icon name="review" size="small" class="text-foreground-subtle" />
                       </span>
                       <div class="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -1054,12 +1085,21 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
                           <span class="line-clamp-2 text-11-regular text-foreground-subtle">{item.content}</span>
                         </Show>
                       </div>
+                      {/* ZCode 的文件行右侧有编辑器操作；记忆是 DB 记录，对应操作就是删除。 */}
+                      <IconButton
+                        icon="trash"
+                        variant="ghost"
+                        size="small"
+                        class="shrink-0 text-foreground-subtlest opacity-60 transition-opacity hover:opacity-100 group-hover:opacity-100"
+                        aria-label={language.t("common.delete")}
+                        onClick={() => confirmRemoveEntry(item)}
+                      />
                     </div>
                   )}
                 </For>
               </Show>
             </Show>
-          </div>
+          </SettingsGroup>
         </div>
       </Show>
     </>
