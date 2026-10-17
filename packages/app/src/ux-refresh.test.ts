@@ -82,36 +82,23 @@ describe("sidebar header becomes a labelled vertical menu", () => {
   })
 })
 
-// 设置页原本是一长条列表,每项之间用 border-b 分隔。
-describe("settings pages lay out as card grids", () => {
-  test("the list container is a responsive grid rather than a stacked block", () => {
-    expect(settingsListSource).toContain("grid grid-cols-1 gap-2 md:grid-cols-2 2xl:grid-cols-3")
-    expect(settingsListSource).not.toContain("bg-surface px-4 rounded-lg")
+// 对齐 ZCode 的设置项：单卡片分组 + 行分隔线，左侧标题/说明，右侧控件。
+// 旧实现是「每项一张竖排卡片」的响应式网格，和 ZCode 的列表观感不一致。
+describe("settings pages lay out as ZCode list rows", () => {
+  test("the shared group card renders rows with dividers instead of standalone cards", () => {
+    expect(read("components/settings-parts.tsx")).toContain("border-t border-border px-4 py-3 first:border-t-0")
+    expect(read("components/settings-parts.tsx")).toContain("grid-cols-[minmax(0,1fr)_192px]")
   })
 
-  test("each row is its own bordered card instead of a list item", () => {
-    expect(settingsGeneralSource).toContain("rounded-lg border border-border bg-surface p-3")
-    expect(settingsGeneralSource).not.toContain("border-b border-border last:border-none")
+  test("general settings rows are list items, not bordered cards", () => {
+    expect(settingsGeneralSource).toContain("border-t border-border px-4 py-3 first:border-t-0")
+    expect(settingsGeneralSource).not.toContain("rounded-lg border border-border bg-surface p-3")
   })
 
-  // 其余标签页各有自己的局部 Row 组件、互不导出。原先各写各的布局:有的 items-center 横排、
-  // 有的 flex-col 竖排、runtime 那两处还额外带 min-h-16,塞进同一网格后卡片高度和内部结构
-  // 都对不上,看起来就是"排得乱"。这里统一成同一个模板。
-  // providers 不参与:它是 group 变体,外层本就是 block、内层是合理的单行 provider 行。
-  test("every settings tab shares one card template", () => {
-    const tabs = [
-      "settings-general",
-      "settings-notifications",
-      "settings-runtime",
-      "settings-models",
-      "settings-memory",
-      "settings-evolution",
-      "settings-keybinds",
-    ]
-    const template = "flex flex-col gap-2 rounded-lg border border-border bg-surface p-3"
-    for (const tab of tabs) {
-      expect(read(`components/${tab}.tsx`)).toContain(template)
-    }
+  test("runtime and notifications lists use the same row template", () => {
+    expect(read("components/settings-runtime.tsx")).toContain("first:border-t-0")
+    expect(read("components/settings-notifications.tsx")).toContain("first:border-t-0")
+    expect(read("components/settings-memory.tsx")).toContain('from "./settings-parts"')
   })
 
   // min-h-16 只出现在 runtime 的两处,是那两块卡片明显高于其他的直接原因。

@@ -910,6 +910,7 @@ export const dict = {
   "settings.memory.entries.scope.session": "本会话",
   "settings.memory.entries.scope.global": "全局",
   "settings.memory.title": "记忆与进化",
+  "settings.memory.nav": "记忆",
   "settings.memory.section.retrieval": "智能召回",
   "settings.memory.retrieval.guide.title": "怎么用到更强的记忆召回",
   "settings.memory.retrieval.guide.body":

@@ -138,7 +138,7 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
                   <Tabs.SectionTitle>{language.t("settings.group.agent")}</Tabs.SectionTitle>
                   <Tabs.Trigger value="memory">
                     <Icon name="review" />
-                    {language.t("settings.memory.title" as never)}
+                    {language.t("settings.memory.nav" as never)}
                   </Tabs.Trigger>
                   <Tabs.Trigger value="agents">
                     <Icon name="brain" />

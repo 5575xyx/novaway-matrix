@@ -1246,6 +1246,7 @@ export const dict = {
   "settings.memory.entries.scope.session": "This session",
   "settings.memory.entries.scope.global": "Global",
   "settings.memory.title": "Memory & Evolution",
+  "settings.memory.nav": "Memory",
   "settings.memory.description": "管理持久记忆和需要确认的自我进化候选。",
   "settings.memory.section.config": "记忆配置",
   "settings.memory.section.review": "审查候选",

@@ -25,7 +25,7 @@ import {
   useSettings,
 } from "@/context/settings"
 import { playSoundById, SOUND_OPTIONS } from "@/utils/sound"
-import { SettingsList } from "./settings-list"
+import { SettingsGroup } from "./settings-parts"
 
 let demoSoundState = {
   cleanup: undefined as (() => void) | undefined,
@@ -477,7 +477,7 @@ export const SettingsGeneral: Component = () => {
 
   const GeneralSection = () => (
     <div class="flex flex-col gap-1">
-      <SettingsList>
+      <SettingsGroup>
         <SettingsRow title="工作模式" description="清除当前模式记忆并返回模式选择首页。项目归属不会被删除。">
           <Button
             variant="secondary"
@@ -518,14 +518,14 @@ export const SettingsGeneral: Component = () => {
             triggerStyle={{ "min-width": "180px" }}
           />
         </SettingsRow>
-      </SettingsList>
+      </SettingsGroup>
     </div>
   )
   const AdvancedSection = () => (
     <div class="flex flex-col gap-1">
       <h3 class="text-14-medium text-foreground pb-2">{language.t("settings.general.section.advanced")}</h3>
 
-      <SettingsList>
+      <SettingsGroup>
         <SettingsRow
           title={language.t("settings.general.row.showNavigation.title")}
           description={language.t("settings.general.row.showNavigation.description")}
@@ -620,7 +620,7 @@ export const SettingsGeneral: Component = () => {
             />
           </div>
         </SettingsRow>
-      </SettingsList>
+      </SettingsGroup>
     </div>
   )
 
@@ -628,7 +628,7 @@ export const SettingsGeneral: Component = () => {
     <div class="flex flex-col gap-1">
       <h3 class="text-14-medium text-foreground pb-2">{language.t("settings.general.section.appearance")}</h3>
 
-      <SettingsList>
+      <SettingsGroup>
         <SettingsRow
           title={language.t("settings.general.row.colorScheme.title")}
           description={language.t("settings.general.row.colorScheme.description")}
@@ -671,7 +671,7 @@ export const SettingsGeneral: Component = () => {
             </span>
           </div>
         </SettingsRow>
-      </SettingsList>
+      </SettingsGroup>
     </div>
   )
 
@@ -679,7 +679,7 @@ export const SettingsGeneral: Component = () => {
     <div class="flex flex-col gap-1">
       <h3 class="text-14-medium text-foreground pb-2">{language.t("settings.general.section.notifications")}</h3>
 
-      <SettingsList>
+      <SettingsGroup>
         <SettingsRow
           title={language.t("settings.general.notifications.agent.title")}
           description={language.t("settings.general.notifications.agent.description")}
@@ -715,7 +715,7 @@ export const SettingsGeneral: Component = () => {
             />
           </div>
         </SettingsRow>
-      </SettingsList>
+      </SettingsGroup>
     </div>
   )
 
@@ -723,7 +723,7 @@ export const SettingsGeneral: Component = () => {
     <div class="flex flex-col gap-1">
       <h3 class="text-14-medium text-foreground pb-2">{language.t("settings.general.section.sounds")}</h3>
 
-      <SettingsList>
+      <SettingsGroup>
         <SettingsRow
           title={language.t("settings.general.sounds.agent.title")}
           description={language.t("settings.general.sounds.agent.description")}
@@ -768,7 +768,7 @@ export const SettingsGeneral: Component = () => {
             )}
           />
         </SettingsRow>
-      </SettingsList>
+      </SettingsGroup>
     </div>
   )
 
@@ -776,7 +776,7 @@ export const SettingsGeneral: Component = () => {
     <div class="flex flex-col gap-1">
       <h3 class="text-14-medium text-foreground pb-2">{language.t("settings.general.section.updates")}</h3>
 
-      <SettingsList>
+      <SettingsGroup>
         <SettingsRow
           title={language.t("settings.updates.row.startup.title")}
           description={language.t("settings.updates.row.startup.description")}
@@ -812,7 +812,7 @@ export const SettingsGeneral: Component = () => {
               : language.t("settings.updates.action.checkNow")}
           </Button>
         </SettingsRow>
-      </SettingsList>
+      </SettingsGroup>
     </div>
   )
 
@@ -847,14 +847,17 @@ interface SettingsRowProps {
   children: JSX.Element
 }
 
+// 对齐 ZCode 设置行：左侧标题 + 说明，右侧控件；多行之间由 SettingsGroup 的分隔线切分。
 const SettingsRow: Component<SettingsRowProps> = (props) => {
   return (
-    <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
-      <div class="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span class="text-14-medium text-foreground">{props.title}</span>
-        <span class="text-12-regular text-foreground-subtle">{props.description}</span>
+    <div class="border-t border-border px-4 py-3 first:border-t-0">
+      <div class="grid grid-cols-1 items-center gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <div class="flex min-w-0 flex-col gap-0.5">
+          <span class="text-13-medium text-foreground">{props.title}</span>
+          <span class="text-12-regular text-foreground-subtle">{props.description}</span>
+        </div>
+        <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">{props.children}</div>
       </div>
-      <div class="flex w-full">{props.children}</div>
     </div>
   )
 }
