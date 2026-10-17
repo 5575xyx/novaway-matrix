@@ -3,6 +3,13 @@ import { dict as en } from "./en"
 type Keys = keyof typeof en
 
 export const dict = {
+  "settings.plugins.market.title": "ZCode 官方市场",
+  "settings.plugins.market.description": "直接浏览并安装 ZCode 官方插件市场的技能包（含 MCP 清单）。安装后技能会出现在「技能」页，MCP 会出现在「MCP」页。",
+  "settings.plugins.market.search": "搜索插件…",
+  "settings.plugins.market.empty": "没有匹配的插件。",
+  "settings.plugins.market.installing": "安装中…",
+  "settings.plugins.market.installed": "已安装",
+  "settings.plugins.market.unsupported": "当前环境不支持写入插件目录（需要桌面端）。",
   "settings.plugins.store.title": "插件商店",
   "settings.plugins.store.description": "目录来自市场源：填入返回插件清单的 URL，即可一键安装。",
   "settings.plugins.store.sourcePlaceholder": "https://example.com/plugins.json",

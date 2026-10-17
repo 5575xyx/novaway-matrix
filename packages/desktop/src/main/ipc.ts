@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process"
-import { mkdir, writeFile } from "node:fs/promises"
+import { mkdir, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
+import os from "node:os"
 import {
   BrowserWindow,
   Notification,
@@ -794,6 +795,42 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle("store-length", (_event: IpcMainInvokeEvent, name: string) => {
     const store = getStore(name)
     return Object.keys(store.store).length
+  })
+
+  // 插件市场：下载在主进程做（渲染层受 CORS 限制），解压在渲染层（那里有 JSZip），
+  // 写盘再回到主进程。目录固定在配置目录下的 marketplace/，与插件加载器的路径基线一致。
+  const marketplaceRoot = () =>
+    path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"), "novaway", "marketplace")
+  ipcMain.handle("marketplace-download", async (_event: IpcMainInvokeEvent, url: string) => {
+    if (!/^https?:\/\//i.test(url)) throw new Error("unsupported marketplace url")
+    const response = await fetch(url)
+    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`)
+    return Buffer.from(await response.arrayBuffer()).toString("base64")
+  })
+  ipcMain.handle(
+    "marketplace-install",
+    async (
+      _event: IpcMainInvokeEvent,
+      input: { dir: string; files: Array<{ path: string; data: string }> },
+    ) => {
+      const name = input.dir.replace(/[^A-Za-z0-9._@-]/g, "_")
+      const root = path.join(marketplaceRoot(), name)
+      await rm(root, { recursive: true, force: true })
+      await mkdir(root, { recursive: true })
+      for (const file of input.files) {
+        const target = path.resolve(root, file.path)
+        if (target !== root && !target.startsWith(root + path.sep)) continue
+        await mkdir(path.dirname(target), { recursive: true })
+        await writeFile(target, Buffer.from(file.data, "base64"))
+      }
+      return root
+    },
+  )
+  ipcMain.handle("marketplace-remove", async (_event: IpcMainInvokeEvent, dir: string) => {
+    const root = path.resolve(marketplaceRoot())
+    const target = path.resolve(dir)
+    if (target !== root && !target.startsWith(root + path.sep)) throw new Error("invalid marketplace dir")
+    await rm(target, { recursive: true, force: true })
   })
 
   ipcMain.handle("get-floating-agent-state", () => {

@@ -204,7 +204,16 @@ export function ProjectTaskList(props: {
           return pathKey(directory) === pathKey(session.directory)
         }}
         modeColor={() => appModeConfig(layout.mode.projectMode(session.directory))?.color}
-        onClick={() => navigate(`/${base64Encode(session.directory)}/session/${session.id}`)}
+        onClick={() => {
+          // 辅助对话 / 子代理会话：点侧栏的树节点应在右侧面板里打开，
+          // 而不是整页跳到那条会话（那样会把主线从眼前挪走）。
+          const tab = Object.values(layout.sidePane.dynamicTabs()).find((item) => item.sessionID === session.id)
+          if (tab) {
+            layout.sidePane.openSession(tab)
+            return
+          }
+          navigate(`/${base64Encode(session.directory)}/session/${session.id}`)
+        }}
         sessionID={session.id}
         directory={session.directory}
         pinned={layout.pinned.session(session.id)}

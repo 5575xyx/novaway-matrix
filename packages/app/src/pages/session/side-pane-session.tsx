@@ -1,8 +1,9 @@
-import { createEffect, createMemo, createSignal, Index, on, Show } from "solid-js"
+import { createEffect, createMemo, createSignal, Index, on, onCleanup, onMount, Show } from "solid-js"
 import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
 import { Spinner } from "@novaway/ui/spinner"
 import { AssistantParts, Message } from "@novaway/ui/message-part"
+import { TextShimmer } from "@novaway/ui/text-shimmer"
 import { useLanguage } from "@/context/language"
 import { useSDK } from "@/context/sdk"
 import { SideChatComposer } from "@/pages/session/side-chat-composer"
@@ -107,6 +108,46 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
   const settings = useSettings()
 
   const partsOf = (messageID: string) => store().part[messageID] ?? []
+
+  const working = createMemo(() => {
+    if ((store().session_status[props.tab.sessionID]?.type ?? "idle") !== "idle") return true
+    // 面板里的会话不一定收到 session_status 事件，用「最后一条 assistant 还没完成」兜底。
+    const last = messages().at(-1)
+    return !!last && last.role === "assistant" && typeof last.time?.completed !== "number"
+  })
+
+  /**
+   * 兜底轮询：侧栏里的子会话偶尔收不到实时事件（消息已落库但 store 不更新），
+   * 表现为「发了消息但面板还是空的」。面板打开期间每 2 秒强制同步一次，
+   * 关闭即停 —— 这是本地请求，代价远小于让用户手动重开面板。
+   */
+  onMount(() => {
+    const timer = setInterval(() => {
+      void sync.session.sync(props.tab.sessionID, { force: true }).catch(() => undefined)
+    }, 2000)
+    onCleanup(() => clearInterval(timer))
+  })
+
+  /**
+   * 是否显示"正在思考"占位。
+   *
+   * 只在「这一轮还没有任何可渲染内容」时显示：一旦有工具卡片/正文，
+   * 工具行自己的状态已经说明在跑，再叠一个思考提示会重复。
+   * 提问（question）卡片等待用户作答时也不显示 —— 那不是思考。
+   */
+  const showThinking = createMemo(() => {
+    if (!working()) return false
+    const turn = turns().at(-1)
+    if (!turn) return false
+    return !turn.assistants.some((message) =>
+      partsOf(message.id).some((part) => {
+        if (part.type === "text") return !!part.text?.trim()
+        if (part.type === "reasoning") return !!part.text?.trim()
+        if (part.type === "tool") return part.state.status !== "pending" || part.tool !== "question"
+        return false
+      }),
+    )
+  })
 
   /** 流式输出时跟着底部走：面板不会自动滚，用户得手动追着看。 */
   let scrollRef: HTMLDivElement | undefined
@@ -243,6 +284,12 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
                 )
               }}
             </Index>
+            <Show when={showThinking()}>
+              <div class="flex items-center gap-2 pl-1 text-ui-caption text-foreground-subtle">
+                <Spinner class="size-3" />
+                <TextShimmer text={language.t("ui.sessionTurn.status.thinking")} />
+              </div>
+            </Show>
             <Show when={errorText()}>
               <div class="rounded-md border border-[var(--destructive)]/40 bg-[var(--destructive)]/5 px-2.5 py-2 text-ui-caption leading-5 text-foreground-subtle">
                 {errorText()}

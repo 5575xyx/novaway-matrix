@@ -95,6 +95,12 @@ declare global {
       closeWindow?: () => Promise<void>
       isWindowMaximized?: () => Promise<boolean>
       onWindowMaximizedChange?: (cb: (maximized: boolean) => void) => () => void
+      marketplaceDownload?: (url: string) => Promise<string>
+      marketplaceInstall?: (input: {
+        dir: string
+        files: Array<{ path: string; data: string }>
+      }) => Promise<string>
+      marketplaceRemove?: (dir: string) => Promise<void>
       toPreviewUrl?: (url: string) => string
       setPreviewInspectorOrigin?: (origin: string) => Promise<void>
       updateFloatingAgentState?: (state: {

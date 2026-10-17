@@ -1382,6 +1382,9 @@ export default function Layout(props: ParentProps) {
 
   function closeSettings() {
     setState("settings", "open", false)
+    // 覆盖层关闭后让聊天区重新校验一次可视区域：面板动画期间
+    // 虚拟列表可能测到 0 高度，回来时会一片空白，直到用户滚一下才恢复。
+    window.dispatchEvent(new CustomEvent("novaway:overlay-closed"))
   }
 
   function openDatabasePage() {
@@ -1392,6 +1395,7 @@ export default function Layout(props: ParentProps) {
 
   function closeDatabasePage() {
     setState("databasePage", "open", false)
+    window.dispatchEvent(new CustomEvent("novaway:overlay-closed"))
   }
 
   function projectRoot(directory: string) {

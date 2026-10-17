@@ -30,6 +30,9 @@ const api: ElectronAPI = {
   storeClear: (name) => ipcRenderer.invoke("store-clear", name),
   storeKeys: (name) => ipcRenderer.invoke("store-keys", name),
   storeLength: (name) => ipcRenderer.invoke("store-length", name),
+  marketplaceDownload: (url) => ipcRenderer.invoke("marketplace-download", url),
+  marketplaceInstall: (input) => ipcRenderer.invoke("marketplace-install", input),
+  marketplaceRemove: (dir) => ipcRenderer.invoke("marketplace-remove", dir),
 
   getWindowCount: () => ipcRenderer.invoke("get-window-count"),
   onSqliteMigrationProgress: (cb) => {
