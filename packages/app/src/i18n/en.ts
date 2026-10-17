@@ -807,6 +807,8 @@ export const dict = {
   "session.todo.progress": "{{done}} of {{total}} todos completed",
   "session.todo.more": "+{{count}} more",
   "session.question.progress": "{{current}} of {{total}} questions",
+  "session.composer.steerHint": "Task is running · sending will steer it",
+  "session.composer.queueHint": "Task is running · sending will queue for the next turn",
   "session.followupDock.summary.one": "{{count}} queued message",
   "session.followupDock.summary.other": "{{count}} queued messages",
   "session.followupDock.sendNow": "Send now",

@@ -42,6 +42,7 @@ import { usePlatform } from "@/context/platform"
 import { usePrompt } from "@/context/prompt"
 import { usePreview } from "@/context/preview"
 import { useSDK } from "@/context/sdk"
+import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
 import { useTerminal } from "@/context/terminal"
 import { type FollowupDraft, sendFollowupDraft } from "@/components/prompt-input/submit"
@@ -57,6 +58,7 @@ import { MessageTimeline } from "@/pages/session/message-timeline"
 import { type DiffStyle, SessionReviewTab, type SessionReviewTabProps } from "@/pages/session/review-tab"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { sessionAutoSubmitKey } from "@/pages/session/auto-submit"
+import { shouldQueueFollowup } from "@/pages/session/session-followup"
 import { showOfficeNewSessionWorkspace, showOfficeSessionComposer } from "@/pages/session/office-workspace-route"
 import { syncSessionModel } from "@/pages/session/session-model-helpers"
 import { SessionSidePanel } from "@/pages/session/session-side-panel"
@@ -222,6 +224,7 @@ export default function Page() {
   const dialog = useDialog()
   const language = useLanguage()
   const sdk = useSDK()
+  const settings = useSettings()
   const preview = usePreview()
   const prompt = usePrompt()
   const comments = useComments()
@@ -1653,11 +1656,30 @@ export default function Page() {
     return followupMutation.variables?.id
   })
 
-  const queueEnabled = createMemo(() => {
+  /**
+   * 运行中的提交是**排队**还是**立即引导**。
+   *
+   * 返回 true 时输入走排队（进 followup dock，等这一轮结束再发）；
+   * 返回 false 时走 `promptAsync` 立即投递 —— 服务端的 `runLoop` 每轮都会重读会话消息，
+   * 而退出条件是「最后一条 assistant 晚于最后一条 user」，所以新追加的 user 消息
+   * 会让循环**继续**并把这条消息喂给模型，即"在下一个安全边界生效、不中断当前运行"
+   * （对齐 Qoder 的 Steer）。服务端的 `ensureRunning` 会让第二次 prompt **并入**
+   * 正在跑的那个 loop，不会起第二个循环。
+   *
+   * 权限/提问挂起时（`blocked`）不算运行中：那时输入框本身不渲染，
+   * 由 permission / question dock 接管。
+   */
+  const followupLive = createMemo(() => {
     const id = params.id
     if (!id) return false
     return busy(id) && !composer.blocked() && !isChildSession()
   })
+
+  /** 运行中的提交是否走排队。判定抽成纯函数，见 session-followup.ts（有单测）。 */
+  const queueEnabled = createMemo(() =>
+    shouldQueueFollowup({ mode: settings.general.followup(), live: followupLive() }),
+  )
+
 
   const followupText = (item: FollowupDraft) => {
     const text = item.prompt
@@ -1967,6 +1989,7 @@ export default function Page() {
         params.id && !isChildSession()
           ? {
               queue: queueEnabled,
+              live: followupLive,
               items: followupDock(),
               sending: sendingFollowup(),
               edit: editingFollowup(),

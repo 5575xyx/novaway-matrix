@@ -178,10 +178,6 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
       root.style.setProperty("--font-family-sans", sansFontFamily(store.appearance?.sans))
     })
 
-    createEffect(() => {
-      if (store.general?.followup !== "queue") return
-      setStore("general", "followup", "steer")
-    })
 
     const fontSize = withFallback(() => store.appearance?.fontSize, defaultSettings.appearance.fontSize)
     createEffect(() => {
@@ -203,12 +199,19 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         setReleaseNotes(value: boolean) {
           setStore("general", "releaseNotes", value)
         },
-        followup: withFallback(
-          () => (store.general?.followup === "queue" ? "steer" : store.general?.followup),
-          defaultSettings.general.followup,
-        ),
+        /**
+         * 运行中提交消息的行为。
+         *
+         * - `steer`：立即投递，**在下一个安全边界生效、不中断当前运行**（默认）
+         * - `queue`：排进队列，等这一轮跑完按顺序发
+         *
+         * 这里以前把 `queue` 强行归一成 `steer` 并且**没有任何地方读它** ——
+         * 也就是设置里写着"引导"、实际行为却是排队。现在两边接上了
+         * （读的地方见 pages/session.tsx 的 `queueEnabled`）。
+         */
+        followup: withFallback(() => store.general?.followup, defaultSettings.general.followup),
         setFollowup(value: "queue" | "steer") {
-          setStore("general", "followup", value === "queue" ? "steer" : value)
+          setStore("general", "followup", value)
         },
         showNavigation: withFallback(() => store.general?.showNavigation, defaultSettings.general.showNavigation),
         setShowNavigation(value: boolean) {

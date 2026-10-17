@@ -570,3 +570,29 @@ test("侧边对话：从空态入口创建并落在 Side Pane 标签里", async 
   await expect(frame.locator("[data-component='side-pane-session']")).toHaveCount(0, { timeout: 10_000 })
   await expect(frame.locator("[data-component='side-pane-empty']")).toBeVisible()
 })
+
+test("运行中的提交行为可以切成「排队」（设置持久化）", async ({ page }) => {
+  const slug = workspaceRootSlug()
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`/${slug}/session`)
+  await expect(page.locator('[data-component="sidebar-nav-desktop"]')).toBeVisible({ timeout: 15_000 })
+
+  await page.getByRole("button", { name: /^(Open settings|Settings|设置)$/ }).first().click()
+  await page.getByRole("tab", { name: /^(General|通用)$/ }).click()
+
+  // 默认是「引导」（Steer）：运行中直接发送会引导当前任务，不排队。
+  const row = page.locator('[data-action="settings-followup"]')
+  await expect(row).toBeVisible()
+  await expect(row).toContainText(/Steer|引导/)
+
+  // 切成「排队」。
+  await row.locator('[data-slot="select-select-trigger"]').click()
+  await page.getByRole("option", { name: /^(Queue|排队)$/ }).click()
+  await expect(row).toContainText(/Queue|排队/)
+
+  // 关掉设置再打开：值必须还在（这条锁的是"设置真的写进了持久化 store"）。
+  await page.getByRole("button", { name: /^(Back|Navigate back|返回)$/ }).first().click()
+  await page.getByRole("button", { name: /^(Open settings|Settings|设置)$/ }).first().click()
+  await page.getByRole("tab", { name: /^(General|通用)$/ }).click()
+  await expect(page.locator('[data-action="settings-followup"]')).toContainText(/Queue|排队/)
+})
