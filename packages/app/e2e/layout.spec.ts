@@ -541,7 +541,7 @@ test("侧栏项目分组可以收起再展开（状态可持久化）", async ({
   await expect.poll(async () => rows.count(), { message: "展开后任务行应当回来" }).toBe(before)
 })
 
-test("侧边对话：从空态入口创建并落在 Side Pane 标签里", async ({ page }) => {
+test("辅助对话：从空态入口创建并落在 Side Pane 标签里", async ({ page }) => {
   const slug = workspaceRootSlug()
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`/${slug}/session`)
@@ -558,7 +558,7 @@ test("侧边对话：从空态入口创建并落在 Side Pane 标签里", async 
   await entry.click()
 
   // 标签出现且处于激活态。
-  const trigger = frame.locator("[data-slot='tabs-trigger'], button").filter({ hasText: /Side chat|侧边对话/ }).first()
+  const trigger = frame.locator("[data-slot='tabs-trigger'], button").filter({ hasText: /Side (chat|conversation)|侧边对话|辅助对话/ }).first()
   await expect(trigger).toBeVisible({ timeout: 10_000 })
   // 面板内出现会话面板本体。
   await expect(frame.locator("[data-component='side-pane-session']")).toBeVisible({ timeout: 10_000 })

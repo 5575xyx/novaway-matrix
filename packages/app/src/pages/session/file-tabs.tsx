@@ -22,6 +22,11 @@ import { usePrompt } from "@/context/prompt"
 import { getSessionHandoff } from "@/pages/session/handoff"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { createSessionTabs } from "@/pages/session/helpers"
+import { useSideChat } from "@/pages/session/use-side-chat"
+import { buildSelectionSeed } from "@/pages/session/side-chat-seed"
+
+// 换行符常量：源码里直接写字面换行会变成跨行字符串，读起来也容易出错。
+const NEWLINE = String.fromCharCode(10)
 
 function FileCommentMenu(props: {
   moreLabel: string
@@ -177,6 +182,7 @@ function createScrollSync(input: { tab: () => string; view: ReturnType<typeof us
 export function FileTabContent(props: { tab: string }) {
   const file = useFile()
   const comments = useComments()
+  const sideChat = useSideChat()
   const language = useLanguage()
   const prompt = usePrompt()
   const fileComponent = useFileComponent()
@@ -409,6 +415,31 @@ export function FileTabContent(props: { tab: string }) {
     requestAnimationFrame(() => contextCommentInputRef?.focus())
   }
 
+  /** 把选中的行取成纯文本（给"在辅助对话中提问"用）。 */
+  const selectedCode = (selection: SelectedLineRange): string => {
+    const value = editorRef?.value ?? draft()
+    const lines = value.split(NEWLINE)
+    const start = Math.max(1, Math.min(selection.start, selection.end))
+    const end = Math.max(selection.start, selection.end)
+    return lines.slice(start - 1, end).join(NEWLINE)
+  }
+
+  const askInSideChat = () => {
+    const current = contextMenu()
+    const p = path()
+    if (!current || !p) return
+    const selection = current.selection
+    setContextMenu(undefined)
+    void sideChat.open({
+      draft: buildSelectionSeed({
+        path: p,
+        start: Math.min(selection.start, selection.end),
+        end: Math.max(selection.start, selection.end),
+        code: selectedCode(selection),
+      }),
+    })
+  }
+
   const handleEditorContextMenu = (event: MouseEvent) => {
     event.preventDefault()
     const value = editorRef?.value ?? draft()
@@ -574,6 +605,14 @@ export function FileTabContent(props: { tab: string }) {
 
   // 变更对照：`before`/`after` 由 normalize 从补丁还原出来，红色 − / 绿色 + 由
   // Pierre 的 diff 渲染器给出；`diffStyle` 决定上下对照（unified）还是左右对照（split）。
+  //
+  // **这里刻意不传 annotations / selectedLines / commentedLines。**
+  // `commentsUi` 是为**文本**预览建的（`LineCommentAnnotation` 没有 `side` 字段），
+  // 而 pierre 的 diff 渲染器要求每条注解都有 `side: "additions" | "deletions"` ——
+  // 传进去会在 `setLineAnnotations` 里对 `undefined` 取下标而崩溃
+  // （`Cannot read properties of undefined (reading 'N')`，N 就是行号）。
+  // 文件里的行评论在「审查」面板里看（那边的注解是按 diff 侧构建的），
+  // 这里只做"看变了什么"。
   const renderDiff = (view: ReturnType<typeof normalizeDiff>) => (
     <div class="relative overflow-hidden pb-40">
       <Dynamic
@@ -582,21 +621,8 @@ export function FileTabContent(props: { tab: string }) {
         fileDiff={view.fileDiff}
         diffStyle={sessionDiff.style()}
         enableLineSelection
-        enableHoverUtility
-        selectedLines={activeSelection()}
-        commentedLines={commentedLines()}
         onRendered={() => {
           scrollSync.queueRestore()
-        }}
-        annotations={commentsUi.annotations()}
-        renderAnnotation={commentsUi.renderAnnotation}
-        renderHoverUtility={commentsUi.renderHoverUtility}
-        onLineSelected={(range: SelectedLineRange | null) => {
-          commentsUi.onLineSelected(range)
-        }}
-        onLineNumberSelectionEnd={commentsUi.onLineNumberSelectionEnd}
-        onLineSelectionEnd={(range: SelectedLineRange | null) => {
-          commentsUi.onLineSelectionEnd(range)
         }}
         search={search}
         class="select-text"
@@ -787,10 +813,23 @@ export function FileTabContent(props: { tab: string }) {
               <Show
                 when={menu().mode === "input"}
                 fallback={
-                  <Button variant="ghost" size="small" class="w-full justify-start" onClick={openContextCommentInput}>
-                    评论 L{menu().selection.start}
-                    {menu().selection.end !== menu().selection.start ? `-L${menu().selection.end}` : ""}
-                  </Button>
+                  <div class="flex flex-col gap-0.5">
+                    <Button variant="ghost" size="small" class="w-full justify-start" onClick={openContextCommentInput}>
+                      评论 L{menu().selection.start}
+                      {menu().selection.end !== menu().selection.start ? `-L${menu().selection.end}` : ""}
+                    </Button>
+                    {/* 对齐 ZCode 的选区动作菜单（SelectionActionMenu）里那条
+                        "在辅助对话中提问"：选中的代码带进一条独立小会话，
+                        不打断主线、不污染主对话历史。 */}
+                    <Button variant="ghost" size="small" class="w-full justify-start" onClick={askInSideChat}>
+                      {language.t("sidePane.sideChat.askSelection", {
+                        range:
+                          menu().selection.start === menu().selection.end
+                            ? `L${menu().selection.start}`
+                            : `L${menu().selection.start}-L${menu().selection.end}`,
+                      })}
+                    </Button>
+                  </div>
                 }
               >
                 <div class="flex flex-col gap-2 p-1">

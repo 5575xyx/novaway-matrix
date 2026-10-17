@@ -53,6 +53,7 @@ import { shouldMarkBoundaryGesture, normalizeWheelDelta } from "@/pages/session/
 import { useDialog } from "@novaway/ui/context/dialog"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { useLanguage } from "@/context/language"
+import { useLayout } from "@/context/layout"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { usePlatform } from "@/context/platform"
@@ -344,6 +345,7 @@ export function MessageTimeline(props: {
   const dialog = useDialog()
   const language = useLanguage()
   const { params, sessionKey, tabs } = useSessionLayout()
+  const layout = useLayout()
   const file = useFile()
   const platform = usePlatform()
 
@@ -1048,6 +1050,13 @@ export function MessageTimeline(props: {
   }
 
   const getMsgPart = (messageID: string, partID: string) => getMsgParts(messageID).find((part) => part.id === partID)
+  /**
+   * 点开消息里的文件链接。
+   *
+   * 除了开标签，还必须**把右侧面板切到预览并展开** —— 只 `tabs().open()` 的话，
+   * 面板如果停在「审查 / 终端」或者干脆没开，用户点完什么也看不见
+   * （这正是"点了文件名没反应"的原因）。
+   */
   const openOutputFile = (path: string) => {
     const normalized = file.normalize(path)
     if (!normalized) return
@@ -1055,6 +1064,7 @@ export function MessageTimeline(props: {
     const tab = file.tab(normalized)
     void tabs().open(tab)
     tabs().setActive(tab)
+    layout.sidePane.add("preview")
   }
 
   const renderAssistantPartGroup = (row: Accessor<TimelineRowMap["AssistantPart"]>) => {
