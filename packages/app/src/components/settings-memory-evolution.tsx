@@ -15,7 +15,7 @@ const SettingsPage: Component<{ title: string; description: string; children: an
 )
 
 /** 设置侧栏：记忆 + 进化合并为一页，内部 tab 切换 */
-export const SettingsMemoryEvolution: Component = () => {
+export const SettingsMemoryEvolution: Component<{ directory?: string }> = (props) => {
   const [sub, setSub] = createSignal<"memory" | "evolution">("memory")
   return (
     <SettingsPage
@@ -47,7 +47,7 @@ export const SettingsMemoryEvolution: Component = () => {
         </button>
       </div>
       <Show when={sub() === "memory"}>
-        <SettingsMemory embedded />
+        <SettingsMemory embedded directory={props.directory} />
       </Show>
       <Show when={sub() === "evolution"}>
         <SettingsEvolution embedded />

@@ -34,12 +34,15 @@ export const memoryHandlers = HttpApiBuilder.group(InstanceHttpApi, "memory", (h
         scope: ctx.query.scope,
         search: ctx.query.search,
         includeArchived: ctx.query.includeArchived,
+        // 项目视图始终带上全局记忆（global 的 project_id 为空）：
+        // 用户画像/偏好本来就该在任何项目里可见，不带就会显示成"0 条记忆"。
+        includeGlobal: true,
         limit: ctx.query.limit,
       })
     })
 
     const status = Effect.fn("MemoryHttpApi.status")(function* () {
-      return yield* memory.status({ projectID: yield* projectID() })
+      return yield* memory.status({ projectID: yield* projectID(), includeGlobal: true })
     })
 
     const reviewStatus = Effect.fn("MemoryHttpApi.reviewStatus")(function* () {

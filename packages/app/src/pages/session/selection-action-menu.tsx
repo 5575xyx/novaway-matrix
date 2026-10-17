@@ -100,14 +100,11 @@ export function SelectionActionMenu(props: { container: () => HTMLElement | unde
     const value = text()
     setAnchor(undefined)
     if (!value) return
-    // 追加到现有草稿后面，而不是覆盖 —— 用户可能已经写了一半。
-    const current = prompt
-      .current()
-      .map((part) => ("content" in part ? part.content : ""))
-      .join("")
-      .trimEnd()
-    const next = current ? `${current}\n\n> ${value.replace(/\n/g, "\n> ")}\n\n` : `> ${value.replace(/\n/g, "\n> ")}\n\n`
-    prompt.set([{ type: "text", content: next, start: 0, end: next.length }], next.length)
+    // 对齐 ZCode：选中内容变成输入框上方的一张「引用」卡片，而不是把原文
+    // 直接灌进输入框。用户接着写自己的问题，发送时引用会作为 synthetic
+    // 文本块一并带给模型。
+    prompt.context.add({ type: "quote", text: value, label: language.t("session.selection.quoteLabel") })
+    document.querySelector<HTMLElement>('[data-component="prompt-input"]')?.focus()
   }
 
   const askSideChat = () => {

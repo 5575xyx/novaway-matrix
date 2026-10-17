@@ -11,6 +11,7 @@ import { createLineCommentController } from "@novaway/ui/line-comment-annotation
 import { sampledChecksum } from "@novaway/core/util/encode"
 import { DropdownMenu } from "@novaway/ui/dropdown-menu"
 import { Button } from "@novaway/ui/button"
+import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { Tabs } from "@novaway/ui/tabs"
 import { ScrollView } from "@novaway/ui/scroll-view"
@@ -23,7 +24,7 @@ import { getSessionHandoff } from "@/pages/session/handoff"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { useSideChat } from "@/pages/session/use-side-chat"
-import { buildSelectionSeed } from "@/pages/session/side-chat-seed"
+import { buildSelectionQuote } from "@/pages/session/side-chat-seed"
 
 // 换行符常量：源码里直接写字面换行会变成跨行字符串，读起来也容易出错。
 const NEWLINE = String.fromCharCode(10)
@@ -252,6 +253,18 @@ export function FileTabContent(props: { tab: string }) {
     selection: SelectedLineRange
     mode: "menu" | "input"
   }>()
+  /**
+   * 选中一段代码后浮出的动作菜单（对齐 ZCode 文件预览的选区菜单）。
+   *
+   * 与右键菜单分开：右键是"评论某几行"，而选区菜单是"把这段拿去问辅助对话"。
+   * 右键点完菜单会消失，选区则还在；两者触发方式不同，混在一个状态里会出现
+   * 光标移动后菜单仍指着旧选区的问题。
+   */
+  const [selectionMenu, setSelectionMenu] = createSignal<{
+    x: number
+    y: number
+    selection: SelectedLineRange
+  }>()
   let editorRef: HTMLTextAreaElement | undefined
   let gutterRef: HTMLDivElement | undefined
   let contentRef: HTMLDivElement | undefined
@@ -383,10 +396,11 @@ export function FileTabContent(props: { tab: string }) {
     return "saved"
   })
 
-  const textareaSelection = (): SelectedLineRange | undefined => {
-    const value = editorRef?.value ?? draft()
-    const rawStart = editorRef?.selectionStart ?? 0
-    const rawEnd = editorRef?.selectionEnd ?? rawStart
+  const textareaSelection = (element?: HTMLTextAreaElement): SelectedLineRange | undefined => {
+    const target = element ?? editorRef
+    const value = target?.value ?? draft()
+    const rawStart = target?.selectionStart ?? 0
+    const rawEnd = target?.selectionEnd ?? rawStart
     const startOffset = Math.min(rawStart, rawEnd)
     const endOffset = Math.max(rawStart, rawEnd)
     const lineAt = (offset: number) => value.slice(0, offset).split("\n").length
@@ -424,23 +438,53 @@ export function FileTabContent(props: { tab: string }) {
     return lines.slice(start - 1, end).join(NEWLINE)
   }
 
-  const askInSideChat = () => {
-    const current = contextMenu()
+  /** 把一段选中代码带进辅助对话：显示成引用卡片，而不是塞进输入框。 */
+  const askSelectionInSideChat = (selection: SelectedLineRange) => {
     const p = path()
-    if (!current || !p) return
-    const selection = current.selection
-    setContextMenu(undefined)
+    if (!p) return
+    const start = Math.min(selection.start, selection.end)
+    const end = Math.max(selection.start, selection.end)
     void sideChat.open({
-      draft: buildSelectionSeed({
-        path: p,
-        start: Math.min(selection.start, selection.end),
-        end: Math.max(selection.start, selection.end),
-        code: selectedCode(selection),
-      }),
+      quote: buildSelectionQuote({ path: p, start, end, code: selectedCode(selection) }),
     })
   }
 
-  const handleEditorContextMenu = (event: MouseEvent) => {
+  const askInSideChat = () => {
+    const current = contextMenu()
+    if (!current) return
+    setContextMenu(undefined)
+    askSelectionInSideChat(current.selection)
+  }
+
+  /**
+   * 文本域选区结束时浮出「在辅助对话中提问」。
+   *
+   * textarea 的选区拿不到 DOM Range，所以不复用聊天区那套
+   * `window.getSelection()` 定位；这里用鼠标落点作为锚点，
+   * 与代码编辑器（VS Code / ZCode）的浮动菜单观感一致。
+   */
+  const handleEditorMouseUp = (event: MouseEvent & { currentTarget: HTMLTextAreaElement }) => {
+    // 用 currentTarget 而不是闭包里的 editorRef：标签切换/差异视图来回切时，
+    // ref 可能指向已经被替换掉的旧 textarea，读到的选区会永远是折叠状态。
+    const selected = textareaSelection(event.currentTarget)
+    const hasRange = !!selected && Math.max(selected.start, selected.end) > Math.min(selected.start, selected.end)
+    if (!hasRange) {
+      setSelectionMenu(undefined)
+      return
+    }
+    const rect = contentRef?.getBoundingClientRect()
+    const menuWidth = 168
+    const left = rect ? Math.max(8, Math.min(event.clientX - rect.left, rect.width - menuWidth - 8)) : event.clientX
+    const top = rect ? Math.max(8, Math.min(event.clientY - rect.top + 10, rect.height - 44)) : event.clientY
+    setSelectionMenu({ x: left, y: top, selection: selected! })
+  }
+
+  const handleEditorMouseDown = () => {
+    // 重新开始选之前先收起，避免菜单停在旧选区上。
+    setSelectionMenu(undefined)
+  }
+
+  const handleEditorContextMenu = (event: MouseEvent & { currentTarget: HTMLTextAreaElement }) => {
     event.preventDefault()
     const value = editorRef?.value ?? draft()
     const rect = editorRef?.getBoundingClientRect()
@@ -456,7 +500,7 @@ export function FileTabContent(props: { tab: string }) {
     // 有选区就用选区，不受右键落点影响（编辑器里也是这个口径）：
     // 用户选好 6-10 行之后右键很容易点在选区外一点，那时按落点取行
     // 会把"选中的那几行"变成"鼠标下的那一行"。
-    const selected = textareaSelection()
+    const selected = textareaSelection(event.currentTarget)
     const hasRange = !!selected && Math.max(selected.start, selected.end) > Math.min(selected.start, selected.end)
     const selection = hasRange ? selected! : { start: clickedLine, end: clickedLine }
     openContextMenu(selection, event.clientX, event.clientY)
@@ -469,6 +513,21 @@ export function FileTabContent(props: { tab: string }) {
       if (target instanceof Element && !target.closest("[data-file-context-menu]")) setContextMenu(undefined)
     })
     onCleanup(cleanup)
+  })
+
+  createEffect(() => {
+    if (!selectionMenu()) return
+    const cleanup = makeEventListener(document, "pointerdown", (event: PointerEvent) => {
+      const target = event.target
+      if (target instanceof Element && !target.closest("[data-file-selection-menu]")) setSelectionMenu(undefined)
+    })
+    const keydown = makeEventListener(document, "keydown", (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectionMenu(undefined)
+    })
+    onCleanup(() => {
+      cleanup()
+      keydown()
+    })
   })
 
   const submitContextComment = () => {
@@ -777,6 +836,8 @@ export function FileTabContent(props: { tab: string }) {
                         if (draft() !== contents()) void saveEditing()
                       }}
                       onContextMenu={handleEditorContextMenu}
+                      onMouseDown={handleEditorMouseDown}
+                      onMouseUp={handleEditorMouseUp}
                       onKeyDown={(event) => {
                         if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
                           event.preventDefault()
@@ -802,6 +863,31 @@ export function FileTabContent(props: { tab: string }) {
             </div>
           </div>
         </div>
+        {/* 选区动作菜单：与聊天区的 SelectionActionMenu 同一套观感。 */}
+        <Show when={selectionMenu()}>
+          {(menu) => (
+            <div
+              data-file-selection-menu
+              class="absolute z-50 flex overflow-hidden rounded-lg border border-border bg-popover p-0.5 text-ui-sm text-foreground shadow-[var(--shadow-md)]"
+              style={{ left: `${menu().x}px`, top: `${menu().y}px` }}
+              onMouseDown={(event) => event.preventDefault()}
+            >
+              <button
+                type="button"
+                data-action="file-ask-side-chat"
+                class="flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 transition-colors hover:bg-hover"
+                onClick={() => {
+                  const current = menu()
+                  setSelectionMenu(undefined)
+                  askSelectionInSideChat(current.selection)
+                }}
+              >
+                <Icon name="speech-bubble" size="small" class="text-foreground-subtle" />
+                {language.t("sidePane.sideChat.askSelectionShort")}
+              </button>
+            </div>
+          )}
+        </Show>
         <Show when={contextMenu()}>
           {(menu) => (
             <div

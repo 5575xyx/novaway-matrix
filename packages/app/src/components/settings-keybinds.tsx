@@ -10,7 +10,7 @@ import fuzzysort from "fuzzysort"
 import { formatKeybind, parseKeybind, useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { useSettings } from "@/context/settings"
-import { SettingsList } from "./settings-list"
+import { SettingsGroup } from "./settings-parts"
 
 const IS_MAC = typeof navigator === "object" && /(Mac|iPod|iPhone|iPad)/.test(navigator.platform)
 const PALETTE_ID = "command.palette"
@@ -409,19 +409,19 @@ export const SettingsKeybinds: Component = () => {
             <Show when={(filtered().get(group) ?? []).length > 0}>
               <div class="flex flex-col gap-1">
                 <h3 class="text-14-medium text-foreground pb-2">{language.t(groupKey[group])}</h3>
-                <SettingsList>
+                <SettingsGroup>
                   <For each={filtered().get(group) ?? []}>
                     {(id) => (
-                      <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
-                        <span class="text-14-regular text-foreground">{title(id)}</span>
+                      <div class="flex items-center gap-4 border-t border-border px-4 py-3 first:border-t-0">
+                        <span class="min-w-0 flex-1 truncate text-13-medium text-foreground">{title(id)}</span>
                         <button
                           type="button"
                           data-keybind-id={id}
                           classList={{
-                            "h-8 px-3 rounded-md text-12-regular": true,
+                            "h-8 shrink-0 rounded-md px-3 text-12-regular transition-colors": true,
                             "bg-surface text-foreground-subtle hover:bg-hover active:bg-selected":
                               store.active !== id,
-                            "border border-border bg-surface text-foreground-subtle": store.active === id,
+                            "border border-border text-foreground-subtle": store.active === id,
                           }}
                           onClick={() => start(id)}
                         >
@@ -435,7 +435,7 @@ export const SettingsKeybinds: Component = () => {
                       </div>
                     )}
                   </For>
-                </SettingsList>
+                </SettingsGroup>
               </div>
             </Show>
           )}

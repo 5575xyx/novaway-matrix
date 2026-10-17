@@ -48,7 +48,22 @@ export type FileContextItem = {
   preview?: string
 }
 
-export type ContextItem = FileContextItem
+/**
+ * 对话/代码引用：用户在聊天区或文件预览里选中一段内容后「添加到当前任务」，
+ * 它作为一张引用卡片挂在输入框上方（对齐 ZCode 的 userselect），
+ * 而不是把原文直接塞进输入框。发送时以 synthetic 文本块带给模型，
+ * 不污染用户自己写的那句话。
+ */
+export type QuoteContextItem = {
+  type: "quote"
+  text: string
+  /** 展示用来源标签，例如「AI 回答」/「src/a.ts 第 3-7 行」。 */
+  label?: string
+  /** 文件引用时的路径（发给模型时保留来源）。 */
+  path?: string
+}
+
+export type ContextItem = FileContextItem | QuoteContextItem
 
 export const DEFAULT_PROMPT: Prompt = [{ type: "text", content: "", start: 0, end: 0 }]
 
@@ -101,7 +116,7 @@ function clonePrompt(prompt: Prompt): Prompt {
 }
 
 function contextItemKey(item: ContextItem) {
-  if (item.type !== "file") return item.type
+  if (item.type === "quote") return `quote:${checksum(item.text) ?? item.text}`
   const start = item.selection?.startLine
   const end = item.selection?.endLine
   const key = `${item.type}:${item.path}:${start}:${end}`

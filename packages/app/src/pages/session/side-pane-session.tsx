@@ -1,15 +1,18 @@
-import { createEffect, createMemo, createSignal, For, on, Show } from "solid-js"
+import { createEffect, createMemo, createSignal, Index, on, Show } from "solid-js"
 import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
 import { Spinner } from "@novaway/ui/spinner"
-import { Message } from "@novaway/ui/message-part"
+import { AssistantParts, Message } from "@novaway/ui/message-part"
+import { TextShimmer } from "@novaway/ui/text-shimmer"
 import { useLanguage } from "@/context/language"
 import { useSDK } from "@/context/sdk"
 import { SideChatComposer } from "@/pages/session/side-chat-composer"
 import { useSideChat } from "@/pages/session/use-side-chat"
 import { useSync } from "@/context/sync"
 import { useLayout, type SidePaneSessionTab } from "@/context/layout"
+import { useSettings } from "@/context/settings"
 import { base64Encode } from "@novaway/core/util/encode"
+import type { AssistantMessage, UserMessage } from "@novaway/sdk/v2"
 
 /** 面板里最多渲染多少条消息（更早的请点"打开完整会话"）。 */
 const MAX_ROWS = 40
@@ -82,6 +85,89 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
   const hidden = createMemo(() => Math.max(0, messages().length - rows().length))
   const emptyIcon = () => (props.tab.kind === "subagent" ? "task" : "speech-bubble")
 
+  /**
+   * 按「用户轮次」分组，渲染方式与主聊天区一致：
+   * 用户消息 → 该轮的 assistant 消息（工具调用/思考/正文由 AssistantParts 统一分组）。
+   * 之前这里是「一条 Message 一行」，工具调用和思考都不显示，面板看起来像空白的。
+   */
+  type Turn = { user: UserMessage; assistants: AssistantMessage[]; key: string }
+  const turns = createMemo<Turn[]>(() => {
+    const result: Turn[] = []
+    for (const message of rows()) {
+      if (message.role === "user") {
+        result.push({ user: message, assistants: [], key: message.id })
+        continue
+      }
+      const current = result.at(-1)
+      if (!current) continue
+      current.assistants.push(message)
+    }
+    return result
+  })
+
+  const settings = useSettings()
+  const status = createMemo(() => store().session_status[props.tab.sessionID])
+  const working = createMemo(() => {
+    const type = status()?.type ?? "idle"
+    return type !== "idle"
+  })
+
+  const partsOf = (messageID: string) => store().part[messageID] ?? []
+
+  /** 最后一轮是否已经有可渲染内容（有就不必再显示"思考中"）。 */
+  const lastTurnHasContent = () => {
+    const turn = turns().at(-1)
+    if (!turn) return false
+    return turn.assistants.some((message) =>
+      partsOf(message.id).some((part) => {
+        if (part.type === "text") return !!part.text?.trim()
+        if (part.type === "reasoning") return !!part.text?.trim()
+        if (part.type === "tool") return true
+        return false
+      }),
+    )
+  }
+
+  /** 流式输出时跟着底部走：面板不会自动滚，用户得手动追着看。 */
+  let scrollRef: HTMLDivElement | undefined
+  const streamSignature = createMemo(() => {
+    const last = messages().at(-1)
+    if (!last) return ""
+    return `${last.id}:${partsOf(last.id)
+      .map((part) => (part.type === "text" || part.type === "reasoning" ? part.text?.length ?? 0 : 0))
+      .join(",")}`
+  })
+  createEffect(
+    on(
+      streamSignature,
+      () => {
+        queueMicrotask(() => {
+          canvas()?.scrollTo({ top: canvas()!.scrollHeight })
+        })
+      },
+      { defer: true },
+    ),
+  )
+  const canvas = () => scrollRef
+
+  const lastAssistantError = createMemo(() => {
+    for (const turn of turns()) {
+      for (const message of turn.assistants) {
+        if (!message.error) continue
+        if (message.error.name === "MessageAbortedError") continue
+        return message.error
+      }
+    }
+    return undefined
+  })
+  const errorText = createMemo(() => {
+    const error = lastAssistantError()
+    if (!error) return ""
+    const data = error.data?.message
+    if (typeof data === "string") return data
+    return data ? String(data) : error.name
+  })
+
   const openFull = () => {
     // 完整会话走路由（与子代理原来的行为一致），把当前会话切过去。
     window.location.hash = ""
@@ -126,7 +212,7 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
         </div>
       </Show>
 
-      <div class="flex-1 min-h-0 overflow-y-auto px-3 py-2">
+      <div ref={(el) => (scrollRef = el)} class="flex-1 min-h-0 overflow-y-auto px-3 py-2">
         <Show
           when={rows().length > 0}
           fallback={
@@ -162,12 +248,34 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
             </Show>
           }
         >
-          <div class="flex flex-col gap-3">
-            <For each={rows()}>
-              {(row) => (
-                <Message message={row} parts={store().part[row.id] ?? []} showReasoningSummaries={false} />
-              )}
-            </For>
+          <div class="flex flex-col gap-4">
+            <Index each={turns()}>
+              {(turnAccessor, index) => {
+                const turn = () => turnAccessor()
+                const last = () => index === turns().length - 1
+                return (
+                  <div data-component="side-pane-turn" class="flex flex-col gap-2">
+                    <Message message={turn().user} parts={partsOf(turn().user.id)} />
+                    <AssistantParts
+                      messages={turn().assistants}
+                      showReasoningSummaries={settings.general.showReasoningSummaries()}
+                      working={working() && last()}
+                    />
+                    <Show when={working() && last() && !lastTurnHasContent()}>
+                      <div class="flex items-center gap-2 pl-1 text-ui-caption text-foreground-subtle">
+                        <Spinner class="size-3" />
+                        <TextShimmer text={language.t("ui.sessionTurn.status.thinking")} />
+                      </div>
+                    </Show>
+                  </div>
+                )
+              }}
+            </Index>
+            <Show when={errorText()}>
+              <div class="rounded-md border border-[var(--destructive)]/40 bg-[var(--destructive)]/5 px-2.5 py-2 text-ui-caption leading-5 text-foreground-subtle">
+                {errorText()}
+              </div>
+            </Show>
           </div>
         </Show>
       </div>

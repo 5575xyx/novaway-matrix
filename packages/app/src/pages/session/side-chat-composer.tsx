@@ -1,13 +1,14 @@
 import { createSignal, Show } from "solid-js"
 import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
+import { IconButton } from "@novaway/ui/icon-button"
 import { Spinner } from "@novaway/ui/spinner"
 import { showToast } from "@novaway/ui/toast"
 import { useLanguage } from "@/context/language"
 import { useLocal } from "@/context/local"
 import { useSDK } from "@/context/sdk"
 import type { SidePaneSessionTab } from "@/context/layout"
-import { takeSideChatSeed } from "@/pages/session/side-chat-seed"
+import { clearSideChatSeed, getSideChatSeed, type SideChatQuote } from "@/pages/session/side-chat-seed"
 
 /**
  * 辅助对话的输入框。
@@ -15,6 +16,10 @@ import { takeSideChatSeed } from "@/pages/session/side-chat-seed"
  * **视觉与主输入框一致**（对齐 ZCode：辅助对话的 composer 和主对话是同一个组件形态 ——
  * 顶部是模型/权限那排，中间是输入区，底部左侧是 + @ / 、右侧是发送）。
  * 用户在不同窗口之间切换时，不应该还要重新认一遍输入框长什么样。
+ *
+ * 从聊天区/文件预览里「在辅助对话中提问」带进来的选中内容，显示成输入框
+ * **上方的一张引用卡片**（不是塞进输入框的正文），发送时作为 synthetic 文本块
+ * 一并给模型 —— 与主输入框的引用卡片语义一致。
  *
  * 实现上没有复用主线的 `PromptInput`：那个组件牵着整条 prompt store
  * （草稿持久化、@ 提及、附件、命令面板、斜杠菜单），而辅助对话要的是
@@ -25,12 +30,22 @@ export function SideChatComposer(props: { tab: SidePaneSessionTab }) {
   const sdk = useSDK()
   const local = useLocal()
 
-  // 挂载时取走「待发送草稿」（从聊天区/文件预览里选中内容后点"在辅助对话中提问"会写入）。
-  // 一次性：取走即删，避免切回标签时重复填充。
-  const [draft, setDraft] = createSignal(takeSideChatSeed(props.tab.sessionID) ?? "")
+  // 读取「待带入内容」：不删除，面板在打开动画里重挂载也不会把引用弄丢。
+  // 发送成功或用户移除引用后才清除。
+  const seed = getSideChatSeed(props.tab.sessionID)
+  const [quote, setQuote] = createSignal<SideChatQuote | undefined>(seed?.quote)
+  const [draft, setDraft] = createSignal(seed?.draft ?? "")
   const [sending, setSending] = createSignal(false)
 
   const modelLabel = () => local.model.current()?.name ?? language.t("dialog.model.select.title")
+
+  const quoteText = (value: SideChatQuote) => {
+    const header = value.label ? `${language.t("sidePane.sideChat.quote")}（${value.label}）：` : `${language.t("sidePane.sideChat.quote")}：`
+    return `${header}\n${value.text
+      .split("\n")
+      .map((line) => `> ${line}`)
+      .join("\n")}`
+  }
 
   const send = async () => {
     const text = draft().trim()
@@ -47,13 +62,28 @@ export function SideChatComposer(props: { tab: SidePaneSessionTab }) {
     }
     setSending(true)
     try {
+      const activeQuote = quote()
       await sdk.client.session.promptAsync({
         sessionID: props.tab.sessionID,
         agent,
         model: { providerID: model.provider.id, modelID: model.id },
-        parts: [{ type: "text", text }],
+        parts: [
+          ...(activeQuote
+            ? [
+                {
+                  type: "text" as const,
+                  text: quoteText(activeQuote),
+                  synthetic: true,
+                  metadata: activeQuote.path ? { quote: { path: activeQuote.path } } : undefined,
+                },
+              ]
+            : []),
+          { type: "text", text },
+        ],
       })
       setDraft("")
+      setQuote(undefined)
+      clearSideChatSeed(props.tab.sessionID)
     } catch {
       showToast({
         variant: "error",
@@ -78,6 +108,37 @@ export function SideChatComposer(props: { tab: SidePaneSessionTab }) {
           <span class="text-foreground-subtlest">·</span>
           <span class="shrink-0">{language.t("sidePane.sideChat.inheritsMain")}</span>
         </div>
+
+        {/* 引用卡片：选中内容带进来时显示，可单独移除。 */}
+        <Show when={quote()}>
+          {(value) => (
+            <div
+              data-component="side-chat-quote"
+              class="mb-2 flex min-w-0 flex-col gap-1 rounded-lg bg-surface px-2.5 py-2 shadow-xs-border"
+            >
+              <div class="flex min-w-0 items-center gap-1.5">
+                <Icon name="quote" size="small" class="shrink-0 text-foreground-subtle" />
+                <span class="min-w-0 flex-1 truncate text-11-medium text-foreground">
+                  {value().label || language.t("sidePane.sideChat.quote")}
+                </span>
+                <IconButton
+                  type="button"
+                  icon="close-small"
+                  variant="ghost"
+                  class="size-5 shrink-0 text-foreground-subtle"
+                  aria-label={language.t("prompt.context.removeFile")}
+                  onClick={() => {
+                    setQuote(undefined)
+                    clearSideChatSeed(props.tab.sessionID)
+                  }}
+                />
+              </div>
+              <div class="line-clamp-3 whitespace-pre-wrap break-words text-11-regular text-foreground-subtle">
+                {value().text}
+              </div>
+            </div>
+          )}
+        </Show>
 
         <textarea
           value={draft()}
