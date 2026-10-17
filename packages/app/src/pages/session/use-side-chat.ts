@@ -6,6 +6,9 @@ import { showToast } from "@novaway/ui/toast"
 import { formatServerError } from "@/utils/server-errors"
 import { setSideChatSeed } from "@/pages/session/side-chat-seed"
 
+/** 并发保护：见 `open` 里的说明。 */
+let opening = false
+
 /**
  * 侧边对话：一条**不打断主线**的并行小对话。
  *
@@ -31,8 +34,22 @@ export function useSideChat() {
    *
    * `seed.draft` 只**预填**输入框、不直接发送 —— 用户在文件里选了几行代码
    * 往往还要补一句"这段为什么这么写"。真正发出去由用户在输入框里决定。
+   *
+   * `opening` 是模块级的进行中标记：选区菜单和侧栏入口都可能在极短时间内
+   * 连点两次，`session.create` 是异步的，没有这个标记就会建出两条并行会话
+   * （用户看到两个"辅助对话 1"）。吞掉并发调用比事后去重干净。
    */
   const open = async (seed?: { text?: string; draft?: string; parentID?: string }) => {
+    if (opening) return undefined
+    opening = true
+    try {
+      return await createSideChat(seed)
+    } finally {
+      opening = false
+    }
+  }
+
+  const createSideChat = async (seed?: { text?: string; draft?: string; parentID?: string }) => {
     const parentID = seed?.parentID ?? ""
     const existing = Object.values(layout.sidePane.dynamicTabs()).filter(
       (tab) => tab.kind === "sideChat" && tab.parentID === parentID,
