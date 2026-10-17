@@ -90,13 +90,21 @@ function codeUrl(text: string) {
 const filePathPattern =
   /^(?:[A-Za-z]:[\\/]|~[\\/]|\/|\.{1,2}[\\/])?(?:[\w@.$-]+[\\/])*[\w@.$-]+(?:\.[A-Za-z0-9]{1,12})?$/
 
+/**
+ * 只有**文件**才当作可点链接。
+ *
+ * 之前只要「像路径」或「有扩展名」就标记，于是 `/e/AImoney/PowersNexus`（目录）
+ * 和 `gitee/main`（远程分支名）都被画成链接 —— 点了要么报错、要么打开空标签。
+ * 现在要求**必须有扩展名**：`package.json` / `AGENTS.md` / `a.ts` 通过，
+ * 目录与分支名不会被误标。少数没有扩展名的真文件（Makefile、LICENSE）
+ * 会失去这个便利，换来的是"看起来是链接的都能打开"。
+ */
 function filePath(text: string) {
   const raw = text.trim().replace(/[),.;!?]+$/, "")
   if (!raw || raw.length > 300) return
   if (urlPattern.test(raw) || raw.includes("://") || raw.startsWith("data:")) return
-  const hasPath = /[\\/]/.test(raw)
   const hasExtension = /\.[A-Za-z0-9]{1,12}$/.test(raw)
-  if (!hasPath && !hasExtension) return
+  if (!hasExtension) return
   if (!filePathPattern.test(raw)) return
   return raw
 }
