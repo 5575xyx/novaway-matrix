@@ -1,8 +1,10 @@
 import type { Config, MemoryRelation, MemoryReviewCandidate } from "@novaway/sdk/v2/client"
 import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
+import { IconButton } from "@novaway/ui/icon-button"
 import { Switch } from "@novaway/ui/switch"
 import { Tag } from "@novaway/ui/tag"
+import { Select } from "@novaway/ui/select"
 import { TextField } from "@novaway/ui/text-field"
 import { showToast } from "@novaway/ui/toast"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query"
@@ -25,7 +27,7 @@ import {
   type CandidateSource,
   type ReviewStatus,
 } from "./settings-memory.helpers"
-import { SettingsList } from "./settings-list"
+import { SettingsGroup, SettingsRow } from "./settings-parts"
 
 const queryOptions = {
   staleTime: 10_000,
@@ -364,6 +366,16 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
   const [tab, setTab] = createSignal<ReviewStatus>("pending")
   const [view, setView] = createSignal<MemoryView>("config")
   const [candidateSearch, setCandidateSearch] = createSignal("")
+  const [entrySearch, setEntrySearch] = createSignal("")
+  // ZCode 记忆页左侧的项目下拉：这里用记忆的写入范围代替（全局 / 本项目 / 本会话），
+  // 默认「全部范围」，与右侧条数、搜索同一行。
+  const [entryScope, setEntryScope] = createSignal<"all" | "global" | "project" | "session">("all")
+  const scopeOptions = createMemo(() => [
+    { value: "all" as const, label: language.t("settings.memory.entries.scope.all" as never) },
+    { value: "project" as const, label: language.t("settings.memory.entries.scope.project" as never) },
+    { value: "session" as const, label: language.t("settings.memory.entries.scope.session" as never) },
+    { value: "global" as const, label: language.t("settings.memory.entries.scope.global" as never) },
+  ])
   const [installDir, setInstallDir] = createSignal("")
   const [modelsDir, setModelsDir] = createSignal("")
 
@@ -641,7 +653,17 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
         .some((value) => value.includes(query)),
     )
   })
-  const filteredEntries = createMemo(() => entries.data ?? [])
+  const filteredEntries = createMemo(() => {
+    const scope = entryScope()
+    const list = (entries.data ?? []).filter((item) => scope === "all" || item.scope === scope)
+    const query = entrySearch().trim().toLowerCase()
+    if (!query) return list
+    return list.filter((item) =>
+      [item.summary, item.content, item.kind, ...(item.entities ?? []).map((e) => e.name)]
+        .map((value) => String(value ?? "").toLowerCase())
+        .some((value) => value.includes(query)),
+    )
+  })
 
   const body = (
     <>
@@ -649,89 +671,73 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
       <Show when={view() === "config"}>
         <div>
           <SectionTitle title={language.t("settings.memory.section.config" as never)} />
-          <SettingsList>
-            <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
-              <div class="flex flex-col gap-1">
-                <span class="text-14-medium text-foreground">
-                  {language.t("settings.memory.config.enabled.title" as never)}
-                </span>
-                <span class="text-12-regular text-foreground-subtle">
-                  {language.t("settings.memory.config.enabled.description" as never)}
-                </span>
-              </div>
-              <Switch
-                checked={memoryConfig().enabled !== false}
-                disabled={updateConfig.isPending}
-                onChange={(value) => toggleConfig("enabled", value)}
-                hideLabel
-              >
-                {language.t("settings.memory.config.enabled.title" as never)}
-              </Switch>
-            </div>
-            <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
-              <div class="flex flex-col gap-1">
-                <span class="text-14-medium text-foreground">
-                  {language.t("settings.memory.config.review.title" as never)}
-                </span>
-                <span class="text-12-regular text-foreground-subtle">
-                  {language.t("settings.memory.config.review.description" as never)}
-                </span>
-              </div>
-              <Switch
-                checked={memoryConfig().review_enabled !== false}
-                disabled={updateConfig.isPending}
-                onChange={(value) => toggleConfig("review_enabled", value)}
-                hideLabel
-              >
-                {language.t("settings.memory.config.review.title" as never)}
-              </Switch>
-            </div>
-            <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
-              <div class="flex flex-col gap-1">
-                <span class="text-14-medium text-foreground">
-                  {language.t("settings.memory.config.llm.title" as never)}
-                </span>
-                <span class="text-12-regular text-foreground-subtle">
-                  {language.t("settings.memory.config.llm.description" as never)}
-                </span>
-              </div>
-              <Switch
-                checked={memoryConfig().review_llm !== false}
-                disabled={updateConfig.isPending || memoryConfig().review_enabled === false}
-                onChange={(value) => toggleConfig("review_llm", value)}
-                hideLabel
-              >
-                {language.t("settings.memory.config.llm.title" as never)}
-              </Switch>
-            </div>
-            <div class="flex items-center justify-between gap-4 py-3">
-              <div class="flex flex-col gap-1">
-                <span class="text-14-medium text-foreground">
-                  {language.t("settings.memory.config.interval.title" as never)}
-                </span>
-                <span class="text-12-regular text-foreground-subtle">
-                  {language.t("settings.memory.config.interval.description" as never)}
-                </span>
-              </div>
-              <div class="w-24 shrink-0">
-                <TextField
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={String(memoryConfig().review_interval ?? 1)}
+          <SettingsGroup>
+            <SettingsRow
+              label={language.t("settings.memory.config.enabled.title" as never)}
+              description={language.t("settings.memory.config.enabled.description" as never)}
+              control={
+                <Switch
+                  checked={memoryConfig().enabled !== false}
                   disabled={updateConfig.isPending}
-                  label={language.t("settings.memory.config.interval.title" as never)}
+                  onChange={(value) => toggleConfig("enabled", value)}
                   hideLabel
-                  onBlur={(event: FocusEvent & { currentTarget: HTMLInputElement }) =>
-                    updateReviewInterval(event.currentTarget.value)
-                  }
-                  onKeyDown={(event: KeyboardEvent & { currentTarget: HTMLInputElement }) => {
-                    if (event.key === "Enter") event.currentTarget.blur()
-                  }}
-                />
-              </div>
-            </div>
-          </SettingsList>
+                >
+                  {language.t("settings.memory.config.enabled.title" as never)}
+                </Switch>
+              }
+            />
+            <SettingsRow
+              label={language.t("settings.memory.config.review.title" as never)}
+              description={language.t("settings.memory.config.review.description" as never)}
+              control={
+                <Switch
+                  checked={memoryConfig().review_enabled !== false}
+                  disabled={updateConfig.isPending}
+                  onChange={(value) => toggleConfig("review_enabled", value)}
+                  hideLabel
+                >
+                  {language.t("settings.memory.config.review.title" as never)}
+                </Switch>
+              }
+            />
+            <SettingsRow
+              label={language.t("settings.memory.config.llm.title" as never)}
+              description={language.t("settings.memory.config.llm.description" as never)}
+              control={
+                <Switch
+                  checked={memoryConfig().review_llm !== false}
+                  disabled={updateConfig.isPending || memoryConfig().review_enabled === false}
+                  onChange={(value) => toggleConfig("review_llm", value)}
+                  hideLabel
+                >
+                  {language.t("settings.memory.config.llm.title" as never)}
+                </Switch>
+              }
+            />
+            <SettingsRow
+              label={language.t("settings.memory.config.interval.title" as never)}
+              description={language.t("settings.memory.config.interval.description" as never)}
+              control={
+                <div class="w-24 shrink-0">
+                  <TextField
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={String(memoryConfig().review_interval ?? 1)}
+                    disabled={updateConfig.isPending}
+                    label={language.t("settings.memory.config.interval.title" as never)}
+                    hideLabel
+                    onBlur={(event: FocusEvent & { currentTarget: HTMLInputElement }) =>
+                      updateReviewInterval(event.currentTarget.value)
+                    }
+                    onKeyDown={(event: KeyboardEvent & { currentTarget: HTMLInputElement }) => {
+                      if (event.key === "Enter") event.currentTarget.blur()
+                    }}
+                  />
+                </div>
+              }
+            />
+          </SettingsGroup>
         </div>
 
         <div>
@@ -739,147 +745,147 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
             title={language.t("settings.memory.section.retrieval" as never)}
             description={language.t("settings.memory.retrieval.guide.body" as never)}
           />
-          <SettingsList>
-            <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
-              <div class="flex flex-col gap-1">
-                <span class="text-14-medium text-foreground">
-                  {language.t("settings.memory.retrieval.guide.title" as never)}
-                </span>
-                <pre class="whitespace-pre-wrap text-12-regular text-foreground-subtle font-sans m-0">
+          <SettingsGroup>
+            <SettingsRow
+              label={language.t("settings.memory.retrieval.guide.title" as never)}
+              description={
+                <pre class="m-0 whitespace-pre-wrap font-sans text-12-regular text-foreground-subtle">
                   {language.t("settings.memory.retrieval.guide.steps" as never)}
                 </pre>
+              }
+              control={null}
+              detail={
                 <span class="text-12-regular text-foreground-subtle">
                   {language.t("settings.memory.retrieval.docs" as never)}
                 </span>
-              </div>
-            </div>
-            <div class="flex flex-col gap-3 py-3">
-              <div class="flex flex-col gap-1">
-                <span class="text-14-medium text-foreground">
-                  {language.t("settings.memory.retrieval.mode.title" as never)}
-                </span>
-                <span class="text-12-regular text-foreground-subtle">
-                  {language.t("settings.memory.retrieval.mode.description" as never)}
-                </span>
-              </div>
-              <div class="flex flex-wrap gap-1">
-                <For each={["auto", "local", "provider", "ollama", "off"] as const}>
-                  {(value) => (
-                    <button
-                      type="button"
-                      class="h-8 px-3 rounded-md text-13-medium border transition-colors"
-                      classList={{
-                        "bg-selected text-foreground border-border": embeddingMode() === value,
-                        "bg-transparent text-foreground-subtle border-transparent hover:bg-hover":
-                          embeddingMode() !== value,
-                      }}
-                      disabled={updateConfig.isPending}
-                      onClick={() => updateEmbeddingMode(value)}
-                    >
-                      {language.t(`settings.memory.retrieval.mode.${value}` as never)}
-                    </button>
-                  )}
-                </For>
-              </div>
-              <span class="text-12-regular text-foreground-subtle">{language.t(embeddingModeHintKey() as never)}</span>
-            </div>
-            <div class="flex flex-col gap-3 py-3 border-t border-border">
-              <div class="flex flex-col gap-1">
-                <span class="text-14-medium text-foreground">
-                  {language.t("settings.memory.retrieval.setup.title" as never)}
-                </span>
-                <span class="text-12-regular text-foreground-subtle">
-                  {language.t("settings.memory.retrieval.setup.description" as never)}
-                </span>
-              </div>
-              <div class="rounded-md border border-border bg-surface px-3 py-2 text-12-regular text-foreground-subtle">
-                <div>
-                  {language.t("settings.memory.retrieval.status.title" as never)}?{formatEmbeddingStatus()}
+              }
+            />
+            <SettingsRow
+              layout="wide"
+              label={language.t("settings.memory.retrieval.mode.title" as never)}
+              description={language.t("settings.memory.retrieval.mode.description" as never)}
+              control={
+                <div class="flex flex-wrap justify-end gap-1">
+                  <For each={["auto", "local", "provider", "ollama", "off"] as const}>
+                    {(value) => (
+                      <button
+                        type="button"
+                        class="h-8 rounded-md border px-3 text-13-medium transition-colors"
+                        classList={{
+                          "bg-selected text-foreground border-border": embeddingMode() === value,
+                          "bg-transparent text-foreground-subtle border-transparent hover:bg-hover":
+                            embeddingMode() !== value,
+                        }}
+                        disabled={updateConfig.isPending}
+                        onClick={() => updateEmbeddingMode(value)}
+                      >
+                        {language.t(`settings.memory.retrieval.mode.${value}` as never)}
+                      </button>
+                    )}
+                  </For>
                 </div>
-                <Show when={embeddingStatus.data?.activeBackendLabel}>
-                  <div class="mt-1">当前后端：{embeddingStatus.data?.activeBackendLabel}</div>
-                </Show>
-                <Show when={embeddingStatus.data?.hint}>
-                  <div class="mt-1">{embeddingStatus.data?.hint}</div>
-                </Show>
-                <Show when={embeddingStatus.data?.installDir}>
-                  <div class="mt-1">当前程序目录：{embeddingStatus.data?.installDir}</div>
-                </Show>
-                <Show when={embeddingStatus.data?.modelsDir}>
-                  <div class="mt-1">当前模型目录：{embeddingStatus.data?.modelsDir}</div>
-                </Show>
-              </div>
-              <div class="flex flex-col gap-3 rounded-md border border-border bg-surface px-3 py-3">
-                <TextField
-                  label="Ollama 程序安装目录"
-                  value={installDir()}
-                  onChange={setInstallDir}
-                  placeholder="留空使用系统默认目录"
-                  spellcheck={false}
-                  autocorrect="off"
-                  autocomplete="off"
-                  autocapitalize="off"
-                />
-                <div class="flex justify-end">
-                  <Button type="button" variant="secondary" onClick={() => void chooseOllamaDirectory("install")}>
-                    选择程序目录
+              }
+              detail={
+                <span class="text-12-regular text-foreground-subtle">{language.t(embeddingModeHintKey() as never)}</span>
+              }
+            />
+            <SettingsRow
+              label={language.t("settings.memory.retrieval.setup.title" as never)}
+              description={language.t("settings.memory.retrieval.setup.description" as never)}
+              control={
+                <Show when={!isOllamaReady() && !memorySetupState.running}>
+                  <Button variant="primary" disabled={updateConfig.isPending} onClick={() => void setupLocalEmbedding()}>
+                    {language.t("settings.memory.retrieval.setup.button" as never)}
                   </Button>
-                </div>
-                <TextField
-                  label="Ollama 模型存储目录"
-                  value={modelsDir()}
-                  onChange={setModelsDir}
-                  placeholder="建议选择空间充足的非系统盘目录"
-                  spellcheck={false}
-                  autocorrect="off"
-                  autocomplete="off"
-                  autocapitalize="off"
-                />
-                <div class="flex justify-end">
-                  <Button type="button" variant="secondary" onClick={() => void chooseOllamaDirectory("models")}>
-                    选择模型目录
-                  </Button>
-                </div>
-                <div class="text-12-regular text-foreground-subtle">
-                  模型目录会用于 `OLLAMA_MODELS`。修改后需要重新启动 Ollama 服务才会完全生效。
-                </div>
-                <div class="flex justify-end">
-                  <Button type="button" variant="secondary" onClick={saveOllamaDirectories}>
-                    保存目录设置
-                  </Button>
-                </div>
-              </div>
-              <Show when={memorySetupState.running}>
-                <Show when={memorySetupState.phase}>
-                  <div class="flex flex-col gap-1 rounded-md border border-border bg-surface px-3 py-2">
-                    <div class="flex items-center gap-2 text-13-medium text-foreground">
-                      <span class="inline-block size-3 novaway-spinner rounded-full border-2 border-border border-t-transparent" />
-                      <span>{setupPhaseLabel()}</span>
-                    </div>
-                    <div class="text-12-regular text-foreground-subtle">
+                </Show>
+              }
+              detail={
+                <div class="flex flex-col gap-3">
+                  <div class="rounded-md border border-border bg-background px-3 py-2 text-12-regular text-foreground-subtle">
+                    <div>
                       {language.t("settings.memory.retrieval.status.title" as never)}?{formatEmbeddingStatus()}
                     </div>
+                    <Show when={embeddingStatus.data?.activeBackendLabel}>
+                      <div class="mt-1">当前后端：{embeddingStatus.data?.activeBackendLabel}</div>
+                    </Show>
+                    <Show when={embeddingStatus.data?.hint}>
+                      <div class="mt-1">{embeddingStatus.data?.hint}</div>
+                    </Show>
+                    <Show when={embeddingStatus.data?.installDir}>
+                      <div class="mt-1">当前程序目录：{embeddingStatus.data?.installDir}</div>
+                    </Show>
+                    <Show when={embeddingStatus.data?.modelsDir}>
+                      <div class="mt-1">当前模型目录：{embeddingStatus.data?.modelsDir}</div>
+                    </Show>
                   </div>
-                </Show>
-                <Show when={!memorySetupState.phase}>
-                  <div class="flex items-center gap-2 text-13-medium text-foreground">
-                    <span class="inline-block size-3 novaway-spinner rounded-full border-2 border-border border-t-transparent" />
-                    <span>{language.t("settings.memory.retrieval.setup.running" as never)}</span>
+                  <div class="flex flex-col gap-3 rounded-md border border-border bg-background px-3 py-3">
+                    <TextField
+                      label="Ollama 程序安装目录"
+                      value={installDir()}
+                      onChange={setInstallDir}
+                      placeholder="留空使用系统默认目录"
+                      spellcheck={false}
+                      autocorrect="off"
+                      autocomplete="off"
+                      autocapitalize="off"
+                    />
+                    <div class="flex justify-end">
+                      <Button type="button" variant="secondary" onClick={() => void chooseOllamaDirectory("install")}>
+                        选择程序目录
+                      </Button>
+                    </div>
+                    <TextField
+                      label="Ollama 模型存储目录"
+                      value={modelsDir()}
+                      onChange={setModelsDir}
+                      placeholder="建议选择空间充足的非系统盘目录"
+                      spellcheck={false}
+                      autocorrect="off"
+                      autocomplete="off"
+                      autocapitalize="off"
+                    />
+                    <div class="flex justify-end">
+                      <Button type="button" variant="secondary" onClick={() => void chooseOllamaDirectory("models")}>
+                        选择模型目录
+                      </Button>
+                    </div>
+                    <div class="text-12-regular text-foreground-subtle">
+                      模型目录会用于 `OLLAMA_MODELS`。修改后需要重新启动 Ollama 服务才会完全生效。
+                    </div>
+                    <div class="flex justify-end">
+                      <Button type="button" variant="secondary" onClick={saveOllamaDirectories}>
+                        保存目录设置
+                      </Button>
+                    </div>
                   </div>
-                </Show>
-              </Show>
-              <Show when={!isOllamaReady() && !memorySetupState.running}>
-                <Button variant="primary" disabled={updateConfig.isPending} onClick={() => void setupLocalEmbedding()}>
-                  {language.t("settings.memory.retrieval.setup.button" as never)}
-                </Button>
-              </Show>
-              <Show when={memorySetupState.log}>
-                <pre class="whitespace-pre-wrap text-12-regular text-foreground-subtle font-sans m-0 max-h-40 overflow-auto">
-                  {memorySetupState.log}
-                </pre>
-              </Show>
-            </div>
-          </SettingsList>
+                  <Show when={memorySetupState.running}>
+                    <Show when={memorySetupState.phase}>
+                      <div class="flex flex-col gap-1 rounded-md border border-border bg-background px-3 py-2">
+                        <div class="flex items-center gap-2 text-13-medium text-foreground">
+                          <span class="inline-block size-3 novaway-spinner rounded-full border-2 border-border border-t-transparent" />
+                          <span>{setupPhaseLabel()}</span>
+                        </div>
+                        <div class="text-12-regular text-foreground-subtle">
+                          {language.t("settings.memory.retrieval.status.title" as never)}?{formatEmbeddingStatus()}
+                        </div>
+                      </div>
+                    </Show>
+                    <Show when={!memorySetupState.phase}>
+                      <div class="flex items-center gap-2 text-13-medium text-foreground">
+                        <span class="inline-block size-3 novaway-spinner rounded-full border-2 border-border border-t-transparent" />
+                        <span>{language.t("settings.memory.retrieval.setup.running" as never)}</span>
+                      </div>
+                    </Show>
+                  </Show>
+                  <Show when={memorySetupState.log}>
+                    <pre class="m-0 max-h-40 overflow-auto whitespace-pre-wrap font-sans text-12-regular text-foreground-subtle">
+                      {memorySetupState.log}
+                    </pre>
+                  </Show>
+                </div>
+              }
+            />
+          </SettingsGroup>
         </div>
       </Show>
 
@@ -963,35 +969,73 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
       </Show>
 
       <Show when={view() === "entries"}>
-        <div>
-          <SectionTitle
-            title="已写入记忆"
-            description="按范围查看当前生效的长期记忆（全局跨项目，本项目仅当前工作区）。"
-          />
-          <SettingsList>
+        <div class="flex flex-col gap-3">
+          {/*
+            对齐 ZCode 的记忆页（`MemorySettingsSection`）：顶部一行是
+            「条数 + 搜索」，下面是**文件行**（图标 + 名称 + 时间 + 右侧操作），
+            不是一堆带边框的卡片。我们的记忆是 DB 记录而不是磁盘文件，
+            所以"文件名"用 `summary`（没有就截断 content），"时间"用 updated。
+          */}
+          <div class="flex flex-wrap items-center gap-3">
+            <Select
+              options={scopeOptions()}
+              current={scopeOptions().find((option) => option.value === entryScope())}
+              value={(option) => option.value}
+              label={(option) => option.label}
+              onSelect={(option) => {
+                if (option) setEntryScope(option.value)
+              }}
+              variant="secondary"
+              size="small"
+            />
+            <div class="h-4 w-px bg-border" aria-hidden="true" />
+            <span class="shrink-0 text-12-regular text-foreground-subtle">
+              {language.t("settings.memory.entries.count" as never, { count: filteredEntries().length } as never)}
+            </span>
+            <div class="ml-auto w-full sm:w-64">
+              <TextField
+                value={entrySearch()}
+                onChange={setEntrySearch}
+                placeholder={language.t("settings.memory.entries.search" as never)}
+                spellcheck={false}
+                autocorrect="off"
+                autocomplete="off"
+                autocapitalize="off"
+              />
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <span class="text-12-medium text-foreground-subtle">{language.t("settings.memory.entries.files" as never)}</span>
+            <IconButton
+              icon="reset"
+              variant="ghost"
+              size="small"
+              class="ml-auto"
+              disabled={entries.isFetching}
+              aria-label={language.t("common.refresh")}
+              onClick={() => void entries.refetch()}
+            />
+          </div>
+
+          <div class="flex flex-col rounded-lg bg-surface">
             <Show when={!entries.isLoading} fallback={<LoadingState />}>
               <Show when={filteredEntries().length > 0} fallback={<EmptyState message="暂无已写入记忆" />}>
                 <For each={filteredEntries()}>
                   {(item) => (
-                    <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
-                      <div class="min-w-0 flex flex-col gap-1">
-                        <div class="flex flex-wrap items-center gap-2">
-                          <span class="text-14-medium text-foreground break-words">
-                            {item.summary || item.content}
-                          </span>
-                          <Tag>{item.scope === "global" ? "全局" : item.scope === "session" ? "本会话" : "本项目"}</Tag>
-                          <Tag>{item.target === "user" ? "用户画像" : "项目记忆"}</Tag>
-                          <Tag>{memoryKindLabel(item.kind)}</Tag>
-                        </div>
+                    <div class="group flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-hover">
+                      <span class="mt-0.5 grid size-7 shrink-0 place-items-center rounded-md bg-background">
+                        <Icon name="review" size="small" class="text-foreground-subtle" />
+                      </span>
+                      <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span class="truncate text-13-medium text-foreground">{item.summary || item.content}</span>
+                        <span class="truncate text-11-regular text-foreground-subtle">
+                          {item.scope === "global" ? "全局" : item.scope === "session" ? "本会话" : "本项目"}
+                          <span class="text-foreground-subtlest"> · </span>
+                          {memoryKindLabel(item.kind)}
+                        </span>
                         <Show when={item.summary}>
-                          <span class="text-12-regular text-foreground break-words">{item.content}</span>
-                        </Show>
-                        <Show when={(item.entities?.length ?? 0) > 0}>
-                          <div class="flex flex-wrap gap-1 pt-1">
-                            <For each={item.entities}>
-                              {(entity) => <Tag>{entity.type ? `${entity.type}:${entity.name}` : entity.name}</Tag>}
-                            </For>
-                          </div>
+                          <span class="line-clamp-2 text-11-regular text-foreground-subtle">{item.content}</span>
                         </Show>
                       </div>
                     </div>
@@ -999,7 +1043,7 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
                 </For>
               </Show>
             </Show>
-          </SettingsList>
+          </div>
         </div>
       </Show>
     </>

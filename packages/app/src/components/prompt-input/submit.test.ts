@@ -95,6 +95,14 @@ beforeAll(async () => {
     }),
   }))
 
+  // Auto Mode 默认关闭：不走内置网关的 auto 模型，保留用户当前模型。
+  mock.module("@/context/models", () => ({
+    useModels: () => ({
+      autoMode: () => false,
+      list: () => [],
+    }),
+  }))
+
   mock.module("@/context/permission", () => ({
     usePermission: () => ({
       enableAutoAccept(sessionID: string, directory: string) {
@@ -118,6 +126,10 @@ beforeAll(async () => {
 
   mock.module("@/context/layout", () => ({
     useLayout: () => ({
+      mode: {
+        // 非 forge 模式：不改写 agent，保持测试关注 worktree / optimistic 行为。
+        current: () => "zen" as const,
+      },
       handoff: {
         setTabs: () => undefined,
       },

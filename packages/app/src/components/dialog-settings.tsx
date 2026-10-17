@@ -104,51 +104,63 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
                 {language.t("common.goBack")}
               </Button>
               <div class="h-px w-full bg-border" />
-              <div class="flex flex-col gap-1.5 w-full">
-                <Tabs.Trigger value="general">
-                  <Icon name="sliders" />
-                  {language.t("settings.tab.general")}
-                </Tabs.Trigger>
-                <Tabs.Trigger value="desktop">
-                  <Icon name="eye" />
-                  {language.t("settings.tabs.pet")}
-                </Tabs.Trigger>
-                <Tabs.Trigger value="notifications">
-                  <Icon name="speech-bubble" />
-                  {language.t("settings.tabs.notifications")}
-                </Tabs.Trigger>
-                <Tabs.Trigger value="memory">
-                  <Icon name="review" />
-                  {language.t("settings.memory.title" as never)}
-                </Tabs.Trigger>
-                <Tabs.Trigger value="providers">
-                  <Icon name="providers" />
-                  {language.t("settings.providers.title")}
-                </Tabs.Trigger>
-                <Tabs.Trigger value="models">
-                  <Icon name="models" />
-                  {language.t("settings.models.title")}
-                </Tabs.Trigger>
-                <Tabs.Trigger value="agents">
-                  <Icon name="brain" />
-                  {language.t("settings.agents.title")}
-                </Tabs.Trigger>
-                <Tabs.Trigger value="skills">
-                  <Icon name="checklist" />
-                  {language.t("settings.skills.title")}
-                </Tabs.Trigger>
-                <Tabs.Trigger value="rules">
-                  <Icon name="shield" />
-                  {language.t("settings.rules.title")}
-                </Tabs.Trigger>
-                <Tabs.Trigger value="mcp">
-                  <Icon name="mcp" />
-                  {language.t("settings.mcp.title")}
-                </Tabs.Trigger>
-                <Tabs.Trigger value="plugins">
-                  <Icon name="server" />
-                  {language.t("settings.plugins.title")}
-                </Tabs.Trigger>
+              {/*
+                导航按 ZCode Settings 的三组组织（基础设置 / Agent 能力 / 数据与统计）：
+                之前是十几个触发器的平铺列表，找不到"这属于哪一类"。
+                分组标签用 Tabs.SectionTitle（settings 变体下是 12px 的弱化小标题）。
+              */}
+              <div class="flex flex-col gap-4 w-full">
+                <div class="flex flex-col gap-1.5 w-full">
+                  <Tabs.SectionTitle>{language.t("settings.group.basics")}</Tabs.SectionTitle>
+                  <Tabs.Trigger value="general">
+                    <Icon name="sliders" />
+                    {language.t("settings.tab.general")}
+                  </Tabs.Trigger>
+                  <Tabs.Trigger value="desktop">
+                    <Icon name="eye" />
+                    {language.t("settings.tabs.pet")}
+                  </Tabs.Trigger>
+                  <Tabs.Trigger value="notifications">
+                    <Icon name="speech-bubble" />
+                    {language.t("settings.tabs.notifications")}
+                  </Tabs.Trigger>
+                  <Tabs.Trigger value="providers">
+                    <Icon name="providers" />
+                    {language.t("settings.providers.title")}
+                  </Tabs.Trigger>
+                  <Tabs.Trigger value="models">
+                    <Icon name="models" />
+                    {language.t("settings.models.title")}
+                  </Tabs.Trigger>
+                </div>
+
+                <div class="flex flex-col gap-1.5 w-full">
+                  <Tabs.SectionTitle>{language.t("settings.group.agent")}</Tabs.SectionTitle>
+                  <Tabs.Trigger value="memory">
+                    <Icon name="review" />
+                    {language.t("settings.memory.title" as never)}
+                  </Tabs.Trigger>
+                  <Tabs.Trigger value="agents">
+                    <Icon name="brain" />
+                    {language.t("settings.agents.title")}
+                  </Tabs.Trigger>
+                  <Tabs.Trigger value="plugins">
+                    <Icon name="server" />
+                    {language.t("settings.plugins.title")}
+                  </Tabs.Trigger>
+                  <Tabs.Trigger value="mcp">
+                    <Icon name="mcp" />
+                    {language.t("settings.mcp.title")}
+                  </Tabs.Trigger>
+                  <Tabs.Trigger value="skills">
+                    <Icon name="checklist" />
+                    {language.t("settings.skills.title")}
+                  </Tabs.Trigger>
+                  <Tabs.Trigger value="rules">
+                    <Icon name="shield" />
+                    {language.t("settings.rules.title")}
+                  </Tabs.Trigger>
+                </div>
               </div>
             </div>
           </div>

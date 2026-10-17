@@ -40,7 +40,7 @@ import { usePlatform } from "@/context/platform"
 import { useServer } from "@/context/server"
 import { agentDisplayName, skillDisplayName } from "@/utils/agent"
 import { pathKey } from "@/utils/path-key"
-import { SettingsList } from "./settings-list"
+import { SettingsGroup } from "./settings-parts"
 import { matchesModeGroup, modeGroupLabel, modeGroups, type ModeGroup } from "./settings-mode-groups"
 import { agentSkillPermission, hasSkillPermission, withAgentSkills } from "./settings-agent-config"
 
@@ -459,7 +459,7 @@ const SkillSelectDialog: Component<{
         <Show when={error()}>
           <div class="text-12-regular text-danger-base">{error()}</div>
         </Show>
-        <SettingsList>
+        <SettingsGroup>
           <Show
             when={safeArray(props.skills).length > 0}
             fallback={<EmptyState message={language.t("settings.agents.skills.emptyAssignable")} />}
@@ -498,7 +498,7 @@ const SkillSelectDialog: Component<{
               }}
             </For>
           </Show>
-        </SettingsList>
+        </SettingsGroup>
         <div class="flex items-center justify-between gap-3 pt-1">
           <span class="text-12-regular text-foreground-subtle">已选择 {selected().length} 个技能</span>
           <div class="flex items-center gap-2">
@@ -2204,7 +2204,7 @@ export const SettingsAgents: Component = () => {
           />
         </div>
         <div class="pb-3 text-12-regular text-foreground-subtle">{language.t("settings.agents.skills.note")}</div>
-        <SettingsList>
+        <SettingsGroup>
           <Show when={!loading()} fallback={<LoadingState />}>
             <Show
               when={safeArray(visibleAgents()).length > 0}
@@ -2268,7 +2268,7 @@ export const SettingsAgents: Component = () => {
               </For>
             </Show>
           </Show>
-        </SettingsList>
+        </SettingsGroup>
       </div>
     </SettingsPage>
   )
@@ -2452,7 +2452,7 @@ export const SettingsSkills: Component = () => {
             }))}
           />
         </div>
-        <SettingsList>
+        <SettingsGroup>
           <Show when={!files.isLoading} fallback={<LoadingState />}>
             <Show
               when={safeArray(visibleSkills()).length > 0}
@@ -2516,7 +2516,7 @@ export const SettingsSkills: Component = () => {
               </For>
             </Show>
           </Show>
-        </SettingsList>
+        </SettingsGroup>
       </div>
     </SettingsPage>
   )
@@ -2933,18 +2933,18 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
       <Show
         when={!projectInstruction.isLoading}
         fallback={
-          <SettingsList>
+          <SettingsGroup>
             <LoadingState />
-          </SettingsList>
+          </SettingsGroup>
         }
       >
         <Show when={!props.directory}>
-          <SettingsList>
+          <SettingsGroup>
             <EmptyState message={language.t("settings.projectInstruction.empty.noProject")} />
-          </SettingsList>
+          </SettingsGroup>
         </Show>
         <Show when={props.directory && projectInstruction.data?.content.trim()}>
-          <SettingsList>
+          <SettingsGroup>
             <RuntimeRow
               icon="checklist"
               title="AGENTS.md"
@@ -2970,7 +2970,7 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
                 </>
               }
             />
-          </SettingsList>
+          </SettingsGroup>
         </Show>
       </Show>
     </div>
@@ -2984,7 +2984,7 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
           {language.t("settings.rules.action.add")}
         </Button>
       </Toolbar>
-      <SettingsList>
+      <SettingsGroup>
         <Show when={!rules.isLoading && !projectRules.isLoading} fallback={<LoadingState />}>
           <Show
             when={safeArray(ruleSet(props.scope)).length > 0}
@@ -3024,7 +3024,7 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
             </For>
           </Show>
         </Show>
-      </SettingsList>
+      </SettingsGroup>
     </div>
   )
 
@@ -3127,7 +3127,7 @@ export const SettingsMcp: Component = () => {
             {language.t("settings.mcp.action.add")}
           </Button>
         </Toolbar>
-        <SettingsList>
+        <SettingsGroup>
           <Show when={!mcp.isLoading} fallback={<LoadingState />}>
             <Show
               when={safeArray(items()).length > 0}
@@ -3148,7 +3148,7 @@ export const SettingsMcp: Component = () => {
               </For>
             </Show>
           </Show>
-        </SettingsList>
+        </SettingsGroup>
       </div>
       <ConfiguredRecordSection
         title={language.t("settings.mcp.section.configured")}
@@ -3200,7 +3200,7 @@ const McpCatalogSection: Component<{
           class="w-full max-w-xs"
         />
       </Toolbar>
-      <SettingsList>
+      <SettingsGroup>
         <Show when={matches().length > 0} fallback={<EmptyState message={language.t("settings.mcp.catalog.empty")} />}>
           <For each={matches()}>
             {(entry) => {
@@ -3235,7 +3235,7 @@ const McpCatalogSection: Component<{
             }}
           </For>
         </Show>
-      </SettingsList>
+      </SettingsGroup>
     </div>
   )
 }
@@ -3288,7 +3288,7 @@ export const SettingsPlugins: Component = () => {
             {language.t("settings.plugins.action.add")}
           </Button>
         </Toolbar>
-        <SettingsList>
+        <SettingsGroup>
           <Show
             when={safeArray(plugins()).length > 0}
             fallback={<EmptyState message={language.t("settings.plugins.empty")} />}
@@ -3319,7 +3319,7 @@ export const SettingsPlugins: Component = () => {
               )}
             </For>
           </Show>
-        </SettingsList>
+        </SettingsGroup>
       </div>
       {/* 商店：目录来自可配置的 marketplace 源（对齐 ZCode 的插件商店架构 ——
           它同样是「源 + 目录」而不是把清单写死在客户端）。 */}
@@ -3443,7 +3443,7 @@ const PluginStoreSection: Component<{
         </div>
       </Show>
 
-      <SettingsList>
+      <SettingsGroup>
         <Show when={!loading()} fallback={<LoadingState />}>
           <Show
             when={entries().length > 0}
@@ -3487,7 +3487,7 @@ const PluginStoreSection: Component<{
             </For>
           </Show>
         </Show>
-      </SettingsList>
+      </SettingsGroup>
 
       <Show when={error()}>
         {(message) => <div class="pt-2 text-12-regular text-destructive break-words">{message()}</div>}
@@ -3515,19 +3515,21 @@ const RuntimeRow: Component<{
   footer?: JSX.Element
   actions?: JSX.Element
 }> = (props) => (
-  <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
-    <div class="flex items-start gap-3 min-w-0 flex-1">
-      <Icon name={props.icon} class="size-5 shrink-0 icon-strong-base mt-0.5" />
-      <div class="flex flex-col min-w-0">
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="text-14-medium text-foreground truncate">{props.title}</span>
-          <For each={props.tags ?? []}>{(tag) => <Tag>{tag}</Tag>}</For>
-        </div>
-        <Show when={props.description}>
-          <span class="text-12-regular text-foreground-subtle truncate">{props.description}</span>
-        </Show>
-        <Show when={props.footer}>{props.footer}</Show>
+  // 对齐 ZCode 的资源行（插件 / MCP / 技能 / 规则都是同一种）：左侧图标块，
+  // 中间标题 + 标签 + 描述，右侧操作。行与行之间由外层 SettingsGroup 的分隔线切分。
+  <div class="flex min-w-0 items-center gap-3 border-t border-border px-4 py-3 transition-colors first:border-t-0 hover:bg-hover">
+    <span class="grid size-9 shrink-0 place-items-center rounded-xl bg-background">
+      <Icon name={props.icon} class="size-4.5 icon-strong-base" />
+    </span>
+    <div class="flex min-w-0 flex-1 flex-col">
+      <div class="flex min-w-0 flex-wrap items-center gap-2">
+        <span class="truncate text-13-medium text-foreground">{props.title}</span>
+        <For each={props.tags ?? []}>{(tag) => <Tag>{tag}</Tag>}</For>
       </div>
+      <Show when={props.description}>
+        <span class="mt-0.5 truncate text-12-regular text-foreground-subtle">{props.description}</span>
+      </Show>
+      <Show when={props.footer}>{props.footer}</Show>
     </div>
     <Show when={props.actions}>
       <div class="flex shrink-0 items-center gap-1">{props.actions}</div>
@@ -3597,7 +3599,7 @@ const ConfiguredRecordSection: Component<{
       <Show when={!props.hideTitle}>
         <SectionTitle title={props.title} />
       </Show>
-      <SettingsList>
+      <SettingsGroup>
         <Show when={safeArray(entries()).length > 0} fallback={<EmptyState message={props.empty} />}>
           <For each={safeArray(entries())}>
             {([name, value]) => (
@@ -3626,7 +3628,7 @@ const ConfiguredRecordSection: Component<{
             )}
           </For>
         </Show>
-      </SettingsList>
+      </SettingsGroup>
     </div>
   )
 }
@@ -3650,20 +3652,20 @@ const McpRow: Component<{
   const configurable = () => !!props.onEdit || !!props.onDelete
 
   return (
-    <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
-      <div class="flex items-start gap-3 min-w-0">
-        <Icon name="mcp" class="size-5 shrink-0 icon-strong-base mt-0.5" />
-        <div class="flex flex-col min-w-0">
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="text-14-medium text-foreground truncate">{props.name}</span>
-            <Tag>{label()}</Tag>
-          </div>
-          <Show when={error()}>
-            <span class="text-12-regular text-foreground-subtle truncate">{error()}</span>
-          </Show>
+    <div class="flex min-w-0 items-center gap-3 border-t border-border px-4 py-3 transition-colors first:border-t-0 hover:bg-hover">
+      <span class="grid size-9 shrink-0 place-items-center rounded-xl bg-background">
+        <Icon name="mcp" class="size-4.5 icon-strong-base" />
+      </span>
+      <div class="flex min-w-0 flex-1 flex-col">
+        <div class="flex min-w-0 flex-wrap items-center gap-2">
+          <span class="truncate text-13-medium text-foreground">{props.name}</span>
+          <Tag>{label()}</Tag>
         </div>
+        <Show when={error()}>
+          <span class="mt-0.5 truncate text-12-regular text-foreground-subtle">{error()}</span>
+        </Show>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex shrink-0 items-center gap-1">
         <Show when={configurable()}>
           <Switch checked={status() === "connected"} disabled={props.disabled} onChange={props.onToggle} hideLabel>
             {props.name}
