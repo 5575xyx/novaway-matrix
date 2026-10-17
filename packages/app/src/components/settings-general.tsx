@@ -379,6 +379,12 @@ export const SettingsGeneral: Component = () => {
   )
 
   const autoOption = { id: "auto", value: "", label: language.t("settings.general.row.shell.autoDefault") }
+
+  const followupOptions = () =>
+    [
+      { value: "steer" as const, label: language.t("settings.general.row.followup.option.steer") },
+      { value: "queue" as const, label: language.t("settings.general.row.followup.option.queue") },
+    ]
   const currentShell = createMemo(() => globalSync.data.config.shell ?? "")
 
   const shellOptions = createMemo<ShellSelectOption[]>(() => {
@@ -576,6 +582,29 @@ export const SettingsGeneral: Component = () => {
             <Switch
               checked={settings.general.showStatus()}
               onChange={(checked) => settings.general.setShowStatus(checked)}
+            />
+          </div>
+        </SettingsRow>
+
+        {/* 运行中的提交行为。两种模式的实际差别很大：
+            引导会立刻影响当前这轮（在下一个安全边界生效），排队要等这轮跑完。
+            对齐 Qoder 的 Settings → General → "Send while running"。 */}
+        <SettingsRow
+          title={language.t("settings.general.row.followup.title")}
+          description={language.t("settings.general.row.followup.description")}
+        >
+          <div data-action="settings-followup">
+            <Select
+              options={followupOptions()}
+              current={followupOptions().find((option) => option.value === settings.general.followup())}
+              value={(option) => option.value}
+              label={(option) => option.label}
+              onSelect={(option) => {
+                if (!option) return
+                settings.general.setFollowup(option.value)
+              }}
+              variant="secondary"
+              size="small"
             />
           </div>
         </SettingsRow>

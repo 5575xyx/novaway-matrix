@@ -35,7 +35,10 @@ export function SessionComposerRegion(props: {
   onSubmit: () => void
   onResponseSubmit: () => void
   followup?: {
+    /** true = 运行中的提交会排队；false = 立即引导（见 pages/session.tsx 的 queueEnabled）。 */
     queue: () => boolean
+    /** 会话正在跑且可接收输入（用于提示当前是排队还是引导）。 */
+    live: () => boolean
     items: { id: string; text: string }[]
     sending?: string
     edit?: { id: string; prompt: FollowupDraft["prompt"]; context: FollowupDraft["context"] }
@@ -260,6 +263,24 @@ export function SessionComposerRegion(props: {
                   onSend={props.followup!.onSend}
                   onEdit={props.followup!.onEdit}
                 />
+              </Show>
+              {/*
+                运行中时告诉用户"现在发出去会怎样"。
+
+                对齐 Qoder：它在运行中把 Queue / Steer 当成一个需要**明确知道**的选择
+                （文档里专门有一节讲两者区别）。我们两种模式的实际行为差别很大
+                （一个立刻影响当前这轮、一个等这轮结束），不提示的话用户只能靠猜。
+                只在运行中显示，空闲时不占位置。
+              */}
+              <Show when={props.followup?.live() && props.followup.items.length === 0}>
+                <p
+                  data-slot="composer-followup-hint"
+                  class="px-1 pb-1.5 text-right text-ui-xs text-foreground-subtlest"
+                >
+                  {language.t(
+                    props.followup!.queue() ? "session.composer.queueHint" : "session.composer.steerHint",
+                  )}
+                </p>
               </Show>
               <Show
                 when={child()}
