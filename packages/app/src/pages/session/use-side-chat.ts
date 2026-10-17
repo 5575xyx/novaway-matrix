@@ -85,5 +85,15 @@ export function useSideChat() {
     await sdk.client.session.delete({ sessionID: tab.sessionID }).catch(() => undefined)
   }
 
-  return { open, close }
+  /**
+   * 会话在服务端已经不存在（CLI 重启后临时会话丢失）→ 静默收掉标签。
+   *
+   * 对齐 ZCode 的 `onSelectionSideChatUnavailable`：它监听 `sessionNotFound`
+   * 并清 tab，「下一次框选按父会话重建」。这里提供同一个能力给面板调用。
+   */
+  const drop = (tab: SidePaneSessionTab) => {
+    layout.sidePane.closeSession(tab.id)
+  }
+
+  return { open, close, drop }
 }
