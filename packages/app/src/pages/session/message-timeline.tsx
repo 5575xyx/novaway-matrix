@@ -1060,11 +1060,16 @@ export function MessageTimeline(props: {
   const openOutputFile = (path: string) => {
     const normalized = file.normalize(path)
     if (!normalized) return
-    void file.load(normalized)
-    const tab = file.tab(normalized)
-    void tabs().open(tab)
-    tabs().setActive(tab)
-    layout.sidePane.add("preview")
+    void file.load(normalized).then(() => {
+      // 链接识别只能靠"看起来像路径"，目录也会被标成可点（`/e/AImoney/PowersNexus`
+      // 这种没有扩展名的绝对路径）。读失败就当它不是一个文件：不开标签、不报错，
+      // 否则会打开一个内容为空的假标签（而且会把真正的预览挤掉）。
+      if (file.get(normalized)?.error) return
+      const tab = file.tab(normalized)
+      void tabs().open(tab)
+      tabs().setActive(tab)
+      layout.sidePane.add("preview")
+    })
   }
 
   const renderAssistantPartGroup = (row: Accessor<TimelineRowMap["AssistantPart"]>) => {

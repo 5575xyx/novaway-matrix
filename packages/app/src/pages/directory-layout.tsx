@@ -20,6 +20,7 @@ function DirectoryDataProvider(props: ParentProps<{ directory: string }>) {
   const params = useParams()
   const sync = useSync()
   const layout = useLayout()
+  const language = useLanguage()
   const slug = createMemo(() => base64Encode(props.directory))
 
   /**
@@ -32,8 +33,11 @@ function DirectoryDataProvider(props: ParentProps<{ directory: string }>) {
    */
   const openSubagentSession = (sessionID: string) => {
     const parentID = params.id ?? ""
+    // 标题优先用会话自己的；子会话常常还没进 `sync.data.session`（那份列表只装根会话），
+    // 这时先给一个中性标签 —— 面板顶部还有子代理图标，不会认错。
     const title =
-      sync.data.session.find((item) => item.id === sessionID)?.title ?? sessionID
+      sync.data.session.find((item) => item.id === sessionID)?.title ??
+      language.t("sidePane.subagent")
     layout.sidePane.openSession({
       id: sidePaneSubagentTabId(sessionID),
       kind: "subagent",
