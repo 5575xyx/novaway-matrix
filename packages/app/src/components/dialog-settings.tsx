@@ -12,6 +12,7 @@ import { SettingsProviders } from "./settings-providers"
 import { SettingsModels } from "./settings-models"
 import { SettingsAgents, SettingsMcp, SettingsPlugins, SettingsRules, SettingsSkills } from "./settings-runtime"
 import { SettingsNotifications } from "./settings-notifications"
+import { SettingsKeybinds } from "./settings-keybinds"
 
 const settingsTabs = [
   "general",
@@ -19,6 +20,7 @@ const settingsTabs = [
   "notifications",
   "providers",
   "models",
+  "keybinds",
   "agents",
   "memory",
   "skills",
@@ -132,6 +134,10 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
                     <Icon name="models" />
                     {language.t("settings.models.title")}
                   </Tabs.Trigger>
+                  <Tabs.Trigger value="keybinds">
+                    <Icon name="keyboard" />
+                    {language.t("settings.shortcuts.title")}
+                  </Tabs.Trigger>
                 </div>
 
                 <div class="flex flex-col gap-1.5 w-full">
@@ -180,11 +186,14 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
         <Tabs.Content value="models" class="no-scrollbar">
           <SettingsModels />
         </Tabs.Content>
+        <Tabs.Content value="keybinds" class="no-scrollbar">
+          <SettingsKeybinds />
+        </Tabs.Content>
         <Tabs.Content value="agents" class="no-scrollbar">
           <SettingsAgents />
         </Tabs.Content>
         <Tabs.Content value="memory" class="no-scrollbar">
-          <SettingsMemoryEvolution />
+          <SettingsMemoryEvolution directory={directory()} />
         </Tabs.Content>
         <Tabs.Content value="skills" class="no-scrollbar">
           <SettingsSkills />

@@ -310,7 +310,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
 
   const commentCount = createMemo(() => {
     if (store.mode === "shell") return 0
-    return prompt.context.items().filter((item) => !!item.comment?.trim()).length
+    return prompt.context.items().filter((item) => item.type === "file" && !!item.comment?.trim()).length
   })
   const blank = createMemo(() => {
     const text = prompt
@@ -349,7 +349,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const contextItems = createMemo(() => {
     const items = prompt.context.items()
     if (store.mode !== "shell") return items
-    return items.filter((item) => !item.comment?.trim())
+    return items.filter((item) => item.type !== "file" || !item.comment?.trim())
   })
 
   const hasUserPrompt = createMemo(() => {
@@ -1171,8 +1171,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         }
 
         for (const item of edit.context) {
+          if (item.type !== "file") continue
           prompt.context.add({
-            type: item.type,
+            type: "file",
             path: item.path,
             selection: item.selection,
             comment: item.comment,
@@ -1643,12 +1644,13 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         <PromptContextItems
           items={contextItems()}
           active={(item) => {
+            if (item.type !== "file") return false
             const active = comments.active()
             return !!item.commentID && item.commentID === active?.id && item.path === active?.file
           }}
           openComment={openComment}
           remove={(item) => {
-            if (item.commentID) comments.remove(item.path, item.commentID)
+            if (item.type === "file" && item.commentID) comments.remove(item.path, item.commentID)
             prompt.context.remove(item.key)
           }}
           t={(key) => language.t(key as Parameters<typeof language.t>[0])}

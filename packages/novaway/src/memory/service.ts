@@ -88,7 +88,11 @@ export interface Interface {
     originMessageID?: AddInput["originMessageID"]
     agent?: string
   }) => Effect.Effect<void>
-  readonly status: (input?: { projectID?: AddInput["projectID"]; sessionID?: AddInput["sessionID"] }) => Effect.Effect<{
+  readonly status: (input?: {
+    projectID?: AddInput["projectID"]
+    sessionID?: AddInput["sessionID"]
+    includeGlobal?: boolean
+  }) => Effect.Effect<{
     total: number
     active: number
     archived: number
@@ -891,6 +895,7 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
       const items = yield* list({
         projectID: input?.projectID,
         sessionID: input?.sessionID,
+        includeGlobal: input?.includeGlobal,
         includeArchived: true,
         includeExpired: true,
         limit: 10_000,

@@ -17,6 +17,8 @@ export const ListQuery = Schema.Struct({
   scope: Schema.optional(MemorySchema.Scope),
   search: Schema.optional(Schema.String),
   includeArchived: Schema.optional(QueryBoolean),
+  /** 项目作用域查询时是否连带返回全局记忆（global 的 project_id 为空）。 */
+  includeGlobal: Schema.optional(QueryBoolean),
   limit: Schema.optional(Schema.NumberFromString),
 })
 

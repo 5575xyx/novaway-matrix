@@ -2143,9 +2143,9 @@ export function MessageTimeline(props: {
           「添加到当前任务」接着主线问；「在辅助对话中提问」开一条不打断主线的小会话。 */}
       <SelectionActionMenu
         container={scrollRoot}
-        onAskSideChat={(text) => void sideChat.open({ draft: `${text}
-
-` })}
+        onAskSideChat={(text) =>
+          void sideChat.open({ quote: { text, label: language.t("session.selection.quoteLabel") } })
+        }
       />
     </div>
   )

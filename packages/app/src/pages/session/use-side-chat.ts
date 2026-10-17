@@ -4,7 +4,7 @@ import { useSDK } from "@/context/sdk"
 import { useLocal } from "@/context/local"
 import { showToast } from "@novaway/ui/toast"
 import { formatServerError } from "@/utils/server-errors"
-import { setSideChatSeed } from "@/pages/session/side-chat-seed"
+import { clearSideChatSeed, setSideChatSeed, type SideChatQuote } from "@/pages/session/side-chat-seed"
 
 /** 并发保护：见 `open` 里的说明。 */
 let opening = false
@@ -39,7 +39,13 @@ export function useSideChat() {
    * 连点两次，`session.create` 是异步的，没有这个标记就会建出两条并行会话
    * （用户看到两个"辅助对话 1"）。吞掉并发调用比事后去重干净。
    */
-  const open = async (seed?: { text?: string; draft?: string; parentID?: string }) => {
+  const open = async (seed?: {
+    text?: string
+    draft?: string
+    /** 选中内容：作为引用卡片带进输入框，发送时随消息一起给模型。 */
+    quote?: SideChatQuote
+    parentID?: string
+  }) => {
     if (opening) return undefined
     opening = true
     try {
@@ -49,7 +55,12 @@ export function useSideChat() {
     }
   }
 
-  const createSideChat = async (seed?: { text?: string; draft?: string; parentID?: string }) => {
+  const createSideChat = async (seed?: {
+    text?: string
+    draft?: string
+    quote?: SideChatQuote
+    parentID?: string
+  }) => {
     const parentID = seed?.parentID ?? ""
     const existing = Object.values(layout.sidePane.dynamicTabs()).filter(
       (tab) => tab.kind === "sideChat" && tab.parentID === parentID,
@@ -83,7 +94,7 @@ export function useSideChat() {
             .catch(() => undefined)
         }
       }
-      if (seed?.draft) setSideChatSeed(created.id, seed.draft)
+      if (seed?.draft || seed?.quote) setSideChatSeed(created.id, { draft: seed.draft, quote: seed.quote })
       layout.sidePane.openSession(tab)
       return tab
     } catch (err) {
@@ -98,6 +109,7 @@ export function useSideChat() {
 
   /** 关闭：先删服务端会话，再移除标签（顺序反了会留下没有面板可关的孤儿会话）。 */
   const close = async (tab: SidePaneSessionTab) => {
+    clearSideChatSeed(tab.sessionID)
     layout.sidePane.closeSession(tab.id)
     await sdk.client.session.delete({ sessionID: tab.sessionID }).catch(() => undefined)
   }

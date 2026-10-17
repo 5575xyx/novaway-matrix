@@ -363,8 +363,10 @@ export const layer = Layer.effect(
     const summary = yield* SessionSummary.Service
     const sys = yield* SystemPrompt.Service
     const llm = yield* LLM.Service
-    const memory = Option.getOrUndefined(yield* Effect.serviceOption(Memory.Service))
-    const evolution = Option.getOrUndefined(yield* Effect.serviceOption(Evolution.Service))
+    // 注意：不要在层构造期解析 Memory/Evolution。
+    // Layer.mergeAll 的兄弟层互不可见，`SessionPrompt` 构造时这里永远拿到 None，
+    // 于是记忆/进化的所有副作用都被静默跳过（工具能用到是因为它在运行期解析）。
+    // 统一改为在每轮副作用（runTurnLearning / prefetch）里按运行上下文解析。
     const references = yield* Reference.Service
     const events = yield* EventV2Bridge.Service
     const flags = yield* RuntimeFlags.Service
@@ -2187,6 +2189,159 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         .pipe(Effect.map((text) => text.trim()))
     })
 
+    /**
+     * 一轮对话的收尾副作用：记忆自动抽取/审查、进化审查、自动检查点。
+     *
+     * 这些逻辑原先挂在 `result === "stop"` 分支里，但 processor 对
+     * 「正常说完一句话」返回的是 `"continue"`（只有报错/被拦截才返回 `"stop"`），
+     * 所以正常对话永远走不到那里 —— 记忆和进化实际上从未触发过。
+     * 现在由「循环即将因最后一条 assistant 已完成而退出」的出口调用，
+     * 并按 assistant 消息 id 去重，避免恢复会话时重复执行。
+     */
+    const finishedTurns = new Set<string>()
+    const runTurnLearning = Effect.fn("SessionPrompt.runTurnLearning")(function* (input: {
+      session: Session.Info
+      lastUser: MessageV2.User
+      userParts: MessageV2.Part[]
+      assistant: MessageV2.Assistant
+      assistantParts: MessageV2.Part[]
+      model: Provider.Model
+      agentName: string
+    }) {
+      if (finishedTurns.has(input.assistant.id)) return
+      finishedTurns.add(input.assistant.id)
+      if (input.assistant.error) return
+
+      const memory = Option.getOrUndefined(yield* Effect.serviceOption(Memory.Service))
+      const evolution = Option.getOrUndefined(yield* Effect.serviceOption(Evolution.Service))
+      const checkpoint = SessionCheckpoint
+        ? Option.getOrUndefined(yield* Effect.serviceOption(SessionCheckpoint.Service))
+        : undefined
+      const cfg = yield* config.get()
+      const memoryCfg = ConfigMemory.resolve(cfg.memory)
+      const evolutionCfg = ConfigEvolution.resolve(cfg.evolution)
+      const memoryEnabled = memoryCfg.enabled
+      const memoryReviewEnabled = memoryEnabled && memoryCfg.review_enabled && memoryCfg.review_interval > 0
+      const evolutionReviewEnabled =
+        evolutionCfg.enabled && evolutionCfg.review_llm && evolutionCfg.review_interval > 0
+      const userContent = textFromParts(input.userParts)
+      const assistantContent = textFromParts(input.assistantParts)
+      const session = input.session
+      const sessionID = input.assistant.sessionID
+      const lastUser = input.lastUser
+      const model = input.model
+      const agentName = input.agentName
+
+      // 全自动学习：显式抽取 + LLM 审查并行，不再互斥。
+      if (memoryEnabled && memory && memoryCfg.auto_extract) {
+        yield* memory
+          .syncTurn({
+            userContent,
+            assistantContent: "",
+            projectID: session.projectID,
+            sessionID,
+            originMessageID: lastUser.id,
+            agent: agentName,
+          })
+          .pipe(Effect.ignore)
+      }
+      if (memoryReviewEnabled && memory) {
+        const due = yield* memory
+          .reviewDue({
+            userContent,
+            projectID: session.projectID,
+            sessionID,
+            sourceMessageID: lastUser.id,
+            agent: agentName,
+            reviewInterval: memoryCfg.review_interval,
+          })
+          .pipe(Effect.catch(() => Effect.succeed(false)))
+        if (due) {
+          const candidates = yield* inferMemoryReviewCandidates({
+            model,
+            userContent,
+            assistantContent,
+          }).pipe(Effect.catch(() => Effect.succeed([])))
+          const reviewed = yield* memory
+            .review({
+              userContent,
+              assistantContent,
+              projectID: session.projectID,
+              sessionID,
+              sourceMessageID: lastUser.id,
+              agent: agentName,
+              candidates,
+              skipReviewState: true,
+            })
+            .pipe(Effect.catch(() => Effect.succeed([] as never[])))
+          // 自动写入：候选直接进长期记忆，越用越聪明无需点通过。
+          if (memoryCfg.auto_apply && reviewed.length) {
+            for (const item of reviewed) {
+              if (item.status !== "pending") continue
+              yield* memory.applyReviewCandidate(item.id).pipe(Effect.ignore)
+            }
+          }
+        }
+      }
+      if (evolutionReviewEnabled && evolution) {
+        const due = yield* evolution
+          .reviewDue({
+            projectID: session.projectID,
+            sessionID,
+            sourceMessageID: lastUser.id,
+            reviewInterval: evolutionCfg.review_interval,
+          })
+          .pipe(Effect.catch(() => Effect.succeed(false)))
+        if (due) {
+          const proposals = yield* inferEvolutionReviewCandidates({
+            model,
+            userContent,
+            assistantContent,
+          }).pipe(Effect.catch(() => Effect.succeed([])))
+          if (proposals.length) {
+            const instanceCtx = yield* InstanceState.context
+            const reviewed = yield* evolution
+              .review({
+                proposals,
+                projectID: session.projectID,
+                sessionID,
+                sourceMessageID: lastUser.id,
+              })
+              .pipe(Effect.catch(() => Effect.succeed([] as never[])))
+            // 自动写入磁盘：开启后进化候选无需人工确认直接落地到 .novaway 文件。
+            if (evolutionCfg.auto_apply_file && reviewed.length) {
+              for (const item of reviewed) {
+                if (item.status !== "pending") continue
+                yield* evolution
+                  .applyToDisk(item.id, {
+                    directory: instanceCtx.directory,
+                    worktree: instanceCtx.worktree,
+                  })
+                  .pipe(
+                    Effect.ignoreCause({
+                      log: true,
+                      message: `evolution auto-apply to disk failed: ${item.id}`,
+                    }),
+                  )
+              }
+            }
+          }
+        }
+      }
+      // 自动检查点：在压缩/剪枝之前按间隔捕获会话消息 + 文件快照，便于回滚。默认关闭。
+      if (checkpoint) {
+        const checkpointCfg = ConfigCheckpoint.resolve(cfg.checkpoint)
+        if (checkpointCfg.auto_enabled && checkpointCfg.auto_interval > 0) {
+          const due = yield* checkpoint
+            .autoDue({ sessionId: sessionID, interval: checkpointCfg.auto_interval })
+            .pipe(Effect.catch(() => Effect.succeed(false)))
+          if (due) {
+            yield* checkpoint.createAuto({ sessionId: sessionID }).pipe(Effect.ignore)
+          }
+        }
+      }
+    })
+
     const runLoop: (sessionID: SessionID) => Effect.Effect<MessageV2.WithParts, never, never> = Effect.fn(
       "SessionPrompt.run",
     )(function* (sessionID: SessionID) {
@@ -2223,6 +2378,22 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           !hasToolCalls &&
           lastUser.id < lastAssistant.id
         ) {
+          // 正常完成的轮次从这里退出，所以记忆/进化/检查点要在当前出口执行
+          // （processor 正常完成返回的是 "continue"，见 runTurnLearning 的说明）。
+          const finishedModel = yield* getModel(lastUser.model.providerID, lastUser.model.modelID, sessionID).pipe(
+            Effect.catch(() => Effect.succeed(undefined)),
+          )
+          if (finishedModel) {
+            yield* runTurnLearning({
+              session,
+              lastUser,
+              userParts: msgs.findLast((m) => m.info.role === "user" && m.info.id === lastUser.id)?.parts ?? [],
+              assistant: lastAssistant,
+              assistantParts: lastAssistantMsg?.parts ?? [],
+              model: finishedModel,
+              agentName: lastUser.agent,
+            }).pipe(Effect.ignore)
+          }
           yield* slog.info("exiting loop")
           break
         }
@@ -2419,12 +2590,10 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           const memoryCfg = ConfigMemory.resolve(cfg.memory)
           const evolutionCfg = ConfigEvolution.resolve(cfg.evolution)
           const memoryEnabled = memoryCfg.enabled
-          const memoryReviewEnabled = memoryEnabled && memoryCfg.review_enabled && memoryCfg.review_interval > 0
-          const evolutionReviewEnabled =
-            evolutionCfg.enabled && evolutionCfg.review_llm && evolutionCfg.review_interval > 0
+          const activeMemory = Option.getOrUndefined(yield* Effect.serviceOption(Memory.Service))
           const memoryContext =
-            memoryEnabled && memory
-              ? yield* memory
+            memoryEnabled && activeMemory
+              ? yield* activeMemory
                   .prefetch({
                     query: textFromParts(lastUserMsg?.parts ?? []),
                     projectID: session.projectID,
@@ -2490,124 +2659,18 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           }
 
           if (result === "stop") {
-            // 全自动学习：显式抽取 + LLM 审查并行，不再互斥
-            if (memoryEnabled && memory && memoryCfg.auto_extract && !handle.message.error) {
-              yield* memory
-                .syncTurn({
-                  userContent: textFromParts(lastUserMsg?.parts ?? []),
-                  assistantContent: "",
-                  projectID: session.projectID,
-                  sessionID,
-                  originMessageID: lastUser.id,
-                  agent: agent.name,
-                })
-                .pipe(Effect.ignore)
-            }
-            if (memoryReviewEnabled && memory && !handle.message.error) {
-              const userContent = textFromParts(lastUserMsg?.parts ?? [])
-              const due = yield* memory
-                .reviewDue({
-                  userContent,
-                  projectID: session.projectID,
-                  sessionID,
-                  sourceMessageID: lastUser.id,
-                  agent: agent.name,
-                  reviewInterval: memoryCfg.review_interval,
-                })
-                .pipe(Effect.catch(() => Effect.succeed(false)))
-              if (due) {
-                const assistantMsg = yield* sessions
-                  .findMessage(sessionID, (message) => message.info.id === handle.message.id)
-                  .pipe(Effect.orDie)
-                const assistantContent = Option.isSome(assistantMsg) ? textFromParts(assistantMsg.value.parts) : ""
-                const candidates = yield* inferMemoryReviewCandidates({
-                  model,
-                  userContent,
-                  assistantContent,
-                }).pipe(Effect.catch(() => Effect.succeed([])))
-                const reviewed = yield* memory
-                  .review({
-                    userContent,
-                    assistantContent,
-                    projectID: session.projectID,
-                    sessionID,
-                    sourceMessageID: lastUser.id,
-                    agent: agent.name,
-                    candidates,
-                    skipReviewState: true,
-                  })
-                  .pipe(Effect.catch(() => Effect.succeed([] as never[])))
-                // 自动写入：候选直接进长期记忆，越用越聪明无需点通过
-                if (memoryCfg.auto_apply && reviewed.length) {
-                  for (const item of reviewed) {
-                    if (item.status !== "pending") continue
-                    yield* memory.applyReviewCandidate(item.id).pipe(Effect.ignore)
-                  }
-                }
-              }
-            }
-            if (evolutionReviewEnabled && evolution && !handle.message.error) {
-              const userContent = textFromParts(lastUserMsg?.parts ?? [])
-              const due = yield* evolution
-                .reviewDue({
-                  projectID: session.projectID,
-                  sessionID,
-                  sourceMessageID: lastUser.id,
-                  reviewInterval: evolutionCfg.review_interval,
-                })
-                .pipe(Effect.catch(() => Effect.succeed(false)))
-              if (due) {
-                const assistantMsg = yield* sessions
-                  .findMessage(sessionID, (message) => message.info.id === handle.message.id)
-                  .pipe(Effect.orDie)
-                const assistantContent = Option.isSome(assistantMsg) ? textFromParts(assistantMsg.value.parts) : ""
-                const proposals = yield* inferEvolutionReviewCandidates({
-                  model,
-                  userContent,
-                  assistantContent,
-                }).pipe(Effect.catch(() => Effect.succeed([])))
-                if (proposals.length) {
-                  const reviewed = yield* evolution
-                    .review({
-                      proposals,
-                      projectID: session.projectID,
-                      sessionID,
-                      sourceMessageID: lastUser.id,
-                    })
-                    .pipe(Effect.catch(() => Effect.succeed([] as never[])))
-                  // 自动写入磁盘：开启后进化候选无需人工确认直接落地到 .novaway 文件
-                  // 写盘失败时由 evolution.applyToDisk 发布 AutoApplyFileFailed 事件并保留候选 pending 状态，等待人工确认
-                  if (evolutionCfg.auto_apply_file && reviewed.length) {
-                    for (const item of reviewed) {
-                      if (item.status !== "pending") continue
-                      yield* evolution
-                        .applyToDisk(item.id, {
-                          directory: instanceCtx.directory,
-                          worktree: instanceCtx.worktree,
-                        })
-                        .pipe(
-                          Effect.ignoreCause({
-                            log: true,
-                            message: `evolution auto-apply to disk failed: ${item.id}`,
-                          }),
-                        )
-                    }
-                  }
-                }
-              }
-            }
-            // 自动检查点:在压缩/剪枝之前按间隔捕获会话消息+文件快照,便于回滚。默认关闭。
-            if (checkpointService && !handle.message.error) {
-              const checkpointCfg = ConfigCheckpoint.resolve(cfg.checkpoint)
-              if (checkpointCfg.auto_enabled && checkpointCfg.auto_interval > 0) {
-                const due = yield* checkpointService
-                  .autoDue({ sessionId: sessionID, interval: checkpointCfg.auto_interval })
-                  .pipe(Effect.catch(() => Effect.succeed(false)))
-                if (due) {
-                  yield* checkpointService.createAuto({ sessionId: sessionID }).pipe(Effect.ignore)
-                }
-              }
-            }
+            const assistantMsg = yield* sessions
+              .findMessage(sessionID, (message) => message.info.id === handle.message.id)
+              .pipe(Effect.orDie)
+            yield* runTurnLearning({
+              session,
+              lastUser,
+              userParts: lastUserMsg?.parts ?? [],
+              assistant: handle.message,
+              assistantParts: Option.isSome(assistantMsg) ? assistantMsg.value.parts : [],
+              model,
+              agentName: agent.name,
+            }).pipe(Effect.ignore)
             return "break" as const
           }
           if (result === "compact") {

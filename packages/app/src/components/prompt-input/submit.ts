@@ -525,7 +525,10 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       }
     }
 
-    const commentItems = context.filter((item) => item.type === "file" && !!item.comment?.trim())
+    const commentItems = context.filter(
+      (item): item is Extract<ContextItem, { type: "file" }> & { key: string } =>
+        item.type === "file" && !!item.comment?.trim(),
+    )
     const messageID = Identifier.ascending("message")
 
     const removeOptimisticMessage = () => {

@@ -19,9 +19,17 @@ type ContextFile = {
   preview?: string
 }
 
+type ContextQuote = {
+  key: string
+  type: "quote"
+  text: string
+  label?: string
+  path?: string
+}
+
 type BuildRequestPartsInput = {
   prompt: Prompt
-  context: ContextFile[]
+  context: (ContextFile | ContextQuote)[]
   images: ImageAttachmentPart[]
   text: string
   syntheticText?: string
@@ -142,7 +150,26 @@ export function buildRequestParts(input: BuildRequestPartsInput) {
   })
 
   const used = new Set(files.map((part) => part.url))
-  const context = input.context.flatMap((item) => {
+  const context = input.context.flatMap((item): PromptRequestPart[] => {
+    // 对话/代码引用：作为 synthetic 文本块随消息发送，模型能看到出处，
+    // 用户自己的输入框内容保持干净（对齐 ZCode 的 userselect 块）。
+    if (item.type === "quote") {
+      const header = item.label ? `引用片段（${item.label}）：` : "引用片段："
+      const body = item.text
+        .replace(/\r\n/g, "\n")
+        .split("\n")
+        .map((line) => `> ${line}`)
+        .join("\n")
+      return [
+        {
+          id: Identifier.ascending("part"),
+          type: "text",
+          text: `${header}\n${body}`,
+          synthetic: true,
+          metadata: item.path ? { quote: { path: item.path } } : undefined,
+        } satisfies PromptRequestPart,
+      ]
+    }
     const path = absolute(input.sessionDirectory, item.path)
     const url = `file://${encodeFilePath(path)}${fileQuery(item.selection)}`
     const comment = item.comment?.trim()

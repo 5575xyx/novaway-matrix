@@ -360,9 +360,17 @@ const RelationGraph: Component<{
   )
 }
 
-export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
+export const SettingsMemory: Component<{ embedded?: boolean; directory?: string }> = (props) => {
   const language = useLanguage()
   const globalSDK = useGlobalSDK()
+  // 记忆是**按项目**存的（global 作用域属于所有项目）。全局 SDK 客户端不带
+  // directory，会落到服务端默认实例上——那会把「已写入」永远显示成当前项目之外
+  // 的记忆（通常就是 0 条）。这里显式按当前目录建一个客户端。
+  const client = createMemo(() => {
+    const directory = props.directory
+    if (!directory) return globalSDK.client
+    return globalSDK.createClient({ directory, throwOnError: true })
+  })
   const globalSync = useGlobalSync()
   const queryClient = useQueryClient()
   const platform = usePlatform()
@@ -409,18 +417,18 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
 
   const reviewStatus = useQuery(() => ({
     queryKey: ["settings", "memory", "review-status"],
-    queryFn: () => globalSDK.client.memory.reviewStatus().then((x) => x.data),
+    queryFn: () => client().memory.reviewStatus().then((x) => x.data),
     ...queryOptions,
   }))
 
   const entries = useQuery(() => ({
     queryKey: ["settings", "memory", "entries"],
-    queryFn: () => globalSDK.client.memory.list({ limit: 100 } as never).then((x) => x.data ?? []),
+    queryFn: () => client().memory.list({ limit: 100, includeGlobal: true } as never).then((x) => x.data ?? []),
     ...queryOptions,
   }))
 
   const removeEntry = useMutation(() => ({
-    mutationFn: (memoryID: string) => globalSDK.client.memory.remove({ memoryID }),
+    mutationFn: (memoryID: string) => client().memory.remove({ memoryID }),
     onSuccess: () => {
       void entries.refetch()
       showToast({ variant: "success", icon: "circle-check", title: "已删除记忆" })
@@ -449,14 +457,14 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
 
   const relations = useQuery(() => ({
     queryKey: ["settings", "memory", "relations"],
-    queryFn: () => globalSDK.client.memory.listRelations({ limit: "200" }).then((x) => x.data ?? []),
+    queryFn: () => client().memory.listRelations({ limit: "200" }).then((x) => x.data ?? []),
     ...queryOptions,
   }))
 
   const embeddingStatus = useQuery(() => ({
     queryKey: ["settings", "memory", "embedding-status"],
     queryFn: async () => {
-      const res = await (globalSDK.client.memory as any).embeddingStatus()
+      const res = await (client().memory as any).embeddingStatus()
       return res.data
     },
     ...queryOptions,
@@ -473,7 +481,7 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
   const candidates = useQuery(() => ({
     queryKey: ["settings", "memory", "review-candidates", tab()],
     queryFn: () =>
-      globalSDK.client.memory.listReviewCandidates({ status: tab(), limit: 100 }).then((x) => x.data ?? []),
+      client().memory.listReviewCandidates({ status: tab(), limit: 100 }).then((x) => x.data ?? []),
     ...queryOptions,
   }))
 
@@ -501,7 +509,7 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
   }))
 
   const removeRelation = useMutation(() => ({
-    mutationFn: (relationID: string) => globalSDK.client.memory.removeRelation({ relationID }),
+    mutationFn: (relationID: string) => client().memory.removeRelation({ relationID }),
     onSuccess: () => queryClient.refetchQueries({ queryKey: ["settings", "memory", "relations"] }),
     onError: (err) =>
       showToast({
@@ -512,7 +520,7 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
 
   const apply = useMutation(() => ({
     mutationFn: (input: { candidateID: string; scope?: "global" | "project" | "session" }) =>
-      globalSDK.client.memory.applyReviewCandidate(input),
+      client().memory.applyReviewCandidate(input),
     onSuccess: async (_data, variables) => {
       await refetchReview()
       const label = variables.scope === "global" ? "全局" : variables.scope === "session" ? "本会话" : "本项目"
@@ -531,7 +539,7 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
   }))
 
   const dismiss = useMutation(() => ({
-    mutationFn: (candidateID: string) => globalSDK.client.memory.dismissReviewCandidate({ candidateID }),
+    mutationFn: (candidateID: string) => client().memory.dismissReviewCandidate({ candidateID }),
     onSuccess: () => refetchReview(),
   }))
 
@@ -558,7 +566,7 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
     const setup = runMemorySetup(async (updatePhase) => {
       const poll = async () => {
         try {
-          const res = await (globalSDK.client.memory as any).embeddingStatus()
+          const res = await (client().memory as any).embeddingStatus()
           const phase = res.data?.phase
           if (phase) updatePhase(phase)
         } catch {
@@ -567,7 +575,7 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
       }
       const pollHandle = setInterval(poll, 2_000)
       try {
-        const res = await (globalSDK.client.memory as any).embeddingSetupLocal({
+        const res = await (client().memory as any).embeddingSetupLocal({
           allowInstall: true,
           applyConfig: true,
           installDir: installDir().trim() || undefined,

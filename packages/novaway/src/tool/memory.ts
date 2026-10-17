@@ -111,6 +111,8 @@ export const MemoryTool = Tool.define(
 
           const items = yield* memory.list({
             projectID: session.projectID,
+            // 全局记忆（用户画像/偏好）在任何项目里都应可检索。
+            includeGlobal: true,
             target: params.target,
             scope: params.scope,
             search: params.action === "search" ? params.query : undefined,
