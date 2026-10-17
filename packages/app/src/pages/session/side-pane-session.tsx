@@ -6,6 +6,7 @@ import { Message } from "@novaway/ui/message-part"
 import { useLanguage } from "@/context/language"
 import { useSDK } from "@/context/sdk"
 import { SideChatComposer } from "@/pages/session/side-chat-composer"
+import { useSideChat } from "@/pages/session/use-side-chat"
 import { useSync } from "@/context/sync"
 import { useLayout, type SidePaneSessionTab } from "@/context/layout"
 import { base64Encode } from "@novaway/core/util/encode"
@@ -31,6 +32,7 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
   const sdk = useSDK()
   const sync = useSync()
   const layout = useLayout()
+  const sideChat = useSideChat()
 
   const directory = createMemo(() => sdk.directory)
   // `sync.data` 就是当前 directory 的会话 store（message / part 都挂在上面）。
@@ -53,7 +55,19 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
         setError(undefined)
         void sync.session
           .sync(id)
-          .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
+          .catch((err: unknown) => {
+            const message = err instanceof Error ? err.message : String(err)
+            // 会话在服务端已经不存在（CLI 重启后临时会话丢失）→ 静默收掉标签，
+            // 而不是留一个永远报错的空面板。对齐 ZCode 的
+            // `onSelectionSideChatUnavailable`（它监听 sessionNotFound 后清 tab，
+            // 下一次框选按父会话重建）。
+            if (message.includes("sessionNotFound") || message.includes("NotFound")) {
+              if (props.tab.kind === "sideChat") sideChat.drop(props.tab)
+              else layout.sidePane.closeSession(props.tab.id)
+              return
+            }
+            setError(message)
+          })
           .finally(() => setLoading(false))
       },
       { defer: false },
