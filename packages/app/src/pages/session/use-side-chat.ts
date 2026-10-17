@@ -1,3 +1,4 @@
+import { useParams } from "@solidjs/router"
 import { useLanguage } from "@/context/language"
 import { useLayout, sidePaneSideChatTabId, type SidePaneSessionTab } from "@/context/layout"
 import { useSDK } from "@/context/sdk"
@@ -28,6 +29,9 @@ export function useSideChat() {
   const layout = useLayout()
   const sdk = useSDK()
   const local = useLocal()
+  // 辅助对话是**当前主任务的子会话**：parentID 指向主线会话，
+  // 这样它会像 ZCode 一样挂在侧栏对应任务的下一级，跟随主线归档/删除。
+  const params = useParams()
 
   /**
    * 打开一条新的辅助对话。同一父会话下可以有多个（用序号区分）。
@@ -61,13 +65,16 @@ export function useSideChat() {
     quote?: SideChatQuote
     parentID?: string
   }) => {
-    const parentID = seed?.parentID ?? ""
+    const parentID = seed?.parentID ?? (params.id ?? "")
     const existing = Object.values(layout.sidePane.dynamicTabs()).filter(
       (tab) => tab.kind === "sideChat" && tab.parentID === parentID,
     )
     try {
       const created = await sdk.client.session
-        .create(seed?.text ? { title: seed.text.slice(0, 60) } : undefined)
+        .create({
+          ...(parentID ? { parentID } : {}),
+          ...(seed?.text ? { title: seed.text.slice(0, 60) } : {}),
+        })
         .then((result) => result.data)
       if (!created?.id) throw new Error("session.create returned no id")
       const tab: SidePaneSessionTab = {
@@ -94,6 +101,11 @@ export function useSideChat() {
             .catch(() => undefined)
         }
       }
+      // 侧栏任务树里显示的名字：服务端标题生成会覆盖它，但在那之前
+      // 「未命名任务」出现在主任务下面会让人不知道那是哪条辅助对话。
+      void sdk.client.session
+        .update({ sessionID: created.id, title: tab.title })
+        .catch(() => undefined)
       if (seed?.draft || seed?.quote) setSideChatSeed(created.id, { draft: seed.draft, quote: seed.quote })
       layout.sidePane.openSession(tab)
       return tab

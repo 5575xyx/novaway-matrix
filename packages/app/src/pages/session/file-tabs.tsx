@@ -260,6 +260,9 @@ export function FileTabContent(props: { tab: string }) {
    * 右键点完菜单会消失，选区则还在；两者触发方式不同，混在一个状态里会出现
    * 光标移动后菜单仍指着旧选区的问题。
    */
+  // pierre 的 diff 视图把行放在 shadow DOM 里，拿不到 DOM Range；
+  // 用它回调的行号记录最近一次点击/选择，右键时据此弹动作菜单。
+  const [lastDiffRange, setLastDiffRange] = createSignal<SelectedLineRange | undefined>()
   const [selectionMenu, setSelectionMenu] = createSignal<{
     x: number
     y: number
@@ -438,6 +441,20 @@ export function FileTabContent(props: { tab: string }) {
     return lines.slice(start - 1, end).join(NEWLINE)
   }
 
+  /** 把选中的代码作为「引用」加到主输入框上方（与聊天区选中文字一致）。 */
+  const addSelectionToTask = (selection: SelectedLineRange) => {
+    const p = path()
+    if (!p) return
+    const start = Math.min(selection.start, selection.end)
+    const end = Math.max(selection.start, selection.end)
+    prompt.context.add({
+      type: "quote",
+      text: selectedCode(selection),
+      label: `${p} ${start === end ? `第 ${start} 行` : `第 ${start}-${end} 行`}`,
+      path: p,
+    })
+  }
+
   /** 把一段选中代码带进辅助对话：显示成引用卡片，而不是塞进输入框。 */
   const askSelectionInSideChat = (selection: SelectedLineRange) => {
     const p = path()
@@ -509,6 +526,15 @@ export function FileTabContent(props: { tab: string }) {
     const selection = hasRange ? selected! : { start: clickedLine, end: clickedLine }
     openContextMenu(selection, event.clientX, event.clientY)
   }
+
+  // diff 视图的选区菜单：pierre 的选区在 shadow DOM 里，拿不到鼠标坐标，
+  // 所以在选区跨多行时把菜单固定在预览区左上角（可点、可 Esc 关闭）。
+  createEffect(
+    on(lastDiffRange, (range) => {
+      if (!range || range.start === range.end) return
+      setSelectionMenu({ x: 16, y: 56, selection: range })
+    }),
+  )
 
   createEffect(() => {
     if (!contextMenu()) return
@@ -676,13 +702,30 @@ export function FileTabContent(props: { tab: string }) {
   // 文件里的行评论在「审查」面板里看（那边的注解是按 diff 侧构建的），
   // 这里只做"看变了什么"。
   const renderDiff = (view: ReturnType<typeof normalizeDiff>) => (
-    <div class="relative overflow-hidden pb-40">
+    <div
+      class="relative overflow-hidden pb-40"
+      onContextMenu={(event: MouseEvent) => {
+        const range = lastDiffRange()
+        if (!range) return
+        event.preventDefault()
+        openContextMenu(range, event.clientX, event.clientY)
+      }}
+    >
       <Dynamic
         component={fileComponent}
         mode="diff"
         fileDiff={view.fileDiff}
         diffStyle={sessionDiff.style()}
         enableLineSelection
+        selectedLines={() => selectedLines()}
+        onLineSelected={(range: SelectedLineRange | undefined) => {
+          if (range) setLastDiffRange(range)
+        }}
+        onLineSelectionEnd={(range: SelectedLineRange | null) => {
+          if (range) setLastDiffRange(range)
+          syncSelected(range)
+          if (!range || range.start === range.end) setSelectionMenu(undefined)
+        }}
         onRendered={() => {
           scrollSync.queueRestore()
         }}
@@ -878,6 +921,19 @@ export function FileTabContent(props: { tab: string }) {
             >
               <button
                 type="button"
+                data-action="file-add-to-task"
+                class="flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 transition-colors hover:bg-hover"
+                onClick={() => {
+                  const current = menu()
+                  setSelectionMenu(undefined)
+                  addSelectionToTask(current.selection)
+                }}
+              >
+                {language.t("session.selection.addToTask")}
+              </button>
+              <div class="w-px shrink-0 bg-border" />
+              <button
+                type="button"
                 data-action="file-ask-side-chat"
                 class="flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 transition-colors hover:bg-hover"
                 onClick={() => {
@@ -886,7 +942,6 @@ export function FileTabContent(props: { tab: string }) {
                   askSelectionInSideChat(current.selection)
                 }}
               >
-                <Icon name="speech-bubble" size="small" class="text-foreground-subtle" />
                 {language.t("sidePane.sideChat.askSelectionShort")}
               </button>
             </div>
@@ -910,6 +965,19 @@ export function FileTabContent(props: { tab: string }) {
                     {/* 对齐 ZCode 的选区动作菜单（SelectionActionMenu）里那条
                         "在辅助对话中提问"：选中的代码带进一条独立小会话，
                         不打断主线、不污染主对话历史。 */}
+                    <Button
+                      variant="ghost"
+                      size="small"
+                      class="w-full justify-start"
+                      onClick={() => {
+                        const current = contextMenu()
+                        if (!current) return
+                        setContextMenu(undefined)
+                        addSelectionToTask(current.selection)
+                      }}
+                    >
+                      {language.t("session.selection.addToTask")}
+                    </Button>
                     <Button variant="ghost" size="small" class="w-full justify-start" onClick={askInSideChat}>
                       {language.t("sidePane.sideChat.askSelection", {
                         range:

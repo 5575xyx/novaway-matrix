@@ -241,6 +241,16 @@ export type ElectronAPI = {
   storeKeys: (name: string) => Promise<string[]>
   storeLength: (name: string) => Promise<number>
 
+  /** 下载插件市场 zip（主进程无 CORS 限制），返回 base64。 */
+  marketplaceDownload: (url: string) => Promise<string>
+  /** 把渲染层解压后的文件写入配置目录，返回安装目录绝对路径。 */
+  marketplaceInstall: (input: {
+    dir: string
+    files: Array<{ path: string; data: string }>
+  }) => Promise<string>
+  /** 删除已安装的插件目录。 */
+  marketplaceRemove: (dir: string) => Promise<void>
+
   getWindowCount: () => Promise<number>
   onSqliteMigrationProgress: (cb: (progress: SqliteMigrationProgress) => void) => () => void
   onMenuCommand: (cb: (id: string) => void) => () => void

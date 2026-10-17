@@ -1,4 +1,11 @@
 export const dict = {
+  "settings.plugins.market.title": "ZCode official marketplace",
+  "settings.plugins.market.description": "Browse and install skill bundles from the ZCode official marketplace (including their MCP manifests). Installed skills show up under Skills, MCP servers under MCP.",
+  "settings.plugins.market.search": "Search plugins…",
+  "settings.plugins.market.empty": "No matching plugins.",
+  "settings.plugins.market.installing": "Installing…",
+  "settings.plugins.market.installed": "Installed",
+  "settings.plugins.market.unsupported": "Writing the plugin directory is not supported here (desktop only).",
   "settings.plugins.store.title": "Marketplace",
   "settings.plugins.store.description":
     "The catalog comes from marketplace sources: add a URL that returns a plugin list, then install with one click.",

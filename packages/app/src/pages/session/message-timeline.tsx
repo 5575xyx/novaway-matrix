@@ -540,6 +540,13 @@ export function MessageTimeline(props: {
     )
     return new Map(rows.map((row, index) => [TimelineRow.key(row), slots[index]!] as const))
   })
+  createEffect(
+    on(sessionKey, () => {
+      setVirtualFallback(false)
+      recoverAttempts = 0
+    }),
+  )
+
   const virtualCache = createMemo(() => readTimelineCache(sessionKey(), timelineRowKeys()))
   const messageRowIndex = createMemo(() => {
     const result = new Map<string, number>()
@@ -664,6 +671,14 @@ export function MessageTimeline(props: {
   let bottomAnchorFrames = 0
   let measuredBottomAnchored = true
   const [scrollRoot, setScrollRoot] = createSignal<HTMLDivElement>()
+  // 虚拟列表的强制重建计数：见 nudgeViewport 的说明。
+  const [virtualGeneration, setVirtualGeneration] = createSignal(0)
+  // virtua 在极端情况下（首次测量时容器不可见）会一直渲染 0 行。
+  // 自动恢复多次仍失败就降级为「不虚拟化」直接渲染，先保证内容可见；
+  // 切换会话时重置，下次回到正常的虚拟列表。
+  const [virtualFallback, setVirtualFallback] = createSignal(false)
+  let recoverAttempts = 0
+  let recovering = false
   const sideChat = useSideChat()
 
   const updateTitleMetrics = () => {
@@ -717,6 +732,82 @@ export function MessageTimeline(props: {
       bindContentRoot(root)
     })
   }
+
+  /**
+   * 让 virtua 重新测一次视口。
+   *
+   * 症状：聊天区有数据但一行都不渲染（滚动也不一定马上恢复），
+   * 打开设置/数据库覆盖层再回来、或打开右侧面板后最容易出现。
+   * 根因是 virtua 的 ResizeObserver 首次回调时元素还在 `display:none`
+   * 的子树里（`offsetParent` 为空被跳过），之后尺寸没再变化就不会重测，
+   * `_isViewportMeasured` 一直是 false，可见区间始终是空。
+   *
+   * 解决办法：轻微改变滚动容器尺寸再还原，强制触发一次尺寸回调。
+   * 只在「一行都没渲染」时做，避免打断正常滚动。
+   */
+  const nudgeViewport = () => {
+    const root = listRoot
+    if (!root || !root.isConnected || recovering) return
+    if (root.querySelector("[data-timeline-row]")) {
+      recoverAttempts = 0
+      return
+    }
+    ;(window as any).__nudgeInfo = { rows: root.querySelectorAll("[data-timeline-row]").length, attempts: recoverAttempts }
+    if (recoverAttempts >= 3) return
+    recovering = true
+    // 先轻微改尺寸逼 ResizeObserver 回调；多数情况到这一步就恢复了。
+    // 用 setTimeout 而不是 rAF：窗口被遮挡/最小化时 rAF 会被节流，
+    // 恢复链会停在中途（这正是面板在后台变空白的原因之一）。
+    root.style.paddingBottom = "1px"
+    setTimeout(() => {
+      if (!root.isConnected) {
+        recovering = false
+        return
+      }
+      root.style.paddingBottom = ""
+      setTimeout(() => {
+        recovering = false
+        if (root.querySelector("[data-timeline-row]")) {
+          recoverAttempts = 0
+          if (measuredBottomAnchored) root.scrollTop = root.scrollHeight
+          return
+        }
+        // 还没渲染出来：virtua 内部状态已经坏了（首次测量时元素不可见），
+        // 先把 Virtualizer 重建一次；多次仍失败就降级为直接渲染，保证内容可见。
+        recoverAttempts += 1
+        if (recoverAttempts >= 3) {
+          setVirtualFallback(true)
+          return
+        }
+        setVirtualGeneration((value) => value + 1)
+      }, 32)
+    }, 32)
+  }
+
+  const recoverViewport = () => {
+    queueMicrotask(nudgeViewport)
+  }
+
+  createEffect(() => {
+    if (typeof window === "undefined") return
+    const onOverlayClosed = () => {
+      recoverViewport()
+      // 动画结束后再校验一次：面板卸载/布局回稳是两帧之后的事。
+      setTimeout(recoverViewport, 120)
+      setTimeout(recoverViewport, 1100)
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") onOverlayClosed()
+    }
+    window.addEventListener("focus", onOverlayClosed)
+    window.addEventListener("novaway:overlay-closed", onOverlayClosed)
+    document.addEventListener("visibilitychange", onVisibility)
+    onCleanup(() => {
+      window.removeEventListener("focus", onOverlayClosed)
+      window.removeEventListener("novaway:overlay-closed", onOverlayClosed)
+      document.removeEventListener("visibilitychange", onVisibility)
+    })
+  })
 
   const connectListRoot = (root: HTMLDivElement) => {
     if (listRoot !== root) return
@@ -2111,8 +2202,15 @@ export function MessageTimeline(props: {
             </div>
           </div>
         </Show>
-        <Show when={scrollRoot()}>
-          {(root) => (
+        <Show when={!virtualFallback()} fallback={
+          <div class="flex flex-col">
+            <For each={timelineRowKeys()}>{(key) => <TimelineRowView rowKey={key} />}</For>
+          </div>
+        }>
+        <Show when={scrollRoot() ? virtualGeneration() + 1 : undefined} keyed>
+          {(_generation) => {
+            const root = () => scrollRoot()!
+            return (
             <Virtualizer
               data={timelineRowKeys()}
               cache={virtualCache()}
@@ -2132,11 +2230,17 @@ export function MessageTimeline(props: {
                 virtualizerRowKeys = cacheRowKeys
                 maybeAnchorBottom()
                 scheduleContentRoot(root())
+                // 首次挂载时容器可能还在隐藏的过渡层里，virtua 收不到尺寸回调。
+                // 这里在几帧之后补一次强制测量，否则会出现「有数据但空白」。
+                setTimeout(nudgeViewport, 0)
+                setTimeout(nudgeViewport, 250)
               }}
             >
               {(key) => <TimelineRowView rowKey={key} />}
             </Virtualizer>
-          )}
+            )
+          }}
+        </Show>
         </Show>
       </ScrollView>
       {/* 选中聊天内容后的浮动动作菜单（对齐 ZCode 的 SelectionActionMenu）：

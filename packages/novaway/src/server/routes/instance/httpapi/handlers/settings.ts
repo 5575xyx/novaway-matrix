@@ -233,14 +233,15 @@ export const settingsHandlers = HttpApiBuilder.group(InstanceHttpApi, "settings"
 
     const listSkills = Effect.fn("SettingsHttpApi.skillList")(function* () {
       const dirs = yield* configDirs()
+      // 运行时已发现的技能（内置 + config.skills.paths 里的外部技能）。
+      // 之前只列 builtIn，导致插件市场装进来的技能在设置页"隐身"。
       const runtime = (yield* skill.all())
-        .filter((item) => item.builtIn)
         .map((item) => {
           return {
             name: item.name,
             location: item.location,
             editable: false,
-            builtIn: true,
+            builtIn: item.builtIn,
             data: {
               name: item.name,
               ...(item.description ? { description: item.description } : {}),

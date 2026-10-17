@@ -41,6 +41,7 @@ import { useServer } from "@/context/server"
 import { agentDisplayName, skillDisplayName } from "@/utils/agent"
 import { pathKey } from "@/utils/path-key"
 import { SettingsGroup } from "./settings-parts"
+import { PluginMarketplaceSection } from "./settings-plugin-market"
 import { matchesModeGroup, modeGroupLabel, modeGroups, type ModeGroup } from "./settings-mode-groups"
 import { agentSkillPermission, hasSkillPermission, withAgentSkills } from "./settings-agent-config"
 
@@ -3321,6 +3322,8 @@ export const SettingsPlugins: Component = () => {
           </Show>
         </SettingsGroup>
       </div>
+      {/* ZCode 官方市场：目录从其快照导入，安装为「技能 + MCP」插件。 */}
+      <PluginMarketplaceSection />
       {/* 商店：目录来自可配置的 marketplace 源（对齐 ZCode 的插件商店架构 ——
           它同样是「源 + 目录」而不是把清单写死在客户端）。 */}
       <PluginStoreSection installed={plugins()} onInstall={installPlugin} onUninstall={deletePlugin} />
