@@ -4,6 +4,7 @@ import { useSDK } from "@/context/sdk"
 import { useLocal } from "@/context/local"
 import { showToast } from "@novaway/ui/toast"
 import { formatServerError } from "@/utils/server-errors"
+import { setSideChatSeed } from "@/pages/session/side-chat-seed"
 
 /**
  * 侧边对话：一条**不打断主线**的并行小对话。
@@ -25,8 +26,13 @@ export function useSideChat() {
   const sdk = useSDK()
   const local = useLocal()
 
-  /** 打开一条新的侧边对话。同一父会话下可以有多个（用序号区分）。 */
-  const open = async (seed?: { text?: string; parentID?: string }) => {
+  /**
+   * 打开一条新的辅助对话。同一父会话下可以有多个（用序号区分）。
+   *
+   * `seed.draft` 只**预填**输入框、不直接发送 —— 用户在文件里选了几行代码
+   * 往往还要补一句"这段为什么这么写"。真正发出去由用户在输入框里决定。
+   */
+  const open = async (seed?: { text?: string; draft?: string; parentID?: string }) => {
     const parentID = seed?.parentID ?? ""
     const existing = Object.values(layout.sidePane.dynamicTabs()).filter(
       (tab) => tab.kind === "sideChat" && tab.parentID === parentID,
@@ -60,6 +66,7 @@ export function useSideChat() {
             .catch(() => undefined)
         }
       }
+      if (seed?.draft) setSideChatSeed(created.id, seed.draft)
       layout.sidePane.openSession(tab)
       return tab
     } catch (err) {

@@ -6,6 +6,7 @@ import { useLanguage } from "@/context/language"
 import { useLocal } from "@/context/local"
 import { useSDK } from "@/context/sdk"
 import type { SidePaneSessionTab } from "@/context/layout"
+import { takeSideChatSeed } from "@/pages/session/side-chat-seed"
 
 /**
  * 侧边对话的输入框。
@@ -22,7 +23,9 @@ export function SideChatComposer(props: { tab: SidePaneSessionTab }) {
   const sdk = useSDK()
   const local = useLocal()
 
-  const [draft, setDraft] = createSignal("")
+  // 挂载时取走「待发送草稿」（从文件预览里选行后点"在辅助对话中提问"会写入）。
+  // 一次性：取走即删，避免切回标签时重复填充。
+  const [draft, setDraft] = createSignal(takeSideChatSeed(props.tab.sessionID) ?? "")
   const [sending, setSending] = createSignal(false)
 
   const send = async () => {
