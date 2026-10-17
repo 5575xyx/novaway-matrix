@@ -63,6 +63,15 @@ export function ProjectMenu(props: { project: LocalProject; ctx: ProjectSidebarC
       />
       <DropdownMenu.Portal>
         <DropdownMenu.Content>
+          <DropdownMenu.Item
+            data-action="project-toggle-pin"
+            data-project={base64Encode(project.worktree)}
+            onSelect={() => layout.pinned.toggleProject(project.worktree)}
+          >
+            <DropdownMenu.ItemLabel>
+              {language.t(layout.pinned.project(project.worktree) ? "common.unpin" : "common.pin")}
+            </DropdownMenu.ItemLabel>
+          </DropdownMenu.Item>
           <DropdownMenu.Item onSelect={() => ctx.showEditProjectDialog(project)}>
             <DropdownMenu.ItemLabel>{language.t("common.edit")}</DropdownMenu.ItemLabel>
           </DropdownMenu.Item>

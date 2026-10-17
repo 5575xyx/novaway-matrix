@@ -2404,6 +2404,9 @@ export default function Layout(props: ParentProps) {
                             onClick={openTree}
                           >
                             <Icon name="folder" size="small" class="shrink-0 text-foreground-subtle" />
+                            <Show when={layout.pinned.project(proj.worktree)}>
+                              <Icon name="pin" size="small" class="shrink-0 text-foreground-subtlest" />
+                            </Show>
                             <span class="text-ui-caption text-foreground font-medium truncate min-w-0">
                               {projectName()}
                             </span>
@@ -2436,6 +2439,7 @@ export default function Layout(props: ParentProps) {
                               filter={taskFilter}
                               archived={projectArchived}
                               sortNow={sortNow}
+                              pinned={layout.pinned.sessions}
                             />
                           </div>
                         </Show>

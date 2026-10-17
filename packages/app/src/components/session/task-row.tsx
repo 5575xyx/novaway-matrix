@@ -31,6 +31,9 @@ export type TaskRowProps = {
   level?: number
   /** 有子会话时显示展开/折叠箭头。 */
   expander?: { expanded: boolean; toggle: () => void }
+  /** 已置顶（行首显示一个图钉）。 */
+  pinned?: boolean
+  onTogglePin?: () => void
 }
 
 const STATUS_DOT_CLASS: Record<TaskStatus, string> = {
@@ -130,6 +133,9 @@ export const TaskRow = (props: TaskRowProps): JSX.Element => {
           </button>
         )}
       </Show>
+      <Show when={props.pinned}>
+        <Icon name="pin" size="small" class="shrink-0 text-foreground-subtlest" />
+      </Show>
       <span class={`size-1.5 rounded-full shrink-0 ${STATUS_DOT_CLASS[props.status()]}`} />
       <Show
         when={editing()}
@@ -194,6 +200,13 @@ export const TaskRow = (props: TaskRowProps): JSX.Element => {
             />
             <DropdownMenu.Portal>
               <DropdownMenu.Content style={{ "min-width": "140px" }}>
+              <Show when={props.onTogglePin}>
+                <DropdownMenu.Item onSelect={() => props.onTogglePin?.()}>
+                  <DropdownMenu.ItemLabel>
+                    {t(props.pinned ? "common.unpin" : "common.pin")}
+                  </DropdownMenu.ItemLabel>
+                </DropdownMenu.Item>
+              </Show>
               <Show when={props.onRename}>
                 <DropdownMenu.Item onSelect={openTitleEditor}>
                   <DropdownMenu.ItemLabel>{t("common.rename")}</DropdownMenu.ItemLabel>

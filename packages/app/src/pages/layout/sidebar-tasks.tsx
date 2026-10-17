@@ -44,6 +44,8 @@ export function useProjectTaskList(props: {
   filter: () => TaskFilter
   archived: () => Session[] | undefined
   sortNow: Accessor<number>
+  /** sessionID → 置顶时间；置顶任务排在最前。 */
+  pinned?: () => Record<string, number>
 }) {
   const globalSync = useGlobalSync()
   const permission = usePermission()
@@ -53,7 +55,7 @@ export function useProjectTaskList(props: {
   return createMemo(() => {
     const filter = props.filter()
     if (filter === "archived") return (props.archived() ?? []).filter((s) => !!s.time?.archived)
-    const roots = sortedRootSessionsFrom(stores(), props.sortNow())
+    const roots = sortedRootSessionsFrom(stores(), props.sortNow(), props.pinned?.())
     if (filter === "all") return roots
     return roots.filter((session) => sessionStatusOf(globalSync, permission, notification, session) === filter)
   })
@@ -77,6 +79,7 @@ export function useTaskCounts(props: {
   /** `useArchivedSessions` 的产物：directory → 已归档会话列表。 */
   archived: () => Record<string, Session[] | undefined>
   sortNow: Accessor<number>
+  pinned?: () => Record<string, number>
 }): Accessor<TaskCounts> {
   const globalSync = useGlobalSync()
   const permission = usePermission()
@@ -94,7 +97,7 @@ export function useTaskCounts(props: {
         dirs.push(dir)
       }
       const stores = dirs.map((dir) => globalSync.child(dir)[0])
-      for (const session of sortedRootSessionsFrom(stores, props.sortNow())) {
+      for (const session of sortedRootSessionsFrom(stores, props.sortNow(), props.pinned?.())) {
         counts.all += 1
         const status = sessionStatusOf(globalSync, permission, notification, session)
         if (status === "waiting") counts.waiting += 1
@@ -116,6 +119,8 @@ export function ProjectTaskList(props: {
   filter: () => TaskFilter
   archived: () => Session[] | undefined
   sortNow: Accessor<number>
+  /** sessionID → 置顶时间；置顶任务排在最前。 */
+  pinned?: () => Record<string, number>
 }) {
   const globalSync = useGlobalSync()
   const globalSDK = useGlobalSDK()
@@ -202,6 +207,8 @@ export function ProjectTaskList(props: {
         onClick={() => navigate(`/${base64Encode(session.directory)}/session/${session.id}`)}
         sessionID={session.id}
         directory={session.directory}
+        pinned={layout.pinned.session(session.id)}
+        onTogglePin={() => layout.pinned.toggleSession(session.id)}
         expander={
           kids().length > 0
             ? {

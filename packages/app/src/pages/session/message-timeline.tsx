@@ -16,6 +16,8 @@ import {
 } from "solid-js"
 import { createStore, produce } from "solid-js/store"
 import { toolCardSlots } from "@/pages/session/tool-card"
+import { SelectionActionMenu } from "@/pages/session/selection-action-menu"
+import { useSideChat } from "@/pages/session/use-side-chat"
 import { Dynamic } from "solid-js/web"
 import { useNavigate } from "@solidjs/router"
 import { useMutation, useQueryClient } from "@tanstack/solid-query"
@@ -662,6 +664,7 @@ export function MessageTimeline(props: {
   let bottomAnchorFrames = 0
   let measuredBottomAnchored = true
   const [scrollRoot, setScrollRoot] = createSignal<HTMLDivElement>()
+  const sideChat = useSideChat()
 
   const updateTitleMetrics = () => {
     if (!head || head.clientWidth <= 0) return
@@ -2136,6 +2139,14 @@ export function MessageTimeline(props: {
           )}
         </Show>
       </ScrollView>
+      {/* 选中聊天内容后的浮动动作菜单（对齐 ZCode 的 SelectionActionMenu）：
+          「添加到当前任务」接着主线问；「在辅助对话中提问」开一条不打断主线的小会话。 */}
+      <SelectionActionMenu
+        container={scrollRoot}
+        onAskSideChat={(text) => void sideChat.open({ draft: `${text}
+
+` })}
+      />
     </div>
   )
 }

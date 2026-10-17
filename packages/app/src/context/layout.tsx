@@ -547,6 +547,16 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           workspaces: {} as Record<string, { collapsed: boolean; open: Record<string, boolean> }>,
           workspacesDefault: { collapsed: false, open: {} as Record<string, boolean> },
         },
+        /**
+         * 置顶。存的是**置顶时间**而不是布尔值：多个置顶项之间要按"最近置顶的在上"
+         * 排序，只存 true/false 的话顺序会随列表本身变化而抖动。
+         *
+         * 键：项目用 `pathKey(worktree)`，任务用 sessionID。
+         */
+        pinned: {
+          projects: {} as Record<string, number>,
+          sessions: {} as Record<string, number>,
+        },
       }),
     )
 
@@ -754,8 +764,19 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
     })
     const list = createMemo(() => {
       const mode = store.mode.current
-      if (!mode) return allProjects()
-      return allProjects().filter((project) => (store.mode.projects[pathKey(project.worktree)] ?? mode) === mode)
+      const visible = !mode
+        ? allProjects()
+        : allProjects().filter((project) => (store.mode.projects[pathKey(project.worktree)] ?? mode) === mode)
+      // 置顶的项目排在最前（多个置顶按置顶时间倒序），其余保持原有顺序。
+      const pins = store.pinned?.projects ?? {}
+      return [...visible].sort((a, b) => {
+        const pa = pins[pathKey(a.worktree)] ?? 0
+        const pb = pins[pathKey(b.worktree)] ?? 0
+        if (pa && pb) return pb - pa
+        if (pa) return -1
+        if (pb) return 1
+        return 0
+      })
     })
 
     createEffect(() => {
@@ -871,6 +892,25 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         },
         toggle() {
           setProjectPickerOpen((value) => !value)
+        },
+      },
+      pinned: {
+        project: (worktree: string) => (store.pinned?.projects ?? {})[pathKey(worktree)] !== undefined,
+        session: (id: string) => (store.pinned?.sessions ?? {})[id] !== undefined,
+        /** sessionID → 置顶时间。任务列表用它排序。 */
+        sessions: createMemo<Record<string, number>>(() => store.pinned?.sessions ?? {}),
+        toggleProject(worktree: string) {
+          const key = pathKey(worktree)
+          const next = { ...(store.pinned?.projects ?? {}) }
+          if (next[key] !== undefined) delete next[key]
+          else next[key] = Date.now()
+          setStore("pinned", "projects", next)
+        },
+        toggleSession(id: string) {
+          const next = { ...(store.pinned?.sessions ?? {}) }
+          if (next[id] !== undefined) delete next[id]
+          else next[id] = Date.now()
+          setStore("pinned", "sessions", next)
         },
       },
       projects: {

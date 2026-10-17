@@ -53,7 +53,14 @@ export const roots = (store: SessionStore) =>
 
 export const sortedRootSessions = (store: SessionStore, now: number) => roots(store).sort(sortSessions(now))
 
-export const sortedRootSessionsFrom = (stores: SessionStore[], now: number) => {
+/**
+ * 合并多个 store 的根会话并排序。
+ *
+ * `pins`（sessionID → 置顶时间）里的会话排在最前、同级按置顶时间倒序；
+ * 其余沿用原本的"最近活动优先"。置顶项不参与 `sortSessions` ——
+ * 否则一个刚被 AI 更新过的置顶会话会被"最近活动"重新洗牌，置顶就失去意义。
+ */
+export const sortedRootSessionsFrom = (stores: SessionStore[], now: number, pins?: Record<string, number>) => {
   const seen = new Set<string>()
   const merged: Session[] = []
   for (const session of stores.flatMap(roots)) {
@@ -61,7 +68,15 @@ export const sortedRootSessionsFrom = (stores: SessionStore[], now: number) => {
     seen.add(session.id)
     merged.push(session)
   }
-  return merged.sort(sortSessions(now))
+  const pinned = pins ?? {}
+  return merged.sort((a, b) => {
+    const pa = pinned[a.id]
+    const pb = pinned[b.id]
+    if (pa !== undefined && pb !== undefined) return pb - pa
+    if (pa !== undefined) return -1
+    if (pb !== undefined) return 1
+    return sortSessions(now)(a, b)
+  })
 }
 
 export const latestRootSession = (stores: SessionStore[], now: number) =>

@@ -432,11 +432,21 @@ test("设置/数据库面板：主帧内覆盖 + 进出场过渡 + 返回按钮�
   )
   expect(topmost, "返回按钮不能被遮挡层覆盖").toBe("BUTTON")
 
-  // 4) 关闭是动画：先进入 closed 态跑退场，动画结束才从 DOM 移除
+  // 4) 关闭是动画：先进入 closed 态跑退场，动画结束才从 DOM 移除。
+  // 用一次 evaluate 同时取状态与动画名 —— 分两步取会在慢机器上撞见"断言通过、
+  // 再读时元素已经卸载"的竞态（computed style 对已卸载节点返回空串）。
   await back.click()
-  await expect(panel).toHaveAttribute("data-state", "closed")
-  const out = await panel.evaluate((el) => getComputedStyle(el).animationName)
-  expect(out).toBe("panel-overlay-out")
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const el = document.querySelector("section[data-panel-transition]")
+          if (!el) return "unmounted"
+          return `${el.getAttribute("data-state")}:${getComputedStyle(el).animationName}`
+        }),
+      { timeout: 5_000 },
+    )
+    .toMatch(/^closed:panel-overlay-out$|^unmounted$/)
   await expect(page.locator("section[data-panel-transition]")).toHaveCount(0, { timeout: 5_000 })
 
   // —— 数据库 ——
