@@ -7,8 +7,9 @@ import { useGlobalSDK } from "@/context/global-sdk"
 import { usePlatform } from "@/context/platform"
 import { useSettings } from "@/context/settings"
 import { FeishuAppSetupGuide } from "./feishu-app-setup-guide"
-import { SettingsList } from "./settings-list"
+import { SettingsGroup } from "./settings-parts"
 
+// 与其它设置页保持同一种行式布局：左侧标题 + 说明，右侧控件。
 function SettingsRow(props: {
   title: JSX.Element | string
   description: string
@@ -16,13 +17,15 @@ function SettingsRow(props: {
   disabled?: boolean
 }) {
   return (
-    <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
-      <div class="min-w-0">
-        <div class="text-12-medium text-foreground">{props.title}</div>
-        <div class="mt-1 text-11-regular leading-relaxed text-foreground-subtle">{props.description}</div>
-      </div>
-      <div class="shrink-0" classList={{ "opacity-50": props.disabled }}>
-        {props.children}
+    <div class="border-t border-border px-4 py-3 first:border-t-0">
+      <div class="grid grid-cols-1 items-center gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <div class="min-w-0">
+          <div class="text-13-medium text-foreground">{props.title}</div>
+          <div class="mt-0.5 text-12-regular leading-5 text-foreground-subtle">{props.description}</div>
+        </div>
+        <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end" classList={{ "opacity-50": props.disabled }}>
+          {props.children}
+        </div>
       </div>
     </div>
   )
@@ -232,7 +235,7 @@ export const SettingsNotifications: Component = () => {
       <div class="flex flex-col gap-1">
         <h3 class="pb-2 text-14-medium text-foreground">飞书连接配置</h3>
         <FeishuAppSetupGuide />
-        <SettingsList>
+        <SettingsGroup>
           <SettingsRow title="Webhook 地址" description="填写飞书自定义机器人 Webhook，保存后会同步到办公平台连接器。">
             <input
               value={feishuWebhookDraft()}
@@ -313,12 +316,12 @@ export const SettingsNotifications: Component = () => {
               保存配置
             </button>
           </SettingsRow>
-        </SettingsList>
+        </SettingsGroup>
       </div>
 
       <div class="flex flex-col gap-1">
         <h3 class="pb-2 text-14-medium text-foreground">飞书通知</h3>
-        <SettingsList>
+        <SettingsGroup>
           <SettingsRow
             title="启用飞书消息通知"
             description={
@@ -380,12 +383,12 @@ export const SettingsNotifications: Component = () => {
               onChange={(value) => settings.notifications.feishu.setQuestions(value)}
             />
           </SettingsRow>
-        </SettingsList>
+        </SettingsGroup>
       </div>
 
       <div class="flex flex-col gap-1">
         <h3 class="pb-2 text-14-medium text-foreground">连通测试</h3>
-        <SettingsList>
+        <SettingsGroup>
           <SettingsRow
             title="发送测试消息"
             description="向已配置的飞书群发送一条 NovaWay 测试消息，验证 Webhook 是否可用。"
@@ -404,7 +407,7 @@ export const SettingsNotifications: Component = () => {
               {testing() ? "测试中..." : "发送测试消息"}
             </button>
           </SettingsRow>
-        </SettingsList>
+        </SettingsGroup>
       </div>
     </div>
   )
