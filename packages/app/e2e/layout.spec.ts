@@ -596,3 +596,23 @@ test("运行中的提交行为可以切成「排队」（设置持久化）", as
   await page.getByRole("tab", { name: /^(General|通用)$/ }).click()
   await expect(page.locator('[data-action="settings-followup"]')).toContainText(/Queue|排队/)
 })
+
+test("Git 卡片对齐 Git tools：更改 / 分支 / 提交或推送三行", async ({ page }) => {
+  const slug = workspaceRootSlug()
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`/${slug}/session`)
+  await expect(page.locator('[data-component="sidebar-nav-desktop"]')).toBeVisible({ timeout: 15_000 })
+
+  const section = page.locator('[data-component="status-section"][data-section="git"]')
+  if ((await section.count()) === 0) return // 干净仓库不出这张卡，符合预期
+
+  // 三行的存在性与顺序：更改 → 分支 → 提交或推送（对齐 ZCode 的 GitStatusSection）。
+  await expect(section.locator('[data-action="status-panel-git-changes"]')).toBeVisible()
+  await expect(section.locator('[data-action="status-panel-git-branch"]')).toBeVisible()
+  await expect(section.locator('[data-action="status-panel-git-commit-or-push"]')).toBeVisible()
+
+  // 「提交或推送」点开才是提交输入框（对齐 ZCode 的 status-row 触发 + 弹窗）。
+  await expect(page.locator('[data-component="status-panel-git-message"]')).toHaveCount(0)
+  await section.locator('[data-action="status-panel-git-commit-or-push"]').click()
+  await expect(page.locator('[data-component="status-panel-git-message"]')).toBeVisible()
+})

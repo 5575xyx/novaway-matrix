@@ -1620,6 +1620,9 @@ export const dict = {
   "session.new.agentSelector.build.title": "Build",
   "session.new.agentSelector.build.description":
     "Write, debug, and ship code directly from a clear requirement. Best when the target is well-defined and you want to move fast.",
+  "git.toolsTitle": "Git tools",
+  "git.changes": "Changes",
+  "git.commitOrPush": "Commit or push",
   "git.title": "Source Control",
   "git.branch": "Branch",
   "git.noBranch": "No branch",

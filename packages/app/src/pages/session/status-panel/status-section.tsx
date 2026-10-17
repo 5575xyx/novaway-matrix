@@ -20,7 +20,9 @@ export function StatusSection(props: {
         onClick={props.onToggle}
       >
         <span class="text-ui-base font-medium text-foreground truncate">{props.title}</span>
-        <Show when={props.summary}>
+        {/* 摘要只在**收起**时显示（对齐 ZCode 的 `trailing: (isOpen) => isOpen ? null : ...`）：
+            展开后同样的数字就在「更改」行里，两处并排只是重复。 */}
+        <Show when={props.summary && !props.open}>
           {(summary) => <span class="text-ui-sm tabular-nums text-foreground-subtle shrink-0">{summary()}</span>}
         </Show>
         <Icon
