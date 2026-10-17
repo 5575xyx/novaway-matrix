@@ -1,6 +1,7 @@
-import { createMemo, For, Show } from "solid-js"
+import { createEffect, createMemo, createSignal, For, on, Show } from "solid-js"
 import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
+import { Spinner } from "@novaway/ui/spinner"
 import { Message } from "@novaway/ui/message-part"
 import { useLanguage } from "@/context/language"
 import { useSDK } from "@/context/sdk"
@@ -35,6 +36,30 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
   // `sync.data` 就是当前 directory 的会话 store（message / part 都挂在上面）。
   const store = createMemo(() => sync.data)
 
+  /**
+   * 面板一打开就把这条会话的消息拉进来。
+   *
+   * 子会话/辅助对话通常从没被打开过，`sync.data.message[id]` 是空的 ——
+   * 不主动 sync 的话面板永远显示"还没有消息"（对齐 ZCode
+   * `SubagentDrilldown` 挂载即 acquire 租约、由数据层负责取数）。
+   */
+  const [loading, setLoading] = createSignal(true)
+  const [error, setError] = createSignal<string | undefined>()
+  createEffect(
+    on(
+      () => props.tab.sessionID,
+      (id) => {
+        setLoading(true)
+        setError(undefined)
+        void sync.session
+          .sync(id)
+          .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
+          .finally(() => setLoading(false))
+      },
+      { defer: false },
+    ),
+  )
+
   // `message[sessionID]` 直接就是按 id 排好序的 Message 数组（见 event-reducer 的单测）。
   const messages = createMemo(() => store().message[props.tab.sessionID] ?? [])
 
@@ -58,6 +83,14 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
           size="small"
           class="shrink-0 text-foreground-subtle"
         />
+        {/* 类别徽标：对齐 ZCode 在子代理摘要行/钻取面板里标出"这是什么"
+            （它显示 subagentType）。我们只有 kind 两档，够区分就够了。 */}
+        <span
+          data-slot="side-pane-session-kind"
+          class="shrink-0 rounded border border-border bg-surface px-1.5 py-0.5 text-ui-xs leading-none text-foreground-subtlest"
+        >
+          {language.t(props.tab.kind === "subagent" ? "sidePane.subagent" : "sidePane.sideChat")}
+        </span>
         <span class="min-w-0 flex-1 truncate text-ui-caption text-foreground" title={props.tab.title}>
           {props.tab.title}
         </span>
@@ -83,14 +116,36 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
         <Show
           when={rows().length > 0}
           fallback={
-            // 空会话 ≠ 加载中：新建的侧边对话本来就没有消息。
-            // 之前这里用「0 条消息」当加载态，新会话会永远转圈。
-            <div class="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-              <Icon name={emptyIcon()} size="small" class="text-foreground-subtlest" />
-              <p class="text-ui-caption leading-5 text-foreground-subtle">
-                {language.t(props.tab.kind === "subagent" ? "sidePane.session.emptySubagent" : "sidePane.session.empty")}
-              </p>
-            </div>
+            // 三种状态分开：加载中 / 取数失败 / 真的没有消息。
+            // 之前只区分了"有没有消息"，新会话会一直转圈、失败的会话则显示成空。
+            <Show
+              when={!loading()}
+              fallback={
+                <div class="flex h-full items-center justify-center gap-2 text-ui-caption text-foreground-subtle">
+                  <Spinner class="size-4" />
+                  {language.t("common.loading")}
+                </div>
+              }
+            >
+              <Show
+                when={!error()}
+                fallback={
+                  <div class="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+                    <Icon name="circle-ban-sign" size="small" class="text-[var(--destructive)]" />
+                    <p class="text-ui-caption leading-5 text-foreground-subtle">{error()}</p>
+                  </div>
+                }
+              >
+                <div class="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+                  <Icon name={emptyIcon()} size="small" class="text-foreground-subtlest" />
+                  <p class="text-ui-caption leading-5 text-foreground-subtle">
+                    {language.t(
+                      props.tab.kind === "subagent" ? "sidePane.session.emptySubagent" : "sidePane.session.empty",
+                    )}
+                  </p>
+                </div>
+              </Show>
+            </Show>
           }
         >
           <div class="flex flex-col gap-3">
