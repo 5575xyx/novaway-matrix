@@ -28,6 +28,7 @@ import {
   type ReviewStatus,
 } from "./settings-memory.helpers"
 import { SettingsGroup, SettingsRow } from "./settings-parts"
+import { formatRelativeTime } from "@/utils/relative-time"
 
 const queryOptions = {
   staleTime: 10_000,
@@ -665,6 +666,13 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
     )
   })
 
+  // created/updated 在 API 里是 number | "NaN" 之类的联合，先归一化成 number 再格式化。
+  const entryUpdatedLabel = (item: { time?: { created?: unknown; updated?: unknown } }) => {
+    const value = Number(item.time?.updated ?? item.time?.created)
+    if (!Number.isFinite(value)) return ""
+    return formatRelativeTime(value, Date.now(), language.t)
+  }
+
   const body = (
     <>
       <MemoryViewTabs value={view()} onChange={setView} />
@@ -1033,6 +1041,14 @@ export const SettingsMemory: Component<{ embedded?: boolean }> = (props) => {
                           {item.scope === "global" ? "全局" : item.scope === "session" ? "本会话" : "本项目"}
                           <span class="text-foreground-subtlest"> · </span>
                           {memoryKindLabel(item.kind)}
+                          <Show when={entryUpdatedLabel(item)}>
+                            {(label) => (
+                              <>
+                                <span class="text-foreground-subtlest"> · </span>
+                                {label()}
+                              </>
+                            )}
+                          </Show>
                         </span>
                         <Show when={item.summary}>
                           <span class="line-clamp-2 text-11-regular text-foreground-subtle">{item.content}</span>
