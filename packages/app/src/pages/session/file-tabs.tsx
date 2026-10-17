@@ -466,9 +466,12 @@ export function FileTabContent(props: { tab: string }) {
   const handleEditorMouseUp = (event: MouseEvent & { currentTarget: HTMLTextAreaElement }) => {
     // 用 currentTarget 而不是闭包里的 editorRef：标签切换/差异视图来回切时，
     // ref 可能指向已经被替换掉的旧 textarea，读到的选区会永远是折叠状态。
-    const selected = textareaSelection(event.currentTarget)
-    const hasRange = !!selected && Math.max(selected.start, selected.end) > Math.min(selected.start, selected.end)
-    if (!hasRange) {
+    //
+    // 有没有选区要按**字符**判断，不能按行：同一行内选中一段文字时
+    // start/end 都是那一行，按行比较会当成"没有选区"，菜单永远不出现。
+    const element = event.currentTarget
+    const selected = textareaSelection(element)
+    if (!selected || element.selectionStart === element.selectionEnd) {
       setSelectionMenu(undefined)
       return
     }
@@ -500,8 +503,9 @@ export function FileTabContent(props: { tab: string }) {
     // 有选区就用选区，不受右键落点影响（编辑器里也是这个口径）：
     // 用户选好 6-10 行之后右键很容易点在选区外一点，那时按落点取行
     // 会把"选中的那几行"变成"鼠标下的那一行"。
-    const selected = textareaSelection(event.currentTarget)
-    const hasRange = !!selected && Math.max(selected.start, selected.end) > Math.min(selected.start, selected.end)
+    const element = event.currentTarget
+    const selected = textareaSelection(element)
+    const hasRange = !!selected && element.selectionStart !== element.selectionEnd
     const selection = hasRange ? selected! : { start: clickedLine, end: clickedLine }
     openContextMenu(selection, event.clientX, event.clientY)
   }
