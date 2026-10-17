@@ -453,13 +453,12 @@ export function FileTabContent(props: { tab: string }) {
           ),
         )
       : 1
+    // 有选区就用选区，不受右键落点影响（编辑器里也是这个口径）：
+    // 用户选好 6-10 行之后右键很容易点在选区外一点，那时按落点取行
+    // 会把"选中的那几行"变成"鼠标下的那一行"。
     const selected = textareaSelection()
-    const selection =
-      selected &&
-      clickedLine >= Math.min(selected.start, selected.end) &&
-      clickedLine <= Math.max(selected.start, selected.end)
-        ? selected
-        : { start: clickedLine, end: clickedLine }
+    const hasRange = !!selected && Math.max(selected.start, selected.end) > Math.min(selected.start, selected.end)
+    const selection = hasRange ? selected! : { start: clickedLine, end: clickedLine }
     openContextMenu(selection, event.clientX, event.clientY)
   }
 
