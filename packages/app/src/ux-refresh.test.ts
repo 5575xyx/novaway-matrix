@@ -55,9 +55,10 @@ describe("sidebar header becomes a labelled vertical menu", () => {
 
   // 字号/字重/颜色一起提:原来 caption + text-base 在浅色底上太轻,三行菜单读起来是灰的。
   test("rows use a bigger bolder darker label", () => {
-    expect(sidebarMenuRowSource).toContain("text-ui-base font-medium text-foreground")
-    expect(read("components/theme-scheme-toggle.tsx")).toContain("text-ui-base font-medium text-foreground")
-    expect(read("components/mode-switch.tsx")).toContain("text-ui-base font-medium text-foreground")
+    // 用户要求再放大一档并加粗：14px + semibold。
+    expect(sidebarMenuRowSource).toContain("text-14-semibold text-foreground")
+    expect(read("components/theme-scheme-toggle.tsx")).toContain("text-14-semibold text-foreground")
+    expect(read("components/mode-switch.tsx")).toContain("text-14-semibold text-foreground")
   })
 
   // 菜单标签直接叫目标名词,不带"打开"前缀;主题切换显示要切过去的那个模式名(浅色时是深色模式)。

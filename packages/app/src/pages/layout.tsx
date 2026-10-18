@@ -84,6 +84,7 @@ import { ThemeSchemeToggle } from "@/components/theme-scheme-toggle"
 import { ProjectTaskList, TaskFilterBar, useArchivedSessions, useTaskCounts, type TaskFilter } from "./layout/sidebar-tasks"
 import { SidebarContent } from "./layout/sidebar-shell"
 import { ExtensionsPage } from "./extensions"
+import { AutomationPage } from "./automation"
 
 function feishuQuestionText(questions: QuestionRequest["questions"]) {
   if (!Array.isArray(questions)) return ""
@@ -254,6 +255,9 @@ export default function Layout(props: ParentProps) {
     extensionsPage: {
       open: false,
     },
+    automationPage: {
+      open: false,
+    },
 
     sortNow: Date.now(),
     sizing: false,
@@ -264,6 +268,15 @@ export default function Layout(props: ParentProps) {
   const settingsTransition = createMountTransition(() => state.settings.open)
   const databaseTransition = createMountTransition(() => state.databasePage.open)
   const extensionsTransition = createMountTransition(() => state.extensionsPage.open)
+
+  // 窄窗口下侧栏是浮层（z-50、fixed），盖在上面会让覆盖层的返回按钮点不到。
+  // 打开任何整帧页面时先把移动侧栏收起来。
+  createEffect(() => {
+    if (state.settings.open || state.databasePage.open || state.extensionsPage.open || state.automationPage.open) {
+      layout.mobileSidebar.hide()
+    }
+  })
+  const automationTransition = createMountTransition(() => state.automationPage.open)
 
   // 这里**刻意不做**路由级的入场重放。
   //
@@ -1439,6 +1452,15 @@ export default function Layout(props: ParentProps) {
     setState("extensionsPage", "open", true)
   }
 
+  function openAutomationPage() {
+    setState("automationPage", "open", true)
+  }
+
+  function closeAutomationPage() {
+    setState("automationPage", "open", false)
+    window.dispatchEvent(new CustomEvent("novaway:overlay-closed"))
+  }
+
   function closeExtensionsPage() {
     setState("extensionsPage", "open", false)
     window.dispatchEvent(new CustomEvent("novaway:overlay-closed"))
@@ -2241,6 +2263,7 @@ export default function Layout(props: ParentProps) {
         {/* 顶带：窗口拖拽区。桌面端没有全局标题栏之后，这里是窗口左上角的拖动把手；
             品牌标记兼作回首页入口（对齐 ZCode 左上角的品牌标识）。 */}
         <div
+          data-component="sidebar-top-band"
           class="flex h-12 shrink-0 items-center gap-1 px-2"
           classList={{ "pl-[78px]": isMacDesktop() && !panelProps.mobile }}
           data-window-drag
@@ -2559,8 +2582,13 @@ export default function Layout(props: ParentProps) {
                 />
               </Show>
               <SidebarMenuRow
+                icon={<Icon name="autopilot" size="small" />}
+                label={language.t("sidebar.automation")}
+                onClick={openAutomationPage}
+              />
+              <SidebarMenuRow
                 icon={<Icon name="dot-grid" size="small" />}
-                label={language.t("sidebar.extensions")}
+                label={language.t("sidebar.extensionsMarket")}
                 onClick={openExtensionsPage}
               />
               <SidebarMenuRow
@@ -2651,7 +2679,7 @@ export default function Layout(props: ParentProps) {
       // 设置/数据库盖住主帧时，会话帧 Header 里那组窗控虽然被盖住，
       // 但淡入淡出的 1s 里会和面板自带的那组叠在一起"重影"。
       // 用这个标记把被盖住的那组藏掉（见 index.css）。
-      data-frame-overlay={state.settings.open || state.databasePage.open || state.extensionsPage.open ? "true" : undefined}
+      data-frame-overlay={state.settings.open || state.databasePage.open || state.extensionsPage.open || state.automationPage.open ? "true" : undefined}
     >
       {autoselecting() ?? ""}
       {/* 全局标题栏已移除：窗口顶部不再有独立 chrome，身份/导航/操作分别落在
@@ -2768,7 +2796,7 @@ export default function Layout(props: ParentProps) {
                 <section
                   data-panel-transition
                   data-state={settingsTransition.closing() ? "closed" : "open"}
-                  class="absolute left-1 right-2 top-1 bottom-2 z-40 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                  class="absolute left-1 right-2 top-1 bottom-2 z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
                   aria-label={language.t("command.settings.open")}
                   aria-hidden={settingsTransition.closing()}
                   inert={settingsTransition.closing()}
@@ -2783,11 +2811,26 @@ export default function Layout(props: ParentProps) {
                   />
                 </section>
               </Show>
+              <Show when={automationTransition.mounted()}>
+                <section
+                  data-panel-transition
+                  data-state={automationTransition.closing() ? "closed" : "open"}
+                  class="absolute left-1 right-2 top-1 bottom-2 z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                  aria-label={language.t("sidebar.automation")}
+                  aria-hidden={automationTransition.closing()}
+                  inert={automationTransition.closing()}
+                >
+                  <FrameWindowControls />
+                  <div class="flex-1 min-h-0">
+                    <AutomationPage onBack={closeAutomationPage} />
+                  </div>
+                </section>
+              </Show>
               <Show when={extensionsTransition.mounted()}>
                 <section
                   data-panel-transition
                   data-state={extensionsTransition.closing() ? "closed" : "open"}
-                  class="absolute left-1 right-2 top-1 bottom-2 z-40 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                  class="absolute left-1 right-2 top-1 bottom-2 z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
                   aria-label={language.t("sidebar.extensions")}
                   aria-hidden={extensionsTransition.closing()}
                   inert={extensionsTransition.closing()}
@@ -2802,7 +2845,7 @@ export default function Layout(props: ParentProps) {
                 <section
                   data-panel-transition
                   data-state={databaseTransition.closing() ? "closed" : "open"}
-                  class="absolute left-1 right-2 top-1 bottom-2 z-40 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                  class="absolute left-1 right-2 top-1 bottom-2 z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
                   aria-label={language.t("command.database.open")}
                   aria-hidden={databaseTransition.closing()}
                   inert={databaseTransition.closing()}

@@ -6,6 +6,7 @@ import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
 import { usePreview } from "@/context/preview"
 import { usePreviewInspection } from "@/context/preview-inspection"
+import { useSideChat } from "@/pages/session/use-side-chat"
 import { normalizePreviewUrl } from "@/utils/preview-url"
 
 const IFRAME_SANDBOX =
@@ -17,6 +18,20 @@ export function PreviewPanel() {
   const language = useLanguage()
   const preview = usePreview()
   const inspection = usePreviewInspection()
+  const sideChat = useSideChat()
+
+  /**
+   * 「让 AI 操作这个页面」：右栏是 iframe，跨进程拿不到 DOM，
+   * 所以把当前地址交给辅助对话，让 AI 用 browser 工具（Playwright）
+   * 在同一地址上执行点击/输入/截图。比假装能直接操控 iframe 更可靠。
+   */
+  const askAi = () =>
+    void sideChat.open({
+      draft: `${language.t("preview.aiPrompt" as never)}
+${url()}
+
+`,
+    })
 
   const url = preview.url
   const embedUrl = preview.embedUrl
@@ -113,6 +128,15 @@ export function PreviewPanel() {
         </Tooltip>
         <Tooltip value={language.t("preview.go")} placement="top">
           <IconButton icon="enter" variant="ghost" onClick={go} aria-label={language.t("preview.go")} />
+        </Tooltip>
+        <Tooltip value={language.t("preview.aiOperate" as never)} placement="top">
+          <IconButton
+            icon="autopilot"
+            variant="ghost"
+            onClick={askAi}
+            disabled={!url()}
+            aria-label={language.t("preview.aiOperate" as never)}
+          />
         </Tooltip>
         <Tooltip value={language.t("preview.refresh")} placement="top">
           <IconButton

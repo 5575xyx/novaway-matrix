@@ -5,16 +5,13 @@ import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { Select } from "@novaway/ui/select"
 import { Spinner } from "@novaway/ui/spinner"
-import { Switch } from "@novaway/ui/switch"
-import { Tooltip } from "@novaway/ui/tooltip"
 import { showToast } from "@novaway/ui/toast"
 import { ModelSelectorPopover } from "@/components/dialog-select-model"
+import { PermissionModeSelect } from "@/components/permission-mode-select"
 import { useLanguage } from "@/context/language"
 import { useLocal } from "@/context/local"
 import { useModels } from "@/context/models"
-import { usePermission } from "@/context/permission"
 import { useSDK } from "@/context/sdk"
-import { useSettings } from "@/context/settings"
 import type { SidePaneSessionTab } from "@/context/layout"
 import { clearSideChatSeed, getSideChatSeed, type SideChatQuote } from "@/pages/session/side-chat-seed"
 
@@ -46,8 +43,6 @@ export function SideChatComposer(props: { tab: SidePaneSessionTab }) {
   const sdk = useSDK()
   const local = useLocal()
   const models = useModels()
-  const permission = usePermission()
-  const settings = useSettings()
 
   // 读取「待带入内容」：不删除，面板在打开动画里重挂载也不会把引用弄丢。
   // 发送成功或用户移除引用后才清除。
@@ -63,25 +58,6 @@ export function SideChatComposer(props: { tab: SidePaneSessionTab }) {
   const modelLabel = () => models.autoMode()
     ? "Auto"
     : (local.model.current()?.name ?? language.t("dialog.model.select.title"))
-
-  const projectAutoAccept = createMemo(() => permission.isAutoAcceptingDirectory(sdk.directory))
-  const globalAutoApprove = createMemo(() => settings.permissions.autoApprove())
-  const autoAcceptEffective = createMemo(() => globalAutoApprove() || projectAutoAccept())
-  const autoAcceptTooltip = createMemo(() => {
-    if (globalAutoApprove()) return language.t("permissions.prompt.tooltip.global")
-    return projectAutoAccept()
-      ? language.t("permissions.prompt.tooltip.on")
-      : language.t("permissions.prompt.tooltip.off")
-  })
-
-  const toggleAutoAccept = () => {
-    if (globalAutoApprove()) {
-      if (projectAutoAccept()) permission.toggleAutoAcceptDirectory(sdk.directory)
-      settings.permissions.setAutoApprove(false)
-      return
-    }
-    permission.toggleAutoAcceptDirectory(sdk.directory)
-  }
 
   const insertText = (value: string) => {
     const element = textareaRef
@@ -252,23 +228,7 @@ export function SideChatComposer(props: { tab: SidePaneSessionTab }) {
             >
               自动联网
             </div>
-            <Tooltip placement="top" gutter={4} value={autoAcceptTooltip()}>
-              <div
-                data-action="side-chat-auto-accept"
-                class="flex items-center gap-1.5 text-12-medium text-icon-blue cursor-pointer select-none"
-                onClick={toggleAutoAccept}
-              >
-                <span style={{ "font-weight": "var(--font-weight-semibold)" }}>
-                  {language.t("permissions.prompt.currentProject")}
-                </span>
-                <Switch checked={autoAcceptEffective()} onChange={toggleAutoAccept} />
-                <Show when={globalAutoApprove()}>
-                  <span class="px-1.5 py-0.5 rounded-md bg-hover text-11-medium text-foreground-subtle">
-                    {language.t("permissions.prompt.globalEnabled")}
-                  </span>
-                </Show>
-              </div>
-            </Tooltip>
+            <PermissionModeSelect />
           </div>
         </div>
 

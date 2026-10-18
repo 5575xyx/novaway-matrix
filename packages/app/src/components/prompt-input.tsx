@@ -27,6 +27,7 @@ import { Tooltip, TooltipKeybind } from "@novaway/ui/tooltip"
 import { IconButton } from "@novaway/ui/icon-button"
 import { Select } from "@novaway/ui/select"
 import { Switch } from "@novaway/ui/switch"
+import { PermissionModeSelect } from "@/components/permission-mode-select"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { ModelSelectorPopover } from "@/components/dialog-select-model"
 import { useProviders } from "@/hooks/use-providers"
@@ -1882,32 +1883,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                 自动联网
               </div>
               <div data-component="prompt-auto-accept">
-                <Tooltip placement="top" gutter={4} value={autoAcceptTooltip()}>
-                  <div
-                    data-action="prompt-auto-accept"
-                    class="flex items-center gap-1.5 text-12-medium text-icon-blue cursor-pointer select-none"
-                  >
-                    <span style={{ "font-weight": "var(--font-weight-semibold)" }}>
-                      {language.t("permissions.prompt.currentProject")}
-                    </span>
-                    <Switch
-                      checked={autoAcceptEffective()}
-                      onChange={() => {
-                        if (globalAutoApprove()) {
-                          if (projectAutoAccept()) permission.toggleAutoAcceptDirectory(sdk.directory)
-                          settings.permissions.setAutoApprove(false)
-                          return
-                        }
-                        permission.toggleAutoAcceptDirectory(sdk.directory)
-                      }}
-                    />
-                    <Show when={globalAutoApprove()}>
-                      <span class="px-1.5 py-0.5 rounded-md bg-hover text-11-medium text-foreground-subtle">
-                        {language.t("permissions.prompt.globalEnabled")}
-                      </span>
-                    </Show>
-                  </div>
-                </Tooltip>
+                <PermissionModeSelect />
               </div>
             </div>
           </div>

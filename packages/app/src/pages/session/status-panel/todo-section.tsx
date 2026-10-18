@@ -20,10 +20,19 @@ export { todoSectionModel, isTodoDone, type TodoSectionModel } from "./todo-sect
  * 这里不用 Kobalte 的 Checkbox：todo 是只读进度展示，点它并不会切换服务端状态，
  * 做成可点复选框反而误导。
  */
-const STATUS_STYLE: Record<string, { ring: string; dot?: string; label: "pending" | "running" | "done" | "cancelled" }> = {
+const STATUS_STYLE: Record<
+  string,
+  { ring: string; dot?: string; check?: string; label: "pending" | "running" | "done" | "cancelled" }
+> = {
   pending: { ring: "border-border-hover bg-transparent", label: "pending" },
-  in_progress: { ring: "border-[var(--icon-blue)] bg-transparent", dot: "bg-[var(--icon-blue)] animate-pulse", label: "running" },
-  completed: { ring: "border-[var(--icon-blue)] bg-[var(--icon-blue)]", label: "done" },
+  in_progress: {
+    ring: "border-[var(--icon-blue)] bg-transparent",
+    dot: "bg-[var(--icon-blue)] animate-pulse",
+    label: "running",
+  },
+  // 已完成用绿色实心圆 + 白勾：与「运行中」的蓝色区分开，
+  // 扫一眼就能看出"哪些已经做完了"（用户要求有颜色区别）。
+  completed: { ring: "border-[var(--diff-added)] bg-[var(--diff-added)]", check: "text-background", label: "done" },
   cancelled: { ring: "border-border-hover bg-transparent", label: "cancelled" },
 }
 
@@ -36,7 +45,7 @@ function TodoStatusCircle(props: { status: string }) {
       class={`grid size-4 shrink-0 place-items-center rounded-full border ${style().ring}`}
     >
       <Show when={style().label === "done"}>
-        <svg viewBox="0 0 12 12" class="size-2.5 text-background" fill="none" aria-hidden="true">
+        <svg viewBox="0 0 12 12" class={`size-2.5 ${style().check ?? "text-background"}`} fill="none" aria-hidden="true">
           <path d="M2.5 6.2L4.8 8.5L9.5 3.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
       </Show>
@@ -96,9 +105,9 @@ export function useTodoSection(): () => StatusPanelSection | null {
                     class="min-w-0 flex-1 text-ui-base leading-5"
                     classList={{
                       "text-foreground": !done,
-                      "text-foreground-subtle line-through": todo.status === "cancelled",
+                      "text-foreground-subtle line-through decoration-foreground-subtlest": todo.status === "cancelled",
                       "text-foreground-subtle": todo.status === "completed",
-                      "text-[var(--icon-blue)]": todo.status === "in_progress",
+                      "text-[var(--icon-blue)] font-medium": todo.status === "in_progress",
                     }}
                   >
                     {todo.content}

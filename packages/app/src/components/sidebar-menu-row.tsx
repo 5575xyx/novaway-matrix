@@ -11,10 +11,10 @@ export function SidebarMenuRow(props: {
   return (
     <button
       type="button"
-      class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-ui-base font-medium text-foreground transition-colors hover:bg-hover"
+      class="flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-14-semibold text-foreground transition-colors hover:bg-hover"
       onClick={props.onClick}
     >
-      <span class="flex size-4 shrink-0 items-center justify-center text-foreground-subtle">{props.icon}</span>
+      <span class="flex size-4.5 shrink-0 items-center justify-center text-foreground-subtle">{props.icon}</span>
       <span class="flex-1 truncate text-left">{props.label}</span>
       {props.trailing}
     </button>

@@ -19,7 +19,7 @@ export function ModeSwitchButton(props: {
     <DropdownMenu placement="bottom" gutter={8}>
       <DropdownMenu.Trigger
         classList={{
-          "flex items-center gap-2 rounded-md px-2 text-ui-base font-medium text-foreground transition-colors": true,
+          "flex items-center gap-2 rounded-md px-2 text-14-semibold text-foreground transition-colors": true,
           "h-8 border border-border bg-surface hover:bg-hover data-[expanded]:border-border-hover":
             !props.fullWidth && !prominent(),
           "w-full py-1.5 hover:bg-hover data-[expanded]:bg-surface": !!props.fullWidth && !prominent(),
