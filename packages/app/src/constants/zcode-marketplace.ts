@@ -1,7 +1,14 @@
-// 从 ZCode/FreeCodeZ 官方插件市场快照导入的目录（config/plugin-marketplace/official-snapshot.json）。
-// 这些插件以 zip 发布：安装时下载解压到本地配置目录，再把其中的 skills / MCP 注册到配置。
+// ZCode 官方插件市场的目录。
+//
+// 运行时优先拉取线上 manifest（46+ 插件，带中英文名/图标/分类）；
+// 下面的 `ZCODE_MARKETPLACE` 是离线兜底（FreeCodeZ 的官方快照，26 个），
+// 网络不可用时至少还能看到一部分目录。
+//
+// 插件以 zip 发布：安装时下载解压到本地配置目录，再把其中的 skills / MCP 注册到配置。
 export type ZcodeMarketplaceEntry = {
   name: string
+  displayName?: string
+  displayNameEn?: string
   description: string
   descriptionEn: string
   version: string
@@ -11,8 +18,84 @@ export type ZcodeMarketplaceEntry = {
   icon?: string
   url: string
   sha256?: string
+  requiresPaidPlan?: boolean
+  components?: string[]
 }
 
+/** 官方市场 manifest 地址（与 ZCode 默认市场源一致）。 */
+export const ZCODE_MARKETPLACE_URL = "https://cdn-zcode.z.ai/zcode/official-plugin/marketplace.json"
+
+/** 线上 manifest 的原始条目（只声明我们读取的字段）。 */
+export type ZcodeMarketplaceManifestEntry = {
+  name?: unknown
+  displayName?: unknown
+  displayName_i18n?: unknown
+  description?: unknown
+  description_i18n?: unknown
+  version?: unknown
+  author?: unknown
+  icon?: unknown
+  category?: unknown
+  componentTypes?: unknown
+  requiresPaidPlan?: unknown
+  keywords?: unknown
+  source?: unknown
+}
+
+const asText = (value: unknown) => (typeof value === "string" && value.trim() ? value.trim() : undefined)
+
+/**
+ * 解析官方 manifest。
+ *
+ * 源是外部输入，必须防御性解析：没有 `source.url` 的条目丢弃（无法安装），
+ * 中文名/描述缺失时回退英文，再回退条目名。
+ */
+export function parseZcodeMarketplace(value: unknown): ZcodeMarketplaceEntry[] {
+  if (typeof value !== "object" || value === null) return []
+  const record = value as { plugins?: unknown }
+  if (!Array.isArray(record.plugins)) return []
+  const entries: ZcodeMarketplaceEntry[] = []
+  const seen = new Set<string>()
+  for (const item of record.plugins) {
+    if (typeof item !== "object" || item === null) continue
+    const raw = item as Record<string, unknown>
+    const name = asText(raw.name)
+    const source = raw.source
+    if (!name || seen.has(name) || typeof source !== "object" || source === null) continue
+    const url = asText((source as Record<string, unknown>).url)
+    if (!url) continue
+    seen.add(name)
+    const i18n = (value: unknown) =>
+      typeof value === "object" && value !== null ? (value as Record<string, unknown>) : undefined
+    const displayName = i18n(raw.displayName_i18n)
+    const description = i18n(raw.description_i18n)
+    const author = typeof raw.author === "object" && raw.author !== null ? raw.author as Record<string, unknown> : undefined
+    entries.push({
+      name,
+      displayName: asText(displayName?.["zh-CN"]) ?? asText(displayName?.en) ?? asText(raw.displayName) ?? name,
+      displayNameEn: asText(displayName?.en) ?? asText(raw.displayName) ?? name,
+      description:
+        asText(description?.["zh-CN"]) ?? asText(description?.en) ?? asText(raw.description) ?? "",
+      descriptionEn: asText(description?.en) ?? asText(raw.description) ?? "",
+      version: asText(raw.version) ?? "0.0.0",
+      author: asText(author?.name) ?? asText(raw.author),
+      category: asText(raw.category),
+      keywords: Array.isArray(raw.keywords)
+        ? raw.keywords.filter((tag): tag is string => typeof tag === "string")
+        : [],
+      icon: asText(raw.icon),
+      url,
+      sha256: asText((source as Record<string, unknown>).sha256),
+      requiresPaidPlan: raw.requiresPaidPlan === true,
+      components: Array.isArray(raw.componentTypes)
+        ? raw.componentTypes.filter((tag): tag is string => typeof tag === "string")
+        : [],
+    })
+  }
+  return entries
+}
+
+/** 离线兜底目录（FreeCodeZ 官方快照）。 */
 export const ZCODE_MARKETPLACE: ZcodeMarketplaceEntry[] = [
   {
     name: "cloudbase-skills",

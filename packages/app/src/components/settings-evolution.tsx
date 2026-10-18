@@ -156,6 +156,7 @@ const ContentFormatControl: Component<{
 
 const CandidateRow: Component<{
   candidate: EvolutionCandidate
+  directory?: string
   disabled: boolean
   onRefresh: () => Promise<void>
   onApplyFile: () => void
@@ -186,6 +187,7 @@ const CandidateRow: Component<{
     mutationFn: () =>
       globalSDK.client.evolution.updateCandidate({
         candidateID: props.candidate.id,
+        directory: props.directory,
         evolutionCandidateUpdate: {
           title: title(),
           content: content(),
@@ -213,7 +215,9 @@ const CandidateRow: Component<{
 
   const loadDryRun = useMutation(() => ({
     mutationFn: () =>
-      globalSDK.client.evolution.dryRunCandidate({ candidateID: props.candidate.id }).then((x) => x.data),
+      globalSDK.client.evolution
+        .dryRunCandidate({ candidateID: props.candidate.id, directory: props.directory })
+        .then((x) => x.data),
     onSuccess: (data) => {
       if (data) setDryRun(data)
       showToast({
@@ -385,7 +389,7 @@ const CandidateRow: Component<{
   )
 }
 
-export const SettingsEvolution: Component<{ embedded?: boolean }> = (props) => {
+export const SettingsEvolution: Component<{ embedded?: boolean; directory?: string }> = (props) => {
   const language = useLanguage()
   const globalSDK = useGlobalSDK()
   const globalSync = useGlobalSync()
@@ -408,13 +412,16 @@ export const SettingsEvolution: Component<{ embedded?: boolean }> = (props) => {
 
   const status = useQuery(() => ({
     queryKey: ["settings", "evolution", "status"],
-    queryFn: () => globalSDK.client.evolution.status().then((x) => x.data),
+    queryFn: () => globalSDK.client.evolution.status({ directory: props.directory }).then((x) => x.data),
     ...queryOptions,
   }))
 
   const candidates = useQuery(() => ({
     queryKey: ["settings", "evolution", "candidates", tab()],
-    queryFn: () => globalSDK.client.evolution.listCandidates({ status: tab(), limit: 100 }).then((x) => x.data ?? []),
+    queryFn: () =>
+      globalSDK.client.evolution
+        .listCandidates({ status: tab(), limit: 100, directory: props.directory })
+        .then((x) => x.data ?? []),
     ...queryOptions,
   }))
 
@@ -432,7 +439,9 @@ export const SettingsEvolution: Component<{ embedded?: boolean }> = (props) => {
 
   const applyFile = useMutation(() => ({
     mutationFn: (candidateID: string) =>
-      globalSDK.client.evolution.applyFileCandidate({ candidateID }).then((x) => x.data),
+      globalSDK.client.evolution
+        .applyFileCandidate({ candidateID, directory: props.directory })
+        .then((x) => x.data),
     onSuccess: async (data) => {
       await refetchEvolution()
       showToast({
@@ -446,7 +455,8 @@ export const SettingsEvolution: Component<{ embedded?: boolean }> = (props) => {
   }))
 
   const dismiss = useMutation(() => ({
-    mutationFn: (candidateID: string) => globalSDK.client.evolution.dismissCandidate({ candidateID }),
+    mutationFn: (candidateID: string) =>
+      globalSDK.client.evolution.dismissCandidate({ candidateID, directory: props.directory }),
     onSuccess: () => refetchEvolution(),
     onError: showRequestFailed,
   }))
@@ -635,6 +645,7 @@ export const SettingsEvolution: Component<{ embedded?: boolean }> = (props) => {
                 {(candidate) => (
                   <CandidateRow
                     candidate={candidate}
+                    directory={props.directory}
                     disabled={applyFile.isPending || dismiss.isPending}
                     onRefresh={refetchEvolution}
                     onApplyFile={() => applyFile.mutate(candidate.id)}

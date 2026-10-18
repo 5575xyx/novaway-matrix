@@ -48,7 +48,10 @@ export function ensureSkillExtracted(
     for (const [key, sourcePath] of entries) {
       const target = path.join(cacheDir, key)
       yield* fsys.ensureDir(path.dirname(target))
-      const content = yield* Effect.promise(() => Bun.file(sourcePath).arrayBuffer())
+      // sidecar 跑在 Node 里，没有 Bun 全局。
+      const content = yield* Effect.promise(() =>
+        import("node:fs/promises").then((fs) => fs.readFile(sourcePath).then((buffer) => buffer.buffer)),
+      )
       yield* fsys.writeWithDirs(target, new Uint8Array(content))
     }
 

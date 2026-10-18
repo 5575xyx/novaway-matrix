@@ -215,16 +215,20 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
         <span class="min-w-0 flex-1 truncate text-ui-caption text-foreground" title={props.tab.title}>
           {props.tab.title}
         </span>
-        <Button
-          variant="ghost"
-          size="small"
-          class="shrink-0"
-          icon="square-arrow-top-right"
-          onClick={openFull}
-          aria-label={language.t("sidePane.session.openFull")}
-        >
-          {language.t("sidePane.session.openFull")}
-        </Button>
+        {/* 辅助对话不需要「在主线打开」：主线天然能引用它下级的会话记录，
+            再放一个跳转按钮只会让人以为不走这条路就看不到。子代理保留该入口。 */}
+        <Show when={props.tab.kind === "subagent"}>
+          <Button
+            variant="ghost"
+            size="small"
+            class="shrink-0"
+            icon="square-arrow-top-right"
+            onClick={openFull}
+            aria-label={language.t("sidePane.session.openFull")}
+          >
+            {language.t("sidePane.session.openFull")}
+          </Button>
+        </Show>
       </div>
 
       <Show when={hidden() > 0}>

@@ -50,7 +50,7 @@ export const SettingsMemoryEvolution: Component<{ directory?: string }> = (props
         <SettingsMemory embedded directory={props.directory} />
       </Show>
       <Show when={sub() === "evolution"}>
-        <SettingsEvolution embedded />
+        <SettingsEvolution embedded directory={props.directory} />
       </Show>
     </SettingsPage>
   )

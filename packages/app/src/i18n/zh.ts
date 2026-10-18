@@ -3,8 +3,19 @@ import { dict as en } from "./en"
 type Keys = keyof typeof en
 
 export const dict = {
-  "settings.plugins.market.title": "ZCode 官方市场",
-  "settings.plugins.market.description": "直接浏览并安装 ZCode 官方插件市场的技能包（含 MCP 清单）。安装后技能会出现在「技能」页，MCP 会出现在「MCP」页。",
+  "settings.plugins.market.category.developer": "开发者工具",
+  "settings.plugins.market.category.productivity": "生产力",
+  "settings.plugins.market.category.finance": "财务",
+  "settings.plugins.market.category.other": "其他",
+  "settings.plugins.market.component.skill": "技能",
+  "settings.plugins.market.component.mcp": "MCP",
+  "settings.plugins.market.component.ui": "界面",
+  "settings.plugins.market.installedSection": "已安装",
+  "settings.plugins.market.tab.public": "公开",
+  "settings.plugins.market.tab.personal": "个人",
+  "settings.plugins.market.paid": "付费计划",
+  "settings.plugins.market.title": "插件市场",
+  "settings.plugins.market.description": "用插件为 NovaWay 扩展技能、命令与 MCP 能力",
   "settings.plugins.market.search": "搜索插件…",
   "settings.plugins.market.empty": "没有匹配的插件。",
   "settings.plugins.market.installing": "安装中…",
@@ -859,6 +870,7 @@ export const dict = {
 
   "sidebar.menu.toggle": "切换菜单",
   "sidebar.nav.projectsAndSessions": "项目和任务",
+  "sidebar.sideChat": "辅助对话",
   "sidebar.database": "数据库",
   "sidebar.settings": "设置",
   "sidebar.help": "帮助",
