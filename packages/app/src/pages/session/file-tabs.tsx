@@ -16,6 +16,8 @@ import { IconButton } from "@novaway/ui/icon-button"
 import { Tabs } from "@novaway/ui/tabs"
 import { ScrollView } from "@novaway/ui/scroll-view"
 import { showToast } from "@novaway/ui/toast"
+import { Markdown } from "@novaway/ui/markdown"
+import { writeClipboard } from "@novaway/ui/util/clipboard"
 import { selectionFromLines, useFile, type FileSelection, type SelectedLineRange } from "@/context/file"
 import { useComments } from "@/context/comments"
 import { useSDK } from "@/context/sdk"
@@ -245,6 +247,21 @@ export function FileTabContent(props: { tab: string }) {
   // 有改动时默认看"改了什么"；仍可切回文件内容（改动的文件也要能编辑）。
   const [viewMode, setViewMode] = createSignal<"diff" | "file">("diff")
   // 办公文件是二进制，diff 渲染器没有可展示的行；直接走只读预览。
+  const isMarkdown = createMemo(() => /\.(md|markdown|mdx)$/i.test(path() ?? ""))
+  // Markdown 默认渲染成阅读视图（对齐 ZCode 右栏的 Markdown 阅读器）；
+  // 需要改字时从 ⋯ 菜单或分段控件切到「源码」。
+  const [markdownMode, setMarkdownMode] = createSignal<"preview" | "source">("preview")
+
+  // 切换文件时把 Markdown 恢复成阅读视图（对齐 ZCode：打开 .md 默认就是渲染后的样子）。
+  createEffect(
+    on(path, (next) => {
+      if (!/\.(md|markdown|mdx)$/i.test(next ?? "")) return
+      setViewMode("file")
+      setMarkdownMode("preview")
+    }),
+  )
+
+
   const showDiff = () => !!diff() && viewMode() === "diff" && !isOfficePreviewPath(path())
   const [draft, setDraft] = createSignal("")
   const lineNumbers = createMemo(() => Array.from({ length: draft().split("\n").length }, (_, index) => index + 1))
@@ -443,6 +460,27 @@ export function FileTabContent(props: { tab: string }) {
     const start = Math.max(1, Math.min(selection.start, selection.end))
     const end = Math.max(selection.start, selection.end)
     return lines.slice(start - 1, end).join(NEWLINE)
+  }
+
+  /** Markdown 里点文件链接：在当前侧栏再开一个文件标签。 */
+  const openLinkedFile = (target: string) => {
+    const normalized = file.normalize(target)
+    if (!normalized) return
+    void file.load(normalized).then(() => {
+      if (file.get(normalized)?.error) return
+      const tab = file.tab(normalized)
+      void tabs().open(tab)
+      tabs().setActive(tab)
+    })
+  }
+
+  const copyPath = async (kind: "absolute" | "relative") => {
+    const p = path()
+    if (!p) return
+    const separator = sdk.directory.includes("\\") ? "\\" : "/"
+    const value = kind === "absolute" ? `${sdk.directory.replace(/[\/]+$/, "")}${separator}${p}` : p
+    await writeClipboard(value)
+    showToast({ variant: "success", icon: "circle-check", title: language.t("common.copied") })
   }
 
   /** 把选中的代码作为「引用」加到主输入框上方（与聊天区选中文字一致）。 */
@@ -761,8 +799,8 @@ export function FileTabContent(props: { tab: string }) {
         <div class="flex h-full flex-col">
           <div class="flex items-center justify-between gap-3 px-4 pt-3 pb-2">
             <span class="min-w-0 truncate text-12-regular text-foreground-subtle">{path()}</span>
-            <Show when={diff()}>
-              <div class="flex shrink-0 items-center gap-1">
+            <div class="flex shrink-0 items-center gap-1">
+              <Show when={diff()}>
                 {/* 改动 / 文件：默认看对照，需要改代码时切回文件内容。 */}
                 <div class="flex items-center rounded-md bg-surface p-0.5">
                   <button
@@ -817,8 +855,62 @@ export function FileTabContent(props: { tab: string }) {
                     </For>
                   </div>
                 </Show>
-              </div>
-            </Show>
+              </Show>
+              {/* Markdown 阅读器：预览 / 源码（对齐 ZCode 右栏）。 */}
+              <Show when={isMarkdown() && viewMode() === "file"}>
+                <div class="flex items-center rounded-md bg-surface p-0.5">
+                  <For each={["preview", "source"] as const}>
+                    {(mode) => (
+                      <button
+                        type="button"
+                        class="rounded px-1.5 py-0.5 text-ui-xs transition-colors"
+                        classList={{
+                          "bg-background text-foreground": markdownMode() === mode,
+                          "text-foreground-subtle hover:text-foreground": markdownMode() !== mode,
+                        }}
+                        aria-pressed={markdownMode() === mode}
+                        onClick={() => setMarkdownMode(mode)}
+                      >
+                        {language.t(
+                          mode === "preview"
+                            ? "session.filePreview.markdownPreview"
+                            : "session.filePreview.markdownSource",
+                        )}
+                      </button>
+                    )}
+                  </For>
+                </div>
+              </Show>
+            </div>
+            <DropdownMenu gutter={4} placement="bottom-end">
+              <DropdownMenu.Trigger
+                as={IconButton}
+                icon="dot-grid"
+                variant="ghost"
+                size="small"
+                class="shrink-0 text-foreground-subtle"
+                aria-label={language.t("common.moreOptions")}
+              />
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content style={{ "min-width": "180px" }}>
+                  <Show when={isMarkdown()}>
+                    <DropdownMenu.Item onSelect={() => setMarkdownMode("preview")}>
+                      <DropdownMenu.ItemLabel>{language.t("session.filePreview.markdownPreview")}</DropdownMenu.ItemLabel>
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item onSelect={() => setMarkdownMode("source")}>
+                      <DropdownMenu.ItemLabel>{language.t("session.filePreview.markdownSource")}</DropdownMenu.ItemLabel>
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Separator />
+                  </Show>
+                  <DropdownMenu.Item onSelect={() => void copyPath("absolute")}>
+                    <DropdownMenu.ItemLabel>{language.t("session.filePreview.copyAbsolutePath")}</DropdownMenu.ItemLabel>
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item onSelect={() => void copyPath("relative")}>
+                    <DropdownMenu.ItemLabel>{language.t("session.filePreview.copyRelativePath")}</DropdownMenu.ItemLabel>
+                  </DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu>
             <span
               class="shrink-0 text-12-regular"
               classList={{
@@ -853,6 +945,13 @@ export function FileTabContent(props: { tab: string }) {
                     renderDiff(diff()!)
                   ) : (
                     <Switch>
+                <Match when={state()?.loaded && state()?.content?.type !== "binary" && isMarkdown() && markdownMode() === "preview"}>
+                  <ScrollView class="h-full">
+                    <div class="mx-auto w-full max-w-3xl px-6 py-5">
+                      <Markdown text={contents()} cacheKey={cacheKey()} onFileOpen={openLinkedFile} />
+                    </div>
+                  </ScrollView>
+                </Match>
                 <Match when={state()?.loaded && state()?.content?.type !== "binary"}>
                   <div class="flex h-full min-h-0">
                     <div

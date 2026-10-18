@@ -115,6 +115,24 @@ export function SessionSidePanel(props: {
     hasReview: props.canReview,
   })
   const openedTabs = tabState.openedTabs
+  /**
+   * 关掉最后一个文件标签后自动收起右侧面板（对齐 ZCode 的节奏）：
+   * 面板里已经没有任何内容，留着只会挡住聊天区。
+   * 只在「从有到无」时触发，避免刚打开面板时被立刻关掉。
+   */
+  createEffect(
+    on(
+      () => openedTabs().length,
+      (count, previous) => {
+        if (count > 0) return
+        if (!previous) return
+        if (!layout.sidePane.opened()) return
+        if (layout.sidePane.activeTab() !== "preview") return
+        layout.sidePane.close()
+      },
+    ),
+  )
+
   const activeFileTab = tabState.activeFileTab
 
   const [store, setStore] = createStore({
