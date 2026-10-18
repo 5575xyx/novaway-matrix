@@ -70,7 +70,6 @@ import {
 import { useContextSection } from "@/pages/session/status-panel/context-section"
 import { useGitSection } from "@/pages/session/status-panel/git-section"
 import { useTodoSection } from "@/pages/session/status-panel/todo-section"
-import { useCacheSection } from "@/pages/session/status-panel/cache-section"
 import { FloatingTodoButton } from "@/components/floating-todo-button"
 import { OfficeSessionComposer, OfficeSessionWorkspace } from "@/components/office-session-workspace"
 import { TerminalPanel } from "@/pages/session/terminal-panel"
@@ -484,7 +483,6 @@ export default function Page() {
   const gitSection = useGitSection()
   const todoSection = useTodoSection()
   const contextSection = useContextSection()
-  const cacheSection = useCacheSection()
   const statusRunning = createMemo(() => {
     const id = params.id ?? ""
     return !!id && sync.data.session_working(id)
@@ -494,7 +492,7 @@ export default function Page() {
   // 完整入口仍在 设置 → 记忆与进化。
   const statusSections = createMemo(() =>
     visibleStatusSections(
-      [gitSection(), todoSection(), contextSection(), cacheSection()].filter(
+      [gitSection(), todoSection(), contextSection()].filter(
         (section): section is StatusPanelSection => section !== null,
       ),
       statusRunning(),

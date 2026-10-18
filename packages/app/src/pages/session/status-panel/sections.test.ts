@@ -9,7 +9,7 @@ const workspaceHeaderSource = read("../../../components/session/workspace-header
 const sessionHeaderSource = read("../../../components/session/session-header.tsx")
 const layoutSource = read("../../layout.tsx")
 const sessionSource = read("../../session.tsx")
-const cacheSectionSource = read("./cache-section.tsx")
+const contextSectionSource = read("./context-section.tsx")
 
 // 全局标题栏已移除（Round 1 对齐 ZCode）：入口不能跟着一起消失，必须各自落到新位置。
 describe("top bar removal keeps every entry reachable", () => {
@@ -58,9 +58,12 @@ describe("top bar removal keeps every entry reachable", () => {
 })
 
 describe("right panel absorbs cache", () => {
-  test("session wires the cache section into the status panel", () => {
-    expect(sessionSource).toContain("const cacheSection = useCacheSection()")
-    expect(sessionSource).toContain("cacheSection()")
+  // 上下文与缓存命中率合并成一张卡片（用户反馈：两张卡在右上角互相挤，展开后信息重复）。
+  test("cache hits are merged into the context card instead of a separate section", () => {
+    expect(sessionSource).not.toContain("useCacheSection")
+    expect(sessionSource).toContain("useContextSection()")
+    expect(contextSectionSource).toContain("useSessionCacheUsage()")
+    expect(contextSectionSource).toContain("cache.hit.rate")
   })
 
   // 「记忆与进化」是全局能力，不再占会话状态面板的位置（用户反馈）。
@@ -70,10 +73,14 @@ describe("right panel absorbs cache", () => {
     expect(sessionSource).not.toContain("useMemorySection")
   })
 
-  test("cache card reads its summary and detail from one metrics source", () => {
-    expect(cacheSectionSource).toContain("usage.metrics().calls <= 0")
-    expect(cacheSectionSource).toContain("summary: <>{usage.hitRate()}%")
-    expect(cacheSectionSource).toContain("<CacheUsageBody />")
+  test("the merged card only shows cache stats when there are calls", () => {
+    expect(contextSectionSource).toContain("cache.metrics().calls > 0")
+    expect(contextSectionSource).toContain("cache.hitRate()")
+  })
+
+  test("status cards cannot be squeezed by the flex container", () => {
+    const panelSource = read("./status-panel.tsx")
+    expect(panelSource).toContain("shrink-0 overflow-hidden rounded-lg")
   })
 
 })

@@ -41,7 +41,6 @@ import { useServer } from "@/context/server"
 import { agentDisplayName, skillDisplayName } from "@/utils/agent"
 import { pathKey } from "@/utils/path-key"
 import { SettingsGroup } from "./settings-parts"
-import { PluginMarketplaceSection } from "./settings-plugin-market"
 import { matchesModeGroup, modeGroupLabel, modeGroups, type ModeGroup } from "./settings-mode-groups"
 import { agentSkillPermission, hasSkillPermission, withAgentSkills } from "./settings-agent-config"
 
@@ -3322,8 +3321,6 @@ export const SettingsPlugins: Component = () => {
           </Show>
         </SettingsGroup>
       </div>
-      {/* ZCode 插件市场：公开目录 + 个人来源（自定义 marketplace 源）都在这里。 */}
-      <PluginMarketplaceSection />
     </SettingsPage>
   )
 }
