@@ -251,6 +251,18 @@ export type ElectronAPI = {
   /** 删除已安装的插件目录。 */
   marketplaceRemove: (dir: string) => Promise<void>
 
+  /** 从 git 仓库安装插件（Claude 市场用），返回可用目录。 */
+  marketplaceGitInstall: (input: { name: string; url: string; ref?: string; subdir?: string }) => Promise<{
+    dir: string
+    skillsPath?: string
+    mcpServers?: Record<string, unknown>
+    commands: number
+    agents: number
+  }>
+  /** 保持系统唤醒（电源阻断）；返回当前是否生效。 */
+  setKeepAwake: (enabled: boolean) => Promise<boolean>
+  keepAwakeEnabled?: boolean
+
   getWindowCount: () => Promise<number>
   onSqliteMigrationProgress: (cb: (progress: SqliteMigrationProgress) => void) => () => void
   onMenuCommand: (cb: (id: string) => void) => () => void

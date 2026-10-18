@@ -8,14 +8,19 @@ import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { Switch } from "@novaway/ui/switch"
 import { Tag } from "@novaway/ui/tag"
+import { showToast } from "@novaway/ui/toast"
 import { createMemo, createSignal, For, onMount, Show, type Component } from "solid-js"
 import { createStore } from "solid-js/store"
 import {
+  CLAUDE_MARKETPLACE_URLS,
+  parseClaudeMarketplace,
   parseZcodeMarketplace,
   ZCODE_MARKETPLACE,
   ZCODE_MARKETPLACE_URL,
+  type ClaudeMarketplaceEntry,
   type ZcodeMarketplaceEntry,
 } from "@/constants/zcode-marketplace"
+import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
@@ -23,6 +28,7 @@ import { SettingsGroup } from "./settings-parts"
 import { PluginStoreSection } from "./settings-runtime"
 
 const INSTALLED_FIELD = "plugin.marketplace.v1"
+const CLAUDE_MANIFEST_FIELD = "plugin.marketplace.claude.v1"
 const MANIFEST_FIELD = "plugin.marketplace.manifest.v1"
 
 type InstalledPlugin = {
@@ -33,6 +39,8 @@ type InstalledPlugin = {
   skillPath?: string
   /** 安装时注册到 config.mcp 的服务名。 */
   mcpNames: string[]
+  /** 来源市场：zcode（zip）/ claude（git）。缺省视为 zcode。 */
+  source?: "zcode" | "claude"
 }
 
 /**
@@ -174,10 +182,14 @@ export const PluginMarketplaceSection: Component<{ onBack?: () => void }> = (pro
   const language = useLanguage()
   const platform = usePlatform()
   const globalSync = useGlobalSync()
+  const globalSDK = useGlobalSDK()
   const dialog = useDialog()
   const [installed, setInstalled] = createStore<{ list: InstalledPlugin[] }>({ list: [] })
   const [catalog, setCatalog] = createSignal<ZcodeMarketplaceEntry[]>(ZCODE_MARKETPLACE)
   const [tab, setTab] = createSignal<"public" | "personal">("public")
+  // 公开目录有两个官方来源：ZCode（zip）与 Claude（git）。
+  const [source, setSource] = createSignal<"zcode" | "claude">("zcode")
+  const [claudeCatalog, setClaudeCatalog] = createSignal<ClaudeMarketplaceEntry[]>([])
   const [pending, setPending] = createSignal<string | undefined>()
   const [loading, setLoading] = createSignal(false)
   const [error, setError] = createSignal<string | undefined>()
@@ -202,6 +214,143 @@ export const PluginMarketplaceSection: Component<{ onBack?: () => void }> = (pro
       console.warn("[marketplace] manifest fetch failed", err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadClaudeManifest = async () => {
+    if (claudeCatalog().length > 0) return
+    if (!window.api?.marketplaceDownload) return
+    setLoading(true)
+    try {
+      // raw.githubusercontent 在国内经常被重置：按镜像顺序尝试，第一条成功的为准。
+      let entries: ClaudeMarketplaceEntry[] = []
+      for (const url of CLAUDE_MARKETPLACE_URLS) {
+        try {
+          const base64 = await window.api.marketplaceDownload(url)
+          entries = parseClaudeMarketplace(JSON.parse(decodeBase64Text(base64)))
+          if (entries.length > 0) break
+        } catch {
+          // 换下一个镜像
+        }
+      }
+      if (entries.length === 0) throw new Error("empty catalog")
+      setClaudeCatalog(entries)
+      void storage()?.setItem(CLAUDE_MANIFEST_FIELD, JSON.stringify(entries))
+      setError(undefined)
+    } catch (err) {
+      setError(language.t("settings.plugins.market.claudeLoadFailed" as never))
+      console.warn("[marketplace] claude manifest fetch failed", err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const chooseSource = (value: "zcode" | "claude") => {
+    setSource(value)
+    if (value === "claude") void loadClaudeManifest()
+  }
+
+  const claudeFiltered = createMemo(() => {
+    const value = query().trim().toLowerCase()
+    if (!value) return claudeCatalog()
+    return claudeCatalog().filter((entry) =>
+      [entry.name, entry.displayName, entry.description, entry.author ?? "", entry.category ?? ""]
+        .join(" ")
+        .toLowerCase()
+        .includes(value),
+    )
+  })
+
+  const claudeGroups = createMemo(() => {
+    const map = new Map<string, ClaudeMarketplaceEntry[]>()
+    for (const entry of claudeFiltered()) {
+      const key = entry.category ?? "other"
+      const list = map.get(key)
+      if (list) list.push(entry)
+      else map.set(key, [entry])
+    }
+    return [...map.entries()].map(([key, entries]) => ({ key, entries }))
+  })
+
+  /**
+   * 安装 Claude 市场插件。
+   *
+   * 与 zip 包的差别：来源是 git，主进程浅克隆后返回「可用的技能目录 / MCP 清单」，
+   * commands 与 agents 已经由主进程复制到全局配置目录（现有扫描器直接生效）。
+   */
+  const installClaude = async (entry: ClaudeMarketplaceEntry) => {
+    const api = window.api
+    if (!api?.marketplaceGitInstall) {
+      setError(language.t("settings.plugins.market.unsupported" as never))
+      return
+    }
+    setPending(entry.name)
+    setError(undefined)
+    try {
+      const result = await api.marketplaceGitInstall({
+        name: entry.name,
+        url: entry.gitUrl,
+        ref: entry.gitRef,
+        subdir: entry.subdir,
+      })
+      const config = globalSync.data.config
+      const nextSkills = result.skillsPath
+        ? {
+            ...(config.skills ?? {}),
+            paths: [...new Set([...(config.skills?.paths ?? []), result.skillsPath])],
+          }
+        : config.skills
+      const mcpNames: string[] = []
+      let nextMcp = config.mcp
+      if (result.mcpServers) {
+        const merged: Record<string, unknown> = isRecord(config.mcp) ? { ...config.mcp } : {}
+        for (const [name, value] of Object.entries(result.mcpServers)) {
+          if (!isRecord(value) || merged[name]) continue
+          const command = typeof value.command === "string" ? value.command : undefined
+          const args = Array.isArray(value.args)
+            ? value.args.filter((item): item is string => typeof item === "string")
+            : []
+          merged[name] = {
+            type: "local",
+            enabled: value.enabled !== false,
+            ...(command ? { command: [command, ...args] } : {}),
+            ...(isRecord(value.env) ? { environment: value.env } : {}),
+          }
+          mcpNames.push(name)
+        }
+        nextMcp = merged as Config["mcp"]
+      }
+      const before = JSON.stringify({ skills: config.skills ?? null, mcp: config.mcp ?? null })
+      const after = JSON.stringify({ skills: nextSkills ?? null, mcp: nextMcp ?? null })
+      await globalSync.updateConfig({ skills: nextSkills, mcp: nextMcp } as Config)
+      // commands / agents 是主进程直接复制进全局配置目录的，配置内容可能没变，
+      // 这种情况下 updateConfig 不会触发实例失效 —— 手动 dispose 一次，
+      // 让命令与 Agent 扫描器重新读盘（无需重启应用）。
+      if (before === after && (result.commands > 0 || result.agents > 0)) {
+        await globalSDK.client.global.dispose().catch(() => undefined)
+      }
+      persist([
+        ...installed.list.filter((item) => item.name !== entry.name),
+        {
+          name: entry.name,
+          version: entry.gitRef ?? "main",
+          dir: result.dir,
+          skillPath: result.skillsPath,
+          mcpNames,
+          source: "claude",
+        },
+      ])
+      showToast({
+        variant: "success",
+        icon: "circle-check",
+        title: language.t("settings.plugins.market.installDone" as never, {
+          name: entry.displayName,
+        } as never),
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setPending(undefined)
     }
   }
 
@@ -402,7 +551,9 @@ export const PluginMarketplaceSection: Component<{ onBack?: () => void }> = (pro
         installed={input.installed}
         enabled={item ? builtinEnabled(item) : undefined}
         supported={supported()}
-        pending={pending() === (input.entry?.name ?? item?.id)}
+        pending={
+          input.entry ? pending() === input.entry.name : item ? pending() === item.id : false
+        }
         onToggle={item ? (value) => setBuiltin(item, value) : undefined}
         onInstall={input.entry && !input.installed ? () => void install(input.entry!) : undefined}
         onUninstall={input.installed ? () => void uninstall(input.installed!) : undefined}
@@ -502,6 +653,56 @@ export const PluginMarketplaceSection: Component<{ onBack?: () => void }> = (pro
     </div>
   )
 
+  const claudeRow = (entry: ClaudeMarketplaceEntry) => {
+    const current = () => find(entry.name)
+    return (
+      <div class="flex min-w-0 items-start gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-hover">
+        <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-surface">
+          <Icon name="dot-grid" class="size-5 text-foreground-subtle" />
+        </span>
+        <div class="flex min-w-0 flex-1 flex-col">
+          <div class="flex min-w-0 items-center gap-2">
+            <span class="truncate text-13-medium text-foreground">{entry.displayName}</span>
+            <Show when={entry.author}>
+              <span class="truncate text-11-regular text-foreground-subtlest">{entry.author}</span>
+            </Show>
+          </div>
+          <span class="mt-0.5 line-clamp-2 text-12-regular leading-5 text-foreground-subtle">
+            {entry.description}
+          </span>
+        </div>
+        <Show
+          when={current()}
+          fallback={
+            <Button
+              variant="secondary"
+              size="small"
+              class="shrink-0 rounded-full"
+              disabled={pending() === entry.name || !window.api?.marketplaceGitInstall}
+              onClick={() => void installClaude(entry)}
+            >
+              {pending() === entry.name
+                ? language.t("settings.plugins.market.installing" as never)
+                : language.t("settings.plugins.store.install" as never)}
+            </Button>
+          }
+        >
+          {(item) => (
+            <Button
+              variant="ghost"
+              size="small"
+              class="shrink-0 rounded-full"
+              disabled={pending() === entry.name}
+              onClick={() => void uninstall(item())}
+            >
+              {language.t("settings.plugins.store.uninstall" as never)}
+            </Button>
+          )}
+        </Show>
+      </div>
+    )
+  }
+
   const builtinRow = (item: BuiltinExtension) => (
     <div
       role="button"
@@ -584,7 +785,7 @@ export const PluginMarketplaceSection: Component<{ onBack?: () => void }> = (pro
               variant="ghost"
               aria-label={language.t("settings.plugins.store.refresh" as never)}
               disabled={loading() || !window.api?.marketplaceDownload}
-              onClick={() => void loadManifest()}
+              onClick={() => void (source() === "claude" ? loadClaudeManifest() : loadManifest())}
             />
           </div>
         </div>
@@ -662,28 +863,84 @@ export const PluginMarketplaceSection: Component<{ onBack?: () => void }> = (pro
         </div>
 
         <Show when={tab() === "public"}>
-          <Show
-            when={filtered().length > 0}
-            fallback={
-              <div class="rounded-xl border border-dashed border-border px-4 py-10 text-center text-13-regular text-foreground-subtle">
-                {language.t("settings.plugins.market.empty" as never)}
-              </div>
-            }
-          >
-            <For each={groups()}>
-              {(group) => (
-                <div class="flex flex-col gap-2">
-                  <h3 class="text-14-medium text-foreground">
-                    {categoryLabel[group.key]
-                      ? language.t(categoryLabel[group.key] as never)
-                      : language.t("settings.plugins.market.category.other" as never)}
-                  </h3>
-                  <div class="grid grid-cols-1 gap-x-8 md:grid-cols-2">
-                    <For each={group.entries}>{(entry) => pluginRow(entry)}</For>
-                  </div>
-                </div>
+          {/* 两个官方来源：ZCode（zip 包）与 Claude（git 仓库）。 */}
+          <div class="flex items-center gap-1">
+            <For each={["zcode", "claude"] as const}>
+              {(value) => (
+                <button
+                  type="button"
+                  class="h-7 rounded-full px-3 text-12-medium transition-colors"
+                  classList={{
+                    "bg-surface text-foreground": source() === value,
+                    "text-foreground-subtle hover:text-foreground": source() !== value,
+                  }}
+                  onClick={() => chooseSource(value)}
+                >
+                  {language.t(
+                    value === "zcode"
+                      ? ("settings.plugins.market.source.zcode" as never)
+                      : ("settings.plugins.market.source.claude" as never),
+                  )}
+                  <Show when={source() === value && loading()}>
+                    <span class="ml-1 text-foreground-subtlest">…</span>
+                  </Show>
+                </button>
               )}
             </For>
+          </div>
+
+          <Show when={source() === "zcode"}>
+            <Show
+              when={filtered().length > 0}
+              fallback={
+                <div class="rounded-xl border border-dashed border-border px-4 py-10 text-center text-13-regular text-foreground-subtle">
+                  {language.t("settings.plugins.market.empty" as never)}
+                </div>
+              }
+            >
+              <For each={groups()}>
+                {(group) => (
+                  <div class="flex flex-col gap-2">
+                    <h3 class="text-14-medium text-foreground">
+                      {categoryLabel[group.key]
+                        ? language.t(categoryLabel[group.key] as never)
+                        : language.t("settings.plugins.market.category.other" as never)}
+                    </h3>
+                    <div class="grid grid-cols-1 gap-x-8 md:grid-cols-2">
+                      <For each={group.entries}>{(entry) => pluginRow(entry)}</For>
+                    </div>
+                  </div>
+                )}
+              </For>
+            </Show>
+          </Show>
+
+          <Show when={source() === "claude"}>
+            <Show
+              when={claudeFiltered().length > 0}
+              fallback={
+                <div class="rounded-xl border border-dashed border-border px-4 py-10 text-center text-13-regular text-foreground-subtle">
+                  {loading()
+                    ? language.t("common.loading")
+                    : language.t("settings.plugins.market.empty" as never)}
+                </div>
+              }
+            >
+              <For each={claudeGroups()}>
+                {(group) => (
+                  <div class="flex flex-col gap-2">
+                    <h3 class="text-14-medium text-foreground">
+                      {categoryLabel[group.key]
+                        ? language.t(categoryLabel[group.key] as never)
+                        : group.key}
+                    </h3>
+                    <div class="grid grid-cols-1 gap-x-8 md:grid-cols-2">
+                      <For each={group.entries}>{(entry) => claudeRow(entry)}</For>
+                    </div>
+                  </div>
+                )}
+              </For>
+            </Show>
           </Show>
         </Show>
 

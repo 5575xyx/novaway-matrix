@@ -267,6 +267,22 @@ export default function Layout(props: ParentProps) {
   // （<Show> 只有存在/不存在两态，关掉时是瞬间消失）。时长与侧栏/面板统一。
   const settingsTransition = createMountTransition(() => state.settings.open)
   const databaseTransition = createMountTransition(() => state.databasePage.open)
+  // 侧栏里点会话时，如果正停在设置/数据库/自动化/扩展这些整帧页面上，
+  // 应该回到那条会话（用户预期是"点了就跳过去"），而不是留在页面后面。
+  // 路由变化是唯一可靠的信号：这些页面本身不改路由。
+  createEffect(
+    on(
+      () => location.pathname,
+      () => {
+        if (state.settings.open) setState("settings", "open", false)
+        if (state.databasePage.open) setState("databasePage", "open", false)
+        if (state.extensionsPage.open) setState("extensionsPage", "open", false)
+        if (state.automationPage.open) setState("automationPage", "open", false)
+      },
+      { defer: true },
+    ),
+  )
+
   const extensionsTransition = createMountTransition(() => state.extensionsPage.open)
 
   // 窄窗口下侧栏是浮层（z-50、fixed），盖在上面会让覆盖层的返回按钮点不到。

@@ -1,8 +1,7 @@
-import { Component, Show, createEffect, createMemo, createSignal, onCleanup, startTransition, untrack } from "solid-js"
+import { Component, createEffect, createMemo, createSignal, untrack } from "solid-js"
 import { Button } from "@novaway/ui/button"
 import { Tabs } from "@novaway/ui/tabs"
 import { Icon } from "@novaway/ui/icon"
-import { Spinner } from "@novaway/ui/spinner"
 import { useParams } from "@solidjs/router"
 import { useLanguage } from "@/context/language"
 import { decode64 } from "@/utils/base64"
@@ -45,49 +44,22 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
   const params = useParams()
   const directory = createMemo(() => props.directory ?? decode64(params.dir) ?? undefined)
   const [tab, setTab] = createSignal<SettingsTab>(props.initialTab ?? "general")
-  const [switching, setSwitching] = createSignal(false)
-  const timers = {
-    switch: undefined as ReturnType<typeof setTimeout> | undefined,
-    settle: undefined as ReturnType<typeof setTimeout> | undefined,
-  }
-
-  const clearTimers = () => {
-    if (timers.switch !== undefined) {
-      clearTimeout(timers.switch)
-      timers.switch = undefined
-    }
-    if (timers.settle !== undefined) {
-      clearTimeout(timers.settle)
-      timers.settle = undefined
-    }
-  }
 
   createEffect(() => {
     const next = props.initialTab ?? "general"
     untrack(() => {
       if (next === tab()) return
-      clearTimers()
-      setSwitching(false)
       setTab(next)
     })
   })
 
+  // 切换标签是**即时**的：每个面板自己有数据加载态，再叠一层全屏「加载中」
+  // 只会让切换看起来卡顿（对齐 ZCode 的丝滑切换）。
   const changeTab = (value: string) => {
     if (!isSettingsTab(value)) return
     if (value === tab()) return
-    clearTimers()
-    setSwitching(true)
-    timers.switch = setTimeout(() => {
-      timers.switch = undefined
-      void startTransition(() => setTab(value))
-      timers.settle = setTimeout(() => {
-        timers.settle = undefined
-        setSwitching(false)
-      }, 180)
-    }, 50)
+    setTab(value)
   }
-
-  onCleanup(clearTimers)
 
   return (
     <div class="relative size-full min-h-0 min-w-0 bg-background">
@@ -239,18 +211,6 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
           <SettingsPlugins />
         </Tabs.Content>
       </Tabs>
-      <Show when={switching()}>
-        {/* 切换遮挡层必须是 `pointer-events-none`。
-            它是纯装饰（告诉用户"正在加载这一页"），但原来铺满整个面板且 z-30，
-            切 tab 的那 ~230ms 里正好压在左上角的「返回」按钮上 ——
-            用户点返回没反应，说的就是这个。 */}
-        <div class="pointer-events-none absolute inset-0 z-30 flex items-start justify-center bg-background/70 pt-6">
-          <div class="flex items-center gap-2 rounded-md border border-border bg-popover px-3 py-2 text-12-medium text-foreground shadow-sm">
-            <Spinner class="size-3.5" />
-            <span>{language.t("common.loading")}</span>
-          </div>
-        </div>
-      </Show>
     </div>
   )
 }

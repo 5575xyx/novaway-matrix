@@ -33,6 +33,8 @@ const api: ElectronAPI = {
   marketplaceDownload: (url) => ipcRenderer.invoke("marketplace-download", url),
   marketplaceInstall: (input) => ipcRenderer.invoke("marketplace-install", input),
   marketplaceRemove: (dir) => ipcRenderer.invoke("marketplace-remove", dir),
+  marketplaceGitInstall: (input) => ipcRenderer.invoke("marketplace-git-install", input),
+  setKeepAwake: (enabled) => ipcRenderer.invoke("set-keep-awake", enabled),
 
   getWindowCount: () => ipcRenderer.invoke("get-window-count"),
   onSqliteMigrationProgress: (cb) => {

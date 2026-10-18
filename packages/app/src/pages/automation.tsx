@@ -3,6 +3,7 @@ import { useDialog } from "@novaway/ui/context/dialog"
 import { Dialog } from "@novaway/ui/dialog"
 import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
+import { Switch } from "@novaway/ui/switch"
 import { Tag } from "@novaway/ui/tag"
 import { TextField } from "@novaway/ui/text-field"
 import { showToast } from "@novaway/ui/toast"
@@ -113,6 +114,13 @@ export const AutomationPage: Component<{ onBack: () => void }> = (props) => {
   const dialog = useDialog()
   // 自动化页挂在布局层（SDK Provider 之外），用全局客户端按当前目录建请求。
   const directory = createMemo(() => decode64(params.dir) ?? "")
+  const [tab, setTab] = createSignal<"automation" | "workflow">("automation")
+  // 保持唤醒：交给 Electron 的 powerSaveBlocker，浏览器里是空操作。
+  const [keepAwake, setKeepAwakeState] = createSignal(window.api?.keepAwakeEnabled === true)
+  const setKeepAwake = (value: boolean) => {
+    setKeepAwakeState(value)
+    void window.api?.setKeepAwake?.(value)
+  }
   const client = () => globalSDK.createClient({ directory: directory(), throwOnError: true })
 
   const schedules = useQuery(() => ({
@@ -125,6 +133,20 @@ export const AutomationPage: Component<{ onBack: () => void }> = (props) => {
     queryKey: ["automation", "runs", directory()],
     queryFn: () => client().office.platform.run.list().then((x) => x.data ?? []),
     refetchInterval: 30_000,
+  }))
+
+  const workflows = useQuery(() => ({
+    queryKey: ["automation", "workflows", directory()],
+    queryFn: () => client().office.platform.workflow.list().then((x) => x.data ?? []),
+    refetchInterval: 60_000,
+  }))
+
+  const runWorkflow = useMutation(() => ({
+    mutationFn: (id: string) => client().office.platform.workflow.run({ id }).then((x) => x.data),
+    onSuccess: async () => {
+      await refresh()
+      showToast({ variant: "success", icon: "circle-check", title: language.t("automation.toast.started" as never) })
+    },
   }))
 
   const refresh = async () => {
@@ -176,7 +198,7 @@ export const AutomationPage: Component<{ onBack: () => void }> = (props) => {
 
   return (
     <div class="flex h-full flex-col">
-      <div class="flex h-12 shrink-0 items-center gap-3 border-b border-border px-3" data-window-drag>
+      <div class="flex h-12 shrink-0 items-center gap-3 px-3" data-window-drag>
         <button
           type="button"
           class="flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-13-medium text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
@@ -185,51 +207,68 @@ export const AutomationPage: Component<{ onBack: () => void }> = (props) => {
           <Icon name="arrow-left" size="small" />
           {language.t("common.goBack")}
         </button>
-        <div class="flex min-w-0 flex-col">
-          <span class="truncate text-14-semibold text-foreground">{language.t("automation.title" as never)}</span>
-          <span class="truncate text-11-regular text-foreground-subtle">
-            {language.t("automation.subtitle" as never)}
-          </span>
-        </div>
         <div class="flex-1" />
         <Button variant="primary" size="small" icon="plus-small" onClick={() => openCreate()}>
           {language.t("automation.create" as never)}
         </Button>
       </div>
 
-      <div class="flex-1 min-h-0 overflow-y-auto px-4 pb-10 pt-4 sm:px-8">
-        <div class="mx-auto flex w-full max-w-4xl flex-col gap-6">
+      <div class="flex-1 min-h-0 overflow-y-auto px-6 pb-14 sm:px-10">
+        <div class="mx-auto flex w-full max-w-[1000px] flex-col gap-8 pt-4">
+          {/* 大标题 + 分段（对齐 ZCode 的「自动化 / 工作流」）。 */}
+          <div class="flex flex-col gap-1">
+            <div class="flex items-baseline gap-3">
+              <For each={["automation", "workflow"] as const}>
+                {(value) => (
+                  <button
+                    type="button"
+                    class="text-32-semibold transition-colors"
+                    classList={{
+                      "text-foreground": tab() === value,
+                      "text-foreground-subtlest hover:text-foreground-subtle": tab() !== value,
+                    }}
+                    onClick={() => setTab(value)}
+                  >
+                    {language.t(value === "automation" ? ("automation.tab.automation" as never) : ("automation.tab.workflow" as never))}
+                  </button>
+                )}
+              </For>
+            </div>
+            <p class="text-13-regular text-foreground-subtle">{language.t("automation.subtitle" as never)}</p>
+          </div>
+          <Show when={tab() === "automation"}>
           <Show
             when={(schedules.data ?? []).length > 0}
             fallback={
-              <div class="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border px-6 py-14 text-center">
-                <span class="text-14-medium text-foreground">{language.t("automation.empty.title" as never)}</span>
-                <span class="text-12-regular text-foreground-subtle">
-                  {language.t("automation.empty.description" as never)}
-                </span>
-                <Button variant="primary" size="small" icon="plus-small" onClick={() => openCreate()}>
+              <div class="flex flex-col items-center justify-center gap-4 rounded-2xl border border-border px-6 py-24 text-center">
+                <span class="text-14-regular text-foreground-subtle">{language.t("automation.empty.title" as never)}</span>
+                <button
+                  type="button"
+                  class="flex h-9 items-center gap-2 rounded-lg bg-foreground px-3.5 text-13-medium text-background transition-opacity hover:opacity-90"
+                  onClick={() => openCreate()}
+                >
                   {language.t("automation.create" as never)}
-                </Button>
+                </button>
               </div>
             }
           >
             <div class="flex flex-col gap-2">
               <For each={schedules.data ?? []}>
                 {(item) => (
-                  <div class="flex min-w-0 items-start gap-3 rounded-xl border border-border bg-surface px-4 py-3">
-                    <span class="grid size-9 shrink-0 place-items-center rounded-xl bg-background">
+                  <div class="flex min-w-0 items-start gap-3 rounded-xl border border-border px-4 py-3.5">
+                    <span class="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-surface">
                       <Icon name="autopilot" class="size-4.5 text-foreground-subtle" />
                     </span>
-                    <div class="flex min-w-0 flex-1 flex-col">
+                    <div class="flex min-w-0 flex-1 flex-col gap-1">
                       <div class="flex min-w-0 flex-wrap items-center gap-2">
-                        <span class="truncate text-13-medium text-foreground">{item.title}</span>
+                        <span class="truncate text-14-medium text-foreground">{item.title}</span>
                         <Tag>{describeTrigger(item.trigger as TriggerInput, language)}</Tag>
                         <Show when={item.status === "paused"}>
                           <Tag>{language.t("automation.status.paused" as never)}</Tag>
                         </Show>
                       </div>
-                      <span class="mt-1 line-clamp-2 text-12-regular text-foreground-subtle">{item.prompt}</span>
-                      <span class="mt-1 text-11-regular text-foreground-subtlest">
+                      <span class="line-clamp-2 text-13-regular leading-6 text-foreground-subtle">{item.prompt}</span>
+                      <span class="text-12-regular text-foreground-subtlest">
                         {language.t("automation.nextRun" as never)} · {formatNext(Number(item.nextRunAt) || Date.now())}
                       </span>
                     </div>
@@ -267,23 +306,76 @@ export const AutomationPage: Component<{ onBack: () => void }> = (props) => {
                 {(template) => (
                   <button
                     type="button"
-                    class="flex flex-col items-start gap-1 rounded-xl border border-border bg-surface px-4 py-3 text-left transition-colors hover:border-border-hover"
+                    class="flex flex-col items-start gap-2 rounded-xl border border-border px-4 py-3.5 text-left transition-colors hover:border-border-hover"
                     onClick={() => openCreate(template)}
                   >
                     <div class="flex items-center gap-2">
                       <Icon name="autopilot" size="small" class="text-foreground-subtle" />
-                      <span class="text-13-medium text-foreground">{template.title}</span>
+                      <span class="text-14-medium text-foreground">{template.title}</span>
                     </div>
-                    <span class="line-clamp-2 text-12-regular leading-5 text-foreground-subtle">
+                    <span class="line-clamp-2 text-13-regular leading-6 text-foreground-subtle">
                       {template.description}
                     </span>
-                    <span class="mt-1 text-11-regular text-foreground-subtlest">
+                    <span class="text-12-regular text-foreground-subtlest">
                       {describeTrigger(template.trigger, language)}
                     </span>
                   </button>
                 )}
               </For>
             </div>
+          </div>
+
+          </Show>
+
+          {/* 工作流：从会话保存下来的可复用提示词。 */}
+          <Show when={tab() === "workflow"}>
+            <Show
+              when={(workflows.data ?? []).length > 0}
+              fallback={
+                <div class="flex flex-col items-center justify-center gap-2 rounded-2xl border border-border px-6 py-24 text-center">
+                  <span class="text-14-regular text-foreground-subtle">
+                    {language.t("automation.workflow.empty" as never)}
+                  </span>
+                  <span class="text-12-regular text-foreground-subtlest">
+                    {language.t("automation.workflow.emptyHint" as never)}
+                  </span>
+                </div>
+              }
+            >
+              <div class="flex flex-col gap-2">
+                <For each={workflows.data ?? []}>
+                  {(item) => (
+                    <div class="flex min-w-0 items-start gap-3 rounded-xl border border-border px-4 py-3.5">
+                      <span class="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-surface">
+                        <Icon name="branch" class="size-4.5 text-foreground-subtle" />
+                      </span>
+                      <div class="flex min-w-0 flex-1 flex-col gap-1">
+                        <span class="truncate text-14-medium text-foreground">{item.title}</span>
+                        <span class="line-clamp-2 text-13-regular leading-6 text-foreground-subtle">{item.prompt}</span>
+                      </div>
+                      <IconButton
+                        icon="play"
+                        variant="ghost"
+                        aria-label={language.t("automation.runNow" as never)}
+                        disabled={runWorkflow.isPending}
+                        onClick={() => runWorkflow.mutate(item.id)}
+                      />
+                    </div>
+                  )}
+                </For>
+              </div>
+            </Show>
+          </Show>
+
+          {/* 保持唤醒（对齐 ZCode 的提示行 + 开关）。 */}
+          <div class="flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3">
+            <Icon name="help" size="small" class="shrink-0 text-foreground-subtle" />
+            <span class="min-w-0 flex-1 text-13-regular text-foreground-subtle">
+              {language.t("automation.keepAwake" as never)}
+            </span>
+            <Switch checked={keepAwake()} onChange={setKeepAwake} hideLabel>
+              {language.t("automation.keepAwake" as never)}
+            </Switch>
           </div>
 
           <Show when={(runs.data ?? []).length > 0}>
