@@ -24,9 +24,10 @@ export function shouldMountStatusPanel(sections: readonly { id: string }[]): boo
 // 任务停下来它们只是上一轮的残留，一直挂在右上角会盖住消息区。
 // 另外三个必须常驻，否则任务一停用户就再也找不到入口了：
 //   git —— 全 app 唯一的提交入口就在这一块的 body 里（status-panel-git-commit）
-//   cache —— 整个会话累积的缓存统计，不是这一轮的临时残留
+//   context —— 上下文占用与缓存命中率合并成一张卡；缓存是**整个会话累积**的统计，
+//              不是这一轮的临时残留，所以任务停下后仍然保留。
 // 「记忆与进化」已从面板移除（全局能力，不该占会话状态的位置，见 pages/session.tsx）。
-const ALWAYS_VISIBLE_SECTIONS = new Set(["git", "cache"])
+const ALWAYS_VISIBLE_SECTIONS = new Set(["git", "context"])
 
 export function visibleStatusSections<T extends { id: string }>(sections: readonly T[], running: boolean): T[] {
   if (running) return [...sections]
@@ -65,7 +66,7 @@ function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.
     >
       <div
         data-component="status-panel-expanded"
-        class="absolute top-0 right-0 flex w-80 min-h-0 max-h-[min(64dvh,32rem)] flex-col overflow-hidden rounded-lg border border-border bg-panel shadow-lg @max-[768px]:hidden group-data-[collapsed=true]:hidden"
+        class="absolute top-0 right-0 flex w-80 min-h-0 max-h-[min(76dvh,42rem)] flex-col overflow-hidden rounded-lg border border-border bg-panel shadow-lg @max-[768px]:hidden group-data-[collapsed=true]:hidden"
       >
         <div class="flex h-9 shrink-0 items-center gap-2 border-b border-border px-3">
           <span class="text-ui-sm font-medium text-foreground truncate">{language.t("statusPanel.title")}</span>
@@ -89,8 +90,10 @@ function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.
           <For each={props.sections}>
             {(section) => {
               const open = layout.statusPanel.open(directory(), section.id, section.defaultOpen)
+              // shrink-0：卡片不能被 flex 压扁。之前总高度超限时每张卡都被压缩，
+              // 卡片体被裁掉，看起来"挤在一起、显示不全"。让外层滚动条承担溢出。
               return (
-                <div class="overflow-hidden rounded-lg border border-border bg-background">
+                <div class="shrink-0 overflow-hidden rounded-lg border border-border bg-background">
                   <StatusSection
                     id={section.id}
                     title={section.title}

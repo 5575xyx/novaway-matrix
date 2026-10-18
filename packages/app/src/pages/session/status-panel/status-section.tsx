@@ -16,7 +16,7 @@ export function StatusSection(props: {
         type="button"
         data-component="status-section-toggle"
         aria-expanded={props.open}
-        class="flex w-full items-center gap-2 px-3 py-2 text-left"
+        class="flex w-full shrink-0 items-center gap-2 px-3 py-2 text-left"
         onClick={props.onToggle}
       >
         <span class="text-ui-base font-medium text-foreground truncate">{props.title}</span>
@@ -33,7 +33,7 @@ export function StatusSection(props: {
         />
       </button>
       <Show when={props.open}>
-        <div class={`${props.bodyHeight ?? "max-h-48"} overflow-y-auto no-scrollbar`}>{props.children}</div>
+        <div class={`${props.bodyHeight ?? "max-h-48"} overflow-y-auto`}>{props.children}</div>
       </Show>
     </section>
   )

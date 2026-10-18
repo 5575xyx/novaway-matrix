@@ -83,6 +83,7 @@ import { SidebarMenuRow } from "@/components/sidebar-menu-row"
 import { ThemeSchemeToggle } from "@/components/theme-scheme-toggle"
 import { ProjectTaskList, TaskFilterBar, useArchivedSessions, useTaskCounts, type TaskFilter } from "./layout/sidebar-tasks"
 import { SidebarContent } from "./layout/sidebar-shell"
+import { ExtensionsPage } from "./extensions"
 
 function feishuQuestionText(questions: QuestionRequest["questions"]) {
   if (!Array.isArray(questions)) return ""
@@ -250,6 +251,9 @@ export default function Layout(props: ParentProps) {
     databasePage: {
       open: false,
     },
+    extensionsPage: {
+      open: false,
+    },
 
     sortNow: Date.now(),
     sizing: false,
@@ -259,6 +263,7 @@ export default function Layout(props: ParentProps) {
   // （<Show> 只有存在/不存在两态，关掉时是瞬间消失）。时长与侧栏/面板统一。
   const settingsTransition = createMountTransition(() => state.settings.open)
   const databaseTransition = createMountTransition(() => state.databasePage.open)
+  const extensionsTransition = createMountTransition(() => state.extensionsPage.open)
 
   // 这里**刻意不做**路由级的入场重放。
   //
@@ -1430,6 +1435,15 @@ export default function Layout(props: ParentProps) {
     window.dispatchEvent(new CustomEvent("novaway:overlay-closed"))
   }
 
+  function openExtensionsPage() {
+    setState("extensionsPage", "open", true)
+  }
+
+  function closeExtensionsPage() {
+    setState("extensionsPage", "open", false)
+    window.dispatchEvent(new CustomEvent("novaway:overlay-closed"))
+  }
+
   function openDatabasePage() {
     batch(() => {
       setState("databasePage", "open", true)
@@ -2545,6 +2559,11 @@ export default function Layout(props: ParentProps) {
                 />
               </Show>
               <SidebarMenuRow
+                icon={<Icon name="dot-grid" size="small" />}
+                label={language.t("sidebar.extensions")}
+                onClick={openExtensionsPage}
+              />
+              <SidebarMenuRow
                 icon={<Icon name="settings-gear" size="small" />}
                 label={language.t("sidebar.settings")}
                 onClick={() => command.trigger("settings.open")}
@@ -2632,7 +2651,7 @@ export default function Layout(props: ParentProps) {
       // 设置/数据库盖住主帧时，会话帧 Header 里那组窗控虽然被盖住，
       // 但淡入淡出的 1s 里会和面板自带的那组叠在一起"重影"。
       // 用这个标记把被盖住的那组藏掉（见 index.css）。
-      data-frame-overlay={state.settings.open || state.databasePage.open ? "true" : undefined}
+      data-frame-overlay={state.settings.open || state.databasePage.open || state.extensionsPage.open ? "true" : undefined}
     >
       {autoselecting() ?? ""}
       {/* 全局标题栏已移除：窗口顶部不再有独立 chrome，身份/导航/操作分别落在
@@ -2762,6 +2781,21 @@ export default function Layout(props: ParentProps) {
                     directory={state.settings.directory}
                     onBack={closeSettings}
                   />
+                </section>
+              </Show>
+              <Show when={extensionsTransition.mounted()}>
+                <section
+                  data-panel-transition
+                  data-state={extensionsTransition.closing() ? "closed" : "open"}
+                  class="absolute left-1 right-2 top-1 bottom-2 z-40 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                  aria-label={language.t("sidebar.extensions")}
+                  aria-hidden={extensionsTransition.closing()}
+                  inert={extensionsTransition.closing()}
+                >
+                  <FrameWindowControls />
+                  <div class="flex-1 min-h-0">
+                    <ExtensionsPage onBack={closeExtensionsPage} />
+                  </div>
                 </section>
               </Show>
               <Show when={databaseTransition.mounted()}>

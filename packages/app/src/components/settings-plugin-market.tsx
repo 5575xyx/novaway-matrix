@@ -1,9 +1,12 @@
 import type { Config } from "@novaway/sdk/v2/client"
 import JSZip from "jszip"
 import { Button } from "@novaway/ui/button"
+import { useDialog } from "@novaway/ui/context/dialog"
+import { Dialog } from "@novaway/ui/dialog"
 import { DropdownMenu } from "@novaway/ui/dropdown-menu"
 import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
+import { Switch } from "@novaway/ui/switch"
 import { Tag } from "@novaway/ui/tag"
 import { createMemo, createSignal, For, onMount, Show, type Component } from "solid-js"
 import { createStore } from "solid-js/store"
@@ -32,6 +35,69 @@ type InstalledPlugin = {
   mcpNames: string[]
 }
 
+/**
+ * 内置扩展：直接来自本产品已具备的能力（内置技能 / 内置 MCP / 记忆服务）。
+ *
+ * 对齐 ZCode 的「内置」区：这些不是从市场下载的东西，而是随应用提供的、
+ * 可以在列表里看到并开关的能力包。开关直接写回对应配置，改完立即生效。
+ */
+type BuiltinExtension = {
+  id: string
+  name: string
+  description: string
+  icon: "list" | "mcp" | "brain" | "review"
+  components: string[]
+  /** 配置键：mcp.browser / memory；没有开关的只展示。 */
+  toggle?: "browser" | "memory"
+}
+
+export const BUILTIN_EXTENSIONS: BuiltinExtension[] = [
+  {
+    id: "office-suite",
+    name: "办公文档套件",
+    description: "PPT、Word、Excel、PDF 与网页/会议/知识整理的 9 个内置技能，办公模式下自动启用。",
+    icon: "review",
+    components: ["skill"],
+  },
+  {
+    id: "skill-tools",
+    name: "技能查找与创建",
+    description: "帮助发现、安装并编写 Agent 技能，适合把重复流程沉淀成可复用的技能。",
+    icon: "list",
+    components: ["skill"],
+  },
+  {
+    id: "wxgzh-ops",
+    name: "公众号运营",
+    description: "公众号选题、写作、排版与发布流程的内置技能。",
+    icon: "review",
+    components: ["skill"],
+  },
+  {
+    id: "xiaohongshu-ops",
+    name: "小红书运营",
+    description: "小红书认证登录、内容发布、搜索发现、社交互动与数据分析的内置技能。",
+    icon: "review",
+    components: ["skill"],
+  },
+  {
+    id: "browser-control",
+    name: "浏览器控制",
+    description: "内置 Playwright 浏览器：打开网页、点击、输入、截图，由 browser MCP 提供。",
+    icon: "mcp",
+    components: ["mcp"],
+    toggle: "browser",
+  },
+  {
+    id: "memory-service",
+    name: "持久记忆",
+    description: "跨会话记住偏好、项目约定与决策，并在后续对话里按需召回。",
+    icon: "brain",
+    components: ["memory"],
+    toggle: "memory",
+  },
+]
+
 const CATEGORY_ORDER = ["developer-tools", "productivity", "finance"] as const
 const categoryLabel: Record<string, string> = {
   "developer-tools": "settings.plugins.market.category.developer",
@@ -42,6 +108,10 @@ const componentLabel: Record<string, string> = {
   skill: "settings.plugins.market.component.skill",
   mcp: "settings.plugins.market.component.mcp",
   ui: "settings.plugins.market.component.ui",
+  memory: "settings.plugins.market.component.memory",
+  command: "settings.plugins.market.component.command",
+  hook: "settings.plugins.market.component.hook",
+  agent: "settings.plugins.market.component.agent",
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -69,10 +139,11 @@ const decodeBase64Text = (value: string) => {
  * 下载在主进程（绕开 CORS），解压用 JSZip，写盘回到主进程；
  * 安装后自动注册 skills 路径与 MCP 服务。
  */
-export const PluginMarketplaceSection: Component = () => {
+export const PluginMarketplaceSection: Component<{ onBack?: () => void }> = (props) => {
   const language = useLanguage()
   const platform = usePlatform()
   const globalSync = useGlobalSync()
+  const dialog = useDialog()
   const [installed, setInstalled] = createStore<{ list: InstalledPlugin[] }>({ list: [] })
   const [catalog, setCatalog] = createSignal<ZcodeMarketplaceEntry[]>(ZCODE_MARKETPLACE)
   const [tab, setTab] = createSignal<"public" | "personal">("public")
@@ -264,6 +335,50 @@ export const PluginMarketplaceSection: Component = () => {
     }
   }
 
+  const builtinEnabled = (item: BuiltinExtension) => {
+    if (item.toggle === "browser") {
+      const mcp = globalSync.data.config.mcp
+      const browser = isRecord(mcp) && isRecord(mcp.browser) ? mcp.browser : undefined
+      return browser?.enabled !== false
+    }
+    if (item.toggle === "memory") return globalSync.data.config.memory?.enabled !== false
+    return true
+  }
+
+  const setBuiltin = (item: BuiltinExtension, value: boolean) => {
+    const config = globalSync.data.config
+    if (item.toggle === "browser") {
+      const mcp = isRecord(config.mcp) ? config.mcp : {}
+      const browser = isRecord(mcp.browser) ? mcp.browser : {}
+      void globalSync.updateConfig({ mcp: { ...mcp, browser: { ...browser, enabled: value } } } as Config)
+      return
+    }
+    if (item.toggle === "memory") {
+      void globalSync.updateConfig({ memory: { ...(config.memory ?? {}), enabled: value } } as Config)
+    }
+  }
+
+  const openDetail = (input: {
+    entry?: ZcodeMarketplaceEntry
+    builtin?: BuiltinExtension
+    installed?: InstalledPlugin
+  }) => {
+    const item = input.builtin
+    dialog.show(() => (
+      <ExtensionDetail
+        entry={input.entry}
+        builtin={item}
+        installed={input.installed}
+        enabled={item ? builtinEnabled(item) : undefined}
+        supported={supported()}
+        pending={pending() === (input.entry?.name ?? item?.id)}
+        onToggle={item ? (value) => setBuiltin(item, value) : undefined}
+        onInstall={input.entry && !input.installed ? () => void install(input.entry!) : undefined}
+        onUninstall={input.installed ? () => void uninstall(input.installed!) : undefined}
+      />
+    ))
+  }
+
   const installButton = (entry: ZcodeMarketplaceEntry) => (
     <Show
       when={find(entry.name)}
@@ -310,7 +425,18 @@ export const PluginMarketplaceSection: Component = () => {
   )
 
   const pluginRow = (entry: ZcodeMarketplaceEntry) => (
-    <div class="flex min-w-0 items-start gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-hover">
+    <div
+      role="button"
+      tabindex="0"
+      class="flex min-w-0 cursor-pointer items-start gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-hover"
+      onClick={() => openDetail({ entry, installed: find(entry.name) })}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          openDetail({ entry, installed: find(entry.name) })
+        }
+      }}
+    >
       <span class="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-surface">
         <Show
           when={entry.icon}
@@ -339,7 +465,54 @@ export const PluginMarketplaceSection: Component = () => {
           </For>
         </span>
       </div>
-      {installButton(entry)}
+      <div onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+        {installButton(entry)}
+      </div>
+    </div>
+  )
+
+  const builtinRow = (item: BuiltinExtension) => (
+    <div
+      role="button"
+      tabindex="0"
+      class="flex min-w-0 cursor-pointer items-start gap-3 border-t border-border px-4 py-3 text-left transition-colors first:border-t-0 hover:bg-hover"
+      onClick={() => openDetail({ builtin: item })}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          openDetail({ builtin: item })
+        }
+      }}
+    >
+      <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-surface">
+        <Icon name={item.icon} class="size-5 text-foreground-subtle" />
+      </span>
+      <div class="flex min-w-0 flex-1 flex-col">
+        <div class="flex min-w-0 flex-wrap items-center gap-2">
+          <span class="truncate text-13-medium text-foreground">{item.name}</span>
+          <Tag>{language.t("settings.plugins.market.builtin" as never)}</Tag>
+        </div>
+        <span class="mt-0.5 line-clamp-2 text-12-regular leading-5 text-foreground-subtle">{item.description}</span>
+        <span class="mt-1 flex flex-wrap items-center gap-1.5">
+          <For each={item.components}>
+            {(component) => (
+              <span class="rounded bg-surface px-1.5 py-0.5 text-10-medium text-foreground-subtlest">
+                {componentLabel[component] ? language.t(componentLabel[component] as never) : component}
+              </span>
+            )}
+          </For>
+        </span>
+      </div>
+      <Show
+        when={item.toggle}
+        fallback={<span class="shrink-0 text-11-regular text-foreground-subtlest">{language.t("settings.plugins.market.alwaysOn" as never)}</span>}
+      >
+        <div onClick={(event) => event.stopPropagation()}>
+          <Switch checked={builtinEnabled(item)} onChange={(value) => setBuiltin(item, value)} hideLabel>
+            {item.name}
+          </Switch>
+        </div>
+      </Show>
     </div>
   )
 
@@ -347,7 +520,14 @@ export const PluginMarketplaceSection: Component = () => {
     <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
       <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--popover)_calc(100%_-_24px),transparent)]">
         <div class="flex items-start justify-between gap-4 pt-6 pb-6">
-          <div class="flex flex-col gap-1">
+          <div class="flex min-w-0 flex-col gap-1">
+            <Show when={props.onBack}>
+              <div class="-mt-2 mb-1 flex items-center gap-2">
+                <Button variant="ghost" size="small" icon="arrow-left" onClick={() => props.onBack?.()}>
+                  {language.t("common.goBack")}
+                </Button>
+              </div>
+            </Show>
             <h2 class="text-16-medium text-foreground">{language.t("settings.plugins.market.title" as never)}</h2>
             <p class="text-13-regular text-foreground-subtle">
               {language.t("settings.plugins.market.description" as never)}
@@ -376,41 +556,35 @@ export const PluginMarketplaceSection: Component = () => {
           />
         </label>
 
+        <div class="flex flex-col gap-2">
+          <h3 class="text-14-medium text-foreground">
+            {language.t("settings.plugins.market.builtinSection" as never)}
+          </h3>
+          <SettingsGroup>
+            <For each={BUILTIN_EXTENSIONS}>{(item) => builtinRow(item)}</For>
+          </SettingsGroup>
+        </div>
+
         <Show when={installed.list.length > 0}>
           <div class="flex flex-col gap-2">
             <h3 class="text-14-medium text-foreground">{language.t("settings.plugins.market.installedSection" as never)}</h3>
             <div class="flex flex-wrap gap-2">
               <For each={installed.list}>
                 {(item) => (
-                  <DropdownMenu gutter={4} placement="bottom-start">
-                    <DropdownMenu.Trigger
-                      as="button"
-                      type="button"
-                      title={`${displayName(entryOf(item.name) ?? (item as ZcodeMarketplaceEntry))} v${item.version}`}
-                      class="grid size-10 place-items-center overflow-hidden rounded-xl border border-border bg-surface transition-colors hover:border-border-hover"
-                      aria-label={displayName(entryOf(item.name) ?? (item as ZcodeMarketplaceEntry))}
+                  <button
+                    type="button"
+                    title={`${displayName(entryOf(item.name) ?? (item as ZcodeMarketplaceEntry))} v${item.version}`}
+                    class="grid size-10 place-items-center overflow-hidden rounded-xl border border-border bg-surface transition-colors hover:border-border-hover"
+                    aria-label={displayName(entryOf(item.name) ?? (item as ZcodeMarketplaceEntry))}
+                    onClick={() => openDetail({ entry: entryOf(item.name), installed: item })}
+                  >
+                    <Show
+                      when={entryOf(item.name)?.icon}
+                      fallback={<Icon name="dot-grid" class="size-5 text-foreground-subtle" />}
                     >
-                      <Show
-                        when={entryOf(item.name)?.icon}
-                        fallback={<Icon name="dot-grid" class="size-5 text-foreground-subtle" />}
-                      >
-                        <img src={entryOf(item.name)!.icon} alt="" class="size-6 object-contain" />
-                      </Show>
-                    </DropdownMenu.Trigger>
-                    <DropdownMenu.Portal>
-                      <DropdownMenu.Content style={{ "min-width": "160px" }}>
-                        <DropdownMenu.Item disabled>
-                          <DropdownMenu.ItemLabel>{`${displayName(entryOf(item.name) ?? (item as ZcodeMarketplaceEntry))} · v${item.version}`}</DropdownMenu.ItemLabel>
-                        </DropdownMenu.Item>
-                        <DropdownMenu.Separator />
-                        <DropdownMenu.Item onSelect={() => void uninstall(item)}>
-                          <DropdownMenu.ItemLabel>
-                            {language.t("settings.plugins.store.uninstall" as never)}
-                          </DropdownMenu.ItemLabel>
-                        </DropdownMenu.Item>
-                      </DropdownMenu.Content>
-                    </DropdownMenu.Portal>
-                  </DropdownMenu>
+                      <img src={entryOf(item.name)!.icon} alt="" class="size-6 object-contain" />
+                    </Show>
+                  </button>
                 )}
               </For>
             </div>
@@ -492,4 +666,135 @@ function safeJson(raw: string | undefined): unknown {
   } catch {
     return undefined
   }
+}
+
+/**
+ * 扩展详情弹窗。
+ *
+ * 市场条目、内置扩展、已安装条目共用同一套详情：点击列表项就能看到
+ * 「这是什么、装了哪些组件、装到哪里、怎么调用」，而不是只有一个安装按钮。
+ */
+const ExtensionDetail: Component<{
+  entry?: ZcodeMarketplaceEntry
+  builtin?: BuiltinExtension
+  installed?: InstalledPlugin
+  enabled?: boolean
+  supported: boolean
+  pending: boolean
+  onToggle?: (value: boolean) => void
+  onInstall?: () => void
+  onUninstall?: () => void
+}> = (props) => {
+  const language = useLanguage()
+  const dialog = useDialog()
+  const name = () => props.entry?.displayName || props.builtin?.name || props.installed?.name || ""
+  const description = () => props.entry?.description || props.entry?.descriptionEn || props.builtin?.description || ""
+  const components = () => props.entry?.components ?? props.builtin?.components ?? []
+  const version = () => props.installed?.version ?? props.entry?.version
+
+  const infoRow = (label: string, value: string) => (
+    <div class="flex items-start justify-between gap-4 border-t border-border py-2 text-12-regular first:border-t-0">
+      <span class="shrink-0 text-foreground-subtle">{label}</span>
+      <span class="min-w-0 break-all text-right text-foreground">{value}</span>
+    </div>
+  )
+
+  return (
+    <Dialog title={name()} transition class="w-[min(calc(100vw-40px),560px)]">
+      <div class="flex flex-col gap-3 px-2.5 pb-3">
+        <p class="text-13-regular leading-6 text-foreground-subtle">{description()}</p>
+
+        <div class="flex flex-wrap items-center gap-1.5">
+          <For each={components()}>
+            {(component) => (
+              <Tag>{componentLabel[component] ? language.t(componentLabel[component] as never) : component}</Tag>
+            )}
+          </For>
+          <Show when={props.entry?.requiresPaidPlan}>
+            <Tag>{language.t("settings.plugins.market.paid" as never)}</Tag>
+          </Show>
+        </div>
+
+        <div class="rounded-lg border border-border bg-surface px-3 py-1.5">
+          <Show when={version()}>{infoRow(language.t("settings.plugins.market.detail.version" as never), version()!)}</Show>
+          <Show when={props.entry?.author}>
+            {(author) => infoRow(language.t("settings.plugins.market.detail.author" as never), author())}
+          </Show>
+          <Show when={props.entry?.category}>
+            {infoRow(
+              language.t("settings.plugins.market.detail.category" as never),
+              categoryLabel[props.entry!.category!]
+                ? language.t(categoryLabel[props.entry!.category!] as never)
+                : props.entry!.category!,
+            )}
+          </Show>
+          <Show when={props.installed}>
+            {(item) => (
+              <>
+                {infoRow(language.t("settings.plugins.market.detail.installedAt" as never), item().dir)}
+                <Show when={item().skillPath}>
+                  {infoRow(
+                    language.t("settings.plugins.market.detail.skillPath" as never),
+                    item().skillPath!,
+                  )}
+                </Show>
+                <Show when={item().mcpNames.length > 0}>
+                  {infoRow(
+                    language.t("settings.plugins.market.detail.mcpServers" as never),
+                    item().mcpNames.join("、"),
+                  )}
+                </Show>
+              </>
+            )}
+          </Show>
+        </div>
+
+        <p class="text-12-regular leading-5 text-foreground-subtle">
+          {language.t("settings.plugins.market.detail.usage" as never)}
+        </p>
+
+        <div class="flex items-center justify-end gap-2 pt-1">
+          <Show when={props.onUninstall}>
+            <Button
+              variant="ghost"
+              size="small"
+              disabled={props.pending}
+              onClick={() => {
+                props.onUninstall?.()
+                dialog.close()
+              }}
+            >
+              {language.t("settings.plugins.store.uninstall" as never)}
+            </Button>
+          </Show>
+          <Show when={props.onInstall}>
+            <Button
+              variant="primary"
+              size="small"
+              disabled={props.pending || !props.supported}
+              onClick={() => {
+                props.onInstall?.()
+                dialog.close()
+              }}
+            >
+              {language.t("settings.plugins.store.install" as never)}
+            </Button>
+          </Show>
+          <Show when={props.onToggle}>
+            <div class="flex items-center gap-2">
+              <span class="text-12-regular text-foreground-subtle">
+                {language.t("settings.plugins.market.detail.enabled" as never)}
+              </span>
+              <Switch checked={props.enabled ?? true} onChange={(value) => props.onToggle?.(value)}>
+                {name()}
+              </Switch>
+            </div>
+          </Show>
+          <Button variant="secondary" size="small" onClick={() => dialog.close()}>
+            {language.t("common.close")}
+          </Button>
+        </div>
+      </div>
+    </Dialog>
+  )
 }
