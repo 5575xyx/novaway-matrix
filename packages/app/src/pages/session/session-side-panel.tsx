@@ -1,4 +1,4 @@
-import { For, Show, createEffect, type JSX } from "solid-js"
+import { For, on, Show, createEffect, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
@@ -81,7 +81,24 @@ export function SessionSidePanel(props: {
   const language = useLanguage()
   const command = useCommand()
   const dialog = useDialog()
-  const { sessionKey, tabs } = useSessionLayout()
+  const { params, sessionKey, tabs } = useSessionLayout()
+
+  /**
+   * 切到另一条任务时，如果右侧正停着上一条任务的辅助对话，自动把面板收起来
+   * （对齐 ZCode 的节奏：辅助对话属于某条主线，切走了就不该继续挂在眼前）。
+   * 其它标签（预览/终端/审查）不动 —— 那是用户自己的工具面板。
+   */
+  createEffect(
+    on(
+      () => params.id,
+      (id) => {
+        const active = layout.sidePane.activeSessionTab()
+        if (!active || active.kind !== "sideChat") return
+        if ((id ?? "") === active.parentID) return
+        layout.sidePane.close()
+      },
+    ),
+  )
 
   // TODO(status-panel): 原移动端任务列表折叠逻辑已随任务面板一并移除，待 Status Panel 接入后重接
 

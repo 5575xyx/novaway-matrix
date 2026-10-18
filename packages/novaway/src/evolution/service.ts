@@ -8,7 +8,7 @@ import { AppFileSystem } from "@novaway/core/filesystem"
 import { Global } from "@novaway/core/global"
 import { applyPatch as applyUnifiedPatch } from "diff"
 import { Context, Effect, Layer, Option, Schema } from "effect"
-import { mkdir, unlink, writeFile } from "fs/promises"
+import { mkdir, readFile, stat, unlink, writeFile } from "fs/promises"
 import path from "path"
 import { EvolutionCandidateTable, EvolutionReviewStateTable } from "./evolution.sql"
 import { evaluateEvolutionCandidate, evaluateEvolutionRegression } from "./eval"
@@ -390,8 +390,12 @@ async function buildDryRun(
   input: { directory: string; worktree: string; globalConfig?: string },
 ): Promise<CandidateDryRun> {
   const file = targetFile(candidate, input)
-  const exists = await Bun.file(file).exists()
-  const before = exists ? await Bun.file(file).text() : ""
+  // 不能用 Bun.file：桌面端的 sidecar 跑在 Node 里（dist/node），没有 Bun 全局。
+  const exists = await stat(file).then(
+    () => true,
+    () => false,
+  )
+  const before = exists ? await readFile(file, "utf8") : ""
   const after = contentAfter(candidate, before)
   const root = input.worktree === "/" ? input.directory : input.worktree
   const relative = path.relative(isGlobalCandidate(candidate) ? (input.globalConfig ?? root) : root, file)
@@ -426,8 +430,11 @@ async function verifyDryRun(dryRun: CandidateDryRun, input: { directory: string;
   const root = input.worktree === "/" ? input.directory : input.worktree
   for (const file of dryRun.files) {
     const absolute = path.join(root, file.path)
-    const exists = await Bun.file(absolute).exists()
-    const actual = exists ? await Bun.file(absolute).text() : ""
+    const exists = await stat(absolute).then(
+      () => true,
+      () => false,
+    )
+    const actual = exists ? await readFile(absolute, "utf8") : ""
     if (actual !== file.after) {
       return { ok: false as const, path: absolute, message: `文件内容与候选不一致：${file.path}` }
     }

@@ -331,7 +331,8 @@ export const settingsHandlers = HttpApiBuilder.group(InstanceHttpApi, "settings"
       const exists = yield* fs.existsSafe(file)
       const content = yield* exists
         ? Effect.tryPromise({
-            try: () => Bun.file(file).text(),
+            // sidecar 跑在 Node 里，没有 Bun 全局。
+            try: () => import("node:fs/promises").then((fs) => fs.readFile(file, "utf8")),
             catch: (error) => error,
           }).pipe(Effect.catch(() => Effect.succeed("")))
         : Effect.succeed("")

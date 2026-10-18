@@ -3322,21 +3322,20 @@ export const SettingsPlugins: Component = () => {
           </Show>
         </SettingsGroup>
       </div>
-      {/* ZCode 官方市场：目录从其快照导入，安装为「技能 + MCP」插件。 */}
+      {/* ZCode 插件市场：公开目录 + 个人来源（自定义 marketplace 源）都在这里。 */}
       <PluginMarketplaceSection />
-      {/* 商店：目录来自可配置的 marketplace 源（对齐 ZCode 的插件商店架构 ——
-          它同样是「源 + 目录」而不是把清单写死在客户端）。 */}
-      <PluginStoreSection installed={plugins()} onInstall={installPlugin} onUninstall={deletePlugin} />
     </SettingsPage>
   )
 }
 
 const PLUGIN_SOURCES_FIELD = "plugin.sources.v1"
 
-const PluginStoreSection: Component<{
+export const PluginStoreSection: Component<{
   installed: string[]
   onInstall: (spec: string) => void
   onUninstall: (index: number) => void
+  /** 个人市场页里只想要「源 + 目录」，不再重复区块标题。 */
+  hideTitle?: boolean
 }> = (props) => {
   const language = useLanguage()
   const platform = usePlatform()
@@ -3402,10 +3401,12 @@ const PluginStoreSection: Component<{
 
   return (
     <div>
-      <SectionTitle
-        title={language.t("settings.plugins.store.title")}
-        description={language.t("settings.plugins.store.description")}
-      />
+      <Show when={!props.hideTitle}>
+        <SectionTitle
+          title={language.t("settings.plugins.store.title")}
+          description={language.t("settings.plugins.store.description")}
+        />
+      </Show>
       <Toolbar>
         <TextField
           value={draft()}

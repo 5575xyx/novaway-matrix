@@ -172,6 +172,111 @@ export function todoSweepReminder(todos: Todo.Info[]): string {
   ].join("\n")
 }
 
+
+/**
+ * 修复模型返回的 JSON。
+ *
+ * `generateObject` 只接受裸 JSON，但不少模型习惯包一层 ```json 代码块
+ * （弱网/小模型尤其常见），会直接抛 `AI_NoObjectGeneratedError`，
+ * 而调用方把错误吞掉后表现成"记忆/进化从不生成候选"。
+ * 这里去掉代码块围栏并截取最外层对象后再解析；仍然失败就返回 null 走原错误。
+ */
+export function repairJsonText(text: string): string | null {
+  const trimmed = text.trim()
+  if (!trimmed) return null
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)
+  const candidate = (fenced ? fenced[1] : trimmed).trim()
+  const start = candidate.indexOf("{")
+  const end = candidate.lastIndexOf("}")
+  const body = start >= 0 && end > start ? candidate.slice(start, end + 1) : candidate
+  try {
+    JSON.parse(body)
+    return body
+  } catch {
+    return null
+  }
+}
+
+
+/**
+ * 结构化输出模型经常不完全按 schema 返回（例如把 content 写成 fact）。
+ * 这里把常见别名归一化，避免整批候选因为一个字段名被 TypeValidationError 丢弃。
+ */
+const asRecord = (value: unknown): Record<string, unknown> | undefined =>
+  typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined
+
+const textOf = (record: Record<string, unknown>, keys: string[]) => {
+  for (const key of keys) {
+    const value = record[key]
+    if (typeof value === "string" && value.trim()) return value.trim()
+  }
+  return undefined
+}
+
+const pick = <T extends string>(value: unknown, allowed: readonly T[]): T | undefined =>
+  typeof value === "string" && (allowed as readonly string[]).includes(value) ? (value as T) : undefined
+
+const MEMORY_KINDS = ["episodic", "semantic", "preference", "goal", "decision", "relationship", "lesson", "procedure"] as const
+const MEMORY_DOMAINS = ["general", "coding", "office", "personal", "research", "ops"] as const
+const MEMORY_TARGETS = ["memory", "user"] as const
+const MEMORY_SCOPES = ["global", "project", "session"] as const
+const MEMORY_OPERATIONS = ["add", "update", "archive", "confirm"] as const
+const EVOLUTION_KINDS = ["skill", "agent", "workflow", "prompt", "tool", "project", "strategy", "habit", "knowledge"] as const
+
+/** 归一化记忆候选（generateObject 的 repairText 回调）。 */
+export function repairMemoryReviewJson(text: string): string | null {
+  const body = repairJsonText(text)
+  if (!body) return null
+  const parsed = asRecord(JSON.parse(body))
+  if (!parsed || !Array.isArray(parsed.candidates)) return null
+  const candidates = parsed.candidates.flatMap((item) => {
+    const record = asRecord(item)
+    if (!record) return []
+    const content = textOf(record, ["content", "fact", "text", "description", "memory"])
+    if (!content) return []
+    return [
+      {
+        ...record,
+        content,
+        target: pick(record.target, MEMORY_TARGETS) ?? "memory",
+        domain: pick(record.domain, MEMORY_DOMAINS) ?? "general",
+        kind: pick(record.kind, MEMORY_KINDS) ?? "semantic",
+        scope: pick(record.scope, MEMORY_SCOPES),
+        operation: pick(record.operation, MEMORY_OPERATIONS) ?? "add",
+        confidence: typeof record.confidence === "number" ? record.confidence : 0.7,
+      },
+    ]
+  })
+  if (!candidates.length) return null
+  return JSON.stringify({ ...parsed, candidates })
+}
+
+/** 归一化进化候选：模型常把 target/title 写进 content 或漏 reason。 */
+export function repairEvolutionReviewJson(text: string): string | null {
+  const body = repairJsonText(text)
+  if (!body) return null
+  const parsed = asRecord(JSON.parse(body))
+  if (!parsed || !Array.isArray(parsed.candidates)) return null
+  const candidates = parsed.candidates.flatMap((item) => {
+    const record = asRecord(item)
+    if (!record) return []
+    const content = textOf(record, ["content", "body", "description", "proposal"])
+    if (!content) return []
+    return [
+      {
+        ...record,
+        kind: pick(record.kind, EVOLUTION_KINDS) ?? "skill",
+        target: textOf(record, ["target", "name", "title"]) ?? "novaway",
+        title: textOf(record, ["title", "name", "target"]) ?? content.slice(0, 40),
+        content,
+        reason: textOf(record, ["reason", "why", "rationale"]) ?? `${content.slice(0, 40)}（自动进化建议）`,
+      },
+    ]
+  })
+  if (!candidates.length) return null
+  return JSON.stringify({ ...parsed, candidates })
+}
+
 const log = Log.create({ service: "session.prompt" })
 const elog = EffectLogger.create({ service: "session.prompt" })
 
@@ -1884,6 +1989,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           "每条候选必须包含 kind(episodic/semantic/preference/goal/decision/relationship/lesson/procedure)、factKey、operation(add/update/archive/confirm)、domain(general/coding/office/personal/research/ops) 和 confidence(0-1)。",
           "如果记忆涉及人物、组织、地点、产品或主题，填写 entities 数组，每项包含 name 和可选 type。",
           "若候选修正已知事实，使用 operation=update 并复用同一个 factKey。",
+          "只输出 JSON 对象本身，不要包 markdown 代码块，也不要加任何解释。",
         ].join("\n"),
       ]
       yield* plugin.trigger("experimental.chat.system.transform", { model: input.model }, { system })
@@ -1923,24 +2029,30 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           Schema.toStandardSchemaV1(MemoryReviewResult),
           Schema.toStandardJSONSchemaV1(MemoryReviewResult),
         ),
+        experimental_repairText: async ({ text }) => repairMemoryReviewJson(text),
       } satisfies Parameters<typeof generateObject>[0]
 
       const result = isOpenaiOauth
         ? yield* Effect.promise(async () => {
-            const stream = streamObject({
-              ...params,
-              providerOptions: ProviderTransform.providerOptions(input.model, {
-                instructions: system.join("\n"),
-                store: false,
-              }),
-              onError: () => {},
-            })
-            for await (const part of stream.fullStream) {
-              if (part.type === "error") throw part.error
+            try {
+              const stream = streamObject({
+                ...params,
+                providerOptions: ProviderTransform.providerOptions(input.model, {
+                  instructions: system.join("\n"),
+                  store: false,
+                }),
+                onError: () => {},
+              })
+              for await (const part of stream.fullStream) {
+                if (part.type === "error") throw part.error
+              }
+              return stream.object
+            } catch {
+              // 流式结构化输出不支持 repair；失败时退回可修复的 generateObject。
+              return generateObject(params).then((response) => response.object)
             }
-            return stream.object
           })
-        : yield* Effect.promise(() => generateObject(params).then((response) => response.object))
+        : yield* Effect.tryPromise(() => generateObject(params).then((response) => response.object))
 
       return result.candidates
         .map(
@@ -1979,6 +2091,9 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           "scope 必须是 global 或 project：global 表示该候选是跨项目通用的能力（如通用技能、可复用工作流、全局提示词/工具），应写入全局配置；project 表示仅与当前项目相关（如项目规则、特定 Agent 行为、项目专属流程）。",
           "当 kind=tool 时，content 优先给出可运行的 TypeScript 工具模块（export default tool({ description, args, execute })，可 import { tool } from @opencode/plugin）；若暂时只能给自然语言，也要写清工具用途、输入输出与执行步骤。",
           "当 kind=workflow 或 prompt 时，content 应是可直接作为命令模板使用的 Markdown 流程/提示词。",
+          "当 kind=project 时，content 必须是目标文件的完整新内容或 unified diff，不要写\"把 A 改成 B\"这类操作说明；target 用相对路径（不含 .novaway 前缀）。",
+          "expectedOutcomes 里的每一条都必须逐字出现在 content 中，否则写盘后的回归校验会判定失败并回滚。",
+          "只输出 JSON 对象本身，不要包 markdown 代码块，也不要加任何解释。",
         ].join("\n"),
       ]
       yield* plugin.trigger("experimental.chat.system.transform", { model: input.model }, { system })
@@ -2018,24 +2133,30 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           Schema.toStandardSchemaV1(EvolutionReviewResult),
           Schema.toStandardJSONSchemaV1(EvolutionReviewResult),
         ),
+        experimental_repairText: async ({ text }) => repairEvolutionReviewJson(text),
       } satisfies Parameters<typeof generateObject>[0]
 
       const result = isOpenaiOauth
         ? yield* Effect.promise(async () => {
-            const stream = streamObject({
-              ...params,
-              providerOptions: ProviderTransform.providerOptions(input.model, {
-                instructions: system.join("\n"),
-                store: false,
-              }),
-              onError: () => {},
-            })
-            for await (const part of stream.fullStream) {
-              if (part.type === "error") throw part.error
+            try {
+              const stream = streamObject({
+                ...params,
+                providerOptions: ProviderTransform.providerOptions(input.model, {
+                  instructions: system.join("\n"),
+                  store: false,
+                }),
+                onError: () => {},
+              })
+              for await (const part of stream.fullStream) {
+                if (part.type === "error") throw part.error
+              }
+              return stream.object
+            } catch {
+              // 流式结构化输出不支持 repair；失败时退回可修复的 generateObject。
+              return generateObject(params).then((response) => response.object)
             }
-            return stream.object
           })
-        : yield* Effect.promise(() => generateObject(params).then((response) => response.object))
+        : yield* Effect.tryPromise(() => generateObject(params).then((response) => response.object))
 
       return result.candidates
         .map(
@@ -2232,7 +2353,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       const model = input.model
       const agentName = input.agentName
 
-      // 全自动学习：显式抽取 + LLM 审查并行，不再互斥。
+      // 全自动学习：显式抽取先做（纯本地、很快）。
       if (memoryEnabled && memory && memoryCfg.auto_extract) {
         yield* memory
           .syncTurn({
@@ -2245,62 +2366,78 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           })
           .pipe(Effect.ignore)
       }
-      if (memoryReviewEnabled && memory) {
-        const due = yield* memory
-          .reviewDue({
-            userContent,
-            projectID: session.projectID,
-            sessionID,
-            sourceMessageID: lastUser.id,
-            agent: agentName,
-            reviewInterval: memoryCfg.review_interval,
-          })
-          .pipe(Effect.catch(() => Effect.succeed(false)))
-        if (due) {
-          const candidates = yield* inferMemoryReviewCandidates({
-            model,
-            userContent,
-            assistantContent,
-          }).pipe(Effect.catch(() => Effect.succeed([])))
-          const reviewed = yield* memory
-            .review({
+
+      /**
+       * 记忆与进化的审查都依赖一次 LLM 调用。两者**并发**执行：
+       * 之前是串行，记忆审查的模型请求一旦慢（弱网时可达数十秒），
+       * 进化审查就一直排在后面，看起来像"进化从未触发"。
+       * `reviewDue` 是纯 DB 操作，先各自判定，再并发跑生成。
+       */
+      const memoryDue =
+        memoryReviewEnabled && memory
+          ? yield* memory
+              .reviewDue({
+                userContent,
+                projectID: session.projectID,
+                sessionID,
+                sourceMessageID: lastUser.id,
+                agent: agentName,
+                reviewInterval: memoryCfg.review_interval,
+              })
+              .pipe(Effect.catch(() => Effect.succeed(false)))
+          : false
+      const evolutionDue =
+        evolutionReviewEnabled && evolution
+          ? yield* evolution
+              .reviewDue({
+                projectID: session.projectID,
+                sessionID,
+                sourceMessageID: lastUser.id,
+                reviewInterval: evolutionCfg.review_interval,
+              })
+              .pipe(Effect.catch(() => Effect.succeed(false)))
+          : false
+
+      const memoryJob = !memoryDue || !memory
+        ? Effect.void
+        : Effect.gen(function* () {
+            const candidates = yield* inferMemoryReviewCandidates({
+              model,
               userContent,
               assistantContent,
-              projectID: session.projectID,
-              sessionID,
-              sourceMessageID: lastUser.id,
-              agent: agentName,
-              candidates,
-              skipReviewState: true,
-            })
-            .pipe(Effect.catch(() => Effect.succeed([] as never[])))
-          // 自动写入：候选直接进长期记忆，越用越聪明无需点通过。
-          if (memoryCfg.auto_apply && reviewed.length) {
-            for (const item of reviewed) {
-              if (item.status !== "pending") continue
-              yield* memory.applyReviewCandidate(item.id).pipe(Effect.ignore)
+            }).pipe(Effect.catch(() => Effect.succeed([])))
+            const reviewed = yield* memory!
+              .review({
+                userContent,
+                assistantContent,
+                projectID: session.projectID,
+                sessionID,
+                sourceMessageID: lastUser.id,
+                agent: agentName,
+                candidates,
+                skipReviewState: true,
+              })
+              .pipe(Effect.catch(() => Effect.succeed([] as never[])))
+            // 自动写入：候选直接进长期记忆，越用越聪明无需点通过。
+            if (memoryCfg.auto_apply && reviewed.length) {
+              for (const item of reviewed) {
+                if (item.status !== "pending") continue
+                yield* memory!.applyReviewCandidate(item.id).pipe(Effect.ignore)
+              }
             }
-          }
-        }
-      }
-      if (evolutionReviewEnabled && evolution) {
-        const due = yield* evolution
-          .reviewDue({
-            projectID: session.projectID,
-            sessionID,
-            sourceMessageID: lastUser.id,
-            reviewInterval: evolutionCfg.review_interval,
-          })
-          .pipe(Effect.catch(() => Effect.succeed(false)))
-        if (due) {
-          const proposals = yield* inferEvolutionReviewCandidates({
-            model,
-            userContent,
-            assistantContent,
-          }).pipe(Effect.catch(() => Effect.succeed([])))
-          if (proposals.length) {
+          }).pipe(Effect.ignore)
+
+      const evolutionJob = !evolutionDue || !evolution
+        ? Effect.void
+        : Effect.gen(function* () {
+            const proposals = yield* inferEvolutionReviewCandidates({
+              model,
+              userContent,
+              assistantContent,
+            }).pipe(Effect.catch(() => Effect.succeed([])))
+            if (!proposals.length) return
             const instanceCtx = yield* InstanceState.context
-            const reviewed = yield* evolution
+            const reviewed = yield* evolution!
               .review({
                 proposals,
                 projectID: session.projectID,
@@ -2312,7 +2449,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             if (evolutionCfg.auto_apply_file && reviewed.length) {
               for (const item of reviewed) {
                 if (item.status !== "pending") continue
-                yield* evolution
+                yield* evolution!
                   .applyToDisk(item.id, {
                     directory: instanceCtx.directory,
                     worktree: instanceCtx.worktree,
@@ -2325,9 +2462,9 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                   )
               }
             }
-          }
-        }
-      }
+          }).pipe(Effect.ignore)
+
+      yield* Effect.all([memoryJob, evolutionJob], { concurrency: 2 })
       // 自动检查点：在压缩/剪枝之前按间隔捕获会话消息 + 文件快照，便于回滚。默认关闭。
       if (checkpoint) {
         const checkpointCfg = ConfigCheckpoint.resolve(cfg.checkpoint)

@@ -14,7 +14,7 @@ import {
 } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { useLocation, useNavigate, useParams } from "@solidjs/router"
-import { useLayout, LocalProject } from "@/context/layout"
+import { useLayout, LocalProject, sidePaneSideChatTabId } from "@/context/layout"
 import { FrameWindowControls } from "@/components/frame-window-controls"
 import { createMountTransition } from "@/utils/mount-transition"
 import { useGlobalSync } from "@/context/global-sync"
@@ -1380,6 +1380,49 @@ export default function Layout(props: ParentProps) {
     })
   }
 
+  /**
+   * 侧栏「辅助对话」入口（对齐 ZCode 在侧栏提供辅助对话入口的做法）：
+   * 当前任务已有辅助对话就聚焦最近一条，否则新建一条；
+   * 两种情况都会把右侧面板展开。
+   */
+  async function openSideChatFromSidebar() {
+    const parentID = params.id ?? ""
+    const existing = Object.values(layout.sidePane.dynamicTabs()).filter(
+      (tab) => tab.kind === "sideChat" && tab.parentID === parentID,
+    )
+    const latest = existing.at(-1)
+    if (latest) {
+      layout.sidePane.openSession(latest)
+      layout.sidePane.open()
+      return
+    }
+    // 侧栏在 SDK Provider 之外，这里用全局客户端按当前目录建会话；
+    // 发送时用的 agent/model 仍由面板里的输入框（主线上下文）决定。
+    try {
+      const directory = decode64(params.dir) ?? undefined
+      const client = globalSDK.createClient({ directory, throwOnError: true })
+      const created = await client.session.create(parentID ? { parentID } : undefined).then((result) => result.data)
+      if (!created?.id) return
+      const title = language.t("sidePane.sideChat.title", { index: existing.length + 1 })
+      const tab = {
+        id: sidePaneSideChatTabId(created.id),
+        kind: "sideChat" as const,
+        sessionID: created.id,
+        parentID,
+        title,
+      }
+      void client.session.update({ sessionID: created.id, title }).catch(() => undefined)
+      layout.sidePane.openSession(tab)
+      layout.sidePane.open()
+    } catch (error) {
+      showToast({
+        variant: "error",
+        title: language.t("sidePane.sideChat.failed"),
+        description: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
   function closeSettings() {
     setState("settings", "open", false)
     // 覆盖层关闭后让聊天区重新校验一次可视区域：面板动画期间
@@ -2492,6 +2535,13 @@ export default function Layout(props: ParentProps) {
                   icon={<Icon name="database" size="small" />}
                   label={language.t("sidebar.database")}
                   onClick={() => command.trigger("database.open")}
+                />
+              </Show>
+              <Show when={!!params.id}>
+                <SidebarMenuRow
+                  icon={<Icon name="speech-bubble" size="small" />}
+                  label={language.t("sidebar.sideChat")}
+                  onClick={openSideChatFromSidebar}
                 />
               </Show>
               <SidebarMenuRow
