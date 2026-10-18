@@ -101,6 +101,20 @@ declare global {
         files: Array<{ path: string; data: string }>
       }) => Promise<string>
       marketplaceRemove?: (dir: string) => Promise<void>
+      marketplaceGitInstall?: (input: {
+        name: string
+        url: string
+        ref?: string
+        subdir?: string
+      }) => Promise<{
+        dir: string
+        skillsPath?: string
+        mcpServers?: Record<string, unknown>
+        commands: number
+        agents: number
+      }>
+      setKeepAwake?: (enabled: boolean) => Promise<boolean>
+      keepAwakeEnabled?: boolean
       toPreviewUrl?: (url: string) => string
       setPreviewInspectorOrigin?: (origin: string) => Promise<void>
       updateFloatingAgentState?: (state: {

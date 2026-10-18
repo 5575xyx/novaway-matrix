@@ -1,11 +1,12 @@
 import { execFile } from "node:child_process"
-import { mkdir, rm, writeFile } from "node:fs/promises"
+import { copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
 import os from "node:os"
 import {
   BrowserWindow,
   Notification,
   app,
+  powerSaveBlocker,
   clipboard,
   dialog,
   ipcMain,
@@ -826,11 +827,149 @@ export function registerIpcHandlers(deps: Deps) {
       return root
     },
   )
+  // 保持唤醒：自动化任务可能在后台跑很久，系统休眠会直接掐断。
+  let keepAwakeId: number | undefined
+  ipcMain.handle("set-keep-awake", (_event: IpcMainInvokeEvent, enabled: boolean) => {
+    if (enabled) {
+      if (keepAwakeId === undefined || !powerSaveBlocker.isStarted(keepAwakeId)) {
+        keepAwakeId = powerSaveBlocker.start("prevent-app-suspension")
+      }
+      return true
+    }
+    if (keepAwakeId !== undefined) {
+      powerSaveBlocker.stop(keepAwakeId)
+      keepAwakeId = undefined
+    }
+    return false
+  })
+  // Claude 插件市场用的是 git 仓库（整仓或子目录），没有 zip 包。
+  // 这里用浅克隆装到 marketplace/<name>@<ref>，并顺手完成"让它真的可用"的收尾：
+  //   - skills/  → 交给调用方写进 config.skills.paths
+  //   - .mcp.json → 解析出 MCP 服务，交给调用方合并进 config.mcp
+  //   - commands/ agents/ → 复制到全局配置目录，现有的命令/Agent 扫描器就能加载
+  ipcMain.handle(
+    "marketplace-git-install",
+    async (
+      _event: IpcMainInvokeEvent,
+      input: { name: string; url: string; ref?: string; subdir?: string },
+    ) => {
+      if (!/^https?:\/\//i.test(input.url) && !/^git@/i.test(input.url)) {
+        throw new Error("unsupported git url")
+      }
+      const name = input.name.replace(/[^A-Za-z0-9._@-]/g, "_")
+      const ref = (input.ref || "HEAD").replace(/[^A-Za-z0-9._\/-]/g, "_")
+      const root = path.join(marketplaceRoot(), `${name}@${ref}`)
+      await rm(root, { recursive: true, force: true })
+      await mkdir(path.dirname(root), { recursive: true })
+      // GitHub 在国内直连经常 SSL 失败；按「镜像优先、直连兜底」的顺序尝试。
+      // 镜像只是把 https://github.com/... 前缀套一层，git 协议本身不变。
+      const candidates = input.url.startsWith("https://github.com/")
+        ? [`https://ghproxy.net/${input.url}`, input.url]
+        : [input.url]
+      let lastError: Error | undefined
+      for (const url of candidates) {
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const args = ["clone", "--depth", "1"]
+            if (input.ref && input.ref !== "HEAD") args.push("--branch", input.ref)
+            args.push(url, root)
+            execFile("git", args, { timeout: 240_000, windowsHide: true }, (error, _stdout, stderr) => {
+              if (error) reject(new Error(String(stderr || error.message).trim()))
+              else resolve()
+            })
+          })
+          lastError = undefined
+          break
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error(String(error))
+          await rm(root, { recursive: true, force: true }).catch(() => {})
+        }
+      }
+      if (lastError) throw lastError
+
+      const installed = input.subdir ? path.join(root, input.subdir) : root
+      const configRoot = path.join(
+        process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"),
+        "novaway",
+      )
+      const listFiles = async (dir: string, ext: string): Promise<string[]> => {
+        const entries = await readdir(dir, { withFileTypes: true }).catch(() => [])
+        const nested = await Promise.all(
+          entries.map((entry) =>
+            entry.isDirectory()
+              ? listFiles(path.join(dir, entry.name), ext)
+              : entry.name.toLowerCase().endsWith(ext)
+                ? [path.join(dir, entry.name)]
+                : [],
+          ),
+        )
+        return nested.flat()
+      }
+      const copyInto = async (from: string, target: string) => {
+        const files = await listFiles(from, ".md")
+        await Promise.all(
+          files.map(async (file) => {
+            const relative = path.relative(from, file).split(path.sep).join("--")
+            const dest = path.join(target, relative)
+            await mkdir(path.dirname(dest), { recursive: true })
+            await copyFile(file, dest)
+          }),
+        )
+        return files.length
+      }
+
+      const skills = path.join(installed, "skills")
+      const hasSkills = await readdir(skills)
+        .then(() => true)
+        .catch(() => false)
+      const commands = await copyInto(path.join(installed, "commands"), path.join(configRoot, "command", name))
+      const agents = await copyInto(path.join(installed, "agents"), path.join(configRoot, "agents", name))
+
+      let mcpServers: Record<string, unknown> | undefined
+      const mcpFile = path.join(installed, ".mcp.json")
+      const raw = await readFile(mcpFile, "utf8").catch(() => undefined)
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw) as { mcpServers?: Record<string, unknown> }
+          if (parsed && typeof parsed === "object" && parsed.mcpServers) mcpServers = parsed.mcpServers
+        } catch {
+          // 坏掉的 .mcp.json 不应该让整个安装失败
+        }
+      }
+
+      return {
+        dir: installed,
+        skillsPath: hasSkills ? skills : undefined,
+        mcpServers,
+        commands,
+        agents,
+      }
+    },
+  )
   ipcMain.handle("marketplace-remove", async (_event: IpcMainInvokeEvent, dir: string) => {
     const root = path.resolve(marketplaceRoot())
     const target = path.resolve(dir)
     if (target !== root && !target.startsWith(root + path.sep)) throw new Error("invalid marketplace dir")
-    await rm(target, { recursive: true, force: true })
+    // Windows 上目录里可能还有短暂的文件句柄（git 对象/watcher），rm 偶尔只清空内容
+    // 却删不掉目录本身；重试几次直到目录消失。
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await rm(target, { recursive: true, force: true, maxRetries: 2, retryDelay: 100 })
+      const gone = await stat(target).then(
+        () => false,
+        () => true,
+      )
+      if (gone) break
+      await new Promise((resolve) => setTimeout(resolve, 200))
+    }
+    // Claude 安装时会把 commands/agents 复制进全局配置目录（现有扫描器只认那里），
+    // 卸载时要一并清掉，否则列表里会残留一堆指向已删插件的条目。
+    const name = path.basename(target).split("@")[0]
+    const configRoot = path.join(
+      process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"),
+      "novaway",
+    )
+    await rm(path.join(configRoot, "command", name), { recursive: true, force: true }).catch(() => {})
+    await rm(path.join(configRoot, "agents", name), { recursive: true, force: true }).catch(() => {})
   })
 
   ipcMain.handle("get-floating-agent-state", () => {

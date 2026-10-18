@@ -410,3 +410,86 @@ export const ZCODE_MARKETPLACE: ZcodeMarketplaceEntry[] = [
     keywords: ["obsidian", "markdown", "bases", "canvas", "notes", "defuddle", "knap", "mermaid", "excalidraw", "visualization"],
   },
 ]
+
+// ---------------------------------------------------------------------------
+// Claude 官方插件市场（anthropics/claude-plugins-official）
+// ---------------------------------------------------------------------------
+
+/**
+ * Claude 市场用 git 仓库分发（整仓 / 子目录 / git-url），没有 zip。
+ * 安装走主进程的浅克隆，装完把 skills / MCP / commands / agents 一并接上，
+ * 所以这里只需要把条目归一化成「从哪克隆、克隆后取哪个子目录」。
+ */
+// raw.githubusercontent.com 在国内常被重置；jsDelivr 与 ghproxy 都能稳定取到。
+// 按顺序尝试，第一个成功的即为目录来源。
+export const CLAUDE_MARKETPLACE_URLS = [
+  "https://cdn.jsdelivr.net/gh/anthropics/claude-plugins-official@main/.claude-plugin/marketplace.json",
+  "https://ghproxy.net/https://raw.githubusercontent.com/anthropics/claude-plugins-official/main/.claude-plugin/marketplace.json",
+  "https://raw.githubusercontent.com/anthropics/claude-plugins-official/main/.claude-plugin/marketplace.json",
+] as const
+export const CLAUDE_MARKETPLACE_URL = CLAUDE_MARKETPLACE_URLS[0]
+export const CLAUDE_MARKETPLACE_REPO = "https://github.com/anthropics/claude-plugins-official.git"
+
+export type ClaudeMarketplaceEntry = {
+  name: string
+  displayName: string
+  description: string
+  author?: string
+  category?: string
+  /** 克隆来源。`subdir` 为空表示整仓就是插件根。 */
+  gitUrl: string
+  gitRef?: string
+  subdir?: string
+}
+
+/**
+ * 解析 Claude marketplace.json。
+ *
+ * `source` 有三种形态：
+ * - `"./plugins/x"`：相对于市场仓库自身的子目录；
+ * - `{ source: "git-subdir", url, path, ref }`：外部仓库的子目录；
+ * - `{ source: "url", url, ref }` / 字符串 URL：整仓。
+ */
+export function parseClaudeMarketplace(value: unknown): ClaudeMarketplaceEntry[] {
+  if (typeof value !== "object" || value === null) return []
+  const record = value as { plugins?: unknown }
+  if (!Array.isArray(record.plugins)) return []
+  const entries: ClaudeMarketplaceEntry[] = []
+  const seen = new Set<string>()
+  for (const item of record.plugins) {
+    if (typeof item !== "object" || item === null) continue
+    const raw = item as Record<string, unknown>
+    const name = asText(raw.name)
+    if (!name || seen.has(name)) continue
+    const source = raw.source
+    let gitUrl: string | undefined
+    let gitRef: string | undefined
+    let subdir: string | undefined
+    if (typeof source === "string") {
+      if (/^https?:|^git@/.test(source)) gitUrl = source
+      else {
+        gitUrl = CLAUDE_MARKETPLACE_REPO
+        subdir = source.replace(/^\.\//, "")
+      }
+    } else if (typeof source === "object" && source !== null) {
+      const src = source as Record<string, unknown>
+      gitUrl = asText(src.url)
+      gitRef = asText(src.ref)
+      subdir = asText(src.path)
+    }
+    if (!gitUrl) continue
+    seen.add(name)
+    const author = typeof raw.author === "object" && raw.author !== null ? raw.author as Record<string, unknown> : undefined
+    entries.push({
+      name,
+      displayName: asText(raw.displayName) ?? name,
+      description: asText(raw.description) ?? "",
+      author: asText(author?.name) ?? asText(raw.author),
+      category: asText(raw.category),
+      gitUrl,
+      gitRef,
+      subdir,
+    })
+  }
+  return entries
+}
