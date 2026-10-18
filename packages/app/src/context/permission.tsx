@@ -14,6 +14,7 @@ import {
   autoRespondsPermission,
 } from "./permission-auto-respond"
 import { useSettings } from "./settings"
+import { isRiskyPermission, type PermissionMode } from "./permission-risk"
 
 type PermissionRespondFn = (input: {
   sessionID: string
@@ -80,6 +81,8 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
       },
       createStore({
         autoAccept: {} as Record<string, boolean>,
+        /** 目录级权限档位（对齐 ZCode 的 变更前确认 / 自主模式 / 完全访问）。 */
+        mode: {} as Record<string, PermissionMode>,
       }),
     )
 
@@ -149,8 +152,48 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
       return isDirectoryAutoAccepting(store.autoAccept, directory)
     }
 
+    /**
+     * 目录的权限档位。
+     *
+     * 兼容旧数据：以前只有「当前项目权限」布尔开关，开=全部放行，
+     * 所以已开启的目录等价于「完全访问」，避免升级后行为突变。
+     */
+    function mode(directory?: string): PermissionMode {
+      if (!directory) return "confirm"
+      const recorded = store.mode[directoryAcceptKey(directory)]
+      if (recorded) return recorded
+      if (store.autoAccept[directoryAcceptKey(directory)] === true) return "full"
+      return "confirm"
+    }
+
+    function setMode(directory: string, next: PermissionMode) {
+      // 选任意档位都先关掉遗留的目录级全放行，否则它会一直盖过新档位。
+      disableDirectory(directory)
+      setStore("mode", directoryAcceptKey(directory), next)
+      if (next === "confirm") return
+      // 切到 auto/full 时把已经挂在请求队列里的权限按新档位处理掉。
+      globalSDK.client.permission
+        .list({ directory })
+        .then((x) => {
+          if (mode(directory) !== next) return
+          for (const perm of x.data ?? []) {
+            if (!perm?.id) continue
+            if (next === "auto" && isRiskyPermission(perm)) continue
+            respondOnce(perm, directory)
+          }
+        })
+        .catch(() => undefined)
+    }
+
     function shouldAutoRespond(permission: PermissionRequest, directory?: string) {
+      // 全局开关仍然是最高优先级（设置里明确标注为「危险」）。
       if (settings.permissions.autoApprove()) return true
+      if (directory) {
+        const current = mode(directory)
+        if (current === "full") return true
+        // 自主模式：常规操作放行，危险命令/越界目录仍然询问。
+        if (current === "auto") return !isRiskyPermission(permission)
+      }
       const session = directory ? globalSync.child(directory, { bootstrap: false })[0].session : []
       return autoRespondsPermission(store.autoAccept, session, permission, directory)
     }
@@ -270,6 +313,12 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
         disable(sessionID, directory)
       },
       permissionsEnabled,
+      /** 目录级权限档位（三档选择器用）。 */
+      mode,
+      setMode,
+      isRisky(permission: PermissionRequest) {
+        return isRiskyPermission(permission)
+      },
       isPermissionAllowAll(directory: string) {
         const [childStore] = globalSync.child(directory)
         const perm = childStore.config.permission

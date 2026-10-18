@@ -36,8 +36,19 @@
 /* 设置 / 数据库整帧覆盖：见 layout.tsx 的 data-frame-overlay。
  * 被盖住的会话帧 Header 里还有一组窗控，覆盖层（自带一组）淡入淡出的这 1s
  * 里两组会重叠成"重影"。开覆盖时把下面这组藏掉，只留覆盖层自己的。 */
-[data-frame-overlay] [data-component="workspace-header"] [data-component="window-controls"] {
-  visibility: hidden;
+/* 覆盖层打开时，被盖住的会话帧 Header 仍处于「可拖拽」区域。
+ * Electron 的 app-region 是**按区域**生效的，与 z-index 无关：覆盖层左上角的
+ * 返回按钮正好落在下面那条拖拽带里，真实鼠标点击会被窗口拖拽吃掉
+ * （程序化 .click() 却能触发，所以看起来像"按钮不灵敏"）。
+ * 覆盖期间把底层 Header 的拖拽能力关掉。 */
+/* 覆盖层可能盖住侧栏顶带（侧栏收起时主区从 0 开始）或会话帧 Header，
+ * 两者都是拖拽区。Electron 的 app-region 按区域生效、与 z-index 无关，
+ * 覆盖层左上角的返回按钮会落在这条带子里，真实鼠标点击被拖拽吃掉。
+ * 覆盖期间把这两处拖拽禁用（覆盖层自己的 [data-window-drag] 不受影响）。 */
+[data-frame-overlay] [data-component="workspace-header"],
+[data-frame-overlay] [data-component="sidebar-top-band"] {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 
 /* 覆盖式面板（设置 / 数据库）的开合动效。

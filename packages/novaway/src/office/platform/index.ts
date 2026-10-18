@@ -743,7 +743,14 @@ export const layer = Layer.effect(
       yield* persist()
 
       const currentRun = current.data.runs.find((item) => item.id === run.id)
-      const agent = source.scene.startsWith("office-") ? source.scene : `office-${source.scene}`
+      // scene 既可以是办公场景（office-*），也可以是通用自动化：
+      // 后者用 build 代理跑普通任务（如"汇总昨天提交并给出风险"），不要硬加 office- 前缀。
+      const agent =
+        source.scene === "automation"
+          ? "build"
+          : source.scene.startsWith("office-")
+            ? source.scene
+            : `office-${source.scene}`
       currentRun?.logs.push(`正在创建 ${agent} 会话`)
       const promptEffect = Effect.gen(function* () {
         const created = yield* sessions.create({ title: source.title, agent })

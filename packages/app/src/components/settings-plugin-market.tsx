@@ -49,52 +49,83 @@ type BuiltinExtension = {
   components: string[]
   /** 配置键：mcp.browser / memory；没有开关的只展示。 */
   toggle?: "browser" | "memory"
+  /** 本产品是否真的具备该能力；false 时条目仍展示并说明原因。 */
+  available?: boolean
+  unavailableReason?: string
 }
 
 export const BUILTIN_EXTENSIONS: BuiltinExtension[] = [
+  // 目录口径对齐 ZCode 的官方内置插件（FreeCodeZ bootstrap 的 official-plugin-definitions）：
+  // PDF / 演示文档 / 电子表格 / Word文档 / 交互视图 / 浏览器操作 / 电脑控制 / 技能与插件创建 / 使用指南。
+  // 其中部分能力本产品暂未内置执行引擎，列表里保留条目并标注「未内置」，
+  // 打开详情能看到具体缺什么 —— 比凭空给一个点了没反应的开关更诚实。
   {
-    id: "office-suite",
-    name: "办公文档套件",
-    description: "PPT、Word、Excel、PDF 与网页/会议/知识整理的 9 个内置技能，办公模式下自动启用。",
+    id: "pdf",
+    name: "PDF",
+    description: "创建、编辑与审阅 PDF。",
+    icon: "review",
+    components: ["skill"],
+    available: false,
+    unavailableReason: "当前版本未内置 PDF 生成/解析引擎，可以先让 AI 生成 HTML 后另存为 PDF。",
+  },
+  {
+    id: "presentations",
+    name: "演示文档",
+    description: "创建、编辑与审阅演示文档（PPTX）。",
     icon: "review",
     components: ["skill"],
   },
   {
-    id: "skill-tools",
-    name: "技能查找与创建",
-    description: "帮助发现、安装并编写 Agent 技能，适合把重复流程沉淀成可复用的技能。",
-    icon: "list",
-    components: ["skill"],
-  },
-  {
-    id: "wxgzh-ops",
-    name: "公众号运营",
-    description: "公众号选题、写作、排版与发布流程的内置技能。",
+    id: "spreadsheets",
+    name: "电子表格",
+    description: "创建、编辑与审阅电子表格（XLSX）。",
     icon: "review",
     components: ["skill"],
   },
   {
-    id: "xiaohongshu-ops",
-    name: "小红书运营",
-    description: "小红书认证登录、内容发布、搜索发现、社交互动与数据分析的内置技能。",
+    id: "documents",
+    name: "Word 文档",
+    description: "创建、编辑与审阅 Word 文档（DOCX）。",
     icon: "review",
     components: ["skill"],
   },
   {
-    id: "browser-control",
-    name: "浏览器控制",
-    description: "内置 Playwright 浏览器：打开网页、点击、输入、截图，由 browser MCP 提供。",
+    id: "visualize",
+    name: "交互视图",
+    description: "在对话中创建交互图表、数据看板与单页演示页面。",
+    icon: "chart",
+    components: ["skill"],
+  },
+  {
+    id: "browser-use",
+    name: "浏览器操作",
+    description: "操作真实浏览器：打开网页、点击、输入、截图并校验页面结果。",
     icon: "mcp",
     components: ["mcp"],
     toggle: "browser",
   },
   {
-    id: "memory-service",
-    name: "持久记忆",
-    description: "跨会话记住偏好、项目约定与决策，并在后续对话里按需召回。",
-    icon: "brain",
-    components: ["memory"],
-    toggle: "memory",
+    id: "computer-use",
+    name: "电脑控制",
+    description: "读取本机应用界面并执行点击、键入、滚动等桌面操作。",
+    icon: "autopilot",
+    components: ["skill"],
+    available: false,
+    unavailableReason: "当前版本未内置电脑控制执行引擎（需要桌面自动化运行时）。",
+  },
+  {
+    id: "skill-tools",
+    name: "技能与插件创建",
+    description: "帮助发现、安装并编写 Agent 技能与插件，把重复流程沉淀下来。",
+    icon: "list",
+    components: ["skill"],
+  },
+  {
+    id: "guide",
+    name: "NovaWay 使用指南",
+    description: "NovaWay 配置、插件、技能、MCP、命令与钩子的使用与诊断说明。",
+    icon: "help",
+    components: ["skill"],
   },
 ]
 
@@ -491,6 +522,9 @@ export const PluginMarketplaceSection: Component<{ onBack?: () => void }> = (pro
         <div class="flex min-w-0 flex-wrap items-center gap-2">
           <span class="truncate text-13-medium text-foreground">{item.name}</span>
           <Tag>{language.t("settings.plugins.market.builtin" as never)}</Tag>
+          <Show when={item.available === false}>
+            <Tag>{language.t("settings.plugins.market.unavailable" as never)}</Tag>
+          </Show>
         </div>
         <span class="mt-0.5 line-clamp-2 text-12-regular leading-5 text-foreground-subtle">{item.description}</span>
         <span class="mt-1 flex flex-wrap items-center gap-1.5">
@@ -504,8 +538,14 @@ export const PluginMarketplaceSection: Component<{ onBack?: () => void }> = (pro
         </span>
       </div>
       <Show
-        when={item.toggle}
-        fallback={<span class="shrink-0 text-11-regular text-foreground-subtlest">{language.t("settings.plugins.market.alwaysOn" as never)}</span>}
+        when={item.available !== false && item.toggle}
+        fallback={
+          <span class="shrink-0 text-11-regular text-foreground-subtlest">
+            {item.available === false
+              ? language.t("settings.plugins.market.unavailable" as never)
+              : language.t("settings.plugins.market.alwaysOn" as never)}
+          </span>
+        }
       >
         <div onClick={(event) => event.stopPropagation()}>
           <Switch checked={builtinEnabled(item)} onChange={(value) => setBuiltin(item, value)} hideLabel>
@@ -523,9 +563,14 @@ export const PluginMarketplaceSection: Component<{ onBack?: () => void }> = (pro
           <div class="flex min-w-0 flex-col gap-1">
             <Show when={props.onBack}>
               <div class="-mt-2 mb-1 flex items-center gap-2">
-                <Button variant="ghost" size="small" icon="arrow-left" onClick={() => props.onBack?.()}>
+                <button
+                  type="button"
+                  class="flex h-8 items-center gap-1.5 rounded-md px-2.5 text-13-medium text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+                  onClick={() => props.onBack?.()}
+                >
+                  <Icon name="arrow-left" size="small" />
                   {language.t("common.goBack")}
-                </Button>
+                </button>
               </div>
             </Show>
             <h2 class="text-16-medium text-foreground">{language.t("settings.plugins.market.title" as never)}</h2>
@@ -703,6 +748,11 @@ const ExtensionDetail: Component<{
     <Dialog title={name()} transition class="w-[min(calc(100vw-40px),560px)]">
       <div class="flex flex-col gap-3 px-2.5 pb-3">
         <p class="text-13-regular leading-6 text-foreground-subtle">{description()}</p>
+        <Show when={props.builtin?.available === false}>
+          <p class="rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-12-regular leading-5 text-foreground-subtle">
+            {props.builtin?.unavailableReason}
+          </p>
+        </Show>
 
         <div class="flex flex-wrap items-center gap-1.5">
           <For each={components()}>
@@ -780,7 +830,7 @@ const ExtensionDetail: Component<{
               {language.t("settings.plugins.store.install" as never)}
             </Button>
           </Show>
-          <Show when={props.onToggle}>
+          <Show when={props.onToggle && props.builtin?.available !== false}>
             <div class="flex items-center gap-2">
               <span class="text-12-regular text-foreground-subtle">
                 {language.t("settings.plugins.market.detail.enabled" as never)}

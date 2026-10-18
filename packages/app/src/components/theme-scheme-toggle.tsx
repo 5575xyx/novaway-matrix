@@ -52,7 +52,7 @@ export function ThemeSchemeToggle() {
   return (
     <button
       type="button"
-      class="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-ui-base font-medium text-foreground transition-colors hover:bg-hover"
+      class="group flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-14-semibold text-foreground transition-colors hover:bg-hover"
       aria-label={title()}
       onClick={toggle}
     >

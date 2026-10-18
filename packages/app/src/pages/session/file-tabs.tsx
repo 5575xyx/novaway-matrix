@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, For, Match, on, onCleanup, Show, Switch } from "solid-js"
+import { createEffect, createMemo, createResource, createSignal, For, Match, on, onCleanup, Show, Switch } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Dynamic } from "solid-js/web"
 import { makeEventListener } from "@solid-primitives/event-listener"
@@ -18,12 +18,14 @@ import { ScrollView } from "@novaway/ui/scroll-view"
 import { showToast } from "@novaway/ui/toast"
 import { selectionFromLines, useFile, type FileSelection, type SelectedLineRange } from "@/context/file"
 import { useComments } from "@/context/comments"
+import { useSDK } from "@/context/sdk"
 import { useLanguage } from "@/context/language"
 import { usePrompt } from "@/context/prompt"
 import { getSessionHandoff } from "@/pages/session/handoff"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { useSideChat } from "@/pages/session/use-side-chat"
+import { isOfficePreviewPath, OfficeFilePreview } from "@/pages/session/office-file-preview"
 import { buildSelectionQuote } from "@/pages/session/side-chat-seed"
 
 // 换行符常量：源码里直接写字面换行会变成跨行字符串，读起来也容易出错。
@@ -186,6 +188,7 @@ export function FileTabContent(props: { tab: string }) {
   const sideChat = useSideChat()
   const language = useLanguage()
   const prompt = usePrompt()
+  const sdk = useSDK()
   const fileComponent = useFileComponent()
   const { sessionKey, tabs, view } = useSessionLayout()
   const activeFileTab = createSessionTabs({
@@ -241,7 +244,8 @@ export function FileTabContent(props: { tab: string }) {
   const cacheKey = createMemo(() => sampledChecksum(contents()))
   // 有改动时默认看"改了什么"；仍可切回文件内容（改动的文件也要能编辑）。
   const [viewMode, setViewMode] = createSignal<"diff" | "file">("diff")
-  const showDiff = () => !!diff() && viewMode() === "diff"
+  // 办公文件是二进制，diff 渲染器没有可展示的行；直接走只读预览。
+  const showDiff = () => !!diff() && viewMode() === "diff" && !isOfficePreviewPath(path())
   const [draft, setDraft] = createSignal("")
   const lineNumbers = createMemo(() => Array.from({ length: draft().split("\n").length }, (_, index) => index + 1))
   const [saving, setSaving] = createSignal(false)
@@ -570,6 +574,16 @@ export function FileTabContent(props: { tab: string }) {
     setContextComment("")
   }
 
+  /**
+   * 办公文件（DOCX/PPTX/XLSX）是二进制，文本通道读不出内容。
+   * 这里单独按 base64 取一次，交给只读预览组件解析。
+   */
+  const officePath = createMemo(() => (isOfficePreviewPath(path()) ? path() : undefined))
+  const [officeBase64] = createResource(officePath, async (file) => {
+    const result = await sdk.client.file.read({ path: file, encoding: "base64" })
+    return result.data?.content ?? ""
+  })
+
   const activeSelection = () => note.selected ?? selectedLines()
 
   const commentsUi = createLineCommentController({
@@ -893,6 +907,18 @@ export function FileTabContent(props: { tab: string }) {
                       }}
                     />
                   </div>
+                </Match>
+                <Match when={state()?.loaded && isOfficePreviewPath(path())}>
+                  <Show
+                    when={officeBase64()}
+                    fallback={
+                      <div class="flex h-full items-center justify-center px-6 text-12-regular text-foreground-subtle">
+                        {language.t("common.loading")}...
+                      </div>
+                    }
+                  >
+                    {(value) => <OfficeFilePreview path={path()!} base64={value()} />}
+                  </Show>
                 </Match>
                 <Match when={state()?.loaded}>
                   <div class="flex h-full items-center justify-center px-6 text-12-regular text-foreground-subtle">
