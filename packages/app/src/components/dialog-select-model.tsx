@@ -8,6 +8,8 @@ import { popularProviders } from "@/hooks/use-providers"
 import { Button } from "@novaway/ui/button"
 import { Switch } from "@novaway/ui/switch"
 import { Tag } from "@novaway/ui/tag"
+import { ProviderIcon } from "@novaway/ui/provider-icon"
+import { providerIconId } from "@/utils/provider-icon"
 import { Icon } from "@novaway/ui/icon"
 import { Dialog } from "@novaway/ui/dialog"
 import { List } from "@novaway/ui/list"
@@ -82,6 +84,10 @@ const ModelList: Component<{
     >
       {(i) => (
         <div class="w-full flex items-center gap-x-2 text-13-regular">
+          <ProviderIcon
+            id={providerIconId(i.provider.id, i.provider.name)}
+            class="size-4 shrink-0 text-foreground-subtle"
+          />
           <span class="truncate">{displayModelName(i.name, i.provider.id, isFree(i.provider.id, i.cost))}</span>
           <Show when={i.latest}>
             <Tag>{language.t("model.tag.latest")}</Tag>

@@ -55,18 +55,19 @@ type BuiltinExtension = {
   description: string
   icon: "list" | "mcp" | "brain" | "review"
   components: string[]
-  /** 配置键：mcp.browser / memory；没有开关的只展示。 */
-  toggle?: "browser" | "memory"
+  /** 开关落点：mcp.browser / memory / 一组技能（写 config.skills.disabled）。 */
+  toggle?: "browser" | "memory" | "skills"
+  /** toggle=skills 时，这个扩展包含哪些内置技能。 */
+  skills?: string[]
   /** 本产品是否真的具备该能力；false 时条目仍展示并说明原因。 */
   available?: boolean
   unavailableReason?: string
 }
 
 export const BUILTIN_EXTENSIONS: BuiltinExtension[] = [
-  // 目录口径对齐 ZCode 的官方内置插件（FreeCodeZ bootstrap 的 official-plugin-definitions）：
-  // PDF / 演示文档 / 电子表格 / Word文档 / 交互视图 / 浏览器操作 / 电脑控制 / 技能与插件创建 / 使用指南。
-  // 其中部分能力本产品暂未内置执行引擎，列表里保留条目并标注「未内置」，
-  // 打开详情能看到具体缺什么 —— 比凭空给一个点了没反应的开关更诚实。
+  // 目录口径对齐 ZCode 的官方内置插件（official-plugin-definitions）。
+  // 每一行都有开关：技能型扩展写 config.skills.disabled（关掉只是隐藏，不删文件）；
+  // 浏览器 / 记忆写各自的配置项。暂未内置执行引擎的条目保留开关但禁用，详情说明原因。
   {
     id: "pdf",
     name: "PDF",
@@ -82,13 +83,17 @@ export const BUILTIN_EXTENSIONS: BuiltinExtension[] = [
     description: "创建、编辑与审阅演示文档（PPTX）。",
     icon: "review",
     components: ["skill"],
+    toggle: "skills",
+    skills: ["office-ppt"],
   },
   {
     id: "spreadsheets",
     name: "电子表格",
     description: "创建、编辑与审阅电子表格（XLSX）。",
-    icon: "review",
+    icon: "table",
     components: ["skill"],
+    toggle: "skills",
+    skills: ["office-data"],
   },
   {
     id: "documents",
@@ -96,6 +101,8 @@ export const BUILTIN_EXTENSIONS: BuiltinExtension[] = [
     description: "创建、编辑与审阅 Word 文档（DOCX）。",
     icon: "review",
     components: ["skill"],
+    toggle: "skills",
+    skills: ["office-document"],
   },
   {
     id: "visualize",
@@ -103,6 +110,8 @@ export const BUILTIN_EXTENSIONS: BuiltinExtension[] = [
     description: "在对话中创建交互图表、数据看板与单页演示页面。",
     icon: "chart",
     components: ["skill"],
+    toggle: "skills",
+    skills: ["office-web"],
   },
   {
     id: "browser-use",
@@ -127,13 +136,34 @@ export const BUILTIN_EXTENSIONS: BuiltinExtension[] = [
     description: "帮助发现、安装并编写 Agent 技能与插件，把重复流程沉淀下来。",
     icon: "list",
     components: ["skill"],
+    toggle: "skills",
+    skills: ["find-skills", "skill-creator"],
   },
   {
-    id: "guide",
-    name: "NovaWay 使用指南",
-    description: "NovaWay 配置、插件、技能、MCP、命令与钩子的使用与诊断说明。",
-    icon: "help",
+    id: "wxgzh-ops",
+    name: "公众号运营",
+    description: "公众号选题、写作、排版与发布流程的内置技能。",
+    icon: "review",
     components: ["skill"],
+    toggle: "skills",
+    skills: ["wxgzh-ops"],
+  },
+  {
+    id: "xiaohongshu-ops",
+    name: "小红书运营",
+    description: "小红书认证登录、内容发布、搜索发现、社交互动与数据分析的内置技能。",
+    icon: "review",
+    components: ["skill"],
+    toggle: "skills",
+    skills: ["xiaohongshu-ops"],
+  },
+  {
+    id: "memory-service",
+    name: "持久记忆",
+    description: "跨会话记住偏好、项目约定与决策，并在后续对话里按需召回。",
+    icon: "brain",
+    components: ["memory"],
+    toggle: "memory",
   },
 ]
 
@@ -515,7 +545,14 @@ export const PluginMarketplaceSection: Component<{ onBack?: () => void }> = (pro
     }
   }
 
+  const disabledSkills = () => new Set(globalSync.data.config.skills?.disabled ?? [])
+
   const builtinEnabled = (item: BuiltinExtension) => {
+    if (item.toggle === "skills") {
+      // 只要该扩展包含的技能里有任何一个仍启用，就算启用。
+      const disabled = disabledSkills()
+      return (item.skills ?? []).every((name) => !disabled.has(name))
+    }
     if (item.toggle === "browser") {
       const mcp = globalSync.data.config.mcp
       const browser = isRecord(mcp) && isRecord(mcp.browser) ? mcp.browser : undefined
@@ -527,6 +564,17 @@ export const PluginMarketplaceSection: Component<{ onBack?: () => void }> = (pro
 
   const setBuiltin = (item: BuiltinExtension, value: boolean) => {
     const config = globalSync.data.config
+    if (item.toggle === "skills") {
+      const current = new Set(config.skills?.disabled ?? [])
+      for (const name of item.skills ?? []) {
+        if (value) current.delete(name)
+        else current.add(name)
+      }
+      void globalSync.updateConfig({
+        skills: { ...(config.skills ?? {}), disabled: [...current] },
+      } as Config)
+      return
+    }
     if (item.toggle === "browser") {
       const mcp = isRecord(config.mcp) ? config.mcp : {}
       const browser = isRecord(mcp.browser) ? mcp.browser : {}
@@ -537,6 +585,19 @@ export const PluginMarketplaceSection: Component<{ onBack?: () => void }> = (pro
       void globalSync.updateConfig({ memory: { ...(config.memory ?? {}), enabled: value } } as Config)
     }
   }
+
+  /** Claude 条目没有 zip/version 字段，转成详情弹窗认识的形状。 */
+  const claudeEntry = (entry: ClaudeMarketplaceEntry): ZcodeMarketplaceEntry => ({
+    name: entry.name,
+    displayName: entry.displayName,
+    description: entry.description,
+    descriptionEn: entry.description,
+    version: entry.gitRef ?? "main",
+    author: entry.author,
+    category: entry.category,
+    keywords: [],
+    url: entry.gitUrl,
+  })
 
   const openDetail = (input: {
     entry?: ZcodeMarketplaceEntry
@@ -656,7 +717,18 @@ export const PluginMarketplaceSection: Component<{ onBack?: () => void }> = (pro
   const claudeRow = (entry: ClaudeMarketplaceEntry) => {
     const current = () => find(entry.name)
     return (
-      <div class="flex min-w-0 items-start gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-hover">
+      <div
+        role="button"
+        tabindex="0"
+        class="flex min-w-0 cursor-pointer items-start gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-hover"
+        onClick={() => openDetail({ entry: claudeEntry(entry), installed: current() })}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault()
+            openDetail({ entry: claudeEntry(entry), installed: current() })
+          }
+        }}
+      >
         <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-surface">
           <Icon name="dot-grid" class="size-5 text-foreground-subtle" />
         </span>
@@ -671,6 +743,7 @@ export const PluginMarketplaceSection: Component<{ onBack?: () => void }> = (pro
             {entry.description}
           </span>
         </div>
+        <div onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
         <Show
           when={current()}
           fallback={
@@ -699,6 +772,7 @@ export const PluginMarketplaceSection: Component<{ onBack?: () => void }> = (pro
             </Button>
           )}
         </Show>
+        </div>
       </div>
     )
   }
@@ -738,22 +812,18 @@ export const PluginMarketplaceSection: Component<{ onBack?: () => void }> = (pro
           </For>
         </span>
       </div>
-      <Show
-        when={item.available !== false && item.toggle}
-        fallback={
-          <span class="shrink-0 text-11-regular text-foreground-subtlest">
-            {item.available === false
-              ? language.t("settings.plugins.market.unavailable" as never)
-              : language.t("settings.plugins.market.alwaysOn" as never)}
-          </span>
-        }
-      >
-        <div onClick={(event) => event.stopPropagation()}>
-          <Switch checked={builtinEnabled(item)} onChange={(value) => setBuiltin(item, value)} hideLabel>
-            {item.name}
-          </Switch>
-        </div>
-      </Show>
+      {/* 每一行都有开关（对齐 ZCode）：真正的配置项都接上了，
+          暂无执行引擎的条目保留开关但禁用，避免"点得动却什么都不发生"。 */}
+      <div onClick={(event) => event.stopPropagation()}>
+        <Switch
+          checked={builtinEnabled(item)}
+          disabled={item.available === false}
+          onChange={(value) => setBuiltin(item, value)}
+          hideLabel
+        >
+          {item.name}
+        </Switch>
+      </div>
     </div>
   )
 
@@ -1087,12 +1157,16 @@ const ExtensionDetail: Component<{
               {language.t("settings.plugins.store.install" as never)}
             </Button>
           </Show>
-          <Show when={props.onToggle && props.builtin?.available !== false}>
+          <Show when={props.onToggle}>
             <div class="flex items-center gap-2">
               <span class="text-12-regular text-foreground-subtle">
                 {language.t("settings.plugins.market.detail.enabled" as never)}
               </span>
-              <Switch checked={props.enabled ?? true} onChange={(value) => props.onToggle?.(value)}>
+              <Switch
+                checked={(props.enabled ?? true) && props.builtin?.available !== false}
+                disabled={props.builtin?.available === false}
+                onChange={(value) => props.onToggle?.(value)}
+              >
                 {name()}
               </Switch>
             </div>
