@@ -421,14 +421,23 @@ export const layer = Layer.effect(
       }),
     )
 
+    // `skills.disabled` 是扩展市场「内置扩展」开关的落点：被关掉的技能
+    // 不参与注入、不出现在可选技能列表里，但文件仍在，随时可恢复。
+    const disabledNames = Effect.fn("Skill.disabledNames")(function* () {
+      const cfg = yield* config.get()
+      return new Set(cfg.skills?.disabled ?? [])
+    })
+
     const get = Effect.fn("Skill.get")(function* (name: string) {
       const s = yield* InstanceState.get(state)
+      if (yield* Effect.map(disabledNames(), (names) => names.has(name))) return undefined
       return s.skills[name]
     })
 
     const all = Effect.fn("Skill.all")(function* () {
       const s = yield* InstanceState.get(state)
-      return Object.values(s.skills)
+      const disabled = yield* disabledNames()
+      return Object.values(s.skills).filter((skill) => !disabled.has(skill.name))
     })
 
     const dirs = Effect.fn("Skill.dirs")(function* () {
@@ -437,7 +446,10 @@ export const layer = Layer.effect(
 
     const available = Effect.fn("Skill.available")(function* (agent?: Agent.Info) {
       const s = yield* InstanceState.get(state)
-      const list = Object.values(s.skills).toSorted((a, b) => a.name.localeCompare(b.name))
+      const disabled = yield* disabledNames()
+      const list = Object.values(s.skills)
+        .filter((skill) => !disabled.has(skill.name))
+        .toSorted((a, b) => a.name.localeCompare(b.name))
       if (!agent) return list
       return list.filter((skill) => Permission.evaluate("skill", skill.name, agent.permission).action !== "deny")
     })

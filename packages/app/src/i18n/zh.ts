@@ -1228,6 +1228,12 @@ export const dict = {
   "settings.shortcuts.group.terminal": "终端",
   "settings.shortcuts.group.prompt": "提示",
 
+  "settings.providers.section.available": "可添加的供应商",
+  "settings.providers.add.custom": "创建自定义供应商",
+  "settings.providers.detail.models": "{{count}} 个模型",
+  "settings.providers.detail.credentials": "凭据",
+  "settings.agents.search.placeholder": "搜索 AI 员工…",
+  "settings.agents.skills.collapse": "收起",
   "settings.providers.title": "供应商",
   "settings.providers.description": "供应商设置将在此处可配置。",
   "settings.providers.section.connected": "已连接的供应商",

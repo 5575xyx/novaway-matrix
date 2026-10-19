@@ -1871,6 +1871,7 @@ export const SettingsAgents: Component = () => {
   const [categoryFilter, setCategoryFilter] = createSignal("all")
   const [sourceFilter, setSourceFilter] = createSignal<SourceFilter>("all")
   const [modeFilter, setModeFilter] = createSignal<ModeFilter>("all")
+  const [agentSearch, setAgentSearch] = createSignal("")
 
   const agents = useQuery(() => ({
     queryKey: ["settings", "agents"],
@@ -1899,11 +1900,19 @@ export const SettingsAgents: Component = () => {
     list().filter((agent) => matchesSourceFilter(sourceFilter(), agent.native === true)),
   )
   const categoryAgents = createMemo(() => list().filter((agent) => matchesAgentCategory(agent, categoryFilter())))
-  const visibleAgents = createMemo(() =>
-    sourceAgents()
+  const visibleAgents = createMemo(() => {
+    const query = agentSearch().trim().toLowerCase()
+    return sourceAgents()
       .filter((agent) => matchesAgentCategory(agent, categoryFilter()))
-      .filter((agent) => matchesModeFilter(agent, modeFilter())),
-  )
+      .filter((agent) => matchesModeFilter(agent, modeFilter()))
+      .filter((agent) => {
+        if (!query) return true
+        return [agent.name, agent.description ?? "", agent.options?.category ?? ""]
+          .join(" ")
+          .toLowerCase()
+          .includes(query)
+      })
+  })
   const agentByName = createMemo(() => new Map(list().map((item) => [item.name, item])))
   const fileByName = createMemo(
     () => new Map((files.data ?? []).map((item: SettingsAgentListResponse[number]) => [item.name, item])),
@@ -2180,8 +2189,28 @@ export const SettingsAgents: Component = () => {
             {language.t("settings.management.action.import")}
           </Button>
         </Toolbar>
-        <div class="flex flex-wrap items-center justify-between gap-3 pb-3">
-          <PageTabs class="pb-0" value={categoryFilter()} onChange={setCategoryFilter} items={categoryTabs()} />
+        {/*
+          原来这里并排三排标签（17 个分类 + 来源 + 模式），宽度一窄就折成好几行，
+          再叠上每个 AI 员工下面的一整片技能胶囊，整页看起来非常乱。
+          现在压成一行：搜索 + 分类下拉 + 两个紧凑分段，行内只留技能数量。
+        */}
+        <div class="flex flex-wrap items-center gap-2 pb-3">
+          <input
+            value={agentSearch()}
+            onInput={(event) => setAgentSearch(event.currentTarget.value)}
+            placeholder={language.t("settings.agents.search.placeholder" as never)}
+            class="h-8 min-w-40 flex-1 rounded-md border border-border bg-background px-2.5 text-13-regular text-foreground outline-none placeholder:text-foreground-subtlest focus:border-border-hover"
+          />
+          <Select
+            options={categoryTabs()}
+            current={categoryTabs().find((item) => item.value === categoryFilter())}
+            value={(item) => item.value}
+            label={(item) => `${item.label} ${item.count}`}
+            onSelect={(item) => item && setCategoryFilter(item.value)}
+            variant="secondary"
+            size="small"
+            triggerStyle={{ "min-width": "140px" }}
+          />
           <PageTabs
             class="pb-0"
             value={sourceFilter()}
@@ -2203,7 +2232,6 @@ export const SettingsAgents: Component = () => {
             }))}
           />
         </div>
-        <div class="pb-3 text-12-regular text-foreground-subtle">{language.t("settings.agents.skills.note")}</div>
         <SettingsGroup>
           <Show when={!loading()} fallback={<LoadingState />}>
             <Show
@@ -3544,14 +3572,21 @@ const AgentSkillList: Component<{
   onRemove: (name: string) => void
 }> = (props) => {
   const language = useLanguage()
+  // 默认只铺 4 个技能胶囊，其余折成「+N」。一个 AI 员工能挂几十个技能，
+  // 全量铺开会让列表彻底失去可读性（用户反馈"太乱"）。
+  const [expanded, setExpanded] = createSignal(false)
+  const visible = createMemo(() => (expanded() ? safeArray(props.skills) : safeArray(props.skills).slice(0, 4)))
+  const hidden = createMemo(() => Math.max(0, safeArray(props.skills).length - visible().length))
   return (
-    <div class="mt-2 flex flex-wrap items-center gap-1.5">
-      <span class="text-12-regular text-foreground-subtle">{language.t("settings.agents.skills.title")}</span>
+    <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+      <span class="text-12-regular text-foreground-subtle">
+        {language.t("settings.agents.skills.title")} {safeArray(props.skills).length}
+      </span>
       <Show
         when={safeArray(props.skills).length > 0}
         fallback={<Tag>{language.t("settings.agents.skills.empty")}</Tag>}
       >
-        <For each={safeArray(props.skills)}>
+        <For each={visible()}>
           {(skill) => (
             <span class="inline-flex h-6 max-w-44 items-center gap-1 rounded-md border border-border bg-surface px-2 text-12-regular text-foreground">
               <span class="truncate">{skillDisplayName(skill.name, skill.data)}</span>
@@ -3571,6 +3606,15 @@ const AgentSkillList: Component<{
             </span>
           )}
         </For>
+        <Show when={hidden() > 0 || expanded()}>
+          <button
+            type="button"
+            class="inline-flex h-6 items-center rounded-md border border-border px-2 text-12-regular text-foreground-subtle hover:bg-surface hover:text-foreground"
+            onClick={() => setExpanded((value) => !value)}
+          >
+            {expanded() ? language.t("settings.agents.skills.collapse" as never) : `+${hidden()}`}
+          </button>
+        </Show>
       </Show>
       <button
         type="button"

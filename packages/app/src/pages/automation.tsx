@@ -208,9 +208,6 @@ export const AutomationPage: Component<{ onBack: () => void }> = (props) => {
           {language.t("common.goBack")}
         </button>
         <div class="flex-1" />
-        <Button variant="primary" size="small" icon="plus-small" onClick={() => openCreate()}>
-          {language.t("automation.create" as never)}
-        </Button>
       </div>
 
       <div class="flex-1 min-h-0 overflow-y-auto px-6 pb-14 sm:px-10">
@@ -253,6 +250,16 @@ export const AutomationPage: Component<{ onBack: () => void }> = (props) => {
             }
           >
             <div class="flex flex-col gap-2">
+              <div class="flex items-center justify-end">
+                <button
+                  type="button"
+                  class="flex h-9 items-center gap-2 rounded-lg bg-foreground px-3.5 text-13-medium text-background transition-opacity hover:opacity-90"
+                  onClick={() => openCreate()}
+                >
+                  <Icon name="plus-small" size="small" />
+                  {language.t("automation.create" as never)}
+                </button>
+              </div>
               <For each={schedules.data ?? []}>
                 {(item) => (
                   <div class="flex min-w-0 items-start gap-3 rounded-xl border border-border px-4 py-3.5">

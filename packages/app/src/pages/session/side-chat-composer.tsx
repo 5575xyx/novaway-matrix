@@ -1,5 +1,6 @@
 import { createMemo, createSignal, For, Show } from "solid-js"
 import { ProviderIcon } from "@novaway/ui/provider-icon"
+import { providerIconId } from "@/utils/provider-icon"
 import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
@@ -182,7 +183,7 @@ export function SideChatComposer(props: { tab: SidePaneSessionTab }) {
               <Icon name="autopilot" class="size-4 shrink-0 text-icon-blue" />
             </Show>
             <Show when={!models.autoMode() && local.model.current()?.provider?.id}>
-              <ProviderIcon id={local.model.current()?.provider?.id ?? ""} class="size-4 shrink-0 text-icon-blue" />
+              <ProviderIcon id={providerIconId(local.model.current()?.provider?.id, local.model.current()?.provider?.name)} class="size-4 shrink-0 text-icon-blue" />
             </Show>
             <span
               class="truncate"

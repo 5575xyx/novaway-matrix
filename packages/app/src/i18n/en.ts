@@ -1307,6 +1307,12 @@ export const dict = {
   "settings.shortcuts.group.terminal": "Terminal",
   "settings.shortcuts.group.prompt": "Prompt",
 
+  "settings.providers.section.available": "Available providers",
+  "settings.providers.add.custom": "Create custom provider",
+  "settings.providers.detail.models": "{{count}} models",
+  "settings.providers.detail.credentials": "Credentials",
+  "settings.agents.search.placeholder": "Search AI employees…",
+  "settings.agents.skills.collapse": "Show less",
   "settings.providers.title": "Providers",
   "settings.providers.description": "Provider settings will be configurable here.",
   "settings.providers.section.connected": "Connected providers",
