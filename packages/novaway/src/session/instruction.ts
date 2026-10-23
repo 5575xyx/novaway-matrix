@@ -53,6 +53,10 @@ export class Service extends Context.Service<Service, Interface>()("@NovaWay/Ins
 export interface SystemOutput {
   readonly always: string[]
   readonly triggered: string[]
+  /** Local instruction files that were read (used for `InstructionsLoaded`). */
+  readonly paths: string[]
+  /** Remote instruction URLs that were read. */
+  readonly urls: string[]
 }
 
 type RuleTrigger = "always" | "mention" | "auto"
@@ -295,7 +299,7 @@ export const layer: Layer.Layer<
         if (content) always.push(`Instructions from: ${item}\n${content}`)
       }
 
-      return { always, triggered }
+      return { always, triggered, paths: Array.from(paths), urls }
     })
 
     const find = Effect.fn("Instruction.find")(function* (dir: string) {

@@ -48,6 +48,7 @@ export class Service extends ConfigService.Service<Service>()("@NovaWay/RuntimeF
   experimentalLspTy: bool("NovaWay_EXPERIMENTAL_LSP_TY"),
   experimentalLspTool: enabledByExperimental("NovaWay_EXPERIMENTAL_LSP_TOOL"),
   experimentalOxfmt: enabledByExperimental("NovaWay_EXPERIMENTAL_OXFMT"),
+  experimentalComputerControl: enabledByExperimental("NovaWay_EXPERIMENTAL_COMPUTER_CONTROL"),
   experimentalPlanMode: enabledByExperimental("NovaWay_EXPERIMENTAL_PLAN_MODE"),
   experimentalEventSystem: enabledByExperimental("NovaWay_EXPERIMENTAL_EVENT_SYSTEM"),
   experimentalWorkspaces: enabledByExperimental("NovaWay_EXPERIMENTAL_WORKSPACES"),

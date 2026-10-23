@@ -1,5 +1,5 @@
 import { NodeFileSystem } from "@effect/platform-node"
-import { dirname, join, relative, resolve as pathResolve } from "path"
+import { dirname, isAbsolute, join, relative, resolve as pathResolve, sep } from "path"
 import { realpathSync } from "fs"
 import * as NFS from "fs/promises"
 import { lookup } from "mime-types"
@@ -233,12 +233,20 @@ export namespace AppFileSystem {
   }
 
   export function overlaps(a: string, b: string) {
-    const relA = relative(a, b)
-    const relB = relative(b, a)
-    return !relA || !relA.startsWith("..") || !relB || !relB.startsWith("..")
+    // One contains the other. Defined via `contains` so both share the
+    // cross-root (different Windows drive) handling.
+    return contains(a, b) || contains(b, a)
   }
 
   export function contains(parent: string, child: string) {
-    return !relative(parent, child).startsWith("..")
+    const rel = relative(parent, child)
+    // Same path.
+    if (rel === "") return true
+    // Windows: `relative()` returns the child path unchanged when the two paths
+    // live on different drives ("C:/x" vs "E:/y"). Treating that as "contained"
+    // would disable every external-path check on Windows.
+    if (isAbsolute(rel)) return false
+    // ".." or "../x" means the child escapes the parent; "..foo" is just a name.
+    return rel !== ".." && !rel.startsWith(`..${sep}`)
   }
 }

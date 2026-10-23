@@ -32,9 +32,19 @@
     border: 1px solid var(--input-border);
     background: var(--input);
     transition:
-      background-color 150ms,
-      border-color 150ms,
-      color 150ms;
+      background-color 150ms ease,
+      border-color 150ms ease,
+      color 150ms ease,
+      transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  /* 勾选框也补上按压反馈，避免"点了没反应"的错觉。 */
+  &:hover:not([data-disabled]) [data-slot="checkbox-checkbox-control"] {
+    border-color: color-mix(in oklab, var(--primary) 55%, var(--input-border));
+  }
+
+  &:active:not([data-disabled]) [data-slot="checkbox-checkbox-control"] {
+    transform: scale(0.9);
   }
 
   [data-slot="checkbox-checkbox-indicator"] {

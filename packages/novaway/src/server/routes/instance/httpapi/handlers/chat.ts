@@ -81,12 +81,26 @@ export const chatHandlers = HttpApiBuilder.group(InstanceHttpApi, "chat", (handl
       const NovaWayProjectID = providerID.startsWith("novaway") ? ctxState.project.id : undefined
       const middleware: LanguageModelMiddleware[] = []
 
+      // 有图片时用多模态 content parts；没有则保持纯文本（兼容所有模型）。
+      const images = ctx.payload.images ?? []
+      const content =
+        images.length === 0
+          ? ctx.payload.message
+          : [
+              { type: "text" as const, text: ctx.payload.message },
+              ...images.map((image) => ({
+                type: "image" as const,
+                image: Buffer.from(image.data, "base64"),
+                mediaType: image.mimeType,
+              })),
+            ]
+
       // 使用 generateText（非流式）更适合提示词优化这种一次性请求
       const result = yield* Effect.tryPromise({
         try: () =>
           generateText({
             system: ctx.payload.system,
-            messages: [{ role: "user" as const, content: ctx.payload.message }],
+            messages: [{ role: "user" as const, content }],
             model: wrapLanguageModel({
               model: language,
               middleware,

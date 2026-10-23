@@ -36,6 +36,8 @@ import { useDialog } from "../context/dialog"
 import { type UiI18n, useI18n } from "../context/i18n"
 import { writeClipboard } from "../util/clipboard"
 import { BasicTool, GenericTool } from "./basic-tool"
+
+export { BasicTool } from "./basic-tool"
 import { MediaToolbar } from "./media-toolbar"
 import { Accordion } from "./accordion"
 import { StickyAccordionHeader } from "./sticky-accordion-header"
@@ -1164,7 +1166,10 @@ export function UserMessageDisplay(props: { message: UserMessage; parts: PartTyp
                   </span>
                 </Show>
                 <Show when={metaTail()}>
-                  <span data-slot="user-message-meta-tail" class="text-12-regular text-foreground-subtle cursor-default">
+                  <span
+                    data-slot="user-message-meta-tail"
+                    class="text-12-regular text-foreground-subtle cursor-default"
+                  >
                     {metaTail()}
                   </span>
                 </Show>
@@ -1994,7 +1999,10 @@ ToolRegistry.register({
             </span>
             <div data-slot="basic-tool-tool-info-main">
               <span data-slot="basic-tool-tool-title" style={{ color: "inherit" }}>
-                <TextShimmer text={i18n.t(pending() ? "ui.tool.action.run.running" : "ui.tool.action.run.done")} active={pending()} />
+                <TextShimmer
+                  text={i18n.t(pending() ? "ui.tool.action.run.running" : "ui.tool.action.run.done")}
+                  active={pending()}
+                />
               </span>
               <Show when={!pending() && props.input.description}>
                 <ShellSubmessage text={props.input.description} animate={sawPending} />
@@ -2080,7 +2088,10 @@ ToolRegistry.register({
               <div data-slot="message-part-title-area">
                 <div data-slot="message-part-title">
                   <span data-slot="message-part-title-text">
-                    <TextShimmer text={i18n.t(pending() ? "ui.tool.action.edit.running" : "ui.tool.action.edit.done")} active={pending()} />
+                    <TextShimmer
+                      text={i18n.t(pending() ? "ui.tool.action.edit.running" : "ui.tool.action.edit.done")}
+                      active={pending()}
+                    />
                   </span>
                   <Show when={!pending()}>
                     <span data-slot="message-part-title-filename">{filename()}</span>
@@ -2151,7 +2162,10 @@ ToolRegistry.register({
               <div data-slot="message-part-title-area">
                 <div data-slot="message-part-title">
                   <span data-slot="message-part-title-text">
-                    <TextShimmer text={i18n.t(pending() ? "ui.tool.action.write.running" : "ui.tool.action.write.done")} active={pending()} />
+                    <TextShimmer
+                      text={i18n.t(pending() ? "ui.tool.action.write.running" : "ui.tool.action.write.done")}
+                      active={pending()}
+                    />
                   </span>
                   <Show when={!pending()}>
                     <span data-slot="message-part-title-filename">{filename()}</span>
@@ -2241,7 +2255,15 @@ ToolRegistry.register({
                 // 文件名逐个列出来（对齐 ZCode：`编辑 [icon] a.ts [icon] b.ts +2`），
                 // 而不是只写"N 个文件"——用户扫一眼就知道动了什么，不用展开。
                 // 右侧再给汇总增删。
-                detail: <ToolFileChips files={files().map((f) => ({ path: f.relativePath, additions: f.additions, deletions: f.deletions }))} />,
+                detail: (
+                  <ToolFileChips
+                    files={files().map((f) => ({
+                      path: f.relativePath,
+                      additions: f.additions,
+                      deletions: f.deletions,
+                    }))}
+                  />
+                ),
                 action: (
                   <DiffChanges changes={files().map((f) => ({ additions: f.additions, deletions: f.deletions }))} />
                 ),
@@ -2344,7 +2366,10 @@ ToolRegistry.register({
                 <div data-slot="message-part-title-area">
                   <div data-slot="message-part-title">
                     <span data-slot="message-part-title-text">
-                      <TextShimmer text={i18n.t(pending() ? "ui.tool.action.patch.running" : "ui.tool.action.patch.done")} active={pending()} />
+                      <TextShimmer
+                        text={i18n.t(pending() ? "ui.tool.action.patch.running" : "ui.tool.action.patch.done")}
+                        active={pending()}
+                      />
                     </span>
                     <Show when={!pending()}>
                       <span data-slot="message-part-title-filename">{getFilename(single()!.relativePath)}</span>
@@ -2701,7 +2726,9 @@ ToolRegistry.register({
                   <tr class="border-b border-border">
                     <For each={columns()}>
                       {(col) => (
-                        <th class="px-2 py-1 text-left text-11-medium text-foreground-subtle whitespace-nowrap">{col}</th>
+                        <th class="px-2 py-1 text-left text-11-medium text-foreground-subtle whitespace-nowrap">
+                          {col}
+                        </th>
                       )}
                     </For>
                   </tr>

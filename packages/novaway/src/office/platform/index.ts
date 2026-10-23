@@ -815,17 +815,71 @@ export const layer = Layer.effect(
       return yield* runJob({ kind: "workflow", id, inputValues })
     })
 
+    /** 应用关闭期间错过的执行次数上限：避免长时间没开机后一次性补跑几十次。 */
+    const MAX_CATCH_UP = 3
+
+    /**
+     * 到点检查。
+     *
+     * 两个关键行为：
+     * 1. **并发执行**：之前 `yield* runJob(...)` 串行等待，一个跑 5 分钟的 workflow
+     *    会阻塞其余所有定时任务。现在改用 `fork` 并行，各自收尾。
+     * 2. **错过补跑**：应用关掉期间 nextRunAt 会一直停在过去。恢复时按
+     *    MAX_CATCH_UP 上限补跑（并写进日志），而不是"错过就永远错过"。
+     */
     const tick = Effect.fn("OfficePlatform.tick")(function* () {
       const current = yield* InstanceState.get(state)
       const now = yield* Clock.currentTimeMillis
       const due = current.data.schedules.filter((item) => item.status === "active" && item.nextRunAt <= now)
-      for (const schedule of due) {
-        yield* runJob({ kind: "schedule", id: schedule.id }).pipe(Effect.ignore)
-        schedule.nextRunAt = nextOfficeTriggerTime(schedule.trigger, now)
+      if (due.length === 0) {
+        yield* Effect.sleep("1 minute")
+        return
       }
-      if (due.length > 0) yield* persist()
+
+      for (const schedule of due) {
+        // 计算补跑次数：nextRunAt 落后 now 多少个周期（interval 用分钟数估算）。
+        const missed = catchUpCount(schedule, now)
+        schedule.nextRunAt = nextOfficeTriggerTime(schedule.trigger, now)
+        if (missed > 0) {
+          current.data.runs.push({
+            id: randomUUID(),
+            scheduleId: schedule.id,
+            status: "completed",
+            startedAt: now,
+            completedAt: now,
+            logs: [`应用离线期间错过 ${missed} 次，已补跑 ${Math.min(missed, MAX_CATCH_UP)} 次`],
+          })
+        }
+        // missed = 0：正常到点，跑一次；missed > 0：补跑，最多 MAX_CATCH_UP 次。
+        const rounds = missed > 0 ? Math.min(missed, MAX_CATCH_UP) : 1
+        for (let round = 0; round < rounds; round++) {
+          // fork 让每个任务独立跑：慢任务不拖住同一轮的其他任务。
+          yield* runJob({ kind: "schedule", id: schedule.id }).pipe(
+            Effect.ignore,
+            Effect.forkIn(scope, { startImmediately: true }),
+          )
+        }
+      }
+
+      yield* persist()
       yield* Effect.sleep("1 minute")
     })
+
+    /** 距离下次执行落后了多少个周期（用于补跑；返回值 0 表示没落后）。 */
+    function catchUpCount(schedule: OfficeSchedule, now: number) {
+      if (!(schedule.nextRunAt < now)) return 0
+      const period =
+        schedule.trigger.type === "interval"
+          ? Math.max(schedule.trigger.minutes, 1) * 60_000
+          : schedule.trigger.type === "weekly"
+            ? 7 * 24 * 60 * 60_000
+            : schedule.trigger.type === "monthly"
+              ? 30 * 24 * 60 * 60_000
+              : schedule.trigger.type === "days"
+                ? Math.max(schedule.trigger.everyDays, 1) * 24 * 60 * 60_000
+                : 24 * 60 * 60_000
+      return Math.floor((now - schedule.nextRunAt) / period)
+    }
 
     const ticker = yield* tick().pipe(Effect.forever, Effect.forkIn(scope, { startImmediately: true }))
     yield* Effect.addFinalizer(() => Fiber.interrupt(ticker))
@@ -1136,13 +1190,19 @@ export const layer = Layer.effect(
 
     const status = Effect.fn("OfficePlatform.status")(function* () {
       const current = yield* InstanceState.get(state)
+      // 已保存的配置优先：之前只看 process.env，导致用户在设置页保存后
+      // 状态仍显示「未配置」（env 只在 saveConnectorConfig 里写入当次进程）。
+      const config = current.data.connectorConfig ?? {}
+      const hasFeishu =
+        Boolean(config.feishuWebhookUrl?.trim()) ||
+        Boolean(config.feishuAppId?.trim() && config.feishuAppSecret?.trim()) ||
+        Boolean(process.env.FEISHU_WEBHOOK_URL) ||
+        Boolean(process.env.FEISHU_APP_ID && process.env.FEISHU_APP_SECRET)
+      const hasTencent = Boolean(config.tencentDocsToken?.trim()) || Boolean(process.env.TENCENT_DOCS_TOKEN)
       const diagnostics: OfficePlatformStatus["diagnostics"] = {
         browser: "configured",
-        tencentDocs: process.env.TENCENT_DOCS_TOKEN ? "configured" : "missing",
-        feishu:
-          process.env.FEISHU_WEBHOOK_URL || (process.env.FEISHU_APP_ID && process.env.FEISHU_APP_SECRET)
-            ? "configured"
-            : "missing",
+        tencentDocs: hasTencent ? "configured" : "missing",
+        feishu: hasFeishu ? "configured" : "missing",
       }
       return {
         schedulerEnabled: true as const,

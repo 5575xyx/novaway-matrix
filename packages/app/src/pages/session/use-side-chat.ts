@@ -59,13 +59,8 @@ export function useSideChat() {
     }
   }
 
-  const createSideChat = async (seed?: {
-    text?: string
-    draft?: string
-    quote?: SideChatQuote
-    parentID?: string
-  }) => {
-    const parentID = seed?.parentID ?? (params.id ?? "")
+  const createSideChat = async (seed?: { text?: string; draft?: string; quote?: SideChatQuote; parentID?: string }) => {
+    const parentID = seed?.parentID ?? params.id ?? ""
     const existing = Object.values(layout.sidePane.dynamicTabs()).filter(
       (tab) => tab.kind === "sideChat" && tab.parentID === parentID,
     )
@@ -103,9 +98,7 @@ export function useSideChat() {
       }
       // 侧栏任务树里显示的名字：服务端标题生成会覆盖它，但在那之前
       // 「未命名任务」出现在主任务下面会让人不知道那是哪条辅助对话。
-      void sdk.client.session
-        .update({ sessionID: created.id, title: tab.title })
-        .catch(() => undefined)
+      void sdk.client.session.update({ sessionID: created.id, title: tab.title }).catch(() => undefined)
       if (seed?.draft || seed?.quote) setSideChatSeed(created.id, { draft: seed.draft, quote: seed.quote })
       layout.sidePane.openSession(tab)
       return tab

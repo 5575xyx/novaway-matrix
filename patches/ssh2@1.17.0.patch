@@ -1,0 +1,19 @@
+diff --git a/lib/protocol/constants.js b/lib/protocol/constants.js
+index ad77592..931c368 100644
+--- a/lib/protocol/constants.js
++++ b/lib/protocol/constants.js
+@@ -2,10 +2,10 @@
+ 
+ const crypto = require('crypto');
+ 
+-let cpuInfo;
+-try {
+-  cpuInfo = require('cpu-features')();
+-} catch {}
++// cpu-features is an optional native addon. Bun's bundler cannot resolve its
++// prebuilt .node binary and fails the whole build, so skip the acceleration
++// hint entirely; ssh2 falls back to its built-in cipher selection.
++const cpuInfo = undefined;
+ 
+ const { bindingAvailable, CIPHER_INFO, MAC_INFO } = require('./crypto.js');
+ 

@@ -29,6 +29,10 @@ export function parameterSchema(description: string) {
       description: `The working directory to run the command in. Defaults to the current directory. Use this instead of 'cd' commands.`,
     }),
     description: Schema.String.annotate({ description }),
+    background: Schema.optional(Schema.Boolean).annotate({
+      description:
+        "Run the command in the background and return immediately. Use for long-lived processes (dev servers, watchers). The user can watch and stop it in the status panel.",
+    }),
   })
 }
 

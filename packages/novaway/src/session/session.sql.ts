@@ -47,6 +47,7 @@ export const SessionTable = sqliteTable(
       files?: Snapshot.FileDiff[]
     }>(),
     permission: text({ mode: "json" }).$type<Permission.Ruleset>(),
+    permission_mode: text(),
     agent: text(),
     model: text({ mode: "json" }).$type<{
       id: string

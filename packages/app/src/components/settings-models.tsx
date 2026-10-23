@@ -247,7 +247,7 @@ export const SettingsModels: Component = () => {
                 return (
                   <div class="flex flex-col gap-1">
                     <div class="flex items-center gap-2 pb-2">
-                      <ProviderIcon id={providerID} class="size-5 shrink-0 icon-strong-base" />
+                      <ProviderIcon id={providerID} brand class="size-5 shrink-0 icon-strong-base" />
                       <span class="text-14-medium text-foreground">{group.items[0].provider.name}</span>
                       <Show when={isMultiKey}>
                         <span class="text-12-regular text-foreground-subtle font-mono">

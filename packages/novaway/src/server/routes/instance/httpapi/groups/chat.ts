@@ -11,6 +11,15 @@ const root = "/chat"
 
 export const ChatPayload = Schema.Struct({
   message: Schema.String,
+  /** 可选图片输入（base64），用于视觉 OCR 等一次性多模态请求。 */
+  images: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        mimeType: Schema.String,
+        data: Schema.String,
+      }),
+    ),
+  ),
   system: Schema.optional(Schema.String),
   model: Schema.Struct({
     providerID: ProviderID,

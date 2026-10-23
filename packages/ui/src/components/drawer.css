@@ -127,7 +127,7 @@
   animation: drawerContentHide 150ms ease-in forwards;
 
   &[data-expanded] {
-    animation: drawerContentShow 200ms ease-out;
+    animation: drawerContentShow 200ms var(--ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1));
   }
 }
 

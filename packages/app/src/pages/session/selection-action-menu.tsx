@@ -19,7 +19,10 @@ type Anchor = { x: number; y: number; bottom: number }
  *
  * 定位：菜单浮在选区上方（放不下时翻到下方），并夹在视口内。
  */
-export function SelectionActionMenu(props: { container: () => HTMLElement | undefined; onAskSideChat: (text: string) => void }) {
+export function SelectionActionMenu(props: {
+  container: () => HTMLElement | undefined
+  onAskSideChat: (text: string) => void
+}) {
   const language = useLanguage()
   const prompt = usePrompt()
 

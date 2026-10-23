@@ -204,7 +204,9 @@ function AccountTable(props: {
     <div class="flex-1 overflow-auto">
       <Show
         when={props.accounts.length > 0}
-        fallback={<div class="flex items-center justify-center h-full text-foreground-subtlest text-14-regular">暂无数据</div>}
+        fallback={
+          <div class="flex items-center justify-center h-full text-foreground-subtlest text-14-regular">暂无数据</div>
+        }
       >
         <table class="w-full">
           <thead>

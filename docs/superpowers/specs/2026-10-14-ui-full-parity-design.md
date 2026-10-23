@@ -4,27 +4,28 @@
 
 ## 1. 范围与真相
 
-| | NovaWay | ZCode / FreeCodeZ |
-| --- | --- | --- |
-| UI 文件 | 279 个 tsx（app 147 + ui 132） | 654 个 tsx（`ui/src`） |
-| UI 代码量 | 74,515 行 | 56,950 行（`ui/src`） |
-| 框架 | **SolidJS + Kobalte** | **React + shadcn/Radix** |
-| token | 575 个（opencode 命名） | 165 个（ZCode 语义命名） |
+|           | NovaWay                        | ZCode / FreeCodeZ        |
+| --------- | ------------------------------ | ------------------------ |
+| UI 文件   | 279 个 tsx（app 147 + ui 132） | 654 个 tsx（`ui/src`）   |
+| UI 代码量 | 74,515 行                      | 56,950 行（`ui/src`）    |
+| 框架      | **SolidJS + Kobalte**          | **React + shadcn/Radix** |
+| token     | 575 个（opencode 命名）        | 165 个（ZCode 语义命名） |
 
 **两棵树的 token 命名几乎完全不相交（仅 2 个同名）。** 因此这不是"改几个值"，而是**换一整套设计系统**。
 
 参考源（两份都可读，优先 upstream）：
+
 - 上游 ZCode：`novaway-coder/.worktrees/zcode-ref`（gitignore，只读）
 - 用户提供的 fork：`E:\AImoney\FreeCodeZ-main`（React，同样以 ZCode 3.15.1 为基线）
 
 **能做什么、不能做什么（关键前提）**
 
-| 层 | 可达成度 | 说明 |
-| --- | --- | --- |
-| CSS / token | **1:1 逐字移植** | 纯 CSS，与框架无关 |
-| 组件外观/几何 | **高保真重写** | class 可照抄，代码必须用 Solid 重写 |
-| 组件代码 | **不可搬运** | React/Radix → Solid/Kobalte，API 不一一对应 |
-| ZCode 独有功能面 | **不在本轮** | 工作流画布/插件市场/轨迹查看器/CUA/bots 等 NovaWay 没有，属造功能 |
+| 层               | 可达成度         | 说明                                                              |
+| ---------------- | ---------------- | ----------------------------------------------------------------- |
+| CSS / token      | **1:1 逐字移植** | 纯 CSS，与框架无关                                                |
+| 组件外观/几何    | **高保真重写**   | class 可照抄，代码必须用 Solid 重写                               |
+| 组件代码         | **不可搬运**     | React/Radix → Solid/Kobalte，API 不一一对应                       |
+| ZCode 独有功能面 | **不在本轮**     | 工作流画布/插件市场/轨迹查看器/CUA/bots 等 NovaWay 没有，属造功能 |
 
 ## 2. 策略：绞杀者模式（strangler fig），不做大爆炸改名
 
@@ -45,12 +46,12 @@
 
 ZCode `packages/ui/src/styles.css`（2053 行）中的：
 
-| 块 | 行 | 内容 |
-| --- | --- | --- |
-| `@theme` | 137–307 | 全部语义 token（`--color-*`）+ 字阶 + 动效变量 |
-| `.dark` | 308–460 | 深色主题覆盖 |
-| `.theme-zai-light` | 461–605 | Zai 浅色（正式浅色体验） |
-| `.theme-zai-dark` | 606–760 | Zai 深色 |
+| 块                 | 行      | 内容                                           |
+| ------------------ | ------- | ---------------------------------------------- |
+| `@theme`           | 137–307 | 全部语义 token（`--color-*`）+ 字阶 + 动效变量 |
+| `.dark`            | 308–460 | 深色主题覆盖                                   |
+| `.theme-zai-light` | 461–605 | Zai 浅色（正式浅色体验）                       |
+| `.theme-zai-dark`  | 606–760 | Zai 深色                                       |
 
 ### 3.2 依赖缺口：Tailwind 默认色板
 
@@ -60,10 +61,10 @@ ZCode 的 token 引用了 Tailwind 默认色板（`--color-neutral-50`、`--colo
 
 ### 3.3 主题切换机制差异
 
-| | NovaWay | ZCode |
-| --- | --- | --- |
-| 浅色 | `:root` | `.theme-zai-light`（默认 `:root` 为 fallback） |
-| 深色 | `@media (prefers-color-scheme: dark)` | `.dark` 类 |
+|      | NovaWay                               | ZCode                                          |
+| ---- | ------------------------------------- | ---------------------------------------------- |
+| 浅色 | `:root`                               | `.theme-zai-light`（默认 `:root` 为 fallback） |
+| 深色 | `@media (prefers-color-scheme: dark)` | `.dark` 类                                     |
 
 **NovaWay 沿用现有机制**（`@media` + 现有主题上下文），不引入 `.dark` 类切换，避免动到主题系统。Zai Light/Dark 的值合并进 NovaWay 的浅/深色块。
 
@@ -77,32 +78,32 @@ ZCode 的 token 引用了 Tailwind 默认色板（`--color-neutral-50`、`--colo
 
 按"用户可见路径"分批，每批自带 e2e 与截图验收。
 
-| 批次 | 范围 | 文件量（估） |
-| --- | --- | --- |
-| B1 | 基础控件：Button / IconButton / Input / TextField / Select / Switch / Checkbox / Tag / Badge | ~25 |
-| B2 | 浮层：DropdownMenu / Popover / Dialog / Toast / Tooltip / Kobalte 包装层 | ~25 |
-| B3 | 会话主体：消息时间线、气泡、工具调用块、Thinking、Code block、Diff | ~40 |
-| B4 | 输入区：PromptInput 及其子件（附件、mention、popover、工具栏） | ~30 |
-| B5 | 侧栏与面板：侧栏、任务列表、文件树、Side Pane、终端面板 | ~35 |
-| B6 | 设置页：全部 settings-* | ~25 |
-| B7 | 状态面板 / 首页 / 办公 / Pulse / 其余 | ~60 |
-| B8 | 收尾：删旧 token 层、Aurora 装饰、彩色阴影 | 全局 |
+| 批次 | 范围                                                                                         | 文件量（估） |
+| ---- | -------------------------------------------------------------------------------------------- | ------------ |
+| B1   | 基础控件：Button / IconButton / Input / TextField / Select / Switch / Checkbox / Tag / Badge | ~25          |
+| B2   | 浮层：DropdownMenu / Popover / Dialog / Toast / Tooltip / Kobalte 包装层                     | ~25          |
+| B3   | 会话主体：消息时间线、气泡、工具调用块、Thinking、Code block、Diff                           | ~40          |
+| B4   | 输入区：PromptInput 及其子件（附件、mention、popover、工具栏）                               | ~30          |
+| B5   | 侧栏与面板：侧栏、任务列表、文件树、Side Pane、终端面板                                      | ~35          |
+| B6   | 设置页：全部 settings-\*                                                                     | ~25          |
+| B7   | 状态面板 / 首页 / 办公 / Pulse / 其余                                                        | ~60          |
+| B8   | 收尾：删旧 token 层、Aurora 装饰、彩色阴影                                                   | 全局         |
 
 ## 5. 验收
 
-| # | 断言 |
-| --- | --- |
-| U1 | P0 后现有界面**零视觉回归**（亮/暗截图逐像素对比，仅允许 token 值变动带来的预期差异） |
-| U2 | P0 后 `packages/app` + `packages/ui` typecheck 通过、单测与 e2e 与基线一致 |
-| U3 | ZCode 语义 token 在 DOM 上可取到正确计算值（CDP 抽查 10 个） |
-| U4 | B1–B8 每批：该批组件截图与 ZCode 参考并排对照；e2e 全绿 |
-| U5 | 最终：全仓无旧 token（`bg-background-base` 等）残留；无 Aurora 装饰类 |
+| #   | 断言                                                                                  |
+| --- | ------------------------------------------------------------------------------------- |
+| U1  | P0 后现有界面**零视觉回归**（亮/暗截图逐像素对比，仅允许 token 值变动带来的预期差异） |
+| U2  | P0 后 `packages/app` + `packages/ui` typecheck 通过、单测与 e2e 与基线一致            |
+| U3  | ZCode 语义 token 在 DOM 上可取到正确计算值（CDP 抽查 10 个）                          |
+| U4  | B1–B8 每批：该批组件截图与 ZCode 参考并排对照；e2e 全绿                               |
+| U5  | 最终：全仓无旧 token（`bg-background-base` 等）残留；无 Aurora 装饰类                 |
 
 ## 6. 风险
 
-| 风险 | 处置 |
-| --- | --- |
-| 两套 token 并存导致新代码用错 | P0 起在 `theme.css` 顶部写明"新代码一律用 ZCode 层"，批次内清干净 |
-| 色板补回后 Tailwind 类爆炸（多出几千个类） | 只补 ZCode 实际引用的刻度，不整包引入 |
-| 深色主题机制不同（`@media` vs `.dark`）导致取值错位 | 保持 NovaWay 机制，只搬值；CDP 抽验亮暗两套 |
-| 74k 行 UI 的迁移量大、周期长 | 绞杀者模式，每批独立可交付；不做大爆炸 |
+| 风险                                                | 处置                                                              |
+| --------------------------------------------------- | ----------------------------------------------------------------- |
+| 两套 token 并存导致新代码用错                       | P0 起在 `theme.css` 顶部写明"新代码一律用 ZCode 层"，批次内清干净 |
+| 色板补回后 Tailwind 类爆炸（多出几千个类）          | 只补 ZCode 实际引用的刻度，不整包引入                             |
+| 深色主题机制不同（`@media` vs `.dark`）导致取值错位 | 保持 NovaWay 机制，只搬值；CDP 抽验亮暗两套                       |
+| 74k 行 UI 的迁移量大、周期长                        | 绞杀者模式，每批独立可交付；不做大爆炸                            |

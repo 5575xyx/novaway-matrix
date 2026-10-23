@@ -68,6 +68,11 @@ import {
   type StatusPanelSection,
 } from "@/pages/session/status-panel/status-panel"
 import { useContextSection } from "@/pages/session/status-panel/context-section"
+import { useBackgroundSection } from "@/pages/session/status-panel/background-section"
+import { useAgentsSection } from "@/pages/session/status-panel/agents-section"
+import { usePlanApprovalSection } from "@/pages/session/status-panel/plan-approval-section"
+import { useHooksSection } from "@/pages/session/status-panel/hooks-section"
+import { useTempFilesSection } from "@/pages/session/status-panel/temp-files-section"
 import { useGitSection } from "@/pages/session/status-panel/git-section"
 import { useTodoSection } from "@/pages/session/status-panel/todo-section"
 import { FloatingTodoButton } from "@/components/floating-todo-button"
@@ -479,7 +484,12 @@ export default function Page() {
     deferRender: false,
   })
 
-  // 五个区块都接入面板；model 为 null 时该区块整体不进 sections，全部为空则面板不挂载。
+  // 各区块都接入面板；model 为 null 时该区块整体不进 sections，全部为空则面板不挂载。
+  const backgroundSection = useBackgroundSection(() => params.id ?? "")
+  const agentsSection = useAgentsSection(() => params.id ?? "")
+  const planApprovalSection = usePlanApprovalSection(() => params.id ?? "")
+  const hooksSection = useHooksSection(() => params.id ?? "")
+  const tempFilesSection = useTempFilesSection(() => params.id ?? "")
   const gitSection = useGitSection()
   const todoSection = useTodoSection()
   const contextSection = useContextSection()
@@ -492,9 +502,16 @@ export default function Page() {
   // 完整入口仍在 设置 → 记忆与进化。
   const statusSections = createMemo(() =>
     visibleStatusSections(
-      [gitSection(), todoSection(), contextSection()].filter(
-        (section): section is StatusPanelSection => section !== null,
-      ),
+      [
+        hooksSection(),
+        planApprovalSection(),
+        agentsSection(),
+        backgroundSection(),
+        tempFilesSection(),
+        gitSection(),
+        todoSection(),
+        contextSection(),
+      ].filter((section): section is StatusPanelSection => section !== null),
       statusRunning(),
     ),
   )
@@ -825,9 +842,7 @@ export default function Page() {
 
     const frame = host.closest("[data-component='conv-frame']")
     const frameRect = frame?.getBoundingClientRect()
-    const from = frameRect
-      ? frameRect.top + frameRect.height / 2 - (box.top + box.height / 2)
-      : -box.height - 120
+    const from = frameRect ? frameRect.top + frameRect.height / 2 - (box.top + box.height / 2) : -box.height - 120
 
     composerDroppedFor = id
     if (Math.abs(from) < 24) return
@@ -850,13 +865,7 @@ export default function Page() {
   }
 
   // 切会话：重放内容区入场，把"骨架屏 → 时间线"的切换裹进同一段淡入里。
-  createEffect(
-    on(
-      sessionKey,
-      () => enterStage(),
-      { defer: true },
-    ),
-  )
+  createEffect(on(sessionKey, () => enterStage(), { defer: true }))
 
   // 新建任务：从空态直接进会话时，让底部输入框滑下来。已有的会话之间切换不做这个动作
   // （那时输入框本来就在底部，再滑一次是噪音）。
@@ -1678,7 +1687,6 @@ export default function Page() {
     shouldQueueFollowup({ mode: settings.general.followup(), live: followupLive() }),
   )
 
-
   const followupText = (item: FollowupDraft) => {
     const text = item.prompt
       .map((part) => {
@@ -2028,173 +2036,219 @@ export default function Page() {
         setStyle: setFileDiffStyle,
       }}
     >
-    <Show
-      when={showOfficeNewSessionWorkspace(layout.mode.current(), params.id)}
-      fallback={
-        <div class="relative size-full overflow-hidden flex flex-col p-1 gap-1">
-          <div class="flex-1 min-h-0 flex flex-col md:flex-row gap-1">
-            <Show when={!isDesktop() && !!params.id}>
-              <Tabs value={store.mobileTab} class="h-auto">
-                <Tabs.List>
-                  <Tabs.Trigger
-                    value="session"
-                    class="!w-1/2 !max-w-none"
-                    classes={{ button: "w-full" }}
-                    onClick={() => setStore("mobileTab", "session")}
-                  >
-                    {language.t("session.tab.session")}
-                  </Tabs.Trigger>
-                  <Tabs.Trigger
-                    value="changes"
-                    class="!w-1/2 !max-w-none !border-r-0"
-                    classes={{ button: "w-full" }}
-                    onClick={() => setStore("mobileTab", "changes")}
-                  >
-                    {hasReview()
-                      ? language.t("session.review.filesChanged", { count: reviewCount() })
-                      : language.t("session.review.change.other")}
-                  </Tabs.Trigger>
-                </Tabs.List>
-              </Tabs>
-            </Show>
+      <Show
+        when={showOfficeNewSessionWorkspace(layout.mode.current(), params.id)}
+        fallback={
+          <div class="relative size-full overflow-hidden flex flex-col p-1 gap-1">
+            <div class="flex-1 min-h-0 flex flex-col md:flex-row gap-1">
+              <Show when={!isDesktop() && !!params.id}>
+                <Tabs value={store.mobileTab} class="h-auto">
+                  <Tabs.List>
+                    <Tabs.Trigger
+                      value="session"
+                      class="!w-1/2 !max-w-none"
+                      classes={{ button: "w-full" }}
+                      onClick={() => setStore("mobileTab", "session")}
+                    >
+                      {language.t("session.tab.session")}
+                    </Tabs.Trigger>
+                    <Tabs.Trigger
+                      value="changes"
+                      class="!w-1/2 !max-w-none !border-r-0"
+                      classes={{ button: "w-full" }}
+                      onClick={() => setStore("mobileTab", "changes")}
+                    >
+                      {hasReview()
+                        ? language.t("session.review.filesChanged", { count: reviewCount() })
+                        : language.t("session.review.change.other")}
+                    </Tabs.Trigger>
+                  </Tabs.List>
+                </Tabs>
+              </Show>
 
-            {/* Session panel */}
-            <div
-              class="@container relative flex-1 min-h-0 flex flex-col rounded-[var(--workspace-panel-radius)] border border-border bg-background overflow-hidden"
-              data-component="conv-frame"
-            >
-              <WorkspaceHeader />
-              <div class="relative flex-1 min-h-0 overflow-hidden flex flex-col md:flex-row">
-                <div
-                  class="flex-1 min-w-0 min-h-0 flex flex-col"
-                  classList={{ "@min-[768px]:pr-[344px]": statusPanelReserved() }}
-                >
+              {/* Session panel */}
+              <div
+                class="@container relative flex-1 min-h-0 flex flex-col rounded-[var(--workspace-panel-radius)] border border-border bg-background overflow-hidden"
+                data-component="conv-frame"
+              >
+                <WorkspaceHeader />
+                <div class="relative flex-1 min-h-0 overflow-hidden flex flex-col md:flex-row">
                   <div
-                    ref={(el) => {
-                      contentStageRef = el
-                    }}
-                    class="flex-1 min-h-0 overflow-hidden"
+                    class="flex-1 min-w-0 min-h-0 flex flex-col"
+                    classList={{ "@min-[768px]:pr-[344px]": statusPanelReserved() }}
                   >
-                    <div class="h-full">
-                    {/* Mobile changes view */}
-                    <Show when={params.id && mobileChanges()}>
-                      <div class="relative h-full overflow-hidden">
-                        {reviewContent({
-                          diffStyle: "unified",
-                          classes: {
-                            root: "pb-8",
-                            header: "px-4",
-                            container: "px-4",
-                          },
-                          loadingClass: "px-4 py-4 text-foreground-subtle",
-                          emptyClass: "h-full pb-64 -mt-4 flex flex-col items-center justify-center text-center gap-6",
-                        })}
-                      </div>
-                    </Show>
-
-                    {/* Session view (message timeline) */}
-                    <Show when={params.id && !mobileChanges()}>
+                    <div
+                      ref={(el) => {
+                        contentStageRef = el
+                      }}
+                      class="flex-1 min-h-0 overflow-hidden"
+                    >
                       <div class="h-full">
-                        <Show when={timelineReady()} fallback={<MessageTimelineSkeleton />}>
-                          <MessageTimeline
-                            actions={actions}
-                            scroll={ui.scroll}
-                            onResumeScroll={resumeScroll}
-                            setScrollRef={setScrollRef}
-                            onScheduleScrollState={scheduleScrollState}
-                            onAutoScrollHandleScroll={autoScroll.handleScroll}
-                            onMarkScrollGesture={markScrollGesture}
-                            hasScrollGesture={hasScrollGesture}
-                            onUserScroll={markUserScroll}
-                            onHistoryScroll={historyLoader.onScrollerScroll}
-                            onAutoScrollInteraction={autoScroll.handleInteraction}
-                            shouldAnchorBottom={() =>
-                              !location.hash && !store.messageId && !ui.pendingMessage && !autoScroll.userScrolled()
-                            }
-                            centered={centered()}
-                            setContentRef={(el) => {
-                              content = el
-                              autoScroll.contentRef(el)
+                        {/* Mobile changes view */}
+                        <Show when={params.id && mobileChanges()}>
+                          <div class="relative h-full overflow-hidden">
+                            {reviewContent({
+                              diffStyle: "unified",
+                              classes: {
+                                root: "pb-8",
+                                header: "px-4",
+                                container: "px-4",
+                              },
+                              loadingClass: "px-4 py-4 text-foreground-subtle",
+                              emptyClass:
+                                "h-full pb-64 -mt-4 flex flex-col items-center justify-center text-center gap-6",
+                            })}
+                          </div>
+                        </Show>
 
-                              const root = scroller
-                              if (root) scheduleScrollState(root)
+                        {/* Session view (message timeline) */}
+                        <Show when={params.id && !mobileChanges()}>
+                          <div class="h-full">
+                            <Show when={timelineReady()} fallback={<MessageTimelineSkeleton />}>
+                              <MessageTimeline
+                                actions={actions}
+                                scroll={ui.scroll}
+                                onResumeScroll={resumeScroll}
+                                setScrollRef={setScrollRef}
+                                onScheduleScrollState={scheduleScrollState}
+                                onAutoScrollHandleScroll={autoScroll.handleScroll}
+                                onMarkScrollGesture={markScrollGesture}
+                                hasScrollGesture={hasScrollGesture}
+                                onUserScroll={markUserScroll}
+                                onHistoryScroll={historyLoader.onScrollerScroll}
+                                onAutoScrollInteraction={autoScroll.handleInteraction}
+                                shouldAnchorBottom={() =>
+                                  !location.hash && !store.messageId && !ui.pendingMessage && !autoScroll.userScrolled()
+                                }
+                                centered={centered()}
+                                setContentRef={(el) => {
+                                  content = el
+                                  autoScroll.contentRef(el)
+
+                                  const root = scroller
+                                  if (root) scheduleScrollState(root)
+                                }}
+                                historyShift={historyLoader.shift()}
+                                userMessages={historyLoader.userMessages()}
+                                anchor={anchor}
+                                setRevealMessage={(fn) => {
+                                  revealMessage = fn
+                                }}
+                              />
+                            </Show>
+                          </div>
+                        </Show>
+
+                        {/* New session view (centered) */}
+                        <Show when={!params.id}>
+                          <div class="h-full">
+                            <NewSessionView
+                              worktree={newSessionWorktree()}
+                              centered={centered()}
+                              inputRef={(el) => {
+                                inputRef = el
+                              }}
+                              autoSubmitKey={autoSubmitKey()}
+                              onNewSessionWorktreeReset={() => setStore("newSessionWorktree", "main")}
+                              onSubmit={() => {
+                                comments.clear()
+                                resumeScroll()
+                              }}
+                            />
+                          </div>
+                        </Show>
+                      </div>
+                    </div>
+
+                    <Show when={params.id}>
+                      <div
+                        ref={(el) => {
+                          composerHostRef = el
+                          // 元素一进 DOM 就尝试落位（此时才有真实高度）。
+                          // `playComposerDrop` 自带"每个会话只播一次"的闸门，重复调用无副作用。
+                          playComposerDrop()
+                        }}
+                        data-composer-drop={composerDropFrom() !== null ? "run" : undefined}
+                        data-composer-drop-from={
+                          composerDropFrom() !== null ? Math.round(composerDropFrom()!) : undefined
+                        }
+                      >
+                        <Show
+                          when={showOfficeSessionComposer(layout.mode.current(), params.id)}
+                          fallback={composerRegion({
+                            centered: centered(),
+                            setPromptDockRef: (el) => {
+                              promptDock = el
+                            },
+                          })}
+                        >
+                          <OfficeSessionComposer
+                            centered={centered()}
+                            setPromptDockRef={(el) => {
+                              promptDock = el
                             }}
-                            historyShift={historyLoader.shift()}
-                            userMessages={historyLoader.userMessages()}
-                            anchor={anchor}
-                            setRevealMessage={(fn) => {
-                              revealMessage = fn
-                            }}
+                            composer={composerRegion({
+                              centered: false,
+                              embedded: true,
+                              setPromptDockRef: () => {},
+                            })}
                           />
                         </Show>
                       </div>
                     </Show>
-
-                    {/* New session view (centered) */}
-                    <Show when={!params.id}>
-                      <div class="h-full">
-                        <NewSessionView
-                          worktree={newSessionWorktree()}
-                          centered={centered()}
-                          inputRef={(el) => {
-                            inputRef = el
-                          }}
-                          autoSubmitKey={autoSubmitKey()}
-                          onNewSessionWorktreeReset={() => setStore("newSessionWorktree", "main")}
-                          onSubmit={() => {
-                            comments.clear()
-                            resumeScroll()
-                          }}
-                        />
-                      </div>
-                    </Show>
-                    </div>
                   </div>
 
-                  <Show when={params.id}>
-                    <div
-                      ref={(el) => {
-                        composerHostRef = el
-                        // 元素一进 DOM 就尝试落位（此时才有真实高度）。
-                        // `playComposerDrop` 自带"每个会话只播一次"的闸门，重复调用无副作用。
-                        playComposerDrop()
-                      }}
-                      data-composer-drop={composerDropFrom() !== null ? "run" : undefined}
-                      data-composer-drop-from={composerDropFrom() !== null ? Math.round(composerDropFrom()!) : undefined}
-                    >
-                      <Show
-                        when={showOfficeSessionComposer(layout.mode.current(), params.id)}
-                        fallback={composerRegion({
-                          centered: centered(),
-                          setPromptDockRef: (el) => {
-                            promptDock = el
-                          },
-                        })}
-                      >
-                        <OfficeSessionComposer
-                          centered={centered()}
-                          setPromptDockRef={(el) => {
-                            promptDock = el
-                          }}
-                          composer={composerRegion({
-                            centered: false,
-                            embedded: true,
-                            setPromptDockRef: () => {},
-                          })}
-                        />
-                      </Show>
-                    </div>
-                  </Show>
-                </div>
-
-                {/* Status Panel — conv-frame 已是 @container，形态由容器宽度裁决。
+                  {/* Status Panel — conv-frame 已是 @container，形态由容器宽度裁决。
                     面板里挂着 TanStack 查询，区块一旦重建就会新建查询资源并挂起；
                     没有这层边界时，挂起会被会话页外层的 Suspense 接住，整页闪成空白。
                     这里就地兜住：面板自己的异步只影响面板，不影响消息区。 */}
-                <Suspense fallback={null}>
-                  <SessionStatusPanel sections={statusSections()} />
-                </Suspense>
+                  <Suspense fallback={null}>
+                    <SessionStatusPanel sections={statusSections()} />
+                  </Suspense>
+                </div>
               </div>
+
+              {/* 面板常驻、关闭时宽度归 0（见 SessionSidePanel 的说明）：只有常驻才能在
+                  展开/收起时过渡宽度，ZCode 也是这么做的，只是条件从 opened() 换成 desktop。 */}
+              <Show when={isDesktop()}>
+                <SessionSidePanel
+                  canReview={canReview}
+                  diffs={reviewDiffs}
+                  diffsReady={reviewReady}
+                  empty={reviewEmptyText}
+                  hasReview={hasReview}
+                  reviewCount={reviewCount}
+                  reviewPanel={reviewPanel}
+                  activeDiff={tree.activeDiff}
+                  focusReviewDiff={focusReviewDiff}
+                  reviewSnap={ui.reviewSnap}
+                  size={size}
+                  reservedWidth={officeReservedWidth}
+                />
+              </Show>
+            </div>
+
+            <Show when={!paneShowsTerminal()}>
+              <TerminalPanel />
+            </Show>
+            <Show when={platform.platform !== "desktop"}>
+              <FloatingTodoButton />
+            </Show>
+          </div>
+        }
+      >
+        <div class="relative size-full overflow-hidden flex flex-col">
+          <div class="flex-1 min-h-0 flex flex-col md:flex-row">
+            <div class="relative flex-1 min-h-0">
+              <OfficeSessionWorkspace
+                composer={composerRegion({
+                  centered: false,
+                  embedded: true,
+                  setPromptDockRef: (el) => {
+                    promptDock = el
+                  },
+                })}
+              />
             </div>
 
             {/* 面板常驻、关闭时宽度归 0（见 SessionSidePanel 的说明）：只有常驻才能在
@@ -2224,50 +2278,7 @@ export default function Page() {
             <FloatingTodoButton />
           </Show>
         </div>
-      }
-    >
-      <div class="relative size-full overflow-hidden flex flex-col">
-        <div class="flex-1 min-h-0 flex flex-col md:flex-row">
-          <div class="relative flex-1 min-h-0">
-            <OfficeSessionWorkspace
-              composer={composerRegion({
-                centered: false,
-                embedded: true,
-                setPromptDockRef: (el) => {
-                  promptDock = el
-                },
-              })}
-            />
-          </div>
-
-          {/* 面板常驻、关闭时宽度归 0（见 SessionSidePanel 的说明）：只有常驻才能在
-                  展开/收起时过渡宽度，ZCode 也是这么做的，只是条件从 opened() 换成 desktop。 */}
-          <Show when={isDesktop()}>
-            <SessionSidePanel
-              canReview={canReview}
-              diffs={reviewDiffs}
-              diffsReady={reviewReady}
-              empty={reviewEmptyText}
-              hasReview={hasReview}
-              reviewCount={reviewCount}
-              reviewPanel={reviewPanel}
-              activeDiff={tree.activeDiff}
-              focusReviewDiff={focusReviewDiff}
-              reviewSnap={ui.reviewSnap}
-              size={size}
-              reservedWidth={officeReservedWidth}
-            />
-          </Show>
-        </div>
-
-        <Show when={!paneShowsTerminal()}>
-          <TerminalPanel />
-        </Show>
-        <Show when={platform.platform !== "desktop"}>
-          <FloatingTodoButton />
-        </Show>
-      </div>
-    </Show>
+      </Show>
     </SessionDiffProvider>
   )
 }

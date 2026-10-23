@@ -277,9 +277,7 @@ export function SessionComposerRegion(props: {
                   data-slot="composer-followup-hint"
                   class="px-1 pb-1.5 text-right text-ui-xs text-foreground-subtlest"
                 >
-                  {language.t(
-                    props.followup!.queue() ? "session.composer.queueHint" : "session.composer.steerHint",
-                  )}
+                  {language.t(props.followup!.queue() ? "session.composer.queueHint" : "session.composer.steerHint")}
                 </p>
               </Show>
               <Show

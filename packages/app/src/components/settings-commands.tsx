@@ -53,7 +53,10 @@ export const SettingsCommands: Component<{ directory?: string }> = (props) => {
 
   const commands = useQuery(() => ({
     queryKey: ["settings", "commands", props.directory ?? ""],
-    queryFn: () => client().command.list().then((response) => response.data ?? []),
+    queryFn: () =>
+      client()
+        .command.list()
+        .then((response) => response.data ?? []),
     staleTime: 10_000,
     refetchOnWindowFocus: false,
   }))
@@ -81,9 +84,7 @@ export const SettingsCommands: Component<{ directory?: string }> = (props) => {
     dialog.show(() => (
       <CommandDialog
         title={language.t("settings.commands.action.add" as never)}
-        onSave={(name, template, description) =>
-          save(name, { template, ...(description ? { description } : {}) })
-        }
+        onSave={(name, template, description) => save(name, { template, ...(description ? { description } : {}) })}
       />
     ))
   }

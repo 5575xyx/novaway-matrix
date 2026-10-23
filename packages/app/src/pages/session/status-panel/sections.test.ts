@@ -82,5 +82,4 @@ describe("right panel absorbs cache", () => {
     const panelSource = read("./status-panel.tsx")
     expect(panelSource).toContain("shrink-0 overflow-hidden rounded-lg")
   })
-
 })

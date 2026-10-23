@@ -124,4 +124,98 @@ describe("background.job", () => {
       expect((yield* jobs.get(job.id))?.metadata?.value).toBe("initial")
     }),
   )
+
+  it.instance("updates live output while running", () =>
+    Effect.gen(function* () {
+      const jobs = yield* BackgroundJob.Service
+      const latch = yield* Deferred.make<void>()
+      const job = yield* jobs.start({
+        type: "shell",
+        metadata: { parentSessionId: "ses_parent" },
+        run: Deferred.await(latch).pipe(Effect.as("done")),
+      })
+
+      yield* jobs.update(job.id, { output: "line 1" })
+      expect((yield* jobs.get(job.id))?.output).toBe("line 1")
+
+      yield* jobs.update(job.id, { output: "line 1\nline 2", metadata: { cwd: "/tmp" } })
+      const live = yield* jobs.get(job.id)
+      expect(live?.output).toBe("line 1\nline 2")
+      expect(live?.metadata?.cwd).toBe("/tmp")
+
+      yield* Deferred.succeed(latch, undefined)
+      yield* jobs.wait({ id: job.id })
+      // 完成后的迟到进度不应覆盖最终结果。
+      expect(yield* jobs.update(job.id, { output: "late" })).toBeUndefined()
+      expect((yield* jobs.get(job.id))?.output).toBe("done")
+    }),
+  )
+
+  it.instance("runs the cancel hook before interrupting the job", () =>
+    Effect.gen(function* () {
+      const jobs = yield* BackgroundJob.Service
+      const aborted = yield* Deferred.make<void>()
+      const job = yield* jobs.start({
+        type: "shell",
+        cancel: Deferred.succeed(aborted, undefined),
+        run: Effect.never,
+      })
+
+      yield* jobs.cancel(job.id)
+      yield* Deferred.await(aborted).pipe(Effect.timeout("1 second"))
+      expect((yield* jobs.get(job.id))?.status).toBe("cancelled")
+    }),
+  )
+})
+
+describe("background.job persistence", () => {
+  it.instance("get answers for a job that only exists as a row", () =>
+    Effect.gen(function* () {
+      const { Database } = yield* Effect.promise(() => import("@/storage/db"))
+      const { BackgroundJobTable } = yield* Effect.promise(() => import("@/background/job.sql"))
+      const jobs = yield* BackgroundJob.Service
+
+      yield* Effect.sync(() =>
+        Database.use((db) =>
+          db
+            .insert(BackgroundJobTable)
+            .values({
+              id: "job_persisted",
+              type: "test",
+              title: "finished earlier",
+              status: "completed",
+              started_at: 1_000,
+              completed_at: 2_000,
+              output: "old output",
+            })
+            .run(),
+        ),
+      )
+
+      const found = yield* jobs.get("job_persisted")
+      expect(found?.status).toBe("completed")
+      expect(found?.output).toBe("old output")
+
+      // Live-only listing stays untouched; the panel asks for history explicitly.
+      expect((yield* jobs.list()).some((item) => item.id === "job_persisted")).toBe(false)
+      expect((yield* jobs.list({ includePersisted: true })).some((item) => item.id === "job_persisted")).toBe(true)
+    }),
+  )
+
+  it.instance("live entries win over their persisted copy", () =>
+    Effect.gen(function* () {
+      const jobs = yield* BackgroundJob.Service
+      const latch = yield* Deferred.make<void>()
+      const job = yield* jobs.start({ type: "test", title: "live", run: Deferred.await(latch).pipe(Effect.as("x")) })
+      yield* jobs.update(job.id, { output: "streaming" })
+
+      const listed = (yield* jobs.list({ includePersisted: true })).filter((item) => item.id === job.id)
+      expect(listed).toHaveLength(1)
+      expect(listed[0]!.status).toBe("running")
+      expect(listed[0]!.output).toBe("streaming")
+
+      yield* Deferred.succeed(latch, undefined)
+      yield* jobs.wait({ id: job.id })
+    }),
+  )
 })

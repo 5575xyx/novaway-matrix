@@ -411,7 +411,9 @@ function OfficeSessionComposerBody(props: { composer: JSX.Element; draft: Office
                           setDragAssetIndex(undefined)
                         }}
                       >
-                        <span class="grid size-5 place-items-center text-11-medium text-foreground-subtle">{index() + 1}</span>
+                        <span class="grid size-5 place-items-center text-11-medium text-foreground-subtle">
+                          {index() + 1}
+                        </span>
                         <Icon name="bullet-list" size="small" class="shrink-0 text-foreground-subtlest" />
                         <span class="min-w-0 flex-1 truncate text-12-regular text-foreground-subtle">{asset}</span>
                         <span class="shrink-0 rounded-[5px] border border-border px-1.5 py-0.5 text-10-medium text-foreground-subtle">

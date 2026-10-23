@@ -14,6 +14,7 @@ import { InstanceState } from "@/effect/instance-state"
 import { trimDiff } from "./edit"
 import { assertExternalDirectoryEffect } from "./external-directory"
 import * as Bom from "@/util/bom"
+import { record as recordTempFile } from "@/session/temp-files"
 
 const MAX_PROJECT_DIAGNOSTICS_FILES = 5
 
@@ -43,7 +44,7 @@ export const WriteTool = Tool.define(
           const instance = yield* InstanceState.context
           const filepath = path.isAbsolute(params.filePath)
             ? params.filePath
-            : path.join(instance.directory, params.filePath)
+            : path.join(ctx.directory ?? instance.directory, params.filePath)
           yield* assertExternalDirectoryEffect(ctx, filepath)
 
           const exists = yield* fs.existsSafe(filepath)
@@ -65,6 +66,17 @@ export const WriteTool = Tool.define(
           })
 
           yield* fs.writeWithDirs(filepath, Bom.join(contentNew, desiredBom))
+          // 只有"新建的文件"才进入临时文件清单（修改已有文件不属于临时产物）。
+          if (!exists) {
+            yield* Effect.promise(() =>
+              recordTempFile({
+                sessionID: ctx.sessionID,
+                worktree: instance.worktree === "/" ? instance.directory : instance.worktree,
+                file: filepath,
+                tool: "write",
+              }),
+            ).pipe(Effect.ignore)
+          }
           if (yield* format.file(filepath)) {
             yield* Bom.syncFile(fs, filepath, desiredBom)
           }

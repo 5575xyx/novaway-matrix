@@ -25,6 +25,7 @@ import { Bus } from "../bus"
 import { ProviderTransform } from "@/provider/transform"
 import { SystemPrompt } from "./system"
 import { Instruction } from "./instruction"
+import { OutputStyle } from "./output-style"
 import { Plugin } from "../plugin"
 import PROMPT_PLAN from "../session/prompt/plan.txt"
 import BUILD_SWITCH from "../session/prompt/build-switch.txt"
@@ -40,6 +41,7 @@ import * as Stream from "effect/Stream"
 import { Command } from "../command"
 import { pathToFileURL, fileURLToPath } from "url"
 import { Config } from "@/config/config"
+import { Git } from "@/git"
 import { ConfigMemory } from "@/config/memory"
 import { ConfigEvolution } from "@/config/evolution"
 import { ConfigGoal } from "@/config/goal"
@@ -50,6 +52,9 @@ import { SessionSummary } from "./summary"
 import { NamedError } from "@novaway/core/util/error"
 import { SessionProcessor } from "./processor"
 import { Tool } from "@/tool/tool"
+import { Service as HookServiceService, defaultLayer as HookServiceLayer } from "@/hook/service"
+import { Service as ToolLockServiceService, defaultLayer as ToolLockServiceLayer } from "@/tool/lock"
+import { Service as AgentMailboxService, defaultLayer as AgentMailboxLayer } from "@/team/mailbox"
 import { Permission } from "@/permission"
 import { SessionStatus } from "./status"
 import { LLM } from "./llm"
@@ -70,6 +75,8 @@ import * as EffectLogger from "@novaway/core/effect/logger"
 import { InstanceState } from "@/effect/instance-state"
 import { TaskTool, type TaskPromptOps } from "@/tool/task"
 import { SessionRunState } from "./run-state"
+import { ToolBudget } from "./tool-budget"
+import { PlanApproval } from "./plan-approval"
 import { EffectBridge } from "@/effect/bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { EventV2 } from "@novaway/core/event"
@@ -127,6 +134,18 @@ const VISION_DESCRIBE_SYSTEM_PROMPT = [
 ].join("\n")
 
 const VISION_DESCRIPTION_MARKER = "[图片内容识别结果]"
+const NL = String.fromCharCode(10)
+
+type HookResult = {
+  blocked: boolean
+  ran: boolean
+  decision?: "allow" | "deny" | "ask"
+  reason?: string
+  updatedInput?: unknown
+  additionalContext?: string
+}
+
+const EMPTY_HOOK: HookResult = { blocked: false, ran: false }
 
 // 待办收尾清扫:模型更新过待办清单,但这一轮结束时清单里仍有未完成项,就再跑一轮
 // 提醒它自己把状态收敛到真实进度。decideTodoSweep 是无状态判定——只看清单状态和
@@ -172,7 +191,6 @@ export function todoSweepReminder(todos: Todo.Info[]): string {
   ].join("\n")
 }
 
-
 /**
  * 修复模型返回的 JSON。
  *
@@ -197,7 +215,6 @@ export function repairJsonText(text: string): string | null {
   }
 }
 
-
 /**
  * 结构化输出模型经常不完全按 schema 返回（例如把 content 写成 fact）。
  * 这里把常见别名归一化，避免整批候选因为一个字段名被 TypeValidationError 丢弃。
@@ -216,12 +233,31 @@ const textOf = (record: Record<string, unknown>, keys: string[]) => {
 const pick = <T extends string>(value: unknown, allowed: readonly T[]): T | undefined =>
   typeof value === "string" && (allowed as readonly string[]).includes(value) ? (value as T) : undefined
 
-const MEMORY_KINDS = ["episodic", "semantic", "preference", "goal", "decision", "relationship", "lesson", "procedure"] as const
+const MEMORY_KINDS = [
+  "episodic",
+  "semantic",
+  "preference",
+  "goal",
+  "decision",
+  "relationship",
+  "lesson",
+  "procedure",
+] as const
 const MEMORY_DOMAINS = ["general", "coding", "office", "personal", "research", "ops"] as const
 const MEMORY_TARGETS = ["memory", "user"] as const
 const MEMORY_SCOPES = ["global", "project", "session"] as const
 const MEMORY_OPERATIONS = ["add", "update", "archive", "confirm"] as const
-const EVOLUTION_KINDS = ["skill", "agent", "workflow", "prompt", "tool", "project", "strategy", "habit", "knowledge"] as const
+const EVOLUTION_KINDS = [
+  "skill",
+  "agent",
+  "workflow",
+  "prompt",
+  "tool",
+  "project",
+  "strategy",
+  "habit",
+  "knowledge",
+] as const
 
 /** 归一化记忆候选（generateObject 的 repairText 回调）。 */
 export function repairMemoryReviewJson(text: string): string | null {
@@ -458,6 +494,16 @@ export const layer = Layer.effect(
     const mcp = yield* MCP.Service
     const lsp = yield* LSP.Service
     const registry = yield* ToolRegistry.Service
+    // Collaboration hooks/locks/mailbox are optional: embedders that compose a
+    // minimal layer stack still get a working prompt loop, just without them.
+    const hooks = Option.getOrUndefined(yield* Effect.serviceOption(HookServiceService))
+    // Instructions rarely change; remember what each session loaded so
+    // `InstructionsLoaded` fires on the first turn and on change, not per request.
+    const instructionSignatures = new Map<string, string>()
+    const toolLock = Option.getOrUndefined(yield* Effect.serviceOption(ToolLockServiceService))
+    const mailbox = Option.getOrUndefined(yield* Effect.serviceOption(AgentMailboxService))
+    const planApproval = Option.getOrUndefined(yield* Effect.serviceOption(PlanApproval.Service))
+    const git = yield* Effect.serviceOption(Git.Service)
     const truncate = yield* Truncate.Service
     const image = yield* Image.Service
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
@@ -501,6 +547,9 @@ export const layer = Layer.effect(
 
     const cancel = Effect.fn("SessionPrompt.cancel")(function* (sessionID: SessionID) {
       yield* elog.info("cancel", { sessionID })
+      // Release anything a subagent is blocked on, otherwise its fiber would
+      // keep a pending plan approval alive after the turn is cancelled.
+      if (planApproval) yield* planApproval.clear(sessionID).pipe(Effect.ignore)
       yield* state.cancel(sessionID)
     })
 
@@ -801,6 +850,22 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       return input.messages
     })
 
+    const touchedPaths = (messages: MessageV2.WithParts[]) => {
+      const result = new Set<string>()
+      for (const message of messages) {
+        for (const part of message.parts) {
+          if (part.type !== "tool") continue
+          const input = (part.state as { input?: Record<string, unknown> } | undefined)?.input
+          if (!input || typeof input !== "object") continue
+          for (const [key, value] of Object.entries(input)) {
+            if (!/path$/i.test(key)) continue
+            if (typeof value === "string" && value.trim()) result.add(value)
+          }
+        }
+      }
+      return [...result]
+    }
+
     const resolveTools = Effect.fn("SessionPrompt.resolveTools")(function* (input: {
       agent: Agent.Info
       model: Provider.Model
@@ -817,6 +882,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
 
       const context = (args: any, options: ToolExecutionOptions): Tool.Context => ({
         sessionID: input.session.id,
+        directory: input.session.directory,
         abort: options.abortSignal!,
         messageID: input.processor.message.id,
         callID: options.toolCallId,
@@ -844,6 +910,8 @@ NOTE: At any point in time through this workflow you should feel free to ask the
               sessionID: input.session.id,
               tool: { messageID: input.processor.message.id, callID: options.toolCallId },
               ruleset: Permission.merge(input.agent.permission, input.session.permission ?? []),
+              // Session mode wins; the store falls back to config when unset.
+              ...(input.session.permissionMode ? { mode: input.session.permissionMode } : {}),
             })
             .pipe(Effect.orDie),
       })
@@ -852,6 +920,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         modelID: ModelID.make(input.model.api.id),
         providerID: input.model.providerID,
         agent: input.agent,
+        sessionID: input.session.id,
       })) {
         const schema = ProviderTransform.schema(input.model, ToolJsonSchema.fromTool(item))
         tools[item.id] = tool({
@@ -861,30 +930,105 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             return run.promise(
               Effect.gen(function* () {
                 const ctx = context(args, options)
-                yield* plugin.trigger(
-                  "tool.execute.before",
-                  { tool: item.id, sessionID: ctx.sessionID, callID: ctx.callID },
-                  { args },
-                )
-                const result = yield* item.execute(args, ctx)
-                const output = {
-                  ...result,
-                  attachments: result.attachments?.map((attachment) => ({
-                    ...attachment,
-                    id: PartID.ascending(),
-                    sessionID: ctx.sessionID,
-                    messageID: input.processor.message.id,
-                  })),
-                }
-                yield* plugin.trigger(
-                  "tool.execute.after",
-                  { tool: item.id, sessionID: ctx.sessionID, callID: ctx.callID, args },
-                  output,
-                )
-                if (options.abortSignal?.aborted) {
-                  yield* input.processor.completeToolCall(options.toolCallId, output)
-                }
-                return output
+                const mode = Tool.concurrencySafe(item, args) ? "read" : "write"
+                const release = toolLock ? yield* toolLock.acquire(input.session.id, mode) : Effect.void
+                return yield* Effect.gen(function* () {
+                  const capability = item.capabilities
+                  yield* capability?.validateInput?.(args, ctx) ?? Effect.void
+                  const decision = capability?.checkPermissions
+                    ? yield* capability.checkPermissions(args, ctx)
+                    : "allow"
+                  if (decision === "deny") {
+                    return yield* Effect.fail(new Error(`The ${item.id} tool is not allowed in the current context.`))
+                  }
+                  if (decision === "ask") {
+                    yield* ctx.ask({
+                      permission: item.id,
+                      patterns: ["*"],
+                      always: ["*"],
+                      metadata: {},
+                    })
+                  }
+
+                  const pre: HookResult = hooks
+                    ? yield* hooks.trigger({
+                        event: "PreToolUse",
+                        sessionID: ctx.sessionID,
+                        cwd: input.session.directory,
+                        tool: item.id,
+                        args,
+                      })
+                    : EMPTY_HOOK
+                  if (pre.decision === "deny") {
+                    return yield* Effect.fail(
+                      new Error(pre.reason || `The ${item.id} tool call was blocked by a PreToolUse hook.`),
+                    )
+                  }
+                  const effective = (pre.updatedInput ?? args) as typeof args
+
+                  yield* plugin.trigger(
+                    "tool.execute.before",
+                    { tool: item.id, sessionID: ctx.sessionID, callID: ctx.callID },
+                    { args: effective },
+                  )
+                  // Tool failures must still reach hooks, then propagate unchanged:
+                  // `PostToolUseFailure` is observational, not a recovery channel.
+                  const result = yield* item.execute(effective, ctx).pipe(
+                    Effect.catchCause((cause) =>
+                      Effect.gen(function* () {
+                        if (hooks) {
+                          yield* hooks
+                            .trigger({
+                              event: "PostToolUseFailure",
+                              sessionID: ctx.sessionID,
+                              cwd: input.session.directory,
+                              tool: item.id,
+                              args: effective,
+                              error: Cause.pretty(cause),
+                            })
+                            .pipe(Effect.ignore)
+                        }
+                        return yield* Effect.failCause(cause)
+                      }),
+                    ),
+                  )
+                  const output = {
+                    ...result,
+                    ...(pre.additionalContext
+                      ? {
+                          metadata: {
+                            ...result.metadata,
+                            hookContext: pre.additionalContext,
+                          },
+                        }
+                      : {}),
+                    attachments: result.attachments?.map((attachment) => ({
+                      ...attachment,
+                      id: PartID.ascending(),
+                      sessionID: ctx.sessionID,
+                      messageID: input.processor.message.id,
+                    })),
+                  }
+                  yield* plugin.trigger(
+                    "tool.execute.after",
+                    { tool: item.id, sessionID: ctx.sessionID, callID: ctx.callID, args: effective },
+                    output,
+                  )
+                  if (hooks) {
+                    yield* hooks.trigger({
+                      event: "PostToolUse",
+                      sessionID: ctx.sessionID,
+                      cwd: input.session.directory,
+                      tool: item.id,
+                      args: effective,
+                      result: output.output,
+                    })
+                  }
+                  if (options.abortSignal?.aborted) {
+                    yield* input.processor.completeToolCall(options.toolCallId, output)
+                  }
+                  return output
+                }).pipe(Effect.ensuring(release))
               }),
             )
           },
@@ -911,6 +1055,23 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                 yield* ctx.ask({ permission: key, metadata: {}, patterns: ["*"], always: ["*"] })
                 return yield* Effect.promise(() => execute(args, opts))
               }).pipe(
+                Effect.catchCause((cause) =>
+                  Effect.gen(function* () {
+                    if (hooks) {
+                      yield* hooks
+                        .trigger({
+                          event: "PostToolUseFailure",
+                          sessionID: ctx.sessionID,
+                          cwd: input.session.directory,
+                          tool: key,
+                          args,
+                          error: Cause.pretty(cause),
+                        })
+                        .pipe(Effect.ignore)
+                    }
+                    return yield* Effect.failCause(cause)
+                  }),
+                ),
                 Effect.withSpan("Tool.execute", {
                   attributes: {
                     "tool.name": key,
@@ -2091,7 +2252,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           "scope 必须是 global 或 project：global 表示该候选是跨项目通用的能力（如通用技能、可复用工作流、全局提示词/工具），应写入全局配置；project 表示仅与当前项目相关（如项目规则、特定 Agent 行为、项目专属流程）。",
           "当 kind=tool 时，content 优先给出可运行的 TypeScript 工具模块（export default tool({ description, args, execute })，可 import { tool } from @opencode/plugin）；若暂时只能给自然语言，也要写清工具用途、输入输出与执行步骤。",
           "当 kind=workflow 或 prompt 时，content 应是可直接作为命令模板使用的 Markdown 流程/提示词。",
-          "当 kind=project 时，content 必须是目标文件的完整新内容或 unified diff，不要写\"把 A 改成 B\"这类操作说明；target 用相对路径（不含 .novaway 前缀）。",
+          '当 kind=project 时，content 必须是目标文件的完整新内容或 unified diff，不要写"把 A 改成 B"这类操作说明；target 用相对路径（不含 .novaway 前缀）。',
           "expectedOutcomes 里的每一条都必须逐字出现在 content 中，否则写盘后的回归校验会判定失败并回滚。",
           "只输出 JSON 对象本身，不要包 markdown 代码块，也不要加任何解释。",
         ].join("\n"),
@@ -2234,6 +2395,28 @@ NOTE: At any point in time through this workflow you should feel free to ask the
     )(function* (input: PromptInput) {
       const session = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
       yield* revert.cleanup(session)
+      const promptText = input.parts
+        .filter(
+          (part): part is { type: "text"; text: string } =>
+            part.type === "text" && typeof (part as any).text === "string",
+        )
+        .map((part) => part.text)
+        .join(String.fromCharCode(10))
+      const submitted = hooks
+        ? yield* hooks
+            .trigger({
+              event: "UserPromptSubmit",
+              sessionID: input.sessionID,
+              cwd: session.directory,
+              prompt: promptText,
+            })
+            .pipe(
+              Effect.catch(() => Effect.succeed({ blocked: false, ran: false } as { blocked: boolean; ran: boolean })),
+            )
+        : { blocked: false, ran: false }
+      if (submitted.blocked) {
+        return yield* Effect.die(new Error("Prompt blocked by a UserPromptSubmit hook."))
+      }
       const message = yield* createUserMessage(input)
       yield* sessions.touch(input.sessionID)
 
@@ -2343,8 +2526,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       const evolutionCfg = ConfigEvolution.resolve(cfg.evolution)
       const memoryEnabled = memoryCfg.enabled
       const memoryReviewEnabled = memoryEnabled && memoryCfg.review_enabled && memoryCfg.review_interval > 0
-      const evolutionReviewEnabled =
-        evolutionCfg.enabled && evolutionCfg.review_llm && evolutionCfg.review_interval > 0
+      const evolutionReviewEnabled = evolutionCfg.enabled && evolutionCfg.review_llm && evolutionCfg.review_interval > 0
       const userContent = textFromParts(input.userParts)
       const assistantContent = textFromParts(input.assistantParts)
       const session = input.session
@@ -2398,71 +2580,73 @@ NOTE: At any point in time through this workflow you should feel free to ask the
               .pipe(Effect.catch(() => Effect.succeed(false)))
           : false
 
-      const memoryJob = !memoryDue || !memory
-        ? Effect.void
-        : Effect.gen(function* () {
-            const candidates = yield* inferMemoryReviewCandidates({
-              model,
-              userContent,
-              assistantContent,
-            }).pipe(Effect.catch(() => Effect.succeed([])))
-            const reviewed = yield* memory!
-              .review({
+      const memoryJob =
+        !memoryDue || !memory
+          ? Effect.void
+          : Effect.gen(function* () {
+              const candidates = yield* inferMemoryReviewCandidates({
+                model,
                 userContent,
                 assistantContent,
-                projectID: session.projectID,
-                sessionID,
-                sourceMessageID: lastUser.id,
-                agent: agentName,
-                candidates,
-                skipReviewState: true,
-              })
-              .pipe(Effect.catch(() => Effect.succeed([] as never[])))
-            // 自动写入：候选直接进长期记忆，越用越聪明无需点通过。
-            if (memoryCfg.auto_apply && reviewed.length) {
-              for (const item of reviewed) {
-                if (item.status !== "pending") continue
-                yield* memory!.applyReviewCandidate(item.id).pipe(Effect.ignore)
+              }).pipe(Effect.catch(() => Effect.succeed([])))
+              const reviewed = yield* memory!
+                .review({
+                  userContent,
+                  assistantContent,
+                  projectID: session.projectID,
+                  sessionID,
+                  sourceMessageID: lastUser.id,
+                  agent: agentName,
+                  candidates,
+                  skipReviewState: true,
+                })
+                .pipe(Effect.catch(() => Effect.succeed([] as never[])))
+              // 自动写入：候选直接进长期记忆，越用越聪明无需点通过。
+              if (memoryCfg.auto_apply && reviewed.length) {
+                for (const item of reviewed) {
+                  if (item.status !== "pending") continue
+                  yield* memory!.applyReviewCandidate(item.id).pipe(Effect.ignore)
+                }
               }
-            }
-          }).pipe(Effect.ignore)
+            }).pipe(Effect.ignore)
 
-      const evolutionJob = !evolutionDue || !evolution
-        ? Effect.void
-        : Effect.gen(function* () {
-            const proposals = yield* inferEvolutionReviewCandidates({
-              model,
-              userContent,
-              assistantContent,
-            }).pipe(Effect.catch(() => Effect.succeed([])))
-            if (!proposals.length) return
-            const instanceCtx = yield* InstanceState.context
-            const reviewed = yield* evolution!
-              .review({
-                proposals,
-                projectID: session.projectID,
-                sessionID,
-                sourceMessageID: lastUser.id,
-              })
-              .pipe(Effect.catch(() => Effect.succeed([] as never[])))
-            // 自动写入磁盘：开启后进化候选无需人工确认直接落地到 .novaway 文件。
-            if (evolutionCfg.auto_apply_file && reviewed.length) {
-              for (const item of reviewed) {
-                if (item.status !== "pending") continue
-                yield* evolution!
-                  .applyToDisk(item.id, {
-                    directory: instanceCtx.directory,
-                    worktree: instanceCtx.worktree,
-                  })
-                  .pipe(
-                    Effect.ignoreCause({
-                      log: true,
-                      message: `evolution auto-apply to disk failed: ${item.id}`,
-                    }),
-                  )
+      const evolutionJob =
+        !evolutionDue || !evolution
+          ? Effect.void
+          : Effect.gen(function* () {
+              const proposals = yield* inferEvolutionReviewCandidates({
+                model,
+                userContent,
+                assistantContent,
+              }).pipe(Effect.catch(() => Effect.succeed([])))
+              if (!proposals.length) return
+              const instanceCtx = yield* InstanceState.context
+              const reviewed = yield* evolution!
+                .review({
+                  proposals,
+                  projectID: session.projectID,
+                  sessionID,
+                  sourceMessageID: lastUser.id,
+                })
+                .pipe(Effect.catch(() => Effect.succeed([] as never[])))
+              // 自动写入磁盘：开启后进化候选无需人工确认直接落地到 .novaway 文件。
+              if (evolutionCfg.auto_apply_file && reviewed.length) {
+                for (const item of reviewed) {
+                  if (item.status !== "pending") continue
+                  yield* evolution!
+                    .applyToDisk(item.id, {
+                      directory: instanceCtx.directory,
+                      worktree: instanceCtx.worktree,
+                    })
+                    .pipe(
+                      Effect.ignoreCause({
+                        log: true,
+                        message: `evolution auto-apply to disk failed: ${item.id}`,
+                      }),
+                    )
+                }
               }
-            }
-          }).pipe(Effect.ignore)
+            }).pipe(Effect.ignore)
 
       yield* Effect.all([memoryJob, evolutionJob], { concurrency: 2 })
       // 自动检查点：在压缩/剪枝之前按间隔捕获会话消息 + 文件快照，便于回滚。默认关闭。
@@ -2495,6 +2679,42 @@ NOTE: At any point in time through this workflow you should feel free to ask the
 
         let msgs = yield* MessageV2.filterCompactedEffect(sessionID)
 
+        // Drain messages sent by other agents. They arrive as synthetic user
+        // parts so the model sees them without polluting real user input.
+        const pending = mailbox ? yield* mailbox.drain(sessionID).pipe(Effect.catch(() => Effect.succeed([]))) : []
+        if (pending.length > 0) {
+          const owner = msgs.findLast((item) => item.info.role === "user")
+          const info: MessageV2.User = {
+            id: MessageID.ascending(),
+            sessionID,
+            role: "user",
+            time: { created: Date.now() },
+            agent: owner?.info.role === "user" && owner.info.agent ? owner.info.agent : (session.agent ?? "build"),
+            model:
+              owner?.info.role === "user" && owner.info.model
+                ? {
+                    providerID: owner.info.model.providerID,
+                    modelID: owner.info.model.modelID,
+                    ...(owner.info.model.variant ? { variant: owner.info.model.variant } : {}),
+                  }
+                : yield* provider.defaultModel(),
+          }
+          yield* sessions.updateMessage(info)
+          for (const message of pending) {
+            yield* sessions.updatePart({
+              id: PartID.ascending(),
+              messageID: info.id,
+              sessionID,
+              type: "text",
+              synthetic: true,
+              text: [`<agent-message from="${message.fromSessionID}">`, message.content, "</agent-message>"].join(
+                String.fromCharCode(10),
+              ),
+            } satisfies MessageV2.TextPart)
+          }
+          msgs = yield* MessageV2.filterCompactedEffect(sessionID)
+        }
+
         const { user: lastUser, assistant: lastAssistant, finished: lastFinished, tasks } = MessageV2.latest(msgs)
 
         if (!lastUser) throw new Error("No user message found in stream. This should never happen.")
@@ -2517,8 +2737,10 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         ) {
           // 正常完成的轮次从这里退出，所以记忆/进化/检查点要在当前出口执行
           // （processor 正常完成返回的是 "continue"，见 runTurnLearning 的说明）。
+          // Learning side effects must never break a turn: a missing model or a
+          // provider hiccup here only skips memory/evolution review.
           const finishedModel = yield* getModel(lastUser.model.providerID, lastUser.model.modelID, sessionID).pipe(
-            Effect.catch(() => Effect.succeed(undefined)),
+            Effect.catchCause(() => Effect.succeed(undefined)),
           )
           if (finishedModel) {
             yield* runTurnLearning({
@@ -2530,6 +2752,42 @@ NOTE: At any point in time through this workflow you should feel free to ask the
               model: finishedModel,
               agentName: lastUser.agent,
             }).pipe(Effect.ignore)
+          }
+          if (hooks) {
+            yield* hooks
+              .trigger({
+                event: "Stop",
+                sessionID,
+                cwd: session.directory,
+                metadata: { finish: lastAssistant.finish, agent: lastUser.agent },
+              })
+              .pipe(
+                // A Stop hook that blocks the turn, or crashes, is itself an
+                // event worth observing (`StopFailure`), but must never abort
+                // the loop or leave the session running.
+                Effect.flatMap((result) =>
+                  result.decision === "deny"
+                    ? hooks
+                        .trigger({
+                          event: "StopFailure",
+                          sessionID,
+                          cwd: session.directory,
+                          error: result.reason ?? "Stop hook denied",
+                        })
+                        .pipe(Effect.ignore)
+                    : Effect.void,
+                ),
+                Effect.catchCause((cause) =>
+                  hooks
+                    .trigger({
+                      event: "StopFailure",
+                      sessionID,
+                      cwd: session.directory,
+                      error: Cause.pretty(cause),
+                    })
+                    .pipe(Effect.ignore),
+                ),
+              )
           }
           yield* slog.info("exiting loop")
           break
@@ -2716,13 +2974,70 @@ NOTE: At any point in time through this workflow you should feel free to ask the
 
           yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
 
+          const gitStatus =
+            git._tag === "Some"
+              ? yield* git.value.run(["--no-optional-locks", "status", "--short"], { cwd: session.directory }).pipe(
+                  Effect.map((result) => {
+                    if (result.exitCode !== 0) return ""
+                    const text = result.text().trim()
+                    if (!text) return ""
+                    const truncated =
+                      text.length > 2000
+                        ? text.slice(0, 2000) + NL + "...(truncated; run git status for the full list)"
+                        : text
+                    return ["<git-status>", truncated, "</git-status>"].join(NL)
+                  }),
+                  Effect.catch(() => Effect.succeed("")),
+                )
+              : ""
+
+          const cfg = yield* config.get()
+          // Aggregate tool-result budget: stub the oldest tool outputs once the
+          // request exceeds the configured character budget. Storage is
+          // untouched, so the UI and later turns still see the full text.
+          const budgeted = ToolBudget.apply(msgs, {
+            budgetChars: cfg.experimental?.tool_result_budget_chars ?? ToolBudget.DEFAULT_BUDGET_CHARS,
+            keepRecentMessages: cfg.experimental?.tool_result_keep_recent_messages ?? 2,
+          })
+          if (budgeted.replaced > 0) {
+            log.info("tool result budget applied", {
+              sessionID,
+              replaced: budgeted.replaced,
+              elided: budgeted.elided,
+            })
+          }
+
           const [skills, env, instructionParts, modelMsgs] = yield* Effect.all([
-            sys.skills(agent),
+            sys.skills(
+              agent,
+              (() => {
+                const paths = touchedPaths(msgs)
+                return paths.length > 0 ? paths : undefined
+              })(),
+            ),
             sys.environment(model),
             instruction.system({ prompt: textFromParts(lastUserMsg?.parts ?? []) }).pipe(Effect.orDie),
-            MessageV2.toModelMessagesEffect(msgs, model, modelSupportsImages ? undefined : { stripMedia: true }),
+            MessageV2.toModelMessagesEffect(
+              budgeted.messages,
+              model,
+              modelSupportsImages ? undefined : { stripMedia: true },
+            ),
           ])
-          const cfg = yield* config.get()
+          if (hooks && instructionParts.paths.length + instructionParts.urls.length > 0) {
+            const loaded = [...instructionParts.paths, ...instructionParts.urls].sort()
+            const signature = loaded.join("\n")
+            if (instructionSignatures.get(sessionID) !== signature) {
+              instructionSignatures.set(sessionID, signature)
+              yield* hooks
+                .trigger({
+                  event: "InstructionsLoaded",
+                  sessionID,
+                  cwd: session.directory,
+                  metadata: { paths: loaded, count: loaded.length },
+                })
+                .pipe(Effect.ignore)
+            }
+          }
           const instanceCtx = yield* InstanceState.context
           const memoryCfg = ConfigMemory.resolve(cfg.memory)
           const evolutionCfg = ConfigEvolution.resolve(cfg.evolution)
@@ -2753,7 +3068,26 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             context: [projectContext, memoryContext].filter(Boolean).join("\n\n"),
           })
           // 静态指令/技能放在缓存前缀，环境信息放尾部，避免目录、日期或模型信息变化时整段缓存失效。
-          const staticSystem = [...instructionParts.always, ...(skills ? [skills] : [])].filter(Boolean).join("\n\n")
+          const style = yield* OutputStyle.resolve({
+            directory: ctx.directory,
+            worktree: ctx.worktree,
+            name: agent.outputStyle,
+          })
+          const styleSystem = style
+            ? [
+                `<output-style name="${style.name}">`,
+                ...(style.description ? [style.description, ""] : []),
+                style.body,
+                "</output-style>",
+              ].join("\n")
+            : undefined
+          const staticSystem = [
+            ...instructionParts.always,
+            ...(skills ? [skills] : []),
+            ...(styleSystem ? [styleSystem] : []),
+          ]
+            .filter(Boolean)
+            .join("\n\n")
           const dynamicSystem = [...instructionParts.triggered, ...env].filter(Boolean).join("\n\n")
           const system = [staticSystem, dynamicSystem].filter(Boolean)
           const goalContext = yield* buildGoalContext(goalService, sessionID).pipe(
@@ -2764,7 +3098,9 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           if (format.type === "json_schema") system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)
           const result = yield* handle.process({
             user: lastUser,
-            agent,
+            // A style with `keep-coding-instructions: false` replaces the base
+            // coding prompt instead of stacking on top of it.
+            agent: style && !style.keepCodingInstructions ? { ...agent, prompt: undefined } : agent,
             permission: session.permission,
             sessionID,
             parentSessionID: session.parentID,
@@ -3108,18 +3444,24 @@ NOTE: At any point in time through this workflow you should feel free to ask the
 
 export const defaultLayer = Layer.suspend(() =>
   layer.pipe(
-    Layer.provide(SessionRunState.defaultLayer),
-    Layer.provide(SessionStatus.defaultLayer),
-    Layer.provide(SessionCompaction.defaultLayer),
-    Layer.provide(SessionProcessor.defaultLayer),
-    Layer.provide(Command.defaultLayer),
-    Layer.provide(Permission.defaultLayer),
-    Layer.provide(MCP.defaultLayer),
-    Layer.provide(LSP.defaultLayer),
+    Layer.provide(
+      Layer.mergeAll(
+        SessionRunState.defaultLayer,
+        SessionStatus.defaultLayer,
+        SessionCompaction.defaultLayer,
+        SessionProcessor.defaultLayer,
+        Command.defaultLayer,
+        Permission.defaultLayer,
+        MCP.defaultLayer,
+        LSP.defaultLayer,
+      ),
+    ),
     Layer.provide(ToolRegistry.defaultLayer),
     Layer.provide(Truncate.defaultLayer),
+    Layer.provide(Layer.mergeAll(HookServiceLayer, ToolLockServiceLayer, AgentMailboxLayer)),
     Layer.provide(Provider.defaultLayer),
     Layer.provide(Config.defaultLayer),
+    Layer.provide(Git.defaultLayer),
     Layer.provide(Instruction.defaultLayer),
     Layer.provide(AppFileSystem.defaultLayer),
     Layer.provide(Plugin.defaultLayer),

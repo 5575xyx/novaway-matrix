@@ -10,6 +10,7 @@ import { WorkspaceID } from "../../src/control-plane/schema"
 import type { WorkspaceAdapter } from "../../src/control-plane/types"
 import { Workspace } from "../../src/control-plane/workspace"
 import { InstanceRef, WorkspaceRef } from "../../src/effect/instance-ref"
+import { defaultLayer as BackgroundResume } from "../../src/background/resume"
 import { InstanceLayer } from "../../src/project/instance-layer"
 import { Project } from "../../src/project/project"
 import { disposeMiddleware, markInstanceForDisposal } from "../../src/server/routes/instance/httpapi/lifecycle"
@@ -50,6 +51,8 @@ const it = testEffect(
 const instanceContextTestLayer = instanceRouterMiddleware
   .combine(workspaceRouterMiddleware)
   .layer.pipe(Layer.provide(Socket.layerWebSocketConstructorGlobal))
+  // The middleware restarts resumable background watchers on the first request.
+  .pipe(Layer.provide(BackgroundResume))
 
 const localAdapter = (directory: string): WorkspaceAdapter => ({
   name: "Local Test",

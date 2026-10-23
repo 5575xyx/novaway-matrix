@@ -57,18 +57,18 @@
 
 ## 文件地图
 
-| 文件 | 本计划做什么 |
-| --- | --- |
-| `src/component/git-workspace/focus.ts` | 补 `y` / 分支 `enter` / 差异模式键位与命令联合 |
-| `src/component/git-workspace/state.ts` | 提交行加完整哈希；分支列表并入远程；分支行派生 |
-| `src/util/git-diff.ts` | 新增 `loadBranchPatch` |
-| `src/component/git-workspace/branches-panel.tsx` | **新建** 分支面板 |
-| `src/component/git-workspace/commits-panel.tsx` | **新建** 提交面板 |
-| `src/component/git-workspace/stash-panel.tsx` | **新建** 贮藏面板 |
-| `src/component/git-workspace/inline-input.tsx` | **新建** 行内输入组件（三处共用） |
-| `src/component/git-workspace/diff-panel.tsx` | 滚动容器（`scrollRef`） |
-| `src/component/git-workspace.tsx` | 接线：三面板、行内输入、差异激活模式、`y`、键位条 |
-| `test/component/git-workspace-*.test.ts(x)` | 对应测试 |
+| 文件                                             | 本计划做什么                                      |
+| ------------------------------------------------ | ------------------------------------------------- |
+| `src/component/git-workspace/focus.ts`           | 补 `y` / 分支 `enter` / 差异模式键位与命令联合    |
+| `src/component/git-workspace/state.ts`           | 提交行加完整哈希；分支列表并入远程；分支行派生    |
+| `src/util/git-diff.ts`                           | 新增 `loadBranchPatch`                            |
+| `src/component/git-workspace/branches-panel.tsx` | **新建** 分支面板                                 |
+| `src/component/git-workspace/commits-panel.tsx`  | **新建** 提交面板                                 |
+| `src/component/git-workspace/stash-panel.tsx`    | **新建** 贮藏面板                                 |
+| `src/component/git-workspace/inline-input.tsx`   | **新建** 行内输入组件（三处共用）                 |
+| `src/component/git-workspace/diff-panel.tsx`     | 滚动容器（`scrollRef`）                           |
+| `src/component/git-workspace.tsx`                | 接线：三面板、行内输入、差异激活模式、`y`、键位条 |
+| `test/component/git-workspace-*.test.ts(x)`      | 对应测试                                          |
 
 ---
 
@@ -572,7 +572,7 @@ export function InlineInput(props: InlineInputProps) {
 的整套 harness**，那是仓库里唯一能驱动文本输入的脚手架：
 
 - `createDefaultOpenTuiKeymap(renderer)` + `createTuiResolvedConfig(...)` + `registerNovaWayKeymap`
-  + `onCleanup(off)`；
+  - `onCleanup(off)`；
 - 外层 `<TestTuiContexts directory paths>`（`test/fixture/tui-environment.ts`）里套
   `<NovaWayKeymapProvider>` → `<TuiConfigProvider>` → `<KVProvider>` → `<ThemeProvider mode="dark">`；
 - `await testRender(() => <Harness />, { kittyKeyboard: true })`（`kittyKeyboard: true` 必须有，
@@ -766,10 +766,7 @@ export async function mountWorkspace(options: { root: string; width?: number; on
 
 ```ts
 /** 行内输入的三种触发来源(规格 L141:三处共用同一个组件)。 */
-type InlineInputRequest =
-  | { kind: "commit" }
-  | { kind: "branch-new" }
-  | { kind: "remote-add" }
+type InlineInputRequest = { kind: "commit" } | { kind: "branch-new" } | { kind: "remote-add" }
 
 const [inlineInput, setInlineInput] = createSignal<InlineInputRequest | undefined>(undefined)
 
@@ -963,6 +960,7 @@ const armedFor = (kind: "file" | "branch" | "ref") => {
 ```
 
 **这一处会改掉 Task 5 写的内容**：
+
 - `<FilesPanel armed={armed()}>` → `armed={armedFor("file")}`
 - `<BranchesPanel ... armed={armedFor("branch")}>`
 - `<StashPanel ... armed={armedFor("ref")}>`
@@ -1343,7 +1341,6 @@ keybarText({
 2. `bun typecheck` exit 0。
 3. prettier：`./script/format.ts`（仓库根目录）。
 4. 人工验收（这些真机交互没有自动化测试，用户必须在终端过一遍）：
-
    - [ ] 分支面板列出本地 **与远程** 分支，当前分支带 `●`
    - [ ] 分支面板空格切换分支成功；detached 行按空格无反应
    - [ ] 分支面板 `n` 开输入框，enter 建分支后列表刷新出新分支
@@ -1370,15 +1367,14 @@ keybarText({
 
 **四个必须先验证再动手的点**（都写在对应任务里，这里汇总，避免被埋在正文里）：
 
-| # | 点 | 在哪个任务 | 打不通怎么办 |
-| --- | --- | --- | --- |
-| 1 | `keyOfParsed` 对方向键 / 翻页键的 `name` | Task 1 | ✅ **已验证（Task 1 完成时）**：就是 `up`/`down`/`pageup`/`pagedown`，依据 `error-component.tsx:84-87` |
-| 2 | `mockInput.pressKey` 能不能驱动 `useKeyboard` | Task 6 | **停下来问用户**，不要偷偷降级成纯表驱动测试 |
-| 3 | `writeOsc52` 的实际签名 | Task 10 | 以源码为准；优先用 context 的高层 API |
-| 4 | `ScrollBox` 的滚动 API | Task 9 | 读类型定义按实际 API 改写 |
+| #   | 点                                            | 在哪个任务 | 打不通怎么办                                                                                           |
+| --- | --------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------ |
+| 1   | `keyOfParsed` 对方向键 / 翻页键的 `name`      | Task 1     | ✅ **已验证（Task 1 完成时）**：就是 `up`/`down`/`pageup`/`pagedown`，依据 `error-component.tsx:84-87` |
+| 2   | `mockInput.pressKey` 能不能驱动 `useKeyboard` | Task 6     | **停下来问用户**，不要偷偷降级成纯表驱动测试                                                           |
+| 3   | `writeOsc52` 的实际签名                       | Task 10    | 以源码为准；优先用 context 的高层 API                                                                  |
+| 4   | `ScrollBox` 的滚动 API                        | Task 9     | 读类型定义按实际 API 改写                                                                              |
 
 另外两条**规格偏差**，交付时要跟用户说明（不是 bug，是取舍）：
 
 - 行内输入是**单行不换行**（规格 L139 的「内容过长自动换行」与「展开一行」自相矛盾）；
 - `?` 帮助弹窗本版不做，已从键位条删掉（规格 L117-119），留给计划 3。
-

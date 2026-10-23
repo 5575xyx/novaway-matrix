@@ -1821,9 +1821,7 @@ function Playground() {
                                   style={{
                                     "font-size": "11px",
                                     color:
-                                      css[ctrl.key] !== undefined
-                                        ? "var(--icon-blue)"
-                                        : "var(--foreground-subtle)",
+                                      css[ctrl.key] !== undefined ? "var(--icon-blue)" : "var(--foreground-subtle)",
                                     "font-family": "var(--font-family-mono)",
                                     "min-width": "40px",
                                     "text-align": "right",

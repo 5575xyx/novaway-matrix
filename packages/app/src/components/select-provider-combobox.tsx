@@ -109,7 +109,9 @@ export function SelectProviderCombobox(props: Props) {
       </button>
 
       <Show when={open()}>
-        <div class="absolute z-[150] top-full left-0 right-0 mt-1 rounded-lg border border-border bg-surface shadow-lg overflow-hidden">
+        {/* 浮层必须用不透明的 surface：bg-surface 是 3% 透明度的底层色，
+            叠在弹窗表单上会透出后面的文字，看起来像"下拉框透明了"。 */}
+        <div class="absolute z-[150] top-full left-0 right-0 mt-1 rounded-lg border border-border bg-panel shadow-lg overflow-hidden">
           <div class="p-2 border-b border-border">
             <div class="flex items-center gap-2 px-2 py-1.5 rounded-md bg-input">
               <Icon name="magnifying-glass" class="text-foreground-subtle shrink-0" size="small" />
@@ -145,14 +147,16 @@ export function SelectProviderCombobox(props: Props) {
             )}
             {grouped().map((group) => (
               <div>
-                <div class="px-3 py-1.5 text-12-medium text-foreground-subtle uppercase tracking-wider">{group.category}</div>
+                <div class="px-3 py-1.5 text-12-medium text-foreground-subtle uppercase tracking-wider">
+                  {group.category}
+                </div>
                 {group.options.map((option) => (
                   <button
                     type="button"
                     class="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-hover text-left"
                     onClick={() => void handleSelect(option)}
                   >
-                    <ProviderIcon id={option.id} />
+                    <ProviderIcon id={option.id} brand />
                     <span class="flex-1 text-14-regular text-foreground">{option.name}</span>
                     {option.id === "opencode" && (
                       <>
@@ -164,7 +168,9 @@ export function SelectProviderCombobox(props: Props) {
                     )}
                     {note(option.id) && <div class="text-14-regular text-foreground-subtle">{note(option.id)}</div>}
                     {option.id === "NovaWay-go" && <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>}
-                    {local.current?.id === option.id && <Icon name="check-small" size="small" class="text-foreground-subtle" />}
+                    {local.current?.id === option.id && (
+                      <Icon name="check-small" size="small" class="text-foreground-subtle" />
+                    )}
                   </button>
                 ))}
               </div>

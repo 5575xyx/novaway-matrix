@@ -1014,11 +1014,7 @@ function TetrisGame(props: { onReward: (score: number) => void }) {
         >
           ←
         </button>
-        <button
-          type="button"
-          class="nova-pet-press rounded bg-surface px-3 py-1 text-12-medium"
-          onClick={rotate}
-        >
+        <button type="button" class="nova-pet-press rounded bg-surface px-3 py-1 text-12-medium" onClick={rotate}>
           ↻
         </button>
         <button
@@ -1028,11 +1024,7 @@ function TetrisGame(props: { onReward: (score: number) => void }) {
         >
           →
         </button>
-        <button
-          type="button"
-          class="nova-pet-press rounded bg-surface px-3 py-1 text-12-medium"
-          onClick={drop}
-        >
+        <button type="button" class="nova-pet-press rounded bg-surface px-3 py-1 text-12-medium" onClick={drop}>
           ↓
         </button>
       </div>

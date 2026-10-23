@@ -45,8 +45,19 @@ function TodoStatusCircle(props: { status: string }) {
       class={`grid size-4 shrink-0 place-items-center rounded-full border ${style().ring}`}
     >
       <Show when={style().label === "done"}>
-        <svg viewBox="0 0 12 12" class={`size-2.5 ${style().check ?? "text-background"}`} fill="none" aria-hidden="true">
-          <path d="M2.5 6.2L4.8 8.5L9.5 3.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+        <svg
+          viewBox="0 0 12 12"
+          class={`size-2.5 ${style().check ?? "text-background"}`}
+          fill="none"
+          aria-hidden="true"
+        >
+          <path
+            d="M2.5 6.2L4.8 8.5L9.5 3.8"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
         </svg>
       </Show>
       <Show when={style().dot}>

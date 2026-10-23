@@ -1,8 +1,11 @@
+import type { ProviderConfig } from "@novaway/sdk/v2/client"
 import { Button } from "@novaway/ui/button"
+import { DropdownMenu } from "@novaway/ui/dropdown-menu"
 import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { ProviderIcon } from "@novaway/ui/provider-icon"
+import { Switch } from "@novaway/ui/switch"
 import { providerIconId } from "@/utils/provider-icon"
 import { Tag } from "@novaway/ui/tag"
 import { showToast } from "@novaway/ui/toast"
@@ -12,11 +15,15 @@ import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
+import { useModels } from "@/context/models"
+import { ModelCapabilitySummary } from "./model-capability-summary"
 import { DialogConnectProvider } from "./dialog-connect-provider"
 import { DialogManageProviderModels } from "./dialog-manage-provider-models"
+import { AiFixButton } from "./ai-fix-button"
 import { DialogSelectProvider } from "./dialog-select-provider"
 import { DialogCustomProvider } from "./dialog-custom-provider"
 type AuthEntry = { type: string; key?: string }
+type Modality = NonNullable<NonNullable<NonNullable<ProviderConfig["models"]>[string]["modalities"]>["input"]>[number]
 
 type ProviderSource = "env" | "api" | "config" | "custom"
 type ProviderItem = ReturnType<ReturnType<typeof useProviders>["connected"]>[number]
@@ -38,6 +45,66 @@ export const SettingsProviders: Component = () => {
   const globalSDK = useGlobalSDK()
   const globalSync = useGlobalSync()
   const providers = useProviders()
+  const models = useModels()
+  const [expandedModels, setExpandedModels] = createStore<Record<string, boolean>>({})
+
+  // 供应商详情内联模型列表：模型页合并进来后，开关仍然沿用 useModels 的可见性状态。
+  const providerModels = (providerID: string) =>
+    models
+      .list()
+      .filter((model) => model.provider.id === providerID)
+      .sort((a, b) => a.name.localeCompare(b.name))
+
+  const modelsExpanded = (providerID: string) => expandedModels[providerID] ?? true
+
+  const modelKey = (providerID: string, modelID: string) => ({ providerID, modelID })
+
+  const markModelModality = async (providerID: string, modelID: string, modality: "image" | "video") => {
+    try {
+      const configResponse = await globalSDK.client.global.config.get()
+      const currentConfig = configResponse.data ?? {}
+      const providerConfig = currentConfig.provider?.[providerID] ?? {}
+      const modelsConfig = providerConfig.models ?? {}
+      const modelConfig = modelsConfig[modelID] ?? {}
+      const currentModalities = modelConfig.modalities ?? { input: ["text"], output: [] }
+      const input = new Set<Modality>(currentModalities.input ?? ["text"])
+      const output = new Set<Modality>(currentModalities.output ?? [])
+      input.add("image")
+      output.add(modality)
+      await globalSDK.client.global.config.update({
+        config: {
+          ...currentConfig,
+          provider: {
+            ...currentConfig.provider,
+            [providerID]: {
+              ...providerConfig,
+              models: {
+                ...modelsConfig,
+                [modelID]: {
+                  ...modelConfig,
+                  modalities: { input: Array.from(input), output: Array.from(output) },
+                },
+              },
+            },
+          },
+        },
+      })
+      showToast({
+        variant: "success",
+        icon: "circle-check",
+        title: language.t("settings.providers.models.marked", {
+          model: modelID,
+          kind:
+            modality === "image"
+              ? language.t("settings.providers.models.image")
+              : language.t("settings.providers.models.video"),
+        }),
+      })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err)
+      showToast({ title: language.t("common.requestFailed"), description: message })
+    }
+  }
 
   const connected = createMemo(() => {
     return providers
@@ -197,7 +264,12 @@ export const SettingsProviders: Component = () => {
         setSelectedProvider(item.id)
       }}
     >
-      <ProviderIcon id={providerIconId(item.id, item.name)} class="size-4.5 shrink-0 text-foreground" />
+      <ProviderIcon
+        id={providerIconId(item.id, item.name)}
+        colorId={item.id}
+        brand
+        class="size-4.5 shrink-0 text-foreground"
+      />
       <span class="min-w-0 flex-1 truncate text-13-regular text-foreground">{item.name}</span>
       <Show when={connectedRow}>
         <span class="size-1.5 shrink-0 rounded-full bg-[var(--diff-added)]" />
@@ -222,14 +294,18 @@ export const SettingsProviders: Component = () => {
             aria-label={language.t("common.refresh")}
             onClick={() => void loadAuthEntries()}
           />
-          <Button variant="primary" size="small" icon="plus-small" onClick={addProvider}>
-            {language.t("settings.providers.add.provider")}
-          </Button>
         </div>
       </div>
 
       <div class="mx-4 mb-6 flex min-h-0 flex-1 overflow-hidden rounded-xl border border-border sm:mx-10">
         <div class="flex w-64 shrink-0 flex-col border-r border-border">
+          {/* 「添加供应商」是该页的主入口，放在左侧列表顶部的动作位，
+              和下面的供应商列表形成"新增 → 选择 → 配置"的同一条视觉路径。 */}
+          <div class="p-2 pb-0">
+            <Button variant="primary" size="small" icon="plus-small" class="w-full justify-start" onClick={addProvider}>
+              {language.t("settings.providers.add.provider")}
+            </Button>
+          </div>
           <div class="flex-1 overflow-y-auto p-2">
             <div class="px-2 pb-1 pt-1 text-11-medium uppercase tracking-wide text-foreground-subtlest">
               {language.t("settings.providers.section.connected")}
@@ -280,16 +356,24 @@ export const SettingsProviders: Component = () => {
               <div class="flex flex-col gap-5 p-6">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                   <div class="flex min-w-0 items-center gap-3">
-                    <ProviderIcon id={providerIconId(item().id, item().name)} class="size-8 shrink-0 text-foreground" />
+                    <ProviderIcon
+                      id={providerIconId(item().id, item().name)}
+                      colorId={item().id}
+                      brand
+                      class="size-8 shrink-0 text-foreground"
+                    />
                     <div class="flex min-w-0 flex-col gap-1">
                       <div class="flex min-w-0 flex-wrap items-center gap-2">
                         <span class="truncate text-16-medium text-foreground">{item().name}</span>
                         <Tag>{type(item())}</Tag>
                       </div>
                       <span class="text-12-regular text-foreground-subtle">
-                        {language.t("settings.providers.detail.models" as never, {
-                          count: Object.keys(item().models ?? {}).length,
-                        } as never)}
+                        {language.t(
+                          "settings.providers.detail.models" as never,
+                          {
+                            count: Object.keys(item().models ?? {}).length,
+                          } as never,
+                        )}
                       </span>
                     </div>
                   </div>
@@ -317,6 +401,26 @@ export const SettingsProviders: Component = () => {
                     >
                       {language.t("dialog.model.manage")}
                     </Button>
+                    {/* 连接异常或模型列表为空时，让 Agent 检查 baseURL / Key / 端点变体。 */}
+                    <Show when={Object.keys(item().models ?? {}).length === 0}>
+                      <AiFixButton
+                        promptKey="settings.providers.aiFixPrompt"
+                        variant="secondary"
+                        class="h-6"
+                        params={{
+                          provider: item().id,
+                          name: item().name,
+                        }}
+                        context={() => ({
+                          status: language.t("settings.providers.aiFixNoModels", { name: item().name } as never),
+                          facts: {
+                            provider: item().id,
+                            source: source(item()),
+                            models: Object.keys(item().models ?? {}).length,
+                          },
+                        })}
+                      />
+                    </Show>
                     <Show when={canDisconnect(item())}>
                       <Button size="small" variant="ghost" onClick={() => void disconnect(item().id, item().name)}>
                         {language.t("common.disconnect")}
@@ -326,7 +430,9 @@ export const SettingsProviders: Component = () => {
                 </div>
 
                 <Show when={note(item().id)}>
-                  {(key) => <p class="text-12-regular leading-5 text-foreground-subtle">{language.t(key() as never)}</p>}
+                  {(key) => (
+                    <p class="text-12-regular leading-5 text-foreground-subtle">{language.t(key() as never)}</p>
+                  )}
                 </Show>
                 <div class="flex flex-col gap-2">
                   <span class="text-12-medium text-foreground-subtle">
@@ -361,6 +467,99 @@ export const SettingsProviders: Component = () => {
                         )}
                       </For>
                     </div>
+                  </Show>
+                </div>
+
+                {/* 模型不再单独占一个设置页：供应商详情里直接展开，逐条开关可见性。
+                    右键/菜单里保留原来的「标记为图片/视频生成」。 */}
+                <div class="flex flex-col gap-2">
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      class="flex items-center gap-1 text-12-medium text-foreground-subtle"
+                      onClick={() => setExpandedModels(item().id, !modelsExpanded(item().id))}
+                    >
+                      <Icon
+                        name={modelsExpanded(item().id) ? "chevron-down" : "chevron-right"}
+                        size="small"
+                        class="text-foreground-subtlest"
+                      />
+                      {language.t(
+                        "settings.providers.detail.models" as never,
+                        {
+                          count: providerModels(item().id).length,
+                        } as never,
+                      )}
+                    </button>
+                    <Button
+                      size="small"
+                      variant="ghost"
+                      icon="plus-small"
+                      onClick={() => {
+                        dialog.show(() => (
+                          <DialogManageProviderModels providerID={item().id} providerName={item().name} />
+                        ))
+                      }}
+                    >
+                      {language.t("settings.providers.models.manage")}
+                    </Button>
+                  </div>
+                  <Show when={modelsExpanded(item().id)}>
+                    <Show
+                      when={providerModels(item().id).length > 0}
+                      fallback={
+                        <span class="rounded-lg border border-dashed border-border px-3 py-3 text-12-regular text-foreground-subtlest">
+                          {language.t("settings.providers.models.empty")}
+                        </span>
+                      }
+                    >
+                      <div class="flex flex-col overflow-hidden rounded-lg border border-border">
+                        <For each={providerModels(item().id)}>
+                          {(model) => (
+                            <div class="flex min-w-0 items-center gap-3 border-t border-border px-3 py-2 first:border-t-0">
+                              <div class="min-w-0 flex-1">
+                                <div class="truncate text-13-regular text-foreground">{model.name}</div>
+                                <ModelCapabilitySummary model={model} compact />
+                              </div>
+                              <DropdownMenu>
+                                <DropdownMenu.Trigger
+                                  as={IconButton}
+                                  icon="more-vertical"
+                                  variant="ghost"
+                                  size="small"
+                                  aria-label={language.t("common.more")}
+                                />
+                                <DropdownMenu.Portal>
+                                  <DropdownMenu.Content>
+                                    <DropdownMenu.Item
+                                      onSelect={() => void markModelModality(item().id, model.id, "image")}
+                                    >
+                                      <DropdownMenu.ItemLabel>
+                                        {language.t("settings.providers.models.markImage")}
+                                      </DropdownMenu.ItemLabel>
+                                    </DropdownMenu.Item>
+                                    <DropdownMenu.Item
+                                      onSelect={() => void markModelModality(item().id, model.id, "video")}
+                                    >
+                                      <DropdownMenu.ItemLabel>
+                                        {language.t("settings.providers.models.markVideo")}
+                                      </DropdownMenu.ItemLabel>
+                                    </DropdownMenu.Item>
+                                  </DropdownMenu.Content>
+                                </DropdownMenu.Portal>
+                              </DropdownMenu>
+                              <Switch
+                                checked={models.visible(modelKey(item().id, model.id))}
+                                onChange={(checked) => models.setVisibility(modelKey(item().id, model.id), checked)}
+                                hideLabel
+                              >
+                                {model.name}
+                              </Switch>
+                            </div>
+                          )}
+                        </For>
+                      </div>
+                    </Show>
                   </Show>
                 </div>
               </div>

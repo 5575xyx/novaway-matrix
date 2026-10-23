@@ -501,4 +501,69 @@
   animation: float-up var(--transition-panel-ms, 1000ms) cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+/* ── 交互反馈与动效基础设施 ─────────────────────────────────────────────
+ *
+ * 1) 点击涟漪：任何带 `data-pressable` 的元素点击后从落点扩散一圈淡色光晕，
+ *    解决「点了有没有生效」的疑问；用伪元素实现，不侵入组件结构。
+ * 2) 统一缓动：`--ease-out-soft` / `--ease-spring`。
+ * 3) `prefers-reduced-motion` 时关闭所有装饰性位移，只保留颜色变化。
+ */
 
+:root {
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+[data-pressable] {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(
+      circle at var(--ripple-x, 50%) var(--ripple-y, 50%),
+      color-mix(in oklab, var(--primary) 26%, transparent) 0%,
+      transparent 60%
+    );
+    opacity: 0;
+    transform: scale(0.6);
+    pointer-events: none;
+    transition:
+      opacity 220ms var(--ease-out-soft),
+      transform 260ms var(--ease-out-soft);
+  }
+
+  &:active::after {
+    opacity: 1;
+    transform: scale(1);
+    transition-duration: 60ms, 90ms;
+  }
+}
+
+/* 行级可点元素（设置行、列表项、菜单项）：hover 渐变而不是瞬间跳色。 */
+[data-row-hover] {
+  transition: background-color 140ms var(--ease-out-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-component="button"],
+  [data-component="icon-button"],
+  [data-component="switch"] [data-slot="switch-control"],
+  [data-component="switch"] [data-slot="switch-thumb"],
+  [data-component="checkbox"] [data-slot="checkbox-checkbox-control"] {
+    transition-duration: 1ms !important;
+    transform: none !important;
+  }
+
+  [data-component="dialog"][data-transition] [data-slot="dialog-content"] {
+    animation-duration: 1ms !important;
+  }
+
+  [data-pressable]::after {
+    display: none;
+  }
+}

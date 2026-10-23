@@ -1,1 +1,21 @@
-[{"info":{"id":"msg_14730f1b70013yyd5ZnY0tSzS4","sessionID":"ses_eb8cf0e9affeP53MvHqW8lXoyq","role":"user","time":{"created":1792195752375},"agent":"build","model":{"providerID":"novaway","modelID":"auto"}},"parts":[{"id":"prt_14730f1bb001cs3R6GKVpP6MJK","sessionID":"ses_eb8cf0e9affeP53MvHqW8lXoyq","messageID":"msg_14730f1b70013yyd5ZnY0tSzS4","type":"text","text":"ֻ�ظ� OK ������ĸ����Ҫ�����κι��ߡ�"}]}]
+[
+  {
+    "info": {
+      "id": "msg_14730f1b70013yyd5ZnY0tSzS4",
+      "sessionID": "ses_eb8cf0e9affeP53MvHqW8lXoyq",
+      "role": "user",
+      "time": { "created": 1792195752375 },
+      "agent": "build",
+      "model": { "providerID": "novaway", "modelID": "auto" }
+    },
+    "parts": [
+      {
+        "id": "prt_14730f1bb001cs3R6GKVpP6MJK",
+        "sessionID": "ses_eb8cf0e9affeP53MvHqW8lXoyq",
+        "messageID": "msg_14730f1b70013yyd5ZnY0tSzS4",
+        "type": "text",
+        "text": "ֻ�ظ� OK ������ĸ����Ҫ�����κι��ߡ�"
+      }
+    ]
+  }
+]

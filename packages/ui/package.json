@@ -8,6 +8,8 @@
     "./*": "./src/components/*.tsx",
     "./session-diff": "./src/components/session-diff.ts",
     "./util/clipboard": "./src/util/clipboard.ts",
+    "./util/pointer-origin": "./src/util/pointer-origin.ts",
+    "./provider-brand": "./src/components/provider-icons/brand.ts",
     "./i18n/*": "./src/i18n/*.ts",
     "./pierre": "./src/pierre/index.ts",
     "./pierre/*": "./src/pierre/*.ts",

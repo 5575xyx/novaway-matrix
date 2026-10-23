@@ -8,7 +8,8 @@
  */
 [data-component="dropdown-menu-content"],
 [data-component="dropdown-menu-sub-content"] {
-  z-index: 60;
+  /* 高于 Dialog（100），弹窗内菜单/分支切换才不会沉到弹窗下面。 */
+  z-index: 200;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -20,8 +21,8 @@
   overflow-x: hidden;
   overflow-y: auto;
   border-radius: var(--radius-lg);
-  border: 1px solid var(--popover-border);
-  background-color: var(--menu);
+  border: 1px solid var(--popover-border, var(--border));
+  background-color: var(--menu, var(--surface-raised-stronger-non-alpha, var(--background-strong)));
   background-clip: padding-box;
   padding: 4px;
   color: var(--foreground);
@@ -151,7 +152,7 @@
   }
 
   [data-slot="dropdown-menu-arrow"] {
-    fill: var(--menu);
+    fill: var(--menu, var(--surface-raised-stronger-non-alpha, var(--background-strong)));
   }
 }
 

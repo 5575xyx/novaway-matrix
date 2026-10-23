@@ -7,13 +7,15 @@ describe("readableErrorText", () => {
   })
 
   test("reads a JSON payload embedded after a prefix", () => {
-    const raw = 'custom stream failed 400: {"error":{"message":"upstream_400","type":"upstream_400","param":"","code":null}}'
+    const raw =
+      'custom stream failed 400: {"error":{"message":"upstream_400","type":"upstream_400","param":"","code":null}}'
     expect(readableErrorText(raw)).toBe("upstream_400")
   })
 
   test("reads a double-escaped payload", () => {
     // 上游把 payload 当成 JSON 字符串又转义了一层（实际观测到的形态）。
-    const raw = 'custom stream failed 400: {\\"error\\":{\\"message\\":\\"upstream_400\\",\\"type\\":\\"upstream_400\\"}}'
+    const raw =
+      'custom stream failed 400: {\\"error\\":{\\"message\\":\\"upstream_400\\",\\"type\\":\\"upstream_400\\"}}'
     expect(readableErrorText(raw)).toBe("upstream_400")
   })
 

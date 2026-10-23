@@ -13,6 +13,7 @@ import PROMPT_SCOUT from "./prompt/scout.txt"
 import PROMPT_SUMMARY from "./prompt/summary.txt"
 import PROMPT_TITLE from "./prompt/title.txt"
 import PROMPT_PULSE_ORCHESTRATOR from "./prompt/pulse-orchestrator.txt"
+import PROMPT_COORDINATOR from "./prompt/coordinator.txt"
 import { Permission } from "@/permission"
 import { mergeDeep, pipe, sortBy, values } from "remeda"
 import { Global } from "@novaway/core/global"
@@ -47,6 +48,22 @@ export const Info = Schema.Struct({
   prompt: Schema.optional(Schema.String),
   options: Schema.Record(Schema.String, Schema.Unknown),
   steps: Schema.optional(Schema.Finite),
+  tools: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
+  disallowedTools: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
+  skills: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
+  mcpServers: Schema.optional(
+    Schema.mutable(Schema.Array(Schema.Union([Schema.String, Schema.Record(Schema.String, Schema.Unknown)]))),
+  ),
+  hooks: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+  permissionMode: Schema.optional(Schema.Literals(["default", "acceptEdits", "plan", "bypassPermissions"])),
+  maxTurns: Schema.optional(Schema.Finite),
+  background: Schema.optional(Schema.Boolean),
+  isolation: Schema.optional(Schema.Literals(["worktree"])),
+  memory: Schema.optional(Schema.Literals(["user", "project", "local"])),
+  initialPrompt: Schema.optional(Schema.String),
+  effort: Schema.optional(Schema.String),
+  /** Named output style (see `session/output-style.ts`); `default` or absent means none. */
+  outputStyle: Schema.optional(Schema.String),
 }).annotate({ identifier: "Agent" })
 export type Info = DeepMutable<Schema.Schema.Type<typeof Info>>
 
@@ -206,7 +223,8 @@ export const layer = Layer.effect(
           },
           plan: {
             name: "plan",
-            description: "Plan mode. Disallows all edit tools.",
+            description:
+              "Read-only planning: may write plan markdown and run read-only commands, but cannot modify code.",
             options: {
               category: "核心",
             },
@@ -519,6 +537,81 @@ export const layer = Layer.effect(
               displayName: "运营主智能体",
             },
           },
+          coordinator: {
+            name: "coordinator",
+            description:
+              "Coordinator agent. Delegates research, implementation and verification to workers through the shared task board and agent messaging. Never edits files directly.",
+            mode: "primary",
+            native: true,
+            prompt: PROMPT_COORDINATOR,
+            tools: [
+              "read",
+              "grep",
+              "glob",
+              "list",
+              "task",
+              "task_status",
+              "task_create",
+              "task_get",
+              "task_update",
+              "task_list",
+              "task_stop",
+              "task_claim",
+              "task_wait",
+              "monitor",
+              "subscribe",
+              "tool_search",
+              "agent_message",
+              "agent_list",
+              "team_create",
+              "team_delete",
+              "team_list",
+              "skill",
+              "webfetch",
+              "websearch",
+              "question",
+            ],
+            disallowedTools: ["write", "edit", "apply_patch", "patch", "shell", "orchestrator", "workflow"],
+            permission: Permission.merge(
+              defaults,
+              Permission.fromConfig({
+                "*": "deny",
+                read: "allow",
+                grep: "allow",
+                glob: "allow",
+                list: "allow",
+                task: "allow",
+                task_status: "allow",
+                task_create: "allow",
+                task_get: "allow",
+                task_update: "allow",
+                task_list: "allow",
+                task_stop: "allow",
+                task_claim: "allow",
+                task_wait: "allow",
+                // Monitor runs a command in the background, so a delegation-only
+                // agent needs the user's go-ahead for the command itself.
+                monitor: "ask",
+                subscribe: "ask",
+                tool_search: "allow",
+                agent_message: "allow",
+                agent_list: "allow",
+                team_create: "allow",
+                team_delete: "allow",
+                team_list: "allow",
+                skill: "allow",
+                webfetch: "allow",
+                websearch: "allow",
+                question: "allow",
+                external_directory: readonlyExternalDirectory,
+              }),
+              user,
+            ),
+            options: {
+              category: "核心",
+              displayName: "协调者",
+            },
+          },
           compaction: {
             name: "compaction",
             mode: "primary",
@@ -601,6 +694,19 @@ export const layer = Layer.effect(
           item.steps = value.steps ?? item.steps
           item.options = mergeDeep(item.options, value.options ?? {})
           item.permission = Permission.merge(item.permission, Permission.fromConfig(value.permission ?? {}))
+          item.tools = Array.isArray(value.tools) ? value.tools : item.tools
+          item.disallowedTools = value.disallowedTools ?? item.disallowedTools
+          item.skills = value.skills ?? item.skills
+          item.mcpServers = value.mcpServers ?? item.mcpServers
+          item.hooks = value.hooks ?? item.hooks
+          item.permissionMode = value.permissionMode ?? item.permissionMode
+          item.maxTurns = value.maxTurns ?? item.maxTurns
+          item.background = value.background ?? item.background
+          item.isolation = value.isolation ?? item.isolation
+          item.memory = value.memory ?? item.memory
+          item.initialPrompt = value.initialPrompt ?? item.initialPrompt
+          item.effort = value.effort ?? item.effort
+          item.outputStyle = value.outputStyle ?? item.outputStyle
         }
 
         // Ensure Truncate.GLOB is allowed unless explicitly configured

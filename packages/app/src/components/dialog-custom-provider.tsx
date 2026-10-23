@@ -309,7 +309,9 @@ export function DialogCustomProvider(props: Props) {
               current={form.providerID ? { id: form.providerID, name: form.name, baseURL: form.baseURL } : undefined}
               onSelect={handleProviderSelect}
             />
-            <p class="text-11-regular text-foreground-subtle">{language.t("provider.custom.field.provider.description")}</p>
+            <p class="text-11-regular text-foreground-subtle">
+              {language.t("provider.custom.field.provider.description")}
+            </p>
             <TextField
               label={language.t("provider.custom.field.providerID.label")}
               placeholder={language.t("provider.custom.field.providerID.placeholder")}

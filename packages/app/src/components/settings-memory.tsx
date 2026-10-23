@@ -11,11 +11,13 @@ import { TextField } from "@novaway/ui/text-field"
 import { showToast } from "@novaway/ui/toast"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query"
 import { createEffect, createMemo, createSignal, For, Show, type Component, type JSX } from "solid-js"
+import { useNavigate, useParams } from "@solidjs/router"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { ReviewActionButton } from "./review-action-button"
+import { AiFixButton } from "./ai-fix-button"
 import { finiteNumber } from "./review-ui-helpers"
 import { memorySetupState, runMemorySetup } from "./settings-memory-setup-state"
 import {
@@ -31,6 +33,7 @@ import {
 } from "./settings-memory.helpers"
 import { SettingsGroup, SettingsRow } from "./settings-parts"
 import { formatRelativeTime } from "@/utils/relative-time"
+import { aiFixLabels, buildAiFixDetails, type AiFixContext } from "@/utils/ai-fix"
 
 const queryOptions = {
   staleTime: 10_000,
@@ -326,7 +329,12 @@ const RelationGraph: Component<{
                       stroke-opacity="0.45"
                       stroke-width="1.5"
                     />
-                    <text x={edge.mid.x} y={edge.mid.y} text-anchor="middle" class="fill-foreground-subtle text-10-medium">
+                    <text
+                      x={edge.mid.x}
+                      y={edge.mid.y}
+                      text-anchor="middle"
+                      class="fill-foreground-subtle text-10-medium"
+                    >
                       {edge.label}
                     </text>
                   </>
@@ -417,13 +425,19 @@ export const SettingsMemory: Component<{ embedded?: boolean; directory?: string 
 
   const reviewStatus = useQuery(() => ({
     queryKey: ["settings", "memory", "review-status"],
-    queryFn: () => client().memory.reviewStatus().then((x) => x.data),
+    queryFn: () =>
+      client()
+        .memory.reviewStatus()
+        .then((x) => x.data),
     ...queryOptions,
   }))
 
   const entries = useQuery(() => ({
     queryKey: ["settings", "memory", "entries"],
-    queryFn: () => client().memory.list({ limit: 100, includeGlobal: true } as never).then((x) => x.data ?? []),
+    queryFn: () =>
+      client()
+        .memory.list({ limit: 100, includeGlobal: true } as never)
+        .then((x) => x.data ?? []),
     ...queryOptions,
   }))
 
@@ -457,7 +471,10 @@ export const SettingsMemory: Component<{ embedded?: boolean; directory?: string 
 
   const relations = useQuery(() => ({
     queryKey: ["settings", "memory", "relations"],
-    queryFn: () => client().memory.listRelations({ limit: "200" }).then((x) => x.data ?? []),
+    queryFn: () =>
+      client()
+        .memory.listRelations({ limit: "200" })
+        .then((x) => x.data ?? []),
     ...queryOptions,
   }))
 
@@ -481,7 +498,9 @@ export const SettingsMemory: Component<{ embedded?: boolean; directory?: string 
   const candidates = useQuery(() => ({
     queryKey: ["settings", "memory", "review-candidates", tab()],
     queryFn: () =>
-      client().memory.listReviewCandidates({ status: tab(), limit: 100 }).then((x) => x.data ?? []),
+      client()
+        .memory.listReviewCandidates({ status: tab(), limit: 100 })
+        .then((x) => x.data ?? []),
     ...queryOptions,
   }))
 
@@ -555,6 +574,20 @@ export const SettingsMemory: Component<{ embedded?: boolean; directory?: string 
       embedding_mode: value,
     })
 
+  const navigate = useNavigate()
+  const params = useParams()
+
+  /** 安装卡住时，把状态和日志交给 AI，由它调用 memory_embedding_setup 继续排查。 */
+  const askAiToFix = (context: AiFixContext) => {
+    const details = buildAiFixDetails(context, aiFixLabels(language.t as never))
+    const prompt = language.t("settings.memory.retrieval.aiFixPrompt", {
+      installDir: installDir().trim() || "（默认）",
+      modelsDir: modelsDir().trim() || "（默认）",
+      details,
+    })
+    navigate(`/${params.dir}/session?prompt=${encodeURIComponent(prompt)}&submit=1`)
+  }
+
   const setupLocalEmbedding = async () => {
     await globalSync.updateConfig({
       memory: {
@@ -605,6 +638,20 @@ export const SettingsMemory: Component<{ embedded?: boolean; directory?: string 
           ? language.t("settings.memory.retrieval.setup.success" as never)
           : language.t("settings.memory.retrieval.setup.partial" as never),
         description: data.status?.hint || data.status?.message || data.status?.downloadURL || "",
+        persistent: !data.ok,
+        actions: data.ok
+          ? undefined
+          : [
+              {
+                label: language.t("aiFix.action"),
+                onClick: () =>
+                  askAiToFix({
+                    status: formatEmbeddingStatus(),
+                    hint: data.status?.hint,
+                    log: memorySetupState.log,
+                  }),
+              },
+            ],
       })
     } catch (err) {
       showToast({
@@ -833,7 +880,9 @@ export const SettingsMemory: Component<{ embedded?: boolean; directory?: string 
                 </div>
               }
               detail={
-                <span class="text-12-regular text-foreground-subtle">{language.t(embeddingModeHintKey() as never)}</span>
+                <span class="text-12-regular text-foreground-subtle">
+                  {language.t(embeddingModeHintKey() as never)}
+                </span>
               }
             />
             <SettingsRow
@@ -841,9 +890,37 @@ export const SettingsMemory: Component<{ embedded?: boolean; directory?: string 
               description={language.t("settings.memory.retrieval.setup.description" as never)}
               control={
                 <Show when={!isOllamaReady() && !memorySetupState.running}>
-                  <Button variant="primary" disabled={updateConfig.isPending} onClick={() => void setupLocalEmbedding()}>
-                    {language.t("settings.memory.retrieval.setup.button" as never)}
-                  </Button>
+                  <div class="flex flex-wrap items-center justify-end gap-2">
+                    <AiFixButton
+                      promptKey="settings.memory.retrieval.aiFixPrompt"
+                      params={{
+                        installDir: installDir().trim() || "（默认）",
+                        modelsDir: modelsDir().trim() || "（默认）",
+                      }}
+                      context={() => ({
+                        status: formatEmbeddingStatus(),
+                        hint: embeddingStatus.data?.hint,
+                        log: memorySetupState.log,
+                        facts: {
+                          "active backend": embeddingStatus.data?.activeBackendLabel,
+                          "ollama cli": embeddingStatus.data?.cliInstalled ? "installed" : "missing",
+                          daemon: embeddingStatus.data?.daemonRunning ? "running" : "stopped",
+                          "embedding model": embeddingStatus.data?.hasEmbedModel
+                            ? (embeddingStatus.data?.selectedModel ?? "ready")
+                            : "missing",
+                          "install dir": installDir().trim() || undefined,
+                          "models dir": modelsDir().trim() || undefined,
+                        },
+                      })}
+                    />
+                    <Button
+                      variant="primary"
+                      disabled={updateConfig.isPending}
+                      onClick={() => void setupLocalEmbedding()}
+                    >
+                      {language.t("settings.memory.retrieval.setup.button" as never)}
+                    </Button>
+                  </div>
                 </Show>
               }
               detail={
@@ -1053,7 +1130,9 @@ export const SettingsMemory: Component<{ embedded?: boolean; directory?: string 
           </div>
 
           <div class="flex items-center gap-2">
-            <span class="text-12-medium text-foreground-subtle">{language.t("settings.memory.entries.files" as never)}</span>
+            <span class="text-12-medium text-foreground-subtle">
+              {language.t("settings.memory.entries.files" as never)}
+            </span>
             <IconButton
               icon="reset"
               variant="ghost"

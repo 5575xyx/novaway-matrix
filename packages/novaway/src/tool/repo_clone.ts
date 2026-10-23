@@ -29,7 +29,11 @@ type Metadata = {
   branch?: string
 }
 
-export const RepoCloneTool = Tool.define<typeof Parameters, Metadata, AppFileSystem.Service | Git.Service | Config.Service>(
+export const RepoCloneTool = Tool.define<
+  typeof Parameters,
+  Metadata,
+  AppFileSystem.Service | Git.Service | Config.Service
+>(
   "repo_clone",
   Effect.gen(function* () {
     const fs = yield* AppFileSystem.Service

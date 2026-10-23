@@ -1,6 +1,6 @@
 import { useFilteredList } from "@novaway/ui/hooks"
 import { useSpring } from "@novaway/ui/motion-spring"
-import { createEffect, on, Component, Show, onCleanup, createMemo, createSignal, createResource } from "solid-js"
+import { createEffect, on, Component, For, Show, onCleanup, createMemo, createSignal, createResource } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLocal } from "@/context/local"
 import { selectionFromLines, type SelectedLineRange, useFile } from "@/context/file"
@@ -17,26 +17,29 @@ import {
 import { useLayout } from "@/context/layout"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
+import { useGlobalSync } from "@/context/global-sync"
 import { useComments } from "@/context/comments"
 import { showToast } from "@novaway/ui/toast"
 import { Button } from "@novaway/ui/button"
 import { DockShellForm, DockTray } from "@novaway/ui/dock-surface"
 import { Icon } from "@novaway/ui/icon"
 import { ProviderIcon } from "@novaway/ui/provider-icon"
-import { providerIconId } from "@/utils/provider-icon"
+import { providerIconId, providerColor } from "@/utils/provider-icon"
 import { Tooltip, TooltipKeybind } from "@novaway/ui/tooltip"
+import { Popover } from "@novaway/ui/popover"
 import { IconButton } from "@novaway/ui/icon-button"
 import { Select } from "@novaway/ui/select"
 import { Switch } from "@novaway/ui/switch"
 import { PermissionModeSelect } from "@/components/permission-mode-select"
+import { agentForPermission, permissionForAgent } from "@/context/agent-permission"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { ModelSelectorPopover } from "@/components/dialog-select-model"
+import { ThinkingEffortPopover } from "@/components/thinking-effort-popover"
 import { useProviders } from "@/hooks/use-providers"
 import { useCommand } from "@/context/command"
 import { Persist, persisted } from "@/utils/persist"
 import { usePermission } from "@/context/permission"
 import { useLanguage } from "@/context/language"
-import { useSettings } from "@/context/settings"
 import { usePlatform } from "@/context/platform"
 import { useModels } from "@/context/models"
 import { useSessionLayout } from "@/pages/session/session-layout"
@@ -126,6 +129,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const queryOptions = useQueryOptions()
 
   const sync = useSync()
+  const globalSync = useGlobalSync()
   const local = useLocal()
   const files = useFile()
   const prompt = usePrompt()
@@ -136,7 +140,6 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const command = useCommand()
   const permission = usePermission()
   const language = useLanguage()
-  const settings = useSettings()
   const platform = usePlatform()
   const modelsCtx = useModels()
   const office = useOfficeAgent()
@@ -271,9 +274,73 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   })
   const info = createMemo(() => (params.id ? sync.session.get(params.id) : undefined))
   const working = createMemo(() => sync.data.session_working(params.id ?? ""))
+  /*
+   * 打开旧会话时对齐「角色 ↔ 档位」。
+   *
+   * 联动只发生在用户操作时的话，历史数据里仍可能是「计划模式 + 锻造工程」这种
+   * 自相矛盾的状态。这里在会话加载完成后（看到 session 且 agent 已就绪）修正一次，
+   * 之后靠两个控件的联动保持。
+   */
+  createEffect(
+    on(
+      () => {
+        const id = params.id
+        if (!id) return ""
+        const session = sync.session.get(id)
+        if (!session) return ""
+        return `${id}:${(session as { permissionMode?: string }).permissionMode ?? ""}`
+      },
+      (key) => {
+        if (!key || !params.id) return
+        if (!local.agent.current()?.name) return
+        const next = agentForPermission(permission.mode(params.id, sdk.directory), local.agent.current()?.name)
+        if (next) local.agent.set(next)
+      },
+    ),
+  )
   const imageAttachments = createMemo(() =>
     prompt.current().filter((part): part is ImageAttachmentPart => part.type === "image"),
   )
+
+  /*
+   * 电脑控制入口：只有「启用电脑控制 + 允许输入框显示按钮」时才出现。
+   *
+   * 配置要合并两份：`sync.data.config` 是会话实例启动时的快照，设置页改完不会
+   * 立刻回灌；`globalSync.data.config` 就是设置页写的那份。逐键取值——
+   * 实例里显式写过的键优先（尊重项目级覆盖），没写的回落到全局配置。
+   */
+  const computerExperimental = () => {
+    const local = sync.data.config.experimental ?? {}
+    const global = globalSync.data.config.experimental ?? {}
+    return {
+      computer_control: local.computer_control ?? global.computer_control,
+      computer_control_composer: local.computer_control_composer ?? global.computer_control_composer,
+    }
+  }
+  const computerControlVisible = () =>
+    computerExperimental().computer_control === true && computerExperimental().computer_control_composer === true
+  const computerActions = () => [
+    {
+      icon: "eye" as const,
+      label: language.t("prompt.computer.screenshot"),
+      prompt: language.t("prompt.computer.screenshot.prompt"),
+    },
+    {
+      icon: "window-cursor" as const,
+      label: language.t("prompt.computer.click"),
+      prompt: language.t("prompt.computer.click.prompt"),
+    },
+    {
+      icon: "keyboard" as const,
+      label: language.t("prompt.computer.type"),
+      prompt: language.t("prompt.computer.type.prompt"),
+    },
+    {
+      icon: "dot-grid" as const,
+      label: language.t("prompt.computer.windows"),
+      prompt: language.t("prompt.computer.windows.prompt"),
+    },
+  ]
 
   const [store, setStore] = createStore<{
     popover: "at" | "slash" | null
@@ -1229,7 +1296,6 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     readClipboardImage: platform.readClipboardImage,
   })
 
-  const variants = createMemo(() => ["default", ...local.model.variant.list()])
   const transformPrompt = (value: Prompt) => {
     if (!zenOfficeMode() || store.mode !== "normal") return value
     const launchConfig = office.launchConfig()
@@ -1247,21 +1313,17 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     if (!id) return permission.isAutoAcceptingDirectory(sdk.directory)
     return permission.isAutoAccepting(id, sdk.directory)
   })
-  const globalAutoApprove = createMemo(() => settings.permissions.autoApprove())
-  const projectAutoAccept = createMemo(() => permission.isAutoAcceptingDirectory(sdk.directory))
-  const autoAcceptEffective = createMemo(() => globalAutoApprove() || projectAutoAccept())
-  const autoAcceptTooltip = createMemo(() => {
-    if (globalAutoApprove()) return language.t("permissions.prompt.tooltip.global")
-    return projectAutoAccept()
-      ? language.t("permissions.prompt.tooltip.on")
-      : language.t("permissions.prompt.tooltip.off")
-  })
+  const autoAcceptEffective = createMemo(() => accepting())
+  const autoAcceptTooltip = createMemo(() =>
+    autoAcceptEffective() ? language.t("permissions.prompt.tooltip.on") : language.t("permissions.prompt.tooltip.off"),
+  )
 
   const { abort, handleSubmit } = createPromptSubmit({
     info,
     imageAttachments,
     commentCount,
     autoAccept: () => accepting(),
+    permissionMode: () => permission.mode(params.id, sdk.directory),
     mode: () => store.mode,
     working,
     editor: () => editorRef,
@@ -1632,6 +1694,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         // 旧版是内联 16px 圆角 + 自算 box-shadow（含 24px 投影），既非语义 token 也过重。
         classList={{
           "group/prompt-input": true,
+          // 作为容器查询的锚点：顶部工具栏按钮文字按**输入框实际宽度**收放，
+          // 而不是按窗口宽度（桌面端窗口很宽、输入框却很窄，sm: 断点会误判）。
+          "@container": true,
           "rounded-2xl border border-input-border bg-input p-3 transition-colors": true,
           "hover:border-input-border-hover": !working() && !store.optimizing,
           "focus-within:border-input-border-focused focus-within:bg-input-focused": true,
@@ -1666,7 +1731,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
           removeLabel={language.t("prompt.attachment.remove")}
         />
         <Show when={store.mode === "normal" || store.mode === "shell"}>
-          <div class="px-2 pb-1 pt-2 flex items-center gap-2 min-w-0 border-b border-border">
+          <div class="px-2 pb-1 pt-2 flex items-center gap-2 min-w-0 overflow-hidden whitespace-nowrap border-b border-border">
             <ProjectSwitcherChip />
             <Show when={store.mode === "shell"}>
               <div class="flex items-center gap-1.5 min-w-0">
@@ -1706,6 +1771,10 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                           agentDisplayName(value, sync.data.agent.find((agent) => agent.name === value)?.options)
                         }
                         onSelect={(value) => {
+                          if (!value) return
+                          // 选规划蓝图自动进入只读；选其它角色则解除只读。
+                          const next = permissionForAgent(value, permission.mode(params.id, sdk.directory))
+                          if (next) permission.setMode(params.id, sdk.directory, next)
                           local.agent.set(value)
                           restoreFocus()
                         }}
@@ -1731,10 +1800,60 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                 </div>
               </Show>
             </Show>
+            {/* 电脑控制快捷插入：与 agent 选择器并列。
+                放在模式分支之外，锻造 / 办公模式下也能用。 */}
+            <Show when={computerControlVisible()}>
+              <Popover
+                gutter={6}
+                triggerAs="button"
+                triggerProps={
+                  {
+                    type: "button",
+                    "data-action": "prompt-computer",
+                    class:
+                      "flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[8px] px-2 text-13-regular text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground",
+                  } as Record<string, unknown>
+                }
+                trigger={
+                  <>
+                    <Icon name="window-cursor" size="small" class="shrink-0" />
+                    {/* 窄输入框只留图标，避免文字被挤成竖排。 */}
+                    <span class="hidden @min-[620px]:inline">{language.t("prompt.computer.open")}</span>
+                  </>
+                }
+                class="w-64"
+              >
+                <div class="flex flex-col gap-1">
+                  <span class="px-1 pb-1 text-11-regular text-foreground-subtle">
+                    {language.t("prompt.computer.hint")}
+                  </span>
+                  <For each={computerActions()}>
+                    {(item) => (
+                      <button
+                        type="button"
+                        class="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-13-regular text-foreground transition-colors hover:bg-hover"
+                        onClick={() => {
+                          const current = (editorRef?.textContent ?? "")
+                            .split(String.fromCharCode(8203))
+                            .join("")
+                            .trim()
+                          setEditorText(current ? current + String.fromCharCode(10) + item.prompt : item.prompt)
+                          restoreFocus()
+                        }}
+                      >
+                        <Icon name={item.icon} size="small" class="text-foreground-subtle" />
+                        <span class="min-w-0 flex-1 truncate">{item.label}</span>
+                      </button>
+                    )}
+                  </For>
+                </div>
+              </Popover>
+            </Show>
             <Show when={!providersLoading()}>
               <Show when={store.mode !== "shell"}>
                 <div
                   data-component="prompt-model-control"
+                  class="min-w-0"
                   style={providersShouldFadeIn() ? { animation: "fade-in 0.3s" } : undefined}
                 >
                   <Show
@@ -1768,7 +1887,12 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                           </Show>
                           <Show when={!modelsCtx.autoMode() && local.model.current()?.provider?.id}>
                             <ProviderIcon
-                              id={local.model.current()?.provider?.id ?? ""}
+                              id={providerIconId(
+                                local.model.current()?.provider?.id,
+                                local.model.current()?.provider?.name,
+                              )}
+                              colorId={local.model.current()?.provider?.id}
+                              brand
                               class="size-4 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity duration-150"
                               style={{ "will-change": "opacity", transform: "translateZ(0)" }}
                             />
@@ -1809,18 +1933,34 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                         </Show>
                         <Show when={!modelsCtx.autoMode() && local.model.current()?.provider?.id}>
                           <ProviderIcon
-                            id={local.model.current()?.provider?.id ?? ""}
+                            id={providerIconId(
+                              local.model.current()?.provider?.id,
+                              local.model.current()?.provider?.name,
+                            )}
+                            colorId={local.model.current()?.provider?.id}
+                            brand
                             class="size-4 shrink-0 text-icon-blue transition-opacity duration-150"
                           />
                         </Show>
                         <span
                           class="truncate"
-                          style={{
-                            background: "linear-gradient(135deg, var(--icon-blue), #8b5cf6)",
-                            "-webkit-background-clip": "text",
-                            "-webkit-text-fill-color": "transparent",
-                            "background-clip": "text",
-                          }}
+                          style={
+                            /* 模型名跟着厂商色走：DeepSeek 蓝、Anthropic 橙、Google 蓝…
+                               没有品牌色时退回原来的品牌渐变。 */
+                            providerColor(local.model.current()?.provider?.id, local.model.current()?.provider?.name)
+                              ? {
+                                  color: providerColor(
+                                    local.model.current()?.provider?.id,
+                                    local.model.current()?.provider?.name,
+                                  ),
+                                }
+                              : {
+                                  background: "linear-gradient(135deg, var(--icon-blue), #8b5cf6)",
+                                  "-webkit-background-clip": "text",
+                                  "-webkit-text-fill-color": "transparent",
+                                  "background-clip": "text",
+                                }
+                          }
                         >
                           {modelsCtx.autoMode()
                             ? "Auto"
@@ -1831,60 +1971,32 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                     </TooltipKeybind>
                   </Show>
                 </div>
-                <Show when={!modelsCtx.autoMode() && variants().length > 2}>
+                <Show when={!modelsCtx.autoMode()}>
                   <div
-                    data-component="prompt-variant-control"
+                    data-component="prompt-thinking-control"
+                    class="shrink-0"
                     style={providersShouldFadeIn() ? { animation: "fade-in 0.3s" } : undefined}
                   >
-                    <TooltipKeybind
-                      placement="top"
-                      gutter={4}
-                      title={language.t("command.model.variant.cycle")}
-                      keybind={command.keybind("model.variant.cycle")}
-                    >
-                      <Select
-                        size="normal"
-                        options={variants()}
-                        current={local.model.variant.current() ?? "default"}
-                        label={(x) => {
-                          if (x === "default") return "默认"
-                          if (x === "low") return "低"
-                          if (x === "medium") return "中"
-                          if (x === "high") return "高"
-                          if (x === "max") return "高+"
-                          return x
-                        }}
-                        onSelect={(value) => {
-                          local.model.variant.set(value === "default" ? undefined : value)
-                          restoreFocus()
-                        }}
-                        class="capitalize max-w-[160px] text-foreground"
-                        valueClass="truncate text-13-medium"
-                        valueStyle={{
-                          background: "linear-gradient(135deg, #8b5cf6, var(--icon-blue))",
-                          "-webkit-background-clip": "text",
-                          "-webkit-text-fill-color": "transparent",
-                          "background-clip": "text",
-                        }}
-                        triggerStyle={{ ...control(), "border-radius": "8px" }}
-                        triggerProps={{ "data-action": "prompt-model-variant" }}
-                        variant="ghost"
-                      />
-                    </TooltipKeybind>
+                    <ThinkingEffortPopover
+                      model={local.model}
+                      triggerStyle={{ ...control(), "border-radius": "8px" }}
+                      triggerClass="shrink-0 whitespace-nowrap"
+                    />
                   </div>
                 </Show>
               </Show>
             </Show>
-            <div class="flex-1" />
-            <div class="flex items-center gap-3 whitespace-nowrap">
-              <div
-                class="px-1.5 py-0.5 text-12-medium rounded-md text-icon-blue cursor-default select-none"
-                style={{ "font-weight": "var(--font-weight-semibold)" }}
-              >
-                自动联网
-              </div>
+            <div class="flex-1 min-w-0" />
+            <div class="flex shrink-0 items-center gap-2 whitespace-nowrap">
               <div data-component="prompt-auto-accept">
-                <PermissionModeSelect />
+                <PermissionModeSelect
+                  sessionID={params.id}
+                  onChange={(mode) => {
+                    // 角色与档位保持一致：选计划模式就切到规划蓝图，离开时回到锻造工程。
+                    const next = agentForPermission(mode, local.agent.current()?.name)
+                    if (next) local.agent.set(next)
+                  }}
+                />
               </div>
             </div>
           </div>

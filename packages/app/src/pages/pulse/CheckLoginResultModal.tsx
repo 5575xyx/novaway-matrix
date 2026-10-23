@@ -56,7 +56,9 @@ export function CheckLoginResultModal(props: { results: CheckResult[]; onRemove:
                     <div class="size-8 rounded-full bg-background-alt flex items-center justify-center overflow-hidden shrink-0">
                       <Show
                         when={result.avatar}
-                        fallback={<span class="text-12-regular text-foreground-subtle">{result.nickname?.charAt(0)}</span>}
+                        fallback={
+                          <span class="text-12-regular text-foreground-subtle">{result.nickname?.charAt(0)}</span>
+                        }
                       >
                         <img src={result.avatar} alt="" class="size-full object-cover" />
                       </Show>

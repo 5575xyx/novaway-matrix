@@ -28,7 +28,10 @@ const WebSearchProviderSchema = Schema.Literals(["exa", "parallel"])
 export type WebSearchProvider = Schema.Schema.Type<typeof WebSearchProviderSchema>
 
 export function selectWebSearchProvider(sessionID: string, flags = { exa: false, parallel: false }): WebSearchProvider {
-  const override = process.env.NovaWay_WEBSEARCH_PROVIDER
+  // `OPENCODE_WEBSEARCH_PROVIDER` is the name the CLI docs and older configs
+  // use; keep reading it so an existing setup does not silently fall back to
+  // the per-session default.
+  const override = process.env.NovaWay_WEBSEARCH_PROVIDER ?? process.env.OPENCODE_WEBSEARCH_PROVIDER
   if (override === "exa" || override === "parallel") return override
   if (flags.parallel) return "parallel"
   if (flags.exa) return "exa"

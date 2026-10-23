@@ -437,14 +437,10 @@ test("loads shell config field", async () => {
 test("updates config and preserves empty shell sentinel", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
-      await writeConfig(
-        dir,
-        {
-          $schema: "https://opencode.ai/config.json",
-          shell: "bash",
-        },
-        "config.json",
-      )
+      await writeConfig(dir, {
+        $schema: "https://opencode.ai/config.json",
+        shell: "bash",
+      })
     },
   })
   await withTestInstance({
@@ -452,8 +448,27 @@ test("updates config and preserves empty shell sentinel", async () => {
     fn: async (ctx) => {
       await save({ shell: "" }, ctx)
 
-      const writtenConfig = await Filesystem.readJson<{ shell?: string }>(path.join(tmp.path, "config.json"))
+      // The write goes to the file the loader actually reads (`novaway.json`),
+      // not a sibling `config.json` nobody looks at.
+      const writtenConfig = await Filesystem.readJson<{ shell?: string }>(path.join(tmp.path, "novaway.json"))
       expect(writtenConfig.shell).toBe("")
+      expect(await load(ctx).then((value) => value.shell)).toBe("")
+    },
+  })
+})
+
+test("writes the project config to the file the loader reads", async () => {
+  await using tmp = await tmpdir()
+  await withTestInstance({
+    directory: tmp.path,
+    fn: async (ctx) => {
+      // Seed a legacy `config.json` that the loader ignores.
+      await Filesystem.write(path.join(tmp.path, "config.json"), JSON.stringify({ shell: "powershell" }))
+      await save({ permission_mode: "acceptEdits" }, ctx)
+
+      const written = await Filesystem.readJson<{ permission_mode?: string }>(path.join(tmp.path, "novaway.json"))
+      expect(written.permission_mode).toBe("acceptEdits")
+      expect((await load(ctx)).permission_mode).toBe("acceptEdits")
     },
   })
 })
@@ -1224,7 +1239,7 @@ test("updates config and writes to file", async () => {
       const newConfig = { model: "updated/model" }
       await save(newConfig as any, ctx)
 
-      const writtenConfig = await Filesystem.readJson<{ model: string }>(path.join(tmp.path, "config.json"))
+      const writtenConfig = await Filesystem.readJson<{ model: string }>(path.join(tmp.path, "novaway.json"))
       expect(writtenConfig.model).toBe("updated/model")
     },
   })

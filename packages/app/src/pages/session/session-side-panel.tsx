@@ -352,9 +352,7 @@ export function SessionSidePanel(props: {
           <Show when={tab() === "review"}>{props.reviewPanel()}</Show>
           {/* 会话标签（子代理钻取 / 侧边对话）：面板里看另一个会话。
               内置的三个标签走上面的分支，这里只处理动态标签。 */}
-          <Show when={layout.sidePane.activeSessionTab()}>
-            {(session) => <SidePaneSessionPanel tab={session()} />}
-          </Show>
+          <Show when={layout.sidePane.activeSessionTab()}>{(session) => <SidePaneSessionPanel tab={session()} />}</Show>
         </div>
       </Show>
     </aside>

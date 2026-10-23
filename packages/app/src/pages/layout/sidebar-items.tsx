@@ -189,7 +189,9 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
         >
           <div class="flex items-center gap-2">
             <Show when={props.index !== undefined}>
-              <span class="shrink-0 text-11-regular text-foreground-subtle w-4 text-right">{(props.index ?? 0) + 1}.</span>
+              <span class="shrink-0 text-11-regular text-foreground-subtle w-4 text-right">
+                {(props.index ?? 0) + 1}.
+              </span>
             </Show>
             <Show when={isWorking() || hasPermissions() || hasError() || unseenCount() > 0}>
               <div
@@ -249,7 +251,9 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
             <span class="text-11-regular text-foreground-subtle pl-6">任务完成 · {completionTime()}</span>
           </Show>
           <Show when={sessionStore.vcs?.branch}>
-            <span class="text-ui-xs text-foreground-subtle shrink-0 max-w-[120px] truncate">⎇ {sessionStore.vcs?.branch}</span>
+            <span class="text-ui-xs text-foreground-subtle shrink-0 max-w-[120px] truncate">
+              ⎇ {sessionStore.vcs?.branch}
+            </span>
           </Show>
           <Show
             when={props.session.summary && (props.session.summary.additions > 0 || props.session.summary.deletions > 0)}

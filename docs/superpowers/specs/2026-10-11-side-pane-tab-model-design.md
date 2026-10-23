@@ -85,17 +85,17 @@ sidePane: {                    // :868
 
 ### 4.2 重复入口清单
 
-| 功能 | 入口 | 位置 |
-| --- | --- | --- |
-| 文件树 | 左栏 `tree` 视图 | `layout.tsx:2117` 附近 |
-| 文件树 | 右栏 `files` tab | `session-side-panel.tsx:203` |
-| 文件树 | header 更多菜单 | `workspace-header.tsx:112` |
-| 审查 | 右栏顶级 `review` tab | `session-side-panel.tsx:205` |
-| 审查 | `files` tab 子态（同一组件） | `session-side-panel.tsx:317-377`、`session.tsx:315` |
-| 终端 | header 按钮（底部 frame） | `workspace-header.tsx:90` |
-| 终端 | 右栏 `terminal` tab | `session-side-panel.tsx:202` |
-| Git | 右栏 `git` tab | `session-side-panel.tsx:204` |
-| Git | header 更多菜单 | `workspace-header.tsx:116` |
+| 功能   | 入口                         | 位置                                                |
+| ------ | ---------------------------- | --------------------------------------------------- |
+| 文件树 | 左栏 `tree` 视图             | `layout.tsx:2117` 附近                              |
+| 文件树 | 右栏 `files` tab             | `session-side-panel.tsx:203`                        |
+| 文件树 | header 更多菜单              | `workspace-header.tsx:112`                          |
+| 审查   | 右栏顶级 `review` tab        | `session-side-panel.tsx:205`                        |
+| 审查   | `files` tab 子态（同一组件） | `session-side-panel.tsx:317-377`、`session.tsx:315` |
+| 终端   | header 按钮（底部 frame）    | `workspace-header.tsx:90`                           |
+| 终端   | 右栏 `terminal` tab          | `session-side-panel.tsx:202`                        |
+| Git    | 右栏 `git` tab               | `session-side-panel.tsx:204`                        |
+| Git    | header 更多菜单              | `workspace-header.tsx:116`                          |
 
 ### 4.3 重复的直接证据
 
@@ -104,8 +104,8 @@ sidePane: {                    // :868
 ```ts
 const wantsReview = createMemo(() =>
   isDesktop()
-    ? sidePaneShowsFiles() ||      // tab === "files"
-      sidePaneShowsReview() ||     // tab === "review"
+    ? sidePaneShowsFiles() || // tab === "files"
+      sidePaneShowsReview() || // tab === "review"
       desktopFileTreeOpen() ||
       (desktopReviewOpen() && activeTab() === "review")
     : store.mobileTab === "changes",
@@ -116,11 +116,11 @@ const wantsReview = createMemo(() =>
 
 ### 4.4 死代码与死状态
 
-| 项 | 证据 | 处理 |
-| --- | --- | --- |
-| `layout.git`（`layout.tsx:364-367`） | 全仓 grep `layout.git.` 零匹配 | 清除 |
-| `session-todo-dock.tsx`（294 行） | `session-composer-region.tsx:21` 仅 import，全仓无 `<SessionTodoDock` | 删除 |
-| `task-list.tsx` + `task-list.test.ts` | 全仓无 `<TaskList` | 删除 |
+| 项                                    | 证据                                                                  | 处理 |
+| ------------------------------------- | --------------------------------------------------------------------- | ---- |
+| `layout.git`（`layout.tsx:364-367`）  | 全仓 grep `layout.git.` 零匹配                                        | 清除 |
+| `session-todo-dock.tsx`（294 行）     | `session-composer-region.tsx:21` 仅 import，全仓无 `<SessionTodoDock` | 删除 |
+| `task-list.tsx` + `task-list.test.ts` | 全仓无 `<TaskList`                                                    | 删除 |
 
 ### 4.5 todo 数据链路是活的
 
@@ -143,11 +143,11 @@ const wantsReview = createMemo(() =>
 
 **区块**（按渲染顺序，缺失不占位、无多余分割线）：
 
-| 区块 | 数据源 | 展开内容 | 收起摘要 | 不显示条件 |
-| --- | --- | --- | --- | --- |
-| **Git** | git snapshot 轮询（复用 `git-panel.tsx` 链路） | Changes 行（`+n -n`，点击打开 review）、分支行、Commit 动作行 | `+n -n` | 非 git 仓库，或 `added + removed <= 0` |
-| **进度** | `globalSync.data.session_todo` | todo 列表（Checkbox 行，>6 条走聚焦窗口：定位 `in_progress`，显示连续 3 条，前后收敛为「前面 n 项 / 后面 n 项」） | `done/total` | todos 为空 |
-| **Context** | `getSessionContextMetrics` + `estimateSessionContextBreakdown` | token 用量与 breakdown（复用 `session-context-tab.tsx` 的 accordion 渲染） | 用量摘要 | 无会话或无数据 |
+| 区块        | 数据源                                                         | 展开内容                                                                                                          | 收起摘要     | 不显示条件                             |
+| ----------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------ | -------------------------------------- |
+| **Git**     | git snapshot 轮询（复用 `git-panel.tsx` 链路）                 | Changes 行（`+n -n`，点击打开 review）、分支行、Commit 动作行                                                     | `+n -n`      | 非 git 仓库，或 `added + removed <= 0` |
+| **进度**    | `globalSync.data.session_todo`                                 | todo 列表（Checkbox 行，>6 条走聚焦窗口：定位 `in_progress`，显示连续 3 条，前后收敛为「前面 n 项 / 后面 n 项」） | `done/total` | todos 为空                             |
+| **Context** | `getSessionContextMetrics` + `estimateSessionContextBreakdown` | token 用量与 breakdown（复用 `session-context-tab.tsx` 的 accordion 渲染）                                        | 用量摘要     | 无会话或无数据                         |
 
 **形态**：
 
@@ -175,25 +175,25 @@ sidePane: {
 export type SidePaneTab = "preview" | "review" | "terminal"
 ```
 
-| 旧 tab | 处理 |
-| --- | --- |
-| `preview` | 保留，内部多文件 tab 结构不动 |
-| `review` | 保留，吸收 `files` 的 review 子态 |
-| `terminal` | 保留，改为按需创建（非默认常驻） |
-| `files` | 移除——目录浏览由左栏文件树承担 |
-| `git` | 移除——收敛到 Status Panel 的 Git 区块 |
-| `context` | 移除——收敛到 Status Panel 的 Context 区块 |
+| 旧 tab     | 处理                                      |
+| ---------- | ----------------------------------------- |
+| `preview`  | 保留，内部多文件 tab 结构不动             |
+| `review`   | 保留，吸收 `files` 的 review 子态         |
+| `terminal` | 保留，改为按需创建（非默认常驻）          |
+| `files`    | 移除——目录浏览由左栏文件树承担            |
+| `git`      | 移除——收敛到 Status Panel 的 Git 区块     |
+| `context`  | 移除——收敛到 Status Panel 的 Context 区块 |
 
 操作语义：
 
-| 操作 | 语义 |
-| --- | --- |
-| `toggle()` | **只开关容器**，不接受 tab 参数，不创建、不切换 tab |
-| `open()` | 展开容器；无可见 tab 时显示空态 |
-| `close()` | 收起容器，保留 tabs |
-| `add(tab)` | 新增 tab；已存在则激活并展开 |
-| `remove(tab)` | 移除 tab；**移除最后一个时自动收起容器** |
-| `setActive(tab)` / `move(from, to)` / `resize(width)` | 激活 / 拖拽排序 / 调宽 |
+| 操作                                                  | 语义                                                |
+| ----------------------------------------------------- | --------------------------------------------------- |
+| `toggle()`                                            | **只开关容器**，不接受 tab 参数，不创建、不切换 tab |
+| `open()`                                              | 展开容器；无可见 tab 时显示空态                     |
+| `close()`                                             | 收起容器，保留 tabs                                 |
+| `add(tab)`                                            | 新增 tab；已存在则激活并展开                        |
+| `remove(tab)`                                         | 移除 tab；**移除最后一个时自动收起容器**            |
+| `setActive(tab)` / `move(from, to)` / `resize(width)` | 激活 / 拖拽排序 / 调宽                              |
 
 `toggle()` 从签名上杜绝隐式创建；所有「打开具体 tab」的调用方必须显式改用 `add()`。
 

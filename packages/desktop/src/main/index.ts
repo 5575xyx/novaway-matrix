@@ -66,6 +66,13 @@ let mainWindow: BrowserWindow | null = null
 let floatingWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let server: SidecarListener | null = null
+// sidecar 意外退出（Windows 上常见 0xC0000005 访问违例）时自动重启，
+// 否则渲染进程会一直对着一个已经没人监听的端口轮询，控制台刷满
+// net::ERR_CONNECTION_REFUSED，而且界面永远恢复不了。
+let stoppingSidecar = false
+let sidecarRestarts = 0
+const MAX_SIDECAR_RESTARTS = 6
+const SIDECAR_RESTART_DELAYS = [1_000, 2_000, 5_000, 10_000, 30_000, 60_000]
 let isQuitting = false
 
 const initEmitter = new EventEmitter()
@@ -94,7 +101,41 @@ function setInitStep(step: InitStep) {
   initEmitter.emit("step", step)
 }
 
+// 由主流程在拿到 hostname/port/password 后注入：用同一个端口与密码重启 sidecar。
+let relaunchSidecar: (() => Promise<void>) | undefined
+let restartResetTimer: NodeJS.Timeout | undefined
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
+async function restartSidecar(code: number) {
+  if (!relaunchSidecar || stoppingSidecar || isQuitting) return
+  if (sidecarRestarts >= MAX_SIDECAR_RESTARTS) {
+    logger.error("sidecar crashed repeatedly, giving up", { code, attempts: sidecarRestarts })
+    return
+  }
+  const delay = SIDECAR_RESTART_DELAYS[Math.min(sidecarRestarts, SIDECAR_RESTART_DELAYS.length - 1)]
+  sidecarRestarts++
+  logger.warn("restarting sidecar", { code, attempt: sidecarRestarts, delay })
+  await sleep(delay)
+  if (stoppingSidecar || isQuitting) return
+  try {
+    await relaunchSidecar()
+    logger.info("sidecar restarted", { attempt: sidecarRestarts })
+    // 稳定运行 60 秒后清零计数，避免偶发崩溃把配额耗光。
+    if (restartResetTimer) clearTimeout(restartResetTimer)
+    restartResetTimer = setTimeout(() => {
+      if (server) sidecarRestarts = 0
+    }, 60_000)
+  } catch (error) {
+    logger.error("sidecar restart failed", {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    void restartSidecar(code)
+  }
+}
+
 async function killSidecar() {
+  stoppingSidecar = true
   if (!server) return
   const current = server
   server = null
@@ -417,7 +458,8 @@ const main = Effect.gen(function* () {
     process.env.POWERSNEXUS_NODE_PATH = process.env.POWERSNEXUS_NODE_PATH ?? process.env.DBX_NODE_PATH
 
     logger.log("spawning sidecar", { url })
-    const { listener, health } = yield* Effect.promise(() =>
+
+    const launch = () =>
       spawnLocalServer(hostname, port, password, {
         needsMigration,
         userDataPath: app.getPath("userData"),
@@ -430,10 +472,33 @@ const main = Effect.gen(function* () {
           if (/conpty_console_list_agent|AttachConsole failed/u.test(message)) return
           logger.warn("sidecar stderr", { message })
         },
-        onExit: (code) => logger.warn("sidecar exited", { code }),
-      }),
-    )
+        onExit: (code) => {
+          // 0xC0000005 = ACCESS_VIOLATION：通常是原生模块 ABI 不匹配
+          // （better-sqlite3 / node-pty / keytar 用 Node 而不是 Electron 的 ABI 编译）。
+          logger.warn("sidecar exited", {
+            code,
+            reason:
+              code === 3221225477
+                ? "ACCESS_VIOLATION (likely native module ABI mismatch)"
+                : code === 3221225725
+                  ? "STACK_BUFFER_OVERRUN"
+                  : "unknown",
+          })
+          // 主动停止（退出 / 更新 / 重启）不处理；意外退出则按退避时间重启，
+          // 端口与密码保持不变，渲染进程里已经拿到的 URL 仍然有效。
+          if (stoppingSidecar || isQuitting) return
+          void restartSidecar(code)
+        },
+      })
+
+    const { listener, health } = yield* Effect.promise(launch)
     server = listener
+    // 崩溃后由 restartSidecar 复用同一端口 + 密码重启，渲染进程里已拿到的 URL 继续有效。
+    relaunchSidecar = async () => {
+      const next = await launch()
+      server = next.listener
+      void next.health.wait.catch(() => undefined)
+    }
     yield* Deferred.succeed(serverReady, {
       url,
       username: "NovaWay",

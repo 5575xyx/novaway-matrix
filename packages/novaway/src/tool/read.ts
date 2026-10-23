@@ -208,13 +208,13 @@ export const ReadTool = Tool.define(
         filepath = `${path.parse(instance.directory).root.replace(/[\\/]$/, "")}${filepath}`
       }
       if (!path.isAbsolute(filepath)) {
-        filepath = path.resolve(instance.directory, filepath)
+        filepath = path.resolve(ctx.directory ?? instance.directory, filepath)
       }
       if (process.platform === "win32") {
         filepath = AppFileSystem.normalizePath(filepath)
       }
       yield* reference.ensure(filepath)
-      const title = path.relative(instance.worktree, filepath)
+      const title = path.relative(ctx.directory ?? instance.worktree, filepath)
 
       const stat = yield* fs.stat(filepath).pipe(
         Effect.catchIf(
@@ -230,7 +230,7 @@ export const ReadTool = Tool.define(
 
       yield* ctx.ask({
         permission: "read",
-        patterns: [path.relative(instance.worktree, filepath)],
+        patterns: [path.relative(ctx.directory ?? instance.worktree, filepath)],
         always: ["*"],
         metadata: {},
       })

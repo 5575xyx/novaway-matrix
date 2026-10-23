@@ -1,6 +1,9 @@
 import { onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import type { GitSnapshotResponses } from "@novaway/sdk/v2"
+import { useDialog } from "@novaway/ui/context/dialog"
+import { ConfirmDialog } from "@/components/dialog-confirm"
+import { useLanguage } from "@/context/language"
 import { useSDK } from "@/context/sdk"
 
 export type Snapshot = GitSnapshotResponses[200]
@@ -23,6 +26,8 @@ const messageOf = (err: unknown) => {
 // 快照轮询与提交动作的唯一入口。侧栏 git tab 已随收敛删除，数据链路收在这里供 Status Panel 复用。
 export function useGitSnapshot() {
   const sdk = useSDK()
+  const dialog = useDialog()
+  const language = useLanguage()
   const [store, setStore] = createStore({
     snapshot: undefined as Snapshot | undefined,
     busy: false,
@@ -70,11 +75,40 @@ export function useGitSnapshot() {
   // 对齐 ZCode 的 Git Tools：提交、推送、切换/新建分支都要在面板里直接可用。
   const push = () => act(() => sdk.client.git.push().then((r) => r))
   const pull = () => act(() => sdk.client.git.pull().then((r) => r))
+  const fetch = () => act(() => sdk.client.git.fetch().then((r) => r))
+  const merge = (ref: string) => act(() => sdk.client.git.merge({ ref }).then((r) => r))
   const checkout = (name: string) => act(() => sdk.client.git.branch({ name }).then((r) => r))
   const createBranch = (name: string) => act(() => sdk.client.git.branch({ name, create: true }).then((r) => r))
   const stage = (files: string[]) => act(() => sdk.client.git.add({ files }).then((r) => r))
   const unstage = (files: string[]) => act(() => sdk.client.git.unstage({ files }).then((r) => r))
-  const discard = (files: string[]) => act(() => sdk.client.git.discard({ files }).then((r) => r))
+  /**
+   * 放弃更改。
+   *
+   * 后端对未跟踪文件执行的是 `git clean -f` —— **文件会被直接删除，不进回收站**。
+   * 所以这里先弹确认，并明确区分「恢复成已提交版本」与「删除新文件」两种情况。
+   */
+  const discard = (files: string[]) => {
+    const risky = files.length
+    if (risky === 0) return Promise.resolve(false)
+    return new Promise<boolean>((resolve) => {
+      dialog.show(() => (
+        <ConfirmDialog
+          open
+          variant="danger"
+          title={language.t("git.discard.title")}
+          description={language.t("git.discard.warning", { count: risky })}
+          confirmText={language.t("git.discard.confirm")}
+          onConfirm={() => {
+            void act(() => sdk.client.git.discard({ files }).then((r) => r)).then(resolve)
+          }}
+          onClose={() => {
+            dialog.close()
+            resolve(false)
+          }}
+        />
+      ))
+    })
+  }
 
   refresh()
   const timer = setInterval(() => {
@@ -82,5 +116,20 @@ export function useGitSnapshot() {
   }, REFRESH_INTERVAL)
   onCleanup(() => clearInterval(timer))
 
-  return { snapshot, busy, error, refresh, commit, push, pull, checkout, createBranch, stage, unstage, discard }
+  return {
+    snapshot,
+    busy,
+    error,
+    refresh,
+    commit,
+    push,
+    pull,
+    fetch,
+    merge,
+    checkout,
+    createBranch,
+    stage,
+    unstage,
+    discard,
+  }
 }

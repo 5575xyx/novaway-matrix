@@ -120,7 +120,11 @@ export const ProjectSwitcherChip: Component = () => {
             border: "1px solid var(--border)",
           }}
         >
-          <Icon name={currentProject() ? "folder" : "folder-add-left"} size="small" class="shrink-0 text-foreground-subtle" />
+          <Icon
+            name={currentProject() ? "folder" : "folder-add-left"}
+            size="small"
+            class="shrink-0 text-foreground-subtle"
+          />
           <span class="truncate text-13-medium text-foreground">{chipLabel()}</span>
           <Icon name="chevron-down" size="small" class="shrink-0 text-foreground-subtlest" />
         </button>
@@ -177,7 +181,11 @@ export const ProjectSwitcherChip: Component = () => {
                 onClick={() => selectProject(project)}
                 class="flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left transition-colors hover:bg-hover"
               >
-                <Icon name={isCurrent(project) ? "folder" : "folder"} size="small" class="shrink-0 text-foreground-subtle" />
+                <Icon
+                  name={isCurrent(project) ? "folder" : "folder"}
+                  size="small"
+                  class="shrink-0 text-foreground-subtle"
+                />
                 <div class="min-w-0 flex-1">
                   <div class="truncate text-13-medium text-foreground">{projectLabel(project)}</div>
                   <div class="truncate text-11-regular text-foreground-subtle">{project.worktree}</div>

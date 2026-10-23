@@ -599,7 +599,9 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
               <Button class="w-auto" type="submit" size="large" variant="primary">
                 {language.t("common.continue")}
               </Button>
-              <div class="text-12-regular text-foreground-subtle mt-1">{language.t("provider.connect.fetchModelsHint")}</div>
+              <div class="text-12-regular text-foreground-subtle mt-1">
+                {language.t("provider.connect.fetchModelsHint")}
+              </div>
             </form>
           </Show>
           <Show when={provider().id === "ollama"}>

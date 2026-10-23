@@ -4,6 +4,8 @@ import { createWriteStream } from "node:fs"
 import * as Tool from "./tool"
 import path from "path"
 import * as Log from "@novaway/core/util/log"
+import { BackgroundJob } from "@/background/job"
+import { Identifier } from "@/id/id"
 import { containsPath, type InstanceContext } from "../project/instance-context"
 import { InstanceState } from "@/effect/instance-state"
 import { lazy } from "@/util/lazy"
@@ -339,6 +341,7 @@ export const ShellTool = Tool.define(
   ShellID.ToolID,
   Effect.gen(function* () {
     const config = yield* Config.Service
+    const background = yield* BackgroundJob.Service
     const spawner = yield* ChildProcessSpawner
     const fs = yield* AppFileSystem.Service
     const trunc = yield* Truncate.Service
@@ -432,6 +435,8 @@ export const ShellTool = Tool.define(
         env: NodeJS.ProcessEnv
         timeout: number
         description: string
+        signal?: AbortSignal
+        onOutput?: (text: string) => Effect.Effect<void>
       },
       ctx: Tool.Context,
     ) {
@@ -484,6 +489,16 @@ export const ShellTool = Tool.define(
           yield* Effect.addFinalizer(closeSink)
           const handle = yield* spawner.spawn(cmd(input.shell, input.command, input.cwd, input.env))
 
+          const publish = () => {
+            const base = ctx.metadata({
+              metadata: {
+                output: last,
+                description: input.description,
+              },
+            })
+            return input.onOutput ? Effect.andThen(base, input.onOutput(last)) : base
+          }
+
           yield* Effect.forkScoped(
             Stream.runForEach(Stream.decodeText(handle.all), (chunk) => {
               const size = Buffer.byteLength(chunk, "utf-8")
@@ -512,32 +527,24 @@ export const ShellTool = Tool.define(
                         full = ""
                       }),
                     ),
-                    Effect.andThen(
-                      ctx.metadata({
-                        metadata: {
-                          output: last,
-                          description: input.description,
-                        },
-                      }),
-                    ),
+                    Effect.andThen(publish()),
                   )
                 }
               }
 
-              return ctx.metadata({
-                metadata: {
-                  output: last,
-                  description: input.description,
-                },
-              })
+              return publish()
             }),
           )
 
           const abort = Effect.callback<void>((resume) => {
-            if (ctx.abort.aborted) return resume(Effect.void)
+            if (ctx.abort.aborted || input.signal?.aborted) return resume(Effect.void)
             const handler = () => resume(Effect.void)
             ctx.abort.addEventListener("abort", handler, { once: true })
-            return Effect.sync(() => ctx.abort.removeEventListener("abort", handler))
+            input.signal?.addEventListener("abort", handler, { once: true })
+            return Effect.sync(() => {
+              ctx.abort.removeEventListener("abort", handler)
+              input.signal?.removeEventListener("abort", handler)
+            })
           })
 
           const timeout = Effect.sleep(`${input.timeout + 100} millis`)
@@ -620,12 +627,15 @@ export const ShellTool = Tool.define(
             Effect.gen(function* () {
               const instanceCtx = yield* InstanceState.context
               const cwd = params.workdir
-                ? yield* resolvePath(params.workdir, instanceCtx.directory, shell)
-                : instanceCtx.directory
+                ? yield* resolvePath(params.workdir, ctx.directory ?? instanceCtx.directory, shell)
+                : (ctx.directory ?? instanceCtx.directory)
               if (params.timeout !== undefined && params.timeout < 0) {
                 throw new Error(`Invalid timeout value: ${params.timeout}. Timeout must be a positive number.`)
               }
-              const timeout = Math.min(params.timeout ?? defaultTimeout, MAX_TIMEOUT_MS)
+              // 后台命令默认给满 30 分钟（用户随时能在面板里停），前台仍用 2 分钟默认值。
+              const timeout = params.background
+                ? Math.min(params.timeout ?? MAX_TIMEOUT_MS, MAX_TIMEOUT_MS)
+                : Math.min(params.timeout ?? defaultTimeout, MAX_TIMEOUT_MS)
               const ps = Shell.ps(shell)
               yield* Effect.scoped(
                 Effect.gen(function* () {
@@ -638,17 +648,66 @@ export const ShellTool = Tool.define(
                 }),
               )
 
-              return yield* run(
-                {
-                  shell,
-                  command: params.command,
-                  cwd,
-                  env: yield* shellEnv(ctx, cwd),
-                  timeout,
-                  description: params.description,
-                },
-                ctx,
-              )
+              const env = yield* shellEnv(ctx, cwd)
+              const input = {
+                shell,
+                command: params.command,
+                cwd,
+                env,
+                timeout,
+                description: params.description,
+              }
+
+              if (params.background) {
+                // 后台命令走统一的 BackgroundJob：右侧状态卡能看到实时输出并停止。
+                // 单独生成 id 是为了在 run 的第一帧输出时就能 update，而不必等 start 返回。
+                const jobID = Identifier.ascending("job")
+                const controller = new AbortController()
+                const info = yield* background.start({
+                  id: jobID,
+                  type: "shell",
+                  title: params.description,
+                  metadata: {
+                    parentSessionId: ctx.sessionID,
+                    sessionId: ctx.sessionID,
+                    tool: "shell",
+                    command: params.command,
+                    cwd,
+                    background: true,
+                  },
+                  cancel: Effect.sync(() => controller.abort()),
+                  run: run(
+                    {
+                      ...input,
+                      signal: controller.signal,
+                      onOutput: (text) => background.update(jobID, { output: text }).pipe(Effect.asVoid),
+                    },
+                    ctx,
+                  ).pipe(Effect.map((result) => result.output)),
+                })
+
+                return {
+                  title: params.description,
+                  metadata: {
+                    output: `Background command started: ${info.id}`,
+                    exit: null,
+                    truncated: false,
+                    description: params.description,
+                    background: true,
+                    jobID: info.id,
+                    command: params.command,
+                  },
+                  output: [
+                    `background: true`,
+                    `job_id: ${info.id}`,
+                    `command: ${params.command}`,
+                    "",
+                    "The command is running in the background. Watch or stop it from the status panel.",
+                  ].join("\n"),
+                }
+              }
+
+              return yield* run(input, ctx)
             }),
         }
       })

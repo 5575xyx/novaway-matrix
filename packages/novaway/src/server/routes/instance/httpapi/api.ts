@@ -9,11 +9,16 @@ import { ControlApi } from "./groups/control"
 import { EventApi } from "./groups/event"
 import { ExperimentalApi } from "./groups/experimental"
 import { EvolutionApi } from "./groups/evolution"
+import { ExtensionApi } from "./groups/extension"
 import { FileApi } from "./groups/file"
 import { GitApi } from "./groups/git"
 import { GlobalApi } from "./groups/global"
+import { HookApi } from "./groups/hook"
 import { ImagesApi } from "./groups/images"
+import { DatabaseApi } from "./groups/database"
+import { KnowledgeApi } from "./groups/knowledge"
 import { InstanceApi } from "./groups/instance"
+import { KernelApi } from "./groups/kernel"
 import { McpApi } from "./groups/mcp"
 import { MemoryApi } from "./groups/memory"
 import { OfficeApi } from "./groups/office"
@@ -33,6 +38,7 @@ import { V2Api } from "./groups/v2"
 import { GoalApi } from "./groups/goal"
 import { WorkflowApi } from "./groups/workflow"
 import { OrchestratorApi } from "./groups/orchestrator"
+import { TeamApi } from "./groups/team"
 import { Authorization } from "./middleware/authorization"
 import { SchemaErrorMiddleware } from "./middleware/schema-error"
 
@@ -52,10 +58,15 @@ export const InstanceHttpApi = HttpApi.make("NovaWay-instance")
   .addHttpApi(ConfigApi)
   .addHttpApi(ExperimentalApi)
   .addHttpApi(EvolutionApi)
+  .addHttpApi(ExtensionApi)
   .addHttpApi(FileApi)
   .addHttpApi(GitApi)
+  .addHttpApi(HookApi)
   .addHttpApi(ImagesApi)
+  .addHttpApi(DatabaseApi)
+  .addHttpApi(KnowledgeApi)
   .addHttpApi(InstanceApi)
+  .addHttpApi(KernelApi)
   .addHttpApi(McpApi)
   .addHttpApi(MemoryApi)
   .addHttpApi(OfficeApi)
@@ -75,6 +86,7 @@ export const InstanceHttpApi = HttpApi.make("NovaWay-instance")
   .add(GoalApi)
   .add(WorkflowApi)
   .add(OrchestratorApi)
+  .addHttpApi(TeamApi)
   .middleware(SchemaErrorMiddleware)
 
 export const NovaWayHttpApi = HttpApi.make("novaway")

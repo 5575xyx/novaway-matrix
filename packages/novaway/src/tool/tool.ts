@@ -17,6 +17,8 @@ export type Context<M extends Metadata = Metadata> = {
   sessionID: SessionID
   messageID: MessageID
   agent: string
+  /** Working directory override (worktree-isolated sessions). */
+  directory?: string
   abort: AbortSignal
   callID?: string
   extra?: { [key: string]: unknown }
@@ -32,6 +34,67 @@ export interface ExecuteResult<M extends Metadata = Metadata> {
   attachments?: Omit<MessageV2.FilePart, "id" | "sessionID" | "messageID">[]
 }
 
+/**
+ * Declarative capability metadata for a tool.
+ *
+ * These flags let the orchestration layer decide how to schedule tools
+ * (read-only tools run concurrently, writers run serially), how much output
+ * may be returned, and whether the tool needs a dedicated permission decision.
+ * Everything is optional so existing tools keep working unchanged.
+ */
+export interface Capabilities {
+  /** Tool performs no persistent side effects. */
+  readOnly?: boolean | ((args: unknown) => boolean)
+  /** Tool may run concurrently with other concurrency-safe tools in the same step. */
+  concurrencySafe?: boolean | ((args: unknown) => boolean)
+  /** Tool performs an irreversible operation (delete/overwrite/send). */
+  destructive?: boolean
+  /** Maximum bytes kept inline before the output is persisted to disk. */
+  maxResultBytes?: number
+  /** Validate arguments against the current context. Errors are returned to the model. */
+  validateInput?: (args: unknown, ctx: Context) => Effect.Effect<void, Error>
+  /** Tool-specific permission decision, evaluated before the generic ruleset. */
+  checkPermissions?: (args: unknown, ctx: Context) => Effect.Effect<"allow" | "ask" | "deny">
+  /** Behaviour when the user submits a new message while this tool is running. */
+  interrupt?: "cancel" | "block"
+  /** Defer the full schema until the model searches for it. */
+  deferLoading?: boolean
+  /** Keep the full schema in the first prompt even when deferred loading is on. */
+  alwaysLoad?: boolean
+  /** Short phrase used by tool search keyword matching. */
+  searchHint?: string
+  /** Backwards-compatible tool names. */
+  aliases?: string[]
+}
+
+export function resolveFlag(
+  value: boolean | ((args: unknown) => boolean) | undefined,
+  args: unknown,
+  fallback: boolean,
+) {
+  if (value === undefined) return fallback
+  if (typeof value === "function") {
+    try {
+      return value(args)
+    } catch {
+      return fallback
+    }
+  }
+  return value
+}
+
+export function concurrencySafe(def: Pick<Def, "capabilities">, args: unknown) {
+  return resolveFlag(def.capabilities?.concurrencySafe, args, false)
+}
+
+export function readOnly(def: Pick<Def, "capabilities">, args: unknown) {
+  return resolveFlag(def.capabilities?.readOnly, args, false)
+}
+
+export function maxResultBytes(def: Pick<Def, "capabilities">) {
+  return def.capabilities?.maxResultBytes
+}
+
 export interface Def<
   Parameters extends Schema.Decoder<unknown> = Schema.Decoder<unknown>,
   M extends Metadata = Metadata,
@@ -40,6 +103,7 @@ export interface Def<
   description: string
   parameters: Parameters
   jsonSchema?: JSONSchema7
+  capabilities?: Capabilities
   execute(args: Schema.Schema.Type<Parameters>, ctx: Context): Effect.Effect<ExecuteResult<M>>
   formatValidationError?(error: unknown): string
 }
@@ -108,12 +172,17 @@ function wrap<Parameters extends Schema.Decoder<unknown>, Result extends Metadat
                   ),
             ),
           )
+          yield* toolInfo.capabilities?.validateInput?.(decoded, ctx) ?? Effect.void
           const result = yield* execute(decoded as Schema.Schema.Type<Parameters>, ctx)
           if (result.metadata.truncated !== undefined) {
             return result
           }
           const agent = yield* agents.get(ctx.agent)
-          const truncated = yield* truncate.output(result.output, {}, agent)
+          const truncated = yield* truncate.output(
+            result.output,
+            toolInfo.capabilities?.maxResultBytes ? { maxBytes: toolInfo.capabilities.maxResultBytes } : {},
+            agent,
+          )
           return {
             ...result,
             output: truncated.content,

@@ -433,10 +433,7 @@ export function migrateLayoutStore(value: unknown) {
 }
 
 /** 动态标签表是否等价（键集合 + 每个值的引用都一致）。 */
-function sameDynamicTabs(
-  a: unknown,
-  b: Record<string, SidePaneSessionTab>,
-): boolean {
+function sameDynamicTabs(a: unknown, b: Record<string, SidePaneSessionTab>): boolean {
   if (!isRecord(a)) return Object.keys(b).length === 0
   const keys = Object.keys(a)
   if (keys.length !== Object.keys(b).length) return false

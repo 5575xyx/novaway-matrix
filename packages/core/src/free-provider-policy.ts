@@ -7,24 +7,24 @@ export const FREE_PROVIDER_NATURE: Record<string, FreeNature> = {
   // 第一梯队：实测可用的真免费档（按稳定度 + 免费额度排序）
   // ═══════════════════════════════════════════════════════════
   // 国内主力：每日免费额度，国内访问稳定
-  modelscope: "model",          // 7+ 模型，每日额度，Qwen3/DeepSeek/GLM 全系
-  sensenova: "model",           // 商汤 GLM-5.2 / DeepSeek-V4 / Kimi-K3
-  zhipuai: "model",             // 智谱 GLM-4.7-Flash / 4.5-Flash
+  modelscope: "model", // 7+ 模型，每日额度，Qwen3/DeepSeek/GLM 全系
+  sensenova: "model", // 商汤 GLM-5.2 / DeepSeek-V4 / Kimi-K3
+  zhipuai: "model", // 智谱 GLM-4.7-Flash / 4.5-Flash
 
   // 老牌国外路由
-  openrouter: "model",          // :free 后缀 21+ 模型
-  kilo: "model",                // 聚合网关，17+ 真实免费
+  openrouter: "model", // :free 后缀 21+ 模型
+  kilo: "model", // 聚合网关，17+ 真实免费
 
   // 国外限速免费层
-  google: "rate-limited",        // Gemini Flash 250-1000次/天
-  "siliconflow-cn": "model",     // 部分模型永久免费 + 注册送额度
+  google: "rate-limited", // Gemini Flash 250-1000次/天
+  "siliconflow-cn": "model", // 部分模型永久免费 + 注册送额度
 
   // 本地推理（零成本、稳定、无任何限制）
-  lmstudio: "model",             // 127.0.0.1:1234
-  "atomic-chat": "model",        // 127.0.0.1:1337
+  lmstudio: "model", // 127.0.0.1:1234
+  "atomic-chat": "model", // 127.0.0.1:1337
 
   // 国产小工具（每天免费额度）
-  agnes: "model",                // Agnes-2.5/2.0-Flash，国产小众
+  agnes: "model", // Agnes-2.5/2.0-Flash，国产小众
 
   // ═══════════════════════════════════════════════════════════
   // Credits 档（按 token 付费，不是真免费）
@@ -37,11 +37,11 @@ export const FREE_PROVIDER_NATURE: Record<string, FreeNature> = {
   // ═══════════════════════════════════════════════════════════
   // 第二梯队：试用层（未实测，需要 Key，可能有限制）
   // ═══════════════════════════════════════════════════════════
-  huggingface: "rate-limited",   // HF Inference 试用
-  mistral: "rate-limited",       // Mistral La Plateforme 试用
-  cohere: "rate-limited",        // Cohere Trial
-  amd: "credits",                // AMD Developer Cloud 试用
-  nova: "model",                 // Amazon Nova 试用
+  huggingface: "rate-limited", // HF Inference 试用
+  mistral: "rate-limited", // Mistral La Plateforme 试用
+  cohere: "rate-limited", // Cohere Trial
+  amd: "credits", // AMD Developer Cloud 试用
+  nova: "model", // Amazon Nova 试用
 
   // ═══════════════════════════════════════════════════════════
   // 第三梯队：未实测（按稳定度排序，待人工验证）
@@ -50,7 +50,7 @@ export const FREE_PROVIDER_NATURE: Record<string, FreeNature> = {
   inferx: "model",
   unorouter: "model",
   qvac: "model",
-  llama: "model",                // Meta 官方
+  llama: "model", // Meta 官方
   zenmux: "model",
   nan: "model",
   pendra: "model",
@@ -59,7 +59,7 @@ export const FREE_PROVIDER_NATURE: Record<string, FreeNature> = {
   empiriolabs: "model",
   poolside: "model",
   llmgateway: "model",
-  zai: "model",                  // 智谱海外官方
+  zai: "model", // 智谱海外官方
   "tencent-tokenhub": "model",
   bothub: "model",
   hetzner: "model",

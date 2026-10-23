@@ -393,7 +393,9 @@ export function OfficeSlideEditor(props: {
                     <Show
                       when={slideThumbnail(props.template, slide, slides.length)}
                       fallback={
-                        <span class="grid size-6 place-items-center text-11-medium text-foreground-subtle">{slide.index}</span>
+                        <span class="grid size-6 place-items-center text-11-medium text-foreground-subtle">
+                          {slide.index}
+                        </span>
                       }
                     >
                       {(src) => (

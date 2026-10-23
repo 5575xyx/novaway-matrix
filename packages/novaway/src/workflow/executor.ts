@@ -48,6 +48,8 @@ export interface ExecuteRunDeps {
   /** step/task 未指定 agent 时的回退 agent 名。 */
   readonly defaultAgent: string
   readonly service: Pick<WorkflowInterface, "updateRunState" | "update">
+  /** Cooperative control hook: read the workflow status before each step. */
+  readonly status?: () => Effect.Effect<"draft" | "running" | "paused" | "completed" | "failed">
 }
 
 export const executeRun = (deps: ExecuteRunDeps): Effect.Effect<WorkflowRun> =>
@@ -90,6 +92,14 @@ export const executeRun = (deps: ExecuteRunDeps): Effect.Effect<WorkflowRun> =>
     const guard = { budget: workflow.steps.length * 4 + 8 }
 
     while (cursor && guard.budget-- > 0) {
+      if (deps.status) {
+        while (true) {
+          const current = yield* deps.status()
+          if (current !== "paused") break
+          yield* Effect.sleep("250 millis")
+        }
+      }
+
       const step = stepMap.get(cursor)
       if (!step) break
 

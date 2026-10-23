@@ -52,6 +52,7 @@ export const EvolutionApi = HttpApi.make("evolution").add(
         error: HttpApiError.BadRequest,
       }),
       HttpApiEndpoint.patch("updateCandidate", EvolutionPaths.candidateUpdate, {
+        query: Schema.Struct(WorkspaceRoutingQueryFields),
         params: { candidateID: EvolutionSchema.EvolutionCandidateID },
         payload: CandidateUpdatePayload,
         success: EvolutionSchema.Candidate,
@@ -70,6 +71,7 @@ export const EvolutionApi = HttpApi.make("evolution").add(
         error: [HttpApiError.BadRequest, ApiNotFoundError],
       }),
       HttpApiEndpoint.post("applyCandidate", EvolutionPaths.candidateApply, {
+        query: Schema.Struct(WorkspaceRoutingQueryFields),
         params: { candidateID: EvolutionSchema.EvolutionCandidateID },
         success: EvolutionSchema.Candidate,
         error: [HttpApiError.BadRequest, ApiNotFoundError],
@@ -81,6 +83,7 @@ export const EvolutionApi = HttpApi.make("evolution").add(
         error: [HttpApiError.BadRequest, ApiNotFoundError],
       }),
       HttpApiEndpoint.post("dismissCandidate", EvolutionPaths.candidateDismiss, {
+        query: Schema.Struct(WorkspaceRoutingQueryFields),
         params: { candidateID: EvolutionSchema.EvolutionCandidateID },
         success: EvolutionSchema.Candidate,
         error: [HttpApiError.BadRequest, ApiNotFoundError],

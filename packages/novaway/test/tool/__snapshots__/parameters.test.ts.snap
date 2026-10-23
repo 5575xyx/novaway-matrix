@@ -20,6 +20,10 @@ exports[`tool parameters JSON Schema (wire shape) bash 1`] = `
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
+    "background": {
+      "description": "Run the command in the background and return immediately. Use for long-lived processes (dev servers, watchers). The user can watch and stop it in the status panel.",
+      "type": "boolean",
+    },
     "command": {
       "description": "The command to execute",
       "type": "string",
@@ -331,6 +335,25 @@ exports[`tool parameters JSON Schema (wire shape) task 1`] = `
       "description": "A short (3-5 words) description of the task",
       "type": "string",
     },
+    "fork": {
+      "description": "Fork the current conversation into the subagent: it inherits the parent transcript and shares the prompt cache prefix",
+      "type": "boolean",
+    },
+    "isolation": {
+      "description": "Run the agent in an isolated git worktree",
+      "enum": [
+        "worktree",
+      ],
+      "type": "string",
+    },
+    "model": {
+      "description": "Model override, formatted as provider/model",
+      "type": "string",
+    },
+    "name": {
+      "description": "Addressable name for this agent, used by agent_message and the task board",
+      "type": "string",
+    },
     "prompt": {
       "description": "The task for the agent to perform",
       "type": "string",
@@ -341,6 +364,10 @@ exports[`tool parameters JSON Schema (wire shape) task 1`] = `
     },
     "task_id": {
       "description": "This should only be set if you mean to resume a previous task (you can pass a prior task_id and the task will continue the same subagent session as before instead of creating a fresh one)",
+      "type": "string",
+    },
+    "team": {
+      "description": "Team id or name; defaults to the current session team",
       "type": "string",
     },
   },

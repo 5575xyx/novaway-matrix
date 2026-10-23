@@ -56,7 +56,8 @@ const FREE_PROVIDERS: Record<
     keyUrl: "https://modelscope.cn/my/myaccesstoken",
     keyHint: "modelscope.cn → 访问令牌",
     steps: ["注册魔搭社区账号，在「访问令牌」页面一键复制 API-KEY"],
-  },  sensenova: {
+  },
+  sensenova: {
     badge: "免费",
     tagline: "免费模型最多：GLM-5.2、DeepSeek-V4-Pro、Kimi-K3 等",
     keyUrl: "https://platform.sensenova.cn",
@@ -182,7 +183,8 @@ const FREE_PROVIDERS: Record<
   },
   groq: {
     badge: "免费额度",
-    tagline: "⚠️ Groq 已下线免费档：Llama 3.1/3.3 改成 Enterprise only；GPT-OSS / Qwen 按 token 收费（最便宜 $0.075/1M），需绑卡",
+    tagline:
+      "⚠️ Groq 已下线免费档：Llama 3.1/3.3 改成 Enterprise only；GPT-OSS / Qwen 按 token 收费（最便宜 $0.075/1M），需绑卡",
     keyUrl: "https://console.groq.com/keys",
     keyHint: "console.groq.com → API Keys",
     steps: [
@@ -774,7 +776,6 @@ function ApiMethod(props: ApiMethodProps) {
     />
   )
 }
-
 
 interface PromptsMethodProps {
   dialog: ReturnType<typeof useDialog>

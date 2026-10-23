@@ -8,6 +8,9 @@ import { Provider } from "@/provider/provider"
 import { InstanceState } from "@/effect/instance-state"
 import { MessageID, PartID } from "../session/schema"
 import EXIT_DESCRIPTION from "./plan-exit.txt"
+import { PlanApproval } from "@/session/plan-approval"
+import { Service as MailboxService } from "@/team/mailbox"
+import { Service as TeamService } from "@/team/team"
 
 export const Parameters = Schema.Struct({})
 
@@ -17,6 +20,9 @@ export const PlanExitTool = Tool.define(
     const session = yield* Session.Service
     const question = yield* Question.Service
     const provider = yield* Provider.Service
+    const approval = yield* PlanApproval.Service
+    const mailbox = yield* MailboxService
+    const teams = yield* TeamService
 
     return {
       description: EXIT_DESCRIPTION,
@@ -26,23 +32,52 @@ export const PlanExitTool = Tool.define(
           const instance = yield* InstanceState.context
           const info = yield* session.get(ctx.sessionID)
           const plan = path.relative(instance.worktree, Session.plan(info, instance))
-          const answers = yield* question.ask({
-            sessionID: ctx.sessionID,
-            questions: [
-              {
-                question: `Plan at ${plan} is complete. Would you like to switch to the build agent and start implementing?`,
-                header: "Build Agent",
-                custom: false,
-                options: [
-                  { label: "Yes", description: "Switch to build agent and start implementing the plan" },
-                  { label: "No", description: "Stay with plan agent to continue refining the plan" },
-                ],
-              },
-            ],
-            tool: ctx.callID ? { messageID: ctx.messageID, callID: ctx.callID } : undefined,
-          })
 
-          if (answers[0]?.[0] === "No") yield* new Question.RejectedError()
+          // Subagents have no human watching them: the lead decides instead of
+          // an interactive prompt. The request goes out as a message so it
+          // shows up in the lead's transcript, and we block on the reply.
+          if (info.parentID) {
+            const team = yield* teams.ofSession(ctx.sessionID).pipe(Effect.catch(() => Effect.succeed(undefined)))
+            const lead = team ? (yield* teams.members(team.id)).find((member) => member.role === "lead") : undefined
+            const to = lead?.name ?? info.parentID
+            yield* mailbox
+              .send({
+                teamID: team?.id ?? "default",
+                fromSessionID: ctx.sessionID,
+                toSessionID: info.parentID,
+                summary: `plan approval: ${plan}`,
+                content: JSON.stringify({ type: "plan_approval_request", plan, to }),
+              })
+              .pipe(Effect.ignore)
+
+            const decision = yield* approval.request({
+              sessionID: ctx.sessionID,
+              parentID: info.parentID,
+              messageID: ctx.messageID,
+              plan,
+            })
+            if (!decision.approved) {
+              yield* new Question.RejectedError()
+            }
+          } else {
+            const answers = yield* question.ask({
+              sessionID: ctx.sessionID,
+              questions: [
+                {
+                  question: `Plan at ${plan} is complete. Would you like to switch to the build agent and start implementing?`,
+                  header: "Build Agent",
+                  custom: false,
+                  options: [
+                    { label: "Yes", description: "Switch to build agent and start implementing the plan" },
+                    { label: "No", description: "Stay with plan agent to continue refining the plan" },
+                  ],
+                },
+              ],
+              tool: ctx.callID ? { messageID: ctx.messageID, callID: ctx.callID } : undefined,
+            })
+
+            if (answers[0]?.[0] === "No") yield* new Question.RejectedError()
+          }
 
           const messages = yield* session.messages({ sessionID: ctx.sessionID }).pipe(Effect.orDie)
           const lastUser = messages.findLast((item) => item.info.role === "user" && item.info.model)

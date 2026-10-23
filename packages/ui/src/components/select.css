@@ -89,12 +89,16 @@
   max-width: 23rem;
   overflow: hidden;
   border-radius: var(--radius-lg);
-  border: 1px solid var(--popover-border);
-  background-color: var(--menu);
+  border: 1px solid var(--popover-border, var(--border));
+  /* --menu 来自 ZCode 语义 token；某些构建/自定义主题里可能缺失，
+     缺失时回退到不透明的 raised surface，避免下拉面板透出底层文字。 */
+  background-color: var(--menu, var(--surface-raised-stronger-non-alpha, var(--background-strong)));
   padding: 4px;
   box-shadow: var(--shadow-md);
   color: var(--foreground);
-  z-index: 60;
+  /* 必须高于 Dialog（z-index 100）：设置弹窗里的模型/模式下拉是 Portal 到 body 的，
+     层级低于弹窗时会被盖住，看起来像“点了没反应”。 */
+  z-index: 200;
 
   &[data-expanded] {
     animation: select-open var(--transition-overlay-ms, 180ms) ease-out;

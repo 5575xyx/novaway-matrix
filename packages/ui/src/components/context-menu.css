@@ -8,7 +8,7 @@
   background-clip: padding-box;
   background-color: var(--popover);
   padding: 4px;
-  z-index: 100;
+  z-index: 200;
   transform-origin: var(--kb-menu-content-transform-origin);
 
   &:focus-within,

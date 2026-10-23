@@ -23,7 +23,10 @@ function SettingsRow(props: {
           <div class="text-13-medium text-foreground">{props.title}</div>
           <div class="mt-0.5 text-12-regular leading-5 text-foreground-subtle">{props.description}</div>
         </div>
-        <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end" classList={{ "opacity-50": props.disabled }}>
+        <div
+          class="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end"
+          classList={{ "opacity-50": props.disabled }}
+        >
           {props.children}
         </div>
       </div>

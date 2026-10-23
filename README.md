@@ -168,6 +168,50 @@ bun add -g xymt-novaway
 2. 选模型、填 Key（国产模型直接选厂商）。
 3. 开聊：让它读代码、修 bug、写 PPT、排运营计划 —— 剩下的交给它。
 
+## 运行环境与可选组件
+
+**必需**（只有这些）：
+
+| 项           | 要求                                                    | 说明                                      |
+| ------------ | ------------------------------------------------------- | ----------------------------------------- |
+| 操作系统     | Windows x64 / macOS（Apple Silicon / Intel）/ Linux x64 | 桌面端与终端共用同一套内核                |
+| Node.js ≥ 18 | 仅 `npm install -g` 安装 CLI 时需要                     | 桌面端安装包自带运行时，无需单独安装 Node |
+| 网络         | 首次安装、调用云模型时需要                              | 模型 Key 在应用内配置，不写进项目文件     |
+
+**可选组件**（用到才需要，且都能在应用里一键安装）：
+
+| 能力                | 组件                       | 什么时候需要                     | 怎么装                                                                                           |
+| ------------------- | -------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 图片 / 扫描件 OCR   | RapidOCR（PP-OCR，中英文） | 往知识库导入截图、扫描版 PDF     | 知识库右上角点「一键安装 OCR」；机器上没有 Python 会自动准备运行时，无需命令行                   |
+| 知识库语义检索      | Ollama + embedding 模型    | 想提升检索质量（纯关键词也能用） | 设置 → 记忆与进化 → 一键安装；卡住可点「让 AI 帮我处理」                                         |
+| 代码诊断 / 格式化   | 各语言 LSP、格式化器       | 让 Agent 自动修格式、看诊断      | 首次用到时自动下载；装不上可点「让 AI 帮我处理」                                                 |
+| MCP 工具接入        | context7 / Playwright 等   | 需要外部工具或数据源             | 设置 → MCP 一键添加；连接失败可点「让 AI 帮我处理」                                              |
+| 手写 / 复杂版面转写 | 支持图片输入的多模态模型   | 本地 OCR 认不出，或图片是手写    | 设置里连接任意支持视觉的模型即可                                                                 |
+| 技能 / 插件         | SKILL.md、npm 插件         | 想给 Agent 加一套专门流程        | 直接说「帮我写个技能 / 装个插件」，AI 调用 `skill_install` / `plugin_install`                    |
+| 记忆 / 规则 / 进化  | 内置                       | 让 Agent 记住偏好、遵守约定      | 直接说「记住…」「加一条规则…」「看看进化候选」（`memory` / `rules_manage` / `evolution_manage`） |
+| 知识库              | 内置                       | 沉淀内部文档供检索               | 直接说「把这个存进知识库 / 建个集合」（`knowledge_manage`）                                      |
+| Git                 | 内置                       | 提交、推送、切分支               | 直接说「提交并推送」（`git`）                                                                    |
+
+> **缺少组件时不用自己折腾环境**：NovaWay 会在对应页面直接提示，并给出「安装」按钮 ——
+> 例如导入图片失败时，提示条上就有「立即安装」，点一下自动完成下载、建隔离环境、验证，
+> 全程不碰系统 Python，也不需要执行任何 `pip` / `brew` 命令。
+>
+> 环境特殊装不上？安装弹窗里有「**让 AI 帮我装 / 帮我处理**」：新建一个会话，由 Agent 调用
+> 内置的 `knowledge_ocr`、`memory_embedding_setup`、`installation_doctor`、`lsp_setup`、`mcp_setup`、
+> `provider_setup` 等工具完成安装与诊断；必要时它还能用终端
+> 在你的机器上逐步排查。安装类操作会先请求权限，不会静默改环境。
+
+国内网络或内网环境可以用环境变量把下载源指到镜像（一般用不到，应用已内置 PyPI 镜像回退）：
+
+```bash
+NOVAWAY_OCR_UV_URL=https://your-mirror/uv-x86_64-pc-windows-msvc.zip
+NOVAWAY_OCR_PYTHON_MIRROR=https://your-mirror/python-build-standalone
+NOVAWAY_OCR_PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+OCR 的完整说明（后端优先级、模型、扫描件处理、更多镜像变量）见
+[docs/knowledge-base.md](packages/novaway/docs/knowledge-base.md)。
+
 ## 更新
 
 ```bash
@@ -209,6 +253,10 @@ npm uninstall -g xymt-novaway
 | 状态                       | `~/.local/state/novaway` | `C:\Users\<你>\.local\state\novaway` |
 
 ## 安装故障排查
+
+> 不想自己照着排查？设置 → 通用 → 「安装诊断」点「让 AI 帮我处理」：AI 会调用内置的
+> `installation_doctor` 检查安装方式、包装包与二进制（包括 postinstall 占位脚本）、
+> 平台包是否解包、registry 与最新版本，然后直接给出并执修复步骤。
 
 **`failed to install the right novaway CLI package` / `Try manually installing xymt-novaway-<os>-<arch>`**
 

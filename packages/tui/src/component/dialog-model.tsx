@@ -14,9 +14,7 @@ import { isAutoModel } from "../util/model"
 
 export { isAutoModel }
 
-export function selectableModelEntries<T>(
-  provider: { id: string; models: Record<string, T> },
-): [string, T][] {
+export function selectableModelEntries<T>(provider: { id: string; models: Record<string, T> }): [string, T][] {
   return Object.entries(provider.models).filter(([model]) => !isAutoModel(provider.id, model))
 }
 

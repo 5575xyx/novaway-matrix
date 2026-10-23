@@ -235,20 +235,19 @@ export const settingsHandlers = HttpApiBuilder.group(InstanceHttpApi, "settings"
       const dirs = yield* configDirs()
       // 运行时已发现的技能（内置 + config.skills.paths 里的外部技能）。
       // 之前只列 builtIn，导致插件市场装进来的技能在设置页"隐身"。
-      const runtime = (yield* skill.all())
-        .map((item) => {
-          return {
+      const runtime = (yield* skill.all()).map((item) => {
+        return {
+          name: item.name,
+          location: item.location,
+          editable: false,
+          builtIn: item.builtIn,
+          data: {
             name: item.name,
-            location: item.location,
-            editable: false,
-            builtIn: item.builtIn,
-            data: {
-              name: item.name,
-              ...(item.description ? { description: item.description } : {}),
-            },
-            content: item.content,
-          }
-        })
+            ...(item.description ? { description: item.description } : {}),
+          },
+          content: item.content,
+        }
+      })
 
       const diskFiles = yield* Effect.forEach(
         dirs,

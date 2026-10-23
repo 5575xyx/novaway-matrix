@@ -43,15 +43,67 @@ export const MessagesQuery = Schema.Struct({
   before: Schema.optional(Schema.String),
 })
 export const StatusMap = Schema.Record(Schema.String, SessionStatus.Info)
+export const TempFileInfo = Schema.Struct({
+  path: Schema.String,
+  relative: Schema.String,
+  tool: Schema.String,
+  createdAt: Schema.Number,
+  size: Schema.Number,
+}).annotate({ identifier: "SessionTempFile" })
+
+export const TempFileCleanPayload = Schema.Struct({
+  /** 只清理这些路径；省略表示清理全部可安全删除的。 */
+  paths: Schema.optional(Schema.Array(Schema.String)),
+})
+
+export const TempFileCleanResult = Schema.Struct({
+  removed: Schema.Array(Schema.String),
+  skipped: Schema.Array(Schema.Struct({ path: Schema.String, reason: Schema.String })),
+}).annotate({ identifier: "SessionTempFileCleanResult" })
+
+export const BackgroundJobInfo = Schema.Struct({
+  id: Schema.String,
+  type: Schema.String,
+  title: Schema.optional(Schema.String),
+  status: Schema.Literals(["running", "completed", "error", "cancelled"]),
+  started_at: Schema.Number,
+  completed_at: Schema.optional(Schema.Number),
+  output: Schema.optional(Schema.String),
+  error: Schema.optional(Schema.String),
+  metadata: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+})
 export const UpdatePayload = Schema.Struct({
   title: Schema.optional(Schema.String),
   permission: Schema.optional(Permission.Ruleset),
+  /** Session-scoped permission mode; omit to keep, pass nothing to reset is not possible via PATCH. */
+  permissionMode: Schema.optional(Permission.Mode),
+  /**
+   * Move the session's working directory (fires the CwdChanged hook).
+   * Named `cwd`, not `directory`: the query parameter already owns that name,
+   * and the generated SDK would collide into `body_directory`.
+   */
+  cwd: Schema.optional(Schema.String),
   time: Schema.optional(
     Schema.Struct({
       archived: Schema.optional(Session.ArchivedTimestamp),
     }),
   ),
 })
+export const PlanApprovalPending = Schema.Struct({
+  id: Schema.String,
+  sessionID: Schema.String,
+  parentID: Schema.optional(Schema.NullOr(Schema.String)),
+  messageID: Schema.optional(Schema.String),
+  plan: Schema.String,
+  title: Schema.optional(Schema.String),
+  createdAt: Schema.Number,
+}).annotate({ identifier: "PlanApprovalPending" })
+
+export const PlanApprovalReplyPayload = Schema.Struct({
+  approved: Schema.Boolean,
+  feedback: Schema.optional(Schema.String),
+})
+
 export const ForkPayload = Schema.Struct(Struct.omit(Session.ForkInput.fields, ["sessionID"]))
 export const InitPayload = Schema.Struct({
   modelID: ModelID,
@@ -88,6 +140,12 @@ export const SessionPaths = {
   update: `${root}/:sessionID`,
   fork: `${root}/:sessionID/fork`,
   abort: `${root}/:sessionID/abort`,
+  background: `${root}/:sessionID/background`,
+  backgroundCancel: `${root}/:sessionID/background/:jobID`,
+  tempFiles: `${root}/:sessionID/temp-files`,
+  tempFilesClean: `${root}/:sessionID/temp-files/clean`,
+  planApproval: `${root}/:sessionID/plan-approval`,
+  planApprovalReply: `${root}/:sessionID/plan-approval/:requestID`,
   share: `${root}/:sessionID/share`,
   init: `${root}/:sessionID/init`,
   summarize: `${root}/:sessionID/summarize`,
@@ -260,6 +318,83 @@ export const SessionApi = HttpApi.make("session")
             identifier: "session.abort",
             summary: "Abort session",
             description: "Abort an active session and stop any ongoing AI processing or command execution.",
+          }),
+        ),
+        // 后台任务（子代理 / 后台命令）属于某个会话，但没有消息事件可推；
+        // 右侧状态卡按需轮询这两个端点拿实时状态并支持停止。
+        HttpApiEndpoint.get("background", SessionPaths.background, {
+          params: { sessionID: SessionID },
+          query: WorkspaceRoutingQuery,
+          success: described(Schema.Array(BackgroundJobInfo), "Background jobs"),
+          error: [HttpApiError.BadRequest, ApiNotFoundError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.background",
+            summary: "List background jobs",
+            description: "List background subagents and commands spawned by a session.",
+          }),
+        ),
+        HttpApiEndpoint.get("tempFiles", SessionPaths.tempFiles, {
+          params: { sessionID: SessionID },
+          query: WorkspaceRoutingQuery,
+          success: described(Schema.Array(TempFileInfo), "Temporary files created by tools"),
+          error: [HttpApiError.BadRequest, ApiNotFoundError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.tempFiles.list",
+            summary: "List temporary files",
+            description: "Temporary files created by tools in this session (tmp-*, scratch/, *.tmp ...).",
+          }),
+        ),
+        HttpApiEndpoint.get("planApproval", SessionPaths.planApproval, {
+          params: { sessionID: SessionID },
+          query: WorkspaceRoutingQuery,
+          success: described(Schema.Array(PlanApprovalPending), "Pending plan approvals"),
+          error: [HttpApiError.BadRequest, ApiNotFoundError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.planApproval.list",
+            summary: "List pending plan approvals",
+            description: "Subagent plans waiting for the lead to approve or reject them.",
+          }),
+        ),
+        HttpApiEndpoint.post("planApprovalReply", SessionPaths.planApprovalReply, {
+          params: { sessionID: SessionID, requestID: Schema.String },
+          query: WorkspaceRoutingQuery,
+          payload: PlanApprovalReplyPayload,
+          success: described(Schema.Boolean, "Reply accepted"),
+          error: [HttpApiError.BadRequest, ApiNotFoundError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.planApproval.reply",
+            summary: "Approve or reject a plan",
+            description: "Resolve a pending plan approval request from the lead session.",
+          }),
+        ),
+        HttpApiEndpoint.post("tempFilesClean", SessionPaths.tempFilesClean, {
+          params: { sessionID: SessionID },
+          query: WorkspaceRoutingQuery,
+          payload: TempFileCleanPayload,
+          success: described(TempFileCleanResult, "Cleanup result"),
+          error: [HttpApiError.BadRequest, ApiNotFoundError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.tempFiles.clean",
+            summary: "Clean temporary files",
+            description:
+              "Delete tracked temporary files. Files modified after creation are skipped unless force is used.",
+          }),
+        ),
+        HttpApiEndpoint.delete("backgroundCancel", SessionPaths.backgroundCancel, {
+          params: { sessionID: SessionID, jobID: Schema.String },
+          query: WorkspaceRoutingQuery,
+          success: described(Schema.NullOr(BackgroundJobInfo), "Cancelled background job"),
+          error: [HttpApiError.BadRequest, ApiNotFoundError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.background.cancel",
+            summary: "Cancel background job",
+            description: "Stop a running background subagent or command that belongs to the session.",
           }),
         ),
         HttpApiEndpoint.post("init", SessionPaths.init, {

@@ -18,6 +18,7 @@ import { createStore, produce } from "solid-js/store"
 import { toolCardSlots } from "@/pages/session/tool-card"
 import { SelectionActionMenu } from "@/pages/session/selection-action-menu"
 import { useSideChat } from "@/pages/session/use-side-chat"
+import "@/components/session/knowledge-tool"
 import { Dynamic } from "solid-js/web"
 import { useNavigate } from "@solidjs/router"
 import { useMutation, useQueryClient } from "@tanstack/solid-query"
@@ -752,7 +753,10 @@ export function MessageTimeline(props: {
       recoverAttempts = 0
       return
     }
-    ;(window as any).__nudgeInfo = { rows: root.querySelectorAll("[data-timeline-row]").length, attempts: recoverAttempts }
+    ;(window as any).__nudgeInfo = {
+      rows: root.querySelectorAll("[data-timeline-row]").length,
+      attempts: recoverAttempts,
+    }
     if (recoverAttempts >= 3) return
     recovering = true
     // 先轻微改尺寸逼 ResizeObserver 回调；多数情况到这一步就恢复了。
@@ -1762,7 +1766,9 @@ export function MessageTimeline(props: {
                       {(line) => <div class="text-12-regular leading-relaxed text-foreground-subtle">{line}</div>}
                     </For>
                     <Show when={slidePreviewLines(slide).length === 0}>
-                      <div class="text-12-regular text-foreground-subtle">暂无页面正文，建议继续让 AI 补充页面文案。</div>
+                      <div class="text-12-regular text-foreground-subtle">
+                        暂无页面正文，建议继续让 AI 补充页面文案。
+                      </div>
                     </Show>
                   </div>
                 </div>
@@ -2202,45 +2208,48 @@ export function MessageTimeline(props: {
             </div>
           </div>
         </Show>
-        <Show when={!virtualFallback()} fallback={
-          <div class="flex flex-col">
-            <For each={timelineRowKeys()}>{(key) => <TimelineRowView rowKey={key} />}</For>
-          </div>
-        }>
-        <Show when={scrollRoot() ? virtualGeneration() + 1 : undefined} keyed>
-          {(_generation) => {
-            const root = () => scrollRoot()!
-            return (
-            <Virtualizer
-              data={timelineRowKeys()}
-              cache={virtualCache()}
-              itemSize={virtualCache() ? undefined : timelineFallbackItemSize}
-              scrollRef={root()}
-              shift={props.historyShift}
-              keepMounted={keepMounted()}
-              startMargin={64}
-              ref={(handle) => {
-                if (!handle) {
-                  writeTimelineCache(virtualizerSessionKey, virtualizerRowKeys, virtualizer)
-                  virtualizer = undefined
-                  return
-                }
-                virtualizer = handle
-                virtualizerSessionKey = cacheSessionKey
-                virtualizerRowKeys = cacheRowKeys
-                maybeAnchorBottom()
-                scheduleContentRoot(root())
-                // 首次挂载时容器可能还在隐藏的过渡层里，virtua 收不到尺寸回调。
-                // 这里在几帧之后补一次强制测量，否则会出现「有数据但空白」。
-                setTimeout(nudgeViewport, 0)
-                setTimeout(nudgeViewport, 250)
-              }}
-            >
-              {(key) => <TimelineRowView rowKey={key} />}
-            </Virtualizer>
-            )
-          }}
-        </Show>
+        <Show
+          when={!virtualFallback()}
+          fallback={
+            <div class="flex flex-col">
+              <For each={timelineRowKeys()}>{(key) => <TimelineRowView rowKey={key} />}</For>
+            </div>
+          }
+        >
+          <Show when={scrollRoot() ? virtualGeneration() + 1 : undefined} keyed>
+            {(_generation) => {
+              const root = () => scrollRoot()!
+              return (
+                <Virtualizer
+                  data={timelineRowKeys()}
+                  cache={virtualCache()}
+                  itemSize={virtualCache() ? undefined : timelineFallbackItemSize}
+                  scrollRef={root()}
+                  shift={props.historyShift}
+                  keepMounted={keepMounted()}
+                  startMargin={64}
+                  ref={(handle) => {
+                    if (!handle) {
+                      writeTimelineCache(virtualizerSessionKey, virtualizerRowKeys, virtualizer)
+                      virtualizer = undefined
+                      return
+                    }
+                    virtualizer = handle
+                    virtualizerSessionKey = cacheSessionKey
+                    virtualizerRowKeys = cacheRowKeys
+                    maybeAnchorBottom()
+                    scheduleContentRoot(root())
+                    // 首次挂载时容器可能还在隐藏的过渡层里，virtua 收不到尺寸回调。
+                    // 这里在几帧之后补一次强制测量，否则会出现「有数据但空白」。
+                    setTimeout(nudgeViewport, 0)
+                    setTimeout(nudgeViewport, 250)
+                  }}
+                >
+                  {(key) => <TimelineRowView rowKey={key} />}
+                </Virtualizer>
+              )
+            }}
+          </Show>
         </Show>
       </ScrollView>
       {/* 选中聊天内容后的浮动动作菜单（对齐 ZCode 的 SelectionActionMenu）：

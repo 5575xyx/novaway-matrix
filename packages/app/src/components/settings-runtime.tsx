@@ -36,10 +36,13 @@ import { type PluginCatalogEntry, normalizeSourceUrl, parsePluginCatalog } from 
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
+import { useModels } from "@/context/models"
 import { usePlatform } from "@/context/platform"
 import { useServer } from "@/context/server"
 import { agentDisplayName, skillDisplayName } from "@/utils/agent"
+import { agentAvatarSrc } from "@/utils/agent-avatar"
 import { pathKey } from "@/utils/path-key"
+import { AiFixButton } from "./ai-fix-button"
 import { SettingsGroup } from "./settings-parts"
 import { matchesModeGroup, modeGroupLabel, modeGroups, type ModeGroup } from "./settings-mode-groups"
 import { agentSkillPermission, hasSkillPermission, withAgentSkills } from "./settings-agent-config"
@@ -893,6 +896,12 @@ const AgentDetailDialog: Component<{
       class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
     >
       <div class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar">
+        <div class="flex items-center gap-3">
+          <img src={agentAvatarSrc(props.agent.name)} alt="" class="size-10 rounded-xl object-cover" />
+          <span class="min-w-0 truncate text-15-medium text-foreground">
+            {agentDisplayName(props.agent.name, props.agent.options)}
+          </span>
+        </div>
         <TextField
           label={language.t("settings.management.field.name")}
           value={props.agent.name}
@@ -1862,11 +1871,203 @@ const ConfigEditor: Component<{
   )
 }
 
-export const SettingsAgents: Component = () => {
+type AgentDraft = {
+  name: string
+  description: string
+  mode: "primary" | "subagent"
+  prompt: string
+}
+
+const agentModeOptions = [
+  { value: "primary" as const, label: "settings.agents.ai.mode.primary" },
+  { value: "subagent" as const, label: "settings.agents.ai.mode.subagent" },
+]
+
+const parseAgentDraft = (text: string): AgentDraft => {
+  const cleaned = text
+    .trim()
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/, "")
+    .trim()
+  const start = cleaned.indexOf("{")
+  const end = cleaned.lastIndexOf("}")
+  if (start === -1 || end === -1) throw new Error("AI did not return a JSON object")
+  const value = JSON.parse(cleaned.slice(start, end + 1)) as Record<string, unknown>
+  const name = typeof value.name === "string" ? value.name.trim() : ""
+  const description = typeof value.description === "string" ? value.description.trim() : ""
+  const prompt = typeof value.prompt === "string" ? value.prompt.trim() : ""
+  if (!name || !prompt) throw new Error("AI response is missing name or prompt")
+  const mode = value.mode === "subagent" ? "subagent" : "primary"
+  return { name, description, mode, prompt }
+}
+
+const AgentGenerateDialog: Component<{
+  title: string
+  models: Array<{ providerID: string; modelID: string; label: string }>
+  initialModel?: { providerID: string; modelID: string }
+  onGenerate: (
+    input: { description: string; mode: "primary" | "subagent" },
+    model: { providerID: string; modelID: string },
+  ) => Promise<AgentDraft>
+  onCreate: (draft: AgentDraft) => Promise<void>
+}> = (props) => {
+  const dialog = useDialog()
+  const language = useLanguage()
+  const [description, setDescription] = createSignal("")
+  const [mode, setMode] = createSignal<"primary" | "subagent">("subagent")
+  const [model, setModel] = createSignal(props.initialModel)
+  const [draft, setDraft] = createSignal<AgentDraft>()
+  const [error, setError] = createSignal("")
+  const options = () => props.models
+  const currentModel = () =>
+    options().find((item) => item.providerID === model()?.providerID && item.modelID === model()?.modelID)
+  const currentMode = () => agentModeOptions.find((item) => item.value === mode())
+
+  const generate = useMutation(() => ({
+    mutationFn: async () => {
+      const selected = model()
+      if (!selected) throw new Error(language.t("settings.agents.ai.error.model"))
+      if (!description().trim()) throw new Error(language.t("settings.agents.ai.error.description"))
+      const result = await props.onGenerate({ description: description().trim(), mode: mode() }, selected)
+      setDraft({ ...result, mode: mode() })
+      return result
+    },
+    onError: (err) => {
+      const message = err instanceof Error ? err.message : String(err)
+      setError(message)
+      showToast({ title: language.t("common.requestFailed"), description: message })
+    },
+  }))
+
+  const create = useMutation(() => ({
+    mutationFn: async (value: AgentDraft) => props.onCreate(value),
+    onSuccess: () => dialog.close(),
+    onError: (err) => {
+      const message = err instanceof Error ? err.message : String(err)
+      setError(message)
+      showToast({ title: language.t("common.requestFailed"), description: message })
+    },
+  }))
+
+  return (
+    <Dialog title={props.title} transition class="w-[min(calc(100vw-40px),880px)]">
+      <form
+        class="flex max-h-[calc(100vh-160px)] flex-col gap-4 overflow-y-auto px-2.5 pb-3"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (draft() && !create.isPending) create.mutate(draft()!)
+          else if (!generate.isPending) generate.mutate()
+        }}
+      >
+        <p class="text-12-regular leading-5 text-foreground-subtle">{language.t("settings.agents.ai.hint")}</p>
+        <TextField
+          label={language.t("settings.agents.ai.field.description")}
+          placeholder={language.t("settings.agents.ai.field.description.placeholder")}
+          multiline
+          value={description()}
+          onChange={(value) => {
+            setDescription(value)
+            setDraft(undefined)
+            setError("")
+          }}
+          class="min-h-32 max-h-[min(40vh,18rem)] overflow-y-auto"
+          error={error()}
+        />
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div class="flex flex-col gap-1.5">
+            <label class="text-12-medium text-foreground-subtle">{language.t("settings.agents.field.mode")}</label>
+            <Select
+              options={agentModeOptions.map((item) => ({ ...item, label: language.t(item.label as never) }))}
+              current={
+                currentMode() ? { ...currentMode()!, label: language.t(currentMode()!.label as never) } : undefined
+              }
+              value={(item) => item.value}
+              label={(item) => item.label}
+              onSelect={(item) => item && setMode(item.value)}
+              variant="secondary"
+              triggerVariant="settings"
+            />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-12-medium text-foreground-subtle">{language.t("settings.agents.ai.field.model")}</label>
+            <Select
+              options={options()}
+              current={currentModel()}
+              value={(option) => `${option.providerID}/${option.modelID}`}
+              label={(option) => option.label}
+              onSelect={(option) => option && setModel({ providerID: option.providerID, modelID: option.modelID })}
+              variant="secondary"
+              triggerVariant="settings"
+            />
+          </div>
+        </div>
+
+        <Show when={draft()}>
+          {(value) => (
+            <div class="flex flex-col gap-4 rounded-lg border border-border bg-surface/60 p-3">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-13-medium text-foreground">{language.t("settings.agents.ai.preview")}</span>
+                <img src={agentAvatarSrc(value().name)} alt="" class="size-8 rounded-lg object-cover" />
+              </div>
+              <TextField
+                label={language.t("settings.management.field.name")}
+                value={value().name}
+                onChange={(name) => setDraft({ ...value(), name })}
+              />
+              <TextField
+                label={language.t("settings.skills.field.description")}
+                value={value().description}
+                onChange={(description) => setDraft({ ...value(), description })}
+              />
+              <TextField
+                label={language.t("settings.agents.field.prompt")}
+                multiline
+                value={value().prompt}
+                onChange={(prompt) => setDraft({ ...value(), prompt })}
+                class="min-h-40 max-h-[min(44vh,22rem)] overflow-y-auto"
+              />
+            </div>
+          )}
+        </Show>
+
+        <div class="flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={generate.isPending || create.isPending}
+            onClick={() => dialog.close()}
+          >
+            {language.t("common.cancel")}
+          </Button>
+          <Show
+            when={draft()}
+            fallback={
+              <Button type="submit" disabled={generate.isPending}>
+                <Show when={generate.isPending} fallback={language.t("settings.agents.ai.generate")}>
+                  <span class="size-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                  {language.t("settings.agents.ai.generating")}
+                </Show>
+              </Button>
+            }
+          >
+            <Button type="submit" disabled={create.isPending}>
+              {create.isPending ? language.t("common.saving") : language.t("settings.agents.ai.create")}
+            </Button>
+          </Show>
+        </div>
+      </form>
+    </Dialog>
+  )
+}
+
+// 设置面板挂在 layout 层，**没有** Session 的 SDKProvider / LocalProvider；
+// 这里只能依赖全局上下文（GlobalSDK / GlobalSync / Models），目录由调用方传入。
+export const SettingsAgents: Component<{ directory?: string }> = (props) => {
   const dialog = useDialog()
   const language = useLanguage()
   const globalSDK = useGlobalSDK()
   const globalSync = useGlobalSync()
+  const models = useModels()
   const queryClient = useQueryClient()
   const [categoryFilter, setCategoryFilter] = createSignal("all")
   const [sourceFilter, setSourceFilter] = createSignal<SourceFilter>("all")
@@ -2177,6 +2378,109 @@ export const SettingsAgents: Component = () => {
       agent.native ? language.t("settings.management.tag.builtIn") : language.t("settings.management.tag.custom"),
     ].filter((tag): tag is string => !!tag)
 
+  // AI 创建员工：模型默认跟随当前会话选择；没有会话时退回配置/第一个可用模型。
+  const agentModelOptions = () =>
+    models
+      .list()
+      .filter((model) => model.provider?.id && model.id)
+      .map((model) => ({
+        providerID: model.provider.id,
+        modelID: model.id,
+        label: `${model.provider.name ?? model.provider.id} / ${model.name}`,
+      }))
+
+  const defaultAgentModel = () => {
+    // 设置面板拿不到当前会话的 Local 上下文，用最近使用的模型兜底；
+    // 再退回配置里的 model、最后才是列表第一个。
+    const recent = models.recent.list()[0]
+    if (recent && models.find(recent)) return { providerID: recent.providerID, modelID: recent.modelID }
+    const configured = globalSync.data.config.model?.split("/")
+    if (configured?.[0] && configured[1]) return { providerID: configured[0], modelID: configured[1] }
+    const first = agentModelOptions()[0]
+    return first ? { providerID: first.providerID, modelID: first.modelID } : undefined
+  }
+
+  const generateAgentDraft = async (
+    input: { description: string; mode: "primary" | "subagent" },
+    model: { providerID: string; modelID: string },
+  ): Promise<AgentDraft> => {
+    const existing = list().map((agent) => agent.name)
+    const response = await globalSDK.client.chat.send({
+      directory: props.directory,
+      chatPayload: {
+        model,
+        system: [
+          "You are an AI employee designer for a coding agent.",
+          "Turn the user's desired behavior into one agent definition.",
+          "Return ONLY a JSON object, no markdown fences, no explanation.",
+          'Schema: {"name":"kebab-case-name","description":"one sentence for the agent picker","mode":"primary|subagent","prompt":"complete system prompt"}',
+          "The name must be short, lowercase ASCII with hyphens.",
+          "The prompt must be self-contained, actionable, and describe role, boundaries, workflow, and output style.",
+        ].join("\n"),
+        message: [
+          `Requested mode: ${input.mode}`,
+          "Desired behavior:",
+          input.description,
+          "",
+          `Existing agent names (must not collide): ${existing.join(", ") || "(none)"}`,
+        ].join("\n"),
+        temperature: 0.4,
+      },
+    })
+    const payload = (response as { data?: { text?: string }; text?: string })?.data ?? response
+    const text = (payload as { text?: string })?.text ?? ""
+    return parseAgentDraft(text)
+  }
+
+  const uniqueAgentName = (value: string) => {
+    const base =
+      value
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || `agent-${Date.now().toString(36)}`
+    const taken = new Set([...list().map((agent) => agent.name), ...Object.keys(configured())])
+    let name = base
+    let index = 2
+    while (taken.has(name) || fileByName().has(name)) {
+      name = `${base}-${index++}`
+    }
+    return name
+  }
+
+  const createGeneratedAgent = async (draft: AgentDraft) => {
+    const name = uniqueAgentName(draft.name)
+    await saveAgentFile(
+      name,
+      {
+        description: draft.description || draft.name,
+        mode: draft.mode,
+        permission: {},
+      },
+      draft.prompt,
+    )
+    setSourceFilter("custom")
+    await reloadAgents()
+    showToast({
+      variant: "success",
+      icon: "circle-check",
+      title: language.t("settings.agents.ai.toast.title"),
+      description: language.t("settings.agents.ai.toast.description", { name }),
+    })
+  }
+
+  const openGenerateAgent = () => {
+    dialog.show(() => (
+      <AgentGenerateDialog
+        title={language.t("settings.agents.ai.title")}
+        models={agentModelOptions()}
+        initialModel={defaultAgentModel()}
+        onGenerate={generateAgentDraft}
+        onCreate={createGeneratedAgent}
+      />
+    ))
+  }
+
   return (
     <SettingsPage title={language.t("settings.agents.title")} description={language.t("settings.agents.description")}>
       <div>
@@ -2184,6 +2488,9 @@ export const SettingsAgents: Component = () => {
         <Toolbar>
           <Button variant="secondary" icon="plus-small" onClick={addAgent}>
             {language.t("settings.agents.action.add")}
+          </Button>
+          <Button variant="secondary" icon="brain" onClick={openGenerateAgent}>
+            {language.t("settings.agents.ai.action")}
           </Button>
           <Button variant="secondary" icon="copy" onClick={importAgent}>
             {language.t("settings.management.action.import")}
@@ -2242,6 +2549,7 @@ export const SettingsAgents: Component = () => {
                 {(agent: Agent) => (
                   <RuntimeRow
                     icon="brain"
+                    avatar={agentAvatarSrc(agent.name)}
                     title={agentDisplayName(agent.name, agent.options)}
                     description={agent.description}
                     tags={agentTags(agent)}
@@ -3154,6 +3462,30 @@ export const SettingsMcp: Component = () => {
           <Button variant="secondary" icon="plus-small" onClick={addMcp}>
             {language.t("settings.mcp.action.add")}
           </Button>
+          {/* 有失败/待授权的服务器时，给一个让 AI 直接排查并修复的入口。 */}
+          <Show
+            when={safeArray(items()).some((item) =>
+              ["failed", "needs_auth", "needs_client_registration"].includes(item.status?.status ?? ""),
+            )}
+          >
+            <AiFixButton
+              promptKey="settings.mcp.aiFixPrompt"
+              variant="secondary"
+              class="h-7"
+              context={() => ({
+                status: "部分 MCP 服务器未连接",
+                facts: {
+                  servers: safeArray(items())
+                    .map((item) => {
+                      const status = item.status?.status ?? "unknown"
+                      const error = item.status && "error" in item.status ? item.status.error : ""
+                      return item.name + ": " + status + (error ? " (" + String(error).slice(0, 160) + ")" : "")
+                    })
+                    .join("; "),
+                },
+              })}
+            />
+          </Show>
         </Toolbar>
         <SettingsGroup>
           <Show when={!mcp.isLoading} fallback={<LoadingState />}>
@@ -3543,13 +3875,22 @@ const RuntimeRow: Component<{
   tags?: string[]
   footer?: JSX.Element
   actions?: JSX.Element
+  /** 有头像时优先显示图片（AI 员工的确定性机器人头像）。 */
+  avatar?: string
 }> = (props) => (
   // 对齐 ZCode 的资源行（插件 / MCP / 技能 / 规则都是同一种）：左侧图标块，
   // 中间标题 + 标签 + 描述，右侧操作。行与行之间由外层 SettingsGroup 的分隔线切分。
   <div class="flex min-w-0 items-center gap-3 border-t border-border px-4 py-3 transition-colors first:border-t-0 hover:bg-hover">
-    <span class="grid size-9 shrink-0 place-items-center rounded-xl bg-background">
-      <Icon name={props.icon} class="size-4.5 icon-strong-base" />
-    </span>
+    <Show
+      when={props.avatar}
+      fallback={
+        <span class="grid size-9 shrink-0 place-items-center rounded-xl bg-background">
+          <Icon name={props.icon} class="size-4.5 icon-strong-base" />
+        </span>
+      }
+    >
+      {(src) => <img src={src()} alt="" draggable={false} class="size-9 shrink-0 rounded-xl object-cover" />}
+    </Show>
     <div class="flex min-w-0 flex-1 flex-col">
       <div class="flex min-w-0 flex-wrap items-center gap-2">
         <span class="truncate text-13-medium text-foreground">{props.title}</span>

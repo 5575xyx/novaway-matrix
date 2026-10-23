@@ -1,4 +1,7 @@
 import { InstanceState } from "@/effect/instance-state"
+import { Database } from "@/storage/db"
+import { desc, eq } from "drizzle-orm"
+import { BackgroundJobTable } from "./job.sql"
 import { Identifier } from "@/id/id"
 import { Cause, Clock, Context, Deferred, Effect, Fiber, Layer, Scope, SynchronizedRef } from "effect"
 
@@ -20,6 +23,8 @@ type Active = {
   info: Info
   done: Deferred.Deferred<Info>
   fiber?: Fiber.Fiber<void, unknown>
+  /** 可选的协作式取消钩子。先让任务自己收尾（例如终止子进程），再打断 fiber。 */
+  cancel?: Effect.Effect<void>
 }
 
 type State = {
@@ -37,7 +42,15 @@ export type StartInput = {
   type: string
   title?: string
   metadata?: Record<string, unknown>
+  /** 协作式取消：在中断 fiber 之前执行，用来杀掉真实进程/连接。 */
+  cancel?: Effect.Effect<void>
   run: Effect.Effect<string, unknown>
+}
+
+export type UpdateInput = {
+  title?: string
+  output?: string
+  metadata?: Record<string, unknown>
 }
 
 export type WaitInput = {
@@ -51,14 +64,74 @@ export type WaitResult = {
 }
 
 export interface Interface {
-  readonly list: () => Effect.Effect<Info[]>
+  /**
+   * Live jobs by default. Pass `includePersisted` to also see jobs that
+   * finished in a previous process (the session panel wants that history).
+   */
+  readonly list: (input?: { includePersisted?: boolean; limit?: number }) => Effect.Effect<Info[]>
+  /**
+   * Persisted rows only, newest first. Used by restore logic that must look at
+   * jobs which are no longer in memory (a previous process wrote them).
+   */
+  readonly history: (input?: { limit?: number }) => Effect.Effect<Info[]>
   readonly get: (id: string) => Effect.Effect<Info | undefined>
   readonly start: (input: StartInput) => Effect.Effect<Info>
+  readonly update: (id: string, input: UpdateInput) => Effect.Effect<Info | undefined>
   readonly wait: (input: WaitInput) => Effect.Effect<WaitResult>
   readonly cancel: (id: string) => Effect.Effect<Info | undefined>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@NovaWay/BackgroundJob") {}
+
+function persist(info: Info) {
+  try {
+    Database.use((db) => {
+      db.insert(BackgroundJobTable)
+        .values({
+          id: info.id,
+          type: info.type,
+          title: info.title ?? null,
+          status: info.status,
+          started_at: info.started_at,
+          completed_at: info.completed_at ?? null,
+          output: info.output ?? null,
+          error: info.error ?? null,
+          metadata: info.metadata ?? null,
+        })
+        .onConflictDoUpdate({
+          target: BackgroundJobTable.id,
+          set: {
+            status: info.status,
+            completed_at: info.completed_at ?? null,
+            output: info.output ?? null,
+            error: info.error ?? null,
+            metadata: info.metadata ?? null,
+            title: info.title ?? null,
+          },
+        })
+        .run()
+    })
+  } catch {
+    // Persistence is best effort; the in-memory job remains authoritative.
+  }
+}
+
+/** How many finished jobs stay visible after a restart. */
+const LIST_LIMIT = 50
+
+function toInfo(row: typeof BackgroundJobTable.$inferSelect): Info {
+  return {
+    id: row.id,
+    type: row.type,
+    title: row.title ?? undefined,
+    status: row.status as Status,
+    started_at: row.started_at,
+    completed_at: row.completed_at ?? undefined,
+    output: row.output ?? undefined,
+    error: row.error ?? undefined,
+    metadata: row.metadata ?? undefined,
+  }
+}
 
 function snapshot(job: Active): Info {
   return {
@@ -77,6 +150,19 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const state = yield* InstanceState.make<State>(
       Effect.fn("BackgroundJob.state")(function* () {
+        yield* Effect.sync(() => {
+          try {
+            Database.use((db) =>
+              db
+                .update(BackgroundJobTable)
+                .set({ status: "cancelled", completed_at: Date.now(), error: "interrupted by restart" })
+                .where(eq(BackgroundJobTable.status, "running"))
+                .run(),
+            )
+          } catch {
+            // Database may not be ready in some contexts.
+          }
+        })
         return {
           jobs: yield* SynchronizedRef.make(new Map()),
           scope: yield* Scope.Scope,
@@ -110,30 +196,78 @@ export const layer = Layer.effect(
           return [{ info: snapshot(next), done: job.done }, new Map(jobs).set(id, next)]
         },
       )
+      if (result.info) yield* Effect.sync(() => persist(result.info!))
       if (result.info && result.done) yield* Deferred.succeed(result.done, result.info).pipe(Effect.ignore)
       return result.info
     })
 
-    const list: Interface["list"] = Effect.fn("BackgroundJob.list")(function* () {
-      return Array.from((yield* SynchronizedRef.get((yield* InstanceState.get(state)).jobs)).values())
-        .map(snapshot)
-        .toSorted((a, b) => a.started_at - b.started_at)
+    /**
+     * Jobs that finished before a restart (or in another process sharing the
+     * same database) only exist as rows, so the live map is merged over
+     * persisted history. Newest first, capped: the panel wants recent context,
+     * not the whole audit log.
+     */
+    const persisted = (limit: number): Info[] => {
+      try {
+        return Database.use((db) =>
+          db.select().from(BackgroundJobTable).orderBy(desc(BackgroundJobTable.started_at)).limit(limit).all(),
+        ).map(toInfo)
+      } catch {
+        return []
+      }
+    }
+
+    const list: Interface["list"] = Effect.fn("BackgroundJob.list")(function* (input) {
+      const merged = new Map<string, Info>()
+      if (input?.includePersisted) {
+        for (const job of persisted(input.limit ?? LIST_LIMIT)) merged.set(job.id, job)
+      }
+      // Live entries win: their output/metadata is fresher than the last write.
+      for (const job of (yield* SynchronizedRef.get((yield* InstanceState.get(state)).jobs)).values()) {
+        merged.set(job.info.id, snapshot(job))
+      }
+      return [...merged.values()].toSorted((a, b) => b.started_at - a.started_at)
     })
 
     const get: Interface["get"] = Effect.fn("BackgroundJob.get")(function* (id) {
       const job = (yield* SynchronizedRef.get((yield* InstanceState.get(state)).jobs)).get(id)
-      if (!job) return
-      return snapshot(job)
+      if (job) return snapshot(job)
+      // A job that finished in a previous process is still answerable.
+      return persisted(LIST_LIMIT).find((item) => item.id === id)
     })
 
-    const start: Interface["start"] = Effect.fn("BackgroundJob.start")(function* (input) {
+    // 长任务（例如后台 shell）运行期间持续写回实时输出；
+    // 只更新仍在运行的 job，避免完成后被迟到的进度覆盖。
+    const update: Interface["update"] = Effect.fn("BackgroundJob.update")(function* (id: string, input: UpdateInput) {
+      const result = yield* SynchronizedRef.modify(
+        (yield* InstanceState.get(state)).jobs,
+        (jobs): readonly [Info | undefined, Map<string, Active>] => {
+          const job = jobs.get(id)
+          if (!job || job.info.status !== "running") return [undefined, jobs]
+          const next = {
+            ...job,
+            info: {
+              ...job.info,
+              ...(input.title !== undefined ? { title: input.title } : {}),
+              ...(input.output !== undefined ? { output: input.output } : {}),
+              ...(input.metadata !== undefined ? { metadata: { ...job.info.metadata, ...input.metadata } } : {}),
+            },
+          }
+          return [snapshot(next), new Map(jobs).set(id, next)]
+        },
+      )
+      if (result) yield* Effect.sync(() => persist(result))
+      return result
+    })
+
+    const start: Interface["start"] = Effect.fn("BackgroundJob.start")(function* (input: StartInput) {
       return yield* Effect.uninterruptibleMask((restore) =>
         Effect.gen(function* () {
           const s = yield* InstanceState.get(state)
           const id = input.id ?? Identifier.ascending("job")
           const started_at = yield* Clock.currentTimeMillis
           const done = yield* Deferred.make<Info>()
-          return yield* SynchronizedRef.modifyEffect(
+          const result = yield* SynchronizedRef.modifyEffect(
             s.jobs,
             Effect.fnUntraced(function* (jobs) {
               const existing = jobs.get(id)
@@ -160,10 +294,13 @@ export const layer = Layer.effect(
                 },
                 done,
                 fiber,
+                ...(input.cancel ? { cancel: input.cancel } : {}),
               }
               return [snapshot(job), new Map(jobs).set(id, job)] as const
             }),
           )
+          yield* Effect.sync(() => persist(result))
+          return result
         }),
       )
     })
@@ -183,15 +320,27 @@ export const layer = Layer.effect(
       const job = (yield* SynchronizedRef.get((yield* InstanceState.get(state)).jobs)).get(id)
       if (!job) return
       if (job.info.status !== "running") return snapshot(job)
+      // 先把状态钉成 cancelled：取消钩子/中断可能让 run 正常返回，
+      // 若不先落状态，onSuccess 会把这次"停止"记成 completed。
+      const info = yield* finish(id, "cancelled")
+      // 协作式取消（杀子进程 / 中止请求），再打断 fiber。
+      if (job.cancel) yield* job.cancel.pipe(Effect.ignore)
       if (job.fiber) {
         yield* Fiber.interrupt(job.fiber).pipe(Effect.ignore)
         yield* Fiber.await(job.fiber).pipe(Effect.ignore)
       }
-      const info = yield* finish(id, "cancelled")
       return info
     })
 
-    return Service.of({ list, get, start, wait, cancel })
+    return Service.of({
+      list,
+      history: (input) => Effect.sync(() => persisted(input?.limit ?? LIST_LIMIT)),
+      get,
+      start,
+      update,
+      wait,
+      cancel,
+    })
   }),
 )
 

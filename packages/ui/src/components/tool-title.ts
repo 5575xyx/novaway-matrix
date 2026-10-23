@@ -8,14 +8,7 @@
  * 这里只放纯映射（不带 JSX、不依赖 Solid/Kobalte），方便直接单测。
  */
 
-export type ToolAction =
-  | "read"
-  | "write"
-  | "edit"
-  | "patch"
-  | "search"
-  | "run"
-  | "delegate"
+export type ToolAction = "read" | "write" | "edit" | "patch" | "search" | "run" | "delegate"
 
 /**
  * 工具名 → 动作分类。

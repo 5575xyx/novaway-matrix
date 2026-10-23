@@ -30,6 +30,12 @@ import * as Truncate from "@/tool/truncate"
 import { Reference } from "@/reference/reference"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Auth } from "@/auth"
+import { defaultLayer as TeamLayer } from "@/team/team"
+import { defaultLayer as AgentTaskListLayer } from "@/team/task-list"
+import { defaultLayer as AgentMailboxLayer } from "@/team/mailbox"
+import { SessionUsage } from "@/session/usage"
+import { defaultLayer as HookLayer } from "@/hook/service"
+import { defaultLayer as ActivationLayer } from "@/tool/activation"
 import { TestConfig } from "./test/fixture/config"
 import { withTmpdirInstance } from "./test/fixture/fixture"
 import { InstanceState } from "@/effect/instance-state"
@@ -83,6 +89,14 @@ const registryLayer = Layer.suspend(() =>
       Layer.provide(Goal.defaultLayer),
       Layer.provide(WorkflowDefaultLayer),
       Layer.provide(OrchestratorDefaultLayer),
+      // Collaboration layers are required by ToolRegistry.layer since the
+      // team/task-board work; without them the harness no longer compiles.
+      Layer.provide(TeamLayer),
+      Layer.provide(AgentTaskListLayer),
+      Layer.provide(AgentMailboxLayer),
+      Layer.provide(SessionUsage.defaultLayer),
+      Layer.provide(HookLayer),
+      Layer.provide(ActivationLayer),
     ),
 )
 
@@ -98,7 +112,13 @@ const runIds = (label: string) => {
     stage(`C3 ${label} ids() done count=${ids.length}`)
     return ids.length
   })
-  return Effect.runPromise(work.pipe(withTmpdirInstance(), Effect.scoped, Effect.provide(registryLayer)))
+  return Effect.runPromise(
+    work.pipe(withTmpdirInstance(), Effect.scoped, Effect.provide(registryLayer)) as Effect.Effect<
+      number,
+      unknown,
+      never
+    >,
+  )
 }
 
 try {

@@ -6,6 +6,8 @@ import * as Session from "./session"
 import { MessageV2 } from "./message-v2"
 import { SessionID } from "./schema"
 import { SessionStatus } from "./status"
+import { autoClean } from "./temp-files"
+import * as Log from "@novaway/core/util/log"
 
 export interface Interface {
   readonly assertNotBusy: (sessionID: SessionID) => Effect.Effect<void, Session.BusyError>
@@ -59,6 +61,14 @@ export const layer = Layer.effect(
         onIdle: Effect.gen(function* () {
           data.runners.delete(sessionID)
           yield* status.set(sessionID, { type: "idle" })
+          // 任务结束时清理本会话产生的临时脚本/探针：
+          // 只删「工具新建 + 名称明确临时 + 内容未改过 + 创建满 30 秒」的文件。
+          const ctx = yield* InstanceState.context
+          const worktree = ctx.worktree === "/" ? ctx.directory : ctx.worktree
+          yield* Effect.promise(() => autoClean(sessionID, worktree)).pipe(
+            Effect.catchCause(() => Effect.void),
+            Effect.forkIn(data.scope, { startImmediately: true }),
+          )
         }),
         onBusy: status.set(sessionID, { type: "busy" }),
         onInterrupt,

@@ -25,10 +25,7 @@ export type ToolFileChipsLayout = {
 /** 一行里最多直接列出几个文件名。 */
 export const TOOL_FILE_CHIP_LIMIT = 3
 
-export function layoutToolFileChips(
-  files: readonly ToolFileChip[],
-  limit = TOOL_FILE_CHIP_LIMIT,
-): ToolFileChipsLayout {
+export function layoutToolFileChips(files: readonly ToolFileChip[], limit = TOOL_FILE_CHIP_LIMIT): ToolFileChipsLayout {
   if (files.length <= limit) return { visible: [...files], overflow: 0 }
   // 有溢出时少显示一枚，给 `+N` 腾位置，避免"3 枚文件名 + +5"挤成一团。
   const visibleCount = Math.max(1, limit - 1)

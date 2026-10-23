@@ -763,9 +763,7 @@ function AgentSwitch(props: {
                 type="button"
                 data-no-drag
                 class={`flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors ${
-                  props.currentAgent?.name === agent.name
-                    ? "bg-hover"
-                    : "hover:bg-hover"
+                  props.currentAgent?.name === agent.name ? "bg-hover" : "hover:bg-hover"
                 }`}
                 onClick={() => props.onAgentChange(agent.name)}
               >
@@ -1019,9 +1017,7 @@ function TodoTab(props: {
             type="button"
             data-no-drag
             class={`relative px-2 py-1 text-12-medium transition-colors ${
-              tab() === "notifications"
-                ? "text-foreground bg-surface"
-                : "text-foreground-subtle hover:text-foreground"
+              tab() === "notifications" ? "text-foreground bg-surface" : "text-foreground-subtle hover:text-foreground"
             }`}
             onClick={() => setTab("notifications")}
           >
@@ -1118,7 +1114,9 @@ function TodoTab(props: {
             fallback={
               <div class="px-3 py-6 text-center">
                 <div class="text-12-medium text-foreground">{language.t("assistant.monitor.ready")}</div>
-                <div class="mt-1 text-11-regular text-foreground-subtle">{language.t("assistant.monitor.idleDescription")}</div>
+                <div class="mt-1 text-11-regular text-foreground-subtle">
+                  {language.t("assistant.monitor.idleDescription")}
+                </div>
               </div>
             }
           >
@@ -1164,7 +1162,9 @@ function TodoTab(props: {
           </Show>
           <Show when={props.taskEvents && props.taskEvents.length > 0}>
             <section class="mt-3 pt-2 border-t border-border">
-              <div class="px-2 pb-1 text-11-medium text-foreground-subtle">{language.t("assistant.monitor.recentEvents")}</div>
+              <div class="px-2 pb-1 text-11-medium text-foreground-subtle">
+                {language.t("assistant.monitor.recentEvents")}
+              </div>
               <For each={props.taskEvents?.slice(0, 4) ?? []}>
                 {(event) => (
                   <div class="flex items-center gap-2 px-2 py-1 text-10-regular text-foreground-subtle">

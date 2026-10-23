@@ -51,6 +51,7 @@ import Layout from "@/pages/layout"
 import { decode64 } from "@/utils/base64"
 import { ErrorPage } from "./pages/error"
 import { useCheckServerHealth } from "./utils/server-health"
+import { installPointerTracking } from "@novaway/ui/util/pointer-origin"
 
 const HomeRoute = lazy(() => import("@/pages/home"))
 const loadSession = () => import("@/pages/session")
@@ -96,17 +97,9 @@ declare global {
       isWindowMaximized?: () => Promise<boolean>
       onWindowMaximizedChange?: (cb: (maximized: boolean) => void) => () => void
       marketplaceDownload?: (url: string) => Promise<string>
-      marketplaceInstall?: (input: {
-        dir: string
-        files: Array<{ path: string; data: string }>
-      }) => Promise<string>
+      marketplaceInstall?: (input: { dir: string; files: Array<{ path: string; data: string }> }) => Promise<string>
       marketplaceRemove?: (dir: string) => Promise<void>
-      marketplaceGitInstall?: (input: {
-        name: string
-        url: string
-        ref?: string
-        subdir?: string
-      }) => Promise<{
+      marketplaceGitInstall?: (input: { name: string; url: string; ref?: string; subdir?: string }) => Promise<{
         dir: string
         skillsPath?: string
         mcpServers?: Record<string, unknown>
@@ -270,10 +263,21 @@ function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean }>) {
           if (!server.current) return true
           const { http, type } = server.current
 
+          // 每次探测之间留一点间隔：失败时 Chromium 会把每条请求都打成
+          // net::ERR_CONNECTION_REFUSED，紧循环会在两秒内刷出几十条日志。
+          // 这里的等待同时也是给 sidecar 重启留出的时间。
           while (true) {
             const res = yield* Effect.promise(() => checkServerHealth(http))
             if (res.healthy) return true
-            if (checkMode() === "background" || type === "http") return false
+            if (checkMode() === "background" || type === "http") {
+              // 后台模式下再给一次机会：sidecar 崩溃后会被自动重启，
+              // 多等一轮能让界面自己恢复，而不是停在「连不上」。
+              yield* Effect.sleep("1 second")
+              const retry = yield* Effect.promise(() => checkServerHealth(http))
+              if (retry.healthy) return true
+              return false
+            }
+            yield* Effect.sleep("500 millis")
           }
         }).pipe(
           Effect.timeoutOrElse({ duration: "10 seconds", orElse: () => Effect.succeed(false) }),

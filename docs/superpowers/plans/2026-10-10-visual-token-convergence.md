@@ -16,24 +16,25 @@
 
 ## File Structure
 
-| 文件 | 动作 | 职责 |
-| --- | --- | --- |
-| `packages/ui/src/styles/theme.css` | 修改 | 新增 `--ui-font-size` 与 `--font-size-ui-*` 六档；删 `--shadow-aurora`/`--shadow-glow` |
-| `packages/ui/src/styles/tailwind/index.css` | 修改 | `@theme` 生成 `text-ui-*` 类；补 `--font-weight-semibold/bold` |
-| `packages/ui/src/styles/utilities.css` | 修改 | 删 Aurora 装饰类与死代码排版类块；补 `text-13-*` 缺失定义 |
-| `packages/app/src/context/settings.tsx` | 修改 | `createEffect` 把 `appearance.fontSize` 写入 `--ui-font-size` |
-| `packages/app/src/components/settings-general.tsx` | 修改 | 外观分节挂「界面字号」滑块 |
-| `packages/app/src/i18n/zh.ts` / `en.ts` | 修改 | 新增字号设置文案 key |
-| `packages/app/src/pages/layout.tsx` | 修改 | 根容器去 tech-radial/aurora-overlay；主区去 glass；`rounded-tl-[16px]`→`rounded-tl-lg` |
-| `packages/app/src/components/titlebar.tsx` | 修改 | 去 `titlebar-gradient-border` 类 |
-| `packages/app/src/index.css` | 修改 | 删 active-glow/titlebar 渐变/模式色铺底/装饰圆角覆盖 |
-| `packages/ui/src/components/dialog.css` | 修改 | 命令面板圆角 `radius-xl`→`radius-lg` |
+| 文件                                               | 动作 | 职责                                                                                   |
+| -------------------------------------------------- | ---- | -------------------------------------------------------------------------------------- |
+| `packages/ui/src/styles/theme.css`                 | 修改 | 新增 `--ui-font-size` 与 `--font-size-ui-*` 六档；删 `--shadow-aurora`/`--shadow-glow` |
+| `packages/ui/src/styles/tailwind/index.css`        | 修改 | `@theme` 生成 `text-ui-*` 类；补 `--font-weight-semibold/bold`                         |
+| `packages/ui/src/styles/utilities.css`             | 修改 | 删 Aurora 装饰类与死代码排版类块；补 `text-13-*` 缺失定义                              |
+| `packages/app/src/context/settings.tsx`            | 修改 | `createEffect` 把 `appearance.fontSize` 写入 `--ui-font-size`                          |
+| `packages/app/src/components/settings-general.tsx` | 修改 | 外观分节挂「界面字号」滑块                                                             |
+| `packages/app/src/i18n/zh.ts` / `en.ts`            | 修改 | 新增字号设置文案 key                                                                   |
+| `packages/app/src/pages/layout.tsx`                | 修改 | 根容器去 tech-radial/aurora-overlay；主区去 glass；`rounded-tl-[16px]`→`rounded-tl-lg` |
+| `packages/app/src/components/titlebar.tsx`         | 修改 | 去 `titlebar-gradient-border` 类                                                       |
+| `packages/app/src/index.css`                       | 修改 | 删 active-glow/titlebar 渐变/模式色铺底/装饰圆角覆盖                                   |
+| `packages/ui/src/components/dialog.css`            | 修改 | 命令面板圆角 `radius-xl`→`radius-lg`                                                   |
 
 ---
 
 ### Task 1: `text-ui-*` 字阶与 `--ui-font-size` 界面字号能力
 
 **Files:**
+
 - Modify: `packages/ui/src/styles/theme.css:22`（字体层级区后）
 - Modify: `packages/ui/src/styles/tailwind/index.css:43-49`
 - Modify: `packages/ui/src/styles/utilities.css:124`（text-14 区之前）
@@ -46,14 +47,14 @@
 在 `packages/ui/src/styles/theme.css` 的 `--font-size-6x-large: 48px;`（L22）之后插入：
 
 ```css
-  /* NovaWay UI 字阶基准 — 由设置 → 通用 → 外观 → 界面字号驱动（12–16px） */
-  --ui-font-size: 14px;
-  --font-size-ui-xl: calc(var(--ui-font-size) + 4px);
-  --font-size-ui-lg: calc(var(--ui-font-size) + 2px);
-  --font-size-ui-base: var(--ui-font-size);
-  --font-size-ui-caption: calc(var(--ui-font-size) - 1px);
-  --font-size-ui-sm: calc(var(--ui-font-size) - 2px);
-  --font-size-ui-xs: calc(var(--ui-font-size) - 4px);
+/* NovaWay UI 字阶基准 — 由设置 → 通用 → 外观 → 界面字号驱动（12–16px） */
+--ui-font-size: 14px;
+--font-size-ui-xl: calc(var(--ui-font-size) + 4px);
+--font-size-ui-lg: calc(var(--ui-font-size) + 2px);
+--font-size-ui-base: var(--ui-font-size);
+--font-size-ui-caption: calc(var(--ui-font-size) - 1px);
+--font-size-ui-sm: calc(var(--ui-font-size) - 2px);
+--font-size-ui-xs: calc(var(--ui-font-size) - 4px);
 ```
 
 - [ ] **Step 2: tailwind `@theme` 注册 `text-ui-*` 与缺失字重**
@@ -61,41 +62,41 @@
 在 `packages/ui/src/styles/tailwind/index.css` 的 `@theme` 块内，将 L43-49：
 
 ```css
-  --text-sm: var(--font-size-small);
-  --text-base: var(--font-size-base);
-  --text-lg: var(--font-size-large);
-  --text-xl: var(--font-size-x-large);
+--text-sm: var(--font-size-small);
+--text-base: var(--font-size-base);
+--text-lg: var(--font-size-large);
+--text-xl: var(--font-size-x-large);
 
-  --font-weight-regular: var(--font-weight-regular);
-  --font-weight-medium: var(--font-weight-medium);
+--font-weight-regular: var(--font-weight-regular);
+--font-weight-medium: var(--font-weight-medium);
 ```
 
 替换为：
 
 ```css
-  --text-sm: var(--font-size-small);
-  --text-base: var(--font-size-base);
-  --text-lg: var(--font-size-large);
-  --text-xl: var(--font-size-x-large);
+--text-sm: var(--font-size-small);
+--text-base: var(--font-size-base);
+--text-lg: var(--font-size-large);
+--text-xl: var(--font-size-x-large);
 
-  /* UI 字阶：新组件一律用 text-ui-*，禁用 text-sm/base 与任意字号 */
-  --text-ui-xl: var(--font-size-ui-xl);
-  --text-ui-xl--line-height: var(--line-height-large);
-  --text-ui-lg: var(--font-size-ui-lg);
-  --text-ui-lg--line-height: var(--line-height-large);
-  --text-ui-base: var(--font-size-ui-base);
-  --text-ui-base--line-height: var(--line-height-large);
-  --text-ui-caption: var(--font-size-ui-caption);
-  --text-ui-caption--line-height: var(--line-height-large);
-  --text-ui-sm: var(--font-size-ui-sm);
-  --text-ui-sm--line-height: var(--line-height-normal);
-  --text-ui-xs: var(--font-size-ui-xs);
-  --text-ui-xs--line-height: var(--line-height-large);
+/* UI 字阶：新组件一律用 text-ui-*，禁用 text-sm/base 与任意字号 */
+--text-ui-xl: var(--font-size-ui-xl);
+--text-ui-xl--line-height: var(--line-height-large);
+--text-ui-lg: var(--font-size-ui-lg);
+--text-ui-lg--line-height: var(--line-height-large);
+--text-ui-base: var(--font-size-ui-base);
+--text-ui-base--line-height: var(--line-height-large);
+--text-ui-caption: var(--font-size-ui-caption);
+--text-ui-caption--line-height: var(--line-height-large);
+--text-ui-sm: var(--font-size-ui-sm);
+--text-ui-sm--line-height: var(--line-height-normal);
+--text-ui-xs: var(--font-size-ui-xs);
+--text-ui-xs--line-height: var(--line-height-large);
 
-  --font-weight-regular: var(--font-weight-regular);
-  --font-weight-medium: var(--font-weight-medium);
-  --font-weight-semibold: var(--font-weight-semibold);
-  --font-weight-bold: var(--font-weight-bold);
+--font-weight-regular: var(--font-weight-regular);
+--font-weight-medium: var(--font-weight-medium);
+--font-weight-semibold: var(--font-weight-semibold);
+--font-weight-bold: var(--font-weight-bold);
 ```
 
 （`--*: initial` 已清空 Tailwind 默认，补 `semibold/bold` 后 `font-semibold`/`font-bold` 类才存在，供与 `text-ui-*` 组合字重。）
@@ -149,19 +150,19 @@
 `packages/app/src/context/settings.tsx`：确认顶部从 `solid-js` 导入了 `createEffect`（若无则加入 import）。在 `appearance` 对象定义结束（L284 `},` 之后）与 `return {` 之间插入：
 
 ```ts
-      // 界面字号 → 全局 CSS 变量（text-ui-* 字阶由它派生）
-      createEffect(() => {
-        document.documentElement.style.setProperty("--ui-font-size", `${settings.appearance.fontSize()}px`)
-      })
+// 界面字号 → 全局 CSS 变量（text-ui-* 字阶由它派生）
+createEffect(() => {
+  document.documentElement.style.setProperty("--ui-font-size", `${settings.appearance.fontSize()}px`)
+})
 ```
 
 若 `settings` 命名（context 自身的返回对象引用）在该作用域不可直接引用，则改用在 init 顶部先取 getter 的形式：
 
 ```ts
-      const fontSize = withFallback(() => store.appearance?.fontSize, defaultSettings.appearance.fontSize)
-      createEffect(() => {
-        document.documentElement.style.setProperty("--ui-font-size", `${fontSize()}px`)
-      })
+const fontSize = withFallback(() => store.appearance?.fontSize, defaultSettings.appearance.fontSize)
+createEffect(() => {
+  document.documentElement.style.setProperty("--ui-font-size", `${fontSize()}px`)
+})
 ```
 
 并保持 `appearance.fontSize` 的对外 getter 不变。以 typecheck 通过为准选择其一。
@@ -189,25 +190,23 @@
 `packages/app/src/components/settings-general.tsx` 的 `AppearanceSection` 中，在 colorScheme 的 `</SettingsList>`（L637）之前追加：
 
 ```tsx
-        <SettingsRow
-          title={language.t("settings.general.appearance.fontSize.title")}
-          description={language.t("settings.general.appearance.fontSize.description")}
-        >
-          <div class="flex items-center gap-3" data-action="settings-font-size">
-            <input
-              type="range"
-              min="12"
-              max="16"
-              step="1"
-              class="w-44 accent-[var(--button-primary-base)]"
-              value={settings.appearance.fontSize()}
-              onInput={(e) => settings.appearance.setFontSize(Number(e.currentTarget.value))}
-            />
-            <span class="text-13-medium text-text-weak tabular-nums w-9 text-right">
-              {settings.appearance.fontSize()}
-            </span>
-          </div>
-        </SettingsRow>
+<SettingsRow
+  title={language.t("settings.general.appearance.fontSize.title")}
+  description={language.t("settings.general.appearance.fontSize.description")}
+>
+  <div class="flex items-center gap-3" data-action="settings-font-size">
+    <input
+      type="range"
+      min="12"
+      max="16"
+      step="1"
+      class="w-44 accent-[var(--button-primary-base)]"
+      value={settings.appearance.fontSize()}
+      onInput={(e) => settings.appearance.setFontSize(Number(e.currentTarget.value))}
+    />
+    <span class="text-13-medium text-text-weak tabular-nums w-9 text-right">{settings.appearance.fontSize()}</span>
+  </div>
+</SettingsRow>
 ```
 
 - [ ] **Step 7: 验证**
@@ -240,6 +239,7 @@ git commit -m "feat(ui): add text-ui-* type scale driven by --ui-font-size + set
 ### Task 2: 移除 Aurora 装饰（radial 背景 / 毛玻璃 / glow / 渐变描边）
 
 **Files:**
+
 - Modify: `packages/ui/src/styles/utilities.css:451-473,508-580,583-601,616-628,682-686`
 - Modify: `packages/app/src/pages/layout.tsx:2439,2543`
 - Modify: `packages/app/src/index.css:208-216,282-301,333-360`
@@ -262,8 +262,8 @@ git commit -m "feat(ui): add text-ui-* type scale driven by --ui-font-size + set
 `packages/ui/src/styles/theme.css` 删除 L63-64：
 
 ```css
-  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.3);
-  --shadow-aurora: 0 8px 32px rgba(31, 38, 135, 0.08), 0 2px 8px rgba(20, 184, 166, 0.06);
+--shadow-glow: 0 0 20px rgba(99, 102, 241, 0.3);
+--shadow-aurora: 0 8px 32px rgba(31, 38, 135, 0.08), 0 2px 8px rgba(20, 184, 166, 0.06);
 ```
 
 - [ ] **Step 3: 引用残留检查（先跑，确认后再继续删）**
@@ -324,26 +324,26 @@ Expected: 除本计划将要修改的 `layout.tsx` / `titlebar.tsx` / `utilities
 2. L343-360 的 `.project-card.active::before, .project-card.active-indicator::before` 改为无辉光的静态标识条（模式色点缀保留、去渐变/去发光/去动画）：
 
 ```css
-  .project-card.active::before,
-  .project-card.active-indicator::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 4px;
-    height: 60%;
-    background: var(--novaway-mode-color, var(--border-strong-base));
-    border-radius: 0 4px 4px 0;
-  }
+.project-card.active::before,
+.project-card.active-indicator::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 60%;
+  background: var(--novaway-mode-color, var(--border-strong-base));
+  border-radius: 0 4px 4px 0;
+}
 ```
 
 3. L333-336 的 `.project-card:hover` 去模式色辉光，改中性阴影：
 
 ```css
-  .project-card:hover {
-    box-shadow: var(--shadow-card-hover);
-  }
+.project-card:hover {
+  box-shadow: var(--shadow-card-hover);
+}
 ```
 
 （`transform: translateY(-2px)` 一并移除——规格深度收敛要求常态克制；`transition` 保留。）
@@ -351,9 +351,9 @@ Expected: 除本计划将要修改的 `layout.tsx` / `titlebar.tsx` / `utilities
 4. L362-364 的 `.project-icon-default` 去模式色 inset：
 
 ```css
-  .project-icon-default {
-    box-shadow: inset 0 0 0 1px var(--border-weak-base);
-  }
+.project-icon-default {
+  box-shadow: inset 0 0 0 1px var(--border-weak-base);
+}
 ```
 
 - [ ] **Step 8: 删除死代码 sidebar-rail**
@@ -385,6 +385,7 @@ git commit -m "feat(ui): remove Aurora decorations (radial bg, glass overlay, gl
 ### Task 3: 圆角层级与深度收敛
 
 **Files:**
+
 - Modify: `packages/app/src/pages/layout.tsx:2544`
 - Modify: `packages/app/src/index.css:330,372-391,515`（行号随 Task 2 删行有偏移，按选择器定位）
 
@@ -409,21 +410,21 @@ git commit -m "feat(ui): remove Aurora decorations (radial bg, glass overlay, gl
 `packages/app/src/index.css` 删除以下整块（Task 2 后行号约 340-354，按选择器定位）：
 
 ```css
-  [data-app-mode="zen"] main {
-    border-top-left-radius: 28px;
-  }
+[data-app-mode="zen"] main {
+  border-top-left-radius: 28px;
+}
 
-  [data-app-mode="spark"] main {
-    border-top-left-radius: 10px;
-  }
+[data-app-mode="spark"] main {
+  border-top-left-radius: 10px;
+}
 
-  [data-app-mode="pulse"] main {
-    border-top-left-radius: 20px;
-  }
+[data-app-mode="pulse"] main {
+  border-top-left-radius: 20px;
+}
 
-  [data-app-mode="future"] main {
-    border-top-left-radius: 34px;
-  }
+[data-app-mode="future"] main {
+  border-top-left-radius: 34px;
+}
 ```
 
 - [ ] **Step 3: 既有卡片/输入面板圆角对齐 8px**
@@ -455,6 +456,7 @@ git commit -m "feat(ui): converge radii to 8px panels and remove per-mode decora
 ### Task 4: 命令面板对齐菜单规范
 
 **Files:**
+
 - Modify: `packages/ui/src/components/dialog.css:50-53`
 
 - [ ] **Step 1: 面板圆角 radius-xl → radius-lg**
@@ -462,13 +464,13 @@ git commit -m "feat(ui): converge radii to 8px panels and remove per-mode decora
 `packages/ui/src/components/dialog.css` L50-53 附近，将：
 
 ```css
-  border-radius: var(--radius-xl);
+border-radius: var(--radius-xl);
 ```
 
 替换为：
 
 ```css
-  border-radius: var(--radius-lg);
+border-radius: var(--radius-lg);
 ```
 
 （仅 Dialog content 面板这一处——`drawer.css`/`dialog` 其它选择器不动；`--radius-xl` 现值 10px，规格菜单规范为 rounded-lg = 8px。背景 `--surface-raised-stronger-non-alpha` 与阴影 `--shadow-lg-border-base` 已是语义 token，无需改。）

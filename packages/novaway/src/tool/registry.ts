@@ -9,12 +9,41 @@ import { GlobTool } from "./glob"
 import { GrepTool } from "./grep"
 import { ReadTool } from "./read"
 import { TaskTool } from "./task"
+import { MonitorTool } from "./monitor"
+import { SubscribeTool } from "./subscribe"
+import { CwdTool } from "./cwd"
 import { TaskStatusTool } from "./task_status"
 import { TodoWriteTool, TodoEditTool } from "./todo"
 import { WebFetchTool } from "./webfetch"
 import { WriteTool } from "./write"
 import { InvalidTool } from "./invalid"
 import { SkillTool } from "./skill"
+import { KnowledgeTool } from "./knowledge"
+import { KnowledgeManageTool } from "./knowledge-manage"
+import { RulesManageTool } from "./rules-manage"
+import { EvolutionManageTool } from "./evolution-manage"
+import { GitTool } from "./git"
+import { KnowledgeOcrTool } from "./knowledge-ocr"
+import { MemoryEmbeddingSetupTool } from "./memory-setup"
+import { InstallationDoctorTool } from "./installation-doctor"
+import { McpSetupTool } from "./mcp-setup"
+import { SkillInstallTool } from "./skill-install"
+import { PluginInstallTool } from "./plugin-install"
+import { ProviderSetupTool } from "./provider-setup"
+import { LspSetupTool } from "./lsp-setup"
+import { OfficeSetupTool } from "./office-setup"
+import { TempFilesTool } from "./temp_files"
+import { VerifyTool } from "./verify"
+import {
+  ComputerClickTool,
+  ComputerFocusTool,
+  ComputerKeyTool,
+  ComputerMoveTool,
+  ComputerScreenshotTool,
+  ComputerScrollTool,
+  ComputerTypeTool,
+  ComputerWindowsTool,
+} from "./computer"
 import { MemoryTool } from "./memory"
 import { GenerateImageTool } from "./generate_image"
 import { GenerateVideoTool } from "./generate_video"
@@ -68,11 +97,19 @@ import { InstanceState } from "@/effect/instance-state"
 import { Question } from "../question"
 import { Todo } from "../session/todo"
 import { LSP } from "@/lsp/lsp"
+import { MCP } from "@/mcp"
+import type { SessionID } from "@/session/schema"
+import {
+  Service as ActivationService,
+  defaultLayer as ActivationLayer,
+  type Interface as ActivationInterface,
+} from "./activation"
 import { Instruction } from "../session/instruction"
 import { AppFileSystem } from "@novaway/core/filesystem"
 import { Bus } from "../bus"
 import { Agent } from "../agent/agent"
 import { Git } from "@/git"
+import { Evolution } from "@/evolution/service"
 import { Skill } from "../skill"
 import { Permission } from "@/permission"
 import { Reference } from "@/reference/reference"
@@ -81,8 +118,159 @@ import { SessionStatus } from "@/session/status"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Auth } from "@/auth"
 import { Goal } from "@/session/goal"
+import { PlanApproval } from "@/session/plan-approval"
+import { Service as HookService, defaultLayer as HookLayer } from "@/hook/service"
+import { Service as TeamServiceInterface, defaultLayer as TeamLayer } from "@/team/team"
+import { Service as AgentTaskListServiceInterface, defaultLayer as AgentTaskListLayer } from "@/team/task-list"
+import { Service as AgentMailboxServiceInterface, defaultLayer as AgentMailboxLayer } from "@/team/mailbox"
+import { SessionUsage } from "@/session/usage"
+import {
+  AgentListTool,
+  AgentMessageTool,
+  TaskClaimTool,
+  TaskCreateTool,
+  TaskGetTool,
+  TaskListTool,
+  TaskStopTool,
+  TaskUpdateTool,
+  TaskWaitTool,
+  TeamCreateTool,
+  TeamDeleteTool,
+  TeamListTool,
+} from "./task-tools"
+import { Global } from "@novaway/core/global"
+import * as ExtensionLoader from "@/extension/loader"
+import { contributions as extensionContributions, type Loaded as ExtensionLoaded } from "@/extension/schema"
 
 const log = Log.create({ service: "tool.registry" })
+const NL = String.fromCharCode(10)
+
+const READ_ONLY_SHELL =
+  /^\s*(ls|cat|head|tail|grep|rg|find|pwd|echo|wc|stat|file|which|type|git (status|diff|log|show|branch|rev-parse)|npm (ls|view)|bun (pm ls|--version))(?=$|[\s;&|])/i
+
+function shellSafe(args: unknown) {
+  const command =
+    typeof (args as { command?: unknown })?.command === "string" ? (args as { command: string }).command : ""
+  if (!command.trim()) return false
+  return !/[;&|><`$]/.test(command) && READ_ONLY_SHELL.test(command)
+}
+
+/**
+ * Default capability metadata for built-in tools. Orchestration reads this to
+ * decide concurrency and result budgets; individual tools may override it.
+ */
+export const CAPABILITIES: Record<string, Tool.Capabilities> = {
+  read: { readOnly: true, concurrencySafe: true, maxResultBytes: 400_000 },
+  glob: { readOnly: true, concurrencySafe: true },
+  grep: { readOnly: true, concurrencySafe: true },
+  lsp: { readOnly: true, concurrencySafe: true },
+  webfetch: { readOnly: true, concurrencySafe: true },
+  websearch: { readOnly: true, concurrencySafe: true },
+  task_status: { readOnly: true, concurrencySafe: true },
+  repo_overview: { readOnly: true, concurrencySafe: true },
+  repo_clone: { concurrencySafe: false },
+  write: { destructive: true },
+  edit: { destructive: true },
+  apply_patch: { destructive: true },
+  patch: { destructive: true },
+  // Shell tool id and permission key are both "bash" (see tool/shell/id.ts).
+  bash: {
+    readOnly: (args) => shellSafe(args),
+    concurrencySafe: (args) => shellSafe(args),
+    interrupt: "cancel",
+  },
+  task: { concurrencySafe: false, interrupt: "block" },
+  orchestrator: { concurrencySafe: false },
+  workflow: { concurrencySafe: false },
+  question: { concurrencySafe: false },
+  plan_exit: { concurrencySafe: false },
+  goal: { concurrencySafe: false },
+  skill: { concurrencySafe: false },
+  todo: { concurrencySafe: false },
+  todoedit: { concurrencySafe: false },
+  generate_image: { concurrencySafe: true, deferLoading: true },
+  generate_video: { concurrencySafe: true, deferLoading: true },
+  generate_narration: { concurrencySafe: true, deferLoading: true },
+  memory: { readOnly: true, concurrencySafe: true },
+  team_create: { concurrencySafe: false },
+  team_delete: { concurrencySafe: false },
+  team_list: { readOnly: true, concurrencySafe: true },
+  agent_list: { readOnly: true, concurrencySafe: true },
+  agent_message: { concurrencySafe: false },
+  task_create: { concurrencySafe: false },
+  task_list: { readOnly: true, concurrencySafe: true },
+  task_get: { readOnly: true, concurrencySafe: true },
+  task_update: { concurrencySafe: false },
+  task_claim: { concurrencySafe: false },
+  task_stop: { concurrencySafe: false },
+  task_wait: { readOnly: true, concurrencySafe: true },
+  monitor: { concurrencySafe: true },
+  subscribe: { concurrencySafe: true },
+  cwd: { concurrencySafe: false },
+  tool_search: { readOnly: true, concurrencySafe: true },
+  knowledge_search: { readOnly: true, concurrencySafe: true },
+  git: {
+    readOnly: (args: unknown) =>
+      ["status", "diff", "log", "branches"].includes(String((args as { action?: string } | undefined)?.action ?? "")),
+    concurrencySafe: false,
+  },
+  rules_manage: {
+    readOnly: (args: unknown) =>
+      (args as { action?: string } | undefined)?.action !== "save" &&
+      (args as { action?: string } | undefined)?.action !== "remove",
+    concurrencySafe: false,
+  },
+  evolution_manage: {
+    readOnly: (args: unknown) =>
+      ["status", "preview"].includes(String((args as { action?: string } | undefined)?.action ?? "status")),
+    concurrencySafe: false,
+  },
+  knowledge_manage: {
+    readOnly: (args: unknown) => {
+      const action = String((args as { action?: string } | undefined)?.action ?? "status")
+      return ["status", "documents"].includes(action)
+    },
+    concurrencySafe: false,
+    destructive: true,
+  },
+  knowledge_ocr: {
+    readOnly: (args: unknown) => (args as { action?: string } | undefined)?.action !== "install",
+    concurrencySafe: false,
+  },
+  memory_embedding_setup: {
+    readOnly: (args: unknown) => (args as { action?: string } | undefined)?.action !== "install",
+    concurrencySafe: false,
+  },
+  installation_doctor: {
+    readOnly: (args: unknown) => (args as { action?: string } | undefined)?.action !== "upgrade",
+    concurrencySafe: false,
+  },
+  lsp_setup: {
+    readOnly: (args: unknown) => (args as { action?: string } | undefined)?.action !== "install",
+    concurrencySafe: false,
+  },
+  skill_install: {
+    readOnly: (args: unknown) => (args as { action?: string } | undefined)?.action !== "install",
+    concurrencySafe: false,
+  },
+  plugin_install: {
+    readOnly: (args: unknown) => (args as { action?: string } | undefined)?.action === "status",
+    concurrencySafe: false,
+  },
+  office_setup: {
+    readOnly: (args: unknown) => (args as { action?: string } | undefined)?.action !== "verify",
+    concurrencySafe: false,
+  },
+  provider_setup: {
+    readOnly: (args: unknown) => (args as { action?: string } | undefined)?.action !== "configure",
+    concurrencySafe: false,
+  },
+  mcp_setup: {
+    readOnly: (args: unknown) =>
+      !["connect", "add"].includes(String((args as { action?: string } | undefined)?.action ?? "status")),
+    concurrencySafe: false,
+  },
+}
 
 export function webSearchEnabled(providerID: ProviderID, flags = { exa: false, parallel: false }) {
   return providerID === ProviderID.NovaWay || flags.exa || flags.parallel
@@ -102,12 +290,33 @@ export interface Interface {
   readonly ids: () => Effect.Effect<string[]>
   readonly all: () => Effect.Effect<Tool.Def[]>
   readonly named: () => Effect.Effect<{ task: TaskDef; read: ReadDef }>
-  readonly tools: (model: { providerID: ProviderID; modelID: ModelID; agent: Agent.Info }) => Effect.Effect<Tool.Def[]>
+  readonly tools: (model: {
+    providerID: ProviderID
+    modelID: ModelID
+    agent: Agent.Info
+    /** Session used for deferred-tool activation. Omit to include every tool. */
+    sessionID?: SessionID
+  }) => Effect.Effect<Tool.Def[]>
   /** Rediscover custom tools from disk for the current instance. */
   readonly reload: () => Effect.Effect<string[]>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@NovaWay/ToolRegistry") {}
+
+/**
+ * Resolve a tool only when its service is present in the current layer stack.
+ *
+ * Collaboration and planning tools (teams, tasks, goals, workflows) are
+ * optional capabilities: embedders and tests that compose a minimal layer
+ * should still get a working registry, just without those tools.
+ */
+const optional = (tag: any, effect: Effect.Effect<any, any, any>): Effect.Effect<any, never, never> =>
+  Effect.serviceOption(tag).pipe(
+    Effect.flatMap((option) =>
+      option._tag === "Some" ? effect.pipe(Effect.provideService(tag, option.value)) : Effect.succeed(undefined as any),
+    ),
+    Effect.orDie,
+  ) as Effect.Effect<any, never, never>
 
 export const layer: Layer.Layer<
   Service,
@@ -125,6 +334,7 @@ export const layer: Layer.Layer<
   | Git.Service
   | Reference.Service
   | LSP.Service
+  | MCP.Service
   | Instruction.Service
   | AppFileSystem.Service
   | Bus.Service
@@ -136,9 +346,8 @@ export const layer: Layer.Layer<
   | RuntimeFlags.Service
   | Auth.Service
   | BrowserService.Service
-  | Goal.Service
-  | WorkflowService
-  | OrchestratorService
+  | Session.Service
+  | Agent.Service
 > = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -149,6 +358,7 @@ export const layer: Layer.Layer<
     const truncate = yield* Truncate.Service
     const flags = yield* RuntimeFlags.Service
     const auth = yield* Auth.Service
+    const activation = yield* ActivationService
 
     const invalid = yield* InvalidTool
     const task = yield* TaskTool
@@ -171,6 +381,36 @@ export const layer: Layer.Layer<
     const patchtool = yield* ApplyPatchTool
     const skilltool = yield* SkillTool
     const memorytool = yield* MemoryTool
+    const knowledgeSearch = yield* KnowledgeTool
+    const knowledgeOcr = yield* KnowledgeOcrTool
+    const knowledgeManage = yield* KnowledgeManageTool
+    const rulesManage = yield* RulesManageTool
+    const evolutionManage = yield* optional(Evolution.Service, EvolutionManageTool)
+    const gittool = yield* GitTool
+    const memoryEmbeddingSetup = yield* MemoryEmbeddingSetupTool
+    const installationDoctor = yield* InstallationDoctorTool
+    const lspSetup = yield* LspSetupTool
+    const mcpSetup = yield* optional(MCP.Service, McpSetupTool)
+    const providerSetup = yield* ProviderSetupTool
+    // Loaded lazily: office/platform imports SessionPrompt, which imports this
+    // registry. A static import creates an initialization cycle (TDZ on
+    // defaultLayer), so the module is imported on demand and the service is
+    // resolved inside the tool itself.
+    const officeSetup = yield* Effect.promise(async () => (await import("./office-setup")).OfficeSetupTool).pipe(
+      Effect.flatMap((effect) => effect),
+    )
+    const skillInstall = yield* SkillInstallTool
+    const pluginInstall = yield* PluginInstallTool
+    const tempFilesTool = yield* TempFilesTool
+    const verifyTool = yield* VerifyTool
+    const computerScreenshot = yield* ComputerScreenshotTool
+    const computerClick = yield* ComputerClickTool
+    const computerMove = yield* ComputerMoveTool
+    const computerType = yield* ComputerTypeTool
+    const computerKey = yield* ComputerKeyTool
+    const computerScroll = yield* ComputerScrollTool
+    const computerWindows = yield* ComputerWindowsTool
+    const computerFocus = yield* ComputerFocusTool
     const generateimagetool = yield* GenerateImageTool
     const generatevideotool = yield* GenerateVideoTool
     const generateNarrationTool = yield* GenerateNarrationTool
@@ -184,10 +424,25 @@ export const layer: Layer.Layer<
     const browserNetwork = yield* BrowserNetworkTool
     const browserAccessibility = yield* BrowserAccessibilityTool
     const browserClose = yield* BrowserCloseTool
-    const goal = yield* GoalTool
-    const workflow = yield* WorkflowTool
-    const orchestrator = yield* OrchestratorTool
+    const goal = yield* optional(Goal.Service, GoalTool)
+    const workflow = yield* optional(WorkflowService, WorkflowTool)
+    const orchestrator = yield* optional(OrchestratorService, OrchestratorTool)
     const agent = yield* Agent.Service
+    const monitorTool = yield* MonitorTool
+    const subscribeTool = yield* SubscribeTool
+    const cwdTool = yield* CwdTool
+    const teamTool = yield* optional(TeamServiceInterface, TeamCreateTool)
+    const teamDeleteTool = yield* optional(TeamServiceInterface, TeamDeleteTool)
+    const teamListTool = yield* optional(TeamServiceInterface, TeamListTool)
+    const agentListTool = yield* optional(TeamServiceInterface, AgentListTool)
+    const agentMessageTool = yield* optional(AgentMailboxServiceInterface, AgentMessageTool)
+    const taskCreateTool = yield* optional(AgentTaskListServiceInterface, TaskCreateTool)
+    const taskListTool = yield* optional(AgentTaskListServiceInterface, TaskListTool)
+    const taskGetTool = yield* optional(AgentTaskListServiceInterface, TaskGetTool)
+    const taskUpdateTool = yield* optional(AgentTaskListServiceInterface, TaskUpdateTool)
+    const taskClaimTool = yield* optional(AgentTaskListServiceInterface, TaskClaimTool)
+    const taskStopTool = yield* optional(BackgroundJob.Service, TaskStopTool)
+    const taskWaitTool = yield* optional(AgentTaskListServiceInterface, TaskWaitTool)
 
     const state = yield* InstanceState.make<State>(
       Effect.fn("ToolRegistry.state")(function* (ctx) {
@@ -261,6 +516,27 @@ export const layer: Layer.Layer<
             return [] as string[]
           }
         })
+        const extensions: ExtensionLoaded[] = yield* Effect.promise(() =>
+          ExtensionLoader.scanCached({
+            config: Global.Path.config,
+            home: Global.Path.home,
+            directory: ctx.directory,
+            worktree: ctx.worktree,
+          }),
+        ).pipe(Effect.catch(() => Effect.succeed([] as ExtensionLoaded[])))
+        for (const extension of extensions) {
+          if (!extension.enabled) continue
+          for (const contribution of extensionContributions(extension)) {
+            if (contribution.kind !== "tool") continue
+            const target = path.resolve(extension.root, contribution.path)
+            try {
+              const stat = Glob.scanSync("*", { cwd: target, absolute: true, dot: true, symlink: true })
+              matches.push(...stat.filter((file) => /\.(js|ts)$/.test(file)))
+            } catch {
+              if (/\.(js|ts)$/.test(target)) matches.push(target)
+            }
+          }
+        }
         if (matches.length) yield* config.waitForDependencies()
         for (const match of matches) {
           const namespace = path.basename(match, path.extname(match))
@@ -285,6 +561,7 @@ export const layer: Layer.Layer<
         // 后台并行开关:配置优先(可被 /后台并行 切换),回退运行时 flag。
         const backgroundSubagentsEnabled =
           cfg.experimental?.background_subagents ?? flags.experimentalBackgroundSubagents
+        const computerControlEnabled = cfg.experimental?.computer_control ?? flags.experimentalComputerControl
 
         const tool = yield* Effect.all({
           invalid: Tool.init(invalid),
@@ -304,6 +581,32 @@ export const layer: Layer.Layer<
           repo_overview: Tool.init(repoOverview),
           skill: Tool.init(skilltool),
           memory: Tool.init(memorytool),
+          knowledge_search: Tool.init(knowledgeSearch),
+          knowledge_ocr: Tool.init(knowledgeOcr),
+          knowledge_manage: Tool.init(knowledgeManage),
+          rules_manage: Tool.init(rulesManage),
+          evolution_manage: evolutionManage ? Tool.init(evolutionManage) : Effect.succeed(undefined),
+          git: Tool.init(gittool),
+          memory_embedding_setup: Tool.init(memoryEmbeddingSetup),
+          installation_doctor: Tool.init(installationDoctor),
+          lsp_setup: Tool.init(lspSetup),
+          mcp_setup: mcpSetup ? Tool.init(mcpSetup) : Effect.succeed(undefined),
+          provider_setup: Tool.init(providerSetup),
+          // office_setup 的运行期服务（OfficePlatform）在工具内部按需解析，
+          // 这里把它当作无依赖工具注册。
+          office_setup: Tool.init(officeSetup as any),
+          skill_install: Tool.init(skillInstall),
+          plugin_install: Tool.init(pluginInstall),
+          cleanup_temp_files: Tool.init(tempFilesTool),
+          run_verification: Tool.init(verifyTool),
+          computer_screenshot: Tool.init(computerScreenshot),
+          computer_click: Tool.init(computerClick),
+          computer_move: Tool.init(computerMove),
+          computer_type: Tool.init(computerType),
+          computer_key: Tool.init(computerKey),
+          computer_scroll: Tool.init(computerScroll),
+          computer_windows: Tool.init(computerWindows),
+          computer_focus: Tool.init(computerFocus),
           patch: Tool.init(patchtool),
           question: Tool.init(question),
           lsp: Tool.init(lsptool),
@@ -322,54 +625,206 @@ export const layer: Layer.Layer<
           browser_network: Tool.init(browserNetwork),
           browser_accessibility: Tool.init(browserAccessibility),
           browser_close: Tool.init(browserClose),
-          goal: Tool.init(goal),
-          workflow: Tool.init(workflow),
-          orchestrator: Tool.init(orchestrator),
+          goal: goal ? Tool.init(goal) : Effect.succeed(undefined),
+          workflow: workflow ? Tool.init(workflow) : Effect.succeed(undefined),
+          orchestrator: orchestrator ? Tool.init(orchestrator) : Effect.succeed(undefined),
+          team_create: teamTool ? Tool.init(teamTool) : Effect.succeed(undefined),
+          team_delete: teamDeleteTool ? Tool.init(teamDeleteTool) : Effect.succeed(undefined),
+          team_list: teamListTool ? Tool.init(teamListTool) : Effect.succeed(undefined),
+          agent_list: agentListTool ? Tool.init(agentListTool) : Effect.succeed(undefined),
+          agent_message: agentMessageTool ? Tool.init(agentMessageTool) : Effect.succeed(undefined),
+          task_create: taskCreateTool ? Tool.init(taskCreateTool) : Effect.succeed(undefined),
+          task_list: taskListTool ? Tool.init(taskListTool) : Effect.succeed(undefined),
+          task_get: taskGetTool ? Tool.init(taskGetTool) : Effect.succeed(undefined),
+          task_update: taskUpdateTool ? Tool.init(taskUpdateTool) : Effect.succeed(undefined),
+          task_claim: taskClaimTool ? Tool.init(taskClaimTool) : Effect.succeed(undefined),
+          task_stop: taskStopTool ? Tool.init(taskStopTool) : Effect.succeed(undefined),
+          task_wait: taskWaitTool ? Tool.init(taskWaitTool) : Effect.succeed(undefined),
+          monitor: Tool.init(monitorTool),
+          subscribe: Tool.init(subscribeTool),
+          cwd: Tool.init(cwdTool),
         })
 
+        const decorate = <T extends Tool.Def>(def: T): T =>
+          ({
+            ...def,
+            capabilities: {
+              readOnly: false,
+              concurrencySafe: false,
+              // Long-tail tools are hidden from the first request unless the
+              // user opted in; `tool_search` activates them per session.
+              ...(def.id.startsWith("browser_") || def.id.startsWith("generate_") ? { deferLoading: true } : {}),
+              ...CAPABILITIES[def.id],
+              ...def.capabilities,
+            },
+          }) as T
+
+        const builtinList = [
+          tool.invalid,
+          ...(questionEnabled ? [tool.question] : []),
+          tool.shell,
+          tool.read,
+          tool.glob,
+          tool.grep,
+          tool.edit,
+          tool.write,
+          tool.task,
+          ...(backgroundSubagentsEnabled ? [tool.task_status] : []),
+          tool.fetch,
+          tool.todo,
+          tool.todoEdit,
+          tool.search,
+          ...(flags.experimentalScout ? [tool.repo_clone, tool.repo_overview] : []),
+          tool.skill,
+          ...(ConfigMemory.resolve(cfg.memory).enabled ? [tool.memory] : []),
+          tool.knowledge_search,
+          tool.knowledge_ocr,
+          tool.knowledge_manage,
+          tool.rules_manage,
+          ...(tool.evolution_manage ? [tool.evolution_manage] : []),
+          tool.git,
+          tool.memory_embedding_setup,
+          tool.installation_doctor,
+          tool.lsp_setup,
+          tool.mcp_setup!,
+          tool.provider_setup,
+          tool.office_setup,
+          tool.skill_install,
+          tool.plugin_install,
+          tool.cleanup_temp_files,
+          tool.run_verification,
+          ...(computerControlEnabled
+            ? [
+                tool.computer_screenshot,
+                tool.computer_click,
+                tool.computer_move,
+                tool.computer_type,
+                tool.computer_key,
+                tool.computer_scroll,
+                tool.computer_windows,
+                tool.computer_focus,
+              ]
+            : []),
+          tool.patch,
+          ...(flags.experimentalLspTool ? [tool.lsp] : []),
+          ...(flags.experimentalPlanMode && flags.client === "cli" ? [tool.plan] : []),
+          tool.generate_image,
+          tool.generate_video,
+          tool.generate_narration,
+          tool.monitor,
+          tool.subscribe,
+          tool.cwd,
+          tool.browser_navigate,
+          tool.browser_open,
+          tool.browser_snapshot,
+          tool.browser_click,
+          tool.browser_fill,
+          tool.browser_press,
+          tool.browser_screenshot,
+          tool.browser_console,
+          tool.browser_network,
+          tool.browser_accessibility,
+          tool.browser_close,
+          tool.goal!,
+          tool.workflow!,
+          tool.orchestrator!,
+          tool.team_create!,
+          tool.team_delete,
+          tool.team_list,
+          tool.agent_list,
+          tool.agent_message,
+          tool.task_create,
+          tool.task_list,
+          tool.task_get,
+          tool.task_update,
+          tool.task_claim,
+          tool.task_wait,
+          tool.task_stop,
+        ]
+          .filter((item): item is NonNullable<typeof item> => item !== undefined)
+          .map(decorate)
+
+        // When deferred loading is on, name the hidden tools in the search
+        // description. Names cost a few dozen tokens; full schemas cost far
+        // more and most sessions never touch these tools.
+        const deferredNames = cfg.experimental?.defer_loading
+          ? [...builtinList, ...custom.map(decorate)]
+              .filter((item) => item.capabilities?.deferLoading)
+              .map((item) => item.id)
+          : []
+
+        const search: Tool.Def = {
+          id: "tool_search",
+          description: [
+            "Search available tools by name or keyword. Use it to discover tools that are not in the current prompt.",
+            deferredNames.length > 0
+              ? `Currently deferred (call tool_search with "select:<id>" to load): ${deferredNames.join(", ")}`
+              : undefined,
+          ]
+            .filter(Boolean)
+            .join(String.fromCharCode(10)),
+          parameters: Schema.Struct({
+            query: Schema.String.annotate({
+              description: 'Keywords to search tool names and descriptions. Use "select:<tool_id>" for a direct match.',
+            }),
+            max_results: Schema.optional(Schema.Number).annotate({ description: "Maximum results (default 5)" }),
+          }),
+          capabilities: { readOnly: true, concurrencySafe: true },
+          execute: (args, ctx) =>
+            Effect.gen(function* () {
+              const query = String((args as { query?: unknown }).query ?? "")
+              const limit = Math.max(1, Math.min(Number((args as { max_results?: unknown }).max_results ?? 5) || 5, 20))
+              const allDefs = [...builtinList, ...custom.map(decorate)]
+              const select = /^select:(.+)$/i.exec(query.trim())
+              const matches = select
+                ? allDefs.filter((item) => item.id === select[1]?.trim())
+                : allDefs
+                    .map((item) => {
+                      const q = query.toLowerCase()
+                      const name = item.id.toLowerCase()
+                      const text = item.description.toLowerCase()
+                      const words = q.split(/\s+/).filter(Boolean)
+                      const score =
+                        name === q
+                          ? 100
+                          : name.startsWith(q)
+                            ? 80
+                            : name.includes(q)
+                              ? 60
+                              : words.length && words.every((word) => text.includes(word))
+                                ? 40
+                                : 0
+                      return { item, score }
+                    })
+                    .filter((entry) => entry.score > 0)
+                    .sort((a, b) => b.score - a.score || a.item.id.localeCompare(b.item.id))
+                    .map((entry) => entry.item)
+              const top = matches.slice(0, limit)
+              // Activate what was found so the next request includes the full
+              // schema for these tools.
+              if (ctx?.sessionID) {
+                yield* activation.activate(
+                  ctx.sessionID,
+                  top.map((item) => item.id),
+                )
+              }
+              const output =
+                top.length === 0
+                  ? `No tools matched "${query}".`
+                  : top.map((item) => `- ${item.id}: ${item.description.split(NL)[0]}`).join(NL)
+              return {
+                title: `${top.length} tools`,
+                output,
+                metadata: { matches: top.map((item) => item.id), total: allDefs.length },
+              }
+            }).pipe(Effect.orDie),
+        } as Tool.Def
+
         return {
-          custom,
-          builtin: [
-            tool.invalid,
-            ...(questionEnabled ? [tool.question] : []),
-            tool.shell,
-            tool.read,
-            tool.glob,
-            tool.grep,
-            tool.edit,
-            tool.write,
-            tool.task,
-            ...(backgroundSubagentsEnabled ? [tool.task_status] : []),
-            tool.fetch,
-            tool.todo,
-            tool.todoEdit,
-            tool.search,
-            ...(flags.experimentalScout ? [tool.repo_clone, tool.repo_overview] : []),
-            tool.skill,
-            ...(ConfigMemory.resolve(cfg.memory).enabled ? [tool.memory] : []),
-            tool.patch,
-            ...(flags.experimentalLspTool ? [tool.lsp] : []),
-            ...(flags.experimentalPlanMode && flags.client === "cli" ? [tool.plan] : []),
-            tool.generate_image,
-            tool.generate_video,
-            tool.generate_narration,
-            tool.browser_navigate,
-            tool.browser_open,
-            tool.browser_snapshot,
-            tool.browser_click,
-            tool.browser_fill,
-            tool.browser_press,
-            tool.browser_screenshot,
-            tool.browser_console,
-            tool.browser_network,
-            tool.browser_accessibility,
-            tool.browser_close,
-            tool.goal,
-            tool.workflow,
-            tool.orchestrator,
-          ],
-          task: tool.task,
-          read: tool.read,
+          custom: custom.map(decorate),
+          builtin: [search, ...builtinList],
+          task: decorate(tool.task),
+          read: decorate(tool.read),
         }
       }),
     )
@@ -438,7 +893,16 @@ export const layer: Layer.Layer<
         ["OPENAI_API_KEY", "DASHSCOPE_API_KEY", "MINIMAX_API_KEY", "ELEVENLABS_API_KEY", "SILICONFLOW_API_KEY"].some(
           (key) => !!process.env[key],
         )
+      const allow = input.agent.tools?.length ? new Set(input.agent.tools) : undefined
+      const deny = new Set(input.agent.disallowedTools ?? [])
+      const deferEnabled = cfg.experimental?.defer_loading === true && input.sessionID !== undefined
+      const activated = deferEnabled && input.sessionID ? new Set(yield* activation.list(input.sessionID)) : undefined
       const filtered = allTools.filter((tool) => {
+        if (allow && !allow.has("*") && !allow.has(tool.id)) return false
+        if (deny.has(tool.id)) return false
+        // Deferred tools stay out of the request until tool_search activates
+        // them for this session.
+        if (deferEnabled && tool.capabilities?.deferLoading && !activated?.has(tool.id)) return false
         if (tool.id === WebSearchTool.id) {
           return webSearchEnabled(input.providerID, { exa: flags.enableExa, parallel: flags.enableParallel })
         }
@@ -482,6 +946,7 @@ export const layer: Layer.Layer<
             parameters: output.parameters,
             jsonSchema,
             execute: tool.execute,
+            capabilities: tool.capabilities,
             formatValidationError: tool.formatValidationError,
           }
         }),
@@ -502,6 +967,20 @@ export const layer: Layer.Layer<
 
     return Service.of({ ids, all, named, tools, reload })
   }),
+).pipe(
+  // Collaboration services are self-contained (Database only). Providing them
+  // here keeps `ToolRegistry.layer` usable on its own, which matters for tests
+  // and for embedders that compose a minimal layer stack.
+  Layer.provide(TeamLayer),
+  Layer.provide(AgentTaskListLayer),
+  Layer.provide(AgentMailboxLayer),
+  Layer.provide(SessionUsage.defaultLayer),
+  Layer.provide(HookLayer),
+  Layer.provide(Goal.defaultLayer),
+  Layer.provide(WorkflowDefaultLayer),
+  Layer.provide(OrchestratorDefaultLayer),
+  Layer.provide(ActivationLayer),
+  Layer.provide(PlanApproval.defaultLayer),
 )
 
 export const defaultLayer: Layer.Layer<Service> = Layer.suspend(() =>
@@ -529,6 +1008,8 @@ export const defaultLayer: Layer.Layer<Service> = Layer.suspend(() =>
       Layer.provide(Truncate.defaultLayer),
     )
     .pipe(
+      Layer.provide(Evolution.defaultLayer),
+      Layer.provide(MCP.defaultLayer),
       Layer.provide(AppProcess.defaultLayer),
       Layer.provide(BrowserService.defaultLayer),
       Layer.provide(RuntimeFlags.defaultLayer),
@@ -536,6 +1017,11 @@ export const defaultLayer: Layer.Layer<Service> = Layer.suspend(() =>
       Layer.provide(Goal.defaultLayer),
       Layer.provide(WorkflowDefaultLayer),
       Layer.provide(OrchestratorDefaultLayer),
+      Layer.provide(TeamLayer),
+      Layer.provide(HookLayer),
+      Layer.provide(AgentTaskListLayer),
+      Layer.provide(AgentMailboxLayer),
+      Layer.provide(SessionUsage.defaultLayer),
     ),
 ) as Layer.Layer<Service>
 

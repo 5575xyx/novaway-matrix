@@ -32,8 +32,14 @@ describe("buildGitSectionModel", () => {
     expect(buildGitSectionModel(undefined)).toBeNull()
   })
 
-  test("null on a clean working tree", () => {
-    expect(buildGitSectionModel(makeSnapshot("main"))).toBeNull()
+  test("keeps the card on a clean tree so the graph stays reachable", () => {
+    expect(buildGitSectionModel(makeSnapshot("main"))).toMatchObject({
+      branch: "main",
+      dirty: 0,
+      clean: true,
+      staged: [],
+      unstaged: [],
+    })
   })
 
   test("counts additions, deletions, dirty files and branch", () => {

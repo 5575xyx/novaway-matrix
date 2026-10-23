@@ -145,7 +145,12 @@ describe("reduceSidePane", () => {
   })
 
   test("remove falls back to a neighbouring tab", () => {
-    const s: SidePaneState = { opened: true, tabs: ["preview", "terminal", "review"], activeTab: "terminal", dynamic: {} }
+    const s: SidePaneState = {
+      opened: true,
+      tabs: ["preview", "terminal", "review"],
+      activeTab: "terminal",
+      dynamic: {},
+    }
     expect(reduceSidePane(s, { type: "remove", tab: "terminal" })).toEqual({
       opened: true,
       tabs: ["preview", "review"],

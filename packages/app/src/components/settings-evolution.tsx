@@ -439,9 +439,7 @@ export const SettingsEvolution: Component<{ embedded?: boolean; directory?: stri
 
   const applyFile = useMutation(() => ({
     mutationFn: (candidateID: string) =>
-      globalSDK.client.evolution
-        .applyFileCandidate({ candidateID, directory: props.directory })
-        .then((x) => x.data),
+      globalSDK.client.evolution.applyFileCandidate({ candidateID, directory: props.directory }).then((x) => x.data),
     onSuccess: async (data) => {
       await refetchEvolution()
       showToast({

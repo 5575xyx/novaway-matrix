@@ -57,11 +57,7 @@ export function StatusPopover() {
       shift={-168}
     >
       <Show when={shown()}>
-        <Suspense
-          fallback={
-            <div class="w-[360px] h-14 rounded-xl bg-panel shadow-[var(--shadow-md)]" />
-          }
-        >
+        <Suspense fallback={<div class="w-[360px] h-14 rounded-xl bg-panel shadow-[var(--shadow-md)]" />}>
           <Body shown={shown} />
         </Suspense>
       </Show>

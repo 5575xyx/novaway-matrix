@@ -115,31 +115,31 @@ export type ThemeJson = {
 4c. `resolveTheme` 主循环的 filter（约 :268）把三个新键排除（与 `backgroundMenu` 同理，保证走后面的兜底分支）：
 
 ```ts
-  const resolved = Object.fromEntries(
-    Object.entries(theme.theme)
-      .filter(
-        ([key]) =>
-          key !== "selectedListItemText" &&
-          key !== "backgroundMenu" &&
-          key !== "thinkingOpacity" &&
-          key !== "neonStart" &&
-          key !== "neonMid" &&
-          key !== "neonEnd",
-      )
-      .map(([key, value]) => {
-        return [key, resolveColor(value as ColorValue)]
-      }),
-  ) as Partial<Record<ThemeColor, RGBA>>
+const resolved = Object.fromEntries(
+  Object.entries(theme.theme)
+    .filter(
+      ([key]) =>
+        key !== "selectedListItemText" &&
+        key !== "backgroundMenu" &&
+        key !== "thinkingOpacity" &&
+        key !== "neonStart" &&
+        key !== "neonMid" &&
+        key !== "neonEnd",
+    )
+    .map(([key, value]) => {
+      return [key, resolveColor(value as ColorValue)]
+    }),
+) as Partial<Record<ThemeColor, RGBA>>
 ```
 
 4d. 在 `backgroundMenu` 兜底块（约 :289）之后、`thinkingOpacity` 之前插入：
 
 ```ts
-  // 霓虹渐变三端色:可选 token,未定义时(含 generateSystem 生成的主题)回落到
-  // primary/secondary/accent,内置 JSON 主题一个都不用改。
-  resolved.neonStart = theme.theme.neonStart !== undefined ? resolveColor(theme.theme.neonStart) : resolved.primary
-  resolved.neonMid = theme.theme.neonMid !== undefined ? resolveColor(theme.theme.neonMid) : resolved.secondary
-  resolved.neonEnd = theme.theme.neonEnd !== undefined ? resolveColor(theme.theme.neonEnd) : resolved.accent
+// 霓虹渐变三端色:可选 token,未定义时(含 generateSystem 生成的主题)回落到
+// primary/secondary/accent,内置 JSON 主题一个都不用改。
+resolved.neonStart = theme.theme.neonStart !== undefined ? resolveColor(theme.theme.neonStart) : resolved.primary
+resolved.neonMid = theme.theme.neonMid !== undefined ? resolveColor(theme.theme.neonMid) : resolved.secondary
+resolved.neonEnd = theme.theme.neonEnd !== undefined ? resolveColor(theme.theme.neonEnd) : resolved.accent
 ```
 
 - [ ] **Step 5: 跑测试确认通过**
@@ -398,13 +398,7 @@ Expected: FAIL——`neonbox` 元素未注册（渲染报错或内容落空）�
 新建 `packages/tui/src/ui/card.ts`：
 
 ```ts
-import {
-  BoxRenderable,
-  RGBA,
-  type BoxOptions,
-  type OptimizedBuffer,
-  type RenderContext,
-} from "@opentui/core"
+import { BoxRenderable, RGBA, type BoxOptions, type OptimizedBuffer, type RenderContext } from "@opentui/core"
 import { extend } from "@opentui/solid"
 import { gradientAt, perimeterCells } from "./neon"
 
@@ -608,61 +602,61 @@ import { NeonRail } from "./neon-rail"
 把 `TabBar` 的 return（:31–84）整体替换为（标签行内容不变，仅外包一层列布局 + 底行换导轨）：
 
 ```tsx
-  return (
-    <box flexDirection="column" height={HEIGHT} flexShrink={0} overflow="hidden">
-      <box
-        flexDirection="row"
-        flexGrow={1}
-        overflow="hidden"
-        paddingTop={0}
-        paddingBottom={0}
-        paddingLeft={1}
-        paddingRight={1}
-      >
-        <For each={props.tabs}>
-          {(tab) => {
-            const isActive = () => tab.id === props.activeTabId
-            return (
-              <box
-                flexDirection="row"
-                flexShrink={0}
-                paddingLeft={1}
-                paddingRight={1}
-                paddingTop={0}
-                paddingBottom={0}
-                backgroundColor={isActive() ? theme.backgroundPanel : theme.backgroundElement}
-                onMouseUp={() => props.onTabClick(tab.id)}
+return (
+  <box flexDirection="column" height={HEIGHT} flexShrink={0} overflow="hidden">
+    <box
+      flexDirection="row"
+      flexGrow={1}
+      overflow="hidden"
+      paddingTop={0}
+      paddingBottom={0}
+      paddingLeft={1}
+      paddingRight={1}
+    >
+      <For each={props.tabs}>
+        {(tab) => {
+          const isActive = () => tab.id === props.activeTabId
+          return (
+            <box
+              flexDirection="row"
+              flexShrink={0}
+              paddingLeft={1}
+              paddingRight={1}
+              paddingTop={0}
+              paddingBottom={0}
+              backgroundColor={isActive() ? theme.backgroundPanel : theme.backgroundElement}
+              onMouseUp={() => props.onTabClick(tab.id)}
+            >
+              <text
+                wrapMode="none"
+                fg={isActive() ? theme.primary : theme.textMuted}
+                attributes={isActive() ? TextAttributes.BOLD : undefined}
               >
+                {tab.type === "chat" ? `${icon("chat")} ` : `${icon("doc")} `}
+                {Locale.oneLine(tab.title, TITLE_MAX)}
+              </text>
+              <Show when={tab.closable}>
                 <text
                   wrapMode="none"
-                  fg={isActive() ? theme.primary : theme.textMuted}
-                  attributes={isActive() ? TextAttributes.BOLD : undefined}
+                  fg={theme.textMuted}
+                  paddingLeft={1}
+                  onMouseUp={(e) => {
+                    e.stopPropagation()
+                    props.onTabClose(tab.id)
+                  }}
                 >
-                  {tab.type === "chat" ? `${icon("chat")} ` : `${icon("doc")} `}
-                  {Locale.oneLine(tab.title, TITLE_MAX)}
+                  ✕
                 </text>
-                <Show when={tab.closable}>
-                  <text
-                    wrapMode="none"
-                    fg={theme.textMuted}
-                    paddingLeft={1}
-                    onMouseUp={(e) => {
-                      e.stopPropagation()
-                      props.onTabClose(tab.id)
-                    }}
-                  >
-                    ✕
-                  </text>
-                </Show>
-              </box>
-            )
-          }}
-        </For>
-      </box>
-      {/* 原 border={["bottom"]} 换成主题驱动的霓虹导轨 */}
-      <NeonRail stops={neonStops(theme)} />
+              </Show>
+            </box>
+          )
+        }}
+      </For>
     </box>
-  )
+    {/* 原 border={["bottom"]} 换成主题驱动的霓虹导轨 */}
+    <NeonRail stops={neonStops(theme)} />
+  </box>
+)
 ```
 
 - [ ] **Step 5: 跑测试确认通过**
@@ -815,36 +809,36 @@ import { neonStops } from "../../ui/neon"
 把错误块（:1915–1929）：
 
 ```tsx
-        <box
-          ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
-          border={["left"]}
-          paddingTop={1}
-          paddingBottom={1}
-          paddingLeft={2}
-          marginTop={1}
-          backgroundColor={theme.backgroundPanel}
-          customBorderChars={SplitBorder.customBorderChars}
-          borderColor={theme.error}
-        >
-          <text fg={theme.textMuted}>{errorMessage(props.message.error)}</text>
-        </box>
+<box
+  ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
+  border={["left"]}
+  paddingTop={1}
+  paddingBottom={1}
+  paddingLeft={2}
+  marginTop={1}
+  backgroundColor={theme.backgroundPanel}
+  customBorderChars={SplitBorder.customBorderChars}
+  borderColor={theme.error}
+>
+  <text fg={theme.textMuted}>{errorMessage(props.message.error)}</text>
+</box>
 ```
 
 替换为：
 
 ```tsx
-        <neonbox
-          ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
-          gradientStops={[theme.error]}
-          paddingTop={1}
-          paddingBottom={1}
-          paddingLeft={2}
-          paddingRight={1}
-          marginTop={1}
-          backgroundColor={theme.backgroundPanel}
-        >
-          <text fg={theme.textMuted}>{errorMessage(props.message.error)}</text>
-        </neonbox>
+<neonbox
+  ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
+  gradientStops={[theme.error]}
+  paddingTop={1}
+  paddingBottom={1}
+  paddingLeft={2}
+  paddingRight={1}
+  marginTop={1}
+  backgroundColor={theme.backgroundPanel}
+>
+  <text fg={theme.textMuted}>{errorMessage(props.message.error)}</text>
+</neonbox>
 ```
 
 - [ ] **Step 4: ReasoningPart 卡片化**
@@ -871,7 +865,9 @@ import { neonStops } from "../../ui/neon"
 对应地，把该块的闭合 `</box>`（:2055——其上一行是内容 `</Show>`，其下一行是外层 box 的 `</box>`，别改错成 :2056）改为 `</neonbox>`。:2030 的注释更新为：
 
 ```tsx
-        {/* crush 式思考块:紫青渐变描边卡片 + 第 2 级灰底,和工具输出同一套弱对比语言 */}
+{
+  /* crush 式思考块:紫青渐变描边卡片 + 第 2 级灰底,和工具输出同一套弱对比语言 */
+}
 ```
 
 - [ ] **Step 5: BlockTool 卡片化**
@@ -955,11 +951,11 @@ git commit -m "feat(tui): 会话消息卡片化（用户/错误/思考/工具折
 在 `packages/tui/test/util/anim-spinner.test.ts` 的 import 行追加 `animFramesCached`，并在 `describe("anim spinner 帧生成")` 末尾追加：
 
 ```ts
-  test("animFramesCached:同参数复用同一数组,宽度正确", () => {
-    expect(animFramesCached(24)).toBe(animFramesCached(24))
-    expect(animFramesCached(24)[0]).toHaveLength(24)
-    expect(animFramesCached(24)).toEqual(animFrames(24, 120))
-  })
+test("animFramesCached:同参数复用同一数组,宽度正确", () => {
+  expect(animFramesCached(24)).toBe(animFramesCached(24))
+  expect(animFramesCached(24)[0]).toHaveLength(24)
+  expect(animFramesCached(24)).toEqual(animFrames(24, 120))
+})
 ```
 
 - [ ] **Step 2: 跑测试确认失败**
@@ -1013,10 +1009,10 @@ export function WorkingSpinner(props: { children?: JSX.Element; width?: number }
 3c. `packages/tui/src/routes/session/index.tsx` 的 `WorkingLine`（~:2108）：
 
 ```tsx
-      <WorkingSpinner width={24}>
-        {props.thinking ? "思考中" : "正在回答"}
-        <span style={{ fg: theme.textMuted }}> · {Locale.duration(seconds() * 1000)}</span>
-      </WorkingSpinner>
+<WorkingSpinner width={24}>
+  {props.thinking ? "思考中" : "正在回答"}
+  <span style={{ fg: theme.textMuted }}> · {Locale.duration(seconds() * 1000)}</span>
+</WorkingSpinner>
 ```
 
 - [ ] **Step 4: 跑测试确认通过**
@@ -1044,9 +1040,9 @@ git commit -m "feat(tui): 工作指示乱码带支持加宽"
 在 `packages/tui/src/component/prompt/index.tsx` 的 `animationsEnabled` memo（:182）附近追加（该文件已有 `createSignal` 导入）：
 
 ```ts
-  // 聚焦态驱动输入框上方的流动霓虹导轨:on:focused/on:blurred 是 Renderable 的
-  // EventEmitter 事件,由 solid 的 on: 前缀接线。
-  const [promptFocused, setPromptFocused] = createSignal(false)
+// 聚焦态驱动输入框上方的流动霓虹导轨:on:focused/on:blurred 是 Renderable 的
+// EventEmitter 事件,由 solid 的 on: 前缀接线。
+const [promptFocused, setPromptFocused] = createSignal(false)
 ```
 
 - [ ] **Step 2: textarea 接焦点事件**
@@ -1063,9 +1059,9 @@ git commit -m "feat(tui): 工作指示乱码带支持加宽"
 在锚点 box（:1385 `<box ref={(r: BoxRenderable) => (anchor = r)} ...>`）内部、首行编辑器 row（:1388 `<box width="100%" flexDirection="row" paddingTop={1} ...>`）之前插入：
 
 ```tsx
-        <Show when={promptFocused()}>
-          <NeonRail stops={neonStops(theme)} animated />
-        </Show>
+<Show when={promptFocused()}>
+  <NeonRail stops={neonStops(theme)} animated />
+</Show>
 ```
 
 import 区追加：

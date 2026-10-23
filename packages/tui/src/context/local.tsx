@@ -259,9 +259,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         // 优先非内置提供商;仅当没有其它提供商时,内置实时模型也可作为最后兜底(排除 auto)
         const provider =
           sync.data.provider.find((item) => item.id !== "builtin") ??
-          sync.data.provider.find(
-            (item) => defaultSelectableModel(item, sync.data.provider_default) !== undefined,
-          )
+          sync.data.provider.find((item) => defaultSelectableModel(item, sync.data.provider_default) !== undefined)
         if (!provider) return undefined
         const model = defaultSelectableModel(provider, sync.data.provider_default)
         if (!model) return undefined
@@ -384,8 +382,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
             // 而不是回退到"最近使用"里残留的更早记录。
             if (value) {
               const manual = currentModel()
-              if (manual && !isAutoModel(manual.providerID, manual.modelID))
-                setModelStore("lastManual", { ...manual })
+              if (manual && !isAutoModel(manual.providerID, manual.modelID)) setModelStore("lastManual", { ...manual })
             } else {
               const manual = modelStore.lastManual
               if (manual) {

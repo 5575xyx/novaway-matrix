@@ -25,7 +25,8 @@ type Schedule = {
   scene: string
   prompt: string
   status: "active" | "paused"
-  nextRunAt: number
+  /** 服务端 schema 会把数字序列化成 number | "NaN" | "Infinity" ...，这里只用于展示。 */
+  nextRunAt: number | string
   trigger: TriggerInput | { type: string; [key: string]: unknown }
 }
 
@@ -41,7 +42,8 @@ const TEMPLATES: Template[] = [
   {
     id: "morning",
     title: "晨间动态",
-    description: "汇总上一个工作日以来的提交、模块变化、CI 状态和待跟进事项，生成不超过 6 条的摘要。只读分析，不改代码。",
+    description:
+      "汇总上一个工作日以来的提交、模块变化、CI 状态和待跟进事项，生成不超过 6 条的摘要。只读分析，不改代码。",
     prompt:
       "汇总自上一个工作日以来的 git 提交、变更模块、测试/CI 状态与待跟进事项。只做只读分析，不要修改任何文件。输出不超过 6 条的精简摘要。",
     trigger: { type: "daily", time: "09:00" },
@@ -72,19 +74,19 @@ const TEMPLATES: Template[] = [
   },
 ]
 
-const describeTrigger = (
-  trigger: Schedule["trigger"],
-  language: ReturnType<typeof useLanguage>,
-) => {
+const describeTrigger = (trigger: Schedule["trigger"], language: ReturnType<typeof useLanguage>) => {
   if (trigger.type === "daily") {
     return language.t("automation.trigger.daily" as never, { time: String(trigger.time) } as never)
   }
   if (trigger.type === "weekly") {
     const days = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
-    return language.t("automation.trigger.weekly" as never, {
-      day: days[(Number(trigger.dayOfWeek) || 1) - 1] ?? "周一",
-      time: String(trigger.time),
-    } as never)
+    return language.t(
+      "automation.trigger.weekly" as never,
+      {
+        day: days[(Number(trigger.dayOfWeek) || 1) - 1] ?? "周一",
+        time: String(trigger.time),
+      } as never,
+    )
   }
   if (trigger.type === "interval") {
     return language.t("automation.trigger.interval" as never, { minutes: Number(trigger.minutes) || 60 } as never)
@@ -125,24 +127,36 @@ export const AutomationPage: Component<{ onBack: () => void }> = (props) => {
 
   const schedules = useQuery(() => ({
     queryKey: ["automation", "schedules", directory()],
-    queryFn: () => client().office.platform.schedule.list().then((x) => x.data ?? []),
+    queryFn: () =>
+      client()
+        .office.platform.schedule.list()
+        .then((x) => x.data ?? []),
     refetchInterval: 30_000,
   }))
 
   const runs = useQuery(() => ({
     queryKey: ["automation", "runs", directory()],
-    queryFn: () => client().office.platform.run.list().then((x) => x.data ?? []),
+    queryFn: () =>
+      client()
+        .office.platform.run.list()
+        .then((x) => x.data ?? []),
     refetchInterval: 30_000,
   }))
 
   const workflows = useQuery(() => ({
     queryKey: ["automation", "workflows", directory()],
-    queryFn: () => client().office.platform.workflow.list().then((x) => x.data ?? []),
+    queryFn: () =>
+      client()
+        .office.platform.workflow.list()
+        .then((x) => x.data ?? []),
     refetchInterval: 60_000,
   }))
 
   const runWorkflow = useMutation(() => ({
-    mutationFn: (id: string) => client().office.platform.workflow.run({ id }).then((x) => x.data),
+    mutationFn: (id: string) =>
+      client()
+        .office.platform.workflow.run({ id })
+        .then((x) => x.data),
     onSuccess: async () => {
       await refresh()
       showToast({ variant: "success", icon: "circle-check", title: language.t("automation.toast.started" as never) })
@@ -158,7 +172,9 @@ export const AutomationPage: Component<{ onBack: () => void }> = (props) => {
 
   const create = useMutation(() => ({
     mutationFn: (input: { title: string; prompt: string; trigger: TriggerInput }) =>
-      client().office.platform.schedule.create({ ...input, scene: "automation" }).then((x) => x.data),
+      client()
+        .office.platform.schedule.create({ ...input, scene: "automation" })
+        .then((x) => x.data),
     onSuccess: async () => {
       await refresh()
       showToast({ variant: "success", icon: "circle-check", title: language.t("automation.toast.created" as never) })
@@ -180,7 +196,10 @@ export const AutomationPage: Component<{ onBack: () => void }> = (props) => {
   }))
 
   const runNow = useMutation(() => ({
-    mutationFn: (id: string) => client().office.platform.schedule.run({ id }).then((x) => x.data),
+    mutationFn: (id: string) =>
+      client()
+        .office.platform.schedule.run({ id })
+        .then((x) => x.data),
     onSuccess: async () => {
       await refresh()
       showToast({ variant: "success", icon: "circle-check", title: language.t("automation.toast.started" as never) })
@@ -188,7 +207,10 @@ export const AutomationPage: Component<{ onBack: () => void }> = (props) => {
   }))
 
   const remove = useMutation(() => ({
-    mutationFn: (id: string) => client().office.platform.schedule.delete({ id }).then((x) => x.data),
+    mutationFn: (id: string) =>
+      client()
+        .office.platform.schedule.delete({ id })
+        .then((x) => x.data),
     onSuccess: () => refresh(),
   }))
 
@@ -226,7 +248,11 @@ export const AutomationPage: Component<{ onBack: () => void }> = (props) => {
                     }}
                     onClick={() => setTab(value)}
                   >
-                    {language.t(value === "automation" ? ("automation.tab.automation" as never) : ("automation.tab.workflow" as never))}
+                    {language.t(
+                      value === "automation"
+                        ? ("automation.tab.automation" as never)
+                        : ("automation.tab.workflow" as never),
+                    )}
                   </button>
                 )}
               </For>
@@ -234,104 +260,111 @@ export const AutomationPage: Component<{ onBack: () => void }> = (props) => {
             <p class="text-13-regular text-foreground-subtle">{language.t("automation.subtitle" as never)}</p>
           </div>
           <Show when={tab() === "automation"}>
-          <Show
-            when={(schedules.data ?? []).length > 0}
-            fallback={
-              <div class="flex flex-col items-center justify-center gap-4 rounded-2xl border border-border px-6 py-24 text-center">
-                <span class="text-14-regular text-foreground-subtle">{language.t("automation.empty.title" as never)}</span>
-                <button
-                  type="button"
-                  class="flex h-9 items-center gap-2 rounded-lg bg-foreground px-3.5 text-13-medium text-background transition-opacity hover:opacity-90"
-                  onClick={() => openCreate()}
-                >
-                  {language.t("automation.create" as never)}
-                </button>
-              </div>
-            }
-          >
-            <div class="flex flex-col gap-2">
-              <div class="flex items-center justify-end">
-                <button
-                  type="button"
-                  class="flex h-9 items-center gap-2 rounded-lg bg-foreground px-3.5 text-13-medium text-background transition-opacity hover:opacity-90"
-                  onClick={() => openCreate()}
-                >
-                  <Icon name="plus-small" size="small" />
-                  {language.t("automation.create" as never)}
-                </button>
-              </div>
-              <For each={schedules.data ?? []}>
-                {(item) => (
-                  <div class="flex min-w-0 items-start gap-3 rounded-xl border border-border px-4 py-3.5">
-                    <span class="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-surface">
-                      <Icon name="autopilot" class="size-4.5 text-foreground-subtle" />
-                    </span>
-                    <div class="flex min-w-0 flex-1 flex-col gap-1">
-                      <div class="flex min-w-0 flex-wrap items-center gap-2">
-                        <span class="truncate text-14-medium text-foreground">{item.title}</span>
-                        <Tag>{describeTrigger(item.trigger as TriggerInput, language)}</Tag>
-                        <Show when={item.status === "paused"}>
-                          <Tag>{language.t("automation.status.paused" as never)}</Tag>
-                        </Show>
-                      </div>
-                      <span class="line-clamp-2 text-13-regular leading-6 text-foreground-subtle">{item.prompt}</span>
-                      <span class="text-12-regular text-foreground-subtlest">
-                        {language.t("automation.nextRun" as never)} · {formatNext(Number(item.nextRunAt) || Date.now())}
-                      </span>
-                    </div>
-                    <div class="flex shrink-0 items-center gap-1">
-                      <IconButton
-                        icon="play"
-                        variant="ghost"
-                        aria-label={language.t("automation.runNow" as never)}
-                        disabled={runNow.isPending}
-                        onClick={() => runNow.mutate(item.id)}
-                      />
-                      <IconButton
-                        icon={item.status === "active" ? "stop" : "check"}
-                        variant="ghost"
-                        aria-label={language.t("automation.toggle" as never)}
-                        onClick={() => toggle.mutate(item)}
-                      />
-                      <IconButton
-                        icon="trash"
-                        variant="ghost"
-                        aria-label={language.t("common.delete")}
-                        onClick={() => remove.mutate(item.id)}
-                      />
-                    </div>
-                  </div>
-                )}
-              </For>
-            </div>
-          </Show>
-
-          <div class="flex flex-col gap-2">
-            <h3 class="text-14-medium text-foreground">{language.t("automation.templates" as never)}</h3>
-            <div class="grid grid-cols-1 gap-2 md:grid-cols-2">
-              <For each={TEMPLATES}>
-                {(template) => (
+            <Show
+              when={(schedules.data ?? []).length > 0}
+              fallback={
+                <div class="flex flex-col items-center justify-center gap-4 rounded-2xl border border-border px-6 py-24 text-center">
+                  <span class="text-14-regular text-foreground-subtle">
+                    {language.t("automation.empty.title" as never)}
+                  </span>
                   <button
                     type="button"
-                    class="flex flex-col items-start gap-2 rounded-xl border border-border px-4 py-3.5 text-left transition-colors hover:border-border-hover"
-                    onClick={() => openCreate(template)}
+                    class="flex h-9 items-center gap-2 rounded-lg bg-foreground px-3.5 text-13-medium text-background transition-opacity hover:opacity-90"
+                    onClick={() => openCreate()}
                   >
-                    <div class="flex items-center gap-2">
-                      <Icon name="autopilot" size="small" class="text-foreground-subtle" />
-                      <span class="text-14-medium text-foreground">{template.title}</span>
-                    </div>
-                    <span class="line-clamp-2 text-13-regular leading-6 text-foreground-subtle">
-                      {template.description}
-                    </span>
-                    <span class="text-12-regular text-foreground-subtlest">
-                      {describeTrigger(template.trigger, language)}
-                    </span>
+                    {language.t("automation.create" as never)}
                   </button>
-                )}
-              </For>
-            </div>
-          </div>
+                </div>
+              }
+            >
+              <div class="flex flex-col gap-2">
+                <div class="flex items-center justify-end">
+                  <button
+                    type="button"
+                    class="flex h-9 items-center gap-2 rounded-lg bg-foreground px-3.5 text-13-medium text-background transition-opacity hover:opacity-90"
+                    onClick={() => openCreate()}
+                  >
+                    <Icon name="plus-small" size="small" />
+                    {language.t("automation.create" as never)}
+                  </button>
+                </div>
+                <For each={schedules.data ?? []}>
+                  {(item) => (
+                    <div class="flex min-w-0 items-start gap-3 rounded-xl border border-border bg-surface/30 px-4 py-3.5 transition-colors hover:border-border-hover hover:bg-surface/60">
+                      <span class="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-surface">
+                        <Icon name="autopilot" class="size-4.5 text-foreground-subtle" />
+                      </span>
+                      <div class="flex min-w-0 flex-1 flex-col gap-1">
+                        <div class="flex min-w-0 flex-wrap items-center gap-2">
+                          <span class="truncate text-14-medium text-foreground">{item.title}</span>
+                          <Tag>{describeTrigger(item.trigger as TriggerInput, language)}</Tag>
+                          <Show when={item.status === "paused"}>
+                            <Tag>{language.t("automation.status.paused" as never)}</Tag>
+                          </Show>
+                        </div>
+                        <span class="line-clamp-2 text-13-regular leading-6 text-foreground-subtle">{item.prompt}</span>
+                        <span class="text-12-regular text-foreground-subtlest">
+                          {language.t("automation.nextRun" as never)} ·{" "}
+                          {formatNext(Number(item.nextRunAt) || Date.now())}
+                        </span>
+                      </div>
+                      <div class="flex shrink-0 items-center gap-1">
+                        <IconButton
+                          icon="play"
+                          variant="ghost"
+                          aria-label={language.t("automation.runNow" as never)}
+                          disabled={runNow.isPending}
+                          onClick={() => runNow.mutate(item.id)}
+                        />
+                        <IconButton
+                          icon={item.status === "active" ? "stop" : "check"}
+                          variant="ghost"
+                          aria-label={language.t("automation.toggle" as never)}
+                          onClick={() => toggle.mutate(item)}
+                        />
+                        <IconButton
+                          icon="trash"
+                          variant="ghost"
+                          aria-label={language.t("common.delete")}
+                          onClick={() => remove.mutate(item.id)}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </For>
+              </div>
+            </Show>
 
+            <div class="flex flex-col gap-2">
+              <h3 class="text-14-medium text-foreground">{language.t("automation.templates" as never)}</h3>
+              <div class="grid grid-cols-1 gap-2 md:grid-cols-2">
+                <For each={TEMPLATES}>
+                  {(template) => (
+                    <button
+                      type="button"
+                      class="flex flex-col items-start gap-2 rounded-xl border border-border bg-surface/30 px-4 py-3.5 text-left transition-colors hover:border-border-hover hover:bg-surface/60"
+                      onClick={() => openCreate(template)}
+                    >
+                      <div class="flex items-center gap-2">
+                        <span
+                          class="grid size-6 place-items-center rounded-md"
+                          style={{ color: "#f59e0b", background: "color-mix(in srgb, #f59e0b 16%, transparent)" }}
+                        >
+                          <Icon name="autopilot" size="small" />
+                        </span>
+                        <span class="text-14-medium text-foreground">{template.title}</span>
+                      </div>
+                      <span class="line-clamp-2 text-13-regular leading-6 text-foreground-subtle">
+                        {template.description}
+                      </span>
+                      <span class="text-12-regular text-foreground-subtlest">
+                        {describeTrigger(template.trigger, language)}
+                      </span>
+                    </button>
+                  )}
+                </For>
+              </div>
+            </div>
           </Show>
 
           {/* 工作流：从会话保存下来的可复用提示词。 */}
@@ -403,9 +436,7 @@ export const AutomationPage: Component<{ onBack: () => void }> = (props) => {
                       <span class="min-w-0 flex-1 truncate text-foreground-subtle">
                         {(run.logs ?? []).at(-1) ?? run.id}
                       </span>
-                      <span class="shrink-0 text-foreground-subtlest">
-                        {formatNext(Number(run.startedAt) || 0)}
-                      </span>
+                      <span class="shrink-0 text-foreground-subtlest">{formatNext(Number(run.startedAt) || 0)}</span>
                     </div>
                   )}
                 </For>
@@ -428,7 +459,9 @@ const AutomationDialog: Component<{
   const dialog = useDialog()
   const [title, setTitle] = createSignal(props.template?.title ?? "")
   const [prompt, setPrompt] = createSignal(props.template?.prompt ?? "")
-  const [kind, setKind] = createSignal<"daily" | "weekly" | "interval">(props.template?.trigger.type === "weekly" ? "weekly" : "daily")
+  const [kind, setKind] = createSignal<"daily" | "weekly" | "interval">(
+    props.template?.trigger.type === "weekly" ? "weekly" : "daily",
+  )
   const [time, setTime] = createSignal(
     props.template?.trigger.type === "daily" || props.template?.trigger.type === "weekly"
       ? props.template.trigger.time

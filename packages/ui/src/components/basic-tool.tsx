@@ -255,8 +255,7 @@ export function BasicTool(props: BasicToolProps) {
     return props.showStatus ? i18n.t("ui.tool.status.completed") : undefined
   }
 
-  const statusTone = () =>
-    props.status === "error" ? "error" : pending() ? "active" : "idle"
+  const statusTone = () => (props.status === "error" ? "error" : pending() ? "active" : "idle")
 
   let cancelReady: (() => void) | undefined
 

@@ -38,6 +38,21 @@ import type {
   ConfigProvidersResponses,
   ConfigUpdateErrors,
   ConfigUpdateResponses,
+  DatabaseColumnsErrors,
+  DatabaseColumnsResponses,
+  DatabaseConnectionInput,
+  DatabaseListErrors,
+  DatabaseListResponses,
+  DatabaseQueryErrors,
+  DatabaseQueryResponses,
+  DatabaseRemoveConnectionErrors,
+  DatabaseRemoveConnectionResponses,
+  DatabaseSaveErrors,
+  DatabaseSaveResponses,
+  DatabaseTablesErrors,
+  DatabaseTablesResponses,
+  DatabaseTestConnectionErrors,
+  DatabaseTestConnectionResponses,
   EventSubscribeResponses,
   EventTuiCommandExecute2,
   EventTuiPromptAppend2,
@@ -80,6 +95,17 @@ import type {
   ExperimentalWorkspaceSyncListResponses,
   ExperimentalWorkspaceWarpErrors,
   ExperimentalWorkspaceWarpResponses,
+  ExtensionContributionsResponses,
+  ExtensionIntegrityResponses,
+  ExtensionListResponses,
+  ExtensionMarketplaceCatalogResponses,
+  ExtensionMarketplaceInstallErrors,
+  ExtensionMarketplaceInstallResponses,
+  ExtensionMarketplaceUninstallErrors,
+  ExtensionMarketplaceUninstallResponses,
+  ExtensionReloadResponses,
+  ExtensionToggleErrors,
+  ExtensionToggleResponses,
   FileListResponses,
   FilePartInput,
   FilePartSource,
@@ -94,10 +120,16 @@ import type {
   GitAddResponses,
   GitBranchErrors,
   GitBranchResponses,
+  GitCommitDetailErrors,
+  GitCommitDetailResponses,
   GitCommitErrors,
   GitCommitResponses,
   GitDiscardErrors,
   GitDiscardResponses,
+  GitFetchErrors,
+  GitFetchResponses,
+  GitMergeErrors,
+  GitMergeResponses,
   GitPullErrors,
   GitPullResponses,
   GitPushErrors,
@@ -130,10 +162,108 @@ import type {
   GoalListGoalsResponses,
   GoalUpdateGoalErrors,
   GoalUpdateGoalResponses,
+  HookActiveResponses,
+  HookListResponses,
   ImageGeneratePayload,
   ImagesGenerateErrors,
   ImagesGenerateResponses,
   InstanceDisposeResponses,
+  KernelCapabilitiesResponses,
+  KnowledgeAddDocumentErrors,
+  KnowledgeAddDocumentResponses,
+  KnowledgeBulkRemoveDocumentsErrors,
+  KnowledgeBulkRemoveDocumentsResponses,
+  KnowledgeCancelImportJobResponses,
+  KnowledgeCancelOcrInstallResponses,
+  KnowledgeClearEvalHistoryErrors,
+  KnowledgeClearEvalHistoryResponses,
+  KnowledgeClearQueriesResponses,
+  KnowledgeCollectionsErrors,
+  KnowledgeCollectionsResponses,
+  KnowledgeCreateCollectionErrors,
+  KnowledgeCreateCollectionResponses,
+  KnowledgeDocumentChunksErrors,
+  KnowledgeDocumentChunksResponses,
+  KnowledgeDocumentErrors,
+  KnowledgeDocumentResponses,
+  KnowledgeDocumentsErrors,
+  KnowledgeDocumentsPageErrors,
+  KnowledgeDocumentsPageResponses,
+  KnowledgeDocumentsResponses,
+  KnowledgeEmbeddingResponses,
+  KnowledgeEmptyTrashResponses,
+  KnowledgeEvalDiffErrors,
+  KnowledgeEvalDiffResponses,
+  KnowledgeEvalHistoryErrors,
+  KnowledgeEvalHistoryResponses,
+  KnowledgeEvalReportErrors,
+  KnowledgeEvalReportResponses,
+  KnowledgeEvalRunErrors,
+  KnowledgeEvalRunResponses,
+  KnowledgeEvalSuggestErrors,
+  KnowledgeEvalSuggestResponses,
+  KnowledgeExportErrors,
+  KnowledgeExportLibraryErrors,
+  KnowledgeExportLibraryResponses,
+  KnowledgeExportResponses,
+  KnowledgeGraphErrors,
+  KnowledgeGraphResponses,
+  KnowledgeImportErrors,
+  KnowledgeImportJobResponses,
+  KnowledgeImportJobsResponses,
+  KnowledgeImportLibraryErrors,
+  KnowledgeImportLibraryResponses,
+  KnowledgeImportResponses,
+  KnowledgeIntegrityErrors,
+  KnowledgeIntegrityResponses,
+  KnowledgeLibraryExport,
+  KnowledgeListEvalCasesErrors,
+  KnowledgeListEvalCasesResponses,
+  KnowledgeListTrashResponses,
+  KnowledgeMoveDocumentsErrors,
+  KnowledgeMoveDocumentsResponses,
+  KnowledgeOcrInstallErrors,
+  KnowledgeOcrInstallJobErrors,
+  KnowledgeOcrInstallJobResponses,
+  KnowledgeOcrInstallResponses,
+  KnowledgeOcrResponses,
+  KnowledgeOverviewErrors,
+  KnowledgeOverviewResponses,
+  KnowledgeRecentQueriesErrors,
+  KnowledgeRecentQueriesResponses,
+  KnowledgeReindexErrors,
+  KnowledgeReindexResponses,
+  KnowledgeRelatedErrors,
+  KnowledgeRelatedResponses,
+  KnowledgeRemoveCollectionErrors,
+  KnowledgeRemoveCollectionResponses,
+  KnowledgeRemoveDocumentErrors,
+  KnowledgeRemoveDocumentResponses,
+  KnowledgeRemoveEvalCaseErrors,
+  KnowledgeRemoveEvalCaseResponses,
+  KnowledgeRepairIntegrityErrors,
+  KnowledgeRepairIntegrityResponses,
+  KnowledgeRestoreErrors,
+  KnowledgeRestoreResponses,
+  KnowledgeRestoreTrashErrors,
+  KnowledgeRestoreTrashResponses,
+  KnowledgeSaveEvalCaseErrors,
+  KnowledgeSaveEvalCaseResponses,
+  KnowledgeSearchErrors,
+  KnowledgeSearchResponses,
+  KnowledgeSessionMount2Errors,
+  KnowledgeSessionMount2Responses,
+  KnowledgeSessionMountErrors,
+  KnowledgeSessionMountResponses,
+  KnowledgeStatsErrors,
+  KnowledgeStatsResponses,
+  KnowledgeTemplatesResponses,
+  KnowledgeUpdateCollectionErrors,
+  KnowledgeUpdateCollectionResponses,
+  KnowledgeUpdateDocumentErrors,
+  KnowledgeUpdateDocumentResponses,
+  KnowledgeUploadErrors,
+  KnowledgeUploadResponses,
   LspStatusResponses,
   McpAddErrors,
   McpAddResponses,
@@ -258,6 +388,7 @@ import type {
   PartUpdateResponses,
   PathGetResponses,
   PermissionListResponses,
+  PermissionMode,
   PermissionReplyErrors,
   PermissionReplyResponses,
   PermissionRespondErrors,
@@ -302,6 +433,10 @@ import type {
   QuestionReplyResponses,
   SessionAbortErrors,
   SessionAbortResponses,
+  SessionBackgroundCancelErrors,
+  SessionBackgroundCancelResponses,
+  SessionBackgroundErrors,
+  SessionBackgroundResponses,
   SessionChildrenErrors,
   SessionChildrenResponses,
   SessionCommandErrors,
@@ -325,6 +460,10 @@ import type {
   SessionMessageResponses,
   SessionMessagesErrors,
   SessionMessagesResponses,
+  SessionPlanApprovalListErrors,
+  SessionPlanApprovalListResponses,
+  SessionPlanApprovalReplyErrors,
+  SessionPlanApprovalReplyResponses,
   SessionPromptAsyncErrors,
   SessionPromptAsyncResponses,
   SessionPromptErrors,
@@ -341,6 +480,10 @@ import type {
   SessionStatusResponses,
   SessionSummarizeErrors,
   SessionSummarizeResponses,
+  SessionTempFilesCleanErrors,
+  SessionTempFilesCleanResponses,
+  SessionTempFilesListErrors,
+  SessionTempFilesListResponses,
   SessionTodoErrors,
   SessionTodoResponses,
   SessionUnrevertErrors,
@@ -379,6 +522,9 @@ import type {
   SyncStartResponses,
   SyncStealErrors,
   SyncStealResponses,
+  TeamMessageErrors,
+  TeamMessageResponses,
+  TeamOverviewResponses,
   TextPartInput,
   ToolCallErrors,
   ToolCallPayload,
@@ -1944,6 +2090,8 @@ export class Evolution extends HeyApiClient {
   public updateCandidate<ThrowOnError extends boolean = false>(
     parameters: {
       candidateID: string
+      directory?: string
+      workspace?: string
       evolutionCandidateUpdate?: EvolutionCandidateUpdate
     },
     options?: Options<never, ThrowOnError>,
@@ -1954,6 +2102,8 @@ export class Evolution extends HeyApiClient {
         {
           args: [
             { in: "path", key: "candidateID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
             { key: "evolutionCandidateUpdate", map: "body" },
           ],
         },
@@ -2040,10 +2190,23 @@ export class Evolution extends HeyApiClient {
   public applyCandidate<ThrowOnError extends boolean = false>(
     parameters: {
       candidateID: string
+      directory?: string
+      workspace?: string
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "candidateID" }] }])
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "candidateID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).post<
       EvolutionApplyCandidateResponses,
       EvolutionApplyCandidateErrors,
@@ -2089,10 +2252,23 @@ export class Evolution extends HeyApiClient {
   public dismissCandidate<ThrowOnError extends boolean = false>(
     parameters: {
       candidateID: string
+      directory?: string
+      workspace?: string
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "candidateID" }] }])
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "candidateID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).post<
       EvolutionDismissCandidateResponses,
       EvolutionDismissCandidateErrors,
@@ -2101,6 +2277,288 @@ export class Evolution extends HeyApiClient {
       url: "/evolution/candidate/{candidateID}/dismiss",
       ...options,
       ...params,
+    })
+  }
+}
+
+export class Extension extends HeyApiClient {
+  /**
+   * List extensions
+   *
+   * List installed NovaWay and Claude compatible extensions.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ExtensionListResponses, unknown, ThrowOnError>({
+      url: "/extension",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * List extension contributions
+   *
+   * List commands, agents, skills, hooks, MCP servers and tools contributed by extensions.
+   */
+  public contributions<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ExtensionContributionsResponses, unknown, ThrowOnError>({
+      url: "/extension/contributions",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * List marketplace packages
+   *
+   * Return installed marketplace packages plus the remote ZCode and Claude catalogs.
+   */
+  public marketplaceCatalog<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ExtensionMarketplaceCatalogResponses, unknown, ThrowOnError>({
+      url: "/extension/marketplace",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Install a marketplace package
+   *
+   * Download and extract a zip package, or shallow-clone a git package, then register it with the extension loader.
+   */
+  public marketplaceInstall<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      kind?: "zip" | "git"
+      name?: string
+      url?: string
+      version?: string
+      sha256?: string
+      ref?: string
+      subdir?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "kind" },
+            { in: "body", key: "name" },
+            { in: "body", key: "url" },
+            { in: "body", key: "version" },
+            { in: "body", key: "sha256" },
+            { in: "body", key: "ref" },
+            { in: "body", key: "subdir" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ExtensionMarketplaceInstallResponses,
+      ExtensionMarketplaceInstallErrors,
+      ThrowOnError
+    >({
+      url: "/extension/marketplace/install",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Uninstall a marketplace package
+   *
+   * Remove an installed marketplace package and refresh the extension registry.
+   */
+  public marketplaceUninstall<ThrowOnError extends boolean = false>(
+    parameters: {
+      name: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "name" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      ExtensionMarketplaceUninstallResponses,
+      ExtensionMarketplaceUninstallErrors,
+      ThrowOnError
+    >({
+      url: "/extension/marketplace/{name}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get extension fingerprint
+   *
+   * Compute a content fingerprint for an installed extension (files, bytes, hash).
+   */
+  public integrity<ThrowOnError extends boolean = false>(
+    parameters: {
+      name: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "name" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ExtensionIntegrityResponses, unknown, ThrowOnError>({
+      url: "/extension/{name}/integrity",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Reload extensions
+   *
+   * Rescan extension directories and refresh the contribution registry.
+   */
+  public reload<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<ExtensionReloadResponses, unknown, ThrowOnError>({
+      url: "/extension/reload",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Enable or disable an extension
+   *
+   * Toggle an extension without removing its files.
+   */
+  public toggle<ThrowOnError extends boolean = false>(
+    parameters: {
+      name: string
+      directory?: string
+      workspace?: string
+      enabled?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "name" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "enabled" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<ExtensionToggleResponses, ExtensionToggleErrors, ThrowOnError>({
+      url: "/extension/{name}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
     })
   }
 }
@@ -2338,6 +2796,40 @@ export class File extends HeyApiClient {
     )
     return (options?.client ?? this.client).get<FileStatusResponses, unknown, ThrowOnError>({
       url: "/file/status",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Commit extends HeyApiClient {
+  /**
+   * Commit detail
+   *
+   * Full message, author, parents and changed files of a commit.
+   */
+  public detail<ThrowOnError extends boolean = false>(
+    parameters: {
+      hash: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "hash" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<GitCommitDetailResponses, GitCommitDetailErrors, ThrowOnError>({
+      url: "/git/commit/{hash}",
       ...options,
       ...params,
     })
@@ -2584,6 +3076,75 @@ export class Git extends HeyApiClient {
   }
 
   /**
+   * Fetch
+   *
+   * Fetch all remotes with prune.
+   */
+  public fetch<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<GitFetchResponses, GitFetchErrors, ThrowOnError>({
+      url: "/git/fetch",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Merge branch
+   *
+   * Merge the given ref into the current branch.
+   */
+  public merge<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      ref?: string
+      noFastForward?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "ref" },
+            { in: "body", key: "noFastForward" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<GitMergeResponses, GitMergeErrors, ThrowOnError>({
+      url: "/git/merge",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
    * Stash or pop
    *
    * Stash the current changes, or pop the stash entry identified by ref.
@@ -2703,6 +3264,73 @@ export class Git extends HeyApiClient {
       },
     })
   }
+
+  private _commit?: Commit
+  get commit2(): Commit {
+    return (this._commit ??= new Commit({ client: this.client }))
+  }
+}
+
+export class Hook extends HeyApiClient {
+  /**
+   * List active hooks
+   *
+   * List the JSON/extension hooks currently registered for this workspace.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<HookListResponses, unknown, ThrowOnError>({
+      url: "/hook",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * List running hooks
+   *
+   * Hooks that declared a statusMessage and are currently executing.
+   */
+  public active<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<HookActiveResponses, unknown, ThrowOnError>({
+      url: "/hook/active",
+      ...options,
+      ...params,
+    })
+  }
 }
 
 export class Images extends HeyApiClient {
@@ -2741,6 +3369,2029 @@ export class Images extends HeyApiClient {
         ...params.headers,
       },
     })
+  }
+}
+
+export class Database extends HeyApiClient {
+  /**
+   * List database connections
+   *
+   * Saved connections. Passwords are never returned; use hasPassword to tell whether one is stored.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<DatabaseListResponses, DatabaseListErrors, ThrowOnError>({
+      url: "/database",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create or update a connection
+   *
+   * Same name updates the existing connection. Omit password to keep the stored one.
+   */
+  public save<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      databaseConnectionInput?: DatabaseConnectionInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { key: "databaseConnectionInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<DatabaseSaveResponses, DatabaseSaveErrors, ThrowOnError>({
+      url: "/database",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public removeConnection<ThrowOnError extends boolean = false>(
+    parameters: {
+      connectionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "connectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      DatabaseRemoveConnectionResponses,
+      DatabaseRemoveConnectionErrors,
+      ThrowOnError
+    >({
+      url: "/database/connections/{connectionID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  public testConnection<ThrowOnError extends boolean = false>(
+    parameters: {
+      connectionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "connectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      DatabaseTestConnectionResponses,
+      DatabaseTestConnectionErrors,
+      ThrowOnError
+    >({
+      url: "/database/connections/{connectionID}/test",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Run SQL
+   *
+   * Structured rows with pagination. SELECT statements without LIMIT are wrapped in a LIMIT/OFFSET subquery.
+   */
+  public query<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      connectionID?: string
+      sql?: string
+      limit?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      offset?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      database?: string
+      readOnly?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "connectionID" },
+            { in: "body", key: "sql" },
+            { in: "body", key: "limit" },
+            { in: "body", key: "offset" },
+            { in: "body", key: "database" },
+            { in: "body", key: "readOnly" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<DatabaseQueryResponses, DatabaseQueryErrors, ThrowOnError>({
+      url: "/database/query",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public tables<ThrowOnError extends boolean = false>(
+    parameters: {
+      connectionID: string
+      directory?: string
+      workspace?: string
+      database?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "connectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "database" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<DatabaseTablesResponses, DatabaseTablesErrors, ThrowOnError>({
+      url: "/database/connections/{connectionID}/tables",
+      ...options,
+      ...params,
+    })
+  }
+
+  public columns<ThrowOnError extends boolean = false>(
+    parameters: {
+      connectionID: string
+      table: string
+      directory?: string
+      workspace?: string
+      database?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "connectionID" },
+            { in: "path", key: "table" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "database" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<DatabaseColumnsResponses, DatabaseColumnsErrors, ThrowOnError>({
+      url: "/database/connections/{connectionID}/tables/{table}/columns",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Ocr extends HeyApiClient {
+  /**
+   * Install RapidOCR
+   *
+   * Install RapidOCR into an isolated venv under the NovaWay data directory. Runs in the background; poll the job for progress.
+   */
+  public install<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      reinstall?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "reinstall" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<KnowledgeOcrInstallResponses, KnowledgeOcrInstallErrors, ThrowOnError>(
+      {
+        url: "/knowledge/ocr/install",
+        ...options,
+        ...params,
+        headers: {
+          "Content-Type": "application/json",
+          ...options?.headers,
+          ...params.headers,
+        },
+      },
+    )
+  }
+}
+
+export class Eval extends HeyApiClient {
+  /**
+   * Run retrieval evaluation
+   *
+   * Score every saved case against the current retrieval pipeline.
+   */
+  public run<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+      k?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "k" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<KnowledgeEvalRunResponses, KnowledgeEvalRunErrors, ThrowOnError>({
+      url: "/knowledge/collections/{collectionID}/eval/run",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Suggest retrieval eval cases
+   *
+   * Generate baseline cases from the collection documents (title or distinctive terms). Apply them to seed the eval list.
+   */
+  public suggest<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+      apply?: boolean
+      limit?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "apply" },
+            { in: "body", key: "limit" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      KnowledgeEvalSuggestResponses,
+      KnowledgeEvalSuggestErrors,
+      ThrowOnError
+    >({
+      url: "/knowledge/collections/{collectionID}/eval/suggest",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Evaluation history
+   *
+   * Recent evaluation runs, oldest first. Compare runs to see whether retrieval changes helped.
+   */
+  public history<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      KnowledgeEvalHistoryResponses,
+      KnowledgeEvalHistoryErrors,
+      ThrowOnError
+    >({
+      url: "/knowledge/collections/{collectionID}/eval/history",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Compare two evaluation runs
+   *
+   * Case-level diff. Defaults to the two most recent runs with the same k; pass from/to run ids to compare specific runs.
+   */
+  public diff<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+      from?: string
+      to?: string
+      k?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "from" },
+            { in: "query", key: "to" },
+            { in: "query", key: "k" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<KnowledgeEvalDiffResponses, KnowledgeEvalDiffErrors, ThrowOnError>({
+      url: "/knowledge/collections/{collectionID}/eval/diff",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Export evaluation report
+   *
+   * Markdown report with metrics, trend, case-level changes and per-case ranks.
+   */
+  public report<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+      k?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "k" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<KnowledgeEvalReportResponses, KnowledgeEvalReportErrors, ThrowOnError>({
+      url: "/knowledge/collections/{collectionID}/eval/report",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Session2 extends HeyApiClient {
+  /**
+   * Mount collections to a session
+   *
+   * Restrict a session knowledge search to the given collections. Empty clears the mount.
+   */
+  public mount<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      collectionIDs?: Array<string>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "collectionIDs" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).put<
+      KnowledgeSessionMount2Responses,
+      KnowledgeSessionMount2Errors,
+      ThrowOnError
+    >({
+      url: "/knowledge/session/{sessionID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Knowledge extends HeyApiClient {
+  public overview<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<KnowledgeOverviewResponses, KnowledgeOverviewErrors, ThrowOnError>({
+      url: "/knowledge/overview",
+      ...options,
+      ...params,
+    })
+  }
+
+  public clearQueries<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<KnowledgeClearQueriesResponses, unknown, ThrowOnError>({
+      url: "/knowledge/collections/{collectionID}/queries",
+      ...options,
+      ...params,
+    })
+  }
+
+  public recentQueries<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      KnowledgeRecentQueriesResponses,
+      KnowledgeRecentQueriesErrors,
+      ThrowOnError
+    >({
+      url: "/knowledge/collections/{collectionID}/queries",
+      ...options,
+      ...params,
+    })
+  }
+
+  public importJobs<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<KnowledgeImportJobsResponses, unknown, ThrowOnError>({
+      url: "/knowledge/collections/{collectionID}/imports",
+      ...options,
+      ...params,
+    })
+  }
+
+  public cancelImportJob<ThrowOnError extends boolean = false>(
+    parameters: {
+      jobID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "jobID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<KnowledgeCancelImportJobResponses, unknown, ThrowOnError>({
+      url: "/knowledge/imports/{jobID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  public importJob<ThrowOnError extends boolean = false>(
+    parameters: {
+      jobID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "jobID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<KnowledgeImportJobResponses, unknown, ThrowOnError>({
+      url: "/knowledge/imports/{jobID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  public documentsPage<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+      q?: string
+      sort?: "updated" | "created" | "title"
+      limit?: string
+      offset?: string
+      searchContent?: "true" | "false"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "q" },
+            { in: "query", key: "sort" },
+            { in: "query", key: "limit" },
+            { in: "query", key: "offset" },
+            { in: "query", key: "searchContent" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      KnowledgeDocumentsPageResponses,
+      KnowledgeDocumentsPageErrors,
+      ThrowOnError
+    >({
+      url: "/knowledge/collections/{collectionID}/documents/page",
+      ...options,
+      ...params,
+    })
+  }
+
+  public bulkRemoveDocuments<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+      ids?: Array<string>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "ids" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      KnowledgeBulkRemoveDocumentsResponses,
+      KnowledgeBulkRemoveDocumentsErrors,
+      ThrowOnError
+    >({
+      url: "/knowledge/collections/{collectionID}/documents/bulk-remove",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public emptyTrash<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<KnowledgeEmptyTrashResponses, unknown, ThrowOnError>({
+      url: "/knowledge/collections/{collectionID}/trash",
+      ...options,
+      ...params,
+    })
+  }
+
+  public listTrash<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<KnowledgeListTrashResponses, unknown, ThrowOnError>({
+      url: "/knowledge/collections/{collectionID}/trash",
+      ...options,
+      ...params,
+    })
+  }
+
+  public restoreTrash<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      documentID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "path", key: "documentID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      KnowledgeRestoreTrashResponses,
+      KnowledgeRestoreTrashErrors,
+      ThrowOnError
+    >({
+      url: "/knowledge/collections/{collectionID}/trash/{documentID}/restore",
+      ...options,
+      ...params,
+    })
+  }
+
+  public moveDocuments<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      from?: string
+      to?: string
+      ids?: Array<string>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "from" },
+            { in: "body", key: "to" },
+            { in: "body", key: "ids" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      KnowledgeMoveDocumentsResponses,
+      KnowledgeMoveDocumentsErrors,
+      ThrowOnError
+    >({
+      url: "/knowledge/documents/move",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public integrity<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<KnowledgeIntegrityResponses, KnowledgeIntegrityErrors, ThrowOnError>({
+      url: "/knowledge/integrity",
+      ...options,
+      ...params,
+    })
+  }
+
+  public repairIntegrity<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      KnowledgeRepairIntegrityResponses,
+      KnowledgeRepairIntegrityErrors,
+      ThrowOnError
+    >({
+      url: "/knowledge/integrity/repair",
+      ...options,
+      ...params,
+    })
+  }
+
+  public exportLibrary<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      KnowledgeExportLibraryResponses,
+      KnowledgeExportLibraryErrors,
+      ThrowOnError
+    >({
+      url: "/knowledge/library/export",
+      ...options,
+      ...params,
+    })
+  }
+
+  public importLibrary<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      knowledgeLibraryExport?: KnowledgeLibraryExport
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { key: "knowledgeLibraryExport", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      KnowledgeImportLibraryResponses,
+      KnowledgeImportLibraryErrors,
+      ThrowOnError
+    >({
+      url: "/knowledge/library/import",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public documentChunks<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      documentID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "path", key: "documentID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      KnowledgeDocumentChunksResponses,
+      KnowledgeDocumentChunksErrors,
+      ThrowOnError
+    >({
+      url: "/knowledge/collections/{collectionID}/documents/{documentID}/chunks",
+      ...options,
+      ...params,
+    })
+  }
+
+  public templates<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<KnowledgeTemplatesResponses, unknown, ThrowOnError>({
+      url: "/knowledge/templates",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * List knowledge collections
+   *
+   * List local knowledge base collections with document counts.
+   */
+  public collections<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      KnowledgeCollectionsResponses,
+      KnowledgeCollectionsErrors,
+      ThrowOnError
+    >({
+      url: "/knowledge/collections",
+      ...options,
+      ...params,
+    })
+  }
+
+  public createCollection<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      name?: string
+      description?: string
+      scope?: "global" | "project"
+      readOnly?: boolean
+      template?: string
+      sample?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "name" },
+            { in: "body", key: "description" },
+            { in: "body", key: "scope" },
+            { in: "body", key: "readOnly" },
+            { in: "body", key: "template" },
+            { in: "body", key: "sample" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      KnowledgeCreateCollectionResponses,
+      KnowledgeCreateCollectionErrors,
+      ThrowOnError
+    >({
+      url: "/knowledge/collections",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public removeCollection<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      KnowledgeRemoveCollectionResponses,
+      KnowledgeRemoveCollectionErrors,
+      ThrowOnError
+    >({
+      url: "/knowledge/collections/{collectionID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  public updateCollection<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+      name?: string
+      description?: string
+      enabled?: boolean
+      scope?: "global" | "project"
+      readOnly?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "name" },
+            { in: "body", key: "description" },
+            { in: "body", key: "enabled" },
+            { in: "body", key: "scope" },
+            { in: "body", key: "readOnly" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<
+      KnowledgeUpdateCollectionResponses,
+      KnowledgeUpdateCollectionErrors,
+      ThrowOnError
+    >({
+      url: "/knowledge/collections/{collectionID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public documents<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<KnowledgeDocumentsResponses, KnowledgeDocumentsErrors, ThrowOnError>({
+      url: "/knowledge/collections/{collectionID}/documents",
+      ...options,
+      ...params,
+    })
+  }
+
+  public addDocument<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+      title?: string
+      content?: string
+      source?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "title" },
+            { in: "body", key: "content" },
+            { in: "body", key: "source" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      KnowledgeAddDocumentResponses,
+      KnowledgeAddDocumentErrors,
+      ThrowOnError
+    >({
+      url: "/knowledge/collections/{collectionID}/documents",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public removeDocument<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      documentID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "path", key: "documentID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      KnowledgeRemoveDocumentResponses,
+      KnowledgeRemoveDocumentErrors,
+      ThrowOnError
+    >({
+      url: "/knowledge/collections/{collectionID}/documents/{documentID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  public document<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      documentID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "path", key: "documentID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<KnowledgeDocumentResponses, KnowledgeDocumentErrors, ThrowOnError>({
+      url: "/knowledge/collections/{collectionID}/documents/{documentID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  public updateDocument<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      documentID: string
+      directory?: string
+      workspace?: string
+      title?: string
+      content?: string
+      source?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "path", key: "documentID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "title" },
+            { in: "body", key: "content" },
+            { in: "body", key: "source" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<
+      KnowledgeUpdateDocumentResponses,
+      KnowledgeUpdateDocumentErrors,
+      ThrowOnError
+    >({
+      url: "/knowledge/collections/{collectionID}/documents/{documentID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Upload and extract a document
+   *
+   * Upload a base64 file; the server extracts text from PDF, DOCX, PPTX, XLSX and plain text formats.
+   */
+  public upload<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+      name?: string
+      data?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "name" },
+            { in: "body", key: "data" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<KnowledgeUploadResponses, KnowledgeUploadErrors, ThrowOnError>({
+      url: "/knowledge/collections/{collectionID}/documents/upload",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Batch import files
+   *
+   * Import up to 50 base64 files in one request and return a per-file summary.
+   */
+  public import<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+      files?: Array<{
+        name: string
+        data: string
+      }>
+      background?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "files" },
+            { in: "body", key: "background" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<KnowledgeImportResponses, KnowledgeImportErrors, ThrowOnError>({
+      url: "/knowledge/collections/{collectionID}/import",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public stats<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<KnowledgeStatsResponses, KnowledgeStatsErrors, ThrowOnError>({
+      url: "/knowledge/collections/{collectionID}/stats",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Rebuild collection index
+   *
+   * Drop the in-memory index and cached embeddings so the next search rebuilds them.
+   */
+  public reindex<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<KnowledgeReindexResponses, KnowledgeReindexErrors, ThrowOnError>({
+      url: "/knowledge/collections/{collectionID}/reindex",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Export a collection
+   *
+   * Export every document of a collection as JSON for backup or migration.
+   */
+  public export<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<KnowledgeExportResponses, KnowledgeExportErrors, ThrowOnError>({
+      url: "/knowledge/collections/{collectionID}/export",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Restore a collection
+   *
+   * Import documents from an exported backup; same source files update in place.
+   */
+  public restore<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+      documents?: Array<{
+        title: string
+        source?: string
+        content: string
+      }>
+      signature?: {
+        algorithm?: string
+        value?: string
+        documents?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "documents" },
+            { in: "body", key: "signature" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<KnowledgeRestoreResponses, KnowledgeRestoreErrors, ThrowOnError>({
+      url: "/knowledge/collections/{collectionID}/restore",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Related documents
+   *
+   * Documents sharing entities with the given document.
+   */
+  public related<ThrowOnError extends boolean = false>(
+    parameters: {
+      directory?: string
+      workspace?: string
+      collectionID: string
+      documentID: string
+      limit?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "collectionID" },
+            { in: "query", key: "documentID" },
+            { in: "query", key: "limit" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<KnowledgeRelatedResponses, KnowledgeRelatedErrors, ThrowOnError>({
+      url: "/knowledge/related",
+      ...options,
+      ...params,
+    })
+  }
+
+  public ocr<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<KnowledgeOcrResponses, unknown, ThrowOnError>({
+      url: "/knowledge/ocr",
+      ...options,
+      ...params,
+    })
+  }
+
+  public cancelOcrInstall<ThrowOnError extends boolean = false>(
+    parameters: {
+      jobID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "jobID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<KnowledgeCancelOcrInstallResponses, unknown, ThrowOnError>({
+      url: "/knowledge/ocr/install/{jobID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  public ocrInstallJob<ThrowOnError extends boolean = false>(
+    parameters: {
+      jobID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "jobID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      KnowledgeOcrInstallJobResponses,
+      KnowledgeOcrInstallJobErrors,
+      ThrowOnError
+    >({
+      url: "/knowledge/ocr/install/{jobID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  public embedding<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<KnowledgeEmbeddingResponses, unknown, ThrowOnError>({
+      url: "/knowledge/embedding",
+      ...options,
+      ...params,
+    })
+  }
+
+  public listEvalCases<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      KnowledgeListEvalCasesResponses,
+      KnowledgeListEvalCasesErrors,
+      ThrowOnError
+    >({
+      url: "/knowledge/collections/{collectionID}/eval",
+      ...options,
+      ...params,
+    })
+  }
+
+  public saveEvalCase<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+      id?: string
+      query?: string
+      expected?: Array<string>
+      notes?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "id" },
+            { in: "body", key: "query" },
+            { in: "body", key: "expected" },
+            { in: "body", key: "notes" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).put<
+      KnowledgeSaveEvalCaseResponses,
+      KnowledgeSaveEvalCaseErrors,
+      ThrowOnError
+    >({
+      url: "/knowledge/collections/{collectionID}/eval",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public removeEvalCase<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      caseID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "path", key: "caseID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      KnowledgeRemoveEvalCaseResponses,
+      KnowledgeRemoveEvalCaseErrors,
+      ThrowOnError
+    >({
+      url: "/knowledge/collections/{collectionID}/eval/{caseID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  public clearEvalHistory<ThrowOnError extends boolean = false>(
+    parameters: {
+      collectionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "collectionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      KnowledgeClearEvalHistoryResponses,
+      KnowledgeClearEvalHistoryErrors,
+      ThrowOnError
+    >({
+      url: "/knowledge/collections/{collectionID}/eval/history",
+      ...options,
+      ...params,
+    })
+  }
+
+  public sessionMount<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      KnowledgeSessionMountResponses,
+      KnowledgeSessionMountErrors,
+      ThrowOnError
+    >({
+      url: "/knowledge/session/{sessionID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Knowledge graph
+   *
+   * Entity co-occurrence graph across collections.
+   */
+  public graph<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      collectionID?: string
+      limit?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "collectionID" },
+            { in: "query", key: "limit" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<KnowledgeGraphResponses, KnowledgeGraphErrors, ThrowOnError>({
+      url: "/knowledge/graph",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Search the knowledge base
+   *
+   * Keyword search across local knowledge base documents. Omit collectionID to search all collections.
+   */
+  public search<ThrowOnError extends boolean = false>(
+    parameters: {
+      directory?: string
+      workspace?: string
+      q: string
+      collectionID?: string
+      limit?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "q" },
+            { in: "query", key: "collectionID" },
+            { in: "query", key: "limit" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<KnowledgeSearchResponses, KnowledgeSearchErrors, ThrowOnError>({
+      url: "/knowledge/search",
+      ...options,
+      ...params,
+    })
+  }
+
+  private _ocr?: Ocr
+  get ocr2(): Ocr {
+    return (this._ocr ??= new Ocr({ client: this.client }))
+  }
+
+  private _eval?: Eval
+  get eval(): Eval {
+    return (this._eval ??= new Eval({ client: this.client }))
+  }
+
+  private _session?: Session2
+  get session(): Session2 {
+    return (this._session ??= new Session2({ client: this.client }))
   }
 }
 
@@ -3072,6 +5723,38 @@ export class Formatter extends HeyApiClient {
   }
 }
 
+export class Kernel extends HeyApiClient {
+  /**
+   * Kernel capability summary
+   *
+   * Counts of loaded tools, skills, hooks and extensions plus resolved feature flags.
+   */
+  public capabilities<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<KernelCapabilitiesResponses, unknown, ThrowOnError>({
+      url: "/kernel",
+      ...options,
+      ...params,
+    })
+  }
+}
+
 export class Auth2 extends HeyApiClient {
   /**
    * Remove MCP OAuth
@@ -3356,6 +6039,7 @@ export class Memory extends HeyApiClient {
       scope?: "global" | "project" | "session"
       search?: string
       includeArchived?: boolean | "true" | "false"
+      includeGlobal?: "true" | "false"
       limit?: number
     },
     options?: Options<never, ThrowOnError>,
@@ -3371,6 +6055,7 @@ export class Memory extends HeyApiClient {
             { in: "query", key: "scope" },
             { in: "query", key: "search" },
             { in: "query", key: "includeArchived" },
+            { in: "query", key: "includeGlobal" },
             { in: "query", key: "limit" },
           ],
         },
@@ -6101,7 +8786,213 @@ export class Provider extends HeyApiClient {
   }
 }
 
-export class Session2 extends HeyApiClient {
+export class TempFiles extends HeyApiClient {
+  /**
+   * List temporary files
+   *
+   * Temporary files created by tools in this session (tmp-*, scratch/, *.tmp ...).
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      SessionTempFilesListResponses,
+      SessionTempFilesListErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionID}/temp-files",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Clean temporary files
+   *
+   * Delete tracked temporary files. Files modified after creation are skipped unless force is used.
+   */
+  public clean<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      paths?: Array<string>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "paths" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SessionTempFilesCleanResponses,
+      SessionTempFilesCleanErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionID}/temp-files/clean",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class PlanApproval extends HeyApiClient {
+  /**
+   * List pending plan approvals
+   *
+   * Subagent plans waiting for the lead to approve or reject them.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      SessionPlanApprovalListResponses,
+      SessionPlanApprovalListErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionID}/plan-approval",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Approve or reject a plan
+   *
+   * Resolve a pending plan approval request from the lead session.
+   */
+  public reply<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      requestID: string
+      directory?: string
+      workspace?: string
+      approved?: boolean
+      feedback?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "path", key: "requestID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "approved" },
+            { in: "body", key: "feedback" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SessionPlanApprovalReplyResponses,
+      SessionPlanApprovalReplyErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionID}/plan-approval/{requestID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Background extends HeyApiClient {
+  /**
+   * Cancel background job
+   *
+   * Stop a running background subagent or command that belongs to the session.
+   */
+  public cancel<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      jobID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "path", key: "jobID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      SessionBackgroundCancelResponses,
+      SessionBackgroundCancelErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionID}/background/{jobID}",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Session3 extends HeyApiClient {
   /**
    * List sessions
    *
@@ -6162,6 +9053,7 @@ export class Session2 extends HeyApiClient {
         variant?: string
       }
       permission?: PermissionRuleset
+      permissionMode?: PermissionMode
       workspaceID?: string
     },
     options?: Options<never, ThrowOnError>,
@@ -6178,6 +9070,7 @@ export class Session2 extends HeyApiClient {
             { in: "body", key: "agent" },
             { in: "body", key: "model" },
             { in: "body", key: "permission" },
+            { in: "body", key: "permissionMode" },
             { in: "body", key: "workspaceID" },
           ],
         },
@@ -6301,6 +9194,8 @@ export class Session2 extends HeyApiClient {
       workspace?: string
       title?: string
       permission?: PermissionRuleset
+      permissionMode?: PermissionMode
+      cwd?: string
       time?: {
         archived?: number
       }
@@ -6317,6 +9212,8 @@ export class Session2 extends HeyApiClient {
             { in: "query", key: "workspace" },
             { in: "body", key: "title" },
             { in: "body", key: "permission" },
+            { in: "body", key: "permissionMode" },
+            { in: "body", key: "cwd" },
             { in: "body", key: "time" },
           ],
         },
@@ -6668,6 +9565,38 @@ export class Session2 extends HeyApiClient {
     )
     return (options?.client ?? this.client).post<SessionAbortResponses, SessionAbortErrors, ThrowOnError>({
       url: "/session/{sessionID}/abort",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * List background jobs
+   *
+   * List background subagents and commands spawned by a session.
+   */
+  public background<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<SessionBackgroundResponses, SessionBackgroundErrors, ThrowOnError>({
+      url: "/session/{sessionID}/background",
       ...options,
       ...params,
     })
@@ -7105,6 +10034,21 @@ export class Session2 extends HeyApiClient {
       ...options,
       ...params,
     })
+  }
+
+  private _tempFiles?: TempFiles
+  get tempFiles(): TempFiles {
+    return (this._tempFiles ??= new TempFiles({ client: this.client }))
+  }
+
+  private _planApproval?: PlanApproval
+  get planApproval(): PlanApproval {
+    return (this._planApproval ??= new PlanApproval({ client: this.client }))
+  }
+
+  private _background?: Background
+  get background2(): Background {
+    return (this._background ??= new Background({ client: this.client }))
   }
 }
 
@@ -7867,7 +10811,7 @@ export class Sync extends HeyApiClient {
   }
 }
 
-export class Session3 extends HeyApiClient {
+export class Session4 extends HeyApiClient {
   /**
    * List v2 sessions
    *
@@ -8208,9 +11152,9 @@ export class Fs extends HeyApiClient {
 }
 
 export class V2 extends HeyApiClient {
-  private _session?: Session3
-  get session(): Session3 {
-    return (this._session ??= new Session3({ client: this.client }))
+  private _session?: Session4
+  get session(): Session4 {
+    return (this._session ??= new Session4({ client: this.client }))
   }
 
   private _model?: Model
@@ -9197,6 +12141,85 @@ export class Orchestrator extends HeyApiClient {
   }
 }
 
+export class Team extends HeyApiClient {
+  /**
+   * Get team overview
+   *
+   * Return the team, its members and the shared task list for a session.
+   */
+  public overview<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<TeamOverviewResponses, unknown, ThrowOnError>({
+      url: "/session/{sessionID}/team",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Send a message to a teammate
+   *
+   * Queue or deliver a message to another agent in the session team.
+   */
+  public message<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      to?: string
+      message?: string
+      summary?: string
+      mode?: "queue" | "interrupt"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "to" },
+            { in: "body", key: "message" },
+            { in: "body", key: "summary" },
+            { in: "body", key: "mode" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<TeamMessageResponses, TeamMessageErrors, ThrowOnError>({
+      url: "/session/{sessionID}/team/message",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class OpencodeClient extends HeyApiClient {
   public static readonly __registry = new HeyApiRegistry<OpencodeClient>()
 
@@ -9260,6 +12283,11 @@ export class OpencodeClient extends HeyApiClient {
     return (this._evolution ??= new Evolution({ client: this.client }))
   }
 
+  private _extension?: Extension
+  get extension(): Extension {
+    return (this._extension ??= new Extension({ client: this.client }))
+  }
+
   private _find?: Find
   get find(): Find {
     return (this._find ??= new Find({ client: this.client }))
@@ -9275,9 +12303,24 @@ export class OpencodeClient extends HeyApiClient {
     return (this._git ??= new Git({ client: this.client }))
   }
 
+  private _hook?: Hook
+  get hook(): Hook {
+    return (this._hook ??= new Hook({ client: this.client }))
+  }
+
   private _images?: Images
   get images(): Images {
     return (this._images ??= new Images({ client: this.client }))
+  }
+
+  private _database?: Database
+  get database(): Database {
+    return (this._database ??= new Database({ client: this.client }))
+  }
+
+  private _knowledge?: Knowledge
+  get knowledge(): Knowledge {
+    return (this._knowledge ??= new Knowledge({ client: this.client }))
   }
 
   private _instance?: Instance
@@ -9308,6 +12351,11 @@ export class OpencodeClient extends HeyApiClient {
   private _formatter?: Formatter
   get formatter(): Formatter {
     return (this._formatter ??= new Formatter({ client: this.client }))
+  }
+
+  private _kernel?: Kernel
+  get kernel(): Kernel {
+    return (this._kernel ??= new Kernel({ client: this.client }))
   }
 
   private _mcp?: Mcp
@@ -9350,9 +12398,9 @@ export class OpencodeClient extends HeyApiClient {
     return (this._provider ??= new Provider({ client: this.client }))
   }
 
-  private _session?: Session2
-  get session(): Session2 {
-    return (this._session ??= new Session2({ client: this.client }))
+  private _session?: Session3
+  get session(): Session3 {
+    return (this._session ??= new Session3({ client: this.client }))
   }
 
   private _part?: Part
@@ -9398,5 +12446,10 @@ export class OpencodeClient extends HeyApiClient {
   private _orchestrator?: Orchestrator
   get orchestrator(): Orchestrator {
     return (this._orchestrator ??= new Orchestrator({ client: this.client }))
+  }
+
+  private _team?: Team
+  get team(): Team {
+    return (this._team ??= new Team({ client: this.client }))
   }
 }

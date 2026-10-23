@@ -5,9 +5,22 @@ import { makeRunAgent, type RunAgentPromptOps } from "@/session/agent-step"
 import { Session } from "@/session/session"
 import { Agent } from "@/agent/agent"
 import { MessageV2 } from "@/session/message-v2"
+import { Service as BackgroundJobService } from "@/background/job"
 
-export const Parameters = Schema.Struct({
-  action: Schema.Literals(["create_plan", "add_task", "execute", "status", "list"]),
+export const NL = String.fromCharCode(10)
+
+const Parameters = Schema.Struct({
+  action: Schema.Literals([
+    "create_plan",
+    "add_task",
+    "execute",
+    "status",
+    "list",
+    "pause",
+    "resume",
+    "cancel",
+    "retry",
+  ]),
   planId: Schema.optional(Schema.String).annotate({ description: "编排计划ID" }),
   name: Schema.optional(Schema.String).annotate({ description: "计划名称" }),
   tasks: Schema.optional(Schema.String).annotate({
@@ -16,11 +29,15 @@ export const Parameters = Schema.Struct({
   }),
   task: Schema.optional(Schema.String).annotate({ description: "单个任务 JSON,同上元素结构" }),
   concurrency: Schema.optional(Schema.Number).annotate({ description: "并发上限,默认按就绪任务数" }),
+  background: Schema.optional(Schema.Boolean).annotate({
+    description: "Run the plan in the background and return immediately (default: true)",
+  }),
 })
 
 type Metadata = {
   planId?: string
-  action: string
+  action?: string
+  background?: boolean
 }
 
 type TaskInput = Omit<OrchestratorTask, "id" | "status">
@@ -28,13 +45,14 @@ type TaskInput = Omit<OrchestratorTask, "id" | "status">
 export const OrchestratorTool = Tool.define<
   typeof Parameters,
   Metadata,
-  OrchestratorService | Session.Service | Agent.Service
+  OrchestratorService | Session.Service | Agent.Service | BackgroundJobService
 >(
   "orchestrator",
   Effect.gen(function* () {
     const orchestrator = yield* OrchestratorService
     const sessions = yield* Session.Service
     const agents = yield* Agent.Service
+    const background = yield* BackgroundJobService
 
     return {
       description: "多代理编排(Orchestrator)- 创建含依赖关系的任务计划,按拓扑顺序并发派生子代理执行,结果在任务间传递",
@@ -124,23 +142,97 @@ export const OrchestratorTool = Tool.define<
                 defaultModel: { providerID: msg.info.providerID, modelID: msg.info.modelID },
                 defaultAgent: ctx.agent,
               })
-              const final = yield* orchestrator.executePlan({
-                planId: params.planId,
-                runAgent,
-                defaultAgent: ctx.agent,
-                concurrency: params.concurrency,
-              })
+              const runPlan = (retry = false) =>
+                orchestrator.executePlan({
+                  planId: params.planId!,
+                  runAgent,
+                  defaultAgent: ctx.agent,
+                  concurrency: params.concurrency,
+                  retry,
+                })
+
+              if (params.background !== false) {
+                yield* background.start({
+                  id: "orchestrator:" + params.planId,
+                  type: "orchestrator",
+                  title: plan.name,
+                  metadata: { planId: params.planId },
+                  run: runPlan().pipe(Effect.as("编排完成")),
+                })
+                return {
+                  title: "编排计划已后台执行",
+                  output:
+                    "plan_id: " +
+                    params.planId +
+                    NL +
+                    "state: running" +
+                    NL +
+                    "Use action=status to poll, action=pause/resume/cancel to control.",
+                  metadata: { planId: params.planId, action: "execute", background: true },
+                }
+              }
+
+              const final = yield* runPlan()
               const output = [
                 `编排执行${final.status === "completed" ? "完成" : final.status}: ${final.id}`,
                 ...final.tasks.map((t) => `  ${t.id} [${t.status}] ${t.name}${t.error ? ` — ${t.error}` : ""}`),
                 final.error ? `错误: ${final.error}` : "",
               ]
                 .filter(Boolean)
-                .join("\n")
+                .join(NL)
               return {
                 title: "执行编排计划",
                 output,
                 metadata: { planId: params.planId, action: "execute" },
+              }
+            }
+
+            case "pause":
+            case "resume":
+            case "cancel": {
+              if (!params.planId) return yield* Effect.fail(new Error(params.action + " 需要 planId"))
+              const status = params.action === "pause" ? "paused" : params.action === "resume" ? "running" : "cancelled"
+              const plan = yield* orchestrator.setStatus({ planId: params.planId, status })
+              if (!plan) return { title: "编排状态", output: "计划不存在", metadata: {} }
+              if (params.action === "cancel") yield* background.cancel("orchestrator:" + params.planId)
+              return {
+                title:
+                  "编排计划已" + (params.action === "pause" ? "暂停" : params.action === "resume" ? "恢复" : "取消"),
+                output: "plan_id: " + plan.id + NL + "state: " + plan.status,
+                metadata: { planId: plan.id, action: params.action },
+              }
+            }
+
+            case "retry": {
+              if (!params.planId) return yield* Effect.fail(new Error("retry 需要 planId"))
+              const retryPlan = yield* orchestrator.getPlan(params.planId)
+              if (!retryPlan) return { title: "编排状态", output: "计划不存在", metadata: {} }
+              const retryMsg = yield* MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID }).pipe(
+                Effect.orDie,
+              )
+              const retryOps = ctx.extra?.promptOps as RunAgentPromptOps | undefined
+              if (!retryOps || retryMsg.info.role !== "assistant") {
+                return yield* Effect.fail(new Error("retry 需要在 assistant 轮次内执行"))
+              }
+              const retryAgent = makeRunAgent({
+                ops: retryOps,
+                sessions,
+                agents,
+                parentSessionID: ctx.sessionID,
+                defaultModel: { providerID: retryMsg.info.providerID, modelID: retryMsg.info.modelID },
+                defaultAgent: ctx.agent,
+              })
+              const final = yield* orchestrator.executePlan({
+                planId: params.planId,
+                runAgent: retryAgent,
+                defaultAgent: ctx.agent,
+                concurrency: params.concurrency,
+                retry: true,
+              })
+              return {
+                title: "重试编排计划",
+                output: "plan_id: " + final.id + NL + "state: " + final.status,
+                metadata: { planId: final.id, action: "retry" },
               }
             }
 

@@ -26,8 +26,10 @@ const AgentSchema = Schema.StructWithRest(
     temperature: Schema.optional(Schema.Finite),
     top_p: Schema.optional(Schema.Finite),
     prompt: Schema.optional(Schema.String),
-    tools: Schema.optional(Schema.Record(Schema.String, Schema.Boolean)).annotate({
-      description: "@deprecated Use 'permission' field instead",
+    tools: Schema.optional(
+      Schema.Union([Schema.mutable(Schema.Array(Schema.String)), Schema.Record(Schema.String, Schema.Boolean)]),
+    ).annotate({
+      description: "Tool allowlist (array) or legacy boolean map (deprecated, use 'permission').",
     }),
     disable: Schema.optional(Schema.Boolean),
     description: Schema.optional(Schema.String).annotate({ description: "Description of when to use the agent" }),
@@ -44,6 +46,38 @@ const AgentSchema = Schema.StructWithRest(
     }),
     maxSteps: Schema.optional(PositiveInt).annotate({ description: "@deprecated Use 'steps' field instead." }),
     permission: Schema.optional(ConfigPermission.Info),
+    disallowedTools: Schema.optional(Schema.mutable(Schema.Array(Schema.String))).annotate({
+      description: "Denylist of tool ids removed from this agent's tool pool.",
+    }),
+    skills: Schema.optional(Schema.mutable(Schema.Array(Schema.String))).annotate({
+      description: "Skill names to preload for this agent.",
+    }),
+    mcpServers: Schema.optional(
+      Schema.mutable(Schema.Array(Schema.Union([Schema.String, Schema.Record(Schema.String, Schema.Unknown)]))),
+    ).annotate({ description: "MCP servers (names or inline definitions) scoped to this agent." }),
+    hooks: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)).annotate({
+      description: "Session-scoped hooks registered while this agent runs.",
+    }),
+    permissionMode: Schema.optional(Schema.Literals(["default", "acceptEdits", "plan", "bypassPermissions"])).annotate({
+      description: "Permission mode applied to this agent's session.",
+    }),
+    maxTurns: Schema.optional(PositiveInt).annotate({ description: "Maximum agentic turns for this agent." }),
+    background: Schema.optional(Schema.Boolean).annotate({
+      description: "Always run this agent as a background task when spawned.",
+    }),
+    isolation: Schema.optional(Schema.Literals(["worktree"])).annotate({
+      description: "Run the agent in an isolated git worktree.",
+    }),
+    memory: Schema.optional(Schema.Literals(["user", "project", "local"])).annotate({
+      description: "Persistent memory scope for this agent.",
+    }),
+    initialPrompt: Schema.optional(Schema.String).annotate({
+      description: "Prompt prepended to the first user turn of this agent.",
+    }),
+    effort: Schema.optional(Schema.String).annotate({ description: "Reasoning effort hint." }),
+    outputStyle: Schema.optional(Schema.String).annotate({
+      description: "Named output style from .novaway/output-styles or .claude/output-styles.",
+    }),
   }),
   [Schema.Record(Schema.String, Schema.Any)],
 )
@@ -65,6 +99,18 @@ const KNOWN_KEYS = new Set([
   "permission",
   "disable",
   "tools",
+  "disallowedTools",
+  "skills",
+  "mcpServers",
+  "hooks",
+  "permissionMode",
+  "maxTurns",
+  "background",
+  "isolation",
+  "memory",
+  "initialPrompt",
+  "effort",
+  "outputStyle",
 ])
 
 // Post-parse normalisation:
@@ -80,18 +126,22 @@ const normalize = (agent: Schema.Schema.Type<typeof AgentSchema>): Schema.Schema
   }
 
   const permission: ConfigPermission.Info = {}
-  for (const [tool, enabled] of Object.entries(agent.tools ?? {})) {
-    const action = enabled ? "allow" : "deny"
-    if (tool === "write" || tool === "edit" || tool === "patch") {
-      permission.edit = action
-      continue
+  // Legacy `tools: { name: boolean }` map (deprecated). Array form is the new allowlist.
+  if (!Array.isArray(agent.tools)) {
+    for (const [tool, enabled] of Object.entries(agent.tools ?? {})) {
+      const action = enabled ? "allow" : "deny"
+      if (tool === "write" || tool === "edit" || tool === "patch") {
+        permission.edit = action
+        continue
+      }
+      permission[tool] = action
     }
-    permission[tool] = action
   }
   globalThis.Object.assign(permission, agent.permission)
 
   const steps = agent.steps ?? agent.maxSteps
-  return { ...agent, options, permission, ...(steps !== undefined ? { steps } : {}) }
+  const tools = Array.isArray(agent.tools) ? agent.tools : undefined
+  return { ...agent, tools, options, permission, ...(steps !== undefined ? { steps } : {}) }
 }
 
 export const Info = AgentSchema.pipe(
@@ -116,7 +166,14 @@ export async function load(dir: string) {
     })
     if (!md) continue
 
-    const patterns = ["/.novaway/agent/", "/.novaway/agents/", "/agent/", "/agents/"]
+    const patterns = [
+      "/.novaway/agent/",
+      "/.novaway/agents/",
+      "/.claude/agent/",
+      "/.claude/agents/",
+      "/agent/",
+      "/agents/",
+    ]
     const name = configEntryNameFromPath(item, patterns)
 
     const config = {

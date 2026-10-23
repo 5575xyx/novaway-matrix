@@ -14,15 +14,15 @@
 
 **终端做不到 1:1、采用的等效手法（逐项对应原型，不做「近似省略」）：**
 
-| 原型效果 | 终端等效手法 |
-|---|---|
-| 毛玻璃 / 光晕 / 半透明叠加 | 终端字符画布只有前景色 + 背景色，无 alpha 合成。玻璃感用**不透明深色实底**（原型设计语言②本来就要求「渐变只出现在边框一圈」）+ 悬停时描边提亮（C1）表达 |
-| 背景网格纹理 | 每字符画一层网格会与文字抢占像素、显著降低可读性，并拖慢重绘。**不做**，理由记录在此 |
-| 阶梯入场（`.stagger` + `--d` 延迟） | 字符网格没有亚像素位移，1 格的「上移」几乎不可见、超过 1 格会撕裂布局。等效做法：**延迟淡入**——卡片描边颜色在 ~150ms 内从底色插值到渐变色，相邻卡片按索引递增延迟（保留原型的错落节奏）。**关键约束**：只对「真正刚到的消息」触发，窗口补载的历史消息不触发，否则滚动加载新窗口会整屏闪烁（见 Task C0） |
-| 视图切换动画（气泡 ↔ 流程图） | 原型**不是**侧滑换页，而是「旧视图当场消失 + 新视图淡入上移」（`viewIn`:opacity 0→1 + translateY(12px)，.45s）。等效做法见 Task D4：位移按整行折算（12px ≈ 3 行）、透明度用 opentui 的真 `opacity`，`animations_enabled=false` 时直接切换 |
-| `❯`（U+276F） | East-Asian Ambiguous 宽度，CJK 终端会渲染成宽字符或乱码（`prompt/index.tsx:1398` 已有明确注释）。保留 ASCII `>`，字形差异是终端约束 |
-| HUD 角标 | `NeonBox` 圆角四字符 `╭╮╰╯` 用渐变端色渲染，即角标 |
-| `/layout 切换视图`、`ctrl+o 附件` 提示 | 对应命令在本仓库不存在，不写死假提示 |
+| 原型效果                               | 终端等效手法                                                                                                                                                                                                                                                                                            |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 毛玻璃 / 光晕 / 半透明叠加             | 终端字符画布只有前景色 + 背景色，无 alpha 合成。玻璃感用**不透明深色实底**（原型设计语言②本来就要求「渐变只出现在边框一圈」）+ 悬停时描边提亮（C1）表达                                                                                                                                                 |
+| 背景网格纹理                           | 每字符画一层网格会与文字抢占像素、显著降低可读性，并拖慢重绘。**不做**，理由记录在此                                                                                                                                                                                                                    |
+| 阶梯入场（`.stagger` + `--d` 延迟）    | 字符网格没有亚像素位移，1 格的「上移」几乎不可见、超过 1 格会撕裂布局。等效做法：**延迟淡入**——卡片描边颜色在 ~150ms 内从底色插值到渐变色，相邻卡片按索引递增延迟（保留原型的错落节奏）。**关键约束**：只对「真正刚到的消息」触发，窗口补载的历史消息不触发，否则滚动加载新窗口会整屏闪烁（见 Task C0） |
+| 视图切换动画（气泡 ↔ 流程图）         | 原型**不是**侧滑换页，而是「旧视图当场消失 + 新视图淡入上移」（`viewIn`:opacity 0→1 + translateY(12px)，.45s）。等效做法见 Task D4：位移按整行折算（12px ≈ 3 行）、透明度用 opentui 的真 `opacity`，`animations_enabled=false` 时直接切换                                                               |
+| `❯`（U+276F）                          | East-Asian Ambiguous 宽度，CJK 终端会渲染成宽字符或乱码（`prompt/index.tsx:1398` 已有明确注释）。保留 ASCII `>`，字形差异是终端约束                                                                                                                                                                     |
+| HUD 角标                               | `NeonBox` 圆角四字符 `╭╮╰╯` 用渐变端色渲染，即角标                                                                                                                                                                                                                                                      |
+| `/layout 切换视图`、`ctrl+o 附件` 提示 | 对应命令在本仓库不存在，不写死假提示                                                                                                                                                                                                                                                                    |
 
 **所有测试命令的工作目录均为 `packages/tui`**（根 `bunfig.toml` 禁止从根跑测试）。提交只在本地，**绝不 push**。
 
@@ -33,6 +33,7 @@
 ### Task A1: 助手消息完整气泡卡
 
 **Files:**
+
 - Modify: `packages/tui/src/routes/session/index.tsx`（`AssistantMessage` 1836–1978、`TextPart` 2118–2137、工具宽度常量 2236/2543/2881/2928/2993）
 - Test: `packages/tui/test/routes/session/assistant-card.test.tsx`（新建）
 
@@ -70,6 +71,7 @@
 ### Task A2: 输入区霓虹输入卡
 
 **Files:**
+
 - Modify: `packages/tui/src/ui/card.ts`（`NeonBoxRenderable` 新增 `animated` 属性：描边渐变相位滚动）
 - Modify: `packages/tui/src/component/prompt/index.tsx`（anchor 1390 内整体包卡；移除独立 NeonRail 1391-1393；模型行 → 卡内 chip；新增发送按钮与 hints 行）
 - Modify: `packages/tui/src/routes/session/index.tsx`（会话页传 `placeholders`）
@@ -114,6 +116,7 @@
 ### Task A3: 侧栏分区卡片化
 
 **Files:**
+
 - Modify: `packages/tui/src/routes/session/sidebar.tsx`（三个页签的容器与分区）
 - Modify: `packages/tui/src/component/file-tree.tsx`（文件树卡 + 选中文件 signal）
 - Modify: `packages/tui/src/component/git-panel.tsx`（分支卡 / 变更卡 + 宽度常量）
@@ -122,14 +125,14 @@
 
 **目标结构（对齐原型 `card-design-v7.html:793-868`）：** 每个分区 = `neonbox`，内部首行是 header（图标 + 标题 + 右对齐 badge），其余是原内容。
 
-| 页签 | 分区卡 | badge 数据源 |
-|---|---|---|
-| 文件 | `📂 资源管理器` | 目录 basename（`node:path` basename，`sidebar.tsx:125` 已有完整目录） |
-| 文件 | `🔍 快速预览` | 选中文件名（需新 plumbing） |
-| 待办与统计 | `☑ 当前任务` | `completed/total`（`sync.data.todo`，sidebar.tsx:78 已在作用域） |
-| 待办与统计 | `📊 会话统计` | `live`（连接态用 `component/use-connected.tsx:4-12`） |
-| Git | `⑂ 分支` | 分支名（`sync.data.vcs?.branch`）+ 领先数（**需新 plumbing**，今天只在 `GitPanel` 局部 `summary.ahead`，148-157） |
-| Git | `± 变更` | `session_diff` 文件数（`feature-plugins/sidebar/files.tsx:17` 已在用） |
+| 页签       | 分区卡          | badge 数据源                                                                                                      |
+| ---------- | --------------- | ----------------------------------------------------------------------------------------------------------------- |
+| 文件       | `📂 资源管理器` | 目录 basename（`node:path` basename，`sidebar.tsx:125` 已有完整目录）                                             |
+| 文件       | `🔍 快速预览`   | 选中文件名（需新 plumbing）                                                                                       |
+| 待办与统计 | `☑ 当前任务`   | `completed/total`（`sync.data.todo`，sidebar.tsx:78 已在作用域）                                                  |
+| 待办与统计 | `📊 会话统计`   | `live`（连接态用 `component/use-connected.tsx:4-12`）                                                             |
+| Git        | `⑂ 分支`        | 分支名（`sync.data.vcs?.branch`）+ 领先数（**需新 plumbing**，今天只在 `GitPanel` 局部 `summary.ahead`，148-157） |
+| Git        | `± 变更`        | `session_diff` 文件数（`feature-plugins/sidebar/files.tsx:17` 已在用）                                            |
 
 **必须处理的宽度重算（这是本任务的主要成本）：** 侧栏根卡内容区 = `sidebarWidth(44–60)` − 4；嵌套卡再吃 边框 2 + padding 2 = **4 列** → 分区卡内容区变成 **36–52 列**。需要逐个重算并回归的硬编码：
 
@@ -140,6 +143,7 @@
 - `component/todo-item.tsx:11-13` `CONTENT_MAX=200` 与「40 列宽」注释 → 复核
 
 **新 plumbing（各一处，遵循仓库既有「模块级 signal」先例，如 `sidebar.tsx:44-49` 的 `sidebarTab`）：**
+
 - 选中文件名：`sidebar.tsx` 导出模块级 `selectedFilePath` signal；`FileTree` 点击时写入、两处卡片读取。若发现 session/home 已有等价 signal（`routes/session/index.tsx:283`），优先复用而非新增。
 - Git 领先数：优先复用 `GitPanel` 已有的 `tracking()`(150-157) 结果，通过把分支卡提到 `GitPanel` 内部渲染来避免新数据通道；只有确实需要跨组件时才提数据。
 
@@ -202,9 +206,16 @@ A2 已为 `NeonBox` 落下 `animated` 原语。本任务把它接到卡片群：
 **颜色按原型的两段规则走**（`card-design-v7.html:397-399`，初版实现漏了，已修正）：
 
 ```css
-.msg-meta { color: var(--muted); }                    /* 整行默认 muted:时间戳那一段 */
-.msg-meta .who { color: var(--cyan); font-weight: 700; }
-.msg.user .msg-meta .who { color: var(--pink); }      /* 用户那条的「你」是 user 语义色 */
+.msg-meta {
+  color: var(--muted);
+} /* 整行默认 muted:时间戳那一段 */
+.msg-meta .who {
+  color: var(--cyan);
+  font-weight: 700;
+}
+.msg.user .msg-meta .who {
+  color: var(--pink);
+} /* 用户那条的「你」是 user 语义色 */
 ```
 
 即**时间戳 muted、「你」取 `semanticStops(theme, "user")[0]`**（就是 `theme.accent`，novaway 深色 `#ff2d7b`，与用户气泡卡描边首端同色）。助手那条 meta 的 `◆` 仍取 `local.agent.color(agent)` 而非原型固定的 `--cyan`——这是**有意的偏离**：色相编码「哪个子代理答的」，与节标题 ◇、思考/工具卡的语义色同源。
@@ -238,11 +249,26 @@ A2 已为 `NeonBox` 落下 `animated` 原语。本任务把它接到卡片群：
 - **画布缩放/拖动**：原型画布固定尺寸；TUI 用 `position="absolute"` + left/top 定位节点，超宽时画布可横向滚动（不实现缩放与自由拖动，节点位置由算法算出）。
 - **视图切换动效**：⚠️ **本条原先写错，已按原型核实后更正**（原型 `card-design-v7.html:637-639` 与 `:1206-1210`）：
   ```css
-  .chat-view.show { display: flex; animation: viewIn .45s var(--ease) both; }
-  @keyframes viewIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+  .chat-view.show {
+    display: flex;
+    animation: viewIn 0.45s var(--ease) both;
+  }
+  @keyframes viewIn {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
   ```
   ```js
-  off.classList.remove("show"); on.classList.remove("show"); void on.offsetWidth; on.classList.add("show");
+  off.classList.remove("show")
+  on.classList.remove("show")
+  void on.offsetWidth
+  on.classList.add("show")
   ```
   也就是说：**旧视图当场消失**（没有退场动画，更没有横向滑动），**只有进场的那一个视图**在动，
   动的是 opacity 0→1 + 12px 上移。原先这里写的「切视图时气泡向左滑出、流程图从右滑入」在原型里
@@ -291,13 +317,13 @@ A2 已为 `NeonBox` 落下 `animated` 原语。本任务把它接到卡片群：
 
 **终端等效手法（落地的就是这套）：**
 
-| 原型 | 终端 | 说明 |
-|---|---|---|
-| `translateY(12px)` | `position="relative"` + `top` 从 3 行回到 0 | 单元格没有亚像素位移。12px 按常见终端单元格约 4px 高折成 3 行（`ENTRANCE_ROWS = 3`）。位移量化成 3 档，所以帧数取行数两倍（`ENTRANCE_FRAMES = 6`），每行停 2 帧看起来才是匀速 |
-| `opacity: 0 → 1`（.45s） | opentui 的真 `opacity`（整棵子树按 alpha 混合） | 不是近似：实测 `opacity=0.4` 时 `#ffffff` 的正文被采成 `#666666`。唯一不参与的是 NeonBox 自绘描边（走 `buffer.setCell`，不吃 opacity 栈），`ui/card.ts` 里补了一次按 `getCurrentOpacity()` 的折算 |
-| `animation: … both` + `off.remove('show')` | 换视图时旧视图**当场销毁**、新视图从头播入场 | 两个视图从不共存：既没有「双视图抢消息区高度」，翻页命令按当前视图挑滚动容器就够 |
-| `.45s` | 300ms（6 帧 × 50ms） | 终端每帧都要重排整屏字符，位移又只有 3 行，再长只是让用户等 |
-| 首次挂载 | **不播** | 原型首屏那次 `viewIn` 对应「打开会话」；TUI 里这一层会跟着标签切换反复重挂，挂一次播一次就是每次切文件标签都闪一下 |
+| 原型                                       | 终端                                            | 说明                                                                                                                                                                                              |
+| ------------------------------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `translateY(12px)`                         | `position="relative"` + `top` 从 3 行回到 0     | 单元格没有亚像素位移。12px 按常见终端单元格约 4px 高折成 3 行（`ENTRANCE_ROWS = 3`）。位移量化成 3 档，所以帧数取行数两倍（`ENTRANCE_FRAMES = 6`），每行停 2 帧看起来才是匀速                     |
+| `opacity: 0 → 1`（.45s）                   | opentui 的真 `opacity`（整棵子树按 alpha 混合） | 不是近似：实测 `opacity=0.4` 时 `#ffffff` 的正文被采成 `#666666`。唯一不参与的是 NeonBox 自绘描边（走 `buffer.setCell`，不吃 opacity 栈），`ui/card.ts` 里补了一次按 `getCurrentOpacity()` 的折算 |
+| `animation: … both` + `off.remove('show')` | 换视图时旧视图**当场销毁**、新视图从头播入场    | 两个视图从不共存：既没有「双视图抢消息区高度」，翻页命令按当前视图挑滚动容器就够                                                                                                                  |
+| `.45s`                                     | 300ms（6 帧 × 50ms）                            | 终端每帧都要重排整屏字符，位移又只有 3 行，再长只是让用户等                                                                                                                                       |
+| 首次挂载                                   | **不播**                                        | 原型首屏那次 `viewIn` 对应「打开会话」；TUI 里这一层会跟着标签切换反复重挂，挂一次播一次就是每次切文件标签都闪一下                                                                                |
 
 **Commit：** `feat(tui): 聊天视图切换加入过渡动画`（后按核实结果修正为 `fix(tui): 视图切换过渡改为原型实际的淡入上移`）
 

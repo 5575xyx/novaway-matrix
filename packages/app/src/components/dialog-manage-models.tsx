@@ -257,7 +257,9 @@ export const DialogManageModels: Component = () => {
           <Show
             when={visibleProviders().length > 0}
             fallback={
-              <div class="text-14-regular text-foreground-subtle py-8 text-center">{language.t("dialog.model.empty")}</div>
+              <div class="text-14-regular text-foreground-subtle py-8 text-center">
+                {language.t("dialog.model.empty")}
+              </div>
             }
           >
             <For each={visibleProviders()}>
@@ -313,7 +315,9 @@ export const DialogManageModels: Component = () => {
                                   <span>
                                     {language.t("model.key.label")} {keyIndex() + 1}
                                   </span>
-                                  <span class="text-12-regular text-foreground-subtle font-mono">{maskKey(entry.key)}</span>
+                                  <span class="text-12-regular text-foreground-subtle font-mono">
+                                    {maskKey(entry.key)}
+                                  </span>
                                 </span>
                               </button>
                             </Show>

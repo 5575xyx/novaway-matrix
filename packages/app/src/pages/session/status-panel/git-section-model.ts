@@ -15,26 +15,20 @@ export type GitSectionModel = {
   ahead: number
   behind: number
   dirty: number
+  clean: boolean
   staged: string[]
   unstaged: string[]
   branches: string[]
 }
 
 /**
- * 只有在**真的有改动**时才出这张卡（干净的仓库右上角不该挂一个 Git 卡，
- * 对齐 ZCode 的 `buildGitModel`：它显式排除了 clean repo）。
- *
- * 判定用「有没有 changes 条目」而不是「行数 > 0」，这点和 ZCode 不同、是有意为之：
- * ZCode 还有别的 Git 入口，而我们**唯一的提交入口**就在这张卡里 ——
- * 只改了图片（二进制，行数恒为 0）或被重命名的文件如果也被隐藏，
- * 用户就再也提交不了那些改动了。
+ * 只要有仓库快照就出卡：图谱入口挂在分支菜单里，工作面干净时也必须能打开。
+ * 干净仓库用 `clean` 标记，摘要显示「工作区干净」而不是 +0 -0。
  */
 export function buildGitSectionModel(snapshot: Snapshot | undefined): GitSectionModel | null {
   if (!snapshot) return null
 
   const changes = snapshot.changes
-  if (changes.length === 0) return null
-
   const added = changes.reduce((sum, change) => sum + num(change.additions), 0)
   const removed = changes.reduce((sum, change) => sum + num(change.deletions), 0)
   const dirty = new Set(changes.map((change) => change.file)).size
@@ -46,6 +40,7 @@ export function buildGitSectionModel(snapshot: Snapshot | undefined): GitSection
     ahead: num(snapshot.branch.ahead),
     behind: num(snapshot.branch.behind),
     dirty,
+    clean: changes.length === 0,
     // 按 staged / unstaged 位分开，对齐 ZCode 的 Git Tools（已暂存与未暂存各有入口）。
     staged: changes.filter((change) => change.staged).map((change) => change.file),
     unstaged: changes.filter((change) => change.unstaged).map((change) => change.file),

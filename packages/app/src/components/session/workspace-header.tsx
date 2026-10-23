@@ -4,8 +4,8 @@ import { Button } from "@novaway/ui/button"
 import { DropdownMenu } from "@novaway/ui/dropdown-menu"
 import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
-import { Select } from "@novaway/ui/select"
 import { ModelSelectorPopover } from "@/components/dialog-select-model"
+import { ThinkingEffortPopover } from "@/components/thinking-effort-popover"
 import { WindowControls } from "@/components/window-controls"
 import { SessionHeader } from "@/components/session/session-header"
 import { useGlobalSync } from "@/context/global-sync"
@@ -38,7 +38,6 @@ export function WorkspaceHeader() {
   const directory = createMemo(() => decode64(params.dir) ?? "")
   const sessionStore = createMemo(() => (directory() ? globalSync.child(directory())[0] : undefined))
   const session = createMemo(() => sessionStore()?.session.find((s) => s.id === params.id))
-  const variants = createMemo(() => ["default", ...local.model.variant.list()])
   const working = createMemo(() => {
     const id = session()?.id
     const store = sessionStore()
@@ -141,17 +140,9 @@ export function WorkspaceHeader() {
             <Icon name="chevron-down" size="small" class="shrink-0" />
           </ModelSelectorPopover>
         </div>
-      </Show>
-      <Show when={!modelsCtx.autoMode() && variants().length > 2}>
-        <Select
-          size="small"
-          options={variants()}
-          current={local.model.variant.current() ?? "default"}
-          label={(x) => language.t("workspace.header.variant." + x)}
-          onSelect={(value) => local.model.variant.set(value === "default" ? undefined : value)}
-          variant="ghost"
-          class="text-ui-caption max-w-[120px]"
-        />
+        <Show when={!modelsCtx.autoMode()}>
+          <ThinkingEffortPopover model={local.model} size="small" placement="bottom-start" />
+        </Show>
       </Show>
       <div class="flex-1" />
       <Show when={settings.general.showTerminal()}>

@@ -9,6 +9,12 @@
   z-index: 100;
   background-color: color-mix(in oklab, var(--background) 60%, transparent);
   backdrop-filter: blur(2px);
+  /* 遮罩本身也淡入，否则弹窗还没出来背景先"跳"一下。 */
+  animation: overlayShow var(--transition-overlay-ms, 180ms) ease-out;
+
+  &[data-closed] {
+    animation: overlayHide var(--transition-overlay-ms, 180ms) ease-in forwards;
+  }
 }
 
 [data-component="dialog"] {
@@ -52,11 +58,18 @@
       /* padding: 8px; */
       /* padding: 8px 8px 0 8px; */
       border-radius: var(--radius-2xl);
+      /* 视觉：顶边一道极细的高光 + 双层阴影。
+         单色描边在深色主题里会糊成一团，高光能让窗口边界清晰但不抢眼。 */
       border: 1px solid var(--popover-border);
       background: var(--popover);
       background-clip: padding-box;
-      box-shadow: var(--shadow-md);
+      box-shadow:
+        inset 0 1px 0 color-mix(in oklab, white 8%, transparent),
+        0 1px 2px color-mix(in oklab, #000 8%, transparent),
+        0 24px 64px -12px color-mix(in oklab, #000 42%, transparent);
       font-size: var(--font-size-ui-base);
+      /* 内容滚到底/顶时，头部与正文之间有可见的分隔，避免文字"贴"在一起。 */
+      isolation: isolate;
 
       [data-slot="dialog-header"] {
         display: flex;
@@ -65,6 +78,13 @@
         align-items: center;
         flex-shrink: 0;
         align-self: stretch;
+        /* 内容滚动时标题栏保持可见，避免长弹窗里失去上下文。 */
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: color-mix(in oklab, var(--popover) 92%, transparent);
+        backdrop-filter: blur(8px);
+        border-bottom: 1px solid color-mix(in oklab, var(--popover-border) 60%, transparent);
 
         [data-slot="dialog-title"] {
           color: var(--foreground);
@@ -145,7 +165,7 @@
   animation: contentHide var(--transition-overlay-ms, 180ms) ease-in forwards;
 
   &[data-expanded] {
-    animation: contentShow var(--transition-overlay-ms, 180ms) ease-out;
+    animation: contentShow var(--transition-overlay-ms, 180ms) cubic-bezier(0.16, 1, 0.3, 1);
   }
 }
 
@@ -165,23 +185,33 @@
     opacity: 0;
   }
 }
+/* 弹窗进场：从「点击位置」作为原点轻微放大 + 上浮。
+ *
+ * `--pointer-origin-*` 由 dialog.tsx 在挂载时写入（点击坐标折算成百分比）；
+ * 没写时退回中心，保证用快捷键打开时观感正常。
+ * 位移只有 6px，够看出方向感，又不至于像整块面板在飞。
+ */
 @keyframes contentShow {
   from {
     opacity: 0;
-    transform: scale(0.95);
+    transform: translate3d(0, 6px, 0) scale(0.94);
+    transform-origin: var(--pointer-origin-x, 50%) var(--pointer-origin-y, 50%);
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: translate3d(0, 0, 0) scale(1);
+    transform-origin: var(--pointer-origin-x, 50%) var(--pointer-origin-y, 50%);
   }
 }
 @keyframes contentHide {
   from {
     opacity: 1;
-    transform: scale(1);
+    transform: translate3d(0, 0, 0) scale(1);
+    transform-origin: var(--pointer-origin-x, 50%) var(--pointer-origin-y, 50%);
   }
   to {
     opacity: 0;
-    transform: scale(0.95);
+    transform: translate3d(0, 4px, 0) scale(0.97);
+    transform-origin: var(--pointer-origin-x, 50%) var(--pointer-origin-y, 50%);
   }
 }

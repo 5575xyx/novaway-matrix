@@ -10,6 +10,7 @@ import { Filesystem } from "@/util/filesystem"
 import { provideInstance, tmpdirScoped } from "../fixture/fixture"
 import type { Permission } from "../../src/permission"
 import { Agent } from "../../src/agent/agent"
+import { BackgroundJob } from "../../src/background/job"
 import { Truncate } from "@/tool/truncate"
 import { SessionID, MessageID } from "../../src/session/schema"
 import { CrossSpawnSpawner } from "@novaway/core/cross-spawn-spawner"
@@ -27,6 +28,7 @@ const shellLayer = Layer.mergeAll(
   Config.defaultLayer,
   Agent.defaultLayer,
   RuntimeFlags.defaultLayer,
+  BackgroundJob.defaultLayer,
 )
 const it = testEffect(shellLayer)
 type ShellTestServices =
