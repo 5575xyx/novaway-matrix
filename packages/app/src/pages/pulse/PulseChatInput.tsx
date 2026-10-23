@@ -398,7 +398,9 @@ export function PulseChatInput(props: PulseChatInputProps) {
               <For each={groupedModels()}>
                 {([providerName, models]) => (
                   <div class="mb-1">
-                    <div class="px-2 py-1 text-11-medium text-foreground-subtlest uppercase tracking-wider">{providerName}</div>
+                    <div class="px-2 py-1 text-11-medium text-foreground-subtlest uppercase tracking-wider">
+                      {providerName}
+                    </div>
                     <For each={models}>
                       {(m) => (
                         <button

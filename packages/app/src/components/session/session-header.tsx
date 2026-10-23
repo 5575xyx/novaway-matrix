@@ -131,6 +131,8 @@ export function SessionHeader(): JSX.Element {
   const settings = useSettings()
   const sync = useSync()
   const { params } = useSessionLayout()
+  // Session id comes from the route: the header renders inside the session frame.
+  const sessionID = createMemo(() => (params as { id?: string }).id)
 
   const projectDirectory = createMemo(() => decode64(params.dir) ?? "")
   const project = createMemo(() => {

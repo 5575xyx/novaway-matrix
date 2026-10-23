@@ -8,6 +8,7 @@ import { writeClipboard } from "@novaway/ui/util/clipboard"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { usePlatform } from "@/context/platform"
 import { FeishuAppSetupGuide } from "./feishu-app-setup-guide"
+import { AiFixButton } from "./ai-fix-button"
 
 type PanelWorkflow = {
   id: string
@@ -126,7 +127,9 @@ function ConnectorHelpTip(props: { id: string }) {
       <Show when={open()}>
         <span aria-hidden="true" class="absolute left-0 top-full h-2 w-72" />
         <span class="absolute left-0 top-[calc(100%+8px)] z-50 w-72 rounded-[8px] border border-border-hover bg-popover p-3 text-left shadow-[0_18px_44px_rgba(0,0,0,0.20)]">
-          <span class="block text-11-regular leading-relaxed text-foreground-subtle">{officeConnectorHelp(props.id)}</span>
+          <span class="block text-11-regular leading-relaxed text-foreground-subtle">
+            {officeConnectorHelp(props.id)}
+          </span>
           <Show when={link()}>
             <span class="mt-2 flex items-center gap-2 rounded-[7px] border border-border bg-background p-2">
               <code class="min-w-0 flex-1 truncate text-11-regular text-foreground">{link()}</code>
@@ -555,8 +558,7 @@ export function OfficePlatformPanel() {
                     classList={{
                       "border-emerald-300/50 bg-emerald-300/10 text-emerald-100":
                         scheduleDraft.triggerType === option.id,
-                      "border-border bg-background text-foreground-subtle":
-                        scheduleDraft.triggerType !== option.id,
+                      "border-border bg-background text-foreground-subtle": scheduleDraft.triggerType !== option.id,
                     }}
                     onClick={() => setScheduleDraft("triggerType", option.id)}
                   >
@@ -1160,7 +1162,9 @@ export function OfficePlatformPanel() {
                         <div class="flex items-center justify-between gap-2">
                           <div class="min-w-0">
                             <div class="truncate text-13-medium text-foreground">{workflow.title}</div>
-                            <div class="mt-0.5 line-clamp-2 text-11-regular text-foreground-subtle">{workflow.prompt}</div>
+                            <div class="mt-0.5 line-clamp-2 text-11-regular text-foreground-subtle">
+                              {workflow.prompt}
+                            </div>
                             <div
                               class="mt-1 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-10-medium"
                               classList={{
@@ -1330,8 +1334,12 @@ export function OfficePlatformPanel() {
                             <span class="truncate text-13-medium text-foreground">{connector.name}</span>
                             <ConnectorHelpTip id={connector.id} />
                           </div>
-                          <div class="mt-0.5 line-clamp-2 text-11-regular text-foreground-subtle">{connector.description}</div>
-                          <div class="mt-0.5 text-11-regular text-foreground-subtle">{connector.capabilities.join(" / ")}</div>
+                          <div class="mt-0.5 line-clamp-2 text-11-regular text-foreground-subtle">
+                            {connector.description}
+                          </div>
+                          <div class="mt-0.5 text-11-regular text-foreground-subtle">
+                            {connector.capabilities.join(" / ")}
+                          </div>
                           <Show when={connector.status === "failed"}>
                             <div class="mt-1 text-11-regular leading-relaxed text-rose-200">
                               {connector.id === "tencent-docs"
@@ -1347,8 +1355,7 @@ export function OfficePlatformPanel() {
                               "border-emerald-300/30 bg-emerald-300/10 text-emerald-200":
                                 connector.status === "connected",
                               "border-rose-300/30 bg-rose-300/10 text-rose-200": connector.status === "failed",
-                              "border-border bg-background text-foreground-subtle":
-                                connector.status === "disabled",
+                              "border-border bg-background text-foreground-subtle": connector.status === "disabled",
                             }}
                           >
                             {connector.status === "connected"
@@ -1366,6 +1373,29 @@ export function OfficePlatformPanel() {
                             >
                               <Icon name="sliders" size="small" />
                             </button>
+                          </Show>
+                          {/* 连接器异常或没配好时，让 Agent 按步骤排查（不碰密钥）。 */}
+                          <Show when={connector.status !== "connected"}>
+                            <AiFixButton
+                              promptKey="office.platform.aiFixPrompt"
+                              variant="ghost"
+                              class="h-8 px-2 text-11-medium"
+                              label="AI 排查"
+                              params={{ connector: connector.name, id: connector.id }}
+                              context={() => ({
+                                status:
+                                  connector.status === "failed"
+                                    ? "连接器状态异常"
+                                    : connector.configured
+                                      ? "已配置但未连接"
+                                      : "尚未配置凭据",
+                                facts: {
+                                  connector: connector.id + " (" + connector.name + ")",
+                                  status: connector.status,
+                                  configured: String(connector.configured),
+                                },
+                              })}
+                            />
                           </Show>
                           <Show when={connector.id === "tencent-docs" && connector.configured}>
                             <button
@@ -1441,10 +1471,7 @@ export function OfficePlatformPanel() {
                 </div>
               </div>
 
-              <div
-                class="rounded-[8px] border border-border bg-background p-4"
-                classList={{ hidden: true }}
-              >
+              <div class="rounded-[8px] border border-border bg-background p-4" classList={{ hidden: true }}>
                 <div class="flex items-center gap-2 text-14-medium text-foreground">
                   <Icon name="window-cursor" size="small" />
                   浏览器自动化
@@ -1514,7 +1541,9 @@ export function OfficePlatformPanel() {
                         {new Date(run.startedAt).toLocaleString()} · {run.status}
                       </div>
                       <Show when={run.logs?.length}>
-                        <div class="mt-1 line-clamp-2 text-11-regular text-foreground-subtle">{run.logs?.join(" · ")}</div>
+                        <div class="mt-1 line-clamp-2 text-11-regular text-foreground-subtle">
+                          {run.logs?.join(" · ")}
+                        </div>
                       </Show>
                       <Show when={run.error}>
                         <div class="mt-1 line-clamp-2 text-11-regular text-rose-200">{run.error}</div>

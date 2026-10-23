@@ -22,6 +22,7 @@ import { RuntimeFlags } from "@/effect/runtime-flags"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { SessionEvent } from "@novaway/core/session-event"
 import { Memory } from "@/memory/service"
+import { Service as HookService, defaultLayer as HookLayer } from "@/hook/service"
 
 const log = Log.create({ service: "session.compaction" })
 
@@ -236,6 +237,7 @@ export const layer = Layer.effect(
     const events = yield* EventV2Bridge.Service
     const flags = yield* RuntimeFlags.Service
     const memory = yield* Memory.Service
+    const hooks = Option.getOrUndefined(yield* Effect.serviceOption(HookService))
 
     const isOverflow = Effect.fn("SessionCompaction.isOverflow")(function* (input: {
       tokens: MessageV2.Assistant["tokens"]
@@ -367,6 +369,7 @@ export const layer = Layer.effect(
       if (!parent || parent.info.role !== "user") {
         throw new Error(`Compaction parent must be a user message: ${input.parentID}`)
       }
+
       const userMessage = parent.info
       const compactionPart = parent.parts.find((part): part is MessageV2.CompactionPart => part.type === "compaction")
 
@@ -607,6 +610,9 @@ export const layer = Layer.effect(
           })
         }
         yield* bus.publish(Event.Compacted, { sessionID: input.sessionID })
+        if (hooks) {
+          yield* hooks.trigger({ event: "PostCompact", sessionID: input.sessionID }).pipe(Effect.ignore)
+        }
       }
       return result
     })
@@ -618,6 +624,13 @@ export const layer = Layer.effect(
       auto: boolean
       overflow?: boolean
     }) {
+      if (hooks) {
+        const pre = yield* hooks
+          .trigger({ event: "PreCompact", sessionID: input.sessionID })
+          .pipe(Effect.catch(() => Effect.succeed({ blocked: false, ran: false })))
+        if (pre.blocked) return
+      }
+
       const msg = yield* session.updateMessage({
         id: MessageID.ascending(),
         role: "user",
@@ -662,6 +675,7 @@ export const defaultLayer = Layer.suspend(() =>
     Layer.provide(Memory.layer),
     Layer.provide(Bus.layer),
     Layer.provide(Config.defaultLayer),
+    Layer.provide(HookLayer),
     Layer.provide(RuntimeFlags.defaultLayer),
     Layer.provide(EventV2Bridge.defaultLayer),
   ),

@@ -1,6 +1,7 @@
 import { Component, Show, createMemo, createResource, createSignal, onMount, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Button } from "@novaway/ui/button"
+import { AiFixButton } from "./ai-fix-button"
 import { Icon } from "@novaway/ui/icon"
 import { Select } from "@novaway/ui/select"
 import { Switch } from "@novaway/ui/switch"
@@ -26,6 +27,8 @@ import {
 } from "@/context/settings"
 import { playSoundById, SOUND_OPTIONS } from "@/utils/sound"
 import { SettingsGroup } from "./settings-parts"
+import { usePermission } from "@/context/permission"
+import { PERMISSION_MODES } from "@/context/permission-risk"
 
 let demoSoundState = {
   cleanup: undefined as (() => void) | undefined,
@@ -163,7 +166,9 @@ function PetManagementCard() {
       <div class="flex flex-wrap items-center gap-4 py-3 border-b border-border">
         <div class="flex min-w-0 flex-1 flex-col gap-0.5">
           <span class="text-14-medium text-foreground">{language.t("settings.desktop.pet.title" as never)}</span>
-          <span class="text-12-regular text-foreground-subtle">{language.t("settings.desktop.pet.description" as never)}</span>
+          <span class="text-12-regular text-foreground-subtle">
+            {language.t("settings.desktop.pet.description" as never)}
+          </span>
         </div>
         <div data-action="settings-pet-visible">
           <Switch
@@ -292,6 +297,9 @@ export const SettingsPet: Component = () => {
   )
 }
 
+/** 是否显示「音效」设置。当前没有可用音效资源，默认关闭。 */
+const SHOW_SOUND_SETTINGS = false
+
 export const SettingsGeneral: Component = () => {
   const language = useLanguage()
   const theme = useTheme()
@@ -362,6 +370,12 @@ export const SettingsGeneral: Component = () => {
 
   const globalSync = useGlobalSync()
   const globalSdk = useGlobalSDK()
+  const permission = usePermission()
+  // 设置页挂在应用级，没有 Session 的 SDKProvider；默认档位直接读全局配置。
+  const defaultPermissionMode = createMemo(() => permission.defaultMode())
+  const permissionModeOptions = createMemo(() =>
+    PERMISSION_MODES.map((item) => ({ value: item.value, label: language.t(item.titleKey as never) })),
+  )
 
   const [shells] = createResource(
     () =>
@@ -380,11 +394,10 @@ export const SettingsGeneral: Component = () => {
 
   const autoOption = { id: "auto", value: "", label: language.t("settings.general.row.shell.autoDefault") }
 
-  const followupOptions = () =>
-    [
-      { value: "steer" as const, label: language.t("settings.general.row.followup.option.steer") },
-      { value: "queue" as const, label: language.t("settings.general.row.followup.option.queue") },
-    ]
+  const followupOptions = () => [
+    { value: "steer" as const, label: language.t("settings.general.row.followup.option.steer") },
+    { value: "queue" as const, label: language.t("settings.general.row.followup.option.queue") },
+  ]
   const currentShell = createMemo(() => globalSync.data.config.shell ?? "")
 
   const shellOptions = createMemo<ShellSelectOption[]>(() => {
@@ -610,13 +623,22 @@ export const SettingsGeneral: Component = () => {
         </SettingsRow>
 
         <SettingsRow
-          title={language.t("settings.permissions.row.autoApprove.title")}
-          description={language.t("settings.permissions.row.autoApprove.description")}
+          title={language.t("settings.permissions.row.defaultMode.title")}
+          description={language.t("settings.permissions.row.defaultMode.description")}
         >
-          <div data-action="settings-auto-approve-permissions">
-            <Switch
-              checked={settings.permissions.autoApprove()}
-              onChange={(checked) => settings.permissions.setAutoApprove(checked)}
+          <div data-action="settings-default-permission-mode">
+            <Select
+              options={permissionModeOptions()}
+              current={permissionModeOptions().find((option) => option.value === defaultPermissionMode())}
+              value={(option) => option.value}
+              label={(option) => option.label}
+              onSelect={(option) => {
+                if (!option) return
+                permission.setDefaultMode(undefined, option.value as never)
+                showToast({ title: language.t("settings.permissions.defaultMode.saved") })
+              }}
+              variant="secondary"
+              size="small"
             />
           </div>
         </SettingsRow>
@@ -812,6 +834,24 @@ export const SettingsGeneral: Component = () => {
               : language.t("settings.updates.action.checkNow")}
           </Button>
         </SettingsRow>
+
+        {/* 安装/升级出问题时，与其让用户照着 README 排查，不如让 AI 上机诊断。 */}
+        <SettingsRow
+          title={language.t("settings.updates.row.doctor.title")}
+          description={language.t("settings.updates.row.doctor.description")}
+        >
+          <AiFixButton
+            promptKey="settings.updates.aiFixPrompt"
+            variant="secondary"
+            class="h-7"
+            params={{
+              symptom: language.t("settings.updates.row.doctor.description"),
+              version: platform.version ?? "unknown",
+              platform: (platform.os ?? "unknown") + " / " + (platform.platform ?? "unknown"),
+            }}
+            context={() => ({})}
+          />
+        </SettingsRow>
       </SettingsGroup>
     </div>
   )
@@ -833,7 +873,11 @@ export const SettingsGeneral: Component = () => {
 
         <NotificationsSection />
 
-        <SoundsSection />
+        {/* 音效：当前产品没有接入任何提示音资源，这一节只会在设置里制造
+            「选了但没反应」的困惑，先整节隐藏；需要时把 SoundsSection 放回来即可。 */}
+        <Show when={SHOW_SOUND_SETTINGS}>
+          <SoundsSection />
+        </Show>
 
         <UpdatesSection />
       </div>

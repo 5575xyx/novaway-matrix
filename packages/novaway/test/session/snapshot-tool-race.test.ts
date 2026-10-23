@@ -230,8 +230,11 @@ it.live("tool execution produces non-empty session diff (snapshot race)", () =>
         permission: [{ permission: "*", pattern: "*", action: "allow" }],
       })
 
-      // Use bash tool (always registered) to create a file
-      const command = `echo 'snapshot race test content' > ${path.join(dir, "race-test.txt")}`
+      // Use bash tool (always registered) to create a file.
+      // Quote the path with forward slashes: Git Bash on Windows treats
+      // backslashes in a redirect target as escapes and creates a mangled file.
+      const target = path.join(dir, "race-test.txt").replaceAll("\\", "/")
+      const command = `echo 'snapshot race test content' > "${target}"`
       yield* llm.toolMatch((hit) => JSON.stringify(hit.body).includes("create the file"), "bash", {
         command,
         description: "create test file",

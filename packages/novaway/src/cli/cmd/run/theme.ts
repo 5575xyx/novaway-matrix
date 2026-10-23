@@ -72,7 +72,10 @@ type Variant = {
 type ColorValue = HexColor | RefName | Variant | RGBA | number
 type ThemeJson = {
   defs?: Record<string, HexColor | RefName>
-  theme: Omit<Record<ThemeColor, ColorValue>, "selectedListItemText" | "backgroundMenu" | "neonStart" | "neonMid" | "neonEnd"> & {
+  theme: Omit<
+    Record<ThemeColor, ColorValue>,
+    "selectedListItemText" | "backgroundMenu" | "neonStart" | "neonMid" | "neonEnd"
+  > & {
     selectedListItemText?: ColorValue
     backgroundMenu?: ColorValue
     neonStart?: ColorValue

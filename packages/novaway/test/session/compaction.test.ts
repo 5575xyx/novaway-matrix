@@ -31,6 +31,7 @@ import { SyncEvent } from "@/sync"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { Memory } from "@/memory/service"
+import { defaultLayer as HookLayer } from "@/hook/service"
 
 void Log.init({ print: false })
 
@@ -246,6 +247,7 @@ const deps = Layer.mergeAll(
   SyncEvent.defaultLayer,
   RuntimeFlags.layer({ experimentalEventSystem: true }),
   EventV2Bridge.defaultLayer,
+  HookLayer,
 )
 
 const env = Layer.mergeAll(
@@ -256,7 +258,7 @@ const env = Layer.mergeAll(
 
 const it = testEffect(env)
 
-const compactionEnv = Layer.mergeAll(SessionNs.defaultLayer, CrossSpawnSpawner.defaultLayer)
+const compactionEnv = Layer.mergeAll(SessionNs.defaultLayer, CrossSpawnSpawner.defaultLayer, HookLayer)
 const itCompaction = testEffect(compactionEnv)
 
 type CompactionProcessOptions = {
@@ -1322,15 +1324,19 @@ describe("session.compaction.process", () => {
           })
           .pipe(Effect.forkChild)
 
-        yield* Deferred.await(ready).pipe(Effect.timeout("1 second"))
+        // Setup waits for the retry to be scheduled; that involves a snapshot
+        // (git init/add/write-tree) which is slow on Windows and under load.
+        // The actual assertion below is about interrupt latency, not setup time.
+        yield* Deferred.await(ready).pipe(Effect.timeout("30 seconds"))
         const start = Date.now()
         yield* Fiber.interrupt(fiber)
-        const exit = yield* Fiber.await(fiber).pipe(Effect.timeout("250 millis"))
+        const exit = yield* Fiber.await(fiber).pipe(Effect.timeout("1 second"))
 
         expect(Exit.isFailure(exit)).toBe(true)
         if (Exit.isFailure(exit)) {
           expect(Cause.hasInterrupts(exit.cause)).toBe(true)
-          expect(Date.now() - start).toBeLessThan(250)
+          // Must not wait out the 10s retry-after backoff.
+          expect(Date.now() - start).toBeLessThan(1_000)
         }
       }).pipe(withCompaction({ llm: stub.layer }))
     },

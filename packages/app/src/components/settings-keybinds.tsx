@@ -419,8 +419,7 @@ export const SettingsKeybinds: Component = () => {
                           data-keybind-id={id}
                           classList={{
                             "h-8 shrink-0 rounded-md px-3 text-12-regular transition-colors": true,
-                            "bg-surface text-foreground-subtle hover:bg-hover active:bg-selected":
-                              store.active !== id,
+                            "bg-surface text-foreground-subtle hover:bg-hover active:bg-selected": store.active !== id,
                             "border border-border text-foreground-subtle": store.active === id,
                           }}
                           onClick={() => start(id)}

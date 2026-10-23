@@ -26,8 +26,12 @@ export function shouldMountStatusPanel(sections: readonly { id: string }[]): boo
 //   git —— 全 app 唯一的提交入口就在这一块的 body 里（status-panel-git-commit）
 //   context —— 上下文占用与缓存命中率合并成一张卡；缓存是**整个会话累积**的统计，
 //              不是这一轮的临时残留，所以任务停下后仍然保留。
+//   background —— 后台子代理/命令可以独立于主线程运行，主线程 idle 时也必须能看到并停止。
 // 「记忆与进化」已从面板移除（全局能力，不该占会话状态的位置，见 pages/session.tsx）。
-const ALWAYS_VISIBLE_SECTIONS = new Set(["git", "context"])
+// plan-approval 也常驻：子代理会一直阻塞在那里，主线程此时恰好是 idle 状态。
+//   hooks —— 只在有 Hook 真正在跑时出现（自带轮询），它回答"这一轮为什么慢"，
+//            恰好也发生在主线程看起来 idle 的时刻，所以常驻判定必须包含它。
+const ALWAYS_VISIBLE_SECTIONS = new Set(["git", "context", "background", "temp-files", "plan-approval", "hooks"])
 
 export function visibleStatusSections<T extends { id: string }>(sections: readonly T[], running: boolean): T[] {
   if (running) return [...sections]
@@ -87,22 +91,29 @@ function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.
           留一条细滚动条，用户一眼知道还能往下翻。
         */}
         <div class="status-panel-scroll flex-1 min-h-0 overflow-y-auto flex flex-col gap-2 p-2">
-          <For each={props.sections}>
-            {(section) => {
-              const open = layout.statusPanel.open(directory(), section.id, section.defaultOpen)
+          {/*
+            按 id 而不是按对象做 key：sections 数组每次重建都是新对象，直接 <For each={props.sections}>
+            会把所有区块的 DOM 整体重挂 —— 后台任务每 2 秒的心跳、git 每 5 秒的轮询都会让
+            正在输入的分支名输入框被销毁（表现为"鼠标还在菜单里，菜单自己关了"）。
+            这里只把 id 当 key，区块内容用 memo 按 id 查；对象没变时 memo 不通知，子树保持挂载。
+          */}
+          <For each={props.sections.map((section) => section.id)}>
+            {(id) => {
+              const section = createMemo(() => props.sections.find((item) => item.id === id))
+              const isOpen = layout.statusPanel.open(directory(), id, section()?.defaultOpen)
               // shrink-0：卡片不能被 flex 压扁。之前总高度超限时每张卡都被压缩，
               // 卡片体被裁掉，看起来"挤在一起、显示不全"。让外层滚动条承担溢出。
               return (
                 <div class="shrink-0 overflow-hidden rounded-lg border border-border bg-background">
                   <StatusSection
-                    id={section.id}
-                    title={section.title}
-                    summary={section.summary}
-                    open={open()}
-                    onToggle={() => layout.statusPanel.toggleOpen(directory(), section.id, section.defaultOpen)}
-                    bodyHeight={section.bodyHeight}
+                    id={id}
+                    title={section()?.title ?? ""}
+                    summary={section()?.summary}
+                    open={isOpen()}
+                    onToggle={() => layout.statusPanel.toggleOpen(directory(), id, section()?.defaultOpen)}
+                    bodyHeight={section()?.bodyHeight}
                   >
-                    {section.children}
+                    {section()?.children}
                   </StatusSection>
                 </div>
               )

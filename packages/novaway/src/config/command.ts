@@ -16,6 +16,22 @@ export const Info = Schema.Struct({
   agent: Schema.optional(Schema.String),
   model: Schema.optional(ConfigModelID),
   subtask: Schema.optional(Schema.Boolean),
+  // Command/skill model aligned with Claude Code.
+  type: Schema.optional(Schema.Literals(["prompt", "action"])),
+  aliases: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
+  argumentHint: Schema.optional(Schema.String),
+  whenToUse: Schema.optional(Schema.String),
+  version: Schema.optional(Schema.String),
+  context: Schema.optional(Schema.Literals(["inline", "fork"])),
+  allowedTools: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
+  paths: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
+  hooks: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+  userInvocable: Schema.optional(Schema.Boolean),
+  disableModelInvocation: Schema.optional(Schema.Boolean),
+  isHidden: Schema.optional(Schema.Boolean),
+  immediate: Schema.optional(Schema.Boolean),
+  sensitive: Schema.optional(Schema.Boolean),
+  handler: Schema.optional(Schema.String),
 })
 
 export type Info = Schema.Schema.Type<typeof Info>
@@ -28,7 +44,14 @@ export async function load(dir: string) {
   const scans: Array<{ pattern: string; patterns: string[]; sourceLabel: string }> = [
     {
       pattern: "{command,commands}/**/*.md",
-      patterns: ["/.novaway/command/", "/.novaway/commands/", "/command/", "/commands/"],
+      patterns: [
+        "/.novaway/command/",
+        "/.novaway/commands/",
+        "/.claude/command/",
+        "/.claude/commands/",
+        "/command/",
+        "/commands/",
+      ],
       sourceLabel: "command",
     },
     {
@@ -82,6 +105,7 @@ export async function load(dir: string) {
         result[name] = {
           template: md.content.trim(),
           description,
+          ...(typeof md.data?.type === "string" ? { type: md.data.type as "prompt" | "action" } : {}),
         }
         continue
       }

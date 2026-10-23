@@ -6,7 +6,8 @@
    `bg-popover` + `border-popover-border` + `p-2.5` + `gap-4` + `text-ui-base`，
    动效 fade + zoom 95%（100ms），不带滑入位移。旧版是 rounded-md + 自算色 + 15px 缩放。 */
 [data-component="popover-content"] {
-  z-index: 60;
+  /* 高于 Dialog（100），弹窗内的气泡层不被盖住。 */
+  z-index: 200;
   display: flex;
   flex-direction: column;
   gap: 16px;

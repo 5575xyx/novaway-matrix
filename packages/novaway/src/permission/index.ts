@@ -1,7 +1,10 @@
 import { Bus } from "@/bus"
 import { BusEvent } from "@/bus/bus-event"
 import { ConfigPermission } from "@/config/permission"
+import { Config } from "@/config/config"
+import { Service as HookService } from "@/hook/service"
 import { InstanceState } from "@/effect/instance-state"
+import { PLAN_WRITE_TOOLS, isPlanWrite, isReadOnlyShell } from "./plan"
 import { ProjectID } from "@/project/schema"
 import { MessageID, SessionID } from "@/session/schema"
 import { PermissionTable } from "@/session/session.sql"
@@ -9,12 +12,17 @@ import { Database } from "@/storage/db"
 import { eq } from "drizzle-orm"
 import * as Log from "@novaway/core/util/log"
 import { Wildcard } from "@/util/wildcard"
-import { Deferred, Effect, Layer, Schema, Context } from "effect"
+import { Deferred, Effect, Layer, Option, Schema, Context } from "effect"
 import os from "os"
 import { evaluate as evalRule } from "./evaluate"
 import { PermissionID } from "./schema"
 
 const log = Log.create({ service: "permission" })
+
+export const Mode = Schema.Literals(["default", "acceptEdits", "plan", "bypassPermissions"]).annotate({
+  identifier: "PermissionMode",
+})
+export type Mode = Schema.Schema.Type<typeof Mode>
 
 export const Action = Schema.Literals(["allow", "deny", "ask"]).annotate({ identifier: "PermissionAction" })
 export type Action = Schema.Schema.Type<typeof Action>
@@ -100,6 +108,12 @@ export const AskInput = Schema.Struct({
   ...Request.fields,
   id: Schema.optional(PermissionID),
   ruleset: Ruleset,
+  /**
+   * Session-scoped permission mode. When provided it wins over the global
+   * `config.permission_mode`, so one session can run in plan mode while the
+   * rest of the app stays in default mode.
+   */
+  mode: Schema.optional(Mode),
 }).annotate({ identifier: "PermissionAskInput" })
 export type AskInput = Schema.Schema.Type<typeof AskInput>
 
@@ -135,6 +149,8 @@ export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const bus = yield* Bus.Service
+    // Optional: minimal layer stacks (tests, embedders) run without hooks.
+    const hooks = Option.getOrUndefined(yield* Effect.serviceOption(HookService))
     const state = yield* InstanceState.make<State>(
       Effect.fn("Permission.state")(function* (ctx) {
         const row = Database.use((db) =>
@@ -160,13 +176,39 @@ export const layer = Layer.effect(
 
     const ask = Effect.fn("Permission.ask")(function* (input: AskInput) {
       const { approved, pending } = yield* InstanceState.get(state)
-      const { ruleset, ...request } = input
+      const { ruleset, mode: requested, ...request } = input
+
+      const cfg = yield* Effect.serviceOption(Config.Service)
+      const mode: Mode =
+        requested ?? (cfg._tag === "Some" ? ((yield* cfg.value.get()).permission_mode ?? "default") : "default")
+      const writeTool = PLAN_WRITE_TOOLS.has(request.permission) || request.permission === "shell"
+      if (mode === "bypassPermissions") return
+      if (mode === "acceptEdits" && writeTool) return
+      if (mode === "plan" && writeTool) {
+        // 「只读」保留两条例外：写计划文件、跑只读命令。其余写入硬拒绝。
+        const ctx = yield* InstanceState.context
+        const allowed = PLAN_WRITE_TOOLS.has(request.permission)
+          ? isPlanWrite(request.patterns, ctx)
+          : isReadOnlyShell(request.patterns)
+        if (!allowed) return yield* new DeniedError({ ruleset })
+      }
       let needsAsk = false
 
       for (const pattern of request.patterns) {
         const rule = evaluate(request.permission, pattern, ruleset, approved)
         log.info("evaluated", { permission: request.permission, pattern, action: rule })
         if (rule.action === "deny") {
+          if (hooks) {
+            yield* hooks
+              .trigger({
+                event: "PermissionDenied",
+                sessionID: request.sessionID,
+                tool: request.permission,
+                args: request.metadata,
+                error: "denied by rule",
+              })
+              .pipe(Effect.ignore)
+          }
           return yield* new DeniedError({
             ruleset: ruleset.filter((rule) => Wildcard.match(request.permission, rule.permission)),
           })
@@ -176,6 +218,28 @@ export const layer = Layer.effect(
       }
 
       if (!needsAsk) return
+
+      if (hooks) {
+        yield* hooks
+          .trigger({
+            event: "PermissionRequest",
+            sessionID: request.sessionID,
+            tool: request.permission,
+            args: request.metadata,
+          })
+          .pipe(Effect.ignore)
+        // The agent is now blocked on a human: surface it as a notification so
+        // desktop/automation hooks can raise a toast or a push.
+        yield* hooks
+          .trigger({
+            event: "Notification",
+            sessionID: request.sessionID,
+            tool: request.permission,
+            args: request.metadata,
+            metadata: { kind: "permission", patterns: request.patterns, mode },
+          })
+          .pipe(Effect.ignore)
+      }
 
       const id = request.id ?? PermissionID.ascending()
       const info = Schema.decodeUnknownSync(Request)({

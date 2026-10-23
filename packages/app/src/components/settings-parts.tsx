@@ -5,9 +5,7 @@ import { type Component, type JSX } from "solid-js"
 // 右侧是控件（开关 / 输入框 / 按钮）。旧实现是「每项一张竖排小卡片」，
 // 开关被放到说明下方，视觉上更像表单而不像设置项，这里统一掉。
 export const SettingsGroup: Component<{ children: JSX.Element; class?: string }> = (props) => (
-  <div class={`overflow-hidden rounded-xl border border-border bg-surface ${props.class ?? ""}`}>
-    {props.children}
-  </div>
+  <div class={`overflow-hidden rounded-xl border border-border bg-surface ${props.class ?? ""}`}>{props.children}</div>
 )
 
 export const SettingsRow: Component<{
@@ -21,7 +19,8 @@ export const SettingsRow: Component<{
   class?: string
 }> = (props) => (
   <div
-    class={`border-t border-border px-4 py-3 first:border-t-0 ${
+    data-row-hover
+    class={`group border-t border-border px-4 py-3 transition-colors first:border-t-0 hover:bg-hover/50 ${
       props.layout === "wide" ? "flex flex-col gap-3" : ""
     } ${props.class ?? ""}`}
   >

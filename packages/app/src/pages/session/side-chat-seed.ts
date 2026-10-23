@@ -70,12 +70,7 @@ export function buildSelectionQuote(input: { path: string; start: number; end: n
 }
 
 /** 兼容旧调用：把引用拼成一段直接可读的文本（用于"在主线打开"等场景）。 */
-export function buildSelectionSeed(input: {
-  path: string
-  start: number
-  end: number
-  code: string
-}): string {
+export function buildSelectionSeed(input: { path: string; start: number; end: number; code: string }): string {
   const quote = buildSelectionQuote(input)
   return `${quote.label}：\n\n\`\`\`\n${quote.text}\n\`\`\`\n\n`
 }

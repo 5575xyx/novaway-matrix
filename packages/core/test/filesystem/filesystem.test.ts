@@ -355,12 +355,28 @@ describe("AppFileSystem", () => {
     test("contains checks path containment", () => {
       expect(AppFileSystem.contains("/a/b", "/a/b/c")).toBe(true)
       expect(AppFileSystem.contains("/a/b", "/a/c")).toBe(false)
+      // The parent itself is contained; a sibling that merely shares a prefix is not.
+      expect(AppFileSystem.contains("/a/b", "/a/b")).toBe(true)
+      expect(AppFileSystem.contains("/a/bc", "/a/b")).toBe(false)
+      // A directory named "..something" is not a traversal.
+      expect(AppFileSystem.contains("/a/b", "/a/b/..cache")).toBe(true)
+    })
+
+    test("contains rejects paths on a different root", () => {
+      // `path.relative` returns the child unchanged across Windows drives, which
+      // used to make every external path look contained. Model that behaviour
+      // without depending on the current platform.
+      const parent = process.platform === "win32" ? "C:/work/project" : "/work/project"
+      const other = process.platform === "win32" ? "D:/elsewhere" : "/elsewhere"
+      expect(AppFileSystem.contains(parent, other)).toBe(false)
+      expect(AppFileSystem.contains(parent, parent + "/inside")).toBe(true)
     })
 
     test("overlaps detects overlapping paths", () => {
       expect(AppFileSystem.overlaps("/a/b", "/a/b/c")).toBe(true)
       expect(AppFileSystem.overlaps("/a/b/c", "/a/b")).toBe(true)
       expect(AppFileSystem.overlaps("/a", "/b")).toBe(false)
+      expect(AppFileSystem.overlaps("/a/bc", "/a/b")).toBe(false)
     })
   })
 })

@@ -69,7 +69,14 @@ import { useServer } from "@/context/server"
 import { workspacePanelRadiusPx } from "@/utils/workspace-chrome"
 import { useLanguage, type Locale } from "@/context/language"
 import { pathKey } from "@/utils/path-key"
-import { effectiveWorkspaceOrder, errorMessage, latestRootSession, sessionStatusOf, sortedRootSessions } from "./layout/helpers"
+import {
+  CLOSE_FRAME_PAGES_EVENT,
+  effectiveWorkspaceOrder,
+  errorMessage,
+  latestRootSession,
+  sessionStatusOf,
+  sortedRootSessions,
+} from "./layout/helpers"
 import {
   collectNewSessionDeepLinks,
   collectOpenProjectDeepLinks,
@@ -81,10 +88,17 @@ import { ProjectMenu, type ProjectSidebarContext } from "./layout/sidebar-projec
 import { ModeSwitchButton } from "@/components/mode-switch"
 import { SidebarMenuRow } from "@/components/sidebar-menu-row"
 import { ThemeSchemeToggle } from "@/components/theme-scheme-toggle"
-import { ProjectTaskList, TaskFilterBar, useArchivedSessions, useTaskCounts, type TaskFilter } from "./layout/sidebar-tasks"
+import {
+  ProjectTaskList,
+  TaskFilterBar,
+  useArchivedSessions,
+  useTaskCounts,
+  type TaskFilter,
+} from "./layout/sidebar-tasks"
 import { SidebarContent } from "./layout/sidebar-shell"
 import { ExtensionsPage } from "./extensions"
 import { AutomationPage } from "./automation"
+import { KnowledgePage } from "./knowledge"
 
 function feishuQuestionText(questions: QuestionRequest["questions"]) {
   if (!Array.isArray(questions)) return ""
@@ -258,10 +272,31 @@ export default function Layout(props: ParentProps) {
     automationPage: {
       open: false,
     },
+    knowledgePage: {
+      open: false,
+    },
 
     sortNow: Date.now(),
     sizing: false,
   })
+
+  // 这些是「整帧覆盖」页面：同一时间只能有一个。
+  // 之前各入口只负责把自己打开，没有关掉上一个，于是数据库打开后点自动化/设置，
+  // 新页面其实被压在数据库下面，看起来像"点了没反应"。
+  const FRAME_PAGES = ["settings", "databasePage", "extensionsPage", "automationPage", "knowledgePage"] as const
+  type FramePage = (typeof FRAME_PAGES)[number]
+
+  function closeFramePages(except?: FramePage) {
+    let changed = false
+    for (const page of FRAME_PAGES) {
+      if (page === except || !state[page].open) continue
+      setState(page, "open", false)
+      changed = true
+    }
+    // 覆盖层关闭后让聊天区重新校验一次可视区域：面板动画期间
+    // 虚拟列表可能测到 0 高度，回来时会一片空白，直到用户滚一下才恢复。
+    if (changed) window.dispatchEvent(new CustomEvent("novaway:overlay-closed"))
+  }
 
   // 设置 / 数据库是「整帧覆盖」的面板，用 mount-transition 拿到开**和关**两个方向的过渡
   // （<Show> 只有存在/不存在两态，关掉时是瞬间消失）。时长与侧栏/面板统一。
@@ -273,12 +308,7 @@ export default function Layout(props: ParentProps) {
   createEffect(
     on(
       () => location.pathname,
-      () => {
-        if (state.settings.open) setState("settings", "open", false)
-        if (state.databasePage.open) setState("databasePage", "open", false)
-        if (state.extensionsPage.open) setState("extensionsPage", "open", false)
-        if (state.automationPage.open) setState("automationPage", "open", false)
-      },
+      () => closeFramePages(),
       { defer: true },
     ),
   )
@@ -288,11 +318,18 @@ export default function Layout(props: ParentProps) {
   // 窄窗口下侧栏是浮层（z-50、fixed），盖在上面会让覆盖层的返回按钮点不到。
   // 打开任何整帧页面时先把移动侧栏收起来。
   createEffect(() => {
-    if (state.settings.open || state.databasePage.open || state.extensionsPage.open || state.automationPage.open) {
+    if (
+      state.settings.open ||
+      state.databasePage.open ||
+      state.extensionsPage.open ||
+      state.automationPage.open ||
+      state.knowledgePage.open
+    ) {
       layout.mobileSidebar.hide()
     }
   })
   const automationTransition = createMountTransition(() => state.automationPage.open)
+  const knowledgeTransition = createMountTransition(() => state.knowledgePage.open)
 
   // 这里**刻意不做**路由级的入场重放。
   //
@@ -309,7 +346,8 @@ export default function Layout(props: ParentProps) {
     if (value) {
       setState("busyWorkspaces", key, true)
       return
-    }    setState(
+    }
+    setState(
       "busyWorkspaces",
       produce((draft) => {
         delete draft[key]
@@ -341,6 +379,8 @@ export default function Layout(props: ParentProps) {
     makeEventListener(window, "pointerup", stop)
     makeEventListener(window, "pointercancel", stop)
     makeEventListener(window, "blur", stop)
+    // 点当前会话时路由不变，靠这个事件主动收起整帧页面。
+    makeEventListener(window, CLOSE_FRAME_PAGES_EVENT, () => closeFramePages())
   })
 
   createEffect(() => {
@@ -360,6 +400,9 @@ export default function Layout(props: ParentProps) {
 
   const navigateWithSidebarReset = (href: string) => {
     clearSidebarHoverState()
+    // 显式关闭，而不是只依赖 pathname 变化：从 /session 再点「新建任务」时
+    // 路径不变，路由 effect 不会触发，覆盖层就会一直压在会话上面。
+    closeFramePages()
     navigate(href)
     layout.mobileSidebar.hide()
   }
@@ -1407,6 +1450,7 @@ export default function Layout(props: ParentProps) {
 
   function openSettings(initialTab?: SettingsTab) {
     const directory = currentProject()?.worktree ?? currentDir()
+    closeFramePages("settings")
     batch(() => {
       setState("settings", "directory", directory)
       setState("settings", "initialTab", initialTab)
@@ -1420,6 +1464,7 @@ export default function Layout(props: ParentProps) {
    * 两种情况都会把右侧面板展开。
    */
   async function openSideChatFromSidebar() {
+    closeFramePages()
     const parentID = params.id ?? ""
     const existing = Object.values(layout.sidePane.dynamicTabs()).filter(
       (tab) => tab.kind === "sideChat" && tab.parentID === parentID,
@@ -1465,15 +1510,27 @@ export default function Layout(props: ParentProps) {
   }
 
   function openExtensionsPage() {
+    closeFramePages("extensionsPage")
     setState("extensionsPage", "open", true)
   }
 
   function openAutomationPage() {
+    closeFramePages("automationPage")
     setState("automationPage", "open", true)
   }
 
   function closeAutomationPage() {
     setState("automationPage", "open", false)
+    window.dispatchEvent(new CustomEvent("novaway:overlay-closed"))
+  }
+
+  function openKnowledgePage() {
+    closeFramePages("knowledgePage")
+    setState("knowledgePage", "open", true)
+  }
+
+  function closeKnowledgePage() {
+    setState("knowledgePage", "open", false)
     window.dispatchEvent(new CustomEvent("novaway:overlay-closed"))
   }
 
@@ -1483,9 +1540,8 @@ export default function Layout(props: ParentProps) {
   }
 
   function openDatabasePage() {
-    batch(() => {
-      setState("databasePage", "open", true)
-    })
+    closeFramePages("databasePage")
+    setState("databasePage", "open", true)
   }
 
   function closeDatabasePage() {
@@ -2295,7 +2351,9 @@ export default function Layout(props: ParentProps) {
             <Mark class="size-5 shrink-0 text-foreground" />
             {/* 品牌字标：`Nova` 用前景色、`Way` 用当前模式色。
                 比纯文本多一档识别度（用户要求"特殊格式"），同时顺带当作模式指示。 */}
-            <span class="brand-wordmark text-ui-base truncate">Nova<span class="text-[var(--mode-accent)]">Way</span></span>
+            <span class="brand-wordmark text-ui-base truncate">
+              Nova<span class="text-[var(--mode-accent)]">Way</span>
+            </span>
           </button>
           <div class="flex-1" />
           <Show
@@ -2587,6 +2645,8 @@ export default function Layout(props: ParentProps) {
                 <SidebarMenuRow
                   icon={<Icon name="database" size="small" />}
                   label={language.t("sidebar.database")}
+                  tone="blue"
+                  size="large"
                   onClick={() => command.trigger("database.open")}
                 />
               </Show>
@@ -2594,17 +2654,30 @@ export default function Layout(props: ParentProps) {
                 <SidebarMenuRow
                   icon={<Icon name="speech-bubble" size="small" />}
                   label={language.t("sidebar.sideChat")}
+                  tone="violet"
+                  size="large"
                   onClick={openSideChatFromSidebar}
                 />
               </Show>
               <SidebarMenuRow
                 icon={<Icon name="autopilot" size="small" />}
                 label={language.t("sidebar.automation")}
+                tone="amber"
+                size="large"
                 onClick={openAutomationPage}
+              />
+              <SidebarMenuRow
+                icon={<Icon name="review" size="small" />}
+                label={language.t("sidebar.knowledge")}
+                tone="emerald"
+                size="large"
+                onClick={openKnowledgePage}
               />
               <SidebarMenuRow
                 icon={<Icon name="dot-grid" size="small" />}
                 label={language.t("sidebar.extensionsMarket")}
+                tone="pink"
+                size="large"
                 onClick={openExtensionsPage}
               />
               <SidebarMenuRow
@@ -2695,7 +2768,15 @@ export default function Layout(props: ParentProps) {
       // 设置/数据库盖住主帧时，会话帧 Header 里那组窗控虽然被盖住，
       // 但淡入淡出的 1s 里会和面板自带的那组叠在一起"重影"。
       // 用这个标记把被盖住的那组藏掉（见 index.css）。
-      data-frame-overlay={state.settings.open || state.databasePage.open || state.extensionsPage.open || state.automationPage.open ? "true" : undefined}
+      data-frame-overlay={
+        state.settings.open ||
+        state.databasePage.open ||
+        state.extensionsPage.open ||
+        state.automationPage.open ||
+        state.knowledgePage.open
+          ? "true"
+          : undefined
+      }
     >
       {autoselecting() ?? ""}
       {/* 全局标题栏已移除：窗口顶部不再有独立 chrome，身份/导航/操作分别落在
@@ -2827,6 +2908,21 @@ export default function Layout(props: ParentProps) {
                   />
                 </section>
               </Show>
+              <Show when={knowledgeTransition.mounted()}>
+                <section
+                  data-panel-transition
+                  data-state={knowledgeTransition.closing() ? "closed" : "open"}
+                  class="absolute left-1 right-2 top-1 bottom-2 z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                  aria-label={language.t("sidebar.knowledge")}
+                  aria-hidden={knowledgeTransition.closing()}
+                  inert={knowledgeTransition.closing()}
+                >
+                  <FrameWindowControls />
+                  <div class="flex-1 min-h-0">
+                    <KnowledgePage onBack={closeKnowledgePage} />
+                  </div>
+                </section>
+              </Show>
               <Show when={automationTransition.mounted()}>
                 <section
                   data-panel-transition
@@ -2853,7 +2949,7 @@ export default function Layout(props: ParentProps) {
                 >
                   <FrameWindowControls />
                   <div class="flex-1 min-h-0">
-                    <ExtensionsPage onBack={closeExtensionsPage} />
+                    <ExtensionsPage directory={currentDir()} onBack={closeExtensionsPage} />
                   </div>
                 </section>
               </Show>

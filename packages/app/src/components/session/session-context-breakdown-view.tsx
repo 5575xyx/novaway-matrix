@@ -1,10 +1,7 @@
 import { For, Show } from "solid-js"
 import type { JSX } from "solid-js"
 import { useLanguage } from "@/context/language"
-import type {
-  SessionContextBreakdownKey,
-  SessionContextBreakdownSegment,
-} from "./session-context-breakdown"
+import type { SessionContextBreakdownKey, SessionContextBreakdownSegment } from "./session-context-breakdown"
 
 export const BREAKDOWN_COLOR: Record<SessionContextBreakdownKey, string> = {
   system: "var(--syntax-info)",

@@ -60,6 +60,7 @@ import { EventV2Bridge } from "@/event-v2-bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Evolution } from "@/evolution/service"
 import { Memory } from "@/memory/service"
+import { ExtensionService, ExtensionLayer } from "@/extension"
 
 const memoryEvolutionLayer = Layer.mergeAll(Bus.defaultLayer, Evolution.layer, Memory.layer).pipe(
   Layer.provide(Bus.defaultLayer),
@@ -104,6 +105,7 @@ export const AppLayer = Layer.mergeAll(
   MCP.defaultLayer,
   McpAuth.defaultLayer,
   Command.defaultLayer,
+  ExtensionLayer,
   Truncate.defaultLayer,
   ToolRegistry.defaultLayer,
   Format.defaultLayer,

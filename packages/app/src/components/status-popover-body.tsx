@@ -8,6 +8,7 @@ import { showToast } from "@novaway/ui/toast"
 import { useNavigate } from "@solidjs/router"
 import { type Accessor, createEffect, createMemo, For, type JSXElement, onCleanup, Show } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
+import { AiFixButton } from "@/components/ai-fix-button"
 import { ServerHealthIndicator, ServerRow } from "@/components/server/server-row"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
@@ -314,7 +315,9 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
               <Show
                 when={mcpNames().length > 0}
                 fallback={
-                  <div class="text-14-regular text-foreground text-center my-auto">{language.t("dialog.mcp.empty")}</div>
+                  <div class="text-14-regular text-foreground text-center my-auto">
+                    {language.t("dialog.mcp.empty")}
+                  </div>
                 }
               >
                 <For each={mcpNames()}>
@@ -337,8 +340,7 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
                             "bg-success": status() === "connected",
                             "bg-destructive": status() === "failed",
                             "bg-border": status() === "disabled",
-                            "bg-warning":
-                              status() === "needs_auth" || status() === "needs_client_registration",
+                            "bg-warning": status() === "needs_auth" || status() === "needs_client_registration",
                           }}
                         />
                         <span class="flex flex-col min-w-0 flex-1">
@@ -376,7 +378,9 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
               <Show
                 when={lspItems().length > 0}
                 fallback={
-                  <div class="text-14-regular text-foreground text-center my-auto">{language.t("dialog.lsp.empty")}</div>
+                  <div class="text-14-regular text-foreground text-center my-auto">
+                    {language.t("dialog.lsp.empty")}
+                  </div>
                 }
               >
                 <For each={lspItems()}>
@@ -395,6 +399,24 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
                 </For>
               </Show>
             </div>
+            {/* 有服务端报错或一个都没起来时，让 AI 去查前置工具链并安装。 */}
+            <Show when={lspItems().length === 0 || lspItems().some((item) => item.status === "error")}>
+              <div class="flex justify-end pt-2">
+                <AiFixButton
+                  promptKey="status.lsp.aiFixPrompt"
+                  class="h-7"
+                  context={() => ({
+                    status: lspItems().length === 0 ? "没有任何语言服务端在运行" : "部分语言服务端启动失败",
+                    facts: {
+                      servers:
+                        lspItems()
+                          .map((item) => (item.name || item.id) + ": " + item.status)
+                          .join(", ") || "none",
+                    },
+                  })}
+                />
+              </div>
+            </Show>
           </div>
         </Tabs.Content>
 

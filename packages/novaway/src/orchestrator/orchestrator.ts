@@ -11,7 +11,7 @@ export interface OrchestratorPlan {
   readonly sessionId: string
   readonly name: string
   readonly tasks: OrchestratorTask[]
-  readonly status: "draft" | "running" | "completed" | "failed"
+  readonly status: "draft" | "running" | "paused" | "cancelled" | "completed" | "failed"
   readonly error: string | null
   readonly createdAt: Date
   readonly updatedAt: Date
@@ -33,7 +33,16 @@ export interface Interface {
     runAgent: RunAgent
     defaultAgent: string
     concurrency?: number
+    retry?: boolean
+    signal?: AbortSignal
   }) => Effect.Effect<OrchestratorPlan>
+
+  /** Update plan status (pause/resume/cancel). */
+  readonly setStatus: (input: {
+    planId: string
+    status: OrchestratorPlan["status"]
+    error?: string | null
+  }) => Effect.Effect<OrchestratorPlan | null>
 
   readonly getPlan: (planId: string) => Effect.Effect<OrchestratorPlan | null>
 
@@ -154,7 +163,28 @@ export const layer = Layer.effect(
         const results: Record<string, unknown> = {}
         for (const t of tasks) if (t.status === "completed" && t.result != null) results[t.id] = t.result
 
+        // Retry mode: reset failed tasks so they can be scheduled again.
+        if (input.retry) {
+          for (const task of tasks) {
+            if (task.status !== "failed") continue
+            ;(task as any).status = "pending"
+            ;(task as any).error = undefined
+          }
+        }
+
         yield* persist(input.planId, { status: "running", error: null })
+
+        // Cooperative pause/cancel gate: the plan status is re-read before each wave.
+        const gate = Effect.gen(function* () {
+          while (true) {
+            if (input.signal?.aborted) return "cancelled" as const
+            const current = yield* getPlan(input.planId)
+            if (!current) return "cancelled" as const
+            if (current.status === "cancelled") return "cancelled" as const
+            if (current.status !== "paused") return "running" as const
+            yield* Effect.sleep("250 millis")
+          }
+        })
 
         const runTask = (task: OrchestratorTask): Effect.Effect<void> =>
           Effect.gen(function* () {
@@ -192,6 +222,17 @@ export const layer = Layer.effect(
         // 按波次执行:每波取所有依赖已完成的 pending 任务并发跑。
         const guard = { budget: tasks.length + 2 }
         while (guard.budget-- > 0) {
+          const state = yield* gate
+          if (state === "cancelled") {
+            for (const task of tasks) {
+              if (task.status === "pending" || task.status === "running") {
+                ;(task as any).status = "cancelled"
+              }
+            }
+            yield* persist(input.planId, { tasks: [...tasks], status: "cancelled" })
+            return (yield* getPlan(input.planId))!
+          }
+
           const pending = tasks.filter((t) => t.status === "pending")
           if (pending.length === 0) break
           const ready = pending.filter((t) => t.dependencies.every((dep) => byId.get(dep)?.status === "completed"))
@@ -220,6 +261,16 @@ export const layer = Layer.effect(
       }),
 
       getPlan,
+
+      setStatus: Effect.fn("OrchestratorService.setStatus")(function* (input) {
+        const plan = yield* getPlan(input.planId)
+        if (!plan) return null
+        yield* persist(input.planId, {
+          status: input.status,
+          ...(input.error !== undefined ? { error: input.error } : {}),
+        })
+        return yield* getPlan(input.planId)
+      }),
 
       listPlans: Effect.fn("OrchestratorService.listPlans")(function* (sessionId) {
         const rows = yield* Effect.sync(() =>

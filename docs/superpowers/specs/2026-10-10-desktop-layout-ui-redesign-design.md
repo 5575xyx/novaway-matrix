@@ -121,15 +121,15 @@
 
 **LayoutProvider 变更**（`packages/app/src/context/layout.tsx`）：
 
-| 动作 | 项 | 说明 |
-| --- | --- | --- |
-| 移除 | `viewMode: chat\|split\|preview` | split 取消 |
-| 新增 | `sidePaneOpen`、`sidePaneTab` | Side Pane 开关与激活 tab |
-| 新增 | `terminalOpen` | Terminal frame 开关（高度沿用 `terminalHeight`） |
-| 新增 | `sidebarView: tasks \| tree` | 侧栏整列切换 |
-| 迁移 | `sessionPanelWidth`/`previewWidth` → `sidePaneWidth` | 默认 360，max 60vw |
-| 迁移 | `sidebarWidth` 默认 344 → 280 | 仅改默认值，已存用户值不覆盖 |
-| 保留 | `mode`、其余 panel 宽度、持久化机制 | 不动 |
+| 动作 | 项                                                   | 说明                                             |
+| ---- | ---------------------------------------------------- | ------------------------------------------------ |
+| 移除 | `viewMode: chat\|split\|preview`                     | split 取消                                       |
+| 新增 | `sidePaneOpen`、`sidePaneTab`                        | Side Pane 开关与激活 tab                         |
+| 新增 | `terminalOpen`                                       | Terminal frame 开关（高度沿用 `terminalHeight`） |
+| 新增 | `sidebarView: tasks \| tree`                         | 侧栏整列切换                                     |
+| 迁移 | `sessionPanelWidth`/`previewWidth` → `sidePaneWidth` | 默认 360，max 60vw                               |
+| 迁移 | `sidebarWidth` 默认 344 → 280                        | 仅改默认值，已存用户值不覆盖                     |
+| 保留 | `mode`、其余 panel 宽度、持久化机制                  | 不动                                             |
 
 持久化策略：存储键 **bump 版本号**——随版本废弃的键（`viewMode`、`sessionPanelWidth`、`previewWidth`）直接清除；仍有效且语义不变的宽度键（`sidebarWidth`、`terminalHeight` 等）保留已存值，仅当用户从未设置时使用新默认。不做逐键迁移逻辑。
 

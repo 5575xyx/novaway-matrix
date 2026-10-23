@@ -45,9 +45,9 @@ describe("firstSelectableModel", () => {
   })
 
   test("内置提供商默认值为有效实时模型", () => {
-    expect(firstSelectableModel({ id: "builtin", models: { gpt: { id: "gpt" } } }, { builtin: "gpt" }, alwaysValid)).toBe(
-      "gpt",
-    )
+    expect(
+      firstSelectableModel({ id: "builtin", models: { gpt: { id: "gpt" } } }, { builtin: "gpt" }, alwaysValid),
+    ).toBe("gpt")
   })
 
   test("全部候选无效返回 undefined", () => {

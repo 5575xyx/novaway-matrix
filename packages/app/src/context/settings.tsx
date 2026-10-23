@@ -51,9 +51,6 @@ export interface Settings {
     terminal: string
   }
   keybinds: Record<string, string>
-  permissions: {
-    autoApprove: boolean
-  }
   notifications: NotificationSettings
   sounds: SoundSettings
 }
@@ -136,9 +133,6 @@ const defaultSettings: Settings = {
     terminal: "",
   },
   keybinds: {},
-  permissions: {
-    autoApprove: false,
-  },
   notifications: {
     agent: true,
     permissions: true,
@@ -177,7 +171,6 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
       root.style.setProperty("--font-family-mono", monoFontFamily(store.appearance?.mono))
       root.style.setProperty("--font-family-sans", sansFontFamily(store.appearance?.sans))
     })
-
 
     const fontSize = withFallback(() => store.appearance?.fontSize, defaultSettings.appearance.fontSize)
     createEffect(() => {
@@ -301,12 +294,6 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         },
         resetAll() {
           setStore("keybinds", reconcile({}))
-        },
-      },
-      permissions: {
-        autoApprove: withFallback(() => store.permissions?.autoApprove, defaultSettings.permissions.autoApprove),
-        setAutoApprove(value: boolean) {
-          setStore("permissions", "autoApprove", value)
         },
       },
       notifications: {

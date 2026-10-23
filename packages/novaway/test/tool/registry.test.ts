@@ -10,6 +10,7 @@ import { Tool } from "@/tool/tool"
 import { disposeAllInstances, TestInstance } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 import { TestConfig } from "../fixture/config"
+import { Config } from "@/config/config"
 import { AppFileSystem } from "@novaway/core/filesystem"
 import { Plugin } from "@/plugin"
 import { Question } from "@/question"
@@ -38,16 +39,22 @@ import { ToolJsonSchema } from "@/tool/json-schema"
 import { MessageID, SessionID } from "@/session/schema"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Auth } from "@/auth"
+import { defaultLayer as TeamLayer } from "@/team/team"
+import { defaultLayer as AgentTaskListLayer } from "@/team/task-list"
+import { defaultLayer as AgentMailboxLayer } from "@/team/mailbox"
+import { defaultLayer as HookLayer } from "@/hook/service"
+import { defaultLayer as McpLayer } from "@/mcp"
+import { defaultLayer as EvolutionLayer } from "@/evolution/service"
 
 const node = CrossSpawnSpawner.defaultLayer
 const configLayer = TestConfig.layer({
   directories: () => InstanceState.directory.pipe(Effect.map((dir) => [path.join(dir, ".opencode")])),
 })
 
-const registryLayer = (flags: Partial<RuntimeFlags.Info> = {}) =>
+const registryLayer = (flags: Partial<RuntimeFlags.Info> = {}, config: Layer.Layer<Config.Service> = configLayer) =>
   ToolRegistry.layer
     .pipe(
-      Layer.provide(configLayer),
+      Layer.provide(config),
       Layer.provide(Plugin.defaultLayer),
       Layer.provide(Question.defaultLayer),
       Layer.provide(Todo.defaultLayer),
@@ -75,11 +82,41 @@ const registryLayer = (flags: Partial<RuntimeFlags.Info> = {}) =>
       Layer.provide(Goal.defaultLayer),
       Layer.provide(WorkflowDefaultLayer),
       Layer.provide(OrchestratorDefaultLayer),
+      Layer.provide(TeamLayer),
+      Layer.provide(AgentTaskListLayer),
+      Layer.provide(AgentMailboxLayer),
+      Layer.provide(HookLayer),
+      Layer.provide(McpLayer),
+      Layer.provide(EvolutionLayer),
     )
+
+const deferConfig = TestConfig.layer({
+  directories: () => InstanceState.directory.pipe(Effect.map((dir) => [path.join(dir, ".opencode")])),
+  get: () => Effect.succeed({ experimental: { defer_loading: true } } as never),
+})
+const deferred = testEffect(
+  Layer.mergeAll(
+    registryLayer({}, deferConfig),
+    node,
+    Agent.defaultLayer,
+    Auth.defaultLayer,
+    Session.defaultLayer,
+    SessionStatus.defaultLayer,
+    BackgroundJob.defaultLayer,
+  ) as any,
+)
 
 const it = testEffect(Layer.mergeAll(registryLayer(), node, Agent.defaultLayer, Auth.defaultLayer) as any)
 const scout = testEffect(
   Layer.mergeAll(registryLayer({ experimentalScout: true }), node, Agent.defaultLayer, Auth.defaultLayer) as any,
+)
+const plain = testEffect(
+  Layer.mergeAll(
+    registryLayer({ experimentalBackgroundSubagents: false }),
+    node,
+    Agent.defaultLayer,
+    Auth.defaultLayer,
+  ) as any,
 )
 const background = testEffect(
   Layer.mergeAll(
@@ -92,6 +129,46 @@ const background = testEffect(
 
 afterEach(async () => {
   await disposeAllInstances()
+})
+
+describe("deferred tools", () => {
+  deferred.instance("hides long-tail tools until activated", () =>
+    Effect.gen(function* () {
+      const registry = yield* ToolRegistry.Service
+      const agent = yield* Agent.Service
+      const build = yield* agent.get("build")
+      const session = yield* Session.Service
+      const chat = yield* session.create({ title: "defer" })
+      const ref = { providerID: ProviderID.make("test"), modelID: ModelID.make("test-model") }
+
+      const before = yield* registry.tools({ ...ref, agent: build, sessionID: chat.id })
+      expect(before.some((tool) => tool.id === "browser_click")).toBe(false)
+      expect(before.some((tool) => tool.id === "read")).toBe(true)
+
+      // Names (not schemas) are still advertised so the model knows what exists.
+      const searchDef = before.find((tool) => tool.id === "tool_search")
+      expect(searchDef?.description).toContain("browser_click")
+
+      // tool_search activates what it returns for this session.
+      const search = before.find((tool) => tool.id === "tool_search")
+      if (!search) throw new Error("tool_search missing")
+      yield* search.execute(
+        { query: "select:browser_click" },
+        {
+          sessionID: chat.id,
+          messageID: MessageID.make("msg_defer"),
+          agent: "build",
+          abort: new AbortController().signal,
+          messages: [],
+          metadata: () => Effect.void,
+          ask: () => Effect.void,
+        },
+      )
+
+      const after = yield* registry.tools({ ...ref, agent: build, sessionID: chat.id })
+      expect(after.some((tool) => tool.id === "browser_click")).toBe(true)
+    }),
+  )
 })
 
 describe("tool.registry", () => {
@@ -115,7 +192,7 @@ describe("tool.registry", () => {
     }),
   )
 
-  it.instance("hides task_status unless experimental background subagents are enabled", () =>
+  plain.instance("hides task_status unless experimental background subagents are enabled", () =>
     Effect.gen(function* () {
       const registry = yield* ToolRegistry.Service
       const ids = yield* registry.ids()
@@ -124,7 +201,7 @@ describe("tool.registry", () => {
     }),
   )
 
-  it.instance("hides task background parameter unless experimental background subagents are enabled", () =>
+  plain.instance("hides task background parameter unless experimental background subagents are enabled", () =>
     Effect.gen(function* () {
       const registry = yield* ToolRegistry.Service
       const agent = yield* Agent.Service

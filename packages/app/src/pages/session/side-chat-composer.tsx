@@ -10,6 +10,7 @@ import { showToast } from "@novaway/ui/toast"
 import { ModelSelectorPopover } from "@/components/dialog-select-model"
 import { PermissionModeSelect } from "@/components/permission-mode-select"
 import { useLanguage } from "@/context/language"
+import { useVariantLabel } from "@/hooks/use-variant-label"
 import { useLocal } from "@/context/local"
 import { useModels } from "@/context/models"
 import { useSDK } from "@/context/sdk"
@@ -18,20 +19,11 @@ import { clearSideChatSeed, getSideChatSeed, type SideChatQuote } from "@/pages/
 
 type Attachment = { id: string; filename: string; mime: string; dataUrl: string }
 
-const variantLabel = (value: string) => {
-  if (value === "default") return "默认"
-  if (value === "low") return "低"
-  if (value === "medium") return "中"
-  if (value === "high") return "高"
-  if (value === "max") return "高+"
-  return value
-}
-
 /**
  * 辅助对话的输入框。
  *
  * **与主输入框完全一致**（对齐 ZCode：辅助对话的 composer 和主对话是同一个形态）：
- * 顶部是模型 / 变体 / 自动联网 / 项目权限那排，中间是引用卡片与输入区，
+ * 顶部是模型 / 变体 / 项目权限那排，中间是引用卡片与输入区，
  * 底部是 + @ / 与发送。用户在不同窗口之间切换时，不该重新认一遍输入框长什么样，
  * 也不该少掉主对话里能做的事（选模型、切变体、挂附件、调权限）。
  *
@@ -41,6 +33,7 @@ const variantLabel = (value: string) => {
  */
 export function SideChatComposer(props: { tab: SidePaneSessionTab }) {
   const language = useLanguage()
+  const variantLabel = useVariantLabel()
   const sdk = useSDK()
   const local = useLocal()
   const models = useModels()
@@ -56,9 +49,8 @@ export function SideChatComposer(props: { tab: SidePaneSessionTab }) {
   let textareaRef: HTMLTextAreaElement | undefined
 
   const variants = createMemo(() => ["default", ...local.model.variant.list()])
-  const modelLabel = () => models.autoMode()
-    ? "Auto"
-    : (local.model.current()?.name ?? language.t("dialog.model.select.title"))
+  const modelLabel = () =>
+    models.autoMode() ? "Auto" : (local.model.current()?.name ?? language.t("dialog.model.select.title"))
 
   const insertText = (value: string) => {
     const element = textareaRef
@@ -166,7 +158,7 @@ export function SideChatComposer(props: { tab: SidePaneSessionTab }) {
     <div class="shrink-0 px-2 pb-2">
       {/* 外壳与主输入框同款：rounded-2xl + input 边框/底色 + p-3。 */}
       <div class="rounded-2xl border border-input-border bg-input p-3 transition-colors hover:border-input-border-hover focus-within:border-input-border-focused focus-within:bg-input-focused">
-        {/* 顶部工具栏：模型 / 变体 / 自动联网 / 项目权限 —— 与主输入框逐项一致。 */}
+        {/* 顶部工具栏：模型 / 变体 / 项目权限 —— 与主输入框逐项一致。 */}
         <div class="flex flex-wrap items-center gap-2 border-b border-border px-2 pb-1 pt-2 min-w-0">
           <ModelSelectorPopover
             model={local.model}
@@ -183,7 +175,10 @@ export function SideChatComposer(props: { tab: SidePaneSessionTab }) {
               <Icon name="autopilot" class="size-4 shrink-0 text-icon-blue" />
             </Show>
             <Show when={!models.autoMode() && local.model.current()?.provider?.id}>
-              <ProviderIcon id={providerIconId(local.model.current()?.provider?.id, local.model.current()?.provider?.name)} class="size-4 shrink-0 text-icon-blue" />
+              <ProviderIcon
+                id={providerIconId(local.model.current()?.provider?.id, local.model.current()?.provider?.name)}
+                class="size-4 shrink-0 text-icon-blue"
+              />
             </Show>
             <span
               class="truncate"
@@ -222,14 +217,8 @@ export function SideChatComposer(props: { tab: SidePaneSessionTab }) {
 
           <div class="flex-1" />
 
-          <div class="flex items-center gap-3 whitespace-nowrap">
-            <div
-              class="px-1.5 py-0.5 text-12-medium rounded-md text-icon-blue cursor-default select-none"
-              style={{ "font-weight": "var(--font-weight-semibold)" }}
-            >
-              自动联网
-            </div>
-            <PermissionModeSelect />
+          <div class="flex shrink-0 items-center whitespace-nowrap">
+            <PermissionModeSelect sessionID={props.tab.sessionID} />
           </div>
         </div>
 
@@ -327,13 +316,7 @@ export function SideChatComposer(props: { tab: SidePaneSessionTab }) {
           >
             <Icon name="link" class="size-4.5 text-icon-blue" />
           </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            class="size-8 p-0"
-            aria-label="提及 @"
-            onClick={() => insertText("@")}
-          >
+          <Button type="button" variant="ghost" class="size-8 p-0" aria-label="提及 @" onClick={() => insertText("@")}>
             <span class="text-sm font-semibold text-icon-blue">@</span>
           </Button>
           <Button

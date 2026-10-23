@@ -144,18 +144,16 @@ export const SettingsUsage: Component<{ directory?: string }> = (props) => {
                 {(item) => (
                   <div class="flex min-w-0 items-center gap-3 border-t border-border px-4 py-3 first:border-t-0">
                     <div class="flex min-w-0 flex-1 flex-col">
-                      <span class="truncate text-13-medium text-foreground">{modelName(item.providerID, item.modelID)}</span>
+                      <span class="truncate text-13-medium text-foreground">
+                        {modelName(item.providerID, item.modelID)}
+                      </span>
                       <span class="mt-0.5 truncate text-11-regular text-foreground-subtle">
                         {item.providerID} · {number(item.messages)} 条
                       </span>
                     </div>
                     <div class="flex shrink-0 items-center gap-4 text-11-regular tabular-nums text-foreground-subtle">
-                      <span title={language.t("settings.usage.total.input" as never)}>
-                        {number(item.input)}
-                      </span>
-                      <span title={language.t("settings.usage.total.output" as never)}>
-                        {number(item.output)}
-                      </span>
+                      <span title={language.t("settings.usage.total.input" as never)}>{number(item.input)}</span>
+                      <span title={language.t("settings.usage.total.output" as never)}>{number(item.output)}</span>
                       <span class="min-w-14 text-right text-12-medium text-foreground">{money(item.cost)}</span>
                     </div>
                   </div>

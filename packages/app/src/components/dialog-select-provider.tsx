@@ -100,7 +100,7 @@ export const DialogSelectProvider: Component = () => {
       >
         {(i) => (
           <div class="px-1.25 w-full flex items-center gap-x-3">
-            <ProviderIcon data-slot="list-item-extra-icon" id={i.id} />
+            <ProviderIcon data-slot="list-item-extra-icon" id={i.id} brand />
             <span>{i.name}</span>
             <Show when={i.id === "opencode"}>
               <div class="text-14-regular text-foreground-subtle">{language.t("dialog.provider.NovaWay.tagline")}</div>
@@ -111,7 +111,9 @@ export const DialogSelectProvider: Component = () => {
             <Show when={i.id === "opencode"}>
               <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
             </Show>
-            <Show when={note(i.id)}>{(value) => <div class="text-14-regular text-foreground-subtle">{value()}</div>}</Show>
+            <Show when={note(i.id)}>
+              {(value) => <div class="text-14-regular text-foreground-subtle">{value()}</div>}
+            </Show>
             <Show when={i.id === "NovaWay-go"}>
               <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
             </Show>

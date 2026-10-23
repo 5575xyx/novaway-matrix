@@ -35,26 +35,27 @@
 
 ## File Structure
 
-| 文件 | 职责 | 任务 |
-| --- | --- | --- |
-| `src/context/layout.tsx` | sidePane 状态模型、`reduceSidePane`、`migrateLayoutStore`、死状态清理 | 1, 2, 3, 4 |
-| `src/context/layout.test.ts` | 迁移与操作语义单测 | 2, 3, 4 |
-| `src/pages/session/session-side-panel.tsx` | tab strip 收敛、空态、渲染分支 | 1, 3 |
-| `src/pages/session.tsx` | 挂载点、布局 memo、`wantsReview`、`setFileTreeTab` | 1, 2, 5 |
-| `src/pages/session/use-session-commands.tsx` | 命令入口 | 1, 3, 4 |
-| `src/components/session/workspace-header.tsx` | 菜单收口 | 1 |
-| `src/pages/session/status-panel/`（新增） | Status Panel 骨架与三个区块 | 5–8 |
-| `src/pages/session/git-panel.tsx` | 数据链路复用（UI 收敛进卡片） | 6 |
-| `src/components/session/session-context-tab.tsx` | breakdown 渲染复用 | 8 |
-| `src/i18n/en.ts` / `src/i18n/zh.ts` | 文案键 | 1, 5–8 |
-| `src/pages/session/composer/session-todo-dock.tsx`、`src/components/task-list.tsx(+test)` | 删除 | 4 |
-| `e2e/layout.spec.ts` | 布局回归门（Task 2/3/5 各跑一次） | 2, 3, 5 |
+| 文件                                                                                      | 职责                                                                  | 任务       |
+| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ---------- |
+| `src/context/layout.tsx`                                                                  | sidePane 状态模型、`reduceSidePane`、`migrateLayoutStore`、死状态清理 | 1, 2, 3, 4 |
+| `src/context/layout.test.ts`                                                              | 迁移与操作语义单测                                                    | 2, 3, 4    |
+| `src/pages/session/session-side-panel.tsx`                                                | tab strip 收敛、空态、渲染分支                                        | 1, 3       |
+| `src/pages/session.tsx`                                                                   | 挂载点、布局 memo、`wantsReview`、`setFileTreeTab`                    | 1, 2, 5    |
+| `src/pages/session/use-session-commands.tsx`                                              | 命令入口                                                              | 1, 3, 4    |
+| `src/components/session/workspace-header.tsx`                                             | 菜单收口                                                              | 1          |
+| `src/pages/session/status-panel/`（新增）                                                 | Status Panel 骨架与三个区块                                           | 5–8        |
+| `src/pages/session/git-panel.tsx`                                                         | 数据链路复用（UI 收敛进卡片）                                         | 6          |
+| `src/components/session/session-context-tab.tsx`                                          | breakdown 渲染复用                                                    | 8          |
+| `src/i18n/en.ts` / `src/i18n/zh.ts`                                                       | 文案键                                                                | 1, 5–8     |
+| `src/pages/session/composer/session-todo-dock.tsx`、`src/components/task-list.tsx(+test)` | 删除                                                                  | 4          |
+| `e2e/layout.spec.ts`                                                                      | 布局回归门（Task 2/3/5 各跑一次）                                     | 2, 3, 5    |
 
 ---
 
 ### Task 1: Side Pane tab 收敛 6→3 + 入口收口
 
 **Files:**
+
 - Modify: `src/context/layout.tsx:124`（`SidePaneTab` 类型）
 - Modify: `src/pages/session/session-side-panel.tsx:196-206`（`tabsList`）、`:314-395`（渲染分支）
 - Modify: `src/pages/session.tsx:340-348`（`sidePaneShowsFiles` 删除）
@@ -63,6 +64,7 @@
 - Modify: `src/i18n/en.ts:107-108`、`src/i18n/zh.ts:119-120`（删 2 键）
 
 **Interfaces:**
+
 - Produces: `export type SidePaneTab = "preview" | "review" | "terminal"`；此后所有任务只允许出现这三个字面量
 - Consumes: 无（首个任务）
 
@@ -112,12 +114,14 @@ git commit -m "refactor(app): 收敛 Side Pane 为 preview/review/terminal 三 t
 ### Task 2: 审查去重
 
 **Files:**
+
 - Modify: `src/context/layout.tsx:234`（`fileTree.tab` 合法集合）、`:362`（默认值）、`:799`（accessor 类型）
 - Modify: `src/pages/session.tsx:315`（`setTab("review")`）、`:938`（`setFileTreeTab`）、`:960-963`（`showAllFiles`）
 - Modify: `src/pages/session/session-side-panel.tsx:317-377`（files 子态不再渲染 `reviewPanel()`）
 - Test: `src/context/layout.test.ts`
 
 **Interfaces:**
+
 - Produces: `fileTree.tab` 取值域 `"changes" | "all"`；`setFileTreeTab(value: "changes" | "all")`
 - Consumes: Task 1 的 `SidePaneTab` 与已删去 `sidePaneShowsFiles` 的 `wantsReview`（本任务不再改 `wantsReview`）
 
@@ -173,12 +177,14 @@ git commit -m "refactor(app): 审查入口去重，fileTree 收敛为 changes/al
 ### Task 3: sidePane 状态模型 `tabs[] + activeTab` + 空态
 
 **Files:**
+
 - Modify: `src/context/layout.tsx:374-378`（默认值）、`:868-900`（API）、`:207+`（`migrateLayoutStore` 追加 sidePane 分支）
 - Modify: `src/pages/session/session-side-panel.tsx:192-260`（tab strip 改 `tabs()` + 拖拽 + 空态）
 - Modify: `src/pages/session.tsx:340-348`、`:982`、`src/components/prompt-input.tsx:239/246`、`src/context/dev-server.tsx:46`、`src/pages/layout/sidebar-files.tsx:120`、`src/pages/session/use-session-commands.tsx:255/466`（`setTab` → `setActive`、`toggle(tab)` → `add(tab)`）
 - Test: `src/context/layout.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 1 的三字面量 `SidePaneTab`
 - Produces:
 
@@ -222,10 +228,10 @@ test("add activates an existing tab instead of duplicating", () => {
 })
 
 test("migrates legacy single tab and maps removed tabs", () => {
-  expect(migrateLayoutStore({ sidePane: { opened: true, tab: "files", width: 320 } }))
-    .toMatchObject({ sidePane: { opened: true, tabs: ["review"], activeTab: "review", width: 320 } })
-  expect(migrateLayoutStore({ sidePane: { opened: true, tab: "git", width: 320 } }).sidePane.tabs)
-    .toEqual(["preview"])
+  expect(migrateLayoutStore({ sidePane: { opened: true, tab: "files", width: 320 } })).toMatchObject({
+    sidePane: { opened: true, tabs: ["review"], activeTab: "review", width: 320 },
+  })
+  expect(migrateLayoutStore({ sidePane: { opened: true, tab: "git", width: 320 } }).sidePane.tabs).toEqual(["preview"])
 })
 
 test("fresh default stays expanded with empty tabs", () => {
@@ -281,12 +287,14 @@ git commit -m "feat(app): Side Pane 改为按需创建的 tabs 模型并增加�
 ### Task 4: 死代码与死状态清理
 
 **Files:**
+
 - Modify: `src/context/layout.tsx:364-367`（`git` 默认值段）、`:110`、`:1009-1017`（`todoCollapsed`）
 - Modify: `src/pages/session/use-session-commands.tsx:495`、`src/pages/session/session-side-panel.tsx:57-61`
 - Delete: `src/pages/session/composer/session-todo-dock.tsx`、`src/components/task-list.tsx`、`src/components/task-list.test.ts`
 - Modify: `src/pages/session/composer/session-composer-region.tsx:21`（死导入）
 
 **Interfaces:**
+
 - Consumes: Task 3 的 `sidePane` API（`todoCollapsed` 的快捷键改切 Status Panel，此时面板尚不存在——本任务先改为 no-op 并留 `// TODO(status-panel)` 注释，Task 5 接回）
 
 - [ ] **Step 1: 写失败的清理测试**
@@ -333,6 +341,7 @@ git commit -m "chore(app): 清除 layout.git 死状态与 SessionTodoDock/TaskLi
 ### Task 5: Status Panel 骨架
 
 **Files:**
+
 - Create: `src/pages/session/status-panel/status-panel.tsx`（骨架 + 形态 + mini 胶囊）
 - Create: `src/pages/session/status-panel/status-section.tsx`（可折叠区块容器）
 - Modify: `src/pages/session.tsx:1866-1869`（挂载点）
@@ -340,14 +349,24 @@ git commit -m "chore(app): 清除 layout.git 死状态与 SessionTodoDock/TaskLi
 - Test: `src/pages/session/status-panel/status-panel.test.ts`
 
 **Interfaces:**
+
 - Produces:
 
 ```ts
 // status-panel.tsx
-export function SessionStatusPanel(props: { sections: Array<{ id: string; title: string; summary?: JSX.Element; defaultOpen?: boolean; children: JSX.Element }> }): JSX.Element | null
+export function SessionStatusPanel(props: {
+  sections: Array<{ id: string; title: string; summary?: JSX.Element; defaultOpen?: boolean; children: JSX.Element }>
+}): JSX.Element | null
 // sections 全空时返回 null（整个不挂载）
 // status-section.tsx
-export function StatusSection(props: { id: string; title: string; summary?: JSX.Element; open: boolean; onToggle: () => void; children: JSX.Element }): JSX.Element
+export function StatusSection(props: {
+  id: string
+  title: string
+  summary?: JSX.Element
+  open: boolean
+  onToggle: () => void
+  children: JSX.Element
+}): JSX.Element
 ```
 
 - Consumes: `conv-frame`（`session.tsx:1865` 已是 `@container`）
@@ -409,12 +428,14 @@ git commit -m "feat(app): 新增 Status Panel 骨架与 container query 形态�
 ### Task 6: Git 区块
 
 **Files:**
+
 - Create: `src/pages/session/status-panel/git-section.tsx`
 - Modify: `src/pages/session/git-panel.tsx`（数据链路抽出复用，重交互 UI 不再挂载）
 - Modify: `src/pages/session/session-side-panel.tsx`（git 分支已在 Task 1 删除，此处仅接线）
 - Test: `src/context/` 或就近新增 `git-section.test.ts`
 
 **Interfaces:**
+
 - Consumes: git snapshot 轮询（`git-panel.tsx:16` `REFRESH_INTERVAL`、`Snapshot` 类型）
 - Produces: `export function buildGitSectionModel(snapshot: Snapshot | undefined): { added: number; removed: number; branch: string | null; dirty: number } | null`（非 git 仓库或 `added + removed <= 0` 返回 `null`）
 
@@ -427,8 +448,12 @@ test("null when clean or not a repo", () => {
   expect(buildGitSectionModel({ isRepository: true, added: 0, removed: 0, branch: "main" } as never)).toBeNull()
 })
 test("counts changes and branch", () => {
-  expect(buildGitSectionModel({ isRepository: true, added: 734, removed: 7, branch: "feat/x" } as never))
-    .toEqual({ added: 734, removed: 7, branch: "feat/x", dirty: 0 })
+  expect(buildGitSectionModel({ isRepository: true, added: 734, removed: 7, branch: "feat/x" } as never)).toEqual({
+    added: 734,
+    removed: 7,
+    branch: "feat/x",
+    dirty: 0,
+  })
 })
 ```
 
@@ -456,12 +481,14 @@ git commit -m "feat(app): Status Panel 接入 Git 区块，clean repo 不挂载"
 ### Task 7: 进度区块
 
 **Files:**
+
 - Create: `src/pages/session/status-panel/todo-section.tsx`
 - Modify: `src/pages/session/status-panel/status-panel.tsx`（接线）
 - Modify: `src/i18n/en.ts`、`src/i18n/zh.ts`
 - Test: `src/pages/session/status-panel/todo-section.test.ts`
 
 **Interfaces:**
+
 - Consumes: `globalSync.data.session_todo`（`Todo[]`，字段 `id`/`content`/`status`）
 - Produces: `export function todoSectionModel(todos: Todo[]): { done: number; total: number; focus: Todo[]; preceding: number; following: number } | null`（空数组返回 `null`；>6 条走聚焦窗口：定位 `in_progress` → 第一个未完成 → 末尾，取连续 3 条）
 
@@ -509,6 +536,7 @@ git commit -m "feat(app): Status Panel 接入进度区块，含 6 条以上聚�
 ### Task 8: Context 区块
 
 **Files:**
+
 - Create: `src/pages/session/status-panel/context-section.tsx`
 - Modify: `src/components/session/session-context-tab.tsx`（breakdown 渲染抽为可复用片段）
 - Modify: `src/pages/session/status-panel/status-panel.tsx`（接线）
@@ -516,6 +544,7 @@ git commit -m "feat(app): Status Panel 接入进度区块，含 6 条以上聚�
 - Test: `src/pages/session/status-panel/context-section.test.ts`
 
 **Interfaces:**
+
 - Consumes: `getSessionContextMetrics`、`estimateSessionContextBreakdown`（`src/components/session/`）
 - Produces: `export function contextSectionModel(metrics: ReturnType<typeof getSessionContextMetrics> | undefined): { label: string; percent: number } | null`
 
@@ -533,6 +562,7 @@ git commit -m "feat(app): Status Panel 接入进度区块，含 6 条以上聚�
 cd packages/app && bun test:unit && bun test:e2e
 cd .. && cd .. && bun typecheck && bunx oxlint .
 ```
+
 全绿后：
 
 ```bash
@@ -569,6 +599,7 @@ grep -rn 'sidePane.tab.files\|sidePane.tab.git\|sidePane.tab.context\|toggle("fi
 grep -rn 'window.innerWidth\|ResizeObserver' packages/app/src/pages/session/status-panel
 grep -rn 'text-14-regular\|text-1[0-9]-' packages/app/src/pages/session/status-panel
 ```
+
 Expected: 均 0 匹配（第三方既有文件中的命中不计，仅 status-panel 目录内须为 0）
 
 - [ ] **Step 4: 汇报并提醒推送**

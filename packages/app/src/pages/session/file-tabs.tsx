@@ -1,4 +1,15 @@
-import { createEffect, createMemo, createResource, createSignal, For, Match, on, onCleanup, Show, Switch } from "solid-js"
+import {
+  createEffect,
+  createMemo,
+  createResource,
+  createSignal,
+  For,
+  Match,
+  on,
+  onCleanup,
+  Show,
+  Switch,
+} from "solid-js"
 import { createStore } from "solid-js/store"
 import { Dynamic } from "solid-js/web"
 import { makeEventListener } from "@solid-primitives/event-listener"
@@ -260,7 +271,6 @@ export function FileTabContent(props: { tab: string }) {
       setMarkdownMode("preview")
     }),
   )
-
 
   const showDiff = () => !!diff() && viewMode() === "diff" && !isOfficePreviewPath(path())
   const [draft, setDraft] = createSignal("")
@@ -834,7 +844,11 @@ export function FileTabContent(props: { tab: string }) {
                   用户会以为没反应。分段控件让两种排布同时可见、选中态有底色。
                 */}
                 <Show when={viewMode() === "diff"}>
-                  <div class="flex items-center rounded-md bg-surface p-0.5" role="group" aria-label={language.t("session.review.diffStyle.toggle")}>
+                  <div
+                    class="flex items-center rounded-md bg-surface p-0.5"
+                    role="group"
+                    aria-label={language.t("session.review.diffStyle.toggle")}
+                  >
                     <For each={["split", "unified"] as const}>
                       {(style) => (
                         <button
@@ -895,18 +909,26 @@ export function FileTabContent(props: { tab: string }) {
                 <DropdownMenu.Content style={{ "min-width": "180px" }}>
                   <Show when={isMarkdown()}>
                     <DropdownMenu.Item onSelect={() => setMarkdownMode("preview")}>
-                      <DropdownMenu.ItemLabel>{language.t("session.filePreview.markdownPreview")}</DropdownMenu.ItemLabel>
+                      <DropdownMenu.ItemLabel>
+                        {language.t("session.filePreview.markdownPreview")}
+                      </DropdownMenu.ItemLabel>
                     </DropdownMenu.Item>
                     <DropdownMenu.Item onSelect={() => setMarkdownMode("source")}>
-                      <DropdownMenu.ItemLabel>{language.t("session.filePreview.markdownSource")}</DropdownMenu.ItemLabel>
+                      <DropdownMenu.ItemLabel>
+                        {language.t("session.filePreview.markdownSource")}
+                      </DropdownMenu.ItemLabel>
                     </DropdownMenu.Item>
                     <DropdownMenu.Separator />
                   </Show>
                   <DropdownMenu.Item onSelect={() => void copyPath("absolute")}>
-                    <DropdownMenu.ItemLabel>{language.t("session.filePreview.copyAbsolutePath")}</DropdownMenu.ItemLabel>
+                    <DropdownMenu.ItemLabel>
+                      {language.t("session.filePreview.copyAbsolutePath")}
+                    </DropdownMenu.ItemLabel>
                   </DropdownMenu.Item>
                   <DropdownMenu.Item onSelect={() => void copyPath("relative")}>
-                    <DropdownMenu.ItemLabel>{language.t("session.filePreview.copyRelativePath")}</DropdownMenu.ItemLabel>
+                    <DropdownMenu.ItemLabel>
+                      {language.t("session.filePreview.copyRelativePath")}
+                    </DropdownMenu.ItemLabel>
                   </DropdownMenu.Item>
                 </DropdownMenu.Content>
               </DropdownMenu.Portal>
@@ -945,89 +967,98 @@ export function FileTabContent(props: { tab: string }) {
                     renderDiff(diff()!)
                   ) : (
                     <Switch>
-                <Match when={state()?.loaded && state()?.content?.type !== "binary" && isMarkdown() && markdownMode() === "preview"}>
-                  <ScrollView class="h-full">
-                    <div class="mx-auto w-full max-w-3xl px-6 py-5">
-                      <Markdown text={contents()} cacheKey={cacheKey()} onFileOpen={openLinkedFile} />
-                    </div>
-                  </ScrollView>
-                </Match>
-                <Match when={state()?.loaded && state()?.content?.type !== "binary"}>
-                  <div class="flex h-full min-h-0">
-                    <div
-                      ref={(el) => {
-                        gutterRef = el
-                      }}
-                      class="w-12 shrink-0 overflow-hidden bg-background py-4 pr-2 text-right font-mono text-13 leading-6 text-foreground-subtle select-none"
-                      style={{ "line-height": "24px" }}
-                    >
-                      <For each={lineNumbers()}>
-                        {(line) => (
-                          <div
-                            class="h-6"
-                            style={{ height: "24px", "line-height": "24px" }}
-                            onContextMenu={(event: MouseEvent) => {
-                              event.preventDefault()
-                              openContextMenu({ start: line, end: line }, event.clientX, event.clientY)
-                            }}
-                          >
-                            {line}
-                          </div>
-                        )}
-                      </For>
-                    </div>
-                    <textarea
-                      ref={(el) => {
-                        editorRef = el
-                      }}
-                      class="h-full min-w-0 flex-1 resize-none overflow-x-auto bg-background py-4 pr-4 font-mono text-13 leading-6 outline-none"
-                      style={{ "line-height": "24px" }}
-                      value={draft()}
-                      wrap="off"
-                      spellcheck={false}
-                      onScroll={(event) => {
-                        if (gutterRef) gutterRef.scrollTop = event.currentTarget.scrollTop
-                      }}
-                      onInput={(event) => {
-                        setDraft(event.currentTarget.value)
-                        scheduleSave()
-                      }}
-                      onBlur={() => {
-                        if (draft() !== contents()) void saveEditing()
-                      }}
-                      onContextMenu={handleEditorContextMenu}
-                      onMouseDown={handleEditorMouseDown}
-                      onMouseUp={handleEditorMouseUp}
-                      onKeyDown={(event) => {
-                        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
-                          event.preventDefault()
-                          void saveEditing()
+                      <Match
+                        when={
+                          state()?.loaded &&
+                          state()?.content?.type !== "binary" &&
+                          isMarkdown() &&
+                          markdownMode() === "preview"
                         }
-                      }}
-                    />
-                  </div>
-                </Match>
-                <Match when={state()?.loaded && isOfficePreviewPath(path())}>
-                  <Show
-                    when={officeBase64()}
-                    fallback={
-                      <div class="flex h-full items-center justify-center px-6 text-12-regular text-foreground-subtle">
-                        {language.t("common.loading")}...
-                      </div>
-                    }
-                  >
-                    {(value) => <OfficeFilePreview path={path()!} base64={value()} />}
-                  </Show>
-                </Match>
-                <Match when={state()?.loaded}>
-                  <div class="flex h-full items-center justify-center px-6 text-12-regular text-foreground-subtle">
-                    二进制文件无法直接编辑
-                  </div>
-                </Match>
-                <Match when={state()?.loading}>
-                  <div class="px-6 py-4 text-foreground-subtle">{language.t("common.loading")}...</div>
-                </Match>
-                <Match when={state()?.error}>{(err) => <div class="px-6 py-4 text-foreground-subtle">{err()}</div>}</Match>
+                      >
+                        <ScrollView class="h-full">
+                          <div class="mx-auto w-full max-w-3xl px-6 py-5">
+                            <Markdown text={contents()} cacheKey={cacheKey()} onFileOpen={openLinkedFile} />
+                          </div>
+                        </ScrollView>
+                      </Match>
+                      <Match when={state()?.loaded && state()?.content?.type !== "binary"}>
+                        <div class="flex h-full min-h-0">
+                          <div
+                            ref={(el) => {
+                              gutterRef = el
+                            }}
+                            class="w-12 shrink-0 overflow-hidden bg-background py-4 pr-2 text-right font-mono text-13 leading-6 text-foreground-subtle select-none"
+                            style={{ "line-height": "24px" }}
+                          >
+                            <For each={lineNumbers()}>
+                              {(line) => (
+                                <div
+                                  class="h-6"
+                                  style={{ height: "24px", "line-height": "24px" }}
+                                  onContextMenu={(event: MouseEvent) => {
+                                    event.preventDefault()
+                                    openContextMenu({ start: line, end: line }, event.clientX, event.clientY)
+                                  }}
+                                >
+                                  {line}
+                                </div>
+                              )}
+                            </For>
+                          </div>
+                          <textarea
+                            ref={(el) => {
+                              editorRef = el
+                            }}
+                            class="h-full min-w-0 flex-1 resize-none overflow-x-auto bg-background py-4 pr-4 font-mono text-13 leading-6 outline-none"
+                            style={{ "line-height": "24px" }}
+                            value={draft()}
+                            wrap="off"
+                            spellcheck={false}
+                            onScroll={(event) => {
+                              if (gutterRef) gutterRef.scrollTop = event.currentTarget.scrollTop
+                            }}
+                            onInput={(event) => {
+                              setDraft(event.currentTarget.value)
+                              scheduleSave()
+                            }}
+                            onBlur={() => {
+                              if (draft() !== contents()) void saveEditing()
+                            }}
+                            onContextMenu={handleEditorContextMenu}
+                            onMouseDown={handleEditorMouseDown}
+                            onMouseUp={handleEditorMouseUp}
+                            onKeyDown={(event) => {
+                              if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+                                event.preventDefault()
+                                void saveEditing()
+                              }
+                            }}
+                          />
+                        </div>
+                      </Match>
+                      <Match when={state()?.loaded && isOfficePreviewPath(path())}>
+                        <Show
+                          when={officeBase64()}
+                          fallback={
+                            <div class="flex h-full items-center justify-center px-6 text-12-regular text-foreground-subtle">
+                              {language.t("common.loading")}...
+                            </div>
+                          }
+                        >
+                          {(value) => <OfficeFilePreview path={path()!} base64={value()} />}
+                        </Show>
+                      </Match>
+                      <Match when={state()?.loaded}>
+                        <div class="flex h-full items-center justify-center px-6 text-12-regular text-foreground-subtle">
+                          二进制文件无法直接编辑
+                        </div>
+                      </Match>
+                      <Match when={state()?.loading}>
+                        <div class="px-6 py-4 text-foreground-subtle">{language.t("common.loading")}...</div>
+                      </Match>
+                      <Match when={state()?.error}>
+                        {(err) => <div class="px-6 py-4 text-foreground-subtle">{err()}</div>}
+                      </Match>
                     </Switch>
                   )
                 }

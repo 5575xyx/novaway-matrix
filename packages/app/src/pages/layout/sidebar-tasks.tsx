@@ -12,7 +12,7 @@ import { base64Encode } from "@novaway/core/util/encode"
 import { displaySessionTitle } from "@/utils/session-title"
 import { pathKey } from "@/utils/path-key"
 import { decode64 } from "@/utils/base64"
-import { sessionStatusOf, sortedRootSessionsFrom } from "./helpers"
+import { sessionStatusOf, sortedRootSessionsFrom, requestCloseFramePages } from "./helpers"
 import { TaskRow } from "@/components/session/task-row"
 
 export type TaskFilter = "all" | "running" | "waiting" | "archived"
@@ -205,6 +205,8 @@ export function ProjectTaskList(props: {
         }}
         modeColor={() => appModeConfig(layout.mode.projectMode(session.directory))?.color}
         onClick={() => {
+          // 数据库 / 设置等整帧页面开着时，点任务应当先退出去。
+          requestCloseFramePages()
           // 辅助对话 / 子代理会话：点侧栏的树节点应在右侧面板里打开，
           // 而不是整页跳到那条会话（那样会把主线从眼前挪走）。
           const tab = Object.values(layout.sidePane.dynamicTabs()).find((item) => item.sessionID === session.id)
@@ -253,10 +255,7 @@ export function ProjectTaskList(props: {
           `2` = 任务的子会话（见 TaskRow 的 padding-left 计算）。
         */}
         <div class="relative flex flex-col gap-0.5 pt-0.5" data-component="task-tree">
-          <span
-            aria-hidden="true"
-            class="pointer-events-none absolute top-0 bottom-1 left-[15px] w-px bg-border"
-          />
+          <span aria-hidden="true" class="pointer-events-none absolute top-0 bottom-1 left-[15px] w-px bg-border" />
           <For each={sessions()}>
             {(session) => (
               <>
@@ -311,8 +310,7 @@ export function TaskFilterBar(props: {
             classList={{
               "transition-colors": true,
               "border-b-2 -mb-px pb-1.5": variant === "underline",
-              "border-icon-blue text-foreground font-medium":
-                variant === "underline" && props.filter === tab.id,
+              "border-icon-blue text-foreground font-medium": variant === "underline" && props.filter === tab.id,
               "border-transparent text-foreground-subtle hover:text-foreground":
                 variant === "underline" && props.filter !== tab.id,
               "text-foreground font-medium": variant === "text" && props.filter === tab.id,

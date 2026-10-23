@@ -140,16 +140,16 @@ ZCode 是 **3 级**（`foreground` / `foreground-subtle` / `foreground-subtlest`
 
 ### 1. 过渡动画覆盖到基本全部场景
 
-| 场景                | 位置                        | 时长来源                                     |
-| ------------------- | --------------------------- | -------------------------------------------- |
-| 侧栏展开/收起       | `layout.tsx` nav            | `--transition-panel-ms`（1s）                |
-| 主区 `left` 跟随    | `layout.tsx` 包装层         | 同上                                         |
-| Side Pane 展开/收起 | `session-side-panel.tsx`    | 同上                                         |
-| 终端帧高度          | `terminal-panel.tsx`        | 同上（新接入，原 200ms）                     |
-| 侧栏「任务/文件」层 | `.sidebar-view-layer`       | 同上（新接入，原 200ms）                     |
-| 设置/数据库覆盖     | `[data-panel-transition]`   | 同上（新增，`animation` 而非 `transition`）   |
-| 弹窗/下拉/气泡/选择 | 各 `.css` 的 open/close     | **`--transition-overlay-ms`（180ms，新增）** |
-| 路由切换主内容      | `.page-transition` 重放     | 同上                                         |
+| 场景                | 位置                      | 时长来源                                     |
+| ------------------- | ------------------------- | -------------------------------------------- |
+| 侧栏展开/收起       | `layout.tsx` nav          | `--transition-panel-ms`（1s）                |
+| 主区 `left` 跟随    | `layout.tsx` 包装层       | 同上                                         |
+| Side Pane 展开/收起 | `session-side-panel.tsx`  | 同上                                         |
+| 终端帧高度          | `terminal-panel.tsx`      | 同上（新接入，原 200ms）                     |
+| 侧栏「任务/文件」层 | `.sidebar-view-layer`     | 同上（新接入，原 200ms）                     |
+| 设置/数据库覆盖     | `[data-panel-transition]` | 同上（新增，`animation` 而非 `transition`）  |
+| 弹窗/下拉/气泡/选择 | 各 `.css` 的 open/close   | **`--transition-overlay-ms`（180ms，新增）** |
+| 路由切换主内容      | `.page-transition` 重放   | 同上                                         |
 
 浮层刻意不跟 1s：开个菜单等一秒会像卡住。180ms 比原先写死的 100~150ms 明显一点，
 同时仍在跟手范围。
@@ -205,11 +205,11 @@ ZCode 的做法是把 `[scrollbar-gutter:stable]` 挂在**具体滚动容器**�
 
 ### 1. 会话切换 / 新建任务过渡 + 任务行 3 点菜单
 
-| 动作 | 实现 |
-| --- | --- |
-| 切换会话 | 内容区重放 `session-stage-in`（淡入 + 上移 8px）。元素不重建，所以用 `replayAnimation` 摘类再加回来 |
+| 动作            | 实现                                                                                                  |
+| --------------- | ----------------------------------------------------------------------------------------------------- |
+| 切换会话        | 内容区重放 `session-stage-in`（淡入 + 上移 8px）。元素不重建，所以用 `replayAnimation` 摘类再加回来   |
 | 新建任务 → 提交 | 底部输入框播 `composer-drop-in`：`--composer-drop-from` 是「会话帧中心 − 输入框中心」，每次按布局现算 |
-| 任务行菜单 | 3 点常驻（60% 不透明度）→ 重命名（行内编辑）/ 归档 / 删除（带确认框） |
+| 任务行菜单      | 3 点常驻（60% 不透明度）→ 重命名（行内编辑）/ 归档 / 删除（带确认框）                                 |
 
 关键取舍：
 
@@ -290,9 +290,9 @@ footer 只剩主题 / 数据库 / 设置 —— 模式是全局能力面，不�
 
 Electron 实测（16ms 采样 + 连拍）：
 
-| 操作 | 结果 |
-| --- | --- |
-| 新建任务 | 内容区 opacity 恒 1.00，无 0.00 帧；无占位盒闪现 |
+| 操作           | 结果                                                                             |
+| -------------- | -------------------------------------------------------------------------------- |
+| 新建任务       | 内容区 opacity 恒 1.00，无 0.00 帧；无占位盒闪现                                 |
 | 发送第一条消息 | `--composer-drop-from` = -302.1px 落位动画；内容区 opacity 恒 1.00；无骨架屏闪现 |
 
 e2e **16 passed / 1 skipped**；app+desktop+ui typecheck 通过；ui 单测 30/30。

@@ -42,6 +42,30 @@ export const directories = Effect.fn("ConfigPaths.directories")(function* (direc
   ])
 })
 
+/**
+ * Claude Code compatible config roots. These are used for command/agent
+ * discovery only (not for config files or npm install), so reading them is
+ * safe and keeps `.claude/commands` / `.claude/agents` working.
+ */
+export const compatDirectories = Effect.fn("ConfigPaths.compatDirectories")(function* (
+  directory: string,
+  worktree?: string,
+) {
+  const afs = yield* AppFileSystem.Service
+  return unique([
+    ...(yield* afs.up({
+      targets: [".claude"],
+      start: directory,
+      stop: worktree,
+    })),
+    ...(yield* afs.up({
+      targets: [".claude"],
+      start: Global.Path.home,
+      stop: Global.Path.home,
+    })),
+  ])
+})
+
 export function fileInDirectory(dir: string, name: string) {
   return [path.join(dir, `${name}.json`), path.join(dir, `${name}.jsonc`)]
 }

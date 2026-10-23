@@ -58,21 +58,35 @@
  * （窗口被遮挡时拿不到那一帧，面板会卡在 opacity:0）。animation 没有这个问题。
  * 关闭方向靠 `createMountTransition` 延迟卸载来撑住时长。
  */
+/* 整帧面板进场：淡入 + 从「点击位置」轻微放大。
+ *
+ * 之前只有淡入，且时长 1s —— 看上去像「点了没反应，过一会儿才出来」。
+ * 现在改成 320ms 的轻缩放，origin 用根节点上记录的点击坐标，
+ * 面板会从侧栏按钮的位置"长出来"，方向和因果都更清楚。
+ */
 @keyframes panel-overlay-in {
   from {
     opacity: 0;
+    transform: scale(0.985);
+    transform-origin: var(--last-pointer-x, 50%) var(--last-pointer-y, 50%);
   }
   to {
     opacity: 1;
+    transform: scale(1);
+    transform-origin: var(--last-pointer-x, 50%) var(--last-pointer-y, 50%);
   }
 }
 
 @keyframes panel-overlay-out {
   from {
     opacity: 1;
+    transform: scale(1);
+    transform-origin: var(--last-pointer-x, 50%) var(--last-pointer-y, 50%);
   }
   to {
     opacity: 0;
+    transform: scale(0.99);
+    transform-origin: var(--last-pointer-x, 50%) var(--last-pointer-y, 50%);
   }
 }
 
@@ -431,13 +445,12 @@
 
 /* 面板与页面切换的统一时长。
  *
- * 用户显式要求把过渡放慢到 1s（便于看清展开/收起）。
- * 注意这是一次**有意偏离 ZCode**：ZCode 的面板动效在 200ms 量级，
- * DESIGN.md 也写「Keep transitions fast and low-drama ... Avoid long, springy, or playful
- * animations in the main workspace」。想恢复跟手感只改这一个值。
+ * 曾经按「看得清」的要求设成 1s，实际体验是「点了像卡住」——
+ * 面板动效超过 ~400ms 就会被感知成延迟，而不是过渡。
+ * 现在取 320ms：看得出动画，又还是跟手的。想更慢/更快只改这一个值。
  */
 :root {
-  --transition-panel-ms: 1000ms;
+  --transition-panel-ms: 320ms;
   /* 面板动效缓动：与 ZCode 的 ease-out 同类，先快后慢 */
   --transition-panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
   /* 浮层（弹窗/下拉/气泡/选择器）的开合时长。
@@ -486,4 +499,197 @@
 
 .novaway-spinner {
   animation: novaway-spin 0.8s linear infinite;
+}
+
+/* ── 全局点击反馈 ──────────────────────────────────────────────────────
+ *
+ * 应用里还有大量"裸" `<button>`（分段控件、列表项、工具条）。它们此前
+ * 只有 hover 变色、按下完全没有反馈，用户会怀疑点击是否生效。
+ * Button / IconButton 组件自带更完整的动效，这里只兜底其余的按钮，
+ * 幅度压到 1.5%，不会和布局产生冲突。
+ */
+@layer base {
+  button:not([data-component="button"]):not([data-component="icon-button"]):not(:disabled),
+  [role="button"]:not([data-component]):not([aria-disabled="true"]) {
+    transition:
+      background-color 140ms var(--ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1)),
+      color 140ms var(--ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1)),
+      border-color 140ms var(--ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1)),
+      opacity 140ms var(--ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1));
+  }
+
+  button:not([data-component="button"]):not([data-component="icon-button"]):active:not(:disabled),
+  [role="button"]:not([data-component]):active:not([aria-disabled="true"]) {
+    /* 用 filter 而不是 transform：很多分段控件/指示器依赖自身的 transform，
+       改 transform 会把它们的定位一起带偏。 */
+    filter: brightness(0.94);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    button,
+    [role="button"] {
+      transition-duration: 1ms !important;
+    }
+  }
+}
+
+/* 导入进度条：首个文件还在服务端解析时，宽度未知。
+ * 用一段来回滑动的色块表示「在处理」，比停在 0% 更让人安心。 */
+@keyframes knowledge-import-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.knowledge-import-indeterminate {
+  animation: knowledge-import-slide 1.1s var(--ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1)) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .knowledge-import-indeterminate {
+    animation: none;
+    width: 100%;
+    opacity: 0.6;
+  }
+}
+
+/* 思考强度滑块：移植自 ZCode 的 `composer-thought-slider`。
+   轨道 24px、白圆点 28px、档位点 4px；填充区里横向飘过白色光点，档位越高光点越多。
+   原生 range 只保留交互（拖动/点击/方向键/读屏），视觉全在上面这几层。 */
+.thinking-effort-slider[data-disabled="true"] {
+  opacity: 0.5;
+}
+
+.thinking-effort-thumb {
+  background: #ffffff;
+  transition: left 120ms ease-out;
+}
+
+/* 颜色由组件按档位写入，这里只负责过渡与一点内高光。 */
+.thinking-effort-fill {
+  transition:
+    width 120ms ease-out,
+    background-color 200ms ease-out;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22);
+}
+
+/* 光点：从右往左横穿填充区，中段淡入、两端淡出。 */
+.thinking-effort-bubble {
+  opacity: 0;
+  animation: thinking-effort-bubble-flow linear infinite;
+}
+
+@keyframes thinking-effort-bubble-flow {
+  0% {
+    opacity: 0;
+    transform: translateX(104%);
+  }
+  15%,
+  80% {
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-4%);
+  }
+}
+
+.thinking-effort-stop {
+  background: var(--foreground-subtlest);
+  transition:
+    scale 120ms ease-out,
+    opacity 120ms ease-out;
+}
+
+.thinking-effort-stop[data-filled="true"] {
+  background: #ffffff;
+  opacity: 0.3;
+}
+
+.thinking-effort-stop[data-hovered="true"] {
+  opacity: 1;
+  scale: 1.75;
+}
+
+/* 原生 range：32px 命中区，轨道和圆点全部透明，只负责交互。 */
+.thinking-effort-range {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.thinking-effort-range::-webkit-slider-runnable-track {
+  height: 32px;
+  background: transparent;
+}
+
+.thinking-effort-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  margin-top: 2px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.thinking-effort-range::-moz-range-track {
+  height: 32px;
+  background: transparent;
+}
+
+.thinking-effort-range::-moz-range-progress {
+  background: transparent;
+}
+
+.thinking-effort-range::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+}
+
+/* 思考强度图标：亮起的那截从下往上"充电"，辉光跟着档位变强。
+   颜色和强度都由组件内联写入，这里只负责辉光与过渡。 */
+.thinking-effort-icon {
+  filter: drop-shadow(0 0 var(--effort-blur, 1px) var(--effort-glow, transparent));
+  transition:
+    color 200ms ease-out,
+    filter 200ms ease-out;
+}
+
+/* 最高档才呼吸，低档保持静止，避免工具栏一直在闪。 */
+.thinking-effort-icon[data-hot="true"] {
+  animation: thinking-effort-glow 1.6s ease-in-out infinite;
+}
+
+@keyframes thinking-effort-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 var(--effort-blur, 2px) var(--effort-glow, transparent));
+  }
+  50% {
+    filter: drop-shadow(0 0 calc(var(--effort-blur, 2px) + 2px) var(--effort-glow, transparent));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thinking-effort-bubbles {
+    display: none;
+  }
+
+  .thinking-effort-icon[data-hot="true"] {
+    animation: none;
+  }
+
+  .thinking-effort-stop,
+  .thinking-effort-thumb,
+  .thinking-effort-fill,
+  .thinking-effort-icon {
+    transition: none;
+  }
 }

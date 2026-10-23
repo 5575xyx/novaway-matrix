@@ -63,9 +63,7 @@ function AccountItem(props: {
         ) : (
           <span class="text-12-regular text-foreground-subtle">{props.account.nickname?.charAt(0)}</span>
         )}
-        <span
-          class={`absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full ${statusColor()} ring-2 ring-background`}
-        />
+        <span class={`absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full ${statusColor()} ring-2 ring-background`} />
       </div>
       <div class="flex-1 min-w-0">
         <div class="text-13-medium text-foreground truncate leading-tight">{props.account.nickname}</div>

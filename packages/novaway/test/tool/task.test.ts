@@ -16,6 +16,10 @@ import { TaskTool, type TaskPromptOps } from "../../src/tool/task"
 import { Truncate } from "@/tool/truncate"
 import { ToolRegistry } from "@/tool/registry"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import { Service as TeamService, defaultLayer as TeamLayer } from "@/team/team"
+import { defaultLayer as AgentTaskListLayer } from "@/team/task-list"
+import { defaultLayer as AgentMailboxLayer } from "@/team/mailbox"
+import { defaultLayer as HookLayer } from "@/hook/service"
 import { disposeAllInstances } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 
@@ -40,11 +44,16 @@ const layer = (flags: Partial<RuntimeFlags.Info> = {}) =>
     SessionStatus.defaultLayer,
     Truncate.defaultLayer,
     ToolRegistry.defaultLayer,
+    TeamLayer,
+    AgentTaskListLayer,
+    AgentMailboxLayer,
+    HookLayer,
     RuntimeFlags.layer(flags),
   )
 
 const it = testEffect(layer())
 const background = testEffect(layer({ experimentalBackgroundSubagents: true }))
+const backgroundDisabled = testEffect(layer({ experimentalBackgroundSubagents: false }))
 
 function defer<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
@@ -125,6 +134,82 @@ function reply(input: SessionPrompt.PromptInput, text: string): MessageV2.WithPa
     ],
   }
 }
+
+describe("tool.task fork", () => {
+  it.instance("fork inherits the parent agent and injects the fork directive", () =>
+    Effect.gen(function* () {
+      const { chat, assistant } = yield* seed()
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+
+      let seen: SessionPrompt.PromptInput | undefined
+      const result = yield* def.execute(
+        {
+          description: "audit branch",
+          prompt: "check what is left before shipping",
+          subagent_type: "general",
+          fork: true,
+        },
+        {
+          sessionID: chat.id,
+          messageID: assistant.id,
+          agent: "build",
+          abort: new AbortController().signal,
+          extra: { promptOps: stubOps({ onPrompt: (input) => (seen = input) }) },
+          messages: [],
+          metadata: () => Effect.void,
+          ask: () => Effect.void,
+        },
+      )
+
+      // The fork must run as the parent's agent, otherwise the system prompt
+      // and tool pool differ and the shared prefix (prompt cache) is lost.
+      expect(seen?.agent).toBe("build")
+      expect(seen?.tools).toBeUndefined()
+
+      const text = JSON.stringify(seen?.parts ?? [])
+      expect(text).toContain("[fork-worker]")
+      expect(text).toContain("check what is left before shipping")
+
+      expect(result.metadata.sessionId).toBeDefined()
+    }),
+  )
+
+  it.instance("fork refuses to fork again from inside a fork", () =>
+    Effect.gen(function* () {
+      const { chat, assistant } = yield* seed()
+      const session = yield* Session.Service
+      // Simulate a fork child: its transcript carries the marker.
+      yield* session.updatePart({
+        id: PartID.ascending(),
+        messageID: assistant.id,
+        sessionID: chat.id,
+        type: "text",
+        text: "[fork-worker] you are a forked worker",
+      })
+
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      const exit = yield* def
+        .execute(
+          { description: "nested", prompt: "do more", subagent_type: "general", fork: true },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps: stubOps() },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+        .pipe(Effect.exit)
+
+      expect(Exit.isFailure(exit)).toBe(true)
+    }),
+  )
+})
 
 describe("tool.task", () => {
   it.instance(
@@ -447,7 +532,7 @@ describe("tool.task", () => {
     },
   )
 
-  it.instance("rejects background execution when the experiment is disabled", () =>
+  backgroundDisabled.instance("rejects background execution when the experiment is disabled", () =>
     Effect.gen(function* () {
       const { chat, assistant } = yield* seed()
       const tool = yield* TaskTool

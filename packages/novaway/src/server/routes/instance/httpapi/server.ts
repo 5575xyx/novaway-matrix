@@ -13,6 +13,7 @@ import { AppFileSystem } from "@novaway/core/filesystem"
 import { AppProcess } from "@novaway/core/process"
 import { Account } from "@/account/account"
 import { Agent } from "@/agent/agent"
+import { BackgroundJob } from "@/background/job"
 import { Auth } from "@/auth"
 import { Bus } from "@/bus"
 import { Config } from "@/config/config"
@@ -76,10 +77,15 @@ import { configHandlers } from "./handlers/config"
 import { controlHandlers } from "./handlers/control"
 import { experimentalHandlers } from "./handlers/experimental"
 import { evolutionHandlers } from "./handlers/evolution"
+import { extensionHandlers } from "./handlers/extension"
 import { fileHandlers } from "./handlers/file"
 import { gitHandlers } from "./handlers/git"
+import { hookHandlers } from "./handlers/hook"
+import { databaseHandlers } from "./handlers/database"
+import { knowledgeHandlers } from "./handlers/knowledge"
 import { globalHandlers } from "./handlers/global"
 import { instanceHandlers } from "./handlers/instance"
+import { kernelHandlers } from "./handlers/kernel"
 import { mcpHandlers } from "./handlers/mcp"
 import { memoryHandlers } from "./handlers/memory"
 import { officeHandlers } from "./handlers/office"
@@ -100,6 +106,15 @@ import { videosHandlers } from "./handlers/videos"
 import { goalHandlers } from "./handlers/goal"
 import { workflowHandlers } from "./handlers/workflow"
 import { orchestratorHandlers } from "./handlers/orchestrator"
+import { teamHandlers } from "./handlers/team"
+import { ExtensionLayer } from "@/extension"
+import { defaultLayer as PlanApprovalLayer } from "@/session/plan-approval"
+import { defaultLayer as HookServiceLayer } from "@/hook/service"
+import { defaultLayer as TeamLayer } from "@/team/team"
+import { defaultLayer as AgentTaskListLayer } from "@/team/task-list"
+import { defaultLayer as AgentMailboxLayer } from "@/team/mailbox"
+import { SessionUsage } from "@/session/usage"
+import { BackgroundResume } from "@/background/resume"
 import { instanceContextLayer, instanceRouterMiddleware } from "./middleware/instance-context"
 import { workspaceRouterMiddleware, workspaceRoutingLayer } from "./middleware/workspace-routing"
 import { disposeMiddleware } from "./lifecycle"
@@ -109,6 +124,7 @@ import { corsVaryFix } from "./middleware/cors-vary"
 import { errorLayer } from "./middleware/error"
 import { fenceLayer } from "./middleware/fence"
 import { schemaErrorLayer } from "./middleware/schema-error"
+import { Database } from "@/database"
 import { Evolution } from "@/evolution/service"
 import { Memory } from "@/memory/service"
 import { OfficePlatform } from "@/office/platform"
@@ -139,7 +155,12 @@ const rootApiRoutes = HttpApiBuilder.layer(RootHttpApi).pipe(
 const instanceRouterLayer = authorizationRouterMiddleware
   .combine(instanceRouterMiddleware)
   .combine(workspaceRouterMiddleware)
-  .layer.pipe(Layer.provide(Socket.layerWebSocketConstructorGlobal), Layer.provide(ServerAuth.Config.defaultLayer))
+  .layer.pipe(
+    Layer.provide(Socket.layerWebSocketConstructorGlobal),
+    Layer.provide(ServerAuth.Config.defaultLayer),
+    // The router middleware restarts resumable background watchers.
+    Layer.provide(BackgroundResume.defaultLayer),
+  )
 const eventApiRoutes = HttpApiBuilder.layer(EventApi).pipe(
   Layer.provide(eventHandlers),
   Layer.provide(instanceRouterLayer),
@@ -151,10 +172,15 @@ const instanceApiRoutes = HttpApiBuilder.layer(InstanceHttpApi).pipe(
     configHandlers,
     experimentalHandlers,
     evolutionHandlers,
+    extensionHandlers,
     fileHandlers,
     gitHandlers,
+    hookHandlers,
+    databaseHandlers,
+    knowledgeHandlers,
     imagesHandlers,
     instanceHandlers,
+    kernelHandlers,
     mcpHandlers,
     memoryHandlers,
     officeHandlers,
@@ -174,6 +200,7 @@ const instanceApiRoutes = HttpApiBuilder.layer(InstanceHttpApi).pipe(
     goalHandlers,
     workflowHandlers,
     orchestratorHandlers,
+    teamHandlers,
   ]),
 )
 
@@ -182,7 +209,7 @@ const instanceRoutes = Layer.mergeAll(rawInstanceRoutes, instanceApiRoutes).pipe
   Layer.provide([
     httpApiAuthLayer,
     workspaceRoutingLayer.pipe(Layer.provide(Socket.layerWebSocketConstructorGlobal)),
-    instanceContextLayer,
+    instanceContextLayer.pipe(Layer.provide(BackgroundResume.defaultLayer)),
     schemaErrorLayer,
   ]),
 )
@@ -228,9 +255,18 @@ export function createRoutes(
       cors(corsOptions),
       Account.defaultLayer,
       Agent.defaultLayer,
+      BackgroundJob.defaultLayer,
       Auth.defaultLayer,
       Command.defaultLayer,
+      ExtensionLayer,
+      PlanApprovalLayer,
+      HookServiceLayer,
+      TeamLayer,
+      AgentTaskListLayer,
+      AgentMailboxLayer,
+      SessionUsage.defaultLayer,
       Config.defaultLayer,
+      Database.defaultLayer,
       File.defaultLayer,
       FileWatcher.defaultLayer,
       Format.defaultLayer,

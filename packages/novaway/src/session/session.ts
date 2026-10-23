@@ -23,6 +23,7 @@ import type { SQL } from "drizzle-orm"
 import { PartTable, SessionTable } from "./session.sql"
 import { ProjectTable } from "../project/project.sql"
 import { Storage } from "@/storage/storage"
+import { AppFileSystem } from "@novaway/core/filesystem"
 import * as Log from "@novaway/core/util/log"
 import { MessageV2 } from "./message-v2"
 import type { InstanceContext } from "../project/instance-context"
@@ -41,6 +42,7 @@ import { NonNegativeInt, optionalOmitUndefined } from "@novaway/core/schema"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Memory } from "@/memory/service"
 import { Config } from "@/config/config"
+import { Service as HookService } from "@/hook/service"
 import { ConfigMemory } from "@/config/memory"
 import { ConfigEvolution } from "@/config/evolution"
 import { Evolution } from "@/evolution/service"
@@ -106,6 +108,7 @@ export function fromRow(row: SessionRow): Info {
     share,
     revert,
     permission: row.permission ?? undefined,
+    permissionMode: (row.permission_mode ?? undefined) as Permission.Mode | undefined,
     time: {
       created: row.time_created,
       updated: row.time_updated,
@@ -141,6 +144,7 @@ export function toRow(info: Info) {
     tokens_cache_write: (info.tokens ?? EmptyTokens).cache.write,
     revert: info.revert ?? null,
     permission: info.permission,
+    permission_mode: info.permissionMode ?? null,
     time_created: info.time.created,
     time_updated: info.time.updated,
     time_compacting: info.time.compacting,
@@ -228,6 +232,8 @@ export const Info = Schema.Struct({
   version: Schema.String,
   time: Time,
   permission: optionalOmitUndefined(Permission.Ruleset),
+  /** Session-scoped permission mode; falls back to config when unset. */
+  permissionMode: optionalOmitUndefined(Permission.Mode),
   revert: optionalOmitUndefined(Revert),
 }).annotate({ identifier: "Session" })
 export type Info = Types.DeepMutable<Schema.Schema.Type<typeof Info>>
@@ -252,6 +258,7 @@ export const CreateInput = Schema.optional(
     agent: Schema.optional(Schema.String),
     model: Schema.optional(Model),
     permission: Schema.optional(Permission.Ruleset),
+    permissionMode: Schema.optional(Permission.Mode),
     workspaceID: Schema.optional(WorkspaceID),
   }),
 )
@@ -327,6 +334,7 @@ const UpdatedInfo = Schema.Struct({
   version: Schema.optional(Schema.NullOr(Schema.String)),
   time: Schema.optional(UpdatedTime),
   permission: Schema.optional(Schema.NullOr(Permission.Ruleset)),
+  permissionMode: Schema.optional(Schema.NullOr(Permission.Mode)),
   revert: Schema.optional(Schema.NullOr(Revert)),
 })
 
@@ -454,6 +462,12 @@ export class BusyError extends Schema.TaggedErrorClass<BusyError>()("SessionBusy
 
 export type NotFound = NotFoundError
 
+/** `setDirectory` rejects a path that does not exist or is not a directory. */
+export class DirectoryError extends Schema.TaggedErrorClass<DirectoryError>()("SessionDirectoryError", {
+  directory: Schema.String,
+  reason: Schema.String,
+}) {}
+
 export interface Interface {
   readonly list: (input?: ListInput) => Effect.Effect<Info[]>
   readonly create: (input?: {
@@ -462,14 +476,40 @@ export interface Interface {
     agent?: string
     model?: Schema.Schema.Type<typeof Model>
     permission?: Permission.Ruleset
+    permissionMode?: Permission.Mode
     workspaceID?: WorkspaceID
+    directory?: string
   }) => Effect.Effect<Info>
-  readonly fork: (input: { sessionID: SessionID; messageID?: MessageID }) => Effect.Effect<Info, NotFound>
+  readonly fork: (input: {
+    sessionID: SessionID
+    messageID?: MessageID
+    parentID?: SessionID
+    title?: string
+    agent?: string
+    permission?: Permission.Ruleset
+    permissionMode?: Permission.Mode
+    /** Copy messages strictly before this id (exclusive). */
+    before?: MessageID
+  }) => Effect.Effect<Info, NotFound>
   readonly touch: (sessionID: SessionID) => Effect.Effect<void>
   readonly get: (id: SessionID) => Effect.Effect<Info, NotFound>
   readonly setTitle: (input: { sessionID: SessionID; title: string }) => Effect.Effect<void>
   readonly setArchived: (input: { sessionID: SessionID; time?: number }) => Effect.Effect<void>
   readonly setPermission: (input: { sessionID: SessionID; permission: Permission.Ruleset }) => Effect.Effect<void>
+  readonly setPermissionMode: (input: {
+    sessionID: SessionID
+    mode: Permission.Mode | undefined
+  }) => Effect.Effect<void>
+  /**
+   * Change the working directory of a live session.
+   *
+   * Tools read `ctx.directory` from the session row, so this genuinely moves
+   * subsequent tool calls; it is also the trigger point for `CwdChanged`.
+   */
+  readonly setDirectory: (input: {
+    sessionID: SessionID
+    directory: string
+  }) => Effect.Effect<Info, NotFound | DirectoryError>
   readonly setRevert: (input: {
     sessionID: SessionID
     revert: Info["revert"]
@@ -533,6 +573,7 @@ const rawLayer: Layer.Layer<
     const memory = yield* Memory.Service
     const evolution = yield* Evolution.Service
     const config = yield* Config.Service
+    const hooks = yield* Effect.serviceOption(HookService)
 
     const textFromParts = (parts: MessageV2.Part[]) =>
       parts
@@ -594,6 +635,7 @@ const rawLayer: Layer.Layer<
       directory: string
       path?: string
       permission?: Permission.Ruleset
+      permissionMode?: Permission.Mode
     }) {
       const ctx = yield* InstanceState.context
       const result: Info = {
@@ -609,6 +651,7 @@ const rawLayer: Layer.Layer<
         agent: input.agent,
         model: input.model,
         permission: input.permission,
+        permissionMode: input.permissionMode,
         cost: 0,
         tokens: EmptyTokens,
         time: {
@@ -619,6 +662,11 @@ const rawLayer: Layer.Layer<
       log.info("created", result)
 
       yield* sync.run(Event.Created, { sessionID: result.id, info: result })
+      if (hooks._tag === "Some") {
+        yield* hooks.value
+          .trigger({ event: "SessionStart", sessionID: result.id, cwd: result.directory })
+          .pipe(Effect.ignore)
+      }
 
       if (!flags.experimentalWorkspaces) {
         // This only exist for backwards compatibility. We should not be
@@ -673,6 +721,9 @@ const rawLayer: Layer.Layer<
           yield* remove(child.id)
         }
 
+        if (hooks._tag === "Some") {
+          yield* hooks.value.trigger({ event: "SessionEnd", sessionID, cwd: session.directory }).pipe(Effect.ignore)
+        }
         yield* sync.run(Event.Deleted, { sessionID, info: session }, { publish: hasInstance })
         yield* sync.remove(sessionID)
       } catch (e) {
@@ -725,37 +776,57 @@ const rawLayer: Layer.Layer<
       agent?: string
       model?: Schema.Schema.Type<typeof Model>
       permission?: Permission.Ruleset
+      permissionMode?: Permission.Mode
       workspaceID?: WorkspaceID
+      directory?: string
     }) {
       const ctx = yield* InstanceState.context
       const workspace = yield* InstanceState.workspaceID
       return yield* createNext({
         parentID: input?.parentID,
-        directory: ctx.directory,
+        directory: input?.directory ?? ctx.directory,
         path: sessionPath(ctx.worktree, ctx.directory),
         title: input?.title,
         agent: input?.agent,
         model: input?.model,
         permission: input?.permission,
+        permissionMode: input?.permissionMode,
         workspaceID: input?.workspaceID ?? workspace,
       })
     })
 
-    const fork = Effect.fn("Session.fork")(function* (input: { sessionID: SessionID; messageID?: MessageID }) {
+    const fork = Effect.fn("Session.fork")(function* (input: {
+      sessionID: SessionID
+      messageID?: MessageID
+      parentID?: SessionID
+      title?: string
+      agent?: string
+      permission?: Permission.Ruleset
+      permissionMode?: Permission.Mode
+      before?: MessageID
+    }) {
       const ctx = yield* InstanceState.context
       const original = yield* get(input.sessionID)
-      const title = getForkedTitle(original.title)
+      const title = input.title ?? getForkedTitle(original.title)
       const session = yield* createNext({
         directory: ctx.directory,
         path: sessionPath(ctx.worktree, ctx.directory),
         workspaceID: original.workspaceID,
         title,
+        ...(input.parentID ? { parentID: input.parentID } : {}),
+        ...(input.agent ? { agent: input.agent } : {}),
+        ...(input.permission ? { permission: input.permission } : {}),
+        // Forks keep the parent's mode: the whole point is an identical run.
+        ...((input.permissionMode ?? original.permissionMode)
+          ? { permissionMode: input.permissionMode ?? original.permissionMode }
+          : {}),
       })
       const msgs = yield* messages({ sessionID: input.sessionID })
       const idMap = new Map<string, MessageID>()
+      const stop = input.before ?? input.messageID
 
       for (const msg of msgs) {
-        if (input.messageID && msg.info.id >= input.messageID) break
+        if (stop && msg.info.id >= stop) break
         const newID = MessageID.ascending()
         idMap.set(msg.info.id, newID)
 
@@ -806,6 +877,57 @@ const rawLayer: Layer.Layer<
       permission: Permission.Ruleset
     }) {
       yield* patch(input.sessionID, { permission: input.permission, time: { updated: Date.now() } })
+    })
+
+    const setPermissionMode = Effect.fn("Session.setPermissionMode")(function* (input: {
+      sessionID: SessionID
+      mode: Permission.Mode | undefined
+    }) {
+      yield* patch(input.sessionID, {
+        permissionMode: input.mode,
+        time: { updated: Date.now() },
+      } as Patch)
+    })
+
+    const setDirectory = Effect.fn("Session.setDirectory")(function* (input: {
+      sessionID: SessionID
+      directory: string
+    }) {
+      const next = AppFileSystem.resolve(input.directory)
+      // Optional: embedders may compose a session layer without a filesystem.
+      // Falling back to Node's own stat keeps `setDirectory` usable there.
+      const fs = Option.getOrUndefined(yield* Effect.serviceOption(AppFileSystem.Service))
+      const isDir = fs
+        ? yield* fs.isDir(next)
+        : yield* Effect.promise(() =>
+            import("node:fs/promises")
+              .then((mod) => mod.stat(next))
+              .then((info) => info.isDirectory())
+              .catch(() => false),
+          )
+      if (!isDir) return yield* new DirectoryError({ directory: next, reason: "not a directory" })
+      const current = yield* get(input.sessionID)
+      if (AppFileSystem.normalizePath(current.directory) === AppFileSystem.normalizePath(next)) return current
+
+      const ctx = yield* InstanceState.context
+      yield* patch(input.sessionID, {
+        directory: next,
+        path: sessionPath(ctx.worktree, next),
+        time: { updated: Date.now() },
+      } as Patch)
+
+      if (hooks._tag === "Some") {
+        yield* hooks.value
+          .trigger({
+            event: "CwdChanged",
+            sessionID: input.sessionID,
+            cwd: next,
+            metadata: { from: current.directory, to: next },
+          })
+          .pipe(Effect.ignore)
+      }
+
+      return yield* get(input.sessionID)
     })
 
     const setRevert = Effect.fn("Session.setRevert")(function* (input: {
@@ -914,6 +1036,8 @@ const rawLayer: Layer.Layer<
       setTitle,
       setArchived,
       setPermission,
+      setPermissionMode,
+      setDirectory,
       setRevert,
       clearRevert,
       setSummary,

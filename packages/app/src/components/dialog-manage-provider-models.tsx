@@ -371,7 +371,9 @@ export const DialogManageProviderModels: Component<{
                           <span class="truncate">
                             {language.t("model.key.label")} {keyIndex() + 1}
                           </span>
-                          <span class="text-12-regular text-foreground-subtle font-mono truncate">{maskKey(entry.key)}</span>
+                          <span class="text-12-regular text-foreground-subtle font-mono truncate">
+                            {maskKey(entry.key)}
+                          </span>
                         </span>
                       </button>
                     </Show>

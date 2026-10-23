@@ -6,15 +6,7 @@
  */
 
 /** 会话错误的归类，文案层按它取用户可读的说明。 */
-export type ErrorKind =
-  | "aborted"
-  | "rateLimit"
-  | "auth"
-  | "upstream"
-  | "model"
-  | "network"
-  | "context"
-  | "unknown"
+export type ErrorKind = "aborted" | "rateLimit" | "auth" | "upstream" | "model" | "network" | "context" | "unknown"
 
 /**
  * 把一次会话错误归到有限的几类，让文案层能说人话。

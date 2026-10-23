@@ -45,11 +45,7 @@ export function toolCardSlots(rows: readonly ToolCardRow[]): ToolCardSlot[] {
 
     // 往右找到连续同 message 的工具行（下一行不是工具行、或换了 message 就停）。
     let end = index
-    while (
-      end + 1 < rows.length &&
-      rows[end + 1]?.tool &&
-      rows[end + 1]?.messageID === row.messageID
-    ) {
+    while (end + 1 < rows.length && rows[end + 1]?.tool && rows[end + 1]?.messageID === row.messageID) {
       end += 1
     }
 

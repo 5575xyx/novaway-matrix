@@ -330,4 +330,26 @@ export interface Hooks {
    * Modify tool definitions (description and parameters) sent to LLM
    */
   "tool.definition"?: (input: { toolID: string }, output: { description: string; parameters: any }) => Promise<void>
+  /**
+   * Observe (and optionally block) every kernel lifecycle event.
+   *
+   * This is the bridge from the JSON hook system (`hooks.json`) to JS plugins:
+   * it fires for every event in `NovaWay`'s hook event table — including the
+   * newer ones (SessionStart, Stop, SubagentStart/Stop, TaskCreated/Completed,
+   * PermissionDenied) that have no dedicated legacy hook.
+   *
+   * Mutate `output.result` to influence the outcome:
+   *   `output.result.decision = "deny"` blocks the action for PreToolUse etc.
+   */
+  hook?: (
+    input: { event: string; payload: Record<string, unknown> },
+    output: {
+      result: {
+        decision?: "allow" | "deny" | "ask"
+        reason?: string
+        updatedInput?: unknown
+        additionalContext?: string
+      }
+    },
+  ) => Promise<void>
 }

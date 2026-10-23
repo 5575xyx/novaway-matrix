@@ -380,8 +380,14 @@ test("设置/数据库面板：主帧内覆盖 + 进出场过渡 + 返回按钮�
   await expect(page.locator('[data-component="workspace-header"]')).toBeVisible({ timeout: 15_000 })
 
   // —— 设置 ——
-  await page.getByRole("button", { name: /^(Settings|设置)$/ }).first().click()
-  const settings = page.locator('section[aria-label]').filter({ hasText: /General|通用/ }).first()
+  await page
+    .getByRole("button", { name: /^(Settings|设置)$/ })
+    .first()
+    .click()
+  const settings = page
+    .locator("section[aria-label]")
+    .filter({ hasText: /General|通用/ })
+    .first()
   const panel = page.locator("section[data-panel-transition]").first()
   await expect(panel).toHaveAttribute("data-state", "open")
 
@@ -420,7 +426,10 @@ test("设置/数据库面板：主帧内覆盖 + 进出场过渡 + 返回按钮�
   expect(parseFloat(anim.dur)).toBeGreaterThan(0.5)
 
   // 3) 「返回」按钮在切换 tab 的遮挡层期间依然可点（此前被 z-30 遮挡层吃掉点击）
-  await page.getByRole("tab", { name: /^(Models|模型)$/ }).first().click()
+  await page
+    .getByRole("tab", { name: /^(Models|模型)$/ })
+    .first()
+    .click()
   const back = page.getByRole("button", { name: /^(Back|Navigate back|返回)$/ }).first()
   const backBox = (await back.boundingBox())!
   const topmost = await page.evaluate(
@@ -450,11 +459,17 @@ test("设置/数据库面板：主帧内覆盖 + 进出场过渡 + 返回按钮�
   await expect(page.locator("section[data-panel-transition]")).toHaveCount(0, { timeout: 5_000 })
 
   // —— 数据库 ——
-  await page.getByRole("button", { name: /^(Database|数据库)$/ }).first().click()
+  await page
+    .getByRole("button", { name: /^(Database|数据库)$/ })
+    .first()
+    .click()
   const dbPanel = page.locator("section[data-panel-transition]").first()
   await expect(dbPanel).toHaveAttribute("data-state", "open")
   await expect(sidebar).toBeVisible()
-  await page.getByRole("button", { name: /^(Back|Navigate back|返回)$/ }).first().click()
+  await page
+    .getByRole("button", { name: /^(Back|Navigate back|返回)$/ })
+    .first()
+    .click()
   await expect(page.locator("section[data-panel-transition]")).toHaveCount(0, { timeout: 5_000 })
 })
 
@@ -472,7 +487,10 @@ test("新建任务 → 提交：内容区淡入 + 输入框滑到底部 + 任务
   await page.keyboard.insertText("transition e2e")
 
   // —— 提交：内容区淡入 + 输入框滑到底部 ——
-  await page.getByRole("button", { name: /Send|发送/ }).first().click()
+  await page
+    .getByRole("button", { name: /Send|发送/ })
+    .first()
+    .click()
 
   const staged = page.locator(".session-stage-enter").first()
   await expect(staged).toHaveCount(1, { timeout: 5_000 })
@@ -501,7 +519,10 @@ test("新建任务 → 提交：内容区淡入 + 输入框滑到底部 + 任务
   // e2e 是干净环境，没有登记任何项目（侧栏显示 "No projects open"），
   // 项目分组下的任务行因此不会渲染。有行才验菜单，没行就只断言到过渡为止
   // （与文件内其余用例对"干净环境"的处理口径一致）。
-  await page.getByRole("button", { name: /^(Tasks|任务)$/ }).first().click()
+  await page
+    .getByRole("button", { name: /^(Tasks|任务)$/ })
+    .first()
+    .click()
   const row = page.locator('[data-component="task-row"]').first()
   if ((await row.count()) === 0) return
   await expect(row).toBeVisible({ timeout: 10_000 })
@@ -530,7 +551,10 @@ test("侧栏项目分组可以收起再展开（状态可持久化）", async ({
 
   const sidebar = page.locator('[data-component="sidebar-nav-desktop"]')
   await expect(sidebar).toBeVisible({ timeout: 15_000 })
-  await page.getByRole("button", { name: /^(Tasks|任务)$/ }).first().click()
+  await page
+    .getByRole("button", { name: /^(Tasks|任务)$/ })
+    .first()
+    .click()
 
   // 干净环境没有项目：只验静态部分。
   const projectToggle = sidebar.getByRole("button", { name: /^(Expand|Collapse|展开|折叠)$/ }).first()
@@ -540,14 +564,15 @@ test("侧栏项目分组可以收起再展开（状态可持久化）", async ({
   const before = await rows.count()
 
   await projectToggle.click()
-  await expect
-    .poll(async () => rows.count(), { message: "收起后任务行应当消失" })
-    .toBeLessThan(Math.max(before, 1))
+  await expect.poll(async () => rows.count(), { message: "收起后任务行应当消失" }).toBeLessThan(Math.max(before, 1))
 
   // 再展开必须能回到原样。
   // 这里曾经因为分组展开态复用了 worktree 分组的 `workspaceExpanded`（有另一个
   // effect 会把它改回 false），表现为"点开立刻又收起、永远展不开"。
-  await sidebar.getByRole("button", { name: /^(Expand|展开)$/ }).first().click()
+  await sidebar
+    .getByRole("button", { name: /^(Expand|展开)$/ })
+    .first()
+    .click()
   await expect.poll(async () => rows.count(), { message: "展开后任务行应当回来" }).toBe(before)
 })
 
@@ -568,7 +593,10 @@ test("辅助对话：从空态入口创建并落在 Side Pane 标签里", async 
   await entry.click()
 
   // 标签出现且处于激活态。
-  const trigger = frame.locator("[data-slot='tabs-trigger'], button").filter({ hasText: /Side (chat|conversation)|侧边对话|辅助对话/ }).first()
+  const trigger = frame
+    .locator("[data-slot='tabs-trigger'], button")
+    .filter({ hasText: /Side (chat|conversation)|侧边对话|辅助对话/ })
+    .first()
   await expect(trigger).toBeVisible({ timeout: 10_000 })
   // 面板内出现会话面板本体。
   await expect(frame.locator("[data-component='side-pane-session']")).toBeVisible({ timeout: 10_000 })
@@ -576,7 +604,10 @@ test("辅助对话：从空态入口创建并落在 Side Pane 标签里", async 
   expect(page.url()).toBe(before)
 
   // 关闭标签 → 面板回到空态（会话同时被删除，不再残留）。
-  await frame.getByRole("button", { name: /Close tab|关闭标签页/ }).first().click()
+  await frame
+    .getByRole("button", { name: /Close tab|关闭标签页/ })
+    .first()
+    .click()
   await expect(frame.locator("[data-component='side-pane-session']")).toHaveCount(0, { timeout: 10_000 })
   await expect(frame.locator("[data-component='side-pane-empty']")).toBeVisible()
 })
@@ -587,7 +618,10 @@ test("运行中的提交行为可以切成「排队」（设置持久化）", as
   await page.goto(`/${slug}/session`)
   await expect(page.locator('[data-component="sidebar-nav-desktop"]')).toBeVisible({ timeout: 15_000 })
 
-  await page.getByRole("button", { name: /^(Open settings|Settings|设置)$/ }).first().click()
+  await page
+    .getByRole("button", { name: /^(Open settings|Settings|设置)$/ })
+    .first()
+    .click()
   await page.getByRole("tab", { name: /^(General|通用)$/ }).click()
 
   // 默认是「引导」（Steer）：运行中直接发送会引导当前任务，不排队。
@@ -601,8 +635,14 @@ test("运行中的提交行为可以切成「排队」（设置持久化）", as
   await expect(row).toContainText(/Queue|排队/)
 
   // 关掉设置再打开：值必须还在（这条锁的是"设置真的写进了持久化 store"）。
-  await page.getByRole("button", { name: /^(Back|Navigate back|返回)$/ }).first().click()
-  await page.getByRole("button", { name: /^(Open settings|Settings|设置)$/ }).first().click()
+  await page
+    .getByRole("button", { name: /^(Back|Navigate back|返回)$/ })
+    .first()
+    .click()
+  await page
+    .getByRole("button", { name: /^(Open settings|Settings|设置)$/ })
+    .first()
+    .click()
   await page.getByRole("tab", { name: /^(General|通用)$/ }).click()
   await expect(page.locator('[data-action="settings-followup"]')).toContainText(/Queue|排队/)
 })

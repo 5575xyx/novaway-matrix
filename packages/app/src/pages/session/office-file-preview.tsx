@@ -108,7 +108,22 @@ export const OfficeFilePreview: Component<{ path: string; base64: string }> = (p
     () => parseOffice(props.path, props.base64),
   )
 
-  const slideCount = createMemo(() => (data()?.kind === "pptx" ? data()!.slides.length : 0))
+  // 三个分支的数据各取一份具类型的 memo。
+  // 之前直接在 JSX 里写 `preview().kind === "pptx" ? preview().slides : []`，
+  // 编译器无法把第二次调用的返回值收窄到 pptx 分支，于是报 slides 不存在。
+  const slides = createMemo(() => {
+    const value = data()
+    return value?.kind === "pptx" ? value.slides : []
+  })
+  const paragraphs = createMemo(() => {
+    const value = data()
+    return value?.kind === "docx" ? value.paragraphs : []
+  })
+  const sheets = createMemo(() => {
+    const value = data()
+    return value?.kind === "xlsx" ? value.sheets : []
+  })
+  const slideCount = createMemo(() => slides().length)
 
   onCleanup(() => {
     const url = pdfUrl()
@@ -117,119 +132,120 @@ export const OfficeFilePreview: Component<{ path: string; base64: string }> = (p
 
   return (
     <>
-    <Show when={!isPdf()}>
-    <div class="h-full overflow-y-auto px-6 py-4">
-      <Show when={!data.loading} fallback={<Spinner class="size-4 text-foreground-subtle" />}>
-        <Show when={!data.error} fallback={<p class="text-12-regular text-foreground-subtle">无法解析该办公文件。</p>}>
-          <Show when={data()}>
-            {(preview) => (
-              <>
-                <Show when={preview().kind === "pptx"}>
-                  <div class="mb-3 text-12-regular text-foreground-subtle">共 {slideCount()} 页 · 只读预览</div>
-                  <div class="grid grid-cols-1 gap-3 xl:grid-cols-2">
-                    <For each={preview().kind === "pptx" ? preview().slides : []}>
-                      {(slide) => (
-                        <div class="flex flex-col overflow-hidden rounded-xl border border-border bg-panel">
-                          <div class="flex min-h-0 flex-1 flex-col gap-2 bg-surface/40 px-5 py-4">
-                            <div class="flex items-center gap-2">
-                              <span class="grid size-5 shrink-0 place-items-center rounded bg-surface text-11-medium text-foreground-subtle">
-                                {slide.index}
-                              </span>
-                              <span class="truncate text-14-medium text-foreground">{slide.title}</span>
+      <Show when={!isPdf()}>
+        <div class="h-full overflow-y-auto px-6 py-4">
+          <Show when={!data.loading} fallback={<Spinner class="size-4 text-foreground-subtle" />}>
+            <Show
+              when={!data.error}
+              fallback={<p class="text-12-regular text-foreground-subtle">无法解析该办公文件。</p>}
+            >
+              <Show when={data()}>
+                {(preview) => (
+                  <>
+                    <Show when={preview().kind === "pptx"}>
+                      <div class="mb-3 text-12-regular text-foreground-subtle">共 {slideCount()} 页 · 只读预览</div>
+                      <div class="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                        <For each={slides()}>
+                          {(slide) => (
+                            <div class="flex flex-col overflow-hidden rounded-xl border border-border bg-panel">
+                              <div class="flex min-h-0 flex-1 flex-col gap-2 bg-surface/40 px-5 py-4">
+                                <div class="flex items-center gap-2">
+                                  <span class="grid size-5 shrink-0 place-items-center rounded bg-surface text-11-medium text-foreground-subtle">
+                                    {slide.index}
+                                  </span>
+                                  <span class="truncate text-14-medium text-foreground">{slide.title}</span>
+                                </div>
+                                <ul class="flex flex-col gap-1.5 pl-1">
+                                  <For each={slide.lines.slice(0, 8)}>
+                                    {(line) => (
+                                      <li class="flex gap-2 text-12-regular leading-5 text-foreground-subtle">
+                                        <span class="mt-2 size-1 shrink-0 rounded-full bg-foreground-subtlest" />
+                                        <span class="min-w-0">{line}</span>
+                                      </li>
+                                    )}
+                                  </For>
+                                </ul>
+                              </div>
                             </div>
-                            <ul class="flex flex-col gap-1.5 pl-1">
-                              <For each={slide.lines.slice(0, 8)}>
-                                {(line) => (
-                                  <li class="flex gap-2 text-12-regular leading-5 text-foreground-subtle">
-                                    <span class="mt-2 size-1 shrink-0 rounded-full bg-foreground-subtlest" />
-                                    <span class="min-w-0">{line}</span>
-                                  </li>
-                                )}
-                              </For>
-                            </ul>
-                          </div>
-                        </div>
-                      )}
-                    </For>
-                  </div>
-                </Show>
+                          )}
+                        </For>
+                      </div>
+                    </Show>
 
-                <Show when={preview().kind === "docx"}>
-                  {/* 白纸卡片：对齐办公软件里的页面观感（浅色下是白页、深色下是面板色）。 */}
-                  <div class="mx-auto w-full max-w-3xl rounded-xl border border-border bg-panel px-10 py-8 shadow-sm">
-                    <For each={preview().kind === "docx" ? preview().paragraphs : []}>
-                      {(paragraph, index) => (
-                        <p
-                          class="text-foreground"
-                          classList={{
-                            "mb-4 text-18-semibold": index() === 0,
-                            "mb-3 text-[14px] leading-7": index() !== 0,
-                          }}
-                        >
-                          {paragraph}
-                        </p>
-                      )}
-                    </For>
-                  </div>
-                </Show>
+                    <Show when={preview().kind === "docx"}>
+                      {/* 白纸卡片：对齐办公软件里的页面观感（浅色下是白页、深色下是面板色）。 */}
+                      <div class="mx-auto w-full max-w-3xl rounded-xl border border-border bg-panel px-10 py-8 shadow-sm">
+                        <For each={paragraphs()}>
+                          {(paragraph, index) => (
+                            <p
+                              class="text-foreground"
+                              classList={{
+                                "mb-4 text-18-semibold": index() === 0,
+                                "mb-3 text-[14px] leading-7": index() !== 0,
+                              }}
+                            >
+                              {paragraph}
+                            </p>
+                          )}
+                        </For>
+                      </div>
+                    </Show>
 
-                <Show when={preview().kind === "xlsx"}>
-                  <div class="flex flex-col gap-4">
-                    <For each={preview().kind === "xlsx" ? preview().sheets : []}>
-                      {(sheet) => (
-                        <div class="flex flex-col gap-2">
-                          <span class="text-13-medium text-foreground">{sheet.name}</span>
-                          <div class="max-h-[520px] overflow-auto rounded-lg border border-border">
-                            <table class="w-full border-collapse text-12-regular">
-                              <tbody>
-                                <For each={sheet.rows.slice(0, 200)}>
-                                  {(row, rowIndex) => (
-                                    <tr
-                                      class="border-t border-border first:border-t-0"
-                                      classList={{ "bg-surface/60": rowIndex() === 0 }}
-                                    >
-                                      <For each={row}>
-                                        {(cell) => (
-                                          <td
-                                            class="max-w-[320px] truncate border-r border-border px-2.5 py-1.5 text-foreground last:border-r-0"
-                                            classList={{ "font-medium": rowIndex() === 0 }}
-                                          >
-                                            {cell}
-                                          </td>
-                                        )}
-                                      </For>
-                                    </tr>
-                                  )}
-                                </For>
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-                    </For>
-                  </div>
-                </Show>
-              </>
-            )}
+                    <Show when={preview().kind === "xlsx"}>
+                      <div class="flex flex-col gap-4">
+                        <For each={sheets()}>
+                          {(sheet) => (
+                            <div class="flex flex-col gap-2">
+                              <span class="text-13-medium text-foreground">{sheet.name}</span>
+                              <div class="max-h-[520px] overflow-auto rounded-lg border border-border">
+                                <table class="w-full border-collapse text-12-regular">
+                                  <tbody>
+                                    <For each={sheet.rows.slice(0, 200)}>
+                                      {(row, rowIndex) => (
+                                        <tr
+                                          class="border-t border-border first:border-t-0"
+                                          classList={{ "bg-surface/60": rowIndex() === 0 }}
+                                        >
+                                          <For each={row}>
+                                            {(cell) => (
+                                              <td
+                                                class="max-w-[320px] truncate border-r border-border px-2.5 py-1.5 text-foreground last:border-r-0"
+                                                classList={{ "font-medium": rowIndex() === 0 }}
+                                              >
+                                                {cell}
+                                              </td>
+                                            )}
+                                          </For>
+                                        </tr>
+                                      )}
+                                    </For>
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
+                        </For>
+                      </div>
+                    </Show>
+                  </>
+                )}
+              </Show>
+            </Show>
           </Show>
+        </div>
+      </Show>
+      <Show when={isPdf()}>
+        <Show
+          when={pdfUrl()}
+          fallback={
+            <div class="flex h-full items-center justify-center text-12-regular text-foreground-subtle">
+              正在加载 PDF…
+            </div>
+          }
+        >
+          {(url) => <iframe src={url()} title={props.path} class="h-full w-full border-0 bg-background" />}
         </Show>
       </Show>
-    </div>
-    </Show>
-    <Show when={isPdf()}>
-      <Show
-        when={pdfUrl()}
-        fallback={<div class="flex h-full items-center justify-center text-12-regular text-foreground-subtle">正在加载 PDF…</div>}
-      >
-        {(url) => (
-          <iframe
-            src={url()}
-            title={props.path}
-            class="h-full w-full border-0 bg-background"
-          />
-        )}
-      </Show>
-    </Show>
     </>
   )
 }

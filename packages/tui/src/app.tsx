@@ -589,7 +589,8 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
   const backgroundSubagentsEnabled = createMemo(
     () =>
       ((sync.data.config.experimental as Record<string, unknown> | undefined)?.background_subagents as
-        boolean | undefined) ??
+        | boolean
+        | undefined) ??
       sync.data.capabilities.experimentalBackgroundSubagents ??
       true,
   )

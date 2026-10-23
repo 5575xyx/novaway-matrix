@@ -89,19 +89,19 @@ Task 8 做光标/滚动条/固定行高时不能假设「第 i 个 row 就是第
 
 ## 文件结构（本计划）
 
-| 文件 | 动作 | 职责 |
-| --- | --- | --- |
-| `src/component/git-workspace/focus.ts` | 新建 | 面板枚举、标题、键位映射表（纯数据） |
-| `src/component/git-workspace/confirm.ts` | 新建 | 危险操作二次确认，时钟可注入 |
-| `src/component/git-workspace/state.ts` | 新建 | 一次性拉齐 git 数据 + 面板行派生 |
-| `src/util/git-diff.ts` | 新建 | diff 加载（从 `git-diff-view.tsx` 抽出） |
-| `src/component/git-workspace/diff-panel.tsx` | 新建 | 右侧差异视图 |
-| `src/component/git-workspace/files-panel.tsx` | 新建 | 文件面板 |
-| `src/component/git-workspace/status-panel.tsx` | 新建 | 状态面板（四行可操作） |
-| `src/component/git-workspace.tsx` | 新建 | 外壳：布局/焦点/键位条 |
-| `src/component/tab-bar.tsx` | 修改 | `TabItem.type` 加 `"git-workspace"` |
-| `src/routes/session/index.tsx` | 修改 | 开标签、渲染分发 |
-| `src/routes/session/sidebar.tsx` | 修改 | Git 页加「打开工作区」入口 |
+| 文件                                           | 动作 | 职责                                     |
+| ---------------------------------------------- | ---- | ---------------------------------------- |
+| `src/component/git-workspace/focus.ts`         | 新建 | 面板枚举、标题、键位映射表（纯数据）     |
+| `src/component/git-workspace/confirm.ts`       | 新建 | 危险操作二次确认，时钟可注入             |
+| `src/component/git-workspace/state.ts`         | 新建 | 一次性拉齐 git 数据 + 面板行派生         |
+| `src/util/git-diff.ts`                         | 新建 | diff 加载（从 `git-diff-view.tsx` 抽出） |
+| `src/component/git-workspace/diff-panel.tsx`   | 新建 | 右侧差异视图                             |
+| `src/component/git-workspace/files-panel.tsx`  | 新建 | 文件面板                                 |
+| `src/component/git-workspace/status-panel.tsx` | 新建 | 状态面板（四行可操作）                   |
+| `src/component/git-workspace.tsx`              | 新建 | 外壳：布局/焦点/键位条                   |
+| `src/component/tab-bar.tsx`                    | 修改 | `TabItem.type` 加 `"git-workspace"`      |
+| `src/routes/session/index.tsx`                 | 修改 | 开标签、渲染分发                         |
+| `src/routes/session/sidebar.tsx`               | 修改 | Git 页加「打开工作区」入口               |
 
 计划 2 再加 `branches-panel.tsx` / `commits-panel.tsx` / `stash-panel.tsx`；计划 3 再瘦身 `git-panel.tsx`。
 
@@ -112,6 +112,7 @@ Task 8 做光标/滚动条/固定行高时不能假设「第 i 个 row 就是第
 键位表决定「焦点在文件面板时空格干什么」，是这套交互最容易错的东西。先做它，且做成**纯数据 + 纯函数**。
 
 **Files:**
+
 - Create: `src/component/git-workspace/focus.ts`
 - Test: `test/component/git-workspace-focus.test.ts`
 
@@ -403,6 +404,7 @@ cd packages/tui && git add src/component/git-workspace/focus.ts test/component/g
 按 `d` 不立刻丢弃，而是进入确认态；同键再按才执行；期间按别的键取消；超时自动取消。超时**必须走注入的时钟** —— 否则测试只能真实 sleep。
 
 **Files:**
+
 - Create: `src/component/git-workspace/confirm.ts`
 - Test: `test/component/git-workspace-confirm.test.ts`
 
@@ -597,6 +599,7 @@ cd packages/tui && git add src/component/git-workspace/confirm.ts test/component
 工作区打开和每次操作后都要刷新。把「并行跑 7 个 git 命令 + 解析 + 派生成面板行」收在一处，组件只管渲染。
 
 **Files:**
+
 - Create: `src/component/git-workspace/state.ts`
 - Test: `test/component/git-workspace-state.test.ts`
 
@@ -695,9 +698,7 @@ test("deriveStatusRows 没有远端时显示未配置远端", () => {
 
 test("deriveStatusRows 提示行区分干净/有改动/不在仓库", () => {
   expect(deriveStatusRows(status, [], []).find((r) => r.kind === "hint")?.detail).toBe("有未提交的改动")
-  expect(deriveStatusRows({ ...status, entries: [] }, [], []).find((r) => r.kind === "hint")?.detail).toBe(
-    "工作区干净",
-  )
+  expect(deriveStatusRows({ ...status, entries: [] }, [], []).find((r) => r.kind === "hint")?.detail).toBe("工作区干净")
   expect(deriveStatusRows({ ahead: 0, behind: 0, entries: [] }, [], []).find((r) => r.kind === "hint")?.detail).toBe(
     "不是 git 仓库",
   )
@@ -1016,7 +1017,9 @@ export function deriveStatusRows(
       label: "提示",
       // error 优先:loadWorkspace 只在 status 命令失败时才带 error,这时「不是 git 仓库」
       // 未必是真因(可能是超时、权限)。把真实原因透出来比猜一个原因好。
-      detail: error ?? (!inRepo ? "不是 git 仓库" : diverged ? "分支与远程 diverged" : dirty ? "有未提交的改动" : "工作区干净"),
+      detail:
+        error ??
+        (!inRepo ? "不是 git 仓库" : diverged ? "分支与远程 diverged" : dirty ? "有未提交的改动" : "工作区干净"),
     },
   ]
 }
@@ -1086,6 +1089,7 @@ cd packages/tui && git add src/component/git-workspace/state.ts test/component/g
 右侧差异面板要复用现有的 diff 加载逻辑（含未跟踪文件的合成补丁）。抽成 util，两个地方共用。
 
 **Files:**
+
 - Create: `src/util/git-diff.ts`
 - Modify: `src/component/git-diff-view.tsx`
 - Test: `test/util/git-diff.test.ts`
@@ -1299,16 +1303,16 @@ import { Locale } from "../util/locale"
 **4c. 改 `load` 函数体。** 把整个 `try` 块换成一行调用 —— 这才是复用本身:
 
 ```ts
-  const load = async () => {
-    const cwd = props.rootPath
-    if (!cwd) return
-    try {
-      setPatch(await loadFilePatch(cwd, props.filePath))
-      setError("")
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    }
+const load = async () => {
+  const cwd = props.rootPath
+  if (!cwd) return
+  try {
+    setPatch(await loadFilePatch(cwd, props.filePath))
+    setError("")
+  } catch (e) {
+    setError(e instanceof Error ? e.message : String(e))
   }
+}
 ```
 
 原来那段「`gitExec` 拿 diff → 空了就 `untrackedPatch`」的逻辑整体上移到了 `loadFilePatch`,组件不再自己拼。
@@ -1335,6 +1339,7 @@ cd packages/tui && git add src/util/git-diff.ts src/component/git-diff-view.tsx 
 左列焦点行变了，右侧就显示对应 diff。空状态要有话说，不能白屏。
 
 **Files:**
+
 - Create: `src/component/git-workspace/diff-panel.tsx`
 - Test: `test/component/git-workspace-diff-panel.test.tsx`
 
@@ -1568,6 +1573,7 @@ cd packages/tui && git add src/component/git-workspace/diff-panel.tsx test/compo
 显示文件列表、中文状态词、加删行数，焦点行有 `❯` 标记，确认态顶掉那一行内容。
 
 **Files:**
+
 - Create: `src/component/git-workspace/files-panel.tsx`
 - Test: `test/component/git-workspace-files-panel.test.tsx`
 
@@ -1668,7 +1674,13 @@ test("确认态时焦点行显示确认文案而不是文件名", async () => {
 ```tsx
 test("长路径按宽度截断,计数不被挤出屏幕", async () => {
   const frame = await renderConstrainedFrame([
-    { file: "packages/tui/src/component/git-workspace/files-panel.tsx", label: "已改", count: "+10 -2", staged: true, unstaged: false },
+    {
+      file: "packages/tui/src/component/git-workspace/files-panel.tsx",
+      label: "已改",
+      count: "+10 -2",
+      staged: true,
+      unstaged: false,
+    },
   ])
   const row = frame.split("\n").find((line) => line.includes("已改")) ?? ""
   expect(row).toContain("+10 -2") // 预算算错时计数会被路径顶出 36 列之外
@@ -1798,6 +1810,7 @@ cd packages/tui && git add src/component/git-workspace/files-panel.tsx test/comp
 四行可操作条目：分支 / 远程 / 变更 / 提示。选中远程行时把完整地址摊开。
 
 **Files:**
+
 - Create: `src/component/git-workspace/status-panel.tsx`
 - Test: `test/component/git-workspace-status-panel.test.tsx`
 
@@ -2021,6 +2034,7 @@ cd packages/tui && git add src/component/git-workspace/status-panel.tsx test/com
 把面板拼起来：左列 36 列、右侧差异、底部键位条。焦点在面板间切换，按键先过工作区，答不上来才放行。
 
 **Files:**
+
 - Create: `src/component/git-workspace.tsx`
 - Modify: `src/component/git-workspace/focus.ts`（追加 `keyOfParsed`）
 - Test: `test/component/git-workspace-key.test.ts`、`test/component/git-workspace.test.tsx`
@@ -2075,8 +2089,12 @@ test("escape / return 归一化成键位表的词汇", () => {
 test("归一化后的键能被键位表接住(往返)", () => {
   // 键位表(focus.ts)与 opentui 的事件名是两套词汇,这层归一化是两者的契约。
   // 任一侧改了拼写,这条都会红 —— 只单测 focus.ts 或只单测 keyOfParsed 都测不出。
-  expect(resolveWorkspaceCommand("files", keyOfParsed({ name: "return", ctrl: false, shift: false, sequence: "\r" }))).toBe("files.focusDiff")
-  expect(resolveWorkspaceCommand("commits", keyOfParsed({ name: "return", ctrl: false, shift: false, sequence: "\r" }))).toBe("commits.focusDiff")
+  expect(
+    resolveWorkspaceCommand("files", keyOfParsed({ name: "return", ctrl: false, shift: false, sequence: "\r" })),
+  ).toBe("files.focusDiff")
+  expect(
+    resolveWorkspaceCommand("commits", keyOfParsed({ name: "return", ctrl: false, shift: false, sequence: "\r" })),
+  ).toBe("commits.focusDiff")
 })
 ```
 
@@ -2571,8 +2589,8 @@ cd packages/tui && git add src/component/git-workspace.tsx src/component/git-wor
    输入框未聚焦时那些 keymap 不拦停，事件就会落到工作区。
    - **修复**：`meta || option` 一律返回 `alt+${name}`；`ctrl` 一律返回 `ctrl+${name}`（不再限定 `name.length === 1`，
      否则 `ctrl+space` 会落成普通 `space`）。两张键位表里没有任何 `alt+X` / `ctrl+X` 条目，所以带前缀
-   = 查表不中 = 自然落到「答不上来 → 放行」分支。
-   - **契约写进注释**：*所有本表里不存在的组合都必须返回一个查表命不中的名字*。反面教材就是这个 bug。
+     = 查表不中 = 自然落到「答不上来 → 放行」分支。
+   - **契约写进注释**：_所有本表里不存在的组合都必须返回一个查表命不中的名字_。反面教材就是这个 bug。
    - 新测试 2 条：`alt+f` / `alt+d` 解析为 `undefined`；`ctrl+space` / `ctrl+return` 不落成裸键。
 2. **【Important】`c 提交` 在已暂存时是零反馈静默 no-op。** 原实现只在 `staged.length === 0` 时弹提示，
    已暂存时直接 `return` —— 用户照着键位条提示暂存完按 `c`，什么也不发生。
@@ -2600,7 +2618,6 @@ cd packages/tui && git add src/component/git-workspace.tsx src/component/git-wor
 - `onCleanup(() => setArmed(undefined))` 近似死代码（信号随 owner scope 一起销毁）。
 - status 键位条写「空格 作用于当前行」但 `run()` 不看 `statusRow()`，任何一行按空格都循环切远端（计划自带，plan 2 接）。
 
-
 ---
 
 ### Task 9: 接进标签页体系
@@ -2608,6 +2625,7 @@ cd packages/tui && git add src/component/git-workspace.tsx src/component/git-wor
 让 `Git` 出现在主区标签条上，能开、能关、能渲染。
 
 **Files:**
+
 - Modify: `src/component/tab-bar.tsx`（`TabItem.type`）
 - Modify: `src/routes/session/index.tsx`（开标签 + 分发渲染）
 - Modify: `src/routes/session/sidebar.tsx`（Git 页加入口）
@@ -2617,7 +2635,7 @@ cd packages/tui && git add src/component/git-workspace.tsx src/component/git-wor
 修改 `packages/tui/src/component/tab-bar.tsx` 第 17 行的 `type` 联合类型：
 
 ```ts
-  type: "chat" | "preview" | "git-diff" | "commit-detail" | "git-workspace"
+type: "chat" | "preview" | "git-diff" | "commit-detail" | "git-workspace"
 ```
 
 同时更新第 14-16 行的注释，补一句 `git-workspace` 是整屏工作区，没有 `filePath` 也没有 `commitHash`。
@@ -2798,12 +2816,12 @@ cd packages/tui && bun dev
 
 ### Critical（全部已修）
 
-| # | 问题 | 修法 | 提交 |
-|---|---|---|---|
-| 1 | **`tab`/`shift+tab` 被 keymap 层窃取，切面板是死键** | `useBindings` 注册专用层 | `fc8c558` |
-| 2 | **confirm 不捕获武装目标，可 discard 错文件** | 武装瞬间拍板快照 | `4484bdc` |
-| 3 | **窄屏下危险键照常执行（盲丢改动）** | `run()` 顶部闸门 | `d2fbe80` |
-| 4 | diff 不跟随光标 / 无激活模式 | **划归计划 2**（见下） | — |
+| #   | 问题                                                 | 修法                     | 提交      |
+| --- | ---------------------------------------------------- | ------------------------ | --------- |
+| 1   | **`tab`/`shift+tab` 被 keymap 层窃取，切面板是死键** | `useBindings` 注册专用层 | `fc8c558` |
+| 2   | **confirm 不捕获武装目标，可 discard 错文件**        | 武装瞬间拍板快照         | `4484bdc` |
+| 3   | **窄屏下危险键照常执行（盲丢改动）**                 | `run()` 顶部闸门         | `d2fbe80` |
+| 4   | diff 不跟随光标 / 无激活模式                         | **划归计划 2**（见下）   | —         |
 
 #### Critical 1：为什么单任务审查发现不了
 
@@ -2812,6 +2830,7 @@ cd packages/tui && bun dev
 Task 8 的组件测试全绿，因为**测试只挂工作区、没挂 app 的 keymap 层**。活探针实测：`j` 能到工作区监听器，`tab`/`shift+tab`/`ctrl+c` 只到 keymap。按 `tab` 实际在**静默切换 agent**。
 
 **keymap 优先级模型**（调查结论，记下来供以后用）：
+
 - 同键冲突按 **层 priority 降序、注册序降序** 裁决，后注册的层赢。
 - 两种既有禁用机制：**mode 栈**（`createNovaWayModeStack` push mode → `setData("NovaWay.mode")` → `mode: base` 的层失活）和 **`enabled` 谓词**（`registerManagedTextareaLayer({ enabled: ... })`，聊天输入框就是这么让位的）。
 - **没有**现成的「工作区/差异面板聚焦」状态供 keymap 查询。
@@ -2836,13 +2855,13 @@ Task 8 的组件测试全绿，因为**测试只挂工作区、没挂 app 的 ke
 
 ### Important（全部已修）
 
-| # | 问题 | 修法 | 提交 |
-|---|---|---|---|
-| 5 | `gitExec().then(refresh)` 无 `.catch`，失败时 UI 零反馈 + unhandled rejection | 新增 `runGit()` 统一收口，失败写提示行、两路都 `refresh()` | `50047e2` |
-| 6 | armed 3 秒超时**视觉上没接线**，提示永挂到下次按键 | 100ms interval，到期清 armed 触发重渲染，`onCleanup` 自拆 | `6d7d6aa` |
-| 7 | `fileRow` 不随列表收缩 clamp，删文件后三处显示不一致 | `statusRows`/`fileRows` 各挂 clamp effect | `1a61eca` |
+| #   | 问题                                                                          | 修法                                                       | 提交      |
+| --- | ----------------------------------------------------------------------------- | ---------------------------------------------------------- | --------- |
+| 5   | `gitExec().then(refresh)` 无 `.catch`，失败时 UI 零反馈 + unhandled rejection | 新增 `runGit()` 统一收口，失败写提示行、两路都 `refresh()` | `50047e2` |
+| 6   | armed 3 秒超时**视觉上没接线**，提示永挂到下次按键                            | 100ms interval，到期清 armed 触发重渲染，`onCleanup` 自拆  | `6d7d6aa` |
+| 7   | `fileRow` 不随列表收缩 clamp，删文件后三处显示不一致                          | `statusRows`/`fileRows` 各挂 clamp effect                  | `1a61eca` |
 
-第 6 条值得单独记一笔：**`confirm.ts` 的纯逻辑测试用假时钟全绿，但功能根本没接上** —— 测的是状态机，不是 UI。以后凡是「带时限的状态」都要问一句：*谁负责到点触发重渲染？*
+第 6 条值得单独记一笔：**`confirm.ts` 的纯逻辑测试用假时钟全绿，但功能根本没接上** —— 测的是状态机，不是 UI。以后凡是「带时限的状态」都要问一句：_谁负责到点触发重渲染？_
 
 ### 记录在案、不修的
 
@@ -2855,7 +2874,6 @@ Task 8 的组件测试全绿，因为**测试只挂工作区、没挂 app 的 ke
 
 **908 通过 / 1 跳过 / 4 失败**（4 个仍是 `test/cli/cmd/tui/provider-options.test.ts` 的既有失败），typecheck exit 0。
 新增测试文件：`git-workspace-{keymap,narrow,feedback,clamp}.test.tsx`。
-
 
 ---
 

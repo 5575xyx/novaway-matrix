@@ -29,14 +29,14 @@
 
 ## 交互映射
 
-| 鼠标动作 | 等价键盘 | 说明 |
-| --- | --- | --- |
-| 点面板标题 | 数字 `1`-`5` | 切到该面板 |
-| 点面板内某行 | 数字键 + `j`/`k` | 该面板变当前面板 + 选中该行 |
-| 双击面板内某行 | `enter` | 执行该行的默认操作 |
-| 点底部键位条上的操作文字 | 对应的那个键 | `c` / `n` / `y` / `z` / `m` / `空格` … |
-| 差异视图滚轮 | `j`/`k` + `pgup`/`pgdn` | 上下滚动 |
-| 点差异视图某行 | — | 光标定位到该行 |
+| 鼠标动作                 | 等价键盘                | 说明                                   |
+| ------------------------ | ----------------------- | -------------------------------------- |
+| 点面板标题               | 数字 `1`-`5`            | 切到该面板                             |
+| 点面板内某行             | 数字键 + `j`/`k`        | 该面板变当前面板 + 选中该行            |
+| 双击面板内某行           | `enter`                 | 执行该行的默认操作                     |
+| 点底部键位条上的操作文字 | 对应的那个键            | `c` / `n` / `y` / `z` / `m` / `空格` … |
+| 差异视图滚轮             | `j`/`k` + `pgup`/`pgdn` | 上下滚动                               |
+| 点差异视图某行           | —                       | 光标定位到该行                         |
 
 双击的默认操作取各行**键盘 `enter` 的现有分支**，一个都不新增：
 
@@ -69,13 +69,14 @@
 
 ## 组件改造
 
-| 位置 | 改法 |
-| --- | --- |
-| 各面板的行 | 行 renderable 挂 `onMouseDown` → `focusPanel(id)` + 选行 |
-| 各面板的行（双击） | **自己判定**：`@opentui/core` 的 `Renderable` props 只有
-  `onMouseDown`/`onMouseUp`/`onMouseMove`/`onMouseDrag`/`onMouseDragEnd`/`onMouseDrop`/
-  `onMouseOver`/`onMouseOut`/`onMouseScroll`，**没有 `onDoubleClick`**。
-  在面板层记「上一次 down 的行号 + 时间戳」，同一行 400ms 内第二次 down 判为双击 → `run(默认操作)` |
+| 位置               | 改法                                                     |
+| ------------------ | -------------------------------------------------------- |
+| 各面板的行         | 行 renderable 挂 `onMouseDown` → `focusPanel(id)` + 选行 |
+| 各面板的行（双击） | **自己判定**：`@opentui/core` 的 `Renderable` props 只有 |
+
+`onMouseDown`/`onMouseUp`/`onMouseMove`/`onMouseDrag`/`onMouseDragEnd`/`onMouseDrop`/
+`onMouseOver`/`onMouseOut`/`onMouseScroll`，**没有 `onDoubleClick`**。
+在面板层记「上一次 down 的行号 + 时间戳」，同一行 400ms 内第二次 down 判为双击 → `run(默认操作)` |
 | 面板标题 | `onMouseDown` → `focusPanel(id)` |
 | 底部键位条 | 每个操作项是一个 renderable → `onMouseDown` → `run(command)` |
 | 差异视图 | `onMouseScroll` 按方向滚（参照 `routes/session/index.tsx` 的 scrollbox 先例）；`onMouseDown` 定位光标 |

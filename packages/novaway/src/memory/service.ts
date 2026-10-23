@@ -262,7 +262,11 @@ function conditions(input?: ListInput) {
 
 function reviewConditions(input?: ReviewCandidateListInput) {
   return [
-    input?.projectID ? eq(MemoryReviewCandidateTable.project_id, input.projectID) : undefined,
+    // Global-scope candidates are stored with a NULL project_id and apply to
+    // every project, so a project-scoped query must include them.
+    input?.projectID
+      ? or(eq(MemoryReviewCandidateTable.project_id, input.projectID), isNull(MemoryReviewCandidateTable.project_id))
+      : undefined,
     input?.sessionID ? eq(MemoryReviewCandidateTable.session_id, input.sessionID) : undefined,
     input?.status ? eq(MemoryReviewCandidateTable.status, input.status) : undefined,
   ].filter((item) => item !== undefined)

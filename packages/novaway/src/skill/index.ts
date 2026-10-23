@@ -32,6 +32,8 @@ import WXGZH_OPS_BODY from "./prompt/wxgzh-ops/SKILL.md" with { type: "text" }
 import XIAOHONGSHU_OPS_BODY from "./prompt/xiaohongshu-ops/SKILL.md" with { type: "text" }
 import { isRecord } from "@/util/record"
 import { ensureSkillExtracted } from "./skill-assets"
+import * as ExtensionLoader from "@/extension/loader"
+import { contributions as extensionContributions } from "@/extension/schema"
 
 const log = Log.create({ service: "skill" })
 const CLAUDE_EXTERNAL_DIR = ".claude"
@@ -163,6 +165,17 @@ export const Info = Schema.Struct({
   location: Schema.String,
   content: Schema.String,
   builtIn: Schema.optional(Schema.Boolean),
+  // Claude Code compatible frontmatter.
+  context: Schema.optional(Schema.Literals(["inline", "fork"])),
+  agent: Schema.optional(Schema.String),
+  model: Schema.optional(Schema.String),
+  effort: Schema.optional(Schema.String),
+  allowedTools: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
+  paths: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
+  userInvocable: Schema.optional(Schema.Boolean),
+  disableModelInvocation: Schema.optional(Schema.Boolean),
+  argumentHint: Schema.optional(Schema.String),
+  whenToUse: Schema.optional(Schema.String),
 })
 export type Info = Schema.Schema.Type<typeof Info>
 
@@ -222,7 +235,7 @@ export interface Interface {
   readonly get: (name: string) => Effect.Effect<Info | undefined>
   readonly all: () => Effect.Effect<Info[]>
   readonly dirs: () => Effect.Effect<string[]>
-  readonly available: (agent?: Agent.Info) => Effect.Effect<Info[]>
+  readonly available: (agent?: Agent.Info, activatedPaths?: string[]) => Effect.Effect<Info[]>
   /** Rediscover and reload skills from disk for the current instance. */
   readonly reload: () => Effect.Effect<Info[]>
   readonly createComposition: (input: {
@@ -267,11 +280,32 @@ const add = Effect.fnUntraced(function* (state: State, match: string, bus: Bus.I
   }
 
   state.dirs.add(path.dirname(match))
+  const data = md.data as Record<string, unknown>
+  const list = (value: unknown) =>
+    Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === "string")
+      : typeof value === "string"
+        ? value.split(/[,\s]+/).filter(Boolean)
+        : undefined
   state.skills[md.data.name] = {
     name: md.data.name,
     description: md.data.description,
     location: match,
     content: md.content,
+    ...(data.context === "fork" ? { context: "fork" as const } : {}),
+    ...(typeof data.agent === "string" ? { agent: data.agent } : {}),
+    ...(typeof data.model === "string" ? { model: data.model } : {}),
+    ...(typeof data.effort === "string" ? { effort: data.effort } : {}),
+    ...(list(data["allowed-tools"] ?? data.allowedTools)
+      ? { allowedTools: list(data["allowed-tools"] ?? data.allowedTools) }
+      : {}),
+    ...(list(data.paths) ? { paths: list(data.paths) } : {}),
+    ...(typeof data["user-invocable"] === "boolean" ? { userInvocable: data["user-invocable"] } : {}),
+    ...(typeof data["disable-model-invocation"] === "boolean"
+      ? { disableModelInvocation: data["disable-model-invocation"] }
+      : {}),
+    ...(typeof data["argument-hint"] === "string" ? { argumentHint: data["argument-hint"] } : {}),
+    ...(typeof data.when_to_use === "string" ? { whenToUse: data.when_to_use } : {}),
   }
 })
 
@@ -346,6 +380,31 @@ const discoverSkills = Effect.fnUntraced(function* (
   for (const dir of roots) {
     if (!(yield* fsys.isDir(dir))) continue
     yield* scan(state, dir, NOVAWAY_SKILL_PATTERN)
+  }
+
+  const extensions = yield* Effect.promise(() =>
+    ExtensionLoader.scanCached({
+      config: global.config,
+      home: global.home,
+      directory,
+      worktree,
+    }),
+  ).pipe(Effect.catch(() => Effect.succeed([] as Awaited<ReturnType<typeof ExtensionLoader.scan>>)))
+  for (const item of extensions) {
+    if (!item.enabled) continue
+    // Only scan explicit skill contributions and the conventional skills/
+    // directory. Scanning the whole extension root would walk node_modules.
+    const contributed = extensionContributions(item).some((contribution) => contribution.kind === "skill")
+    for (const contribution of extensionContributions(item)) {
+      if (contribution.kind !== "skill") continue
+      const target = path.resolve(item.root, contribution.path)
+      if (!(yield* fsys.isDir(target))) continue
+      yield* scan(state, target, SKILL_PATTERN, { dot: true })
+    }
+    if (!contributed) {
+      const conventional = path.join(item.root, "skills")
+      if (yield* fsys.isDir(conventional)) yield* scan(state, conventional, SKILL_PATTERN, { dot: true })
+    }
   }
 
   const cfg = yield* config.get()
@@ -444,12 +503,22 @@ export const layer = Layer.effect(
       return (yield* InstanceState.get(discovered)).dirs
     })
 
-    const available = Effect.fn("Skill.available")(function* (agent?: Agent.Info) {
+    const available = Effect.fn("Skill.available")(function* (agent?: Agent.Info, activatedPaths?: string[]) {
       const s = yield* InstanceState.get(state)
       const disabled = yield* disabledNames()
-      const list = Object.values(s.skills)
+      let list = Object.values(s.skills)
         .filter((skill) => !disabled.has(skill.name))
         .toSorted((a, b) => a.name.localeCompare(b.name))
+      if (activatedPaths) {
+        // Skills with a `paths` frontmatter are only visible after the model has
+        // touched a matching file.
+        const { minimatch } = yield* Effect.promise(() => import("minimatch"))
+        list = list.filter(
+          (skill) =>
+            !skill.paths?.length ||
+            skill.paths.some((pattern) => activatedPaths.some((file) => minimatch(file, pattern, { dot: true }))),
+        )
+      }
       if (!agent) return list
       return list.filter((skill) => Permission.evaluate("skill", skill.name, agent.permission).action !== "deny")
     })

@@ -15,6 +15,11 @@ import { TuiEvent } from "@/server/tui-event"
 import { Cause, Effect, Exit, Option, Schema, Scope } from "effect"
 import { EffectBridge } from "@/effect/bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import { Service as TeamService } from "@/team/team"
+import { Service as HookService, defaultLayer as HookLayer } from "@/hook/service"
+import { create as createWorktree } from "./worktree-helper"
+import { GlobalBus } from "@/bus/global"
+import { BusEvent } from "@/bus/bus-event"
 
 export interface TaskPromptOps {
   cancel(sessionID: SessionID): Effect.Effect<void>
@@ -56,7 +61,46 @@ export const Parameters = Schema.Struct({
   background: Schema.optional(Schema.Boolean).annotate({
     description: "When true, launch the subagent in the background and return immediately",
   }),
+  name: Schema.optional(Schema.String).annotate({
+    description: "Addressable name for this agent, used by agent_message and the task board",
+  }),
+  team: Schema.optional(Schema.String).annotate({
+    description: "Team id or name; defaults to the current session team",
+  }),
+  isolation: Schema.optional(Schema.Literals(["worktree"])).annotate({
+    description: "Run the agent in an isolated git worktree",
+  }),
+  model: Schema.optional(Schema.String).annotate({
+    description: "Model override, formatted as provider/model",
+  }),
+  fork: Schema.optional(Schema.Boolean).annotate({
+    description:
+      "Fork the current conversation into the subagent: it inherits the parent transcript and shares the prompt cache prefix",
+  }),
 })
+
+/**
+ * Fork marker.
+ *
+ * A forked child inherits the parent transcript so the API request prefix stays
+ * byte-identical to the parent's and the provider prompt cache can be reused.
+ * The marker is injected with the directive and re-checked on every fork
+ * attempt: a fork child must never fork again.
+ */
+export const FORK_MARKER = "[fork-worker]"
+
+/** Constant tool result used for the forking `task` call in every fork child. */
+const FORK_PLACEHOLDER = "Fork started -- processing in background"
+
+function forkDirective(prompt: string) {
+  return [
+    FORK_MARKER,
+    "You are a forked worker process. You are NOT the main agent.",
+    "Do not spawn sub-agents. Do not ask questions. Execute directly and report once.",
+    "",
+    prompt,
+  ].join(String.fromCharCode(10))
+}
 
 function output(sessionID: SessionID, text: string) {
   return [
@@ -79,20 +123,66 @@ function backgroundOutput(sessionID: SessionID) {
   ].join("\n")
 }
 
+export const AgentEvent = {
+  Started: BusEvent.define(
+    "agent.started",
+    Schema.Struct({
+      sessionID: Schema.String,
+      parentSessionID: Schema.String,
+      name: Schema.optional(Schema.String),
+      agent: Schema.String,
+      worktree: Schema.optional(Schema.String),
+    }),
+  ),
+  Completed: BusEvent.define(
+    "agent.completed",
+    Schema.Struct({
+      sessionID: Schema.String,
+      parentSessionID: Schema.String,
+      name: Schema.optional(Schema.String),
+      agent: Schema.String,
+      state: Schema.Literals(["completed", "error", "cancelled"]),
+      tokens: Schema.optional(Schema.Number),
+      durationMs: Schema.optional(Schema.Number),
+      worktree: Schema.optional(Schema.String),
+    }),
+  ),
+}
+
 function backgroundMessage(input: {
   sessionID: SessionID
   description: string
+  name?: string
   state: "completed" | "error"
   text: string
+  tokens?: number
+  durationMs?: number
+  worktree?: string
 }) {
-  const tag = input.state === "completed" ? "task_result" : "task_error"
   const title =
     input.state === "completed"
       ? `Background task completed: ${input.description}`
       : `Background task failed: ${input.description}`
-  return [title, `task_id: ${input.sessionID}`, `state: ${input.state}`, "", `<${tag}>`, input.text, `</${tag}>`].join(
-    "\n",
-  )
+  return [
+    "<task-notification>",
+    `<task-id>${input.sessionID}</task-id>`,
+    ...(input.name ? [`<name>${input.name}</name>`] : []),
+    `<status>${input.state === "completed" ? "completed" : "failed"}</status>`,
+    `<summary>${title}</summary>`,
+    "<result>",
+    input.text,
+    "</result>",
+    ...(input.tokens !== undefined || input.durationMs !== undefined
+      ? [
+          "<usage>",
+          ...(input.tokens !== undefined ? [`<total_tokens>${input.tokens}</total_tokens>`] : []),
+          ...(input.durationMs !== undefined ? [`<duration_ms>${input.durationMs}</duration_ms>`] : []),
+          "</usage>",
+        ]
+      : []),
+    ...(input.worktree ? [`<worktree><path>${input.worktree}</path></worktree>`] : []),
+    "</task-notification>",
+  ].join(String.fromCharCode(10))
 }
 
 function errorText(error: unknown) {
@@ -111,6 +201,8 @@ export const TaskTool = Tool.define(
     const scope = yield* Scope.Scope
     const status = yield* SessionStatus.Service
     const flags = yield* RuntimeFlags.Service
+    const teams = yield* TeamService
+    const hooks = yield* HookService
 
     const run = Effect.fn("TaskTool.execute")(function* (
       params: Schema.Schema.Type<typeof Parameters>,
@@ -139,23 +231,79 @@ export const TaskTool = Tool.define(
         })
       }
 
-      const next = yield* agent.get(params.subagent_type)
-      if (!next) {
-        return yield* Effect.fail(new Error(`Unknown agent type: ${params.subagent_type} is not a valid agent type`))
+      const taskID = params.task_id
+      const forkMode = params.fork === true && !taskID
+      const parentSession = yield* sessions.get(ctx.sessionID)
+      if (forkMode) {
+        // Guard against recursive forking: a fork child carries the marker in
+        // its inherited transcript.
+        const history = yield* sessions
+          .messages({ sessionID: ctx.sessionID })
+          .pipe(Effect.catchCause(() => Effect.succeed([] as MessageV2.WithParts[])))
+        const nested = history.some((message) =>
+          message.parts.some(
+            (part) => part.type === "text" && typeof part.text === "string" && part.text.includes(FORK_MARKER),
+          ),
+        )
+        if (nested) {
+          return yield* Effect.fail(new Error("This agent is already a fork and cannot fork again."))
+        }
       }
 
-      const taskID = params.task_id
+      // A fork inherits the parent's agent (and therefore the parent's system
+      // prompt and tool pool). Using a different agent would change the prompt
+      // prefix and defeat the cache sharing that makes forks cheap.
+      const agentName = forkMode ? (parentSession.agent ?? ctx.agent) : params.subagent_type
+      const next = yield* agent.get(agentName)
+      if (!next) {
+        return yield* Effect.fail(new Error(`Unknown agent type: ${agentName} is not a valid agent type`))
+      }
+
       const session = taskID
         ? yield* sessions.get(SessionID.make(taskID)).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
         : undefined
-      const parent = yield* sessions.get(ctx.sessionID)
+      const parent = parentSession
       const parentAgent = parent.agent
         ? yield* agent.get(parent.agent).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
         : undefined
+      const isolation = params.isolation ?? next.isolation
+      const isolated =
+        isolation === "worktree"
+          ? yield* Effect.promise(() =>
+              createWorktree(ctx.directory ?? parent.directory, `${next.name}-${params.description}`),
+            ).pipe(Effect.catch(() => Effect.succeed(undefined)))
+          : undefined
+
+      // A fork keeps the parent's permissions (and therefore its exact tool
+      // pool). Narrowing them would change the tools block in the request and
+      // break the shared prefix; recursion is handled by FORK_MARKER instead.
+      const forked = forkMode
+        ? yield* sessions
+            .fork({
+              // Copy the entire transcript, including the assistant message that
+              // is currently running this tool. The child then sees the same
+              // prefix the parent saw, so the provider prompt cache is reused.
+              sessionID: ctx.sessionID,
+              parentID: ctx.sessionID,
+              title: params.description + ` (@${next.name} fork)`,
+              agent: next.name,
+              permission: parent.permission ?? [],
+              ...(parent.permissionMode ? { permissionMode: parent.permissionMode } : {}),
+            })
+            .pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+        : undefined
+
       const nextSession =
         session ??
+        forked ??
         (yield* sessions.create({
           parentID: ctx.sessionID,
+          ...(isolated ? { directory: isolated.directory } : {}),
+          // Agent declaration wins; otherwise inherit the parent's mode so a
+          // plan-mode session cannot silently spawn an editing subagent.
+          ...(next.permissionMode || parent.permissionMode
+            ? { permissionMode: next.permissionMode ?? parent.permissionMode }
+            : {}),
           title: params.description + ` (@${next.name} subagent)`,
           permission: [
             ...deriveSubagentSessionPermission({
@@ -170,6 +318,72 @@ export const TaskTool = Tool.define(
             })) ?? []),
           ],
         }))
+
+      // Turn the inherited `task` tool call into a completed placeholder. Every
+      // fork child therefore sends the same tool_result bytes for that call,
+      // which is what keeps sibling forks on the same cached prefix.
+      if (forked && ctx.callID) {
+        const messages = yield* sessions
+          .messages({ sessionID: forked.id })
+          .pipe(Effect.catchCause(() => Effect.succeed([] as MessageV2.WithParts[])))
+        const now = Date.now()
+        for (const message of messages) {
+          for (const part of message.parts) {
+            if (part.type !== "tool" || part.tool !== id || part.callID !== ctx.callID) continue
+            const input = typeof part.state.input === "object" && part.state.input ? part.state.input : {}
+            yield* sessions
+              .updatePart({
+                ...part,
+                state: {
+                  status: "completed",
+                  input,
+                  output: FORK_PLACEHOLDER,
+                  title: params.description,
+                  metadata: { fork: true, childSessionID: forked.id },
+                  time: {
+                    start: "time" in part.state ? part.state.time.start : now,
+                    end: now,
+                  },
+                },
+              })
+              .pipe(Effect.ignore)
+          }
+        }
+      }
+
+      const team =
+        (params.team ? yield* teams.resolve(params.team, ctx.sessionID) : undefined) ??
+        (yield* teams.ofSession(ctx.sessionID))
+      if (team) {
+        yield* teams.addMember({
+          teamID: team.id,
+          sessionID: nextSession.id,
+          name: params.name ?? `${next.name}-${nextSession.id.slice(-4)}`,
+          agent: next.name,
+          role: "worker",
+          worktreePath: isolated?.directory,
+        })
+      }
+
+      yield* hooks
+        .trigger({
+          event: "SubagentStart",
+          sessionID: nextSession.id,
+          cwd: nextSession.directory,
+          tool: id,
+          args: { agent: next.name, name: params.name, prompt: params.prompt },
+        })
+        .pipe(Effect.ignore)
+
+      yield* bus
+        .publish(AgentEvent.Started, {
+          sessionID: nextSession.id,
+          parentSessionID: ctx.sessionID,
+          name: params.name,
+          agent: next.name,
+          worktree: isolated?.directory,
+        })
+        .pipe(Effect.ignore)
 
       const msg = yield* MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID }).pipe(Effect.orDie)
       if (msg.info.role !== "assistant") return yield* Effect.fail(new Error("Not an assistant message"))
@@ -195,7 +409,7 @@ export const TaskTool = Tool.define(
       const runCancel = yield* EffectBridge.make()
 
       const runTask = Effect.fn("TaskTool.runTask")(function* () {
-        const parts = yield* ops.resolvePromptParts(params.prompt)
+        const parts = yield* ops.resolvePromptParts(forkMode ? forkDirective(params.prompt) : params.prompt)
         const result = yield* ops.prompt({
           messageID: MessageID.ascending(),
           sessionID: nextSession.id,
@@ -204,11 +418,17 @@ export const TaskTool = Tool.define(
             providerID: model.providerID,
           },
           agent: next.name,
-          tools: {
-            ...(next.permission.some((rule) => rule.permission === "todowrite") ? {} : { todowrite: false }),
-            ...(next.permission.some((rule) => rule.permission === id) ? {} : { task: false }),
-            ...Object.fromEntries((cfg.experimental?.primary_tools ?? []).map((item) => [item, false])),
-          },
+          // Forks send no overrides: the tool pool must match the parent's for
+          // the request prefix (and therefore the cache) to line up.
+          ...(forkMode
+            ? {}
+            : {
+                tools: {
+                  ...(next.permission.some((rule) => rule.permission === "todowrite") ? {} : { todowrite: false }),
+                  ...(next.permission.some((rule) => rule.permission === id) ? {} : { task: false }),
+                  ...Object.fromEntries((cfg.experimental?.primary_tools ?? []).map((item) => [item, false])),
+                },
+              }),
           parts,
         })
         return result.parts.findLast((item) => item.type === "text")?.text ?? ""
@@ -262,12 +482,34 @@ export const TaskTool = Tool.define(
               text: backgroundMessage({
                 sessionID: nextSession.id,
                 description: params.description,
+                name: params.name,
                 state,
                 text,
+                worktree: isolated?.directory,
               }),
             },
           ],
         })
+        yield* hooks
+          .trigger({
+            event: "SubagentStop",
+            sessionID: nextSession.id,
+            cwd: nextSession.directory,
+            tool: id,
+            result: text,
+          })
+          .pipe(Effect.ignore)
+
+        yield* bus
+          .publish(AgentEvent.Completed, {
+            sessionID: nextSession.id,
+            parentSessionID: ctx.sessionID,
+            name: params.name,
+            agent: next.name,
+            state: state === "completed" ? "completed" : "error",
+            worktree: isolated?.directory,
+          })
+          .pipe(Effect.ignore)
         yield* continueIfIdle({ userID: message.info.id, state })
       })
 

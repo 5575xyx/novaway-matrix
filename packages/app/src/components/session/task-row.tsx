@@ -175,7 +175,9 @@ export const TaskRow = (props: TaskRowProps): JSX.Element => {
         </span>
       </Show>
       <Show when={props.updated?.()}>
-        <span class="text-ui-xs text-foreground-subtle shrink-0">{formatRelativeTime(props.updated?.(), now(), t)}</span>
+        <span class="text-ui-xs text-foreground-subtle shrink-0">
+          {formatRelativeTime(props.updated?.(), now(), t)}
+        </span>
       </Show>
       <Show when={(props.additions?.() ?? 0) + (props.deletions?.() ?? 0) > 0}>
         <span class="text-ui-xs tabular-nums shrink-0">
@@ -200,39 +202,37 @@ export const TaskRow = (props: TaskRowProps): JSX.Element => {
             />
             <DropdownMenu.Portal>
               <DropdownMenu.Content style={{ "min-width": "140px" }}>
-              <Show when={props.onTogglePin}>
-                <DropdownMenu.Item onSelect={() => props.onTogglePin?.()}>
-                  <DropdownMenu.ItemLabel>
-                    {t(props.pinned ? "common.unpin" : "common.pin")}
-                  </DropdownMenu.ItemLabel>
-                </DropdownMenu.Item>
-              </Show>
-              <Show when={props.onRename}>
-                <DropdownMenu.Item onSelect={openTitleEditor}>
-                  <DropdownMenu.ItemLabel>{t("common.rename")}</DropdownMenu.ItemLabel>
-                </DropdownMenu.Item>
-              </Show>
-              <Show when={props.onArchive}>
-                <DropdownMenu.Item onSelect={() => props.onArchive?.()}>
-                  <DropdownMenu.ItemLabel>{t("common.archive")}</DropdownMenu.ItemLabel>
-                </DropdownMenu.Item>
-              </Show>
-              <Show when={props.onDelete}>
-                <DropdownMenu.Separator />
-                <DropdownMenu.Item
-                  onSelect={() =>
-                    dialog.show(() => (
-                      <DialogDeleteSession
-                        sessionID={props.sessionID ?? ""}
-                        title={props.title()}
-                        directory={props.directory ?? ""}
-                      />
-                    ))
-                  }
-                >
-                  <DropdownMenu.ItemLabel>{t("common.delete")}</DropdownMenu.ItemLabel>
-                </DropdownMenu.Item>
-              </Show>
+                <Show when={props.onTogglePin}>
+                  <DropdownMenu.Item onSelect={() => props.onTogglePin?.()}>
+                    <DropdownMenu.ItemLabel>{t(props.pinned ? "common.unpin" : "common.pin")}</DropdownMenu.ItemLabel>
+                  </DropdownMenu.Item>
+                </Show>
+                <Show when={props.onRename}>
+                  <DropdownMenu.Item onSelect={openTitleEditor}>
+                    <DropdownMenu.ItemLabel>{t("common.rename")}</DropdownMenu.ItemLabel>
+                  </DropdownMenu.Item>
+                </Show>
+                <Show when={props.onArchive}>
+                  <DropdownMenu.Item onSelect={() => props.onArchive?.()}>
+                    <DropdownMenu.ItemLabel>{t("common.archive")}</DropdownMenu.ItemLabel>
+                  </DropdownMenu.Item>
+                </Show>
+                <Show when={props.onDelete}>
+                  <DropdownMenu.Separator />
+                  <DropdownMenu.Item
+                    onSelect={() =>
+                      dialog.show(() => (
+                        <DialogDeleteSession
+                          sessionID={props.sessionID ?? ""}
+                          title={props.title()}
+                          directory={props.directory ?? ""}
+                        />
+                      ))
+                    }
+                  >
+                    <DropdownMenu.ItemLabel>{t("common.delete")}</DropdownMenu.ItemLabel>
+                  </DropdownMenu.Item>
+                </Show>
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
           </DropdownMenu>

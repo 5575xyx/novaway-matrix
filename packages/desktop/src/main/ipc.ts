@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process"
-import { copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
 import os from "node:os"
 import {
@@ -798,22 +798,72 @@ export function registerIpcHandlers(deps: Deps) {
     return Object.keys(store.store).length
   })
 
-  // 插件市场：下载在主进程做（渲染层受 CORS 限制），解压在渲染层（那里有 JSZip），
-  // 写盘再回到主进程。目录固定在配置目录下的 marketplace/，与插件加载器的路径基线一致。
+  // 插件市场。
+  //
+  // 下载仍在主进程（渲染层受 CORS 限制）。解压/克隆/校验/记录都交给内核
+  // （`packages/novaway/src/extension/marketplace.ts`），这样 Web 与 TUI 构建
+  // 用同一套实现，桌面端只是转发一层。目录固定在配置目录下的 marketplace/，
+  // 与内核 ExtensionLoader 的扫描根一致。
   const marketplaceRoot = () =>
     path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"), "novaway", "marketplace")
+
+  /**
+   * 调用内核 HTTP API。
+   *
+   * 主进程与 sidecar 在同一台机器上，直接用 `awaitInitialization` 拿到的
+   * 地址和 basic auth 即可。这里不做重试：安装类请求已经在内核里做过校验，
+   * 失败直接把原因抛给渲染层。
+   */
+  const serverFetch = async (input: {
+    method: "GET" | "POST" | "DELETE"
+    pathname: string
+    body?: unknown
+  }): Promise<unknown> => {
+    const server = await deps.awaitInitialization(() => {})
+    const url = new URL(input.pathname, server.url)
+    const headers: Record<string, string> = {}
+    if (input.body !== undefined) headers["content-type"] = "application/json"
+    if (server.username && server.password) {
+      headers.authorization = `Basic ${Buffer.from(`${server.username}:${server.password}`).toString("base64")}`
+    }
+    const response = await fetch(url, {
+      method: input.method,
+      headers,
+      body: input.body === undefined ? undefined : JSON.stringify(input.body),
+    })
+    const text = await response.text()
+    if (!response.ok) {
+      // 内核用 JSON 报错时，把 message 提出来，别把整段 JSON 丢给用户。
+      let message = text
+      try {
+        const parsed = JSON.parse(text) as { message?: unknown; data?: { message?: unknown } }
+        const candidate = parsed.message ?? parsed.data?.message
+        if (typeof candidate === "string" && candidate.trim()) message = candidate
+      } catch {
+        // 非 JSON：保留原文
+      }
+      throw new Error(message || `${response.status} ${response.statusText}`)
+    }
+    return text ? (JSON.parse(text) as unknown) : undefined
+  }
+  // 与内核 `extension/marketplace.ts` 保持同一上限，避免渲染层绕过限制。
+  const MAX_MARKETPLACE_BYTES = 64 * 1024 * 1024
   ipcMain.handle("marketplace-download", async (_event: IpcMainInvokeEvent, url: string) => {
     if (!/^https?:\/\//i.test(url)) throw new Error("unsupported marketplace url")
-    const response = await fetch(url)
+    const response = await fetch(url, { redirect: "follow" })
     if (!response.ok) throw new Error(`${response.status} ${response.statusText}`)
-    return Buffer.from(await response.arrayBuffer()).toString("base64")
+    const length = Number(response.headers.get("content-length") ?? 0)
+    if (length > MAX_MARKETPLACE_BYTES) throw new Error(`download too large: ${length} bytes`)
+    const buffer = Buffer.from(await response.arrayBuffer())
+    if (buffer.byteLength > MAX_MARKETPLACE_BYTES) throw new Error(`download too large: ${buffer.byteLength} bytes`)
+    return buffer.toString("base64")
   })
+  // zip 包由渲染层解压（那里有 JSZip），这里只负责落盘。
+  // 落盘时同时写一份 `.novaway-install.json`，内核的 list()/uninstall() 才认得出
+  // 这些包，扩展页也能把它们列为「已安装」。
   ipcMain.handle(
     "marketplace-install",
-    async (
-      _event: IpcMainInvokeEvent,
-      input: { dir: string; files: Array<{ path: string; data: string }> },
-    ) => {
+    async (_event: IpcMainInvokeEvent, input: { dir: string; files: Array<{ path: string; data: string }> }) => {
       const name = input.dir.replace(/[^A-Za-z0-9._@-]/g, "_")
       const root = path.join(marketplaceRoot(), name)
       await rm(root, { recursive: true, force: true })
@@ -824,6 +874,20 @@ export function registerIpcHandlers(deps: Deps) {
         await mkdir(path.dirname(target), { recursive: true })
         await writeFile(target, Buffer.from(file.data, "base64"))
       }
+      await writeFile(
+        path.join(root, ".novaway-install.json"),
+        JSON.stringify(
+          {
+            name: input.dir.split("@")[0] ?? name,
+            kind: "zip",
+            ...(input.dir.includes("@") ? { version: input.dir.split("@")[1] } : {}),
+            source: "desktop",
+            installedAt: Date.now(),
+          },
+          null,
+          2,
+        ),
+      )
       return root
     },
   )
@@ -843,91 +907,34 @@ export function registerIpcHandlers(deps: Deps) {
     return false
   })
   // Claude 插件市场用的是 git 仓库（整仓或子目录），没有 zip 包。
-  // 这里用浅克隆装到 marketplace/<name>@<ref>，并顺手完成"让它真的可用"的收尾：
-  //   - skills/  → 交给调用方写进 config.skills.paths
-  //   - .mcp.json → 解析出 MCP 服务，交给调用方合并进 config.mcp
-  //   - commands/ agents/ → 复制到全局配置目录，现有的命令/Agent 扫描器就能加载
+  // 克隆、校验、记录都由内核完成；这里把结果翻译成渲染层需要的形状：
+  //   - skills/    → skillsPath，调用方写进 config.skills.paths
+  //   - .mcp.json  → mcpServers，调用方合并进 config.mcp
+  // commands/agents 不再复制到全局配置目录：内核 ExtensionLoader 会直接从
+  // marketplace 目录加载它们，复制反而会产生两份互相覆盖的副本。
   ipcMain.handle(
     "marketplace-git-install",
-    async (
-      _event: IpcMainInvokeEvent,
-      input: { name: string; url: string; ref?: string; subdir?: string },
-    ) => {
-      if (!/^https?:\/\//i.test(input.url) && !/^git@/i.test(input.url)) {
-        throw new Error("unsupported git url")
-      }
-      const name = input.name.replace(/[^A-Za-z0-9._@-]/g, "_")
-      const ref = (input.ref || "HEAD").replace(/[^A-Za-z0-9._\/-]/g, "_")
-      const root = path.join(marketplaceRoot(), `${name}@${ref}`)
-      await rm(root, { recursive: true, force: true })
-      await mkdir(path.dirname(root), { recursive: true })
-      // GitHub 在国内直连经常 SSL 失败；按「镜像优先、直连兜底」的顺序尝试。
-      // 镜像只是把 https://github.com/... 前缀套一层，git 协议本身不变。
-      const candidates = input.url.startsWith("https://github.com/")
-        ? [`https://ghproxy.net/${input.url}`, input.url]
-        : [input.url]
-      let lastError: Error | undefined
-      for (const url of candidates) {
-        try {
-          await new Promise<void>((resolve, reject) => {
-            const args = ["clone", "--depth", "1"]
-            if (input.ref && input.ref !== "HEAD") args.push("--branch", input.ref)
-            args.push(url, root)
-            execFile("git", args, { timeout: 240_000, windowsHide: true }, (error, _stdout, stderr) => {
-              if (error) reject(new Error(String(stderr || error.message).trim()))
-              else resolve()
-            })
-          })
-          lastError = undefined
-          break
-        } catch (error) {
-          lastError = error instanceof Error ? error : new Error(String(error))
-          await rm(root, { recursive: true, force: true }).catch(() => {})
-        }
-      }
-      if (lastError) throw lastError
+    async (_event: IpcMainInvokeEvent, input: { name: string; url: string; ref?: string; subdir?: string }) => {
+      const installed = (await serverFetch({
+        method: "POST",
+        pathname: "/extension/marketplace/install",
+        body: {
+          kind: "git",
+          name: input.name,
+          url: input.url,
+          ref: input.ref,
+          subdir: input.subdir,
+        },
+      })) as { root: string }
 
-      const installed = input.subdir ? path.join(root, input.subdir) : root
-      const configRoot = path.join(
-        process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"),
-        "novaway",
-      )
-      const listFiles = async (dir: string, ext: string): Promise<string[]> => {
-        const entries = await readdir(dir, { withFileTypes: true }).catch(() => [])
-        const nested = await Promise.all(
-          entries.map((entry) =>
-            entry.isDirectory()
-              ? listFiles(path.join(dir, entry.name), ext)
-              : entry.name.toLowerCase().endsWith(ext)
-                ? [path.join(dir, entry.name)]
-                : [],
-          ),
-        )
-        return nested.flat()
-      }
-      const copyInto = async (from: string, target: string) => {
-        const files = await listFiles(from, ".md")
-        await Promise.all(
-          files.map(async (file) => {
-            const relative = path.relative(from, file).split(path.sep).join("--")
-            const dest = path.join(target, relative)
-            await mkdir(path.dirname(dest), { recursive: true })
-            await copyFile(file, dest)
-          }),
-        )
-        return files.length
-      }
-
-      const skills = path.join(installed, "skills")
-      const hasSkills = await readdir(skills)
-        .then(() => true)
+      const dir = installed.root
+      const skills = path.join(dir, "skills")
+      const hasSkills = await stat(skills)
+        .then((info) => info.isDirectory())
         .catch(() => false)
-      const commands = await copyInto(path.join(installed, "commands"), path.join(configRoot, "command", name))
-      const agents = await copyInto(path.join(installed, "agents"), path.join(configRoot, "agents", name))
 
       let mcpServers: Record<string, unknown> | undefined
-      const mcpFile = path.join(installed, ".mcp.json")
-      const raw = await readFile(mcpFile, "utf8").catch(() => undefined)
+      const raw = await readFile(path.join(dir, ".mcp.json"), "utf8").catch(() => undefined)
       if (raw) {
         try {
           const parsed = JSON.parse(raw) as { mcpServers?: Record<string, unknown> }
@@ -938,38 +945,31 @@ export function registerIpcHandlers(deps: Deps) {
       }
 
       return {
-        dir: installed,
+        dir,
         skillsPath: hasSkills ? skills : undefined,
         mcpServers,
-        commands,
-        agents,
+        // 内核直接加载这两个目录，因此不再复制；保留字段是为了兼容旧渲染层。
+        commands: 0,
+        agents: 0,
       }
     },
   )
+  // 卸载走内核：它负责路径校验、Windows 句柄重试，以及刷新扩展注册表。
   ipcMain.handle("marketplace-remove", async (_event: IpcMainInvokeEvent, dir: string) => {
-    const root = path.resolve(marketplaceRoot())
+    const base = path.resolve(marketplaceRoot())
     const target = path.resolve(dir)
-    if (target !== root && !target.startsWith(root + path.sep)) throw new Error("invalid marketplace dir")
-    // Windows 上目录里可能还有短暂的文件句柄（git 对象/watcher），rm 偶尔只清空内容
-    // 却删不掉目录本身；重试几次直到目录消失。
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      await rm(target, { recursive: true, force: true, maxRetries: 2, retryDelay: 100 })
-      const gone = await stat(target).then(
-        () => false,
-        () => true,
-      )
-      if (gone) break
-      await new Promise((resolve) => setTimeout(resolve, 200))
-    }
-    // Claude 安装时会把 commands/agents 复制进全局配置目录（现有扫描器只认那里），
-    // 卸载时要一并清掉，否则列表里会残留一堆指向已删插件的条目。
-    const name = path.basename(target).split("@")[0]
-    const configRoot = path.join(
-      process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"),
-      "novaway",
-    )
-    await rm(path.join(configRoot, "command", name), { recursive: true, force: true }).catch(() => {})
-    await rm(path.join(configRoot, "agents", name), { recursive: true, force: true }).catch(() => {})
+    if (target === base || !target.startsWith(base + path.sep)) throw new Error("invalid marketplace dir")
+    const name = path.basename(target)
+    await serverFetch({
+      method: "DELETE",
+      pathname: `/extension/marketplace/${encodeURIComponent(name)}`,
+    })
+    // 旧版安装会把 commands/agents 复制到全局配置目录，卸载时一并清掉，
+    // 否则列表里会残留指向已删插件的条目。
+    const shortName = name.split("@")[0] ?? name
+    const configRoot = path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"), "novaway")
+    await rm(path.join(configRoot, "command", shortName), { recursive: true, force: true }).catch(() => {})
+    await rm(path.join(configRoot, "agents", shortName), { recursive: true, force: true }).catch(() => {})
   })
 
   ipcMain.handle("get-floating-agent-state", () => {

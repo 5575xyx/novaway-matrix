@@ -36,12 +36,16 @@ process.env["XDG_STATE_HOME"] = path.join(dir, "state")
 process.env["NOVAWAY_MODELS_PATH"] = path.join(import.meta.dir, "tool", "fixtures", "models-api.json")
 process.env["NOVAWAY_EXPERIMENTAL_EVENT_SYSTEM"] = "true"
 process.env["NOVAWAY_EXPERIMENTAL_WORKSPACES"] = "true"
+// Tests must never reach the network for plugin installs (the default global
+// plugin is a git dependency). Individual tests opt in by building their own layer.
+process.env["NOVAWAY_DISABLE_DEFAULT_PLUGINS"] = "1"
 
 // Set test home directory to isolate tests from user's actual home directory
 // This prevents tests from picking up real user configs/skills from ~/.claude/skills
 const testHome = path.join(dir, "home")
 await fs.mkdir(testHome, { recursive: true })
 process.env["NOVAWAY_TEST_HOME"] = testHome
+process.env["OPENCODE_TEST_HOME"] = testHome
 
 // Set test managed config directory to isolate tests from system managed settings
 const testManagedConfigDir = path.join(dir, "managed")

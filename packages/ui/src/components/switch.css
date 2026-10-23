@@ -31,7 +31,22 @@
     border-radius: 9999px;
     border: none;
     background: color-mix(in oklab, var(--primary) 30%, transparent);
-    transition: background-color 150ms;
+    box-shadow: 0 0 0 0 transparent;
+    /* 开关是「点一下就该有反应」的控件：hover 给一圈淡环，按下轻微收缩，
+       切换时轨道与拇指都有明确的过渡，用户不会怀疑自己没点中。 */
+    transition:
+      background-color 180ms cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 180ms cubic-bezier(0.4, 0, 0.2, 1),
+      transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  /* 整行可点：把 hover 反馈扩展到标签区域。 */
+  &:hover:not([data-disabled]):not([data-readonly]) [data-slot="switch-control"] {
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 16%, transparent);
+  }
+
+  &:active:not([data-disabled]):not([data-readonly]) [data-slot="switch-control"] {
+    transform: scale(0.94);
   }
 
   [data-slot="switch-thumb"] {
@@ -44,7 +59,15 @@
     background: var(--primary-foreground);
 
     transform: translateX(0);
-    transition: transform 150ms;
+    transition:
+      transform 220ms cubic-bezier(0.34, 1.4, 0.64, 1),
+      width 160ms ease;
+    box-shadow: 0 1px 2px color-mix(in oklab, var(--shadow-color, #000) 18%, transparent);
+  }
+
+  /* 切换瞬间拇指稍微拉长一点，像被"推"过去，比匀速滑动更有反馈。 */
+  &:active:not([data-disabled]):not([data-readonly]) [data-slot="switch-thumb"] {
+    width: 18px;
   }
 
   [data-slot="switch-label"] {
@@ -86,6 +109,10 @@
 
   &[data-checked] [data-slot="switch-thumb"] {
     transform: translateX(14px);
+  }
+
+  &:active:not([data-disabled]):not([data-readonly])[data-checked] [data-slot="switch-thumb"] {
+    transform: translateX(12px);
   }
 
   &[data-disabled] {

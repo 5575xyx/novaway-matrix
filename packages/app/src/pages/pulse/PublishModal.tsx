@@ -117,7 +117,9 @@ export function PublishModal() {
                 </Show>
               </div>
               <Show when={selectedAccounts().length > 0}>
-                <div class="mt-1.5 text-11-regular text-foreground-subtle">已选择 {selectedAccounts().length} 个账号</div>
+                <div class="mt-1.5 text-11-regular text-foreground-subtle">
+                  已选择 {selectedAccounts().length} 个账号
+                </div>
               </Show>
             </div>
 

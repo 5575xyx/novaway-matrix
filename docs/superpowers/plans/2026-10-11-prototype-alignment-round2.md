@@ -9,6 +9,7 @@
 **Tech Stack:** SolidJS + Tailwind v4（含 `@container`/`@min-[...]` 容器查询变体）+ Kobalte + Playwright + oxlint。
 
 **Spec:**
+
 - 已批准设计：`docs/superpowers/specs/2026-10-10-desktop-layout-ui-redesign-design.md`（§3 四 frame/§4 侧栏/§5 会话区/§7 Titlebar 与首页）
 - 原型（像素基准）：`.superpowers/brainstorm/20261010-121745/content/prototype-full.html`
 - 差异证据（本轮开工前实测）：`C:\Users\13428\AppData\Local\Temp\app-home-taskcenter.png`、`app-session-expanded.png`
@@ -39,6 +40,7 @@
 ## Task 1: 四 frame + 4px 间隙外壳
 
 **Files:**
+
 - Modify: `packages/app/src/pages/layout.tsx`（`nav` 2398-2409、ResizeHandle 2412-2431、顶部分隔线 2433-2437 删除、main wrapper 2466-2477、`main` 2490-2495、`side()` 1997-2001、`--dialog-left-margin` 1993-1994、`SidebarPanel` 根 2146-2157）
 - Modify: `packages/app/src/pages/session.tsx`（root 1834、WorkspaceHeader 1837 移入会话 frame、会话 frame 1865、主行 1866）
 - Modify: `packages/app/src/pages/session/session-side-panel.tsx:209-215`（aside 根）
@@ -47,6 +49,7 @@
 - Test: `packages/app/e2e/layout.spec.ts`（新增几何断言）
 
 **Interfaces:**
+
 - Produces: 三个 frame 几何常量约定——frame 圆角 `rounded-lg`(8px)、边框 `border border-border-weak-base`、frame 间间隙 `4px`(`gap-1`/`p-1`)、侧栏宽度下限 `240`、侧栏 frame 右边缘 = `side() + 4`。后续任务复用同一组类名，不得各写各的。
 
 - [ ] **Step 1: 写会失败的 e2e 几何断言**
@@ -56,7 +59,10 @@
 ```ts
 test("四 frame 4px 间隙与 8px 圆角", async ({ page }) => {
   await enterZenOffice(page)
-  await page.getByRole("button", { name: /Toggle side pane|切换 Side Pane/ }).first().click()
+  await page
+    .getByRole("button", { name: /Toggle side pane|切换 Side Pane/ })
+    .first()
+    .click()
   const gap = async (a: string, b: string) =>
     page.evaluate(
       ([x, y]) => {
@@ -81,7 +87,12 @@ test("四 frame 4px 间隙与 8px 圆角", async ({ page }) => {
     return Math.round(t.top - c.bottom)
   })
   expect(vertical).toBe(4)
-  for (const sel of ['[data-component="sidebar-nav-desktop"]', '[data-component="conv-frame"]', '[data-component="side-pane-frame"]', '[data-component="terminal-frame"]']) {
+  for (const sel of [
+    '[data-component="sidebar-nav-desktop"]',
+    '[data-component="conv-frame"]',
+    '[data-component="side-pane-frame"]',
+    '[data-component="terminal-frame"]',
+  ]) {
     const r = await page.evaluate((s) => {
       const el = document.querySelector(s)!
       const cs = getComputedStyle(el)
@@ -156,6 +167,7 @@ git commit -m "feat(layout): four independent frames with 4px gaps"
 ## Task 2: 共享 TaskRow 与统一状态判定
 
 **Files:**
+
 - Create: `packages/app/src/components/session/task-row.tsx`
 - Create: `packages/app/src/utils/relative-time.ts`
 - Modify: `packages/app/src/pages/layout/helpers.ts`（新增 `sessionStatusOf`）
@@ -164,8 +176,10 @@ git commit -m "feat(layout): four independent frames with 4px gaps"
 - Modify: `packages/app/src/i18n/parity.test.ts`（把新增 key 纳入定向 parity 断言）
 
 **Interfaces:**
+
 - Consumes: `Session`（`packages/sdk/js/src/v2/gen/types.gen.ts:747-795`：`title: string`、`summary?: { additions, deletions, files }`、`time: { created, updated, archived? }`、`directory`）；`globalSync.child(dir)` → `[store, set]`，`store.session_working(id)`、`store.vcs?.branch`（`context/global-sync/types.ts:33-79`）；`sessionPermissionRequest(session, permission, sessionID?, include?)`（`pages/session/composer/session-request-tree.ts:36-43`）；`notification.session.unseenHasError(id)`（`context/notification.tsx:355-356`）；`layout.mode.projectMode(dir)` + `appModeConfig(mode).color`（`context/layout.tsx:731-753`、`:37-83`）。
 - Produces:
+
 ```ts
 // task-row.tsx
 export type TaskStatus = "running" | "waiting" | "failed" | "idle"
@@ -200,14 +214,14 @@ export const formatRelativeTime = (
 
 **i18n 新增键（本任务负责，en / zh / zht 三文件同步；其余 14 个 locale 由 `language.tsx` 的 `merge` 回退 en，无需改）**：
 
-| key | en | zh | zht |
-| --- | --- | --- | --- |
-| `time.now` | just now | 刚刚 | 剛剛 |
-| `time.minute` | {{count}}m ago | {{count}} 分钟前 | {{count}} 分鐘前 |
-| `time.hour` | {{count}}h ago | {{count}} 小时前 | {{count}} 小時前 |
-| `time.day` | {{count}}d ago | {{count}} 天前 | {{count}} 天前 |
-| `time.week` | {{count}}w ago | {{count}} 周前 | {{count}} 週前 |
-| `taskCenter.waiting` | Waiting | 待确认 | 待確認 |
+| key                  | en             | zh               | zht              |
+| -------------------- | -------------- | ---------------- | ---------------- |
+| `time.now`           | just now       | 刚刚             | 剛剛             |
+| `time.minute`        | {{count}}m ago | {{count}} 分钟前 | {{count}} 分鐘前 |
+| `time.hour`          | {{count}}h ago | {{count}} 小时前 | {{count}} 小時前 |
+| `time.day`           | {{count}}d ago | {{count}} 天前   | {{count}} 天前   |
+| `time.week`          | {{count}}w ago | {{count}} 周前   | {{count}} 週前   |
+| `taskCenter.waiting` | Waiting        | 待确认           | 待確認           |
 
 - [ ] **Step 1: 写失败测试**
 
@@ -304,6 +318,7 @@ git commit -m "feat(task): shared TaskRow with status, branch, relative time and
 ## Task 3: 侧栏去 workspace 外壳，改「项目 → 任务」分组
 
 **Files:**
+
 - Modify: `packages/app/src/pages/layout.tsx`（`SidebarPanel` 2136-2373 重写：删头部 2159-2216、删 `workspacePanelExpanded` 门控 2252、删 `DragDropProvider`/`SortableProvider`/`DragOverlay`/`ConstrainDragXAxis` 嵌套 2268-2338；新增分组头与 segmented）
 - Modify: `packages/app/src/pages/layout.tsx:103-117`（store 删 `workspacePanelExpanded`）+ `context/layout.tsx` 无需改
 - Modify: `packages/app/src/context/layout.tsx`（Persist bump `layout.v7` → `layout.v8`，`migrateLayoutStore` 清除废弃键——注意 `workspacePanelExpanded` 属于 `layout.page.v1`，bump 为 `layout.page.v2`）
@@ -314,6 +329,7 @@ git commit -m "feat(task): shared TaskRow with status, branch, relative time and
 - Test: `packages/app/e2e/layout.spec.ts`（新增：分组头存在、`⋯` 菜单可达 12 个动作、文件树视图「返回任务」）
 
 **Interfaces:**
+
 - Consumes: Task 2 的 `TaskRow` / `sessionStatusOf` / `formatRelativeTime`；`ProjectSidebarContext`（`sidebar-project.tsx:13-34`，12 个动作原样）；`layout.sidebarView.current()/set()`；`TaskFilter`（`sidebar-tasks.tsx:16`）；`useArchivedSessions`（`sidebar-tasks.tsx:120-145`）。
 - Produces: 侧栏结构契约（Task 4/6/10 依赖）——顶部 `Segmented(任务|文件)` + 右侧 `[搜索][新建][⋯]`；任务视图 = `TaskFilterBar` + 项目分组（`分组头(▾ 名称 N 任务 ⋯)` → `TaskRow[]`）；文件视图 = `[← 返回任务] [仅变更/全部]` + `SidebarFiles`。
 
@@ -326,13 +342,19 @@ test("侧栏分组结构与项目菜单可达", async ({ page }) => {
   await enterZenOffice(page)
   const sidebar = page.getByRole("navigation").first()
   // 侧栏第一行必须是 segmented，不能是「工作区 项目数」头部
-  expect(await sidebar.locator('text=工作区').count()).toBe(0)
+  expect(await sidebar.locator("text=工作区").count()).toBe(0)
   expect(await sidebar.getByRole("button", { name: /Tasks|任务/ }).count()).toBeGreaterThan(0)
   expect(await sidebar.getByRole("button", { name: /Files|文件/ }).count()).toBeGreaterThan(0)
   // 文件视图 → 返回任务
-  await sidebar.getByRole("button", { name: /Files|文件/ }).first().click()
+  await sidebar
+    .getByRole("button", { name: /Files|文件/ })
+    .first()
+    .click()
   expect(await page.getByText(/返回任务|Back to tasks/).count()).toBeGreaterThan(0)
-  await sidebar.getByRole("button", { name: /Tasks|任务/ }).first().click()
+  await sidebar
+    .getByRole("button", { name: /Tasks|任务/ })
+    .first()
+    .click()
   // 分组头 + ⋯ 菜单
   const dots = sidebar.getByRole("button", { name: /项目菜单|Project menu/ })
   expect(await dots.count()).toBeGreaterThan(0)
@@ -357,17 +379,42 @@ Expected: FAIL（`text=工作区` 计数 > 0；无 `项目菜单` 按钮）
 <div class="shrink-0 px-2 pt-2.5 pb-2 flex flex-col gap-2">
   <div class="flex items-center gap-1">
     <div class="flex items-center gap-0.5 rounded-md bg-surface-raised-base border border-border-weak-base p-0.5">
-      <button classList={{ "px-2.5 py-1 rounded-[5px] text-ui-caption transition-colors": true,
-        "bg-text-interactive-base text-background-base": layout.sidebarView.current() === "tasks",
-        "text-text-weak hover:text-text-base": layout.sidebarView.current() !== "tasks" }}
-        onClick={() => layout.sidebarView.set("tasks")}>{language.t("sidebar.view.tasks")}</button>
+      <button
+        classList={{
+          "px-2.5 py-1 rounded-[5px] text-ui-caption transition-colors": true,
+          "bg-text-interactive-base text-background-base": layout.sidebarView.current() === "tasks",
+          "text-text-weak hover:text-text-base": layout.sidebarView.current() !== "tasks",
+        }}
+        onClick={() => layout.sidebarView.set("tasks")}
+      >
+        {language.t("sidebar.view.tasks")}
+      </button>
       <button /* tree 同理 */>{language.t("sidebar.view.files")}</button>
     </div>
     <div class="ml-auto flex items-center gap-0.5">
       {/* 搜索：复用 session-header 里的 ⌘K 入口命令 */}
-      <IconButton icon="search" variant="ghost" size="small" aria-label={language.t("sidebar.search")} onClick={() => command.trigger("file.open")} />
-      <IconButton icon="plus" variant="ghost" size="small" aria-label={language.t("sidebar.newTask")} onClick={() => { firstProject() ? navigateToNewSession(firstProject()) : layout.projectPicker.show() }} />
-      <IconButton icon="dot-grid" variant="ghost" size="small" aria-label={language.t("sidebar.menu.toggle")} /* 打开全局项目菜单 */ />
+      <IconButton
+        icon="search"
+        variant="ghost"
+        size="small"
+        aria-label={language.t("sidebar.search")}
+        onClick={() => command.trigger("file.open")}
+      />
+      <IconButton
+        icon="plus"
+        variant="ghost"
+        size="small"
+        aria-label={language.t("sidebar.newTask")}
+        onClick={() => {
+          firstProject() ? navigateToNewSession(firstProject()) : layout.projectPicker.show()
+        }}
+      />
+      <IconButton
+        icon="dot-grid"
+        variant="ghost"
+        size="small"
+        aria-label={language.t("sidebar.menu.toggle")} /* 打开全局项目菜单 */
+      />
     </div>
   </div>
 </div>
@@ -391,9 +438,17 @@ Expected: FAIL（`text=工作区` 计数 > 0；无 `项目菜单` 按钮）
     <span class="text-ui-caption text-text-strong font-medium truncate flex-1 min-w-0">{name}</span>
     <span class="text-ui-xs text-text-weak shrink-0">{language.t("sidebar.project.count", { count })}</span>
     <DropdownMenu>
-      <DropdownMenu.Trigger as={IconButton} icon="dot-grid" variant="ghost" size="small"
-        aria-label={language.t("sidebar.projectMenu")} class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100" />
-      <DropdownMenu.Portal><DropdownMenu.Content>{/* 见第 5 步 */}</DropdownMenu.Content></DropdownMenu.Portal>
+      <DropdownMenu.Trigger
+        as={IconButton}
+        icon="dot-grid"
+        variant="ghost"
+        size="small"
+        aria-label={language.t("sidebar.projectMenu")}
+        class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+      />
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content>{/* 见第 5 步 */}</DropdownMenu.Content>
+      </DropdownMenu.Portal>
     </DropdownMenu>
   </div>
   <Show when={expanded}>
@@ -448,11 +503,13 @@ git commit -m "feat(sidebar): replace workspace panel with grouped project-task 
 ## Task 4: Side Pane tab 不折行 + 折叠按钮
 
 **Files:**
+
 - Modify: `packages/app/src/pages/session/session-side-panel.tsx:209-240`（`aside` 加 `@container`；tab 按钮 `shrink-0 whitespace-nowrap`；标签在窄宽度下隐藏；尾部加折叠按钮）
 - Modify: `packages/app/src/i18n/en.ts`、`zh.ts`、`zht.ts`
 - Test: `packages/app/e2e/layout.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `layout.sidePane.toggle()/opened()/setTab()`（`context/layout.tsx:876-908`）；`tabsList`（`session-side-panel.tsx:196-207`）；`layout.sidePane.width()` clamp `Math.min(width, innerWidth*0.6)`（193-194）。
 - Produces: tab 条在 `320px` 最小宽下不折行——380px 容器查询阈值以下只显示图标。
 
@@ -463,11 +520,16 @@ git commit -m "feat(sidebar): replace workspace panel with grouped project-task 
 ```ts
 test("Side Pane tab 标签不折行", async ({ page }) => {
   await enterZenOffice(page)
-  await page.getByRole("button", { name: /Toggle side pane|切换 Side Pane/ }).first().click()
-  const tabs = page.locator('[data-component="side-pane-frame"] button').filter({ hasText: /预览|Preview|终端|Terminal|文件|Files|Git|审查|Review|上下文|Context/ })
+  await page
+    .getByRole("button", { name: /Toggle side pane|切换 Side Pane/ })
+    .first()
+    .click()
+  const tabs = page
+    .locator('[data-component="side-pane-frame"] button')
+    .filter({ hasText: /预览|Preview|终端|Terminal|文件|Files|Git|审查|Review|上下文|Context/ })
   const boxes = await tabs.allBoundingBoxes()
   expect(boxes.length).toBeGreaterThanOrEqual(6)
-  for (const b of boxes) expect(b.height).toBeLessThan(40)   // 折行会 >40px
+  for (const b of boxes) expect(b.height).toBeLessThan(40) // 折行会 >40px
   // 收窄到 ResizeHandle 下限 320，仍不折行
   await page.setViewportSize({ width: 1100, height: 900 })
   await page.waitForTimeout(400)
@@ -508,10 +570,12 @@ git commit -m "fix(side-pane): tab labels stop wrapping at narrow widths; add co
 ## Task 5: WorkspaceHeader 精炼
 
 **Files:**
+
 - Modify: `packages/app/src/components/session/workspace-header.tsx`（整文件重写布局：39-136）
 - Modify: `packages/app/src/i18n/en.ts`、`zh.ts`、`zht.ts`
 
 **Interfaces:**
+
 - Consumes: `sessionTitle` / `isDefaultSessionTitle`（Task 2）；`globalSync.child(dir)[0].vcs?.branch`；`ModelSelectorPopover`（`components/dialog-select-model.tsx:98`）；`layout.sidePane.toggle()`；`sessionLayout.view().terminal.opened()`；`ProjectSidebarContext` 无关。
 - Produces: 单行 36px header：`标题 | 项目/分支 pill | 模型 pill(限宽) | 执行档 | spacer | 终端 | Side Pane | 更多`。
 
@@ -567,11 +631,13 @@ git commit -m "feat(workspace-header): project/branch pill, bounded model pill, 
 ## Task 6: 首页任务中心信息密度
 
 **Files:**
+
 - Modify: `packages/app/src/pages/task-center.tsx`（69-131 重写）
 - Modify: `packages/app/src/pages/layout/sidebar-tasks.tsx`（`TaskFilterBar` 加 `variant: "pill" | "underline"` 与 `extraTabs` 参数，供侧栏与首页共用）
 - Modify: `packages/app/src/i18n/en.ts`、`zh.ts`、`zht.ts`
 
 **Interfaces:**
+
 - Consumes: Task 2 的 `TaskRow`/`sessionStatusOf`/`formatRelativeTime`；`sortedRootSessionsFrom`（`helpers.ts:32-41`）；`useArchivedSessions`（`sidebar-tasks.tsx:120-145`）；`layout.projects.list()`；`layout.projectPicker.show()`；`command.trigger("file.open")`。
 - Produces: 首页五标签（最近/运行中/待确认/已归档/项目）+ 搜索框 + 卡片式任务行 + 虚线「从项目或本地目录开始」行。
 
@@ -625,11 +691,13 @@ git commit -m "feat(task-center): search, five underline tabs, project grid and 
 ## Task 7: 会话标题去时间戳
 
 **Files:**
+
 - Modify: `packages/app/src/components/session/workspace-header.tsx`（若 Task 5 已改，则仅确认）
 - Modify: `packages/app/src/pages/layout/sidebar-tasks.tsx`、`packages/app/src/pages/task-center.tsx`、`packages/app/src/pages/layout/sidebar-items.tsx`（标题显示位统一走 `displaySessionTitle`）
 - Create: `packages/app/src/utils/session-title.ts`（若 Task 2 未建）
 
 **Interfaces:**
+
 - Consumes: `isDefaultSessionTitle`（Task 2）、`sessionTitle`（既有）、`language.t("workspace.header.untitled")`（`en.ts:1430` 已存在）。
 - Produces: `displaySessionTitle(title: string | undefined, fallback: string): string` — 默认标题时返回 `fallback`，否则原样返回。
 
@@ -664,6 +732,7 @@ git commit -m "fix(session): show friendly placeholder instead of timestamp defa
 ## Task 8: Titlebar 克制化
 
 **Files:**
+
 - Modify: `packages/app/src/components/titlebar.tsx`（左簇 193-297 重排；home 按钮 254-264 删除并把「回首页」并入 Logo；右簇 305-322）
 - Modify: `packages/app/src/components/theme-scheme-toggle.tsx:8`（硬编码中文 → i18n）
 - Modify: `packages/app/src/components/cache-usage-panel.tsx:50-58`（`min-w-[96px]` 文字触发器 → 纯图标触发器 + 保留 popover）
@@ -671,6 +740,7 @@ git commit -m "fix(session): show friendly placeholder instead of timestamp defa
 - Modify: `packages/app/src/i18n/en.ts`、`zh.ts`、`zht.ts`
 
 **Interfaces:**
+
 - Consumes: `ModeSwitchButton`（`mode-switch.tsx`，`aria-label={language.t("mode.switch.ariaLabel")}`）；`goModeHome`（`titlebar.tsx` 内，`navigate("/")`）；`layout.mode.hasSelected()`；`windowsControlsBaseWidth = 138`（`titlebar.tsx:45`）。
 - Produces: 左簇 = `nav ‹› | Logo(点击=回首页) | 模式切换 | 搜索框`；右簇 = `缓存(图标) | 记忆进化(图标) | 主题 | 设置 | 数据库 | caption`。
 
@@ -684,13 +754,21 @@ test("Titlebar 结构：Logo 与模式切换相邻，工具区纯图标", async 
   await page.goto("/")
   // Logo 可点击回首页（不再需要单独的「模式首页」按钮）
   expect(await page.getByLabel("模式首页").count()).toBe(0)
-  const left = page.locator('header').first()
-  const mode = await left.getByLabel(/切换工作模式|Switch work mode/).first().boundingBox()
+  const left = page.locator("header").first()
+  const mode = await left
+    .getByLabel(/切换工作模式|Switch work mode/)
+    .first()
+    .boundingBox()
   const logo = await left.getByRole("link").first().boundingBox()
-  expect(mode.x - logo.x).toBeLessThan(400)   // 模式切换在左侧簇，不再靠右
+  expect(mode.x - logo.x).toBeLessThan(400) // 模式切换在左侧簇，不再靠右
   // 右侧工具不再出现整段中文文字按钮
   const right = page.locator("#NovaWay-titlebar-right").first()
-  expect(await right.getByRole("button").first().evaluate((el) => el.textContent?.trim().length ?? 0)).toBeLessThanOrEqual(1)
+  expect(
+    await right
+      .getByRole("button")
+      .first()
+      .evaluate((el) => el.textContent?.trim().length ?? 0),
+  ).toBeLessThanOrEqual(1)
 })
 ```
 
@@ -700,6 +778,7 @@ Run: `cd packages/app && bun test:e2e --grep "Titlebar 结构"`
 Expected: FAIL（`模式首页` 计数 1；模式切换 x 远大于 400；右侧按钮含长文本）
 
 实现：
+
 1. **Logo 承担回首页**（原型 `<div class="logo" onclick="go('home')">`）：`titlebar.tsx:253` 的 `Mark` 包一层 `<button onClick={goModeHome} aria-label={language.t("command.home.open")} title={language.t("command.home.open")}>`；**删除** 254-264 整个 home `Button` + `Tooltip`。
 2. **模式切换左移**：把 CENTER 簇（299-303）的 `ModeSwitchButton` 移到左簇 Logo 之后，`ml-1`；CENTER 簇留空或改为 spacer（保持 grid 三列结构不破）。
 3. **右簇图标化**：`CacheUsagePanel` / `MemoryEvolutionPanel` 触发器改为 `IconButton`（图标分别沿用各自 popover 现有主图标；`min-w-[96px]` 与内联渐变整段删除），保留各自的 `DropdownMenu`/popover 内容不变；`ThemeSchemeToggle` 已经是图标，仅把 `titlebar.tsx` 里 `theme-scheme-toggle.tsx:8` 的三元硬编码改为 `language.t(isDark() ? "theme.toggle.dark" : "theme.toggle.light")`（同用于 `title`、`Tooltip value`、`aria-label` 三处）。
@@ -725,6 +804,7 @@ git commit -m "feat(titlebar): mode switch beside logo, icon-only utility cluste
 ## Task 9: 死代码清理 + 触碰文件的硬编码中文收口
 
 **Files:**
+
 - Delete: `packages/app/src/pages/layout/sidebar-workspace.tsx`（0 引用）
 - Delete: `packages/app/src/pages/layout/inline-editor.tsx`（0 引用）
 - Modify: `packages/app/src/pages/layout/sidebar-items.tsx`（若 `NewSessionItem`/`SessionSkeleton` 删完上面两文件后 0 引用则一并删除；`SessionItem`、`ProjectIcon`、`getProjectAvatarSource` 仍活）
@@ -733,6 +813,7 @@ git commit -m "feat(titlebar): mode switch beside logo, icon-only utility cluste
 - Modify: `packages/app/src/i18n/en.ts`、`zh.ts`、`zht.ts`
 
 **Interfaces:**
+
 - Produces: 无新增公共接口；仅删除。`sidebar-items.tsx` 删除 `NewSessionItem`/`SessionSkeleton` 前必须 `rg -n "NewSessionItem|SessionSkeleton" packages/` 确认 0 命中。
 
 - [ ] **Step 1: 确认 0 引用**
@@ -766,6 +847,7 @@ git commit -m "chore(app): remove dead sidebar files, sidePanelWidth and hardcod
 ## Task 10: 全量验证与截图矩阵
 
 **Files:**
+
 - Modify: `packages/app/e2e/layout.spec.ts`（若前序任务漏断言则补齐）
 - Modify: `packages/app/e2e/office.spec.ts`（若 Titlebar 结构改动导致 `切换工作模式` 选择器失效则修正）
 
@@ -786,10 +868,13 @@ Expected: 全部 pass（`todo.spec.ts` 为 `test.fixme()` 占位，允许 skip�
 - [ ] **Step 3: 截图矩阵（人工核对）**
 
 启动 dev（后端 4096 已在跑，不要动）：
+
 ```bash
 bun dev:desktop          # 或 bun --cwd packages/app dev
 ```
+
 用 CDP 脚本截图（`C:\Users\13428\AppData\Local\Temp\cdp-shot.mjs`，连 127.0.0.1:9222），逐屏与原型比对：
+
 1. 首页（`/`）↔ 原型 `screen-home`：搜索框、5 个 underline tab、卡片任务行（状态点/分支/相对时间/±统计/待确认徽标）、虚线起始行、左对齐 40px。
 2. 会话页四 frame ↔ 原型 `screen-session`：侧栏 segmented + 过滤 + 项目分组；单行 WorkspaceHeader；六 tab Side Pane；底部 Terminal frame。
 3. 明/暗两态各截一次（`theme('dark')`/`('light')`），确认无 Aurora 残留、状态色语义正确。

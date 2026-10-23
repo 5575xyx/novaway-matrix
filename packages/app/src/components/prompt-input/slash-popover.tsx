@@ -2,6 +2,7 @@ import { Component, For, Match, Show, Switch } from "solid-js"
 import { FileIcon } from "@novaway/ui/file-icon"
 import { Icon } from "@novaway/ui/icon"
 import { getDirectory, getFilename } from "@novaway/core/util/path"
+import { agentAvatarSrc } from "@/utils/agent-avatar"
 
 export type AtOption =
   | { type: "category"; category: "rule" | "agent"; display: string; description: string }
@@ -109,7 +110,12 @@ export const PromptPopover: Component<PromptPopoverProps> = (props) => {
                         onClick={() => props.onAtSelect(item)}
                         onMouseEnter={() => props.setAtActive(key)}
                       >
-                        <Icon name="brain" size="small" class="text-icon-blue shrink-0" />
+                        <img
+                          src={agentAvatarSrc(item.name)}
+                          alt=""
+                          draggable={false}
+                          class="size-4 shrink-0 rounded object-cover"
+                        />
                         <span class="text-14-regular text-foreground whitespace-nowrap">@{item.name}</span>
                         <Show when={item.display !== item.name}>
                           <span class="text-13-regular text-foreground-subtle truncate">{item.display}</span>

@@ -4,7 +4,10 @@ import { resolve } from "node:path"
 async function enterZenOffice(page: Page) {
   await page.goto("/")
   // titlebar 模式切换：Trigger aria-label 为 mode.switch.ariaLabel（zh「切换工作模式」/ en "Switch work mode"）
-  await page.getByRole("button", { name: /切换工作模式|Switch work mode/ }).first().click()
+  await page
+    .getByRole("button", { name: /切换工作模式|Switch work mode/ })
+    .first()
+    .click()
   // 菜单项文案为 mode.shortName（zen = 「禅意」，硬编码不走 i18n）
   await page.getByRole("menuitem", { name: "禅意" }).click()
   await page.waitForTimeout(500)
@@ -73,7 +76,10 @@ test("设置页可以打开 Provider 配置界面", async ({ page }) => {
   await enterZenOffice(page)
   // 设置入口：全局标题栏移除后落在侧栏 footer，行文案为 sidebar.settings（en "Settings"）。
   await page.setViewportSize({ width: 1440, height: 900 })
-  await page.getByRole("button", { name: /^(Open settings|Settings|设置)$/ }).first().click()
+  await page
+    .getByRole("button", { name: /^(Open settings|Settings|设置)$/ })
+    .first()
+    .click()
   // 设置页 tab：settings.providers.title（en "Providers"）
   await page.getByRole("tab", { name: "Providers" }).click()
   await expect(page.getByText("Connected providers", { exact: true })).toBeVisible()

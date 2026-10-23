@@ -52,11 +52,17 @@ export function ThemeSchemeToggle() {
   return (
     <button
       type="button"
-      class="group flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-14-semibold text-foreground transition-colors hover:bg-hover"
+      class="group flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-[15px] font-medium text-foreground transition-colors hover:bg-hover"
       aria-label={title()}
       onClick={toggle}
     >
-      <span class="flex size-4 shrink-0 items-center justify-center text-foreground-subtle">
+      <span
+        class="flex size-6.5 shrink-0 items-center justify-center rounded-[7px] [&_svg]:size-[17px]"
+        style={{
+          color: isDark() ? "#818cf8" : "#f59e0b",
+          background: "color-mix(in srgb, currentColor 14%, transparent)",
+        }}
+      >
         {isDark() ? <MoonIcon /> : <SunIcon />}
       </span>
       <span class="flex-1 truncate text-left">{title()}</span>

@@ -12,7 +12,10 @@ type Change = Snapshot["changes"][number]
 type BranchParts = { branch?: string; upstream?: string; ahead: number; behind: number }
 
 // 最近提交显示多少条,再多就把侧栏挤出屏幕了。
-const LOG_LIMIT = 20
+// 图谱要看得到分叉和历史：日志取多一些（面板里本来就有滚动）。
+const LOG_LIMIT = 200
+// 图谱里节点短哈希 + 父哈希都用 %h/%p，配合 tab 分隔解析。
+const LOG_FORMAT = "%h%x09%s%x09%an%x09%ad%x09%p%x09%D"
 // status 在大仓库里可能很大,给足上限避免截断后解析出脏数据。
 const STATUS_MAX_BYTES = 4 * 1024 * 1024
 const NUMSTAT_MAX_BYTES = 1 * 1024 * 1024
@@ -67,20 +70,36 @@ function count(value: string): number {
 // 按文件路径索引 +N/-M。二进制两边都是 "-",记成 binary 让前端别显示成 +0 -0。
 function parseNumstat(text: string) {
   const stats = new Map<string, Pick<Change, "additions" | "deletions" | "binary">>()
-  for (const item of text.split("\0")) {
-    if (item.length === 0) continue
-    const a = item.indexOf("\t")
-    const b = item.indexOf("\t", a + 1)
-    if (a === -1 || b === -1) continue
-    const file = renameTarget(item.slice(b + 1))
-    if (!file) continue
-    const additionsRaw = item.slice(0, a)
-    const deletionsRaw = item.slice(a + 1, b)
+  const items = text.split("\0")
+  const put = (file: string, additionsRaw: string, deletionsRaw: string) => {
+    if (!file) return
     stats.set(file, {
       additions: count(additionsRaw),
       deletions: count(deletionsRaw),
       binary: additionsRaw === "-" || deletionsRaw === "-",
     })
+  }
+
+  for (let index = 0; index < items.length; index++) {
+    const item = items[index]
+    if (!item) continue
+    const a = item.indexOf("\t")
+    const b = item.indexOf("\t", a + 1)
+    if (a === -1 || b === -1) continue
+    const additionsRaw = item.slice(0, a)
+    const deletionsRaw = item.slice(a + 1, b)
+    const raw = item.slice(b + 1)
+
+    // `-z` 输出里重命名是「add/del + 空路径 + 旧/新路径」：第三段为空，
+    // 紧接着两项分别是旧/新路径。不处理会把重命名文件整体丢掉。
+    if (raw === "") {
+      const next = items[index + 2]
+      index += 2
+      put(next ?? "", additionsRaw, deletionsRaw)
+      continue
+    }
+
+    put(renameTarget(raw), additionsRaw, deletionsRaw)
   }
   return stats
 }
@@ -160,7 +179,22 @@ function parseLog(text: string): Snapshot["log"] {
     const hash = parts[0]
     const subject = parts[1]
     if (!hash || subject === undefined) return []
-    return [{ hash, subject, author: parts[2] ?? "", date: parts[3] ?? "" }]
+    // %p 是空格分隔的父提交；%D 是 ", " 分隔的引用（HEAD -> main、tag: v1、origin/main）。
+    const parents = (parts[4] ?? "").trim().split(/\s+/).filter(Boolean)
+    const refs = (parts[5] ?? "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+    return [
+      {
+        hash,
+        subject,
+        author: parts[2] ?? "",
+        date: parts[3] ?? "",
+        ...(parents.length > 0 ? { parents } : {}),
+        ...(refs.length > 0 ? { refs } : {}),
+      },
+    ]
   })
 }
 
@@ -199,7 +233,19 @@ export const gitHandlers = HttpApiBuilder.group(InstanceHttpApi, "git", (handler
           text(cwd, ["stash", "list", "--format=%(refname)%09%s"], LIST_MAX_BYTES),
           text(
             cwd,
-            ["log", "-n", String(LOG_LIMIT), `--format=%h%x09%s%x09%an%x09%ad`, "--date=short"],
+            [
+              "log",
+              "-n",
+              String(LOG_LIMIT),
+              `--format=${LOG_FORMAT}`,
+              "--date=short",
+              // 图谱要能看出分支：只看当前分支会是一条直线。
+              // --topo-order 保证同一分支的提交连续出现，画出来的泳道才不跳。
+              "--branches",
+              "--remotes",
+              "--tags",
+              "--topo-order",
+            ],
             LIST_MAX_BYTES,
           ),
         ],
@@ -336,6 +382,73 @@ export const gitHandlers = HttpApiBuilder.group(InstanceHttpApi, "git", (handler
       return yield* snapshot(cwd)
     })
 
+    const fetch = Effect.fn("GitHttpApi.fetch")(function* () {
+      const cwd = yield* directory()
+      const remotes = (yield* text(cwd, ["remote"], LIST_MAX_BYTES))
+        .split(String.fromCharCode(10))
+        .map((line) => line.split(String.fromCharCode(13)).join("").trim())
+        .filter(Boolean)
+      if (remotes.length === 0) return yield* badRequest("没有配置远程仓库,先添加一个 remote")
+      yield* run(cwd, ["fetch", "--all", "--prune"], NETWORK_TIMEOUT_MS)
+      return yield* snapshot(cwd)
+    })
+
+    const merge = Effect.fn("GitHttpApi.merge")(function* (ctx: { payload: { ref: string; noFastForward?: boolean } }) {
+      const cwd = yield* directory()
+      const ref = ctx.payload.ref.trim()
+      if (!ref) return yield* badRequest("要合并的分支不能为空")
+      // --no-edit 让 merge 在需要时复用默认提交说明，避免卡在编辑器里。
+      yield* run(
+        cwd,
+        ["merge", "--no-edit", ...(ctx.payload.noFastForward ? ["--no-ff"] : []), ref],
+        NETWORK_TIMEOUT_MS,
+      )
+      return yield* snapshot(cwd)
+    })
+
+    const commitDetail = Effect.fn("GitHttpApi.commitDetail")(function* (ctx: { params: { hash: string } }) {
+      const cwd = yield* directory()
+      const hash = ctx.params.hash.trim()
+      if (!/^[0-9a-fA-F]{4,40}$/.test(hash)) return yield* badRequest("提交哈希不合法")
+      const NUL = String.fromCharCode(0)
+      const meta = yield* text(
+        cwd,
+        ["show", "-s", "--format=%H%x00%s%x00%b%x00%an%x00%ae%x00%ad%x00%p%x00%D", "--date=short", hash],
+        LIST_MAX_BYTES,
+      )
+      const [full, subject, body, author, authorEmail, date, parents, refs] = meta
+        .split(NUL)
+        .map((item: string) => item.trim())
+      // 改动文件用 `--numstat -z` 取：`parseNumstat` 按 NUL 分隔解析，
+      // 之前少了 `-z`，多行输出会被当成一个"文件"，表现为「改动文件 (1)」
+      // 且文件名把好几个路径连在一起。
+      // 合并提交对第一个父提交做 diff —— 这才是「这次合并带进来了什么」，
+      // 否则 git show 对 merge 什么都不输出。
+      const list = (parents ?? "").split(" ").filter(Boolean)
+      const numstat = yield* text(
+        cwd,
+        list.length > 1
+          ? ["diff", "--numstat", "-z", list[0], hash]
+          : ["show", "--numstat", "--format=", "--root", "-z", hash],
+        NUMSTAT_MAX_BYTES,
+      )
+      const stats = parseNumstat(numstat)
+      return {
+        hash: full || hash,
+        subject: subject ?? "",
+        body: body ?? "",
+        author: author ?? "",
+        authorEmail: authorEmail ?? "",
+        date: date ?? "",
+        parents: (parents ?? "").split(" ").filter(Boolean),
+        refs: (refs ?? "")
+          .split(",")
+          .map((item: string) => item.trim())
+          .filter(Boolean),
+        files: Array.from(stats.entries()).map(([file, value]) => ({ file, ...value })),
+      }
+    })
+
     const stash = Effect.fn("GitHttpApi.stash")(function* (ctx: {
       payload: { ref?: string; includeUntracked?: boolean }
     }) {
@@ -354,9 +467,21 @@ export const gitHandlers = HttpApiBuilder.group(InstanceHttpApi, "git", (handler
       const cwd = yield* directory()
       const name = ctx.payload.name.trim()
       if (!name) return yield* badRequest("分支名不能为空")
-      if (ctx.payload.remove) yield* run(cwd, ["branch", "-d", name])
-      else if (ctx.payload.create) yield* run(cwd, ["checkout", "-b", name])
-      else yield* run(cwd, ["checkout", name])
+      if (ctx.payload.remove) {
+        yield* run(cwd, ["branch", "-d", name])
+      } else if (ctx.payload.create) {
+        // 从远端分支拉一条本地跟踪分支：勾选 origin/feature 时创建 feature。
+        const remote =
+          name.indexOf("/") > 0 ? [name, name.slice(0, name.indexOf("/")), name.slice(name.indexOf("/") + 1)] : null
+        if (remote) {
+          const local = remote[2]
+          yield* run(cwd, ["checkout", "-b", local, "--track", name])
+        } else {
+          yield* run(cwd, ["checkout", "-b", name])
+        }
+      } else {
+        yield* run(cwd, ["checkout", name])
+      }
       return yield* snapshot(cwd)
     })
 
@@ -384,6 +509,9 @@ export const gitHandlers = HttpApiBuilder.group(InstanceHttpApi, "git", (handler
       .handle("commit", commit)
       .handle("push", push)
       .handle("pull", pull)
+      .handle("fetch", fetch)
+      .handle("merge", merge)
+      .handle("commitDetail", commitDetail)
       .handle("stash", stash)
       .handle("branch", branch)
       .handle("remote", remote)

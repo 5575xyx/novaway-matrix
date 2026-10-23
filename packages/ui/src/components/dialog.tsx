@@ -2,6 +2,7 @@ import { Dialog as Kobalte } from "@kobalte/core/dialog"
 import { ComponentProps, JSXElement, Match, ParentProps, Show, Switch } from "solid-js"
 import { useI18n } from "../context/i18n"
 import { IconButton } from "./icon-button"
+import { applyPointerOrigin } from "../util/pointer-origin"
 
 export interface DialogProps extends ParentProps {
   title?: JSXElement
@@ -29,6 +30,8 @@ export function Dialog(props: DialogProps) {
         <Kobalte.Content
           data-slot="dialog-content"
           data-no-header={!props.title && !props.action ? "" : undefined}
+          // 进场从「用户点击的位置」展开：mount 之后量一次位置，折算成 transform-origin。
+          ref={(element: HTMLDivElement) => applyPointerOrigin(element)}
           classList={{
             ...props.classList,
             [props.class ?? ""]: !!props.class,

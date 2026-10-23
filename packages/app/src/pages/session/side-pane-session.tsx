@@ -155,7 +155,7 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
     const last = messages().at(-1)
     if (!last) return ""
     return `${last.id}:${partsOf(last.id)
-      .map((part) => (part.type === "text" || part.type === "reasoning" ? part.text?.length ?? 0 : 0))
+      .map((part) => (part.type === "text" || part.type === "reasoning" ? (part.text?.length ?? 0) : 0))
       .join(",")}`
   })
   createEffect(

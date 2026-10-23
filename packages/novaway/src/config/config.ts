@@ -44,6 +44,9 @@ import { ConfigReference } from "./reference"
 import { ConfigServer } from "./server"
 import { ConfigSkills } from "./skills"
 import { ConfigVariable } from "./variable"
+import { Bus } from "@/bus"
+import { BusEvent } from "@/bus/bus-event"
+import * as ExtensionLoader from "@/extension/loader"
 import { Npm } from "@novaway/core/npm"
 
 // Default plugins seeded into the global config the first time it's created.
@@ -127,6 +130,22 @@ export const DEFAULT_MCP_SERVERS: Record<string, ConfigMCP.Info> = {
 }
 
 const log = Log.create({ service: "config" })
+
+/**
+ * Emitted whenever configuration is written or invalidated.
+ *
+ * The hook service subscribes to this to fire `ConfigChange` hooks without
+ * `config` having to depend on hooks (which would close an import cycle).
+ */
+export const Event = {
+  Updated: BusEvent.define(
+    "config.updated",
+    Schema.Struct({
+      scope: Schema.Literals(["project", "global"]),
+      file: Schema.optional(Schema.String),
+    }),
+  ),
+}
 
 // Custom merge function that concatenates array fields instead of replacing them
 // Keep remeda's deep conditional merge type out of hot config-loading paths; TS profiling showed it dominates here.
@@ -329,6 +348,9 @@ export const Info = Schema.Struct({
   }),
   layout: Schema.optional(ConfigLayout.Layout).annotate({ description: "@deprecated Always uses stretch layout." }),
   permission: Schema.optional(ConfigPermission.Info),
+  permission_mode: Schema.optional(Schema.Literals(["default", "acceptEdits", "plan", "bypassPermissions"])).annotate({
+    description: "Default permission mode for sessions.",
+  }),
   tools: Schema.optional(Schema.Record(Schema.String, Schema.Boolean)),
   attachment: Schema.optional(ConfigAttachment.Info).annotate({
     description: "Attachment processing configuration, including image size limits and resizing behavior",
@@ -378,6 +400,16 @@ export const Info = Schema.Struct({
         description:
           "启用后台并行子代理(异步派生、并行执行)。未设置时回退到 NovaWay_EXPERIMENTAL_BACKGROUND_SUBAGENTS 运行时开关(默认开)。",
       }),
+      defer_loading: Schema.optional(Schema.Boolean).annotate({
+        description: "延迟加载低频工具(browser_* / generate_*):先用 tool_search 激活,减少每轮工具块体积。",
+      }),
+      tool_result_budget_chars: Schema.optional(PositiveInt).annotate({
+        description:
+          "每轮请求里所有工具输出允许占用的字符总数。超出后只把最旧的输出替换为占位符(存储不变),用于替代整段压缩。默认 60000。",
+      }),
+      tool_result_keep_recent_messages: Schema.optional(NonNegativeInt).annotate({
+        description: "工具输出预算裁剪时,最近多少条消息里的输出永不裁剪。默认 2。",
+      }),
       batch_tool: Schema.optional(Schema.Boolean).annotate({ description: "Enable the batch tool" }),
       openTelemetry: Schema.optional(Schema.Boolean).annotate({
         description: "Enable OpenTelemetry spans for AI SDK calls (using the 'experimental_telemetry' flag)",
@@ -395,9 +427,14 @@ export const Info = Schema.Struct({
         description:
           "默认超时时间（毫秒）。会话里执行的 shell 命令超过这个时间会被终止,避免会话卡在工具调用上。单次调用仍可用 timeout 参数覆盖,上限 30 分钟。",
       }),
+      computer_control: Schema.optional(Schema.Boolean).annotate({
+        description: "启用电脑控制（桌面自动化：截图 / 鼠标 / 键盘 / 窗口）。默认关闭。",
+      }),
+      computer_control_composer: Schema.optional(Schema.Boolean).annotate({
+        description: "在输入框显示电脑操作按钮（仅在启用电脑控制时生效）。",
+      }),
       git_timeout: Schema.optional(PositiveInt).annotate({
-        description:
-          "git 网络操作（clone / fetch）的默认超时时间（毫秒）。未设置时 10 分钟。其他 git 命令默认 60 秒。",
+        description: "git 网络操作（clone / fetch）的默认超时时间（毫秒）。未设置时 10 分钟。其他 git 命令默认 60 秒。",
       }),
     }),
   ),
@@ -480,6 +517,7 @@ export const layer = Layer.effect(
     const accountSvc = yield* Account.Service
     const env = yield* Env.Service
     const npmSvc = yield* Npm.Service
+    const bus = Option.getOrUndefined(yield* Effect.serviceOption(Bus.Service))
 
     const readConfigFile = (filepath: string) => fs.readFileStringSafe(filepath).pipe(Effect.orDie)
 
@@ -821,6 +859,9 @@ export const layer = Layer.effect(
         result.plugin = result.plugin || []
 
         const directories = yield* ConfigPaths.directories(ctx.directory, ctx.worktree)
+        const compat = yield* ConfigPaths.compatDirectories(ctx.directory, ctx.worktree).pipe(
+          Effect.catch(() => Effect.succeed([] as string[])),
+        )
 
         if (Flag.NOVAWAY_CONFIG_DIR) {
           log.debug("loading config from NovaWay_CONFIG_DIR", { path: Flag.NOVAWAY_CONFIG_DIR })
@@ -872,6 +913,23 @@ export const layer = Layer.effect(
           // returns normalized Specs and we only need to attach origin metadata here.
           const list = yield* Effect.promise(() => ConfigPlugin.load(dir))
           yield* mergePluginOrigins(dir, list)
+        }
+
+        const extensionRoots = yield* Effect.promise(() =>
+          ExtensionLoader.scanCached({
+            config: Global.Path.config,
+            home: Global.Path.home,
+            directory: ctx.directory,
+            worktree: ctx.worktree,
+          }),
+        ).pipe(
+          Effect.map((items) => items.filter((item) => item.enabled).map((item) => item.root)),
+          Effect.catch(() => Effect.succeed([] as string[])),
+        )
+        for (const dir of new Set([...compat, ...extensionRoots])) {
+          result.command = mergeDeep(result.command ?? {}, yield* Effect.promise(() => ConfigCommand.load(dir)))
+          result.agent = mergeDeep(result.agent ?? {}, yield* Effect.promise(() => ConfigAgent.load(dir)))
+          result.agent = mergeDeep(result.agent ?? {}, yield* Effect.promise(() => ConfigAgent.loadMode(dir)))
         }
 
         if (process.env.NovaWay_CONFIG_CONTENT) {
@@ -1038,13 +1096,28 @@ export const layer = Layer.effect(
       )
     })
 
+    /**
+     * 写入项目配置。
+     *
+     * 以前固定写 `<项目>/config.json`，但加载器只读 `ConfigPaths.files("novaway", …)`
+     * （项目根或祖先目录里的 `novaway.json` / `novaway.jsonc`），所以那次写入
+     * 落在了一个没人读的文件上 —— 接口返回 200，配置却从未生效。
+     * 现在写「加载器实际会读的最近一个文件」，没有就新建 `<项目>/novaway.json`。
+     */
     const update = Effect.fn("Config.update")(function* (config: Info) {
-      const dir = yield* InstanceState.directory
-      const file = path.join(dir, "config.json")
+      const ctx = yield* InstanceState.context
+      const existingFiles = yield* ConfigPaths.files("novaway", ctx.directory, ctx.worktree).pipe(
+        Effect.provideService(AppFileSystem.Service, fs),
+        Effect.orDie,
+      )
+      // 列表由远及近排列，最后一个最靠近项目目录，优先级最高。
+      const file = existingFiles.at(-1) ?? path.join(ctx.directory, "novaway.json")
       const existing = yield* loadFile(file)
       yield* fs
-        .writeFileString(file, JSON.stringify(mergeDeep(writable(existing), writable(config)), null, 2))
+        .writeWithDirs(file, JSON.stringify(mergeDeep(writable(existing), writable(config)), null, 2))
         .pipe(Effect.orDie)
+      yield* invalidate().pipe(Effect.ignore)
+      if (bus) yield* bus.publish(Event.Updated, { scope: "project", file }).pipe(Effect.ignore)
     })
 
     const invalidate = Effect.fn("Config.invalidate")(function* () {
@@ -1076,6 +1149,7 @@ export const layer = Layer.effect(
         const serialized = JSON.stringify(merged, null, 2)
         changed = serialized !== before
         if (changed) yield* fs.writeFileString(file, serialized).pipe(Effect.orDie)
+        if (changed && bus) yield* bus.publish(Event.Updated, { scope: "global", file }).pipe(Effect.ignore)
         next = merged
       } else {
         const updated = patchJsonc(before, patch)

@@ -1,4 +1,7 @@
 import { iconNames } from "@novaway/ui/icons/provider"
+import { providerBrandColor } from "@novaway/ui/provider-brand"
+
+export { providerBrandColor }
 
 /**
  * 把 provider id / 显示名映射到厂商图标。
@@ -39,4 +42,14 @@ export function providerIconId(id: string | undefined, name?: string | undefined
     }
   }
   return "synthetic"
+}
+
+/**
+ * 取厂商品牌色：先按解析出的图标 id 查，查不到再按原始 provider id 查。
+ *
+ * UI 里"跟着厂商变色"的地方（模型名、选中态）统一走这个函数，
+ * 返回 undefined 表示该厂商没有明确品牌色，调用方应回落到界面前景色。
+ */
+export function providerColor(id: string | undefined, name?: string | undefined) {
+  return providerBrandColor(providerIconId(id, name)) ?? providerBrandColor(id)
 }

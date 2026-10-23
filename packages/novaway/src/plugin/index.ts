@@ -53,6 +53,13 @@ export interface Interface {
   ) => Effect.Effect<Output>
   readonly list: () => Effect.Effect<Hooks[]>
   readonly init: () => Effect.Effect<void>
+  /**
+   * 重新读取配置并加载插件。
+   *
+   * 新增 npm 插件后，实例缓存里还是旧的 hooks；这里只失效插件自己的
+   * 缓存（旧 scope 会关闭，旧 hook 的 bus 订阅随之释放），不动整个实例。
+   */
+  readonly reload: () => Effect.Effect<void>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@NovaWay/Plugin") {}
@@ -297,7 +304,12 @@ export const layer = Layer.effect(
       yield* InstanceState.get(state)
     })
 
-    return Service.of({ trigger, list, init })
+    const reload = Effect.fn("Plugin.reload")(function* () {
+      yield* InstanceState.invalidate(state)
+      yield* InstanceState.get(state)
+    })
+
+    return Service.of({ trigger, list, init, reload })
   }),
 )
 

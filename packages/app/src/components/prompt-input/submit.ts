@@ -9,6 +9,7 @@ import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { useLocal } from "@/context/local"
+import type { SessionPermissionMode } from "@/context/permission-risk"
 import { useModels } from "@/context/models"
 import { usePermission } from "@/context/permission"
 import { type ContextItem, type ImageAttachmentPart, type Prompt, usePrompt } from "@/context/prompt"
@@ -182,6 +183,8 @@ type PromptSubmitInput = {
   imageAttachments: Accessor<ImageAttachmentPart[]>
   commentCount: Accessor<number>
   autoAccept: Accessor<boolean>
+  /** 新建会话时写入的权限档位（来自输入框里的选择或全局默认）。 */
+  permissionMode: Accessor<SessionPermissionMode>
   mode: Accessor<"normal" | "shell">
   working: Accessor<boolean>
   editor: () => HTMLDivElement | undefined
@@ -376,7 +379,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
     let session = input.info()
     if (!session && isNewSession) {
       const created = await client.session
-        .create()
+        .create({ permissionMode: input.permissionMode() })
         .then((x) => x.data ?? undefined)
         .catch((err) => {
           showToast({
@@ -387,6 +390,8 @@ export function createPromptSubmit(input: PromptSubmitInput) {
         })
       if (created) {
         seed(sessionDirectory, created)
+        // 档位已经写进会话，清掉「新会话待定档位」，否则它会一直盖住全局默认。
+        permission.consumePendingMode(projectDirectory)
         // 刚建出来的会话必然是空的，登记后时间线跳过骨架屏（否则发送第一条消息时
         // 会先闪一下骨架屏再显示时间线）。
         markSessionFresh(created.id)

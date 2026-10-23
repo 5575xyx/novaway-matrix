@@ -16,6 +16,7 @@ export function Button(props: ButtonProps) {
     <Kobalte
       {...rest}
       data-component="button"
+      data-pressable
       data-size={split.size || "normal"}
       data-variant={split.variant || "secondary"}
       data-icon={split.icon}

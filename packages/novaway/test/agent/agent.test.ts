@@ -812,6 +812,7 @@ it.instance(
         "office-task": { disable: true },
         "office-communication": { disable: true },
         "pulse-orchestrator": { disable: true },
+        coordinator: { disable: true },
         "agents-orchestrator": { disable: true },
         "product-manager": { disable: true },
         "project-manager-senior": { disable: true },

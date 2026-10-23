@@ -138,3 +138,16 @@ export const effectiveWorkspaceOrder = (local: string, dirs: string[], persisted
 
   return [...result, ...live.values()]
 }
+
+/**
+ * 侧栏点击会话时通知整帧覆盖页面（数据库 / 设置 / 自动化…）关闭。
+ *
+ * 只靠路由变化不够：点当前正在看的会话时 pathname 不变，
+ * 覆盖层就会一直压在会话上面。
+ */
+export const CLOSE_FRAME_PAGES_EVENT = "novaway:close-frame-pages"
+
+export const requestCloseFramePages = () => {
+  if (typeof window === "undefined") return
+  window.dispatchEvent(new Event(CLOSE_FRAME_PAGES_EVENT))
+}

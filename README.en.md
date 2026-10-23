@@ -165,6 +165,52 @@ There are also **general** / **explore** / **scout** subagents, invoked internal
 2. Pick a model, paste the key.
 3. Start talking: read code, fix bugs, build a deck, plan a campaign — leave the rest to it.
 
+## Requirements and optional components
+
+**Required** (only these):
+
+| Item         | Requirement                                             | Notes                                                  |
+| ------------ | ------------------------------------------------------- | ------------------------------------------------------ |
+| OS           | Windows x64 / macOS (Apple Silicon / Intel) / Linux x64 | Desktop and terminal share the same core               |
+| Node.js ≥ 18 | Only for installing the CLI via `npm install -g`        | The desktop installer bundles its own runtime          |
+| Network      | For the first install and for cloud models              | API keys are configured in-app, never written to repos |
+
+**Optional components** (only when the feature is used; all can be installed from inside the app):
+
+| Capability                    | Component                    | When you need it                                  | How to install                                                                            |
+| ----------------------------- | ---------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Image / scanned-document OCR  | RapidOCR (PP-OCR, zh + en)   | Importing screenshots or scanned PDFs             | Click "Set up OCR" in the Knowledge page; Python is provisioned automatically, no CLI     |
+| Semantic knowledge retrieval  | Ollama + embedding model     | Better recall (keyword search still works)        | Settings → Memory & Evolution → one-click install, or "Let AI handle it" if it gets stuck |
+| Diagnostics / formatting      | Language servers, formatters | Let the agent fix formatting and read diagnostics | Downloaded on first use automatically                                                     |
+| Handwriting / complex layouts | Any vision-capable model     | Local OCR fails, or the image is handwritten      | Connect a vision model in Settings                                                        |
+| Skills / plugins              | SKILL.md, npm plugins        | A dedicated workflow for the agent                | Just ask "write me a skill / install a plugin" (`skill_install` / `plugin_install`)       |
+| Memory / rules / evolution    | Built in                     | Durable preferences and conventions               | Just ask "remember this", "add a rule", "show evolution candidates"                       |
+| Knowledge base                | Built in                     | Keep internal docs searchable                     | Just ask "save this to my knowledge base" (`knowledge_manage`)                            |
+| Git                           | Built in                     | Commit, push, switch branches                     | Just ask "commit and push" (`git`)                                                        |
+
+> **You never have to set up an environment by hand.** When something is missing, NovaWay shows
+> the prompt with an install button right where you hit the problem — e.g. a failed image import
+> offers "Install now", which downloads the components, creates an isolated environment and
+> verifies it without touching your system Python or asking you to run `pip` / `brew`.
+>
+> Unusual environment that just won't install? The setup dialog also offers **"Let AI install it"**:
+> it opens a session where the agent drives the built-in `knowledge_ocr` / `memory_embedding_setup`
+> tools (`knowledge_ocr`, `memory_embedding_setup`, `installation_doctor`, `lsp_setup`, `mcp_setup`,
+> `provider_setup`), and falls back to the terminal to diagnose your specific machine when needed. Install
+> actions always ask for permission first and never change the environment silently.
+
+For restricted networks, point the downloads at a mirror (rarely needed; a PyPI mirror fallback
+is already built in):
+
+```bash
+NOVAWAY_OCR_UV_URL=https://your-mirror/uv-x86_64-pc-windows-msvc.zip
+NOVAWAY_OCR_PYTHON_MIRROR=https://your-mirror/python-build-standalone
+NOVAWAY_OCR_PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+See [docs/knowledge-base.md](packages/novaway/docs/knowledge-base.md) for the full OCR details
+(backend priority, models, scanned PDFs, more mirror variables).
+
 ## Update
 
 ```bash
@@ -206,6 +252,11 @@ User data directories (cleared by `novaway uninstall`, untouched by a manual uni
 | State                              | `~/.local/state/novaway` | `C:\Users\<you>\.local\state\novaway` |
 
 ## Install troubleshooting
+
+> Rather not work through this yourself? Settings → General → "Installation doctor" → "Let AI handle it":
+> the agent calls the built-in `installation_doctor`, which checks the install method, the wrapper
+> package and binary (including the postinstall placeholder), platform package extraction, the
+> registry and the latest version, then applies the fix for you.
 
 **`failed to install the right novaway CLI package` / `Try manually installing xymt-novaway-<os>-<arch>`**
 

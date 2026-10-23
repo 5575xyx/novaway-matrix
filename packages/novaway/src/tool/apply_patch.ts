@@ -14,6 +14,7 @@ import DESCRIPTION from "./apply_patch.txt"
 import { File } from "../file"
 import { Format } from "../format"
 import * as Bom from "@/util/bom"
+import { record as recordTempFile } from "@/session/temp-files"
 
 export const Parameters = Schema.Struct({
   patchText: Schema.String.annotate({ description: "The full patch text that describes all changes to be made" }),
@@ -74,7 +75,7 @@ export const ApplyPatchTool = Tool.define(
       let totalDiff = ""
 
       for (const hunk of hunks) {
-        const filePath = path.resolve(instance.directory, hunk.path)
+        const filePath = path.resolve(ctx.directory ?? instance.directory, hunk.path)
         yield* assertExternalDirectoryEffect(ctx, filePath)
 
         switch (hunk.type) {
@@ -143,7 +144,9 @@ export const ApplyPatchTool = Tool.define(
               if (change.removed) deletions += change.count || 0
             }
 
-            const movePath = hunk.move_path ? path.resolve(instance.directory, hunk.move_path) : undefined
+            const movePath = hunk.move_path
+              ? path.resolve(ctx.directory ?? instance.directory, hunk.move_path)
+              : undefined
             yield* assertExternalDirectoryEffect(ctx, movePath)
 
             fileChanges.push({
@@ -229,6 +232,14 @@ export const ApplyPatchTool = Tool.define(
 
             yield* afs.writeWithDirs(change.filePath, Bom.join(change.newContent, change.bom))
             updates.push({ file: change.filePath, event: "add" })
+            yield* Effect.promise(() =>
+              recordTempFile({
+                sessionID: ctx.sessionID,
+                worktree: instance.worktree === "/" ? instance.directory : instance.worktree,
+                file: change.filePath,
+                tool: "apply_patch",
+              }),
+            ).pipe(Effect.ignore)
             break
 
           case "update":
@@ -244,6 +255,14 @@ export const ApplyPatchTool = Tool.define(
               yield* afs.remove(change.filePath)
               updates.push({ file: change.filePath, event: "unlink" })
               updates.push({ file: change.movePath, event: "add" })
+              yield* Effect.promise(() =>
+                recordTempFile({
+                  sessionID: ctx.sessionID,
+                  worktree: instance.worktree === "/" ? instance.directory : instance.worktree,
+                  file: change.movePath!,
+                  tool: "apply_patch",
+                }),
+              ).pipe(Effect.ignore)
             }
             break
 

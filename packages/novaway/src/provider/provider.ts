@@ -86,7 +86,10 @@ function opencodeIdentifier(): string {
   const current = BigInt(ts) * 0x1000n + BigInt(opencodeIdCounter)
   const value = ~current
   let time = ""
-  for (let i = 0; i < 6; i++) time += Number((value >> BigInt(40 - 8 * i)) & 0xffn).toString(16).padStart(2, "0")
+  for (let i = 0; i < 6; i++)
+    time += Number((value >> BigInt(40 - 8 * i)) & 0xffn)
+      .toString(16)
+      .padStart(2, "0")
   let tail = ""
   const bytes = new Uint8Array(14)
   crypto.getRandomValues(bytes)
@@ -282,7 +285,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
                   "x-opencode-project": "global",
                   "x-opencode-session": `ses_${opencodeIdentifier()}`,
                   "x-opencode-request": `msg_${opencodeIdentifier()}`,
-                  "Accept": "text/event-stream",
+                  Accept: "text/event-stream",
                 },
               },
           models,
@@ -1207,10 +1210,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
           models: filterCatalogToFreeModels(provider.id, provider.models),
           replaceModels: true,
           discoverModels: () =>
-            discoverFreeProviderSnapshot(
-              { providerID: "qvac", baseURL: "", requireZeroPricing: true },
-              apiKey,
-            ),
+            discoverFreeProviderSnapshot({ providerID: "qvac", baseURL: "", requireZeroPricing: true }, apiKey),
           discoverPrune: true,
         }
       })(),
@@ -1314,10 +1314,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
           models: filterCatalogToFreeModels(provider.id, provider.models),
           replaceModels: true,
           discoverModels: () =>
-            discoverFreeProviderSnapshot(
-              { providerID: "aihubmix", baseURL: "", requireZeroPricing: true },
-              apiKey,
-            ),
+            discoverFreeProviderSnapshot({ providerID: "aihubmix", baseURL: "", requireZeroPricing: true }, apiKey),
           discoverPrune: true,
         }
       })(),
@@ -1430,10 +1427,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
           models: filterCatalogToFreeModels(provider.id, provider.models),
           replaceModels: true,
           discoverModels: () =>
-            discoverFreeProviderSnapshot(
-              { providerID: "mistral", baseURL: "", requireZeroPricing: true },
-              apiKey,
-            ),
+            discoverFreeProviderSnapshot({ providerID: "mistral", baseURL: "", requireZeroPricing: true }, apiKey),
           discoverPrune: true,
         }
       })(),
@@ -1447,10 +1441,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
           models: filterCatalogToFreeModels(provider.id, provider.models),
           replaceModels: true,
           discoverModels: () =>
-            discoverFreeProviderSnapshot(
-              { providerID: "cohere", baseURL: "", requireZeroPricing: true },
-              apiKey,
-            ),
+            discoverFreeProviderSnapshot({ providerID: "cohere", baseURL: "", requireZeroPricing: true }, apiKey),
           discoverPrune: true,
         }
       })(),
@@ -1571,8 +1562,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
     "tencent-tokenhub": (provider) =>
       Effect.fnUntraced(function* () {
         const auth = yield* dep.auth(provider.id)
-        const apiKey =
-          (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("TENCENT_TOKENHUB_API_KEY"))
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("TENCENT_TOKENHUB_API_KEY"))
         return {
           autoload: false,
           options: {},
@@ -1648,8 +1638,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
     standardcompute: (provider) =>
       Effect.fnUntraced(function* () {
         const auth = yield* dep.auth(provider.id)
-        const apiKey =
-          (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("STANDARDCOMPUTE_API_KEY"))
+        const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("STANDARDCOMPUTE_API_KEY"))
         return {
           autoload: false,
           options: {},
@@ -1991,6 +1980,13 @@ export interface Interface {
   ) => Effect.Effect<{ providerID: ProviderID; modelID: string } | undefined>
   readonly getSmallModel: (providerID: ProviderID) => Effect.Effect<Model | undefined>
   readonly defaultModel: () => Effect.Effect<{ providerID: ProviderID; modelID: ModelID }>
+  /**
+   * 丢弃按目录缓存的 provider 状态并重新构建。
+   *
+   * 改了 baseURL / 模型配置之后必须刷新，否则旧状态会一直用旧端点。
+   * 这里只失效本服务的缓存，不动整个实例。
+   */
+  readonly reload: () => Effect.Effect<void>
 }
 
 interface State {
@@ -2506,15 +2502,21 @@ export const layer = Layer.effect(
             if (result.discoverModels) discoveryLoaders[providerID] = result.discoverModels
             if (result.discoverPrune) discoveryPrune.add(providerID)
             const opts = result.options ?? {}
+            // Replace mode (free-tier catalogs) must not drop models the user
+            // declared in config; those are explicit choices, not catalog noise.
+            const keep = result.replaceModels
+              ? Object.fromEntries(Object.entries(data.models).filter(([modelID]) => configModels[id]?.has(modelID)))
+              : {}
+            const models = result.models ? { ...keep, ...result.models } : undefined
             const patch: Partial<Info> = providers[providerID]
               ? {
                   options: opts,
-                  ...(result.models ? { models: result.models } : {}),
+                  ...(models ? { models } : {}),
                 }
               : {
                   source: "custom",
                   options: opts,
-                  ...(result.models ? { models: result.models } : {}),
+                  ...(models ? { models } : {}),
                 }
             mergeProvider(providerID, patch, result.replaceModels === true)
           }
@@ -3001,7 +3003,12 @@ export const layer = Layer.effect(
       }
     })
 
-    return Service.of({ list, getProvider, getModel, getLanguage, closest, getSmallModel, defaultModel })
+    const reload = Effect.fn("Provider.reload")(function* () {
+      yield* InstanceState.invalidate(state)
+      yield* InstanceState.get(state)
+    })
+
+    return Service.of({ list, getProvider, getModel, getLanguage, closest, getSmallModel, defaultModel, reload })
   }),
 )
 

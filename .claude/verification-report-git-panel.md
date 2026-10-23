@@ -65,27 +65,27 @@
 
 ### 4.1 改动清单
 
-| 文件                                                       | 改动                                                                 |
-| ---------------------------------------------------------- | -------------------------------------------------------------------- |
-| `packages/novaway/src/server/routes/instance/httpapi/groups/git.ts` | 新建，`GitApi` 10 个端点 + `ApiGitError` + 全部 payload/schema（含 `GitSnapshot`） |
-| `packages/novaway/src/server/routes/instance/httpapi/handlers/git.ts` | 新建，`gitHandlers` 全部端点实现 + 纯函数解析器                       |
-| `packages/novaway/src/server/routes/instance/httpapi/api.ts`  | +2 行：`GitApi` import 与 `.addHttpApi(GitApi)`                       |
-| `packages/novaway/src/server/routes/instance/httpapi/server.ts` | +4 行：`gitHandlers,`、`Git.defaultLayer,`、`import { Git }`          |
+| 文件                                                                  | 改动                                                                               |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `packages/novaway/src/server/routes/instance/httpapi/groups/git.ts`   | 新建，`GitApi` 10 个端点 + `ApiGitError` + 全部 payload/schema（含 `GitSnapshot`） |
+| `packages/novaway/src/server/routes/instance/httpapi/handlers/git.ts` | 新建，`gitHandlers` 全部端点实现 + 纯函数解析器                                    |
+| `packages/novaway/src/server/routes/instance/httpapi/api.ts`          | +2 行：`GitApi` import 与 `.addHttpApi(GitApi)`                                    |
+| `packages/novaway/src/server/routes/instance/httpapi/server.ts`       | +4 行：`gitHandlers,`、`Git.defaultLayer,`、`import { Git }`                       |
 
 ### 4.2 端点
 
-| 端点            | 方法 | 说明                                    |
-| --------------- | ---- | --------------------------------------- |
-| `GET /git`      | 读   | 聚合快照（分支/变更/分支列表/远程/贮藏/log） |
-| `POST /git/add`     | 写   | 暂存指定文件                             |
-| `POST /git/unstage` | 写   | 取消暂存                                 |
+| 端点                | 方法 | 说明                                                    |
+| ------------------- | ---- | ------------------------------------------------------- |
+| `GET /git`          | 读   | 聚合快照（分支/变更/分支列表/远程/贮藏/log）            |
+| `POST /git/add`     | 写   | 暂存指定文件                                            |
+| `POST /git/unstage` | 写   | 取消暂存                                                |
 | `POST /git/discard` | 写   | 放弃改动（未跟踪走 `clean -f`，已跟踪走 `checkout --`） |
-| `POST /git/commit`  | 写   | 提交（索引为空时先 `add -A`）            |
-| `POST /git/push`    | 写   | 推送（无上游时自动 `-u` 首个远程）       |
-| `POST /git/pull`    | 写   | 拉取                                     |
-| `POST /git/stash`   | 写   | 贮藏 / 弹出 / 丢弃                       |
-| `POST /git/branch`  | 写   | 创建 / 切换 / 删除分支                   |
-| `POST /git/remote`  | 写   | 远程操作                                 |
+| `POST /git/commit`  | 写   | 提交（索引为空时先 `add -A`）                           |
+| `POST /git/push`    | 写   | 推送（无上游时自动 `-u` 首个远程）                      |
+| `POST /git/pull`    | 写   | 拉取                                                    |
+| `POST /git/stash`   | 写   | 贮藏 / 弹出 / 丢弃                                      |
+| `POST /git/branch`  | 写   | 创建 / 切换 / 删除分支                                  |
+| `POST /git/remote`  | 写   | 远程操作                                                |
 
 **读端点聚合一次，写端点执行后直接返回新快照**——前端不需要二次请求刷新，省一轮往返。
 7 条只读 git 命令用 `Effect.all(..., { concurrency: "unbounded" })` 并行跑。
@@ -110,11 +110,11 @@
 
 ### 4.5 验证证据
 
-| 命令（工作目录）                                                                                     | 结果                  |
-| ---------------------------------------------------------------------------------------------------- | --------------------- |
-| `bun typecheck`（packages/novaway）                                                                   | **EXIT=0**            |
+| 命令（工作目录）                                                                                                                    | 结果                      |
+| ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| `bun typecheck`（packages/novaway）                                                                                                 | **EXIT=0**                |
 | `bun lint packages/novaway/src/server/routes/instance/httpapi/groups/git.ts .../handlers/git.ts .../api.ts .../server.ts`（仓库根） | **0 warnings / 0 errors** |
-| `bun typecheck`（packages/sdk/js）                                                                    | **EXIT=0**            |
+| `bun typecheck`（packages/sdk/js）                                                                                                  | **EXIT=0**                |
 
 ## 5. SDK 生成
 
@@ -135,12 +135,12 @@
 
 ### 6.1 改动清单
 
-| 文件                                                    | 改动                                                        |
-| ------------------------------------------------------- | ----------------------------------------------------------- |
-| `packages/app/src/pages/session/git-panel.tsx`          | 新建，`GitPanel` 组件（轮询刷新 / 暂存与未暂存分组 / 提交框 / 分支 / 贮藏 / 历史） |
+| 文件                                                    | 改动                                                                                         |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `packages/app/src/pages/session/git-panel.tsx`          | 新建，`GitPanel` 组件（轮询刷新 / 暂存与未暂存分组 / 提交框 / 分支 / 贮藏 / 历史）           |
 | `packages/app/src/pages/session/session-side-panel.tsx` | 接线：import、`Tabs.Trigger value="git"`、`Tabs.Content`、`setFileTreeTabValue` 放行 `"git"` |
-| `packages/app/src/context/layout.tsx`                   | 3 处 file-tree tab 联合类型加 `"git"`（迁移守卫、默认值断言、`setTab` 形参） |
-| `packages/app/src/i18n/en.ts`、`zh.ts`                  | 各 +33 个 `git.*` 键，插在 `"common.yes"` 之前               |
+| `packages/app/src/context/layout.tsx`                   | 3 处 file-tree tab 联合类型加 `"git"`（迁移守卫、默认值断言、`setTab` 形参）                 |
+| `packages/app/src/i18n/en.ts`、`zh.ts`                  | 各 +33 个 `git.*` 键，插在 `"common.yes"` 之前                                               |
 
 ### 6.2 落点选择
 
@@ -162,25 +162,25 @@
 
 ### 6.4 踩掉的三个 SDK 真实类型坑
 
-| 现象                                        | 根因                                                                 | 修法                                              |
-| ------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------- |
-| `TextField onChange` 拿到 `event.currentTarget.value` 报 TS2339 | Kobalte `TextField` 根的 `onChange` 签名是 `(value: string) => void`，不是 DOM 事件 | 改成 `onChange={(value: string) => ...}`         |
-| `onKeyDown` 参数隐式 any 报 TS7006          | 该组件不给事件参数推导类型                                           | 显式标注最小结构类型，零 import                    |
-| `<Show when={count}>` 报 TS2322            | 传的是 `Accessor<number\|undefined>`，SolidJS 把函数当 truthy，不是 `Element` | `count` 改成纯 `number`，在 JSX 属性位置调用保持响应式 |
+| 现象                                                            | 根因                                                                                | 修法                                                   |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `TextField onChange` 拿到 `event.currentTarget.value` 报 TS2339 | Kobalte `TextField` 根的 `onChange` 签名是 `(value: string) => void`，不是 DOM 事件 | 改成 `onChange={(value: string) => ...}`               |
+| `onKeyDown` 参数隐式 any 报 TS7006                              | 该组件不给事件参数推导类型                                                          | 显式标注最小结构类型，零 import                        |
+| `<Show when={count}>` 报 TS2322                                 | 传的是 `Accessor<number\|undefined>`，SolidJS 把函数当 truthy，不是 `Element`       | `count` 改成纯 `number`，在 JSX 属性位置调用保持响应式 |
 
 另外 `no-unsafe-type-assertion` 抓到了错误信息提取的重复断言，抽成 `messageOf(err: unknown)`，
 用 `instanceof Error` / `typeof` / `in` 收窄，去掉全部类型断言。
 
 ### 6.5 验证证据
 
-| 命令（工作目录）                                                          | 结果                        |
-| ------------------------------------------------------------------------- | --------------------------- |
-| `bun typecheck`（packages/app，`tsgo -b`）                               | **EXIT=0**                  |
-| `bun lint packages/app/src/pages/session/git-panel.tsx`（仓库根）         | **0 warnings / 0 errors**   |
-| `bun lint`（5 个改动文件，仓库根）                                        | **15 warnings / 0 errors**（全部来自 `layout.tsx`、`session-side-panel.tsx` 既有写法，非本轮引入） |
-| `bun test src/i18n/parity.test.ts`（packages/app）                        | **1 pass / 0 fail**         |
-| `bun test` 定向 5 个受影响文件（`layout.test.ts`、`layout-scroll.test.ts`、`pages/layout/helpers.test.ts`、`i18n/parity.test.ts`、`file-tab-scroll.test.ts`） | **30 pass / 0 fail** |
-| `bun test`（packages/app 全量，90 文件）                                  | **582 pass / 8 fail / 1 error**——与本轮改动前基线完全一致 |
+| 命令（工作目录）                                                                                                                                              | 结果                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `bun typecheck`（packages/app，`tsgo -b`）                                                                                                                    | **EXIT=0**                                                                                         |
+| `bun lint packages/app/src/pages/session/git-panel.tsx`（仓库根）                                                                                             | **0 warnings / 0 errors**                                                                          |
+| `bun lint`（5 个改动文件，仓库根）                                                                                                                            | **15 warnings / 0 errors**（全部来自 `layout.tsx`、`session-side-panel.tsx` 既有写法，非本轮引入） |
+| `bun test src/i18n/parity.test.ts`（packages/app）                                                                                                            | **1 pass / 0 fail**                                                                                |
+| `bun test` 定向 5 个受影响文件（`layout.test.ts`、`layout-scroll.test.ts`、`pages/layout/helpers.test.ts`、`i18n/parity.test.ts`、`file-tab-scroll.test.ts`） | **30 pass / 0 fail**                                                                               |
+| `bun test`（packages/app 全量，90 文件）                                                                                                                      | **582 pass / 8 fail / 1 error**——与本轮改动前基线完全一致                                          |
 
 基线那 8 fail + 1 error 全在未触碰模块（`prompt-input/submit.test.ts` 的 `modelsCtx.autoMode` 未注入、
 `message-timeline.data.test.ts` 依赖的 `@solidjs/router@0.15.4` 未导出 `useLocation`），不是本轮回归。
@@ -234,15 +234,15 @@
 
 ### 9.1 改动清单
 
-| 文件                                        | 改动                                                                                     |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `packages/app/src/context/layout.tsx`       | 新增 `DEFAULT_GIT_PANEL_WIDTH = 260`、`git: { opened, width }` store 块、迁移守卫、`layout.git` API（open/close/toggle/resize）、`layout.sidePanelWidth` 汇总 memo；回收 `fileTree.tab` 的 `"git"` 联合类型 |
-| `packages/app/src/pages/session/session-side-panel.tsx` | 移除 Git 页签 trigger 与 `Tabs.Content`；新增 `#git-panel` 容器（`gitOpen`/`gitWidth` + 独立 `ResizeHandle` 220-480）；`open`/`panelWidth` 改为纳入 git 面板 |
-| `packages/app/src/pages/session.tsx`        | `desktopGitOpen`、`desktopSidePanelOpen` 纳入 git；`sessionPanelWidth` 改为 `calc(100% - (${sidePanelWidth}) - reserved)` |
-| `packages/app/src/components/session/session-header.tsx` | 新增 Git 面板开关按钮（`branch` 图标，`aria-controls="git-panel"`）                 |
-| `packages/app/src/pages/session/use-session-commands.tsx` | 注册 `git.toggle` 命令，快捷键 `mod+shift+g`                                          |
-| `packages/app/src/components/settings-keybinds.tsx`      | `git.` 前缀归入 `Navigation` 分组                                                      |
-| `packages/app/src/i18n/en.ts` / `zh.ts`     | 各 +1 键 `command.git.toggle`（"Toggle source control" / "切换源代码管理"）              |
+| 文件                                                      | 改动                                                                                                                                                                                                        |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/app/src/context/layout.tsx`                     | 新增 `DEFAULT_GIT_PANEL_WIDTH = 260`、`git: { opened, width }` store 块、迁移守卫、`layout.git` API（open/close/toggle/resize）、`layout.sidePanelWidth` 汇总 memo；回收 `fileTree.tab` 的 `"git"` 联合类型 |
+| `packages/app/src/pages/session/session-side-panel.tsx`   | 移除 Git 页签 trigger 与 `Tabs.Content`；新增 `#git-panel` 容器（`gitOpen`/`gitWidth` + 独立 `ResizeHandle` 220-480）；`open`/`panelWidth` 改为纳入 git 面板                                                |
+| `packages/app/src/pages/session.tsx`                      | `desktopGitOpen`、`desktopSidePanelOpen` 纳入 git；`sessionPanelWidth` 改为 `calc(100% - (${sidePanelWidth}) - reserved)`                                                                                   |
+| `packages/app/src/components/session/session-header.tsx`  | 新增 Git 面板开关按钮（`branch` 图标，`aria-controls="git-panel"`）                                                                                                                                         |
+| `packages/app/src/pages/session/use-session-commands.tsx` | 注册 `git.toggle` 命令，快捷键 `mod+shift+g`                                                                                                                                                                |
+| `packages/app/src/components/settings-keybinds.tsx`       | `git.` 前缀归入 `Navigation` 分组                                                                                                                                                                           |
+| `packages/app/src/i18n/en.ts` / `zh.ts`                   | 各 +1 键 `command.git.toggle`（"Toggle source control" / "切换源代码管理"）                                                                                                                                 |
 
 ### 9.2 关键设计点
 
@@ -256,17 +256,18 @@
 ### 9.3 持久化与迁移
 
 `Persist.global("layout", ["layout.v6"])` 未升版本号——新增的是可选键，旧状态缺失时靠两层兜底：
+
 - `migrate` 里 `migratedGit`：`value.git` 不是对象时补 `{ opened: false, width: 260 }`，因与 `gitPanel` 不等会触发整体回写；
 - API memo 全部 `store.git?.x ?? DEFAULT`，且 `setStore("git", ...)` 在缺失时先初始化（与 `fileTree` 块同一套防御式写法）。
 
 ### 9.4 验证证据
 
-| 命令（工作目录）                                                                                                          | 结果                                        |
-| ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| `bun typecheck`（packages/app，`tsgo -b`）                                                                                | **EXIT=0**                                  |
-| `bun lint`（本轮改动的 8 个 app 文件，仓库根）                                                                            | **0 errors / 42 warnings**——逐行核对 warning 落点，全部落在本轮未触碰的行；`session-side-panel.tsx:157` 那条是原有的 `as "changes" | "all" | "review"` 断言写法，只是行号位移 |
-| `bun test src/context/layout.test.ts src/context/layout-scroll.test.ts src/pages/layout/helpers.test.ts src/i18n/parity.test.ts`（packages/app） | **27 pass / 0 fail** |
-| `bun test`（packages/app 全量，90 文件）                                                                                  | **582 pass / 8 fail / 1 error**——与上轮基线完全一致 |
+| 命令（工作目录）                                                                                                                                 | 结果                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | ----- | -------------------------------- |
+| `bun typecheck`（packages/app，`tsgo -b`）                                                                                                       | **EXIT=0**                                                                                                                         |
+| `bun lint`（本轮改动的 8 个 app 文件，仓库根）                                                                                                   | **0 errors / 42 warnings**——逐行核对 warning 落点，全部落在本轮未触碰的行；`session-side-panel.tsx:157` 那条是原有的 `as "changes" | "all" | "review"` 断言写法，只是行号位移 |
+| `bun test src/context/layout.test.ts src/context/layout-scroll.test.ts src/pages/layout/helpers.test.ts src/i18n/parity.test.ts`（packages/app） | **27 pass / 0 fail**                                                                                                               |
+| `bun test`（packages/app 全量，90 文件）                                                                                                         | **582 pass / 8 fail / 1 error**——与上轮基线完全一致                                                                                |
 
 ### 9.5 本轮新增的未验证项
 
@@ -282,15 +283,15 @@
 
 ### 10.1 审计结论
 
-| 工具 / 路径 | 原状态 | 本轮 |
-| ----------- | ------- | ---- |
-| shell 工具 | **本就有**：默认 120s，可传 `timeout` 覆盖，超时杀进程（3s 强杀宽限），并提示模型带更大 timeout 重试 | 加了配置项 + 30 分钟硬封顶 |
-| `Git.Service.run` | **完全无超时**——真实缺口。`repo_clone`、`Vcs`、`File`、10 条 git HttpApi 端点、TUI 全走它 | 默认 60s + `timeoutMs` 覆盖 |
-| `repo_clone` 工具 | 无独立超时，全靠 `Git.Service` | clone/fetch 显式 10 分钟 |
-| `push` / `pull` HttpApi 端点 | 同上 | 显式 5 分钟 |
-| TUI / 桌面端 | 与后端**共用同一条执行链路**（TUI 只渲染后端工具调用结果） | 后端修一次，两边同时生效 |
-| `lsp.ts`、`generate_image/video/narration.ts`、`browser.ts` | 无超时 | **刻意未覆盖**（见 10.4） |
-| 终端面板 | 交互 PTY，用户正在操作，不该有超时 | 保持不变 |
+| 工具 / 路径                                                 | 原状态                                                                                               | 本轮                        |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------- |
+| shell 工具                                                  | **本就有**：默认 120s，可传 `timeout` 覆盖，超时杀进程（3s 强杀宽限），并提示模型带更大 timeout 重试 | 加了配置项 + 30 分钟硬封顶  |
+| `Git.Service.run`                                           | **完全无超时**——真实缺口。`repo_clone`、`Vcs`、`File`、10 条 git HttpApi 端点、TUI 全走它            | 默认 60s + `timeoutMs` 覆盖 |
+| `repo_clone` 工具                                           | 无独立超时，全靠 `Git.Service`                                                                       | clone/fetch 显式 10 分钟    |
+| `push` / `pull` HttpApi 端点                                | 同上                                                                                                 | 显式 5 分钟                 |
+| TUI / 桌面端                                                | 与后端**共用同一条执行链路**（TUI 只渲染后端工具调用结果）                                           | 后端修一次，两边同时生效    |
+| `lsp.ts`、`generate_image/video/narration.ts`、`browser.ts` | 无超时                                                                                               | **刻意未覆盖**（见 10.4）   |
+| 终端面板                                                    | 交互 PTY，用户正在操作，不该有超时                                                                   | 保持不变                    |
 
 关键发现：`AppProcess.run`（`packages/core/src/process.ts`）**本来就支持 `options.timeout`**，只是 git 层没透传。
 所以收口点在 `Git.Service.run` 一处，不需要新增基础设施。
@@ -308,17 +309,17 @@
 
 ### 10.3 改动清单
 
-| 文件 | 改动 |
-| ---- | ---- |
-| `packages/novaway/src/git/index.ts` | `DEFAULT_TIMEOUT_MS = 60_000`、`Options.timeoutMs?`、`Result.timedOut`、`timedOut()` 判定、向 `appProcess.run` 透传 `Duration.millis(...)` |
-| `packages/novaway/src/reference/repository-cache.ts` | `input.timeoutMs?`；clone/fetch 默认 `NETWORK_TIMEOUT_MS = 10 分钟` |
-| `packages/novaway/src/tool/repo_clone.ts` | 加 `Config.Service` 依赖，透传 `cfg.experimental?.git_timeout` |
-| `packages/novaway/src/config/config.ts` | `experimental` 块新增 `bash_timeout` / `git_timeout`（`PositiveInt`） |
-| `packages/novaway/src/tool/shell.ts` | `DEFAULT_TIMEOUT_MS = 2 分钟`、`MAX_TIMEOUT_MS = 30 分钟`；默认值改为「配置文件 > 环境变量 > 内置」；单次调用 `Math.min(timeout, 30 分钟)` 封顶 |
-| `packages/novaway/src/tool/shell/prompt.ts` | `Limits` 加 `timeoutMs`/`maxTimeoutMs`，3 处提示词行改为动态渲染当前上限 |
-| `packages/novaway/src/server/routes/instance/httpapi/handlers/git.ts` | `NETWORK_TIMEOUT_MS = 5 分钟` 用于 push/pull；超时错误透出明确文案 |
-| `packages/novaway/test/git/git.test.ts` | +2 用例（见 10.5） |
-| `packages/novaway/test/tool/repo_clone.test.ts` | 加 `Config.defaultLayer`（`repo_clone` 新增依赖后必需） |
+| 文件                                                                  | 改动                                                                                                                                            |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/novaway/src/git/index.ts`                                   | `DEFAULT_TIMEOUT_MS = 60_000`、`Options.timeoutMs?`、`Result.timedOut`、`timedOut()` 判定、向 `appProcess.run` 透传 `Duration.millis(...)`      |
+| `packages/novaway/src/reference/repository-cache.ts`                  | `input.timeoutMs?`；clone/fetch 默认 `NETWORK_TIMEOUT_MS = 10 分钟`                                                                             |
+| `packages/novaway/src/tool/repo_clone.ts`                             | 加 `Config.Service` 依赖，透传 `cfg.experimental?.git_timeout`                                                                                  |
+| `packages/novaway/src/config/config.ts`                               | `experimental` 块新增 `bash_timeout` / `git_timeout`（`PositiveInt`）                                                                           |
+| `packages/novaway/src/tool/shell.ts`                                  | `DEFAULT_TIMEOUT_MS = 2 分钟`、`MAX_TIMEOUT_MS = 30 分钟`；默认值改为「配置文件 > 环境变量 > 内置」；单次调用 `Math.min(timeout, 30 分钟)` 封顶 |
+| `packages/novaway/src/tool/shell/prompt.ts`                           | `Limits` 加 `timeoutMs`/`maxTimeoutMs`，3 处提示词行改为动态渲染当前上限                                                                        |
+| `packages/novaway/src/server/routes/instance/httpapi/handlers/git.ts` | `NETWORK_TIMEOUT_MS = 5 分钟` 用于 push/pull；超时错误透出明确文案                                                                              |
+| `packages/novaway/test/git/git.test.ts`                               | +2 用例（见 10.5）                                                                                                                              |
+| `packages/novaway/test/tool/repo_clone.test.ts`                       | 加 `Config.defaultLayer`（`repo_clone` 新增依赖后必需）                                                                                         |
 
 配置优先级：`config.experimental.bash_timeout` > `NOVAWAY_BASH_DEFAULT_TIMEOUT` > 内置 2 分钟。
 封顶 30 分钟防止模型传离谱值把会话挂死。
@@ -333,16 +334,16 @@
 
 ### 10.5 验证证据
 
-| 命令（工作目录） | 结果 |
-| ---------------- | ---- |
-| `bun typecheck`（packages/novaway，`tsgo --noEmit`） | **EXIT=0** |
-| `bun lint`（本轮改动的 7 个 src 文件，仓库根） | **0 errors / 12 warnings**——全部落在未触碰行（`consistent-return`、`unbound-method`） |
-| `bun lint packages/novaway/test/git/git.test.ts` | **0 errors / 0 warnings** |
-| `bun test test/git/git.test.ts` | **11 pass / 0 fail**（9 原有用例 + 2 个新超时用例） |
-| `bun test test/git test/patch test/reference` | **33 pass / 2 fail** |
-| `bun test test/tool/repo_clone.test.ts` | **2 pass / 3 fail**——与基线**完全一致** |
-| `bun test test/reference/reference.test.ts` | **2 pass / 2 fail**——与基线**完全一致** |
-| `bun test test/tool/shell.test.ts -t "timeout"` | **2 fail / 1 error**——与基线**完全一致** |
+| 命令（工作目录）                                     | 结果                                                                                  |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `bun typecheck`（packages/novaway，`tsgo --noEmit`） | **EXIT=0**                                                                            |
+| `bun lint`（本轮改动的 7 个 src 文件，仓库根）       | **0 errors / 12 warnings**——全部落在未触碰行（`consistent-return`、`unbound-method`） |
+| `bun lint packages/novaway/test/git/git.test.ts`     | **0 errors / 0 warnings**                                                             |
+| `bun test test/git/git.test.ts`                      | **11 pass / 0 fail**（9 原有用例 + 2 个新超时用例）                                   |
+| `bun test test/git test/patch test/reference`        | **33 pass / 2 fail**                                                                  |
+| `bun test test/tool/repo_clone.test.ts`              | **2 pass / 3 fail**——与基线**完全一致**                                               |
+| `bun test test/reference/reference.test.ts`          | **2 pass / 2 fail**——与基线**完全一致**                                               |
+| `bun test test/tool/shell.test.ts -t "timeout"`      | **2 fail / 1 error**——与基线**完全一致**                                              |
 
 #### 新增的两个超时用例（端到端证明）
 
@@ -393,5 +394,3 @@ it.live("run() kills the command and reports timedOut when the timeout expires",
 22. **超时后子进程是否真的被系统回收**——测试只证明了调用返回且 `timedOut` 置位，没验证 PID 消失
 23. **`push`/`pull` 5 分钟超时的真实触发**（需要一个真正慢的远端才能触发，本地无法模拟）
 24. **默认 60s 是否合适**——`Git.Service.run` 现在对所有 git 调用加了一层 60s 上限，`Vcs`/`File`/TUI 全都受它约束。大仓库的 `git status` 或 `git diff` 若超过 60s 会从「一直等到完成」变成「报错」。这是一个**行为变更**，需要有人确认定值合理
-
-

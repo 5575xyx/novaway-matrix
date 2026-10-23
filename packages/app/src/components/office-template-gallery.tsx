@@ -39,7 +39,9 @@ export function OfficeTemplateGallery(props: {
           </div>
           <div class="min-w-0 text-left">
             <div class="text-15-medium text-foreground">{action().title}</div>
-            <div class="mt-1 max-w-2xl text-13-regular leading-relaxed text-foreground-subtle">{action().description}</div>
+            <div class="mt-1 max-w-2xl text-13-regular leading-relaxed text-foreground-subtle">
+              {action().description}
+            </div>
           </div>
         </div>
         <div class="hidden shrink-0 text-12-regular text-foreground-subtle sm:block">
@@ -162,7 +164,9 @@ export function OfficeTemplateGallery(props: {
                 </div>
                 <div class="p-3">
                   <div class="truncate text-13-medium text-foreground">{card.title}</div>
-                  <div class="mt-1 line-clamp-2 text-11-regular leading-relaxed text-foreground-subtle">{card.description}</div>
+                  <div class="mt-1 line-clamp-2 text-11-regular leading-relaxed text-foreground-subtle">
+                    {card.description}
+                  </div>
                 </div>
               </div>
             </Show>

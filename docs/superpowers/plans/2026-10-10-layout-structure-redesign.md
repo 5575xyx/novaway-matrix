@@ -9,6 +9,7 @@
 **Tech Stack:** SolidJS + createStore、`@novaway/ui` 组件、bun test / Playwright。
 
 **关键现状事实**（执行前须知）：
+
 - `FileProvider`/`useSDK` 只在 `SessionProviders`（app.tsx:174-188）内可用，侧栏（layout.tsx）拿不到——侧栏文件树**自建轻量树**（用 `globalSync` 按目录 SDK），不复用 `FileTree` 组件（规格 §4 的复用意图受作用域限制，此为已知偏差）。
 - `sdk.client.session.list` 已支持 `archived` 参数（sdk.gen.ts:1261，走 `/experimental/session`）。
 - 终端开关 `store.terminal.opened` 与 `view().terminal` 是同一份全局数据；TerminalPanel 关闭时不 unmount（height 0 + inert），tab/pty 状态不丢。
@@ -23,36 +24,37 @@
 
 ## File Structure
 
-| 文件 | 动作 | 职责 |
-| --- | --- | --- |
-| `packages/app/src/context/layout.tsx` | 修改 | sidePane/sidebarView 状态、migrate v7 提取、viewMode/previewWidth 删除、默认宽度 280/360 |
-| `packages/app/src/context/layout.test.ts` | 修改 | migrateLayoutStore 单测 |
-| `packages/app/src/context/global-sync.tsx` | 修改 | 导出 `sdkForDirectory` |
-| `packages/app/src/pages/layout/sidebar-tasks.tsx` | 创建 | 任务视图：状态过滤条 + 项目分组 flat 任务列表 + 归档加载 |
-| `packages/app/src/pages/layout/sidebar-files.tsx` | 创建 | 文件树视图：自建树 + git 变更徽标 + 仅变更 + ± 汇总 |
-| `packages/app/src/pages/layout/sidebar-items.tsx` | 修改 | SessionItem：分支徽标、±统计、选中 2px 模式色条 |
-| `packages/app/src/pages/layout.tsx` | 修改 | 侧栏 segmented 切换、任务/树视图挂载、showSidebar 门控 |
-| `packages/app/src/pages/session/session-side-panel.tsx` | 修改 | 重构为 Side Pane 六 tabs |
-| `packages/app/src/pages/session.tsx` | 修改 | split/预览列删除、Side Pane 列、Terminal frame 互斥 |
-| `packages/app/src/pages/session/terminal-panel.tsx` | 修改 | `variant: "pane" \| "frame"` |
-| `packages/app/src/pages/session/use-session-commands.tsx` | 修改 | preview.toggle → sidePane |
-| `packages/app/src/context/dev-server.tsx` | 修改 | set("split") → sidePane.open("preview") |
-| `packages/app/src/components/session/session-header.tsx` | 修改 | 三态按钮改 sidePane（Task 4）；portal 收敛（Task 5） |
-| `packages/app/src/components/session/workspace-header.tsx` | 创建 | 单行 WorkspaceHeader |
-| `packages/app/src/components/mode-switch.tsx` | 修改 | 色点+名称克制形态 |
-| `packages/app/src/components/titlebar.tsx` | 修改 | Logo、home 按钮行为、session-actions 槽移除 |
-| `packages/app/src/pages/task-center.tsx` | 创建 | 首页任务中心 |
-| `packages/app/src/pages/home.tsx` | 修改 | `/` 分支改 TaskCenterPage |
-| `packages/app/src/components/mode-home.tsx` | 删除 | 模式选择卡首页（让位 titlebar） |
-| `packages/app/src/i18n/zh.ts` / `en.ts` | 修改 | 全部新文案 |
-| `packages/app/e2e/office.spec.ts` | 修改 | enterZenOffice 改走 titlebar |
-| `packages/app/e2e/layout.spec.ts` | 创建 | 侧栏切换/Side Pane e2e |
+| 文件                                                       | 动作 | 职责                                                                                     |
+| ---------------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------- |
+| `packages/app/src/context/layout.tsx`                      | 修改 | sidePane/sidebarView 状态、migrate v7 提取、viewMode/previewWidth 删除、默认宽度 280/360 |
+| `packages/app/src/context/layout.test.ts`                  | 修改 | migrateLayoutStore 单测                                                                  |
+| `packages/app/src/context/global-sync.tsx`                 | 修改 | 导出 `sdkForDirectory`                                                                   |
+| `packages/app/src/pages/layout/sidebar-tasks.tsx`          | 创建 | 任务视图：状态过滤条 + 项目分组 flat 任务列表 + 归档加载                                 |
+| `packages/app/src/pages/layout/sidebar-files.tsx`          | 创建 | 文件树视图：自建树 + git 变更徽标 + 仅变更 + ± 汇总                                      |
+| `packages/app/src/pages/layout/sidebar-items.tsx`          | 修改 | SessionItem：分支徽标、±统计、选中 2px 模式色条                                          |
+| `packages/app/src/pages/layout.tsx`                        | 修改 | 侧栏 segmented 切换、任务/树视图挂载、showSidebar 门控                                   |
+| `packages/app/src/pages/session/session-side-panel.tsx`    | 修改 | 重构为 Side Pane 六 tabs                                                                 |
+| `packages/app/src/pages/session.tsx`                       | 修改 | split/预览列删除、Side Pane 列、Terminal frame 互斥                                      |
+| `packages/app/src/pages/session/terminal-panel.tsx`        | 修改 | `variant: "pane" \| "frame"`                                                             |
+| `packages/app/src/pages/session/use-session-commands.tsx`  | 修改 | preview.toggle → sidePane                                                                |
+| `packages/app/src/context/dev-server.tsx`                  | 修改 | set("split") → sidePane.open("preview")                                                  |
+| `packages/app/src/components/session/session-header.tsx`   | 修改 | 三态按钮改 sidePane（Task 4）；portal 收敛（Task 5）                                     |
+| `packages/app/src/components/session/workspace-header.tsx` | 创建 | 单行 WorkspaceHeader                                                                     |
+| `packages/app/src/components/mode-switch.tsx`              | 修改 | 色点+名称克制形态                                                                        |
+| `packages/app/src/components/titlebar.tsx`                 | 修改 | Logo、home 按钮行为、session-actions 槽移除                                              |
+| `packages/app/src/pages/task-center.tsx`                   | 创建 | 首页任务中心                                                                             |
+| `packages/app/src/pages/home.tsx`                          | 修改 | `/` 分支改 TaskCenterPage                                                                |
+| `packages/app/src/components/mode-home.tsx`                | 删除 | 模式选择卡首页（让位 titlebar）                                                          |
+| `packages/app/src/i18n/zh.ts` / `en.ts`                    | 修改 | 全部新文案                                                                               |
+| `packages/app/e2e/office.spec.ts`                          | 修改 | enterZenOffice 改走 titlebar                                                             |
+| `packages/app/e2e/layout.spec.ts`                          | 创建 | 侧栏切换/Side Pane e2e                                                                   |
 
 ---
 
 ### Task 1: LayoutProvider 状态扩展 + migrate v7
 
 **Files:**
+
 - Modify: `packages/app/src/context/layout.tsx`（L17-23 常量、L100-114 类型、L214-315 migrate、L317-362 store、L846 后 API）
 - Modify: `packages/app/src/context/layout.test.ts`
 
@@ -97,18 +99,18 @@ export function migrateLayoutStore(input: Record<string, any>) {
 原 5 类历史迁移（sidebar/fileTree/git/review/sessionTabs）逻辑原样保留在函数体内；在函数末尾 `return` 之前追加：
 
 ```ts
-  // v7: viewMode 三态与 per-session previewWidth 废弃（split 预览取消，宽度并入 sidePane.width）
-  const sessionView = migrated.sessionView as Record<string, Record<string, unknown>> | undefined
-  if (sessionView) {
-    for (const key of Object.keys(sessionView)) {
-      const entry = sessionView[key]
-      if (!entry || (!("viewMode" in entry) && !("previewWidth" in entry))) continue
-      const next = { ...entry }
-      delete next.viewMode
-      delete next.previewWidth
-      sessionView[key] = next
-    }
+// v7: viewMode 三态与 per-session previewWidth 废弃（split 预览取消，宽度并入 sidePane.width）
+const sessionView = migrated.sessionView as Record<string, Record<string, unknown>> | undefined
+if (sessionView) {
+  for (const key of Object.keys(sessionView)) {
+    const entry = sessionView[key]
+    if (!entry || (!("viewMode" in entry) && !("previewWidth" in entry))) continue
+    const next = { ...entry }
+    delete next.viewMode
+    delete next.previewWidth
+    sessionView[key] = next
   }
+}
 ```
 
 （注意：原 migrate 若以 `let changed` + 返回原对象的模式实现，v7 分支直接就地改写 `sessionView` 即可，不需要计入 changed——删除字段宁可回写一次。`migrated` 为原函数内的浅拷贝变量名，沿用之。）
@@ -220,6 +222,7 @@ git commit -m "feat(layout): add sidePane/sidebarView state + migrate v7 (drop v
 ### Task 2: 侧栏任务视图（状态过滤 + 项目分组 + 行增强 + 归档）
 
 **Files:**
+
 - Create: `packages/app/src/pages/layout/sidebar-tasks.tsx`
 - Modify: `packages/app/src/pages/layout/sidebar-items.tsx`（SessionItem 增强）
 - Modify: `packages/app/src/pages/layout.tsx`（segmented 切换 + 挂载）
@@ -328,10 +331,7 @@ export function ProjectTaskList(props: {
   )
 }
 
-export function TaskFilterBar(props: {
-  filter: TaskFilter
-  onChange: (filter: TaskFilter) => void
-}) {
+export function TaskFilterBar(props: { filter: TaskFilter; onChange: (filter: TaskFilter) => void }) {
   const language = useLanguage()
   const tabs: Array<{ id: TaskFilter; key: string }> = [
     { id: "all", key: "sidebar.filter.all" },
@@ -385,7 +385,7 @@ export function useArchivedSessions(projects: () => LocalProject[]) {
 1. 在 L131（`const language = useLanguage()`）附近加：
 
 ```ts
-  const selected = createMemo(() => params.id === props.session.id)
+const selected = createMemo(() => params.id === props.session.id)
 ```
 
 2. 在时间 span（L327-329 `任务完成 · {completionTime()}`）之后插入分支徽标与 ± 统计：
@@ -429,8 +429,8 @@ import { ProjectTaskList, TaskFilterBar, useArchivedSessions } from "./layout/si
 并在 `Layout` 组件内（`projectList` memo 附近）加：
 
 ```ts
-  const [taskFilter, setTaskFilter] = createSignal<TaskFilter>("all")
-  const { archived, load: loadArchived } = useArchivedSessions(() => projectList())
+const [taskFilter, setTaskFilter] = createSignal<TaskFilter>("all")
+const { archived, load: loadArchived } = useArchivedSessions(() => projectList())
 ```
 
 （`TaskFilter` 类型一并 import。）
@@ -476,22 +476,24 @@ import { ProjectTaskList, TaskFilterBar, useArchivedSessions } from "./layout/si
 3. 项目展开区（L2314-2378 的 `isExpanded` 分支）：在 `LocalWorkspace`/`SortableWorkspace` 之前插入任务视图分支：
 
 ```tsx
-            <Show
-              when={layout.sidebarView.current() === "tasks"}
-              fallback={
-                {/* 现有 LocalWorkspace / SortableWorkspace 渲染原样作为 fallback */}
-              }
-            >
-              <ProjectTaskList
-                project={proj}
-                slug={slug()}
-                sidebarExpanded={() => store.workspaceSidebarExpanded}
-                prefetchSession={prefetchSession}
-                archiveSession={archiveSession}
-                filter={taskFilter}
-                archived={() => archived()[proj.worktree]}
-              />
-            </Show>
+<Show
+  when={layout.sidebarView.current() === "tasks"}
+  fallback={
+    {
+      /* 现有 LocalWorkspace / SortableWorkspace 渲染原样作为 fallback */
+    }
+  }
+>
+  <ProjectTaskList
+    project={proj}
+    slug={slug()}
+    sidebarExpanded={() => store.workspaceSidebarExpanded}
+    prefetchSession={prefetchSession}
+    archiveSession={archiveSession}
+    filter={taskFilter}
+    archived={() => archived()[proj.worktree]}
+  />
+</Show>
 ```
 
 （`fallback` 内为 L2320-2378 现有两分支渲染，原样移入；`slug`/`prefetchSession`/`archiveSession` 用 SidebarPanel 作用域内同名现有值。）
@@ -517,6 +519,7 @@ git commit -m "feat(sidebar): task view with status filter, project grouping, br
 ### Task 3: 侧栏文件树视图（自建树 + git 变更徽标）
 
 **Files:**
+
 - Modify: `packages/app/src/context/global-sync.tsx`（L330 返回对象）
 - Create: `packages/app/src/pages/layout/sidebar-files.tsx`
 - Modify: `packages/app/src/pages/layout.tsx`（tree 视图挂载）
@@ -741,17 +744,17 @@ import { SidebarFiles } from "./layout/sidebar-files"
 2. `SidebarPanel` 内，项目列表区域（`DragDropProvider` 包裹的列表，L2285-2389）外层包：
 
 ```tsx
-            <Show
-              when={layout.sidebarView.current() === "tasks"}
-              fallback={
-                <SidebarFiles
-                  directory={currentProject()?.worktree ?? currentDir()}
-                  sessionKey={() => `${params.dir}${params.id ? "/" + params.id : ""}`}
-                />
-              }
-            >
-              {/* 现有 DragDropProvider + 项目列表整块原样移入 */}
-            </Show>
+<Show
+  when={layout.sidebarView.current() === "tasks"}
+  fallback={
+    <SidebarFiles
+      directory={currentProject()?.worktree ?? currentDir()}
+      sessionKey={() => `${params.dir}${params.id ? "/" + params.id : ""}`}
+    />
+  }
+>
+  {/* 现有 DragDropProvider + 项目列表整块原样移入 */}
+</Show>
 ```
 
 （`currentProject`/`currentDir`/`params` 为 layout.tsx 既有值；`slug` 的 sessionKey 组合方式以 `session-layout.ts:7` 的 `${params.dir}/${params.id}` 形态为准。若树视图在无会话时也要显示，directory 回退 `currentDir()`。）
@@ -775,6 +778,7 @@ git commit -m "feat(sidebar): file tree view with git badges, changed-only filte
 ### Task 4: Side Pane 六 tabs + viewMode/split 移除
 
 **Files:**
+
 - Modify: `packages/app/src/pages/session/session-side-panel.tsx`（渲染区整体重构）
 - Modify: `packages/app/src/pages/session.tsx`
 - Modify: `packages/app/src/pages/session/terminal-panel.tsx`
@@ -821,13 +825,13 @@ export function TerminalPanel(props: { variant?: "frame" | "pane" }) {
 并在组件体顶部加：
 
 ```ts
-  const paneMode = () => props.variant === "pane"
+const paneMode = () => props.variant === "pane"
 ```
 
 2. L31 opened memo 改为：
 
 ```ts
-  const opened = createMemo(() => paneMode() || view().terminal.opened())
+const opened = createMemo(() => paneMode() || view().terminal.opened())
 ```
 
 （L58-78 的自动开/建终端 effect 已依赖 `opened()`——pane 模式恒 true，切到终端 tab 时自动补建，无需改。）
@@ -841,9 +845,7 @@ export function TerminalPanel(props: { variant?: "frame" | "pane" }) {
 4. L216-228 的竖向 ResizeHandle 块整体包一层：
 
 ```tsx
-  <Show when={!paneMode()}>
-    {/* 现有 onPointerDown 容器 + ResizeHandle + onCollapse 原样 */}
-  </Show>
+<Show when={!paneMode()}>{/* 现有 onPointerDown 容器 + ResizeHandle + onCollapse 原样 */}</Show>
 ```
 
 - [ ] **Step 3: 重构 SessionSidePanel 为六 tab 容器**
@@ -855,109 +857,117 @@ export function TerminalPanel(props: { variant?: "frame" | "pane" }) {
 3. 用以下结构**整体替换** L212-499 的渲染部分（`<aside id="review-panel">` 起至组件尾）：
 
 ```tsx
-  const tab = layout.sidePane.tab
-  const width = () => Math.min(layout.sidePane.width(), Math.round(window.innerWidth * 0.6))
+const tab = layout.sidePane.tab
+const width = () => Math.min(layout.sidePane.width(), Math.round(window.innerWidth * 0.6))
 
-  const tabs: Array<{ id: SidePaneTab; icon: string; labelKey: string }> = [
-    { id: "preview", icon: "layout-right", labelKey: "sidePane.tab.preview" },
-    { id: "terminal", icon: "terminal", labelKey: "sidePane.tab.terminal" },
-    { id: "files", icon: "file-tree", labelKey: "sidePane.tab.files" },
-    { id: "git", icon: "branch", labelKey: "sidePane.tab.git" },
-    { id: "review", icon: "diff", labelKey: "sidePane.tab.review" },
-    { id: "context", icon: "database", labelKey: "sidePane.tab.context" },
-  ]
+const tabs: Array<{ id: SidePaneTab; icon: string; labelKey: string }> = [
+  { id: "preview", icon: "layout-right", labelKey: "sidePane.tab.preview" },
+  { id: "terminal", icon: "terminal", labelKey: "sidePane.tab.terminal" },
+  { id: "files", icon: "file-tree", labelKey: "sidePane.tab.files" },
+  { id: "git", icon: "branch", labelKey: "sidePane.tab.git" },
+  { id: "review", icon: "diff", labelKey: "sidePane.tab.review" },
+  { id: "context", icon: "database", labelKey: "sidePane.tab.context" },
+]
 
-  return (
-    <>
-      <ResizeHandle
-        direction="horizontal"
-        size={layout.sidePane.width()}
-        min={320}
-        max={typeof window === "undefined" ? 1000 : window.innerWidth * 0.6}
-        onResize={(w) => layout.sidePane.resize(w)}
-      />
-      <aside
-        id="side-pane"
-        class="shrink-0 h-full flex flex-col bg-background-base border-l border-border-weak-base"
-        style={{ width: `${width()}px` }}
-      >
-        <div class="flex items-center gap-0.5 h-9 px-1.5 border-b border-border-weak-base shrink-0">
-          <For each={tabs}>
-            {(item) => (
-              <button
-                classList={{
-                  "flex items-center gap-1 px-2 h-7 rounded-md text-ui-xs transition-colors": true,
-                  "bg-surface-raised-base text-text-strong": tab() === item.id,
-                  "text-text-weak hover:text-text-base": tab() !== item.id,
-                }}
-                onClick={() => layout.sidePane.setTab(item.id)}
-              >
-                <Icon name={item.icon as any} size="small" />
-                {language.t(item.labelKey)}
-              </button>
-            )}
-          </For>
-        </div>
-        <div class="flex-1 min-h-0 overflow-hidden">
-          <Show when={tab() === "preview"}>
-            <Show when={activeFileTab()} keyed fallback={<PreviewPanel />}>
-              {(t) => (
-                <div class="flex flex-col size-full min-h-0">
-                  <div class="flex items-center gap-0.5 px-1.5 h-8 border-b border-border-weak-base overflow-x-auto no-scrollbar">
-                    <For each={openedTabs()}>
-                      {(fileTab) => <SortableTab tab={fileTab} onTabClose={tabsApi().close} />}
-                    </For>
-                  </div>
-                  <div class="flex-1 min-h-0 overflow-hidden">
-                    <FileTabContent tab={t()} />
-                  </div>
+return (
+  <>
+    <ResizeHandle
+      direction="horizontal"
+      size={layout.sidePane.width()}
+      min={320}
+      max={typeof window === "undefined" ? 1000 : window.innerWidth * 0.6}
+      onResize={(w) => layout.sidePane.resize(w)}
+    />
+    <aside
+      id="side-pane"
+      class="shrink-0 h-full flex flex-col bg-background-base border-l border-border-weak-base"
+      style={{ width: `${width()}px` }}
+    >
+      <div class="flex items-center gap-0.5 h-9 px-1.5 border-b border-border-weak-base shrink-0">
+        <For each={tabs}>
+          {(item) => (
+            <button
+              classList={{
+                "flex items-center gap-1 px-2 h-7 rounded-md text-ui-xs transition-colors": true,
+                "bg-surface-raised-base text-text-strong": tab() === item.id,
+                "text-text-weak hover:text-text-base": tab() !== item.id,
+              }}
+              onClick={() => layout.sidePane.setTab(item.id)}
+            >
+              <Icon name={item.icon as any} size="small" />
+              {language.t(item.labelKey)}
+            </button>
+          )}
+        </For>
+      </div>
+      <div class="flex-1 min-h-0 overflow-hidden">
+        <Show when={tab() === "preview"}>
+          <Show when={activeFileTab()} keyed fallback={<PreviewPanel />}>
+            {(t) => (
+              <div class="flex flex-col size-full min-h-0">
+                <div class="flex items-center gap-0.5 px-1.5 h-8 border-b border-border-weak-base overflow-x-auto no-scrollbar">
+                  <For each={openedTabs()}>
+                    {(fileTab) => <SortableTab tab={fileTab} onTabClose={tabsApi().close} />}
+                  </For>
                 </div>
-              )}
-            </Show>
-          </Show>
-          <Show when={tab() === "terminal"}>
-            <TerminalPanel variant="pane" />
-          </Show>
-          <Show when={tab() === "files"}>
-            <div class="flex flex-col size-full min-h-0">
-              <div class="flex items-center gap-1 px-2 h-8 border-b border-border-weak-base shrink-0">
-                <For each={[["all", "session.files.all"], ["changes", "session.tab.review"], ["review", "session.tab.review"]] as const}>
-                  {(pair) => (
-                    <button
-                      classList={{
-                        "px-2 py-0.5 rounded-md text-ui-xs": true,
-                        "bg-surface-raised-base text-text-strong": fileTreeTab() === pair[0],
-                        "text-text-weak": fileTreeTab() !== pair[0],
-                      }}
-                      onClick={() => setFileTreeTabValue(pair[0])}
-                    >
-                      {language.t(pair[1])}
-                    </button>
-                  )}
-                </For>
+                <div class="flex-1 min-h-0 overflow-hidden">
+                  <FileTabContent tab={t()} />
+                </div>
               </div>
-              <div class="flex-1 min-h-0 overflow-hidden">
-                <Show when={fileTreeTab() === "changes"}>
-                  <FileTree path="" allowed={diffFiles()} kinds={kinds()} onFileClick={focusReviewDiff} />
-                </Show>
-                <Show when={fileTreeTab() === "all"}>
-                  <FileTree path="" modified={diffFiles()} kinds={kinds()} onFileClick={openTab} />
-                </Show>
-                <Show when={fileTreeTab() === "review"}>{props.reviewPanel()}</Show>
-              </div>
+            )}
+          </Show>
+        </Show>
+        <Show when={tab() === "terminal"}>
+          <TerminalPanel variant="pane" />
+        </Show>
+        <Show when={tab() === "files"}>
+          <div class="flex flex-col size-full min-h-0">
+            <div class="flex items-center gap-1 px-2 h-8 border-b border-border-weak-base shrink-0">
+              <For
+                each={
+                  [
+                    ["all", "session.files.all"],
+                    ["changes", "session.tab.review"],
+                    ["review", "session.tab.review"],
+                  ] as const
+                }
+              >
+                {(pair) => (
+                  <button
+                    classList={{
+                      "px-2 py-0.5 rounded-md text-ui-xs": true,
+                      "bg-surface-raised-base text-text-strong": fileTreeTab() === pair[0],
+                      "text-text-weak": fileTreeTab() !== pair[0],
+                    }}
+                    onClick={() => setFileTreeTabValue(pair[0])}
+                  >
+                    {language.t(pair[1])}
+                  </button>
+                )}
+              </For>
             </div>
-          </Show>
-          <Show when={tab() === "git"}>
-            <GitPanel />
-          </Show>
-          <Show when={tab() === "review"}>{props.reviewPanel()}</Show>
-          <Show when={tab() === "context"}>
-            <SessionContextTab />
-          </Show>
-        </div>
-      </aside>
-    </>
-  )
+            <div class="flex-1 min-h-0 overflow-hidden">
+              <Show when={fileTreeTab() === "changes"}>
+                <FileTree path="" allowed={diffFiles()} kinds={kinds()} onFileClick={focusReviewDiff} />
+              </Show>
+              <Show when={fileTreeTab() === "all"}>
+                <FileTree path="" modified={diffFiles()} kinds={kinds()} onFileClick={openTab} />
+              </Show>
+              <Show when={fileTreeTab() === "review"}>{props.reviewPanel()}</Show>
+            </div>
+          </div>
+        </Show>
+        <Show when={tab() === "git"}>
+          <GitPanel />
+        </Show>
+        <Show when={tab() === "review"}>{props.reviewPanel()}</Show>
+        <Show when={tab() === "context"}>
+          <SessionContextTab />
+        </Show>
+      </div>
+    </aside>
+  </>
+)
 ```
 
 4. import 调整：补 `For`、`PreviewPanel`（`./preview-panel`）、`TerminalPanel`（`./terminal-panel`）、`SidePaneTab`/`useLayout`（已有 layout 引用则复用）、`ResizeHandle`（沿用 session.tsx 现引入路径）、`Icon`；`fileTreeTab`/`setFileTreeTabValue`/`diffFiles`/`kinds`/`focusReviewDiff`/`openedTabs`/`activeFileTab`/`openTab` 沿用组件内现有 memo/helper 名（原文件已有）。文件树子 tab 的 label 第二项「changes」使用现有 `language.t("session.files.all")` 等键——changes tab 标签用现有键 `props.reviewCount()` 计数展示可保留（在按钮文本后拼 ` {props.reviewCount()}`）。
@@ -994,9 +1004,9 @@ export function TerminalPanel(props: { variant?: "frame" | "pane" }) {
 4. 底部 Terminal frame（L2048 与 office 分支 L2091）改为互斥挂载：
 
 ```tsx
-          <Show when={layout.sidePane.tab() !== "terminal"}>
-            <TerminalPanel />
-          </Show>
+<Show when={layout.sidePane.tab() !== "terminal"}>
+  <TerminalPanel />
+</Show>
 ```
 
 5. L907 键盘焦点条件改为：
@@ -1012,17 +1022,17 @@ export function TerminalPanel(props: { variant?: "frame" | "pane" }) {
    - L325-347 预览三态按钮替换为单一 sidePane 开关（图标固定 `layout-right`，删除 `previewIcon` L144-149）：
 
 ```tsx
-              <IconButton
-                icon="layout-right"
-                title={language.t("sidePane.tab.preview")}
-                aria-expanded={layout.sidePane.opened()}
-                onClick={() => layout.sidePane.toggle("preview")}
-              />
+<IconButton
+  icon="layout-right"
+  title={language.t("sidePane.tab.preview")}
+  aria-expanded={layout.sidePane.opened()}
+  onClick={() => layout.sidePane.toggle("preview")}
+/>
 ```
 
-   - L366-390 文件树开关改为 `onClick={() => layout.sidePane.setTab("files")}`、aria-expanded 改读 `layout.sidePane.opened() && layout.sidePane.tab() === "files"`。
-   - L391-413 Git 开关改为 `onClick={() => layout.sidePane.setTab("git")}`、同上读 tab。
-   - L333/335/342/343 等对 `view().viewMode` 的引用全部移除（按钮已换）。
+- L366-390 文件树开关改为 `onClick={() => layout.sidePane.setTab("files")}`、aria-expanded 改读 `layout.sidePane.opened() && layout.sidePane.tab() === "files"`。
+- L391-413 Git 开关改为 `onClick={() => layout.sidePane.setTab("git")}`、同上读 tab。
+- L333/335/342/343 等对 `view().viewMode` 的引用全部移除（按钮已换）。
 
 2. `packages/app/src/pages/session/use-session-commands.tsx` L467-473：
 
@@ -1037,7 +1047,7 @@ export function TerminalPanel(props: { variant?: "frame" | "pane" }) {
 3. `packages/app/src/context/dev-server.tsx` L44：
 
 ```ts
-    layout.sidePane.open("preview")
+layout.sidePane.open("preview")
 ```
 
 （补 `import { useLayout }` 与 `const layout = useLayout()`；原 `view().viewMode.set("split")` 行删除。）
@@ -1060,6 +1070,7 @@ Run: `bun run --cwd packages/app test:unit`
 Expected: PASS
 
 手动：
+
 - 单击侧栏文件树的文件 → Side Pane 打开、预览 tab 显示文件页签与内容
 - Side Pane 六 tab 全部可切；终端 tab 内终端可用且切走再切回 pty 保留
 - 底部终端 frame（Ctrl+`）与 sidePane 终端 tab 互斥（同时只有一个 Terminal 实例）
@@ -1078,6 +1089,7 @@ git commit -m "feat(layout): Side Pane six-tab panel; remove viewMode/split prev
 ### Task 5: 单行 WorkspaceHeader
 
 **Files:**
+
 - Create: `packages/app/src/components/session/workspace-header.tsx`
 - Modify: `packages/app/src/pages/session.tsx`（L1846 挂载）
 - Modify: `packages/app/src/components/session/session-header.tsx`（session-actions portal 删除）
@@ -1241,7 +1253,7 @@ import { WorkspaceHeader } from "@/components/session/workspace-header"
 2. L1846 `<SessionHeader />` 之后追加：
 
 ```tsx
-      <WorkspaceHeader />
+<WorkspaceHeader />
 ```
 
 - [ ] **Step 4: session-header 收敛 + titlebar 槽移除**
@@ -1268,6 +1280,7 @@ git commit -m "feat(session): single-row WorkspaceHeader; slim session-header po
 ### Task 6: Titlebar 克制化（Logo + 模式色点）
 
 **Files:**
+
 - Modify: `packages/app/src/components/mode-switch.tsx`
 - Modify: `packages/app/src/components/titlebar.tsx`
 - Modify: `packages/app/src/i18n/zh.ts`、`en.ts`
@@ -1355,15 +1368,15 @@ import { Mark } from "@novaway/ui/logo"
 2. 左列前进/返回按钮（L227-251）之后插入：
 
 ```tsx
-        <Mark class="size-6 shrink-0" />
+<Mark class="size-6 shrink-0" />
 ```
 
 3. `goModeHome`（L103-106）改为只导航（模式不再从首页选，reset 语义删除）：
 
 ```ts
-  const goModeHome = () => {
-    navigate("/")
-  }
+const goModeHome = () => {
+  navigate("/")
+}
 ```
 
 4. 中列 `<Show when={layout.mode.hasSelected()}>` 包裹（L300）删除——ModeSwitchButton 始终显示（未选模式时显示「选择模式」占位）。
@@ -1387,6 +1400,7 @@ git commit -m "feat(titlebar): logo + restrained mode dot switcher"
 ### Task 7: TaskCenterPage 首页
 
 **Files:**
+
 - Create: `packages/app/src/pages/task-center.tsx`
 - Modify: `packages/app/src/pages/home.tsx`
 - Modify: `packages/app/src/pages/layout.tsx`（showSidebar 门控 L2426-2428）
@@ -1483,14 +1497,14 @@ export default function TaskCenterPage() {
           <p class="text-ui-caption text-text-weak">{language.t("taskCenter.subtitle")}</p>
         </div>
         <div class="flex items-center gap-2">
-          <Button variant="primary" size="normal" onClick={() => navigate(`/${base64Encode(layout.projects.list()[0]?.worktree ?? "")}/session`)}>
+          <Button
+            variant="primary"
+            size="normal"
+            onClick={() => navigate(`/${base64Encode(layout.projects.list()[0]?.worktree ?? "")}/session`)}
+          >
             {language.t("taskCenter.newTask")}
           </Button>
-          <Button
-            variant="secondary"
-            size="normal"
-            onClick={() => layout.projectPicker.show()}
-          >
+          <Button variant="secondary" size="normal" onClick={() => layout.projectPicker.show()}>
             {language.t("taskCenter.openProject")}
           </Button>
         </div>
@@ -1503,7 +1517,9 @@ export default function TaskCenterPage() {
         />
         <Show
           when={rows().length > 0}
-          fallback={<div class="py-12 text-center text-ui-caption text-text-weak">{language.t("taskCenter.empty")}</div>}
+          fallback={
+            <div class="py-12 text-center text-ui-caption text-text-weak">{language.t("taskCenter.empty")}</div>
+          }
         >
           <div class="flex flex-col rounded-lg border border-border-weak-base overflow-hidden">
             <For each={rows()}>
@@ -1527,7 +1543,11 @@ export default function TaskCenterPage() {
                   <span class="text-ui-xs text-text-weak truncate max-w-[160px] hidden md:block">
                     {row.project.worktree.split(/[\\/]/).filter(Boolean).pop()}
                   </span>
-                  <Show when={row.session.summary && (row.session.summary.additions > 0 || row.session.summary.deletions > 0)}>
+                  <Show
+                    when={
+                      row.session.summary && (row.session.summary.additions > 0 || row.session.summary.deletions > 0)
+                    }
+                  >
                     <span class="text-ui-xs tabular-nums shrink-0">
                       <span class="text-[var(--icon-diff-add-base)]">+{row.session.summary?.additions ?? 0}</span>
                       <span class="text-[var(--icon-diff-delete-base)]">-{row.session.summary?.deletions ?? 0}</span>
@@ -1553,21 +1573,21 @@ export default function TaskCenterPage() {
 1. L162 起的分支整体替换为：
 
 ```tsx
-  return (
-    <Switch>
-      <Match when={layout.mode.current() === "pulse"}>
-        <Navigate href="/pulse" />
-      </Match>
-      <Match when={layout.mode.current() === "zen"}>
-        <OfficeHomeWorkspace
-          /* 沿用现有 props 传值 */
-        />
-      </Match>
-      <Match when>
-        <TaskCenterPage />
-      </Match>
-    </Switch>
-  )
+return (
+  <Switch>
+    <Match when={layout.mode.current() === "pulse"}>
+      <Navigate href="/pulse" />
+    </Match>
+    <Match when={layout.mode.current() === "zen"}>
+      <OfficeHomeWorkspace
+      /* 沿用现有 props 传值 */
+      />
+    </Match>
+    <Match when>
+      <TaskCenterPage />
+    </Match>
+  </Switch>
+)
 ```
 
 2. `ModeHomePage`/`DefaultHome`/`RecentProjects` 的使用与定义删除（`mode-home.tsx` 的 import 一并删）；`DefaultHome` 中「打开项目/新建项目」CTA 语义已由 TaskCenter 顶栏按钮承接。
@@ -1579,16 +1599,16 @@ export default function TaskCenterPage() {
 `packages/app/src/pages/layout.tsx` L2426-2428：
 
 ```ts
-  const modeSelected = createMemo(() => layout.mode.hasSelected())
-  const isPulseMode = createMemo(() => layout.mode.current() === "pulse")
-  const showSidebar = createMemo(() => modeSelected() && !isPulseMode())
+const modeSelected = createMemo(() => layout.mode.hasSelected())
+const isPulseMode = createMemo(() => layout.mode.current() === "pulse")
+const showSidebar = createMemo(() => modeSelected() && !isPulseMode())
 ```
 
 改为：
 
 ```ts
-  const isPulseMode = createMemo(() => layout.mode.current() === "pulse")
-  const showSidebar = createMemo(() => !isPulseMode())
+const isPulseMode = createMemo(() => layout.mode.current() === "pulse")
+const showSidebar = createMemo(() => !isPulseMode())
 ```
 
 （`modeSelected` 若无其他引用则删。）
@@ -1615,6 +1635,7 @@ git commit -m "feat(home): TaskCenterPage replaces mode-home; mode selection mov
 ### Task 8: e2e 更新与全量验证
 
 **Files:**
+
 - Modify: `packages/app/e2e/office.spec.ts`
 - Create: `packages/app/e2e/layout.spec.ts`
 
@@ -1625,7 +1646,10 @@ git commit -m "feat(home): TaskCenterPage replaces mode-home; mode selection mov
 ```ts
 async function enterZenOffice(page: Page) {
   await page.goto("/")
-  await page.getByRole("button", { name: /切换工作模式|选择模式/ }).first().click()
+  await page
+    .getByRole("button", { name: /切换工作模式|选择模式/ })
+    .first()
+    .click()
   await page.getByRole("menuitem", { name: /禅意模式/ }).click()
   await page.waitForTimeout(500)
 }
@@ -1654,7 +1678,9 @@ test("WorkspaceHeader 与 Side Pane 开关", async ({ page }) => {
   // 进入会话的稳定选择器以环境为准；以 WorkspaceHeader 出现为断言目标
   // 若 CI 环境无会话数据，此测试使用 test.skip 前置条件：
   test.skip((await page.getByText("暂无任务").count()) > 0, "无会话数据环境跳过")
-  await expect(page.locator("text=未命名任务").first().or(page.locator("[data-component=workspace-header]")).first()).toBeVisible()
+  await expect(
+    page.locator("text=未命名任务").first().or(page.locator("[data-component=workspace-header]")).first(),
+  ).toBeVisible()
 })
 ```
 
@@ -1691,7 +1717,7 @@ Expected: office.spec 6 测试 PASS（入口改造后）；layout.spec 新测试
 - [ ] 侧栏任务视图：过滤四档、项目分组、运行中呼吸点/待确认黄点、分支徽标、±统计（有 summary 的会话）、归档列表可进
 - [ ] 侧栏文件树：返回任务、A/M/D 徽标、仅变更、底部变更计数、点文件进预览 tab
 - [ ] 首页：未选模式即见任务中心；titlebar 选模式生效；zen/pulse 分支正常
-- [ ] 明/暗两态 × 2 套主题抽查：新组件全用 text-ui-*/语义色，无 Aurora 残留
+- [ ] 明/暗两态 × 2 套主题抽查：新组件全用 text-ui-\*/语义色，无 Aurora 残留
 - [ ] 断点 xl(1280) 以下侧栏抽屉、md(768) 以下 Side Pane 隐藏（沿用现状）
 - [ ] 设置页/命令面板/数据库页（Plan A 表面）无回归
 - [ ] 刷新后：sidebarWidth/sidePane.width/terminalHeight 保留；viewMode 等旧键被 migrate 清除（DevTools → novaway.global.dat:layout 检查无 viewMode/previewWidth 字段）

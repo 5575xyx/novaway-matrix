@@ -148,6 +148,10 @@ export const WorkflowTool = Tool.define<typeof Parameters, Metadata, WorkflowSer
                 runAgent,
                 defaultAgent: ctx.agent,
                 service: workflowService,
+                status: () =>
+                  workflowService
+                    .get(params.workflowId!)
+                    .pipe(Effect.map((item) => (item?.status ?? "running") as any)),
               })
               const output =
                 finalRun.status === "completed"

@@ -86,6 +86,8 @@ const ModelList: Component<{
         <div class="w-full flex items-center gap-x-2 text-13-regular">
           <ProviderIcon
             id={providerIconId(i.provider.id, i.provider.name)}
+            colorId={i.provider.id}
+            brand
             class="size-4 shrink-0 text-foreground-subtle"
           />
           <span class="truncate">{displayModelName(i.name, i.provider.id, isFree(i.provider.id, i.cost))}</span>
@@ -119,6 +121,7 @@ export function ModelSelectorPopover(props: {
   const dialog = useDialog()
   const modelsCtx = useModels()
 
+  // 思考强度已经移到工具栏的独立下拉（thinking-effort-popover），这里只保留模型列表。
   const close = (dismiss: Dismiss) => {
     setStore("dismiss", dismiss)
     setStore("open", false)

@@ -254,7 +254,9 @@ export function TerminalPanel(props: { variant?: "frame" | "pane" }) {
                   {language.t("common.loading.ellipsis")}
                 </div>
               </div>
-              <div class="flex-1 flex items-center justify-center text-foreground-subtle">{language.t("terminal.loading")}</div>
+              <div class="flex-1 flex items-center justify-center text-foreground-subtle">
+                {language.t("terminal.loading")}
+              </div>
             </div>
           }
         >
@@ -298,7 +300,9 @@ export function TerminalPanel(props: { variant?: "frame" | "pane" }) {
                 <Show when={all().length === 0 && terminal.createError()}>
                   <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center">
                     <div class="text-ui-base text-foreground">{language.t("terminal.connectError.title")}</div>
-                    <div class="text-ui-caption text-foreground-subtle">{language.t("terminal.connectError.description")}</div>
+                    <div class="text-ui-caption text-foreground-subtle">
+                      {language.t("terminal.connectError.description")}
+                    </div>
                     <div class="max-w-full break-all font-mono text-ui-caption text-foreground-subtle">
                       {terminal.createError()}
                     </div>

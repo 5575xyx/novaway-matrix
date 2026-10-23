@@ -1,4 +1,6 @@
 import { Agent } from "@/agent/agent"
+import { BackgroundJob } from "@/background/job"
+import { TempFiles } from "@/session/temp-files"
 import { Bus } from "@/bus"
 import { Command } from "@/command"
 import { Permission } from "@/permission"
@@ -11,6 +13,8 @@ import { SessionPrompt } from "@/session/prompt"
 import { SessionRevert } from "@/session/revert"
 import { SessionRunState } from "@/session/run-state"
 import { SessionStatus } from "@/session/status"
+import { Service as PlanApprovalService } from "@/session/plan-approval"
+import * as InstanceState from "@/effect/instance-state"
 import { SessionSummary } from "@/session/summary"
 import { Todo } from "@/session/todo"
 import { MessageID, PartID, SessionID } from "@/session/schema"
@@ -20,6 +24,7 @@ import * as Stream from "effect/Stream"
 import { HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
 import { HttpApiBuilder, HttpApiError, HttpApiSchema } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
+import { notFound } from "../errors"
 import {
   CommandPayload,
   DiffQuery,
@@ -28,6 +33,8 @@ import {
   ListQuery,
   MessagesQuery,
   PermissionResponsePayload,
+  PlanApprovalReplyPayload,
+  TempFileCleanPayload,
   PromptPayload,
   RevertPayload,
   RevertPreviewPayload,
@@ -54,6 +61,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     const agentSvc = yield* Agent.Service
     const permissionSvc = yield* Permission.Service
     const statusSvc = yield* SessionStatus.Service
+    const backgroundSvc = yield* BackgroundJob.Service
     const todoSvc = yield* Todo.Service
     const summary = yield* SessionSummary.Service
     const bus = yield* Bus.Service
@@ -185,6 +193,21 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
           permission: Permission.merge(current.permission ?? [], ctx.payload.permission),
         })
       }
+      if (ctx.payload.permissionMode !== undefined) {
+        yield* session.setPermissionMode({
+          sessionID: ctx.params.sessionID,
+          mode: ctx.payload.permissionMode,
+        })
+      }
+      if (ctx.payload.cwd !== undefined) {
+        // `requireSession` above already ruled out "not found", so every failure
+        // here means "that path is not a usable directory".
+        const moved = yield* session.setDirectory({ sessionID: ctx.params.sessionID, directory: ctx.payload.cwd }).pipe(
+          Effect.as(true),
+          Effect.catch(() => Effect.succeed(false)),
+        )
+        if (!moved) yield* Effect.fail(new HttpApiError.BadRequest({}))
+      }
       if (ctx.payload.time?.archived !== undefined) {
         yield* session.setArchived({ sessionID: ctx.params.sessionID, time: ctx.payload.time.archived })
       }
@@ -217,6 +240,91 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     const abort = Effect.fn("SessionHttpApi.abort")(function* (ctx: { params: { sessionID: SessionID } }) {
       yield* promptSvc.cancel(ctx.params.sessionID)
       return true
+    })
+
+    // 只暴露「这条会话发起的」后台任务：子代理 job 的 parentSessionId 是父会话，
+    // 后台命令的 sessionId 就是当前会话。别的会话/项目的 job 一概不可见、不可停。
+    const ownsBackgroundJob = (job: BackgroundJob.Info, sessionID: SessionID) =>
+      job.metadata?.parentSessionId === sessionID || job.metadata?.sessionId === sessionID
+
+    const tempFiles = Effect.fn("SessionHttpApi.tempFiles")(function* (ctx: { params: { sessionID: SessionID } }) {
+      yield* requireSession(ctx.params.sessionID)
+      return (yield* Effect.promise(() => TempFiles.list(ctx.params.sessionID))).map((file) => ({
+        path: file.path,
+        relative: file.relative,
+        tool: file.tool,
+        createdAt: file.createdAt,
+        size: file.size,
+      }))
+    })
+
+    const planApproval = Effect.fn("SessionHttpApi.planApproval")(function* (ctx: {
+      params: { sessionID: SessionID }
+    }) {
+      yield* requireSession(ctx.params.sessionID)
+      const service = yield* PlanApprovalService
+      const list = yield* service.list()
+      return list
+        .filter((item) => item.sessionID === ctx.params.sessionID || item.parentID === ctx.params.sessionID)
+        .map((item) => ({
+          id: item.id as string,
+          sessionID: item.sessionID as string,
+          parentID: (item.parentID ?? undefined) as string | undefined,
+          messageID: (item.messageID ?? undefined) as string | undefined,
+          plan: item.plan,
+          title: item.title,
+          createdAt: item.createdAt,
+        }))
+        .filter((item) => item !== undefined)
+    })
+
+    const planApprovalReply = Effect.fn("SessionHttpApi.planApprovalReply")(function* (ctx: {
+      params: { sessionID: SessionID; requestID: string }
+      payload: typeof PlanApprovalReplyPayload.Type
+    }) {
+      yield* requireSession(ctx.params.sessionID)
+      const service = yield* PlanApprovalService
+      const ok = yield* service.reply({
+        id: ctx.params.requestID as never,
+        approved: ctx.payload.approved,
+        ...(ctx.payload.feedback ? { feedback: ctx.payload.feedback } : {}),
+      })
+      return ok
+    })
+
+    const tempFilesClean = Effect.fn("SessionHttpApi.tempFilesClean")(function* (ctx: {
+      params: { sessionID: SessionID }
+      payload: typeof TempFileCleanPayload.Type
+    }) {
+      yield* requireSession(ctx.params.sessionID)
+      const instance = yield* InstanceState.context
+      const worktree = instance.worktree === "/" ? instance.directory : instance.worktree
+      return yield* Effect.promise(() =>
+        TempFiles.clean({
+          sessionID: ctx.params.sessionID,
+          worktree,
+          paths: ctx.payload.paths ? Array.from(ctx.payload.paths) : undefined,
+        }),
+      )
+    })
+
+    const background = Effect.fn("SessionHttpApi.background")(function* (ctx: { params: { sessionID: SessionID } }) {
+      yield* requireSession(ctx.params.sessionID)
+      // The panel is per session: show history from earlier runs too, since a
+      // restart otherwise makes finished subagents vanish from the list.
+      const jobs = yield* backgroundSvc.list({ includePersisted: true })
+      return jobs.filter((job) => ownsBackgroundJob(job, ctx.params.sessionID))
+    })
+
+    const backgroundCancel = Effect.fn("SessionHttpApi.backgroundCancel")(function* (ctx: {
+      params: { sessionID: SessionID; jobID: string }
+    }) {
+      yield* requireSession(ctx.params.sessionID)
+      const job = yield* backgroundSvc.get(ctx.params.jobID)
+      if (!job || !ownsBackgroundJob(job, ctx.params.sessionID)) {
+        return yield* notFound("Background job not found")
+      }
+      return (yield* backgroundSvc.cancel(job.id)) ?? null
     })
 
     const init = Effect.fn("SessionHttpApi.init")(function* (ctx: {
@@ -410,6 +518,12 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       .handle("update", update)
       .handleRaw("fork", forkRaw)
       .handle("abort", abort)
+      .handle("tempFiles", tempFiles)
+      .handle("planApproval", planApproval)
+      .handle("planApprovalReply", planApprovalReply)
+      .handle("tempFilesClean", tempFilesClean)
+      .handle("background", background)
+      .handle("backgroundCancel", backgroundCancel)
       .handle("init", init)
       .handle("share", share)
       .handle("unshare", unshare)

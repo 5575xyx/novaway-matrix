@@ -30,11 +30,9 @@ export function useSessionContextData() {
     { equals: same },
   )
 
-  const userMessages = createMemo(
-    () => messages().filter((m) => m.role === "user"),
-    emptyUserMessages,
-    { equals: same },
-  )
+  const userMessages = createMemo(() => messages().filter((m) => m.role === "user"), emptyUserMessages, {
+    equals: same,
+  })
 
   const visibleUserMessages = createMemo(
     () => {

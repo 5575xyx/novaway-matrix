@@ -26,7 +26,8 @@ const nuls = (text: string) => text.split("\0").filter(Boolean)
 // 超时时 AppProcess 抛的是带 cause: Error("Timed out") 的 AppProcessError,
 // 这里把它还原成布尔位,调用方好给出明确的错误文案。
 const timedOut = (cause: unknown) => {
-  const reason = cause && typeof cause === "object" && "cause" in cause ? (cause as { cause?: unknown }).cause : undefined
+  const reason =
+    cause && typeof cause === "object" && "cause" in cause ? (cause as { cause?: unknown }).cause : undefined
   return reason instanceof Error && reason.message === "Timed out"
 }
 

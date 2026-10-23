@@ -51,6 +51,9 @@ export const GitCommit = Schema.Struct({
   subject: Schema.String,
   author: Schema.String,
   date: Schema.String,
+  // 父提交与指向该提交的引用：Git 图谱要靠它们画分叉、给分支打标签。
+  parents: Schema.optional(Schema.Array(Schema.String)),
+  refs: Schema.optional(Schema.Array(Schema.String)),
 })
 
 // 一次拿全:侧栏面板刷新时不想跑六次 HTTP 往返。
@@ -69,6 +72,32 @@ export const GitFilesPayload = Schema.Struct({
 
 export const GitCommitPayload = Schema.Struct({
   message: Schema.String,
+})
+
+export const GitMergePayload = Schema.Struct({
+  ref: Schema.String,
+  /** true 时用 --no-ff 保留合并提交，便于在图谱里看到分叉。 */
+  noFastForward: Schema.optional(Schema.Boolean),
+})
+
+// 单个提交的详情：图谱点开/hover 时展示完整说明与改动文件。
+export const GitCommitDetail = Schema.Struct({
+  hash: Schema.String,
+  subject: Schema.String,
+  body: Schema.String,
+  author: Schema.String,
+  authorEmail: Schema.String,
+  date: Schema.String,
+  parents: Schema.Array(Schema.String),
+  refs: Schema.Array(Schema.String),
+  files: Schema.Array(
+    Schema.Struct({
+      file: Schema.String,
+      additions: Schema.Number,
+      deletions: Schema.Number,
+      binary: Schema.Boolean,
+    }),
+  ),
 })
 
 // 给了 ref 就是弹出那条贮藏,没给就是贮藏当前改动。
@@ -109,6 +138,9 @@ export const GitPaths = {
   commit: "/git/commit",
   push: "/git/push",
   pull: "/git/pull",
+  fetch: "/git/fetch",
+  merge: "/git/merge",
+  commitDetail: "/git/commit/:hash",
   stash: "/git/stash",
   branch: "/git/branch",
   remote: "/git/remote",
@@ -200,6 +232,41 @@ export const GitApi = HttpApi.make("git")
             identifier: "git.pull",
             summary: "Pull",
             description: "Pull and merge the upstream of the current branch.",
+          }),
+        ),
+        HttpApiEndpoint.post("fetch", GitPaths.fetch, {
+          query: WorkspaceRoutingQuery,
+          success: snapshotSuccess,
+          error: ApiGitError,
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "git.fetch",
+            summary: "Fetch",
+            description: "Fetch all remotes with prune.",
+          }),
+        ),
+        HttpApiEndpoint.post("merge", GitPaths.merge, {
+          query: WorkspaceRoutingQuery,
+          payload: GitMergePayload,
+          success: snapshotSuccess,
+          error: ApiGitError,
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "git.merge",
+            summary: "Merge branch",
+            description: "Merge the given ref into the current branch.",
+          }),
+        ),
+        HttpApiEndpoint.get("commitDetail", GitPaths.commitDetail, {
+          params: { hash: Schema.String },
+          query: WorkspaceRoutingQuery,
+          success: described(GitCommitDetail, "Commit detail"),
+          error: ApiGitError,
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "git.commit.detail",
+            summary: "Commit detail",
+            description: "Full message, author, parents and changed files of a commit.",
           }),
         ),
         HttpApiEndpoint.post("stash", GitPaths.stash, {

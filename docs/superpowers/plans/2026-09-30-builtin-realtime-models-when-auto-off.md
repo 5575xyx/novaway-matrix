@@ -13,12 +13,14 @@
 ## 文件结构
 
 **TUI (`packages/tui`)**
+
 - Modify `src/component/dialog-model.tsx` — 导出 `isAutoModel`；模型选择器改为按模型粒度排除 auto（不再整体隐藏 builtin 提供商）。
 - Modify `src/context/local.tsx` — 导出 `defaultSelectableModel`；回退默认 provider 允许 builtin 实时模型（排除 auto）。
 - Test `test/cli/cmd/tui/model-options.test.ts` — `isAutoModel` 单测。
 - Test `test/context/local.test.ts` — `defaultSelectableModel` 单测。
 
 **App (`packages/app`)**
+
 - Modify `src/utils/model-name.ts` — 导出 `isAutoModel` 与 `firstSelectableModel`。
 - Modify `src/components/dialog-select-model.tsx` — 选择器过滤只排除 `builtin/auto`。
 - Modify `src/context/models.tsx` — `setAutoMode` 只跳过 auto。
@@ -30,6 +32,7 @@
 ## Task 1: TUI — 选择器按模型粒度排除 auto
 
 **Files:**
+
 - Modify: `packages/tui/src/component/dialog-model.tsx`
 - Test: `packages/tui/test/cli/cmd/tui/model-options.test.ts`
 
@@ -77,73 +80,67 @@ export function isAutoModel(providerID: string, modelID: string) {
 将 `options()` 内对收藏/最近使用的局部判定（原文件 `:32-35`）改为使用新函数：
 
 ```ts
-    const favorites = connected() ? local.model.favorite() : []
-    // Auto 关闭后,builtin/auto 不再是可选项,别让它出现在收藏/最近使用里。
-    const recents = local.model.recent().filter((item) => !isAutoModel(item.providerID, item.modelID))
+const favorites = connected() ? local.model.favorite() : []
+// Auto 关闭后,builtin/auto 不再是可选项,别让它出现在收藏/最近使用里。
+const recents = local.model.recent().filter((item) => !isAutoModel(item.providerID, item.modelID))
 ```
 
 将 `:61` 的收藏过滤改为：
 
 ```ts
-    const favoriteOptions = toOptions(
-      favorites.filter((item) => !isAutoModel(item.providerID, item.modelID)),
-      "收藏",
-    )
+const favoriteOptions = toOptions(
+  favorites.filter((item) => !isAutoModel(item.providerID, item.modelID)),
+  "收藏",
+)
 ```
 
 移除提供商级过滤（原 `:69-72` 的注释与 `filter((provider) => !(autoMode() === false && provider.id === "builtin"))`），并在模型遍历里按模型粒度过滤 auto。改后：
 
 ```ts
-    const providerOptions = pipe(
-      sync.data.provider,
-      sortBy(
-        (provider) => provider.id !== "NovaWay",
-        (provider) => provider.name,
-      ),
-      flatMap((provider) =>
-        pipe(
-          provider.models,
-          entries(),
-          filter(([model]) => !isAutoModel(provider.id, model)),
-          filter(([_, info]) => info.status !== "deprecated"),
-          filter(([_, info]) => (props.providerID ? info.providerID === props.providerID : true)),
-          map(([model, info]) => ({
-            value: { providerID: provider.id, modelID: model },
-            title: displayModelName(info.name ?? model, provider.id, info.cost?.input === 0),
-            releaseDate: info.release_date,
-            description: joinDescription(
-              favorites.some((item) => item.providerID === provider.id && item.modelID === model)
-                ? "(收藏)"
-                : undefined,
-              info.cost?.input === 0,
-            ),
-            category: connected() ? displayModelGroup(provider.id, provider.name) : undefined,
-            disabled: provider.id === "NovaWay" && model.includes("-nano"),
-            free: info.cost?.input === 0,
-            onSelect() {
-              onSelect(provider.id, model)
-            },
-          })),
-          filter((option) => {
-            if (!showSections) return true
-            if (
-              favorites.some(
-                (item) => item.providerID === option.value.providerID && item.modelID === option.value.modelID,
-              )
-            )
-              return false
-            if (
-              recents.some(
-                (item) => item.providerID === option.value.providerID && item.modelID === option.value.modelID,
-              )
-            )
-              return false
-            return true
-          }),
-          (options) => sortModelOptions(options, props.providerID !== undefined),
+const providerOptions = pipe(
+  sync.data.provider,
+  sortBy(
+    (provider) => provider.id !== "NovaWay",
+    (provider) => provider.name,
+  ),
+  flatMap((provider) =>
+    pipe(
+      provider.models,
+      entries(),
+      filter(([model]) => !isAutoModel(provider.id, model)),
+      filter(([_, info]) => info.status !== "deprecated"),
+      filter(([_, info]) => (props.providerID ? info.providerID === props.providerID : true)),
+      map(([model, info]) => ({
+        value: { providerID: provider.id, modelID: model },
+        title: displayModelName(info.name ?? model, provider.id, info.cost?.input === 0),
+        releaseDate: info.release_date,
+        description: joinDescription(
+          favorites.some((item) => item.providerID === provider.id && item.modelID === model) ? "(收藏)" : undefined,
+          info.cost?.input === 0,
         ),
-      ),
-    )
+        category: connected() ? displayModelGroup(provider.id, provider.name) : undefined,
+        disabled: provider.id === "NovaWay" && model.includes("-nano"),
+        free: info.cost?.input === 0,
+        onSelect() {
+          onSelect(provider.id, model)
+        },
+      })),
+      filter((option) => {
+        if (!showSections) return true
+        if (
+          favorites.some((item) => item.providerID === option.value.providerID && item.modelID === option.value.modelID)
+        )
+          return false
+        if (
+          recents.some((item) => item.providerID === option.value.providerID && item.modelID === option.value.modelID)
+        )
+          return false
+        return true
+      }),
+      (options) => sortModelOptions(options, props.providerID !== undefined),
+    ),
+  ),
+)
 ```
 
 - [ ] **Step 4: 运行测试确认通过**
@@ -163,6 +160,7 @@ git commit -m "feat(tui): 关闭 Auto 后按模型粒度展示内置实时模型
 ## Task 2: TUI — 回退默认 provider 允许内置实时模型
 
 **Files:**
+
 - Modify: `packages/tui/src/context/local.tsx`
 - Test: `packages/tui/test/context/local.test.ts`
 
@@ -224,35 +222,33 @@ export function defaultSelectableModel(
 将 `fallbackModel` 末尾的默认 provider 段（原 `:253-263`）：
 
 ```ts
-        // 内置提供商只承载 Auto 模型,手动模式不要回退到它
-        const provider = sync.data.provider.find((item) => item.id !== "builtin")
-        if (!provider) return undefined
-        const defaultModel = sync.data.provider_default[provider.id]
-        const firstModel = Object.values(provider.models)[0]
-        const model = defaultModel ?? firstModel?.id
-        if (!model) return undefined
-        return {
-          providerID: provider.id,
-          modelID: model,
-        }
+// 内置提供商只承载 Auto 模型,手动模式不要回退到它
+const provider = sync.data.provider.find((item) => item.id !== "builtin")
+if (!provider) return undefined
+const defaultModel = sync.data.provider_default[provider.id]
+const firstModel = Object.values(provider.models)[0]
+const model = defaultModel ?? firstModel?.id
+if (!model) return undefined
+return {
+  providerID: provider.id,
+  modelID: model,
+}
 ```
 
 替换为：
 
 ```ts
-        // 优先非内置提供商;仅当没有其它提供商时,内置实时模型也可作为最后兜底(排除 auto)
-        const provider =
-          sync.data.provider.find((item) => item.id !== "builtin") ??
-          sync.data.provider.find(
-            (item) => defaultSelectableModel(item, sync.data.provider_default) !== undefined,
-          )
-        if (!provider) return undefined
-        const model = defaultSelectableModel(provider, sync.data.provider_default)
-        if (!model) return undefined
-        return {
-          providerID: provider.id,
-          modelID: model,
-        }
+// 优先非内置提供商;仅当没有其它提供商时,内置实时模型也可作为最后兜底(排除 auto)
+const provider =
+  sync.data.provider.find((item) => item.id !== "builtin") ??
+  sync.data.provider.find((item) => defaultSelectableModel(item, sync.data.provider_default) !== undefined)
+if (!provider) return undefined
+const model = defaultSelectableModel(provider, sync.data.provider_default)
+if (!model) return undefined
+return {
+  providerID: provider.id,
+  modelID: model,
+}
 ```
 
 - [ ] **Step 4: 运行测试确认通过**
@@ -272,6 +268,7 @@ git commit -m "feat(tui): 回退链允许内置实时模型兜底"
 ## Task 3: App — 新增 `isAutoModel` 并接入选择器与上下文
 
 **Files:**
+
 - Modify: `packages/app/src/utils/model-name.ts`
 - Modify: `packages/app/src/components/dialog-select-model.tsx`
 - Modify: `packages/app/src/context/models.tsx`
@@ -329,17 +326,17 @@ import { displayModelGroup, displayModelName, isAutoModel } from "@/utils/model-
 将 `models` memo（`:35-45`）改为：
 
 ```ts
-  const models = createMemo(() => {
-    // Auto Mode ON 时，返回空列表（隐藏模型列表）
-    if (modelsCtx.autoMode()) return []
+const models = createMemo(() => {
+  // Auto Mode ON 时，返回空列表（隐藏模型列表）
+  if (modelsCtx.autoMode()) return []
 
-    // Auto 关闭后，仅排除内置的 auto 条目，内置实时模型仍可选择。
-    return model
-      .list()
-      .filter((m) => model.visible({ modelID: m.id, providerID: m.provider.id }))
-      .filter((m) => !isAutoModel(m.provider.id, m.id))
-      .filter((m) => (props.provider ? m.provider.id === props.provider : true))
-  })
+  // Auto 关闭后，仅排除内置的 auto 条目，内置实时模型仍可选择。
+  return model
+    .list()
+    .filter((m) => model.visible({ modelID: m.id, providerID: m.provider.id }))
+    .filter((m) => !isAutoModel(m.provider.id, m.id))
+    .filter((m) => (props.provider ? m.provider.id === props.provider : true))
+})
 ```
 
 - [ ] **Step 6: 接入 models 上下文**
@@ -353,22 +350,22 @@ import { isAutoModel } from "@/utils/model-name"
 将 `setAutoMode`（`:153-168`）改为：
 
 ```ts
-    const setAutoMode = (value: boolean) => {
-      if (value) {
-        // 开启 Auto:记住当前手动模型(recent 按时间排序,取第一个非 auto 项)
-        const manual = store.recent.find((item) => !isAutoModel(item.providerID, item.modelID))
-        if (manual) setStore("lastManual", { ...manual })
-      } else {
-        // 关闭 Auto:恢复上次手动模型到最近使用首位,让 fallback 链第一个命中它
-        const manual = store.lastManual
-        if (manual && !isAutoModel(manual.providerID, manual.modelID)) {
-          const uniq = uniqueBy([manual, ...store.recent], (x) => `${x.providerID}:${x.modelID}`)
-          if (uniq.length > RECENT_LIMIT) uniq.pop()
-          setStore("recent", uniq)
-        }
-      }
-      setStore("autoMode", value)
+const setAutoMode = (value: boolean) => {
+  if (value) {
+    // 开启 Auto:记住当前手动模型(recent 按时间排序,取第一个非 auto 项)
+    const manual = store.recent.find((item) => !isAutoModel(item.providerID, item.modelID))
+    if (manual) setStore("lastManual", { ...manual })
+  } else {
+    // 关闭 Auto:恢复上次手动模型到最近使用首位,让 fallback 链第一个命中它
+    const manual = store.lastManual
+    if (manual && !isAutoModel(manual.providerID, manual.modelID)) {
+      const uniq = uniqueBy([manual, ...store.recent], (x) => `${x.providerID}:${x.modelID}`)
+      if (uniq.length > RECENT_LIMIT) uniq.pop()
+      setStore("recent", uniq)
     }
+  }
+  setStore("autoMode", value)
+}
 ```
 
 - [ ] **Step 7: 接入 local 上下文（recent / current）**
@@ -382,19 +379,19 @@ import { isAutoModel } from "@/utils/model-name"
 删除局部定义（原 `:153`）：
 
 ```ts
-    const isAutoModel = (item: ModelKey) => item.providerID === "builtin" && item.modelID === "auto"
+const isAutoModel = (item: ModelKey) => item.providerID === "builtin" && item.modelID === "auto"
 ```
 
 将 `recentModel`（`:155-161`）改为：
 
 ```ts
-    const recentModel = () => {
-      for (const item of models.recent.list()) {
-        // Auto 关闭后,仅跳过内置 auto 条目,内置实时模型仍可回退
-        if (isAutoModel(item.providerID, item.modelID)) continue
-        if (validModel(item)) return item
-      }
-    }
+const recentModel = () => {
+  for (const item of models.recent.list()) {
+    // Auto 关闭后,仅跳过内置 auto 条目,内置实时模型仍可回退
+    if (isAutoModel(item.providerID, item.modelID)) continue
+    if (validModel(item)) return item
+  }
+}
 ```
 
 将 `current()`（`:233-250`）内的两处守卫改为：
@@ -433,6 +430,7 @@ git commit -m "feat(app): 关闭 Auto 后展示内置实时模型"
 ## Task 4: App — 默认回退模型允许内置实时模型
 
 **Files:**
+
 - Modify: `packages/app/src/utils/model-name.ts`
 - Modify: `packages/app/src/context/local.tsx`
 - Test: `packages/app/src/utils/model-name.test.ts`
@@ -522,20 +520,18 @@ import { firstSelectableModel, isAutoModel } from "@/utils/model-name"
 将 `defaultModel`（原 `:163-179`）替换为：
 
 ```ts
-    const defaultModel = () => {
-      // 内置提供商承载 Auto + 网关发现的模型,手动模式只排除 auto;优先非内置提供商
-      const defaults = providers.default()
-      const ordered = [...providers.connected()].sort(
-        (a, b) => Number(a.id === "builtin") - Number(b.id === "builtin"),
-      )
-      for (const provider of ordered) {
-        const modelID = firstSelectableModel(provider, defaults, (id) =>
-          validModel({ providerID: provider.id, modelID: id }),
-        )
-        if (!modelID) continue
-        return { providerID: provider.id, modelID }
-      }
-    }
+const defaultModel = () => {
+  // 内置提供商承载 Auto + 网关发现的模型,手动模式只排除 auto;优先非内置提供商
+  const defaults = providers.default()
+  const ordered = [...providers.connected()].sort((a, b) => Number(a.id === "builtin") - Number(b.id === "builtin"))
+  for (const provider of ordered) {
+    const modelID = firstSelectableModel(provider, defaults, (id) =>
+      validModel({ providerID: provider.id, modelID: id }),
+    )
+    if (!modelID) continue
+    return { providerID: provider.id, modelID }
+  }
+}
 ```
 
 - [ ] **Step 6: 运行测试与类型检查**
@@ -595,6 +591,7 @@ bun dev -- --port 4444
 ```
 
 打开 `http://localhost:4444`，验证：
+
 1. Auto 开启时，模型选择器为空并显示提示文案。
 2. 关闭 Auto 后，"内置"分组出现网关实时模型（不含 `auto`）。
 3. 选中某个内置实时模型后，它成为当前模型，并出现在"最近使用"。

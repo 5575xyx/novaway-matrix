@@ -21,6 +21,7 @@ import { InstanceRef, WorkspaceRef } from "../../src/effect/instance-ref"
 import { InstanceLayer } from "../../src/project/instance-layer"
 import { Project } from "../../src/project/project"
 import { instanceRouterMiddleware } from "../../src/server/routes/instance/httpapi/middleware/instance-context"
+import { defaultLayer as BackgroundResume } from "../../src/background/resume"
 import { workspaceRouterMiddleware } from "../../src/server/routes/instance/httpapi/middleware/workspace-routing"
 import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, tmpdirScoped } from "../fixture/fixture"
@@ -55,6 +56,7 @@ const it = testEffect(
 const instanceContextTestLayer = instanceRouterMiddleware
   .combine(workspaceRouterMiddleware)
   .layer.pipe(Layer.provide(Socket.layerWebSocketConstructorGlobal))
+  .pipe(Layer.provide(BackgroundResume))
 
 const localAdapter = (directory: string): WorkspaceAdapter => ({
   name: "Local Test",

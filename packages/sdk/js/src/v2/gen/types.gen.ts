@@ -12,11 +12,15 @@ export type Event =
   | EventServerConnected
   | EventGlobalDisposed
   | EventServerInstanceDisposed
+  | EventConfigUpdated
   | EventFileEdited
   | EventFileWatcherUpdated
   | EventLspClientDiagnostics
   | EventLspUpdated
   | EventMessagePartDelta
+  | EventPlanApprovalRequested
+  | EventPlanApprovalResolved
+  | EventHookActive
   | EventPermissionAsked
   | EventPermissionReplied
   | EventMemoryReviewUpdated
@@ -37,6 +41,11 @@ export type Event =
   | EventProjectUpdated
   | EventSessionCompacted
   | EventSessionRevertChanged
+  | EventAgentStarted
+  | EventAgentCompleted1
+  | EventInstallationUpdated
+  | EventInstallationUpdateAvailable
+  | EventInstallationUpdateFailed
   | EventVcsBranchUpdated
   | EventWorkspaceReady
   | EventWorkspaceFailed
@@ -47,9 +56,6 @@ export type Event =
   | EventPtyUpdated
   | EventPtyExited
   | EventPtyDeleted
-  | EventInstallationUpdated
-  | EventInstallationUpdateAvailable
-  | EventInstallationUpdateFailed
   | EventMessageUpdated
   | EventMessageRemoved
   | EventMessagePartUpdated
@@ -163,6 +169,27 @@ export type EventTuiSessionSelect = {
      */
     sessionID: string
   }
+}
+
+export type PlanRequestId = string
+
+export type PlanApprovalPending = {
+  id: PlanRequestId
+  sessionID: string
+  parentID?: string
+  messageID?: string
+  plan: string
+  title?: string
+  createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type HookActive = {
+  id: string
+  event: string
+  source: string
+  message: string
+  sessionID?: string
+  startedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
 }
 
 export type PermissionRequest = {
@@ -744,6 +771,8 @@ export type PermissionRule = {
 
 export type PermissionRuleset = Array<PermissionRule>
 
+export type PermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions"
+
 export type Session = {
   id: string
   slug: string
@@ -786,6 +815,7 @@ export type Session = {
     archived?: number
   }
   permission?: PermissionRuleset
+  permissionMode?: PermissionMode
   revert?: {
     messageID: string
     partID?: string
@@ -814,11 +844,15 @@ export type GlobalEvent = {
     | EventServerConnected
     | EventGlobalDisposed
     | EventServerInstanceDisposed
+    | EventConfigUpdated
     | EventFileEdited
     | EventFileWatcherUpdated
     | EventLspClientDiagnostics
     | EventLspUpdated
     | EventMessagePartDelta
+    | EventPlanApprovalRequested
+    | EventPlanApprovalResolved
+    | EventHookActive
     | EventPermissionAsked
     | EventPermissionReplied
     | EventMemoryReviewUpdated
@@ -839,6 +873,11 @@ export type GlobalEvent = {
     | EventProjectUpdated
     | EventSessionCompacted
     | EventSessionRevertChanged
+    | EventAgentStarted
+    | EventAgentCompleted
+    | EventInstallationUpdated
+    | EventInstallationUpdateAvailable
+    | EventInstallationUpdateFailed
     | EventVcsBranchUpdated
     | EventWorkspaceReady
     | EventWorkspaceFailed
@@ -849,9 +888,6 @@ export type GlobalEvent = {
     | EventPtyUpdated
     | EventPtyExited
     | EventPtyDeleted
-    | EventInstallationUpdated
-    | EventInstallationUpdateAvailable
-    | EventInstallationUpdateFailed
     | EventMessageUpdated
     | EventMessageRemoved
     | EventMessagePartUpdated
@@ -995,9 +1031,14 @@ export type AgentConfig = {
   temperature?: number
   top_p?: number
   prompt?: string
-  tools?: {
-    [key: string]: boolean
-  }
+  /**
+   * Tool allowlist (array) or legacy boolean map (deprecated, use 'permission').
+   */
+  tools?:
+    | Array<string>
+    | {
+        [key: string]: boolean
+      }
   disable?: boolean
   description?: string
   mode?: "subagent" | "primary" | "all"
@@ -1012,10 +1053,30 @@ export type AgentConfig = {
   steps?: number
   maxSteps?: number
   permission?: PermissionConfig
+  disallowedTools?: Array<string>
+  skills?: Array<string>
+  mcpServers?: Array<
+    | string
+    | {
+        [key: string]: unknown
+      }
+  >
+  hooks?: {
+    [key: string]: unknown
+  }
+  permissionMode?: "default" | "acceptEdits" | "plan" | "bypassPermissions"
+  maxTurns?: number
+  background?: boolean
+  isolation?: "worktree"
+  memory?: "user" | "project" | "local"
+  initialPrompt?: string
+  effort?: string
+  outputStyle?: string
   [key: string]:
     | unknown
     | string
     | number
+    | Array<string>
     | {
         [key: string]: boolean
       }
@@ -1036,6 +1097,25 @@ export type AgentConfig = {
     | "info"
     | number
     | PermissionConfig
+    | Array<string>
+    | Array<string>
+    | Array<
+        | string
+        | {
+            [key: string]: unknown
+          }
+      >
+    | {
+        [key: string]: unknown
+      }
+    | "default"
+    | "acceptEdits"
+    | "plan"
+    | "bypassPermissions"
+    | "worktree"
+    | "user"
+    | "project"
+    | "local"
     | undefined
 }
 
@@ -1192,11 +1272,29 @@ export type Config = {
       agent?: string
       model?: string
       subtask?: boolean
+      type?: "prompt" | "action"
+      aliases?: Array<string>
+      argumentHint?: string
+      whenToUse?: string
+      version?: string
+      context?: "inline" | "fork"
+      allowedTools?: Array<string>
+      paths?: Array<string>
+      hooks?: {
+        [key: string]: unknown
+      }
+      userInvocable?: boolean
+      disableModelInvocation?: boolean
+      isHidden?: boolean
+      immediate?: boolean
+      sensitive?: boolean
+      handler?: string
     }
   }
   skills?: {
     paths?: Array<string>
     urls?: Array<string>
+    disabled?: Array<string>
   }
   reference?: ReferenceConfig
   watcher?: {
@@ -1328,6 +1426,7 @@ export type Config = {
   instructions?: Array<string>
   layout?: LayoutConfig
   permission?: PermissionConfig
+  permission_mode?: "default" | "acceptEdits" | "plan" | "bypassPermissions"
   tools?: {
     [key: string]: boolean
   }
@@ -1349,16 +1448,27 @@ export type Config = {
   experimental?: {
     disable_paste_summary?: boolean
     background_subagents?: boolean
+    defer_loading?: boolean
+    tool_result_budget_chars?: number
+    tool_result_keep_recent_messages?: number
     batch_tool?: boolean
     openTelemetry?: boolean
     primary_tools?: Array<string>
     continue_loop_on_deny?: boolean
     mcp_timeout?: number
+    bash_timeout?: number
+    computer_control?: boolean
+    computer_control_composer?: boolean
+    git_timeout?: number
   }
 }
 
 export type ChatPayload = {
   message: string
+  images?: Array<{
+    mimeType: string
+    data: string
+  }>
   system?: string
   model: {
     providerID: string
@@ -1581,6 +1691,7 @@ export type GlobalSession = {
     archived?: number
   }
   permission?: PermissionRuleset
+  permissionMode?: PermissionMode
   revert?: {
     messageID: string
     partID?: string
@@ -1715,6 +1826,79 @@ export type EvolutionCandidateFileApply = {
   dryRun: EvolutionCandidateDryRun
 }
 
+export type ExtensionIssue = {
+  severity: "error" | "warning"
+  code: string
+  message: string
+}
+
+export type ExtensionInfo = {
+  name: string
+  version?: string
+  description?: string
+  root: string
+  source: "builtin" | "user" | "project" | "claude" | "plugin" | "session"
+  enabled: boolean
+  error?: string
+  issues?: Array<ExtensionIssue>
+  status?: "added" | "removed" | "upgraded" | "downgraded" | "changed" | "unchanged"
+}
+
+export type ExtensionContribution = {
+  extension: string
+  root: string
+  kind: "command" | "agent" | "skill" | "hook" | "mcp" | "tool" | "output-style"
+  name?: string
+  path?: string
+}
+
+export type MarketplaceInstalled = {
+  name: string
+  kind: "zip" | "git"
+  version?: string
+  source: string
+  ref?: string
+  subdir?: string
+  sha256?: string
+  installedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  root: string
+  files: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  bytes: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  previous?: {
+    version?: string
+    source: string
+    installedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    files: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    bytes: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type MarketplaceEntry = {
+  name: string
+  version?: string
+  description?: string
+  url: string
+  sha256?: string
+  ref?: string
+  subdir?: string
+  keywords?: Array<string>
+}
+
+export type MarketplaceCatalog = {
+  installed: Array<MarketplaceInstalled>
+  zcode: Array<MarketplaceEntry>
+  claude: Array<MarketplaceEntry>
+  errors: Array<string>
+}
+
+export type ExtensionIntegrity = {
+  name: string
+  root: string
+  files: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  bytes: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  hash: string
+}
+
 export type Symbol = {
   name: string
   kind: number
@@ -1768,6 +1952,24 @@ export type GitError = {
   }
 }
 
+export type HookRegistrationView = {
+  event: string
+  matcher?: string
+  source: string
+  count: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  types: Array<string>
+  statusMessages: Array<string>
+}
+
+export type HookActiveView = {
+  id: string
+  event: string
+  source: string
+  message: string
+  sessionID?: string
+  startedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
 export type ImageGeneratePayload = {
   prompt: string
   model?: string
@@ -1785,6 +1987,446 @@ export type ImageGenerateResponse = {
     base64?: string
     revisedPrompt?: string
   }>
+}
+
+export type DatabaseType =
+  | "postgres"
+  | "mysql"
+  | "mariadb"
+  | "sqlite"
+  | "rqlite"
+  | "redis"
+  | "mongodb"
+  | "clickhouse"
+  | "starrocks"
+  | "doris"
+
+export type DatabaseConnection = {
+  id: string
+  name: string
+  type: DatabaseType
+  host?: string
+  port?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  database?: string
+  user?: string
+  file?: string
+  db?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  httpPath?: string
+  sshEnabled: boolean
+  sshHost?: string
+  hasPassword: boolean
+  createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type DatabaseError = {
+  name: "DatabaseError"
+  data: {
+    message: string
+  }
+}
+
+export type DatabaseSshTunnel = {
+  enabled: boolean
+  host: string
+  port?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  user: string
+  password?: string
+  privateKeyPath?: string
+  privateKey?: string
+  passphrase?: string
+}
+
+export type DatabaseConnectionInput = {
+  name: string
+  type: DatabaseType
+  host?: string
+  port?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  database?: string
+  user?: string
+  password?: string
+  file?: string
+  ssl?: boolean
+  db?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  httpPath?: string
+  ssh?: DatabaseSshTunnel
+}
+
+export type DatabaseTestResult = {
+  ok: boolean
+  message: string
+}
+
+export type DatabaseQueryResult = {
+  columns: Array<string>
+  rows: Array<Array<unknown>>
+  rowCount: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  truncated: boolean
+  affected?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  durationMs: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  sql: string
+}
+
+export type DatabaseTable = {
+  name: string
+  kind: string
+  schema?: string
+}
+
+export type DatabaseColumn = {
+  name: string
+  type: string
+  nullable: boolean
+  default?: string
+  primary?: boolean
+}
+
+export type KnowledgeOverview = {
+  collections: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  enabled: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  documents: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  characters: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  chunks: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type KnowledgeError = {
+  name: "KnowledgeError"
+  data: {
+    message: string
+  }
+}
+
+export type KnowledgeRecentQuery = {
+  query: string
+  at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  hits: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type KnowledgeImportJob = {
+  id: string
+  status: "running" | "completed" | "error" | "cancelled"
+  title?: string
+  startedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  completedAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  error?: string
+  progress: {
+    total: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    processed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    imported: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    updated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    duplicates: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    failed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    current?: string
+  }
+}
+
+export type KnowledgeDocumentMeta = {
+  id: string
+  collectionID: string
+  title: string
+  source?: string
+  version?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  size: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type KnowledgeDocumentPage = {
+  total: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  offset: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  limit: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  items: Array<KnowledgeDocumentMeta>
+}
+
+export type KnowledgeBulkRemoveResult = {
+  removed: Array<string>
+  missing: Array<string>
+}
+
+export type KnowledgeDocument = {
+  id: string
+  collectionID: string
+  title: string
+  source?: string
+  version?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  content: string
+  createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type KnowledgeTrashItem = {
+  document: KnowledgeDocument
+  deletedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type KnowledgeBulkMoveResult = {
+  moved: Array<string>
+  duplicates: Array<string>
+  missing: Array<string>
+}
+
+export type KnowledgeIntegrityIssue = {
+  kind: "orphan-sidecar" | "bad-json" | "duplicate-content" | "missing-document"
+  collectionID: string
+  documentID?: string
+  detail: string
+}
+
+export type KnowledgeIntegrityReport = {
+  collections: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  documents: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  issues: Array<KnowledgeIntegrityIssue>
+}
+
+export type KnowledgeLibraryExport = {
+  format: "novaway.knowledge.library.v1"
+  exportedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  collections: Array<{
+    name: string
+    description?: string
+    enabled?: boolean
+    documents: Array<{
+      title: string
+      source?: string
+      content: string
+      version: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }>
+  }>
+}
+
+export type KnowledgeLibraryImportResult = {
+  collections: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  imported: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  updated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  skipped: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type KnowledgeDocumentChunk = {
+  index: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  text: string
+  length: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type KnowledgeCollectionTemplate = {
+  id: string
+  name: string
+  description: string
+  icon: string
+  hint: string
+  examples: Array<{
+    query: string
+    hint: string
+  }>
+}
+
+export type KnowledgeCollection = {
+  id: string
+  name: string
+  description?: string
+  enabled?: boolean
+  scope?: "global" | "project"
+  projectID?: string
+  readOnly?: boolean
+  createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  documentCount: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type KnowledgeImportResult = {
+  imported: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  updated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  duplicates: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  failed: Array<{
+    name: string
+    error: string
+  }>
+  jobID?: string
+}
+
+export type KnowledgeCollectionStats = {
+  documents: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  chunks: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  characters: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type KnowledgeCollectionExport = {
+  format: "novaway.knowledge.v1"
+  exportedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  collection: {
+    name: string
+    description?: string
+  }
+  documents: Array<{
+    title: string
+    source?: string
+    content: string
+    version: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }>
+  signature?: {
+    algorithm: "sha256"
+    documents: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    value: string
+  }
+}
+
+export type KnowledgeRestoreResult = {
+  imported: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  updated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  skipped: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type KnowledgeOcrStatus = {
+  kind: "rapid" | "cli" | "wasm" | "vision" | "none"
+  label: string
+  languages: Array<string>
+  hint: string
+}
+
+export type KnowledgeOcrInstallJob = {
+  id: string
+  status: "running" | "completed" | "error" | "cancelled"
+  startedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  completedAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  phase?: string
+  message?: string
+  hint?: string
+  log?: string
+  error?: string
+}
+
+export type KnowledgeEmbeddingStatus = {
+  kind: "local" | "provider" | "ollama" | "off"
+  label: string
+  modelId: string
+  dense: boolean
+  hint: string
+}
+
+export type KnowledgeEvalCase = {
+  id: string
+  query: string
+  expected: Array<string>
+  notes?: string
+  createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type KnowledgeEvalMetrics = {
+  cases: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  k: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  hitRate: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  recall: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  mrr: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  avgLatencyMs: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type KnowledgeEvalCaseResult = {
+  id: string
+  query: string
+  expected: Array<string>
+  hits: Array<string>
+  rank: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  reciprocalRank: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  recall: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  latencyMs: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type KnowledgeEvalRun = {
+  ranAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  k: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  metrics: KnowledgeEvalMetrics
+  results: Array<KnowledgeEvalCaseResult>
+}
+
+export type KnowledgeSuggestedCase = {
+  query: string
+  expected: Array<string>
+  reason: "title" | "terms"
+  terms?: Array<string>
+}
+
+export type KnowledgeSuggestCasesResult = {
+  cases: Array<KnowledgeSuggestedCase>
+  saved: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type KnowledgeEvalHistoryEntry = {
+  id: string
+  ranAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  k: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  metrics: KnowledgeEvalMetrics
+  cases: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  results?: Array<{
+    id: string
+    query: string
+    rank: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }>
+}
+
+export type KnowledgeEvalHistory = {
+  runs: Array<KnowledgeEvalHistoryEntry>
+}
+
+export type KnowledgeEvalDiffCase = {
+  id: string
+  query: string
+  before?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  after?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  status: "improved" | "regressed" | "still-hit" | "still-miss" | "new" | "removed"
+}
+
+export type KnowledgeEvalDiff = {
+  from: {
+    id: string
+    ranAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    k: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  to: {
+    id: string
+    ranAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    k: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  summary: {
+    improved: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    regressed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    new: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    removed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    unchanged: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  cases: Array<KnowledgeEvalDiffCase>
+}
+
+export type KnowledgeEvalReport = {
+  markdown: string
+}
+
+export type KnowledgeGraph = {
+  nodes: Array<{
+    id: string
+    label: string
+    type: "term"
+    documents: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    weight: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }>
+  edges: Array<{
+    source: string
+    target: string
+    weight: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }>
+}
+
+export type KnowledgeHit = {
+  collectionID: string
+  documentID: string
+  title: string
+  snippet: string
+  score: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  chunk: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  offset?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
 }
 
 export type Path = {
@@ -1854,6 +2496,26 @@ export type Agent = {
     [key: string]: unknown
   }
   steps?: number
+  tools?: Array<string>
+  disallowedTools?: Array<string>
+  skills?: Array<string>
+  mcpServers?: Array<
+    | string
+    | {
+        [key: string]: unknown
+      }
+  >
+  hooks?: {
+    [key: string]: unknown
+  }
+  permissionMode?: "default" | "acceptEdits" | "plan" | "bypassPermissions"
+  maxTurns?: number
+  background?: boolean
+  isolation?: "worktree"
+  memory?: "user" | "project" | "local"
+  initialPrompt?: string
+  effort?: string
+  outputStyle?: string
 }
 
 export type LspStatus = {
@@ -1867,6 +2529,32 @@ export type FormatterStatus = {
   name: string
   extensions: Array<string>
   enabled: boolean
+}
+
+export type KernelFeature = {
+  id: string
+  enabled: boolean
+  detail?: string
+}
+
+export type KernelCapabilities = {
+  version: string
+  tools: {
+    total: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    deferred: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    readOnly: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  skills: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  hooks: {
+    registrations: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    events: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  extensions: {
+    total: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    enabled: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    contributions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  features: Array<KernelFeature>
 }
 
 export type McpStatusConnected = {
@@ -2191,6 +2879,32 @@ export type ProviderAuthError1 = {
   }
 }
 
+export type SessionTempFile = {
+  path: string
+  relative: string
+  tool: string
+  createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  size: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type PlanApprovalPending1 = {
+  id: string
+  sessionID: string
+  parentID?: string
+  messageID?: string
+  plan: string
+  title?: string
+  createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type SessionTempFileCleanResult = {
+  removed: Array<string>
+  skipped: Array<{
+    path: string
+    reason: string
+  }>
+}
+
 export type TextPartInput = {
   id?: string
   type: "text"
@@ -2361,6 +3075,70 @@ export type WorkspaceWarpError = {
   }
 }
 
+export type TeamView = {
+  id: string
+  name: string
+  description?: string
+  rootSessionID: string
+}
+
+export type TeamUsageView = {
+  cost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  input: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  output: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  reasoning: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  cacheRead: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  cacheWrite: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  total: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type TeamMemberView = {
+  sessionID: string
+  name: string
+  agent: string
+  role: "lead" | "worker"
+  status: "idle" | "active" | "archived"
+  currentTaskID?: string
+  worktreePath?: string
+  usage?: TeamUsageView
+}
+
+export type TeamTaskView = {
+  id: string
+  subject: string
+  status: "pending" | "in_progress" | "completed" | "failed" | "cancelled"
+  ownerSessionID?: string
+  blockedBy: Array<string>
+  activeForm?: string
+  usage?: TeamUsageView
+}
+
+export type TeamOverview = {
+  team?: TeamView
+  members: Array<TeamMemberView>
+  tasks: Array<TeamTaskView>
+  usage?: TeamUsageView
+}
+
+export type PlanApprovalPending2 = {
+  id: PlanRequestId
+  sessionID: string
+  parentID?: string
+  messageID?: string
+  plan: string
+  title?: string
+  createdAt: number | "NaN" | "Infinity" | "-Infinity"
+}
+
+export type HookActive1 = {
+  id: string
+  event: string
+  source: string
+  message: string
+  sessionID?: string
+  startedAt: number | "NaN" | "Infinity" | "-Infinity"
+}
+
 export type SyncEventMessageUpdated = {
   type: "sync"
   name: "message.updated.1"
@@ -2473,6 +3251,7 @@ export type SyncEventSessionUpdated = {
         archived?: number | null
       }
       permission?: PermissionRuleset | null
+      permissionMode?: PermissionMode | null
       revert?: {
         messageID: string
         partID?: string
@@ -2918,6 +3697,15 @@ export type EventServerInstanceDisposed = {
   }
 }
 
+export type EventConfigUpdated = {
+  id: string
+  type: "config.updated"
+  properties: {
+    scope: "project" | "global"
+    file?: string
+  }
+}
+
 export type EventFileEdited = {
   id: string
   type: "file.edited"
@@ -2962,6 +3750,29 @@ export type EventMessagePartDelta = {
     field: string
     delta: string
   }
+}
+
+export type EventPlanApprovalRequested = {
+  id: string
+  type: "plan_approval.requested"
+  properties: PlanApprovalPending
+}
+
+export type EventPlanApprovalResolved = {
+  id: string
+  type: "plan_approval.resolved"
+  properties: {
+    id: PlanRequestId
+    sessionID: string
+    approved: boolean
+    feedback?: string
+  }
+}
+
+export type EventHookActive = {
+  id: string
+  type: "hook.active"
+  properties: Array<HookActive>
 }
 
 export type EventPermissionAsked = {
@@ -3135,6 +3946,58 @@ export type EventSessionRevertChanged = {
   }
 }
 
+export type EventAgentStarted = {
+  id: string
+  type: "agent.started"
+  properties: {
+    sessionID: string
+    parentSessionID: string
+    name?: string
+    agent: string
+    worktree?: string
+  }
+}
+
+export type EventAgentCompleted = {
+  id: string
+  type: "agent.completed"
+  properties: {
+    sessionID: string
+    parentSessionID: string
+    name?: string
+    agent: string
+    state: "completed" | "error" | "cancelled"
+    tokens?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    durationMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    worktree?: string
+  }
+}
+
+export type EventInstallationUpdated = {
+  id: string
+  type: "installation.updated"
+  properties: {
+    version: string
+  }
+}
+
+export type EventInstallationUpdateAvailable = {
+  id: string
+  type: "installation.update-available"
+  properties: {
+    version: string
+  }
+}
+
+export type EventInstallationUpdateFailed = {
+  id: string
+  type: "installation.update-failed"
+  properties: {
+    version: string
+    reason: string
+  }
+}
+
 export type EventVcsBranchUpdated = {
   id: string
   type: "vcs.branch.updated"
@@ -3215,31 +4078,6 @@ export type EventPtyDeleted = {
   type: "pty.deleted"
   properties: {
     id: string
-  }
-}
-
-export type EventInstallationUpdated = {
-  id: string
-  type: "installation.updated"
-  properties: {
-    version: string
-  }
-}
-
-export type EventInstallationUpdateAvailable = {
-  id: string
-  type: "installation.update-available"
-  properties: {
-    version: string
-  }
-}
-
-export type EventInstallationUpdateFailed = {
-  id: string
-  type: "installation.update-failed"
-  properties: {
-    version: string
-    reason: string
   }
 }
 
@@ -4105,6 +4943,21 @@ export type EventTuiToastShow1 = {
     message: string
     variant: "info" | "success" | "warning" | "error"
     duration?: number
+  }
+}
+
+export type EventAgentCompleted1 = {
+  id: string
+  type: "agent.completed"
+  properties: {
+    sessionID: string
+    parentSessionID: string
+    name?: string
+    agent: string
+    state: "completed" | "error" | "cancelled"
+    tokens?: number | "NaN" | "Infinity" | "-Infinity"
+    durationMs?: number | "NaN" | "Infinity" | "-Infinity"
+    worktree?: string
   }
 }
 
@@ -5196,7 +6049,10 @@ export type EvolutionUpdateCandidateData = {
   path: {
     candidateID: string
   }
-  query?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
   url: "/evolution/candidate/{candidateID}"
 }
 
@@ -5298,7 +6154,10 @@ export type EvolutionApplyCandidateData = {
   path: {
     candidateID: string
   }
-  query?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
   url: "/evolution/candidate/{candidateID}/apply"
 }
 
@@ -5365,7 +6224,10 @@ export type EvolutionDismissCandidateData = {
   path: {
     candidateID: string
   }
-  query?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
   url: "/evolution/candidate/{candidateID}/dismiss"
 }
 
@@ -5391,6 +6253,214 @@ export type EvolutionDismissCandidateResponses = {
 
 export type EvolutionDismissCandidateResponse =
   EvolutionDismissCandidateResponses[keyof EvolutionDismissCandidateResponses]
+
+export type ExtensionListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/extension"
+}
+
+export type ExtensionListResponses = {
+  /**
+   * Installed extensions
+   */
+  200: Array<ExtensionInfo>
+}
+
+export type ExtensionListResponse = ExtensionListResponses[keyof ExtensionListResponses]
+
+export type ExtensionContributionsData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/extension/contributions"
+}
+
+export type ExtensionContributionsResponses = {
+  /**
+   * Extension contributions
+   */
+  200: Array<ExtensionContribution>
+}
+
+export type ExtensionContributionsResponse = ExtensionContributionsResponses[keyof ExtensionContributionsResponses]
+
+export type ExtensionMarketplaceCatalogData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/extension/marketplace"
+}
+
+export type ExtensionMarketplaceCatalogResponses = {
+  /**
+   * Marketplace catalog and installed packages
+   */
+  200: MarketplaceCatalog
+}
+
+export type ExtensionMarketplaceCatalogResponse =
+  ExtensionMarketplaceCatalogResponses[keyof ExtensionMarketplaceCatalogResponses]
+
+export type ExtensionMarketplaceInstallData = {
+  body?: {
+    kind: "zip" | "git"
+    name: string
+    url: string
+    version?: string
+    sha256?: string
+    ref?: string
+    subdir?: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/extension/marketplace/install"
+}
+
+export type ExtensionMarketplaceInstallErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type ExtensionMarketplaceInstallError =
+  ExtensionMarketplaceInstallErrors[keyof ExtensionMarketplaceInstallErrors]
+
+export type ExtensionMarketplaceInstallResponses = {
+  /**
+   * Installed marketplace package
+   */
+  200: MarketplaceInstalled
+}
+
+export type ExtensionMarketplaceInstallResponse =
+  ExtensionMarketplaceInstallResponses[keyof ExtensionMarketplaceInstallResponses]
+
+export type ExtensionMarketplaceUninstallData = {
+  body?: never
+  path: {
+    name: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/extension/marketplace/{name}"
+}
+
+export type ExtensionMarketplaceUninstallErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ExtensionMarketplaceUninstallError =
+  ExtensionMarketplaceUninstallErrors[keyof ExtensionMarketplaceUninstallErrors]
+
+export type ExtensionMarketplaceUninstallResponses = {
+  /**
+   * Package removed
+   */
+  200: boolean
+}
+
+export type ExtensionMarketplaceUninstallResponse =
+  ExtensionMarketplaceUninstallResponses[keyof ExtensionMarketplaceUninstallResponses]
+
+export type ExtensionIntegrityData = {
+  body?: never
+  path: {
+    name: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/extension/{name}/integrity"
+}
+
+export type ExtensionIntegrityResponses = {
+  /**
+   * Extension content fingerprint
+   */
+  200: ExtensionIntegrity
+}
+
+export type ExtensionIntegrityResponse = ExtensionIntegrityResponses[keyof ExtensionIntegrityResponses]
+
+export type ExtensionReloadData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/extension/reload"
+}
+
+export type ExtensionReloadResponses = {
+  /**
+   * Reloaded extensions
+   */
+  200: Array<ExtensionInfo>
+}
+
+export type ExtensionReloadResponse = ExtensionReloadResponses[keyof ExtensionReloadResponses]
+
+export type ExtensionToggleData = {
+  body?: {
+    enabled: boolean
+  }
+  path: {
+    name: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/extension/{name}"
+}
+
+export type ExtensionToggleErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ExtensionToggleError = ExtensionToggleErrors[keyof ExtensionToggleErrors]
+
+export type ExtensionToggleResponses = {
+  /**
+   * Updated extension
+   */
+  200: ExtensionInfo
+}
+
+export type ExtensionToggleResponse = ExtensionToggleResponses[keyof ExtensionToggleResponses]
 
 export type FindTextData = {
   body?: never
@@ -5609,6 +6679,8 @@ export type GitSnapshotResponses = {
       subject: string
       author: string
       date: string
+      parents?: Array<string>
+      refs?: Array<string>
     }>
   }
 }
@@ -5675,6 +6747,8 @@ export type GitAddResponses = {
       subject: string
       author: string
       date: string
+      parents?: Array<string>
+      refs?: Array<string>
     }>
   }
 }
@@ -5741,6 +6815,8 @@ export type GitUnstageResponses = {
       subject: string
       author: string
       date: string
+      parents?: Array<string>
+      refs?: Array<string>
     }>
   }
 }
@@ -5807,6 +6883,8 @@ export type GitDiscardResponses = {
       subject: string
       author: string
       date: string
+      parents?: Array<string>
+      refs?: Array<string>
     }>
   }
 }
@@ -5873,6 +6951,8 @@ export type GitCommitResponses = {
       subject: string
       author: string
       date: string
+      parents?: Array<string>
+      refs?: Array<string>
     }>
   }
 }
@@ -5937,6 +7017,8 @@ export type GitPushResponses = {
       subject: string
       author: string
       date: string
+      parents?: Array<string>
+      refs?: Array<string>
     }>
   }
 }
@@ -6001,11 +7083,193 @@ export type GitPullResponses = {
       subject: string
       author: string
       date: string
+      parents?: Array<string>
+      refs?: Array<string>
     }>
   }
 }
 
 export type GitPullResponse = GitPullResponses[keyof GitPullResponses]
+
+export type GitFetchData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/git/fetch"
+}
+
+export type GitFetchErrors = {
+  /**
+   * GitError
+   */
+  400: GitError
+}
+
+export type GitFetchError = GitFetchErrors[keyof GitFetchErrors]
+
+export type GitFetchResponses = {
+  /**
+   * Git snapshot
+   */
+  200: {
+    branch: {
+      branch?: string
+      upstream?: string
+      ahead: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      behind: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+    changes: Array<{
+      file: string
+      code: string
+      status: "added" | "deleted" | "modified" | "renamed" | "untracked" | "unmerged"
+      staged: boolean
+      unstaged: boolean
+      additions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      deletions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      binary: boolean
+    }>
+    branches: Array<{
+      name: string
+      current: boolean
+    }>
+    remotes: Array<{
+      name: string
+      url: string
+      current: boolean
+    }>
+    stash: Array<{
+      ref: string
+      message: string
+    }>
+    log: Array<{
+      hash: string
+      subject: string
+      author: string
+      date: string
+      parents?: Array<string>
+      refs?: Array<string>
+    }>
+  }
+}
+
+export type GitFetchResponse = GitFetchResponses[keyof GitFetchResponses]
+
+export type GitMergeData = {
+  body?: {
+    ref: string
+    noFastForward?: boolean
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/git/merge"
+}
+
+export type GitMergeErrors = {
+  /**
+   * GitError
+   */
+  400: GitError
+}
+
+export type GitMergeError = GitMergeErrors[keyof GitMergeErrors]
+
+export type GitMergeResponses = {
+  /**
+   * Git snapshot
+   */
+  200: {
+    branch: {
+      branch?: string
+      upstream?: string
+      ahead: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      behind: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+    changes: Array<{
+      file: string
+      code: string
+      status: "added" | "deleted" | "modified" | "renamed" | "untracked" | "unmerged"
+      staged: boolean
+      unstaged: boolean
+      additions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      deletions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      binary: boolean
+    }>
+    branches: Array<{
+      name: string
+      current: boolean
+    }>
+    remotes: Array<{
+      name: string
+      url: string
+      current: boolean
+    }>
+    stash: Array<{
+      ref: string
+      message: string
+    }>
+    log: Array<{
+      hash: string
+      subject: string
+      author: string
+      date: string
+      parents?: Array<string>
+      refs?: Array<string>
+    }>
+  }
+}
+
+export type GitMergeResponse = GitMergeResponses[keyof GitMergeResponses]
+
+export type GitCommitDetailData = {
+  body?: never
+  path: {
+    hash: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/git/commit/{hash}"
+}
+
+export type GitCommitDetailErrors = {
+  /**
+   * GitError
+   */
+  400: GitError
+}
+
+export type GitCommitDetailError = GitCommitDetailErrors[keyof GitCommitDetailErrors]
+
+export type GitCommitDetailResponses = {
+  /**
+   * Commit detail
+   */
+  200: {
+    hash: string
+    subject: string
+    body: string
+    author: string
+    authorEmail: string
+    date: string
+    parents: Array<string>
+    refs: Array<string>
+    files: Array<{
+      file: string
+      additions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      deletions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      binary: boolean
+    }>
+  }
+}
+
+export type GitCommitDetailResponse = GitCommitDetailResponses[keyof GitCommitDetailResponses]
 
 export type GitStashData = {
   body?: {
@@ -6068,6 +7332,8 @@ export type GitStashResponses = {
       subject: string
       author: string
       date: string
+      parents?: Array<string>
+      refs?: Array<string>
     }>
   }
 }
@@ -6136,6 +7402,8 @@ export type GitBranchResponses = {
       subject: string
       author: string
       date: string
+      parents?: Array<string>
+      refs?: Array<string>
     }>
   }
 }
@@ -6204,11 +7472,51 @@ export type GitRemoteResponses = {
       subject: string
       author: string
       date: string
+      parents?: Array<string>
+      refs?: Array<string>
     }>
   }
 }
 
 export type GitRemoteResponse = GitRemoteResponses[keyof GitRemoteResponses]
+
+export type HookListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/hook"
+}
+
+export type HookListResponses = {
+  /**
+   * Active hooks
+   */
+  200: Array<HookRegistrationView>
+}
+
+export type HookListResponse = HookListResponses[keyof HookListResponses]
+
+export type HookActiveData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/hook/active"
+}
+
+export type HookActiveResponses = {
+  /**
+   * Running hooks
+   */
+  200: Array<HookActiveView>
+}
+
+export type HookActiveResponse = HookActiveResponses[keyof HookActiveResponses]
 
 export type ImagesGenerateData = {
   body?: ImageGeneratePayload
@@ -6241,6 +7549,1873 @@ export type ImagesGenerateResponses = {
 }
 
 export type ImagesGenerateResponse = ImagesGenerateResponses[keyof ImagesGenerateResponses]
+
+export type DatabaseListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/database"
+}
+
+export type DatabaseListErrors = {
+  /**
+   * DatabaseError
+   */
+  400: DatabaseError
+}
+
+export type DatabaseListError = DatabaseListErrors[keyof DatabaseListErrors]
+
+export type DatabaseListResponses = {
+  /**
+   * Database connections
+   */
+  200: Array<DatabaseConnection>
+}
+
+export type DatabaseListResponse = DatabaseListResponses[keyof DatabaseListResponses]
+
+export type DatabaseSaveData = {
+  body?: DatabaseConnectionInput
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/database"
+}
+
+export type DatabaseSaveErrors = {
+  /**
+   * DatabaseError
+   */
+  400: DatabaseError
+}
+
+export type DatabaseSaveError = DatabaseSaveErrors[keyof DatabaseSaveErrors]
+
+export type DatabaseSaveResponses = {
+  /**
+   * Saved connection
+   */
+  200: DatabaseConnection
+}
+
+export type DatabaseSaveResponse = DatabaseSaveResponses[keyof DatabaseSaveResponses]
+
+export type DatabaseRemoveConnectionData = {
+  body?: never
+  path: {
+    connectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/database/connections/{connectionID}"
+}
+
+export type DatabaseRemoveConnectionErrors = {
+  /**
+   * DatabaseError
+   */
+  400: DatabaseError
+}
+
+export type DatabaseRemoveConnectionError = DatabaseRemoveConnectionErrors[keyof DatabaseRemoveConnectionErrors]
+
+export type DatabaseRemoveConnectionResponses = {
+  /**
+   * Removed
+   */
+  200: boolean
+}
+
+export type DatabaseRemoveConnectionResponse =
+  DatabaseRemoveConnectionResponses[keyof DatabaseRemoveConnectionResponses]
+
+export type DatabaseTestConnectionData = {
+  body?: never
+  path: {
+    connectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/database/connections/{connectionID}/test"
+}
+
+export type DatabaseTestConnectionErrors = {
+  /**
+   * DatabaseError
+   */
+  400: DatabaseError
+}
+
+export type DatabaseTestConnectionError = DatabaseTestConnectionErrors[keyof DatabaseTestConnectionErrors]
+
+export type DatabaseTestConnectionResponses = {
+  /**
+   * Connection test result
+   */
+  200: DatabaseTestResult
+}
+
+export type DatabaseTestConnectionResponse = DatabaseTestConnectionResponses[keyof DatabaseTestConnectionResponses]
+
+export type DatabaseQueryData = {
+  body?: {
+    connectionID: string
+    sql: string
+    limit?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    offset?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    database?: string
+    readOnly?: boolean
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/database/query"
+}
+
+export type DatabaseQueryErrors = {
+  /**
+   * DatabaseError
+   */
+  400: DatabaseError
+}
+
+export type DatabaseQueryError = DatabaseQueryErrors[keyof DatabaseQueryErrors]
+
+export type DatabaseQueryResponses = {
+  /**
+   * Query result
+   */
+  200: DatabaseQueryResult
+}
+
+export type DatabaseQueryResponse = DatabaseQueryResponses[keyof DatabaseQueryResponses]
+
+export type DatabaseTablesData = {
+  body?: never
+  path: {
+    connectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+    database?: string
+  }
+  url: "/database/connections/{connectionID}/tables"
+}
+
+export type DatabaseTablesErrors = {
+  /**
+   * DatabaseError
+   */
+  400: DatabaseError
+}
+
+export type DatabaseTablesError = DatabaseTablesErrors[keyof DatabaseTablesErrors]
+
+export type DatabaseTablesResponses = {
+  /**
+   * Tables
+   */
+  200: Array<DatabaseTable>
+}
+
+export type DatabaseTablesResponse = DatabaseTablesResponses[keyof DatabaseTablesResponses]
+
+export type DatabaseColumnsData = {
+  body?: never
+  path: {
+    connectionID: string
+    table: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+    database?: string
+  }
+  url: "/database/connections/{connectionID}/tables/{table}/columns"
+}
+
+export type DatabaseColumnsErrors = {
+  /**
+   * DatabaseError
+   */
+  400: DatabaseError
+}
+
+export type DatabaseColumnsError = DatabaseColumnsErrors[keyof DatabaseColumnsErrors]
+
+export type DatabaseColumnsResponses = {
+  /**
+   * Columns
+   */
+  200: Array<DatabaseColumn>
+}
+
+export type DatabaseColumnsResponse = DatabaseColumnsResponses[keyof DatabaseColumnsResponses]
+
+export type KnowledgeOverviewData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/overview"
+}
+
+export type KnowledgeOverviewErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+}
+
+export type KnowledgeOverviewError = KnowledgeOverviewErrors[keyof KnowledgeOverviewErrors]
+
+export type KnowledgeOverviewResponses = {
+  /**
+   * Knowledge base overview
+   */
+  200: KnowledgeOverview
+}
+
+export type KnowledgeOverviewResponse = KnowledgeOverviewResponses[keyof KnowledgeOverviewResponses]
+
+export type KnowledgeClearQueriesData = {
+  body?: never
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/queries"
+}
+
+export type KnowledgeClearQueriesResponses = {
+  /**
+   * Cleared
+   */
+  200: boolean
+}
+
+export type KnowledgeClearQueriesResponse = KnowledgeClearQueriesResponses[keyof KnowledgeClearQueriesResponses]
+
+export type KnowledgeRecentQueriesData = {
+  body?: never
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/queries"
+}
+
+export type KnowledgeRecentQueriesErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeRecentQueriesError = KnowledgeRecentQueriesErrors[keyof KnowledgeRecentQueriesErrors]
+
+export type KnowledgeRecentQueriesResponses = {
+  /**
+   * Recent searches
+   */
+  200: Array<KnowledgeRecentQuery>
+}
+
+export type KnowledgeRecentQueriesResponse = KnowledgeRecentQueriesResponses[keyof KnowledgeRecentQueriesResponses]
+
+export type KnowledgeImportJobsData = {
+  body?: never
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/imports"
+}
+
+export type KnowledgeImportJobsResponses = {
+  /**
+   * Import jobs of this collection
+   */
+  200: Array<KnowledgeImportJob>
+}
+
+export type KnowledgeImportJobsResponse = KnowledgeImportJobsResponses[keyof KnowledgeImportJobsResponses]
+
+export type KnowledgeCancelImportJobData = {
+  body?: never
+  path: {
+    jobID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/imports/{jobID}"
+}
+
+export type KnowledgeCancelImportJobResponses = {
+  /**
+   * Cancelled import job
+   */
+  200: KnowledgeImportJob
+}
+
+export type KnowledgeCancelImportJobResponse =
+  KnowledgeCancelImportJobResponses[keyof KnowledgeCancelImportJobResponses]
+
+export type KnowledgeImportJobData = {
+  body?: never
+  path: {
+    jobID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/imports/{jobID}"
+}
+
+export type KnowledgeImportJobResponses = {
+  /**
+   * Import job
+   */
+  200: KnowledgeImportJob
+}
+
+export type KnowledgeImportJobResponse = KnowledgeImportJobResponses[keyof KnowledgeImportJobResponses]
+
+export type KnowledgeDocumentsPageData = {
+  body?: never
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+    q?: string
+    sort?: "updated" | "created" | "title"
+    limit?: string
+    offset?: string
+    searchContent?: "true" | "false"
+  }
+  url: "/knowledge/collections/{collectionID}/documents/page"
+}
+
+export type KnowledgeDocumentsPageErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeDocumentsPageError = KnowledgeDocumentsPageErrors[keyof KnowledgeDocumentsPageErrors]
+
+export type KnowledgeDocumentsPageResponses = {
+  /**
+   * Document page
+   */
+  200: KnowledgeDocumentPage
+}
+
+export type KnowledgeDocumentsPageResponse = KnowledgeDocumentsPageResponses[keyof KnowledgeDocumentsPageResponses]
+
+export type KnowledgeBulkRemoveDocumentsData = {
+  body?: {
+    ids: Array<string>
+  }
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/documents/bulk-remove"
+}
+
+export type KnowledgeBulkRemoveDocumentsErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeBulkRemoveDocumentsError =
+  KnowledgeBulkRemoveDocumentsErrors[keyof KnowledgeBulkRemoveDocumentsErrors]
+
+export type KnowledgeBulkRemoveDocumentsResponses = {
+  /**
+   * Removed documents
+   */
+  200: KnowledgeBulkRemoveResult
+}
+
+export type KnowledgeBulkRemoveDocumentsResponse =
+  KnowledgeBulkRemoveDocumentsResponses[keyof KnowledgeBulkRemoveDocumentsResponses]
+
+export type KnowledgeEmptyTrashData = {
+  body?: never
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/trash"
+}
+
+export type KnowledgeEmptyTrashResponses = {
+  /**
+   * Emptied trash
+   */
+  200: {
+    removed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type KnowledgeEmptyTrashResponse = KnowledgeEmptyTrashResponses[keyof KnowledgeEmptyTrashResponses]
+
+export type KnowledgeListTrashData = {
+  body?: never
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/trash"
+}
+
+export type KnowledgeListTrashResponses = {
+  /**
+   * Trashed documents
+   */
+  200: Array<KnowledgeTrashItem>
+}
+
+export type KnowledgeListTrashResponse = KnowledgeListTrashResponses[keyof KnowledgeListTrashResponses]
+
+export type KnowledgeRestoreTrashData = {
+  body?: never
+  path: {
+    collectionID: string
+    documentID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/trash/{documentID}/restore"
+}
+
+export type KnowledgeRestoreTrashErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeRestoreTrashError = KnowledgeRestoreTrashErrors[keyof KnowledgeRestoreTrashErrors]
+
+export type KnowledgeRestoreTrashResponses = {
+  /**
+   * Restored document
+   */
+  200: KnowledgeDocument
+}
+
+export type KnowledgeRestoreTrashResponse = KnowledgeRestoreTrashResponses[keyof KnowledgeRestoreTrashResponses]
+
+export type KnowledgeMoveDocumentsData = {
+  body?: {
+    from: string
+    to: string
+    ids: Array<string>
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/documents/move"
+}
+
+export type KnowledgeMoveDocumentsErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeMoveDocumentsError = KnowledgeMoveDocumentsErrors[keyof KnowledgeMoveDocumentsErrors]
+
+export type KnowledgeMoveDocumentsResponses = {
+  /**
+   * Moved documents
+   */
+  200: KnowledgeBulkMoveResult
+}
+
+export type KnowledgeMoveDocumentsResponse = KnowledgeMoveDocumentsResponses[keyof KnowledgeMoveDocumentsResponses]
+
+export type KnowledgeIntegrityData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/integrity"
+}
+
+export type KnowledgeIntegrityErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+}
+
+export type KnowledgeIntegrityError = KnowledgeIntegrityErrors[keyof KnowledgeIntegrityErrors]
+
+export type KnowledgeIntegrityResponses = {
+  /**
+   * Integrity report
+   */
+  200: KnowledgeIntegrityReport
+}
+
+export type KnowledgeIntegrityResponse = KnowledgeIntegrityResponses[keyof KnowledgeIntegrityResponses]
+
+export type KnowledgeRepairIntegrityData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/integrity/repair"
+}
+
+export type KnowledgeRepairIntegrityErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+}
+
+export type KnowledgeRepairIntegrityError = KnowledgeRepairIntegrityErrors[keyof KnowledgeRepairIntegrityErrors]
+
+export type KnowledgeRepairIntegrityResponses = {
+  /**
+   * Repair result
+   */
+  200: {
+    removed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type KnowledgeRepairIntegrityResponse =
+  KnowledgeRepairIntegrityResponses[keyof KnowledgeRepairIntegrityResponses]
+
+export type KnowledgeExportLibraryData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/library/export"
+}
+
+export type KnowledgeExportLibraryErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+}
+
+export type KnowledgeExportLibraryError = KnowledgeExportLibraryErrors[keyof KnowledgeExportLibraryErrors]
+
+export type KnowledgeExportLibraryResponses = {
+  /**
+   * Whole library export
+   */
+  200: KnowledgeLibraryExport
+}
+
+export type KnowledgeExportLibraryResponse = KnowledgeExportLibraryResponses[keyof KnowledgeExportLibraryResponses]
+
+export type KnowledgeImportLibraryData = {
+  body?: KnowledgeLibraryExport
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/library/import"
+}
+
+export type KnowledgeImportLibraryErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+}
+
+export type KnowledgeImportLibraryError = KnowledgeImportLibraryErrors[keyof KnowledgeImportLibraryErrors]
+
+export type KnowledgeImportLibraryResponses = {
+  /**
+   * Library import summary
+   */
+  200: KnowledgeLibraryImportResult
+}
+
+export type KnowledgeImportLibraryResponse = KnowledgeImportLibraryResponses[keyof KnowledgeImportLibraryResponses]
+
+export type KnowledgeDocumentChunksData = {
+  body?: never
+  path: {
+    collectionID: string
+    documentID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/documents/{documentID}/chunks"
+}
+
+export type KnowledgeDocumentChunksErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeDocumentChunksError = KnowledgeDocumentChunksErrors[keyof KnowledgeDocumentChunksErrors]
+
+export type KnowledgeDocumentChunksResponses = {
+  /**
+   * Document chunks
+   */
+  200: Array<KnowledgeDocumentChunk>
+}
+
+export type KnowledgeDocumentChunksResponse = KnowledgeDocumentChunksResponses[keyof KnowledgeDocumentChunksResponses]
+
+export type KnowledgeTemplatesData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/templates"
+}
+
+export type KnowledgeTemplatesResponses = {
+  /**
+   * Collection templates
+   */
+  200: Array<KnowledgeCollectionTemplate>
+}
+
+export type KnowledgeTemplatesResponse = KnowledgeTemplatesResponses[keyof KnowledgeTemplatesResponses]
+
+export type KnowledgeCollectionsData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections"
+}
+
+export type KnowledgeCollectionsErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+}
+
+export type KnowledgeCollectionsError = KnowledgeCollectionsErrors[keyof KnowledgeCollectionsErrors]
+
+export type KnowledgeCollectionsResponses = {
+  /**
+   * Knowledge collections
+   */
+  200: Array<KnowledgeCollection>
+}
+
+export type KnowledgeCollectionsResponse = KnowledgeCollectionsResponses[keyof KnowledgeCollectionsResponses]
+
+export type KnowledgeCreateCollectionData = {
+  body?: {
+    name: string
+    description?: string
+    scope?: "global" | "project"
+    readOnly?: boolean
+    template?: string
+    sample?: boolean
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections"
+}
+
+export type KnowledgeCreateCollectionErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+}
+
+export type KnowledgeCreateCollectionError = KnowledgeCreateCollectionErrors[keyof KnowledgeCreateCollectionErrors]
+
+export type KnowledgeCreateCollectionResponses = {
+  /**
+   * Created collection
+   */
+  200: KnowledgeCollection
+}
+
+export type KnowledgeCreateCollectionResponse =
+  KnowledgeCreateCollectionResponses[keyof KnowledgeCreateCollectionResponses]
+
+export type KnowledgeRemoveCollectionData = {
+  body?: never
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}"
+}
+
+export type KnowledgeRemoveCollectionErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+}
+
+export type KnowledgeRemoveCollectionError = KnowledgeRemoveCollectionErrors[keyof KnowledgeRemoveCollectionErrors]
+
+export type KnowledgeRemoveCollectionResponses = {
+  /**
+   * Collection removed
+   */
+  200: boolean
+}
+
+export type KnowledgeRemoveCollectionResponse =
+  KnowledgeRemoveCollectionResponses[keyof KnowledgeRemoveCollectionResponses]
+
+export type KnowledgeUpdateCollectionData = {
+  body?: {
+    name?: string
+    description?: string
+    enabled?: boolean
+    scope?: "global" | "project"
+    readOnly?: boolean
+  }
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}"
+}
+
+export type KnowledgeUpdateCollectionErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeUpdateCollectionError = KnowledgeUpdateCollectionErrors[keyof KnowledgeUpdateCollectionErrors]
+
+export type KnowledgeUpdateCollectionResponses = {
+  /**
+   * Updated collection
+   */
+  200: KnowledgeCollection
+}
+
+export type KnowledgeUpdateCollectionResponse =
+  KnowledgeUpdateCollectionResponses[keyof KnowledgeUpdateCollectionResponses]
+
+export type KnowledgeDocumentsData = {
+  body?: never
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/documents"
+}
+
+export type KnowledgeDocumentsErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeDocumentsError = KnowledgeDocumentsErrors[keyof KnowledgeDocumentsErrors]
+
+export type KnowledgeDocumentsResponses = {
+  /**
+   * Documents in a collection
+   */
+  200: Array<KnowledgeDocumentMeta>
+}
+
+export type KnowledgeDocumentsResponse = KnowledgeDocumentsResponses[keyof KnowledgeDocumentsResponses]
+
+export type KnowledgeAddDocumentData = {
+  body?: {
+    title: string
+    content: string
+    source?: string
+  }
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/documents"
+}
+
+export type KnowledgeAddDocumentErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeAddDocumentError = KnowledgeAddDocumentErrors[keyof KnowledgeAddDocumentErrors]
+
+export type KnowledgeAddDocumentResponses = {
+  /**
+   * Created document
+   */
+  200: KnowledgeDocument
+}
+
+export type KnowledgeAddDocumentResponse = KnowledgeAddDocumentResponses[keyof KnowledgeAddDocumentResponses]
+
+export type KnowledgeRemoveDocumentData = {
+  body?: never
+  path: {
+    collectionID: string
+    documentID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/documents/{documentID}"
+}
+
+export type KnowledgeRemoveDocumentErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+}
+
+export type KnowledgeRemoveDocumentError = KnowledgeRemoveDocumentErrors[keyof KnowledgeRemoveDocumentErrors]
+
+export type KnowledgeRemoveDocumentResponses = {
+  /**
+   * Document removed
+   */
+  200: boolean
+}
+
+export type KnowledgeRemoveDocumentResponse = KnowledgeRemoveDocumentResponses[keyof KnowledgeRemoveDocumentResponses]
+
+export type KnowledgeDocumentData = {
+  body?: never
+  path: {
+    collectionID: string
+    documentID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/documents/{documentID}"
+}
+
+export type KnowledgeDocumentErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeDocumentError = KnowledgeDocumentErrors[keyof KnowledgeDocumentErrors]
+
+export type KnowledgeDocumentResponses = {
+  /**
+   * Document
+   */
+  200: KnowledgeDocument
+}
+
+export type KnowledgeDocumentResponse = KnowledgeDocumentResponses[keyof KnowledgeDocumentResponses]
+
+export type KnowledgeUpdateDocumentData = {
+  body?: {
+    title?: string
+    content?: string
+    source?: string
+  }
+  path: {
+    collectionID: string
+    documentID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/documents/{documentID}"
+}
+
+export type KnowledgeUpdateDocumentErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeUpdateDocumentError = KnowledgeUpdateDocumentErrors[keyof KnowledgeUpdateDocumentErrors]
+
+export type KnowledgeUpdateDocumentResponses = {
+  /**
+   * Updated document
+   */
+  200: KnowledgeDocument
+}
+
+export type KnowledgeUpdateDocumentResponse = KnowledgeUpdateDocumentResponses[keyof KnowledgeUpdateDocumentResponses]
+
+export type KnowledgeUploadData = {
+  body?: {
+    name: string
+    data: string
+  }
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/documents/upload"
+}
+
+export type KnowledgeUploadErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeUploadError = KnowledgeUploadErrors[keyof KnowledgeUploadErrors]
+
+export type KnowledgeUploadResponses = {
+  /**
+   * Extracted document
+   */
+  200: KnowledgeDocument
+}
+
+export type KnowledgeUploadResponse = KnowledgeUploadResponses[keyof KnowledgeUploadResponses]
+
+export type KnowledgeImportData = {
+  body?: {
+    files: Array<{
+      name: string
+      data: string
+    }>
+    background?: boolean
+  }
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/import"
+}
+
+export type KnowledgeImportErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeImportError = KnowledgeImportErrors[keyof KnowledgeImportErrors]
+
+export type KnowledgeImportResponses = {
+  /**
+   * Import summary
+   */
+  200: KnowledgeImportResult
+}
+
+export type KnowledgeImportResponse = KnowledgeImportResponses[keyof KnowledgeImportResponses]
+
+export type KnowledgeStatsData = {
+  body?: never
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/stats"
+}
+
+export type KnowledgeStatsErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeStatsError = KnowledgeStatsErrors[keyof KnowledgeStatsErrors]
+
+export type KnowledgeStatsResponses = {
+  /**
+   * Index stats
+   */
+  200: KnowledgeCollectionStats
+}
+
+export type KnowledgeStatsResponse = KnowledgeStatsResponses[keyof KnowledgeStatsResponses]
+
+export type KnowledgeReindexData = {
+  body?: never
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/reindex"
+}
+
+export type KnowledgeReindexErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeReindexError = KnowledgeReindexErrors[keyof KnowledgeReindexErrors]
+
+export type KnowledgeReindexResponses = {
+  /**
+   * Index stats
+   */
+  200: KnowledgeCollectionStats
+}
+
+export type KnowledgeReindexResponse = KnowledgeReindexResponses[keyof KnowledgeReindexResponses]
+
+export type KnowledgeExportData = {
+  body?: never
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/export"
+}
+
+export type KnowledgeExportErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeExportError = KnowledgeExportErrors[keyof KnowledgeExportErrors]
+
+export type KnowledgeExportResponses = {
+  /**
+   * Collection export
+   */
+  200: KnowledgeCollectionExport
+}
+
+export type KnowledgeExportResponse = KnowledgeExportResponses[keyof KnowledgeExportResponses]
+
+export type KnowledgeRestoreData = {
+  body?: {
+    documents: Array<{
+      title: string
+      source?: string
+      content: string
+    }>
+    signature?: {
+      algorithm?: string
+      value?: string
+      documents?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+  }
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/restore"
+}
+
+export type KnowledgeRestoreErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeRestoreError = KnowledgeRestoreErrors[keyof KnowledgeRestoreErrors]
+
+export type KnowledgeRestoreResponses = {
+  /**
+   * Restore summary
+   */
+  200: KnowledgeRestoreResult
+}
+
+export type KnowledgeRestoreResponse = KnowledgeRestoreResponses[keyof KnowledgeRestoreResponses]
+
+export type KnowledgeRelatedData = {
+  body?: never
+  path?: never
+  query: {
+    directory?: string
+    workspace?: string
+    collectionID: string
+    documentID: string
+    limit?: string
+  }
+  url: "/knowledge/related"
+}
+
+export type KnowledgeRelatedErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeRelatedError = KnowledgeRelatedErrors[keyof KnowledgeRelatedErrors]
+
+export type KnowledgeRelatedResponses = {
+  /**
+   * Related documents
+   */
+  200: Array<{
+    id: string
+    title: string
+    shared: Array<string>
+    score: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }>
+}
+
+export type KnowledgeRelatedResponse = KnowledgeRelatedResponses[keyof KnowledgeRelatedResponses]
+
+export type KnowledgeOcrData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/ocr"
+}
+
+export type KnowledgeOcrResponses = {
+  /**
+   * OCR backend status
+   */
+  200: KnowledgeOcrStatus
+}
+
+export type KnowledgeOcrResponse = KnowledgeOcrResponses[keyof KnowledgeOcrResponses]
+
+export type KnowledgeOcrInstallData = {
+  body?: {
+    reinstall?: boolean
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/ocr/install"
+}
+
+export type KnowledgeOcrInstallErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+}
+
+export type KnowledgeOcrInstallError = KnowledgeOcrInstallErrors[keyof KnowledgeOcrInstallErrors]
+
+export type KnowledgeOcrInstallResponses = {
+  /**
+   * OCR install job
+   */
+  200: {
+    jobID: string
+  }
+}
+
+export type KnowledgeOcrInstallResponse = KnowledgeOcrInstallResponses[keyof KnowledgeOcrInstallResponses]
+
+export type KnowledgeCancelOcrInstallData = {
+  body?: never
+  path: {
+    jobID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/ocr/install/{jobID}"
+}
+
+export type KnowledgeCancelOcrInstallResponses = {
+  /**
+   * Cancelled OCR install job
+   */
+  200: KnowledgeOcrInstallJob
+}
+
+export type KnowledgeCancelOcrInstallResponse =
+  KnowledgeCancelOcrInstallResponses[keyof KnowledgeCancelOcrInstallResponses]
+
+export type KnowledgeOcrInstallJobData = {
+  body?: never
+  path: {
+    jobID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/ocr/install/{jobID}"
+}
+
+export type KnowledgeOcrInstallJobErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+}
+
+export type KnowledgeOcrInstallJobError = KnowledgeOcrInstallJobErrors[keyof KnowledgeOcrInstallJobErrors]
+
+export type KnowledgeOcrInstallJobResponses = {
+  /**
+   * OCR install job
+   */
+  200: KnowledgeOcrInstallJob
+}
+
+export type KnowledgeOcrInstallJobResponse = KnowledgeOcrInstallJobResponses[keyof KnowledgeOcrInstallJobResponses]
+
+export type KnowledgeEmbeddingData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/embedding"
+}
+
+export type KnowledgeEmbeddingResponses = {
+  /**
+   * Embedding backend status
+   */
+  200: KnowledgeEmbeddingStatus
+}
+
+export type KnowledgeEmbeddingResponse = KnowledgeEmbeddingResponses[keyof KnowledgeEmbeddingResponses]
+
+export type KnowledgeListEvalCasesData = {
+  body?: never
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/eval"
+}
+
+export type KnowledgeListEvalCasesErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeListEvalCasesError = KnowledgeListEvalCasesErrors[keyof KnowledgeListEvalCasesErrors]
+
+export type KnowledgeListEvalCasesResponses = {
+  /**
+   * Eval cases
+   */
+  200: Array<KnowledgeEvalCase>
+}
+
+export type KnowledgeListEvalCasesResponse = KnowledgeListEvalCasesResponses[keyof KnowledgeListEvalCasesResponses]
+
+export type KnowledgeSaveEvalCaseData = {
+  body?: {
+    id?: string
+    query: string
+    expected: Array<string>
+    notes?: string
+  }
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/eval"
+}
+
+export type KnowledgeSaveEvalCaseErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeSaveEvalCaseError = KnowledgeSaveEvalCaseErrors[keyof KnowledgeSaveEvalCaseErrors]
+
+export type KnowledgeSaveEvalCaseResponses = {
+  /**
+   * Saved eval case
+   */
+  200: KnowledgeEvalCase
+}
+
+export type KnowledgeSaveEvalCaseResponse = KnowledgeSaveEvalCaseResponses[keyof KnowledgeSaveEvalCaseResponses]
+
+export type KnowledgeRemoveEvalCaseData = {
+  body?: never
+  path: {
+    collectionID: string
+    caseID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/eval/{caseID}"
+}
+
+export type KnowledgeRemoveEvalCaseErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeRemoveEvalCaseError = KnowledgeRemoveEvalCaseErrors[keyof KnowledgeRemoveEvalCaseErrors]
+
+export type KnowledgeRemoveEvalCaseResponses = {
+  /**
+   * Removed
+   */
+  200: boolean
+}
+
+export type KnowledgeRemoveEvalCaseResponse = KnowledgeRemoveEvalCaseResponses[keyof KnowledgeRemoveEvalCaseResponses]
+
+export type KnowledgeEvalRunData = {
+  body?: {
+    k?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/eval/run"
+}
+
+export type KnowledgeEvalRunErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeEvalRunError = KnowledgeEvalRunErrors[keyof KnowledgeEvalRunErrors]
+
+export type KnowledgeEvalRunResponses = {
+  /**
+   * Eval run
+   */
+  200: KnowledgeEvalRun
+}
+
+export type KnowledgeEvalRunResponse = KnowledgeEvalRunResponses[keyof KnowledgeEvalRunResponses]
+
+export type KnowledgeEvalSuggestData = {
+  body?: {
+    apply?: boolean
+    limit?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/eval/suggest"
+}
+
+export type KnowledgeEvalSuggestErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeEvalSuggestError = KnowledgeEvalSuggestErrors[keyof KnowledgeEvalSuggestErrors]
+
+export type KnowledgeEvalSuggestResponses = {
+  /**
+   * Suggested eval cases
+   */
+  200: KnowledgeSuggestCasesResult
+}
+
+export type KnowledgeEvalSuggestResponse = KnowledgeEvalSuggestResponses[keyof KnowledgeEvalSuggestResponses]
+
+export type KnowledgeClearEvalHistoryData = {
+  body?: never
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/eval/history"
+}
+
+export type KnowledgeClearEvalHistoryErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeClearEvalHistoryError = KnowledgeClearEvalHistoryErrors[keyof KnowledgeClearEvalHistoryErrors]
+
+export type KnowledgeClearEvalHistoryResponses = {
+  /**
+   * Cleared
+   */
+  200: boolean
+}
+
+export type KnowledgeClearEvalHistoryResponse =
+  KnowledgeClearEvalHistoryResponses[keyof KnowledgeClearEvalHistoryResponses]
+
+export type KnowledgeEvalHistoryData = {
+  body?: never
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/collections/{collectionID}/eval/history"
+}
+
+export type KnowledgeEvalHistoryErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeEvalHistoryError = KnowledgeEvalHistoryErrors[keyof KnowledgeEvalHistoryErrors]
+
+export type KnowledgeEvalHistoryResponses = {
+  /**
+   * Evaluation history
+   */
+  200: KnowledgeEvalHistory
+}
+
+export type KnowledgeEvalHistoryResponse = KnowledgeEvalHistoryResponses[keyof KnowledgeEvalHistoryResponses]
+
+export type KnowledgeEvalDiffData = {
+  body?: never
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+    from?: string
+    to?: string
+    k?: string
+  }
+  url: "/knowledge/collections/{collectionID}/eval/diff"
+}
+
+export type KnowledgeEvalDiffErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeEvalDiffError = KnowledgeEvalDiffErrors[keyof KnowledgeEvalDiffErrors]
+
+export type KnowledgeEvalDiffResponses = {
+  /**
+   * Case-level differences between two runs
+   */
+  200: KnowledgeEvalDiff
+}
+
+export type KnowledgeEvalDiffResponse = KnowledgeEvalDiffResponses[keyof KnowledgeEvalDiffResponses]
+
+export type KnowledgeEvalReportData = {
+  body?: never
+  path: {
+    collectionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+    k?: string
+  }
+  url: "/knowledge/collections/{collectionID}/eval/report"
+}
+
+export type KnowledgeEvalReportErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type KnowledgeEvalReportError = KnowledgeEvalReportErrors[keyof KnowledgeEvalReportErrors]
+
+export type KnowledgeEvalReportResponses = {
+  /**
+   * Markdown evaluation report
+   */
+  200: KnowledgeEvalReport
+}
+
+export type KnowledgeEvalReportResponse = KnowledgeEvalReportResponses[keyof KnowledgeEvalReportResponses]
+
+export type KnowledgeSessionMountData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/session/{sessionID}"
+}
+
+export type KnowledgeSessionMountErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+}
+
+export type KnowledgeSessionMountError = KnowledgeSessionMountErrors[keyof KnowledgeSessionMountErrors]
+
+export type KnowledgeSessionMountResponses = {
+  /**
+   * Mounted collection ids
+   */
+  200: Array<string>
+}
+
+export type KnowledgeSessionMountResponse = KnowledgeSessionMountResponses[keyof KnowledgeSessionMountResponses]
+
+export type KnowledgeSessionMount2Data = {
+  body?: {
+    collectionIDs: Array<string>
+  }
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/knowledge/session/{sessionID}"
+}
+
+export type KnowledgeSessionMount2Errors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+}
+
+export type KnowledgeSessionMount2Error = KnowledgeSessionMount2Errors[keyof KnowledgeSessionMount2Errors]
+
+export type KnowledgeSessionMount2Responses = {
+  /**
+   * Mounted collection ids
+   */
+  200: Array<string>
+}
+
+export type KnowledgeSessionMount2Response = KnowledgeSessionMount2Responses[keyof KnowledgeSessionMount2Responses]
+
+export type KnowledgeGraphData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+    collectionID?: string
+    limit?: string
+  }
+  url: "/knowledge/graph"
+}
+
+export type KnowledgeGraphErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+}
+
+export type KnowledgeGraphError = KnowledgeGraphErrors[keyof KnowledgeGraphErrors]
+
+export type KnowledgeGraphResponses = {
+  /**
+   * Knowledge graph
+   */
+  200: KnowledgeGraph
+}
+
+export type KnowledgeGraphResponse = KnowledgeGraphResponses[keyof KnowledgeGraphResponses]
+
+export type KnowledgeSearchData = {
+  body?: never
+  path?: never
+  query: {
+    directory?: string
+    workspace?: string
+    q: string
+    collectionID?: string
+    limit?: string
+  }
+  url: "/knowledge/search"
+}
+
+export type KnowledgeSearchErrors = {
+  /**
+   * KnowledgeError
+   */
+  400: KnowledgeError
+}
+
+export type KnowledgeSearchError = KnowledgeSearchErrors[keyof KnowledgeSearchErrors]
+
+export type KnowledgeSearchResponses = {
+  /**
+   * Knowledge search hits
+   */
+  200: Array<KnowledgeHit>
+}
+
+export type KnowledgeSearchResponse = KnowledgeSearchResponses[keyof KnowledgeSearchResponses]
 
 export type InstanceDisposeData = {
   body?: never
@@ -6447,6 +9622,16 @@ export type AppSkillsResponses = {
     location: string
     content: string
     builtIn?: boolean
+    context?: "inline" | "fork"
+    agent?: string
+    model?: string
+    effort?: string
+    allowedTools?: Array<string>
+    paths?: Array<string>
+    userInvocable?: boolean
+    disableModelInvocation?: boolean
+    argumentHint?: string
+    whenToUse?: string
   }>
 }
 
@@ -6489,6 +9674,25 @@ export type FormatterStatusResponses = {
 }
 
 export type FormatterStatusResponse = FormatterStatusResponses[keyof FormatterStatusResponses]
+
+export type KernelCapabilitiesData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/kernel"
+}
+
+export type KernelCapabilitiesResponses = {
+  /**
+   * Kernel capabilities
+   */
+  200: KernelCapabilities
+}
+
+export type KernelCapabilitiesResponse = KernelCapabilitiesResponses[keyof KernelCapabilitiesResponses]
 
 export type McpStatusData = {
   body?: never
@@ -6735,6 +9939,7 @@ export type MemoryListData = {
     scope?: "global" | "project" | "session"
     search?: string
     includeArchived?: boolean | "true" | "false"
+    includeGlobal?: "true" | "false"
     limit?: number
   }
   url: "/memory"
@@ -9344,6 +12549,7 @@ export type SessionCreateData = {
       variant?: string
     }
     permission?: PermissionRuleset
+    permissionMode?: PermissionMode
     workspaceID?: string
   }
   path?: never
@@ -9474,6 +12680,8 @@ export type SessionUpdateData = {
   body?: {
     title?: string
     permission?: PermissionRuleset
+    permissionMode?: PermissionMode
+    cwd?: string
     time?: {
       archived?: number
     }
@@ -9830,6 +13038,242 @@ export type SessionAbortResponses = {
 }
 
 export type SessionAbortResponse = SessionAbortResponses[keyof SessionAbortResponses]
+
+export type SessionBackgroundData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/background"
+}
+
+export type SessionBackgroundErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SessionBackgroundError = SessionBackgroundErrors[keyof SessionBackgroundErrors]
+
+export type SessionBackgroundResponses = {
+  /**
+   * Background jobs
+   */
+  200: Array<{
+    id: string
+    type: string
+    title?: string
+    status: "running" | "completed" | "error" | "cancelled"
+    started_at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    completed_at?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    output?: string
+    error?: string
+    metadata?: {
+      [key: string]: unknown
+    }
+  }>
+}
+
+export type SessionBackgroundResponse = SessionBackgroundResponses[keyof SessionBackgroundResponses]
+
+export type SessionTempFilesListData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/temp-files"
+}
+
+export type SessionTempFilesListErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SessionTempFilesListError = SessionTempFilesListErrors[keyof SessionTempFilesListErrors]
+
+export type SessionTempFilesListResponses = {
+  /**
+   * Temporary files created by tools
+   */
+  200: Array<SessionTempFile>
+}
+
+export type SessionTempFilesListResponse = SessionTempFilesListResponses[keyof SessionTempFilesListResponses]
+
+export type SessionPlanApprovalListData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/plan-approval"
+}
+
+export type SessionPlanApprovalListErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SessionPlanApprovalListError = SessionPlanApprovalListErrors[keyof SessionPlanApprovalListErrors]
+
+export type SessionPlanApprovalListResponses = {
+  /**
+   * Pending plan approvals
+   */
+  200: Array<PlanApprovalPending1>
+}
+
+export type SessionPlanApprovalListResponse = SessionPlanApprovalListResponses[keyof SessionPlanApprovalListResponses]
+
+export type SessionPlanApprovalReplyData = {
+  body?: {
+    approved: boolean
+    feedback?: string
+  }
+  path: {
+    sessionID: string
+    requestID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/plan-approval/{requestID}"
+}
+
+export type SessionPlanApprovalReplyErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SessionPlanApprovalReplyError = SessionPlanApprovalReplyErrors[keyof SessionPlanApprovalReplyErrors]
+
+export type SessionPlanApprovalReplyResponses = {
+  /**
+   * Reply accepted
+   */
+  200: boolean
+}
+
+export type SessionPlanApprovalReplyResponse =
+  SessionPlanApprovalReplyResponses[keyof SessionPlanApprovalReplyResponses]
+
+export type SessionTempFilesCleanData = {
+  body?: {
+    paths?: Array<string>
+  }
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/temp-files/clean"
+}
+
+export type SessionTempFilesCleanErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SessionTempFilesCleanError = SessionTempFilesCleanErrors[keyof SessionTempFilesCleanErrors]
+
+export type SessionTempFilesCleanResponses = {
+  /**
+   * Cleanup result
+   */
+  200: SessionTempFileCleanResult
+}
+
+export type SessionTempFilesCleanResponse = SessionTempFilesCleanResponses[keyof SessionTempFilesCleanResponses]
+
+export type SessionBackgroundCancelData = {
+  body?: never
+  path: {
+    sessionID: string
+    jobID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/background/{jobID}"
+}
+
+export type SessionBackgroundCancelErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SessionBackgroundCancelError = SessionBackgroundCancelErrors[keyof SessionBackgroundCancelErrors]
+
+export type SessionBackgroundCancelResponses = {
+  /**
+   * Cancelled background job
+   */
+  200: {
+    id: string
+    type: string
+    title?: string
+    status: "running" | "completed" | "error" | "cancelled"
+    started_at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    completed_at?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    output?: string
+    error?: string
+    metadata?: {
+      [key: string]: unknown
+    }
+  }
+}
+
+export type SessionBackgroundCancelResponse = SessionBackgroundCancelResponses[keyof SessionBackgroundCancelResponses]
 
 export type SessionInitData = {
   body?: {
@@ -12254,6 +15698,66 @@ export type OrchestratorExecuteOrchestratorPlanResponses = {
    */
   200: unknown
 }
+
+export type TeamOverviewData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/team"
+}
+
+export type TeamOverviewResponses = {
+  /**
+   * Team overview
+   */
+  200: TeamOverview
+}
+
+export type TeamOverviewResponse = TeamOverviewResponses[keyof TeamOverviewResponses]
+
+export type TeamMessageData = {
+  body?: {
+    to: string
+    message: string
+    summary?: string
+    mode?: "queue" | "interrupt"
+  }
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/team/message"
+}
+
+export type TeamMessageErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type TeamMessageError = TeamMessageErrors[keyof TeamMessageErrors]
+
+export type TeamMessageResponses = {
+  /**
+   * Message queued
+   */
+  200: boolean
+}
+
+export type TeamMessageResponse = TeamMessageResponses[keyof TeamMessageResponses]
 
 export type PtyConnectData = {
   body?: never
