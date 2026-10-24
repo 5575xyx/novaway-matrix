@@ -93,6 +93,42 @@ describe("background.job", () => {
     }),
   )
 
+  it.instance("ends with error status when the run reports a failure outcome", () =>
+    Effect.gen(function* () {
+      const jobs = yield* BackgroundJob.Service
+      const job = yield* jobs.start({
+        type: "monitor",
+        run: Effect.succeed({ output: "<report>", failed: "command exited with code 3" }),
+      })
+
+      const result = yield* jobs.wait({ id: job.id })
+
+      // 超时/非 0 退出以前一律被标成 completed，右侧状态卡就显示绿色的谎话。
+      expect(result.info?.status).toBe("error")
+      expect(result.info?.error).toBe("command exited with code 3")
+      expect(result.info?.output).toBe("<report>")
+    }),
+  )
+
+  it.instance("keeps cancelled when the run reports a failure after the user stopped it", () =>
+    Effect.gen(function* () {
+      const jobs = yield* BackgroundJob.Service
+      const release = yield* Deferred.make<void>()
+      const job = yield* jobs.start({
+        type: "shell",
+        run: Deferred.await(release).pipe(Effect.as({ output: "tail", failed: "aborted" })),
+      })
+
+      yield* jobs.cancel(job.id)
+      yield* Deferred.succeed(release, undefined)
+      const result = yield* jobs.wait({ id: job.id })
+
+      // 停止就是停止：迟到的失败结果不能把状态改写成 error。
+      expect(result.info?.status).toBe("cancelled")
+      expect(result.info?.error).toBeUndefined()
+    }),
+  )
+
   it.instance("can cancel running jobs", () =>
     Effect.gen(function* () {
       const jobs = yield* BackgroundJob.Service

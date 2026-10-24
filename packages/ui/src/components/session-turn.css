@@ -84,17 +84,13 @@
   }
 
   [data-slot="session-turn-assistant-content"] {
-    width: 100%;
     min-width: 0;
     display: flex;
     flex-direction: column;
-    align-self: stretch;
+    align-self: flex-start;
     gap: 12px;
-    border-left: 2px solid color-mix(in srgb, var(--icon-blue) 55%, transparent);
-    padding-left: 16px;
-    margin-left: 6px;
-    border-radius: 0 10px 10px 0;
-    background: linear-gradient(to right, color-mix(in srgb, var(--icon-blue) 5%, transparent), transparent 42%);
+    /* 卡片外观见 app/src/index.css 的「助手回复：每个块一张贴内容的小卡片」。
+       这里不再画蓝色左边框 / 渐变底色——那种整条回复的"色带"正是要移除的。 */
   }
 
   [data-slot="session-turn-diffs"] {

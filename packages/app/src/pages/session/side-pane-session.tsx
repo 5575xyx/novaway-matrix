@@ -80,8 +80,19 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
   // `message[sessionID]` 直接就是按 id 排好序的 Message 数组（见 event-reducer 的单测）。
   const messages = createMemo(() => store().message[props.tab.sessionID] ?? [])
 
-  /** 取最近 N 条：面板只有 360px 宽，渲染整条会话既慢也没意义。 */
-  const rows = createMemo(() => messages().slice(-MAX_ROWS))
+  /** 取最近 N 条：面板只有 360px 宽，渲染整条会话既慢也没意义。
+   *
+   * 起点必须回退到最近的 user 消息，否则会切在某一轮中间：子代理一轮能跑出几十条
+   * assistant 消息（每次工具调用/生成都是一条），切掉开头那条 user 后 `turns` 里
+   * 一条轮次都组不出来 —— 面板就整片空白（而且是"看一会才空"，越跑越多才越过 40 条）。
+   */
+  const rows = createMemo(() => {
+    const all = messages()
+    if (all.length <= MAX_ROWS) return all
+    let start = all.length - MAX_ROWS
+    while (start > 0 && all[start]?.role !== "user") start--
+    return all.slice(start)
+  })
   const hidden = createMemo(() => Math.max(0, messages().length - rows().length))
   const emptyIcon = () => (props.tab.kind === "subagent" ? "task" : "speech-bubble")
 
@@ -90,7 +101,7 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
    * 用户消息 → 该轮的 assistant 消息（工具调用/思考/正文由 AssistantParts 统一分组）。
    * 之前这里是「一条 Message 一行」，工具调用和思考都不显示，面板看起来像空白的。
    */
-  type Turn = { user: UserMessage; assistants: AssistantMessage[]; key: string }
+  type Turn = { user?: UserMessage; assistants: AssistantMessage[]; key: string }
   const turns = createMemo<Turn[]>(() => {
     const result: Turn[] = []
     for (const message of rows()) {
@@ -99,7 +110,12 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
         continue
       }
       const current = result.at(-1)
-      if (!current) continue
+      if (!current) {
+        // 没有 user 打头的 assistant（例如窗口从某轮中间开始）也要能渲染，
+        // 否则整段内容会被丢掉、面板变空白。
+        result.push({ assistants: [message], key: `assistant:${message.id}` })
+        continue
+      }
       current.assistants.push(message)
     }
     return result
@@ -279,11 +295,17 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
                 const turn = () => turnAccessor()
                 return (
                   <div data-component="side-pane-turn" class="flex flex-col gap-2">
-                    <Message message={turn().user} parts={partsOf(turn().user.id)} />
-                    <AssistantParts
-                      messages={turn().assistants}
-                      showReasoningSummaries={settings.general.showReasoningSummaries()}
-                    />
+                    <Show when={turn().user}>
+                      {(user) => <Message message={user()} parts={partsOf(user().id)} />}
+                    </Show>
+                    {/* 与主聊天区同一套 A1 卡片：每个助手块各自贴内容、各自留缝。
+                        用一层 flex 容器把 AssistantParts 分组的顶层节点变成独立卡片项。 */}
+                    <div data-slot="side-pane-assistant" class="flex flex-col items-start gap-2">
+                      <AssistantParts
+                        messages={turn().assistants}
+                        showReasoningSummaries={settings.general.showReasoningSummaries()}
+                      />
+                    </div>
                   </div>
                 )
               }}

@@ -49,4 +49,9 @@ describe("builtin capabilities", () => {
     expect(check({ command: "rm -rf build" })).toBe(false)
     expect(check({ command: "git status && rm x" })).toBe(false)
   })
+
+  it("lets independent subagents run in parallel", async () => {
+    const { CAPABILITIES } = await import("../../src/tool/registry")
+    expect(CAPABILITIES.task.concurrencySafe).toBe(true)
+  })
 })

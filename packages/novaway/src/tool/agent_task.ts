@@ -57,7 +57,8 @@ export const TaskCreateTool = Tool.define<
     const tasks = yield* AgentTaskListService
     const hooks = yield* HookService
     return {
-      description: "Create a task in the shared team task list.",
+      description:
+        "Add an entry to the shared team task board (a coordination list). This does not start an agent or run anything by itself. To execute work in parallel, launch subagents with the task tool (one call per task, different subagent_type); workers then claim board tasks with task_claim.",
       parameters: TaskCreateParameters,
       capabilities: { concurrencySafe: false },
       execute: (params: Schema.Schema.Type<typeof TaskCreateParameters>, ctx: Tool.Context) =>
@@ -85,7 +86,7 @@ export const TaskCreateTool = Tool.define<
             .pipe(Effect.ignore)
           return {
             title: `Task ${task.id}`,
-            output: `Task created: ${task.id} — ${task.subject}`,
+            output: `Task created on the board: ${task.id} — ${task.subject}. Nothing runs until a subagent is launched with the task tool (or an existing worker claims it).`,
             metadata: { taskID: task.id, teamID: team.id },
           }
         }).pipe(Effect.orDie),
@@ -109,7 +110,7 @@ export const TaskListTool = Tool.define<
     const tasks = yield* AgentTaskListService
     return {
       description:
-        "List tasks in the shared team task list. Prefer tasks in id order; claim pending, unowned, unblocked tasks.",
+        "List entries on the shared team task board. Owners are sessions that claimed work; an unowned task is not running anywhere. Prefer tasks in id order; workers claim pending, unowned, unblocked tasks.",
       parameters: TaskListParameters,
       capabilities: { readOnly: true, concurrencySafe: true },
       execute: (params: Schema.Schema.Type<typeof TaskListParameters>, ctx: Tool.Context) =>
@@ -142,7 +143,8 @@ export const TaskGetTool = Tool.define<typeof TaskGetParameters, { task?: any },
   Effect.gen(function* () {
     const tasks = yield* AgentTaskListService
     return {
-      description: "Get full task details including description and dependencies.",
+      description:
+        "Get full details for a team board task including description and dependencies. This is not a subagent: use task_status for sessions launched with the task tool.",
       parameters: TaskGetParameters,
       capabilities: { readOnly: true, concurrencySafe: true },
       execute: (params: Schema.Schema.Type<typeof TaskGetParameters>, _ctx: Tool.Context) =>
@@ -189,7 +191,7 @@ export const TaskUpdateTool = Tool.define<
     const usage = yield* SessionUsage.Service
     return {
       description:
-        "Update a task: status, owner, description, dependencies. Assigning an owner while pending claims the task.",
+        "Update a team board task: status, owner, description, dependencies. Assigning an owner while pending claims the task. Updating the board never launches an agent.",
       parameters: TaskUpdateParameters,
       capabilities: { concurrencySafe: false },
       execute: (params: Schema.Schema.Type<typeof TaskUpdateParameters>, ctx: Tool.Context) =>
@@ -276,9 +278,16 @@ export const TaskUpdateTool = Tool.define<
             }
           }
 
+          const boardTeam = yield* teams.get(next.teamID)
+          const leadOnly = boardTeam?.rootSessionID === ctx.sessionID
           return {
             title: `Task ${next.id}`,
-            output: `Task updated: ${next.id} [${next.status}] ${next.subject}`,
+            output:
+              params.owner !== undefined
+                ? `Task updated: ${next.id} [${next.status}] ${next.subject}. Assigned to ${params.owner}; assigning does not start that agent — use the task tool to launch it, or agent_message to resume an idle session.`
+                : leadOnly && params.status === "in_progress"
+                  ? `Task updated: ${next.id} [${next.status}] ${next.subject}. Marking a task in_progress only changes the board; no agent is running it. Launch the work with the task tool.`
+                  : `Task updated: ${next.id} [${next.status}] ${next.subject}`,
             metadata: { task: next },
           }
         }).pipe(Effect.orDie),
@@ -301,11 +310,28 @@ export const TaskClaimTool = Tool.define<
     const tasks = yield* AgentTaskListService
     const usage = yield* SessionUsage.Service
     return {
-      description: "Atomically claim a pending, unowned, unblocked task for the current session.",
+      description:
+        "Claim a pending, unowned, unblocked board task for the current session. This only marks the task in_progress for this session; it does not launch a new agent. The caller is expected to do the work itself or delegate it with the task tool.",
       parameters: TaskClaimParameters,
       capabilities: { concurrencySafe: false },
       execute: (params: Schema.Schema.Type<typeof TaskClaimParameters>, ctx: Tool.Context) =>
         Effect.gen(function* () {
+          // 主代理（团队 lead）claim 任务只会把看板状态改成 in_progress，
+          // 不会派生任何子代理。以前它这样“认领”完 3 个任务就以为在并行执行，
+          // 右侧面板却只有 lead。让 lead 明确去用 task 派发子代理。
+          const existing = yield* tasks.get(params.id)
+          if (existing) {
+            const owner = yield* teams.get(existing.teamID)
+            if (owner && owner.rootSessionID === ctx.sessionID) {
+              return {
+                title: "Delegate instead",
+                output:
+                  "The team lead cannot claim board tasks: claiming only changes bookkeeping and starts no agent. Launch the work with the task tool (one call per subagent, use different subagent_type values for different AI employees); the worker claims its own task when it starts.",
+                metadata: {},
+              }
+            }
+          }
+
           const task = yield* tasks.claim({ taskID: params.id, sessionID: ctx.sessionID })
           if (!task) {
             return {
@@ -331,7 +357,7 @@ export const TaskClaimTool = Tool.define<
           }
           return {
             title: `Claimed ${task.id}`,
-            output: `Claimed task ${task.id}: ${task.subject}`,
+            output: `Claimed task ${task.id}: ${task.subject}. The task is now in_progress for this session; no new agent was launched.`,
             metadata: { task },
           }
         }).pipe(Effect.orDie),
@@ -375,7 +401,7 @@ export const TaskWaitTool = Tool.define<
     const tasks = yield* AgentTaskListService
     return {
       description:
-        "Wait for task board progress: for a specific task to finish, or for any unowned pending task to become claimable. Returns early when the condition is already met.",
+        "Wait for team board progress: a specific board task to finish, or any unowned pending task to become claimable. Returns early when the condition is already met. Waiting does not execute anything.",
       parameters: TaskWaitParameters,
       capabilities: { readOnly: true, concurrencySafe: true, interrupt: "cancel" },
       execute: (params: TaskWaitParameters, ctx: Tool.Context) =>
@@ -391,7 +417,14 @@ export const TaskWaitTool = Tool.define<
               yield* Effect.sleep(WAIT_INTERVAL)
               current = (yield* tasks.get(params.task)) ?? current
             }
-            const state = TERMINAL.has(current.status) ? current.status : "still running"
+            // A pending, unowned task is not "running": nothing is executing it.
+            // Saying "still running" here made waiters believe the board itself
+            // was doing work (no subagent had ever been launched).
+            const state = TERMINAL.has(current.status)
+              ? current.status
+              : current.status === "in_progress"
+                ? "still in progress"
+                : "not started"
             const usage = SessionUsage.readMark(current.metadata.usage)
             return {
               title: `Task ${current.id} ${state}`,
@@ -399,6 +432,9 @@ export const TaskWaitTool = Tool.define<
                 `Task ${current.id} — ${state}`,
                 `subject: ${current.subject}`,
                 `owner: ${current.ownerSessionID ?? "unassigned"}`,
+                ...(current.ownerSessionID || TERMINAL.has(current.status)
+                  ? []
+                  : ["note: no session is working on this task until a subagent claims it"]),
                 ...(usage ? [`spent: $${usage.cost.toFixed(4)} · ${usage.tokens.total} tokens`] : []),
               ].join("\n"),
               metadata: { taskID: current.id, timedOut: !TERMINAL.has(current.status) },

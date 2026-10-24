@@ -36,8 +36,8 @@ export type AppModeConfig = {
 export const APP_MODES: AppModeConfig[] = [
   {
     id: "forge",
-    name: "锻造模式（工程师模式）",
-    shortName: "锻造",
+    name: "编码模式",
+    shortName: "编码",
     icon: "F",
     description: "编程、调试、项目工程和代码协作专用工作舱。",
     color: "#4A90D9",
@@ -45,8 +45,8 @@ export const APP_MODES: AppModeConfig[] = [
   },
   {
     id: "zen",
-    name: "禅意模式（办公模式）",
-    shortName: "禅意",
+    name: "办公模式",
+    shortName: "办公",
     icon: "Z",
     description: "文档、日程、办公协作和轻量知识处理空间。",
     color: "#4CAF50",
@@ -54,8 +54,8 @@ export const APP_MODES: AppModeConfig[] = [
   },
   {
     id: "spark",
-    name: "火花模式（创意模式）",
-    shortName: "火花",
+    name: "创意模式",
+    shortName: "创意",
     icon: "S",
     description: "写作、视频、短剧、海报和创意生成工作室。",
     color: "#FF9800",
@@ -63,8 +63,8 @@ export const APP_MODES: AppModeConfig[] = [
   },
   {
     id: "pulse",
-    name: "脉搏模式（运营模式）",
-    shortName: "脉搏",
+    name: "运营模式",
+    shortName: "运营",
     icon: "P",
     description: "小红书、抖音、公众号等内容运营统一工作台。",
     color: "#FF6B6B",
@@ -72,8 +72,8 @@ export const APP_MODES: AppModeConfig[] = [
   },
   {
     id: "future",
-    name: "未来模式（探索模式）",
-    shortName: "未来",
+    name: "探索模式",
+    shortName: "探索",
     icon: "N",
     description: "为高级用户预留的自定义工作流和探索空间。",
     color: "#9C27B0",
@@ -949,9 +949,9 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           batch(() => {
             setStore("mode", "current", mode)
             setStore("mode", "hasSelected", true)
+            // 切模式时强制覆盖所有项目的 mode，确保项目列表按新模式过滤正确
             for (const project of server.projects.list()) {
               const key = pathKey(project.worktree)
-              if (store.mode.projects[key]) continue
               setStore("mode", "projects", key, mode)
             }
           })

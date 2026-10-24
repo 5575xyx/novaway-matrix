@@ -1,5 +1,5 @@
 import { Context, Effect, Layer } from "effect"
-import { and, eq } from "drizzle-orm"
+import { and, desc, eq } from "drizzle-orm"
 import { Database } from "@/storage/db"
 import type { SessionID } from "@/session/schema"
 import { TeamMemberTable, TeamTable } from "./team.sql"
@@ -28,6 +28,22 @@ export type Member = {
 
 export interface Interface {
   readonly create: (input: { name: string; description?: string; rootSessionID: SessionID }) => Effect.Effect<Team>
+  /**
+   * Return the team rooted at (or joined by) this session, creating one with
+   * `name` when none exists. Check and insert happen in one synchronous DB
+   * block so concurrent subagent spawns cannot create duplicate teams.
+   */
+  readonly ensure: (input: {
+    rootSessionID: SessionID
+    name: string
+    agent: string
+    memberName?: string
+  }) => Effect.Effect<Team>
+  readonly update: (input: {
+    teamID: string
+    name?: string
+    description?: string
+  }) => Effect.Effect<Team | undefined>
   readonly get: (id: string) => Effect.Effect<Team | undefined>
   readonly resolve: (idOrName: string, rootSessionID?: SessionID) => Effect.Effect<Team | undefined>
   readonly list: (rootSessionID?: SessionID) => Effect.Effect<Team[]>
@@ -134,6 +150,82 @@ export const layer = Layer.effect(
       return team
     })
 
+    const ensure: Interface["ensure"] = Effect.fn("Team.ensure")(function* (input) {
+      const now = Date.now()
+      // Check + insert is one synchronous block: two subagents spawning at the
+      // same time must land in the same team instead of creating duplicates.
+      const team = yield* Effect.sync(() =>
+        Database.use((db) => {
+          const membership = db
+            .select()
+            .from(TeamMemberTable)
+            .where(eq(TeamMemberTable.session_id, input.rootSessionID))
+            .orderBy(desc(TeamMemberTable.updated_at))
+            .get()
+          if (membership) {
+            const joined = db.select().from(TeamTable).where(eq(TeamTable.id, membership.team_id)).get()
+            if (joined) return toTeam(joined)
+          }
+          const rooted = db
+            .select()
+            .from(TeamTable)
+            .where(eq(TeamTable.root_session_id, input.rootSessionID))
+            .orderBy(desc(TeamTable.updated_at))
+            .get()
+          if (rooted) return toTeam(rooted)
+          const created: Team = {
+            id: id(),
+            name: input.name,
+            rootSessionID: input.rootSessionID,
+            createdAt: now,
+            updatedAt: now,
+          }
+          db.insert(TeamTable)
+            .values({
+              id: created.id,
+              name: created.name,
+              description: null,
+              root_session_id: created.rootSessionID,
+              created_at: now,
+              updated_at: now,
+            })
+            .run()
+          return created
+        }),
+      )
+      // Idempotent: addMember updates the existing lead row instead of
+      // duplicating it. Only the root session becomes lead; a session that is
+      // merely a member of another team keeps its worker role.
+      if (team.rootSessionID === input.rootSessionID) {
+        yield* addMember({
+          teamID: team.id,
+          sessionID: input.rootSessionID,
+          name: input.memberName ?? "team-lead",
+          agent: input.agent,
+          role: "lead",
+        }).pipe(Effect.ignore)
+      }
+      return team
+    })
+
+    const update: Interface["update"] = Effect.fn("Team.update")(function* (input) {
+      const now = Date.now()
+      yield* Effect.sync(() =>
+        Database.use((db) =>
+          db
+            .update(TeamTable)
+            .set({
+              ...(input.name !== undefined ? { name: input.name } : {}),
+              ...(input.description !== undefined ? { description: input.description } : {}),
+              updated_at: now,
+            })
+            .where(eq(TeamTable.id, input.teamID))
+            .run(),
+        ),
+      )
+      return yield* get(input.teamID)
+    })
+
     const list: Interface["list"] = Effect.fn("Team.list")(function* (rootSessionID) {
       const rows = yield* Effect.sync(() =>
         Database.use((db) =>
@@ -238,18 +330,42 @@ export const layer = Layer.effect(
     })
 
     const ofSession: Interface["ofSession"] = Effect.fn("Team.ofSession")(function* (sessionID) {
-      const row = yield* Effect.sync(() =>
-        Database.use((db) => db.select().from(TeamMemberTable).where(eq(TeamMemberTable.session_id, sessionID)).get()),
+      // A root session can historically belong to more than one team (the lead
+      // called team_create twice). The UI only renders one roster, so resolve
+      // deterministically to the newest membership instead of whichever row
+      // SQLite happens to return first — otherwise the panel keeps showing a
+      // stale team while new workers join the fresh one.
+      const rows = yield* Effect.sync(() =>
+        Database.use((db) =>
+          db
+            .select()
+            .from(TeamMemberTable)
+            .where(eq(TeamMemberTable.session_id, sessionID))
+            .orderBy(desc(TeamMemberTable.updated_at))
+            .all(),
+        ),
       )
-      if (row) return yield* get(row.team_id)
+      for (const row of rows) {
+        const team = yield* get(row.team_id)
+        if (team) return team
+      }
       const team = yield* Effect.sync(() =>
-        Database.use((db) => db.select().from(TeamTable).where(eq(TeamTable.root_session_id, sessionID)).get()),
+        Database.use((db) =>
+          db
+            .select()
+            .from(TeamTable)
+            .where(eq(TeamTable.root_session_id, sessionID))
+            .orderBy(desc(TeamTable.updated_at))
+            .get(),
+        ),
       )
       return team ? toTeam(team) : undefined
     })
 
     return Service.of({
       create,
+      ensure,
+      update,
       get,
       resolve,
       list,

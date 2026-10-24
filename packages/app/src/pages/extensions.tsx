@@ -24,7 +24,11 @@ type Tab = "overview" | "installed" | "market"
  * 市场只保留内核版（`MarketCatalog`）：它直连 `POST /extension/marketplace/install`，
  * Web / 终端 / 桌面三条路径共用一套安装逻辑与安装记录。
  */
-export const ExtensionsPage: Component<{ directory: string; onBack: () => void }> = (props) => {
+export const ExtensionsPage: Component<{
+  directory: string
+  onBack: () => void
+  onOpenSettings?: (tab: "general" | "agents") => void
+}> = (props) => {
   const language = useLanguage()
   const [tab, setTab] = createSignal<Tab>("overview")
   const [refreshKey, setRefreshKey] = createSignal(0)
@@ -66,7 +70,7 @@ export const ExtensionsPage: Component<{ directory: string; onBack: () => void }
       <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         <Show when={tab() === "overview"}>
           <div class="flex flex-col gap-3">
-            <KernelCapabilitiesCard directory={props.directory} />
+            <KernelCapabilitiesCard directory={props.directory} onOpenSettings={props.onOpenSettings} />
             <HooksCard directory={props.directory} />
           </div>
         </Show>

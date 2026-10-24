@@ -6,6 +6,7 @@ import { Session } from "@/session/session"
 import { Agent } from "@/agent/agent"
 import { MessageV2 } from "@/session/message-v2"
 import { Service as BackgroundJobService } from "@/background/job"
+import { Service as TeamService } from "@/team/team"
 
 export const NL = String.fromCharCode(10)
 
@@ -45,7 +46,7 @@ type TaskInput = Omit<OrchestratorTask, "id" | "status">
 export const OrchestratorTool = Tool.define<
   typeof Parameters,
   Metadata,
-  OrchestratorService | Session.Service | Agent.Service | BackgroundJobService
+  OrchestratorService | Session.Service | Agent.Service | BackgroundJobService | TeamService
 >(
   "orchestrator",
   Effect.gen(function* () {
@@ -53,6 +54,7 @@ export const OrchestratorTool = Tool.define<
     const sessions = yield* Session.Service
     const agents = yield* Agent.Service
     const background = yield* BackgroundJobService
+    const teams = yield* TeamService
 
     return {
       description: "多代理编排(Orchestrator)- 创建含依赖关系的任务计划,按拓扑顺序并发派生子代理执行,结果在任务间传递",
@@ -141,6 +143,7 @@ export const OrchestratorTool = Tool.define<
                 parentSessionID: ctx.sessionID,
                 defaultModel: { providerID: msg.info.providerID, modelID: msg.info.modelID },
                 defaultAgent: ctx.agent,
+                teams,
               })
               const runPlan = (retry = false) =>
                 orchestrator.executePlan({
@@ -157,6 +160,14 @@ export const OrchestratorTool = Tool.define<
                   type: "orchestrator",
                   title: plan.name,
                   metadata: { planId: params.planId },
+                  // 必须显式传 cancel。不传时点停止只会打断 executePlan 的「等待者」——
+                  // plan 永远停在 running、还会继续派新波次，而卡片上早已显示「已停止」。
+                  // 这里落 cancelled，协作门（每波之前重读状态）就会立刻退出并收尾；
+                  // 正好落在波次之间时，未跑的任务会被一并标记为 cancelled。
+                  // 与上面 action=cancel 分支的语义保持一致。
+                  cancel: orchestrator.setStatus({ planId: params.planId!, status: "cancelled" }).pipe(
+                    Effect.ignore,
+                  ),
                   run: runPlan().pipe(Effect.as("编排完成")),
                 })
                 return {
@@ -221,6 +232,7 @@ export const OrchestratorTool = Tool.define<
                 parentSessionID: ctx.sessionID,
                 defaultModel: { providerID: retryMsg.info.providerID, modelID: retryMsg.info.modelID },
                 defaultAgent: ctx.agent,
+                teams,
               })
               const final = yield* orchestrator.executePlan({
                 planId: params.planId,

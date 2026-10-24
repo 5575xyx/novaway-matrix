@@ -8,6 +8,7 @@ import { Session } from "@/session/session"
 import { Agent } from "@/agent/agent"
 import { MessageV2 } from "@/session/message-v2"
 import { SessionID } from "@/session/schema"
+import { Service as TeamService } from "@/team/team"
 
 export const Parameters = Schema.Struct({
   action: Schema.Literals([
@@ -35,12 +36,17 @@ type Metadata = {
   action: string
 }
 
-export const WorkflowTool = Tool.define<typeof Parameters, Metadata, WorkflowService | Session.Service | Agent.Service>(
+export const WorkflowTool = Tool.define<
+  typeof Parameters,
+  Metadata,
+  WorkflowService | Session.Service | Agent.Service | TeamService
+>(
   "workflow",
   Effect.gen(function* () {
     const workflowService = yield* WorkflowService
     const sessions = yield* Session.Service
     const agents = yield* Agent.Service
+    const teams = yield* TeamService
 
     return {
       description: "管理组合工作流（Workflow）- 创建/从模板创建、执行(真实多步子代理编排)、监控多步骤工作流",
@@ -141,6 +147,7 @@ export const WorkflowTool = Tool.define<typeof Parameters, Metadata, WorkflowSer
                 parentSessionID: ctx.sessionID,
                 defaultModel: { providerID: msg.info.providerID, modelID: msg.info.modelID },
                 defaultAgent: ctx.agent,
+                teams,
               })
               const finalRun = yield* executeRun({
                 workflow,

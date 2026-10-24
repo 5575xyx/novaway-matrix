@@ -3,6 +3,7 @@ import * as Tool from "./tool"
 import { Service as TeamService } from "@/team/team"
 import { Service as AgentMailboxService } from "@/team/mailbox"
 import { Service as BackgroundJobService } from "@/background/job"
+import { Service as SessionService } from "@/session/session"
 import type { SessionID, MessageID } from "@/session/schema"
 import { PlanApproval } from "@/session/plan-approval"
 
@@ -54,7 +55,7 @@ function text(from: SessionID, message: string) {
 export const AgentMessageTool = Tool.define<
   typeof AgentMessageParameters,
   Metadata,
-  TeamService | AgentMailboxService | BackgroundJobService | PlanApproval.Service
+  TeamService | AgentMailboxService | BackgroundJobService | PlanApproval.Service | SessionService
 >(
   "agent_message",
   Effect.gen(function* () {
@@ -62,6 +63,7 @@ export const AgentMessageTool = Tool.define<
     const mailbox = yield* AgentMailboxService
     const background = yield* BackgroundJobService
     const approval = yield* PlanApproval.Service
+    const sessions = yield* SessionService
 
     const deliver = Effect.fn("AgentMessage.deliver")(function* (input: {
       target: SessionID
@@ -155,6 +157,18 @@ export const AgentMessageTool = Tool.define<
 
           const member = team ? yield* teams.member(team.id, params.to) : undefined
           const target = (member?.sessionID ?? params.to) as SessionID
+          // 名字打错/成员根本没派出去时，旧实现照样往邮箱里写一条并回复
+          // “delivered”，模型便以为已经通知了并不存在的员工。这里直接拒绝。
+          if (!member) {
+            const exists = yield* sessions.get(target).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+            if (!exists) {
+              return {
+                title: "Unknown recipient",
+                output: `No team member or session named ${params.to}. Use agent_list to see this team's AI employees; launch a new one with the task tool before messaging it.`,
+                metadata: {},
+              }
+            }
+          }
 
           yield* mailbox.send({
             teamID: team?.id ?? "default",

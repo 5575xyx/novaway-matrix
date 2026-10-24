@@ -151,11 +151,32 @@ const live: Layer.Layer<
         "</language>",
       ].join("\n")
 
+      // 并行编排策略:常量文本，放在代理提示词之后，主代理据此判断是否拆分任务。
+      // 仅主代理生效（subagent / small 调用不注入），减少 token 与误触发。
+      const AUTO_DELEGATE_DIRECTIVE = [
+        "<delegation>",
+        "当请求可以拆成两个以上相互独立、各自有实质工作量的子任务时，先判断是否值得并行：",
+        "- 适合并行：同时调研多个模块/主题、并行审查多个文件集、同时产出多份互不依赖的物料。",
+        "- 不适合并行：简单请求、强顺序步骤、子任务需要频繁共享中间结果、或都要修改同一批文件。",
+        "需要并行时：",
+        "1. 每个会话只调用一次 team_create（重复调用会复用现有团队）。",
+        "2. 根据可用 agent 列表为每个子任务选择最合适的 AI 员工，不要所有子任务都用同一个 general。",
+        '3. 用 orchestrator 创建带 dependencies 的计划并执行（同一波内自动并行）；或并行发起多个 task 调用（可加 background=true）。',
+        '4. 会改同一批文件的子任务放进 dependencies 串行，或用 isolation="worktree" 隔离。',
+        "注意：task_create / task_claim / task_wait 只是团队任务看板，本身不会执行任何东西。只建任务不派子代理，等于什么都没运行；用户询问进度时不要把看板任务说成正在并行执行。",
+        "普通单步任务不要建团队、不要委派，直接完成。",
+        "</delegation>",
+      ].join("\n")
+
       const systemParts = [
         // 语言指令(最高优先级,置顶)
         LANGUAGE_DIRECTIVE,
         // use agent prompt otherwise provider prompt
         ...(input.agent.prompt ? [input.agent.prompt] : SystemPrompt.provider(input.model)),
+        // 自动并行编排策略(主代理默认开启)
+        ...(input.agent.mode !== "subagent" && !input.small && cfg.experimental?.auto_delegate !== false
+          ? [AUTO_DELEGATE_DIRECTIVE]
+          : []),
         // any custom prompt passed into this call
         ...input.system,
         // any custom prompt from last user message

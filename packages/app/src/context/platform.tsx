@@ -22,6 +22,9 @@ export type Platform = {
 
   openPath?(path: string, app?: string): Promise<void>
 
+  /** 在系统文件管理器中显示该文件/文件夹(选中);仅桌面端实现。 */
+  showItemInFolder?(path: string): Promise<boolean>
+
   restart(): Promise<void>
 
   back(): void

@@ -351,19 +351,37 @@ export const TaskTool = Tool.define(
         }
       }
 
-      const team =
+      const resolvedTeam =
         (params.team ? yield* teams.resolve(params.team, ctx.sessionID) : undefined) ??
         (yield* teams.ofSession(ctx.sessionID))
+      // Normal use should still surface subagent work in the team panel: when a
+      // root session spawns its first worker without calling team_create, create
+      // one automatically. `ensure` is atomic so parallel spawns share it.
+      const team =
+        resolvedTeam ??
+        (!parentSession.parentID
+          ? yield* teams.ensure({ rootSessionID: ctx.sessionID, name: "自动团队", agent: ctx.agent })
+          : undefined)
       if (team) {
+        const preferred = params.name ?? `${next.name}-${nextSession.id.slice(-4)}`
+        // Names address members (agent_message); keep them unique per team.
+        const clash = yield* teams
+          .member(team.id, preferred)
+          .pipe(Effect.catchCause(() => Effect.succeed(undefined)))
         yield* teams.addMember({
           teamID: team.id,
           sessionID: nextSession.id,
-          name: params.name ?? `${next.name}-${nextSession.id.slice(-4)}`,
+          name: clash && clash.sessionID !== nextSession.id ? `${preferred} #${nextSession.id.slice(-4)}` : preferred,
           agent: next.name,
           role: "worker",
           worktreePath: isolated?.directory,
         })
       }
+
+      const markMember = (status: "active" | "idle") =>
+        team
+          ? teams.updateMember({ teamID: team.id, sessionID: nextSession.id, status }).pipe(Effect.ignore)
+          : Effect.void
 
       yield* hooks
         .trigger({
@@ -526,7 +544,13 @@ export const TaskTool = Tool.define(
           type: id,
           title: params.description,
           metadata,
-          run: runTask().pipe(
+          // 必须显式传 cancel：runTask 里的 ops.prompt 把这一轮 run fork 进
+          // SessionRunState 的实例级 scope，不在本 job 的 fiber 树里。只靠
+          // BackgroundJob.cancel 打断 job fiber 只会打断「等待者」，
+          // 子会话自己还会继续跑、继续往会话里写消息。
+          cancel: ops.cancel(nextSession.id),
+          run: markMember("active").pipe(
+            Effect.andThen(runTask()),
             Effect.tap((text) => inject("completed", text).pipe(Effect.ignore)),
             Effect.catchCause((cause) =>
               (Cause.hasInterruptsOnly(cause)
@@ -534,6 +558,7 @@ export const TaskTool = Tool.define(
                 : inject("error", errorText(Cause.squash(cause))).pipe(Effect.ignore)
               ).pipe(Effect.andThen(Effect.failCause(cause))),
             ),
+            Effect.ensuring(markMember("idle")),
           ),
         })
 
@@ -559,7 +584,10 @@ export const TaskTool = Tool.define(
         }),
         () =>
           Effect.gen(function* () {
-            const text = yield* runTask()
+            const text = yield* markMember("active").pipe(
+              Effect.andThen(runTask()),
+              Effect.ensuring(markMember("idle")),
+            )
             return {
               title: params.description,
               metadata,

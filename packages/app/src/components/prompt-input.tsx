@@ -1687,9 +1687,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         onSubmit={handleSubmit}
         data-working={working() ? "true" : "false"}
         data-optimizing={store.optimizing ? "true" : "false"}
-        // 对齐 ZCode `prompt-editor/ChatPromptEditor.tsx` 的输入壳：
-        // `rounded-2xl border border-input-border bg-input p-3 transition-colors
-        //  hover:border-input-border-hover focus-within:border-input-border-focused focus-within:bg-input-focused`。
+        // 对齐 ZCode `prompt-editor/ChatPromptEditor.tsx` 的输入壳几何：
+        // `rounded-2xl border ... p-3 transition-colors`。
+        // 背景刻意用透明，不照抄 ZCode 的 `bg-input`（浅色主题 `--input` 是纯白 #fff）：
+        // 外层 dock 是 `bg-background/80 backdrop-blur-sm`（与聊天区同一个灰底），
+        // 壳子再填一层纯色，就会在浅灰页面上顶出一个明显的色块。聚焦仍靠边框色区分。
         // DESIGN.md 把主聊天输入壳列为**唯一允许 rounded-2xl 的例外**，但**不用阴影/光晕**——
         // 旧版是内联 16px 圆角 + 自算 box-shadow（含 24px 投影），既非语义 token 也过重。
         classList={{
@@ -1697,9 +1699,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
           // 作为容器查询的锚点：顶部工具栏按钮文字按**输入框实际宽度**收放，
           // 而不是按窗口宽度（桌面端窗口很宽、输入框却很窄，sm: 断点会误判）。
           "@container": true,
-          "rounded-2xl border border-input-border bg-input p-3 transition-colors": true,
+          "rounded-2xl border border-input-border bg-transparent p-3 transition-colors": true,
           "hover:border-input-border-hover": !working() && !store.optimizing,
-          "focus-within:border-input-border-focused focus-within:bg-input-focused": true,
+          "focus-within:border-input-border-focused": true,
           "border-icon-blue border-dashed": store.draggingType !== null,
           [props.class ?? ""]: !!props.class,
         }}
@@ -1837,7 +1839,10 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                             .split(String.fromCharCode(8203))
                             .join("")
                             .trim()
-                          setEditorText(current ? current + String.fromCharCode(10) + item.prompt : item.prompt)
+                          const next = current ? current + String.fromCharCode(10) + item.prompt : item.prompt
+                          // 用 prompt.set 更新 store，触发 dirty = true，占位 div 才隐藏
+                          prompt.set([{ type: "text", content: next, start: 0, end: next.length }], next.length)
+                          setEditorText(next)
                           restoreFocus()
                         }}
                       >

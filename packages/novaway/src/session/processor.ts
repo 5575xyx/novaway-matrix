@@ -79,6 +79,15 @@ interface ProcessorContext extends Input {
   needsCompaction: boolean
   currentText: MessageV2.TextPart | undefined
   reasoningMap: Record<string, MessageV2.ReasoningPart>
+  /**
+   * 当前 step 里正在写的推理 part。
+   *
+   * 正常模型一个 step 只发一段 reasoning；但部分网关（内置网关）会把 reasoning 和
+   * content 交错下发，AI SDK 每遇到一个 content chunk 就结束当前 reasoning、下一个
+   * reasoning chunk 再重新开始。如果按 stream id 建 part，一条完整的思考会被拆成
+   * 几十上百个碎片。这里让同一 step 内的所有 reasoning 片段复用同一个 part。
+   */
+  currentReasoning: MessageV2.ReasoningPart | undefined
 }
 
 type StreamEvent = Event
@@ -119,6 +128,7 @@ export const layer = Layer.effect(
         needsCompaction: false,
         currentText: undefined,
         reasoningMap: {},
+        currentReasoning: undefined,
       }
       let aborted = false
       const slog = log.clone().tag("session.id", input.sessionID).tag("messageID", input.assistantMessage.id)
@@ -227,16 +237,20 @@ export const layer = Layer.effect(
                 timestamp: DateTime.makeUnsafe(Date.now()),
               })
             }
-            ctx.reasoningMap[value.id] = {
-              id: PartID.ascending(),
-              messageID: ctx.assistantMessage.id,
-              sessionID: ctx.assistantMessage.sessionID,
-              type: "reasoning",
-              text: "",
-              time: { start: Date.now() },
-              metadata: value.providerMetadata,
+            // 同一 step 内复用同一个 reasoning part，避免交错下发的网关把一条思考拆成多个碎片。
+            if (!ctx.currentReasoning) {
+              ctx.currentReasoning = {
+                id: PartID.ascending(),
+                messageID: ctx.assistantMessage.id,
+                sessionID: ctx.assistantMessage.sessionID,
+                type: "reasoning",
+                text: "",
+                time: { start: Date.now() },
+                metadata: value.providerMetadata,
+              }
+              yield* session.updatePart(ctx.currentReasoning)
             }
-            yield* session.updatePart(ctx.reasoningMap[value.id])
+            ctx.reasoningMap[value.id] = ctx.currentReasoning
             return
 
           case "reasoning-delta":
@@ -252,24 +266,27 @@ export const layer = Layer.effect(
             })
             return
 
-          case "reasoning-end":
-            if (!(value.id in ctx.reasoningMap)) return
+          case "reasoning-end": {
+            const part = ctx.reasoningMap[value.id]
+            if (!part) return
             // TODO(v2): Temporary dual-write while migrating session messages to v2 events.
             if (flags.experimentalEventSystem) {
               yield* events.publish(SessionEvent.Reasoning.Ended, {
                 sessionID: ctx.sessionID,
                 reasoningID: value.id,
-                text: ctx.reasoningMap[value.id].text,
+                text: part.text,
                 timestamp: DateTime.makeUnsafe(Date.now()),
               })
             }
             // oxlint-disable-next-line no-self-assign -- reactivity trigger
-            ctx.reasoningMap[value.id].text = ctx.reasoningMap[value.id].text
-            ctx.reasoningMap[value.id].time = { ...ctx.reasoningMap[value.id].time, end: Date.now() }
-            if (value.providerMetadata) ctx.reasoningMap[value.id].metadata = value.providerMetadata
-            yield* session.updatePart(ctx.reasoningMap[value.id])
-            delete ctx.reasoningMap[value.id]
+            part.text = part.text
+            part.time = { ...part.time, end: Date.now() }
+            if (value.providerMetadata) part.metadata = value.providerMetadata
+            yield* session.updatePart(part)
+            // 保留映射和 currentReasoning：同一 step 内后续的 reasoning 片段会继续写进同一个 part，
+            // 真正的边界在 step-start（见下）和消息结束时。
             return
+          }
 
           case "tool-input-start":
             if (ctx.assistantMessage.summary) {
@@ -464,6 +481,13 @@ export const layer = Layer.effect(
             throw value.error
 
           case "start-step":
+            // 新 step 才开始新的 reasoning part；上一个 step 若没收到 reasoning-end，这里补一个结束时间。
+            if (ctx.currentReasoning && !ctx.currentReasoning.time.end) {
+              const part = ctx.currentReasoning
+              yield* session.updatePart({ ...part, time: { start: part.time.start, end: Date.now() } })
+            }
+            ctx.currentReasoning = undefined
+            ctx.reasoningMap = {}
             if (!ctx.snapshot) ctx.snapshot = yield* snapshot.track()
             if (!ctx.assistantMessage.summary) {
               // TODO(v2): Temporary dual-write while migrating session messages to v2 events.
@@ -652,14 +676,15 @@ export const layer = Layer.effect(
           ctx.currentText = undefined
         }
 
-        for (const part of Object.values(ctx.reasoningMap)) {
+        for (const part of new Map(Object.values(ctx.reasoningMap).map((part) => [part.id, part])).values()) {
           const end = Date.now()
           yield* session.updatePart({
             ...part,
-            time: { start: part.time.start ?? end, end },
+            time: { start: part.time.start ?? end, end: part.time.end ?? end },
           })
         }
         ctx.reasoningMap = {}
+        ctx.currentReasoning = undefined
 
         yield* Effect.forEach(
           Object.values(ctx.toolcalls),
@@ -694,7 +719,11 @@ export const layer = Layer.effect(
         const error = parse(e)
         if (MessageV2.ContextOverflowError.isInstance(error)) {
           ctx.needsCompaction = true
-          yield* bus.publish(Session.Event.Error, { sessionID: ctx.sessionID, error })
+          // 压缩请求（summary）可能被 compaction 层截断重试；中间失败不上报，
+          // 由 compaction.process 在所有重试都失败后统一发一次错误。
+          if (!ctx.assistantMessage.summary) {
+            yield* bus.publish(Session.Event.Error, { sessionID: ctx.sessionID, error })
+          }
           return
         }
         if (!ctx.assistantMessage.summary) {
@@ -727,6 +756,7 @@ export const layer = Layer.effect(
           yield* Effect.gen(function* () {
             ctx.currentText = undefined
             ctx.reasoningMap = {}
+            ctx.currentReasoning = undefined
             const stream = llm.stream(streamInput)
 
             yield* stream.pipe(

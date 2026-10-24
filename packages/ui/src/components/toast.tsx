@@ -117,6 +117,10 @@ export interface ToastOptions {
 
 export function showToast(options: ToastOptions | string) {
   const opts = typeof options === "string" ? { description: options } : options
+  // Guard: do not show empty toast (title/description/actions all empty)
+  if (!opts.title && !opts.description && (!opts.actions || opts.actions.length === 0)) {
+    return
+  }
   return toaster.show((props) => (
     <Toast
       toastId={props.toastId}

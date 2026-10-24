@@ -4,6 +4,9 @@ import { desc, eq } from "drizzle-orm"
 import { BackgroundJobTable } from "./job.sql"
 import { Identifier } from "@/id/id"
 import { Cause, Clock, Context, Deferred, Effect, Fiber, Layer, Scope, SynchronizedRef } from "effect"
+import * as Log from "@novaway/core/util/log"
+
+const log = Log.create({ service: "background.job" })
 
 export type Status = "running" | "completed" | "error" | "cancelled"
 
@@ -37,6 +40,17 @@ type FinishResult = {
   done?: Deferred.Deferred<Info>
 }
 
+/**
+ * run 的返回值。字符串等价于 `{ output }`，所以老的调用方不需要改。
+ *
+ * `failed` 非空时 job 以 error 态结束而不是 completed——被监控的命令退出码非 0、
+ * 监控超时这些情况以前一律被标成"已完成"，右侧状态卡就显示一个绿色的谎话。
+ */
+export type RunOutcome = {
+  output: string
+  failed?: string
+}
+
 export type StartInput = {
   id?: string
   type: string
@@ -44,7 +58,7 @@ export type StartInput = {
   metadata?: Record<string, unknown>
   /** 协作式取消：在中断 fiber 之前执行，用来杀掉真实进程/连接。 */
   cancel?: Effect.Effect<void>
-  run: Effect.Effect<string, unknown>
+  run: Effect.Effect<string | RunOutcome, unknown>
 }
 
 export type UpdateInput = {
@@ -111,8 +125,10 @@ function persist(info: Info) {
         })
         .run()
     })
-  } catch {
-    // Persistence is best effort; the in-memory job remains authoritative.
+  } catch (error) {
+    // 内存里的 job 仍是权威数据，但静默失败会让 background_job 行永远停在旧状态：
+    // 面板读到谎话，重启后的 resume 也会按过期的行做决定，而且根本查不出来。
+    log.error("failed to persist background job", { id: info.id, status: info.status, error: String(error) })
   }
 }
 
@@ -145,6 +161,10 @@ function errorText(error: unknown) {
   return String(error)
 }
 
+function runOutcome(value: string | RunOutcome): RunOutcome {
+  return typeof value === "string" ? { output: value } : value
+}
+
 export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -159,8 +179,9 @@ export const layer = Layer.effect(
                 .where(eq(BackgroundJobTable.status, "running"))
                 .run(),
             )
-          } catch {
-            // Database may not be ready in some contexts.
+          } catch (error) {
+            // 清理失败时 DB 里会留下过期的 running 行：面板与 resume 都会读到谎话。
+            log.error("failed to mark stale background jobs as cancelled", { error: String(error) })
           }
         })
         return {
@@ -274,7 +295,13 @@ export const layer = Layer.effect(
               if (existing?.info.status === "running") return [snapshot(existing), jobs] as const
               const fiber = yield* restore(input.run).pipe(
                 Effect.matchCauseEffect({
-                  onSuccess: (output) => finish(id, "completed", { output }),
+                  onSuccess: (value) => {
+                    const outcome = runOutcome(value)
+                    return finish(id, outcome.failed ? "error" : "completed", {
+                      output: outcome.output,
+                      ...(outcome.failed ? { error: outcome.failed } : {}),
+                    })
+                  },
                   onFailure: (cause) =>
                     finish(id, Cause.hasInterruptsOnly(cause) ? "cancelled" : "error", {
                       error: errorText(Cause.squash(cause)),

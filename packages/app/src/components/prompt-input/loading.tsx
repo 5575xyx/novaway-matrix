@@ -21,7 +21,7 @@ export function PromptInputLoading(props: { fading?: boolean }) {
     <div
       data-component="prompt-input-loading"
       data-fading={props.fading ? "true" : undefined}
-      class="absolute inset-0 z-10 flex flex-col justify-between rounded-2xl border border-input-border bg-input p-3 pointer-events-none transition-opacity duration-200"
+      class="absolute inset-0 z-10 flex flex-col justify-between rounded-2xl border border-input-border bg-transparent p-3 pointer-events-none transition-opacity duration-200"
       classList={{ "opacity-0": !!props.fading }}
       aria-hidden="true"
     >

@@ -49,9 +49,13 @@ export default function TaskCenterPage() {
         projectDirs.push(dir)
       }
       const projectStores = projectDirs.map((dir) => globalSync.child(dir)[0])
+      // 归档会话按 directory（worktree + 每个 sandbox）分别建 key（见 useArchivedSessions），
+      // 单键 `archived()[project.worktree]` 会漏掉落在 sandbox 里的归档任务。
       const sessions =
         tab === "archived"
-          ? (archived()[project.worktree] ?? []).filter((s) => !!s.time?.archived)
+          ? projectDirs
+              .flatMap((dir) => archived()[dir] ?? [])
+              .filter((s) => !!s.time?.archived)
           : (() => {
               const roots = sortedRootSessionsFrom(projectStores, now)
               if (tab === "all") return roots

@@ -107,63 +107,138 @@
   transition-timing-function: var(--transition-panel-ease, cubic-bezier(0.22, 1, 0.36, 1));
 }
 
-/* 连续工具调用收成一张卡片（对齐 Qoder / ZCode 的"一段执行块"）。
+/* ===== 助手回复：每个块一张「贴内容」的小卡片（原型 A1） =====
  *
- * 之前每个工具行各自漂浮在消息流里：一段跑二十个工具就是二十截，读起来
- * 分不出哪些属于同一次执行。现在连续 ≥2 个工具行共用一张外框。
+ * 正文 / 思考 / 工具 / 变更摘要各自成块；卡片 width: fit-content，
+ * 短句是窄卡片、长段撑满整列，左缘参差。块间只留 8px 行距，
+ * 不再给连续工具调用画外框，所以整屏没有横线与色带。
  *
- * 用边框 + 底色分层，不用阴影（DESIGN.md 的 Elevation「Base」层；
- * 这也是 ZCode 卡片的一贯做法）。分段靠 `data-tool-card`：
- * start 画上/左右边框与上圆角，end 补下圆角，中间只画一条细分隔线。
+ * 卡片是行内的子元素；缝隙靠行的 py-1 提供——虚拟滚动按行高(offsetHeight)
+ * 测量，padding 算进测量，margin 会溢出到行框之外不被计入。
+ *
+ * 底色用 var(--panel)（浅色=中性白，深色=#202020），边框用 var(--border)。
+ * 不用 var(--surface)：它在浅色主题里偏蓝灰，整片聊天区会发蓝。
  */
-/* 卡片本身**不加左右内边距**：帧内已经有 `px-4 md:px-5`，再缩一级会让工具行
-   比同一条消息里的正文更靠里，读起来像错位。这里只画一个"块"的边界。 */
-[data-tool-card] {
-  background: color-mix(in srgb, var(--surface) 45%, transparent);
+[data-slot="session-turn-assistant-content"],
+[data-slot="session-turn-thinking"],
+[data-component="session-turn-diffs-group"] {
+  width: fit-content !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  background: var(--panel) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+  padding: 8px 12px !important;
+  margin: 0 !important;
 }
 
-[data-tool-card="start"] {
-  border-top: 1px solid var(--border);
-  border-top-left-radius: var(--radius-md);
-  border-top-right-radius: var(--radius-md);
-  padding-top: 6px;
+/* 工具调用 / 变更摘要：更紧凑的小卡片（原型：8px 圆角、6/10 内边距、12px 字号）。 */
+[data-slot="session-turn-assistant-content"]:has([data-component="tool-part-wrapper"]),
+[data-component="session-turn-diffs-group"] {
+  border-radius: 8px !important;
+  padding: 6px 10px !important;
 }
 
-[data-tool-card="between"] {
-  position: relative;
-  padding-top: 2px;
+[data-slot="session-turn-assistant-content"]:has([data-component="tool-part-wrapper"])
+  [data-component="tool-trigger"]
+  :is(
+    [data-slot="basic-tool-tool-title"],
+    [data-slot="basic-tool-tool-subtitle"],
+    [data-slot="basic-tool-tool-arg"]
+  ) {
+  font-size: var(--font-size-ui-sm);
+  line-height: var(--line-height-large);
 }
 
-[data-tool-card="end"] {
-  border-bottom: 1px solid var(--border);
-  border-bottom-left-radius: var(--radius-md);
-  border-bottom-right-radius: var(--radius-md);
-  padding-bottom: 6px;
+[data-component="session-turn-diffs-group"] [data-slot="session-turn-diffs-label"],
+[data-component="session-turn-diffs-group"] [data-slot="session-turn-diffs-toggle"],
+[data-component="session-turn-diffs-group"] [data-slot="session-turn-diffs-total"] {
+  font-size: var(--font-size-ui-sm);
 }
 
-/* 左右边框只画在"卡片覆盖到的那一段"：start..end 之间的每一行都要有。
-   用 `:not()` 排除掉孤立行（slot 全 false 时不会有这个属性，所以不用管）。 */
-[data-tool-card="start"],
-[data-tool-card="between"] {
-  border-left: 1px solid var(--border);
-  border-right: 1px solid var(--border);
+/* 正文按原型用 13px / 1.6；思考块与工具输出保持自己的字号。 */
+[data-slot="session-turn-assistant-content"] [data-component="text-part"] [data-component="markdown"] {
+  font-size: var(--font-size-ui-caption);
+  line-height: 1.6;
 }
 
-[data-tool-card="end"]:not([data-tool-card="start"]) {
-  border-left: 1px solid var(--border);
-  border-right: 1px solid var(--border);
+/* 正文块 text-part 的 margin-top: 24px 在卡片里会变成 32px 顶部空隙 */
+[data-component="text-part"] {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
 }
 
-/* 中段行顶部的细分隔线：画在伪元素上，避免给行本身加 margin
-   （虚拟滚动按行高测量，改 margin 会让测量与真实高度不一致）。 */
-[data-tool-card="between"]::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 1px;
-  background: color-mix(in srgb, var(--border) 60%, transparent);
+/* task-tool-card 自带边框+底色，在卡片里会框套框 */
+[data-slot="session-turn-assistant-content"] [data-component="task-tool-card"] {
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+/* ===== 右侧面板（子代理 / 辅助对话）：复用主聊天区的 A1 卡片语言 =====
+ *
+ * AssistantParts 的输出是一串同级节点；外面这层 flex 容器把它们变成独立卡片项，
+ * 因而和主时间线一样：贴内容、左缘对齐、右缘参差、块间 8px。
+ */
+[data-slot="side-pane-assistant"] {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+[data-slot="side-pane-assistant"] > [data-component] {
+  width: fit-content;
+  max-width: 100%;
+  box-sizing: border-box;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin: 0;
+}
+
+/* 工具 / 上下文聚合：更紧凑的小卡片，和主聊天区一致。 */
+[data-slot="side-pane-assistant"] > [data-component="tool-part-wrapper"],
+[data-slot="side-pane-assistant"] > [data-component="collapsible"].tool-collapsible {
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+[data-slot="side-pane-assistant"] > [data-component="tool-part-wrapper"]
+  [data-component="tool-trigger"]
+  :is(
+    [data-slot="basic-tool-tool-title"],
+    [data-slot="basic-tool-tool-subtitle"],
+    [data-slot="basic-tool-tool-arg"]
+  ) {
+  font-size: var(--font-size-ui-sm);
+  line-height: var(--line-height-large);
+}
+
+/* 正文与主聊天区同字号：13px / 1.6。 */
+[data-slot="side-pane-assistant"] > [data-component="text-part"] {
+  margin: 0;
+}
+
+[data-slot="side-pane-assistant"] > [data-component="text-part"] [data-component="markdown"] {
+  font-size: var(--font-size-ui-caption);
+  line-height: 1.6;
+}
+
+/* 卡片已经提供内边距，内部再套一层 task-tool-card / 上下文触发器会变成双层留白。 */
+[data-slot="side-pane-assistant"] > [data-component="tool-part-wrapper"] [data-component="task-tool-card"] {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+[data-slot="side-pane-assistant"]
+  > [data-component="collapsible"].tool-collapsible
+  [data-component="context-tool-group-trigger"] {
+  padding: 0;
 }
 
 /* 侧栏品牌字标 `NovaWay`。

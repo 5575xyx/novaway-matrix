@@ -299,6 +299,15 @@
     align-items: center;
   }
 
+  /* 子代理卡片沿用设置页的 AI 员工头像，扫一眼就能对上"是哪个员工"。 */
+  [data-component="task-tool-avatar"] {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
   [data-component="task-tool-spinner"] {
     display: inline-flex;
     align-items: center;

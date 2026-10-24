@@ -1,3 +1,5 @@
+import fs from "node:fs/promises"
+import path from "node:path"
 import { BusEvent } from "@/bus/bus-event"
 import { Bus } from "@/bus"
 import * as Session from "./session"
@@ -42,6 +44,14 @@ const PRUNE_PROTECTED_TOOLS = ["skill"]
 const DEFAULT_TAIL_TURNS = 2
 const MIN_PRESERVE_RECENT_TOKENS = 2_000
 const MAX_PRESERVE_RECENT_TOKENS = 8_000
+/** 压缩请求自身也可能 prompt-too-long；按最旧的一半反复裁剪后重试。 */
+const MAX_COMPACTION_RETRIES = 3
+/** 压缩后重新附上最近读写的文件（对齐 Claude Code 的 post-compact file attachments）。 */
+const POST_COMPACT_MAX_FILES = 5
+const POST_COMPACT_MAX_TOKENS_PER_FILE = 5_000
+const POST_COMPACT_TOTAL_TOKENS = 50_000
+const POST_COMPACT_MAX_FILE_BYTES = 2_000_000
+const POST_COMPACT_TOOLS = new Set(["read", "write", "edit"])
 const SUMMARY_TEMPLATE = `Output exactly the Markdown structure shown inside <template> and keep the section order unchanged. Do not include the <template> tags in your response.
 <template>
 ## Goal
@@ -49,6 +59,9 @@ const SUMMARY_TEMPLATE = `Output exactly the Markdown structure shown inside <te
 
 ## Constraints & Preferences
 - [user constraints, preferences, specs, or "(none)"]
+
+## User Messages
+- [short verbatim quotes of the user's requests and corrections, newest last, or "(none)"]
 
 ## Progress
 ### Done
@@ -63,8 +76,17 @@ const SUMMARY_TEMPLATE = `Output exactly the Markdown structure shown inside <te
 ## Key Decisions
 - [decision and why, or "(none)"]
 
+## Pending Tasks
+- [tasks explicitly requested but not finished, or "(none)"]
+
+## Current Work
+- [what was being worked on immediately before this summary, with file names and exact state, or "(none)"]
+
 ## Next Steps
 - [ordered next actions or "(none)"]
+
+## Optional Next Step
+- [the single next action, with a verbatim quote from the most recent user request; omit if the task is complete]
 
 ## Critical Context
 - [important technical facts, errors, open questions, or "(none)"]
@@ -77,6 +99,7 @@ Rules:
 - Keep every section, even when empty.
 - Use terse bullets, not prose paragraphs.
 - Preserve exact file paths, commands, error strings, and identifiers when known.
+- In "User Messages" prefer exact quotes over paraphrases; keep each quote short.
 - Do not mention the summary process or that context was compacted.`
 type Turn = {
   start: number
@@ -97,7 +120,9 @@ type CompletedCompaction = {
 
 function summaryText(message: MessageV2.WithParts) {
   const text = message.parts
-    .filter((part): part is MessageV2.TextPart => part.type === "text")
+    // Post-compact file attachments live on the summary message as synthetic
+    // text; keep them out of the anchored summary so they are not re-summarized.
+    .filter((part): part is MessageV2.TextPart => part.type === "text" && !part.synthetic)
     .map((part) => part.text.trim())
     .filter(Boolean)
     .join("\n\n")
@@ -197,6 +222,94 @@ function splitTurn(input: {
     return undefined
   })
 }
+
+/**
+ * 压缩请求本身超限时，丢掉最旧的一半内容再试。
+ *
+ * 优先按用户轮次切（保证新的 head 从 user 开始）；只有一个轮次时保留
+ * 这条 user 消息本身（任务意图不能丢），只裁掉它后面的旧 assistant/tool 消息。
+ */
+function truncateForRetry(messages: MessageV2.WithParts[]) {
+  const all = turns(messages)
+  if (all.length >= 2) {
+    const drop = Math.max(1, Math.ceil(all.length / 2))
+    const next = all[drop]
+    return next ? messages.slice(next.start) : messages.slice(all[all.length - 1]!.start)
+  }
+  if (messages.length <= 2) return undefined
+  const first = messages.find((message) => message.info.role === "user")
+  const sliced = messages.slice(Math.max(1, Math.floor(messages.length / 2)))
+  if (first && sliced[0]?.info.role !== "user") return [first, ...sliced]
+  return sliced
+}
+
+/**
+ * Files recently read/written/edited in the compacted portion, newest first.
+ * The retained tail is excluded because it stays in context anyway.
+ */
+function recentFiles(messages: MessageV2.WithParts[], limit: number) {
+  const seen = new Set<string>()
+  const files: string[] = []
+  for (let i = messages.length - 1; i >= 0 && files.length < limit; i--) {
+    const message = messages[i]!
+    for (let j = message.parts.length - 1; j >= 0 && files.length < limit; j--) {
+      const part = message.parts[j]!
+      if (part.type !== "tool" || !POST_COMPACT_TOOLS.has(part.tool)) continue
+      const filePath = part.state.input.filePath
+      if (typeof filePath !== "string" || !filePath) continue
+      const normalized = path.resolve(filePath)
+      if (seen.has(normalized)) continue
+      seen.add(normalized)
+      files.push(normalized)
+    }
+  }
+  return files
+}
+
+/**
+ * Re-attach recently touched files after compaction, mirroring Claude Code's
+ * post-compact file restoration (max 5 files, 5k tokens each, 50k total).
+ * Returns the text to persist on the summary message plus its token estimate.
+ */
+const buildAttachments = Effect.fn("SessionCompaction.attachments")(function* (input: {
+  messages: MessageV2.WithParts[]
+}) {
+  const files = recentFiles(input.messages, POST_COMPACT_MAX_FILES)
+  if (!files.length) return { text: undefined as string | undefined, tokens: 0, files: [] as string[] }
+
+  const chunks: string[] = []
+  const attached: string[] = []
+  let tokens = 0
+  for (const file of files) {
+    if (tokens >= POST_COMPACT_TOTAL_TOKENS) break
+    const stat = yield* Effect.tryPromise(() => fs.stat(file)).pipe(Effect.option)
+    if (Option.isNone(stat) || !stat.value.isFile()) continue
+    if (stat.value.size > POST_COMPACT_MAX_FILE_BYTES) continue
+    const content = yield* Effect.tryPromise(() => fs.readFile(file, "utf8")).pipe(Effect.option)
+    if (Option.isNone(content)) continue
+    if (content.value.includes("\u0000")) continue
+
+    const remaining = (POST_COMPACT_TOTAL_TOKENS - tokens) * 4
+    const cap = Math.min(POST_COMPACT_MAX_TOKENS_PER_FILE * 4, remaining)
+    let text = content.value
+    if (text.length > cap) text = `${text.slice(0, cap)}\n[Truncated: ${text.length - cap} chars omitted]`
+    const size = Token.estimate(text)
+    if (tokens + size > POST_COMPACT_TOTAL_TOKENS) continue
+    tokens += size
+    attached.push(file)
+    chunks.push(`<file path="${file}">\n${text}\n</file>`)
+  }
+
+  if (!chunks.length) return { text: undefined as string | undefined, tokens: 0, files: [] as string[] }
+  return {
+    text: [
+      "Files most recently read or modified before compaction. Re-read them if you need the full contents.",
+      ...chunks,
+    ].join("\n\n"),
+    tokens,
+    files: attached,
+  }
+})
 
 export interface Interface {
   readonly isOverflow: (input: {
@@ -434,70 +547,123 @@ export const layer = Layer.effect(
       )
       const context = compacting.context
       const nextPrompt = compacting.prompt ?? buildPrompt({ previousSummary, context })
-      const msgs = structuredClone(selected.head)
-      yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
-      const modelMessages = yield* MessageV2.toModelMessagesEffect(msgs, model, {
-        stripMedia: true,
-        toolOutputMaxChars: TOOL_OUTPUT_MAX_CHARS,
-      })
-      const ctx = yield* InstanceState.context
-      const msg: MessageV2.Assistant = {
-        id: MessageID.ascending(),
-        role: "assistant",
-        parentID: input.parentID,
-        sessionID: input.sessionID,
-        mode: "compaction",
-        agent: "compaction",
-        variant: userMessage.model.variant,
-        summary: true,
-        path: {
-          cwd: ctx.directory,
-          root: ctx.worktree,
-        },
-        cost: 0,
-        tokens: {
-          output: 0,
-          input: 0,
-          reasoning: 0,
-          cache: { read: 0, write: 0 },
-        },
-        modelID: model.id,
-        providerID: model.providerID,
-        time: {
-          created: Date.now(),
-        },
-      }
-      yield* session.updateMessage(msg)
-      const processor = yield* processors.create({
-        assistantMessage: msg,
-        sessionID: input.sessionID,
-        model,
-      })
-      const result = yield* processor.process({
-        user: userMessage,
-        agent,
-        sessionID: input.sessionID,
-        tools: {},
-        system: [],
-        messages: [
-          ...modelMessages,
-          {
-            role: "user",
-            content: [{ type: "text", text: nextPrompt }],
-          },
-        ],
-        model,
-      })
+      let head = selected.head
+      let result: "continue" | "stop" | "compact" = "compact"
+      let summaryMessage: MessageV2.Assistant | undefined
+      let failedMessage: MessageV2.Assistant | undefined
 
-      if (result === "compact") {
+      // 压缩请求自己也可能是 prompt-too-long（会话太大 / 工具输出太多）。
+      // 这时不能直接放弃：按最旧的一半裁剪 head，最多重试 3 次。
+      for (let attempt = 1; attempt <= MAX_COMPACTION_RETRIES; attempt++) {
+        const msgs = structuredClone(head)
+        yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
+        const modelMessages = yield* MessageV2.toModelMessagesEffect(msgs, model, {
+          stripMedia: true,
+          toolOutputMaxChars: TOOL_OUTPUT_MAX_CHARS,
+        })
+        const ctx = yield* InstanceState.context
+        const msg: MessageV2.Assistant = {
+          id: MessageID.ascending(),
+          role: "assistant",
+          parentID: input.parentID,
+          sessionID: input.sessionID,
+          mode: "compaction",
+          agent: "compaction",
+          variant: userMessage.model.variant,
+          summary: true,
+          path: {
+            cwd: ctx.directory,
+            root: ctx.worktree,
+          },
+          cost: 0,
+          tokens: {
+            output: 0,
+            input: 0,
+            reasoning: 0,
+            cache: { read: 0, write: 0 },
+          },
+          modelID: model.id,
+          providerID: model.providerID,
+          time: {
+            created: Date.now(),
+          },
+        }
+        yield* session.updateMessage(msg)
+        const processor = yield* processors.create({
+          assistantMessage: msg,
+          sessionID: input.sessionID,
+          model,
+        })
+        result = yield* processor.process({
+          user: userMessage,
+          agent,
+          sessionID: input.sessionID,
+          tools: {},
+          system: [],
+          messages: [
+            ...modelMessages,
+            {
+              role: "user",
+              content: [{ type: "text", text: nextPrompt }],
+            },
+          ],
+          model,
+        })
+
+        if (result !== "compact") {
+          summaryMessage = msg
+          break
+        }
+
+        // 这一次压缩请求自己超限：标记为失败的 summary（filterCompacted 会忽略），
+        // 裁掉最旧的一半后重试。
         processor.message.error = new MessageV2.ContextOverflowError({
           message: replay
             ? "Conversation history too large to compact - exceeds model context limit"
             : "Session too large to compact - context exceeds model limit even after stripping media",
         }).toObject()
         processor.message.finish = "error"
+        failedMessage = processor.message
         yield* session.updateMessage(processor.message)
+        const next = truncateForRetry(head)
+        if (!next) break
+        log.info("compaction request overflowed; retrying with truncated history", {
+          attempt,
+          before: head.length,
+          after: next.length,
+        })
+        head = next
+      }
+
+      if (!summaryMessage || result === "compact") {
+        if (failedMessage?.error) {
+          yield* bus.publish(Session.Event.Error, { sessionID: input.sessionID, error: failedMessage.error })
+        }
         return "stop"
+      }
+
+      // Re-attach files that were touched before compaction. They are stored on
+      // the summary message as synthetic text so `summaryText` (and therefore
+      // the anchored summary) ignores them, while model conversion still sees
+      // them on every subsequent request.
+      const attachments = yield* buildAttachments({ messages: head })
+      if (attachments.text) {
+        yield* session.updatePart({
+          id: PartID.ascending(),
+          messageID: summaryMessage.id,
+          sessionID: input.sessionID,
+          type: "text",
+          text: attachments.text,
+          synthetic: true,
+          time: {
+            start: Date.now(),
+            end: Date.now(),
+          },
+        })
+        log.info("attached recent files after compaction", {
+          files: attachments.files,
+          tokens: attachments.tokens,
+        })
       }
 
       if (compactionPart && selected.tail_start_id && compactionPart.tail_start_id !== selected.tail_start_id) {
@@ -507,7 +673,49 @@ export const layer = Layer.effect(
         })
       }
 
+      // 压缩只能删历史，删不掉 system + 工具 schema。若压缩后的理论下限
+      // 仍高于模型可用窗口，自动继续只会再次溢出 → 再次压缩，形成死循环。
+      // 这里用触发压缩的那条 assistant 的真实 usage 做估算：
+      //   压缩后 ≈ 压缩前 - 被摘要掉的历史 + 摘要本身
+      // 仍然超限就停止自动继续，并把原因报给用户；runLoop 里还有连续次数熔断兜底。
+      let canAutoContinue = true
       if (result === "continue" && input.auto) {
+        const lastAssistant = [...history]
+          .reverse()
+          .find(
+            (item) =>
+              item.info.role === "assistant" && item.info.summary !== true && (item.info.tokens?.total ?? 0) > 0,
+          )
+        if (lastAssistant && lastAssistant.info.role === "assistant") {
+          const mainModel = yield* provider
+            .getModel(userMessage.model.providerID, userMessage.model.modelID)
+            .pipe(Effect.orDie)
+          const budget = usable({ cfg, model: mainModel, outputTokenMax: flags.outputTokenMax })
+          const removed = yield* estimate({ messages: head, model: mainModel })
+          const added = (summaryMessage.tokens.total ?? 0) + attachments.tokens
+          const projected = Math.max(0, lastAssistant.info.tokens.total ?? 0) + added - removed
+          if (budget > 0 && projected >= budget) {
+            canAutoContinue = false
+            log.info("compaction cannot make progress", {
+              before: lastAssistant.info.tokens.total,
+              removed,
+              added,
+              projected,
+              budget,
+            })
+            yield* bus.publish(Session.Event.Error, {
+              sessionID: input.sessionID,
+              error: new MessageV2.ContextOverflowError({
+                message:
+                  `Auto-compaction cannot make progress: projected ${projected} tokens still exceed the usable window (${budget}). ` +
+                  `The fixed prompt (system + tool schemas) is too large. Disable unused MCP tools or switch to a model with a larger context window.`,
+              }).toObject(),
+            })
+          }
+        }
+      }
+
+      if (canAutoContinue && result === "continue" && input.auto) {
         if (replay) {
           const original = replay.info
           const replayMsg = yield* session.updateMessage({
@@ -591,13 +799,13 @@ export const layer = Layer.effect(
         }
       }
 
-      if (processor.message.error) return "stop"
+      if (summaryMessage.error) return "stop"
       if (result === "continue") {
         const summary = summaryText(
           (yield* session.messages({ sessionID: input.sessionID }).pipe(Effect.orDie)).find(
-            (item) => item.info.id === msg.id,
+            (item) => item.info.id === summaryMessage.id,
           ) ?? {
-            info: msg,
+            info: summaryMessage,
             parts: [],
           },
         )
@@ -614,7 +822,7 @@ export const layer = Layer.effect(
           yield* hooks.trigger({ event: "PostCompact", sessionID: input.sessionID }).pipe(Effect.ignore)
         }
       }
-      return result
+      return canAutoContinue ? result : "stop"
     })
 
     const create = Effect.fn("SessionCompaction.create")(function* (input: {

@@ -7,6 +7,7 @@ import { DialogSelectDirectory } from "@/components/dialog-select-directory"
 import { useServer } from "@/context/server"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
+import { HomeHeader } from "@/components/home-header"
 import { OfficeHomeWorkspace } from "@/components/office-home-workspace"
 import { officeWorkspaceSearch, type OfficeLaunchConfig } from "./home/office-home"
 import type { HomeActionId } from "./home/zen-office"
@@ -61,17 +62,25 @@ export default function Home() {
     })
   }
 
+  // 桌面端移除了全局标题栏，`sidebar-top-band` 只在侧栏展开时显示 NovaWay + 折叠按钮，
+  // 折叠后侧栏宽度归 0、整块顶带消失，用户失去「回首页 / 展开侧栏 / 关掉窗口」的全部入口。
+  // 会话页有 WorkspaceHeader 承载这些职责，首页原本没有 —— HomeHeader 就是补它那一块。
   return (
-    <Switch>
-      <Match when={layout.mode.current() === "pulse"}>
-        <Navigate href="/pulse" />
-      </Match>
-      <Match when={layout.mode.current() === "zen"}>
-        <OfficeHomeWorkspace onEnterProject={enterOfficeProject} onSelectProject={selectOfficeProject} />
-      </Match>
-      <Match when>
-        <TaskCenterPage />
-      </Match>
-    </Switch>
+    <div class="flex size-full flex-col">
+      <HomeHeader />
+      <div class="min-h-0 flex-1">
+        <Switch>
+          <Match when={layout.mode.current() === "pulse"}>
+            <Navigate href="/pulse" />
+          </Match>
+          <Match when={layout.mode.current() === "zen"}>
+            <OfficeHomeWorkspace onEnterProject={enterOfficeProject} onSelectProject={selectOfficeProject} />
+          </Match>
+          <Match when>
+            <TaskCenterPage />
+          </Match>
+        </Switch>
+      </div>
+    </div>
   )
 }

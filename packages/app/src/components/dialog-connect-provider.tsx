@@ -536,29 +536,38 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
       }
     }
 
+    // loading state: show transition while saving, avoid repeated clicks
+    const [saving, setSaving] = createSignal(false)
+
     async function saveModelsAndComplete() {
-      const enabledModels = Object.values(selectedModels).filter((m) => m.id)
-      const modelConfig: Record<string, unknown> = {}
-      enabledModels.forEach((m) => {
-        modelConfig[m.id] = {
-          id: m.id,
-          name: m.name,
-          modalities: {
-            output: [m.type],
-          },
-        }
-      })
+      if (saving()) return
+      setSaving(true)
+      try {
+        const enabledModels = Object.values(selectedModels).filter((m) => m.id)
+        const modelConfig: Record<string, unknown> = {}
+        enabledModels.forEach((m) => {
+          modelConfig[m.id] = {
+            id: m.id,
+            name: m.name,
+            modalities: {
+              output: [m.type],
+            },
+          }
+        })
 
-      const existing = { ...globalSync.data.config.provider?.[props.provider] }
-      const patch: Record<string, unknown> = { ...existing }
-      patch.models = modelConfig
+        const existing = { ...globalSync.data.config.provider?.[props.provider] }
+        const patch: Record<string, unknown> = { ...existing }
+        patch.models = modelConfig
 
-      await globalSync.updateConfig({ provider: { [props.provider]: patch } })
-      await complete()
+        await globalSync.updateConfig({ provider: { [props.provider]: patch } })
+        await complete()
+      } finally {
+        setSaving(false)
+      }
     }
 
     return (
-      <div class="flex flex-col gap-6">
+      <div class="flex h-full flex-col gap-6">
         <Show when={step() === "auth"}>
           <Switch>
             <Match when={provider().id === "opencode"}>
@@ -636,7 +645,7 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
           </Show>
         </Show>
         <Show when={step() === "models"}>
-          <div class="flex flex-col gap-4">
+          <div class="flex h-full flex-col gap-4">
             <div class="text-14-regular text-foreground">
               {language.t("provider.connect.models.description", { provider: provider().name })}
             </div>
@@ -647,7 +656,7 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
               </div>
             </Show>
             <Show when={!fetching()}>
-              <div class="flex flex-col max-h-80 overflow-y-auto gap-2">
+              <div class="flex flex-1 min-h-0 overflow-y-auto gap-2">
                 <For each={remoteModels()}>
                   {(model) => (
                     <div class="flex items-center justify-between gap-2 py-1.5 px-2 rounded-md hover:bg-hover">
@@ -687,7 +696,7 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
                   )}
                 </For>
               </div>
-              <div class="flex justify-between items-center pt-2 border-t border-border">
+              <div class="flex justify-between items-center shrink-0 pt-2 border-t border-border">
                 <span class="text-12-medium text-foreground-subtle">
                   {Object.values(selectedModels).filter(Boolean).length}/{remoteModels().length}{" "}
                   {language.t("common.selected")}
@@ -696,7 +705,7 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
                   <Button size="small" variant="ghost" onClick={() => setStep("auth")}>
                     {language.t("common.back")}
                   </Button>
-                  <Button size="large" variant="primary" onClick={saveModelsAndComplete}>
+                  <Button size="large" variant="primary" loading={saving()} disabled={saving()} onClick={saveModelsAndComplete}>
                     {language.t("common.submit")}
                   </Button>
                 </div>
@@ -743,7 +752,7 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
     }
 
     return (
-      <div class="flex flex-col gap-6">
+      <div class="flex h-full flex-col gap-6">
         <div class="text-14-regular text-foreground">
           {language.t("provider.connect.oauth.code.visit.prefix")}
           <Link href={store.authorization!.url}>{language.t("provider.connect.oauth.code.visit.link")}</Link>
@@ -801,7 +810,7 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
     })
 
     return (
-      <div class="flex flex-col gap-6">
+      <div class="flex h-full flex-col gap-6">
         <div class="text-14-regular text-foreground">
           {language.t("provider.connect.oauth.auto.visit.prefix")}
           <Link href={store.authorization!.url}>{language.t("provider.connect.oauth.auto.visit.link")}</Link>
