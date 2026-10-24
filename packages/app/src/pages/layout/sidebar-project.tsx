@@ -6,6 +6,8 @@ import { useLayout, type AppMode, type LocalProject } from "@/context/layout"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
 import { useNotification } from "@/context/notification"
+import { useGlobalSDK } from "@/context/global-sdk"
+import { usePlatform } from "@/context/platform"
 
 export type ProjectSidebarContext = {
   currentDir: Accessor<string>
@@ -35,8 +37,24 @@ export function ProjectMenu(props: { project: LocalProject; ctx: ProjectSidebarC
   const layout = useLayout()
   const language = useLanguage()
   const notification = useNotification()
+  const globalSDK = useGlobalSDK()
+  const platform = usePlatform()
   const project = props.project
   const ctx = props.ctx
+
+  // 侧栏挂在应用级 layout,没有 Session 的 SDKProvider。桌面端走原生 shell.openPath
+  // (与 session-header 一致);pty spawn explorer 在 Windows 上会 500,只作网页端兜底。
+  const revealInExplorer = () => {
+    if (platform.openPath) {
+      void platform.openPath(project.worktree).catch(() => {})
+      return
+    }
+    globalSDK
+      .createClient({ directory: project.worktree })
+      .pty.create({ command: "explorer", args: [project.worktree], title: "reveal" })
+      .then(() => {})
+      .catch(() => {})
+  }
 
   const dirs = () => ctx.workspaceIds(project)
 
@@ -74,6 +92,9 @@ export function ProjectMenu(props: { project: LocalProject; ctx: ProjectSidebarC
           </DropdownMenu.Item>
           <DropdownMenu.Item onSelect={() => ctx.showEditProjectDialog(project)}>
             <DropdownMenu.ItemLabel>{language.t("common.edit")}</DropdownMenu.ItemLabel>
+          </DropdownMenu.Item>
+          <DropdownMenu.Item onSelect={revealInExplorer}>
+            <DropdownMenu.ItemLabel>{language.t("sidebar.project.openInExplorer")}</DropdownMenu.ItemLabel>
           </DropdownMenu.Item>
           <DropdownMenu.Sub>
             <DropdownMenu.SubTrigger>

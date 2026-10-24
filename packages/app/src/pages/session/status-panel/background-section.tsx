@@ -9,26 +9,26 @@ import { useSDK } from "@/context/sdk"
 import {
   backgroundJobStat,
   formatElapsed,
+  hideTeamMemberJobs,
   isJobVisible,
   isResumed,
   jobKind,
   jobKindLabelKey,
+  jobSessionID,
   resumeSkipped,
+  resultBody,
   showsResult,
   visibleBackgroundJobs,
   type BackgroundJob,
 } from "./background-section-model"
 import type { StatusPanelSection } from "./status-panel"
 
+const EMPTY_SESSION_IDS: ReadonlySet<string> = new Set()
+
 const messageOf = (err: unknown) => {
   if (err instanceof Error) return err.message
   if (typeof err === "string") return err
   return String(err)
-}
-
-const jobSessionID = (job: BackgroundJob): string | undefined => {
-  const value = job.metadata?.sessionId
-  return typeof value === "string" && value ? value : undefined
 }
 
 const jobParentID = (job: BackgroundJob): string | undefined => {
@@ -50,7 +50,13 @@ const jobIcon = (job: BackgroundJob) => JOB_ICONS[jobKind(job)]
 
 // 后台任务没有服务端推送事件（子代理/后台命令各跑各的），用 2 秒轮询换实时感；
 // 只有真的存在任务时才把区块塞进状态面板，避免空卡片常驻。
-export function useBackgroundSection(sessionID: () => string): () => StatusPanelSection | null {
+//
+// hiddenSessionIDs: 团队卡片已经在展示的成员会话。子代理后台 job 与团队成员是
+// 同一条会话，不去重的话右侧会同时出现「团队代理」和「后台任务」两遍同样的内容。
+export function useBackgroundSection(
+  sessionID: () => string,
+  hiddenSessionIDs?: () => ReadonlySet<string>,
+): () => StatusPanelSection | null {
   const sdk = useSDK()
   const language = useLanguage()
   const layout = useLayout()
@@ -71,12 +77,13 @@ export function useBackgroundSection(sessionID: () => string): () => StatusPanel
     void sdk.client.session
       .background({ directory: sdk.directory, sessionID: id })
       .then((result) => {
-        const jobs = result.data ?? []
-        if (signature(jobs) === signature(store.jobs)) {
-          setStore("now", Date.now())
-          return
-        }
-        setStore({ jobs, now: Date.now(), error: "" })
+        const now = Date.now()
+        // 后端会一直返回已结束的历史任务，进本地列表前先按可见期过滤。
+        // 否则「列表里有任务、但一条都不该显示」会让卡片空着挂载。
+        const jobs = (result.data ?? []).filter((job) => isJobVisible(job, now))
+        // 内容没变就什么都不写：秒表由 clock 负责，这里多写一次 now 只会白触发重渲染。
+        if (signature(jobs) === signature(store.jobs)) return
+        setStore({ jobs, now, error: "" })
       })
       .catch((err: unknown) => setStore({ now: Date.now(), error: messageOf(err) }))
       .finally(() => {
@@ -91,19 +98,33 @@ export function useBackgroundSection(sessionID: () => string): () => StatusPanel
     }),
   )
 
+  // 秒表只在「有运行中的任务」时才走：全都停了就彻底安静——卡片上不再有要跳动的
+  // 数字，每秒写一次 store 只会白触发重渲染。已完成任务的时长仍定格在 completed_at
+  // （formatElapsed 拿到结束时间就不读 now），显示不受影响。
+  let clock: ReturnType<typeof setInterval> | undefined
   const timer = setInterval(() => {
-    setStore("now", Date.now())
     if (sessionID()) load()
-    // 没有运行中的任务时，把过了展示期的已完成任务从本地列表移除；
-    // 只在真的删掉东西时才写 store，避免空转导致区块重建。
-    if (!store.jobs.some((job) => job.status === "running")) {
-      const next = store.jobs.filter((job) => isJobVisible(job, Date.now()))
-      if (next.length !== store.jobs.length) setStore("jobs", next)
+    if (remaining().some((job) => job.status === "running")) {
+      if (!clock) clock = setInterval(() => setStore("now", Date.now()), 1000)
+      return
+    }
+    if (clock) {
+      clearInterval(clock)
+      clock = undefined
     }
   }, 2000)
-  onCleanup(() => clearInterval(timer))
+  onCleanup(() => {
+    clearInterval(timer)
+    if (clock) clearInterval(clock)
+  })
 
-  const visible = createMemo(() => visibleBackgroundJobs(store.jobs, store.now))
+  // 只去掉「团队卡片里已经有的子代理 job」；shell / monitor / subscribe /
+  // orchestrator 不在团队卡片里，仍然留在后台任务中。
+  const remaining = createMemo(() =>
+    hideTeamMemberJobs(store.jobs, hiddenSessionIDs?.() ?? EMPTY_SESSION_IDS),
+  )
+
+  const visible = createMemo(() => visibleBackgroundJobs(remaining(), store.now))
 
   const stop = (job: BackgroundJob) => {
     const id = sessionID()
@@ -144,11 +165,11 @@ export function useBackgroundSection(sessionID: () => string): () => StatusPanel
   // 区块对象只在「有没有任务」变化时重建；now 的心跳只在 JSX 内的文本表达式里读取，
   // 不会通过 memo 向上冒泡成 statusSections 的重算。
   const section = createMemo(() => {
-    if (store.jobs.length === 0) return null
+    if (remaining().length === 0) return null
     return {
       id: "background",
       title: language.t("statusPanel.background.title"),
-      summary: <span class="tabular-nums">{backgroundJobStat(store.jobs, store.now)}</span>,
+      summary: <span class="tabular-nums">{backgroundJobStat(remaining(), store.now)}</span>,
       defaultOpen: true,
       children: (
         <div class="flex flex-col gap-0.5 pb-1">
@@ -179,19 +200,24 @@ export function useBackgroundSection(sessionID: () => string): () => StatusPanel
                     <span class="min-w-0 flex-1 truncate text-ui-base text-foreground">{job.title ?? job.id}</span>
                     <span class={`shrink-0 text-ui-xs tabular-nums ${statusClass(job)}`}>{statusLabel(job)}</span>
                     <span class="shrink-0 text-ui-xs tabular-nums text-foreground-subtlest">
-                      {formatElapsed(Number(job.started_at), Number(job.completed_at), store.now)}
+                      {formatElapsed(job.started_at, job.completed_at, store.now)}
                     </span>
                   </div>
                   <Show when={job.status === "running" && job.output}>
                     <div class="mt-0.5 truncate font-mono text-ui-xs text-foreground-subtle">{job.output}</div>
                   </Show>
                   <Show when={showsResult(job)}>
-                    <div class="mt-0.5 line-clamp-2 whitespace-pre-line font-mono text-ui-xs text-foreground-subtle">
-                      {job.output}
+                    <div
+                      class="mt-0.5 line-clamp-3 whitespace-pre-line font-mono text-ui-xs text-foreground-subtle"
+                      title={job.output}
+                    >
+                      {resultBody(job)}
                     </div>
                   </Show>
                   <Show when={job.status === "error" && job.error}>
-                    <div class="mt-0.5 truncate text-ui-xs text-destructive">{job.error}</div>
+                    <div class="mt-0.5 truncate text-ui-xs text-destructive" title={job.error}>
+                      {job.error}
+                    </div>
                   </Show>
                 </button>
                 <Show when={job.status === "running"}>

@@ -6,6 +6,16 @@
 
 @import "../index.css";
 
+/* `dark:` 跟随应用主题，而不是操作系统主题。
+ *
+ * Tailwind v4 默认把 `dark:` 编译成 `@media (prefers-color-scheme: dark)`，
+ * 但 ThemeProvider（ui/theme/context.tsx）切换主题时只改 `<html>` 上的 `.dark` 类和
+ * `color-scheme`。两者不一致时就会出问题：系统深色 + 应用浅色时，浅色界面里的
+ * `dark:` 颜色（例如 `dark:text-cyan-200`）被命中，白字落在白底上直接看不见。
+ * 这里把变体改挂到 `.dark` 上，与 ThemeProvider 的约定对齐。
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --*: initial;
 

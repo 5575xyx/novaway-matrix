@@ -48,16 +48,55 @@ export function jobKind(job: BackgroundJob): JobKind {
   return KIND_BY_TYPE[String(job.type ?? "")] ?? "other"
 }
 
+/** 子代理 job 关联的会话；后台命令的 sessionId 是「在哪个会话里启动的」。 */
+export function jobSessionID(job: BackgroundJob): string | undefined {
+  const value = job.metadata?.sessionId
+  return typeof value === "string" && value ? value : undefined
+}
+
+/**
+ * 团队卡片已经展示了这些成员的会话，后台任务卡片不再重复列一遍。
+ * 只过滤子代理（agent）job；shell / monitor / subscribe / orchestrator
+ * 不在团队卡片里，必须保留。
+ */
+export function hideTeamMemberJobs(
+  jobs: readonly BackgroundJob[],
+  hidden: ReadonlySet<string>,
+): BackgroundJob[] {
+  if (hidden.size === 0) return jobs as BackgroundJob[]
+  return jobs.filter((job) => {
+    if (jobKind(job) !== "agent") return true
+    const child = jobSessionID(job) ?? job.id
+    return !child || !hidden.has(child)
+  })
+}
+
 /** 有独立 kind 的任务在标题前显示一个小标签；子代理保持无标签（最常见）。 */
 export function jobKindLabelKey(job: BackgroundJob): string | undefined {
   const kind = jobKind(job)
   return kind === "agent" || kind === "other" ? undefined : `statusPanel.background.kind.${kind}`
 }
 
-/** 异步事件源在任务结束后仍值得展示最后的输出（就是发给模型的通知正文）。 */
+/**
+ * 监控/订阅在结束后仍值得展示最后的输出（就是发给模型的通知正文）。
+ *
+ * error 也要展示：失败时正文里才有"跑到哪一步、报了什么"的细节。
+ */
 export function showsResult(job: BackgroundJob): boolean {
   const kind = jobKind(job)
-  return (kind === "monitor" || kind === "subscribe") && job.status === "completed" && Boolean(job.output)
+  return (kind === "monitor" || kind === "subscribe") && job.status !== "running" && Boolean(job.output)
+}
+
+/** 失败任务正文里有用的是最后几行（state 与输出尾部），不是通知头两行。 */
+export function resultBody(job: BackgroundJob): string {
+  const output = job.output ?? ""
+  if (job.status !== "error") return output
+  return output
+    .trimEnd()
+    .split("\n")
+    .filter((line) => line.trim() !== "")
+    .slice(-3)
+    .join("\n")
 }
 
 /**
@@ -82,8 +121,20 @@ export function backgroundJobStat(jobs: readonly BackgroundJob[], now: number): 
   return running > 0 ? `${running}/${visible.length}` : String(visible.length)
 }
 
-export function formatElapsed(started: number, end: number | undefined, now: number): string {
-  const seconds = Math.max(0, Math.round(((end === undefined ? now : num(end)) - num(started)) / 1000))
+/** 结束时间。
+ *
+ * 调用方常写成 `Number(job.completed_at)`，任务还没结束时那是 `NaN`。
+ * `NaN === undefined` 是 `false`，所以"是否已结束"必须按有限数判断——
+ * 之前直接判 `=== undefined`，运行中的任务会把 `NaN` 当结束时间、算出 0 秒，
+ * 卡片上就永远是 `0s`（点一次停止、`completed_at` 有真实值后才正常）。
+ */
+const endedAt = (end: unknown): number | undefined => {
+  const value = typeof end === "number" || typeof end === "string" ? Number(end) : NaN
+  return Number.isFinite(value) ? value : undefined
+}
+
+export function formatElapsed(started: unknown, end: unknown, now: number): string {
+  const seconds = Math.max(0, Math.round(((endedAt(end) ?? now) - num(started)) / 1000))
   if (seconds < 60) return `${seconds}s`
   const minutes = Math.floor(seconds / 60)
   const rest = seconds % 60

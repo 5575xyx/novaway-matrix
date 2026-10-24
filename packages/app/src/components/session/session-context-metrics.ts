@@ -10,7 +10,21 @@ type Model = {
   name?: string
   limit: {
     context: number
+    input?: number
+    output?: number
   }
+}
+
+export type ContextStatus = "normal" | "warning" | "error" | "blocking"
+
+type Budget = {
+  effective: number
+  autoCompact: number
+  warning: number
+  error: number
+  blocking: number
+  percentLeft: number | null
+  status: ContextStatus
 }
 
 type Context = {
@@ -27,11 +41,39 @@ type Context = {
   cacheWrite: number
   total: number
   usage: number | null
+  budget: Budget | undefined
 }
 
 type Metrics = {
   totalCost: number
   context: Context | undefined
+}
+
+// 与内核 `session/overflow.ts` 的 contextBudget 保持一致。
+const SUMMARY_RESERVE = 20_000
+const AUTOCOMPACT_BUFFER = 13_000
+const WARNING_THRESHOLD_BUFFER = 20_000
+const ERROR_THRESHOLD_BUFFER = 20_000
+const MANUAL_COMPACT_BUFFER = 3_000
+
+function contextBudget(limit: Model["limit"] | undefined, total: number): Budget | undefined {
+  if (!limit?.context) return undefined
+  const base = limit.input ?? limit.context
+  const effective = Math.max(0, base - Math.min(SUMMARY_RESERVE, limit.output ?? 0))
+  const autoCompact = Math.max(0, effective - AUTOCOMPACT_BUFFER)
+  // Auto compaction is enabled by default; the UI mirrors those thresholds.
+  const warning = Math.max(0, autoCompact - WARNING_THRESHOLD_BUFFER)
+  const error = Math.max(0, autoCompact - ERROR_THRESHOLD_BUFFER)
+  const blocking = Math.max(0, effective - MANUAL_COMPACT_BUFFER)
+  return {
+    effective,
+    autoCompact,
+    warning,
+    error,
+    blocking,
+    percentLeft: autoCompact > 0 ? Math.max(0, Math.min(100, Math.round(((autoCompact - total) / autoCompact) * 100))) : null,
+    status: total >= blocking ? "blocking" : total >= autoCompact ? "error" : total >= warning ? "warning" : "normal",
+  }
 }
 
 export type SessionCacheMetrics = {
@@ -82,6 +124,7 @@ const build = (messages: Message[] = [], providers: Provider[] = []): Metrics =>
       cacheWrite: message.tokens.cache.write,
       total,
       usage: limit ? Math.round((total / limit) * 100) : null,
+      budget: contextBudget(model?.limit, total),
     },
   }
 }

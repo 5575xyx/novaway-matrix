@@ -96,7 +96,7 @@ export function OfficeSessionComposer(props: {
     <div
       ref={props.setPromptDockRef}
       data-component="session-prompt-dock"
-      class="shrink-0 w-full bg-panel/80 pb-4 backdrop-blur-sm"
+      class="shrink-0 w-full bg-background/80 pb-4 backdrop-blur-sm"
     >
       <div
         classList={{

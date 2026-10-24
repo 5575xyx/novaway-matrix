@@ -26,6 +26,7 @@ export const EVENTS = [
   "InstructionsLoaded",
   "FileChanged",
   "CwdChanged",
+  "WorktreeCreate",
   "ConfigChange",
 ] as const
 

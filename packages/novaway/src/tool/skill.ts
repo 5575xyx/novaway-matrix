@@ -6,6 +6,7 @@ import { Ripgrep } from "../file/ripgrep"
 import { Skill } from "../skill"
 import { Service as SessionService } from "@/session/session"
 import { Service as AgentService } from "@/agent/agent"
+import { Service as TeamService } from "@/team/team"
 import { makeRunAgent, type RunAgentPromptOps } from "@/session/agent-step"
 import { MessageV2 } from "@/session/message-v2"
 import * as Tool from "./tool"
@@ -24,6 +25,7 @@ export const SkillTool = Tool.define(
     const rg = yield* Ripgrep.Service
     const sessions = yield* SessionService
     const agents = yield* AgentService
+    const teams = yield* TeamService
 
     return {
       description: DESCRIPTION,
@@ -60,6 +62,7 @@ export const SkillTool = Tool.define(
                   parentSessionID: ctx.sessionID,
                   defaultModel: { providerID: message.info.providerID, modelID: message.info.modelID },
                   defaultAgent: info.agent ?? ctx.agent,
+                  teams,
                 })
                 const output = yield* runAgent({
                   agent: info.agent ?? ctx.agent,

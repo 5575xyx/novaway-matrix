@@ -26,6 +26,40 @@ describe("team", () => {
     }),
   )
 
+  it.live("resolves the newest team when a root session has duplicates", () =>
+    Effect.gen(function* () {
+      const teams = yield* TeamService
+      const old = yield* teams.create({ name: "old", rootSessionID: lead })
+      yield* teams.addMember({ teamID: old.id, sessionID: lead, name: "team-lead", agent: "build", role: "lead" })
+      yield* Effect.sleep("5 millis")
+      const fresh = yield* teams.create({ name: "fresh", rootSessionID: lead })
+      yield* teams.addMember({ teamID: fresh.id, sessionID: lead, name: "team-lead", agent: "build", role: "lead" })
+
+      // The panel renders one roster; it must track the team the lead most
+      // recently created instead of an arbitrary older row.
+      const found = yield* teams.ofSession(lead)
+      expect(found?.id).toBe(fresh.id)
+    }),
+  )
+
+  it.effect("ensure is idempotent when the first workers spawn together", () =>
+    Effect.gen(function* () {
+      const teams = yield* TeamService
+      const autoLead = SessionID.make("ses_auto_lead")
+      const [first, second] = yield* Effect.all(
+        [
+          teams.ensure({ rootSessionID: autoLead, name: "auto", agent: "build" }),
+          teams.ensure({ rootSessionID: autoLead, name: "auto", agent: "build" }),
+        ],
+        { concurrency: 2 },
+      )
+
+      expect(first.id).toBe(second.id)
+      const members = yield* teams.members(first.id)
+      expect(members.filter((member) => member.role === "lead").map((member) => member.name)).toEqual(["team-lead"])
+    }),
+  )
+
   it.effect("claims tasks atomically and respects dependencies", () =>
     Effect.gen(function* () {
       const teams = yield* TeamService

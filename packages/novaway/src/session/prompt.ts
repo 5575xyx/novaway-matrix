@@ -32,6 +32,8 @@ import BUILD_SWITCH from "../session/prompt/build-switch.txt"
 import MAX_STEPS from "../session/prompt/max-steps.txt"
 import { ToolRegistry } from "@/tool/registry"
 import { ToolJsonSchema } from "@/tool/json-schema"
+import { shouldDeferMcpTools } from "@/tool/mcp-defer"
+import { Token } from "@/util/token"
 import { MCP } from "../mcp"
 import { LSP } from "@/lsp/lsp"
 import { ulid } from "ulid"
@@ -76,6 +78,7 @@ import { InstanceState } from "@/effect/instance-state"
 import { TaskTool, type TaskPromptOps } from "@/tool/task"
 import { SessionRunState } from "./run-state"
 import { ToolBudget } from "./tool-budget"
+import { contextBudget, pendingTokens } from "./overflow"
 import { PlanApproval } from "./plan-approval"
 import { EffectBridge } from "@/effect/bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
@@ -94,6 +97,15 @@ import { Auth } from "@/auth"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
+
+/**
+ * 单次用户请求内允许连续自动压缩的次数。
+ *
+ * 正常长会话里，压缩一次后上下文会明显下降。连续多次说明固定前缀
+ * （system + 工具 schema）本身已经超过可用窗口，压缩无法收敛；
+ * 再继续只会无限循环（每轮先输出几十个 token 又触发压缩）。
+ */
+const MAX_CONSECUTIVE_AUTO_COMPACTIONS = 3
 
 const buildGoalContext = Effect.fn("SystemPrompt.buildGoalContext")(function* (goalService: any, sessionId: string) {
   if (!goalService) return ""
@@ -1035,14 +1047,129 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         })
       }
 
-      for (const [key, item] of Object.entries(yield* mcp.tools())) {
+      const mcpTools = yield* mcp.tools()
+      type McpEntry = { key: string; item: any; execute: any; schema: JSONSchema7 }
+      const mcpEntries: McpEntry[] = []
+      for (const [key, item] of Object.entries(mcpTools)) {
         const execute = item.execute
         if (!execute) continue
-
         const schema = yield* Effect.promise(() => Promise.resolve(asSchema(item.inputSchema).jsonSchema))
-        const transformed = ProviderTransform.schema(input.model, schema)
-        item.inputSchema = jsonSchema(transformed)
-        item.execute = (args, opts) =>
+        mcpEntries.push({
+          key,
+          item,
+          execute,
+          schema: ProviderTransform.schema(input.model, schema),
+        })
+      }
+
+      // MCP 工具全量直出时，光 schema 就可能吃掉 60k+ tokens。小窗口模型
+      // （内置网关 128k）会因此永远高于压缩阈值，压缩无法收敛（见
+      // overflow.ts 的说明）。超过阈值时改为按需激活：首轮只带
+      // mcp_tool_search，模型搜索后下一轮才拿完整 schema。
+      const cfg = yield* config.get()
+      const mcpSchemaTokens = Token.estimate(
+        JSON.stringify(
+          mcpEntries.map((entry) => ({
+            name: entry.key,
+            description: entry.item.description,
+            parameters: entry.schema,
+          })),
+        ),
+      )
+      const deferMcp = shouldDeferMcpTools({
+        configured: cfg.experimental?.defer_mcp_loading,
+        schemaTokens: mcpSchemaTokens,
+      })
+      const activeMcp = deferMcp ? new Set(yield* registry.activeTools(input.session.id)) : undefined
+      const deferredMcp = deferMcp ? mcpEntries.filter((entry) => !activeMcp?.has(entry.key)) : []
+      if (deferMcp) {
+        log.info("mcp tools deferred", {
+          total: mcpEntries.length,
+          active: activeMcp?.size ?? 0,
+          schemaTokens: mcpSchemaTokens,
+        })
+      }
+
+      if (deferMcp && deferredMcp.length > 0) {
+        // 名字清单只用于让模型知道「有哪些工具」；真正的占用是 schema。
+        // 极端情况下（几百个 MCP 工具）仍给清单设置上限，避免搜索工具本身膨胀。
+        const deferredNames = deferredMcp.map((entry) => entry.key)
+        const listed = deferredNames.slice(0, 120).join(", ")
+        const suffix = deferredNames.length > 120 ? ` (+${deferredNames.length - 120} more; search with keywords)` : ""
+        tools["mcp_tool_search"] = tool({
+          description: [
+            "Search and activate MCP tools. MCP tool schemas are loaded on demand to keep the prompt small.",
+            `Available MCP tools (deferred): ${listed}${suffix}`,
+            'Call with keywords or "select:<tool_id>". Activated tools become available on your next step.',
+          ].join("\n"),
+          inputSchema: jsonSchema({
+            type: "object",
+            properties: {
+              query: { type: "string", description: 'Keywords, or "select:<tool_id>" for a direct match.' },
+              max_results: { type: "number", description: "Maximum results (default 5, max 8)." },
+            },
+            required: ["query"],
+          }),
+          execute: (args) =>
+            run.promise(
+              Effect.gen(function* () {
+                const query = String((args as { query?: unknown }).query ?? "").trim()
+                const limit = Math.max(
+                  1,
+                  Math.min(Number((args as { max_results?: unknown }).max_results ?? 5) || 5, 8),
+                )
+                const select = /^select:(.+)$/i.exec(query)
+                const q = query.toLowerCase()
+                const words = q.split(/\s+/).filter(Boolean)
+                const matched = deferredMcp
+                  .map((entry) => {
+                    const id = entry.key.toLowerCase()
+                    const text = `${entry.key} ${entry.item.description ?? ""}`.toLowerCase()
+                    const score = select
+                      ? entry.key === select[1]?.trim()
+                        ? 100
+                        : 0
+                      : id === q
+                        ? 100
+                        : id.includes(q)
+                          ? 80
+                          : words.length > 0 && words.every((word) => text.includes(word))
+                            ? 60
+                            : 0
+                    return { entry, score }
+                  })
+                  .filter((item) => item.score > 0)
+                  .sort((a, b) => b.score - a.score || a.entry.key.localeCompare(b.entry.key))
+                  .slice(0, limit)
+                if (matched.length > 0) {
+                  yield* registry.activateTools(
+                    input.session.id,
+                    matched.map((item) => item.entry.key),
+                  )
+                }
+                const output =
+                  matched.length === 0
+                    ? `No MCP tools matched "${query}". Try a broader keyword.`
+                    : matched
+                        .map(
+                          (item) =>
+                            `- ${item.entry.key}: ${(item.entry.item.description ?? "").split("\n")[0]?.slice(0, 160)}`,
+                        )
+                        .join("\n")
+                return {
+                  title: `${matched.length} MCP tools`,
+                  output,
+                  metadata: { matches: matched.map((item) => item.entry.key), total: deferredMcp.length },
+                }
+              }).pipe(Effect.orDie),
+            ),
+        })
+      }
+
+      for (const { key, item, execute, schema } of mcpEntries) {
+        if (deferMcp && !activeMcp?.has(key)) continue
+        item.inputSchema = jsonSchema(schema)
+        item.execute = (args: any, opts: ToolExecutionOptions) =>
           run.promise(
             Effect.gen(function* () {
               const ctx = context(args, opts)
@@ -2670,6 +2797,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       const slog = elog.with({ sessionID })
       let structured: unknown
       let step = 0
+      let autoCompactions = 0
       const session = yield* sessions.get(sessionID).pipe(Effect.orDie)
       let loopModel: Provider.Model | undefined = undefined
 
@@ -2816,6 +2944,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         }
 
         if (task?.type === "compaction") {
+          if (!task.auto) autoCompactions = 0
           const result = yield* compaction.process({
             messages: msgs,
             parentID: lastUser.id,
@@ -2824,16 +2953,57 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             overflow: task.overflow,
           })
           if (result === "stop") break
+          if (task.auto) autoCompactions++
           continue
         }
 
-        if (
-          lastFinished &&
-          lastFinished.summary !== true &&
-          (yield* compaction.isOverflow({ tokens: lastFinished.tokens, model }))
-        ) {
-          yield* compaction.create({ sessionID, agent: lastUser.agent, model: lastUser.model, auto: true })
-          continue
+        if (lastFinished && lastFinished.summary !== true) {
+          // usage 只覆盖上一条 assistant 自己的请求；工具在响应结束后执行，
+          // 它们的输出要到下一次请求才计入 input。把这段增量一起算进去，
+          // 避免大工具输出直到下一次 413 才触发压缩。
+          const pending = pendingTokens({ messages: msgs, finishedID: lastFinished.id })
+          const base =
+            lastFinished.tokens.total ||
+            lastFinished.tokens.input +
+              lastFinished.tokens.output +
+              lastFinished.tokens.reasoning +
+              lastFinished.tokens.cache.read +
+              lastFinished.tokens.cache.write
+          const tokens = pending > 0 ? { ...lastFinished.tokens, total: base + pending } : lastFinished.tokens
+          if (yield* compaction.isOverflow({ tokens, model })) {
+            // 先判断再创建：避免熔断时留下一条永远待处理的 compaction 标记。
+            if (autoCompactions >= MAX_CONSECUTIVE_AUTO_COMPACTIONS) {
+              const error = new NamedError.Unknown({
+                message:
+                  `Auto-compaction stopped after ${MAX_CONSECUTIVE_AUTO_COMPACTIONS} consecutive attempts: the context is still above the model's usable window. ` +
+                  `The fixed prompt (system + tool schemas) is too large. Disable unused MCP tools or switch to a model with a larger context window.`,
+              })
+              yield* bus.publish(Session.Event.Error, { sessionID, error: error.toObject() })
+              break
+            }
+            yield* compaction.create({ sessionID, agent: lastUser.agent, model: lastUser.model, auto: true })
+            continue
+          }
+          // 硬上限：auto-compaction 关闭或反复失败时，继续发请求只会 413。
+          // 在发请求前就停下，和 CC 的 MANUAL_COMPACT_BUFFER_TOKENS 一致。
+          const budget = contextBudget({
+            cfg: yield* config.get(),
+            model,
+            outputTokenMax: flags.outputTokenMax,
+            tokens: tokens.total || base,
+          })
+          const used = tokens.total || base
+          if (budget.blocking > 0 && used >= budget.blocking) {
+            const error = new MessageV2.ContextOverflowError({
+              message:
+                `Context window is nearly full (${budget.percentLeft ?? 0}% until auto-compact, ` +
+                `${used} of ${budget.effective} usable tokens). Run /compact to summarize the session and continue.`,
+            })
+            yield* bus.publish(Session.Event.Error, { sessionID, error: error.toObject() })
+            break
+          }
+          // 已经回到阈值以下，说明压缩有效；下一次溢出重新计数。
+          autoCompactions = 0
         }
 
         const agent = yield* agents.get(lastUser.agent)

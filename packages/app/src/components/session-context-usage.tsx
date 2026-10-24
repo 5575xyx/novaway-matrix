@@ -87,6 +87,24 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
               <span class="text-foreground-inverse">{ctx().usage ?? 0}%</span>
               <span class="text-foreground-inverse">{language.t("context.usage.usage")}</span>
             </div>
+            <Show when={ctx().budget}>
+              {(budget) => (
+                <div class="flex items-center gap-2">
+                  <span class="text-foreground-inverse">
+                    {language.t("context.usage.remaining", { percent: budget().percentLeft ?? 0 })}
+                  </span>
+                </div>
+              )}
+            </Show>
+            <Show when={ctx().budget && ctx().budget!.status !== "normal"}>
+              <div class="flex items-center gap-2">
+                <span class="text-warning">
+                  {language.t(
+                    ctx().budget!.status === "blocking" ? "context.usage.blocking" : "context.usage.warning",
+                  )}
+                </span>
+              </div>
+            </Show>
           </>
         )}
       </Show>

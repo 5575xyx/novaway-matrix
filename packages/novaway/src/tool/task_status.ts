@@ -13,7 +13,10 @@ const DEFAULT_TIMEOUT = 60_000
 const POLL_MS = 300
 
 const Parameters = Schema.Struct({
-  task_id: SessionID.annotate({ description: "The task_id returned by the task tool" }),
+  // 故意用普通字符串：看板任务 id（task_…）和会话 id 都可能被模型传进来，
+  // 先接收再由 execute 给出“这是看板任务/这是当前会话”这类可读错误，
+  // 而不是抛一句 schema 校验失败。
+  task_id: Schema.String.annotate({ description: "The task_id returned by the task tool" }),
   wait: Schema.optional(Schema.Boolean).annotate({
     description: "When true, wait until the task reaches a terminal state or timeout",
   }),
@@ -107,35 +110,71 @@ export const TaskStatusTool = Tool.define(
       },
     )
 
+    // `task_create` / `task_claim` 维护的是团队任务看板，和子代理是两回事；
+    // 会话 id 与看板任务 id 长得也很像（`ses_…` / `task_…`）。以前这里对任意
+    // 会话 id 都返回状态：模型把「自己的会话正在生成」当成「我刚派的 3 个任务
+    // 正在并行运行」，于是不再真的调用 task 工具。现在显式区分三种输入。
+    const reject = (taskID: SessionID, text: string) => ({
+      title: "Task status",
+      metadata: {
+        task_id: taskID,
+        state: "error" as const,
+        timed_out: false,
+      },
+      output: format({ taskID, state: "error", text }),
+    })
+
     const run = Effect.fn("TaskStatusTool.execute")(function* (
       params: Schema.Schema.Type<typeof Parameters>,
-      _ctx: Tool.Context,
+      ctx: Tool.Context,
     ) {
       if (!flags.experimentalBackgroundSubagents) {
         return yield* Effect.fail(new Error("task_status requires NovaWay_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true"))
       }
 
-      const session = yield* sessions.get(params.task_id).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+      const taskID = params.task_id as SessionID
+      if (taskID === ctx.sessionID) {
+        return reject(
+          taskID,
+          `${params.task_id} is the current session itself, not a subagent. task_status only accepts task_id values returned by the task tool. Board tasks created with task_create are not running anywhere until you launch a subagent with the task tool.`,
+        )
+      }
+
+      if (params.task_id.startsWith("task_")) {
+        return reject(
+          taskID,
+          `${params.task_id} is a team board task id. Use task_get to read it. task_status tracks subagent sessions launched with the task tool.`,
+        )
+      }
+
+      const session = yield* sessions.get(taskID).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
       if (!session) {
         return {
           title: "Task status",
           metadata: {
-            task_id: params.task_id,
+            task_id: taskID,
             state: "error" as const,
             timed_out: false,
           },
           output: format({
-            taskID: params.task_id,
+            taskID,
             state: "error",
             text: `Task not found: ${params.task_id}`,
           }),
         }
       }
 
+      if (!session.parentID) {
+        return reject(
+          taskID,
+          `${taskID} is a root session, not a subagent. task_status only accepts task_id values returned by the task tool. To run work in parallel, call the task tool with a subagent_type.`,
+        )
+      }
+
       const waited =
         params.wait === true
-          ? yield* jobs.wait({ id: params.task_id, timeout: params.timeout_ms ?? DEFAULT_TIMEOUT })
-          : { info: yield* jobs.get(params.task_id), timedOut: false }
+          ? yield* jobs.wait({ id: taskID, timeout: params.timeout_ms ?? DEFAULT_TIMEOUT })
+          : { info: yield* jobs.get(taskID), timedOut: false }
       const inspected = waited.info
         ? {
             result: {
@@ -148,8 +187,8 @@ export const TaskStatusTool = Tool.define(
             timedOut: waited.timedOut,
           }
         : params.wait === true
-          ? yield* waitForTerminal(params.task_id, params.timeout_ms ?? DEFAULT_TIMEOUT)
-          : { result: yield* inspect(params.task_id), timedOut: false }
+          ? yield* waitForTerminal(taskID, params.timeout_ms ?? DEFAULT_TIMEOUT)
+          : { result: yield* inspect(taskID), timedOut: false }
       const text = inspected.timedOut
         ? `Timed out after ${params.timeout_ms ?? DEFAULT_TIMEOUT}ms while waiting for task completion.`
         : inspected.result.text
@@ -162,7 +201,7 @@ export const TaskStatusTool = Tool.define(
           timed_out: inspected.timedOut,
         },
         output: format({
-          taskID: params.task_id,
+          taskID,
           state: inspected.result.state,
           text,
         }),

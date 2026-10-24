@@ -3,9 +3,11 @@ import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
 import { CAPABILITIES, ToolRegistry } from "@/tool/registry"
 import { Service as SkillService } from "@/skill"
+import { Service as AgentService } from "@/agent/agent"
 import { Service as HookService } from "@/hook/service"
 import { ExtensionService } from "@/extension"
 import { Config } from "@/config/config"
+import { RuntimeFlags } from "@/effect/runtime-flags"
 import { InstallationVersion } from "@novaway/core/installation/version"
 
 /** Tools hidden behind `tool_search` until the model asks for them. */
@@ -18,23 +20,32 @@ export const kernelHandlers = HttpApiBuilder.group(InstanceHttpApi, "kernel", (h
     const hooks = yield* HookService
     const extensions = yield* ExtensionService
     const config = yield* Config.Service
-
+    const agents = yield* AgentService
+    const flags = yield* RuntimeFlags.Service
     return handlers.handle("capabilities", () =>
       Effect.gen(function* () {
         const cfg = yield* config.get()
         const feature = cfg.experimental ?? {}
-        const [ids, allSkills, registrations, loaded, contributions] = yield* Effect.all([
+        const [ids, allSkills, registrations, loaded, contributions, allAgents] = yield* Effect.all([
           registry.ids(),
           skills.all(),
           hooks.list(),
           extensions.list(),
           extensions.contributions(),
+          agents.list(),
         ])
 
-        const deferredOn = feature.defer_loading === true
-        const deferred = deferredOn ? ids.filter((id) => DEFERRED_PREFIXES.some((p) => id.startsWith(p))).length : 0
+        // 未配置时默认开启（与 registry/prompt 里的 `?? true` 保持一致）。
+        const deferredOn = feature.defer_loading ?? true
+        const deferred = deferredOn
+          ? ids.filter(
+              (id) => CAPABILITIES[id]?.deferLoading === true || DEFERRED_PREFIXES.some((p) => id.startsWith(p)),
+            ).length
+          : 0
         const budget = feature.tool_result_budget_chars
-        const background = feature.background_subagents
+        const backgroundOn = feature.background_subagents ?? flags.experimentalBackgroundSubagents
+        const teamRoles = allAgents.filter((item) => !item.hidden).length
+        const teamTools = ["team_create", "team_list", "task_create", "task_list"].filter((id) => ids.includes(id))
 
         return {
           version: InstallationVersion,
@@ -66,10 +77,15 @@ export const kernelHandlers = HttpApiBuilder.group(InstanceHttpApi, "kernel", (h
             { id: "defer_loading", enabled: deferredOn, detail: deferredOn ? String(deferred) : undefined },
             {
               id: "background_subagents",
-              enabled: background !== false,
-              detail: background === false ? "off" : "on",
+              enabled: backgroundOn,
+              detail: backgroundOn ? "on" : "off",
             },
-            { id: "teams", enabled: true },
+            {
+              id: "teams",
+              enabled: teamTools.length === 4,
+              detail: teamRoles ? String(teamRoles) : undefined,
+            },
+            { id: "auto_delegate", enabled: feature.auto_delegate !== false },
             { id: "plan_approval", enabled: true },
             {
               id: "async_sources",

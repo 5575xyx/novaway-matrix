@@ -12,6 +12,7 @@ import { TaskTool } from "./task"
 import { MonitorTool } from "./monitor"
 import { SubscribeTool } from "./subscribe"
 import { CwdTool } from "./cwd"
+import { WorktreeEnterTool, WorktreeExitTool } from "./worktree"
 import { TaskStatusTool } from "./task_status"
 import { TodoWriteTool, TodoEditTool } from "./todo"
 import { WebFetchTool } from "./webfetch"
@@ -27,6 +28,7 @@ import { KnowledgeOcrTool } from "./knowledge-ocr"
 import { MemoryEmbeddingSetupTool } from "./memory-setup"
 import { InstallationDoctorTool } from "./installation-doctor"
 import { McpSetupTool } from "./mcp-setup"
+import { ListMcpResourcesTool, ReadMcpResourceTool } from "./mcp-resources"
 import { SkillInstallTool } from "./skill-install"
 import { PluginInstallTool } from "./plugin-install"
 import { ProviderSetupTool } from "./provider-setup"
@@ -179,7 +181,10 @@ export const CAPABILITIES: Record<string, Tool.Capabilities> = {
     concurrencySafe: (args) => shellSafe(args),
     interrupt: "cancel",
   },
-  task: { concurrencySafe: false, interrupt: "block" },
+  // Independent subagents operate on separate child sessions; the tool prompt
+  // explicitly asks the model to launch them in parallel. Keep the interrupt
+  // policy (a new user message blocks rather than cancels workers).
+  task: { concurrencySafe: true, interrupt: "block" },
   orchestrator: { concurrencySafe: false },
   workflow: { concurrencySafe: false },
   question: { concurrencySafe: false },
@@ -207,6 +212,10 @@ export const CAPABILITIES: Record<string, Tool.Capabilities> = {
   monitor: { concurrencySafe: true },
   subscribe: { concurrencySafe: true },
   cwd: { concurrencySafe: false },
+  enter_worktree: { concurrencySafe: false },
+  exit_worktree: { concurrencySafe: false },
+  list_mcp_resources: { readOnly: true, concurrencySafe: true },
+  read_mcp_resource: { readOnly: true, concurrencySafe: true },
   tool_search: { readOnly: true, concurrencySafe: true },
   knowledge_search: { readOnly: true, concurrencySafe: true },
   git: {
@@ -297,6 +306,10 @@ export interface Interface {
     /** Session used for deferred-tool activation. Omit to include every tool. */
     sessionID?: SessionID
   }) => Effect.Effect<Tool.Def[]>
+  /** 已激活的延迟工具（tool_search / mcp_tool_search 共用同一份会话状态）。 */
+  readonly activeTools: (sessionID: SessionID) => Effect.Effect<string[]>
+  /** 激活延迟工具；下一轮 resolveTools 会带上完整 schema。 */
+  readonly activateTools: (sessionID: SessionID, toolIDs: readonly string[]) => Effect.Effect<void>
   /** Rediscover custom tools from disk for the current instance. */
   readonly reload: () => Effect.Effect<string[]>
 }
@@ -391,6 +404,8 @@ export const layer: Layer.Layer<
     const installationDoctor = yield* InstallationDoctorTool
     const lspSetup = yield* LspSetupTool
     const mcpSetup = yield* optional(MCP.Service, McpSetupTool)
+    const listMcpResourcesTool = yield* optional(MCP.Service, ListMcpResourcesTool)
+    const readMcpResourceTool = yield* optional(MCP.Service, ReadMcpResourceTool)
     const providerSetup = yield* ProviderSetupTool
     // Loaded lazily: office/platform imports SessionPrompt, which imports this
     // registry. A static import creates an initialization cycle (TDZ on
@@ -431,6 +446,8 @@ export const layer: Layer.Layer<
     const monitorTool = yield* MonitorTool
     const subscribeTool = yield* SubscribeTool
     const cwdTool = yield* CwdTool
+    const worktreeEnterTool = yield* WorktreeEnterTool
+    const worktreeExitTool = yield* WorktreeExitTool
     const teamTool = yield* optional(TeamServiceInterface, TeamCreateTool)
     const teamDeleteTool = yield* optional(TeamServiceInterface, TeamDeleteTool)
     const teamListTool = yield* optional(TeamServiceInterface, TeamListTool)
@@ -557,6 +574,7 @@ export const layer: Layer.Layer<
         }
 
         const cfg = yield* config.get()
+        const deferBuiltin = cfg.experimental?.defer_loading ?? true
         const questionEnabled = ["app", "cli", "desktop"].includes(flags.client) || flags.enableQuestionTool
         // 后台并行开关:配置优先(可被 /后台并行 切换),回退运行时 flag。
         const backgroundSubagentsEnabled =
@@ -591,6 +609,10 @@ export const layer: Layer.Layer<
           installation_doctor: Tool.init(installationDoctor),
           lsp_setup: Tool.init(lspSetup),
           mcp_setup: mcpSetup ? Tool.init(mcpSetup) : Effect.succeed(undefined),
+          list_mcp_resources: listMcpResourcesTool
+            ? Tool.init(listMcpResourcesTool)
+            : Effect.succeed(undefined),
+          read_mcp_resource: readMcpResourceTool ? Tool.init(readMcpResourceTool) : Effect.succeed(undefined),
           provider_setup: Tool.init(providerSetup),
           // office_setup 的运行期服务（OfficePlatform）在工具内部按需解析，
           // 这里把它当作无依赖工具注册。
@@ -643,6 +665,8 @@ export const layer: Layer.Layer<
           monitor: Tool.init(monitorTool),
           subscribe: Tool.init(subscribeTool),
           cwd: Tool.init(cwdTool),
+          enter_worktree: Tool.init(worktreeEnterTool),
+          exit_worktree: Tool.init(worktreeExitTool),
         })
 
         const decorate = <T extends Tool.Def>(def: T): T =>
@@ -687,6 +711,8 @@ export const layer: Layer.Layer<
           tool.installation_doctor,
           tool.lsp_setup,
           tool.mcp_setup!,
+          tool.list_mcp_resources!,
+          tool.read_mcp_resource!,
           tool.provider_setup,
           tool.office_setup,
           tool.skill_install,
@@ -714,6 +740,8 @@ export const layer: Layer.Layer<
           tool.monitor,
           tool.subscribe,
           tool.cwd,
+          tool.enter_worktree,
+          tool.exit_worktree,
           tool.browser_navigate,
           tool.browser_open,
           tool.browser_snapshot,
@@ -747,7 +775,7 @@ export const layer: Layer.Layer<
         // When deferred loading is on, name the hidden tools in the search
         // description. Names cost a few dozen tokens; full schemas cost far
         // more and most sessions never touch these tools.
-        const deferredNames = cfg.experimental?.defer_loading
+        const deferredNames = deferBuiltin
           ? [...builtinList, ...custom.map(decorate)]
               .filter((item) => item.capabilities?.deferLoading)
               .map((item) => item.id)
@@ -895,7 +923,8 @@ export const layer: Layer.Layer<
         )
       const allow = input.agent.tools?.length ? new Set(input.agent.tools) : undefined
       const deny = new Set(input.agent.disallowedTools ?? [])
-      const deferEnabled = cfg.experimental?.defer_loading === true && input.sessionID !== undefined
+      const deferBuiltin = cfg.experimental?.defer_loading ?? true
+      const deferEnabled = deferBuiltin && input.sessionID !== undefined
       const activated = deferEnabled && input.sessionID ? new Set(yield* activation.list(input.sessionID)) : undefined
       const filtered = allTools.filter((tool) => {
         if (allow && !allow.has("*") && !allow.has(tool.id)) return false
@@ -959,13 +988,23 @@ export const layer: Layer.Layer<
       return { task: s.task, read: s.read }
     })
 
+    const activeTools: Interface["activeTools"] = Effect.fn("ToolRegistry.activeTools")(function* (sessionID) {
+      return yield* activation.list(sessionID)
+    })
+
+    const activateTools: Interface["activateTools"] = Effect.fn("ToolRegistry.activateTools")(
+      function* (sessionID, toolIDs) {
+        yield* activation.activate(sessionID, toolIDs)
+      },
+    )
+
     const reload = Effect.fn("ToolRegistry.reload")(function* () {
       yield* config.invalidate()
       yield* InstanceState.invalidate(state)
       return yield* ids()
     })
 
-    return Service.of({ ids, all, named, tools, reload })
+    return Service.of({ ids, all, named, tools, reload, activeTools, activateTools })
   }),
 ).pipe(
   // Collaboration services are self-contained (Database only). Providing them

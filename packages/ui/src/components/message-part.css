@@ -29,7 +29,7 @@
     justify-content: flex-end;
     gap: 8px;
     width: fit-content;
-    max-width: min(82%, 64ch);
+    max-width: min(72%, 64ch);
     margin-left: auto;
   }
 
@@ -114,7 +114,7 @@
 
   [data-slot="user-message-body"] {
     width: fit-content;
-    max-width: min(82%, 64ch);
+    max-width: min(72%, 64ch);
     margin-left: auto;
     display: flex;
     flex-direction: column;
@@ -125,9 +125,8 @@
     margin-top: 8px;
   }
 
-  /* 对齐 ZCode `components/ai-elements/message.tsx` 的用户气泡：
-     `rounded-lg bg-secondary px-4 py-3 text-foreground`。
-     旧版是 6px 圆角 + 8/12 内边距 + surface 底；ZCode 是 8px 圆角 + 16/12 内边距 + secondary 底。 */
+  /* 对齐原型 A1 的用户气泡：12px 圆角 + 8/12 内边距 + 中性浅底。
+     旧版是 8px 圆角 + 12/16 内边距，气泡显得比内容大一圈。 */
   [data-slot="user-message-text"] {
     display: inline-block;
     white-space: pre-wrap;
@@ -135,9 +134,11 @@
     overflow: hidden;
     background: var(--secondary);
     border: none;
-    padding: 12px 16px;
-    border-radius: var(--radius-lg);
+    padding: 8px 12px;
+    border-radius: var(--radius-xl);
     color: var(--foreground);
+    font-size: var(--font-size-ui-caption);
+    line-height: 1.6;
 
     [data-highlight="file"] {
       color: var(--syntax-property);
@@ -213,18 +214,27 @@
 
 [data-component="text-part"] {
   width: 100%;
+  position: relative;
   margin-top: 24px;
 
   [data-slot="text-part-body"] {
     margin-top: 0;
   }
 
+  /* 复制按钮 / 时长浮在卡片右下角，不占布局高度：
+     A1 的卡片要"贴内容"，如果这里保留 24px 的占位，短卡片底部会空出一大块。 */
   [data-slot="text-part-copy-wrapper"] {
-    min-height: 24px;
-    margin-top: 4px;
+    position: absolute;
+    right: -6px;
+    bottom: -6px;
+    min-height: 0;
+    margin-top: 0;
+    padding: 2px 4px;
+    border-radius: 6px;
+    background: var(--panel);
     display: flex;
     align-items: center;
-    justify-content: flex-start;
+    justify-content: flex-end;
     gap: 10px;
     opacity: 0;
     pointer-events: none;
@@ -242,8 +252,6 @@
   }
 
   [data-slot="text-part-copy-wrapper"][data-interrupted] {
-    width: 100%;
-    justify-content: flex-end;
     gap: 12px;
   }
 
@@ -287,7 +295,9 @@
   gap: 4px;
 }
 
-[data-component="reasoning-part-trigger"] [data-slot="collapsible-arrow"] {
+/* 思考卡片本身就是折叠开关，箭头常显（原型 A1 的「▾ 思考过程」），
+   否则收起状态只剩一行文字，看不出可以展开。 */
+.reasoning-collapsible [data-slot="collapsible-trigger"] [data-component="reasoning-part-trigger"] [data-slot="collapsible-arrow"] {
   opacity: 1;
 }
 
@@ -325,10 +335,8 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  [data-component="reasoning-part"] [data-component="markdown"] :not(pre) > code {
-    opacity: 0.6;
-  }
+.dark [data-component="reasoning-part"] [data-component="markdown"] :not(pre) > code {
+  opacity: 0.6;
 }
 
 [data-component="tool-output"] {

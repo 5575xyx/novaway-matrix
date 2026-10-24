@@ -286,6 +286,11 @@ export default function FileTree(props: {
   }
 
   const handleRevealInOS = (absolutePath: string) => {
+    // 文件节点用「显示并选中」语义;openPath 对文件会直接用默认程序打开它,不符合预期。
+    if (platform.showItemInFolder) {
+      void platform.showItemInFolder(absolutePath).catch(() => {})
+      return
+    }
     if (platform.openPath) {
       void platform.openPath(absolutePath).catch(() => {})
       return

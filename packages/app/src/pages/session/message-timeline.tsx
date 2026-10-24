@@ -15,7 +15,6 @@ import {
   type JSX,
 } from "solid-js"
 import { createStore, produce } from "solid-js/store"
-import { toolCardSlots } from "@/pages/session/tool-card"
 import { SelectionActionMenu } from "@/pages/session/selection-action-menu"
 import { useSideChat } from "@/pages/session/use-side-chat"
 import "@/components/session/knowledge-tool"
@@ -31,6 +30,7 @@ import {
   ContextToolGroup,
   Message,
   MessageDivider,
+  mergeReasoningParts,
   Part as MessagePart,
   partDefaultOpen,
   type UserActions,
@@ -46,7 +46,14 @@ import { ScrollView } from "@novaway/ui/scroll-view"
 import { StickyAccordionHeader } from "@novaway/ui/sticky-accordion-header"
 import { TextReveal } from "@novaway/ui/text-reveal"
 import { TextShimmer } from "@novaway/ui/text-shimmer"
-import type { AssistantMessage, Message as MessageType, Part as PartType, ToolPart, UserMessage } from "@novaway/sdk/v2"
+import type {
+  AssistantMessage,
+  Message as MessageType,
+  Part as PartType,
+  ReasoningPart,
+  ToolPart,
+  UserMessage,
+} from "@novaway/sdk/v2"
 import { showToast } from "@novaway/ui/toast"
 import { Binary } from "@novaway/core/util/binary"
 import { getDirectory, getFilename } from "@novaway/core/util/path"
@@ -518,29 +525,6 @@ export function MessageTimeline(props: {
   })
   const timelineRowByKey = createMemo(() => new Map(timelineRows().map((row) => [TimelineRow.key(row), row] as const)))
   const timelineRowKeys = createMemo(() => [...timelineRowByKey().keys()], [] as string[], { equals: sameKeys })
-  /**
-   * 「这一轮连续的工具调用」的卡片边界。
-   *
-   * 工具行现在各自漂浮在消息流里，一段跑二十个工具就散成二十截，
-   * 读起来分不出哪些属于同一次执行。这里按 key 标出每行是卡片的首/尾/中段，
-   * 渲染时据此画一张外框把它们收成一块（对齐 Qoder / ZCode 的连续执行块）。
-   */
-  const toolCardByRowKey = createMemo(() => {
-    const rows = timelineRows()
-    // `part` 组的 ref 自带 messageID，直接按它取 —— 不必遍历整条会话。
-    const isToolPart = (messageID: string, partID: string) =>
-      getMsgParts(messageID).find((part) => part.id === partID)?.type === "tool"
-    const slots = toolCardSlots(
-      rows.map((row) => {
-        if (row._tag !== "AssistantPart") return { tool: false }
-        // `context` 组必然是工具（read/glob/grep/list 被收成一组摘要）；
-        // `part` 组要看底层 part 类型 —— 纯文本段落不该被卷进工具卡片里。
-        const tool = row.group.type === "context" || isToolPart(row.group.ref.messageID, row.group.ref.partID)
-        return { tool, messageID: row.userMessageID }
-      }),
-    )
-    return new Map(rows.map((row, index) => [TimelineRow.key(row), slots[index]!] as const))
-  })
   createEffect(
     on(sessionKey, () => {
       setVirtualFallback(false)
@@ -1181,6 +1165,42 @@ export function MessageTimeline(props: {
       })
 
       return <ContextToolGroup parts={parts()} busy={workingTurn(row().userMessageID) && row().lastAssistantPart} />
+    }
+
+    if (untrack(row).group.type === "reasoning") {
+      const message = createMemo(() => {
+        const group = row().group
+        if (group.type !== "reasoning") return
+        return messageByID().get(group.refs[0]?.messageID ?? "")
+      })
+      const part = createMemo(() => {
+        const group = row().group
+        if (group.type !== "reasoning") return
+        return mergeReasoningParts(
+          group.refs
+            .map((ref) => getMsgPart(ref.messageID, ref.partID))
+            .filter((part): part is ReasoningPart => part?.type === "reasoning"),
+        )
+      })
+
+      return (
+        <Show when={message()}>
+          {(message) => (
+            <Show when={part()}>
+              {(part) => (
+                <MessagePart
+                  part={part()}
+                  message={message()}
+                  showAssistantCopyPartID={assistantCopyPartID(row().userMessageID)}
+                  turnDurationMs={turnDurationMs(row().userMessageID)}
+                  deferToolContent={false}
+                  onFileOpen={openOutputFile}
+                />
+              )}
+            </Show>
+          )}
+        </Show>
+      )
     }
 
     const message = createMemo(() => {
@@ -1861,11 +1881,14 @@ export function MessageTimeline(props: {
 
   function TimelineRowFrame(input: {
     row: Accessor<FramedTimelineRow>
-    /** 该行在「连续工具调用卡片」里的位置（见 toolCardSlots）。 */
-    card?: Accessor<{ start: boolean; end: boolean; between: boolean } | undefined>
     children: JSX.Element
   }) {
-    const card = () => input.card?.()
+    // 「每个助手块 = 一张贴内容的小卡片」（原型 A1）：正文 / 思考 / 工具 / 变更摘要
+    // 各自成块、各自留 8px 行距。这里不再给连续工具调用画整段外框，避免整屏横线。
+    const replyBlock = () => {
+      const tag = input.row()._tag
+      return tag === "AssistantPart" || tag === "Thinking" || tag === "DiffSummary"
+    }
     const anchor = () => {
       const row = input.row()
       return row._tag === "CommentStrip" || (row._tag === "UserMessage" && row.anchor)
@@ -1874,25 +1897,20 @@ export function MessageTimeline(props: {
       const row = input.row()
       return (row._tag === "CommentStrip" || row._tag === "UserMessage") && row.previousUserMessage
     }
-    const previousAssistantPart = () => {
-      const row = input.row()
-      return row._tag === "AssistantPart" && row.previousAssistantPart
-    }
 
     return (
       <div
         id={anchor() ? props.anchor(input.row().userMessageID) : undefined}
         data-message-id={input.row().userMessageID}
         data-timeline-row={input.row()._tag}
-        data-tool-card={card() ? (card()!.start ? "start" : card()!.end ? "end" : "between") : undefined}
         classList={{
           "min-w-0 w-full max-w-full": true,
           "md:max-w-200 2xl:max-w-[1000px]": props.centered,
           "md:mx-auto": props.centered,
-          // 卡片内的行不再各自留大间距：外框已经把"这是一段连续执行"表达出来了，
-          // 行与行之间只留一条细分隔线（见 CSS 的 tool-card 规则）。
-          "pt-6": previousUserMessage() && !card()?.between,
-          "pt-3": previousAssistantPart() && !card()?.between,
+          // 卡片块之间靠行的 py-1 留缝：虚拟滚动按行高(offsetHeight)测量，padding 算进高度，
+          // margin 会溢出到行框之外不被计入。
+          "py-1": replyBlock(),
+          "pt-6": previousUserMessage(),
         }}
       >
         <div data-component="session-turn" class="min-w-0 w-full relative" style={{ height: "auto" }}>
@@ -1985,10 +2003,7 @@ export function MessageTimeline(props: {
       case "AssistantPart": {
         const assistantPartRow = row as Accessor<TimelineRowByTag<"AssistantPart">>
         return (
-          <TimelineRowFrame
-            row={assistantPartRow}
-            card={() => toolCardByRowKey().get(TimelineRow.key(assistantPartRow()))}
-          >
+          <TimelineRowFrame row={assistantPartRow}>
             <div data-slot="session-turn-message-container" class="w-full px-4 md:px-5">
               <div
                 data-slot="session-turn-assistant-content"

@@ -147,6 +147,19 @@ export function createPlatform(): Platform {
       }
       return window.api.openPath(path, app)
     },
+    async showItemInFolder(path: string) {
+      if (os === "windows") {
+        const resolvedPath = await (async () => {
+          if (await isWslEnabled()) {
+            const converted = await window.api.wslPath(path, "windows").catch(() => null)
+            if (converted) return converted
+          }
+          return path
+        })()
+        return window.api.showItemInFolder(resolvedPath)
+      }
+      return window.api.showItemInFolder(path)
+    },
 
     back() {
       window.history.back()

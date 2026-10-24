@@ -198,3 +198,29 @@ describe("task_wait", () => {
     }),
   )
 })
+
+// 回归：lead 用 task_claim 把看板任务标成 in_progress 后，会误以为任务真的在
+// 并行执行（右侧面板却只有 lead）。claim 必须把 lead 引导回 task 工具。
+describe("board guardrails", () => {
+  it.instance("the team lead cannot claim a board task", () =>
+    Effect.gen(function* () {
+      const ctx = yield* InstanceState.context
+      const teams = yield* TeamService
+      const tasks = yield* TaskListService
+      const root = SessionID.make("ses_guard_root")
+      yield* makeSession(root)
+      const team = yield* teams.create({ name: "guard", rootSessionID: root })
+      const task = yield* tasks.create({ teamID: team.id, subject: "parallel work", description: "" })
+
+      const claim = yield* (yield* TaskClaimTool).init()
+      const result = yield* claim.execute({ id: task.id }, context(root, ctx.directory))
+
+      expect(result.title).toBe("Delegate instead")
+      expect(result.output).toContain("task tool")
+      expect(result.output).toContain("starts no agent")
+      const untouched = yield* tasks.get(task.id)
+      expect(untouched?.status).toBe("pending")
+      expect(untouched?.ownerSessionID).toBeUndefined()
+    }),
+  )
+})

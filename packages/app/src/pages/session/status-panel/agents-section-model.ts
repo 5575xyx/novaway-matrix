@@ -27,6 +27,39 @@ export function taskProgress(tasks: readonly AgentTask[]): { done: number; total
   return { done, total }
 }
 
+/**
+ * Live board entries: finished work belongs to the progress counter, not to the
+ * list. In-progress tasks come first so the panel leads with what is happening.
+ */
+export function openTasks(tasks: readonly AgentTask[]): AgentTask[] {
+  const rank = (status: string) => (status === "in_progress" ? 0 : status === "failed" ? 1 : 2)
+  return tasks
+    .filter((task) => task.status !== "completed" && task.status !== "cancelled")
+    .toSorted((a, b) => rank(a.status) - rank(b.status))
+}
+
+/** Worker members that are actually executing (the lead does not count). */
+export function activeWorkers(members: readonly AgentMember[]): AgentMember[] {
+  return members.filter((member) => member.role !== "lead" && member.status === "active")
+}
+
+/** Resolve a board task owner to the roster name shown in the panel. */
+export function taskOwnerName(task: AgentTask, members: readonly AgentMember[]): string | undefined {
+  if (!task.ownerSessionID) return undefined
+  return members.find((member) => member.sessionID === task.ownerSessionID)?.name
+}
+
+/**
+ * Tasks marked in_progress while no worker is running: the lead claimed them
+ * itself, so nothing is actually executing in parallel. `task_create` alone
+ * never starts an agent — this is the case users read as "tasks are running but
+ * there are no subagents in the panel".
+ */
+export function leadOnlyInProgress(tasks: readonly AgentTask[], members: readonly AgentMember[]): boolean {
+  if (activeWorkers(members).length > 0) return false
+  return openTasks(tasks).some((task) => task.status === "in_progress")
+}
+
 /** Current task subject for a member, if the task is still on the board. */
 export function currentTask(member: AgentMember, tasks: readonly AgentTask[]): AgentTask | undefined {
   if (!member.currentTaskID) return undefined

@@ -16,10 +16,12 @@ Effect 服务化架构。所有能力都是增量式的，旧配置与旧插件�
 会话级读写锁在 `src/tool/lock.ts`：只读工具并发，写工具串行。
 新增 `tool_search` 工具用于按名称/关键词发现工具。
 
-延迟加载（`experimental.defer_loading`，默认关闭）：
+延迟加载（`experimental.defer_loading`，默认开启）：
 
-- `browser_*` 与 `generate_*` 默认标记 `deferLoading`
-- 开启后，这些工具不进首轮请求，只把名字写进 `tool_search` 的描述
+- `browser_*`、`generate_*` 等长尾工具默认标记 `deferLoading`
+- MCP 工具的 schema 合计超过约 20k tokens 时自动启用延迟加载
+  （`experimental.defer_mcp_loading` 可显式覆盖），首轮只下发 `mcp_tool_search`
+- 这些工具不进首轮请求，只把名字写进 `tool_search` / `mcp_tool_search` 的描述
 - 模型调用 `tool_search`（可用 `select:<id>` 精确指定）后，
   `src/tool/activation.ts` 按会话记录激活状态，下一次请求才带完整 schema
 
@@ -82,10 +84,22 @@ UI：扩展页顶部「已加载扩展」区块（`settings-installed-extensions
 `src/team/` + `src/tool/{team,agent_task,agent_message}.ts`：
 
 - 团队与成员：`team_create` / `team_delete` / `team_list` / `agent_list`
+  - `team_create` 每个根会话只保留一个团队；重复调用会复用现有团队并返回其 id
+    （同时把团队名更新为本次传入的名称），避免主代理每轮都新建团队、而面板仍指向旧团队。
+  - `ofSession` 在历史数据里存在多个团队时按成员 `updated_at` 取最新，保证面板、
+    `agent_message`、`task` 默认团队指向同一次创建。
+  - `Team.ensure` 在「首次派生 worker 且当前会话还没有团队」时自动建队并登记 lead；
+    检查与插入在同一个同步 DB 块里完成，多个子代理同时首派也不会建出重复团队。
 - 共享任务板：`task_create` / `task_get` / `task_update` / `task_list` / `task_claim`
+  - 看板只做协调：`task_create` / `task_claim` **不会启动任何代理**。真正并行执行必须
+    用 `task`（同一轮回复里多次调用）或 `orchestrator`；工具描述与系统提示都显式写明
+    这一点，`task_status` 收到当前会话 / 根会话 / `task_…` 看板 id 时返回可读错误，
+    避免模型把「自己正在生成」误当成「看板任务在并行运行」。
+  - `task_wait` 对未认领的 pending 任务返回 `not started`，不再说 `still running`。
 - 等待进展：`task_wait`（等某个任务结束，或等出现可认领的任务；返回时给出看板摘要）
 - 成本：成员与任务的 token / 花费见 7.0.6
-- 邮箱：`agent_message`（运行中排队，空闲时恢复会话）
+- 邮箱：`agent_message`（运行中排队，空闲时恢复会话）；收件人必须是真实存在的成员或会话，
+  名字写错返回 `Unknown recipient`，不会再假装投递成功
 - 结构化完成通知 `<task-notification>`，并发布 `agent.started/completed` 事件
 - `task` 支持 `name`、`team`、`isolation: "worktree"`、`model`
 - `task_stop` 可停止后台子代理
@@ -99,12 +113,30 @@ HTTP API：
 - `POST /session/:sessionID/team/message`：向成员发消息
 
 UI：状态面板「团队代理」区块（`status-panel/agents-section.tsx`）每 2 秒轮询
-团队概览，展示成员状态、当前任务与 worktree，点击可打开子代理会话。
+团队概览，展示成员状态、当前任务与 worktree，点击可打开子代理会话（团队成员会话）。
+成员的 `agent` 是配置 id（如 `engineering-code-reviewer`），面板用 AI 员工的
+`options.displayName` 显示（与输入框 / 设置页一致），原始 id 保留在悬停提示里。
+`lead` 那一行就是当前主会话：点击不再打开重复的侧栏，也不显示「发消息 / 停止」
+（两者都会作用到主会话本身）。「停止代理」调用的是成员会话的 `session.abort`
+（顺带取消该会话名下的后台 job），因此对 `task`、orchestrator、workflow 派生的
+worker 都生效；旧的 `backgroundCancel` 只认父会话的后台 job，点了不会停。
 
 ## 6. 编排与工作流
 
 - `orchestrator`：后台执行、`pause`/`resume`/`cancel`/`retry`、协作式暂停
 - `workflow`：执行器每步读取状态，`pause` 真正挂起，`resume` 从当前步骤继续
+- 并发模型：`task` 已标记为 concurrency-safe，同一轮里的多个 `task` 会真正并行；
+  `orchestrator` 按依赖分波并发执行就绪任务；`task(background: true)` 立即返回、
+  后台运行，用 `task_status` 轮询。
+- 自动并行编排：主代理的系统提示词默认注入一段 `<delegation>` 策略（可用
+  `experimental.auto_delegate=false` 或设置 → 内核能力 →「自动并行编排」关闭）。
+  主代理据此判断请求能否拆成 2+ 个独立子任务，能拆时建团队、按子任务选择不同
+  AI 员工，并用 orchestrator / 并行 task 执行；简单或强顺序任务不拆分。
+- 两者都通过共享原语 `makeRunAgent`（`src/session/agent-step.ts`）派生子会话。
+  传入 `TeamService` 时，每个派生的会话都会登记为当前团队的 worker（名字取任务/步骤名），
+  运行期标记 `active`、结束（含失败）后回到 `idle`，因此编排过程中右侧「团队代理」
+  会同时出现多个不同角色的成员，而不是只有 `team-lead`。`task` 工具、`skill` 的
+  `context: fork` 与 HTTP 触发的 orchestrator / workflow 走同一条登记路径。
 - BackgroundJob 元数据落 SQLite（`background_job` 表），重启时把残留
   `running` 标记为 `cancelled`
 - `list()` 默认只返回本进程的 job；`list({ includePersisted: true })` 会合并表里
@@ -468,7 +500,8 @@ subscribe({ url, every?, match?, headers?, timeout?, description? })
 - `FileChanged` 由文件监视器驱动，未启用 watcher 的环境（`NOVAWAY_EXPERIMENTAL_DISABLE_FILEWATCHER`）不会触发。
 - `defer_loading` 不是协议级的"延迟 schema"：内核把 `deferLoading` 工具从请求里
   过滤掉，并在 `tool_search` 的描述里列出它们的名字；模型调用 `tool_search`
-  后才按会话激活（`tool/activation.ts`）。默认关闭，需 `experimental.defer_loading`。
+  后才按会话激活（`tool/activation.ts`）。默认开启，可显式设为 `false` 关闭；
+  MCP 工具按 schema 体积自动启用，阈值约 20k tokens。
 - Fork 共享的是**前缀**（历史 + assistant + 占位 tool_result）。fork 子会话自己
   产生的后续消息当然不在父会话缓存里，这是预期行为。
 - 桌面端保留了同名的 IPC handler，但它们已经是内核 API 的薄封装（见 6.11），
@@ -531,7 +564,7 @@ Hook 的执行选项现在都有实际语义（此前 `if` / `async` 只是被�
 | `async`         | 立即返回、不等结果；异步 hook **不能 deny**（没有结果可检查），失败只记日志                        |
 | `once`          | 触发后从注册表移除（原先已实现）                                                                   |
 | `timeout`       | 秒；超时按"未阻断"处理（原先已实现）                                                               |
-| `statusMessage` | 仍只是被接受：内核没有"运行中状态条"这类表面，暂不消费                                             |
+| `statusMessage` | 运行期间进入 `GET /hook/active`，状态面板显示「运行中的 Hook」（见 7.0.5） |                                             |
 
 `if` 的匹配规则：
 
@@ -553,6 +586,65 @@ Hook 的执行选项现在都有实际语义（此前 `if` / `async` 只是被�
   基础编码指令；缺省或 `true` 时叠加在原提示之后
 - 选择方式：agent 配置里的 `outputStyle`；`default` 或不写表示不启用
 - 扩展可通过 `contributes.outputStyles`（指向目录）提供风格
+
+## 7.4 上下文预算与自动压缩（2026-10 修订）
+
+- `usable()`：`(model.limit.input ?? model.limit.context) - reserved`，`reserved`
+  默认取 `min(20000, maxOutputTokens) + 13000`（对齐 CC 的
+  `AUTOCOMPACT_BUFFER_TOKENS`）；`compaction.reserved` 可显式覆盖。
+- 主动触发：上一条 assistant 的 usage 之外，再把「它之后产生的工具输出 /
+  新消息」按字符估算加进去（`pendingTokens`），避免大工具输出要等到下一次
+  413 才压缩。
+- 压缩请求自身 PTL：摘要请求若仍 prompt-too-long，按最旧的一半裁掉 `head`
+  后重试（最多 3 次），最终失败才发 `ContextOverflowError`。
+- 压缩后可行性守卫：自动压缩完成后，用触发压缩那条 assistant 的真实 usage 估算
+  `压缩前 - 被摘要历史 + 摘要本身 + 文件附件`；仍 ≥ 可用窗口时不再自动继续，发
+  `ContextOverflowError` 说明固定前缀（system + 工具 schema）过大。
+- 连续熔断：同一轮里连续 3 次自动压缩仍溢出就停止
+  （`MAX_CONSECUTIVE_AUTO_COMPACTIONS`）；手动压缩会清零计数。
+- 告警阈值（对齐 CC `calculateTokenWarningState`）：
+  - `threshold` = 自动压缩线（`effective - 13k`）；
+  - `warning` = `threshold - 20k`，输入区上方出现「上下文即将用尽」提示；
+  - `error` 同 CC 也取 20k；
+  - `blocking` = `effective - 3k`，达到后内核直接拒绝发请求并提示压缩；
+  - `percentLeft` = `(threshold - used) / threshold`，提示条显示「距自动压缩还有 N%」。
+- 提示条上的「立即压缩」调用 `POST /session/:id/summarize`，等价于手动
+  `/compact`，不需要用户记命令。
+- 摘要模板：11 段（Goal / Constraints / User Messages / Progress / Key Decisions
+  / Pending Tasks / Current Work / Next Steps / Optional Next Step / Critical
+  Context / Relevant Files），要求尽量保留用户原话。
+- 压缩后文件回挂：从被摘要的历史里找最近 `read` / `write` / `edit` 的文件
+  （最多 5 个、每个 ≤5k tokens、合计 ≤50k），以 synthetic text 挂在摘要
+  消息上；`summaryText` 会忽略它，不会被二次摘要。
+- MCP schema 延迟：合计 ≥ 约 20k tokens 时首轮只发 `mcp_tool_search`；
+  内置长尾工具（`browser_*`、`generate_*` 等）默认 `deferLoading`。
+- 每请求工具结果预算：见 7.0.1（默认 60k 字符，非破坏性 stub）。
+- 与 CC 仍存的差异见 §10.1。
+
+## 7.5 Worktree 工具与 MCP Resources
+
+- `enter_worktree({ name?, base? })`：从当前仓库（默认会话主 worktree）创建隔离
+  worktree，并把会话切过去。走 `worktree` 权限询问；成功后触发 `WorktreeCreate`
+  hook（metadata 带 `branch` / `directory` / `base`）。后续 shell/read/write/glob
+  都从新目录执行。
+- `exit_worktree({ directory? })`：切回项目主 worktree（或指定目录），worktree
+  目录保留在磁盘上，方便检查或手动清理。
+- `list_mcp_resources({ client? })` / `read_mcp_resource({ uri, client? })`：
+  列出并读取已连接 MCP server 暴露的 resources；blob 只报告大小，不把
+  base64 塞进上下文。
+
+## 7.6 内核能力面板（扩展 → 概览）
+
+- `GET /kernel` 返回运行中的工具 / 技能 / Hook / 扩展数量与特性状态。
+- `defer_loading` 未显式配置时按默认开启上报（此前面板会错误地显示未勾选）。
+- 可直接操作：
+  - 工具延迟加载、后台子代理、自动并行编排：行内开关，写入 `config.experimental`；
+  - 工具结果预算：下拉选择 30k / 60k / 120k / 240k（自定义值保留）。
+- 跳转类操作：
+  - 会话权限模式 → 设置 → 通用（新会话默认档位）；
+  - 多代理团队 → 设置 → AI 员工（角色、模型、提示词、技能）。
+- 团队本身是**按会话**由主代理通过 `team_create` / `task` 动态创建的；设置页管理的是
+  可被拉进团队的角色（AI 员工），不是一份静态团队名单。
 
 ## 8. 迁移与回退
 
@@ -668,7 +760,7 @@ Hook 的执行选项现在都有实际语义（此前 `if` / `async` 只是被�
   "features": [
     { "id": "permission_mode", "enabled": true, "detail": "default" },
     { "id": "tool_result_budget", "enabled": true, "detail": "60000" },
-    { "id": "defer_loading", "enabled": false },
+    { "id": "defer_loading", "enabled": true, "detail": "builtin + mcp(auto)" },
     { "id": "background_subagents", "enabled": true, "detail": "on" },
     { "id": "teams", "enabled": true },
     { "id": "plan_approval", "enabled": true },
@@ -678,21 +770,64 @@ Hook 的执行选项现在都有实际语义（此前 `if` / `async` 只是被�
 ```
 
 `readOnly` 统计的是**声明了常量只读能力**的工具；`git` 这类按参数决定的不计入，
-宁可少算也不虚报。`deferLoading` 只在 `experimental.defer_loading` 打开时才有意义，
-因此关闭时 `deferred` 为 0。
+宁可少算也不虚报。上面是早期实测样例：当前 `defer_loading` 默认开启，
+`deferred` 数量会大于 0，具体随安装的内置工具与 MCP server 数量变化。
 
 ### 9.1 一次走完的验证脚本
 
 1. 打开会话，在输入框右侧把权限档位切到「计划模式」 → 请求仓库内的写操作，应被拒绝（`plan` 模式下写工具直接 deny）；会话头部不再有第二个权限入口
-2. 让代理执行：`team_create` → `task_create` → `task_claim` → `task_update(status=completed)`
-   → 面板出现「团队代理」，任务完成后成员变 idle，任务行带上花费
-3. 让代理执行 `monitor({ command: "node -e \"console.log('READY')\"", pattern: "READY" })`
+2. 让代理并行工作：`team_create` → 同一轮多次 `task`（不同 `subagent_type`）
+   → 面板出现多个「团队代理」成员；只调用 `task_create` / `task_claim` 时面板会显示
+   任务看板并提示「无子代理执行」，成员只有 lead
+3. 完成一个看板任务：`task_create` → worker `task_claim` → `task_update(status=completed)`
+   → 任务完成后成员变 idle，任务行带上花费
+4. 让代理执行 `monitor({ command: "node -e \"console.log('READY')\"", pattern: "READY" })`
    →「后台任务」出现「监视」标签；结束后卡片保留输出摘要，主线程被唤醒
-4. 让代理执行 `subscribe({ url: "https://…", match: "success" })` → 出现「订阅」标签
-5. 在项目里放一个 `.novaway/hooks.json`（例如 `Stop` → `echo`），重开扩展页
+5. 让代理执行 `subscribe({ url: "https://…", match: "success" })` → 出现「订阅」标签
+6. 在项目里放一个 `.novaway/hooks.json`（例如 `Stop` → `echo`），重开扩展页
    →「生效中的 Hook」出现该条；一次对话结束后 hook 实际执行
-6. 装一个市场扩展后再装新版本 → 已安装标签变为 `1.2.0 → 1.3.0`，旧版本目录被移除
-7. 让它执行 `cwd({ directory: "<项目>/packages" })` → 之后的 shell / read 从新目录执行；
+7. 装一个市场扩展后再装新版本 → 已安装标签变为 `1.2.0 → 1.3.0`，旧版本目录被移除
+8. 让它执行 `cwd({ directory: "<项目>/packages" })` → 之后的 shell / read 从新目录执行；
    若配了 `CwdChanged` hook，扩展页的「生效中的 Hook」里能看到它
 8. 在 `hooks.json` 里给某个 hook 加 `statusMessage`，触发它 → 状态面板出现「运行中的 Hook」
 9. 启动一个 `monitor` 后重启服务 → 面板出现同名任务并标「已恢复」
+
+## 10. 全内核剩余差距（2026-10-24 审计）
+
+调研快照见 `kernel-alignment-analysis.md`；本节只列当前仍未对齐、且值得吸收的部分。
+2026-10-24 已补齐 P0 三项（阈值公式、估算触发、压缩请求 PTL 重试）、
+Worktree 工具 / WorktreeCreate hook / MCP Resources 工具、摘要模板扩充与
+压缩后文件回挂，以及 warning/blocking 阈值与输入区告警。剩余项集中在
+session memory compact。
+
+### 10.1 上下文与压缩
+
+| # | CC 机制 | 现状 | 影响 | 优先级 |
+| - | ------- | ---- | ---- | ------ |
+| 1 | ✅ 阈值再减 `AUTOCOMPACT_BUFFER_TOKENS = 13k` | 已按 CC 公式补齐，128k 模型 95k | — | 已完成 |
+| 2 | ✅ 把尚未产生 usage 的工具结果算进去 | `pendingTokens()` 计入最新工具输出与新消息 | — | 已完成 |
+| 3 | ✅ 压缩请求自身 PTL 时裁剪重试 | 按轮次裁掉最旧一半，最多 3 次 | — | 已完成 |
+| 4 | 连续失败（含异常）计数，成功清零 | 只统计「压缩成功但仍溢出」 | 压缩抛错时熔断不计数 | P1 |
+| 5 | ✅ 9 段摘要模板（含 Pending / Current / Next / 全部用户消息） | 已扩为 11 段，要求保留用户原话 | — | 已完成 |
+| 6 | ✅ 压缩后重新注入最近读过的文件 | 最近 5 个 read/write/edit 文件，5k/文件、50k 总量 | — | 已完成 |
+| 7 | ✅ warning / error / blocking 三档阈值与 percentLeft | 输入区告警条 + 立即压缩；内核 blocking 拒发请求 | — | 已完成 |
+| 8 | session memory compact（用会话记忆直接压缩） | 有 memory/reviewCompaction，但没有持续维护的 session memory 文档 | 压缩成本略高 | P2 |
+
+### 10.2 Hook 事件
+
+当前实现 23 个事件（含 `WorktreeCreate`）。CC 还有 `Setup`、`Elicitation`、
+`ElicitationResult`，取决于是否接入首启向导与 MCP elicitation。
+
+### 10.3 工具
+
+CC 有、我们暂无直接对应物的工具：`NotebookEdit`、`ScheduleCron`、`Sleep`、
+`PowerShell`。`EnterWorktree` / `ExitWorktree` 与 MCP Resources 读写已补齐
+（`enter_worktree` / `exit_worktree` / `list_mcp_resources` / `read_mcp_resource`）。
+其余核心工具（shell/read/write/edit/glob/grep/webfetch/websearch/skill/task/
+task board/team/ask-user/lsp/tool search）已有等价实现。
+
+### 10.4 明确不对齐
+
+- `cache_edits` / cached microcompact、prompt cache break detection：Anthropic 专有能力
+- context collapse、snip、proactive、GrowthBook、遥测、自动更新、Bridge：非内核扩展能力
+- Tool 内 React 渲染：与终端 UI 强耦合，我们保持 UI 层解耦

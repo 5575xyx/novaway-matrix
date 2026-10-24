@@ -35,6 +35,7 @@ import { useFileComponent } from "../context/file"
 import { useDialog } from "../context/dialog"
 import { type UiI18n, useI18n } from "../context/i18n"
 import { writeClipboard } from "../util/clipboard"
+import { agentAvatarSrc } from "../util/agent-avatar"
 import { BasicTool, GenericTool } from "./basic-tool"
 
 export { BasicTool } from "./basic-tool"
@@ -515,6 +516,11 @@ export type PartGroup =
       type: "context"
       refs: PartRef[]
     }
+  | {
+      key: string
+      type: "reasoning"
+      refs: PartRef[]
+    }
 
 function sameRef(a: PartRef, b: PartRef) {
   return a.messageID === b.messageID && a.partID === b.partID
@@ -528,7 +534,7 @@ function sameGroup(a: PartGroup, b: PartGroup) {
     if (b.type !== "part") return false
     return sameRef(a.ref, b.ref)
   }
-  if (b.type !== "context") return false
+  if (b.type !== a.type) return false
   if (a.refs.length !== b.refs.length) return false
   return a.refs.every((ref, i) => sameRef(ref, b.refs[i]!))
 }
@@ -543,6 +549,7 @@ export function sameGroups(a: readonly PartGroup[] | undefined, b: readonly Part
 export function groupParts(parts: { messageID: string; part: PartType }[]) {
   const result: PartGroup[] = []
   let start = -1
+  let reasoning: PartRef[] = []
 
   const flush = (end: number) => {
     if (start < 0) return
@@ -563,7 +570,28 @@ export function groupParts(parts: { messageID: string; part: PartType }[]) {
     start = -1
   }
 
+  // 连续的 reasoning 片段合并成一张「思考过程」卡片：部分网关（内置网关）会把一条思考
+  // 拆成很多段落库，展示层再按段渲染就会出现一整屏的思考卡片。
+  const flushReasoning = () => {
+    if (reasoning.length === 0) return
+    const first = reasoning[0]
+    result.push({
+      key: `reasoning:${first.messageID}:${first.partID}`,
+      type: "reasoning",
+      refs: reasoning,
+    })
+    reasoning = []
+  }
+
   parts.forEach((item, index) => {
+    if (item.part.type === "reasoning") {
+      flush(index - 1)
+      reasoning.push({ messageID: item.messageID, partID: item.part.id })
+      return
+    }
+
+    flushReasoning()
+
     if (isContextGroupTool(item.part)) {
       if (start < 0) start = index
       return
@@ -580,8 +608,22 @@ export function groupParts(parts: { messageID: string; part: PartType }[]) {
     })
   })
 
+  flushReasoning()
   flush(parts.length - 1)
   return result
+}
+
+/** 把同一段思考的多个 part 拼回一个 part（id / 时间沿用首尾片段）。 */
+export function mergeReasoningParts(parts: ReasoningPart[]) {
+  const first = parts[0]
+  if (!first) return
+  if (parts.length === 1) return first
+  const last = parts[parts.length - 1]
+  return {
+    ...first,
+    text: parts.map((part) => part.text).join(""),
+    time: { start: first.time.start, end: last.time.end ?? first.time.end },
+  } satisfies ReasoningPart
 }
 
 function index<T extends { id: string }>(items: readonly T[]) {
@@ -672,6 +714,37 @@ export function AssistantParts(props: {
                 return (
                   <Show when={parts().length > 0}>
                     <ContextToolGroup parts={parts()} busy={busy()} />
+                  </Show>
+                )
+              })()}
+            </Match>
+            <Match when={entryType() === "reasoning"}>
+              {(() => {
+                const message = createMemo(() => {
+                  const entry = entryAccessor()
+                  if (entry.type !== "reasoning") return
+                  return msgs().get(entry.refs[0]?.messageID ?? "")
+                })
+                const item = createMemo(() => {
+                  const entry = entryAccessor()
+                  if (entry.type !== "reasoning") return
+                  return mergeReasoningParts(
+                    entry.refs
+                      .map((ref) => part().get(ref.messageID)?.get(ref.partID))
+                      .filter((part): part is ReasoningPart => part?.type === "reasoning"),
+                  )
+                })
+
+                return (
+                  <Show when={message()}>
+                    <Show when={item()}>
+                      <Part
+                        part={item()!}
+                        message={message()!}
+                        showAssistantCopyPartID={props.showAssistantCopyPartID}
+                        turnDurationMs={props.turnDurationMs}
+                      />
+                    </Show>
                   </Show>
                 )
               })()}
@@ -889,6 +962,30 @@ export function AssistantMessageDisplay(props: {
                 return (
                   <Show when={parts().length > 0}>
                     <ContextToolGroup parts={parts()} />
+                  </Show>
+                )
+              })()}
+            </Match>
+            <Match when={entryType() === "reasoning"}>
+              {(() => {
+                const item = createMemo(() => {
+                  const entry = entryAccessor()
+                  if (entry.type !== "reasoning") return
+                  return mergeReasoningParts(
+                    entry.refs
+                      .map((ref) => part().get(ref.partID))
+                      .filter((part): part is ReasoningPart => part?.type === "reasoning"),
+                  )
+                })
+
+                return (
+                  <Show when={item()}>
+                    <Part
+                      part={item()!}
+                      message={props.message}
+                      showAssistantCopyPartID={props.showAssistantCopyPartID}
+                      onFileOpen={props.onFileOpen}
+                    />
                   </Show>
                 )
               })()}
@@ -1891,6 +1988,11 @@ ToolRegistry.register({
     const agent = createMemo(() => taskAgent(props.input.subagent_type, data.store.agent))
     const title = createMemo(() => agent().name ?? i18n.t("ui.tool.agent.default"))
     const tone = createMemo(() => agent().color)
+    // 与设置页的 AI 员工头像同源：按 agent id 生成稳定头像。
+    const avatar = createMemo(() => {
+      const raw = typeof props.input.subagent_type === "string" ? props.input.subagent_type : agent().name
+      return agentAvatarSrc((raw ?? "agent").toLowerCase())
+    })
     const subtitle = createMemo(() => {
       const value =
         typeof props.input.description === "string" && props.input.description
@@ -1927,6 +2029,7 @@ ToolRegistry.register({
       <div data-component="task-tool-card">
         <div data-slot="basic-tool-tool-info-structured">
           <div data-slot="basic-tool-tool-info-main">
+            <img data-component="task-tool-avatar" src={avatar()} alt="" draggable={false} />
             <Show when={running()}>
               <span data-component="task-tool-spinner" style={{ color: tone() ?? "var(--icon-blue)" }}>
                 <Spinner />
@@ -2549,17 +2652,17 @@ ToolRegistry.register({
     const trigger = () => (
       <div
         data-slot="basic-tool-tool-info-structured"
-        class="rounded-[10px] border border-cyan-300/25 bg-cyan-300/[0.07] px-3 py-2"
+        class="rounded-[10px] border border-cyan-600/30 bg-cyan-500/[0.06] px-3 py-2 dark:border-cyan-300/25 dark:bg-cyan-300/[0.07]"
       >
         <div data-slot="basic-tool-tool-info-main" class="flex items-center gap-2">
-          <span class="grid size-7 place-items-center rounded-[8px] border border-cyan-300/25 bg-cyan-300/10 text-cyan-100">
+          <span class="grid size-7 place-items-center rounded-[8px] border border-cyan-600/30 bg-cyan-500/10 text-cyan-700 dark:border-cyan-300/25 dark:bg-cyan-300/10 dark:text-cyan-100">
             <Icon name="brain" size="small" />
           </span>
           <span class="min-w-0 flex flex-col">
-            <span data-slot="basic-tool-tool-title" class="text-13-medium text-cyan-100">
+            <span data-slot="basic-tool-tool-title" class="text-13-medium text-cyan-800 dark:text-cyan-100">
               {titleContent()}
             </span>
-            <span class="text-11-regular text-cyan-100/65">{subtitle()}</span>
+            <span class="text-11-regular text-cyan-700/70 dark:text-cyan-100/65">{subtitle()}</span>
           </span>
         </div>
       </div>

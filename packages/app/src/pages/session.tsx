@@ -485,8 +485,10 @@ export default function Page() {
   })
 
   // 各区块都接入面板；model 为 null 时该区块整体不进 sections，全部为空则面板不挂载。
-  const backgroundSection = useBackgroundSection(() => params.id ?? "")
-  const agentsSection = useAgentsSection(() => params.id ?? "")
+  // 团队卡片与后台任务卡片都基于子会话。先把团队成员会话交给后台任务卡片去重，
+  // 否则同一个 worker 会在右侧出现两遍（团队代理 + 后台任务）。
+  const agents = useAgentsSection(() => params.id ?? "")
+  const backgroundSection = useBackgroundSection(() => params.id ?? "", agents.memberSessionIDs)
   const planApprovalSection = usePlanApprovalSection(() => params.id ?? "")
   const hooksSection = useHooksSection(() => params.id ?? "")
   const tempFilesSection = useTempFilesSection(() => params.id ?? "")
@@ -505,7 +507,7 @@ export default function Page() {
       [
         hooksSection(),
         planApprovalSection(),
-        agentsSection(),
+        agents.section(),
         backgroundSection(),
         tempFilesSection(),
         gitSection(),

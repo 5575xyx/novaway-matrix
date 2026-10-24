@@ -310,6 +310,18 @@ function cmd(shell: string, command: string, cwd: string, env: NodeJS.ProcessEnv
     detached: process.platform !== "win32",
   })
 }
+
+/** 后台 shell 的退出码换成 job 终态：非 0 不是"完成"，卡片不该显示成绿色。 */
+function shellOutcome(result: { output: string; metadata?: { exit?: unknown } }) {
+  if (result.metadata?.exit === null) {
+    return { output: result.output, failed: "command did not exit normally (timeout or signal)" }
+  }
+  if (typeof result.metadata?.exit === "number" && result.metadata.exit !== 0) {
+    return { output: result.output, failed: `command exited with code ${result.metadata.exit}` }
+  }
+  return { output: result.output }
+}
+
 const parser = lazy(async () => {
   const { Parser } = await import("web-tree-sitter")
   const { default: treeWasm } = await import("web-tree-sitter/tree-sitter.wasm" as string, {
@@ -683,7 +695,7 @@ export const ShellTool = Tool.define(
                       onOutput: (text) => background.update(jobID, { output: text }).pipe(Effect.asVoid),
                     },
                     ctx,
-                  ).pipe(Effect.map((result) => result.output)),
+                  ).pipe(Effect.map((result) => shellOutcome(result))),
                 })
 
                 return {

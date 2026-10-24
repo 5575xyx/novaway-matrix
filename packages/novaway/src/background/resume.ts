@@ -89,6 +89,7 @@ export const layer = Layer.succeed(
             if (!command) return undefined
             const info = yield* startMonitor(
               {
+                id: job.id,
                 command,
                 ...(typeof meta.pattern === "string" ? { pattern: meta.pattern } : {}),
                 timeout: typeof meta.timeout === "number" ? meta.timeout : 300,
@@ -111,6 +112,7 @@ export const layer = Layer.succeed(
             if (!url) return undefined
             const info = yield* startSubscribe(
               {
+                id: job.id,
                 url,
                 ...(typeof meta.pattern === "string" ? { match: meta.pattern } : {}),
                 every: typeof meta.every === "number" ? meta.every : 60,

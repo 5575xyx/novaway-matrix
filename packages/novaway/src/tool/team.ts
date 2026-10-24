@@ -17,21 +17,20 @@ export const TeamCreateTool = Tool.define<typeof TeamCreateParameters, { teamID?
       capabilities: { concurrencySafe: false },
       execute: (params: Schema.Schema.Type<typeof TeamCreateParameters>, ctx: Tool.Context) =>
         Effect.gen(function* () {
-          const team = yield* teams.create({
-            name: params.name,
-            description: params.description,
-            rootSessionID: ctx.sessionID,
-          })
-          yield* teams.addMember({
-            teamID: team.id,
-            sessionID: ctx.sessionID,
-            name: "team-lead",
-            agent: ctx.agent,
-            role: "lead",
-          })
+          // One team per root session: the UI renders exactly one roster, so a
+          // second team_create from the lead would otherwise leave the panel
+          // pointing at the old team while new workers join the duplicate.
+          const existing = yield* teams.ofSession(ctx.sessionID)
+          const rooted = existing && existing.rootSessionID === ctx.sessionID ? existing : undefined
+          const team = rooted
+            ? ((yield* teams.update({ teamID: rooted.id, name: params.name, description: params.description })) ??
+              rooted)
+            : yield* teams.ensure({ rootSessionID: ctx.sessionID, name: params.name, agent: ctx.agent })
           return {
             title: `Team ${team.name}`,
-            output: `Team created: ${team.name}\nid: ${team.id}\nUse team_id with task tools and task creation.`,
+            output: existing
+              ? `Team already exists: ${team.name}\nid: ${team.id}\nUse team_id with task tools and task creation.`
+              : `Team created: ${team.name}\nid: ${team.id}\nUse team_id with task tools and task creation.`,
             metadata: { teamID: team.id, name: team.name },
           }
         }).pipe(Effect.orDie),

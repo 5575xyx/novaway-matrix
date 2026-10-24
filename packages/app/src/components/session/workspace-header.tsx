@@ -4,6 +4,7 @@ import { Button } from "@novaway/ui/button"
 import { DropdownMenu } from "@novaway/ui/dropdown-menu"
 import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
+import { Mark } from "@novaway/ui/logo"
 import { ModelSelectorPopover } from "@/components/dialog-select-model"
 import { ThinkingEffortPopover } from "@/components/thinking-effort-popover"
 import { WindowControls } from "@/components/window-controls"
@@ -71,6 +72,27 @@ export function WorkspaceHeader() {
       }}
       data-window-drag
     >
+      {/* 侧栏折叠时，品牌字标兼作回首页入口 —— 侧栏展开时品牌在 sidebar-top-band 里，
+          折叠后没有第二入口，用户会失去"回到首页"和视觉锚点。放在 Header 行内而不是浮层，
+          才不压住标题、也不会因为侧栏展开就消失（用户诉求：时刻显示在左上角）。 */}
+      <Show when={!layout.sidebar.expanded()}>
+        <button
+          type="button"
+          class="flex h-8 min-w-0 shrink items-center gap-2 rounded-md px-1.5 text-foreground-subtle transition-colors hover:bg-hover"
+          style={{
+            "--mode-accent":
+              layout.mode.all.find((m) => m.id === layout.mode.current())?.color ?? "var(--border-hover)",
+          }}
+          onClick={() => navigate("/")}
+          aria-label={language.t("command.home.open")}
+          title={language.t("command.home.open")}
+        >
+          <Mark class="size-5 shrink-0 text-foreground" />
+          <span class="brand-wordmark text-ui-base truncate">
+            Nova<span class="text-[var(--mode-accent)]">Way</span>
+          </span>
+        </button>
+      </Show>
       {/* 侧栏收起时，展开入口归 Header（对齐 ZCode：收起态由 Header 承载展开按钮，
           展开态收起入口在侧栏顶带）。放在 Header 行内而不是浮层，才不会压住标题、
           也有 32px 的正常点击区。 */}

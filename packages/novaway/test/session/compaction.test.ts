@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, mock, test } from "bun:test"
+import path from "node:path"
 import { APICallError } from "ai"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Schema } from "effect"
 import * as Stream from "effect/Stream"
@@ -8,6 +9,7 @@ import { Image } from "@/image/image"
 import { Agent } from "../../src/agent/agent"
 import { LLM } from "../../src/session/llm"
 import { SessionCompaction } from "../../src/session/compaction"
+import { contextBudget, pendingTokens } from "../../src/session/overflow"
 import { Token } from "@/util/token"
 import * as Log from "@novaway/core/util/log"
 import { Permission } from "../../src/permission"
@@ -426,6 +428,32 @@ function autocontinue(enabled: boolean) {
 
 describe("session.compaction.isOverflow", () => {
   it.live(
+    "reserves the compaction buffer instead of the full output window without limit.input",
+    provideTmpdirInstance(() =>
+      Effect.gen(function* () {
+        const compact = yield* SessionCompaction.Service
+        // 128k context / 32k output：预留 min(20k, output) + 13k = 33k，
+        // usable = 95k（与 CC 的 effective 108k - 13k 一致）。
+        const model = createModel({ context: 128_000, output: 32_000 })
+        const tokens = { input: 94_000, output: 0, reasoning: 0, cache: { read: 0, write: 0 } }
+        expect(yield* compact.isOverflow({ tokens, model })).toBe(false)
+      }),
+    ),
+  )
+
+  it.live(
+    "still overflows at the reserved boundary without limit.input",
+    provideTmpdirInstance(() =>
+      Effect.gen(function* () {
+        const compact = yield* SessionCompaction.Service
+        const model = createModel({ context: 128_000, output: 32_000 })
+        const tokens = { input: 95_000, output: 0, reasoning: 0, cache: { read: 0, write: 0 } }
+        expect(yield* compact.isOverflow({ tokens, model })).toBe(true)
+      }),
+    ),
+  )
+
+  it.live(
     "returns true when token count exceeds usable context",
     provideTmpdirInstance(() =>
       Effect.gen(function* () {
@@ -606,6 +634,79 @@ describe("session.compaction.isOverflow", () => {
       },
     ),
   )
+})
+
+describe("session.overflow.pendingTokens", () => {
+  test("counts completed tool output on the last assistant message, not its own text", () => {
+    const messages = [
+      {
+        info: { id: "m1", role: "assistant" },
+        parts: [
+          { type: "text", text: "x".repeat(8_000) },
+          { type: "tool", state: { status: "completed", output: "y".repeat(4_000) } },
+          { type: "tool", state: { status: "running" } },
+        ],
+      },
+    ] as any
+    expect(pendingTokens({ messages, finishedID: "m1" as any })).toBe(1_000)
+  })
+
+  test("counts new messages after the last assistant message", () => {
+    const messages = [
+      { info: { id: "m1", role: "assistant" }, parts: [] },
+      { info: { id: "m2", role: "user" }, parts: [{ type: "text", text: "z".repeat(800) }] },
+    ] as any
+    expect(pendingTokens({ messages, finishedID: "m1" as any })).toBe(200)
+  })
+
+  test("returns 0 when the finished message is unknown", () => {
+    expect(pendingTokens({ messages: [], finishedID: "missing" as any })).toBe(0)
+  })
+})
+
+describe("session.overflow.contextBudget", () => {
+  const config = (compaction?: Config.Info["compaction"]) => ({
+    ...(Schema.decodeUnknownSync(Config.Info)({}) as Config.Info),
+    compaction,
+  })
+
+  test("matches Claude Code thresholds for a 128k/32k model", () => {
+    const model = createModel({ context: 128_000, output: 32_000 })
+    expect(contextBudget({ cfg: config(), model })).toEqual({
+      effective: 108_000,
+      threshold: 95_000,
+      warning: 75_000,
+      error: 75_000,
+      blocking: 105_000,
+      percentLeft: null,
+    })
+  })
+
+  test("moves the threshold to the effective window when auto compaction is disabled", () => {
+    const model = createModel({ context: 128_000, output: 32_000 })
+    expect(contextBudget({ cfg: config({ auto: false }), model })).toEqual({
+      effective: 108_000,
+      threshold: 108_000,
+      warning: 88_000,
+      error: 88_000,
+      blocking: 105_000,
+      percentLeft: null,
+    })
+  })
+
+  test("reports percentLeft relative to the auto-compact threshold", () => {
+    const model = createModel({ context: 128_000, output: 32_000 })
+    expect(contextBudget({ cfg: config(), model, tokens: 90_000 }).percentLeft).toBe(5)
+    expect(contextBudget({ cfg: config(), model, tokens: 95_000 }).percentLeft).toBe(0)
+  })
+
+  test("prefers limit.input over context when the provider exposes it", () => {
+    const model = createModel({ context: 200_000, input: 180_000, output: 32_000 })
+    const budget = contextBudget({ cfg: config(), model })
+    expect(budget.effective).toBe(160_000)
+    expect(budget.threshold).toBe(147_000)
+    expect(budget.blocking).toBe(157_000)
+  })
 })
 
 describe("session.compaction.create", () => {
@@ -924,6 +1025,53 @@ describe("session.compaction.process", () => {
         expect(JSON.stringify(summary.info.error)).toContain("Session too large to compact")
       }
     }).pipe(withCompaction({ result: "compact" })),
+  )
+
+  itCompaction.instance(
+    "stops auto-continue when compaction cannot reduce context below the usable window",
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      const ssn = yield* SessionNs.Service
+      const session = yield* ssn.create({})
+      const first = yield* createUserMessage(session.id, "hello")
+      const reply = yield* createAssistantMessage(session.id, first.id, test.directory)
+      // 模拟「system + 工具 schema 已经占满窗口」：触发压缩的 assistant
+      // 真实 usage 为 100k，而 wide() 模型压缩后可用窗口只有 80k。
+      yield* ssn.updateMessage({
+        ...reply,
+        tokens: {
+          input: 90_000,
+          output: 100,
+          reasoning: 0,
+          cache: { read: 9_900, write: 0 },
+          total: 100_000,
+        },
+      } as MessageV2.Assistant)
+      yield* createCompactionMarker(session.id)
+
+      const msgs = yield* ssn.messages({ sessionID: session.id })
+      const parent = msgs.at(-1)?.info.id
+      expect(parent).toBeTruthy()
+
+      const result = yield* SessionCompaction.use.process({
+        parentID: parent!,
+        messages: msgs,
+        sessionID: session.id,
+        auto: true,
+      })
+
+      expect(result).toBe("stop")
+      const all = yield* ssn.messages({ sessionID: session.id })
+      expect(
+        all.some((msg) =>
+          msg.parts.some(
+            (part) =>
+              part.type === "text" &&
+              (part.metadata as { compaction_continue?: boolean } | undefined)?.compaction_continue,
+          ),
+        ),
+      ).toBe(false)
+    }).pipe(withCompaction({ provider: wide() })),
   )
 
   it.instance(
@@ -1605,6 +1753,127 @@ describe("session.compaction.process", () => {
       expect(part?.type).toBe("compaction")
       expect(part?.tail_start_id).toBe(keep.id)
     }).pipe(withCompaction({ config: cfg({ tail_turns: 2, preserve_recent_tokens: 500 }) })),
+  )
+
+  itCompaction.instance(
+    "retries the summary request with a truncated head when it overflows",
+    () => {
+      const stub = llm()
+      let first = ""
+      let second = ""
+      stub.push((input) => {
+        first = JSON.stringify(input.messages)
+        return Stream.fail(
+          new APICallError({
+            message: "prompt is too long",
+            url: "https://example.com/v1/chat/completions",
+            requestBodyValues: {},
+            statusCode: 413,
+            responseBody: '{"error":{"code":"context_length_exceeded"}}',
+            isRetryable: false,
+          }),
+        )
+      })
+      stub.push(
+        reply("summary after retry", (input) => {
+          second = JSON.stringify(input.messages)
+        }),
+      )
+
+      return Effect.gen(function* () {
+        const ssn = yield* SessionNs.Service
+        const session = yield* ssn.create({})
+        yield* createUserMessage(session.id, "turn one " + "a".repeat(1_000))
+        yield* createUserMessage(session.id, "turn two " + "b".repeat(1_000))
+        yield* createUserMessage(session.id, "turn three " + "c".repeat(1_000))
+        yield* createCompactionMarker(session.id)
+
+        const msgs = yield* ssn.messages({ sessionID: session.id })
+        const parent = msgs.at(-1)?.info.id
+        expect(parent).toBeTruthy()
+        const result = yield* SessionCompaction.use.process({
+          parentID: parent!,
+          messages: msgs,
+          sessionID: session.id,
+          auto: false,
+        })
+
+        expect(result).toBe("continue")
+        // 第二次请求的 head 被裁掉一半，内容必须比第一次短。
+        expect(second.length).toBeGreaterThan(0)
+        expect(second.length).toBeLessThan(first.length)
+
+        const summaries = (yield* ssn.messages({ sessionID: session.id })).filter(
+          (message): message is MessageV2.WithParts & { info: MessageV2.Assistant } =>
+            message.info.role === "assistant" && message.info.summary === true,
+        )
+        expect(summaries).toHaveLength(2)
+        expect(summaries[0]?.info.error).toBeTruthy()
+        expect(
+          summaries[1]?.parts.some(
+            (part) => part.type === "text" && part.text.includes("summary after retry"),
+          ),
+        ).toBe(true)
+      }).pipe(withCompaction({ llm: stub.layer, config: cfg({ tail_turns: 0 }) }))
+    },
+    { git: true },
+  )
+
+  itCompaction.instance(
+    "re-attaches recently touched files after compaction",
+    () => {
+      const stub = llm()
+      stub.push(reply("summary"))
+      return Effect.gen(function* () {
+        const ssn = yield* SessionNs.Service
+        const test = yield* TestInstance
+        const session = yield* ssn.create({})
+        const file = path.join(test.directory, "notes.txt")
+        yield* Effect.promise(() => Bun.write(file, "important project notes"))
+
+        const user = yield* createUserMessage(session.id, "read the notes")
+        const assistant = yield* createAssistantMessage(session.id, user.id, test.directory)
+        yield* ssn.updatePart({
+          id: PartID.ascending(),
+          messageID: assistant.id,
+          sessionID: session.id,
+          type: "tool",
+          callID: "call-read",
+          tool: "read",
+          state: {
+            status: "completed",
+            input: { filePath: file },
+            output: "important project notes",
+            title: "notes.txt",
+            metadata: {},
+            time: { start: Date.now(), end: Date.now() },
+          },
+        })
+        yield* createCompactionMarker(session.id)
+
+        const msgs = yield* ssn.messages({ sessionID: session.id })
+        const parent = msgs.at(-1)?.info.id
+        expect(parent).toBeTruthy()
+        const result = yield* SessionCompaction.use.process({
+          parentID: parent!,
+          messages: msgs,
+          sessionID: session.id,
+          auto: false,
+        })
+        expect(result).toBe("continue")
+
+        const summary = (yield* ssn.messages({ sessionID: session.id })).find(
+          (message): message is MessageV2.WithParts & { info: MessageV2.Assistant } =>
+            message.info.role === "assistant" && message.info.summary === true,
+        )
+        const attachment = summary?.parts.find((part) => part.type === "text" && part.synthetic)
+        expect(attachment?.type).toBe("text")
+        if (attachment?.type !== "text") return
+        expect(attachment.text).toContain(file)
+        expect(attachment.text).toContain("important project notes")
+      }).pipe(withCompaction({ llm: stub.layer, config: cfg({ tail_turns: 0 }) }))
+    },
+    { git: true },
   )
 })
 

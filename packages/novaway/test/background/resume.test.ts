@@ -65,7 +65,8 @@ describe("background resume", () => {
       const restored = yield* resume.restore()
       expect(restored).toHaveLength(1)
       expect(restored[0]!.type).toBe("monitor")
-      expect(restored[0]!.jobID).not.toBe("job_monitor_old")
+      // 复用原来的 id：面板上只有一张卡片，模型看到的还是同一个 job。
+      expect(restored[0]!.jobID).toBe("job_monitor_old")
 
       const job = yield* background.wait({ id: restored[0]!.jobID, timeout: 15_000 })
       expect(job.info?.status).toBe("completed")

@@ -32,6 +32,7 @@ import { writeClipboard } from "@novaway/ui/util/clipboard"
 import { selectionFromLines, useFile, type FileSelection, type SelectedLineRange } from "@/context/file"
 import { useComments } from "@/context/comments"
 import { useSDK } from "@/context/sdk"
+import { usePlatform } from "@/context/platform"
 import { useLanguage } from "@/context/language"
 import { usePrompt } from "@/context/prompt"
 import { getSessionHandoff } from "@/pages/session/handoff"
@@ -202,6 +203,7 @@ export function FileTabContent(props: { tab: string }) {
   const language = useLanguage()
   const prompt = usePrompt()
   const sdk = useSDK()
+  const platform = usePlatform()
   const fileComponent = useFileComponent()
   const { sessionKey, tabs, view } = useSessionLayout()
   const activeFileTab = createSessionTabs({
@@ -491,6 +493,22 @@ export function FileTabContent(props: { tab: string }) {
     const value = kind === "absolute" ? `${sdk.directory.replace(/[\/]+$/, "")}${separator}${p}` : p
     await writeClipboard(value)
     showToast({ variant: "success", icon: "circle-check", title: language.t("common.copied") })
+  }
+
+  const revealInExplorer = () => {
+    const p = path()
+    if (!p) return
+    const separator = sdk.directory.includes("\\") ? "\\" : "/"
+    const absolute = `${sdk.directory.replace(/[\/]+$/, "")}${separator}${p}`
+    // 桌面端走原生「在资源管理器中显示并选中」;pty spawn explorer 在 Windows 服务端会 500,仅作网页端兜底。
+    if (platform.showItemInFolder) {
+      void platform.showItemInFolder(absolute).catch(() => {})
+      return
+    }
+    sdk.client.pty
+      .create({ command: "explorer", args: [absolute], title: "reveal" })
+      .then(() => {})
+      .catch(() => {})
   }
 
   /** 把选中的代码作为「引用」加到主输入框上方（与聊天区选中文字一致）。 */
@@ -920,6 +938,11 @@ export function FileTabContent(props: { tab: string }) {
                     </DropdownMenu.Item>
                     <DropdownMenu.Separator />
                   </Show>
+                  <DropdownMenu.Item onSelect={() => revealInExplorer()}>
+                    <DropdownMenu.ItemLabel>
+                      {language.t("session.filePreview.revealInExplorer")}
+                    </DropdownMenu.ItemLabel>
+                  </DropdownMenu.Item>
                   <DropdownMenu.Item onSelect={() => void copyPath("absolute")}>
                     <DropdownMenu.ItemLabel>
                       {language.t("session.filePreview.copyAbsolutePath")}

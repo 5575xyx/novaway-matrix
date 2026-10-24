@@ -8,6 +8,7 @@ import { Session } from "@/session/session"
 import { Agent } from "@/agent/agent"
 import { Provider } from "@/provider/provider"
 import { SessionID } from "@/session/schema"
+import { Service as TeamService } from "@/team/team"
 import { Effect, Scope } from "effect"
 import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
@@ -19,6 +20,7 @@ export const workflowHandlers = HttpApiBuilder.group(InstanceHttpApi, "workflow"
     const sessions = yield* Session.Service
     const agents = yield* Agent.Service
     const provider = yield* Provider.Service
+    const teams = yield* TeamService
     const scope = yield* Scope.Scope
 
     return handlers
@@ -135,6 +137,7 @@ export const workflowHandlers = HttpApiBuilder.group(InstanceHttpApi, "workflow"
             parentSessionID: SessionID.make(wf.sessionId),
             defaultModel,
             defaultAgent,
+            teams,
           })
 
           // 后台执行:UI 通过 listWorkflowRuns / getWorkflow 轮询状态。

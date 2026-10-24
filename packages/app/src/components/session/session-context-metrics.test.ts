@@ -67,6 +67,36 @@ describe("getSessionContextMetrics", () => {
     expect(metrics.context?.modelLabel).toBe("GPT-4.1")
   })
 
+  test("derives Claude Code style warning/error/blocking thresholds", () => {
+    const providers = [
+      {
+        id: "openai",
+        models: {
+          "gpt-4.1": {
+            name: "GPT-4.1",
+            limit: { context: 128_000, output: 32_000 },
+          },
+        },
+      },
+    ]
+    const at = (total: number) =>
+      getSessionContextMetrics(
+        [assistant("a1", { input: total, output: 0, reasoning: 0, read: 0, write: 0 }, 0)],
+        providers,
+      ).context?.budget
+
+    expect(at(90_000)).toMatchObject({
+      effective: 108_000,
+      autoCompact: 95_000,
+      warning: 75_000,
+      blocking: 105_000,
+      percentLeft: 5,
+      status: "warning",
+    })
+    expect(at(96_000)?.status).toBe("error")
+    expect(at(106_000)?.status).toBe("blocking")
+  })
+
   test("preserves fallback labels and null usage when model metadata is missing", () => {
     const messages = [assistant("a1", { input: 40, output: 10, reasoning: 0, read: 0, write: 0 }, 0.1, "p-1", "m-1")]
     const providers = [{ id: "p-1", models: {} }]

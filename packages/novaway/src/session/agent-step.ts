@@ -4,6 +4,7 @@ import { Agent } from "../agent/agent"
 import { MessageID, SessionID } from "./schema"
 import { deriveSubagentSessionPermission } from "../agent/subagent-permissions"
 import { ModelID, ProviderID } from "../provider/schema"
+import type { Interface as TeamInterface } from "../team/team"
 import type { SessionPrompt } from "./prompt"
 import type { MessageV2 } from "./message-v2"
 
@@ -26,6 +27,8 @@ export interface RunAgentInput {
   readonly model?: { readonly providerID: string; readonly modelID: string }
   /** 子会话标题。 */
   readonly title?: string
+  /** 团队面板里显示的名字；缺省用 title 或 agent+会话后缀。 */
+  readonly name?: string
 }
 
 export type RunAgent = (input: RunAgentInput) => Effect.Effect<string>
@@ -49,6 +52,11 @@ export interface MakeRunAgentConfig {
   readonly defaultModel: { readonly providerID: string; readonly modelID: string }
   /** 当 step/task 未指定 agent 时使用的回退 agent 名。 */
   readonly defaultAgent: string
+  /**
+   * 可选的团队服务。传入后，每个派生会话都会登记为当前团队的 worker，
+   * 运行期间标记 active、结束后回到 idle，让状态面板能看到真实成员。
+   */
+  readonly teams?: TeamInterface
 }
 
 /**
@@ -56,7 +64,7 @@ export interface MakeRunAgentConfig {
  * Session/Agent 服务已在 config 中注入,故返回的闭包自身无未决依赖(R = never)。
  */
 export function makeRunAgent(config: MakeRunAgentConfig): RunAgent {
-  const { ops, sessions, agents, parentSessionID, defaultModel, defaultAgent } = config
+  const { ops, sessions, agents, parentSessionID, defaultModel, defaultAgent, teams } = config
   return (input) =>
     Effect.gen(function* () {
       const parent = yield* sessions.get(parentSessionID).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
@@ -68,9 +76,28 @@ export function makeRunAgent(config: MakeRunAgentConfig): RunAgent {
       const next = yield* agents.get(agentName).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
       const resolvedName = next?.name ?? defaultAgent
 
+      // 团队是按根会话登记的；worker 再派生 worker 时也能通过成员表找到同一个团队。
+      // 普通使用中如果还没有团队，首次派生 worker 时自动建一个，让状态面板
+      // 能看到真实的多代理运行（并行首派也不会重复建队，ensure 是原子的）。
+      const resolvedTeam = teams
+        ? yield* teams.ofSession(parentSessionID).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+        : undefined
+      const team =
+        resolvedTeam ??
+        (teams && parent && !parent.parentID
+          ? yield* teams
+              .ensure({
+                rootSessionID: parentSessionID,
+                name: "自动团队",
+                agent: parent.agent ?? defaultAgent,
+              })
+              .pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+          : undefined)
+
       const child = yield* sessions.create({
         parentID: parentSessionID,
         title: input.title ?? `${resolvedName} (workflow step)`,
+        ...(parent?.permissionMode ? { permissionMode: parent.permissionMode } : {}),
         permission: next
           ? deriveSubagentSessionPermission({
               parentSessionPermission: parent?.permission ?? [],
@@ -80,15 +107,43 @@ export function makeRunAgent(config: MakeRunAgentConfig): RunAgent {
           : (parent?.permission ?? []),
       })
 
+      if (teams && team) {
+        const preferred = input.name ?? input.title ?? `${resolvedName}-${child.id.slice(-4)}`
+        // 成员按名字寻址(面板发消息 / agent_message)；同名会让消息落到旧会话，
+        // 所以同一团队里重名时补一个会话后缀。
+        const clash = yield* teams
+          .member(team.id, preferred)
+          .pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+        const name = clash && clash.sessionID !== child.id ? `${preferred} #${child.id.slice(-4)}` : preferred
+        yield* teams
+          .addMember({
+            teamID: team.id,
+            sessionID: child.id,
+            name,
+            agent: resolvedName,
+            role: "worker",
+          })
+          .pipe(Effect.ignore)
+      }
+
+      const mark = (status: "active" | "idle") =>
+        teams && team
+          ? teams.updateMember({ teamID: team.id, sessionID: child.id, status }).pipe(Effect.ignore)
+          : Effect.void
+
+      yield* mark("active")
+
       const model = input.model ?? next?.model ?? defaultModel
       const parts = yield* ops.resolvePromptParts(input.prompt)
-      const result = yield* ops.prompt({
-        messageID: MessageID.ascending(),
-        sessionID: child.id,
-        model: { modelID: ModelID.make(model.modelID), providerID: ProviderID.make(model.providerID) },
-        agent: resolvedName,
-        parts,
-      })
+      const result = yield* ops
+        .prompt({
+          messageID: MessageID.ascending(),
+          sessionID: child.id,
+          model: { modelID: ModelID.make(model.modelID), providerID: ProviderID.make(model.providerID) },
+          agent: resolvedName,
+          parts,
+        })
+        .pipe(Effect.ensuring(mark("idle")))
       return result.parts.findLast((item) => item.type === "text")?.text ?? ""
     })
 }

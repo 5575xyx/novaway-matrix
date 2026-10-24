@@ -429,6 +429,74 @@ it.live("session.processor effect tests capture reasoning from http mock", () =>
   ),
 )
 
+it.live("session.processor effect tests merge interleaved reasoning fragments into one part", () =>
+  provideTmpdirServer(
+    ({ dir, llm }) =>
+      Effect.gen(function* () {
+        const { processors, session, provider } = yield* boot()
+        const chunk = (delta: Record<string, unknown>) => ({
+          id: "chatcmpl-test",
+          object: "chat.completion.chunk",
+          choices: [{ delta }],
+        })
+
+        // 内置网关会把同一段思考同时塞进 reasoning_content 和 content；AI SDK 每遇到 content
+        // 就会结束当前 reasoning，于是同一条思考被拆成很多段。
+        yield* llm.push(
+          raw({
+            chunks: [
+              chunk({ role: "assistant" }),
+              chunk({ reasoning_content: "think", content: "think" }),
+              chunk({ reasoning_content: "ing", content: "ing" }),
+              chunk({ reasoning_content: "!", content: "!" }),
+              {
+                id: "chatcmpl-test",
+                object: "chat.completion.chunk",
+                choices: [{ delta: {}, finish_reason: "stop" }],
+              },
+            ],
+          }),
+        )
+
+        const chat = yield* session.create({})
+        const parent = yield* user(chat.id, "reason")
+        const msg = yield* assistant(chat.id, parent.id, path.resolve(dir))
+        const mdl = yield* provider.getModel(ref.providerID, ref.modelID)
+        const handle = yield* processors.create({
+          assistantMessage: msg,
+          sessionID: chat.id,
+          model: mdl,
+        })
+
+        const value = yield* handle.process({
+          user: {
+            id: parent.id,
+            sessionID: chat.id,
+            role: "user",
+            time: parent.time,
+            agent: parent.agent,
+            model: { providerID: ref.providerID, modelID: ref.modelID },
+          } satisfies MessageV2.User,
+          sessionID: chat.id,
+          model: mdl,
+          agent: agent(),
+          system: [],
+          messages: [{ role: "user", content: "reason" }],
+          tools: {},
+        })
+
+        const parts = MessageV2.parts(msg.id)
+        const reasoning = parts.filter((part): part is MessageV2.ReasoningPart => part.type === "reasoning")
+
+        expect(value).toBe("continue")
+        expect(reasoning).toHaveLength(1)
+        expect(reasoning[0]?.text).toBe("thinking!")
+        expect(reasoning[0]?.time.end).toBeDefined()
+      }),
+    { git: true, config: (url) => providerCfg(url) },
+  ),
+)
+
 it.live("session.processor effect tests reset reasoning state across retries", () =>
   provideTmpdirServer(
     ({ dir, llm }) =>

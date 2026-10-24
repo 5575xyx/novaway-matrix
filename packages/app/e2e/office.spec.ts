@@ -8,8 +8,8 @@ async function enterZenOffice(page: Page) {
     .getByRole("button", { name: /切换工作模式|Switch work mode/ })
     .first()
     .click()
-  // 菜单项文案为 mode.shortName（zen = 「禅意」，硬编码不走 i18n）
-  await page.getByRole("menuitem", { name: "禅意" }).click()
+  // 菜单项文案为 mode.shortName（zen = 「办公」，硬编码不走 i18n）
+  await page.getByRole("menuitem", { name: "办公" }).click()
   await page.waitForTimeout(500)
 }
 

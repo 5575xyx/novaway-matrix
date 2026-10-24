@@ -400,8 +400,17 @@ export const Info = Schema.Struct({
         description:
           "启用后台并行子代理(异步派生、并行执行)。未设置时回退到 NovaWay_EXPERIMENTAL_BACKGROUND_SUBAGENTS 运行时开关(默认开)。",
       }),
+      auto_delegate: Schema.optional(Schema.Boolean).annotate({
+        description:
+          "主代理自动判断复杂请求能否拆成并行子任务，并按需创建团队、选择不同 AI 员工并行执行。默认开；false 可关闭这段编排指令。",
+      }),
       defer_loading: Schema.optional(Schema.Boolean).annotate({
-        description: "延迟加载低频工具(browser_* / generate_*):先用 tool_search 激活,减少每轮工具块体积。",
+        description:
+          "延迟加载低频工具(browser_* / generate_*):先用 tool_search 激活,减少每轮工具块体积。未设置时默认开启；显式 false 可关闭。",
+      }),
+      defer_mcp_loading: Schema.optional(Schema.Boolean).annotate({
+        description:
+          "延迟加载 MCP 工具(先用 mcp_tool_search 激活)。未设置时按 MCP schema 体积自动决定：超过约 20k tokens 时开启。",
       }),
       tool_result_budget_chars: Schema.optional(PositiveInt).annotate({
         description:

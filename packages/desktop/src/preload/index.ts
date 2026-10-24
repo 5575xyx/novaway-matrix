@@ -133,6 +133,7 @@ const api: ElectronAPI = {
   writeTextToClipboard: (opts) => ipcRenderer.invoke("write-text-to-clipboard", opts),
   openLink: (url) => ipcRenderer.send("open-link", url),
   openPath: (path, app) => ipcRenderer.invoke("open-path", path, app),
+  showItemInFolder: (path) => ipcRenderer.invoke("show-item-in-folder", path),
   readClipboardImage: () => ipcRenderer.invoke("read-clipboard-image"),
   showNotification: (title, body, href, showSystem, context) =>
     ipcRenderer.send("show-notification", title, body, href, showSystem, context),

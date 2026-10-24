@@ -689,7 +689,7 @@ export default function Layout(props: ParentProps) {
             },
           ],
         })
-        toastBySession.set(sessionKey, toastId)
+        if (toastId !== undefined) toastBySession.set(sessionKey, toastId)
       })
       onCleanup(unsub)
 
@@ -1539,6 +1539,21 @@ export default function Layout(props: ParentProps) {
     window.dispatchEvent(new CustomEvent("novaway:overlay-closed"))
   }
 
+  /**
+   * 从扩展页跳到某个设置标签。
+   *
+   * 扩展页是独立整帧覆盖层，直接 openSettings 会让两层同时存在；这里把扩展层
+   * 标记为关闭（保留退场动画），设置层从下方淡入，视觉上是交叉淡出。
+   */
+  function openSettingsFromExtensions(initialTab?: SettingsTab) {
+    setState("extensionsPage", "open", false)
+    batch(() => {
+      setState("settings", "directory", currentProject()?.worktree ?? currentDir())
+      setState("settings", "initialTab", initialTab)
+      setState("settings", "open", true)
+    })
+  }
+
   function openDatabasePage() {
     closeFramePages("databasePage")
     setState("databasePage", "open", true)
@@ -1879,7 +1894,9 @@ export default function Layout(props: ParentProps) {
       title: language.t("workspace.resetting.title"),
       description: language.t("workspace.resetting.description"),
     })
-    const dismiss = () => toaster.dismiss(progress)
+    const dismiss = () => {
+      if (progress !== undefined) toaster.dismiss(progress)
+    }
 
     const sessions: Session[] = await globalSDK.client.session
       .list({ directory })
@@ -2384,7 +2401,7 @@ export default function Layout(props: ParentProps) {
         <div class="flex shrink-0 flex-col gap-1 px-2 pb-2">
           {/* 模式切换从 footer 提到顶部：它是全局作用域最重的选择（决定整个工作台的能力面），
               沉在底部会被当成和「主题 / 设置」同级的小设置。这里用大字号 + 模式色底板呈现。 */}
-          <ModeSwitchButton prominent onSelect={(mode) => layout.mode.select(mode.id)} />
+          <ModeSwitchButton prominent onSelect={(mode) => { if (mode.id === "pulse") navigate("/pulse"); layout.mode.select(mode.id) }} />
           <Button
             variant="primary"
             size="large"
@@ -2949,7 +2966,11 @@ export default function Layout(props: ParentProps) {
                 >
                   <FrameWindowControls />
                   <div class="flex-1 min-h-0">
-                    <ExtensionsPage directory={currentDir()} onBack={closeExtensionsPage} />
+                    <ExtensionsPage
+                      directory={currentDir()}
+                      onBack={closeExtensionsPage}
+                      onOpenSettings={openSettingsFromExtensions}
+                    />
                   </div>
                 </section>
               </Show>

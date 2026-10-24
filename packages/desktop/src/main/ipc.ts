@@ -1370,6 +1370,11 @@ export function registerIpcHandlers(deps: Deps) {
     })
   })
 
+  ipcMain.handle("show-item-in-folder", (_event: IpcMainInvokeEvent, path: string) => {
+    shell.showItemInFolder(path)
+    return true
+  })
+
   ipcMain.handle("create-directory", async (_event: IpcMainInvokeEvent, parentPath: string, dirName: string) => {
     const targetPath = path.join(parentPath, dirName)
     await mkdir(targetPath, { recursive: true })

@@ -52,14 +52,14 @@ export const ModelCapabilitySummary: Component<{ model: ModelCapabilityInfo; com
       }}
     >
       <Show when={inputLabels().length > 0}>
-        <span class="truncate text-sky-600 dark:text-cyan-200">支持：{inputLabels().join("、")}</span>
+        <span class="truncate text-sky-700 dark:text-cyan-200">支持：{inputLabels().join("、")}</span>
       </Show>
       <Show when={outputLabels().length > 0}>
         <span class="inline-flex min-w-0 items-center gap-1">
           <Show when={inputLabels().length > 0}>
             <span class="text-foreground-subtle">·</span>
           </Show>
-          <span class="truncate text-violet-600 dark:text-violet-200">可生成：{outputLabels().join("、")}</span>
+          <span class="truncate text-violet-700 dark:text-violet-200">可生成：{outputLabels().join("、")}</span>
         </span>
       </Show>
       <Show when={props.model.capabilities.reasoning}>
@@ -67,7 +67,7 @@ export const ModelCapabilitySummary: Component<{ model: ModelCapabilityInfo; com
           <Show when={inputLabels().length > 0 || outputLabels().length > 0}>
             <span class="text-foreground-subtle">·</span>
           </Show>
-          <span class="text-emerald-600 dark:text-emerald-200">支持推理</span>
+          <span class="text-emerald-700 dark:text-emerald-200">支持推理</span>
         </span>
       </Show>
       <Show when={Number.isFinite(props.model.limit.context)}>

@@ -19,6 +19,7 @@ import { SessionPermissionDock } from "@/pages/session/composer/session-permissi
 import { SessionQuestionDock } from "@/pages/session/composer/session-question-dock"
 import { SessionFollowupDock } from "@/pages/session/composer/session-followup-dock"
 import { SessionRevertDock } from "@/pages/session/composer/session-revert-dock"
+import { SessionContextWarning } from "@/components/session-context-warning"
 import type { SessionComposerState } from "@/pages/session/composer/session-composer-state"
 import type { FollowupDraft } from "@/components/prompt-input/submit"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
@@ -185,7 +186,7 @@ export function SessionComposerRegion(props: {
       data-component="session-prompt-dock"
       classList={{
         "shrink-0 w-full flex flex-col justify-center items-center pointer-events-none": true,
-        "pb-4 bg-panel/80 backdrop-blur-sm": !props.embedded,
+        "pb-4 bg-background/80 backdrop-blur-sm": !props.embedded,
       }}
     >
       <div
@@ -232,6 +233,7 @@ export function SessionComposerRegion(props: {
             未就绪时在上面盖一层同几何的遮罩（PromptInputLoading）淡出。
           */}
           <div class="relative w-full">
+            <SessionContextWarning />
             <Show when={rolled()} keyed>
               {(revert) => (
                 <div

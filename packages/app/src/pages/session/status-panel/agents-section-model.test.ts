@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test"
 import type { TeamMemberView, TeamTaskView } from "@novaway/sdk/v2"
 import { currentTask, isIdle, memberStat, taskProgress, visibleMembers } from "./agents-section-model"
+import {
+  activeWorkers,
+  leadOnlyInProgress,
+  openTasks,
+  taskOwnerName,
+} from "./agents-section-model"
 
 const member = (input: Partial<TeamMemberView> & { name: string }): TeamMemberView => ({
   sessionID: `ses_${input.name}`,
@@ -60,6 +66,44 @@ describe("agents section model", () => {
     expect(isIdle(member({ name: "a", status: "active" }))).toBe(false)
     expect(isIdle(member({ name: "a", status: "idle" }))).toBe(true)
     expect(isIdle(member({ name: "a", status: "archived" }))).toBe(true)
+  })
+
+  test("openTasks keeps unfinished work and puts in_progress first", () => {
+    const list = openTasks([
+      task({ id: "done", status: "completed" }),
+      task({ id: "cancelled", status: "cancelled" }),
+      task({ id: "queued" }),
+      task({ id: "running", status: "in_progress" }),
+    ])
+    expect(list.map((item) => item.id)).toEqual(["running", "queued"])
+  })
+
+  test("taskOwnerName resolves the owner session to its roster name", () => {
+    const members = [member({ name: "worker-a" })]
+    expect(taskOwnerName(task({ id: "1", ownerSessionID: "ses_worker-a" }), members)).toBe("worker-a")
+    expect(taskOwnerName(task({ id: "2", ownerSessionID: "ses_unknown" }), members)).toBeUndefined()
+    expect(taskOwnerName(task({ id: "3" }), members)).toBeUndefined()
+  })
+
+  test("activeWorkers ignores the lead and idle members", () => {
+    const members = [
+      member({ name: "lead", role: "lead", status: "active" }),
+      member({ name: "busy", status: "active" }),
+      member({ name: "idle" }),
+    ]
+    expect(activeWorkers(members).map((item) => item.name)).toEqual(["busy"])
+  })
+
+  // 回归：看板任务被主代理自己 claim 后是 in_progress，但没有派任何子代理。
+  // 面板需要提示“无子代理执行”，而不是让人以为有 3 个员工在并行。
+  test("leadOnlyInProgress flags board tasks that only the lead holds", () => {
+    const lead = member({ name: "lead", role: "lead", status: "active" })
+    const tasks = [task({ id: "1", status: "in_progress", ownerSessionID: "ses_lead" })]
+    expect(leadOnlyInProgress(tasks, [lead])).toBe(true)
+    // 有一个真正的 worker 在跑就不提示
+    expect(leadOnlyInProgress(tasks, [lead, member({ name: "busy", status: "active" })])).toBe(false)
+    // 没有进行中的任务也不提示
+    expect(leadOnlyInProgress([task({ id: "1" })], [lead])).toBe(false)
   })
 })
 

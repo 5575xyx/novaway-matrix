@@ -325,6 +325,7 @@ export type ElectronAPI = {
   writeTextToClipboard: (opts?: { text?: string }) => Promise<boolean>
   openLink: (url: string) => void
   openPath: (path: string, app?: string) => Promise<void>
+  showItemInFolder: (path: string) => Promise<boolean>
   readClipboardImage: () => Promise<{ buffer: ArrayBuffer; width: number; height: number } | null>
   showNotification: (
     title: string,
