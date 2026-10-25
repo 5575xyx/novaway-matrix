@@ -128,6 +128,10 @@ const api: ElectronAPI = {
   createDirectory: (parentPath, dirName) => ipcRenderer.invoke("create-directory", parentPath, dirName),
   openDirectoryPicker: (opts) => ipcRenderer.invoke("open-directory-picker", opts),
   openFilePicker: (opts) => ipcRenderer.invoke("open-file-picker", opts),
+  // 文件阅读器:读写项目目录外的本地文本文件(主进程直读,绕开服务端工作区边界)。
+  readLocalFileText: (path) => ipcRenderer.invoke("read-local-file-text", path),
+  readLocalFileBase64: (path) => ipcRenderer.invoke("read-local-file-base64", path),
+  writeLocalFileText: (path, content) => ipcRenderer.invoke("write-local-file-text", path, content),
   saveFilePicker: (opts) => ipcRenderer.invoke("save-file-picker", opts),
   copyFileToClipboard: (opts) => ipcRenderer.invoke("copy-file-to-clipboard", opts),
   writeTextToClipboard: (opts) => ipcRenderer.invoke("write-text-to-clipboard", opts),

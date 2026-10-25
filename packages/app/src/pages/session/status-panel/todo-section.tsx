@@ -96,7 +96,7 @@ export function useTodoSection(): () => StatusPanelSection | null {
           {current.done}/{current.total}
         </>
       ),
-      defaultOpen: true,
+      defaultOpen: false,
       bodyHeight: "max-h-64",
       children: (
         <div class="flex flex-col gap-0.5 px-2 pb-2">

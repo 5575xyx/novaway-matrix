@@ -39,6 +39,15 @@ export type Platform = {
 
   openFilePickerDialog?(opts?: OpenFilePickerOptions): Promise<PickerPaths>
 
+  /** 读项目目录外的本地文本文件(桌面端主进程直读);不可用/失败返回 null。 */
+  readLocalFileText?(path: string): Promise<string | null>
+
+  /** 读项目目录外的本地二进制文件为 base64(Office/PDF/图片预览);失败返回 null。 */
+  readLocalFileBase64?(path: string): Promise<string | null>
+
+  /** 写回本地文本文件(桌面端);成功返回 true。 */
+  writeLocalFileText?(path: string, content: string): Promise<boolean>
+
   saveFilePickerDialog?(opts?: SaveFilePickerOptions): Promise<string | null>
 
   writeTextToClipboard?(text: string): Promise<boolean>

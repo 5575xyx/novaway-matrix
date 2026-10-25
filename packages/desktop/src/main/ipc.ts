@@ -1328,6 +1328,43 @@ export function registerIpcHandlers(deps: Deps) {
     },
   )
 
+  // 右侧面板「文件阅读器」用:预览/编辑当前项目目录之外的本地文件。
+  // 服务端文件接口有工作区边界,跨项目文件走主进程直读;只做单文件 UTF-8 文本读写。
+  ipcMain.handle("read-local-file-text", async (_event: IpcMainInvokeEvent, filePath: string) => {
+    try {
+      const info = await stat(filePath)
+      // 超大文件不当文本读,渲染层会直接放弃(20MB 与服务端文本读的上限对齐)。
+      if (!info.isFile() || info.size > 20 * 1024 * 1024) return null
+      return await readFile(filePath, "utf8")
+    } catch {
+      return null
+    }
+  })
+
+  // 项目外 Office/PDF/图片的二进制预览:base64 直读,上限 50MB(渲染端的
+  // docx/pptx/xlsx 解析器对超大文件本来就力不从心)。
+  ipcMain.handle("read-local-file-base64", async (_event: IpcMainInvokeEvent, filePath: string) => {
+    try {
+      const info = await stat(filePath)
+      if (!info.isFile() || info.size > 50 * 1024 * 1024) return null
+      return await readFile(filePath, "base64")
+    } catch {
+      return null
+    }
+  })
+
+  ipcMain.handle(
+    "write-local-file-text",
+    async (_event: IpcMainInvokeEvent, filePath: string, content: string) => {
+      try {
+        await writeFile(filePath, content, "utf8")
+        return true
+      } catch {
+        return false
+      }
+    },
+  )
+
   ipcMain.handle(
     "save-file-picker",
     async (_event: IpcMainInvokeEvent, opts?: { title?: string; defaultPath?: string; data?: Uint8Array }) => {

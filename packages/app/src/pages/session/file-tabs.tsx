@@ -39,7 +39,7 @@ import { getSessionHandoff } from "@/pages/session/handoff"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { useSideChat } from "@/pages/session/use-side-chat"
-import { isOfficePreviewPath, OfficeFilePreview } from "@/pages/session/office-file-preview"
+import { isImagePreviewPath, isOfficePreviewPath, OfficeFilePreview } from "@/pages/session/office-file-preview"
 import { buildSelectionQuote } from "@/pages/session/side-chat-seed"
 
 // 换行符常量：源码里直接写字面换行会变成跨行字符串，读起来也容易出错。
@@ -274,7 +274,7 @@ export function FileTabContent(props: { tab: string }) {
     }),
   )
 
-  const showDiff = () => !!diff() && viewMode() === "diff" && !isOfficePreviewPath(path())
+  const showDiff = () => !!diff() && viewMode() === "diff" && !isOfficePreviewPath(path()) && !isImagePreviewPath(path())
   const [draft, setDraft] = createSignal("")
   const lineNumbers = createMemo(() => Array.from({ length: draft().split("\n").length }, (_, index) => index + 1))
   const [saving, setSaving] = createSignal(false)
@@ -641,14 +641,34 @@ export function FileTabContent(props: { tab: string }) {
   }
 
   /**
-   * 办公文件（DOCX/PPTX/XLSX）是二进制，文本通道读不出内容。
-   * 这里单独按 base64 取一次，交给只读预览组件解析。
+   * 办公文件(DOCX/PPTX/XLSX/PDF)是二进制,文本通道读不出内容,单独按 base64 取一次。
+   * 图片走服务端的图片分支:文本通道直接返回 base64,用 contents() 即可,不必再取一次。
+   * 项目外的文件服务端读不到(工作区边界),桌面端改走本地 base64 通道。
    */
   const officePath = createMemo(() => (isOfficePreviewPath(path()) ? path() : undefined))
-  const [officeBase64] = createResource(officePath, async (file) => {
-    const result = await sdk.client.file.read({ path: file, encoding: "base64" })
-    return result.data?.content ?? ""
+  const [officeBase64] = createResource(officePath, async (target) => {
+    try {
+      if (file.isExternal(target) && platform.readLocalFileBase64) {
+        return (await platform.readLocalFileBase64(target)) ?? ""
+      }
+      const result = await sdk.client.file.read({ path: target, encoding: "base64" })
+      return result.data?.content ?? ""
+    } catch {
+      // 读取失败渲染空内容即可;资源 reject 会沿渲染树抛穿,把整个面板带崩。
+      return ""
+    }
   })
+  // 项目外的图片:文本通道没有内容,同样走本地 base64 通道。
+  const [externalImageBase64] = createResource(
+    createMemo(() => {
+      const p = path()
+      return p && isImagePreviewPath(p) && file.isExternal(p) ? p : undefined
+    }),
+    async (target) => (await platform.readLocalFileBase64?.(target)) ?? "",
+  )
+  const imageBase64 = createMemo(() =>
+    isImagePreviewPath(path()) ? (contents() || externalImageBase64() || undefined) : undefined,
+  )
 
   const activeSelection = () => note.selected ?? selectedLines()
 
@@ -1004,6 +1024,11 @@ export function FileTabContent(props: { tab: string }) {
                           </div>
                         </ScrollView>
                       </Match>
+                      {/* 图片:文本通道返回的是 base64,直接交给真实图片预览。
+                          必须排在文本编辑分支之前,否则 base64 会按乱码文本打开。 */}
+                      <Match when={state()?.loaded && imageBase64()}>
+                        <OfficeFilePreview path={path()!} base64={imageBase64()!} />
+                      </Match>
                       <Match when={state()?.loaded && state()?.content?.type !== "binary"}>
                         <div class="flex h-full min-h-0">
                           <div
@@ -1059,7 +1084,7 @@ export function FileTabContent(props: { tab: string }) {
                           />
                         </div>
                       </Match>
-                      <Match when={state()?.loaded && isOfficePreviewPath(path())}>
+                      <Match when={state()?.loaded && (isOfficePreviewPath(path()) || isImagePreviewPath(path()))}>
                         <Show
                           when={officeBase64()}
                           fallback={

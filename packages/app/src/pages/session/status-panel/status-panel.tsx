@@ -1,4 +1,4 @@
-import { For, Show, createMemo, type JSX } from "solid-js"
+import { For, Show, createEffect, createMemo, type JSX } from "solid-js"
 import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { useLanguage } from "@/context/language"
@@ -40,6 +40,11 @@ export function visibleStatusSections<T extends { id: string }>(sections: readon
 
 // 组件函数体只执行一次，挂载判定必须放在响应式 <Show> 里随 sections 变化重算，
 // 否则首次渲染时 sections 为空（数据仍在异步加载）会永久停留在 null，整个状态面板再也不出现。
+// 运行相关的区块在「从无到有」时自动展开一次(对齐 ZCode:任务触及某块功能时,
+// 用户直接看到内容,而不是一行收着的摘要)。只在出现瞬间触发:用户随后手动收起
+// 不会被再次顶开;git/context 等常驻区块不自动展开,保持默认折叠。
+const AUTO_EXPAND_SECTIONS = new Set(["todo", "hooks", "plan-approval", "agents"])
+
 export function SessionStatusPanel(props: { sections: StatusPanelSection[] }): JSX.Element {
   return (
     <Show when={shouldMountStatusPanel(props.sections)}>
@@ -62,6 +67,20 @@ function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.
   const collapsed = layout.statusPanel.collapsed(directory())
   const summaries = createMemo(() => props.sections.filter((section) => section.summary !== undefined))
 
+  // 区块「从无到有」时按需自动展开一次(todo/hooks/plan-approval/agents)。
+  // todo、hooks 只在任务运行期间出现(visibleStatusSections),所以重新出现
+  // 恰好对应新一轮任务触及该功能;已看过的 id 不再触发,手动收起后保持收起。
+  const seenSections = new Set<string>()
+  createEffect(() => {
+    const dir = directory()
+    for (const section of props.sections) {
+      const key = `${dir}:${section.id}`
+      if (seenSections.has(key)) continue
+      seenSections.add(key)
+      if (AUTO_EXPAND_SECTIONS.has(section.id)) layout.statusPanel.setOpen(dir, section.id, true)
+    }
+  })
+
   return (
     <aside
       data-component="status-panel"
@@ -70,9 +89,11 @@ function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.
     >
       <div
         data-component="status-panel-expanded"
-        class="absolute top-0 right-0 flex w-80 min-h-0 max-h-[min(76dvh,42rem)] flex-col overflow-hidden rounded-lg border border-border bg-panel shadow-lg @max-[768px]:hidden group-data-[collapsed=true]:hidden"
+        class="absolute top-0 right-0 flex w-80 min-h-0 max-h-[min(76dvh,42rem)] flex-col @max-[768px]:hidden group-data-[collapsed=true]:hidden"
       >
-        <div class="flex h-9 shrink-0 items-center gap-2 border-b border-border px-3">
+        {/* 头部是独立悬浮胶囊（对齐 ZCode）：外层容器不再包边框/底色，
+            视觉主体是下面每张自带边框+阴影的卡片，去掉"框里套框"的那一层。 */}
+        <div class="flex h-9 shrink-0 items-center gap-2 rounded-lg border border-border bg-panel px-3 shadow-sm">
           <span class="text-ui-sm font-medium text-foreground truncate">{language.t("statusPanel.title")}</span>
           <div class="flex-1" />
           <IconButton
@@ -104,7 +125,7 @@ function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.
               // shrink-0：卡片不能被 flex 压扁。之前总高度超限时每张卡都被压缩，
               // 卡片体被裁掉，看起来"挤在一起、显示不全"。让外层滚动条承担溢出。
               return (
-                <div class="shrink-0 overflow-hidden rounded-lg border border-border bg-background">
+                <div class="shrink-0 overflow-hidden rounded-lg border border-border bg-background shadow-sm">
                   <StatusSection
                     id={id}
                     title={section()?.title ?? ""}

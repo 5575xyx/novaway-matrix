@@ -79,7 +79,7 @@ export function useHooksSection(sessionID: () => string): () => StatusPanelSecti
       id: "hooks",
       title: language.t("statusPanel.hooks.title"),
       summary: <span class="tabular-nums">{activeHooksLabel(hooks())}</span>,
-      defaultOpen: true,
+      defaultOpen: false,
       children: (
         <div class="flex flex-col gap-0.5 pb-1">
           <For each={hooks()}>

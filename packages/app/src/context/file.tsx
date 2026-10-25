@@ -8,6 +8,7 @@ import { useSDK } from "./sdk"
 import { useSync } from "./sync"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
+import { usePlatform } from "@/context/platform"
 import { createPathHelpers } from "./file/path"
 import {
   approxBytes,
@@ -54,6 +55,7 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
   gate: false,
   init: () => {
     const sdk = useSDK()
+    const platform = usePlatform()
     useSync()
     const params = useParams()
     const language = useLanguage()
@@ -62,6 +64,18 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
     const scope = createMemo(() => sdk.directory)
     const path = createPathHelpers(scope)
     const tabs = layout.tabs(() => `${params.dir}${params.id ? "/" + params.id : ""}`)
+
+    // 项目目录之外的文件:服务端接口有工作区边界读不到,桌面端用主进程本地读写
+    // 当「纯文件阅读器/编辑器」用;网页端没有本地通道,仍走服务端(会得到越界报错)。
+    // 注意 normalize() 会把项目内绝对路径剥成相对路径 —— 相对路径(无盘符/非根起头)
+    // 本身就是"在项目内"的标志;剥不掉根的绝对路径才是项目外的。
+    const isExternalFile = (file: string) => {
+      if (!/^[A-Za-z]:/.test(file) && !file.startsWith("\\\\") && !file.startsWith("/")) return false
+      const root = (scope() ?? "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase()
+      if (!root) return false
+      const target = file.replace(/\\/g, "/").toLowerCase()
+      return target !== root && !target.startsWith(`${root}/`)
+    }
 
     const inflight = new Map<string, Promise<void>>()
     const [store, setStore] = createStore<{
@@ -186,6 +200,26 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
 
       setLoading(file)
 
+      // 项目外文件:桌面端走本地读取。二进制(Office/PDF/图片)不在文本通道读 ——
+      // file-tabs 会用本地 base64 通道单独取,这里只把状态置为已加载让预览分支渲染。
+      if (isExternalFile(file) && platform.readLocalFileText) {
+        const binary = /\.(docx|pptx|xlsx|pdf|png|jpe?g|gif|webp|bmp|svg)$/i.test(file)
+        const promise = (binary ? Promise.resolve("") : platform.readLocalFileText(file))
+          .then((content) => {
+            if (scope() !== directory) return
+            if (content === null) {
+              setLoadError(file, "无法读取该文件(可能不存在、过大或不是文本文件)")
+              return
+            }
+            setLoaded(file, { type: "text", content })
+          })
+          .finally(() => {
+            inflight.delete(key)
+          })
+        inflight.set(key, promise)
+        return promise
+      }
+
       const promise = sdk.client.file
         .read({ path: file })
         .then((x) => {
@@ -215,6 +249,14 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
     const write = async (input: string, content: string) => {
       const file = path.normalize(input)
       if (!file) return
+      // 项目外文件:桌面端写回本地,保存后与项目内文件保持同样的已加载状态。
+      if (isExternalFile(file) && platform.writeLocalFileText) {
+        const ok = await platform.writeLocalFileText(file, content)
+        if (!ok) throw new Error("保存失败:无法写入该文件")
+        const current = store.file[file]?.content
+        setLoaded(file, { ...(current ?? {}), type: "text", content })
+        return
+      }
       await sdk.client.file.write({ path: file, content })
       const current = store.file[file]?.content
       setLoaded(file, { ...(current ?? {}), type: "text", content })
@@ -294,6 +336,7 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
       get,
       load,
       write,
+      isExternal: isExternalFile,
       pinnedPaths,
       scrollTop,
       scrollLeft,

@@ -455,7 +455,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       title: language.t("command.preview.toggle"),
       keybind: "mod+shift+b",
       slash: "preview",
-      onSelect: () => layout.sidePane.add("preview"),
+      onSelect: () => layout.sidePane.add("browser"),
     }),
     viewCommand({
       id: "review.toggle",

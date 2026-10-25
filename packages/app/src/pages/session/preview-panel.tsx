@@ -14,7 +14,7 @@ const IFRAME_SANDBOX =
 
 const IFRAME_ALLOW = "fullscreen"
 
-export function PreviewPanel() {
+export function PreviewPanel(props: { files?: { count: () => number; open: () => void } }) {
   const language = useLanguage()
   const preview = usePreview()
   const inspection = usePreviewInspection()
@@ -55,8 +55,13 @@ ${url()}
   )
 
   const go = () => {
-    // 空输入表示还没填，不是非法地址；红字报错在这里是噪音，占位提示已经说明了格式
-    if (!store.draft.trim()) return
+    // 输入框清空后确认 = 主动退出预览:清掉地址回到初始空态,
+    // 而不是继续挂着上一次打开的页面。
+    if (!store.draft.trim()) {
+      preview.clear()
+      setStore("invalid", false)
+      return
+    }
     const normalized = normalizePreviewUrl(store.draft)
     if (!normalized) {
       setStore("invalid", true)
@@ -68,6 +73,11 @@ ${url()}
   }
 
   const refresh = () => {
+    // 刷新跟随输入框:输入已清空时刷新等同退出预览,有地址时重载当前页。
+    if (!store.draft.trim()) {
+      preview.clear()
+      return
+    }
     if (!url()) return
     setStore("reload", store.reload + 1)
   }
@@ -110,6 +120,16 @@ ${url()}
             </span>
           </Show>
         </div>
+        <Show when={props.files && props.files.count() > 0}>
+          <Tooltip value={language.t("preview.showFiles")} placement="top">
+            <IconButton
+              icon="folder"
+              variant="ghost"
+              onClick={() => props.files?.open()}
+              aria-label={language.t("preview.showFiles")}
+            />
+          </Tooltip>
+        </Show>
         <Tooltip
           value={inspection.ready() ? language.t("preview.pick.toggle") : language.t("preview.pick.unavailable")}
           placement="top"

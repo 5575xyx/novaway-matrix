@@ -7,6 +7,22 @@ import { uniqueSummaryDiffs } from "./message-timeline.summary-diffs"
 
 export type SummaryDiff = SnapshotFileDiff & { file: string }
 
+export interface PreviewTarget {
+  /**
+   * 打开方式:server/html → 浏览器标签的内置预览(iframe);
+   * file(office/pdf/图片) → 文件标签(FileTabContent 走 Office 预览)。
+   */
+  kind: "server" | "html" | "file"
+  /** 预览地址:server 为 http(s) URL;html/file 为 file:// URL */
+  url: string
+  /** 本地文件绝对路径(kind 为 html/file 时存在) */
+  path?: string
+  /** 主标题:文件名或 host:port */
+  title: string
+  /** 副标题:相对路径或完整 URL */
+  subtitle: string
+}
+
 export type TimelineRowMap = {
   CommentStrip: {
     userMessageID: string
@@ -30,6 +46,11 @@ export type TimelineRowMap = {
   Thinking: { userMessageID: string; reasoningHeading?: string }
   Retry: { userMessageID: string }
   DiffSummary: { userMessageID: string; diffs: SummaryDiff[] }
+  /**
+   * 回答回执后的预览入口卡:这轮起了本地服务(bash 输出里的 localhost 地址)
+   * 或写了 HTML 原型时,回复末尾给一张可点的小卡,点开在右侧面板预览。
+   */
+  PreviewCard: { userMessageID: string; targets: PreviewTarget[] }
   /**
    * 会话错误。
    *
@@ -69,6 +90,10 @@ export namespace TimelineRow {
     userMessageID: string
     diffs: SummaryDiff[]
   }> {}
+  export class PreviewCard extends Data.TaggedClass("PreviewCard")<{
+    userMessageID: string
+    targets: PreviewTarget[]
+  }> {}
   export class Error extends Data.TaggedClass("Error")<{
     userMessageID: string
     kind: ErrorKind
@@ -86,6 +111,7 @@ export namespace TimelineRow {
     | AssistantPart
     | Thinking
     | DiffSummary
+    | PreviewCard
     | Error
     | Retry
     | BottomSpacer
@@ -104,6 +130,8 @@ export namespace TimelineRow {
         return `thinking:${row.userMessageID}`
       case "DiffSummary":
         return `diff-summary:${row.userMessageID}`
+      case "PreviewCard":
+        return `preview-card:${row.userMessageID}`
       case "Error":
         return `error:${row.userMessageID}`
       case "Retry":

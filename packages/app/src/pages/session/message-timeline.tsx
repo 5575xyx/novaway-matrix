@@ -73,8 +73,15 @@ import { useSync } from "@/context/sync"
 import { useFile } from "@/context/file"
 import { messageAgentColor } from "@/utils/agent"
 import { sessionTitle } from "@/utils/session-title"
+import { LOCAL_URL, normalizeLocalUrl, stripAnsi } from "@/utils/dev-server-detect"
+import { isExcludedPath, isHtmlPath, relativeToWorkspace, resolveWorkspacePath } from "@/utils/preview-sources"
+import { isImagePreviewPath, isOfficePreviewPath } from "@/pages/session/office-file-preview"
+import { uniqueSummaryDiffs } from "@/pages/session/message-timeline.summary-diffs"
+import { normalizePreviewUrl } from "@/utils/preview-url"
+import { usePreview } from "@/context/preview"
 import { makeTimer } from "@solid-primitives/timer"
 import { MessageComment, SummaryDiff, Timeline, TimelineRow, TimelineRowMap } from "./message-timeline.data"
+import type { PreviewTarget } from "./message-timeline.data"
 import { useOfficeAgent } from "./office-agent-context"
 import { extractOfficeArtifact, visibleOfficeMessage, type OfficeArtifact, type OfficeSlide } from "./office-artifact"
 import {
@@ -324,6 +331,63 @@ function TimelineDiffView(props: { diff: SummaryDiff }) {
   )
 }
 
+/**
+ * 回答回执后的产物预览卡(对齐 ZCode 的卡片风格):图标 + 标题 + 副标题 + 箭头。
+ * 打开分流:本地服务与 HTML 原型 → 右侧「浏览器」标签的内置预览;
+ * Office/PDF/图片 → 右侧「文件」标签按文件方式预览。
+ */
+function TimelinePreviewCardRow(props: { targets: PreviewTarget[] }) {
+  const language = useLanguage()
+  const layout = useLayout()
+  const preview = usePreview()
+  const file = useFile()
+  const { tabs } = useSessionLayout()
+
+  const open = (target: PreviewTarget) => {
+    if (target.kind === "file" && target.path) {
+      const tab = file.tab(target.path)
+      void tabs().open(tab)
+      tabs().setActive(tab)
+      layout.sidePane.add("preview")
+      return
+    }
+    if (!preview.setUrl(target.url)) return
+    layout.sidePane.add("browser")
+  }
+
+  return (
+    <div data-slot="session-turn-preview" data-component="session-turn-preview" class="flex flex-col gap-1.5">
+      <For each={props.targets}>
+        {(target) => (
+          <button
+            type="button"
+            data-preview-kind={target.kind}
+            aria-label={`${language.t("sidePane.tab.preview")} ${target.title}`}
+            title={target.url}
+            class="group flex w-full items-center gap-2.5 rounded-lg border border-border bg-surface px-2.5 py-2 text-left transition-colors hover:border-border-hover hover:bg-hover"
+            onClick={() => open(target)}
+          >
+            <span class="flex size-7 shrink-0 items-center justify-center rounded-md border border-border bg-panel text-foreground-subtle">
+              <Show when={target.kind === "file"} fallback={<Icon name="browser" size="small" />}>
+                <FileIcon node={{ path: target.title, type: "file" }} />
+              </Show>
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-12-medium text-foreground">{target.title}</span>
+              <span class="block truncate text-11-regular text-foreground-subtle">{target.subtitle}</span>
+            </span>
+            <Icon
+              name="arrow-right"
+              size="small"
+              class="shrink-0 text-foreground-subtlest transition-transform duration-150 group-hover:translate-x-0.5"
+            />
+          </button>
+        )}
+      </For>
+    </div>
+  )
+}
+
 export function MessageTimeline(props: {
   actions?: UserActions
   scroll: { overflow: boolean; bottom: boolean; jump: boolean }
@@ -461,7 +525,10 @@ export function MessageTimeline(props: {
     return messages
       .map((message) =>
         getMsgParts(message.id)
-          .filter((part): part is Extract<PartType, { type: "text" }> => part.type === "text")
+          .filter(
+            (part): part is Extract<PartType, { type: "text" }> =>
+              part.type === "text" && !part.synthetic && !part.ignored,
+          )
           .map((part) => part.text)
           .filter(Boolean)
           .join("\n"),
@@ -518,8 +585,82 @@ export function MessageTimeline(props: {
     ),
   )
 
+  // 每轮回答结束后可预览的产物:bash 输出里出现的本地服务地址、write/edit 写出的
+  // HTML 原型(浏览器预览)与 Office/PDF/图片(文件预览)。只扫已完成的轮次。
+  const previewTargetsByUserMessage = createMemo(() => {
+    const directory = sdk.directory
+    const result = new Map<string, PreviewTarget[]>()
+    for (const message of props.userMessages) {
+      const assistants = assistantMessagesByParent().get(message.id)
+      if (!assistants || assistants.length === 0) continue
+      if (!assistants.every((item) => typeof item.time.completed === "number")) continue
+
+      const targets: PreviewTarget[] = []
+      const seen = new Set<string>()
+      const pushFile = (filePath: string) => {
+        const url = normalizePreviewUrl(resolveWorkspacePath(filePath, directory))
+        if (!url || seen.has(url)) return
+        seen.add(url)
+        const html = isHtmlPath(filePath)
+        targets.push({
+          kind: html ? "html" : "file",
+          url,
+          path: resolveWorkspacePath(filePath, directory),
+          title: getFilename(filePath),
+          subtitle: relativeToWorkspace(filePath, directory) ?? filePath,
+        })
+      }
+      for (const part of assistants.flatMap((item) => getMsgParts(item.id))) {
+        if (part.type !== "tool") continue
+        const output = "output" in part.state && typeof part.state.output === "string" ? part.state.output : ""
+        if (output) {
+          for (const match of stripAnsi(output).matchAll(LOCAL_URL)) {
+            const url = normalizeLocalUrl(match[0])
+            if (!url || seen.has(url)) continue
+            seen.add(url)
+            targets.push({
+              kind: "server",
+              url,
+              title: url.replace(/^https?:\/\//, ""),
+              subtitle: url,
+            })
+          }
+        }
+        const input = "input" in part.state && typeof part.state.input === "object" ? part.state.input : undefined
+        const filePath =
+          input && "filePath" in input && typeof input.filePath === "string" ? input.filePath : undefined
+        if (!filePath || isExcludedPath(filePath)) continue
+        if (isHtmlPath(filePath) || isOfficePreviewPath(filePath) || isImagePreviewPath(filePath)) pushFile(filePath)
+      }
+      if (targets.length > 0) result.set(message.id, targets.slice(0, 3))
+    }
+    return result
+  })
+
+  // 会话级文件变更兜底:最后一轮自己的 summary.diffs 缺失(比如文件是经 bash 间接写入的)
+  // 时,用会话维度的 diff 在最底下补一张"文件更改"卡,对齐 ZCode 的底部 Changed files。
+  const sessionDiffFallback = createMemo(() => {
+    const id = sessionID()
+    const last = props.userMessages.at(-1)
+    if (!id || !last) return []
+    if (sessionStatus().type !== "idle" && activeMessageID() === last.id) return []
+    const turnRows = messageRowMemos().at(-1)?.() ?? []
+    if (turnRows.some((row) => row._tag === "DiffSummary")) return []
+    return uniqueSummaryDiffs(sync.data.session_diff[id]).slice(0, 20)
+  })
+
   const timelineRows = createMemo((previous: TimelineRow.TimelineRow[] | undefined) => {
-    const rows = messageRowMemos().flatMap((memo) => memo())
+    const rows = messageRowMemos().flatMap((memo, index) => {
+      const turnRows = memo()
+      const targets = previewTargetsByUserMessage().get(props.userMessages[index]?.id ?? "")
+      if (!targets) return turnRows
+      return [...turnRows, new TimelineRow.PreviewCard({ userMessageID: props.userMessages[index].id, targets })]
+    })
+    const last = props.userMessages.at(-1)
+    const fallback = sessionDiffFallback()
+    if (last && fallback.length > 0) {
+      rows.push(new TimelineRow.DiffSummary({ userMessageID: last.id, diffs: fallback }))
+    }
     if (rows.length === 0) return rows
     return reuseTimelineRows(previous, [...rows, new TimelineRow.BottomSpacer()])
   })
@@ -1887,7 +2028,7 @@ export function MessageTimeline(props: {
     // 各自成块、各自留 8px 行距。这里不再给连续工具调用画整段外框，避免整屏横线。
     const replyBlock = () => {
       const tag = input.row()._tag
-      return tag === "AssistantPart" || tag === "Thinking" || tag === "DiffSummary"
+      return tag === "AssistantPart" || tag === "Thinking" || tag === "DiffSummary" || tag === "PreviewCard"
     }
     const anchor = () => {
       const row = input.row()
@@ -2044,6 +2185,16 @@ export function MessageTimeline(props: {
           <TimelineRowFrame row={diffSummaryRow}>
             <div data-slot="session-turn-message-container" class="w-full px-4 md:px-5">
               <TimelineDiffSummaryRow diffs={diffSummaryRow().diffs} fallback={false} />
+            </div>
+          </TimelineRowFrame>
+        )
+      }
+      case "PreviewCard": {
+        const previewRow = row as Accessor<TimelineRowByTag<"PreviewCard">>
+        return (
+          <TimelineRowFrame row={previewRow}>
+            <div data-slot="session-turn-message-container" class="w-full px-4 md:px-5">
+              <TimelinePreviewCardRow targets={previewRow().targets} />
             </div>
           </TimelineRowFrame>
         )

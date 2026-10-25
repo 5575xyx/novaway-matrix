@@ -184,7 +184,7 @@ export function useAgentsSection(sessionID: () => string): AgentsSection {
           </Show>
         </span>
       ),
-      defaultOpen: true,
+      defaultOpen: false,
       children: (
         <div class="flex flex-col gap-0.5 pb-1">
           <For each={members()}>

@@ -231,7 +231,9 @@ export type SidePaneAction =
 
 export const DEFAULT_SIDE_PANE_STATE: SidePaneState = { opened: true, tabs: [], activeTab: null, dynamic: {} }
 
-export const SIDE_PANE_TABS = ["preview", "review", "terminal"] as const
+// 对齐 ZCode：网页预览（浏览器）与文件预览是两个并列的内置标签 ——
+// "preview" 是文件标签条的宿主，"browser" 是 URL iframe（网页预览）的宿主。
+export const SIDE_PANE_TABS = ["preview", "browser", "terminal", "review"] as const
 
 /**
  * Side Pane 的动态标签：一个标签对应一个**会话**。
@@ -528,6 +530,9 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           activeTab: DEFAULT_SIDE_PANE_STATE.activeTab,
           dynamic: {} as Record<string, SidePaneSessionTab>,
           width: DEFAULT_SIDE_PANE_WIDTH,
+          // false = 用户没手动拖过宽度，跟随「窗口 45%」的默认值（见 sidePane.width）。
+          // 旧持久化数据没有这个键 → undefined → 也会走默认值，属于一次性对齐。
+          widthCustom: false,
         },
         sidebarView: "tasks" as SidebarView,
         sessionTabs: {} as Record<string, SessionTabs>,
@@ -556,6 +561,15 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         },
       }),
     )
+
+    // 视口宽度信号：sidePane 默认宽度按「窗口 45%」计算（对齐 ZCode 的
+    // SIDE_PANE_DEFAULT_EXPANDED_SIZE），窗口缩放时默认宽度要跟着变。
+    const [viewportWidth, setViewportWidth] = createSignal(
+      typeof window === "undefined" ? 1280 : window.innerWidth,
+    )
+    if (typeof window !== "undefined") {
+      makeEventListener(window, "resize", () => setViewportWidth(window.innerWidth))
+    }
 
     const MAX_SESSION_KEYS = 50
     const PENDING_MESSAGE_TTL_MS = 2 * 60 * 1000
@@ -1025,7 +1039,16 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           return store.sidePane?.dynamic?.[id]
         }),
         activeTab: createMemo<SidePaneTab | null>(() => store.sidePane?.activeTab ?? DEFAULT_SIDE_PANE_STATE.activeTab),
-        width: createMemo(() => store.sidePane?.width ?? DEFAULT_SIDE_PANE_WIDTH),
+        /**
+         * 面板宽度。用户拖过（widthCustom）就用持久化的像素值；
+         * 没拖过就跟随「窗口 45%」的默认值（对齐 ZCode 的
+         * SIDE_PANE_DEFAULT_EXPANDED_SIZE = 45%，下限取 ResizeHandle 的 min 320）。
+         */
+        width: createMemo(() => {
+          const pane = store.sidePane
+          if (pane?.widthCustom && typeof pane.width === "number") return pane.width
+          return Math.max(320, Math.round(viewportWidth() * 0.45))
+        }),
         open() {
           setStore("sidePane", "opened", true)
         },
@@ -1066,7 +1089,10 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           updateSidePane({ type: "move", from, to })
         },
         resize(width: number) {
-          setStore("sidePane", "width", width)
+          batch(() => {
+            setStore("sidePane", "width", width)
+            setStore("sidePane", "widthCustom", true)
+          })
         },
       },
       statusPanel: {
@@ -1077,7 +1103,9 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         open(directory: string, sectionId: string, defaultOpen?: boolean) {
           return () => {
             const workspace = store.statusPanel.workspaces[directory]
-            return workspace?.open[sectionId] ?? defaultOpen ?? true
+            // 默认折叠(对齐 ZCode 的状态卡):收起时标题行仍显示摘要,用户点击展开;
+            // 运行相关的区块由面板在「出现」时自动展开一次(见 status-panel 的 AUTO_EXPAND)。
+            return workspace?.open[sectionId] ?? defaultOpen ?? false
           }
         },
         setCollapsed(directory: string, value: boolean) {
@@ -1100,7 +1128,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         toggleOpen(directory: string, sectionId: string, defaultOpen?: boolean) {
           setStore("statusPanel", "workspaces", directory, (current) => {
             const base = current ?? { collapsed: store.statusPanel.workspacesDefault.collapsed ?? false, open: {} }
-            const open = base.open[sectionId] ?? defaultOpen ?? true
+            const open = base.open[sectionId] ?? defaultOpen ?? false
             return { ...base, open: { ...base.open, [sectionId]: !open } }
           })
         },

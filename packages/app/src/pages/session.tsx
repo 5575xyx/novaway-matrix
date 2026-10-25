@@ -57,6 +57,7 @@ import {
 import { MessageTimeline } from "@/pages/session/message-timeline"
 import { type DiffStyle, SessionReviewTab, type SessionReviewTabProps } from "@/pages/session/review-tab"
 import { useSessionLayout } from "@/pages/session/session-layout"
+import { TurnNavigator } from "@/pages/session/turn-navigator"
 import { sessionAutoSubmitKey } from "@/pages/session/auto-submit"
 import { shouldQueueFollowup } from "@/pages/session/session-followup"
 import { showOfficeNewSessionWorkspace, showOfficeSessionComposer } from "@/pages/session/office-workspace-route"
@@ -593,7 +594,7 @@ export default function Page() {
           autoOpenedHtml.add(url)
           if (url === current || !preview.setUrl(url)) continue
 
-          layout.sidePane.add("preview")
+          layout.sidePane.add("browser")
           showToast({
             title: language.t("preview.autoOpenedFile"),
             description: file.split(/[\\/]/).pop() ?? file,
@@ -779,6 +780,8 @@ export default function Page() {
   let promptDock: HTMLDivElement | undefined
   let dockHeight = 0
   let scroller: HTMLDivElement | undefined
+  // 条区(TurnNavigator)需要响应式地拿到滚动容器:挂在 2077 那层,不经过 MessageTimeline 的 props。
+  const [scrollerEl, setScrollerEl] = createSignal<HTMLDivElement>()
   let content: HTMLDivElement | undefined
   let revealMessage = (_id: string) => {}
   let scrollMark = 0
@@ -1505,6 +1508,7 @@ export default function Page() {
 
   const setScrollRef = (el: HTMLDivElement | undefined) => {
     scroller = el
+    setScrollerEl(el)
     autoScroll.scrollRef(el)
     if (!el) return
     scheduleScrollState(el)
@@ -1634,7 +1638,12 @@ export default function Page() {
       const item = (followup.items[input.sessionID] ?? []).find((entry) => entry.id === input.id)
       if (!item) return
 
-      if (input.manual) setFollowup("paused", input.sessionID, undefined)
+      if (input.manual) {
+        setFollowup("paused", input.sessionID, undefined)
+        // 「立即发送」= 打断当前这轮、马上处理新问题;不中止的话新消息要等
+        // 原任务跑到下一个安全边界才会被接续,用户看着就像"没发出去"。
+        if (busy(input.sessionID)) await halt(input.sessionID)
+      }
       setFollowup("failed", input.sessionID, undefined)
 
       const ok = await sendFollowupDraft({
@@ -1752,6 +1761,19 @@ export default function Page() {
   const halt = (sessionID: string) =>
     busy(sessionID) ? sdk.client.session.abort({ sessionID }).catch(() => {}) : Promise.resolve()
 
+  // abort 刚返回时服务端 runner 可能还差一拍才完全释放,revert 会撞上 BusyError;
+  // 直接把乐观状态回滚的话,提问会"弹回"聊天区,看着就像回滚没生效。稍等重试几次再放弃。
+  const revertWithRetry = async (input: { sessionID: string; messageID: string }) => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await sdk.client.session.revert(input)
+      } catch (err) {
+        if (attempt >= 2) throw err
+        await new Promise((resolve) => setTimeout(resolve, 150))
+      }
+    }
+  }
+
   const revertMutation = useMutation(() => ({
     mutationFn: async (input: { sessionID: string; messageID: string }) => {
       const prev = prompt.current().slice()
@@ -1762,10 +1784,19 @@ export default function Page() {
         prompt.set(value)
       })
       await halt(input.sessionID)
-        .then(() => sdk.client.session.revert(input))
+        .then(() => revertWithRetry(input))
         .then(async (result) => {
-          if (result.data) merge(result.data)
+          // 服务端 revert 是 stage→commit:提交阶段会删掉回滚点及之后的消息并清空
+          // session.revert。必须先 sync(本地 store 把被删消息移除)再 merge session
+          // 信息;顺序反了的话 revert 一清空,可见性过滤失效,被删的提问会在本地
+          // 闪回来,直到 sync 完成才又消失 —— 就是"提问没实时清除"的来源。
           await sync.session.sync(input.sessionID, { force: true })
+          if (result.data) merge(result.data)
+          // 回滚成功后清掉这个会话的排队追问:它们是针对被回滚掉的上下文写的,
+          // 留着会在回滚点之后被自动发出,答非所问。
+          setFollowup("items", input.sessionID, [])
+          setFollowup("failed", input.sessionID, undefined)
+          setFollowup("paused", input.sessionID, undefined)
         })
         .catch((err) => {
           batch(() => {
@@ -1798,7 +1829,7 @@ export default function Page() {
       const task = !next
         ? halt(sessionID).then(() => sdk.client.session.unrevert({ sessionID }))
         : halt(sessionID).then(() =>
-            sdk.client.session.revert({
+            revertWithRetry({
               sessionID,
               messageID: next.id,
             }),
@@ -1806,8 +1837,9 @@ export default function Page() {
 
       await task
         .then(async (result) => {
-          if (result.data) merge(result.data)
+          // 同 revertMutation:先 sync 再 merge,避免 revert 清空后消息在本地闪回。
           await sync.session.sync(sessionID, { force: true })
+          if (result.data) merge(result.data)
         })
         .catch((err) => {
           batch(() => {
@@ -2207,6 +2239,20 @@ export default function Page() {
                   <Suspense fallback={null}>
                     <SessionStatusPanel sections={statusSections()} />
                   </Suspense>
+
+                  {/* 对话问题导航(对齐 ZCode 的 Turn Navigator):必须挂在这一层 ——
+                      这层的边界包含状态面板预留区,条区才能落进聊天列与状态卡片的空隙;
+                      放进时间线里会被 overflow-hidden 祖先裁掉。 */}
+                  <TurnNavigator
+                    sessionID={() => params.id}
+                    userMessages={historyLoader.userMessages()}
+                    scrollRoot={scrollerEl}
+                    statusPanelReserved={statusPanelReserved()}
+                    onJumpToMessage={(message, behavior) => {
+                      autoScroll.pause()
+                      scrollToMessage(message, behavior)
+                    }}
+                  />
                 </div>
               </div>
 

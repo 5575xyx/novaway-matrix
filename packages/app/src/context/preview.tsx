@@ -31,6 +31,10 @@ export const { use: usePreview, provider: PreviewProvider } = createSimpleContex
         setPrefs("url", normalized)
         return true
       },
+      /** 清空预览地址,浏览器标签回到初始空态。 */
+      clear() {
+        setPrefs("url", "")
+      },
     }
   },
 })

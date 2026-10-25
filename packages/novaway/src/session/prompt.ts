@@ -3377,7 +3377,9 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         sessionID,
         agent: lastUser.info.agent,
         model: { providerID: lastUser.info.model.providerID, modelID: lastUser.info.model.modelID },
-        parts: [{ type: "text", text: todoSweepReminder(todos) }],
+        // synthetic:true —— 收尾提醒是系统行为不是用户输入,时间线不渲染这条消息,
+        // 模型仍能收到(toModelMessages 只过滤 ignored),sweep 判定按文本匹配不受影响。
+        parts: [{ type: "text", synthetic: true, text: todoSweepReminder(todos) }],
       }).pipe(Effect.catch(() => Effect.succeed(undefined)))
     })
 

@@ -320,6 +320,12 @@ export type ElectronAPI = {
     accept?: string[]
     extensions?: string[]
   }) => Promise<string | string[] | null>
+  /** 读项目目录外的本地文本文件(utf-8);文件不存在/过大/非文件返回 null。 */
+  readLocalFileText: (path: string) => Promise<string | null>
+  /** 读项目目录外的本地二进制文件为 base64(Office/PDF/图片预览);失败返回 null。 */
+  readLocalFileBase64: (path: string) => Promise<string | null>
+  /** 写回本地文本文件(utf-8);成功返回 true。 */
+  writeLocalFileText: (path: string, content: string) => Promise<boolean>
   saveFilePicker: (opts?: { title?: string; defaultPath?: string; data?: Uint8Array }) => Promise<string | null>
   copyFileToClipboard: (opts?: { url?: string; filename?: string }) => Promise<boolean>
   writeTextToClipboard: (opts?: { text?: string }) => Promise<boolean>

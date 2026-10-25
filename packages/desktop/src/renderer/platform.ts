@@ -117,6 +117,18 @@ export function createPlatform(): Platform {
       return handleWslPicker(result)
     },
 
+    async readLocalFileText(filePath) {
+      return window.api.readLocalFileText(filePath)
+    },
+
+    async readLocalFileBase64(filePath) {
+      return window.api.readLocalFileBase64(filePath)
+    },
+
+    async writeLocalFileText(filePath, content) {
+      return window.api.writeLocalFileText(filePath, content)
+    },
+
     async saveFilePickerDialog(opts) {
       const result = await window.api.saveFilePicker({
         title: opts?.title ?? t("desktop.dialog.saveFile"),

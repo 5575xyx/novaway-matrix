@@ -2401,7 +2401,7 @@ export default function Layout(props: ParentProps) {
         <div class="flex shrink-0 flex-col gap-1 px-2 pb-2">
           {/* 模式切换从 footer 提到顶部：它是全局作用域最重的选择（决定整个工作台的能力面），
               沉在底部会被当成和「主题 / 设置」同级的小设置。这里用大字号 + 模式色底板呈现。 */}
-          <ModeSwitchButton prominent onSelect={(mode) => { if (mode.id === "pulse") navigate("/pulse"); layout.mode.select(mode.id) }} />
+          <ModeSwitchButton prominent onSelect={(mode) => layout.mode.select(mode.id)} />
           <Button
             variant="primary"
             size="large"
@@ -2549,11 +2549,6 @@ export default function Layout(props: ParentProps) {
                     const toggleExpand = () => {
                       setStore("projectExpanded", proj.worktree, !isExpanded())
                     }
-                    // 项目名/文件夹图标入口打开该项目的文件树 slide-over（对齐 ZCode：文件树从侧栏滑入）。
-                    const openTree = () => {
-                      navigateToProject(proj.worktree)
-                      layout.sidebarView.set("tree")
-                    }
                     return (
                       <div class="mt-1">
                         <div
@@ -2572,11 +2567,17 @@ export default function Layout(props: ParentProps) {
                           >
                             <Icon name={isExpanded() ? "chevron-down" : "chevron-right"} size="small" />
                           </button>
+                          {/* 点名字 = 切到该项目（跳到它最近的任务）并顺带展开分组；
+                              展开态仍由左侧箭头单独控制，两个热区语义分开 ——
+                              此前整行只做展开/收起，导致必须先点进项目下任意会话才能切过去。 */}
                           <button
                             type="button"
                             class="flex min-w-0 flex-1 items-center gap-1.5 text-left"
-                            aria-label={language.t("sidebar.view.files")}
-                            onClick={openTree}
+                            aria-label={projectName()}
+                            onClick={() => {
+                              if (!isExpanded()) toggleExpand()
+                              void openProject(proj.worktree)
+                            }}
                           >
                             <Icon name="folder" size="small" class="shrink-0 text-foreground-subtle" />
                             <Show when={layout.pinned.project(proj.worktree)}>
@@ -2736,6 +2737,23 @@ export default function Layout(props: ParentProps) {
   const projects = () => layout.projects.list()
   const isPulseMode = createMemo(() => layout.mode.current() === "pulse")
   const showSidebar = createMemo(() => !isPulseMode())
+
+  // 切到运营模式必须真正跳到 /pulse,与入口无关。之前 navigate 写在侧栏下拉的
+  // onSelect 里,同步跳转紧跟的 mode.select 会把侧栏(连同下拉组件)一起卸载,
+  // 桌面端实测这条同步 navigate 会被吞掉 —— 表现为侧栏收起了却停在会话页。
+  // 用 effect 把「模式=运营 ⇔ 路由=/pulse」变成不变式;首页的 <Navigate> 与它
+  // 目标一致,路由器对同目标跳转天然去重,不会互相打架。
+  createEffect(
+    on(
+      () => layout.mode.current(),
+      (mode) => {
+        if (mode !== "pulse") return
+        if (location.pathname.startsWith("/pulse")) return
+        navigate("/pulse")
+      },
+      { defer: true },
+    ),
+  )
 
   // 应用内前进/后退历史。原来由全局标题栏承载的两个导航按钮随标题栏移除，逻辑挪到外壳层，
   // 只保留命令入口（command.register 里的 common.goBack / common.goForward）。

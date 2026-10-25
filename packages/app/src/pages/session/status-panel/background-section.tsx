@@ -170,7 +170,7 @@ export function useBackgroundSection(
       id: "background",
       title: language.t("statusPanel.background.title"),
       summary: <span class="tabular-nums">{backgroundJobStat(remaining(), store.now)}</span>,
-      defaultOpen: true,
+      defaultOpen: false,
       children: (
         <div class="flex flex-col gap-0.5 pb-1">
           <For each={visible()}>
