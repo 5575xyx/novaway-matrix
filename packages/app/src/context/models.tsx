@@ -15,8 +15,6 @@ type Store = {
   user: User[]
   recent: ModelKey[]
   variant?: Record<string, string | undefined>
-  autoMode: boolean
-  lastManual?: ModelKey
 }
 
 const RECENT_LIMIT = 5
@@ -36,17 +34,17 @@ export const { use: useModels, provider: ModelsProvider } = createSimpleContext(
         user: [],
         recent: [],
         variant: {},
-        autoMode: true,
-        lastManual: undefined,
       }),
     )
 
     const available = createMemo(() =>
       providers.connected().flatMap((p) =>
-        Object.values(p.models).map((m) => ({
-          ...m,
-          provider: p,
-        })),
+        Object.values(p.models)
+          .filter((m) => !isAutoModel(p.id, m.id))
+          .map((m) => ({
+            ...m,
+            provider: p,
+          })),
       ),
     )
 
@@ -149,24 +147,11 @@ export const { use: useModels, provider: ModelsProvider } = createSimpleContext(
       setStore("variant", key, value)
     }
 
-    const autoMode = createMemo(() => store.autoMode)
-
-    const setAutoMode = (value: boolean) => {
-      if (value) {
-        // 开启 Auto:记住当前手动模型(recent 按时间排序,取第一个非 auto 项)
-        const manual = store.recent.find((item) => !isAutoModel(item.providerID, item.modelID))
-        if (manual) setStore("lastManual", { ...manual })
-      } else {
-        // 关闭 Auto:恢复上次手动模型到最近使用首位,让 fallback 链第一个命中它
-        const manual = store.lastManual
-        if (manual && !isAutoModel(manual.providerID, manual.modelID)) {
-          const uniq = uniqueBy([manual, ...store.recent], (x) => `${x.providerID}:${x.modelID}`)
-          if (uniq.length > RECENT_LIMIT) uniq.pop()
-          setStore("recent", uniq)
-        }
-      }
-      setStore("autoMode", value)
-    }
+    const autoMode = createMemo(() => false)
+    // Auto mode was removed: the gateway picked an opaque model that defeated
+    // per-model prompt selection, context budgeting, and cache tuning. Keep the
+    // accessor (always false) so existing UI branches render the manual picker.
+    const setAutoMode = (_value: boolean) => {}
 
     return {
       ready,

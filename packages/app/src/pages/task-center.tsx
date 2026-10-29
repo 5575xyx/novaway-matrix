@@ -53,9 +53,7 @@ export default function TaskCenterPage() {
       // 单键 `archived()[project.worktree]` 会漏掉落在 sandbox 里的归档任务。
       const sessions =
         tab === "archived"
-          ? projectDirs
-              .flatMap((dir) => archived()[dir] ?? [])
-              .filter((s) => !!s.time?.archived)
+          ? projectDirs.flatMap((dir) => archived()[dir] ?? []).filter((s) => !!s.time?.archived)
           : (() => {
               const roots = sortedRootSessionsFrom(projectStores, now)
               if (tab === "all") return roots
@@ -89,7 +87,7 @@ export default function TaskCenterPage() {
 
   const openNewTask = () => {
     if (firstProject()) navigate(`/${base64Encode(firstProject())}/session`)
-    else layout.projectPicker.show()
+    else command.trigger("project.open")
   }
 
   const handleTabChange = (id: TaskFilterBarId) => {
@@ -115,7 +113,7 @@ export default function TaskCenterPage() {
           <Button variant="primary" size="normal" onClick={openNewTask}>
             {language.t("taskCenter.newTask")}
           </Button>
-          <Button variant="secondary" size="normal" onClick={() => layout.projectPicker.show()}>
+          <Button variant="secondary" size="normal" onClick={() => command.trigger("project.open")}>
             {language.t("taskCenter.openProject")}
           </Button>
         </div>
@@ -192,7 +190,7 @@ export default function TaskCenterPage() {
           <button
             type="button"
             class="rounded-lg border border-dashed border-border-hover px-4 py-3 text-ui-caption text-foreground-subtle hover:text-foreground hover:border-primary cursor-pointer flex items-center gap-2 transition-colors"
-            onClick={() => layout.projectPicker.show()}
+            onClick={() => command.trigger("project.open")}
           >
             <Icon name="plus" size="small" class="shrink-0" />
             <span>{language.t("taskCenter.fromProject")}</span>

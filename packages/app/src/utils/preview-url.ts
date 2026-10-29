@@ -37,6 +37,17 @@ export function normalizePreviewUrl(input: string): string | undefined {
   return parsePreviewUrl(`file:///${path.startsWith("/") ? path.slice(1) : path}`)?.toString()
 }
 
+/** 本地地址（file 协议或回环主机）：验证类导航只镜像这些，外部站点不抢预览标签。 */
+export function isLocalPreviewUrl(input: string): boolean {
+  try {
+    const url = new URL(input)
+    if (url.protocol === "file:") return true
+    return ["localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]"].includes(url.hostname)
+  } catch {
+    return false
+  }
+}
+
 /** 预览地址是 file:// 时取回本机绝对路径：元素选取要把选中的元素挂到这个文件上 */
 export function previewFilePath(input: string): string | undefined {
   // 必须形态完整：file:bad 这类残缺输入会被 URL 解析成垃圾路径

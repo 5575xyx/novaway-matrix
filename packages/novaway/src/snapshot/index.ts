@@ -204,13 +204,30 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
             return (yield* config.get()).snapshot !== false
           })
 
+          // `sync` runs on every add(). Spawning `git rev-parse` to locate the
+          // project's exclude file is the expensive part and never changes for
+          // a given worktree, so resolve it once. The file contents are still
+          // re-read every time: the user may edit `.git/info/exclude` between
+          // snapshots and that must take effect immediately.
+          let excludeTarget: string | undefined
+
+          // Tree hash of the current index. Reused when add() reports no
+          // change, so a read-only step costs two listings instead of a full
+          // add+write-tree cycle. Cleared whenever anything stages into or
+          // rewrites the index, so a stale hash can never leak out.
+          let tree: string | undefined
+
           const excludes = Effect.fnUntraced(function* () {
+            if (excludeTarget !== undefined) return excludeTarget || undefined
             const result = yield* git(["rev-parse", "--path-format=absolute", "--git-path", "info/exclude"], {
               cwd: state.worktree,
             })
             const file = result.text.trim()
-            if (!file) return
-            if (!(yield* exists(file))) return
+            if (!file || !(yield* exists(file))) {
+              excludeTarget = ""
+              return undefined
+            }
+            excludeTarget = file
             return file
           })
 
@@ -223,37 +240,53 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
             ]
               .filter(Boolean)
               .join("\n")
+            const next = text ? `${text}\n` : ""
             yield* fs.ensureDir(path.join(state.gitdir, "info")).pipe(Effect.orDie)
-            yield* fs.writeFileString(target, text ? `${text}\n` : "").pipe(Effect.orDie)
+            yield* fs.writeFileString(target, next).pipe(Effect.orDie)
           })
 
+          /** Stage every change since the previous snapshot. Returns whether the index moved. */
           const add = Effect.fnUntraced(function* () {
             yield* sync()
-            const [diff, other] = yield* Effect.all(
-              [
-                git([...quote, ...args(["diff-files", "--name-only", "-z", "--", "."])], {
-                  cwd: state.directory,
-                }),
-                git([...quote, ...args(["ls-files", "--others", "--exclude-standard", "-z", "--", "."])], {
-                  cwd: state.directory,
-                }),
-              ],
-              { concurrency: 2 },
+            // One `status` call gives us both modified-tracked and untracked
+            // files, halving the process spawns compared to diff-files +
+            // ls-files. The snapshot repo has no commits, so every file already
+            // in the index is reported as `A ` (added, worktree identical);
+            // those are skipped, otherwise each call would re-stage the whole
+            // tree.
+            const status = yield* git(
+              [...quote, ...args(["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", "."])],
+              { cwd: state.directory },
             )
-            if (diff.code !== 0 || other.code !== 0) {
+            if (status.code !== 0) {
               log.warn("failed to list snapshot files", {
-                diffCode: diff.code,
-                diffStderr: diff.stderr,
-                otherCode: other.code,
-                otherStderr: other.stderr,
+                code: status.code,
+                stderr: status.stderr,
               })
-              return
+              return true
             }
 
-            const tracked = diff.text.split("\0").filter(Boolean)
-            const untracked = other.text.split("\0").filter(Boolean)
+            const records = status.text.split("\0")
+            const tracked: string[] = []
+            const untracked: string[] = []
+            for (let i = 0; i < records.length; i++) {
+              const entry = records[i]!
+              if (entry.length < 4) continue
+              const x = entry[0]!
+              const y = entry[1]!
+              const file = entry.slice(3)
+              // Rename/copy records carry the original path in the next record.
+              if (x === "R" || x === "C" || y === "R" || y === "C") i++
+              if (x === "?" && y === "?") {
+                untracked.push(file)
+                continue
+              }
+              if (x === "A" && y === " ") continue
+              tracked.push(file)
+            }
+
             const all = Array.from(new Set([...tracked, ...untracked]))
-            if (!all.length) return
+            if (!all.length) return false
 
             const ignored = yield* ignore(all)
 
@@ -264,7 +297,7 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
             }
 
             const allow = all.filter((item) => !ignored.has(item))
-            if (!allow.length) return
+            if (!allow.length) return true
 
             const large = new Set(
               (yield* Effect.all(
@@ -286,7 +319,24 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
             const block = new Set(untracked.filter((item) => large.has(item)))
             yield* sync(Array.from(block))
             yield* stage(allow.filter((item) => !block.has(item)))
+            tree = undefined
+            return true
           })
+
+          const writeTree = Effect.fnUntraced(function* () {
+            const changed = yield* add()
+            if (!changed && tree !== undefined) return tree
+            const result = yield* git(args(["write-tree"]), { cwd: state.directory })
+            const hash = result.text.trim()
+            if (hash) tree = hash
+            return hash
+          })
+
+          /** Drop the cached hash after an operation rewrites the index directly. */
+          const invalidateTree = () => {
+            tree = undefined
+          }
+
 
           const cleanup = Effect.fnUntraced(function* () {
             return yield* locked(
@@ -322,9 +372,8 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
                   yield* git(["--git-dir", state.gitdir, "config", "core.fsmonitor", "false"])
                   log.info("initialized")
                 }
-                yield* add()
-                const result = yield* git(args(["write-tree"]), { cwd: state.directory })
-                const hash = result.text.trim()
+                yield* writeTree()
+                const hash = tree ?? ""
                 log.info("tracking", { hash, cwd: state.directory, git: state.gitdir })
                 return hash
               }),
@@ -367,6 +416,7 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
             return yield* locked(
               Effect.gen(function* () {
                 log.info("restore", { commit: snapshot })
+                invalidateTree()
                 const result = yield* git([...core, ...args(["read-tree", snapshot])], { cwd: state.worktree })
                 if (result.code === 0) {
                   const checkout = yield* git([...core, ...args(["checkout-index", "-a", "-f"])], {
@@ -392,6 +442,7 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
           const revert = Effect.fnUntraced(function* (patches: Patch[]) {
             return yield* locked(
               Effect.gen(function* () {
+                invalidateTree()
                 const ops: { hash: string; file: string; rel: string }[] = []
                 const seen = new Set<string>()
                 for (const item of patches) {
@@ -753,9 +804,8 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
                 yield* git(["--git-dir", state.gitdir, "config", "core.fsmonitor", "false"])
                 log.info("initialized")
               }
-              yield* add()
-              const result = yield* git(args(["write-tree"]), { cwd: state.directory })
-              const hash = result.text.trim()
+              yield* writeTree()
+              const hash = tree ?? ""
               log.info("captured", { hash })
               return ID.make(hash)
             }).pipe(
@@ -808,6 +858,7 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
           const restore = Effect.fn("Snapshot.restore")(function* (input: RestoreInput) {
             if (!(yield* enabled()))
               return yield* new Error({ operation: "restore", message: "Snapshots are disabled" })
+            invalidateTree()
             for (const [file, snapshot] of input.files) {
               yield* git([...core, ...args(["checkout", snapshot, "--", file])], {
                 cwd: state.worktree,
@@ -818,6 +869,7 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
           const checkout = Effect.fn("Snapshot.checkout")(function* (snapshot: string) {
             if (!(yield* enabled()))
               return yield* new Error({ operation: "restore", message: "Snapshots are disabled" })
+            invalidateTree()
             const result = yield* git([...core, ...args(["read-tree", snapshot])], { cwd: state.worktree })
             if (result.code !== 0) return yield* new Error({ operation: "restore", message: "Failed to read tree" })
             yield* git([...core, ...args(["checkout-index", "--all", "--force"])], { cwd: state.worktree })

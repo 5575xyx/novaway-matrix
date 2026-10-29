@@ -2,7 +2,11 @@ import { describe, expect } from "bun:test"
 import { Effect, Layer } from "effect"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import { CrossSpawnSpawner } from "@novaway/core/cross-spawn-spawner"
-import { Service as BackgroundService, defaultLayer as BackgroundLayer, type Interface as BackgroundInterface } from "@/background/job"
+import {
+  Service as BackgroundService,
+  defaultLayer as BackgroundLayer,
+  type Interface as BackgroundInterface,
+} from "@/background/job"
 import { startMonitor } from "@/background/watchers"
 import type { SessionID } from "@/session/schema"
 import { pollWithTimeout, testEffect } from "../lib/effect"

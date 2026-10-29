@@ -106,6 +106,7 @@ describe("tool.grep", () => {
         {
           pattern: "line2",
           path: file,
+          output_mode: "content",
         },
         ctx,
       )

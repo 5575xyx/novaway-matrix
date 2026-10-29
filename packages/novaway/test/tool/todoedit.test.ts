@@ -8,7 +8,7 @@ import { MessageID, SessionID } from "../../src/session/schema"
 import { SessionTable } from "../../src/session/session.sql"
 import { Database } from "../../src/storage/db"
 import { Tool } from "../../src/tool/tool"
-import { TodoEditTool } from "../../src/tool/todo"
+import { TodoEditTool, TodoWriteTool } from "../../src/tool/todo"
 import { Truncate } from "../../src/tool/truncate"
 import { testEffect } from "../lib/effect"
 
@@ -46,6 +46,13 @@ const call = (args: unknown, sessionID: SessionID) =>
     const def = yield* Tool.init(yield* TodoEditTool)
     const execute = def.execute as unknown as (args: unknown, context: Tool.Context) => Effect.Effect<ToolResult>
     return yield* execute(args, ctx(sessionID))
+  })
+
+const callWrite = (todos: unknown[], sessionID: SessionID) =>
+  Effect.gen(function* () {
+    const def = yield* Tool.init(yield* TodoWriteTool)
+    const execute = def.execute as unknown as (args: unknown, context: Tool.Context) => Effect.Effect<ToolResult>
+    return yield* execute({ todos }, ctx(sessionID))
   })
 
 const seed = (sessionID: SessionID, items: Array<{ content: string; status?: string; priority?: string }>) =>
@@ -218,6 +225,57 @@ describe("todoedit", () => {
       expect(result.output).toContain("0. [x] a")
       expect(result.output).toContain("1. [x] b")
       expect(result.output).toContain("2. [-] c")
+    }),
+  )
+
+  it.instance("drops the list when the last item completes", () =>
+    Effect.gen(function* () {
+      const sessionID = freshSession()
+      yield* seed(sessionID, [
+        { content: "a", status: "completed" },
+        { content: "b" },
+      ])
+
+      const result = yield* call({ action: "complete", position: 1 }, sessionID)
+
+      expect(result.output).toContain("2/2 completed")
+      expect(result.output).toContain("the checklist was cleared")
+      expect(result.metadata.todos).toEqual([])
+      expect(yield* rows(sessionID)).toEqual([])
+    }),
+  )
+})
+
+describe("todowrite", () => {
+  it.instance("clears the checklist once every item is completed", () =>
+    Effect.gen(function* () {
+      const sessionID = freshSession()
+      const result = yield* callWrite(
+        [
+          { content: "a", status: "completed", priority: "medium" },
+          { content: "b", status: "completed", priority: "medium" },
+        ],
+        sessionID,
+      )
+
+      expect(result.title).toBe("0 todos")
+      expect(result.metadata.todos).toEqual([])
+      expect(yield* rows(sessionID)).toEqual([])
+    }),
+  )
+
+  it.instance("keeps a list that still has open or cancelled items", () =>
+    Effect.gen(function* () {
+      const sessionID = freshSession()
+      yield* callWrite(
+        [
+          { content: "a", status: "completed", priority: "medium" },
+          { content: "b", status: "cancelled", priority: "medium" },
+        ],
+        sessionID,
+      )
+
+      expect((yield* rows(sessionID)).map((row) => row.status)).toEqual(["completed", "cancelled"])
     }),
   )
 })

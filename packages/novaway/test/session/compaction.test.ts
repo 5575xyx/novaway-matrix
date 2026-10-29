@@ -9,7 +9,7 @@ import { Image } from "@/image/image"
 import { Agent } from "../../src/agent/agent"
 import { LLM } from "../../src/session/llm"
 import { SessionCompaction } from "../../src/session/compaction"
-import { contextBudget, pendingTokens } from "../../src/session/overflow"
+import { contextBudget, isOverflow, pendingTokens } from "../../src/session/overflow"
 import { Token } from "@/util/token"
 import * as Log from "@novaway/core/util/log"
 import { Permission } from "../../src/permission"
@@ -34,6 +34,8 @@ import { RuntimeFlags } from "@/effect/runtime-flags"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { Memory } from "@/memory/service"
 import { defaultLayer as HookLayer } from "@/hook/service"
+import { ReadState } from "@/tool/read-state"
+import { SessionMemoryNotes } from "../../src/session/memory-notes"
 
 void Log.init({ print: false })
 
@@ -287,11 +289,16 @@ function compactionProcessLayer(options?: CompactionProcessOptions) {
       )
     : layer(options?.result ?? "continue")
   return Layer.mergeAll(
-    SessionCompaction.layer.pipe(Layer.provide(processor), Layer.provide(Memory.defaultLayer)),
+    SessionCompaction.layer.pipe(
+      Layer.provide(processor),
+      Layer.provide(Memory.defaultLayer),
+      Layer.provide(ReadState.defaultLayer),
+    ),
     processor,
     bus,
     status,
     Memory.defaultLayer,
+    ReadState.defaultLayer,
   ).pipe(
     Layer.provide(SessionNs.defaultLayer),
     Layer.provide((options?.provider ?? wide()).layer),
@@ -707,6 +714,47 @@ describe("session.overflow.contextBudget", () => {
     expect(budget.threshold).toBe(147_000)
     expect(budget.blocking).toBe(157_000)
   })
+
+  test("honours a custom absolute threshold", () => {
+    const model = createModel({ context: 128_000, output: 32_000 })
+    const budget = contextBudget({ cfg: config({ threshold: 60_000 }), model, tokens: 57_000 })
+    expect(budget.threshold).toBe(60_000)
+    expect(budget.warning).toBe(40_000)
+    expect(budget.percentLeft).toBe(5)
+  })
+
+  test("honours a custom percentage threshold", () => {
+    const model = createModel({ context: 128_000, output: 32_000 })
+    // 60% of the 108k effective window.
+    expect(contextBudget({ cfg: config({ threshold_percent: 60 }), model }).threshold).toBe(64_800)
+  })
+
+  test("threshold takes precedence over threshold_percent", () => {
+    const model = createModel({ context: 128_000, output: 32_000 })
+    const budget = contextBudget({ cfg: config({ threshold: 70_000, threshold_percent: 50 }), model })
+    expect(budget.threshold).toBe(70_000)
+  })
+
+  test("clamps a threshold past the blocking limit", () => {
+    const model = createModel({ context: 128_000, output: 32_000 })
+    // Compacting at/above the blocking limit would reject requests before the
+    // threshold is ever reached, so it is capped at effective - 3k.
+    expect(contextBudget({ cfg: config({ threshold: 200_000 }), model }).threshold).toBe(105_000)
+    expect(contextBudget({ cfg: config({ threshold_percent: 100 }), model }).threshold).toBe(105_000)
+  })
+
+  test("a custom threshold still yields to auto compaction being disabled", () => {
+    const model = createModel({ context: 128_000, output: 32_000 })
+    expect(contextBudget({ cfg: config({ auto: false, threshold: 60_000 }), model }).threshold).toBe(108_000)
+  })
+
+  test("isOverflow uses the configured threshold", () => {
+    const model = createModel({ context: 128_000, output: 32_000 })
+    const tokens = { total: 60_000, input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } }
+    expect(isOverflow({ cfg: config(), tokens, model })).toBe(false)
+    expect(isOverflow({ cfg: config({ threshold: 60_000 }), tokens, model })).toBe(true)
+    expect(isOverflow({ cfg: config({ threshold_percent: 50 }), tokens, model })).toBe(true)
+  })
 })
 
 describe("session.compaction.create", () => {
@@ -997,6 +1045,77 @@ describe("session.compaction.process", () => {
       expect(result).toBe("continue")
       expect(seen).toBe(true)
     }),
+  )
+
+  itCompaction.instance(
+    "forgets read state for files that compaction dropped from context",
+    () => {
+      const stub = llm()
+      stub.push(reply("summary one"))
+
+      const readPart = (sessionID: SessionID, messageID: MessageID, file: string) => ({
+        id: PartID.ascending(),
+        messageID,
+        sessionID,
+        type: "tool" as const,
+        callID: crypto.randomUUID(),
+        tool: "read",
+        state: {
+          status: "completed" as const,
+          input: { filePath: file },
+          output: "content\n",
+          title: file,
+          metadata: {},
+          time: { start: Date.now(), end: Date.now() },
+        },
+      })
+
+      return Effect.gen(function* () {
+        const test = yield* TestInstance
+        const ssn = yield* SessionNs.Service
+        const readState = yield* ReadState.Service
+        const session = yield* ssn.create({})
+        const dropped = path.join(test.directory, "dropped.ts")
+        const kept = path.join(test.directory, "kept.ts")
+        yield* Effect.promise(() => Promise.all([Bun.write(dropped, "dropped\n"), Bun.write(kept, "kept\n")]))
+
+        // Turn 1: a read that compaction is about to summarize away.
+        const first = yield* createUserMessage(session.id, "first task")
+        const firstReply = yield* createAssistantMessage(session.id, first.id, test.directory)
+        yield* ssn.updatePart(readPart(session.id, firstReply.id, dropped))
+
+        yield* createUserMessage(session.id, "second task")
+        yield* createAssistantMessage(
+          session.id,
+          (yield* ssn.messages({ sessionID: session.id })).at(-1)!.info.id,
+          test.directory,
+        )
+
+        // Turn 3: a read that survives in the retained tail.
+        const last = yield* createUserMessage(session.id, "third task")
+        const lastReply = yield* createAssistantMessage(session.id, last.id, test.directory)
+        yield* ssn.updatePart(readPart(session.id, lastReply.id, kept))
+
+        const entry = { timestamp: Date.now(), mtime: 1, size: 8, partial: false, offset: 1, limit: 2000 }
+        yield* readState.record(session.id, dropped, entry)
+        yield* readState.record(session.id, kept, entry)
+
+        const msgs = yield* ssn.messages({ sessionID: session.id })
+        const result = yield* SessionCompaction.use.process({
+          parentID: last.id,
+          messages: msgs,
+          sessionID: session.id,
+          auto: false,
+        })
+
+        expect(result).toBe("continue")
+        // The earlier read is no longer in context, so a "file unchanged" stub
+        // would point at content the model cannot see.
+        expect(yield* readState.get(session.id, dropped)).toBeUndefined()
+        expect(yield* readState.get(session.id, kept)).toBeDefined()
+      }).pipe(withCompaction({ llm: stub.layer }))
+    },
+    { git: true },
   )
 
   itCompaction.instance(
@@ -1810,9 +1929,7 @@ describe("session.compaction.process", () => {
         expect(summaries).toHaveLength(2)
         expect(summaries[0]?.info.error).toBeTruthy()
         expect(
-          summaries[1]?.parts.some(
-            (part) => part.type === "text" && part.text.includes("summary after retry"),
-          ),
+          summaries[1]?.parts.some((part) => part.type === "text" && part.text.includes("summary after retry")),
         ).toBe(true)
       }).pipe(withCompaction({ llm: stub.layer, config: cfg({ tail_turns: 0 }) }))
     },
@@ -1871,6 +1988,96 @@ describe("session.compaction.process", () => {
         if (attachment?.type !== "text") return
         expect(attachment.text).toContain(file)
         expect(attachment.text).toContain("important project notes")
+      }).pipe(withCompaction({ llm: stub.layer, config: cfg({ tail_turns: 0 }) }))
+    },
+    { git: true },
+  )
+
+  itCompaction.instance(
+    "re-attaches files touched by apply_patch (paths live in patchText)",
+    () => {
+      const stub = llm()
+      stub.push(reply("summary"))
+      return Effect.gen(function* () {
+        const ssn = yield* SessionNs.Service
+        const test = yield* TestInstance
+        const session = yield* ssn.create({})
+        const file = path.join(test.directory, "patched.txt")
+        yield* Effect.promise(() => Bun.write(file, "patched project notes"))
+
+        const user = yield* createUserMessage(session.id, "patch the notes")
+        const assistant = yield* createAssistantMessage(session.id, user.id, test.directory)
+        yield* ssn.updatePart({
+          id: PartID.ascending(),
+          messageID: assistant.id,
+          sessionID: session.id,
+          type: "tool",
+          callID: "call-patch",
+          tool: "apply_patch",
+          state: {
+            status: "completed",
+            // Relative hunk paths: they must resolve against the session directory.
+            input: { patchText: "*** Begin Patch\n*** Update File: patched.txt\n@@\n-a\n+b\n*** End Patch" },
+            output: "Success. Updated the following files:\nM patched.txt",
+            title: "M patched.txt",
+            metadata: {},
+            time: { start: Date.now(), end: Date.now() },
+          },
+        })
+        yield* createCompactionMarker(session.id)
+
+        const msgs = yield* ssn.messages({ sessionID: session.id })
+        const parent = msgs.at(-1)?.info.id
+        expect(parent).toBeTruthy()
+        const result = yield* SessionCompaction.use.process({
+          parentID: parent!,
+          messages: msgs,
+          sessionID: session.id,
+          auto: false,
+        })
+        expect(result).toBe("continue")
+
+        const summary = (yield* ssn.messages({ sessionID: session.id })).find(
+          (message): message is MessageV2.WithParts & { info: MessageV2.Assistant } =>
+            message.info.role === "assistant" && message.info.summary === true,
+        )
+        const attachment = summary?.parts.find((part) => part.type === "text" && part.synthetic)
+        expect(attachment?.type).toBe("text")
+        if (attachment?.type !== "text") return
+        expect(attachment.text).toContain("patched project notes")
+      }).pipe(withCompaction({ llm: stub.layer, config: cfg({ tail_turns: 0 }) }))
+    },
+    { git: true },
+  )
+
+  itCompaction.instance(
+    "passes /compact instructions to the summarizer",
+    () => {
+      const stub = llm()
+      let captured = ""
+      stub.push(reply("summary", (input) => (captured = JSON.stringify(input.messages))))
+      return Effect.gen(function* () {
+        const ssn = yield* SessionNs.Service
+        const session = yield* ssn.create({})
+        yield* createUserMessage(session.id, "first")
+        yield* createUserMessage(session.id, "second")
+        yield* SessionCompaction.use.create({
+          sessionID: session.id,
+          agent: "build",
+          model: ref,
+          auto: false,
+          instructions: "keep the API changes, drop the log noise",
+        })
+
+        const msgs = yield* ssn.messages({ sessionID: session.id })
+        const parent = msgs.at(-1)?.info.id
+        expect(parent).toBeTruthy()
+        yield* SessionCompaction.use.process({ parentID: parent!, messages: msgs, sessionID: session.id, auto: false })
+
+        const part = yield* readCompactionPart(session.id)
+        expect(part?.instructions).toBe("keep the API changes, drop the log noise")
+        expect(captured).toContain("keep the API changes, drop the log noise")
+        expect(captured).toContain("Additional instructions from the user")
       }).pipe(withCompaction({ llm: stub.layer, config: cfg({ tail_turns: 0 }) }))
     },
     { git: true },
@@ -2303,4 +2510,120 @@ describe("SessionNs.getUsage", () => {
     expect(result.tokens.cache.read).toBe(200)
     expect(result.tokens.cache.write).toBe(300)
   })
+})
+
+describe("session.compaction session memory", () => {
+  itCompaction.instance(
+    "summarizes from session notes without calling the summary model",
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      const ssn = yield* SessionNs.Service
+      SessionMemoryNotes.setDataDir(test.directory)
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => {
+          SessionMemoryNotes.setDataDir(undefined)
+          SessionMemoryNotes.reset()
+        }),
+      )
+      const session = yield* ssn.create({})
+
+      let anchor: MessageID | undefined
+      let firstKept: MessageID | undefined
+      for (let index = 0; index < 8; index++) {
+        const user = yield* createUserMessage(session.id, `task ${index} ` + "a".repeat(6_000))
+        const reply = yield* createAssistantMessage(session.id, user.id, test.directory)
+        yield* ssn.updatePart({
+          id: PartID.ascending(),
+          messageID: reply.id,
+          sessionID: session.id,
+          type: "text",
+          text: "b".repeat(6_000),
+        })
+        if (index === 3) anchor = reply.id
+        if (index === 4) firstKept = user.id
+      }
+      expect(anchor).toBeDefined()
+      expect(firstKept).toBeDefined()
+
+      yield* Effect.promise(() =>
+        SessionMemoryNotes.write(
+          session.id,
+          [
+            "# Session Title",
+            "_title_",
+            "",
+            "# Current State",
+            "_state_",
+            "Working through the shell tool refactor.",
+            "",
+          ].join("\n"),
+        ),
+      )
+      SessionMemoryNotes.setLastSummarizedMessage(session.id, anchor!)
+
+      yield* createSummaryCompaction(session.id)
+      const msgs = yield* ssn.messages({ sessionID: session.id })
+      const parent = msgs.at(-1)!
+      expect(parent.info.role).toBe("user")
+
+      const result = yield* SessionCompaction.use.process({
+        parentID: parent.info.id,
+        messages: msgs,
+        sessionID: session.id,
+        auto: false,
+      })
+
+      // "compact" 是摘要模型返回"仍然超限"的信号；走到这里说明根本没有调用模型。
+      expect(result).toBe("continue")
+      const after = yield* ssn.messages({ sessionID: session.id })
+      const summary = after.find(
+        (item) => item.info.role === "assistant" && item.info.summary && item.info.parentID === parent.info.id,
+      )
+      expect(summary?.info.role).toBe("assistant")
+      const text = summary?.parts.find((part) => part.type === "text")?.type === "text"
+        ? (summary.parts.find((part) => part.type === "text") as MessageV2.TextPart).text
+        : ""
+      expect(text).toContain("Working through the shell tool refactor.")
+      expect(text).toContain("Recent messages are preserved verbatim.")
+
+      const part = yield* readCompactionPart(session.id)
+      expect(part?.tail_start_id).toBe(firstKept!)
+    }).pipe(withCompaction({ result: "compact" })),
+    { git: true },
+  )
+
+  itCompaction.instance(
+    "falls back to the summary model when the notes are only a template",
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      const ssn = yield* SessionNs.Service
+      SessionMemoryNotes.setDataDir(test.directory)
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => {
+          SessionMemoryNotes.setDataDir(undefined)
+          SessionMemoryNotes.reset()
+        }),
+      )
+      const session = yield* ssn.create({})
+      const user = yield* createUserMessage(session.id, "hello")
+      yield* createAssistantMessage(session.id, user.id, test.directory)
+      yield* Effect.promise(() => SessionMemoryNotes.write(session.id, SessionMemoryNotes.TEMPLATE))
+      SessionMemoryNotes.setLastSummarizedMessage(session.id, user.id)
+
+      yield* createSummaryCompaction(session.id)
+      const msgs = yield* ssn.messages({ sessionID: session.id })
+      const parent = msgs.at(-1)!
+
+      const result = yield* SessionCompaction.use.process({
+        parentID: parent.info.id,
+        messages: msgs,
+        sessionID: session.id,
+        auto: false,
+      })
+
+      // 常规路径：摘要模型返回 "compact" → 标记失败并停止。
+      expect(result).toBe("stop")
+    }).pipe(withCompaction({ result: "compact" })),
+    { git: true },
+  )
 })

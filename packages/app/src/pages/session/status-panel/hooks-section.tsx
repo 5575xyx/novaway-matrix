@@ -85,7 +85,7 @@ export function useHooksSection(sessionID: () => string): () => StatusPanelSecti
           <For each={hooks()}>
             {(hook) => (
               <div class="flex min-w-0 items-start gap-2 rounded-lg px-2 py-1.5">
-                <Icon name="prompt" size="small" class="mt-0.5 shrink-0 animate-pulse text-foreground" />
+                <Icon name="prompt" size="small" class="mt-0.5 shrink-0 novaway-breathe text-foreground" />
                 <div class="min-w-0 flex-1">
                   <div class="flex min-w-0 items-center gap-2">
                     <span class="min-w-0 flex-1 truncate text-ui-base text-foreground">{hook.message}</span>

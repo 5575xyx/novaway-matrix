@@ -108,6 +108,8 @@ beforeAll(async () => {
       enableAutoAccept(sessionID: string, directory: string) {
         enabledAutoAccept.push({ sessionID, directory })
       },
+      // 新会话提交后要清掉「待定档位」，submit.ts 会调用它；mock 里给个空实现。
+      consumePendingMode: () => undefined,
     }),
   }))
 

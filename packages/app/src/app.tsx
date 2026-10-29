@@ -1,3 +1,6 @@
+// Inter(拉丁)+ Noto Sans SC(中文,思源黑体)可变字体,打包进产品保证三端一致。
+import "@fontsource-variable/inter"
+import "@fontsource-variable/noto-sans-sc"
 import "@/index.css"
 import * as Sentry from "@sentry/solid"
 import { I18nProvider } from "@novaway/ui/context"
@@ -57,7 +60,6 @@ const HomeRoute = lazy(() => import("@/pages/home"))
 const loadSession = () => import("@/pages/session")
 const Session = lazy(loadSession)
 const Loading = () => <div class="size-full bg-background" />
-const PulseLayout = lazy(() => import("@/pages/pulse/PulseLayout"))
 
 if (typeof location === "object" && /\/session(?:\/|$)/.test(location.pathname)) {
   void loadSession()
@@ -411,7 +413,7 @@ export function AppInterface(props: {
                   root={(routerProps) => <RouterRoot appChildren={props.children}>{routerProps.children}</RouterRoot>}
                 >
                   <Route path="/" component={HomeRoute} />
-                  <Route path="/pulse" component={PulseLayout} />
+                  <Route path="/pulse" component={() => <Navigate href="/" />} />
                   <Route path="/:dir" component={DirectoryLayout}>
                     <Route path="/" component={SessionIndexRoute} />
                     <Route path="/session/:id?" component={SessionRoute} />

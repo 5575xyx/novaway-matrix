@@ -9,6 +9,7 @@ import { Format } from "../../src/format"
 import { Agent } from "../../src/agent/agent"
 import { Bus } from "../../src/bus"
 import { Truncate } from "@/tool/truncate"
+import { ReadState } from "../../src/tool/read-state"
 import { TestInstance } from "../fixture/fixture"
 import { SessionID, MessageID } from "../../src/session/schema"
 import { testEffect } from "../lib/effect"
@@ -21,6 +22,7 @@ const it = testEffect(
     Bus.layer,
     Truncate.defaultLayer,
     Agent.defaultLayer,
+    ReadState.defaultLayer,
   ),
 )
 
@@ -78,6 +80,23 @@ const makeCtx = () => {
 
 const readText = (filepath: string) => Effect.promise(() => fs.readFile(filepath, "utf-8"))
 const writeText = (filepath: string, content: string) => Effect.promise(() => fs.writeFile(filepath, content, "utf-8"))
+
+/**
+ * Create a file and record it as read, mirroring the model's
+ * read-before-edit flow that apply_patch now enforces.
+ */
+const seed = (filepath: string, content: string) =>
+  Effect.gen(function* () {
+    yield* writeText(filepath, content)
+    const readState = yield* ReadState.Service
+    const info = yield* Effect.promise(() => fs.stat(filepath))
+    yield* readState.record(SessionID.make("ses_test"), filepath, {
+      timestamp: Date.now(),
+      mtime: info.mtime.getTime(),
+      size: info.size,
+      partial: false,
+    })
+  })
 const makeDir = (dir: string) => Effect.promise(() => fs.mkdir(dir, { recursive: true }))
 
 const expectFailure = <A, E, R>(effect: Effect.Effect<A, E, R>, message?: string) =>
@@ -119,8 +138,8 @@ describe("tool.apply_patch freeform", () => {
         const { ctx, calls } = makeCtx()
         const modifyPath = path.join(test.directory, "modify.txt")
         const deletePath = path.join(test.directory, "delete.txt")
-        yield* writeText(modifyPath, "line1\nline2\n")
-        yield* writeText(deletePath, "obsolete\n")
+        yield* seed(modifyPath, "line1\nline2\n")
+        yield* seed(deletePath, "obsolete\n")
 
         const patchText =
           "*** Begin Patch\n*** Add File: nested/new.txt\n+created\n*** Delete File: delete.txt\n*** Update File: modify.txt\n@@\n-line2\n+changed\n*** End Patch"
@@ -167,7 +186,7 @@ describe("tool.apply_patch freeform", () => {
         const { ctx, calls } = makeCtx()
         const original = path.join(test.directory, "old", "name.txt")
         yield* makeDir(path.dirname(original))
-        yield* writeText(original, "old content\n")
+        yield* seed(original, "old content\n")
 
         const patchText =
           "*** Begin Patch\n*** Update File: old/name.txt\n*** Move to: renamed/dir/name.txt\n@@\n-old content\n+new content\n*** End Patch"
@@ -193,7 +212,7 @@ describe("tool.apply_patch freeform", () => {
       const test = yield* TestInstance
       const { ctx } = makeCtx()
       const target = path.join(test.directory, "multi.txt")
-      yield* writeText(target, "line1\nline2\nline3\nline4\n")
+      yield* seed(target, "line1\nline2\nline3\nline4\n")
 
       const patchText =
         "*** Begin Patch\n*** Update File: multi.txt\n@@\n-line2\n+changed2\n@@\n-line4\n+changed4\n*** End Patch"
@@ -210,7 +229,7 @@ describe("tool.apply_patch freeform", () => {
       const { ctx, calls } = makeCtx()
       const bom = String.fromCharCode(0xfeff)
       const target = path.join(test.directory, "example.cs")
-      yield* writeText(target, `${bom}using System;\n\nclass Test {}\n`)
+      yield* seed(target, `${bom}using System;\n\nclass Test {}\n`)
 
       const patchText =
         "*** Begin Patch\n*** Update File: example.cs\n@@\n class Test {}\n+class Next {}\n*** End Patch"
@@ -234,7 +253,7 @@ describe("tool.apply_patch freeform", () => {
       const test = yield* TestInstance
       const { ctx } = makeCtx()
       const target = path.join(test.directory, "insert_only.txt")
-      yield* writeText(target, "alpha\nomega\n")
+      yield* seed(target, "alpha\nomega\n")
 
       const patchText = "*** Begin Patch\n*** Update File: insert_only.txt\n@@\n alpha\n+beta\n omega\n*** End Patch"
 
@@ -249,7 +268,7 @@ describe("tool.apply_patch freeform", () => {
       const test = yield* TestInstance
       const { ctx } = makeCtx()
       const target = path.join(test.directory, "no_newline.txt")
-      yield* writeText(target, "no newline at end")
+      yield* seed(target, "no newline at end")
 
       const patchText =
         "*** Begin Patch\n*** Update File: no_newline.txt\n@@\n-no newline at end\n+first line\n+second line\n*** End Patch"
@@ -268,7 +287,7 @@ describe("tool.apply_patch freeform", () => {
       const { ctx } = makeCtx()
       const original = path.join(test.directory, "old", "name.txt")
       yield* makeDir(path.dirname(original))
-      yield* writeText(original, "old content\n")
+      yield* seed(original, "old content\n")
 
       const patchText =
         "*** Begin Patch\n*** Update File: old/name.txt\n*** Move to: renamed/dir/name.txt\n@@\n-old content\n+new content\n*** End Patch"
@@ -289,8 +308,8 @@ describe("tool.apply_patch freeform", () => {
       const destination = path.join(test.directory, "renamed", "dir", "name.txt")
       yield* makeDir(path.dirname(original))
       yield* makeDir(path.dirname(destination))
-      yield* writeText(original, "from\n")
-      yield* writeText(destination, "existing\n")
+      yield* seed(original, "from\n")
+      yield* seed(destination, "existing\n")
 
       const patchText =
         "*** Begin Patch\n*** Update File: old/name.txt\n*** Move to: renamed/dir/name.txt\n@@\n-from\n+new\n*** End Patch"
@@ -307,7 +326,7 @@ describe("tool.apply_patch freeform", () => {
       const test = yield* TestInstance
       const { ctx } = makeCtx()
       const target = path.join(test.directory, "duplicate.txt")
-      yield* writeText(target, "old content\n")
+      yield* seed(target, "old content\n")
 
       const patchText = "*** Begin Patch\n*** Add File: duplicate.txt\n+new content\n*** End Patch"
 
@@ -364,7 +383,7 @@ describe("tool.apply_patch freeform", () => {
       const test = yield* TestInstance
       const { ctx } = makeCtx()
       const target = path.join(test.directory, "modify.txt")
-      yield* writeText(target, "line1\nline2\n")
+      yield* seed(target, "line1\nline2\n")
 
       const patchText = "*** Begin Patch\n*** Update File: modify.txt\n@@\n-missing\n+changed\n*** End Patch"
 
@@ -390,7 +409,7 @@ describe("tool.apply_patch freeform", () => {
       const test = yield* TestInstance
       const { ctx } = makeCtx()
       const target = path.join(test.directory, "tail.txt")
-      yield* writeText(target, "alpha\nlast\n")
+      yield* seed(target, "alpha\nlast\n")
 
       const patchText = "*** Begin Patch\n*** Update File: tail.txt\n@@\n-last\n+end\n*** End of File\n*** End Patch"
 
@@ -404,7 +423,7 @@ describe("tool.apply_patch freeform", () => {
       const test = yield* TestInstance
       const { ctx } = makeCtx()
       const target = path.join(test.directory, "two_chunks.txt")
-      yield* writeText(target, "a\nb\nc\nd\n")
+      yield* seed(target, "a\nb\nc\nd\n")
 
       const patchText = "*** Begin Patch\n*** Update File: two_chunks.txt\n@@\n-b\n+B\n\n-d\n+D\n*** End Patch"
 
@@ -418,7 +437,7 @@ describe("tool.apply_patch freeform", () => {
       const test = yield* TestInstance
       const { ctx } = makeCtx()
       const target = path.join(test.directory, "multi_ctx.txt")
-      yield* writeText(target, "fn a\nx=10\ny=2\nfn b\nx=10\ny=20\n")
+      yield* seed(target, "fn a\nx=10\ny=2\nfn b\nx=10\ny=20\n")
 
       const patchText = "*** Begin Patch\n*** Update File: multi_ctx.txt\n@@ fn b\n-x=10\n+x=11\n*** End Patch"
 
@@ -433,7 +452,7 @@ describe("tool.apply_patch freeform", () => {
       const { ctx } = makeCtx()
       const target = path.join(test.directory, "eof_anchor.txt")
       // File has duplicate "marker" lines - one in middle, one at end
-      yield* writeText(target, "start\nmarker\nmiddle\nmarker\nend\n")
+      yield* seed(target, "start\nmarker\nmiddle\nmarker\nend\n")
 
       // With EOF anchor, should match the LAST "marker" line, not the first
       const patchText =
@@ -483,7 +502,7 @@ EOF`
       const { ctx } = makeCtx()
       const target = path.join(test.directory, "trailing_ws.txt")
       // File has trailing spaces on some lines
-      yield* writeText(target, "line1  \nline2\nline3   \n")
+      yield* seed(target, "line1  \nline2\nline3   \n")
 
       // Patch doesn't have trailing spaces - should still match via rstrip pass
       const patchText = "*** Begin Patch\n*** Update File: trailing_ws.txt\n@@\n-line2\n+changed\n*** End Patch"
@@ -499,7 +518,7 @@ EOF`
       const { ctx } = makeCtx()
       const target = path.join(test.directory, "leading_ws.txt")
       // File has leading spaces
-      yield* writeText(target, "  line1\nline2\n  line3\n")
+      yield* seed(target, "  line1\nline2\n  line3\n")
 
       // Patch without leading spaces - should match via trim pass
       const patchText = "*** Begin Patch\n*** Update File: leading_ws.txt\n@@\n-line2\n+changed\n*** End Patch"
@@ -518,7 +537,7 @@ EOF`
       const leftQuote = "\u201C"
       const rightQuote = "\u201D"
       const emDash = "\u2014"
-      yield* writeText(target, `He said ${leftQuote}hello${rightQuote}\nsome${emDash}dash\nend\n`)
+      yield* seed(target, `He said ${leftQuote}hello${rightQuote}\nsome${emDash}dash\nend\n`)
 
       // Patch uses ASCII equivalents - should match via normalized pass
       // The replacement uses ASCII quotes from the patch (not preserving Unicode)
@@ -528,6 +547,87 @@ EOF`
       yield* execute({ patchText }, ctx)
       // Result has ASCII quotes because that's what the patch specifies
       expect(yield* readText(target)).toBe(`He said "hi"\nsome${emDash}dash\nend\n`)
+    }),
+  )
+
+  it.instance("rejects update when the file was never read", () =>
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      const { ctx } = makeCtx()
+      const target = path.join(test.directory, "unread.txt")
+      yield* writeText(target, "secret\n")
+
+      const patchText = "*** Begin Patch\n*** Update File: unread.txt\n@@\n-secret\n+guessed\n*** End Patch"
+
+      yield* expectFailure(execute({ patchText }, ctx), "File has not been read yet")
+      expect(yield* readText(target)).toBe("secret\n")
+    }),
+  )
+
+  it.instance("rejects update when the file changed since it was read", () =>
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      const { ctx } = makeCtx()
+      const target = path.join(test.directory, "stale.txt")
+      yield* seed(target, "line1\nline2\n")
+      // Someone else changed the file after the read.
+      yield* writeText(target, "line1\nline2 changed\n")
+      yield* Effect.promise(() => fs.utimes(target, new Date(), new Date(Date.now() + 5_000)))
+
+      const patchText = "*** Begin Patch\n*** Update File: stale.txt\n@@\n-line2\n+patched\n*** End Patch"
+
+      yield* expectFailure(execute({ patchText }, ctx), "File has been modified since it was last read")
+      expect(yield* readText(target)).toBe("line1\nline2 changed\n")
+    }),
+  )
+
+  it.instance("rejects delete when the file was never read", () =>
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      const { ctx } = makeCtx()
+      const target = path.join(test.directory, "unread_delete.txt")
+      yield* writeText(target, "keep me\n")
+
+      const patchText = "*** Begin Patch\n*** Delete File: unread_delete.txt\n*** End Patch"
+
+      yield* expectFailure(execute({ patchText }, ctx), "File has not been read yet")
+      expect(yield* readText(target)).toBe("keep me\n")
+    }),
+  )
+
+  it.instance("rejects add over a file that was never read", () =>
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      const { ctx } = makeCtx()
+      const target = path.join(test.directory, "unread_add.txt")
+      yield* writeText(target, "original\n")
+
+      const patchText = "*** Begin Patch\n*** Add File: unread_add.txt\n+replaced\n*** End Patch"
+
+      yield* expectFailure(execute({ patchText }, ctx), "File has not been read yet")
+      expect(yield* readText(target)).toBe("original\n")
+    }),
+  )
+
+  it.instance("applies a second patch without re-reading the file", () =>
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      const { ctx } = makeCtx()
+      const target = path.join(test.directory, "twice.txt")
+      yield* seed(target, "value = 1\n")
+
+      yield* execute(
+        { patchText: "*** Begin Patch\n*** Update File: twice.txt\n@@\n-value = 1\n+value = 2\n*** End Patch" },
+        ctx,
+      )
+      // The first patch recorded the post-write mtime, so the follow-up patch
+      // is not treated as touching unread/stale content.
+      yield* execute(
+        { patchText: "*** Begin Patch\n*** Update File: twice.txt\n@@\n-value = 2\n+value = 3\n*** End Patch" },
+        ctx,
+      )
+
+      expect(yield* readText(target)).toBe("value = 3\n")
     }),
   )
 })

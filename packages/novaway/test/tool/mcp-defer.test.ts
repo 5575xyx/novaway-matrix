@@ -7,8 +7,9 @@ describe("tool.mcp-defer", () => {
     expect(shouldDeferMcpTools({ schemaTokens: MCP_DEFER_THRESHOLD_TOKENS + 1 })).toBe(true)
   })
 
-  test("keeps small MCP tool sets eager", () => {
-    expect(shouldDeferMcpTools({ schemaTokens: MCP_DEFER_THRESHOLD_TOKENS - 1 })).toBe(false)
+  test("defers every MCP tool set by default", () => {
+    expect(shouldDeferMcpTools({ schemaTokens: 0 })).toBe(true)
+    expect(shouldDeferMcpTools({ schemaTokens: MCP_DEFER_THRESHOLD_TOKENS - 1 })).toBe(true)
   })
 
   test("explicit configuration wins over the size heuristic", () => {

@@ -59,7 +59,11 @@ export const PermissionModeSelect: Component<{
           aria-label={language.t("permission.mode.label")}
         >
           <Icon name={mode().icon} size="small" class={`shrink-0 ${TONE_TEXT[mode().tone]}`} />
-          <span class={`shrink-0 ${TONE_TEXT[mode().tone]}`} style={{ "font-weight": "var(--font-weight-semibold)" }}>
+          <span
+            data-slot="permission-mode-label"
+            class={`shrink-0 ${TONE_TEXT[mode().tone]}`}
+            style={{ "font-weight": "var(--font-weight-semibold)" }}
+          >
             {language.t(mode().titleKey as never)}
           </span>
           <Icon name="chevron-down" size="small" class="shrink-0 text-foreground-subtle" />

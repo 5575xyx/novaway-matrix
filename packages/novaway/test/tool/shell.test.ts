@@ -1,11 +1,11 @@
-import { describe, expect } from "bun:test"
+import { describe, expect, test } from "bun:test"
 import { Cause, Effect, Exit, Layer } from "effect"
 import type * as Scope from "effect/Scope"
 import os from "os"
 import path from "path"
 import { Config } from "@/config/config"
 import { Shell } from "../../src/shell/shell"
-import { ShellTool } from "../../src/tool/shell"
+import { looksLikeServer, ShellTool } from "../../src/tool/shell"
 import { Filesystem } from "@/util/filesystem"
 import { provideInstance, tmpdirScoped } from "../fixture/fixture"
 import type { Permission } from "../../src/permission"
@@ -370,6 +370,62 @@ describe("tool.shell permissions", () => {
               }),
             )
           }),
+        ),
+      )
+    }
+
+    for (const item of ps) {
+      it.live(`asks for external_directory permission for PowerShell write cmdlets [${item.label}]`, () =>
+        withShell(
+          item,
+          runIn(
+            projectRoot,
+            Effect.gen(function* () {
+              const err = new Error("stop after permission")
+              const requests: Array<Omit<Permission.Request, "id" | "sessionID" | "tool">> = []
+              const external = `${process.env.WINDIR!.replaceAll("\\", "/")}/win.ini`
+              expect(
+                yield* fail(
+                  {
+                    command: `Out-File -FilePath "${external}" -InputObject x`,
+                    description: "Write external file",
+                  },
+                  capture(requests, err),
+                ),
+              ).toMatchObject({ message: err.message })
+              const extDirReq = requests.find((r) => r.permission === "external_directory")
+              expect(extDirReq).toBeDefined()
+              expect(extDirReq!.patterns).toContain(glob(path.join(process.env.WINDIR!, "*")))
+            }),
+          ),
+        ),
+      )
+    }
+
+    for (const item of ps) {
+      it.live(`asks for external_directory permission for PowerShell archive cmdlets [${item.label}]`, () =>
+        withShell(
+          item,
+          runIn(
+            projectRoot,
+            Effect.gen(function* () {
+              const err = new Error("stop after permission")
+              const requests: Array<Omit<Permission.Request, "id" | "sessionID" | "tool">> = []
+              const external = `${process.env.WINDIR!.replaceAll("\\", "/")}/win.ini`
+              expect(
+                yield* fail(
+                  {
+                    command: `Expand-Archive -LiteralPath "${external}" -DestinationPath ./out`,
+                    description: "Extract external archive",
+                  },
+                  capture(requests, err),
+                ),
+              ).toMatchObject({ message: err.message })
+              const extDirReq = requests.find((r) => r.permission === "external_directory")
+              expect(extDirReq).toBeDefined()
+              expect(extDirReq!.patterns).toContain(glob(path.join(process.env.WINDIR!, "*")))
+            }),
+          ),
         ),
       )
     }
@@ -1124,6 +1180,8 @@ describe("tool.shell abort", () => {
           description: "Non-zero exit",
         })
         expect(result.metadata.exit).toBe(42)
+        // The model needs the failure in the output, not only in metadata.
+        expect(result.output).toContain("Exit code 42")
       }),
     ),
   )
@@ -1224,4 +1282,45 @@ describe("tool.shell truncation", () => {
       }),
     ),
   )
+})
+
+describe("tool.shell looksLikeServer", () => {
+  // 常驻服务命令即使没写 background 也要自动转后台，否则超时后产物卡片里
+  // 的"打开原型"链接就是死链。
+  const servers = [
+    "python -m http.server 8099",
+    "python3 -m http.server 8099",
+    "npx serve .",
+    "http-server -p 8099",
+    "npm run dev",
+    "pnpm dev",
+    "yarn start",
+    "bun run dev",
+    "vite",
+    "vite --port 5173",
+    "next dev",
+    "ng serve",
+    "php -S localhost:8000",
+    "uvicorn app:app",
+  ]
+  const oneShot = [
+    "echo started && sleep 60",
+    "vite build",
+    "npm run build",
+    "npm run test",
+    "python script.py",
+    "node server.js --once",
+  ]
+
+  for (const command of servers) {
+    test(`backgrounds ${command}`, () => {
+      expect(looksLikeServer(command)).toBe(true)
+    })
+  }
+
+  for (const command of oneShot) {
+    test(`keeps ${command} in the foreground`, () => {
+      expect(looksLikeServer(command)).toBe(false)
+    })
+  }
 })

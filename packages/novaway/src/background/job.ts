@@ -3,8 +3,10 @@ import { Database } from "@/storage/db"
 import { desc, eq } from "drizzle-orm"
 import { BackgroundJobTable } from "./job.sql"
 import { Identifier } from "@/id/id"
-import { Cause, Clock, Context, Deferred, Effect, Fiber, Layer, Scope, SynchronizedRef } from "effect"
+import { Cause, Clock, Context, Deferred, Effect, Fiber, Layer, Schema, Scope, SynchronizedRef } from "effect"
 import * as Log from "@novaway/core/util/log"
+import { Bus } from "@/bus"
+import { BusEvent } from "@/bus/bus-event"
 
 const log = Log.create({ service: "background.job" })
 
@@ -20,6 +22,25 @@ export type Info = {
   output?: string
   error?: string
   metadata?: Record<string, unknown>
+}
+
+/** Single source of truth for the Info shape — used by both Bus events and the HTTP schema. */
+export const InfoSchema = Schema.Struct({
+  id: Schema.String,
+  type: Schema.String,
+  title: Schema.optional(Schema.String),
+  status: Schema.Literals(["running", "completed", "error", "cancelled"]),
+  started_at: Schema.Number,
+  completed_at: Schema.optional(Schema.Number),
+  output: Schema.optional(Schema.String),
+  error: Schema.optional(Schema.String),
+  metadata: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+}).annotate({ identifier: "BackgroundJobInfo" })
+
+export const Event = {
+  Started: BusEvent.define("background.started", Schema.Struct({ info: InfoSchema })),
+  Updated: BusEvent.define("background.updated", Schema.Struct({ info: InfoSchema })),
+  Completed: BusEvent.define("background.completed", Schema.Struct({ info: InfoSchema })),
 }
 
 type Active = {
@@ -168,6 +189,7 @@ function runOutcome(value: string | RunOutcome): RunOutcome {
 export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
+    const bus = yield* Bus.Service
     const state = yield* InstanceState.make<State>(
       Effect.fn("BackgroundJob.state")(function* () {
         yield* Effect.sync(() => {
@@ -217,7 +239,10 @@ export const layer = Layer.effect(
           return [{ info: snapshot(next), done: job.done }, new Map(jobs).set(id, next)]
         },
       )
-      if (result.info) yield* Effect.sync(() => persist(result.info!))
+      if (result.info) {
+        yield* Effect.sync(() => persist(result.info!))
+        yield* bus.publish(Event.Completed, { info: result.info })
+      }
       if (result.info && result.done) yield* Deferred.succeed(result.done, result.info).pipe(Effect.ignore)
       return result.info
     })
@@ -277,7 +302,10 @@ export const layer = Layer.effect(
           return [snapshot(next), new Map(jobs).set(id, next)]
         },
       )
-      if (result) yield* Effect.sync(() => persist(result))
+      if (result) {
+        yield* Effect.sync(() => persist(result))
+        yield* bus.publish(Event.Updated, { info: result })
+      }
       return result
     })
 
@@ -327,6 +355,7 @@ export const layer = Layer.effect(
             }),
           )
           yield* Effect.sync(() => persist(result))
+          yield* bus.publish(Event.Started, { info: result })
           return result
         }),
       )
@@ -371,6 +400,6 @@ export const layer = Layer.effect(
   }),
 )
 
-export const defaultLayer = layer
+export const defaultLayer = layer.pipe(Layer.provide(Bus.layer))
 
 export * as BackgroundJob from "./job"

@@ -165,6 +165,30 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
     )
   })
 
+  // 与主聊天区一致:工作中一直显示实时耗时(工作中 · X 秒)。
+  const [now, setNow] = createSignal(Date.now())
+  onMount(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    onCleanup(() => clearInterval(timer))
+  })
+  const thinkingStartedAt = createMemo(() => {
+    const turn = turns().at(-1)
+    const values = [turn?.user?.time?.created, ...(turn?.assistants ?? []).map((message) => message.time?.created)]
+    return values
+      .filter((value): value is number => typeof value === "number")
+      .reduce<number | undefined>((min, value) => (min === undefined ? value : Math.min(min, value)), undefined)
+  })
+  const thinkingLabel = createMemo(() => {
+    const start = thinkingStartedAt()
+    if (typeof start !== "number") return language.t("session.turn.fold.working")
+    const seconds = Math.max(0, Math.floor((now() - start) / 1000))
+    if (seconds < 60) return language.t("session.turn.fold.workingSec", { seconds })
+    return language.t("session.turn.fold.workingMinSec", {
+      minutes: Math.floor(seconds / 60),
+      seconds: seconds % 60,
+    })
+  })
+
   /** 流式输出时跟着底部走：面板不会自动滚，用户得手动追着看。 */
   let scrollRef: HTMLDivElement | undefined
   const streamSignature = createMemo(() => {
@@ -295,9 +319,7 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
                 const turn = () => turnAccessor()
                 return (
                   <div data-component="side-pane-turn" class="flex flex-col gap-2">
-                    <Show when={turn().user}>
-                      {(user) => <Message message={user()} parts={partsOf(user().id)} />}
-                    </Show>
+                    <Show when={turn().user}>{(user) => <Message message={user()} parts={partsOf(user().id)} />}</Show>
                     {/* 与主聊天区同一套 A1 卡片：每个助手块各自贴内容、各自留缝。
                         用一层 flex 容器把 AssistantParts 分组的顶层节点变成独立卡片项。 */}
                     <div data-slot="side-pane-assistant" class="flex flex-col items-start gap-2">
@@ -313,7 +335,7 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
             <Show when={showThinking()}>
               <div class="flex items-center gap-2 pl-1 text-ui-caption text-foreground-subtle">
                 <Spinner class="size-3" />
-                <TextShimmer text={language.t("ui.sessionTurn.status.thinking")} />
+                <TextShimmer text={thinkingLabel()} />
               </div>
             </Show>
             <Show when={errorText()}>

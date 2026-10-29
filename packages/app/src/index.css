@@ -141,11 +141,7 @@
 
 [data-slot="session-turn-assistant-content"]:has([data-component="tool-part-wrapper"])
   [data-component="tool-trigger"]
-  :is(
-    [data-slot="basic-tool-tool-title"],
-    [data-slot="basic-tool-tool-subtitle"],
-    [data-slot="basic-tool-tool-arg"]
-  ) {
+  :is([data-slot="basic-tool-tool-title"], [data-slot="basic-tool-tool-subtitle"], [data-slot="basic-tool-tool-arg"]) {
   font-size: var(--font-size-ui-sm);
   line-height: var(--line-height-large);
 }
@@ -154,6 +150,54 @@
 [data-component="session-turn-diffs-group"] [data-slot="session-turn-diffs-toggle"],
 [data-component="session-turn-diffs-group"] [data-slot="session-turn-diffs-total"] {
   font-size: var(--font-size-ui-sm);
+}
+
+/* 变更卡标题前的文件图标:和文字同一基线、贴标题。 */
+[data-component="session-turn-diffs-group"] [data-slot="session-turn-diffs-indicator"] {
+  margin-right: 4px;
+  vertical-align: -2px;
+  line-height: 0;
+}
+
+/* 会话级兜底变更卡:宽度对齐输入框所在列(不是 fit-content),整体默认折叠可展开。 */
+[data-component="session-turn-diffs-group"][data-fallback] {
+  width: 100% !important;
+}
+
+[data-component="session-turn-diffs-group"][data-fallback] [data-slot="session-turn-diffs-header"] {
+  cursor: pointer;
+  padding-bottom: 4px;
+}
+
+[data-component="session-turn-diffs-group"][data-fallback][data-collapsed] [data-slot="session-turn-diffs-header"] {
+  padding-bottom: 0;
+}
+
+/* 折叠态的 +/- 计数与展开箭头。 */
+[data-slot="session-turn-diffs-total-add"] {
+  color: var(--diff-added);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-slot="session-turn-diffs-total-del"] {
+  color: var(--diff-removed);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-component="session-turn-diffs-group"] [data-slot="session-turn-diffs-chevron"] {
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+  color: var(--foreground-subtle);
+  transition: transform 0.15s ease;
+}
+
+[data-component="session-turn-diffs-group"][data-fallback] [data-slot="session-turn-diffs-total"] {
+  margin-left: 4px;
+}
+
+[data-component="session-turn-diffs-group"][data-fallback][data-collapsed] [data-slot="session-turn-diffs-chevron"] {
+  transform: rotate(-90deg);
 }
 
 /* 正文按原型用 13px / 1.6；思考块与工具输出保持自己的字号。 */
@@ -207,13 +251,10 @@
   padding: 6px 10px;
 }
 
-[data-slot="side-pane-assistant"] > [data-component="tool-part-wrapper"]
+[data-slot="side-pane-assistant"]
+  > [data-component="tool-part-wrapper"]
   [data-component="tool-trigger"]
-  :is(
-    [data-slot="basic-tool-tool-title"],
-    [data-slot="basic-tool-tool-subtitle"],
-    [data-slot="basic-tool-tool-arg"]
-  ) {
+  :is([data-slot="basic-tool-tool-title"], [data-slot="basic-tool-tool-subtitle"], [data-slot="basic-tool-tool-arg"]) {
   font-size: var(--font-size-ui-sm);
   line-height: var(--line-height-large);
 }
@@ -295,6 +336,18 @@
  * 展开的区块被裁掉、又完全没有滚动提示，读起来就是"挤在一起显示不全"。
  * 所以这里给一条细的、跟随主题的，而不是像别处那样用 `no-scrollbar` 藏掉。
  */
+/* 状态区块展开的入场动画(配合 animate-[status-section-open_150ms_ease-out])。 */
+@keyframes status-section-open {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .status-panel-scroll {
   scrollbar-width: thin;
   scrollbar-color: var(--border-hover) transparent;
@@ -556,6 +609,54 @@
   animation: side-pane-enter 120ms ease-out;
 }
 
+/* 面板内容随开合淡入淡出（对齐 ZCode AnimatedSidePanePanel 的双过渡：
+ * 宽度由 aside 的 transition-[width] 承担，这里补内容透明度 + 轻微右移，
+ * 让"内容出现"有方向感，而不是宽度一变就整块闪出来）。
+ * 位移只有 8px、并限定在面板内部（aside 有 overflow:hidden），不会影响
+ * 面板之间的几何距离；开合时长同样由 320ms 统一驱动。 */
+.side-pane-body {
+  transition:
+    opacity var(--transition-panel-ms, 320ms) var(--transition-panel-ease, ease),
+    transform var(--transition-panel-ms, 320ms) var(--transition-panel-ease, ease);
+  opacity: 1;
+  transform: translateX(0);
+}
+
+[data-component="side-pane-frame"][data-open="false"] .side-pane-body {
+  opacity: 0;
+  transform: translateX(8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .side-pane-body {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* 右栏内容切换（换标签 / 换文件 / 从聊天里点开产物）时的进场动画。
+ * 面板宽度有过渡，但"面板已经开着、只换内容"时宽度不变，内容直接替换会显得生硬。 */
+@keyframes side-pane-content-in {
+  from {
+    opacity: 0;
+    transform: translateX(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.side-pane-content {
+  animation: side-pane-content-in 220ms var(--transition-panel-ease, cubic-bezier(0.22, 1, 0.36, 1)) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .side-pane-content {
+    animation: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   [data-component="side-pane-frame"],
   [data-component="terminal-frame"] {
@@ -570,6 +671,62 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Tailwind 的 animate-spin 类需要 @keyframes spin */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.75;
+  }
+  75%,
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* 待办「工作中」标签与进行中任务标题的呼吸动画。
+ * 不复用 animate-pulse：那一档从 0.4 起跳，长段中文读起来像在闪断；
+ * 这里只压到 0.62，节奏也更慢，起"还在跑"的暗示作用而不抢阅读。 */
+@keyframes todo-breathe {
+  0%,
+  100% {
+    opacity: 0.62;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.novaway-breathe {
+  animation: todo-breathe 2.2s ease-in-out infinite;
+}
+
+/* 状态点/小圆点的呼吸：带一点缩放，否则一个小圆只改透明度几乎看不出来。 */
+@keyframes dot-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+.novaway-breathe-dot {
+  animation: dot-breathe 1.8s ease-in-out infinite;
 }
 
 .novaway-spinner {
@@ -782,5 +939,386 @@
 }
 
 .docx-preview-viewport section.docx {
-  box-shadow: 0 2px 10px rgb(15 23 42 / 0.08), 0 1px 2px rgb(15 23 42 / 0.05);
+  box-shadow:
+    0 2px 10px rgb(15 23 42 / 0.08),
+    0 1px 2px rgb(15 23 42 / 0.05);
+}
+
+/* ===== 聊天区整体质感(对齐待办分组原型) =====
+ * 原型里聊天内容好看的关键:用户气泡是清晰的蓝色实心气泡;助手块是
+ * 温和的浅底小卡片;字号有层级(标题 13-14 medium、正文 13、次要 12);
+ * 各块之间留 10-14px 的呼吸感。这里按原型调一遍既有类。
+ */
+
+/* 用户气泡:蓝底白字(原型是 --tp-accent 实心),右上小圆角收角。 */
+[data-slot="user-message-text"] {
+  background: var(--icon-blue) !important;
+  color: var(--background) !important;
+  border-radius: 14px 14px 5px 14px !important;
+  padding: 9px 14px !important;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.1);
+}
+
+/* 用户气泡里的文件/代理高亮在蓝底上看不清,统一用近白。 */
+[data-slot="user-message-text"] [data-highlight] {
+  color: color-mix(in srgb, var(--background) 88%, white) !important;
+}
+
+/* 助手小卡片:更温和的底、更明显的圆角与轻阴影(原型 12px 圆角 + 浮起)。 */
+[data-slot="session-turn-assistant-content"],
+[data-slot="session-turn-thinking"],
+[data-component="session-turn-diffs-group"] {
+  border-radius: 12px !important;
+  padding: 10px 14px !important;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+}
+
+/* 工具小卡:8→10px 圆角。 */
+[data-slot="session-turn-assistant-content"]:has([data-component="tool-part-wrapper"]),
+[data-component="session-turn-diffs-group"] {
+  border-radius: 10px !important;
+}
+
+/* 待办总览卡:清单本体(原型 tp-overview)——标题行加粗一档、进度条稍粗。 */
+[data-component="todo-grouped-overview"] {
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+}
+
+/* 待办分区卡:选中态轻浮起(原型 is-open 的边框加深 + 阴影)。 */
+[data-component="todo-grouped-section"] {
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+}
+
+/* ===== 工具行的信息展示：单行优先，但不截断 =====
+ * 先给足宽度：工具卡占据整列（fit-content 时内层 100% 宽度会退化成"内容的最窄
+ * 可行宽"，MCP 的长参数就被提前省略号截掉了）。给满列宽后，绝大多数调用
+ * （包括 mcp_tool_search 的 select=... 参数）都能排在一行。
+ * 真放不下时**换行显示全文**，而不是用省略号藏掉信息 —— 用户明确要求
+ * "工具调用不要截断"，完整参数比行高更重要。
+ */
+[data-slot="session-turn-assistant-content"]:has([data-component="tool-part-wrapper"]),
+[data-slot="session-turn-assistant-content"]:has([data-component="collapsible"].tool-collapsible) {
+  width: 100% !important;
+}
+
+[data-slot="session-turn-assistant-content"] [data-slot="basic-tool-tool-title"],
+[data-slot="session-turn-assistant-content"] [data-slot="basic-tool-tool-detail"] {
+  white-space: nowrap !important;
+  text-overflow: clip !important;
+  overflow: visible !important;
+}
+
+[data-slot="session-turn-assistant-content"] [data-slot="basic-tool-tool-subtitle"],
+[data-slot="session-turn-assistant-content"] [data-slot="basic-tool-tool-arg"] {
+  white-space: normal !important;
+  text-overflow: clip !important;
+  overflow: visible !important;
+  overflow-wrap: anywhere !important;
+}
+
+/* 标题 + 副标题的内层容器也要能收缩，长参数才会在卡片内换行而不是溢出。 */
+[data-slot="session-turn-assistant-content"] [data-slot="basic-tool-tool-info-main"] {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  min-width: 0;
+  overflow: visible !important;
+}
+
+[data-slot="session-turn-assistant-content"] [data-slot="basic-tool-tool-info-main"] > [data-slot="basic-tool-tool-title"] {
+  flex: 0 0 auto;
+}
+
+[data-slot="session-turn-assistant-content"] [data-slot="basic-tool-tool-info-main"] > [data-slot="basic-tool-tool-subtitle"],
+[data-slot="session-turn-assistant-content"] [data-slot="basic-tool-tool-info-main"] > [data-slot="basic-tool-tool-arg"] {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* ===== 轮尾操作行:赞/踩选中态高亮 =====
+ * Icon wrapper div 强制 color:var(--foreground-subtle),会覆盖父级 button 的
+ * text-* 类。必须直接给 SVG 设颜色才能穿透 wrapper 的继承色。 */
+[data-component="icon-button"][aria-pressed="true"][data-icon="lu-thumbs-up"] {
+  background-color: color-mix(in srgb, var(--syntax-string) 12%, transparent);
+}
+
+[data-component="icon-button"][aria-pressed="true"][data-icon="lu-thumbs-up"] [data-slot="icon-svg"] {
+  color: var(--syntax-string);
+}
+
+[data-component="icon-button"][aria-pressed="true"][data-icon="lu-thumbs-down"] {
+  background-color: color-mix(in srgb, var(--syntax-warning) 12%, transparent);
+}
+
+[data-component="icon-button"][aria-pressed="true"][data-icon="lu-thumbs-down"] [data-slot="icon-svg"] {
+  color: var(--syntax-warning);
+}
+
+/* 复制成功:对勾变绿 */
+[data-component="icon-button"][data-copied="true"] [data-slot="icon-svg"] {
+  color: var(--syntax-success);
+}
+
+/* ===== 工具 badge 图标:穿透 wrapper 的默认色 =====
+ * tool-badge-icon span 已设 color:#0d9488,但内部 Icon wrapper 强制
+ * foreground-subtle。让 wrapper 继承父级 span 的颜色。 */
+[data-slot="tool-badge-icon"] [data-component="icon"] {
+  color: inherit;
+}
+
+/* ===== 思考/状态/变更卡的指示图标:同样穿透 wrapper ===== */
+[data-slot="reasoning-part-indicator"] [data-component="icon"],
+[data-slot="session-turn-diffs-indicator"] [data-component="icon"],
+[data-slot="session-turn-thinking"] > span > [data-component="icon"] {
+  color: inherit;
+}
+
+/* 思考中的 loader 图标:确保旋转动画生效(应用到 SVG 元素) */
+[data-slot="session-turn-thinking"] [data-slot="icon-svg"] {
+  animation: novaway-spin 1s linear infinite;
+}
+
+/* ===== 执行中指示器:呼吸灯动画 =====
+ * session-turn-thinking 和 reasoning-part-indicator 已用 Tailwind 的
+ * animate-spin/animate-pulse 类,这里不再重复定义。只给工具行和折叠卡
+ * 加 data 属性驱动的动画。 */
+
+@keyframes breathing-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+/* 工具执行中(bash/write/edit 等 running 状态)的 badge 图标:呼吸脉冲 */
+[data-component="tool-trigger"][data-running="true"] [data-slot="tool-badge-icon"] [data-slot="icon-svg"] {
+  animation: breathing-pulse 1.5s ease-in-out infinite;
+}
+
+/* ===== 产物卡片:按文件类型着色 =====
+ * 原来整张卡是灰白加一个灰色图标,一屏好几个产物时完全分不清类型。
+ * 现在按类型取一个色相 `--preview-tone`,派生图标底色、描边与"打开"按钮,
+ * hover 轻浮起;颜色只做点缀,不抢正文。 */
+[data-component="session-turn-preview"] [data-preview-tone] {
+  --preview-tone: var(--icon-blue);
+  border-color: color-mix(in oklab, var(--preview-tone) 18%, var(--border));
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--preview-tone) 7%, var(--surface)) 0%,
+    var(--surface) 58%
+  );
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+}
+
+[data-component="session-turn-preview"] [data-preview-tone="web"] {
+  --preview-tone: var(--icon-blue, #2563eb);
+}
+
+[data-component="session-turn-preview"] [data-preview-tone="html"] {
+  --preview-tone: var(--syntax-property, #ea580c);
+}
+
+[data-component="session-turn-preview"] [data-preview-tone="doc"] {
+  --preview-tone: #2563eb;
+}
+
+[data-component="session-turn-preview"] [data-preview-tone="sheet"] {
+  --preview-tone: var(--syntax-success, #16a34a);
+}
+
+[data-component="session-turn-preview"] [data-preview-tone="slides"] {
+  --preview-tone: #f97316;
+}
+
+[data-component="session-turn-preview"] [data-preview-tone="pdf"] {
+  --preview-tone: var(--syntax-critical, #dc2626);
+}
+
+[data-component="session-turn-preview"] [data-preview-tone="image"] {
+  --preview-tone: var(--syntax-type, #8b5cf6);
+}
+
+[data-component="session-turn-preview"] [data-preview-tone]:hover {
+  border-color: color-mix(in oklab, var(--preview-tone) 42%, var(--border));
+  box-shadow: 0 8px 22px color-mix(in oklab, var(--preview-tone) 16%, transparent);
+}
+
+[data-slot="preview-card-icon"] {
+  background: color-mix(in oklab, var(--preview-tone) 14%, transparent);
+  border: 1px solid color-mix(in oklab, var(--preview-tone) 24%, transparent);
+  color: var(--preview-tone);
+}
+
+[data-slot="preview-card-icon"] [data-component="icon"],
+[data-slot="preview-card-icon"] [data-slot="icon-svg"] {
+  color: inherit;
+}
+
+[data-slot="preview-card-subtitle"] {
+  color: color-mix(in oklab, var(--preview-tone) 55%, var(--foreground-subtle));
+}
+
+[data-slot="preview-card-open"] {
+  border-color: color-mix(in oklab, var(--preview-tone) 26%, var(--border));
+  background: color-mix(in oklab, var(--preview-tone) 10%, transparent);
+  color: var(--preview-tone);
+}
+
+[data-component="session-turn-preview"] [data-preview-tone]:hover [data-slot="preview-card-open"] {
+  background: color-mix(in oklab, var(--preview-tone) 18%, transparent);
+  border-color: color-mix(in oklab, var(--preview-tone) 42%, var(--border));
+}
+
+[data-slot="preview-card-open-divider"] {
+  background: color-mix(in oklab, var(--preview-tone) 26%, transparent);
+}
+
+/* 服务已停止：卡片整体转灰，只在副标题后面挂一个小标签，
+   不再让用户点了才发现在"打开一个死链"。 */
+[data-component="session-turn-preview"] [data-preview-tone="offline"] {
+  --preview-tone: var(--foreground-subtle);
+  background: var(--surface);
+}
+
+[data-slot="preview-card-offline"] {
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--syntax-critical) 30%, transparent);
+  background: color-mix(in oklab, var(--syntax-critical) 10%, transparent);
+  color: var(--syntax-critical);
+  padding: 1px 8px;
+  font-size: var(--font-size-ui-xs);
+  line-height: 1.5;
+}
+
+/* ===== 变更摘要卡:同样给一点色彩 =====
+ * 标题前的图标用绿色块、"本次调整 N 个文件"的增删数字保留语义色,
+ * 让产物链路的消息流里有一处明显"有东西产出"的信号。 */
+[data-component="session-turn-diffs-group"] {
+  border-color: color-mix(in oklab, var(--diff-added) 16%, var(--border)) !important;
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--diff-added) 5%, var(--panel)) 0%,
+    var(--panel) 60%
+  ) !important;
+}
+
+[data-slot="session-turn-diffs-indicator"] {
+  width: 22px !important;
+  height: 22px !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  background: color-mix(in oklab, var(--diff-added) 15%, transparent);
+  border: 1px solid color-mix(in oklab, var(--diff-added) 24%, transparent);
+  color: var(--diff-added) !important;
+}
+
+/* 图标块变大后，标题行按中心对齐，别让文字贴在图标下沿。 */
+[data-slot="session-turn-diffs-header"] {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ===== 聊天区非正文文本的色阶 =====
+ * 对齐 ZCode：正文（markdown）保持 --foreground 最亮，工具标题/参数、思考、
+ * 状态词与变更摘要这类"过程信息"统一退到 subtle / subtlest，
+ * 让读者一眼先看到回答，再按需看过程。
+ */
+[data-slot="session-turn-assistant-content"] [data-slot="basic-tool-tool-title"],
+[data-slot="session-turn-assistant-content"] [data-slot="basic-tool-tool-info"] [data-component="task-tool-title"],
+[data-slot="session-turn-assistant-content"] [data-slot="message-part-title"],
+[data-slot="session-turn-assistant-content"] [data-slot="message-part-title-text"],
+[data-slot="session-turn-assistant-content"] [data-slot="message-part-filename"],
+[data-slot="session-turn-assistant-content"] [data-slot="session-turn-diffs-label"],
+[data-slot="session-turn-assistant-content"] [data-slot="session-turn-diffs-toggle"],
+[data-component="turn-fold-detail"] [data-slot="basic-tool-tool-title"],
+[data-component="turn-fold-detail"] [data-slot="message-part-title"],
+[data-component="turn-fold-detail"] [data-slot="message-part-title-text"],
+[data-slot="side-pane-assistant"] [data-slot="basic-tool-tool-title"],
+[data-slot="side-pane-assistant"] [data-slot="message-part-title"],
+[data-slot="side-pane-assistant"] [data-slot="message-part-title-text"] {
+  color: var(--foreground-subtle) !important;
+}
+
+[data-slot="session-turn-assistant-content"] [data-slot="basic-tool-tool-subtitle"],
+[data-slot="session-turn-assistant-content"] [data-slot="basic-tool-tool-arg"],
+[data-slot="session-turn-assistant-content"] [data-slot="message-part-directory"],
+[data-component="turn-fold-detail"] [data-slot="basic-tool-tool-subtitle"],
+[data-component="turn-fold-detail"] [data-slot="basic-tool-tool-arg"],
+[data-slot="side-pane-assistant"] [data-slot="basic-tool-tool-subtitle"],
+[data-slot="side-pane-assistant"] [data-slot="basic-tool-tool-arg"] {
+  color: var(--foreground-subtlest) !important;
+}
+
+/* ===== 输入框工具条:窄宽度下的收放 =====
+ * 模型名与思考强度移到了输入框右下角（ZCode 同款），和发送按钮同一行；
+ * 右侧面板一展开,composer 只剩五六百像素,这些入口会互相压住。
+ * 这里按**输入框实际宽度**(容器查询)收缩模型/角色名,而不是按窗口宽度。
+ */
+@container (max-width: 620px) {
+  [data-component="prompt-model-control"] [data-action="prompt-model"] {
+    max-width: 160px !important;
+  }
+
+  [data-component="prompt-agent-control"] [data-action="prompt-agent"] {
+    max-width: 116px !important;
+  }
+}
+
+@container (max-width: 520px) {
+  [data-component="prompt-model-control"] [data-action="prompt-model"] {
+    max-width: 124px !important;
+  }
+}
+
+@container (max-width: 430px) {
+  [data-component="prompt-model-control"] [data-action="prompt-model"] {
+    max-width: 100px !important;
+  }
+
+  /* 最窄一档先收起思考强度：模型名和发送按钮必须留着。 */
+  [data-component="prompt-thinking-control"] {
+    display: none !important;
+  }
+}
+
+/* 更窄时把权限档位收成纯图标（点开菜单仍能看到完整名称与说明），
+   给 + 号与发送按钮让出位置。 */
+@container (max-width: 470px) {
+  [data-component="prompt-auto-accept"] [data-slot="permission-mode-label"] {
+    display: none;
+  }
+}
+
+/* ===== 轮次过程执行中(还没折叠时)的图标:呼吸 ===== */
+[data-component="turn-fold-trigger"][data-working="true"] [data-slot="icon-svg"] {
+  animation: breathing-pulse 2s ease-in-out infinite;
+}
+
+/* 运行中的折叠卡用的是 loader:旋转优先于呼吸,别让图标看起来卡住。 */
+[data-component="turn-fold-trigger"][data-working="true"] [data-slot="icon-svg"][class*="animate-spin"] {
+  animation: novaway-spin 1s linear infinite;
+}
+
+/* 思考中的大脑图标加强呼吸(覆盖 Tailwind 的 animate-pulse) */
+[data-slot="reasoning-part-indicator"] [data-slot="icon-svg"][class*="animate-pulse"] {
+  animation: breathing-pulse 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-component="tool-trigger"][data-running="true"] [data-slot="tool-badge-icon"] [data-slot="icon-svg"],
+  [data-component="turn-fold-trigger"][data-working="true"] [data-slot="icon-svg"],
+  [data-slot="reasoning-part-indicator"] [data-slot="icon-svg"][class*="animate-pulse"] {
+    animation: none;
+  }
 }

@@ -50,6 +50,17 @@ describe("builtin capabilities", () => {
     expect(check({ command: "git status && rm x" })).toBe(false)
   })
 
+  it("treats PowerShell read-only cmdlets as safe, writes as unsafe", async () => {
+    const { CAPABILITIES } = await import("../../src/tool/registry")
+    const check = CAPABILITIES.bash.concurrencySafe as (args: unknown) => boolean
+    expect(check({ command: "Get-ChildItem -LiteralPath . -Recurse" })).toBe(true)
+    expect(check({ command: "Test-Path -LiteralPath build" })).toBe(true)
+    expect(check({ command: "dir" })).toBe(true)
+    expect(check({ command: "Remove-Item -LiteralPath build" })).toBe(false)
+    expect(check({ command: "Get-Content a.txt | Out-File b.txt" })).toBe(false)
+    expect(check({ command: "Get-ChildItem; Remove-Item x" })).toBe(false)
+  })
+
   it("lets independent subagents run in parallel", async () => {
     const { CAPABILITIES } = await import("../../src/tool/registry")
     expect(CAPABILITIES.task.concurrencySafe).toBe(true)

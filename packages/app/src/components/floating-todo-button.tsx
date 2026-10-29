@@ -1,4 +1,4 @@
-import { createMemo, createSignal, createEffect, on, onCleanup, onMount } from "solid-js"
+import { createMemo, Show, createSignal, createEffect, on, onCleanup, onMount } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
 import { useLocal } from "@/context/local"
@@ -48,6 +48,10 @@ export function FloatingTodoButton() {
       bottom: 96,
     }),
   )
+  // 桌面宠物默认关闭：不想让每个新用户在右下角看到一只飘着的小宠物。
+  // 设置页里的「桌面宠物」区块也一并隐藏了，所以这里不再提供开关入口；
+  // 以前主动打开过（持久化值为 true）的用户保持原样。
+  const [accessory] = persisted(Persist.global("floating.todo.visible.v1"), createStore({ visible: false }))
   const [isExpanded, setIsExpanded] = createSignal(false)
   const [userDismissed, setUserDismissed] = createSignal(false)
   let lastDragPointer: { x: number; y: number } | undefined
@@ -132,24 +136,26 @@ export function FloatingTodoButton() {
   })
 
   return (
-    <AssistantPanel
-      class="fixed"
-      style={{
-        right: `${position.right}px`,
-        bottom: `${position.bottom}px`,
-      }}
-      currentAgent={currentAgent()}
-      agents={agents()}
-      tasks={tasks()}
-      expanded={isExpanded()}
-      onExpandToggle={toggleExpand}
-      onAgentChange={(name) => local.agent.set(name)}
-      onDragStart={startPanelDrag}
-      onDragMove={movePanel}
-      onDragEnd={clampPanel}
-      title={language.t("assistant.title")}
-      hasInProgressTask={hasInProgressTask()}
-      draggable
-    />
+    <Show when={accessory.visible}>
+      <AssistantPanel
+        class="fixed"
+        style={{
+          right: `${position.right}px`,
+          bottom: `${position.bottom}px`,
+        }}
+        currentAgent={currentAgent()}
+        agents={agents()}
+        tasks={tasks()}
+        expanded={isExpanded()}
+        onExpandToggle={toggleExpand}
+        onAgentChange={(name) => local.agent.set(name)}
+        onDragStart={startPanelDrag}
+        onDragMove={movePanel}
+        onDragEnd={clampPanel}
+        title={language.t("assistant.title")}
+        hasInProgressTask={hasInProgressTask()}
+        draggable
+      />
+    </Show>
   )
 }

@@ -21,6 +21,8 @@ type ModelCapabilityInfo = {
   }
   limit: {
     context: number
+    /** 最大输出 tokens（可选：部分供应商不返回）。 */
+    output?: number
   }
 }
 
@@ -31,7 +33,9 @@ export const ModelCapabilitySummary: Component<{ model: ModelCapabilityInfo; com
       props.model.capabilities.input.image ? "图像" : undefined,
       props.model.capabilities.input.audio ? "音频" : undefined,
       props.model.capabilities.input.video ? "视频" : undefined,
-      props.model.capabilities.input.pdf || props.model.capabilities.attachment ? "PDF" : undefined,
+      // PDF 只看 input.pdf：`attachment` 是「能不能带附件」的总开关，
+      // 只有图像输入的模型也会是 true，用它判断会把「支持 PDF」谎报给纯视觉模型。
+      props.model.capabilities.input.pdf ? "PDF" : undefined,
     ].filter((item): item is string => !!item)
   const outputLabels = () =>
     [
@@ -77,6 +81,18 @@ export const ModelCapabilitySummary: Component<{ model: ModelCapabilityInfo; com
           </Show>
           <span class="text-amber-700 dark:text-amber-200">
             上下文上限 {props.model.limit.context.toLocaleString()}
+          </span>
+        </span>
+      </Show>
+      {/* 输出上限和上下文是两件不同的事（长上下文模型经常只给 32K 输出），
+          分开显示，用户才知道「能读多少」和「能写多少」。 */}
+      <Show when={props.model.limit.output && Number.isFinite(props.model.limit.output)}>
+        <span class="inline-flex items-center gap-1">
+          <Show when={hasPrevious() || Number.isFinite(props.model.limit.context)}>
+            <span class="text-foreground-subtle">·</span>
+          </Show>
+          <span class="text-amber-700 dark:text-amber-200">
+            输出上限 {props.model.limit.output!.toLocaleString()}
           </span>
         </span>
       </Show>

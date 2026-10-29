@@ -7,7 +7,14 @@ import { useLanguage } from "@/context/language"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { SettingsGroup } from "./settings-parts"
-import { featureDetail, featureLabel, orderFeatures, summarize, type Capability } from "./kernel-capabilities-model"
+import {
+  featureDescription,
+  featureDetail,
+  featureLabel,
+  orderFeatures,
+  summarize,
+  type Capability,
+} from "./kernel-capabilities-model"
 
 const BUDGET_OPTIONS = [30_000, 60_000, 120_000, 240_000] as const
 
@@ -20,7 +27,8 @@ const BUDGET_OPTIONS = [30_000, 60_000, 120_000, 240_000] as const
  */
 export const KernelCapabilitiesCard: Component<{
   directory: string
-  onOpenSettings?: (tab: "general" | "agents") => void
+  onOpenSettings?: (tab: "general" | "agents" | "hooks") => void
+  onOpenTeams?: () => void
 }> = (props) => {
   const sdk = useGlobalSDK()
   const globalSync = useGlobalSync()
@@ -114,7 +122,7 @@ export const KernelCapabilitiesCard: Component<{
         <div class="flex flex-col divide-y divide-border">
           <For each={features()}>
             {(feature) => (
-              <div class="flex min-w-0 items-center gap-2 px-4 py-1.5">
+              <div class="flex min-w-0 items-center gap-2 px-4 py-2">
                 <Icon
                   name={feature.enabled ? "circle-check" : "circle-ban-sign"}
                   size="small"
@@ -124,9 +132,16 @@ export const KernelCapabilitiesCard: Component<{
                     "text-foreground-subtlest": !feature.enabled,
                   }}
                 />
-                <span class="min-w-0 flex-1 truncate text-ui-base text-foreground">
-                  {featureLabel(feature.id, (key) => language.t(key as never))}
-                </span>
+                <div class="min-w-0 flex-1">
+                  <div class="truncate text-ui-base text-foreground">
+                    {featureLabel(feature.id, (key) => language.t(key as never))}
+                  </div>
+                  <Show when={featureDescription(feature.id, (key) => language.t(key as never))}>
+                    {(description) => (
+                      <div class="mt-0.5 text-ui-xs leading-relaxed text-foreground-subtle">{description()}</div>
+                    )}
+                  </Show>
+                </div>
                 <Show when={showDetail(feature.id) && featureDetail(feature)}>
                   {(detail) => (
                     <Tag>
@@ -178,15 +193,22 @@ export const KernelCapabilitiesCard: Component<{
                     {language.t("settings.kernel.edit")}
                   </Button>
                 </Show>
-                <Show when={feature.id === "teams" && props.onOpenSettings}>
-                  <Button
-                    variant="ghost"
-                    size="small"
-                    title={language.t("settings.kernel.manageAgentsHint")}
-                    onClick={() => props.onOpenSettings!("agents")}
-                  >
-                    {language.t("settings.kernel.manageAgents")}
-                  </Button>
+                <Show when={feature.id === "teams"}>
+                  <Show when={props.onOpenTeams}>
+                    <Button variant="ghost" size="small" onClick={() => props.onOpenTeams!()}>
+                      {language.t("sidebar.team")}
+                    </Button>
+                  </Show>
+                  <Show when={props.onOpenSettings}>
+                    <Button
+                      variant="ghost"
+                      size="small"
+                      title={language.t("settings.kernel.manageAgentsHint")}
+                      onClick={() => props.onOpenSettings!("agents")}
+                    >
+                      {language.t("settings.kernel.manageAgents")}
+                    </Button>
+                  </Show>
                 </Show>
               </div>
             )}

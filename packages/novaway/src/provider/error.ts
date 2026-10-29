@@ -1,6 +1,9 @@
 import { APICallError } from "ai"
 import { STATUS_CODES } from "http"
 import { iife } from "@/util/iife"
+import { describeError } from "@/util/error"
+
+export { describeError }
 import type { ProviderID } from "./schema"
 
 // Adapted from overflow detection patterns in:

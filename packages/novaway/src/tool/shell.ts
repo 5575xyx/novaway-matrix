@@ -17,6 +17,7 @@ import { Config } from "@/config/config"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Shell } from "@/shell/shell"
 import { ShellID } from "./shell/id"
+import { interpretCommandResult } from "./command-semantics"
 
 import * as Truncate from "./truncate"
 import { Plugin } from "@/plugin"
@@ -32,6 +33,40 @@ const MAX_METADATA_LENGTH = 30_000
 const DEFAULT_TIMEOUT_MS = 2 * 60 * 1000
 // 硬上限 30 分钟。模型传一个离谱的 timeout 不该把会话无限挂在工具调用上。
 const MAX_TIMEOUT_MS = 30 * 60 * 1000
+
+/**
+ * 明显是"常驻服务"的命令。
+ *
+ * 模型常常忘了传 `background: true`，直接前台启动 `python -m http.server` /
+ * `npx serve` 之类的静态服务。前台调用会被 2 分钟超时杀掉 —— 于是产物卡片
+ * 里的"打开原型"链接指向一个已经死掉的服务。这里自动把它们提升为后台任务：
+ * 调用立刻返回 job_id，服务留在后台，用户点开卡片时还能访问。
+ *
+ * 只匹配"一定会长期驻留、不会自己退出"的写法；构建类命令（`vite build`）
+ * 与一次性的 run 命令都不在其中。
+ */
+const LONG_LIVED_SERVER = new RegExp(
+  [
+    "\\bpython3?\\s+-m\\s+http\\.server\\b",
+    "\\bhttp-server\\b",
+    "\\b(?:npx|pnpm|bunx?)\\s+(?:dlx\\s+)?(?:serve|http-server)\\b",
+    // `vite` 起 dev server；`vite build` 是一次性构建，不能算常驻。
+    "\\bvite\\b(?!\\s+build)",
+    "\\b(?:next|nuxt|astro)\\s+dev\\b",
+    "\\bng\\s+serve\\b",
+    "\\bphp\\s+-S\\b",
+    "\\b(?:uvicorn|gunicorn)\\b",
+    "\\bflask\\s+run\\b",
+    "\\brails\\s+(?:s|server)\\b",
+    "\\b(?:npm|pnpm|yarn|bun)\\s+(?:run\\s+)?(?:dev|start|serve)\\b",
+  ].join("|"),
+  "i",
+)
+
+export function looksLikeServer(command: string) {
+  return LONG_LIVED_SERVER.test(command)
+}
+
 const CWD = new Set(["cd", "chdir", "popd", "pushd", "push-location", "set-location"])
 const FILES = new Set([
   ...CWD,
@@ -54,6 +89,16 @@ const FILES = new Set([
   "remove-item",
   "new-item",
   "rename-item",
+  // 写入类 cmdlet：不加上会让 out-file/export-csv 这类命令绕过目录检查。
+  "out-file",
+  "clear-content",
+  "export-csv",
+  "set-item",
+  "set-itemproperty",
+  "new-itemproperty",
+  "remove-itemproperty",
+  "expand-archive",
+  "compress-archive",
 ])
 const CMD_FILES = new Set([
   "copy",
@@ -69,7 +114,7 @@ const CMD_FILES = new Set([
   "rmdir",
   "type",
 ])
-const FLAGS = new Set(["-destination", "-literalpath", "-path"])
+const FLAGS = new Set(["-destination", "-literalpath", "-path", "-filepath", "-source", "-outfile"])
 const SWITCHES = new Set(["-confirm", "-debug", "-force", "-nonewline", "-recurse", "-verbose", "-whatif"])
 
 type Part = {
@@ -269,7 +314,11 @@ const parse = Effect.fn("ShellTool.parse")(function* (command: string, ps: boole
   return tree
 })
 
-const ask = Effect.fn("ShellTool.ask")(function* (ctx: Tool.Context, scan: Scan) {
+const ask = Effect.fn("ShellTool.ask")(function* (
+  ctx: Tool.Context,
+  scan: Scan,
+  permission: string = ShellID.ToolID,
+) {
   if (scan.dirs.size > 0) {
     const globs = Array.from(scan.dirs).map((dir) => {
       if (process.platform === "win32") return AppFileSystem.normalizePathPattern(path.join(dir, "*"))
@@ -285,7 +334,7 @@ const ask = Effect.fn("ShellTool.ask")(function* (ctx: Tool.Context, scan: Scan)
 
   if (scan.patterns.size === 0) return
   yield* ctx.ask({
-    permission: ShellID.ToolID,
+    permission,
     patterns: Array.from(scan.patterns),
     always: Array.from(scan.always),
     metadata: {},
@@ -312,12 +361,17 @@ function cmd(shell: string, command: string, cwd: string, env: NodeJS.ProcessEnv
 }
 
 /** 后台 shell 的退出码换成 job 终态：非 0 不是"完成"，卡片不该显示成绿色。 */
-function shellOutcome(result: { output: string; metadata?: { exit?: unknown } }) {
+function shellOutcome(command: string, result: { output: string; metadata?: { exit?: unknown } }) {
   if (result.metadata?.exit === null) {
     return { output: result.output, failed: "command did not exit normally (timeout or signal)" }
   }
   if (typeof result.metadata?.exit === "number" && result.metadata.exit !== 0) {
-    return { output: result.output, failed: `command exited with code ${result.metadata.exit}` }
+    const exit = result.metadata.exit
+    const interpretation = interpretCommandResult(command, exit)
+    // grep/rg 的 1 表示"没有匹配"，不是失败，不该把任务卡片标红。
+    if (interpretation.isError) {
+      return { output: result.output, failed: interpretation.message ?? `command exited with code ${exit}` }
+    }
   }
   return { output: result.output }
 }
@@ -349,8 +403,18 @@ const parser = lazy(async () => {
   return { bash, ps }
 })
 
-export const ShellTool = Tool.define(
-  ShellID.ToolID,
+type ShellKind = "auto" | "powershell"
+
+/**
+ * Shared implementation for the `bash` tool (whatever shell the session is
+ * configured with) and the dedicated `powershell` tool.
+ *
+ * The PowerShell tool is CC's `PowerShell` tool: it always runs a PowerShell
+ * binary regardless of the configured shell, so Windows sessions keep git-bash
+ * as the default while still giving the model a place to send cmdlets,
+ * `$env:` assignments, and Windows-native executables.
+ */
+const definition = (kind: ShellKind) =>
   Effect.gen(function* () {
     const config = yield* Config.Service
     const background = yield* BackgroundJob.Service
@@ -371,11 +435,24 @@ export const ShellTool = Tool.define(
 
     const resolvePath = Effect.fn("ShellTool.resolvePath")(function* (text: string, root: string, shell: string) {
       if (process.platform === "win32") {
-        if (Shell.posix(shell) && text.startsWith("/") && AppFileSystem.windowsPath(text) === text) {
+        // `/c/...` 这类带盘符的 POSIX 路径由 windowsPath 直接映射；
+        // 无盘符的 `/tmp`、`/Users/...` 交给 cygpath（它遵循 msys 挂载表）。
+        const mapped = AppFileSystem.windowsPath(text)
+        const native = AppFileSystem.normalizePath(path.resolve(root, mapped))
+        if (Shell.posix(shell) && text.startsWith("/")) {
           const file = yield* cygpath(shell, text)
-          if (file) return file
+          if (file) {
+            if (mapped !== text) return file
+            // cygpath 会把不认识的绝对路径挂到 Git 安装目录下
+            // （`/Users/x` → `C:\Program Files\Git\Users\x`）。cygpath 结果存在
+            // 时以它为准（`/tmp` 的挂载语义）；不存在而盘根解释存在的，才用盘根
+            // （`/Users/x` → `C:\Users\x`）。
+            if (yield* fs.existsSafe(file)) return file
+            if (native !== file && (yield* fs.existsSafe(native))) return native
+            return file
+          }
         }
-        return AppFileSystem.normalizePath(path.resolve(root, AppFileSystem.windowsPath(text)))
+        return native
       }
       return path.resolve(root, text)
     })
@@ -604,6 +681,13 @@ export const ShellTool = Tool.define(
       if (meta.length > 0) {
         output += "\n\n<shell_metadata>\n" + meta.join("\n") + "\n</shell_metadata>"
       }
+      // 与 Claude Code 一致：非 0 退出码是失败信号，但不是所有非 0 都算失败
+      // （grep/rg 的 1 = 没有匹配、diff 的 1 = 有差异、test 的 1 = 条件为假）。
+      // 真正的失败在输出尾部写明退出码，模型不用再猜 metadata。
+      const interpretation = typeof code === "number" ? interpretCommandResult(input.command, code) : undefined
+      if (interpretation?.isError && code !== 0) {
+        output += `\nExit code ${code}`
+      }
       return {
         title: input.description,
         metadata: {
@@ -611,6 +695,7 @@ export const ShellTool = Tool.define(
           exit: code,
           description: input.description,
           truncated: cut,
+          ...(interpretation?.message ? { returnCodeInterpretation: interpretation.message } : {}),
           ...(cut && file ? { outputPath: file } : {}),
         },
         output,
@@ -620,17 +705,23 @@ export const ShellTool = Tool.define(
     return () =>
       Effect.gen(function* () {
         const cfg = yield* config.get()
-        const shell = Shell.acceptable(cfg.shell)
+        const shell = kind === "powershell" ? Shell.powershell() : Shell.acceptable(cfg.shell)
+        if (!shell) throw new Error("PowerShell is not installed")
         const name = Shell.name(shell)
         const limits = yield* trunc.limits()
         // 配置文件 > 环境变量 > 内置默认值;单次调用仍可用 timeout 参数覆盖。
         const defaultTimeout = cfg.experimental?.bash_timeout ?? flags.bashDefaultTimeoutMs ?? DEFAULT_TIMEOUT_MS
-        const prompt = ShellPrompt.render(name, process.platform, {
-          ...limits,
-          timeoutMs: defaultTimeout,
-          maxTimeoutMs: MAX_TIMEOUT_MS,
-        })
-        log.info("shell tool using shell", { shell })
+        const prompt = ShellPrompt.render(
+          name,
+          process.platform,
+          {
+            ...limits,
+            timeoutMs: defaultTimeout,
+            maxTimeoutMs: MAX_TIMEOUT_MS,
+          },
+          { dedicated: kind === "powershell" },
+        )
+        log.info("shell tool using shell", { shell, tool: kind })
 
         return {
           description: prompt.description,
@@ -644,8 +735,15 @@ export const ShellTool = Tool.define(
               if (params.timeout !== undefined && params.timeout < 0) {
                 throw new Error(`Invalid timeout value: ${params.timeout}. Timeout must be a positive number.`)
               }
+
+              // 常驻服务（dev server / 静态服务器）即使模型没写 background 也自动转后台：
+              // 前台跑满超时会被杀掉，产物卡片里的链接就变成死链。
+              const requestedBackground = params.background ?? false
+              const autoBackground = !requestedBackground && looksLikeServer(params.command)
+              const isBackground = requestedBackground || autoBackground
+
               // 后台命令默认给满 30 分钟（用户随时能在面板里停），前台仍用 2 分钟默认值。
-              const timeout = params.background
+              const timeout = isBackground
                 ? Math.min(params.timeout ?? MAX_TIMEOUT_MS, MAX_TIMEOUT_MS)
                 : Math.min(params.timeout ?? defaultTimeout, MAX_TIMEOUT_MS)
               const ps = Shell.ps(shell)
@@ -656,7 +754,7 @@ export const ShellTool = Tool.define(
                   )
                   const scan = yield* collect(tree.rootNode, cwd, ps, shell, instanceCtx)
                   if (!containsPath(cwd, instanceCtx)) scan.dirs.add(cwd)
-                  yield* ask(ctx, scan)
+                  yield* ask(ctx, scan, kind === "powershell" ? "powershell" : ShellID.ToolID)
                 }),
               )
 
@@ -670,58 +768,110 @@ export const ShellTool = Tool.define(
                 description: params.description,
               }
 
-              if (params.background) {
-                // 后台命令走统一的 BackgroundJob：右侧状态卡能看到实时输出并停止。
-                // 单独生成 id 是为了在 run 的第一帧输出时就能 update，而不必等 start 返回。
-                const jobID = Identifier.ascending("job")
-                const controller = new AbortController()
-                const info = yield* background.start({
-                  id: jobID,
-                  type: "shell",
-                  title: params.description,
-                  metadata: {
-                    parentSessionId: ctx.sessionID,
-                    sessionId: ctx.sessionID,
-                    tool: "shell",
-                    command: params.command,
-                    cwd,
-                    background: true,
+              // 所有命令都创建 BackgroundJob：状态面板能看到实时输出并停止。
+              // 单独生成 id 是为了在 run 的第一帧输出时就能 update，而不必等 start 返回。
+              const jobID = Identifier.ascending("job")
+              const controller = new AbortController()
+              const info = yield* background.start({
+                id: jobID,
+                type: "shell",
+                title: params.description,
+                metadata: {
+                  parentSessionId: ctx.sessionID,
+                  sessionId: ctx.sessionID,
+                  tool: "shell",
+                  command: params.command,
+                  cwd,
+                  background: isBackground,
+                },
+                cancel: Effect.sync(() => controller.abort()),
+                run: run(
+                  {
+                    ...input,
+                    signal: controller.signal,
+                    onOutput: (text) => background.update(jobID, { output: text }).pipe(Effect.asVoid),
                   },
-                  cancel: Effect.sync(() => controller.abort()),
-                  run: run(
-                    {
-                      ...input,
-                      signal: controller.signal,
-                      onOutput: (text) => background.update(jobID, { output: text }).pipe(Effect.asVoid),
-                    },
-                    ctx,
-                  ).pipe(Effect.map((result) => shellOutcome(result))),
-                })
+                  ctx,
+                ).pipe(
+                  // 完成时更新 BackgroundJob 的 metadata，存储完整结果（exit code, truncated 等）
+                  Effect.flatMap((result) =>
+                    background
+                      .update(jobID, {
+                        metadata: {
+                          exit: result.metadata?.exit,
+                          truncated: result.metadata?.truncated,
+                          outputPath: result.metadata?.outputPath,
+                        },
+                      })
+                      .pipe(Effect.as(shellOutcome(params.command, result))),
+                  ),
+                ),
+              })
 
+              if (isBackground) {
                 return {
                   title: params.description,
                   metadata: {
                     output: `Background command started: ${info.id}`,
-                    exit: null,
+                    exit: null as number | null,
                     truncated: false,
                     description: params.description,
                     background: true,
                     jobID: info.id,
                     command: params.command,
+                    ...(autoBackground ? { autoBackground: true } : {}),
                   },
                   output: [
                     `background: true`,
                     `job_id: ${info.id}`,
                     `command: ${params.command}`,
                     "",
-                    "The command is running in the background. Watch or stop it from the status panel.",
+                    autoBackground
+                      ? "This looks like a long-lived server, so it was started in the background automatically. It keeps running (see the status panel to stop it); open the URL from the preview card when you are done checking."
+                      : "The command is running in the background. Watch or stop it from the status panel.",
                   ].join("\n"),
                 }
               }
 
-              return yield* run(input, ctx)
+              // 前台命令：等待 BackgroundJob 完成，返回完整结果。
+              // 内层 run 已按 `timeout + 100ms` 杀进程并整理 `<shell_metadata>`；
+              // 外层只是兜底，必须留出杀进程和收尾的余量，否则超时永远先在这里抛错。
+              const waitResult = yield* background.wait({ id: jobID, timeout: timeout + 5_000 })
+              if (waitResult.timedOut) {
+                yield* background.cancel(jobID)
+                throw new Error(`Command timed out after ${timeout}ms`)
+              }
+              const jobInfo = waitResult.info
+              if (!jobInfo) {
+                throw new Error("Command failed to complete")
+              }
+
+              // 从 BackgroundJob 的 metadata 中提取完整结果
+              const metadata = jobInfo.metadata as
+                | { exit?: number | null; truncated?: boolean; outputPath?: string }
+                | undefined
+
+              return {
+                title: params.description,
+                metadata: {
+                  output: jobInfo.output ?? "(no output)",
+                  // 超时/中断时 exit 为 null，不能伪装成 0（那是"成功"）。
+                  exit: metadata?.exit ?? null,
+                  truncated: metadata?.truncated ?? false,
+                  description: params.description,
+                  background: false,
+                  jobID: info.id,
+                  command: params.command,
+                  ...(metadata?.outputPath ? { outputPath: metadata.outputPath } : {}),
+                },
+                output: jobInfo.output ?? "(no output)",
+              }
             }),
         }
       })
-  }),
-)
+  })
+
+export const ShellTool = Tool.define(ShellID.ToolID, definition("auto"))
+
+/** Dedicated PowerShell tool (CC `PowerShell`); registered only when installed. */
+export const PowerShellTool = Tool.define("powershell", definition("powershell"))

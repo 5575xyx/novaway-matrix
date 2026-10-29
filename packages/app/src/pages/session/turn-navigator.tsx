@@ -37,10 +37,9 @@ export function TurnNavigator(props: {
   sessionID: Accessor<string | undefined>
   userMessages: UserMessage[]
   scrollRoot: Accessor<HTMLDivElement | undefined>
-  // 状态面板打开时,聊天列右侧留了 344px(卡片 320px + 24px 空隙),条区落在空隙里。
+  // 条区贴会话区左缘(ZCode 原版位置),与右侧悬浮状态卡片互不干扰。
   // 注意:组件必须挂在 session.tsx 的 conv 内容行那一层 —— 时间线内部有 overflow-hidden
-  // 祖先(边界在聊天列内容边缘),条区伸进空隙的部分会被整段裁掉、一根条都看不见。
-  statusPanelReserved: boolean
+  // 祖先(边界在聊天列内容边缘),挂在里面会被裁剪。
   onJumpToMessage: (message: UserMessage, behavior: ScrollBehavior) => void
 }) {
   const sync = useSync()
@@ -152,17 +151,13 @@ export function TurnNavigator(props: {
       <nav
         data-component="turn-navigator"
         aria-label="对话问题导航"
-        class="pointer-events-none absolute inset-y-0 right-0 z-20 hidden w-12 @min-[768px]:block"
+        class="pointer-events-none absolute inset-y-0 left-0 z-20 hidden w-12 @min-[768px]:block"
       >
         <div
           ref={(el) => {
             strip = el
           }}
-          class="pointer-events-auto absolute top-1/2 max-h-[calc(100%-6rem)] w-6 -translate-y-1/2 overflow-x-hidden overflow-y-auto py-1"
-          classList={{
-            "right-[322px]": props.statusPanelReserved,
-            "right-3": !props.statusPanelReserved,
-          }}
+          class="pointer-events-auto absolute left-1 top-1/2 max-h-[calc(100%-6rem)] w-6 -translate-y-1/2 overflow-x-hidden overflow-y-auto py-1"
           style={{ "scrollbar-width": "none" }}
           onPointerEnter={() => setStripHover(true)}
           onPointerLeave={() => {
@@ -231,7 +226,10 @@ function TurnNavigatorBar(props: {
     const id = props.sessionID()
     const texts = id
       ? (sync.data.message[id] ?? [])
-          .filter((message): message is AssistantMessage => message.role === "assistant" && message.parentID === props.message.id)
+          .filter(
+            (message): message is AssistantMessage =>
+              message.role === "assistant" && message.parentID === props.message.id,
+          )
           .flatMap((message) => getMsgParts(message.id))
           .filter((part): part is Extract<PartType, { type: "text" }> => part.type === "text" && !part.synthetic)
           .map((part) => part.text)
@@ -247,7 +245,7 @@ function TurnNavigatorBar(props: {
   return (
     <div class="h-2.5 w-6" data-bar-index={props.index}>
       <HoverCard
-        placement="left"
+        placement="right"
         gutter={8}
         openDelay={120}
         closeDelay={80}
@@ -259,7 +257,7 @@ function TurnNavigatorBar(props: {
             aria-setsize={props.setSize}
             aria-current={props.isActive ? "location" : undefined}
             data-bar-active={props.isActive ? "true" : "false"}
-            class="flex h-2.5 w-6 cursor-pointer items-center justify-end rounded-sm border-none bg-transparent p-0 outline-none"
+            class="flex h-2.5 w-6 cursor-pointer items-center justify-start rounded-sm border-none bg-transparent p-0 outline-none"
             onPointerEnter={() => props.onHover(props.index)}
             onPointerLeave={() => props.onHover(undefined)}
             onFocus={() => props.onHover(props.index)}
@@ -267,7 +265,7 @@ function TurnNavigatorBar(props: {
             onClick={props.onJump}
           >
             <span
-              class="block h-0.5 w-3 origin-right rounded-full transition-[opacity,transform,background-color] duration-150 ease-out"
+              class="block h-0.5 w-3 origin-left rounded-full transition-[opacity,transform,background-color] duration-150 ease-out"
               classList={{
                 "bg-foreground": distance() === 0,
                 "bg-foreground-subtlest": distance() !== 0,

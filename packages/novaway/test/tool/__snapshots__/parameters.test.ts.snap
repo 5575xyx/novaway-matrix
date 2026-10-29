@@ -99,6 +99,18 @@ exports[`tool parameters JSON Schema (wire shape) glob 1`] = `
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
+    "limit": {
+      "description": "Maximum number of files to return (default 100).",
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer",
+    },
+    "offset": {
+      "description": "Skip the first N results before applying limit, for pagination.",
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer",
+    },
     "path": {
       "description": "The directory to search in. If not specified, the current working directory will be used. IMPORTANT: Omit this field to use the default directory. DO NOT enter "undefined" or "null" - simply omit it for the default behavior. Must be a valid directory path if provided.",
       "type": "string",
@@ -119,8 +131,61 @@ exports[`tool parameters JSON Schema (wire shape) grep 1`] = `
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
+    "-A": {
+      "description": "Lines after each match (ripgrep -A). Requires output_mode: "content".",
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer",
+    },
+    "-B": {
+      "description": "Lines before each match (ripgrep -B). Requires output_mode: "content".",
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer",
+    },
+    "-C": {
+      "description": "Alias for context: lines before and after each match.",
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer",
+    },
+    "-n": {
+      "description": "Show line numbers. Requires output_mode: "content". Defaults to true.",
+      "type": "boolean",
+    },
+    "context": {
+      "description": "Lines before and after each match (ripgrep -C). Requires output_mode: "content".",
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer",
+    },
+    "head_limit": {
+      "description": "Limit output to the first N entries. Works across all output modes. Defaults to 250. Pass 0 for unlimited.",
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer",
+    },
     "include": {
       "description": "File pattern to include in the search (e.g. "*.js", "*.{ts,tsx}")",
+      "type": "string",
+    },
+    "multiline": {
+      "description": "Allow patterns to span lines (ripgrep -U). Use [sS]*? for cross-line matches.",
+      "type": "boolean",
+    },
+    "offset": {
+      "description": "Skip the first N entries before applying head_limit. Defaults to 0.",
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer",
+    },
+    "output_mode": {
+      "description": "Output mode: "content" shows matching lines (supports -A/-B/-C context and -n line numbers), "files_with_matches" shows file paths (default), "count" shows match counts per file.",
+      "enum": [
+        "content",
+        "files_with_matches",
+        "count",
+      ],
       "type": "string",
     },
     "path": {
@@ -129,6 +194,10 @@ exports[`tool parameters JSON Schema (wire shape) grep 1`] = `
     },
     "pattern": {
       "description": "The regex pattern to search for in file contents",
+      "type": "string",
+    },
+    "type": {
+      "description": "Restrict to a ripgrep file type, e.g. "ts", "js", "py", "rust".",
       "type": "string",
     },
   },
@@ -295,6 +364,10 @@ exports[`tool parameters JSON Schema (wire shape) read 1`] = `
       "minimum": 0,
       "type": "integer",
     },
+    "pages": {
+      "description": "Page range for PDF files (e.g. "1-5", "3", "10-20"). Only applicable to PDF files. Maximum 20 pages per request.",
+      "type": "string",
+    },
   },
   "required": [
     "filePath",
@@ -443,6 +516,10 @@ exports[`tool parameters JSON Schema (wire shape) webfetch 1`] = `
         },
       ],
     },
+    "prompt": {
+      "description": "The prompt to run on the fetched content. When omitted the raw converted content is returned.",
+      "type": "string",
+    },
     "timeout": {
       "description": "Optional timeout in seconds (max 120)",
       "type": "number",
@@ -463,6 +540,20 @@ exports[`tool parameters JSON Schema (wire shape) websearch 1`] = `
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
+    "allowed_domains": {
+      "description": "Only include search results from these domains",
+      "items": {
+        "type": "string",
+      },
+      "type": "array",
+    },
+    "blocked_domains": {
+      "description": "Never include search results from these domains",
+      "items": {
+        "type": "string",
+      },
+      "type": "array",
+    },
     "contextMaxCharacters": {
       "description": "Maximum characters for context string optimized for LLMs (default: 10000)",
       "type": "number",
@@ -480,7 +571,7 @@ exports[`tool parameters JSON Schema (wire shape) websearch 1`] = `
       "type": "number",
     },
     "query": {
-      "description": "Websearch query",
+      "description": "The search query to use",
       "type": "string",
     },
     "type": {

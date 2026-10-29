@@ -35,14 +35,36 @@ function limits(input: { cfg: Config.Info; model: Provider.Model; outputTokenMax
 
 export function usable(input: { cfg: Config.Info; model: Provider.Model; outputTokenMax?: number }) {
   if (input.model.limit.context === 0) return 0
+  return autoThreshold(input)
+}
+
+/**
+ * Token count at which automatic compaction starts.
+ *
+ * `compaction.threshold` (absolute) wins over `compaction.threshold_percent`
+ * (1-100 of the effective window); both fall back to the Claude Code default
+ * of `effective - 13k`. A configured value is clamped to the hard blocking
+ * limit (`effective - 3k`): compacting above that line would mean the request
+ * is rejected before the threshold is ever reached.
+ */
+export function autoThreshold(input: { cfg: Config.Info; model: Provider.Model; outputTokenMax?: number }) {
   const value = limits(input)
+  const ceiling = Math.max(0, value.effective - MANUAL_COMPACT_BUFFER)
+  const absolute = input.cfg.compaction?.threshold
+  if (absolute !== undefined) return Math.min(absolute, ceiling)
+  const percent = input.cfg.compaction?.threshold_percent
+  if (percent !== undefined) return Math.min(Math.floor(value.effective * (percent / 100)), ceiling)
   return Math.max(0, value.effective - value.autoBuffer)
 }
 
 export type ContextBudget = {
   /** context/input window minus the summary+output reserve. */
   effective: number
-  /** Usage at/above this triggers auto-compaction (the effective window when auto is off). */
+  /**
+   * Usage at/above this triggers auto-compaction: `compaction.threshold` or
+   * `compaction.threshold_percent` when configured, otherwise
+   * `effective - 13k`; the effective window when auto is off.
+   */
   threshold: number
   /** Usage at/above this shows the low-context warning. */
   warning: number
@@ -57,10 +79,12 @@ export type ContextBudget = {
 /**
  * Claude Code compatible context thresholds.
  *
- * `threshold` is the auto-compact line (effective - 13k). Warning/error are
- * 20k below it, and the hard blocking limit is 3k below the effective window.
- * When `compaction.auto` is disabled the threshold moves up to the effective
- * window so the UI can still warn before the provider rejects a request.
+ * `threshold` is the auto-compact line: `compaction.threshold` /
+ * `compaction.threshold_percent` when the user configured them, otherwise
+ * `effective - 13k`. Warning/error are 20k below it, and the hard blocking
+ * limit is 3k below the effective window. When `compaction.auto` is disabled
+ * the threshold moves up to the effective window so the UI can still warn
+ * before the provider rejects a request.
  */
 export function contextBudget(input: {
   cfg: Config.Info
@@ -73,7 +97,7 @@ export function contextBudget(input: {
   }
   const value = limits(input)
   const auto = input.cfg.compaction?.auto !== false
-  const threshold = auto ? Math.max(0, value.effective - value.autoBuffer) : value.effective
+  const threshold = auto ? autoThreshold(input) : value.effective
   const count = input.tokens
   return {
     effective: value.effective,

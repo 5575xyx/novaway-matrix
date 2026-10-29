@@ -5,9 +5,11 @@ import { useDialog } from "@novaway/ui/context/dialog"
 import { DropdownMenu } from "@novaway/ui/dropdown-menu"
 import { Icon } from "@novaway/ui/icon"
 import { Popover } from "@novaway/ui/popover"
+import { showToast } from "@novaway/ui/toast"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { GitGraphDialog } from "../git-graph"
+import { GitBranchDialog, GitRemoteDialog } from "../git-tools-dialog"
 import { useGitSnapshot } from "../git-panel"
 import { buildGitSectionModel, gitSectionStat, type GitSectionModel } from "./git-section-model"
 import type { StatusPanelSection } from "./status-panel"
@@ -42,6 +44,25 @@ export function useGitSection(): () => StatusPanelSection | null {
     })
   }
 
+  /**
+   * 新建分支。
+   *
+   * 以前点「新建」没有任何反馈：后端成功时菜单不会自己刷新出面，失败时错误又只
+   * 落在面板深处。现在统一给 toast，并把输入框清空作为成功信号。
+   */
+  const createBranch = () => {
+    const name = store.newBranch.trim()
+    if (!name || git.busy()) return
+    void git.createBranch(name).then((ok) => {
+      if (ok) setStore("newBranch", "")
+      showToast(
+        ok
+          ? { variant: "success", icon: "circle-check", title: language.t("git.branch.created", { branch: name }) }
+          : { variant: "error", title: language.t("git.branch.createFailed"), description: git.error() },
+      )
+    })
+  }
+
   const diffStat = (current: GitSectionModel): JSX.Element => {
     const stat = gitSectionStat(current)
     if (stat.kind === "files") {
@@ -56,13 +77,48 @@ export function useGitSection(): () => StatusPanelSection | null {
 
   return () => {
     const current = model()
-    if (!current) return null
+    // 目录还不是 Git 仓库：给一张「初始化仓库」的卡，而不是整块消失 ——
+    // 用户在这个项目里看到的第一个 Git 入口就是它（对齐 IDE 的提示）。
+    if (!current) {
+      if (!git.notARepo()) return null
+      return {
+        id: "git",
+        title: language.t("git.toolsTitle"),
+        summary: <span class="text-foreground-subtlest">{language.t("git.notARepo")}</span>,
+        children: (
+          <div class="flex flex-col gap-2 px-2 pb-2">
+            <div class="text-ui-sm text-foreground-subtle">{language.t("git.init.description")}</div>
+            <Button
+              variant="secondary"
+              size="small"
+              class="self-start"
+              disabled={git.busy()}
+              onClick={() =>
+                void git.initRepo().then((ok) =>
+                  showToast(
+                    ok
+                      ? { variant: "success", icon: "circle-check", title: language.t("git.init.success") }
+                      : {
+                          variant: "error",
+                          title: language.t("git.init.failed"),
+                          description: git.error(),
+                        },
+                  ),
+                )
+              }
+            >
+              {language.t("git.init.action")}
+            </Button>
+          </div>
+        ),
+      } satisfies StatusPanelSection
+    }
 
     return {
       id: "git",
       // 对齐 ZCode 的 `chat.statusPanel.environment`：标题是「Git 工具」。
       title: language.t("git.toolsTitle"),
-      summary: current.clean ? <span>{language.t("git.noChanges")}</span> : diffStat(current),
+      summary: diffStat(current),
       children: (
         <div class="flex flex-col gap-0.5 pb-1">
           {/* 「更改」行：整行可点，打开审查面板 —— 对齐 ZCode 的 Changes 行
@@ -161,11 +217,7 @@ export function useGitSection(): () => StatusPanelSection | null {
                     onKeyDown={(event) => {
                       if (event.key !== "Enter") return
                       event.preventDefault()
-                      const name = store.newBranch.trim()
-                      if (!name) return
-                      void git.createBranch(name).then((ok) => {
-                        if (ok) setStore("newBranch", "")
-                      })
+                      createBranch()
                     }}
                     placeholder={language.t("git.branch.newPlaceholder")}
                     class="h-7 min-w-0 flex-1 rounded-md border border-input-border bg-input px-2 text-ui-sm text-foreground placeholder:text-foreground-subtlest outline-none"
@@ -174,18 +226,20 @@ export function useGitSection(): () => StatusPanelSection | null {
                     variant="secondary"
                     size="small"
                     disabled={!store.newBranch.trim() || git.busy()}
-                    onClick={() => {
-                      const name = store.newBranch.trim()
-                      if (!name) return
-                      void git.createBranch(name).then((ok) => {
-                        if (ok) setStore("newBranch", "")
-                      })
-                    }}
+                    onClick={createBranch}
                   >
                     {language.t("git.branch.create")}
                   </Button>
                 </div>
                 <DropdownMenu.Separator />
+                <DropdownMenu.Item
+                  onSelect={() =>
+                    dialog.show(() => <GitBranchDialog git={git} onClose={() => dialog.close()} />)
+                  }
+                >
+                  <Icon name="branch" size="small" class="text-foreground-subtle" />
+                  <DropdownMenu.ItemLabel>{language.t("git.branch.manage.title")}</DropdownMenu.ItemLabel>
+                </DropdownMenu.Item>
                 <DropdownMenu.Item
                   data-action="status-panel-git-graph"
                   onSelect={() =>
@@ -201,10 +255,28 @@ export function useGitSection(): () => StatusPanelSection | null {
             </DropdownMenu.Portal>
           </DropdownMenu>
 
+          {/* 空仓库：没有提交就没有引用，「切换分支」列表天然是空的。
+              给一句解释，否则用户会以为分支功能坏了。 */}
+          <Show when={(git.snapshot()?.log.length ?? 0) === 0}>
+            <div class="px-2 pb-1 text-ui-xs text-foreground-subtlest">{language.t("git.noCommitsHint")}</div>
+          </Show>
+
           {/* 「同步」行：拉取 / 获取 / 合并这三个高频操作不该藏在分支菜单里。 */}
           <div class="flex items-center gap-1 px-2 py-1">
             <Icon name="refresh" size="small" class="mr-1 shrink-0 text-foreground" />
             <span class="mr-auto text-ui-base text-foreground">{language.t("git.sync")}</span>
+            {/* 远程仓库管理：推送前没配 remote 是新手最常卡住的一步，
+                这里给一个直接的入口（添加/删除 remote）。 */}
+            <button
+              type="button"
+              class="flex size-6 items-center justify-center rounded-md text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground disabled:opacity-50"
+              title={language.t("git.remote.title")}
+              aria-label={language.t("git.remote.title")}
+              disabled={git.busy()}
+              onClick={() => dialog.show(() => <GitRemoteDialog git={git} onClose={() => dialog.close()} />)}
+            >
+              <Icon name="globe" size="small" />
+            </button>
             <button
               type="button"
               class="rounded-md px-1.5 py-1 text-ui-xs text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground disabled:opacity-50"

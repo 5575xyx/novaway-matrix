@@ -82,7 +82,7 @@ export interface CommandOption {
   suggested?: boolean
   disabled?: boolean
   hidden?: boolean
-  onSelect?: (source?: "palette" | "keybind" | "slash") => void
+  onSelect?: (source?: "palette" | "keybind" | "slash", args?: string) => void
   onHighlight?: () => (() => void) | void
 }
 
@@ -242,8 +242,10 @@ export const { use: useCommand, provider: CommandProvider } = createSimpleContex
     const warnedDuplicates = new Set<string>()
 
     type CommandCatalog = Record<string, CommandCatalogItem>
+    // v2：目录不再收录隐藏命令。旧存档里残留的「Open Project {number}」等条目
+    // 在快捷键设置里显示成未设置的空行，换 key 让它们彻底消失。
     const [catalog, setCatalog, _, catalogReady] = persisted(
-      Persist.global("command.catalog.v1"),
+      Persist.global("command.catalog.v2"),
       createStore<CommandCatalog>({}),
     )
 
@@ -281,6 +283,10 @@ export const { use: useCommand, provider: CommandProvider } = createSimpleContex
       setCatalog(
         registered().reduce((acc, opt) => {
           const id = actionId(opt.id)
+          // 隐藏命令（「打开项目 1..9」这类只靠快捷键触发的）不进目录：
+          // 目录是持久化的，写进去之后即使命令下线也会一直留在快捷键设置里，
+          // 表现就是一页「未设置」和重复条目。
+          if (opt.hidden) return acc
           if (opt.title)
             acc[id] = {
               title: opt.title,
@@ -349,9 +355,9 @@ export const { use: useCommand, provider: CommandProvider } = createSimpleContex
       return map
     })
 
-    const run = (id: string, source?: CommandSource) => {
+    const run = (id: string, source?: CommandSource, args?: string) => {
       const option = optionMap().get(id)
-      option?.onSelect?.(source)
+      option?.onSelect?.(source, args)
     }
 
     const showPalette = () => {
@@ -404,8 +410,8 @@ export const { use: useCommand, provider: CommandProvider } = createSimpleContex
 
     return {
       register,
-      trigger(id: string, source?: CommandSource) {
-        run(id, source)
+      trigger(id: string, source?: CommandSource, args?: string) {
+        run(id, source, args)
       },
       keybind(id: string) {
         if (id === PALETTE_ID) {

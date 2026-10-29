@@ -49,7 +49,8 @@ export function useSessionContextData() {
     return msg?.system?.trim() || undefined
   })
 
-  const metrics = createMemo(() => getSessionContextMetrics(messages(), providers.all()))
+  const compaction = createMemo(() => sync.data.config?.compaction)
+  const metrics = createMemo(() => getSessionContextMetrics(messages(), providers.all(), compaction()))
   const ctx = createMemo(() => metrics().context)
 
   const breakdown = createMemo(

@@ -139,6 +139,41 @@ function listFor(command: CommandContext, map: KeybindMap, palette: string) {
     out.set(id, { title: id, group: groupFor(id) })
   }
 
+  // 快捷键页只列「真的有快捷键」的命令。command.catalog 是持久化的历史目录，
+  // 里面会残留已下线/改名的命令 id —— 以前把它们全铺出来，页面上就是一大片
+  // 「未设置」，既没法用也把真正的快捷键淹没了。用户手动清空（"none"）的
+  // 也保留一行，方便反悔。
+  for (const id of [...out.keys()]) {
+    if (id === PALETTE_ID) continue
+    const override = map[id]
+    if (typeof override === "string") {
+      // override 为 "none" 表示用户主动清空过，保留一行以便重新设置。
+      continue
+    }
+    if (command.keybind(id)) continue
+    out.delete(id)
+  }
+
+  // 同一个动作可能因为历史 id 残留出现两行同名快捷键（例如两个「打开设置」）。
+  // 同名只保留一行：优先保留当前仍注册着的 id，其次保留任意一行。
+  const live = new Set<string>()
+  for (const opt of command.options) live.add(opt.id.replace(/^suggested\./, ""))
+  const seenTitle = new Map<string, string>()
+  for (const [id, meta] of [...out]) {
+    if (id === PALETTE_ID) continue
+    const prev = seenTitle.get(meta.title)
+    if (!prev) {
+      seenTitle.set(meta.title, id)
+      continue
+    }
+    if (!live.has(prev) && live.has(id)) {
+      out.delete(prev)
+      seenTitle.set(meta.title, id)
+      continue
+    }
+    out.delete(id)
+  }
+
   return out
 }
 

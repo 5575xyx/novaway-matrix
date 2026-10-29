@@ -6,10 +6,12 @@ import { IconButton } from "@novaway/ui/icon-button"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { ProviderIcon } from "@novaway/ui/provider-icon"
 import { Switch } from "@novaway/ui/switch"
-import { providerIconId } from "@/utils/provider-icon"
+import { modelIconId, providerIconId } from "@/utils/provider-icon"
 import { Tag } from "@novaway/ui/tag"
 import { showToast } from "@novaway/ui/toast"
+import { writeClipboard } from "@novaway/ui/util/clipboard"
 import { popularProviders, useProviders } from "@/hooks/use-providers"
+import { useQueryClient } from "@tanstack/solid-query"
 import { createMemo, createSignal, type Component, For, onMount, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
@@ -46,6 +48,7 @@ export const SettingsProviders: Component = () => {
   const globalSync = useGlobalSync()
   const providers = useProviders()
   const models = useModels()
+  const queryClient = useQueryClient()
   const [expandedModels, setExpandedModels] = createStore<Record<string, boolean>>({})
 
   // 供应商详情内联模型列表：模型页合并进来后，开关仍然沿用 useModels 的可见性状态。
@@ -107,8 +110,15 @@ export const SettingsProviders: Component = () => {
   }
 
   const connected = createMemo(() => {
+    /*
+     * `disabled_providers` 是本地的即时真值：断开时先写进 store，再等服务端
+     * 重建实例 + 重新查询。服务端那趟往返要几秒，不在这里先过滤掉的话，
+     * 用户点完「断开连接」会看到卡片原地不动 —— 就是"断开无效"的观感。
+     */
+    const disabled = new Set(globalSync.data.config.disabled_providers ?? [])
     return providers
       .connected()
+      .filter((p) => !disabled.has(p.id))
       .filter((p) => p.id !== "opencode" || Object.values(p.models).find((m) => m.cost?.input))
   })
 
@@ -121,6 +131,46 @@ export const SettingsProviders: Component = () => {
     items.sort((a, b) => popularProviders.indexOf(a.id) - popularProviders.indexOf(b.id))
     return items
   })
+
+  /**
+   * 被「断开连接」屏蔽掉的配置类供应商。
+   *
+   * 服务端把这些 id 从 provider 列表里整个剔除了，所以它们既不在"已连接"里，
+   * 也不会出现在可添加列表 —— 用户会以为供应商被删了、找不回来。
+   * 这里从配置文件里把它们重新列出来，点一下就能恢复。
+   */
+  const disconnected = createMemo(() => {
+    const disabled = new Set(globalSync.data.config.disabled_providers ?? [])
+    const connectedIDs = new Set(connected().map((p) => p.id))
+    return Object.entries(globalSync.data.config.provider ?? {})
+      .filter(([id]) => disabled.has(id) && !connectedIDs.has(id))
+      .map(([id, provider]) => ({ id, name: provider?.name ?? id }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  })
+
+  const reconnect = async (providerID: string, name: string) => {
+    const before = globalSync.data.config.disabled_providers ?? []
+    const next = before.filter((id) => id !== providerID)
+    globalSync.set("config", "disabled_providers", next)
+
+    try {
+      await globalSync.updateConfig({ disabled_providers: next })
+      await globalSDK.client.global.dispose().catch(() => undefined)
+      await refreshProviderQueries()
+      await loadAuthEntries()
+      setSelectedProvider(providerID)
+      showToast({
+        variant: "success",
+        icon: "circle-check",
+        title: language.t("provider.connect.toast.connected.title", { provider: name }),
+        description: language.t("provider.connect.toast.connected.description", { provider: name }),
+      })
+    } catch (err: unknown) {
+      globalSync.set("config", "disabled_providers", before)
+      const message = err instanceof Error ? err.message : String(err)
+      showToast({ title: language.t("common.requestFailed"), description: message })
+    }
+  }
 
   const source = (item: ProviderItem): ProviderSource | undefined => {
     if (!("source" in item)) return
@@ -146,6 +196,27 @@ export const SettingsProviders: Component = () => {
   const canAddKey = (item: ProviderItem) => source(item) !== "env"
 
   const [authEntries, setAuthEntries] = createStore<Record<string, AuthEntry[]>>({})
+  /** 哪些密钥行被「眼睛」揭开：`providerID:index` → 是否明文显示。 */
+  const [revealed, setRevealed] = createStore<Record<string, boolean>>({})
+
+  const copyKey = async (key: string, name: string) => {
+    const copied = await writeClipboard(key)
+    showToast(
+      copied
+        ? {
+            variant: "success",
+            icon: "circle-check",
+            title: language.t("settings.providers.credentials.copied.title", { provider: name }),
+            description: language.t("settings.providers.credentials.copied.description"),
+          }
+        : { title: language.t("common.requestFailed"), description: language.t("settings.providers.credentials.copyFailed") },
+    )
+  }
+
+  // 断开/移除凭据后必须让按目录缓存的 provider 查询失效：connected 列表来自那次查询，
+  // 只刷 authEntries 不会动它，卡片会一直显示成"已连接"。
+  const refreshProviderQueries = () =>
+    queryClient.invalidateQueries({ predicate: (query) => query.queryKey[1] === "providers" })
 
   const loadAuthEntries = async () => {
     const result: Record<string, AuthEntry[]> = {}
@@ -173,6 +244,7 @@ export const SettingsProviders: Component = () => {
     try {
       await globalSDK.client.auth.removeEntry({ providerID, entryIndex: String(index) })
       await globalSDK.client.global.dispose()
+      await refreshProviderQueries()
       await loadAuthEntries()
       showToast({
         variant: "success",
@@ -202,7 +274,12 @@ export const SettingsProviders: Component = () => {
 
     await globalSync
       .updateConfig({ disabled_providers: next })
-      .then(() => {
+      .then(async () => {
+        // config.update 触发的实例销毁是异步 fork 的，紧接着的查询可能仍打到旧实例；
+        // 这里显式再 dispose 一次，再刷新 provider 查询，卡片才会立刻消失。
+        await globalSDK.client.global.dispose().catch(() => undefined)
+        await refreshProviderQueries()
+        await loadAuthEntries()
         showToast({
           variant: "success",
           icon: "circle-check",
@@ -217,27 +294,58 @@ export const SettingsProviders: Component = () => {
       })
   }
 
-  const disconnect = async (providerID: string, name: string) => {
-    if (isConfigCustom(providerID)) {
-      await globalSDK.client.auth.remove({ providerID }).catch(() => undefined)
-      await disableProvider(providerID, name)
-      return
+  /**
+   * 凭据那一行的说明文字。
+   *
+   * 以前只要没有 auth 条目就写「已通过环境变量连接」—— 对 config / 自定义供应商是错的，
+   * 用户断开后看到这句话会以为"根本没断开"。
+   */
+  const credentialHint = (item: ProviderItem) => {
+    const current = source(item)
+    if (current === "env") {
+      const vars = "env" in item ? (item.env ?? []) : []
+      if (vars.length > 0) return language.t("settings.providers.credentials.environmentWithVars", { vars: vars.join(", ") })
+      return language.t("settings.providers.connected.environmentDescription")
     }
-    await globalSDK.client.auth
-      .remove({ providerID })
-      .then(async () => {
-        await globalSDK.client.global.dispose()
+    if (current === "config") return language.t("settings.providers.credentials.configDescription" as never)
+    if (current === "custom") return language.t("settings.providers.credentials.customDescription" as never)
+    return language.t("settings.providers.credentials.none" as never)
+  }
+
+  const disconnect = async (providerID: string, name: string) => {
+    const item = providers.connected().find((provider) => provider.id === providerID)
+    const current = item ? source(item) : undefined
+
+    try {
+      /*
+       * config 里声明过的供应商不靠 auth 记录存在：哪怕没密钥，它也会因为
+       * `config.provider[id]` 这一条继续出现在"已连接"里（用户看到的"配置"标签）。
+       * 而全局配置接口是**深合并**写入的 —— 把键从 payload 里删掉并不会真的删文件里的键。
+       * 所以这里用 `disabled_providers`：服务端会把它从 provider 列表里彻底剔除，
+       * 设置页会把它列回"可添加"区，点一下即可重连。
+       *
+       * 这类供应商**不删密钥**：屏蔽只是"先停用"，删了密钥再恢复就得重新填一遍。
+       */
+      if (current === "config" || current === "custom") {
+        await disableProvider(providerID, name)
+      } else {
+        // 其余来源（api / oauth）的凭据就是它存在的理由，断开时一并删掉。
+        await globalSDK.client.auth.remove({ providerID }).catch(() => undefined)
+        // 让实例立刻按新凭据重建；只等 config 事件里的异步 dispose 会和下面的刷新赛跑。
+        await globalSDK.client.global.dispose().catch(() => undefined)
+        await refreshProviderQueries()
+        await loadAuthEntries()
         showToast({
           variant: "success",
           icon: "circle-check",
           title: language.t("provider.disconnect.toast.disconnected.title", { provider: name }),
           description: language.t("provider.disconnect.toast.disconnected.description", { provider: name }),
         })
-      })
-      .catch((err: unknown) => {
-        const message = err instanceof Error ? err.message : String(err)
-        showToast({ title: language.t("common.requestFailed"), description: message })
-      })
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err)
+      showToast({ title: language.t("common.requestFailed"), description: message })
+    }
   }
 
   const [selectedProvider, setSelectedProvider] = createSignal<string>()
@@ -324,6 +432,27 @@ export const SettingsProviders: Component = () => {
               {language.t("settings.providers.section.available" as never)}
             </div>
             <For each={popular()}>{(item) => providerRow(item, false)}</For>
+            <For each={disconnected()}>
+              {(item) => (
+                <button
+                  type="button"
+                  class="flex w-full min-w-0 items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-hover"
+                  onClick={() => void reconnect(item.id, item.name)}
+                  title={language.t("settings.providers.reconnect.hint")}
+                >
+                  <ProviderIcon
+                    id={providerIconId(item.id, item.name)}
+                    colorId={item.id}
+                    brand
+                    class="size-4.5 shrink-0 text-foreground opacity-50"
+                  />
+                  <span class="min-w-0 flex-1 truncate text-13-regular text-foreground-subtle">{item.name}</span>
+                  <span class="shrink-0 text-11-regular text-foreground-subtlest">
+                    {language.t("settings.providers.tag.disconnected")}
+                  </span>
+                </button>
+              )}
+            </For>
             <button
               type="button"
               class="mt-2 flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left text-13-regular text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
@@ -387,7 +516,11 @@ export const SettingsProviders: Component = () => {
                           dialog.show(() => <DialogConnectProvider provider={item().id} mode="addkey" />)
                         }}
                       >
-                        {language.t("provider.connect.method.apiKey")}
+                        {language.t(
+                          (authEntries[item().id] ?? []).length > 0
+                            ? "provider.connect.addKey"
+                            : "provider.connect.method.apiKey",
+                        )}
                       </Button>
                     </Show>
                     <Button
@@ -441,31 +574,69 @@ export const SettingsProviders: Component = () => {
                   <Show
                     when={(authEntries[item().id] ?? []).length > 0}
                     fallback={
-                      <span class="text-12-regular text-foreground-subtlest">
-                        {language.t("settings.providers.connected.environmentDescription")}
-                      </span>
+                      <span class="text-12-regular text-foreground-subtlest">{credentialHint(item())}</span>
                     }
                   >
-                    <div class="flex flex-col overflow-hidden rounded-lg border border-border">
-                      <For each={authEntries[item().id]}>
-                        {(entry, index) => (
-                          <div class="flex items-center justify-between gap-3 border-t border-border px-3 py-2 text-12-regular first:border-t-0">
-                            <span class="truncate font-mono text-foreground">
-                              {entry.type === "api"
-                                ? maskKey(entry.key ?? "")
-                                : entry.type === "oauth"
-                                  ? "OAuth"
-                                  : "WellKnown"}
-                            </span>
-                            <button
-                              class="shrink-0 text-12-regular text-foreground-subtle hover:text-destructive"
-                              onClick={() => void removeEntry(item().id, index(), item().name)}
-                            >
-                              {language.t("common.remove")}
-                            </button>
-                          </div>
-                        )}
-                      </For>
+                    <div class="flex flex-col gap-2">
+                      <div class="flex flex-col overflow-hidden rounded-lg border border-border">
+                        <For each={authEntries[item().id]}>
+                          {(entry, index) => {
+                            const rowKey = () => `${item().id}:${index()}`
+                            const visible = () => !!revealed[rowKey()]
+                            const value = () => entry.key ?? ""
+                            return (
+                              <div class="flex items-center justify-between gap-3 border-t border-border px-3 py-2 text-12-regular first:border-t-0">
+                                <span class="min-w-0 flex-1 truncate font-mono text-foreground">
+                                  {entry.type === "api"
+                                    ? visible()
+                                      ? value() || "****"
+                                      : maskKey(value())
+                                    : entry.type === "oauth"
+                                      ? "OAuth"
+                                      : "WellKnown"}
+                                </span>
+                                <Show when={entry.type === "api" && !!value()}>
+                                  <div class="flex shrink-0 items-center gap-0.5">
+                                    {/* 密钥默认打码；眼睛只是「看一眼」，不会写回配置。 */}
+                                    <IconButton
+                                      icon="eye"
+                                      size="small"
+                                      variant="ghost"
+                                      aria-pressed={visible()}
+                                      aria-label={language.t(
+                                        visible()
+                                          ? "settings.providers.credentials.hide"
+                                          : "settings.providers.credentials.reveal",
+                                      )}
+                                      onClick={() => setRevealed(rowKey(), !visible())}
+                                    />
+                                    <IconButton
+                                      icon="copy"
+                                      size="small"
+                                      variant="ghost"
+                                      aria-label={language.t("settings.providers.credentials.copy")}
+                                      onClick={() => void copyKey(value(), item().name)}
+                                    />
+                                  </div>
+                                </Show>
+                                <button
+                                  class="shrink-0 text-12-regular text-foreground-subtle hover:text-destructive"
+                                  onClick={() => void removeEntry(item().id, index(), item().name)}
+                                >
+                                  {language.t("common.remove")}
+                                </button>
+                              </div>
+                            )
+                          }}
+                        </For>
+                      </div>
+                      {/* 一个供应商存了多个 key 时，服务端会按顺序轮询使用（见 provider 的 keyRing），
+                          这里说明一句，否则用户不知道多出来的 key 有没有生效。 */}
+                      <Show when={(authEntries[item().id] ?? []).length > 1}>
+                        <span class="text-11-regular text-foreground-subtlest">
+                          {language.t("settings.providers.credentials.rotating")}
+                        </span>
+                      </Show>
                     </div>
                   </Show>
                 </div>
@@ -491,18 +662,8 @@ export const SettingsProviders: Component = () => {
                         } as never,
                       )}
                     </button>
-                    <Button
-                      size="small"
-                      variant="ghost"
-                      icon="plus-small"
-                      onClick={() => {
-                        dialog.show(() => (
-                          <DialogManageProviderModels providerID={item().id} providerName={item().name} />
-                        ))
-                      }}
-                    >
-                      {language.t("settings.providers.models.manage")}
-                    </Button>
+                    {/* 这里原来还有第二个「管理模型」按钮，和顶部那排里的同名按钮重复；
+                        用户要求只保留一个，所以入口收敛到顶部的操作区。 */}
                   </div>
                   <Show when={modelsExpanded(item().id)}>
                     <Show
@@ -517,6 +678,14 @@ export const SettingsProviders: Component = () => {
                         <For each={providerModels(item().id)}>
                           {(model) => (
                             <div class="flex min-w-0 items-center gap-3 border-t border-border px-3 py-2 first:border-t-0">
+                              {/* 网关下一排模型各有各的厂商：这里也按模型认品牌，
+                                  GLM / Kimi / Claude 不会全部共用网关那个图标。 */}
+                              <ProviderIcon
+                                id={modelIconId(item().id, item().name, model.id, model.name)}
+                                colorId={modelIconId(item().id, item().name, model.id, model.name)}
+                                brand
+                                class="size-5 shrink-0"
+                              />
                               <div class="min-w-0 flex-1">
                                 <div class="truncate text-13-regular text-foreground">{model.name}</div>
                                 <ModelCapabilitySummary model={model} compact />

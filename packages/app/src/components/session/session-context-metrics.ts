@@ -56,12 +56,35 @@ const WARNING_THRESHOLD_BUFFER = 20_000
 const ERROR_THRESHOLD_BUFFER = 20_000
 const MANUAL_COMPACT_BUFFER = 3_000
 
-function contextBudget(limit: Model["limit"] | undefined, total: number): Budget | undefined {
+export type CompactionConfig = {
+  auto?: boolean
+  reserved?: number
+  threshold?: number
+  threshold_percent?: number
+}
+
+function contextBudget(
+  limit: Model["limit"] | undefined,
+  total: number,
+  compaction?: CompactionConfig,
+): Budget | undefined {
   if (!limit?.context) return undefined
   const base = limit.input ?? limit.context
-  const effective = Math.max(0, base - Math.min(SUMMARY_RESERVE, limit.output ?? 0))
-  const autoCompact = Math.max(0, effective - AUTOCOMPACT_BUFFER)
-  // Auto compaction is enabled by default; the UI mirrors those thresholds.
+  const reserved = compaction?.reserved
+  const effective = Math.max(
+    0,
+    reserved !== undefined ? base - reserved : base - Math.min(SUMMARY_RESERVE, limit.output ?? 0),
+  )
+  const ceiling = Math.max(0, effective - MANUAL_COMPACT_BUFFER)
+  const configured =
+    compaction?.threshold !== undefined
+      ? Math.min(compaction.threshold, ceiling)
+      : compaction?.threshold_percent !== undefined
+        ? Math.min(Math.floor(effective * (compaction.threshold_percent / 100)), ceiling)
+        : Math.max(0, effective - (reserved !== undefined ? 0 : AUTOCOMPACT_BUFFER))
+  // Auto compaction is enabled by default; disabling it moves the threshold up
+  // to the effective window so the UI still warns before a request is rejected.
+  const autoCompact = compaction?.auto === false ? effective : configured
   const warning = Math.max(0, autoCompact - WARNING_THRESHOLD_BUFFER)
   const error = Math.max(0, autoCompact - ERROR_THRESHOLD_BUFFER)
   const blocking = Math.max(0, effective - MANUAL_COMPACT_BUFFER)
@@ -71,7 +94,8 @@ function contextBudget(limit: Model["limit"] | undefined, total: number): Budget
     warning,
     error,
     blocking,
-    percentLeft: autoCompact > 0 ? Math.max(0, Math.min(100, Math.round(((autoCompact - total) / autoCompact) * 100))) : null,
+    percentLeft:
+      autoCompact > 0 ? Math.max(0, Math.min(100, Math.round(((autoCompact - total) / autoCompact) * 100))) : null,
     status: total >= blocking ? "blocking" : total >= autoCompact ? "error" : total >= warning ? "warning" : "normal",
   }
 }
@@ -98,7 +122,7 @@ const lastAssistantWithTokens = (messages: Message[]) => {
   }
 }
 
-const build = (messages: Message[] = [], providers: Provider[] = []): Metrics => {
+const build = (messages: Message[] = [], providers: Provider[] = [], compaction?: CompactionConfig): Metrics => {
   const totalCost = messages.reduce((sum, msg) => sum + (msg.role === "assistant" ? msg.cost : 0), 0)
   const message = lastAssistantWithTokens(messages)
   if (!message) return { totalCost, context: undefined }
@@ -124,13 +148,17 @@ const build = (messages: Message[] = [], providers: Provider[] = []): Metrics =>
       cacheWrite: message.tokens.cache.write,
       total,
       usage: limit ? Math.round((total / limit) * 100) : null,
-      budget: contextBudget(model?.limit, total),
+      budget: contextBudget(model?.limit, total, compaction),
     },
   }
 }
 
-export function getSessionContextMetrics(messages: Message[] = [], providers: Provider[] = []) {
-  return build(messages, providers)
+export function getSessionContextMetrics(
+  messages: Message[] = [],
+  providers: Provider[] = [],
+  compaction?: CompactionConfig,
+) {
+  return build(messages, providers, compaction)
 }
 
 export function getSessionCacheMetrics(messages: Message[] = []): SessionCacheMetrics {

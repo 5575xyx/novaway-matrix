@@ -9,16 +9,32 @@ import { InstanceState } from "@/effect/instance-state"
 import { assertExternalDirectoryEffect } from "./external-directory"
 import { Instruction } from "../session/instruction"
 import { isPdfAttachment, sniffAttachmentMime } from "@/util/media"
+import * as Pdf from "@/util/pdf"
 import { Reference } from "@/reference/reference"
 import { extractOfficeDocumentText, isOfficeDocument } from "@/util/office-document"
+import * as Bom from "@/util/bom"
+import { ReadState } from "./read-state"
+import * as Notebook from "./notebook"
 
 const DEFAULT_READ_LIMIT = 2000
 const MAX_LINE_LENGTH = 2000
 const MAX_LINE_SUFFIX = `... (line truncated to ${MAX_LINE_LENGTH} chars)`
-const MAX_BYTES = 50 * 1024
+// Claude Code reads up to 256 KB / 25k output tokens in one call. The previous
+// 50 KB cap forced large source files into several round-trips, and the model
+// had to reason about a partial view without knowing it was partial.
+const MAX_BYTES = 256 * 1024
 const MAX_BYTES_LABEL = `${MAX_BYTES / 1024} KB`
 const SAMPLE_BYTES = 4096
 const SUPPORTED_IMAGE_MIMES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"])
+
+/**
+ * Returned instead of the file body when the same range was read before and
+ * the file has not changed since. Mirrors Claude Code's `file_unchanged`
+ * result: the earlier read is still in context, so re-sending the whole file
+ * only burns tokens.
+ */
+export const FILE_UNCHANGED_STUB =
+  "File unchanged since last read. The content from the earlier Read tool_result in this conversation is still current — refer to that instead of re-reading."
 
 class ReadStop extends Schema.TaggedErrorClass<ReadStop>()("ReadStop", {}) {}
 
@@ -35,6 +51,10 @@ export const Parameters = Schema.Struct({
   limit: Schema.optional(NonNegativeInt).annotate({
     description: "The maximum number of lines to read (defaults to 2000)",
   }),
+  pages: Schema.optional(Schema.String).annotate({
+    description:
+      'Page range for PDF files (e.g. "1-5", "3", "10-20"). Only applicable to PDF files. Maximum 20 pages per request.',
+  }),
 })
 
 export const ReadTool = Tool.define(
@@ -45,6 +65,25 @@ export const ReadTool = Tool.define(
     const lsp = yield* LSP.Service
     const reference = yield* Reference.Service
     const scope = yield* Scope.Scope
+    const readState = yield* ReadState.Service
+
+    const mtimeOf = (stat: { mtime: Option.Option<Date> }) =>
+      Option.getOrElse(stat.mtime, () => new Date(0)).getTime()
+
+    const recordRead = (
+      ctx: Tool.Context,
+      filepath: string,
+      stat: { mtime: Option.Option<Date>; size: bigint | number },
+      partial: boolean,
+      range?: { offset?: number; limit?: number },
+    ) =>
+      readState.record(ctx.sessionID, filepath, {
+        timestamp: Date.now(),
+        mtime: mtimeOf(stat),
+        size: Number(stat.size),
+        partial,
+        ...range,
+      })
 
     const miss = Effect.fn("ReadTool.miss")(function* (filepath: string) {
       const dir = path.dirname(filepath)
@@ -260,6 +299,35 @@ export const ReadTool = Tool.define(
           metadata: {
             preview: sliced.slice(0, 20).join("\n"),
             truncated,
+            partial: false,
+            loaded: [] as string[],
+          },
+        }
+      }
+
+      // Same file, same range, and unchanged on disk: the earlier tool_result
+      // is still in context, so a full copy only wastes tokens. Entries written
+      // by edit/write carry no offset, which keeps them out of this path: the
+      // content the model has seen predates the write, so the file must be read
+      // again rather than reported as unchanged.
+      const offset = params.offset || 1
+      const limit = params.limit ?? DEFAULT_READ_LIMIT
+      const previous = yield* readState.get(ctx.sessionID, filepath)
+      if (
+        previous &&
+        previous.offset !== undefined &&
+        !previous.partial &&
+        previous.offset === offset &&
+        previous.limit === limit &&
+        previous.mtime === mtimeOf(stat)
+      ) {
+        return {
+          title,
+          output: FILE_UNCHANGED_STUB,
+          metadata: {
+            preview: FILE_UNCHANGED_STUB,
+            truncated: false,
+            partial: false,
             loaded: [] as string[],
           },
         }
@@ -271,15 +339,100 @@ export const ReadTool = Tool.define(
       const mime = sniffAttachmentMime(sample, AppFileSystem.mimeType(filepath))
       const isImage = SUPPORTED_IMAGE_MIMES.has(mime)
 
-      if (isImage || isPdfAttachment(mime)) {
-        const bytes = yield* fs.readFile(filepath)
-        const msg = isPdfAttachment(mime) ? "PDF read successfully" : "Image read successfully"
+      // PDF 有两条路径（对齐 CC）：小文件整份内联成一个 document block；
+      // `pages` 参数或体积过大时用 poppler 按页渲染成 JPEG 图片附件。
+      if (isPdfAttachment(mime)) {
+        if (params.pages) {
+          const invalid = Pdf.validatePageRange(params.pages)
+          if (invalid) return yield* Effect.fail(new Error(invalid))
+        }
+
+        const size = Number(stat.size)
+        const extracted = (range?: { firstPage: number; lastPage: number }) =>
+          Effect.promise(() => Pdf.extractPages(filepath, size, range))
+
+        const render = (data: { images: { mime: string; base64: string }[]; count: number; size: number }) => ({
+          title,
+          output: `PDF pages extracted: ${data.count} page(s) from ${filepath} (${Pdf.formatSize(data.size)})`,
+          metadata: {
+            preview: `PDF pages extracted: ${data.count} page(s)`,
+            truncated: false,
+            partial: true,
+            loaded: loaded.map((item) => item.filepath),
+          },
+          attachments: data.images.map((image) => ({
+            type: "file" as const,
+            mime: image.mime,
+            url: `data:${image.mime};base64,${image.base64}`,
+          })),
+        })
+
+        if (params.pages) {
+          const result = yield* extracted(Pdf.parsePageRange(params.pages))
+          if (!result.ok) return yield* Effect.fail(new Error(result.error.message))
+          yield* recordRead(ctx, filepath, stat, true)
+          return render(result.data)
+        }
+
+        const count = yield* Effect.promise(() => Pdf.pageCount(filepath))
+        if (count !== undefined && count > Pdf.INLINE_PAGE_THRESHOLD) {
+          return yield* Effect.fail(
+            new Error(
+              `This PDF has ${count} pages, which is too many to read at once. ` +
+                `Use the pages parameter to read specific page ranges (e.g. pages: "1-5"). ` +
+                `Maximum ${Pdf.MAX_PAGES_PER_READ} pages per request.`,
+            ),
+          )
+        }
+
+        // 大文件整份 base64 会挤爆请求，改为分页渲染；poppler 缺失时退回整份内联
+        // （小文件仍可用），只有确定放不下才报错。
+        if (size > Pdf.EXTRACT_SIZE_THRESHOLD) {
+          const result = yield* extracted()
+          if (result.ok) {
+            yield* recordRead(ctx, filepath, stat, false)
+            return render(result.data)
+          }
+          if (result.error.reason === "unavailable") {
+            return yield* Effect.fail(new Error(`${result.error.message} The PDF is too large to inline directly.`))
+          }
+          return yield* Effect.fail(new Error(result.error.message))
+        }
+
+        const whole = yield* Effect.promise(() => Pdf.readWhole(filepath, size))
+        if (!whole.ok) return yield* Effect.fail(new Error(whole.error.message))
+        const msg = count === undefined ? "PDF read successfully" : `PDF read successfully (${count} pages)`
+        yield* recordRead(ctx, filepath, stat, false)
         return {
           title,
           output: msg,
           metadata: {
             preview: msg,
             truncated: false,
+            partial: false,
+            loaded: loaded.map((item) => item.filepath),
+          },
+          attachments: [
+            {
+              type: "file" as const,
+              mime: "application/pdf",
+              url: `data:application/pdf;base64,${whole.data.base64}`,
+            },
+          ],
+        }
+      }
+
+      if (isImage) {
+        const bytes = yield* fs.readFile(filepath)
+        const msg = "Image read successfully"
+        yield* recordRead(ctx, filepath, stat, false)
+        return {
+          title,
+          output: msg,
+          metadata: {
+            preview: msg,
+            truncated: false,
+            partial: false,
             loaded: loaded.map((item) => item.filepath),
           },
           attachments: [
@@ -308,12 +461,15 @@ export const ReadTool = Tool.define(
           "</content>",
         ].join("\n")
 
+        const officeTruncated = content.length >= 160_000
+        yield* recordRead(ctx, filepath, stat, officeTruncated)
         return {
           title,
           output,
           metadata: {
             preview: content.split("\n").slice(0, 20).join("\n"),
-            truncated: content.length >= 160_000,
+            truncated: officeTruncated,
+            partial: officeTruncated,
             loaded: loaded.map((item) => item.filepath),
           },
         }
@@ -321,6 +477,49 @@ export const ReadTool = Tool.define(
 
       if (isBinaryFile(filepath, sample)) {
         return yield* Effect.fail(new Error(`Cannot read binary file: ${filepath}`))
+      }
+
+      // Jupyter notebooks are JSON on disk: showing the raw envelope wastes
+      // most of the context on metadata and output blobs. Render cells the way
+      // the model needs to see them (source + outputs + ids it can edit by),
+      // matching Claude Code's notebook read.
+      if (path.extname(filepath).toLowerCase() === ".ipynb") {
+        const raw = yield* fs.readFileString(filepath)
+        const source = Bom.split(raw).text
+        let notebook: Notebook.Notebook
+        try {
+          notebook = Notebook.parse(source)
+        } catch (error) {
+          return yield* Effect.fail(
+            new Error(`Notebook is not valid JSON: ${filepath} (${error instanceof Error ? error.message : String(error)})`),
+          )
+        }
+        const rendered = Notebook.render(notebook, { filePath: filepath, maxBytes: MAX_BYTES })
+        yield* recordRead(ctx, filepath, stat, rendered.truncated)
+        return {
+          title,
+          output: [
+            `<path>${filepath}</path>`,
+            `<type>notebook</type>`,
+            `<language>${Notebook.language(notebook)}</language>`,
+            rendered.text,
+          ].join("\n"),
+          metadata: {
+            preview: rendered.text.split("\n").slice(0, 20).join("\n"),
+            truncated: rendered.truncated,
+            partial: rendered.truncated,
+            loaded: loaded.map((item) => item.filepath),
+          },
+          ...(rendered.images.length > 0
+            ? {
+                attachments: rendered.images.map((image) => ({
+                  type: "file" as const,
+                  mime: image.mime,
+                  url: `data:${image.mime};base64,${image.base64}`,
+                })),
+              }
+            : {}),
+        }
       }
 
       const file = yield* lines(filepath, { limit: params.limit ?? DEFAULT_READ_LIMIT, offset: params.offset || 1 })
@@ -336,10 +535,19 @@ export const ReadTool = Tool.define(
       const last = file.offset + file.raw.length - 1
       const next = last + 1
       const truncated = file.more || file.cut
+      // A read is a full view only when it started at line 1 and consumed the
+      // whole file. Anything else must not be treated as a basis for editing.
+      const partial = truncated || file.offset > 1
+      yield* recordRead(ctx, filepath, stat, partial, {
+        offset: file.offset,
+        limit: params.limit ?? DEFAULT_READ_LIMIT,
+      })
       if (file.cut) {
-        output += `\n\n(Output capped at ${MAX_BYTES_LABEL}. Showing lines ${file.offset}-${last}. Use offset=${next} to continue.)`
+        output += `\n\n(Output capped at ${MAX_BYTES_LABEL}. Showing lines ${file.offset}-${last}. Use offset=${next} to continue. This is a partial view; read the remaining lines before editing.)`
       } else if (file.more) {
-        output += `\n\n(Showing lines ${file.offset}-${last} of ${file.count}. Use offset=${next} to continue.)`
+        output += `\n\n(Showing lines ${file.offset}-${last} of ${file.count}. Use offset=${next} to continue. This is a partial view; read the remaining lines before editing.)`
+      } else if (file.offset > 1) {
+        output += `\n\n(End of file from line ${file.offset} - total ${file.count} lines. This is a partial view; read from line 1 before editing.)`
       } else {
         output += `\n\n(End of file - total ${file.count} lines)`
       }
@@ -357,6 +565,7 @@ export const ReadTool = Tool.define(
         metadata: {
           preview: file.raw.slice(0, 20).join("\n"),
           truncated,
+          partial,
           loaded: loaded.map((item) => item.filepath),
         },
       }

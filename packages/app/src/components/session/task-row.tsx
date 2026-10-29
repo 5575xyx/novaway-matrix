@@ -37,7 +37,7 @@ export type TaskRowProps = {
 }
 
 const STATUS_DOT_CLASS: Record<TaskStatus, string> = {
-  running: "bg-icon-blue animate-pulse",
+  running: "bg-icon-blue novaway-breathe-dot",
   waiting: "bg-warning",
   failed: "bg-diff-removed",
   idle: "bg-border-hover",

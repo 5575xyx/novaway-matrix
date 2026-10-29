@@ -1,9 +1,10 @@
 import { createEffect, createSignal, For, Match, on, onCleanup, onMount, Show, Switch, type JSX } from "solid-js"
 import { animate, type AnimationPlaybackControls } from "motion"
+import { Breathing } from "./breathing"
 import { useI18n } from "../context/i18n"
 import { createStore } from "solid-js/store"
 import { Collapsible } from "./collapsible"
-import type { IconProps } from "./icon"
+import { Icon, type IconProps } from "./icon"
 import { TextShimmer } from "./text-shimmer"
 import { Tooltip } from "./tooltip"
 import { IconButton } from "./icon-button"
@@ -78,6 +79,14 @@ export interface BasicToolProps {
   showStatus?: boolean
 
   /**
+   * 工具调用的起止时间（来自 part.state.time）。
+   *
+   * 运行中按秒跳，"写入中/执行中"后面跟一个真实耗时 —— 之前只有状态词没有时间，
+   * 长任务看不出是卡住了还是在推进。结束后定格成最终耗时。
+   */
+  timing?: { start?: number; end?: number }
+
+  /**
    * 运行结束的**那一刻**自动收起一次。
    *
    * 对齐 ZCode 的 `autoCollapseOnComplete`：只作用于 running → 完成 的边沿，
@@ -145,27 +154,9 @@ function scheduleFrameMount(fn: () => void) {
  * 和状态词一起在摘要右侧，语义更清楚（"● 执行中"）。
  */
 function defaultStatusIndicator() {
-  return (
-    <svg
-      viewBox="0 0 12 12"
-      width="12"
-      height="12"
-      fill="currentColor"
-      xmlns="http://www.w3.org/2000/svg"
-      class="block shrink-0"
-    >
-      <circle
-        cx="6"
-        cy="6"
-        r="3"
-        style={{
-          animation: "var(--animate-pulse-scale)",
-          "transform-origin": "center",
-          "transform-box": "fill-box",
-        }}
-      />
-    </svg>
-  )
+  // 统一用「呼吸灯」（见 breathing.css 的 breathing-light）：以前这里是自己写的一段
+  // 缩放动画，节奏和消息区其它进行中指示器不一致，看着像两套动效。
+  return <Breathing class="text-current" />
 }
 
 /**
@@ -253,6 +244,42 @@ export function BasicTool(props: BasicToolProps) {
     if (props.status === "running") return i18n.t("ui.tool.status.running")
     if (props.status === "error") return i18n.t("ui.tool.status.failed")
     return props.showStatus ? i18n.t("ui.tool.status.completed") : undefined
+  }
+
+  // 实时耗时：运行中每秒跳一次，结束后用服务端给的 end 定格。
+  const [now, setNow] = createSignal(Date.now())
+  const timingStart = () => props.timing?.start
+  const live = () => pending() && timingStart() !== undefined && props.timing?.end === undefined
+  createEffect(
+    on(live, (running) => {
+      if (!running) return
+      setNow(Date.now())
+      const timer = setInterval(() => setNow(Date.now()), 1000)
+      onCleanup(() => clearInterval(timer))
+    }),
+  )
+  const elapsed = createMemo(() => {
+    const start = timingStart()
+    if (start === undefined) return undefined
+    const end = props.timing?.end
+    if (end !== undefined) return Math.max(0, end - start)
+    if (!live()) return undefined
+    return Math.max(0, now() - start)
+  })
+  const elapsedLabel = createMemo(() => {
+    const ms = elapsed()
+    if (ms === undefined) return undefined
+    const seconds = Math.floor(ms / 1000)
+    if (seconds < 60) return `${seconds}s`
+    return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, "0")}s`
+  })
+  // 只把耗时拼到已经会显示的状态词后面（完成态默认不显示状态词，
+  // 否则给每一条成功的工具调用挂个耗时，时间线会立刻变吵）。
+  const statusLabelText = () => {
+    const base = statusText()
+    if (!base) return base
+    const value = elapsedLabel()
+    return value ? `${base} · ${value}` : base
   }
 
   const statusTone = () => (props.status === "error" ? "error" : pending() ? "active" : "idle")
@@ -365,6 +392,7 @@ export function BasicTool(props: BasicToolProps) {
       data-clickable={props.clickable ? "true" : undefined}
       data-hide-details={props.hideDetails ? "true" : undefined}
       data-badge={props.badge?.color}
+      data-running={pending() ? "true" : undefined}
     >
       <div data-slot="basic-tool-tool-trigger-content">
         <div data-slot="basic-tool-tool-info">
@@ -372,6 +400,13 @@ export function BasicTool(props: BasicToolProps) {
             <Match when={isTriggerTitle(props.trigger) && props.trigger}>
               {(title) => (
                 <div data-slot="basic-tool-tool-info-structured">
+                  {/* 统一图标坑位：自定义 trigger 的渲染器自带徽标，这里只给
+                      `TriggerTitle` 形态补一个，避免同类工具有的有图标、有的没有。 */}
+                  <Show when={props.icon}>
+                    <span data-slot="tool-badge-icon" data-tone={props.badge?.color ?? "teal"}>
+                      <Icon name={props.icon} size="small" />
+                    </span>
+                  </Show>
                   <div data-slot="basic-tool-tool-info-main">
                     <span
                       data-slot="basic-tool-tool-title"
@@ -433,7 +468,7 @@ export function BasicTool(props: BasicToolProps) {
           {/* 状态词放在摘要最右侧（ZCode 的 statusNode 位置）：标题说"做了什么"，
               状态说"到哪一步了"。跟在长副标题后面会被挤到看不见。 */}
           <ToolStatusNode
-            text={statusText()}
+            text={statusLabelText()}
             tone={statusTone()}
             // 默认指示物只在运行中出现：给"执行失败"配一个脉动圆点会读成
             // "还在跑"，和状态词自相矛盾。

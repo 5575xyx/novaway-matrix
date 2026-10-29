@@ -365,9 +365,7 @@ export const TaskTool = Tool.define(
       if (team) {
         const preferred = params.name ?? `${next.name}-${nextSession.id.slice(-4)}`
         // Names address members (agent_message); keep them unique per team.
-        const clash = yield* teams
-          .member(team.id, preferred)
-          .pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+        const clash = yield* teams.member(team.id, preferred).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
         yield* teams.addMember({
           teamID: team.id,
           sessionID: nextSession.id,

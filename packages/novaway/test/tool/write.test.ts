@@ -1,5 +1,5 @@
 import { afterEach, describe, expect } from "bun:test"
-import { Effect, Layer } from "effect"
+import { Effect, Layer, Option } from "effect"
 import path from "path"
 import fs from "fs/promises"
 import { WriteTool } from "../../src/tool/write"
@@ -9,6 +9,7 @@ import { Bus } from "../../src/bus"
 import { Format } from "../../src/format"
 import { Truncate } from "@/tool/truncate"
 import { Tool } from "@/tool/tool"
+import { ReadState } from "../../src/tool/read-state"
 import { Agent } from "../../src/agent/agent"
 import { SessionID, MessageID } from "../../src/session/schema"
 import { CrossSpawnSpawner } from "@novaway/core/cross-spawn-spawner"
@@ -39,6 +40,7 @@ const it = testEffect(
     CrossSpawnSpawner.defaultLayer,
     Truncate.defaultLayer,
     Agent.defaultLayer,
+    ReadState.defaultLayer,
   ),
 )
 
@@ -53,6 +55,23 @@ const run = Effect.fn("WriteToolTest.run")(function* (
 ) {
   const tool = yield* init()
   return yield* tool.execute(args, next)
+})
+
+/** Create an existing file and mark it as read, as a real session would. */
+const seed = Effect.fn("WriteToolTest.seed")(function* (filepath: string, content: string) {
+  yield* Effect.promise(() => fs.writeFile(filepath, content, "utf-8"))
+  const afs = yield* AppFileSystem.Service
+  const state = yield* ReadState.Service
+  const info = yield* afs.stat(filepath)
+  yield* state.record(ctx.sessionID, filepath, {
+    timestamp: Date.now(),
+    mtime: info.mtime.pipe(
+      Option.map((time) => time.getTime()),
+      Option.getOrElse(() => 0),
+    ),
+    size: Number(info.size),
+    partial: false,
+  })
 })
 
 describe("tool.write", () => {
@@ -118,7 +137,7 @@ describe("tool.write", () => {
       Effect.gen(function* () {
         const test = yield* TestInstance
         const filepath = path.join(test.directory, "existing.txt")
-        yield* Effect.promise(() => fs.writeFile(filepath, "old content", "utf-8"))
+        yield* seed(filepath, "old content")
         const result = yield* run({ filePath: filepath, content: "new content" })
 
         expect(result.output).toContain("Wrote file successfully")
@@ -134,7 +153,7 @@ describe("tool.write", () => {
         const test = yield* TestInstance
         const filepath = path.join(test.directory, "existing.cs")
         const bom = String.fromCharCode(0xfeff)
-        yield* Effect.promise(() => fs.writeFile(filepath, `${bom}using System;\n`, "utf-8"))
+        yield* seed(filepath, `${bom}using System;\n`)
 
         yield* run({ filePath: filepath, content: "using Up;\n" })
 
@@ -151,7 +170,7 @@ describe("tool.write", () => {
           const test = yield* TestInstance
           const filepath = path.join(test.directory, "formatted.cs")
           const bom = String.fromCharCode(0xfeff)
-          yield* Effect.promise(() => fs.writeFile(filepath, `${bom}using System;\n`, "utf-8"))
+          yield* seed(filepath, `${bom}using System;\n`)
 
           yield* run({ filePath: filepath, content: "using Up;\n" })
 
@@ -180,7 +199,7 @@ describe("tool.write", () => {
       Effect.gen(function* () {
         const test = yield* TestInstance
         const filepath = path.join(test.directory, "file.txt")
-        yield* Effect.promise(() => fs.writeFile(filepath, "old", "utf-8"))
+        yield* seed(filepath, "old")
         const result = yield* run({ filePath: filepath, content: "new" })
 
         expect(result.metadata).toHaveProperty("filepath", filepath)
@@ -273,7 +292,7 @@ describe("tool.write", () => {
       Effect.gen(function* () {
         const test = yield* TestInstance
         const readonlyPath = path.join(test.directory, "readonly.txt")
-        yield* Effect.promise(() => fs.writeFile(readonlyPath, "test", "utf-8"))
+        yield* seed(readonlyPath, "test")
         yield* Effect.promise(() => fs.chmod(readonlyPath, 0o444))
         const exit = yield* run({ filePath: readonlyPath, content: "new content" }).pipe(Effect.exit)
         expect(exit._tag).toBe("Failure")

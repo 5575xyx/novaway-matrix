@@ -27,7 +27,10 @@ afterAll(async () => {
   // Windows can keep SQLite WAL handles alive until GC finalizers run, so we
   // force GC and retry teardown to avoid flaky EBUSY in test cleanup.
   await rm(30)
-})
+  // Bun's default hook budget is 5s; removing the data dir with retries is
+  // routinely slower than that on Windows and showed up as a phantom
+  // "(unnamed)" timeout at the end of every suite.
+}, 60_000)
 
 process.env["XDG_DATA_HOME"] = path.join(dir, "share")
 process.env["XDG_CACHE_HOME"] = path.join(dir, "cache")
@@ -55,6 +58,19 @@ process.env["NOVAWAY_TEST_MANAGED_CONFIG_DIR"] = testManagedConfigDir
 const cacheDir = path.join(dir, "cache", "opencode")
 await fs.mkdir(cacheDir, { recursive: true })
 await fs.writeFile(path.join(cacheDir, "version"), "14")
+
+// Seed the ripgrep binary from the desktop bundle when present. The ripgrep
+// service otherwise downloads it from GitHub on first use, which makes every
+// grep/glob test depend on network access (and hang behind a firewall).
+if (process.platform === "win32") {
+  const bundled = path.join(import.meta.dir, "..", "..", "desktop", "resources", "ripgrep", "rg.exe")
+  const target = path.join(dir, "cache", "novaway", "bin", "rg.exe")
+  const available = await fs.stat(bundled).then(() => true).catch(() => false)
+  if (available) {
+    await fs.mkdir(path.dirname(target), { recursive: true })
+    await fs.copyFile(bundled, target)
+  }
+}
 
 // Clear provider and server auth env vars to ensure clean test state
 delete process.env["ANTHROPIC_API_KEY"]

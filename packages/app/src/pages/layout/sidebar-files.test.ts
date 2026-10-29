@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { isVisibleEntry } from "./sidebar-files"
+import { isVisibleEntry } from "./sidebar-files-model"
 
 // 「仅变更」必须对每一层都成立：只看根层的话，展开子目录后未变更的文件会整片露出来，
 // 过滤开关看起来就像没生效（旧实现只过滤 rootEntries，子目录走的是未过滤的 openDirs）。

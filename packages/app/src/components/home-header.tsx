@@ -37,29 +37,15 @@ export function HomeHeader() {
       data-component="home-header"
       classList={{
         "flex h-12 shrink-0 items-center gap-2 border-b border-border px-2 select-none": true,
-        // macOS 红绿灯在左上角，侧栏折叠后压在 home-header 这一行上。
-        "pl-[78px]": isMacDesktop() && collapsed(),
+        // macOS 红绿灯在左上角。左侧图标条（48px）常驻后，主区从 48px 开始，
+        // 只需再让出红绿灯剩下的那段。
+        "pl-[30px]": isMacDesktop() && collapsed(),
       }}
       data-window-drag
     >
       <Show when={collapsed()}>
-        <button
-          type="button"
-          class="flex h-8 min-w-0 shrink items-center gap-2 rounded-md px-1.5 text-foreground-subtle transition-colors hover:bg-hover"
-          style={{
-            "--mode-accent":
-              layout.mode.all.find((m) => m.id === layout.mode.current())?.color ?? "var(--border-hover)",
-          }}
-          onClick={() => navigate("/")}
-          aria-label={language.t("command.home.open")}
-          title={language.t("command.home.open")}
-          aria-current="page"
-        >
-          <Mark class="size-5 shrink-0 text-foreground" />
-          <span class="brand-wordmark text-ui-base truncate">
-            Nova<span class="text-[var(--mode-accent)]">Way</span>
-          </span>
-        </button>
+        {/* 品牌字标不再重复：侧栏收起后 logo 仍留在最左侧图标条顶端（rail 常驻），
+            这里只保留展开入口，避免同屏出现两个 NovaWay 字标。 */}
         <IconButton
           icon="chevron-right"
           variant="ghost"

@@ -29,6 +29,7 @@ import { playSoundById, SOUND_OPTIONS } from "@/utils/sound"
 import { SettingsGroup } from "./settings-parts"
 import { usePermission } from "@/context/permission"
 import { PERMISSION_MODES } from "@/context/permission-risk"
+import type { Config } from "@novaway/sdk/v2/client"
 
 let demoSoundState = {
   cleanup: undefined as (() => void) | undefined,
@@ -172,7 +173,7 @@ function PetManagementCard() {
         </div>
         <div data-action="settings-pet-visible">
           <Switch
-            checked={state()?.visible ?? true}
+            checked={state()?.visible ?? false}
             disabled={loading()}
             onChange={(value) => {
               setState((current) => (current ? { ...current, visible: value } : current))
@@ -587,18 +588,6 @@ export const SettingsGeneral: Component = () => {
           </div>
         </SettingsRow>
 
-        <SettingsRow
-          title={language.t("settings.general.row.showStatus.title")}
-          description={language.t("settings.general.row.showStatus.description")}
-        >
-          <div data-action="settings-show-status">
-            <Switch
-              checked={settings.general.showStatus()}
-              onChange={(checked) => settings.general.setShowStatus(checked)}
-            />
-          </div>
-        </SettingsRow>
-
         {/* 运行中的提交行为。两种模式的实际差别很大：
             引导会立刻影响当前这轮（在下一个安全边界生效），排队要等这轮跑完。
             对齐 Qoder 的 Settings → General → "Send while running"。 */}
@@ -641,6 +630,66 @@ export const SettingsGeneral: Component = () => {
               size="small"
             />
           </div>
+        </SettingsRow>
+      </SettingsGroup>
+    </div>
+  )
+
+  const compactionConfig = createMemo(() => globalSync.data.config.compaction)
+  const autoCompact = () => compactionConfig()?.auto !== false
+  const thresholdOptions = createMemo(() => [
+    { value: "default", label: language.t("settings.general.row.compactThreshold.default") },
+    ...[50, 60, 70, 80, 90].map((percent) => ({
+      value: String(percent),
+      label: language.t("settings.general.row.compactThreshold.option", { percent }),
+    })),
+  ])
+  const currentThreshold = createMemo(() => {
+    const options = thresholdOptions()
+    const percent = compactionConfig()?.threshold_percent
+    return options.find((option) => option.value === String(percent ?? "")) ?? options[0]!
+  })
+  // 写入时合并现有 compaction 配置：其它字段（prune / tail_turns 等）保持不动。
+  // 选百分比会清掉绝对阈值（threshold 优先于 threshold_percent）。
+  const setCompaction = (patch: { auto?: boolean; threshold?: number; threshold_percent?: number }) =>
+    globalSync.updateConfig({ compaction: { ...compactionConfig(), ...patch } } as Config)
+
+  const ContextSection = () => (
+    <div class="flex flex-col gap-1">
+      <h3 class="text-14-medium text-foreground pb-2">{language.t("settings.general.section.context")}</h3>
+
+      <SettingsGroup>
+        <SettingsRow
+          title={language.t("settings.general.row.autoCompact.title")}
+          description={language.t("settings.general.row.autoCompact.description")}
+        >
+          <div data-action="settings-auto-compact">
+            <Switch checked={autoCompact()} onChange={(checked) => void setCompaction({ auto: checked })} />
+          </div>
+        </SettingsRow>
+
+        <SettingsRow
+          title={language.t("settings.general.row.compactThreshold.title")}
+          description={language.t("settings.general.row.compactThreshold.description")}
+        >
+          <Select
+            data-action="settings-compact-threshold"
+            options={thresholdOptions()}
+            current={currentThreshold()}
+            value={(option) => option.value}
+            label={(option) => option.label}
+            onSelect={(option) => {
+              if (!option) return
+              void setCompaction({
+                threshold: undefined,
+                threshold_percent: option.value === "default" ? undefined : Number(option.value),
+              })
+            }}
+            variant="secondary"
+            size="small"
+            triggerVariant="settings"
+            triggerStyle={{ "min-width": "180px" }}
+          />
         </SettingsRow>
       </SettingsGroup>
     </div>
@@ -691,50 +740,6 @@ export const SettingsGeneral: Component = () => {
             <span class="text-13-medium text-foreground-subtle tabular-nums w-9 text-right">
               {settings.appearance.fontSize()}
             </span>
-          </div>
-        </SettingsRow>
-      </SettingsGroup>
-    </div>
-  )
-
-  const NotificationsSection = () => (
-    <div class="flex flex-col gap-1">
-      <h3 class="text-14-medium text-foreground pb-2">{language.t("settings.general.section.notifications")}</h3>
-
-      <SettingsGroup>
-        <SettingsRow
-          title={language.t("settings.general.notifications.agent.title")}
-          description={language.t("settings.general.notifications.agent.description")}
-        >
-          <div data-action="settings-notifications-agent">
-            <Switch
-              checked={settings.notifications.agent()}
-              onChange={(checked) => settings.notifications.setAgent(checked)}
-            />
-          </div>
-        </SettingsRow>
-
-        <SettingsRow
-          title={language.t("settings.general.notifications.permissions.title")}
-          description={language.t("settings.general.notifications.permissions.description")}
-        >
-          <div data-action="settings-notifications-permissions">
-            <Switch
-              checked={settings.notifications.permissions()}
-              onChange={(checked) => settings.notifications.setPermissions(checked)}
-            />
-          </div>
-        </SettingsRow>
-
-        <SettingsRow
-          title={language.t("settings.general.notifications.errors.title")}
-          description={language.t("settings.general.notifications.errors.description")}
-        >
-          <div data-action="settings-notifications-errors">
-            <Switch
-              checked={settings.notifications.errors()}
-              onChange={(checked) => settings.notifications.setErrors(checked)}
-            />
           </div>
         </SettingsRow>
       </SettingsGroup>
@@ -867,11 +872,11 @@ export const SettingsGeneral: Component = () => {
       <div class="flex flex-col gap-8 w-full">
         <GeneralSection />
 
+        <ContextSection />
+
         <AdvancedSection />
 
         <AppearanceSection />
-
-        <NotificationsSection />
 
         {/* 音效：当前产品没有接入任何提示音资源，这一节只会在设置里制造
             「选了但没反应」的困惑，先整节隐藏；需要时把 SoundsSection 放回来即可。 */}

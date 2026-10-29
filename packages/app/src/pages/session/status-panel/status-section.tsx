@@ -33,7 +33,11 @@ export function StatusSection(props: {
         />
       </button>
       <Show when={props.open}>
-        <div class={`${props.bodyHeight ?? "max-h-48"} overflow-y-auto`}>{props.children}</div>
+        <div
+          class={`${props.bodyHeight ?? "max-h-48"} overflow-y-auto motion-reduce:animate-none animate-[status-section-open_150ms_ease-out]`}
+        >
+          {props.children}
+        </div>
       </Show>
     </section>
   )

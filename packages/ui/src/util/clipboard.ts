@@ -2,34 +2,71 @@ import { filenameFromUrl } from "./download"
 
 interface ElectronAPI {
   copyFileToClipboard?: (opts: { url: string; filename?: string }) => Promise<boolean>
+  writeTextToClipboard?: (opts: { text: string }) => Promise<boolean>
 }
 
 function getElectronApi(win: Window | undefined): ElectronAPI | undefined {
   return win && "api" in win ? (win as unknown as { api: ElectronAPI }).api : undefined
 }
 
+/**
+ * 写文本到系统剪贴板。
+ *
+ * 顺序很关键：桌面端先走主进程（Electron `clipboard.writeText`）。
+ * WebView 里 `document.execCommand("copy")` 依赖元素真的拿到焦点、
+ * `navigator.clipboard` 又要求安全上下文，两者在自定义协议加载的窗口里
+ * 经常**静默失败** —— 表现就是「复制路径」点了没反应、剪贴板里还是旧内容。
+ * 主进程那条路不受这些限制，而且能立刻读回来校验。
+ */
 export async function writeClipboard(text: string): Promise<boolean> {
+  const electron = getElectronApi(typeof window === "undefined" ? undefined : window)
+  if (electron?.writeTextToClipboard) {
+    try {
+      if (await electron.writeTextToClipboard({ text })) return true
+    } catch {
+      // 主进程通道不可用（老版本壳）时继续走浏览器兜底。
+    }
+  }
+
+  // 浏览器里优先用异步剪贴板 API。
+  //
+  // 之前把 execCommand 放在前面，踩了两类坑：
+  //  - 它在「没有用户激活」的调用栈里（菜单项 onSelect → 异步 copyPath）会返回 true
+  //    却什么都没写进去，于是界面弹了「已复制」而剪贴板仍是空的 —— 正是用户反馈的现象；
+  //  - 它会临时夺走焦点再还回去，菜单/输入框的焦点状态被打断。
+  // writeText 只在真正写入成功时才 resolve，失败会 reject，语义准确得多。
+  const clipboard = typeof navigator === "undefined" ? undefined : navigator.clipboard
+  if (clipboard?.writeText) {
+    try {
+      await clipboard.writeText(text)
+      return true
+    } catch {
+      // 非安全上下文 / 权限被拒：继续走 execCommand 兜底。
+    }
+  }
+
   const body = typeof document === "undefined" ? undefined : document.body
   if (body) {
+    const active = document.activeElement as HTMLElement | null
     const textarea = document.createElement("textarea")
     textarea.value = text
     textarea.setAttribute("readonly", "")
     textarea.style.position = "fixed"
+    textarea.style.top = "-1000px"
     textarea.style.opacity = "0"
     textarea.style.pointerEvents = "none"
     body.appendChild(textarea)
+    // iOS/WKWebView 只认 setSelectionRange，光 select() 有时选区是空的。
+    textarea.focus()
     textarea.select()
+    textarea.setSelectionRange(0, text.length)
     const copied = document.execCommand("copy")
     body.removeChild(textarea)
+    active?.focus?.()
     if (copied) return true
   }
 
-  const clipboard = typeof navigator === "undefined" ? undefined : navigator.clipboard
-  if (!clipboard?.writeText) return false
-  return clipboard.writeText(text).then(
-    () => true,
-    () => false,
-  )
+  return false
 }
 
 async function copyMediaBlobToClipboard(url: string): Promise<boolean> {

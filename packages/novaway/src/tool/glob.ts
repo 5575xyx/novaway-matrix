@@ -1,6 +1,7 @@
 import path from "path"
 import { Effect, Option, Schema } from "effect"
 import * as Stream from "effect/Stream"
+import { NonNegativeInt } from "@novaway/core/schema"
 import { InstanceState } from "@/effect/instance-state"
 import { AppFileSystem } from "@novaway/core/filesystem"
 import { Ripgrep } from "../file/ripgrep"
@@ -14,6 +15,12 @@ export const Parameters = Schema.Struct({
   path: Schema.optional(Schema.String).annotate({
     description: `The directory to search in. If not specified, the current working directory will be used. IMPORTANT: Omit this field to use the default directory. DO NOT enter "undefined" or "null" - simply omit it for the default behavior. Must be a valid directory path if provided.`,
   }),
+  limit: Schema.optional(NonNegativeInt).annotate({
+    description: "Maximum number of files to return (default 100).",
+  }),
+  offset: Schema.optional(NonNegativeInt).annotate({
+    description: "Skip the first N results before applying limit, for pagination.",
+  }),
 })
 
 export const GlobTool = Tool.define(
@@ -26,7 +33,7 @@ export const GlobTool = Tool.define(
     return {
       description: DESCRIPTION,
       parameters: Parameters,
-      execute: (params: { pattern: string; path?: string }, ctx: Tool.Context) =>
+      execute: (params: { pattern: string; path?: string; limit?: number; offset?: number }, ctx: Tool.Context) =>
         Effect.gen(function* () {
           const ins = yield* InstanceState.context
           yield* ctx.ask({
@@ -51,7 +58,8 @@ export const GlobTool = Tool.define(
             kind: "directory",
           })
 
-          const limit = 100
+          const limit = params.limit ?? 100
+          const offset = params.offset ?? 0
           let truncated = false
           const files = yield* rg.files({ cwd: search, glob: [params.pattern], signal: ctx.abort }).pipe(
             Stream.mapEffect((file) =>
@@ -66,25 +74,26 @@ export const GlobTool = Tool.define(
                 return { path: full, mtime }
               }),
             ),
-            Stream.take(limit + 1),
+            Stream.take(limit + offset + 1),
             Stream.runCollect,
             Effect.map((chunk) => [...chunk]),
           )
 
-          if (files.length > limit) {
+          if (files.length > offset + limit) {
             truncated = true
-            files.length = limit
+            files.length = offset + limit
           }
           files.sort((a, b) => b.mtime - a.mtime)
+          const shown = offset === 0 ? files : files.slice(offset)
 
           const output = []
-          if (files.length === 0) output.push("No files found")
-          if (files.length > 0) {
-            output.push(...files.map((file) => file.path))
+          if (shown.length === 0) output.push("No files found")
+          if (shown.length > 0) {
+            output.push(...shown.map((file) => file.path))
             if (truncated) {
               output.push("")
               output.push(
-                `(Results are truncated: showing first ${limit} results. Consider using a more specific path or pattern.)`,
+                `(Results are truncated: showing entries ${offset + 1}-${offset + shown.length}. Use offset=${offset + shown.length} to continue.)`,
               )
             }
           }
@@ -92,7 +101,7 @@ export const GlobTool = Tool.define(
           return {
             title: path.relative(ins.worktree, search),
             metadata: {
-              count: files.length,
+              count: shown.length,
               truncated,
             },
             output: output.join("\n"),

@@ -38,6 +38,16 @@ export function featureLabel(id: string, t: (key: string) => string): string {
   return label === key ? id : label
 }
 
+/**
+ * One-line explanation of what a feature actually does. Unknown ids return
+ * undefined so a newer kernel still renders without a description.
+ */
+export function featureDescription(id: string, t: (key: string) => string): string | undefined {
+  const key = `settings.kernel.feature.${id}.description`
+  const text = t(key)
+  return text === key ? undefined : text
+}
+
 /** `12` → "12", `60000` → "60k" — budget values are unreadable raw. */
 export function featureDetail(feature: Feature): string | undefined {
   if (!feature.detail) return undefined

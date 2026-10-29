@@ -429,7 +429,7 @@ export const AutomationPage: Component<{ onBack: () => void }> = (props) => {
                         class="size-2 rounded-full"
                         classList={{
                           "bg-[var(--diff-added)]": run.status === "completed",
-                          "bg-[var(--icon-blue)] animate-pulse": run.status === "running",
+                          "bg-[var(--icon-blue)] novaway-breathe-dot": run.status === "running",
                           "bg-[var(--diff-removed)]": run.status === "error",
                         }}
                       />

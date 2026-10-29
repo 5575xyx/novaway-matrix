@@ -32,19 +32,21 @@ import { Memory } from "@/memory/service"
 import { SessionSummary } from "../../src/session/summary"
 import { Instruction } from "../../src/session/instruction"
 import { SessionProcessor } from "../../src/session/processor"
-import { SessionPrompt } from "../../src/session/prompt"
+import { SessionPrompt, resetBackgroundNotifications } from "../../src/session/prompt"
 import { SessionRevert } from "../../src/session/revert"
 import { SessionRunState } from "../../src/session/run-state"
 import { MessageID, PartID, SessionID } from "../../src/session/schema"
 import { SessionStatus } from "../../src/session/status"
 import { SessionV2 } from "../../src/v2/session"
 import { Skill } from "../../src/skill"
+import { HookLayer } from "../../src/hook"
 import { SystemPrompt } from "../../src/session/system"
 import { Shell } from "../../src/shell/shell"
 import { Snapshot } from "../../src/snapshot"
 import { ToolRegistry } from "@/tool/registry"
 import { BrowserService } from "@/browser/browser"
 import { Truncate } from "@/tool/truncate"
+import { ReadState } from "@/tool/read-state"
 import * as Log from "@novaway/core/util/log"
 import { CrossSpawnSpawner } from "@novaway/core/cross-spawn-spawner"
 import * as Database from "../../src/storage/db"
@@ -188,6 +190,8 @@ function makeHttp(input?: { processor?: "blocking" }) {
     SyncEvent.defaultLayer,
     EventV2Bridge.defaultLayer,
     Auth.defaultLayer,
+    HookLayer,
+    ReadState.defaultLayer,
   ).pipe(Layer.provideMerge(infra))
   const question = Question.layer.pipe(Layer.provideMerge(deps))
   const todo = Todo.layer.pipe(Layer.provideMerge(deps))
@@ -501,6 +505,404 @@ it.instance(
 )
 
 it.instance(
+  "blocking Stop hook feeds its reason back and continues the turn",
+  () =>
+    Effect.gen(function* () {
+      const hook = `${JSON.stringify(process.execPath)} -e "process.stderr.write('lint failed');process.exit(2)"`
+      const { dir, llm } = yield* useServerConfig(providerCfg)
+      yield* writeText(
+        path.join(dir, "hooks.json"),
+        JSON.stringify({ Stop: [{ hooks: [{ type: "command", command: hook }] }] }),
+      )
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const chat = yield* sessions.create({
+        title: "Pinned",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        noReply: true,
+        parts: [{ type: "text", text: "run the check" }],
+      })
+      for (let i = 0; i < 4; i++) yield* llm.text(`attempt-${i}`)
+
+      const result = yield* prompt.loop({ sessionID: chat.id })
+      expect(result.info.role).toBe("assistant")
+
+      const msgs = yield* MessageV2.filterCompactedEffect(chat.id)
+      const feedback = msgs
+        .flatMap((msg) => msg.parts)
+        .filter(
+          (part): part is MessageV2.TextPart =>
+            part.type === "text" && part.text.includes("Stop hook feedback:"),
+        )
+      // Three bounded continuations, then the loop gives up instead of spinning.
+      expect(feedback).toHaveLength(3)
+      expect(feedback[0]!.text).toContain("lint failed")
+
+      const hits = yield* llm.hits
+      expect(hits.some((hit) => JSON.stringify(hit.body).includes("Stop hook feedback:"))).toBe(true)
+    }),
+  { git: true },
+  30_000,
+)
+
+it.instance(
+  "announces each completed background command exactly once",
+  () =>
+    Effect.gen(function* () {
+      const { llm } = yield* useServerConfig(providerCfg)
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const background = yield* BackgroundJob.Service
+      const chat = yield* sessions.create({
+        title: "Background",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      resetBackgroundNotifications(chat.id)
+
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        noReply: true,
+        parts: [{ type: "text", text: "start the dev server" }],
+      })
+      const job = yield* background.start({
+        type: "shell",
+        title: "dev server",
+        metadata: { sessionId: chat.id, parentSessionId: chat.id, tool: "shell", background: true },
+        run: Effect.succeed("listening on :3000"),
+      })
+      yield* background
+        .wait({ id: job.id, timeout: 5_000 })
+        .pipe(Effect.catch(() => Effect.succeed({ timedOut: true as const })))
+      yield* llm.text("started")
+      yield* prompt.loop({ sessionID: chat.id })
+
+      // The notification rides on the *next* user turn, like CC's attachment.
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        noReply: true,
+        parts: [{ type: "text", text: "keep going" }],
+      })
+      yield* llm.text("ok")
+      yield* prompt.loop({ sessionID: chat.id })
+
+      const find = (msgs: MessageV2.WithParts[]) =>
+        msgs
+          .flatMap((msg) => msg.parts)
+          .filter(
+            (part): part is MessageV2.TextPart =>
+              part.type === "text" && part.synthetic === true && part.text.includes("<task-notification>"),
+          )
+      const first = find(yield* MessageV2.filterCompactedEffect(chat.id))
+      expect(first).toHaveLength(1)
+      expect(first[0]!.text).toContain(`<task-id>${job.id}</task-id>`)
+      expect(first[0]!.text).toContain("dev server")
+      expect(first[0]!.text).toContain("<status>completed</status>")
+
+      // A third turn must not repeat it.
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        noReply: true,
+        parts: [{ type: "text", text: "anything else?" }],
+      })
+      yield* llm.text("no")
+      yield* prompt.loop({ sessionID: chat.id })
+      expect(find(yield* MessageV2.filterCompactedEffect(chat.id))).toHaveLength(1)
+    }),
+  { git: true },
+  30_000,
+)
+
+it.instance(
+  "warns the model when a file it read changed on disk",
+  () =>
+    Effect.gen(function* () {
+      const { dir, llm } = yield* useServerConfig(providerCfg)
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const chat = yield* sessions.create({
+        title: "Pinned",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      const file = path.join(dir, "watched.ts")
+      yield* writeText(file, "export const a = 1\n")
+
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        noReply: true,
+        parts: [{ type: "text", text: "read watched.ts" }],
+      })
+      yield* llm.tool("read", { filePath: file })
+      yield* llm.text("read it")
+      yield* prompt.loop({ sessionID: chat.id })
+
+      // Someone else rewrites the file between turns.
+      yield* writeText(file, "export const a = 2\nexport const b = 3\n")
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        noReply: true,
+        parts: [{ type: "text", text: "keep going" }],
+      })
+      yield* llm.text("done")
+      yield* prompt.loop({ sessionID: chat.id })
+
+      const msgs = yield* MessageV2.filterCompactedEffect(chat.id)
+      const notice = msgs
+        .flatMap((msg) => msg.parts)
+        .filter(
+          (part): part is MessageV2.TextPart =>
+            part.type === "text" && part.synthetic === true && part.text.includes("changed on disk"),
+        )
+      expect(notice).toHaveLength(1)
+      expect(notice[0]!.text).toContain(file)
+      expect(notice[0]!.text).toContain("Read each one again")
+    }),
+  { git: true },
+  30_000,
+)
+
+it.instance(
+  "injects UserPromptSubmit hook context into the user message",
+  () =>
+    Effect.gen(function* () {
+      const { dir, llm } = yield* useServerConfig(providerCfg)
+      const script = path.join(dir, "hook.cjs")
+      yield* writeText(
+        script,
+        `process.stdout.write(JSON.stringify({hookSpecificOutput:{additionalContext:"REPO RULES: indent with tabs"}}))`,
+      )
+      const hook = `"${process.execPath}" "${script}"`
+      yield* writeText(
+        path.join(dir, "hooks.json"),
+        JSON.stringify({ UserPromptSubmit: [{ hooks: [{ type: "command", command: hook }] }] }),
+      )
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const chat = yield* sessions.create({ title: "Pinned" })
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        noReply: true,
+        parts: [{ type: "text", text: "hello" }],
+      })
+      yield* llm.text("ok")
+      yield* prompt.loop({ sessionID: chat.id })
+
+      const msgs = yield* MessageV2.filterCompactedEffect(chat.id)
+      const context = msgs
+        .flatMap((msg) => msg.parts)
+        .filter(
+          (part): part is MessageV2.TextPart =>
+            part.type === "text" && part.synthetic === true && part.text.includes("REPO RULES"),
+        )
+      expect(context).toHaveLength(1)
+      expect(context[0]!.text.startsWith("<hook-context>")).toBe(true)
+    }),
+  { git: true },
+  30_000,
+)
+
+it.instance(
+  "appends PostToolUse hook context to the tool result the model sees",
+  () =>
+    Effect.gen(function* () {
+      const { dir, llm } = yield* useServerConfig(providerCfg)
+      const script = path.join(dir, "post.cjs")
+      yield* writeText(
+        script,
+        `process.stdout.write(JSON.stringify({hookSpecificOutput:{additionalContext:"LINT: unused variable a"}}))`,
+      )
+      const hook = `"${process.execPath}" "${script}"`
+      yield* writeText(
+        path.join(dir, "hooks.json"),
+        JSON.stringify({ PostToolUse: [{ matcher: "read", hooks: [{ type: "command", command: hook }] }] }),
+      )
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const chat = yield* sessions.create({
+        title: "Pinned",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      const file = path.join(dir, "linted.ts")
+      yield* writeText(file, "const a = 1\n")
+
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        noReply: true,
+        parts: [{ type: "text", text: "read it" }],
+      })
+      yield* llm.tool("read", { filePath: file })
+      yield* llm.text("done")
+      yield* prompt.loop({ sessionID: chat.id })
+
+      const msgs = yield* MessageV2.filterCompactedEffect(chat.id)
+      const part = msgs
+        .flatMap((msg) => msg.parts)
+        .find((part): part is MessageV2.ToolPart => part.type === "tool" && part.tool === "read")
+      expect(part?.state.status).toBe("completed")
+      if (part?.state.status !== "completed") return
+      // Stored on the result so the very next request carries it.
+      expect(part.state.output).toContain("LINT: unused variable a")
+      expect(part.state.output).toContain("<system-reminder>")
+      const hits = yield* llm.hits
+      expect(hits.some((hit) => JSON.stringify(hit.body).includes("LINT: unused variable a"))).toBe(true)
+    }),
+  { git: true },
+  30_000,
+)
+
+it.instance(
+  "surfaces a blocked PostToolUse reason on the tool result",
+  () =>
+    Effect.gen(function* () {
+      const { dir, llm } = yield* useServerConfig(providerCfg)
+      const script = path.join(dir, "blocked.cjs")
+      yield* writeText(script, `process.stderr.write("MUST FIX: file uses tabs");process.exit(2)`)
+      const hook = `"${process.execPath}" "${script}"`
+      yield* writeText(
+        path.join(dir, "hooks.json"),
+        JSON.stringify({ PostToolUse: [{ matcher: "read", hooks: [{ type: "command", command: hook }] }] }),
+      )
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const chat = yield* sessions.create({
+        title: "Pinned",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      const file = path.join(dir, "tabs.ts")
+      yield* writeText(file, "const a = 1\n")
+
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        noReply: true,
+        parts: [{ type: "text", text: "read it" }],
+      })
+      yield* llm.tool("read", { filePath: file })
+      yield* llm.text("done")
+      yield* prompt.loop({ sessionID: chat.id })
+
+      const part = (yield* MessageV2.filterCompactedEffect(chat.id))
+        .flatMap((msg) => msg.parts)
+        .find((part): part is MessageV2.ToolPart => part.type === "tool" && part.tool === "read")
+      expect(part?.state.status).toBe("completed")
+      if (part?.state.status !== "completed") return
+      expect(part.state.output).toContain("MUST FIX: file uses tabs")
+    }),
+  { git: true },
+  30_000,
+)
+
+it.instance(
+  "does not leak stderr from a PostToolUse hook that merely failed",
+  () =>
+    Effect.gen(function* () {
+      const { dir, llm } = yield* useServerConfig(providerCfg)
+      const script = path.join(dir, "noisy.cjs")
+      // Exit code 3 is a hook failure, not a block: the model should not be
+      // told about it as if the tool had an opinion to report.
+      yield* writeText(script, `process.stderr.write("DEBUG NOISE: formatter crashed");process.exit(3)`)
+      const hook = `"${process.execPath}" "${script}"`
+      yield* writeText(
+        path.join(dir, "hooks.json"),
+        JSON.stringify({ PostToolUse: [{ matcher: "read", hooks: [{ type: "command", command: hook }] }] }),
+      )
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const chat = yield* sessions.create({
+        title: "Pinned",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      const file = path.join(dir, "quiet.ts")
+      yield* writeText(file, "const a = 1\n")
+
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        noReply: true,
+        parts: [{ type: "text", text: "read it" }],
+      })
+      yield* llm.tool("read", { filePath: file })
+      yield* llm.text("done")
+      yield* prompt.loop({ sessionID: chat.id })
+
+      const part = (yield* MessageV2.filterCompactedEffect(chat.id))
+        .flatMap((msg) => msg.parts)
+        .find((part): part is MessageV2.ToolPart => part.type === "tool" && part.tool === "read")
+      expect(part?.state.status).toBe("completed")
+      if (part?.state.status !== "completed") return
+      expect(part.state.output).not.toContain("DEBUG NOISE")
+    }),
+  { git: true },
+  30_000,
+)
+
+it.instance(
+  "delivers PostToolUseFailure hook feedback on the next request",
+  () =>
+    Effect.gen(function* () {
+      const { dir, llm } = yield* useServerConfig(providerCfg)
+      const script = path.join(dir, "fail.cjs")
+      // Exit code 2 marks the hook as blocking; its stderr is the message.
+      yield* writeText(
+        script,
+        `process.stderr.write("the interface file moved to src/api.ts");process.exit(2)`,
+      )
+      const hook = `"${process.execPath}" "${script}"`
+      yield* writeText(
+        path.join(dir, "hooks.json"),
+        JSON.stringify({
+          PostToolUseFailure: [{ matcher: "read", hooks: [{ type: "command", command: hook }] }],
+        }),
+      )
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const chat = yield* sessions.create({
+        title: "Pinned",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        noReply: true,
+        parts: [{ type: "text", text: "read the missing file" }],
+      })
+      yield* llm.tool("read", { filePath: path.join(dir, "missing.ts") })
+      yield* llm.text("done")
+      yield* prompt.loop({ sessionID: chat.id })
+
+      const msgs = yield* MessageV2.filterCompactedEffect(chat.id)
+      const note = msgs
+        .flatMap((msg) => msg.parts)
+        .filter(
+          (part): part is MessageV2.TextPart =>
+            part.type === "text" && part.synthetic === true && part.text.includes("the interface file moved"),
+        )
+      expect(note).toHaveLength(1)
+      expect(note[0]!.text).toContain("[read]")
+      expect(note[0]!.text).toContain("<system-reminder>")
+
+      const hits = yield* llm.hits
+      const last = JSON.stringify(hits.at(-1)!.body)
+      // The hook's note and the original tool error both reach the model.
+      expect(last).toContain("the interface file moved")
+      expect(last).toContain("File not found")
+    }),
+  { git: true },
+  30_000,
+)
+
+it.instance(
   "prompt emits v2 prompted and synthetic events",
   () =>
     Effect.gen(function* () {
@@ -687,6 +1089,7 @@ it.instance(
       expect(result.parts.some((part) => part.type === "text" && part.text === "done")).toBe(true)
     }),
   { git: true },
+  15_000,
 )
 
 it.instance(
@@ -1521,7 +1924,7 @@ it.instance(
       expect(yield* llm.calls).toBe(1)
     }),
   { git: true },
-  3_000,
+  15_000,
 )
 
 it.instance(
@@ -1560,7 +1963,7 @@ it.instance(
       expect(yield* llm.calls).toBe(1)
     }),
   { git: true },
-  3_000,
+  15_000,
 )
 
 unix(
@@ -2529,7 +2932,9 @@ it.instance(
       }
     }),
   { git: true },
-  30_000,
+  // Building the full prompt service stack (including the git snapshot) takes
+  // several seconds on Windows; under a parallel suite run 30s was not enough.
+  60_000,
 )
 
 it.instance(
@@ -2559,5 +2964,5 @@ it.instance(
       }
     }),
   { git: true },
-  30_000,
+  60_000,
 )

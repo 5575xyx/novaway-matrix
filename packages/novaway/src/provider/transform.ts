@@ -15,7 +15,11 @@ function mimeToModality(mime: string): Modality | undefined {
   return undefined
 }
 
-export const OUTPUT_TOKEN_MAX = 32_000
+// Claude Code defaults to a low output budget and retries at 64k when a
+// response is cut off. Reserve the upper bound here so long file writes and
+// reports are not truncated mid-generation; models with a smaller native limit
+// keep their own limit.
+export const OUTPUT_TOKEN_MAX = 64_000
 
 export function sanitizeSurrogates(content: string) {
   return content.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "\uFFFD")

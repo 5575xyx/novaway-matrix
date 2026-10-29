@@ -53,3 +53,71 @@ export function providerIconId(id: string | undefined, name?: string | undefined
 export function providerColor(id: string | undefined, name?: string | undefined) {
   return providerBrandColor(providerIconId(id, name)) ?? providerBrandColor(id)
 }
+
+/**
+ * 聚合型网关：一个 provider 下挂着各家模型，按 provider 解析图标会让
+ * GLM / Kimi / Claude 全都显示成同一个网关 logo。
+ */
+const GATEWAYS = new Set(["builtin", "openrouter", "vercel", "cpa", "free", "NovaWay", "opencode"])
+
+/** 模型名 → 厂商图标。只在这些模型挂在聚合网关下时才使用。 */
+const MODEL_KEYWORDS: Array<[RegExp, string]> = [
+  [/deepseek/i, "deepseek"],
+  [/kimi|moonshot/i, "moonshotai"],
+  [/minimax/i, "minimax"],
+  [/glm|zhipu/i, "zai"],
+  [/qwen|alibaba/i, "alibaba"],
+  [/anthropic|claude/i, "anthropic"],
+  [/openai|gpt/i, "openai"],
+  [/gemini|google/i, "google"],
+  [/grok|xai/i, "xai"],
+  [/mistral/i, "mistral"],
+  [/stepfun/i, "stepfun"],
+  [/sensenova|u1\.5|agnes/i, "nova"],
+]
+
+/**
+ * 模型该用哪个品牌的图标/颜色。
+ *
+ * 直连供应商（deepseek、sensenova…）本来就只有一个品牌，沿用 provider 的解析结果；
+ * 只有在聚合网关下，才按模型名去认厂商 —— 认不出来就退回网关自己的图标。
+ */
+export function modelIconId(
+  providerID: string | undefined,
+  providerName: string | undefined,
+  modelID: string | undefined,
+  modelName?: string | undefined,
+) {
+  if (providerID && GATEWAYS.has(providerID)) {
+    const text = [modelID ?? "", modelName ?? ""].join(" ")
+    for (const [pattern, icon] of MODEL_KEYWORDS) {
+      if (pattern.test(text)) return icon
+    }
+  }
+  return providerIconId(providerID, providerName)
+}
+
+/**
+ * 自有模型（sensenova / agnes 系列）共用 Nova 图标，但品牌色应能区分：
+ * 全都落到同一个灰值会让网关列表里的模型看起来"没有颜色自适应"。
+ */
+const MODEL_COLORS: Array<[RegExp, string]> = [
+  [/sensenova|u1\.5/i, "#0EA5A4"],
+  [/agnes/i, "#F59E0B"],
+]
+
+export function modelColor(
+  providerID: string | undefined,
+  providerName: string | undefined,
+  modelID: string | undefined,
+  modelName?: string | undefined,
+) {
+  const icon = modelIconId(providerID, providerName, modelID, modelName)
+  if (icon === "nova" && providerID && GATEWAYS.has(providerID)) {
+    const text = [modelID ?? "", modelName ?? ""].join(" ")
+    for (const [pattern, color] of MODEL_COLORS) {
+      if (pattern.test(text)) return color
+    }
+  }
+  return providerBrandColor(icon) ?? providerBrandColor(providerID)
+}

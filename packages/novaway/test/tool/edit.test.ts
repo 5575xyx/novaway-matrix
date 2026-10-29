@@ -1,7 +1,7 @@
 import { afterEach, describe, expect } from "bun:test"
 import path from "path"
 import fs from "fs/promises"
-import { Cause, Deferred, Effect, Exit, Fiber, Layer } from "effect"
+import { Cause, Deferred, Effect, Exit, Fiber, Layer, Option } from "effect"
 import { EditTool } from "../../src/tool/edit"
 import { disposeAllInstances, TestInstance } from "../fixture/fixture"
 import { LSP } from "@/lsp/lsp"
@@ -10,6 +10,7 @@ import { Format } from "../../src/format"
 import { Agent } from "../../src/agent/agent"
 import { Bus } from "../../src/bus"
 import { Truncate } from "@/tool/truncate"
+import { ReadState } from "../../src/tool/read-state"
 import { SessionID, MessageID } from "../../src/session/schema"
 import * as Tool from "../../src/tool/tool"
 import { testEffect } from "../lib/effect"
@@ -37,6 +38,7 @@ const layer = Layer.mergeAll(
   Bus.layer,
   Truncate.defaultLayer,
   Agent.defaultLayer,
+  ReadState.defaultLayer,
 )
 
 const it = testEffect(layer)
@@ -66,6 +68,19 @@ const fail = Effect.fn("EditToolTest.fail")(function* (args: Tool.InferParameter
 const put = Effect.fn("EditToolTest.put")(function* (p: string, content: string) {
   const fs = yield* AppFileSystem.Service
   yield* fs.writeWithDirs(p, content)
+  // Editing requires a prior read; tests simulate that by recording the file
+  // as freshly read after seeding it.
+  const state = yield* ReadState.Service
+  const info = yield* fs.stat(p)
+  yield* state.record(ctx.sessionID, p, {
+    timestamp: Date.now(),
+    mtime: info.mtime.pipe(
+      Option.map((time) => time.getTime()),
+      Option.getOrElse(() => 0),
+    ),
+    size: Number(info.size),
+    partial: false,
+  })
 })
 
 const load = Effect.fn("EditToolTest.load")(function* (p: string) {

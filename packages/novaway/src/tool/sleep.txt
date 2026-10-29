@@ -1,0 +1,12 @@
+Wait for a specified duration before continuing.
+
+Use this when the user tells you to wait or rest, or when you are waiting for something
+that will happen on its own (a build, a deploy, a background process). The user can
+interrupt the wait at any time.
+
+Prefer this over running `sleep ...` through the shell tool: it does not hold a shell
+process and it can run concurrently with other tool calls without interfering with them.
+
+The requested duration is clamped to 5 minutes (300000 ms) per call. Each wake-up costs
+an API call, but the prompt cache expires after 5 minutes of inactivity — balance
+accordingly.

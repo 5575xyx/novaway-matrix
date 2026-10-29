@@ -15,7 +15,16 @@ import type { MessageV2 } from "./message-v2"
  * is trimmed, so the UI and later turns still see the full output.
  */
 
-export const DEFAULT_BUDGET_CHARS = 60_000
+// Claude Code's external builds do not prune tool results between requests:
+// `microcompact.ts` explicitly delegates context pressure to autocompaction,
+// which runs only when the request actually approaches the model window.
+// Trimming on every turn (the previous 60k-char default) made long tasks
+// forget files they had already read and re-read them, or worse, edit from a
+// stale memory of the content.
+//
+// Keep the budget configurable for users who want a hard ceiling, but disable
+// it by default and let `session/overflow.ts` + compaction decide.
+export const DEFAULT_BUDGET_CHARS = Number.POSITIVE_INFINITY
 /** Tool results that must survive trimming. */
 export const PROTECTED_TOOLS = new Set(["skill", "question", "plan_exit"])
 
@@ -55,7 +64,7 @@ export function apply(messages: MessageV2.WithParts[], options: Options = {}): R
   const budget = options.budgetChars ?? DEFAULT_BUDGET_CHARS
   if (!Number.isFinite(budget) || budget <= 0) return { messages, elided: 0, replaced: 0 }
 
-  const keepRecent = Math.max(0, options.keepRecentMessages ?? 2)
+  const keepRecent = Math.max(0, options.keepRecentMessages ?? 20)
   const floor = messages.length - keepRecent
 
   // Collect every completed tool result with its position, newest last.

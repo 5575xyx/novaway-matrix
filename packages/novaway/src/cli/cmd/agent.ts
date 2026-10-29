@@ -21,6 +21,7 @@ type AgentMode = "all" | "primary" | "subagent"
 // agents at the permission level to match how the runtime actually enforces it.
 const AVAILABLE_PERMISSIONS = [
   "bash",
+  "powershell",
   "read",
   "edit",
   "glob",

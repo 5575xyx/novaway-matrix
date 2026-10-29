@@ -32,12 +32,17 @@ function parseBranchHeader(raw: string): BranchParts {
   const head = raw.startsWith("## ") ? raw.slice(3) : raw
   const bracket = head.indexOf("[")
   const body = (bracket === -1 ? head : head.slice(0, bracket)).trim()
-  const sep = body.indexOf("...")
+  // 空仓库（还没有第一次提交）时 git 给的是 "No commits yet on main" /
+  // 老版本 "Initial commit on main"。整串直接当分支名塞给前端的话，
+  // 分支行会显示成一句英文句子，新建分支后也看不出切没切过去。
+  const unborn = /^(?:No commits yet on|Initial commit on)\s+(.+)$/i.exec(body)
+  const normalized = unborn ? unborn[1]!.trim() : body
+  const sep = normalized.indexOf("...")
   if (sep === -1) {
-    info.branch = body
+    info.branch = normalized || undefined
   } else {
-    info.branch = body.slice(0, sep).trim()
-    const upstream = body.slice(sep + 3).trim()
+    info.branch = normalized.slice(0, sep).trim() || undefined
+    const upstream = normalized.slice(sep + 3).trim()
     if (upstream) info.upstream = upstream
   }
   const ahead = /\bahead (\d+)/.exec(head)
@@ -207,7 +212,9 @@ export const gitHandlers = HttpApiBuilder.group(InstanceHttpApi, "git", (handler
 
     const gitError = Effect.fnUntraced(function* (args: string[], result: Git.Result) {
       const timedOut = result.timedOut ? `git ${args[0]} 执行超时,已终止` : ""
-      return yield* badRequest(result.stderr.toString("utf8").trim() || timedOut || `git ${args[0]} 执行失败`)
+      // 去掉 "fatal:" 前缀：这句原文会直接进 toast 描述，带前缀像在报错栈。
+      const stderr = result.stderr.toString("utf8").trim().replace(/^fatal:\s*/i, "")
+      return yield* badRequest(stderr || timedOut || `git ${args[0]} 执行失败`)
     })
 
     const text = Effect.fnUntraced(function* (cwd: string, args: string[], maxOutputBytes: number, timeoutMs?: number) {
@@ -253,6 +260,13 @@ export const gitHandlers = HttpApiBuilder.group(InstanceHttpApi, "git", (handler
       )
 
       const branchInfo = parseBranchHeader(statusOut.split("\0").find((line) => line.startsWith("## ")) ?? "")
+      const branches = [...parseBranches(branchOut)]
+      // 空仓库里 `git branch` 什么都不返回（引用还没被创建），但当前分支是存在的
+      // （HEAD 指向 refs/heads/<name>，只是还没有提交）。不补这一条，前端的切换分支
+      // 菜单就是空的 —— 刚新建完分支看着像"没反应"。
+      if (branchInfo.branch && !branches.some((item) => item.name === branchInfo.branch)) {
+        branches.push({ name: branchInfo.branch, current: true })
+      }
       const unstagedStats = parseNumstat(unstagedOut)
       const stagedStats = parseNumstat(stagedOut)
       // 同一个文件两边都有内容时拆成两行返回,每行自带统计,前端可以直接按行渲染。
@@ -285,7 +299,7 @@ export const gitHandlers = HttpApiBuilder.group(InstanceHttpApi, "git", (handler
       return {
         branch: branchInfo,
         changes,
-        branches: parseBranches(branchOut),
+        branches,
         remotes: parseRemotes(remoteOut, branchInfo.upstream?.split("/")[0]),
         stash: parseStash(stashOut),
         log: parseLog(logOut),
@@ -325,7 +339,14 @@ export const gitHandlers = HttpApiBuilder.group(InstanceHttpApi, "git", (handler
     const unstage = Effect.fn("GitHttpApi.unstage")(function* (ctx: { payload: { files: readonly string[] } }) {
       const cwd = yield* directory()
       if (ctx.payload.files.length === 0) return yield* badRequest("请至少选择一个文件")
-      yield* run(cwd, ["reset", "--quiet", "HEAD", "--", ...ctx.payload.files])
+      // 空仓库没有 HEAD，`reset HEAD --` 会报 "ambiguous argument 'HEAD'"。
+      // 这种情况下把文件从索引里摘掉即可（等价于取消暂存）。
+      const head = yield* git.run(["rev-parse", "--verify", "HEAD"], { cwd })
+      if (head.exitCode === 0) {
+        yield* run(cwd, ["reset", "--quiet", "HEAD", "--", ...ctx.payload.files])
+      } else {
+        yield* run(cwd, ["rm", "--cached", "--quiet", "-r", "--", ...ctx.payload.files])
+      }
       return yield* snapshot(cwd)
     })
 
@@ -348,9 +369,27 @@ export const gitHandlers = HttpApiBuilder.group(InstanceHttpApi, "git", (handler
       const message = ctx.payload.message.trim()
       if (!message) return yield* badRequest("提交说明不能为空")
       // 索引是空的就先把全部改动暂存进去,免得用户点了提交却什么都没发生。
+      //
+      // `diff --cached --quiet`: 0 = 索引里没有暂存内容, 1 = 有暂存内容。
+      // 之前的判断写反了（`=== 1` 时才 add），于是"改了文件直接点提交"永远
+      // 得到 "nothing added to commit" —— 面板只会弹一句模糊的失败。
       const quiet = yield* git.run(["diff", "--cached", "--quiet"], { cwd })
-      if (quiet.exitCode === 1) yield* run(cwd, ["add", "-A"])
-      yield* run(cwd, ["commit", "-m", message])
+      if (quiet.exitCode !== 1) yield* run(cwd, ["add", "-A"])
+      const result = yield* git.run(["commit", "-m", message], { cwd, maxOutputBytes: LIST_MAX_BYTES })
+      if (result.exitCode !== 0) {
+        const stderr = result.stderr.toString("utf8") + result.text()
+        // 没配提交身份是首次提交最常见的失败：git 只会甩一段英文，用户完全不知道
+        // 该做什么。翻译成一句可操作的提示。
+        if (/Please tell me who you are|empty ident name|unable to auto-detect email|not configured/i.test(stderr)) {
+          return yield* badRequest(
+            "还没有配置 Git 提交身份：请先执行 git config --global user.name \"你的名字\" 和 git config --global user.email \"you@example.com\"",
+          )
+        }
+        if (/nothing (?:added )?to commit|no changes added to commit|no changes added/i.test(stderr)) {
+          return yield* badRequest("没有可提交的更改")
+        }
+        return yield* gitError(["commit"], result)
+      }
       return yield* snapshot(cwd)
     })
 
@@ -470,13 +509,22 @@ export const gitHandlers = HttpApiBuilder.group(InstanceHttpApi, "git", (handler
       if (ctx.payload.remove) {
         yield* run(cwd, ["branch", "-d", name])
       } else if (ctx.payload.create) {
-        // 从远端分支拉一条本地跟踪分支：勾选 origin/feature 时创建 feature。
-        const remote =
-          name.indexOf("/") > 0 ? [name, name.slice(0, name.indexOf("/")), name.slice(name.indexOf("/") + 1)] : null
-        if (remote) {
-          const local = remote[2]
-          yield* run(cwd, ["checkout", "-b", local, "--track", name])
+        // 只有「确实存在同名 remote」时才当成远端跟踪分支来建（origin/feature → 本地 feature）。
+        // 以前只看到名字里有 "/" 就按远端处理，于是普通的多级分支名（feature/hello）会被拆成
+        // `checkout -b hello --track feature/hello`，在空仓库里报
+        // "not a commit and a branch 'hello' cannot be created from it" —— 用户点了新建毫无反应。
+        const remoteNames = (yield* text(cwd, ["remote"], LIST_MAX_BYTES))
+          .split(String.fromCharCode(10))
+          .map((line) => line.split(String.fromCharCode(13)).join("").trim())
+          .filter(Boolean)
+        const slash = name.indexOf("/")
+        const remoteName = slash > 0 ? name.slice(0, slash) : ""
+        const trackingRemote = remoteName !== "" && remoteNames.includes(remoteName)
+        if (trackingRemote && slash < name.length - 1) {
+          yield* run(cwd, ["checkout", "-b", name.slice(slash + 1), "--track", name])
         } else {
+          // 空仓库（还没有第一次提交）里 `git branch <name>` 会失败，但 `checkout -b` 可用：
+          // 它把 HEAD 指到新的 ref 上，第一次提交就落在新分支。这也正是用户点「新建」时期望的结果。
           yield* run(cwd, ["checkout", "-b", name])
         }
       } else {

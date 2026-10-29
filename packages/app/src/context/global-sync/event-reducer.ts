@@ -1,6 +1,7 @@
 import { Binary } from "@novaway/core/util/binary"
 import { produce, reconcile, type SetStoreFunction, type Store } from "solid-js/store"
 import type {
+  BackgroundJobInfo,
   Message,
   Part,
   PermissionRequest,
@@ -72,6 +73,7 @@ export function cleanupDroppedSessionCaches(
   const keep = new Set([...next.map((item) => item.id), ...(preserve ?? [])])
   const stale = [
     ...Object.keys(store.message),
+    ...Object.keys(store.backgroundJob),
     ...Object.keys(store.session_diff),
     ...Object.keys(store.todo),
     ...Object.keys(store.permission),
@@ -385,6 +387,38 @@ export function applyDirectoryEvent(input: {
     }
     case "lsp.updated": {
       input.loadLsp()
+      break
+    }
+    case "background.started":
+    case "background.updated":
+    case "background.completed": {
+      const props = event.properties as { info: BackgroundJobInfo }
+      // 子代理 job 的 sessionId 是子会话、parentSessionId 是父会话；父会话的
+      // 后台任务卡片与 composer 入口都按父键读取，所以两个键都要写——否则实时
+      // 事件落不到父键，只有重新进入会话触发 GET 引导时父会话才看得到。
+      const keys = [
+        ...new Set([props.info.metadata?.sessionId, props.info.metadata?.parentSessionId]),
+      ].filter((value): value is string => typeof value === "string" && value !== "")
+      if (keys.length === 0) break
+      for (const sessionID of keys) {
+        const jobs = input.store.backgroundJob[sessionID]
+        if (!jobs) {
+          input.setStore("backgroundJob", sessionID, [props.info])
+          continue
+        }
+        const result = Binary.search(jobs, props.info.id, (j) => j.id)
+        if (result.found) {
+          input.setStore("backgroundJob", sessionID, result.index, reconcile(props.info))
+          continue
+        }
+        input.setStore(
+          "backgroundJob",
+          sessionID,
+          produce((draft) => {
+            draft.splice(result.index, 0, props.info)
+          }),
+        )
+      }
       break
     }
   }

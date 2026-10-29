@@ -106,14 +106,14 @@ export function useAgentsSection(sessionID: () => string): AgentsSection {
   }
 
   const statusClass = (member: AgentMember) => {
-    if (member.status === "active") return "text-foreground animate-pulse"
+    if (member.status === "active") return "text-foreground novaway-breathe"
     return "text-foreground-subtlest"
   }
 
   const taskStatusLabel = (task: AgentTask) => language.t(`statusPanel.agents.task.${task.status}` as never)
 
   const taskDotClass = (task: AgentTask) => {
-    if (task.status === "in_progress") return "bg-icon-blue animate-pulse"
+    if (task.status === "in_progress") return "bg-icon-blue novaway-breathe-dot"
     if (task.status === "failed") return "bg-destructive"
     return "bg-foreground-subtlest"
   }
@@ -121,10 +121,7 @@ export function useAgentsSection(sessionID: () => string): AgentsSection {
   // 团队存的是 agent id（如 engineering-code-reviewer）；面板按 AI 员工配置的
   // 显示名展示，和输入框 / 设置页保持一致。
   const agentLabel = (name: string) =>
-    agentDisplayName(
-      name,
-      sync.data.agent.find((agent) => agent.name === name)?.options,
-    )
+    agentDisplayName(name, sync.data.agent.find((agent) => agent.name === name)?.options)
 
   const open = (member: AgentMember) => {
     // team-lead 就是当前主会话；再在侧边打开一次只会得到一份完全相同的对话。

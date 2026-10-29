@@ -59,7 +59,22 @@
     flex: 0 1 auto;
     min-width: 0;
     max-width: 100%;
+    /* 标题摘要与状态词同一行：状态词始终贴右、不被长副标题挤走，
+       也不会因为自定义 trigger 声明 width:100% 而被挤到下一行（会压住标题）。 */
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-size: var(--font-size-ui-base);
+  }
+
+  [data-slot="basic-tool-tool-info"] > :is([data-slot="basic-tool-tool-info-structured"], [data-component$="-trigger"]) {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  /* 状态词不参与收缩：它是"现在到哪一步"的唯一信号，被截断就失效了。 */
+  [data-slot="basic-tool-tool-info"] > [data-slot="basic-tool-tool-status"] {
+    flex: 0 0 auto;
   }
 
   [data-slot="basic-tool-tool-info-structured"] {
@@ -314,7 +329,8 @@
     justify-content: center;
     flex-shrink: 0;
 
-    [data-component="spinner"] {
+    /* 呼吸灯的大小由 breathing.css 定义；这里只负责把它染成该 agent 的颜色。 */
+    [data-component="breathing-indicator"] {
       width: 16px;
       height: 16px;
     }
@@ -415,30 +431,66 @@
   }
 }
 
+/* ===== 工具行配色：每种工具一个色相 =====
+ * 统一用 `--tool-tone` 派生：左侧指示条、徽标底色、徽标文字、卡片浅染都取同一个色，
+ * 换色只需改一行。之前所有工具都是同一套 teal，读起来分不出"在跑什么"。 */
+[data-component="tool-trigger"][data-badge] {
+  --tool-tone: #0d9488;
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--tool-tone) 5%, transparent);
+}
+
+[data-component="tool-trigger"][data-badge="green"] {
+  --tool-tone: var(--syntax-success, #16a34a);
+}
+
+[data-component="tool-trigger"][data-badge="blue"] {
+  --tool-tone: var(--icon-blue, #2563eb);
+}
+
+[data-component="tool-trigger"][data-badge="purple"] {
+  --tool-tone: var(--syntax-type, #8b5cf6);
+}
+
+[data-component="tool-trigger"][data-badge="orange"] {
+  --tool-tone: var(--syntax-property, #ea580c);
+}
+
+[data-component="tool-trigger"][data-badge="indigo"] {
+  --tool-tone: var(--syntax-constant, #6366f1);
+}
+
+[data-component="tool-trigger"][data-badge="cyan"] {
+  --tool-tone: var(--syntax-primitive, #0891b2);
+}
+
+[data-component="tool-trigger"][data-badge]::before {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--tool-tone) 85%, white) 0%,
+    var(--tool-tone) 100%
+  );
+  opacity: 0.8;
+}
+
 /* Badge icon */
-[data-component="tool-trigger"][data-badge] [data-slot="tool-badge-icon"] {
+[data-slot="tool-badge-icon"] {
   width: 24px;
   height: 24px;
   display: grid;
   place-items: center;
   border-radius: 7px;
-  background: linear-gradient(135deg, rgba(45, 212, 191, 0.16) 0%, rgba(6, 182, 212, 0.16) 100%);
-  color: #0d9488;
   flex-shrink: 0;
+  background: color-mix(in oklab, var(--tool-tone, #0d9488) 14%, transparent);
+  border: 1px solid color-mix(in oklab, var(--tool-tone, #0d9488) 22%, transparent);
+  color: var(--tool-tone, #0d9488);
 }
 
-/* 统一 NovaWay teal 渐变标识，不再按工具类型分色 */
-[data-component="tool-trigger"][data-badge="green"],
-[data-component="tool-trigger"][data-badge="purple"],
-[data-component="tool-trigger"][data-badge="blue"],
-[data-component="tool-trigger"][data-badge="orange"],
-[data-component="tool-trigger"][data-badge="indigo"] {
-  &::before {
-    background: linear-gradient(180deg, #2dd4bf 0%, #06b6d4 100%);
-  }
-
-  [data-slot="tool-badge-icon"] {
-    background: linear-gradient(135deg, rgba(45, 212, 191, 0.16) 0%, rgba(6, 182, 212, 0.16) 100%);
-    color: #0d9488;
-  }
+/* 字体差异化:工具行的路径/参数用等宽字体,和正文的无衬线明显区分。
+   子代理链接(agent 名)保留无衬线 —— 它是名字不是路径。 */
+[data-component="tool-part-wrapper"] [data-slot="basic-tool-tool-subtitle"]:not(.subagent-link),
+[data-component="tool-part-wrapper"] [data-slot="basic-tool-tool-arg"] {
+  font-family: var(--font-family-mono);
+  font-size: calc(var(--font-size-ui-base) - 1px);
+  letter-spacing: 0;
 }

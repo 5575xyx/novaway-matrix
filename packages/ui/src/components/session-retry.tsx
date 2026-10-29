@@ -3,7 +3,7 @@ import type { SessionStatus } from "@novaway/sdk/v2/client"
 import { useI18n } from "../context/i18n"
 import { Card } from "./card"
 import { Tooltip } from "./tooltip"
-import { Spinner } from "./spinner"
+import { Breathing } from "./breathing"
 
 export function SessionRetry(props: { status: SessionStatus; show?: boolean }) {
   const i18n = useI18n()
@@ -55,7 +55,8 @@ export function SessionRetry(props: { status: SessionStatus; show?: boolean }) {
       <div data-slot="session-turn-retry">
         <Card variant="error" class="error-card">
           <div class="flex items-start gap-2">
-            <Spinner class="size-4 mt-0.5" />
+            {/* 重试提示用产品统一的呼吸灯，不再是点阵 Spinner（那个更像"加载中"）。 */}
+            <Breathing class="mt-0.5" />
             <div class="min-w-0">
               <Show when={truncated()} fallback={<div data-slot="session-turn-retry-message">{message()}</div>}>
                 <Tooltip value={retry()?.message ?? ""} placement="top">

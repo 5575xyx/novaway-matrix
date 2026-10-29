@@ -16,3 +16,10 @@ Guidelines:
 - Do not create any files, or run bash commands that modify the user's system state in any way
 
 Complete the user's search request efficiently and report your findings clearly.
+
+How to report:
+- Start with the answer to the caller's question in one or two sentences.
+- Then list the evidence: absolute file paths with line numbers, and short quoted excerpts where they matter.
+- Mention what you searched and did not find; absence of a symbol is itself a useful result.
+- End with unresolved questions or a recommended next step, not a restatement of the prompt.
+- Do not modify files. Do not run commands that change state.

@@ -34,6 +34,8 @@ import { useComments } from "@/context/comments"
 import { useSDK } from "@/context/sdk"
 import { usePlatform } from "@/context/platform"
 import { useLanguage } from "@/context/language"
+import { usePreview } from "@/context/preview"
+import { useLayout } from "@/context/layout"
 import { usePrompt } from "@/context/prompt"
 import { getSessionHandoff } from "@/pages/session/handoff"
 import { useSessionLayout } from "@/pages/session/session-layout"
@@ -204,6 +206,8 @@ export function FileTabContent(props: { tab: string }) {
   const prompt = usePrompt()
   const sdk = useSDK()
   const platform = usePlatform()
+  const preview = usePreview()
+  const layout = useLayout()
   const fileComponent = useFileComponent()
   const { sessionKey, tabs, view } = useSessionLayout()
   const activeFileTab = createSessionTabs({
@@ -261,6 +265,9 @@ export function FileTabContent(props: { tab: string }) {
   const [viewMode, setViewMode] = createSignal<"diff" | "file">("diff")
   // 办公文件是二进制，diff 渲染器没有可展示的行；直接走只读预览。
   const isMarkdown = createMemo(() => /\.(md|markdown|mdx)$/i.test(path() ?? ""))
+  // HTML/XHTML 也是"网页"：在右栏的浏览器标签里按真实渲染效果预览，
+  // 而不是只给一个代码视图（对齐浏览器预览的入口）。
+  const isHtml = createMemo(() => /\.(html?|xhtml)$/i.test(path() ?? ""))
   // Markdown 默认渲染成阅读视图（对齐 ZCode 右栏的 Markdown 阅读器）；
   // 需要改字时从 ⋯ 菜单或分段控件切到「源码」。
   const [markdownMode, setMarkdownMode] = createSignal<"preview" | "source">("preview")
@@ -274,7 +281,8 @@ export function FileTabContent(props: { tab: string }) {
     }),
   )
 
-  const showDiff = () => !!diff() && viewMode() === "diff" && !isOfficePreviewPath(path()) && !isImagePreviewPath(path())
+  const showDiff = () =>
+    !!diff() && viewMode() === "diff" && !isOfficePreviewPath(path()) && !isImagePreviewPath(path())
   const [draft, setDraft] = createSignal("")
   const lineNumbers = createMemo(() => Array.from({ length: draft().split("\n").length }, (_, index) => index + 1))
   const [saving, setSaving] = createSignal(false)
@@ -491,8 +499,35 @@ export function FileTabContent(props: { tab: string }) {
     if (!p) return
     const separator = sdk.directory.includes("\\") ? "\\" : "/"
     const value = kind === "absolute" ? `${sdk.directory.replace(/[\/]+$/, "")}${separator}${p}` : p
-    await writeClipboard(value)
-    showToast({ variant: "success", icon: "circle-check", title: language.t("common.copied") })
+    // 剪贴板写入会静默失败（WebView 无焦点 / 非安全上下文），以前无论成败都弹「已复制」，
+    // 用户看到提示却粘不出东西。现在按真实结果给反馈。
+    const copied = await writeClipboard(value)
+    showToast(
+      copied
+        ? { variant: "success", icon: "circle-check", title: language.t("common.copied") }
+        : { variant: "error", title: language.t("toast.copyFailed.title"), description: value },
+    )
+  }
+
+  const absolutePath = () => {
+    const p = path()
+    if (!p) return
+    const separator = sdk.directory.includes("\\") ? "\\" : "/"
+    return `${sdk.directory.replace(/[\/]+$/, "")}${separator}${p}`
+  }
+
+  /**
+   * 在右栏浏览器里预览当前 HTML 文件。
+   *
+   * 走 `file://` 地址（桌面端主进程会换成受信任的自定义协议），
+   * 这样 iframe 里是真实的渲染结果，而不是源码文本；相对路径引用的
+   * 本地 css/js 也能正常加载。
+   */
+  const openInBrowser = () => {
+    const absolute = absolutePath()
+    if (!absolute) return
+    if (!preview.setUrl(absolute)) return
+    layout.sidePane.add("browser")
   }
 
   const revealInExplorer = () => {
@@ -667,7 +702,7 @@ export function FileTabContent(props: { tab: string }) {
     async (target) => (await platform.readLocalFileBase64?.(target)) ?? "",
   )
   const imageBase64 = createMemo(() =>
-    isImagePreviewPath(path()) ? (contents() || externalImageBase64() || undefined) : undefined,
+    isImagePreviewPath(path()) ? contents() || externalImageBase64() || undefined : undefined,
   )
 
   const activeSelection = () => note.selected ?? selectedLines()
@@ -954,6 +989,14 @@ export function FileTabContent(props: { tab: string }) {
                     <DropdownMenu.Item onSelect={() => setMarkdownMode("source")}>
                       <DropdownMenu.ItemLabel>
                         {language.t("session.filePreview.markdownSource")}
+                      </DropdownMenu.ItemLabel>
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Separator />
+                  </Show>
+                  <Show when={isHtml()}>
+                    <DropdownMenu.Item onSelect={() => openInBrowser()}>
+                      <DropdownMenu.ItemLabel>
+                        {language.t("session.filePreview.previewInBrowser")}
                       </DropdownMenu.ItemLabel>
                     </DropdownMenu.Item>
                     <DropdownMenu.Separator />

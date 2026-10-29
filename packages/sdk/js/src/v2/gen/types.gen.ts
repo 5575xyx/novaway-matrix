@@ -15,6 +15,9 @@ export type Event =
   | EventConfigUpdated
   | EventFileEdited
   | EventFileWatcherUpdated
+  | EventBackgroundStarted
+  | EventBackgroundUpdated
+  | EventBackgroundCompleted
   | EventLspClientDiagnostics
   | EventLspUpdated
   | EventMessagePartDelta
@@ -46,6 +49,7 @@ export type Event =
   | EventInstallationUpdated
   | EventInstallationUpdateAvailable
   | EventInstallationUpdateFailed
+  | EventBrowserNavigated
   | EventVcsBranchUpdated
   | EventWorkspaceReady
   | EventWorkspaceFailed
@@ -168,6 +172,20 @@ export type EventTuiSessionSelect = {
      * Session ID to navigate to
      */
     sessionID: string
+  }
+}
+
+export type BackgroundJobInfo = {
+  id: string
+  type: string
+  title?: string
+  status: "running" | "completed" | "error" | "cancelled"
+  started_at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  completed_at?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  output?: string
+  error?: string
+  metadata?: {
+    [key: string]: unknown
   }
 }
 
@@ -745,6 +763,7 @@ export type CompactionPart = {
   auto: boolean
   overflow?: boolean
   tail_start_id?: string
+  instructions?: string
 }
 
 export type Part =
@@ -847,6 +866,9 @@ export type GlobalEvent = {
     | EventConfigUpdated
     | EventFileEdited
     | EventFileWatcherUpdated
+    | EventBackgroundStarted
+    | EventBackgroundUpdated
+    | EventBackgroundCompleted
     | EventLspClientDiagnostics
     | EventLspUpdated
     | EventMessagePartDelta
@@ -878,6 +900,7 @@ export type GlobalEvent = {
     | EventInstallationUpdated
     | EventInstallationUpdateAvailable
     | EventInstallationUpdateFailed
+    | EventBrowserNavigated
     | EventVcsBranchUpdated
     | EventWorkspaceReady
     | EventWorkspaceFailed
@@ -1010,6 +1033,7 @@ export type PermissionConfig =
       grep?: PermissionRuleConfig
       list?: PermissionRuleConfig
       bash?: PermissionRuleConfig
+      powershell?: PermissionRuleConfig
       task?: PermissionRuleConfig
       external_directory?: PermissionRuleConfig
       todowrite?: PermissionActionConfig
@@ -1022,6 +1046,8 @@ export type PermissionConfig =
       lsp?: PermissionRuleConfig
       doom_loop?: PermissionActionConfig
       skill?: PermissionRuleConfig
+      cron?: PermissionRuleConfig
+      worktree?: PermissionRuleConfig
       [key: string]: PermissionRuleConfig | PermissionActionConfig | undefined
     }
 
@@ -1444,11 +1470,15 @@ export type Config = {
     tail_turns?: number
     preserve_recent_tokens?: number
     reserved?: number
+    threshold?: number
+    threshold_percent?: number
   }
   experimental?: {
     disable_paste_summary?: boolean
     background_subagents?: boolean
+    auto_delegate?: boolean
     defer_loading?: boolean
+    defer_mcp_loading?: boolean
     tool_result_budget_chars?: number
     tool_result_keep_recent_messages?: number
     batch_tool?: boolean
@@ -3120,6 +3150,50 @@ export type TeamOverview = {
   usage?: TeamUsageView
 }
 
+export type TeamSummaryView = {
+  id: string
+  name: string
+  description?: string
+  rootSessionID: string
+  memberCount: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type TeamMessageView = {
+  id: string
+  from: string
+  fromName?: string
+  to?: string
+  toName?: string
+  broadcast: boolean
+  summary?: string
+  content: string
+  createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  readAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type TeamDetail = {
+  team: TeamView
+  members: Array<TeamMemberView>
+  tasks: Array<TeamTaskView>
+  usage?: TeamUsageView
+  messages: Array<TeamMessageView>
+}
+
+export type BackgroundJobInfo1 = {
+  id: string
+  type: string
+  title?: string
+  status: "running" | "completed" | "error" | "cancelled"
+  started_at: number | "NaN" | "Infinity" | "-Infinity"
+  completed_at?: number | "NaN" | "Infinity" | "-Infinity"
+  output?: string
+  error?: string
+  metadata?: {
+    [key: string]: unknown
+  }
+}
+
 export type PlanApprovalPending2 = {
   id: PlanRequestId
   sessionID: string
@@ -3723,6 +3797,30 @@ export type EventFileWatcherUpdated = {
   }
 }
 
+export type EventBackgroundStarted = {
+  id: string
+  type: "background.started"
+  properties: {
+    info: BackgroundJobInfo
+  }
+}
+
+export type EventBackgroundUpdated = {
+  id: string
+  type: "background.updated"
+  properties: {
+    info: BackgroundJobInfo
+  }
+}
+
+export type EventBackgroundCompleted = {
+  id: string
+  type: "background.completed"
+  properties: {
+    info: BackgroundJobInfo
+  }
+}
+
 export type EventLspClientDiagnostics = {
   id: string
   type: "lsp.client.diagnostics"
@@ -3995,6 +4093,15 @@ export type EventInstallationUpdateFailed = {
   properties: {
     version: string
     reason: string
+  }
+}
+
+export type EventBrowserNavigated = {
+  id: string
+  type: "browser.navigated"
+  properties: {
+    sessionID: string
+    url: string
   }
 }
 
@@ -13068,19 +13175,7 @@ export type SessionBackgroundResponses = {
   /**
    * Background jobs
    */
-  200: Array<{
-    id: string
-    type: string
-    title?: string
-    status: "running" | "completed" | "error" | "cancelled"
-    started_at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-    completed_at?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-    output?: string
-    error?: string
-    metadata?: {
-      [key: string]: unknown
-    }
-  }>
+  200: Array<BackgroundJobInfo>
 }
 
 export type SessionBackgroundResponse = SessionBackgroundResponses[keyof SessionBackgroundResponses]
@@ -13258,19 +13353,7 @@ export type SessionBackgroundCancelResponses = {
   /**
    * Cancelled background job
    */
-  200: {
-    id: string
-    type: string
-    title?: string
-    status: "running" | "completed" | "error" | "cancelled"
-    started_at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-    completed_at?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-    output?: string
-    error?: string
-    metadata?: {
-      [key: string]: unknown
-    }
-  }
+  200: BackgroundJobInfo
 }
 
 export type SessionBackgroundCancelResponse = SessionBackgroundCancelResponses[keyof SessionBackgroundCancelResponses]
@@ -13386,6 +13469,7 @@ export type SessionSummarizeData = {
     providerID: string
     modelID: string
     auto?: boolean
+    instructions?: string
   }
   path: {
     sessionID: string
@@ -13468,6 +13552,40 @@ export type SessionPromptAsyncResponses = {
 }
 
 export type SessionPromptAsyncResponse = SessionPromptAsyncResponses[keyof SessionPromptAsyncResponses]
+
+export type SessionResumeData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/resume"
+}
+
+export type SessionResumeErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SessionResumeError = SessionResumeErrors[keyof SessionResumeErrors]
+
+export type SessionResumeResponses = {
+  /**
+   * Continuation accepted
+   */
+  204: void
+}
+
+export type SessionResumeResponse = SessionResumeResponses[keyof SessionResumeResponses]
 
 export type SessionCommandData = {
   body?: {
@@ -15758,6 +15876,257 @@ export type TeamMessageResponses = {
 }
 
 export type TeamMessageResponse = TeamMessageResponses[keyof TeamMessageResponses]
+
+export type TeamListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team"
+}
+
+export type TeamListResponses = {
+  /**
+   * Teams
+   */
+  200: Array<TeamSummaryView>
+}
+
+export type TeamListResponse = TeamListResponses[keyof TeamListResponses]
+
+export type TeamCreateData = {
+  body?: {
+    name: string
+    description?: string
+    lead?: string
+    members: Array<{
+      agent: string
+      name?: string
+    }>
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team"
+}
+
+export type TeamCreateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type TeamCreateError = TeamCreateErrors[keyof TeamCreateErrors]
+
+export type TeamCreateResponses = {
+  /**
+   * Created team
+   */
+  200: TeamDetail
+}
+
+export type TeamCreateResponse = TeamCreateResponses[keyof TeamCreateResponses]
+
+export type TeamRemoveData = {
+  body?: never
+  path: {
+    teamID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/{teamID}"
+}
+
+export type TeamRemoveErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type TeamRemoveError = TeamRemoveErrors[keyof TeamRemoveErrors]
+
+export type TeamRemoveResponses = {
+  /**
+   * Team removed
+   */
+  200: boolean
+}
+
+export type TeamRemoveResponse = TeamRemoveResponses[keyof TeamRemoveResponses]
+
+export type TeamDetailData = {
+  body?: never
+  path: {
+    teamID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/{teamID}"
+}
+
+export type TeamDetailErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type TeamDetailError = TeamDetailErrors[keyof TeamDetailErrors]
+
+export type TeamDetailResponses = {
+  /**
+   * Team detail
+   */
+  200: TeamDetail
+}
+
+export type TeamDetailResponse = TeamDetailResponses[keyof TeamDetailResponses]
+
+export type TeamMemberAddData = {
+  body?: {
+    agent: string
+    name?: string
+  }
+  path: {
+    teamID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/{teamID}/member"
+}
+
+export type TeamMemberAddErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type TeamMemberAddError = TeamMemberAddErrors[keyof TeamMemberAddErrors]
+
+export type TeamMemberAddResponses = {
+  /**
+   * Updated team
+   */
+  200: TeamDetail
+}
+
+export type TeamMemberAddResponse = TeamMemberAddResponses[keyof TeamMemberAddResponses]
+
+export type TeamMemberRemoveData = {
+  body?: never
+  path: {
+    teamID: string
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/{teamID}/member/{sessionID}"
+}
+
+export type TeamMemberRemoveErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type TeamMemberRemoveError = TeamMemberRemoveErrors[keyof TeamMemberRemoveErrors]
+
+export type TeamMemberRemoveResponses = {
+  /**
+   * Member removed
+   */
+  200: boolean
+}
+
+export type TeamMemberRemoveResponse = TeamMemberRemoveResponses[keyof TeamMemberRemoveResponses]
+
+export type TeamMessageListData = {
+  body?: never
+  path: {
+    teamID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/{teamID}/message"
+}
+
+export type TeamMessageListErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type TeamMessageListError = TeamMessageListErrors[keyof TeamMessageListErrors]
+
+export type TeamMessageListResponses = {
+  /**
+   * Messages
+   */
+  200: Array<TeamMessageView>
+}
+
+export type TeamMessageListResponse = TeamMessageListResponses[keyof TeamMessageListResponses]
+
+export type TeamMessageSendData = {
+  body?: {
+    content: string
+    to?: string
+    dispatch?: boolean
+  }
+  path: {
+    teamID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/{teamID}/message"
+}
+
+export type TeamMessageSendErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type TeamMessageSendError = TeamMessageSendErrors[keyof TeamMessageSendErrors]
+
+export type TeamMessageSendResponses = {
+  /**
+   * Message queued
+   */
+  200: boolean
+}
+
+export type TeamMessageSendResponse = TeamMessageSendResponses[keyof TeamMessageSendResponses]
 
 export type PtyConnectData = {
   body?: never

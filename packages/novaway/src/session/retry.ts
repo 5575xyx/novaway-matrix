@@ -3,6 +3,7 @@ import { Cause, Clock, Duration, Effect, Schedule } from "effect"
 import { MessageV2 } from "./message-v2"
 import { iife } from "@/util/iife"
 import { isRecord } from "@/util/record"
+import { describeError } from "@/util/error"
 
 export type Err = ReturnType<NamedError["toObject"]>
 
@@ -63,6 +64,21 @@ export function delay(attempt: number, error?: MessageV2.APIError) {
 
   return cap(Math.min(RETRY_INITIAL_DELAY * Math.pow(RETRY_BACKOFF_FACTOR, attempt - 1), RETRY_MAX_DELAY_NO_HEADERS))
 }
+
+/**
+ * 传输层"连接中途断掉"的错误特征。
+ *
+ * 这类错误不是模型业务错误：上游把 SSE 流掐断、代理超时、socket 被重置时，
+ * 客户端拿到的是 `unexpected EOF` / `socket hang up` / `terminated` 这类文本
+ * （Bun 的 fetch 与各 provider SDK 各自措辞不同）。它们以前会被判成 `Unknown`
+ * 直接终止整轮，表现就是"任务老是中断、必须点继续"。这里统一按可重试处理：
+ * 换个连接重发一次通常就好了，对齐其他 agent 的透明重试行为。
+ */
+const TRANSIENT_STREAM_ERROR =
+  /unexpected eof|socket hang up|econnreset|connection reset|other side closed|premature close|terminated|fetch failed|network error|network_error|stream ended|stream closed|upstream connect error|bad gateway|service unavailable|gateway timeout|temporarily unavailable|timed out|timeout/i
+
+/** 传输层错误最多自动重试这么多次；再多就交给用户决定（继续/换模型）。 */
+export const MAX_TRANSIENT_ATTEMPTS = 5
 
 export function retryable(error: Err, provider: string) {
   // context overflow errors should not be retried
@@ -126,7 +142,18 @@ export function retryable(error: Err, provider: string) {
         },
       }
     }
-    return { message: error.data.message.includes("Overloaded") ? "Provider is overloaded" : error.data.message }
+    return {
+      message: error.data.message?.includes("Overloaded")
+        ? "Provider is overloaded"
+        : describeError({ message: error.data.message, statusCode: error.data.statusCode }),
+    }
+  }
+
+  // 非 APIError：连接中途断开（unexpected EOF / socket hang up…）按可重试处理。
+  // 只认已知的传输层措辞，避免把真正的业务错误无限重试。
+  const raw = isRecord(error.data) && typeof error.data.message === "string" ? error.data.message : undefined
+  if (typeof raw === "string" && TRANSIENT_STREAM_ERROR.test(raw)) {
+    return { message: `连接中断（${raw}），正在自动重试` }
   }
 
   // Check for rate limit patterns in plain text error messages
@@ -190,6 +217,10 @@ export function policy(opts: {
       const error = opts.parse(meta.input)
       const retry = retryable(error, opts.provider)
       if (!retry) return Cause.done(meta.attempt)
+      // 传输层错误有次数上限：一直重连不成功说明网络/供应商真的不可用，
+      // 把决定权交回用户（界面上的「继续」），而不是无限转圈。
+      // 4xx/5xx 这类 HTTP 错误保持原有行为（由供应商的 retry-after 决定节奏）。
+      if (!MessageV2.APIError.isInstance(error) && meta.attempt > MAX_TRANSIENT_ATTEMPTS) return Cause.done(meta.attempt)
       return Effect.gen(function* () {
         const wait = delay(meta.attempt, MessageV2.APIError.isInstance(error) ? error : undefined)
         const now = yield* Clock.currentTimeMillis

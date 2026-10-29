@@ -43,6 +43,7 @@
 @import "../components/resize-handle.css" layer(components);
 @import "../components/select.css" layer(components);
 @import "../components/spinner.css" layer(components);
+@import "../components/breathing.css" layer(components);
 @import "../components/switch.css" layer(components);
 @import "../components/scroll-view.css" layer(components);
 @import "../components/session-review.css" layer(components);

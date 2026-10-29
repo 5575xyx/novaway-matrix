@@ -1,7 +1,8 @@
 import { Schema } from "effect"
 import * as path from "path"
-import { Effect } from "effect"
+import { Effect, Option } from "effect"
 import * as Tool from "./tool"
+import { ReadState } from "./read-state"
 import { LSP } from "@/lsp/lsp"
 import { createTwoFilesPatch } from "diff"
 import DESCRIPTION from "./write.txt"
@@ -35,6 +36,7 @@ export const WriteTool = Tool.define(
     const fs = yield* AppFileSystem.Service
     const bus = yield* Bus.Service
     const format = yield* Format.Service
+    const readState = yield* ReadState.Service
 
     return {
       description: DESCRIPTION,
@@ -48,6 +50,26 @@ export const WriteTool = Tool.define(
           yield* assertExternalDirectoryEffect(ctx, filepath)
 
           const exists = yield* fs.existsSafe(filepath)
+
+          // Mirrors Claude Code's FileWriteTool: overwriting an existing file
+          // requires that the model read the current contents first, and that
+          // the file has not changed since that read.
+          if (exists) {
+            const entry = yield* readState.get(ctx.sessionID, filepath)
+            if (!entry) {
+              throw new Error(
+                `File has not been read yet: ${filepath}. Read the file first with the read tool before writing to it.`,
+              )
+            }
+            const info = yield* fs.stat(filepath).pipe(Effect.catch(() => Effect.succeed(undefined)))
+            const mtime = info ? Option.getOrElse(info.mtime, () => new Date(0)).getTime() : 0
+            if (mtime > entry.mtime) {
+              throw new Error(
+                `File has been modified since it was last read: ${filepath}. Read the file again before writing to it.`,
+              )
+            }
+          }
+
           const source = exists ? yield* Bom.readFile(fs, filepath) : { bom: false, text: "" }
           const next = Bom.split(params.content)
           const desiredBom = source.bom || next.bom
@@ -79,6 +101,15 @@ export const WriteTool = Tool.define(
           }
           if (yield* format.file(filepath)) {
             yield* Bom.syncFile(fs, filepath, desiredBom)
+          }
+          const written = yield* fs.stat(filepath).pipe(Effect.catch(() => Effect.succeed(undefined)))
+          if (written) {
+            yield* readState.record(ctx.sessionID, filepath, {
+              timestamp: Date.now(),
+              mtime: Option.getOrElse(written.mtime, () => new Date(0)).getTime(),
+              size: Number(written.size),
+              partial: false,
+            })
           }
           yield* bus.publish(File.Event.Edited, { file: filepath })
           yield* bus.publish(FileWatcher.Event.Updated, {

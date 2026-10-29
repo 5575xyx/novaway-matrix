@@ -6,6 +6,12 @@ Use this tool when you need to ask the user questions during execution. This all
 
 CRITICAL: When you need to ask the user a question with options, you MUST use this tool instead of outputting text. The tool renders an interactive selection UI (buttons/checkboxes). Outputting text questions forces the user to type responses manually, which is a worse experience.
 
+Timing rules:
+- Ask questions FIRST, before planning or creating any todo list. Batch all clarifying questions into one ask up front; never drip questions one by one.
+- Once a todo list has been created, do NOT ask further questions — execute the list in order. Asking after the list is published means the planning was premature; go back, gather answers first, then re-plan.
+- While executing, asking again is allowed ONLY for a genuine blocker or conflict you cannot resolve yourself (contradictory requirements, missing credentials, destructive action needing consent, no viable path on any remaining item). Convenience or curiosity questions are not blockers.
+- When you ask mid-execution, update the todo list in the same turn so it reflects reality: keep the blocked item `in_progress`, mention the blocker in its text (or add a follow-up todo describing it), and adjust the remaining items to match what will happen after the answer. The list must never contradict the conversation.
+
 Usage notes:
 - When `custom` is enabled (default), a "Type your own answer" option is added automatically; don't include "Other" or catch-all options
 - Answers are returned as arrays of labels; set `multiple: true` to allow selecting more than one

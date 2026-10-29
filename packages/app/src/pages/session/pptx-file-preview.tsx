@@ -7,7 +7,17 @@ import {
   type SlideHandle,
   type SlideRendererOptions,
 } from "@aiden0z/pptx-renderer/browser"
-import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, Show, type Component } from "solid-js"
+import {
+  createEffect,
+  createMemo,
+  createResource,
+  createSignal,
+  For,
+  on,
+  onCleanup,
+  Show,
+  type Component,
+} from "solid-js"
 import { Spinner } from "@novaway/ui/spinner"
 import { useLanguage } from "@/context/language"
 import { base64ToBytes } from "@/pages/session/office-file-preview"

@@ -1,45 +1,23 @@
-import { Match, Show, Switch, createMemo } from "solid-js"
-import { Tooltip, type TooltipProps } from "@novaway/ui/tooltip"
+import { Show, createMemo } from "solid-js"
+import { Popover } from "@novaway/ui/popover"
 import { ProgressCircle } from "@novaway/ui/progress-circle"
-import { Button } from "@novaway/ui/button"
 
-import { useFile } from "@/context/file"
-import { useLayout } from "@/context/layout"
 import { useSync } from "@/context/sync"
 import { useLanguage } from "@/context/language"
 import { useProviders } from "@/hooks/use-providers"
+import { CacheUsageBody } from "@/components/cache-usage-panel"
 import { getSessionContextMetrics } from "@/components/session/session-context-metrics"
 import { useSessionLayout } from "@/pages/session/session-layout"
-import { createSessionTabs } from "@/pages/session/helpers"
 
-interface SessionContextUsageProps {
-  variant?: "button" | "indicator"
-  placement?: TooltipProps["placement"]
-}
-
-function openSessionContext(args: {
-  view: ReturnType<ReturnType<typeof useLayout>["view"]>
-  tabs: ReturnType<ReturnType<typeof useLayout>["tabs"]>
-}) {
-  if (!args.view.reviewPanel.opened()) args.view.reviewPanel.open()
-  void args.tabs.open("context")
-  args.tabs.setActive("context")
-}
-
-export function SessionContextUsage(props: SessionContextUsageProps) {
+// 输入框工具条上的会话上下文占用入口（对齐 ZCode 的 ChatContextUsage：触发器在
+// composer 工具条上，点开是明细面板）。明细曾经塞在右侧状态面板的 context 卡里，
+// 那张卡已随状态面板「按需出现」改造退出；这里就是它的新家 —— 点击圆环看
+// token 占用 / 预算 / 花费与缓存命中统计。
+export function SessionContextUsage() {
   const sync = useSync()
-  const file = useFile()
   const language = useLanguage()
   const providers = useProviders()
-  const { params, tabs, view } = useSessionLayout()
-
-  const variant = createMemo(() => props.variant ?? "button")
-  const tabState = createSessionTabs({
-    tabs,
-    pathFromTab: file.pathFromTab,
-    normalizeTab: (tab) => (tab.startsWith("file://") ? file.tab(tab) : tab),
-  })
-  const messages = createMemo(() => (params.id ? (sync.data.message[params.id] ?? []) : []))
+  const { params } = useSessionLayout()
 
   const usd = createMemo(
     () =>
@@ -49,90 +27,69 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
       }),
   )
 
-  const metrics = createMemo(() => getSessionContextMetrics(messages(), providers.all()))
+  const messages = createMemo(() => (params.id ? (sync.data.message[params.id] ?? []) : []))
+  const metrics = createMemo(() =>
+    getSessionContextMetrics(messages(), providers.all(), sync.data.config?.compaction),
+  )
   const context = createMemo(() => metrics().context)
-  const cost = createMemo(() => {
-    return usd().format(metrics().totalCost)
-  })
-
-  const openContext = () => {
-    if (!params.id) return
-
-    if (tabState.activeTab() === "context") {
-      tabs().close("context")
-      return
-    }
-    openSessionContext({
-      view: view(),
-      tabs: tabs(),
-    })
-  }
-
-  const circle = () => (
-    <div class="flex items-center justify-center">
-      <ProgressCircle size={16} strokeWidth={2} percentage={context()?.usage ?? 0} />
-    </div>
-  )
-
-  const tooltipValue = () => (
-    <div>
-      <Show when={context()}>
-        {(ctx) => (
-          <>
-            <div class="flex items-center gap-2">
-              <span class="text-foreground-inverse">{ctx().total.toLocaleString(language.intl())}</span>
-              <span class="text-foreground-inverse">{language.t("context.usage.tokens")}</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="text-foreground-inverse">{ctx().usage ?? 0}%</span>
-              <span class="text-foreground-inverse">{language.t("context.usage.usage")}</span>
-            </div>
-            <Show when={ctx().budget}>
-              {(budget) => (
-                <div class="flex items-center gap-2">
-                  <span class="text-foreground-inverse">
-                    {language.t("context.usage.remaining", { percent: budget().percentLeft ?? 0 })}
-                  </span>
-                </div>
-              )}
-            </Show>
-            <Show when={ctx().budget && ctx().budget!.status !== "normal"}>
-              <div class="flex items-center gap-2">
-                <span class="text-warning">
-                  {language.t(
-                    ctx().budget!.status === "blocking" ? "context.usage.blocking" : "context.usage.warning",
-                  )}
-                </span>
-              </div>
-            </Show>
-          </>
-        )}
-      </Show>
-      <div class="flex items-center gap-2">
-        <span class="text-foreground-inverse">{cost()}</span>
-        <span class="text-foreground-inverse">{language.t("context.usage.cost")}</span>
-      </div>
-    </div>
-  )
+  const cost = () => usd().format(metrics().totalCost)
 
   return (
     <Show when={params.id}>
-      <Tooltip value={tooltipValue()} placement={props.placement ?? "top"}>
-        <Switch>
-          <Match when={variant() === "indicator"}>{circle()}</Match>
-          <Match when={true}>
-            <Button
-              type="button"
-              variant="ghost"
-              class="size-6"
-              onClick={openContext}
-              aria-label={language.t("context.usage.view")}
-            >
-              {circle()}
-            </Button>
-          </Match>
-        </Switch>
-      </Tooltip>
+      <Popover
+        placement="top-end"
+        gutter={8}
+        triggerAs="button"
+        triggerProps={{
+          type: "button",
+          "data-action": "prompt-context-usage",
+          class: "flex size-6 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-hover",
+          "aria-label": language.t("context.usage.view"),
+        } as Record<string, unknown>}
+        trigger={
+          <div class="flex items-center justify-center">
+            <ProgressCircle size={16} strokeWidth={2} percentage={context()?.usage ?? 0} />
+          </div>
+        }
+      >
+        <div class="w-64">
+          <div class="flex flex-col gap-1.5 px-3 pt-3">
+            <Show when={context()}>
+              {(ctx) => (
+                <>
+                  <StatRow label={language.t("context.usage.tokens")} value={ctx().total.toLocaleString(language.intl())} />
+                  <StatRow label={language.t("context.usage.usage")} value={`${ctx().usage ?? 0}%`} />
+                  <Show when={ctx().budget}>
+                    {(budget) => (
+                      <span class="text-12-regular text-foreground-subtle">
+                        {language.t("context.usage.remaining", { percent: budget().percentLeft ?? 0 })}
+                      </span>
+                    )}
+                  </Show>
+                  <Show when={ctx().budget && ctx().budget!.status !== "normal"}>
+                    <span class="text-12-regular text-warning">
+                      {language.t(ctx().budget!.status === "blocking" ? "context.usage.blocking" : "context.usage.warning")}
+                    </span>
+                  </Show>
+                </>
+              )}
+            </Show>
+            <StatRow label={language.t("context.usage.cost")} value={cost()} />
+          </div>
+          <CacheUsageBody />
+        </div>
+      </Popover>
     </Show>
+  )
+}
+
+function StatRow(props: { label: string; value: string }) {
+  return (
+    <div class="flex items-center justify-between gap-3">
+      <span class="text-12-regular text-foreground-subtle">{props.label}</span>
+      <Show when={props.value}>
+        <span class="text-12-medium tabular-nums text-foreground">{props.value}</span>
+      </Show>
+    </div>
   )
 }

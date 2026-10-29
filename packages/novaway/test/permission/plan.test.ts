@@ -26,9 +26,7 @@ describe("plan mode write allowlist", () => {
     expect(
       isPlanWrite([path.join(".novaway", "plans", "a.md"), path.join(".novaway", "plans", "b.md")], instance),
     ).toBe(true)
-    expect(
-      isPlanWrite([path.join(".novaway", "plans", "a.md"), path.join("src", "a.ts")], instance),
-    ).toBe(false)
+    expect(isPlanWrite([path.join(".novaway", "plans", "a.md"), path.join("src", "a.ts")], instance)).toBe(false)
   })
 })
 
@@ -36,7 +34,7 @@ describe("plan mode read-only shell", () => {
   test("common read commands are allowed", () => {
     expect(isReadOnlyShell(["ls -la"])).toBe(true)
     expect(isReadOnlyShell(["cat package.json"])).toBe(true)
-    expect(isReadOnlyShell(["rg \"TODO\" src"])).toBe(true)
+    expect(isReadOnlyShell(['rg "TODO" src'])).toBe(true)
     expect(isReadOnlyShell(["git status"])).toBe(true)
     expect(isReadOnlyShell(["git diff HEAD~1"])).toBe(true)
     expect(isReadOnlyShell(["node -v"])).toBe(true)

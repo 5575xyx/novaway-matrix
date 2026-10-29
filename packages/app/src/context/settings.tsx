@@ -1,5 +1,5 @@
 import { createStore, reconcile } from "solid-js/store"
-import { createEffect, createMemo } from "solid-js"
+import { batch, createEffect, createMemo } from "solid-js"
 import { createSimpleContext } from "@novaway/ui/context"
 import { persisted } from "@/utils/persist"
 
@@ -33,7 +33,6 @@ export interface Settings {
     followup: "queue" | "steer"
     showNavigation: boolean
     showSearch: boolean
-    showStatus: boolean
     showTerminal: boolean
     showDatabase: boolean
     showReasoningSummaries: boolean
@@ -53,6 +52,15 @@ export interface Settings {
   keybinds: Record<string, string>
   notifications: NotificationSettings
   sounds: SoundSettings
+  /**
+   * 默认值迁移版本。
+   *
+   * 本地存档会和默认值做深合并：存档里已经写过的键不会跟着新默认值变
+   * （所以之前 showNavigation: false 的用户永远看不到导航按钮）。
+   * 这里用一个小版本号做一次性迁移，只覆盖确实调整过默认值的字段，
+   * 不动快捷键等用户自己的数据。
+   */
+  defaultsVersion?: number
 }
 
 export const monoDefault = "System Mono"
@@ -61,7 +69,8 @@ export const terminalDefault = "JetBrainsMono Nerd Font Mono"
 
 const monoFallback =
   'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
-const sansFallback = 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+const sansFallback =
+  'Inter Variable, "Noto Sans SC Variable", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif'
 const terminalFallback =
   '"JetBrainsMono Nerd Font Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
 
@@ -108,15 +117,17 @@ export function terminalFontFamily(font: string | undefined) {
   return stack(font, terminalBase)
 }
 
+/** 默认值调整的版本号：调了默认值就 +1，存档会在下次启动时一次性跟上。 */
+const CURRENT_DEFAULTS_VERSION = 1
+
 const defaultSettings: Settings = {
   general: {
     autoSave: true,
     releaseNotes: true,
-    followup: "steer",
-    showNavigation: false,
-    showSearch: false,
-    showStatus: false,
-    showTerminal: false,
+    followup: "queue",
+    showNavigation: true,
+    showSearch: true,
+    showTerminal: true,
     showDatabase: true,
     showReasoningSummaries: true,
     shellToolPartsExpanded: false,
@@ -127,7 +138,7 @@ const defaultSettings: Settings = {
     startup: true,
   },
   appearance: {
-    fontSize: 14,
+    fontSize: 15,
     mono: "",
     sans: "",
     terminal: "",
@@ -163,7 +174,30 @@ function withFallback<T>(read: () => T | undefined, fallback: T) {
 export const { use: useSettings, provider: SettingsProvider } = createSimpleContext({
   name: "Settings",
   init: () => {
+    // 保持同一个 key（v3，带迁移版本号字段）：换 key 会连用户自定义的快捷键一起丢掉。
     const [store, setStore, _, ready] = persisted("settings.v3", createStore<Settings>(defaultSettings))
+
+    /**
+     * 一次性默认值迁移（见 `Settings.defaultsVersion` 的注释）。
+     *
+     * 只在存档版本号落后时跑：把「默认值调整过」的几个字段推到新默认，
+     * 之后用户自己再改就按用户的来。
+     */
+    createEffect(() => {
+      if (!ready()) return
+      const version = store.defaultsVersion ?? 0
+      if (version >= CURRENT_DEFAULTS_VERSION) return
+      batch(() => {
+        setStore("general", "showNavigation", true)
+        setStore("general", "showSearch", true)
+        setStore("general", "showTerminal", true)
+        setStore("general", "showDatabase", true)
+        setStore("general", "followup", "queue")
+        setStore("appearance", "fontSize", 15)
+        setStore("updates", "startup", true)
+        setStore("defaultsVersion", CURRENT_DEFAULTS_VERSION)
+      })
+    })
 
     createEffect(() => {
       if (typeof document === "undefined") return
@@ -213,10 +247,6 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         showSearch: withFallback(() => store.general?.showSearch, defaultSettings.general.showSearch),
         setShowSearch(value: boolean) {
           setStore("general", "showSearch", value)
-        },
-        showStatus: withFallback(() => store.general?.showStatus, defaultSettings.general.showStatus),
-        setShowStatus(value: boolean) {
-          setStore("general", "showStatus", value)
         },
         showTerminal: withFallback(() => store.general?.showTerminal, defaultSettings.general.showTerminal),
         setShowTerminal(value: boolean) {

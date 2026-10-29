@@ -199,4 +199,7 @@ export const dict = {
   "ui.basicTool.called": "调用了 `{{tool}}`",
   "ui.message.duration.seconds": "{{count}}秒",
   "ui.message.duration.minutesSeconds": "{{minutes}}分 {{seconds}}秒",
+  "ui.messagePart.reasoning.title": "思考",
+  "ui.messagePart.reasoning.streaming": "思考中",
+  "ui.messagePart.reasoning.duration": "· 持续了 {{duration}}",
 } satisfies Partial<Record<Keys, string>>

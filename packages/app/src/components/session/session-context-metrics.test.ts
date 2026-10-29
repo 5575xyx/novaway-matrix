@@ -97,6 +97,34 @@ describe("getSessionContextMetrics", () => {
     expect(at(106_000)?.status).toBe("blocking")
   })
 
+  test("honours the user's compaction threshold and auto setting", () => {
+    const providers = [
+      {
+        id: "openai",
+        models: {
+          "gpt-4.1": {
+            name: "GPT-4.1",
+            limit: { context: 128_000, output: 32_000 },
+          },
+        },
+      },
+    ]
+    const at = (total: number, compaction?: Parameters<typeof getSessionContextMetrics>[2]) =>
+      getSessionContextMetrics(
+        [assistant("a1", { input: total, output: 0, reasoning: 0, read: 0, write: 0 }, 0)],
+        providers,
+        compaction,
+      ).context?.budget
+
+    expect(at(60_000)).toMatchObject({ autoCompact: 95_000, status: "normal" })
+    expect(at(60_000, { threshold: 60_000 })).toMatchObject({ autoCompact: 60_000, status: "error" })
+    expect(at(60_000, { threshold_percent: 50 })).toMatchObject({ autoCompact: 54_000, status: "error" })
+    // Compaction cannot start past the blocking limit, so a huge threshold is capped.
+    expect(at(60_000, { threshold: 500_000 })).toMatchObject({ autoCompact: 105_000, status: "normal" })
+    // With auto compaction off the threshold moves up to the effective window.
+    expect(at(100_000, { auto: false })).toMatchObject({ autoCompact: 108_000, status: "warning" })
+  })
+
   test("preserves fallback labels and null usage when model metadata is missing", () => {
     const messages = [assistant("a1", { input: 40, output: 10, reasoning: 0, read: 0, write: 0 }, 0.1, "p-1", "m-1")]
     const providers = [{ id: "p-1", models: {} }]

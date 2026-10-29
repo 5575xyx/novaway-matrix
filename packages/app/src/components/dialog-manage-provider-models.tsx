@@ -1,8 +1,10 @@
 import { Button } from "@novaway/ui/button"
 import { Dialog } from "@novaway/ui/dialog"
 import { Icon } from "@novaway/ui/icon"
+import { IconButton } from "@novaway/ui/icon-button"
 import { Select } from "@novaway/ui/select"
 import { Switch } from "@novaway/ui/switch"
+import { TextField } from "@novaway/ui/text-field"
 import { createMemo, createSignal, type Component, For, onMount, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useMutation } from "@tanstack/solid-query"
@@ -12,6 +14,7 @@ import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useProviders } from "@/hooks/use-providers"
 import { useLanguage } from "@/context/language"
+import { modelTypeOptions, type ModelType } from "@/utils/model-type"
 import {
   fetchOpenAICompatibleModels,
   remoteModelType,
@@ -21,14 +24,6 @@ import {
 type AuthEntry = { type: string; key?: string }
 
 type RemoteModel = RemoteProviderModel
-type ModelType = "text" | "image" | "video" | "audio"
-
-const MODEL_TYPES: { value: ModelType; label: string }[] = [
-  { value: "text", label: "文本模型" },
-  { value: "image", label: "图片生成" },
-  { value: "video", label: "视频生成" },
-  { value: "audio", label: "音频生成" },
-]
 
 function inferModelType(model: RemoteProviderModel): ModelType {
   const fromModalities = remoteModelType(model)
@@ -81,15 +76,11 @@ const ConfirmActionDialog: Component<{
   }))
 
   return (
-    <Dialog title={props.title} fit>
-      <div class="flex flex-col gap-4 pl-6 pr-2.5 pb-3">
-        <div class="flex flex-col gap-1">
-          <span class="text-14-regular text-foreground">{props.description}</span>
-          <Show when={error()}>
-            <span class="text-12-regular text-danger-base">{error()}</span>
-          </Show>
-        </div>
-        <div class="flex justify-end gap-2">
+    <Dialog
+      title={props.title}
+      fit
+      footer={
+        <div class="flex w-full items-center justify-end gap-2">
           <Button variant="ghost" size="large" disabled={confirm.isPending} onClick={() => dialog.close()}>
             {language.t("common.cancel")}
           </Button>
@@ -97,9 +88,22 @@ const ConfirmActionDialog: Component<{
             {props.confirmLabel}
           </Button>
         </div>
+      }
+    >
+      <div class="flex flex-col gap-1 px-5 pb-4 pt-1">
+        <span class="text-14-regular text-foreground">{props.description}</span>
+        <Show when={error()}>
+          <span class="text-12-regular text-danger-base">{error()}</span>
+        </Show>
       </div>
     </Dialog>
   )
+}
+
+/** 输入框清空或填了非法值时，按「没设置」处理，而不是写 0 进配置。 */
+const positive = (value: string) => {
+  const parsed = Number(value.replace(/[^0-9]/g, ""))
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
 }
 
 const maskKey = (key: string | undefined) => {
@@ -122,12 +126,15 @@ export const DialogManageProviderModels: Component<{
   const [providerInfo, setProviderInfo] = createStore<{
     endpointURL?: string
   }>({})
-  const [expanded, setExpanded] = createStore<Record<number, boolean>>({})
-  const [fetching, setFetching] = createStore<Record<number, boolean>>({})
-  const [remoteModels, setRemoteModels] = createStore<Record<number, RemoteModel[]>>({})
-  const [selectedRemoteModel, setSelectedRemoteModel] = createStore<Record<number, RemoteModel | undefined>>({})
+  // 多密钥是轮询使用同一份模型列表，所以这里只有一份远端结果，不再按密钥分开。
+  const [fetching, setFetching] = createSignal(false)
+  const [remoteModels, setRemoteModels] = createSignal<RemoteModel[]>([])
   const [extraModels, setExtraModels] = createStore<Record<string, RemoteModel>>({})
   const [modelTypes, setModelTypes] = createStore<Record<string, ModelType>>({})
+  /** 每个模型展开的「高级设置」：上下文窗口 / 最大输出 / 推理 / 多模态。 */
+  const [expandedModel, setExpandedModel] = createSignal<string>()
+  const [modelLimits, setModelLimits] = createStore<Record<string, { context?: number; output?: number }>>({})
+  const [modelCaps, setModelCaps] = createStore<Record<string, { reasoning: boolean; attachment: boolean }>>({})
 
   const provider = createMemo(() => providers.all().find((p) => p.id === props.providerID))
 
@@ -153,22 +160,8 @@ export const DialogManageProviderModels: Component<{
 
   const isMultiKey = createMemo(() => authEntries.length > 1)
 
-  const isKeyExpanded = (keyIndex: number) => {
-    if (!isMultiKey()) return true
-    return expanded[keyIndex] ?? keyIndex === 0
-  }
-
-  const toggleKeyExpanded = (keyIndex: number) => {
-    setExpanded(keyIndex, (prev) => !prev)
-  }
-
-  const getProviderKeys = (): AuthEntry[] => {
-    return authEntries.length > 0 ? authEntries : [{ type: "api" }]
-  }
-
-  const countForKey = () => Object.values(toggles).filter(Boolean).length
-
-  const totalForKey = () => allModels().length
+  /** 底部摘要用：开启了几个 / 一共几个。 */
+  const enabledCount = createMemo(() => Object.values(toggles).filter(Boolean).length)
 
   const selectAllForKey = () => {
     for (const m of allModels()) setToggles(m.id, true)
@@ -221,35 +214,56 @@ export const DialogManageProviderModels: Component<{
     const p = provider()
     if (p) {
       const initial: Record<string, ModelType> = {}
+      const limits: Record<string, { context?: number; output?: number }> = {}
+      const caps: Record<string, { reasoning: boolean; attachment: boolean }> = {}
       for (const [id, model] of Object.entries(p.models ?? {})) {
         initial[id] = modelTypeFromCapabilities(
           model as {
             capabilities?: { output?: { image?: boolean; video?: boolean; audio?: boolean; text?: boolean } }
           },
         )
+        const value = model as {
+          limit?: { context?: number; output?: number }
+          capabilities?: { reasoning?: boolean; attachment?: boolean }
+        }
+        if (value.limit?.context || value.limit?.output) {
+          limits[id] = { context: value.limit?.context, output: value.limit?.output }
+        }
+        caps[id] = {
+          reasoning: Boolean(value.capabilities?.reasoning),
+          attachment: Boolean(value.capabilities?.attachment),
+        }
       }
       setModelTypes(initial)
+      setModelLimits(limits)
+      setModelCaps(caps)
     }
   })
 
-  const fetchModelListForKey = async (keyIndex: number) => {
+  /**
+   * 拉取供应商的完整模型列表。
+   *
+   * 多密钥时用第一个请求 —— 同一供应商的模型列表与密钥无关，每个密钥各拉一遍
+   * 只会得到同样的结果；真正需要区分密钥的是请求本身（服务端按顺序轮询）。
+   */
+  const fetchModelList = async () => {
     const url = baseURL()
     if (!url) {
       showToast({
         title: language.t("common.requestFailed"),
-        description: "当前供应商未配置 base URL，请在供应商设置中填写",
+        description: language.t("dialog.model.manage.missingBaseURL"),
       })
       return
     }
-    const key = authEntries[keyIndex]?.key
+    const key = authEntries[0]?.key
     if (!key) {
       showToast({
         title: language.t("common.requestFailed"),
-        description: "未找到该 key 的 API 密钥",
+        description: language.t("dialog.model.manage.missingKey"),
       })
       return
     }
-    setFetching(keyIndex, true)
+    setFetching(true)
     try {
       const models = await fetchOpenAICompatibleModels({
         providerID: props.providerID,
@@ -263,9 +277,7 @@ export const DialogManageProviderModels: Component<{
           ).data,
       })
       const existing = new Set(allModels().map((m) => m.id))
-      const filtered = models.filter((m) => !existing.has(m.id))
-      setRemoteModels(keyIndex, filtered)
-      setSelectedRemoteModel(keyIndex, undefined)
+      setRemoteModels(models.filter((m) => !existing.has(m.id)))
       showToast({
         variant: "success",
         icon: "circle-check",
@@ -281,19 +293,17 @@ export const DialogManageProviderModels: Component<{
         description: message,
       })
     } finally {
-      setFetching(keyIndex, false)
+      setFetching(false)
     }
   }
 
-  const applyRemoteModel = (keyIndex: number, model: RemoteModel) => {
+  const applyRemoteModel = (model: RemoteModel) => {
     const id = model.id
+    setRemoteModels((prev) => prev.filter((m) => m.id !== id))
     if (extraModels[id]) return
     setExtraModels(id, model)
     setToggles(id, true)
     setModelTypes(id, inferModelType(model))
-    setSelectedRemoteModel(keyIndex, undefined)
-    const updated = (remoteModels[keyIndex] ?? []).filter((m) => m.id !== id)
-    setRemoteModels(keyIndex, updated)
   }
 
   const save = async () => {
@@ -313,6 +323,10 @@ export const DialogManageProviderModels: Component<{
         ...Object.fromEntries(
           all.map((m) => {
             const existingModel = existingModels[m.id] as Record<string, unknown> | undefined
+            const limit = modelLimits[m.id]
+            const caps = modelCaps[m.id]
+            const context = limit?.context && limit.context > 0 ? limit.context : undefined
+            const output = limit?.output && limit.output > 0 ? limit.output : undefined
             return [
               m.id,
               {
@@ -320,6 +334,11 @@ export const DialogManageProviderModels: Component<{
                 id: m.id,
                 name: m.name,
                 modalities: { input: [], output: [modelTypes[m.id] ?? "text"] },
+                // 只在用户真的填了值时才写进配置，否则会把内置目录里的上下文一起覆盖成 0。
+                ...(context || output
+                  ? { limit: { ...(context ? { context } : {}), ...(output ? { output } : {}) } }
+                  : {}),
+                ...(caps ? { reasoning: caps.reasoning, attachment: caps.attachment } : {}),
               },
             ]
           }),
@@ -343,155 +362,202 @@ export const DialogManageProviderModels: Component<{
   }
 
   return (
-    <Dialog title={language.t("dialog.model.manage")} description={language.t("dialog.model.manage.description")}>
-      <div class="flex flex-col gap-3">
-        <div class="flex flex-col max-h-80 overflow-y-auto">
-          <For each={getProviderKeys()}>
-            {(entry, keyIndex) => {
-              const isOpen = createMemo(() => isKeyExpanded(keyIndex()))
-              const isFetching = createMemo(() => fetching[keyIndex()])
-              const fetched = createMemo(() => remoteModels[keyIndex()] ?? [])
+    <Dialog
+      title={language.t("dialog.model.manage")}
+      description={language.t("dialog.model.manage.description")}
+      footer={
+        <div class="flex w-full items-center justify-between gap-3">
+          <span class="min-w-0 truncate text-12-regular text-foreground-subtle" aria-live="polite">
+            {language.t("dialog.model.manage.summary", {
+              selected: enabledCount(),
+              total: allModels().length,
+            })}
+          </span>
+          <div class="flex shrink-0 items-center gap-2">
+            <Button variant="ghost" size="large" onClick={() => dialog.close()}>
+              {language.t("common.cancel")}
+            </Button>
+            <Button variant="primary" size="large" onClick={save}>
+              {language.t("common.save")}
+            </Button>
+          </div>
+        </div>
+      }
+    >
+      <div class="flex flex-col gap-3 px-5 pb-3">
+        {/* 多密钥：轮询用的同一套模型，所以密钥只在这里管理（查看/删除），
+            不再给每个密钥复制一份模型开关 —— 那会让人以为开关是按密钥生效的。 */}
+        <Show when={isMultiKey()}>
+          <div class="flex flex-col gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-2">
+            <span class="text-11-medium uppercase tracking-wide text-foreground-subtlest">
+              {language.t("dialog.model.manage.keys", { count: authEntries.length })}
+            </span>
+            <For each={authEntries}>
+              {(entry, index) => (
+                <div class="flex items-center justify-between gap-2 text-12-regular">
+                  <span class="flex min-w-0 items-center gap-2">
+                    <span class="shrink-0 text-foreground-subtle">
+                      {language.t("model.key.label")} {index() + 1}
+                    </span>
+                    <span class="truncate font-mono text-foreground">{maskKey(entry.key)}</span>
+                  </span>
+                  <button
+                    type="button"
+                    class="shrink-0 text-11-regular text-foreground-subtlest hover:text-destructive"
+                    onClick={() => removeKey(index())}
+                  >
+                    {language.t("common.delete")}
+                  </button>
+                </div>
+              )}
+            </For>
+            <span class="text-11-regular text-foreground-subtlest">
+              {language.t("settings.providers.credentials.rotating")}
+            </span>
+          </div>
+        </Show>
+
+        {/* 摘要只在底部出现一次（右下角动作栏），这里只放动作，避免同一句话重复两遍。 */}
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <span class="text-12-medium text-foreground-subtle">{language.t("provider.custom.models.available")}</span>
+          <div class="flex items-center gap-1">
+            <Button size="small" variant="ghost" icon="download" disabled={fetching()} onClick={fetchModelList}>
+              {fetching()
+                ? language.t("provider.custom.models.fetch.loading")
+                : language.t("provider.custom.models.fetch.action")}
+            </Button>
+            <Button size="small" variant="ghost" onClick={selectAllForKey}>
+              {language.t("common.selectAll")}
+            </Button>
+            <Button size="small" variant="ghost" onClick={deselectAllForKey}>
+              {language.t("common.deselectAll")}
+            </Button>
+          </div>
+        </div>
+
+        <Show when={remoteModels().length > 0}>
+          <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface px-2.5 py-2">
+            <span class="text-11-medium uppercase tracking-wide text-foreground-subtlest">
+              {language.t("provider.custom.models.fetch.group")}
+            </span>
+            <div class="flex flex-wrap gap-1.5">
+              <For each={remoteModels()}>
+                {(model) => (
+                  <button
+                    type="button"
+                    class="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-12-regular text-foreground transition-colors hover:bg-hover"
+                    onClick={() => applyRemoteModel(model)}
+                  >
+                    <Icon name="plus-small" size="small" class="text-foreground-subtlest" />
+                    <span class="max-w-52 truncate">{model.name}</span>
+                  </button>
+                )}
+              </For>
+            </div>
+          </div>
+        </Show>
+
+        <div class="flex flex-col">
+          <For each={allModels()}>
+            {(model) => {
+              const open = () => expandedModel() === model.id
+              const limit = () => modelLimits[model.id] ?? {}
+              const caps = () => modelCaps[model.id] ?? { reasoning: false, attachment: false }
               return (
-                <div class="flex flex-col">
-                  <div class="flex items-center justify-between gap-2 px-2 py-1.5 mt-1 bg-surface rounded-md border border-border">
-                    <Show when={isMultiKey()}>
-                      <button
-                        type="button"
-                        class="flex items-center gap-2 flex-1 min-w-0 text-left text-13-medium text-foreground"
-                        onClick={() => toggleKeyExpanded(keyIndex())}
-                        aria-expanded={isOpen()}
-                      >
-                        <Show
-                          when={isOpen()}
-                          fallback={<Icon name="chevron-right" size="small" class="text-foreground-subtlest" />}
-                        >
-                          <Icon name="chevron-down" size="small" class="text-foreground-subtlest" />
+                <div
+                  class="flex flex-col rounded-md px-1 py-1.5 transition-colors"
+                  classList={{ "bg-surface": open(), "hover:bg-hover": !open() }}
+                >
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-center gap-1.5 text-14-medium">
+                        <span class="truncate">{model.name}</span>
+                        <Show when={extraModels[model.id]}>
+                          <span class="rounded bg-surface px-1.5 py-0.5 text-10-medium text-foreground-subtle">
+                            {language.t("dialog.model.manage.new")}
+                          </span>
                         </Show>
-                        <span class="flex items-center gap-1.5 min-w-0">
-                          <span class="truncate">
-                            {language.t("model.key.label")} {keyIndex() + 1}
-                          </span>
-                          <span class="text-12-regular text-foreground-subtle font-mono truncate">
-                            {maskKey(entry.key)}
-                          </span>
-                        </span>
-                      </button>
-                    </Show>
-                    <Show when={!isMultiKey()}>
-                      <span class="text-13-medium text-foreground flex-1">
-                        {countForKey()}/{totalForKey()} {language.t("common.selected")}
-                      </span>
-                    </Show>
-                    <div class="flex gap-1 items-center shrink-0">
-                      <Show when={isMultiKey()}>
-                        <Button
-                          size="small"
-                          variant="ghost"
-                          onClick={() => removeKey(keyIndex())}
-                          title={language.t("common.delete")}
-                        >
-                          <Icon name="trash" size="small" class="text-foreground-subtlest" />
-                        </Button>
-                      </Show>
-                      <Show when={fetched().length === 0}>
-                        <Button
-                          size="small"
-                          variant="ghost"
-                          onClick={() => fetchModelListForKey(keyIndex())}
-                          disabled={isFetching()}
-                        >
-                          <Show when={!isFetching()} fallback={language.t("provider.custom.models.fetch.loading")}>
-                            {language.t("provider.custom.models.fetch.action")}
-                          </Show>
-                        </Button>
-                      </Show>
-                      <Show when={fetched().length > 0}>
-                        <Select
-                          size="small"
-                          variant="secondary"
-                          options={fetched()}
-                          current={selectedRemoteModel[keyIndex()]}
-                          value={(model) => model.id}
-                          label={(model) => model.name}
-                          groupBy={() => language.t("provider.custom.models.fetch.group")}
-                          placeholder={language.t("provider.custom.models.fetch.select")}
-                          onSelect={(model) => {
-                            if (model) applyRemoteModel(keyIndex(), model)
-                          }}
-                          triggerStyle={{ "min-width": "200px" }}
-                          valueClass="truncate"
-                        >
-                          {(model) => (
-                            <div class="flex min-w-0 flex-col">
-                              <span class="truncate text-13-medium text-foreground">{model?.name}</span>
-                              <Show when={model && model.name !== model.id}>
-                                <span class="truncate text-11-regular text-foreground-subtle">{model?.id}</span>
-                              </Show>
-                            </div>
-                          )}
-                        </Select>
-                        <Button size="small" variant="ghost" onClick={() => setRemoteModels(keyIndex(), [])}>
-                          {language.t("common.clear")}
-                        </Button>
-                      </Show>
-                      <Button size="small" variant="ghost" onClick={selectAllForKey}>
-                        {language.t("common.selectAll")}
-                      </Button>
-                      <Button size="small" variant="ghost" onClick={deselectAllForKey}>
-                        {language.t("common.deselectAll")}
-                      </Button>
+                      </div>
+                      <div class="truncate text-12-regular text-foreground-subtle">{model.id}</div>
                     </div>
+                    <div class="w-24 shrink-0">
+                      <Select
+                        size="small"
+                        options={modelTypeOptions(language.t)}
+                        current={modelTypeOptions(language.t).find((t) => t.value === modelTypes[model.id])}
+                        value={(t) => t.value}
+                        label={(t) => t.label}
+                        onSelect={(t) => t && setModelTypes(model.id, t.value)}
+                        placeholder={language.t("provider.custom.models.type.placeholder")}
+                      />
+                    </div>
+                    <IconButton
+                      icon="sliders"
+                      variant="ghost"
+                      size="small"
+                      class="shrink-0"
+                      aria-expanded={open()}
+                      aria-label={language.t("dialog.model.manage.advanced")}
+                      onClick={() => setExpandedModel(open() ? undefined : model.id)}
+                    />
+                    <Switch
+                      checked={toggles[model.id]}
+                      onChange={(checked: boolean) => setToggles(model.id, checked)}
+                      hideLabel
+                    >
+                      {model.name}
+                    </Switch>
                   </div>
-                  <Show when={isOpen()}>
-                    <div class="flex flex-col">
-                      <For each={allModels()}>
-                        {(model) => (
-                          <div class="flex items-center justify-between py-1.5 px-1 hover:bg-hover rounded-md gap-2">
-                            <div class="min-w-0 flex-1">
-                              <div class="text-14-medium truncate flex items-center gap-1.5">
-                                {model.name}
-                                <Show when={extraModels[model.id]}>
-                                  <span class="text-10-medium px-1.5 py-0.5 rounded bg-surface text-foreground-subtle">
-                                    {language.t("dialog.model.manage.new")}
-                                  </span>
-                                </Show>
-                              </div>
-                              <div class="text-12-regular text-foreground-subtle truncate">{model.id}</div>
-                            </div>
-                            <div class="w-24 shrink-0">
-                              <Select
-                                size="small"
-                                options={MODEL_TYPES}
-                                current={MODEL_TYPES.find((t) => t.value === modelTypes[model.id])}
-                                value={(t) => t.value}
-                                label={(t) => t.label}
-                                onSelect={(t) => t && setModelTypes(model.id, t.value)}
-                                placeholder="类型"
-                              />
-                            </div>
-                            <Switch
-                              checked={toggles[model.id]}
-                              onChange={(checked: boolean) => setToggles(model.id, checked)}
-                              hideLabel
-                            >
-                              {model.name}
-                            </Switch>
-                          </div>
-                        )}
-                      </For>
+
+                  <Show when={open()}>
+                    <div class="mt-2 flex flex-col gap-2 rounded-md border border-border bg-background px-2.5 py-2">
+                      <div class="flex flex-wrap gap-2">
+                        <div class="min-w-32 flex-1">
+                          <TextField
+                            type="number"
+                            label={language.t("dialog.model.manage.context")}
+                            placeholder="128000"
+                            value={limit().context ? String(limit().context) : ""}
+                            onChange={(v) => setModelLimits(model.id, "context", positive(v))}
+                          />
+                        </div>
+                        <div class="min-w-32 flex-1">
+                          <TextField
+                            type="number"
+                            label={language.t("dialog.model.manage.output")}
+                            placeholder="8192"
+                            value={limit().output ? String(limit().output) : ""}
+                            onChange={(v) => setModelLimits(model.id, "output", positive(v))}
+                          />
+                        </div>
+                      </div>
+                      {/* 不要用 <label> 包 Switch：没写 for 的 label 会绑定到 Kobalte 藏起来的
+                          checkbox，点击时开关会被翻回去。文案交给 Switch 自己的 Label。 */}
+                      <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+                        <Switch
+                          class="text-12-regular"
+                          checked={caps().reasoning}
+                          onChange={(checked: boolean) => setModelCaps(model.id, "reasoning", checked)}
+                        >
+                          {language.t("dialog.model.manage.reasoning")}
+                        </Switch>
+                        <Switch
+                          class="text-12-regular"
+                          checked={caps().attachment}
+                          onChange={(checked: boolean) => setModelCaps(model.id, "attachment", checked)}
+                        >
+                          {language.t("dialog.model.manage.attachment")}
+                        </Switch>
+                      </div>
+                      <span class="text-11-regular text-foreground-subtlest">
+                        {language.t("dialog.model.manage.limitHint")}
+                      </span>
                     </div>
                   </Show>
                 </div>
               )
             }}
           </For>
-        </div>
-
-        <div class="flex justify-end gap-2 pt-3 border-t border-border">
-          <Button variant="secondary" onClick={() => dialog.close()}>
-            {language.t("common.cancel")}
-          </Button>
-          <Button onClick={save}>{language.t("common.save")}</Button>
         </div>
       </div>
     </Dialog>

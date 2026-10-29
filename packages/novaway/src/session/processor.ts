@@ -30,6 +30,8 @@ import * as DateTime from "effect/DateTime"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 
 const DOOM_LOOP_THRESHOLD = 3
+/** Stop the turn after this many permission/question rejections in one turn. */
+const MAX_CONSECUTIVE_DENIALS = 3
 const log = Log.create({ service: "session.processor" })
 
 export type Result = "compact" | "stop" | "continue"
@@ -73,7 +75,10 @@ type ToolCall = {
 
 interface ProcessorContext extends Input {
   toolcalls: Record<string, ToolCall>
+  /** Break the turn on the first permission/question rejection. */
   shouldBreak: boolean
+  /** Rejections observed in this turn. */
+  denials: number
   snapshot: string | undefined
   blocked: boolean
   needsCompaction: boolean
@@ -123,6 +128,7 @@ export const layer = Layer.effect(
         model: input.model,
         toolcalls: {},
         shouldBreak: false,
+        denials: 0,
         snapshot: initialSnapshot,
         blocked: false,
         needsCompaction: false,
@@ -215,7 +221,12 @@ export const layer = Layer.effect(
           },
         })
         if (error instanceof Permission.RejectedError || error instanceof Question.RejectedError) {
-          ctx.blocked = ctx.shouldBreak
+          ctx.denials += 1
+          // Match Claude Code: a rejection is a tool result the model can react
+          // to (switch approach, use another tool, ask a clarifying question),
+          // not an automatic end of the turn. Only repeated rejections stop the
+          // loop, which also bounds denial ping-pong.
+          ctx.blocked = ctx.shouldBreak || ctx.denials >= MAX_CONSECUTIVE_DENIALS
         }
         yield* settleToolCall(toolCallID)
         return true
@@ -750,7 +761,10 @@ export const layer = Layer.effect(
       const process = Effect.fn("SessionProcessor.process")(function* (streamInput: LLM.StreamInput) {
         slog.info("process")
         ctx.needsCompaction = false
-        ctx.shouldBreak = (yield* config.get()).experimental?.continue_loop_on_deny !== true
+        // Default: keep going after a rejection. Set
+        // `experimental.continue_loop_on_deny: false` to restore the old
+        // "deny ends the turn" behaviour.
+        ctx.shouldBreak = (yield* config.get()).experimental?.continue_loop_on_deny === false
 
         return yield* Effect.gen(function* () {
           yield* Effect.gen(function* () {

@@ -17,29 +17,36 @@ const change = (over: Partial<Change> = {}): Change => ({
   ...over,
 })
 
-const makeSnapshot = (branch?: string, changes: Change[] = []): Snapshot =>
+const makeSnapshot = (
+  branch?: string,
+  changes: Change[] = [],
+  log: Snapshot["log"] = [],
+): Snapshot =>
   ({
     branch: { branch, ahead: 0, behind: 0 },
     changes,
     branches: [],
     remotes: [],
     stash: [],
-    log: [],
+    log,
   }) as Snapshot
+
+const commit = { hash: "abc1234", subject: "init", author: "NovaWay", date: "2026-01-01" }
 
 describe("buildGitSectionModel", () => {
   test("null when the snapshot is missing", () => {
     expect(buildGitSectionModel(undefined)).toBeNull()
   })
 
-  test("keeps the card on a clean tree so the graph stays reachable", () => {
-    expect(buildGitSectionModel(makeSnapshot("main"))).toMatchObject({
-      branch: "main",
-      dirty: 0,
-      clean: true,
-      staged: [],
-      unstaged: [],
-    })
+  // 对齐 ZCode 的 buildGitModel：clean 仓库也挂状态卡是它修过的 bug，
+  // 没有可提交的东西时卡片连提交入口一起消失才是预期。
+  test("no card on a clean tree", () => {
+    expect(buildGitSectionModel(makeSnapshot("main", [], [commit]))).toBeNull()
+  })
+
+  // 空仓库例外：还没有任何提交时，卡片是唯一能看到分支名、完成首次提交的地方。
+  test("keeps the card for a repository without commits", () => {
+    expect(buildGitSectionModel(makeSnapshot("main"))).toMatchObject({ branch: "main", dirty: 0 })
   })
 
   test("counts additions, deletions, dirty files and branch", () => {

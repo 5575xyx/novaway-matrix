@@ -10,6 +10,7 @@ import { SessionSummary } from "@/session/summary"
 import { Todo } from "@/session/todo"
 import { MessageID, PartID, SessionID } from "@/session/schema"
 import { Snapshot } from "@/snapshot"
+import { BackgroundJob } from "@/background/job"
 import { Schema, Struct } from "effect"
 import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/unstable/httpapi"
 import { Authorization } from "../middleware/authorization"
@@ -61,17 +62,7 @@ export const TempFileCleanResult = Schema.Struct({
   skipped: Schema.Array(Schema.Struct({ path: Schema.String, reason: Schema.String })),
 }).annotate({ identifier: "SessionTempFileCleanResult" })
 
-export const BackgroundJobInfo = Schema.Struct({
-  id: Schema.String,
-  type: Schema.String,
-  title: Schema.optional(Schema.String),
-  status: Schema.Literals(["running", "completed", "error", "cancelled"]),
-  started_at: Schema.Number,
-  completed_at: Schema.optional(Schema.Number),
-  output: Schema.optional(Schema.String),
-  error: Schema.optional(Schema.String),
-  metadata: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
-})
+export const BackgroundJobInfo = BackgroundJob.InfoSchema
 export const UpdatePayload = Schema.Struct({
   title: Schema.optional(Schema.String),
   permission: Schema.optional(Permission.Ruleset),
@@ -114,6 +105,8 @@ export const SummarizePayload = Schema.Struct({
   providerID: ProviderID,
   modelID: ModelID,
   auto: Schema.optional(Schema.Boolean),
+  /** `/compact <instructions>`: extra guidance for what the summary should keep. */
+  instructions: Schema.optional(Schema.String),
 })
 export const PromptPayload = Schema.Struct(Struct.omit(SessionPrompt.PromptInput.fields, ["sessionID"]))
 export const CommandPayload = Schema.Struct(Struct.omit(SessionPrompt.CommandInput.fields, ["sessionID"]))
@@ -151,6 +144,7 @@ export const SessionPaths = {
   summarize: `${root}/:sessionID/summarize`,
   prompt: `${root}/:sessionID/message`,
   promptAsync: `${root}/:sessionID/prompt_async`,
+  resume: `${root}/:sessionID/resume`,
   command: `${root}/:sessionID/command`,
   shell: `${root}/:sessionID/shell`,
   revert: `${root}/:sessionID/revert`,
@@ -473,6 +467,19 @@ export const SessionApi = HttpApi.make("session")
             summary: "Send async message",
             description:
               "Create and send a new message to a session asynchronously, starting the session if needed and returning immediately.",
+          }),
+        ),
+        HttpApiEndpoint.post("resume", SessionPaths.resume, {
+          params: { sessionID: SessionID },
+          query: WorkspaceRoutingQuery,
+          success: described(HttpApiSchema.NoContent, "Continuation accepted"),
+          error: [HttpApiError.BadRequest, ApiNotFoundError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.resume",
+            summary: "Continue an interrupted turn",
+            description:
+              "Resume the last assistant turn after an unexpected interruption. No new user message is created: the model continues the same turn with the existing context.",
           }),
         ),
         HttpApiEndpoint.post("command", SessionPaths.command, {

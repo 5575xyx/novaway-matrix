@@ -1,14 +1,18 @@
-Use this tool to suggest switching to plan agent when the user's request would benefit from planning before implementation.
-
-If they explicitly mention wanting to create a plan ALWAYS call this tool first.
-
-This tool will ask the user if they want to switch to plan agent.
+Use this tool proactively when you are about to start a non-trivial implementation task and the approach is worth agreeing on before writing code. It switches the session to the plan agent, where you explore the codebase, design an approach, and get user approval before editing files.
 
 Call this tool when:
-- The user's request is complex and would benefit from planning first
-- You want to research and design before making changes
-- The task involves multiple files or significant architectural decisions
+- The task is a new feature with meaningful design choices (where it lives, how it fits existing patterns)
+- Multiple valid approaches exist and the choice affects the codebase
+- The change touches several files or restructures existing behavior
+- Requirements are unclear and you need to explore before proposing a plan
+- User preferences matter and you would otherwise have to guess
 
-Do NOT call this tool:
-- For simple, straightforward tasks
-- When the user explicitly wants immediate implementation
+Do NOT call this tool when:
+- The request is a single-line or few-line fix, or a clear bug fix
+- The implementation path is obvious from the request and existing conventions
+- The user already gave detailed, specific instructions
+- The task is pure research (answer it directly instead)
+
+Important:
+- This tool requires user approval; they must consent to entering plan mode.
+- In plan mode you may only take read-only actions and write the plan file. Exit plan mode with plan_exit once the plan is ready.

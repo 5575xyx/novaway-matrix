@@ -55,25 +55,47 @@ function shellDisplayName(name: string) {
 }
 
 function powershellNotes(name: string) {
-  if (name === "pwsh") {
-    return `# PowerShell (7+) shell notes
-- This cross-platform shell supports pipeline chain operators (\`&&\` and \`||\`).
-- Use double quotes for interpolated strings (\`"Hello $name"\`), single quotes for verbatim strings.
-- Prefer full cmdlet names like \`Get-ChildItem\`, \`Set-Content\`, \`Remove-Item\`, and \`New-Item\` over aliases.
-- Use \`$(...)\` for subexpressions. Use \`@(...)\` for array expressions.
-- To call a native executable whose path contains spaces, use the call operator: \`& "path/to/exe" args\`.
-- Escape special characters with the PowerShell backtick character.`
-  }
-  if (name === "powershell") {
-    return `# Windows PowerShell (5.1) shell notes
-- Use \`cmd1; if ($?) { cmd2 }\` to chain dependent commands.
-- Use double quotes for interpolated strings (\`"Hello $name"\`), single quotes for verbatim strings.
-- Prefer full cmdlet names like \`Get-ChildItem\`, \`Set-Content\`, \`Remove-Item\`, and \`New-Item\` over aliases.
-- Use \`$(...)\` for subexpressions. Use \`@(...)\` for array expressions.
-- To call a native executable whose path contains spaces, use the call operator: \`& "path/to/exe" args\`.
-- Escape special characters with the PowerShell backtick character.`
-  }
-  return ""
+  if (!PS.has(name)) return ""
+  const edition =
+    name === "pwsh"
+      ? `# PowerShell edition: PowerShell 7+ (pwsh)
+- Pipeline chain operators \`&&\` and \`||\` ARE available and work like bash. Prefer \`cmd1 && cmd2\` over \`cmd1; cmd2\` when cmd2 should only run if cmd1 succeeds.
+- Ternary (\`$cond ? $a : $b\`), null-coalescing (\`??\`), and null-conditional (\`?.\`) operators are available.
+- Default file encoding is UTF-8 without BOM.`
+      : `# PowerShell edition: Windows PowerShell 5.1 (powershell.exe)
+- Pipeline chain operators \`&&\` and \`||\` are NOT available - they cause a parser error. To run B only if A succeeds: \`A; if ($?) { B }\`. To chain unconditionally: \`A; B\`.
+- Ternary (\`?:\`), null-coalescing (\`??\`), and null-conditional (\`?.\`) operators are NOT available. Use \`if/else\` and explicit \`$null -eq\` checks instead.
+- Avoid \`2>&1\` on native executables. In 5.1, redirecting a native command's stderr inside PowerShell wraps each line in an ErrorRecord (NativeCommandError) and sets \`$?\` to \`$false\` even when the exe returned exit code 0. stderr is already captured for you - do not redirect it.
+- Default file encoding is UTF-16 LE (with BOM). When writing files other tools will read, pass \`-Encoding utf8\` to \`Out-File\`/\`Set-Content\`.
+- \`ConvertFrom-Json\` returns a PSCustomObject, not a hashtable. \`-AsHashtable\` is not available.`
+
+  return `${edition}
+
+PowerShell syntax notes:
+- Variables use a $ prefix: \`$myVar = "value"\`. The escape character is a backtick (\`), not backslash.
+- Prefer Verb-Noun cmdlet names (\`Get-ChildItem\`, \`Set-Location\`, \`New-Item\`, \`Remove-Item\`) over aliases; \`ls\`, \`cd\`, \`cat\`, and \`rm\` are aliases for them.
+- Use \`$(...)\` for subexpressions and \`@(...)\` for array expressions.
+- The pipe operator \`|\` passes objects, not text. Use \`Select-Object\`, \`Where-Object\`, and \`ForEach-Object\` for filtering and transformation.
+- String interpolation: \`"Hello $name"\` or \`"Hello $($obj.Property)"\`.
+- Registry access uses PSDrive prefixes: \`HKLM:\\SOFTWARE\\...\`, \`HKCU:\\...\` - not raw \`HKEY_LOCAL_MACHINE\\...\`.
+- Environment variables: read with \`$env:NAME\`, set with \`$env:NAME = "value"\` (not \`Set-Variable\` or bash \`export\`).
+- To call a native executable whose path contains spaces, use the call operator: \`& "C:\\Program Files\\App\\app.exe" arg1 arg2\`.
+
+Interactive and blocking commands (they hang - this tool runs with -NonInteractive):
+- NEVER use \`Read-Host\`, \`Get-Credential\`, \`Out-GridView\`, \`$Host.UI.PromptForChoice\`, or \`pause\`.
+- Destructive cmdlets (\`Remove-Item\`, \`Stop-Process\`, \`Clear-Content\`, etc.) may ask for confirmation. Add \`-Confirm:$false\` when you intend the action to proceed, and \`-Force\` for read-only or hidden items.
+- Never use \`git rebase -i\`, \`git add -i\`, or other commands that open an interactive editor.
+
+Passing multiline strings (commit messages, file content) to native executables:
+- Use a single-quoted here-string so PowerShell does not expand \`$\` or backticks inside. The closing \`'@\` MUST be at column 0 (no leading whitespace) on its own line - indenting it is a parse error:
+<example>
+git commit -m @'
+Commit message here.
+Second line with $literal dollar signs.
+'@
+</example>
+- Use \`@'...'@\` (single-quoted, literal) rather than \`@"..."@\` (double-quoted, interpolated) unless you need variable expansion.
+- For arguments containing \`-\`, \`@\`, or other characters PowerShell parses as operators, use the stop-parsing token: \`git log --% --format=%H\`.`
 }
 
 function chainGuidance(name: string) {
@@ -130,7 +152,14 @@ Usage notes:
     </good-example>
     <bad-example>
     cd /foo/bar && pytest tests
-    </bad-example>`
+    </bad-example>
+  - Avoid unnecessary sleep commands:
+    - Do not sleep between commands that can run immediately - just run them.
+    - If your command is long running and you would like to be notified when it finishes - use \`background: true\`. No sleep needed.
+    - Do not retry failing commands in a sleep loop - diagnose the root cause or consider an alternative approach.
+    - If waiting for a background task you started with background: true, you will be notified when it completes - do not poll.
+    - If you must poll an external process, use a check command rather than sleeping first.
+    - If you must sleep, keep the duration short (1-5 seconds) to avoid blocking the user.`
 }
 
 function powershellCommandSection(name: string, chain: string, pathSep: string, limits: Limits) {
@@ -176,7 +205,14 @@ Usage notes:
     </good-example>
     <bad-example>
     ${name === "powershell" ? `Set-Location -LiteralPath "project${pathSep}subdir"; if ($?) { pytest tests }` : `Set-Location -LiteralPath "project${pathSep}subdir" && pytest tests`}
-    </bad-example>`
+    </bad-example>
+  - Avoid unnecessary sleep commands:
+    - Do not sleep between commands that can run immediately - just run them.
+    - If your command is long running and you would like to be notified when it finishes - use \`background: true\`. No sleep needed.
+    - Do not retry failing commands in a sleep loop - diagnose the root cause or consider an alternative approach.
+    - If waiting for a background task you started with background: true, you will be notified when it completes - do not poll.
+    - If you must poll an external process, use a check command rather than sleeping first.
+    - If you must sleep, keep the duration short (1-5 seconds) to avoid blocking the user.`
 }
 
 function cmdCommandSection(chain: string, limits: Limits) {
@@ -226,10 +262,17 @@ Usage notes:
     </good-example>
     <bad-example>
     cd /d "project\\subdir" && dir
-    </bad-example>`
+    </bad-example>
+  - Avoid unnecessary sleep commands:
+    - Do not sleep between commands that can run immediately - just run them.
+    - If your command is long running and you would like to be notified when it finishes - use \`background: true\`. No sleep needed.
+    - Do not retry failing commands in a sleep loop - diagnose the root cause or consider an alternative approach.
+    - If waiting for a background task you started with background: true, you will be notified when it completes - do not poll.
+    - If you must poll an external process, use a check command rather than sleeping first.
+    - If you must sleep, keep the duration short (1-5 seconds) to avoid blocking the user.`
 }
 
-function profile(name: string, platform: NodeJS.Platform, limits: Limits) {
+function profile(name: string, platform: NodeJS.Platform, limits: Limits, dedicated = false) {
   const isPowerShell = PS.has(name)
   const chain = chainGuidance(name)
   if (CMD.has(name)) {
@@ -247,7 +290,9 @@ function profile(name: string, platform: NodeJS.Platform, limits: Limits) {
   }
   if (isPowerShell) {
     return {
-      intro: `Executes a given ${shellDisplayName(name)} command with optional timeout, ensuring proper handling and security measures.`,
+      intro: dedicated
+        ? `Executes a given ${shellDisplayName(name)} command with optional timeout. This tool always runs PowerShell, regardless of the session's configured shell; use it for PowerShell cmdlets, Windows-native executables, and anything that needs PowerShell syntax.`
+        : `Executes a given ${shellDisplayName(name)} command with optional timeout, ensuring proper handling and security measures.`,
       workdirSection:
         "All commands run in the current working directory by default. Use the `workdir` parameter if you need to run a command in a different directory. AVOID changing directories inside the command - use `workdir` instead.",
       commandSection: powershellCommandSection(name, chain, platform === "win32" ? "\\" : "/", limits),
@@ -278,8 +323,13 @@ function profile(name: string, platform: NodeJS.Platform, limits: Limits) {
   }
 }
 
-export function render(name: string, platform: NodeJS.Platform, limits: Limits) {
-  const selected = profile(name, platform, limits)
+export function render(
+  name: string,
+  platform: NodeJS.Platform,
+  limits: Limits,
+  opts?: { dedicated?: boolean },
+) {
+  const selected = profile(name, platform, limits, opts?.dedicated === true)
   return {
     description: renderPrompt(DESCRIPTION, {
       intro: selected.intro,

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type {
+  BackgroundJobInfo,
   Message,
   Part,
   PermissionRequest,
@@ -36,6 +37,7 @@ describe("app session cache", () => {
       session_diff: Record<string, SnapshotFileDiff[] | undefined>
       todo: Record<string, Todo[] | undefined>
       message: Record<string, Message[] | undefined>
+      backgroundJob: Record<string, BackgroundJobInfo[] | undefined>
       part: Record<string, Part[] | undefined>
       permission: Record<string, PermissionRequest[] | undefined>
       question: Record<string, QuestionRequest[] | undefined>
@@ -45,6 +47,7 @@ describe("app session cache", () => {
       session_diff: { ses_1: [] },
       todo: { ses_1: [] as Todo[] },
       message: {},
+      backgroundJob: {},
       part: { msg_1: [part("prt_1", "ses_1", "msg_1")] },
       permission: { ses_1: [] as PermissionRequest[] },
       question: { ses_1: [] as QuestionRequest[] },
@@ -59,6 +62,7 @@ describe("app session cache", () => {
     expect(store.todo.ses_1).toBeUndefined()
     expect(store.session_diff.ses_1).toBeUndefined()
     expect(store.session_status.ses_1).toBeUndefined()
+    expect(store.backgroundJob.ses_1).toBeUndefined()
     expect(store.permission.ses_1).toBeUndefined()
     expect(store.question.ses_1).toBeUndefined()
   })
@@ -70,6 +74,7 @@ describe("app session cache", () => {
       session_diff: Record<string, SnapshotFileDiff[] | undefined>
       todo: Record<string, Todo[] | undefined>
       message: Record<string, Message[] | undefined>
+      backgroundJob: Record<string, BackgroundJobInfo[] | undefined>
       part: Record<string, Part[] | undefined>
       permission: Record<string, PermissionRequest[] | undefined>
       question: Record<string, QuestionRequest[] | undefined>
@@ -79,6 +84,7 @@ describe("app session cache", () => {
       session_diff: {},
       todo: {},
       message: { ses_1: [m] },
+      backgroundJob: {},
       part: { [m.id]: [part("prt_1", "ses_1", m.id)] },
       permission: {},
       question: {},

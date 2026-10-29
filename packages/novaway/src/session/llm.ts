@@ -161,7 +161,7 @@ const live: Layer.Layer<
         "需要并行时：",
         "1. 每个会话只调用一次 team_create（重复调用会复用现有团队）。",
         "2. 根据可用 agent 列表为每个子任务选择最合适的 AI 员工，不要所有子任务都用同一个 general。",
-        '3. 用 orchestrator 创建带 dependencies 的计划并执行（同一波内自动并行）；或并行发起多个 task 调用（可加 background=true）。',
+        "3. 用 orchestrator 创建带 dependencies 的计划并执行（同一波内自动并行）；或并行发起多个 task 调用（可加 background=true）。",
         '4. 会改同一批文件的子任务放进 dependencies 串行，或用 isolation="worktree" 隔离。',
         "注意：task_create / task_claim / task_wait 只是团队任务看板，本身不会执行任何东西。只建任务不派子代理，等于什么都没运行；用户询问进度时不要把看板任务说成正在并行执行。",
         "普通单步任务不要建团队、不要委派，直接完成。",
@@ -173,8 +173,9 @@ const live: Layer.Layer<
         LANGUAGE_DIRECTIVE,
         // use agent prompt otherwise provider prompt
         ...(input.agent.prompt ? [input.agent.prompt] : SystemPrompt.provider(input.model)),
-        // 自动并行编排策略(主代理默认开启)
-        ...(input.agent.mode !== "subagent" && !input.small && cfg.experimental?.auto_delegate !== false
+        // 自动并行编排策略：默认关闭。只有显式 experimental.auto_delegate = true
+        // 时才注入；否则简单任务也会先建团队/看板，浪费回合并让父代理丢失细节。
+        ...(input.agent.mode !== "subagent" && !input.small && cfg.experimental?.auto_delegate === true
           ? [AUTO_DELEGATE_DIRECTIVE]
           : []),
         // any custom prompt passed into this call

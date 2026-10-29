@@ -1,8 +1,8 @@
 import { beforeAll, describe, expect, mock, test } from "bun:test"
 
-let shouldListRoot: typeof import("./file-tree").shouldListRoot
-let shouldListExpanded: typeof import("./file-tree").shouldListExpanded
-let dirsToExpand: typeof import("./file-tree").dirsToExpand
+let shouldListRoot: typeof import("./file-tree-model").shouldListRoot
+let shouldListExpanded: typeof import("./file-tree-model").shouldListExpanded
+let dirsToExpand: typeof import("./file-tree-model").dirsToExpand
 
 beforeAll(async () => {
   mock.module("@solidjs/router", () => ({
@@ -29,7 +29,7 @@ beforeAll(async () => {
   mock.module("@novaway/ui/file-icon", () => ({ FileIcon: () => null }))
   mock.module("@novaway/ui/icon", () => ({ Icon: () => null }))
   mock.module("@novaway/ui/tooltip", () => ({ Tooltip: (props: { children?: unknown }) => props.children }))
-  const mod = await import("./file-tree")
+  const mod = await import("./file-tree-model")
   shouldListRoot = mod.shouldListRoot
   shouldListExpanded = mod.shouldListExpanded
   dirsToExpand = mod.dirsToExpand

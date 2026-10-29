@@ -1,5 +1,6 @@
 import type {
   Agent,
+  BackgroundJobInfo,
   Command,
   Config,
   LspStatus,
@@ -70,6 +71,9 @@ export type State = {
   message: {
     [sessionID: string]: Message[]
   }
+  backgroundJob: {
+    [sessionID: string]: BackgroundJobInfo[]
+  }
   part: {
     [messageID: string]: Part[]
   }
@@ -137,3 +141,8 @@ export const MAX_DIR_STORES = 30
 export const DIR_IDLE_TTL_MS = 20 * 60 * 1000
 export const SESSION_RECENT_WINDOW = 4 * 60 * 60 * 1000
 export const SESSION_RECENT_LIMIT = 50
+// 每个目录在 store 里保留的根会话上限，也是侧栏「全部」列表的可见窗口。
+// 曾经只有 5(+最近 4 小时的 50 条)，隔夜的任务全被裁掉、计数也对不上 —— 会话
+// 记录本身很小（消息/部件缓存另由 SESSION_CACHE_LIMIT 管），放大到 200 换取
+// 侧栏与计数的真实性。
+export const SESSION_LIST_LIMIT = 200

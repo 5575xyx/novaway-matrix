@@ -1,5 +1,13 @@
 import { describe, expect, test } from "bun:test"
-import type { Message, Part, PermissionRequest, Project, QuestionRequest, Session } from "@novaway/sdk/v2/client"
+import type {
+  BackgroundJobInfo,
+  Message,
+  Part,
+  PermissionRequest,
+  Project,
+  QuestionRequest,
+  Session,
+} from "@novaway/sdk/v2/client"
 import { createStore } from "solid-js/store"
 import type { State } from "./types"
 import { applyDirectoryEvent, applyGlobalEvent, cleanupDroppedSessionCaches } from "./event-reducer"
@@ -80,6 +88,7 @@ const baseState = (input: Partial<State> = {}) =>
     vcs: undefined,
     limit: 10,
     message: {},
+    backgroundJob: {},
     part: {},
     part_text_accum_delta: {},
     ...input,
@@ -305,9 +314,9 @@ describe("applyDirectoryEvent", () => {
     expect(store.part.msg_1).toBeUndefined()
   })
 
-  // 服务端 session.updated 心跳到达时,event-reducer 会按 store.limit(初始仅 5)裁剪会话列表,
+  // 服务端 session.updated 心跳到达时,event-reducer 会按 store.limit 裁剪会话列表,
   // 再把不在裁剪结果里的会话缓存整个删掉(session-cache.ts 的 delete store.message[id])。
-  // 用户正在看的会话若不在那几个显示位里,消息就会被清空再拉回,表现为每隔几秒闪一下。
+  // 用户正在看的会话若不在保留窗口里,消息就会被清空再拉回,表现为每隔几秒闪一下。
   test("cleanupDroppedSessionCaches keeps preserved sessions missing from the list", () => {
     const [store, setStore] = createStore(
       baseState({
@@ -571,5 +580,83 @@ describe("applyDirectoryEvent", () => {
 
     expect(pushes).toEqual(["/tmp"])
     expect(lspLoads).toBe(1)
+  })
+
+  test("attributes background job events to both child and parent sessions", () => {
+    const [store, setStore] = createStore(baseState())
+    const job = (status: BackgroundJobInfo["status"]) =>
+      ({
+        id: "job-1",
+        type: "task",
+        status,
+        started_at: 1,
+        metadata: { sessionId: "child", parentSessionId: "parent" },
+      }) as BackgroundJobInfo
+
+    applyDirectoryEvent({
+      event: { type: "background.started", properties: { info: job("running") } },
+      store,
+      setStore,
+      push() {},
+      directory: "/tmp",
+      loadLsp() {},
+    })
+
+    expect(store.backgroundJob["parent"]?.map((x) => x.id)).toEqual(["job-1"])
+    expect(store.backgroundJob["child"]?.map((x) => x.id)).toEqual(["job-1"])
+
+    applyDirectoryEvent({
+      event: { type: "background.completed", properties: { info: job("completed") } },
+      store,
+      setStore,
+      push() {},
+      directory: "/tmp",
+      loadLsp() {},
+    })
+
+    expect(store.backgroundJob["parent"]).toHaveLength(1)
+    expect(store.backgroundJob["parent"]?.[0]?.status).toBe("completed")
+    expect(store.backgroundJob["child"]?.[0]?.status).toBe("completed")
+  })
+
+  test("writes shell jobs once when both metadata keys match and drops unowned events", () => {
+    const [store, setStore] = createStore(baseState())
+
+    applyDirectoryEvent({
+      event: {
+        type: "background.started",
+        properties: {
+          info: {
+            id: "job-shell",
+            type: "shell",
+            status: "running",
+            started_at: 1,
+            metadata: { sessionId: "s1", parentSessionId: "s1" },
+          } as BackgroundJobInfo,
+        },
+      },
+      store,
+      setStore,
+      push() {},
+      directory: "/tmp",
+      loadLsp() {},
+    })
+
+    applyDirectoryEvent({
+      event: {
+        type: "background.started",
+        properties: {
+          info: { id: "job-orphan", type: "monitor", status: "running", started_at: 1 } as BackgroundJobInfo,
+        },
+      },
+      store,
+      setStore,
+      push() {},
+      directory: "/tmp",
+      loadLsp() {},
+    })
+
+    expect(Object.keys(store.backgroundJob)).toEqual(["s1"])
+    expect(store.backgroundJob["s1"]).toHaveLength(1)
   })
 })

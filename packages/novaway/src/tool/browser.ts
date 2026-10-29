@@ -1,12 +1,26 @@
 import path from "node:path"
 import { Effect, Schema } from "effect"
+import { Bus } from "@/bus"
+import * as BusEvent from "@/bus/bus-event"
 import { InstanceState } from "@/effect/instance-state"
 import { BrowserService } from "@/browser/browser"
 import * as Tool from "./tool"
 import DESCRIPTION from "./browser.txt"
 
+// 验证用的本地页面同步到应用内置预览：右侧「浏览器」标签跟着导航目标走，
+// 用户能直接看到模型正在检查的页面，而不是只在一个看不见的隔离浏览器里跑。
+export const BrowserEvent = {
+  Navigated: BusEvent.define(
+    "browser.navigated",
+    Schema.Struct({
+      sessionID: Schema.String,
+      url: Schema.String,
+    }),
+  ),
+}
+
 const NavigateParameters = Schema.Struct({
-  url: Schema.String.annotate({ description: "要打开的 http/https URL" }),
+  url: Schema.String.annotate({ description: "要打开的 http/https URL，或本地 HTML 的 file:// URL / 绝对路径" }),
 })
 
 const RefParameters = Schema.Struct({
@@ -44,6 +58,7 @@ export const BrowserNavigateTool = Tool.define(
   "browser_navigate",
   Effect.gen(function* () {
     const browser = yield* BrowserService.Service
+    const bus = yield* Bus.Service
     return {
       description: DESCRIPTION + "\n\n动作：打开或导航到指定 URL。",
       parameters: NavigateParameters,
@@ -52,6 +67,10 @@ export const BrowserNavigateTool = Tool.define(
           Effect.gen(function* () {
             yield* ctx.ask(permission(params.url))
             const result = yield* browser.navigate(params.url)
+            // 本地页面同步到右侧内置预览；外部站点不该抢用户的标签，客户端会自行过滤。
+            yield* bus
+              .publish(BrowserEvent.Navigated, { sessionID: ctx.sessionID, url: result.url })
+              .pipe(Effect.ignore)
             return {
               title: `导航 ${result.url}`,
               metadata: result,

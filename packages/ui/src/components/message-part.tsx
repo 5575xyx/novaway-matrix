@@ -53,7 +53,7 @@ import { getDirectory as _getDirectory, getFilename } from "@novaway/core/util/p
 import { checksum } from "@novaway/core/util/encode"
 import { Tooltip } from "./tooltip"
 import { IconButton } from "./icon-button"
-import { Spinner } from "./spinner"
+import { Breathing } from "./breathing"
 import { TextShimmer } from "./text-shimmer"
 import { AnimatedCountList } from "./tool-count-summary"
 import { ToolStatusTitle } from "./tool-status-title"
@@ -486,7 +486,9 @@ function taskSession(
 }
 
 const CONTEXT_GROUP_TOOLS = new Set(["read", "glob", "grep", "list"])
-const HIDDEN_TOOLS = new Set(["todowrite"])
+// todowrite 曾在这里被隐藏;现在聊天区按待办清单分组,待办创建/更新的工具卡
+// 是分组锚点(与原型一致),不再隐藏。todoedit 一直都可见。
+const HIDDEN_TOOLS = new Set<string>([])
 
 function list<T>(value: T[] | undefined | null, fallback: T[]) {
   if (Array.isArray(value)) return value
@@ -1388,6 +1390,8 @@ export interface ToolProps {
   autoCollapseOnComplete?: boolean
   /** 失败原因：挂到工具行的状态词上（虚线下划线 + 悬停详情，可复制）。 */
   statusTooltip?: string
+  /** 工具调用起止时间（`part.state.time`），用于运行中的实时计时。 */
+  timing?: { start?: number; end?: number }
 }
 
 export type ToolComponent = Component<ToolProps>
@@ -1463,6 +1467,16 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
   const emptyInput: Record<string, any> = {}
   const emptyMetadata: Record<string, any> = {}
 
+  // 工具状态里带了起止时间：把它一路传给渲染器，让"执行中/写入中"后面
+  // 能跟一个真实的耗时（运行中每秒跳，结束后定格）。
+  const timing = createMemo(() => {
+    const time = (part().state as { time?: { start?: unknown; end?: unknown } }).time
+    if (!time || typeof time !== "object") return undefined
+    return {
+      start: typeof time.start === "number" ? time.start : undefined,
+      end: typeof time.end === "number" ? time.end : undefined,
+    }
+  })
   const input = () => part().state?.input ?? emptyInput
   // @ts-expect-error
   const partMetadata = () => part().state?.metadata ?? emptyMetadata
@@ -1515,6 +1529,7 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
                   output={part().state.output}
                   status="error"
                   statusTooltip={cleaned}
+                  timing={timing()}
                   hideDetails={props.hideDetails}
                   defaultOpen={props.defaultOpen}
                   deferContent={props.deferToolContent}
@@ -1536,6 +1551,7 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
               // @ts-expect-error
               output={part().state.output}
               status={part().state.status}
+              timing={timing()}
               hideDetails={props.hideDetails}
               defaultOpen={props.defaultOpen}
               deferContent={props.deferToolContent}
@@ -1679,19 +1695,50 @@ PART_MAPPING["text"] = function TextPartDisplay(props) {
 
 PART_MAPPING["reasoning"] = function ReasoningPartDisplay(props) {
   const data = useData()
+  const i18n = useI18n()
+  const numfmt = createMemo(() => new Intl.NumberFormat(i18n.locale()))
   const part = () => props.part as ReasoningPart
   const streaming = createMemo(
     () => props.message.role === "assistant" && typeof (props.message as AssistantMessage).time.completed !== "number",
   )
   const text = () => (data.store.part_text_accum_delta?.[part().id] ?? part().text).trim()
 
-  const [open, setOpen] = createSignal(true)
+  // 对齐 ZCode：思考过程**默认折叠**，标题行显示「思考 · 持续了 X 秒」，
+  // 运行中同一行末尾跟一段浅色的实时内容，想看细节再点开。
+  const [open, setOpen] = createSignal(false)
 
-  createEffect(() => {
-    const isStreaming = streaming()
-    if (!isStreaming && text()) {
-      setOpen(false)
-    }
+  // 只在本条思考仍在输出时计时；结束后用服务端给的 time.end 定格。
+  const [now, setNow] = createSignal(Date.now())
+  onMount(() => {
+    const timer = setInterval(() => {
+      if (streaming()) setNow(Date.now())
+    }, 1000)
+    onCleanup(() => clearInterval(timer))
+  })
+
+  const elapsed = createMemo(() => {
+    const start = part().time?.start
+    const end = part().time?.end
+    if (typeof start !== "number") return undefined
+    if (typeof end === "number") return Math.max(0, Math.round((end - start) / 1000))
+    if (!streaming()) return undefined
+    return Math.max(0, Math.floor((now() - start) / 1000))
+  })
+
+  const duration = createMemo(() => {
+    const total = elapsed()
+    if (total === undefined) return ""
+    if (total < 60) return i18n.t("ui.message.duration.seconds", { count: numfmt().format(total) })
+    return i18n.t("ui.message.duration.minutesSeconds", {
+      minutes: numfmt().format(Math.floor(total / 60)),
+      seconds: numfmt().format(total % 60),
+    })
+  })
+
+  /** 运行中折叠态的实时预览：最后一行有内容的思考文本，浅色单行。 */
+  const preview = createMemo(() => {
+    const value = text().split(/[\r\n]+/).map((line) => line.trim()).filter(Boolean).at(-1) ?? ""
+    return value.length > 220 ? `${value.slice(0, 220)}…` : value
   })
 
   return (
@@ -1699,9 +1746,25 @@ PART_MAPPING["reasoning"] = function ReasoningPartDisplay(props) {
       <Collapsible open={open()} onOpenChange={setOpen} variant="ghost" class="reasoning-collapsible">
         <Collapsible.Trigger>
           <div data-component="reasoning-part-trigger" data-timeline-part-id={part().id}>
-            <span data-slot="reasoning-part-label" class="text-12-medium text-foreground-subtle">
-              {streaming() ? "思考中..." : "思考过程"}
+            <span
+              data-slot="reasoning-part-indicator"
+              class="flex size-3.5 shrink-0 items-center justify-center text-[var(--syntax-property)]"
+            >
+              <Icon name="lu-brain" size="small" class={streaming() ? "animate-pulse" : ""} />
             </span>
+            <span data-slot="reasoning-part-label" class="text-12-medium italic text-foreground-subtle">
+              {streaming() ? i18n.t("ui.messagePart.reasoning.streaming") : i18n.t("ui.messagePart.reasoning.title")}
+            </span>
+            <Show when={duration()}>
+              <span data-slot="reasoning-part-duration" class="text-11-regular text-foreground-subtlest">
+                {i18n.t("ui.messagePart.reasoning.duration", { duration: duration() })}
+              </span>
+            </Show>
+            <Show when={streaming() && !open() && preview()}>
+              <span data-slot="reasoning-part-live" class="min-w-0 flex-1 truncate text-11-regular italic text-foreground-subtlest">
+                {preview()}
+              </span>
+            </Show>
             <Collapsible.Arrow />
           </div>
         </Collapsible.Trigger>
@@ -1735,7 +1798,8 @@ ToolRegistry.register({
       <>
         <BasicTool
           {...props}
-          icon="glasses"
+          icon="lu-eye"
+          badge={{ color: "blue" }}
           trigger={{
             title: i18n.t("ui.tool.read"),
             subtitle: props.input.filePath ? getFilename(props.input.filePath) : "",
@@ -1765,6 +1829,7 @@ ToolRegistry.register({
       <BasicTool
         {...props}
         icon="bullet-list"
+        badge={{ color: "teal" }}
         trigger={{ title: i18n.t("ui.tool.list"), subtitle: getDirectory(props.input.path || "/") }}
       >
         <Show when={props.output}>
@@ -1785,6 +1850,7 @@ ToolRegistry.register({
       <BasicTool
         {...props}
         icon="magnifying-glass-menu"
+        badge={{ color: "indigo" }}
         trigger={{
           title: i18n.t("ui.tool.glob"),
           subtitle: getDirectory(props.input.path || "/"),
@@ -1812,6 +1878,7 @@ ToolRegistry.register({
       <BasicTool
         {...props}
         icon="magnifying-glass-menu"
+        badge={{ color: "purple" }}
         trigger={{
           title: i18n.t("ui.tool.grep"),
           subtitle: getDirectory(props.input.path || "/"),
@@ -1843,8 +1910,12 @@ ToolRegistry.register({
         {...props}
         hideDetails
         icon="window-cursor"
+        badge={{ color: "cyan" }}
         trigger={
           <div data-slot="basic-tool-tool-info-structured">
+            <span data-slot="tool-badge-icon">
+              <Icon name="window-cursor" size="small" />
+            </span>
             <div data-slot="basic-tool-tool-info-main">
               <span data-slot="basic-tool-tool-title">
                 <TextShimmer text={i18n.t("ui.tool.webfetch")} active={pending()} />
@@ -1888,6 +1959,7 @@ ToolRegistry.register({
       <BasicTool
         {...props}
         icon="window-cursor"
+        badge={{ color: "cyan" }}
         trigger={{
           title: title(),
           subtitle: query(),
@@ -2031,8 +2103,9 @@ ToolRegistry.register({
           <div data-slot="basic-tool-tool-info-main">
             <img data-component="task-tool-avatar" src={avatar()} alt="" draggable={false} />
             <Show when={running()}>
+              {/* 子代理运行中用统一呼吸灯：和重试提示、工具执行同一个动效语言。 */}
               <span data-component="task-tool-spinner" style={{ color: tone() ?? "var(--icon-blue)" }}>
-                <Spinner />
+                <Breathing />
               </span>
             </Show>
             <span data-component="task-tool-title" style={{ color: tone() ?? "var(--foreground)" }}>
@@ -2093,12 +2166,12 @@ ToolRegistry.register({
     return (
       <BasicTool
         {...props}
-        icon="console"
+        icon="lu-terminal"
         badge={{ color: "green" }}
         trigger={
           <div data-slot="basic-tool-tool-info-structured">
             <span data-slot="tool-badge-icon">
-              <Icon name="console" size="small" />
+              <Icon name="lu-terminal" size="small" />
             </span>
             <div data-slot="basic-tool-tool-info-main">
               <span data-slot="basic-tool-tool-title" style={{ color: "inherit" }}>
@@ -2180,13 +2253,13 @@ ToolRegistry.register({
       <div data-component="edit-tool">
         <BasicTool
           {...props}
-          icon="code-lines"
+          icon="lu-square-pen"
           badge={{ color: "purple" }}
           defer={props.deferContent !== false}
           trigger={
             <div data-component="edit-trigger">
               <span data-slot="tool-badge-icon">
-                <Icon name="code-lines" size="small" />
+                <Icon name="lu-square-pen" size="small" />
               </span>
               <div data-slot="message-part-title-area">
                 <div data-slot="message-part-title">
@@ -2254,13 +2327,13 @@ ToolRegistry.register({
       <div data-component="write-tool">
         <BasicTool
           {...props}
-          icon="code-lines"
+          icon="lu-file-plus"
           badge={{ color: "blue" }}
           defer={props.deferContent !== false}
           trigger={
             <div data-component="write-trigger">
               <span data-slot="tool-badge-icon">
-                <Icon name="code-lines" size="small" />
+                <Icon name="lu-file-plus" size="small" />
               </span>
               <div data-slot="message-part-title-area">
                 <div data-slot="message-part-title">
@@ -2352,6 +2425,7 @@ ToolRegistry.register({
             <BasicTool
               {...props}
               icon="code-lines"
+              badge={{ color: "orange" }}
               defer={props.deferContent !== false}
               trigger={{
                 title: i18n.t("ui.tool.patch"),
@@ -2463,9 +2537,13 @@ ToolRegistry.register({
           <BasicTool
             {...props}
             icon="code-lines"
+            badge={{ color: "orange" }}
             defer={props.deferContent !== false}
             trigger={
               <div data-component="edit-trigger">
+                <span data-slot="tool-badge-icon">
+                  <Icon name="code-lines" size="small" />
+                </span>
                 <div data-slot="message-part-title-area">
                   <div data-slot="message-part-title">
                     <span data-slot="message-part-title-text">
@@ -2553,6 +2631,7 @@ ToolRegistry.register({
         {...props}
         defaultOpen
         icon="checklist"
+        badge={{ color: "green" }}
         trigger={{
           title: i18n.t("ui.tool.todos"),
           subtitle: subtitle(),
@@ -2645,38 +2724,25 @@ ToolRegistry.register({
     const subtitle = createMemo(() =>
       skillToolSubtitle(props.input.name, props.status === "pending" || props.status === "running"),
     )
-    const running = createMemo(() => props.status === "pending" || props.status === "running")
 
-    const titleContent = () => <TextShimmer text={title()} active={running()} />
-
-    const trigger = () => (
-      <div
-        data-slot="basic-tool-tool-info-structured"
-        class="rounded-[10px] border border-cyan-600/30 bg-cyan-500/[0.06] px-3 py-2 dark:border-cyan-300/25 dark:bg-cyan-300/[0.07]"
-      >
-        <div data-slot="basic-tool-tool-info-main" class="flex items-center gap-2">
-          <span class="grid size-7 place-items-center rounded-[8px] border border-cyan-600/30 bg-cyan-500/10 text-cyan-700 dark:border-cyan-300/25 dark:bg-cyan-300/10 dark:text-cyan-100">
-            <Icon name="brain" size="small" />
-          </span>
-          <span class="min-w-0 flex flex-col">
-            <span data-slot="basic-tool-tool-title" class="text-13-medium text-cyan-800 dark:text-cyan-100">
-              {titleContent()}
-            </span>
-            <span class="text-11-regular text-cyan-700/70 dark:text-cyan-100/65">{subtitle()}</span>
-          </span>
-        </div>
-      </div>
-    )
-
+    // 之前这里手搓了一张"内嵌卡片"塞进 BasicTool，外面还有一层卡片和状态词：
+    // 于是出现两层边框、状态词被挤到下一行压住标题。改成和其它工具完全一致的
+    // 摘要行（徽标 + 标题 + 副标题 + 状态词），配色靠 data-badge 的 indigo 色相。
     return (
-      <BasicTool
-        icon="brain"
-        status={props.status}
-        trigger={trigger()}
-        hideDetails
-        statusTooltip={props.statusTooltip}
-        persistKey={props.persistKey}
-      />
+      <div data-component="skill-tool">
+        <BasicTool
+          icon="brain"
+          badge={{ color: "indigo" }}
+          status={props.status}
+          trigger={{
+            title: title(),
+            subtitle: subtitle(),
+          }}
+          hideDetails
+          statusTooltip={props.statusTooltip}
+          persistKey={props.persistKey}
+        />
+      </div>
     )
   },
 })

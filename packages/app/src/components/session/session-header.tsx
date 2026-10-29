@@ -13,7 +13,6 @@ import { usePlatform } from "@/context/platform"
 import { useServer } from "@/context/server"
 import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
-import { StatusPopover } from "@/components/status-popover"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { messageAgentColor } from "@/utils/agent"
 import { decode64 } from "@/utils/base64"
@@ -142,8 +141,6 @@ export function SessionHeader(): JSX.Element {
   })
   const os = createMemo(() => detectOS(platform))
   const search = createMemo(() => settings.general.showSearch())
-  const status = createMemo(() => settings.general.showStatus())
-  const nav = createMemo(() => settings.general.showNavigation())
 
   const [exists, setExists] = createStore<Partial<Record<OpenApp, boolean>>>({
     finder: true,
@@ -257,9 +254,6 @@ export function SessionHeader(): JSX.Element {
           aria-label={language.t("session.header.searchFiles")}
           onClick={() => command.trigger("file.open")}
         />
-      </Show>
-      <Show when={status()}>
-        <StatusPopover />
       </Show>
       <Show when={projectDirectory()}>
         {/* 「在编辑器中打开」保留原行为（含 hidden 门控），只把它从 Portal 改成就地渲染。 */}

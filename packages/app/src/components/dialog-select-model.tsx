@@ -6,10 +6,9 @@ import { useModels } from "@/context/models"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { popularProviders } from "@/hooks/use-providers"
 import { Button } from "@novaway/ui/button"
-import { Switch } from "@novaway/ui/switch"
 import { Tag } from "@novaway/ui/tag"
 import { ProviderIcon } from "@novaway/ui/provider-icon"
-import { providerIconId } from "@/utils/provider-icon"
+import { modelIconId } from "@/utils/provider-icon"
 import { Icon } from "@novaway/ui/icon"
 import { Dialog } from "@novaway/ui/dialog"
 import { List } from "@novaway/ui/list"
@@ -85,8 +84,8 @@ const ModelList: Component<{
       {(i) => (
         <div class="w-full flex items-center gap-x-2 text-13-regular">
           <ProviderIcon
-            id={providerIconId(i.provider.id, i.provider.name)}
-            colorId={i.provider.id}
+            id={modelIconId(i.provider.id, i.provider.name, i.id, i.name)}
+            colorId={modelIconId(i.provider.id, i.provider.name, i.id, i.name)}
             brand
             class="size-4 shrink-0 text-foreground-subtle"
           />
@@ -151,7 +150,7 @@ export function ModelSelectorPopover(props: {
       </Kobalte.Trigger>
       <Kobalte.Portal>
         <Kobalte.Content
-          class={`w-72 flex flex-col p-2 rounded-md border border-border bg-popover shadow-md z-50 outline-none overflow-hidden transition-all duration-200 ${modelsCtx.autoMode() ? "h-28" : "h-80"}`}
+          class={`w-72 flex flex-col p-2 rounded-md border border-border bg-popover shadow-md z-50 outline-none overflow-hidden transition-all duration-200 h-80`}
           onEscapeKeyDown={(event) => {
             close("escape")
             event.preventDefault()
@@ -170,15 +169,6 @@ export function ModelSelectorPopover(props: {
           }}
         >
           <Kobalte.Title class="sr-only">{language.t("dialog.model.select.title")}</Kobalte.Title>
-          <div class="px-1 pb-1 border-b border-border mb-1">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-1.5 text-13-regular text-foreground">
-                <Icon name="autopilot" class="size-4" />
-                <span>Auto Mode</span>
-              </div>
-              <Switch checked={modelsCtx.autoMode()} onChange={(checked) => modelsCtx.setAutoMode(checked)} />
-            </div>
-          </div>
           <Show when={!modelsCtx.autoMode()}>
             <ModelList provider={props.provider} model={props.model} onSelect={() => close("select")} class="p-1" />
             <div class="px-1 pb-1">
@@ -217,15 +207,6 @@ export const DialogSelectModel: Component<{ provider?: string; model?: ModelStat
 
   return (
     <Dialog title={language.t("dialog.model.select.title")}>
-      <div class="px-3 py-2 border-b border-border mb-2">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-1.5 text-13-regular text-foreground">
-            <Icon name="autopilot" class="size-4" />
-            <span>Auto Mode</span>
-          </div>
-          <Switch checked={modelsCtx.autoMode()} onChange={(checked) => modelsCtx.setAutoMode(checked)} />
-        </div>
-      </div>
       <Show when={!modelsCtx.autoMode()}>
         <ModelList provider={props.provider} model={props.model} onSelect={() => dialog.close()} />
         <Button

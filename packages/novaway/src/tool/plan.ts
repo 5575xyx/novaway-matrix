@@ -1,5 +1,5 @@
 import path from "path"
-import { Effect, Schema } from "effect"
+import { Effect, Option, Schema } from "effect"
 import * as Tool from "./tool"
 import { Question } from "../question"
 import { Session } from "@/session/session"
@@ -8,6 +8,7 @@ import { Provider } from "@/provider/provider"
 import { InstanceState } from "@/effect/instance-state"
 import { MessageID, PartID } from "../session/schema"
 import EXIT_DESCRIPTION from "./plan-exit.txt"
+import ENTER_DESCRIPTION from "./plan-enter.txt"
 import { PlanApproval } from "@/session/plan-approval"
 import { Service as MailboxService } from "@/team/mailbox"
 import { Service as TeamService } from "@/team/team"
@@ -82,7 +83,11 @@ export const PlanExitTool = Tool.define(
           const messages = yield* session.messages({ sessionID: ctx.sessionID }).pipe(Effect.orDie)
           const lastUser = messages.findLast((item) => item.info.role === "user" && item.info.model)
           const model =
-            lastUser?.info.role === "user" && lastUser.info.model ? lastUser.info.model : yield* provider.defaultModel()
+            lastUser?.info.role === "user" && lastUser.info.model
+              ? lastUser.info.model
+              : provider
+                ? yield* provider.defaultModel()
+                : yield* Effect.die(new Error("plan_enter requires a session model"))
 
           const msg: MessageV2.User = {
             id: MessageID.ascending(),
@@ -106,6 +111,79 @@ export const PlanExitTool = Tool.define(
             title: "Switching to build agent",
             output: "User approved switching to build agent. Wait for further instructions.",
             metadata: {},
+          }
+        }).pipe(Effect.orDie),
+    }
+  }),
+)
+
+export const EnterParameters = Schema.Struct({})
+
+/**
+ * Enter plan mode (CC `EnterPlanMode`). Switching agents is done the same way
+ * `plan_exit` leaves it: append a synthetic user message carrying the agent
+ * name, so the next step of the loop resolves `plan` from `lastUser.agent`.
+ */
+export const PlanEnterTool = Tool.define<typeof EnterParameters, { agent?: string }, Session.Service>(
+  "plan_enter",
+  Effect.gen(function* () {
+    const session = yield* Session.Service
+    // The loop always has a user turn with a model by the time a tool runs; the
+    // provider is only a fallback, so keep the dependency optional.
+    const provider = Option.getOrUndefined(yield* Effect.serviceOption(Provider.Service))
+
+    return {
+      description: ENTER_DESCRIPTION,
+      parameters: EnterParameters,
+      capabilities: { concurrencySafe: false },
+      execute: (_params: Schema.Schema.Type<typeof EnterParameters>, ctx: Tool.Context<{ agent?: string }>) =>
+        Effect.gen(function* () {
+          yield* ctx.ask({
+            permission: "plan_enter",
+            patterns: ["*"],
+            always: ["*"],
+            metadata: {},
+          })
+
+          const messages = yield* session.messages({ sessionID: ctx.sessionID }).pipe(Effect.orDie)
+          const lastUser = messages.findLast((item) => item.info.role === "user" && item.info.model)
+          if (lastUser?.info.role === "user" && lastUser.info.agent === "plan") {
+            return {
+              title: "Already in plan mode",
+              output: "This session is already running the plan agent. Explore read-only and write the plan file.",
+              metadata: { agent: "plan" },
+            }
+          }
+
+          const model =
+            lastUser?.info.role === "user" && lastUser.info.model
+              ? lastUser.info.model
+              : provider
+                ? yield* provider.defaultModel()
+                : yield* Effect.die(new Error("plan_enter requires a session model"))
+          const msg: MessageV2.User = {
+            id: MessageID.ascending(),
+            sessionID: ctx.sessionID,
+            role: "user",
+            time: { created: Date.now() },
+            agent: "plan",
+            model,
+          }
+          yield* session.updateMessage(msg)
+          yield* session.updatePart({
+            id: PartID.ascending(),
+            messageID: msg.id,
+            sessionID: ctx.sessionID,
+            type: "text",
+            text: "Switched to plan mode. Explore the codebase read-only and write an implementation plan; do not modify project files until the plan is approved.",
+            synthetic: true,
+          } satisfies MessageV2.TextPart)
+
+          return {
+            title: "Entered plan mode",
+            output:
+              "Entered plan mode. Explore the codebase, ask clarifying questions if needed, and write the plan to the plan file. Call plan_exit when the plan is ready for approval.",
+            metadata: { agent: "plan" },
           }
         }).pipe(Effect.orDie),
     }

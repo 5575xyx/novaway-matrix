@@ -101,6 +101,11 @@
   --shadow-xs-border-critical-base: var(--shadow-xs-border-critical-base);
 
   --animate-pulse: var(--animate-pulse);
+  /* `--*: initial` 把 Tailwind 默认的 --animate-spin/--animate-ping 一起清掉了，
+     导致 animate-spin 类根本不会生成（所有 loading 图标都静止）。这里补回默认值，
+     关键帧由 app/src/index.css 的 @keyframes spin/ping 提供。 */
+  --animate-spin: spin 1s linear infinite;
+  --animate-ping: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
 
 @import "./colors.css";

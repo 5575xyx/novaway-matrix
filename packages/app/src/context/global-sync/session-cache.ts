@@ -1,4 +1,5 @@
 import type {
+  BackgroundJobInfo,
   Message,
   Part,
   PermissionRequest,
@@ -15,6 +16,7 @@ type SessionCache = {
   session_diff: Record<string, SnapshotFileDiff[] | undefined>
   todo: Record<string, Todo[] | undefined>
   message: Record<string, Message[] | undefined>
+  backgroundJob: Record<string, BackgroundJobInfo[] | undefined>
   part: Record<string, Part[] | undefined>
   permission: Record<string, PermissionRequest[] | undefined>
   question: Record<string, QuestionRequest[] | undefined>
@@ -39,6 +41,7 @@ export function dropSessionCaches(store: SessionCache, sessionIDs: Iterable<stri
     delete store.todo[sessionID]
     delete store.session_diff[sessionID]
     delete store.session_status[sessionID]
+    delete store.backgroundJob[sessionID]
     delete store.permission[sessionID]
     delete store.question[sessionID]
   }

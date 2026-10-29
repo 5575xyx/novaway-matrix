@@ -380,6 +380,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
           modelID: ctx.payload.modelID,
         },
         auto: ctx.payload.auto ?? false,
+        instructions: ctx.payload.instructions,
       })
       yield* promptSvc.loop({ sessionID: ctx.params.sessionID })
       return true
@@ -410,6 +411,31 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
         Effect.catchCause((cause) =>
           Effect.gen(function* () {
             yield* Effect.logError("prompt_async failed").pipe(
+              Effect.annotateLogs({ sessionID: ctx.params.sessionID, cause }),
+            )
+            yield* bus.publish(Session.Event.Error, {
+              sessionID: ctx.params.sessionID,
+              error: new NamedError.Unknown({ message: Cause.pretty(cause) }).toObject(),
+            })
+          }),
+        ),
+        Effect.forkIn(scope, { startImmediately: true }),
+      )
+      return HttpApiSchema.NoContent.make()
+    })
+
+    /**
+     * 继续任务：把意外中断的那一轮接着做完。
+     *
+     * 与 promptAsync 一样异步执行（流式事件已经通过 SSE 推送，不需要在这里等结果），
+     * 失败时把错误发到会话事件里，界面才会重新出现"继续"入口。
+     */
+    const resume = Effect.fn("SessionHttpApi.resume")(function* (ctx: { params: { sessionID: SessionID } }) {
+      yield* requireSession(ctx.params.sessionID)
+      yield* promptSvc.resume(ctx.params.sessionID).pipe(
+        Effect.catchCause((cause) =>
+          Effect.gen(function* () {
+            yield* Effect.logError("session_resume failed").pipe(
               Effect.annotateLogs({ sessionID: ctx.params.sessionID, cause }),
             )
             yield* bus.publish(Session.Event.Error, {
@@ -530,6 +556,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       .handle("summarize", summarize)
       .handle("prompt", prompt)
       .handle("promptAsync", promptAsync)
+      .handle("resume", resume)
       .handle("command", command)
       .handle("shell", shell)
       .handle("revert", revert)

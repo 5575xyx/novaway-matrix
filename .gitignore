@@ -55,3 +55,15 @@ harness-tasks.json.corrupt-*
 .claude-tmp/
 
 .superpowers/
+
+# 本地参考源码与临时产物（勿提交）
+.zcode/
+.zcode-refs/
+packages/app/.artifacts/
+packages/app/.wpn.db
+packages/app/.wpn.db-shm
+packages/app/.wpn.db-wal
+packages/app/.wpndatabase.db-shm
+tmp-zcode*
+tmp-*.md
+zz-live-verify-*

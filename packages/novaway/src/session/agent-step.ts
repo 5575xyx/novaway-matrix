@@ -111,9 +111,7 @@ export function makeRunAgent(config: MakeRunAgentConfig): RunAgent {
         const preferred = input.name ?? input.title ?? `${resolvedName}-${child.id.slice(-4)}`
         // 成员按名字寻址(面板发消息 / agent_message)；同名会让消息落到旧会话，
         // 所以同一团队里重名时补一个会话后缀。
-        const clash = yield* teams
-          .member(team.id, preferred)
-          .pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+        const clash = yield* teams.member(team.id, preferred).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
         const name = clash && clash.sessionID !== child.id ? `${preferred} #${child.id.slice(-4)}` : preferred
         yield* teams
           .addMember({

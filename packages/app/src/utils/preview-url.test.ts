@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { normalizePreviewUrl, previewFilePath } from "./preview-url"
+import { isLocalPreviewUrl, normalizePreviewUrl, previewFilePath } from "./preview-url"
 
 test("完整 http 地址被规范化", () => {
   expect(normalizePreviewUrl("localhost:3000")).toBe("http://localhost:3000/")
@@ -45,4 +45,13 @@ test("非 file:// 地址取不到文件路径", () => {
   expect(previewFilePath("http://localhost:3000/")).toBeUndefined()
   expect(previewFilePath("file:/bad")).toBeUndefined()
   expect(previewFilePath("")).toBeUndefined()
+})
+
+test("local preview detection", () => {
+  expect(isLocalPreviewUrl("http://localhost:3000/")).toBe(true)
+  expect(isLocalPreviewUrl("http://127.0.0.1:8765/app")).toBe(true)
+  expect(isLocalPreviewUrl("http://[::1]:3000/")).toBe(true)
+  expect(isLocalPreviewUrl("file:///E:/work/demo.html")).toBe(true)
+  expect(isLocalPreviewUrl("https://example.com/")).toBe(false)
+  expect(isLocalPreviewUrl("not a url")).toBe(false)
 })

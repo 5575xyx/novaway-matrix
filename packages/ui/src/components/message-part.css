@@ -293,11 +293,30 @@
   display: flex;
   align-items: center;
   gap: 4px;
+  /* 折叠态同一行还要塞"实时预览"，必须允许收缩，否则会把箭头挤出卡片。 */
+  min-width: 0;
+}
+
+/* 运行中折叠态的实时内容：比标签更浅一档，单行截断，不抢正文的注意力。 */
+[data-slot="reasoning-part-live"] {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-slot="reasoning-part-duration"] {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 /* 思考卡片本身就是折叠开关，箭头常显（原型 A1 的「▾ 思考过程」），
    否则收起状态只剩一行文字，看不出可以展开。 */
-.reasoning-collapsible [data-slot="collapsible-trigger"] [data-component="reasoning-part-trigger"] [data-slot="collapsible-arrow"] {
+.reasoning-collapsible
+  [data-slot="collapsible-trigger"]
+  [data-component="reasoning-part-trigger"]
+  [data-slot="collapsible-arrow"] {
   opacity: 1;
 }
 
@@ -315,9 +334,15 @@
 
   [data-component="markdown"] {
     margin-top: 16px;
-    font-style: normal;
+    /* 思考流用斜体 + 更淡的色阶,和最终正文一眼区分;代码块保持直立 */
+    font-style: italic;
     font-size: var(--font-size-ui-sm);
     color: var(--foreground-subtlest);
+
+    pre,
+    code {
+      font-style: normal;
+    }
 
     strong,
     b {
@@ -449,7 +474,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  width: 100%;
+  /* 不再强制 100%：否则状态词被挤到下一行、压住标题。让 flex 按内容收缩，
+     状态词留在同一行的右端。 */
+  width: auto;
+  flex: 0 1 auto;
+  min-width: 0;
 
   [data-slot="message-part-title-area"] {
     flex-grow: 1;

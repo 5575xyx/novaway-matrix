@@ -45,8 +45,9 @@
   border-radius: var(--radius-2xl);
   border: 1px solid var(--popover-border);
   background: var(--toast);
+  /* 注意:toast 底色是常规面板色(--toast=亮色主题 #ffffff),文字必须用 --foreground。 */
+  /* 此处曾误用 --foreground-inverse(白),和白底叠加导致整框"空白"(文字不可见)。 */
   color: var(--foreground);
-  color: var(--foreground-inverse);
   box-shadow: var(--shadow-md);
 
   [data-slot="toast-inner"] {
@@ -95,7 +96,7 @@
     justify-content: center;
 
     [data-component="icon"] {
-      color: var(--foreground-inverse);
+      color: var(--foreground);
       /* color: var(--foreground-inverse); */
     }
   }
@@ -117,7 +118,7 @@
   }
 
   [data-slot="toast-title"] {
-    color: var(--foreground-inverse);
+    color: var(--foreground);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -134,7 +135,7 @@
   }
 
   [data-slot="toast-description"] {
-    color: var(--foreground-inverse);
+    color: var(--foreground);
     text-wrap-style: pretty;
     overflow-wrap: anywhere;
     word-break: break-word;
@@ -168,7 +169,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 
-    color: var(--foreground-inverse);
+    color: var(--foreground);
     font-family: var(--font-family-sans);
     font-size: var(--font-size-ui-base);
     font-weight: var(--font-weight-medium);
@@ -180,7 +181,7 @@
     }
 
     &:first-child {
-      color: var(--foreground-inverse);
+      color: var(--foreground);
     }
   }
 

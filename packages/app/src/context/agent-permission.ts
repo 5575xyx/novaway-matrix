@@ -17,10 +17,7 @@ export const PLANNER_AGENT = "plan"
 export const BUILDER_AGENT = "build"
 
 /** 选了某角色后，权限档位应当变成什么；`undefined` 表示保持不变。 */
-export function permissionForAgent(
-  agent: string,
-  current: SessionPermissionMode,
-): SessionPermissionMode | undefined {
+export function permissionForAgent(agent: string, current: SessionPermissionMode): SessionPermissionMode | undefined {
   if (agent === PLANNER_AGENT) return current === "plan" ? undefined : "plan"
   // 离开规划角色时，只读闸门只会挡住这个角色要做的事。
   if (current === "plan") return "default"
@@ -28,10 +25,7 @@ export function permissionForAgent(
 }
 
 /** 选了某档位后，角色应当变成什么；`undefined` 表示保持不变。 */
-export function agentForPermission(
-  mode: SessionPermissionMode,
-  current: string | undefined,
-): string | undefined {
+export function agentForPermission(mode: SessionPermissionMode, current: string | undefined): string | undefined {
   if (mode === "plan") return current === PLANNER_AGENT ? undefined : PLANNER_AGENT
   if (current === PLANNER_AGENT) return BUILDER_AGENT
   return undefined

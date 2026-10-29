@@ -236,28 +236,34 @@ export const DEFAULT_SIDE_PANE_STATE: SidePaneState = { opened: true, tabs: [], 
 export const SIDE_PANE_TABS = ["preview", "browser", "terminal", "review"] as const
 
 /**
- * Side Pane 的动态标签：一个标签对应一个**会话**。
+ * Side Pane 的动态标签：一个标签对应一个**会话**（`background` 例外——它对应
+ * 一个后台任务的输出视图，挂在发起会话下面）。
  *
  * 对齐 ZCode 的 `WorkspaceSidePaneTab`（一个可辨识联合，带 `subagent-session` /
- * `selection-side-chat` 两种会话标签）：
+ * `selection-side-chat` / `bash-output` 三种标签）：
  *
  * - `subagent` —— 从工具行的子代理摘要点进来的子会话（ZCode 的 `subagent-session`）
  * - `sideChat` —— 侧边对话：独立小会话，继承主对话上下文但**不写入主对话历史**
  *                 （ZCode 的 `selection-side-chat`）
+ * - `background` —— 后台任务输出（ZCode 的 `bash-output`）：任务 id 编在标签 id 里
  *
- * 生命周期上两者都是「跟着父会话走」：父会话结束或标签关闭时，服务端的会话一起关掉。
+ * 生命周期上子代理/侧边对话都是「跟着父会话走」：父会话结束或标签关闭时，服务端的会话一起关掉。
  */
 export type SidePaneSessionTab = {
   id: string
-  kind: "subagent" | "sideChat"
+  kind: "subagent" | "sideChat" | "background"
   sessionID: string
   /** 父会话 id：侧边对话/子代理都挂在它下面（清理与"回到主线"要用）。 */
   parentID: string
   title: string
+  /** kind = "background" 时：要展示输出的后台任务 id。 */
+  jobID?: string
 }
 
 export const sidePaneSubagentTabId = (sessionID: string) => `subagent:${sessionID}`
 export const sidePaneSideChatTabId = (sessionID: string) => `sideChat:${sessionID}`
+/** 后台任务输出标签：任务 id 全局唯一，直接编进标签 id（重复打开只聚焦已有的）。 */
+export const sidePaneBackgroundTabId = (jobID: string) => `background:${jobID}`
 
 const isSidePaneBuiltinTab = (value: unknown): value is SidePaneTab =>
   typeof value === "string" && (SIDE_PANE_TABS as readonly string[]).includes(value)
@@ -373,7 +379,9 @@ export function migrateLayoutStore(value: unknown) {
             (entry): entry is [string, SidePaneSessionTab] =>
               isRecord(entry[1]) &&
               typeof entry[1].id === "string" &&
-              (entry[1].kind === "subagent" || entry[1].kind === "sideChat") &&
+              (entry[1].kind === "subagent" ||
+                entry[1].kind === "sideChat" ||
+                (entry[1].kind === "background" && typeof entry[1].jobID === "string")) &&
               typeof entry[1].sessionID === "string" &&
               typeof entry[1].parentID === "string" &&
               typeof entry[1].title === "string",
@@ -564,9 +572,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
 
     // 视口宽度信号：sidePane 默认宽度按「窗口 45%」计算（对齐 ZCode 的
     // SIDE_PANE_DEFAULT_EXPANDED_SIZE），窗口缩放时默认宽度要跟着变。
-    const [viewportWidth, setViewportWidth] = createSignal(
-      typeof window === "undefined" ? 1280 : window.innerWidth,
-    )
+    const [viewportWidth, setViewportWidth] = createSignal(typeof window === "undefined" ? 1280 : window.innerWidth)
     if (typeof window !== "undefined") {
       makeEventListener(window, "resize", () => setViewportWidth(window.innerWidth))
     }

@@ -128,11 +128,35 @@
         display: flex;
         flex-direction: column;
         flex: 1;
-        overflow: hidden;
+        /* 正文必须是滚动容器：以前这里是 overflow:hidden，高一点的表单
+           （自定义供应商第一步）会被直接裁掉，页脚又把最后几个字段盖住，
+           用户既看不到「API 密钥」后面的内容也没法往上翻。 */
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        scrollbar-width: thin;
 
         &:focus-visible {
           outline: none;
         }
+      }
+
+      /* 底部操作区：吸在弹窗底边，动作按钮永远贴在右下角，
+         不需要每个弹窗自己在滚动内容里摆一排按钮（位置、间距、分隔线各写一套）。 */
+      [data-slot="dialog-footer"] {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        flex-shrink: 0;
+        align-self: stretch;
+        position: sticky;
+        bottom: 0;
+        z-index: 3;
+        padding: 12px 20px;
+        background: color-mix(in oklab, var(--popover) 94%, transparent);
+        backdrop-filter: blur(8px);
+        border-top: 1px solid color-mix(in oklab, var(--popover-border) 60%, transparent);
       }
       &:focus-visible {
         outline: none;

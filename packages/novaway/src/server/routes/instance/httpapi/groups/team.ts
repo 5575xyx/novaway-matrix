@@ -6,6 +6,8 @@ import { WorkspaceRoutingMiddleware, WorkspaceRoutingQuery } from "../middleware
 import { described } from "./metadata"
 
 const root = "/session/:sessionID/team"
+/** Workspace-level routes used by the standalone team page. */
+const workspaceRoot = "/team"
 
 export const TeamView = Schema.Struct({
   id: Schema.String,
@@ -52,6 +54,57 @@ export const TeamOverview = Schema.Struct({
   usage: Schema.optional(TeamUsageView),
 }).annotate({ identifier: "TeamOverview" })
 
+export const TeamMessageView = Schema.Struct({
+  id: Schema.String,
+  from: Schema.String,
+  fromName: Schema.optional(Schema.String),
+  to: Schema.optional(Schema.String),
+  toName: Schema.optional(Schema.String),
+  broadcast: Schema.Boolean,
+  summary: Schema.optional(Schema.String),
+  content: Schema.String,
+  createdAt: Schema.Number,
+  readAt: Schema.optional(Schema.Number),
+}).annotate({ identifier: "TeamMessageView" })
+
+export const TeamSummaryView = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  description: Schema.optional(Schema.String),
+  rootSessionID: Schema.String,
+  memberCount: Schema.Number,
+  updatedAt: Schema.Number,
+}).annotate({ identifier: "TeamSummaryView" })
+
+export const TeamDetail = Schema.Struct({
+  team: TeamView,
+  members: Schema.Array(TeamMemberView),
+  tasks: Schema.Array(TeamTaskView),
+  usage: Schema.optional(TeamUsageView),
+  messages: Schema.Array(TeamMessageView),
+}).annotate({ identifier: "TeamDetail" })
+
+export const TeamMemberInput = Schema.Struct({
+  agent: Schema.String,
+  name: Schema.optional(Schema.String),
+})
+
+export const TeamCreatePayload = Schema.Struct({
+  name: Schema.String,
+  description: Schema.optional(Schema.String),
+  /** Agent used for the lead session; defaults to the default agent. */
+  lead: Schema.optional(Schema.String),
+  members: Schema.Array(TeamMemberInput),
+})
+
+export const TeamMessageSendPayload = Schema.Struct({
+  content: Schema.String,
+  /** Member name or session id. Omit to broadcast to every worker. */
+  to: Schema.optional(Schema.String),
+  /** Also run the member's agent and post its reply into the chat. */
+  dispatch: Schema.optional(Schema.Boolean),
+})
+
 export const TeamMessagePayload = Schema.Struct({
   to: Schema.String,
   message: Schema.String,
@@ -85,6 +138,104 @@ export const TeamApi = HttpApi.make("team")
             identifier: "team.message",
             summary: "Send a message to a teammate",
             description: "Queue or deliver a message to another agent in the session team.",
+          }),
+        ),
+        HttpApiEndpoint.get("listTeams", workspaceRoot, {
+          query: WorkspaceRoutingQuery,
+          success: described(Schema.Array(TeamSummaryView), "Teams"),
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "team.list",
+            summary: "List teams",
+            description: "List every multi-agent team in this workspace with its member count.",
+          }),
+        ),
+        HttpApiEndpoint.post("createTeam", workspaceRoot, {
+          query: WorkspaceRoutingQuery,
+          payload: TeamCreatePayload,
+          success: described(TeamDetail, "Created team"),
+          error: [HttpApiError.BadRequest],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "team.create",
+            summary: "Create a team",
+            description:
+              "Create a lead session plus one session per member agent, and register them as a team.",
+          }),
+        ),
+        HttpApiEndpoint.get("teamDetail", `${workspaceRoot}/:teamID`, {
+          params: { teamID: Schema.String },
+          query: WorkspaceRoutingQuery,
+          success: described(TeamDetail, "Team detail"),
+          error: [HttpApiError.NotFound],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "team.detail",
+            summary: "Team detail",
+            description: "Team, members, shared tasks, usage and chat transcript.",
+          }),
+        ),
+        HttpApiEndpoint.delete("removeTeam", `${workspaceRoot}/:teamID`, {
+          params: { teamID: Schema.String },
+          query: WorkspaceRoutingQuery,
+          success: described(Schema.Boolean, "Team removed"),
+          error: [HttpApiError.NotFound],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "team.remove",
+            summary: "Delete a team",
+            description: "Remove the team and its member list. Sessions are kept.",
+          }),
+        ),
+        HttpApiEndpoint.post("addTeamMember", `${workspaceRoot}/:teamID/member`, {
+          params: { teamID: Schema.String },
+          query: WorkspaceRoutingQuery,
+          payload: TeamMemberInput,
+          success: described(TeamDetail, "Updated team"),
+          error: [HttpApiError.BadRequest, HttpApiError.NotFound],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "team.member.add",
+            summary: "Add a team member",
+            description: "Create a session for an agent and add it to the team.",
+          }),
+        ),
+        HttpApiEndpoint.delete("removeTeamMember", `${workspaceRoot}/:teamID/member/:sessionID`, {
+          params: { teamID: Schema.String, sessionID: Schema.String },
+          query: WorkspaceRoutingQuery,
+          success: described(Schema.Boolean, "Member removed"),
+          error: [HttpApiError.NotFound],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "team.member.remove",
+            summary: "Remove a team member",
+            description: "Detach a session from the team; the session itself is kept.",
+          }),
+        ),
+        HttpApiEndpoint.get("teamMessages", `${workspaceRoot}/:teamID/message`, {
+          params: { teamID: Schema.String },
+          query: WorkspaceRoutingQuery,
+          success: described(Schema.Array(TeamMessageView), "Messages"),
+          error: [HttpApiError.NotFound],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "team.message.list",
+            summary: "Team chat transcript",
+            description: "Messages exchanged inside a team, oldest first.",
+          }),
+        ),
+        HttpApiEndpoint.post("sendTeamMessage", `${workspaceRoot}/:teamID/message`, {
+          params: { teamID: Schema.String },
+          query: WorkspaceRoutingQuery,
+          payload: TeamMessageSendPayload,
+          success: described(Schema.Boolean, "Message queued"),
+          error: [HttpApiError.BadRequest, HttpApiError.NotFound],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "team.message.send",
+            summary: "Send a team message",
+            description:
+              "Post a message into the team chat and (by default) run the targeted members so they can reply.",
           }),
         ),
       )

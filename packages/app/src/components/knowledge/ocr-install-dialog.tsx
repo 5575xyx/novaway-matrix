@@ -147,7 +147,7 @@ export const OcrInstallDialog: Component<{
                           }}
                         >
                           <Show when={active()}>
-                            <span class="size-1.5 animate-pulse rounded-full bg-[var(--icon-blue)]" />
+                            <span class="size-1.5 novaway-breathe-dot rounded-full bg-[var(--icon-blue)]" />
                           </Show>
                         </span>
                       }

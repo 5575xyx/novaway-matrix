@@ -203,6 +203,10 @@ export const startMonitor = (input: MonitorInput, deps: Deps): Effect.Effect<Inf
         pattern: input.pattern,
         timeout: input.timeout,
         sessionID: input.sessionID,
+        // 会话归属键：卡片可见性（ownsBackgroundJob）、事件归属与取消清扫都认这两个键。
+        // 驼峰 sessionID 是 resume 的读取键，保留不动。
+        sessionId: input.sessionID,
+        parentSessionId: input.sessionID,
         resumable: true,
         ...(input.resumed ? { resumed: true } : {}),
       },
@@ -312,6 +316,8 @@ export const startSubscribe = (input: SubscribeInput, deps: Deps): Effect.Effect
         // rather than silently polling unauthenticated.
         ...(input.auth ? { auth: true } : {}),
         sessionID: input.sessionID,
+        sessionId: input.sessionID,
+        parentSessionId: input.sessionID,
         resumable: true,
         ...(input.resumed ? { resumed: true } : {}),
       },

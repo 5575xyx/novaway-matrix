@@ -3,7 +3,10 @@ import {
   backgroundJobStat,
   formatElapsed,
   hideTeamMemberJobs,
-  isJobVisible,
+  JOB_ICONS,
+  jobIcon,
+  runningJobs,
+  runningKindCounts,
   visibleBackgroundJobs,
   type BackgroundJob,
 } from "./background-section-model"
@@ -17,31 +20,23 @@ const job = (over: Partial<BackgroundJob> = {}): BackgroundJob => ({
 })
 
 describe("background section model", () => {
-  test("running jobs are always visible", () => {
-    expect(isJobVisible(job(), 10_000)).toBe(true)
+  // 用户口径：卡片只列正在运行的任务，停掉/失败/完成的立刻撤下。
+  test("only running jobs are listed, newest first", () => {
+    const rows = visibleBackgroundJobs([
+      job({ id: "done", status: "completed", started_at: 9_000, completed_at: 9_500 }),
+      job({ id: "failed", status: "error", started_at: 8_000, completed_at: 8_500 }),
+      job({ id: "cancelled", status: "cancelled", started_at: 7_000, completed_at: 7_500 }),
+      job({ id: "older", started_at: 1_000 }),
+      job({ id: "newer", started_at: 2_000 }),
+    ])
+    expect(rows.map((item) => item.id)).toEqual(["newer", "older"])
   })
 
-  test("finished jobs disappear after the grace period", () => {
-    const done = job({ status: "completed", completed_at: 5_000 })
-    expect(isJobVisible(done, 30_000)).toBe(true)
-    expect(isJobVisible(done, 200_000)).toBe(false)
-  })
-
-  test("running jobs sort before finished ones", () => {
-    const rows = visibleBackgroundJobs(
-      [
-        job({ id: "done", status: "completed", started_at: 9_000, completed_at: 9_500 }),
-        job({ id: "run", started_at: 1_000 }),
-      ],
-      10_000,
+  test("summary counts running jobs only", () => {
+    expect(backgroundJobStat([job({ id: "a" }), job({ id: "b", status: "completed", completed_at: 9_500 })])).toBe(
+      "1",
     )
-    expect(rows.map((item) => item.id)).toEqual(["run", "done"])
-  })
-
-  test("summary counts running and total", () => {
-    expect(
-      backgroundJobStat([job({ id: "a" }), job({ id: "b", status: "completed", completed_at: 9_500 })], 10_000),
-    ).toBe("1/2")
+    expect(backgroundJobStat([job({ id: "done", status: "error", completed_at: 9_500 })])).toBe("0")
   })
 
   test("drops subagent jobs already shown in the team roster", () => {
@@ -52,16 +47,9 @@ describe("background section model", () => {
       job({ id: "ses_other" }),
     ]
 
-    expect(hideTeamMemberJobs(rows, new Set(["ses_worker"])).map((item) => item.id)).toEqual([
-      "job_shell",
-      "ses_other",
-    ])
+    expect(hideTeamMemberJobs(rows, new Set(["ses_worker"])).map((item) => item.id)).toEqual(["job_shell", "ses_other"])
     // 没有团队成员时原样返回
-    expect(hideTeamMemberJobs(rows, new Set()).map((item) => item.id)).toEqual([
-      "ses_worker",
-      "job_shell",
-      "ses_other",
-    ])
+    expect(hideTeamMemberJobs(rows, new Set()).map((item) => item.id)).toEqual(["ses_worker", "job_shell", "ses_other"])
   })
 
   test("elapsed formatting", () => {
@@ -78,5 +66,33 @@ describe("background section model", () => {
     expect(formatElapsed(1_000, NaN, 46_000)).toBe("45s")
     // 结束后定格在 completed_at，不再跟随 now 增长
     expect(formatElapsed(1_000, 121_000, 999_000)).toBe("2m 0s")
+  })
+
+  test("runningJobs only keeps running statuses", () => {
+    const rows = [job({ id: "a" }), job({ id: "b", status: "completed", completed_at: 9_500 })]
+    expect(runningJobs(rows).map((item) => item.id)).toEqual(["a"])
+  })
+
+  test("runningKindCounts groups running jobs by kind in display order", () => {
+    const rows = [
+      job({ id: "shell_1", type: "shell" }),
+      job({ id: "shell_2", type: "shell" }),
+      job({ id: "agent_1" }),
+      job({ id: "monitor_1", type: "monitor" }),
+      job({ id: "done", status: "completed", completed_at: 9_500 }),
+    ]
+    expect(runningKindCounts(rows)).toEqual([
+      { kind: "shell", count: 2 },
+      { kind: "agent", count: 1 },
+      { kind: "monitor", count: 1 },
+    ])
+    expect(runningKindCounts([])).toEqual([])
+    expect(runningKindCounts([job({ id: "done", status: "cancelled", completed_at: 9_500 })])).toEqual([])
+  })
+
+  test("job icons per kind", () => {
+    expect(jobIcon(job({ type: "shell" }))).toBe(JOB_ICONS.shell)
+    expect(jobIcon(job())).toBe(JOB_ICONS.agent)
+    expect(jobIcon(job({ type: "unknown-kind" }))).toBe(JOB_ICONS.other)
   })
 })

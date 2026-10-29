@@ -43,6 +43,8 @@ export type FormState = {
     providerID?: string
     name?: string
     baseURL?: string
+    /** 第二步的整体错误（一个模型都没有）。 */
+    models?: string
   }
 }
 
@@ -51,9 +53,15 @@ type ValidateArgs = {
   t: Translator
   disabledProviders: string[]
   existingProviderIDs: Set<string>
+  /**
+   * 校验范围。两步弹窗里第一步只校验"能不能连"（ID / 名称 / 地址 + 请求头），
+   * 模型留到第二步再查 —— 否则用户刚打开弹窗、还没填模型就先看到一串红字。
+   */
+  scope?: "basic" | "all"
 }
 
 export function validateCustomProvider(input: ValidateArgs) {
+  const scope = input.scope ?? "all"
   const providerID = input.form.providerID.trim()
   const name = input.form.name.trim()
   const baseURL = input.form.baseURL.trim()
@@ -83,23 +91,32 @@ export function validateCustomProvider(input: ValidateArgs) {
       ? input.t("provider.custom.error.providerID.exists")
       : undefined
 
+  // 完全空白的行（没 id 也没名字）当作"没填"，不参与校验和保存 ——
+  // 两步弹窗里用户可能把勾选的模型全取消了，留一个空行不该报"必填"。
+  const rows = input.form.models.filter((m) => m.id.trim() || m.name.trim())
+
   const seenModels = new Set<string>()
-  const models = input.form.models.map((m) => {
+  const models = rows.map((m) => {
     const id = m.id.trim()
-    const idError = !id
-      ? input.t("provider.custom.error.required")
-      : seenModels.has(id)
-        ? input.t("provider.custom.error.duplicate")
-        : (() => {
-            seenModels.add(id)
-            return undefined
-          })()
-    const nameError = !m.name.trim() ? input.t("provider.custom.error.required") : undefined
+    const idError =
+      scope === "basic"
+        ? undefined
+        : !id
+          ? input.t("provider.custom.error.required")
+          : seenModels.has(id)
+            ? input.t("provider.custom.error.duplicate")
+            : (() => {
+                seenModels.add(id)
+                return undefined
+              })()
+    const nameError = scope === "basic" ? undefined : !m.name.trim() ? input.t("provider.custom.error.required") : undefined
     return { id: idError, name: nameError }
   })
-  const modelsValid = models.every((m) => !m.id && !m.name)
+  const modelsValid = scope === "basic" || (rows.length > 0 && models.every((m) => !m.id && !m.name))
+  const modelsError =
+    scope === "basic" || rows.length > 0 ? undefined : input.t("provider.custom.error.models.required")
   const modelConfig = Object.fromEntries(
-    input.form.models.map((m) => [m.id.trim(), { name: m.name.trim(), modalities: { input: [], output: [m.type] } }]),
+    rows.map((m) => [m.id.trim(), { name: m.name.trim(), modalities: { input: [], output: [m.type] } }]),
   )
 
   const seenHeaders = new Set<string>()
@@ -107,6 +124,8 @@ export function validateCustomProvider(input: ValidateArgs) {
     const key = h.key.trim()
     const value = h.value.trim()
 
+    // 第一步不查请求头：那些行默认是空的，一进来就标红只会让人以为填错了。
+    if (scope === "basic") return {}
     if (!key && !value) return {}
     const keyError = !key
       ? input.t("provider.custom.error.required")
@@ -131,6 +150,7 @@ export function validateCustomProvider(input: ValidateArgs) {
     providerID: idError ?? existsError,
     name: nameError,
     baseURL: urlError,
+    models: modelsError,
   }
 
   const ok = !idError && !existsError && !nameError && !urlError && modelsValid && headersValid

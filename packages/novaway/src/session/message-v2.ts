@@ -187,6 +187,8 @@ export const CompactionPart = Schema.Struct({
   auto: Schema.Boolean,
   overflow: Schema.optional(Schema.Boolean),
   tail_start_id: Schema.optional(MessageID),
+  /** `/compact <instructions>`: extra guidance for this compaction. */
+  instructions: Schema.optional(Schema.String),
 }).annotate({ identifier: "CompactionPart" })
 export type CompactionPart = Types.DeepMutable<Schema.Schema.Type<typeof CompactionPart>>
 
@@ -1160,7 +1162,9 @@ export function fromError(
 
       return new APIError(
         {
-          message: parsed.message,
+          // 供应商经常给出空 message 或字符串 `<none>`：直接落库的话，界面上的
+          // 中断原因/重试提示就只剩一个 `<none>`，用户完全看不懂发生了什么。
+          message: ProviderError.describeError({ message: parsed.message, statusCode: parsed.statusCode }),
           statusCode: parsed.statusCode,
           isRetryable: parsed.isRetryable,
           responseHeaders: parsed.responseHeaders,

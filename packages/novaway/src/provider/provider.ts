@@ -28,6 +28,7 @@ import { isRecord } from "@/util/record"
 import { optionalOmitUndefined } from "@novaway/core/schema"
 import * as ProviderTransform from "./transform"
 import { ModelID, ProviderID } from "./schema"
+import { builtinModelProfile, type BuiltinModality } from "./builtin-models"
 import { ModelStatus } from "./model-status"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import {
@@ -1711,8 +1712,15 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
               const models: Record<string, Model> = {}
               for (const item of remote) {
                 if (item.id === "auto") continue
-                const inputs = new Set(item.inputModalities ?? ["text", "image", "audio", "video", "pdf"])
-                const outputs = new Set(item.outputModalities ?? ["text"])
+                // 网关只回 id/name，上下文与模态在这里按模型档案补齐（见 builtin-models.ts）。
+                // 网关哪天愿意回更多字段时，仍然以它为准。
+                const profile = builtinModelProfile(item.id, item.name)
+                const inputs = new Set<BuiltinModality>(
+                  (item.inputModalities ?? profile.input) as BuiltinModality[],
+                )
+                const outputs = new Set<BuiltinModality>(
+                  (item.outputModalities ?? (profile.kind === "text" ? ["text"] : [profile.kind])) as BuiltinModality[],
+                )
                 models[item.id] = {
                   id: ModelID.make(item.id),
                   providerID: "builtin" as ProviderID,
@@ -1732,12 +1740,12 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
                     cache: { read: 0, write: 0 },
                   },
                   limit: {
-                    context: item.contextLength ?? 128_000,
-                    output: 32_768,
+                    context: item.contextLength ?? profile.context,
+                    output: profile.output,
                   },
                   capabilities: {
                     temperature: true,
-                    reasoning: true,
+                    reasoning: profile.reasoning,
                     attachment: inputs.has("image") || inputs.has("pdf"),
                     toolcall: true,
                     input: {
@@ -2001,9 +2009,48 @@ interface State {
   allowed: (providerID: ProviderID) => boolean
   /** novaway.json 里手动配置的模型 ID（按 provider 分组），发现清理不得误删 */
   configModels: Record<string, ReadonlySet<string>>
+  /**
+   * 同一供应商保存了多个 API Key 时，这里是完整的 key 列表（顺序与 auth 文件一致）。
+   * 只有 2 个及以上才会收录；请求时按顺序轮询，分摊到不同的 key 上。
+   */
+  keyRing: Record<string, string[]>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@NovaWay/Provider") {}
+
+/**
+ * 多 key 轮询的游标：按供应商各记一个，跨 SDK 实例共享，
+ * 这样即使某个供应商的 SDK 被重建，轮询顺序也不会总是从第一个 key 开始。
+ */
+const keyCursor = new Map<string, number>()
+
+export function nextKey(providerID: string, ring: string[]): string {
+  const index = (keyCursor.get(providerID) ?? 0) % ring.length
+  keyCursor.set(providerID, (index + 1) % ring.length)
+  return ring[index]!
+}
+
+/**
+ * 把请求头里的凭证换成轮询到的 key。
+ *
+ * 不同 SDK 用不同的头：openai 兼容系走 `authorization: Bearer`，
+ * anthropic 系走 `x-api-key`。这里按请求里**已经出现**的那个来替换。
+ *
+ * 两种头都没有时返回 undefined，不动这个请求 —— 有些供应商（例如 Gemini）
+ * 把 key 放在 query string 里，硬塞一个 authorization 反而会让请求 401。
+ */
+export function rotateAuthHeader(headers: HeadersInit | undefined, key: string): Headers | undefined {
+  const next = new Headers(headers)
+  if (next.has("x-api-key")) {
+    next.set("x-api-key", key)
+    return next
+  }
+  if (next.has("authorization")) {
+    next.set("authorization", `Bearer ${key}`)
+    return next
+  }
+  return undefined
+}
 
 function cost(c: ModelsDev.Model["cost"]): Model["cost"] {
   const result: Model["cost"] = {
@@ -2465,6 +2512,19 @@ export const layer = Layer.effect(
           }
         }
 
+        // 同一个供应商可以存多个 key（设置里「添加密钥」）。auth.all 只给第一个，
+        // 这里额外收集完整列表，请求时轮询使用。
+        const keyRing: Record<string, string[]> = {}
+        for (const [id, entries] of Object.entries(yield* auth.allEntries().pipe(Effect.orDie))) {
+          if (disabled.has(ProviderID.make(id))) continue
+          const keys = entries.flatMap((entry) => {
+            if (entry.type !== "api") return []
+            const key = (entry as { key?: unknown }).key
+            return typeof key === "string" && key.trim() ? [key.trim()] : []
+          })
+          if (keys.length > 1) keyRing[id] = keys
+        }
+
         // plugin auth loader - database now has entries for config providers
         for (const plugin of plugins) {
           if (!plugin.auth) continue
@@ -2686,6 +2746,7 @@ export const layer = Layer.effect(
           discoveryPrune,
           allowed: isProviderAllowed,
           configModels,
+          keyRing,
         }
       }),
     )
@@ -2751,9 +2812,20 @@ export const layer = Layer.effect(
         const chunkTimeout = options["chunkTimeout"]
         delete options["chunkTimeout"]
 
+        // 同一个供应商存了多个 key 时，每次请求换一个，分摊配额与限流。
+        // 用户在 provider.options.headers 里手写了凭证头就尊重用户配置，不轮询。
+        const keyRing = s.keyRing?.[model.providerID]
+        const configuredHeaders = Object.keys((options["headers"] as Record<string, unknown> | undefined) ?? {})
+        const explicitAuthHeader = configuredHeaders.some((name) => /^(authorization|x-api-key)$/i.test(name))
+        const ring = keyRing && keyRing.length > 1 && !explicitAuthHeader ? keyRing : undefined
+
         options["fetch"] = async (input: any, init?: BunFetchRequestInit) => {
           const fetchFn = customFetch ?? fetch
           const opts = init ?? {}
+          if (ring) {
+            const rotated = rotateAuthHeader(opts.headers, nextKey(model.providerID, ring))
+            if (rotated) opts.headers = rotated
+          }
           const chunkAbortCtl = typeof chunkTimeout === "number" && chunkTimeout > 0 ? new AbortController() : undefined
           const signals: AbortSignal[] = []
 
@@ -2908,7 +2980,7 @@ export const layer = Layer.effect(
     const getSmallModel = Effect.fn("Provider.getSmallModel")(function* (providerID: ProviderID) {
       const cfg = yield* config.get()
 
-      if (cfg.small_model) {
+      if (cfg.small_model && cfg.small_model !== "builtin/auto") {
         const parsed = parseModel(cfg.small_model)
         return yield* getModel(parsed.providerID, parsed.modelID).pipe(
           Effect.catchTag("ProviderModelNotFoundError", () => Effect.succeed(undefined)),
@@ -2965,7 +3037,10 @@ export const layer = Layer.effect(
 
     const defaultModel = Effect.fn("Provider.defaultModel")(function* () {
       const cfg = yield* config.get()
-      if (cfg.model) return parseModel(cfg.model)
+      // `builtin/auto` is no longer a valid default: the opaque model id makes
+      // prompt selection and context budgeting guess. Only honour an explicit
+      // concrete model.
+      if (cfg.model && cfg.model !== "builtin/auto") return parseModel(cfg.model)
 
       const s = yield* InstanceState.get(state)
       const recent = yield* fs.readJson(path.join(Global.Path.state, "model.json")).pipe(
@@ -2981,19 +3056,37 @@ export const layer = Layer.effect(
         Effect.catch(() => Effect.succeed([] as { providerID: ProviderID; modelID: ModelID }[])),
       )
       for (const entry of recent) {
+        if (entry.providerID === ProviderID.make("builtin") && entry.modelID === ModelID.make("auto")) continue
         const provider = s.providers[entry.providerID]
         if (!provider) continue
         if (!provider.models[entry.modelID]) continue
         return { providerID: entry.providerID, modelID: entry.modelID }
       }
 
+      // Prefer a concrete model exposed by the builtin gateway (the gateway
+      // can still route internally), but never the placeholder `auto` id.
       const builtinID = ProviderID.make("builtin")
-      const builtinModelID = ModelID.make("auto")
-      if (s.providers[builtinID]?.models[builtinModelID]) {
-        return { providerID: builtinID, modelID: builtinModelID }
-      }
+      const builtinModel = Object.values(s.providers[builtinID]?.models ?? {})
+        .filter((model) => model.id !== ModelID.make("auto"))
+        .sort((a, b) => a.id.localeCompare(b.id))[0]
+      if (builtinModel) return { providerID: builtinID, modelID: builtinModel.id }
 
-      const provider = Object.values(s.providers).find((p) => !cfg.provider || Object.keys(cfg.provider).includes(p.id))
+      const providers = Object.values(s.providers).filter(
+        (p) => !cfg.provider || Object.keys(cfg.provider).includes(p.id),
+      )
+      // Prefer any concrete model. `auto` is only a last resort when the
+      // gateway exposes nothing else.
+      const concrete = providers
+        .flatMap((provider) =>
+          sort(Object.values(provider.models))
+            .filter((model) => !(provider.id === ProviderID.make("builtin") && model.id === ModelID.make("auto")))
+            .slice(0, 1)
+            .map((model) => ({ providerID: provider.id, modelID: model.id })),
+        )
+        .at(0)
+      if (concrete) return concrete
+
+      const provider = providers[0]
       if (!provider) throw new Error("no providers found")
       const [model] = sort(Object.values(provider.models))
       if (!model) throw new Error("no models found")

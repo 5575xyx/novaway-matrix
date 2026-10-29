@@ -1,7 +1,8 @@
 import { afterEach, describe, expect } from "bun:test"
 import { BlobWriter, TextReader, ZipWriter } from "@zip.js/zip.js"
-import { Cause, Effect, Exit, Layer, Stream } from "effect"
+import { Cause, Effect, Exit, Layer, Option, Stream } from "effect"
 import path from "path"
+import { pathToFileURL } from "url"
 import { Agent } from "../../src/agent/agent"
 import { CrossSpawnSpawner } from "@novaway/core/cross-spawn-spawner"
 import { AppFileSystem } from "@novaway/core/filesystem"
@@ -13,13 +14,14 @@ import { LSP } from "@/lsp/lsp"
 import { Permission } from "../../src/permission"
 import { SessionID, MessageID } from "../../src/session/schema"
 import { Instruction } from "../../src/session/instruction"
-import { ReadTool } from "../../src/tool/read"
+import { FILE_UNCHANGED_STUB, ReadTool } from "../../src/tool/read"
 import { Truncate } from "@/tool/truncate"
 import { Tool } from "@/tool/tool"
 import { Filesystem } from "@/util/filesystem"
 import { disposeAllInstances, provideInstance, TestInstance, tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 import { Reference } from "@/reference/reference"
+import { ReadState } from "../../src/tool/read-state"
 
 const FIXTURES_DIR = path.join(import.meta.dir, "fixtures")
 
@@ -55,6 +57,7 @@ const readLayer = (flags: Partial<RuntimeFlags.Info> = {}) =>
     LSP.defaultLayer,
     referenceLayer(flags),
     Truncate.defaultLayer,
+    ReadState.defaultLayer,
   )
 
 const it = testEffect(readLayer())
@@ -97,18 +100,24 @@ const fail = Effect.fn("ReadToolTest.fail")(function* (
 const full = (p: string) => (process.platform === "win32" ? Filesystem.normalizePath(p) : p)
 const glob = (p: string) =>
   process.platform === "win32" ? Filesystem.normalizePathPattern(p) : p.replaceAll("\\", "/")
+const REPO_BASE_ENV = "NovaWay_REPO_CLONE_GITHUB_BASE_URL"
+const LEGACY_REPO_BASE_ENV = "OPENCODE_REPO_CLONE_GITHUB_BASE_URL"
 const githubBase = <A, E, R>(url: string, self: Effect.Effect<A, E, R>) =>
   Effect.acquireUseRelease(
     Effect.sync(() => {
-      const previous = process.env.OPENCODE_REPO_CLONE_GITHUB_BASE_URL
-      process.env.OPENCODE_REPO_CLONE_GITHUB_BASE_URL = url
-      return previous
+      const previous = process.env[REPO_BASE_ENV]
+      const legacy = process.env[LEGACY_REPO_BASE_ENV]
+      process.env[REPO_BASE_ENV] = url
+      process.env[LEGACY_REPO_BASE_ENV] = url
+      return { previous, legacy }
     }),
     () => self,
-    (previous) =>
+    (saved) =>
       Effect.sync(() => {
-        if (previous) process.env.OPENCODE_REPO_CLONE_GITHUB_BASE_URL = previous
-        else delete process.env.OPENCODE_REPO_CLONE_GITHUB_BASE_URL
+        if (saved.previous) process.env[REPO_BASE_ENV] = saved.previous
+        else delete process.env[REPO_BASE_ENV]
+        if (saved.legacy) process.env[LEGACY_REPO_BASE_ENV] = saved.legacy
+        else delete process.env[LEGACY_REPO_BASE_ENV]
       }),
   )
 const git = Effect.fn("ReadToolTest.git")(function* (cwd: string, args: string[]) {
@@ -287,7 +296,7 @@ describe("tool.read external_directory permission", () => {
 
       const { items, next } = asks()
       const result = yield* githubBase(
-        `file://${remoteRoot}/`,
+        pathToFileURL(remoteRoot + path.sep).href,
         exec(dir, { filePath: path.join(cache, "notes.md") }, next),
       )
       const ext = items.find((item) => item.permission === "external_directory")
@@ -355,9 +364,8 @@ describe("tool.read truncation", () => {
   it.instance("truncates large file by bytes and sets truncated metadata", () =>
     Effect.gen(function* () {
       const test = yield* TestInstance
-      const base = yield* load(path.join(FIXTURES_DIR, "models-api.json"))
-      const target = 60 * 1024
-      const content = base.length >= target ? base : base.repeat(Math.ceil(target / base.length))
+      // Long lines so the 256 KB byte cap is reached before the 2000-line cap.
+      const content = `${"x".repeat(200)}\n`.repeat(2000)
       yield* put(path.join(test.directory, "large.json"), content)
 
       const result = yield* run({ filePath: path.join(test.directory, "large.json") })
@@ -371,7 +379,7 @@ describe("tool.read truncation", () => {
     Effect.gen(function* () {
       const test = yield* TestInstance
       const filepath = path.join(test.directory, "huge.txt")
-      const content = `${"x".repeat(80)}\n`.repeat(50_000)
+      const content = `${"x".repeat(200)}\n`.repeat(50_000)
       yield* put(filepath, content)
 
       const fs = yield* AppFileSystem.Service
@@ -624,6 +632,71 @@ describe("tool.read loaded instructions", () => {
   )
 })
 
+const LF_CHAR = String.fromCharCode(10)
+const minimalPdf = () => ["%PDF-1.4", "1 0 obj", "<< /Type /Catalog >>", "endobj", "trailer", "<< /Root 1 0 R >>", "%%EOF"].join(LF_CHAR) + LF_CHAR
+
+describe("tool.read PDF handling", () => {
+  it.instance("inlines a small PDF as a document attachment", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped()
+      const file = path.join(dir, "small.pdf")
+      yield* put(file, minimalPdf())
+
+      const result = yield* exec(dir, { filePath: file })
+      expect(result.output).toContain("PDF read successfully")
+      expect(result.metadata.partial).toBe(false)
+      const attachments = (result as { attachments?: { mime: string; url: string }[] }).attachments ?? []
+      expect(attachments).toHaveLength(1)
+      expect(attachments[0]!.mime).toBe("application/pdf")
+      expect(attachments[0]!.url.startsWith("data:application/pdf;base64,")).toBe(true)
+    }),
+  )
+
+  it.instance("rejects a file whose .pdf extension lies about its contents", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped()
+      const file = path.join(dir, "fake.pdf")
+      yield* put(file, "<html>not a pdf</html>")
+
+      const err = yield* fail(dir, { filePath: file })
+      expect(err.message).toContain("missing %PDF- header")
+    }),
+  )
+
+  it.instance("rejects malformed and oversized page ranges", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped()
+      const file = path.join(dir, "pages.pdf")
+      yield* put(file, minimalPdf())
+
+      const invalid = yield* fail(dir, { filePath: file, pages: "3-1" })
+      expect(invalid.message).toContain("Invalid pages parameter")
+
+      const oversized = yield* fail(dir, { filePath: file, pages: "1-30" })
+      expect(oversized.message).toContain("exceeds maximum of 20 pages")
+
+      const openEnded = yield* fail(dir, { filePath: file, pages: "3-" })
+      expect(openEnded.message).toContain("exceeds maximum of 20 pages")
+    }),
+  )
+
+  it.instance("page extraction explains how to install poppler when it is missing", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped()
+      const file = path.join(dir, "extract.pdf")
+      yield* put(file, minimalPdf())
+
+      const exit = yield* exec(dir, { filePath: file, pages: "1" }).pipe(Effect.exit)
+      if (Exit.isFailure(exit)) {
+        const err = Cause.squash(exit.cause) as Error
+        expect(err.message).toContain("poppler-utils")
+      } else {
+        expect(exit.value.output).toContain("PDF pages extracted")
+      }
+    }),
+  )
+})
+
 describe("tool.read binary detection", () => {
   it.live("rejects text extension files with null bytes", () =>
     Effect.gen(function* () {
@@ -643,6 +716,80 @@ describe("tool.read binary detection", () => {
 
       const err = yield* fail(dir, { filePath: path.join(dir, "module.wasm") })
       expect(err.message).toContain("Cannot read binary file")
+    }),
+  )
+})
+
+describe("tool.read dedupe", () => {
+  it.live("returns a stub for the same unchanged range", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped()
+      const file = path.join(dir, "same.txt")
+      yield* put(file, "alpha\nbeta\n")
+
+      const first = yield* exec(dir, { filePath: file })
+      expect(first.output).toContain("alpha")
+
+      const second = yield* exec(dir, { filePath: file })
+      expect(second.output).toBe(FILE_UNCHANGED_STUB)
+      expect(second.output).not.toContain("alpha")
+    }),
+  )
+
+  it.live("reads again once the file changed", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped()
+      const file = path.join(dir, "changing.txt")
+      yield* put(file, "first version\n")
+      yield* exec(dir, { filePath: file })
+
+      // Bump mtime explicitly: filesystems with coarse timestamps can keep the
+      // same value across two writes in the same tick.
+      yield* put(file, "second version\n")
+      yield* Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 20)))
+      yield* put(file, "second version\n")
+
+      const again = yield* exec(dir, { filePath: file })
+      expect(again.output).toContain("second version")
+    }),
+  )
+
+  it.live("never dedupes a partial read", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped()
+      const file = path.join(dir, "partial.txt")
+      yield* put(file, "1\n2\n3\n4\n")
+
+      const first = yield* exec(dir, { filePath: file, offset: 2, limit: 2 })
+      expect(first.output).toContain("2: 2")
+
+      const second = yield* exec(dir, { filePath: file, offset: 2, limit: 2 })
+      expect(second.output).toContain("2: 2")
+      expect(second.output).not.toBe(FILE_UNCHANGED_STUB)
+    }),
+  )
+
+  it.live("does not dedupe an entry recorded by a write", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped()
+      const file = path.join(dir, "written.txt")
+      yield* put(file, "before\n")
+      yield* exec(dir, { filePath: file })
+
+      // edit/write record the post-write mtime without an offset, because the
+      // content the model has seen predates the write.
+      const readState = yield* ReadState.Service
+      const fs = yield* AppFileSystem.Service
+      const info = yield* fs.stat(file)
+      yield* readState.record(ctx.sessionID, file, {
+        timestamp: Date.now(),
+        mtime: info.mtime.pipe(Option.map((date) => date.getTime()), Option.getOrElse(() => 0)),
+        size: Number(info.size),
+        partial: false,
+      })
+
+      const again = yield* exec(dir, { filePath: file })
+      expect(again.output).toContain("before")
     }),
   )
 })

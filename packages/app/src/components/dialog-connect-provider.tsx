@@ -29,20 +29,12 @@ import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
 import { useProviders } from "@/hooks/use-providers"
+import { modelTypeOptions, type ModelType } from "@/utils/model-type"
 import {
   fetchOpenAICompatibleModels,
   remoteModelType,
   type RemoteProviderModel,
 } from "@/utils/provider-model-discovery"
-
-type ModelType = "text" | "image" | "video" | "audio"
-
-const MODEL_TYPES: { value: ModelType; label: string }[] = [
-  { value: "text", label: "文本模型" },
-  { value: "image", label: "图片生成" },
-  { value: "video", label: "视频生成" },
-  { value: "audio", label: "音频生成" },
-]
 
 export function DialogConnectProvider(props: { provider: string; mode?: "connect" | "addkey" }) {
   const dialog = useDialog()
@@ -370,6 +362,17 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
   })
 
   async function complete() {
+    /*
+     * 断开连接是把供应商写进 `disabled_providers`（config 里的声明删不掉，只能屏蔽）。
+     * 所以重新连接时必须把它从这份屏蔽名单里移出来，否则凭据存好了、供应商却仍然
+     * 不出现 —— 用户看到的就是"连上了但列表里没有"。
+     */
+    const disabled = globalSync.data.config.disabled_providers ?? []
+    if (disabled.includes(props.provider)) {
+      await globalSync
+        .updateConfig({ disabled_providers: disabled.filter((id) => id !== props.provider) })
+        .catch(() => undefined)
+    }
     await globalSDK.client.global.dispose()
     dialog.close()
     if (isAddKey) {
@@ -667,8 +670,8 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
                       <div class="flex items-center gap-2 shrink-0">
                         <Select
                           size="small"
-                          options={MODEL_TYPES}
-                          current={MODEL_TYPES.find((t) => t.value === modelTypes[model.id])}
+                          options={modelTypeOptions(language.t)}
+                          current={modelTypeOptions(language.t).find((t) => t.value === modelTypes[model.id])}
                           value={(t) => t.value}
                           label={(t) => t.label}
                           onSelect={(t) => t && setModelTypes(model.id, t.value)}
@@ -705,7 +708,13 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
                   <Button size="small" variant="ghost" onClick={() => setStep("auth")}>
                     {language.t("common.back")}
                   </Button>
-                  <Button size="large" variant="primary" loading={saving()} disabled={saving()} onClick={saveModelsAndComplete}>
+                  <Button
+                    size="large"
+                    variant="primary"
+                    loading={saving()}
+                    disabled={saving()}
+                    onClick={saveModelsAndComplete}
+                  >
                     {language.t("common.submit")}
                   </Button>
                 </div>

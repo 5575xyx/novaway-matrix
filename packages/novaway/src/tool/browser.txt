@@ -9,6 +9,7 @@
 6. browser_close 释放浏览器上下文
 
 约束：
-- 仅允许 http/https
+- 允许 http/https 与本地 file://（绝对路径也可）。验证刚生成的 HTML 时直接用 file://，不必先起 dev server；需要真实服务（接口/路由）时才起本地端口再访问 http://127.0.0.1:<port>
+- 导航到的本地地址会同步到应用右侧的内置浏览器预览，用户能直接看到正在验证的页面
 - 未配置 POWERSNEXUS_BROWSER_CDP_URL 时，需 POWERSNEXUS_BROWSER_ALLOW_LAUNCH=1 才可启动隔离浏览器
 - 截图写入当前 Worktree 的 .novaway/powersnexus/evidence/browser/

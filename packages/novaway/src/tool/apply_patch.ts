@@ -1,6 +1,7 @@
 import * as path from "path"
-import { Effect, Schema } from "effect"
+import { Effect, Option, Schema } from "effect"
 import * as Tool from "./tool"
+import { ReadState } from "./read-state"
 import { Bus } from "../bus"
 import { FileWatcher } from "../file/watcher"
 import { InstanceState } from "@/effect/instance-state"
@@ -30,6 +31,10 @@ export const ApplyPatchTool = Tool.define(
     const afs = yield* AppFileSystem.Service
     const format = yield* Format.Service
     const bus = yield* Bus.Service
+    const readState = yield* ReadState.Service
+
+    const mtimeOf = (info: { mtime: Option.Option<Date> }) =>
+      Option.getOrElse(info.mtime, () => new Date(0)).getTime()
 
     const run = Effect.fn("ApplyPatchTool.execute")(function* (
       params: Schema.Schema.Type<typeof Parameters>,
@@ -59,6 +64,38 @@ export const ApplyPatchTool = Tool.define(
       const instance = yield* InstanceState.context
       const root = permissionRoot(instance)
 
+      // Mirrors Edit/Write: a patch may only rewrite (or delete) content the
+      // model has actually read, and only while that content is still what is
+      // on disk. Without this an update silently replaces lines the model is
+      // reasoning about from memory.
+      const assertFresh = Effect.fn("ApplyPatchTool.assertFresh")(function* (filePath: string) {
+        const info = yield* afs.stat(filePath).pipe(Effect.catch(() => Effect.succeed(undefined)))
+        if (!info) return
+        const entry = yield* readState.get(ctx.sessionID, filePath)
+        if (!entry) {
+          throw new Error(
+            `File has not been read yet: ${filePath}. Read the file first with the read tool before patching it.`,
+          )
+        }
+        if (mtimeOf(info) > entry.mtime) {
+          throw new Error(
+            `File has been modified since it was last read: ${filePath}. Read the file again before patching it.`,
+          )
+        }
+      })
+
+      /** Keep the session's read state in sync, like Edit/Write do after a change. */
+      const recordWrite = Effect.fn("ApplyPatchTool.recordWrite")(function* (filePath: string) {
+        const info = yield* afs.stat(filePath).pipe(Effect.catch(() => Effect.succeed(undefined)))
+        if (!info) return
+        yield* readState.record(ctx.sessionID, filePath, {
+          timestamp: Date.now(),
+          mtime: mtimeOf(info),
+          size: Number(info.size),
+          partial: false,
+        })
+      })
+
       // Validate file paths and check permissions
       const fileChanges: Array<{
         filePath: string
@@ -80,6 +117,10 @@ export const ApplyPatchTool = Tool.define(
 
         switch (hunk.type) {
           case "add": {
+            // `Add File` is a write: overwriting a file the model has not read
+            // (or that changed since it read) would discard unseen content.
+            const existing = yield* afs.stat(filePath).pipe(Effect.catch(() => Effect.succeed(undefined)))
+            if (existing && existing.type !== "Directory") yield* assertFresh(filePath)
             const oldContent = ""
             const newContent =
               hunk.contents.length === 0 || hunk.contents.endsWith("\n") ? hunk.contents : `${hunk.contents}\n`
@@ -116,6 +157,7 @@ export const ApplyPatchTool = Tool.define(
                 new Error(`apply_patch verification failed: Failed to read file to update: ${filePath}`),
               )
             }
+            yield* assertFresh(filePath)
 
             const source = yield* Bom.readFile(afs, filePath)
             const oldContent = source.text
@@ -166,6 +208,7 @@ export const ApplyPatchTool = Tool.define(
           }
 
           case "delete": {
+            yield* assertFresh(filePath)
             const source = yield* Bom.readFile(afs, filePath).pipe(
               Effect.catch((error) =>
                 Effect.fail(
@@ -231,6 +274,7 @@ export const ApplyPatchTool = Tool.define(
             // Create parent directories (recursive: true is safe on existing/root dirs)
 
             yield* afs.writeWithDirs(change.filePath, Bom.join(change.newContent, change.bom))
+            yield* recordWrite(change.filePath)
             updates.push({ file: change.filePath, event: "add" })
             yield* Effect.promise(() =>
               recordTempFile({
@@ -244,6 +288,7 @@ export const ApplyPatchTool = Tool.define(
 
           case "update":
             yield* afs.writeWithDirs(change.filePath, Bom.join(change.newContent, change.bom))
+            yield* recordWrite(change.filePath)
             updates.push({ file: change.filePath, event: "change" })
             break
 
@@ -253,6 +298,8 @@ export const ApplyPatchTool = Tool.define(
 
               yield* afs.writeWithDirs(change.movePath!, Bom.join(change.newContent, change.bom))
               yield* afs.remove(change.filePath)
+              yield* recordWrite(change.movePath!)
+              yield* readState.forget(ctx.sessionID, change.filePath)
               updates.push({ file: change.filePath, event: "unlink" })
               updates.push({ file: change.movePath, event: "add" })
               yield* Effect.promise(() =>
@@ -268,6 +315,7 @@ export const ApplyPatchTool = Tool.define(
 
           case "delete":
             yield* afs.remove(change.filePath)
+            yield* readState.forget(ctx.sessionID, change.filePath)
             updates.push({ file: change.filePath, event: "unlink" })
             break
         }

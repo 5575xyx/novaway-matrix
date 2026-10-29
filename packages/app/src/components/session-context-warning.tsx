@@ -48,16 +48,13 @@ export function SessionContextWarning() {
         <div
           data-slot="session-context-warning"
           classList={{
-            "mx-1 mb-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-md px-2 py-1 text-ui-xs":
-              true,
+            "mx-1 mb-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-md px-2 py-1 text-ui-xs": true,
             "text-warning": value.budget!.status !== "blocking",
             "text-destructive": value.budget!.status === "blocking",
           }}
         >
           <span class="font-medium">
-            {language.t(
-              value.budget!.status === "blocking" ? "context.usage.blocking" : "context.usage.warning",
-            )}
+            {language.t(value.budget!.status === "blocking" ? "context.usage.blocking" : "context.usage.warning")}
           </span>
           <span class="text-foreground-subtle">·</span>
           <span>{language.t("context.usage.remaining", { percent: value.budget!.percentLeft ?? 0 })}</span>

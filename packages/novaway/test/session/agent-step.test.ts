@@ -30,8 +30,7 @@ function harness(opts: {
   } as any
 
   const agents = {
-    get: (name: string) =>
-      Effect.succeed({ name, permission: [], model: undefined }),
+    get: (name: string) => Effect.succeed({ name, permission: [], model: undefined }),
   } as any
 
   const teams = {

@@ -23,9 +23,9 @@ type McpMetadata = {
 }
 
 const Parameters = Schema.Struct({
-  action: Schema.optional(Schema.Literals(["status", "connect", "add"])).annotate({
+  action: Schema.optional(Schema.Literals(["status", "connect", "authenticate", "add"])).annotate({
     description:
-      "status (default) reports every configured server plus local diagnostics; connect retries an existing server after the config was fixed; add registers a new server and connects it.",
+      "status (default) reports every configured server plus local diagnostics; connect retries an existing server after the config was fixed; authenticate starts the OAuth flow for a server that needs it; add registers a new server and connects it.",
   }),
   name: Schema.optional(Schema.String).annotate({
     description: "Server name. Required for connect; for add it is the key written into config.",
@@ -88,7 +88,7 @@ export const McpSetupTool = Tool.define(
         "Diagnose and repair Model Context Protocol (MCP) servers configured for this project or globally.",
         "Use action=status when an MCP tool is missing or the settings page shows failed / needs_auth / needs_client_registration.",
         "It reports each server status, its config shape, whether the local command exists on PATH, whether the URL is valid, and which environment variables are set or empty (names only, never values).",
-        "Use action=connect after the config was fixed to retry without restarting; use action=add to register a new server and connect it right away.",
+        "Use action=connect after the config was fixed to retry without restarting; use action=authenticate when a server reports needs_auth (it opens the browser and completes OAuth); use action=add to register a new server and connect it right away.",
         "Never invent credentials: if a server needs a token or client id, tell the user which variable to set instead of guessing.",
       ].join(" "),
       parameters: Parameters,
@@ -165,6 +165,45 @@ export const McpSetupTool = Tool.define(
               title: "MCP status",
               metadata: { servers: total, connected, failed },
               output: formatSetupReport(report),
+            }
+          }
+
+          if (params.action === "authenticate") {
+            const name = params.name?.trim()
+            if (!name) throw new Error("action=authenticate 需要 name")
+            const entry = isEntry(entries[name]) ? (entries[name] as ConfigMCP.Info) : undefined
+            if (!entry) throw new Error("没有名为 " + name + " 的有效 MCP 配置")
+            if (entry.type !== "remote") throw new Error("只有 remote 类型的 MCP 服务器需要 OAuth 授权")
+
+            yield* ctx.ask({
+              permission: "mcp_setup",
+              patterns: [name],
+              always: ["*"],
+              metadata: { action: "authenticate", name },
+            })
+
+            // 浏览器授权是交互式的：失败只写入状态，这里从状态给出可读原因。
+            const result = yield* mcp.authenticate(name).pipe(Effect.catch(() => Effect.void))
+            const status = (yield* mcp.status())[name]
+            if (!status || status.status !== "connected") {
+              throw new Error(
+                setupFailure({
+                  domain: "mcp",
+                  ready: false,
+                  phase: "auth-failed",
+                  summary: name + " 授权未完成。",
+                  error:
+                    status && "error" in status
+                      ? status.error
+                      : (result as { status?: string } | undefined)?.status ?? (status?.status ?? "unknown"),
+                  next: "在打开的浏览器页面完成授权后重试；若浏览器未打开，把 status 输出里的授权链接交给用户手动打开。",
+                }),
+              )
+            }
+            return {
+              title: "MCP authenticated",
+              metadata: { servers: 1, connected: 1, failed: 0 },
+              output: name + " 已完成授权并连接。",
             }
           }
 

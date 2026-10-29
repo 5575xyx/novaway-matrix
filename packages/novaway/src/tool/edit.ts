@@ -4,8 +4,9 @@
 // https://github.com/cline/cline/blob/main/evals/diff-edits/diff-apply/diff-06-26-25.ts
 
 import * as path from "path"
-import { Effect, Schema, Semaphore } from "effect"
+import { Effect, Option, Schema, Semaphore } from "effect"
 import * as Tool from "./tool"
+import { ReadState } from "./read-state"
 import { LSP } from "@/lsp/lsp"
 import { createTwoFilesPatch, diffLines } from "diff"
 import DESCRIPTION from "./edit.txt"
@@ -65,6 +66,7 @@ export const EditTool = Tool.define(
     const afs = yield* AppFileSystem.Service
     const format = yield* Format.Service
     const bus = yield* Bus.Service
+    const readState = yield* ReadState.Service
 
     return {
       description: DESCRIPTION,
@@ -85,6 +87,37 @@ export const EditTool = Tool.define(
             : path.join(ctx.directory ?? instance.directory, params.filePath)
           yield* assertExternalDirectoryEffect(ctx, filePath)
 
+          const mtimeOf = (info: { mtime: Option.Option<Date> }) =>
+            Option.getOrElse(info.mtime, () => new Date(0)).getTime()
+
+          const assertReadable = Effect.fn("EditTool.assertReadable")(function* (exists: boolean) {
+            if (!exists) return
+            const entry = yield* readState.get(ctx.sessionID, filePath)
+            if (!entry) {
+              throw new Error(
+                `File has not been read yet: ${filePath}. Read the file first with the read tool before editing it.`,
+              )
+            }
+            const info = yield* afs.stat(filePath).pipe(Effect.catch(() => Effect.succeed(undefined)))
+            if (!info) return
+            if (mtimeOf(info) > entry.mtime) {
+              throw new Error(
+                `File has been modified since it was last read: ${filePath}. Read the file again before editing it.`,
+              )
+            }
+          })
+
+          const recordWrite = Effect.fn("EditTool.recordWrite")(function* () {
+            const info = yield* afs.stat(filePath).pipe(Effect.catch(() => Effect.succeed(undefined)))
+            if (!info) return
+            yield* readState.record(ctx.sessionID, filePath, {
+              timestamp: Date.now(),
+              mtime: mtimeOf(info),
+              size: Number(info.size),
+              partial: false,
+            })
+          })
+
           let diff = ""
           let contentOld = ""
           let contentNew = ""
@@ -92,6 +125,7 @@ export const EditTool = Tool.define(
             Effect.gen(function* () {
               if (params.oldString === "") {
                 const existed = yield* afs.existsSafe(filePath)
+                yield* assertReadable(existed)
                 const source = existed ? yield* Bom.readFile(afs, filePath) : { bom: false, text: "" }
                 const next = Bom.split(params.newString)
                 const desiredBom = source.bom || next.bom
@@ -111,6 +145,7 @@ export const EditTool = Tool.define(
                 if (yield* format.file(filePath)) {
                   contentNew = yield* Bom.syncFile(afs, filePath, desiredBom)
                 }
+                yield* recordWrite()
                 yield* bus.publish(File.Event.Edited, { file: filePath })
                 yield* bus.publish(FileWatcher.Event.Updated, {
                   file: filePath,
@@ -122,6 +157,7 @@ export const EditTool = Tool.define(
               const info = yield* afs.stat(filePath).pipe(Effect.catch(() => Effect.succeed(undefined)))
               if (!info) throw new Error(`File ${filePath} not found`)
               if (info.type === "Directory") throw new Error(`Path is a directory, not a file: ${filePath}`)
+              yield* assertReadable(true)
               const source = yield* Bom.readFile(afs, filePath)
               contentOld = source.text
 
@@ -155,6 +191,7 @@ export const EditTool = Tool.define(
               if (yield* format.file(filePath)) {
                 contentNew = yield* Bom.syncFile(afs, filePath, desiredBom)
               }
+              yield* recordWrite()
               yield* bus.publish(File.Event.Edited, { file: filePath })
               yield* bus.publish(FileWatcher.Event.Updated, {
                 file: filePath,
@@ -215,9 +252,14 @@ export const EditTool = Tool.define(
 
 export type Replacer = (content: string, find: string) => Generator<string, void, unknown>
 
-// Similarity thresholds for block anchor fallback matching
-const SINGLE_CANDIDATE_SIMILARITY_THRESHOLD = 0.0
-const MULTIPLE_CANDIDATES_SIMILARITY_THRESHOLD = 0.3
+// Similarity thresholds for block anchor fallback matching.
+// These were 0.0 / 0.3, which meant "the first and last line matched, so
+// replace whatever is between them". That silently rewrites a different block
+// when a file contains repeated structure. Claude Code requires an exact
+// match; keep a narrow fuzzy path only for near-identical blocks, and let the
+// edit fail loudly otherwise so the model re-reads and retries.
+const SINGLE_CANDIDATE_SIMILARITY_THRESHOLD = 0.9
+const MULTIPLE_CANDIDATES_SIMILARITY_THRESHOLD = 0.9
 
 /**
  * Levenshtein distance algorithm implementation

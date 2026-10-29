@@ -36,6 +36,7 @@ import { WorkspaceHeader } from "@/components/session/workspace-header"
 import { useComments } from "@/context/comments"
 import { getSessionPrefetch, SESSION_PREFETCH_TTL } from "@/context/global-sync/session-prefetch"
 import { useGlobalSync } from "@/context/global-sync"
+import { useGlobalSDK } from "@/context/global-sdk"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
@@ -68,14 +69,13 @@ import {
   visibleStatusSections,
   type StatusPanelSection,
 } from "@/pages/session/status-panel/status-panel"
-import { useContextSection } from "@/pages/session/status-panel/context-section"
+import { useGitSection } from "@/pages/session/status-panel/git-section"
+import { useTodoSection } from "@/pages/session/status-panel/todo-section"
 import { useBackgroundSection } from "@/pages/session/status-panel/background-section"
 import { useAgentsSection } from "@/pages/session/status-panel/agents-section"
 import { usePlanApprovalSection } from "@/pages/session/status-panel/plan-approval-section"
 import { useHooksSection } from "@/pages/session/status-panel/hooks-section"
 import { useTempFilesSection } from "@/pages/session/status-panel/temp-files-section"
-import { useGitSection } from "@/pages/session/status-panel/git-section"
-import { useTodoSection } from "@/pages/session/status-panel/todo-section"
 import { FloatingTodoButton } from "@/components/floating-todo-button"
 import { OfficeSessionComposer, OfficeSessionWorkspace } from "@/components/office-session-workspace"
 import { TerminalPanel } from "@/pages/session/terminal-panel"
@@ -84,7 +84,7 @@ import { useSessionHashScroll } from "@/pages/session/use-session-hash-scroll"
 import { Identifier } from "@/utils/id"
 import { diffs as list } from "@/utils/diffs"
 import { resolveWorkspacePath, shouldAutoOpenHtml } from "@/utils/preview-sources"
-import { normalizePreviewUrl } from "@/utils/preview-url"
+import { isLocalPreviewUrl, normalizePreviewUrl } from "@/utils/preview-url"
 import { Persist, persisted } from "@/utils/persist"
 import { extractPromptFromParts } from "@/utils/prompt"
 import { same } from "@/utils/same"
@@ -221,6 +221,7 @@ function createSessionHistoryLoader(input: SessionHistoryWindowInput) {
 
 export default function Page() {
   const globalSync = useGlobalSync()
+  const globalSDK = useGlobalSDK()
   const layout = useLayout()
   const local = useLocal()
   const file = useFile()
@@ -495,7 +496,6 @@ export default function Page() {
   const tempFilesSection = useTempFilesSection(() => params.id ?? "")
   const gitSection = useGitSection()
   const todoSection = useTodoSection()
-  const contextSection = useContextSection()
   const statusRunning = createMemo(() => {
     const id = params.id ?? ""
     return !!id && sync.data.session_working(id)
@@ -513,18 +513,9 @@ export default function Page() {
         tempFilesSection(),
         gitSection(),
         todoSection(),
-        contextSection(),
       ].filter((section): section is StatusPanelSection => section !== null),
       statusRunning(),
     ),
-  )
-
-  // 状态面板是绝对定位在会话帧右上角的浮层。ZCode 的做法（docs/ui/chat-summary-panel.md）是
-  // 面板展开时让消息列与输入区整体左移，而不是让面板压住消息。这里沿用同一口径：
-  // 面板挂载（有区块）且未被手动收起时，给消息列留出面板所占的横向空间；
-  // 窄容器下面板退化成 mini 胶囊（@max-[768px]），不占位，所以留白也只在 @min-[768px] 生效。
-  const statusPanelReserved = createMemo(
-    () => statusSections().length > 0 && !layout.statusPanel.collapsed(sdk.directory)(),
   )
 
   const [followup, setFollowup] = persisted(
@@ -603,6 +594,24 @@ export default function Page() {
       },
     ),
   )
+  // 模型用 browser_* 验证页面时会广播 browser.navigated：本地目标（file:// / 回环地址）
+  // 同步到右栏「浏览器」标签，验证过程用户能直接看到；外部站点不抢标签。
+  onMount(() => {
+    const unsub = globalSDK.event.listen((event) => {
+      if (event.name !== sdk.directory) return
+      const payload = event.details as { type?: string; properties?: { sessionID?: string; url?: string } }
+      if (payload.type !== "browser.navigated") return
+      if (payload.properties?.sessionID !== params.id) return
+      const url = payload.properties?.url
+      if (!url) return
+      const normalized = normalizePreviewUrl(url)
+      if (!normalized || !isLocalPreviewUrl(normalized)) return
+      if (normalized === normalizePreviewUrl(preview.url())) return
+      if (!preview.setUrl(normalized)) return
+      layout.sidePane.add("browser")
+    })
+    onCleanup(unsub)
+  })
   const nogit = createMemo(() => !!sync.project && sync.project.vcs !== "git")
   const changesOptions = createMemo<ChangeMode[]>(() => {
     const list: ChangeMode[] = []
@@ -1787,9 +1796,11 @@ export default function Page() {
         .then(() => revertWithRetry(input))
         .then(async (result) => {
           // 服务端 revert 是 stage→commit:提交阶段会删掉回滚点及之后的消息并清空
-          // session.revert。必须先 sync(本地 store 把被删消息移除)再 merge session
-          // 信息;顺序反了的话 revert 一清空,可见性过滤失效,被删的提问会在本地
-          // 闪回来,直到 sync 完成才又消失 —— 就是"提问没实时清除"的来源。
+          // session.revert。先在本地把这段消息一并裁掉 —— 不能只靠 `message.removed`
+          // 事件 + 强制 sync 收敛:事件晚到、或 force sync 撞上进行中的请求被合并时,
+          // 本地会残留那条被回滚掉的提问(用户反馈"重置完提问还在聊天区")。
+          // 再 sync 补齐服务端的完整列表,最后 merge session 信息。
+          sync.session.dropMessages(input.sessionID, (id) => id >= input.messageID)
           await sync.session.sync(input.sessionID, { force: true })
           if (result.data) merge(result.data)
           // 回滚成功后清掉这个会话的排队追问:它们是针对被回滚掉的上下文写的,
@@ -1837,7 +1848,8 @@ export default function Page() {
 
       await task
         .then(async (result) => {
-          // 同 revertMutation:先 sync 再 merge,避免 revert 清空后消息在本地闪回。
+          // 同 revertMutation:先在本地把回滚点之后的消息裁掉,再 sync、merge。
+          if (next) sync.session.dropMessages(sessionID, (messageID) => messageID >= next.id)
           await sync.session.sync(sessionID, { force: true })
           if (result.data) merge(result.data)
         })
@@ -2107,10 +2119,9 @@ export default function Page() {
               >
                 <WorkspaceHeader />
                 <div class="relative flex-1 min-h-0 overflow-hidden flex flex-col md:flex-row">
-                  <div
-                    class="flex-1 min-w-0 min-h-0 flex flex-col"
-                    classList={{ "@min-[768px]:pr-[344px]": statusPanelReserved() }}
-                  >
+                  {/* 消息列不再为状态面板留白:面板是纯悬浮浮层(对齐 ZCode 现版形态),
+                      聊天区保持全宽 —— 主要内容是聊天,不能被右侧卡片挤压。 */}
+                  <div class="flex-1 min-w-0 min-h-0 flex flex-col">
                     <div
                       ref={(el) => {
                         contentStageRef = el
@@ -2247,7 +2258,6 @@ export default function Page() {
                     sessionID={() => params.id}
                     userMessages={historyLoader.userMessages()}
                     scrollRoot={scrollerEl}
-                    statusPanelReserved={statusPanelReserved()}
                     onJumpToMessage={(message, behavior) => {
                       autoScroll.pause()
                       scrollToMessage(message, behavior)

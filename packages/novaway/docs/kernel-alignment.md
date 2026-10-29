@@ -25,6 +25,24 @@ Effect 服务化架构。所有能力都是增量式的，旧配置与旧插件�
 - 模型调用 `tool_search`（可用 `select:<id>` 精确指定）后，
   `src/tool/activation.ts` 按会话记录激活状态，下一次请求才带完整 schema
 
+## 1.1 读取状态（`ReadState`）
+
+`src/tool/read-state.ts` 按会话记录每个文件的读取结果（mtime、size、是否只读了
+一部分、offset/limit），对齐 CC 的 `readFileState`：
+
+- `edit` / `write` / `apply_patch` 覆盖已有文件前先查：没读过就报错要求先读，读过但
+  mtime 已变则要求重新读。`apply_patch` 的 `Update` / `Delete` / 覆盖已有文件的
+  `Add` 都走同一检查；写入后记录新的 mtime，因此同一会话里的连续补丁无需重读。
+- `read` 去重（对齐 CC `file_unchanged`）：同一 `offset`/`limit`、上次是完整读取
+  且 mtime 未变时，直接返回 `FILE_UNCHANGED_STUB`，不再重发全文。`edit` / `write`
+  写入的条目没有 offset，因此不会被去重——它们记录的是写后的 mtime，而模型看到
+  的内容是写前的。
+- `@路径` 引用同样的文件时同样省略正文（对齐 CC `already_read_file`）。
+- 用户消息前插入 `<system-reminder>`：上次读过后被外部改动或删除的文件会列出来
+  （最多 10 个），要求重新读取后再依赖其内容或编辑。
+- 压缩会把历史摘要掉，`SessionCompaction` 在压缩成功后清掉被摘要文件的读取
+  状态（§7.4），避免"未变化"存根指向已经不在上下文的内容。
+
 ## 2. Hook 生命周期
 
 `src/hook/` 提供与 `.claude/settings.json` 兼容的 hooks：
@@ -358,6 +376,16 @@ UI：状态面板新增「计划待批准」区块（`status-panel/plan-approval
 2 秒轮询挂起请求，支持批准 / 拒绝（拒绝可附说明）。该区块常驻，
 因为子代理阻塞时主线程恰好是 idle。
 
+## 7.0.3.1 主动进入计划模式（`plan_enter`）
+
+对齐 CC 的 `EnterPlanMode`：模型在动手前可以先申请切换到计划代理，而不是只能等
+用户手动切。工具位于 `tool/plan.ts`，和 `plan_exit` 一样按 `plan_enter` 权限询问
+（非交互 `run` 里该权限默认 deny，避免挂住）。批准后向会话追加一条
+`agent: "plan"` 的合成用户消息 —— 循环每步都按 `lastUser.agent` 解析代理，所以下一
+步自动切到规划蓝图；已在计划代理中时是无副作用的 no-op。两个工具都只在
+`NovaWay_EXPERIMENTAL_PLAN_MODE` + CLI 客户端下注册（与计划模式的富提醒同一开关，
+避免出现"进得去出不来"的客户端）。
+
 ## 7.0.4 Bus 驱动的事件
 
 `FileChanged` 与 `ConfigChange` 没有属于 hook 层的自然调用点，因此改为订阅内核 Bus：
@@ -473,6 +501,26 @@ PR / CI 订阅由通用版本承担，见 7.0.8。运行态与后台任务一样
 `completed / error / cancelled`，会话后台面板用 `list({ includePersisted: true })`
 读取最近 50 条历史。
 
+## 7.0.7.1 后台命令完成通知
+
+`background: true` 的 shell 命令在工具调用返回之后才结束，模型以前只能自己
+轮询 `task_status`。现在每次请求前 `insertReminders` 会检查本会话的后台任务，
+把上一轮之后进入终态（completed / error / cancelled）的 job 作为一条
+`<system-reminder>` 挂到当前用户消息上，内容对齐 CC 的 `<task-notification>`：
+
+```
+<task-notification>
+<task-id>job_...</task-id>
+<output-file>...</output-file>   (仅当输出被截断、完整内容写到文件时)
+<status>completed</status>
+<summary>Background command "desc" completed (exit code 0)</summary>
+</task-notification>
+```
+
+已通知的 job id 记在内存里，同一条命令不会在后续回合重复播报；摘要里的标题会做
+XML 转义。提示词同时告诉模型直接读通知里的输出（或 output-file），不要再去轮询
+任务状态。前台命令不参与：它们的完整结果已经在工具返回里。
+
 ## 7.0.8 HTTP 订阅（`subscribe`）
 
 `monitor` 适合"跑一个命令等它说点什么"，PR / CI / 部署回调则是轮询一个 HTTP 端点：
@@ -529,6 +577,13 @@ return rel !== ".." && !rel.startsWith(`..${sep}`) // 同时避免误伤 "..cach
 `overlaps()` 改为 `contains(a,b) || contains(b,a)`，共享同一套判定。
 权限请求恢复后，shell 权限用例从 48/17 提升到 64/1。
 
+`ShellTool.resolvePath` 在 Windows 上把 POSIX 路径分三种情况处理：带盘符的
+`/c/...` 直接映射；`/tmp` 这类交给 `cygpath`（遵循 msys 挂载表 → `%TEMP%`）；
+无盘符且 cygpath 只把它挂到 Git 安装目录下的（`/Users/x` →
+`C:\Program Files\Git\Users\x`）则在 cygpath 结果不存在、盘根解释
+（`C:\Users\x`）存在时采用盘根。这样 `/tmp` 的 Git Bash 语义和
+`/Users/...` 的盘根语义都能正常工作。
+
 ## 7.2.1 会话工作目录与 `CwdChanged`
 
 `Session.setDirectory` 修改会话行的 `directory`（和 `path`）：
@@ -559,12 +614,12 @@ Hook 的文件查找顺带修了一处不一致：触发前的快速路径以前
 Hook 的执行选项现在都有实际语义（此前 `if` / `async` 只是被解析）：
 
 | 字段            | 行为                                                                                               |
-| --------------- | -------------------------------------------------------------------------------------------------- |
+| --------------- | -------------------------------------------------------------------------------------------------- | --- |
 | `if`            | 条件门控，不匹配则**不执行**（`ran: false`）。支持 `Tool` 与 `Tool(argPattern)` 两种写法，`*` 通配 |
 | `async`         | 立即返回、不等结果；异步 hook **不能 deny**（没有结果可检查），失败只记日志                        |
 | `once`          | 触发后从注册表移除（原先已实现）                                                                   |
 | `timeout`       | 秒；超时按"未阻断"处理（原先已实现）                                                               |
-| `statusMessage` | 运行期间进入 `GET /hook/active`，状态面板显示「运行中的 Hook」（见 7.0.5） |                                             |
+| `statusMessage` | 运行期间进入 `GET /hook/active`，状态面板显示「运行中的 Hook」（见 7.0.5）                         |     |
 
 `if` 的匹配规则：
 
@@ -601,21 +656,38 @@ Hook 的执行选项现在都有实际语义（此前 `if` / `async` 只是被�
   `压缩前 - 被摘要历史 + 摘要本身 + 文件附件`；仍 ≥ 可用窗口时不再自动继续，发
   `ContextOverflowError` 说明固定前缀（system + 工具 schema）过大。
 - 连续熔断：同一轮里连续 3 次自动压缩仍溢出就停止
-  （`MAX_CONSECUTIVE_AUTO_COMPACTIONS`）；手动压缩会清零计数。
+  （`MAX_CONSECUTIVE_AUTO_COMPACTIONS`）；手动压缩会清零计数。压缩请求本身抛错
+  （provider 4xx/5xx、数据库错误）也计入同一个计数器并自动重试，达到上限后发
+  `Session.Event.Error` 结束本轮；用户取消（interrupt）与手动压缩的失败不吞掉，
+  原样上抛。
 - 告警阈值（对齐 CC `calculateTokenWarningState`）：
   - `threshold` = 自动压缩线（`effective - 13k`）；
   - `warning` = `threshold - 20k`，输入区上方出现「上下文即将用尽」提示；
   - `error` 同 CC 也取 20k；
   - `blocking` = `effective - 3k`，达到后内核直接拒绝发请求并提示压缩；
   - `percentLeft` = `(threshold - used) / threshold`，提示条显示「距自动压缩还有 N%」。
+- 用户可配置（设置 → 通用 → 上下文窗口，或 `novaway.json` 的 `compaction`）：
+  - `auto: false` 关闭自动压缩：阈值上移到 `effective`，只在 `blocking` 处拦截并要求手动压缩；
+  - `threshold: <tokens>` 绝对阈值，优先于百分比；
+  - `threshold_percent: 1..100` 按可用窗口的百分比触发；
+  - 两者都会被夹到 `effective - 3k`：设在硬上限之上等于永远不触发，请求会先被拒绝；
+  - `reserved` 仍可整体改写有效窗口（`effective = base - reserved`）。
 - 提示条上的「立即压缩」调用 `POST /session/:id/summarize`，等价于手动
   `/compact`，不需要用户记命令。
+- `/compact <instructions>`：输入区在命令后补的文字（例如
+  `/compact 只保留接口改动，丢掉日志噪音`）随 summarize 请求的 `instructions`
+  字段写入 compaction part，摘要提示词里以「Additional instructions from the
+  user」置顶，覆盖模板默认的保留/丢弃判断。合并后的 compaction part 会持久化
+  该字段（`instructions`），历史回放和重试都看得到。
 - 摘要模板：11 段（Goal / Constraints / User Messages / Progress / Key Decisions
   / Pending Tasks / Current Work / Next Steps / Optional Next Step / Critical
   Context / Relevant Files），要求尽量保留用户原话。
-- 压缩后文件回挂：从被摘要的历史里找最近 `read` / `write` / `edit` 的文件
-  （最多 5 个、每个 ≤5k tokens、合计 ≤50k），以 synthetic text 挂在摘要
-  消息上；`summaryText` 会忽略它，不会被二次摘要。
+- 压缩后文件回挂：从被摘要的历史里找最近 `read` / `write` / `edit` / `apply_patch`
+  的文件（最多 5 个、每个 ≤5k tokens、合计 ≤50k），以 synthetic text 挂在摘要
+  消息上；`summaryText` 会忽略它，不会被二次摘要。`apply_patch` 的路径藏在
+  `patchText` 的 `*** Update/Add/Delete File:` 与 `*** Move to:` 头里，按会话目录
+  解析后同样参与回挂。被摘要掉的文件同时从 `ReadState` 里移除，否则再次读取会
+  命中「未变化」存根，而存根指向的那次读取已经不在上下文里。
 - MCP schema 延迟：合计 ≥ 约 20k tokens 时首轮只发 `mcp_tool_search`；
   内置长尾工具（`browser_*`、`generate_*` 等）默认 `deferLoading`。
 - 每请求工具结果预算：见 7.0.1（默认 60k 字符，非破坏性 stub）。
@@ -627,13 +699,15 @@ Hook 的执行选项现在都有实际语义（此前 `if` / `async` 只是被�
   worktree，并把会话切过去。走 `worktree` 权限询问；成功后触发 `WorktreeCreate`
   hook（metadata 带 `branch` / `directory` / `base`）。后续 shell/read/write/glob
   都从新目录执行。
-- `exit_worktree({ directory? })`：切回项目主 worktree（或指定目录），worktree
-  目录保留在磁盘上，方便检查或手动清理。
+- `exit_worktree({ directory?, action?, discard_changes? })`：切回项目主 worktree
+  （或指定目录）。`action: "keep"`（默认）保留 worktree 与分支；`action: "remove"`
+  删除两者，删除前先检查未提交改动与未合并提交，有内容时拒绝执行并列出，只有显式
+  `discard_changes: true` 才会丢弃；删除成功后触发 `WorktreeRemove` hook。
 - `list_mcp_resources({ client? })` / `read_mcp_resource({ uri, client? })`：
   列出并读取已连接 MCP server 暴露的 resources；blob 只报告大小，不把
   base64 塞进上下文。
 
-## 7.6 内核能力面板（扩展 → 概览）
+## 7.6 内核页与团队页（2026-10 拆分）
 
 - `GET /kernel` 返回运行中的工具 / 技能 / Hook / 扩展数量与特性状态。
 - `defer_loading` 未显式配置时按默认开启上报（此前面板会错误地显示未勾选）。
@@ -642,9 +716,59 @@ Hook 的执行选项现在都有实际语义（此前 `if` / `async` 只是被�
   - 工具结果预算：下拉选择 30k / 60k / 120k / 240k（自定义值保留）。
 - 跳转类操作：
   - 会话权限模式 → 设置 → 通用（新会话默认档位）；
-  - 多代理团队 → 设置 → AI 员工（角色、模型、提示词、技能）。
+  - 多代理团队 → 左侧「团队」页（或设置 → AI 员工管理角色）；
+  - Hook → 设置 → Hook（支持事件清单、注册来源、正在执行）。
 - 团队本身是**按会话**由主代理通过 `team_create` / `task` 动态创建的；设置页管理的是
   可被拉进团队的角色（AI 员工），不是一份静态团队名单。
+
+### 7.6.1 页面职责拆分
+
+之前「内核能力」是扩展页的第一个标签、Hook 只在扩展页底部露出一小块，三种
+互不相干的问题挤在一起。现在按问题拆开：
+
+- **扩展页**（左侧 `dot-grid`）：只保留插件市场该有的东西 —— 已安装（内置能力
+  开关 + 已加载扩展）与市场目录；
+- **内核页**（左侧 `lu-activity`）：运行时的真实状态 —— 工具 / 技能 / Hook /
+  扩展数量，以及八项内核特性的开关与一句解释；
+- **设置 → Hook**：24 个可监听事件的完整清单（监听与否都列出）、按来源文件
+  分组的注册（事件 / matcher / 类型，不展示命令体）、以及声明了
+  `statusMessage` 的正在执行的 Hook；
+- **团队页**（左侧 `lu-users`）：可创建团队、从已有 AI 员工里选成员，并以
+  群聊方式统一调度。
+
+### 7.6.2 团队页的调度模型
+
+成员就是会话（`session`，`parentID = 团队根会话`），团队页负责调度，会话页
+负责过程：
+
+- 页面发消息 → `POST /team/:teamID/message` → 写入团队邮箱（页面对话记录）
+  → 服务端在后台对每个目标成员调用一次 `SessionPrompt.prompt`；
+- 成员这一轮的最终文本回流到邮箱（`from = 成员`，`to = lead`），页面轮询
+  4 秒拉取，形成「群聊」；
+- 成员失败也会回流一条失败说明，不会静默卡住；
+- 成员会话沿用团队根会话的权限档位；若停在权限确认，点成员名字打开它的
+  会话处理，回复仍会回流到群聊；
+- `dispatch: false` 只留消息不拉起成员，便于「先排期、后执行」；
+- 请求本身立即返回，长任务不会卡住 HTTP 连接（`forkIn` 到层作用域）。
+
+> 上述「群聊式」实现是过渡形态。团队编排的完整设计（控制面/观测面分离、
+> `TeamRun` 数据模型、两级验收契约、预算与隔离、输入框团队选择器）见
+> `docs/ai-team-orchestration-design.md`。
+> 其中 §18 定义了生产级六门禁（可复验 / 终态 / 崩溃恢复 / 预算 / 权限 / 工作区），
+> §21 给出 P1 交付清单与发布门禁，§20 说明哪些差异化主张可辩护、哪些不可辩护。
+
+## 7.7 环境上下文（git 快照）
+
+`SystemPrompt.environment()` 在环境块之后追加一段 git 快照，对齐 CC 的
+`<gitStatus>` 上下文（`cc/src/context.ts`）：
+
+- 内容：`Current branch`、`Main branch`、`Git user`、`git status --short`
+  （超过 2k 字符截断并提示用 shell 查看）、最近 5 条 `git log --oneline`；
+- 只在首次需要时计算（每个项目实例一次、五条 git 并发），随后冻结：模型被告知
+  「这是对话开始时的快照，不会随对话更新」；
+- 非 git 目录、或环境里没有 `Git` 服务时整段省略；
+- 作用：模型能识别工作区是否 dirty、当前分支与主分支、近期提交风格，并在发现
+  非自己产生的改动时按「可能是用户在做」处理，而不是盲目回退。
 
 ## 8. 迁移与回退
 
@@ -678,12 +802,12 @@ Hook 的执行选项现在都有实际语义（此前 `if` / `async` 只是被�
 
 因此界面把它们联动成**一次选择**（`context/agent-permission.ts`，有单测）：
 
-| 操作 | 结果 |
-|---|---|
-| 选「规划蓝图」 | 档位自动变「计划模式」 |
-| 选「锻造工程」/其它角色 | 若当前是计划模式，回到「每次确认」 |
-| 选「计划模式」 | 角色自动切成「规划蓝图」 |
-| 选其它档位 | 角色若是「规划蓝图」，回到「锻造工程」 |
+| 操作                    | 结果                                   |
+| ----------------------- | -------------------------------------- |
+| 选「规划蓝图」          | 档位自动变「计划模式」                 |
+| 选「锻造工程」/其它角色 | 若当前是计划模式，回到「每次确认」     |
+| 选「计划模式」          | 角色自动切成「规划蓝图」               |
+| 选其它档位              | 角色若是「规划蓝图」，回到「锻造工程」 |
 
 带来的实际效果：
 
@@ -699,25 +823,25 @@ Hook 的执行选项现在都有实际语义（此前 `if` / `async` 只是被�
 
 对照代码会发现，「规划蓝图」角色和「计划模式」档位此前各管一套：
 
-| | 规划蓝图（agent 规则） | 计划模式（旧 gate） |
-|---|---|---|
-| 编辑代码 | 拒绝（`edit: "*"` deny） | 拒绝 |
-| 写计划文件 | **允许**（`.novaway/plans/*.md`） | **拒绝**（gate 先于规则短路） |
-| `write` / `apply_patch` | 允许（只写规则给到了 `edit` 名） | 拒绝 |
-| 只读 shell（`ls`、`git status`） | 允许 | **拒绝**（整类 shell 都被拒） |
+|                                  | 规划蓝图（agent 规则）            | 计划模式（旧 gate）           |
+| -------------------------------- | --------------------------------- | ----------------------------- |
+| 编辑代码                         | 拒绝（`edit: "*"` deny）          | 拒绝                          |
+| 写计划文件                       | **允许**（`.novaway/plans/*.md`） | **拒绝**（gate 先于规则短路） |
+| `write` / `apply_patch`          | 允许（只写规则给到了 `edit` 名）  | 拒绝                          |
+| 只读 shell（`ls`、`git status`） | 允许                              | **拒绝**（整类 shell 都被拒） |
 
 结论：角色看起来"更松"，档位"更死"，而两者组合后行为既不是前者也不是后者。
 
 现在把档位定义成唯一闸门，规则在 `permission/plan.ts`：
 
-| 能力 | 计划模式 |
-|---|---|
-| 读文件 / 搜索 / grep | 允许 |
-| 只读命令（`ls`、`cat`、`git status/diff/log`、`node -v`…） | 允许 |
-| 写计划文件（计划目录下的 `.md`） | 允许（这样规划蓝图能落盘方案） |
-| 改代码（`edit` / `write` / `apply_patch` / `patch`） | 硬拒绝 |
-| 写盘命令（`rm`、`mv`、`git commit/push`、`npm install`…） | 硬拒绝 |
-| 重定向 / 命令替换（`>`、`` ` ``、`$(…)`） | 硬拒绝 |
+| 能力                                                       | 计划模式                       |
+| ---------------------------------------------------------- | ------------------------------ |
+| 读文件 / 搜索 / grep                                       | 允许                           |
+| 只读命令（`ls`、`cat`、`git status/diff/log`、`node -v`…） | 允许                           |
+| 写计划文件（计划目录下的 `.md`）                           | 允许（这样规划蓝图能落盘方案） |
+| 改代码（`edit` / `write` / `apply_patch` / `patch`）       | 硬拒绝                         |
+| 写盘命令（`rm`、`mv`、`git commit/push`、`npm install`…）  | 硬拒绝                         |
+| 重定向 / 命令替换（`>`、`` ` ``、`$(…)`）                  | 硬拒绝                         |
 
 `isReadOnlyShell` 刻意保守：拿不准就拒绝，用户切回其它档位即可。角色层的规则
 只作为第二道防线，二者在"规划蓝图 + 计划模式"下给出的结论现在完全一致。
@@ -729,7 +853,7 @@ Hook 的执行选项现在都有实际语义（此前 `if` / `async` 只是被�
 那次写入落在没人读的文件上——接口返回 200，配置却没生效。现在写入「加载器实际会读的
 最近一个文件」，没有就新建 `<项目>/novaway.json`，并触发 `Config.Event.Updated` 与缓存失效。
 
-扩展页也从"一页堆四块"改成三个标签：**概览**（内核能力 + 生效中的 Hook）、**已安装**（内置能力 + 已加载扩展）、**市场**（ZCode / Claude 目录，占满剩余高度）。桌面上那份基于 IPC 的重复市场实现（`settings-plugin-market.tsx`）已删除，只保留内核版安装路径。
+扩展页只保留插件相关的两个标签：**已安装**（内置能力 + 已加载扩展）、**市场**（ZCode / Claude 目录，占满剩余高度）；内核能力独立为左侧「内核」页，Hook 独立为设置里的「Hook」标签页，团队独立为左侧「团队」页。桌面上那份基于 IPC 的重复市场实现（`settings-plugin-market.tsx`）已删除，只保留内核版安装路径。
 
 ## 9. 界面可见性（怎么确认改造已经生效）
 
@@ -737,8 +861,9 @@ Hook 的执行选项现在都有实际语义（此前 `if` / `async` 只是被�
 
 | 位置                   | 看到什么                                                                                                                        | 数据来源                                |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| 左下角 → 扩展 → 概览   | 「内核能力」卡：工具 / 技能 / Hook / 扩展的真实数量，以及各特性开关状态                                                         | `GET /kernel`                           |
-| 左下角 → 扩展 → 概览   | 「生效中的 Hook」：事件、matcher、来源、执行器类型（不显示命令，避免泄露密钥）                                                  | `GET /hook`                             |
+| 左下角 → 内核          | 「内核能力」卡：工具 / 技能 / Hook / 扩展的真实数量、各特性开关与一句解释                                                       | `GET /kernel`                           |
+| 设置 → Hook            | 24 个事件清单（监听与否都显示）、按来源分组的注册（事件 / matcher / 类型，不显示命令，避免泄露密钥）、正在执行的 Hook           | `GET /hook` / `GET /hook/active`        |
+| 左下角 → 团队          | 团队列表 + 成员 + 共享任务 + 群聊记录；发送后成员会话真正开始执行，回复回流                                                     | `GET/POST /team…`                       |
 | 左下角 → 扩展 → 已安装 | 「内置能力」开关（技能 / 浏览器 / 记忆）与「已加载扩展」：来源、版本、校验问题                                                  | `config` / `GET /extension`             |
 | 左下角 → 扩展 → 市场   | ZCode / Claude 目录：已安装标签、`1.2.0 → 1.3.0` 版本变化、`可更新到 x.y.z`                                                     | `GET /extension/marketplace`            |
 | 会话右上面板           | 「团队代理」：成员状态、当前任务、worktree、每人 `成本 · tokens`，团队合计在标题行                                              | `GET /session/:id/team`                 |
@@ -784,50 +909,173 @@ Hook 的执行选项现在都有实际语义（此前 `if` / `async` 只是被�
 4. 让代理执行 `monitor({ command: "node -e \"console.log('READY')\"", pattern: "READY" })`
    →「后台任务」出现「监视」标签；结束后卡片保留输出摘要，主线程被唤醒
 5. 让代理执行 `subscribe({ url: "https://…", match: "success" })` → 出现「订阅」标签
-6. 在项目里放一个 `.novaway/hooks.json`（例如 `Stop` → `echo`），重开扩展页
-   →「生效中的 Hook」出现该条；一次对话结束后 hook 实际执行
+6. 在项目里放一个 `.novaway/hooks.json`（例如 `Stop` → `echo`），重开设置 → Hook
+   → 注册来源里出现该条；一次对话结束后 hook 实际执行
 7. 装一个市场扩展后再装新版本 → 已安装标签变为 `1.2.0 → 1.3.0`，旧版本目录被移除
 8. 让它执行 `cwd({ directory: "<项目>/packages" })` → 之后的 shell / read 从新目录执行；
-   若配了 `CwdChanged` hook，扩展页的「生效中的 Hook」里能看到它
-8. 在 `hooks.json` 里给某个 hook 加 `statusMessage`，触发它 → 状态面板出现「运行中的 Hook」
-9. 启动一个 `monitor` 后重启服务 → 面板出现同名任务并标「已恢复」
+   若配了 `CwdChanged` hook，设置 → Hook 里能看到它
+9. 在 `hooks.json` 里给某个 hook 加 `statusMessage`，触发它 → 状态面板出现「运行中的 Hook」
+10. 启动一个 `monitor` 后重启服务 → 面板出现同名任务并标「已恢复」
 
 ## 10. 全内核剩余差距（2026-10-24 审计）
 
 调研快照见 `kernel-alignment-analysis.md`；本节只列当前仍未对齐、且值得吸收的部分。
 2026-10-24 已补齐 P0 三项（阈值公式、估算触发、压缩请求 PTL 重试）、
 Worktree 工具 / WorktreeCreate hook / MCP Resources 工具、摘要模板扩充与
-压缩后文件回挂，以及 warning/blocking 阈值与输入区告警。剩余项集中在
-session memory compact。
+压缩后文件回挂、warning/blocking 阈值与输入区告警，以及 session memory
+（10 段笔记 + 笔记直接当摘要的压缩）。
+
+2026-10-28 复核：本节可吸收的差距已清空 —— 工具清单（含 `PowerShell`、
+`McpAuth`）、Hook 事件、上下文/压缩、后台任务通知、计划模式、待办语义都已对齐；
+只剩 §10.4 里明确不做的部分（Anthropic 专有缓存、proactive/Kairos、内部实验与
+ant-only 的 MagicDocs / REPL / Config、SDK 专用的 tool-use summary 等）。
 
 ### 10.1 上下文与压缩
 
-| # | CC 机制 | 现状 | 影响 | 优先级 |
-| - | ------- | ---- | ---- | ------ |
-| 1 | ✅ 阈值再减 `AUTOCOMPACT_BUFFER_TOKENS = 13k` | 已按 CC 公式补齐，128k 模型 95k | — | 已完成 |
-| 2 | ✅ 把尚未产生 usage 的工具结果算进去 | `pendingTokens()` 计入最新工具输出与新消息 | — | 已完成 |
-| 3 | ✅ 压缩请求自身 PTL 时裁剪重试 | 按轮次裁掉最旧一半，最多 3 次 | — | 已完成 |
-| 4 | 连续失败（含异常）计数，成功清零 | 只统计「压缩成功但仍溢出」 | 压缩抛错时熔断不计数 | P1 |
-| 5 | ✅ 9 段摘要模板（含 Pending / Current / Next / 全部用户消息） | 已扩为 11 段，要求保留用户原话 | — | 已完成 |
-| 6 | ✅ 压缩后重新注入最近读过的文件 | 最近 5 个 read/write/edit 文件，5k/文件、50k 总量 | — | 已完成 |
-| 7 | ✅ warning / error / blocking 三档阈值与 percentLeft | 输入区告警条 + 立即压缩；内核 blocking 拒发请求 | — | 已完成 |
-| 8 | session memory compact（用会话记忆直接压缩） | 有 memory/reviewCompaction，但没有持续维护的 session memory 文档 | 压缩成本略高 | P2 |
+| #   | CC 机制                                                       | 现状                                                                                                                                                                                           | 影响 | 优先级 |
+| --- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ------ |
+| 1   | ✅ 阈值再减 `AUTOCOMPACT_BUFFER_TOKENS = 13k`                 | 已按 CC 公式补齐，128k 模型 95k                                                                                                                                                                | —    | 已完成 |
+| 2   | ✅ 把尚未产生 usage 的工具结果算进去                          | `pendingTokens()` 计入最新工具输出与新消息                                                                                                                                                     | —    | 已完成 |
+| 3   | ✅ 压缩请求自身 PTL 时裁剪重试                                | 按轮次裁掉最旧一半，最多 3 次                                                                                                                                                                  | —    | 已完成 |
+| 4   | ✅ 连续失败（含异常）计数，成功清零                           | 自动压缩成功与抛错共用 `autoCompactions` 熔断（3 次）                                                                                                                                          | —    | 已完成 |
+| 5   | ✅ 9 段摘要模板（含 Pending / Current / Next / 全部用户消息） | 已扩为 11 段，要求保留用户原话                                                                                                                                                                 | —    | 已完成 |
+| 6   | ✅ 压缩后重新注入最近读过的文件                               | 最近 5 个 read/write/edit 文件，5k/文件、50k 总量；被摘要掉的文件同时清出 `ReadState`，避免后续 read 返回「未变化」存根                                                                        | —    | 已完成 |
+| 7   | ✅ warning / error / blocking 三档阈值与 percentLeft          | 输入区告警条 + 立即压缩；内核 blocking 拒发请求                                                                                                                                                | —    | 已完成 |
+| 8   | ✅ session memory compact（用会话记忆直接压缩）               | `src/session/memory-notes.ts`：每回合后台维护 10 段笔记（10k 初始化 / 再涨 5k 且 3 次工具调用或收尾时更新），压缩时用笔记当摘要并保留最近 10k tokens / 5 条含文本消息 / 最多 40k，不拆 tool 对 | —    | 已完成 |
+
+会话记忆对齐 CC 的 `SessionMemory` + `sessionMemoryCompact`：
+
+- 笔记文件 `<data>/session-memory/<sessionID>.md`，固定 10 段模板（Session Title /
+  Current State / Task specification / Files and Functions / Workflow / Errors &
+  Corrections / Codebase and System Documentation / Learnings / Key results / Worklog）。
+- 上下文首次到 10k tokens 建立笔记；之后每次新增 5k tokens，且（累计 3 次工具调用
+  或本回合已不再调用工具）时，后台用一个 4k 输出上限的小请求把新对话合并进笔记，
+  成功时记下「已摘要到的最后一条消息」。抽取失败只记日志，永不阻塞对话。
+- 压缩时若笔记有实际内容且锚点消息仍在历史里，直接拿笔记当摘要，不调用摘要模型：
+  从锚点之后开始保留消息，不足 `minTokens = 10k` 或 `minTextBlockMessages = 5` 就向前
+  扩，超过 `maxTokens = 40k` 立即停止，再把起点回退到用户消息（不切开 tool 调用）。
+  锚点不存在时按恢复会话处理（视作整段已摘要）；`auto` 压缩若预估压缩后仍超可用窗口，
+  回退到常规摘要，避免反复触发。笔记超过 12k tokens 时按段落截断，并在摘要里附上
+  笔记文件路径；摘要末尾注明「最近的消息原样保留」。
 
 ### 10.2 Hook 事件
 
-当前实现 23 个事件（含 `WorktreeCreate`）。CC 还有 `Setup`、`Elicitation`、
-`ElicitationResult`，取决于是否接入首启向导与 MCP elicitation。
+当前实现 24 个事件（含 `WorktreeCreate` / `WorktreeRemove`）：worktree 被删除时
+（`exit_worktree` 的 `remove` 分支与 HTTP 删除接口）都会派发 `WorktreeRemove`，
+metadata 带 `worktree_path`（以及已知时的 `branch`）。
+
+CC 还有 `Setup`、`Elicitation`、`ElicitationResult`：前者的触发点是首启向导 /
+维护模式，后两者需要 MCP elicitation 请求流程（我们目前没有接入 elicitation，
+因此暂不派发，避免出现「配置了 hook 却永远不会触发」的假支持）。
 
 ### 10.3 工具
 
-CC 有、我们暂无直接对应物的工具：`NotebookEdit`、`ScheduleCron`、`Sleep`、
-`PowerShell`。`EnterWorktree` / `ExitWorktree` 与 MCP Resources 读写已补齐
-（`enter_worktree` / `exit_worktree` / `list_mcp_resources` / `read_mcp_resource`）。
-其余核心工具（shell/read/write/edit/glob/grep/webfetch/websearch/skill/task/
-task board/team/ask-user/lsp/tool search）已有等价实现。
+CC 的工具清单里已没有我们缺少的条目：`PowerShell` 已有独立的 `powershell`
+工具（见下）。
+`NotebookEdit`、`Sleep` 与 `ScheduleCron`（`cron_create` / `cron_delete` /
+`cron_list`）已补齐（见下）；`McpAuth` 由 `mcp_setup({ action: "authenticate", name })`
+覆盖（打开浏览器完成 OAuth，失败时给出手动链接）。`EnterWorktree` / `ExitWorktree` 与 MCP Resources
+读写已补齐（`enter_worktree` / `exit_worktree` / `list_mcp_resources` /
+`read_mcp_resource`）。其余核心工具（shell/read/write/edit/glob/grep/webfetch/
+websearch/skill/task/task board/team/ask-user/lsp/tool search）已有等价实现；计划模式的两个方向 `plan_enter` / `plan_exit` 也都有（见 7.0.3.1）。
+
+PowerShell 有两种入口：`bash` 工具在解析出的 shell 是 `powershell` / `pwsh` 时
+按 PowerShell 执行；独立的 `powershell` 工具（CC 的 `PowerShell`）则固定选
+`pwsh`（7+）优先、其次 `powershell.exe`（5.1），不受会话配置 shell 影响 —— 这样
+默认用 git-bash 的 Windows 会话仍有一个专门发送 cmdlet、`$env:` 赋值和
+Windows 原生可执行文件的地方。两者都可用时 prompt 会明确 `powershell` 工具与
+配置 shell 无关。两者都用 `-NoLogo -NoProfile -NonInteractive -Command` 调用，
+prompt 按版本给出不同约束。
+5.1（`powershell`）明确禁用 `&&`/`||`/三元/`??`/`?.`（改用 `A; if ($?) { B }` 与
+`if/else`），提示 `2>&1` 会把原生程序 stderr 包成 NativeCommandError 并把 `$?`
+置为 `$false`、默认写文件是 UTF-16 LE（需 `-Encoding utf8`）、`ConvertFrom-Json`
+返回 PSCustomObject（无 `-AsHashtable`）；7+（`pwsh`）则说明这些语法可用、默认
+UTF-8。两版都补充了会挂住的交互命令（`Read-Host`/`Get-Credential`/`Out-GridView`/
+`$Host.UI.PromptForChoice`/`pause`）、破坏性 cmdlet 需要 `-Confirm:$false`、
+多行 here-string 的 `'@` 必须顶格、`--%` 停止解析符、注册表 PSDrive 与 `$env:`
+读写方式。权限侧把 `Get-ChildItem`/`Get-Content`/`Test-Path` 等只读 cmdlet 纳入
+只读判定（plan/只读模式不再弹权限），`Out-File`/`Export-Csv`/`Set-ItemProperty`
+等写入 cmdlet 纳入路径扫描，`-FilePath`/`-Source`/`-OutFile` 视作取路径的参数，
+写到工作区外时会照常询问。退出码语义补了 `findstr`（1 = 无匹配）与 `robocopy`
+（0-7 都是成功，8+ 才是错误），匹配前先去掉 `&` 调用运算符、引号、目录和 `.exe`
+后缀，`& "C:\bin\grep.exe" ...` 和 `grep ...` 解释一致。
+`powershell` 工具只在机器上存在 PowerShell 二进制时注册；权限键独立（`permissions.powershell`），与 `bash` 共用同一套路径扫描、只读判定和后台任务机制，CLI 里以 `PS>` 前缀和 “powershell completed (exit N)” 显示。
+
+Jupyter notebook 已按 CC 两段式处理：`read` 遇到 `.ipynb` 不再吐原始 JSON，而是
+按 cell 渲染成 `<cells><cell id type language execution_count>source</cell>` +
+`<output cell>`（stream / execute_result / display_data / error 的 ename·evalue·
+traceback），单个 cell 输出超过 1 万字符时替换成可执行的 `jq '.cells[N].outputs'`
+提示，图片输出转成附件（最多 5 张），整本按读取字节上限截断并提示剩余 cell 的
+`jq '.cells[N:]'` 读法；`notebook_edit` 按 `cell_id` 做 replace / insert / delete，
+替换代码 cell 时清空 `execution_count` 与 `outputs`，写回时保留原文件的 BOM、
+行尾与 Jupyter 的一空格缩进；编辑前强制要求本会话读过该 notebook 且文件未被外部
+修改（ReadState 校验），与 edit/write/apply_patch 同一套 read-before-write 规则。
+
+待办清单对齐 CC 的完成语义：`todowrite` 写入的清单全部为 completed 时整份清空
+（面板与后续请求都不再带着一份已完成清单）；`todoedit` 把最后一项标成 completed
+时同样清空，并在工具输出里说明。带 cancelled / pending 项的清单照常保留。
+
+`sleep` 对齐 CC 的 Sleep：按 `duration_ms` 等待，单次上限 5 分钟，调用方可随时中断，
+执行时不占用 shell 进程且可与其它工具并发；负数/非法值按 0 处理。
+
+定时任务对齐 CC 的 `CronCreate` / `CronDelete` / `CronList`：
+
+- `cron_create({ cron, prompt, recurring?, durable? })`：标准 5 字段 cron、本地时区；
+  `recurring: false` 触发一次后自动删除；循环任务 7 天后过期（最后再触发一次）；
+  `durable: true` 写入项目目录的 `.claude/scheduled_tasks.json`，重启后按会话恢复。
+- 调度器 15 秒一轮，只在**会话空闲**时把 prompt 作为新的用户消息投递 —— 正在跑的
+  会话插一条消息会打断当前回合，所以这一轮跳过、下一轮重试；任务用
+  `lastFiredAt` 锚定下一次触发，重启后不会重复触发同一次。
+- 有意不加 CC 的抖动（jitter）：我们的会话量不在同一个后端集群上，抖动只会让用户
+  看到「说好的 9:00 变成 9:03」。`cron_list` 展示任务类型、下次触发时间与 prompt 首行，
+  `cron_delete` 按 id 取消并从落盘文件里移除。
+
+`websearch` 补上 CC 的 `allowed_domains` / `blocked_domains`：过滤条件折叠进查询
+（`site:` / `-site:`，多个域名用 `OR` 分组），两个后端（Exa / Parallel）行为一致 ——
+只有其中一个支持 include/exclude 数组参数，直接传未知参数会让 MCP 调用报错。
+查询长度下限 2 字符也与 CC 一致。
+
+PDF 读取补齐 CC 的两条路径：小文件整份作为 document block 内联（先验空、验
+20MB 上限、验 `%PDF-` 魔数，避免假 PDF 进入上下文后整个会话持续 400）；带
+`pages` 参数（`"1-5"` / `"3"` / `"10-20"`，单次最多 20 页）或体积超过 3MB 时，
+用 poppler-utils 的 `pdftoppm` 按 100 DPI 渲染成 JPEG 图片附件，渲染完立即删除
+临时目录；`pdfinfo` 报页数超过 10 页时直接拒绝整份内联并提示改用 `pages`；
+poppler 缺失时给出 `brew install poppler` / `apt-get install poppler-utils` 的安装提示。
+
+shell 的退出码语义已对齐 CC `commandSemantics.ts`：`grep` / `rg` 的 1 表示
+「没有匹配」、`diff` 的 1 表示「有差异」、`find` 的 1 表示「部分目录不可读」、
+`test` / `[` 的 1 表示「条件为假」，这些不算失败；真正的失败会在输出尾部追加
+`Exit code N`（不再只藏在 metadata 里），并把语义说明写进
+`returnCodeInterpretation`。后台任务的失败态用同一套判断，`grep` 无匹配不会再把
+任务卡片标红；前台统一的 BackgroundJob 等待改为 `timeout + 5s` 兜底，超时/中断
+的结果 `exit` 保持 `null` 而不是伪装成 0。
+
+`webfetch` 现在按会话缓存结果（对齐 CC WebFetch 的 15 分钟缓存）：同一
+`sessionID + URL + format` 在 15 分钟内重复获取直接返回上次内容，命中时
+`metadata.cached = true`；只缓存文本结果（图片附件不缓存），最多 50 条、先进先出
+淘汰。不同 format / 不同会话各自独立，避免 `text` 与 `markdown` 互相覆盖。
+
+`websearch` 的描述补上 CC 的强制引用要求：回答末尾必须带 `Sources:` 段，按
+`[Title](URL)` 列出用到的链接。
+
+`webfetch` 补齐 CC 的「抓取 + 二次模型处理」契约：
+
+- 新增 `prompt` 参数。带 `prompt` 时把页面转成 markdown 后交给一次性模型抽取答案
+  （提示词与引用约束同 CC `makeSecondaryModelPrompt`），返回模型答案而不是整页原文；
+  没有可用模型时退回原文并在 `metadata.processed` 标记为 false，避免整次抓取失败。
+- 跨域重定向不再自动跟随：返回 `REDIRECT DETECTED` 说明 + 目标 URL，让模型显式
+  再发一次请求（同主机 / 仅 `www.` 差异的重定向仍然自动跟，最多 10 跳）。
+- `http://` 自动升级为 `https://`（本地地址与 `*.local` 除外，便于本地开发）。
+- 页面内容按 CC 的 10 万字符上限截断，下载体积上限 10MB；markdown 里的相对链接
+  按最终 URL 补全。
+- 缓存 key 加入 `prompt`，同一页面不同抽取问题不会互相顶替。
 
 ### 10.4 明确不对齐
 
 - `cache_edits` / cached microcompact、prompt cache break detection：Anthropic 专有能力
 - context collapse、snip、proactive、GrowthBook、遥测、自动更新、Bridge：非内核扩展能力
 - Tool 内 React 渲染：与终端 UI 强耦合，我们保持 UI 层解耦
+- ant-only：`ConfigTool`、`REPLTool`、`MagicDocs`、`PromptSuggestion`（CC 内部实验/UI 建议）
+- SDK 专用：`toolUseSummary`（移动端进度标签）；会话笔记已覆盖其价值
+- 云端 OAuth 绑定：`RemoteTriggerTool`（Claude.ai 远程触发）、`McpAuthTool` 的浏览器
+  流程已用 `mcp_setup({ action: "authenticate" })` 覆盖

@@ -321,7 +321,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     setActiveMessage(prev)
   }
 
-  const compact = async () => {
+  const compact = async (instructions?: string) => {
     const sessionID = params.id
     if (!sessionID) return
 
@@ -338,6 +338,8 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       sessionID,
       modelID: model.id,
       providerID: model.provider.id,
+      // `/compact <text>`: focus the summary on what the user asked for.
+      ...(instructions?.trim() ? { instructions: instructions.trim() } : {}),
     })
   }
 
@@ -401,7 +403,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       description: language.t("command.session.compact.description"),
       slash: "compact",
       disabled: !params.id || visibleUserMessages().length === 0,
-      onSelect: compact,
+      onSelect: (_source, args) => compact(args),
     }),
     sessionCommand({
       id: "session.fork",

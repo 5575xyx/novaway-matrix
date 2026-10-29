@@ -67,35 +67,15 @@ export function WorkspaceHeader() {
       classList={{
         "flex h-12 shrink-0 items-center gap-2 border-b border-border px-2 select-none": true,
         // Windows 原生 titleBarOverlay 已关闭（改由 WindowControls 自绘），不再需要预留 138px。
-        // macOS 红绿灯在左上角，侧栏收起时它压在会话帧这一行上。
-        "pl-[78px]": isMacDesktop() && reserveWindowControls(),
+        // macOS 红绿灯在左上角。左侧图标条（48px）常驻后，主区从 48px 开始，
+        // 只需再让出红绿灯剩下的那段，不再按整组窗控宽度预留。
+        "pl-[30px]": isMacDesktop() && reserveWindowControls(),
       }}
       data-window-drag
     >
-      {/* 侧栏折叠时，品牌字标兼作回首页入口 —— 侧栏展开时品牌在 sidebar-top-band 里，
-          折叠后没有第二入口，用户会失去"回到首页"和视觉锚点。放在 Header 行内而不是浮层，
-          才不压住标题、也不会因为侧栏展开就消失（用户诉求：时刻显示在左上角）。 */}
-      <Show when={!layout.sidebar.expanded()}>
-        <button
-          type="button"
-          class="flex h-8 min-w-0 shrink items-center gap-2 rounded-md px-1.5 text-foreground-subtle transition-colors hover:bg-hover"
-          style={{
-            "--mode-accent":
-              layout.mode.all.find((m) => m.id === layout.mode.current())?.color ?? "var(--border-hover)",
-          }}
-          onClick={() => navigate("/")}
-          aria-label={language.t("command.home.open")}
-          title={language.t("command.home.open")}
-        >
-          <Mark class="size-5 shrink-0 text-foreground" />
-          <span class="brand-wordmark text-ui-base truncate">
-            Nova<span class="text-[var(--mode-accent)]">Way</span>
-          </span>
-        </button>
-      </Show>
       {/* 侧栏收起时，展开入口归 Header（对齐 ZCode：收起态由 Header 承载展开按钮，
-          展开态收起入口在侧栏顶带）。放在 Header 行内而不是浮层，才不会压住标题、
-          也有 32px 的正常点击区。 */}
+          展开态收起入口在侧栏顶带）。品牌字标不再重复一份 —— logo 常驻在最左侧图标条
+          顶端（rail 不随折叠消失），这里只放展开按钮。 */}
       <Show when={!layout.sidebar.expanded()}>
         <IconButton
           icon="chevron-right"
@@ -117,7 +97,7 @@ export function WorkspaceHeader() {
         onClick={layout.mobileSidebar.toggle}
       />
       <Show when={working()}>
-        <span class="size-2 rounded-full bg-[var(--success)] animate-pulse shrink-0" />
+        <span class="size-2 rounded-full bg-[var(--success)] novaway-breathe-dot shrink-0" />
       </Show>
       {/* 子智能体会话的面包屑：`父会话标题 › 本会话标题`。
           子会话从父会话派生而来，只给标题看不出它是谁的子任务

@@ -25,6 +25,8 @@ import { EventV2Bridge } from "@/event-v2-bridge"
 import { SessionEvent } from "@novaway/core/session-event"
 import { Memory } from "@/memory/service"
 import { Service as HookService, defaultLayer as HookLayer } from "@/hook/service"
+import { ReadState } from "@/tool/read-state"
+import { SessionMemoryNotes } from "./memory-notes"
 
 const log = Log.create({ service: "session.compaction" })
 
@@ -51,7 +53,7 @@ const POST_COMPACT_MAX_FILES = 5
 const POST_COMPACT_MAX_TOKENS_PER_FILE = 5_000
 const POST_COMPACT_TOTAL_TOKENS = 50_000
 const POST_COMPACT_MAX_FILE_BYTES = 2_000_000
-const POST_COMPACT_TOOLS = new Set(["read", "write", "edit"])
+const POST_COMPACT_TOOLS = new Set(["read", "write", "edit", "apply_patch"])
 const SUMMARY_TEMPLATE = `Output exactly the Markdown structure shown inside <template> and keep the section order unchanged. Do not include the <template> tags in your response.
 <template>
 ## Goal
@@ -160,7 +162,7 @@ function completedCompactions(messages: MessageV2.WithParts[]) {
   })
 }
 
-function buildPrompt(input: { previousSummary?: string; context: string[] }) {
+function buildPrompt(input: { previousSummary?: string; context: string[]; instructions?: string }) {
   const anchor = input.previousSummary
     ? [
         "Update the anchored summary below using the conversation history above.",
@@ -170,7 +172,14 @@ function buildPrompt(input: { previousSummary?: string; context: string[] }) {
         "</previous-summary>",
       ].join("\n")
     : "Create a new anchored summary from the conversation history above."
-  return [anchor, SUMMARY_TEMPLATE, ...input.context].join("\n\n")
+  // `/compact <instructions>`：用户当次的要求优先于模板里"保留什么"的默认判断。
+  const instructions = input.instructions?.trim()
+    ? [
+        "Additional instructions from the user for this compaction (follow them, they override the defaults below when they conflict):",
+        input.instructions.trim(),
+      ].join("\n")
+    : undefined
+  return [anchor, ...(instructions ? [instructions] : []), SUMMARY_TEMPLATE, ...input.context].join("\n\n")
 }
 
 function preserveRecentBudget(input: { cfg: Config.Info; model: Provider.Model }) {
@@ -224,6 +233,84 @@ function splitTurn(input: {
 }
 
 /**
+ * 会话笔记压缩（对齐 CC `trySessionMemoryCompaction`）的保留预算。
+ * 笔记已经覆盖了较早的对话，压缩时只需要保留最近一段原始消息。
+ */
+export const SM_COMPACT = {
+  minTokens: 10_000,
+  minTextBlockMessages: 5,
+  maxTokens: 40_000,
+}
+
+function hasTextBlocks(message: MessageV2.WithParts) {
+  return message.parts.some(
+    (part) => part.type === "text" && !part.ignored && !part.synthetic && part.text.trim().length > 0,
+  )
+}
+
+/**
+ * 单条消息的粗略 token 数。只用来决定"保留到哪"，和为压缩请求本身
+ * 计量（会走 toModelMessages）不同，这里宁可快而稳定。
+ */
+function messageTokens(message: MessageV2.WithParts) {
+  let total = 0
+  for (const part of message.parts) {
+    if (part.type === "text") {
+      if (!part.ignored) total += Token.estimate(part.text)
+    } else if (part.type === "reasoning") {
+      total += Token.estimate(part.text)
+    } else if (part.type === "tool") {
+      if (part.state.status === "completed") {
+        total += Token.estimate(JSON.stringify(part.state.input ?? {}))
+        total += Token.estimate(part.state.output)
+      } else if (part.state.status === "error") {
+        total += Token.estimate(part.state.error)
+      }
+    }
+  }
+  return total
+}
+
+/**
+ * 压缩后保留消息的起始下标：从"已摘要到的最后一条消息"之后开始，若不足
+ * minTokens 或 minTextBlockMessages 就向前扩，碰到 maxTokens 立刻停。
+ */
+export function messagesToKeepIndex(messages: MessageV2.WithParts[], lastSummarizedIndex: number) {
+  let start = lastSummarizedIndex >= 0 ? lastSummarizedIndex + 1 : messages.length
+  let tokens = 0
+  let textMessages = 0
+  for (let i = start; i < messages.length; i++) {
+    tokens += messageTokens(messages[i]!)
+    if (hasTextBlocks(messages[i]!)) textMessages++
+  }
+  const enough = () => tokens >= SM_COMPACT.minTokens && textMessages >= SM_COMPACT.minTextBlockMessages
+  if (tokens < SM_COMPACT.maxTokens && !enough()) {
+    for (let i = start - 1; i >= 0; i--) {
+      tokens += messageTokens(messages[i]!)
+      if (hasTextBlocks(messages[i]!)) textMessages++
+      start = i
+      if (tokens >= SM_COMPACT.maxTokens || enough()) break
+    }
+  }
+  return adjustToUserStart(messages, start)
+}
+
+/**
+ * 压缩后的对话必须从用户消息开始（很多 provider 不接受 assistant 开头），
+ * 也不能从一条旧的压缩标记开始 —— 那会再次触发剪枝。
+ */
+function adjustToUserStart(messages: MessageV2.WithParts[], start: number) {
+  if (start <= 0) return 0
+  for (let i = start; i >= 0; i--) {
+    const message = messages[i]!
+    if (message.info.role !== "user") continue
+    if (message.parts.some((part) => part.type === "compaction")) continue
+    return i
+  }
+  return 0
+}
+
+/**
  * 压缩请求本身超限时，丢掉最旧的一半内容再试。
  *
  * 优先按用户轮次切（保证新的 head 从 user 开始）；只有一个轮次时保留
@@ -244,10 +331,38 @@ function truncateForRetry(messages: MessageV2.WithParts[]) {
 }
 
 /**
+ * Absolute paths a tool part touched. `read`/`write`/`edit` carry a single
+ * `filePath`; `apply_patch` hides them inside the patch envelope, so the
+ * `*** Update/Add/Delete File:` and `*** Move to:` headers are scanned.
+ * Paths are resolved against the session directory, matching how the tools
+ * themselves resolve relative hunk paths.
+ */
+function partPaths(part: MessageV2.ToolPart, base: string) {
+  const input = part.state.input
+  if (part.tool === "apply_patch") {
+    const patch = typeof input.patchText === "string" ? input.patchText : ""
+    if (!patch) return []
+    const files: string[] = []
+    for (const match of patch.matchAll(/^\*\*\* (?:Add|Update|Delete) File: (.+)$/gm)) {
+      const file = match[1]!.trim()
+      if (file) files.push(path.resolve(base, file))
+    }
+    for (const match of patch.matchAll(/^\*\*\* Move to: (.+)$/gm)) {
+      const file = match[1]!.trim()
+      if (file) files.push(path.resolve(base, file))
+    }
+    return files
+  }
+  const filePath = input.filePath
+  if (typeof filePath !== "string" || !filePath) return []
+  return [path.resolve(base, filePath)]
+}
+
+/**
  * Files recently read/written/edited in the compacted portion, newest first.
  * The retained tail is excluded because it stays in context anyway.
  */
-function recentFiles(messages: MessageV2.WithParts[], limit: number) {
+function recentFiles(messages: MessageV2.WithParts[], limit: number, base: string) {
   const seen = new Set<string>()
   const files: string[] = []
   for (let i = messages.length - 1; i >= 0 && files.length < limit; i--) {
@@ -255,15 +370,31 @@ function recentFiles(messages: MessageV2.WithParts[], limit: number) {
     for (let j = message.parts.length - 1; j >= 0 && files.length < limit; j--) {
       const part = message.parts[j]!
       if (part.type !== "tool" || !POST_COMPACT_TOOLS.has(part.tool)) continue
-      const filePath = part.state.input.filePath
-      if (typeof filePath !== "string" || !filePath) continue
-      const normalized = path.resolve(filePath)
-      if (seen.has(normalized)) continue
-      seen.add(normalized)
-      files.push(normalized)
+      for (const normalized of partPaths(part, base)) {
+        if (seen.has(normalized)) continue
+        seen.add(normalized)
+        files.push(normalized)
+        if (files.length >= limit) break
+      }
     }
   }
   return files
+}
+
+/**
+ * Every file path handed to a read/write/edit/apply_patch tool in these
+ * messages. Used to drop stale `ReadState` entries once their content leaves
+ * context.
+ */
+function touchedPaths(messages: MessageV2.WithParts[], base: string) {
+  const paths = new Set<string>()
+  for (const message of messages) {
+    for (const part of message.parts) {
+      if (part.type !== "tool" || !POST_COMPACT_TOOLS.has(part.tool)) continue
+      for (const file of partPaths(part, base)) paths.add(file)
+    }
+  }
+  return [...paths]
 }
 
 /**
@@ -274,7 +405,8 @@ function recentFiles(messages: MessageV2.WithParts[], limit: number) {
 const buildAttachments = Effect.fn("SessionCompaction.attachments")(function* (input: {
   messages: MessageV2.WithParts[]
 }) {
-  const files = recentFiles(input.messages, POST_COMPACT_MAX_FILES)
+  const instance = yield* InstanceState.context
+  const files = recentFiles(input.messages, POST_COMPACT_MAX_FILES, instance.directory)
   if (!files.length) return { text: undefined as string | undefined, tokens: 0, files: [] as string[] }
 
   const chunks: string[] = []
@@ -330,6 +462,7 @@ export interface Interface {
     model: { providerID: ProviderID; modelID: ModelID }
     auto: boolean
     overflow?: boolean
+    instructions?: string
   }) => Effect.Effect<void>
 }
 
@@ -351,6 +484,7 @@ export const layer = Layer.effect(
     const flags = yield* RuntimeFlags.Service
     const memory = yield* Memory.Service
     const hooks = Option.getOrUndefined(yield* Effect.serviceOption(HookService))
+    const readState = Option.getOrUndefined(yield* Effect.serviceOption(ReadState.Service))
 
     const isOverflow = Effect.fn("SessionCompaction.isOverflow")(function* (input: {
       tokens: MessageV2.Assistant["tokens"]
@@ -482,6 +616,7 @@ export const layer = Layer.effect(
       if (!parent || parent.info.role !== "user") {
         throw new Error(`Compaction parent must be a user message: ${input.parentID}`)
       }
+      const instance = yield* InstanceState.context
 
       const userMessage = parent.info
       const compactionPart = parent.parts.find((part): part is MessageV2.CompactionPart => part.type === "compaction")
@@ -520,13 +655,48 @@ export const layer = Layer.effect(
       const prior = completedCompactions(history)
       const hidden = new Set(prior.flatMap((item) => [item.userIndex, item.assistantIndex]))
       const previousSummary = prior.at(-1)?.summary
-      const selected = yield* select({
-        messages: history.filter((_, index) => !hidden.has(index)),
-        cfg,
-        model,
+      const visible = history.filter((_, index) => !hidden.has(index))
+      const selected = yield* select({ messages: visible, cfg, model })
+      // 会话笔记可用时优先用"笔记当摘要"：省掉一次完整的压缩请求，只保留最近
+      // 一段原始消息（对齐 CC 的 session memory compaction）。锚点未知或
+      // 压缩后仍然超限时回退到常规摘要。
+      const smPlan = yield* Effect.gen(function* () {
+        const notes = yield* Effect.promise(() => SessionMemoryNotes.read(input.sessionID))
+        if (!notes) return undefined
+        const anchor = SessionMemoryNotes.state(input.sessionID)?.lastMessageID
+        const anchorIndex = anchor ? visible.findIndex((message) => message.info.id === anchor) : -1
+        // 锚点不在历史里（撤回/重写等）就无法划边界，交给常规摘要。
+        if (anchor && anchorIndex === -1) return undefined
+        // 恢复的会话没有锚点：当作"整段都已摘要"，再从尾部向前补足最小保留量。
+        const start = messagesToKeepIndex(visible, anchorIndex === -1 ? visible.length - 1 : anchorIndex)
+        if (start <= 0 || start >= visible.length) return undefined
+        const head = visible.slice(0, start)
+        const truncated = SessionMemoryNotes.truncate(notes)
+        if (input.auto) {
+          const lastAssistant = [...history]
+            .reverse()
+            .find(
+              (item) =>
+                item.info.role === "assistant" && item.info.summary !== true && (item.info.tokens?.total ?? 0) > 0,
+            )
+          if (lastAssistant && lastAssistant.info.role === "assistant") {
+            const mainModel = yield* provider
+              .getModel(userMessage.model.providerID, userMessage.model.modelID)
+              .pipe(Effect.orDie)
+            const budget = usable({ cfg, model: mainModel, outputTokenMax: flags.outputTokenMax })
+            const removed = yield* estimate({ messages: head, model: mainModel })
+            const projected =
+              Math.max(0, lastAssistant.info.tokens.total ?? 0) + Token.estimate(truncated.text) - removed
+            if (budget > 0 && projected >= budget) {
+              log.info("session memory compaction cannot make progress; falling back", { projected, budget })
+              return undefined
+            }
+          }
+        }
+        return { head, tail: visible[start]!.info.id, summary: truncated.text, truncated: truncated.truncated }
       })
       if (ConfigMemory.resolve(cfg.memory).enabled && ConfigMemory.resolve(cfg.memory).review_enabled) {
-        const text = reviewText(selected.head)
+        const text = reviewText(smPlan ? smPlan.head : selected.head)
         if (text) {
           const info = yield* session.get(input.sessionID).pipe(Effect.option)
           yield* memory
@@ -546,15 +716,74 @@ export const layer = Layer.effect(
         { context: [], prompt: undefined },
       )
       const context = compacting.context
-      const nextPrompt = compacting.prompt ?? buildPrompt({ previousSummary, context })
-      let head = selected.head
-      let result: "continue" | "stop" | "compact" = "compact"
+      const nextPrompt =
+        compacting.prompt ??
+        buildPrompt({ previousSummary, context, instructions: compactionPart?.instructions })
+      let head = smPlan ? smPlan.head : selected.head
+      let tailStartID = smPlan?.tail ?? selected.tail_start_id
+      let result: "continue" | "stop" | "compact" = smPlan ? "continue" : "compact"
       let summaryMessage: MessageV2.Assistant | undefined
       let failedMessage: MessageV2.Assistant | undefined
 
+      if (smPlan) {
+        const ctx = yield* InstanceState.context
+        const notesPath = SessionMemoryNotes.file(input.sessionID)
+        const summary = [
+          "This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.",
+          "",
+          smPlan.summary,
+          ...(smPlan.truncated
+            ? ["", `Some session memory sections were truncated for length. The full session memory can be viewed at: ${notesPath}`]
+            : []),
+          "",
+          "Recent messages are preserved verbatim.",
+        ].join("\n")
+        const tokens = Token.estimate(summary)
+        const msg: MessageV2.Assistant = {
+          id: MessageID.ascending(),
+          role: "assistant",
+          parentID: input.parentID,
+          sessionID: input.sessionID,
+          mode: "compaction",
+          agent: "compaction",
+          variant: userMessage.model.variant,
+          summary: true,
+          finish: "stop",
+          path: {
+            cwd: ctx.directory,
+            root: ctx.worktree,
+          },
+          cost: 0,
+          tokens: {
+            total: tokens,
+            output: tokens,
+            input: 0,
+            reasoning: 0,
+            cache: { read: 0, write: 0 },
+          },
+          modelID: model.id,
+          providerID: model.providerID,
+          time: {
+            created: Date.now(),
+            completed: Date.now(),
+          },
+        }
+        yield* session.updateMessage(msg)
+        yield* session.updatePart({
+          id: PartID.ascending(),
+          messageID: msg.id,
+          sessionID: input.sessionID,
+          type: "text",
+          text: summary,
+          time: { start: Date.now(), end: Date.now() },
+        })
+        summaryMessage = msg
+        log.info("compacted with session memory", { kept: visible.length - smPlan.head.length, truncated: smPlan.truncated })
+      }
+
       // 压缩请求自己也可能是 prompt-too-long（会话太大 / 工具输出太多）。
       // 这时不能直接放弃：按最旧的一半裁剪 head，最多重试 3 次。
-      for (let attempt = 1; attempt <= MAX_COMPACTION_RETRIES; attempt++) {
+      for (let attempt = 1; !smPlan && attempt <= MAX_COMPACTION_RETRIES; attempt++) {
         const msgs = structuredClone(head)
         yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
         const modelMessages = yield* MessageV2.toModelMessagesEffect(msgs, model, {
@@ -666,10 +895,25 @@ export const layer = Layer.effect(
         })
       }
 
-      if (compactionPart && selected.tail_start_id && compactionPart.tail_start_id !== selected.tail_start_id) {
+      // The compacted head is gone, so a later read of one of those files must
+      // not be answered with the "unchanged since last read" stub — the read it
+      // points at is no longer in context (and the re-attached copy above may be
+      // truncated). Forgetting the entries makes the next read return the file.
+      if (readState) {
+        const tailIndex = tailStartID ? messages.findIndex((message) => message.info.id === tailStartID) : -1
+        const kept = new Set(
+          tailIndex === -1 ? [] : touchedPaths(messages.slice(tailIndex), instance.directory),
+        )
+        const paths = touchedPaths(head, instance.directory).filter((file) => !kept.has(file))
+        yield* Effect.forEach(paths, (file) => readState.forget(input.sessionID, file), { discard: true }).pipe(
+          Effect.ignore,
+        )
+      }
+
+      if (compactionPart && tailStartID && compactionPart.tail_start_id !== tailStartID) {
         yield* session.updatePart({
           ...compactionPart,
-          tail_start_id: selected.tail_start_id,
+          tail_start_id: tailStartID,
         })
       }
 
@@ -814,7 +1058,7 @@ export const layer = Layer.effect(
             sessionID: input.sessionID,
             timestamp: DateTime.makeUnsafe(Date.now()),
             text: summary ?? "",
-            include: selected.tail_start_id,
+            include: tailStartID,
           })
         }
         yield* bus.publish(Event.Compacted, { sessionID: input.sessionID })
@@ -831,6 +1075,8 @@ export const layer = Layer.effect(
       model: { providerID: ProviderID; modelID: ModelID }
       auto: boolean
       overflow?: boolean
+      /** `/compact <instructions>`: extra guidance for what to keep. */
+      instructions?: string
     }) {
       if (hooks) {
         const pre = yield* hooks
@@ -854,6 +1100,7 @@ export const layer = Layer.effect(
         type: "compaction",
         auto: input.auto,
         overflow: input.overflow,
+        ...(input.instructions?.trim() ? { instructions: input.instructions.trim() } : {}),
       })
       if (flags.experimentalEventSystem) {
         yield* events.publish(SessionEvent.Compaction.Started, {
@@ -886,6 +1133,7 @@ export const defaultLayer = Layer.suspend(() =>
     Layer.provide(HookLayer),
     Layer.provide(RuntimeFlags.defaultLayer),
     Layer.provide(EventV2Bridge.defaultLayer),
+    Layer.provide(ReadState.defaultLayer),
   ),
 )
 

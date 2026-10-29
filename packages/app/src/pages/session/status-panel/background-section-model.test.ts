@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { jobKind, jobKindLabelKey, showsResult, type BackgroundJob } from "./background-section-model"
+import { jobKind, jobKindLabelKey, type BackgroundJob } from "./background-section-model"
 
 const job = (input: Partial<BackgroundJob> & { type: string }): BackgroundJob =>
   ({
@@ -24,13 +24,6 @@ describe("background job kinds", () => {
     expect(jobKindLabelKey(job({ type: "task" }))).toBeUndefined()
     expect(jobKindLabelKey(job({ type: "monitor" }))).toBe("statusPanel.background.kind.monitor")
     expect(jobKindLabelKey(job({ type: "subscribe" }))).toBe("statusPanel.background.kind.subscribe")
-  })
-
-  test("async sources keep their result visible after finishing", () => {
-    expect(showsResult(job({ type: "monitor", status: "completed", output: "done" }))).toBe(true)
-    expect(showsResult(job({ type: "subscribe", status: "completed", output: "changed" }))).toBe(true)
-    expect(showsResult(job({ type: "monitor", status: "running", output: "x" }))).toBe(false)
-    expect(showsResult(job({ type: "task", status: "completed", output: "x" }))).toBe(false)
   })
 })
 

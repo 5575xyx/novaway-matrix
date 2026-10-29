@@ -21,6 +21,7 @@ const InputObject = Schema.StructWithRest(
     grep: Schema.optional(Rule),
     list: Schema.optional(Rule),
     bash: Schema.optional(Rule),
+    powershell: Schema.optional(Rule),
     task: Schema.optional(Rule),
     external_directory: Schema.optional(Rule),
     todowrite: Schema.optional(Action),
@@ -33,6 +34,8 @@ const InputObject = Schema.StructWithRest(
     lsp: Schema.optional(Rule),
     doom_loop: Schema.optional(Action),
     skill: Schema.optional(Rule),
+    cron: Schema.optional(Rule),
+    worktree: Schema.optional(Rule),
   }),
   [Schema.Record(Schema.String, Rule)],
 )

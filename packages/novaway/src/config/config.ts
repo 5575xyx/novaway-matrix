@@ -391,6 +391,16 @@ export const Info = Schema.Struct({
       reserved: Schema.optional(NonNegativeInt).annotate({
         description: "Token buffer for compaction. Leaves enough window to avoid overflow during compaction.",
       }),
+      threshold: Schema.optional(PositiveInt).annotate({
+        description:
+          "Token count at which automatic compaction starts. Takes precedence over threshold_percent. Clamped below the hard blocking limit (effective window - 3k) so a request can still be sent.",
+      }),
+      threshold_percent: Schema.optional(
+        Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)).check(Schema.isLessThanOrEqualTo(100)),
+      ).annotate({
+        description:
+          "Percentage (1-100) of the usable context window at which automatic compaction starts. Defaults to the usable window minus 13k tokens. Ignored when `threshold` is set.",
+      }),
     }),
   ),
   experimental: Schema.optional(

@@ -403,6 +403,34 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
             setOptimisticRemove(setStore as (...args: unknown[]) => void, input)
           },
         },
+        /**
+         * 本地删除一批消息（含 parts 与 optimistic 缓存）。
+         *
+         * 回滚（revert）在服务端会直接删掉回滚点及之后的消息，客户端本应靠
+         * `message.removed` 事件 + 随后的强制 sync 收敛。但只要其中任一环慢一拍
+         * （事件还没到、sync 撞上进行中的请求被合并），本地就会残留那条被回滚掉的提问。
+         * 回滚是"用户明确要求把这些消息从会话里去掉"，本地直接裁掉不会有副作用。
+         */
+        dropMessages(sessionID: string, predicate: (messageID: string) => boolean) {
+          const directory = sdk.directory
+          const [store, setStore] = globalSync.child(directory, { bootstrap: false })
+          const ids = (store.message[sessionID] ?? [])
+            .filter((message) => predicate(message.id))
+            .map((message) => message.id)
+          if (ids.length === 0) return
+          for (const id of ids) clearOptimistic(directory, sessionID, id)
+          setStore(
+            produce((draft) => {
+              const messages = draft.message[sessionID]
+              if (messages) {
+                for (let index = messages.length - 1; index >= 0; index--) {
+                  if (predicate(messages[index]!.id)) messages.splice(index, 1)
+                }
+              }
+              for (const id of ids) delete draft.part[id]
+            }),
+          )
+        },
         addOptimisticMessage(input: {
           sessionID: string
           messageID: string
@@ -410,8 +438,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           agent: string
           model: { providerID: string; modelID: string }
           variant?: string
-        }) {
-          const message: Message = {
+        }) {          const message: Message = {
             id: input.messageID,
             sessionID: input.sessionID,
             role: "user",

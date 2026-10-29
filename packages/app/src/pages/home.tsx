@@ -1,5 +1,5 @@
 import { Match, Switch } from "solid-js"
-import { Navigate, useNavigate } from "@solidjs/router"
+import { useNavigate } from "@solidjs/router"
 import { base64Encode } from "@novaway/core/util/encode"
 import { usePlatform } from "@/context/platform"
 import { useDialog } from "@novaway/ui/context/dialog"
@@ -70,9 +70,6 @@ export default function Home() {
       <HomeHeader />
       <div class="min-h-0 flex-1">
         <Switch>
-          <Match when={layout.mode.current() === "pulse"}>
-            <Navigate href="/pulse" />
-          </Match>
           <Match when={layout.mode.current() === "zen"}>
             <OfficeHomeWorkspace onEnterProject={enterOfficeProject} onSelectProject={selectOfficeProject} />
           </Match>

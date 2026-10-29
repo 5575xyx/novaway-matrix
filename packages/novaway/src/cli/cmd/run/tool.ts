@@ -18,21 +18,25 @@ import stripAnsi from "strip-ansi"
 import type { ToolPart } from "@novaway/sdk/v2"
 import type * as Tool from "@/tool/tool"
 import type { ApplyPatchTool } from "@/tool/apply_patch"
-import type { ShellTool as BashTool } from "@/tool/shell"
+import type { PowerShellTool as PowerShellToolType, ShellTool as BashTool } from "@/tool/shell"
 import type { EditTool } from "@/tool/edit"
 import type { GlobTool } from "@/tool/glob"
 import type { GrepTool } from "@/tool/grep"
 import type { InvalidTool } from "@/tool/invalid"
 import type { LspTool } from "@/tool/lsp"
-import type { PlanExitTool } from "@/tool/plan"
+import type { NotebookEditTool } from "@/tool/notebook_edit"
+import type { PlanEnterTool, PlanExitTool } from "@/tool/plan"
 import type { QuestionTool } from "@/tool/question"
 import type { ReadTool } from "@/tool/read"
 import type { SkillTool } from "@/tool/skill"
+import type { SleepTool } from "@/tool/sleep"
 import type { TaskTool } from "@/tool/task"
 import type { TodoWriteTool } from "@/tool/todo"
 import type { WebFetchTool } from "@/tool/webfetch"
 import { webSearchProviderLabel, type WebSearchTool } from "@/tool/websearch"
 import type { WriteTool } from "@/tool/write"
+import type { WorktreeEnterTool, WorktreeExitTool } from "@/tool/worktree"
+import type { CronCreateTool, CronDeleteTool, CronListTool } from "@/tool/cron"
 import { LANGUAGE_EXTENSIONS } from "@/lsp/language"
 import * as Locale from "@/util/locale"
 import type { RunDiffStyle, RunEntryBody, StreamCommit, ToolSnapshot } from "./types"
@@ -94,8 +98,11 @@ type ToolPermissionCtx = {
 type ToolDefs = {
   invalid: typeof InvalidTool
   bash: typeof BashTool
+  powershell: typeof PowerShellToolType
   write: typeof WriteTool
   edit: typeof EditTool
+  sleep: typeof SleepTool
+  notebook_edit: typeof NotebookEditTool
   apply_patch: typeof ApplyPatchTool
   batch: Tool.Info
   task: typeof TaskTool
@@ -110,6 +117,12 @@ type ToolDefs = {
   websearch: typeof WebSearchTool
   skill: typeof SkillTool
   plan_exit: typeof PlanExitTool
+  plan_enter: typeof PlanEnterTool
+  enter_worktree: typeof WorktreeEnterTool
+  exit_worktree: typeof WorktreeExitTool
+  cron_create: typeof CronCreateTool
+  cron_delete: typeof CronDeleteTool
+  cron_list: typeof CronListTool
 }
 
 type ToolName = keyof ToolDefs
@@ -355,6 +368,63 @@ function runEdit(p: ToolProps<typeof EditTool>): ToolInline {
   }
 }
 
+function runCronCreate(p: ToolProps<typeof CronCreateTool>): ToolInline {
+  return {
+    icon: "◷",
+    title: p.input.cron ? `Cron ${p.input.cron}` : "Cron",
+    description: p.input.recurring === false ? "one-shot" : undefined,
+  }
+}
+
+function runCronDelete(p: ToolProps<typeof CronDeleteTool>): ToolInline {
+  return {
+    icon: "◷",
+    title: p.input.id ? `Cron delete ${p.input.id}` : "Cron delete",
+  }
+}
+
+function runCronList(_: ToolProps<typeof CronListTool>): ToolInline {
+  return {
+    icon: "◷",
+    title: "Cron jobs",
+  }
+}
+
+function runEnterWorktree(p: ToolProps<typeof WorktreeEnterTool>): ToolInline {
+  return {
+    icon: "⌂",
+    title: p.input.name ? `Enter worktree ${p.input.name}` : "Enter worktree",
+  }
+}
+
+function runExitWorktree(p: ToolProps<typeof WorktreeExitTool>): ToolInline {
+  return {
+    icon: "⌂",
+    title: p.input.action === "remove" ? "Exit worktree (remove)" : "Exit worktree (keep)",
+  }
+}
+
+function runSleep(p: ToolProps<typeof SleepTool>): ToolInline {
+  const ms = typeof p.input.duration_ms === "number" ? Math.max(0, Math.trunc(p.input.duration_ms)) : undefined
+  const label = ms === undefined ? "" : ms >= 1000 ? `${Math.round(ms / 100) / 10}s` : `${ms}ms`
+  return {
+    icon: "◷",
+    title: label ? `Sleep ${label}` : "Sleep",
+  }
+}
+
+function runNotebookEdit(p: ToolProps<typeof NotebookEditTool>): ToolInline {
+  const file = toolPath(p.input.notebook_path)
+  const action = p.input.edit_mode === "insert" ? "Insert" : p.input.edit_mode === "delete" ? "Delete" : "Edit"
+  const cell = p.input.cell_id ? ` (cell ${p.input.cell_id})` : ""
+  return {
+    icon: "←",
+    title: `${action} ${file}${cell}`.trim(),
+    mode: "block",
+    body: p.metadata.diff,
+  }
+}
+
 function runWebSearch(p: ToolProps<typeof WebSearchTool>): ToolInline {
   const title = webSearchProviderLabel(p.metadata.provider)
   return {
@@ -479,6 +549,15 @@ function runPlanExit(p: ToolProps<typeof PlanExitTool>): ToolInline {
   }
 }
 
+function runPlanEnter(p: ToolProps<typeof PlanEnterTool>): ToolInline {
+  return {
+    icon: "→",
+    title: text(p.frame.state.title) || "Entering plan mode",
+    mode: "block",
+    body: p.frame.status === "completed" ? text(p.frame.state.output) : undefined,
+  }
+}
+
 type PatchFile = Tool.InferMetadata<typeof ApplyPatchTool>["files"][number]
 
 function patchTitle(file: PatchFile): string {
@@ -514,6 +593,25 @@ function snapWrite(p: ToolProps<typeof WriteTool>): ToolSnapshot | undefined {
 
 function snapEdit(p: ToolProps<typeof EditTool>): ToolSnapshot | undefined {
   const file = p.input.filePath || ""
+  const diff = p.metadata.diff || ""
+  if (!file || !diff.trim()) {
+    return undefined
+  }
+
+  return {
+    kind: "diff",
+    items: [
+      {
+        title: `# Edited ${toolPath(file)}`,
+        diff,
+        file,
+      },
+    ],
+  }
+}
+
+function snapNotebookEdit(p: ToolProps<typeof NotebookEditTool>): ToolSnapshot | undefined {
+  const file = p.input.notebook_path || p.metadata.filepath || ""
   const diff = p.metadata.diff || ""
   if (!file || !diff.trim()) {
     return undefined
@@ -682,6 +780,20 @@ function scrollBashFinal(p: ToolProps<typeof BashTool>): string {
   return `bash completed (exit ${code})${time ? ` · ${time}` : ""}`
 }
 
+function scrollPowerShellFinal(p: ToolProps<typeof PowerShellToolType>): string {
+  const code = p.metadata.exit ?? num(p.frame.meta.exitCode) ?? num(p.frame.meta.exit_code)
+  const time = span(p.frame.state)
+  if (code === undefined) {
+    if (!time) {
+      return "powershell completed"
+    }
+
+    return `powershell completed · ${time}`
+  }
+
+  return `powershell completed (exit ${code})${time ? ` · ${time}` : ""}`
+}
+
 function scrollReadStart(p: ToolProps<typeof ReadTool>): string {
   const file = toolPath(p.input.filePath)
   const extra = info(p.frame.input, ["filePath"])
@@ -694,6 +806,10 @@ function scrollWriteStart(_: ToolProps<typeof WriteTool>): string {
 }
 
 function scrollEditStart(_: ToolProps<typeof EditTool>): string {
+  return ""
+}
+
+function scrollNotebookEditStart(_: ToolProps<typeof NotebookEditTool>): string {
   return ""
 }
 
@@ -927,6 +1043,20 @@ function permEdit(p: ToolPermissionProps<typeof EditTool>): ToolPermissionInfo {
   }
 }
 
+function permNotebookEdit(p: ToolPermissionProps<typeof NotebookEditTool>): ToolPermissionInfo {
+  const file = p.input.notebook_path || p.patterns[0] || ""
+  return {
+    icon: "→",
+    title: `Edit ${toolPath(file, { home: true })}`,
+    lines: [
+      ...(p.input.cell_id ? [`Cell: ${p.input.cell_id}`] : []),
+      ...(p.input.edit_mode && p.input.edit_mode !== "replace" ? [`Mode: ${p.input.edit_mode}`] : []),
+    ],
+    diff: p.metadata.diff,
+    file,
+  }
+}
+
 function permRead(p: ToolPermissionProps<typeof ReadTool>): ToolPermissionInfo {
   const file = p.input.filePath || p.patterns[0] || ""
   return {
@@ -970,6 +1100,16 @@ function permBash(p: ToolPermissionProps<typeof BashTool>): ToolPermissionInfo {
     icon: "#",
     title,
     lines: cmd ? [`$ ${cmd}`] : p.patterns.map((item) => `- ${item}`),
+  }
+}
+
+function permPowerShell(p: ToolPermissionProps<typeof PowerShellToolType>): ToolPermissionInfo {
+  const title = p.input.description || "PowerShell command"
+  const cmd = p.input.command || ""
+  return {
+    icon: "#",
+    title,
+    lines: cmd ? [`PS> ${cmd}`] : p.patterns.map((item) => `- ${item}`),
   }
 }
 
@@ -1042,6 +1182,20 @@ const TOOL_RULES = {
     },
     permission: permBash,
   },
+  // Dedicated PowerShell tool: same layout as bash, "PS" icon, own label.
+  powershell: {
+    view: {
+      output: true,
+      final: false,
+    },
+    run: runPowerShell,
+    scroll: {
+      start: scrollBashStart,
+      progress: scrollBashProgress,
+      final: scrollPowerShellFinal,
+    },
+    permission: permPowerShell,
+  },
   write: {
     view: {
       output: false,
@@ -1066,6 +1220,79 @@ const TOOL_RULES = {
       start: scrollEditStart,
     },
     permission: permEdit,
+  },
+  sleep: {
+    view: {
+      output: false,
+      final: true,
+    },
+    run: runSleep,
+    scroll: {
+      start: () => "",
+    },
+  },
+  cron_create: {
+    view: {
+      output: false,
+      final: true,
+    },
+    run: runCronCreate,
+    scroll: {
+      start: () => "",
+    },
+  },
+  cron_delete: {
+    view: {
+      output: false,
+      final: true,
+    },
+    run: runCronDelete,
+    scroll: {
+      start: () => "",
+    },
+  },
+  cron_list: {
+    view: {
+      output: true,
+      final: false,
+    },
+    run: runCronList,
+    scroll: {
+      start: () => "",
+    },
+  },
+  enter_worktree: {
+    view: {
+      output: false,
+      final: true,
+    },
+    run: runEnterWorktree,
+    scroll: {
+      start: () => "",
+    },
+  },
+  exit_worktree: {
+    view: {
+      output: false,
+      final: true,
+    },
+    run: runExitWorktree,
+    scroll: {
+      start: () => "",
+    },
+  },
+  notebook_edit: {
+    view: {
+      output: false,
+      final: true,
+      snap: "diff",
+    },
+    run: runNotebookEdit,
+    snap: snapNotebookEdit,
+    scroll: {
+      start: scrollNotebookEditStart,
+    },
+    permission: permNotebookEdit,
   },
   apply_patch: {
     view: {
@@ -1228,6 +1455,16 @@ const TOOL_RULES = {
       start: () => "",
     },
   },
+  plan_enter: {
+    view: {
+      output: true,
+      final: false,
+    },
+    run: runPlanEnter,
+    scroll: {
+      start: () => "",
+    },
+  },
 } as const satisfies ToolRegistry
 
 function key(name: string): name is ToolName {
@@ -1275,6 +1512,11 @@ function runBash(p: ToolProps<typeof BashTool>): ToolInline {
     mode: "block",
     body: p.frame.status === "completed" ? text(p.frame.state.output).trim() : undefined,
   }
+}
+
+function runPowerShell(p: ToolProps<typeof PowerShellToolType>): ToolInline {
+  const { body } = runBash(p as unknown as ToolProps<typeof BashTool>)
+  return { icon: "PS", title: p.input.command || "", mode: "block", body }
 }
 
 export function toolView(name?: string): ToolView {

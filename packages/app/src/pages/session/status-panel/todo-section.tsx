@@ -27,7 +27,7 @@ const STATUS_STYLE: Record<
   pending: { ring: "border-border-hover bg-transparent", label: "pending" },
   in_progress: {
     ring: "border-[var(--icon-blue)] bg-transparent",
-    dot: "bg-[var(--icon-blue)] animate-pulse",
+    dot: "bg-[var(--icon-blue)] novaway-breathe-dot",
     label: "running",
   },
   // 已完成用绿色实心圆 + 白勾：与「运行中」的蓝色区分开，

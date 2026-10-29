@@ -1,9 +1,10 @@
-import { PlanExitTool } from "./plan"
+import { PlanEnterTool, PlanExitTool } from "./plan"
 import { GoalTool } from "./goal"
 import { Service as WorkflowService, defaultLayer as WorkflowDefaultLayer } from "@/workflow/workflow"
 import { Session } from "@/session/session"
 import { QuestionTool } from "./question"
-import { ShellTool } from "./shell"
+import { PowerShellTool, ShellTool } from "./shell"
+import { Shell } from "@/shell/shell"
 import { EditTool } from "./edit"
 import { GlobTool } from "./glob"
 import { GrepTool } from "./grep"
@@ -82,6 +83,10 @@ import * as Log from "@novaway/core/util/log"
 import { LspTool } from "./lsp"
 import * as Truncate from "./truncate"
 import { ApplyPatchTool } from "./apply_patch"
+import { NotebookEditTool } from "./notebook_edit"
+import { SleepTool } from "./sleep"
+import { CronCreateTool, CronDeleteTool, CronListTool } from "./cron"
+import { Service as CronService, defaultLayer as CronDefaultLayer } from "@/cron/service"
 import { WorkflowTool } from "./workflow"
 import { OrchestratorTool } from "./orchestrator"
 import { OrchestratorService, defaultLayer as OrchestratorDefaultLayer } from "@/orchestrator/orchestrator"
@@ -106,6 +111,7 @@ import {
   defaultLayer as ActivationLayer,
   type Interface as ActivationInterface,
 } from "./activation"
+import { ReadState } from "./read-state"
 import { Instruction } from "../session/instruction"
 import { AppFileSystem } from "@novaway/core/filesystem"
 import { Bus } from "../bus"
@@ -149,12 +155,16 @@ const NL = String.fromCharCode(10)
 
 const READ_ONLY_SHELL =
   /^\s*(ls|cat|head|tail|grep|rg|find|pwd|echo|wc|stat|file|which|type|git (status|diff|log|show|branch|rev-parse)|npm (ls|view)|bun (pm ls|--version))(?=$|[\s;&|])/i
+// PowerShell 只读 cmdlet：Windows 默认 shell 下 plan/只读模式不该为它们弹权限。
+// 操作符（管道、重定向、子表达式）仍由 shellSafe 的字符检查排除。
+const READ_ONLY_PS =
+  /^\s*(get-childitem|get-content|get-item|get-itemproperty|get-location|get-command|get-help|get-module|get-process|get-service|get-variable|test-path|select-string|measure-object|resolve-path|dir|where)(?=$|[\s;&|])/i
 
 function shellSafe(args: unknown) {
   const command =
     typeof (args as { command?: unknown })?.command === "string" ? (args as { command: string }).command : ""
   if (!command.trim()) return false
-  return !/[;&|><`$]/.test(command) && READ_ONLY_SHELL.test(command)
+  return !/[;&|><`$]/.test(command) && (READ_ONLY_SHELL.test(command) || READ_ONLY_PS.test(command))
 }
 
 /**
@@ -163,8 +173,8 @@ function shellSafe(args: unknown) {
  */
 export const CAPABILITIES: Record<string, Tool.Capabilities> = {
   read: { readOnly: true, concurrencySafe: true, maxResultBytes: 400_000 },
-  glob: { readOnly: true, concurrencySafe: true },
-  grep: { readOnly: true, concurrencySafe: true },
+  glob: { readOnly: true, concurrencySafe: true, maxResultBytes: 100_000 },
+  grep: { readOnly: true, concurrencySafe: true, maxResultBytes: 20_000 },
   lsp: { readOnly: true, concurrencySafe: true },
   webfetch: { readOnly: true, concurrencySafe: true },
   websearch: { readOnly: true, concurrencySafe: true },
@@ -174,9 +184,20 @@ export const CAPABILITIES: Record<string, Tool.Capabilities> = {
   write: { destructive: true },
   edit: { destructive: true },
   apply_patch: { destructive: true },
+  notebook_edit: { destructive: true, maxResultBytes: 100_000, searchHint: "edit Jupyter notebook cells (.ipynb)" },
+  sleep: { readOnly: true, concurrencySafe: true },
+  cron_create: { concurrencySafe: false },
+  cron_delete: { concurrencySafe: true },
+  cron_list: { readOnly: true, concurrencySafe: true },
   patch: { destructive: true },
   // Shell tool id and permission key are both "bash" (see tool/shell/id.ts).
   bash: {
+    readOnly: (args) => shellSafe(args),
+    concurrencySafe: (args) => shellSafe(args),
+    interrupt: "cancel",
+  },
+  // Dedicated PowerShell tool (CC `PowerShell`): same safety heuristics as bash.
+  powershell: {
     readOnly: (args) => shellSafe(args),
     concurrencySafe: (args) => shellSafe(args),
     interrupt: "cancel",
@@ -189,6 +210,7 @@ export const CAPABILITIES: Record<string, Tool.Capabilities> = {
   workflow: { concurrencySafe: false },
   question: { concurrencySafe: false },
   plan_exit: { concurrencySafe: false },
+  plan_enter: { concurrencySafe: false, searchHint: "switch to plan mode to design an approach before coding" },
   goal: { concurrencySafe: false },
   skill: { concurrencySafe: false },
   todo: { concurrencySafe: false },
@@ -361,6 +383,7 @@ export const layer: Layer.Layer<
   | BrowserService.Service
   | Session.Service
   | Agent.Service
+  | CronService
 > = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -382,16 +405,23 @@ export const layer: Layer.Layer<
     const todoEdit = yield* TodoEditTool
     const lsptool = yield* LspTool
     const plan = yield* PlanExitTool
+    const planEnter = yield* PlanEnterTool
     const webfetch = yield* WebFetchTool
     const websearch = yield* WebSearchTool
     const repoClone = yield* RepoCloneTool
     const repoOverview = yield* RepoOverviewTool
     const shell = yield* ShellTool
+    const powershell = yield* PowerShellTool
     const globtool = yield* GlobTool
     const writetool = yield* WriteTool
     const edit = yield* EditTool
     const greptool = yield* GrepTool
     const patchtool = yield* ApplyPatchTool
+    const notebookEdit = yield* NotebookEditTool
+    const sleep = yield* SleepTool
+    const cronCreate = yield* CronCreateTool
+    const cronDelete = yield* CronDeleteTool
+    const cronList = yield* CronListTool
     const skilltool = yield* SkillTool
     const memorytool = yield* MemoryTool
     const knowledgeSearch = yield* KnowledgeTool
@@ -584,6 +614,7 @@ export const layer: Layer.Layer<
         const tool = yield* Effect.all({
           invalid: Tool.init(invalid),
           shell: Tool.init(shell),
+          powershell: Shell.powershell() ? Tool.init(powershell) : Effect.succeed(undefined),
           read: Tool.init(read),
           glob: Tool.init(globtool),
           grep: Tool.init(greptool),
@@ -609,9 +640,7 @@ export const layer: Layer.Layer<
           installation_doctor: Tool.init(installationDoctor),
           lsp_setup: Tool.init(lspSetup),
           mcp_setup: mcpSetup ? Tool.init(mcpSetup) : Effect.succeed(undefined),
-          list_mcp_resources: listMcpResourcesTool
-            ? Tool.init(listMcpResourcesTool)
-            : Effect.succeed(undefined),
+          list_mcp_resources: listMcpResourcesTool ? Tool.init(listMcpResourcesTool) : Effect.succeed(undefined),
           read_mcp_resource: readMcpResourceTool ? Tool.init(readMcpResourceTool) : Effect.succeed(undefined),
           provider_setup: Tool.init(providerSetup),
           // office_setup 的运行期服务（OfficePlatform）在工具内部按需解析，
@@ -630,9 +659,15 @@ export const layer: Layer.Layer<
           computer_windows: Tool.init(computerWindows),
           computer_focus: Tool.init(computerFocus),
           patch: Tool.init(patchtool),
+          notebook_edit: Tool.init(notebookEdit),
+          sleep: Tool.init(sleep),
+          cron_create: Tool.init(cronCreate),
+          cron_delete: Tool.init(cronDelete),
+          cron_list: Tool.init(cronList),
           question: Tool.init(question),
           lsp: Tool.init(lsptool),
           plan: Tool.init(plan),
+          plan_enter: Tool.init(planEnter),
           generate_image: Tool.init(generateimagetool),
           generate_video: Tool.init(generatevideotool),
           generate_narration: Tool.init(generateNarrationTool),
@@ -687,6 +722,7 @@ export const layer: Layer.Layer<
           tool.invalid,
           ...(questionEnabled ? [tool.question] : []),
           tool.shell,
+          ...(tool.powershell ? [tool.powershell] : []),
           tool.read,
           tool.glob,
           tool.grep,
@@ -732,8 +768,13 @@ export const layer: Layer.Layer<
               ]
             : []),
           tool.patch,
+          tool.notebook_edit,
+          tool.sleep,
+          tool.cron_create,
+          tool.cron_delete,
+          tool.cron_list,
           ...(flags.experimentalLspTool ? [tool.lsp] : []),
-          ...(flags.experimentalPlanMode && flags.client === "cli" ? [tool.plan] : []),
+          ...(flags.experimentalPlanMode && flags.client === "cli" ? [tool.plan, tool.plan_enter] : []),
           tool.generate_image,
           tool.generate_video,
           tool.generate_narration,
@@ -1019,7 +1060,9 @@ export const layer: Layer.Layer<
   Layer.provide(WorkflowDefaultLayer),
   Layer.provide(OrchestratorDefaultLayer),
   Layer.provide(ActivationLayer),
+  Layer.provide(ReadState.defaultLayer),
   Layer.provide(PlanApproval.defaultLayer),
+  Layer.provide(CronDefaultLayer),
 )
 
 export const defaultLayer: Layer.Layer<Service> = Layer.suspend(() =>

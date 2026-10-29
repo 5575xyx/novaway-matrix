@@ -49,7 +49,6 @@ type FollowupSendInput = {
   messageID?: string
   optimisticBusy?: boolean
   before?: () => Promise<boolean> | boolean
-  autoMode?: boolean
 }
 
 const draftText = (prompt: Prompt) => prompt.map((part) => ("content" in part ? part.content : "")).join("")
@@ -166,7 +165,6 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
       messageID,
       parts: requestParts,
       variant: input.draft.variant,
-      autoMode: input.autoMode,
     })
     return true
   } catch (err) {
@@ -410,13 +408,8 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       return
     }
 
-    // Auto Mode：固定走内置网关的 auto，由网关选择具体模型。
-    // 注意不要把 builtin/auto 写回用户选中状态——那会让关闭 Auto 后残留内置模型。
-    let finalModel = currentModel
-    if (modelsCtx.autoMode()) {
-      const builtin = modelsCtx.list().find((m) => m.provider.id === "builtin" && m.id === "auto")
-      if (builtin) finalModel = builtin
-    }
+    // Auto mode was removed: always send the model the user selected.
+    const finalModel = currentModel
 
     const model = {
       modelID: finalModel.id,
@@ -610,7 +603,6 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       messageID,
       optimisticBusy: sessionDirectory === projectDirectory,
       before: waitForWorktree,
-      autoMode: modelsCtx.autoMode(),
     }).catch((err) => {
       pending.delete(session.id)
       if (sessionDirectory === projectDirectory) {

@@ -9,7 +9,7 @@ const workspaceHeaderSource = read("../../../components/session/workspace-header
 const sessionHeaderSource = read("../../../components/session/session-header.tsx")
 const layoutSource = read("../../layout.tsx")
 const sessionSource = read("../../session.tsx")
-const contextSectionSource = read("./context-section.tsx")
+const promptInputSource = read("../../../components/prompt-input.tsx")
 
 // 全局标题栏已移除（Round 1 对齐 ZCode）：入口不能跟着一起消失，必须各自落到新位置。
 describe("top bar removal keeps every entry reachable", () => {
@@ -34,12 +34,18 @@ describe("top bar removal keeps every entry reachable", () => {
     expect(layoutSource).toContain("backPath")
   })
 
-  test("mode, theme, database and settings sink to the sidebar footer", () => {
+  test("mode and theme stay in the sidebar footer, global pages sink into the left rail", () => {
     expect(layoutSource).toContain("<ModeSwitchButton")
     expect(layoutSource).toContain("<ThemeSchemeToggle")
-    expect(layoutSource).toContain("<SidebarMenuRow")
-    expect(layoutSource).toContain('label={language.t("sidebar.database")}')
-    expect(layoutSource).toContain('label={language.t("sidebar.settings")}')
+    // 数据库 / 知识库 / 自动化 / 扩展 / 设置从"每项一整行"的底部菜单收进最左侧窄图标条，
+    // 只留图标 + hover 提示，把垂直空间还给任务列表（对齐 Codex 的 activity rail）。
+    expect(layoutSource).not.toContain("<SidebarMenuRow")
+    expect(layoutSource).toContain("items={railItems()}")
+    expect(layoutSource).toContain("footer={railFooter()}")
+    const railSource = read("../../layout/sidebar-rail.tsx")
+    expect(railSource).toContain('data-component="sidebar-rail"')
+    expect(railSource).toContain("<Tooltip")
+    expect(railSource).toContain('placement="right"')
   })
 
   // Side Pane 开关与搜索原先挂在标题栏的两个 Portal 槽位上。标题栏没了，槽位也随之消失，
@@ -57,13 +63,17 @@ describe("top bar removal keeps every entry reachable", () => {
   })
 })
 
-describe("right panel absorbs cache", () => {
-  // 上下文与缓存命中率合并成一张卡片（用户反馈：两张卡在右上角互相挤，展开后信息重复）。
-  test("cache hits are merged into the context card instead of a separate section", () => {
-    expect(sessionSource).not.toContain("useCacheSection")
-    expect(sessionSource).toContain("useContextSection()")
-    expect(contextSectionSource).toContain("useSessionCacheUsage()")
-    expect(contextSectionSource).toContain("cache.hit.rate")
+describe("context usage lives in the composer, not the status panel", () => {
+  // 对齐 ZCode 的 ChatContextUsage：占用触发器挂在输入框工具条上，状态面板里
+  // 不再有 context 卡（干净的面板 = 只有活内容，空闲期整块消失）。
+  test("the context card left the status panel and its entry moved to the composer toolbar", () => {
+    expect(sessionSource).not.toContain("useContextSection")
+    expect(promptInputSource).toContain("<SessionContextUsage />")
+    // 明细弹层复用缓存统计面板，不再有孤儿组件。
+    const usageSource = read("../../../components/session-context-usage.tsx")
+    expect(usageSource).toContain("CacheUsageBody")
+    // 触发器经由 Popover 的 triggerProps 挂 data-action，源码里是对象键写法
+    expect(usageSource).toContain('"data-action": "prompt-context-usage"')
   })
 
   // 「记忆与进化」是全局能力，不再占会话状态面板的位置（用户反馈）。
@@ -73,13 +83,8 @@ describe("right panel absorbs cache", () => {
     expect(sessionSource).not.toContain("useMemorySection")
   })
 
-  test("the merged card only shows cache stats when there are calls", () => {
-    expect(contextSectionSource).toContain("cache.metrics().calls > 0")
-    expect(contextSectionSource).toContain("cache.hitRate()")
-  })
-
   test("status cards cannot be squeezed by the flex container", () => {
     const panelSource = read("./status-panel.tsx")
-    expect(panelSource).toContain("shrink-0 overflow-hidden rounded-lg")
+    expect(panelSource).toContain("shrink-0 overflow-hidden rounded-xl")
   })
 })

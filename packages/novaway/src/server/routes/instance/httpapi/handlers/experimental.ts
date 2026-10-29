@@ -8,6 +8,7 @@ import { Session } from "@/session/session"
 import { ToolJsonSchema } from "@/tool/json-schema"
 import { ToolRegistry } from "@/tool/registry"
 import { Worktree } from "@/worktree"
+import { Service as HookService } from "@/hook/service"
 import { Effect, Option } from "effect"
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse"
 import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
@@ -130,6 +131,16 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
       const ctx = yield* InstanceState.context
       yield* mapWorktreeError(worktreeSvc.remove(input.payload))
       yield* project.removeSandbox(ctx.project.id, input.payload.directory)
+      const hooks = Option.getOrUndefined(yield* Effect.serviceOption(HookService))
+      if (hooks) {
+        yield* hooks
+          .trigger({
+            event: "WorktreeRemove",
+            cwd: ctx.directory,
+            metadata: { worktree_path: input.payload.directory },
+          })
+          .pipe(Effect.ignore)
+      }
       return true
     })
 

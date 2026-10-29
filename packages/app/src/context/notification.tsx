@@ -248,12 +248,37 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
         .catch(() => {})
     }
 
+    /**
+     * 上一次看到的状态：只有"真的从运行中变成空闲"才算一次完成。
+     *
+     * 服务端在一次收尾里会连发好几条 `session.idle`（处理器、状态层各发一次），
+     * 之前每条都弹一次通知，同一个任务就连续提醒多次。这里按状态边沿去重。
+     */
+    const running = new Map<string, boolean>()
+    /** 每轮只提醒一次：记住已经提醒过的会话，重新开跑时清掉。 */
+    const notified = new Set<string>()
+    /** 用户正在看这个会话（窗口有焦点）时不打扰。 */
+    const watching = (directory: string, sessionID?: string) =>
+      viewedInCurrentSession(directory, sessionID) && typeof document !== "undefined" && document.hasFocus()
+
     const handleSessionIdle = (directory: string, event: { properties: { sessionID?: string } }, time: number) => {
       const sessionID = event.properties.sessionID
+      if (!sessionID) return
+      // 已知处于空闲（同一次收尾里的第二条 idle）就直接跳过；
+      // 没观察到运行状态的（比如页面中途连上）允许提醒一次。
+      const wasRunning = running.get(sessionID)
+      running.set(sessionID, false)
+      if (wasRunning === false) return
+      if (notified.has(sessionID)) return
+      notified.add(sessionID)
+
       void lookup(directory, sessionID).then((session) => {
         if (meta.disposed) return
         if (!session) return
         if (session.parentID) return
+
+        const viewed = viewedInCurrentSession(directory, sessionID)
+        if (watching(directory, sessionID)) return
 
         if (settings.sounds.agentEnabled()) {
           void playSoundById(settings.sounds.agent())
@@ -262,7 +287,7 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
         append({
           directory,
           time,
-          viewed: viewedInCurrentSession(directory, sessionID),
+          viewed,
           type: "turn-complete",
           session: sessionID,
         })
@@ -288,10 +313,15 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
       time: number,
     ) => {
       const sessionID = event.properties.sessionID
+      // 同一个错误在一次收尾里也会重复广播；同一会话的报错一轮只提醒一次。
+      const key = `error:${sessionID ?? "global"}`
+      if (notified.has(key)) return
+      notified.add(key)
+      if (sessionID) running.set(sessionID, false)
       void lookup(directory, sessionID).then((session) => {
         if (meta.disposed) return
         if (session?.parentID) return
-
+        if (watching(directory, sessionID)) return
         if (settings.sounds.errorsEnabled()) {
           void playSoundById(settings.sounds.errors())
         }
@@ -325,10 +355,24 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
 
     const unsub = globalSDK.event.listen((e) => {
       const event = e.details
-      if (event.type !== "session.idle" && event.type !== "session.error") return
-
       const directory = e.name
       const time = Date.now()
+
+      // 跟踪每个会话"是否真的在跑"，供下面按边沿去重。
+      if (event.type === "session.status") {
+        const props = event.properties as { sessionID: string; status: { type: string } }
+        const busy = props.status.type !== "idle"
+        running.set(props.sessionID, busy)
+        // 重新开跑：允许下一轮结束时再提醒一次，并把这一轮的报错去重键复位。
+        if (busy) {
+          notified.delete(props.sessionID)
+          notified.delete(`error:${props.sessionID}`)
+        }
+        return
+      }
+
+      if (event.type !== "session.idle" && event.type !== "session.error") return
+
       if (event.type === "session.idle") {
         handleSessionIdle(directory, event, time)
         return

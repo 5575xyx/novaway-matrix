@@ -65,7 +65,7 @@ formatSetupReport({ domain, ready, phase, summary, facts, hint, error, steps, ne
 | 状态                        | 诊断                             | AI 的动作                                           |
 | --------------------------- | -------------------------------- | --------------------------------------------------- |
 | `failed`                    | 命令不存在 / URL 非法 / 启动报错 | 指出缺哪个运行时，或让用户改配置后 `action=connect` |
-| `needs_auth`                | 需要 OAuth                       | 引导用户在设置 → MCP 完成授权                       |
+| `needs_auth`                | 需要 OAuth                       | `action=authenticate` 打开浏览器完成授权；失败时给出手动链接 |
 | `needs_client_registration` | 服务端不支持动态注册             | 指出要补 `oauth.clientId`                           |
 | 环境变量为空                | 只报变量名与 `(empty)`           | 让用户填值，绝不编造凭据                            |
 | 未配置                      | 空列表                           | 可用 `action=add` 添加目录里的常见服务器            |

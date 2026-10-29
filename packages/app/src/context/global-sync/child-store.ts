@@ -5,6 +5,7 @@ import type { ProviderListResponse, VcsInfo } from "@novaway/sdk/v2/client"
 import {
   DIR_IDLE_TTL_MS,
   MAX_DIR_STORES,
+  SESSION_LIST_LIMIT,
   type ChildOptions,
   type DirState,
   type IconCache,
@@ -229,8 +230,9 @@ export function createChildStoreManager(input: {
               return lspQuery.isLoading ? [] : (lspQuery.data ?? [])
             },
             vcs: vcsStore.value,
-            limit: 5,
+            limit: SESSION_LIST_LIMIT,
             message: {},
+            backgroundJob: {},
             part: {},
             part_text_accum_delta: {},
           })

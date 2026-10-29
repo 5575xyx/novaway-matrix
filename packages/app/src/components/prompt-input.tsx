@@ -4,6 +4,7 @@ import { createEffect, on, Component, For, Show, onCleanup, createMemo, createSi
 import { createStore } from "solid-js/store"
 import { useLocal } from "@/context/local"
 import { selectionFromLines, type SelectedLineRange, useFile } from "@/context/file"
+import { SessionContextUsage } from "@/components/session-context-usage"
 import {
   ContentPart,
   DEFAULT_PROMPT,
@@ -24,13 +25,14 @@ import { Button } from "@novaway/ui/button"
 import { DockShellForm, DockTray } from "@novaway/ui/dock-surface"
 import { Icon } from "@novaway/ui/icon"
 import { ProviderIcon } from "@novaway/ui/provider-icon"
-import { providerIconId, providerColor } from "@/utils/provider-icon"
+import { modelColor, modelIconId } from "@/utils/provider-icon"
 import { Tooltip, TooltipKeybind } from "@novaway/ui/tooltip"
 import { Popover } from "@novaway/ui/popover"
 import { IconButton } from "@novaway/ui/icon-button"
 import { Select } from "@novaway/ui/select"
 import { Switch } from "@novaway/ui/switch"
 import { PermissionModeSelect } from "@/components/permission-mode-select"
+import { SessionBackgroundTrigger } from "@/components/session-background-trigger"
 import { agentForPermission, permissionForAgent } from "@/context/agent-permission"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { ModelSelectorPopover } from "@/components/dialog-select-model"
@@ -147,6 +149,8 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const forgeAutoAgentMode = createMemo(() => layout.mode.current() === "forge")
   const { params, tabs, view } = useSessionLayout()
   let editorRef!: HTMLDivElement
+  /** 输入框外壳（编辑器 + 工具栏），用来判断 mousedown 是否落在输入区内部。 */
+  let shellRef: HTMLDivElement | undefined
   let fileInputRef: HTMLInputElement | undefined
   let scrollRef!: HTMLDivElement
   let slashPopoverRef!: HTMLDivElement
@@ -376,6 +380,8 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const shell = createMemo(() => motion(1 - buttonsSpring()))
   const control = createMemo(() => ({ height: "28px", ...buttons() }))
   const [atScope, setAtScope] = createSignal<"rule" | "agent" | undefined>()
+  // 输入框左下角的“+”菜单:附件 / 提及 / 斜杠命令收在一个入口里(对齐 ZCode)。
+  const [addMenuOpen, setAddMenuOpen] = createSignal(false)
 
   const commentCount = createMemo(() => {
     if (store.mode === "shell") return 0
@@ -861,8 +867,21 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     return [...custom, ...builtin]
   })
 
+  // `/compact keep the API changes` → args after the slash command name.
+  const slashArgs = (trigger?: string) => {
+    if (!trigger) return undefined
+    const text = (prompt.current() ?? [])
+      .filter((part) => part.type === "text")
+      .map((part) => (part.type === "text" ? part.content : ""))
+      .join("")
+    const match = text.match(/^\/(\S+)(?:\s+([\s\S]*))?$/)
+    if (!match || match[1] !== trigger) return undefined
+    return match[2]?.trim() || undefined
+  }
+
   const handleSlashSelect = (cmd: SlashCommand | undefined) => {
     if (!cmd) return
+    const args = slashArgs(cmd.trigger)
     closePopover()
     const images = imageAttachments()
 
@@ -876,7 +895,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
 
     clearEditor()
     prompt.set([...DEFAULT_PROMPT, ...images], 0)
-    command.trigger(cmd.id, "slash")
+    command.trigger(cmd.id, "slash", args)
   }
 
   const {
@@ -1116,13 +1135,16 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
 
     if (!shellMode) {
       const atMatch = rawText.substring(0, cursorPosition).match(/@(\S*)$/)
-      const slashMatch = rawText.match(/^\/(\S*)$/)
+      const slashMatch = rawText.match(/^\/(\S+)(?:[\t ]+([\s\S]*))?$/)
+      // Trailing text is only accepted for a known slash command (`/compact x`),
+      // so a message that merely starts with a slash path is not treated as one.
+      const slashKnown = !!slashMatch && slashCommands().some((cmd) => cmd.trigger === slashMatch[1])
 
       if (atMatch) {
         if (store.popover !== "at") setAtScope(undefined)
         atOnInput(atMatch[1])
         setStore("popover", "at")
-      } else if (slashMatch) {
+      } else if (slashMatch && (slashMatch[2] === undefined || slashKnown)) {
         slashOnInput(slashMatch[1])
         setStore("popover", "slash")
       } else {
@@ -1218,6 +1240,59 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     handleInput()
     closePopover()
     return true
+  }
+
+  /**
+   * 从「+」菜单里插入 `@` / `/` 并打开对应的浮层。
+   *
+   * 不能同步做：Popover 关闭时 Kobalte 会把焦点还给 `+` 触发按钮，
+   * 紧接着的 `editorRef.focus()` 会被它覆盖 —— 编辑器立刻 blur，
+   * `handleBlur` 的 `closePopover()` 又把刚打开的菜单关掉，
+   * 表现就是"点了提及/命令没反应"。
+   *
+   * 所以先关菜单，等一帧（焦点归位之后）再聚焦 + 插入，最后再补一次校验：
+   * 万一焦点还是被抢走、浮层被关掉，就在不重复插入字符的前提下把它重新打开。
+   */
+  const insertTriggerChar = (char: "@" | "/") => {
+    setAddMenuOpen(false)
+    const openPopover = () => {
+      if (char === "@") {
+        setAtScope(undefined)
+        atOnInput("")
+        setStore("popover", "at")
+        return
+      }
+      slashOnInput("")
+      setStore("popover", "slash")
+    }
+    const insert = () => {
+      const editor = editorRef
+      if (!editor) return
+      editor.focus()
+      const inserted = addPart({ type: "text", content: char, start: 0, end: 0 })
+      if (!inserted) {
+        // 编辑器里没有可用光标（刚聚焦、选区还没落到内容上）：退化成整段追加。
+        const current = prompt
+          .current()
+          .map((part) => ("content" in part ? part.content : ""))
+          .join("")
+        const next = current + char
+        prompt.set([{ type: "text", content: next, start: 0, end: next.length }], next.length)
+        setEditorText(next)
+        focusEditorEnd()
+      }
+      openPopover()
+    }
+    requestAnimationFrame(() => {
+      insert()
+      // 补一帧：焦点若被 Popover 收走，blur 会把浮层关掉，这里重新聚焦并重开。
+      requestAnimationFrame(() => {
+        const editor = editorRef
+        if (!editor) return
+        if (!editor.contains(document.activeElement)) editor.focus()
+        if (store.popover === null) openPopover()
+      })
+    })
   }
 
   const addToHistory = (prompt: Prompt, mode: "normal" | "shell") => {
@@ -1573,12 +1648,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     setStore("optimizing", true)
 
     try {
-      // Auto 时走内置 auto，和发送消息一致
       let currentModel = local.model.current()
-      if (modelsCtx.autoMode()) {
-        const builtin = modelsCtx.list().find((m) => m.provider?.id === "builtin" && m.id === "auto")
-        if (builtin) currentModel = builtin
-      }
       if (!currentModel?.provider?.id || !currentModel.id) {
         currentModel = modelsCtx.list().find((m) => m.provider?.id && m.id)
       }
@@ -1854,166 +1924,27 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                 </div>
               </Popover>
             </Show>
-            <Show when={!providersLoading()}>
-              <Show when={store.mode !== "shell"}>
-                <div
-                  data-component="prompt-model-control"
-                  class="min-w-0"
-                  style={providersShouldFadeIn() ? { animation: "fade-in 0.3s" } : undefined}
-                >
-                  <Show
-                    when={providers.paid().length > 0}
-                    fallback={
-                      <TooltipKeybind
-                        placement="top"
-                        gutter={4}
-                        title={language.t("command.model.choose")}
-                        keybind={command.keybind("model.choose")}
-                      >
-                        <Button
-                          data-action="prompt-model"
-                          as="div"
-                          variant="ghost"
-                          size="normal"
-                          class="min-w-0 max-w-[320px] text-13-medium text-foreground group"
-                          style={{ ...control(), "border-radius": "8px" }}
-                          onClick={() => {
-                            void import("@/components/dialog-select-model-unpaid").then((x) => {
-                              dialog.show(() => <x.DialogSelectModelUnpaid model={local.model} />)
-                            })
-                          }}
-                        >
-                          <Show when={modelsCtx.autoMode()}>
-                            <Icon
-                              name="autopilot"
-                              class="size-4 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity duration-150"
-                              style={{ "will-change": "opacity", transform: "translateZ(0)" }}
-                            />
-                          </Show>
-                          <Show when={!modelsCtx.autoMode() && local.model.current()?.provider?.id}>
-                            <ProviderIcon
-                              id={providerIconId(
-                                local.model.current()?.provider?.id,
-                                local.model.current()?.provider?.name,
-                              )}
-                              colorId={local.model.current()?.provider?.id}
-                              brand
-                              class="size-4 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity duration-150"
-                              style={{ "will-change": "opacity", transform: "translateZ(0)" }}
-                            />
-                          </Show>
-                          <span class="truncate">
-                            {modelsCtx.autoMode()
-                              ? "Auto"
-                              : (local.model.current()?.name ?? language.t("dialog.model.select.title"))}
-                          </span>
-                          <Icon name="chevron-down" size="small" class="shrink-0" />
-                        </Button>
-                      </TooltipKeybind>
-                    }
-                  >
-                    <TooltipKeybind
-                      placement="top"
-                      gutter={4}
-                      title={language.t("command.model.choose")}
-                      keybind={command.keybind("model.choose")}
-                    >
-                      <ModelSelectorPopover
-                        model={local.model}
-                        triggerAs={Button}
-                        triggerProps={{
-                          variant: "ghost",
-                          size: "normal",
-                          style: { ...control(), "border-radius": "8px" },
-                          class: "min-w-0 max-w-[320px] text-13-medium text-foreground group",
-                          "data-action": "prompt-model",
-                        }}
-                        onClose={restoreFocus}
-                      >
-                        <Show when={modelsCtx.autoMode()}>
-                          <Icon
-                            name="autopilot"
-                            class="size-4 shrink-0 text-icon-blue transition-opacity duration-150"
-                          />
-                        </Show>
-                        <Show when={!modelsCtx.autoMode() && local.model.current()?.provider?.id}>
-                          <ProviderIcon
-                            id={providerIconId(
-                              local.model.current()?.provider?.id,
-                              local.model.current()?.provider?.name,
-                            )}
-                            colorId={local.model.current()?.provider?.id}
-                            brand
-                            class="size-4 shrink-0 text-icon-blue transition-opacity duration-150"
-                          />
-                        </Show>
-                        <span
-                          class="truncate"
-                          style={
-                            /* 模型名跟着厂商色走：DeepSeek 蓝、Anthropic 橙、Google 蓝…
-                               没有品牌色时退回原来的品牌渐变。 */
-                            providerColor(local.model.current()?.provider?.id, local.model.current()?.provider?.name)
-                              ? {
-                                  color: providerColor(
-                                    local.model.current()?.provider?.id,
-                                    local.model.current()?.provider?.name,
-                                  ),
-                                }
-                              : {
-                                  background: "linear-gradient(135deg, var(--icon-blue), #8b5cf6)",
-                                  "-webkit-background-clip": "text",
-                                  "-webkit-text-fill-color": "transparent",
-                                  "background-clip": "text",
-                                }
-                          }
-                        >
-                          {modelsCtx.autoMode()
-                            ? "Auto"
-                            : (local.model.current()?.name ?? language.t("dialog.model.select.title"))}
-                        </span>
-                        <Icon name="chevron-down" size="small" class="shrink-0" />
-                      </ModelSelectorPopover>
-                    </TooltipKeybind>
-                  </Show>
-                </div>
-                <Show when={!modelsCtx.autoMode()}>
-                  <div
-                    data-component="prompt-thinking-control"
-                    class="shrink-0"
-                    style={providersShouldFadeIn() ? { animation: "fade-in 0.3s" } : undefined}
-                  >
-                    <ThinkingEffortPopover
-                      model={local.model}
-                      triggerStyle={{ ...control(), "border-radius": "8px" }}
-                      triggerClass="shrink-0 whitespace-nowrap"
-                    />
-                  </div>
-                </Show>
-              </Show>
-            </Show>
             <div class="flex-1 min-w-0" />
-            <div class="flex shrink-0 items-center gap-2 whitespace-nowrap">
-              <div data-component="prompt-auto-accept">
-                <PermissionModeSelect
-                  sessionID={params.id}
-                  onChange={(mode) => {
-                    // 角色与档位保持一致：选计划模式就切到规划蓝图，离开时回到锻造工程。
-                    const next = agentForPermission(mode, local.agent.current()?.name)
-                    if (next) local.agent.set(next)
-                  }}
-                />
-              </div>
-            </div>
           </div>
         </Show>
         <div
           class="relative"
+          ref={(el) => (shellRef = el)}
           onMouseDown={(e) => {
             const target = e.target
             if (!(target instanceof HTMLElement)) return
+            /*
+             * 只接管「落在输入框外壳里的按下」。
+             *
+             * 模型选择器等弹层被 portal 到 body，但它们的 mousedown 会经由 document 上的
+             * 事件委托一路走到这里 —— 之前这里无差别 `editorRef.focus()`，焦点从弹层里被
+             * 抢回编辑器，Kobalte 的 focus-outside 在 click 之前就把弹层关掉，
+             * 表现就是「点了模型没反应」（标题栏那个选择器没有这段逻辑，所以是好的）。
+             */
+            if (!shellRef?.contains(target)) return
             if (
               target.closest(
-                '[data-action="prompt-attach"], [data-action="prompt-submit"], [data-action="prompt-optimize"], [data-action="prompt-optimize-undo"]',
+                '[data-action="prompt-add"], [data-action="prompt-attach"], [data-action="prompt-submit"], [data-action="prompt-optimize"], [data-action="prompt-optimize-undo"], [data-action="prompt-background"], [data-action="prompt-permission-mode"], [data-action="prompt-context-usage"], [data-action="prompt-model"], [data-action="prompt-thinking"]',
               )
             ) {
               return
@@ -2193,6 +2124,164 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                   </Show>
                 </Button>
               </Tooltip>
+              <Show when={!providersLoading()}>
+                <Show when={store.mode !== "shell"}>
+                  <div
+                    data-component="prompt-model-control"
+                    class="min-w-0"
+                    style={providersShouldFadeIn() ? { animation: "fade-in 0.3s" } : undefined}
+                  >
+                    <Show
+                      when={providers.paid().length > 0}
+                      fallback={
+                        <TooltipKeybind
+                          placement="top"
+                          gutter={4}
+                          title={language.t("command.model.choose")}
+                          keybind={command.keybind("model.choose")}
+                        >
+                          <Button
+                            data-action="prompt-model"
+                            as="div"
+                            variant="ghost"
+                            size="normal"
+                            class="min-w-0 max-w-[320px] overflow-hidden text-13-medium text-foreground group"
+                            style={{ ...control(), "border-radius": "8px" }}
+                            onClick={() => {
+                              void import("@/components/dialog-select-model-unpaid").then((x) => {
+                                dialog.show(() => <x.DialogSelectModelUnpaid model={local.model} />)
+                              })
+                            }}
+                          >
+                            <Show when={modelsCtx.autoMode()}>
+                              <Icon
+                                name="autopilot"
+                                class="size-4 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity duration-150"
+                                style={{ "will-change": "opacity", transform: "translateZ(0)" }}
+                              />
+                            </Show>
+                            <Show when={!modelsCtx.autoMode() && local.model.current()?.provider?.id}>
+                              <ProviderIcon
+                                id={modelIconId(
+                                  local.model.current()?.provider?.id,
+                                  local.model.current()?.provider?.name,
+                                  local.model.current()?.id,
+                                  local.model.current()?.name,
+                                )}
+                                colorId={modelIconId(
+                                  local.model.current()?.provider?.id,
+                                  local.model.current()?.provider?.name,
+                                  local.model.current()?.id,
+                                  local.model.current()?.name,
+                                )}
+                                brand
+                                class="size-4 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity duration-150"
+                                style={{ "will-change": "opacity", transform: "translateZ(0)" }}
+                              />
+                            </Show>
+                            <span class="min-w-0 truncate">
+                              {modelsCtx.autoMode()
+                                ? "Auto"
+                                : (local.model.current()?.name ?? language.t("dialog.model.select.title"))}
+                            </span>
+                            <Icon name="chevron-down" size="small" class="shrink-0" />
+                          </Button>
+                        </TooltipKeybind>
+                      }
+                    >
+                      <TooltipKeybind
+                        placement="top"
+                        gutter={4}
+                        title={language.t("command.model.choose")}
+                        keybind={command.keybind("model.choose")}
+                      >
+                        <ModelSelectorPopover
+                          model={local.model}
+                          triggerAs={Button}
+                          triggerProps={{
+                            variant: "ghost",
+                            size: "normal",
+                            style: { ...control(), "border-radius": "8px" },
+                            class: "min-w-0 max-w-[320px] overflow-hidden text-13-medium text-foreground group",
+                            "data-action": "prompt-model",
+                          }}
+                          onClose={restoreFocus}
+                        >
+                          <Show when={modelsCtx.autoMode()}>
+                            <Icon
+                              name="autopilot"
+                              class="size-4 shrink-0 text-icon-blue transition-opacity duration-150"
+                            />
+                          </Show>
+                          <Show when={!modelsCtx.autoMode() && local.model.current()?.provider?.id}>
+                            <ProviderIcon
+                              id={modelIconId(
+                                local.model.current()?.provider?.id,
+                                local.model.current()?.provider?.name,
+                                local.model.current()?.id,
+                                local.model.current()?.name,
+                              )}
+                              colorId={modelIconId(
+                                local.model.current()?.provider?.id,
+                                local.model.current()?.provider?.name,
+                                local.model.current()?.id,
+                                local.model.current()?.name,
+                              )}
+                              brand
+                              class="size-4 shrink-0 text-icon-blue transition-opacity duration-150"
+                            />
+                          </Show>
+                          <span
+                            class="min-w-0 truncate"
+                            style={
+                              /* 模型名跟着厂商色走：DeepSeek 蓝、Anthropic 橙、Google 蓝…
+                                 没有品牌色时退回原来的品牌渐变。 */
+                              modelColor(
+                                local.model.current()?.provider?.id,
+                                local.model.current()?.provider?.name,
+                                local.model.current()?.id,
+                                local.model.current()?.name,
+                              )
+                                ? {
+                                    color: modelColor(
+                                      local.model.current()?.provider?.id,
+                                      local.model.current()?.provider?.name,
+                                      local.model.current()?.id,
+                                      local.model.current()?.name,
+                                    ),
+                                  }
+                                : {
+                                    background: "linear-gradient(135deg, var(--icon-blue), #8b5cf6)",
+                                    "-webkit-background-clip": "text",
+                                    "-webkit-text-fill-color": "transparent",
+                                    "background-clip": "text",
+                                  }
+                            }
+                          >
+                            {modelsCtx.autoMode()
+                              ? "Auto"
+                              : (local.model.current()?.name ?? language.t("dialog.model.select.title"))}
+                          </span>
+                          <Icon name="chevron-down" size="small" class="shrink-0" />
+                        </ModelSelectorPopover>
+                      </TooltipKeybind>
+                    </Show>
+                  </div>
+                  <Show when={!modelsCtx.autoMode()}>
+                    <div
+                      data-component="prompt-thinking-control"
+                      class="shrink-0"
+                      style={providersShouldFadeIn() ? { animation: "fade-in 0.3s" } : undefined}
+                    >
+                      <ThinkingEffortPopover
+                        model={local.model}
+                        triggerStyle={{ ...control(), "border-radius": "8px" }}
+                        triggerClass="shrink-0 whitespace-nowrap"
+                      />
+                    </div>
+                  </Show>
+                </Show>
+              </Show>
               <Tooltip
                 placement="top"
                 inactive={(!working() && blank()) || store.optimizing || agentsLoading() || providersLoading()}
@@ -2227,66 +2316,95 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                 "pointer-events": buttonsSpring() > 0.5 ? "auto" : "none",
               }}
             >
-              <TooltipKeybind
-                placement="top"
-                title={language.t("prompt.action.attachFile")}
-                keybind={command.keybind("file.attach")}
+              <Popover
+                open={addMenuOpen()}
+                onOpenChange={setAddMenuOpen}
+                gutter={6}
+                triggerAs="button"
+                placement="top-start"
+                triggerProps={
+                  {
+                    type: "button",
+                    "data-action": "prompt-add",
+                    disabled: store.mode !== "normal",
+                    tabIndex: store.mode === "normal" ? undefined : -1,
+                    style: buttons(),
+                    "aria-label": "添加",
+                    title: "添加",
+                    class:
+                      "flex size-8 items-center justify-center rounded-md text-icon-blue transition-colors hover:bg-hover disabled:pointer-events-none disabled:opacity-50",
+                  } as Record<string, unknown>
+                }
+                trigger={<Icon name="plus" class="size-4.5" />}
+                class="w-64"
               >
-                <Button
-                  data-action="prompt-attach"
-                  type="button"
-                  variant="ghost"
-                  class="size-8 p-0"
-                  style={buttons()}
-                  onClick={pick}
-                  disabled={store.mode !== "normal"}
-                  tabIndex={store.mode === "normal" ? undefined : -1}
-                  aria-label={language.t("prompt.action.attachFile")}
-                >
-                  <Icon name="link" class="size-4.5 text-icon-blue" />
-                </Button>
-              </TooltipKeybind>
-              <Tooltip placement="top" value="提及 @" inactive={store.mode !== "normal"}>
-                <Button
-                  data-action="prompt-at"
-                  type="button"
-                  variant="ghost"
-                  class="size-8 p-0"
-                  style={buttons()}
-                  onClick={() => {
-                    editorRef.focus()
-                    addPart({ type: "text", content: "@", start: 0, end: 0 })
-                    setAtScope(undefined)
-                    atOnInput("")
-                    setStore("popover", "at")
+                <div class="flex flex-col gap-1">
+                  <span class="px-1 pb-1 text-11-regular text-foreground-subtle">添加</span>
+                  <button
+                    type="button"
+                    data-action="prompt-attach"
+                    class="flex items-start gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-hover"
+                    onClick={() => {
+                      setAddMenuOpen(false)
+                      void pick()
+                    }}
+                  >
+                    <span class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-[6px] bg-surface text-icon-blue">
+                      <Icon name="link" size="small" />
+                    </span>
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-13-medium text-foreground">附件</span>
+                      <span class="mt-0.5 block text-11-regular text-foreground-subtle">图片、文档或任意文件</span>
+                    </span>
+                    <span class="mt-0.5 shrink-0 text-11-regular text-foreground-subtlest">
+                      {command.keybind("file.attach")}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    data-action="prompt-at"
+                    class="flex items-start gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-hover"
+                    onClick={() => insertTriggerChar("@")}
+                  >
+                    <span class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-[6px] bg-surface text-13-medium text-icon-blue">
+                      @
+                    </span>
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-13-medium text-foreground">提及</span>
+                      <span class="mt-0.5 block text-11-regular text-foreground-subtle">引用文件、规则或 AI 员工</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    data-action="prompt-slash"
+                    class="flex items-start gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-hover"
+                    onClick={() => insertTriggerChar("/")}
+                  >
+                    <span class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-[6px] bg-surface text-13-medium text-icon-blue">
+                      /
+                    </span>
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-13-medium text-foreground">命令</span>
+                      <span class="mt-0.5 block text-11-regular text-foreground-subtle">运行命令、技能或 MCP 工具</span>
+                    </span>
+                  </button>
+                </div>
+              </Popover>
+              {/* 权限模式与上下文占用放到输入框底部：顶部工具条在右侧面板展开后
+                  会被模型名/思考强度挤满，这几个入口挪到底部反而更稳、更顺手
+                  （也是 ZCode 的摆放：+ 之后跟模式与用量）。 */}
+              <div data-component="prompt-auto-accept" class="flex items-center">
+                <PermissionModeSelect
+                  sessionID={params.id}
+                  onChange={(mode) => {
+                    // 角色与档位保持一致：选计划模式就切到规划蓝图，离开时回到锻造工程。
+                    const next = agentForPermission(mode, local.agent.current()?.name)
+                    if (next) local.agent.set(next)
                   }}
-                  disabled={store.mode !== "normal"}
-                  tabIndex={store.mode === "normal" ? undefined : -1}
-                  aria-label="提及 @"
-                >
-                  <span class="text-sm font-semibold text-icon-blue">@</span>
-                </Button>
-              </Tooltip>
-              <Tooltip placement="top" value="斜杠命令 /" inactive={store.mode !== "normal"}>
-                <Button
-                  data-action="prompt-slash"
-                  type="button"
-                  variant="ghost"
-                  class="size-8 p-0"
-                  style={buttons()}
-                  onClick={() => {
-                    editorRef.focus()
-                    addPart({ type: "text", content: "/", start: 0, end: 0 })
-                    slashOnInput("")
-                    setStore("popover", "slash")
-                  }}
-                  disabled={store.mode !== "normal"}
-                  tabIndex={store.mode === "normal" ? undefined : -1}
-                  aria-label="斜杠命令 /"
-                >
-                  <span class="text-sm font-semibold text-icon-blue">/</span>
-                </Button>
-              </Tooltip>
+                />
+              </div>
+              <SessionContextUsage />
+              <SessionBackgroundTrigger style={buttons()} />
             </div>
           </div>
         </div>

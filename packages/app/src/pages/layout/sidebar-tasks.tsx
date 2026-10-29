@@ -103,9 +103,12 @@ export function useTaskCounts(props: {
         if (status === "waiting") counts.waiting += 1
         else if (status === "running" || status === "failed") counts.running += 1
       }
-    }
-    for (const list of Object.values(props.archived())) {
-      counts.archived += (list ?? []).filter((session) => !!session.time?.archived).length
+      // 归档数与下方各项目的归档列表同口径：只数**当前项目目录**里的归档。
+      // 曾经直接累加整个归档记录，把已删除工作区/别的项目残留的目录也算进去，
+      // 表现为顶部分段有数字、项目下面却显示「没有匹配的任务」。
+      for (const dir of dirs) {
+        counts.archived += (props.archived()[dir] ?? []).filter((session) => !!session.time?.archived).length
+      }
     }
     return counts
   })

@@ -31,6 +31,7 @@ import { createSessionTabs, getTabReorderIndex, type Sizing } from "@/pages/sess
 import { FileTabContent } from "@/pages/session/file-tabs"
 import { PreviewPanel } from "@/pages/session/preview-panel"
 import { SidePaneSessionPanel } from "@/pages/session/side-pane-session"
+import { SidePaneBackgroundOutput } from "@/pages/session/side-pane-background"
 import { useSideChat } from "@/pages/session/use-side-chat"
 import { TerminalPanel } from "@/pages/session/terminal-panel"
 import { setSessionHandoff } from "@/pages/session/handoff"
@@ -55,16 +56,23 @@ const sidePaneTabMeta = (tab: string) => sidePaneTabs.find((item) => item.id ===
  * 动态标签（会话）的图标与标题。
  *
  * 内置标签读静态表；动态标签的标题来自它自己的元数据（`SidePaneSessionTab.title`），
- * 子代理显示子代理名、侧边对话显示"侧边对话 N"。图标也按 kind 分：
- * 子代理用 `task`（与工具行同一个图标，视觉上串得起来），侧边对话用 `speech-bubble`。
+ * 子代理显示子代理名、侧边对话显示"侧边对话 N"、后台任务显示任务名。图标也按 kind 分：
+ * 子代理用 `task`（与工具行同一个图标，视觉上串得起来），侧边对话用 `speech-bubble`，
+ * 后台任务输出用 `terminal`（大多是后台命令的输出流）。
  */
+const SESSION_TAB_FALLBACK_KEY = {
+  subagent: "sidePane.subagent",
+  sideChat: "sidePane.sideChat",
+  background: "sidePane.background.title",
+} as const
+
 function sessionTabPresentation(
   tab: SidePaneSessionTab,
   t: ReturnType<typeof useLanguage>["t"],
-): { icon: "task" | "speech-bubble"; label: string } {
+): { icon: "task" | "speech-bubble" | "terminal"; label: string } {
   return {
-    icon: tab.kind === "subagent" ? "task" : "speech-bubble",
-    label: tab.title || t(tab.kind === "subagent" ? "sidePane.subagent" : "sidePane.sideChat"),
+    icon: tab.kind === "subagent" ? "task" : tab.kind === "sideChat" ? "speech-bubble" : "terminal",
+    label: tab.title || t(SESSION_TAB_FALLBACK_KEY[tab.kind]),
   }
 }
 
@@ -195,6 +203,26 @@ export function SessionSidePanel(props: {
     ),
   )
 
+  /**
+   * 关掉最后一个标签后把整个右栏收起来。
+   *
+   * 之前只有「文件标签关完」那一条分支，用户关掉最后一个内置标签（浏览器/终端/审查）
+   * 后右栏会留一块空白面板，还得再点一次折叠按钮。这里按「标签总数从有到无」统一处理：
+   * 内置标签与动态会话标签都算内容，都清空了就自动收起。
+   *
+   * 只在**从有到无**时触发：面板本来就是空的（用户手动点开还没选工具），
+   * 不能立刻把它关掉。
+   */
+  let tabContentCount = layout.sidePane.tabs().length + (layout.sidePane.activeSessionTab() ? 1 : 0)
+  createEffect(() => {
+    const count = layout.sidePane.tabs().length + (layout.sidePane.activeSessionTab() ? 1 : 0)
+    const previous = tabContentCount
+    tabContentCount = count
+    if (count > 0 || previous === 0) return
+    if (!layout.sidePane.opened()) return
+    layout.sidePane.close()
+  })
+
   const [store, setStore] = createStore({
     activeSidePaneDraggable: undefined as string | undefined,
   })
@@ -218,6 +246,13 @@ export function SessionSidePanel(props: {
           return acc
         }, {}),
     })
+  })
+
+  // 右栏当前内容标识：标签 + 具体文件/会话。内容一变就重播一次淡入动画。
+  const contentKey = createMemo(() => {
+    const active = layout.sidePane.activeTab() ?? ""
+    if (active === "preview") return `preview:${activeFileTab() ?? ""}`
+    return `${active}:${layout.sidePane.activeSessionTab()?.id ?? ""}`
   })
 
   const tab = layout.sidePane.activeTab
@@ -260,7 +295,8 @@ export function SessionSidePanel(props: {
       inert={!open()}
       class="relative shrink-0 h-full flex flex-col rounded-[var(--workspace-panel-radius)] border border-border bg-background overflow-hidden"
       classList={{
-        "transition-[width] will-change-[width] motion-reduce:transition-none": true,
+        // 边框宽度也要过渡：收起时 border-width 归 0，只过渡 width 的话 1px 边框会瞬移。
+        "transition-[width,border-width] will-change-[width] motion-reduce:transition-none": true,
       }}
       style={{
         width: `${width()}px`,
@@ -281,7 +317,7 @@ export function SessionSidePanel(props: {
         max={typeof window === "undefined" ? 1000 : window.innerWidth * 0.6}
         onResize={(next) => layout.sidePane.resize(next)}
       />
-      <div class="flex items-center gap-0.5 h-9 px-1.5 border-b border-border shrink-0">
+      <div class="side-pane-body flex items-center gap-0.5 h-9 px-1.5 border-b border-border shrink-0">
         <DragDropProvider
           onDragStart={sidePaneDragStart}
           onDragOver={sidePaneDragOver}
@@ -344,37 +380,58 @@ export function SessionSidePanel(props: {
           <WindowControls />
         </Show>
       </div>
-      <Show when={layout.sidePane.tabs().length > 0} fallback={<SidePaneEmptyState onOpenFiles={openFilesFromPicker} />}>
-        <div class="flex-1 min-h-0 overflow-hidden">
-          {/* 文件:文件本身已是顶层标签,这里只渲染当前文件的内容,没有第二层标签条。
-              FileTabContent 内部是 Tabs.Content,必须包一层 Tabs 提供上下文(不带标签条)。 */}
-          <Show when={tab() === "preview"}>
-            <Show when={activeFileTab()} keyed fallback={<SidePaneEmptyState onOpenFiles={openFilesFromPicker} />}>
-              {(t) => (
-                <Tabs value={t} onChange={(value) => tabs().setActive(value)} class="h-full min-h-0 flex flex-col">
-                  {/* 文件预览里的资源(office base64/文本读取)挂起时,没有这层边界会被
-                      会话页外层的 Suspense 接住,把整个聊天区一起闪成空白。就地兜住,
-                      挂起只影响这块内容。 */}
-                  <Suspense fallback={null}>
-                    <FileTabContent tab={t} />
-                  </Suspense>
-                </Tabs>
-              )}
-            </Show>
+      <Show
+        when={layout.sidePane.tabs().length > 0}
+        fallback={<SidePaneEmptyState onOpenFiles={openFilesFromPicker} />}
+      >
+        <div class="side-pane-body flex-1 min-h-0 overflow-hidden">
+          {/* 切换标签/文件时给内容一个淡入 + 轻微位移。
+              面板宽度本身有 320ms 过渡，但"面板已经开着、只是换内容"（比如从聊天里
+              点开一个办公产物）时宽度不变，内容如果直接替换就是"啪一下"，看不出过渡。
+              用 keyed Show 让每个内容键单独挂载一次，动画才会重新播放。 */}
+          <Show when={contentKey()} keyed>
+            {(_key) => (
+              <div class="side-pane-content h-full min-h-0 flex flex-col">
+              {/* 文件:文件本身已是顶层标签,这里只渲染当前文件的内容,没有第二层标签条。
+                  FileTabContent 内部是 Tabs.Content,必须包一层 Tabs 提供上下文(不带标签条)。 */}
+              <Show when={tab() === "preview"}>
+                <Show when={activeFileTab()} keyed fallback={<SidePaneEmptyState onOpenFiles={openFilesFromPicker} />}>
+                  {(t) => (
+                    <Tabs value={t} onChange={(value) => tabs().setActive(value)} class="h-full min-h-0 flex flex-col">
+                      {/* 文件预览里的资源(office base64/文本读取)挂起时,没有这层边界会被
+                          会话页外层的 Suspense 接住,把整个聊天区一起闪成空白。就地兜住,
+                          挂起只影响这块内容。 */}
+                      <Suspense fallback={null}>
+                        <FileTabContent tab={t} />
+                      </Suspense>
+                    </Tabs>
+                  )}
+                </Show>
+              </Show>
+              {/* 浏览器：URL iframe（网页预览 / 开发服务器），对齐 ZCode 的浏览器独立标签。 */}
+              <Show when={tab() === "browser"}>
+                <PreviewPanel files={{ count: () => openedTabs().length, open: () => layout.sidePane.add("preview") }} />
+              </Show>
+              <Show when={tab() === "terminal"}>
+                <TerminalPanel variant="pane" />
+              </Show>
+              <Show when={tab() === "review"}>{props.reviewPanel()}</Show>
+              {/* 会话标签（子代理钻取 / 侧边对话 / 后台任务输出）：面板里看另一个会话或任务输出。
+                  内置的三个标签走上面的分支，这里只处理动态标签。 */}
+              <Show when={layout.sidePane.activeSessionTab()}>
+                {(session) => (
+                  <Show
+                    when={session().kind === "background" ? session() : undefined}
+                    keyed
+                    fallback={<SidePaneSessionPanel tab={session()} />}
+                  >
+                    {(tab) => <SidePaneBackgroundOutput tab={tab} />}
+                  </Show>
+                )}
+              </Show>
+              </div>
+            )}
           </Show>
-          {/* 浏览器：URL iframe（网页预览 / 开发服务器），对齐 ZCode 的浏览器独立标签。 */}
-          <Show when={tab() === "browser"}>
-            <PreviewPanel
-              files={{ count: () => openedTabs().length, open: () => layout.sidePane.add("preview") }}
-            />
-          </Show>
-          <Show when={tab() === "terminal"}>
-            <TerminalPanel variant="pane" />
-          </Show>
-          <Show when={tab() === "review"}>{props.reviewPanel()}</Show>
-          {/* 会话标签（子代理钻取 / 侧边对话）：面板里看另一个会话。
-              内置的三个标签走上面的分支，这里只处理动态标签。 */}
-          <Show when={layout.sidePane.activeSessionTab()}>{(session) => <SidePaneSessionPanel tab={session()} />}</Show>
         </div>
       </Show>
     </aside>
@@ -465,7 +522,8 @@ function SidePaneAddTabMenu(props: { onOpenFiles: () => void }) {
   )
 }
 
-function SidePaneTabTrigger(props: { tab: SidePaneTab }) {  const layout = useLayout()
+function SidePaneTabTrigger(props: { tab: SidePaneTab }) {
+  const layout = useLayout()
   const language = useLanguage()
   const sideChat = useSideChat()
   const sortable = createSortable(props.tab)

@@ -32,11 +32,13 @@ describe("radius scale matches ZCode (Tailwind defaults)", () => {
 })
 
 // 右栏五段原本靠 border-t hairline 连成一片,现在各自是独立圆角卡片。
+// 后续无标题胶囊改版把卡片间距收紧到 gap-1.5、卡片本身换成半透明底
+// (rounded-xl bg-background/85 + shadow),外层不再有 p-2 padding。
 describe("right panel sections become separate cards", () => {
   test("the hairline separator is replaced by per-card borders and gaps", () => {
     expect(statusPanelSource).not.toContain("border-t border-border")
-    expect(statusPanelSource).toContain("rounded-lg border border-border bg-background")
-    expect(statusPanelSource).toContain("flex flex-col gap-2 p-2")
+    expect(statusPanelSource).toContain("rounded-xl bg-background/85")
+    expect(statusPanelSource).toContain("flex flex-col gap-1.5")
   })
 })
 
@@ -47,18 +49,22 @@ describe("sidebar header becomes a labelled vertical menu", () => {
     expect(sidebarMenuRowSource).toContain("flex-1 truncate text-left")
   })
 
-  test("layout renders database and settings as labelled rows", () => {
-    expect(layoutSource).toContain("<SidebarMenuRow")
-    expect(layoutSource).toContain('label={language.t("sidebar.database")}')
-    expect(layoutSource).toContain('label={language.t("sidebar.settings")}')
+  test("database and settings live in the left icon rail, not as full-width rows", () => {
+    // 用户反馈底部三行太占垂直空间：改成最左侧 40px 窄图标条，只留图标 + hover 提示。
+    expect(layoutSource).not.toContain("<SidebarMenuRow")
+    expect(layoutSource).toContain("items={railItems()}")
+    expect(layoutSource).toContain('label: language.t("sidebar.database")')
+    expect(layoutSource).toContain('label: language.t("sidebar.settings")')
   })
 
   // 字号/字重/颜色一起提:原来 caption + text-base 在浅色底上太轻,三行菜单读起来是灰的。
   test("rows use a bigger bolder darker label", () => {
     // 用户要求再放大一档并加粗：14px + semibold。
-    expect(sidebarMenuRowSource).toContain("text-14-semibold text-foreground")
-    expect(read("components/theme-scheme-toggle.tsx")).toContain("text-14-semibold text-foreground")
-    expect(read("components/mode-switch.tsx")).toContain("text-14-semibold text-foreground")
+    //（侧栏菜单行把字号收进 classList，不再和 text-foreground 拼在同一串里。）
+    expect(sidebarMenuRowSource).toContain('"text-14-semibold": !large()')
+    expect(sidebarMenuRowSource).toContain("text-foreground")
+    expect(read("components/theme-scheme-toggle.tsx")).toContain("text-[15px] font-medium text-foreground")
+    expect(read("components/mode-switch.tsx")).toContain("text-14-semibold")
   })
 
   // 菜单标签直接叫目标名词,不带"打开"前缀;主题切换显示要切过去的那个模式名(浅色时是深色模式)。
@@ -76,10 +82,13 @@ describe("sidebar header becomes a labelled vertical menu", () => {
     expect(enSource).toContain('"theme.toggle.light": "Light mode"')
   })
 
-  // 这几行现在沉在侧栏 footer：用一条上边框把动作区与列表分开，仍然不上整组底色。
+  // 桌面端这几行已经收进最左侧图标条（theme 在品牌下方、导航之上），面板 footer 只剩移动端抽屉
+  // 那一排图标；两组都靠一条上边框与列表分开，仍然不上整组底色。
   test("the footer groups the rows with a hairline instead of a flat group background", () => {
-    expect(layoutSource).toContain('class="shrink-0 border-t border-border p-2 flex flex-col gap-0.5"')
+    expect(layoutSource).toContain('class="shrink-0 border-t border-border p-2"')
     expect(layoutSource).not.toContain("border-border bg-surface p-1")
+    // 主题切换在 rail 里是图标形态（名称走 tooltip）。
+    expect(layoutSource).toContain('<ThemeSchemeToggle variant="icon" />')
   })
 })
 
@@ -87,8 +96,9 @@ describe("sidebar header becomes a labelled vertical menu", () => {
 // 旧实现是「每项一张竖排卡片」的响应式网格，和 ZCode 的列表观感不一致。
 describe("settings pages lay out as ZCode list rows", () => {
   test("the shared group card renders rows with dividers instead of standalone cards", () => {
-    expect(read("components/settings-parts.tsx")).toContain("border-t border-border px-4 py-3 first:border-t-0")
-    expect(read("components/settings-parts.tsx")).toContain("grid-cols-[minmax(0,1fr)_192px]")
+    expect(read("components/settings-parts.tsx")).toContain("border-t border-border px-4 py-3")
+    expect(read("components/settings-parts.tsx")).toContain("first:border-t-0")
+    expect(read("components/settings-parts.tsx")).toContain("grid-cols-1 sm:grid-cols-[minmax(0,1fr)_192px]")
   })
 
   test("general settings rows are list items, not bordered cards", () => {

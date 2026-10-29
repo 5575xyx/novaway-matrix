@@ -6,7 +6,7 @@ import { useParams } from "@solidjs/router"
 import { useLanguage } from "@/context/language"
 import { useGlobalSync } from "@/context/global-sync"
 import { decode64 } from "@/utils/base64"
-import { SettingsGeneral, SettingsPet } from "./settings-general"
+import { SettingsGeneral } from "./settings-general"
 import { SettingsMemoryEvolution } from "./settings-memory-evolution"
 import { SettingsProviders } from "./settings-providers"
 import { SettingsAgents, SettingsMcp, SettingsPlugins, SettingsRules, SettingsSkills } from "./settings-runtime"
@@ -15,11 +15,11 @@ import { SettingsKeybinds } from "./settings-keybinds"
 import { SettingsBrowser } from "./settings-browser"
 import { SettingsComputer } from "./settings-computer"
 import { SettingsCommands } from "./settings-commands"
+import { SettingsHooks } from "./settings-hooks"
 import { SettingsUsage } from "./settings-usage"
 
 const settingsTabs = [
   "general",
-  "desktop",
   "notifications",
   "providers",
   "browser",
@@ -29,6 +29,7 @@ const settingsTabs = [
   "memory",
   "skills",
   "commands",
+  "hooks",
   "rules",
   "usage",
   "mcp",
@@ -157,10 +158,6 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
                     <Icon name="sliders" />
                     {language.t("settings.tab.general")}
                   </Tabs.Trigger>
-                  <Tabs.Trigger value="desktop">
-                    <Icon name="eye" />
-                    {language.t("settings.tabs.pet")}
-                  </Tabs.Trigger>
                   <Tabs.Trigger value="notifications">
                     <Icon name="speech-bubble" />
                     {language.t("settings.tabs.notifications")}
@@ -209,6 +206,10 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
                     <Icon name="console" />
                     {language.t("settings.commands.title")}
                   </Tabs.Trigger>
+                  <Tabs.Trigger value="hooks">
+                    <Icon name="lu-zap" />
+                    {language.t("settings.hooks.tab")}
+                  </Tabs.Trigger>
                   <Tabs.Trigger value="rules">
                     <Icon name="shield" />
                     {language.t("settings.rules.title")}
@@ -229,11 +230,6 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
         <Tabs.Content value="general" class="no-scrollbar">
           <Suspense fallback={<SettingsPanelFallback />}>
             <SettingsGeneral />
-          </Suspense>
-        </Tabs.Content>
-        <Tabs.Content value="desktop" class="no-scrollbar">
-          <Suspense fallback={<SettingsPanelFallback />}>
-            <SettingsPet />
           </Suspense>
         </Tabs.Content>
         <Tabs.Content value="notifications" class="no-scrollbar">
@@ -280,6 +276,11 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
         <Tabs.Content value="commands" class="no-scrollbar">
           <Suspense fallback={<SettingsPanelFallback />}>
             <SettingsCommands directory={directory()} />
+          </Suspense>
+        </Tabs.Content>
+        <Tabs.Content value="hooks" class="no-scrollbar">
+          <Suspense fallback={<SettingsPanelFallback />}>
+            <SettingsHooks directory={directory()} />
           </Suspense>
         </Tabs.Content>
         <Tabs.Content value="rules" class="no-scrollbar">

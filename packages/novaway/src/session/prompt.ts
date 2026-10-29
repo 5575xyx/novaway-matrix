@@ -35,6 +35,7 @@ import { ToolJsonSchema } from "@/tool/json-schema"
 import { shouldDeferMcpTools } from "@/tool/mcp-defer"
 import { Token } from "@/util/token"
 import { MCP } from "../mcp"
+import { ReadState } from "@/tool/read-state"
 import { LSP } from "@/lsp/lsp"
 import { ulid } from "ulid"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
@@ -46,11 +47,13 @@ import { Config } from "@/config/config"
 import { Git } from "@/git"
 import { ConfigMemory } from "@/config/memory"
 import { ConfigEvolution } from "@/config/evolution"
+import { Service as CronService, defaultLayer as CronDefaultLayer } from "@/cron/service"
 import { ConfigGoal } from "@/config/goal"
 import { ConfigCheckpoint } from "@/config/checkpoint"
 import { ConfigDream } from "@/config/dream"
 import { ConfigMarkdown } from "@/config/markdown"
 import { SessionSummary } from "./summary"
+import { SessionMemoryNotes } from "./memory-notes"
 import { NamedError } from "@novaway/core/util/error"
 import { SessionProcessor } from "./processor"
 import { Tool } from "@/tool/tool"
@@ -77,6 +80,7 @@ import * as EffectLogger from "@novaway/core/effect/logger"
 import { InstanceState } from "@/effect/instance-state"
 import { TaskTool, type TaskPromptOps } from "@/tool/task"
 import { SessionRunState } from "./run-state"
+import { BackgroundJob } from "@/background/job"
 import { ToolBudget } from "./tool-budget"
 import { contextBudget, pendingTokens } from "./overflow"
 import { PlanApproval } from "./plan-approval"
@@ -106,6 +110,14 @@ globalThis.AI_SDK_LOG_WARNINGS = false
  * 再继续只会无限循环（每轮先输出几十个 token 又触发压缩）。
  */
 const MAX_CONSECUTIVE_AUTO_COMPACTIONS = 3
+/** Continue a truncated response at most this many times per turn. */
+const MAX_LENGTH_CONTINUATIONS = 2
+/**
+ * A blocking Stop hook (lint, typecheck, tests) feeds its reason back to the
+ * model and keeps the turn going, mirroring Claude Code. Bound it so a hook
+ * that always fails cannot trap the turn forever.
+ */
+const MAX_STOP_HOOK_BLOCKS = 3
 
 const buildGoalContext = Effect.fn("SystemPrompt.buildGoalContext")(function* (goalService: any, sessionId: string) {
   if (!goalService) return ""
@@ -159,47 +171,97 @@ type HookResult = {
 
 const EMPTY_HOOK: HookResult = { blocked: false, ran: false }
 
-// 待办收尾清扫:模型更新过待办清单,但这一轮结束时清单里仍有未完成项,就再跑一轮
-// 提醒它自己把状态收敛到真实进度。decideTodoSweep 是无状态判定——只看清单状态和
-// 消息顺序,不依赖任何会话内计数器,因此天然幂等,重复进入 loop 也不会误判。
-export const TODO_SWEEP_MARKER = "[待办清单收尾提醒]"
-const TODO_SWEEP_MAX = 2
+/**
+ * What a hook wants the model to read. `reason` only counts when the hook
+ * actually blocked the call (`deny` from JSON, exit code 2 from a command);
+ * a hook that merely failed keeps its stderr in the logs, because reporting it
+ * to the model would look like a tool failure that never happened.
+ */
+function hookNotes(result: HookResult) {
+  const notes: string[] = []
+  if (result.additionalContext) notes.push(result.additionalContext)
+  if (result.reason && (result.decision === "deny" || result.blocked)) notes.push(result.reason)
+  return notes
+}
+
 const TODO_TOOL_IDS = new Set(["todowrite", "todoedit"])
 
 const hasTodoToolCall = (message: MessageV2.WithParts) =>
   message.parts.some((part) => part.type === "tool" && TODO_TOOL_IDS.has(part.tool))
-const hasSweepReminder = (message: MessageV2.WithParts) =>
-  message.parts.some((part) => part.type === "text" && part.text.includes(TODO_SWEEP_MARKER))
 
-export type TodoSweepReason = "clean" | "no_todo_call" | "recently_swept" | "limit" | "sweep"
+/**
+ * Periodic "you have not touched the todo list in a while" nudge.
+ *
+ * Mirrors Claude Code's `todo_reminder` attachment: it fires only after
+ * {@link TODO_REMINDER_TURNS_SINCE_WRITE} assistant turns without a todo tool
+ * call, and at most once every {@link TODO_REMINDER_TURNS_BETWEEN} turns. The
+ * point is to keep long multi-step work tracked — statuses are expected to be
+ * finalized item-by-item as the work happens, so drift is the only thing left
+ * to prod.
+ */
+export const TODO_REMINDER_MARKER = "[待办清单提醒]"
+const TODO_REMINDER_TURNS_SINCE_WRITE = 10
+const TODO_REMINDER_TURNS_BETWEEN = 10
 
-export function decideTodoSweep(input: { todos: Todo.Info[]; messages: MessageV2.WithParts[] }): TodoSweepReason {
-  const unfinished = input.todos.filter((todo) => todo.status === "pending" || todo.status === "in_progress")
-  if (unfinished.length === 0) return "clean"
+const hasTodoReminder = (message: MessageV2.WithParts) =>
+  message.parts.some((part) => part.type === "text" && part.synthetic && part.text.includes(TODO_REMINDER_MARKER))
 
-  const lastTodoCall = input.messages.findLastIndex(hasTodoToolCall)
-  if (lastTodoCall === -1) return "no_todo_call"
-
-  // 上一次提醒排在最后一次 todo 调用之后,说明这段历史已经被提醒过。
-  if (input.messages.findLastIndex(hasSweepReminder) > lastTodoCall) return "recently_swept"
-  // 硬上限:提醒本身也会触发新一轮,不设上限会和 todo 更新互相触发到停不下来。
-  if (input.messages.filter(hasSweepReminder).length >= TODO_SWEEP_MAX) return "limit"
-
-  return "sweep"
+export function decideTodoReminder(input: { messages: MessageV2.WithParts[]; enabled: boolean }): boolean {
+  if (!input.enabled || input.messages.length === 0) return false
+  const assistantTurnsSince = (index: number) =>
+    input.messages.slice(index + 1).filter((message) => message.info.role === "assistant").length
+  return (
+    assistantTurnsSince(input.messages.findLastIndex(hasTodoToolCall)) >= TODO_REMINDER_TURNS_SINCE_WRITE &&
+    assistantTurnsSince(input.messages.findLastIndex(hasTodoReminder)) >= TODO_REMINDER_TURNS_BETWEEN
+  )
 }
 
-export function todoSweepReminder(todos: Todo.Info[]): string {
-  const unfinished = todos
-    .map((todo, position) => ({ ...todo, position }))
-    .filter((todo) => todo.status === "pending" || todo.status === "in_progress")
+/**
+ * Background shell jobs finish after their tool call already returned. CC tells
+ * the model once through a `<task-notification>` block instead of making it
+ * poll; this tracks the jobs already announced so a re-listed job (or a restart)
+ * does not repeat the message.
+ */
+const notifiedJobs = new Map<string, Set<string>>()
+
+/** Test hook: forget which background jobs were already announced. */
+export function resetBackgroundNotifications(sessionID?: string) {
+  if (sessionID === undefined) notifiedJobs.clear()
+  else notifiedJobs.delete(sessionID)
+}
+
+function notificationText(value: string) {
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+}
+
+export function backgroundNotification(job: BackgroundJob.Info) {
+  const description = job.title ?? "background command"
+  const exit = typeof job.metadata?.exit === "number" ? job.metadata.exit : undefined
+  const summary =
+    job.status === "completed"
+      ? `Background command "${description}" completed${exit !== undefined ? ` (exit code ${exit})` : ""}`
+      : job.status === "cancelled"
+        ? `Background command "${description}" was stopped`
+        : `Background command "${description}" failed${exit !== undefined ? ` with exit code ${exit}` : ""}`
+  const outputPath = typeof job.metadata?.outputPath === "string" ? job.metadata.outputPath : undefined
   return [
-    TODO_SWEEP_MARKER,
-    `待办清单共 ${todos.length} 条,其中 ${unfinished.length} 条未完成(position 是 0 起索引):`,
-    unfinished.map((todo) => `${todo.position}. ${todo.content} [${todo.status}]`).join("\n"),
-    "",
-    "这一轮收尾时请用 todoedit 把状态改到真实进度:确实做完并验证过的用 complete,不再需要的用 cancel,仍在进行的保持 progress(同时最多一条)。",
-    "不要用 todowrite 重写整份清单,position 以上面的编号为准。",
-    "如果确实没有需要改的,就回一句简短说明,不要新增条目。",
+    "<task-notification>",
+    `<task-id>${job.id}</task-id>`,
+    ...(outputPath ? [`<output-file>${outputPath}</output-file>`] : []),
+    `<status>${job.status === "error" ? "failed" : job.status}</status>`,
+    `<summary>${notificationText(summary)}</summary>`,
+    "</task-notification>",
+  ].join("\n")
+}
+
+export function todoReminder(todos: Todo.Info[]): string {
+  const items = todos.map((todo, index) => `${index + 1}. [${todo.status}] ${todo.content}`).join("\n")
+  return [
+    TODO_REMINDER_MARKER,
+    `最近 ${TODO_REMINDER_TURNS_SINCE_WRITE} 个回合没有更新待办清单。如果当前工作是多步骤任务,请用 todowrite 建立清单并用 todoedit 按真实进度更新;如果不需要追踪,忽略这条提醒即可。`,
+    "更新时按真实进度逐项收尾:当前这项做完并验证过就立刻 complete,再 progress 下一项;清单不能停在旧状态。",
+    items ? `当前清单:\n${items}` : "当前还没有待办清单。",
+    "不要向用户提起这条提醒。",
   ].join("\n")
 }
 
@@ -478,6 +540,7 @@ function referenceTextPart(input: {
 export interface Interface {
   readonly cancel: (sessionID: SessionID) => Effect.Effect<void>
   readonly prompt: (input: PromptInput) => Effect.Effect<MessageV2.WithParts, Image.Error>
+  readonly resume: (sessionID: SessionID) => Effect.Effect<MessageV2.WithParts>
   readonly loop: (input: LoopInput) => Effect.Effect<MessageV2.WithParts>
   readonly shell: (input: ShellInput) => Effect.Effect<MessageV2.WithParts, Session.BusyError>
   readonly command: (input: CommandInput) => Effect.Effect<MessageV2.WithParts, Image.Error>
@@ -512,6 +575,25 @@ export const layer = Layer.effect(
     // Instructions rarely change; remember what each session loaded so
     // `InstructionsLoaded` fires on the first turn and on change, not per request.
     const instructionSignatures = new Map<string, string>()
+    // Tool hooks run while the tool call is in flight, when there is no new user
+    // message to attach context to. Their notes are queued per session and
+    // drained by `insertReminders` on the next request, matching the timing and
+    // shape of Claude Code's `hook_blocking_error` attachment.
+    const pendingHookNotes = new Map<SessionID, { tool: string; text: string }[]>()
+    const PENDING_HOOK_NOTES_MAX = 10
+    const rememberHookNotes = (sessionID: SessionID, tool: string, notes: string[]) => {
+      if (!notes.length) return
+      const list = pendingHookNotes.get(sessionID) ?? []
+      for (const text of notes) list.push({ tool, text })
+      if (list.length > PENDING_HOOK_NOTES_MAX) list.splice(0, list.length - PENDING_HOOK_NOTES_MAX)
+      pendingHookNotes.set(sessionID, list)
+    }
+    const takeHookNotes = (sessionID: SessionID) => {
+      const list = pendingHookNotes.get(sessionID)
+      if (!list?.length) return []
+      pendingHookNotes.delete(sessionID)
+      return list
+    }
     const toolLock = Option.getOrUndefined(yield* Effect.serviceOption(ToolLockServiceService))
     const mailbox = Option.getOrUndefined(yield* Effect.serviceOption(AgentMailboxService))
     const planApproval = Option.getOrUndefined(yield* Effect.serviceOption(PlanApproval.Service))
@@ -730,6 +812,127 @@ export const layer = Layer.effect(
     }) {
       const userMessage = input.messages.findLast((msg) => msg.info.role === "user")
       if (!userMessage) return input.messages
+
+      // Files the model read earlier may have changed on disk (the user edited
+      // them, a build regenerated them, another agent touched them). Claude
+      // Code surfaces this as an attachment so the model does not reason from
+      // stale contents; we say so once and invalidate the read entry, which
+      // also makes a later Edit demand a fresh read instead of silently
+      // applying an offset-based patch to a changed file.
+      const readState = Option.getOrUndefined(yield* Effect.serviceOption(ReadState.Service))
+      if (readState) {
+        const tracked = yield* readState.list(input.session.id)
+        const changed: string[] = []
+        for (const item of tracked.slice(-200)) {
+          const info = yield* fsys.stat(item.path).pipe(Effect.catch(() => Effect.succeed(undefined)))
+          const mtime = info?.mtime.pipe(Option.map((date) => date.getTime()), Option.getOrElse(() => 0)) ?? 0
+          const size = info ? Number(info.size) : -1
+          if (!info) {
+            changed.push(`${item.path} (deleted)`)
+            yield* readState.forget(input.session.id, item.path)
+            continue
+          }
+          if (mtime !== item.entry.mtime || size !== item.entry.size) {
+            changed.push(item.path)
+            yield* readState.forget(input.session.id, item.path)
+          }
+        }
+        if (changed.length > 0) {
+          const shown = changed.slice(0, 10)
+          const part = yield* sessions.updatePart({
+            id: PartID.ascending(),
+            messageID: userMessage.info.id,
+            sessionID: userMessage.info.sessionID,
+            type: "text",
+            synthetic: true,
+            text: [
+              "<system-reminder>",
+              `The following file${changed.length === 1 ? " has" : "s have"} changed on disk since you last read ${
+                changed.length === 1 ? "it" : "them"
+              }, so the contents you have are stale:`,
+              ...shown.map((file) => `- ${file}`),
+              ...(changed.length > shown.length ? [`- ...and ${changed.length - shown.length} more`] : []),
+              "Read each one again before relying on its contents or editing it.",
+              "</system-reminder>",
+            ].join("\n"),
+          })
+          userMessage.parts.push(part)
+        }
+      }
+
+      // Background commands that finished since the last request. The tail of
+      // their output is already in the job (and the full text on disk when it
+      // was truncated); the point is to stop the model from polling task_status.
+      const background = Option.getOrUndefined(yield* Effect.serviceOption(BackgroundJob.Service))
+      if (background) {
+        const seen = notifiedJobs.get(input.session.id) ?? new Set<string>()
+        const jobs = (yield* background.list()).filter(
+          (job) =>
+            job.type === "shell" &&
+            job.metadata?.background === true &&
+            job.metadata?.sessionId === input.session.id &&
+            (job.status === "completed" || job.status === "error" || job.status === "cancelled") &&
+            !seen.has(job.id),
+        )
+        if (jobs.length > 0) {
+          const announced = jobs.slice(0, 20)
+          for (const job of announced) seen.add(job.id)
+          notifiedJobs.set(input.session.id, seen)
+          const part = yield* sessions.updatePart({
+            id: PartID.ascending(),
+            messageID: userMessage.info.id,
+            sessionID: userMessage.info.sessionID,
+            type: "text",
+            synthetic: true,
+            text: [
+              "<system-reminder>",
+              "Background command status changed since the last message:",
+              ...announced.map(backgroundNotification),
+              "Read the reported output (or the output file) instead of polling the job; the user can also see it in the status panel.",
+              "</system-reminder>",
+            ].join("\n"),
+          })
+          userMessage.parts.push(part)
+        }
+      }
+
+      // Plan mode forbids the todo tools, so the nudge would only be noise.
+      if (input.agent.name !== "plan" && !Permission.disabled(["todowrite"], input.agent.permission).has("todowrite")) {
+        if (decideTodoReminder({ messages: input.messages, enabled: true })) {
+          const todos = yield* todo.get(input.session.id).pipe(Effect.catch(() => Effect.succeed([] as Todo.Info[])))
+          const part = yield* sessions.updatePart({
+            id: PartID.ascending(),
+            messageID: userMessage.info.id,
+            sessionID: userMessage.info.sessionID,
+            type: "text",
+            text: todoReminder(todos),
+            synthetic: true,
+          })
+          userMessage.parts.push(part)
+        }
+      }
+
+      // Hook notes produced while tool calls ran this turn (blocked PostToolUse,
+      // PostToolUseFailure reasons, additionalContext). Delivered before the
+      // next request so the model can act on them, mirroring Claude Code's
+      // `hook_blocking_error` / `hook_additional_context` attachments.
+      const hookNotes = takeHookNotes(input.session.id)
+      if (hookNotes.length > 0) {
+        const part = yield* sessions.updatePart({
+          id: PartID.ascending(),
+          messageID: userMessage.info.id,
+          sessionID: userMessage.info.sessionID,
+          type: "text",
+          synthetic: true,
+          text: [
+            "<system-reminder>",
+            "Feedback from tool hooks in this turn:",
+            ...hookNotes.map((note) => `[${note.tool}] ${note.text}`),
+            "</system-reminder>",
+          ].join("\n"),
+        })
+        userMessage.parts.push(part)
+      }
 
       if (!flags.experimentalPlanMode) {
         if (input.agent.name === "plan") {
@@ -976,6 +1179,16 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                       new Error(pre.reason || `The ${item.id} tool call was blocked by a PreToolUse hook.`),
                     )
                   }
+                  // `ask` from a hook is a request for human approval for this
+                  // one call, exactly like `checkPermissions` returning "ask".
+                  if (pre.decision === "ask") {
+                    yield* ctx.ask({
+                      permission: item.id,
+                      patterns: ["*"],
+                      always: ["*"],
+                      metadata: pre.reason ? { hookReason: pre.reason } : {},
+                    })
+                  }
                   const effective = (pre.updatedInput ?? args) as typeof args
 
                   yield* plugin.trigger(
@@ -985,11 +1198,14 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                   )
                   // Tool failures must still reach hooks, then propagate unchanged:
                   // `PostToolUseFailure` is observational, not a recovery channel.
+                  // Whatever the hook says about the failure is queued and shown
+                  // at the next request; the error object itself is untouched so
+                  // permission rejections keep their identity for denial counting.
                   const result = yield* item.execute(effective, ctx).pipe(
                     Effect.catchCause((cause) =>
                       Effect.gen(function* () {
                         if (hooks) {
-                          yield* hooks
+                          const failed = yield* hooks
                             .trigger({
                               event: "PostToolUseFailure",
                               sessionID: ctx.sessionID,
@@ -998,19 +1214,45 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                               args: effective,
                               error: Cause.pretty(cause),
                             })
-                            .pipe(Effect.ignore)
+                            .pipe(Effect.catchCause(() => Effect.succeed(EMPTY_HOOK)))
+                          rememberHookNotes(ctx.sessionID, item.id, hookNotes(failed))
                         }
                         return yield* Effect.failCause(cause)
                       }),
                     ),
                   )
+                  // PostToolUse runs before the result is handed to the model so
+                  // its `additionalContext` (lint output, formatter notes, …) can
+                  // be appended as a system reminder. Claude Code surfaces it the
+                  // same way; storing it only in metadata would hide it from the
+                  // model entirely.
+                  const post = hooks
+                    ? yield* hooks.trigger({
+                        event: "PostToolUse",
+                        sessionID: ctx.sessionID,
+                        cwd: input.session.directory,
+                        tool: item.id,
+                        args: effective,
+                        result: result.output,
+                      })
+                    : EMPTY_HOOK
+                  // `pre` and `post` both run before the result reaches the
+                  // model, so their notes are appended to the tool output
+                  // itself; only a blocked PostToolUse has a reason worth
+                  // showing (a hook that merely failed keeps its stderr in logs).
+                  const context = [pre.additionalContext, ...hookNotes(post)].filter(
+                    (text): text is string => !!text,
+                  )
                   const output = {
                     ...result,
-                    ...(pre.additionalContext
+                    ...(context.length
                       ? {
+                          output: [result.output, ...context.map((text) => `<system-reminder>\n${text}\n</system-reminder>`)]
+                            .filter(Boolean)
+                            .join("\n\n"),
                           metadata: {
                             ...result.metadata,
-                            hookContext: pre.additionalContext,
+                            hookContext: context.join("\n\n"),
                           },
                         }
                       : {}),
@@ -1026,16 +1268,6 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                     { tool: item.id, sessionID: ctx.sessionID, callID: ctx.callID, args: effective },
                     output,
                   )
-                  if (hooks) {
-                    yield* hooks.trigger({
-                      event: "PostToolUse",
-                      sessionID: ctx.sessionID,
-                      cwd: input.session.directory,
-                      tool: item.id,
-                      args: effective,
-                      result: output.output,
-                    })
-                  }
                   if (options.abortSignal?.aborted) {
                     yield* input.processor.completeToolCall(options.toolCallId, output)
                   }
@@ -1962,6 +2194,41 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                   if (end) limit = end - (offset - 1)
                 }
                 const args = { filePath: filepath, offset, limit }
+                // Mirrors Claude Code's `already_read_file` attachment: when the
+                // same unchanged file is mentioned again, pointing at the
+                // earlier read is enough — re-inlining it just burns context.
+                const known = yield* Effect.serviceOption(ReadState.Service).pipe(
+                  Effect.flatMap((service) =>
+                    Option.isNone(service)
+                      ? Effect.succeed(undefined)
+                      : service.value.get(input.sessionID, filepath),
+                  ),
+                )
+                const current = yield* fsys.stat(filepath).pipe(Effect.catch(() => Effect.succeed(undefined)))
+                const mtime = current?.mtime.pipe(Option.map((date) => date.getTime()), Option.getOrElse(() => 0)) ?? 0
+                // `offset` is only set by an actual Read. An entry created by
+                // edit/write reflects the post-write mtime while the content in
+                // context is the pre-write version, so it must not be deduped.
+                if (
+                  known?.offset !== undefined &&
+                  offset === undefined &&
+                  limit === undefined &&
+                  !known.partial &&
+                  known.mtime === mtime
+                ) {
+                  return [
+                    ...(referenceContext
+                      ? [{ ...referenceContext, messageID: info.id, sessionID: input.sessionID }]
+                      : []),
+                    {
+                      messageID: info.id,
+                      sessionID: input.sessionID,
+                      type: "text",
+                      synthetic: true,
+                      text: `This file is already in context and has not changed since it was last read (${known.size} bytes, mtime ${new Date(known.mtime).toISOString()}). Its contents are omitted here; refer to the earlier read. Re-read it only if you need to confirm the current contents.`,
+                    },
+                  ]
+                }
                 const pieces: Draft<MessageV2.Part>[] = [
                   ...(referenceContext
                     ? [{ ...referenceContext, messageID: info.id, sessionID: input.sessionID }]
@@ -2537,14 +2804,30 @@ NOTE: At any point in time through this workflow you should feel free to ask the
               cwd: session.directory,
               prompt: promptText,
             })
-            .pipe(
-              Effect.catch(() => Effect.succeed({ blocked: false, ran: false } as { blocked: boolean; ran: boolean })),
-            )
-        : { blocked: false, ran: false }
+            .pipe(Effect.catch(() => Effect.succeed(EMPTY_HOOK)))
+        : EMPTY_HOOK
       if (submitted.blocked) {
         return yield* Effect.die(new Error("Prompt blocked by a UserPromptSubmit hook."))
       }
       const message = yield* createUserMessage(input)
+      // Hook-provided context (SessionStart at the start of the session,
+      // UserPromptSubmit per message) is only useful if the model sees it, so
+      // attach it to this user message as a synthetic part.
+      const startContext = Session.takeStartContext(input.sessionID)
+      for (const text of [startContext, submitted.additionalContext]) {
+        if (!text) continue
+        const part = yield* sessions.updatePart({
+          id: PartID.ascending(),
+          messageID: message.info.id,
+          sessionID: message.info.sessionID,
+          type: "text",
+          synthetic: true,
+          text: `<hook-context>
+${text}
+</hook-context>`,
+        })
+        message.parts.push(part)
+      }
       yield* sessions.touch(input.sessionID)
 
       const permissions: Permission.Ruleset = []
@@ -2566,6 +2849,43 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       const msgs = yield* sessions.messages({ sessionID, limit: 1 }).pipe(Effect.orDie)
       if (msgs.length > 0) return msgs[0]
       throw new Error("Impossible")
+    })
+
+    /**
+     * 「继续任务」：把中断的那一轮接着做完。
+     *
+     * 与用户重新发一条消息的区别：
+     *  - 不新增用户消息，对话轮次保持不变（同一条 user 消息下的下一条 assistant 消息）；
+     *  - 已有的上下文（计划、待办、已完成步骤、文件改动）原样沿用，模型只需接着做；
+     *  - 只有"意外中断"才允许续跑：用户主动停止（MessageAbortedError）或已经正常收尾的轮次
+     *    直接返回当前消息，不做任何事。
+     */
+    const resume = Effect.fn("SessionPrompt.resume")(function* (sessionID: SessionID) {
+      const session = yield* sessions.get(sessionID).pipe(Effect.orDie)
+      yield* revert.cleanup(session)
+      const msgs = yield* sessions.messages({ sessionID }).pipe(Effect.orDie)
+      const lastUser = msgs.findLast((item) => item.info.role === "user")
+      // 还没有任何用户消息：没什么可继续的。
+      if (!lastUser) return yield* lastAssistant(sessionID)
+
+      const attempts = msgs.filter(
+        (item) => item.info.role === "assistant" && item.info.parentID === lastUser.info.id,
+      )
+      const last = attempts.at(-1)
+      if (!last || last.info.role !== "assistant") return yield* lastAssistant(sessionID)
+      // 用户主动停止：这是用户的决定，不自动续跑。
+      if (last.info.error?.name === "MessageAbortedError") return yield* lastAssistant(sessionID)
+      // 这一轮已经正常收尾：无需继续。
+      const interrupted = !!last.info.error || last.info.time.completed === undefined
+      if (!interrupted) return yield* lastAssistant(sessionID)
+
+      const data = last.info.error?.data
+      const reason =
+        typeof data === "object" && data !== null && "message" in data && typeof data.message === "string"
+          ? data.message
+          : undefined
+      yield* sessions.touch(sessionID)
+      return yield* loop({ sessionID, resume: true, reason })
     })
 
     // 在已配置的提供方中挑选一个支持图片输入的模型，优先同提供方，其次 NovaWay，最后任意提供方。
@@ -2790,18 +3110,30 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       }
     })
 
-    const runLoop: (sessionID: SessionID) => Effect.Effect<MessageV2.WithParts, never, never> = Effect.fn(
-      "SessionPrompt.run",
-    )(function* (sessionID: SessionID) {
+    const runLoop: (
+      sessionID: SessionID,
+      resume?: { reason?: string },
+    ) => Effect.Effect<MessageV2.WithParts, never, never> = Effect.fn("SessionPrompt.run")(function* (
+      sessionID: SessionID,
+      resume?: { reason?: string },
+    ) {
       const ctx = yield* InstanceState.context
       const slog = elog.with({ sessionID })
       let structured: unknown
       let step = 0
       let autoCompactions = 0
+      let lengthContinuations = 0
+      let stopHookBlocks = 0
       const session = yield* sessions.get(sessionID).pipe(Effect.orDie)
       let loopModel: Provider.Model | undefined = undefined
+      // 「继续任务」：上一轮请求失败/被意外切断后，用户点继续时不能把上一条 assistant
+      // 的 finish/error 当成"这一轮已经结束"，必须再发一次请求把剩下的活干完。
+      // 只强制一次，之后回到正常的结束判定，避免一直续跑。
+      let resumeAttempts = resume ? 1 : 0
 
       while (true) {
+        const resuming = resumeAttempts > 0
+        if (resuming) resumeAttempts -= 1
         yield* status.set(sessionID, { type: "busy" })
         yield* slog.info("loop", { step })
 
@@ -2857,7 +3189,81 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         const hasToolCalls =
           lastAssistantMsg?.parts.some((part) => part.type === "tool" && !part.metadata?.providerExecuted) ?? false
 
+        // Session notes (CC `SessionMemory`): once a response is on record and
+        // the context has grown enough, refresh the 10-section markdown file in
+        // the background. It never blocks the loop and failures only log.
         if (
+          lastAssistant &&
+          lastFinished?.id === lastAssistant.id &&
+          lastAssistant.summary !== true &&
+          !lastAssistant.error &&
+          lastUser.model &&
+          lastUser.id < lastAssistant.id
+        ) {
+          const noteModel = yield* getModel(
+            lastUser.model.providerID,
+            lastUser.model.modelID,
+            sessionID,
+          ).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+          if (noteModel) {
+            const noteTokens =
+              lastFinished.tokens.total ||
+              lastFinished.tokens.input +
+                lastFinished.tokens.output +
+                lastFinished.tokens.reasoning +
+                lastFinished.tokens.cache.read +
+                lastFinished.tokens.cache.write
+            yield* SessionMemoryNotes.maybeUpdate({
+              sessionID,
+              provider,
+              model: noteModel,
+              messages: msgs,
+              tokens: noteTokens,
+              lastTurnHasToolCalls: hasToolCalls,
+              lastMessageID: lastAssistant.id,
+            }).pipe(Effect.ignore, Effect.forkIn(scope))
+          }
+        }
+
+        // A response that hit the output token limit is not a finished turn.
+        // Claude Code escalates max_tokens and retries; we continue from the
+        // cut-off point instead, bounded so a model that keeps rambling cannot
+        // loop forever.
+        if (
+          !resuming &&
+          lastAssistant?.finish === "length" &&
+          !hasToolCalls &&
+          lastUser.id < lastAssistant.id &&
+          lengthContinuations < MAX_LENGTH_CONTINUATIONS
+        ) {
+          lengthContinuations++
+          const info: MessageV2.User = {
+            id: MessageID.ascending(),
+            sessionID,
+            role: "user",
+            time: { created: Date.now() },
+            agent: lastUser.agent,
+            model: lastUser.model,
+          }
+          yield* sessions.updateMessage(info)
+          yield* sessions.updatePart({
+            id: PartID.ascending(),
+            messageID: info.id,
+            sessionID,
+            type: "text",
+            synthetic: true,
+            text: [
+              "<system-reminder>",
+              "Your previous response was cut off because it reached the output token limit. Continue exactly where it stopped. Do not repeat text you already emitted and do not restart the task.",
+              "</system-reminder>",
+            ].join(NL),
+          } satisfies MessageV2.TextPart)
+          step++
+          continue
+        }
+
+        if (
+          !resuming &&
           lastAssistant?.finish &&
           !["tool-calls"].includes(lastAssistant.finish) &&
           !hasToolCalls &&
@@ -2882,7 +3288,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             }).pipe(Effect.ignore)
           }
           if (hooks) {
-            yield* hooks
+            const stop = yield* hooks
               .trigger({
                 event: "Stop",
                 sessionID,
@@ -2890,21 +3296,9 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                 metadata: { finish: lastAssistant.finish, agent: lastUser.agent },
               })
               .pipe(
-                // A Stop hook that blocks the turn, or crashes, is itself an
-                // event worth observing (`StopFailure`), but must never abort
-                // the loop or leave the session running.
-                Effect.flatMap((result) =>
-                  result.decision === "deny"
-                    ? hooks
-                        .trigger({
-                          event: "StopFailure",
-                          sessionID,
-                          cwd: session.directory,
-                          error: result.reason ?? "Stop hook denied",
-                        })
-                        .pipe(Effect.ignore)
-                    : Effect.void,
-                ),
+                // A crashing Stop hook is itself an event worth observing
+                // (`StopFailure`), but must never abort the loop or leave the
+                // session running.
                 Effect.catchCause((cause) =>
                   hooks
                     .trigger({
@@ -2913,9 +3307,50 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                       cwd: session.directory,
                       error: Cause.pretty(cause),
                     })
-                    .pipe(Effect.ignore),
+                    .pipe(Effect.ignore, Effect.as(EMPTY_HOOK)),
                 ),
               )
+            if (stop.decision === "deny") {
+              // Mirror Claude Code: a blocking Stop hook (lint/typecheck/tests)
+              // is feedback for the model, not the end of the turn. The reason
+              // is injected as a synthetic user message and the loop continues
+              // so the model can fix what the hook complained about.
+              yield* hooks
+                .trigger({
+                  event: "StopFailure",
+                  sessionID,
+                  cwd: session.directory,
+                  error: stop.reason ?? "Stop hook denied",
+                })
+                .pipe(Effect.ignore)
+              if (stopHookBlocks < MAX_STOP_HOOK_BLOCKS) {
+                stopHookBlocks++
+                const feedback: MessageV2.User = {
+                  id: MessageID.ascending(),
+                  sessionID,
+                  role: "user",
+                  time: { created: Date.now() },
+                  agent: lastUser.agent,
+                  model: lastUser.model,
+                }
+                yield* sessions.updateMessage(feedback)
+                yield* sessions.updatePart({
+                  id: PartID.ascending(),
+                  messageID: feedback.id,
+                  sessionID,
+                  type: "text",
+                  synthetic: true,
+                  text: [
+                    `Stop hook feedback:\n${stop.reason ?? "The Stop hook blocked the turn."}`,
+                    "",
+                    "Address the issue the hook reported, then finish the task. Do not simply restate this message.",
+                  ].join(NL),
+                } satisfies MessageV2.TextPart)
+                step++
+                continue
+              }
+              yield* slog.warn("stop hook still blocking after limit", { blocks: stopHookBlocks })
+            }
           }
           yield* slog.info("exiting loop")
           break
@@ -2945,13 +3380,42 @@ NOTE: At any point in time through this workflow you should feel free to ask the
 
         if (task?.type === "compaction") {
           if (!task.auto) autoCompactions = 0
-          const result = yield* compaction.process({
-            messages: msgs,
-            parentID: lastUser.id,
-            sessionID,
-            auto: task.auto,
-            overflow: task.overflow,
-          })
+          const exit = yield* compaction
+            .process({
+              messages: msgs,
+              parentID: lastUser.id,
+              sessionID,
+              auto: task.auto,
+              overflow: task.overflow,
+            })
+            .pipe(Effect.exit)
+          if (Exit.isFailure(exit)) {
+            // Cancellation means the user stopped the turn: never swallow it.
+            if (Cause.hasInterruptsOnly(exit.cause)) return yield* Effect.failCause(exit.cause)
+            // A manual compaction is one-shot; surface the failure instead of
+            // retrying behind the user's back.
+            if (!task.auto) return yield* Effect.failCause(exit.cause)
+            // Failures count towards the same circuit breaker as "compacted but
+            // still over the limit". Without this a provider error would either
+            // abort the turn or retry forever, depending on where it surfaced.
+            autoCompactions++
+            yield* slog.warn("auto-compaction failed", {
+              attempts: autoCompactions,
+              cause: Cause.pretty(exit.cause),
+            })
+            if (autoCompactions >= MAX_CONSECUTIVE_AUTO_COMPACTIONS) {
+              const error = new NamedError.Unknown({
+                message:
+                  `Auto-compaction failed ${autoCompactions} times in a row, so the turn was stopped to avoid retrying forever.\n` +
+                  `Last error: ${Cause.pretty(exit.cause)}\n` +
+                  `Run /compact manually, or start a new session.`,
+              })
+              yield* bus.publish(Session.Event.Error, { sessionID, error: error.toObject() })
+              break
+            }
+            continue
+          }
+          const result = exit.value
           if (result === "stop") break
           if (task.auto) autoCompactions++
           continue
@@ -3167,7 +3631,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           // untouched, so the UI and later turns still see the full text.
           const budgeted = ToolBudget.apply(msgs, {
             budgetChars: cfg.experimental?.tool_result_budget_chars ?? ToolBudget.DEFAULT_BUDGET_CHARS,
-            keepRecentMessages: cfg.experimental?.tool_result_keep_recent_messages ?? 2,
+            keepRecentMessages: cfg.experimental?.tool_result_keep_recent_messages ?? 20,
           })
           if (budgeted.replaced > 0) {
             log.info("tool result budget applied", {
@@ -3264,6 +3728,21 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             Effect.catch(() => Effect.succeed("")),
           )
           if (goalContext) system.push(goalContext)
+          // 继续任务：把"为什么又发了一次请求"告诉模型，并明确要求接着做而不是重来。
+          // 这条只走 system，不新增用户消息 —— 对话轮次与界面都保持同一轮。
+          if (resuming) {
+            system.push(
+              [
+                "<resume-context>",
+                "This turn was interrupted before it finished.",
+                resume?.reason ? `Interruption reason: ${resume.reason}` : "",
+                "Continue exactly where you stopped: keep the existing plan and todo list, do not restart the task, do not repeat output that was already produced, and finish the remaining work.",
+                "</resume-context>",
+              ]
+                .filter(Boolean)
+                .join(NL),
+            )
+          }
           const format = lastUser.format ?? { type: "text" as const }
           if (format.type === "json_schema") system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)
           const result = yield* handle.process({
@@ -3361,35 +3840,23 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       return yield* lastAssistant(sessionID)
     } as any) as any
 
-    // 待办收尾清扫:一轮结束时清单里还有未完成项,就再跑一轮让模型自己收敛状态。
-    // 判定见 decideTodoSweep——无状态、有硬上限,不会和 todo 更新互相触发到停不下来。
-    const sweepTodos = Effect.fn("SessionPrompt.sweepTodos")(function* (sessionID: SessionID) {
-      const todos = yield* todo.get(sessionID).pipe(Effect.catch(() => Effect.succeed([] as Todo.Info[])))
-      const msgs = yield* sessions
-        .messages({ sessionID })
-        .pipe(Effect.catch(() => Effect.succeed([] as MessageV2.WithParts[])))
-      if (decideTodoSweep({ todos, messages: msgs }) !== "sweep") return undefined
-
-      const lastUser = [...msgs].reverse().find((message) => message.info.role === "user")
-      if (!lastUser || lastUser.info.role !== "user") return undefined
-
-      return yield* prompt({
-        sessionID,
-        agent: lastUser.info.agent,
-        model: { providerID: lastUser.info.model.providerID, modelID: lastUser.info.model.modelID },
-        // synthetic:true —— 收尾提醒是系统行为不是用户输入,时间线不渲染这条消息,
-        // 模型仍能收到(toModelMessages 只过滤 ignored),sweep 判定按文本匹配不受影响。
-        parts: [{ type: "text", synthetic: true, text: todoSweepReminder(todos) }],
-      }).pipe(Effect.catch(() => Effect.succeed(undefined)))
-    })
-
     const loop: (input: LoopInput) => Effect.Effect<MessageV2.WithParts, never, never> = Effect.fn(
       "SessionPrompt.loop",
     )(function* (input: LoopInput) {
+      // Durable cron jobs are only in memory after a restart once something asks
+      // the scheduler to load them; the session loop is the one place every
+      // session is guaranteed to pass through, so it doubles as the trigger.
+      // `start` is idempotent and only forks on the first call.
+      const cron = Option.getOrUndefined(yield* Effect.serviceOption(CronService))
+      if (cron) {
+        const instance = yield* InstanceState.context
+        yield* cron.start({ directory: instance.directory }).pipe(Effect.ignore)
+      }
+
       let result = yield* state.ensureRunning(
         input.sessionID,
         lastAssistant(input.sessionID),
-        runLoop(input.sessionID) as any,
+        runLoop(input.sessionID, input.resume ? { reason: input.reason } : undefined) as any,
       )
 
       // 目标驱动自主循环:每轮结束后用裁判模型判断活动目标是否达成,未达成则
@@ -3397,14 +3864,8 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       const cfg = yield* config.get().pipe(Effect.catch(() => Effect.succeed({} as any)))
       const goalCfg = ConfigGoal.resolve(cfg.goal)
 
-      // 收尾统一出口:清扫提醒可能追加一轮,追加轮的结果取代原结果返回。
-      const finish = (sessionID: SessionID) =>
-        sweepTodos(sessionID).pipe(
-          Effect.catch(() => Effect.succeed(undefined)),
-          Effect.map((swept) => swept ?? result),
-        )
-
-      if (!goalCfg.enabled || !goalService || goalCfg.max_iterations <= 0) return yield* finish(input.sessionID)
+      // 收尾统一出口:目标循环可能追加多轮,最终结果都从这里返回。
+      if (!goalCfg.enabled || !goalService || goalCfg.max_iterations <= 0) return result
 
       let iterations = 0
       while (iterations < goalCfg.max_iterations) {
@@ -3476,7 +3937,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         }).pipe(Effect.catch(() => Effect.succeed(result)))
       }
 
-      return yield* finish(input.sessionID)
+      return result
     })
 
     const shell: (input: ShellInput) => Effect.Effect<MessageV2.WithParts, Session.BusyError> = Effect.fn(
@@ -3606,6 +4067,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
     return Service.of({
       cancel,
       prompt,
+      resume,
       loop,
       shell,
       command,
@@ -3626,6 +4088,7 @@ export const defaultLayer = Layer.suspend(() =>
         Permission.defaultLayer,
         MCP.defaultLayer,
         LSP.defaultLayer,
+        CronDefaultLayer,
       ),
     ),
     Layer.provide(ToolRegistry.defaultLayer),
@@ -3652,6 +4115,7 @@ export const defaultLayer = Layer.suspend(() =>
         CrossSpawnSpawner.defaultLayer,
         RuntimeFlags.defaultLayer,
         Todo.defaultLayer,
+        ReadState.defaultLayer,
       ),
     ),
   ),
@@ -3688,6 +4152,10 @@ export type PromptInput = Schema.Schema.Type<typeof PromptInput>
 
 export class LoopInput extends Schema.Class<LoopInput>("SessionPrompt.LoopInput")({
   sessionID: SessionID,
+  /** 中断后续跑：忽略上一条 assistant 的 finish/error，再发一次请求把这一轮做完。 */
+  resume: Schema.optional(Schema.Boolean),
+  /** 续跑原因（写进 system 提示，让模型知道为什么会再次请求）。 */
+  reason: Schema.optional(Schema.String),
 }) {}
 
 export const ShellInput = Schema.Struct({

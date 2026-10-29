@@ -70,7 +70,7 @@ import {
   getSupportedPlatforms,
   getPlatform,
 } from "./platform"
-import { PET_VISIBLE_KEY } from "./constants"
+import { FLOATING_WIDGET_ENABLED, PET_VISIBLE_KEY } from "./constants"
 import { resolveFloatingRestoreAnchor, resolveFloatingWidgetMode } from "./floating-widget-state"
 import {
   FLOATING_COLLAPSED_SIZE,
@@ -90,6 +90,7 @@ import {
   setTitlebar,
   updateTitlebar,
 } from "./windows"
+import { getLogger } from "./logging"
 
 const pickerFilters = (ext?: string[]) => {
   if (!ext || ext.length === 0) return undefined
@@ -983,7 +984,7 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle("get-floating-pet-management-state", () => {
     const profile = restoreFloatingPetProfile()
     const pet = restoreFloatingPetState()
-    return { visible: getStore().get(PET_VISIBLE_KEY, true) as boolean, profile, pet }
+    return { visible: getStore().get(PET_VISIBLE_KEY, false) as boolean, profile, pet }
   })
 
   ipcMain.handle(
@@ -1039,7 +1040,7 @@ export function registerIpcHandlers(deps: Deps) {
         gameSettings,
       })
       const pet = restoreFloatingPetState()
-      return { visible: getStore().get(PET_VISIBLE_KEY, true) as boolean, profile, pet }
+      return { visible: getStore().get(PET_VISIBLE_KEY, false) as boolean, profile, pet }
     },
   )
 
@@ -1053,12 +1054,12 @@ export function registerIpcHandlers(deps: Deps) {
       highScores: { gomoku: 0, minesweeper: 0, sudoku: 0, tetris: 0, "2048": 0 },
       gameSettings: { ...profile.gameSettings },
     })
-    return { visible: getStore().get(PET_VISIBLE_KEY, true) as boolean, profile: nextProfile, pet }
+    return { visible: getStore().get(PET_VISIBLE_KEY, false) as boolean, profile: nextProfile, pet }
   })
 
   ipcMain.on("floating-widget-ready", () => {
     floatingWidgetReady = true
-    floatingWidgetRequested = getStore().get(PET_VISIBLE_KEY, true) as boolean
+    floatingWidgetRequested = getStore().get(PET_VISIBLE_KEY, false) as boolean
     if (resolveFloatingWidgetMode(floatingWidgetRequested) === "full") {
       presentFloatingWidget()
       return
@@ -1067,7 +1068,9 @@ export function registerIpcHandlers(deps: Deps) {
   })
 
   ipcMain.handle("show-floating-widget", () => {
-    floatingWidgetRequested = getStore().get(PET_VISIBLE_KEY, true) as boolean
+    // 悬浮窗暂时下线:忽略一切显示请求(渲染进程/通知路径调用都会静默 no-op)。
+    if (!FLOATING_WIDGET_ENABLED) return
+    floatingWidgetRequested = getStore().get(PET_VISIBLE_KEY, false) as boolean
     if (resolveFloatingWidgetMode(floatingWidgetRequested) === "minimal") {
       presentFloatingMinimal()
       return
@@ -1103,7 +1106,7 @@ export function registerIpcHandlers(deps: Deps) {
   })
 
   ipcMain.handle("get-floating-widget-visible", () => {
-    return getStore().get(PET_VISIBLE_KEY, true) as boolean
+    return getStore().get(PET_VISIBLE_KEY, false) as boolean
   })
 
   ipcMain.handle("set-floating-widget-minimal", (_event: IpcMainInvokeEvent, minimal: boolean) => {
@@ -1353,17 +1356,14 @@ export function registerIpcHandlers(deps: Deps) {
     }
   })
 
-  ipcMain.handle(
-    "write-local-file-text",
-    async (_event: IpcMainInvokeEvent, filePath: string, content: string) => {
-      try {
-        await writeFile(filePath, content, "utf8")
-        return true
-      } catch {
-        return false
-      }
-    },
-  )
+  ipcMain.handle("write-local-file-text", async (_event: IpcMainInvokeEvent, filePath: string, content: string) => {
+    try {
+      await writeFile(filePath, content, "utf8")
+      return true
+    } catch {
+      return false
+    }
+  })
 
   ipcMain.handle(
     "save-file-picker",
@@ -1455,6 +1455,8 @@ export function registerIpcHandlers(deps: Deps) {
       if (floatingWidgetVisible && !isMainInterfaceActive()) presentFloatingPanel("notifications")
 
       if (showSystem && !floatingWidgetVisible && Notification.isSupported()) {
+        // 空白 toast 排查日志:记录每一次系统通知的入参,便于对照 Windows 通知库里的 payload
+        getLogger().info("[notification] show", { title, bodyLength: body?.length ?? 0, showSystem })
         const systemNotification = new Notification({ title, body, icon: appIconPath() })
         const release = () => activeNotifications.delete(systemNotification)
         activeNotifications.add(systemNotification)

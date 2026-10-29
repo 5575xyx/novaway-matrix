@@ -8,6 +8,13 @@ export interface DialogProps extends ParentProps {
   title?: JSXElement
   description?: JSXElement
   action?: JSXElement
+  /**
+   * 底部操作区。
+   *
+   * 带表单/多步的弹窗需要「动作永远贴在右下角」，而不是跟着内容滚走 ——
+   * 之前每个弹窗自己在 body 里写一排按钮，位置和间距都不一致。
+   */
+  footer?: JSXElement
   size?: "normal" | "large" | "x-large"
   class?: ComponentProps<"div">["class"]
   classList?: ComponentProps<"div">["classList"]
@@ -70,6 +77,9 @@ export function Dialog(props: DialogProps) {
             </Kobalte.Description>
           </Show>
           <div data-slot="dialog-body">{props.children}</div>
+          <Show when={props.footer}>
+            <div data-slot="dialog-footer">{props.footer}</div>
+          </Show>
         </Kobalte.Content>
       </div>
     </div>

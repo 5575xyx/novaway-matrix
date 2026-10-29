@@ -5,17 +5,7 @@ import { XlsxFilePreview } from "@/pages/session/xlsx-file-preview"
 
 export const OFFICE_EXTENSIONS = [".docx", ".pptx", ".xlsx", ".pdf"] as const
 
-export const IMAGE_EXTENSIONS = [
-  ".png",
-  ".jpg",
-  ".jpeg",
-  ".gif",
-  ".webp",
-  ".bmp",
-  ".ico",
-  ".avif",
-  ".svg",
-] as const
+export const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".ico", ".avif", ".svg"] as const
 
 export function isOfficePreviewPath(path: string | undefined) {
   if (!path) return false
@@ -77,9 +67,7 @@ const PdfFrame: Component<{ base64: string; path: string }> = (props) => {
     <Show
       when={url()}
       fallback={
-        <div class="flex h-full items-center justify-center text-12-regular text-foreground-subtle">
-          正在加载 PDF…
-        </div>
+        <div class="flex h-full items-center justify-center text-12-regular text-foreground-subtle">正在加载 PDF…</div>
       }
     >
       {(resolved) => <iframe src={resolved()} title={props.path} class="h-full w-full border-0 bg-background" />}
@@ -105,10 +93,7 @@ const ImagePreview: Component<{ base64: string; path: string }> = (props) => {
   })
   return (
     <div class="flex h-full items-center justify-center overflow-auto p-6">
-      <Show
-        when={url()}
-        fallback={<span class="text-12-regular text-foreground-subtle">正在加载图片…</span>}
-      >
+      <Show when={url()} fallback={<span class="text-12-regular text-foreground-subtle">正在加载图片…</span>}>
         {(resolved) => (
           <img
             src={resolved()}

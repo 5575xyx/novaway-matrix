@@ -63,6 +63,8 @@ import { useDialog } from "@novaway/ui/context/dialog"
 import { useTheme, type ColorScheme } from "@novaway/ui/theme/context"
 import { useCommand, type CommandOption } from "@/context/command"
 import { DialogSettings, type SettingsTab } from "@/components/dialog-settings"
+import { DialogCreateProject } from "@/components/dialog-create-project"
+import { DropdownMenu } from "@novaway/ui/dropdown-menu"
 import { applyPath, backPath, forwardPath, type TitlebarHistory } from "@/components/titlebar-history"
 import { DatabasePage } from "@/pages/database"
 import { useServer } from "@/context/server"
@@ -86,7 +88,6 @@ import {
 import { SidebarFiles } from "./layout/sidebar-files"
 import { ProjectMenu, type ProjectSidebarContext } from "./layout/sidebar-project"
 import { ModeSwitchButton } from "@/components/mode-switch"
-import { SidebarMenuRow } from "@/components/sidebar-menu-row"
 import { ThemeSchemeToggle } from "@/components/theme-scheme-toggle"
 import {
   ProjectTaskList,
@@ -96,7 +97,12 @@ import {
   type TaskFilter,
 } from "./layout/sidebar-tasks"
 import { SidebarContent } from "./layout/sidebar-shell"
+import { SidebarRail, SidebarRailButton, type SidebarRailItem } from "./layout/sidebar-rail"
 import { ExtensionsPage } from "./extensions"
+import { KernelPage } from "./kernel"
+import { TeamPage } from "./team"
+import PulseWorkspace from "@/pages/pulse/PulseWorkspace"
+
 import { AutomationPage } from "./automation"
 import { KnowledgePage } from "./knowledge"
 
@@ -275,6 +281,15 @@ export default function Layout(props: ParentProps) {
     knowledgePage: {
       open: false,
     },
+    kernelPage: {
+      open: false,
+    },
+    teamPage: {
+      open: false,
+    },
+    pulsePage: {
+      open: false,
+    },
 
     sortNow: Date.now(),
     sizing: false,
@@ -283,7 +298,16 @@ export default function Layout(props: ParentProps) {
   // 这些是「整帧覆盖」页面：同一时间只能有一个。
   // 之前各入口只负责把自己打开，没有关掉上一个，于是数据库打开后点自动化/设置，
   // 新页面其实被压在数据库下面，看起来像"点了没反应"。
-  const FRAME_PAGES = ["settings", "databasePage", "extensionsPage", "automationPage", "knowledgePage"] as const
+  const FRAME_PAGES = [
+    "settings",
+    "databasePage",
+    "extensionsPage",
+    "automationPage",
+    "knowledgePage",
+    "kernelPage",
+    "teamPage",
+    "pulsePage",
+  ] as const
   type FramePage = (typeof FRAME_PAGES)[number]
 
   function closeFramePages(except?: FramePage) {
@@ -314,6 +338,8 @@ export default function Layout(props: ParentProps) {
   )
 
   const extensionsTransition = createMountTransition(() => state.extensionsPage.open)
+  const kernelTransition = createMountTransition(() => state.kernelPage.open)
+  const teamTransition = createMountTransition(() => state.teamPage.open)
 
   // 窄窗口下侧栏是浮层（z-50、fixed），盖在上面会让覆盖层的返回按钮点不到。
   // 打开任何整帧页面时先把移动侧栏收起来。
@@ -323,12 +349,15 @@ export default function Layout(props: ParentProps) {
       state.databasePage.open ||
       state.extensionsPage.open ||
       state.automationPage.open ||
-      state.knowledgePage.open
+      state.knowledgePage.open ||
+      state.kernelPage.open ||
+      state.teamPage.open
     ) {
       layout.mobileSidebar.hide()
     }
   })
   const automationTransition = createMountTransition(() => state.automationPage.open)
+  const pulseTransition = createMountTransition(() => state.pulsePage.open)
   const knowledgeTransition = createMountTransition(() => state.knowledgePage.open)
 
   // 这里**刻意不做**路由级的入场重放。
@@ -1216,6 +1245,12 @@ export default function Layout(props: ParentProps) {
         onSelect: () => chooseProject(),
       },
       {
+        id: "project.create",
+        title: language.t("command.project.create"),
+        category: language.t("command.category.project"),
+        onSelect: () => showCreateProjectDialog(),
+      },
+      {
         id: "project.switch",
         title: language.t("command.project.switch"),
         category: language.t("command.category.project"),
@@ -1514,6 +1549,26 @@ export default function Layout(props: ParentProps) {
     setState("extensionsPage", "open", true)
   }
 
+  function openKernelPage() {
+    closeFramePages("kernelPage")
+    setState("kernelPage", "open", true)
+  }
+
+  function closeKernelPage() {
+    setState("kernelPage", "open", false)
+    window.dispatchEvent(new CustomEvent("novaway:overlay-closed"))
+  }
+
+  function openTeamPage() {
+    closeFramePages("teamPage")
+    setState("teamPage", "open", true)
+  }
+
+  function closeTeamPage() {
+    setState("teamPage", "open", false)
+    window.dispatchEvent(new CustomEvent("novaway:overlay-closed"))
+  }
+
   function openAutomationPage() {
     closeFramePages("automationPage")
     setState("automationPage", "open", true)
@@ -1521,6 +1576,17 @@ export default function Layout(props: ParentProps) {
 
   function closeAutomationPage() {
     setState("automationPage", "open", false)
+    window.dispatchEvent(new CustomEvent("novaway:overlay-closed"))
+  }
+
+  /** 运营工作台（原 `/pulse` 整窗页面）：现在只是主帧里的一个普通页面。 */
+  function openPulsePage() {
+    closeFramePages("pulsePage")
+    setState("pulsePage", "open", true)
+  }
+
+  function closePulsePage() {
+    setState("pulsePage", "open", false)
     window.dispatchEvent(new CustomEvent("novaway:overlay-closed"))
   }
 
@@ -1546,7 +1612,8 @@ export default function Layout(props: ParentProps) {
    * 标记为关闭（保留退场动画），设置层从下方淡入，视觉上是交叉淡出。
    */
   function openSettingsFromExtensions(initialTab?: SettingsTab) {
-    setState("extensionsPage", "open", false)
+    // 内核页也会跳到这里；先统一关掉其它整帧页，避免两层叠在一起。
+    closeFramePages("settings")
     batch(() => {
       setState("settings", "directory", currentProject()?.worktree ?? currentDir())
       setState("settings", "initialTab", initialTab)
@@ -1656,12 +1723,16 @@ export default function Layout(props: ParentProps) {
 
     const projectSession = store.lastProjectSession[root]
     if (projectSession?.id) {
-      await refreshDirs(projectSession.directory)
-      const opened = await openSession(projectSession)
-      if (opened) return
+      // 目标目录已经在工作区列表里就**不要**再跑 worktree.list：那是切项目时最大的一笔
+      // 网络往返，直接决定点击后面板「卡」多久。只有目录未知（新 worktree）才刷新。
+      if (canOpen(projectSession.directory) || (await refreshDirs(projectSession.directory))) {
+        const opened = await openSession(projectSession)
+        if (opened) return
+      }
       clearLastProjectSession(root)
     }
 
+    // 本地已有会话就直接跳（同步命中缓存，不再是「等一次 session.list 才动」）。
     const latest = latestRootSession(
       dirs.map((item) => globalSync.child(item, { bootstrap: false })[0]),
       Date.now(),
@@ -1706,6 +1777,16 @@ export default function Layout(props: ParentProps) {
     layout.projects.open(directory)
     server.projects.touch(directory)
     if (navigate) return navigateToProject(directory)
+  }
+
+  /**
+   * 新建任务：有项目就直接进它的新建会话页，没有项目就弹「打开/新建项目」。
+   * 面板展开时是顶部那颗整宽按钮，面板收起后在图标条里（同一个动作两个位置）。
+   */
+  function startNewTask() {
+    const first = layout.projects.list()[0]
+    if (first) navigateWithSidebarReset(`/${base64Encode(first.worktree)}/session`)
+    else void chooseProject()
   }
 
   const handleDeepLinks = (urls: string[]) => {
@@ -1793,6 +1874,20 @@ export default function Layout(props: ParentProps) {
       if (dialogDead || dialogRun !== run) return
       void dialog.show(() => <x.DialogEditProject project={project} />)
     })
+  }
+
+  /**
+   * 新建项目：在选定的父目录里建一个文件夹，随后按普通项目打开。
+   * 与「打开项目」成对出现（侧栏 + 号菜单、任务中心），不再只有"打开已有目录"这一条路。
+   */
+  function showCreateProjectDialog() {
+    void dialog.show(() => (
+      <DialogCreateProject
+        onCreate={(path) => {
+          void openProject(path)
+        }}
+      />
+    ))
   }
 
   async function chooseProject() {
@@ -2182,17 +2277,23 @@ export default function Layout(props: ParentProps) {
     ),
   )
 
-  const side = createMemo(() => {
-    if (!layout.sidebar.expanded()) return 0
-    // 下限对齐 ZCode 侧栏宽度规格（default = min = 264px）。
-    return Math.max(layout.sidebar.width(), 264)
-  })
+  // 最左侧窄图标条（数据库/知识库/自动化/扩展/设置 + logo）的宽度。
+  // 它**不参与折叠**：折叠只收起右边的会话面板，rail 常驻（对齐 Codex）。
+  const RAIL_WIDTH = 48
+  const isMacDesktop = createMemo(() => platform.platform === "desktop" && platform.os === "macos")
+  // 当前模式色：图标条和会话面板都要用（rail 在面板外侧，得自己继承一份）。
+  const modeAccent = createMemo(
+    () => layout.mode.all.find((mode) => mode.id === layout.mode.current())?.color ?? "var(--border-hover)",
+  )
+  // 会话面板内容宽度（下限对齐 ZCode 侧栏默认 264px）。
+  const panel = createMemo(() => Math.max(264, layout.sidebar.width()))
+  // 侧栏总占位 = 图标条 + 展开时的面板宽度；收起后只剩图标条。
+  const side = createMemo(() => RAIL_WIDTH + (layout.sidebar.expanded() ? panel() : 0))
 
   createEffect(() => {
     const dialogLeft = side() + 4
     document.documentElement.style.setProperty("--dialog-left-margin", `${dialogLeft}px`)
   })
-  const panel = createMemo(() => side())
 
   const loadedSessionDirs = new Set<string>()
 
@@ -2308,6 +2409,8 @@ export default function Layout(props: ParentProps) {
   const SidebarPanel = (panelProps: { mobile?: boolean; merged?: boolean }) => {
     const merged = createMemo(() => panelProps.mobile || (panelProps.merged ?? layout.sidebar.opened()))
     const projectList = () => layout.projects.list()
+    // 已经预热过的项目（悬停一次即可），避免反复触发 loadSessions。
+    const warmedProjects = new Set<string>()
     const [taskFilter, setTaskFilter] = createSignal<TaskFilter>("all")
     const { archived, load: loadArchived } = useArchivedSessions(() => projectList())
     // 分段上的数量（全部 / 运行中 / 待确认 / 已归档）。归档列表要等它被拉起来才有数字，
@@ -2320,8 +2423,7 @@ export default function Layout(props: ParentProps) {
       loadArchived()
     })
 
-    const treeKey = createMemo(() => pathKey(currentProject()?.worktree ?? currentDir()))
-    // 文件树是侧栏内整层 slide-over 的目标目录：跟随当前项目（对齐 ZCode 的
+    const treeKey = createMemo(() => pathKey(currentProject()?.worktree ?? currentDir()))    // 文件树是侧栏内整层 slide-over 的目标目录：跟随当前项目（对齐 ZCode 的
     // WorkspaceFileTree —— 它挂在当前工作区上，不是每个项目各一份）。
     // 文件树的目标目录。
     // 之前只取「当前项目 → 路由目录」，两者都拿不到时整棵树就空着、且看不出原因
@@ -2343,35 +2445,69 @@ export default function Layout(props: ParentProps) {
           "flex-1 min-w-0 max-w-full": panelProps.mobile,
         }}
         style={{
-          width: panelProps.mobile ? undefined : `${panel()}px`,
+          width: panelProps.mobile ? undefined : "100%",
           // 模式色统一挂在这一层：品牌字标（`Way` 上色）与顶部模式按钮都读它，
           // 不用各自再找一次当前模式。
-          "--mode-accent": layout.mode.all.find((m) => m.id === layout.mode.current())?.color ?? "var(--border-hover)",
+          "--mode-accent": modeAccent(),
         }}
       >
-        {/* 顶带：窗口拖拽区。桌面端没有全局标题栏之后，这里是窗口左上角的拖动把手；
-            品牌标记兼作回首页入口（对齐 ZCode 左上角的品牌标识）。 */}
+        {/* 顶带：窗口拖拽区。桌面端品牌标识已经上移到最左侧图标条顶部（logo 归 rail），
+            这里只在移动端抽屉里保留品牌；桌面端这条带子只剩右侧的收起按钮。
+            macOS 红绿灯占窗口左上角约 78px，图标条吃掉 48px 后这里让出剩下的 ~30px。 */}
         <div
           data-component="sidebar-top-band"
           class="flex h-12 shrink-0 items-center gap-1 px-2"
-          classList={{ "pl-[78px]": isMacDesktop() && !panelProps.mobile }}
+          classList={{ "pl-[30px]": isMacDesktop() && !panelProps.mobile }}
           data-window-drag
         >
-          <button
-            type="button"
-            class="flex h-8 min-w-0 shrink items-center gap-2 rounded-md px-1.5 text-foreground-subtle transition-colors hover:bg-hover"
-            onClick={() => navigate("/")}
-            aria-label={language.t("command.home.open")}
-            title={language.t("command.home.open")}
-            aria-current={!layout.mode.hasSelected() ? "page" : undefined}
-          >
-            <Mark class="size-5 shrink-0 text-foreground" />
-            {/* 品牌字标：`Nova` 用前景色、`Way` 用当前模式色。
-                比纯文本多一档识别度（用户要求"特殊格式"），同时顺带当作模式指示。 */}
-            <span class="brand-wordmark text-ui-base truncate">
-              Nova<span class="text-[var(--mode-accent)]">Way</span>
-            </span>
-          </button>
+          <Show when={panelProps.mobile}>
+            <button
+              type="button"
+              class="flex h-8 min-w-0 shrink items-center gap-2 rounded-md px-1.5 text-foreground-subtle transition-colors hover:bg-hover"
+              onClick={() => navigate("/")}
+              aria-label={language.t("command.home.open")}
+              title={language.t("command.home.open")}
+              aria-current={!layout.mode.hasSelected() ? "page" : undefined}
+            >
+              <Mark class="size-5 shrink-0 text-foreground" />
+              {/* 品牌字标：`Nova` 用前景色、`Way` 用当前模式色。
+                  比纯文本多一档识别度（用户要求"特殊格式"），同时顺带当作模式指示。 */}
+              <span class="brand-wordmark text-ui-base truncate">
+                Nova<span class="text-[var(--mode-accent)]">Way</span>
+              </span>
+            </button>
+          </Show>
+          {/* 模式切换放在顶带左侧的留白里：它是全局作用域最重的选择（决定整个工作台的能力面），
+              顶带这一行原本只有右上角一个收起按钮，logo 右边这片空白正好放它（用户指定的位置）。
+              用胶囊形态，不额外撑出一条工具栏。 */}
+          <ModeSwitchButton compact onSelect={(mode) => layout.mode.select(mode.id)} />
+          {/* 导航控件（设置 → 通用 → 高级 → 导航控件）：前进/后退就放在工作模式选择右边，
+              和模式胶囊同一行。以前这两个按钮只在全局标题栏存在，标题栏移除后开关就"没反应"了；
+              现在由这里承接，关掉开关整组消失。 */}
+          <Show when={settings.general.showNavigation()}>
+            <div class="flex shrink-0 items-center gap-0.5">
+              <Tooltip value={language.t("common.goBack")} placement="bottom">
+                <IconButton
+                  icon="arrow-left"
+                  variant="ghost"
+                  size="normal"
+                  aria-label={language.t("common.goBack")}
+                  disabled={navHistory.index <= 0}
+                  onClick={() => goBack()}
+                />
+              </Tooltip>
+              <Tooltip value={language.t("common.goForward")} placement="bottom">
+                <IconButton
+                  icon="arrow-right"
+                  variant="ghost"
+                  size="normal"
+                  aria-label={language.t("common.goForward")}
+                  disabled={navHistory.index >= navHistory.stack.length - 1}
+                  onClick={() => goForward()}
+                />
+              </Tooltip>
+            </div>
+          </Show>
           <div class="flex-1" />
           <Show
             when={panelProps.mobile}
@@ -2396,37 +2532,44 @@ export default function Layout(props: ParentProps) {
           </Show>
         </div>
 
-        {/* 动作区：整宽「新建任务」+ 整宽「命令中心」。对齐 ZCode 侧栏顶部的两个整宽入口，
+        {/* 动作区：整宽「新建任务」+ 自动化 + 整宽「搜索」。对齐 ZCode 侧栏顶部的两个整宽入口，
             取代原来那行把图标挤在一起的 icon-only 工具条。 */}
         <div class="flex shrink-0 flex-col gap-1 px-2 pb-2">
-          {/* 模式切换从 footer 提到顶部：它是全局作用域最重的选择（决定整个工作台的能力面），
-              沉在底部会被当成和「主题 / 设置」同级的小设置。这里用大字号 + 模式色底板呈现。 */}
-          <ModeSwitchButton prominent onSelect={(mode) => layout.mode.select(mode.id)} />
           <Button
             variant="primary"
             size="large"
             class="w-full justify-start gap-2"
             icon="plus-small"
             aria-label={language.t("sidebar.newTask")}
-            onClick={() => {
-              const first = projectList()[0]
-              if (first) navigateWithSidebarReset(`/${base64Encode(first.worktree)}/session`)
-              else chooseProject()
-            }}
+            onClick={startNewTask}
           >
             {language.t("sidebar.newTask")}
           </Button>
+          {/* 自动化从图标条挪到这里：它是日常最常点的一个，和「新建任务」挨着比收进 rail 更好找。 */}
           <Button
             variant="ghost"
             size="large"
             class="w-full justify-start gap-2 text-foreground"
-            aria-label={language.t("sidebar.search")}
-            onClick={() => command.trigger("file.open")}
+            aria-label={language.t("sidebar.automation")}
+            onClick={openAutomationPage}
           >
-            <Icon name="magnifying-glass" size="small" class="shrink-0 text-foreground-subtlest" />
-            <span class="min-w-0 flex-1 truncate text-left">{language.t("sidebar.search")}</span>
-            <Keybind class="shrink-0 text-ui-xs text-foreground-subtlest">{command.keybind("file.open")}</Keybind>
+            <Icon name="autopilot" size="small" class="shrink-0 text-[#f59e0b]" />
+            <span class="min-w-0 flex-1 truncate text-left">{language.t("sidebar.automation")}</span>
           </Button>
+          {/* 命令面板开关（设置 → 通用 → 高级 → 命令面板）：关掉后这条入口整条消失。 */}
+          <Show when={settings.general.showSearch()}>
+            <Button
+              variant="ghost"
+              size="large"
+              class="w-full justify-start gap-2 text-foreground"
+              aria-label={language.t("sidebar.search")}
+              onClick={() => command.trigger("file.open")}
+            >
+              <Icon name="magnifying-glass" size="small" class="shrink-0 text-foreground-subtlest" />
+              <span class="min-w-0 flex-1 truncate text-left">{language.t("sidebar.search")}</span>
+              <Keybind class="shrink-0 text-ui-xs text-foreground-subtlest">{command.keybind("file.open")}</Keybind>
+            </Button>
+          </Show>
           {/* 视图切换 + 打开项目：对齐 ZCode 侧栏任务行上方那排胶囊分段与右侧操作。
              分段用滑动指示器（ZCode TabsList 同款），不是两个各自变色的按钮。 */}
           <div class="flex items-center gap-1 pt-1">
@@ -2462,17 +2605,32 @@ export default function Layout(props: ParentProps) {
               </button>
             </div>
             {/* 「打开项目」保留；收起入口不在这里重复一份 —— 侧栏顶带已经有了，
-                同屏两个「折叠工作区」是重复入口（用户反馈的正是这个）。 */}
+                同屏两个「折叠工作区」是重复入口（用户反馈的正是这个）。
+                入口改成菜单：「打开已有项目」之外再给「新建项目」，
+                两条路都在同一个 + 号里，不用先去文件管理器建好目录。 */}
             <div class="ml-auto flex shrink-0 items-center gap-0.5">
-              <Tooltip value={language.t("command.project.open")} placement="bottom">
-                <IconButton
+              <DropdownMenu gutter={4} placement="bottom-end">
+                <DropdownMenu.Trigger
+                  as={IconButton}
                   icon="folder-add-left"
                   variant="ghost"
                   size="small"
                   aria-label={language.t("command.project.open")}
-                  onClick={() => chooseProject()}
+                  title={language.t("command.project.open")}
                 />
-              </Tooltip>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content style={{ "min-width": "200px" }}>
+                    <DropdownMenu.Item onSelect={() => void chooseProject()}>
+                      <Icon name="folder" size="small" />
+                      <DropdownMenu.ItemLabel>{language.t("command.project.open")}</DropdownMenu.ItemLabel>
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item onSelect={() => showCreateProjectDialog()}>
+                      <Icon name="folder-add-left" size="small" />
+                      <DropdownMenu.ItemLabel>{language.t("command.project.create")}</DropdownMenu.ItemLabel>
+                    </DropdownMenu.Item>
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu>
             </div>
           </div>
         </div>
@@ -2549,6 +2707,15 @@ export default function Layout(props: ParentProps) {
                     const toggleExpand = () => {
                       setStore("projectExpanded", proj.worktree, !isExpanded())
                     }
+                    // 悬停即预热：把目标项目的会话列表和子 store 提前拉起来。
+                    // 点下去时 lastProjectSession / latest 都已在本地缓存里，
+                    // 切项目不再先等一次 network。
+                    const warmProject = () => {
+                      if (warmedProjects.has(proj.worktree)) return
+                      warmedProjects.add(proj.worktree)
+                      globalSync.child(proj.worktree, { bootstrap: false })
+                      void globalSync.project.loadSessions(proj.worktree)
+                    }
                     return (
                       <div class="mt-1">
                         <div
@@ -2556,6 +2723,7 @@ export default function Layout(props: ParentProps) {
                             "group flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-colors hover:bg-hover": true,
                             "bg-selected": pathKey(proj.worktree) === treeKey(),
                           }}
+                          onPointerEnter={warmProject}
                         >
                           <button
                             aria-label={
@@ -2655,55 +2823,19 @@ export default function Layout(props: ParentProps) {
               </div>
             </div>
 
-            {/* 侧栏 footer：原来挤在顶部那圈竖排菜单里的入口，按 ZCode 的组织方式沉到底部。
-                模式切换已提到顶部（它是全局能力面，不是小设置），这里只剩主题 / 数据库 / 设置。 */}
-            <div class="shrink-0 border-t border-border p-2 flex flex-col gap-0.5">
-              <ThemeSchemeToggle />
-              <Show when={settings.general.showDatabase()}>
-                <SidebarMenuRow
-                  icon={<Icon name="database" size="small" />}
-                  label={language.t("sidebar.database")}
-                  tone="blue"
-                  size="large"
-                  onClick={() => command.trigger("database.open")}
-                />
-              </Show>
-              <Show when={!!params.id}>
-                <SidebarMenuRow
-                  icon={<Icon name="speech-bubble" size="small" />}
-                  label={language.t("sidebar.sideChat")}
-                  tone="violet"
-                  size="large"
-                  onClick={openSideChatFromSidebar}
-                />
-              </Show>
-              <SidebarMenuRow
-                icon={<Icon name="autopilot" size="small" />}
-                label={language.t("sidebar.automation")}
-                tone="amber"
-                size="large"
-                onClick={openAutomationPage}
-              />
-              <SidebarMenuRow
-                icon={<Icon name="review" size="small" />}
-                label={language.t("sidebar.knowledge")}
-                tone="emerald"
-                size="large"
-                onClick={openKnowledgePage}
-              />
-              <SidebarMenuRow
-                icon={<Icon name="dot-grid" size="small" />}
-                label={language.t("sidebar.extensionsMarket")}
-                tone="pink"
-                size="large"
-                onClick={openExtensionsPage}
-              />
-              <SidebarMenuRow
-                icon={<Icon name="settings-gear" size="small" />}
-                label={language.t("sidebar.settings")}
-                onClick={() => command.trigger("settings.open")}
-              />
-            </div>
+            {/* 侧栏 footer：桌面端的全局入口都在最左侧图标条里（见 sidebar-rail.tsx，
+                主题切换在 brand 下方、设置在最底部），这里只剩移动端抽屉的一排图标兜底 ——
+                抽屉没有竖向窄条，入口不能丢。 */}
+            <Show when={panelProps.mobile}>
+              <div class="shrink-0 border-t border-border p-2">
+                <div class="flex flex-wrap items-center gap-1">
+                  <For each={railItems()}>{(item) => <SidebarRailButton item={item} />}</For>
+                  <span class="mx-0.5 h-5 w-px bg-border" />
+                  <For each={railFooter()}>{(item) => <SidebarRailButton item={item} />}</For>
+                  <ThemeSchemeToggle variant="icon" />
+                </div>
+              </div>
+            </Show>
           </div>
 
           {/* 文件树层：整层 slide-over，顶部一条返回条。 */}
@@ -2734,26 +2866,29 @@ export default function Layout(props: ParentProps) {
     )
   }
 
-  const projects = () => layout.projects.list()
-  const isPulseMode = createMemo(() => layout.mode.current() === "pulse")
-  const showSidebar = createMemo(() => !isPulseMode())
-
-  // 切到运营模式必须真正跳到 /pulse,与入口无关。之前 navigate 写在侧栏下拉的
-  // onSelect 里,同步跳转紧跟的 mode.select 会把侧栏(连同下拉组件)一起卸载,
-  // 桌面端实测这条同步 navigate 会被吞掉 —— 表现为侧栏收起了却停在会话页。
-  // 用 effect 把「模式=运营 ⇔ 路由=/pulse」变成不变式;首页的 <Navigate> 与它
-  // 目标一致,路由器对同目标跳转天然去重,不会互相打架。
+  // 模式与页面的一致性：运营模式在首页打开「运营工作台」，切走后自动收起；
+  // 在会话里切到运营模式则什么都不做 —— 所有模式共用同一套聊天界面。
   createEffect(
     on(
       () => layout.mode.current(),
-      (mode) => {
-        if (mode !== "pulse") return
-        if (location.pathname.startsWith("/pulse")) return
-        navigate("/pulse")
+      (mode, prev) => {
+        if (mode === "pulse") {
+          if (untrack(() => location.pathname === "/")) openPulsePage()
+          return
+        }
+        if (prev === "pulse" && state.pulsePage.open) closePulsePage()
       },
       { defer: true },
     ),
   )
+
+  const projects = () => layout.projects.list()
+  // 所有工作模式共用同一套外壳（侧栏 + 图标条 + 会话区）：模式只决定 agent / 技能 /
+  // MCP 这些能力面。以前运营模式整块不显示侧栏、还会把路由顶到 `/pulse`，
+  // 切过去时图标条一起消失，和"模式只是换能力"的预期不符。
+  const showSidebar = createMemo(() => true)
+  // 运营工作台（账号 / 发布）作为主帧内的页面入口，只在运营模式下出现。
+  const isPulseMode = createMemo(() => layout.mode.current() === "pulse")
 
   // 应用内前进/后退历史。原来由全局标题栏承载的两个导航按钮随标题栏移除，逻辑挪到外壳层，
   // 只保留命令入口（command.register 里的 common.goBack / common.goForward）。
@@ -2777,6 +2912,111 @@ export default function Layout(props: ParentProps) {
     if (!next) return
     setNavHistory(next.state)
     navigate(next.to)
+  }
+
+  /**
+   * 侧栏最左侧窄图标条的内容。
+   *
+   * 顺序按使用频率排：数据库（编码时查表）→ 知识库 → 团队 → 扩展 → 内核；
+   * 主题切换挪到底部（设置之上），设置沉在最底部，辅助对话只在会话里出现。
+   * 「定时任务」在面板展开时有整宽入口；**面板收起后**它和「新建任务」一起收进
+   * 图标条 —— 否则折叠后这两个最常用的动作就完全没入口了。
+   */
+  const railItems = (): SidebarRailItem[] => {
+    const items: SidebarRailItem[] = []
+    if (!layout.sidebar.expanded()) {
+      items.push({
+        id: "newTask",
+        icon: "plus-small",
+        label: language.t("sidebar.newTask"),
+        onClick: startNewTask,
+      })
+      items.push({
+        id: "automation",
+        icon: "autopilot",
+        label: language.t("sidebar.automation"),
+        tone: "#f59e0b",
+        active: state.automationPage.open,
+        onClick: openAutomationPage,
+      })
+    }
+    if (settings.general.showDatabase()) {
+      items.push({
+        id: "database",
+        icon: "database",
+        label: language.t("sidebar.database"),
+        tone: "var(--icon-blue)",
+        active: state.databasePage.open,
+        onClick: () => command.trigger("database.open"),
+      })
+    }
+    items.push(
+      {
+        id: "knowledge",
+        icon: "review",
+        label: language.t("sidebar.knowledge"),
+        tone: "#10b981",
+        active: state.knowledgePage.open,
+        onClick: openKnowledgePage,
+      },
+      {
+        id: "teams",
+        icon: "lu-users",
+        label: language.t("sidebar.team"),
+        tone: "#0ea5e9",
+        active: state.teamPage.open,
+        onClick: openTeamPage,
+      },
+      {
+        id: "extensions",
+        icon: "dot-grid",
+        label: language.t("sidebar.extensionsMarket"),
+        tone: "#ec4899",
+        active: state.extensionsPage.open,
+        onClick: openExtensionsPage,
+      },
+      {
+        id: "kernel",
+        icon: "lu-activity",
+        label: language.t("sidebar.kernel"),
+        tone: "#6366f1",
+        active: state.kernelPage.open,
+        onClick: openKernelPage,
+      },
+    )
+    // 运营工作台只在运营模式下出现（账号 / 发布 / 数据），聊天仍走标准会话。
+    if (isPulseMode()) {
+      items.push({
+        id: "pulse",
+        icon: "globe",
+        label: language.t("sidebar.pulseWorkspace"),
+        tone: "#ff6b6b",
+        active: state.pulsePage.open,
+        onClick: openPulsePage,
+      })
+    }
+    return items
+  }
+
+  const railFooter = (): SidebarRailItem[] => {
+    const items: SidebarRailItem[] = []
+    if (params.id) {
+      items.push({
+        id: "sideChat",
+        icon: "speech-bubble",
+        label: language.t("sidebar.sideChat"),
+        tone: "#8b5cf6",
+        onClick: openSideChatFromSidebar,
+      })
+    }
+    items.push({
+      id: "settings",
+      icon: "settings-gear",
+      label: language.t("sidebar.settings"),
+      active: state.settings.open,
+      onClick: () => command.trigger("settings.open"),
+    })
+    return items
   }
 
   const sidebarContent = (mobile?: boolean) => (
@@ -2808,7 +3048,10 @@ export default function Layout(props: ParentProps) {
         state.databasePage.open ||
         state.extensionsPage.open ||
         state.automationPage.open ||
-        state.knowledgePage.open
+        state.knowledgePage.open ||
+        state.kernelPage.open ||
+        state.teamPage.open ||
+        state.pulsePage.open
           ? "true"
           : undefined
       }
@@ -2819,14 +3062,13 @@ export default function Layout(props: ParentProps) {
       <div class="flex-1 min-h-0 min-w-0 flex">
         <div class="flex-1 min-h-0 relative">
           <div class="size-full relative overflow-x-hidden">
-            {/* 常驻 + 宽度过渡：收起时宽度归 0（而不是整块卸载），这样折叠/展开才有动画。
+            {/* 常驻 + 宽度过渡：收起时只把**右侧会话面板**宽度归 0（而不是整块卸载），
+                折叠/展开才有动画；最左侧的图标条（logo + 数据库/知识库/…）始终在。
                 宽度是布局量，不会像 transform 那样在动画期间移动元素边界。 */}
             <Show when={showSidebar()}>
               <nav
                 aria-label={language.t("sidebar.nav.projectsAndSessions")}
                 data-component="sidebar-nav-desktop"
-                aria-hidden={!layout.sidebar.expanded()}
-                inert={!layout.sidebar.expanded()}
                 classList={{
                   "hidden xl:block": true,
                   "transition-[width] will-change-[width] motion-reduce:transition-none": true,
@@ -2838,11 +3080,52 @@ export default function Layout(props: ParentProps) {
                 }}
                 style={{
                   width: `${side()}px`,
+                  "--mode-accent": modeAccent(),
                   "transition-duration": "var(--transition-panel-ms, 1000ms)",
                   "transition-timing-function": "var(--transition-panel-ease, cubic-bezier(0.22, 1, 0.36, 1))",
                 }}
               >
-                <div class="@container w-full h-full contain-strict">{sidebarContent()}</div>
+                <div class="flex h-full w-full min-w-0 overflow-hidden">
+                  {/* 图标条不随折叠消失（对齐 Codex）：顶部是品牌 logo，下面是全局入口。
+                      macOS 桌面端要给红绿灯让出竖向空间，否则 logo 会被压在按钮下面。 */}
+                  <SidebarRail
+                    class={isMacDesktop() ? "pt-9" : undefined}
+                    header={
+                      <Tooltip value={language.t("command.home.open")} placement="right" gutter={10}>
+                        <button
+                          type="button"
+                          class="flex size-10 items-center justify-center rounded-[10px] text-foreground transition-colors hover:bg-hover"
+                          onClick={() => navigate("/")}
+                          aria-label={language.t("command.home.open")}
+                          aria-current={!layout.mode.hasSelected() ? "page" : undefined}
+                        >
+                          <Mark class="size-6 shrink-0 text-foreground" />
+                        </button>
+                      </Tooltip>
+                    }
+                    // 主题切换在**底部**、设置之上（与 ZCode 的底部工具区一致）；
+                    // 它有圆形扩散的切换动效，不能塞进 SidebarRailItem 的纯 onClick 列表，
+                    // 所以走 footerLeading 槽。
+                    footerLeading={<ThemeSchemeToggle variant="icon" />}
+                    items={railItems()}
+                    footer={railFooter()}
+                  />
+                  {/* 面板容器负责折叠动画：宽度 0 ↔ panel()。收起时同时 inert，
+                      键盘和读屏不会钻进不可见的面板里。 */}
+                  <div
+                    data-component="sidebar-panel-slot"
+                    class="@container relative h-full min-w-0 overflow-hidden transition-[width] will-change-[width] motion-reduce:transition-none"
+                    style={{
+                      width: layout.sidebar.expanded() ? `${panel()}px` : "0px",
+                      "transition-duration": "var(--transition-panel-ms, 1000ms)",
+                      "transition-timing-function": "var(--transition-panel-ease, cubic-bezier(0.22, 1, 0.36, 1))",
+                    }}
+                    aria-hidden={!layout.sidebar.expanded()}
+                    inert={!layout.sidebar.expanded()}
+                  >
+                    <div class="h-full w-full contain-strict">{sidebarContent()}</div>
+                  </div>
+                </div>
               </nav>
             </Show>
 
@@ -2984,11 +3267,68 @@ export default function Layout(props: ParentProps) {
                 >
                   <FrameWindowControls />
                   <div class="flex-1 min-h-0">
-                    <ExtensionsPage
+                    <ExtensionsPage directory={currentDir()} onBack={closeExtensionsPage} />
+                  </div>
+                </section>
+              </Show>
+              <Show when={kernelTransition.mounted()}>
+                <section
+                  data-panel-transition
+                  data-state={kernelTransition.closing() ? "closed" : "open"}
+                  class="absolute left-1 right-2 top-1 bottom-2 z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                  aria-label={language.t("sidebar.kernel")}
+                  aria-hidden={kernelTransition.closing()}
+                  inert={kernelTransition.closing()}
+                >
+                  <FrameWindowControls />
+                  <div class="flex-1 min-h-0">
+                    <KernelPage
                       directory={currentDir()}
-                      onBack={closeExtensionsPage}
+                      onBack={closeKernelPage}
                       onOpenSettings={openSettingsFromExtensions}
+                      onOpenTeams={() => {
+                        closeKernelPage()
+                        openTeamPage()
+                      }}
                     />
+                  </div>
+                </section>
+              </Show>
+              <Show when={teamTransition.mounted()}>
+                <section
+                  data-panel-transition
+                  data-state={teamTransition.closing() ? "closed" : "open"}
+                  class="absolute left-1 right-2 top-1 bottom-2 z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                  aria-label={language.t("sidebar.team")}
+                  aria-hidden={teamTransition.closing()}
+                  inert={teamTransition.closing()}
+                >
+                  <FrameWindowControls />
+                  <div class="flex-1 min-h-0">
+                    <TeamPage
+                      directory={currentDir()}
+                      onBack={closeTeamPage}
+                      onManageAgents={() => openSettingsFromExtensions("agents")}
+                      onOpenSession={(sessionID) => {
+                        closeTeamPage()
+                        if (params.dir) navigate(`/${params.dir}/session/${sessionID}`)
+                      }}
+                    />
+                  </div>
+                </section>
+              </Show>
+              <Show when={pulseTransition.mounted()}>
+                <section
+                  data-panel-transition
+                  data-state={pulseTransition.closing() ? "closed" : "open"}
+                  class="absolute left-1 right-2 top-1 bottom-2 z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                  aria-label={language.t("pulse.workspace.title")}
+                  aria-hidden={pulseTransition.closing()}
+                  inert={pulseTransition.closing()}
+                >
+                  <FrameWindowControls />
+                  <div class="flex-1 min-h-0">
+                    <PulseWorkspace onBack={closePulsePage} />
                   </div>
                 </section>
               </Show>

@@ -1,7 +1,8 @@
 import { useTheme, type ColorScheme } from "@novaway/ui/theme/context"
+import { Tooltip } from "@novaway/ui/tooltip"
 import { useLanguage } from "@/context/language"
 
-export function ThemeSchemeToggle() {
+export function ThemeSchemeToggle(props: { variant?: "row" | "icon" }) {
   const theme = useTheme()
   const language = useLanguage()
   const isDark = () => theme.mode() === "dark"
@@ -48,6 +49,35 @@ export function ThemeSchemeToggle() {
     })
   }
 
+  const icon = () => (
+    <span
+      class="flex size-6.5 shrink-0 items-center justify-center rounded-[7px] [&_svg]:size-[17px]"
+      style={{
+        color: isDark() ? "#818cf8" : "#f59e0b",
+        background: "color-mix(in srgb, currentColor 14%, transparent)",
+      }}
+    >
+      {isDark() ? <MoonIcon /> : <SunIcon />}
+    </span>
+  )
+
+  // 图标条形态：只留图标，名称靠 hover 的 Tooltip（和同一列的其他图标一致）。
+  if (props.variant === "icon") {
+    return (
+      <Tooltip value={title()} placement="right" gutter={10}>
+        <button
+          type="button"
+          data-component="sidebar-rail-item"
+          class="group flex size-10 shrink-0 items-center justify-center rounded-[10px] text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+          aria-label={title()}
+          onClick={toggle}
+        >
+          {icon()}
+        </button>
+      </Tooltip>
+    )
+  }
+
   // 侧栏顶部菜单是一行一项的竖排形态:标签直接写在行内,不再靠 tooltip 认功能。
   return (
     <button
@@ -56,15 +86,7 @@ export function ThemeSchemeToggle() {
       aria-label={title()}
       onClick={toggle}
     >
-      <span
-        class="flex size-6.5 shrink-0 items-center justify-center rounded-[7px] [&_svg]:size-[17px]"
-        style={{
-          color: isDark() ? "#818cf8" : "#f59e0b",
-          background: "color-mix(in srgb, currentColor 14%, transparent)",
-        }}
-      >
-        {isDark() ? <MoonIcon /> : <SunIcon />}
-      </span>
+      {icon()}
       <span class="flex-1 truncate text-left">{title()}</span>
     </button>
   )

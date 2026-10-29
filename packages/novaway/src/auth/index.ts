@@ -46,6 +46,8 @@ export interface Interface {
   readonly remove: (key: string) => Effect.Effect<void, AuthError>
   /** Get all auth entries for a provider. Supports multiple keys per provider. */
   readonly getEntries: (providerID: string) => Effect.Effect<Info[], AuthError>
+  /** Get every provider's auth entries (including the 2nd+ keys). */
+  readonly allEntries: () => Effect.Effect<Record<string, Info[]>, AuthError>
   /** Add another auth entry for a provider (does not replace existing). */
   readonly addEntry: (key: string, info: Info) => Effect.Effect<void, AuthError>
   /** Remove a specific auth entry by index. */
@@ -136,6 +138,10 @@ export const layer = Layer.effect(
       yield* writeFile(data)
     })
 
+    const allEntries = Effect.fn("Auth.allEntries")(function* () {
+      return yield* readAll()
+    })
+
     const getEntries = Effect.fn("Auth.getEntries")(function* (providerID: string) {
       return (yield* readAll())[providerID] ?? []
     })
@@ -168,7 +174,7 @@ export const layer = Layer.effect(
       yield* writeFile(data)
     })
 
-    return Service.of({ get, all, set, remove, getEntries, addEntry, removeEntry })
+    return Service.of({ get, all, set, remove, getEntries, allEntries, addEntry, removeEntry })
   }),
 )
 

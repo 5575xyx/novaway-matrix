@@ -159,15 +159,15 @@ export const OrchestratorTool = Tool.define<
                   id: "orchestrator:" + params.planId,
                   type: "orchestrator",
                   title: plan.name,
-                  metadata: { planId: params.planId },
+                  // 会话归属键：没有它们这个 job 过不了 ownsBackgroundJob 过滤，
+                  // 卡片看不到、中止会话时也不会被取消清扫。
+                  metadata: { planId: params.planId, sessionId: ctx.sessionID, parentSessionId: ctx.sessionID },
                   // 必须显式传 cancel。不传时点停止只会打断 executePlan 的「等待者」——
                   // plan 永远停在 running、还会继续派新波次，而卡片上早已显示「已停止」。
                   // 这里落 cancelled，协作门（每波之前重读状态）就会立刻退出并收尾；
                   // 正好落在波次之间时，未跑的任务会被一并标记为 cancelled。
                   // 与上面 action=cancel 分支的语义保持一致。
-                  cancel: orchestrator.setStatus({ planId: params.planId!, status: "cancelled" }).pipe(
-                    Effect.ignore,
-                  ),
+                  cancel: orchestrator.setStatus({ planId: params.planId!, status: "cancelled" }).pipe(Effect.ignore),
                   run: runPlan().pipe(Effect.as("编排完成")),
                 })
                 return {

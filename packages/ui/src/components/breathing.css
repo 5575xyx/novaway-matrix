@@ -1,0 +1,60 @@
+/* 呼吸灯：进行中状态的统一指示器（重试提示 / 子代理调用 / 工具执行）。 */
+@keyframes breathing-light {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.86);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes breathing-halo {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 0.08;
+    transform: scale(1.6);
+  }
+}
+
+[data-component="breathing-indicator"] {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: inherit;
+}
+
+[data-component="breathing-indicator"] [data-slot="breathing-core"] {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  animation: breathing-light 1.8s ease-in-out infinite;
+}
+
+[data-component="breathing-indicator"] [data-slot="breathing-core"]::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 999px;
+  background: currentColor;
+  animation: breathing-halo 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-component="breathing-indicator"] [data-slot="breathing-core"],
+  [data-component="breathing-indicator"] [data-slot="breathing-core"]::after {
+    animation: none;
+  }
+}

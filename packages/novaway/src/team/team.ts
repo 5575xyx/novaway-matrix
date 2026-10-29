@@ -39,11 +39,7 @@ export interface Interface {
     agent: string
     memberName?: string
   }) => Effect.Effect<Team>
-  readonly update: (input: {
-    teamID: string
-    name?: string
-    description?: string
-  }) => Effect.Effect<Team | undefined>
+  readonly update: (input: { teamID: string; name?: string; description?: string }) => Effect.Effect<Team | undefined>
   readonly get: (id: string) => Effect.Effect<Team | undefined>
   readonly resolve: (idOrName: string, rootSessionID?: SessionID) => Effect.Effect<Team | undefined>
   readonly list: (rootSessionID?: SessionID) => Effect.Effect<Team[]>

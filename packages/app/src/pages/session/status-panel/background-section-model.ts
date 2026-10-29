@@ -8,24 +8,19 @@ const num = (input: unknown): number => {
 
 export type BackgroundJob = BackgroundJobInfo
 
-/** 完成的任务在卡片里再多留一会儿，用户能看到结果；之后自动消失。 */
-export const COMPLETED_VISIBLE_MS = 90_000
-
-export function isJobVisible(job: BackgroundJob, now: number): boolean {
-  if (job.status === "running") return true
-  if (job.completed_at === undefined) return false
-  return now - num(job.completed_at) < COMPLETED_VISIBLE_MS
+/**
+ * 卡片只列「正在跑」的任务：结束（完成 / 失败 / 取消）的一律从列表里消失，
+ * 不再留 90 秒尾巴。结束后的结果走会话时间线与任务详情，不靠这张卡兜底。
+ */
+export function visibleBackgroundJobs(jobs: readonly BackgroundJob[]): BackgroundJob[] {
+  return jobs
+    .filter((job) => job.status === "running")
+    .toSorted((a, b) => num(b.started_at) - num(a.started_at))
 }
 
-export function visibleBackgroundJobs(jobs: readonly BackgroundJob[], now: number): BackgroundJob[] {
-  return jobs
-    .filter((job) => isJobVisible(job, now))
-    .toSorted((a, b) => {
-      // 运行中的排前面；同状态按开始时间倒序（新的在上）。
-      if (a.status === "running" && b.status !== "running") return -1
-      if (b.status === "running" && a.status !== "running") return 1
-      return num(b.started_at) - num(a.started_at)
-    })
+/** 运行中的任务。可见性对 running 恒真，所以这里不需要时钟。 */
+export function runningJobs(jobs: readonly BackgroundJob[]): BackgroundJob[] {
+  return jobs.filter((job) => job.status === "running")
 }
 
 /**
@@ -59,10 +54,7 @@ export function jobSessionID(job: BackgroundJob): string | undefined {
  * 只过滤子代理（agent）job；shell / monitor / subscribe / orchestrator
  * 不在团队卡片里，必须保留。
  */
-export function hideTeamMemberJobs(
-  jobs: readonly BackgroundJob[],
-  hidden: ReadonlySet<string>,
-): BackgroundJob[] {
+export function hideTeamMemberJobs(jobs: readonly BackgroundJob[], hidden: ReadonlySet<string>): BackgroundJob[] {
   if (hidden.size === 0) return jobs as BackgroundJob[]
   return jobs.filter((job) => {
     if (jobKind(job) !== "agent") return true
@@ -77,26 +69,18 @@ export function jobKindLabelKey(job: BackgroundJob): string | undefined {
   return kind === "agent" || kind === "other" ? undefined : `statusPanel.background.kind.${kind}`
 }
 
-/**
- * 监控/订阅在结束后仍值得展示最后的输出（就是发给模型的通知正文）。
- *
- * error 也要展示：失败时正文里才有"跑到哪一步、报了什么"的细节。
- */
-export function showsResult(job: BackgroundJob): boolean {
-  const kind = jobKind(job)
-  return (kind === "monitor" || kind === "subscribe") && job.status !== "running" && Boolean(job.output)
-}
+/** 每种后台任务有自己的图标，扫一眼就能分辨"在跑什么"。 */
+export const JOB_ICONS = {
+  agent: "task",
+  shell: "terminal",
+  monitor: "eye",
+  subscribe: "globe",
+  orchestrator: "fork",
+  other: "dash",
+} as const
 
-/** 失败任务正文里有用的是最后几行（state 与输出尾部），不是通知头两行。 */
-export function resultBody(job: BackgroundJob): string {
-  const output = job.output ?? ""
-  if (job.status !== "error") return output
-  return output
-    .trimEnd()
-    .split("\n")
-    .filter((line) => line.trim() !== "")
-    .slice(-3)
-    .join("\n")
+export function jobIcon(job: BackgroundJob) {
+  return JOB_ICONS[jobKind(job)]
 }
 
 /**
@@ -114,11 +98,26 @@ export function resumeSkipped(job: BackgroundJob): boolean {
   return job.metadata?.resumable === true && job.status === "cancelled" && Boolean(job.metadata?.auth)
 }
 
-/** 状态面板顶部摘要：`2 运行中 / 共 3 条`。 */
-export function backgroundJobStat(jobs: readonly BackgroundJob[], now: number): string {
-  const visible = visibleBackgroundJobs(jobs, now)
-  const running = visible.filter((job) => job.status === "running").length
-  return running > 0 ? `${running}/${visible.length}` : String(visible.length)
+/** 状态面板顶部摘要：只列运行中的任务，直接给条数。 */
+export function backgroundJobStat(jobs: readonly BackgroundJob[]): string {
+  return String(visibleBackgroundJobs(jobs).length)
+}
+
+/** composer 入口图标的展示顺序。 */
+const KIND_ORDER: readonly JobKind[] = ["shell", "agent", "monitor", "subscribe", "orchestrator", "other"]
+
+export interface RunningKindCount {
+  kind: JobKind
+  count: number
+}
+
+/** 运行中任务按 kind 归组计数，只返回有任务的组；composer 入口每组渲染一个图标按钮。 */
+export function runningKindCounts(jobs: readonly BackgroundJob[]): RunningKindCount[] {
+  const running = runningJobs(jobs)
+  return KIND_ORDER.flatMap((kind) => {
+    const count = running.filter((job) => jobKind(job) === kind).length
+    return count > 0 ? [{ kind, count }] : []
+  })
 }
 
 /** 结束时间。

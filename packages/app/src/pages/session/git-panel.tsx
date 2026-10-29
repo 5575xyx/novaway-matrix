@@ -79,6 +79,23 @@ export function useGitSnapshot() {
   const merge = (ref: string) => act(() => sdk.client.git.merge({ ref }).then((r) => r))
   const checkout = (name: string) => act(() => sdk.client.git.branch({ name }).then((r) => r))
   const createBranch = (name: string) => act(() => sdk.client.git.branch({ name, create: true }).then((r) => r))
+  const removeBranch = (name: string) => act(() => sdk.client.git.branch({ name, remove: true }).then((r) => r))
+  const addRemote = (input: { name: string; url: string }) =>
+    act(() => sdk.client.git.remote({ name: input.name, url: input.url }).then((r) => r))
+  const removeRemote = (name: string) => act(() => sdk.client.git.remote({ name, remove: true }).then((r) => r))
+  /**
+   * 把当前目录初始化成 Git 仓库。
+   *
+   * `project/git/init` 是**项目级**接口（会顺带刷新 project.vcs，工作区列表据此
+   * 决定要不要显示 worktree 能力），所以先走它，再补一次快照给面板。
+   */
+  const initRepo = () =>
+    act(() =>
+      sdk.client.project
+        .initGit()
+        .then(() => sdk.client.git.snapshot())
+        .then((r) => r),
+    )
   const stage = (files: string[]) => act(() => sdk.client.git.add({ files }).then((r) => r))
   const unstage = (files: string[]) => act(() => sdk.client.git.unstage({ files }).then((r) => r))
   /**
@@ -120,6 +137,9 @@ export function useGitSnapshot() {
     snapshot,
     busy,
     error,
+    // 目录还不是 Git 仓库：`/git` 整体 400，快照永远是 undefined。
+    // 面板据此显示「初始化仓库」而不是什么都不显示。
+    notARepo: () => /not a git repository|不是 git 仓库/i.test(store.error),
     refresh,
     commit,
     push,
@@ -128,6 +148,10 @@ export function useGitSnapshot() {
     merge,
     checkout,
     createBranch,
+    removeBranch,
+    addRemote,
+    removeRemote,
+    initRepo,
     stage,
     unstage,
     discard,

@@ -91,7 +91,10 @@ function resolve(file: string) {
 function win() {
   return Array.from(
     new Set(
-      [which("pwsh"), which("powershell"), gitbash(), process.env.COMSPEC || "cmd.exe"]
+      // Match Claude Code: prefer bash on Windows too. Most agent instructions
+      // and project scripts are written for POSIX shells, and flipping to
+      // PowerShell by default produced commands the model could not predict.
+      [gitbash(), which("bash"), which("pwsh"), which("powershell"), process.env.COMSPEC || "cmd.exe"]
         .filter((item): item is string => Boolean(item))
         .map(full),
     ),
@@ -194,6 +197,23 @@ export function args(file: string, command: string, cwd: string) {
 
 const defaultPreferred = lazy(() => select(process.env.SHELL))
 const defaultAcceptable = lazy(() => select(process.env.SHELL, { acceptable: true }))
+
+/**
+ * Best PowerShell executable for the dedicated PowerShell tool: `pwsh` (7+)
+ * first because it supports `&&`/`||` and UTF-8 output, then the built-in
+ * `powershell.exe` (5.1). Returns undefined when neither is installed, which is
+ * how the registry decides whether to expose the tool at all.
+ */
+const defaultPowerShell = lazy(() => {
+  const candidate = process.platform === "win32" ? [which("pwsh"), which("powershell")] : [which("pwsh")]
+  const file = candidate.find((item): item is string => Boolean(item))
+  return file ? full(file) : undefined
+})
+
+export function powershell() {
+  return defaultPowerShell()
+}
+powershell.reset = () => defaultPowerShell.reset()
 
 export function preferred(configShell?: string) {
   if (configShell) return select(configShell)

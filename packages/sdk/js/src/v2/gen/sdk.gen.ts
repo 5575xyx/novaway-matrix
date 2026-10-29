@@ -468,6 +468,8 @@ import type {
   SessionPromptAsyncResponses,
   SessionPromptErrors,
   SessionPromptResponses,
+  SessionResumeErrors,
+  SessionResumeResponses,
   SessionRevertErrors,
   SessionRevertPreviewErrors,
   SessionRevertPreviewResponses,
@@ -522,9 +524,24 @@ import type {
   SyncStartResponses,
   SyncStealErrors,
   SyncStealResponses,
+  TeamCreateErrors,
+  TeamCreateResponses,
+  TeamDetailErrors,
+  TeamDetailResponses,
+  TeamListResponses,
+  TeamMemberAddErrors,
+  TeamMemberAddResponses,
+  TeamMemberRemoveErrors,
+  TeamMemberRemoveResponses,
   TeamMessageErrors,
+  TeamMessageListErrors,
+  TeamMessageListResponses,
   TeamMessageResponses,
+  TeamMessageSendErrors,
+  TeamMessageSendResponses,
   TeamOverviewResponses,
+  TeamRemoveErrors,
+  TeamRemoveResponses,
   TextPartInput,
   ToolCallErrors,
   ToolCallPayload,
@@ -9722,6 +9739,7 @@ export class Session3 extends HeyApiClient {
       providerID?: string
       modelID?: string
       auto?: boolean
+      instructions?: string
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -9736,6 +9754,7 @@ export class Session3 extends HeyApiClient {
             { in: "body", key: "providerID" },
             { in: "body", key: "modelID" },
             { in: "body", key: "auto" },
+            { in: "body", key: "instructions" },
           ],
         },
       ],
@@ -9811,6 +9830,38 @@ export class Session3 extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    })
+  }
+
+  /**
+   * Continue an interrupted turn
+   *
+   * Resume the last assistant turn after an unexpected interruption. No new user message is created: the model continues the same turn with the existing context.
+   */
+  public resume<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<SessionResumeResponses, SessionResumeErrors, ThrowOnError>({
+      url: "/session/{sessionID}/resume",
+      ...options,
+      ...params,
     })
   }
 
@@ -12141,6 +12192,160 @@ export class Orchestrator extends HeyApiClient {
   }
 }
 
+export class Member extends HeyApiClient {
+  /**
+   * Add a team member
+   *
+   * Create a session for an agent and add it to the team.
+   */
+  public add<ThrowOnError extends boolean = false>(
+    parameters: {
+      teamID: string
+      directory?: string
+      workspace?: string
+      agent?: string
+      name?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "teamID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "agent" },
+            { in: "body", key: "name" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<TeamMemberAddResponses, TeamMemberAddErrors, ThrowOnError>({
+      url: "/team/{teamID}/member",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Remove a team member
+   *
+   * Detach a session from the team; the session itself is kept.
+   */
+  public remove<ThrowOnError extends boolean = false>(
+    parameters: {
+      teamID: string
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "teamID" },
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<TeamMemberRemoveResponses, TeamMemberRemoveErrors, ThrowOnError>({
+      url: "/team/{teamID}/member/{sessionID}",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Message extends HeyApiClient {
+  /**
+   * Team chat transcript
+   *
+   * Messages exchanged inside a team, oldest first.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters: {
+      teamID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "teamID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<TeamMessageListResponses, TeamMessageListErrors, ThrowOnError>({
+      url: "/team/{teamID}/message",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Send a team message
+   *
+   * Post a message into the team chat and (by default) run the targeted members so they can reply.
+   */
+  public send<ThrowOnError extends boolean = false>(
+    parameters: {
+      teamID: string
+      directory?: string
+      workspace?: string
+      content?: string
+      to?: string
+      dispatch?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "teamID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "content" },
+            { in: "body", key: "to" },
+            { in: "body", key: "dispatch" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<TeamMessageSendResponses, TeamMessageSendErrors, ThrowOnError>({
+      url: "/team/{teamID}/message",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class Team extends HeyApiClient {
   /**
    * Get team overview
@@ -12217,6 +12422,156 @@ export class Team extends HeyApiClient {
         ...params.headers,
       },
     })
+  }
+
+  /**
+   * List teams
+   *
+   * List every multi-agent team in this workspace with its member count.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<TeamListResponses, unknown, ThrowOnError>({
+      url: "/team",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create a team
+   *
+   * Create a lead session plus one session per member agent, and register them as a team.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      name?: string
+      description?: string
+      lead?: string
+      members?: Array<{
+        agent: string
+        name?: string
+      }>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "name" },
+            { in: "body", key: "description" },
+            { in: "body", key: "lead" },
+            { in: "body", key: "members" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<TeamCreateResponses, TeamCreateErrors, ThrowOnError>({
+      url: "/team",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Delete a team
+   *
+   * Remove the team and its member list. Sessions are kept.
+   */
+  public remove<ThrowOnError extends boolean = false>(
+    parameters: {
+      teamID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "teamID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<TeamRemoveResponses, TeamRemoveErrors, ThrowOnError>({
+      url: "/team/{teamID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Team detail
+   *
+   * Team, members, shared tasks, usage and chat transcript.
+   */
+  public detail<ThrowOnError extends boolean = false>(
+    parameters: {
+      teamID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "teamID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<TeamDetailResponses, TeamDetailErrors, ThrowOnError>({
+      url: "/team/{teamID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  private _member?: Member
+  get member(): Member {
+    return (this._member ??= new Member({ client: this.client }))
+  }
+
+  private _message?: Message
+  get message2(): Message {
+    return (this._message ??= new Message({ client: this.client }))
   }
 }
 

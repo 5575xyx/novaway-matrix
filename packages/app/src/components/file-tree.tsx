@@ -2,10 +2,13 @@ import { useFile } from "@/context/file"
 import { encodeFilePath } from "@/context/file/path"
 import { usePlatform } from "@/context/platform"
 import { useSDK } from "@/context/sdk"
+import { useLanguage } from "@/context/language"
 import { Collapsible } from "@novaway/ui/collapsible"
 import { ContextMenu } from "@novaway/ui/context-menu"
 import { FileIcon } from "@novaway/ui/file-icon"
 import { Icon } from "@novaway/ui/icon"
+import { showToast } from "@novaway/ui/toast"
+import { writeClipboard } from "@novaway/ui/util/clipboard"
 import {
   createEffect,
   createMemo,
@@ -35,33 +38,11 @@ type Filter = {
   dirs: Set<string>
 }
 
-export function shouldListRoot(input: { level: number; dir?: { loaded?: boolean; loading?: boolean } }) {
-  if (input.level !== 0) return false
-  if (input.dir?.loaded) return false
-  if (input.dir?.loading) return false
-  return true
-}
-
-export function shouldListExpanded(input: {
-  level: number
-  dir?: { expanded?: boolean; loaded?: boolean; loading?: boolean }
-}) {
-  if (input.level === 0) return false
-  if (!input.dir?.expanded) return false
-  if (input.dir.loaded) return false
-  if (input.dir.loading) return false
-  return true
-}
-
-export function dirsToExpand(input: {
-  level: number
-  filter?: { dirs: Set<string> }
-  expanded: (dir: string) => boolean
-}) {
-  if (input.level !== 0) return []
-  if (!input.filter) return []
-  return [...input.filter.dirs].filter((dir) => !input.expanded(dir))
-}
+// 纯逻辑（根目录/展开目录的取数时机）抽到 file-tree-model.ts：
+// 组件 import 了 Kobalte（ContextMenu / Collapsible），模块作用域会触碰客户端 API，
+// 单测只能解析到 SSR 构建。这里再导出，保持既有 import 路径可用。
+import { dirsToExpand, shouldListRoot, shouldListExpanded } from "./file-tree-model"
+export { dirsToExpand, shouldListRoot, shouldListExpanded }
 
 const kindLabel = (kind: Kind) => {
   if (kind === "add") return "A"
@@ -249,6 +230,14 @@ export default function FileTree(props: {
   kinds?: ReadonlyMap<string, Kind>
   draggable?: boolean
   onFileClick?: (file: FileNode) => void
+  /**
+   * 右键菜单的动作。**递归的子层必须一起带下去** —— 之前只在顶层节点绑了处理函数，
+   * 展开第二层以后右键「在文件资源管理器中显示」全是空操作（`local.onRevealInOS` 是 undefined）。
+   */
+  onCopyPath?: (path: string) => void
+  onCopyRelativePath?: (path: string) => void
+  onRevealInOS?: (path: string) => void
+  onOpenInTerminal?: (path: string) => void
 
   _filter?: Filter
   _marks?: Set<string>
@@ -259,6 +248,7 @@ export default function FileTree(props: {
   const file = useFile()
   const sdk = useSDK()
   const platform = usePlatform()
+  const language = useLanguage()
   const level = props.level ?? 0
   const draggable = () => props.draggable ?? true
 
@@ -269,21 +259,23 @@ export default function FileTree(props: {
       .replaceAll("\\", "/")
   const chain = props._chain ? [...props._chain, key(props.path)] : [key(props.path)]
 
-  const handleCopyPath = async (path: string) => {
-    try {
-      await navigator.clipboard.writeText(path)
-    } catch {
-      // fallback
-    }
+  /**
+   * 复制路径。走 `writeClipboard`（桌面端优先主进程），并按真实结果提示：
+   * 之前用 `navigator.clipboard` 且吞掉异常，WebView 里静默失败时用户完全不知道
+   * 复制没成功（右键「复制路径」像点了没反应）。
+   */
+  const copyWithFeedback = async (path: string) => {
+    const copied = await writeClipboard(path)
+    showToast(
+      copied
+        ? { variant: "success", icon: "circle-check", title: language.t("common.copied") }
+        : { variant: "error", title: language.t("toast.copyFailed.title"), description: path },
+    )
   }
 
-  const handleCopyRelativePath = async (path: string) => {
-    try {
-      await navigator.clipboard.writeText(path)
-    } catch {
-      // fallback
-    }
-  }
+  const handleCopyPath = (path: string) => void copyWithFeedback(path)
+
+  const handleCopyRelativePath = (path: string) => void copyWithFeedback(path)
 
   const handleRevealInOS = (absolutePath: string) => {
     // 文件节点用「显示并选中」语义;openPath 对文件会直接用默认程序打开它,不符合预期。
@@ -307,6 +299,13 @@ export default function FileTree(props: {
       .then(() => {})
       .catch(() => {})
   }
+
+  // 顶层由调用方传进来（带业务语义）；子层递归时把同一组函数继续往下带。
+  // 兜底用本地实现，保证单独使用 FileTree 时右键菜单依然可用。
+  const copyPath = (path: string) => (props.onCopyPath ?? handleCopyPath)(path)
+  const copyRelativePath = (path: string) => (props.onCopyRelativePath ?? handleCopyRelativePath)(path)
+  const revealInOS = (path: string) => (props.onRevealInOS ?? handleRevealInOS)(path)
+  const openInTerminal = (path: string) => (props.onOpenInTerminal ?? handleOpenInTerminal)(path)
 
   const filter = createMemo(() => {
     if (props._filter) return props._filter
@@ -501,10 +500,10 @@ export default function FileTree(props: {
                       draggable={draggable()}
                       kinds={kinds()}
                       marks={marks()}
-                      onCopyPath={handleCopyPath}
-                      onCopyRelativePath={handleCopyRelativePath}
-                      onRevealInOS={handleRevealInOS}
-                      onOpenInTerminal={handleOpenInTerminal}
+                      onCopyPath={copyPath}
+                      onCopyRelativePath={copyRelativePath}
+                      onRevealInOS={revealInOS}
+                      onOpenInTerminal={openInTerminal}
                     >
                       <div class="size-4 flex items-center justify-center text-foreground-subtlest">
                         <Icon name={expanded() ? "chevron-down" : "chevron-right"} size="small" />
@@ -533,6 +532,10 @@ export default function FileTree(props: {
                         active={props.active}
                         draggable={props.draggable}
                         onFileClick={props.onFileClick}
+                        onCopyPath={props.onCopyPath}
+                        onCopyRelativePath={props.onCopyRelativePath}
+                        onRevealInOS={revealInOS}
+                        onOpenInTerminal={props.onOpenInTerminal}
                         _filter={filter()}
                         _marks={marks()}
                         _deeps={deeps()}
@@ -555,10 +558,10 @@ export default function FileTree(props: {
                   as="button"
                   type="button"
                   onClick={() => props.onFileClick?.(node)}
-                  onCopyPath={handleCopyPath}
-                  onCopyRelativePath={handleCopyRelativePath}
-                  onRevealInOS={handleRevealInOS}
-                  onOpenInTerminal={handleOpenInTerminal}
+                  onCopyPath={copyPath}
+                  onCopyRelativePath={copyRelativePath}
+                  onRevealInOS={revealInOS}
+                  onOpenInTerminal={openInTerminal}
                 >
                   <div class="w-4 shrink-0" />
                   <Switch>

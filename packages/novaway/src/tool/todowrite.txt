@@ -22,11 +22,14 @@ Skip when:
 - `cancelled` - no longer needed
 
 ## Rules
+- Publish a list only when requirements are clear enough to start work. If anything essential is ambiguous, resolve it with the user (via the question tool) FIRST, then create the list. A list followed by questions to the user means you planned too early.
+- Creating the list is a commitment to execute: immediately after publishing it, mark the first item `in_progress` and start working through the items in order. Do not pause, ask for confirmation, or wait for the user to respond after publishing the list — the user already gave the goal.
 - Use `todoedit` for a single status change (for example `{"action": "complete", "position": 2}`) instead of resending the whole list; only rebuild the list here when several items change at once
-- Update status in real time; don't batch completions
+- Update status in real time; don't batch completions. The list is the user's live progress view: the moment an item is done and verified, mark it `completed` before starting the next one.
+- Never let the list lag behind reality: do not keep working on later items while an earlier finished item still shows `in_progress`.
 - Mark `completed` only after the required work is actually done, including any required verification. Never based on intent.
-- Keep exactly one `in_progress` while work remains
-- If blocked or partial, keep it `in_progress` and add a follow-up todo describing the blocker
+- Keep exactly one `in_progress` while work remains (parallel-approved workflows may mark multiple, but only when the plan explicitly assigns them in parallel)
+- If blocked or partial, keep it `in_progress` and add a follow-up todo describing the blocker. When the blocker needs the user's decision, ask via the question tool and update this list in the same turn: the blocked item stays `in_progress` with the blocker noted, remaining items are adjusted to match the answer's outcome. Never leave the list stale while waiting for a reply.
 - Preserve user-provided commands verbatim (flags, args, order)
 - Items should be specific and actionable; break large work into smaller steps
 

@@ -41,16 +41,21 @@ export const TodoWriteTool = Tool.define<typeof Parameters, Metadata, Todo.Servi
             metadata: {},
           })
 
+          // Claude Code clears the stored list once every item is completed:
+          // a finished checklist should not linger in the panel (or in the next
+          // request) and the model already has the result it wrote.
+          const allDone = params.todos.length > 0 && params.todos.every((item) => item.status === "completed")
+          const stored = allDone ? [] : params.todos
           yield* todo.update({
             sessionID: ctx.sessionID,
-            todos: params.todos,
+            todos: stored,
           })
 
           return {
-            title: `${params.todos.filter((x) => x.status !== "completed").length} todos`,
-            output: JSON.stringify(params.todos, null, 2),
+            title: `${stored.filter((x) => x.status !== "completed").length} todos`,
+            output: JSON.stringify(stored, null, 2),
             metadata: {
-              todos: params.todos,
+              todos: stored,
             },
           }
         }),
@@ -165,15 +170,19 @@ export const TodoEditTool = Tool.define<typeof TodoEditParameters, Metadata, Tod
 
           const next = yield* todo.get(ctx.sessionID)
           const done = next.filter((item) => item.status === "completed").length
+          // Same rule as todowrite: a fully completed checklist is dropped.
+          const allDone = next.length > 0 && next.every((item) => item.status === "completed")
+          if (allDone) yield* todo.update({ sessionID: ctx.sessionID, todos: [] })
           return {
             title: `todoedit: ${params.action}`,
             output: [
               next.map((item, index) => `${index}. ${MARK[item.status] ?? "[ ]"} ${item.content}`).join("\n") ||
                 "(no todos)",
               `${done}/${next.length} completed`,
+              ...(allDone ? ["All items are complete; the checklist was cleared."] : []),
             ].join("\n"),
             metadata: {
-              todos: next,
+              todos: allDone ? [] : next,
             },
           }
         }),

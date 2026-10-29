@@ -8,7 +8,13 @@ import { InstallationVersion } from "@novaway/core/installation/version"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 
 export const Parameters = Schema.Struct({
-  query: Schema.String.annotate({ description: "Websearch query" }),
+  query: Schema.String.annotate({ description: "The search query to use" }),
+  allowed_domains: Schema.optional(Schema.Array(Schema.String)).annotate({
+    description: "Only include search results from these domains",
+  }),
+  blocked_domains: Schema.optional(Schema.Array(Schema.String)).annotate({
+    description: "Never include search results from these domains",
+  }),
   numResults: Schema.optional(Schema.Number).annotate({
     description: "Number of search results to return (default: 8)",
   }),
@@ -54,6 +60,30 @@ export function webSearchModelName(extra: Tool.Context["extra"]) {
   return (apiID ?? id)?.slice(0, 100)
 }
 
+/**
+ * Domain filters without provider-specific flags: push them into the query with
+ * `site:` operators. Both backends (Exa and Parallel) understand the operator,
+ * whereas passing include/exclude arrays only works on one of them — and an
+ * unknown argument makes the MCP call fail instead of filtering.
+ */
+export function applyDomainFilters(
+  query: string,
+  allowed?: readonly string[],
+  blocked?: readonly string[],
+) {
+  const clean = (values?: readonly string[]) =>
+    (values ?? [])
+      .map((value) => value.trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, ""))
+      .filter((value) => value.length > 0)
+  const only = clean(allowed)
+  const never = clean(blocked)
+  const parts = [query.trim()]
+  if (only.length === 1) parts.push(`site:${only[0]}`)
+  if (only.length > 1) parts.push(`(${only.map((domain) => `site:${domain}`).join(" OR ")})`)
+  for (const domain of never) parts.push(`-site:${domain}`)
+  return parts.join(" ")
+}
+
 function parallelAuthHeaders() {
   const headers = { "User-Agent": `NovaWay/${InstallationVersion}` }
   if (!process.env.PARALLEL_API_KEY) return headers
@@ -66,6 +96,7 @@ function callProvider(
   params: Schema.Schema.Type<typeof Parameters>,
   ctx: Tool.Context,
 ) {
+  const filtered = applyDomainFilters(params.query, params.allowed_domains, params.blocked_domains)
   if (provider === "parallel") {
     return McpWebSearch.call(
       http,
@@ -73,8 +104,8 @@ function callProvider(
       "web_search",
       McpWebSearch.ParallelSearchArgs,
       {
-        objective: params.query,
-        search_queries: [params.query],
+        objective: filtered,
+        search_queries: [filtered],
         session_id: ctx.sessionID,
         model_name: webSearchModelName(ctx.extra),
       },
@@ -89,7 +120,7 @@ function callProvider(
     "web_search_exa",
     McpWebSearch.SearchArgs,
     {
-      query: params.query,
+      query: filtered,
       type: params.type || "auto",
       numResults: params.numResults || 8,
       livecrawl: params.livecrawl || "fallback",
@@ -112,6 +143,9 @@ export const WebSearchTool = Tool.define(
       parameters: Parameters,
       execute: (params: Schema.Schema.Type<typeof Parameters>, ctx: Tool.Context) =>
         Effect.gen(function* () {
+          if (params.query.trim().length < 2) {
+            throw new Error("The search query must be at least 2 characters long.")
+          }
           const provider = selectWebSearchProvider(ctx.sessionID, {
             exa: flags.enableExa,
             parallel: flags.enableParallel,

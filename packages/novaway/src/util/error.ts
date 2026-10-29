@@ -86,3 +86,24 @@ export function errorData(error: unknown) {
   data.formatted = errorFormat(error)
   return data
 }
+
+/**
+ * 把"没有原因"的错误文案换成一句能读的话。
+ *
+ * 不少供应商在流式中断/网关错误时返回空的 message，或者干脆返回字符串
+ * `<none>` / `null` —— 直接展示给用户就变成界面上一个 `<none>`。
+ * 这里按 HTTP 状态给一句人话，状态也没有时给一句通用说明。
+ */
+export function describeError(input: { message?: unknown; statusCode?: unknown }) {
+  const raw = typeof input.message === "string" ? input.message.trim() : ""
+  const meaningless =
+    !raw || /^<?none>?$/i.test(raw) || raw === "undefined" || raw === "null" || raw === "[object Object]"
+  if (!meaningless) return raw
+  const status = typeof input.statusCode === "number" ? input.statusCode : undefined
+  if (status === 401 || status === 403) return `模型服务拒绝了这次请求（HTTP ${status}），请检查供应商的 API Key`
+  if (status === 404) return `模型不存在或已下线（HTTP ${status}），换一个模型试试`
+  if (status === 429) return `模型服务限流了（HTTP ${status}），稍后会自动重试`
+  if (status !== undefined && status >= 500) return `模型服务暂时不可用（HTTP ${status}），稍后会自动重试`
+  if (status !== undefined) return `模型服务返回了错误（HTTP ${status}），且没有给出原因`
+  return "模型服务没有返回失败原因，可能是连接被中断"
+}

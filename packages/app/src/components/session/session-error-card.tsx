@@ -13,6 +13,10 @@ import type { ErrorKind } from "@/pages/session/session-error"
  * - **原始详情**：默认收起，点「详情」才展开，方便真的需要排查时复制。
  *
  * 归类在 `message-timeline.data.ts` 里做（纯函数、可单测），这里只管呈现与文案。
+ *
+ * 只负责「历史轮次的报错」这种中性卡片。**当前这一轮**的意外中断不在这里画：
+ * 它由输入框上方的 `SessionInterruptedBar` 承担（琥珀色单行条 + 继续按钮），
+ * 时间线里那条 Error 行会整行跳过。
  */
 export function SessionErrorCard(props: { kind: ErrorKind; detail: string }) {
   const language = useLanguage()
@@ -41,6 +45,32 @@ export function SessionErrorCard(props: { kind: ErrorKind; detail: string }) {
     return !out || out === key ? fallback : out
   }
 
+  const details = () => (
+    <Show when={props.detail.trim()}>
+      <Show when={open()}>
+        <pre class="mt-1.5 max-h-40 overflow-auto rounded-md border border-border bg-background/60 p-2 text-ui-xs leading-5 text-foreground-subtle whitespace-pre-wrap break-all select-text">
+          {props.detail}
+        </pre>
+      </Show>
+    </Show>
+  )
+
+  const detailsToggle = () => (
+    <Show when={props.detail.trim()}>
+      <button
+        type="button"
+        class="flex w-fit items-center gap-1 text-ui-xs text-foreground-subtle transition-colors hover:text-foreground"
+        aria-expanded={open()}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <Icon name={open() ? "chevron-down" : "chevron-right"} size="small" class="shrink-0" />
+        {language.t("session.error.details") === "session.error.details"
+          ? "Details"
+          : language.t("session.error.details")}
+      </button>
+    </Show>
+  )
+
   return (
     <div data-component="session-error" class="flex flex-col gap-1.5">
       <div class="flex items-start gap-2">
@@ -52,22 +82,8 @@ export function SessionErrorCard(props: { kind: ErrorKind; detail: string }) {
       </div>
       <Show when={props.detail.trim()}>
         <div class="flex flex-col gap-1 pl-6">
-          <button
-            type="button"
-            class="flex w-fit items-center gap-1 text-ui-xs text-foreground-subtle transition-colors hover:text-foreground"
-            aria-expanded={open()}
-            onClick={() => setOpen((value) => !value)}
-          >
-            <Icon name={open() ? "chevron-down" : "chevron-right"} size="small" class="shrink-0" />
-            {language.t("session.error.details") === "session.error.details"
-              ? "Details"
-              : language.t("session.error.details")}
-          </button>
-          <Show when={open()}>
-            <pre class="max-h-40 overflow-auto rounded-md border border-border bg-background p-2 text-ui-xs leading-5 text-foreground-subtle whitespace-pre-wrap break-all select-text">
-              {props.detail}
-            </pre>
-          </Show>
+          {detailsToggle()}
+          {details()}
         </div>
       </Show>
     </div>

@@ -28,6 +28,8 @@ export interface Interface {
   /** Unread messages for a session, including broadcasts. Marks them read. */
   readonly drain: (sessionID: SessionID) => Effect.Effect<Message[]>
   readonly list: (sessionID: SessionID) => Effect.Effect<Message[]>
+  /** Full transcript of a team, oldest first. Used by the team page chat. */
+  readonly team: (teamID: string) => Effect.Effect<Message[]>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@NovaWay/AgentMailbox") {}
@@ -124,7 +126,20 @@ export const layer = Layer.effect(
       return rows.map(toMessage).sort((a, b) => a.createdAt - b.createdAt)
     })
 
-    return Service.of({ send, drain, list })
+    const team: Interface["team"] = Effect.fn("AgentMailbox.team")(function* (teamID) {
+      const rows = yield* Effect.sync(() =>
+        Database.use((db) =>
+          db
+            .select()
+            .from(AgentMessageTable)
+            .where(eq(AgentMessageTable.team_id, teamID))
+            .all(),
+        ),
+      )
+      return rows.map(toMessage).sort((a, b) => a.createdAt - b.createdAt)
+    })
+
+    return Service.of({ send, drain, list, team })
   }),
 )
 

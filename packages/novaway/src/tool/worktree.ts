@@ -1,6 +1,6 @@
 import { Effect, Option, Schema } from "effect"
 import * as Tool from "./tool"
-import { create as createWorktree } from "./worktree-helper"
+import { create as createWorktree, remove as removeWorktree, state } from "./worktree-helper"
 import { Session } from "@/session/session"
 import { InstanceState } from "@/effect/instance-state"
 import { Service as HookService } from "@/hook/service"
@@ -18,6 +18,14 @@ const ExitParameters = Schema.Struct({
   directory: Schema.optional(Schema.String).annotate({
     description: "Directory to return to; defaults to the project's main worktree",
   }),
+  action: Schema.optional(Schema.Literals(["keep", "remove"])).annotate({
+    description:
+      'keep (default) leaves the worktree directory and branch on disk. remove deletes both — use it for a clean exit when the work is done or abandoned.',
+  }),
+  discard_changes: Schema.optional(Schema.Boolean).annotate({
+    description:
+      'Only meaningful with action: "remove". The worktree is refused when it has uncommitted files or unmerged commits unless this is true.',
+  }),
 })
 
 type EnterMetadata = {
@@ -29,6 +37,16 @@ type EnterMetadata = {
 type ExitMetadata = {
   directory?: string
   previous?: string
+  action?: string
+}
+
+function describeWork(info: { files: string[]; ahead: number }) {
+  const parts: string[] = []
+  if (info.files.length > 0) {
+    parts.push(`${info.files.length} uncommitted change${info.files.length === 1 ? "" : "s"}`)
+  }
+  if (info.ahead > 0) parts.push(`${info.ahead} commit${info.ahead === 1 ? "" : "s"} not on the main branch`)
+  return parts.join(" and ")
 }
 
 /**
@@ -103,7 +121,7 @@ export const WorktreeExitTool = Tool.define<typeof ExitParameters, ExitMetadata,
     const sessions = yield* Session.Service
     return {
       description:
-        "Leave the current worktree and switch this session back to the project's main checkout (or the given directory).",
+        "Leave the current worktree and switch this session back to the project's main checkout (or the given directory). action: \"keep\" (default) leaves the worktree and its branch on disk; action: \"remove\" deletes both, refusing when there are uncommitted files or unmerged commits unless discard_changes is true.",
       parameters: ExitParameters,
       capabilities: { concurrencySafe: false },
       execute: (params: Schema.Schema.Type<typeof ExitParameters>, ctx: Tool.Context) =>
@@ -111,15 +129,62 @@ export const WorktreeExitTool = Tool.define<typeof ExitParameters, ExitMetadata,
           const current = yield* sessions.get(ctx.sessionID).pipe(Effect.orDie)
           const instance = yield* InstanceState.context
           const target = params.directory ?? instance.worktree ?? instance.directory
+          const hooks = Option.getOrUndefined(yield* Effect.serviceOption(HookService))
+          const action = params.action ?? "keep"
+
+          let removed: { branch?: string } | undefined
+          if (action === "remove") {
+            const info = yield* Effect.promise(() => state(current.directory, target))
+            if ((info.files.length > 0 || info.ahead > 0) && !params.discard_changes) {
+              // Refuse instead of silently discarding work: the model has to
+              // show the user what would be lost, then re-invoke explicitly.
+              throw new Error(
+                [
+                  `Worktree ${current.directory} has ${describeWork(info)}.`,
+                  "Removing it discards this work permanently. Confirm with the user, then re-invoke with discard_changes: true",
+                  'or use action: "keep" to preserve the worktree.',
+                ].join(" "),
+              )
+            }
+            // Removing a worktree deletes files and a branch: ask like the
+            // create path does, so the user sees the target before it's gone.
+            yield* ctx.ask({
+              permission: "worktree",
+              patterns: [current.directory],
+              always: [current.directory],
+              metadata: {
+                action: "remove",
+                directory: current.directory,
+                branch: info.branch,
+                discard_changes: Boolean(params.discard_changes),
+              },
+            })
+            const result = yield* Effect.promise(() => removeWorktree(target, current.directory, info.branch))
+            if (!result.ok) throw new Error(`Could not remove worktree: ${result.error}`)
+            removed = { branch: info.branch }
+            if (hooks) {
+              yield* hooks
+                .trigger({
+                  event: "WorktreeRemove",
+                  sessionID: ctx.sessionID,
+                  cwd: target,
+                  metadata: { worktree_path: current.directory, branch: info.branch },
+                })
+                .pipe(Effect.ignore)
+            }
+          }
+
           yield* sessions.setDirectory({ sessionID: ctx.sessionID, directory: target }).pipe(Effect.orDie)
 
           return {
             title: target,
             output: [
               `Working directory changed: ${current.directory} → ${target}`,
-              "The worktree is kept on disk so you can inspect or remove it later.",
+              action === "remove"
+                ? `Worktree removed${removed?.branch ? ` (branch ${removed.branch} deleted)` : ""}.`
+                : "The worktree is kept on disk so you can inspect or remove it later.",
             ].join("\n"),
-            metadata: { directory: target, previous: current.directory },
+            metadata: { directory: target, previous: current.directory, action },
           }
         }).pipe(Effect.orDie),
     }

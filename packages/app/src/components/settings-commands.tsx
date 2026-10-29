@@ -12,7 +12,7 @@ import { useQuery } from "@tanstack/solid-query"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
-import { SettingsGroup } from "./settings-parts"
+import { rowAccent, rowAccentTint, SettingsGroup } from "./settings-parts"
 
 type CommandSource = "config" | "markdown" | "builtin"
 
@@ -131,38 +131,47 @@ export const SettingsCommands: Component<{ directory?: string }> = (props) => {
               }
             >
               <For each={list()}>
-                {(item) => (
-                  <div class="flex min-w-0 items-center gap-3 border-t border-border px-4 py-3 transition-colors first:border-t-0 hover:bg-hover">
-                    <span class="grid size-9 shrink-0 place-items-center rounded-xl bg-background">
-                      <Icon name="console" class="size-4.5 icon-strong-base" />
-                    </span>
-                    <div class="flex min-w-0 flex-1 flex-col">
-                      <div class="flex min-w-0 flex-wrap items-center gap-2">
-                        <span class="truncate text-13-medium text-foreground">{"/" + item.command.name}</span>
-                        <Tag>{sourceLabel(language, item.source)}</Tag>
-                      </div>
-                      <span class="mt-0.5 truncate text-12-regular text-foreground-subtle">
-                        {item.command.description || item.command.template}
+                {(item) => {
+                  // 每条命令一个稳定色：图标块、标题前的色点都读它，
+                  // 一屏几十个 /命令 时靠颜色分组更快。
+                  const accent = rowAccent(item.command.name)
+                  return (
+                    <div class="flex min-w-0 items-center gap-3 border-t border-border px-4 py-3 transition-colors first:border-t-0 hover:bg-hover">
+                      <span
+                        class="grid size-9 shrink-0 place-items-center rounded-xl"
+                        style={{ background: rowAccentTint(accent) }}
+                      >
+                        <Icon name="console" class="size-4.5" style={{ color: accent }} />
                       </span>
-                    </div>
-                    <Show when={item.source === "config"}>
-                      <div class="flex shrink-0 items-center gap-1">
-                        <IconButton
-                          icon="edit"
-                          variant="ghost"
-                          onClick={() => editCommand(item.command.name)}
-                          aria-label={language.t("settings.management.action.edit" as never)}
-                        />
-                        <IconButton
-                          icon="trash"
-                          variant="ghost"
-                          onClick={() => void remove(item.command.name)}
-                          aria-label={language.t("settings.management.action.delete" as never)}
-                        />
+                      <div class="flex min-w-0 flex-1 flex-col">
+                        <div class="flex min-w-0 flex-wrap items-center gap-2">
+                          <span class="size-1.5 shrink-0 rounded-full" style={{ background: accent }} />
+                          <span class="truncate text-13-medium text-foreground">{"/" + item.command.name}</span>
+                          <Tag>{sourceLabel(language, item.source)}</Tag>
+                        </div>
+                        <span class="mt-0.5 truncate text-12-regular text-foreground-subtle">
+                          {item.command.description || item.command.template}
+                        </span>
                       </div>
-                    </Show>
-                  </div>
-                )}
+                      <Show when={item.source === "config"}>
+                        <div class="flex shrink-0 items-center gap-1">
+                          <IconButton
+                            icon="edit"
+                            variant="ghost"
+                            onClick={() => editCommand(item.command.name)}
+                            aria-label={language.t("settings.management.action.edit" as never)}
+                          />
+                          <IconButton
+                            icon="trash"
+                            variant="ghost"
+                            onClick={() => void remove(item.command.name)}
+                            aria-label={language.t("settings.management.action.delete" as never)}
+                          />
+                        </div>
+                      </Show>
+                    </div>
+                  )
+                }}
               </For>
             </Show>
           </SettingsGroup>
@@ -218,8 +227,28 @@ const CommandDialog: Component<{
   }
 
   return (
-    <Dialog title={props.title} transition class="w-[min(calc(100vw-40px),640px)]">
-      <form class="flex flex-col gap-4 px-2.5 pb-3" onSubmit={(event) => void submit(event)}>
+    <Dialog
+      title={props.title}
+      transition
+      class="w-[min(calc(100vw-40px),640px)]"
+      // 动作按钮固定在弹窗右下角：表单再长滚动的也只是字段，取消/保存永远可见。
+      // 保存按钮用 `form` 关联到正文里的表单，回车提交的行为保持不变。
+      footer={
+        <>
+          <Button type="button" variant="secondary" disabled={saving()} onClick={() => dialog.close()}>
+            {language.t("common.cancel")}
+          </Button>
+          <Button type="submit" form="settings-command-form" icon="check" disabled={saving()}>
+            {language.t("settings.management.action.save" as never)}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id="settings-command-form"
+        class="flex flex-col gap-4 px-2.5 pb-3"
+        onSubmit={(event) => void submit(event)}
+      >
         <TextField
           label={language.t("settings.management.field.name" as never)}
           value={name()}
@@ -250,14 +279,6 @@ const CommandDialog: Component<{
           autocomplete="off"
           autocapitalize="off"
         />
-        <div class="flex justify-end gap-2">
-          <Button type="button" variant="secondary" disabled={saving()} onClick={() => dialog.close()}>
-            {language.t("common.cancel")}
-          </Button>
-          <Button type="submit" icon="check" disabled={saving()}>
-            {language.t("settings.management.action.save" as never)}
-          </Button>
-        </div>
       </form>
     </Dialog>
   )

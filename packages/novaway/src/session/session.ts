@@ -12,7 +12,7 @@ import { NotFoundError } from "@/storage/storage"
 import { eq } from "drizzle-orm"
 import { and } from "drizzle-orm"
 import { gte } from "drizzle-orm"
-import { isNull } from "drizzle-orm"
+import { isNotNull, isNull } from "drizzle-orm"
 import { desc } from "drizzle-orm"
 import { like } from "drizzle-orm"
 import { inArray } from "drizzle-orm"
@@ -48,6 +48,30 @@ import { ConfigEvolution } from "@/config/evolution"
 import { Evolution } from "@/evolution/service"
 
 const log = Log.create({ service: "session" })
+
+/**
+ * `SessionStart` hooks can return `additionalContext` (loaded repo context,
+ * environment notes, ...). The session is created before any prompt exists, so
+ * stash it here and attach it to the first user message of the session — the
+ * only place the model is guaranteed to see it.
+ */
+const startContext = new Map<string, string>()
+
+export function takeStartContext(sessionID: string) {
+  const value = startContext.get(sessionID)
+  if (value) startContext.delete(sessionID)
+  return value
+}
+
+function rememberStartContext(sessionID: string, text: string) {
+  // Sessions that are created and never prompted would otherwise pin their
+  // context forever; keep the map small by dropping the oldest entries.
+  if (startContext.size >= 100) {
+    const oldest = startContext.keys().next().value
+    if (oldest) startContext.delete(oldest)
+  }
+  startContext.set(sessionID, text)
+}
 
 const parentTitlePrefix = "New session - "
 const childTitlePrefix = "Child session - "
@@ -663,9 +687,10 @@ const rawLayer: Layer.Layer<
 
       yield* sync.run(Event.Created, { sessionID: result.id, info: result })
       if (hooks._tag === "Some") {
-        yield* hooks.value
+        const started = yield* hooks.value
           .trigger({ event: "SessionStart", sessionID: result.id, cwd: result.directory })
-          .pipe(Effect.ignore)
+          .pipe(Effect.catchCause(() => Effect.succeed({ blocked: false, ran: false, additionalContext: undefined })))
+        if (started.additionalContext) rememberStartContext(result.id, started.additionalContext)
       }
 
       if (!flags.experimentalWorkspaces) {
@@ -1165,7 +1190,12 @@ export function* listGlobal(input?: {
   if (input?.search) {
     conditions.push(like(SessionTable.title, `%${input.search}%`))
   }
-  if (!input?.archived) {
+  if (input?.archived === true) {
+    // archived=true 语义是「只要已归档」。过去只是不再排除已归档，
+    // 返回的是新旧混排的全量列表——归档很旧时根本落不进前 N 条，客户端按
+    // time.archived 过滤后就是一张空表。
+    conditions.push(isNotNull(SessionTable.time_archived))
+  } else {
     conditions.push(isNull(SessionTable.time_archived))
   }
 

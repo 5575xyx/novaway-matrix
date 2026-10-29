@@ -43,13 +43,13 @@ import { agentDisplayName, skillDisplayName } from "@/utils/agent"
 import { agentAvatarSrc } from "@/utils/agent-avatar"
 import { pathKey } from "@/utils/path-key"
 import { AiFixButton } from "./ai-fix-button"
-import { SettingsGroup } from "./settings-parts"
+import { rowAccent, rowAccentTint, SettingsGroup } from "./settings-parts"
 import { matchesModeGroup, modeGroupLabel, modeGroups, type ModeGroup } from "./settings-mode-groups"
 import { agentSkillPermission, hasSkillPermission, withAgentSkills } from "./settings-agent-config"
 
 type ConfigKey = "agent" | "skills" | "permission" | "mcp" | "plugin"
 type ConfigRecordKey = Exclude<ConfigKey, "plugin">
-type RuntimeIcon = "brain" | "checklist" | "server" | "mcp" | "shield" | "dot-grid"
+type RuntimeIcon = "brain" | "checklist" | "server" | "mcp" | "shield" | "dot-grid" | "prompt" | "console"
 type RuleFile = SettingsRuleListResponse[number]
 type ProjectInstructionFile = SettingsProjectInstructionGetResponse
 type RuleTrigger = "always" | "mention" | "auto"
@@ -301,8 +301,14 @@ const SectionTitle: Component<{ title: string; description?: string }> = (props)
   </div>
 )
 
-const EmptyState: Component<{ message: string }> = (props) => (
-  <div class="py-4 text-14-regular text-foreground-subtle">{props.message}</div>
+const EmptyState: Component<{ message: string; icon?: RuntimeIcon }> = (props) => (
+  // 空状态给一张虚线卡 + 图标：之前只有一行灰字，看起来像"加载失败"而不是"还没有内容"。
+  <div class="flex flex-col items-center justify-center gap-2 px-4 py-10 text-center">
+    <span class="grid size-10 place-items-center rounded-xl bg-background">
+      <Icon name={props.icon ?? "dot-grid"} class="size-5 text-foreground-subtlest" />
+    </span>
+    <span class="text-13-regular text-foreground-subtle">{props.message}</span>
+  </div>
 )
 
 const LoadingState: Component = () => (
@@ -383,8 +389,19 @@ const JsonEntryDialog: Component<{
       title={props.title}
       transition
       class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+      footer={
+        <>
+          <Button type="button" variant="secondary" onClick={() => dialog.close()}>
+            {language.t("common.cancel")}
+          </Button>
+          <Button type="submit" form="settings-dialog-form-1" disabled={save.isPending} icon="check">
+            {language.t("settings.management.action.save")}
+          </Button>
+        </>
+      }
     >
       <form
+        id="settings-dialog-form-1"
         class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar"
         onSubmit={(e) => {
           e.preventDefault()
@@ -413,14 +430,6 @@ const JsonEntryDialog: Component<{
           autocapitalize="off"
           error={error()}
         />
-        <div class="flex justify-end gap-2">
-          <Button type="button" variant="secondary" onClick={() => dialog.close()}>
-            {language.t("common.cancel")}
-          </Button>
-          <Button type="submit" disabled={save.isPending} icon="check">
-            {language.t("settings.management.action.save")}
-          </Button>
-        </div>
       </form>
     </Dialog>
   )
@@ -457,6 +466,22 @@ const SkillSelectDialog: Component<{
       title={props.title}
       transition
       class="w-[min(calc(100vw-40px),640px)] max-h-[calc(100vh-80px)] overflow-hidden"
+      footer={
+        <>
+          <span class="mr-auto text-12-regular text-foreground-subtle">已选择 {selected().length} 个技能</span>
+          <Button type="button" variant="secondary" onClick={() => dialog.close()}>
+            {language.t("common.cancel")}
+          </Button>
+          <Button
+            type="button"
+            icon="check"
+            disabled={select.isPending || selected().length === 0}
+            onClick={() => select.mutate(selected())}
+          >
+            {language.t("settings.agents.skills.action.addSelected")}
+          </Button>
+        </>
+      }
     >
       <div class="flex flex-col gap-3 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar">
         <Show when={error()}>
@@ -465,7 +490,7 @@ const SkillSelectDialog: Component<{
         <SettingsGroup>
           <Show
             when={safeArray(props.skills).length > 0}
-            fallback={<EmptyState message={language.t("settings.agents.skills.emptyAssignable")} />}
+            fallback={<EmptyState icon="checklist" message={language.t("settings.agents.skills.emptyAssignable")} />}
           >
             <For each={safeArray(props.skills)}>
               {(skill) => {
@@ -502,22 +527,6 @@ const SkillSelectDialog: Component<{
             </For>
           </Show>
         </SettingsGroup>
-        <div class="flex items-center justify-between gap-3 pt-1">
-          <span class="text-12-regular text-foreground-subtle">已选择 {selected().length} 个技能</span>
-          <div class="flex items-center gap-2">
-            <Button type="button" variant="secondary" onClick={() => dialog.close()}>
-              {language.t("common.cancel")}
-            </Button>
-            <Button
-              type="button"
-              icon="check"
-              disabled={select.isPending || selected().length === 0}
-              onClick={() => select.mutate(selected())}
-            >
-              {language.t("settings.agents.skills.action.addSelected")}
-            </Button>
-          </div>
-        </div>
       </div>
     </Dialog>
   )
@@ -554,8 +563,19 @@ const PluginEntryDialog: Component<{
       title={props.title}
       transition
       class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+      footer={
+        <>
+          <Button type="button" variant="secondary" onClick={() => dialog.close()}>
+            {language.t("common.cancel")}
+          </Button>
+          <Button type="submit" form="settings-dialog-form-2" disabled={save.isPending} icon="check">
+            {language.t("settings.management.action.save")}
+          </Button>
+        </>
+      }
     >
       <form
+        id="settings-dialog-form-2"
         class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar"
         onSubmit={(e) => {
           e.preventDefault()
@@ -574,14 +594,6 @@ const PluginEntryDialog: Component<{
           autocapitalize="off"
           error={error()}
         />
-        <div class="flex justify-end gap-2">
-          <Button type="button" variant="secondary" onClick={() => dialog.close()}>
-            {language.t("common.cancel")}
-          </Button>
-          <Button type="submit" disabled={save.isPending} icon="check">
-            {language.t("settings.management.action.save")}
-          </Button>
-        </div>
       </form>
     </Dialog>
   )
@@ -675,8 +687,27 @@ const SourceImportDialog: Component<{
       title={props.title}
       transition
       class="w-[min(calc(100vw-40px),720px)] max-h-[calc(100vh-80px)] overflow-hidden"
+      footer={
+        <>
+          <Button type="button" variant="secondary" disabled={save.isPending} onClick={() => dialog.close()}>
+            {language.t("common.cancel")}
+          </Button>
+          <Button
+            type="submit"
+            form="settings-import-form"
+            disabled={save.isPending || !!success()}
+            icon={save.isPending ? undefined : "check"}
+          >
+            <Show when={save.isPending} fallback={language.t("settings.management.action.import")}>
+              <span class="size-3.5 rounded-full border border-current border-t-transparent animate-spin" />
+              {language.t("settings.management.action.import")}...
+            </Show>
+          </Button>
+        </>
+      }
     >
       <form
+        id="settings-import-form"
         class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar"
         onSubmit={(e) => {
           e.preventDefault()
@@ -723,17 +754,6 @@ const SourceImportDialog: Component<{
         <Switch checked={overwrite()} disabled={save.isPending || !!success()} onChange={setOverwrite}>
           {language.t("settings.management.field.overwriteExisting")}
         </Switch>
-        <div class="flex justify-end gap-2">
-          <Button type="button" variant="secondary" disabled={save.isPending} onClick={() => dialog.close()}>
-            {language.t("common.cancel")}
-          </Button>
-          <Button type="submit" disabled={save.isPending || !!success()} icon={save.isPending ? undefined : "check"}>
-            <Show when={save.isPending} fallback={language.t("settings.management.action.import")}>
-              <span class="size-3.5 rounded-full border border-current border-t-transparent animate-spin" />
-              {language.t("settings.management.action.import")}...
-            </Show>
-          </Button>
-        </div>
       </form>
     </Dialog>
   )
@@ -763,21 +783,26 @@ const ConfirmActionDialog: Component<{
   }))
 
   return (
-    <Dialog title={props.title} fit>
+    <Dialog
+      title={props.title}
+      fit
+      footer={
+        <>
+          <Button variant="secondary" disabled={confirm.isPending} onClick={() => dialog.close()}>
+            {language.t("common.cancel")}
+          </Button>
+          <Button variant="primary" disabled={confirm.isPending} onClick={() => confirm.mutate()}>
+            {props.confirmLabel}
+          </Button>
+        </>
+      }
+    >
       <div class="flex flex-col gap-4 pl-6 pr-2.5 pb-3">
         <div class="flex flex-col gap-1">
           <span class="text-14-regular text-foreground">{props.description}</span>
           <Show when={error()}>
             <span class="text-12-regular text-danger-base">{error()}</span>
           </Show>
-        </div>
-        <div class="flex justify-end gap-2">
-          <Button variant="ghost" size="large" disabled={confirm.isPending} onClick={() => dialog.close()}>
-            {language.t("common.cancel")}
-          </Button>
-          <Button variant="primary" size="large" disabled={confirm.isPending} onClick={() => confirm.mutate()}>
-            {props.confirmLabel}
-          </Button>
         </div>
       </div>
     </Dialog>
@@ -797,6 +822,11 @@ const SkillDetailDialog: Component<{
       title={props.title}
       transition
       class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+      footer={
+        <Button variant="secondary" onClick={() => dialog.close()}>
+          {language.t("common.close")}
+        </Button>
+      }
     >
       <div class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar">
         <TextField
@@ -819,9 +849,6 @@ const SkillDetailDialog: Component<{
           readOnly
           class="min-h-64 max-h-[min(50vh,28rem)] overflow-y-auto"
         />
-        <div class="flex justify-end gap-2">
-          <Button onClick={() => dialog.close()}>{language.t("common.close")}</Button>
-        </div>
       </div>
     </Dialog>
   )
@@ -845,6 +872,11 @@ const RuleDetailDialog: Component<{
       title={props.title}
       transition
       class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+      footer={
+        <Button variant="secondary" onClick={() => dialog.close()}>
+          {language.t("common.close")}
+        </Button>
+      }
     >
       <div class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar">
         <TextField
@@ -873,9 +905,6 @@ const RuleDetailDialog: Component<{
           readOnly
           class="min-h-64 max-h-[min(50vh,28rem)] overflow-y-auto"
         />
-        <div class="flex justify-end gap-2">
-          <Button onClick={() => dialog.close()}>{language.t("common.close")}</Button>
-        </div>
       </div>
     </Dialog>
   )
@@ -894,10 +923,23 @@ const AgentDetailDialog: Component<{
       title={props.title}
       transition
       class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+      footer={
+        <Button variant="secondary" onClick={() => dialog.close()}>
+          {language.t("common.close")}
+        </Button>
+      }
     >
       <div class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar">
-        <div class="flex items-center gap-3">
-          <img src={agentAvatarSrc(props.agent.name)} alt="" class="size-10 rounded-xl object-cover" />
+        <div
+          class="flex items-center gap-3 rounded-xl border border-border px-3 py-2.5"
+          style={{ background: rowAccentTint(rowAccent(props.agent.name), 8) }}
+        >
+          <img
+            src={agentAvatarSrc(props.agent.name)}
+            alt=""
+            class="size-10 rounded-xl object-cover"
+            style={{ "box-shadow": `0 0 0 1px ${rowAccentTint(rowAccent(props.agent.name), 45)}` }}
+          />
           <span class="min-w-0 truncate text-15-medium text-foreground">
             {agentDisplayName(props.agent.name, props.agent.options)}
           </span>
@@ -938,9 +980,6 @@ const AgentDetailDialog: Component<{
             class="min-h-24 max-h-[min(32vh,16rem)] overflow-y-auto"
           />
         </Show>
-        <div class="flex justify-end gap-2">
-          <Button onClick={() => dialog.close()}>{language.t("common.close")}</Button>
-        </div>
       </div>
     </Dialog>
   )
@@ -993,8 +1032,19 @@ const AgentConfigDialog: Component<{
       title={props.title}
       transition
       class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+      footer={
+        <>
+          <Button type="button" variant="secondary" onClick={() => dialog.close()}>
+            {language.t("common.cancel")}
+          </Button>
+          <Button type="submit" form="settings-dialog-form-3" disabled={save.isPending} icon="check">
+            {language.t("settings.management.action.save")}
+          </Button>
+        </>
+      }
     >
       <form
+        id="settings-dialog-form-3"
         class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar"
         onSubmit={(e) => {
           e.preventDefault()
@@ -1040,14 +1090,6 @@ const AgentConfigDialog: Component<{
           autocomplete="off"
           autocapitalize="off"
         />
-        <div class="flex justify-end gap-2">
-          <Button type="button" variant="secondary" onClick={() => dialog.close()}>
-            {language.t("common.cancel")}
-          </Button>
-          <Button type="submit" disabled={save.isPending} icon="check">
-            {language.t("settings.management.action.save")}
-          </Button>
-        </div>
       </form>
     </Dialog>
   )
@@ -1100,8 +1142,19 @@ const AgentFileDialog: Component<{
       title={props.title}
       transition
       class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+      footer={
+        <>
+          <Button type="button" variant="secondary" onClick={() => dialog.close()}>
+            {language.t("common.cancel")}
+          </Button>
+          <Button type="submit" form="settings-dialog-form-4" disabled={save.isPending} icon="check">
+            {language.t("settings.management.action.save")}
+          </Button>
+        </>
+      }
     >
       <form
+        id="settings-dialog-form-4"
         class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar"
         onSubmit={(e) => {
           e.preventDefault()
@@ -1148,14 +1201,6 @@ const AgentFileDialog: Component<{
           autocomplete="off"
           autocapitalize="off"
         />
-        <div class="flex justify-end gap-2">
-          <Button type="button" variant="secondary" onClick={() => dialog.close()}>
-            {language.t("common.cancel")}
-          </Button>
-          <Button type="submit" disabled={save.isPending} icon="check">
-            {language.t("settings.management.action.save")}
-          </Button>
-        </div>
       </form>
     </Dialog>
   )
@@ -1200,8 +1245,19 @@ const SkillFileDialog: Component<{
       title={props.title}
       transition
       class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+      footer={
+        <>
+          <Button type="button" variant="secondary" onClick={() => dialog.close()}>
+            {language.t("common.cancel")}
+          </Button>
+          <Button type="submit" form="settings-dialog-form-5" disabled={save.isPending} icon="check">
+            {language.t("settings.management.action.save")}
+          </Button>
+        </>
+      }
     >
       <form
+        id="settings-dialog-form-5"
         class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar"
         onSubmit={(e) => {
           e.preventDefault()
@@ -1239,14 +1295,6 @@ const SkillFileDialog: Component<{
           autocomplete="off"
           autocapitalize="off"
         />
-        <div class="flex justify-end gap-2">
-          <Button type="button" variant="secondary" onClick={() => dialog.close()}>
-            {language.t("common.cancel")}
-          </Button>
-          <Button type="submit" disabled={save.isPending} icon="check">
-            {language.t("settings.management.action.save")}
-          </Button>
-        </div>
       </form>
     </Dialog>
   )
@@ -1299,8 +1347,19 @@ const RuleFileDialog: Component<{
       title={props.title}
       transition
       class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+      footer={
+        <>
+          <Button type="button" variant="secondary" onClick={() => dialog.close()}>
+            {language.t("common.cancel")}
+          </Button>
+          <Button type="submit" form="settings-dialog-form-6" disabled={save.isPending} icon="check">
+            {language.t("settings.management.action.save")}
+          </Button>
+        </>
+      }
     >
       <form
+        id="settings-dialog-form-6"
         class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar"
         onSubmit={(e) => {
           e.preventDefault()
@@ -1353,14 +1412,6 @@ const RuleFileDialog: Component<{
           autocomplete="off"
           autocapitalize="off"
         />
-        <div class="flex justify-end gap-2">
-          <Button type="button" variant="secondary" onClick={() => dialog.close()}>
-            {language.t("common.cancel")}
-          </Button>
-          <Button type="submit" disabled={save.isPending} icon="check">
-            {language.t("settings.management.action.save")}
-          </Button>
-        </div>
       </form>
     </Dialog>
   )
@@ -1377,6 +1428,11 @@ const ProjectInstructionDetailDialog: Component<{
       title={props.title}
       transition
       class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+      footer={
+        <Button variant="secondary" onClick={() => dialog.close()}>
+          {language.t("common.close")}
+        </Button>
+      }
     >
       <div class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar">
         <TextField
@@ -1393,9 +1449,6 @@ const ProjectInstructionDetailDialog: Component<{
           readOnly
           class="min-h-64 max-h-[min(50vh,28rem)] overflow-y-auto"
         />
-        <div class="flex justify-end gap-2">
-          <Button onClick={() => dialog.close()}>{language.t("common.close")}</Button>
-        </div>
       </div>
     </Dialog>
   )
@@ -1433,8 +1486,19 @@ const ProjectInstructionDialog: Component<{
       title={props.title}
       transition
       class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+      footer={
+        <>
+          <Button type="button" variant="secondary" onClick={() => dialog.close()}>
+            {language.t("common.cancel")}
+          </Button>
+          <Button type="submit" form="settings-dialog-form-7" disabled={save.isPending} icon="check">
+            {language.t("settings.management.action.save")}
+          </Button>
+        </>
+      }
     >
       <form
+        id="settings-dialog-form-7"
         class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar"
         onSubmit={(e) => {
           e.preventDefault()
@@ -1453,14 +1517,6 @@ const ProjectInstructionDialog: Component<{
           autocapitalize="off"
           error={error()}
         />
-        <div class="flex justify-end gap-2">
-          <Button type="button" variant="secondary" onClick={() => dialog.close()}>
-            {language.t("common.cancel")}
-          </Button>
-          <Button type="submit" disabled={save.isPending} icon="check">
-            {language.t("settings.management.action.save")}
-          </Button>
-        </div>
       </form>
     </Dialog>
   )
@@ -1527,8 +1583,31 @@ const ProjectInstructionGenerateDialog: Component<{
   })
 
   return (
-    <Dialog title={props.title} transition class="w-[min(calc(100vw-40px),980px)]">
+    <Dialog
+      title={props.title}
+      transition
+      class="w-[min(calc(100vw-40px),980px)]"
+      footer={
+        <>
+          <Button type="button" variant="secondary" disabled={generate.isPending} onClick={() => dialog.close()}>
+            {language.t("common.cancel")}
+          </Button>
+          <Button
+            type="submit"
+            form="settings-project-instruction-form"
+            disabled={generate.isPending}
+            icon={generate.isPending ? undefined : "checklist"}
+          >
+            <Show when={generate.isPending} fallback={language.t("settings.projectInstruction.action.generate")}>
+              <span class="size-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
+              {language.t("settings.projectInstruction.action.generating")}
+            </Show>
+          </Button>
+        </>
+      }
+    >
       <form
+        id="settings-project-instruction-form"
         class="grid gap-4 px-2.5 pb-3 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.9fr)]"
         onSubmit={(e) => {
           e.preventDefault()
@@ -1575,17 +1654,6 @@ const ProjectInstructionGenerateDialog: Component<{
               </div>
             </div>
           </Show>
-          <div class="flex justify-end gap-2">
-            <Button type="button" variant="secondary" disabled={generate.isPending} onClick={() => dialog.close()}>
-              {language.t("common.cancel")}
-            </Button>
-            <Button type="submit" disabled={generate.isPending} icon={generate.isPending ? undefined : "checklist"}>
-              <Show when={generate.isPending} fallback={language.t("settings.projectInstruction.action.generate")}>
-                <span class="size-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
-                {language.t("settings.projectInstruction.action.generating")}
-              </Show>
-            </Button>
-          </div>
         </div>
         <div class="min-w-0 rounded-md border border-border bg-surface/70 p-3">
           <div class="mb-3 flex items-center justify-between gap-2">
@@ -1676,8 +1744,19 @@ const McpEntryDialog: Component<{
       title={props.title}
       transition
       class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+      footer={
+        <>
+          <Button type="button" variant="secondary" onClick={() => dialog.close()}>
+            {language.t("common.cancel")}
+          </Button>
+          <Button type="submit" form="settings-dialog-form-8" disabled={save.isPending} icon="check">
+            {language.t("settings.management.action.save")}
+          </Button>
+        </>
+      }
     >
       <form
+        id="settings-dialog-form-8"
         class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar"
         onSubmit={(e) => {
           e.preventDefault()
@@ -1707,14 +1786,6 @@ const McpEntryDialog: Component<{
           error={error()}
           disabled={save.isPending}
         />
-        <div class="flex justify-end gap-2">
-          <Button type="button" variant="secondary" disabled={save.isPending} onClick={() => dialog.close()}>
-            {language.t("common.cancel")}
-          </Button>
-          <Button type="submit" disabled={save.isPending} icon="check">
-            {language.t("settings.management.action.save")}
-          </Button>
-        </div>
       </form>
     </Dialog>
   )
@@ -1758,6 +1829,11 @@ const McpDetailDialog: Component<{
       title={props.title}
       transition
       class="w-[min(calc(100vw-40px),800px)] max-h-[calc(100vh-80px)] overflow-hidden"
+      footer={
+        <Button variant="secondary" onClick={() => dialog.close()}>
+          {language.t("common.close")}
+        </Button>
+      }
     >
       <div class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar">
         <TextField
@@ -1793,9 +1869,6 @@ const McpDetailDialog: Component<{
             />
           )}
         </Show>
-        <div class="flex justify-end gap-2">
-          <Button onClick={() => dialog.close()}>{language.t("common.close")}</Button>
-        </div>
       </div>
     </Dialog>
   )
@@ -1950,8 +2023,40 @@ const AgentGenerateDialog: Component<{
   }))
 
   return (
-    <Dialog title={props.title} transition class="w-[min(calc(100vw-40px),880px)]">
+    <Dialog
+      title={props.title}
+      transition
+      class="w-[min(calc(100vw-40px),880px)]"
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={generate.isPending || create.isPending}
+            onClick={() => dialog.close()}
+          >
+            {language.t("common.cancel")}
+          </Button>
+          <Show
+            when={draft()}
+            fallback={
+              <Button type="submit" form="settings-agent-generate-form" disabled={generate.isPending}>
+                <Show when={generate.isPending} fallback={language.t("settings.agents.ai.generate")}>
+                  <span class="size-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                  {language.t("settings.agents.ai.generating")}
+                </Show>
+              </Button>
+            }
+          >
+            <Button type="submit" form="settings-agent-generate-form" disabled={create.isPending}>
+              {create.isPending ? language.t("common.saving") : language.t("settings.agents.ai.create")}
+            </Button>
+          </Show>
+        </>
+      }
+    >
       <form
+        id="settings-agent-generate-form"
         class="flex max-h-[calc(100vh-160px)] flex-col gap-4 overflow-y-auto px-2.5 pb-3"
         onSubmit={(event) => {
           event.preventDefault()
@@ -2029,32 +2134,6 @@ const AgentGenerateDialog: Component<{
             </div>
           )}
         </Show>
-
-        <div class="flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={generate.isPending || create.isPending}
-            onClick={() => dialog.close()}
-          >
-            {language.t("common.cancel")}
-          </Button>
-          <Show
-            when={draft()}
-            fallback={
-              <Button type="submit" disabled={generate.isPending}>
-                <Show when={generate.isPending} fallback={language.t("settings.agents.ai.generate")}>
-                  <span class="size-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
-                  {language.t("settings.agents.ai.generating")}
-                </Show>
-              </Button>
-            }
-          >
-            <Button type="submit" disabled={create.isPending}>
-              {create.isPending ? language.t("common.saving") : language.t("settings.agents.ai.create")}
-            </Button>
-          </Show>
-        </div>
       </form>
     </Dialog>
   )
@@ -2543,7 +2622,7 @@ export const SettingsAgents: Component<{ directory?: string }> = (props) => {
           <Show when={!loading()} fallback={<LoadingState />}>
             <Show
               when={safeArray(visibleAgents()).length > 0}
-              fallback={<EmptyState message={language.t("settings.agents.empty")} />}
+              fallback={<EmptyState icon="brain" message={language.t("settings.agents.empty")} />}
             >
               <For each={safeArray(visibleAgents())}>
                 {(agent: Agent) => (
@@ -2792,7 +2871,7 @@ export const SettingsSkills: Component = () => {
           <Show when={!files.isLoading} fallback={<LoadingState />}>
             <Show
               when={safeArray(visibleSkills()).length > 0}
-              fallback={<EmptyState message={language.t("settings.skills.empty")} />}
+              fallback={<EmptyState icon="checklist" message={language.t("settings.skills.empty")} />}
             >
               <For each={safeArray(visibleSkills())}>
                 {(skill) => {
@@ -3276,7 +3355,7 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
       >
         <Show when={!props.directory}>
           <SettingsGroup>
-            <EmptyState message={language.t("settings.projectInstruction.empty.noProject")} />
+            <EmptyState icon="prompt" message={language.t("settings.projectInstruction.empty.noProject")} />
           </SettingsGroup>
         </Show>
         <Show when={props.directory && projectInstruction.data?.content.trim()}>
@@ -3324,7 +3403,7 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
         <Show when={!rules.isLoading && !projectRules.isLoading} fallback={<LoadingState />}>
           <Show
             when={safeArray(ruleSet(props.scope)).length > 0}
-            fallback={<EmptyState message={language.t("settings.rules.empty")} />}
+            fallback={<EmptyState icon="shield" message={language.t("settings.rules.empty")} />}
           >
             <For each={safeArray(ruleSet(props.scope))}>
               {(file) => (
@@ -3491,7 +3570,7 @@ export const SettingsMcp: Component = () => {
           <Show when={!mcp.isLoading} fallback={<LoadingState />}>
             <Show
               when={safeArray(items()).length > 0}
-              fallback={<EmptyState message={language.t("dialog.mcp.empty")} />}
+              fallback={<EmptyState icon="mcp" message={language.t("dialog.mcp.empty")} />}
             >
               <For each={safeArray(items())}>
                 {(item) => (
@@ -3561,7 +3640,7 @@ const McpCatalogSection: Component<{
         />
       </Toolbar>
       <SettingsGroup>
-        <Show when={matches().length > 0} fallback={<EmptyState message={language.t("settings.mcp.catalog.empty")} />}>
+        <Show when={matches().length > 0} fallback={<EmptyState icon="mcp" message={language.t("settings.mcp.catalog.empty")} />}>
           <For each={matches()}>
             {(entry) => {
               const installed = () => catalogEntryInstalled(entry, props.configured)
@@ -3651,7 +3730,7 @@ export const SettingsPlugins: Component = () => {
         <SettingsGroup>
           <Show
             when={safeArray(plugins()).length > 0}
-            fallback={<EmptyState message={language.t("settings.plugins.empty")} />}
+            fallback={<EmptyState icon="server" message={language.t("settings.plugins.empty")} />}
           >
             <For each={safeArray(plugins())}>
               {(plugin, index) => (
@@ -3810,6 +3889,7 @@ export const PluginStoreSection: Component<{
             when={entries().length > 0}
             fallback={
               <EmptyState
+                icon="server"
                 message={
                   sources.list.length === 0
                     ? language.t("settings.plugins.store.noSource")
@@ -3877,35 +3957,50 @@ const RuntimeRow: Component<{
   actions?: JSX.Element
   /** 有头像时优先显示图片（AI 员工的确定性机器人头像）。 */
   avatar?: string
-}> = (props) => (
-  // 对齐 ZCode 的资源行（插件 / MCP / 技能 / 规则都是同一种）：左侧图标块，
-  // 中间标题 + 标签 + 描述，右侧操作。行与行之间由外层 SettingsGroup 的分隔线切分。
-  <div class="flex min-w-0 items-center gap-3 border-t border-border px-4 py-3 transition-colors first:border-t-0 hover:bg-hover">
-    <Show
-      when={props.avatar}
-      fallback={
-        <span class="grid size-9 shrink-0 place-items-center rounded-xl bg-background">
-          <Icon name={props.icon} class="size-4.5 icon-strong-base" />
-        </span>
-      }
-    >
-      {(src) => <img src={src()} alt="" draggable={false} class="size-9 shrink-0 rounded-xl object-cover" />}
-    </Show>
-    <div class="flex min-w-0 flex-1 flex-col">
-      <div class="flex min-w-0 flex-wrap items-center gap-2">
-        <span class="truncate text-13-medium text-foreground">{props.title}</span>
-        <For each={props.tags ?? []}>{(tag) => <Tag>{tag}</Tag>}</For>
-      </div>
-      <Show when={props.description}>
-        <span class="mt-0.5 truncate text-12-regular text-foreground-subtle">{props.description}</span>
+}> = (props) => {
+  // 每个条目一份稳定色：图标块 / 头像描边 / 标题前的色点都读它，
+  // 长列表里靠颜色就能区分"这是哪一条"。
+  const accent = createMemo(() => rowAccent(props.title))
+  return (
+    // 对齐 ZCode 的资源行（插件 / MCP / 技能 / 规则都是同一种）：左侧图标块，
+    // 中间标题 + 标签 + 描述，右侧操作。行与行之间由外层 SettingsGroup 的分隔线切分。
+    <div class="flex min-w-0 items-center gap-3 border-t border-border px-4 py-3 transition-colors first:border-t-0 hover:bg-hover">
+      <Show
+        when={props.avatar}
+        fallback={
+          <span class="grid size-9 shrink-0 place-items-center rounded-xl" style={{ background: rowAccentTint(accent()) }}>
+            {/* Icon 自身把 color 写死在 CSS 上，颜色必须通过 svg 的 style 传进去。 */}
+            <Icon name={props.icon} class="size-4.5" style={{ color: accent() }} />
+          </span>
+        }
+      >
+        {(src) => (
+          <img
+            src={src()}
+            alt=""
+            draggable={false}
+            class="size-9 shrink-0 rounded-xl object-cover"
+            style={{ "box-shadow": `0 0 0 1px ${rowAccentTint(accent(), 45)}` }}
+          />
+        )}
       </Show>
-      <Show when={props.footer}>{props.footer}</Show>
+      <div class="flex min-w-0 flex-1 flex-col">
+        <div class="flex min-w-0 flex-wrap items-center gap-2">
+          <span class="size-1.5 shrink-0 rounded-full" style={{ background: accent() }} />
+          <span class="truncate text-13-medium text-foreground">{props.title}</span>
+          <For each={props.tags ?? []}>{(tag) => <Tag>{tag}</Tag>}</For>
+        </div>
+        <Show when={props.description}>
+          <span class="mt-0.5 truncate text-12-regular text-foreground-subtle">{props.description}</span>
+        </Show>
+        <Show when={props.footer}>{props.footer}</Show>
+      </div>
+      <Show when={props.actions}>
+        <div class="flex shrink-0 items-center gap-1">{props.actions}</div>
+      </Show>
     </div>
-    <Show when={props.actions}>
-      <div class="flex shrink-0 items-center gap-1">{props.actions}</div>
-    </Show>
-  </div>
-)
+  )
+}
 
 const AgentSkillList: Component<{
   skills: { name: string; data?: Record<string, unknown>; builtIn: boolean }[]
@@ -4036,16 +4131,41 @@ const McpRow: Component<{
       ? props.status.error
       : undefined
   const configurable = () => !!props.onEdit || !!props.onDelete
+  // MCP 行的色：图标块按名字取稳定色，状态标签按状态取语义色（连上=绿、失败=红、
+  // 待授权=琥珀、停用=灰），一眼能扫出哪个服务出了问题。
+  const accent = createMemo(() => rowAccent(props.name))
+  const statusColor = () => {
+    switch (status()) {
+      case "connected":
+        return "#34d399"
+      case "failed":
+        return "#f87171"
+      case "needs_auth":
+      case "needs_client_registration":
+        return "#fbbf24"
+      default:
+        return "var(--foreground-subtlest)"
+    }
+  }
 
   return (
     <div class="flex min-w-0 items-center gap-3 border-t border-border px-4 py-3 transition-colors first:border-t-0 hover:bg-hover">
-      <span class="grid size-9 shrink-0 place-items-center rounded-xl bg-background">
-        <Icon name="mcp" class="size-4.5 icon-strong-base" />
+      <span class="grid size-9 shrink-0 place-items-center rounded-xl" style={{ background: rowAccentTint(accent()) }}>
+        <Icon name="mcp" class="size-4.5" style={{ color: accent() }} />
       </span>
       <div class="flex min-w-0 flex-1 flex-col">
         <div class="flex min-w-0 flex-wrap items-center gap-2">
+          <span class="size-1.5 shrink-0 rounded-full" style={{ background: accent() }} />
           <span class="truncate text-13-medium text-foreground">{props.name}</span>
-          <Tag>{label()}</Tag>
+          <Tag
+            style={{
+              color: statusColor(),
+              border: `1px solid color-mix(in srgb, ${statusColor()} 35%, transparent)`,
+              background: `color-mix(in srgb, ${statusColor()} 12%, var(--background))`,
+            }}
+          >
+            {label()}
+          </Tag>
         </div>
         <Show when={error()}>
           <span class="mt-0.5 truncate text-12-regular text-foreground-subtle">{error()}</span>

@@ -73,8 +73,7 @@ export const ReadMcpResourceTool = Tool.define<typeof ReadParameters, Metadata, 
   Effect.gen(function* () {
     const mcp = yield* MCP.Service
     return {
-      description:
-        "Read a resource exposed by a connected MCP server. Use list_mcp_resources to discover URIs.",
+      description: "Read a resource exposed by a connected MCP server. Use list_mcp_resources to discover URIs.",
       parameters: ReadParameters,
       capabilities: { readOnly: true, concurrencySafe: true, maxResultBytes: 256_000 },
       execute: (params: Schema.Schema.Type<typeof ReadParameters>) =>

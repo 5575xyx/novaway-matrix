@@ -32,7 +32,10 @@ describe("sidebar project entry points", () => {
   // 「打开项目」入口保留在：项目列表为空时的空态按钮、以及 command（mod+o）。
   test("the header new-task entry creates a task, the project entry lives in the empty state", () => {
     const header = layoutSource.slice(layoutSource.indexOf('aria-label={language.t("sidebar.newTask")}'))
-    expect(header.slice(0, 260)).toContain("navigateWithSidebarReset")
+    // 入口现在复用 startNewTask（图标条收起时也用同一个函数），跳转逻辑在它里面。
+    expect(header.slice(0, 260)).toContain("onClick={startNewTask}")
+    const start = layoutSource.slice(layoutSource.indexOf("function startNewTask"))
+    expect(start.slice(0, 400)).toContain("navigateWithSidebarReset")
     const emptyState = layoutSource.slice(layoutSource.indexOf('language.t("sidebar.empty.title")'))
     expect(emptyState.slice(0, 400)).toContain("onClick={chooseProject}")
   })

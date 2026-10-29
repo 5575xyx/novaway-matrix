@@ -3,7 +3,7 @@ import { Effect, Layer } from "effect"
 import { FetchHttpClient } from "effect/unstable/http"
 import { Agent } from "../../src/agent/agent"
 import { Truncate } from "@/tool/truncate"
-import { WebFetchTool } from "../../src/tool/webfetch"
+import { upgradeProtocol, WebFetchTool } from "../../src/tool/webfetch"
 import { SessionID, MessageID } from "../../src/session/schema"
 import { Tool } from "@/tool/tool"
 import { testEffect } from "../lib/effect"
@@ -35,6 +35,15 @@ const exec = Effect.fn("WebFetchToolTest.exec")(function* (args: Tool.InferParam
   const info = yield* WebFetchTool
   const tool = yield* info.init()
   return yield* tool.execute(args, ctx)
+})
+
+const execWith = Effect.fn("WebFetchToolTest.execWith")(function* (
+  context: typeof ctx,
+  args: Tool.InferParameters<typeof WebFetchTool>,
+) {
+  const info = yield* WebFetchTool
+  const tool = yield* info.init()
+  return yield* tool.execute(args, context)
 })
 
 describe("tool.webfetch", () => {
@@ -109,5 +118,108 @@ describe("tool.webfetch", () => {
           expect(result.attachments).toBeUndefined()
         }),
     ),
+  )
+
+  it.instance("serves a repeated fetch from the session cache", () =>
+    Effect.gen(function* () {
+      let hits = 0
+      yield* withFetch(
+        () => {
+          hits++
+          return new Response("cached body", { status: 200, headers: { "content-type": "text/plain" } })
+        },
+        (url) =>
+          Effect.gen(function* () {
+            const target = new URL("/cached.txt", url).toString()
+            const first = yield* exec({ url: target, format: "text" })
+            const second = yield* exec({ url: target, format: "text" })
+            expect(first.output).toBe("cached body")
+            expect(second.output).toBe("cached body")
+            expect((second.metadata as Record<string, unknown>).cached).toBe(true)
+            expect(hits).toBe(1)
+          }),
+      )
+    }),
+  )
+
+  it.instance("caches per format and per session", () =>
+    Effect.gen(function* () {
+      let hits = 0
+      yield* withFetch(
+        () => {
+          hits++
+          return new Response("<b>hi</b>", { status: 200, headers: { "content-type": "text/html" } })
+        },
+        (url) =>
+          Effect.gen(function* () {
+            const target = new URL("/split.html", url).toString()
+            yield* exec({ url: target, format: "text" })
+            // Different format → different key → a real fetch.
+            yield* exec({ url: target, format: "html" })
+            expect(hits).toBe(2)
+
+            // Different session → separate cache entry.
+            const other = { ...ctx, sessionID: SessionID.make("ses_other") }
+            yield* execWith(other, { url: target, format: "text" })
+            expect(hits).toBe(3)
+          }),
+      )
+    }),
+  )
+
+  it.instance("falls back to the page itself when no secondary model is available", () =>
+    withFetch(
+      () => new Response("page body", { status: 200, headers: { "content-type": "text/plain" } }),
+      (url) =>
+        Effect.gen(function* () {
+          const result = yield* exec({ url: new URL("/p.txt", url).toString(), prompt: "summarize" })
+          expect(result.output).toBe("page body")
+          expect((result.metadata as Record<string, unknown>).processed).toBe(false)
+        }),
+    ),
+  )
+
+  it.instance("reports a cross-host redirect instead of following it", () =>
+    withFetch(
+      (req) => {
+        const target = new URL(req.url)
+        if (target.pathname === "/start") {
+          return new Response(null, { status: 302, headers: { location: "https://example.com/landing" } })
+        }
+        return new Response("should not be fetched", { status: 200 })
+      },
+      (url) =>
+        Effect.gen(function* () {
+          const result = yield* exec({ url: new URL("/start", url).toString(), format: "text" })
+          expect(result.output).toContain("REDIRECT DETECTED")
+          expect(result.output).toContain("https://example.com/landing")
+          expect((result.metadata as Record<string, unknown>).redirect).toBe("https://example.com/landing")
+        }),
+    ),
+  )
+
+  it.instance("follows redirects that stay on the same host", () =>
+    withFetch(
+      (req) => {
+        const target = new URL(req.url)
+        if (target.pathname === "/old") {
+          return new Response(null, { status: 302, headers: { location: "/new" } })
+        }
+        return new Response("moved body", { status: 200, headers: { "content-type": "text/plain" } })
+      },
+      (url) =>
+        Effect.gen(function* () {
+          const result = yield* exec({ url: new URL("/old", url).toString(), format: "text" })
+          expect(result.output).toBe("moved body")
+        }),
+    ),
+  )
+
+  it.instance("keeps localhost on http while upgrading public http URLs", () =>
+    Effect.gen(function* () {
+      expect(upgradeProtocol("http://localhost:3000/x")).toBe("http://localhost:3000/x")
+      expect(upgradeProtocol("http://127.0.0.1:8080/x")).toBe("http://127.0.0.1:8080/x")
+      expect(upgradeProtocol("http://example.com/a")).toBe("https://example.com/a")
+    }),
   )
 })

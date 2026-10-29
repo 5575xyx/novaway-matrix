@@ -1,0 +1,11 @@
+Completely replaces the contents of a specific cell in a Jupyter notebook (.ipynb file) with new source.
+
+Jupyter notebooks are interactive documents that combine code, text, and visualizations, commonly used for data analysis and scientific computing.
+
+- `notebook_path` must be an absolute path to the `.ipynb` file.
+- `cell_id` is the id shown by the read tool (`<cell id="...">`), or `cell-N` for notebooks without per-cell ids.
+- `edit_mode=replace` (default) overwrites the cell source. Code cells lose their previous outputs and execution count, because those outputs no longer match the source.
+- `edit_mode=insert` adds a new cell after `cell_id` (or at the beginning when omitted). `cell_type` is required.
+- `edit_mode=delete` removes the cell.
+
+Read the notebook first: editing a notebook that was not read, or that changed after the last read, is rejected.

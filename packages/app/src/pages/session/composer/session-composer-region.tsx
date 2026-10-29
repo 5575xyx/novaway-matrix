@@ -19,6 +19,7 @@ import { SessionPermissionDock } from "@/pages/session/composer/session-permissi
 import { SessionQuestionDock } from "@/pages/session/composer/session-question-dock"
 import { SessionFollowupDock } from "@/pages/session/composer/session-followup-dock"
 import { SessionRevertDock } from "@/pages/session/composer/session-revert-dock"
+import { SessionInterruptedBar } from "@/pages/session/composer/session-interrupted-bar"
 import { SessionContextWarning } from "@/components/session-context-warning"
 import type { SessionComposerState } from "@/pages/session/composer/session-composer-state"
 import type { FollowupDraft } from "@/components/prompt-input/submit"
@@ -186,14 +187,17 @@ export function SessionComposerRegion(props: {
       data-component="session-prompt-dock"
       classList={{
         "shrink-0 w-full flex flex-col justify-center items-center pointer-events-none": true,
-        "pb-4 bg-background/80 backdrop-blur-sm": !props.embedded,
+        // 底部只留一线空隙:输入框贴近会话区底缘,时间线自带 BottomSpacer 保证滚到底时内容不被压住。
+        "pb-1 bg-background/80 backdrop-blur-sm": !props.embedded,
       }}
     >
       <div
         classList={{
           "w-full pointer-events-auto": true,
           "px-4": !props.embedded,
-          "md:w-[75%] mx-auto": props.centered && !props.embedded,
+          // 与消息列同宽(TimelineRowFrame 的 md:max-w-200 / 2xl:max-w-[1000px]),
+          // 之前 md:w-[75%] 在宽容器下比内容窄、窄容器下又比内容宽,两边对不齐。
+          "md:max-w-200 2xl:max-w-[1000px] mx-auto": props.centered && !props.embedded,
           "w-full": !props.centered,
         }}
       >
@@ -223,6 +227,10 @@ export function SessionComposerRegion(props: {
             </div>
           )}
         </Show>
+
+        {/* 任务被意外中断时，在输入框正上方固定挂一条琥珀色提示（对齐 ZCode），
+            不再把大块报错塞在会话底部；用户主动停止不会出现这条。 */}
+        <SessionInterruptedBar />
 
         <Show when={showComposer()}>
           {/*

@@ -8,7 +8,6 @@ import type {
   Todo,
 } from "@novaway/sdk/v2/client"
 import { showToast } from "@novaway/ui/toast"
-import { getFilename } from "@novaway/core/util/path"
 import { batch, createContext, getOwner, onCleanup, onMount, type ParentProps, untrack, useContext } from "solid-js"
 import { createStore, produce, reconcile } from "solid-js/store"
 import { useLanguage } from "@/context/language"
@@ -32,7 +31,6 @@ import { estimateRootSessionTotal, loadRootSessionsWithFallback } from "./global
 import { trimSessions } from "./global-sync/session-trim"
 import type { ProjectMeta } from "./global-sync/types"
 import { SESSION_RECENT_LIMIT } from "./global-sync/types"
-import { formatServerError } from "@/utils/server-errors"
 import { queryOptions, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/solid-query"
 import { createRefreshQueue } from "./global-sync/queue"
 import { directoryKey } from "./global-sync/utils"
@@ -283,13 +281,10 @@ function createGlobalSync() {
               sessionMeta.set(key, { limit })
             })
             .catch((err) => {
-              console.error("Failed to load sessions", err)
-              const project = getFilename(directory)
-              showToast({
-                variant: "error",
-                title: language.t("toast.session.listFailed.title", { project }),
-                description: formatServerError(err, language.t),
-              })
+              // 侧栏会话列表是后台刷新,失败只落日志不弹 toast:服务重启/网络抖动的
+              // 瞬时失败会按项目各弹一条,打断正在看聊天的用户;真正不可用时全局
+              // 连接状态已另有提示。
+              console.error("Failed to load sessions", directory, err)
             })
             .then(() => null),
       })
@@ -374,6 +369,9 @@ function createGlobalSync() {
       })
       if (event.type === "server.connected" || event.type === "global.disposed") {
         if (recent) return
+        // 供应商（含 connected 列表）是按目录缓存的查询，实例销毁后必须失效：
+        // 否则"断开连接"成功后，设置页读到的仍是旧缓存，卡片继续显示已连接。
+        void queryClient.invalidateQueries({ predicate: (query) => query.queryKey[1] === "providers" })
         for (const directory of Object.keys(children.children)) {
           queue.push(directory)
         }

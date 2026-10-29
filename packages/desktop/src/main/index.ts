@@ -13,7 +13,7 @@ import contextMenu from "electron-context-menu"
 
 import type { InitStep, ServerReadyData, SqliteMigrationProgress, WslConfig } from "../preload/types"
 import { checkAppExists, resolveAppPath, wslPath } from "./apps"
-import { CHANNEL, UPDATER_ENABLED } from "./constants"
+import { CHANNEL, FLOATING_WIDGET_ENABLED, UPDATER_ENABLED } from "./constants"
 import {
   registerIpcHandlers,
   sendDeepLinks,
@@ -572,12 +572,15 @@ const main = Effect.gen(function* () {
     })
   }
 
-  floatingWindow = createFloatingWindow()
-  setFloatingWindow(floatingWindow)
-  floatingWindow.on("closed", () => {
-    floatingWindow = null
-    setFloatingWindow(null)
-  })
+  // 悬浮窗暂时下线(FLOATING_WIDGET_ENABLED=false):不创建,主窗口关闭后也不需要带走它。
+  if (FLOATING_WIDGET_ENABLED) {
+    floatingWindow = createFloatingWindow()
+    setFloatingWindow(floatingWindow)
+    floatingWindow.on("closed", () => {
+      floatingWindow = null
+      setFloatingWindow(null)
+    })
+  }
 
   overlay?.close()
 

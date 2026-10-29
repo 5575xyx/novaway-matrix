@@ -75,6 +75,23 @@ export const Match = Schema.Struct({
   data: SearchMatch,
 })
 
+/**
+ * Ripgrep emits `context` events for lines pulled in by -A/-B/-C. They carry
+ * the same location fields as a match but no submatches, and must be kept in
+ * stream order so the tool can render match groups with surrounding code.
+ */
+export const ContextLine = Schema.Struct({
+  type: Schema.Literal("context"),
+  data: Schema.Struct({
+    path: PathText,
+    lines: Schema.Struct({
+      text: Schema.String,
+    }),
+    line_number: NonNegativeInt,
+    absolute_offset: NonNegativeInt,
+  }),
+})
+
 const End = Schema.Struct({
   type: Schema.Literal("end"),
   data: Schema.Struct({
@@ -92,19 +109,30 @@ const Summary = Schema.Struct({
   }),
 })
 
-const Result = Schema.Union([Begin, Match, End, Summary])
+const Result = Schema.Union([Begin, Match, ContextLine, End, Summary])
 const decodeResult = Schema.decodeUnknownEffect(Schema.fromJsonString(Result))
 
 export type Result = Schema.Schema.Type<typeof Result>
 export type Match = Schema.Schema.Type<typeof Match>
+export type ContextLine = Schema.Schema.Type<typeof ContextLine>
 export type Item = Match["data"]
 export type Begin = Schema.Schema.Type<typeof Begin>
 export type End = Schema.Schema.Type<typeof End>
 export type Summary = Schema.Schema.Type<typeof Summary>
 export type Row = Match["data"]
 
+/** A match or a context line, in file order. */
+export interface SearchRow {
+  path: string
+  line: number
+  text: string
+  kind: "match" | "context"
+}
+
 export interface SearchResult {
   items: Item[]
+  /** Matches plus -A/-B/-C context lines, interleaved in output order. */
+  rows: SearchRow[]
   partial: boolean
 }
 
@@ -124,6 +152,12 @@ export interface SearchInput {
   limit?: number
   follow?: boolean
   file?: string[]
+  /** -B/-A context lines (ripgrep -B / -A). */
+  context?: { before?: number; after?: number }
+  /** Allow patterns to span lines (ripgrep -U). */
+  multiline?: boolean
+  /** Restrict to a ripgrep file type, e.g. "ts" (ripgrep --type). */
+  type?: string
   signal?: AbortSignal
 }
 
@@ -213,6 +247,10 @@ function searchArgs(input: SearchInput) {
     for (const glob of input.glob) args.push(`--glob=${glob}`)
   }
   if (input.limit) args.push(`--max-count=${input.limit}`)
+  if (input.context?.before) args.push("-B", String(input.context.before))
+  if (input.context?.after) args.push("-A", String(input.context.after))
+  if (input.multiline) args.push("--multiline")
+  if (input.type) args.push("--type", input.type)
   args.push("--", input.pattern, ...(input.file ?? ["."]))
   return args
 }
@@ -382,14 +420,15 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | ChildPro
           Effect.gen(function* () {
             const handle = yield* spawner.spawn(yield* command(input.cwd, searchArgs(input)))
 
-            const [items, stderr, code] = yield* Effect.all(
+            const [collected, stderr, code] = yield* Effect.all(
               [
                 Stream.decodeText(handle.stdout).pipe(
                   Stream.splitLines,
                   Stream.filter((line) => line.length > 0),
                   Stream.mapEffect(parse),
-                  Stream.filter((item): item is Match => item.type === "match"),
-                  Stream.map((item) => row(item.data)),
+                  Stream.filter(
+                    (item): item is Match | ContextLine => item.type === "match" || item.type === "context",
+                  ),
                   Stream.runCollect,
                   Effect.map((chunk) => [...chunk]),
                 ),
@@ -403,8 +442,17 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | ChildPro
               return yield* Effect.fail(error(stderr, code))
             }
 
+            const items = collected.filter((item): item is Match => item.type === "match").map((item) => row(item.data))
+            const rows: SearchRow[] = collected.map((item) => ({
+              path: clean(item.data.path.text),
+              line: item.data.line_number,
+              text: item.data.lines.text,
+              kind: item.type === "match" ? "match" : "context",
+            }))
+
             return {
               items: code === 1 ? [] : items,
+              rows: code === 1 ? [] : rows,
               partial: code === 2,
             }
           }),

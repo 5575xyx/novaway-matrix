@@ -1,12 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { TeamMemberView, TeamTaskView } from "@novaway/sdk/v2"
 import { currentTask, isIdle, memberStat, taskProgress, visibleMembers } from "./agents-section-model"
-import {
-  activeWorkers,
-  leadOnlyInProgress,
-  openTasks,
-  taskOwnerName,
-} from "./agents-section-model"
+import { activeWorkers, leadOnlyInProgress, openTasks, taskOwnerName } from "./agents-section-model"
 
 const member = (input: Partial<TeamMemberView> & { name: string }): TeamMemberView => ({
   sessionID: `ses_${input.name}`,

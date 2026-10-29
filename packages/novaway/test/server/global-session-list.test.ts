@@ -50,9 +50,10 @@ describe("session.listGlobal", () => {
   )
 
   it.instance(
-    "excludes archived sessions by default",
+    "excludes archived sessions by default, and archived:true returns only archived ones",
     () =>
       Effect.gen(function* () {
+        const live = yield* withSession({ title: "live-session" })
         const archived = yield* withSession({ title: "archived-session" })
 
         yield* SessionNs.Service.use((session) => session.setArchived({ sessionID: archived.id, time: Date.now() }))
@@ -62,10 +63,13 @@ describe("session.listGlobal", () => {
 
         expect(ids).not.toContain(archived.id)
 
-        const allSessions = yield* Effect.sync(() => [...SessionNs.listGlobal({ limit: 200, archived: true })])
-        const allIds = allSessions.map((session) => session.id)
+        // archived=true 是「只要已归档」，不是「不再排除已归档」——过去返回新旧混排的
+        // 全量列表，归档很旧时落不进前 N 条，客户端过滤后就成了空表。
+        const archivedOnly = yield* Effect.sync(() => [...SessionNs.listGlobal({ limit: 200, archived: true })])
+        const archivedIds = archivedOnly.map((session) => session.id)
 
-        expect(allIds).toContain(archived.id)
+        expect(archivedIds).toContain(archived.id)
+        expect(archivedIds).not.toContain(live.id)
       }),
     { git: true },
   )

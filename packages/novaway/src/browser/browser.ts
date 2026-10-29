@@ -172,18 +172,32 @@ export const layer = Layer.effect(
       yield* usePage((page) => page.setViewportSize({ width, height }), "Browser viewport 设置失败")
     })
 
+    // 本地产物验证不必先起 dev server：绝对路径 / file:// 直接交给浏览器打开。
+    // 和右栏内置预览共用同一套归一化口径（Windows 盘符先于协议判断）。
+    const targetUrl = (input: string): string | undefined => {
+      const normalized = input.trim().replace(/\\/g, "/")
+      if (!normalized) return undefined
+      if (/^[a-zA-Z]:\//.test(normalized)) return new URL(`file:///${normalized}`).toString()
+      try {
+        const parsed = new URL(normalized)
+        if (parsed.protocol === "http:" || parsed.protocol === "https:") return parsed.toString()
+        if (parsed.protocol === "file:" && parsed.pathname.length > 1) return parsed.toString()
+        return undefined
+      } catch {
+        if (normalized.startsWith("/")) return new URL(`file://${normalized}`).toString()
+        return undefined
+      }
+    }
+
     const navigate = Effect.fn("Browser.navigate")(function* (url: string) {
-      const parsed = yield* Effect.try({
-        try: () => new URL(url),
-        catch: () => browserError("BROWSER_ACTION_FAILED", "Browser URL 无效"),
-      })
-      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-        return yield* browserError("BROWSER_ACTION_FAILED", "Browser 仅允许 http/https URL")
+      const target = targetUrl(url)
+      if (!target) {
+        return yield* browserError("BROWSER_ACTION_FAILED", "Browser 仅允许 http/https 或本地 file:// URL")
       }
       yield* clearSnapshotRefs()
       yield* clearTelemetry()
       return yield* usePage(async (page) => {
-        await page.goto(parsed.href, { waitUntil: "domcontentloaded" })
+        await page.goto(target, { waitUntil: "domcontentloaded" })
         return { url: page.url(), title: await page.title() }
       }, "Browser 导航失败")
     })
