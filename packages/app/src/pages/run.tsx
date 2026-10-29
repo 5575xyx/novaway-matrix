@@ -3,6 +3,7 @@ import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
 import { Tag } from "@novaway/ui/tag"
 import { createMemo, createSignal, For, onCleanup, onMount, Show, type Component } from "solid-js"
+import { PageHeader } from "@/components/page-header"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useLanguage } from "@/context/language"
 
@@ -122,21 +123,8 @@ export const RunPage: Component<{
 
   return (
     <div class="flex h-full min-h-0 flex-col bg-background">
-      <div class="shrink-0 border-b border-border px-4 py-3">
-        <div class="flex items-center gap-2">
-          <Button variant="ghost" size="small" onClick={() => props.onBack()}>
-            <Icon name="arrow-left" size="small" />
-            {t("common.goBack")}
-          </Button>
-          <span class="text-14-medium text-foreground">{t("run.page.title")}</span>
-          <div class="flex-1" />
-          <Button variant="ghost" size="small" onClick={() => void loadRuns()}>
-            <Icon name="refresh" size="small" />
-            {t("run.action.refresh")}
-          </Button>
-        </div>
-        <div class="mt-1.5 pl-1 text-12-regular text-foreground-subtle">{t("run.page.hint")}</div>
-      </div>
+      {/* 「刷新」放在左边栏顶部而不是顶行右侧：右上角是窗口自绘的窗控条。 */}
+      <PageHeader onBack={() => props.onBack()} title={t("run.page.title")} hint={t("run.page.hint")} />
 
       <Show when={error()}>
         <div class="shrink-0 border-b border-border px-4 py-1.5 text-ui-xs text-destructive">{error()}</div>
@@ -144,6 +132,12 @@ export const RunPage: Component<{
 
       <div class="flex min-h-0 flex-1">
         <aside class="flex w-64 shrink-0 flex-col gap-1 overflow-y-auto border-r border-border p-2">
+          <div class="flex items-center gap-1.5 px-1 pb-1">
+            <Button variant="ghost" size="small" class="min-w-0 flex-1 justify-start" onClick={() => void loadRuns()}>
+              <Icon name="refresh" size="small" />
+              {t("run.action.refresh")}
+            </Button>
+          </div>
           <Show
             when={runs().length > 0}
             fallback={<div class="px-2 py-3 text-ui-xs leading-relaxed text-foreground-subtle">{t("run.empty")}</div>}
