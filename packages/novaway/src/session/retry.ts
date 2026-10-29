@@ -139,7 +139,7 @@ export function delay(attempt: number, error?: MessageV2.APIError) {
  * 换个连接重发一次通常就好了，对齐其他 agent 的透明重试行为。
  */
 const TRANSIENT_STREAM_ERROR =
-  /unexpected eof|socket hang up|econnreset|connection reset|other side closed|premature close|terminated|fetch failed|network error|network_error|stream ended|stream closed|upstream connect error|bad gateway|service unavailable|gateway timeout|temporarily unavailable|timed out|timeout/i
+  /unexpected eof|socket hang up|econnreset|connection reset|other side closed|premature close|terminated|fetch failed|network error|network_error|stream ended|stream closed|upstream connect error|bad gateway|service unavailable|gateway timeout|temporarily unavailable|timed out|timeout|stream idle|no chunks received|without receiving any events|before producing any content/i
 
 /** 传输层错误最多自动重试这么多次；再多就交给用户决定（继续/换模型）。 */
 export const MAX_TRANSIENT_ATTEMPTS = 5

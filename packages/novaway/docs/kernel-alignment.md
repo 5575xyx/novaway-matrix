@@ -1102,9 +1102,32 @@ shell 的退出码语义已对齐 CC `commandSemantics.ts`：`grep` / `rg` 的 1
 `src/session/processor.ts`（每次请求前 `reset()`，最终失败时 `explain()`）。
 测试：`test/session/retry.test.ts` → `session.retry.policy limits`（5 条）。
 
-- 还没做的两项（都要动流式/配置层，不宜和本次混在一起）：
-  - `--fallback-model`：见上。
-  - 流空闲看门狗：CC 在 90 秒收不到任何 chunk 时中止并重试，还能识别「HTTP 200
-    但一个事件都没有」的代理故障。我们的工具是在 `fullStream` 里同步执行的，
-    工具运行期间本来就没有事件，直接套空闲超时会把长命令误杀；
-    正确做法是把计时挂到 HTTP 层（或只守「首个 chunk」），需要单独设计。
+- 还没做的一项：`--fallback-model`（见上）。流空闲看门狗见 §10.6。
+
+### 10.6 流空闲看门狗（2026-10-29）
+
+供应商 SDK 的请求超时只覆盖「建立连接 + 拿到响应头」，不覆盖响应体。代理把连接
+静默掐掉、或者返回 200 但正文根本不是 SSE 时，`for await` 会永远挂着：会话停在
+「思考中」，既没有进度提示也无法重试。CC 的做法（`services/api/claude.ts`）是
+90 秒收不到任何 chunk 就中止；它还有第二个检查：流结束了但一个助手消息都没产生
+（`!partialMessage || (newMessages.length === 0 && !stopReason)`）也判为故障，
+交给重试/回退。本次对齐（`src/session/stream-watchdog.ts`）：
+
+| 机制         | 取值 / 行为                                                                           |
+| ------------ | ------------------------------------------------------------------------------------- |
+| 空闲上限     | 90 秒（CC 同值），`experimental.stream_idle_timeout_ms` 可改，0 关闭                  |
+| 工具执行期间 | **暂停计时**：已发出 `tool-call` 但还没收到结果时，没有 chunk 是正常的                |
+| 空流         | 一个事件都没有就结束 → `StreamEmptyError`（代理返回 200 + 非 SSE 正文）               |
+| 截断流       | 有事件但既无内容也无 `finish-step`/`finish`/`error`/`abort` → `StreamIncompleteError` |
+| 卡顿可见性   | 相邻事件间隔超过 30 秒记一条 `stream stall` 日志（不中止），对应 CC 的 stall 统计     |
+| 中止后的收尾 | 关闭上游、由 `acquireRelease` 的 `AbortController` 真正断开请求                       |
+
+三类错误都追加进了 `retry.ts` 的传输层错误特征，因此会按「网络中断」自动重试
+（`MAX_TRANSIENT_ATTEMPTS = 5`），重试用尽后由 `explain()` 给出可执行的一句话。
+
+实现上刻意**不用 async generator**：生成器被中断时只能等眼前的 `await` 走完，
+「用户点停止」会一直等到下一次超时才生效（实测会把 `processor-effect` 的取消
+测试卡到 60 秒超时）。这里手写迭代器，`return()` 立刻结束正在等待的 `next()`。
+
+没有照搬的部分：CC 的「非流式回退」（流式失败后改用一次性请求重发）。那是
+Anthropic 专有的两条通路的取舍，我们统一走流式 + 重试；需要时再加。

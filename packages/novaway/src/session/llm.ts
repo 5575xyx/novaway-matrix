@@ -21,6 +21,7 @@ import { Auth } from "@/auth"
 import { InstallationVersion } from "@novaway/core/installation/version"
 import { EffectBridge } from "@/effect/bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import { StreamWatchdog } from "./stream-watchdog"
 import * as Option from "effect/Option"
 import * as OtelTracer from "@effect/opentelemetry/Tracer"
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/unstable/http"
@@ -648,7 +649,22 @@ const live: Layer.Layer<
 
             const result = yield* run({ ...input, abort: ctrl.signal })
 
-            return Stream.fromAsyncIterable(result.fullStream, (e) => (e instanceof Error ? e : new Error(String(e))))
+            // 空闲看门狗：代理静默掐断连接时，`for await` 会永远挂着，
+            // 会话停在「思考中」既没有进度也没法重试。工具执行期间暂停计时
+            // （那段时间本来就没有事件），详见 stream-watchdog.ts 的说明。
+            const idleMs = (yield* config.get()).experimental?.stream_idle_timeout_ms ?? StreamWatchdog.DEFAULT_IDLE_MS
+            const watched = StreamWatchdog.withWatchdog(result.fullStream, {
+              idleMs,
+              onStall: ({ gapMs, type }) =>
+                log.warn("stream stall", {
+                  gapMs,
+                  type,
+                  modelID: input.model.id,
+                  providerID: input.model.providerID,
+                }),
+            })
+
+            return Stream.fromAsyncIterable(watched, (e) => (e instanceof Error ? e : new Error(String(e))))
           }),
         ),
       )

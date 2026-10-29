@@ -452,6 +452,10 @@ export const Info = Schema.Struct({
       computer_control_composer: Schema.optional(Schema.Boolean).annotate({
         description: "在输入框显示电脑操作按钮（仅在启用电脑控制时生效）。",
       }),
+      stream_idle_timeout_ms: Schema.optional(NonNegativeInt).annotate({
+        description:
+          "流空闲超时（毫秒）：模型返回过程中超过这么久没有任何事件就中止本次请求并按网络中断重试。默认 90000（对齐 Claude Code）。0 关闭。工具执行期间不计入（那段时间本来就没有事件）。",
+      }),
       git_timeout: Schema.optional(PositiveInt).annotate({
         description: "git 网络操作（clone / fetch）的默认超时时间（毫秒）。未设置时 10 分钟。其他 git 命令默认 60 秒。",
       }),
