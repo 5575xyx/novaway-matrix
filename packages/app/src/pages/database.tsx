@@ -1010,8 +1010,8 @@ export function DatabasePage(props: { onBack: () => void }) {
 
   return (
     <div class="flex flex-col h-full bg-background">
-      {/* 顶行同时是窗口拖拽区；右侧留出 108px 给覆盖层右上角的窗控条
-          （那边是一条带底色的预留带，不留白会把「刷新」压到下面点不到）。 */}
+      {/* 顶行同时是窗口拖拽区。页面动作（刷新）跟在标题后面**靠左**放：
+          右上角 108px 是覆盖层补的窗控条，右侧放按钮会被压在下面点不到。 */}
       <div class="flex items-center justify-between border-b border-border px-4 py-3 pr-[108px]" data-window-drag>
         <div class="flex items-center gap-3">
           <Button variant="ghost" size="small" icon="arrow-left" onClick={props.onBack}>
@@ -1027,10 +1027,10 @@ export function DatabasePage(props: { onBack: () => void }) {
             <h1 class="text-16-semibold text-foreground">{language.t("database.title")}</h1>
             <span class="text-11-regular text-foreground-subtle">{language.t("database.subtitle")}</span>
           </div>
+          <Button variant="ghost" size="small" icon="refresh" onClick={refreshAll}>
+            {language.t("common.refresh")}
+          </Button>
         </div>
-        <Button variant="ghost" size="small" icon="refresh" onClick={refreshAll}>
-          {language.t("common.refresh")}
-        </Button>
       </div>
 
       <div class="flex-1 min-h-0 flex">

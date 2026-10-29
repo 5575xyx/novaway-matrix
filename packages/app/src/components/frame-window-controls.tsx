@@ -7,7 +7,11 @@ import { WindowControls } from "@/components/window-controls"
  * 都在那条 Header 上。补一组之后，窗口在被面板盖住时依然可拖、可关。
  *
  * 只占右上角一小块（不是整条顶带）：整条会把页面自己顶行里的按钮一起吃掉。
- * 需要贴着这一块放东西的页面（例如数据库页的「刷新」）自己在右侧留出等宽内边距。
+ *
+ * **页面自己的动作按钮一律放左边**（紧接标题，或放进页面左侧栏顶部）—— 放右边
+ * 就会和这组窗控叠在一起。确实需要右侧内容（筛选器之类）的页面，用
+ * `@/components/page-header` 的 `PageHeader` / `PAGE_HEADER_RIGHT_INSET`，
+ * 它会自动让出 `FRAME_WINDOW_CONTROLS_WIDTH` 的宽度。
  */
 export function FrameWindowControls() {
   return (
