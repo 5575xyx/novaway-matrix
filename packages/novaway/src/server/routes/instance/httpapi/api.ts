@@ -28,6 +28,7 @@ import { ProjectApi } from "./groups/project"
 import { ProviderApi } from "./groups/provider"
 import { PtyApi, PtyConnectApi } from "./groups/pty"
 import { QuestionApi } from "./groups/question"
+import { ElicitationApi } from "./groups/elicitation"
 import { SessionApi } from "./groups/session"
 import { SettingsApi } from "./groups/settings"
 import { SyncApi } from "./groups/sync"
@@ -74,6 +75,7 @@ export const InstanceHttpApi = HttpApi.make("NovaWay-instance")
   .addHttpApi(ProjectApi)
   .addHttpApi(PtyApi)
   .addHttpApi(QuestionApi)
+  .addHttpApi(ElicitationApi)
   .addHttpApi(PermissionApi)
   .addHttpApi(ProviderApi)
   .addHttpApi(SessionApi)

@@ -1,4 +1,5 @@
 import { expect, mock, beforeEach } from "bun:test"
+import { TestElicitation } from "../fixture/elicitation"
 import { Effect, Layer } from "effect"
 import { testEffect } from "../lib/effect"
 
@@ -122,6 +123,7 @@ const { CrossSpawnSpawner } = await import("@novaway/core/cross-spawn-spawner")
 const mcpTest = testEffect(
   Layer.mergeAll(
     MCP.layer.pipe(
+      Layer.provide(TestElicitation.layer()),
       Layer.provide(McpAuth.defaultLayer),
       Layer.provideMerge(Bus.layer),
       Layer.provide(Config.defaultLayer),

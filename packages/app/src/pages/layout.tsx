@@ -16,6 +16,7 @@ import { makeEventListener } from "@solid-primitives/event-listener"
 import { useLocation, useNavigate, useParams } from "@solidjs/router"
 import { useLayout, LocalProject, sidePaneSideChatTabId } from "@/context/layout"
 import { FrameWindowControls } from "@/components/frame-window-controls"
+import { ElicitationDialog } from "@/components/elicitation-dialog"
 import { createMountTransition } from "@/utils/mount-transition"
 import { useGlobalSync } from "@/context/global-sync"
 import { Persist, persisted } from "@/utils/persist"
@@ -3351,6 +3352,7 @@ export default function Layout(props: ParentProps) {
         {/* DebugBar removed */}
       </div>
       <Toast.Region />
+      <ElicitationDialog directory={currentDir()} />
     </div>
   )
 }

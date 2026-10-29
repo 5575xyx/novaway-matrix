@@ -27,6 +27,10 @@ export type Event =
   | EventPermissionAsked
   | EventPermissionReplied
   | EventMemoryReviewUpdated
+  | EventElicitationAsked
+  | EventElicitationReplied
+  | EventElicitationRejected
+  | EventElicitationCompleted
   | EventMcpToolsChanged
   | EventMcpBrowserOpenFailed
   | EventCommandExecuted
@@ -223,6 +227,37 @@ export type PermissionRequest = {
     messageID: string
     callID: string
   }
+}
+
+export type ElicitationRequest = {
+  id: string
+  serverName: string
+  message: string
+  mode: "form" | "url"
+  url?: string
+  elicitationId?: string
+  requestedSchema?: {
+    [key: string]: unknown
+  }
+  at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  completed?: boolean
+}
+
+export type ElicitationReply = {
+  requestID: string
+  action: "accept" | "decline" | "cancel"
+  content?: {
+    [key: string]: unknown
+  }
+}
+
+export type ElicitationRejected = {
+  requestID: string
+}
+
+export type ElicitationCompleted = {
+  serverName: string
+  elicitationId: string
 }
 
 export type SnapshotFileDiff = {
@@ -878,6 +913,10 @@ export type GlobalEvent = {
     | EventPermissionAsked
     | EventPermissionReplied
     | EventMemoryReviewUpdated
+    | EventElicitationAsked
+    | EventElicitationReplied
+    | EventElicitationRejected
+    | EventElicitationCompleted
     | EventMcpToolsChanged
     | EventMcpBrowserOpenFailed
     | EventCommandExecuted
@@ -1489,6 +1528,9 @@ export type Config = {
     bash_timeout?: number
     computer_control?: boolean
     computer_control_composer?: boolean
+    mcp_elicitation?: boolean
+    elicitation_timeout_ms?: number
+    stream_idle_timeout_ms?: number
     git_timeout?: number
   }
 }
@@ -3213,6 +3255,20 @@ export type HookActive1 = {
   startedAt: number | "NaN" | "Infinity" | "-Infinity"
 }
 
+export type ElicitationRequest1 = {
+  id: string
+  serverName: string
+  message: string
+  mode: "form" | "url"
+  url?: string
+  elicitationId?: string
+  requestedSchema?: {
+    [key: string]: unknown
+  }
+  at: number | "NaN" | "Infinity" | "-Infinity"
+  completed?: boolean
+}
+
 export type SyncEventMessageUpdated = {
   type: "sync"
   name: "message.updated.1"
@@ -3896,6 +3952,30 @@ export type EventMemoryReviewUpdated = {
     projectID?: string
     sessionID?: string
   }
+}
+
+export type EventElicitationAsked = {
+  id: string
+  type: "elicitation.asked"
+  properties: ElicitationRequest
+}
+
+export type EventElicitationReplied = {
+  id: string
+  type: "elicitation.replied"
+  properties: ElicitationReply
+}
+
+export type EventElicitationRejected = {
+  id: string
+  type: "elicitation.rejected"
+  properties: ElicitationRejected
+}
+
+export type EventElicitationCompleted = {
+  id: string
+  type: "elicitation.completed"
+  properties: ElicitationCompleted
 }
 
 export type EventMcpToolsChanged = {
@@ -12415,6 +12495,98 @@ export type QuestionRejectResponses = {
 }
 
 export type QuestionRejectResponse = QuestionRejectResponses[keyof QuestionRejectResponses]
+
+export type ElicitationListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/elicitation"
+}
+
+export type ElicitationListResponses = {
+  /**
+   * Pending elicitation requests
+   */
+  200: Array<ElicitationRequest>
+}
+
+export type ElicitationListResponse = ElicitationListResponses[keyof ElicitationListResponses]
+
+export type ElicitationReplyData = {
+  body?: {
+    action: "accept" | "decline" | "cancel"
+    content?: {
+      [key: string]: unknown
+    }
+  }
+  path: {
+    requestID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/elicitation/{requestID}/reply"
+}
+
+export type ElicitationReplyErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ElicitationReplyError = ElicitationReplyErrors[keyof ElicitationReplyErrors]
+
+export type ElicitationReplyResponses = {
+  /**
+   * Answer recorded
+   */
+  200: boolean
+}
+
+export type ElicitationReplyResponse = ElicitationReplyResponses[keyof ElicitationReplyResponses]
+
+export type ElicitationRejectData = {
+  body?: never
+  path: {
+    requestID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/elicitation/{requestID}/reject"
+}
+
+export type ElicitationRejectErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ElicitationRejectError = ElicitationRejectErrors[keyof ElicitationRejectErrors]
+
+export type ElicitationRejectResponses = {
+  /**
+   * Request cancelled
+   */
+  200: boolean
+}
+
+export type ElicitationRejectResponse = ElicitationRejectResponses[keyof ElicitationRejectResponses]
 
 export type PermissionListData = {
   body?: never

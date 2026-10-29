@@ -15,6 +15,8 @@ export const EVENTS = [
   "PostToolUseFailure",
   "PermissionRequest",
   "PermissionDenied",
+  "Elicitation",
+  "ElicitationResult",
   "SubagentStart",
   "SubagentStop",
   "PreCompact",
@@ -89,6 +91,19 @@ export type Matcher = Schema.Schema.Type<typeof Matcher>
 export const Config = Schema.Record(Schema.String, Schema.Array(Matcher)).annotate({ identifier: "HooksConfig" })
 export type Config = Schema.Schema.Type<typeof Config>
 
+/**
+ * Hook 对 MCP elicitation 的直接回答。
+ *
+ * 有它就不必打扰用户：例如本地脚本知道某个服务器要的 token，可以在
+ * `Elicitation` 钩子里直接 `accept`；`ElicitationResult` 钩子则可以改写或
+ * 拦截用户的选择（拦截 = `deny`，等价于 `decline`）。
+ */
+export const ElicitationReply = Schema.Struct({
+  action: Schema.Literals(["accept", "decline", "cancel"]),
+  content: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+}).annotate({ identifier: "HookElicitationReply" })
+export type ElicitationReply = Schema.Schema.Type<typeof ElicitationReply>
+
 export type TriggerInput = {
   event: Event
   sessionID?: string
@@ -108,6 +123,8 @@ export type Result = {
   blocked: boolean
   updatedInput?: unknown
   additionalContext?: string
+  /** Only produced by `Elicitation` / `ElicitationResult` hooks. */
+  elicitation?: ElicitationReply
   /** Whether any hook ran. */
   ran: boolean
 }
@@ -136,6 +153,7 @@ export function merge(target: Result, next: Result): Result {
           additionalContext: [target.additionalContext, next.additionalContext].filter(Boolean).join("\n\n"),
         }
       : {}),
+    ...(next.elicitation ? { elicitation: next.elicitation } : {}),
   }
   if (next.decision === "deny") return { ...merged, blocked: true }
   return merged

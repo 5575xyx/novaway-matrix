@@ -72,6 +72,7 @@ function merge(target: Hook.Result, next: Hook.Result): Hook.Result {
     ...(next.additionalContext
       ? { additionalContext: [target.additionalContext, next.additionalContext].filter(Boolean).join("\n\n") }
       : {}),
+    ...(next.elicitation ? { elicitation: next.elicitation } : {}),
   }
   if (next.decision === "deny") return { ...merged, blocked: true }
   return merged
@@ -203,6 +204,7 @@ export const layer = Layer.effect(
           reason?: string
           updatedInput?: unknown
           additionalContext?: string
+          elicitation?: Hook.ElicitationReply
         },
       }
       const run = plugins
@@ -218,6 +220,7 @@ export const layer = Layer.effect(
         ...(r.reason ? { reason: r.reason } : {}),
         ...(r.updatedInput !== undefined ? { updatedInput: r.updatedInput } : {}),
         ...(r.additionalContext ? { additionalContext: r.additionalContext } : {}),
+        ...(r.elicitation ? { elicitation: r.elicitation } : {}),
       } satisfies Hook.Result
     })
 
@@ -326,9 +329,13 @@ export const layer = Layer.effect(
       // Plugins run first so a JSON hook can see (and override) their decision.
       let result: Hook.Result = yield* bridged(input)
       if (result.decision === "deny") return result
+      // `Elicitation` / `ElicitationResult` 没有 tool，matcher 对应的是 MCP 服务器名
+      // （与 CC 一致：这两个事件的 matcher 匹配 serverName）。
+      const subject =
+        input.tool ?? (typeof input.metadata?.mcp_server_name === "string" ? input.metadata.mcp_server_name : undefined)
       for (const registration of s.registrations) {
         if (registration.event !== input.event) continue
-        if (!matches(registration.matcher, input.tool)) continue
+        if (!matches(registration.matcher, subject)) continue
         for (const hook of registration.hooks) {
           const id = `hook_${++runCounter}`
           const message = hook.statusMessage

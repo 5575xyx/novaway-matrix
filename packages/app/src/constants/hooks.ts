@@ -15,6 +15,8 @@ export const HOOK_EVENTS = [
   "PostToolUseFailure",
   "PermissionRequest",
   "PermissionDenied",
+  "Elicitation",
+  "ElicitationResult",
   "SubagentStart",
   "SubagentStop",
   "PreCompact",

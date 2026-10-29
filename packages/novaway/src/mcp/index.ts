@@ -21,6 +21,8 @@ import { AppFileSystem } from "@novaway/core/filesystem"
 import { McpOAuthProvider } from "./oauth-provider"
 import { McpOAuthCallback } from "./oauth-callback"
 import { McpAuth } from "./auth"
+import { Elicitation } from "./elicitation"
+import { ElicitRequestSchema, ElicitationCompleteNotificationSchema } from "@modelcontextprotocol/sdk/types.js"
 import { BusEvent } from "../bus/bus-event"
 import { Bus } from "@/bus"
 import { TuiEvent } from "@/server/tui-event"
@@ -270,26 +272,76 @@ export const layer = Layer.effect(
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
     const auth = yield* McpAuth.Service
     const bus = yield* Bus.Service
+    const config = yield* Config.Service
+    const elicitation = yield* Elicitation.Service
+    const bridge = yield* EffectBridge.make()
 
     type Transport = StdioClientTransport | StreamableHTTPClientTransport | SSEClientTransport
+
+    /**
+     * 把 elicitation 请求接到内核服务上。
+     *
+     * SDK 的请求处理器是 Promise 回调（没有 Effect 上下文），所以用
+     * `EffectBridge` 把当前 fiber 的上下文带进去。失败一律 `cancel`：
+     * 我们不能让一次内部异常把 MCP 工具调用挂死。
+     */
+    const attachElicitation = (client: MCPClient, serverName: string, timeoutMs: number) => {
+      const respond = (params: Elicitation.Params, signal: AbortSignal) =>
+        bridge.promise(
+          elicitation
+            .ask({ serverName, params, signal, timeoutMs })
+            .pipe(Effect.catchCause(() => Effect.succeed({ action: "cancel" as const } satisfies Elicitation.Result))),
+        )
+      try {
+        client.setRequestHandler(ElicitRequestSchema, (request, extra) =>
+          respond(request.params as Elicitation.Params, extra.signal),
+        )
+        // `url` 模式：服务器确认用户在浏览器里完成后会发这条通知。
+        client.setNotificationHandler(ElicitationCompleteNotificationSchema, (notification) => {
+          void bridge.promise(
+            elicitation.complete({
+              serverName,
+              elicitationId: notification.params.elicitationId,
+            }),
+          )
+        })
+      } catch (error) {
+        // 客户端没有按 elicitation 能力创建时注册会抛错 —— 此时静默跳过。
+        log.warn("mcp elicitation handler not registered", { serverName, error: String(error) })
+      }
+    }
 
     /**
      * Connect a client via the given transport with resource safety:
      * on failure the transport is closed; on success the caller owns it.
      */
-    const connectTransport = (transport: Transport, timeout: number) =>
-      Effect.acquireUseRelease(
-        Effect.succeed(transport),
-        (t) =>
-          Effect.tryPromise({
-            try: () => {
-              const client = new Client({ name: "novaway", version: InstallationVersion })
-              return withTimeout(client.connect(t), timeout).then(() => client)
-            },
-            catch: (e) => (e instanceof Error ? e : new Error(String(e))),
-          }),
-        (t, exit) => (Exit.isFailure(exit) ? Effect.tryPromise(() => t.close()).pipe(Effect.ignore) : Effect.void),
-      )
+    const connectTransport = (transport: Transport, timeout: number, serverName: string) =>
+      Effect.gen(function* () {
+        // 配置是实例级的（每个项目目录不同），只能在连接时读，不能在层构建时读。
+        const cfg = yield* config.get()
+        const enabled = cfg.experimental?.mcp_elicitation ?? true
+        const elicitationTimeoutMs = cfg.experimental?.elicitation_timeout_ms ?? 0
+        return yield* Effect.acquireUseRelease(
+          Effect.succeed(transport),
+          (t) =>
+            Effect.tryPromise({
+              try: () => {
+                const client = new Client(
+                  { name: "novaway", version: InstallationVersion },
+                  {
+                    // 空对象即声明支持（CC 同款写法）。写成 `{ form: {}, url: {} }`
+                    // 会让部分 Java SDK 服务器（Spring AI）在解析未知字段时失败。
+                    capabilities: enabled ? { elicitation: {} } : {},
+                  },
+                )
+                if (enabled) attachElicitation(client, serverName, elicitationTimeoutMs)
+                return withTimeout(client.connect(t), timeout).then(() => client)
+              },
+              catch: (e) => (e instanceof Error ? e : new Error(String(e))),
+            }),
+          (t, exit) => (Exit.isFailure(exit) ? Effect.tryPromise(() => t.close()).pipe(Effect.ignore) : Effect.void),
+        )
+      })
 
     const DISABLED_RESULT: CreateResult = { status: { status: "disabled" } }
 
@@ -349,7 +401,7 @@ export const layer = Layer.effect(
       let lastStatus: Status | undefined
 
       for (const { name, transport } of transports) {
-        const result = yield* connectTransport(transport, connectTimeout).pipe(
+        const result = yield* connectTransport(transport, connectTimeout, key).pipe(
           Effect.map((client) => ({ client, transportName: name })),
           Effect.catch((error) => {
             const lastError = error instanceof Error ? error : new Error(String(error))
@@ -432,7 +484,7 @@ export const layer = Layer.effect(
       })
 
       const connectTimeout = mcp.timeout ?? DEFAULT_TIMEOUT
-      return yield* connectTransport(transport, connectTimeout).pipe(
+      return yield* connectTransport(transport, connectTimeout, key).pipe(
         Effect.map((client): { client: MCPClient | undefined; status: Status } => ({
           client,
           status: { status: "connected" },
@@ -982,6 +1034,7 @@ export type AuthStatus = "authenticated" | "expired" | "not_authenticated"
 // --- Per-service runtime ---
 
 export const defaultLayer = layer.pipe(
+  Layer.provide(Elicitation.defaultLayer),
   Layer.provide(McpAuth.layer),
   Layer.provide(Bus.layer),
   Layer.provide(Config.defaultLayer),
