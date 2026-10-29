@@ -33,6 +33,7 @@ import { TextField } from "@novaway/ui/text-field"
 import { getFilename } from "@novaway/core/util/path"
 import { Session, type Message, type QuestionRequest } from "@novaway/sdk/v2/client"
 import { usePlatform } from "@/context/platform"
+import { branchChannel as branchChannelOf } from "@/utils/session-library"
 import { useSettings } from "@/context/settings"
 import { createStore, produce, reconcile } from "solid-js/store"
 import { Binary } from "@novaway/core/util/binary"
@@ -101,6 +102,7 @@ import { SidebarRail, SidebarRailButton, type SidebarRailItem } from "./layout/s
 import { ExtensionsPage } from "./extensions"
 import { KernelPage } from "./kernel"
 import { TeamPage } from "./team"
+import { RunPage } from "./run"
 import PulseWorkspace from "@/pages/pulse/PulseWorkspace"
 
 import { AutomationPage } from "./automation"
@@ -287,6 +289,9 @@ export default function Layout(props: ParentProps) {
     teamPage: {
       open: false,
     },
+    runPage: {
+      open: false,
+    },
     pulsePage: {
       open: false,
     },
@@ -306,6 +311,7 @@ export default function Layout(props: ParentProps) {
     "knowledgePage",
     "kernelPage",
     "teamPage",
+    "runPage",
     "pulsePage",
   ] as const
   type FramePage = (typeof FRAME_PAGES)[number]
@@ -340,6 +346,7 @@ export default function Layout(props: ParentProps) {
   const extensionsTransition = createMountTransition(() => state.extensionsPage.open)
   const kernelTransition = createMountTransition(() => state.kernelPage.open)
   const teamTransition = createMountTransition(() => state.teamPage.open)
+  const runTransition = createMountTransition(() => state.runPage.open)
 
   // 窄窗口下侧栏是浮层（z-50、fixed），盖在上面会让覆盖层的返回按钮点不到。
   // 打开任何整帧页面时先把移动侧栏收起来。
@@ -351,7 +358,8 @@ export default function Layout(props: ParentProps) {
       state.automationPage.open ||
       state.knowledgePage.open ||
       state.kernelPage.open ||
-      state.teamPage.open
+      state.teamPage.open ||
+      state.runPage.open
     ) {
       layout.mobileSidebar.hide()
     }
@@ -1564,6 +1572,16 @@ export default function Layout(props: ParentProps) {
     setState("teamPage", "open", true)
   }
 
+  function openRunPage() {
+    closeFramePages("runPage")
+    setState("runPage", "open", true)
+  }
+
+  function closeRunPage() {
+    setState("runPage", "open", false)
+    window.dispatchEvent(new CustomEvent("novaway:overlay-closed"))
+  }
+
   function closeTeamPage() {
     setState("teamPage", "open", false)
     window.dispatchEvent(new CustomEvent("novaway:overlay-closed"))
@@ -2423,7 +2441,13 @@ export default function Layout(props: ParentProps) {
       loadArchived()
     })
 
-    const treeKey = createMemo(() => pathKey(currentProject()?.worktree ?? currentDir()))    // 文件树是侧栏内整层 slide-over 的目标目录：跟随当前项目（对齐 ZCode 的
+    // 分支隔离提示：只在"当前分支库一条会话都没有"时提醒，正常用起来后不再占位置。
+    const branchChannel = createMemo(() => branchChannelOf(server.version()))
+    const showLibraryHint = createMemo(
+      () => !!branchChannel() && projectList().length > 0 && taskCounts().all === 0 && taskCounts().archived === 0,
+    )
+
+    const treeKey = createMemo(() => pathKey(currentProject()?.worktree ?? currentDir())) // 文件树是侧栏内整层 slide-over 的目标目录：跟随当前项目（对齐 ZCode 的
     // WorkspaceFileTree —— 它挂在当前工作区上，不是每个项目各一份）。
     // 文件树的目标目录。
     // 之前只取「当前项目 → 路由目录」，两者都拿不到时整棵树就空着、且看不出原因
@@ -2791,6 +2815,29 @@ export default function Layout(props: ParentProps) {
                     )
                   }}
                 </For>
+
+                {/* 分支隔离的会话库提示。
+                    开发构建把数据库按分支拆成 `novaway-<分支>.db`，`git checkout` 之后
+                    界面里看到的是一份全新库 —— 用户的第一反应是"历史会话全丢了"。
+                    这里只在"一条会话都没有"时挂一句说明，把原因和恢复办法讲清楚。 */}
+                <Show when={showLibraryHint()}>
+                  <div
+                    data-component="sidebar-library-hint"
+                    class="mt-2 mx-1 rounded-lg border border-border bg-surface/60 px-2.5 py-2"
+                  >
+                    <div class="flex items-start gap-1.5">
+                      <Icon name="folder" size="small" class="mt-0.5 shrink-0 text-foreground-subtle" />
+                      <div class="min-w-0 flex flex-col gap-0.5">
+                        <span class="text-ui-caption font-medium text-foreground">
+                          {language.t("sidebar.library.branch.title", { channel: branchChannel() ?? "" })}
+                        </span>
+                        <span class="text-ui-xs text-foreground-subtle">
+                          {language.t("sidebar.library.branch.description")}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </Show>
               </div>
             </Show>
 
@@ -2968,6 +3015,14 @@ export default function Layout(props: ParentProps) {
         onClick: openTeamPage,
       },
       {
+        id: "runs",
+        icon: "lu-list-checks",
+        label: language.t("sidebar.runs"),
+        tone: "#8b5cf6",
+        active: state.runPage.open,
+        onClick: openRunPage,
+      },
+      {
         id: "extensions",
         icon: "dot-grid",
         label: language.t("sidebar.extensionsMarket"),
@@ -3051,6 +3106,7 @@ export default function Layout(props: ParentProps) {
         state.knowledgePage.open ||
         state.kernelPage.open ||
         state.teamPage.open ||
+        state.runPage.open ||
         state.pulsePage.open
           ? "true"
           : undefined
@@ -3311,6 +3367,28 @@ export default function Layout(props: ParentProps) {
                       onManageAgents={() => openSettingsFromExtensions("agents")}
                       onOpenSession={(sessionID) => {
                         closeTeamPage()
+                        if (params.dir) navigate(`/${params.dir}/session/${sessionID}`)
+                      }}
+                    />
+                  </div>
+                </section>
+              </Show>
+              <Show when={runTransition.mounted()}>
+                <section
+                  data-panel-transition
+                  data-state={runTransition.closing() ? "closed" : "open"}
+                  class="absolute left-1 right-2 top-1 bottom-2 z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                  aria-label={language.t("sidebar.runs")}
+                  aria-hidden={runTransition.closing()}
+                  inert={runTransition.closing()}
+                >
+                  <FrameWindowControls />
+                  <div class="flex-1 min-h-0">
+                    <RunPage
+                      directory={currentDir()}
+                      onBack={closeRunPage}
+                      onOpenSession={(sessionID) => {
+                        closeRunPage()
                         if (params.dir) navigate(`/${params.dir}/session/${sessionID}`)
                       }}
                     />
