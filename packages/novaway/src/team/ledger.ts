@@ -12,7 +12,12 @@ import { TeamRunLedgerTable } from "./run.sql"
  * 额度判断看的是 `reserved + settled` 的总和（见设计文档 §7.1）。
  */
 
-export type LedgerState = "reserved" | "settled" | "released" | "overrun"
+/**
+ * `unknown` 表示调用已经发生、但提供方没有给出可信用量。
+ * 这种条目按预占额计入承诺（避免超支），但**不计入已结算**，
+ * 因为它不是"实际花了多少"，只是一个上界（见设计文档 §7.1）。
+ */
+export type LedgerState = "reserved" | "settled" | "released" | "overrun" | "unknown"
 
 export type Entry = {
   id: string
@@ -31,8 +36,11 @@ export type Cap = {
 
 export type Usage = {
   reserved: number
+  /** 只有提供方权威回报的用量才记在这里。 */
   settled: number
-  /** 已承诺 = 预占 + 已结算；并发判断只看这个数。 */
+  /** 已发生但用量不明，按预占额保守计入承诺，单独呈现。 */
+  unknown: number
+  /** 已承诺 = 预占 + 已结算 + 用量不明；并发判断只看这个数。 */
   committed: number
   cap: number
   remaining: number
@@ -54,7 +62,11 @@ export interface Interface {
     tokens: number
     cap: Cap
   }) => Effect.Effect<Entry, BudgetExceeded>
-  readonly settle: (input: { id: string; tokens: number }) => Effect.Effect<Entry | undefined>
+  /**
+   * 结算。`tokens` 缺省表示提供方没有可信用量：记为 `unknown`，
+   * **绝不**用预占额或估算值冒充实际花费。
+   */
+  readonly settle: (input: { id: string; tokens?: number }) => Effect.Effect<Entry | undefined>
   readonly release: (input: { id: string }) => Effect.Effect<void>
   readonly usage: (input: { runID: string; cap?: Cap }) => Effect.Effect<Usage>
   /** 在当前承诺量上再加 `delta` 是否会越过额度；用于只读预估。 */
@@ -82,15 +94,18 @@ const rows = (runID: string) =>
 function usageOf(entries: Entry[], cap?: Cap): Usage {
   let reserved = 0
   let settled = 0
+  let unknown = 0
   for (const entry of entries) {
     if (entry.state === "reserved") reserved += entry.reservedTokens
     if (entry.state === "settled" || entry.state === "overrun") settled += entry.settledTokens
+    if (entry.state === "unknown") unknown += entry.reservedTokens
   }
-  const committed = reserved + settled
+  const committed = reserved + settled + unknown
   const limit = cap?.tokens ?? 0
   return {
     reserved,
     settled,
+    unknown,
     committed,
     cap: limit,
     remaining: limit === 0 ? Number.POSITIVE_INFINITY : Math.max(0, limit - committed),
@@ -162,6 +177,11 @@ export const layer = Layer.effect(
           (tx) => {
             const row = tx.select().from(TeamRunLedgerTable).where(eq(TeamRunLedgerTable.id, input.id)).all()[0]
             if (!row) return undefined
+            // 用量不明就如实记 unknown：预占仍占着额度，但不能伪装成已结算的花费。
+            if (input.tokens === undefined) {
+              tx.update(TeamRunLedgerTable).set({ state: "unknown" }).where(eq(TeamRunLedgerTable.id, input.id)).run()
+              return { ...toEntry(row), state: "unknown" as LedgerState }
+            }
             const state: LedgerState = input.tokens > row.reserved_tokens ? "overrun" : "settled"
             tx.update(TeamRunLedgerTable)
               .set({ settled_tokens: input.tokens, state })

@@ -109,3 +109,24 @@ describe("team op log", () => {
     }),
   )
 })
+
+describe("team ledger: unsettled usage", () => {
+  it.effect("records unknown usage instead of inventing a settled amount", () =>
+    Effect.gen(function* () {
+      const ledger = yield* LedgerService
+      const id = runID()
+      const entry = yield* ledger.reserve({ runID: id, actor: "team-a", tokens: 40, cap: { tokens: 100 } })
+      // 提供方没有回报用量：不能拿预占额冒充花费。
+      const settled = yield* ledger.settle({ id: entry.id })
+      expect(settled?.state).toBe("unknown")
+      expect(settled?.settledTokens).toBe(0)
+
+      const usage = yield* ledger.usage({ runID: id, cap: { tokens: 100 } })
+      expect(usage.settled).toBe(0)
+      expect(usage.unknown).toBe(40)
+      // 但仍然保守占住额度，避免后续派发超支。
+      expect(usage.committed).toBe(40)
+      expect(usage.remaining).toBe(60)
+    }),
+  )
+})

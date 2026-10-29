@@ -210,7 +210,7 @@ export const layer = Layer.effect(
           }
 
           const report = dispatched.value
-          yield* ledger.settle({ id: reservation.value.id, tokens: report.usage?.tokens ?? reserveTokens })
+          yield* ledger.settle({ id: reservation.value.id, tokens: report.usage?.tokens })
           yield* runs.updateTeam({
             id: team.id,
             report: report as unknown as Record<string, unknown>,
@@ -419,7 +419,13 @@ export const layer = Layer.effect(
         state,
         phase: null,
         attempts: { ...attempts },
-        usage: { reserved: usage.reserved, settled: usage.settled, cap: usage.cap, overrun: usage.overrun },
+        usage: {
+          reserved: usage.reserved,
+          settled: usage.settled,
+          unknown: usage.unknown,
+          cap: usage.cap,
+          overrun: usage.overrun,
+        },
         mergedVerification: summary as unknown as Record<string, unknown>,
         endedAt: isTerminal(state) ? Date.now() : undefined,
         terminalReason: state,
