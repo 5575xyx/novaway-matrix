@@ -1225,6 +1225,17 @@ CC 的 agent teams 已经具备：队长 + 成员、共享任务列表、任务�
 - 每次修改 rubric 或验证器版本，跑一遍回归：有问题的必须被判 `fail`，无问题的不能被误杀。
 - 回归结果作为**发布门禁**的一部分（见 §21.3），不通过不允许上线。
 
+**实现（2026-10-30）：** 判断逻辑抽到 `src/team/verifier.ts`，只保留两个纯函数 —— `prompt()`（问什么）
+与 `interpret()`（怎么读）。读回结果时有两条硬规则：
+
+1. 解析不了 JSON、或回答了 `pass`/`fail`/`unverified` 之外的值 → `unverified`，绝不默认通过；
+2. **声称 `pass` 却没有给出证据位置 → 降级为 `unverified`**。没有证据的通过只是验证器在自说自话，
+   与没验过没有区别；`fail` 不要求证据（否定结论不会把坏东西放过去）。
+
+`evaluate(cases)` 计算缺陷集召回率与对照组误杀率，`GATE` 固定为「召回 ≥ 90% / 误杀 ≤ 5%」，
+`gate(score)` 直接给出发版结论。夹具见 `test/team/verifier.test.ts`：10 条缺陷样本 + 20 条对照组，
+另含「无证据的 pass」「乱码回复」「未知取值」三类边界。**新增规则先改夹具再改实现**，否则回归没有意义。
+
 ---
 
 ## 20. 差异化：可辩护与不可辩护
@@ -1570,18 +1581,18 @@ P1 的第一批代码已落地并通过类型检查与测试。为免文档与�
 
 **团队选择器与 Auto 模式（2026-10-29 追加，§4.2–4.3 团队侧）**
 
-| 文件                                                        | 内容                                                                                                          |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| 迁移 `20261029000001_session_team_mode`                     | `session.team_mode` / `session.team_ids`；`team.auto_eligible`（默认 0：Auto 是显式选择加入）                 |
-| `src/session/session.ts`                                    | `teamMode` / `teamIDs` 进入 `Session.Info` 与 `CreateInput`；`setTeamMode()` 在非 `selected` 时清空名单       |
-| `groups/session.ts` + `handlers/session.ts`                 | `PATCH /session/:id` 接受 `teamMode`/`teamIDs`；`selected` 不带 ID 直接 400，不让点击悄无声息地失效           |
-| `groups/team.ts` + `handlers/team.ts`                       | 响应补 `autoEligible`；新增 `PATCH /team/:teamID`（改名/描述/是否进 Auto 池）                                 |
-| `src/team/catalog.ts`                                       | 纯函数 `signature()` / `render()`：目录签名按「模式 + 团队 + 成员」计算，签名不变就不再注入                    |
-| `src/session/prompt.ts`                                     | `insertReminders` 里按会话目录注入 `<system-reminder>`，并在 `off` 时删掉签名（下次打开立刻重新注入）         |
-| `src/tool/team-run.ts`                                      | `team_run`：目录是唯一授权来源，名字对不上整次失败；Auto 停在 `awaiting_approval`，指定团队直接批准计划       |
-| `components/team-mode-select.tsx` + `context/team-selection.ts` | 输入框里的团队标签：不选 / 指定（可多选）/ Auto；新会话先记待定槽位，建会话时随 `CreateInput` 写入         |
-| `components/prompt-input/submit.ts`                         | 建会话时带上待定团队选择，成功后清槽位（与权限档位的待定机制同一套思路）                                       |
-| `pages/team.tsx`                                            | 团队详情顶部可一键切换「Auto：开/关」，并说明 Auto 只代表「可被挑中」，派发仍要批准                            |
+| 文件                                                            | 内容                                                                                                    |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| 迁移 `20261029000001_session_team_mode`                         | `session.team_mode` / `session.team_ids`；`team.auto_eligible`（默认 0：Auto 是显式选择加入）           |
+| `src/session/session.ts`                                        | `teamMode` / `teamIDs` 进入 `Session.Info` 与 `CreateInput`；`setTeamMode()` 在非 `selected` 时清空名单 |
+| `groups/session.ts` + `handlers/session.ts`                     | `PATCH /session/:id` 接受 `teamMode`/`teamIDs`；`selected` 不带 ID 直接 400，不让点击悄无声息地失效     |
+| `groups/team.ts` + `handlers/team.ts`                           | 响应补 `autoEligible`；新增 `PATCH /team/:teamID`（改名/描述/是否进 Auto 池）                           |
+| `src/team/catalog.ts`                                           | 纯函数 `signature()` / `render()`：目录签名按「模式 + 团队 + 成员」计算，签名不变就不再注入             |
+| `src/session/prompt.ts`                                         | `insertReminders` 里按会话目录注入 `<system-reminder>`，并在 `off` 时删掉签名（下次打开立刻重新注入）   |
+| `src/tool/team-run.ts`                                          | `team_run`：目录是唯一授权来源，名字对不上整次失败；Auto 停在 `awaiting_approval`，指定团队直接批准计划 |
+| `components/team-mode-select.tsx` + `context/team-selection.ts` | 输入框里的团队标签：不选 / 指定（可多选）/ Auto；新会话先记待定槽位，建会话时随 `CreateInput` 写入      |
+| `components/prompt-input/submit.ts`                             | 建会话时带上待定团队选择，成功后清槽位（与权限档位的待定机制同一套思路）                                |
+| `pages/team.tsx`                                                | 团队详情顶部可一键切换「Auto：开/关」，并说明 Auto 只代表「可被挑中」，派发仍要批准                     |
 
 四条语义在实现里被写死，避免以后被「优化」掉：
 
@@ -1590,9 +1601,18 @@ P1 的第一批代码已落地并通过类型检查与测试。为免文档与�
 3. **目录即授权。** `team_run` 的候选集由会话字段（模式 + 名单 + 同目录 + `autoEligible`）重算，不信任提示词里的任何声明；名字对不上就整次失败，绝不静默改派。
 4. **目录注入按签名去重。** 内容没变不重复注入；成员变化也算变化，否则新加的成员永远不会出现在模型眼里。
 
+**验证器回归（2026-10-30 追加，§19.3）**
+
+| 文件                         | 内容                                                                                        |
+| ---------------------------- | ------------------------------------------------------------------------------------------- |
+| `src/team/verifier.ts`       | `prompt()` / `interpret()` / `evaluate()` / `GATE`；无证据的 `pass` 一律降级为 `unverified` |
+| `handlers/run.ts`            | 验证器会话改用 `TeamVerifier.prompt`，回答统一走 `interpret()`（顺带删掉重复的 JSON 解析）  |
+| `test/team/verifier.test.ts` | 10 条缺陷 + 20 条对照组；断言召回 ≥ 90%、误杀 ≤ 5%，并覆盖无证据/乱码/未知取值三类边界      |
+
 **尚未实现（P1 剩余项）**
 
-- 验证器回归夹具（§19.3）与 §21.3 的七条发布门禁脚本。
+- §21.3 的七条发布门禁脚本（G1–G4 + 误判抽样 + `unverified` 不折叠审查）。验证器回归这一条已可由
+  `bun test test/team/verifier.test.ts` 直接执行，其余几条需要故障注入与并发压测夹具，仍待补。
 
 > 记录一条环境异常：本次会话期间工作区里的 `dbx-main/` 目录与 `NOVAWAY-ICON-GUIDE.md` 被外部删除（非本分支改动），提交时已刻意排除；如需恢复请单独处理。
 

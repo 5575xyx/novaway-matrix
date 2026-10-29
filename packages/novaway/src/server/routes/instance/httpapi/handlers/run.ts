@@ -10,6 +10,7 @@ import {
   type VerificationResult,
   type VerifyInput,
 } from "@/team/orchestrator"
+import { TeamVerifier } from "@/team/verifier"
 import { makeRunAgent, type RunAgentPromptOps } from "@/session/agent-step"
 import { SessionPrompt } from "@/session/prompt"
 import { Session } from "@/session/session"
@@ -39,17 +40,7 @@ const toRun = (run: TeamRun) => ({
 })
 
 /** 从模型输出里取出第一个 JSON 对象；取不到就当作「未验证」，绝不默认通过。 */
-const parseJSON = (text: string): Record<string, unknown> | undefined => {
-  const start = text.indexOf("{")
-  const end = text.lastIndexOf("}")
-  if (start === -1 || end <= start) return undefined
-  try {
-    const value = JSON.parse(text.slice(start, end + 1))
-    return value && typeof value === "object" ? (value as Record<string, unknown>) : undefined
-  } catch {
-    return undefined
-  }
-}
+const parseJSON = TeamVerifier.parseJSON
 
 export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handlers) =>
   Effect.gen(function* () {
@@ -334,37 +325,15 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           const verify = (input: VerifyInput) =>
             Effect.gen(function* () {
               const snapshotID = (yield* snapshotOf) ?? "unknown"
-              const evidence = input.report.claims
-                .map((claim) => "- " + claim.text + (claim.evidence ? "｜证据：" + claim.evidence : "｜无证据"))
-                .join("\n")
               const text = yield* runAgent({
                 agent: verifier,
                 title: "验证 · " + input.acceptance.id,
                 scope: { runID: run.id, taskID: input.acceptance.id, attempt: input.round },
-                prompt: [
-                  "你只做一件事：判断下面这条验收在当前代码快照上是否成立。",
-                  "不要相信交付方的自述；没有可复核证据就回答 unverified。",
-                  "",
-                  "【验收】" + input.acceptance.text,
-                  input.acceptance.expected ? "【预期】" + input.acceptance.expected : "",
-                  "【交付方自述】",
-                  evidence || "（无）",
-                  "",
-                  "只输出 JSON：",
-                  '{"outcome":"pass|fail|unverified","measured":"实测结果或原因","evidence":"证据位置"}',
-                ]
-                  .filter(Boolean)
-                  .join("\n"),
+                prompt: TeamVerifier.prompt(input.acceptance, input.report),
               })
-              const parsed = parseJSON(text)
-              const raw = parsed?.outcome
-              const outcome: VerificationResult["outcome"] =
-                raw === "pass" ? "pass" : raw === "fail" ? "fail" : "unverified"
+              // 没有证据的 pass 在这里被降级为 unverified（见 TeamVerifier.interpret）。
               return {
-                outcome,
-                measured: typeof parsed?.measured === "string" ? parsed.measured : undefined,
-                evidenceRef: typeof parsed?.evidence === "string" ? parsed.evidence : undefined,
-                verifierVersion: "agent-v1",
+                ...TeamVerifier.interpret(text),
                 snapshotID,
               } satisfies VerificationResult
             })
