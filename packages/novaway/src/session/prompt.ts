@@ -254,6 +254,61 @@ export function backgroundNotification(job: BackgroundJob.Info) {
   ].join("\n")
 }
 
+/**
+ * "一项待办吸收了全部工作"的定向纠偏。
+ *
+ * 分组时间线把所有工具调用算到**当前 in_progress 的那一项**上,所以模型如果
+ * 只把第一项标成 in_progress、然后把后面所有项的活都干完,回溯时看起来就是
+ * "任务一做完了一切"。这里在"清单长时间没动、且当前项之后还有 pending"时提醒
+ * 它逐项收尾 —— 比通用提醒更早、更具体。
+ */
+const STALE_TODO_TOOL_CALLS = 12
+const STALE_TODO_RECHECK = 12
+const staleReminders = new Map<string, { signature: string; calls: number }>()
+
+export function decideStaleTodoReminder(input: {
+  sessionID: string
+  messages: MessageV2.WithParts[]
+  todos: Todo.Info[]
+}): boolean {
+  if (input.todos.length < 2) return false
+  const active = input.todos.filter((todo) => todo.status === "in_progress")
+  if (active.length !== 1) return false
+  if (!input.todos.some((todo) => todo.status === "pending")) return false
+  const lastTodo = input.messages.findLastIndex(hasTodoToolCall)
+  let calls = 0
+  for (const message of input.messages.slice(lastTodo + 1)) {
+    for (const part of message.parts) {
+      if (part.type === "tool" && !TODO_TOOL_IDS.has(part.tool)) calls++
+    }
+  }
+  if (calls < STALE_TODO_TOOL_CALLS) return false
+  const signature = input.todos.map((todo) => `${todo.status}:${todo.content}`).join("|")
+  const previous = staleReminders.get(input.sessionID)
+  if (previous && previous.signature === signature && calls - previous.calls < STALE_TODO_RECHECK) return false
+  staleReminders.set(input.sessionID, { signature, calls })
+  return true
+}
+
+/** 测试钩子:清掉停滞提醒的节流状态。 */
+export function resetStaleTodoReminders(sessionID?: string) {
+  if (sessionID === undefined) staleReminders.clear()
+  else staleReminders.delete(sessionID)
+}
+
+export function staleTodoReminder(todos: Todo.Info[]): string {
+  const active = todos.find((todo) => todo.status === "in_progress")
+  const pending = todos.filter((todo) => todo.status === "pending")
+  return [
+    TODO_REMINDER_MARKER,
+    `「${active?.content ?? "当前项"}」已经标为 in_progress,但后面还有 ${pending.length} 项没开始。`,
+    "时间线会把**所有工具调用**算到 in_progress 的那一项上,所以请不要在一项下面把后续项的工作一起做完。",
+    "现在立刻:当前这项真的做完并验证过就 complete,然后把正在做的那一项 progress;如果接下来要换项,先 complete 再 progress。",
+    `还没开始的项:${pending.map((todo) => todo.content).join(";")}`,
+    "不要向用户提起这条提醒。",
+  ].join("\n")
+}
+
 export function todoReminder(todos: Todo.Info[]): string {
   const items = todos.map((todo, index) => `${index + 1}. [${todo.status}] ${todo.content}`).join("\n")
   return [
@@ -898,8 +953,19 @@ export const layer = Layer.effect(
 
       // Plan mode forbids the todo tools, so the nudge would only be noise.
       if (input.agent.name !== "plan" && !Permission.disabled(["todowrite"], input.agent.permission).has("todowrite")) {
-        if (decideTodoReminder({ messages: input.messages, enabled: true })) {
-          const todos = yield* todo.get(input.session.id).pipe(Effect.catch(() => Effect.succeed([] as Todo.Info[])))
+        const todos = yield* todo.get(input.session.id).pipe(Effect.catch(() => Effect.succeed([] as Todo.Info[])))
+        // 先看"一项吸走全部工作"的定向提醒,再走通用提醒(两者互斥,避免一轮里塞两段)。
+        if (decideStaleTodoReminder({ sessionID: input.session.id, messages: input.messages, todos })) {
+          const part = yield* sessions.updatePart({
+            id: PartID.ascending(),
+            messageID: userMessage.info.id,
+            sessionID: userMessage.info.sessionID,
+            type: "text",
+            text: staleTodoReminder(todos),
+            synthetic: true,
+          })
+          userMessage.parts.push(part)
+        } else if (decideTodoReminder({ messages: input.messages, enabled: true })) {
           const part = yield* sessions.updatePart({
             id: PartID.ascending(),
             messageID: userMessage.info.id,

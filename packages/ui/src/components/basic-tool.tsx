@@ -1,4 +1,4 @@
-import { createEffect, createSignal, For, Match, on, onCleanup, onMount, Show, Switch, type JSX } from "solid-js"
+import { createEffect, createMemo, createSignal, For, Match, on, onCleanup, onMount, Show, Switch, type JSX } from "solid-js"
 import { animate, type AnimationPlaybackControls } from "motion"
 import { Breathing } from "./breathing"
 import { useI18n } from "../context/i18n"

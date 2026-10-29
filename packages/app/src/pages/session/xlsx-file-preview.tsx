@@ -127,3 +127,209 @@ const cellText = (cell: XLSX.CellObject): string => {
   if (cell.f) return `=${cell.f}`
   return ""
 }
+
+function parseSheet(name: string, sheet: XLSX.WorkSheet): GridSheet {
+  if (!sheet || !sheet["!ref"]) return { name, rows: [], columns: [], heights: [] }
+  const range = XLSX.utils.decode_range(sheet["!ref"])
+  const rowCount = Math.min(range.e.r + 1, MAX_ROWS)
+  const colCount = Math.min(range.e.c + 1, MAX_COLS)
+
+  const covered = new Set<string>()
+  const spans = new Map<string, { rowSpan: number; colSpan: number }>()
+  for (const merge of sheet["!merges"] ?? []) {
+    if (merge.s.r >= rowCount || merge.s.c >= colCount) continue
+    const rowSpan = Math.min(merge.e.r, rowCount - 1) - merge.s.r + 1
+    const colSpan = Math.min(merge.e.c, colCount - 1) - merge.s.c + 1
+    spans.set(`${merge.s.r}:${merge.s.c}`, { rowSpan, colSpan })
+    for (let r = merge.s.r; r <= Math.min(merge.e.r, rowCount - 1); r++) {
+      for (let c = merge.s.c; c <= Math.min(merge.e.c, colCount - 1); c++) {
+        if (r === merge.s.r && c === merge.s.c) continue
+        covered.add(`${r}:${c}`)
+      }
+    }
+  }
+
+  const columns: GridColumn[] = []
+  for (let c = 0; c < colCount; c++) {
+    const info = sheet["!cols"]?.[c]
+    // wch ≈ 字符数;Excel 的换算大约 1 字符 = 7px + 5px 边距。有 wpx 就用现成的。
+    const width =
+      typeof info?.wpx === "number"
+        ? info.wpx
+        : typeof info?.wch === "number"
+          ? Math.round(info.wch * 7 + 5)
+          : DEFAULT_COL_WIDTH
+    columns.push({ width: Math.max(24, Math.min(width, 480)), hidden: info?.hidden === true })
+  }
+
+  const heights: (number | undefined)[] = []
+  for (let r = 0; r < rowCount; r++) {
+    const info = sheet["!rows"]?.[r]
+    const height =
+      typeof info?.hpx === "number"
+        ? info.hpx
+        : typeof info?.hpt === "number"
+          ? Math.round((info.hpt * 4) / 3)
+          : undefined
+    heights.push(info?.hidden ? 0 : height)
+  }
+
+  const rows: GridCell[][] = []
+  for (let r = 0; r < rowCount; r++) {
+    const row: GridCell[] = []
+    for (let c = 0; c < colCount; c++) {
+      if (covered.has(`${r}:${c}`)) {
+        row.push({ value: "", covered: true })
+        continue
+      }
+      const cell = sheet[XLSX.utils.encode_cell({ r, c })]
+      const span = spans.get(`${r}:${c}`)
+      const parsed = cell ? cellStyle(cell) : { style: {}, wrap: false }
+      row.push({
+        value: cell ? cellText(cell) : "",
+        ...(span ? { rowSpan: span.rowSpan, colSpan: span.colSpan } : {}),
+        style: parsed.style,
+        wrap: parsed.wrap,
+      })
+    }
+    rows.push(row)
+  }
+  return { name, rows, columns, heights }
+}
+
+async function parseWorkbook(base64: string): Promise<GridSheet[]> {
+  const bytes = base64ToBytes(base64)
+  // cellStyles = 读取 xlsx 里显式写过的字体/填充/对齐;cellDates = 日期按 Date 解析。
+  const workbook = XLSX.read(bytes, { type: "array", cellStyles: true, cellDates: true })
+  return workbook.SheetNames.map((name) => parseSheet(name, workbook.Sheets[name]))
+}
+
+/**
+ * Excel 真实渲染(SheetJS 解析 + 静态网格):列标/行号/合并单元格/列宽行高/
+ * 字体与填充/数字格式/对齐/选中高亮/底部 sheet 页,观感对齐 Excel;
+ * 不做公式重算与单元格编辑。
+ */
+export const XlsxFilePreview: Component<{ base64: string }> = (props) => {
+  const [sheets] = createResource(() => props.base64, parseWorkbook)
+  const [active, setActive] = createSignal(0)
+  const [selected, setSelected] = createSignal<{ row: number; col: number }>()
+
+  // 换文件/换 sheet 时复位选中。
+  createEffect(
+    on(
+      () => [props.base64, sheets(), active()] as const,
+      () => setSelected(undefined),
+    ),
+  )
+
+  const sheet = createMemo(() => sheets()?.[active()])
+  const rows = createMemo(() => sheet()?.rows ?? [])
+  const columns = createMemo(() => sheet()?.columns ?? [])
+
+  onCleanup(() => {
+    /* SheetJS 无需手动释放 */
+  })
+
+  return (
+    <Show
+      when={sheets.state === "ready"}
+      fallback={
+        <Show
+          when={!sheets.error}
+          fallback={
+            <div class="flex h-full items-center justify-center text-12-regular text-foreground-subtle">
+              无法解析该表格文件。
+            </div>
+          }
+        >
+          <div class="flex h-full items-center justify-center">
+            <Spinner class="size-4 text-foreground-subtle" />
+          </div>
+        </Show>
+      }
+    >
+      <div class="flex h-full min-h-0 flex-col">
+        <div class="min-h-0 flex-1 overflow-auto bg-background">
+          <table class="border-collapse text-12-regular" data-component="xlsx-grid">
+            <colgroup>
+              <col style={{ width: "44px" }} />
+              <For each={columns()}>
+                {(column) => <col style={{ width: `${column.width}px`, display: column.hidden ? "none" : undefined }} />}
+              </For>
+            </colgroup>
+            <thead>
+              <tr>
+                <th class="sticky top-0 left-0 z-20 border border-border bg-surface px-1 py-1 text-11-regular text-foreground-subtle" />
+                <For each={columns()}>
+                  {(_, col) => (
+                    <th class="sticky top-0 z-10 overflow-hidden border border-border bg-surface px-2 py-1 text-11-regular font-normal text-foreground-subtle">
+                      {columnLabel(col())}
+                    </th>
+                  )}
+                </For>
+              </tr>
+            </thead>
+            <tbody>
+              <For each={rows()}>
+                {(row, rowIndex) => (
+                  <tr
+                    style={{
+                      height:
+                        (sheet()?.heights[rowIndex()] ?? 0) > 0 ? `${sheet()!.heights[rowIndex()]}px` : undefined,
+                      display: sheet()?.heights[rowIndex()] === 0 ? "none" : undefined,
+                    }}
+                  >
+                    <th class="sticky left-0 z-10 border border-border bg-surface px-1 py-1 text-center text-11-regular font-normal text-foreground-subtle">
+                      {rowIndex() + 1}
+                    </th>
+                    <For each={row}>
+                      {(cell, col) => (
+                        <Show when={!cell.covered}>
+                          <td
+                            class="max-w-[480px] overflow-hidden border border-border px-1.5 py-[1px] align-bottom text-foreground"
+                            classList={{
+                              "bg-selected outline outline-1 -outline-offset-1 outline-icon-blue":
+                                selected()?.row === rowIndex() && selected()?.col === col(),
+                              "whitespace-nowrap text-ellipsis": !cell.wrap,
+                            }}
+                            style={cell.style}
+                            rowSpan={cell.rowSpan}
+                            colSpan={cell.colSpan}
+                            title={cell.value || undefined}
+                            onClick={() => setSelected({ row: rowIndex(), col: col() })}
+                          >
+                            <span classList={{ "whitespace-pre-wrap break-words": cell.wrap }}>{cell.value}</span>
+                          </td>
+                        </Show>
+                      )}
+                    </For>
+                  </tr>
+                )}
+              </For>
+            </tbody>
+          </table>
+        </div>
+        {/* 底部 sheet 页签(对齐 ZCode / Excel 的 sheet bar)。 */}
+        <Show when={(sheets()?.length ?? 0) > 1}>
+          <div class="flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-t border-border px-2 no-scrollbar">
+            <For each={sheets()}>
+              {(item, index) => (
+                <button
+                  type="button"
+                  class="shrink-0 rounded px-2 py-1 text-ui-xs transition-colors"
+                  classList={{
+                    "bg-surface font-medium text-foreground": active() === index(),
+                    "text-foreground-subtle hover:bg-hover hover:text-foreground": active() !== index(),
+                  }}
+                  onClick={() => setActive(index())}
+                >
+                  {item.name}
+                </button>
+              )}
+            </For>
+          </div>
+        </Show>
+      </div>
+    </Show>
+  )
+}
