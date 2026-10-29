@@ -1079,3 +1079,32 @@ shell 的退出码语义已对齐 CC `commandSemantics.ts`：`grep` / `rg` 的 1
 - SDK 专用：`toolUseSummary`（移动端进度标签）；会话笔记已覆盖其价值
 - 云端 OAuth 绑定：`RemoteTriggerTool`（Claude.ai 远程触发）、`McpAuthTool` 的浏览器
   流程已用 `mcp_setup({ action: "authenticate" })` 覆盖
+
+### 10.5 请求重试的上限与过载退避（2026-10-29）
+
+以前 5xx / 529 没有次数上限：只要供应商持续不可用，界面就会一直停在「重试中」，
+用户无法判断是「还在努力」还是「已经卡死」。CC 的 `services/api/withRetry.ts`
+有两条硬上限：`DEFAULT_MAX_RETRIES = 10`，以及连续 3 次 529 就停止
+（`MAX_529_RETRIES = 3`；配置了 `--fallback-model` 时改为切换模型再试）。本次对齐：
+
+- 所有可重试错误最多重试 10 次（传输层中断仍是 5 次，见 `MAX_TRANSIENT_ATTEMPTS`）。
+- 连续 3 次过载（`529` / `Overloaded` / `resource_exhausted`）立即停止，不等满 10 次；
+  中间出现别的可重试错误会把过载计数清零（CC 数的是 consecutive）。
+- 停止时把供应商原文换成一句可执行的话：「供应商连续 3 次过载，已停止自动重试。
+  稍后再试，或在模型选择里换一个模型/供应商。」只改 `message`，
+  `statusCode` / `responseHeaders` 等诊断字段保留。
+- 没有做的部分：`--fallback-model`。自动换模型会同时换掉计费与能力，
+  必须是用户可见的显式配置（还要在界面上标出「已切换到备用模型」），
+  不能做成出故障时的静默兜底。留作后续单独一项。
+
+代码：`src/session/retry.ts`（`RetryKind` / `MAX_API_ATTEMPTS` /
+`MAX_OVERLOAD_ATTEMPTS` / `tracker()` / `explain()`），
+`src/session/processor.ts`（每次请求前 `reset()`，最终失败时 `explain()`）。
+测试：`test/session/retry.test.ts` → `session.retry.policy limits`（5 条）。
+
+- 还没做的两项（都要动流式/配置层，不宜和本次混在一起）：
+  - `--fallback-model`：见上。
+  - 流空闲看门狗：CC 在 90 秒收不到任何 chunk 时中止并重试，还能识别「HTTP 200
+    但一个事件都没有」的代理故障。我们的工具是在 `fullStream` 里同步执行的，
+    工具运行期间本来就没有事件，直接套空闲超时会把长命令误杀；
+    正确做法是把计时挂到 HTTP 层（或只守「首个 chunk」），需要单独设计。
