@@ -6,8 +6,8 @@ Use proactively when:
 - The work is non-trivial and benefits from planning
 - The user provides multiple tasks (numbered or comma-separated) or explicitly asks for a todo list
 - New instructions arrive - capture them as todos
-- You start a task - mark it `in_progress` (only one at a time) before working
-- You finish a task - mark it `completed` and add any follow-ups discovered during the work
+- You start a task - mark it `in_progress` (only one at a time, unless the plan explicitly runs items in parallel) BEFORE you start its work
+- You finish a task - mark it `completed` immediately and add any follow-ups discovered during the work
 
 ## When NOT to use
 Skip when:
@@ -29,6 +29,8 @@ Skip when:
 - Never let the list lag behind reality: do not keep working on later items while an earlier finished item still shows `in_progress`.
 - Mark `completed` only after the required work is actually done, including any required verification. Never based on intent.
 - Keep exactly one `in_progress` while work remains (parallel-approved workflows may mark multiple, but only when the plan explicitly assigns them in parallel)
+- Work belongs to the item that is `in_progress`. The timeline attributes every tool call to the in_progress item, so doing several items' work under one open item makes it look like a single item did everything. One item at a time: mark it `in_progress`, finish only that item, `complete` it, then `progress` the next one.
+- Never loop through later items while an earlier item is still `in_progress`: if you notice you have moved on, close the old item first (complete or cancel) before continuing.
 - If blocked or partial, keep it `in_progress` and add a follow-up todo describing the blocker. When the blocker needs the user's decision, ask via the question tool and update this list in the same turn: the blocked item stays `in_progress` with the blocker noted, remaining items are adjusted to match the answer's outcome. Never leave the list stale while waiting for a reply.
 - Preserve user-provided commands verbatim (flags, args, order)
 - Items should be specific and actionable; break large work into smaller steps

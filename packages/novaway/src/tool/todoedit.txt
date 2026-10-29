@@ -15,4 +15,5 @@ Make one change to the current todo list instead of resending the whole list. Us
 - Prefer this over `todowrite` for a single status change: resending all items wastes output tokens and risks dropping or rewording items you did not touch.
 - Finish each item as it happens: as soon as the work of the current item is done and verified, call `complete` for it in that same turn, before starting the next item. The tracker is what the user watches, so it must never show an earlier `in_progress` item while you are already working on a later one.
 - Keep the `todowrite` rules: at most one `in_progress` item while work remains, and never mark something `completed` on intent alone - only after the work is actually done and verified.
+- Switch items with `complete` + `progress` in the same turn as the switch. Work done for item N must not happen while item M is still `in_progress`: the timeline attributes every tool call to the in_progress item, so the tracker would credit all of that work to M.
 - If the list is large, use this tool repeatedly instead of rebuilding it; each call returns the full updated list.
