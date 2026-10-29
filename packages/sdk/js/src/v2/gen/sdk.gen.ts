@@ -431,6 +431,22 @@ import type {
   QuestionRejectResponses,
   QuestionReplyErrors,
   QuestionReplyResponses,
+  RunAcceptanceAddErrors,
+  RunAcceptanceAddResponses,
+  RunApproveErrors,
+  RunApproveResponses,
+  RunCancelErrors,
+  RunCancelResponses,
+  RunCreateErrors,
+  RunCreateResponses,
+  RunDetailErrors,
+  RunDetailResponses,
+  RunEventsResponses,
+  RunExecuteErrors,
+  RunExecuteResponses,
+  RunListResponses,
+  RunPlanErrors,
+  RunPlanResponses,
   SessionAbortErrors,
   SessionAbortResponses,
   SessionBackgroundCancelErrors,
@@ -12575,6 +12591,395 @@ export class Team extends HeyApiClient {
   }
 }
 
+export class Acceptance extends HeyApiClient {
+  /**
+   * Add an acceptance line
+   *
+   * Register one verifiable acceptance line for this run.
+   */
+  public add<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+      taskID?: string
+      specID?: string
+      text?: string
+      kind?: "test" | "diff" | "file" | "rubric" | "human"
+      expected?: string
+      owner?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "taskID" },
+            { in: "body", key: "specID" },
+            { in: "body", key: "text" },
+            { in: "body", key: "kind" },
+            { in: "body", key: "expected" },
+            { in: "body", key: "owner" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<RunAcceptanceAddResponses, RunAcceptanceAddErrors, ThrowOnError>({
+      url: "/run/{runID}/acceptance",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Run2 extends HeyApiClient {
+  /**
+   * List team runs
+   *
+   * List orchestration runs in this workspace.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<RunListResponses, unknown, ThrowOnError>({
+      url: "/run",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create a run
+   *
+   * Create a team orchestration run in planning state.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      query_directory?: string
+      workspace?: string
+      sessionID?: string
+      body_directory?: string
+      mode?: "team" | "auto"
+      goal?: string
+      brief?: unknown
+      acceptance?: Array<unknown>
+      budget?: {
+        tokens?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        cost?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        wallMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            {
+              in: "query",
+              key: "query_directory",
+              map: "directory",
+            },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "sessionID" },
+            {
+              in: "body",
+              key: "body_directory",
+              map: "directory",
+            },
+            { in: "body", key: "mode" },
+            { in: "body", key: "goal" },
+            { in: "body", key: "brief" },
+            { in: "body", key: "acceptance" },
+            { in: "body", key: "budget" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<RunCreateResponses, RunCreateErrors, ThrowOnError>({
+      url: "/run",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Run detail
+   *
+   * Run, teams, acceptance lines, verifications and the folded summary.
+   */
+  public detail<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<RunDetailResponses, RunDetailErrors, ThrowOnError>({
+      url: "/run/{runID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Set the plan
+   *
+   * Replace the plan and bump its version. Previous approvals become stale.
+   */
+  public plan<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+      teams?: Array<{
+        name: string
+        profileID?: string
+        profileVersion?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        scope?: Array<string>
+        acceptance?: Array<string>
+        dependsOn?: Array<number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN">
+      }>
+      notes?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "teams" },
+            { in: "body", key: "notes" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<RunPlanResponses, RunPlanErrors, ThrowOnError>({
+      url: "/run/{runID}/plan",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Approve the plan
+   *
+   * Approve a specific plan version with its budget, then start the run.
+   */
+  public approve<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+      planVersion?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      budget?: {
+        tokens?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        cost?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        wallMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      }
+      by?: "user" | "main"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "planVersion" },
+            { in: "body", key: "budget" },
+            { in: "body", key: "by" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<RunApproveResponses, RunApproveErrors, ThrowOnError>({
+      url: "/run/{runID}/approve",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Execute the run
+   *
+   * Dispatch to captains in the background and poll run detail for progress.
+   */
+  public execute<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+      captain?: string
+      verifier?: string
+      maxRounds?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      maxBusinessAttempts?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      reserveTokens?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      concurrency?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "captain" },
+            { in: "body", key: "verifier" },
+            { in: "body", key: "maxRounds" },
+            { in: "body", key: "maxBusinessAttempts" },
+            { in: "body", key: "reserveTokens" },
+            { in: "body", key: "concurrency" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<RunExecuteResponses, RunExecuteErrors, ThrowOnError>({
+      url: "/run/{runID}/execute",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Cancel the run
+   *
+   * Stop dispatching, keep what already happened, then settle the run as cancelled.
+   */
+  public cancel<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<RunCancelResponses, RunCancelErrors, ThrowOnError>({
+      url: "/run/{runID}/cancel",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Run events
+   *
+   * Append-only event log used for replay and audit.
+   */
+  public events<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<RunEventsResponses, unknown, ThrowOnError>({
+      url: "/run/{runID}/events",
+      ...options,
+      ...params,
+    })
+  }
+
+  private _acceptance?: Acceptance
+  get acceptance(): Acceptance {
+    return (this._acceptance ??= new Acceptance({ client: this.client }))
+  }
+}
+
 export class OpencodeClient extends HeyApiClient {
   public static readonly __registry = new HeyApiRegistry<OpencodeClient>()
 
@@ -12806,5 +13211,10 @@ export class OpencodeClient extends HeyApiClient {
   private _team?: Team
   get team(): Team {
     return (this._team ??= new Team({ client: this.client }))
+  }
+
+  private _run?: Run2
+  get run(): Run2 {
+    return (this._run ??= new Run2({ client: this.client }))
   }
 }

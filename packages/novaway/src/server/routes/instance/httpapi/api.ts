@@ -39,6 +39,7 @@ import { GoalApi } from "./groups/goal"
 import { WorkflowApi } from "./groups/workflow"
 import { OrchestratorApi } from "./groups/orchestrator"
 import { TeamApi } from "./groups/team"
+import { RunApi } from "./groups/run"
 import { Authorization } from "./middleware/authorization"
 import { SchemaErrorMiddleware } from "./middleware/schema-error"
 
@@ -87,6 +88,7 @@ export const InstanceHttpApi = HttpApi.make("NovaWay-instance")
   .add(WorkflowApi)
   .add(OrchestratorApi)
   .addHttpApi(TeamApi)
+  .add(RunApi)
   .middleware(SchemaErrorMiddleware)
 
 export const NovaWayHttpApi = HttpApi.make("novaway")

@@ -106,11 +106,17 @@ import { videosHandlers } from "./handlers/videos"
 import { goalHandlers } from "./handlers/goal"
 import { workflowHandlers } from "./handlers/workflow"
 import { orchestratorHandlers } from "./handlers/orchestrator"
+import { runHandlers } from "./handlers/run"
 import { teamHandlers } from "./handlers/team"
 import { ExtensionLayer } from "@/extension"
 import { defaultLayer as PlanApprovalLayer } from "@/session/plan-approval"
 import { defaultLayer as HookServiceLayer } from "@/hook/service"
 import { defaultLayer as TeamLayer } from "@/team/team"
+import { defaultLayer as TeamRunLayer } from "@/team/run"
+import { defaultLayer as TeamVerificationLayer } from "@/team/verification"
+import { defaultLayer as TeamOrchestratorLayer } from "@/team/orchestrator"
+import { defaultLayer as TeamLedgerLayer } from "@/team/ledger"
+import { defaultLayer as TeamOpLogLayer } from "@/team/op-log"
 import { defaultLayer as AgentTaskListLayer } from "@/team/task-list"
 import { defaultLayer as AgentMailboxLayer } from "@/team/mailbox"
 import { SessionUsage } from "@/session/usage"
@@ -200,6 +206,7 @@ const instanceApiRoutes = HttpApiBuilder.layer(InstanceHttpApi).pipe(
     goalHandlers,
     workflowHandlers,
     orchestratorHandlers,
+    runHandlers,
     teamHandlers,
   ]),
 )
@@ -305,6 +312,11 @@ export function createRoutes(
       Goal.defaultLayer,
       WorkflowDefaultLayer,
       OrchestratorDefaultLayer,
+      TeamRunLayer,
+      TeamVerificationLayer,
+      TeamLedgerLayer,
+      TeamOpLogLayer,
+      TeamOrchestratorLayer,
       DreamDefaultLayer,
       DistillDefaultLayer,
       ToolRegistry.defaultLayer,
