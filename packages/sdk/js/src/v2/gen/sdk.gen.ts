@@ -558,6 +558,8 @@ import type {
   TeamOverviewResponses,
   TeamRemoveErrors,
   TeamRemoveResponses,
+  TeamUpdateErrors,
+  TeamUpdateResponses,
   TextPartInput,
   ToolCallErrors,
   ToolCallPayload,
@@ -583,19 +585,30 @@ import type {
   TuiSelectSessionResponses,
   TuiShowToastResponses,
   TuiSubmitPromptResponses,
+  V2AgentListResponses,
+  V2CommandListResponses,
   V2FsFindResponses,
+  V2IntegrationListResponses,
+  V2LocationGetResponses,
   V2ModelListResponses,
+  V2PermissionSavedListResponses,
   V2ProviderGetErrors,
   V2ProviderGetResponses,
   V2ProviderListResponses,
+  V2ReferenceListResponses,
   V2SessionCompactResponses,
   V2SessionContextResponses,
+  V2SessionGetErrors,
+  V2SessionGetResponses,
   V2SessionListErrors,
   V2SessionListResponses,
   V2SessionMessagesErrors,
   V2SessionMessagesResponses,
+  V2SessionPermissionListResponses,
   V2SessionPromptResponses,
+  V2SessionQuestionListResponses,
   V2SessionWaitResponses,
+  V2SkillListResponses,
   VcsApplyErrors,
   VcsApplyResponses,
   VcsDiffRawResponses,
@@ -5595,6 +5608,7 @@ export class Vcs extends HeyApiClient {
       directory?: string
       workspace?: string
       mode: "git" | "branch"
+      context?: string
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -5606,6 +5620,7 @@ export class Vcs extends HeyApiClient {
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
             { in: "query", key: "mode" },
+            { in: "query", key: "context" },
           ],
         },
       ],
@@ -9087,6 +9102,8 @@ export class Session3 extends HeyApiClient {
       }
       permission?: PermissionRuleset
       permissionMode?: PermissionMode
+      teamMode?: "off" | "auto" | "selected"
+      teamIDs?: Array<string>
       workspaceID?: string
     },
     options?: Options<never, ThrowOnError>,
@@ -9104,6 +9121,8 @@ export class Session3 extends HeyApiClient {
             { in: "body", key: "model" },
             { in: "body", key: "permission" },
             { in: "body", key: "permissionMode" },
+            { in: "body", key: "teamMode" },
+            { in: "body", key: "teamIDs" },
             { in: "body", key: "workspaceID" },
           ],
         },
@@ -9228,6 +9247,8 @@ export class Session3 extends HeyApiClient {
       title?: string
       permission?: PermissionRuleset
       permissionMode?: PermissionMode
+      teamMode?: "off" | "auto" | "selected"
+      teamIDs?: Array<string>
       cwd?: string
       time?: {
         archived?: number
@@ -9246,6 +9267,8 @@ export class Session3 extends HeyApiClient {
             { in: "body", key: "title" },
             { in: "body", key: "permission" },
             { in: "body", key: "permissionMode" },
+            { in: "body", key: "teamMode" },
+            { in: "body", key: "teamIDs" },
             { in: "body", key: "cwd" },
             { in: "body", key: "time" },
           ],
@@ -10878,6 +10901,86 @@ export class Sync extends HeyApiClient {
   }
 }
 
+export class Permission2 extends HeyApiClient {
+  /**
+   * List session permission requests
+   *
+   * Retrieve permission requests currently waiting on the user for this session.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<V2SessionPermissionListResponses, unknown, ThrowOnError>({
+      querySerializer: { parameters: { location: { object: { style: "form" } } } },
+      url: "/api/session/{sessionID}/permission",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Question2 extends HeyApiClient {
+  /**
+   * List session questions
+   *
+   * Retrieve questions currently waiting on the user for this session.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<V2SessionQuestionListResponses, unknown, ThrowOnError>({
+      querySerializer: { parameters: { location: { object: { style: "form" } } } },
+      url: "/api/session/{sessionID}/question",
+      ...options,
+      ...params,
+    })
+  }
+}
+
 export class Session4 extends HeyApiClient {
   /**
    * List v2 sessions
@@ -11061,6 +11164,44 @@ export class Session4 extends HeyApiClient {
   }
 
   /**
+   * Get v2 session
+   *
+   * Retrieve a single v2 session descriptor for the requested location.
+   */
+  public get<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<V2SessionGetResponses, V2SessionGetErrors, ThrowOnError>({
+      querySerializer: { parameters: { location: { object: { style: "form" } } } },
+      url: "/api/session/{sessionID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
    * Get v2 session messages
    *
    * Retrieve projected v2 messages for a session. Items keep the requested order across pages; use cursor.next or cursor.previous to move through the ordered timeline.
@@ -11097,6 +11238,16 @@ export class Session4 extends HeyApiClient {
       ...params,
     })
   }
+
+  private _permission?: Permission2
+  get permission(): Permission2 {
+    return (this._permission ??= new Permission2({ client: this.client }))
+  }
+
+  private _question?: Question2
+  get question(): Question2 {
+    return (this._question ??= new Question2({ client: this.client }))
+  }
 }
 
 export class Model extends HeyApiClient {
@@ -11107,6 +11258,8 @@ export class Model extends HeyApiClient {
    */
   public list<ThrowOnError extends boolean = false>(
     parameters?: {
+      directory?: string
+      workspace?: string
       location?: {
         directory?: string
         workspace?: string
@@ -11114,7 +11267,18 @@ export class Model extends HeyApiClient {
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "location" }] }])
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).get<V2ModelListResponses, unknown, ThrowOnError>({
       url: "/api/model",
       ...options,
@@ -11124,28 +11288,6 @@ export class Model extends HeyApiClient {
 }
 
 export class Provider2 extends HeyApiClient {
-  /**
-   * List v2 providers
-   *
-   * Retrieve active v2 AI providers so clients can show provider availability and configuration.
-   */
-  public list<ThrowOnError extends boolean = false>(
-    parameters?: {
-      location?: {
-        directory?: string
-        workspace?: string
-      }
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "location" }] }])
-    return (options?.client ?? this.client).get<V2ProviderListResponses, unknown, ThrowOnError>({
-      url: "/api/provider",
-      ...options,
-      ...params,
-    })
-  }
-
   /**
    * Get v2 provider
    *
@@ -11174,6 +11316,41 @@ export class Provider2 extends HeyApiClient {
     )
     return (options?.client ?? this.client).get<V2ProviderGetResponses, V2ProviderGetErrors, ThrowOnError>({
       url: "/api/provider/{providerID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * List v2 providers
+   *
+   * Retrieve active v2 AI providers so clients can show provider availability and configuration.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<V2ProviderListResponses, unknown, ThrowOnError>({
+      url: "/api/provider",
       ...options,
       ...params,
     })
@@ -11218,6 +11395,281 @@ export class Fs extends HeyApiClient {
   }
 }
 
+export class Location extends HeyApiClient {
+  /**
+   * Resolve location
+   *
+   * Resolve the requested directory and workspace into a location descriptor.
+   */
+  public get<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<V2LocationGetResponses, unknown, ThrowOnError>({
+      querySerializer: { parameters: { location: { object: { style: "form" } } } },
+      url: "/api/location",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Agent2 extends HeyApiClient {
+  /**
+   * List v2 agents
+   *
+   * Retrieve the agents available at the requested location.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<V2AgentListResponses, unknown, ThrowOnError>({
+      querySerializer: { parameters: { location: { object: { style: "form" } } } },
+      url: "/api/agent",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Command2 extends HeyApiClient {
+  /**
+   * List v2 commands
+   *
+   * Retrieve slash commands available at the requested location.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<V2CommandListResponses, unknown, ThrowOnError>({
+      querySerializer: { parameters: { location: { object: { style: "form" } } } },
+      url: "/api/command",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Skill2 extends HeyApiClient {
+  /**
+   * List v2 skills
+   *
+   * Retrieve skills available at the requested location.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<V2SkillListResponses, unknown, ThrowOnError>({
+      querySerializer: { parameters: { location: { object: { style: "form" } } } },
+      url: "/api/skill",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Reference extends HeyApiClient {
+  /**
+   * List v2 references
+   *
+   * Retrieve configured @-mention references for the requested location.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<V2ReferenceListResponses, unknown, ThrowOnError>({
+      querySerializer: { parameters: { location: { object: { style: "form" } } } },
+      url: "/api/reference",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Integration extends HeyApiClient {
+  /**
+   * List v2 integrations
+   *
+   * Retrieve integrations available at the requested location. The kernel has no integration registry yet, so this currently returns an empty list.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<V2IntegrationListResponses, unknown, ThrowOnError>({
+      querySerializer: { parameters: { location: { object: { style: "form" } } } },
+      url: "/api/integration",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Saved extends HeyApiClient {
+  /**
+   * List saved permission rules
+   *
+   * Retrieve the permission rules the user has permanently approved for a project.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      projectID?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "location" },
+            { in: "query", key: "projectID" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<V2PermissionSavedListResponses, unknown, ThrowOnError>({
+      querySerializer: { parameters: { location: { object: { style: "form" } } } },
+      url: "/api/permission/saved",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Permission3 extends HeyApiClient {
+  private _saved?: Saved
+  get saved(): Saved {
+    return (this._saved ??= new Saved({ client: this.client }))
+  }
+}
+
 export class V2 extends HeyApiClient {
   private _session?: Session4
   get session(): Session4 {
@@ -11237,6 +11689,41 @@ export class V2 extends HeyApiClient {
   private _fs?: Fs
   get fs(): Fs {
     return (this._fs ??= new Fs({ client: this.client }))
+  }
+
+  private _location?: Location
+  get location(): Location {
+    return (this._location ??= new Location({ client: this.client }))
+  }
+
+  private _agent?: Agent2
+  get agent(): Agent2 {
+    return (this._agent ??= new Agent2({ client: this.client }))
+  }
+
+  private _command?: Command2
+  get command(): Command2 {
+    return (this._command ??= new Command2({ client: this.client }))
+  }
+
+  private _skill?: Skill2
+  get skill(): Skill2 {
+    return (this._skill ??= new Skill2({ client: this.client }))
+  }
+
+  private _reference?: Reference
+  get reference(): Reference {
+    return (this._reference ??= new Reference({ client: this.client }))
+  }
+
+  private _integration?: Integration
+  get integration(): Integration {
+    return (this._integration ??= new Integration({ client: this.client }))
+  }
+
+  private _permission?: Permission3
+  get permission(): Permission3 {
+    return (this._permission ??= new Permission3({ client: this.client }))
   }
 }
 
@@ -12577,6 +13064,49 @@ export class Team extends HeyApiClient {
       url: "/team/{teamID}",
       ...options,
       ...params,
+    })
+  }
+
+  /**
+   * Update a team
+   *
+   * Rename a team, change its description, or opt it into Auto mode.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    parameters: {
+      teamID: string
+      directory?: string
+      workspace?: string
+      name?: string
+      description?: string
+      autoEligible?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "teamID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "name" },
+            { in: "body", key: "description" },
+            { in: "body", key: "autoEligible" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<TeamUpdateResponses, TeamUpdateErrors, ThrowOnError>({
+      url: "/team/{teamID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
     })
   }
 

@@ -62,6 +62,8 @@ import { Service as HookServiceService, defaultLayer as HookServiceLayer } from 
 import { Service as ToolLockServiceService, defaultLayer as ToolLockServiceLayer } from "@/tool/lock"
 import { Service as AgentMailboxService, defaultLayer as AgentMailboxLayer } from "@/team/mailbox"
 import { Service as TeamOpLogService, defaultLayer as TeamOpLogLayer, idempotencyKey } from "@/team/op-log"
+import { Service as TeamService } from "@/team/team"
+import { TeamCatalog } from "@/team/catalog"
 import { Permission } from "@/permission"
 import { SessionStatus } from "./status"
 import { LLM } from "./llm"
@@ -656,6 +658,9 @@ export const layer = Layer.effect(
     // 团队编排的工具操作日志：只有子会话被登记了编排坐标才生效，
     // 普通会话完全不受影响（serviceOption 拿不到时也自动退化）。
     const teamOps = Option.getOrUndefined(yield* Effect.serviceOption(TeamOpLogService))
+    // 团队目录：能派发谁由会话字段决定，注入内容按签名去重（见 insertReminders）。
+    const teamService = Option.getOrUndefined(yield* Effect.serviceOption(TeamService))
+    const teamCatalogSignatures = new Map<string, string>()
     const planApproval = Option.getOrUndefined(yield* Effect.serviceOption(PlanApproval.Service))
     const git = yield* Effect.serviceOption(Git.Service)
     const truncate = yield* Truncate.Service
@@ -1007,6 +1012,47 @@ export const layer = Layer.effect(
           ].join("\n"),
         })
         userMessage.parts.push(part)
+      }
+
+      // 团队目录（§4.2）：用户在输入框选了团队 / Auto，才把可用团队告诉模型。
+      // 这是选择器的唯一下游 —— 主智能体能派发的团队必须与用户看到的完全一致。
+      if (teamService) {
+        const mode = input.session.teamMode
+        if (mode && mode !== "off") {
+          const wanted = new Set(mode === "selected" ? (input.session.teamIDs ?? []) : [])
+          const entries: TeamCatalog.CatalogEntry[] = []
+          for (const team of yield* teamService.list()) {
+            if (mode === "selected" && !wanted.has(team.id)) continue
+            if (mode === "auto" && !team.autoEligible) continue
+            const root = yield* sessions.get(team.rootSessionID).pipe(Effect.catch(() => Effect.succeed(undefined)))
+            if (root && root.directory !== input.session.directory) continue
+            const members = yield* teamService.members(team.id)
+            entries.push({
+              id: team.id,
+              name: team.name,
+              description: team.description,
+              members: members.map((member) => ({ name: member.name, agent: member.agent, role: member.role })),
+            })
+          }
+          const signature = TeamCatalog.signature(mode, entries)
+          if (teamCatalogSignatures.get(input.session.id) !== signature) {
+            teamCatalogSignatures.set(input.session.id, signature)
+            const text = TeamCatalog.render(mode, entries)
+            if (text) {
+              const part = yield* sessions.updatePart({
+                id: PartID.ascending(),
+                messageID: userMessage.info.id,
+                sessionID: userMessage.info.sessionID,
+                type: "text",
+                synthetic: true,
+                text,
+              })
+              userMessage.parts.push(part)
+            }
+          }
+        } else {
+          teamCatalogSignatures.delete(input.session.id)
+        }
       }
 
       if (!flags.experimentalPlanMode) {

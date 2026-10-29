@@ -14,6 +14,8 @@ export const TeamView = Schema.Struct({
   name: Schema.String,
   description: Schema.optional(Schema.String),
   rootSessionID: Schema.String,
+  /** Auto 模式是否可以把这一队纳入候选（团队页可切换）。 */
+  autoEligible: Schema.Boolean,
 }).annotate({ identifier: "TeamView" })
 
 export const TeamUsageView = Schema.Struct({
@@ -73,6 +75,7 @@ export const TeamSummaryView = Schema.Struct({
   description: Schema.optional(Schema.String),
   rootSessionID: Schema.String,
   memberCount: Schema.Number,
+  autoEligible: Schema.Boolean,
   updatedAt: Schema.Number,
 }).annotate({ identifier: "TeamSummaryView" })
 
@@ -95,6 +98,13 @@ export const TeamCreatePayload = Schema.Struct({
   /** Agent used for the lead session; defaults to the default agent. */
   lead: Schema.optional(Schema.String),
   members: Schema.Array(TeamMemberInput),
+})
+
+export const TeamUpdatePayload = Schema.Struct({
+  name: Schema.optional(Schema.String),
+  description: Schema.optional(Schema.String),
+  /** 只有打开后，Auto 模式才会把这一队当作候选。 */
+  autoEligible: Schema.optional(Schema.Boolean),
 })
 
 export const TeamMessageSendPayload = Schema.Struct({
@@ -159,8 +169,7 @@ export const TeamApi = HttpApi.make("team")
           OpenApi.annotations({
             identifier: "team.create",
             summary: "Create a team",
-            description:
-              "Create a lead session plus one session per member agent, and register them as a team.",
+            description: "Create a lead session plus one session per member agent, and register them as a team.",
           }),
         ),
         HttpApiEndpoint.get("teamDetail", `${workspaceRoot}/:teamID`, {
@@ -173,6 +182,19 @@ export const TeamApi = HttpApi.make("team")
             identifier: "team.detail",
             summary: "Team detail",
             description: "Team, members, shared tasks, usage and chat transcript.",
+          }),
+        ),
+        HttpApiEndpoint.patch("updateTeam", `${workspaceRoot}/:teamID`, {
+          params: { teamID: Schema.String },
+          query: WorkspaceRoutingQuery,
+          payload: TeamUpdatePayload,
+          success: described(TeamDetail, "Updated team"),
+          error: [HttpApiError.BadRequest, HttpApiError.NotFound],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "team.update",
+            summary: "Update a team",
+            description: "Rename a team, change its description, or opt it into Auto mode.",
           }),
         ),
         HttpApiEndpoint.delete("removeTeam", `${workspaceRoot}/:teamID`, {

@@ -47,8 +47,11 @@ export interface Capabilities {
   readOnly?: boolean | ((args: unknown) => boolean)
   /** Tool may run concurrently with other concurrency-safe tools in the same step. */
   concurrencySafe?: boolean | ((args: unknown) => boolean)
-  /** Tool performs an irreversible operation (delete/overwrite/send). */
-  destructive?: boolean
+  /**
+   * Tool performs an irreversible operation (delete/overwrite/send).
+   * 允许按参数判定：`database_query` 只有带 `allowWrite` 时才不可逆。
+   */
+  destructive?: boolean | ((args: unknown) => boolean)
   /**
    * 同一个调用重做一次与只做一次，最终状态相同。
    *
@@ -103,8 +106,8 @@ export function idempotent(def: Pick<Def, "capabilities">, args: unknown) {
   return resolveFlag(def.capabilities?.idempotent, args, false)
 }
 
-export function destructive(def: Pick<Def, "capabilities">) {
-  return def.capabilities?.destructive === true
+export function destructive(def: Pick<Def, "capabilities">, args?: unknown) {
+  return resolveFlag(def.capabilities?.destructive, args, false)
 }
 
 export function maxResultBytes(def: Pick<Def, "capabilities">) {

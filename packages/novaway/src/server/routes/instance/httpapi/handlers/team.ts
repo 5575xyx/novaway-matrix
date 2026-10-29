@@ -67,6 +67,7 @@ export const teamHandlers = HttpApiBuilder.group(InstanceHttpApi, "team", (handl
           name: team.name,
           description: team.description,
           rootSessionID: team.rootSessionID,
+          autoEligible: team.autoEligible,
         },
         members: members.map((member) => ({
           sessionID: member.sessionID,
@@ -158,6 +159,7 @@ export const teamHandlers = HttpApiBuilder.group(InstanceHttpApi, "team", (handl
               name: team.name,
               description: team.description,
               rootSessionID: team.rootSessionID,
+              autoEligible: team.autoEligible,
             },
             members: members.map((member) => ({
               sessionID: member.sessionID,
@@ -215,6 +217,7 @@ export const teamHandlers = HttpApiBuilder.group(InstanceHttpApi, "team", (handl
                   description: team.description,
                   rootSessionID: team.rootSessionID,
                   memberCount: members.length,
+                  autoEligible: team.autoEligible,
                   updatedAt: team.updatedAt,
                 }
               }),
@@ -260,6 +263,24 @@ export const teamHandlers = HttpApiBuilder.group(InstanceHttpApi, "team", (handl
           if (!team) return yield* Effect.fail(new HttpApiError.NotFound({}))
           return yield* detail(team)
         }).pipe(Effect.catchCause(() => Effect.fail(new HttpApiError.NotFound({})))),
+      )
+      .handle("updateTeam", (ctx) =>
+        Effect.gen(function* () {
+          const team = yield* teams.get(ctx.params.teamID)
+          if (!team) return yield* Effect.fail(new HttpApiError.NotFound({}))
+          // 只把显式给出的字段写下去：`undefined` 表示「不改」，不能当成清空。
+          const name = ctx.payload.name?.trim()
+          const description = ctx.payload.description?.trim()
+          if (ctx.payload.name !== undefined && !name) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+          const updated = yield* teams.update({
+            teamID: team.id,
+            ...(name ? { name } : {}),
+            ...(description !== undefined ? { description } : {}),
+            ...(ctx.payload.autoEligible !== undefined ? { autoEligible: ctx.payload.autoEligible } : {}),
+          })
+          if (!updated) return yield* Effect.fail(new HttpApiError.NotFound({}))
+          return yield* detail(updated)
+        }).pipe(Effect.catchCause(() => Effect.fail(new HttpApiError.BadRequest({})))),
       )
       .handle("removeTeam", (ctx) =>
         Effect.gen(function* () {

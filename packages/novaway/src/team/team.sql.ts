@@ -8,6 +8,13 @@ export const TeamTable = sqliteTable(
     name: text().notNull(),
     description: text(),
     root_session_id: text().$type<SessionID>().notNull(),
+    /**
+     * 是否允许 Auto 模式自动选中这个团队。
+     *
+     * 默认关闭：Auto 会把团队目录交给主智能体自行派发，等于放宽「谁可以被自动
+     * 叫起来」。带写操作或会产生外部影响的团队必须由用户显式打开。
+     */
+    auto_eligible: integer().notNull().default(0),
     created_at: integer().notNull(),
     updated_at: integer().notNull(),
   },

@@ -9,6 +9,8 @@ export type Team = {
   name: string
   description?: string
   rootSessionID: SessionID
+  /** 允许 Auto 模式自动选中（默认关闭，见 `TeamTable.auto_eligible`）。 */
+  autoEligible: boolean
   createdAt: number
   updatedAt: number
 }
@@ -39,7 +41,12 @@ export interface Interface {
     agent: string
     memberName?: string
   }) => Effect.Effect<Team>
-  readonly update: (input: { teamID: string; name?: string; description?: string }) => Effect.Effect<Team | undefined>
+  readonly update: (input: {
+    teamID: string
+    name?: string
+    description?: string
+    autoEligible?: boolean
+  }) => Effect.Effect<Team | undefined>
   readonly get: (id: string) => Effect.Effect<Team | undefined>
   readonly resolve: (idOrName: string, rootSessionID?: SessionID) => Effect.Effect<Team | undefined>
   readonly list: (rootSessionID?: SessionID) => Effect.Effect<Team[]>
@@ -75,6 +82,7 @@ function toTeam(row: typeof TeamTable.$inferSelect): Team {
     name: row.name,
     description: row.description ?? undefined,
     rootSessionID: row.root_session_id,
+    autoEligible: row.auto_eligible === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -125,6 +133,7 @@ export const layer = Layer.effect(
         name: input.name,
         description: input.description,
         rootSessionID: input.rootSessionID,
+        autoEligible: false,
         createdAt: now,
         updatedAt: now,
       }
@@ -173,6 +182,8 @@ export const layer = Layer.effect(
             id: id(),
             name: input.name,
             rootSessionID: input.rootSessionID,
+            // 内核自动建的团队不进 Auto 池：它连名字都是默认的，用户没批准过。
+            autoEligible: false,
             createdAt: now,
             updatedAt: now,
           }
@@ -213,6 +224,7 @@ export const layer = Layer.effect(
             .set({
               ...(input.name !== undefined ? { name: input.name } : {}),
               ...(input.description !== undefined ? { description: input.description } : {}),
+              ...(input.autoEligible !== undefined ? { auto_eligible: input.autoEligible ? 1 : 0 } : {}),
               updated_at: now,
             })
             .where(eq(TeamTable.id, input.teamID))

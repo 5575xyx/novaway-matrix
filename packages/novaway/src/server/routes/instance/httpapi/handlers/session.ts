@@ -157,7 +157,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       )
     })
 
-    const create = Effect.fn("SessionHttpApi.create")(function* (ctx: { payload?: Session.CreateInput }) {
+    const create = Effect.fn("SessionHttpApi.create")(function* (ctx: { payload?: Session.CreateParams }) {
       return yield* shareSvc.create(ctx.payload)
     })
 
@@ -207,6 +207,24 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
           Effect.catch(() => Effect.succeed(false)),
         )
         if (!moved) yield* Effect.fail(new HttpApiError.BadRequest({}))
+      }
+      if (ctx.payload.teamMode !== undefined) {
+        // `selected` 没给 ID 等于「选了空集」，会让目录注入变成空列表 —— 直接拒绝，
+        // 而不是让用户的点击悄无声息地失效。
+        if (ctx.payload.teamMode === "selected" && !ctx.payload.teamIDs?.length) {
+          yield* Effect.fail(new HttpApiError.BadRequest({}))
+        }
+        yield* session.setTeamMode({
+          sessionID: ctx.params.sessionID,
+          mode: ctx.payload.teamMode,
+          teamIDs: ctx.payload.teamIDs,
+        })
+      } else if (ctx.payload.teamIDs !== undefined && current.teamMode === "selected") {
+        yield* session.setTeamMode({
+          sessionID: ctx.params.sessionID,
+          mode: "selected",
+          teamIDs: ctx.payload.teamIDs,
+        })
       }
       if (ctx.payload.time?.archived !== undefined) {
         yield* session.setArchived({ sessionID: ctx.params.sessionID, time: ctx.payload.time.archived })

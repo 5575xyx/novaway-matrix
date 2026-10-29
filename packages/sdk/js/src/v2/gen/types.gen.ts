@@ -15,17 +15,23 @@ export type Event =
   | EventConfigUpdated
   | EventFileEdited
   | EventFileWatcherUpdated
-  | EventBackgroundStarted
-  | EventBackgroundUpdated
-  | EventBackgroundCompleted
   | EventLspClientDiagnostics
   | EventLspUpdated
   | EventMessagePartDelta
+  | EventCatalogUpdated
   | EventPlanApprovalRequested
   | EventPlanApprovalResolved
   | EventHookActive
   | EventPermissionAsked
   | EventPermissionReplied
+  | EventQuestionAsked
+  | EventQuestionReplied
+  | EventQuestionRejected
+  | EventQuestionFeishuReplied
+  | EventTodoUpdated
+  | EventBackgroundStarted
+  | EventBackgroundUpdated
+  | EventBackgroundCompleted
   | EventMemoryReviewUpdated
   | EventMcpToolsChanged
   | EventMcpBrowserOpenFailed
@@ -34,11 +40,6 @@ export type Event =
   | EventEvolutionAutoApplyFileFailed
   | EventSessionDiff
   | EventSessionError
-  | EventQuestionAsked
-  | EventQuestionReplied
-  | EventQuestionRejected
-  | EventQuestionFeishuReplied
-  | EventTodoUpdated
   | EventSessionStatus
   | EventSessionIdle
   | EventProjectUpdated
@@ -175,20 +176,6 @@ export type EventTuiSessionSelect = {
   }
 }
 
-export type BackgroundJobInfo = {
-  id: string
-  type: string
-  title?: string
-  status: "running" | "completed" | "error" | "cancelled"
-  started_at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-  completed_at?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-  output?: string
-  error?: string
-  metadata?: {
-    [key: string]: unknown
-  }
-}
-
 export type PlanRequestId = string
 
 export type PlanApprovalPending = {
@@ -222,75 +209,6 @@ export type PermissionRequest = {
   tool?: {
     messageID: string
     callID: string
-  }
-}
-
-export type SnapshotFileDiff = {
-  file?: string
-  patch?: string
-  additions: number
-  deletions: number
-  status?: "added" | "deleted" | "modified"
-}
-
-export type ProviderAuthError = {
-  name: "ProviderAuthError"
-  data: {
-    providerID: string
-    message: string
-  }
-}
-
-export type UnknownError = {
-  name: "UnknownError"
-  data: {
-    message: string
-  }
-}
-
-export type MessageOutputLengthError = {
-  name: "MessageOutputLengthError"
-  data: {
-    [key: string]: unknown
-  }
-}
-
-export type MessageAbortedError = {
-  name: "MessageAbortedError"
-  data: {
-    message: string
-  }
-}
-
-export type StructuredOutputError = {
-  name: "StructuredOutputError"
-  data: {
-    message: string
-    retries: number
-  }
-}
-
-export type ContextOverflowError = {
-  name: "ContextOverflowError"
-  data: {
-    message: string
-    responseBody?: string
-  }
-}
-
-export type ApiError = {
-  name: "APIError"
-  data: {
-    message: string
-    statusCode?: number
-    isRetryable: boolean
-    responseHeaders?: {
-      [key: string]: string
-    }
-    responseBody?: string
-    metadata?: {
-      [key: string]: string
-    }
   }
 }
 
@@ -372,6 +290,89 @@ export type Todo = {
    * ID of the goal this todo is associated with
    */
   goalId?: string
+}
+
+export type BackgroundJobInfo = {
+  id: string
+  type: string
+  title?: string
+  status: "running" | "completed" | "error" | "cancelled"
+  started_at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  completed_at?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  output?: string
+  error?: string
+  metadata?: {
+    [key: string]: unknown
+  }
+}
+
+export type SnapshotFileDiff = {
+  file?: string
+  patch?: string
+  additions: number
+  deletions: number
+  status?: "added" | "deleted" | "modified"
+}
+
+export type ProviderAuthError = {
+  name: "ProviderAuthError"
+  data: {
+    providerID: string
+    message: string
+  }
+}
+
+export type UnknownError = {
+  name: "UnknownError"
+  data: {
+    message: string
+  }
+}
+
+export type MessageOutputLengthError = {
+  name: "MessageOutputLengthError"
+  data: {
+    [key: string]: unknown
+  }
+}
+
+export type MessageAbortedError = {
+  name: "MessageAbortedError"
+  data: {
+    message: string
+  }
+}
+
+export type StructuredOutputError = {
+  name: "StructuredOutputError"
+  data: {
+    message: string
+    retries: number
+  }
+}
+
+export type ContextOverflowError = {
+  name: "ContextOverflowError"
+  data: {
+    message: string
+    responseBody?: string
+  }
+}
+
+export type ApiError = {
+  name: "APIError"
+  data: {
+    message: string
+    statusCode?: number
+    isRetryable: boolean
+    responseHeaders?: {
+      [key: string]: string
+    }
+    responseBody?: string
+    metadata?: {
+      [key: string]: string
+    }
+  }
 }
 
 export type SessionStatus =
@@ -835,6 +836,8 @@ export type Session = {
   }
   permission?: PermissionRuleset
   permissionMode?: PermissionMode
+  teamMode?: "off" | "auto" | "selected"
+  teamIDs?: Array<string>
   revert?: {
     messageID: string
     partID?: string
@@ -866,17 +869,23 @@ export type GlobalEvent = {
     | EventConfigUpdated
     | EventFileEdited
     | EventFileWatcherUpdated
-    | EventBackgroundStarted
-    | EventBackgroundUpdated
-    | EventBackgroundCompleted
     | EventLspClientDiagnostics
     | EventLspUpdated
     | EventMessagePartDelta
+    | EventCatalogUpdated
     | EventPlanApprovalRequested
     | EventPlanApprovalResolved
     | EventHookActive
     | EventPermissionAsked
     | EventPermissionReplied
+    | EventQuestionAsked
+    | EventQuestionReplied
+    | EventQuestionRejected
+    | EventQuestionFeishuReplied
+    | EventTodoUpdated
+    | EventBackgroundStarted
+    | EventBackgroundUpdated
+    | EventBackgroundCompleted
     | EventMemoryReviewUpdated
     | EventMcpToolsChanged
     | EventMcpBrowserOpenFailed
@@ -885,11 +894,6 @@ export type GlobalEvent = {
     | EventEvolutionAutoApplyFileFailed
     | EventSessionDiff
     | EventSessionError
-    | EventQuestionAsked
-    | EventQuestionReplied
-    | EventQuestionRejected
-    | EventQuestionFeishuReplied
-    | EventTodoUpdated
     | EventSessionStatus
     | EventSessionIdle
     | EventProjectUpdated
@@ -1722,6 +1726,8 @@ export type GlobalSession = {
   }
   permission?: PermissionRuleset
   permissionMode?: PermissionMode
+  teamMode?: "off" | "auto" | "selected"
+  teamIDs?: Array<string>
   revert?: {
     messageID: string
     partID?: string
@@ -2030,6 +2036,8 @@ export type DatabaseType =
   | "clickhouse"
   | "starrocks"
   | "doris"
+  | "sqlserver"
+  | "oracle"
 
 export type DatabaseConnection = {
   id: string
@@ -2820,6 +2828,8 @@ export type ProjectDirectory = {
   strategy?: string
 }
 
+export type ProjectDirectories = Array<ProjectDirectory>
+
 export type EffectHttpApiErrorForbidden = {
   _tag: "Forbidden"
 }
@@ -2991,12 +3001,125 @@ export type V2SessionsResponse = {
   }
 }
 
+export type ModelRef = {
+  id: string
+  providerID: string
+  variant?: string
+}
+
+export type V2SessionTokens = {
+  input: number
+  output: number
+  reasoning: number
+  cache: {
+    read: number
+    write: number
+  }
+}
+
+export type V2SessionTime = {
+  created: number
+  updated: number
+  archived?: number
+}
+
+export type LocationRef = {
+  directory: string
+  workspaceID?: string
+}
+
+export type SessionV2Info = {
+  id: string
+  parentID?: string
+  projectID: string
+  agent?: string
+  model?: ModelRef
+  cost: number
+  tokens: V2SessionTokens
+  time: V2SessionTime
+  title: string
+  location: LocationRef
+  subpath?: string
+}
+
+export type V2SessionGetResponse = {
+  data: SessionV2Info
+}
+
+export type V2PermissionSource = {
+  type: "tool"
+  messageID: string
+  callID: string
+}
+
+export type PermissionV2Request = {
+  id: string
+  sessionID: string
+  action: string
+  resources: Array<string>
+  save?: Array<string>
+  metadata?: {
+    [key: string]: unknown
+  }
+  source?: V2PermissionSource
+}
+
+export type V2SessionPermissionListResponse = {
+  data: Array<PermissionV2Request>
+}
+
+export type QuestionV2Info = {
+  question: string
+  header: string
+  options: Array<{
+    label: string
+    description: string
+  }>
+  multiple?: boolean
+  custom?: boolean
+}
+
+export type QuestionV2Tool = {
+  messageID: string
+  callID: string
+}
+
+export type QuestionV2Request = {
+  id: string
+  sessionID: string
+  questions: Array<QuestionV2Info>
+  tool?: QuestionV2Tool
+}
+
+export type V2SessionQuestionListResponse = {
+  data: Array<QuestionV2Request>
+}
+
 export type V2SessionMessagesResponse = {
-  items: Array<SessionMessage>
+  data: Array<SessionMessage>
   cursor: {
     previous?: string
     next?: string
   }
+}
+
+export type LocationInfo = {
+  directory: string
+  workspaceID?: string
+  project: {
+    id: string
+    directory: string
+  }
+}
+
+export type V2ModelListResponse = {
+  location: LocationInfo
+  data: Array<ModelV2Info>
+}
+
+export type V2ProviderListResponse = {
+  location: LocationInfo
+  data: Array<ProviderV2Info>
 }
 
 export type V2LocationInfo = {
@@ -3016,6 +3139,117 @@ export type FileSystemEntry = {
 export type V2FsFindResponse = {
   location: V2LocationInfo
   data: Array<FileSystemEntry>
+}
+
+export type V2RequestEnvelope = {
+  headers: {
+    [key: string]: string
+  }
+  body: {
+    [key: string]: unknown
+  }
+}
+
+export type PermissionRule1 = {
+  action: string
+  resource: string
+  effect: "allow" | "deny" | "ask"
+}
+
+export type AgentV2Info = {
+  id: string
+  model?: ModelRef
+  request: V2RequestEnvelope
+  system?: string
+  description?: string
+  mode: "subagent" | "primary" | "all"
+  hidden: boolean
+  color?: string
+  steps?: number
+  permissions: Array<PermissionRule1>
+}
+
+export type V2AgentListResponse = {
+  location: LocationInfo
+  data: Array<AgentV2Info>
+}
+
+export type CommandV2Info = {
+  name: string
+  template: string
+  description?: string
+  agent?: string
+  model?: ModelRef
+  subtask?: boolean
+}
+
+export type V2CommandListResponse = {
+  location: LocationInfo
+  data: Array<CommandV2Info>
+}
+
+export type SkillV2Info = {
+  name: string
+  description?: string
+  slash?: boolean
+  location: string
+  content: string
+}
+
+export type V2SkillListResponse = {
+  location: LocationInfo
+  data: Array<SkillV2Info>
+}
+
+export type ReferenceLocalSource = {
+  type: "local"
+  path: string
+  description?: string
+  hidden?: boolean
+}
+
+export type ReferenceGitSource = {
+  type: "git"
+  repository: string
+  branch?: string
+  description?: string
+  hidden?: boolean
+}
+
+export type ReferenceInfo = {
+  name: string
+  path: string
+  description?: string
+  hidden?: boolean
+  source: ReferenceLocalSource | ReferenceGitSource
+}
+
+export type V2ReferenceListResponse = {
+  location: LocationInfo
+  data: Array<ReferenceInfo>
+}
+
+export type IntegrationInfo = {
+  id: string
+  name: string
+  methods: Array<unknown>
+  connections: Array<unknown>
+}
+
+export type V2IntegrationListResponse = {
+  location: LocationInfo
+  data: Array<IntegrationInfo>
+}
+
+export type PermissionSavedInfo = {
+  id: string
+  projectID: string
+  action: string
+  resource: string
+}
+
+export type V2PermissionSavedListResponse = {
+  data: Array<PermissionSavedInfo>
 }
 
 export type VideoGeneratePayload = {
@@ -3110,6 +3344,7 @@ export type TeamView = {
   name: string
   description?: string
   rootSessionID: string
+  autoEligible: boolean
 }
 
 export type TeamUsageView = {
@@ -3156,6 +3391,7 @@ export type TeamSummaryView = {
   description?: string
   rootSessionID: string
   memberCount: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  autoEligible: boolean
   updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
 }
 
@@ -3276,20 +3512,6 @@ export type RunEventView = {
   payload?: unknown
 }
 
-export type BackgroundJobInfo1 = {
-  id: string
-  type: string
-  title?: string
-  status: "running" | "completed" | "error" | "cancelled"
-  started_at: number | "NaN" | "Infinity" | "-Infinity"
-  completed_at?: number | "NaN" | "Infinity" | "-Infinity"
-  output?: string
-  error?: string
-  metadata?: {
-    [key: string]: unknown
-  }
-}
-
 export type PlanApprovalPending2 = {
   id: PlanRequestId
   sessionID: string
@@ -3307,6 +3529,20 @@ export type HookActive1 = {
   message: string
   sessionID?: string
   startedAt: number | "NaN" | "Infinity" | "-Infinity"
+}
+
+export type BackgroundJobInfo1 = {
+  id: string
+  type: string
+  title?: string
+  status: "running" | "completed" | "error" | "cancelled"
+  started_at: number | "NaN" | "Infinity" | "-Infinity"
+  completed_at?: number | "NaN" | "Infinity" | "-Infinity"
+  output?: string
+  error?: string
+  metadata?: {
+    [key: string]: unknown
+  }
 }
 
 export type SyncEventMessageUpdated = {
@@ -3893,30 +4129,6 @@ export type EventFileWatcherUpdated = {
   }
 }
 
-export type EventBackgroundStarted = {
-  id: string
-  type: "background.started"
-  properties: {
-    info: BackgroundJobInfo
-  }
-}
-
-export type EventBackgroundUpdated = {
-  id: string
-  type: "background.updated"
-  properties: {
-    info: BackgroundJobInfo
-  }
-}
-
-export type EventBackgroundCompleted = {
-  id: string
-  type: "background.completed"
-  properties: {
-    info: BackgroundJobInfo
-  }
-}
-
 export type EventLspClientDiagnostics = {
   id: string
   type: "lsp.client.diagnostics"
@@ -3943,6 +4155,14 @@ export type EventMessagePartDelta = {
     partID: string
     field: string
     delta: string
+  }
+}
+
+export type EventCatalogUpdated = {
+  id: string
+  type: "catalog.updated"
+  properties: {
+    [key: string]: unknown
   }
 }
 
@@ -3982,6 +4202,63 @@ export type EventPermissionReplied = {
     sessionID: string
     requestID: string
     reply: "once" | "always" | "reject"
+  }
+}
+
+export type EventQuestionAsked = {
+  id: string
+  type: "question.asked"
+  properties: QuestionRequest
+}
+
+export type EventQuestionReplied = {
+  id: string
+  type: "question.replied"
+  properties: QuestionReplied
+}
+
+export type EventQuestionRejected = {
+  id: string
+  type: "question.rejected"
+  properties: QuestionRejected
+}
+
+export type EventQuestionFeishuReplied = {
+  id: string
+  type: "question.feishu.replied"
+  properties: QuestionFeishuReplied
+}
+
+export type EventTodoUpdated = {
+  id: string
+  type: "todo.updated"
+  properties: {
+    sessionID: string
+    todos: Array<Todo>
+  }
+}
+
+export type EventBackgroundStarted = {
+  id: string
+  type: "background.started"
+  properties: {
+    info: BackgroundJobInfo
+  }
+}
+
+export type EventBackgroundUpdated = {
+  id: string
+  type: "background.updated"
+  properties: {
+    info: BackgroundJobInfo
+  }
+}
+
+export type EventBackgroundCompleted = {
+  id: string
+  type: "background.completed"
+  properties: {
+    info: BackgroundJobInfo
   }
 }
 
@@ -4064,39 +4341,6 @@ export type EventSessionError = {
       | StructuredOutputError
       | ContextOverflowError
       | ApiError
-  }
-}
-
-export type EventQuestionAsked = {
-  id: string
-  type: "question.asked"
-  properties: QuestionRequest
-}
-
-export type EventQuestionReplied = {
-  id: string
-  type: "question.replied"
-  properties: QuestionReplied
-}
-
-export type EventQuestionRejected = {
-  id: string
-  type: "question.rejected"
-  properties: QuestionRejected
-}
-
-export type EventQuestionFeishuReplied = {
-  id: string
-  type: "question.feishu.replied"
-  properties: QuestionFeishuReplied
-}
-
-export type EventTodoUpdated = {
-  id: string
-  type: "todo.updated"
-  properties: {
-    sessionID: string
-    todos: Array<Todo>
   }
 }
 
@@ -9703,6 +9947,7 @@ export type VcsDiffData = {
     directory?: string
     workspace?: string
     mode: "git" | "branch"
+    context?: string
   }
   url: "/vcs/diff"
 }
@@ -12204,7 +12449,7 @@ export type ProjectDirectoriesResponses = {
   /**
    * Project directories
    */
-  200: Array<ProjectDirectory>
+  200: ProjectDirectories
 }
 
 export type ProjectDirectoriesResponse = ProjectDirectoriesResponses[keyof ProjectDirectoriesResponses]
@@ -12753,6 +12998,8 @@ export type SessionCreateData = {
     }
     permission?: PermissionRuleset
     permissionMode?: PermissionMode
+    teamMode?: "off" | "auto" | "selected"
+    teamIDs?: Array<string>
     workspaceID?: string
   }
   path?: never
@@ -12884,6 +13131,8 @@ export type SessionUpdateData = {
     title?: string
     permission?: PermissionRuleset
     permissionMode?: PermissionMode
+    teamMode?: "off" | "auto" | "selected"
+    teamIDs?: Array<string>
     cwd?: string
     time?: {
       archived?: number
@@ -14722,6 +14971,90 @@ export type V2SessionContextResponses = {
 
 export type V2SessionContextResponse = V2SessionContextResponses[keyof V2SessionContextResponses]
 
+export type V2SessionGetData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/session/{sessionID}"
+}
+
+export type V2SessionGetErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type V2SessionGetError = V2SessionGetErrors[keyof V2SessionGetErrors]
+
+export type V2SessionGetResponses = {
+  /**
+   * V2SessionGetResponse
+   */
+  200: V2SessionGetResponse
+}
+
+export type V2SessionGetResponse2 = V2SessionGetResponses[keyof V2SessionGetResponses]
+
+export type V2SessionPermissionListData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/session/{sessionID}/permission"
+}
+
+export type V2SessionPermissionListResponses = {
+  /**
+   * V2SessionPermissionListResponse
+   */
+  200: V2SessionPermissionListResponse
+}
+
+export type V2SessionPermissionListResponse2 = V2SessionPermissionListResponses[keyof V2SessionPermissionListResponses]
+
+export type V2SessionQuestionListData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/session/{sessionID}/question"
+}
+
+export type V2SessionQuestionListResponses = {
+  /**
+   * V2SessionQuestionListResponse
+   */
+  200: V2SessionQuestionListResponse
+}
+
+export type V2SessionQuestionListResponse2 = V2SessionQuestionListResponses[keyof V2SessionQuestionListResponses]
+
 export type V2SessionMessagesData = {
   body?: never
   path: {
@@ -14762,6 +15095,8 @@ export type V2ModelListData = {
   body?: never
   path?: never
   query?: {
+    directory?: string
+    workspace?: string
     location?: {
       directory?: string
       workspace?: string
@@ -14772,33 +15107,12 @@ export type V2ModelListData = {
 
 export type V2ModelListResponses = {
   /**
-   * Success
+   * V2ModelListResponse
    */
-  200: Array<ModelV2Info>
+  200: V2ModelListResponse
 }
 
-export type V2ModelListResponse = V2ModelListResponses[keyof V2ModelListResponses]
-
-export type V2ProviderListData = {
-  body?: never
-  path?: never
-  query?: {
-    location?: {
-      directory?: string
-      workspace?: string
-    }
-  }
-  url: "/api/provider"
-}
-
-export type V2ProviderListResponses = {
-  /**
-   * Success
-   */
-  200: Array<ProviderV2Info>
-}
-
-export type V2ProviderListResponse = V2ProviderListResponses[keyof V2ProviderListResponses]
+export type V2ModelListResponse2 = V2ModelListResponses[keyof V2ModelListResponses]
 
 export type V2ProviderGetData = {
   body?: never
@@ -14832,6 +15146,29 @@ export type V2ProviderGetResponses = {
 
 export type V2ProviderGetResponse = V2ProviderGetResponses[keyof V2ProviderGetResponses]
 
+export type V2ProviderListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/provider"
+}
+
+export type V2ProviderListResponses = {
+  /**
+   * V2ProviderListResponse
+   */
+  200: V2ProviderListResponse
+}
+
+export type V2ProviderListResponse2 = V2ProviderListResponses[keyof V2ProviderListResponses]
+
 export type V2FsFindData = {
   body?: never
   path?: never
@@ -14853,6 +15190,168 @@ export type V2FsFindResponses = {
 }
 
 export type V2FsFindResponse2 = V2FsFindResponses[keyof V2FsFindResponses]
+
+export type V2LocationGetData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/location"
+}
+
+export type V2LocationGetResponses = {
+  /**
+   * LocationInfo
+   */
+  200: LocationInfo
+}
+
+export type V2LocationGetResponse = V2LocationGetResponses[keyof V2LocationGetResponses]
+
+export type V2AgentListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/agent"
+}
+
+export type V2AgentListResponses = {
+  /**
+   * V2AgentListResponse
+   */
+  200: V2AgentListResponse
+}
+
+export type V2AgentListResponse2 = V2AgentListResponses[keyof V2AgentListResponses]
+
+export type V2CommandListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/command"
+}
+
+export type V2CommandListResponses = {
+  /**
+   * V2CommandListResponse
+   */
+  200: V2CommandListResponse
+}
+
+export type V2CommandListResponse2 = V2CommandListResponses[keyof V2CommandListResponses]
+
+export type V2SkillListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/skill"
+}
+
+export type V2SkillListResponses = {
+  /**
+   * V2SkillListResponse
+   */
+  200: V2SkillListResponse
+}
+
+export type V2SkillListResponse2 = V2SkillListResponses[keyof V2SkillListResponses]
+
+export type V2ReferenceListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/reference"
+}
+
+export type V2ReferenceListResponses = {
+  /**
+   * V2ReferenceListResponse
+   */
+  200: V2ReferenceListResponse
+}
+
+export type V2ReferenceListResponse2 = V2ReferenceListResponses[keyof V2ReferenceListResponses]
+
+export type V2IntegrationListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/integration"
+}
+
+export type V2IntegrationListResponses = {
+  /**
+   * V2IntegrationListResponse
+   */
+  200: V2IntegrationListResponse
+}
+
+export type V2IntegrationListResponse2 = V2IntegrationListResponses[keyof V2IntegrationListResponses]
+
+export type V2PermissionSavedListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    projectID?: string
+  }
+  url: "/api/permission/saved"
+}
+
+export type V2PermissionSavedListResponses = {
+  /**
+   * V2PermissionSavedListResponse
+   */
+  200: V2PermissionSavedListResponse
+}
+
+export type V2PermissionSavedListResponse2 = V2PermissionSavedListResponses[keyof V2PermissionSavedListResponses]
 
 export type VideosGenerateData = {
   body?: VideoGeneratePayload
@@ -16087,6 +16586,44 @@ export type TeamDetailResponses = {
 }
 
 export type TeamDetailResponse = TeamDetailResponses[keyof TeamDetailResponses]
+
+export type TeamUpdateData = {
+  body?: {
+    name?: string
+    description?: string
+    autoEligible?: boolean
+  }
+  path: {
+    teamID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/{teamID}"
+}
+
+export type TeamUpdateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type TeamUpdateError = TeamUpdateErrors[keyof TeamUpdateErrors]
+
+export type TeamUpdateResponses = {
+  /**
+   * Updated team
+   */
+  200: TeamDetail
+}
+
+export type TeamUpdateResponse = TeamUpdateResponses[keyof TeamUpdateResponses]
 
 export type TeamMemberAddData = {
   body?: {

@@ -32,6 +32,7 @@ import { IconButton } from "@novaway/ui/icon-button"
 import { Select } from "@novaway/ui/select"
 import { Switch } from "@novaway/ui/switch"
 import { PermissionModeSelect } from "@/components/permission-mode-select"
+import { TeamModeSelect } from "@/components/team-mode-select"
 import { SessionBackgroundTrigger } from "@/components/session-background-trigger"
 import { agentForPermission, permissionForAgent } from "@/context/agent-permission"
 import { useDialog } from "@novaway/ui/context/dialog"
@@ -2393,6 +2394,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
               {/* 权限模式与上下文占用放到输入框底部：顶部工具条在右侧面板展开后
                   会被模型名/思考强度挤满，这几个入口挪到底部反而更稳、更顺手
                   （也是 ZCode 的摆放：+ 之后跟模式与用量）。 */}
+              {/* 团队选择写的是会话字段（teamMode/teamIDs），内核据此注入目录；
+                  没有可选团队时它自己不渲染，footer 不会多一个空入口。 */}
+              <TeamModeSelect sessionID={params.id} />
               <div data-component="prompt-auto-accept" class="flex items-center">
                 <PermissionModeSelect
                   sessionID={params.id}

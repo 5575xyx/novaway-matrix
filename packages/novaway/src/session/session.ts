@@ -133,6 +133,8 @@ export function fromRow(row: SessionRow): Info {
     revert,
     permission: row.permission ?? undefined,
     permissionMode: (row.permission_mode ?? undefined) as Permission.Mode | undefined,
+    teamMode: (row.team_mode ?? undefined) as Info["teamMode"],
+    teamIDs: row.team_ids ?? undefined,
     time: {
       created: row.time_created,
       updated: row.time_updated,
@@ -169,6 +171,8 @@ export function toRow(info: Info) {
     revert: info.revert ?? null,
     permission: info.permission,
     permission_mode: info.permissionMode ?? null,
+    team_mode: info.teamMode ?? null,
+    team_ids: info.teamIDs ?? null,
     time_created: info.time.created,
     time_updated: info.time.updated,
     time_compacting: info.time.compacting,
@@ -258,6 +262,15 @@ export const Info = Schema.Struct({
   permission: optionalOmitUndefined(Permission.Ruleset),
   /** Session-scoped permission mode; falls back to config when unset. */
   permissionMode: optionalOmitUndefined(Permission.Mode),
+  /**
+   * 团队目录注入模式（§4.2）：
+   * - `off`：不注入团队目录，主智能体不会调用 `team_run`；
+   * - `selected`：只注入 `teamIDs` 里的团队；
+   * - `auto`：注入全部 `autoEligible` 团队，允许主智能体自行选择，但每次派发
+   *   都必须先给出计划并**等用户批准**。
+   */
+  teamMode: optionalOmitUndefined(Schema.Literals(["off", "auto", "selected"])),
+  teamIDs: optionalOmitUndefined(Schema.Array(Schema.String)),
   revert: optionalOmitUndefined(Revert),
 }).annotate({ identifier: "Session" })
 export type Info = Types.DeepMutable<Schema.Schema.Type<typeof Info>>
@@ -283,10 +296,18 @@ export const CreateInput = Schema.optional(
     model: Schema.optional(Model),
     permission: Schema.optional(Permission.Ruleset),
     permissionMode: Schema.optional(Permission.Mode),
+    /** 建会话时就带上团队选择：新会话的首条消息也能直接派发。 */
+    teamMode: Schema.optional(Schema.Literals(["off", "auto", "selected"])),
+    teamIDs: Schema.optional(Schema.Array(Schema.String)),
     workspaceID: Schema.optional(WorkspaceID),
   }),
 )
 export type CreateInput = Types.DeepMutable<Schema.Schema.Type<typeof CreateInput>>
+/**
+ * 建会话入参的只读形态：HTTP 层解码出来的就是它，可以直接往下传，
+ * 不必为了绕过 `readonly` 数组再拷贝一遍。
+ */
+export type CreateParams = NonNullable<Schema.Schema.Type<typeof CreateInput>>
 
 export const ForkInput = Schema.Struct({
   sessionID: SessionID,
@@ -501,6 +522,8 @@ export interface Interface {
     model?: Schema.Schema.Type<typeof Model>
     permission?: Permission.Ruleset
     permissionMode?: Permission.Mode
+    teamMode?: Info["teamMode"]
+    teamIDs?: readonly string[]
     workspaceID?: WorkspaceID
     directory?: string
   }) => Effect.Effect<Info>
@@ -523,6 +546,17 @@ export interface Interface {
   readonly setPermissionMode: (input: {
     sessionID: SessionID
     mode: Permission.Mode | undefined
+  }) => Effect.Effect<void>
+  /**
+   * 设置团队目录注入模式。
+   *
+   * `selected` 需要同时给出 `teamIDs`；切到 `off` / `auto` 时 ID 会被清空 ——
+   * 否则下次切回 `selected` 会带回已经删掉的团队。
+   */
+  readonly setTeamMode: (input: {
+    sessionID: SessionID
+    mode: Info["teamMode"]
+    teamIDs?: readonly string[]
   }) => Effect.Effect<void>
   /**
    * Change the working directory of a live session.
@@ -660,8 +694,14 @@ const rawLayer: Layer.Layer<
       path?: string
       permission?: Permission.Ruleset
       permissionMode?: Permission.Mode
+      teamMode?: Info["teamMode"]
+      teamIDs?: readonly string[]
     }) {
       const ctx = yield* InstanceState.context
+      // 团队选择只在 `selected` 下有意义：其它模式一律不留 teamIDs，
+      // 免得切回去时带上一批已删除的团队。
+      const teamMode = input.teamMode
+      const teamIDs = teamMode === "selected" ? [...(input.teamIDs ?? [])] : undefined
       const result: Info = {
         id: SessionID.descending(input.id),
         slug: Slug.create(),
@@ -676,6 +716,8 @@ const rawLayer: Layer.Layer<
         model: input.model,
         permission: input.permission,
         permissionMode: input.permissionMode,
+        teamMode,
+        teamIDs,
         cost: 0,
         tokens: EmptyTokens,
         time: {
@@ -802,6 +844,8 @@ const rawLayer: Layer.Layer<
       model?: Schema.Schema.Type<typeof Model>
       permission?: Permission.Ruleset
       permissionMode?: Permission.Mode
+      teamMode?: Info["teamMode"]
+      teamIDs?: readonly string[]
       workspaceID?: WorkspaceID
       directory?: string
     }) {
@@ -816,6 +860,8 @@ const rawLayer: Layer.Layer<
         model: input?.model,
         permission: input?.permission,
         permissionMode: input?.permissionMode,
+        teamMode: input?.teamMode,
+        teamIDs: input?.teamIDs,
         workspaceID: input?.workspaceID ?? workspace,
       })
     })
@@ -910,6 +956,19 @@ const rawLayer: Layer.Layer<
     }) {
       yield* patch(input.sessionID, {
         permissionMode: input.mode,
+        time: { updated: Date.now() },
+      } as Patch)
+    })
+
+    const setTeamMode = Effect.fn("Session.setTeamMode")(function* (input: {
+      sessionID: SessionID
+      mode: Info["teamMode"]
+      teamIDs?: readonly string[]
+    }) {
+      yield* patch(input.sessionID, {
+        // `off` 时同时清空 ID：否则重新打开 selected 会带回已删掉的团队。
+        teamMode: input.mode ?? null,
+        teamIDs: input.mode === "selected" ? [...(input.teamIDs ?? [])] : null,
         time: { updated: Date.now() },
       } as Patch)
     })
@@ -1062,6 +1121,7 @@ const rawLayer: Layer.Layer<
       setArchived,
       setPermission,
       setPermissionMode,
+      setTeamMode,
       setDirectory,
       setRevert,
       clearRevert,

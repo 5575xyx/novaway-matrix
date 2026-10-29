@@ -198,6 +198,18 @@ export const TeamPage: Component<{
     await loadTeams(team.team.id)
   }
 
+  const toggleAuto = async () => {
+    const team = detail()
+    if (!team) return
+    const next = !team.team.autoEligible
+    await call(
+      sdk.client.team.update({ teamID: team.team.id, directory: props.directory, autoEligible: next }),
+      next ? t("team.auto.enabled") : t("team.auto.disabled"),
+    )
+    await loadDetail(team.team.id)
+    await loadTeams(team.team.id)
+  }
+
   const removeTeam = async () => {
     const team = detail()
     if (!team) return
@@ -307,6 +319,17 @@ export const TeamPage: Component<{
                         <Tag>
                           {t("team.usage")} {compactTokens(team().usage?.total)}
                         </Tag>
+                        {/* Auto 是「可以被自动挑中」，不是「自动执行」：打开后模型能选它，
+                            但每次派发仍要在运行页批准。所以这里用可点的标签而不是开关。 */}
+                        <button
+                          type="button"
+                          class="rounded border border-border px-1.5 py-px text-ui-xs transition-colors hover:bg-hover"
+                          classList={{ "text-icon-blue": team().team.autoEligible }}
+                          onClick={() => void toggleAuto()}
+                          title={t("team.auto.hint")}
+                        >
+                          {team().team.autoEligible ? t("team.auto.on") : t("team.auto.off")}
+                        </button>
                       </div>
                     </div>
                     <Button variant="ghost" size="small" onClick={() => void removeTeam()}>

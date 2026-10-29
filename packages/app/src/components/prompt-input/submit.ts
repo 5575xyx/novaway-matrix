@@ -15,6 +15,7 @@ import { usePermission } from "@/context/permission"
 import { type ContextItem, type ImageAttachmentPart, type Prompt, usePrompt } from "@/context/prompt"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
+import { TeamSelection } from "@/context/team-selection"
 import { Identifier } from "@/utils/id"
 import { Worktree as WorktreeState } from "@/utils/worktree"
 import { forgeAgentForPrompt } from "@/context/local-agent"
@@ -376,8 +377,15 @@ export function createPromptSubmit(input: PromptSubmitInput) {
 
     let session = input.info()
     if (!session && isNewSession) {
+      // 新会话的团队选择先记在待定槽位，建会话时一起写进 teamMode/teamIDs ——
+      // 第一条消息到达前内核就要知道该不该注入团队目录。
+      const team = TeamSelection.pending(projectDirectory)
       const created = await client.session
-        .create({ permissionMode: input.permissionMode() })
+        .create({
+          permissionMode: input.permissionMode(),
+          ...(team ? { teamMode: team.mode } : {}),
+          ...(team?.mode === "selected" ? { teamIDs: team.teamIDs } : {}),
+        })
         .then((x) => x.data ?? undefined)
         .catch((err) => {
           showToast({
@@ -390,6 +398,8 @@ export function createPromptSubmit(input: PromptSubmitInput) {
         seed(sessionDirectory, created)
         // 档位已经写进会话，清掉「新会话待定档位」，否则它会一直盖住全局默认。
         permission.consumePendingMode(projectDirectory)
+        // 团队选择同理：已经落到会话字段上，待定槽位再留着会带到下一次新会话。
+        TeamSelection.clearPending(projectDirectory)
         // 刚建出来的会话必然是空的，登记后时间线跳过骨架屏（否则发送第一条消息时
         // 会先闪一下骨架屏再显示时间线）。
         markSessionFresh(created.id)

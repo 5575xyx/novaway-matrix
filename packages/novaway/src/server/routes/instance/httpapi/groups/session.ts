@@ -69,6 +69,12 @@ export const UpdatePayload = Schema.Struct({
   /** Session-scoped permission mode; omit to keep, pass nothing to reset is not possible via PATCH. */
   permissionMode: Schema.optional(Permission.Mode),
   /**
+   * 团队目录注入模式；`selected` 必须同时给出 `teamIDs`。
+   * 切到 `off` / `auto` 时内核会清空 `teamIDs`，避免切回来时带回已删团队。
+   */
+  teamMode: Schema.optional(Schema.Literals(["off", "auto", "selected"])),
+  teamIDs: Schema.optional(Schema.Array(Schema.String)),
+  /**
    * Move the session's working directory (fires the CwdChanged hook).
    * Named `cwd`, not `directory`: the query parameter already owns that name,
    * and the generated SDK would collide into `body_directory`.

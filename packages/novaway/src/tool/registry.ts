@@ -146,6 +146,7 @@ import {
   TeamDeleteTool,
   TeamListTool,
 } from "./task-tools"
+import { TeamRunTool } from "./team-run"
 import { Global } from "@novaway/core/global"
 import * as ExtensionLoader from "@/extension/loader"
 import { contributions as extensionContributions, type Loaded as ExtensionLoaded } from "@/extension/schema"
@@ -257,6 +258,7 @@ export const CAPABILITIES: Record<string, Tool.Capabilities> = {
   generate_video: { concurrencySafe: true, deferLoading: true },
   generate_narration: { concurrencySafe: true, deferLoading: true },
   memory: { readOnly: true, concurrencySafe: true, idempotent: true },
+  team_run: { concurrencySafe: false },
   team_create: { concurrencySafe: false },
   team_delete: { concurrencySafe: false },
   team_list: { readOnly: true, concurrencySafe: true, idempotent: true },
@@ -516,6 +518,8 @@ export const layer: Layer.Layer<
     const cwdTool = yield* CwdTool
     const worktreeEnterTool = yield* WorktreeEnterTool
     const worktreeExitTool = yield* WorktreeExitTool
+    // team_run 只依赖可选服务，内部用 serviceOption 解析；没有团队服务时它会自己拒绝。
+    const teamRunTool = yield* TeamRunTool
     const teamTool = yield* optional(TeamServiceInterface, TeamCreateTool)
     const teamDeleteTool = yield* optional(TeamServiceInterface, TeamDeleteTool)
     const teamListTool = yield* optional(TeamServiceInterface, TeamListTool)
@@ -723,6 +727,7 @@ export const layer: Layer.Layer<
           goal: goal ? Tool.init(goal) : Effect.succeed(undefined),
           workflow: workflow ? Tool.init(workflow) : Effect.succeed(undefined),
           orchestrator: orchestrator ? Tool.init(orchestrator) : Effect.succeed(undefined),
+          team_run: Tool.init(teamRunTool),
           team_create: teamTool ? Tool.init(teamTool) : Effect.succeed(undefined),
           team_delete: teamDeleteTool ? Tool.init(teamDeleteTool) : Effect.succeed(undefined),
           team_list: teamListTool ? Tool.init(teamListTool) : Effect.succeed(undefined),
@@ -835,6 +840,7 @@ export const layer: Layer.Layer<
           tool.goal!,
           tool.workflow!,
           tool.orchestrator!,
+          tool.team_run,
           tool.team_create!,
           tool.team_delete,
           tool.team_list,

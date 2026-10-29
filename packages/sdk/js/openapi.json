@@ -12106,6 +12106,15 @@
               "enum": ["git", "branch"]
             },
             "required": true
+          },
+          {
+            "name": "context",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[+-]?\\d*\\.?\\d+(?:[Ee][+-]?\\d+)?$"
+            },
+            "required": false
           }
         ],
         "responses": {
@@ -19574,11 +19583,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ProjectDirectory"
-                  },
-                  "description": "Project directories"
+                  "$ref": "#/components/schemas/ProjectDirectories"
                 }
               }
             }
@@ -20993,6 +20998,16 @@
                   "permissionMode": {
                     "$ref": "#/components/schemas/PermissionMode"
                   },
+                  "teamMode": {
+                    "type": "string",
+                    "enum": ["off", "auto", "selected"]
+                  },
+                  "teamIDs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
                   "workspaceID": {
                     "type": "string",
                     "pattern": "^wrk"
@@ -21291,6 +21306,16 @@
                   },
                   "permissionMode": {
                     "$ref": "#/components/schemas/PermissionMode"
+                  },
+                  "teamMode": {
+                    "type": "string",
+                    "enum": ["off", "auto", "selected"]
+                  },
+                  "teamIDs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
                   },
                   "cwd": {
                     "type": "string"
@@ -25886,6 +25911,226 @@
         ]
       }
     },
+    "/api/session/{sessionID}": {
+      "get": {
+        "tags": ["v2 session resources"],
+        "operationId": "v2.session.get",
+        "parameters": [
+          {
+            "name": "sessionID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^ses"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "V2SessionGetResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2SessionGetResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Retrieve a single v2 session descriptor for the requested location.",
+        "summary": "Get v2 session",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.session.get({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/session/{sessionID}/permission": {
+      "get": {
+        "tags": ["v2 session resources"],
+        "operationId": "v2.session.permission.list",
+        "parameters": [
+          {
+            "name": "sessionID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^ses"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "V2SessionPermissionListResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2SessionPermissionListResponse"
+                }
+              }
+            }
+          }
+        },
+        "description": "Retrieve permission requests currently waiting on the user for this session.",
+        "summary": "List session permission requests",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.session.permission.list({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/session/{sessionID}/question": {
+      "get": {
+        "tags": ["v2 session resources"],
+        "operationId": "v2.session.question.list",
+        "parameters": [
+          {
+            "name": "sessionID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^ses"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "V2SessionQuestionListResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2SessionQuestionListResponse"
+                }
+              }
+            }
+          }
+        },
+        "description": "Retrieve questions currently waiting on the user for this session.",
+        "summary": "List session questions",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.session.question.list({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/api/session/{sessionID}/message": {
       "get": {
         "tags": ["v2 messages"],
@@ -25981,6 +26226,22 @@
         "operationId": "v2.model.list",
         "parameters": [
           {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
             "name": "location",
             "in": "query",
             "schema": {
@@ -26002,14 +26263,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Success",
+            "description": "V2ModelListResponse",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ModelV2Info"
-                  }
+                  "$ref": "#/components/schemas/V2ModelListResponse"
                 }
               }
             }
@@ -26021,56 +26279,6 @@
           {
             "lang": "js",
             "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.model.list({\n  ...\n})"
-          }
-        ]
-      }
-    },
-    "/api/provider": {
-      "get": {
-        "tags": ["v2 providers"],
-        "operationId": "v2.provider.list",
-        "parameters": [
-          {
-            "name": "location",
-            "in": "query",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "directory": {
-                  "type": "string"
-                },
-                "workspace": {
-                  "type": "string"
-                }
-              },
-              "additionalProperties": false
-            },
-            "required": false,
-            "style": "deepObject",
-            "explode": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ProviderV2Info"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "description": "Retrieve active v2 AI providers so clients can show provider availability and configuration.",
-        "summary": "List v2 providers",
-        "x-codeSamples": [
-          {
-            "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.provider.list({\n  ...\n})"
           }
         ]
       }
@@ -26140,6 +26348,69 @@
         ]
       }
     },
+    "/api/provider": {
+      "get": {
+        "tags": ["v2 provider list"],
+        "operationId": "v2.provider.list",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "V2ProviderListResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ProviderListResponse"
+                }
+              }
+            }
+          }
+        },
+        "description": "Retrieve active v2 AI providers so clients can show provider availability and configuration.",
+        "summary": "List v2 providers",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.provider.list({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/api/fs/find": {
       "get": {
         "tags": ["v2 fs"],
@@ -26205,6 +26476,441 @@
           {
             "lang": "js",
             "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.fs.find({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/location": {
+      "get": {
+        "tags": ["v2 location"],
+        "operationId": "v2.location.get",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LocationInfo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocationInfo"
+                }
+              }
+            }
+          }
+        },
+        "description": "Resolve the requested directory and workspace into a location descriptor.",
+        "summary": "Resolve location",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.location.get({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/agent": {
+      "get": {
+        "tags": ["v2 agents"],
+        "operationId": "v2.agent.list",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "V2AgentListResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2AgentListResponse"
+                }
+              }
+            }
+          }
+        },
+        "description": "Retrieve the agents available at the requested location.",
+        "summary": "List v2 agents",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.agent.list({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/command": {
+      "get": {
+        "tags": ["v2 commands"],
+        "operationId": "v2.command.list",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "V2CommandListResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2CommandListResponse"
+                }
+              }
+            }
+          }
+        },
+        "description": "Retrieve slash commands available at the requested location.",
+        "summary": "List v2 commands",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.command.list({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/skill": {
+      "get": {
+        "tags": ["v2 skills"],
+        "operationId": "v2.skill.list",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "V2SkillListResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2SkillListResponse"
+                }
+              }
+            }
+          }
+        },
+        "description": "Retrieve skills available at the requested location.",
+        "summary": "List v2 skills",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.skill.list({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/reference": {
+      "get": {
+        "tags": ["v2 references"],
+        "operationId": "v2.reference.list",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "V2ReferenceListResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ReferenceListResponse"
+                }
+              }
+            }
+          }
+        },
+        "description": "Retrieve configured @-mention references for the requested location.",
+        "summary": "List v2 references",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.reference.list({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/integration": {
+      "get": {
+        "tags": ["v2 integrations"],
+        "operationId": "v2.integration.list",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "V2IntegrationListResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2IntegrationListResponse"
+                }
+              }
+            }
+          }
+        },
+        "description": "Retrieve integrations available at the requested location. The kernel has no integration registry yet, so this currently returns an empty list.",
+        "summary": "List v2 integrations",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.integration.list({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/permission/saved": {
+      "get": {
+        "tags": ["v2 permissions"],
+        "operationId": "v2.permission.saved.list",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false
+          },
+          {
+            "name": "projectID",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "V2PermissionSavedListResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2PermissionSavedListResponse"
+                }
+              }
+            }
+          }
+        },
+        "description": "Retrieve the permission rules the user has permanently approved for a project.",
+        "summary": "List saved permission rules",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.permission.saved.list({\n  ...\n})"
           }
         ]
       }
@@ -28878,6 +29584,97 @@
           }
         ]
       },
+      "patch": {
+        "tags": ["team"],
+        "operationId": "team.update",
+        "parameters": [
+          {
+            "name": "teamID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated team",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Rename a team, change its description, or opt it into Auto mode.",
+        "summary": "Update a team",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "autoEligible": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.team.update({\n  ...\n})"
+          }
+        ]
+      },
       "delete": {
         "tags": ["team"],
         "operationId": "team.remove",
@@ -29261,6 +30058,1019 @@
         ]
       }
     },
+    "/run": {
+      "get": {
+        "tags": ["Team runs"],
+        "operationId": "run.list",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Runs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RunView"
+                  },
+                  "description": "Runs"
+                }
+              }
+            }
+          }
+        },
+        "description": "List orchestration runs in this workspace.",
+        "summary": "List team runs",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.list({\n  ...\n})"
+          }
+        ]
+      },
+      "post": {
+        "tags": ["Team runs"],
+        "operationId": "run.create",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Created run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Create a team orchestration run in planning state.",
+        "summary": "Create a run",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sessionID": {
+                    "type": "string"
+                  },
+                  "directory": {
+                    "type": "string"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": ["team", "auto"]
+                  },
+                  "goal": {
+                    "type": "string"
+                  },
+                  "brief": {},
+                  "acceptance": {
+                    "type": "array"
+                  },
+                  "budget": {
+                    "type": "object",
+                    "properties": {
+                      "tokens": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["NaN"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["-Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity", "-Infinity", "NaN"]
+                          }
+                        ]
+                      },
+                      "cost": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["NaN"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["-Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity", "-Infinity", "NaN"]
+                          }
+                        ]
+                      },
+                      "wallMs": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["NaN"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["-Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity", "-Infinity", "NaN"]
+                          }
+                        ]
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["sessionID", "directory", "mode", "goal"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.create({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/run/{runID}": {
+      "get": {
+        "tags": ["Team runs"],
+        "operationId": "run.detail",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Run detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Run, teams, acceptance lines, verifications and the folded summary.",
+        "summary": "Run detail",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.detail({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/run/{runID}/plan": {
+      "post": {
+        "tags": ["Team runs"],
+        "operationId": "run.plan",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Replace the plan and bump its version. Previous approvals become stale.",
+        "summary": "Set the plan",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "teams": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "profileID": {
+                          "type": "string"
+                        },
+                        "profileVersion": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        },
+                        "scope": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "acceptance": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "dependsOn": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      "required": ["name"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                },
+                "required": ["teams"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.plan({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/run/{runID}/approve": {
+      "post": {
+        "tags": ["Team runs"],
+        "operationId": "run.approve",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Approved run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_Conflict"
+                }
+              }
+            }
+          }
+        },
+        "description": "Approve a specific plan version with its budget, then start the run.",
+        "summary": "Approve the plan",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "planVersion": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["NaN"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["-Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity", "-Infinity", "NaN"]
+                      }
+                    ]
+                  },
+                  "budget": {
+                    "type": "object",
+                    "properties": {
+                      "tokens": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["NaN"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["-Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity", "-Infinity", "NaN"]
+                          }
+                        ]
+                      },
+                      "cost": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["NaN"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["-Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity", "-Infinity", "NaN"]
+                          }
+                        ]
+                      },
+                      "wallMs": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["NaN"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["-Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity", "-Infinity", "NaN"]
+                          }
+                        ]
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "by": {
+                    "type": "string",
+                    "enum": ["user", "main"]
+                  }
+                },
+                "required": ["planVersion", "budget"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.approve({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/run/{runID}/acceptance": {
+      "post": {
+        "tags": ["Team runs"],
+        "operationId": "run.acceptance.add",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Registered acceptance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunAcceptanceView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Register one verifiable acceptance line for this run.",
+        "summary": "Add an acceptance line",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "taskID": {
+                    "type": "string"
+                  },
+                  "specID": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": ["test", "diff", "file", "rubric", "human"]
+                  },
+                  "expected": {
+                    "type": "string"
+                  },
+                  "owner": {
+                    "type": "string"
+                  }
+                },
+                "required": ["specID", "text", "kind"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.acceptance.add({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/run/{runID}/execute": {
+      "post": {
+        "tags": ["Team runs"],
+        "operationId": "run.execute",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Dispatch to captains in the background and poll run detail for progress.",
+        "summary": "Execute the run",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "captain": {
+                    "type": "string"
+                  },
+                  "verifier": {
+                    "type": "string"
+                  },
+                  "maxRounds": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["NaN"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["-Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity", "-Infinity", "NaN"]
+                      }
+                    ]
+                  },
+                  "maxBusinessAttempts": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["NaN"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["-Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity", "-Infinity", "NaN"]
+                      }
+                    ]
+                  },
+                  "reserveTokens": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["NaN"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["-Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity", "-Infinity", "NaN"]
+                      }
+                    ]
+                  },
+                  "concurrency": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["NaN"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["-Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity", "-Infinity", "NaN"]
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.execute({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/run/{runID}/cancel": {
+      "post": {
+        "tags": ["Team runs"],
+        "operationId": "run.cancel",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cancelled run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Stop dispatching, keep what already happened, then settle the run as cancelled.",
+        "summary": "Cancel the run",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.cancel({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/run/{runID}/events": {
+      "get": {
+        "tags": ["Team runs"],
+        "operationId": "run.events",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RunEventView"
+                  },
+                  "description": "Events"
+                }
+              }
+            }
+          }
+        },
+        "description": "Append-only event log used for replay and audit.",
+        "summary": "Run events",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.events({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/pty/{ptyID}/connect": {
       "get": {
         "tags": ["pty"],
@@ -29371,15 +31181,6 @@
             "$ref": "#/components/schemas/EventFileWatcherUpdated"
           },
           {
-            "$ref": "#/components/schemas/EventBackgroundStarted"
-          },
-          {
-            "$ref": "#/components/schemas/EventBackgroundUpdated"
-          },
-          {
-            "$ref": "#/components/schemas/EventBackgroundCompleted"
-          },
-          {
             "$ref": "#/components/schemas/EventLspClientDiagnostics"
           },
           {
@@ -29387,6 +31188,9 @@
           },
           {
             "$ref": "#/components/schemas/EventMessagePartDelta"
+          },
+          {
+            "$ref": "#/components/schemas/EventCatalogUpdated"
           },
           {
             "$ref": "#/components/schemas/EventPlan_approvalRequested"
@@ -29402,6 +31206,30 @@
           },
           {
             "$ref": "#/components/schemas/EventPermissionReplied"
+          },
+          {
+            "$ref": "#/components/schemas/EventQuestionAsked"
+          },
+          {
+            "$ref": "#/components/schemas/EventQuestionReplied"
+          },
+          {
+            "$ref": "#/components/schemas/EventQuestionRejected"
+          },
+          {
+            "$ref": "#/components/schemas/EventQuestionFeishuReplied"
+          },
+          {
+            "$ref": "#/components/schemas/EventTodoUpdated"
+          },
+          {
+            "$ref": "#/components/schemas/EventBackgroundStarted"
+          },
+          {
+            "$ref": "#/components/schemas/EventBackgroundUpdated"
+          },
+          {
+            "$ref": "#/components/schemas/EventBackgroundCompleted"
           },
           {
             "$ref": "#/components/schemas/EventMemoryReviewUpdated"
@@ -29426,21 +31254,6 @@
           },
           {
             "$ref": "#/components/schemas/EventSessionError"
-          },
-          {
-            "$ref": "#/components/schemas/EventQuestionAsked"
-          },
-          {
-            "$ref": "#/components/schemas/EventQuestionReplied"
-          },
-          {
-            "$ref": "#/components/schemas/EventQuestionRejected"
-          },
-          {
-            "$ref": "#/components/schemas/EventQuestionFeishuReplied"
-          },
-          {
-            "$ref": "#/components/schemas/EventTodoUpdated"
           },
           {
             "$ref": "#/components/schemas/EventSessionStatus"
@@ -29898,81 +31711,6 @@
         "required": ["id", "type", "properties"],
         "additionalProperties": false
       },
-      "BackgroundJobInfo": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string",
-            "enum": ["running", "completed", "error", "cancelled"]
-          },
-          "started_at": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string",
-                "enum": ["NaN"]
-              },
-              {
-                "type": "string",
-                "enum": ["Infinity"]
-              },
-              {
-                "type": "string",
-                "enum": ["-Infinity"]
-              },
-              {
-                "type": "string",
-                "enum": ["Infinity", "-Infinity", "NaN"]
-              }
-            ]
-          },
-          "completed_at": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string",
-                "enum": ["NaN"]
-              },
-              {
-                "type": "string",
-                "enum": ["Infinity"]
-              },
-              {
-                "type": "string",
-                "enum": ["-Infinity"]
-              },
-              {
-                "type": "string",
-                "enum": ["Infinity", "-Infinity", "NaN"]
-              }
-            ]
-          },
-          "output": {
-            "type": "string"
-          },
-          "error": {
-            "type": "string"
-          },
-          "metadata": {
-            "type": "object"
-          }
-        },
-        "required": ["id", "type", "status", "started_at"],
-        "additionalProperties": false
-      },
       "PlanRequestID": {
         "type": "string"
       },
@@ -30117,6 +31855,245 @@
           }
         },
         "required": ["id", "sessionID", "permission", "patterns", "metadata", "always"],
+        "additionalProperties": false
+      },
+      "QuestionOption": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Display text (1-5 words, concise)"
+          },
+          "description": {
+            "type": "string",
+            "description": "Explanation of choice"
+          }
+        },
+        "required": ["label", "description"],
+        "additionalProperties": false
+      },
+      "QuestionInfo": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string",
+            "description": "Complete question"
+          },
+          "header": {
+            "type": "string",
+            "description": "Very short label (max 30 chars)"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuestionOption"
+            },
+            "description": "Available choices"
+          },
+          "multiple": {
+            "type": "boolean"
+          },
+          "custom": {
+            "type": "boolean"
+          }
+        },
+        "required": ["question", "header", "options"],
+        "additionalProperties": false
+      },
+      "QuestionTool": {
+        "type": "object",
+        "properties": {
+          "messageID": {
+            "type": "string",
+            "pattern": "^msg"
+          },
+          "callID": {
+            "type": "string"
+          }
+        },
+        "required": ["messageID", "callID"],
+        "additionalProperties": false
+      },
+      "QuestionRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^que"
+          },
+          "sessionID": {
+            "type": "string",
+            "pattern": "^ses"
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuestionInfo"
+            },
+            "description": "Questions to ask"
+          },
+          "tool": {
+            "$ref": "#/components/schemas/QuestionTool"
+          }
+        },
+        "required": ["id", "sessionID", "questions"],
+        "additionalProperties": false
+      },
+      "QuestionAnswer": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "QuestionReplied": {
+        "type": "object",
+        "properties": {
+          "sessionID": {
+            "type": "string",
+            "pattern": "^ses"
+          },
+          "requestID": {
+            "type": "string",
+            "pattern": "^que"
+          },
+          "answers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuestionAnswer"
+            }
+          }
+        },
+        "required": ["sessionID", "requestID", "answers"],
+        "additionalProperties": false
+      },
+      "QuestionRejected": {
+        "type": "object",
+        "properties": {
+          "sessionID": {
+            "type": "string",
+            "pattern": "^ses"
+          },
+          "requestID": {
+            "type": "string",
+            "pattern": "^que"
+          }
+        },
+        "required": ["sessionID", "requestID"],
+        "additionalProperties": false
+      },
+      "QuestionFeishuReplied": {
+        "type": "object",
+        "properties": {
+          "requestID": {
+            "type": "string",
+            "pattern": "^que"
+          },
+          "answers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuestionAnswer"
+            }
+          }
+        },
+        "required": ["requestID", "answers"],
+        "additionalProperties": false
+      },
+      "Todo": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "Brief description of the task"
+          },
+          "status": {
+            "type": "string",
+            "description": "Current status of the task: pending, in_progress, completed, cancelled"
+          },
+          "priority": {
+            "type": "string",
+            "description": "Priority level of the task: high, medium, low"
+          },
+          "goalId": {
+            "type": "string",
+            "description": "ID of the goal this todo is associated with"
+          }
+        },
+        "required": ["content", "status", "priority"],
+        "additionalProperties": false
+      },
+      "BackgroundJobInfo": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["running", "completed", "error", "cancelled"]
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "output": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object"
+          }
+        },
+        "required": ["id", "type", "status", "started_at"],
         "additionalProperties": false
       },
       "SnapshotFileDiff": {
@@ -30313,170 +32290,6 @@
           }
         },
         "required": ["name", "data"],
-        "additionalProperties": false
-      },
-      "QuestionOption": {
-        "type": "object",
-        "properties": {
-          "label": {
-            "type": "string",
-            "description": "Display text (1-5 words, concise)"
-          },
-          "description": {
-            "type": "string",
-            "description": "Explanation of choice"
-          }
-        },
-        "required": ["label", "description"],
-        "additionalProperties": false
-      },
-      "QuestionInfo": {
-        "type": "object",
-        "properties": {
-          "question": {
-            "type": "string",
-            "description": "Complete question"
-          },
-          "header": {
-            "type": "string",
-            "description": "Very short label (max 30 chars)"
-          },
-          "options": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/QuestionOption"
-            },
-            "description": "Available choices"
-          },
-          "multiple": {
-            "type": "boolean"
-          },
-          "custom": {
-            "type": "boolean"
-          }
-        },
-        "required": ["question", "header", "options"],
-        "additionalProperties": false
-      },
-      "QuestionTool": {
-        "type": "object",
-        "properties": {
-          "messageID": {
-            "type": "string",
-            "pattern": "^msg"
-          },
-          "callID": {
-            "type": "string"
-          }
-        },
-        "required": ["messageID", "callID"],
-        "additionalProperties": false
-      },
-      "QuestionRequest": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "pattern": "^que"
-          },
-          "sessionID": {
-            "type": "string",
-            "pattern": "^ses"
-          },
-          "questions": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/QuestionInfo"
-            },
-            "description": "Questions to ask"
-          },
-          "tool": {
-            "$ref": "#/components/schemas/QuestionTool"
-          }
-        },
-        "required": ["id", "sessionID", "questions"],
-        "additionalProperties": false
-      },
-      "QuestionAnswer": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        }
-      },
-      "QuestionReplied": {
-        "type": "object",
-        "properties": {
-          "sessionID": {
-            "type": "string",
-            "pattern": "^ses"
-          },
-          "requestID": {
-            "type": "string",
-            "pattern": "^que"
-          },
-          "answers": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/QuestionAnswer"
-            }
-          }
-        },
-        "required": ["sessionID", "requestID", "answers"],
-        "additionalProperties": false
-      },
-      "QuestionRejected": {
-        "type": "object",
-        "properties": {
-          "sessionID": {
-            "type": "string",
-            "pattern": "^ses"
-          },
-          "requestID": {
-            "type": "string",
-            "pattern": "^que"
-          }
-        },
-        "required": ["sessionID", "requestID"],
-        "additionalProperties": false
-      },
-      "QuestionFeishuReplied": {
-        "type": "object",
-        "properties": {
-          "requestID": {
-            "type": "string",
-            "pattern": "^que"
-          },
-          "answers": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/QuestionAnswer"
-            }
-          }
-        },
-        "required": ["requestID", "answers"],
-        "additionalProperties": false
-      },
-      "Todo": {
-        "type": "object",
-        "properties": {
-          "content": {
-            "type": "string",
-            "description": "Brief description of the task"
-          },
-          "status": {
-            "type": "string",
-            "description": "Current status of the task: pending, in_progress, completed, cancelled"
-          },
-          "priority": {
-            "type": "string",
-            "description": "Priority level of the task: high, medium, low"
-          },
-          "goalId": {
-            "type": "string",
-            "description": "ID of the goal this todo is associated with"
-          }
-        },
-        "required": ["content", "status", "priority"],
         "additionalProperties": false
       },
       "SessionStatus": {
@@ -31909,6 +33722,16 @@
           "permissionMode": {
             "$ref": "#/components/schemas/PermissionMode"
           },
+          "teamMode": {
+            "type": "string",
+            "enum": ["off", "auto", "selected"]
+          },
+          "teamIDs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "revert": {
             "type": "object",
             "properties": {
@@ -32013,15 +33836,6 @@
                 "$ref": "#/components/schemas/EventFileWatcherUpdated"
               },
               {
-                "$ref": "#/components/schemas/EventBackgroundStarted"
-              },
-              {
-                "$ref": "#/components/schemas/EventBackgroundUpdated"
-              },
-              {
-                "$ref": "#/components/schemas/EventBackgroundCompleted"
-              },
-              {
                 "$ref": "#/components/schemas/EventLspClientDiagnostics"
               },
               {
@@ -32029,6 +33843,9 @@
               },
               {
                 "$ref": "#/components/schemas/EventMessagePartDelta"
+              },
+              {
+                "$ref": "#/components/schemas/EventCatalogUpdated"
               },
               {
                 "$ref": "#/components/schemas/EventPlan_approvalRequested"
@@ -32044,6 +33861,30 @@
               },
               {
                 "$ref": "#/components/schemas/EventPermissionReplied"
+              },
+              {
+                "$ref": "#/components/schemas/EventQuestionAsked"
+              },
+              {
+                "$ref": "#/components/schemas/EventQuestionReplied"
+              },
+              {
+                "$ref": "#/components/schemas/EventQuestionRejected"
+              },
+              {
+                "$ref": "#/components/schemas/EventQuestionFeishuReplied"
+              },
+              {
+                "$ref": "#/components/schemas/EventTodoUpdated"
+              },
+              {
+                "$ref": "#/components/schemas/EventBackgroundStarted"
+              },
+              {
+                "$ref": "#/components/schemas/EventBackgroundUpdated"
+              },
+              {
+                "$ref": "#/components/schemas/EventBackgroundCompleted"
               },
               {
                 "$ref": "#/components/schemas/EventMemoryReviewUpdated"
@@ -32068,21 +33909,6 @@
               },
               {
                 "$ref": "#/components/schemas/EventSessionError"
-              },
-              {
-                "$ref": "#/components/schemas/EventQuestionAsked"
-              },
-              {
-                "$ref": "#/components/schemas/EventQuestionReplied"
-              },
-              {
-                "$ref": "#/components/schemas/EventQuestionRejected"
-              },
-              {
-                "$ref": "#/components/schemas/EventQuestionFeishuReplied"
-              },
-              {
-                "$ref": "#/components/schemas/EventTodoUpdated"
               },
               {
                 "$ref": "#/components/schemas/EventSessionStatus"
@@ -34465,6 +36291,16 @@
           },
           "permissionMode": {
             "$ref": "#/components/schemas/PermissionMode"
+          },
+          "teamMode": {
+            "type": "string",
+            "enum": ["off", "auto", "selected"]
+          },
+          "teamIDs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "revert": {
             "type": "object",
@@ -41787,6 +43623,12 @@
         "required": ["directory"],
         "additionalProperties": false
       },
+      "ProjectDirectories": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectDirectory"
+        }
+      },
       "effect_HttpApiError_Forbidden": {
         "type": "object",
         "properties": {
@@ -42447,10 +44289,281 @@
         "required": ["items", "cursor"],
         "additionalProperties": false
       },
+      "ModelRef": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "providerID": {
+            "type": "string"
+          },
+          "variant": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "providerID"],
+        "additionalProperties": false
+      },
+      "V2SessionTokens": {
+        "type": "object",
+        "properties": {
+          "input": {
+            "type": "number"
+          },
+          "output": {
+            "type": "number"
+          },
+          "reasoning": {
+            "type": "number"
+          },
+          "cache": {
+            "type": "object",
+            "properties": {
+              "read": {
+                "type": "number"
+              },
+              "write": {
+                "type": "number"
+              }
+            },
+            "required": ["read", "write"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["input", "output", "reasoning", "cache"],
+        "additionalProperties": false
+      },
+      "V2SessionTime": {
+        "type": "object",
+        "properties": {
+          "created": {
+            "type": "number"
+          },
+          "updated": {
+            "type": "number"
+          },
+          "archived": {
+            "type": "number"
+          }
+        },
+        "required": ["created", "updated"],
+        "additionalProperties": false
+      },
+      "LocationRef": {
+        "type": "object",
+        "properties": {
+          "directory": {
+            "type": "string"
+          },
+          "workspaceID": {
+            "type": "string"
+          }
+        },
+        "required": ["directory"],
+        "additionalProperties": false
+      },
+      "SessionV2Info": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "parentID": {
+            "type": "string"
+          },
+          "projectID": {
+            "type": "string"
+          },
+          "agent": {
+            "type": "string"
+          },
+          "model": {
+            "$ref": "#/components/schemas/ModelRef"
+          },
+          "cost": {
+            "type": "number"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/V2SessionTokens"
+          },
+          "time": {
+            "$ref": "#/components/schemas/V2SessionTime"
+          },
+          "title": {
+            "type": "string"
+          },
+          "location": {
+            "$ref": "#/components/schemas/LocationRef"
+          },
+          "subpath": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "projectID", "cost", "tokens", "time", "title", "location"],
+        "additionalProperties": false
+      },
+      "V2SessionGetResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SessionV2Info"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      },
+      "V2PermissionSource": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["tool"]
+          },
+          "messageID": {
+            "type": "string"
+          },
+          "callID": {
+            "type": "string"
+          }
+        },
+        "required": ["type", "messageID", "callID"],
+        "additionalProperties": false
+      },
+      "PermissionV2Request": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "sessionID": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "resources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "save": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "source": {
+            "$ref": "#/components/schemas/V2PermissionSource"
+          }
+        },
+        "required": ["id", "sessionID", "action", "resources"],
+        "additionalProperties": false
+      },
+      "V2SessionPermissionListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PermissionV2Request"
+            }
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      },
+      "QuestionV2Info": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "header": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              },
+              "required": ["label", "description"],
+              "additionalProperties": false
+            }
+          },
+          "multiple": {
+            "type": "boolean"
+          },
+          "custom": {
+            "type": "boolean"
+          }
+        },
+        "required": ["question", "header", "options"],
+        "additionalProperties": false
+      },
+      "QuestionV2Tool": {
+        "type": "object",
+        "properties": {
+          "messageID": {
+            "type": "string"
+          },
+          "callID": {
+            "type": "string"
+          }
+        },
+        "required": ["messageID", "callID"],
+        "additionalProperties": false
+      },
+      "QuestionV2Request": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "sessionID": {
+            "type": "string"
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuestionV2Info"
+            }
+          },
+          "tool": {
+            "$ref": "#/components/schemas/QuestionV2Tool"
+          }
+        },
+        "required": ["id", "sessionID", "questions"],
+        "additionalProperties": false
+      },
+      "V2SessionQuestionListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuestionV2Request"
+            }
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      },
       "V2SessionMessagesResponse": {
         "type": "object",
         "properties": {
-          "items": {
+          "data": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/SessionMessage"
@@ -42469,7 +44582,65 @@
             "additionalProperties": false
           }
         },
-        "required": ["items", "cursor"],
+        "required": ["data", "cursor"],
+        "additionalProperties": false
+      },
+      "LocationInfo": {
+        "type": "object",
+        "properties": {
+          "directory": {
+            "type": "string"
+          },
+          "workspaceID": {
+            "type": "string"
+          },
+          "project": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "directory": {
+                "type": "string"
+              }
+            },
+            "required": ["id", "directory"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["directory", "project"],
+        "additionalProperties": false
+      },
+      "V2ModelListResponse": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "$ref": "#/components/schemas/LocationInfo"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelV2Info"
+            }
+          }
+        },
+        "required": ["location", "data"],
+        "additionalProperties": false
+      },
+      "V2ProviderListResponse": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "$ref": "#/components/schemas/LocationInfo"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderV2Info"
+            }
+          }
+        },
+        "required": ["location", "data"],
         "additionalProperties": false
       },
       "V2LocationInfo": {
@@ -42526,6 +44697,330 @@
           }
         },
         "required": ["location", "data"],
+        "additionalProperties": false
+      },
+      "V2RequestEnvelope": {
+        "type": "object",
+        "properties": {
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "body": {
+            "type": "object"
+          }
+        },
+        "required": ["headers", "body"],
+        "additionalProperties": false
+      },
+      "PermissionRule1": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "resource": {
+            "type": "string"
+          },
+          "effect": {
+            "type": "string",
+            "enum": ["allow", "deny", "ask"]
+          }
+        },
+        "required": ["action", "resource", "effect"],
+        "additionalProperties": false
+      },
+      "AgentV2Info": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "model": {
+            "$ref": "#/components/schemas/ModelRef"
+          },
+          "request": {
+            "$ref": "#/components/schemas/V2RequestEnvelope"
+          },
+          "system": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["subagent", "primary", "all"]
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "color": {
+            "type": "string"
+          },
+          "steps": {
+            "type": "number"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PermissionRule1"
+            }
+          }
+        },
+        "required": ["id", "request", "mode", "hidden", "permissions"],
+        "additionalProperties": false
+      },
+      "V2AgentListResponse": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "$ref": "#/components/schemas/LocationInfo"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentV2Info"
+            }
+          }
+        },
+        "required": ["location", "data"],
+        "additionalProperties": false
+      },
+      "CommandV2Info": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "template": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "agent": {
+            "type": "string"
+          },
+          "model": {
+            "$ref": "#/components/schemas/ModelRef"
+          },
+          "subtask": {
+            "type": "boolean"
+          }
+        },
+        "required": ["name", "template"],
+        "additionalProperties": false
+      },
+      "V2CommandListResponse": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "$ref": "#/components/schemas/LocationInfo"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommandV2Info"
+            }
+          }
+        },
+        "required": ["location", "data"],
+        "additionalProperties": false
+      },
+      "SkillV2Info": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "slash": {
+            "type": "boolean"
+          },
+          "location": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": ["name", "location", "content"],
+        "additionalProperties": false
+      },
+      "V2SkillListResponse": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "$ref": "#/components/schemas/LocationInfo"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SkillV2Info"
+            }
+          }
+        },
+        "required": ["location", "data"],
+        "additionalProperties": false
+      },
+      "ReferenceLocalSource": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["local"]
+          },
+          "path": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "hidden": {
+            "type": "boolean"
+          }
+        },
+        "required": ["type", "path"],
+        "additionalProperties": false
+      },
+      "ReferenceGitSource": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["git"]
+          },
+          "repository": {
+            "type": "string"
+          },
+          "branch": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "hidden": {
+            "type": "boolean"
+          }
+        },
+        "required": ["type", "repository"],
+        "additionalProperties": false
+      },
+      "ReferenceInfo": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReferenceLocalSource"
+              },
+              {
+                "$ref": "#/components/schemas/ReferenceGitSource"
+              }
+            ]
+          }
+        },
+        "required": ["name", "path", "source"],
+        "additionalProperties": false
+      },
+      "V2ReferenceListResponse": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "$ref": "#/components/schemas/LocationInfo"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReferenceInfo"
+            }
+          }
+        },
+        "required": ["location", "data"],
+        "additionalProperties": false
+      },
+      "IntegrationInfo": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "methods": {
+            "type": "array"
+          },
+          "connections": {
+            "type": "array"
+          }
+        },
+        "required": ["id", "name", "methods", "connections"],
+        "additionalProperties": false
+      },
+      "V2IntegrationListResponse": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "$ref": "#/components/schemas/LocationInfo"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IntegrationInfo"
+            }
+          }
+        },
+        "required": ["location", "data"],
+        "additionalProperties": false
+      },
+      "PermissionSavedInfo": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "projectID": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "resource": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "projectID", "action", "resource"],
+        "additionalProperties": false
+      },
+      "V2PermissionSavedListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PermissionSavedInfo"
+            }
+          }
+        },
+        "required": ["data"],
         "additionalProperties": false
       },
       "VideoGeneratePayload": {
@@ -42880,9 +45375,12 @@
           },
           "rootSessionID": {
             "type": "string"
+          },
+          "autoEligible": {
+            "type": "boolean"
           }
         },
-        "required": ["id", "name", "rootSessionID"],
+        "required": ["id", "name", "rootSessionID", "autoEligible"],
         "additionalProperties": false
       },
       "TeamUsageView": {
@@ -43181,6 +45679,9 @@
               }
             ]
           },
+          "autoEligible": {
+            "type": "boolean"
+          },
           "updatedAt": {
             "anyOf": [
               {
@@ -43205,7 +45706,7 @@
             ]
           }
         },
-        "required": ["id", "name", "rootSessionID", "memberCount", "updatedAt"],
+        "required": ["id", "name", "rootSessionID", "memberCount", "autoEligible", "updatedAt"],
         "additionalProperties": false
       },
       "TeamMessageView": {
@@ -43316,71 +45817,742 @@
         "required": ["team", "members", "tasks", "messages"],
         "additionalProperties": false
       },
-      "BackgroundJobInfo1": {
+      "RunView": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string"
           },
-          "type": {
+          "sessionID": {
             "type": "string"
           },
-          "title": {
+          "directory": {
             "type": "string"
           },
-          "status": {
+          "mode": {
             "type": "string",
-            "enum": ["running", "completed", "error", "cancelled"]
+            "enum": ["team", "auto"]
           },
-          "started_at": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string",
-                "enum": ["NaN"]
-              },
-              {
-                "type": "string",
-                "enum": ["Infinity"]
-              },
-              {
-                "type": "string",
-                "enum": ["-Infinity"]
-              }
-            ]
-          },
-          "completed_at": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string",
-                "enum": ["NaN"]
-              },
-              {
-                "type": "string",
-                "enum": ["Infinity"]
-              },
-              {
-                "type": "string",
-                "enum": ["-Infinity"]
-              }
-            ]
-          },
-          "output": {
+          "goal": {
             "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "phase": {
+            "type": "string"
+          },
+          "planVersion": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "roundMain": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "budget": {
+            "type": "object",
+            "properties": {
+              "tokens": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity", "-Infinity", "NaN"]
+                  }
+                ]
+              },
+              "cost": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity", "-Infinity", "NaN"]
+                  }
+                ]
+              },
+              "wallMs": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity", "-Infinity", "NaN"]
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          "attempts": {
+            "type": "object",
+            "properties": {
+              "business": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity", "-Infinity", "NaN"]
+                  }
+                ]
+              },
+              "formatRetry": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity", "-Infinity", "NaN"]
+                  }
+                ]
+              }
+            },
+            "required": ["business", "formatRetry"],
+            "additionalProperties": false
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
           },
           "error": {
             "type": "string"
           },
-          "metadata": {
-            "type": "object"
+          "terminalReason": {
+            "type": "string"
           }
         },
-        "required": ["id", "type", "status", "started_at"],
+        "required": [
+          "id",
+          "sessionID",
+          "directory",
+          "mode",
+          "goal",
+          "state",
+          "planVersion",
+          "roundMain",
+          "attempts",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "RunTeamView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "profileID": {
+            "type": "string"
+          },
+          "phase": {
+            "type": "string"
+          },
+          "roundCaptain": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "verdict": {},
+          "dependsOn": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "enum": ["NaN"]
+                },
+                {
+                  "type": "string",
+                  "enum": ["Infinity"]
+                },
+                {
+                  "type": "string",
+                  "enum": ["-Infinity"]
+                },
+                {
+                  "type": "string",
+                  "enum": ["Infinity", "-Infinity", "NaN"]
+                }
+              ]
+            }
+          }
+        },
+        "required": ["id", "phase", "roundCaptain", "dependsOn"],
+        "additionalProperties": false
+      },
+      "RunAcceptanceView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "taskID": {
+            "type": "string"
+          },
+          "specID": {
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "expected": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "specID", "version", "text", "kind"],
+        "additionalProperties": false
+      },
+      "RunVerificationView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "acceptanceID": {
+            "type": "string"
+          },
+          "attempt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "snapshotID": {
+            "type": "string"
+          },
+          "verifierVersion": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": ["pass", "fail", "unverified"]
+          },
+          "measured": {
+            "type": "string"
+          },
+          "evidenceRef": {
+            "type": "string"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          }
+        },
+        "required": ["id", "acceptanceID", "attempt", "snapshotID", "verifierVersion", "outcome", "at"],
+        "additionalProperties": false
+      },
+      "RunSummaryLine": {
+        "type": "object",
+        "properties": {
+          "acceptanceID": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "measured": {
+            "type": "string"
+          },
+          "snapshotID": {
+            "type": "string"
+          }
+        },
+        "required": ["acceptanceID", "text", "outcome"],
+        "additionalProperties": false
+      },
+      "RunSummaryView": {
+        "type": "object",
+        "properties": {
+          "pass": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "fail": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "unverified": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "stale": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "unresolved": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "deliverable": {
+            "type": "boolean"
+          },
+          "verdict": {
+            "type": "string",
+            "enum": ["complete", "partial", "failed"]
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunSummaryLine"
+            }
+          }
+        },
+        "required": ["pass", "fail", "unverified", "stale", "unresolved", "ratio", "deliverable", "verdict", "lines"],
+        "additionalProperties": false
+      },
+      "RunDetail": {
+        "type": "object",
+        "properties": {
+          "run": {
+            "$ref": "#/components/schemas/RunView"
+          },
+          "teams": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunTeamView"
+            }
+          },
+          "acceptances": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunAcceptanceView"
+            }
+          },
+          "verifications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunVerificationView"
+            }
+          },
+          "summary": {
+            "$ref": "#/components/schemas/RunSummaryView"
+          }
+        },
+        "required": ["run", "teams", "acceptances", "verifications", "summary"],
+        "additionalProperties": false
+      },
+      "effect_HttpApiError_Conflict": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": ["Conflict"]
+          }
+        },
+        "required": ["_tag"],
+        "additionalProperties": false
+      },
+      "RunEventView": {
+        "type": "object",
+        "properties": {
+          "seq": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "payload": {}
+        },
+        "required": ["seq", "at", "kind"],
         "additionalProperties": false
       },
       "PlanApprovalPending2": {
@@ -43469,6 +46641,73 @@
           }
         },
         "required": ["id", "event", "source", "message", "startedAt"],
+        "additionalProperties": false
+      },
+      "BackgroundJobInfo1": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["running", "completed", "error", "cancelled"]
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              }
+            ]
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              }
+            ]
+          },
+          "output": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object"
+          }
+        },
+        "required": ["id", "type", "status", "started_at"],
         "additionalProperties": false
       },
       "SyncEventMessageUpdated": {
@@ -45481,78 +48720,6 @@
         "required": ["id", "type", "properties"],
         "additionalProperties": false
       },
-      "EventBackgroundStarted": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["background.started"]
-          },
-          "properties": {
-            "type": "object",
-            "properties": {
-              "info": {
-                "$ref": "#/components/schemas/BackgroundJobInfo"
-              }
-            },
-            "required": ["info"],
-            "additionalProperties": false
-          }
-        },
-        "required": ["id", "type", "properties"],
-        "additionalProperties": false
-      },
-      "EventBackgroundUpdated": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["background.updated"]
-          },
-          "properties": {
-            "type": "object",
-            "properties": {
-              "info": {
-                "$ref": "#/components/schemas/BackgroundJobInfo"
-              }
-            },
-            "required": ["info"],
-            "additionalProperties": false
-          }
-        },
-        "required": ["id", "type", "properties"],
-        "additionalProperties": false
-      },
-      "EventBackgroundCompleted": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["background.completed"]
-          },
-          "properties": {
-            "type": "object",
-            "properties": {
-              "info": {
-                "$ref": "#/components/schemas/BackgroundJobInfo"
-              }
-            },
-            "required": ["info"],
-            "additionalProperties": false
-          }
-        },
-        "required": ["id", "type", "properties"],
-        "additionalProperties": false
-      },
       "EventLspClientDiagnostics": {
         "type": "object",
         "properties": {
@@ -45632,6 +48799,24 @@
             },
             "required": ["sessionID", "messageID", "partID", "field", "delta"],
             "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventCatalogUpdated": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["catalog.updated"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {}
           }
         },
         "required": ["id", "type", "properties"],
@@ -45752,6 +48937,177 @@
               }
             },
             "required": ["sessionID", "requestID", "reply"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventQuestionAsked": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["question.asked"]
+          },
+          "properties": {
+            "$ref": "#/components/schemas/QuestionRequest"
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventQuestionReplied": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["question.replied"]
+          },
+          "properties": {
+            "$ref": "#/components/schemas/QuestionReplied"
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventQuestionRejected": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["question.rejected"]
+          },
+          "properties": {
+            "$ref": "#/components/schemas/QuestionRejected"
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventQuestionFeishuReplied": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["question.feishu.replied"]
+          },
+          "properties": {
+            "$ref": "#/components/schemas/QuestionFeishuReplied"
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventTodoUpdated": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["todo.updated"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "sessionID": {
+                "type": "string",
+                "pattern": "^ses"
+              },
+              "todos": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Todo"
+                }
+              }
+            },
+            "required": ["sessionID", "todos"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventBackgroundStarted": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["background.started"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "info": {
+                "$ref": "#/components/schemas/BackgroundJobInfo"
+              }
+            },
+            "required": ["info"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventBackgroundUpdated": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["background.updated"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "info": {
+                "$ref": "#/components/schemas/BackgroundJobInfo"
+              }
+            },
+            "required": ["info"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventBackgroundCompleted": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["background.completed"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "info": {
+                "$ref": "#/components/schemas/BackgroundJobInfo"
+              }
+            },
+            "required": ["info"],
             "additionalProperties": false
           }
         },
@@ -46007,105 +49363,6 @@
                 ]
               }
             },
-            "additionalProperties": false
-          }
-        },
-        "required": ["id", "type", "properties"],
-        "additionalProperties": false
-      },
-      "EventQuestionAsked": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["question.asked"]
-          },
-          "properties": {
-            "$ref": "#/components/schemas/QuestionRequest"
-          }
-        },
-        "required": ["id", "type", "properties"],
-        "additionalProperties": false
-      },
-      "EventQuestionReplied": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["question.replied"]
-          },
-          "properties": {
-            "$ref": "#/components/schemas/QuestionReplied"
-          }
-        },
-        "required": ["id", "type", "properties"],
-        "additionalProperties": false
-      },
-      "EventQuestionRejected": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["question.rejected"]
-          },
-          "properties": {
-            "$ref": "#/components/schemas/QuestionRejected"
-          }
-        },
-        "required": ["id", "type", "properties"],
-        "additionalProperties": false
-      },
-      "EventQuestionFeishuReplied": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["question.feishu.replied"]
-          },
-          "properties": {
-            "$ref": "#/components/schemas/QuestionFeishuReplied"
-          }
-        },
-        "required": ["id", "type", "properties"],
-        "additionalProperties": false
-      },
-      "EventTodoUpdated": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["todo.updated"]
-          },
-          "properties": {
-            "type": "object",
-            "properties": {
-              "sessionID": {
-                "type": "string",
-                "pattern": "^ses"
-              },
-              "todos": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/Todo"
-                }
-              }
-            },
-            "required": ["sessionID", "todos"],
             "additionalProperties": false
           }
         },
@@ -49870,6 +53127,10 @@
       "description": "Experimental v2 routes."
     },
     {
+      "name": "v2 session resources",
+      "description": "Experimental v2 session descriptor and pending-request routes."
+    },
+    {
       "name": "v2 messages",
       "description": "Experimental v2 message routes."
     },
@@ -49882,8 +53143,40 @@
       "description": "Experimental v2 provider routes."
     },
     {
+      "name": "v2 provider list",
+      "description": "Experimental v2 provider list route."
+    },
+    {
       "name": "v2 fs",
       "description": "Experimental v2 filesystem routes."
+    },
+    {
+      "name": "v2 location",
+      "description": "Experimental v2 location routes."
+    },
+    {
+      "name": "v2 agents",
+      "description": "Experimental v2 agent routes."
+    },
+    {
+      "name": "v2 commands",
+      "description": "Experimental v2 command routes."
+    },
+    {
+      "name": "v2 skills",
+      "description": "Experimental v2 skill routes."
+    },
+    {
+      "name": "v2 references",
+      "description": "Experimental v2 reference routes."
+    },
+    {
+      "name": "v2 integrations",
+      "description": "Experimental v2 integration routes."
+    },
+    {
+      "name": "v2 permissions",
+      "description": "Experimental v2 permission routes."
     },
     {
       "name": "Videos",
@@ -49909,6 +53202,9 @@
     {
       "name": "team",
       "description": "Multi-agent team routes."
+    },
+    {
+      "name": "Team runs"
     },
     {
       "name": "pty",
