@@ -1798,7 +1798,9 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
 
   return (
     <div class="flex h-full min-h-0 flex-col overflow-hidden">
-      <div class="flex h-14 shrink-0 items-center gap-3 border-b border-border px-3">
+      {/* 顶行右侧 108px 是覆盖层补的窗控条：筛选器放在标题后面（靠左），
+          并用 PageHeader 的同一套内边距保证不会压到窗控上。 */}
+      <div class="flex h-14 shrink-0 items-center gap-3 border-b border-border pl-3 pr-[108px]">
         <IconButton icon="arrow-left" variant="ghost" aria-label={language.t("common.goBack")} onClick={props.onBack} />
         <span
           class="grid size-8 shrink-0 place-items-center rounded-lg"
