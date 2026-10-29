@@ -1,8 +1,10 @@
 import { Context, Effect, Layer } from "effect"
+import { createHash } from "node:crypto"
 import { and, eq, lt } from "drizzle-orm"
 import { Database } from "@/storage/db"
 import type { SessionID } from "@/session/schema"
 import { TeamRunOpTable } from "./run.sql"
+import { InstanceState } from "@/effect/instance-state"
 
 /**
  * 工具操作日志：回答「这个工具到底执行了没有」。
@@ -12,6 +14,33 @@ import { TeamRunOpTable } from "./run.sql"
  * 进程崩溃留下的 `started` 记录在恢复时判为 `unknown`，
  * `unknown` 只能进人工/主智能体复核，**不能自动重试**（见设计文档 §8.5）。
  */
+
+/** 工具调用归属的编排坐标：决定哪些调用「算同一次」。 */
+export type Scope = {
+  runID: string
+  taskID?: string
+  attempt?: number
+}
+
+/**
+ * 幂等键：`run_id + task_id + attempt + tool + 参数哈希`（设计文档 §8.5）。
+ *
+ * 参数先做稳定序列化（键排序）再哈希：同一份参数即使键顺序不同，也必须落在
+ * 同一个键上，否则「重放」会退化成「重跑」。
+ */
+export function idempotencyKey(input: { scope: Scope; tool: string; args: unknown }) {
+  const digest = createHash("sha256").update(stable(input.args)).digest("hex").slice(0, 16)
+  return [input.scope.runID, input.scope.taskID ?? "-", input.scope.attempt ?? 0, input.tool, digest].join(":")
+}
+
+function stable(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null"
+  if (Array.isArray(value)) return "[" + value.map(stable).join(",") + "]"
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, item]) => item !== undefined)
+    .sort(([a], [b]) => a.localeCompare(b))
+  return "{" + entries.map(([key, item]) => JSON.stringify(key) + ":" + stable(item)).join(",") + "}"
+}
 
 export type OpOutcome = "started" | "succeeded" | "failed" | "unknown"
 
@@ -61,6 +90,17 @@ export interface Interface {
   readonly list: (runID: string) => Effect.Effect<Op[]>
   /** 需要复核的操作；主智能体在汇报前必须处理掉这些项。 */
   readonly needsReview: (runID: string) => Effect.Effect<Op[]>
+  /**
+   * 登记「这个子会话属于哪次运行/哪个任务」。
+   *
+   * 工具漏斗只知道会话，不知道编排坐标；派发方在创建子会话时登记一次，
+   * 之后该会话里所有有副作用的工具调用都会自动带上幂等键。
+   * 这是进程内的映射：重启后旧会话本来也不会复用，保护靠 `markUnknown` +
+   * `needsReview`（未知项阻止 `done`），不靠这份内存表。
+   */
+  readonly scope: (input: { sessionID: SessionID } & Scope) => Effect.Effect<void>
+  readonly unscope: (sessionID: SessionID) => Effect.Effect<void>
+  readonly scopeOf: (sessionID: SessionID) => Effect.Effect<Scope | undefined>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@NovaWay/TeamOpLog") {}
@@ -84,6 +124,26 @@ const toOp = (row: typeof TeamRunOpTable.$inferSelect): Op => ({
 export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
+    type State = { scopes: Map<SessionID, Scope> }
+    const state = yield* InstanceState.make<State>(() => Effect.succeed({ scopes: new Map() }))
+
+    const scope: Interface["scope"] = Effect.fn("TeamOpLog.scope")(function* (input) {
+      const scopes = (yield* InstanceState.get(state)).scopes
+      scopes.set(input.sessionID, {
+        runID: input.runID,
+        ...(input.taskID ? { taskID: input.taskID } : {}),
+        ...(input.attempt !== undefined ? { attempt: input.attempt } : {}),
+      })
+    })
+
+    const unscope: Interface["unscope"] = Effect.fn("TeamOpLog.unscope")(function* (sessionID) {
+      ;(yield* InstanceState.get(state)).scopes.delete(sessionID)
+    })
+
+    const scopeOf: Interface["scopeOf"] = Effect.fn("TeamOpLog.scopeOf")(function* (sessionID) {
+      return (yield* InstanceState.get(state)).scopes.get(sessionID)
+    })
+
     const get: Interface["get"] = Effect.fn("TeamOpLog.get")(function* (input) {
       const row = yield* Effect.sync(() =>
         Database.use((db) =>
@@ -227,7 +287,7 @@ export const layer = Layer.effect(
       return ops.filter((op) => op.outcome === "unknown" || op.outcome === "started")
     })
 
-    return Service.of({ begin, finish, markUnknown, get, list, needsReview })
+    return Service.of({ begin, finish, markUnknown, get, list, needsReview, scope, unscope, scopeOf })
   }),
 )
 

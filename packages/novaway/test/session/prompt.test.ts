@@ -58,6 +58,7 @@ import { awaitWithTimeout, pollWithTimeout, testEffect } from "../lib/effect"
 import { reply, TestLLMServer } from "../lib/llm-server"
 import { SyncEvent } from "@/sync"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import { defaultLayer as TeamOpLogLayer, Service as TeamOpLogService } from "@/team/op-log"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { Auth } from "@/auth"
 
@@ -192,6 +193,7 @@ function makeHttp(input?: { processor?: "blocking" }) {
     Auth.defaultLayer,
     HookLayer,
     ReadState.defaultLayer,
+    TeamOpLogLayer,
   ).pipe(Layer.provideMerge(infra))
   const question = Question.layer.pipe(Layer.provideMerge(deps))
   const todo = Todo.layer.pipe(Layer.provideMerge(deps))
@@ -614,6 +616,58 @@ it.instance(
       yield* llm.text("no")
       yield* prompt.loop({ sessionID: chat.id })
       expect(find(yield* MessageV2.filterCompactedEffect(chat.id))).toHaveLength(1)
+    }),
+  { git: true },
+  30_000,
+)
+
+it.instance(
+  "a scoped tool call replays instead of running its side effect twice",
+  () =>
+    Effect.gen(function* () {
+      const { dir, llm } = yield* useServerConfig(providerCfg)
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const ops = yield* TeamOpLogService
+      const chat = yield* sessions.create({
+        title: "Scoped",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      const file = path.join(dir, "scoped.txt")
+      // 模拟编排派发的子会话：登记坐标后，写操作会落操作日志。
+      yield* ops.scope({ sessionID: chat.id, runID: "run_scoped", taskID: "team_a", attempt: 1 })
+
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        noReply: true,
+        parts: [{ type: "text", text: "write the file" }],
+      })
+      yield* llm.tool("write", { filePath: file, content: "hello" })
+      yield* llm.text("wrote it")
+      yield* prompt.loop({ sessionID: chat.id })
+      expect(yield* Effect.promise(() => Bun.file(file).text())).toBe("hello")
+
+      // 模拟崩溃后同一次尝试重放：文件已不在磁盘上，如果工具再执行一次就会把它写回来。
+      yield* Effect.promise(() => Bun.file(file).delete())
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        noReply: true,
+        parts: [{ type: "text", text: "write it again" }],
+      })
+      yield* llm.tool("write", { filePath: file, content: "hello" })
+      yield* llm.text("ok")
+      yield* prompt.loop({ sessionID: chat.id })
+
+      expect(yield* Effect.promise(() => Bun.file(file).exists())).toBe(false)
+      const msgs = yield* MessageV2.filterCompactedEffect(chat.id)
+      const output = msgs
+        .flatMap((msg) => msg.parts)
+        .filter((part): part is MessageV2.ToolPart => part.type === "tool" && part.tool === "write")
+        .map((part) => (part.state.status === "completed" ? part.state.output : ""))
+        .join("\n")
+      expect(output).toContain("already executed")
     }),
   { git: true },
   30_000,

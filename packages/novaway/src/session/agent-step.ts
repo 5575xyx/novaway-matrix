@@ -29,6 +29,11 @@ export interface RunAgentInput {
   readonly title?: string
   /** 团队面板里显示的名字；缺省用 title 或 agent+会话后缀。 */
   readonly name?: string
+  /**
+   * 编排坐标：登记后这个子会话里的有副作用工具调用会带幂等键。
+   * 不传则不登记（普通子代理、工作流步骤都没有）。
+   */
+  readonly scope?: { runID: string; taskID?: string; attempt?: number }
 }
 
 export type RunAgent = (input: RunAgentInput) => Effect.Effect<string>
@@ -57,6 +62,11 @@ export interface MakeRunAgentConfig {
    * 运行期间标记 active、结束后回到 idle，让状态面板能看到真实成员。
    */
   readonly teams?: TeamInterface
+  /**
+   * 子会话创建后的回调。编排方在这里登记 `scope`，让工具漏斗能算出幂等键；
+   * 放在这里而不是 runAgent 调用点，是因为会话 ID 只有创建后才知道。
+   */
+  readonly onSession?: (input: { sessionID: SessionID; scope: RunAgentInput["scope"] }) => Effect.Effect<void>
 }
 
 /**
@@ -64,7 +74,7 @@ export interface MakeRunAgentConfig {
  * Session/Agent 服务已在 config 中注入,故返回的闭包自身无未决依赖(R = never)。
  */
 export function makeRunAgent(config: MakeRunAgentConfig): RunAgent {
-  const { ops, sessions, agents, parentSessionID, defaultModel, defaultAgent, teams } = config
+  const { ops, sessions, agents, parentSessionID, defaultModel, defaultAgent, teams, onSession } = config
   return (input) =>
     Effect.gen(function* () {
       const parent = yield* sessions.get(parentSessionID).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
@@ -106,6 +116,10 @@ export function makeRunAgent(config: MakeRunAgentConfig): RunAgent {
             })
           : (parent?.permission ?? []),
       })
+
+      if (onSession && input.scope) {
+        yield* onSession({ sessionID: child.id, scope: input.scope }).pipe(Effect.ignore)
+      }
 
       if (teams && team) {
         const preferred = input.name ?? input.title ?? `${resolvedName}-${child.id.slice(-4)}`

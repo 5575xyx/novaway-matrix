@@ -17,6 +17,7 @@ import { Agent } from "@/agent/agent"
 import { Provider } from "@/provider/provider"
 import { SessionID } from "@/session/schema"
 import { Service as TeamService } from "@/team/team"
+import { Service as TeamOpLogService } from "@/team/op-log"
 import { Snapshot } from "@/snapshot"
 
 const toRun = (run: TeamRun) => ({
@@ -259,6 +260,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             resolvePromptParts: (template) => promptSvc.resolvePromptParts(template),
             prompt: (input) => promptSvc.prompt(input).pipe(Effect.orDie),
           }
+          const opLog = yield* TeamOpLogService
           const runAgent = makeRunAgent({
             ops,
             sessions,
@@ -267,6 +269,8 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             defaultModel,
             defaultAgent,
             teams,
+            // 子会话一创建就登记编排坐标；之后它跑的任何有副作用工具都会带幂等键。
+            onSession: ({ sessionID, scope }) => (scope ? opLog.scope({ sessionID, ...scope }) : Effect.void),
           })
 
           const captain = ctx.payload.captain ?? defaultAgent
@@ -290,6 +294,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               const text = yield* runAgent({
                 agent: captain,
                 title: "队长 · 第 " + input.round + " 轮",
+                scope: { runID: run.id, taskID: input.team.id, attempt: input.round },
                 prompt: [
                   "你是一个团队的队长，负责把下面的任务分派给成员、自己判定是否可以交付。",
                   "",
@@ -335,6 +340,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               const text = yield* runAgent({
                 agent: verifier,
                 title: "验证 · " + input.acceptance.id,
+                scope: { runID: run.id, taskID: input.acceptance.id, attempt: input.round },
                 prompt: [
                   "你只做一件事：判断下面这条验收在当前代码快照上是否成立。",
                   "不要相信交付方的自述；没有可复核证据就回答 unverified。",

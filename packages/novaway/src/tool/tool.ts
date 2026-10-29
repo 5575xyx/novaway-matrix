@@ -49,6 +49,14 @@ export interface Capabilities {
   concurrencySafe?: boolean | ((args: unknown) => boolean)
   /** Tool performs an irreversible operation (delete/overwrite/send). */
   destructive?: boolean
+  /**
+   * 同一个调用重做一次与只做一次，最终状态相同。
+   *
+   * 编排层用它决定「崩溃后能不能自动重跑」：只读工具天然幂等；`write` 这类
+   * 「覆盖成同一内容」也算幂等；`bash` 默认不算（可能是 `git push`、发消息、
+   * 扣款），只有只读命令的判定能把它临时提升为幂等。
+   */
+  idempotent?: boolean | ((args: unknown) => boolean)
   /** Maximum bytes kept inline before the output is persisted to disk. */
   maxResultBytes?: number
   /** Validate arguments against the current context. Errors are returned to the model. */
@@ -89,6 +97,14 @@ export function concurrencySafe(def: Pick<Def, "capabilities">, args: unknown) {
 
 export function readOnly(def: Pick<Def, "capabilities">, args: unknown) {
   return resolveFlag(def.capabilities?.readOnly, args, false)
+}
+
+export function idempotent(def: Pick<Def, "capabilities">, args: unknown) {
+  return resolveFlag(def.capabilities?.idempotent, args, false)
+}
+
+export function destructive(def: Pick<Def, "capabilities">) {
+  return def.capabilities?.destructive === true
 }
 
 export function maxResultBytes(def: Pick<Def, "capabilities">) {

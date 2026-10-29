@@ -57,9 +57,11 @@ import { SessionMemoryNotes } from "./memory-notes"
 import { NamedError } from "@novaway/core/util/error"
 import { SessionProcessor } from "./processor"
 import { Tool } from "@/tool/tool"
+import { ToolOp } from "./tool-op"
 import { Service as HookServiceService, defaultLayer as HookServiceLayer } from "@/hook/service"
 import { Service as ToolLockServiceService, defaultLayer as ToolLockServiceLayer } from "@/tool/lock"
 import { Service as AgentMailboxService, defaultLayer as AgentMailboxLayer } from "@/team/mailbox"
+import { Service as TeamOpLogService, defaultLayer as TeamOpLogLayer, idempotencyKey } from "@/team/op-log"
 import { Permission } from "@/permission"
 import { SessionStatus } from "./status"
 import { LLM } from "./llm"
@@ -651,6 +653,9 @@ export const layer = Layer.effect(
     }
     const toolLock = Option.getOrUndefined(yield* Effect.serviceOption(ToolLockServiceService))
     const mailbox = Option.getOrUndefined(yield* Effect.serviceOption(AgentMailboxService))
+    // 团队编排的工具操作日志：只有子会话被登记了编排坐标才生效，
+    // 普通会话完全不受影响（serviceOption 拿不到时也自动退化）。
+    const teamOps = Option.getOrUndefined(yield* Effect.serviceOption(TeamOpLogService))
     const planApproval = Option.getOrUndefined(yield* Effect.serviceOption(PlanApproval.Service))
     const git = yield* Effect.serviceOption(Git.Service)
     const truncate = yield* Truncate.Service
@@ -880,7 +885,11 @@ export const layer = Layer.effect(
         const changed: string[] = []
         for (const item of tracked.slice(-200)) {
           const info = yield* fsys.stat(item.path).pipe(Effect.catch(() => Effect.succeed(undefined)))
-          const mtime = info?.mtime.pipe(Option.map((date) => date.getTime()), Option.getOrElse(() => 0)) ?? 0
+          const mtime =
+            info?.mtime.pipe(
+              Option.map((date) => date.getTime()),
+              Option.getOrElse(() => 0),
+            ) ?? 0
           const size = info ? Number(info.size) : -1
           if (!info) {
             changed.push(`${item.path} (deleted)`)
@@ -1257,6 +1266,29 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                   }
                   const effective = (pre.updatedInput ?? args) as typeof args
 
+                  // 编排内的有副作用调用先落操作日志：键 = run/task/attempt/tool/参数哈希。
+                  // 同一键重放时不再执行工具 —— 结果不明（started/unknown）则拒绝继续，
+                  // 交给 `needs_review` 让人核对副作用；这比「再跑一遍」安全得多。
+                  const opScope =
+                    teamOps && !Tool.readOnly(item, effective) ? yield* teamOps.scopeOf(ctx.sessionID) : undefined
+                  const op =
+                    teamOps && opScope
+                      ? yield* teamOps.begin({
+                          runID: opScope.runID,
+                          ...(opScope.taskID ? { taskID: opScope.taskID } : {}),
+                          sessionID: ctx.sessionID,
+                          tool: item.id,
+                          idempotencyKey: idempotencyKey({ scope: opScope, tool: item.id, args: effective }),
+                          // 只记定位信息：参数里常有 token/路径，落库即泄露。
+                          effect: { callID: ctx.callID },
+                        })
+                      : undefined
+                  const replay = ToolOp.decide(item.id, op?.replayed ? op.op : undefined)
+                  if (replay.kind === "fail") return yield* Effect.fail(new Error(replay.message))
+                  if (replay.kind === "skip") {
+                    return { title: replay.title, output: replay.output, metadata: replay.metadata }
+                  }
+
                   yield* plugin.trigger(
                     "tool.execute.before",
                     { tool: item.id, sessionID: ctx.sessionID, callID: ctx.callID },
@@ -1268,8 +1300,12 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                   // at the next request; the error object itself is untouched so
                   // permission rejections keep their identity for denial counting.
                   const result = yield* item.execute(effective, ctx).pipe(
+                    Effect.tap(() =>
+                      op && teamOps ? teamOps.finish({ id: op.op.id, outcome: "succeeded" }) : Effect.void,
+                    ),
                     Effect.catchCause((cause) =>
                       Effect.gen(function* () {
+                        if (op && teamOps) yield* teamOps.finish({ id: op.op.id, outcome: "failed" })
                         if (hooks) {
                           const failed = yield* hooks
                             .trigger({
@@ -1306,14 +1342,15 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                   // model, so their notes are appended to the tool output
                   // itself; only a blocked PostToolUse has a reason worth
                   // showing (a hook that merely failed keeps its stderr in logs).
-                  const context = [pre.additionalContext, ...hookNotes(post)].filter(
-                    (text): text is string => !!text,
-                  )
+                  const context = [pre.additionalContext, ...hookNotes(post)].filter((text): text is string => !!text)
                   const output = {
                     ...result,
                     ...(context.length
                       ? {
-                          output: [result.output, ...context.map((text) => `<system-reminder>\n${text}\n</system-reminder>`)]
+                          output: [
+                            result.output,
+                            ...context.map((text) => `<system-reminder>\n${text}\n</system-reminder>`),
+                          ]
                             .filter(Boolean)
                             .join("\n\n"),
                           metadata: {
@@ -2265,13 +2302,15 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                 // earlier read is enough — re-inlining it just burns context.
                 const known = yield* Effect.serviceOption(ReadState.Service).pipe(
                   Effect.flatMap((service) =>
-                    Option.isNone(service)
-                      ? Effect.succeed(undefined)
-                      : service.value.get(input.sessionID, filepath),
+                    Option.isNone(service) ? Effect.succeed(undefined) : service.value.get(input.sessionID, filepath),
                   ),
                 )
                 const current = yield* fsys.stat(filepath).pipe(Effect.catch(() => Effect.succeed(undefined)))
-                const mtime = current?.mtime.pipe(Option.map((date) => date.getTime()), Option.getOrElse(() => 0)) ?? 0
+                const mtime =
+                  current?.mtime.pipe(
+                    Option.map((date) => date.getTime()),
+                    Option.getOrElse(() => 0),
+                  ) ?? 0
                 // `offset` is only set by an actual Read. An entry created by
                 // edit/write reflects the post-write mtime while the content in
                 // context is the pre-write version, so it must not be deduped.
@@ -2934,9 +2973,7 @@ ${text}
       // 还没有任何用户消息：没什么可继续的。
       if (!lastUser) return yield* lastAssistant(sessionID)
 
-      const attempts = msgs.filter(
-        (item) => item.info.role === "assistant" && item.info.parentID === lastUser.info.id,
-      )
+      const attempts = msgs.filter((item) => item.info.role === "assistant" && item.info.parentID === lastUser.info.id)
       const last = attempts.at(-1)
       if (!last || last.info.role !== "assistant") return yield* lastAssistant(sessionID)
       // 用户主动停止：这是用户的决定，不自动续跑。
@@ -3266,11 +3303,9 @@ ${text}
           lastUser.model &&
           lastUser.id < lastAssistant.id
         ) {
-          const noteModel = yield* getModel(
-            lastUser.model.providerID,
-            lastUser.model.modelID,
-            sessionID,
-          ).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+          const noteModel = yield* getModel(lastUser.model.providerID, lastUser.model.modelID, sessionID).pipe(
+            Effect.catchCause(() => Effect.succeed(undefined)),
+          )
           if (noteModel) {
             const noteTokens =
               lastFinished.tokens.total ||
@@ -4159,7 +4194,7 @@ export const defaultLayer = Layer.suspend(() =>
     ),
     Layer.provide(ToolRegistry.defaultLayer),
     Layer.provide(Truncate.defaultLayer),
-    Layer.provide(Layer.mergeAll(HookServiceLayer, ToolLockServiceLayer, AgentMailboxLayer)),
+    Layer.provide(Layer.mergeAll(HookServiceLayer, ToolLockServiceLayer, AgentMailboxLayer, TeamOpLogLayer)),
     Layer.provide(Provider.defaultLayer),
     Layer.provide(Config.defaultLayer),
     Layer.provide(Git.defaultLayer),
