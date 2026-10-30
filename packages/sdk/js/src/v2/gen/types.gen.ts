@@ -3649,6 +3649,12 @@ export type EffectHttpApiErrorConflict = {
   _tag: "Conflict"
 }
 
+export type RunWorktreeCleanup = {
+  directory: string
+  removed: boolean
+  error?: string
+}
+
 export type RunEventView = {
   seq: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
@@ -17505,6 +17511,40 @@ export type RunExecuteResponses = {
 }
 
 export type RunExecuteResponse = RunExecuteResponses[keyof RunExecuteResponses]
+
+export type RunWorktreesRemoveData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/run/{runID}/worktrees"
+}
+
+export type RunWorktreesRemoveErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type RunWorktreesRemoveError = RunWorktreesRemoveErrors[keyof RunWorktreesRemoveErrors]
+
+export type RunWorktreesRemoveResponses = {
+  /**
+   * Cleaned worktrees
+   */
+  200: Array<RunWorktreeCleanup>
+}
+
+export type RunWorktreesRemoveResponse = RunWorktreesRemoveResponses[keyof RunWorktreesRemoveResponses]
 
 export type RunCancelData = {
   body?: never

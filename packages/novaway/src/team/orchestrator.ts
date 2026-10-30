@@ -64,6 +64,18 @@ export type VerifyInput = {
   round: number
 }
 
+/**
+ * 集成结果（§10.2）。判定由集成方给出，编排器只认结论：
+ * 只有 `merged` 才能进入合并后的重验；冲突必须让运行停下来等人，而不是「先当成功」。
+ */
+export type IntegrationOutcome =
+  | { kind: "merged"; sha: string; merged: string[]; directory?: string; branch?: string }
+  | { kind: "conflict"; team: string; files: string[]; message: string }
+  | { kind: "skipped"; reason: string }
+  | { kind: "failed"; message: string }
+
+export type Integrator = () => Effect.Effect<IntegrationOutcome>
+
 export type Dispatcher = (input: DispatchInput) => Effect.Effect<Report, unknown>
 export type Verifier = (input: VerifyInput) => Effect.Effect<VerificationResult, unknown>
 
@@ -85,6 +97,11 @@ export type Options = {
   concurrency?: number
   /** 每次派发前预占的 token 数，返回后按实际用量结算。 */
   reserveTokens?: number
+  /**
+   * 串行集成：团队全部交付后、合并重验之前调用。
+   * 提供时，集成结果决定后续重验跑在哪份代码上（见 handlers/run.ts 的快照切换）。
+   */
+  integrate?: Integrator
   /** 合并后的全局验收：有全局验收项时必须提供。 */
   verifyMerged?: (input: { acceptance: Acceptance; snapshotID: string }) => Effect.Effect<VerificationResult, unknown>
   signal?: AbortSignal
@@ -307,7 +324,7 @@ export const layer = Layer.effect(
           teams = yield* runs.teams(input.runID)
           const byID = new Map(teams.map((team, index) => [index, team]))
           // 依赖按团队在本次运行中的顺序下标记录；未交付的依赖不算满足。
-          const ready = teams.filter((team, index) => {
+          const ready = teams.filter((team) => {
             if (team.phase !== "queued") return false
             return team.dependsOn.every((dep) => byID.get(dep)?.phase === "delivered")
           })
@@ -330,6 +347,35 @@ export const layer = Layer.effect(
         if (teams.every((team) => team.phase === "delivered" || team.phase === "failed" || team.phase === "exceeded"))
           break
       }
+
+      // 串行集成：各团队在自己的 worktree 里交付，只有合到一起还成立才算可交付。
+      // 失败不算「跑完」—— 冲突要么返工要么由人接手，绝不能落进 done。
+      const integration = input.integrate ? yield* Effect.exit(input.integrate()) : undefined
+      if (integration && Exit.isFailure(integration)) {
+        yield* runs.appendEvent({
+          runID: input.runID,
+          kind: "integration.failed",
+          payload: { message: message(integration.cause) },
+        })
+      } else if (integration) {
+        const outcome = integration.value
+        yield* runs.appendEvent({
+          runID: input.runID,
+          kind: "integration." + outcome.kind,
+          payload: {
+            ...(outcome.kind === "merged"
+              ? { sha: outcome.sha, merged: outcome.merged, directory: outcome.directory, branch: outcome.branch }
+              : {}),
+            ...(outcome.kind === "conflict" ? { team: outcome.team, files: outcome.files } : {}),
+            ...(outcome.kind === "skipped" ? { reason: outcome.reason } : {}),
+            ...(outcome.kind === "failed" ? { message: outcome.message } : {}),
+          },
+        })
+      }
+      // 集成没成功时，后面在「未合并的快照」上得出的通过结论不具备可交付性。
+      const integrationBroken =
+        !!integration &&
+        (Exit.isFailure(integration) || integration.value.kind === "conflict" || integration.value.kind === "failed")
 
       // 合并后的重验：快照变了，之前团队的证据一律作废，
       // 必须在最终快照上重新验证（合并后的验收永远是重档，见 §10 / §19.1）。
@@ -406,13 +452,17 @@ export const layer = Layer.effect(
           ? "exceeded"
           : pending.length > 0
             ? "needs_review"
-            : allDelivered && summary.verdict === "complete"
-              ? "done"
-              : allDelivered && summary.verdict === "partial"
+            : integrationBroken
+              ? anyDelivered
                 ? "partial"
-                : anyDelivered
+                : "failed"
+              : allDelivered && summary.verdict === "complete"
+                ? "done"
+                : allDelivered && summary.verdict === "partial"
                   ? "partial"
-                  : "failed"
+                  : anyDelivered
+                    ? "partial"
+                    : "failed"
 
       yield* runs.update({
         runID: input.runID,
@@ -429,7 +479,16 @@ export const layer = Layer.effect(
         mergedVerification: summary as unknown as Record<string, unknown>,
         endedAt: isTerminal(state) ? Date.now() : undefined,
         terminalReason: state,
-        error: state === "failed" ? "没有团队产出可交付结果" : state === "exceeded" ? "尝试次数或预算超限" : null,
+        error:
+          state === "failed"
+            ? integrationBroken
+              ? "集成未完成，团队结果不构成可交付"
+              : "没有团队产出可交付结果"
+            : state === "exceeded"
+              ? "尝试次数或预算超限"
+              : state === "partial" && integrationBroken
+                ? "集成冲突：团队已交付，但合并后的代码尚未验证"
+                : null,
       })
       yield* runs.appendEvent({
         runID: input.runID,
@@ -443,6 +502,7 @@ export const layer = Layer.effect(
           unverified: summary.unverified,
           stale: summary.stale,
           needsReview: pending.length,
+          integration: integration ? (Exit.isSuccess(integration) ? integration.value.kind : "failed") : "none",
         },
       })
 

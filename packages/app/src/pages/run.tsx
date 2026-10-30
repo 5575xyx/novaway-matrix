@@ -141,6 +141,24 @@ export const RunPage: Component<{
       await sdk.client.run.execute({ runID, directory: props.directory })
     })
 
+  /**
+   * 清理工作区：只在终态、且确实还有 worktree 时才出现。
+   *
+   * 集成分支就是这次运行的可交付物 —— 删之前应该已经合并或明确放弃，
+   * 所以不做「跑完自动删」，而是留给用户一次明确的点击。
+   */
+  const cleanup = () =>
+    act("cleanup", async () => {
+      const runID = selected()
+      if (!runID) return
+      const result = await sdk.client.run.worktrees.remove({ runID, directory: props.directory })
+      const failed = (result.data ?? []).filter((item) => !item.removed)
+      if (failed.length > 0)
+        setError(failed.map((item) => item.directory + "：" + (item.error ?? "")).join(String.fromCharCode(10)))
+    })
+
+  const hasWorktrees = createMemo(() => (detail()?.teams ?? []).some((team) => !!team.worktree))
+
   const cancel = () =>
     act("cancel", async () => {
       const runID = selected()
@@ -319,6 +337,17 @@ export const RunPage: Component<{
                       <Show when={!TERMINAL.has(data().run.state)}>
                         <Button variant="ghost" size="small" disabled={busy() !== ""} onClick={() => void cancel()}>
                           {t("run.action.cancel")}
+                        </Button>
+                      </Show>
+                      <Show when={TERMINAL.has(data().run.state) && hasWorktrees()}>
+                        <Button
+                          variant="ghost"
+                          size="small"
+                          title={t("run.action.cleanupHint")}
+                          disabled={busy() !== ""}
+                          onClick={() => void cleanup()}
+                        >
+                          {busy() === "cleanup" ? t("run.action.cleaning") : t("run.action.cleanup")}
                         </Button>
                       </Show>
                     </div>

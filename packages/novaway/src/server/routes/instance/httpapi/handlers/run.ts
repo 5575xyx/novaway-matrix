@@ -1,4 +1,4 @@
-import { Effect, Scope } from "effect"
+import { Effect, Ref, Scope } from "effect"
 import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
 import { Service as RunService, isTerminal, type TeamRun } from "@/team/run"
@@ -13,7 +13,13 @@ import {
 import { TeamVerifier } from "@/team/verifier"
 import { Service as TeamProfileService, brief as rosterBrief, snapshotFrom } from "@/team/profile"
 import { TeamPolicy } from "@/team/policy"
-import { create as createTeamWorktree, head as worktreeHead } from "@/team/worktree"
+import {
+  branch as worktreeBranch,
+  create as createTeamWorktree,
+  head as worktreeHead,
+  remove as removeWorktree,
+} from "@/team/worktree"
+import { forkPoint, integrate as integrateWorktrees, remove as removeIntegration } from "@/team/integration"
 import { makeRunAgent, type RunAgentPromptOps } from "@/session/agent-step"
 import { SessionPrompt } from "@/session/prompt"
 import { Session } from "@/session/session"
@@ -356,11 +362,53 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           // 没有 worktree（非 git 仓库、空仓库）则退回实例目录的快照。
           const teamDirectory = teamRows.find((team) => team.worktree)?.worktree
           const instanceSnapshot = snapshot.track().pipe(Effect.catch(() => Effect.succeed(undefined)))
-          const snapshotOf = teamDirectory
-            ? Effect.promise(() => worktreeHead(teamDirectory)).pipe(
-                Effect.flatMap((sha) => (sha ? Effect.succeed(sha) : instanceSnapshot)),
+          /**
+           * 当前「证据应该绑定在哪」：集成前是团队 worktree 的 HEAD，
+           * 集成成功后切到集成 worktree 的 HEAD —— 合并后的结论必须落在合并后的代码上。
+           */
+          const integrated = yield* Ref.make<string | undefined>(undefined)
+          const snapshotOf = Effect.gen(function* () {
+            const after = yield* Ref.get(integrated)
+            if (after) return yield* Effect.promise(() => worktreeHead(after))
+            if (teamDirectory) {
+              const sha = yield* Effect.promise(() => worktreeHead(teamDirectory))
+              if (sha) return sha
+            }
+            return yield* instanceSnapshot
+          })
+
+          /**
+           * 串行集成（§10.2）：把各团队的 worktree 分支按顺序合到一个独立分支。
+           * 合进用户的分支是用户的动作，运行只负责「合到一起还成立吗」。
+           */
+          const integrate = () =>
+            Effect.gen(function* () {
+              const rows = yield* runs.teams(run.id)
+              const worktrees = rows.flatMap((team) => (team.worktree ? [team.worktree] : []))
+              if (worktrees.length === 0) return { kind: "skipped" as const, reason: "本次运行没有团队 worktree" }
+              const branches = yield* Effect.forEach(
+                worktrees,
+                (directory) => Effect.promise(() => worktreeBranch(directory)),
+                { concurrency: 1 },
               )
-            : instanceSnapshot
+              const named = rows.flatMap((team, index) => {
+                const branch = branches[index]
+                return team.worktree && branch ? [{ name: team.profileID ?? team.id, branch }] : []
+              })
+              if (named.length === 0) return { kind: "skipped" as const, reason: "团队 worktree 不在任何分支上" }
+              const baseSHA = yield* Effect.promise(() =>
+                forkPoint(
+                  run.directory,
+                  named.map((team) => team.branch),
+                ),
+              )
+              if (!baseSHA) return { kind: "skipped" as const, reason: "找不到团队分支与仓库的分岔点" }
+              const outcome = yield* Effect.promise(() =>
+                integrateWorktrees({ base: run.directory, baseSHA, runID: run.id, teams: named }),
+              )
+              if (outcome.kind === "merged") yield* Ref.set(integrated, outcome.directory)
+              return outcome
+            })
 
           // 队长派发：任务 + 验收 + 上一轮打回意见，要求结构化回报。
           const dispatch = (input: DispatchInput) =>
@@ -443,12 +491,31 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               } satisfies VerificationResult
             })
 
+          // 全局验收（不归属任何团队）：必须在**合并后**的代码上验证，
+          // 否则「每个团队各自通过」会被当成「合起来也通过」。
+          const verifyMerged = (input: { acceptance: Acceptance; snapshotID: string }) =>
+            Effect.gen(function* () {
+              const directory = (yield* Ref.get(integrated)) ?? teamDirectory
+              const text = yield* runAgent({
+                agent: verifier,
+                ...(directory ? { directory } : {}),
+                title: "合并验收 · " + input.acceptance.id,
+                scope: { runID: run.id, taskID: input.acceptance.id, attempt: 1, readOnly: policy.readOnly },
+                prompt: TeamVerifier.prompt(input.acceptance, {
+                  claims: [{ text: "合并后的代码（" + input.snapshotID + "）" }],
+                }),
+              })
+              return { ...TeamVerifier.interpret(text), snapshotID: input.snapshotID } satisfies VerificationResult
+            })
+
           // 后台执行：UI 轮询 run detail；取消走 cancel 接口。
           yield* orchestrator
             .execute({
               runID: run.id,
               dispatch,
               verify,
+              verifyMerged,
+              integrate,
               snapshot: () => snapshotOf.pipe(Effect.map((id) => id ?? "unknown")),
               maxRounds: ctx.payload.maxRounds,
               maxBusinessAttempts: ctx.payload.maxBusinessAttempts,
@@ -464,6 +531,49 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
 
           const current = yield* runs.get(run.id)
           return toRun(current ?? run)
+        }),
+      )
+      .handle("removeRunWorktrees", (ctx) =>
+        Effect.gen(function* () {
+          const run = yield* requireRun(ctx.params.runID)
+          // 运行还没结束就删工作区，等于把成员脚下的地板抽走。
+          if (!isTerminal(run.state)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+          const rows = yield* runs.teams(run.id)
+          const results: Array<{ directory: string; removed: boolean; error?: string }> = []
+
+          for (const team of rows) {
+            if (!team.worktree) continue
+            const directory = team.worktree
+            const branch = yield* Effect.promise(() => worktreeBranch(directory))
+            const removed = yield* Effect.promise(() => removeWorktree({ base: run.directory, directory, branch }))
+            results.push(
+              removed.ok ? { directory, removed: true } : { directory, removed: false, error: removed.error },
+            )
+          }
+
+          // 集成 worktree 单独清理：它的分支是「可交付物」，删之前用户应当先合并或明确放弃。
+          const merged = (yield* runs.events({ runID: run.id }))
+            .filter((event) => event.kind === "integration.merged")
+            .at(-1)
+          const integration = merged?.payload
+          const directory = typeof integration?.directory === "string" ? integration.directory : undefined
+          const branch = typeof integration?.branch === "string" ? integration.branch : undefined
+          if (directory) {
+            const removed = yield* Effect.promise(() => removeIntegration({ base: run.directory, directory, branch }))
+            results.push(
+              removed.ok ? { directory, removed: true } : { directory, removed: false, error: removed.error },
+            )
+          }
+
+          yield* runs.appendEvent({
+            runID: run.id,
+            kind: "worktree.removed",
+            payload: {
+              removed: results.filter((item) => item.removed).length,
+              failed: results.filter((item) => !item.removed).length,
+            },
+          })
+          return results
         }),
       )
       .handle("cancelRun", (ctx) =>

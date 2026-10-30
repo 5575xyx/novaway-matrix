@@ -163,6 +163,12 @@ export const RunExecutePayload = Schema.Struct({
   concurrency: Schema.optional(Schema.Number),
 })
 
+export const RunWorktreeCleanup = Schema.Struct({
+  directory: Schema.String,
+  removed: Schema.Boolean,
+  error: Schema.optional(Schema.String),
+}).annotate({ identifier: "RunWorktreeCleanup" })
+
 export const RunApi = HttpApiGroup.make("run")
   .add(
     HttpApiEndpoint.get("listRuns", root, {
@@ -249,6 +255,19 @@ export const RunApi = HttpApiGroup.make("run")
         identifier: "run.execute",
         summary: "Execute the run",
         description: "Dispatch to captains in the background and poll run detail for progress.",
+      }),
+    ),
+    HttpApiEndpoint.delete("removeRunWorktrees", `${root}/:runID/worktrees`, {
+      params: { runID: Schema.String },
+      query: WorkspaceRoutingQuery,
+      success: described(Schema.Array(RunWorktreeCleanup), "Cleaned worktrees"),
+      error: [HttpApiError.BadRequest, HttpApiError.NotFound],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "run.worktrees.remove",
+        summary: "Remove a finished run's worktrees",
+        description:
+          "Deletes the team worktrees and the integration worktree of a terminal run. The integration branch is the deliverable — merge or discard it first.",
       }),
     ),
     HttpApiEndpoint.post("cancelRun", `${root}/:runID/cancel`, {

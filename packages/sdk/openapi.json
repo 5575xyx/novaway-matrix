@@ -31684,6 +31684,82 @@
         ]
       }
     },
+    "/run/{runID}/worktrees": {
+      "delete": {
+        "tags": ["Team runs"],
+        "operationId": "run.worktrees.remove",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cleaned worktrees",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RunWorktreeCleanup"
+                  },
+                  "description": "Cleaned worktrees"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Deletes the team worktrees and the integration worktree of a terminal run. The integration branch is the deliverable — merge or discard it first.",
+        "summary": "Remove a finished run's worktrees",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.worktrees.remove({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/run/{runID}/cancel": {
       "post": {
         "tags": ["Team runs"],
@@ -47758,6 +47834,22 @@
           }
         },
         "required": ["_tag"],
+        "additionalProperties": false
+      },
+      "RunWorktreeCleanup": {
+        "type": "object",
+        "properties": {
+          "directory": {
+            "type": "string"
+          },
+          "removed": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": ["directory", "removed"],
         "additionalProperties": false
       },
       "RunEventView": {

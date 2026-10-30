@@ -460,6 +460,8 @@ import type {
   RunListResponses,
   RunPlanErrors,
   RunPlanResponses,
+  RunWorktreesRemoveErrors,
+  RunWorktreesRemoveResponses,
   SessionAbortErrors,
   SessionAbortResponses,
   SessionBackgroundCancelErrors,
@@ -13580,6 +13582,42 @@ export class Acceptance extends HeyApiClient {
   }
 }
 
+export class Worktrees extends HeyApiClient {
+  /**
+   * Remove a finished run's worktrees
+   *
+   * Deletes the team worktrees and the integration worktree of a terminal run. The integration branch is the deliverable — merge or discard it first.
+   */
+  public remove<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<RunWorktreesRemoveResponses, RunWorktreesRemoveErrors, ThrowOnError>(
+      {
+        url: "/run/{runID}/worktrees",
+        ...options,
+        ...params,
+      },
+    )
+  }
+}
+
 export class Run2 extends HeyApiClient {
   /**
    * List team runs
@@ -13921,6 +13959,11 @@ export class Run2 extends HeyApiClient {
   private _acceptance?: Acceptance
   get acceptance(): Acceptance {
     return (this._acceptance ??= new Acceptance({ client: this.client }))
+  }
+
+  private _worktrees?: Worktrees
+  get worktrees(): Worktrees {
+    return (this._worktrees ??= new Worktrees({ client: this.client }))
   }
 }
 
