@@ -63,6 +63,8 @@ import { Service as ToolLockServiceService, defaultLayer as ToolLockServiceLayer
 import { Service as AgentMailboxService, defaultLayer as AgentMailboxLayer } from "@/team/mailbox"
 import { Service as TeamOpLogService, defaultLayer as TeamOpLogLayer, idempotencyKey } from "@/team/op-log"
 import { Service as TeamWriterService, defaultLayer as TeamWriterLayer } from "@/team/writer"
+import { Service as TeamRunService } from "@/team/run"
+import { TeamPolicy } from "@/team/policy"
 import { Service as TeamService } from "@/team/team"
 import { TeamCatalog } from "@/team/catalog"
 import { Permission } from "@/permission"
@@ -661,6 +663,8 @@ export const layer = Layer.effect(
     const teamOps = Option.getOrUndefined(yield* Effect.serviceOption(TeamOpLogService))
     // 团队内单写者：同一 run 的写操作排队，只读调用不进这把锁（§10.1）。
     const teamWriters = Option.getOrUndefined(yield* Effect.serviceOption(TeamWriterService))
+    // 运行策略由工具漏斗强制（§11.1）：只读运行里改工作区的工具直接拒绝，并写事件。
+    const teamRuns = Option.getOrUndefined(yield* Effect.serviceOption(TeamRunService))
     // 团队目录：能派发谁由会话字段决定，注入内容按签名去重（见 insertReminders）。
     const teamService = Option.getOrUndefined(yield* Effect.serviceOption(TeamService))
     const teamCatalogSignatures = new Map<string, string>()
@@ -1314,6 +1318,33 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                     })
                   }
                   const effective = (pre.updatedInput ?? args) as typeof args
+
+                  // 运行策略（§11.1）：只读运行不允许改工作区。判定放在 hook 之后、
+                  // 执行之前 —— 用 hook 可能改写过的参数判定，且被拒绝的调用不会留下操作日志。
+                  const scoped = teamOps ? yield* teamOps.scopeOf(ctx.sessionID) : undefined
+                  if (scoped) {
+                    const verdict = TeamPolicy.decide(
+                      { readOnly: scoped.readOnly ?? true },
+                      { tool: item.id, capabilities: item.capabilities, args: effective },
+                    )
+                    if (verdict.kind === "deny") {
+                      if (teamRuns) {
+                        yield* teamRuns
+                          .appendEvent({
+                            runID: scoped.runID,
+                            kind: "tool.denied",
+                            payload: {
+                              tool: item.id,
+                              taskID: scoped.taskID,
+                              sessionID: ctx.sessionID,
+                              reason: verdict.reason,
+                            },
+                          })
+                          .pipe(Effect.ignore)
+                      }
+                      return yield* Effect.fail(new Error(verdict.reason))
+                    }
+                  }
 
                   // 编排内的有副作用调用先落操作日志：键 = run/task/attempt/tool/参数哈希。
                   // 同一键重放时不再执行工具 —— 结果不明（started/unknown）则拒绝继续，

@@ -12,6 +12,7 @@ import {
 } from "@/team/orchestrator"
 import { TeamVerifier } from "@/team/verifier"
 import { Service as TeamProfileService, brief as rosterBrief, snapshotFrom } from "@/team/profile"
+import { TeamPolicy } from "@/team/policy"
 import { makeRunAgent, type RunAgentPromptOps } from "@/session/agent-step"
 import { SessionPrompt } from "@/session/prompt"
 import { Session } from "@/session/session"
@@ -38,6 +39,8 @@ const toRun = (run: TeamRun) => ({
   updatedAt: run.updatedAt,
   error: run.error,
   terminalReason: run.terminalReason,
+  // 缺省只读：界面要能看出来这次运行会不会改工作区。
+  readOnly: TeamPolicy.fromPlan(run.plan).readOnly,
 })
 
 /** 从模型输出里取出第一个 JSON 对象；取不到就当作「未验证」，绝不默认通过。 */
@@ -157,6 +160,8 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
                     profileVersion: snapshot.version,
                   },
                 ],
+                // 策略与计划绑在一起：想放开写操作就得改计划、重新批准。
+                policy: { readOnly: ctx.payload.readOnly ?? true },
               },
               planVersion: 1,
             })
@@ -207,7 +212,11 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           const nextVersion = run.planVersion + 1
           yield* runs.update({
             runID: run.id,
-            plan: { teams: ctx.payload.teams, notes: ctx.payload.notes },
+            plan: {
+              teams: ctx.payload.teams,
+              notes: ctx.payload.notes,
+              policy: { readOnly: ctx.payload.readOnly ?? true },
+            },
             planVersion: nextVersion,
             state: run.state === "planning" ? "awaiting_approval" : run.state,
           })
@@ -310,6 +319,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           const members = roster ? rosterBrief(roster) : []
           const captain = ctx.payload.captain ?? captainJob ?? defaultAgent
           const verifier = ctx.payload.verifier ?? captain
+          const policy = TeamPolicy.fromPlan(run.plan)
           const snapshotOf = snapshot.track().pipe(Effect.catch(() => Effect.succeed(undefined)))
 
           // 队长派发：任务 + 验收 + 上一轮打回意见，要求结构化回报。
@@ -329,7 +339,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               const text = yield* runAgent({
                 agent: captain,
                 title: "队长 · 第 " + input.round + " 轮",
-                scope: { runID: run.id, taskID: input.team.id, attempt: input.round },
+                scope: { runID: run.id, taskID: input.team.id, attempt: input.round, readOnly: policy.readOnly },
                 prompt: [
                   "你是一个团队的队长，负责把下面的任务分派给成员、自己判定是否可以交付。",
                   "",
@@ -381,7 +391,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               const text = yield* runAgent({
                 agent: verifier,
                 title: "验证 · " + input.acceptance.id,
-                scope: { runID: run.id, taskID: input.acceptance.id, attempt: input.round },
+                scope: { runID: run.id, taskID: input.acceptance.id, attempt: input.round, readOnly: policy.readOnly },
                 prompt: TeamVerifier.prompt(input.acceptance, input.report),
               })
               // 没有证据的 pass 在这里被降级为 unverified（见 TeamVerifier.interpret）。

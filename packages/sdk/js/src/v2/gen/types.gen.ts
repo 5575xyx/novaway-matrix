@@ -3581,6 +3581,7 @@ export type RunView = {
   updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   error?: string
   terminalReason?: string
+  readOnly: boolean
 }
 
 export type RunTeamView = {
@@ -17281,6 +17282,7 @@ export type RunCreateData = {
       wallMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
     }
     profileID?: string
+    readOnly?: boolean
   }
   path?: never
   query?: {
@@ -17349,6 +17351,7 @@ export type RunPlanData = {
       dependsOn?: Array<number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN">
     }>
     notes?: string
+    readOnly?: boolean
   }
   path: {
     runID: string

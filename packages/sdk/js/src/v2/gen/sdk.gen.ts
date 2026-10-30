@@ -13632,6 +13632,7 @@ export class Run2 extends HeyApiClient {
         wallMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
       }
       profileID?: string
+      readOnly?: boolean
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -13658,6 +13659,7 @@ export class Run2 extends HeyApiClient {
             { in: "body", key: "acceptance" },
             { in: "body", key: "budget" },
             { in: "body", key: "profileID" },
+            { in: "body", key: "readOnly" },
           ],
         },
       ],
@@ -13725,6 +13727,7 @@ export class Run2 extends HeyApiClient {
         dependsOn?: Array<number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN">
       }>
       notes?: string
+      readOnly?: boolean
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -13738,6 +13741,7 @@ export class Run2 extends HeyApiClient {
             { in: "query", key: "workspace" },
             { in: "body", key: "teams" },
             { in: "body", key: "notes" },
+            { in: "body", key: "readOnly" },
           ],
         },
       ],

@@ -27,6 +27,8 @@ export const RunView = Schema.Struct({
   updatedAt: Schema.Number,
   error: Schema.optional(Schema.String),
   terminalReason: Schema.optional(Schema.String),
+  /** 本次运行是否只读；缺省 true（审查运行不能改工作区）。 */
+  readOnly: Schema.Boolean,
 }).annotate({ identifier: "RunView" })
 
 export const RunTeamView = Schema.Struct({
@@ -109,6 +111,11 @@ export const RunCreatePayload = Schema.Struct({
    * 计划直接用模板名建好，用户只需批准并启动。
    */
   profileID: Schema.optional(Schema.String),
+  /**
+   * 是否允许本次运行改工作区。缺省 false（只读审查）；放开写操作必须显式写出来，
+   * 而且它属于计划的一部分——改它等于改计划，要重新批准。
+   */
+  readOnly: Schema.optional(Schema.Boolean),
 })
 
 export const RunPlanPayload = Schema.Struct({
@@ -123,6 +130,8 @@ export const RunPlanPayload = Schema.Struct({
     }),
   ),
   notes: Schema.optional(Schema.String),
+  /** 同 `RunCreatePayload.readOnly`：缺省只读。 */
+  readOnly: Schema.optional(Schema.Boolean),
 })
 
 export const RunApprovePayload = Schema.Struct({

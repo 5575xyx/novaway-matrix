@@ -30972,6 +30972,9 @@
                   },
                   "profileID": {
                     "type": "string"
+                  },
+                  "readOnly": {
+                    "type": "boolean"
                   }
                 },
                 "required": ["sessionID", "directory", "mode", "goal"],
@@ -31189,6 +31192,9 @@
                   },
                   "notes": {
                     "type": "string"
+                  },
+                  "readOnly": {
+                    "type": "boolean"
                   }
                 },
                 "required": ["teams"],
@@ -47316,6 +47322,9 @@
           },
           "terminalReason": {
             "type": "string"
+          },
+          "readOnly": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -47329,7 +47338,8 @@
           "roundMain",
           "attempts",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "readOnly"
         ],
         "additionalProperties": false
       },

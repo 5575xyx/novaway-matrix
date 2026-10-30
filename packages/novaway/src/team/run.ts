@@ -46,6 +46,11 @@ export type Plan = {
     dependsOn?: readonly number[]
   }>
   notes?: string
+  /**
+   * 运行策略（§11.1）。缺省只读：审查运行不能改工作区，放宽要在计划里显式写出来。
+   * 放在计划里而不是单独的字段，是为了让「改策略」等同于「改计划」—— 必须重新批准。
+   */
+  policy?: { readOnly?: boolean }
 }
 
 export type Approval = {

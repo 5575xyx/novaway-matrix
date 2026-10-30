@@ -57,8 +57,14 @@ describe("team op-log", () => {
       const ops = yield* OpLogService
       const sessionID = SessionID.make("ses_scope")
       expect(yield* ops.scopeOf(sessionID)).toBeUndefined()
-      yield* ops.scope({ sessionID, runID: "run_1", taskID: "team_a", attempt: 2 })
-      expect(yield* ops.scopeOf(sessionID)).toEqual({ runID: "run_1", taskID: "team_a", attempt: 2 })
+      yield* ops.scope({ sessionID, runID: "run_1", taskID: "team_a", attempt: 2, readOnly: false })
+      // 策略随坐标一起登记，工具漏斗不用每次查库；未显式给出时字段缺省（按只读处理）。
+      expect(yield* ops.scopeOf(sessionID)).toEqual({
+        runID: "run_1",
+        taskID: "team_a",
+        attempt: 2,
+        readOnly: false,
+      })
       yield* ops.unscope(sessionID)
       expect(yield* ops.scopeOf(sessionID)).toBeUndefined()
       expect((yield* TestInstance).directory).toBeTruthy()

@@ -16,6 +16,7 @@ import { Cause, Effect, Exit, Option, Schema, Scope } from "effect"
 import { EffectBridge } from "@/effect/bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Service as TeamService } from "@/team/team"
+import { Service as TeamOpLogService } from "@/team/op-log"
 import { Service as HookService, defaultLayer as HookLayer } from "@/hook/service"
 import { create as createWorktree } from "./worktree-helper"
 import { GlobalBus } from "@/bus/global"
@@ -349,6 +350,14 @@ export const TaskTool = Tool.define(
               .pipe(Effect.ignore)
           }
         }
+      }
+
+      // 编排策略随人走：子代理没有自己的坐标，但它是「替谁干活」才有的调用，
+      // 必须继承父会话的运行坐标与策略，否则 readOnly 运行里的 task 会成为后门。
+      const teamOps = Option.getOrUndefined(yield* Effect.serviceOption(TeamOpLogService))
+      if (teamOps) {
+        const scope = yield* teamOps.scopeOf(ctx.sessionID)
+        if (scope) yield* teamOps.scope({ sessionID: nextSession.id, ...scope })
       }
 
       const resolvedTeam =

@@ -33,7 +33,7 @@ export interface RunAgentInput {
    * 编排坐标：登记后这个子会话里的有副作用工具调用会带幂等键。
    * 不传则不登记（普通子代理、工作流步骤都没有）。
    */
-  readonly scope?: { runID: string; taskID?: string; attempt?: number }
+  readonly scope?: { runID: string; taskID?: string; attempt?: number; readOnly?: boolean }
 }
 
 export type RunAgent = (input: RunAgentInput) => Effect.Effect<string>

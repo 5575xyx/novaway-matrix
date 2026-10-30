@@ -297,6 +297,10 @@ export const RunPage: Component<{
                       <div class="mt-1 flex flex-wrap items-center gap-1.5">
                         <Tag>{stateLabel(data().run.state)}</Tag>
                         <Tag>{data().run.mode}</Tag>
+                        {/* 只读 / 可写是这次运行的实际授权，不是提示词里的承诺。 */}
+                        <Tag title={t("run.policy.hint")}>
+                          {data().run.readOnly ? t("run.policy.readOnly") : t("run.policy.write")}
+                        </Tag>
                         <Tag>{"第 " + data().run.roundMain + " 轮"}</Tag>
                         {Number(data().run.planVersion) > 0 ? <Tag>{"计划 v" + data().run.planVersion}</Tag> : null}
                       </div>

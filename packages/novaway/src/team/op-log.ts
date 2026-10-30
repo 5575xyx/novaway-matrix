@@ -20,6 +20,13 @@ export type Scope = {
   runID: string
   taskID?: string
   attempt?: number
+  /**
+   * 本次运行的策略（只读 / 可写），随坐标一起登记。
+   *
+   * 放在这里而不是每次执行都查库：工具漏斗是热路径，而策略在一次运行内不会变
+   * （改策略等于改计划，得重新批准、重新登记）。缺失按只读处理。
+   */
+  readOnly?: boolean
 }
 
 /**
@@ -133,6 +140,7 @@ export const layer = Layer.effect(
         runID: input.runID,
         ...(input.taskID ? { taskID: input.taskID } : {}),
         ...(input.attempt !== undefined ? { attempt: input.attempt } : {}),
+        ...(input.readOnly !== undefined ? { readOnly: input.readOnly } : {}),
       })
     })
 
