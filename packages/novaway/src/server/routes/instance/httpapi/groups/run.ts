@@ -11,6 +11,27 @@ export const RunBudget = Schema.Struct({
   wallMs: Schema.optional(Schema.Number),
 })
 
+export const RunUsageView = Schema.Struct({
+  reserved: Schema.Number,
+  settled: Schema.Number,
+  unknown: Schema.Number,
+  cap: Schema.Number,
+  overrun: Schema.Boolean,
+  byActor: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        actor: Schema.String,
+        teamID: Schema.String,
+        employeeID: Schema.optional(Schema.String),
+        job: Schema.optional(Schema.String),
+        committed: Schema.Number,
+        basis: Schema.String,
+      }),
+    ),
+  ),
+  byJob: Schema.optional(Schema.Array(Schema.Struct({ job: Schema.String, committed: Schema.Number }))),
+}).annotate({ identifier: "RunUsageView" })
+
 export const RunView = Schema.Struct({
   id: Schema.String,
   sessionID: Schema.String,
@@ -29,6 +50,8 @@ export const RunView = Schema.Struct({
   terminalReason: Schema.optional(Schema.String),
   /** 本次运行是否只读；缺省 true（审查运行不能改工作区）。 */
   readOnly: Schema.Boolean,
+  /** 用量归属快照（§10.3）：运行结束后写入，运行中可能缺失。 */
+  usage: Schema.optional(RunUsageView),
 }).annotate({ identifier: "RunView" })
 
 export const RunTeamView = Schema.Struct({

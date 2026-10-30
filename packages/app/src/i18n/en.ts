@@ -73,6 +73,9 @@ export const dict = {
   "run.action.cleaning": "Cleaning…",
   "run.action.cleanupHint":
     "Delete this run's team worktrees and its integration branch. Merge or discard the integration branch first.",
+  "run.usage.title": "Usage by job",
+  "run.usage.hint":
+    "Committed tokens per job. Only the captain runs an agent session today, so this is captain-level attribution, not a per-member split.",
   "run.action.refresh": "Refresh",
   "run.action.new": "Try built-in team",
   "run.action.newHint": "Start a run with the built-in code-review template — no team setup needed.",

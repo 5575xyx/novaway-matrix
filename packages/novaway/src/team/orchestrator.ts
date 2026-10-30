@@ -1,6 +1,7 @@
 import { Cause, Context, Effect, Exit, Layer } from "effect"
 import { Service as TeamLedgerService, defaultLayer as ledgerLayer } from "./ledger"
 import { Service as TeamOpLogService, defaultLayer as opLogLayer } from "./op-log"
+import { summarize as attributeUsage } from "./attribution"
 import { Service as TeamRunService, defaultLayer as runLayer, isTerminal, type RunState, type RunTeam } from "./run"
 import {
   Service as TeamVerificationService,
@@ -446,6 +447,8 @@ export const layer = Layer.effect(
       const anyDelivered = teams.some((team) => team.phase === "delivered")
       const anyExceeded = teams.some((team) => team.phase === "exceeded")
       const usage = yield* ledger.usage({ runID: input.runID, cap })
+      // 用量归属（§10.3）：总量回答「花了多少」，归属回答「谁花的」。
+      const attribution = attributeUsage({ entries: yield* ledger.entries(input.runID), teams })
 
       const state: RunState =
         exceeded || anyExceeded
@@ -475,6 +478,8 @@ export const layer = Layer.effect(
           unknown: usage.unknown,
           cap: usage.cap,
           overrun: usage.overrun,
+          byActor: attribution.byActor,
+          byJob: attribution.byJob,
         },
         mergedVerification: summary as unknown as Record<string, unknown>,
         endedAt: isTerminal(state) ? Date.now() : undefined,

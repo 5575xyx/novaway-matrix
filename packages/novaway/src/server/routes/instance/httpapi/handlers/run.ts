@@ -30,6 +30,60 @@ import { Service as TeamService } from "@/team/team"
 import { Service as TeamOpLogService } from "@/team/op-log"
 import { Snapshot } from "@/snapshot"
 
+const number = (value: unknown, fallback = 0) => (typeof value === "number" ? value : fallback)
+
+/**
+ * 把落库的用量快照读成响应结构。
+ *
+ * 快照是由运行时自己写的，但仍按不可信输入逐字段校验：旧版本运行、手改过的库
+ * 都可能缺字段。缺就是缺，不用默认值编造「花了 0」。
+ */
+const toUsage = (value: Record<string, unknown> | undefined) => {
+  if (!value) return undefined
+  const rawActors: unknown = Reflect.get(value, "byActor")
+  const rawJobs: unknown = Reflect.get(value, "byJob")
+  return {
+    reserved: number(Reflect.get(value, "reserved")),
+    settled: number(Reflect.get(value, "settled")),
+    unknown: number(Reflect.get(value, "unknown")),
+    cap: number(Reflect.get(value, "cap")),
+    overrun: Reflect.get(value, "overrun") === true,
+    ...(Array.isArray(rawActors)
+      ? {
+          byActor: rawActors.flatMap((item: unknown) => {
+            if (!item || typeof item !== "object") return []
+            const actor: unknown = Reflect.get(item, "actor")
+            const teamID: unknown = Reflect.get(item, "teamID")
+            if (typeof actor !== "string" || typeof teamID !== "string") return []
+            const employeeID: unknown = Reflect.get(item, "employeeID")
+            const job: unknown = Reflect.get(item, "job")
+            const basis: unknown = Reflect.get(item, "basis")
+            return [
+              {
+                actor,
+                teamID,
+                ...(typeof employeeID === "string" ? { employeeID } : {}),
+                ...(typeof job === "string" ? { job } : {}),
+                committed: number(Reflect.get(item, "committed")),
+                basis: typeof basis === "string" ? basis : "captain",
+              },
+            ]
+          }),
+        }
+      : {}),
+    ...(Array.isArray(rawJobs)
+      ? {
+          byJob: rawJobs.flatMap((item: unknown) => {
+            if (!item || typeof item !== "object") return []
+            const job: unknown = Reflect.get(item, "job")
+            if (typeof job !== "string") return []
+            return [{ job, committed: number(Reflect.get(item, "committed")) }]
+          }),
+        }
+      : {}),
+  }
+}
+
 const toRun = (run: TeamRun) => ({
   id: run.id,
   sessionID: run.sessionID,
@@ -48,6 +102,8 @@ const toRun = (run: TeamRun) => ({
   terminalReason: run.terminalReason,
   // 缺省只读：界面要能看出来这次运行会不会改工作区。
   readOnly: TeamPolicy.fromPlan(run.plan).readOnly,
+  // 用量归属快照（§10.3）：运行结束后才有，运行中缺失是正常的。
+  usage: toUsage(run.usage),
 })
 
 /** 从模型输出里取出第一个 JSON 对象；取不到就当作「未验证」，绝不默认通过。 */

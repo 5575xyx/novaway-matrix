@@ -74,6 +74,8 @@ export const dict = {
   "run.action.cleanup": "清理工作区",
   "run.action.cleaning": "清理中…",
   "run.action.cleanupHint": "删除本次运行的团队 worktree 与集成分支。集成分支就是可交付物，请先合并或明确放弃。",
+  "run.usage.title": "按岗位的用量",
+  "run.usage.hint": "每个岗位的承诺用量。目前只有队长真正跑会话，所以这是队长口径，不是按成员拆分。",
   "run.action.refresh": "刷新",
   "run.action.new": "试跑内置团队",
   "run.action.newHint": "用内置的代码审查模板直接发起一次运行，不需要先建团队。",

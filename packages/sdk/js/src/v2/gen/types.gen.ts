@@ -3558,6 +3558,26 @@ export type TeamEmployeeView = {
   prompt?: string
 }
 
+export type RunUsageView = {
+  reserved: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  settled: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  unknown: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  cap: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  overrun: boolean
+  byActor?: Array<{
+    actor: string
+    teamID: string
+    employeeID?: string
+    job?: string
+    committed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    basis: string
+  }>
+  byJob?: Array<{
+    job: string
+    committed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }>
+}
+
 export type RunView = {
   id: string
   sessionID: string
@@ -3582,6 +3602,7 @@ export type RunView = {
   error?: string
   terminalReason?: string
   readOnly: boolean
+  usage?: RunUsageView
 }
 
 export type RunTeamView = {

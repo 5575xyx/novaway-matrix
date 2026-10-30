@@ -69,6 +69,13 @@ export interface Interface {
   readonly settle: (input: { id: string; tokens?: number }) => Effect.Effect<Entry | undefined>
   readonly release: (input: { id: string }) => Effect.Effect<void>
   readonly usage: (input: { runID: string; cap?: Cap }) => Effect.Effect<Usage>
+  /**
+   * 本次运行的全部账本条目。
+   *
+   * 用量归属（§10.3）要按 actor 汇总，不能只看总数：总数回答「花了多少」，
+   * 条目才回答「谁花的」。条目是只读快照，不改状态。
+   */
+  readonly entries: (runID: string) => Effect.Effect<Entry[]>
   /** 在当前承诺量上再加 `delta` 是否会越过额度；用于只读预估。 */
   readonly wouldExceed: (input: { runID: string; delta: number; cap: Cap }) => Effect.Effect<boolean>
 }
@@ -194,6 +201,13 @@ export const layer = Layer.effect(
       )
     })
 
+    const entries: Interface["entries"] = Effect.fn("TeamLedger.entries")(function* (runID) {
+      const rows = yield* Effect.sync(() =>
+        Database.use((db) => db.select().from(TeamRunLedgerTable).where(eq(TeamRunLedgerTable.run_id, runID)).all()),
+      )
+      return rows.map(toEntry)
+    })
+
     const release: Interface["release"] = Effect.fn("TeamLedger.release")(function* (input) {
       yield* Effect.sync(() =>
         Database.transaction(
@@ -219,7 +233,7 @@ export const layer = Layer.effect(
       return current.committed + input.delta > input.cap.tokens
     })
 
-    return Service.of({ reserve, settle, release, usage, wouldExceed })
+    return Service.of({ reserve, settle, release, usage, wouldExceed, entries })
   }),
 )
 

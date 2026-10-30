@@ -373,6 +373,20 @@ export const RunPage: Component<{
                     </div>
                   </div>
 
+                  <Show when={(data().run.usage?.byJob ?? []).length > 0}>
+                    <div class="flex flex-col gap-1.5">
+                      <div class="text-ui-xs text-foreground-subtle">{t("run.usage.title")}</div>
+                      <div class="flex flex-wrap items-center gap-1.5">
+                        <For each={data().run.usage?.byJob ?? []}>
+                          {(item) => (
+                            <Tag title={t("run.usage.hint")}>{item.job + " · " + item.committed.toLocaleString()}</Tag>
+                          )}
+                        </For>
+                      </div>
+                      <div class="text-ui-xs text-foreground-subtlest">{t("run.usage.hint")}</div>
+                    </div>
+                  </Show>
+
                   <div class="flex flex-col gap-1.5">
                     <div class="text-ui-xs text-foreground-subtle">{t("run.page.about")}</div>
                     <Show
