@@ -60,7 +60,8 @@ export const dict = {
   "run.state.running": "Running",
   "run.state.blocked": "Blocked",
   "run.state.paused": "Paused",
-  "run.state.done": "Done",
+  // 「已验证交付」而不是「已完成」：done 只说明交付成立，不代表已经合进主干。
+  "run.state.done": "Verified delivery",
   "run.state.partial": "Partially delivered",
   "run.state.failed": "Failed",
   "run.state.exceeded": "Over budget",
