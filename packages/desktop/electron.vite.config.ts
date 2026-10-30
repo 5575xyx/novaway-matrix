@@ -3,6 +3,7 @@ import { defineConfig } from "electron-vite"
 import appPlugin from "@novaway/app/vite"
 import * as fs from "node:fs/promises"
 import { readFileSync } from "node:fs"
+import { createRequire } from "node:module"
 import path from "node:path"
 import os from "node:os"
 
@@ -25,6 +26,48 @@ function loadModelsDevSnapshot(): string {
 }
 
 const NOVAWAY_MODELS_DEV = loadModelsDevSnapshot()
+
+/**
+ * electron-vite 内置的 `vite:esm-shim` 会在 chunk 里找「最后一个 import 声明」并把
+ * CommonJS shim 插进去 —— 它用的是正则，模板字符串里出现 import … from "…" 也会命中。
+ * sidecar bundle 有 39 MB、带内置技能提示词和示例代码，命中点一旦落在双引号字符串
+ * 中间，就会产出 `Unterminated string literal`，构建直接失败。
+ *
+ * 这里用与它**逐字相同**的 shim 文本先插到 chunk 开头：它随后 `code.includes(shim)`
+ * 检查会命中并跳过，位置也永远合法。文本必须与 electron-vite 的
+ * `CJSShim_normal` / `CJSShim_node_20_11` 保持一致（含首尾换行）。
+ */
+const CJS_SHIM = (() => {
+  const require = createRequire(import.meta.url)
+  const modern = (() => {
+    try {
+      const entry = require.resolve("electron")
+      const pkg = readFileSync(path.join(path.dirname(entry), "package.json"), "utf8")
+      return Number(JSON.parse(pkg).version.split(".")[0] || 0) >= 30
+    } catch {
+      return true
+    }
+  })()
+  return modern
+    ? `
+// -- CommonJS Shims --
+import __cjs_mod__ from 'node:module';
+const __filename = import.meta.filename;
+const __dirname = import.meta.dirname;
+const require = __cjs_mod__.createRequire(import.meta.url);
+`
+    : `
+// -- CommonJS Shims --
+import __cjs_url__ from 'node:url';
+import __cjs_path__ from 'node:path';
+import __cjs_mod__ from 'node:module';
+const __filename = __cjs_url__.fileURLToPath(import.meta.url);
+const __dirname = __cjs_path__.dirname(__filename);
+const require = __cjs_mod__.createRequire(import.meta.url);
+`
+})()
+
+const CJS_SYNTAX = /__filename|__dirname|require\(|require\.resolve\(/
 
 const NOVAWAY_SERVER_DIST = "../novaway/dist/node"
 const NOVAWAY_MIGRATION_DIR = "../novaway/migration"
@@ -68,6 +111,23 @@ export default defineConfig({
       externalizeDeps: { include: [nodePtyPkg] },
     },
     plugins: [
+      {
+        // electron-vite 自带的 vite:esm-shim 用正则找「最后一个 import 声明」,
+        // 再把 CommonJS shim 插到那个位置。sidecar 是 39 MB 的单文件 bundle
+        // (内置技能提示词里有大段示例代码), 正则会把字符串里的 import 当成真
+        // import —— 一旦命中点在双引号字符串中间, 插进去就是
+        // "Unterminated string literal", 整个桌面端构建失败。
+        // 这里先自己把 shim 放到 chunk 开头(位置确定、永远合法);
+        // vite:esm-shim 看到 code 里已有同样的 shim 文本就会跳过。
+        name: "novaway:cjs-shim",
+        enforce: "pre",
+        renderChunk(code, _chunk, options) {
+          if (options.format !== "es") return null
+          if (!CJS_SYNTAX.test(code)) return null
+          if (code.includes(CJS_SHIM)) return null
+          return { code: CJS_SHIM + code, map: null }
+        },
+      },
       {
         name: "novaway:node-pty-narrower",
         enforce: "pre",
