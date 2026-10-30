@@ -267,6 +267,9 @@ export const RunPage: Component<{
   })
 
   const stateLabel = (state: string) => t(`run.state.${state}`)
+  // 同一个目标可以有多次运行：列表里标出目标编号，才知道几次运行在往下做同一件事。
+  const missionLabel = (missionID: string | null | undefined) =>
+    missionID ? missions().find((mission) => mission.id === missionID)?.label : undefined
   const summary = createMemo(() => detail()?.summary)
   const canExecute = createMemo(() => {
     const run = detail()?.run
@@ -317,6 +320,7 @@ export const RunPage: Component<{
                 >
                   <span class="w-full truncate text-ui-base text-foreground">{run.goal}</span>
                   <span class="w-full truncate text-ui-xs text-foreground-subtle">
+                    {missionLabel(run.missionID) ? missionLabel(run.missionID) + " · " : ""}
                     {stateLabel(run.state)} · {run.mode}
                   </span>
                 </button>
