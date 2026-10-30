@@ -99,89 +99,35 @@ export async function create(input: {
   return { kind: "created", worktree: { directory, branch, base: repo, baseSHA: sha } }
 }
 
-export type Integration = {
-  kind: "merged" | "conflict" | "skipped"
-  reason?: string
-  /** 集成分支与它的工作目录（合并后的代码就在这里）。 */
-  branch?: string
-  directory?: string
-  /** 合并后的提交；证据快照用它。 */
-  sha?: string
-  /** 成功合入的团队分支，按合并顺序。 */
-  merged: string[]
-  /** 冲突：哪个分支、哪些文件。 */
-  conflict?: { branch: string; files: string[] }
-}
-
-const exists = async (cwd: string, ref: string) =>
-  (await git(cwd, ["rev-parse", "--verify", "--quiet", ref])).code === 0
-
 /**
- * 串行合并团队分支（§10.2）。
+ * Mission 工作区（§3.2）：一个目标一份 worktree、一个固定 `baseSHA`。
  *
- * 一个集成分支、一个集成 worktree、**一次只合一个团队**：并行合并会把冲突变成
- * 「谁先到谁赢」，而冲突本身是需要被看见、被返工的信息。
- *
- * 合并失败时 `git merge --abort` 把集成分支留在上一次成功的状态 —— 半合并的树
- * 比没合并更危险：它会让人以为「已经合过了」。
+ * 与团队 worktree 的区别只有两点，但都关键：
+ * 1. 分支是 `novaway/mission/<id>`，生命周期跟着目标走，**不随运行结束被删**；
+ * 2. 建不出来时返回原因而不是降级 —— 没有固定起点，累计差异就不成立。
  */
-export async function integrate(input: {
+export async function createMission(input: {
   base: string
-  runID: string
-  /** 按团队顺序给出分支名；不存在的分支会被跳过并记进 `merged` 之外的说明里。 */
-  teams: ReadonlyArray<{ name: string; branch: string }>
+  missionID: string
+  /** 复用已记录的起点；只在第一次准备时省略。 */
+  baseSHA?: string
   root?: string
-}): Promise<Integration> {
+}): Promise<Created | Skipped> {
   const repo = await root_(input.base)
-  if (!repo) return { kind: "skipped", reason: "不是 git 仓库（或 git 不可用）：" + input.base, merged: [] }
+  if (!repo) return { kind: "skipped", reason: "不是 git 仓库（或 git 不可用）：" + input.base }
 
-  const run = slug(input.runID)
-  const base = input.root ?? path.join(Global.Path.data, "worktree", "teams")
-  const branch = "novaway/run/" + run
-  const directory = path.join(base, run + "-integration")
+  const sha = input.baseSHA ?? (await head(repo))
+  if (!sha) return { kind: "skipped", reason: "仓库还没有提交，无法建立可复验的快照：" + repo }
+
+  const id = slug(input.missionID)
+  const branch = "novaway/mission/" + id
+  const base = input.root ?? path.join(Global.Path.data, "worktree", "missions")
+  const directory = path.join(base, id)
   await fs.mkdir(base, { recursive: true })
-
-  if (!(await exists(repo, "refs/heads/" + branch))) {
-    const headSHA = await head(repo)
-    if (!headSHA) return { kind: "skipped", reason: "仓库还没有提交：" + repo, merged: [] }
-    const added = await git(repo, ["worktree", "add", "-b", branch, directory, headSHA])
-    if (added.code !== 0)
-      return { kind: "skipped", reason: added.stderr.trim() || added.stdout.trim(), merged: [], branch, directory }
-  }
-
-  const merged: string[] = []
-  for (const team of input.teams) {
-    if (!(await exists(repo, "refs/heads/" + team.branch))) continue
-    const result = await git(directory, [
-      "merge",
-      "--no-ff",
-      "-m",
-      "merge " + team.branch + " (" + team.name + ")",
-      team.branch,
-    ])
-    if (result.code === 0) {
-      merged.push(team.branch)
-      continue
-    }
-    const conflicted = await git(directory, ["diff", "--name-only", "--diff-filter=U"])
-    const files = conflicted.stdout
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-    // 中止：把集成分支留在最后一次成功合并的状态，别留下半合并的树。
-    await git(directory, ["merge", "--abort"])
-    return {
-      kind: "conflict",
-      reason: result.stderr.trim() || result.stdout.trim() || "合并失败",
-      branch,
-      directory,
-      sha: await head(directory),
-      merged,
-      conflict: { branch: team.branch, files },
-    }
-  }
-
-  return { kind: "merged", branch, directory, sha: await head(directory), merged }
+  const added = await git(repo, ["worktree", "add", "-b", branch, directory, sha])
+  if (added.code !== 0)
+    return { kind: "skipped", reason: added.stderr.trim() || added.stdout.trim() || "git worktree add 失败" }
+  return { kind: "created", worktree: { directory, branch, base: repo, baseSHA: sha } }
 }
 
 /** 删除 worktree 与分支。只清运行自己建的东西，不碰仓库里的其它引用。 */

@@ -105,6 +105,49 @@ export async function integrate(input: {
   return { kind: "merged", directory, branch, sha: head.stdout.trim(), merged }
 }
 
+/**
+ * 把团队分支直接合进某个已存在的 worktree（Mission 工作区，§3.2）。
+ *
+ * 与 `integrate()` 的差别是**没有新建集成分支**：Mission 的工作区跨运行复用，
+ * 合并结果就该落在它的分支上，下一次运行从这里继续。因此这里先要求工作区干净 ——
+ * 上一次运行留下的半成品不能冒充「起点」。
+ */
+export async function integrateInto(input: { directory: string; teams: readonly TeamBranch[] }): Promise<Outcome> {
+  if (input.teams.length === 0) return { kind: "skipped", reason: "没有团队分支可合并" }
+
+  const status = await git(input.directory, ["status", "--porcelain"])
+  if (status.code !== 0) return { kind: "failed", message: status.stderr.trim() || "无法读取工作区状态" }
+  if (status.stdout.trim()) return { kind: "failed", message: "Mission 工作区不干净：先处理未提交改动再集成。" }
+
+  const current = await git(input.directory, ["rev-parse", "--abbrev-ref", "HEAD"])
+  const branch = current.stdout.trim()
+  if (current.code !== 0 || !branch || branch === "HEAD")
+    return { kind: "failed", message: "Mission 工作区不在分支上（detached HEAD）" }
+
+  const merged: string[] = []
+  for (const team of input.teams) {
+    const result = await git(input.directory, [
+      "merge",
+      "--no-ff",
+      "--no-edit",
+      "-m",
+      "integrate: " + team.name,
+      team.branch,
+    ])
+    if (result.code !== 0) {
+      const files = await conflicts(input.directory)
+      const message = (result.stderr || result.stdout).trim()
+      await git(input.directory, ["merge", "--abort"])
+      return { kind: "conflict", directory: input.directory, branch, team: team.name, files, message }
+    }
+    merged.push(team.name)
+  }
+
+  const head = await git(input.directory, ["rev-parse", "HEAD"])
+  if (head.code !== 0) return { kind: "failed", message: "无法读取集成后的提交" }
+  return { kind: "merged", directory: input.directory, branch, sha: head.stdout.trim(), merged }
+}
+
 export type MergeInto =
   | { kind: "merged"; branch: string; sha: string }
   | { kind: "conflict"; files: string[]; message: string }

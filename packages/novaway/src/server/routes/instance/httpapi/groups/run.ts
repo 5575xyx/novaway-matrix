@@ -36,6 +36,8 @@ export const RunView = Schema.Struct({
   id: Schema.String,
   sessionID: Schema.String,
   directory: Schema.String,
+  /** 所属持久目标（§3.2）；临时任务缺失。 */
+  missionID: Schema.optional(Schema.String),
   mode: Schema.Literals(["team", "auto"]),
   goal: Schema.String,
   state: Schema.String,
@@ -136,6 +138,8 @@ export const RunCreatePayload = Schema.Struct({
    * 计划直接用模板名建好，用户只需批准并启动。
    */
   profileID: Schema.optional(Schema.String),
+  /** 归入一个持久目标（§3.2）；省略表示这次运行是一次性任务。 */
+  missionID: Schema.optional(Schema.String),
   /**
    * 是否允许本次运行改工作区。缺省 false（只读审查）；放开写操作必须显式写出来，
    * 而且它属于计划的一部分——改它等于改计划，要重新批准。

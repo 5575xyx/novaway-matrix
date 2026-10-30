@@ -19,7 +19,14 @@ import {
   head as worktreeHead,
   remove as removeWorktree,
 } from "@/team/worktree"
-import { forkPoint, integrate as integrateWorktrees, mergeInto, remove as removeIntegration } from "@/team/integration"
+import {
+  forkPoint,
+  integrate as integrateWorktrees,
+  integrateInto,
+  mergeInto,
+  remove as removeIntegration,
+} from "@/team/integration"
+import { Service as MissionService } from "@/team/mission"
 import { makeRunAgent, type RunAgentPromptOps } from "@/session/agent-step"
 import { SessionPrompt } from "@/session/prompt"
 import { Session } from "@/session/session"
@@ -88,6 +95,7 @@ const toRun = (run: TeamRun) => ({
   id: run.id,
   sessionID: run.sessionID,
   directory: run.directory,
+  missionID: run.missionID,
   mode: run.mode,
   goal: run.goal,
   state: run.state,
@@ -112,6 +120,7 @@ const parseJSON = TeamVerifier.parseJSON
 export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handlers) =>
   Effect.gen(function* () {
     const runs = yield* RunService
+    const missions = yield* MissionService
     const verification = yield* VerificationService
     const orchestrator = yield* OrchestratorService
     const promptSvc = yield* SessionPrompt.Service
@@ -226,15 +235,44 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
       )
       .handle("createRun", (ctx) =>
         Effect.gen(function* () {
+          /**
+           * 持久目标（§3.2）：先在**建运行之前**把它准备好。
+           *
+           * 目标工作区是这次运行的起点，准备失败就不该留下一个「挂着目标却没工作区」的运行；
+           * 同一目标也不允许两个运行同时跑 —— 它们会抢同一份工作区和同一个分支。
+           */
+          const missionID = ctx.payload.missionID
+          let missionWorktree: string | undefined
+          if (missionID) {
+            const mission = yield* missions.get(missionID)
+            if (!mission || mission.directory !== ctx.payload.directory)
+              return yield* Effect.fail(new HttpApiError.BadRequest({}))
+            if (mission.status !== "active") return yield* Effect.fail(new HttpApiError.BadRequest({}))
+            const busy = (yield* runs.list({ missionID })).some((item) => !isTerminal(item.state))
+            if (busy) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+            const prepared = yield* missions.prepare(missionID)
+            if (prepared.kind === "skipped") return yield* Effect.fail(new HttpApiError.BadRequest({}))
+            missionWorktree = prepared.mission.worktree
+          }
+
           const run = yield* runs.create({
             sessionID: SessionID.make(ctx.payload.sessionID),
             directory: ctx.payload.directory,
+            missionID,
             mode: ctx.payload.mode,
             goal: ctx.payload.goal,
             brief: ctx.payload.brief as Record<string, unknown> | undefined,
             acceptance: ctx.payload.acceptance as unknown[] | undefined,
             budget: ctx.payload.budget,
           })
+          if (missionID)
+            yield* runs.appendEvent({
+              runID: run.id,
+              kind: "mission.attached",
+              payload: { missionID, worktree: missionWorktree },
+            })
+          // 团队 worktree 从目标工作区的 HEAD 切：本次运行看到的是「上次做到哪」。
+          const worktreeBase = missionWorktree ?? run.directory
           // 模板发起：名册在这一刻被复制进运行，之后再改模板也不影响它。
           if (ctx.payload.profileID) {
             const snapshot = yield* profiles.snapshot(ctx.payload.profileID)
@@ -254,7 +292,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               },
               planVersion: 1,
             })
-            const worktree = yield* ensureWorktree(run.directory, run.id, snapshot.name)
+            const worktree = yield* ensureWorktree(worktreeBase, run.id, snapshot.name)
             yield* runs.addTeam({
               runID: run.id,
               profileID: snapshot.profileID,
@@ -314,9 +352,12 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           // 计划里的团队逐个落库，依赖用下标表达。
           const existing = yield* runs.teams(run.id)
           if (existing.length === 0) {
+            // 归属持久目标时，团队从目标工作区的 HEAD 起分支：接着上次做到的地方往下做。
+            const mission = run.missionID ? yield* missions.get(run.missionID) : undefined
+            const base = mission?.worktree ?? run.directory
             for (const team of ctx.payload.teams) {
               // 每个团队一份 worktree：团队成员之间共享，团队之间隔离（§10.1）。
-              const worktree = yield* ensureWorktree(run.directory, run.id, team.name)
+              const worktree = yield* ensureWorktree(base, run.id, team.name)
               yield* runs.addTeam({
                 runID: run.id,
                 profileID: team.profileID,
@@ -452,6 +493,18 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
                 return team.worktree && branch ? [{ name: team.profileID ?? team.id, branch }] : []
               })
               if (named.length === 0) return { kind: "skipped" as const, reason: "团队 worktree 不在任何分支上" }
+              // 归属持久目标：合并进目标工作区，下一次运行从这里继续；
+              // 一次性任务：另建集成分支，运行结束后由用户决定合并或清理。
+              const mission = run.missionID ? yield* missions.get(run.missionID) : undefined
+              if (mission?.worktree) {
+                const readiness = yield* missions.prepare(mission.id)
+                if (readiness.kind === "skipped") return { kind: "skipped" as const, reason: readiness.reason }
+                const directory = readiness.mission.worktree
+                if (!directory) return { kind: "skipped" as const, reason: "目标工作区不可用" }
+                const outcome = yield* Effect.promise(() => integrateInto({ directory, teams: named }))
+                if (outcome.kind === "merged") yield* Ref.set(integrated, outcome.directory)
+                return outcome
+              }
               const baseSHA = yield* Effect.promise(() =>
                 forkPoint(
                   run.directory,
@@ -614,11 +667,20 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           const integration = merged?.payload
           const directory = typeof integration?.directory === "string" ? integration.directory : undefined
           const branch = typeof integration?.branch === "string" ? integration.branch : undefined
-          if (directory) {
-            const removed = yield* Effect.promise(() => removeIntegration({ base: run.directory, directory, branch }))
-            results.push(
-              removed.ok ? { directory, removed: true } : { directory, removed: false, error: removed.error },
+          // 目标的工作区跟着目标走，不跟着某次运行走：清理运行不能把长期工作区删掉。
+          const mission = run.missionID ? yield* missions.get(run.missionID) : undefined
+          const owned = directory && mission?.worktree === directory ? undefined : directory
+          if (owned) {
+            const removed = yield* Effect.promise(() =>
+              removeIntegration({ base: run.directory, directory: owned, branch }),
             )
+            results.push(
+              removed.ok
+                ? { directory: owned, removed: true }
+                : { directory: owned, removed: false, error: removed.error },
+            )
+          } else if (directory) {
+            results.push({ directory, removed: false, error: "属于持久目标的工作区，请按目标管理" })
           }
 
           yield* runs.appendEvent({
@@ -650,7 +712,10 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           const merged = (yield* runs.events({ runID: run.id }))
             .filter((event) => event.kind === "integration.merged")
             .at(-1)
-          const branch = typeof merged?.payload?.branch === "string" ? merged.payload.branch : undefined
+          // 目标运行合并的是目标分支：它包含该目标历次运行的累计结果，而不只是这一次。
+          const mission = run.missionID ? yield* missions.get(run.missionID) : undefined
+          const branch =
+            mission?.branch ?? (typeof merged?.payload?.branch === "string" ? merged.payload.branch : undefined)
           if (!branch) {
             // 没有集成分支时不说「合并成功」，也不猜用户想合什么。
             const message = "这次运行没有可合并的集成分支（集成未完成或已清理）。"

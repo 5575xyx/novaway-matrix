@@ -3,7 +3,8 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { spawnSync } from "node:child_process"
-import { integrate, mergeInto } from "@/team/integration"
+import { integrate, integrateInto, mergeInto } from "@/team/integration"
+import { createMission } from "@/team/worktree"
 
 const git = (cwd: string, args: string[]) => spawnSync("git", args, { cwd, encoding: "utf8" })
 const run = (cwd: string, args: string[]) => {
@@ -121,5 +122,55 @@ describe("team merge (explicit user action)", () => {
     // 拒绝就是拒绝：用户的改动和 HEAD 都不能被动过。
     expect(run(base, ["rev-parse", "HEAD"])).toBe(baseSHA)
     expect(await fs.readFile(path.join(base, "shared.txt"), "utf8")).toContain("mine")
+  })
+})
+
+describe("mission integration", () => {
+  test("merges into the mission worktree, so the next run starts from what was already done", async () => {
+    const base = await repo()
+    const baseSHA = run(base, ["rev-parse", "HEAD"])
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "novaway-mission-root-"))
+    const mission = await createMission({ base, missionID: "mis_1", baseSHA, root })
+    expect(mission.kind).toBe("created")
+    if (mission.kind !== "created") return
+
+    const first = await team(base, root, "alpha", "a.txt", "from alpha\n", baseSHA)
+    const one = await integrateInto({ directory: mission.worktree.directory, teams: [first] })
+    expect(one.kind).toBe("merged")
+    if (one.kind !== "merged") return
+    // 合并落在目标分支上，而不是另开一个一次性分支。
+    expect(one.branch).toBe(mission.worktree.branch)
+    expect(run(mission.worktree.directory, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe(mission.worktree.branch)
+
+    // 第二次运行从目标工作区当前的 HEAD 切分支：上一次的改动必须还在。
+    const second = await team(
+      base,
+      root,
+      "beta",
+      "b.txt",
+      "from beta\n",
+      run(mission.worktree.directory, ["rev-parse", "HEAD"]),
+    )
+    const two = await integrateInto({ directory: mission.worktree.directory, teams: [second] })
+    expect(two.kind).toBe("merged")
+    expect(await fs.readFile(path.join(mission.worktree.directory, "a.txt"), "utf8")).toContain("from alpha")
+    expect(await fs.readFile(path.join(mission.worktree.directory, "b.txt"), "utf8")).toContain("from beta")
+    // 用户的仓库仍然停在起点：目标工作区是仓库之外的一份副本。
+    expect(run(base, ["rev-parse", "HEAD"])).toBe(baseSHA)
+  })
+
+  test("refuses to integrate over uncommitted changes in the mission worktree", async () => {
+    const base = await repo()
+    const baseSHA = run(base, ["rev-parse", "HEAD"])
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "novaway-mission-root-"))
+    const mission = await createMission({ base, missionID: "mis_2", baseSHA, root })
+    if (mission.kind !== "created") throw new Error("mission worktree missing")
+    const alpha = await team(base, root, "alpha", "a.txt", "from alpha\n", baseSHA)
+    await fs.writeFile(path.join(mission.worktree.directory, "shared.txt"), "half done\n")
+
+    const outcome = await integrateInto({ directory: mission.worktree.directory, teams: [alpha] })
+    expect(outcome.kind).toBe("failed")
+    // 半成品不能被当成下一次运行的起点。
+    expect(outcome.kind === "failed" && outcome.message).toContain("不干净")
   })
 })

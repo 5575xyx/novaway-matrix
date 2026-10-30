@@ -64,6 +64,8 @@ export type TeamRun = {
   id: string
   sessionID: SessionID
   directory: string
+  /** 属于哪个持久目标（§3.2）；临时任务为空。 */
+  missionID?: string
   mode: "team" | "auto"
   goal: string
   brief?: Record<string, unknown>
@@ -146,6 +148,7 @@ export interface Interface {
   readonly create: (input: {
     sessionID: SessionID
     directory: string
+    missionID?: string
     mode: "team" | "auto"
     goal: string
     brief?: Record<string, unknown>
@@ -153,7 +156,7 @@ export interface Interface {
     budget?: Budget
   }) => Effect.Effect<TeamRun>
   readonly get: (runID: string) => Effect.Effect<TeamRun | undefined>
-  readonly list: (input?: { sessionID?: SessionID }) => Effect.Effect<TeamRun[]>
+  readonly list: (input?: { sessionID?: SessionID; missionID?: string }) => Effect.Effect<TeamRun[]>
   readonly update: (input: {
     runID: string
     state?: RunState
@@ -213,6 +216,7 @@ const toRun = (row: typeof TeamRunTable.$inferSelect): TeamRun => ({
   id: row.id,
   sessionID: row.session_id,
   directory: row.directory,
+  missionID: row.mission_id ?? undefined,
   mode: row.mode as TeamRun["mode"],
   goal: row.goal,
   brief: row.brief ?? undefined,
@@ -279,6 +283,7 @@ export const layer = Layer.effect(
         id: generateId("run"),
         sessionID: input.sessionID,
         directory: input.directory,
+        missionID: input.missionID,
         mode: input.mode,
         goal: input.goal,
         brief: input.brief,
@@ -299,6 +304,7 @@ export const layer = Layer.effect(
               id: run.id,
               session_id: run.sessionID,
               directory: run.directory,
+              mission_id: run.missionID ?? null,
               mode: run.mode,
               goal: run.goal,
               brief: run.brief ?? null,
@@ -328,7 +334,14 @@ export const layer = Layer.effect(
                 .where(eq(TeamRunTable.session_id, input.sessionID))
                 .orderBy(desc(TeamRunTable.time_created))
                 .all()
-            : db.select().from(TeamRunTable).orderBy(desc(TeamRunTable.time_created)).all(),
+            : input?.missionID
+              ? db
+                  .select()
+                  .from(TeamRunTable)
+                  .where(eq(TeamRunTable.mission_id, input.missionID))
+                  .orderBy(desc(TeamRunTable.time_created))
+                  .all()
+              : db.select().from(TeamRunTable).orderBy(desc(TeamRunTable.time_created)).all(),
         ),
       )
       return rows.map(toRun)

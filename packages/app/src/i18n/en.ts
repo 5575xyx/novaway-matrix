@@ -98,6 +98,13 @@ export const dict = {
   "run.new.cancel": "Cancel",
   "run.new.approvalHint": "The run stops at awaiting approval; starting it is your call.",
   "run.new.sessionFailed": "Could not create the session for this run",
+  "run.new.mission": "Mission",
+  "run.new.missionNone": "No mission — one-off run",
+  "run.new.missionNew": "New mission…",
+  "run.new.missionGoalPlaceholder": "What should this mission achieve in the long run?",
+  "run.new.missionHint":
+    "A mission keeps one worktree and one base commit across runs: the next run continues from what this one left behind.",
+  "run.new.missionFailed": "The mission could not be created, so the run was not started.",
   "run.policy.readOnly": "Read-only",
   "run.policy.write": "Can write",
   "run.policy.hint": "Enforced at the tool gate: a read-only run never edits the workspace.",

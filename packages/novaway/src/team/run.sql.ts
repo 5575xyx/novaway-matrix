@@ -61,6 +61,33 @@ export const TeamProfileMemberTable = sqliteTable(
   ],
 )
 
+/**
+ * Mission（持久目标，§3.2）：跨多次运行存活的工作区与固定 `base_sha`。
+ *
+ * 它的状态与运行的成败**互不推导**：运行结束不会自动完成目标，目标完成也不停止运行。
+ * `number` 单调分配、永不复用；`M-xxx` 只出现在界面上，模型看到的是 `id`。
+ */
+export const TeamMissionTable = sqliteTable(
+  "team_mission",
+  {
+    id: text().primaryKey(),
+    number: integer().notNull(),
+    directory: text().notNull(),
+    goal: text().notNull(),
+    status: text().notNull().default("active"),
+    /** 目标开始时的那次提交：累计差异从这里算，运行期间用户再提交也不影响它。 */
+    base_sha: text(),
+    worktree: text(),
+    branch: text(),
+    ...Timestamps,
+  },
+  (table) => [
+    // 全局单调：换一个仓库也不会出现两个 `M-002`，历史记录永远指得回去。
+    uniqueIndex("team_mission_number").on(table.number),
+    index("team_mission_status_idx").on(table.status),
+  ],
+)
+
 /** 一次编排。 */
 export const TeamRunTable = sqliteTable(
   "team_run",
@@ -68,6 +95,8 @@ export const TeamRunTable = sqliteTable(
     id: text().primaryKey(),
     session_id: text().$type<SessionID>().notNull(),
     directory: text().notNull(),
+    /** 属于哪个持久目标；临时任务为空。 */
+    mission_id: text(),
     mode: text().notNull().default("team"),
     goal: text().notNull(),
     brief: text({ mode: "json" }).$type<Record<string, unknown>>(),
@@ -94,6 +123,7 @@ export const TeamRunTable = sqliteTable(
   (table) => [
     index("team_run_session_idx").on(table.session_id),
     index("team_run_state_idx").on(table.state),
+    index("team_run_mission_idx").on(table.mission_id),
   ],
 )
 

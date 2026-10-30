@@ -92,6 +92,7 @@ import { knowledgeHandlers } from "./handlers/knowledge"
 import { globalHandlers } from "./handlers/global"
 import { instanceHandlers } from "./handlers/instance"
 import { kernelHandlers } from "./handlers/kernel"
+import { missionHandlers } from "./handlers/mission"
 import { profileHandlers } from "./handlers/profile"
 import { statsHandlers } from "./handlers/stats"
 import { mcpHandlers } from "./handlers/mcp"
@@ -121,6 +122,7 @@ import { ExtensionLayer } from "@/extension"
 import { defaultLayer as PlanApprovalLayer } from "@/session/plan-approval"
 import { defaultLayer as HookServiceLayer } from "@/hook/service"
 import { defaultLayer as TeamLayer } from "@/team/team"
+import { defaultLayer as TeamMissionLayer } from "@/team/mission"
 import { defaultLayer as TeamRunLayer } from "@/team/run"
 import { defaultLayer as TeamVerificationLayer } from "@/team/verification"
 import { defaultLayer as TeamOrchestratorLayer } from "@/team/orchestrator"
@@ -198,6 +200,7 @@ const instanceApiRoutes = HttpApiBuilder.layer(InstanceHttpApi).pipe(
     kernelHandlers,
     statsHandlers,
     profileHandlers,
+    missionHandlers,
     mcpHandlers,
     memoryHandlers,
     officeHandlers,
@@ -331,6 +334,7 @@ export function createRoutes(
       WorkflowDefaultLayer,
       OrchestratorDefaultLayer,
       TeamRunLayer,
+      TeamMissionLayer,
       TeamVerificationLayer,
       TeamLedgerLayer,
       TeamOpLogLayer,

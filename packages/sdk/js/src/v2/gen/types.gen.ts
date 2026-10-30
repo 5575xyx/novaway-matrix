@@ -3561,6 +3561,21 @@ export type TeamEmployeeView = {
   prompt?: string
 }
 
+export type MissionView = {
+  id: string
+  number: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  label: string
+  directory: string
+  goal: string
+  status: "active" | "done" | "abandoned"
+  baseSHA?: string
+  worktree?: string
+  branch?: string
+  runCount: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
 export type RunUsageView = {
   reserved: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   settled: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
@@ -3585,6 +3600,7 @@ export type RunView = {
   id: string
   sessionID: string
   directory: string
+  missionID?: string
   mode: "team" | "auto"
   goal: string
   state: string
@@ -17288,6 +17304,122 @@ export type EmployeeListResponses = {
 
 export type EmployeeListResponse = EmployeeListResponses[keyof EmployeeListResponses]
 
+export type MissionListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/mission"
+}
+
+export type MissionListResponses = {
+  /**
+   * Missions
+   */
+  200: Array<MissionView>
+}
+
+export type MissionListResponse = MissionListResponses[keyof MissionListResponses]
+
+export type MissionCreateData = {
+  body?: {
+    directory: string
+    goal: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/mission"
+}
+
+export type MissionCreateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type MissionCreateError = MissionCreateErrors[keyof MissionCreateErrors]
+
+export type MissionCreateResponses = {
+  /**
+   * Created mission
+   */
+  200: MissionView
+}
+
+export type MissionCreateResponse = MissionCreateResponses[keyof MissionCreateResponses]
+
+export type MissionDetailData = {
+  body?: never
+  path: {
+    missionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/mission/{missionID}"
+}
+
+export type MissionDetailErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type MissionDetailError = MissionDetailErrors[keyof MissionDetailErrors]
+
+export type MissionDetailResponses = {
+  /**
+   * Mission
+   */
+  200: MissionView
+}
+
+export type MissionDetailResponse = MissionDetailResponses[keyof MissionDetailResponses]
+
+export type MissionUpdateData = {
+  body?: {
+    status: "active" | "done" | "abandoned"
+  }
+  path: {
+    missionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/mission/{missionID}"
+}
+
+export type MissionUpdateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type MissionUpdateError = MissionUpdateErrors[keyof MissionUpdateErrors]
+
+export type MissionUpdateResponses = {
+  /**
+   * Updated mission
+   */
+  200: MissionView
+}
+
+export type MissionUpdateResponse = MissionUpdateResponses[keyof MissionUpdateResponses]
+
 export type RunListData = {
   body?: never
   path?: never
@@ -17321,6 +17453,7 @@ export type RunCreateData = {
       wallMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
     }
     profileID?: string
+    missionID?: string
     readOnly?: boolean
   }
   path?: never

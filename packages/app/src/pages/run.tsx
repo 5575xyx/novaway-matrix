@@ -1,4 +1,4 @@
-import type { RunDetail, RunView, TeamProfileView } from "@novaway/sdk/v2"
+import type { MissionView, RunDetail, RunView, TeamProfileView } from "@novaway/sdk/v2"
 import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
 import { Tag } from "@novaway/ui/tag"
@@ -41,6 +41,11 @@ export const RunPage: Component<{
   const [goal, setGoal] = createSignal("")
   const [criteria, setCriteria] = createSignal("")
   const [budget, setBudget] = createSignal(100_000)
+  // 持久目标（§3.2）：可选归属。选「新建」时会先建目标再建运行。
+  const [missions, setMissions] = createSignal<MissionView[]>([])
+  const [missionID, setMissionID] = createSignal("")
+  const [missionGoal, setMissionGoal] = createSignal("")
+  const NEW_MISSION = "__new"
 
   const loadRuns = async (select?: string) => {
     try {
@@ -87,6 +92,15 @@ export const RunPage: Component<{
     }
   }
 
+  const loadMissions = async () => {
+    try {
+      const result = await sdk.client.mission.list({ directory: props.directory })
+      setMissions(result.data ?? [])
+    } catch (err) {
+      setError(errorMessage(err))
+    }
+  }
+
   const loadProfiles = async () => {
     try {
       const result = await sdk.client.profile.list({ directory: props.directory })
@@ -112,6 +126,17 @@ export const RunPage: Component<{
     if (!profile || !text || lines.length === 0) return
     setBusy("create")
     try {
+      // 目标先建：目标准备失败时不该留下一个跑不了的运行。
+      let attached = missionID()
+      if (attached === NEW_MISSION) {
+        const createdMission = await sdk.client.mission.create({
+          query_directory: props.directory,
+          body_directory: props.directory,
+          goal: missionGoal().trim() || text,
+        })
+        attached = createdMission.data?.id ?? ""
+        if (!attached) throw new Error(t("run.new.missionFailed"))
+      }
       const session = await sdk.client.session.create({ directory: props.directory, title: text })
       const sessionID = session.data?.id
       if (!sessionID) throw new Error(t("run.new.sessionFailed"))
@@ -123,12 +148,16 @@ export const RunPage: Component<{
         mode: "team",
         goal: text,
         profileID: profile.id,
+        missionID: attached || undefined,
         budget: { tokens: budget() },
         acceptance: lines.map((line, index) => ({ specID: "review-" + (index + 1), text: line })),
       })
       setComposing(false)
       setGoal("")
       setCriteria("")
+      setMissionID("")
+      setMissionGoal("")
+      await loadMissions()
       await loadRuns(created.data?.run.id)
     } catch (err) {
       setError(errorMessage(err))
@@ -161,6 +190,8 @@ export const RunPage: Component<{
     })
 
   const hasWorktrees = createMemo(() => (detail()?.teams ?? []).some((team) => !!team.worktree))
+  /** 当前运行属于哪个目标：编号只给人看，悬停给出目标描述。 */
+  const currentMission = createMemo(() => missions().find((item) => item.id === detail()?.run.missionID))
 
   /**
    * 显式合并：把集成分支合进用户当前检出的分支。
@@ -205,6 +236,7 @@ export const RunPage: Component<{
   onMount(() => {
     void loadRuns()
     void loadProfiles()
+    void loadMissions()
     // 运行是后台推进的；没有推送时用轮询保证看板不会停在旧状态。
     const timer = setInterval(() => {
       void reload()
@@ -298,6 +330,29 @@ export const RunPage: Component<{
                 />
                 <span class="text-ui-xs text-foreground-subtlest">{t("run.new.acceptanceHint")}</span>
               </label>
+              <label class="flex flex-col gap-1">
+                <span class="text-ui-xs text-foreground-subtle">{t("run.new.mission")}</span>
+                <select
+                  class="h-8 rounded-md border border-border bg-surface px-2 text-ui-base text-foreground outline-none focus:border-border-focus"
+                  value={missionID()}
+                  onChange={(event) => setMissionID(event.currentTarget.value)}
+                >
+                  <option value="">{t("run.new.missionNone")}</option>
+                  <For each={missions()}>
+                    {(mission) => <option value={mission.id}>{mission.label + " · " + mission.goal}</option>}
+                  </For>
+                  <option value={NEW_MISSION}>{t("run.new.missionNew")}</option>
+                </select>
+                <Show when={missionID() === NEW_MISSION}>
+                  <input
+                    class="h-8 rounded-md border border-border bg-surface px-2 text-ui-base text-foreground outline-none placeholder:text-foreground-subtle focus:border-border-focus"
+                    value={missionGoal()}
+                    placeholder={t("run.new.missionGoalPlaceholder")}
+                    onInput={(event) => setMissionGoal(event.currentTarget.value)}
+                  />
+                </Show>
+                <span class="text-ui-xs text-foreground-subtlest">{t("run.new.missionHint")}</span>
+              </label>
               <label class="flex items-center gap-2">
                 <span class="text-ui-xs text-foreground-subtle">{t("run.new.budget")}</span>
                 <input
@@ -346,6 +401,9 @@ export const RunPage: Component<{
                         <Tag title={t("run.policy.hint")}>
                           {data().run.readOnly ? t("run.policy.readOnly") : t("run.policy.write")}
                         </Tag>
+                        <Show when={currentMission()}>
+                          {(mission) => <Tag title={mission().goal}>{mission().label + " · " + mission().status}</Tag>}
+                        </Show>
                         <Tag>{"第 " + data().run.roundMain + " 轮"}</Tag>
                         {Number(data().run.planVersion) > 0 ? <Tag>{"计划 v" + data().run.planVersion}</Tag> : null}
                       </div>

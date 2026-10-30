@@ -30780,6 +30780,274 @@
         ]
       }
     },
+    "/team/mission": {
+      "get": {
+        "tags": ["Missions"],
+        "operationId": "mission.list",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Missions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MissionView"
+                  },
+                  "description": "Missions"
+                }
+              }
+            }
+          }
+        },
+        "description": "Persistent goals for this workspace; runs may be attached to one and reuse its worktree.",
+        "summary": "List missions",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.mission.list({\n  ...\n})"
+          }
+        ]
+      },
+      "post": {
+        "tags": ["Missions"],
+        "operationId": "mission.create",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Created mission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissionView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Allocates a non-reusable number and freezes the base commit; status is independent of runs.",
+        "summary": "Create a mission",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "directory": {
+                    "type": "string"
+                  },
+                  "goal": {
+                    "type": "string"
+                  }
+                },
+                "required": ["directory", "goal"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.mission.create({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/team/mission/{missionID}": {
+      "get": {
+        "tags": ["Missions"],
+        "operationId": "mission.detail",
+        "parameters": [
+          {
+            "name": "missionID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissionView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Goal, status, frozen base commit and the shared worktree.",
+        "summary": "Mission detail",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.mission.detail({\n  ...\n})"
+          }
+        ]
+      },
+      "patch": {
+        "tags": ["Missions"],
+        "operationId": "mission.update",
+        "parameters": [
+          {
+            "name": "missionID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated mission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissionView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Only the user (or a member) sets this: finishing a run never completes a mission.",
+        "summary": "Update mission status",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": ["active", "done", "abandoned"]
+                  }
+                },
+                "required": ["status"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.mission.update({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/run": {
       "get": {
         "tags": ["Team runs"],
@@ -30971,6 +31239,9 @@
                     "additionalProperties": false
                   },
                   "profileID": {
+                    "type": "string"
+                  },
+                  "missionID": {
                     "type": "string"
                   },
                   "readOnly": {
@@ -47229,6 +47500,130 @@
         "required": ["id", "name", "job"],
         "additionalProperties": false
       },
+      "MissionView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "directory": {
+            "type": "string"
+          },
+          "goal": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "done", "abandoned"]
+          },
+          "baseSHA": {
+            "type": "string"
+          },
+          "worktree": {
+            "type": "string"
+          },
+          "branch": {
+            "type": "string"
+          },
+          "runCount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          }
+        },
+        "required": ["id", "number", "label", "directory", "goal", "status", "runCount", "createdAt", "updatedAt"],
+        "additionalProperties": false
+      },
       "RunUsageView": {
         "type": "object",
         "properties": {
@@ -47425,6 +47820,9 @@
             "type": "string"
           },
           "directory": {
+            "type": "string"
+          },
+          "missionID": {
             "type": "string"
           },
           "mode": {
@@ -54982,6 +55380,10 @@
     {
       "name": "profile",
       "description": "Team templates and employees."
+    },
+    {
+      "name": "Missions",
+      "description": "Persistent goals across runs."
     },
     {
       "name": "Team runs"

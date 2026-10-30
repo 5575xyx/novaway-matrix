@@ -40,6 +40,7 @@ import { GoalApi } from "./groups/goal"
 import { WorkflowApi } from "./groups/workflow"
 import { OrchestratorApi } from "./groups/orchestrator"
 import { TeamApi } from "./groups/team"
+import { MissionApi } from "./groups/mission"
 import { ProfileApi } from "./groups/profile"
 import { RunApi } from "./groups/run"
 import { Authorization } from "./middleware/authorization"
@@ -96,6 +97,7 @@ export const InstanceHttpApi = InstanceGroups.addHttpApi(TuiApi)
   .add(OrchestratorApi)
   .addHttpApi(TeamApi)
   .add(ProfileApi)
+  .add(MissionApi)
   .add(RunApi)
   .middleware(SchemaErrorMiddleware)
 

@@ -320,6 +320,13 @@ import type {
   MemoryStatusResponses,
   MemoryUpdateErrors,
   MemoryUpdateResponses,
+  MissionCreateErrors,
+  MissionCreateResponses,
+  MissionDetailErrors,
+  MissionDetailResponses,
+  MissionListResponses,
+  MissionUpdateErrors,
+  MissionUpdateResponses,
   OfficeArtifactListErrors,
   OfficeArtifactListResponses,
   OfficeArtifactSaveErrors,
@@ -13533,6 +13540,156 @@ export class Employee extends HeyApiClient {
   }
 }
 
+export class Mission extends HeyApiClient {
+  /**
+   * List missions
+   *
+   * Persistent goals for this workspace; runs may be attached to one and reuse its worktree.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<MissionListResponses, unknown, ThrowOnError>({
+      url: "/team/mission",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create a mission
+   *
+   * Allocates a non-reusable number and freezes the base commit; status is independent of runs.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      query_directory?: string
+      workspace?: string
+      body_directory?: string
+      goal?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            {
+              in: "query",
+              key: "query_directory",
+              map: "directory",
+            },
+            { in: "query", key: "workspace" },
+            {
+              in: "body",
+              key: "body_directory",
+              map: "directory",
+            },
+            { in: "body", key: "goal" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<MissionCreateResponses, MissionCreateErrors, ThrowOnError>({
+      url: "/team/mission",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Mission detail
+   *
+   * Goal, status, frozen base commit and the shared worktree.
+   */
+  public detail<ThrowOnError extends boolean = false>(
+    parameters: {
+      missionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "missionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<MissionDetailResponses, MissionDetailErrors, ThrowOnError>({
+      url: "/team/mission/{missionID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Update mission status
+   *
+   * Only the user (or a member) sets this: finishing a run never completes a mission.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    parameters: {
+      missionID: string
+      directory?: string
+      workspace?: string
+      status?: "active" | "done" | "abandoned"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "missionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "status" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<MissionUpdateResponses, MissionUpdateErrors, ThrowOnError>({
+      url: "/team/mission/{missionID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class Acceptance extends HeyApiClient {
   /**
    * Add an acceptance line
@@ -13672,6 +13829,7 @@ export class Run2 extends HeyApiClient {
         wallMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
       }
       profileID?: string
+      missionID?: string
       readOnly?: boolean
     },
     options?: Options<never, ThrowOnError>,
@@ -13699,6 +13857,7 @@ export class Run2 extends HeyApiClient {
             { in: "body", key: "acceptance" },
             { in: "body", key: "budget" },
             { in: "body", key: "profileID" },
+            { in: "body", key: "missionID" },
             { in: "body", key: "readOnly" },
           ],
         },
@@ -14252,6 +14411,11 @@ export class OpencodeClient extends HeyApiClient {
   private _employee?: Employee
   get employee(): Employee {
     return (this._employee ??= new Employee({ client: this.client }))
+  }
+
+  private _mission?: Mission
+  get mission(): Mission {
+    return (this._mission ??= new Mission({ client: this.client }))
   }
 
   private _run?: Run2
