@@ -157,8 +157,16 @@ describe("team HttpApi", () => {
         goal: "一次性运行",
       })
       expect(created.status).toBe(200)
-      const run = (yield* created.json) as { run: { id: string; state: string } }
+      const run = (yield* created.json) as {
+        run: { id: string; state: string }
+        blockers: unknown[]
+        teams: Array<{ context?: unknown }>
+      }
       expect(run.run.state).toBe("planning")
+      // 还没派发：既没有阻塞，也没有上下文清单 —— 空数组与缺字段是「确实没有」，
+      // 不是「接口没实现」。
+      expect(run.blockers).toEqual([])
+      expect(run.teams).toEqual([])
 
       // 别的目录里既看不到这次运行，也拿这个 id 做不了任何事。
       const other = yield* tmpdirScoped({ git: true })
