@@ -228,18 +228,29 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
         return created
       })
 
-    const requireRun = (runID: string) =>
+    /**
+     * 按 id 取运行，并核对它属于请求的工作区。
+     *
+     * 运行表是全局的（一个数据目录一张表），而界面按 `x-opencode-directory` 分项目；
+     * 不核对目录的话，A 项目拿到的 id 能在 B 项目里被读取、批准、甚至合并 ——
+     * 合并改的是 `run.directory` 里的仓库，跨目录操作就是改别人的项目。
+     * 目录没带时不拦（历史客户端的兼容路径），带了就必须一致。
+     */
+    const requireRun = (runID: string, directory?: string) =>
       Effect.gen(function* () {
         const run = yield* runs.get(runID)
         if (!run) return yield* Effect.fail(new HttpApiError.NotFound({}))
+        if (directory && run.directory !== directory) return yield* Effect.fail(new HttpApiError.NotFound({}))
         return run
       })
 
     return handlers
-      .handle("listRuns", () =>
+      .handle("listRuns", (ctx) =>
         Effect.gen(function* () {
           const all = yield* runs.list()
-          return all.map(toRun)
+          // 只列本工作区的运行：运行表是全局的，目录过滤在这里做，不在数据库。
+          const directory = ctx.query.directory
+          return all.filter((run) => !directory || run.directory === directory).map(toRun)
         }),
       )
       .handle("createRun", (ctx) =>
@@ -338,14 +349,15 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
       )
       .handle("runDetail", (ctx) =>
         Effect.gen(function* () {
-          const found = yield* detail(ctx.params.runID)
+          const run = yield* requireRun(ctx.params.runID, ctx.query.directory)
+          const found = yield* detail(run.id)
           if (!found) return yield* Effect.fail(new HttpApiError.NotFound({}))
           return found
         }),
       )
       .handle("setRunPlan", (ctx) =>
         Effect.gen(function* () {
-          const run = yield* requireRun(ctx.params.runID)
+          const run = yield* requireRun(ctx.params.runID, ctx.query.directory)
           // 计划变了，版本号必须变：旧批准自动失效。
           const nextVersion = run.planVersion + 1
           yield* runs.update({
@@ -386,7 +398,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
       )
       .handle("addRunAcceptance", (ctx) =>
         Effect.gen(function* () {
-          yield* requireRun(ctx.params.runID)
+          yield* requireRun(ctx.params.runID, ctx.query.directory)
           const acceptance = yield* verification.register({
             runID: ctx.params.runID,
             taskID: ctx.payload.taskID,
@@ -410,7 +422,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
       )
       .handle("approveRun", (ctx) =>
         Effect.gen(function* () {
-          yield* requireRun(ctx.params.runID)
+          yield* requireRun(ctx.params.runID, ctx.query.directory)
           const approved = yield* runs.approve({
             runID: ctx.params.runID,
             planVersion: ctx.payload.planVersion,
@@ -424,7 +436,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
       )
       .handle("executeRun", (ctx) =>
         Effect.gen(function* () {
-          const run = yield* requireRun(ctx.params.runID)
+          const run = yield* requireRun(ctx.params.runID, ctx.query.directory)
           // 未批准不能跑；已经在跑也不能再起一份。
           if (!canStart(run.state, run.phase)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
 
@@ -686,7 +698,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
       )
       .handle("removeRunWorktrees", (ctx) =>
         Effect.gen(function* () {
-          const run = yield* requireRun(ctx.params.runID)
+          const run = yield* requireRun(ctx.params.runID, ctx.query.directory)
           // 运行还没结束就删工作区，等于把成员脚下的地板抽走。
           if (!isTerminal(run.state)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
           const rows = yield* runs.teams(run.id)
@@ -738,7 +750,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
       )
       .handle("mergeRun", (ctx) =>
         Effect.gen(function* () {
-          const run = yield* requireRun(ctx.params.runID)
+          const run = yield* requireRun(ctx.params.runID, ctx.query.directory)
           // 还在跑的运行没有「可交付物」：合并一个还会变的目录没有意义。
           if (!isTerminal(run.state)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
           // 有交付物才谈得上合并：失败 / 超时 / 取消的运行即使留着分支，也不是「做完的代码」。
@@ -802,7 +814,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
       )
       .handle("cancelRun", (ctx) =>
         Effect.gen(function* () {
-          const run = yield* requireRun(ctx.params.runID)
+          const run = yield* requireRun(ctx.params.runID, ctx.query.directory)
           if (!isTerminal(run.state)) {
             // 三段式：先请求停止，再把已发生的影响写进事件，最后才置 cancelled。
             yield* runs.appendEvent({ runID: run.id, kind: "cancel.requested" })
@@ -825,6 +837,8 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
       )
       .handle("runEvents", (ctx) =>
         Effect.gen(function* () {
+          // 事件流同样按目录核对：未知 id 返回 404，而不是「空列表」。
+          yield* requireRun(ctx.params.runID, ctx.query.directory)
           const events = yield* runs.events({ runID: ctx.params.runID })
           return events.map((event) => ({
             seq: event.seq,

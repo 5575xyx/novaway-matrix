@@ -48,7 +48,7 @@ const send = (request: HttpClientRequest.HttpClientRequest, body?: unknown) =>
   })
 
 const post = (dir: string, path: string, body?: unknown) =>
-  send(HttpClientRequest.post(path).pipe(directoryHeader(dir)), body)
+  send(HttpClientRequest.post(path).pipe(directoryHeader(dir), HttpClientRequest.setUrlParam("directory", dir)), body)
 
 const get = (dir: string, path: string, param?: string) =>
   HttpClient.execute(
@@ -59,7 +59,7 @@ const get = (dir: string, path: string, param?: string) =>
   )
 
 const patch = (dir: string, path: string, body: unknown) =>
-  send(HttpClientRequest.patch(path).pipe(directoryHeader(dir)), body)
+  send(HttpClientRequest.patch(path).pipe(directoryHeader(dir), HttpClientRequest.setUrlParam("directory", dir)), body)
 
 describe("team HttpApi", () => {
   it.live("creates, lists and updates a mission; the diff says why it cannot be computed yet", () =>
@@ -90,6 +90,10 @@ describe("team HttpApi", () => {
       const other = yield* tmpdirScoped({ git: true })
       const elsewhere = yield* get(other, "/team/mission", other)
       expect(yield* elsewhere.json).toEqual([])
+      // 按 id 直取也一样：知道 id 不等于有权读写。
+      expect((yield* get(other, `/team/mission/${mission.id}`, other)).status).toBe(404)
+      expect((yield* get(other, `/team/mission/${mission.id}/diff`, other)).status).toBe(404)
+      expect((yield* patch(other, `/team/mission/${mission.id}`, { status: "abandoned" })).status).toBe(404)
 
       const detail = yield* get(dir, `/team/mission/${mission.id}`)
       expect(detail.status).toBe(200)
@@ -150,6 +154,13 @@ describe("team HttpApi", () => {
       expect(created.status).toBe(200)
       const run = (yield* created.json) as { run: { id: string; state: string } }
       expect(run.run.state).toBe("planning")
+
+      // 别的目录里既看不到这次运行，也拿这个 id 做不了任何事。
+      const other = yield* tmpdirScoped({ git: true })
+      expect(yield* (yield* get(other, "/run", other)).json).toEqual([])
+      expect((yield* get(other, `/run/${run.run.id}`, other)).status).toBe(404)
+      expect((yield* get(other, `/run/${run.run.id}/events`, other)).status).toBe(404)
+      expect((yield* post(other, `/run/${run.run.id}/cancel`)).status).toBe(404)
 
       // 还在计划中的运行没有可交付物：合并没有意义，直接拒绝。
       expect((yield* post(dir, `/run/${run.run.id}/merge`)).status).toBe(400)

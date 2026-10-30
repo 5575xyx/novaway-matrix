@@ -345,6 +345,7 @@ export const RunApi = HttpApiGroup.make("run")
       params: { runID: Schema.String },
       query: WorkspaceRoutingQuery,
       success: described(Schema.Array(RunEventView), "Events"),
+      error: [HttpApiError.NotFound],
     }).annotateMerge(
       OpenApi.annotations({
         identifier: "run.events",
