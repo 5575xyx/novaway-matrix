@@ -45,6 +45,7 @@ import { defaultLayer as AgentMailboxLayer } from "@/team/mailbox"
 import { defaultLayer as HookLayer } from "@/hook/service"
 import { defaultLayer as McpLayer } from "@/mcp"
 import { defaultLayer as EvolutionLayer } from "@/evolution/service"
+import { Database } from "@/database"
 
 const node = CrossSpawnSpawner.defaultLayer
 const configLayer = TestConfig.layer({
@@ -88,6 +89,7 @@ const registryLayer = (flags: Partial<RuntimeFlags.Info> = {}, config: Layer.Lay
       Layer.provide(HookLayer),
       Layer.provide(McpLayer),
       Layer.provide(EvolutionLayer),
+      Layer.provide(Database.defaultLayer),
     )
 
 const deferConfig = TestConfig.layer({

@@ -76,16 +76,13 @@ function browserMcpFlags() {
 // Users can remove or override these entries in their own config file.
 const browserCommand = process.env.PLAYWRIGHT_MCP_SERVER_PATH
   ? [
-      process.env.PLAYWRIGHT_MCP_NODE_PATH ?? process.env.DBX_NODE_PATH ?? "node",
+      process.env.PLAYWRIGHT_MCP_NODE_PATH ?? process.env.NOVAWAY_NODE_PATH ?? "node",
       process.env.PLAYWRIGHT_MCP_SERVER_PATH,
       ...browserMcpFlags(),
     ]
   : process.platform === "win32"
     ? ["cmd", "/c", "npx", "-y", "@playwright/mcp", ...browserMcpFlags()]
     : ["npx", "-y", "@playwright/mcp", ...browserMcpFlags()]
-const dbxCommand = process.env.DBX_MCP_SERVER_PATH
-  ? [process.env.DBX_NODE_PATH ?? "node", process.env.DBX_MCP_SERVER_PATH]
-  : ["cmd", "/c", "npx", "-y", "@dbx-app/mcp-server"]
 export const DEFAULT_MCP_SERVERS: Record<string, ConfigMCP.Info> = {
   browser: {
     command: browserCommand,
@@ -104,11 +101,6 @@ export const DEFAULT_MCP_SERVERS: Record<string, ConfigMCP.Info> = {
   },
   context7: {
     command: ["cmd", "/c", "npx", "-y", "@upstash/context7-mcp"],
-    enabled: true,
-    type: "local",
-  },
-  dbx: {
-    command: dbxCommand,
     enabled: true,
     type: "local",
   },
@@ -646,34 +638,11 @@ export const layer = Layer.effect(
           }
         }
 
-        // 当环境变量指定了本地 DBX MCP Server 路径时，强制覆盖配置文件中的 command。
-        // 避免用户配置里保存的旧 npx 版本继续被使用。
-        const dbxMcp = result.mcp?.dbx
-        if (process.env.DBX_MCP_SERVER_PATH && dbxMcp && Schema.is(ConfigMCP.Local)(dbxMcp)) {
-          const dbxCommand = [process.env.DBX_NODE_PATH ?? "node", process.env.DBX_MCP_SERVER_PATH]
-          if (JSON.stringify(dbxMcp.command) !== JSON.stringify(dbxCommand)) {
-            result.mcp = {
-              ...result.mcp,
-              dbx: {
-                ...dbxMcp,
-                command: dbxCommand,
-                type: "local",
-              },
-            }
-            const file = path.join(Global.Path.config, "novaway.json")
-            const text = yield* readConfigFile(file)
-            if (text) {
-              const patched = patchJsonc(text, result.mcp, ["mcp"])
-              yield* fs.writeFileString(file, patched).pipe(Effect.catch(() => Effect.void))
-            }
-          }
-        }
-
         // 打包环境使用内置 Playwright MCP 服务器，检测到路径时覆盖旧 npx 命令。
         const browserMcp = result.mcp?.browser
         if (process.env.PLAYWRIGHT_MCP_SERVER_PATH && browserMcp && Schema.is(ConfigMCP.Local)(browserMcp)) {
           const browserCommand = [
-            process.env.PLAYWRIGHT_MCP_NODE_PATH ?? process.env.DBX_NODE_PATH ?? "node",
+            process.env.PLAYWRIGHT_MCP_NODE_PATH ?? process.env.NOVAWAY_NODE_PATH ?? "node",
             process.env.PLAYWRIGHT_MCP_SERVER_PATH,
             ...browserMcpFlags(),
           ]

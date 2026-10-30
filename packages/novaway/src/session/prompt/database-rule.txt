@@ -1,36 +1,28 @@
-# 数据库连接与使用规则（内置全局规则）
+# 数据库使用规则（内置全局规则）
 
-## 使用 DBX MCP 工具
+## 用内置数据库工具，不要走 shell CLI
 
-AI 必须使用 DBX MCP 工具来访问和操作数据库，而不是使用 shell CLI 或旧的 `database_sql` 工具。
+访问数据库一律用下面 4 个工具。连接由用户在「数据库」页面维护，和这里看到的是同一份。
 
-## 可用 DBX 工具
+- `database_list`：列出已保存的连接（id、类型、地址、是否存了密码）
+- `database_tables`：列出某个连接下的表 / 视图
+- `database_describe`：查看单张表的列（类型、可空、默认值、主键）
+- `database_query`：执行 SQL
 
-- `dbx_dbx_list_connections`：列出已保存的数据库连接
-- `dbx_dbx_execute_query`：在指定的连接上执行 SQL
-- `dbx_dbx_list_tables`：列出某个连接下的所有表
-- `dbx_dbx_describe_table`：查看单张表的结构
-- `dbx_dbx_get_schema_context`：获取用于生成查询的数据库上下文
-- `dbx_dbx_execute_redis_command`：在 Redis 连接上执行命令
+## 使用顺序
 
-## 使用方式
+1. `database_list` 拿到 connectionID（也可以传连接名）。
+2. 不确定结构就 `database_tables` → `database_describe`，别凭猜测写列名。
+3. `database_query` 执行；SELECT 会被自动分页（默认 100 行，可用 limit/offset）。
 
-1. 先调用 `dbx_dbx_list_connections` 查看可用的连接。
-2. 执行查询时，使用 `dbx_dbx_execute_query` 并传入 `connection_name` 和 `sql`。
-3. 如果不确定数据库结构，先用 `dbx_dbx_list_tables`、`dbx_dbx_describe_table` 或 `dbx_dbx_get_schema_context` 获取信息。
+## 写操作
 
-## DDL 与初始化
-
-- 创建表使用 `CREATE TABLE IF NOT EXISTS`，避免重复执行报错。
-- 插入测试数据使用 INSERT 语句。
-- DDL 和数据插入的结果在对话中展示即可。
+- 默认**只读**：INSERT / UPDATE / DELETE / DDL 会被直接拒绝。
+- 确实要写时传 `allowWrite: true`；这会弹出权限确认，等用户同意后再执行。
+- DDL 用 `CREATE TABLE IF NOT EXISTS`；批量写入前先小范围验证。
 
 ## 错误处理
 
-- 如果连接失败，检查 `connection_name` 是否正确，或重新调用 `dbx_dbx_list_connections`。
-- 如果是 SQL 语法错误，修正后重试。
-- 不要回退到 shell CLI 操作数据库。
-
-## 安全说明
-
-DBX 内置 SQL 安全检查与连接池管理。AI 直接使用 DBX 工具即可，不需要手动维护连接参数。
+- 「Connection not found」：重新 `database_list`，确认名称/ID。
+- 语法错误：读返回的数据库原文修正后重试，不要改用 shell 里的 `mysql` / `psql`。
+- 不要回退到 shell CLI，也不要自己拼接连接参数。

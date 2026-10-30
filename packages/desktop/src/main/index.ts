@@ -430,19 +430,17 @@ const main = Effect.gen(function* () {
     ensureLoopbackNoProxy()
     useEnvProxy()
 
-    const dbxMcpDir = app.isPackaged
-      ? join(process.resourcesPath, "dbx-mcp")
-      : join(app.getAppPath(), "resources", "dbx-mcp")
-    process.env.DBX_DATA_DIR = join(app.getPath("userData"), "dbx")
-    process.env.DBX_MCP_SERVER_PATH = join(dbxMcpDir, "dist", "index.js")
-    // 开发环境使用系统 Node.js；打包环境使用应用内置的独立 Node.js，
-    // 避免 Electron ABI 与 better-sqlite3/keytar 原生模块不匹配。
+    // 数据库由 sidecar 内置的驱动直接访问（见 src/database），不再需要随包的 dbx MCP server。
+    // 旧的 dbx 连接库路径仍传给 sidecar：首次启动时会导入到数据库页面，避免用户重配。
+    process.env.NOVAWAY_DBX_LEGACY_DB = join(app.getPath("userData"), "dbx", "dbx.db")
+    // 开发环境使用系统 Node.js；打包环境使用应用内置的独立 Node.js。
+    // 目前只有随包的 Playwright MCP 与插件 CLI 会用它当解释器。
     const bundledNode =
       process.platform === "win32"
         ? join(process.resourcesPath, "node", "node.exe")
         : join(process.resourcesPath, "node", "bin", "node")
-    process.env.DBX_NODE_PATH = app.isPackaged ? bundledNode : "node"
-    // 浏览器 MCP 与 DBX 一样随安装包分发，打包环境使用内置 Node 和系统 Chrome/Edge，
+    process.env.NOVAWAY_NODE_PATH = app.isPackaged ? bundledNode : "node"
+    // 浏览器 MCP 随安装包分发，打包环境使用内置 Node 和系统 Chrome/Edge，
     // 避免依赖用户机器上的 npx、Node.js 或联网拉取。
     const playwrightMcpDir = app.isPackaged
       ? join(process.resourcesPath, "playwright-mcp")
@@ -455,7 +453,7 @@ const main = Effect.gen(function* () {
         process.env.PLAYWRIGHT_MCP_BROWSER ?? (process.platform === "win32" ? "msedge" : "chrome")
     }
     // 默认全局插件 PowersNexus 从 Gitee 安装；其 CLI 需要 Node（复用内置 Node）
-    process.env.POWERSNEXUS_NODE_PATH = process.env.POWERSNEXUS_NODE_PATH ?? process.env.DBX_NODE_PATH
+    process.env.POWERSNEXUS_NODE_PATH = process.env.POWERSNEXUS_NODE_PATH ?? process.env.NOVAWAY_NODE_PATH
 
     logger.log("spawning sidecar", { url })
 

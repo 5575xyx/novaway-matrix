@@ -2072,6 +2072,8 @@ export type DatabaseType =
   | "clickhouse"
   | "starrocks"
   | "doris"
+  | "sqlserver"
+  | "oracle"
 
 export type DatabaseConnection = {
   id: string

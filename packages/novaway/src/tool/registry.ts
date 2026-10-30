@@ -21,6 +21,7 @@ import { WriteTool } from "./write"
 import { InvalidTool } from "./invalid"
 import { SkillTool } from "./skill"
 import { KnowledgeTool } from "./knowledge"
+import { DatabaseDescribeTool, DatabaseListTool, DatabaseQueryTool, DatabaseTablesTool } from "./database"
 import { KnowledgeManageTool } from "./knowledge-manage"
 import { RulesManageTool } from "./rules-manage"
 import { EvolutionManageTool } from "./evolution-manage"
@@ -64,6 +65,7 @@ import {
   BrowserSnapshotTool,
 } from "./browser"
 import { BrowserService } from "@/browser/browser"
+import { Database as DatabaseModule } from "@/database"
 import * as Tool from "./tool"
 import { Config } from "@/config/config"
 import { ConfigMemory } from "@/config/memory"
@@ -240,6 +242,12 @@ export const CAPABILITIES: Record<string, Tool.Capabilities> = {
   read_mcp_resource: { readOnly: true, concurrencySafe: true },
   tool_search: { readOnly: true, concurrencySafe: true },
   knowledge_search: { readOnly: true, concurrencySafe: true },
+  // 数据库：读操作可并行；database_query 的 readOnly / concurrencySafe 取决于
+  // allowWrite，由工具自身的 capabilities 动态声明。
+  database_list: { readOnly: true, concurrencySafe: true },
+  database_tables: { readOnly: true, concurrencySafe: true },
+  database_describe: { readOnly: true, concurrencySafe: true },
+  database_query: { maxResultBytes: 200_000 },
   git: {
     readOnly: (args: unknown) =>
       ["status", "diff", "log", "branches"].includes(String((args as { action?: string } | undefined)?.action ?? "")),
@@ -384,6 +392,7 @@ export const layer: Layer.Layer<
   | Session.Service
   | Agent.Service
   | CronService
+  | DatabaseModule.Service
 > = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -425,6 +434,11 @@ export const layer: Layer.Layer<
     const skilltool = yield* SkillTool
     const memorytool = yield* MemoryTool
     const knowledgeSearch = yield* KnowledgeTool
+    // 数据库工具把「数据库」页面里的连接直接给 Agent 用，替代原来的 dbx MCP server。
+    const databaseList = yield* DatabaseListTool
+    const databaseQuery = yield* DatabaseQueryTool
+    const databaseTables = yield* DatabaseTablesTool
+    const databaseDescribe = yield* DatabaseDescribeTool
     const knowledgeOcr = yield* KnowledgeOcrTool
     const knowledgeManage = yield* KnowledgeManageTool
     const rulesManage = yield* RulesManageTool
@@ -631,6 +645,10 @@ export const layer: Layer.Layer<
           skill: Tool.init(skilltool),
           memory: Tool.init(memorytool),
           knowledge_search: Tool.init(knowledgeSearch),
+          database_list: Tool.init(databaseList),
+          database_query: Tool.init(databaseQuery),
+          database_tables: Tool.init(databaseTables),
+          database_describe: Tool.init(databaseDescribe),
           knowledge_ocr: Tool.init(knowledgeOcr),
           knowledge_manage: Tool.init(knowledgeManage),
           rules_manage: Tool.init(rulesManage),
@@ -738,6 +756,10 @@ export const layer: Layer.Layer<
           tool.skill,
           ...(ConfigMemory.resolve(cfg.memory).enabled ? [tool.memory] : []),
           tool.knowledge_search,
+          tool.database_list,
+          tool.database_query,
+          tool.database_tables,
+          tool.database_describe,
           tool.knowledge_ocr,
           tool.knowledge_manage,
           tool.rules_manage,
@@ -1090,6 +1112,7 @@ export const defaultLayer: Layer.Layer<Service> = Layer.suspend(() =>
       Layer.provide(Truncate.defaultLayer),
     )
     .pipe(
+      Layer.provide(DatabaseModule.defaultLayer),
       Layer.provide(Evolution.defaultLayer),
       Layer.provide(MCP.defaultLayer),
       Layer.provide(AppProcess.defaultLayer),
