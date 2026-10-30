@@ -3525,6 +3525,39 @@ export type TeamDetail = {
   messages: Array<TeamMessageView>
 }
 
+export type TeamProfileView = {
+  id: string
+  name: string
+  description?: string
+  captainMember: string
+  autoEligible: boolean
+  version: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  memberCount: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type TeamProfileMemberView = {
+  employeeID: string
+  name: string
+  job: string
+  role: "captain" | "worker"
+  duty?: string
+  order: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type TeamProfileDetail = {
+  profile: TeamProfileView
+  members: Array<TeamProfileMemberView>
+}
+
+export type TeamEmployeeView = {
+  id: string
+  name: string
+  job: string
+  model?: string
+  prompt?: string
+}
+
 export type RunView = {
   id: string
   sessionID: string
@@ -17080,6 +17113,141 @@ export type TeamMessageSendResponses = {
 
 export type TeamMessageSendResponse = TeamMessageSendResponses[keyof TeamMessageSendResponses]
 
+export type ProfileListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/profile"
+}
+
+export type ProfileListResponses = {
+  /**
+   * Team templates
+   */
+  200: Array<TeamProfileView>
+}
+
+export type ProfileListResponse = ProfileListResponses[keyof ProfileListResponses]
+
+export type ProfileCreateData = {
+  body?: {
+    name: string
+    description?: string
+    captain: string
+    members: Array<{
+      employeeID: string
+      duty?: string
+      canAutoDispatch?: boolean
+    }>
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/profile"
+}
+
+export type ProfileCreateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type ProfileCreateError = ProfileCreateErrors[keyof ProfileCreateErrors]
+
+export type ProfileCreateResponses = {
+  /**
+   * Created template
+   */
+  200: TeamProfileDetail
+}
+
+export type ProfileCreateResponse = ProfileCreateResponses[keyof ProfileCreateResponses]
+
+export type ProfileRemoveData = {
+  body?: never
+  path: {
+    profileID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/profile/{profileID}"
+}
+
+export type ProfileRemoveErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ProfileRemoveError = ProfileRemoveErrors[keyof ProfileRemoveErrors]
+
+export type ProfileRemoveResponses = {
+  /**
+   * Template removed
+   */
+  200: boolean
+}
+
+export type ProfileRemoveResponse = ProfileRemoveResponses[keyof ProfileRemoveResponses]
+
+export type ProfileDetailData = {
+  body?: never
+  path: {
+    profileID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/profile/{profileID}"
+}
+
+export type ProfileDetailErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ProfileDetailError = ProfileDetailErrors[keyof ProfileDetailErrors]
+
+export type ProfileDetailResponses = {
+  /**
+   * Team template
+   */
+  200: TeamProfileDetail
+}
+
+export type ProfileDetailResponse = ProfileDetailResponses[keyof ProfileDetailResponses]
+
+export type EmployeeListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/employee"
+}
+
+export type EmployeeListResponses = {
+  /**
+   * Employees
+   */
+  200: Array<TeamEmployeeView>
+}
+
+export type EmployeeListResponse = EmployeeListResponses[keyof EmployeeListResponses]
+
 export type RunListData = {
   body?: never
   path?: never
@@ -17112,6 +17280,7 @@ export type RunCreateData = {
       cost?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
       wallMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
     }
+    profileID?: string
   }
   path?: never
   query?: {

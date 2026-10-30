@@ -1,4 +1,4 @@
-import type { RunDetail, RunView } from "@novaway/sdk/v2"
+import type { RunDetail, RunView, TeamProfileView } from "@novaway/sdk/v2"
 import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
 import { Tag } from "@novaway/ui/tag"
@@ -33,6 +33,12 @@ export const RunPage: Component<{
   const [detail, setDetail] = createSignal<RunDetail | undefined>(undefined)
   const [error, setError] = createSignal("")
   const [busy, setBusy] = createSignal("")
+  // 「试跑」：用内置模板直接发起一次运行，不要求用户先去建团队。
+  const [profiles, setProfiles] = createSignal<TeamProfileView[]>([])
+  const [composing, setComposing] = createSignal(false)
+  const [goal, setGoal] = createSignal("")
+  const [criteria, setCriteria] = createSignal("")
+  const [budget, setBudget] = createSignal(100_000)
 
   const loadRuns = async (select?: string) => {
     try {
@@ -78,6 +84,56 @@ export const RunPage: Component<{
     }
   }
 
+  const loadProfiles = async () => {
+    try {
+      const result = await sdk.client.profile.list({ directory: props.directory })
+      setProfiles(result.data ?? [])
+    } catch (err) {
+      setError(errorMessage(err))
+    }
+  }
+
+  /**
+   * 用内置模板发起运行。
+   *
+   * 运行只走到 `awaiting_approval`：模板可以替用户编排，不能替用户授权。
+   * 验收必须由用户给 —— 没写验收的运行无论跑成什么样都不该显示「已完成」。
+   */
+  const start = async () => {
+    const profile = profiles()[0]
+    const text = goal().trim()
+    const lines = criteria()
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+    if (!profile || !text || lines.length === 0) return
+    setBusy("create")
+    try {
+      const session = await sdk.client.session.create({ directory: props.directory, title: text })
+      const sessionID = session.data?.id
+      if (!sessionID) throw new Error(t("run.new.sessionFailed"))
+      const created = await sdk.client.run.create({
+        // 请求体里的 directory 和查询参数同名，生成器把它们拆成了 body_directory / query_directory。
+        query_directory: props.directory,
+        body_directory: props.directory,
+        sessionID,
+        mode: "team",
+        goal: text,
+        profileID: profile.id,
+        budget: { tokens: budget() },
+        acceptance: lines.map((line, index) => ({ specID: "review-" + (index + 1), text: line })),
+      })
+      setComposing(false)
+      setGoal("")
+      setCriteria("")
+      await loadRuns(created.data?.run.id)
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy("")
+    }
+  }
+
   const execute = () =>
     act("execute", async () => {
       const runID = selected()
@@ -107,6 +163,7 @@ export const RunPage: Component<{
 
   onMount(() => {
     void loadRuns()
+    void loadProfiles()
     // 运行是后台推进的；没有推送时用轮询保证看板不会停在旧状态。
     const timer = setInterval(() => {
       void reload()
@@ -137,6 +194,12 @@ export const RunPage: Component<{
               <Icon name="refresh" size="small" />
               {t("run.action.refresh")}
             </Button>
+            <Show when={profiles().length > 0}>
+              <Button variant="ghost" size="small" title={t("run.action.newHint")} onClick={() => setComposing(true)}>
+                <Icon name="plus" size="small" />
+                {t("run.action.new")}
+              </Button>
+            </Show>
           </div>
           <Show
             when={runs().length > 0}
@@ -161,105 +224,163 @@ export const RunPage: Component<{
         </aside>
 
         <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
-          <Show
-            when={detail()}
-            fallback={
-              <div class="flex h-full items-center justify-center text-ui-sm text-foreground-subtle">
-                {t("run.empty")}
+          <Show when={composing()}>
+            <div class="flex flex-col gap-3 p-4">
+              <div>
+                <div class="text-15-medium text-foreground">{t("run.new.title")}</div>
+                <div class="mt-1 text-ui-xs text-foreground-subtle">
+                  {profiles()[0]?.description ?? t("run.new.hint")}
+                </div>
               </div>
-            }
-          >
-            {(data) => (
-              <div class="flex flex-col gap-3 p-4">
-                <div class="flex items-start gap-2">
-                  <div class="min-w-0 flex-1">
-                    <div class="truncate text-15-medium text-foreground">{data().run.goal}</div>
-                    <div class="mt-1 flex flex-wrap items-center gap-1.5">
-                      <Tag>{stateLabel(data().run.state)}</Tag>
-                      <Tag>{data().run.mode}</Tag>
-                      <Tag>{"第 " + data().run.roundMain + " 轮"}</Tag>
-                      {Number(data().run.planVersion) > 0 ? <Tag>{"计划 v" + data().run.planVersion}</Tag> : null}
+              <label class="flex flex-col gap-1">
+                <span class="text-ui-xs text-foreground-subtle">{t("run.new.goal")}</span>
+                <textarea
+                  class="min-h-16 resize-none rounded-md border border-border bg-surface px-2 py-1.5 text-ui-base text-foreground outline-none placeholder:text-foreground-subtle focus:border-border-focus"
+                  rows={2}
+                  value={goal()}
+                  placeholder={t("run.new.goalPlaceholder")}
+                  onInput={(event) => setGoal(event.currentTarget.value)}
+                />
+              </label>
+              <label class="flex flex-col gap-1">
+                <span class="text-ui-xs text-foreground-subtle">{t("run.new.acceptance")}</span>
+                <textarea
+                  class="min-h-24 resize-none rounded-md border border-border bg-surface px-2 py-1.5 text-ui-base text-foreground outline-none placeholder:text-foreground-subtle focus:border-border-focus"
+                  rows={4}
+                  value={criteria()}
+                  placeholder={t("run.new.acceptancePlaceholder")}
+                  onInput={(event) => setCriteria(event.currentTarget.value)}
+                />
+                <span class="text-ui-xs text-foreground-subtlest">{t("run.new.acceptanceHint")}</span>
+              </label>
+              <label class="flex items-center gap-2">
+                <span class="text-ui-xs text-foreground-subtle">{t("run.new.budget")}</span>
+                <input
+                  type="number"
+                  min="1000"
+                  step="1000"
+                  class="h-8 w-32 rounded-md border border-border bg-surface px-2 text-ui-base text-foreground outline-none focus:border-border-focus"
+                  value={budget()}
+                  onInput={(event) => setBudget(Number(event.currentTarget.value) || 0)}
+                />
+              </label>
+              <div class="flex flex-wrap items-center gap-1.5">
+                <Button
+                  variant="primary"
+                  size="small"
+                  disabled={busy() !== "" || !goal().trim() || !criteria().trim()}
+                  onClick={() => void start()}
+                >
+                  {busy() === "create" ? t("run.new.creating") : t("run.new.start")}
+                </Button>
+                <Button variant="ghost" size="small" onClick={() => setComposing(false)}>
+                  {t("run.new.cancel")}
+                </Button>
+                <span class="text-ui-xs text-foreground-subtlest">{t("run.new.approvalHint")}</span>
+              </div>
+            </div>
+          </Show>
+          <Show when={!composing()}>
+            <Show
+              when={detail()}
+              fallback={
+                <div class="flex h-full items-center justify-center text-ui-sm text-foreground-subtle">
+                  {t("run.empty")}
+                </div>
+              }
+            >
+              {(data) => (
+                <div class="flex flex-col gap-3 p-4">
+                  <div class="flex items-start gap-2">
+                    <div class="min-w-0 flex-1">
+                      <div class="truncate text-15-medium text-foreground">{data().run.goal}</div>
+                      <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                        <Tag>{stateLabel(data().run.state)}</Tag>
+                        <Tag>{data().run.mode}</Tag>
+                        <Tag>{"第 " + data().run.roundMain + " 轮"}</Tag>
+                        {Number(data().run.planVersion) > 0 ? <Tag>{"计划 v" + data().run.planVersion}</Tag> : null}
+                      </div>
+                    </div>
+                    <div class="flex shrink-0 items-center gap-1.5">
+                      <Show when={data().run.state === "awaiting_approval"}>
+                        <Button variant="primary" size="small" disabled={busy() !== ""} onClick={() => void approve()}>
+                          {t("run.action.approve")}
+                        </Button>
+                      </Show>
+                      <Show when={canExecute()}>
+                        <Button variant="primary" size="small" disabled={busy() !== ""} onClick={() => void execute()}>
+                          {t("run.action.execute")}
+                        </Button>
+                      </Show>
+                      <Show when={!TERMINAL.has(data().run.state)}>
+                        <Button variant="ghost" size="small" disabled={busy() !== ""} onClick={() => void cancel()}>
+                          {t("run.action.cancel")}
+                        </Button>
+                      </Show>
                     </div>
                   </div>
-                  <div class="flex shrink-0 items-center gap-1.5">
-                    <Show when={data().run.state === "awaiting_approval"}>
-                      <Button variant="primary" size="small" disabled={busy() !== ""} onClick={() => void approve()}>
-                        {t("run.action.approve")}
-                      </Button>
-                    </Show>
-                    <Show when={canExecute()}>
-                      <Button variant="primary" size="small" disabled={busy() !== ""} onClick={() => void execute()}>
-                        {t("run.action.execute")}
-                      </Button>
-                    </Show>
-                    <Show when={!TERMINAL.has(data().run.state)}>
-                      <Button variant="ghost" size="small" disabled={busy() !== ""} onClick={() => void cancel()}>
-                        {t("run.action.cancel")}
-                      </Button>
-                    </Show>
-                  </div>
-                </div>
 
-                <div class="grid grid-cols-4 gap-2">
-                  <div class="rounded-lg border border-border bg-surface px-3 py-2">
-                    <div class="text-ui-xs text-foreground-subtle">{t("run.metric.pass")}</div>
-                    <div class="text-18-medium text-success">{summary()?.pass ?? 0}</div>
+                  <div class="grid grid-cols-4 gap-2">
+                    <div class="rounded-lg border border-border bg-surface px-3 py-2">
+                      <div class="text-ui-xs text-foreground-subtle">{t("run.metric.pass")}</div>
+                      <div class="text-18-medium text-success">{summary()?.pass ?? 0}</div>
+                    </div>
+                    <div class="rounded-lg border border-border bg-surface px-3 py-2">
+                      <div class="text-ui-xs text-foreground-subtle">{t("run.metric.fail")}</div>
+                      <div class="text-18-medium text-destructive">{summary()?.fail ?? 0}</div>
+                    </div>
+                    <div class="rounded-lg border border-border bg-surface px-3 py-2">
+                      <div class="text-ui-xs text-foreground-subtle">{t("run.metric.unverified")}</div>
+                      {/* 未验证用警示色，不是绿色也不是灰色：它不是通过。 */}
+                      <div class="text-18-medium text-warning">{summary()?.unverified ?? 0}</div>
+                    </div>
+                    <div class="rounded-lg border border-border bg-surface px-3 py-2">
+                      <div class="text-ui-xs text-foreground-subtle">{t("run.metric.stale")}</div>
+                      <div class="text-18-medium text-warning">{summary()?.stale ?? 0}</div>
+                    </div>
                   </div>
-                  <div class="rounded-lg border border-border bg-surface px-3 py-2">
-                    <div class="text-ui-xs text-foreground-subtle">{t("run.metric.fail")}</div>
-                    <div class="text-18-medium text-destructive">{summary()?.fail ?? 0}</div>
-                  </div>
-                  <div class="rounded-lg border border-border bg-surface px-3 py-2">
-                    <div class="text-ui-xs text-foreground-subtle">{t("run.metric.unverified")}</div>
-                    {/* 未验证用警示色，不是绿色也不是灰色：它不是通过。 */}
-                    <div class="text-18-medium text-warning">{summary()?.unverified ?? 0}</div>
-                  </div>
-                  <div class="rounded-lg border border-border bg-surface px-3 py-2">
-                    <div class="text-ui-xs text-foreground-subtle">{t("run.metric.stale")}</div>
-                    <div class="text-18-medium text-warning">{summary()?.stale ?? 0}</div>
-                  </div>
-                </div>
 
-                <div class="flex flex-col gap-1.5">
-                  <div class="text-ui-xs text-foreground-subtle">{t("run.page.about")}</div>
-                  <Show
-                    when={(data().summary.lines ?? []).length > 0}
-                    fallback={
-                      <div class="px-1 py-2 text-ui-xs text-foreground-subtlest">{t("run.acceptance.empty")}</div>
-                    }
-                  >
-                    <For each={data().summary.lines ?? []}>
-                      {(line) => (
-                        <div class="flex items-start gap-2 rounded-lg border border-border px-3 py-2">
-                          <span
-                            classList={{
-                              "mt-1 size-2 shrink-0 rounded-full": true,
-                              "bg-success": line.outcome === "pass",
-                              "bg-destructive": line.outcome === "fail",
-                              "bg-warning": line.outcome !== "pass" && line.outcome !== "fail",
-                            }}
-                          />
-                          <div class="min-w-0 flex-1">
-                            <div class="text-ui-base text-foreground">{line.text}</div>
-                            <div class="mt-0.5 flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
-                              <Tag>{line.outcome}</Tag>
-                              <Show when={line.measured}>{(measured) => <span>{measured()}</span>}</Show>
-                              <Show when={line.snapshotID}>
-                                {(snapshot) => <span class="truncate">{snapshot()}</span>}
-                              </Show>
+                  <div class="flex flex-col gap-1.5">
+                    <div class="text-ui-xs text-foreground-subtle">{t("run.page.about")}</div>
+                    <Show
+                      when={(data().summary.lines ?? []).length > 0}
+                      fallback={
+                        <div class="px-1 py-2 text-ui-xs text-foreground-subtlest">{t("run.acceptance.empty")}</div>
+                      }
+                    >
+                      <For each={data().summary.lines ?? []}>
+                        {(line) => (
+                          <div class="flex items-start gap-2 rounded-lg border border-border px-3 py-2">
+                            <span
+                              classList={{
+                                "mt-1 size-2 shrink-0 rounded-full": true,
+                                "bg-success": line.outcome === "pass",
+                                "bg-destructive": line.outcome === "fail",
+                                "bg-warning": line.outcome !== "pass" && line.outcome !== "fail",
+                              }}
+                            />
+                            <div class="min-w-0 flex-1">
+                              <div class="text-ui-base text-foreground">{line.text}</div>
+                              <div class="mt-0.5 flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
+                                <Tag>{line.outcome}</Tag>
+                                <Show when={line.measured}>{(measured) => <span>{measured()}</span>}</Show>
+                                <Show when={line.snapshotID}>
+                                  {(snapshot) => <span class="truncate">{snapshot()}</span>}
+                                </Show>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      )}
-                    </For>
-                  </Show>
-                </div>
+                        )}
+                      </For>
+                    </Show>
+                  </div>
 
-                <div class="flex flex-wrap items-center gap-1.5">
-                  <For each={data().teams}>{(team) => <Tag>{team.id + " · " + team.phase}</Tag>}</For>
+                  <div class="flex flex-wrap items-center gap-1.5">
+                    <For each={data().teams}>{(team) => <Tag>{team.id + " · " + team.phase}</Tag>}</For>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </Show>
           </Show>
         </div>
       </div>

@@ -11,6 +11,7 @@ import {
   type VerifyInput,
 } from "@/team/orchestrator"
 import { TeamVerifier } from "@/team/verifier"
+import { Service as TeamProfileService } from "@/team/profile"
 import { makeRunAgent, type RunAgentPromptOps } from "@/session/agent-step"
 import { SessionPrompt } from "@/session/prompt"
 import { Session } from "@/session/session"
@@ -48,6 +49,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
     const verification = yield* VerificationService
     const orchestrator = yield* OrchestratorService
     const promptSvc = yield* SessionPrompt.Service
+    const profiles = yield* TeamProfileService
     const sessions = yield* Session.Service
     const agents = yield* Agent.Service
     const provider = yield* Provider.Service
@@ -141,6 +143,41 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             acceptance: ctx.payload.acceptance as unknown[] | undefined,
             budget: ctx.payload.budget,
           })
+          // 模板发起：名册在这一刻被复制进运行，之后再改模板也不影响它。
+          if (ctx.payload.profileID) {
+            const snapshot = yield* profiles.snapshot(ctx.payload.profileID)
+            if (!snapshot) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+            yield* runs.update({
+              runID: run.id,
+              plan: {
+                teams: [
+                  {
+                    name: snapshot.name,
+                    profileID: snapshot.profileID,
+                    profileVersion: snapshot.version,
+                  },
+                ],
+              },
+              planVersion: 1,
+            })
+            yield* runs.addTeam({
+              runID: run.id,
+              profileID: snapshot.profileID,
+              profileVersion: snapshot.version,
+              rosterSnapshot: snapshot as unknown as Record<string, unknown>,
+            })
+            yield* runs.appendEvent({
+              runID: run.id,
+              kind: "plan.created",
+              payload: {
+                planVersion: 1,
+                profileID: snapshot.profileID,
+                profileVersion: snapshot.version,
+                roster: snapshot.roster.length,
+              },
+            })
+          }
+          const teamID = (yield* runs.teams(run.id))[0]?.id
           for (const line of (ctx.payload.acceptance ?? []) as Array<Record<string, unknown>>) {
             if (typeof line?.text !== "string") continue
             yield* verification.register({
@@ -149,7 +186,8 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               text: line.text,
               kind: (typeof line.kind === "string" ? line.kind : "rubric") as Acceptance["kind"],
               expected: typeof line.expected === "string" ? line.expected : undefined,
-              owner: typeof line.owner === "string" ? line.owner : undefined,
+              // 模板发起的运行只有一队，把验收默认归给它，否则永远落在全局重验。
+              owner: typeof line.owner === "string" ? line.owner : teamID,
             })
           }
           return (yield* detail(run.id))!
@@ -264,7 +302,13 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             onSession: ({ sessionID, scope }) => (scope ? opLog.scope({ sessionID, ...scope }) : Effect.void),
           })
 
-          const captain = ctx.payload.captain ?? defaultAgent
+          // 模板发起时，队长默认用编制里的队长岗位 —— 模板写了谁负责就谁负责。
+          const teamRows = yield* runs.teams(run.id)
+          const roster = teamRows[0]?.rosterSnapshot as
+            | { captain?: string; roster?: Array<{ employee: { id: string; job: string } }> }
+            | undefined
+          const captainJob = roster?.roster?.find((entry) => entry.employee.id === roster.captain)?.employee.job
+          const captain = ctx.payload.captain ?? captainJob ?? defaultAgent
           const verifier = ctx.payload.verifier ?? captain
           const snapshotOf = snapshot.track().pipe(Effect.catch(() => Effect.succeed(undefined)))
 

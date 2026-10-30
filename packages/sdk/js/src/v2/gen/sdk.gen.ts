@@ -58,6 +58,7 @@ import type {
   ElicitationRejectResponses,
   ElicitationReplyErrors,
   ElicitationReplyResponses,
+  EmployeeListResponses,
   EventSubscribeResponses,
   EventTuiCommandExecute2,
   EventTuiPromptAppend2,
@@ -399,6 +400,13 @@ import type {
   PermissionRespondErrors,
   PermissionRespondResponses,
   PermissionRuleset,
+  ProfileCreateErrors,
+  ProfileCreateResponses,
+  ProfileDetailErrors,
+  ProfileDetailResponses,
+  ProfileListResponses,
+  ProfileRemoveErrors,
+  ProfileRemoveResponses,
   ProjectCurrentResponses,
   ProjectDirectoriesErrors,
   ProjectDirectoriesResponses,
@@ -13346,6 +13354,181 @@ export class Team extends HeyApiClient {
   }
 }
 
+export class Profile extends HeyApiClient {
+  /**
+   * List team templates
+   *
+   * Team templates (roster + captain) available in this workspace; includes the built-in one.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ProfileListResponses, unknown, ThrowOnError>({
+      url: "/team/profile",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create a team template
+   *
+   * Register a reusable roster; runs copy it, so later edits cannot affect a running run.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      name?: string
+      description?: string
+      captain?: string
+      members?: Array<{
+        employeeID: string
+        duty?: string
+        canAutoDispatch?: boolean
+      }>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "name" },
+            { in: "body", key: "description" },
+            { in: "body", key: "captain" },
+            { in: "body", key: "members" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<ProfileCreateResponses, ProfileCreateErrors, ThrowOnError>({
+      url: "/team/profile",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Delete a team template
+   *
+   * Removes the template and its roster rows. Historical runs keep their snapshots.
+   */
+  public remove<ThrowOnError extends boolean = false>(
+    parameters: {
+      profileID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "profileID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<ProfileRemoveResponses, ProfileRemoveErrors, ThrowOnError>({
+      url: "/team/profile/{profileID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Team template detail
+   *
+   * Template plus its roster (employee, job, role, duty).
+   */
+  public detail<ThrowOnError extends boolean = false>(
+    parameters: {
+      profileID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "profileID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ProfileDetailResponses, ProfileDetailErrors, ThrowOnError>({
+      url: "/team/profile/{profileID}",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Employee extends HeyApiClient {
+  /**
+   * List employees
+   *
+   * People that can be placed into a team template (job = agent capability).
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<EmployeeListResponses, unknown, ThrowOnError>({
+      url: "/team/employee",
+      ...options,
+      ...params,
+    })
+  }
+}
+
 export class Acceptance extends HeyApiClient {
   /**
    * Add an acceptance line
@@ -13448,6 +13631,7 @@ export class Run2 extends HeyApiClient {
         cost?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
         wallMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
       }
+      profileID?: string
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -13473,6 +13657,7 @@ export class Run2 extends HeyApiClient {
             { in: "body", key: "brief" },
             { in: "body", key: "acceptance" },
             { in: "body", key: "budget" },
+            { in: "body", key: "profileID" },
           ],
         },
       ],
@@ -13976,6 +14161,16 @@ export class OpencodeClient extends HeyApiClient {
   private _team?: Team
   get team(): Team {
     return (this._team ??= new Team({ client: this.client }))
+  }
+
+  private _profile?: Profile
+  get profile(): Profile {
+    return (this._profile ??= new Profile({ client: this.client }))
+  }
+
+  private _employee?: Employee
+  get employee(): Employee {
+    return (this._employee ??= new Employee({ client: this.client }))
   }
 
   private _run?: Run2

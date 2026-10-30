@@ -30468,6 +30468,318 @@
         ]
       }
     },
+    "/team/profile": {
+      "get": {
+        "tags": ["profile"],
+        "operationId": "profile.list",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Team templates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TeamProfileView"
+                  },
+                  "description": "Team templates"
+                }
+              }
+            }
+          }
+        },
+        "description": "Team templates (roster + captain) available in this workspace; includes the built-in one.",
+        "summary": "List team templates",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.profile.list({\n  ...\n})"
+          }
+        ]
+      },
+      "post": {
+        "tags": ["profile"],
+        "operationId": "profile.create",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Created template",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamProfileDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Register a reusable roster; runs copy it, so later edits cannot affect a running run.",
+        "summary": "Create a team template",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "captain": {
+                    "type": "string"
+                  },
+                  "members": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "employeeID": {
+                          "type": "string"
+                        },
+                        "duty": {
+                          "type": "string"
+                        },
+                        "canAutoDispatch": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": ["employeeID"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["name", "captain", "members"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.profile.create({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/team/profile/{profileID}": {
+      "get": {
+        "tags": ["profile"],
+        "operationId": "profile.detail",
+        "parameters": [
+          {
+            "name": "profileID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Team template",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamProfileDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Template plus its roster (employee, job, role, duty).",
+        "summary": "Team template detail",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.profile.detail({\n  ...\n})"
+          }
+        ]
+      },
+      "delete": {
+        "tags": ["profile"],
+        "operationId": "profile.remove",
+        "parameters": [
+          {
+            "name": "profileID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Template removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean",
+                  "description": "Template removed"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Removes the template and its roster rows. Historical runs keep their snapshots.",
+        "summary": "Delete a team template",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.profile.remove({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/team/employee": {
+      "get": {
+        "tags": ["profile"],
+        "operationId": "employee.list",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Employees",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TeamEmployeeView"
+                  },
+                  "description": "Employees"
+                }
+              }
+            }
+          }
+        },
+        "description": "People that can be placed into a team template (job = agent capability).",
+        "summary": "List employees",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.employee.list({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/run": {
       "get": {
         "tags": ["Team runs"],
@@ -30657,6 +30969,9 @@
                       }
                     },
                     "additionalProperties": false
+                  },
+                  "profileID": {
+                    "type": "string"
                   }
                 },
                 "required": ["sessionID", "directory", "mode", "goal"],
@@ -46576,6 +46891,181 @@
         "required": ["team", "members", "tasks", "messages"],
         "additionalProperties": false
       },
+      "TeamProfileView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "captainMember": {
+            "type": "string"
+          },
+          "autoEligible": {
+            "type": "boolean"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "memberCount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          }
+        },
+        "required": ["id", "name", "captainMember", "autoEligible", "version", "memberCount", "updatedAt"],
+        "additionalProperties": false
+      },
+      "TeamProfileMemberView": {
+        "type": "object",
+        "properties": {
+          "employeeID": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "job": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["captain", "worker"]
+          },
+          "duty": {
+            "type": "string"
+          },
+          "order": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          }
+        },
+        "required": ["employeeID", "name", "job", "role", "order"],
+        "additionalProperties": false
+      },
+      "TeamProfileDetail": {
+        "type": "object",
+        "properties": {
+          "profile": {
+            "$ref": "#/components/schemas/TeamProfileView"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TeamProfileMemberView"
+            }
+          }
+        },
+        "required": ["profile", "members"],
+        "additionalProperties": false
+      },
+      "TeamEmployeeView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "job": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "name", "job"],
+        "additionalProperties": false
+      },
       "RunView": {
         "type": "object",
         "properties": {
@@ -54088,6 +54578,10 @@
     {
       "name": "team",
       "description": "Multi-agent team routes."
+    },
+    {
+      "name": "profile",
+      "description": "Team templates and employees."
     },
     {
       "name": "Team runs"

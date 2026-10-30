@@ -42,6 +42,7 @@ import { PtyTicket } from "@/pty/ticket"
 import { Question } from "@/question"
 import { Reference } from "@/reference/reference"
 import { Stats } from "@/stats/service"
+import { defaultLayer as TeamProfileLayer } from "@/team/profile"
 import { Session } from "@/session/session"
 import { SessionPortability } from "@/session/portability"
 import { SessionCompaction } from "@/session/compaction"
@@ -91,6 +92,7 @@ import { knowledgeHandlers } from "./handlers/knowledge"
 import { globalHandlers } from "./handlers/global"
 import { instanceHandlers } from "./handlers/instance"
 import { kernelHandlers } from "./handlers/kernel"
+import { profileHandlers } from "./handlers/profile"
 import { statsHandlers } from "./handlers/stats"
 import { mcpHandlers } from "./handlers/mcp"
 import { memoryHandlers } from "./handlers/memory"
@@ -195,6 +197,7 @@ const instanceApiRoutes = HttpApiBuilder.layer(InstanceHttpApi).pipe(
     instanceHandlers,
     kernelHandlers,
     statsHandlers,
+    profileHandlers,
     mcpHandlers,
     memoryHandlers,
     officeHandlers,
@@ -316,6 +319,7 @@ export function createRoutes(
       SessionSummary.defaultLayer,
       SessionPortability.defaultLayer,
       Stats.defaultLayer,
+      TeamProfileLayer,
       ShareNext.defaultLayer,
       Snapshot.defaultLayer,
       SyncEvent.defaultLayer,

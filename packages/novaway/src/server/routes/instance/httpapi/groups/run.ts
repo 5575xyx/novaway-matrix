@@ -104,6 +104,11 @@ export const RunCreatePayload = Schema.Struct({
   brief: Schema.optional(Schema.Any),
   acceptance: Schema.optional(Schema.Array(Schema.Any)),
   budget: Schema.optional(RunBudget),
+  /**
+   * 用团队模板发起（§4.5 的「试跑」）：名册会作为快照复制进运行，
+   * 计划直接用模板名建好，用户只需批准并启动。
+   */
+  profileID: Schema.optional(Schema.String),
 })
 
 export const RunPlanPayload = Schema.Struct({
