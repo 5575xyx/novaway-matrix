@@ -111,4 +111,38 @@ export function gate(score: Score) {
   }
 }
 
+const reply = (outcome: string, evidence?: string, measured = "measured") =>
+  JSON.stringify({ outcome, measured, ...(evidence ? { evidence } : {}) })
+
+/**
+ * 缺陷注入集与对照组（§19.3）。
+ *
+ * 放在这里而不是测试里，是因为它属于「验证器的一部分」：改 rubric 的人必须
+ * 同时改这批样本。对照组每条都带可复核的证据位置 —— 不带证据的 `pass` 会被
+ * `interpret()` 降级，那本身就是一次误杀，门禁应当看见。
+ */
+export const CORPUS: readonly Case[] = [
+  ...[
+    "missing tests for the new branch",
+    "error path still swallows the exception",
+    "config default flipped silently",
+    "acceptance changed to match the code",
+    "unrelated file rewritten",
+    "regression test deleted",
+    "hard-coded value instead of reading config",
+    "race left unguarded",
+    "log line leaks the token",
+    "migration missing the rollback",
+  ].map((reason, index) => ({
+    name: "bad-" + index,
+    expected: "fail" as const,
+    reply: reply("fail", undefined, reason),
+  })),
+  ...Array.from({ length: 20 }, (_, index) => ({
+    name: "good-" + index,
+    expected: "pass" as const,
+    reply: reply("pass", "src/checkout/flow.ts:" + (index + 1) + " + tests/checkout.test.ts"),
+  })),
+]
+
 export * as TeamVerifier from "./verifier"

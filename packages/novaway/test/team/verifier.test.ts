@@ -4,40 +4,9 @@ import { TeamVerifier } from "../../src/team/verifier"
 const reply = (outcome: string, evidence?: string, measured = "measured") =>
   JSON.stringify({ outcome, measured, ...(evidence ? { evidence } : {}) })
 
-/**
- * §19.3 的缺陷注入集与对照组。
- *
- * 样本本身是「验证器会怎么回答」：有缺陷的历史 diff 应得到 fail，
- * 对照组应得到带证据的 pass。门禁看的是**读回结果**之后还不还成立 ——
- * 解析不了、没有证据的通过都不能算抓到/放过，这正是回归要防的失效方式。
- */
-const BAD = [
-  "missing tests for the new branch",
-  "error path still swallows the exception",
-  "config default flipped silently",
-  "acceptance changed to match the code",
-  "unrelated file rewritten",
-  "regression test deleted",
-  "hard-coded value instead of reading config",
-  "race left unguarded",
-  "log line leaks the token",
-  "migration missing the rollback",
-].map((name, index) => ({
-  name: "bad-" + index,
-  expected: "fail" as const,
-  reply: reply("fail", undefined, name),
-}))
-
-const GOOD = Array.from({ length: 20 }, (_, index) => ({
-  name: "good-" + index,
-  expected: "pass" as const,
-  // 对照组每条都带可复核的证据位置：不带证据的 pass 会被降级，不计入通过。
-  reply: reply("pass", "src/checkout/flow.ts:" + (index + 1) + " + tests/checkout.test.ts"),
-}))
-
 describe("team.verifier", () => {
   test("defect corpus reaches the release-gate recall without killing the control group", () => {
-    const score = TeamVerifier.evaluate([...BAD, ...GOOD])
+    const score = TeamVerifier.evaluate(TeamVerifier.CORPUS)
     expect(score.missed).toEqual([])
     expect(score.killed).toEqual([])
     expect(score.recall).toBeGreaterThanOrEqual(TeamVerifier.GATE.recall)
