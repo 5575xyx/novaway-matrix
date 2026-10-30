@@ -28,6 +28,7 @@ import {
   remove as removeIntegration,
 } from "@/team/integration"
 import { Service as MissionService } from "@/team/mission"
+import { normalize as normalizeArtifacts } from "@/team/artifacts"
 import { makeRunAgent, type RunAgentPromptOps } from "@/session/agent-step"
 import { SessionPrompt } from "@/session/prompt"
 import { Session } from "@/session/session"
@@ -92,6 +93,12 @@ const toUsage = (value: Record<string, unknown> | undefined) => {
   }
 }
 
+/** 只回传名字与版本：产物的完整内容留在库里，界面不需要也不该展示它。 */
+const artifactsOf = (value: unknown) => {
+  const list = normalizeArtifacts(value).map((artifact) => ({ name: artifact.name, version: artifact.version }))
+  return list.length > 0 ? list : undefined
+}
+
 const toRun = (run: TeamRun) => ({
   id: run.id,
   sessionID: run.sessionID,
@@ -153,6 +160,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             verdict: team.verdict,
             dependsOn: team.dependsOn ?? [],
             worktree: team.worktree,
+            artifacts: artifactsOf(team.artifactsOut),
           })),
           acceptances: acceptances.map((acceptance) => ({
             id: acceptance.id,

@@ -594,8 +594,18 @@ export const RunPage: Component<{
                   <div class="flex flex-wrap items-center gap-1.5">
                     <For each={data().teams}>
                       {(team) => (
-                        // 有 worktree 就把它挂在提示里：证据绑定的是那个目录的快照。
-                        <Tag title={team.worktree ?? ""}>{team.id + " · " + team.phase}</Tag>
+                        // 有 worktree 就把它挂在提示里：证据绑定的是那个目录的快照；
+                        // 有产物就连版本一起显示 —— 下游依赖的是具体版本，不是「大概那一版」。
+                        <Tag
+                          title={[
+                            team.worktree ?? "",
+                            (team.artifacts ?? []).map((item) => item.name + "@" + item.version).join(" "),
+                          ]
+                            .filter(Boolean)
+                            .join(String.fromCharCode(10))}
+                        >
+                          {team.id + " · " + team.phase}
+                        </Tag>
                       )}
                     </For>
                   </div>

@@ -48303,6 +48303,22 @@
           },
           "worktree": {
             "type": "string"
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                }
+              },
+              "required": ["name", "version"],
+              "additionalProperties": false
+            }
           }
         },
         "required": ["id", "phase", "roundCaptain", "dependsOn"],

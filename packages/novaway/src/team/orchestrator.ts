@@ -2,6 +2,7 @@ import { Cause, Context, Effect, Exit, Layer } from "effect"
 import { Service as TeamLedgerService, defaultLayer as ledgerLayer } from "./ledger"
 import { Service as TeamOpLogService, defaultLayer as opLogLayer } from "./op-log"
 import { summarize as attributeUsage } from "./attribution"
+import { depsOf, normalize, stillValid, versions, type Dep } from "./artifacts"
 import { Service as TeamRunService, defaultLayer as runLayer, isTerminal, type RunState, type RunTeam } from "./run"
 import {
   Service as TeamVerificationService,
@@ -237,10 +238,13 @@ export const layer = Layer.effect(
 
           const report = dispatched.value
           yield* ledger.settle({ id: reservation.value.id, tokens: report.usage?.tokens })
+          // 产物版本由内容决定（§8.6）：下游记下自己依赖的**具体版本**，
+          // 上游一变，下游的「通过」就不是现在这件事的结论了。
+          const artifacts = normalize(report.artifacts)
           yield* runs.updateTeam({
             id: team.id,
             report: report as unknown as Record<string, unknown>,
-            artifactsOut: report.artifacts,
+            artifactsOut: artifacts,
           })
           yield* runs.appendEvent({
             runID: input.runID,
@@ -294,10 +298,14 @@ export const layer = Layer.effect(
           const failing = lines.filter((line) => line.outcome !== "pass")
 
           if (failing.length === 0) {
+            // 记录这一版结论所依赖的上游产物版本；没有产物时 deps 为空（也就不会被失效传播）。
+            const all = yield* runs.teams(input.runID)
+            const upstream = versions(all.map((item, index) => ({ index, artifacts: item.artifactsOut })))
+            const deps = depsOf({ deps: team.dependsOn, upstream })
             yield* runs.updateTeam({
               id: team.id,
               phase: "delivered",
-              verdict: { verdict: "complete", pass: lines.length, round },
+              verdict: { verdict: "complete", pass: lines.length, round, deps },
             })
             yield* runs.appendEvent({
               runID: input.runID,
@@ -327,6 +335,56 @@ export const layer = Layer.effect(
           })
         })
 
+      /** 从裁决里读回下游依赖的上游版本（逐字段校验，坏数据当作没有依赖）。 */
+      const depsFrom = (verdict: Record<string, unknown> | undefined): Dep[] => {
+        const raw: unknown = verdict ? Reflect.get(verdict, "deps") : undefined
+        if (!Array.isArray(raw)) return []
+        const out: Dep[] = []
+        for (const item of raw) {
+          if (item === null || typeof item !== "object") continue
+          const teamID: unknown = Reflect.get(item, "teamID")
+          const name: unknown = Reflect.get(item, "name")
+          const version: unknown = Reflect.get(item, "version")
+          if (typeof teamID !== "number" || typeof name !== "string" || typeof version !== "string") continue
+          out.push({ teamID, name, version })
+        }
+        return out
+      }
+
+      /**
+       * 下游失效（§8.6）：上游产物版本变了，依赖它的「通过」立即作废。
+       *
+       * 把失效的团队退回 `rework`：它们的证据绑定的是旧产物，重验才有意义。
+       * 只扫 `delivered` 的团队 —— 还在跑的团队本来就会在新一轮里看到最新产物。
+       */
+      const invalidate = (current: RunTeam[]) =>
+        Effect.gen(function* () {
+          const upstream = versions(current.map((team, index) => ({ index, artifacts: team.artifactsOut })))
+          let count = 0
+          for (const team of current) {
+            if (team.phase !== "delivered") continue
+            const deps = depsFrom(team.verdict)
+            if (deps.length === 0) continue
+            const verdict = stillValid(deps, upstream)
+            if (verdict.valid) continue
+            yield* runs.updateTeam({ id: team.id, phase: "rework" })
+            // 重跑时必须说明「为什么」：不告诉队长上游变了，它会以为自己在重复劳动。
+            feedback.set(
+              team.id,
+              verdict.broken.map(
+                (dep) => "上游产物已更新（团队 " + dep.teamID + " 的 " + dep.name + "），请基于最新版本重新确认结论。",
+              ),
+            )
+            yield* runs.appendEvent({
+              runID: input.runID,
+              kind: "team.invalidated",
+              payload: { teamID: team.id, broken: verdict.broken },
+            })
+            count += 1
+          }
+          return count
+        })
+
       let teams = yield* runs.teams(input.runID)
       let exceeded = false
 
@@ -344,6 +402,8 @@ export const layer = Layer.effect(
           if (cancelled()) return yield* finishCancelled(teams)
           progressed = false
           teams = yield* runs.teams(input.runID)
+          // 上游产物变了 → 下游的旧结论作废；退回 rework 的团队在下一轮重新派发。
+          if ((yield* invalidate(teams)) > 0) teams = yield* runs.teams(input.runID)
           const byID = new Map(teams.map((team, index) => [index, team]))
           // 依赖按团队在本次运行中的顺序下标记录；未交付的依赖不算满足。
           const ready = teams.filter((team) => {

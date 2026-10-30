@@ -5,6 +5,7 @@ import { Service as RunService, defaultLayer as RunLayer } from "@/team/run"
 import { Service as VerificationService, defaultLayer as VerificationLayer } from "@/team/verification"
 import { Service as OpLogService, defaultLayer as OpLogLayer } from "@/team/op-log"
 import { SessionID } from "@/session/schema"
+import { normalize } from "@/team/artifacts"
 import { testEffect } from "../lib/effect"
 
 const it = testEffect(Layer.mergeAll(OrchestratorLayer, RunLayer, VerificationLayer, OpLogLayer))
@@ -375,6 +376,65 @@ describe("team orchestrator", () => {
       const summary = yield* verification.summary({ runID: run.id, currentSnapshot: "snap_merged" })
       expect(summary.stale).toBe(0)
       expect(summary.pass).toBe(2)
+    }),
+  )
+
+  it.effect("a reworked upstream invalidates a delivered downstream and re-runs it", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const orchestrator = yield* OrchestratorService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_" + Math.random().toString(36).slice(2, 9)),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "DAG",
+        budget: { tokens: 100_000 },
+      })
+      yield* runs.update({
+        runID: run.id,
+        plan: { teams: [{ name: "upstream" }, { name: "downstream" }] },
+        planVersion: 1,
+      })
+      yield* runs.approve({ runID: run.id, planVersion: 1, budget: { tokens: 100_000 }, by: "user" })
+      const upstream = yield* runs.addTeam({ runID: run.id })
+      const downstream = yield* runs.addTeam({ runID: run.id, dependsOn: [0] })
+      const verification = yield* VerificationService
+      yield* verification.register({ runID: run.id, specID: "u", text: "上游验收", kind: "test", owner: upstream.id })
+      yield* verification.register({ runID: run.id, specID: "d", text: "下游验收", kind: "test", owner: downstream.id })
+
+      // 状态：两边都已交付；下游的「通过」绑定的是上游 v1 的产物。
+      const v1 = normalize([{ name: "api", schema: { rev: 1 } }])
+      yield* runs.updateTeam({ id: upstream.id, phase: "delivered", artifactsOut: v1 })
+      yield* runs.updateTeam({
+        id: downstream.id,
+        phase: "delivered",
+        verdict: { verdict: "complete", pass: 1, round: 1, deps: [{ teamID: 0, name: "api", version: v1[0].version }] },
+      })
+      // 上游返工后重新交付，产物内容变了（版本因此不同）。
+      yield* runs.updateTeam({
+        id: upstream.id,
+        artifactsOut: normalize([{ name: "api", schema: { rev: 2 } }]),
+      })
+
+      let downstreamRuns = 0
+      const result = yield* orchestrator.execute({
+        runID: run.id,
+        snapshot: () => Effect.succeed("snap_1"),
+        dispatch: (input) =>
+          Effect.sync(() => {
+            if (input.team.id === downstream.id) downstreamRuns += 1
+            return report(input.team.id)
+          }),
+        verify: () => Effect.succeed({ outcome: "pass" as const }),
+      })
+
+      // 旧结论作废 → 下游被退回重跑；只重跑下游，上游不受影响。
+      const events = yield* runs.events({ runID: run.id })
+      const invalidated = events.find((event) => event.kind === "team.invalidated")
+      expect(invalidated?.payload?.teamID).toBe(downstream.id)
+      expect(invalidated?.payload?.broken).toEqual([{ teamID: 0, name: "api", version: v1[0].version }])
+      expect(downstreamRuns).toBe(1)
+      expect(result.state).toBe("done")
     }),
   )
 

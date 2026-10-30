@@ -65,6 +65,11 @@ export const RunTeamView = Schema.Struct({
   dependsOn: Schema.Array(Schema.Number),
   /** 团队 worktree 目录；缺失表示这次运行在会话目录里跑（非 git 仓库等）。 */
   worktree: Schema.optional(Schema.String),
+  /**
+   * 产物与版本（§8.6）：版本由产物内容决定。下游记录的是具体版本，
+   * 上游一变，下游的旧结论就失效 —— 界面能看出「它交付的是哪一版」。
+   */
+  artifacts: Schema.optional(Schema.Array(Schema.Struct({ name: Schema.String, version: Schema.String }))),
 }).annotate({ identifier: "RunTeamView" })
 
 export const RunAcceptanceView = Schema.Struct({
