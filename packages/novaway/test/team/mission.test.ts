@@ -1,6 +1,9 @@
 import { describe, expect } from "bun:test"
 import { Effect } from "effect"
+import path from "node:path"
+import fs from "node:fs/promises"
 import { Service as MissionService, defaultLayer as MissionLayer } from "@/team/mission"
+import { commit } from "@/team/worktree"
 import { TestInstance } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 
@@ -57,6 +60,39 @@ describe("team mission", () => {
 
         const again = yield* missions.prepare(mission.id)
         expect(again.kind === "ready" && again.mission.worktree).toBe(first.mission.worktree)
+      }),
+    { git: true },
+  )
+
+  it.instance(
+    "reports the cumulative diff from the base commit to the current content",
+    () =>
+      Effect.gen(function* () {
+        const missions = yield* MissionService
+        const instance = yield* TestInstance
+        // 起点里先有一个文件，目标才谈得上「累计差异」。
+        yield* Effect.promise(() => fs.writeFile(path.join(instance.directory, "tracked.txt"), "base\n"))
+        yield* Effect.promise(() => commit({ directory: instance.directory, message: "seed" }))
+
+        const mission = yield* missions.create({ directory: instance.directory, goal: "累计差异" })
+        const prepared = yield* missions.prepare(mission.id)
+        if (prepared.kind !== "ready" || !prepared.mission.worktree) throw new Error("workspace missing")
+        const worktree = prepared.mission.worktree
+
+        yield* Effect.promise(() => fs.writeFile(path.join(worktree, "tracked.txt"), "changed\n"))
+        const committed = yield* Effect.promise(() => commit({ directory: worktree, message: "tracked" }))
+        // 提交之后再放一个新文件：它还没有被任何提交收录。
+        yield* Effect.promise(() => fs.writeFile(path.join(worktree, "loose.txt"), "not committed\n"))
+
+        const result = yield* missions.diff(mission.id)
+        expect(result?.kind).toBe("diff")
+        if (result?.kind !== "diff") return
+        expect(result.diff.baseSHA).toBe(mission.baseSHA)
+        expect(result.diff.head).toBe(committed.kind === "committed" ? committed.sha : "")
+        // 已纳入版本的改动进 files；未跟踪新文件单列，不混进改动统计。
+        expect(result.diff.files.map((file) => file.path)).toContain("tracked.txt")
+        expect(result.diff.untracked).toContain("loose.txt")
+        expect(result.diff.files.map((file) => file.path)).not.toContain("loose.txt")
       }),
     { git: true },
   )

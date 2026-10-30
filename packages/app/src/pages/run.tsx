@@ -1,4 +1,4 @@
-import type { MissionView, RunDetail, RunView, TeamProfileView } from "@novaway/sdk/v2"
+import type { MissionDiffView, MissionView, RunDetail, RunView, TeamProfileView } from "@novaway/sdk/v2"
 import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
 import { Tag } from "@novaway/ui/tag"
@@ -10,6 +10,12 @@ import { useLanguage } from "@/context/language"
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
 const TERMINAL = new Set(["done", "partial", "failed", "exceeded", "cancelled"])
+
+/**
+ * 生成的 SDK 把 `Schema.Number` 展开成 `number | "NaN" | "Infinity" | "-Infinity"`。
+ * 求和时非数字一律按 0 处理 —— 差异统计出错不该让整行渲染崩掉。
+ */
+const numeric = (value: number | string) => (typeof value === "number" ? value : 0)
 
 /**
  * 「团队运行」页。
@@ -45,6 +51,8 @@ export const RunPage: Component<{
   const [missions, setMissions] = createSignal<MissionView[]>([])
   const [missionID, setMissionID] = createSignal("")
   const [missionGoal, setMissionGoal] = createSignal("")
+  // 目标累计差异：baseSHA → 当前内容。没有目标时为空。
+  const [missionDiff, setMissionDiff] = createSignal<MissionDiffView | undefined>(undefined)
   const NEW_MISSION = "__new"
 
   const loadRuns = async (select?: string) => {
@@ -68,8 +76,22 @@ export const RunPage: Component<{
       if (selected() !== runID) return
       setDetail((result.data ?? undefined) as RunDetail | undefined)
       setError("")
+      const missionID = result.data?.run.missionID
+      if (missionID) await loadMissionDiff(missionID)
+      else setMissionDiff(undefined)
     } catch (err) {
       setError(errorMessage(err))
+    }
+  }
+
+  /** 目标的累计差异；算不出来就显示原因，不显示「0 个文件」。 */
+  const loadMissionDiff = async (missionID: string) => {
+    try {
+      const result = await sdk.client.mission.diff({ missionID, directory: props.directory })
+      setMissionDiff(result.data ?? undefined)
+    } catch {
+      // 差异只是附加信息：读失败不该盖掉运行本身的错误提示。
+      setMissionDiff(undefined)
     }
   }
 
@@ -468,6 +490,57 @@ export const RunPage: Component<{
                       <div class="text-18-medium text-warning">{summary()?.stale ?? 0}</div>
                     </div>
                   </div>
+
+                  <Show when={currentMission()}>
+                    {(mission) => (
+                      <div class="flex flex-col gap-1 rounded-lg border border-border px-3 py-2">
+                        <div class="flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
+                          <span>{t("run.mission.title", { label: mission().label })}</span>
+                          <Show when={missionDiff()?.skippedReason}>
+                            {(reason) => <span class="text-warning">{reason()}</span>}
+                          </Show>
+                          <Show when={missionDiff()?.head}>
+                            {(head) => (
+                              <span class="text-foreground-subtlest">
+                                {t("run.mission.head", { sha: head().slice(0, 7) })}
+                              </span>
+                            )}
+                          </Show>
+                        </div>
+                        <Show when={missionDiff()?.files?.length}>
+                          <div class="flex flex-wrap items-center gap-1.5">
+                            <Tag class="text-success">
+                              {"+" + (missionDiff()?.files ?? []).reduce((sum, file) => sum + numeric(file.added), 0)}
+                            </Tag>
+                            <Tag class="text-destructive">
+                              {"-" + (missionDiff()?.files ?? []).reduce((sum, file) => sum + numeric(file.removed), 0)}
+                            </Tag>
+                            <span class="text-ui-xs text-foreground-subtle">
+                              {t("run.mission.files", { count: String((missionDiff()?.files ?? []).length) })}
+                            </span>
+                          </div>
+                        </Show>
+                        <For each={(missionDiff()?.files ?? []).slice(0, 5)}>
+                          {(file) => (
+                            <div class="flex items-center gap-1.5 text-ui-xs text-foreground-subtle">
+                              <span class="min-w-0 flex-1 truncate">{file.path}</span>
+                              <span class="shrink-0 text-success">{"+" + numeric(file.added)}</span>
+                              <span class="shrink-0 text-destructive">{"-" + numeric(file.removed)}</span>
+                            </div>
+                          )}
+                        </For>
+                        <Show when={(missionDiff()?.files ?? []).length > 5 || missionDiff()?.truncated}>
+                          <span class="text-ui-xs text-foreground-subtlest">{t("run.mission.more")}</span>
+                        </Show>
+                        {/* 未跟踪文件不是已交付：单独说清楚，不并进上面的改动数字。 */}
+                        <Show when={(missionDiff()?.untracked ?? []).length > 0}>
+                          <span class="text-ui-xs text-warning">
+                            {t("run.mission.untracked", { count: String((missionDiff()?.untracked ?? []).length) })}
+                          </span>
+                        </Show>
+                      </div>
+                    )}
+                  </Show>
 
                   <Show when={(data().run.usage?.byJob ?? []).length > 0}>
                     <div class="flex flex-col gap-1.5">

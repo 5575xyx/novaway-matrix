@@ -71,6 +71,60 @@ export async function branch(directory: string) {
   return result.code === 0 && name && name !== "HEAD" ? name : undefined
 }
 
+export type Committed =
+  | { kind: "committed"; sha: string; files: number }
+  | { kind: "clean" }
+  | { kind: "failed"; message: string }
+
+/** 团队提交的作者：能指认是「谁」产生的改动，而不是借用户的 git 身份。 */
+const TEAM_AUTHOR = { name: "NovaWay Team", email: "team@novaway.local" }
+
+/**
+ * 把工作区里**实际存在**的改动落成一个提交（§10.1 / §16 P2）。
+ *
+ * 为什么必须有这一步：`git merge` 只认提交。成员写完文件却没提交时，
+ * 集成合并到的是一个没有这些改动的分支，而验证读到的还是旧 `HEAD` ——
+ * 「跑完了」与「代码变了」会同时为真，这是最危险的一种不一致。
+ *
+ * 三条边界：
+ * 1. `git add -A` 尊重 `.gitignore`：被忽略的构建产物不会进提交，但其余改动全部进 ——
+ *    宁可提交得多，也不漏掉成员真正写下的东西。
+ * 2. 没有改动时返回 `clean`，**不产生空提交**：空提交会让「第几轮改了什么」变得难读。
+ * 3. 用 `--no-verify` 跳过用户的钩子：钩子可能要求交互或直接改动工作区，
+ *    团队提交只是把改动变成可复验的快照。质量门槛由随后的验证器负责，而不是钩子。
+ *    作者身份显式给出，所以用户没配 `user.email` 也能提交。
+ */
+export async function commit(input: { directory: string; message: string }): Promise<Committed> {
+  const added = await git(input.directory, ["add", "-A"])
+  if (added.code !== 0) return { kind: "failed", message: added.stderr.trim() || added.stdout.trim() || "git add 失败" }
+
+  const status = await git(input.directory, ["status", "--porcelain"])
+  if (status.code !== 0) return { kind: "failed", message: status.stderr.trim() || "无法读取工作区状态" }
+  const files = status.stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+  if (files.length === 0) return { kind: "clean" }
+
+  const committed = await git(input.directory, [
+    "-c",
+    "user.name=" + TEAM_AUTHOR.name,
+    "-c",
+    "user.email=" + TEAM_AUTHOR.email,
+    "commit",
+    "-q",
+    "--no-verify",
+    "-m",
+    input.message,
+  ])
+  if (committed.code !== 0)
+    return { kind: "failed", message: committed.stderr.trim() || committed.stdout.trim() || "git commit 失败" }
+
+  const sha = await head(input.directory)
+  if (!sha) return { kind: "failed", message: "提交后读不到 HEAD" }
+  return { kind: "committed", sha, files: files.length }
+}
+
 export async function create(input: {
   base: string
   runID: string
@@ -128,6 +182,71 @@ export async function createMission(input: {
   if (added.code !== 0)
     return { kind: "skipped", reason: added.stderr.trim() || added.stdout.trim() || "git worktree add 失败" }
   return { kind: "created", worktree: { directory, branch, base: repo, baseSHA: sha } }
+}
+
+export type ChangedFile = { path: string; added: number; removed: number; binary: boolean }
+
+export type CumulativeDiff = {
+  baseSHA: string
+  head: string
+  /** 已纳入版本的改动（含已提交与已暂存的），按新增行数降序。 */
+  files: ChangedFile[]
+  /** 还没有被任何提交收录的新文件：它们不是「已交付」，所以单列。 */
+  untracked: string[]
+  truncated: boolean
+}
+
+const MAX_FILES = 200
+
+/**
+ * 累计差异：从目标起点到**当前内容**（§3.2）。
+ *
+ * 用 `git diff <baseSHA>` 而不是 `--stat HEAD`：目标的工作区可能还有没提交的改动，
+ * 而用户关心的正是「现在做到哪了」，不只是「上次提交到哪了」。
+ * 未跟踪文件不进 `git diff`，所以单独列出来 —— 把它们混进改动统计会让人以为已经交付。
+ */
+export async function cumulativeDiff(input: {
+  directory: string
+  baseSHA: string
+}): Promise<CumulativeDiff | undefined> {
+  const current = await head(input.directory)
+  if (!current) return undefined
+
+  const numstat = await git(input.directory, ["diff", "--numstat", input.baseSHA])
+  if (numstat.code !== 0) return undefined
+  const files: ChangedFile[] = []
+  for (const line of numstat.stdout.split("\n")) {
+    if (!line.trim()) continue
+    const [added, removed, ...rest] = line.split("\t")
+    const path = rest.join("\t")
+    if (!path) continue
+    const binary = added === "-" || removed === "-"
+    files.push({
+      path,
+      added: binary ? 0 : Number(added) || 0,
+      removed: binary ? 0 : Number(removed) || 0,
+      binary,
+    })
+  }
+  files.sort((a, b) => b.added + b.removed - (a.added + a.removed))
+
+  const status = await git(input.directory, ["status", "--porcelain"])
+  const untracked =
+    status.code === 0
+      ? status.stdout
+          .split("\n")
+          .filter((line) => line.startsWith("?? "))
+          .map((line) => line.slice(3).trim())
+          .filter(Boolean)
+      : []
+
+  return {
+    baseSHA: input.baseSHA,
+    head: current,
+    files: files.slice(0, MAX_FILES),
+    untracked,
+    truncated: files.length > MAX_FILES,
+  }
 }
 
 /** 删除 worktree 与分支。只清运行自己建的东西，不碰仓库里的其它引用。 */

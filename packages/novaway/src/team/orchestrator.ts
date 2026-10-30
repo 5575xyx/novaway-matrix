@@ -93,6 +93,14 @@ export type Options = {
   verify: Verifier
   /** 当前代码快照，验证结果与它绑定。 */
   snapshot: () => Effect.Effect<string>
+  /**
+   * 把团队工作区里未提交的改动落成提交（§10.1）。
+   *
+   * 必须在取快照之前调用：`git merge` 只认提交，验证也只认提交。成员写完却没提交时，
+   * 验证会对着旧 `HEAD` 得出「通过」，而集成合不到任何东西。
+   * 失败时调用方应当让该团队失败 —— 无法复验的交付不能算通过。
+   */
+  commit?: () => Effect.Effect<void, unknown>
   maxRounds?: number
   maxBusinessAttempts?: number
   concurrency?: number
@@ -241,6 +249,19 @@ export const layer = Layer.effect(
           })
 
           // 验收结论只来自验证器；成员报告里的 claims 只用来对照。
+          // 先把工作区里的改动落成提交：快照与集成都只认提交。
+          if (input.commit) {
+            const committed = yield* Effect.exit(input.commit())
+            if (Exit.isFailure(committed)) {
+              yield* runs.updateTeam({ id: team.id, phase: "failed" })
+              yield* runs.appendEvent({
+                runID: input.runID,
+                kind: "team.failed",
+                payload: { teamID: team.id, round, reason: "commit", message: message(committed.cause) },
+              })
+              return
+            }
+          }
           const snapshot = yield* input.snapshot()
           for (const acceptance of teamLines) {
             const result = yield* Effect.exit(input.verify({ acceptance, report, team, round }))
@@ -349,6 +370,22 @@ export const layer = Layer.effect(
           break
       }
 
+      // 集成前再提交一次：交付之后到集成之间还可能有改动（收尾脚本、格式化），
+      // 集成合并的必须是磁盘上的最终内容。
+      let commitBroken = false
+      if (input.commit) {
+        const committed = yield* Effect.exit(input.commit())
+        if (Exit.isFailure(committed)) {
+          // 提交失败意味着集成会合到旧内容：那之后的「通过」不能算交付。
+          commitBroken = true
+          yield* runs.appendEvent({
+            runID: input.runID,
+            kind: "integration.commit_failed",
+            payload: { message: message(committed.cause) },
+          })
+        }
+      }
+
       // 串行集成：各团队在自己的 worktree 里交付，只有合到一起还成立才算可交付。
       // 失败不算「跑完」—— 冲突要么返工要么由人接手，绝不能落进 done。
       const integration = input.integrate ? yield* Effect.exit(input.integrate()) : undefined
@@ -374,9 +411,11 @@ export const layer = Layer.effect(
         })
       }
       // 集成没成功时，后面在「未合并的快照」上得出的通过结论不具备可交付性。
+      // 提交失败同理：集成合到的是旧内容，最终验证对着的不是团队写下的代码。
       const integrationBroken =
-        !!integration &&
-        (Exit.isFailure(integration) || integration.value.kind === "conflict" || integration.value.kind === "failed")
+        commitBroken ||
+        (!!integration &&
+          (Exit.isFailure(integration) || integration.value.kind === "conflict" || integration.value.kind === "failed"))
 
       // 合并后的重验：快照变了，之前团队的证据一律作废，
       // 必须在最终快照上重新验证（合并后的验收永远是重档，见 §10 / §19.1）。

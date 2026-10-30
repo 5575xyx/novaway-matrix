@@ -105,6 +105,11 @@ export const dict = {
   "run.new.missionHint":
     "A mission keeps one worktree and one base commit across runs: the next run continues from what this one left behind.",
   "run.new.missionFailed": "The mission could not be created, so the run was not started.",
+  "run.mission.title": "{label} · cumulative diff",
+  "run.mission.head": "at {sha}",
+  "run.mission.files": "{count} files changed",
+  "run.mission.more": "Only the first few changes are shown.",
+  "run.mission.untracked": "{count} untracked files are not part of any commit yet.",
   "run.policy.readOnly": "Read-only",
   "run.policy.write": "Can write",
   "run.policy.hint": "Enforced at the tool gate: a read-only run never edits the workspace.",

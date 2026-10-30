@@ -3576,6 +3576,22 @@ export type MissionView = {
   updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
 }
 
+export type MissionDiffFile = {
+  path: string
+  added: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  removed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  binary: boolean
+}
+
+export type MissionDiffView = {
+  baseSHA?: string
+  head?: string
+  files: Array<MissionDiffFile>
+  untracked: Array<string>
+  truncated: boolean
+  skippedReason?: string
+}
+
 export type RunUsageView = {
   reserved: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   settled: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
@@ -17419,6 +17435,36 @@ export type MissionUpdateResponses = {
 }
 
 export type MissionUpdateResponse = MissionUpdateResponses[keyof MissionUpdateResponses]
+
+export type MissionDiffData = {
+  body?: never
+  path: {
+    missionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/mission/{missionID}/diff"
+}
+
+export type MissionDiffErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type MissionDiffError = MissionDiffErrors[keyof MissionDiffErrors]
+
+export type MissionDiffResponses = {
+  /**
+   * Cumulative diff
+   */
+  200: MissionDiffView
+}
+
+export type MissionDiffResponse = MissionDiffResponses[keyof MissionDiffResponses]
 
 export type RunListData = {
   body?: never

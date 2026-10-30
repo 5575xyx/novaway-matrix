@@ -3,7 +3,7 @@ import { desc, eq } from "drizzle-orm"
 import fs from "node:fs/promises"
 import { Database } from "@/storage/db"
 import { TeamMissionTable } from "./run.sql"
-import { createMission, head } from "./worktree"
+import { createMission, cumulativeDiff, head, type CumulativeDiff } from "./worktree"
 
 /**
  * Mission（持久目标，§3.2）。
@@ -32,6 +32,8 @@ export type Mission = {
 
 export type Prepared = { kind: "ready"; mission: Mission } | { kind: "skipped"; reason: string }
 
+export type MissionDiff = { kind: "diff"; diff: CumulativeDiff } | { kind: "skipped"; reason: string }
+
 export interface Interface {
   readonly create: (input: { directory: string; goal: string }) => Effect.Effect<Mission>
   readonly get: (missionID: string) => Effect.Effect<Mission | undefined>
@@ -44,6 +46,13 @@ export interface Interface {
    * 按记录里的 `baseSHA` 重建 —— 起点不能漂移，否则累计差异就不成立。
    */
   readonly prepare: (missionID: string) => Effect.Effect<Prepared>
+  /**
+   * 累计差异：`baseSHA` → 目标工作区当前内容。
+   *
+   * 没有工作区、没有起点、不是 git 仓库时返回原因 —— 差异算不出来就说算不出来，
+   * 不要拿「0 个文件」冒充「什么都没改」。
+   */
+  readonly diff: (missionID: string) => Effect.Effect<MissionDiff | undefined>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@NovaWay/TeamMission") {}
@@ -175,7 +184,20 @@ export const layer = Layer.effect(
       return { kind: "ready", mission: updated ?? mission } satisfies Prepared
     })
 
-    return Service.of({ create, get, list, setStatus, prepare })
+    const diff: Interface["diff"] = Effect.fn("TeamMission.diff")(function* (missionID) {
+      const mission = yield* get(missionID)
+      if (!mission) return undefined
+      const baseSHA = mission.baseSHA
+      if (!baseSHA) return { kind: "skipped", reason: "目标还没有起点提交" } satisfies MissionDiff
+      const directory = mission.worktree
+      if (!directory) return { kind: "skipped", reason: "目标还没有工作区" } satisfies MissionDiff
+      const result = yield* Effect.promise(() => cumulativeDiff({ directory, baseSHA }))
+      if (!result)
+        return { kind: "skipped", reason: "读不到目标工作区的差异（目录已删除或不是仓库）" } satisfies MissionDiff
+      return { kind: "diff", diff: result } satisfies MissionDiff
+    })
+
+    return Service.of({ create, get, list, setStatus, prepare, diff })
   }),
 )
 

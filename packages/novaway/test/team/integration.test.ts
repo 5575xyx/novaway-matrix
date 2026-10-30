@@ -4,7 +4,7 @@ import os from "node:os"
 import path from "node:path"
 import { spawnSync } from "node:child_process"
 import { integrate, integrateInto, mergeInto } from "@/team/integration"
-import { createMission } from "@/team/worktree"
+import { commit, create as createWorktree, createMission } from "@/team/worktree"
 
 const git = (cwd: string, args: string[]) => spawnSync("git", args, { cwd, encoding: "utf8" })
 const run = (cwd: string, args: string[]) => {
@@ -172,5 +172,64 @@ describe("mission integration", () => {
     expect(outcome.kind).toBe("failed")
     // 半成品不能被当成下一次运行的起点。
     expect(outcome.kind === "failed" && outcome.message).toContain("不干净")
+  })
+})
+
+describe("writable run, end to end", () => {
+  /** 团队 worktree：只写文件不提交，模拟成员在会话里改完代码就交差。 */
+  async function dirtyTeam(base: string, root: string, name: string, file: string, content: string, baseSHA: string) {
+    const created = await createWorktree({ base, runID: "run_w", name, root })
+    if (created.kind !== "created") throw new Error("worktree missing")
+    await fs.writeFile(path.join(created.worktree.directory, file), content)
+    return { name, branch: created.worktree.branch, directory: created.worktree.directory }
+  }
+
+  test("uncommitted edits become a commit, get integrated, and land on the user's branch", async () => {
+    const base = await repo()
+    const baseSHA = run(base, ["rev-parse", "HEAD"])
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "novaway-writable-root-"))
+    const alpha = await dirtyTeam(base, root, "alpha", "a.txt", "written by alpha\n", baseSHA)
+
+    // 提交前：分支 HEAD 还在起点，集成合并不到任何东西。
+    expect(run(alpha.directory, ["rev-parse", "HEAD"])).toBe(baseSHA)
+    const staged = await commit({ directory: alpha.directory, message: "team alpha (run run_w)" })
+    expect(staged.kind).toBe("committed")
+    if (staged.kind !== "committed") return
+    expect(run(alpha.directory, ["rev-parse", "HEAD"])).toBe(staged.sha)
+
+    const integrated = await integrate({ base, baseSHA, runID: "run_w", teams: [alpha], root })
+    expect(integrated.kind).toBe("merged")
+    if (integrated.kind !== "merged") return
+    expect(await fs.readFile(path.join(integrated.directory, "a.txt"), "utf8")).toContain("written by alpha")
+
+    const merged = await mergeInto({ base, branch: integrated.branch })
+    expect(merged.kind).toBe("merged")
+    if (merged.kind !== "merged") return
+    // 交付的终点：用户分支上就是那个提交，内容就是成员写下的代码。
+    expect(run(base, ["rev-parse", "HEAD"])).toBe(merged.sha)
+    expect(await fs.readFile(path.join(base, "a.txt"), "utf8")).toContain("written by alpha")
+  })
+
+  test("a mission run commits into the mission worktree and merges the mission branch", async () => {
+    const base = await repo()
+    const baseSHA = run(base, ["rev-parse", "HEAD"])
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "novaway-writable-root-"))
+    const mission = await createMission({ base, missionID: "mis_w", baseSHA, root })
+    if (mission.kind !== "created") throw new Error("mission worktree missing")
+
+    const alpha = await dirtyTeam(base, root, "alpha", "m.txt", "mission work\n", baseSHA)
+    const committed = await commit({ directory: alpha.directory, message: "team alpha (run run_w)" })
+    expect(committed.kind).toBe("committed")
+
+    const integrated = await integrateInto({ directory: mission.worktree.directory, teams: [alpha] })
+    expect(integrated.kind).toBe("merged")
+    if (integrated.kind !== "merged") return
+    expect(integrated.branch).toBe(mission.worktree.branch)
+
+    // 合并动作对目标运行合并的是目标分支：包含这个目标历次运行的结果。
+    const merged = await mergeInto({ base, branch: mission.worktree.branch })
+    expect(merged.kind).toBe("merged")
+    if (merged.kind !== "merged") return
+    expect(await fs.readFile(path.join(base, "m.txt"), "utf8")).toContain("mission work")
   })
 })

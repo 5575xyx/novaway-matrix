@@ -15,6 +15,7 @@ import { Service as TeamProfileService, brief as rosterBrief, snapshotFrom } fro
 import { TeamPolicy } from "@/team/policy"
 import {
   branch as worktreeBranch,
+  commit as commitWorktree,
   create as createTeamWorktree,
   head as worktreeHead,
   remove as removeWorktree,
@@ -475,6 +476,37 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           })
 
           /**
+           * 把团队 worktree 里的改动落成提交（§10.1）。
+           *
+           * 写操作发生在磁盘上，而快照与集成只认提交：不提交的话，验证对着旧 `HEAD`，
+           * 集成也合不到任何改动。所以「交付」在代码里的定义是「改动已经在一个提交里」。
+           * 任一团队提交失败就整体失败：无法复验的交付不能算通过。
+           */
+          const commitTeams = () =>
+            Effect.gen(function* () {
+              const rows = yield* runs.teams(run.id)
+              for (const team of rows) {
+                const directory = team.worktree
+                if (!directory) continue
+                const result = yield* Effect.promise(() =>
+                  commitWorktree({
+                    directory,
+                    message: "team " + (team.profileID ?? team.id) + " (run " + run.id + ")",
+                  }),
+                )
+                if (result.kind === "committed") {
+                  yield* runs.appendEvent({
+                    runID: run.id,
+                    kind: "worktree.committed",
+                    payload: { teamID: team.id, sha: result.sha, files: result.files },
+                  })
+                  continue
+                }
+                if (result.kind === "failed") return yield* Effect.fail(new Error(team.id + "：" + result.message))
+              }
+            })
+
+          /**
            * 串行集成（§10.2）：把各团队的 worktree 分支按顺序合到一个独立分支。
            * 合进用户的分支是用户的动作，运行只负责「合到一起还成立吗」。
            */
@@ -623,6 +655,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               runID: run.id,
               dispatch,
               verify,
+              commit: commitTeams,
               verifyMerged,
               integrate,
               snapshot: () => snapshotOf.pipe(Effect.map((id) => id ?? "unknown")),

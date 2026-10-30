@@ -324,6 +324,8 @@ import type {
   MissionCreateResponses,
   MissionDetailErrors,
   MissionDetailResponses,
+  MissionDiffErrors,
+  MissionDiffResponses,
   MissionListResponses,
   MissionUpdateErrors,
   MissionUpdateResponses,
@@ -13686,6 +13688,38 @@ export class Mission extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    })
+  }
+
+  /**
+   * Cumulative diff of a mission
+   *
+   * Changes from the mission's base commit to the worktree's current content. Untracked files are listed separately — they are not delivered yet.
+   */
+  public diff<ThrowOnError extends boolean = false>(
+    parameters: {
+      missionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "missionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<MissionDiffResponses, MissionDiffErrors, ThrowOnError>({
+      url: "/team/mission/{missionID}/diff",
+      ...options,
+      ...params,
     })
   }
 }

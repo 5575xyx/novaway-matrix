@@ -29,6 +29,28 @@ export const MissionView = Schema.Struct({
   updatedAt: Schema.Number,
 }).annotate({ identifier: "MissionView" })
 
+export const MissionDiffFile = Schema.Struct({
+  path: Schema.String,
+  added: Schema.Number,
+  removed: Schema.Number,
+  binary: Schema.Boolean,
+}).annotate({ identifier: "MissionDiffFile" })
+
+/**
+ * 累计差异视图：`baseSHA` → 目标工作区当前内容。
+ *
+ * `untracked` 单独一列：还没被任何提交收录的新文件不是「已交付」，
+ * 混进改动统计会让人以为它们已经进去了。`skippedReason` 说明为什么算不出差异。
+ */
+export const MissionDiffView = Schema.Struct({
+  baseSHA: Schema.optional(Schema.String),
+  head: Schema.optional(Schema.String),
+  files: Schema.Array(MissionDiffFile),
+  untracked: Schema.Array(Schema.String),
+  truncated: Schema.Boolean,
+  skippedReason: Schema.optional(Schema.String),
+}).annotate({ identifier: "MissionDiffView" })
+
 export const MissionCreatePayload = Schema.Struct({
   directory: Schema.String,
   goal: Schema.String,
@@ -60,6 +82,19 @@ export const MissionApi = HttpApiGroup.make("mission")
         identifier: "mission.detail",
         summary: "Mission detail",
         description: "Goal, status, frozen base commit and the shared worktree.",
+      }),
+    ),
+    HttpApiEndpoint.get("missionDiff", `${root}/:missionID/diff`, {
+      params: { missionID: Schema.String },
+      query: WorkspaceRoutingQuery,
+      success: described(MissionDiffView, "Cumulative diff"),
+      error: [HttpApiError.NotFound],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "mission.diff",
+        summary: "Cumulative diff of a mission",
+        description:
+          "Changes from the mission's base commit to the worktree's current content. Untracked files are listed separately — they are not delivered yet.",
       }),
     ),
     HttpApiEndpoint.post("createMission", root, {

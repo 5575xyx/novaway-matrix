@@ -377,4 +377,49 @@ describe("team orchestrator", () => {
       expect(summary.pass).toBe(2)
     }),
   )
+
+  it.effect("commits before taking a snapshot so the verified snapshot contains the edits", () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* OrchestratorService
+      const { run } = yield* setup
+      const order: string[] = []
+
+      const result = yield* orchestrator.execute({
+        runID: run.id,
+        commit: () => Effect.sync(() => void order.push("commit")),
+        snapshot: () =>
+          Effect.sync(() => {
+            order.push("snapshot")
+            return "snap_after_commit"
+          }),
+        dispatch: (input) => Effect.succeed(report(input.team.id)),
+        verify: () => Effect.succeed({ outcome: "pass" as const }),
+      })
+
+      expect(result.state).toBe("done")
+      // 先提交再取快照：否则验证对着旧 HEAD，而集成合不到任何改动。
+      expect(order.slice(0, 2)).toEqual(["commit", "snapshot"])
+    }),
+  )
+
+  it.effect("a failed commit fails the team instead of verifying an uncommitted workspace", () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* OrchestratorService
+      const { runs, run } = yield* setup
+
+      const result = yield* orchestrator.execute({
+        runID: run.id,
+        commit: () => Effect.fail(new Error("git commit 失败")),
+        snapshot: () => Effect.succeed("snap_1"),
+        dispatch: (input) => Effect.succeed(report(input.team.id)),
+        verify: () => Effect.succeed({ outcome: "pass" as const }),
+      })
+
+      // 无法落成提交 = 无法复验：这一队不算交付，整体也不能是 done。
+      expect(result.state).not.toBe("done")
+      const events = yield* runs.events({ runID: run.id })
+      const failed = events.find((event) => event.kind === "team.failed")
+      expect(failed?.payload?.reason).toBe("commit")
+    }),
+  )
 })

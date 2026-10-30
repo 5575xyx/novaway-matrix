@@ -31048,6 +31048,68 @@
         ]
       }
     },
+    "/team/mission/{missionID}/diff": {
+      "get": {
+        "tags": ["Missions"],
+        "operationId": "mission.diff",
+        "parameters": [
+          {
+            "name": "missionID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cumulative diff",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissionDiffView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Changes from the mission's base commit to the worktree's current content. Untracked files are listed separately — they are not delivered yet.",
+        "summary": "Cumulative diff of a mission",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.mission.diff({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/run": {
       "get": {
         "tags": ["Team runs"],
@@ -47622,6 +47684,96 @@
           }
         },
         "required": ["id", "number", "label", "directory", "goal", "status", "runCount", "createdAt", "updatedAt"],
+        "additionalProperties": false
+      },
+      "MissionDiffFile": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "added": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "removed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "binary": {
+            "type": "boolean"
+          }
+        },
+        "required": ["path", "added", "removed", "binary"],
+        "additionalProperties": false
+      },
+      "MissionDiffView": {
+        "type": "object",
+        "properties": {
+          "baseSHA": {
+            "type": "string"
+          },
+          "head": {
+            "type": "string"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MissionDiffFile"
+            }
+          },
+          "untracked": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "skippedReason": {
+            "type": "string"
+          }
+        },
+        "required": ["files", "untracked", "truncated"],
         "additionalProperties": false
       },
       "RunUsageView": {

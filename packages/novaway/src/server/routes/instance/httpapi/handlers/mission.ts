@@ -50,6 +50,21 @@ export const missionHandlers = HttpApiBuilder.group(InstanceHttpApi, "mission", 
           return yield* view(mission)
         }),
       )
+      .handle("missionDiff", (ctx) =>
+        Effect.gen(function* () {
+          const result = yield* missions.diff(ctx.params.missionID)
+          if (!result) return yield* Effect.fail(new HttpApiError.NotFound({}))
+          if (result.kind === "skipped")
+            return { files: [], untracked: [], truncated: false, skippedReason: result.reason }
+          return {
+            baseSHA: result.diff.baseSHA,
+            head: result.diff.head,
+            files: result.diff.files,
+            untracked: result.diff.untracked,
+            truncated: result.diff.truncated,
+          }
+        }),
+      )
       .handle("createMission", (ctx) =>
         Effect.gen(function* () {
           if (!ctx.payload.goal.trim()) return yield* Effect.fail(new HttpApiError.BadRequest({}))
