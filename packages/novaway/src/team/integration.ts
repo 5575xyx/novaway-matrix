@@ -77,11 +77,19 @@ export async function integrate(input: {
 
   const run = slug(input.runID)
   const base = input.root ?? path.join(Global.Path.data, "worktree", "integrations")
-  const directory = path.join(base, run + "-" + Date.now().toString(36))
+  // 目录固定（不带时间戳）：重复执行要能复用上一次的集成分支，而不是另起一个。
+  const directory = path.join(base, run + "-integration")
   const branch = "novaway/integrate/" + run
   await fs.mkdir(base, { recursive: true })
 
-  const added = await git(input.base, ["worktree", "add", "-b", branch, directory, input.baseSHA])
+  // 幂等：上一次执行可能中断在这里，留下的目录会挡住 worktree add。
+  await fs.rm(directory, { recursive: true, force: true })
+  await git(input.base, ["worktree", "prune"])
+  const existing = await git(input.base, ["rev-parse", "--verify", "--quiet", "refs/heads/" + branch])
+  const added =
+    existing.code === 0
+      ? await git(input.base, ["worktree", "add", directory, branch])
+      : await git(input.base, ["worktree", "add", "-b", branch, directory, input.baseSHA])
   if (added.code !== 0) {
     return { kind: "failed", message: added.stderr.trim() || added.stdout.trim() || "git worktree add 失败" }
   }

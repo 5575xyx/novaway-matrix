@@ -1,6 +1,6 @@
 import { describe, expect, it as check } from "bun:test"
 import { Effect, Layer } from "effect"
-import { Service as RunService, defaultLayer as RunLayer, canTransition, isTerminal } from "@/team/run"
+import { Service as RunService, defaultLayer as RunLayer, canStart, canTransition, isTerminal } from "@/team/run"
 import { SessionID } from "@/session/schema"
 import { testEffect } from "../lib/effect"
 
@@ -13,6 +13,21 @@ describe("team run state machine", () => {
       expect(canTransition(state, "running")).toBe(false)
     }
     expect(canTransition("needs_review", "running")).toBe(true)
+  })
+
+  check("a run that is already executing cannot be started twice", () => {
+    // 已批准、还没开始执行：可以起。
+    expect(canStart("running", undefined)).toBe(true)
+    // 正在执行：编排期间一定有 phase，重复执行会把同一次运行派发两遍。
+    expect(canStart("running", "executing")).toBe(false)
+    expect(canStart("running", "verify-merged")).toBe(false)
+    // 未批准、终态都不行。
+    expect(canStart("awaiting_approval", undefined)).toBe(false)
+    expect(canStart("done", undefined)).toBe(false)
+    expect(canStart("cancelled", undefined)).toBe(false)
+    // 中断后恢复可以继续。
+    expect(canStart("paused", undefined)).toBe(true)
+    expect(canStart("needs_review", undefined)).toBe(true)
   })
 
   it.effect("invalidates an approval when the plan version moves on", () =>

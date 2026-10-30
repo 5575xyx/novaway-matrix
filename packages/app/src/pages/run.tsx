@@ -269,8 +269,11 @@ export const RunPage: Component<{
   const stateLabel = (state: string) => t(`run.state.${state}`)
   const summary = createMemo(() => detail()?.summary)
   const canExecute = createMemo(() => {
-    const state = detail()?.run.state
-    return !!state && !TERMINAL.has(state) && state !== "awaiting_approval"
+    const run = detail()?.run
+    if (!run) return false
+    // 与后端同一条规则：未批准不跑；已经在执行时也不再显示按钮（重复执行会派发两遍）。
+    if (TERMINAL.has(run.state) || run.state === "awaiting_approval") return false
+    return !(run.state === "running" && run.phase)
   })
 
   return (

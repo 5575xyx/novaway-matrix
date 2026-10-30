@@ -144,6 +144,9 @@ export const layer = Layer.effect(
       if (run.state === "awaiting_approval")
         return yield* Effect.die(new Error("run is awaiting approval: " + input.runID))
       if (isTerminal(run.state)) return yield* Effect.die(new Error("run already finished: " + run.state))
+      // 同一运行不能同时跑两份：事件序号会打乱、账本会被重复预占、团队状态互相覆盖。
+      if (run.state === "running" && run.phase)
+        return yield* Effect.die(new Error("run already executing: " + run.phase))
 
       const cap = { tokens: run.budget?.tokens ?? 0 }
       const reserveTokens = input.reserveTokens ?? 4000

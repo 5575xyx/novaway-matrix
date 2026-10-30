@@ -1,7 +1,7 @@
 import { Effect, Ref, Scope } from "effect"
 import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
-import { Service as RunService, isTerminal, type TeamRun } from "@/team/run"
+import { Service as RunService, canStart, isTerminal, type TeamRun } from "@/team/run"
 import { Service as VerificationService, type Acceptance } from "@/team/verification"
 import {
   Service as OrchestratorService,
@@ -425,7 +425,8 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
       .handle("executeRun", (ctx) =>
         Effect.gen(function* () {
           const run = yield* requireRun(ctx.params.runID)
-          if (run.state === "awaiting_approval") return yield* Effect.fail(new HttpApiError.BadRequest({}))
+          // 未批准不能跑；已经在跑也不能再起一份。
+          if (!canStart(run.state, run.phase)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
 
           // 默认模型与会话里的 assistant 一致，避免团队用另一个模型产出无法解释的结果。
           const msgs = yield* sessions

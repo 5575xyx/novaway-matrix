@@ -79,6 +79,27 @@ describe("team integration", () => {
     expect(run(outcome.directory, ["status", "--porcelain"]).trim()).toBe("")
   })
 
+  test("re-running the integration reuses its branch instead of failing on an existing one", async () => {
+    const base = await repo()
+    const baseSHA = run(base, ["rev-parse", "HEAD"])
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "novaway-integration-root-"))
+    const a = await team(base, root, "alpha", "a.txt", "from alpha\n", baseSHA)
+
+    const first = await integrate({ base, baseSHA, runID: "run_again", teams: [a], root })
+    expect(first.kind).toBe("merged")
+    if (first.kind !== "merged") return
+    const firstSHA = first.sha
+
+    // 同一次运行重新执行（中断后恢复）：不能因为集成分支已存在就失败。
+    const second = await integrate({ base, baseSHA, runID: "run_again", teams: [a], root })
+    expect(second.kind).toBe("merged")
+    if (second.kind !== "merged") return
+    expect(second.branch).toBe(first.branch)
+    // 没有新改动时不产生新的合并提交：内容一样，版本一样。
+    expect(second.sha).toBe(firstSHA)
+    expect(await fs.readFile(path.join(second.directory, "a.txt"), "utf8")).toContain("from alpha")
+  })
+
   test("naming no team branches is skipped, not silently reported as merged", async () => {
     const base = await repo()
     const outcome = await integrate({ base, baseSHA: run(base, ["rev-parse", "HEAD"]), runID: "run_3", teams: [] })

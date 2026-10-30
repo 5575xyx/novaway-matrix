@@ -30,6 +30,20 @@ export const TERMINAL_STATES: readonly RunState[] = ["done", "partial", "failed"
 
 export const isTerminal = (state: RunState) => TERMINAL_STATES.includes(state)
 
+/**
+ * 是否允许对这次运行启动执行。
+ *
+ * `running` 同时表示「已批准、等执行」与「正在执行」。靠 `phase` 区分：
+ * 编排执行期间一定会写 phase，结束时清空。不区分的话，重复点击会把同一次运行
+ * 派发两遍 —— 事件、账本、团队状态都会翻倍，而且两轮互相覆盖。
+ */
+export function canStart(state: RunState, phase: RunPhase | undefined): boolean {
+  if (isTerminal(state)) return false
+  if (state === "awaiting_approval") return false
+  if (state === "running" && phase) return false
+  return true
+}
+
 export type RunPhase = "executing" | "reviewing" | "reworking" | "merging" | "verify-merged"
 
 export type Attempts = { business: number; formatRetry: number }
