@@ -21,6 +21,8 @@ import {
   remove as removeWorktree,
 } from "@/team/worktree"
 import { attachMission, prepareWorktree } from "@/team/setup"
+import * as TeamSwitch from "@/team/switch"
+import { Config as ConfigService } from "@/config/config"
 import {
   forkPoint,
   integrate as integrateWorktrees,
@@ -175,6 +177,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
     const agents = yield* Agent.Service
     const provider = yield* Provider.Service
     const teams = yield* TeamService
+    const config = yield* ConfigService.Service
     const snapshot = yield* Snapshot.Service
     const scope = yield* Scope.Scope
 
@@ -493,6 +496,9 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           const run = yield* requireRun(ctx.params.runID, ctx.query.directory)
           // 未批准不能跑；已经在跑也不能再起一份。
           if (!canStart(run.state, run.phase)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+          // 总控开关关闭时不可被调用（§13.1）：浏览、改计划、取消都可以，唯独不能开始新的执行。
+          const cfg = yield* config.get()
+          if (!TeamSwitch.enabled(cfg.experimental)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
 
           // 默认模型与会话里的 assistant 一致，避免团队用另一个模型产出无法解释的结果。
           const msgs = yield* sessions

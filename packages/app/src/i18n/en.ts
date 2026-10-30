@@ -20,6 +20,7 @@ export const dict = {
   "settings.kernel.feature.defer_loading": "Deferred tool loading",
   "settings.kernel.feature.background_subagents": "Background subagents",
   "settings.kernel.feature.teams": "Multi-agent teams",
+  "settings.kernel.feature.team_orchestration": "Team orchestration",
   "settings.kernel.feature.auto_delegate": "Auto parallel delegation",
   "settings.kernel.feature.plan_approval": "Plan approval",
   "settings.kernel.feature.async_sources": "Async event sources",
@@ -39,6 +40,8 @@ export const dict = {
     "Subagents can keep running in the background instead of blocking the main turn. Their results come back as a task notification.",
   "settings.kernel.feature.teams.description":
     "The lead agent can organize subagents into a team with members, a shared task board and a message channel. The Teams page shows and drives it.",
+  "settings.kernel.feature.team_orchestration.description":
+    "When off, team_run is no longer injected, the composer selector hides and runs cannot be started. Plans and history are kept, and running runs are not stopped.",
   "settings.kernel.feature.auto_delegate.description":
     "The lead agent may split independent work and run several subagents in parallel without being asked.",
   "settings.kernel.feature.plan_approval.description":
@@ -83,6 +86,8 @@ export const dict = {
     "Merge the run's integration branch into the branch you have checked out. Refused while the working tree has uncommitted changes.",
   "run.merge.done": "Merged into {{branch}} at {{sha}}.",
   "run.merge.failed": "Merge did not happen.",
+  "run.switch.off":
+    "Team orchestration is turned off: history and plans stay editable, but no new run can start (running ones keep going).",
   "run.context.truncated": "{{count}} part(s) of the dispatched context were truncated",
   "run.context.omitted": "{{count}} item(s) left out",
   "run.context.hint":
@@ -379,6 +384,15 @@ export const dict = {
   "chat.empty.greeting.afternoon": "Good afternoon! Leave the rest to me.",
   "chat.empty.greeting.evening": "Evening, nice work today",
   "chat.empty.greeting.lateNight": "It's late—remember to take care of yourself.",
+  "chat.empty.greeting.office": "What can I help you get done today?",
+  "office.home.project.pick": "Select a project",
+  "office.home.placeholder": "Ask NovaWay — use @ to add context, / for commands",
+  "office.home.hint.send": "Enter to send · Shift + Enter for a new line",
+  "office.home.scene.label": "Office scene",
+  "office.home.more": "More",
+  "office.home.templates": "Choose a PPT template",
+  "office.home.platform": "Office platform connections",
+  "office.home.model": "Model",
   "git.branch.switch": "Switch branch",
   "git.branch.manage.title": "Manage branches",
   "git.branch.manage.current": "Current branch: {{branch}}",

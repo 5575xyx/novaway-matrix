@@ -12,7 +12,27 @@ import { Agent } from "@/agent/agent"
 import { defaultLayer as PlanApprovalLayer } from "@/session/plan-approval"
 import { CrossSpawnSpawner } from "@novaway/core/cross-spawn-spawner"
 import { tmpdirScoped } from "../fixture/fixture"
+import { TestConfig } from "../fixture/config"
 import { testEffect } from "../lib/effect"
+
+// 总控关闭（§13.1）：工具即便被调用也要退回普通对话，而不是派发一个没人能批准的计划。
+const switchOff = TestConfig.layer({
+  get: () => Effect.succeed({ experimental: { team_orchestration: false } } as never),
+})
+const itOff = testEffect(
+  Layer.mergeAll(
+    TeamLayer,
+    RunLayer,
+    VerificationLayer,
+    MissionLayer,
+    Truncate.defaultLayer,
+    Agent.defaultLayer,
+    PlanApprovalLayer,
+    Session.defaultLayer,
+    CrossSpawnSpawner.defaultLayer,
+    switchOff,
+  ),
+)
 
 const it = testEffect(
   Layer.mergeAll(
@@ -186,6 +206,39 @@ describe("team_run tool", () => {
         expect(run?.state).toBe("awaiting_approval")
         expect(run?.approval).toBeUndefined()
         expect(result.output).toContain("policy: writable")
+      }),
+    { timeout: 30_000 },
+  )
+
+  itOff.instance(
+    "a switched-off orchestrator tells the model to continue without teams",
+    () =>
+      Effect.gen(function* () {
+        const sessions = yield* Session.Service
+        const teams = yield* TeamService
+        const runs = yield* TeamRunService
+        const dir = yield* tmpdirScoped({ git: true })
+
+        const session = yield* sessions.create({ title: "lead", teamMode: "selected", directory: dir })
+        const team = yield* teams.create({ name: "关掉的团队", rootSessionID: session.id })
+        yield* teams.addMember({
+          teamID: team.id,
+          sessionID: SessionID.make("ses_member_off"),
+          name: "小明",
+          agent: "build",
+          role: "lead",
+        })
+        yield* sessions.setTeamMode({ sessionID: session.id, mode: "selected", teamIDs: [team.id] })
+
+        const tool = yield* TeamRunTool
+        const def = yield* tool.init()
+        const result = yield* def.execute({ team: "关掉的团队", goal: "做点事" }, ctx(session.id, dir))
+
+        // 不是「失败」，是一句可执行的话：退回普通对话。
+        expect(result.output).toContain("turned off")
+        expect(result.output).toContain("normal conversation")
+        // 一条运行都不该被建出来，否则用户会看到一个永远批不了的计划。
+        expect(yield* runs.list({ sessionID: session.id })).toEqual([])
       }),
     { timeout: 30_000 },
   )

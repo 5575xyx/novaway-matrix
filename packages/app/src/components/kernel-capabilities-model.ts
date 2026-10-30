@@ -12,6 +12,7 @@ export const FEATURE_ORDER = [
   "defer_loading",
   "background_subagents",
   "teams",
+  "team_orchestration",
   "auto_delegate",
   "plan_approval",
   "async_sources",

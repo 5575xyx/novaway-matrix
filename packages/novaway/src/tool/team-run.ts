@@ -7,6 +7,8 @@ import { Service as TeamMissionService } from "@/team/mission"
 import { Service as SessionService } from "@/session/session"
 import { fromLive } from "@/team/roster"
 import { attachMission, prepareWorktree } from "@/team/setup"
+import * as TeamSwitch from "@/team/switch"
+import { Config } from "@/config/config"
 
 /**
  * `team_run`：把一次团队派发登记成运行，然后**停在这里等人批准**。
@@ -67,6 +69,15 @@ export const TeamRunTool = Tool.define<typeof TeamRunParameters, { runID?: strin
             output: "Team orchestration is not enabled in this runtime.",
             metadata: {},
           }
+        }
+
+        // 总控开关（§13.1）：正常运行时工具根本不会被注入；这里再挡一次，
+        // 是为了「运行中改配置」「绕开注册表直接调用」这两种情况也不放行。
+        const config = Option.getOrUndefined(yield* Effect.serviceOption(Config.Service))
+        if (config) {
+          const cfg = yield* config.get()
+          if (!TeamSwitch.enabled(cfg.experimental))
+            return { title: "Team orchestration is off", output: TeamSwitch.DISABLED_OUTPUT, metadata: {} }
         }
 
         const session = yield* sessions.get(ctx.sessionID).pipe(Effect.catch(() => Effect.succeed(undefined)))

@@ -2,6 +2,7 @@ import { Effect } from "effect"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
 import { CAPABILITIES, ToolRegistry } from "@/tool/registry"
+import * as TeamSwitch from "@/team/switch"
 import { Service as SkillService } from "@/skill"
 import { Service as AgentService } from "@/agent/agent"
 import { Service as HookService } from "@/hook/service"
@@ -88,6 +89,8 @@ export const kernelHandlers = HttpApiBuilder.group(InstanceHttpApi, "kernel", (h
               enabled: teamTools.length === 4,
               detail: teamRoles ? String(teamRoles) : undefined,
             },
+            // 团队编排总控（§13.1）：与上面的 teams 不是一回事 —— 那个表示团队工具是否加载。
+            { id: "team_orchestration", enabled: TeamSwitch.enabled(feature) },
             { id: "auto_delegate", enabled: feature.auto_delegate !== false },
             { id: "plan_approval", enabled: true },
             {

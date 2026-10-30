@@ -45,6 +45,8 @@ import { defaultLayer as AgentMailboxLayer } from "@/team/mailbox"
 import { defaultLayer as HookLayer } from "@/hook/service"
 import { defaultLayer as McpLayer } from "@/mcp"
 import { defaultLayer as EvolutionLayer } from "@/evolution/service"
+import { Database } from "@/database"
+import { ClientCapabilities } from "@/effect/client-capabilities"
 
 const node = CrossSpawnSpawner.defaultLayer
 const configLayer = TestConfig.layer({
@@ -88,6 +90,8 @@ const registryLayer = (flags: Partial<RuntimeFlags.Info> = {}, config: Layer.Lay
       Layer.provide(HookLayer),
       Layer.provide(McpLayer),
       Layer.provide(EvolutionLayer),
+      Layer.provide(Database.defaultLayer),
+      Layer.provide(ClientCapabilities.defaultLayer),
     )
 
 const deferConfig = TestConfig.layer({
@@ -97,6 +101,40 @@ const deferConfig = TestConfig.layer({
 const deferred = testEffect(
   Layer.mergeAll(
     registryLayer({}, deferConfig),
+    node,
+    Agent.defaultLayer,
+    Auth.defaultLayer,
+    Session.defaultLayer,
+    SessionStatus.defaultLayer,
+    BackgroundJob.defaultLayer,
+  ) as any,
+)
+
+// 浏览器控制关掉后，browser_* 与 PDF 打印一起从工具列表消失（设置页/扩展页的开关）。
+const noBrowserConfig = TestConfig.layer({
+  directories: () => InstanceState.directory.pipe(Effect.map((dir) => [path.join(dir, ".opencode")])),
+  get: () => Effect.succeed({ browser: { enabled: false } } as never),
+})
+const noBrowser = testEffect(
+  Layer.mergeAll(
+    registryLayer({}, noBrowserConfig),
+    node,
+    Agent.defaultLayer,
+    Auth.defaultLayer,
+    Session.defaultLayer,
+    SessionStatus.defaultLayer,
+    BackgroundJob.defaultLayer,
+  ) as any,
+)
+
+// 团队编排总控关闭后，team_run 不该出现在工具列表里（§13.1）。
+const teamOffConfig = TestConfig.layer({
+  directories: () => InstanceState.directory.pipe(Effect.map((dir) => [path.join(dir, ".opencode")])),
+  get: () => Effect.succeed({ experimental: { team_orchestration: false } } as never),
+})
+const teamOff = testEffect(
+  Layer.mergeAll(
+    registryLayer({}, teamOffConfig),
     node,
     Agent.defaultLayer,
     Auth.defaultLayer,
@@ -167,6 +205,92 @@ describe("deferred tools", () => {
 
       const after = yield* registry.tools({ ...ref, agent: build, sessionID: chat.id })
       expect(after.some((tool) => tool.id === "browser_click")).toBe(true)
+    }),
+  )
+
+  // 页面验证的主路径必须在提示词里：藏起来模型会去加载同名的外部技能
+  // （自己 spawn 一个可见 Chrome 盖住用户桌面）。
+  deferred.instance("keeps opening, snapshotting and screenshotting pages always available", () =>
+    Effect.gen(function* () {
+      const registry = yield* ToolRegistry.Service
+      const agent = yield* Agent.Service
+      const build = yield* agent.get("build")
+      const session = yield* Session.Service
+      const chat = yield* session.create({ title: "browser-core" })
+      const ref = { providerID: ProviderID.make("test"), modelID: ModelID.make("test-model") }
+
+      const before = yield* registry.tools({ ...ref, agent: build, sessionID: chat.id })
+      for (const id of ["browser_navigate", "browser_snapshot", "browser_screenshot", "browser_close"]) {
+        expect(before.some((tool) => tool.id === id)).toBe(true)
+      }
+      // 交互类仍然延迟加载，别把整族都塞进每轮请求。
+      expect(before.some((tool) => tool.id === "browser_click")).toBe(false)
+    }),
+  )
+
+  teamOff.instance("drops team_run when team orchestration is switched off", () =>
+    Effect.gen(function* () {
+      const registry = yield* ToolRegistry.Service
+      const agent = yield* Agent.Service
+      const build = yield* agent.get("build")
+      const session = yield* Session.Service
+      const chat = yield* session.create({ title: "team-off" })
+      const ref = { providerID: ProviderID.make("test"), modelID: ModelID.make("test-model") }
+
+      const ids = (yield* registry.tools({ ...ref, agent: build, sessionID: chat.id })).map((tool) => tool.id)
+      // 关闭 = 连入口都没有，而不是「调了才发现不能用」。
+      expect(ids).not.toContain("team_run")
+      // 其它团队工具（团队本身的增删查）不受总控影响：那是会话管理，不是编排。
+      expect(ids).toContain("read")
+    }),
+  )
+
+  noBrowser.instance("drops browser tools and PDF export when browser control is disabled", () =>
+    Effect.gen(function* () {
+      const registry = yield* ToolRegistry.Service
+      const agent = yield* Agent.Service
+      const build = yield* agent.get("build")
+      const session = yield* Session.Service
+      const chat = yield* session.create({ title: "no-browser" })
+      const ref = { providerID: ProviderID.make("test"), modelID: ModelID.make("test-model") }
+
+      const ids = (yield* registry.tools({ ...ref, agent: build, sessionID: chat.id })).map((tool) => tool.id)
+      expect(ids.some((id) => id.startsWith("browser_"))).toBe(false)
+      expect(ids).not.toContain("pdf_create")
+      // 其它工具不受影响。
+      expect(ids).toContain("read")
+    }),
+  )
+
+  deferred.instance("activates a whole tool family with select:<prefix>*", () =>
+    Effect.gen(function* () {
+      const registry = yield* ToolRegistry.Service
+      const agent = yield* Agent.Service
+      const build = yield* agent.get("build")
+      const session = yield* Session.Service
+      const chat = yield* session.create({ title: "defer-family" })
+      const ref = { providerID: ProviderID.make("test"), modelID: ModelID.make("test-model") }
+
+      const before = yield* registry.tools({ ...ref, agent: build, sessionID: chat.id })
+      const search = before.find((tool) => tool.id === "tool_search")
+      if (!search) throw new Error("tool_search missing")
+      yield* search.execute(
+        { query: "select:browser_*" },
+        {
+          sessionID: chat.id,
+          messageID: MessageID.make("msg_family"),
+          agent: "build",
+          abort: new AbortController().signal,
+          messages: [],
+          metadata: () => Effect.void,
+          ask: () => Effect.void,
+        },
+      )
+
+      const after = yield* registry.tools({ ...ref, agent: build, sessionID: chat.id })
+      for (const id of ["browser_click", "browser_fill", "browser_console"]) {
+        expect(after.some((tool) => tool.id === id)).toBe(true)
+      }
     }),
   )
 })

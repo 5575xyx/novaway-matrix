@@ -1523,6 +1523,7 @@ export type Config = {
     disable_paste_summary?: boolean
     background_subagents?: boolean
     auto_delegate?: boolean
+    team_orchestration?: boolean
     defer_loading?: boolean
     defer_mcp_loading?: boolean
     tool_result_budget_chars?: number

@@ -55,6 +55,8 @@ export const RunPage: Component<{
   const [missionDiff, setMissionDiff] = createSignal<MissionDiffView | undefined>(undefined)
   // 展开中的验收项：点一下看证据，再点一下收起。
   const [openLine, setOpenLine] = createSignal<string | undefined>(undefined)
+  // 总控开关（§13.1）：关闭时不能启动运行，但历史与计划照旧可以看、可以改。
+  const [switchedOn, setSwitchedOn] = createSignal(true)
   const NEW_MISSION = "__new"
 
   const loadRuns = async (select?: string) => {
@@ -304,6 +306,14 @@ export const RunPage: Component<{
     void loadRuns()
     void loadProfiles()
     void loadMissions()
+    void sdk.client.kernel
+      .capabilities({ directory: props.directory })
+      .then((result) => {
+        const feature = (result.data?.features ?? []).find((item) => item.id === "team_orchestration")
+        // 老版本内核不报这一项：按开启处理，不因为版本落后就把按钮禁掉。
+        setSwitchedOn(feature ? feature.enabled : true)
+      })
+      .catch(() => setSwitchedOn(true))
     // 运行是后台推进的；没有推送时用轮询保证看板不会停在旧状态。
     const timer = setInterval(() => {
       void reload()
@@ -339,6 +349,7 @@ export const RunPage: Component<{
     return run.state === "running" && !run.phase
   })
   const canExecute = createMemo(() => {
+    if (!switchedOn()) return false
     const run = detail()?.run
     if (!run) return false
     // 与后端同一条规则：未批准不跑；已经在执行时也不再显示按钮（重复执行会派发两遍）。
@@ -357,6 +368,11 @@ export const RunPage: Component<{
 
       <Show when={notice()}>
         <div class="shrink-0 border-b border-border px-4 py-1.5 text-ui-xs text-success">{notice()}</div>
+      </Show>
+
+      {/* 关闭 ≠ 删数据、也不停已在跑的运行：页面照旧可看可改，只是不能开始新的执行。 */}
+      <Show when={!switchedOn()}>
+        <div class="shrink-0 border-b border-border px-4 py-1.5 text-ui-xs text-warning">{t("run.switch.off")}</div>
       </Show>
 
       <div class="flex min-h-0 flex-1">

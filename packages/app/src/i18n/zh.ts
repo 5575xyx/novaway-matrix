@@ -24,6 +24,7 @@ export const dict = {
   "settings.kernel.feature.defer_loading": "工具延迟加载",
   "settings.kernel.feature.background_subagents": "后台子代理",
   "settings.kernel.feature.teams": "多代理团队",
+  "settings.kernel.feature.team_orchestration": "团队编排总控",
   "settings.kernel.feature.auto_delegate": "自动并行编排",
   "settings.kernel.feature.plan_approval": "计划审批",
   "settings.kernel.feature.async_sources": "异步事件源",
@@ -42,6 +43,8 @@ export const dict = {
     "子代理可以在后台继续跑，不阻塞主回合；结束后以任务通知的形式把结果送回。",
   "settings.kernel.feature.teams.description":
     "主代理可以把子代理编成团队：成员、共享任务板、消息通道。「团队」页可以查看并调度。",
+  "settings.kernel.feature.team_orchestration.description":
+    "关闭后 team_run 不再注入、输入框选择器隐藏、运行不能被启动；已建的计划与历史保留，已在跑的运行不会被停掉。",
   "settings.kernel.feature.auto_delegate.description":
     "主代理可以自己把互不依赖的工作拆开，并行派给多个子代理，不需要你逐条点名。",
   "settings.kernel.feature.plan_approval.description":
@@ -82,6 +85,7 @@ export const dict = {
   "run.action.mergeHint": "把本次运行的集成分支合进你当前检出的分支。工作区有未提交改动时会拒绝合并。",
   "run.merge.done": "已合并到 {{branch}}，提交 {{sha}}。",
   "run.merge.failed": "没有发生合并。",
+  "run.switch.off": "团队编排总控已关闭：可以查看历史与修改计划，但不能启动新的运行（已在跑的不会停）。",
   "run.context.truncated": "本次派发的上下文有 {{count}} 处截断",
   "run.context.omitted": "少了 {{count}} 条",
   "run.context.hint": "截断写进了提示词，队长知道自己少看了什么。它记在每次派发的清单里，不随轮次覆盖。",
@@ -365,6 +369,16 @@ export const dict = {
   "chat.empty.greeting.afternoon": "下午好，剩下的交给我",
   "chat.empty.greeting.evening": "晚上好呀，今天辛苦啦",
   "chat.empty.greeting.lateNight": "夜深了，记得照顾好自己",
+  // 办公模式草稿态：对齐 ZCode 办公模式首页的唯一一句问候，不再按场景换标题。
+  "chat.empty.greeting.office": "今天有什么工作，交给我吧",
+  "office.home.project.pick": "选择项目",
+  "office.home.placeholder": "向 NovaWay 提问，使用 @ 添加上下文，使用 / 选择命令或能力",
+  "office.home.hint.send": "Enter 发送 · Shift + Enter 换行",
+  "office.home.scene.label": "办公场景",
+  "office.home.more": "更多",
+  "office.home.templates": "选择 PPT 模板",
+  "office.home.platform": "办公平台连接",
+  "office.home.model": "模型",
   "git.branch.switch": "切换分支",
   "git.branch.manage.title": "管理分支",
   "git.branch.manage.current": "当前分支：{{branch}}",

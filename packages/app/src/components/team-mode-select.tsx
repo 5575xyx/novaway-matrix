@@ -30,6 +30,8 @@ export const TeamModeSelect: Component<{ sessionID?: string }> = (props) => {
   const language = useLanguage()
 
   const [teams, setTeams] = createSignal<TeamSummaryView[]>([])
+  // 总控开关（§13.1）：关闭时入口整个隐藏，而不是点进去才发现派发不了。
+  const [switchedOn, setSwitchedOn] = createSignal(true)
   const [optimistic, setOptimistic] = createSignal<TeamSelectionValue | undefined>(undefined)
 
   const info = createMemo(() => (props.sessionID ? sync.session.get(props.sessionID) : undefined))
@@ -95,10 +97,18 @@ export const TeamModeSelect: Component<{ sessionID?: string }> = (props) => {
       .list({ directory: sdk.directory })
       .then((result) => setTeams(result.data ?? []))
       .catch(() => setTeams([]))
+    void sdk.client.kernel
+      .capabilities({ directory: sdk.directory })
+      .then((result) => {
+        const feature = (result.data?.features ?? []).find((item) => item.id === "team_orchestration")
+        // 老版本内核不报这一项：按开启处理，不因为版本落后就把入口藏掉。
+        setSwitchedOn(feature ? feature.enabled : true)
+      })
+      .catch(() => setSwitchedOn(true))
   })
 
   return (
-    <Show when={teams().length > 0 || active()}>
+    <Show when={switchedOn() && (teams().length > 0 || active())}>
       <div data-component="team-mode-select" class="flex items-center gap-1.5">
         <DropdownMenu gutter={4} placement="top-end">
           <DropdownMenu.Trigger

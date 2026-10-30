@@ -37034,6 +37034,9 @@
               "auto_delegate": {
                 "type": "boolean"
               },
+              "team_orchestration": {
+                "type": "boolean"
+              },
               "defer_loading": {
                 "type": "boolean"
               },

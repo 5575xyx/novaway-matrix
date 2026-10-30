@@ -65,6 +65,7 @@ import {
   BrowserSnapshotTool,
 } from "./browser"
 import { BrowserService } from "@/browser/browser"
+import { PdfCreateTool } from "./pdf"
 import { Database as DatabaseModule } from "@/database"
 import * as Tool from "./tool"
 import { Config } from "@/config/config"
@@ -150,6 +151,7 @@ import {
   TeamListTool,
 } from "./task-tools"
 import { TeamRunTool } from "./team-run"
+import * as TeamSwitch from "@/team/switch"
 import { Global } from "@novaway/core/global"
 import * as ExtensionLoader from "@/extension/loader"
 import { contributions as extensionContributions, type Loaded as ExtensionLoaded } from "@/extension/schema"
@@ -196,17 +198,21 @@ export const CAPABILITIES: Record<string, Tool.Capabilities> = {
   computer_scroll: { concurrencySafe: false },
   computer_focus: { concurrencySafe: false },
   // 浏览器：读页面快照/控制台/网络可以并行，点击/输入/导航会改变外部状态。
-  browser_snapshot: { readOnly: true, concurrencySafe: false, idempotent: true, deferLoading: true },
+  // 「打开 → 看结构 → 截图」三件套不延迟加载：它们是最常见的验证路径，藏起来模型
+  // 就会跑去加载同名的外部技能（自己 spawn 一个可见 Chrome 盖住用户桌面）。
+  browser_snapshot: { readOnly: true, concurrencySafe: false, idempotent: true },
   browser_console: { readOnly: true, concurrencySafe: false, idempotent: true, deferLoading: true },
   browser_network: { readOnly: true, concurrencySafe: false, idempotent: true, deferLoading: true },
   browser_accessibility: { readOnly: true, concurrencySafe: false, idempotent: true, deferLoading: true },
-  browser_screenshot: { readOnly: true, concurrencySafe: false, idempotent: true, deferLoading: true },
-  browser_navigate: { concurrencySafe: false, deferLoading: true },
-  browser_open: { concurrencySafe: false, deferLoading: true },
+  browser_screenshot: { readOnly: true, concurrencySafe: false, idempotent: true },
+  browser_navigate: { concurrencySafe: false },
+  browser_open: { concurrencySafe: false },
   browser_click: { concurrencySafe: false, destructive: true, deferLoading: true },
   browser_fill: { concurrencySafe: false, destructive: true, deferLoading: true },
   browser_press: { concurrencySafe: false, destructive: true, deferLoading: true },
-  browser_close: { concurrencySafe: false, idempotent: true, deferLoading: true },
+  browser_close: { concurrencySafe: false, idempotent: true },
+  // 生成 PDF：写新文件（不动已有内容），但同一个输入重跑结果一致。
+  pdf_create: { concurrencySafe: false, idempotent: true },
   read: { readOnly: true, concurrencySafe: true, idempotent: true, maxResultBytes: 400_000 },
   glob: { readOnly: true, concurrencySafe: true, idempotent: true, maxResultBytes: 100_000 },
   grep: { readOnly: true, concurrencySafe: true, idempotent: true, maxResultBytes: 20_000 },
@@ -528,6 +534,7 @@ export const layer: Layer.Layer<
     const browserNetwork = yield* BrowserNetworkTool
     const browserAccessibility = yield* BrowserAccessibilityTool
     const browserClose = yield* BrowserCloseTool
+    const pdfCreate = yield* PdfCreateTool
     const goal = yield* optional(Goal.Service, GoalTool)
     const workflow = yield* optional(WorkflowService, WorkflowTool)
     const orchestrator = yield* optional(OrchestratorService, OrchestratorTool)
@@ -673,6 +680,8 @@ export const layer: Layer.Layer<
         const backgroundSubagentsEnabled =
           cfg.experimental?.background_subagents ?? flags.experimentalBackgroundSubagents
         const computerControlEnabled = cfg.experimental?.computer_control ?? flags.experimentalComputerControl
+        // 团队编排总控（§13.1）：关闭时不注入 team_run —— 模型连入口都看不到，而不是调了才失败。
+        const teamOrchestrationEnabled = TeamSwitch.enabled(cfg.experimental)
 
         const tool = yield* Effect.all({
           invalid: Tool.init(invalid),
@@ -749,6 +758,7 @@ export const layer: Layer.Layer<
           browser_network: Tool.init(browserNetwork),
           browser_accessibility: Tool.init(browserAccessibility),
           browser_close: Tool.init(browserClose),
+          pdf_create: Tool.init(pdfCreate),
           goal: goal ? Tool.init(goal) : Effect.succeed(undefined),
           workflow: workflow ? Tool.init(workflow) : Effect.succeed(undefined),
           orchestrator: orchestrator ? Tool.init(orchestrator) : Effect.succeed(undefined),
@@ -772,6 +782,16 @@ export const layer: Layer.Layer<
           exit_worktree: Tool.init(worktreeExitTool),
         })
 
+        // 浏览器的「打开 / 快照 / 截图 / 关闭」始终留在提示词里：这是验证页面的主路径。
+        // 其余 browser_*（点击、输入、控制台…）仍然延迟加载。
+        const coreBrowser = new Set([
+          "browser_navigate",
+          "browser_open",
+          "browser_snapshot",
+          "browser_screenshot",
+          "browser_close",
+        ])
+
         const decorate = <T extends Tool.Def>(def: T): T =>
           ({
             ...def,
@@ -780,7 +800,9 @@ export const layer: Layer.Layer<
               concurrencySafe: false,
               // Long-tail tools are hidden from the first request unless the
               // user opted in; `tool_search` activates them per session.
-              ...(def.id.startsWith("browser_") || def.id.startsWith("generate_") ? { deferLoading: true } : {}),
+              ...((def.id.startsWith("browser_") && !coreBrowser.has(def.id)) || def.id.startsWith("generate_")
+                ? { deferLoading: true }
+                : {}),
               ...CAPABILITIES[def.id],
               ...def.capabilities,
             },
@@ -866,10 +888,11 @@ export const layer: Layer.Layer<
           tool.browser_network,
           tool.browser_accessibility,
           tool.browser_close,
+          tool.pdf_create,
           tool.goal!,
           tool.workflow!,
           tool.orchestrator!,
-          tool.team_run,
+          ...(teamOrchestrationEnabled ? [tool.team_run] : []),
           tool.team_create!,
           tool.team_delete,
           tool.team_list,
@@ -907,7 +930,8 @@ export const layer: Layer.Layer<
             .join(String.fromCharCode(10)),
           parameters: Schema.Struct({
             query: Schema.String.annotate({
-              description: 'Keywords to search tool names and descriptions. Use "select:<tool_id>" for a direct match.',
+              description:
+                'Keywords to search tool names and descriptions. Use "select:<tool_id>" for a direct match, or "select:<prefix>*" to load a whole family at once (e.g. "select:browser_*").',
             }),
             max_results: Schema.optional(Schema.Number).annotate({ description: "Maximum results (default 5)" }),
           }),
@@ -918,8 +942,13 @@ export const layer: Layer.Layer<
               const limit = Math.max(1, Math.min(Number((args as { max_results?: unknown }).max_results ?? 5) || 5, 20))
               const allDefs = [...builtinList, ...custom.map(decorate)]
               const select = /^select:(.+)$/i.exec(query.trim())
+              const pattern = select?.[1]?.trim()
               const matches = select
-                ? allDefs.filter((item) => item.id === select[1]?.trim())
+                ? // `select:browser_*` / `select:task_*`：一次把一族工具全激活，
+                  // 省得分页搜索挑不到自己要的那一个。
+                  pattern?.endsWith("*")
+                  ? allDefs.filter((item) => item.id.startsWith(pattern.slice(0, -1)))
+                  : allDefs.filter((item) => item.id === pattern)
                 : allDefs
                     .map((item) => {
                       const q = query.toLowerCase()
@@ -941,7 +970,8 @@ export const layer: Layer.Layer<
                     .filter((entry) => entry.score > 0)
                     .sort((a, b) => b.score - a.score || a.item.id.localeCompare(b.item.id))
                     .map((entry) => entry.item)
-              const top = matches.slice(0, limit)
+              // 显式 select 不受 max_results 截断：前缀通配本来就是「整族激活」的意思。
+              const top = select ? matches : matches.slice(0, limit)
               // Activate what was found so the next request includes the full
               // schema for these tools.
               if (ctx?.sessionID) {
@@ -1037,12 +1067,19 @@ export const layer: Layer.Layer<
         )
       const allow = input.agent.tools?.length ? new Set(input.agent.tools) : undefined
       const deny = new Set(input.agent.disallowedTools ?? [])
+      // 浏览器控制（含 PDF 打印）在设置页/扩展页可以整体关掉，开关落点是 config.browser.enabled。
+      // 关掉后工具直接不出现在列表里，模型也就不会去 shell 里想办法。
+      const browserEnabled = cfg.browser?.enabled !== false
+      // config.tools 里的显式 false 对任何内置工具都生效（扩展页用它对单个能力做开关）。
+      const toolOverrides = cfg.tools ?? {}
       const deferBuiltin = cfg.experimental?.defer_loading ?? true
       const deferEnabled = deferBuiltin && input.sessionID !== undefined
       const activated = deferEnabled && input.sessionID ? new Set(yield* activation.list(input.sessionID)) : undefined
       const filtered = allTools.filter((tool) => {
         if (allow && !allow.has("*") && !allow.has(tool.id)) return false
         if (deny.has(tool.id)) return false
+        if (toolOverrides[tool.id] === false) return false
+        if (!browserEnabled && (tool.id.startsWith("browser_") || tool.id === PdfCreateTool.id)) return false
         // Deferred tools stay out of the request until tool_search activates
         // them for this session.
         if (deferEnabled && tool.capabilities?.deferLoading && !activated?.has(tool.id)) return false

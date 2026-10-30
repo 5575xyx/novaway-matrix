@@ -23,6 +23,7 @@ import { containsPath, type InstanceContext } from "../project/instance-context"
 import { NonNegativeInt, PositiveInt, type DeepMutable } from "@novaway/core/schema"
 import { ConfigAgent } from "./agent"
 import { ConfigAttachment } from "./attachment"
+import { ConfigBrowser } from "./browser"
 import { ConfigCommand } from "./command"
 import { ConfigFormatter } from "./formatter"
 import { ConfigLayout } from "./layout"
@@ -76,16 +77,13 @@ function browserMcpFlags() {
 // Users can remove or override these entries in their own config file.
 const browserCommand = process.env.PLAYWRIGHT_MCP_SERVER_PATH
   ? [
-      process.env.PLAYWRIGHT_MCP_NODE_PATH ?? process.env.DBX_NODE_PATH ?? "node",
+      process.env.PLAYWRIGHT_MCP_NODE_PATH ?? process.env.NOVAWAY_NODE_PATH ?? "node",
       process.env.PLAYWRIGHT_MCP_SERVER_PATH,
       ...browserMcpFlags(),
     ]
   : process.platform === "win32"
     ? ["cmd", "/c", "npx", "-y", "@playwright/mcp", ...browserMcpFlags()]
     : ["npx", "-y", "@playwright/mcp", ...browserMcpFlags()]
-const dbxCommand = process.env.DBX_MCP_SERVER_PATH
-  ? [process.env.DBX_NODE_PATH ?? "node", process.env.DBX_MCP_SERVER_PATH]
-  : ["cmd", "/c", "npx", "-y", "@dbx-app/mcp-server"]
 export const DEFAULT_MCP_SERVERS: Record<string, ConfigMCP.Info> = {
   browser: {
     command: browserCommand,
@@ -104,11 +102,6 @@ export const DEFAULT_MCP_SERVERS: Record<string, ConfigMCP.Info> = {
   },
   context7: {
     command: ["cmd", "/c", "npx", "-y", "@upstash/context7-mcp"],
-    enabled: true,
-    type: "local",
-  },
-  dbx: {
-    command: dbxCommand,
     enabled: true,
     type: "local",
   },
@@ -322,6 +315,9 @@ export const Info = Schema.Struct({
   memory: Schema.optional(ConfigMemory.Info).annotate({
     description: "Persistent memory configuration",
   }),
+  browser: Schema.optional(ConfigBrowser.Info).annotate({
+    description: "Built-in browser control (navigate, click, screenshot, PDF export). Enabled by default.",
+  }),
   evolution: Schema.optional(ConfigEvolution.Info).annotate({
     description: "Self-evolution candidate review configuration",
   }),
@@ -413,6 +409,10 @@ export const Info = Schema.Struct({
       auto_delegate: Schema.optional(Schema.Boolean).annotate({
         description:
           "主代理自动判断复杂请求能否拆成并行子任务，并按需创建团队、选择不同 AI 员工并行执行。默认开；false 可关闭这段编排指令。",
+      }),
+      team_orchestration: Schema.optional(Schema.Boolean).annotate({
+        description:
+          "团队编排总控（与上面的 teams 特性含义不同：那个表示团队工具是否加载）。关闭后 team_run 不再注入、团队选择器隐藏、运行不可被启动；已建的计划与历史保留，已在跑的运行不会被停掉。默认开。",
       }),
       defer_loading: Schema.optional(Schema.Boolean).annotate({
         description:
@@ -646,34 +646,11 @@ export const layer = Layer.effect(
           }
         }
 
-        // 当环境变量指定了本地 DBX MCP Server 路径时，强制覆盖配置文件中的 command。
-        // 避免用户配置里保存的旧 npx 版本继续被使用。
-        const dbxMcp = result.mcp?.dbx
-        if (process.env.DBX_MCP_SERVER_PATH && dbxMcp && Schema.is(ConfigMCP.Local)(dbxMcp)) {
-          const dbxCommand = [process.env.DBX_NODE_PATH ?? "node", process.env.DBX_MCP_SERVER_PATH]
-          if (JSON.stringify(dbxMcp.command) !== JSON.stringify(dbxCommand)) {
-            result.mcp = {
-              ...result.mcp,
-              dbx: {
-                ...dbxMcp,
-                command: dbxCommand,
-                type: "local",
-              },
-            }
-            const file = path.join(Global.Path.config, "novaway.json")
-            const text = yield* readConfigFile(file)
-            if (text) {
-              const patched = patchJsonc(text, result.mcp, ["mcp"])
-              yield* fs.writeFileString(file, patched).pipe(Effect.catch(() => Effect.void))
-            }
-          }
-        }
-
         // 打包环境使用内置 Playwright MCP 服务器，检测到路径时覆盖旧 npx 命令。
         const browserMcp = result.mcp?.browser
         if (process.env.PLAYWRIGHT_MCP_SERVER_PATH && browserMcp && Schema.is(ConfigMCP.Local)(browserMcp)) {
           const browserCommand = [
-            process.env.PLAYWRIGHT_MCP_NODE_PATH ?? process.env.DBX_NODE_PATH ?? "node",
+            process.env.PLAYWRIGHT_MCP_NODE_PATH ?? process.env.NOVAWAY_NODE_PATH ?? "node",
             process.env.PLAYWRIGHT_MCP_SERVER_PATH,
             ...browserMcpFlags(),
           ]
