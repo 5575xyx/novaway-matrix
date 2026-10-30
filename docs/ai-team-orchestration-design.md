@@ -1927,6 +1927,45 @@ DAG 的依赖只说「谁在谁之后」，不够：上游返工改了产物，�
 2. **业务尝试上限同样生效。** 退回会消耗 `attempts.business`，到上限即停。
 3. **没有归属的全局验收不猜责任人。** `owner` 为空的验收失败只记录结论 —— 猜错人比不猜更糟。
 
+**会话派发与界面发起必须是同一种运行（2026-10-30 追加，§4.2 / §5.2 / §10.1）**
+
+界面上「用模板发起」走的是 `handlers/run.ts` 的 `createRun`：复制名册、建 worktree、验收归队。
+会话里由主智能体调用 `team_run` 是**另一条**路径，此前只建了运行和一个占位快照 ——
+同一次派发，两条路径的安全性不一样：
+
+| 缺口（修复前）                        | 后果                                                             |
+| ------------------------------------- | ---------------------------------------------------------------- |
+| `rosterSnapshot` 只有 `{teamID,name}` | `snapshotFrom()` 解析失败 → 队长退回默认 agent，成员清单为空     |
+| 没有 worktree                         | 成员直接在用户目录里写，`git status` 被团队的临时改动污染        |
+| 验收 `owner` 为空                     | 团队派发时 0 条验收 → 立刻「交付」，团队级证据与打回循环全部失效 |
+| 不支持 `missionID`                    | 聊天里发起的运行无法接着持久目标往下做                           |
+
+修复把两条路径的共同部分抽出来，谁也不能各写一遍：
+
+| 文件                 | 内容                                                                               |
+| -------------------- | ---------------------------------------------------------------------------------- |
+| `src/team/setup.ts`  | `attachMission()`：目标存在 / 目录一致 / 未结束 / 无并发运行 → 准备并返回 worktree |
+| 同上                 | `prepareWorktree()`：建团队 worktree 并写 `worktree.created` / `worktree.skipped`  |
+| `src/team/roster.ts` | `fromLive()`：活团队（`team_member`）→ 名册快照，`lead` 当队长，存档成员不参与     |
+| `tool/team-run.ts`   | 先挂目标 → 建运行 → 复制名册 → 建 worktree → 加团队 → **验收归队** → 定计划        |
+| `handlers/run.ts`    | `createRun` 与 `setRunPlan` 改用同一份 `attachMission` / `prepareWorktree`         |
+
+三条边界：
+
+1. **没有成员就不编队长。** `fromLive()` 返回空，派发退回默认 agent 并在工具输出里写明
+   （`roster: empty`）—— 编一个队长会让运行看起来一切正常。
+2. **活团队的人不可被 Auto 自动派活。** 没有声明就是 `canAutoDispatch: false`，放松要显式。
+3. **worktree 建不出来照样跑，但必须留事件。** 非 git 仓库、空仓库都返回原因；工具输出里写明
+   「members will work in <目录>」，不假装隔离了。
+
+**顺带修掉的真 bug：团队选择从未落库（§4.2）**
+
+`session/projectors.ts` 的 `toPartialRow()` 漏了 `team_mode` / `team_ids`：`setTeamMode()`
+更新的是事件，投影层把它们丢掉，于是接口返回成功、界面显示已选中，而 `session` 表里
+两列永远为空 —— 主智能体拿到的目录始终是空的，`team_run` 永远报「没有可用团队」。
+回归用例 `test/session/team-mode.test.ts` 刻意「写一次、重新读一次」，并在切到 `auto` 时
+断言 ID 被清空。
+
 **接口层回归（2026-10-30 追加）**
 
 `test/server/httpapi-team.test.ts` 走的是生产路由树（`HttpApiApp.routes`），锁住 service 层测不到的契约：

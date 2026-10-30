@@ -88,6 +88,10 @@ export function toPartialRow(info: DeepPartial<Session.Info>) {
     revert: grab(info, "revert"),
     permission: grab(info, "permission"),
     permission_mode: grab(info, "permissionMode"),
+    // 团队目录（§4.2）：漏掉这两行时 `setTeamMode` 会「成功」但什么都没写，
+    // 用户在输入框选的团队/ Auto 永远不会出现在模型眼里。
+    team_mode: grab(info, "teamMode"),
+    team_ids: grab(info, "teamIDs"),
     time_created: grab(info, "time", (v) => grab(v, "created")),
     time_updated: grab(info, "time", (v) => grab(v, "updated")),
     time_compacting: grab(info, "time", (v) => grab(v, "compacting")),
