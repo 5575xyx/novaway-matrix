@@ -314,6 +314,14 @@ export const RunPage: Component<{
   const missionLabel = (missionID: string | null | undefined) =>
     missionID ? missions().find((mission) => mission.id === missionID)?.label : undefined
   const summary = createMemo(() => detail()?.summary)
+  // 与后端同一条规则：批准前、以及批准后还没开工（running 且没有 phase）时可以改授权。
+  // 会话里点名的团队会自动批准并落在 running，所以这一段不能漏 —— 否则界面上就没法放宽。
+  const canChangePolicy = createMemo(() => {
+    const run = detail()?.run
+    if (!run) return false
+    if (run.state === "planning" || run.state === "awaiting_approval") return true
+    return run.state === "running" && !run.phase
+  })
   const canExecute = createMemo(() => {
     const run = detail()?.run
     if (!run) return false
@@ -485,8 +493,8 @@ export const RunPage: Component<{
                       </div>
                     </div>
                     <div class="flex shrink-0 items-center gap-1.5">
-                      {/* 授权只能在批准之前改；放开写操作是人的决定，不是默认值。 */}
-                      <Show when={data().run.state === "planning" || data().run.state === "awaiting_approval"}>
+                      {/* 授权只能在开工之前改；放开写操作是人的决定，不是默认值。 */}
+                      <Show when={canChangePolicy()}>
                         <Button
                           variant="ghost"
                           size="small"

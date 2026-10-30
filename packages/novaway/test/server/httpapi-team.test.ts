@@ -232,6 +232,35 @@ describe("team HttpApi", () => {
     }),
   )
 
+  it.live("a template run waits for approval instead of getting stuck in planning", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped({ git: true })
+      // 模板列表接口会顺带播种内置审查团队。
+      const profiles = (yield* (yield* get(dir, "/team/profile", dir)).json) as Array<{ id: string }>
+      expect(profiles.length).toBeGreaterThan(0)
+
+      const created = yield* post(dir, "/run", {
+        sessionID: "ses_template",
+        directory: dir,
+        mode: "team",
+        goal: "审查这次改动",
+        profileID: profiles[0].id,
+        acceptance: [{ text: "没有高危问题" }],
+      })
+      expect(created.status).toBe(200)
+      const detail = (yield* created.json) as {
+        run: { state: string; planVersion: number; readOnly: boolean }
+        teams: unknown[]
+      }
+      // 计划已经建好：此刻该等批准。停在 `planning` 的话界面没有批准按钮，运行就卡死了。
+      expect(detail.run.state).toBe("awaiting_approval")
+      expect(detail.run.planVersion).toBe(1)
+      // 模板发起也只能是只读 —— 想改工作区仍要显式放宽。
+      expect(detail.run.readOnly).toBe(true)
+      expect(detail.teams.length).toBe(1)
+    }),
+  )
+
   it.live("only an abandoned mission can give its workspace back", () =>
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped({ git: true })

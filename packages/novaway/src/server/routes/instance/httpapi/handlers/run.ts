@@ -293,6 +293,8 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
                 policy: { readOnly: ctx.payload.readOnly ?? true },
               },
               planVersion: 1,
+              // 模板发起等于计划已经建好：此刻应当等批准，而不是停在没有按钮可点的 `planning`。
+              state: "awaiting_approval",
             })
             const worktree = yield* ensureWorktree(worktreeBase, run.id, snapshot.name)
             yield* runs.addTeam({

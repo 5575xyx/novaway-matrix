@@ -152,6 +152,45 @@ describe("team_run tool", () => {
   )
 
   it.instance(
+    "asking for writes turns the plan writable but leaves the approval to the user",
+    () =>
+      Effect.gen(function* () {
+        const sessions = yield* Session.Service
+        const teams = yield* TeamService
+        const runs = yield* TeamRunService
+        const dir = yield* tmpdirScoped({ git: true })
+
+        const session = yield* sessions.create({ title: "lead", teamMode: "selected", directory: dir })
+        const team = yield* teams.create({ name: "改代码", rootSessionID: session.id })
+        yield* teams.addMember({
+          teamID: team.id,
+          sessionID: SessionID.make("ses_member_e"),
+          name: "小明",
+          agent: "build",
+          role: "lead",
+        })
+        yield* sessions.setTeamMode({ sessionID: session.id, mode: "selected", teamIDs: [team.id] })
+
+        const tool = yield* TeamRunTool
+        const def = yield* tool.init()
+        // 点名团队是「用哪个团队」的授权，不是「可以改我的仓库」的授权。
+        const result = yield* def.execute(
+          { team: "改代码", goal: "修掉重试 bug", allowWrites: true },
+          ctx(session.id, dir),
+        )
+
+        const runID = runIDOf(result.metadata)
+        const run = yield* runs.get(runID)
+        expect(run?.plan?.policy?.readOnly).toBe(false)
+        // 放宽必须等人批准：selected 模式的自动批准只覆盖只读运行。
+        expect(run?.state).toBe("awaiting_approval")
+        expect(run?.approval).toBeUndefined()
+        expect(result.output).toContain("policy: writable")
+      }),
+    { timeout: 30_000 },
+  )
+
+  it.instance(
     "attaching to a mission reuses its workspace and refuses a foreign one",
     () =>
       Effect.gen(function* () {

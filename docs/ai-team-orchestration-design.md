@@ -2050,6 +2050,12 @@ DAG 的依赖只说「谁在谁之后」，不够：上游返工改了产物，�
 3. **开工后不能改。** 中途放宽会让同一次运行时紧时松，证据绑定的权限也就不可解释；要换授权只能取消后重开。
 4. **模型只能申请。** `allowWrites: true` 只会把计划标成可写并要求批准 —— 模型永远批不了自己。
 
+**顺带修掉的真 bug：有计划却停在 `planning`。** `createRun` 带 `profileID`（界面「用模板发起」）
+时计划已经建好，但状态仍是 `planning`，而批准按钮只在 `awaiting_approval` 出现 ——
+于是这条路的运行永远批不了、也永远跑不了。`team_run` 建完计划时不自动批准的情况同样如此。
+现在两条路都在计划落库的同一步把状态推到 `awaiting_approval`，与 `setRunPlan` 同一条规则：
+**有计划 ⇒ 等批准**。回归用例在 `test/server/httpapi-team.test.ts` 与 `test/tool/team-run.test.ts`。
+
 **P3 收尾说明（2026-10-30）**
 
 - **`done` 的界面措辞已落地**：运行页终态从「已完成」改为「已验证交付」/「Verified delivery」

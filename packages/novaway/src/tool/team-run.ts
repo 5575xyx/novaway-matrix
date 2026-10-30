@@ -48,7 +48,8 @@ export const TeamRunTool = Tool.define<typeof TeamRunParameters, { runID?: strin
   Effect.succeed({
     description: [
       "Dispatch a team from this session's team catalog.",
-      "Creates a run with a plan and acceptance criteria, then stops: the user approves and starts it from the Runs page.",
+      "Creates a run with a plan and acceptance criteria, then stops: the user starts it, and approves it first unless it is a read-only run of a team they picked.",
+      "Runs are read-only unless the user asked for changes; asking for writes (allowWrites) always waits for the user's approval.",
       "Works only when the user picked a team (or Auto) for this session; otherwise tell the user to choose one.",
     ].join(" "),
     parameters: TeamRunParameters,
@@ -186,6 +187,8 @@ export const TeamRunTool = Tool.define<typeof TeamRunParameters, { runID?: strin
             policy: { readOnly },
           },
           planVersion: 1,
+          // 有计划就应当等批准：停在没有按钮可点的 `planning` 等于把运行卡死。
+          state: "awaiting_approval",
         })
         yield* runs.appendEvent({
           runID: run.id,
