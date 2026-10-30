@@ -62,6 +62,7 @@ import { Service as HookServiceService, defaultLayer as HookServiceLayer } from 
 import { Service as ToolLockServiceService, defaultLayer as ToolLockServiceLayer } from "@/tool/lock"
 import { Service as AgentMailboxService, defaultLayer as AgentMailboxLayer } from "@/team/mailbox"
 import { Service as TeamOpLogService, defaultLayer as TeamOpLogLayer, idempotencyKey } from "@/team/op-log"
+import { Service as TeamWriterService, defaultLayer as TeamWriterLayer } from "@/team/writer"
 import { Service as TeamService } from "@/team/team"
 import { TeamCatalog } from "@/team/catalog"
 import { Permission } from "@/permission"
@@ -658,6 +659,8 @@ export const layer = Layer.effect(
     // 团队编排的工具操作日志：只有子会话被登记了编排坐标才生效，
     // 普通会话完全不受影响（serviceOption 拿不到时也自动退化）。
     const teamOps = Option.getOrUndefined(yield* Effect.serviceOption(TeamOpLogService))
+    // 团队内单写者：同一 run 的写操作排队，只读调用不进这把锁（§10.1）。
+    const teamWriters = Option.getOrUndefined(yield* Effect.serviceOption(TeamWriterService))
     // 团队目录：能派发谁由会话字段决定，注入内容按签名去重（见 insertReminders）。
     const teamService = Option.getOrUndefined(yield* Effect.serviceOption(TeamService))
     const teamCatalogSignatures = new Map<string, string>()
@@ -1345,7 +1348,14 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                   // Whatever the hook says about the failure is queued and shown
                   // at the next request; the error object itself is untouched so
                   // permission rejections keep their identity for denial counting.
-                  const result = yield* item.execute(effective, ctx).pipe(
+                  const executeTool = item.execute(effective, ctx)
+                  // 有编排坐标的写操作串行执行：worktree 隔离挡不住同队两人同时改
+                  // index / lock 文件，也挡不住测试读到别人未完成的改动。
+                  const runTool =
+                    opScope && teamWriters
+                      ? teamWriters.serial({ runID: opScope.runID, actor: ctx.sessionID }, executeTool)
+                      : executeTool
+                  const result = yield* runTool.pipe(
                     Effect.tap(() =>
                       op && teamOps ? teamOps.finish({ id: op.op.id, outcome: "succeeded" }) : Effect.void,
                     ),
@@ -4240,7 +4250,9 @@ export const defaultLayer = Layer.suspend(() =>
     ),
     Layer.provide(ToolRegistry.defaultLayer),
     Layer.provide(Truncate.defaultLayer),
-    Layer.provide(Layer.mergeAll(HookServiceLayer, ToolLockServiceLayer, AgentMailboxLayer, TeamOpLogLayer)),
+    Layer.provide(
+      Layer.mergeAll(HookServiceLayer, ToolLockServiceLayer, AgentMailboxLayer, TeamOpLogLayer, TeamWriterLayer),
+    ),
     Layer.provide(Provider.defaultLayer),
     Layer.provide(Config.defaultLayer),
     Layer.provide(Git.defaultLayer),
