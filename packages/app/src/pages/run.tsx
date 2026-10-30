@@ -221,6 +221,22 @@ export const RunPage: Component<{
    * 运行结束不等于目标完成，目标完成也不会停掉运行 —— 两件事的生命周期是分开的。
    * 所以这里没有「跑完自动完成」的捷径，只有这一下明确的点击。
    */
+  /**
+   * 放弃的目标才谈得上清理工作区（§3.2）。
+   *
+   * 活跃目标下次运行还要从这份工作区接着做；已完成的目标还要靠它回答「总共改了什么」。
+   * 拒绝的原因要原样显示 —— 「点了没反应」比「不能清」更让人困惑。
+   */
+  const cleanupMission = () =>
+    act("mission", async () => {
+      const mission = currentMission()
+      if (!mission) return
+      const result = await sdk.client.mission.cleanup({ missionID: mission.id, directory: props.directory })
+      const data = result.data
+      setNotice(data?.removed ? t("run.mission.cleaned") : (data?.reason ?? t("run.mission.cleanupNothing")))
+      await loadMissions()
+    })
+
   const setMissionStatus = (status: "active" | "done" | "abandoned") =>
     act("mission", async () => {
       const mission = currentMission()
@@ -561,6 +577,16 @@ export const RunPage: Component<{
                                 onClick={() => void setMissionStatus("active")}
                               >
                                 {t("run.mission.reopen")}
+                              </Button>
+                            </Show>
+                            <Show when={mission().status === "abandoned" && !!mission().worktree}>
+                              <Button
+                                variant="ghost"
+                                size="small"
+                                disabled={busy() === "mission"}
+                                onClick={() => void cleanupMission()}
+                              >
+                                {t("run.mission.cleanup")}
                               </Button>
                             </Show>
                           </div>

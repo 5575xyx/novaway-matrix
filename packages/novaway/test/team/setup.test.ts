@@ -1,8 +1,9 @@
 import { describe, expect } from "bun:test"
+import fs from "node:fs/promises"
 import { Effect, Layer } from "effect"
 import { Service as MissionService, defaultLayer as MissionLayer } from "@/team/mission"
 import { Service as RunService, defaultLayer as RunLayer } from "@/team/run"
-import { attachMission, prepareWorktree } from "@/team/setup"
+import { attachMission, cleanupMission, prepareWorktree } from "@/team/setup"
 import { SessionID } from "@/session/schema"
 import { TestInstance } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
@@ -44,6 +45,68 @@ describe("run setup", () => {
           { missionID: mission.id, directory: instance.directory },
         )
         expect(refused.kind === "refused" && refused.reason).toContain("未结束")
+      }),
+    { git: true },
+  )
+
+  it.instance(
+    "only an abandoned mission can give its workspace back",
+    () =>
+      Effect.gen(function* () {
+        const missions = yield* MissionService
+        const runs = yield* RunService
+        const instance = yield* TestInstance
+        const mission = yield* missions.create({ directory: instance.directory, goal: "要放弃的目标" })
+        const attached = yield* attachMission(
+          { missions, runs },
+          { missionID: mission.id, directory: instance.directory },
+        )
+        if (attached.kind !== "ready" || !attached.worktree) throw new Error("工作区没有建起来")
+        const worktree = attached.worktree
+
+        // 还在进行中的目标不能清：下一次运行要从这份工作区接着做。
+        const active = yield* cleanupMission({ missions, runs }, mission.id)
+        expect(active.kind).toBe("refused")
+        expect(active.kind === "refused" && active.reason).toContain("已放弃")
+        expect(
+          yield* Effect.promise(() =>
+            fs.stat(worktree).then(
+              () => true,
+              () => false,
+            ),
+          ),
+        ).toBe(true)
+
+        // 还有未结束的运行在用它时同样拒绝：删掉正在被写的目录不是清理。
+        yield* runs.create({
+          sessionID: SessionID.make("ses_live"),
+          directory: instance.directory,
+          missionID: mission.id,
+          mode: "team",
+          goal: "还在跑",
+        })
+        yield* missions.setStatus({ missionID: mission.id, status: "abandoned" })
+        const busy = yield* cleanupMission({ missions, runs }, mission.id)
+        expect(busy.kind === "refused" && busy.reason).toContain("未结束")
+
+        // 运行结束之后才轮到清理：目录与分支一起消失，记录也跟着清掉。
+        yield* runs.update({ runID: (yield* runs.list({ missionID: mission.id }))[0].id, state: "cancelled" })
+        const removed = yield* cleanupMission({ missions, runs }, mission.id)
+        expect(removed.kind).toBe("removed")
+        expect(
+          yield* Effect.promise(() =>
+            fs.stat(worktree).then(
+              () => true,
+              () => false,
+            ),
+          ),
+        ).toBe(false)
+        const after = yield* missions.get(mission.id)
+        expect(after?.worktree).toBeUndefined()
+        expect(after?.branch).toBeUndefined()
+
+        // 再清一次没什么可清：如实说没有，而不是报错或假装成功。
+        expect((yield* cleanupMission({ missions, runs }, mission.id)).kind).toBe("nothing")
       }),
     { git: true },
   )

@@ -60,6 +60,17 @@ export const MissionStatusPayload = Schema.Struct({
   status: Schema.Literals(["active", "done", "abandoned"]),
 })
 
+/**
+ * 工作区清理结果。
+ *
+ * `removed: false` 不是错误：目标还活跃、还有运行在用它、目录已经被删掉，
+ * 都是用户需要读到的事实，而不是「服务器出错」。
+ */
+export const MissionCleanup = Schema.Struct({
+  removed: Schema.Boolean,
+  reason: Schema.optional(Schema.String),
+}).annotate({ identifier: "MissionCleanup" })
+
 export const MissionApi = HttpApiGroup.make("mission")
   .add(
     HttpApiEndpoint.get("listMissions", root, {
@@ -120,6 +131,19 @@ export const MissionApi = HttpApiGroup.make("mission")
         identifier: "mission.update",
         summary: "Update mission status",
         description: "Only the user (or a member) sets this: finishing a run never completes a mission.",
+      }),
+    ),
+    HttpApiEndpoint.delete("cleanupMission", `${root}/:missionID/worktree`, {
+      params: { missionID: Schema.String },
+      query: WorkspaceRoutingQuery,
+      success: described(MissionCleanup, "Cleanup result"),
+      error: [HttpApiError.BadRequest, HttpApiError.NotFound],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "mission.cleanup",
+        summary: "Remove an abandoned mission's workspace",
+        description:
+          "Only abandoned missions can be cleaned up: an active mission may need its workspace for the next run, and a done mission needs it to answer what changed overall.",
       }),
     ),
   )

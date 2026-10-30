@@ -3592,6 +3592,11 @@ export type MissionDiffView = {
   skippedReason?: string
 }
 
+export type MissionCleanup = {
+  removed: boolean
+  reason?: string
+}
+
 export type RunUsageView = {
   reserved: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   settled: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
@@ -17470,6 +17475,40 @@ export type MissionDiffResponses = {
 
 export type MissionDiffResponse = MissionDiffResponses[keyof MissionDiffResponses]
 
+export type MissionCleanupData = {
+  body?: never
+  path: {
+    missionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/mission/{missionID}/worktree"
+}
+
+export type MissionCleanupErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type MissionCleanupError = MissionCleanupErrors[keyof MissionCleanupErrors]
+
+export type MissionCleanupResponses = {
+  /**
+   * Cleanup result
+   */
+  200: MissionCleanup
+}
+
+export type MissionCleanupResponse = MissionCleanupResponses[keyof MissionCleanupResponses]
+
 export type RunListData = {
   body?: never
   path?: never
@@ -17836,6 +17875,15 @@ export type RunEventsData = {
   }
   url: "/run/{runID}/events"
 }
+
+export type RunEventsErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type RunEventsError = RunEventsErrors[keyof RunEventsErrors]
 
 export type RunEventsResponses = {
   /**

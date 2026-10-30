@@ -320,6 +320,8 @@ import type {
   MemoryStatusResponses,
   MemoryUpdateErrors,
   MemoryUpdateResponses,
+  MissionCleanupErrors,
+  MissionCleanupResponses,
   MissionCreateErrors,
   MissionCreateResponses,
   MissionDetailErrors,
@@ -463,6 +465,7 @@ import type {
   RunCreateResponses,
   RunDetailErrors,
   RunDetailResponses,
+  RunEventsErrors,
   RunEventsResponses,
   RunExecuteErrors,
   RunExecuteResponses,
@@ -13722,6 +13725,38 @@ export class Mission extends HeyApiClient {
       ...params,
     })
   }
+
+  /**
+   * Remove an abandoned mission's workspace
+   *
+   * Only abandoned missions can be cleaned up: an active mission may need its workspace for the next run, and a done mission needs it to answer what changed overall.
+   */
+  public cleanup<ThrowOnError extends boolean = false>(
+    parameters: {
+      missionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "missionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<MissionCleanupResponses, MissionCleanupErrors, ThrowOnError>({
+      url: "/team/mission/{missionID}/worktree",
+      ...options,
+      ...params,
+    })
+  }
 }
 
 export class Acceptance extends HeyApiClient {
@@ -14176,7 +14211,7 @@ export class Run2 extends HeyApiClient {
         },
       ],
     )
-    return (options?.client ?? this.client).get<RunEventsResponses, unknown, ThrowOnError>({
+    return (options?.client ?? this.client).get<RunEventsResponses, RunEventsErrors, ThrowOnError>({
       url: "/run/{runID}/events",
       ...options,
       ...params,

@@ -3,6 +3,7 @@ import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
 import { Service as MissionService, type Mission } from "@/team/mission"
 import { Service as RunService } from "@/team/run"
+import { cleanupMission } from "@/team/setup"
 
 const pad = (number: number) => "M-" + String(number).padStart(3, "0")
 
@@ -88,6 +89,16 @@ export const missionHandlers = HttpApiBuilder.group(InstanceHttpApi, "mission", 
             goal: ctx.payload.goal.trim(),
           })
           return yield* view(mission)
+        }),
+      )
+      .handle("cleanupMission", (ctx) =>
+        Effect.gen(function* () {
+          if (!(yield* findScoped(ctx.params.missionID, ctx.query.directory)))
+            return yield* Effect.fail(new HttpApiError.NotFound({}))
+          const result = yield* cleanupMission({ missions, runs }, ctx.params.missionID)
+          if (result.kind === "removed") return { removed: true }
+          // 「没什么可清理」与「现在不能清理」都要说清楚，否则用户只会看到一次无效点击。
+          return { removed: false, reason: result.kind === "nothing" ? "目标还没有工作区" : result.reason }
         }),
       )
       .handle("updateMission", (ctx) =>

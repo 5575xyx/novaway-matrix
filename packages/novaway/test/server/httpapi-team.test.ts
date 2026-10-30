@@ -61,6 +61,11 @@ const get = (dir: string, path: string, param?: string) =>
 const patch = (dir: string, path: string, body: unknown) =>
   send(HttpClientRequest.patch(path).pipe(directoryHeader(dir), HttpClientRequest.setUrlParam("directory", dir)), body)
 
+const del = (dir: string, path: string) =>
+  HttpClient.execute(
+    HttpClientRequest.delete(path).pipe(directoryHeader(dir), HttpClientRequest.setUrlParam("directory", dir)),
+  )
+
 describe("team HttpApi", () => {
   it.live("creates, lists and updates a mission; the diff says why it cannot be computed yet", () =>
     Effect.gen(function* () {
@@ -177,6 +182,50 @@ describe("team HttpApi", () => {
       })
 
       expect((yield* post(dir, "/run/run_missing/merge")).status).toBe(404)
+    }),
+  )
+
+  it.live("only an abandoned mission can give its workspace back", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped({ git: true })
+      const created = yield* post(dir, "/team/mission", { directory: dir, goal: "要放弃的目标" })
+      const mission = (yield* created.json) as { id: string }
+
+      // 跑一次让目标工作区建起来：没有工作区时清理没什么可做。
+      const run = yield* post(dir, "/run", {
+        sessionID: "ses_cleanup",
+        directory: dir,
+        mode: "team",
+        goal: "一次运行",
+        missionID: mission.id,
+      })
+      expect(run.status).toBe(200)
+      const runID = ((yield* run.json) as { run: { id: string } }).run.id
+      const prepared = (yield* (yield* get(dir, `/team/mission/${mission.id}`)).json) as { worktree?: string }
+      expect(prepared.worktree).toBeTruthy()
+
+      // 活跃目标不能清：下一次运行还要从这份工作区接着做。
+      const active = (yield* (yield* del(dir, `/team/mission/${mission.id}/worktree`)).json) as {
+        removed: boolean
+        reason?: string
+      }
+      expect(active.removed).toBe(false)
+      expect(active.reason).toContain("已放弃")
+
+      // 结束运行并放弃目标之后才轮得到清理。
+      expect((yield* post(dir, `/run/${runID}/cancel`)).status).toBe(200)
+      yield* patch(dir, `/team/mission/${mission.id}`, { status: "abandoned" })
+      const removed = (yield* (yield* del(dir, `/team/mission/${mission.id}/worktree`)).json) as {
+        removed: boolean
+      }
+      expect(removed.removed).toBe(true)
+      const after = (yield* (yield* get(dir, `/team/mission/${mission.id}`)).json) as { worktree?: string | null }
+      // 记录跟着目录一起消失：界面上不能再显示一个不存在的路径。
+      expect(after.worktree).toBeFalsy()
+
+      // 别的目录里连清理也看不到。
+      const other = yield* tmpdirScoped({ git: true })
+      expect((yield* del(other, `/team/mission/${mission.id}/worktree`)).status).toBe(404)
     }),
   )
 })

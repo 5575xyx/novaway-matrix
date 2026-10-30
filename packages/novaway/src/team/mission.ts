@@ -47,6 +47,13 @@ export interface Interface {
    */
   readonly prepare: (missionID: string) => Effect.Effect<Prepared>
   /**
+   * 忘掉已经删掉的工作区记录。
+   *
+   * 只由清理动作在真正删掉目录之后调用 —— 留着记录会让 `prepare` 以为工作区
+   * 还在（目录不存在时会重建，但界面会先显示一个不存在的路径）。
+   */
+  readonly forget: (missionID: string) => Effect.Effect<void>
+  /**
    * 累计差异：`baseSHA` → 目标工作区当前内容。
    *
    * 没有工作区、没有起点、不是 git 仓库时返回原因 —— 差异算不出来就说算不出来，
@@ -184,6 +191,19 @@ export const layer = Layer.effect(
       return { kind: "ready", mission: updated ?? mission } satisfies Prepared
     })
 
+    const forget: Interface["forget"] = Effect.fn("TeamMission.forget")(function* (missionID) {
+      const now = Date.now()
+      yield* Effect.sync(() =>
+        Database.use((db) =>
+          db
+            .update(TeamMissionTable)
+            .set({ worktree: null, branch: null, time_updated: now })
+            .where(eq(TeamMissionTable.id, missionID))
+            .run(),
+        ),
+      )
+    })
+
     const diff: Interface["diff"] = Effect.fn("TeamMission.diff")(function* (missionID) {
       const mission = yield* get(missionID)
       if (!mission) return undefined
@@ -197,7 +217,7 @@ export const layer = Layer.effect(
       return { kind: "diff", diff: result } satisfies MissionDiff
     })
 
-    return Service.of({ create, get, list, setStatus, prepare, diff })
+    return Service.of({ create, get, list, setStatus, prepare, forget, diff })
   }),
 )
 
