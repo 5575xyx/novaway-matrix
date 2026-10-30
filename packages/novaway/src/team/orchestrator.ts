@@ -501,72 +501,133 @@ export const layer = Layer.effect(
       }
       // 集成没成功时，后面在「未合并的快照」上得出的通过结论不具备可交付性。
       // 提交失败同理：集成合到的是旧内容，最终验证对着的不是团队写下的代码。
-      const integrationBroken =
+      let integrationBroken =
         commitBroken ||
         (!!integration &&
           (Exit.isFailure(integration) || integration.value.kind === "conflict" || integration.value.kind === "failed"))
 
       // 合并后的重验：快照变了，之前团队的证据一律作废，
       // 必须在最终快照上重新验证（合并后的验收永远是重档，见 §10 / §19.1）。
-      const snapshot = yield* input.snapshot()
-      teams = yield* runs.teams(input.runID)
-      const teamByID = new Map(teams.map((team) => [team.id, team]))
-
-      const recordResult = (
-        acceptance: Acceptance,
-        result: Exit.Exit<VerificationResult, unknown>,
-        fallbackVersion: string,
-      ) =>
-        verification.record({
-          acceptanceID: acceptance.id,
-          snapshotID: Exit.isSuccess(result) ? (result.value.snapshotID ?? snapshot) : snapshot,
-          verifierVersion: Exit.isSuccess(result)
-            ? (result.value.verifierVersion ?? fallbackVersion)
-            : "verifier-error",
-          outcome: Exit.isSuccess(result) ? result.value.outcome : "unverified",
-          measured: Exit.isSuccess(result) ? result.value.measured : message(result.cause),
-          evidenceRef: Exit.isSuccess(result) ? result.value.evidenceRef : undefined,
-          attempt: rounds + 1,
-        })
-
-      for (const acceptance of acceptances) {
-        if (!acceptance.owner) {
-          if (!input.verifyMerged) {
-            yield* verification.record({
+      //
+      // 重验失败时，把责任团队退回重做**一次**：重验是重档、代价高，不能每轮都跑；
+      // 但「合并后才暴露的问题」正是返工该发生的地方。第二次仍失败就照实记 partial。
+      const recheckAll = (snapshot: string, teamByID: Map<string, RunTeam>) =>
+        Effect.gen(function* () {
+          const recordResult = (
+            acceptance: Acceptance,
+            result: Exit.Exit<VerificationResult, unknown>,
+            fallbackVersion: string,
+          ) =>
+            verification.record({
               acceptanceID: acceptance.id,
-              snapshotID: snapshot,
-              verifierVersion: "none",
-              outcome: "unverified",
-              measured: "未配置合并验收验证器",
+              snapshotID: Exit.isSuccess(result) ? (result.value.snapshotID ?? snapshot) : snapshot,
+              verifierVersion: Exit.isSuccess(result)
+                ? (result.value.verifierVersion ?? fallbackVersion)
+                : "verifier-error",
+              outcome: Exit.isSuccess(result) ? result.value.outcome : "unverified",
+              measured: Exit.isSuccess(result) ? result.value.measured : message(result.cause),
+              evidenceRef: Exit.isSuccess(result) ? result.value.evidenceRef : undefined,
               attempt: rounds + 1,
             })
-            continue
+
+          for (const acceptance of acceptances) {
+            if (!acceptance.owner) {
+              if (!input.verifyMerged) {
+                yield* verification.record({
+                  acceptanceID: acceptance.id,
+                  snapshotID: snapshot,
+                  verifierVersion: "none",
+                  outcome: "unverified",
+                  measured: "未配置合并验收验证器",
+                  attempt: rounds + 1,
+                })
+                continue
+              }
+              const merged = yield* Effect.exit(input.verifyMerged({ acceptance, snapshotID: snapshot }))
+              yield* recordResult(acceptance, merged, "merged")
+              continue
+            }
+            const team = teamByID.get(acceptance.owner)
+            if (!team) {
+              yield* verification.record({
+                acceptanceID: acceptance.id,
+                snapshotID: snapshot,
+                verifierVersion: "none",
+                outcome: "unverified",
+                measured: "验收归属的团队不在本次运行中",
+                attempt: rounds + 1,
+              })
+              continue
+            }
+            const report = (team.report as unknown as Report | undefined) ?? {
+              teamID: team.id,
+              summary: "",
+              claims: [],
+            }
+            const recheck = yield* Effect.exit(input.verify({ acceptance, report, team, round: rounds + 1 }))
+            yield* recordResult(acceptance, recheck, "v1")
           }
-          const merged = yield* Effect.exit(input.verifyMerged({ acceptance, snapshotID: snapshot }))
-          yield* recordResult(acceptance, merged, "merged")
-          continue
+        })
+
+      let mergeSnapshot = yield* input.snapshot()
+      let mergeReworked = false
+      for (;;) {
+        const snapshot = mergeSnapshot
+        teams = yield* runs.teams(input.runID)
+        const teamByID = new Map(teams.map((team) => [team.id, team]))
+
+        yield* recheckAll(snapshot, teamByID)
+        const merged = yield* verification.summary({ runID: input.runID, currentSnapshot: snapshot })
+
+        // 最新结论不是 pass、且有归属团队的验收项 → 这些团队需要重做。
+        const responsible = new Map<string, string[]>()
+        for (const line of merged.lines) {
+          if (!line.acceptance.owner || line.outcome === "pass") continue
+          const notes = responsible.get(line.acceptance.owner) ?? []
+          notes.push("合并后重验未通过：" + line.acceptance.text + "（" + line.outcome + "）")
+          responsible.set(line.acceptance.owner, notes)
         }
-        const team = teamByID.get(acceptance.owner)
-        if (!team) {
-          yield* verification.record({
-            acceptanceID: acceptance.id,
-            snapshotID: snapshot,
-            verifierVersion: "none",
-            outcome: "unverified",
-            measured: "验收归属的团队不在本次运行中",
-            attempt: rounds + 1,
+        if (mergeReworked || responsible.size === 0 || attempts.business >= maxBusiness) break
+
+        // 只重试一次：责任团队退回、重跑、提交、重新集成，然后在新快照上再验一遍。
+        mergeReworked = true
+        for (const [teamID, notes] of responsible) {
+          feedback.set(teamID, notes)
+          yield* runs.updateTeam({ id: teamID, phase: "queued" })
+          yield* runs.appendEvent({
+            runID: input.runID,
+            kind: "team.rework",
+            payload: { teamID, reason: "merged-verification", notes },
           })
-          continue
         }
-        const report = (team.report as unknown as Report | undefined) ?? {
-          teamID: team.id,
-          summary: "",
-          claims: [],
+        rounds += 1
+        for (const teamID of responsible.keys()) {
+          const team = (yield* runs.teams(input.runID)).find((item) => item.id === teamID)
+          if (team) yield* attempt(team, rounds)
         }
-        const recheck = yield* Effect.exit(input.verify({ acceptance, report, team, round: rounds + 1 }))
-        yield* recordResult(acceptance, recheck, "v1")
+        // 合并的必须是磁盘上的最终内容：返工后同样先提交再集成。
+        if (input.commit) {
+          const committed = yield* Effect.exit(input.commit())
+          if (Exit.isFailure(committed)) {
+            commitBroken = true
+            yield* runs.appendEvent({
+              runID: input.runID,
+              kind: "integration.commit_failed",
+              payload: { message: message(committed.cause) },
+            })
+          }
+        }
+        integration = input.integrate ? yield* Effect.exit(input.integrate()) : integration
+        integrationBroken =
+          commitBroken ||
+          (!!integration &&
+            (Exit.isFailure(integration) ||
+              integration.value.kind === "conflict" ||
+              integration.value.kind === "failed"))
+        mergeSnapshot = yield* input.snapshot()
       }
 
+      const snapshot = mergeSnapshot
       const summary = yield* verification.summary({ runID: input.runID, currentSnapshot: snapshot })
       teams = yield* runs.teams(input.runID)
       // 有结果不明的工具操作时，不允许宣称完成——先让人核对副作用。

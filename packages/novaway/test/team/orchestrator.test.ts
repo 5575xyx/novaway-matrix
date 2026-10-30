@@ -546,4 +546,85 @@ describe("team orchestrator", () => {
       expect(failed?.payload?.reason).toBe("commit")
     }),
   )
+
+  it.effect("a failed merged verification sends exactly the responsible team back once", () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* OrchestratorService
+      const verification = yield* VerificationService
+      const { runs, run, team } = yield* setup
+
+      let verifyCalls = 0
+      let integrateCalls = 0
+      let dispatched = 0
+      const result = yield* orchestrator.execute({
+        runID: run.id,
+        // 每次集成之后取到的都是新快照。
+        snapshot: () => Effect.succeed("snap_" + integrateCalls),
+        dispatch: (input) => {
+          dispatched += 1
+          return Effect.succeed(report(input.team.id))
+        },
+        // 团队快照上通过（第 1 次），合并后重验失败（第 2 次），返工后再次通过。
+        verify: () => Effect.succeed({ outcome: verifyCalls++ === 1 ? ("fail" as const) : ("pass" as const) }),
+        integrate: () =>
+          Effect.sync(() => {
+            integrateCalls += 1
+            return { kind: "merged" as const, sha: "snap_" + integrateCalls, merged: ["alpha"] }
+          }),
+      })
+
+      // 责任团队只退回一次；重验通过后仍然可以落成 done。
+      expect(result.state).toBe("done")
+      expect(dispatched).toBe(2)
+      const events = yield* runs.events({ runID: run.id })
+      const reworks = events.filter(
+        (event) => event.kind === "team.rework" && event.payload?.reason === "merged-verification",
+      )
+      expect(reworks.length).toBe(1)
+      expect(reworks[0].payload).toEqual({
+        teamID: team.id,
+        reason: "merged-verification",
+        notes: ["合并后重验未通过：验收（fail）"],
+      })
+      // 合并后重验的结论落在最终的合并快照上，而不是团队自己的快照。
+      const summary = yield* verification.summary({ runID: run.id, currentSnapshot: "snap_2" })
+      expect(summary.pass).toBe(1)
+      expect(summary.stale).toBe(0)
+    }),
+  )
+
+  it.effect("a merged verification that still fails after the rework is reported as partial, not done", () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* OrchestratorService
+      const { runs, run } = yield* setup
+
+      let verifyCalls = 0
+      let integrateCalls = 0
+      let dispatched = 0
+      const result = yield* orchestrator.execute({
+        runID: run.id,
+        snapshot: () => Effect.succeed("snap_" + integrateCalls),
+        dispatch: (input) => {
+          dispatched += 1
+          return Effect.succeed(report(input.team.id))
+        },
+        // 团队验收每次都过，合并重验每次都不过：返工解决不了，就不该无限重试。
+        verify: () => Effect.succeed({ outcome: verifyCalls++ % 2 === 0 ? ("pass" as const) : ("fail" as const) }),
+        integrate: () =>
+          Effect.sync(() => {
+            integrateCalls += 1
+            return { kind: "merged" as const, sha: "snap_" + integrateCalls, merged: ["alpha"] }
+          }),
+      })
+
+      expect(result.state).not.toBe("done")
+      // 只退回一次：第二次仍失败就照实记 partial，而不是继续烧预算。
+      expect(dispatched).toBe(2)
+      const events = yield* runs.events({ runID: run.id })
+      const reworks = events.filter(
+        (event) => event.kind === "team.rework" && event.payload?.reason === "merged-verification",
+      )
+      expect(reworks.length).toBe(1)
+    }),
+  )
 })
