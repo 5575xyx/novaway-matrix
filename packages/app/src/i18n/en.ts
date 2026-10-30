@@ -83,6 +83,10 @@ export const dict = {
     "Merge the run's integration branch into the branch you have checked out. Refused while the working tree has uncommitted changes.",
   "run.merge.done": "Merged into {{branch}} at {{sha}}.",
   "run.merge.failed": "Merge did not happen.",
+  "run.context.truncated": "{{count}} part(s) of the dispatched context were truncated",
+  "run.context.omitted": "{{count}} item(s) left out",
+  "run.context.hint":
+    "Truncation is written into the prompt so the captain knows what it did not see, and frozen per dispatch.",
   "run.usage.title": "Usage by job",
   "run.usage.budget": "Budget",
   "run.usage.cap": "{{used}} committed / {{cap}} cap",

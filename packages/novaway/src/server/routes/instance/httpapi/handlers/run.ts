@@ -11,6 +11,7 @@ import {
   type VerifyInput,
 } from "@/team/orchestrator"
 import { TeamVerifier } from "@/team/verifier"
+import * as TeamContext from "@/team/context"
 import { Service as TeamProfileService, brief as rosterBrief, snapshotFrom } from "@/team/profile"
 import { TeamPolicy } from "@/team/policy"
 import {
@@ -93,6 +94,43 @@ const toUsage = (value: Record<string, unknown> | undefined) => {
   }
 }
 
+/**
+ * 把落库的上下文清单读成响应结构（§6.4）。
+ *
+ * 同样逐字段校验：清单是运行时写的，但读的时候不能假设它一定完整。
+ * `brief` 是整段提示词，界面用不到 —— 它属于「需要完整复盘时才会读」的那一列。
+ */
+const toContext = (value: Record<string, unknown> | undefined) => {
+  if (!value) return undefined
+  const rawAcceptance: unknown = Reflect.get(value, "acceptance")
+  const rawFeedback: unknown = Reflect.get(value, "feedback")
+  const rawOmitted: unknown = Reflect.get(value, "omitted")
+  const rosterVersion: unknown = Reflect.get(value, "rosterVersion")
+  return {
+    acceptance: Array.isArray(rawAcceptance)
+      ? rawAcceptance.flatMap((item: unknown) => {
+          if (!item || typeof item !== "object") return []
+          const id: unknown = Reflect.get(item, "id")
+          if (typeof id !== "string") return []
+          return [{ id, version: number(Reflect.get(item, "version")) }]
+        })
+      : [],
+    ...(typeof rosterVersion === "string" ? { rosterVersion } : {}),
+    feedback: Array.isArray(rawFeedback) ? rawFeedback.filter((item: unknown) => typeof item === "string") : [],
+    omitted: Array.isArray(rawOmitted)
+      ? rawOmitted.flatMap((item: unknown) => {
+          if (!item || typeof item !== "object") return []
+          const kind: unknown = Reflect.get(item, "kind")
+          const reason: unknown = Reflect.get(item, "reason")
+          if (typeof kind !== "string") return []
+          return [{ kind, count: number(Reflect.get(item, "count")), reason: typeof reason === "string" ? reason : "" }]
+        })
+      : [],
+    truncated: Reflect.get(value, "truncated") === true,
+    builtAt: number(Reflect.get(value, "builtAt")),
+  }
+}
+
 /** 只回传名字与版本：产物的完整内容留在库里，界面不需要也不该展示它。 */
 const artifactsOf = (value: unknown) => {
   const list = normalizeArtifacts(value).map((artifact) => ({ name: artifact.name, version: artifact.version }))
@@ -161,6 +199,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             dependsOn: team.dependsOn ?? [],
             worktree: team.worktree,
             artifacts: artifactsOf(team.artifactsOut),
+            context: toContext(team.contextManifest),
           })),
           acceptances: acceptances.map((acceptance) => ({
             id: acceptance.id,
@@ -590,42 +629,43 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           // 队长派发：任务 + 验收 + 上一轮打回意见，要求结构化回报。
           const dispatch = (input: DispatchInput) =>
             Effect.gen(function* () {
-              const lines = input.acceptance.map(
-                (acceptance) =>
-                  "- [" +
-                  acceptance.id +
-                  "] " +
-                  acceptance.text +
-                  (acceptance.expected ? "（预期：" + acceptance.expected + "）" : ""),
-              )
-              const feedback = input.feedback?.length
-                ? ["\n上一轮未达标的部分：", ...input.feedback.map((item) => "- " + item)]
-                : []
+              // 提示词与清单同源（§6.4）：模型看到的字，就是事后审计的字。
+              const context = TeamContext.build({
+                goal: run.goal,
+                acceptance: input.acceptance.map((acceptance) => ({
+                  id: acceptance.id,
+                  version: acceptance.version,
+                  text: acceptance.text,
+                  expected: acceptance.expected,
+                })),
+                members,
+                feedback: input.feedback ?? [],
+                ...(roster ? { rosterVersion: String(roster.version) } : {}),
+              })
+              // 最近一份清单落库给界面看；逐轮历史进事件，只留摘要不复制整段提示词。
+              yield* runs.updateTeam({
+                id: input.team.id,
+                contextManifest: context.manifest as unknown as Record<string, unknown>,
+              })
+              yield* runs.appendEvent({
+                runID: run.id,
+                kind: "context.manifest",
+                payload: {
+                  teamID: input.team.id,
+                  round: input.round,
+                  acceptance: context.manifest.acceptance.length,
+                  feedback: context.manifest.feedback.length,
+                  ...(context.manifest.rosterVersion ? { rosterVersion: context.manifest.rosterVersion } : {}),
+                  omitted: context.manifest.omitted,
+                  truncated: context.manifest.truncated,
+                },
+              })
               const text = yield* runAgent({
                 agent: captain,
                 ...(teamDirectory ? { directory: teamDirectory } : {}),
                 title: "队长 · 第 " + input.round + " 轮",
                 scope: { runID: run.id, taskID: input.team.id, attempt: input.round, readOnly: policy.readOnly },
-                prompt: [
-                  "你是一个团队的队长，负责把下面的任务分派给成员、自己判定是否可以交付。",
-                  "",
-                  "【总目标】" + run.goal,
-                  "【本次验收】",
-                  ...(lines.length ? lines : ["- （未声明验收，按目标自检）"]),
-                  ...feedback,
-                  ...(members.length
-                    ? [
-                        "",
-                        "【团队成员】",
-                        ...members,
-                        "把互不重叠的角度分派给成员（用 task 工具），自己做拆解、汇总与自检；" +
-                          "只有确实没人能干的部分才自己做。",
-                      ]
-                    : []),
-                  "",
-                  "不要修改验收标准。完成后只输出一个 JSON 对象：",
-                  '{"summary":"一句话交付说明","claims":[{"acceptanceID":"...","text":"...","evidence":"可复核的证据（命令/路径/输出片段）"}],"artifacts":[{"name":"...","version":1}],"done":true}',
-                ].join("\n"),
+                prompt: context.prompt,
               })
               const parsed = parseJSON(text)
               const claims = Array.isArray(parsed?.claims)

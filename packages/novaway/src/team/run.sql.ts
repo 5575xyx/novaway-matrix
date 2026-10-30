@@ -141,6 +141,11 @@ export const TeamRunTeamTable = sqliteTable(
     verdict: text({ mode: "json" }).$type<Record<string, unknown>>(),
     worktree: text(),
     roster_snapshot: text({ mode: "json" }).$type<Record<string, unknown>>(),
+    /**
+     * 最近一次派发投喂给队长的上下文清单（§6.4）：实际 brief、验收 id + 版本、
+     * 名册版本、打回意见与省略项。逐轮历史在 `context.manifest` 事件里。
+     */
+    context_manifest: text({ mode: "json" }).$type<Record<string, unknown>>(),
     depends_on: text({ mode: "json" }).$type<unknown[]>(),
     artifacts_out: text({ mode: "json" }).$type<unknown[]>(),
     usage: text({ mode: "json" }).$type<Record<string, unknown>>(),

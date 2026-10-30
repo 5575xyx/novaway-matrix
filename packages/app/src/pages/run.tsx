@@ -319,6 +319,17 @@ export const RunPage: Component<{
   /** 某条验收项的验证记录；按落库顺序显示，最新一次在最后。 */
   const evidenceFor = (acceptanceID: string) =>
     (detail()?.verifications ?? []).filter((record) => record.acceptanceID === acceptanceID)
+  /** 上下文被截断的地方：逐条摊开，不让它默默发生（§6.4）。 */
+  const truncations = createMemo(() =>
+    (detail()?.teams ?? []).flatMap((team) =>
+      (team.context?.omitted ?? []).map((item) => ({
+        teamID: team.id,
+        kind: item.kind,
+        count: item.count,
+        reason: item.reason,
+      })),
+    ),
+  )
   // 与后端同一条规则：批准前、以及批准后还没开工（running 且没有 phase）时可以改授权。
   // 会话里点名的团队会自动批准并落在 running，所以这一段不能漏 —— 否则界面上就没法放宽。
   const canChangePolicy = createMemo(() => {
@@ -677,6 +688,31 @@ export const RunPage: Component<{
                         </Show>
                       </div>
                     )}
+                  </Show>
+
+                  {/*
+                    截断必须可见（§6.4）：自己少给了模型几条，就不能在复盘时怪模型没看到。
+                    清单在每次派发时落库，这里只显示「哪一队、少了什么、为什么」。
+                  */}
+                  <Show when={truncations().length > 0}>
+                    <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface px-3 py-2">
+                      <div class="text-ui-xs text-warning">
+                        {t("run.context.truncated", { count: String(truncations().length) })}
+                      </div>
+                      <For each={truncations()}>
+                        {(item) => (
+                          <div class="text-ui-xs text-foreground-subtle">
+                            {item.teamID +
+                              " · " +
+                              item.kind +
+                              " " +
+                              t("run.context.omitted", { count: String(item.count) })}
+                            <span class="text-foreground-subtlest">{" " + item.reason}</span>
+                          </div>
+                        )}
+                      </For>
+                      <div class="text-ui-xs text-foreground-subtlest">{t("run.context.hint")}</div>
+                    </div>
                   </Show>
 
                   {/* 成本分两列：已结算只算提供方回报的用量，用量不明单独一列，不冒充实际花费。 */}

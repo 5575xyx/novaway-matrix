@@ -3657,6 +3657,21 @@ export type RunTeamView = {
     name: string
     version: string
   }>
+  context?: {
+    acceptance: Array<{
+      id: string
+      version: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }>
+    rosterVersion?: string
+    feedback: Array<string>
+    omitted: Array<{
+      kind: string
+      count: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      reason: string
+    }>
+    truncated: boolean
+    builtAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
 }
 
 export type RunAcceptanceView = {

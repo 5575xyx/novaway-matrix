@@ -70,6 +70,26 @@ export const RunTeamView = Schema.Struct({
    * 上游一变，下游的旧结论就失效 —— 界面能看出「它交付的是哪一版」。
    */
   artifacts: Schema.optional(Schema.Array(Schema.Struct({ name: Schema.String, version: Schema.String }))),
+  /**
+   * 最近一次派发的上下文清单（§6.4）。`brief` 就是模型实际看到的字；
+   * `truncated` 为真时界面必须显示 —— 「悄悄少给几条」是不允许的。
+   */
+  context: Schema.optional(
+    Schema.Struct({
+      acceptance: Schema.Array(Schema.Struct({ id: Schema.String, version: Schema.Number })),
+      rosterVersion: Schema.optional(Schema.String),
+      feedback: Schema.Array(Schema.String),
+      omitted: Schema.Array(
+        Schema.Struct({
+          kind: Schema.String,
+          count: Schema.Number,
+          reason: Schema.String,
+        }),
+      ),
+      truncated: Schema.Boolean,
+      builtAt: Schema.Number,
+    }),
+  ),
 }).annotate({ identifier: "RunTeamView" })
 
 export const RunAcceptanceView = Schema.Struct({

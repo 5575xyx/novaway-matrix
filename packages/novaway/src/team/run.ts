@@ -123,6 +123,8 @@ export type RunTeam = {
   verdict?: Record<string, unknown>
   worktree?: string
   rosterSnapshot?: Record<string, unknown>
+  /** 最近一次派发投喂给队长的上下文清单（§6.4）；逐轮历史在事件里。 */
+  contextManifest?: Record<string, unknown>
   dependsOn: number[]
   artifactsOut: unknown[]
   usage?: Record<string, unknown>
@@ -218,6 +220,7 @@ export interface Interface {
     profileID?: string
     profileVersion?: number
     rosterSnapshot?: Record<string, unknown>
+    contextManifest?: Record<string, unknown>
     dependsOn?: number[]
     worktree?: string
   }) => Effect.Effect<RunTeam>
@@ -226,6 +229,7 @@ export interface Interface {
     id: string
     phase?: string
     roundCaptain?: number
+    contextManifest?: Record<string, unknown>
     report?: Record<string, unknown>
     verdict?: Record<string, unknown>
     artifactsOut?: unknown[]
@@ -286,6 +290,7 @@ const toTeam = (row: typeof TeamRunTeamTable.$inferSelect): RunTeam => ({
   verdict: row.verdict ?? undefined,
   worktree: row.worktree ?? undefined,
   rosterSnapshot: row.roster_snapshot ?? undefined,
+  contextManifest: row.context_manifest ?? undefined,
   dependsOn: (row.depends_on as number[] | null) ?? [],
   artifactsOut: (row.artifacts_out as unknown[] | null) ?? [],
   usage: row.usage ?? undefined,
@@ -504,6 +509,7 @@ export const layer = Layer.effect(
         phase: "queued",
         roundCaptain: 0,
         rosterSnapshot: input.rosterSnapshot,
+        contextManifest: input.contextManifest,
         dependsOn: input.dependsOn ?? [],
         artifactsOut: [],
         worktree: input.worktree,
@@ -522,6 +528,7 @@ export const layer = Layer.effect(
               phase: team.phase,
               round_captain: 0,
               roster_snapshot: team.rosterSnapshot ?? null,
+              context_manifest: team.contextManifest ?? null,
               depends_on: team.dependsOn,
               artifacts_out: team.artifactsOut,
               worktree: team.worktree ?? null,
@@ -561,6 +568,7 @@ export const layer = Layer.effect(
             .set({
               ...(input.phase ? { phase: input.phase } : {}),
               ...(input.roundCaptain !== undefined ? { round_captain: input.roundCaptain } : {}),
+              ...(input.contextManifest !== undefined ? { context_manifest: input.contextManifest } : {}),
               ...(input.report !== undefined ? { report: input.report } : {}),
               ...(input.verdict !== undefined ? { verdict: input.verdict } : {}),
               ...(input.artifactsOut !== undefined ? { artifacts_out: input.artifactsOut } : {}),
