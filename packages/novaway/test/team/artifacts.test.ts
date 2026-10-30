@@ -29,7 +29,9 @@ describe("team artifacts", () => {
       { index: 1, artifacts: [] },
     ])
     const deps = depsOf({ deps: [0], upstream })
-    expect(deps).toEqual([{ teamID: 0, name: "api", version: upstream.get(0)?.get("api") }])
+    const version = upstream.get(0)?.get("api")
+    if (!version) throw new Error("缺少 api 产物的版本")
+    expect(deps).toEqual([{ teamID: 0, name: "api", version }])
     expect(stillValid(deps, upstream).valid).toBe(true)
   })
 

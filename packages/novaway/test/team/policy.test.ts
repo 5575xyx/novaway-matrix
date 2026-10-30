@@ -2,7 +2,11 @@ import { describe, expect, test } from "bun:test"
 import { decide, fromPlan, REVIEW, WRITE } from "@/team/policy"
 import { CAPABILITIES } from "@/tool/registry"
 
-const call = (tool: string, capabilities?: { readOnly?: boolean; destructive?: boolean }, args: unknown = {}) => ({
+const call = (
+  tool: string,
+  capabilities?: { readOnly?: boolean; destructive?: boolean | ((args: unknown) => boolean) },
+  args: unknown = {},
+) => ({
   tool,
   capabilities,
   args,

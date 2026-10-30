@@ -84,11 +84,15 @@ describe("team mission", () => {
         // 提交之后再放一个新文件：它还没有被任何提交收录。
         yield* Effect.promise(() => fs.writeFile(path.join(worktree, "loose.txt"), "not committed\n"))
 
+        if (committed.kind !== "committed") throw new Error("提交失败：" + committed.kind)
+        const committedSHA = committed.sha
+        const baseSHA = mission.baseSHA
+        if (!baseSHA) throw new Error("目标缺少起点提交")
         const result = yield* missions.diff(mission.id)
         expect(result?.kind).toBe("diff")
         if (result?.kind !== "diff") return
-        expect(result.diff.baseSHA).toBe(mission.baseSHA)
-        expect(result.diff.head).toBe(committed.kind === "committed" ? committed.sha : "")
+        expect(result.diff.baseSHA).toBe(baseSHA)
+        expect(committedSHA).toBe(result.diff.head)
         // 已纳入版本的改动进 files；未跟踪新文件单列，不混进改动统计。
         expect(result.diff.files.map((file) => file.path)).toContain("tracked.txt")
         expect(result.diff.untracked).toContain("loose.txt")
