@@ -11,7 +11,7 @@ import {
   type VerifyInput,
 } from "@/team/orchestrator"
 import { TeamVerifier } from "@/team/verifier"
-import { Service as TeamProfileService } from "@/team/profile"
+import { Service as TeamProfileService, brief as rosterBrief, snapshotFrom } from "@/team/profile"
 import { makeRunAgent, type RunAgentPromptOps } from "@/session/agent-step"
 import { SessionPrompt } from "@/session/prompt"
 import { Session } from "@/session/session"
@@ -303,11 +303,11 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           })
 
           // 模板发起时，队长默认用编制里的队长岗位 —— 模板写了谁负责就谁负责。
+          // 快照读不回来时退回默认 agent，而不是拿半份名册去派发。
           const teamRows = yield* runs.teams(run.id)
-          const roster = teamRows[0]?.rosterSnapshot as
-            | { captain?: string; roster?: Array<{ employee: { id: string; job: string } }> }
-            | undefined
-          const captainJob = roster?.roster?.find((entry) => entry.employee.id === roster.captain)?.employee.job
+          const roster = snapshotFrom(teamRows[0]?.rosterSnapshot)
+          const captainJob = roster?.roster.find((entry) => entry.employee.id === roster.captain)?.employee.job
+          const members = roster ? rosterBrief(roster) : []
           const captain = ctx.payload.captain ?? captainJob ?? defaultAgent
           const verifier = ctx.payload.verifier ?? captain
           const snapshotOf = snapshot.track().pipe(Effect.catch(() => Effect.succeed(undefined)))
@@ -337,6 +337,15 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
                   "【本次验收】",
                   ...(lines.length ? lines : ["- （未声明验收，按目标自检）"]),
                   ...feedback,
+                  ...(members.length
+                    ? [
+                        "",
+                        "【团队成员】",
+                        ...members,
+                        "把互不重叠的角度分派给成员（用 task 工具），自己做拆解、汇总与自检；" +
+                          "只有确实没人能干的部分才自己做。",
+                      ]
+                    : []),
                   "",
                   "不要修改验收标准。完成后只输出一个 JSON 对象：",
                   '{"summary":"一句话交付说明","claims":[{"acceptanceID":"...","text":"...","evidence":"可复核的证据（命令/路径/输出片段）"}],"artifacts":[{"name":"...","version":1}],"done":true}',

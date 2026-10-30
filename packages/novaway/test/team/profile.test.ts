@@ -1,6 +1,12 @@
 import { describe, expect } from "bun:test"
 import { Effect } from "effect"
-import { Service as ProfileService, defaultLayer as ProfileLayer, BUILTIN_PROFILE_ID } from "@/team/profile"
+import {
+  Service as ProfileService,
+  defaultLayer as ProfileLayer,
+  BUILTIN_PROFILE_ID,
+  brief,
+  snapshotFrom,
+} from "@/team/profile"
 import { testEffect } from "../lib/effect"
 
 const it = testEffect(ProfileLayer)
@@ -47,6 +53,42 @@ describe("team profile", () => {
     Effect.gen(function* () {
       const profiles = yield* ProfileService
       expect(yield* profiles.snapshot("prof_missing")).toBeUndefined()
+    }),
+  )
+
+  it.effect("the captain brief lists the other members with their duty, not the captain", () =>
+    Effect.gen(function* () {
+      const profiles = yield* ProfileService
+      yield* profiles.seed()
+      const snapshot = (yield* profiles.snapshot(BUILTIN_PROFILE_ID))!
+      const lines = brief(snapshot)
+      // 5 人编制里 1 名队长，剩下 4 个角度都要出现在队长提示词里。
+      expect(lines).toHaveLength(4)
+      expect(lines.join("\n")).toContain("安全审查")
+      expect(lines.join("\n")).toContain("注入 / 越权 / 凭据")
+      expect(lines.join("\n")).not.toContain("审查队长")
+    }),
+  )
+
+  it.effect("a stored snapshot survives a round trip and garbage degrades to nothing", () =>
+    Effect.gen(function* () {
+      const profiles = yield* ProfileService
+      yield* profiles.seed()
+      const snapshot = (yield* profiles.snapshot(BUILTIN_PROFILE_ID))!
+      // 落库再读回：字段齐全时逐项还原，顺序按 order。
+      const restored = snapshotFrom(JSON.parse(JSON.stringify(snapshot)))
+      expect(restored?.captain).toBe(snapshot.captain)
+      expect(restored?.roster.map((entry) => entry.employee.id)).toEqual(
+        snapshot.roster.map((entry) => entry.employee.id),
+      )
+
+      // 缺字段 / 类型不对：当没有，而不是拿半份名册派发。
+      expect(snapshotFrom(undefined)).toBeUndefined()
+      expect(snapshotFrom("snap")).toBeUndefined()
+      expect(snapshotFrom({ profileID: "p", name: "n", version: 1, captain: "c" })).toBeUndefined()
+      expect(snapshotFrom({ ...snapshot, roster: [{ order: 0 }, { order: 1, employee: { id: 1 } }] })?.roster).toEqual(
+        [],
+      )
     }),
   )
 

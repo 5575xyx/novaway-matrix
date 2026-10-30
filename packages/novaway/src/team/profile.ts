@@ -138,6 +138,73 @@ const builtin = {
   description: "只读审查一次代码变更：五个角度并行，输出带证据的问题清单。",
 }
 
+/**
+ * 从 `roster_snapshot` 这类落库的 `unknown` 里读回快照。
+ *
+ * 快照是运行时自己写的，但仍按「不可信输入」解析：历史运行读过旧版本数据、
+ * 手改过数据库，都可能缺字段。认不出来就当没有 —— 调用方会退回默认队长，
+ * 而不是拿半份名册去派发。用 `Reflect.get` 逐字段读，避免 `as` 把 `unknown`
+ * 直接断言成记录类型（断言通过时编译器就不再帮忙检查了）。
+ */
+export function snapshotFrom(value: unknown): Snapshot | undefined {
+  if (!value || typeof value !== "object") return undefined
+  const profileID: unknown = Reflect.get(value, "profileID")
+  const name: unknown = Reflect.get(value, "name")
+  const version: unknown = Reflect.get(value, "version")
+  const captain: unknown = Reflect.get(value, "captain")
+  const rawRoster: unknown = Reflect.get(value, "roster")
+  if (typeof profileID !== "string" || typeof name !== "string") return undefined
+  if (typeof version !== "number" || typeof captain !== "string") return undefined
+  if (!Array.isArray(rawRoster)) return undefined
+  const roster: RosterEntry[] = []
+  for (const raw of rawRoster) {
+    if (!raw || typeof raw !== "object") continue
+    const order: unknown = Reflect.get(raw, "order")
+    if (typeof order !== "number") continue
+    const employee: unknown = Reflect.get(raw, "employee")
+    if (!employee || typeof employee !== "object") continue
+    const id: unknown = Reflect.get(employee, "id")
+    const employeeName: unknown = Reflect.get(employee, "name")
+    const job: unknown = Reflect.get(employee, "job")
+    if (typeof id !== "string" || typeof employeeName !== "string" || typeof job !== "string") continue
+    const model: unknown = Reflect.get(employee, "model")
+    const prompt: unknown = Reflect.get(employee, "prompt")
+    const role: unknown = Reflect.get(raw, "role")
+    const duty: unknown = Reflect.get(raw, "duty")
+    const canAutoDispatch: unknown = Reflect.get(raw, "canAutoDispatch")
+    roster.push({
+      employee: {
+        id,
+        name: employeeName,
+        job,
+        model: typeof model === "string" ? model : undefined,
+        prompt: typeof prompt === "string" ? prompt : undefined,
+      },
+      role: role === "captain" ? "captain" : "worker",
+      duty: typeof duty === "string" ? duty : undefined,
+      order,
+      canAutoDispatch: canAutoDispatch === true,
+    })
+  }
+  return { profileID, name, version, captain, roster: roster.sort((a, b) => a.order - b.order) }
+}
+
+/**
+ * 队长提示词里的团队名册。
+ *
+ * 只列事实（谁、什么岗位、负责哪块），不替队长分工：编排是队长的职责，
+ * 写死分工等于让模板替它做决定，遇到任务变化反而更容易派错人。
+ */
+export function brief(snapshot: Snapshot): string[] {
+  const members = snapshot.roster
+    .filter((entry) => entry.employee.id !== snapshot.captain)
+    .sort((a, b) => a.order - b.order)
+  return members.map(
+    (entry) =>
+      "- " + entry.employee.name + "（" + entry.employee.job + "）" + (entry.duty ? "：" + entry.duty : "：未指定职责"),
+  )
+}
+
 const toEmployee = (row: typeof EmployeeTable.$inferSelect): Employee => ({
   id: row.id,
   name: row.name,
