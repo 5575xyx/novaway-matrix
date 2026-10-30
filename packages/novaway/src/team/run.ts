@@ -134,7 +134,19 @@ export type RunTeam = {
 const TRANSITIONS: Record<RunState, readonly RunState[]> = {
   planning: ["awaiting_approval", "running", "cancelled", "failed"],
   awaiting_approval: ["running", "cancelled", "failed", "paused"],
-  running: ["blocked", "paused", "done", "partial", "failed", "exceeded", "cancelled", "needs_review"],
+  // `awaiting_approval`：已批准但还没开工的运行可以撤回批准 —— 改了计划里的授权
+  // 就等于换了一份计划，旧的批准不能再顶用（§11.1）。已经开始的运行不进这条路径。
+  running: [
+    "awaiting_approval",
+    "blocked",
+    "paused",
+    "done",
+    "partial",
+    "failed",
+    "exceeded",
+    "cancelled",
+    "needs_review",
+  ],
   blocked: ["running", "paused", "failed", "exceeded", "cancelled", "needs_review"],
   paused: ["running", "cancelled", "failed"],
   done: [],

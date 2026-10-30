@@ -416,6 +416,37 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           return (yield* detail(ctx.params.runID))!
         }),
       )
+      .handle("setRunPolicy", (ctx) =>
+        Effect.gen(function* () {
+          const run = yield* requireRun(ctx.params.runID, ctx.query.directory)
+          // 只能在批准之前、或批准后还没开工（`running` 且没有 phase）时改授权。
+          // 已经派发出去的运行按当时的授权继续：中途放宽会让同一个运行时紧时松，
+          // 证据也就没法解释；要换授权就取消后重开。
+          const editable =
+            run.state === "planning" || run.state === "awaiting_approval" || (run.state === "running" && !run.phase)
+          if (!editable) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+
+          const nextVersion = run.planVersion + 1
+          const teams = run.plan?.teams ?? []
+          yield* runs.update({
+            runID: run.id,
+            // 版本号必须变：旧批准因此自动失效，用户要按新授权重新批准。
+            plan: {
+              teams: [...teams],
+              ...(run.plan?.notes ? { notes: run.plan.notes } : {}),
+              policy: { readOnly: ctx.payload.readOnly },
+            },
+            planVersion: nextVersion,
+            state: "awaiting_approval",
+          })
+          yield* runs.appendEvent({
+            runID: run.id,
+            kind: "plan.policy",
+            payload: { readOnly: ctx.payload.readOnly, planVersion: nextVersion },
+          })
+          return (yield* detail(run.id))!
+        }),
+      )
       .handle("executeRun", (ctx) =>
         Effect.gen(function* () {
           const run = yield* requireRun(ctx.params.runID, ctx.query.directory)

@@ -474,6 +474,8 @@ import type {
   RunMergeResponses,
   RunPlanErrors,
   RunPlanResponses,
+  RunPolicyErrors,
+  RunPolicyResponses,
   RunWorktreesRemoveErrors,
   RunWorktreesRemoveResponses,
   SessionAbortErrors,
@@ -14063,6 +14065,45 @@ export class Run2 extends HeyApiClient {
     )
     return (options?.client ?? this.client).post<RunApproveResponses, RunApproveErrors, ThrowOnError>({
       url: "/run/{runID}/approve",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Change the run policy
+   *
+   * Switch between read-only and writable before the run starts. Bumps the plan version, so any previous approval becomes stale.
+   */
+  public policy<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+      readOnly?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "readOnly" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<RunPolicyResponses, RunPolicyErrors, ThrowOnError>({
+      url: "/run/{runID}/policy",
       ...options,
       ...params,
       headers: {

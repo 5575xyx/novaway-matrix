@@ -15,6 +15,15 @@ describe("team run state machine", () => {
     expect(canTransition("needs_review", "running")).toBe(true)
   })
 
+  check("an approved run may revoke its approval before it starts", () => {
+    // 改计划里的授权等于换了一份计划：批准作废、回到待批准（§11.1）。
+    expect(canTransition("running", "awaiting_approval")).toBe(true)
+    expect(canStart("awaiting_approval", undefined)).toBe(false)
+    // 终态不可再离开，撤回批准也就不成立。
+    for (const state of ["done", "partial", "failed", "exceeded", "cancelled"] as const)
+      expect(canTransition(state, "awaiting_approval")).toBe(false)
+  })
+
   check("a run that is already executing cannot be started twice", () => {
     // 已批准、还没开始执行：可以起。
     expect(canStart("running", undefined)).toBe(true)
@@ -45,6 +54,39 @@ describe("team run state machine", () => {
       // 用户批准的是第 1 版计划，现在已经不是当前版本了。
       const stale = yield* runs.approve({ runID: run.id, planVersion: 1, budget: { tokens: 10 }, by: "user" })
       expect(stale).toBe("stale-plan")
+
+      const approved = yield* runs.approve({ runID: run.id, planVersion: 2, budget: { tokens: 10 }, by: "user" })
+      expect(approved && approved !== "stale-plan" ? approved.state : undefined).toBe("running")
+    }),
+  )
+
+  it.effect("changing the policy withdraws the approval it no longer covers", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_state_policy"),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "目标",
+      })
+      yield* runs.update({
+        runID: run.id,
+        plan: { teams: [{ name: "a" }], policy: { readOnly: true } },
+        planVersion: 1,
+      })
+      yield* runs.approve({ runID: run.id, planVersion: 1, budget: { tokens: 10 }, by: "user" })
+
+      // 人把授权放宽：版本号递增、回到待批准。旧的批准绑定的是第 1 版，不能继续生效。
+      const next = yield* runs.update({
+        runID: run.id,
+        plan: { teams: [{ name: "a" }], policy: { readOnly: false } },
+        planVersion: 2,
+        state: "awaiting_approval",
+      })
+      expect(next?.state).toBe("awaiting_approval")
+      expect(next?.planVersion).toBe(2)
+      expect(next?.approval?.planVersion).toBe(1)
+      expect(canStart(next ? next.state : "done", next?.phase)).toBe(false)
 
       const approved = yield* runs.approve({ runID: run.id, planVersion: 2, budget: { tokens: 10 }, by: "user" })
       expect(approved && approved !== "stale-plan" ? approved.state : undefined).toBe("running")

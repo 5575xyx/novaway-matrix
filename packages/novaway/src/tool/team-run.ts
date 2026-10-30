@@ -36,6 +36,9 @@ export const TeamRunParameters = Schema.Struct({
   missionID: Schema.optional(Schema.String).annotate({
     description: "归入一个持久目标（M-xxx 的 id）；之后每次运行复用同一份工作区与起点",
   }),
+  allowWrites: Schema.optional(Schema.Boolean).annotate({
+    description: "只有用户明确要求改代码时才设为 true。放宽授权等于改计划：这次运行会停下来等用户批准，不会自己开工。",
+  }),
 })
 
 export const DEFAULT_TEAM_BUDGET = 200_000
@@ -116,6 +119,7 @@ export const TeamRunTool = Tool.define<typeof TeamRunParameters, { runID?: strin
 
         const budget = { tokens: params.tokens ?? DEFAULT_TEAM_BUDGET }
         const acceptance = params.acceptance ?? []
+        const readOnly = !params.allowWrites
         const run = yield* runs.create({
           sessionID: ctx.sessionID,
           directory,
@@ -166,6 +170,8 @@ export const TeamRunTool = Tool.define<typeof TeamRunParameters, { runID?: strin
         }
 
         // 计划只有一条：选中的团队。版本号从 1 开始，批准绑定这个版本。
+        // 授权写进计划里：缺省只读，模型只能在用户明确要求时申请放宽 ——
+        // 而放宽要用户自己批准（下面「selected 直接批准」只覆盖只读运行）。
         yield* runs.update({
           runID: run.id,
           plan: {
@@ -177,6 +183,7 @@ export const TeamRunTool = Tool.define<typeof TeamRunParameters, { runID?: strin
                 acceptance: registered,
               },
             ],
+            policy: { readOnly },
           },
           planVersion: 1,
         })
@@ -190,13 +197,16 @@ export const TeamRunTool = Tool.define<typeof TeamRunParameters, { runID?: strin
             roster: live ? live.roster.length : 0,
             missionID: params.missionID,
             mode,
+            readOnly,
           },
         })
 
-        // `selected` 是用户点过名的一次性授权，直接批准，不阻塞对话；
+        // `selected` 是用户点过名的一次性授权，只读运行直接批准，不阻塞对话；
         // `auto` 必须由用户在运行页确认（§4.2 的批准语义）。
-        const approval = mode === "auto" ? "awaiting user approval" : "approved"
-        if (mode !== "auto") {
+        // 申请写权限也一律要批准：点名团队不等于把人家的仓库交出去。
+        const needsApproval = mode === "auto" || !readOnly
+        const approval = needsApproval ? "awaiting user approval" : "approved"
+        if (!needsApproval) {
           yield* runs.approve({ runID: run.id, planVersion: 1, budget, by: "main" })
         }
 
@@ -215,11 +225,14 @@ export const TeamRunTool = Tool.define<typeof TeamRunParameters, { runID?: strin
             acceptance.length
               ? `acceptance: ${acceptance.length} item(s), passing requires verification records (unverified never counts as pass)`
               : "acceptance: none declared — the run can only end as partial",
-            mode === "auto"
+            readOnly
+              ? "policy: read-only — this run cannot modify the workspace"
+              : "policy: writable — the user must approve it before it can touch the workspace",
+            needsApproval
               ? "Ask the user to review and approve it in the Runs page; it will not start on its own."
               : "The user can start it from the Runs page.",
           ].join("\n"),
-          metadata: { runID: run.id, state: mode === "auto" ? "awaiting_approval" : "planned" },
+          metadata: { runID: run.id, state: needsApproval ? "awaiting_approval" : "planned" },
         }
       }).pipe(Effect.orDie),
   }),

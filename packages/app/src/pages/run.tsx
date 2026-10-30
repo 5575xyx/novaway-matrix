@@ -285,6 +285,19 @@ export const RunPage: Component<{
       })
     })
 
+  /**
+   * 改授权（§11.1）：只读 ↔ 可写只能在批准之前切换。
+   *
+   * 这是「放宽必须是显式的」唯一的入口 —— 默认只读，允许改工作区只能由人在
+   * 这里点出来；改完版本号递增，刚才的批准作废，要按新授权重新批准。
+   */
+  const setPolicy = (readOnly: boolean) =>
+    act("policy", async () => {
+      const run = detail()?.run
+      if (!run) return
+      await sdk.client.run.policy({ runID: run.id, directory: props.directory, readOnly })
+    })
+
   onMount(() => {
     void loadRuns()
     void loadProfiles()
@@ -472,6 +485,18 @@ export const RunPage: Component<{
                       </div>
                     </div>
                     <div class="flex shrink-0 items-center gap-1.5">
+                      {/* 授权只能在批准之前改；放开写操作是人的决定，不是默认值。 */}
+                      <Show when={data().run.state === "planning" || data().run.state === "awaiting_approval"}>
+                        <Button
+                          variant="ghost"
+                          size="small"
+                          title={t("run.policy.hint")}
+                          disabled={busy() !== ""}
+                          onClick={() => void setPolicy(!data().run.readOnly)}
+                        >
+                          {data().run.readOnly ? t("run.policy.allowWrites") : t("run.policy.makeReadOnly")}
+                        </Button>
+                      </Show>
                       <Show when={data().run.state === "awaiting_approval"}>
                         <Button variant="primary" size="small" disabled={busy() !== ""} onClick={() => void approve()}>
                           {t("run.action.approve")}

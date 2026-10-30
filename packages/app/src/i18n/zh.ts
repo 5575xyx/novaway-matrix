@@ -122,6 +122,8 @@ export const dict = {
   "run.policy.readOnly": "只读",
   "run.policy.write": "可写",
   "run.policy.hint": "由工具入口强制：只读运行不会改工作区。",
+  "run.policy.allowWrites": "允许写操作",
+  "run.policy.makeReadOnly": "改回只读",
   "run.metric.pass": "通过",
   "run.metric.fail": "失败",
   "run.metric.unverified": "未验证",

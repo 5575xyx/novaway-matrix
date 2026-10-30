@@ -185,6 +185,53 @@ describe("team HttpApi", () => {
     }),
   )
 
+  it.live("widening the policy is explicit, bumps the plan and withdraws the approval it replaces", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped({ git: true })
+      const created = yield* post(dir, "/run", {
+        sessionID: "ses_policy",
+        directory: dir,
+        mode: "team",
+        goal: "改点东西",
+      })
+      const run = (yield* created.json) as { run: { id: string; readOnly: boolean; planVersion: number } }
+      // 缺省只读：想改工作区必须由人写出来。
+      expect(run.run.readOnly).toBe(true)
+
+      const widened = yield* post(dir, `/run/${run.run.id}/policy`, { readOnly: false })
+      expect(widened.status).toBe(200)
+      const afterWiden = (yield* widened.json) as {
+        run: { readOnly: boolean; state: string; planVersion: number }
+      }
+      expect(afterWiden.run.readOnly).toBe(false)
+      expect(afterWiden.run.planVersion).toBe(run.run.planVersion + 1)
+      // 授权属于计划：改了就回到待批准，不能拿着旧批准直接开工。
+      expect(afterWiden.run.state).toBe("awaiting_approval")
+
+      const approved = yield* post(dir, `/run/${run.run.id}/approve`, {
+        planVersion: afterWiden.run.planVersion,
+        budget: { tokens: 1000 },
+      })
+      expect(approved.status).toBe(200)
+      expect(((yield* approved.json) as { run: { state: string } }).run.state).toBe("running")
+
+      // 批准后还没开工，仍可以改回只读；同样要作废刚才的批准。
+      const narrowed = yield* post(dir, `/run/${run.run.id}/policy`, { readOnly: true })
+      expect(narrowed.status).toBe(200)
+      expect((yield* narrowed.json) as { run: { readOnly: boolean; state: string } }).toMatchObject({
+        run: { readOnly: true, state: "awaiting_approval" },
+      })
+
+      // 别的目录不能改这次运行的授权。
+      const other = yield* tmpdirScoped({ git: true })
+      expect((yield* post(other, `/run/${run.run.id}/policy`, { readOnly: false })).status).toBe(404)
+
+      // 已经结束的运行不再谈授权：换授权要开新的运行。
+      expect((yield* post(dir, `/run/${run.run.id}/cancel`)).status).toBe(200)
+      expect((yield* post(dir, `/run/${run.run.id}/policy`, { readOnly: false })).status).toBe(400)
+    }),
+  )
+
   it.live("only an abandoned mission can give its workspace back", () =>
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped({ git: true })

@@ -124,6 +124,8 @@ export const dict = {
   "run.policy.readOnly": "Read-only",
   "run.policy.write": "Can write",
   "run.policy.hint": "Enforced at the tool gate: a read-only run never edits the workspace.",
+  "run.policy.allowWrites": "Allow writes",
+  "run.policy.makeReadOnly": "Make read-only",
   "run.metric.pass": "Passed",
   "run.metric.fail": "Failed",
   "run.metric.unverified": "Unverified",

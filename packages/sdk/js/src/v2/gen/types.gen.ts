@@ -17688,6 +17688,46 @@ export type RunApproveResponses = {
 
 export type RunApproveResponse = RunApproveResponses[keyof RunApproveResponses]
 
+export type RunPolicyData = {
+  body?: {
+    readOnly: boolean
+  }
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/run/{runID}/policy"
+}
+
+export type RunPolicyErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+  /**
+   * Conflict
+   */
+  409: EffectHttpApiErrorConflict
+}
+
+export type RunPolicyError = RunPolicyErrors[keyof RunPolicyErrors]
+
+export type RunPolicyResponses = {
+  /**
+   * Updated run
+   */
+  200: RunDetail
+}
+
+export type RunPolicyResponse = RunPolicyResponses[keyof RunPolicyResponses]
+
 export type RunAcceptanceAddData = {
   body?: {
     taskID?: string

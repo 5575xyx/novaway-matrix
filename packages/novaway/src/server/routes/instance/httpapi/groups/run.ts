@@ -174,6 +174,14 @@ export const RunApprovePayload = Schema.Struct({
   by: Schema.optional(Schema.Literals(["user", "main"])),
 })
 
+/**
+ * 授权（§11.1）。缺省的只读不是提示词约定，而是工具入口的硬拦截；
+ * 放宽只能由人在批准之前显式改。
+ */
+export const RunPolicyPayload = Schema.Struct({
+  readOnly: Schema.Boolean,
+})
+
 export const RunAcceptancePayload = Schema.Struct({
   taskID: Schema.optional(Schema.String),
   specID: Schema.String,
@@ -275,6 +283,27 @@ export const RunApi = HttpApiGroup.make("run")
         identifier: "run.approve",
         summary: "Approve the plan",
         description: "Approve a specific plan version with its budget, then start the run.",
+      }),
+    ),
+    /**
+     * 改变授权（只读 ↔ 可写）。
+     *
+     * 授权属于计划的一部分，所以改它等于改计划：版本号递增、回到 `awaiting_approval`。
+     * 这条路径存在的意义是「放宽必须是显式的」—— 默认只读，允许写操作只能由人在
+     * 批准之前点出来，模型没有接口把自己提权。
+     */
+    HttpApiEndpoint.post("setRunPolicy", `${root}/:runID/policy`, {
+      params: { runID: Schema.String },
+      query: WorkspaceRoutingQuery,
+      payload: RunPolicyPayload,
+      success: described(RunDetail, "Updated run"),
+      error: [HttpApiError.BadRequest, HttpApiError.NotFound, HttpApiError.Conflict],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "run.policy",
+        summary: "Change the run policy",
+        description:
+          "Switch between read-only and writable before the run starts. Bumps the plan version, so any previous approval becomes stale.",
       }),
     ),
     HttpApiEndpoint.post("addRunAcceptance", `${root}/:runID/acceptance`, {
