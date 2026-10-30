@@ -114,7 +114,13 @@ describe("team", () => {
       // 团队页展示的是群聊：包括派发出去的指令和成员回流的回复，
       // 因此 team() 不能按收件人过滤，也不能把已读消息藏起来。
       yield* mailbox.send({ teamID: "chat", fromSessionID: lead, toSessionID: worker, content: "task one" })
-      yield* mailbox.send({ teamID: "chat", fromSessionID: worker, toSessionID: lead, content: "done", summary: "reply" })
+      yield* mailbox.send({
+        teamID: "chat",
+        fromSessionID: worker,
+        toSessionID: lead,
+        content: "done",
+        summary: "reply",
+      })
       yield* mailbox.send({ teamID: "other", fromSessionID: lead, toSessionID: worker, content: "elsewhere" })
 
       const transcript = yield* mailbox.team("chat")

@@ -128,13 +128,7 @@ export const layer = Layer.effect(
 
     const team: Interface["team"] = Effect.fn("AgentMailbox.team")(function* (teamID) {
       const rows = yield* Effect.sync(() =>
-        Database.use((db) =>
-          db
-            .select()
-            .from(AgentMessageTable)
-            .where(eq(AgentMessageTable.team_id, teamID))
-            .all(),
-        ),
+        Database.use((db) => db.select().from(AgentMessageTable).where(eq(AgentMessageTable.team_id, teamID)).all()),
       )
       return rows.map(toMessage).sort((a, b) => a.createdAt - b.createdAt)
     })
