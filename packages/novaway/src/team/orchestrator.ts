@@ -390,6 +390,10 @@ export const layer = Layer.effect(
 
       let teams = yield* runs.teams(input.runID)
       let exceeded = false
+      /** 最后一次集成尝试；冲突且轮次用尽时，它就是最终结论的依据。 */
+      let integration: Exit.Exit<IntegrationOutcome> | undefined
+      /** 集成前的提交是否失败过（失败则最终验证对着的不是团队写下的代码）。 */
+      let commitBroken = false
 
       while (rounds < maxRounds) {
         if (cancelled()) return yield* finishCancelled(teams)
@@ -422,7 +426,46 @@ export const layer = Layer.effect(
         }
 
         teams = yield* runs.teams(input.runID)
-        if (teams.length > 0 && teams.every((team) => team.phase === "delivered")) break
+        // 全部交付 → 先集成。冲突不落进「完成」：把冲突团队退回去，带上文件清单进入下一轮。
+        if (teams.length > 0 && teams.every((team) => team.phase === "delivered")) {
+          // 集成前提交：交付之后到集成之间还可能有改动（收尾脚本、格式化），
+          // 合并的必须是磁盘上的最终内容。
+          if (input.commit) {
+            const committed = yield* Effect.exit(input.commit())
+            if (Exit.isFailure(committed)) {
+              // 提交失败意味着集成会合到旧内容：那之后的「通过」不能算交付。
+              commitBroken = true
+              yield* runs.appendEvent({
+                runID: input.runID,
+                kind: "integration.commit_failed",
+                payload: { message: message(committed.cause) },
+              })
+            }
+          }
+          if (!input.integrate) break
+          const attempt = yield* Effect.exit(input.integrate())
+          integration = attempt
+          if (Exit.isSuccess(attempt) && attempt.value.kind === "conflict") {
+            const outcome = attempt.value
+            // `integrate()` 给的是团队名（profileID ?? id），这里换回团队行。
+            const conflicted = teams.find((team) => (team.profileID ?? team.id) === outcome.team)
+            if (conflicted) {
+              feedback.set(conflicted.id, [
+                "合并冲突：" +
+                  (outcome.files.length > 0 ? outcome.files.join("、") : "（未列出文件）") +
+                  "。请与上游团队协调后重新交付，不要覆盖别人的改动。",
+              ])
+              yield* runs.updateTeam({ id: conflicted.id, phase: "rework" })
+            }
+            yield* runs.appendEvent({
+              runID: input.runID,
+              kind: "team.conflict",
+              payload: { team: outcome.team, files: outcome.files, round: rounds },
+            })
+            continue
+          }
+          break
+        }
         if (attempts.business >= maxBusiness) {
           exceeded = true
           break
@@ -433,25 +476,8 @@ export const layer = Layer.effect(
           break
       }
 
-      // 集成前再提交一次：交付之后到集成之间还可能有改动（收尾脚本、格式化），
-      // 集成合并的必须是磁盘上的最终内容。
-      let commitBroken = false
-      if (input.commit) {
-        const committed = yield* Effect.exit(input.commit())
-        if (Exit.isFailure(committed)) {
-          // 提交失败意味着集成会合到旧内容：那之后的「通过」不能算交付。
-          commitBroken = true
-          yield* runs.appendEvent({
-            runID: input.runID,
-            kind: "integration.commit_failed",
-            payload: { message: message(committed.cause) },
-          })
-        }
-      }
-
-      // 串行集成：各团队在自己的 worktree 里交付，只有合到一起还成立才算可交付。
+      // 集成已经在循环里做过（全部交付时）；这里只记录最终结果。
       // 失败不算「跑完」—— 冲突要么返工要么由人接手，绝不能落进 done。
-      const integration = input.integrate ? yield* Effect.exit(input.integrate()) : undefined
       if (integration && Exit.isFailure(integration)) {
         yield* runs.appendEvent({
           runID: input.runID,

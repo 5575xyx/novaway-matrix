@@ -315,6 +315,63 @@ describe("team orchestrator", () => {
     }),
   )
 
+  it.effect("an integration conflict sends the team back to rework and retries the merge", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const orchestrator = yield* OrchestratorService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_" + Math.random().toString(36).slice(2, 9)),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "冲突返工",
+        budget: { tokens: 100_000 },
+      })
+      yield* runs.update({ runID: run.id, plan: { teams: [{ name: "alpha" }] }, planVersion: 1 })
+      yield* runs.approve({ runID: run.id, planVersion: 1, budget: { tokens: 100_000 }, by: "user" })
+      const team = yield* runs.addTeam({ runID: run.id })
+      const verification = yield* VerificationService
+      yield* verification.register({ runID: run.id, specID: "s", text: "验收", kind: "test", owner: team.id })
+
+      let dispatched = 0
+      let integrateCalls = 0
+      const result = yield* orchestrator.execute({
+        runID: run.id,
+        snapshot: () => Effect.succeed("snap_1"),
+        dispatch: (input) =>
+          Effect.sync(() => {
+            dispatched += 1
+            return report(input.team.id)
+          }),
+        verify: () => Effect.succeed({ outcome: "pass" as const }),
+        integrate: () =>
+          Effect.sync(() => {
+            integrateCalls += 1
+            // 第一次冲突，返工之后第二次合并成功。
+            if (integrateCalls === 1)
+              // `integrate()` 用团队名（profileID ?? id）指认冲突方。
+              return {
+                kind: "conflict" as const,
+                team: team.id,
+                files: ["shared.txt"],
+                message: "CONFLICT (content)",
+              }
+            return { kind: "merged" as const, sha: "snap_merged", merged: [team.id] }
+          }),
+      })
+
+      expect(dispatched).toBe(2)
+      expect(integrateCalls).toBe(2)
+      expect(result.state).toBe("done")
+      const events = yield* runs.events({ runID: run.id })
+      // 冲突被当成返工任务交给团队，而不是留给用户手工救火。
+      expect(events.find((event) => event.kind === "team.conflict")?.payload).toEqual({
+        team: team.id,
+        files: ["shared.txt"],
+        round: 1,
+      })
+    }),
+  )
+
   it.effect("a successful integration binds the merged verification to the merged snapshot", () =>
     Effect.gen(function* () {
       const runs = yield* RunService
@@ -454,11 +511,18 @@ describe("team orchestrator", () => {
           }),
         dispatch: (input) => Effect.succeed(report(input.team.id)),
         verify: () => Effect.succeed({ outcome: "pass" as const }),
+        integrate: () =>
+          Effect.sync(() => {
+            order.push("integrate")
+            return { kind: "merged" as const, sha: "snap_merged", merged: [] }
+          }),
       })
 
       expect(result.state).toBe("done")
       // 先提交再取快照：否则验证对着旧 HEAD，而集成合不到任何改动。
       expect(order.slice(0, 2)).toEqual(["commit", "snapshot"])
+      // 集成之前也要有一次提交：合的是磁盘上的最终内容，不是「最后一次派发时」的内容。
+      expect(order[order.indexOf("integrate") - 1]).toBe("commit")
     }),
   )
 
