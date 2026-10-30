@@ -88,6 +88,11 @@ export const dict = {
   "run.merge.failed": "Merge did not happen.",
   "run.switch.off":
     "Team orchestration is turned off: history and plans stay editable, but no new run can start (running ones keep going).",
+  "run.events.toggle": "Event log",
+  "run.events.toggleCount": "Event log ({{count}}, newest first)",
+  "run.events.empty": "No events yet.",
+  "run.events.hint":
+    "Read-only log used to replay why the run reached its conclusion. Only kinds and times are shown; payloads stay local.",
   "run.blocked.title": "Blocked ({{count}})",
   "run.blocked.swappable": "another member may get past this",
   "run.blocked.noSwap": "not fixable by swapping members — the user has to allow it",

@@ -1,4 +1,4 @@
-import type { MissionDiffView, MissionView, RunDetail, RunView, TeamProfileView } from "@novaway/sdk/v2"
+import type { MissionDiffView, MissionView, RunDetail, RunEventView, RunView, TeamProfileView } from "@novaway/sdk/v2"
 import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
 import { Tag } from "@novaway/ui/tag"
@@ -57,6 +57,10 @@ export const RunPage: Component<{
   const [openLine, setOpenLine] = createSignal<string | undefined>(undefined)
   // 总控开关（§13.1）：关闭时不能启动运行，但历史与计划照旧可以看、可以改。
   const [switchedOn, setSwitchedOn] = createSignal(true)
+  // 事件流：按需加载，收起时不发请求。
+  const [showEvents, setShowEvents] = createSignal(false)
+  const [loadingEvents, setLoadingEvents] = createSignal(false)
+  const [events, setEvents] = createSignal<RunEventView[]>([])
   const NEW_MISSION = "__new"
 
   const loadRuns = async (select?: string) => {
@@ -103,6 +107,32 @@ export const RunPage: Component<{
     const runID = selected()
     if (runID) await loadDetail(runID)
   }
+
+  /**
+   * 展开 / 收起事件流。
+   *
+   * 展开时才拉一次；收起再展开会重新读 —— 运行中事件一直在增长，
+   * 缓存一份旧日志只会让人以为「后面什么都没发生」。
+   */
+  const toggleEvents = async (runID: string) => {
+    if (showEvents()) {
+      setShowEvents(false)
+      return
+    }
+    setLoadingEvents(true)
+    try {
+      const result = await sdk.client.run.events({ runID, directory: props.directory })
+      // 只留最近 200 条并倒序：看板回答「刚发生了什么」，不是归档。
+      setEvents([...(result.data ?? [])].slice(-200).reverse())
+      setShowEvents(true)
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setLoadingEvents(false)
+    }
+  }
+  /** 收起时也能看出「有多少条」：否则按钮不说明任何事。 */
+  const eventCount = () => (showEvents() ? events().length : 0)
 
   const act = async (label: string, action: () => Promise<unknown>) => {
     setBusy(label)
@@ -891,6 +921,45 @@ export const RunPage: Component<{
                         </Tag>
                       )}
                     </For>
+                  </div>
+
+                  {/*
+                    事件流（§4.3 / §12）：只读、可展开、按需加载。
+                    只显示种类与时间，不展开 payload —— 里面可能有命令与路径，
+                    它们属于「要复跑时去本地读」的那一类，不该直接铺在界面上。
+                  */}
+                  <div class="flex flex-col gap-1.5">
+                    <Button
+                      variant="ghost"
+                      size="small"
+                      class="justify-start"
+                      disabled={loadingEvents()}
+                      onClick={() => void toggleEvents(data().run.id)}
+                    >
+                      <Icon name={showEvents() ? "chevron-down" : "chevron-right"} size="small" />
+                      {showEvents() ? t("run.events.toggleCount", { count: eventCount() }) : t("run.events.toggle")}
+                    </Button>
+                    <Show when={showEvents()}>
+                      <div class="flex flex-col gap-1 rounded-lg border border-border px-3 py-2">
+                        <Show
+                          when={events().length > 0}
+                          fallback={<div class="text-ui-xs text-foreground-subtlest">{t("run.events.empty")}</div>}
+                        >
+                          <For each={events()}>
+                            {(event) => (
+                              <div class="flex items-center gap-2 text-ui-xs text-foreground-subtle">
+                                <span class="w-10 shrink-0 text-foreground-subtlest">{"#" + event.seq}</span>
+                                <span class="min-w-0 flex-1 truncate">{event.kind}</span>
+                                <span class="shrink-0 text-foreground-subtlest">
+                                  {new Date(Number(event.at) || 0).toLocaleTimeString()}
+                                </span>
+                              </div>
+                            )}
+                          </For>
+                        </Show>
+                        <div class="text-ui-xs text-foreground-subtlest">{t("run.events.hint")}</div>
+                      </div>
+                    </Show>
                   </div>
                 </div>
               )}
