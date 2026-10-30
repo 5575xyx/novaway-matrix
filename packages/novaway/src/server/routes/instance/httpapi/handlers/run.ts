@@ -19,7 +19,7 @@ import {
   head as worktreeHead,
   remove as removeWorktree,
 } from "@/team/worktree"
-import { forkPoint, integrate as integrateWorktrees, remove as removeIntegration } from "@/team/integration"
+import { forkPoint, integrate as integrateWorktrees, mergeInto, remove as removeIntegration } from "@/team/integration"
 import { makeRunAgent, type RunAgentPromptOps } from "@/session/agent-step"
 import { SessionPrompt } from "@/session/prompt"
 import { Session } from "@/session/session"
@@ -630,6 +630,67 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             },
           })
           return results
+        }),
+      )
+      .handle("mergeRun", (ctx) =>
+        Effect.gen(function* () {
+          const run = yield* requireRun(ctx.params.runID)
+          // 还在跑的运行没有「可交付物」：合并一个还会变的目录没有意义。
+          if (!isTerminal(run.state)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+          // 有交付物才谈得上合并：失败 / 超时 / 取消的运行即使留着分支，也不是「做完的代码」。
+          if (run.state !== "done" && run.state !== "partial") {
+            yield* runs.appendEvent({
+              runID: run.id,
+              kind: "merge.refused",
+              payload: { reason: "no-deliverable", state: run.state },
+            })
+            return { merged: false, message: `这次运行没有已验证的交付（状态：${run.state}），不提供合并。` }
+          }
+
+          const merged = (yield* runs.events({ runID: run.id }))
+            .filter((event) => event.kind === "integration.merged")
+            .at(-1)
+          const branch = typeof merged?.payload?.branch === "string" ? merged.payload.branch : undefined
+          if (!branch) {
+            // 没有集成分支时不说「合并成功」，也不猜用户想合什么。
+            const message = "这次运行没有可合并的集成分支（集成未完成或已清理）。"
+            yield* runs.appendEvent({ runID: run.id, kind: "merge.refused", payload: { reason: "no-integration" } })
+            return { merged: false, message }
+          }
+
+          const outcome = yield* Effect.promise(() => mergeInto({ base: run.directory, branch }))
+          if (outcome.kind === "conflict") {
+            yield* runs.appendEvent({
+              runID: run.id,
+              kind: "merge.refused",
+              payload: { reason: "conflict", branch, files: outcome.files },
+            })
+            return { merged: false, files: outcome.files, message: outcome.message || "合并冲突，已回退。" }
+          }
+          if (outcome.kind !== "merged") {
+            yield* runs.appendEvent({
+              runID: run.id,
+              kind: "merge.refused",
+              payload: { reason: outcome.kind, files: outcome.kind === "dirty" ? outcome.files : undefined },
+            })
+            return {
+              merged: false,
+              files: outcome.kind === "dirty" ? outcome.files : undefined,
+              message:
+                outcome.kind === "dirty"
+                  ? "工作区还有未提交的改动，先提交或暂存再合并。"
+                  : outcome.message || "合并失败。",
+            }
+          }
+
+          // 合并成功就是这次运行与用户分支之间的连接点：把提交记下来，
+          // 之后问「这次运行到底合了什么」有唯一答案。
+          yield* runs.appendEvent({
+            runID: run.id,
+            kind: "merge.settled",
+            payload: { branch: outcome.branch, integration: branch, sha: outcome.sha },
+          })
+          return { merged: true, branch: outcome.branch, sha: outcome.sha }
         }),
       )
       .handle("cancelRun", (ctx) =>

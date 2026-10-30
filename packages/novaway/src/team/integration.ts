@@ -105,6 +105,43 @@ export async function integrate(input: {
   return { kind: "merged", directory, branch, sha: head.stdout.trim(), merged }
 }
 
+export type MergeInto =
+  | { kind: "merged"; branch: string; sha: string }
+  | { kind: "conflict"; files: string[]; message: string }
+  | { kind: "dirty"; files: string[] }
+  | { kind: "failed"; message: string }
+
+/**
+ * 显式合并动作（§16 P2）：把集成分支合进用户当前检出的分支。
+ *
+ * 这是**用户**的动作，不是运行的副作用 —— 所以只在这里做，且必须先满足两个条件：
+ * 1. 工作区干净：用户还有未提交改动时合并，等于把两批改动搅在一起，
+ *    出了事没人分得清哪一半是自己的；
+ * 2. 运行已经结束：跑着的时候合进去，会让后续验证对着一个正在变的目录。
+ */
+export async function mergeInto(input: { base: string; branch: string }): Promise<MergeInto> {
+  const status = await git(input.base, ["status", "--porcelain"])
+  if (status.code !== 0) return { kind: "failed", message: status.stderr.trim() || "无法读取工作区状态" }
+  const dirty = status.stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+  if (dirty.length > 0) return { kind: "dirty", files: dirty }
+
+  const current = await git(input.base, ["rev-parse", "--abbrev-ref", "HEAD"])
+  if (current.code !== 0) return { kind: "failed", message: "无法确定当前分支（detached HEAD？）" }
+
+  const merged = await git(input.base, ["merge", "--no-ff", "--no-edit", "-m", "merge: " + input.branch, input.branch])
+  if (merged.code !== 0) {
+    const files = await conflicts(input.base)
+    const message = (merged.stderr || merged.stdout).trim()
+    await git(input.base, ["merge", "--abort"])
+    return { kind: "conflict", files, message }
+  }
+  const head = await git(input.base, ["rev-parse", "HEAD"])
+  return { kind: "merged", branch: current.stdout.trim(), sha: head.code === 0 ? head.stdout.trim() : "" }
+}
+
 /** 删除集成 worktree 与分支。 */
 export async function remove(input: { base: string; directory: string; branch?: string }) {
   const removed = await git(input.base, ["worktree", "remove", "--force", input.directory])

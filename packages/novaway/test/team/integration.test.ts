@@ -3,7 +3,7 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { spawnSync } from "node:child_process"
-import { integrate } from "@/team/integration"
+import { integrate, mergeInto } from "@/team/integration"
 
 const git = (cwd: string, args: string[]) => spawnSync("git", args, { cwd, encoding: "utf8" })
 const run = (cwd: string, args: string[]) => {
@@ -23,11 +23,16 @@ async function repo() {
   return dir
 }
 
-/** 模拟团队 worktree：从 base 建分支，改一处再提交。 */
-async function team(root: string, name: string, file: string, content: string, baseSHA?: string) {
+/**
+ * 模拟团队 worktree：从 base 建分支，改一处再提交。
+ *
+ * worktree 落在 `root`（仓库之外）而不是仓库里 —— 建在仓库内会让它自己变成
+ * 未跟踪目录，把「工作区是否干净」这个判断搅乱。
+ */
+async function team(base: string, root: string, name: string, file: string, content: string, baseSHA?: string) {
   const branch = "novaway/team/run-1/" + name
   const dir = path.join(root, "wt-" + name)
-  git(root, ["worktree", "add", "-b", branch, dir, baseSHA ?? "HEAD"])
+  git(base, ["worktree", "add", "-b", branch, dir, baseSHA ?? "HEAD"])
   await fs.writeFile(path.join(dir, file), content)
   git(dir, ["add", "."])
   git(dir, ["commit", "-q", "-m", name])
@@ -39,8 +44,8 @@ describe("team integration", () => {
     const base = await repo()
     const baseSHA = run(base, ["rev-parse", "HEAD"])
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "novaway-integration-root-"))
-    const a = await team(base, "alpha", "a.txt", "from alpha\n", baseSHA)
-    const b = await team(base, "beta", "b.txt", "from beta\n", baseSHA)
+    const a = await team(base, root, "alpha", "a.txt", "from alpha\n", baseSHA)
+    const b = await team(base, root, "beta", "b.txt", "from beta\n", baseSHA)
 
     const outcome = await integrate({ base, baseSHA, runID: "run_1", teams: [a, b], root })
     expect(outcome.kind).toBe("merged")
@@ -59,8 +64,8 @@ describe("team integration", () => {
     const base = await repo()
     const baseSHA = run(base, ["rev-parse", "HEAD"])
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "novaway-integration-root-"))
-    const a = await team(base, "alpha", "shared.txt", "alpha version\n", baseSHA)
-    const b = await team(base, "beta", "shared.txt", "beta version\n", baseSHA)
+    const a = await team(base, root, "alpha", "shared.txt", "alpha version\n", baseSHA)
+    const b = await team(base, root, "beta", "shared.txt", "beta version\n", baseSHA)
 
     const outcome = await integrate({ base, baseSHA, runID: "run_2", teams: [a, b], root })
     expect(outcome.kind).toBe("conflict")
@@ -77,5 +82,44 @@ describe("team integration", () => {
     const base = await repo()
     const outcome = await integrate({ base, baseSHA: run(base, ["rev-parse", "HEAD"]), runID: "run_3", teams: [] })
     expect(outcome.kind).toBe("skipped")
+  })
+})
+
+describe("team merge (explicit user action)", () => {
+  test("lands the integration branch on the checked-out branch and names the commit", async () => {
+    const base = await repo()
+    const baseSHA = run(base, ["rev-parse", "HEAD"])
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "novaway-merge-root-"))
+    const a = await team(base, root, "alpha", "a.txt", "from alpha\n", baseSHA)
+    const integrated = await integrate({ base, baseSHA, runID: "run_m", teams: [a], root })
+    expect(integrated.kind).toBe("merged")
+    if (integrated.kind !== "merged") return
+
+    const outcome = await mergeInto({ base, branch: integrated.branch })
+    expect(outcome.kind).toBe("merged")
+    if (outcome.kind !== "merged") return
+    // 合并之后用户的 HEAD 就是那个提交：运行的产出能指认到具体是谁、合在哪。
+    expect(outcome.branch).toBe(run(base, ["rev-parse", "--abbrev-ref", "HEAD"]))
+    expect(run(base, ["rev-parse", "HEAD"])).toBe(outcome.sha)
+    expect(run(base, ["log", "--oneline", "-1"])).toContain("merge: " + integrated.branch)
+    expect(await fs.readFile(path.join(base, "a.txt"), "utf8")).toContain("from alpha")
+  })
+
+  test("refuses to merge over uncommitted work instead of mixing two sets of changes", async () => {
+    const base = await repo()
+    const baseSHA = run(base, ["rev-parse", "HEAD"])
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "novaway-merge-root-"))
+    const a = await team(base, root, "alpha", "a.txt", "from alpha\n", baseSHA)
+    const integrated = await integrate({ base, baseSHA, runID: "run_d", teams: [a], root })
+    if (integrated.kind !== "merged") throw new Error("integration failed")
+
+    await fs.writeFile(path.join(base, "shared.txt"), "mine\n")
+    const outcome = await mergeInto({ base, branch: integrated.branch })
+    expect(outcome.kind).toBe("dirty")
+    if (outcome.kind !== "dirty") return
+    expect(outcome.files.length).toBe(1)
+    // 拒绝就是拒绝：用户的改动和 HEAD 都不能被动过。
+    expect(run(base, ["rev-parse", "HEAD"])).toBe(baseSHA)
+    expect(await fs.readFile(path.join(base, "shared.txt"), "utf8")).toContain("mine")
   })
 })

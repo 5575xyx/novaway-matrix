@@ -32,6 +32,8 @@ export const RunPage: Component<{
   const [selected, setSelected] = createSignal<string | undefined>(undefined)
   const [detail, setDetail] = createSignal<RunDetail | undefined>(undefined)
   const [error, setError] = createSignal("")
+  // 成功也要说出来：合并之后用户需要知道合进了哪个分支、是哪个提交。
+  const [notice, setNotice] = createSignal("")
   const [busy, setBusy] = createSignal("")
   // 「试跑」：用内置模板直接发起一次运行，不要求用户先去建团队。
   const [profiles, setProfiles] = createSignal<TeamProfileView[]>([])
@@ -73,6 +75,7 @@ export const RunPage: Component<{
 
   const act = async (label: string, action: () => Promise<unknown>) => {
     setBusy(label)
+    setNotice("")
     try {
       await action()
       await reload()
@@ -159,6 +162,26 @@ export const RunPage: Component<{
 
   const hasWorktrees = createMemo(() => (detail()?.teams ?? []).some((team) => !!team.worktree))
 
+  /**
+   * 显式合并：把集成分支合进用户当前检出的分支。
+   *
+   * 它不是运行的收尾动作 —— 跑完不等于要合。合进用户分支是不可撤销地改变
+   * 用户的仓库，只能由用户点这一下决定。
+   */
+  const merge = () =>
+    act("merge", async () => {
+      const runID = selected()
+      if (!runID) return
+      const result = await sdk.client.run.merge({ runID, directory: props.directory })
+      const data = result.data
+      if (data?.merged) {
+        setNotice(t("run.merge.done", { branch: data.branch ?? "", sha: (data.sha ?? "").slice(0, 12) }))
+        return
+      }
+      setNotice("")
+      setError(data?.message ?? t("run.merge.failed"))
+    })
+
   const cancel = () =>
     act("cancel", async () => {
       const runID = selected()
@@ -203,6 +226,10 @@ export const RunPage: Component<{
 
       <Show when={error()}>
         <div class="shrink-0 border-b border-border px-4 py-1.5 text-ui-xs text-destructive">{error()}</div>
+      </Show>
+
+      <Show when={notice()}>
+        <div class="shrink-0 border-b border-border px-4 py-1.5 text-ui-xs text-success">{notice()}</div>
       </Show>
 
       <div class="flex min-h-0 flex-1">
@@ -337,6 +364,17 @@ export const RunPage: Component<{
                       <Show when={!TERMINAL.has(data().run.state)}>
                         <Button variant="ghost" size="small" disabled={busy() !== ""} onClick={() => void cancel()}>
                           {t("run.action.cancel")}
+                        </Button>
+                      </Show>
+                      <Show when={TERMINAL.has(data().run.state) && hasWorktrees()}>
+                        <Button
+                          variant="primary"
+                          size="small"
+                          title={t("run.action.mergeHint")}
+                          disabled={busy() !== ""}
+                          onClick={() => void merge()}
+                        >
+                          {busy() === "merge" ? t("run.action.merging") : t("run.action.merge")}
                         </Button>
                       </Show>
                       <Show when={TERMINAL.has(data().run.state) && hasWorktrees()}>

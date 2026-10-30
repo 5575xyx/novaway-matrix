@@ -73,6 +73,12 @@ export const dict = {
   "run.action.cleaning": "Cleaning…",
   "run.action.cleanupHint":
     "Delete this run's team worktrees and its integration branch. Merge or discard the integration branch first.",
+  "run.action.merge": "Merge into current branch",
+  "run.action.merging": "Merging…",
+  "run.action.mergeHint":
+    "Merge the run's integration branch into the branch you have checked out. Refused while the working tree has uncommitted changes.",
+  "run.merge.done": "Merged into {branch} at {sha}.",
+  "run.merge.failed": "Merge did not happen.",
   "run.usage.title": "Usage by job",
   "run.usage.hint":
     "Committed tokens per job. Only the captain runs an agent session today, so this is captain-level attribution, not a per-member split.",

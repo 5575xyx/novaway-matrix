@@ -1435,6 +1435,9 @@ export type Config = {
     embedding_ollama_install_dir?: string
     embedding_ollama_models_dir?: string
   }
+  browser?: {
+    enabled?: boolean
+  }
   evolution?: {
     enabled?: boolean
     review_llm?: boolean
@@ -3674,6 +3677,14 @@ export type RunWorktreeCleanup = {
   directory: string
   removed: boolean
   error?: string
+}
+
+export type RunMergeResult = {
+  merged: boolean
+  branch?: string
+  sha?: string
+  files?: Array<string>
+  message?: string
 }
 
 export type RunEventView = {
@@ -17566,6 +17577,40 @@ export type RunWorktreesRemoveResponses = {
 }
 
 export type RunWorktreesRemoveResponse = RunWorktreesRemoveResponses[keyof RunWorktreesRemoveResponses]
+
+export type RunMergeData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/run/{runID}/merge"
+}
+
+export type RunMergeErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type RunMergeError = RunMergeErrors[keyof RunMergeErrors]
+
+export type RunMergeResponses = {
+  /**
+   * Merge result
+   */
+  200: RunMergeResult
+}
+
+export type RunMergeResponse = RunMergeResponses[keyof RunMergeResponses]
 
 export type RunCancelData = {
   body?: never

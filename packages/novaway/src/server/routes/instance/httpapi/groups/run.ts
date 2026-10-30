@@ -192,6 +192,20 @@ export const RunWorktreeCleanup = Schema.Struct({
   error: Schema.optional(Schema.String),
 }).annotate({ identifier: "RunWorktreeCleanup" })
 
+/**
+ * 显式合并的结果。
+ *
+ * 拒绝合并也算正常结果（`merged: false`）而不是 400：拒绝的原因是
+ * 「工作区不干净」「没有集成分支」这类用户需要读到并处理的事实。
+ */
+export const RunMergeResult = Schema.Struct({
+  merged: Schema.Boolean,
+  branch: Schema.optional(Schema.String),
+  sha: Schema.optional(Schema.String),
+  files: Schema.optional(Schema.Array(Schema.String)),
+  message: Schema.optional(Schema.String),
+}).annotate({ identifier: "RunMergeResult" })
+
 export const RunApi = HttpApiGroup.make("run")
   .add(
     HttpApiEndpoint.get("listRuns", root, {
@@ -291,6 +305,19 @@ export const RunApi = HttpApiGroup.make("run")
         summary: "Remove a finished run's worktrees",
         description:
           "Deletes the team worktrees and the integration worktree of a terminal run. The integration branch is the deliverable — merge or discard it first.",
+      }),
+    ),
+    HttpApiEndpoint.post("mergeRun", `${root}/:runID/merge`, {
+      params: { runID: Schema.String },
+      query: WorkspaceRoutingQuery,
+      success: described(RunMergeResult, "Merge result"),
+      error: [HttpApiError.BadRequest, HttpApiError.NotFound],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "run.merge",
+        summary: "Merge the run's integration branch",
+        description:
+          "Explicitly merges novaway/integrate/<run> into the branch the user currently has checked out. Refuses when the run is not finished, when there is no integration commit, or when the working tree is dirty.",
       }),
     ),
     HttpApiEndpoint.post("cancelRun", `${root}/:runID/cancel`, {

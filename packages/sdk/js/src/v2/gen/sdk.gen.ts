@@ -458,6 +458,8 @@ import type {
   RunExecuteErrors,
   RunExecuteResponses,
   RunListResponses,
+  RunMergeErrors,
+  RunMergeResponses,
   RunPlanErrors,
   RunPlanResponses,
   RunWorktreesRemoveErrors,
@@ -13889,6 +13891,38 @@ export class Run2 extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    })
+  }
+
+  /**
+   * Merge the run's integration branch
+   *
+   * Explicitly merges novaway/integrate/<run> into the branch the user currently has checked out. Refuses when the run is not finished, when there is no integration commit, or when the working tree is dirty.
+   */
+  public merge<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<RunMergeResponses, RunMergeErrors, ThrowOnError>({
+      url: "/run/{runID}/merge",
+      ...options,
+      ...params,
     })
   }
 
