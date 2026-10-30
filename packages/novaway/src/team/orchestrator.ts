@@ -78,6 +78,9 @@ export type IntegrationOutcome =
 
 export type Integrator = () => Effect.Effect<IntegrationOutcome>
 
+/** 缺省并发：同时派发的团队数（§4.5）。 */
+export const DEFAULT_CONCURRENCY = 3
+
 export type Dispatcher = (input: DispatchInput) => Effect.Effect<Report, unknown>
 export type Verifier = (input: VerifyInput) => Effect.Effect<VerificationResult, unknown>
 
@@ -104,6 +107,7 @@ export type Options = {
   commit?: () => Effect.Effect<void, unknown>
   maxRounds?: number
   maxBusinessAttempts?: number
+  /** 同时派发的团队数上限；缺省 3（§4.5），超出的团队排队等下一批。 */
   concurrency?: number
   /** 每次派发前预占的 token 数，返回后按实际用量结算。 */
   reserveTokens?: number
@@ -418,8 +422,10 @@ export const layer = Layer.effect(
             return team.dependsOn.every((dep) => byID.get(dep)?.phase === "delivered")
           })
           if (ready.length === 0) break
+          // 并发上限（§4.5）：缺省 3，超出的团队排队。不设上限时十个团队会同时烧钱，
+          // 而同一个 worktree 上的写操作本来也要排队 —— 并发的好处抵不过成本。
           yield* Effect.forEach(ready, (team) => attempt(team, rounds), {
-            concurrency: input.concurrency ?? Math.max(1, ready.length),
+            concurrency: Math.max(1, Math.min(ready.length, input.concurrency ?? DEFAULT_CONCURRENCY)),
             discard: true,
           })
           progressed = true

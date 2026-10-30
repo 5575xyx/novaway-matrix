@@ -1,5 +1,5 @@
 import { describe, expect } from "bun:test"
-import { Effect, Layer } from "effect"
+import { Effect, Layer, Ref } from "effect"
 import { Service as OrchestratorService, defaultLayer as OrchestratorLayer, type Report } from "@/team/orchestrator"
 import { Service as RunService, defaultLayer as RunLayer } from "@/team/run"
 import { Service as VerificationService, defaultLayer as VerificationLayer } from "@/team/verification"
@@ -625,6 +625,82 @@ describe("team orchestrator", () => {
         (event) => event.kind === "team.rework" && event.payload?.reason === "merged-verification",
       )
       expect(reworks.length).toBe(1)
+    }),
+  )
+
+  it.effect("dispatches at most three teams at a time unless the caller asks otherwise", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const orchestrator = yield* OrchestratorService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_conc"),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "五个团队的审查",
+      })
+      yield* runs.update({ runID: run.id, plan: { teams: [] }, planVersion: 1 })
+      yield* runs.approve({ runID: run.id, planVersion: 1, budget: { tokens: 100_000 }, by: "user" })
+      for (let index = 0; index < 5; index++) yield* runs.addTeam({ runID: run.id, profileID: "prof_" + index })
+
+      const active = yield* Ref.make(0)
+      const peak = yield* Ref.make(0)
+      const dispatch = () =>
+        Effect.gen(function* () {
+          const now = yield* Ref.updateAndGet(active, (value) => value + 1)
+          yield* Ref.update(peak, (value) => (now > value ? now : value))
+          // 让出调度权，让同一批里的其他团队有机会真的跑起来。
+          yield* Effect.yieldNow
+          yield* Effect.yieldNow
+          yield* Ref.update(active, (value) => value - 1)
+          return report("team")
+        })
+
+      yield* orchestrator.execute({
+        runID: run.id,
+        snapshot: () => Effect.succeed("snap_1"),
+        dispatch,
+        // 没有验收项：不进入验证，只考察派发并发。
+        verify: () => Effect.succeed({ outcome: "pass" as const }),
+      })
+
+      // 缺省 3：十个团队同时开跑会让成本与写冲突一起爆炸（§4.5）。
+      expect(yield* Ref.get(peak)).toBe(3)
+    }),
+  )
+
+  it.effect("honours an explicit concurrency of one", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const orchestrator = yield* OrchestratorService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_conc1"),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "串行审查",
+      })
+      yield* runs.update({ runID: run.id, plan: { teams: [] }, planVersion: 1 })
+      yield* runs.approve({ runID: run.id, planVersion: 1, budget: { tokens: 100_000 }, by: "user" })
+      for (let index = 0; index < 3; index++) yield* runs.addTeam({ runID: run.id, profileID: "prof_" + index })
+
+      const active = yield* Ref.make(0)
+      const peak = yield* Ref.make(0)
+      yield* orchestrator.execute({
+        runID: run.id,
+        concurrency: 1,
+        snapshot: () => Effect.succeed("snap_1"),
+        dispatch: () =>
+          Effect.gen(function* () {
+            const now = yield* Ref.updateAndGet(active, (value) => value + 1)
+            yield* Ref.update(peak, (value) => (now > value ? now : value))
+            yield* Effect.yieldNow
+            yield* Ref.update(active, (value) => value - 1)
+            return report("team")
+          }),
+        verify: () => Effect.succeed({ outcome: "pass" as const }),
+      })
+
+      // 用户显式要求串行时不要自作聪明地并行：他可能就是在省额度。
+      expect(yield* Ref.get(peak)).toBe(1)
     }),
   )
 })
