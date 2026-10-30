@@ -597,20 +597,6 @@ export default function Layout(props: ParentProps) {
         ) {
           const props = e.details.properties as { sessionID: string; requestID?: string }
           const sessionKey = `${e.name}:${props.sessionID}`
-          if (e.details.type === "question.replied" && props.requestID) {
-            void window.api?.resolveFloatingNotification?.({
-              sessionID: props.sessionID,
-              requestID: props.requestID,
-              status: "replied",
-            })
-          }
-          if (e.details.type === "question.rejected" && props.requestID) {
-            void window.api?.resolveFloatingNotification?.({
-              sessionID: props.sessionID,
-              requestID: props.requestID,
-              status: "dismissed",
-            })
-          }
           dismissSessionAlert(sessionKey)
           return
         }

@@ -1709,10 +1709,7 @@ export const dict = {
   "settings.save.saved": "已保存",
   "settings.tab.general": "通用",
   "settings.tab.desktop": "桌面",
-  "settings.tabs.pet": "桌面宠物",
   "settings.tabs.notifications": "消息通知",
-  "settings.desktop.pet.title": "悬浮宠物",
-  "settings.desktop.pet.description": "在桌面右下角显示 NovaWay 悬浮宠物。关闭后宠物不再显示，但后台功能保持不变。",
   "settings.tab.shortcuts": "快捷键",
 
   "settings.desktop.section.wsl": "WSL",

@@ -13,14 +13,13 @@ import contextMenu from "electron-context-menu"
 
 import type { InitStep, ServerReadyData, SqliteMigrationProgress, WslConfig } from "../preload/types"
 import { checkAppExists, resolveAppPath, wslPath } from "./apps"
-import { CHANNEL, FLOATING_WIDGET_ENABLED, UPDATER_ENABLED } from "./constants"
+import { CHANNEL, UPDATER_ENABLED } from "./constants"
 import {
   registerIpcHandlers,
   sendDeepLinks,
   sendMenuCommand,
   sendSqliteMigrationProgress,
   sendUpdateAvailable,
-  setFloatingWindow,
   setMainWindow,
 } from "./ipc"
 import { initLogging } from "./logging"
@@ -36,7 +35,6 @@ import {
   type SidecarListener,
 } from "./server"
 import {
-  createFloatingWindow,
   createLoadingWindow,
   createMainWindow,
   loadAppIcon,
@@ -63,7 +61,6 @@ const TEST_ONBOARDING = process.env.NovaWay_TEST_ONBOARDING === "1"
 
 let logger: ReturnType<typeof initLogging>
 let mainWindow: BrowserWindow | null = null
-let floatingWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let server: SidecarListener | null = null
 // sidecar 意外退出（Windows 上常见 0xC0000005 访问违例）时自动重启，
@@ -556,9 +553,6 @@ const main = Effect.gen(function* () {
     })
 
     mainWindow.on("closed", () => {
-      if (floatingWindow && !floatingWindow.isDestroyed()) {
-        floatingWindow.close()
-      }
       mainWindow = null
       setMainWindow(null)
     })
@@ -567,16 +561,6 @@ const main = Effect.gen(function* () {
       if (isQuitting) return
       event.preventDefault()
       hideMainWindow()
-    })
-  }
-
-  // 悬浮窗暂时下线(FLOATING_WIDGET_ENABLED=false):不创建,主窗口关闭后也不需要带走它。
-  if (FLOATING_WIDGET_ENABLED) {
-    floatingWindow = createFloatingWindow()
-    setFloatingWindow(floatingWindow)
-    floatingWindow.on("closed", () => {
-      floatingWindow = null
-      setFloatingWindow(null)
     })
   }
 

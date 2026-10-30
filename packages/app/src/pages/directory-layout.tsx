@@ -3,7 +3,6 @@ import { showToast } from "@novaway/ui/toast"
 import { base64Encode } from "@novaway/core/util/encode"
 import { useLocation, useNavigate, useParams } from "@solidjs/router"
 import { createEffect, createMemo, createResource, type ParentProps, Show } from "solid-js"
-import { FloatingAgentSync } from "@/components/floating-agent-sync"
 import { useLanguage } from "@/context/language"
 import { LocalProvider } from "@/context/local"
 import { DevServerProvider } from "@/context/dev-server"
@@ -66,10 +65,7 @@ function DirectoryDataProvider(props: ParentProps<{ directory: string }>) {
       onNavigateToSession={openSubagentSession}
       onSessionHref={(sessionID: string) => `/${slug()}/session/${sessionID}`}
     >
-      <LocalProvider>
-        <FloatingAgentSync />
-        {props.children}
-      </LocalProvider>
+      <LocalProvider>{props.children}</LocalProvider>
     </DataProvider>
   )
 }

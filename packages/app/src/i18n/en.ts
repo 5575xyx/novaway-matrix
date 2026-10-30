@@ -1818,11 +1818,7 @@ export const dict = {
   "settings.save.saved": "Saved",
   "settings.tab.general": "General",
   "settings.tab.desktop": "Desktop",
-  "settings.tabs.pet": "Pet",
   "settings.tabs.notifications": "Notifications",
-  "settings.desktop.pet.title": "Floating Pet",
-  "settings.desktop.pet.description":
-    "Show the NovaWay floating pet in the bottom-right corner. When disabled, the pet is hidden but background features remain active.",
   "settings.tab.shortcuts": "Shortcuts",
   "settings.desktop.section.wsl": "WSL",
   "settings.desktop.wsl.title": "WSL integration",

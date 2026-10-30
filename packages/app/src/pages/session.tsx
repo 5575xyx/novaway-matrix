@@ -76,7 +76,6 @@ import { useAgentsSection } from "@/pages/session/status-panel/agents-section"
 import { usePlanApprovalSection } from "@/pages/session/status-panel/plan-approval-section"
 import { useHooksSection } from "@/pages/session/status-panel/hooks-section"
 import { useTempFilesSection } from "@/pages/session/status-panel/temp-files-section"
-import { FloatingTodoButton } from "@/components/floating-todo-button"
 import { OfficeSessionComposer, OfficeSessionWorkspace } from "@/components/office-session-workspace"
 import { TerminalPanel } from "@/pages/session/terminal-panel"
 import { useSessionCommands } from "@/pages/session/use-session-commands"
@@ -2289,9 +2288,6 @@ export default function Page() {
             <Show when={!paneShowsTerminal()}>
               <TerminalPanel />
             </Show>
-            <Show when={platform.platform !== "desktop"}>
-              <FloatingTodoButton />
-            </Show>
           </div>
         }
       >
@@ -2331,9 +2327,6 @@ export default function Page() {
 
           <Show when={!paneShowsTerminal()}>
             <TerminalPanel />
-          </Show>
-          <Show when={platform.platform !== "desktop"}>
-            <FloatingTodoButton />
           </Show>
         </div>
       </Show>

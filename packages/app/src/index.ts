@@ -8,13 +8,3 @@ export { useGlobalSync } from "./context/global-sync"
 export { useSessionLayout } from "./pages/session/session-layout"
 export { ServerConnection } from "./context/server"
 export { handleNotificationClick } from "./utils/notification-click"
-export {
-  AssistantPanel,
-  type AgentItem,
-  type AssistantPanelProps,
-  type PetSkin,
-  type PetNotification,
-  type Task,
-  type TaskEvent,
-  type TaskGroup,
-} from "./components/assistant-panel"
