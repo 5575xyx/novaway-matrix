@@ -71,6 +71,8 @@ export const dict = {
   "run.state.needs_review": "需人工核对",
   "run.action.execute": "执行",
   "run.action.cancel": "取消运行",
+  "run.action.openSession": "打开会话",
+  "run.action.openSessionHint": "阻塞与待复核要在会话里处理：看卡在哪、补输入或换方案。",
   "run.action.approve": "批准计划",
   "run.action.cleanup": "清理工作区",
   "run.action.cleaning": "清理中…",

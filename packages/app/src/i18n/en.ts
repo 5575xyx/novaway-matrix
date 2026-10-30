@@ -69,6 +69,9 @@ export const dict = {
   "run.state.needs_review": "Needs review",
   "run.action.execute": "Execute",
   "run.action.cancel": "Cancel run",
+  "run.action.openSession": "Open session",
+  "run.action.openSessionHint":
+    "Blocked and needs-review runs are resolved in the session: see where it stopped, add input or change the approach.",
   "run.action.approve": "Approve plan",
   "run.action.cleanup": "Clean up worktrees",
   "run.action.cleaning": "Cleaning…",

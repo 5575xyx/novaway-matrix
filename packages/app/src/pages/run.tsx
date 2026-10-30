@@ -525,6 +525,21 @@ export const RunPage: Component<{
                           {t("run.action.cancel")}
                         </Button>
                       </Show>
+                      {/*
+                        停在阻塞 / 待复核时，用户要做的事在会话里：看卡在哪、补输入或换方案。
+                        看板只给结论，不替代处理现场。
+                      */}
+                      <Show when={data().run.state === "blocked" || data().run.state === "needs_review"}>
+                        <Button
+                          variant="ghost"
+                          size="small"
+                          title={t("run.action.openSessionHint")}
+                          disabled={!props.onOpenSession}
+                          onClick={() => props.onOpenSession?.(data().run.sessionID)}
+                        >
+                          {t("run.action.openSession")}
+                        </Button>
+                      </Show>
                       <Show when={TERMINAL.has(data().run.state) && hasWorktrees()}>
                         <Button
                           variant="primary"
