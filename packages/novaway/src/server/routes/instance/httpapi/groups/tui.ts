@@ -194,15 +194,25 @@ export const TuiApi = HttpApi.make("tui")
           }),
         ),
       )
-      .annotateMerge(OpenApi.annotations({ title: "tui", description: "Experimental HttpApi TUI routes." }))
+      .annotateMerge(
+        OpenApi.annotations({
+          title: "tui",
+          description:
+            "Optional terminal-UI extension. These routes drive the bundled TUI's own widgets and queue; " +
+            "they are NOT part of the kernel contract. Any other client should ignore them. " +
+            "Detect support through `/kernel` -> `client.capabilities` (`tui`), not by assuming the routes exist.",
+        }),
+      )
       .middleware(InstanceContextMiddleware)
       .middleware(WorkspaceRoutingMiddleware)
       .middleware(Authorization),
   )
   .annotateMerge(
     OpenApi.annotations({
-      title: "NovaWay experimental HttpApi",
+      title: "tui (optional extension)",
       version: "0.0.1",
-      description: "Experimental HttpApi surface for selected instance routes.",
+      description:
+        "Optional TUI extension. Not part of the kernel contract: a replacement client only has to implement " +
+        "the core session/event routes and may ignore this surface entirely.",
     }),
   )

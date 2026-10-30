@@ -333,10 +333,8 @@ export function Autocomplete(props: {
       const result = await sdk.client.v2.fs.find({
         query: baseQuery,
         limit: "20",
-        location: {
-          directory: input.location?.directory,
-          workspace: input.location?.workspaceID ?? project.workspace.current(),
-        },
+        directory: input.location?.directory,
+        workspace: input.location?.workspaceID ?? project.workspace.current(),
       })
 
       const options: AutocompleteOption[] = []

@@ -2593,6 +2593,61 @@ export type KernelCapabilities = {
     contributions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   }
   features: Array<KernelFeature>
+  client: {
+    id: string
+    capabilities: Array<{
+      name: string
+      enabled: boolean
+    }>
+    cliOnly: Array<{
+      command: string
+      reason: string
+    }>
+  }
+}
+
+export type StatsTokens = {
+  input: number
+  output: number
+  reasoning: number
+  cache: {
+    read: number
+    write: number
+  }
+}
+
+export type StatsModelUsage = {
+  messages: number
+  tokens: {
+    input: number
+    output: number
+    cache: {
+      read: number
+      write: number
+    }
+  }
+  cost: number
+}
+
+export type StatsInfo = {
+  totalSessions: number
+  totalMessages: number
+  totalCost: number
+  totalTokens: StatsTokens
+  toolUsage: {
+    [key: string]: number
+  }
+  modelUsage: {
+    [key: string]: StatsModelUsage
+  }
+  dateRange: {
+    earliest: number
+    latest: number
+  }
+  days: number
+  costPerDay: number
+  tokensPerSession: number
+  medianTokensPerSession: number
 }
 
 export type McpStatusConnected = {
@@ -2943,6 +2998,18 @@ export type SessionTempFileCleanResult = {
     path: string
     reason: string
   }>
+}
+
+export type SessionExport = {
+  info: Session
+  messages: Array<{
+    info: Message
+    parts: Array<Part>
+  }>
+}
+
+export type SessionImportPayload = {
+  data: SessionExport
 }
 
 export type TextPartInput = {
@@ -10142,6 +10209,27 @@ export type KernelCapabilitiesResponses = {
 
 export type KernelCapabilitiesResponse = KernelCapabilitiesResponses[keyof KernelCapabilitiesResponses]
 
+export type StatsGetData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+    days?: string
+    project?: string
+  }
+  url: "/stats"
+}
+
+export type StatsGetResponses = {
+  /**
+   * Aggregated session statistics
+   */
+  200: StatsInfo
+}
+
+export type StatsGetResponse = StatsGetResponses[keyof StatsGetResponses]
+
 export type McpStatusData = {
   body?: never
   path?: never
@@ -13740,6 +13828,65 @@ export type SessionInitResponses = {
 }
 
 export type SessionInitResponse = SessionInitResponses[keyof SessionInitResponses]
+
+export type SessionExportData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+    redact?: "true" | "false"
+  }
+  url: "/session/{sessionID}/export"
+}
+
+export type SessionExportErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SessionExportError = SessionExportErrors[keyof SessionExportErrors]
+
+export type SessionExportResponses = {
+  /**
+   * Session export
+   */
+  200: SessionExport
+}
+
+export type SessionExportResponse = SessionExportResponses[keyof SessionExportResponses]
+
+export type SessionImportData = {
+  body?: SessionImportPayload
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/import"
+}
+
+export type SessionImportErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type SessionImportError = SessionImportErrors[keyof SessionImportErrors]
+
+export type SessionImportResponses = {
+  /**
+   * Imported session
+   */
+  200: Session
+}
+
+export type SessionImportResponse = SessionImportResponses[keyof SessionImportResponses]
 
 export type SessionUnshareData = {
   body?: never

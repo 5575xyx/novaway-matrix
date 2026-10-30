@@ -22,6 +22,7 @@ import { EffectBridge } from "@/effect/bridge"
 import { InstanceState } from "@/effect/instance-state"
 import { EffectPromise } from "@/effect/promise"
 import { GlobalBus } from "@/bus/global"
+import { BusEvent } from "@/bus/bus-event"
 import { WorkspaceContext } from "@/control-plane/workspace-context"
 import { AppFileSystem } from "@novaway/core/filesystem"
 import { isRecord } from "@/util/record"
@@ -44,6 +45,14 @@ import {
 import { discoverProviderModels } from "./model-discovery"
 
 const log = Log.create({ service: "provider" })
+
+/**
+ * Emitted after periodic live model discovery changes the catalog. Clients
+ * listen for it to re-fetch the provider/model lists; it carries no payload.
+ * Registered in the bus registry so it lands in the generated event union
+ * instead of only existing on the wire.
+ */
+export const CatalogUpdated = BusEvent.define("catalog.updated", Schema.Struct({}))
 
 const REFRESH_INTERVAL = Duration.minutes(15)
 
@@ -1715,9 +1724,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
                 // 网关只回 id/name，上下文与模态在这里按模型档案补齐（见 builtin-models.ts）。
                 // 网关哪天愿意回更多字段时，仍然以它为准。
                 const profile = builtinModelProfile(item.id, item.name)
-                const inputs = new Set<BuiltinModality>(
-                  (item.inputModalities ?? profile.input) as BuiltinModality[],
-                )
+                const inputs = new Set<BuiltinModality>((item.inputModalities ?? profile.input) as BuiltinModality[])
                 const outputs = new Set<BuiltinModality>(
                   (item.outputModalities ?? (profile.kind === "text" ? ["text"] : [profile.kind])) as BuiltinModality[],
                 )
@@ -2672,7 +2679,7 @@ export const layer = Layer.effect(
               directory,
               project: ctx.project.id,
               workspace: WorkspaceContext.workspaceID,
-              payload: { type: "catalog.updated", properties: {} },
+              payload: { type: CatalogUpdated.type, properties: {} },
             }),
           )
         })

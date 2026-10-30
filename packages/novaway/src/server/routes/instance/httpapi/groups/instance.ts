@@ -26,6 +26,8 @@ const PathInfo = Schema.Struct({
 export const VcsDiffQuery = Schema.Struct({
   ...WorkspaceRoutingQueryFields,
   mode: Vcs.Mode,
+  /** Unchanged lines to keep around each hunk in the returned patch. */
+  context: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
 })
 
 export class ApiVcsApplyError extends Schema.ErrorClass<ApiVcsApplyError>("VcsApplyError")(

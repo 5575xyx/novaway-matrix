@@ -12605,6 +12605,67 @@
         ]
       }
     },
+    "/stats": {
+      "get": {
+        "tags": ["stats"],
+        "operationId": "stats.get",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[+-]?\\d*\\.?\\d+(?:[Ee][+-]?\\d+)?$"
+            },
+            "required": false
+          },
+          {
+            "name": "project",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Aggregated session statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsInfo"
+                }
+              }
+            }
+          }
+        },
+        "description": "Token usage, cost and tool/model breakdown aggregated over every session in the window. Previously only reachable through `novaway stats` on the command line.",
+        "summary": "Session statistics",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.stats.get({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/mcp": {
       "get": {
         "tags": ["mcp"],
@@ -22754,6 +22815,141 @@
           {
             "lang": "js",
             "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.init({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/session/{sessionID}/export": {
+      "get": {
+        "tags": ["session"],
+        "operationId": "session.export",
+        "parameters": [
+          {
+            "name": "sessionID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^ses"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "redact",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["true", "false"]
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session export",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionExport"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Return one session with every message and part as a single JSON document. `redact=true` replaces user-authored text and paths so the bundle can be attached to a report.",
+        "summary": "Export session",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.export({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/session/import": {
+      "post": {
+        "tags": ["session"],
+        "operationId": "session.import",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Imported session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Write a previously exported bundle into this project. Existing sessions are re-pointed at this project; messages and parts that already exist are left untouched.",
+        "summary": "Import session",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionImportPayload"
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.import({\n  ...\n})"
           }
         ]
       }
@@ -37893,7 +38089,9 @@
           "mongodb",
           "clickhouse",
           "starrocks",
-          "doris"
+          "doris",
+          "sqlserver",
+          "oracle"
         ]
       },
       "DatabaseConnection": {
@@ -41813,9 +42011,187 @@
             "items": {
               "$ref": "#/components/schemas/KernelFeature"
             }
+          },
+          "client": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "capabilities": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["name", "enabled"],
+                  "additionalProperties": false
+                }
+              },
+              "cliOnly": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "command": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["command", "reason"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["id", "capabilities", "cliOnly"],
+            "additionalProperties": false
           }
         },
-        "required": ["version", "tools", "skills", "hooks", "extensions", "features"],
+        "required": ["version", "tools", "skills", "hooks", "extensions", "features", "client"],
+        "additionalProperties": false
+      },
+      "StatsTokens": {
+        "type": "object",
+        "properties": {
+          "input": {
+            "type": "number"
+          },
+          "output": {
+            "type": "number"
+          },
+          "reasoning": {
+            "type": "number"
+          },
+          "cache": {
+            "type": "object",
+            "properties": {
+              "read": {
+                "type": "number"
+              },
+              "write": {
+                "type": "number"
+              }
+            },
+            "required": ["read", "write"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["input", "output", "reasoning", "cache"],
+        "additionalProperties": false
+      },
+      "StatsModelUsage": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "number"
+          },
+          "tokens": {
+            "type": "object",
+            "properties": {
+              "input": {
+                "type": "number"
+              },
+              "output": {
+                "type": "number"
+              },
+              "cache": {
+                "type": "object",
+                "properties": {
+                  "read": {
+                    "type": "number"
+                  },
+                  "write": {
+                    "type": "number"
+                  }
+                },
+                "required": ["read", "write"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["input", "output", "cache"],
+            "additionalProperties": false
+          },
+          "cost": {
+            "type": "number"
+          }
+        },
+        "required": ["messages", "tokens", "cost"],
+        "additionalProperties": false
+      },
+      "StatsInfo": {
+        "type": "object",
+        "properties": {
+          "totalSessions": {
+            "type": "number"
+          },
+          "totalMessages": {
+            "type": "number"
+          },
+          "totalCost": {
+            "type": "number"
+          },
+          "totalTokens": {
+            "$ref": "#/components/schemas/StatsTokens"
+          },
+          "toolUsage": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          "modelUsage": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/StatsModelUsage"
+            }
+          },
+          "dateRange": {
+            "type": "object",
+            "properties": {
+              "earliest": {
+                "type": "number"
+              },
+              "latest": {
+                "type": "number"
+              }
+            },
+            "required": ["earliest", "latest"],
+            "additionalProperties": false
+          },
+          "days": {
+            "type": "number"
+          },
+          "costPerDay": {
+            "type": "number"
+          },
+          "tokensPerSession": {
+            "type": "number"
+          },
+          "medianTokensPerSession": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "totalSessions",
+          "totalMessages",
+          "totalCost",
+          "totalTokens",
+          "toolUsage",
+          "modelUsage",
+          "dateRange",
+          "days",
+          "costPerDay",
+          "tokensPerSession",
+          "medianTokensPerSession"
+        ],
         "additionalProperties": false
       },
       "MCPStatusConnected": {
@@ -44117,6 +44493,45 @@
           }
         },
         "required": ["removed", "skipped"],
+        "additionalProperties": false
+      },
+      "SessionExport": {
+        "type": "object",
+        "properties": {
+          "info": {
+            "$ref": "#/components/schemas/Session"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "info": {
+                  "$ref": "#/components/schemas/Message"
+                },
+                "parts": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Part"
+                  }
+                }
+              },
+              "required": ["info", "parts"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["info", "messages"],
+        "additionalProperties": false
+      },
+      "SessionImportPayload": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SessionExport"
+          }
+        },
+        "required": ["data"],
         "additionalProperties": false
       },
       "TextPartInput": {
@@ -53075,6 +53490,10 @@
       "description": "Kernel introspection routes."
     },
     {
+      "name": "stats",
+      "description": "Usage statistics routes."
+    },
+    {
       "name": "mcp",
       "description": "Experimental HttpApi MCP routes."
     },
@@ -53184,7 +53603,7 @@
     },
     {
       "name": "tui",
-      "description": "Experimental HttpApi TUI routes."
+      "description": "Optional terminal-UI extension. These routes drive the bundled TUI's own widgets and queue; they are NOT part of the kernel contract. Any other client should ignore them. Detect support through `/kernel` -> `client.capabilities` (`tui`), not by assuming the routes exist."
     },
     {
       "name": "workspace",

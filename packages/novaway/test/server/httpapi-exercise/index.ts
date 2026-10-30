@@ -160,7 +160,7 @@ const scenarios: Scenario[] = [
       object(body)
       check(body.imported === 1, "agent import should import the source markdown file")
       check(body.skipped === 0, "agent import should not skip a valid source markdown file")
-      array(body.items)
+      array(body.data)
     }),
   http.protected.get("/settings/skills", "settings.skill.list").inProject({ git: false }).json(200, array, "status"),
   http.protected
@@ -194,7 +194,7 @@ const scenarios: Scenario[] = [
       object(body)
       check(body.imported === 1, "skill import should import the source SKILL.md file")
       check(body.skipped === 0, "skill import should not skip a valid source SKILL.md file")
-      array(body.items)
+      array(body.data)
     }),
   http.protected.get("/lsp", "lsp.status").json(200, array),
   http.protected.get("/formatter", "formatter.status").json(200, array),
@@ -678,8 +678,85 @@ const scenarios: Scenario[] = [
         check(auth.test === undefined, "auth remove should delete provider from isolated auth file")
       }),
     ),
-  http.protected.get("/api/model", "v2.model.list").json(200, array),
-  http.protected.get("/api/provider", "v2.provider.list").json(200, array),
+  http.protected.get("/api/model", "v2.model.list").json(200, (body) => {
+    object(body)
+    object(body.location)
+    array(body.data)
+  }),
+  http.protected.get("/api/provider", "v2.provider.list").json(200, (body) => {
+    object(body)
+    object(body.location)
+    array(body.data)
+  }),
+  http.protected.get("/api/location", "v2.location.get").json(200, (body) => {
+    object(body)
+    check(typeof body.directory === "string", "location should include a directory")
+    object(body.project)
+  }),
+  http.protected.get("/api/agent", "v2.agent.list").json(200, (body) => {
+    object(body)
+    object(body.location)
+    array(body.data)
+  }),
+  http.protected.get("/api/command", "v2.command.list").json(200, (body) => {
+    object(body)
+    object(body.location)
+    array(body.data)
+  }),
+  http.protected.get("/api/skill", "v2.skill.list").json(200, (body) => {
+    object(body)
+    object(body.location)
+    array(body.data)
+  }),
+  http.protected.get("/api/reference", "v2.reference.list").json(200, (body) => {
+    object(body)
+    object(body.location)
+    array(body.data)
+  }),
+  http.protected.get("/api/integration", "v2.integration.list").json(200, (body) => {
+    object(body)
+    object(body.location)
+    array(body.data)
+  }),
+  http.protected.get("/api/permission/saved", "v2.permission.saved.list").json(200, (body) => {
+    object(body)
+    array(body.data)
+  }),
+  http.protected
+    .get("/api/session/{sessionID}", "v2.session.get")
+    .at((ctx) => ({
+      path: route("/api/session/{sessionID}", { sessionID: "ses_httpapi_missing" }),
+      headers: ctx.headers(),
+    }))
+    .status(404, undefined, "none"),
+  http.protected
+    .get("/api/session/{sessionID}/permission", "v2.session.permission.list")
+    .at((ctx) => ({
+      path: route("/api/session/{sessionID}/permission", { sessionID: "ses_httpapi_missing" }),
+      headers: ctx.headers(),
+    }))
+    .json(
+      200,
+      (body) => {
+        object(body)
+        array(body.data)
+      },
+      "none",
+    ),
+  http.protected
+    .get("/api/session/{sessionID}/question", "v2.session.question.list")
+    .at((ctx) => ({
+      path: route("/api/session/{sessionID}/question", { sessionID: "ses_httpapi_missing" }),
+      headers: ctx.headers(),
+    }))
+    .json(
+      200,
+      (body) => {
+        object(body)
+        array(body.data)
+      },
+      "none",
+    ),
   http.protected
     .get("/api/provider/{providerID}", "v2.provider.get")
     .at((ctx) => ({ path: route("/api/provider/{providerID}", { providerID: "missing" }), headers: ctx.headers() }))
@@ -691,7 +768,7 @@ const scenarios: Scenario[] = [
       200,
       (body) => {
         object(body)
-        array(body.items)
+        array(body.data)
         object(body.cursor)
       },
       "none",
@@ -714,7 +791,7 @@ const scenarios: Scenario[] = [
       200,
       (body) => {
         object(body)
-        array(body.items)
+        array(body.data)
         object(body.cursor)
       },
       "none",
@@ -739,7 +816,7 @@ const scenarios: Scenario[] = [
       200,
       (body) => {
         object(body)
-        array(body.items)
+        array(body.data)
         object(body.cursor)
       },
       "none",
@@ -771,7 +848,7 @@ const scenarios: Scenario[] = [
       200,
       (body) => {
         object(body)
-        array(body.items)
+        array(body.data)
         object(body.cursor)
       },
       "none",
@@ -789,7 +866,7 @@ const scenarios: Scenario[] = [
       200,
       (body) => {
         object(body)
-        array(body.items)
+        array(body.data)
         object(body.cursor)
       },
       "none",
@@ -808,7 +885,7 @@ const scenarios: Scenario[] = [
       200,
       (body) => {
         object(body)
-        array(body.items)
+        array(body.data)
         object(body.cursor)
       },
       "none",
@@ -1371,6 +1448,58 @@ const scenarios: Scenario[] = [
       (body, ctx) => {
         object(body)
         check(body.id === ctx.state.id, "share should return the session")
+      },
+      "status",
+    ),
+  http.protected
+    .get("/kernel", "kernel.capabilities")
+    .at((ctx) => ({ path: "/kernel", headers: ctx.headers() }))
+    .json(200, (body) => {
+      object(body)
+      check(typeof body.version === "string", "kernel should report a version")
+      object(body.tools)
+      array(body.features)
+      object(body.client)
+      check(typeof body.client.id === "string", "kernel should report the client id")
+      array(body.client.capabilities)
+      array(body.client.cliOnly)
+    }),
+  http.protected
+    .get("/stats", "stats.get")
+    .at((ctx) => ({ path: "/stats", headers: ctx.headers() }))
+    .json(200, (body) => {
+      object(body)
+      check(typeof body.totalSessions === "number", "stats should count sessions")
+      object(body.totalTokens)
+      object(body.modelUsage)
+      object(body.toolUsage)
+    }),
+  http.protected
+    .get("/session/{sessionID}/export", "session.export")
+    .seeded((ctx) => ctx.session({ title: "Export session" }))
+    .at((ctx) => ({ path: route("/session/{sessionID}/export", { sessionID: ctx.state.id }), headers: ctx.headers() }))
+    .json(200, (body, ctx) => {
+      object(body)
+      object(body.info)
+      check(body.info.id === ctx.state.id, "export should carry the session info")
+      array(body.messages)
+    }),
+  http.protected
+    .post("/session/import", "session.import")
+    .mutating()
+    .seeded((ctx) =>
+      Effect.gen(function* () {
+        const info = yield* ctx.session({ title: "Import session" })
+        const messages = yield* ctx.messages(info.id)
+        return { info, messages }
+      }),
+    )
+    .at((ctx) => ({ path: "/session/import", headers: ctx.headers(), body: { data: ctx.state } }))
+    .json(
+      200,
+      (body, ctx) => {
+        object(body)
+        check(body.id === ctx.state.info.id, "import should return the session")
       },
       "status",
     ),

@@ -9,9 +9,12 @@ import path from "path"
 
 import { createClient } from "@hey-api/openapi-ts"
 
-const opencode = path.resolve(dir, "../../opencode")
+// Single source of truth: this SDK is generated from the kernel in this repo,
+// never from an external checkout. Two SDK generations drifting apart is what
+// let the TUI call v2 endpoints the kernel did not serve.
+const novaway = path.resolve(dir, "../novaway")
 
-await $`bun dev generate > ${dir}/openapi.json`.cwd(opencode)
+await $`bun dev generate > ${dir}/openapi.json`.cwd(novaway)
 
 const document = (await Bun.file("./openapi.json").json()) as {
   components?: { schemas?: Record<string, unknown> }
@@ -19,6 +22,9 @@ const document = (await Bun.file("./openapi.json").json()) as {
 }
 const schemas = document.components?.schemas
 if (schemas) {
+  // The upstream kernel this SDK used to be generated from emitted duplicated
+  // `SessionNext*1` union variants. Prune the unreachable ones if they ever
+  // show up again; a no-op against this repo's schema today.
   const reachable = new Set<string>()
   const visit = (value: unknown) => {
     if (Array.isArray(value)) {
@@ -38,10 +44,14 @@ if (schemas) {
     }
   }
   visit({ ...document, components: { ...document.components, schemas: undefined } })
+  let pruned = 0
   for (const name of Object.keys(schemas)) {
-    if (/^SessionNext\w+1$/.test(name) && !reachable.has(name)) delete schemas[name]
+    if (/^SessionNext\w+1$/.test(name) && !reachable.has(name)) {
+      delete schemas[name]
+      pruned++
+    }
   }
-  await Bun.write("./openapi.json", JSON.stringify(document))
+  if (pruned) await Bun.write("./openapi.json", JSON.stringify(document))
 }
 
 await createClient({
@@ -75,25 +85,17 @@ const generatedTypes = await Bun.file("./src/v2/gen/types.gen.ts").text()
 if (/export type SessionNext\w+1 =/.test(generatedTypes)) {
   throw new Error("Session history generated duplicate Session event variants")
 }
-const historyTypesPatched = generatedTypes.replace(
-  /(export type V2SessionHistoryData = \{[\s\S]*?query\?: \{\s*limit\?: )string([;,]\s*after\?: )string/,
-  "$1number$2number",
-)
-if (historyTypesPatched === generatedTypes) {
-  throw new Error("Session history numeric query patch did not apply")
-}
-await Bun.write("./src/v2/gen/types.gen.ts", historyTypesPatched)
 
+// Brand the root client class. `src/v2/client.ts` re-exports it as
+// `NovawayClient`, and a plain rename here keeps the hand-written wrapper and
+// the codegen config (which must stay on the generic instance name, otherwise
+// `bun dev generate` cannot import this package before its own output exists).
 const generatedSdk = await Bun.file("./src/v2/gen/sdk.gen.ts").text()
-const historySdkPatched = generatedSdk.replace(
-  /(Get session history[\s\S]*?parameters: \{\s*sessionID: string[;,]\s*limit\?: )string([;,]\s*after\?: )string/,
-  "$1number$2number",
-)
-if (historySdkPatched === generatedSdk) {
-  throw new Error("Session history numeric SDK patch did not apply")
+const brandedSdk = generatedSdk.replaceAll("OpencodeClient", "NovawayClient")
+if (brandedSdk === generatedSdk) {
+  throw new Error("Client branding patch did not apply; @hey-api/openapi-ts output may have changed")
 }
-await Bun.write("./src/v2/gen/sdk.gen.ts", historySdkPatched)
-
+await Bun.write("./src/v2/gen/sdk.gen.ts", brandedSdk)
 // Patch a @hey-api/openapi-ts codegen bug: SseFn incorrectly passes the
 // endpoint's TError into the second generic of ServerSentEventsResult, which
 // is the AsyncGenerator's TReturn slot. Iterator return values have nothing

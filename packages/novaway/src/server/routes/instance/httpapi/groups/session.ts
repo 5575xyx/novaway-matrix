@@ -7,6 +7,7 @@ import { SessionPrompt } from "@/session/prompt"
 import { SessionRevert } from "@/session/revert"
 import { SessionStatus } from "@/session/status"
 import { SessionSummary } from "@/session/summary"
+import { SessionPortability } from "@/session/portability"
 import { Todo } from "@/session/todo"
 import { MessageID, PartID, SessionID } from "@/session/schema"
 import { Snapshot } from "@/snapshot"
@@ -34,6 +35,14 @@ export const ListQuery = Schema.Struct({
   search: Schema.optional(Schema.String),
   limit: Schema.optional(Schema.NumberFromString),
 })
+export const ExportQuery = Schema.Struct({
+  ...WorkspaceRoutingQueryFields,
+  redact: Schema.optional(QueryBoolean),
+}).annotate({ identifier: "SessionExportQuery" })
+export const ImportPayload = Schema.Struct({
+  data: SessionPortability.Bundle,
+}).annotate({ identifier: "SessionImportPayload" })
+
 export const DiffQuery = Schema.Struct({
   ...WorkspaceRoutingQueryFields,
   ...Struct.omit(SessionSummary.DiffInput.fields, ["sessionID"]),
@@ -146,6 +155,8 @@ export const SessionPaths = {
   planApproval: `${root}/:sessionID/plan-approval`,
   planApprovalReply: `${root}/:sessionID/plan-approval/:requestID`,
   share: `${root}/:sessionID/share`,
+  export: `${root}/:sessionID/export`,
+  import: `${root}/import`,
   init: `${root}/:sessionID/init`,
   summarize: `${root}/:sessionID/summarize`,
   prompt: `${root}/:sessionID/message`,
@@ -409,6 +420,34 @@ export const SessionApi = HttpApi.make("session")
             summary: "Initialize session",
             description:
               "Analyze the current application and create an AGENTS.md file with project-specific agent configurations.",
+          }),
+        ),
+        HttpApiEndpoint.get("exportSession", SessionPaths.export, {
+          params: { sessionID: SessionID },
+          query: ExportQuery,
+          success: described(SessionPortability.Bundle, "Session export"),
+          error: [ApiNotFoundError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.export",
+            summary: "Export session",
+            description:
+              "Return one session with every message and part as a single JSON document. " +
+              "`redact=true` replaces user-authored text and paths so the bundle can be attached to a report.",
+          }),
+        ),
+        HttpApiEndpoint.post("importSession", SessionPaths.import, {
+          query: WorkspaceRoutingQuery,
+          payload: ImportPayload,
+          success: described(Session.Info, "Imported session"),
+          error: [HttpApiError.BadRequest],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.import",
+            summary: "Import session",
+            description:
+              "Write a previously exported bundle into this project. Existing sessions are re-pointed at this " +
+              "project; messages and parts that already exist are left untouched.",
           }),
         ),
         HttpApiEndpoint.post("share", SessionPaths.share, {

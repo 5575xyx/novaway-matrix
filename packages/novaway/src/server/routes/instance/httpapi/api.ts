@@ -53,7 +53,10 @@ export const RootHttpApi = HttpApi.make("NovaWay-root")
   .middleware(SchemaErrorMiddleware)
   .middleware(Authorization)
 
-export const InstanceHttpApi = HttpApi.make("NovaWay-instance")
+// Composed in two steps on purpose: a single 37-link `.addHttpApi` chain makes
+// TypeScript give up on the group union (every `HttpApiBuilder.group` call then
+// fails to find its group name).
+const InstanceGroups = HttpApi.make("NovaWay-instance")
   .addHttpApi(ChatApi)
   .add(CheckpointApi)
   .addHttpApi(ConfigApi)
@@ -82,7 +85,8 @@ export const InstanceHttpApi = HttpApi.make("NovaWay-instance")
   .addHttpApi(SyncApi)
   .addHttpApi(V2Api)
   .addHttpApi(VideosApi)
-  .addHttpApi(TuiApi)
+
+export const InstanceHttpApi = InstanceGroups.addHttpApi(TuiApi)
   .addHttpApi(WorkspaceApi)
   .add(GoalApi)
   .add(WorkflowApi)

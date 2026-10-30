@@ -10,6 +10,11 @@ import {
 
 const caps = (input: Partial<Capability> = {}): Capability => ({
   version: "1.0.0",
+  client: {
+    id: "test",
+    capabilities: [{ name: "question", enabled: true }],
+    cliOnly: [],
+  },
   tools: { total: 70, deferred: 12, readOnly: 5 },
   skills: 76,
   hooks: { registrations: 3, events: 2 },

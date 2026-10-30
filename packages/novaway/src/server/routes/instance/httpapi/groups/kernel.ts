@@ -4,6 +4,7 @@ import { Authorization } from "../middleware/authorization"
 import { InstanceContextMiddleware } from "../middleware/instance-context"
 import { WorkspaceRoutingMiddleware, WorkspaceRoutingQuery } from "../middleware/workspace-routing"
 import { described } from "./metadata"
+import { StatsGroup } from "./stats"
 
 const root = "/kernel"
 
@@ -39,6 +40,27 @@ export const KernelCapabilities = Schema.Struct({
     contributions: Schema.Number,
   }),
   features: Schema.Array(KernelFeature),
+  /**
+   * What the kernel assumed about the connected client, and which optional
+   * client-side features it therefore exposed. Informational: clients compare
+   * this with their own abilities instead of guessing from `NOVAWAY_CLIENT`.
+   */
+  client: Schema.Struct({
+    id: Schema.String,
+    capabilities: Schema.Array(
+      Schema.Struct({
+        name: Schema.String,
+        enabled: Schema.Boolean,
+      }),
+    ),
+    /** Commands that exist only in the CLI and have no HTTP equivalent. */
+    cliOnly: Schema.Array(
+      Schema.Struct({
+        command: Schema.String,
+        reason: Schema.String,
+      }),
+    ),
+  }),
 }).annotate({ identifier: "KernelCapabilities" })
 
 export const KernelApi = HttpApi.make("kernel")
@@ -66,6 +88,9 @@ export const KernelApi = HttpApi.make("kernel")
       .middleware(WorkspaceRoutingMiddleware)
       .middleware(Authorization),
   )
+  // Usage statistics live here instead of adding another HttpApi: the
+  // group-name union on `InstanceHttpApi` is already at its TypeScript limit.
+  .add(StatsGroup)
   .annotateMerge(
     OpenApi.annotations({
       title: "NovaWay kernel HttpApi",

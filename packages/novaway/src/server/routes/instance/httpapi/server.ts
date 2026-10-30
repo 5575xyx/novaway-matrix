@@ -25,6 +25,7 @@ import { Ripgrep } from "@/file/ripgrep"
 import { Format } from "@/format"
 import { Git } from "@/git"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import { ClientCapabilities } from "@/effect/client-capabilities"
 import { LSP } from "@/lsp/lsp"
 import { MCP } from "@/mcp"
 import { Permission } from "@/permission"
@@ -38,7 +39,10 @@ import { Provider } from "@/provider/provider"
 import { Pty } from "@/pty"
 import { PtyTicket } from "@/pty/ticket"
 import { Question } from "@/question"
+import { Reference } from "@/reference/reference"
+import { Stats } from "@/stats/service"
 import { Session } from "@/session/session"
+import { SessionPortability } from "@/session/portability"
 import { SessionCompaction } from "@/session/compaction"
 import { SessionPrompt } from "@/session/prompt"
 import { SessionRevert } from "@/session/revert"
@@ -86,6 +90,7 @@ import { knowledgeHandlers } from "./handlers/knowledge"
 import { globalHandlers } from "./handlers/global"
 import { instanceHandlers } from "./handlers/instance"
 import { kernelHandlers } from "./handlers/kernel"
+import { statsHandlers } from "./handlers/stats"
 import { mcpHandlers } from "./handlers/mcp"
 import { memoryHandlers } from "./handlers/memory"
 import { officeHandlers } from "./handlers/office"
@@ -187,6 +192,7 @@ const instanceApiRoutes = HttpApiBuilder.layer(InstanceHttpApi).pipe(
     imagesHandlers,
     instanceHandlers,
     kernelHandlers,
+    statsHandlers,
     mcpHandlers,
     memoryHandlers,
     officeHandlers,
@@ -291,8 +297,10 @@ export function createRoutes(
       Pty.defaultLayer,
       PtyTicket.defaultLayer,
       Question.defaultLayer,
+      Reference.defaultLayer,
       Ripgrep.defaultLayer,
       RuntimeFlags.defaultLayer,
+      ClientCapabilities.defaultLayer,
       Session.defaultLayer,
       SessionCompaction.defaultLayer,
       SessionPrompt.defaultLayer,
@@ -302,6 +310,8 @@ export function createRoutes(
       SessionRunState.defaultLayer,
       SessionStatus.defaultLayer,
       SessionSummary.defaultLayer,
+      SessionPortability.defaultLayer,
+      Stats.defaultLayer,
       ShareNext.defaultLayer,
       Snapshot.defaultLayer,
       SyncEvent.defaultLayer,

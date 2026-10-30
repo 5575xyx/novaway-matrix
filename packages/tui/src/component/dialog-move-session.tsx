@@ -74,10 +74,10 @@ export function DialogMoveSession(props: DialogMoveSessionProps) {
     () => (props.initialRemoving ? undefined : props.projectID),
     async (projectID, info): Promise<ProjectDirectory[] | undefined> => {
       try {
-        await sdk.client.v2.projectCopy.refresh(
-          { projectID, location: { directory: sdk.directory } },
-          { throwOnError: true },
-        )
+        // Git worktrees are the project copies. Listing them costs one git
+        // call and makes a later `project.directories` read pick up any that
+        // were added or removed outside this dialog.
+        await sdk.client.worktree.list({ directory: sdk.directory }, { throwOnError: true })
         const directories = await sdk.client.project.directories({ projectID }, { throwOnError: true })
         setLoadError(undefined)
         return directories.data ?? []
@@ -209,10 +209,9 @@ export function DialogMoveSession(props: DialogMoveSessionProps) {
 
   async function remove(option: DialogSelectOption<MoveSessionSelection | undefined>) {
     if (!option.value || option.value.type !== "directory" || option.value.subdirectory || removing()) return
-    const data = directoryData()
     const selected = option.value
-    const root = data?.find((item) => item.directory === selected.directory)
-    if (!root?.strategy) return
+    // The main checkout is not a copy; never delete it from here.
+    if (selected.directory === projectContext.instance.path().worktree) return
     const deletingCurrent = selected.directory === currentRoot()?.directory
     if (toDelete() !== selected.directory) {
       setToDelete(selected.directory)
@@ -221,62 +220,41 @@ export function DialogMoveSession(props: DialogMoveSessionProps) {
     setToDelete(undefined)
     setRemoving(selected.directory)
     setWorking(true)
-    const result = await sdk.client.v2.projectCopy
-      .remove({
-        projectID: props.projectID,
-        location: { directory: sdk.directory },
-        directory: selected.directory,
-        force: false,
+    // The kernel removes worktrees with --force, so warn before anything is
+    // discarded. A failed status probe must not block the delete.
+    const status = await sdk.client.vcs.status({ directory: selected.directory }).catch(() => undefined)
+    if (status?.data?.length) {
+      const choice = await DialogWorkspaceFileChanges.show(dialog, status.data, {
+        title: "删除工作副本？",
+        message: "此工作副本有文件变更。是否仍然要删除？",
       })
-      .catch((error) => ({ error }))
-    if (result.error) {
-      setRemoving(undefined)
-      setWorking(false)
-      if ("data" in result.error && result.error.data.forceRequired) {
-        const status = await sdk.client.vcs.status({ directory: selected.directory }).catch(() => undefined)
-        const choice = await DialogWorkspaceFileChanges.show(dialog, status?.data ?? [], {
-          title: "删除工作副本？",
-          message: "此工作副本有文件变更。是否仍然要删除？",
-        })
-        if (choice !== "yes") {
-          reopen()
-          return
-        }
-        reopen(selected.directory)
-        const forced = await sdk.client.v2.projectCopy
-          .remove({
-            projectID: props.projectID,
-            location: { directory: sdk.directory },
-            directory: selected.directory,
-            force: true,
-          })
-          .catch((error) => ({ error }))
-        if (forced.error) {
-          toast.show({
-            variant: "error",
-            title: "删除项目副本失败",
-            message: errorMessage(forced.error),
-          })
-          reopen()
-          return
-        }
+      if (choice !== "yes") {
         setRemoving(undefined)
         setWorking(false)
-        if (await removedCurrent(deletingCurrent)) return
-        reopen()
+        reopen(selected.directory)
         return
       }
+    }
+    const removed = await sdk.client.worktree
+      .remove(
+        { directory: sdk.directory, worktreeRemoveInput: { directory: selected.directory } },
+        { throwOnError: true },
+      )
+      .catch((error) => ({ error }))
+    setRemoving(undefined)
+    setWorking(false)
+    if ("error" in removed) {
       toast.show({
         variant: "error",
         title: "删除项目副本失败",
-        message: errorMessage(result.error),
+        message: errorMessage(removed.error),
       })
+      reopen(selected.directory)
       return
     }
     await refetch()
-    setRemoving(undefined)
-    setWorking(false)
     if (await removedCurrent(deletingCurrent)) return
+    reopen()
   }
 
   const fullHeight = createMemo(() =>

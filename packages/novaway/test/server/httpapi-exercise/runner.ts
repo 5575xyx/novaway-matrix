@@ -1,5 +1,5 @@
 import { Flag } from "@novaway/core/flag/flag"
-import { Cause, Duration, Effect } from "effect"
+import { Cause, Duration, Effect, Layer } from "effect"
 import { TestLLMServer } from "../../lib/llm-server"
 import type { Config } from "../../../src/config/config"
 import { ModelID, ProviderID } from "../../../src/provider/schema"
@@ -86,17 +86,20 @@ function withContext<A, E>(
         yield* trace(options, scenario, `${label} runtime start`)
         const modules = yield* Effect.promise(() => runtime())
         yield* trace(options, scenario, `${label} runtime done`)
+        // `AppLayer` can fail while loading config; the harness wants a total
+        // layer (scenario contexts declare `never` errors), so die on failure.
+        const appLayer = Layer.orDie(modules.AppLayer)
         const path = context.dir?.path
         const instance = path
           ? yield* trace(options, scenario, `${label} instance load start`).pipe(
               Effect.andThen(
                 modules.InstanceStore.Service.use((store) => store.load({ directory: path })).pipe(
-                  Effect.provide(modules.AppLayer),
+                  Effect.provide(appLayer),
                   Effect.catchCause((cause) =>
                     Effect.sleep("100 millis").pipe(
                       Effect.andThen(
                         modules.InstanceStore.Service.use((store) => store.load({ directory: path })).pipe(
-                          Effect.provide(modules.AppLayer),
+                          Effect.provide(appLayer),
                         ),
                       ),
                       Effect.catchCause(() => Effect.failCause(cause)),
@@ -108,7 +111,7 @@ function withContext<A, E>(
             )
           : undefined
         const run = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-          effect.pipe(Effect.provideService(modules.InstanceRef, instance), Effect.provide(modules.AppLayer))
+          effect.pipe(Effect.provideService(modules.InstanceRef, instance), Effect.provide(appLayer))
         const directory = () => {
           if (!context.dir?.path) throw new Error("scenario needs a project directory")
           return context.dir.path

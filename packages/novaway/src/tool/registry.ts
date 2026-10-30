@@ -21,6 +21,7 @@ import { WriteTool } from "./write"
 import { InvalidTool } from "./invalid"
 import { SkillTool } from "./skill"
 import { KnowledgeTool } from "./knowledge"
+import { DatabaseDescribeTool, DatabaseListTool, DatabaseQueryTool, DatabaseTablesTool } from "./database"
 import { KnowledgeManageTool } from "./knowledge-manage"
 import { RulesManageTool } from "./rules-manage"
 import { EvolutionManageTool } from "./evolution-manage"
@@ -64,6 +65,7 @@ import {
   BrowserSnapshotTool,
 } from "./browser"
 import { BrowserService } from "@/browser/browser"
+import { Database as DatabaseModule } from "@/database"
 import * as Tool from "./tool"
 import { Config } from "@/config/config"
 import { ConfigMemory } from "@/config/memory"
@@ -124,6 +126,7 @@ import { Reference } from "@/reference/reference"
 import { BackgroundJob } from "@/background/job"
 import { SessionStatus } from "@/session/status"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import { ClientCapabilities } from "@/effect/client-capabilities"
 import { Auth } from "@/auth"
 import { Goal } from "@/session/goal"
 import { PlanApproval } from "@/session/plan-approval"
@@ -258,6 +261,14 @@ export const CAPABILITIES: Record<string, Tool.Capabilities> = {
   generate_video: { concurrencySafe: true, deferLoading: true },
   generate_narration: { concurrencySafe: true, deferLoading: true },
   memory: { readOnly: true, concurrencySafe: true, idempotent: true },
+  // 数据库：读操作可并行；database_query 带 allowWrite 时不可并发（由工具自身声明覆盖）。
+  database_list: { readOnly: true, concurrencySafe: true, idempotent: true },
+  database_tables: { readOnly: true, concurrencySafe: true, idempotent: true },
+  database_describe: { readOnly: true, concurrencySafe: true, idempotent: true },
+  database_query: {
+    destructive: (args) => Boolean((args as { allowWrite?: boolean }).allowWrite),
+    maxResultBytes: 200_000,
+  },
   team_run: { concurrencySafe: false },
   team_create: { concurrencySafe: false },
   team_delete: { concurrencySafe: false },
@@ -419,11 +430,13 @@ export const layer: Layer.Layer<
   | Format.Service
   | Truncate.Service
   | RuntimeFlags.Service
+  | ClientCapabilities.Service
   | Auth.Service
   | BrowserService.Service
   | Session.Service
   | Agent.Service
   | CronService
+  | DatabaseModule.Service
 > = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -433,6 +446,7 @@ export const layer: Layer.Layer<
     const skill = yield* Skill.Service
     const truncate = yield* Truncate.Service
     const flags = yield* RuntimeFlags.Service
+    const capabilities = yield* ClientCapabilities.Service
     const auth = yield* Auth.Service
     const activation = yield* ActivationService
 
@@ -465,6 +479,11 @@ export const layer: Layer.Layer<
     const skilltool = yield* SkillTool
     const memorytool = yield* MemoryTool
     const knowledgeSearch = yield* KnowledgeTool
+    // 数据库工具把「数据库」页面里的连接直接给 Agent 用，替代原来的 dbx MCP server。
+    const databaseList = yield* DatabaseListTool
+    const databaseQuery = yield* DatabaseQueryTool
+    const databaseTables = yield* DatabaseTablesTool
+    const databaseDescribe = yield* DatabaseDescribeTool
     const knowledgeOcr = yield* KnowledgeOcrTool
     const knowledgeManage = yield* KnowledgeManageTool
     const rulesManage = yield* RulesManageTool
@@ -647,7 +666,9 @@ export const layer: Layer.Layer<
 
         const cfg = yield* config.get()
         const deferBuiltin = cfg.experimental?.defer_loading ?? true
-        const questionEnabled = ["app", "cli", "desktop"].includes(flags.client) || flags.enableQuestionTool
+        // Capability, not identity: a shell that renders prompts declares
+        // `question` and gets the tool regardless of what it calls itself.
+        const questionEnabled = capabilities.has("question") || flags.enableQuestionTool
         // 后台并行开关:配置优先(可被 /后台并行 切换),回退运行时 flag。
         const backgroundSubagentsEnabled =
           cfg.experimental?.background_subagents ?? flags.experimentalBackgroundSubagents
@@ -673,6 +694,10 @@ export const layer: Layer.Layer<
           skill: Tool.init(skilltool),
           memory: Tool.init(memorytool),
           knowledge_search: Tool.init(knowledgeSearch),
+          database_list: Tool.init(databaseList),
+          database_query: Tool.init(databaseQuery),
+          database_tables: Tool.init(databaseTables),
+          database_describe: Tool.init(databaseDescribe),
           knowledge_ocr: Tool.init(knowledgeOcr),
           knowledge_manage: Tool.init(knowledgeManage),
           rules_manage: Tool.init(rulesManage),
@@ -781,6 +806,10 @@ export const layer: Layer.Layer<
           tool.skill,
           ...(ConfigMemory.resolve(cfg.memory).enabled ? [tool.memory] : []),
           tool.knowledge_search,
+          tool.database_list,
+          tool.database_query,
+          tool.database_tables,
+          tool.database_describe,
           tool.knowledge_ocr,
           tool.knowledge_manage,
           tool.rules_manage,
@@ -817,7 +846,7 @@ export const layer: Layer.Layer<
           tool.cron_delete,
           tool.cron_list,
           ...(flags.experimentalLspTool ? [tool.lsp] : []),
-          ...(flags.experimentalPlanMode && flags.client === "cli" ? [tool.plan, tool.plan_enter] : []),
+          ...(flags.experimentalPlanMode && capabilities.has("plan") ? [tool.plan, tool.plan_enter] : []),
           tool.generate_image,
           tool.generate_video,
           tool.generate_narration,
@@ -1134,11 +1163,13 @@ export const defaultLayer: Layer.Layer<Service> = Layer.suspend(() =>
       Layer.provide(Truncate.defaultLayer),
     )
     .pipe(
+      Layer.provide(DatabaseModule.defaultLayer),
       Layer.provide(Evolution.defaultLayer),
       Layer.provide(MCP.defaultLayer),
       Layer.provide(AppProcess.defaultLayer),
       Layer.provide(BrowserService.defaultLayer),
       Layer.provide(RuntimeFlags.defaultLayer),
+      Layer.provide(ClientCapabilities.defaultLayer),
       Layer.provide(Auth.defaultLayer),
       Layer.provide(Goal.defaultLayer),
       Layer.provide(WorkflowDefaultLayer),

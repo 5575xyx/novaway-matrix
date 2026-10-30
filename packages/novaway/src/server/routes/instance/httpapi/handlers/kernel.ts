@@ -8,6 +8,8 @@ import { Service as HookService } from "@/hook/service"
 import { ExtensionService } from "@/extension"
 import { Config } from "@/config/config"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import { ClientCapabilities } from "@/effect/client-capabilities"
+import { CliOnly } from "@/cli/cli-only"
 import { InstallationVersion } from "@novaway/core/installation/version"
 
 /** Tools hidden behind `tool_search` until the model asks for them. */
@@ -22,6 +24,7 @@ export const kernelHandlers = HttpApiBuilder.group(InstanceHttpApi, "kernel", (h
     const config = yield* Config.Service
     const agents = yield* AgentService
     const flags = yield* RuntimeFlags.Service
+    const capabilities = yield* ClientCapabilities.Service
     return handlers.handle("capabilities", () =>
       Effect.gen(function* () {
         const cfg = yield* config.get()
@@ -95,6 +98,11 @@ export const kernelHandlers = HttpApiBuilder.group(InstanceHttpApi, "kernel", (h
                 .join(", "),
             },
           ],
+          client: {
+            id: capabilities.client,
+            capabilities: capabilities.list(),
+            cliOnly: CliOnly.Commands.map((item) => ({ command: item.command, reason: item.reason })),
+          },
         }
       }),
     )
