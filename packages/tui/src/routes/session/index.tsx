@@ -1595,20 +1595,6 @@ export function Session() {
       },
     },
     {
-      title: "后台子代理",
-      value: "session.background",
-      category: "会话",
-      hidden: true,
-      enabled: foregroundTasks().length > 0,
-      run: () => {
-        void sdk.client.experimental.session.background({
-          sessionID: route.sessionID,
-          workspace: project.workspace.current(),
-        })
-        dialog.clear()
-      },
-    },
-    {
       title: queueStore.items.length > 0 ? `排队消息 (${queueStore.items.length})` : "排队消息",
       value: "session.queued_prompts",
       category: "会话",

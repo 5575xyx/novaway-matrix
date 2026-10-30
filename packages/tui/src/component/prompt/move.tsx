@@ -1,6 +1,4 @@
 import { createEffect, createMemo, createSignal, onCleanup } from "solid-js"
-import path from "path"
-import { useTuiPaths } from "../../context/runtime"
 import { errorMessage } from "../../util/error"
 import { useDialog } from "../../ui/dialog"
 import { useSDK } from "../../context/sdk"
@@ -22,29 +20,20 @@ export function usePromptMove(input: { projectID: () => string | undefined; sess
   const toast = useToast()
   const homeDestination = useHomeSessionDestination()
   const project = useProject()
-  const paths = useTuiPaths()
   const [creating, setCreating] = createSignal(false)
   const [creatingDots, setCreatingDots] = createSignal(3)
   const [progress, setProgress] = createSignal<string>()
 
-  async function create(context?: string) {
+  async function create(_context?: string) {
     const projectID = input.projectID()
     if (!projectID) return
     setCreating(true)
     setProgress("创建副本中")
     try {
-      const generated = await sdk.client.experimental.projectCopy.generateName(
-        { projectID, context },
-        { throwOnError: true },
-      )
-      const result = await sdk.client.v2.projectCopy.create(
-        {
-          projectID,
-          location: { directory: sdk.directory },
-          strategy: "git_worktree",
-          directory: path.join(paths.worktree, projectID.slice(0, 6)),
-          name: generated.data.name,
-        },
+      // Project copies are git worktrees; the kernel picks the directory
+      // under its configured worktree root.
+      const result = await sdk.client.worktree.create(
+        { directory: sdk.directory, worktreeCreateInput: { name: projectID.slice(0, 6) } },
         { throwOnError: true },
       )
       const directory = result.data?.directory
@@ -128,14 +117,13 @@ export function usePromptMove(input: { projectID: () => string | undefined; sess
     }
     setProgress("移动会话中")
     try {
-      await sdk.client.experimental.controlPlane.moveSession(
-        {
-          sessionID,
-          destination: { directory },
-          moveChanges: choice === "yes",
-        },
-        { throwOnError: true },
-      )
+      // Uncommitted changes live in the filesystem, not the session, so move
+      // the patch across before repointing the session at the new directory.
+      if (choice === "yes" && session?.directory) {
+        const raw = await sdk.client.vcs.diff2.raw({ directory: session.directory }, { throwOnError: true })
+        if (raw.data) await sdk.client.vcs.apply({ directory, patch: raw.data }, { throwOnError: true })
+      }
+      await sdk.client.session.update({ sessionID, cwd: directory }, { throwOnError: true })
       await sdk.client.session
         .promptAsync({
           sessionID,

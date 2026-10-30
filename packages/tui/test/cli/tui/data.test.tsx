@@ -92,73 +92,6 @@ test("refreshes resources into reactive getters", async () => {
   }
 })
 
-test("refreshes integrations after integration updates", async () => {
-  const events = createEventSource()
-  const requests = { integration: 0, model: 0, provider: 0 }
-  const calls = createFetch((url) => {
-    if (url.pathname === "/api/model") {
-      requests.model++
-      return json({ location: { directory, project: { id: "proj_test", directory } }, data: [] })
-    }
-    if (url.pathname === "/api/provider") {
-      requests.provider++
-      return json({ location: { directory, project: { id: "proj_test", directory } }, data: [] })
-    }
-    if (url.pathname !== "/api/integration") return
-    requests.integration++
-    return json({
-      location: { directory, project: { id: "proj_test", directory } },
-      data:
-        requests.integration === 1
-          ? []
-          : [
-              {
-                id: "openai",
-                name: "OpenAI",
-                methods: [{ type: "key" }],
-              },
-            ],
-    })
-  }, events)
-  let data!: ReturnType<typeof useData>
-  let ready!: () => void
-  const mounted = new Promise<void>((resolve) => {
-    ready = resolve
-  })
-
-  function Probe() {
-    data = useData()
-    onMount(ready)
-    return <box />
-  }
-
-  const app = await testRender(() => (
-    <TestTuiContexts>
-      <SDKProvider url="http://test" directory={directory} events={events.source} fetch={calls.fetch}>
-        <ProjectProvider>
-          <DataProvider>
-            <Probe />
-          </DataProvider>
-        </ProjectProvider>
-      </SDKProvider>
-    </TestTuiContexts>
-  ))
-
-  try {
-    await mounted
-    await wait(() => data.location.integration.list() !== undefined)
-    expect(data.location.integration.list()).toEqual([])
-    const before = { ...requests }
-
-    emitEvent(events, { id: "evt_integration", type: "integration.updated", properties: {} })
-    await wait(() => data.location.integration.list()?.length === 1)
-    await wait(() => requests.model > before.model && requests.provider > before.provider)
-    expect(data.location.integration.list()?.[0]).toMatchObject({ id: "openai", name: "OpenAI" })
-  } finally {
-    app.renderer.destroy()
-  }
-})
-
 test("refreshes effective catalog data after catalog updates", async () => {
   const events = createEventSource()
   const requests = { model: 0, provider: 0 }
@@ -190,52 +123,6 @@ test("refreshes effective catalog data after catalog updates", async () => {
     const before = { ...requests }
     emitEvent(events, { id: "evt_catalog", type: "catalog.updated", properties: {} })
     await wait(() => requests.model > before.model && requests.provider > before.provider)
-  } finally {
-    app.renderer.destroy()
-  }
-})
-
-test("refreshes references after updates", async () => {
-  const events = createEventSource()
-  let requests = 0
-  const calls = createFetch((url) => {
-    if (url.pathname !== "/api/reference") return
-    requests++
-    return json({
-      location: { directory, project: { id: "proj_test", directory } },
-      data: requests === 1 ? [] : [{ name: "docs", path: "/docs", source: { type: "local", path: "/docs" } }],
-    })
-  }, events)
-  let data!: ReturnType<typeof useData>
-  let ready!: () => void
-  const mounted = new Promise<void>((resolve) => {
-    ready = resolve
-  })
-
-  function Probe() {
-    data = useData()
-    onMount(ready)
-    return <box />
-  }
-
-  const app = await testRender(() => (
-    <TestTuiContexts>
-      <SDKProvider url="http://test" directory={directory} events={events.source} fetch={calls.fetch}>
-        <ProjectProvider>
-          <DataProvider>
-            <Probe />
-          </DataProvider>
-        </ProjectProvider>
-      </SDKProvider>
-    </TestTuiContexts>
-  ))
-
-  try {
-    await mounted
-    await wait(() => requests === 1)
-    emitEvent(events, { id: "evt_reference_1", type: "reference.updated", properties: {} })
-    await wait(() => data.location.reference.list()?.length === 1)
-    expect(data.location.reference.list()?.[0]?.name).toBe("docs")
   } finally {
     app.renderer.destroy()
   }
@@ -273,16 +160,15 @@ test("settles pending tools when a live failure arrives", async () => {
     emitEvent(events, {
       id: "evt_agent_1",
       type: "session.next.agent.switched",
-      properties: { sessionID: "session-1", messageID: "msg_agent_1", timestamp: 0, agent: "build" },
+      properties: { sessionID: "session-1", timestamp: 0, agent: "build" },
     })
     emitEvent(events, {
       id: "evt_model_1",
       type: "session.next.model.switched",
       properties: {
         sessionID: "session-1",
-        messageID: "msg_model_1",
         timestamp: 0,
-        model: { id: "model-1", providerID: "provider-1" },
+        model: { id: "model-1", providerID: "provider-1", variant: "default" },
       },
     })
     emitEvent(events, {
@@ -290,10 +176,9 @@ test("settles pending tools when a live failure arrives", async () => {
       type: "session.next.step.started",
       properties: {
         sessionID: "session-1",
-        assistantMessageID: "msg_explicit_assistant_9",
         timestamp: 1,
         agent: "build",
-        model: { id: "model-1", providerID: "provider-1" },
+        model: { id: "model-1", providerID: "provider-1", variant: "default" },
       },
     })
     emitEvent(events, {
@@ -301,7 +186,6 @@ test("settles pending tools when a live failure arrives", async () => {
       type: "session.next.tool.input.started",
       properties: {
         sessionID: "session-1",
-        assistantMessageID: "msg_explicit_assistant_9",
         timestamp: 2,
         callID: "call-1",
         name: "bash",
@@ -313,7 +197,6 @@ test("settles pending tools when a live failure arrives", async () => {
       properties: {
         sessionID: "session-1",
         timestamp: 2,
-        assistantMessageID: "msg_explicit_assistant_9",
         callID: "call-1",
         tool: "bash",
         input: {},
@@ -326,7 +209,6 @@ test("settles pending tools when a live failure arrives", async () => {
       properties: {
         sessionID: "session-1",
         timestamp: 3,
-        assistantMessageID: "msg_explicit_assistant_9",
         callID: "call-1",
         error: { type: "unknown", message: "aborted" },
         provider: { executed: false, metadata: { fake: { result: true } } },
@@ -345,7 +227,7 @@ test("settles pending tools when a live failure arrives", async () => {
     const assistant = sync.session.message.list("session-1")?.[0]
     expect(assistant?.type).toBe("assistant")
     if (assistant?.type !== "assistant") return
-    expect(assistant.id).toBe("msg_explicit_assistant_9")
+    expect(assistant.id).toBe("evt_step_started_1")
     const tool = assistant.content[0]
     expect(tool?.type).toBe("tool")
     if (tool?.type !== "tool") return
@@ -357,8 +239,7 @@ test("settles pending tools when a live failure arrives", async () => {
     expect(tool.state.content).toEqual([])
     expect(tool.provider).toEqual({
       executed: false,
-      metadata: { fake: { call: true } },
-      resultMetadata: { fake: { result: true } },
+      metadata: { fake: { result: true } },
     })
     expect((sync.session.message.list("session-1") ?? []).map((message) => message.type)).toEqual([
       "assistant",
@@ -370,7 +251,7 @@ test("settles pending tools when a live failure arrives", async () => {
   }
 })
 
-test("renders admitted prompts only after they become model-visible", async () => {
+test("renders prompted users immediately", async () => {
   const events = createEventSource()
   const calls = createFetch(undefined, events)
   let sync!: ReturnType<typeof useData>
@@ -400,27 +281,12 @@ test("renders admitted prompts only after they become model-visible", async () =
   try {
     await mounted
     emitEvent(events, {
-      id: "evt_admitted_1",
-      type: "session.next.prompt.admitted",
-      properties: {
-        sessionID: "session-1",
-        messageID: "msg_user_1",
-        timestamp: 0,
-        prompt: { text: "hello" },
-        delivery: "steer",
-      },
-    })
-    expect(sync.session.message.list("session-1") ?? []).toEqual([])
-
-    emitEvent(events, {
       id: "evt_prompted_1",
       type: "session.next.prompted",
       properties: {
         sessionID: "session-1",
-        messageID: "msg_user_1",
         timestamp: 0,
         prompt: { text: "hello" },
-        delivery: "steer",
       },
     })
 
@@ -428,58 +294,7 @@ test("renders admitted prompts only after they become model-visible", async () =
     const message = sync.session.message.list("session-1")?.[0]
     expect(message?.type).toBe("user")
     if (message?.type !== "user") return
-    expect(message).toMatchObject({ id: "msg_user_1", text: "hello" })
-  } finally {
-    app.renderer.destroy()
-  }
-})
-
-test("projects live context updates with their message ID", async () => {
-  const events = createEventSource()
-  const calls = createFetch(undefined, events)
-  let sync!: ReturnType<typeof useData>
-  let ready!: () => void
-  const mounted = new Promise<void>((resolve) => {
-    ready = resolve
-  })
-
-  function Probe() {
-    sync = useData()
-    onMount(ready)
-    return <box />
-  }
-
-  const app = await testRender(() => (
-    <TestTuiContexts>
-      <SDKProvider url="http://test" directory={directory} events={events.source} fetch={calls.fetch}>
-        <ProjectProvider>
-          <DataProvider>
-            <Probe />
-          </DataProvider>
-        </ProjectProvider>
-      </SDKProvider>
-    </TestTuiContexts>
-  ))
-
-  try {
-    await mounted
-    emitEvent(events, {
-      id: "evt_context_1",
-      type: "session.next.context.updated",
-      properties: {
-        sessionID: "session-1",
-        messageID: "msg_context_1",
-        timestamp: 1,
-        text: "Updated context",
-      },
-    })
-
-    await wait(() => sync.session.message.list("session-1")?.length === 1)
-    expect(sync.session.message.list("session-1")?.[0]).toMatchObject({
-      id: "msg_context_1",
-      type: "system",
-      text: "Updated context",
-    })
+    expect(message).toMatchObject({ id: "evt_prompted_1", text: "hello" })
   } finally {
     app.renderer.destroy()
   }

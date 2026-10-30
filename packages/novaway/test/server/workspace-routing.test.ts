@@ -46,6 +46,13 @@ describe("getWorkspaceRouteSessionID", () => {
     expect(getWorkspaceRouteSessionID(url)).toBeNull()
   })
 
+  // Literal sub-routes share the `/session/<segment>` shape. `SessionID.make`
+  // throws on a non-"ses" brand, which would turn the request into a 500.
+  test("returns null for literal sub-routes instead of throwing", () => {
+    expect(getWorkspaceRouteSessionID(new URL("http://localhost/session/import"))).toBeNull()
+    expect(getWorkspaceRouteSessionID(new URL("http://localhost/session/unknown-route"))).toBeNull()
+  })
+
   test("returns null for non-session paths", () => {
     const url = new URL("http://localhost/config")
     expect(getWorkspaceRouteSessionID(url)).toBeNull()

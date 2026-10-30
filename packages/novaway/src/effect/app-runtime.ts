@@ -60,6 +60,9 @@ import { DataMigration } from "@/data-migration"
 import { BackgroundJob } from "@/background/job"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import { ClientCapabilities } from "@/effect/client-capabilities"
+import { Stats } from "@/stats/service"
+import { SessionPortability } from "@/session/portability"
 import { Evolution } from "@/evolution/service"
 import { Memory } from "@/memory/service"
 import { ExtensionService, ExtensionLayer } from "@/extension"
@@ -95,6 +98,9 @@ export const AppLayer = Layer.mergeAll(
   SessionStatus.defaultLayer,
   BackgroundJob.defaultLayer,
   RuntimeFlags.defaultLayer,
+  ClientCapabilities.defaultLayer,
+  Stats.defaultLayer,
+  SessionPortability.defaultLayer,
   SessionRunState.defaultLayer,
   SessionProcessor.defaultLayer,
   SessionCompaction.defaultLayer,

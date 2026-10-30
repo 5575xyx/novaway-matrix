@@ -16,6 +16,7 @@ import { SessionStatus } from "@/session/status"
 import { Service as PlanApprovalService } from "@/session/plan-approval"
 import * as InstanceState from "@/effect/instance-state"
 import { SessionSummary } from "@/session/summary"
+import { SessionPortability } from "@/session/portability"
 import { Todo } from "@/session/todo"
 import { MessageID, PartID, SessionID } from "@/session/schema"
 import { NamedError } from "@novaway/core/util/error"
@@ -54,6 +55,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
   Effect.gen(function* () {
     const session = yield* Session.Service
     const shareSvc = yield* SessionShare.Service
+    const portability = yield* SessionPortability.Service
     const promptSvc = yield* SessionPrompt.Service
     const revertSvc = yield* SessionRevert.Service
     const compactSvc = yield* SessionCompaction.Service
@@ -349,6 +351,21 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     // (matches the legacy route behavior which routed any failure through
     // ErrorMiddleware → NamedError.Unknown 500) instead of blanket-mapping
     // every failure to a 400 BadRequest.
+    const exportSession = Effect.fn("SessionHttpApi.exportSession")(function* (ctx: {
+      params: { sessionID: SessionID }
+      query: { redact?: boolean }
+    }) {
+      return yield* portability
+        .export({ sessionID: ctx.params.sessionID, redact: ctx.query.redact })
+        .pipe(Effect.catchTag("NotFoundError", () => Effect.fail(notFound("Session not found"))))
+    })
+
+    const importSession = Effect.fn("SessionHttpApi.importSession")(function* (ctx: {
+      payload: { data: SessionPortability.Bundle }
+    }) {
+      return yield* portability.import(ctx.payload.data)
+    })
+
     const share = Effect.fn("SessionHttpApi.share")(function* (ctx: { params: { sessionID: SessionID } }) {
       yield* requireSession(ctx.params.sessionID)
       yield* shareSvc.share(ctx.params.sessionID).pipe(Effect.mapError(() => new HttpApiError.InternalServerError({})))
@@ -551,6 +568,8 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       .handle("background", background)
       .handle("backgroundCancel", backgroundCancel)
       .handle("init", init)
+      .handle("exportSession", exportSession)
+      .handle("importSession", importSession)
       .handle("share", share)
       .handle("unshare", unshare)
       .handle("summarize", summarize)

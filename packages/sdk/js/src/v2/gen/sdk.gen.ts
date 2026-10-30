@@ -454,10 +454,15 @@ import type {
   SessionDeleteResponses,
   SessionDelivery,
   SessionDiffResponses,
+  SessionExportErrors,
+  SessionExportResponses,
   SessionForkErrors,
   SessionForkResponses,
   SessionGetErrors,
   SessionGetResponses,
+  SessionImportErrors,
+  SessionImportPayload,
+  SessionImportResponses,
   SessionInitErrors,
   SessionInitResponses,
   SessionListResponses,
@@ -521,6 +526,7 @@ import type {
   SettingsSkillListResponses,
   SettingsSkillSaveErrors,
   SettingsSkillSaveResponses,
+  StatsGetResponses,
   SubtaskPartInput,
   SyncHistoryListErrors,
   SyncHistoryListResponses,
@@ -5777,6 +5783,42 @@ export class Kernel extends HeyApiClient {
   }
 }
 
+export class Stats extends HeyApiClient {
+  /**
+   * Session statistics
+   *
+   * Token usage, cost and tool/model breakdown aggregated over every session in the window. Previously only reachable through `novaway stats` on the command line.
+   */
+  public get<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      days?: string
+      project?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "days" },
+            { in: "query", key: "project" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<StatsGetResponses, unknown, ThrowOnError>({
+      url: "/stats",
+      ...options,
+      ...params,
+    })
+  }
+}
+
 export class Auth2 extends HeyApiClient {
   /**
    * Remove MCP OAuth
@@ -9775,6 +9817,77 @@ export class Session3 extends HeyApiClient {
   }
 
   /**
+   * Export session
+   *
+   * Return one session with every message and part as a single JSON document. `redact=true` replaces user-authored text and paths so the bundle can be attached to a report.
+   */
+  public export<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      redact?: "true" | "false"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "redact" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<SessionExportResponses, SessionExportErrors, ThrowOnError>({
+      url: "/session/{sessionID}/export",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Import session
+   *
+   * Write a previously exported bundle into this project. Existing sessions are re-pointed at this project; messages and parts that already exist are left untouched.
+   */
+  public import<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      sessionImportPayload?: SessionImportPayload
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { key: "sessionImportPayload", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<SessionImportResponses, SessionImportErrors, ThrowOnError>({
+      url: "/session/import",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
    * Unshare session
    *
    * Remove the shareable link for a session, making it private again.
@@ -12823,6 +12936,11 @@ export class OpencodeClient extends HeyApiClient {
   private _kernel?: Kernel
   get kernel(): Kernel {
     return (this._kernel ??= new Kernel({ client: this.client }))
+  }
+
+  private _stats?: Stats
+  get stats(): Stats {
+    return (this._stats ??= new Stats({ client: this.client }))
   }
 
   private _mcp?: Mcp

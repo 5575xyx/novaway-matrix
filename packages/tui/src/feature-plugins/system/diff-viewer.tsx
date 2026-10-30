@@ -123,7 +123,8 @@ function DiffViewer(props: { api: TuiPluginApi }) {
     }
 
     const result = await props.api.client.vcs.diff(
-      { directory: input.directory, mode: input.mode, context: VCS_DIFF_CONTEXT_LINES },
+      // Query params are strings on the wire; the kernel decodes them to an int.
+      { directory: input.directory, mode: input.mode, context: String(VCS_DIFF_CONTEXT_LINES) },
       { throwOnError: true },
     )
     return normalizeDiffs(result.data ?? [])

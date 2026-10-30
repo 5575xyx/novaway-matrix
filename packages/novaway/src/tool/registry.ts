@@ -126,6 +126,7 @@ import { Reference } from "@/reference/reference"
 import { BackgroundJob } from "@/background/job"
 import { SessionStatus } from "@/session/status"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import { ClientCapabilities } from "@/effect/client-capabilities"
 import { Auth } from "@/auth"
 import { Goal } from "@/session/goal"
 import { PlanApproval } from "@/session/plan-approval"
@@ -387,6 +388,7 @@ export const layer: Layer.Layer<
   | Format.Service
   | Truncate.Service
   | RuntimeFlags.Service
+  | ClientCapabilities.Service
   | Auth.Service
   | BrowserService.Service
   | Session.Service
@@ -402,6 +404,7 @@ export const layer: Layer.Layer<
     const skill = yield* Skill.Service
     const truncate = yield* Truncate.Service
     const flags = yield* RuntimeFlags.Service
+    const capabilities = yield* ClientCapabilities.Service
     const auth = yield* Auth.Service
     const activation = yield* ActivationService
 
@@ -619,7 +622,9 @@ export const layer: Layer.Layer<
 
         const cfg = yield* config.get()
         const deferBuiltin = cfg.experimental?.defer_loading ?? true
-        const questionEnabled = ["app", "cli", "desktop"].includes(flags.client) || flags.enableQuestionTool
+        // Capability, not identity: a shell that renders prompts declares
+        // `question` and gets the tool regardless of what it calls itself.
+        const questionEnabled = capabilities.has("question") || flags.enableQuestionTool
         // 后台并行开关:配置优先(可被 /后台并行 切换),回退运行时 flag。
         const backgroundSubagentsEnabled =
           cfg.experimental?.background_subagents ?? flags.experimentalBackgroundSubagents
@@ -796,7 +801,7 @@ export const layer: Layer.Layer<
           tool.cron_delete,
           tool.cron_list,
           ...(flags.experimentalLspTool ? [tool.lsp] : []),
-          ...(flags.experimentalPlanMode && flags.client === "cli" ? [tool.plan, tool.plan_enter] : []),
+          ...(flags.experimentalPlanMode && capabilities.has("plan") ? [tool.plan, tool.plan_enter] : []),
           tool.generate_image,
           tool.generate_video,
           tool.generate_narration,
@@ -1118,6 +1123,7 @@ export const defaultLayer: Layer.Layer<Service> = Layer.suspend(() =>
       Layer.provide(AppProcess.defaultLayer),
       Layer.provide(BrowserService.defaultLayer),
       Layer.provide(RuntimeFlags.defaultLayer),
+      Layer.provide(ClientCapabilities.defaultLayer),
       Layer.provide(Auth.defaultLayer),
       Layer.provide(Goal.defaultLayer),
       Layer.provide(WorkflowDefaultLayer),

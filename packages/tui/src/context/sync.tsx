@@ -355,22 +355,6 @@ export const {
           break
         }
 
-        case "session.next.moved": {
-          const result = search(store.session, event.properties.sessionID, (s) => s.id)
-          if (!result.found) break
-          setStore(
-            "session",
-            result.index,
-            produce((session) => {
-              session.directory = event.properties.location.directory
-              session.path = event.properties.subdirectory
-              session.workspaceID = event.properties.location.workspaceID
-              session.time.updated = event.properties.timestamp
-            }),
-          )
-          break
-        }
-
         case "session.status": {
           setStore("session_status", event.properties.sessionID, event.properties.status)
           break
@@ -519,8 +503,10 @@ export const {
       // blocking - include session.list when continuing a session
       const providersPromise = sdk.client.config.providers({ workspace }, { throwOnError: true })
       const providerListPromise = sdk.client.provider.list({ workspace }, { throwOnError: true })
-      const capabilitiesPromise = sdk.client.experimental.capabilities
-        .get({ workspace }, { throwOnError: true })
+      // Capability negotiation: the kernel reports which optional features
+      // this build actually has, instead of clients guessing from flags.
+      const capabilitiesPromise = sdk.client.kernel
+        .capabilities({ workspace }, { throwOnError: true })
         .then((x) => x.data)
         .catch(() => undefined)
       const consoleStatePromise = sdk.client.experimental.console
@@ -568,7 +554,11 @@ export const {
               setStore("provider", reconcile(providers.providers))
               setStore("provider_default", reconcile(providers.default))
               setStore("provider_next", reconcile(providerList))
-              setStore("capabilities", "experimentalBackgroundSubagents", capabilities?.backgroundSubagents === true)
+              setStore(
+                "capabilities",
+                "experimentalBackgroundSubagents",
+                capabilities?.features.some((item) => item.id === "background_subagents" && item.enabled) === true,
+              )
               setStore("console_state", reconcile(consoleState))
               setStore("agent", reconcile(agents))
               setStore("config", reconcile(config))

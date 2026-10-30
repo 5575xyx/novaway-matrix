@@ -21,7 +21,7 @@ const ProjectDirectories = Schema.Array(
     directory: Schema.String,
     strategy: Schema.optional(Schema.String),
   }).annotate({ identifier: "ProjectDirectory" }),
-)
+).annotate({ identifier: "ProjectDirectories" })
 
 export const ProjectApi = HttpApi.make("project")
   .add(
