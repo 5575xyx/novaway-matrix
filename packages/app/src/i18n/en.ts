@@ -78,7 +78,7 @@ export const dict = {
   "run.action.merging": "Merging…",
   "run.action.mergeHint":
     "Merge the run's integration branch into the branch you have checked out. Refused while the working tree has uncommitted changes.",
-  "run.merge.done": "Merged into {branch} at {sha}.",
+  "run.merge.done": "Merged into {{branch}} at {{sha}}.",
   "run.merge.failed": "Merge did not happen.",
   "run.usage.title": "Usage by job",
   "run.usage.hint":
@@ -106,9 +106,9 @@ export const dict = {
   "run.new.missionHint":
     "A mission keeps one worktree and one base commit across runs: the next run continues from what this one left behind.",
   "run.new.missionFailed": "The mission could not be created, so the run was not started.",
-  "run.mission.title": "{label} · cumulative diff",
-  "run.mission.head": "at {sha}",
-  "run.mission.files": "{count} files changed",
+  "run.mission.title": "{{label}} · cumulative diff",
+  "run.mission.head": "at {{sha}}",
+  "run.mission.files": "{{count}} files changed",
   "run.mission.statusHint": "Mission status is set by you, not by any run.",
   "run.mission.status.active": "active",
   "run.mission.status.done": "done",
@@ -120,7 +120,7 @@ export const dict = {
   "run.mission.cleaned": "Workspace removed.",
   "run.mission.cleanupNothing": "Nothing to clean up.",
   "run.mission.more": "Only the first few changes are shown.",
-  "run.mission.untracked": "{count} untracked files are not part of any commit yet.",
+  "run.mission.untracked": "{{count}} untracked files are not part of any commit yet.",
   "run.policy.readOnly": "Read-only",
   "run.policy.write": "Can write",
   "run.policy.hint": "Enforced at the tool gate: a read-only run never edits the workspace.",
@@ -131,6 +131,10 @@ export const dict = {
   "run.metric.unverified": "Unverified",
   "run.metric.stale": "Stale evidence",
   "run.acceptance.empty": "No acceptance lines registered yet.",
+  "run.evidence.hint": "Open to see what this conclusion rests on: verifier, snapshot, measured value and evidence.",
+  "run.evidence.title": "Verification records",
+  "run.evidence.attempt": "attempt {{n}}",
+  "run.evidence.empty": "No verification records yet — unverified is not a pass.",
   "run.error.executeFailed": "Could not start the run",
   "settings.hooks.tab": "Hooks",
   "settings.hooks.tabHint":

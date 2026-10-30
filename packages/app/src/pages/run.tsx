@@ -53,6 +53,8 @@ export const RunPage: Component<{
   const [missionGoal, setMissionGoal] = createSignal("")
   // 目标累计差异：baseSHA → 当前内容。没有目标时为空。
   const [missionDiff, setMissionDiff] = createSignal<MissionDiffView | undefined>(undefined)
+  // 展开中的验收项：点一下看证据，再点一下收起。
+  const [openLine, setOpenLine] = createSignal<string | undefined>(undefined)
   const NEW_MISSION = "__new"
 
   const loadRuns = async (select?: string) => {
@@ -314,6 +316,9 @@ export const RunPage: Component<{
   const missionLabel = (missionID: string | null | undefined) =>
     missionID ? missions().find((mission) => mission.id === missionID)?.label : undefined
   const summary = createMemo(() => detail()?.summary)
+  /** 某条验收项的验证记录；按落库顺序显示，最新一次在最后。 */
+  const evidenceFor = (acceptanceID: string) =>
+    (detail()?.verifications ?? []).filter((record) => record.acceptanceID === acceptanceID)
   // 与后端同一条规则：批准前、以及批准后还没开工（running 且没有 phase）时可以改授权。
   // 会话里点名的团队会自动批准并落在 running，所以这一段不能漏 —— 否则界面上就没法放宽。
   const canChangePolicy = createMemo(() => {
@@ -683,25 +688,66 @@ export const RunPage: Component<{
                     >
                       <For each={data().summary.lines ?? []}>
                         {(line) => (
-                          <div class="flex items-start gap-2 rounded-lg border border-border px-3 py-2">
-                            <span
-                              classList={{
-                                "mt-1 size-2 shrink-0 rounded-full": true,
-                                "bg-success": line.outcome === "pass",
-                                "bg-destructive": line.outcome === "fail",
-                                "bg-warning": line.outcome !== "pass" && line.outcome !== "fail",
-                              }}
-                            />
-                            <div class="min-w-0 flex-1">
-                              <div class="text-ui-base text-foreground">{line.text}</div>
-                              <div class="mt-0.5 flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
-                                <Tag>{line.outcome}</Tag>
-                                <Show when={line.measured}>{(measured) => <span>{measured()}</span>}</Show>
-                                <Show when={line.snapshotID}>
-                                  {(snapshot) => <span class="truncate">{snapshot()}</span>}
+                          <div class="rounded-lg border border-border">
+                            {/*
+                              每个结论都能点开：验证器、绑定快照、实测值、证据引用。
+                              「通过」若看不到依据，就只是一个颜色。
+                            */}
+                            <button
+                              type="button"
+                              class="flex w-full items-start gap-2 px-3 py-2 text-left"
+                              title={t("run.evidence.hint")}
+                              onClick={() =>
+                                setOpenLine((current) =>
+                                  current === line.acceptanceID ? undefined : line.acceptanceID,
+                                )
+                              }
+                            >
+                              <span
+                                classList={{
+                                  "mt-1 size-2 shrink-0 rounded-full": true,
+                                  "bg-success": line.outcome === "pass",
+                                  "bg-destructive": line.outcome === "fail",
+                                  "bg-warning": line.outcome !== "pass" && line.outcome !== "fail",
+                                }}
+                              />
+                              <div class="min-w-0 flex-1">
+                                <div class="text-ui-base text-foreground">{line.text}</div>
+                                <div class="mt-0.5 flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
+                                  <Tag>{line.outcome}</Tag>
+                                  <Show when={line.measured}>{(measured) => <span>{measured()}</span>}</Show>
+                                  <Show when={line.snapshotID}>
+                                    {(snapshot) => <span class="truncate">{snapshot()}</span>}
+                                  </Show>
+                                </div>
+                              </div>
+                            </button>
+                            <Show when={openLine() === line.acceptanceID}>
+                              <div class="flex flex-col gap-1 border-t border-border px-3 py-2">
+                                <div class="text-ui-xs text-foreground-subtle">{t("run.evidence.title")}</div>
+                                <Show
+                                  when={evidenceFor(line.acceptanceID).length > 0}
+                                  fallback={<div class="text-ui-xs text-warning">{t("run.evidence.empty")}</div>}
+                                >
+                                  <For each={evidenceFor(line.acceptanceID)}>
+                                    {(record) => (
+                                      <div class="flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
+                                        <Tag>{t("run.evidence.attempt", { n: record.attempt })}</Tag>
+                                        <Tag>{record.outcome}</Tag>
+                                        <span class="truncate">{record.verifierVersion}</span>
+                                        <span class="truncate">{record.snapshotID}</span>
+                                        <Show when={record.measured}>
+                                          {(measured) => <span class="truncate">{measured()}</span>}
+                                        </Show>
+                                        <Show when={record.evidenceRef}>
+                                          {(ref) => <span class="min-w-0 truncate">{ref()}</span>}
+                                        </Show>
+                                      </div>
+                                    )}
+                                  </For>
                                 </Show>
                               </div>
-                            </div>
+                            </Show>
                           </div>
                         )}
                       </For>
