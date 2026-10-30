@@ -731,6 +731,30 @@ export const RunPage: Component<{
                     </div>
                   </Show>
 
+                  {/*
+                    阻塞与拒绝（§11.2）：拒绝不能被静默吞掉。权限类要标出「换成别人也没用」——
+                    换一个「权限更高」的人做同一件事就是提权，只能由用户放行。
+                  */}
+                  <Show when={(data().blockers ?? []).length > 0}>
+                    <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface px-3 py-2">
+                      <div class="text-ui-xs text-destructive">
+                        {t("run.blocked.title", { count: String((data().blockers ?? []).length) })}
+                      </div>
+                      <For each={data().blockers ?? []}>
+                        {(blocker) => (
+                          <div class="flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
+                            <Tag>{blocker.kind}</Tag>
+                            <Show when={blocker.tool}>{(tool) => <Tag>{tool()}</Tag>}</Show>
+                            <span class="min-w-0 flex-1 truncate">{blocker.reason ?? ""}</span>
+                            <span class={blocker.swappable ? "text-foreground-subtlest" : "text-warning"}>
+                              {blocker.swappable ? t("run.blocked.swappable") : t("run.blocked.noSwap")}
+                            </span>
+                          </div>
+                        )}
+                      </For>
+                    </div>
+                  </Show>
+
                   {/* 成本分两列：已结算只算提供方回报的用量，用量不明单独一列，不冒充实际花费。 */}
                   <Show when={data().run.usage}>
                     {(usage) => (

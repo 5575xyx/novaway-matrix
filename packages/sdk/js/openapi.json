@@ -48943,6 +48943,100 @@
         "required": ["pass", "fail", "unverified", "stale", "unresolved", "ratio", "deliverable", "verdict", "lines"],
         "additionalProperties": false
       },
+      "RunBlockerView": {
+        "type": "object",
+        "properties": {
+          "seq": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "tool": {
+            "type": "string"
+          },
+          "taskID": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "teamID": {
+            "type": "string"
+          },
+          "files": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "swappable": {
+            "type": "boolean"
+          }
+        },
+        "required": ["seq", "at", "kind", "swappable"],
+        "additionalProperties": false
+      },
       "RunDetail": {
         "type": "object",
         "properties": {
@@ -48969,9 +49063,15 @@
           },
           "summary": {
             "$ref": "#/components/schemas/RunSummaryView"
+          },
+          "blockers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunBlockerView"
+            }
           }
         },
-        "required": ["run", "teams", "acceptances", "verifications", "summary"],
+        "required": ["run", "teams", "acceptances", "verifications", "summary", "blockers"],
         "additionalProperties": false
       },
       "effect_HttpApiError_Conflict": {

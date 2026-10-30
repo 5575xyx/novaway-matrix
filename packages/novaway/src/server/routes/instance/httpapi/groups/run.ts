@@ -142,12 +142,29 @@ export const RunEventView = Schema.Struct({
   payload: Schema.optional(Schema.Any),
 }).annotate({ identifier: "RunEventView" })
 
+/**
+ * 阻塞项（§11.2）：拒绝不能被静默吞掉，界面必须能指出「卡在哪、为什么、换人有没有用」。
+ */
+export const RunBlockerView = Schema.Struct({
+  seq: Schema.Number,
+  at: Schema.Number,
+  kind: Schema.String,
+  tool: Schema.optional(Schema.String),
+  taskID: Schema.optional(Schema.String),
+  reason: Schema.optional(Schema.String),
+  teamID: Schema.optional(Schema.String),
+  files: Schema.optional(Schema.Number),
+  /** 换个人来做能不能解决；权限类不能（换人等于提权）。 */
+  swappable: Schema.Boolean,
+}).annotate({ identifier: "RunBlockerView" })
+
 export const RunDetail = Schema.Struct({
   run: RunView,
   teams: Schema.Array(RunTeamView),
   acceptances: Schema.Array(RunAcceptanceView),
   verifications: Schema.Array(RunVerificationView),
   summary: RunSummaryView,
+  blockers: Schema.Array(RunBlockerView),
 }).annotate({ identifier: "RunDetail" })
 
 export const RunCreatePayload = Schema.Struct({

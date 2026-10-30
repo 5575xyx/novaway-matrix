@@ -22,6 +22,7 @@ import {
 } from "@/team/worktree"
 import { attachMission, prepareWorktree } from "@/team/setup"
 import * as TeamSwitch from "@/team/switch"
+import * as TeamBlockers from "@/team/blockers"
 import { Config as ConfigService } from "@/config/config"
 import {
   forkPoint,
@@ -185,14 +186,20 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
       Effect.gen(function* () {
         const run = yield* runs.get(runID)
         if (!run) return undefined
-        const [teams, acceptances, verifications] = yield* Effect.all([
+        const [teams, acceptances, verifications, events] = yield* Effect.all([
           runs.teams(runID),
           verification.list(runID),
           verification.verifications(runID),
+          runs.events({ runID }),
         ])
         const summary = yield* verification.summary({ runID })
         return {
           run: toRun(run),
+          // 阻塞与拒绝要出现在看板上，而不是只躺在事件日志里等人去翻（§11.2）。
+          blockers: TeamBlockers.from(events).map((blocker) => ({
+            ...blocker,
+            swappable: TeamBlockers.swappable(blocker.kind),
+          })),
           teams: teams.map((team) => ({
             id: team.id,
             profileID: team.profileID,

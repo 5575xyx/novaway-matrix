@@ -3718,12 +3718,25 @@ export type RunSummaryView = {
   lines: Array<RunSummaryLine>
 }
 
+export type RunBlockerView = {
+  seq: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  kind: string
+  tool?: string
+  taskID?: string
+  reason?: string
+  teamID?: string
+  files?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  swappable: boolean
+}
+
 export type RunDetail = {
   run: RunView
   teams: Array<RunTeamView>
   acceptances: Array<RunAcceptanceView>
   verifications: Array<RunVerificationView>
   summary: RunSummaryView
+  blockers: Array<RunBlockerView>
 }
 
 export type EffectHttpApiErrorConflict = {
