@@ -20381,6 +20381,220 @@
         ]
       }
     },
+    "/elicitation": {
+      "get": {
+        "tags": ["elicitation"],
+        "operationId": "elicitation.list",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pending elicitation requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ElicitationRequest"
+                  },
+                  "description": "Pending elicitation requests"
+                }
+              }
+            }
+          }
+        },
+        "description": "Requests from MCP servers that need user input before a tool call can continue. HTTP is transport-neutral: the payload never contains the server's full URL query, only what the dialog needs.",
+        "summary": "List pending MCP elicitation requests",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.elicitation.list({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/elicitation/{requestID}/reply": {
+      "post": {
+        "tags": ["elicitation"],
+        "operationId": "elicitation.reply",
+        "parameters": [
+          {
+            "name": "requestID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Answer recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean",
+                  "description": "Answer recorded"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Accept (with form content), decline, or cancel a pending MCP elicitation request.",
+        "summary": "Answer an elicitation request",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": ["accept", "decline", "cancel"]
+                  },
+                  "content": {
+                    "type": "object"
+                  }
+                },
+                "required": ["action"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.elicitation.reply({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/elicitation/{requestID}/reject": {
+      "post": {
+        "tags": ["elicitation"],
+        "operationId": "elicitation.reject",
+        "parameters": [
+          {
+            "name": "requestID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean",
+                  "description": "Request cancelled"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Dismiss a pending request without answering; the server receives `cancel`.",
+        "summary": "Cancel an elicitation request",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.elicitation.reject({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/permission": {
       "get": {
         "tags": ["permission"],
@@ -31431,6 +31645,18 @@
             "$ref": "#/components/schemas/EventMemoryReviewUpdated"
           },
           {
+            "$ref": "#/components/schemas/EventElicitationAsked"
+          },
+          {
+            "$ref": "#/components/schemas/EventElicitationReplied"
+          },
+          {
+            "$ref": "#/components/schemas/EventElicitationRejected"
+          },
+          {
+            "$ref": "#/components/schemas/EventElicitationCompleted"
+          },
+          {
             "$ref": "#/components/schemas/EventMcpToolsChanged"
           },
           {
@@ -32290,6 +32516,101 @@
           }
         },
         "required": ["id", "type", "status", "started_at"],
+        "additionalProperties": false
+      },
+      "ElicitationRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "serverName": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["form", "url"]
+          },
+          "url": {
+            "type": "string"
+          },
+          "elicitationId": {
+            "type": "string"
+          },
+          "requestedSchema": {
+            "type": "object"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "completed": {
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "serverName", "message", "mode", "at"],
+        "additionalProperties": false
+      },
+      "ElicitationReply": {
+        "type": "object",
+        "properties": {
+          "requestID": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": ["accept", "decline", "cancel"]
+          },
+          "content": {
+            "type": "object"
+          }
+        },
+        "required": ["requestID", "action"],
+        "additionalProperties": false
+      },
+      "ElicitationRejected": {
+        "type": "object",
+        "properties": {
+          "requestID": {
+            "type": "string"
+          }
+        },
+        "required": ["requestID"],
+        "additionalProperties": false
+      },
+      "ElicitationCompleted": {
+        "type": "object",
+        "properties": {
+          "serverName": {
+            "type": "string"
+          },
+          "elicitationId": {
+            "type": "string"
+          }
+        },
+        "required": ["serverName", "elicitationId"],
         "additionalProperties": false
       },
       "SnapshotFileDiff": {
@@ -34086,6 +34407,18 @@
                 "$ref": "#/components/schemas/EventMemoryReviewUpdated"
               },
               {
+                "$ref": "#/components/schemas/EventElicitationAsked"
+              },
+              {
+                "$ref": "#/components/schemas/EventElicitationReplied"
+              },
+              {
+                "$ref": "#/components/schemas/EventElicitationRejected"
+              },
+              {
+                "$ref": "#/components/schemas/EventElicitationCompleted"
+              },
+              {
                 "$ref": "#/components/schemas/EventMcpToolsChanged"
               },
               {
@@ -35752,6 +36085,17 @@
               },
               "computer_control_composer": {
                 "type": "boolean"
+              },
+              "mcp_elicitation": {
+                "type": "boolean"
+              },
+              "elicitation_timeout_ms": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "stream_idle_timeout_ms": {
+                "type": "integer",
+                "minimum": 0
               },
               "git_timeout": {
                 "type": "integer",
@@ -47125,6 +47469,57 @@
         "required": ["id", "type", "status", "started_at"],
         "additionalProperties": false
       },
+      "ElicitationRequest1": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "serverName": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["form", "url"]
+          },
+          "url": {
+            "type": "string"
+          },
+          "elicitationId": {
+            "type": "string"
+          },
+          "requestedSchema": {
+            "type": "object"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              }
+            ]
+          },
+          "completed": {
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "serverName", "message", "mode", "at"],
+        "additionalProperties": false
+      },
       "SyncEventMessageUpdated": {
         "type": "object",
         "properties": {
@@ -49551,6 +49946,74 @@
               }
             },
             "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventElicitationAsked": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["elicitation.asked"]
+          },
+          "properties": {
+            "$ref": "#/components/schemas/ElicitationRequest"
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventElicitationReplied": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["elicitation.replied"]
+          },
+          "properties": {
+            "$ref": "#/components/schemas/ElicitationReply"
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventElicitationRejected": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["elicitation.rejected"]
+          },
+          "properties": {
+            "$ref": "#/components/schemas/ElicitationRejected"
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventElicitationCompleted": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["elicitation.completed"]
+          },
+          "properties": {
+            "$ref": "#/components/schemas/ElicitationCompleted"
           }
         },
         "required": ["id", "type", "properties"],
@@ -53520,6 +53983,10 @@
     {
       "name": "question",
       "description": "Question routes."
+    },
+    {
+      "name": "elicitation",
+      "description": "MCP elicitation routes."
     },
     {
       "name": "permission",

@@ -137,6 +137,8 @@ export const layer = Layer.effect(
         currentReasoning: undefined,
       }
       let aborted = false
+      // 每次请求开始前重置；停止重试时用它解释「为什么停了」。
+      const retry = SessionRetry.tracker()
       const slog = log.clone().tag("session.id", input.sessionID).tag("messageID", input.assistantMessage.id)
 
       const parse = (e: unknown) =>
@@ -727,7 +729,7 @@ export const layer = Layer.effect(
 
       const halt = Effect.fn("SessionProcessor.halt")(function* (e: unknown) {
         slog.error("process", { error: errorMessage(e), stack: e instanceof Error ? e.stack : undefined })
-        const error = parse(e)
+        const error = SessionRetry.explain(parse(e), retry)
         if (MessageV2.ContextOverflowError.isInstance(error)) {
           ctx.needsCompaction = true
           // 压缩请求（summary）可能被 compaction 层截断重试；中间失败不上报，
@@ -761,6 +763,7 @@ export const layer = Layer.effect(
       const process = Effect.fn("SessionProcessor.process")(function* (streamInput: LLM.StreamInput) {
         slog.info("process")
         ctx.needsCompaction = false
+        SessionRetry.reset(retry)
         // Default: keep going after a rejection. Set
         // `experimental.continue_loop_on_deny: false` to restore the old
         // "deny ends the turn" behaviour.
@@ -795,6 +798,7 @@ export const layer = Layer.effect(
               SessionRetry.policy({
                 provider: input.model.providerID,
                 parse,
+                tracker: retry,
                 set: (info) => {
                   // TODO(v2): Temporary dual-write while migrating session messages to v2 events.
                   const event = flags.experimentalEventSystem

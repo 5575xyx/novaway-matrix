@@ -23,6 +23,19 @@ function payload(input: Hook.TriggerInput) {
   }
 }
 
+/** `Elicitation` / `ElicitationResult` 通过 `hookSpecificOutput.action` 直接回答。 */
+function parseElicitation(specific: any): Hook.ElicitationReply | undefined {
+  if (!specific) return undefined
+  if (specific.hookEventName !== "Elicitation" && specific.hookEventName !== "ElicitationResult") return undefined
+  if (specific.action !== "accept" && specific.action !== "decline" && specific.action !== "cancel") return undefined
+  return {
+    action: specific.action,
+    ...(specific.content && typeof specific.content === "object"
+      ? { content: specific.content as Record<string, unknown> }
+      : {}),
+  }
+}
+
 function parseOutput(text: string): Partial<Hook.Result> {
   const trimmed = text.trim()
   if (!trimmed) return {}
@@ -30,8 +43,10 @@ function parseOutput(text: string): Partial<Hook.Result> {
     const json = JSON.parse(trimmed) as any
     const specific = json.hookSpecificOutput
     const decision = json.decision ?? specific?.permissionDecision
+    const elicitation = parseElicitation(specific)
     return {
       ...(decision ? { decision } : {}),
+      ...(elicitation ? { elicitation } : {}),
       ...(json.reason || specific?.permissionDecisionReason
         ? { reason: json.reason ?? specific?.permissionDecisionReason }
         : {}),

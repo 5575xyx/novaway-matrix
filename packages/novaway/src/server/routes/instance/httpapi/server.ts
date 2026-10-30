@@ -28,6 +28,7 @@ import { RuntimeFlags } from "@/effect/runtime-flags"
 import { ClientCapabilities } from "@/effect/client-capabilities"
 import { LSP } from "@/lsp/lsp"
 import { MCP } from "@/mcp"
+import { Elicitation } from "@/mcp/elicitation"
 import { Permission } from "@/permission"
 import { Installation } from "@/installation"
 import { InstanceLayer } from "@/project/instance-layer"
@@ -100,6 +101,7 @@ import { projectHandlers } from "./handlers/project"
 import { providerHandlers } from "./handlers/provider"
 import { ptyConnectRoute, ptyHandlers } from "./handlers/pty"
 import { questionHandlers } from "./handlers/question"
+import { elicitationHandlers } from "./handlers/elicitation"
 import { sessionHandlers } from "./handlers/session"
 import { settingsHandlers } from "./handlers/settings"
 import { syncHandlers } from "./handlers/sync"
@@ -200,6 +202,7 @@ const instanceApiRoutes = HttpApiBuilder.layer(InstanceHttpApi).pipe(
     projectHandlers,
     ptyHandlers,
     questionHandlers,
+    elicitationHandlers,
     permissionHandlers,
     providerHandlers,
     sessionHandlers,
@@ -297,6 +300,7 @@ export function createRoutes(
       Pty.defaultLayer,
       PtyTicket.defaultLayer,
       Question.defaultLayer,
+      Elicitation.defaultLayer,
       Reference.defaultLayer,
       Ripgrep.defaultLayer,
       RuntimeFlags.defaultLayer,

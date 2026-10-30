@@ -7,6 +7,7 @@ import { Config } from "@/config/config"
 import { InstanceRef } from "../../src/effect/instance-ref"
 import type { MCP as MCPNS } from "../../src/mcp/index"
 import { TestConfig } from "../fixture/config"
+import { TestElicitation } from "../fixture/elicitation"
 import { testEffect } from "../lib/effect"
 
 // --- Mock infrastructure ---
@@ -203,6 +204,7 @@ const testConfigLayer = TestConfig.layer({
 })
 
 const testLayer = MCP.layer.pipe(
+  Layer.provide(TestElicitation.layer()),
   Layer.provide(McpAuth.layer),
   Layer.provide(Bus.layer),
   Layer.provide(testConfigLayer),

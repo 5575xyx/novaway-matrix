@@ -730,7 +730,7 @@ Hook 的执行选项现在都有实际语义（此前 `if` / `async` 只是被�
   开关 + 已加载扩展）与市场目录；
 - **内核页**（左侧 `lu-activity`）：运行时的真实状态 —— 工具 / 技能 / Hook /
   扩展数量，以及八项内核特性的开关与一句解释；
-- **设置 → Hook**：24 个可监听事件的完整清单（监听与否都列出）、按来源文件
+- **设置 → Hook**：26 个可监听事件的完整清单（监听与否都列出）、按来源文件
   分组的注册（事件 / matcher / 类型，不展示命令体）、以及声明了
   `statusMessage` 的正在执行的 Hook；
 - **团队页**（左侧 `lu-users`）：可创建团队、从已有 AI 员工里选成员，并以
@@ -862,7 +862,7 @@ Hook 的执行选项现在都有实际语义（此前 `if` / `async` 只是被�
 | 位置                   | 看到什么                                                                                                                        | 数据来源                                |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
 | 左下角 → 内核          | 「内核能力」卡：工具 / 技能 / Hook / 扩展的真实数量、各特性开关与一句解释                                                       | `GET /kernel`                           |
-| 设置 → Hook            | 24 个事件清单（监听与否都显示）、按来源分组的注册（事件 / matcher / 类型，不显示命令，避免泄露密钥）、正在执行的 Hook           | `GET /hook` / `GET /hook/active`        |
+| 设置 → Hook            | 26 个事件清单（监听与否都显示）、按来源分组的注册（事件 / matcher / 类型，不显示命令，避免泄露密钥）、正在执行的 Hook           | `GET /hook` / `GET /hook/active`        |
 | 左下角 → 团队          | 团队列表 + 成员 + 共享任务 + 群聊记录；发送后成员会话真正开始执行，回复回流                                                     | `GET/POST /team…`                       |
 | 左下角 → 扩展 → 已安装 | 「内置能力」开关（技能 / 浏览器 / 记忆）与「已加载扩展」：来源、版本、校验问题                                                  | `config` / `GET /extension`             |
 | 左下角 → 扩展 → 市场   | ZCode / Claude 目录：已安装标签、`1.2.0 → 1.3.0` 版本变化、`可更新到 x.y.z`                                                     | `GET /extension/marketplace`            |
@@ -960,13 +960,16 @@ ant-only 的 MagicDocs / REPL / Config、SDK 专用的 tool-use summary 等）�
 
 ### 10.2 Hook 事件
 
-当前实现 24 个事件（含 `WorktreeCreate` / `WorktreeRemove`）：worktree 被删除时
-（`exit_worktree` 的 `remove` 分支与 HTTP 删除接口）都会派发 `WorktreeRemove`，
-metadata 带 `worktree_path`（以及已知时的 `branch`）。
+当前实现 26 个事件（含 `WorktreeCreate` / `WorktreeRemove` / `Elicitation` /
+`ElicitationResult`）：worktree 被删除时（`exit_worktree` 的 `remove` 分支与
+HTTP 删除接口）都会派发 `WorktreeRemove`，metadata 带 `worktree_path`
+（以及已知时的 `branch`）。
 
-CC 还有 `Setup`、`Elicitation`、`ElicitationResult`：前者的触发点是首启向导 /
-维护模式，后两者需要 MCP elicitation 请求流程（我们目前没有接入 elicitation，
-因此暂不派发，避免出现「配置了 hook 却永远不会触发」的假支持）。
+`Elicitation` / `ElicitationResult` 随 MCP elicitation 一起接入（见 §10.7），
+matcher 匹配的是 **MCP 服务器名**（这两个事件没有 tool，与 CC 一致）。
+
+CC 还有 `Setup`：触发点是首启向导 / 维护模式，我们目前没有等价的「首次安装
+向导」生命周期，暂不派发，避免出现「配置了 hook 却永远不会触发」的假支持。
 
 ### 10.3 工具
 
@@ -1079,3 +1082,85 @@ shell 的退出码语义已对齐 CC `commandSemantics.ts`：`grep` / `rg` 的 1
 - SDK 专用：`toolUseSummary`（移动端进度标签）；会话笔记已覆盖其价值
 - 云端 OAuth 绑定：`RemoteTriggerTool`（Claude.ai 远程触发）、`McpAuthTool` 的浏览器
   流程已用 `mcp_setup({ action: "authenticate" })` 覆盖
+
+### 10.5 请求重试的上限与过载退避（2026-10-29）
+
+以前 5xx / 529 没有次数上限：只要供应商持续不可用，界面就会一直停在「重试中」，
+用户无法判断是「还在努力」还是「已经卡死」。CC 的 `services/api/withRetry.ts`
+有两条硬上限：`DEFAULT_MAX_RETRIES = 10`，以及连续 3 次 529 就停止
+（`MAX_529_RETRIES = 3`；配置了 `--fallback-model` 时改为切换模型再试）。本次对齐：
+
+- 所有可重试错误最多重试 10 次（传输层中断仍是 5 次，见 `MAX_TRANSIENT_ATTEMPTS`）。
+- 连续 3 次过载（`529` / `Overloaded` / `resource_exhausted`）立即停止，不等满 10 次；
+  中间出现别的可重试错误会把过载计数清零（CC 数的是 consecutive）。
+- 停止时把供应商原文换成一句可执行的话：「供应商连续 3 次过载，已停止自动重试。
+  稍后再试，或在模型选择里换一个模型/供应商。」只改 `message`，
+  `statusCode` / `responseHeaders` 等诊断字段保留。
+- 没有做的部分：`--fallback-model`。自动换模型会同时换掉计费与能力，
+  必须是用户可见的显式配置（还要在界面上标出「已切换到备用模型」），
+  不能做成出故障时的静默兜底。留作后续单独一项。
+
+代码：`src/session/retry.ts`（`RetryKind` / `MAX_API_ATTEMPTS` /
+`MAX_OVERLOAD_ATTEMPTS` / `tracker()` / `explain()`），
+`src/session/processor.ts`（每次请求前 `reset()`，最终失败时 `explain()`）。
+测试：`test/session/retry.test.ts` → `session.retry.policy limits`（5 条）。
+
+- 还没做的一项：`--fallback-model`（见上）。流空闲看门狗见 §10.6。
+
+### 10.6 流空闲看门狗（2026-10-29）
+
+供应商 SDK 的请求超时只覆盖「建立连接 + 拿到响应头」，不覆盖响应体。代理把连接
+静默掐掉、或者返回 200 但正文根本不是 SSE 时，`for await` 会永远挂着：会话停在
+「思考中」，既没有进度提示也无法重试。CC 的做法（`services/api/claude.ts`）是
+90 秒收不到任何 chunk 就中止；它还有第二个检查：流结束了但一个助手消息都没产生
+（`!partialMessage || (newMessages.length === 0 && !stopReason)`）也判为故障，
+交给重试/回退。本次对齐（`src/session/stream-watchdog.ts`）：
+
+| 机制         | 取值 / 行为                                                                           |
+| ------------ | ------------------------------------------------------------------------------------- |
+| 空闲上限     | 90 秒（CC 同值），`experimental.stream_idle_timeout_ms` 可改，0 关闭                  |
+| 工具执行期间 | **暂停计时**：已发出 `tool-call` 但还没收到结果时，没有 chunk 是正常的                |
+| 空流         | 一个事件都没有就结束 → `StreamEmptyError`（代理返回 200 + 非 SSE 正文）               |
+| 截断流       | 有事件但既无内容也无 `finish-step`/`finish`/`error`/`abort` → `StreamIncompleteError` |
+| 卡顿可见性   | 相邻事件间隔超过 30 秒记一条 `stream stall` 日志（不中止），对应 CC 的 stall 统计     |
+| 中止后的收尾 | 关闭上游、由 `acquireRelease` 的 `AbortController` 真正断开请求                       |
+
+三类错误都追加进了 `retry.ts` 的传输层错误特征，因此会按「网络中断」自动重试
+（`MAX_TRANSIENT_ATTEMPTS = 5`），重试用尽后由 `explain()` 给出可执行的一句话。
+
+实现上刻意**不用 async generator**：生成器被中断时只能等眼前的 `await` 走完，
+「用户点停止」会一直等到下一次超时才生效（实测会把 `processor-effect` 的取消
+测试卡到 60 秒超时）。这里手写迭代器，`return()` 立刻结束正在等待的 `next()`。
+
+没有照搬的部分：CC 的「非流式回退」（流式失败后改用一次性请求重发）。那是
+Anthropic 专有的两条通路的取舍，我们统一走流式 + 重试；需要时再加。
+
+### 10.7 MCP elicitation（2026-10-29）
+
+CC 的实现是 `services/mcp/elicitationHandler.ts`：MCP 服务器在工具调用中途通过
+`elicitation/create` 反过来向用户要输入（表单字段或一个待打开的链接）。对齐后的
+流程分三段，任何一段失败都不会让工具调用挂死：
+
+| 阶段 | 行为 | 代码 |
+| --- | --- | --- |
+| 1. `Elicitation` 钩子 | 能代答就直接返回（本地脚本知道该填什么），`deny` 视为 `decline` | `src/mcp/elicitation.ts` `ask()` |
+| 2. 界面 | 没有钩子回答时入队并广播 `elicitation.asked`，等 `reply` / `reject` | `src/mcp/elicitation.ts` + HTTP `elicitation.*` |
+| 3. `ElicitationResult` 钩子 | 用户回答后可以改写或拦截（拦截 → `decline`） | `ask()` 里的 `finalize()` |
+
+客户端能力声明为 `elicitation: {}`（空对象）。CC 也这么做：写成
+`{ form: {}, url: {} }` 会让部分 Java 服务端（Spring AI）在解析能力时直接断开。
+
+**三点刻意的取舍：**
+
+1. **默认不超时。** 这是「有人在等填表」，设默认超时会关掉用户正在读的弹窗。
+   兜底靠三件事：调用被中断（`signal`）立刻 `cancel`、实例销毁时把队列里所有
+   请求 `cancel`、需要无人值守时显式配置 `experimental.elicitation_timeout_ms`。
+2. **永不抛错。** 协议侧只认 `accept` / `decline` / `cancel`；把内部异常变成
+   `cancel`，MCP 服务器才能走它自己的降级路径，否则一次实现错误等于整条工具链挂死。
+3. **`url` 模式只做转交。** 内核不在服务端打开浏览器，只在事件里带上地址；
+   `notifications/elicitation/complete` 转成 `elicitation.completed` 把弹窗标成
+   「已完成」，但不替用户点确认（`list()` 里同样带 `completed: true`，刷新后不丢）。
+
+**没有照搬：** CC 的 `ElicitationWaitingState`（`Retry now` / `Skip confirmation`
+这类二阶段等待按钮）绑定在它自己的 TUI 交互模型上；NovaWay 的 `url` 模式只保留
+「打开链接 → 回来确认 / 取消」这一条路径。

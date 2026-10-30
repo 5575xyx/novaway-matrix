@@ -53,6 +53,11 @@ import type {
   DatabaseTablesResponses,
   DatabaseTestConnectionErrors,
   DatabaseTestConnectionResponses,
+  ElicitationListResponses,
+  ElicitationRejectErrors,
+  ElicitationRejectResponses,
+  ElicitationReplyErrors,
+  ElicitationReplyResponses,
   EventSubscribeResponses,
   EventTuiCommandExecute2,
   EventTuiPromptAppend2,
@@ -8562,6 +8567,113 @@ export class Question extends HeyApiClient {
   }
 }
 
+export class Elicitation extends HeyApiClient {
+  /**
+   * List pending MCP elicitation requests
+   *
+   * Requests from MCP servers that need user input before a tool call can continue. HTTP is transport-neutral: the payload never contains the server's full URL query, only what the dialog needs.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ElicitationListResponses, unknown, ThrowOnError>({
+      url: "/elicitation",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Answer an elicitation request
+   *
+   * Accept (with form content), decline, or cancel a pending MCP elicitation request.
+   */
+  public reply<ThrowOnError extends boolean = false>(
+    parameters: {
+      requestID: string
+      directory?: string
+      workspace?: string
+      action?: "accept" | "decline" | "cancel"
+      content?: {
+        [key: string]: unknown
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "requestID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "action" },
+            { in: "body", key: "content" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<ElicitationReplyResponses, ElicitationReplyErrors, ThrowOnError>({
+      url: "/elicitation/{requestID}/reply",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Cancel an elicitation request
+   *
+   * Dismiss a pending request without answering; the server receives `cancel`.
+   */
+  public reject<ThrowOnError extends boolean = false>(
+    parameters: {
+      requestID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "requestID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<ElicitationRejectResponses, ElicitationRejectErrors, ThrowOnError>({
+      url: "/elicitation/{requestID}/reject",
+      ...options,
+      ...params,
+    })
+  }
+}
+
 export class Permission extends HeyApiClient {
   /**
    * List pending permissions
@@ -13794,6 +13906,11 @@ export class NovawayClient extends HeyApiClient {
   private _question?: Question
   get question(): Question {
     return (this._question ??= new Question({ client: this.client }))
+  }
+
+  private _elicitation?: Elicitation
+  get elicitation(): Elicitation {
+    return (this._elicitation ??= new Elicitation({ client: this.client }))
   }
 
   private _permission?: Permission
