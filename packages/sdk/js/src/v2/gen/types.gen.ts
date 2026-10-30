@@ -3591,6 +3591,7 @@ export type RunTeamView = {
   roundCaptain: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   verdict?: unknown
   dependsOn: Array<number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN">
+  worktree?: string
 }
 
 export type RunAcceptanceView = {

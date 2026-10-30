@@ -380,7 +380,12 @@ export const RunPage: Component<{
                   </div>
 
                   <div class="flex flex-wrap items-center gap-1.5">
-                    <For each={data().teams}>{(team) => <Tag>{team.id + " · " + team.phase}</Tag>}</For>
+                    <For each={data().teams}>
+                      {(team) => (
+                        // 有 worktree 就把它挂在提示里：证据绑定的是那个目录的快照。
+                        <Tag title={team.worktree ?? ""}>{team.id + " · " + team.phase}</Tag>
+                      )}
+                    </For>
                   </div>
                 </div>
               )}

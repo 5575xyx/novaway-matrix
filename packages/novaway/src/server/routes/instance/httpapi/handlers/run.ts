@@ -13,6 +13,7 @@ import {
 import { TeamVerifier } from "@/team/verifier"
 import { Service as TeamProfileService, brief as rosterBrief, snapshotFrom } from "@/team/profile"
 import { TeamPolicy } from "@/team/policy"
+import { create as createTeamWorktree, head as worktreeHead } from "@/team/worktree"
 import { makeRunAgent, type RunAgentPromptOps } from "@/session/agent-step"
 import { SessionPrompt } from "@/session/prompt"
 import { Session } from "@/session/session"
@@ -79,6 +80,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             roundCaptain: team.roundCaptain,
             verdict: team.verdict,
             dependsOn: team.dependsOn ?? [],
+            worktree: team.worktree,
           })),
           acceptances: acceptances.map((acceptance) => ({
             id: acceptance.id,
@@ -119,6 +121,31 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             })),
           },
         }
+      })
+
+    /**
+     * 建团队 worktree；建不成不算失败，但必须留下原因。
+     *
+     * 不是 git 仓库或是空仓库时，成员只能在工作区里跑 —— 这会让证据跟着用户的
+     * 未提交改动漂移，所以要看得到 `worktree.skipped` 事件，而不是猜。
+     */
+    const ensureWorktree = (base: string, runID: string, name: string) =>
+      Effect.gen(function* () {
+        const created = yield* Effect.promise(() => createTeamWorktree({ base, runID, name }))
+        if (created.kind === "created") {
+          yield* runs.appendEvent({
+            runID,
+            kind: "worktree.created",
+            payload: {
+              directory: created.worktree.directory,
+              branch: created.worktree.branch,
+              baseSHA: created.worktree.baseSHA,
+            },
+          })
+        } else {
+          yield* runs.appendEvent({ runID, kind: "worktree.skipped", payload: { reason: created.reason } })
+        }
+        return created
       })
 
     const requireRun = (runID: string) =>
@@ -165,11 +192,13 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               },
               planVersion: 1,
             })
+            const worktree = yield* ensureWorktree(run.directory, run.id, snapshot.name)
             yield* runs.addTeam({
               runID: run.id,
               profileID: snapshot.profileID,
               profileVersion: snapshot.version,
               rosterSnapshot: snapshot as unknown as Record<string, unknown>,
+              worktree: worktree.kind === "created" ? worktree.worktree.directory : undefined,
             })
             yield* runs.appendEvent({
               runID: run.id,
@@ -224,11 +253,14 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           const existing = yield* runs.teams(run.id)
           if (existing.length === 0) {
             for (const team of ctx.payload.teams) {
+              // 每个团队一份 worktree：团队成员之间共享，团队之间隔离（§10.1）。
+              const worktree = yield* ensureWorktree(run.directory, run.id, team.name)
               yield* runs.addTeam({
                 runID: run.id,
                 profileID: team.profileID,
                 profileVersion: team.profileVersion,
                 dependsOn: team.dependsOn ? [...team.dependsOn] : [],
+                worktree: worktree.kind === "created" ? worktree.worktree.directory : undefined,
               })
             }
           }
@@ -320,7 +352,15 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           const captain = ctx.payload.captain ?? captainJob ?? defaultAgent
           const verifier = ctx.payload.verifier ?? captain
           const policy = TeamPolicy.fromPlan(run.plan)
-          const snapshotOf = snapshot.track().pipe(Effect.catch(() => Effect.succeed(undefined)))
+          // 团队 worktree 存在时，成员在那里工作，证据也绑定在那里创建时的提交上。
+          // 没有 worktree（非 git 仓库、空仓库）则退回实例目录的快照。
+          const teamDirectory = teamRows.find((team) => team.worktree)?.worktree
+          const instanceSnapshot = snapshot.track().pipe(Effect.catch(() => Effect.succeed(undefined)))
+          const snapshotOf = teamDirectory
+            ? Effect.promise(() => worktreeHead(teamDirectory)).pipe(
+                Effect.flatMap((sha) => (sha ? Effect.succeed(sha) : instanceSnapshot)),
+              )
+            : instanceSnapshot
 
           // 队长派发：任务 + 验收 + 上一轮打回意见，要求结构化回报。
           const dispatch = (input: DispatchInput) =>
@@ -338,6 +378,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
                 : []
               const text = yield* runAgent({
                 agent: captain,
+                ...(teamDirectory ? { directory: teamDirectory } : {}),
                 title: "队长 · 第 " + input.round + " 轮",
                 scope: { runID: run.id, taskID: input.team.id, attempt: input.round, readOnly: policy.readOnly },
                 prompt: [
@@ -390,6 +431,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               const snapshotID = (yield* snapshotOf) ?? "unknown"
               const text = yield* runAgent({
                 agent: verifier,
+                ...(teamDirectory ? { directory: teamDirectory } : {}),
                 title: "验证 · " + input.acceptance.id,
                 scope: { runID: run.id, taskID: input.acceptance.id, attempt: input.round, readOnly: policy.readOnly },
                 prompt: TeamVerifier.prompt(input.acceptance, input.report),
@@ -407,11 +449,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               runID: run.id,
               dispatch,
               verify,
-              snapshot: () =>
-                snapshot.track().pipe(
-                  Effect.catch(() => Effect.succeed("unknown")),
-                  Effect.map((id) => id ?? "unknown"),
-                ),
+              snapshot: () => snapshotOf.pipe(Effect.map((id) => id ?? "unknown")),
               maxRounds: ctx.payload.maxRounds,
               maxBusinessAttempts: ctx.payload.maxBusinessAttempts,
               reserveTokens: ctx.payload.reserveTokens,

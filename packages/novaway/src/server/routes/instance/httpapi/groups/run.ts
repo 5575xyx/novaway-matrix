@@ -38,6 +38,8 @@ export const RunTeamView = Schema.Struct({
   roundCaptain: Schema.Number,
   verdict: Schema.optional(Schema.Any),
   dependsOn: Schema.Array(Schema.Number),
+  /** 团队 worktree 目录；缺失表示这次运行在会话目录里跑（非 git 仓库等）。 */
+  worktree: Schema.optional(Schema.String),
 }).annotate({ identifier: "RunTeamView" })
 
 export const RunAcceptanceView = Schema.Struct({

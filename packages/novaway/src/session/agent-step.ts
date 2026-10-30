@@ -34,6 +34,11 @@ export interface RunAgentInput {
    * 不传则不登记（普通子代理、工作流步骤都没有）。
    */
   readonly scope?: { runID: string; taskID?: string; attempt?: number; readOnly?: boolean }
+  /**
+   * 子会话的工作目录。团队运行时指向团队 worktree ——
+   * 成员看到的是 `HEAD` 的独立副本，而不是用户还没提交的工作区。
+   */
+  readonly directory?: string
 }
 
 export type RunAgent = (input: RunAgentInput) => Effect.Effect<string>
@@ -106,6 +111,7 @@ export function makeRunAgent(config: MakeRunAgentConfig): RunAgent {
 
       const child = yield* sessions.create({
         parentID: parentSessionID,
+        ...(input.directory ? { directory: input.directory } : {}),
         title: input.title ?? `${resolvedName} (workflow step)`,
         ...(parent?.permissionMode ? { permissionMode: parent.permissionMode } : {}),
         permission: next

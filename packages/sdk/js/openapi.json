@@ -47404,6 +47404,9 @@
                 }
               ]
             }
+          },
+          "worktree": {
+            "type": "string"
           }
         },
         "required": ["id", "phase", "roundCaptain", "dependsOn"],
