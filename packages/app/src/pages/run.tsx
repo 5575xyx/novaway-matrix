@@ -216,6 +216,20 @@ export const RunPage: Component<{
   const currentMission = createMemo(() => missions().find((item) => item.id === detail()?.run.missionID))
 
   /**
+   * 目标的结束只能由用户声明（§3.2）。
+   *
+   * 运行结束不等于目标完成，目标完成也不会停掉运行 —— 两件事的生命周期是分开的。
+   * 所以这里没有「跑完自动完成」的捷径，只有这一下明确的点击。
+   */
+  const setMissionStatus = (status: "active" | "done" | "abandoned") =>
+    act("mission", async () => {
+      const mission = currentMission()
+      if (!mission) return
+      await sdk.client.mission.update({ missionID: mission.id, directory: props.directory, status })
+      await loadMissions()
+    })
+
+  /**
    * 显式合并：把集成分支合进用户当前检出的分支。
    *
    * 它不是运行的收尾动作 —— 跑完不等于要合。合进用户分支是不可撤销地改变
@@ -431,7 +445,11 @@ export const RunPage: Component<{
                           {data().run.readOnly ? t("run.policy.readOnly") : t("run.policy.write")}
                         </Tag>
                         <Show when={currentMission()}>
-                          {(mission) => <Tag title={mission().goal}>{mission().label + " · " + mission().status}</Tag>}
+                          {(mission) => (
+                            <Tag title={mission().goal}>
+                              {mission().label + " · " + t(`run.mission.status.${mission().status}`)}
+                            </Tag>
+                          )}
                         </Show>
                         <Tag>{"第 " + data().run.roundMain + " 轮"}</Tag>
                         {Number(data().run.planVersion) > 0 ? <Tag>{"计划 v" + data().run.planVersion}</Tag> : null}
@@ -503,6 +521,7 @@ export const RunPage: Component<{
                       <div class="flex flex-col gap-1 rounded-lg border border-border px-3 py-2">
                         <div class="flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
                           <span>{t("run.mission.title", { label: mission().label })}</span>
+                          <Tag title={t("run.mission.statusHint")}>{t(`run.mission.status.${mission().status}`)}</Tag>
                           <Show when={missionDiff()?.skippedReason}>
                             {(reason) => <span class="text-warning">{reason()}</span>}
                           </Show>
@@ -513,6 +532,38 @@ export const RunPage: Component<{
                               </span>
                             )}
                           </Show>
+                          <div class="ml-auto flex items-center gap-1">
+                            <Show when={mission().status !== "done"}>
+                              <Button
+                                variant="ghost"
+                                size="small"
+                                disabled={busy() === "mission"}
+                                onClick={() => void setMissionStatus("done")}
+                              >
+                                {t("run.mission.markDone")}
+                              </Button>
+                            </Show>
+                            <Show when={mission().status !== "abandoned"}>
+                              <Button
+                                variant="ghost"
+                                size="small"
+                                disabled={busy() === "mission"}
+                                onClick={() => void setMissionStatus("abandoned")}
+                              >
+                                {t("run.mission.abandon")}
+                              </Button>
+                            </Show>
+                            <Show when={mission().status !== "active"}>
+                              <Button
+                                variant="ghost"
+                                size="small"
+                                disabled={busy() === "mission"}
+                                onClick={() => void setMissionStatus("active")}
+                              >
+                                {t("run.mission.reopen")}
+                              </Button>
+                            </Show>
+                          </div>
                         </div>
                         <Show when={missionDiff()?.files?.length}>
                           <div class="flex flex-wrap items-center gap-1.5">

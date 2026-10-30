@@ -109,6 +109,13 @@ export const dict = {
   "run.mission.title": "{label} · cumulative diff",
   "run.mission.head": "at {sha}",
   "run.mission.files": "{count} files changed",
+  "run.mission.statusHint": "Mission status is set by you, not by any run.",
+  "run.mission.status.active": "active",
+  "run.mission.status.done": "done",
+  "run.mission.status.abandoned": "abandoned",
+  "run.mission.markDone": "Mark done",
+  "run.mission.abandon": "Abandon",
+  "run.mission.reopen": "Reopen",
   "run.mission.more": "Only the first few changes are shown.",
   "run.mission.untracked": "{count} untracked files are not part of any commit yet.",
   "run.policy.readOnly": "Read-only",
@@ -1028,7 +1035,8 @@ export const dict = {
 
   "dialog.revert.title": "Confirm revert",
   "dialog.revert.description": "The following files will be restored to their state at the revert point:",
-  "dialog.revert.noFiles": "No affected files found",
+  "dialog.revert.noFiles": "No file changes to restore — only the conversation will be reverted",
+  "dialog.revert.count": "{{count}} files",
   "dialog.revert.confirm": "Confirm revert",
 
   "dialog.directory.search.placeholder": "Search folders",
@@ -1286,6 +1294,8 @@ export const dict = {
   "session.previewCard.copyLink": "Copy link",
   "session.previewCard.openOptions": "Open with",
   "session.evidence.title": "Verification",
+  "session.evidence.previous": "Previous screenshot",
+  "session.evidence.next": "Next screenshot",
   "session.previewCard.offline": "Service stopped",
   "session.error.aborted.title": "Request stopped",
   "session.error.aborted.hint": "The response was interrupted. Send the message again to continue.",
@@ -1871,15 +1881,33 @@ export const dict = {
   "settings.computer.permission.description": "Every action asks for confirmation before it runs.",
   "settings.computer.permission.tag": "Ask every time",
   "settings.computer.disabledHint": "Computer control is off: desktop tools are not exposed to the model.",
+  "settings.computer.usage.title": "How to use it",
+  "settings.computer.usage.1":
+    'Turn on computer control here, then describe the task in chat, e.g. "open Display settings and set scaling to 125%".',
+  "settings.computer.usage.2":
+    "The AI screenshots the whole screen first, then clicks / types / scrolls by coordinate — every step asks you first.",
+  "settings.computer.usage.3":
+    "You can also click the computer icon next to the composer to bring the current screen in.",
+  "settings.computer.usage.note":
+    "It drives your real desktop: the pointer moves and windows switch. Leave it off when you do not want to be interrupted.",
   "settings.browser.title": "Browser control",
   "settings.browser.description":
-    "Control the built-in browser (Playwright) so the AI can open pages, click, type and take screenshots.",
+    "Let the AI open pages, click, type and take screenshots. Driven by the built-in capability, no external service.",
   "settings.browser.enabled.title": "Enable browser control",
-  "settings.browser.enabled.description": "When on, tasks can use browser tools to operate real web pages.",
-  "settings.browser.status.title": "Service status",
-  "settings.browser.status.description":
-    "Connection status of the built-in browser service. Open the MCP page for details on failures.",
-  "settings.browser.status.unknown": "Unknown",
+  "settings.browser.enabled.description":
+    "When off, browser tools and PDF export are removed from the tools the model can see.",
+  "settings.browser.runtime.title": "Runtime",
+  "settings.browser.runtime.description":
+    "Uses the Chrome / Edge already installed on this machine, running headless: no window, no focus stealing.",
+  "settings.browser.runtime.tag": "Headless",
+  "settings.browser.permission.title": "Permission",
+  "settings.browser.permission.description":
+    "Navigation, clicks and typing ask once on first use; choose 'always allow' to skip.",
+  "settings.browser.permission.tag": "Ask first",
+  "settings.browser.usage.title": "How to use it",
+  "settings.browser.usage.1": 'Just describe the goal, e.g. "open index.html and check the layout, fix it if broken".',
+  "settings.browser.usage.2": "Local pages the AI opens are mirrored into the Browser tab on the right, live.",
+  "settings.browser.usage.3": "Ask for a PDF of the page — it uses the same browser.",
   "settings.commands.title": "Commands",
   "settings.commands.description": "Manage slash commands: type / in the composer to run one.",
   "settings.commands.action.add": "Add command",
