@@ -679,6 +679,35 @@ export const RunPage: Component<{
                     )}
                   </Show>
 
+                  {/* 成本分两列：已结算只算提供方回报的用量，用量不明单独一列，不冒充实际花费。 */}
+                  <Show when={data().run.usage}>
+                    {(usage) => (
+                      <div class="flex flex-col gap-1 rounded-lg border border-border px-3 py-2">
+                        <div class="flex flex-wrap items-center gap-1.5 text-ui-xs">
+                          <span class="text-foreground-subtle">{t("run.usage.budget")}</span>
+                          <Tag title={t("run.usage.capHint")}>
+                            {t("run.usage.cap", {
+                              used: (
+                                numeric(usage().reserved) +
+                                numeric(usage().settled) +
+                                numeric(usage().unknown)
+                              ).toLocaleString(),
+                              cap: numeric(usage().cap).toLocaleString(),
+                            })}
+                          </Tag>
+                          <Show when={usage().overrun}>
+                            <Tag class="text-destructive">{t("run.usage.overrun")}</Tag>
+                          </Show>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
+                          <span>{t("run.usage.settled", { n: numeric(usage().settled).toLocaleString() })}</span>
+                          <span>{t("run.usage.unknown", { n: numeric(usage().unknown).toLocaleString() })}</span>
+                          <span>{t("run.usage.reserved", { n: numeric(usage().reserved).toLocaleString() })}</span>
+                        </div>
+                      </div>
+                    )}
+                  </Show>
+
                   <Show when={(data().run.usage?.byJob ?? []).length > 0}>
                     <div class="flex flex-col gap-1.5">
                       <div class="text-ui-xs text-foreground-subtle">{t("run.usage.title")}</div>

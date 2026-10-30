@@ -84,6 +84,14 @@ export const dict = {
   "run.merge.done": "Merged into {{branch}} at {{sha}}.",
   "run.merge.failed": "Merge did not happen.",
   "run.usage.title": "Usage by job",
+  "run.usage.budget": "Budget",
+  "run.usage.cap": "{{used}} committed / {{cap}} cap",
+  "run.usage.capHint":
+    "Committed = reserved + settled + unknown. Overrun is judged on this number, not on settled alone.",
+  "run.usage.settled": "settled {{n}}",
+  "run.usage.unknown": "unknown {{n}} (counted defensively)",
+  "run.usage.reserved": "in flight {{n}}",
+  "run.usage.overrun": "Over budget",
   "run.usage.hint":
     "Committed tokens per job. Only the captain runs an agent session today, so this is captain-level attribution, not a per-member split.",
   "run.action.refresh": "Refresh",
