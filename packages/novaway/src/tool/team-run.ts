@@ -3,7 +3,10 @@ import * as Tool from "./tool"
 import { Service as TeamService } from "@/team/team"
 import { Service as TeamRunService } from "@/team/run"
 import { Service as TeamVerificationService } from "@/team/verification"
+import { Service as TeamMissionService } from "@/team/mission"
 import { Service as SessionService } from "@/session/session"
+import { fromLive } from "@/team/roster"
+import { attachMission, prepareWorktree } from "@/team/setup"
 
 /**
  * `team_run`：把一次团队派发登记成运行，然后**停在这里等人批准**。
@@ -30,6 +33,9 @@ export const TeamRunParameters = Schema.Struct({
   goal: Schema.String.annotate({ description: "这一轮要交付什么（面向结果，不写过程）" }),
   acceptance: Schema.optional(Schema.Array(AcceptanceInput)),
   tokens: Schema.optional(Schema.Number).annotate({ description: "预算上限（tokens）；不填用默认值" }),
+  missionID: Schema.optional(Schema.String).annotate({
+    description: "归入一个持久目标（M-xxx 的 id）；之后每次运行复用同一份工作区与起点",
+  }),
 })
 
 export const DEFAULT_TEAM_BUDGET = 200_000
@@ -50,6 +56,7 @@ export const TeamRunTool = Tool.define<typeof TeamRunParameters, { runID?: strin
         const teams = Option.getOrUndefined(yield* Effect.serviceOption(TeamService))
         const runs = Option.getOrUndefined(yield* Effect.serviceOption(TeamRunService))
         const verification = Option.getOrUndefined(yield* Effect.serviceOption(TeamVerificationService))
+        const missions = Option.getOrUndefined(yield* Effect.serviceOption(TeamMissionService))
         if (!sessions || !teams || !runs || !verification) {
           return {
             title: "Team runs unavailable",
@@ -96,17 +103,55 @@ export const TeamRunTool = Tool.define<typeof TeamRunParameters, { runID?: strin
           )
         }
 
+        // 持久目标（§3.2）：先把目标准备好，再建运行 —— 目标准备失败就不该留下
+        // 一个「挂着目标却没工作区」的运行。拒绝就整次失败，不降级成一次性运行。
+        let missionWorktree: string | undefined
+        if (params.missionID) {
+          if (!missions) return yield* Effect.fail(new Error("Mission support is not enabled in this runtime."))
+          const attached = yield* attachMission({ missions, runs }, { missionID: params.missionID, directory })
+          if (attached.kind === "refused")
+            return yield* Effect.fail(new Error(`Cannot attach to mission ${params.missionID}: ${attached.reason}`))
+          missionWorktree = attached.worktree
+        }
+
         const budget = { tokens: params.tokens ?? DEFAULT_TEAM_BUDGET }
         const acceptance = params.acceptance ?? []
         const run = yield* runs.create({
           sessionID: ctx.sessionID,
           directory,
+          missionID: params.missionID,
           mode: mode === "auto" ? "auto" : "team",
           goal: params.goal,
           acceptance: [...acceptance],
           budget,
         })
+        if (params.missionID)
+          yield* runs.appendEvent({
+            runID: run.id,
+            kind: "mission.attached",
+            payload: { missionID: params.missionID, worktree: missionWorktree },
+          })
 
+        // 名册快照（§5.2）：把**当前**的团队复制进运行。之后成员变动不影响这次运行，
+        // 队长与成员职责也都从这份快照读 —— 否则派发时只剩一个默认 agent。
+        const live = fromLive({ teamID: target.id, name: target.name, members: yield* teams.members(target.id) })
+
+        // 团队 worktree（§10.1）：成员在独立副本里写，证据绑定提交而不是「用户当时恰好存盘的样子」。
+        // 归属目标时从目标工作区切，接着上次做到的地方往下做。
+        const worktree = yield* prepareWorktree(
+          { runs },
+          { runID: run.id, base: missionWorktree ?? directory, name: target.name },
+        )
+        const row = yield* runs.addTeam({
+          runID: run.id,
+          profileID: target.id,
+          profileVersion: live ? live.version : undefined,
+          ...(live ? { rosterSnapshot: live as unknown as Record<string, unknown> } : {}),
+          worktree: worktree.kind === "created" ? worktree.worktree.directory : undefined,
+        })
+
+        // 验收归到这一队：不归属的验收只会等到合并后重验，团队跑完时没有任何
+        // 团队级证据 —— 「谁没做到」就无从回答，打回也打不中。
         const registered: string[] = []
         for (const [index, line] of acceptance.entries()) {
           const created = yield* verification.register({
@@ -115,6 +160,7 @@ export const TeamRunTool = Tool.define<typeof TeamRunParameters, { runID?: strin
             text: line.text,
             kind: line.kind ?? "rubric",
             expected: line.expected,
+            owner: row.id,
           })
           registered.push(created.id)
         }
@@ -122,14 +168,29 @@ export const TeamRunTool = Tool.define<typeof TeamRunParameters, { runID?: strin
         // 计划只有一条：选中的团队。版本号从 1 开始，批准绑定这个版本。
         yield* runs.update({
           runID: run.id,
-          plan: { teams: [{ name: target.name, acceptance: registered }] },
+          plan: {
+            teams: [
+              {
+                name: target.name,
+                profileID: target.id,
+                profileVersion: live ? live.version : undefined,
+                acceptance: registered,
+              },
+            ],
+          },
           planVersion: 1,
         })
-        yield* runs.addTeam({ runID: run.id, rosterSnapshot: { teamID: target.id, name: target.name } })
         yield* runs.appendEvent({
           runID: run.id,
           kind: "plan.created",
-          payload: { planVersion: 1, team: target.name, acceptance: registered.length, mode },
+          payload: {
+            planVersion: 1,
+            team: target.name,
+            acceptance: registered.length,
+            roster: live ? live.roster.length : 0,
+            missionID: params.missionID,
+            mode,
+          },
         })
 
         // `selected` 是用户点过名的一次性授权，直接批准，不阻塞对话；
@@ -145,6 +206,12 @@ export const TeamRunTool = Tool.define<typeof TeamRunParameters, { runID?: strin
             `run_id: ${run.id}`,
             `team: ${target.name}`,
             `state: ${approval}`,
+            live
+              ? `roster: ${live.roster.length} member(s), captain ${live.roster.find((entry) => entry.employee.id === live.captain)?.employee.name ?? live.captain}`
+              : "roster: empty — the captain falls back to the default agent",
+            worktree.kind === "created"
+              ? `worktree: ${worktree.worktree.directory} (isolated; your own checkout is untouched)`
+              : `worktree: not created (${worktree.reason}) — members will work in ${directory}`,
             acceptance.length
               ? `acceptance: ${acceptance.length} item(s), passing requires verification records (unverified never counts as pass)`
               : "acceptance: none declared — the run can only end as partial",

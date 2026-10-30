@@ -16,10 +16,10 @@ import { TeamPolicy } from "@/team/policy"
 import {
   branch as worktreeBranch,
   commit as commitWorktree,
-  create as createTeamWorktree,
   head as worktreeHead,
   remove as removeWorktree,
 } from "@/team/worktree"
+import { attachMission, prepareWorktree } from "@/team/setup"
 import {
   forkPoint,
   integrate as integrateWorktrees,
@@ -208,25 +208,12 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
      *
      * 不是 git 仓库或是空仓库时，成员只能在工作区里跑 —— 这会让证据跟着用户的
      * 未提交改动漂移，所以要看得到 `worktree.skipped` 事件，而不是猜。
+     *
+     * 规则与事件在 `setup.prepareWorktree`：会话里的 `team_run` 也走同一份实现，
+     * 两条发起路径的隔离行为才不会一边一个样。
      */
     const ensureWorktree = (base: string, runID: string, name: string) =>
-      Effect.gen(function* () {
-        const created = yield* Effect.promise(() => createTeamWorktree({ base, runID, name }))
-        if (created.kind === "created") {
-          yield* runs.appendEvent({
-            runID,
-            kind: "worktree.created",
-            payload: {
-              directory: created.worktree.directory,
-              branch: created.worktree.branch,
-              baseSHA: created.worktree.baseSHA,
-            },
-          })
-        } else {
-          yield* runs.appendEvent({ runID, kind: "worktree.skipped", payload: { reason: created.reason } })
-        }
-        return created
-      })
+      prepareWorktree({ runs }, { base, runID, name })
 
     /**
      * 按 id 取运行，并核对它属于请求的工作区。
@@ -260,19 +247,14 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
            *
            * 目标工作区是这次运行的起点，准备失败就不该留下一个「挂着目标却没工作区」的运行；
            * 同一目标也不允许两个运行同时跑 —— 它们会抢同一份工作区和同一个分支。
+           * 规则本身在 `setup.attachMission`，和会话里的 `team_run` 共用一份。
            */
           const missionID = ctx.payload.missionID
           let missionWorktree: string | undefined
           if (missionID) {
-            const mission = yield* missions.get(missionID)
-            if (!mission || mission.directory !== ctx.payload.directory)
-              return yield* Effect.fail(new HttpApiError.BadRequest({}))
-            if (mission.status !== "active") return yield* Effect.fail(new HttpApiError.BadRequest({}))
-            const busy = (yield* runs.list({ missionID })).some((item) => !isTerminal(item.state))
-            if (busy) return yield* Effect.fail(new HttpApiError.BadRequest({}))
-            const prepared = yield* missions.prepare(missionID)
-            if (prepared.kind === "skipped") return yield* Effect.fail(new HttpApiError.BadRequest({}))
-            missionWorktree = prepared.mission.worktree
+            const attached = yield* attachMission({ missions, runs }, { missionID, directory: ctx.payload.directory })
+            if (attached.kind === "refused") return yield* Effect.fail(new HttpApiError.BadRequest({}))
+            missionWorktree = attached.worktree
           }
 
           const run = yield* runs.create({
