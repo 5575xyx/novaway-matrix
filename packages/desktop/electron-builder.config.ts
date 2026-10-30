@@ -60,11 +60,25 @@ const getBase = (): Configuration => ({
     buildResources: "resources",
   },
   files: [
+    // 只打构建产物。`resources/**` 一律通过 extraResources 分发，运行时也只从
+    // process.resourcesPath 读取（见 src/main/index.ts、windows.ts）；
+    // 再把 resources 塞进 asar 等于把 node.exe（87 MB）和 MCP 依赖原样复制一份。
     "out/**/*",
-    "resources/**/*",
-    "!resources/dbx-mcp/node_modules{,/**/*}",
-    "!resources/playwright-mcp/node_modules{,/**/*}",
+    "!out/**/*.map",
+    "!node_modules/**/*.map",
+    // effect 的 TS 源码只在开发时用得到，运行走 dist。
+    "!node_modules/effect/src{,/**/*}",
+    // 只保留本架构的 node-pty 预编译包；asar 里带着四个平台的 `.node` + conpty。
+    "!node_modules/@lydell/node-pty-darwin-arm64{,/**/*}",
+    "!node_modules/@lydell/node-pty-darwin-x64{,/**/*}",
+    "!node_modules/@lydell/node-pty-linux-arm64{,/**/*}",
+    "!node_modules/@lydell/node-pty-linux-x64{,/**/*}",
+    ...((process.env.NOVAWAY_DESKTOP_NODE_ARCH ?? process.arch) === "arm64"
+      ? ["!node_modules/@lydell/node-pty-win32-x64{,/**/*}"]
+      : ["!node_modules/@lydell/node-pty-win32-arm64{,/**/*}"]),
   ],
+  // NSIS 用 LZMA，maximum 能再省几个百分点；构建慢一点但只在发布时跑。
+  compression: "maximum",
   extraResources: [
     {
       from: "native/",
@@ -76,32 +90,32 @@ const getBase = (): Configuration => ({
       to: "icons/",
     },
     {
-      from: "resources/dbx-mcp/",
-      to: "dbx-mcp/",
-      filter: ["**/*", "!**/*.map"],
-    },
-    {
       from: "resources/playwright-mcp/",
       to: "playwright-mcp/",
-      filter: ["**/*", "!**/*.map"],
+      filter: ["**/*", "!**/*.map", "!**/*.pdb", "!**/*.iobj", "!**/*.ipdb", "!**/*.obj", "!**/*.lib"],
     },
+    // 离线可用的 ripgrep：sidecar 通过 NOVAWAY_RG_PATH 直接用它，不再联网下载。
+    // 仓库里只有 Windows 的 rg.exe，其它平台走系统 rg 或首次使用时的下载。
+    ...(process.platform === "win32" ? [{ from: "resources/ripgrep/", to: "ripgrep/" }] : []),
     {
       from: "resources/node/",
       to: "node/",
       filter: ["**/*"],
     },
   ],
-  asarUnpack: [
-    "resources/dbx-mcp/node_modules/better-sqlite3/**/*.node",
-    "resources/dbx-mcp/node_modules/keytar/**/*.node",
-  ],
+  asarUnpack: [],
   afterPack: async (context) => {
-    const dbxMcpSrc = path.join(context.packager.projectDir, "resources", "dbx-mcp")
-    const dbxMcpDest = path.join(context.appOutDir, "resources", "dbx-mcp")
-    fs.cpSync(dbxMcpSrc, dbxMcpDest, { recursive: true, dereference: true, force: true })
     const playwrightMcpSrc = path.join(context.packager.projectDir, "resources", "playwright-mcp")
     const playwrightMcpDest = path.join(context.appOutDir, "resources", "playwright-mcp")
-    fs.cpSync(playwrightMcpSrc, playwrightMcpDest, { recursive: true, dereference: true, force: true })
+    // bun 装出来的 playwright-mcp 是一堆符号链接，必须 dereference 拷实体文件；
+    // 同时跳过 sourcemap 与原生构建中间产物，否则 extraResources 的 filter 等于白写。
+    const skip = /\.(map|pdb|iobj|ipdb|obj|lib)$/i
+    fs.cpSync(playwrightMcpSrc, playwrightMcpDest, {
+      recursive: true,
+      dereference: true,
+      force: true,
+      filter: (source) => !skip.test(source),
+    })
   },
   mac: {
     category: "public.app-category.developer-tools",

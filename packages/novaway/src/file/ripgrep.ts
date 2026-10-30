@@ -328,6 +328,11 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | ChildPro
           const system = yield* Effect.sync(() => which(process.platform === "win32" ? "rg.exe" : "rg"))
           if (system && (yield* fs.isFile(system).pipe(Effect.orDie))) return system
 
+          // 安装包自带的 rg（桌面端把 resources/ripgrep 解到 process.resourcesPath
+          // 并通过 NOVAWAY_RG_PATH 指过来）。没有它时离线环境下搜索工具会卡在下载。
+          const bundled = process.env.NOVAWAY_RG_PATH
+          if (bundled && (yield* fs.isFile(bundled).pipe(Effect.orDie))) return bundled
+
           const target = path.join(Global.Path.bin, `rg${process.platform === "win32" ? ".exe" : ""}`)
           if (yield* fs.isFile(target).pipe(Effect.orDie)) return target
 

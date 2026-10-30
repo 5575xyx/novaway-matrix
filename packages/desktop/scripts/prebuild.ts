@@ -32,29 +32,9 @@ if (!existsSync(playwrightMcpCli)) {
   await $`bun install --cwd ${playwrightMcpDir}`
 }
 
-// DBX MCP Server(数据库面板的 MCP 后端)整个 resources/dbx-mcp 不进 git —— 本地 vendor 的
-// node_modules 有 400+ MB(整仓依赖搬进来的),没法当源码提交。CI 全新 checkout 上这个目录
-// 不存在,所以从 npm 还原同版本的官方 tarball,再只装运行时依赖;better-sqlite3/keytar 等
-// 原生模块由下方 rebuildNativeModules 按随包分发的 Node.js ABI 重新编译。
-const DBX_MCP_VERSION = "0.4.21"
-const dbxMcpDir = join(resourcesDir, "dbx-mcp")
-const dbxMcpEntry = join(dbxMcpDir, "dist", "index.js")
-const dbxMcpTarballName = `dbx-app-mcp-server-${DBX_MCP_VERSION}.tgz`
-if (!existsSync(dbxMcpEntry)) {
-  console.log(`Vendoring bundled DBX MCP server @${DBX_MCP_VERSION} from npm`)
-  await $`mkdir -p ${dbxMcpDir}`
-  await $`npm pack @dbx-app/mcp-server@${DBX_MCP_VERSION} --pack-destination ${dbxMcpDir}`
-  // Windows 的 GNU tar 会把 "D:\..." 开头的绝对路径当成 remote-host:path 解释
-  // (报 "Cannot connect to D: resolve failed")，所以必须 cd 进目录用相对文件名解包。
-  await $`cd ${dbxMcpDir} && tar -xzf ${dbxMcpTarballName} --strip-components=1`
-  await $`cd ${dbxMcpDir} && rm -f ${dbxMcpTarballName}`
-  await $`npm install --omit=dev --no-audit --no-fund`.cwd(dbxMcpDir)
-}
-
-// 打包环境下 DBX MCP Server 需要独立的 Node.js 运行时，避免 Electron ABI 与
-// better-sqlite3/keytar 等原生模块不匹配。下面下载与当前构建机同版本的 Node.js
-// 二进制分发版，将其放入 resources/node 并随 Electron 应用一起分发；同时用该
-// Node.js 重新编译 dbx-mcp 的原生模块，确保 ABI 一致。
+// 随包的 Playwright MCP 与插件 CLI 需要一个独立的 Node.js 运行时（Electron 自带的
+// Node 是另一个进程模型，不能直接复用）。这里下载与构建机同版本的官方分发版放进
+// resources/node，供 config/defaults 里的 MCP 命令当解释器使用。
 const NODE_VERSION = (await $`node --version`.text()).trim().slice(1)
 
 const NODE_TARGETS: Array<{ platform: string; arch: string; nodeArch: string }> = [
@@ -112,28 +92,34 @@ async function downloadNodeBinary(target: ReturnType<typeof getNodeTarget>) {
   console.log(`Node.js ${NODE_VERSION} extracted to ${nodeDir}`)
 }
 
-async function rebuildNativeModules() {
-  const resourcesDir = join(process.cwd(), "resources")
+/**
+ * 剪掉随包 Node.js 里用不到的部分。
+ *
+ * 它只被当作「解释器」使用（跑 playwright-mcp 与插件 CLI），从不需要 npm / npx /
+ * corepack；这三样约 19 MB，而且是不可压缩的 JS，会原样进安装包。
+ */
+function trimNodeRuntime() {
   const nodeDir = join(resourcesDir, "node")
-  const dbxMcpDir = join(resourcesDir, "dbx-mcp")
-
   const isWin = process.platform === "win32"
-  const nodeBin = isWin ? join(nodeDir, "node.exe") : join(nodeDir, "bin", "node")
-  const npmCli = isWin
-    ? join(nodeDir, "node_modules", "npm", "bin", "npm-cli.js")
-    : join(nodeDir, "lib", "node_modules", "npm", "bin", "npm-cli.js")
-
-  if (!existsSync(nodeBin)) throw new Error(`Bundled Node.js binary not found: ${nodeBin}`)
-  if (!existsSync(npmCli)) throw new Error(`Bundled npm-cli.js not found: ${npmCli}`)
-
-  console.log("Rebuilding better-sqlite3 and keytar for bundled Node.js ABI")
-  await $`${nodeBin} ${npmCli} rebuild better-sqlite3 keytar --prefix ${dbxMcpDir}`
-  console.log("Native modules rebuilt")
+  const npmDir = isWin ? join(nodeDir, "node_modules") : join(nodeDir, "lib", "node_modules")
+  let removed = 0
+  const drop = (target: string) => {
+    if (!existsSync(target)) return
+    rmSync(target, { recursive: true, force: true })
+    removed += 1
+  }
+  for (const name of ["npm", "corepack"]) drop(join(npmDir, name))
+  for (const name of ["npm", "npm.cmd", "npm.ps1", "npx", "npx.cmd", "npx.ps1", "corepack", "corepack.cmd"]) {
+    drop(join(nodeDir, name))
+  }
+  // unix 分发包把命令放在 bin/ 下（Windows 是直接铺在 nodeDir）。
+  for (const name of ["npm", "npx", "corepack"]) drop(join(nodeDir, "bin", name))
+  console.log(`Trimmed bundled Node.js runtime (removed ${removed} entries: npm / npx / corepack)`)
 }
 
 // 随包分发的 Node.js 默认取构建机自身平台;CI 上在 arm64 mac 交叉打 x64 包时
 // (Intel runner 已收费),用 NOVAWAY_DESKTOP_NODE_ARCH=x64 指定目标架构,
-// 下面的 rebuildNativeModules 会用这个 x64 Node 重编出 x64 的原生模块。
+// 这样下载到的 node.exe 才是目标架构。
 const nodeTarget = (() => {
   const override = process.env.NOVAWAY_DESKTOP_NODE_ARCH
   if (!override) return getNodeTarget()
@@ -143,4 +129,4 @@ const nodeTarget = (() => {
 })()
 
 await downloadNodeBinary(nodeTarget)
-await rebuildNativeModules()
+trimNodeRuntime()

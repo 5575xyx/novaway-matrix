@@ -437,6 +437,11 @@ const main = Effect.gen(function* () {
         ? join(process.resourcesPath, "node", "node.exe")
         : join(process.resourcesPath, "node", "bin", "node")
     process.env.NOVAWAY_NODE_PATH = app.isPackaged ? bundledNode : "node"
+    // 随包的 ripgrep：优先于联网下载，离线环境下搜索工具也能用。
+    const bundledRg = app.isPackaged
+      ? join(process.resourcesPath, "ripgrep", process.platform === "win32" ? "rg.exe" : "rg")
+      : join(app.getAppPath(), "resources", "ripgrep", process.platform === "win32" ? "rg.exe" : "rg")
+    if (existsSync(bundledRg)) process.env.NOVAWAY_RG_PATH = bundledRg
     // 浏览器 MCP 随安装包分发，打包环境使用内置 Node 和系统 Chrome/Edge，
     // 避免依赖用户机器上的 npx、Node.js 或联网拉取。
     const playwrightMcpDir = app.isPackaged
