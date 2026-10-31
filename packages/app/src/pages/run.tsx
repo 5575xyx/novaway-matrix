@@ -45,6 +45,8 @@ export const RunPage: Component<{
   const [busy, setBusy] = createSignal("")
   // 「试跑」：用内置模板直接发起一次运行，不要求用户先去建团队。
   const [profiles, setProfiles] = createSignal<TeamProfileView[]>([])
+  // 用哪份模板发起：模板可以有多份，静默取第一份等于替用户选了编制。
+  const [profileID, setProfileID] = createSignal("")
   const [composing, setComposing] = createSignal(false)
   const [goal, setGoal] = createSignal("")
   const [criteria, setCriteria] = createSignal("")
@@ -166,7 +168,10 @@ export const RunPage: Component<{
   const loadProfiles = async () => {
     try {
       const result = await sdk.client.profile.list({ directory: props.directory })
-      setProfiles(result.data ?? [])
+      const list = result.data ?? []
+      setProfiles(list)
+      // 第一份只作为初始值；用户选过之后不再覆盖。
+      if (!profileID() && list.length > 0) setProfileID(list[0].id)
     } catch (err) {
       setError(errorMessage(err))
     }
@@ -179,7 +184,7 @@ export const RunPage: Component<{
    * 验收必须由用户给 —— 没写验收的运行无论跑成什么样都不该显示「已完成」。
    */
   const start = async () => {
-    const profile = profiles()[0]
+    const profile = profiles().find((item) => item.id === profileID()) ?? profiles()[0]
     const text = goal().trim()
     const lines = criteria()
       .split("\n")
@@ -454,9 +459,25 @@ export const RunPage: Component<{
               <div>
                 <div class="text-15-medium text-foreground">{t("run.new.title")}</div>
                 <div class="mt-1 text-ui-xs text-foreground-subtle">
-                  {profiles()[0]?.description ?? t("run.new.hint")}
+                  {profiles().find((item) => item.id === profileID())?.description ?? t("run.new.hint")}
                 </div>
               </div>
+              <label class="flex flex-col gap-1">
+                <span class="text-ui-xs text-foreground-subtle">{t("run.new.template")}</span>
+                <select
+                  class="h-9 w-full rounded-md border border-border bg-surface px-2 text-ui-base text-foreground outline-none"
+                  value={profileID()}
+                  onChange={(event) => setProfileID(event.currentTarget.value)}
+                >
+                  <For each={profiles()}>
+                    {(profile) => (
+                      <option value={profile.id}>
+                        {profile.name} · {t("team.profiles.memberCount", { count: profile.memberCount })}
+                      </option>
+                    )}
+                  </For>
+                </select>
+              </label>
               <label class="flex flex-col gap-1">
                 <span class="text-ui-xs text-foreground-subtle">{t("run.new.goal")}</span>
                 <textarea

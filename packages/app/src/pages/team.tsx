@@ -6,6 +6,8 @@ import type {
   TeamEmployeeView,
   TeamMemberView,
   TeamMessageView,
+  TeamProfileDetail,
+  TeamProfileView,
   TeamSummaryView,
 } from "@novaway/sdk/v2"
 import { Button } from "@novaway/ui/button"
@@ -105,6 +107,8 @@ export const TeamPage: Component<{
   const [adding, setAdding] = createSignal("")
   // 员工库（§3.1 / §4.5）：模板引用的是「人」，所以人要先能建、能归档。
   const [employees, setEmployees] = createSignal<TeamEmployeeView[]>([])
+  // 团队模板（§4.1）：编制是可复用的资产，团队页要能建、能改、能删。
+  const [profiles, setProfiles] = createSignal<TeamProfileView[]>([])
   // 总控（§4.1）：项目级一档。关闭后团队只作组织管理，不可被调用。
   const [orchestrationOn, setOrchestrationOn] = createSignal(true)
   const [teamConcurrency, setTeamConcurrency] = createSignal(3)
@@ -161,6 +165,7 @@ export const TeamPage: Component<{
     void loadTeams()
     void loadAgents()
     void loadEmployees()
+    void loadProfiles()
     void loadControl()
     // 成员回复是后台跑完才写回来的；轮询让群聊在没有推送的情况下也能更新。
     const timer = window.setInterval(() => {
@@ -223,6 +228,16 @@ export const TeamPage: Component<{
     }
   }
 
+  const loadProfiles = async () => {
+    try {
+      const result = await sdk.client.profile.list({ directory: props.directory })
+      setProfiles((result.data ?? []) as TeamProfileView[])
+    } catch {
+      // 模板只是附加面板：读失败不盖掉团队本身的错误提示。
+      setProfiles([])
+    }
+  }
+
   const loadControl = async () => {
     try {
       const result = await sdk.client.config.get({ directory: props.directory })
@@ -271,6 +286,18 @@ export const TeamPage: Component<{
         agents={agents()}
         onChanged={() => {
           void loadEmployees()
+        }}
+      />
+    ))
+  }
+
+  const openProfiles = () => {
+    dialog.show(() => (
+      <DialogProfiles
+        directory={props.directory}
+        employees={employees()}
+        onChanged={() => {
+          void loadProfiles()
         }}
       />
     ))
@@ -418,6 +445,18 @@ export const TeamPage: Component<{
               aria-label={t("team.create")}
               onClick={openCreate}
             />
+          </div>
+          {/* 模板（§4.1）：建好的编制可以反复用；不在主行上挤，单独一行留在左栏。 */}
+          <div class="flex items-center gap-1.5 px-1 pb-1">
+            <Button
+              variant="ghost"
+              size="small"
+              class="min-w-0 flex-1 justify-start"
+              title={t("team.profiles.hint")}
+              onClick={openProfiles}
+            >
+              {t("team.profiles.open", { count: profiles().length })}
+            </Button>
           </div>
           {/* 总控（§4.1）：项目级一档，写回 novaway.json；关闭不影响已有计划与正在跑的运行。 */}
           <div class="mx-1 mb-1 flex flex-col gap-2 rounded-lg border border-border px-2 py-2">
@@ -1061,6 +1100,346 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
             </Button>
           </div>
         </div>
+      </div>
+    </Dialog>
+  )
+}
+
+/**
+ * 团队模板（§4.1 / §5.2）。
+ *
+ * 模板是「编制」：谁当队长、队里有谁、每个人在这支队里的职责。它是可复用的资产，
+ * 不是某一次运行的一部分 —— 改了模板，已经在跑的运行仍按发起时的快照解释自己。
+ *
+ * 界面只做三件事：建、改、删。版本号可见，但不提供「回滚」：历史运行自带快照，
+ * 想比较版本去运行详情，不在这里另起一套版本管理。
+ */
+function DialogProfiles(props: { directory: string; employees: TeamEmployeeView[]; onChanged: () => void }) {
+  const dialog = useDialog()
+  const language = useLanguage()
+  const sdk = useGlobalSDK()
+  const t = (key: string, vars?: Record<string, unknown>) => language.t(key as never, vars as never)
+
+  const [list, setList] = createSignal<TeamProfileView[]>([])
+  // 员工可能刚在员工库里建好：对话框自己再拉一次，不依赖页面打开那一刻的快照。
+  const [people, setPeople] = createSignal<TeamEmployeeView[]>(props.employees)
+  const [form, setForm] = createSignal(false)
+  const [editing, setEditing] = createSignal<string>()
+  const [draft, setDraft] = createSignal({
+    name: "",
+    description: "",
+    captain: "",
+    roster: [] as Array<{ employeeID: string; duty: string }>,
+  })
+  const [confirming, setConfirming] = createSignal<string>()
+  const [busy, setBusy] = createSignal(false)
+  const [error, setError] = createSignal("")
+
+  const load = async () => {
+    try {
+      const [result, employees] = await Promise.all([
+        sdk.client.profile.list({ directory: props.directory }),
+        sdk.client.employee.list({ directory: props.directory }),
+      ])
+      setList((result.data ?? []) as TeamProfileView[])
+      setPeople((employees.data ?? []) as TeamEmployeeView[])
+      setError("")
+    } catch (err) {
+      setError(errorMessage(err))
+    }
+  }
+
+  onMount(() => {
+    void load()
+  })
+
+  const person = (employeeID: string) => people().find((item) => item.id === employeeID)
+  const picked = (employeeID: string) => draft().roster.some((entry) => entry.employeeID === employeeID)
+  const dutyOf = (employeeID: string) => draft().roster.find((entry) => entry.employeeID === employeeID)?.duty ?? ""
+
+  const openCreate = () => {
+    setEditing(undefined)
+    setDraft({ name: "", description: "", captain: "", roster: [] })
+    setError("")
+    setForm(true)
+  }
+
+  const openEdit = async (profile: TeamProfileView) => {
+    setBusy(true)
+    try {
+      const result = await sdk.client.profile.detail({ directory: props.directory, profileID: profile.id })
+      const detail = result.data as TeamProfileDetail | undefined
+      setEditing(profile.id)
+      setDraft({
+        name: detail?.profile.name ?? profile.name,
+        description: detail?.profile.description ?? "",
+        captain: detail?.profile.captainMember ?? profile.captainMember,
+        roster: (detail?.members ?? []).map((member) => ({ employeeID: member.employeeID, duty: member.duty ?? "" })),
+      })
+      setError("")
+      setForm(true)
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const toggleMember = (employeeID: string) => {
+    const current = draft()
+    if (picked(employeeID)) {
+      // 队长被移出名单时一起清掉：不能提交一个「队长不在名册里」的模板。
+      setDraft({
+        ...current,
+        roster: current.roster.filter((entry) => entry.employeeID !== employeeID),
+        captain: current.captain === employeeID ? "" : current.captain,
+      })
+      return
+    }
+    setDraft({ ...current, roster: [...current.roster, { employeeID, duty: "" }] })
+  }
+
+  const setDuty = (employeeID: string, duty: string) => {
+    const current = draft()
+    setDraft({
+      ...current,
+      roster: current.roster.map((entry) => (entry.employeeID === employeeID ? { ...entry, duty } : entry)),
+    })
+  }
+
+  const submit = async () => {
+    const value = draft()
+    const name = value.name.trim()
+    if (!name || !value.captain) {
+      setError(t("team.profiles.required"))
+      return
+    }
+    setBusy(true)
+    try {
+      const members = value.roster.map((entry) => ({
+        employeeID: entry.employeeID,
+        duty: entry.duty.trim() || undefined,
+      }))
+      if (editing()) {
+        await sdk.client.profile.update({
+          directory: props.directory,
+          profileID: editing()!,
+          name,
+          // 空串就是清空描述；版本只在真改了东西时递增（内核的语义）。
+          description: value.description.trim(),
+          captain: value.captain,
+          members,
+        })
+      } else {
+        await sdk.client.profile.create({
+          directory: props.directory,
+          name,
+          description: value.description.trim() || undefined,
+          captain: value.captain,
+          members,
+        })
+      }
+      setForm(false)
+      setError("")
+      await load()
+      props.onChanged()
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const remove = async (profileID: string) => {
+    setBusy(true)
+    try {
+      await sdk.client.profile.remove({ directory: props.directory, profileID })
+      setConfirming(undefined)
+      setError("")
+      await load()
+      props.onChanged()
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog title={t("team.profiles.title")}>
+      <div class="flex max-h-[70vh] flex-col gap-4 overflow-y-auto p-5">
+        <div class="text-12-regular leading-relaxed text-foreground-subtle">{t("team.profiles.hint")}</div>
+        <Show when={error()}>
+          <div class="text-12-regular text-destructive">{error()}</div>
+        </Show>
+
+        <Show when={!form()}>
+          <Show
+            when={list().length > 0}
+            fallback={<div class="text-ui-xs text-foreground-subtle">{t("team.profiles.empty")}</div>}
+          >
+            <div class="flex flex-col gap-2">
+              <For each={list()}>
+                {(profile) => (
+                  <div class="rounded-lg border border-border">
+                    <div class="flex items-center gap-2 px-3 py-2">
+                      <div class="min-w-0 flex-1">
+                        <div class="flex items-center gap-1.5">
+                          <span class="truncate text-14-regular">{profile.name}</span>
+                          <Tag>{t("team.profiles.version", { version: profile.version })}</Tag>
+                          <Tag>{t("team.profiles.memberCount", { count: profile.memberCount })}</Tag>
+                          <Show when={profile.autoEligible}>
+                            <Tag>{t("team.profiles.auto")}</Tag>
+                          </Show>
+                        </div>
+                        <Show when={profile.description}>
+                          {(text) => <div class="mt-0.5 truncate text-ui-xs text-foreground-subtle">{text()}</div>}
+                        </Show>
+                      </div>
+                      <Show
+                        when={confirming() === profile.id}
+                        fallback={
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="small"
+                              disabled={busy()}
+                              onClick={() => void openEdit(profile)}
+                            >
+                              {t("team.profiles.edit")}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="small"
+                              disabled={busy()}
+                              onClick={() => setConfirming(profile.id)}
+                            >
+                              {t("team.profiles.remove")}
+                            </Button>
+                          </>
+                        }
+                      >
+                        <span class="shrink-0 text-ui-xs text-foreground-subtle">
+                          {t("team.profiles.confirmRemove")}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="small"
+                          class="text-destructive"
+                          disabled={busy()}
+                          onClick={() => void remove(profile.id)}
+                        >
+                          {t("team.profiles.remove")}
+                        </Button>
+                        <Button variant="ghost" size="small" onClick={() => setConfirming(undefined)}>
+                          {t("common.cancel")}
+                        </Button>
+                      </Show>
+                    </div>
+                  </div>
+                )}
+              </For>
+            </div>
+          </Show>
+          <div class="flex items-center justify-end gap-1.5 border-t border-border pt-3">
+            <Button variant="ghost" size="small" onClick={() => dialog.close()}>
+              {t("common.close")}
+            </Button>
+            <Button variant="primary" size="small" disabled={busy()} onClick={openCreate}>
+              {t("team.profiles.new")}
+            </Button>
+          </div>
+        </Show>
+
+        <Show when={form()}>
+          <div class="flex flex-col gap-3 border-t border-border pt-3">
+            <div class="flex flex-col gap-1">
+              <label class="text-13-medium text-foreground">{t("team.profiles.name")}</label>
+              <input
+                class="flex h-9 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-primary"
+                value={draft().name}
+                placeholder={t("team.profiles.namePlaceholder")}
+                onInput={(event) => setDraft({ ...draft(), name: event.currentTarget.value })}
+              />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-13-medium text-foreground">{t("team.profiles.description")}</label>
+              <input
+                class="flex h-9 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-primary"
+                value={draft().description}
+                placeholder={t("team.profiles.descriptionPlaceholder")}
+                onInput={(event) => setDraft({ ...draft(), description: event.currentTarget.value })}
+              />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-13-medium text-foreground">{t("team.profiles.members")}</label>
+              <div class="text-ui-xs text-foreground-subtle">{t("team.profiles.membersHint")}</div>
+              <Show
+                when={people().length > 0}
+                fallback={<div class="text-ui-xs text-foreground-subtle">{t("team.profiles.noEmployees")}</div>}
+              >
+                <div class="flex max-h-64 flex-col gap-1 overflow-y-auto rounded-lg border border-border p-2">
+                  <For each={people()}>
+                    {(employee) => (
+                      <div class="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          class="shrink-0"
+                          checked={picked(employee.id)}
+                          disabled={employee.archived && !picked(employee.id)}
+                          onChange={() => toggleMember(employee.id)}
+                        />
+                        <span
+                          classList={{
+                            "min-w-0 flex-1 truncate text-14-regular": true,
+                            "text-foreground-subtlest": employee.archived,
+                          }}
+                        >
+                          {employee.name}
+                        </span>
+                        <Tag>{employee.job}</Tag>
+                        <Show when={employee.archived}>
+                          <Tag class="text-foreground-subtlest">{t("team.employees.archived")}</Tag>
+                        </Show>
+                        <Show when={picked(employee.id)}>
+                          <input
+                            class="h-8 w-40 shrink-0 rounded-[8px] border border-border bg-surface px-2 text-ui-xs text-foreground outline-none focus:border-primary"
+                            value={dutyOf(employee.id)}
+                            placeholder={t("team.profiles.dutyPlaceholder")}
+                            onInput={(event) => setDuty(employee.id, event.currentTarget.value)}
+                          />
+                        </Show>
+                      </div>
+                    )}
+                  </For>
+                </div>
+              </Show>
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-13-medium text-foreground">{t("team.profiles.captain")}</label>
+              <select
+                class="h-9 w-full rounded-[8px] border border-border bg-surface px-2 text-14-regular text-foreground outline-none"
+                value={draft().captain}
+                onChange={(event) => setDraft({ ...draft(), captain: event.currentTarget.value })}
+              >
+                <option value="">{t("team.profiles.captainPlaceholder")}</option>
+                <For each={draft().roster}>
+                  {(entry) => (
+                    <option value={entry.employeeID}>{person(entry.employeeID)?.name ?? entry.employeeID}</option>
+                  )}
+                </For>
+              </select>
+            </div>
+            <div class="flex items-center justify-end gap-1.5">
+              <Button variant="ghost" size="small" onClick={() => setForm(false)}>
+                {t("common.cancel")}
+              </Button>
+              <Button variant="primary" size="small" disabled={busy()} onClick={() => void submit()}>
+                {editing() ? t("common.save") : t("team.profiles.create")}
+              </Button>
+            </div>
+          </div>
+        </Show>
       </div>
     </Dialog>
   )
