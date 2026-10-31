@@ -485,6 +485,8 @@ import type {
   RunPlanResponses,
   RunPolicyErrors,
   RunPolicyResponses,
+  RunReplayErrors,
+  RunReplayResponses,
   RunWorktreesRemoveErrors,
   RunWorktreesRemoveResponses,
   SessionAbortErrors,
@@ -14480,6 +14482,38 @@ export class Run2 extends HeyApiClient {
     )
     return (options?.client ?? this.client).get<RunEventsResponses, RunEventsErrors, ThrowOnError>({
       url: "/run/{runID}/events",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Replay the decision chain
+   *
+   * Rebuilds, from the append-only event log plus the verification table, why this run reached its verdict: ordered steps, per-acceptance evidence (pass / fail / unverified / stale kept apart), and whether every pass is backed by an event. This is replay, not re-execution: it never claims a re-run would produce the same result.
+   */
+  public replay<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<RunReplayResponses, RunReplayErrors, ThrowOnError>({
+      url: "/run/{runID}/replay",
       ...options,
       ...params,
     })

@@ -4,6 +4,7 @@ import type {
   RunDetail,
   RunEventView,
   RunMetricsView,
+  RunReplayView,
   RunView,
   TeamProfileView,
 } from "@novaway/sdk/v2"
@@ -77,6 +78,11 @@ export const RunPage: Component<{
   const [showMetrics, setShowMetrics] = createSignal(false)
   const [metrics, setMetrics] = createSignal<RunMetricsView | undefined>(undefined)
   const [loadingMetrics, setLoadingMetrics] = createSignal(false)
+  // 决策链回放（§12）：按需加载；记住锁属哪次运行，切换运行时不会张冠李戴。
+  const [showReplay, setShowReplay] = createSignal(false)
+  const [replay, setReplay] = createSignal<RunReplayView | undefined>(undefined)
+  const [replayRunID, setReplayRunID] = createSignal<string | undefined>(undefined)
+  const [loadingReplay, setLoadingReplay] = createSignal(false)
   const NEW_MISSION = "__new"
 
   const loadRuns = async (select?: string) => {
@@ -139,6 +145,36 @@ export const RunPage: Component<{
     } finally {
       setLoadingMetrics(false)
     }
+  }
+
+  /**
+   * 决策链回放（§12）。
+   *
+   * 与事件流同一份日志，但回答的是另一个问题：「为什么它认为完成了」。
+   * 读失败只影响这个面板，不盖掉运行本身的错误提示 —— 回放是补充证据，不是判据。
+   */
+  const loadReplay = async (runID: string) => {
+    setLoadingReplay(true)
+    try {
+      const result = await sdk.client.run.replay({ runID, directory: props.directory })
+      if (selected() !== runID) return
+      setReplay((result.data ?? undefined) as RunReplayView | undefined)
+      setReplayRunID(runID)
+    } catch {
+      setReplay(undefined)
+      setReplayRunID(runID)
+    } finally {
+      setLoadingReplay(false)
+    }
+  }
+
+  const toggleReplay = async (runID: string) => {
+    if (showReplay()) {
+      setShowReplay(false)
+      return
+    }
+    setShowReplay(true)
+    if (replayRunID() !== runID) await loadReplay(runID)
   }
 
   const toggleMetrics = () => {
@@ -398,6 +434,9 @@ export const RunPage: Component<{
     // 指标是慢变量：只在这个面板展开时刷新，且频率比看板低。
     const metricsTimer = setInterval(() => {
       if (showMetrics()) void loadMetrics()
+      // 回放会随轮次增长：展开时跟着慢轮询刷新，收起时完全不发请求。
+      const runID = selected()
+      if (showReplay() && runID) void loadReplay(runID)
     }, 15000)
     onCleanup(() => clearInterval(timer))
     onCleanup(() => clearInterval(metricsTimer))
@@ -1140,6 +1179,68 @@ export const RunPage: Component<{
                         </Show>
                         <div class="text-ui-xs text-foreground-subtlest">{t("run.events.hint")}</div>
                       </div>
+                    </Show>
+                  </div>
+                  {/*
+                    决策链回放（§12）：回答「为什么它认为完成了」。
+                    和「重跑」不是一回事（§8.5）—— 文案里不承诺重新执行会得到同样结果。
+                  */}
+                  <div class="flex flex-col gap-1.5">
+                    <Button
+                      variant="ghost"
+                      size="small"
+                      class="justify-start"
+                      disabled={loadingReplay()}
+                      onClick={() => void toggleReplay(data().run.id)}
+                    >
+                      <Icon name={showReplay() ? "chevron-down" : "chevron-right"} size="small" />
+                      {t("run.replay.toggle")}
+                    </Button>
+                    <Show when={showReplay() && replayRunID() === data().run.id && replay()}>
+                      {(chain) => (
+                        <div class="flex flex-col gap-2 rounded-lg border border-border px-3 py-2">
+                          <div class="flex flex-wrap items-center gap-1.5">
+                            <Tag>{stateLabel(chain().conclusion.state)}</Tag>
+                            <Tag>{t(`run.replay.verdict.${chain().conclusion.verdict}`)}</Tag>
+                            <span class="text-ui-xs text-foreground-subtle">
+                              {t("run.replay.counts", {
+                                pass: numeric(chain().conclusion.counts.pass),
+                                fail: numeric(chain().conclusion.counts.fail),
+                                unverified: numeric(chain().conclusion.counts.unverified),
+                                stale: numeric(chain().conclusion.counts.stale),
+                              })}
+                            </span>
+                          </div>
+                          {/* 必须照实说的边界：未验证/过期不计入通过、结论是否有事件背书。 */}
+                          <For each={chain().conclusion.notes}>
+                            {(note) => <div class="text-ui-xs text-warning">{note}</div>}
+                          </For>
+                          <Show when={chain().steps.length > 0}>
+                            <div class="flex max-h-64 flex-col gap-0.5 overflow-y-auto">
+                              <For each={chain().steps}>
+                                {(step) => (
+                                  <div class="flex items-center gap-2 text-ui-xs text-foreground-subtle">
+                                    <span class="w-10 shrink-0 text-foreground-subtlest">{"#" + numeric(step.seq)}</span>
+                                    <span class="min-w-0 flex-1 truncate">{step.kind}</span>
+                                    <Show when={step.teamID}>
+                                      {(teamID) => <span class="shrink-0 text-foreground-subtlest">{teamID()}</span>}
+                                    </Show>
+                                    <Show when={step.round !== undefined}>
+                                      <span class="shrink-0 text-foreground-subtlest">
+                                        {t("run.replay.round", { round: numeric(step.round!) })}
+                                      </span>
+                                    </Show>
+                                    <Show when={step.outcome}>
+                                      {(outcome) => <Tag>{outcome()}</Tag>}
+                                    </Show>
+                                  </div>
+                                )}
+                              </For>
+                            </div>
+                          </Show>
+                          <div class="text-ui-xs text-foreground-subtlest">{t("run.replay.hint")}</div>
+                        </div>
+                      )}
                     </Show>
                   </div>
                 </div>

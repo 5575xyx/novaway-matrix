@@ -159,6 +159,42 @@ export const layer = Layer.effect(
       if (run.state === "running" && run.phase)
         return yield* Effect.die(new Error("run already executing: " + run.phase))
 
+      /**
+       * 记一条验证结论，并同时写进事件流（§5.6 的 `verification.recorded`）。
+       *
+       * 设计原文把验证列为事件类型，而此前只有验证表 —— 表和事件各说一半，
+       * 回放决策链时就必须再去猜「这条结论是第几轮得出的」。事件里只带结构字段，
+       * 不带 `measured` 全文（那是给人看的原文，可能很长）。
+       */
+      const recordVerification = (entry: {
+        acceptanceID: string
+        snapshotID: string
+        verifierVersion: string
+        outcome: "pass" | "fail" | "unverified"
+        measured?: string
+        evidenceRef?: string
+        attempt: number
+        /** 这条验收归谁：团队 id，或全局验收时为运行 id。 */
+        owner?: string
+      }) =>
+        Effect.gen(function* () {
+          const saved = yield* verification.record(entry)
+          yield* runs.appendEvent({
+            runID: input.runID,
+            kind: "verification.recorded",
+            payload: {
+              acceptanceID: entry.acceptanceID,
+              attempt: entry.attempt,
+              outcome: entry.outcome,
+              snapshotID: entry.snapshotID,
+              verifierVersion: entry.verifierVersion,
+              ...(entry.owner ? { owner: entry.owner } : {}),
+              ...(entry.evidenceRef ? { hasEvidence: true } : {}),
+            },
+          })
+          return saved
+        })
+
       const cap = { tokens: run.budget?.tokens ?? 0 }
       const reserveTokens = input.reserveTokens ?? 4000
       const maxRounds = input.maxRounds ?? 3
@@ -299,18 +335,19 @@ export const layer = Layer.effect(
             const result = yield* Effect.exit(input.verify({ acceptance, report, team, round }))
             if (Exit.isFailure(result)) {
               // 验证器本身出错 -> 未验证，而不是失败，更不是通过。
-              yield* verification.record({
+              yield* recordVerification({
                 acceptanceID: acceptance.id,
                 snapshotID: snapshot,
                 verifierVersion: "verifier-error",
                 outcome: "unverified",
                 measured: message(result.cause),
                 attempt: round,
+                owner: team.id,
               })
               continue
             }
             yield* chargeVerification(team.id, result.value)
-            yield* verification.record({
+            yield* recordVerification({
               acceptanceID: acceptance.id,
               snapshotID: result.value.snapshotID ?? snapshot,
               verifierVersion: result.value.verifierVersion ?? "v1",
@@ -318,6 +355,7 @@ export const layer = Layer.effect(
               measured: result.value.measured,
               evidenceRef: result.value.evidenceRef,
               attempt: round,
+              owner: team.id,
             })
           }
 
@@ -557,7 +595,7 @@ export const layer = Layer.effect(
           ) =>
             Effect.gen(function* () {
               if (Exit.isSuccess(result)) yield* chargeVerification(teamID, result.value)
-              yield* verification.record({
+              yield* recordVerification({
                 acceptanceID: acceptance.id,
                 snapshotID: Exit.isSuccess(result) ? (result.value.snapshotID ?? snapshot) : snapshot,
                 verifierVersion: Exit.isSuccess(result)
@@ -567,19 +605,21 @@ export const layer = Layer.effect(
                 measured: Exit.isSuccess(result) ? result.value.measured : message(result.cause),
                 evidenceRef: Exit.isSuccess(result) ? result.value.evidenceRef : undefined,
                 attempt: rounds + 1,
+                owner: teamID,
               })
             })
 
           for (const acceptance of acceptances) {
             if (!acceptance.owner) {
               if (!input.verifyMerged) {
-                yield* verification.record({
+                yield* recordVerification({
                   acceptanceID: acceptance.id,
                   snapshotID: snapshot,
                   verifierVersion: "none",
                   outcome: "unverified",
                   measured: "未配置合并验收验证器",
                   attempt: rounds + 1,
+                  owner: input.runID,
                 })
                 continue
               }
@@ -591,13 +631,14 @@ export const layer = Layer.effect(
             }
             const team = teamByID.get(acceptance.owner)
             if (!team) {
-              yield* verification.record({
+              yield* recordVerification({
                 acceptanceID: acceptance.id,
                 snapshotID: snapshot,
                 verifierVersion: "none",
                 outcome: "unverified",
                 measured: "验收归属的团队不在本次运行中",
                 attempt: rounds + 1,
+                owner: input.runID,
               })
               continue
             }

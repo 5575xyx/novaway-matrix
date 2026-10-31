@@ -24,6 +24,7 @@ import { attachMission, prepareWorktree } from "@/team/setup"
 import * as TeamSwitch from "@/team/switch"
 import * as TeamBlockers from "@/team/blockers"
 import * as TeamMetrics from "@/team/metrics"
+import * as TeamReplay from "@/team/replay"
 import { Config as ConfigService } from "@/config/config"
 import {
   forkPoint,
@@ -297,6 +298,24 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               .filter((run) => !teamID || (run.plan?.teams ?? []).some((team) => team.profileID === teamID))
               .map(toRun)
           )
+        }),
+      )
+      .handle("runReplay", (ctx) =>
+        Effect.gen(function* () {
+          const run = yield* requireRun(ctx.params.runID, ctx.query.directory)
+          const [events, acceptances, verifications] = yield* Effect.all([
+            runs.events({ runID: run.id }),
+            verification.list(run.id),
+            verification.verifications(run.id),
+          ])
+          // 回放是纯函数：事件 + 验证表 → 决策链与它的依据。这里不做任何补全，
+          // 缺什么就在 `notes` 里说出来（旧运行没有验证事件时尤其如此）。
+          return TeamReplay.replay({
+            state: run.state,
+            events,
+            acceptances,
+            verifications,
+          })
         }),
       )
       .handle("runMetrics", (ctx) =>

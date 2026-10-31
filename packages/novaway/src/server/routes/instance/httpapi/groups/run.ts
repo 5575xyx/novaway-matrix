@@ -64,6 +64,62 @@ export const RunMetricsQuery = Schema.Struct({
   limit: Schema.optional(Schema.Number),
 })
 
+export const RunReplayStep = Schema.Struct({
+  seq: Schema.Number,
+  at: Schema.Number,
+  /** 事件种类原样保留；不认识的种类也留在链上，只是不带任何 payload。 */
+  kind: Schema.String,
+  teamID: Schema.optional(Schema.String),
+  round: Schema.optional(Schema.Number),
+  attempt: Schema.optional(Schema.Number),
+  acceptanceID: Schema.optional(Schema.String),
+  outcome: Schema.optional(Schema.String),
+  snapshotID: Schema.optional(Schema.String),
+  verifierVersion: Schema.optional(Schema.String),
+  /** 计数类字段（claims / acceptance / merged 条数），具体内容不回放。 */
+  count: Schema.optional(Schema.Number),
+  reason: Schema.optional(Schema.String),
+  leaseEpoch: Schema.optional(Schema.Number),
+}).annotate({ identifier: "RunReplayStep" })
+
+/**
+ * 决策链回放（§12）：回答「为什么它认为完成了」。
+ *
+ * 与「重跑」不是一回事（§8.5）：回放只还原当时的事件与证据，
+ * 不保证重新执行会得到相同结果。`evidence` 说明结论是否有事件流背书 ——
+ * 旧版本运行只有验证表、没有 `verification.recorded` 事件时会是 `absent`。
+ */
+export const RunReplayView = Schema.Struct({
+  source: Schema.Literals(["events", "empty"]),
+  steps: Schema.Array(RunReplayStep),
+  conclusion: Schema.Struct({
+    state: Schema.String,
+    verdict: Schema.Literals(["complete", "partial", "failed"]),
+    deliverable: Schema.Boolean,
+    lines: Schema.Array(
+      Schema.Struct({
+        acceptanceID: Schema.String,
+        text: Schema.String,
+        /** `unverified` / `stale` 永远不计入通过。 */
+        outcome: Schema.String,
+        snapshotID: Schema.optional(Schema.String),
+        verifierVersion: Schema.optional(Schema.String),
+        attempt: Schema.optional(Schema.Number),
+        at: Schema.optional(Schema.Number),
+      }),
+    ),
+    counts: Schema.Struct({
+      pass: Schema.Number,
+      fail: Schema.Number,
+      unverified: Schema.Number,
+      stale: Schema.Number,
+    }),
+    evidence: Schema.Literals(["complete", "partial", "absent"]),
+    /** 必须照实说的边界，界面直接显示。 */
+    notes: Schema.Array(Schema.String),
+  }),
+}).annotate({ identifier: "RunReplayView" })
+
 export const RunBudget = Schema.Struct({
   tokens: Schema.optional(Schema.Number),
   cost: Schema.optional(Schema.Number),
@@ -487,6 +543,19 @@ export const RunApi = HttpApiGroup.make("run")
         identifier: "run.events",
         summary: "Run events",
         description: "Append-only event log used for replay and audit.",
+      }),
+    ),
+    HttpApiEndpoint.get("runReplay", `${root}/:runID/replay`, {
+      params: { runID: Schema.String },
+      query: WorkspaceRoutingQuery,
+      success: described(RunReplayView, "Decision chain and its evidence"),
+      error: [HttpApiError.NotFound],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "run.replay",
+        summary: "Replay the decision chain",
+        description:
+          "Rebuilds, from the append-only event log plus the verification table, why this run reached its verdict: ordered steps, per-acceptance evidence (pass / fail / unverified / stale kept apart), and whether every pass is backed by an event. This is replay, not re-execution: it never claims a re-run would produce the same result.",
       }),
     ),
   )

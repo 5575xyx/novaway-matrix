@@ -3861,6 +3861,49 @@ export type RunEventView = {
   payload?: unknown
 }
 
+export type RunReplayStep = {
+  seq: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  kind: string
+  teamID?: string
+  round?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  attempt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  acceptanceID?: string
+  outcome?: string
+  snapshotID?: string
+  verifierVersion?: string
+  count?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  reason?: string
+  leaseEpoch?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type RunReplayView = {
+  source: "events" | "empty"
+  steps: Array<RunReplayStep>
+  conclusion: {
+    state: string
+    verdict: "complete" | "partial" | "failed"
+    deliverable: boolean
+    lines: Array<{
+      acceptanceID: string
+      text: string
+      outcome: string
+      snapshotID?: string
+      verifierVersion?: string
+      attempt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      at?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }>
+    counts: {
+      pass: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      fail: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      unverified: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      stale: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+    evidence: "complete" | "partial" | "absent"
+    notes: Array<string>
+  }
+}
+
 export type PlanApprovalPending2 = {
   id: PlanRequestId
   sessionID: string
@@ -18232,6 +18275,36 @@ export type RunEventsResponses = {
 }
 
 export type RunEventsResponse = RunEventsResponses[keyof RunEventsResponses]
+
+export type RunReplayData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/run/{runID}/replay"
+}
+
+export type RunReplayErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type RunReplayError = RunReplayErrors[keyof RunReplayErrors]
+
+export type RunReplayResponses = {
+  /**
+   * Decision chain and its evidence
+   */
+  200: RunReplayView
+}
+
+export type RunReplayResponse = RunReplayResponses[keyof RunReplayResponses]
 
 export type PtyConnectData = {
   body?: never

@@ -494,6 +494,52 @@ describe("team HttpApi", () => {
     }),
   )
 
+  it.live("replay explains the decision chain and keeps unverified out of pass", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped({ git: true })
+      type Replay = {
+        source: string
+        steps: Array<{ seq: number; kind: string; teamID?: string; acceptanceID?: string; outcome?: string }>
+        conclusion: {
+          state: string
+          verdict: string
+          deliverable: boolean
+          lines: Array<{ acceptanceID: string; outcome: string }>
+          counts: { pass: number; fail: number; unverified: number; stale: number }
+          evidence: string
+          notes: string[]
+        }
+      }
+
+      const profiles = (yield* (yield* get(dir, "/team/profile", dir)).json) as Array<{ id: string }>
+      const created = (yield* (
+        yield* post(dir, "/run", {
+          sessionID: "ses_replay",
+          directory: dir,
+          mode: "team",
+          goal: "审查",
+          profileID: profiles[0].id,
+          acceptance: [{ text: "没有高危问题" }],
+        })
+      ).json) as { run: { id: string } }
+      const runID = created.run.id
+
+      // 刚建好的运行：事件有（plan.created 等），但还没有任何验证结论。
+      const initial = (yield* (yield* get(dir, `/run/${runID}/replay`, dir)).json) as Replay
+      expect(initial.source).toBe("events")
+      expect(initial.steps.length).toBeGreaterThan(0)
+      // 验收项存在但没有验证记录 → unverified，绝不计入 pass。
+      expect(initial.conclusion.counts).toEqual({ pass: 0, fail: 0, unverified: 1, stale: 0 })
+      expect(initial.conclusion.deliverable).toBe(false)
+      expect(initial.conclusion.lines[0].outcome).toBe("unverified")
+      // 事件里没有任何 pass，就不该声称「证据来自验证表」式的错话。
+      expect(initial.conclusion.evidence).toBe("complete")
+
+      // 查不到的运行是 404，而不是一条空链。
+      expect((yield* get(dir, "/run/run_missing/replay", dir)).status).toBe(404)
+    }),
+  )
+
   it.live("the team page can flip one orchestration switch without dropping the other", () =>
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped({ git: true })
